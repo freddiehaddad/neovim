@@ -907,7 +907,7 @@ unsafe fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> c_int {
 unsafe fn lua_check_self_reference(
     lstate: *mut lua_State,
     container: MPContainerRef,
-    val_copy_id: *mut c_int,
+    val_copy_id: &mut c_int,
     mpstack: &[MPConvStackVal],
     copy_id: c_int,
 ) -> c_int {

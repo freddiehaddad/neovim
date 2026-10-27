@@ -1133,10 +1133,10 @@ pub unsafe fn curs_columns(wp: *mut win_T, may_scroll: c_int) {
 pub unsafe fn textpos2screenpos(
     wp: &mut win_T,
     pos: &mut pos_T,
-    rowp: *mut c_int,
-    scolp: *mut c_int,
-    ccolp: *mut c_int,
-    ecolp: *mut c_int,
+    rowp: &mut c_int,
+    scolp: &mut c_int,
+    ccolp: &mut c_int,
+    ecolp: &mut c_int,
     local: bool,
 ) {
     unsafe {
@@ -1258,10 +1258,10 @@ pub unsafe fn f_screenpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         textpos2screenpos(
             &mut *wp,
             &mut pos,
-            &raw mut row,
-            &raw mut scol,
-            &raw mut ccol,
-            &raw mut ecol,
+            &mut row,
+            &mut scol,
+            &mut ccol,
+            &mut ecol,
             false,
         );
 
@@ -2515,7 +2515,7 @@ unsafe fn get_scroll_overlap(dir: Direction) -> c_int {
 }
 
 /// Scroll `count` lines with `'smoothscroll'` in direction `dir`.
-unsafe fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: *mut c_int) -> bool {
+unsafe fn scroll_with_sms(dir: Direction, mut count: c_int, curscount: &mut c_int) -> bool {
     unsafe {
         let prev_sms = (**curwin.as_ptr()).w_onebuf_opt.wo_sms;
         let prev_skipcol = (**curwin.as_ptr()).w_skipcol;
@@ -2598,7 +2598,7 @@ pub unsafe fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int 
             }
 
             if count > 0 {
-                did_move = scroll_with_sms(dir, count, &raw mut curscount);
+                did_move = scroll_with_sms(dir, count, &mut curscount);
                 (**curwin.as_ptr()).w_cursor.lnum = prev_lnum;
                 (**curwin.as_ptr()).w_cursor.col = prev_col;
                 (**curwin.as_ptr()).w_curswant = prev_curswant;
@@ -2618,7 +2618,7 @@ pub unsafe fn pagescroll(dir: Direction, mut count: c_int, half: bool) -> c_int 
             } else {
                 get_scroll_overlap(dir)
             };
-            did_move = scroll_with_sms(dir, count, &raw mut count);
+            did_move = scroll_with_sms(dir, count, &mut count);
 
             if did_move {
                 validate_botline_win(*curwin.as_ptr());

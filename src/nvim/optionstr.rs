@@ -3791,7 +3791,7 @@ unsafe fn get_encoded_char_adv(p: *mut *const c_char) -> schar_T {
 
         let clen = utfc_ptr2len(s);
         let mut firstc: c_int = 0;
-        let c = utfc_ptr2schar(s, &raw mut firstc);
+        let c = utfc_ptr2schar(s, &mut firstc);
         *p = (*p).add(clen as usize);
         if (clen == 1 && firstc > 127) || char2cells(firstc) > 1 {
             0

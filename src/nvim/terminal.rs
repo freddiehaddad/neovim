@@ -1962,7 +1962,7 @@ unsafe fn term_bell(_data: *mut Terminal) -> c_int {
     1
 }
 
-unsafe fn term_theme(dark: *mut bool, _data: *mut Terminal) -> c_int {
+unsafe fn term_theme(dark: &mut bool, _data: *mut Terminal) -> c_int {
     unsafe {
         *dark = *opt_vars().p_bg == b'd' as c_char;
     }
@@ -2123,7 +2123,7 @@ unsafe fn term_selection_set(
     }
 }
 
-unsafe fn convert_modifiers(key: *mut c_int, modifiers: c_int, statep: *mut VTermModifier) {
+unsafe fn convert_modifiers(key: &mut c_int, modifiers: c_int, statep: *mut VTermModifier) {
     unsafe {
         if (modifiers & c_int::from(MOD_MASK_SHIFT)) != 0 {
             *statep |= VTERM_MOD_SHIFT;
@@ -2144,7 +2144,7 @@ unsafe fn convert_modifiers(key: *mut c_int, modifiers: c_int, statep: *mut VTer
 }
 
 unsafe fn convert_key(
-    key: *mut c_int,
+    key: &mut c_int,
     mut modifiers: c_int,
     statep: *mut VTermModifier,
 ) -> VTermKey {

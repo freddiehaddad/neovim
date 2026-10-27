@@ -660,7 +660,7 @@ pub unsafe fn msg_multihl(
     history: bool,
     err: bool,
     msg_data: *mut MessageData,
-    needs_msg_clear: *mut bool,
+    needs_msg_clear: &mut bool,
     raw_for_lua_print: bool,
 ) -> MsgID {
     unsafe {
@@ -1412,7 +1412,7 @@ pub unsafe fn msg_with_id(
             false,
             err,
             data,
-            &raw mut clear,
+            &mut clear,
             false,
         );
         ui_flush();
@@ -1765,7 +1765,7 @@ pub unsafe fn ex_messages(eap: &mut exarg_T) {
                     false,
                     false,
                     ptr::null_mut(),
-                    &raw mut needs_clear,
+                    &mut needs_clear,
                     false,
                 );
                 g_st().msg_silent -= c_int::from(ui_has(kUIMessages));
@@ -2915,7 +2915,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
         loop {
             if g_st().msg_col >= g_st().Columns {
                 if opt_vars().p_more != 0 && recurse == 0 {
-                    store_sb_text(&raw mut sb_str, s, hl_id, &raw mut sb_col, 1);
+                    store_sb_text(&raw mut sb_str, s, hl_id, &mut sb_col, 1);
                 }
                 if g_st().msg_no_more && g_st().lines_left == 0 {
                     break;
@@ -3000,7 +3000,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
                     g_st().msg_col = 0;
                     g_st().msg_row += 1;
                     if opt_vars().p_more != 0 && recurse == 0 {
-                        store_sb_text(&raw mut sb_str, s, hl_id, &raw mut sb_col, 1);
+                        store_sb_text(&raw mut sb_str, s, hl_id, &mut sb_col, 1);
                     }
                 } else if c == CAR as c_char {
                     g_st().msg_col = 0;
@@ -3029,7 +3029,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
         msg_cursor_goto(g_st().msg_row, g_st().msg_col);
 
         if opt_vars().p_more != 0 && recurse == 0 {
-            store_sb_text(&raw mut sb_str, s, hl_id, &raw mut sb_col, 0);
+            store_sb_text(&raw mut sb_str, s, hl_id, &mut sb_col, 0);
         }
 
         msg_check();
@@ -3050,7 +3050,7 @@ pub unsafe fn msg_cursor_goto(mut row: c_int, mut col: c_int) {
         if g_st().cmdmsg_rl {
             col = g_st().Columns - 1 - col;
         }
-        let grid = grid_adjust(&raw mut g_st().msg_grid_adj, &raw mut row, &raw mut col);
+        let grid = grid_adjust(&raw mut g_st().msg_grid_adj, &mut row, &mut col);
         ui_grid_cursor_goto((*grid).handle, row, col);
     }
 }
@@ -3251,7 +3251,7 @@ unsafe fn store_sb_text(
     sb_str: *mut *const c_char,
     s: *const c_char,
     hl_id: c_int,
-    sb_col: *mut c_int,
+    sb_col: &mut c_int,
     finish: c_int,
 ) {
     unsafe {

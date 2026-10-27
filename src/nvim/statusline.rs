@@ -548,7 +548,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             };
             row = -1;
             col = 0;
-            grid = grid_adjust(&raw mut (*wp).w_grid, &raw mut row, &raw mut col);
+            grid = grid_adjust(&raw mut (*wp).w_grid, &mut row, &mut col);
 
             if row < 0 {
                 stl_st().stl_expr_entered = false;
@@ -594,7 +594,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             }
             row = g_st().Rows - 1;
             col = g_st().ru_col.max(g_st().Columns / 2);
-            grid = grid_adjust(&raw mut g_st().msg_grid_adj, &raw mut row, &raw mut col);
+            grid = grid_adjust(&raw mut g_st().msg_grid_adj, &mut row, &mut col);
             maxwidth = g_st().Columns - col;
             fillchar = schar_from_ascii(b' ');
             group = HLF_MSG;
@@ -1189,13 +1189,13 @@ pub unsafe fn build_statuscol_str(
 
 /// Truncates the statusline at the first truncation marker (`%<`) if present.
 unsafe fn stl_truncate(
-    width: *mut c_int,
+    width: &mut c_int,
     mut minwid: c_int,
     maxwid: c_int,
     fillchar: schar_T,
     stl_items: &mut [stl_item_t],
     startitem: c_int,
-    curitem: *mut c_int,
+    curitem: &mut c_int,
     start_p: *mut c_char,
     out_p: *mut *mut c_char,
 ) {
@@ -1284,7 +1284,7 @@ unsafe fn stl_truncate(
 /// Expands the statusline at separation markers (`%=`) if present,
 /// or otherwise according to padding choice.
 unsafe fn stl_expand(
-    width: *mut c_int,
+    width: &mut c_int,
     target_width: c_int,
     padding: StlPadding,
     remaining_capacity: c_int,
@@ -1619,19 +1619,19 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     && stl_items!()[gidx as usize].type_ != StlItemType::HighlightFold
                 {
                     stl_truncate(
-                        &raw mut group_len,
+                        &mut group_len,
                         minwid,
                         maxwid,
                         fillchar,
                         stl_items!(),
                         gidx + 1,
-                        &raw mut stl_st().curitem,
+                        &mut stl_st().curitem,
                         t,
                         &raw mut out_p,
                     );
                 } else if minwid > group_len {
                     stl_expand(
-                        &raw mut group_len,
+                        &mut group_len,
                         minwid,
                         padding,
                         out_end_p.offset_from(out_p) as c_int,
@@ -2453,19 +2453,19 @@ pub unsafe extern "C" fn build_stl_str_hl(
         let mut width = vim_strsize(out.data);
         if maxwidth > 0 && width > maxwidth && (stcp.is_null() || width > MAX_STCWIDTH) {
             stl_truncate(
-                &raw mut width,
+                &mut width,
                 0,
                 maxwidth,
                 fillchar,
                 stl_items!(),
                 evalstart,
-                &raw mut stl_st().curitem,
+                &mut stl_st().curitem,
                 out.data,
                 &raw mut out_p,
             );
         } else if width < maxwidth {
             stl_expand(
-                &raw mut width,
+                &mut width,
                 maxwidth,
                 StlPadding::kPaddingNone,
                 out_end_p.offset_from(out_p) as c_int,

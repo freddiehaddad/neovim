@@ -549,7 +549,7 @@ pub unsafe fn internal_format(
 
 unsafe fn fmt_check_par(
     lnum: linenr_T,
-    leader_len: *mut c_int,
+    leader_len: &mut c_int,
     leader_flags: *mut *mut c_char,
     do_comments: bool,
 ) -> bool {
@@ -672,7 +672,7 @@ unsafe fn paragraph_start(lnum: linenr_T) -> bool {
         let do_comments = has_format_option(kFoQComs);
         if fmt_check_par(
             lnum - 1,
-            &raw mut leader_len,
+            &mut leader_len,
             &raw mut leader_flags,
             do_comments,
         ) {
@@ -681,7 +681,7 @@ unsafe fn paragraph_start(lnum: linenr_T) -> bool {
 
         if fmt_check_par(
             lnum,
-            &raw mut next_leader_len,
+            &mut next_leader_len,
             &raw mut next_leader_flags,
             do_comments,
         ) {
@@ -957,7 +957,7 @@ pub unsafe fn format_lines(line_count: linenr_T, avoid_fex: bool) {
         if (**curwin.as_ptr()).w_cursor.lnum > 1 {
             is_not_par = fmt_check_par(
                 (**curwin.as_ptr()).w_cursor.lnum - 1,
-                &raw mut leader_len,
+                &mut leader_len,
                 &raw mut leader_flags,
                 do_comments,
             );
@@ -966,7 +966,7 @@ pub unsafe fn format_lines(line_count: linenr_T, avoid_fex: bool) {
         }
         next_is_not_par = fmt_check_par(
             (**curwin.as_ptr()).w_cursor.lnum,
-            &raw mut next_leader_len,
+            &mut next_leader_len,
             &raw mut next_leader_flags,
             do_comments,
         );
@@ -995,7 +995,7 @@ pub unsafe fn format_lines(line_count: linenr_T, avoid_fex: bool) {
             } else {
                 next_is_not_par = fmt_check_par(
                     (**curwin.as_ptr()).w_cursor.lnum + 1,
-                    &raw mut next_leader_len,
+                    &mut next_leader_len,
                     &raw mut next_leader_flags,
                     do_comments,
                 );

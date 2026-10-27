@@ -1712,10 +1712,9 @@ pub unsafe fn rewind_conditionals(
     cstack: &mut cstack_T,
     idx: c_int,
     cond_type: c_int,
-    cond_level: *mut c_int,
+    cond_level: &mut c_int,
 ) {
-    unsafe {
-        while cstack.cs_idx > idx {
+    while cstack.cs_idx > idx {
             let cur_idx = cstack.cs_idx as usize;
             if (cstack.cs_flags[cur_idx] & cond_type) != 0 {
                 *cond_level -= 1;
@@ -1725,7 +1724,6 @@ pub unsafe fn rewind_conditionals(
             }
             cstack.cs_idx -= 1;
         }
-    }
 }
 
 pub unsafe fn ex_endfunction(_eap: &mut exarg_T) {

@@ -2680,8 +2680,8 @@ pub unsafe fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_char, mut len:
             mb_utflen(
                 ptr,
                 len as usize,
-                &raw mut (*buf).deleted_codepoints,
-                &raw mut (*buf).deleted_codeunits,
+                &mut (*buf).deleted_codepoints,
+                &mut (*buf).deleted_codeunits,
             );
             (*buf).deleted_codepoints += 1;
             (*buf).deleted_codeunits += 1;
@@ -3019,8 +3019,8 @@ pub unsafe fn ml_clearmarked() {
 
 pub unsafe fn ml_flush_deleted_bytes(
     buf: *mut buf_T,
-    codepoints: *mut usize,
-    codeunits: *mut usize,
+    codepoints: &mut usize,
+    codeunits: &mut usize,
 ) -> usize {
     unsafe {
         let ret = (*buf).deleted_bytes;

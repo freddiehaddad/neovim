@@ -342,7 +342,7 @@ unsafe fn put_view(
     wp: *mut win_T,
     tp: &mut tabpage_T,
     add_edit: bool,
-    flagp: *mut c_uint,
+    flagp: &mut c_uint,
     current_arg_idx: c_int,
 ) -> c_int {
     unsafe {
@@ -360,11 +360,11 @@ unsafe fn put_view(
                 fd,
                 c"arglocal".as_ptr(),
                 &(*alist).al_ga,
-                ptr::eq(flagp, &raw mut opt_vars().vop_flags)
+                ptr::eq(&raw mut *flagp, &raw mut opt_vars().vop_flags)
                     || (*flagp & kOptSsopFlagCurdir) == 0
                     || tp.tp_localdir.is_some()
                     || (*wp).w_localdir.is_some(),
-                flagp,
+                &raw mut *flagp,
             ) == FAIL
             {
                 return FAIL;
@@ -383,7 +383,7 @@ unsafe fn put_view(
         }
 
         if add_edit && (!did_next || (*wp).w_arg_idx_invalid) {
-            let fname_esc = ses_escape_fname(ses_get_fname((*wp).w_buffer, flagp), flagp);
+            let fname_esc = ses_escape_fname(ses_get_fname((*wp).w_buffer, &raw mut *flagp), &raw mut *flagp);
             if bt_help((*wp).w_buffer) {
                 let mut curtag: *const c_char = c"".as_ptr();
                 if 0 < (*wp).w_tagstackidx && (*wp).w_tagstackidx <= (*wp).w_tagstacklen {
@@ -432,7 +432,7 @@ unsafe fn put_view(
                 && *(*alt).b_fname != NUL
                 && (*alt).b_p_bl != 0
                 && !(bt_terminal(alt) && (opt_vars().ssop_flags & kOptSsopFlagTerminal) == 0)
-                && (fputs(c"balt ".as_ptr(), fd) < 0 || ses_fname(fd, alt, flagp, true) == FAIL)
+                && (fputs(c"balt ".as_ptr(), fd) < 0 || ses_fname(fd, alt, &raw mut *flagp, true) == FAIL)
             {
                 return FAIL;
             }
@@ -528,7 +528,7 @@ unsafe fn put_view(
             && (!ptr::eq(flagp, &raw mut opt_vars().vop_flags) || (*flagp & kOptSsopFlagCurdir) != 0)
         {
             if fputs(c"lcd ".as_ptr(), fd) < 0
-                || ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), flagp) == FAIL
+                || ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), &raw mut *flagp) == FAIL
                 || !write_bytes(fd, b"\n")
             {
                 return FAIL;
@@ -954,7 +954,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                     wp,
                     &mut *tp,
                     !ptr::eq(wp, edited_win),
-                    &raw mut opt_vars().ssop_flags,
+                    &mut opt_vars().ssop_flags,
                     cur_arg_idx,
                 ) == FAIL
                 {
@@ -1170,7 +1170,7 @@ pub unsafe fn ex_mkrc(eap: &mut exarg_T) {
                         shorten_fnames(1);
                     }
                 } else {
-                    failed |= put_view(fd, *curwin.as_ptr(), &mut *g_st().curtab, !using_vdir, flagp, -1) == FAIL;
+                    failed |= put_view(fd, *curwin.as_ptr(), &mut *g_st().curtab, !using_vdir, &mut *flagp, -1) == FAIL;
                 }
                 if !write_bytes(fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                     failed = true;

@@ -364,7 +364,7 @@ pub struct VTermScreenCallbacks {
         Option<unsafe fn(prop: VTermProp, val: *mut VTermValue, user: *mut Terminal) -> c_int>,
     pub bell: Option<unsafe fn(user: *mut Terminal) -> c_int>,
     pub resize: Option<unsafe fn(rows: c_int, cols: c_int, user: *mut Terminal) -> c_int>,
-    pub theme: Option<unsafe fn(dark: *mut bool, user: *mut Terminal) -> c_int>,
+    pub theme: Option<unsafe fn(dark: &mut bool, user: *mut Terminal) -> c_int>,
     pub sb_pushline:
         Option<unsafe fn(cols: c_int, cells: *const VTermScreenCell, user: *mut Terminal) -> c_int>,
     pub sb_popline:
@@ -1254,7 +1254,7 @@ unsafe fn resize(
     }
 }
 
-unsafe fn theme(dark: *mut bool, screen: *mut VTermScreen) -> c_int {
+unsafe fn theme(dark: &mut bool, screen: *mut VTermScreen) -> c_int {
     unsafe {
         let screen = &mut *screen;
         if let Some(callbacks) = screen.callbacks

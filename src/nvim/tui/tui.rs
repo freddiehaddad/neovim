@@ -370,10 +370,10 @@ unsafe fn cstr_contains(haystack: *const c_char, needle: &[u8]) -> bool {
 
 pub unsafe fn tui_start(
     tui_out: *mut Option<Box<TUIData>>,
-    width: *mut c_int,
-    height: *mut c_int,
+    width: &mut c_int,
+    height: &mut c_int,
     term: *mut Option<std::ffi::CString>,
-    rgb: *mut bool,
+    rgb: &mut bool,
 ) {
     unsafe {
         *tui_out = Some(Box::new(TUIData::new()));

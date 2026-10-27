@@ -2120,15 +2120,15 @@ pub unsafe fn do_autocmd(eap: &mut exarg_T, arg_in: *mut c_char, forceit: c_int)
                         continue;
                     }
                     invalid_flags |=
-                        arg_autocmd_flag_get(&raw mut once, &raw mut cmd, c"++once".as_ptr(), 6);
+                        arg_autocmd_flag_get(&mut once, &raw mut cmd, c"++once".as_ptr(), 6);
                     invalid_flags |= arg_autocmd_flag_get(
-                        &raw mut nested,
+                        &mut nested,
                         &raw mut cmd,
                         c"++nested".as_ptr(),
                         8,
                     );
                     invalid_flags |=
-                        arg_autocmd_flag_get(&raw mut nested, &raw mut cmd, c"nested".as_ptr(), 6);
+                        arg_autocmd_flag_get(&mut nested, &raw mut cmd, c"nested".as_ptr(), 6);
                 }
 
                 if invalid_flags {
@@ -2769,7 +2769,7 @@ pub unsafe fn apply_autocmds_retval(
     fname_io: *mut c_char,
     force: bool,
     buf: *mut buf_T,
-    retval: *mut c_int,
+    retval: &mut c_int,
 ) -> bool {
     unsafe {
         if should_abort(*retval) {
@@ -3893,7 +3893,7 @@ unsafe fn arg_augroup_get(argp: *mut *mut c_char) -> c_int {
 }
 
 unsafe fn arg_autocmd_flag_get(
-    flag: *mut bool,
+    flag: &mut bool,
     cmd_ptr: *mut *mut c_char,
     pattern: *const c_char,
     len: c_int,

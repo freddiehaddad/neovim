@@ -830,8 +830,8 @@ unsafe fn cin_ispreproc(s: *const c_char) -> bool {
 }
 unsafe fn cin_ispreproc_cont(
     pp: *mut *const c_char,
-    lnump: *mut linenr_T,
-    amount: *mut c_int,
+    lnump: &mut linenr_T,
+    amount: &mut c_int,
 ) -> bool {
     unsafe {
         let mut line = *pp;
@@ -1051,7 +1051,7 @@ unsafe fn cin_iswhileofdo(mut p: *const c_char, lnum: linenr_T) -> bool {
         retval
     }
 }
-unsafe fn cin_is_if_for_while_before_offset(line: *const c_char, poffset: *mut colnr_T) -> c_int {
+unsafe fn cin_is_if_for_while_before_offset(line: *const c_char, poffset: &mut colnr_T) -> c_int {
     unsafe {
         let mut offset = *poffset;
         let prev_offset = offset;
@@ -1916,7 +1916,7 @@ pub unsafe fn get_c_indent() -> c_int {
                                     lnum -= 1;
                                     continue;
                                 }
-                                if cin_ispreproc_cont(&raw mut l, &raw mut lnum, &raw mut amount) {
+                                if cin_ispreproc_cont(&raw mut l, &mut lnum, &mut amount) {
                                     lnum -= 1;
                                     continue;
                                 }
@@ -1962,7 +1962,7 @@ pub unsafe fn get_c_indent() -> c_int {
                                 (**curwin.as_ptr()).w_cursor = cursor_save;
                                 let line = ml_get(outermost.lnum);
                                 is_if_for_while =
-                                    cin_is_if_for_while_before_offset(line, &raw mut outermost.col);
+                                    cin_is_if_for_while_before_offset(line, &mut outermost.col);
                             }
                             amount = skip_label(our_paren_pos.lnum, &raw mut look);
                             look = skipwhite(look);
@@ -2212,8 +2212,8 @@ pub unsafe fn get_c_indent() -> c_int {
                                         l = get_cursor_line_ptr();
                                         if cin_ispreproc_cont(
                                             &raw mut l,
-                                            &raw mut (**curwin.as_ptr()).w_cursor.lnum,
-                                            &raw mut amount,
+                                            &mut (**curwin.as_ptr()).w_cursor.lnum,
+                                            &mut amount,
                                         ) {
                                             continue;
                                         }
@@ -2299,8 +2299,8 @@ pub unsafe fn get_c_indent() -> c_int {
                                             l = get_cursor_line_ptr();
                                             if cin_ispreproc_cont(
                                                 &raw mut l,
-                                                &raw mut (**curwin.as_ptr()).w_cursor.lnum,
-                                                &raw mut amount,
+                                                &mut (**curwin.as_ptr()).w_cursor.lnum,
+                                                &mut amount,
                                             ) {
                                                 continue;
                                             }
@@ -2409,8 +2409,8 @@ pub unsafe fn get_c_indent() -> c_int {
                                 l = get_cursor_line_ptr();
                                 if cin_ispreproc_cont(
                                     &raw mut l,
-                                    &raw mut (**curwin.as_ptr()).w_cursor.lnum,
-                                    &raw mut amount,
+                                    &mut (**curwin.as_ptr()).w_cursor.lnum,
+                                    &mut amount,
                                 ) || cin_nocode(l)
                                 {
                                     continue;
@@ -2802,8 +2802,8 @@ pub unsafe fn get_c_indent() -> c_int {
                     }
                     if cin_ispreproc_cont(
                         &raw mut l,
-                        &raw mut (**curwin.as_ptr()).w_cursor.lnum,
-                        &raw mut amount,
+                        &mut (**curwin.as_ptr()).w_cursor.lnum,
+                        &mut amount,
                     ) {
                         continue;
                     }
@@ -2862,8 +2862,8 @@ pub unsafe fn get_c_indent() -> c_int {
                             if !(cin_nocode(look)
                                 || cin_ispreproc_cont(
                                     &raw mut look,
-                                    &raw mut (**curwin.as_ptr()).w_cursor.lnum,
-                                    &raw mut amount,
+                                    &mut (**curwin.as_ptr()).w_cursor.lnum,
+                                    &mut amount,
                                 ))
                             {
                                 break;

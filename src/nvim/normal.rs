@@ -1740,7 +1740,7 @@ unsafe fn normal_prepare(s: &mut NormalState) {
         g_st().State = MODE_NORMAL_BUSY;
 
         if s.toplevel && readbuf1_empty() {
-            set_vcount_ca(&mut s.ca, &raw mut s.set_prevcount);
+            set_vcount_ca(&mut s.ca, &mut s.set_prevcount);
         }
     }
 }
@@ -2044,7 +2044,7 @@ unsafe fn normal_get_command_count(s: &mut NormalState) -> bool {
             }
 
             if s.toplevel && readbuf1_empty() {
-                set_vcount_ca(&mut s.ca, &raw mut s.set_prevcount);
+                set_vcount_ca(&mut s.ca, &mut s.set_prevcount);
             }
 
             if s.ctrl_w {
@@ -2526,7 +2526,7 @@ unsafe fn normal_check(s: &mut NormalState) -> c_int {
     }
 }
 
-unsafe fn set_vcount_ca(cap: &mut cmdarg_T, set_prevcount: *mut bool) {
+unsafe fn set_vcount_ca(cap: &mut cmdarg_T, set_prevcount: &mut bool) {
     unsafe {
         let mut count = i64::from(cap.count0);
         if cap.opcount != 0 {
@@ -2817,7 +2817,7 @@ unsafe fn unshift_special(cap: &mut cmdarg_T) {
             K_S_END => K_END,
             c => c,
         };
-        cap.cmdchar = simplify_key(cap.cmdchar, &raw mut g_st().mod_mask);
+        cap.cmdchar = simplify_key(cap.cmdchar, &mut g_st().mod_mask);
     }
 }
 
@@ -2867,8 +2867,8 @@ pub unsafe fn clear_showcmd() {
                     *curwin.as_ptr(),
                     &mut (**curwin.as_ptr()).w_cursor,
                     &mut g_st().Visual.start,
-                    &raw mut leftcol,
-                    &raw mut rightcol,
+                    &mut leftcol,
+                    &mut rightcol,
                     GETVCOL_END_EXCL_LBR,
                 );
                 opt_vars().p_sbr = saved_sbr;
@@ -3670,7 +3670,7 @@ pub unsafe fn nv_scroll_line(cap: &mut cmdarg_T) {
     }
 }
 
-unsafe fn nv_z_get_count(cap: &mut cmdarg_T, nchar_arg: *mut c_int) -> bool {
+unsafe fn nv_z_get_count(cap: &mut cmdarg_T, nchar_arg: &mut c_int) -> bool {
     unsafe {
         let mut nchar = *nchar_arg;
 
@@ -3796,7 +3796,7 @@ unsafe fn nv_zet(cap: &mut cmdarg_T) {
 
         let siso = get_sidescrolloff_value(*curwin.as_ptr());
 
-        if ascii_isdigit(nchar) && !nv_z_get_count(cap, &raw mut nchar) {
+        if ascii_isdigit(nchar) && !nv_z_get_count(cap, &mut nchar) {
             return;
         }
 
@@ -4356,7 +4356,7 @@ unsafe fn nv_K_getcmd(
     mut n: usize,
     buf: *mut c_char,
     bufsize: usize,
-    buflen: *mut usize,
+    buflen: &mut usize,
 ) -> usize {
     unsafe {
         if kp_help {
@@ -4513,7 +4513,7 @@ unsafe fn nv_ident(cap: &mut cmdarg_T) {
                     n,
                     buf_vec.as_mut_ptr(),
                     bufsize,
-                    &raw mut buflen,
+                    &mut buflen,
                 );
                 if n == 0 {
                     return;
@@ -5869,8 +5869,8 @@ unsafe fn v_swap_corners(cmdchar: c_int) {
                 *curwin.as_ptr(),
                 &mut old_cursor,
                 &mut g_st().Visual.start,
-                &raw mut left,
-                &raw mut right,
+                &mut left,
+                &mut right,
                 0,
             );
             (**curwin.as_ptr()).w_cursor.lnum = g_st().Visual.start.lnum;

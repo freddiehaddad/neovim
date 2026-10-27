@@ -3230,7 +3230,7 @@ unsafe fn set_context_for_wildcard_arg(
     arg: *const c_char,
     usefilter: bool,
     xp: &mut expand_T,
-    complp: *mut c_int,
+    complp: &mut c_int,
 ) {
     unsafe {
         let mut in_quote = false;
@@ -4217,7 +4217,7 @@ unsafe fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const 
         }
 
         if (ea.argt & EX_XFILE) != 0 {
-            set_context_for_wildcard_arg(&raw mut ea, arg, usefilter, xp, &raw mut context);
+            set_context_for_wildcard_arg(&raw mut ea, arg, usefilter, xp, &mut context);
         }
 
         set_context_by_cmdname(
@@ -4269,7 +4269,7 @@ pub unsafe fn set_cmd_context(
                     xp.xp_pattern,
                     false,
                     xp,
-                    &raw mut context,
+                    &mut context,
                 );
             }
         } else {
@@ -5934,7 +5934,7 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
                         pat_p,
                         false,
                         &mut xpc,
-                        &raw mut context,
+                        &mut context,
                     );
                     xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(pattern_start) as usize;
                 }

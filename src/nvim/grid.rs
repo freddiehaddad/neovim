@@ -179,8 +179,8 @@ unsafe fn strnlen_4(p: *const u8) -> usize {
 /// Determine if dedicated window grid should be used or the `default_grid` (`grid_adjust`).
 pub unsafe fn grid_adjust(
     grid: *mut GridView,
-    row_off: *mut c_int,
-    col_off: *mut c_int,
+    row_off: &mut c_int,
+    col_off: &mut c_int,
 ) -> *mut ScreenGrid {
     unsafe {
         *row_off += (*grid).row_offset;
@@ -374,7 +374,7 @@ unsafe fn schar_in_arabic_block(sc: schar_T) -> bool {
 }
 
 #[inline]
-unsafe fn schar_get_first_two_codepoints(sc: schar_T, c0: *mut c_int, c1: *mut c_int) {
+unsafe fn schar_get_first_two_codepoints(sc: schar_T, c0: &mut c_int, c1: &mut c_int) {
     unsafe {
         let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(sc_buf.as_mut_ptr(), sc);
@@ -406,7 +406,7 @@ pub unsafe fn line_do_arabic_shape(buf: *mut schar_T, cols: c_int) {
         let mut c0prev: c_int = 0;
         let mut c0: c_int = 0;
         let mut c1: c_int = 0;
-        schar_get_first_two_codepoints(*buf.add(i as usize), &raw mut c0, &raw mut c1);
+        schar_get_first_two_codepoints(*buf.add(i as usize), &mut c0, &mut c1);
 
         while i < cols {
             let mut c0next: c_int = 0;
@@ -416,7 +416,7 @@ pub unsafe fn line_do_arabic_shape(buf: *mut schar_T, cols: c_int) {
             } else {
                 0
             };
-            schar_get_first_two_codepoints(next_sc, &raw mut c0next, &raw mut c1next);
+            schar_get_first_two_codepoints(next_sc, &mut c0next, &mut c1next);
 
             if arabic_char(c0) {
                 let mut c1new = c1;
@@ -516,7 +516,7 @@ pub unsafe fn grid_getchar(
 pub unsafe fn grid_line_start(view: *mut GridView, mut row: c_int) {
     unsafe {
         let mut col: c_int = 0;
-        let grid = grid_adjust(view, &raw mut row, &raw mut col);
+        let grid = grid_adjust(view, &mut row, &mut col);
         screengrid_line_start(grid, row, col);
     }
 }
@@ -595,13 +595,13 @@ pub unsafe fn grid_line_puts(
         let max_col = grid_st().grid_line_maxcol;
         let mut ci = utf_ptr2StrCharInfo_len(text, len);
         while col < max_col && len > 0 && *ci.ptr != NUL {
-            let cli = utf_ClusterInfo_len(ci, &raw mut len);
+            let cli = utf_ClusterInfo_len(ci, &mut len);
             let mut mbyte_cells = cli.cells;
             let mut firstc: c_int = 0;
             let mut schar = utfc_ptrlen2schar(
                 ci.ptr,
                 cli.next.ptr.offset_from(ci.ptr) as c_int,
-                &raw mut firstc,
+                &mut firstc,
             );
             if mbyte_cells > 2 || schar == 0 {
                 mbyte_cells = 1;
@@ -697,9 +697,9 @@ pub unsafe fn grid_line_mirror(width: c_int) {
             return;
         }
         linebuf_mirror(
-            &raw mut grid_st().grid_line_first,
-            &raw mut grid_st().grid_line_last,
-            &raw mut grid_st().grid_line_clear_to,
+            &mut grid_st().grid_line_first,
+            &mut grid_st().grid_line_last,
+            &mut grid_st().grid_line_clear_to,
             width,
         );
         grid_st().grid_line_flags |= SLF_RIGHTLEFT;
@@ -707,9 +707,9 @@ pub unsafe fn grid_line_mirror(width: c_int) {
 }
 
 pub unsafe fn linebuf_mirror(
-    firstp: *mut c_int,
-    lastp: *mut c_int,
-    clearp: *mut c_int,
+    firstp: &mut c_int,
+    lastp: &mut c_int,
+    clearp: &mut c_int,
     width: c_int,
 ) {
     unsafe {
@@ -1349,7 +1349,7 @@ unsafe fn grid_draw_bordertext(
         let mut i: usize = 0;
         while i < vt.len() {
             let mut attr: c_int = -1;
-            let mut text = next_virt_text_chunk(vt, &raw mut i, &raw mut attr);
+            let mut text = next_virt_text_chunk(vt, &mut i, &mut attr);
             if text.is_null() {
                 break;
             }

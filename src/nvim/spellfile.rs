@@ -931,7 +931,7 @@ pub unsafe fn suggest_load_files() {
 unsafe fn read_cnt_string(
     fd: *mut FILE,
     cnt_bytes: c_int,
-    cntp: *mut c_int,
+    cntp: &mut c_int,
 ) -> Option<Vec<c_char>> {
     unsafe {
         let mut cnt: c_int = 0;
@@ -975,12 +975,12 @@ unsafe fn read_charflags_section(fd: *mut FILE) -> c_int {
         let mut flagslen: c_int = 0;
         let mut follen: c_int = 0;
 
-        let flags = read_cnt_string(fd, 1, &raw mut flagslen);
+        let flags = read_cnt_string(fd, 1, &mut flagslen);
         if flagslen < 0 {
             return flagslen;
         }
 
-        let fol = read_cnt_string(fd, 2, &raw mut follen);
+        let fol = read_cnt_string(fd, 2, &mut follen);
         if follen < 0 {
             return follen;
         }
@@ -1038,7 +1038,7 @@ unsafe fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i
 
         while (gap.len() as c_int) < cnt {
             let mut c: c_int = 0;
-            let raw_from = read_cnt_string(fd, 1, &raw mut c);
+            let raw_from = read_cnt_string(fd, 1, &mut c);
             if c < 0 {
                 return c;
             }
@@ -1046,7 +1046,7 @@ unsafe fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i
                 return SP_FORMERROR;
             };
             let ft_from = CStr::from_ptr(raw_from.as_ptr()).to_owned();
-            let raw_to = read_cnt_string(fd, 1, &raw mut c);
+            let raw_to = read_cnt_string(fd, 1, &mut c);
             if c <= 0 {
                 if c < 0 {
                     return c;
@@ -1158,7 +1158,7 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
             }
             *p = NUL;
 
-            let sm_to = read_cnt_string(fd, 1, &raw mut ccnt);
+            let sm_to = read_cnt_string(fd, 1, &mut ccnt);
             if ccnt < 0 {
                 return ccnt;
             }
@@ -1231,12 +1231,12 @@ unsafe fn read_words_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_i
 unsafe fn read_sofo_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
     unsafe {
         let mut cnt: c_int = 0;
-        let from = read_cnt_string(fd, 2, &raw mut cnt);
+        let from = read_cnt_string(fd, 2, &mut cnt);
         if cnt < 0 {
             return cnt;
         }
 
-        let to = read_cnt_string(fd, 2, &raw mut cnt);
+        let to = read_cnt_string(fd, 2, &mut cnt);
         if cnt < 0 {
             return cnt;
         }
@@ -1297,7 +1297,7 @@ unsafe fn read_compound(fd: *mut FILE, slang: &mut slang_T, len: c_int) -> c_int
             gap.reserve(c as usize);
             while c > 0 {
                 c -= 1;
-                let raw = read_cnt_string(fd, 1, &raw mut cnt);
+                let raw = read_cnt_string(fd, 1, &mut cnt);
                 if cnt < 0 {
                     return cnt;
                 }
@@ -4283,10 +4283,10 @@ unsafe fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> c_int {
             fputc(SNF_REQUIRED, fd);
 
             let l =
-                write_spell_prefcond(ptr::null_mut(), &spin.si_prefcond, &raw mut fwv) as usize;
+                write_spell_prefcond(ptr::null_mut(), &spin.si_prefcond, &mut fwv) as usize;
             put_bytes(fd, l as u64, 4);
 
-            write_spell_prefcond(fd, &spin.si_prefcond, &raw mut fwv);
+            write_spell_prefcond(fd, &spin.si_prefcond, &mut fwv);
         }
 
         for round in 1..=3 {
@@ -5548,7 +5548,7 @@ unsafe fn set_spell_finish(new_st: *mut spelltab_T) -> c_int {
 unsafe fn write_spell_prefcond(
     fd: *mut FILE,
     gap: &[Option<std::ffi::CString>],
-    fwv: *mut usize,
+    fwv: &mut usize,
 ) -> c_int {
     unsafe {
         if !fd.is_null() {

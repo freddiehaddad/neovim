@@ -1037,7 +1037,7 @@ unsafe fn out_data_ring(output: *const c_char, size: usize) {
 
         let ring_ptr = (&raw mut sh_st().last_skipped).cast::<c_char>();
         if output.is_null() && size == usize::MAX {
-            out_data_append_to_screen(ring_ptr, &raw mut sh_st().last_skipped_len, STDOUT_FILENO, true);
+            out_data_append_to_screen(ring_ptr, &mut sh_st().last_skipped_len, STDOUT_FILENO, true);
             return;
         }
 
@@ -1080,7 +1080,7 @@ pub unsafe fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
 
 unsafe fn out_data_append_to_screen(
     output: *const c_char,
-    count: *mut usize,
+    count: &mut usize,
     fd: c_int,
     eof: bool,
 ) {
@@ -1126,7 +1126,7 @@ pub(crate) unsafe fn out_data_cb(
             out_data_ring(ptr_data, count);
         } else if count > 0 {
             let fd = stream.s.fd;
-            out_data_append_to_screen(ptr_data, &raw mut count, fd, eof);
+            out_data_append_to_screen(ptr_data, &mut count, fd, eof);
         }
         count
     }

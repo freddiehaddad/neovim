@@ -1892,9 +1892,9 @@ unsafe fn find_rawstring_end(
 }
 
 unsafe fn find_mps_values(
-    initc: *mut c_int,
-    findc: *mut c_int,
-    backwards: *mut bool,
+    initc: &mut c_int,
+    findc: &mut c_int,
+    backwards: &mut bool,
     switchit: bool,
 ) {
     unsafe {
@@ -1981,7 +1981,7 @@ pub unsafe fn findmatchlimit(
             raw_string = initc == b'R' as c_int;
             initc = c_int::from(NUL);
         } else if initc != b'#' as c_int && initc != c_int::from(NUL) {
-            find_mps_values(&raw mut initc, &raw mut findc, &raw mut backwards, true);
+            find_mps_values(&mut initc, &mut findc, &mut backwards, true);
             if dir != 0 {
                 backwards = dir != FORWARD;
             }
@@ -2039,7 +2039,7 @@ pub unsafe fn findmatchlimit(
                             break;
                         }
 
-                        find_mps_values(&raw mut initc, &raw mut findc, &raw mut backwards, false);
+                        find_mps_values(&mut initc, &mut findc, &mut backwards, false);
                         if findc != 0 {
                             break;
                         }

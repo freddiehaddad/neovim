@@ -1104,7 +1104,7 @@ pub fn __asan_default_options() -> *const c_char {
     c"handle_abort=1,handle_sigill=1".as_ptr()
 }
 
-unsafe fn get_number_arg(p: *const c_char, idx: *mut c_int, mut def: c_int) -> c_int {
+unsafe fn get_number_arg(p: *const c_char, idx: &mut c_int, mut def: c_int) -> c_int {
     unsafe {
         let mut i = *idx as usize;
         if ascii_isdigit(*p.add(i) as c_int) {
@@ -1472,15 +1472,15 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                         parmp.no_swap_file = 1;
                     }
                     b'p' => {
-                        parmp.window_count = get_number_arg(arg0, &raw mut argv_idx, 0);
+                        parmp.window_count = get_number_arg(arg0, &mut argv_idx, 0);
                         parmp.window_layout = WIN_TABS;
                     }
                     b'o' => {
-                        parmp.window_count = get_number_arg(arg0, &raw mut argv_idx, 0);
+                        parmp.window_count = get_number_arg(arg0, &mut argv_idx, 0);
                         parmp.window_layout = WIN_HOR;
                     }
                     b'O' => {
-                        parmp.window_count = get_number_arg(arg0, &raw mut argv_idx, 0);
+                        parmp.window_count = get_number_arg(arg0, &mut argv_idx, 0);
                         parmp.window_layout = WIN_VER;
                     }
                     b'q' => {
@@ -1538,7 +1538,7 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                         os_exit(0);
                     }
                     b'V' => {
-                        opt_vars().p_verbose = i64::from(get_number_arg(arg0, &raw mut argv_idx, 10));
+                        opt_vars().p_verbose = i64::from(get_number_arg(arg0, &mut argv_idx, 10));
                         if *arg0.add(argv_idx as usize) != NUL {
                             set_option_value_give_err(
                                 kOptVerbosefile,
@@ -1550,7 +1550,7 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                     }
                     b'w' => {
                         if ascii_isdigit(*arg0.add(argv_idx as usize) as c_int) {
-                            let n = get_number_arg(arg0, &raw mut argv_idx, 10);
+                            let n = get_number_arg(arg0, &mut argv_idx, 10);
                             set_option_value_give_err(kOptWindow, integer_obj(OptInt::from(n)), 0);
                         } else {
                             want_argument = true;
@@ -1694,7 +1694,7 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                         b'w' | b'W' => {
                             if c == b'w' && ascii_isdigit(*cur_arg as c_int) {
                                 argv_idx = 0;
-                                let n = get_number_arg(cur_arg, &raw mut argv_idx, 10);
+                                let n = get_number_arg(cur_arg, &mut argv_idx, 10);
                                 set_option_value_give_err(
                                     kOptWindow,
                                     integer_obj(OptInt::from(n)),
@@ -2296,7 +2296,7 @@ unsafe fn do_system_initialization() {
                     config_dirs.as_ptr(),
                     iter,
                     &raw mut dir,
-                    &raw mut dir_len,
+                    &mut dir_len,
                 );
                 if dir.is_null() || dir_len == 0 {
                     break;
@@ -2381,7 +2381,7 @@ unsafe fn do_user_initialization() -> bool {
                     config_dirs.as_ptr(),
                     iter,
                     &raw mut dir,
-                    &raw mut dir_len,
+                    &mut dir_len,
                 );
                 if dir.is_null() || dir_len == 0 {
                     break;
@@ -2688,7 +2688,7 @@ mod tests {
     fn get_number_arg_and_init_params_work() {
         unsafe {
             let mut idx: c_int = 1;
-            let val = get_number_arg(c"o25x".as_ptr(), &raw mut idx, 0);
+            let val = get_number_arg(c"o25x".as_ptr(), &mut idx, 0);
             assert_eq!(val, 25);
             assert_eq!(idx, 3);
 

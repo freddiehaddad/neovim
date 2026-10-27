@@ -1400,7 +1400,7 @@ unsafe fn uc_split_args(
     arg: *const c_char,
     args: &[*mut c_char],
     arglens: &[usize],
-    lenp: *mut usize,
+    lenp: &mut usize,
 ) -> CString {
     unsafe {
         let mut len: c_int = 2;
@@ -1670,7 +1670,7 @@ unsafe fn uc_check_code(
     cmd: *mut ucmd_T,
     eap: &mut exarg_T,
     split_buf: &mut Option<CString>,
-    split_len: *mut usize,
+    split_len: &mut usize,
 ) -> usize {
     unsafe {
         let mut result: usize = 0;
@@ -1952,7 +1952,7 @@ pub unsafe fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
                     cmd,
                     eap,
                     &mut split_buf,
-                    &raw mut split_len,
+                    &mut split_len,
                 );
                 if len == usize::MAX {
                     p = start.add(1);

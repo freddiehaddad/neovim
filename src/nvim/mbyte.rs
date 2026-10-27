@@ -1013,12 +1013,12 @@ pub unsafe fn utf_ClusterInfo(cur: StrCharInfo) -> ClusterInfo {
             };
         }
         let mut scratch = c_int::MAX;
-        utf_ClusterInfo_impl(cur, &raw mut scratch)
+        utf_ClusterInfo_impl(cur, &mut scratch)
     }
 }
 
 #[inline]
-pub unsafe fn utf_ClusterInfo_len(cur: StrCharInfo, size: *mut c_int) -> ClusterInfo {
+pub unsafe fn utf_ClusterInfo_len(cur: StrCharInfo, size: &mut c_int) -> ClusterInfo {
     unsafe {
         *size -= cur.chr.len;
         let next = cur.ptr.add(cur.chr.len as usize).cast::<u8>();
@@ -1262,7 +1262,7 @@ pub unsafe fn mb_string2cells_len(str_: *const c_char, size: usize) -> usize {
         let mut len = size as c_int;
         let mut ci = utf_ptr2StrCharInfo_len(str_, len);
         while len > 0 {
-            let cli = utf_ClusterInfo_len(ci, &raw mut len);
+            let cli = utf_ClusterInfo_len(ci, &mut len);
             clen += cli.cells as usize;
             ci = cli.next;
         }
@@ -1415,7 +1415,7 @@ unsafe fn schar_from_buf_first(buf: *const c_char, len: usize, first_compose: bo
     }
 }
 
-pub unsafe fn utfc_ptr2schar(p: *const c_char, firstc: *mut c_int) -> schar_T {
+pub unsafe fn utfc_ptr2schar(p: *const c_char, firstc: &mut c_int) -> schar_T {
     unsafe {
         let c = utf_ptr2char(p);
         *firstc = c;
@@ -1429,7 +1429,7 @@ pub unsafe fn utfc_ptr2schar(p: *const c_char, firstc: *mut c_int) -> schar_T {
     }
 }
 
-pub unsafe fn utfc_ptrlen2schar(p: *const c_char, mut len: c_int, firstc: *mut c_int) -> schar_T {
+pub unsafe fn utfc_ptrlen2schar(p: *const c_char, mut len: c_int, firstc: &mut c_int) -> schar_T {
     unsafe {
         if (len == 1 && *p.cast::<u8>() >= 0x80) || len == 0 {
             *firstc = c_int::from(*p.cast::<u8>());
@@ -2282,8 +2282,8 @@ pub unsafe fn utf16_to_utf8(
 pub unsafe fn mb_utflen(
     s: *const c_char,
     len: usize,
-    codepoints: *mut usize,
-    codeunits: *mut usize,
+    codepoints: &mut usize,
+    codeunits: &mut usize,
 ) {
     unsafe {
         let mut count = 0usize;
@@ -2478,7 +2478,7 @@ pub unsafe fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int
     }
 }
 
-pub unsafe fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: *mut c_int) -> ClusterInfo {
+pub unsafe fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterInfo {
     unsafe {
         let mut cells = basechar_cells_impl(base.chr);
         let mut prev_code = base.chr.value;

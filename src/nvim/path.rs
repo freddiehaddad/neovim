@@ -467,7 +467,7 @@ unsafe fn do_concat_fnames(
     fname2: *const c_char,
     len2: usize,
     sep: bool,
-    len: *mut usize,
+    len: &mut usize,
 ) -> *mut c_char {
     unsafe {
         if sep && *fname1 != NUL && after_pathsep(fname1, fname1.add(len1)) == 0 {
@@ -1942,7 +1942,7 @@ pub unsafe fn same_directory(f1: *mut c_char, f2: *mut c_char) -> bool {
     }
 }
 
-pub unsafe fn path_fold_char(ic: bool, p: *const c_char, len: *mut c_int) -> c_int {
+pub unsafe fn path_fold_char(ic: bool, p: *const c_char, len: &mut c_int) -> c_int {
     unsafe {
         if vim_ispathsep_nocolon(*p as c_int) {
             *len = 1;

@@ -3848,7 +3848,7 @@ unsafe fn get_syn_options(
     }
 }
 
-unsafe fn syn_incl_toplevel(id: c_int, flagsp: *mut c_int) {
+unsafe fn syn_incl_toplevel(id: c_int, flagsp: &mut c_int) {
     unsafe {
         if (*flagsp & HL_CONTAINED) != 0 || (*win_s(*curwin.as_ptr())).b_syn_topgrp == 0 {
             return;
@@ -3984,7 +3984,7 @@ unsafe fn syn_cmd_keyword(eap: &mut exarg_T, _syncing: c_int) {
                 }
 
                 if eap.skip == 0 {
-                    syn_incl_toplevel(syn_id, &raw mut syn_opt_arg.flags);
+                    syn_incl_toplevel(syn_id, &mut syn_opt_arg.flags);
 
                     let mut kw = keyword_copy;
                     let mut kwlen: usize;
@@ -4092,7 +4092,7 @@ unsafe fn syn_cmd_match(eap: &mut exarg_T, syncing: c_int) {
             } else {
                 let syn_id = syn_check_group(arg, group_name_end.offset_from(arg) as usize);
                 if syn_id != 0 {
-                    syn_incl_toplevel(syn_id, &raw mut syn_opt_arg.flags);
+                    syn_incl_toplevel(syn_id, &mut syn_opt_arg.flags);
                     item.sp_syncing = syncing != 0;
                     item.sp_type = SPTYPE_MATCH;
                     item.sp_syn.id = syn_id as i16;
@@ -4255,7 +4255,7 @@ unsafe fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
             } else {
                 let syn_id = syn_check_group(arg, group_name_end.offset_from(arg) as usize);
                 if syn_id != 0 {
-                    syn_incl_toplevel(syn_id, &raw mut syn_opt_arg.flags);
+                    syn_incl_toplevel(syn_id, &mut syn_opt_arg.flags);
                     let pats = &mut (*win_s(*curwin.as_ptr())).b_syn_patterns;
                     pats.reserve(pat_count as usize);
                     for (item, pat_vec) in pat_ptrs
@@ -5337,7 +5337,7 @@ pub unsafe fn syn_get_id(
     }
 }
 
-pub unsafe fn get_syntax_info(seqnrp: *mut c_int) -> c_int {
+pub unsafe fn get_syntax_info(seqnrp: &mut c_int) -> c_int {
     unsafe {
         *seqnrp = syn_st().current_seqnr;
         syn_st().current_flags

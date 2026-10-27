@@ -786,7 +786,7 @@ pub unsafe fn f_fnamemodify(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 unsafe fn getcwd_scope_args(
     argvars: *mut typval_T,
     default_scope: c_int,
-    scope: *mut c_int,
+    scope: &mut c_int,
     win: *mut *mut win_T,
     tp: *mut *mut tabpage_T,
     buf: *mut *mut buf_T,
@@ -917,7 +917,7 @@ pub unsafe fn f_getcwd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
         if !getcwd_scope_args(
             argvars,
             kCdScopeInvalid,
-            &raw mut scope,
+            &mut scope,
             &raw mut win,
             &raw mut tp,
             &raw mut buf,
@@ -1231,7 +1231,7 @@ pub unsafe fn f_haslocaldir(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         if !getcwd_scope_args(
             argvars,
             kCdScopeWindow,
-            &raw mut scope,
+            &mut scope,
             &raw mut win,
             &raw mut tp,
             &raw mut buf,

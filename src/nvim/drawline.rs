@@ -282,7 +282,7 @@ fn advance_color_col(wlv: &mut winlinevars_T<'_>, vcol: c_int) {
 
 /// Used when 'cursorlineopt' contains "screenline": compute the margins between
 /// which the highlighting is used.
-unsafe fn margin_columns_win(wp: *mut win_T, left_col: *mut c_int, right_col: *mut c_int) {
+unsafe fn margin_columns_win(wp: *mut win_T, left_col: &mut c_int, right_col: &mut c_int) {
     unsafe {
         let cur_col_off = win_col_off(wp);
         let width1 = (*wp).w_view_width - cur_col_off;
@@ -356,7 +356,7 @@ unsafe fn line_putchar(
             }
         } else {
             let mut u8c: c_int = 0;
-            *dest = utfc_ptr2schar(p, &raw mut u8c);
+            *dest = utfc_ptr2schar(p, &mut u8c);
             if cells > 1 {
                 *dest.add(1) = 0;
             }
@@ -371,7 +371,7 @@ unsafe fn draw_virt_text(
     wp: &mut win_T,
     buf: *mut buf_T,
     col_off: c_int,
-    end_col: *mut c_int,
+    end_col: &mut c_int,
     win_row: c_int,
 ) {
     unsafe {
@@ -516,7 +516,7 @@ unsafe fn draw_virt_text_item(
                     break;
                 }
                 virt_attr = 0;
-                virt_str = next_virt_text_chunk(vt, &raw mut virt_pos, &raw mut virt_attr);
+                virt_str = next_virt_text_chunk(vt, &mut virt_pos, &mut virt_attr);
                 if virt_str.is_null() {
                     break;
                 }
@@ -1277,8 +1277,8 @@ unsafe fn handle_inline_virtual_text(
                 let mut attr: c_int = 0;
                 let text = next_virt_text_chunk(
                     wlv.virt_inline,
-                    &raw mut wlv.virt_inline_i,
-                    &raw mut attr,
+                    &mut wlv.virt_inline_i,
+                    &mut attr,
                 );
                 if text.is_null() {
                     continue;
@@ -1663,8 +1663,8 @@ pub unsafe fn win_line(
                     let added = diff_change_parse(
                         &line_changes,
                         &line_changes.changes[0],
-                        &raw mut change_start,
-                        &raw mut change_end,
+                        &mut change_start,
+                        &mut change_end,
                     );
                     if change_start == 0 {
                         if added {
@@ -1714,7 +1714,7 @@ pub unsafe fn win_line(
             if !cul_screenline {
                 apply_cursorline_highlight(wp, &mut wlv);
             } else {
-                margin_columns_win(&raw mut *wp, &raw mut left_curline_col, &raw mut right_curline_col);
+                margin_columns_win(&raw mut *wp, &mut left_curline_col, &mut right_curline_col);
             }
             area_highlighting = true;
         }
@@ -2008,8 +2008,8 @@ pub unsafe fn win_line(
                 v,
                 &raw mut line,
                 &mut g_st().screen_search_hl,
-                &raw mut search_attr,
-                &raw mut search_attr_from_match,
+                &mut search_attr,
+                &mut search_attr_from_match,
             );
             ptr = line.add(v as usize);
         }
@@ -2189,7 +2189,7 @@ pub unsafe fn win_line(
                 }
 
                 if g_st().dollar_vcol >= 0 && in_curline && wlv.vcol >= wp.w_virtcol {
-                    draw_virt_text(wp, buf, win_col_offset, &raw mut wlv.col, wlv.row);
+                    draw_virt_text(wp, buf, win_col_offset, &mut wlv.col, wlv.row);
                     wlv_put_linebuf(wp, &wlv, wlv.col, false, bg_attr, 0);
                     if wp.w_onebuf_opt.wo_cuc != 0 {
                         wlv.row = wp.w_cline_row + wp.w_cline_height;
@@ -2288,11 +2288,11 @@ pub unsafe fn win_line(
                             v,
                             &raw mut line,
                             &mut g_st().screen_search_hl,
-                            &raw mut has_match_conc,
-                            &raw mut match_conc,
+                            &mut has_match_conc,
+                            &mut match_conc,
                             lcs_eol_todo,
-                            &raw mut on_last_col,
-                            &raw mut search_attr_from_match,
+                            &mut on_last_col,
+                            &mut search_attr_from_match,
                         );
                         ptr = line.add(v as usize);
 
@@ -2333,8 +2333,8 @@ pub unsafe fn win_line(
                             added = diff_change_parse(
                                 &line_changes,
                                 &line_changes.changes[change_index as usize],
-                                &raw mut change_start,
-                                &raw mut change_end,
+                                &mut change_start,
+                                &mut change_end,
                             );
                         }
                         if wlv.diff_hlf == HLF_CHD
@@ -2417,7 +2417,7 @@ pub unsafe fn win_line(
                     } else {
                         debug_assert!(!wlv.p_extra.is_null());
                         mb_l = utfc_ptr2len(wlv.p_extra);
-                        mb_schar = utfc_ptr2schar(wlv.p_extra, &raw mut mb_c);
+                        mb_schar = utfc_ptr2schar(wlv.p_extra, &mut mb_c);
                         if mb_l > wlv.n_extra || mb_l == 0 {
                             mb_l = 1;
                         }
@@ -2499,7 +2499,7 @@ pub unsafe fn win_line(
                     }
 
                     mb_l = utfc_ptr2len(ptr);
-                    mb_schar = utfc_ptr2schar(ptr, &raw mut mb_c);
+                    mb_schar = utfc_ptr2schar(ptr, &mut mb_c);
 
                     if mb_l > 1 && mb_c < 0x80 {
                         c0 = mb_c;
@@ -2597,7 +2597,7 @@ pub unsafe fn win_line(
                             syntax_flags = if mb_schar == 0 {
                                 0
                             } else {
-                                get_syntax_info(&raw mut syntax_seqnr)
+                                get_syntax_info(&mut syntax_seqnr)
                             };
                         }
 
@@ -3194,7 +3194,7 @@ pub unsafe fn win_line(
                                 wp,
                                 &mut g_st().screen_search_hl,
                                 ptr.offset_from(line) as colnr_T,
-                                &raw mut wlv.char_attr,
+                                &mut wlv.char_attr,
                             );
                         }
 
@@ -3232,7 +3232,7 @@ pub unsafe fn win_line(
                         decor_redraw_eol(
                             &raw mut *wp,
                             &mut g_st().decor_state,
-                            &raw mut wlv.line_attr,
+                            &mut wlv.line_attr,
                             wlv.col + eol_skip,
                         );
                     }
@@ -3325,7 +3325,7 @@ pub unsafe fn win_line(
                             false,
                         );
                     }
-                    draw_virt_text(wp, buf, win_col_offset, &raw mut wlv.col, wlv.row);
+                    draw_virt_text(wp, buf, win_col_offset, &mut wlv.col, wlv.row);
                     wlv_put_linebuf(wp, &wlv, wlv.col, true, bg_attr, SLF_INC_VCOL);
                     wlv.row += 1;
 
@@ -3597,7 +3597,7 @@ pub unsafe fn win_line(
                         true,
                     );
                 } else if wlv.filler_todo <= 0 {
-                    draw_virt_text(wp, buf, win_col_offset, &raw mut draw_col, wlv.row);
+                    draw_virt_text(wp, buf, win_col_offset, &mut draw_col, wlv.row);
                 }
 
                 wlv_put_linebuf(
@@ -3612,7 +3612,7 @@ pub unsafe fn win_line(
                     let mut current_row = wlv.row;
                     let mut dummy_col: c_int = 0;
                     let current_grid =
-                        &mut *grid_adjust(grid, &raw mut current_row, &raw mut dummy_col);
+                        &mut *grid_adjust(grid, &mut current_row, &mut dummy_col);
 
                     let next_row_off = current_grid.line_offset[(current_row + 1) as usize];
                     current_grid.attrs[next_row_off] = -1;
@@ -3694,9 +3694,9 @@ unsafe fn wlv_put_linebuf(
         debug_assert!((flags & SLF_RIGHTLEFT) == 0);
         if wp.w_onebuf_opt.wo_rl != 0 {
             linebuf_mirror(
-                &raw mut startcol,
-                &raw mut endcol,
-                &raw mut clear_width,
+                &mut startcol,
+                &mut endcol,
+                &mut clear_width,
                 wp.w_view_width,
             );
             flags |= SLF_RIGHTLEFT;
@@ -3731,7 +3731,7 @@ unsafe fn wlv_put_linebuf(
 
         let mut row = wlv.row;
         let mut coloff: c_int = 0;
-        let g = grid_adjust(grid, &raw mut row, &raw mut coloff);
+        let g = grid_adjust(grid, &mut row, &mut coloff);
         grid_put_linebuf(
             &mut *g,
             row,

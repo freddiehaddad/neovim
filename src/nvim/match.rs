@@ -643,8 +643,8 @@ pub unsafe fn prepare_search_hl_line(
     mincol: colnr_T,
     line: *mut *mut c_char,
     search_hl: &mut match_T,
-    search_attr: *mut c_int,
-    search_attr_from_match: *mut bool,
+    search_attr: &mut c_int,
+    search_attr_from_match: &mut bool,
 ) -> bool {
     unsafe {
         let mut idx = 0usize;
@@ -737,11 +737,11 @@ pub unsafe fn update_search_hl(
     col: colnr_T,
     line: *mut *mut c_char,
     search_hl: &mut match_T,
-    has_match_conc: *mut c_int,
-    match_conc: *mut c_int,
+    has_match_conc: &mut c_int,
+    match_conc: &mut c_int,
     lcs_eol_todo: bool,
-    on_last_col: *mut bool,
-    search_attr_from_match: *mut bool,
+    on_last_col: &mut bool,
+    search_attr_from_match: &mut bool,
 ) -> c_int {
     unsafe {
         let mut idx = 0usize;
@@ -907,7 +907,7 @@ pub unsafe fn get_search_match_hl(
     wp: &mut win_T,
     search_hl: &mut match_T,
     col: colnr_T,
-    char_attr: *mut c_int,
+    char_attr: &mut c_int,
 ) {
     unsafe {
         let mut idx = 0usize;

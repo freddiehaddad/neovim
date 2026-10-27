@@ -558,8 +558,8 @@ unsafe fn shift_block(oap: &mut oparg_T, amount: c_int) {
                     ws_vcol + total,
                     ts_val,
                     &(*g_st().curbuf).b_p_vts_array,
-                    &raw mut tabs,
-                    &raw mut spaces,
+                    &mut tabs,
+                    &mut spaces,
                 );
             } else {
                 spaces = total;
@@ -1909,7 +1909,7 @@ pub unsafe fn skip_comment(
     mut line: *mut c_char,
     process: bool,
     include_space: bool,
-    is_comment: *mut bool,
+    is_comment: &mut bool,
 ) -> *mut c_char {
     unsafe {
         let mut comment_flags: *mut c_char = ptr::null_mut();
@@ -2002,11 +2002,11 @@ pub unsafe fn do_join(
             if remove_comments {
                 if t > 0 && prev_was_comment {
                     let new_curr =
-                        skip_comment(curr, true, insert_space, &raw mut prev_was_comment);
+                        skip_comment(curr, true, insert_space, &mut prev_was_comment);
                     *comments.add(t as usize) = new_curr.offset_from(curr) as c_int;
                     curr = new_curr;
                 } else {
-                    curr = skip_comment(curr, false, insert_space, &raw mut prev_was_comment);
+                    curr = skip_comment(curr, false, insert_space, &mut prev_was_comment);
                 }
             }
 
@@ -3151,8 +3151,8 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
                         *curwin.as_ptr(),
                         &mut min_pos,
                         &mut max_pos,
-                        &raw mut oparg.start_vcol,
-                        &raw mut oparg.end_vcol,
+                        &mut oparg.start_vcol,
+                        &mut oparg.end_vcol,
                         0,
                     );
                     opt_vars().p_sbr = saved_sbr;
@@ -3251,8 +3251,8 @@ pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
                             *curwin.as_ptr(),
                             &mut min_pos,
                             &mut max_pos,
-                            &raw mut min_col,
-                            &raw mut max_col,
+                            &mut min_col,
+                            &mut max_col,
                             0,
                         );
                         let cols = i64::from(oparg.end_vcol + 1)

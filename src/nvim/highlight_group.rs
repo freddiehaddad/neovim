@@ -2293,11 +2293,11 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
 pub unsafe fn syn_id2attr(hl_id: c_int) -> c_int {
     unsafe {
         let mut optional = false;
-        syn_ns_id2attr(-1, hl_id, &raw mut optional)
+        syn_ns_id2attr(-1, hl_id, &mut optional)
     }
 }
 
-pub unsafe fn syn_ns_id2attr(mut ns_id: c_int, mut hl_id: c_int, optional: *mut bool) -> c_int {
+pub unsafe fn syn_ns_id2attr(mut ns_id: c_int, mut hl_id: c_int, optional: &mut bool) -> c_int {
     unsafe {
         if syn_ns_get_final_id(&raw mut ns_id, &raw mut hl_id) {
             *optional = false;

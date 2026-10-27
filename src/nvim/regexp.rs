@@ -2009,7 +2009,7 @@ pub(super) unsafe fn getoctchrs() -> i64 {
     }
 }
 
-pub(super) unsafe fn read_limits(minval: *mut c_int, maxval: *mut c_int) -> c_int {
+pub(super) unsafe fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> c_int {
     unsafe {
         let mut reverse = false;
         if *re_st().regparse == b'-' as c_char {
@@ -2325,7 +2325,7 @@ pub(super) unsafe fn match_with_backref(
                 reg_getline_len(clnum) - ccol
             };
 
-            if (!re_st().rex.reg_ic && cstrncmp(p.add(ccol as usize), re_st().rex.input.cast(), &raw mut len) != 0)
+            if (!re_st().rex.reg_ic && cstrncmp(p.add(ccol as usize), re_st().rex.input.cast(), &mut len) != 0)
                 || (re_st().rex.reg_ic
                     && mb_strnicmp(p.add(ccol as usize), re_st().rex.input.cast(), len as usize) != 0)
             {
@@ -2366,9 +2366,8 @@ pub(super) unsafe fn re_mult_next(what: *const c_char) -> bool {
     }
 }
 
-unsafe fn mb_decompose(c: c_int, c1: *mut c_int, c2: *mut c_int, c3: *mut c_int) {
-    unsafe {
-        if (0xfb20..=0xfb4f).contains(&c) {
+unsafe fn mb_decompose(c: c_int, c1: &mut c_int, c2: &mut c_int, c3: &mut c_int) {
+    if (0xfb20..=0xfb4f).contains(&c) {
             let d = DECOMP_TABLE[(c - 0xfb20) as usize];
             *c1 = d.a;
             *c2 = d.b;
@@ -2378,10 +2377,9 @@ unsafe fn mb_decompose(c: c_int, c1: *mut c_int, c2: *mut c_int, c3: *mut c_int)
             *c2 = 0;
             *c3 = 0;
         }
-    }
 }
 
-pub(super) unsafe fn cstrncmp(s1: *const c_char, s2: *const c_char, n: *mut c_int) -> c_int {
+pub(super) unsafe fn cstrncmp(s1: *const c_char, s2: *const c_char, n: &mut c_int) -> c_int {
     unsafe {
         let mut result = if !re_st().rex.reg_ic {
             { let _p1 = s1; let _p2 = s2; let _n = *n as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).cmp(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) as c_int }
@@ -2415,14 +2413,15 @@ pub(super) unsafe fn cstrncmp(s1: *const c_char, s2: *const c_char, n: *mut c_in
             let mut c11: c_int = 0;
             let mut c12: c_int = 0;
             let mut junk: c_int = 0;
+            let mut junk2: c_int = 0;
 
             while (str1.offset_from(s1) as c_int) < *n {
                 c1 = mb_ptr2char_adv(&raw mut str1);
                 c2 = mb_ptr2char_adv(&raw mut str2);
 
                 if c1 != c2 && (!re_st().rex.reg_ic || utf_fold(c1) != utf_fold(c2)) {
-                    mb_decompose(c1, &raw mut c11, &raw mut junk, &raw mut junk);
-                    mb_decompose(c2, &raw mut c12, &raw mut junk, &raw mut junk);
+                    mb_decompose(c1, &mut c11, &mut junk, &mut junk2);
+                    mb_decompose(c2, &mut c12, &mut junk, &mut junk2);
                     c1 = c11;
                     c2 = c12;
                     if c11 != c12 && (!re_st().rex.reg_ic || utf_fold(c11) != utf_fold(c12)) {
@@ -3238,7 +3237,7 @@ pub(super) unsafe fn init_regexec_multi(
 pub(super) unsafe fn get_char_class_bits(
     start: *const u8,
     end: *const u8,
-    newl: *mut bool,
+    newl: &mut bool,
 ) -> c_int {
     unsafe {
         let mut config: c_int = 0;
@@ -3709,14 +3708,14 @@ mod tests {
             let mut newl = false;
             let digits = b"0-9]";
             assert_eq!(
-                get_char_class_bits(digits.as_ptr(), digits.as_ptr().add(3), &raw mut newl),
+                get_char_class_bits(digits.as_ptr(), digits.as_ptr().add(3), &mut newl),
                 CLASS_o9
             );
             assert!(!newl);
 
             let hex_nl = b"^0-9a-fA-F\\n]";
             assert_eq!(
-                get_char_class_bits(hex_nl.as_ptr(), hex_nl.as_ptr().add(12), &raw mut newl),
+                get_char_class_bits(hex_nl.as_ptr(), hex_nl.as_ptr().add(12), &mut newl),
                 CLASS_not | CLASS_o9 | CLASS_af | CLASS_AF
             );
             assert!(newl);

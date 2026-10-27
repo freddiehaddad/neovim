@@ -148,7 +148,7 @@ unsafe fn win_id2tabwin(argvars: *mut typval_T, rettv: *mut typval_T) {
 
         let mut winnr: c_int = 1;
         let mut tabnr: c_int = 1;
-        win_get_tabwin(id, &raw mut tabnr, &raw mut winnr);
+        win_get_tabwin(id, &mut tabnr, &mut winnr);
 
         let list = tv_list_alloc_ret(rettv, 2);
         tv_list_append_number(list, tabnr as varnumber_T);

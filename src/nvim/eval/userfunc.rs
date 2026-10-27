@@ -755,7 +755,7 @@ unsafe fn get_func_arguments(
     evalarg: *mut evalarg_T,
     partial_argc: c_int,
     argvars: *mut typval_T,
-    argcount: *mut c_int,
+    argcount: &mut c_int,
 ) -> c_int {
     unsafe {
         let mut argp = *arg;
@@ -813,7 +813,7 @@ pub unsafe fn get_func_tv(
             evalarg,
             partial_argc,
             argvars.as_mut_ptr(),
-            &raw mut argcount,
+            &mut argcount,
         );
 
         if ret == OK {
@@ -1859,9 +1859,9 @@ unsafe fn user_func_error(error: c_int, name: *const c_char, found_var: bool) {
 unsafe fn argv_add_base(
     basetv: *mut typval_T,
     argvars: *mut *mut typval_T,
-    argcount: *mut c_int,
+    argcount: &mut c_int,
     new_argvars: *mut typval_T,
-    argv_base: *mut c_int,
+    argv_base: &mut c_int,
 ) {
     unsafe {
         if !basetv.is_null() {
@@ -1967,9 +1967,9 @@ pub unsafe fn call_func(
                     argv_add_base(
                         (*funcexe).fe_basetv,
                         &raw mut argvars,
-                        &raw mut argcount,
+                        &mut argcount,
                         argv.as_mut_ptr(),
-                        &raw mut argv_base,
+                        &mut argv_base,
                     );
                     nlua_call_vlua(funcname, len as usize, argvars, argcount, rettv);
                 } else {
@@ -2002,9 +2002,9 @@ pub unsafe fn call_func(
                     argv_add_base(
                         (*funcexe).fe_basetv,
                         &raw mut argvars,
-                        &raw mut argcount,
+                        &mut argcount,
                         argv.as_mut_ptr(),
-                        &raw mut argv_base,
+                        &mut argv_base,
                     );
 
                     error = call_user_func_check(fp, argcount, argvars, rettv, funcexe, selfdict);
@@ -3693,7 +3693,7 @@ unsafe fn ex_defer_inner(
             evalarg,
             0,
             argvars.as_mut_ptr().add(partial_argc as usize),
-            &raw mut argcount,
+            &mut argcount,
         );
         argcount += partial_argc;
 

@@ -805,8 +805,8 @@ pub unsafe fn decor_check_invalid_glyphs() {
 
 pub unsafe fn next_virt_text_chunk(
     vt: &[VirtTextChunk],
-    pos: *mut usize,
-    attr: *mut c_int,
+    pos: &mut usize,
+    attr: &mut c_int,
 ) -> *mut c_char {
     unsafe {
         let mut text: *mut c_char = ptr::null_mut();
@@ -1627,7 +1627,7 @@ pub unsafe fn decor_redraw_col(
 pub unsafe fn decor_redraw_eol(
     wp: *mut win_T,
     state: &mut DecorState,
-    eol_attr: *mut c_int,
+    eol_attr: &mut c_int,
     eol_col: c_int,
 ) -> bool {
     unsafe {

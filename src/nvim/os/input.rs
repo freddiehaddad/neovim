@@ -466,7 +466,7 @@ unsafe fn check_multiclick(
         let no_move = osi_st().orig_mouse_grid == grid && osi_st().orig_mouse_col == col && osi_st().orig_mouse_row == row;
         let mut is_click = false;
         let mut is_drag = false;
-        let _ = get_mouse_button(code, &raw mut is_click, &raw mut is_drag);
+        let _ = get_mouse_button(code, &mut is_click, &mut is_drag);
 
         if is_drag && no_move {
             *skip_event = true;

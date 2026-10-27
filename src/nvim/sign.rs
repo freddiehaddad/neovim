@@ -508,7 +508,7 @@ pub unsafe fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mu
         s = text;
         while s < endp {
             let mut c: c_int = 0;
-            *sign_text.add(cells) = utfc_ptr2schar(s, &raw mut c);
+            *sign_text.add(cells) = utfc_ptr2schar(s, &mut c);
             if !vim_isprintc(c) {
                 break;
             }

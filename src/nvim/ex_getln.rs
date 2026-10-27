@@ -2291,7 +2291,7 @@ unsafe fn command_line_left_right_mouse(s: &mut CommandLineState) {
                 break;
             }
 
-            correct_screencol(getln_st().ccline.cmdpos, cells, &raw mut getln_st().ccline.cmdspos);
+            correct_screencol(getln_st().ccline.cmdpos, cells, &mut getln_st().ccline.cmdspos);
             getln_st().ccline.cmdpos += utfc_ptr2len(getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize)) - 1;
             getln_st().ccline.cmdspos += cells;
             getln_st().ccline.cmdpos += 1;
@@ -3579,7 +3579,7 @@ pub unsafe fn cmd_screencol(bytepos: c_int) -> c_int {
         let mut i: c_int = 0;
         while i < getln_st().ccline.cmdlen && i < bytepos {
             let c = cmdline_charsize(i);
-            correct_screencol(i, c, &raw mut col);
+            correct_screencol(i, c, &mut col);
 
             col += c;
             if col >= m {
@@ -3594,7 +3594,7 @@ pub unsafe fn cmd_screencol(bytepos: c_int) -> c_int {
 
 /// Check if the character at `idx`, which is `cells` wide, is a multi-byte
 /// character that doesn't fit, so that a `>` must be displayed.
-unsafe fn correct_screencol(idx: c_int, cells: c_int, col: *mut c_int) {
+unsafe fn correct_screencol(idx: c_int, cells: c_int, col: &mut c_int) {
     unsafe {
         if utfc_ptr2len(getln_st().ccline.cmdbuff.add(idx as usize)) > 1
             && utf_ptr2cells(getln_st().ccline.cmdbuff.add(idx as usize)) > 1
@@ -4390,7 +4390,7 @@ pub unsafe fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
         let mut i: c_int = 0;
         while i < len {
             let mut c = cmdline_charsize(getln_st().ccline.cmdpos);
-            correct_screencol(getln_st().ccline.cmdpos, c, &raw mut getln_st().ccline.cmdspos);
+            correct_screencol(getln_st().ccline.cmdpos, c, &mut getln_st().ccline.cmdspos);
             if getln_st().ccline.cmdspos + c < m {
                 getln_st().ccline.cmdspos += c;
             }
@@ -5241,7 +5241,7 @@ pub unsafe fn is_in_cmdwin() -> bool {
 }
 
 /// Get script string.
-pub unsafe fn script_get(eap: &mut exarg_T, lenp: *mut usize) -> Option<std::ffi::CString> {
+pub unsafe fn script_get(eap: &mut exarg_T, lenp: &mut usize) -> Option<std::ffi::CString> {
     unsafe {
         let mut cmd = eap.arg;
 

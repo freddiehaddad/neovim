@@ -1346,14 +1346,13 @@ pub unsafe fn ex_changes(_eap: &mut exarg_T) {
 
 #[inline]
 unsafe fn one_adjust(
-    lp: *mut linenr_T,
+    lp: &mut linenr_T,
     line1: linenr_T,
     line2: linenr_T,
     amount: linenr_T,
     amount_after: linenr_T,
 ) {
-    unsafe {
-        if *lp >= line1 && *lp <= line2 {
+    if *lp >= line1 && *lp <= line2 {
             if amount == MAXLNUM {
                 *lp = 0;
             } else {
@@ -1362,19 +1361,17 @@ unsafe fn one_adjust(
         } else if amount_after != 0 && *lp > line2 {
             *lp += amount_after;
         }
-    }
 }
 
 #[inline]
 unsafe fn one_adjust_nodel(
-    lp: *mut linenr_T,
+    lp: &mut linenr_T,
     line1: linenr_T,
     line2: linenr_T,
     amount: linenr_T,
     amount_after: linenr_T,
 ) {
-    unsafe {
-        if *lp >= line1 && *lp <= line2 {
+    if *lp >= line1 && *lp <= line2 {
             if amount == MAXLNUM {
                 *lp = line1;
             } else {
@@ -1383,7 +1380,6 @@ unsafe fn one_adjust_nodel(
         } else if amount_after != 0 && *lp > line2 {
             *lp += amount_after;
         }
-    }
 }
 
 #[inline]
@@ -1479,7 +1475,7 @@ pub unsafe fn mark_adjust_buf(
             let fm_base = (&raw mut g_st().namedfm).cast::<xfmark_T>();
             for i in 0..NMARKS {
                 one_adjust(
-                    &raw mut (*buf).b_namedm[i].mark.lnum,
+                    &mut (*buf).b_namedm[i].mark.lnum,
                     line1,
                     line2,
                     amount,
@@ -1488,7 +1484,7 @@ pub unsafe fn mark_adjust_buf(
                 let fm = fm_base.add(i);
                 if (*fm).fmark.fnum == fnum {
                     one_adjust_nodel(
-                        &raw mut (*fm).fmark.mark.lnum,
+                        &mut (*fm).fmark.mark.lnum,
                         line1,
                         line2,
                         amount,
@@ -1500,7 +1496,7 @@ pub unsafe fn mark_adjust_buf(
                 let fm = fm_base.add(i);
                 if (*fm).fmark.fnum == fnum {
                     one_adjust_nodel(
-                        &raw mut (*fm).fmark.mark.lnum,
+                        &mut (*fm).fmark.mark.lnum,
                         line1,
                         line2,
                         amount,
@@ -1510,14 +1506,14 @@ pub unsafe fn mark_adjust_buf(
             }
 
             one_adjust(
-                &raw mut (*buf).b_last_insert.mark.lnum,
+                &mut (*buf).b_last_insert.mark.lnum,
                 line1,
                 line2,
                 amount,
                 amount_after,
             );
             one_adjust(
-                &raw mut (*buf).b_last_change.mark.lnum,
+                &mut (*buf).b_last_change.mark.lnum,
                 line1,
                 line2,
                 amount,
@@ -1528,7 +1524,7 @@ pub unsafe fn mark_adjust_buf(
                 && (!by_term || (*buf).b_last_cursor.mark.lnum < (*buf).b_ml.ml_line_count)
             {
                 one_adjust(
-                    &raw mut (*buf).b_last_cursor.mark.lnum,
+                    &mut (*buf).b_last_cursor.mark.lnum,
                     line1,
                     line2,
                     amount,
@@ -1538,7 +1534,7 @@ pub unsafe fn mark_adjust_buf(
 
             if bt_prompt(buf) {
                 one_adjust_nodel(
-                    &raw mut (*buf).b_prompt_start.mark.lnum,
+                    &mut (*buf).b_prompt_start.mark.lnum,
                     line1,
                     line2,
                     amount,
@@ -1548,7 +1544,7 @@ pub unsafe fn mark_adjust_buf(
 
             for i in 0..((*buf).b_changelistlen as usize) {
                 one_adjust_nodel(
-                    &raw mut (*buf).b_changelist[i].mark.lnum,
+                    &mut (*buf).b_changelist[i].mark.lnum,
                     line1,
                     line2,
                     amount,
@@ -1557,14 +1553,14 @@ pub unsafe fn mark_adjust_buf(
             }
 
             one_adjust_nodel(
-                &raw mut (*buf).b_visual.vi_start.lnum,
+                &mut (*buf).b_visual.vi_start.lnum,
                 line1,
                 line2,
                 amount,
                 amount_after,
             );
             one_adjust_nodel(
-                &raw mut (*buf).b_visual.vi_end.lnum,
+                &mut (*buf).b_visual.vi_end.lnum,
                 line1,
                 line2,
                 amount,
@@ -1595,14 +1591,14 @@ pub unsafe fn mark_adjust_buf(
 
         if (**curwin.as_ptr()).w_buffer == buf {
             one_adjust(
-                &raw mut (**curwin.as_ptr()).w_pcmark.lnum,
+                &mut (**curwin.as_ptr()).w_pcmark.lnum,
                 line1,
                 line2,
                 amount,
                 amount_after,
             );
             one_adjust(
-                &raw mut (**curwin.as_ptr()).w_prev_pcmark.lnum,
+                &mut (**curwin.as_ptr()).w_prev_pcmark.lnum,
                 line1,
                 line2,
                 amount,
@@ -1611,7 +1607,7 @@ pub unsafe fn mark_adjust_buf(
 
             if g_st().saved_cursor.lnum != 0 {
                 one_adjust_nodel(
-                    &raw mut g_st().saved_cursor.lnum,
+                    &mut g_st().saved_cursor.lnum,
                     line1,
                     line2,
                     amount,
@@ -1628,7 +1624,7 @@ pub unsafe fn mark_adjust_buf(
                     for i in 0..((*win).w_jumplistlen as usize) {
                         if (*win).w_jumplist[i].fmark.fnum == fnum {
                             one_adjust_nodel(
-                                &raw mut (*win).w_jumplist[i].fmark.mark.lnum,
+                                &mut (*win).w_jumplist[i].fmark.mark.lnum,
                                 line1,
                                 line2,
                                 amount,
@@ -1643,7 +1639,7 @@ pub unsafe fn mark_adjust_buf(
                         for i in 0..((*win).w_tagstacklen as usize) {
                             if (*win).w_tagstack[i].fmark.fnum == fnum {
                                 one_adjust_nodel(
-                                    &raw mut (*win).w_tagstack[i].fmark.mark.lnum,
+                                    &mut (*win).w_tagstack[i].fmark.mark.lnum,
                                     line1,
                                     line2,
                                     amount,
@@ -1655,14 +1651,14 @@ pub unsafe fn mark_adjust_buf(
 
                     if (*win).w_old_cursor_lnum != 0 {
                         one_adjust_nodel(
-                            &raw mut (*win).w_old_cursor_lnum,
+                            &mut (*win).w_old_cursor_lnum,
                             line1,
                             line2,
                             amount,
                             amount_after,
                         );
                         one_adjust_nodel(
-                            &raw mut (*win).w_old_visual_lnum,
+                            &mut (*win).w_old_visual_lnum,
                             line1,
                             line2,
                             amount,

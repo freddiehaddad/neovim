@@ -203,7 +203,7 @@ unsafe fn ADVANCE_REGINPUT() {
 unsafe fn bt_recognize_char_class(start: *const u8, end: *const u8) -> c_int {
     unsafe {
         let mut newl = false;
-        let config = get_char_class_bits(start, end, &raw mut newl);
+        let config = get_char_class_bits(start, end, &mut newl);
         if config < 0 || newl {
             return 0;
         }
@@ -856,7 +856,7 @@ unsafe fn reginsert_limits(op: c_int, minval: i64, maxval: i64, opnd: *mut u8) {
     }
 }
 
-unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
+unsafe fn regatom(flagp: &mut c_int) -> *mut u8 {
     unsafe {
         let mut ret: *mut u8;
         let mut flags: c_int = 0;
@@ -981,7 +981,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
-                ret = reg(REG_PAREN, &raw mut flags);
+                ret = reg(REG_PAREN, &mut flags);
                 if ret.is_null() {
                     return ptr::null_mut();
                 }
@@ -1077,7 +1077,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                             g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
-                        ret = reg(REG_ZPAREN, &raw mut flags);
+                        ret = reg(REG_ZPAREN, &mut flags);
                         if ret.is_null() {
                             return ptr::null_mut();
                         }
@@ -1131,7 +1131,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                             g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
-                        ret = reg(REG_NPAREN, &raw mut flags);
+                        ret = reg(REG_NPAREN, &mut flags);
                         if ret.is_null() {
                             return ptr::null_mut();
                         }
@@ -1697,7 +1697,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
         let mut minval: c_int = 0;
         let mut maxval: c_int = 0;
 
-        let ret = regatom(&raw mut flags);
+        let ret = regatom(&mut flags);
         if ret.is_null() {
             return ptr::null_mut();
         }
@@ -1777,7 +1777,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
             regtail(ret, next);
             regoptail(ret, next);
         } else if op == Magic(b'{' as c_int) {
-            if read_limits(&raw mut minval, &raw mut maxval) == 0 {
+            if read_limits(&mut minval, &mut maxval) == 0 {
                 return ptr::null_mut();
             }
             if (flags & SIMPLE) != 0 {
@@ -1837,7 +1837,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
     }
 }
 
-unsafe fn regconcat(flagp: *mut c_int) -> *mut u8 {
+unsafe fn regconcat(flagp: &mut c_int) -> *mut u8 {
     unsafe {
         let mut first: *mut u8 = ptr::null_mut();
         let mut chain: *mut u8 = ptr::null_mut();
@@ -1903,7 +1903,7 @@ unsafe fn regconcat(flagp: *mut c_int) -> *mut u8 {
     }
 }
 
-unsafe fn regbranch(flagp: *mut c_int) -> *mut u8 {
+unsafe fn regbranch(flagp: &mut c_int) -> *mut u8 {
     unsafe {
         let mut chain: *mut u8 = ptr::null_mut();
         let mut flags: c_int = 0;
@@ -1912,7 +1912,7 @@ unsafe fn regbranch(flagp: *mut c_int) -> *mut u8 {
 
         let ret = regnode(BRANCH);
         loop {
-            let latest = regconcat(&raw mut flags);
+            let latest = regconcat(&mut flags);
             if latest.is_null() {
                 return ptr::null_mut();
             }
@@ -1936,7 +1936,7 @@ unsafe fn regbranch(flagp: *mut c_int) -> *mut u8 {
     }
 }
 
-unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
+unsafe fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
     unsafe {
         let mut ret: *mut u8;
         let mut parno: c_int = 0;
@@ -1982,7 +1982,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
         }
         re_st().bt_reg_parse_depth += 1;
 
-        let mut br = regbranch(&raw mut flags);
+        let mut br = regbranch(&mut flags);
         if br.is_null() {
             re_st().bt_reg_parse_depth -= 1;
             return ptr::null_mut();
@@ -1998,7 +1998,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
         *flagp |= flags & (SPSTART | HASNL | HASLOOKBH);
         while peekchr() == Magic(b'|' as c_int) {
             skipchr();
-            br = regbranch(&raw mut flags);
+            br = regbranch(&mut flags);
             if br.is_null() || re_st().reg_toolong != 0 {
                 re_st().bt_reg_parse_depth -= 1;
                 return ptr::null_mut();
@@ -2094,7 +2094,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_reg
         regcomp_start(expr, re_flags);
         re_st().regcode = just_calc_size();
         regc(REGMAGIC);
-        if reg(REG_NOPAREN, &raw mut flags).is_null() {
+        if reg(REG_NOPAREN, &mut flags).is_null() {
             return None;
         }
 
@@ -2111,7 +2111,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_reg
         regcomp_start(expr, re_flags);
         re_st().regcode = r.program.as_mut_ptr();
         regc(REGMAGIC);
-        if reg(REG_NOPAREN, &raw mut flags).is_null() || re_st().reg_toolong != 0 {
+        if reg(REG_NOPAREN, &mut flags).is_null() || re_st().reg_toolong != 0 {
             if re_st().reg_toolong != 0 {
                 emsg(tr(c"E339: Pattern too long".as_ptr()));
                 g_st().rc_did_emsg = true;
@@ -3049,7 +3049,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                     1
                                 } else {
                                     let mut l = std::ffi::CStr::from_ptr(opnd.cast()).to_bytes().len() as c_int;
-                                    if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &raw mut l) != 0 {
+                                    if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &mut l) != 0 {
                                         status = RA_NOMATCH;
                                     }
                                     l
@@ -3119,7 +3119,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                     if status != RA_NOMATCH {
                                         re_st().rex.input = re_st().rex.input.add(len as usize);
                                     }
-                                } else if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &raw mut len) != 0
+                                } else if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &mut len) != 0
                                 {
                                     status = RA_NOMATCH;
                                 } else {
@@ -3250,7 +3250,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                     if cstrncmp(
                                         (*re_st().rex.reg_startp.add(no)).cast(),
                                         re_st().rex.input.cast(),
-                                        &raw mut len,
+                                        &mut len,
                                     ) != 0
                                     {
                                         status = RA_NOMATCH;
@@ -3265,7 +3265,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                         if cstrncmp(
                                             re_st().rex.line.add(spos.col as usize).cast(),
                                             re_st().rex.input.cast(),
-                                            &raw mut len,
+                                            &mut len,
                                         ) != 0
                                         {
                                             status = RA_NOMATCH;
@@ -3295,7 +3295,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                             {
                                 let m = m_cstr.as_ptr();
                                 let mut len = m_cstr.as_bytes().len() as c_int;
-                                if cstrncmp(m, re_st().rex.input.cast(), &raw mut len) != 0 {
+                                if cstrncmp(m, re_st().rex.input.cast(), &mut len) != 0 {
                                     status = RA_NOMATCH;
                                 } else {
                                     re_st().rex.input = re_st().rex.input.add(len as usize);
@@ -3949,7 +3949,7 @@ unsafe fn bt_regexec_both(
                         break;
                     }
                     let mut len = (*prog).regmlen;
-                    if cstrncmp(s.cast(), regmust.cast_mut(), &raw mut len) == 0 {
+                    if cstrncmp(s.cast(), regmust.cast_mut(), &mut len) == 0 {
                         break;
                     }
                     mb_ptr_adv(&raw mut s);
@@ -3961,7 +3961,7 @@ unsafe fn bt_regexec_both(
                         break;
                     }
                     let mut len = (*prog).regmlen;
-                    if cstrncmp(s.cast(), regmust.cast_mut(), &raw mut len) == 0 {
+                    if cstrncmp(s.cast(), regmust.cast_mut(), &mut len) == 0 {
                         break;
                     }
                     mb_ptr_adv(&raw mut s);

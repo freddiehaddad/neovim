@@ -2065,17 +2065,15 @@ pub fn name_to_mod_mask(c: c_int) -> c_int {
 }
 
 /// Check if there is a special key code for `key` with specified modifiers (`simplify_key`).
-pub unsafe fn simplify_key(key: c_int, modifiers: *mut c_int) -> c_int {
-    let mut mods = unsafe { *modifiers };
+pub unsafe fn simplify_key(key: c_int, modifiers: &mut c_int) -> c_int {
+    let mut mods = *modifiers;
     if (mods & c_int::from(MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0 {
         return key;
     }
 
     // TAB is a special case.
     if key == TAB && (mods & c_int::from(MOD_MASK_SHIFT)) != 0 {
-        unsafe {
-            *modifiers = mods & !c_int::from(MOD_MASK_SHIFT);
-        }
+        *modifiers = mods & !c_int::from(MOD_MASK_SHIFT);
         return K_S_TAB;
     }
     let key0 = key2termcap0(key);
@@ -2088,9 +2086,7 @@ pub unsafe fn simplify_key(key: c_int, modifiers: *mut c_int) -> c_int {
             && (mods & entry_mod) != 0
         {
             mods &= !entry_mod;
-            unsafe {
-                *modifiers = mods;
-            }
+            *modifiers = mods;
             return termcap2key(
                 c_int::from(MODIFIER_KEYS_TABLE[i + 1]),
                 c_int::from(MODIFIER_KEYS_TABLE[i + 2]),
@@ -2663,13 +2659,11 @@ pub unsafe fn get_special_key_code(name: *const c_char) -> c_int {
 }
 
 /// Look up the given mouse code to return the relevant information (`get_mouse_button`).
-pub unsafe fn get_mouse_button(code: c_int, is_click: *mut bool, is_drag: *mut bool) -> c_int {
+pub unsafe fn get_mouse_button(code: c_int, is_click: &mut bool, is_drag: &mut bool) -> c_int {
     for entry in MOUSE_TABLE {
         if code == entry.pseudo_code {
-            unsafe {
-                *is_click = entry.is_click;
+            *is_click = entry.is_click;
                 *is_drag = entry.is_drag;
-            }
             return entry.button;
         }
     }

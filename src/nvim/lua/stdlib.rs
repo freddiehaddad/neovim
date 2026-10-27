@@ -231,7 +231,7 @@ pub unsafe extern "C-unwind" fn nlua_str_utfindex(lstate: *mut lua_State) -> c_i
 
         let mut codepoints: usize = 0;
         let mut codeunits: usize = 0;
-        mb_utflen(s1, idx as usize, &raw mut codepoints, &raw mut codeunits);
+        mb_utflen(s1, idx as usize, &mut codepoints, &mut codeunits);
 
         lua_pushinteger(lstate, codepoints as lua_Integer);
         lua_pushinteger(lstate, codeunits as lua_Integer);

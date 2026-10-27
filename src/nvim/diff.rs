@@ -1627,7 +1627,7 @@ pub unsafe fn ex_diffoff(eap: &mut exarg_T) {
 unsafe fn extract_hunk_internal(
     dout: *mut diffout_T,
     hunk: *mut diffhunk_T,
-    line_idx: *mut c_int,
+    line_idx: &mut c_int,
 ) -> bool {
     unsafe {
         let eof = *line_idx >= (*dout).dout_ga.len() as c_int;
@@ -1685,7 +1685,7 @@ unsafe fn process_hunk(
     idx_orig: usize,
     idx_new: usize,
     hunk: *const diffhunk_T,
-    notsetp: *mut bool,
+    notsetp: &mut bool,
 ) {
     unsafe {
         let mut dp_idx = *dp_idx_p;
@@ -1800,7 +1800,7 @@ unsafe fn diff_read(idx_orig: usize, idx_new: usize, dio: *mut diffio_T) {
                 count_new: 0,
             };
             let eof = if (*dio).dio_internal != 0 {
-                extract_hunk_internal(dout, &raw mut hunk, &raw mut line_hunk_idx)
+                extract_hunk_internal(dout, &raw mut hunk, &mut line_hunk_idx)
             } else {
                 extract_hunk(fd, &raw mut hunk, &raw mut diffstyle)
             };
@@ -1812,7 +1812,7 @@ unsafe fn diff_read(idx_orig: usize, idx_new: usize, dio: *mut diffio_T) {
                 idx_orig,
                 idx_new,
                 &raw const hunk,
-                &raw mut notset,
+                &mut notset,
             );
         }
         while dp_idx < (*g_st().curtab).tp_diffs.len() {
@@ -1918,8 +1918,8 @@ unsafe fn calculate_topfill_and_topline(
     toidx: usize,
     from_topline: c_int,
     from_topfill: c_int,
-    topfill: *mut c_int,
-    topline: *mut linenr_T,
+    topfill: &mut c_int,
+    topline: &mut linenr_T,
 ) {
     unsafe {
         let mut thistopdiff: Option<usize> = None;
@@ -2309,8 +2309,8 @@ pub unsafe fn diff_set_topline(fromwin: *mut win_T, towin: *mut win_T) {
                     u_toidx,
                     (*fromwin).w_topline,
                     (*fromwin).w_topfill,
-                    &raw mut (*towin).w_topfill,
-                    &raw mut (*towin).w_topline,
+                    &mut (*towin).w_topfill,
+                    &mut (*towin).w_topline,
                 );
             }
         } else {
@@ -2563,11 +2563,10 @@ pub unsafe fn diff_update_line(lnum: linenr_T) {
 pub unsafe fn diff_change_parse(
     diffline: &diffline_T,
     change: &diffline_change_T,
-    change_start: *mut c_int,
-    change_end: *mut c_int,
+    change_start: &mut c_int,
+    change_end: &mut c_int,
 ) -> bool {
-    unsafe {
-        let bufidx = diffline.bufidx as usize;
+    let bufidx = diffline.bufidx as usize;
         if change.dc_start_lnum_off[bufidx] < diffline.lineoff {
             *change_start = 0;
         } else {
@@ -2592,15 +2591,14 @@ pub unsafe fn diff_change_parse(
             }
         }
         true
-    }
 }
 unsafe fn diff_find_change_simple(
     wp: &mut win_T,
     lnum: linenr_T,
     dp: *const diff_T,
     idx: usize,
-    startp: *mut c_int,
-    endp: *mut c_int,
+    startp: &mut c_int,
+    endp: &mut c_int,
 ) -> bool {
     unsafe {
         let line_org_owned = if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
@@ -3126,8 +3124,8 @@ pub unsafe fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: *mut di
                 lnum,
                 &(&(*g_st().curtab).tp_diffs)[dp_idx],
                 u_idx,
-                &raw mut change_start,
-                &raw mut change_end,
+                &mut change_start,
+                &mut change_end,
             );
             change_end += 1;
             let mut simple_change = diffline_change_T {
@@ -3909,8 +3907,8 @@ pub unsafe fn f_diff_hlID(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
                     let added = diff_change_parse(
                         &diffline,
                         change,
-                        &raw mut diff_st().f_diff_hlid_change_start,
-                        &raw mut diff_st().f_diff_hlid_change_end,
+                        &mut diff_st().f_diff_hlid_change_start,
+                        &mut diff_st().f_diff_hlid_change_end,
                     );
                     if col >= diff_st().f_diff_hlid_change_start && col < diff_st().f_diff_hlid_change_end {
                         diff_st().f_diff_hlid_hlID = if added { HLF_TXA } else { HLF_TXD };

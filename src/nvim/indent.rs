@@ -260,8 +260,8 @@ pub unsafe fn tabstop_fromto(
     end_col: colnr_T,
     ts_arg: c_int,
     vts: &[colnr_T],
-    ntabs: *mut c_int,
-    nspcs: *mut c_int,
+    ntabs: &mut c_int,
+    nspcs: &mut c_int,
 ) {
     unsafe {
         let mut spaces: c_int = end_col - start_col;
@@ -1480,8 +1480,8 @@ pub unsafe fn ex_retab(eap: &mut exarg_T) {
                                 vcol as colnr_T,
                                 (*g_st().curbuf).b_p_ts as c_int,
                                 &new_vts_array,
-                                &raw mut t,
-                                &raw mut s,
+                                &mut t,
+                                &mut s,
                             );
                             num_tabs = t;
                             num_spaces = s;

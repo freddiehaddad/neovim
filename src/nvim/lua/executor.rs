@@ -1432,7 +1432,7 @@ pub unsafe fn nlua_print_event(text: NvimString) {
             true,
             false,
             ptr::null_mut(),
-            &raw mut needs_clear,
+            &mut needs_clear,
             raw,
         );
     }
@@ -2332,7 +2332,7 @@ pub unsafe fn ex_lua(eap: &mut exarg_T) {
         }
 
         let mut len: usize = 0;
-        let raw_code = script_get(eap, &raw mut len);
+        let raw_code = script_get(eap, &mut len);
         let Some(raw_cstr) = raw_code else {
             return;
         };

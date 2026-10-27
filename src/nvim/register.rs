@@ -366,7 +366,7 @@ pub unsafe fn valid_yank_reg(regname: c_int, writing: bool) -> bool {
 pub unsafe fn get_default_register_name() -> c_int {
     unsafe {
         let mut name: c_int = 0;
-        adjust_clipboard_name(&raw mut name, true, false);
+        adjust_clipboard_name(&mut name, true, false);
         name
     }
 }
@@ -712,7 +712,7 @@ unsafe fn put_reedit_in_typebuf(silent: c_int) {
     }
 }
 
-unsafe fn execreg_line_continuation(lines: *mut NvimString, idx: *mut usize) -> Vec<c_char> {
+unsafe fn execreg_line_continuation(lines: *mut NvimString, idx: &mut usize) -> Vec<c_char> {
     unsafe {
         let mut cmd_start = *idx;
         assert!(cmd_start > 0);
@@ -839,7 +839,7 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
                             && *p.add(2) == b' ' as c_char)
                     {
                         cont_vec =
-                            execreg_line_continuation(reg.y_array.as_ptr().cast_mut(), &raw mut i);
+                            execreg_line_continuation(reg.y_array.as_ptr().cast_mut(), &mut i);
                         str_ = cont_vec.as_ptr().cast_mut();
                     }
                 }

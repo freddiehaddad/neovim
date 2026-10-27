@@ -1591,7 +1591,7 @@ pub unsafe fn readfile(
                     {
                         did_iconv = false;
                         if tmpname.is_none() {
-                            tmpname = readfile_charconvert(fname, fenc, &raw mut fd);
+                            tmpname = readfile_charconvert(fname, fenc, &mut fd);
                             if tmpname.is_none() {
                                 advance_fenc = true;
                                 if fd < 0 {
@@ -1775,7 +1775,7 @@ pub unsafe fn readfile(
                                 check_for_bom(
                                     ptr,
                                     size as c_int,
-                                    &raw mut blen,
+                                    &mut blen,
                                     if fio_flags == FIO_UCSBOM {
                                         FIO_ALL
                                     } else {
@@ -2897,7 +2897,7 @@ unsafe fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
 unsafe fn readfile_charconvert(
     fname: *mut c_char,
     fenc: *mut c_char,
-    fdp: *mut c_int,
+    fdp: &mut c_int,
 ) -> Option<std::ffi::CString> {
     unsafe {
         let mut errmsg: *mut c_char = ptr::null_mut();
@@ -3195,7 +3195,7 @@ pub unsafe fn get_fio_flags(mut name: *const c_char) -> c_int {
 unsafe fn check_for_bom(
     p_in: *const c_char,
     size: c_int,
-    lenp: *mut c_int,
+    lenp: &mut c_int,
     flags: c_int,
 ) -> *const c_char {
     unsafe {
@@ -4922,19 +4922,19 @@ mod tests {
         unsafe {
             let mut len = 0;
             let utf8_bom = [0xefu8, 0xbb, 0xbf, b'a'];
-            let enc = check_for_bom(utf8_bom.as_ptr().cast(), 4, &raw mut len, FIO_ALL);
+            let enc = check_for_bom(utf8_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
             assert!(!enc.is_null());
             assert_eq!(CStr::from_ptr(enc), c"utf-8");
             assert_eq!(len, 3);
 
             let utf16le_bom = [0xffu8, 0xfe, b'a', 0];
-            let enc = check_for_bom(utf16le_bom.as_ptr().cast(), 4, &raw mut len, FIO_ALL);
+            let enc = check_for_bom(utf16le_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
             assert!(!enc.is_null());
             assert_eq!(CStr::from_ptr(enc), c"utf-16le");
             assert_eq!(len, 2);
 
             let ucs4le_bom = [0xffu8, 0xfe, 0x00, 0x00];
-            let enc = check_for_bom(ucs4le_bom.as_ptr().cast(), 4, &raw mut len, FIO_ALL);
+            let enc = check_for_bom(ucs4le_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
             assert!(!enc.is_null());
             assert_eq!(CStr::from_ptr(enc), c"ucs-4le");
             assert_eq!(len, 4);

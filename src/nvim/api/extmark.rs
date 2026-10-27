@@ -1539,8 +1539,8 @@ unsafe fn extmark_get_index_from_obj(
     buf: *mut buf_T,
     ns_id: Integer,
     obj: Object,
-    row: *mut c_int,
-    col: *mut colnr_T,
+    row: &mut c_int,
+    col: &mut colnr_T,
     err: &mut Error,
 ) -> bool {
     unsafe {

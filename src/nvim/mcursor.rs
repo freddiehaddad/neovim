@@ -1651,12 +1651,13 @@ pub unsafe fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
         let mut vcols: [colnr_T; 2] = [0, MAXCOL];
         let blockwise = oap.from_visual && v.vi_mode == Ctrl_V && !lines;
         if blockwise {
+            let [vcol0, vcol1] = &mut vcols;
             getvcols(
                 *curwin.as_ptr(),
                 &mut v.vi_start,
                 &mut v.vi_end,
-                &mut vcols[0],
-                &mut vcols[1],
+                vcol0,
+                vcol1,
                 0,
             );
             vcols[1] = if v.vi_curswant == MAXCOL {

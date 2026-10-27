@@ -668,7 +668,7 @@ unsafe fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) 
 
             let mut scratch = grapheme_len as c_int;
             let ci = utf_ptr2StrCharInfo_len(state.grapheme_buf.as_ptr(), scratch);
-            let cli = utf_ClusterInfo_len(ci, &raw mut scratch);
+            let cli = utf_ClusterInfo_len(ci, &mut scratch);
             let width = cli.cells;
 
             if state.at_phantom != 0 || state.pos.col + width > thisrowwidth(state) {
@@ -1774,7 +1774,7 @@ unsafe fn on_csi(
                     996 => {
                         if let Some(callbacks) = state.callbacks
                             && let Some(cb) = callbacks.theme
-                            && cb(&raw mut dark, state.screen_ptr()) != 0
+                            && cb(&mut dark, state.screen_ptr()) != 0
                         {
                             let s: &[u8] = if dark { b"?997;1n" } else { b"?997;2n" };
                             vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, s);

@@ -6029,7 +6029,7 @@ unsafe fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
                     &raw mut lrstate,
                     buf.add(buf_size),
                     ARENA_BLOCK_SIZE - buf_size,
-                    &raw mut read_bytes,
+                    &mut read_bytes,
                 );
                 if rlret == FAIL {
                     semsg!(
@@ -6242,7 +6242,7 @@ pub unsafe fn f_py3eval(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
     }
 }
 
-unsafe fn init_srand(x: *mut u32) {
+unsafe fn init_srand(x: &mut u32) {
     unsafe {
         let mut number: u32 = 0;
         if uv_random(
@@ -6262,20 +6262,17 @@ unsafe fn init_srand(x: *mut u32) {
 }
 
 #[inline(always)]
-unsafe fn splitmix32(x: *mut u32) -> u32 {
-    unsafe {
-        *x = (*x).wrapping_add(0x9e3779b9);
+unsafe fn splitmix32(x: &mut u32) -> u32 {
+    *x = (*x).wrapping_add(0x9e3779b9);
         let mut z = *x;
         z = (z ^ (z >> 16)).wrapping_mul(0x85ebca6b);
         z = (z ^ (z >> 13)).wrapping_mul(0xc2b2ae35);
         z ^ (z >> 16)
-    }
 }
 
 #[inline(always)]
-unsafe fn shuffle_xoshiro128starstar(x: *mut u32, y: *mut u32, z: *mut u32, w: *mut u32) -> u32 {
-    unsafe {
-        let result = ((*y).wrapping_mul(5)).rotate_left(7).wrapping_mul(9);
+unsafe fn shuffle_xoshiro128starstar(x: &mut u32, y: &mut u32, z: &mut u32, w: &mut u32) -> u32 {
+    let result = ((*y).wrapping_mul(5)).rotate_left(7).wrapping_mul(9);
         let t = *y << 9;
         *z ^= *x;
         *w ^= *y;
@@ -6284,7 +6281,6 @@ unsafe fn shuffle_xoshiro128starstar(x: *mut u32, y: *mut u32, z: *mut u32, w: *
         *z ^= t;
         *w = (*w).rotate_left(11);
         result
-    }
 }
 
 /// "rand()" function
@@ -6295,18 +6291,18 @@ pub unsafe fn f_rand(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
             if !funcs_st().RAND_INITIALIZED {
                 let mut x: u32 = 0;
-                init_srand(&raw mut x);
-                funcs_st().RAND_GX = splitmix32(&raw mut x);
-                funcs_st().RAND_GY = splitmix32(&raw mut x);
-                funcs_st().RAND_GZ = splitmix32(&raw mut x);
-                funcs_st().RAND_GW = splitmix32(&raw mut x);
+                init_srand(&mut x);
+                funcs_st().RAND_GX = splitmix32(&mut x);
+                funcs_st().RAND_GY = splitmix32(&mut x);
+                funcs_st().RAND_GZ = splitmix32(&mut x);
+                funcs_st().RAND_GW = splitmix32(&mut x);
                 funcs_st().RAND_INITIALIZED = true;
             }
             result = shuffle_xoshiro128starstar(
-                &raw mut funcs_st().RAND_GX,
-                &raw mut funcs_st().RAND_GY,
-                &raw mut funcs_st().RAND_GZ,
-                &raw mut funcs_st().RAND_GW,
+                &mut funcs_st().RAND_GX,
+                &mut funcs_st().RAND_GY,
+                &mut funcs_st().RAND_GZ,
+                &mut funcs_st().RAND_GW,
             );
         } else if (*argvars).v_type == VarType::VAR_LIST {
             let l = (*argvars).vval.v_list();
@@ -6336,7 +6332,7 @@ pub unsafe fn f_rand(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
             let mut z = (*tvz).vval.v_number() as u32;
             let mut w = (*tvw).vval.v_number() as u32;
 
-            result = shuffle_xoshiro128starstar(&raw mut x, &raw mut y, &raw mut z, &raw mut w);
+            result = shuffle_xoshiro128starstar(&mut x, &mut y, &mut z, &mut w);
 
             (*tvx).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(x));
             (*tvy).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(y));
@@ -6360,7 +6356,7 @@ pub unsafe fn f_srand(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
         let mut x: u32 = 0;
         tv_list_alloc_ret(rettv, 4);
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
-            init_srand(&raw mut x);
+            init_srand(&mut x);
         } else {
             let mut error = false;
             x = tv_get_number_chk(argvars, &mut error) as u32;
@@ -6370,19 +6366,19 @@ pub unsafe fn f_srand(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
         }
         tv_list_append_number(
             rettv.vval.v_list(),
-            varnumber_T::from(splitmix32(&raw mut x)),
+            varnumber_T::from(splitmix32(&mut x)),
         );
         tv_list_append_number(
             rettv.vval.v_list(),
-            varnumber_T::from(splitmix32(&raw mut x)),
+            varnumber_T::from(splitmix32(&mut x)),
         );
         tv_list_append_number(
             rettv.vval.v_list(),
-            varnumber_T::from(splitmix32(&raw mut x)),
+            varnumber_T::from(splitmix32(&mut x)),
         );
         tv_list_append_number(
             rettv.vval.v_list(),
-            varnumber_T::from(splitmix32(&raw mut x)),
+            varnumber_T::from(splitmix32(&mut x)),
         );
     }
 }
@@ -6926,7 +6922,7 @@ unsafe fn get_search_arg(varp: &mut typval_T, flagsp: *mut c_int) -> c_int {
     }
 }
 
-unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: *mut c_int) -> c_int {
+unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: &mut c_int) -> c_int {
     unsafe {
         let save_p_ws = opt_vars().p_ws;
         let mut retval: c_int = 0;
@@ -6937,7 +6933,7 @@ unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: *mut
 
         'theend: {
             let pat = tv_get_string(argvars);
-            let dir = get_search_arg(&mut *argvars.add(1), flagsp);
+            let dir = get_search_arg(&mut *argvars.add(1), &raw mut *flagsp);
             if dir == 0 {
                 break 'theend;
             }
@@ -7270,7 +7266,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
     }
 }
 
-unsafe fn screenchar_adjust(grid: *mut *mut ScreenGrid, row: *mut c_int, col: *mut c_int) {
+unsafe fn screenchar_adjust(grid: *mut *mut ScreenGrid, row: &mut c_int, col: &mut c_int) {
     unsafe {
         msg_scroll_flush();
         *grid = ui_comp_get_grid_at_coord(*row, *col);
@@ -7286,7 +7282,7 @@ pub unsafe fn f_screenattr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
         let mut col = (tv_get_number_chk(argvars.add(1), ptr::null_mut()) as c_int) - 1;
 
         let mut grid: *mut ScreenGrid = ptr::null_mut();
-        screenchar_adjust(&raw mut grid, &raw mut row, &raw mut col);
+        screenchar_adjust(&raw mut grid, &mut row, &mut col);
 
         let grid = &*grid;
         let c = if row < 0 || row >= grid.rows || col < 0 || col >= grid.cols {
@@ -7306,7 +7302,7 @@ pub unsafe fn f_screenchar(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
         let mut col = (tv_get_number_chk(argvars.add(1), ptr::null_mut()) as c_int) - 1;
 
         let mut grid: *mut ScreenGrid = ptr::null_mut();
-        screenchar_adjust(&raw mut grid, &raw mut row, &raw mut col);
+        screenchar_adjust(&raw mut grid, &mut row, &mut col);
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(if row < 0 || row >= (*grid).rows || col < 0 || col >= (*grid).cols
         {
@@ -7329,7 +7325,7 @@ pub unsafe fn f_screenchars(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         let mut col = (tv_get_number_chk(argvars.add(1), ptr::null_mut()) as c_int) - 1;
 
         let mut grid: *mut ScreenGrid = ptr::null_mut();
-        screenchar_adjust(&raw mut grid, &raw mut row, &raw mut col);
+        screenchar_adjust(&raw mut grid, &mut row, &mut col);
 
         tv_list_alloc_ret(rettv, kListLenMayKnow);
         if row < 0 || row >= (*grid).rows || col < 0 || col >= (*grid).cols {
@@ -7378,7 +7374,7 @@ pub unsafe fn f_screenstring(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
         let mut row = (tv_get_number_chk(argvars, ptr::null_mut()) as c_int) - 1;
         let mut col = (tv_get_number_chk(argvars.add(1), ptr::null_mut()) as c_int) - 1;
 
-        screenchar_adjust(&raw mut grid, &raw mut row, &raw mut col);
+        screenchar_adjust(&raw mut grid, &mut row, &mut col);
         if row < 0 || row >= (*grid).rows || col < 0 || col >= (*grid).cols {
             return;
         }
@@ -7396,7 +7392,7 @@ pub unsafe fn f_screenstring(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
 pub unsafe fn f_search(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut flags: c_int = 0;
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(search_cmn(argvars, ptr::null_mut(), &raw mut flags)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(search_cmn(argvars, ptr::null_mut(), &mut flags)));
     }
 }
 
@@ -7730,7 +7726,7 @@ pub unsafe fn f_searchpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         };
         let mut flags: c_int = 0;
 
-        let n = search_cmn(argvars, &raw mut match_pos, &raw mut flags);
+        let n = search_cmn(argvars, &raw mut match_pos, &mut flags);
         tv_list_alloc_ret(rettv, 2 + isize::from((flags & SP_SUBPAT) != 0));
 
         let lnum = if n > 0 { match_pos.lnum } else { 0 };
@@ -8005,7 +8001,7 @@ pub unsafe fn f_setpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
 unsafe fn get_yank_type(
     pp: *mut *mut c_char,
     yank_type: *mut crate::register::MotionType,
-    block_len: *mut c_int,
+    block_len: &mut c_int,
 ) -> c_int {
     unsafe {
         let mut stropt = *pp;
@@ -8072,7 +8068,7 @@ pub unsafe fn f_setreg(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
 
             let mut stropt = tv_dict_get_string(d, c"regtype".as_ptr());
             if !stropt.is_null() {
-                let ret = get_yank_type(&raw mut stropt, &raw mut yank_type, &raw mut block_len);
+                let ret = get_yank_type(&raw mut stropt, &raw mut yank_type, &mut block_len);
                 stropt = stropt.add(1);
                 if ret == FAIL || *stropt != NUL {
                     semsg!(gettext(e_invargval.as_ptr()), c"value".as_ptr());
@@ -8109,7 +8105,7 @@ pub unsafe fn f_setreg(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
                     b'a' | b'A' => append = true,
                     b'u' | b'"' => set_unnamed = true,
                     _ => {
-                        get_yank_type(&raw mut stropt, &raw mut yank_type, &raw mut block_len);
+                        get_yank_type(&raw mut stropt, &raw mut yank_type, &mut block_len);
                     }
                 }
                 stropt = stropt.add(1);
@@ -8590,7 +8586,7 @@ unsafe fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut typval_T) {
         loop {
             let mut dir_len: usize = 0;
             let mut dir: *const c_char = ptr::null();
-            iter = vim_env_iter(ENV_SEPCHAR, dirs.as_ptr(), iter, &raw mut dir, &raw mut dir_len);
+            iter = vim_env_iter(ENV_SEPCHAR, dirs.as_ptr(), iter, &raw mut dir, &mut dir_len);
             if !dir.is_null() && dir_len > 0 {
                 let dir_cstr =
                     cstr_from_bytes(std::slice::from_raw_parts(dir.cast::<u8>(), dir_len));
@@ -9001,7 +8997,7 @@ pub unsafe fn f_synconcealed(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
             && (**curwin.as_ptr()).w_onebuf_opt.wo_cole > 0
         {
             syn_get_id(*curwin.as_ptr(), lnum, col, 0, ptr::null_mut(), 0);
-            syntax_flags = get_syntax_info(&raw mut matchid);
+            syntax_flags = get_syntax_info(&mut matchid);
 
             if (syntax_flags & HL_CONCEAL) != 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_cole < 3 {
                 let mut cchar = schar_from_char(syn_get_sub_char());
@@ -15232,11 +15228,11 @@ mod tests {
     fn splitmix32_and_xoshiro_are_deterministic() {
         unsafe {
             let mut seed: u32 = 42;
-            let mut x = splitmix32(&raw mut seed);
-            let mut y = splitmix32(&raw mut seed);
-            let mut z = splitmix32(&raw mut seed);
-            let mut w = splitmix32(&raw mut seed);
-            let r1 = shuffle_xoshiro128starstar(&raw mut x, &raw mut y, &raw mut z, &raw mut w);
+            let mut x = splitmix32(&mut seed);
+            let mut y = splitmix32(&mut seed);
+            let mut z = splitmix32(&mut seed);
+            let mut w = splitmix32(&mut seed);
+            let r1 = shuffle_xoshiro128starstar(&mut x, &mut y, &mut z, &mut w);
             assert_ne!(r1, 0);
         }
     }

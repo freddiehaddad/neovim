@@ -181,7 +181,7 @@ unsafe fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: c_int) -> bool {
 unsafe fn buf_write_convert_with_iconv(
     ip: *mut bw_info,
     bufp: *mut *mut c_char,
-    lenp: *mut c_int,
+    lenp: &mut c_int,
 ) -> c_int {
     unsafe {
         let len = *lenp;
@@ -227,7 +227,7 @@ unsafe fn buf_write_convert_with_iconv(
     }
 }
 
-unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: *mut c_int) -> c_int {
+unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: &mut c_int) -> c_int {
     unsafe {
         let flags = (*ip).bw_flags;
         let mut wlen = *lenp;
@@ -294,7 +294,7 @@ unsafe fn buf_write_bytes(ip: *mut bw_info) -> c_int {
         let flags = (*ip).bw_flags;
 
         if (flags & FIO_NOCONVERT) == 0 {
-            let converted = buf_write_convert(ip, &raw mut buf, &raw mut len);
+            let converted = buf_write_convert(ip, &raw mut buf, &mut len);
             if converted < 0 {
                 return FAIL;
             }
@@ -874,7 +874,7 @@ unsafe fn buf_write_make_backup(
     bkc: c_uint,
     file_readonly: bool,
     forceit: bool,
-    backup_copyp: *mut bool,
+    backup_copyp: &mut bool,
     backupp: &mut Option<std::ffi::CString>,
     err: *mut Error_T,
 ) -> c_int {
@@ -1324,7 +1324,7 @@ pub unsafe fn buf_write(
                         bkc,
                         file_readonly,
                         forceit,
-                        &raw mut backup_copy,
+                        &mut backup_copy,
                         &mut backup,
                         &mut err,
                     ) == FAIL

@@ -338,7 +338,7 @@ unsafe fn nfa_get_match_text(
 unsafe fn nfa_recognize_char_class(start: *mut u8, end: *const u8, mut extra_newl: c_int) -> c_int {
     unsafe {
         let mut newl = false;
-        let config = get_char_class_bits(start, end, &raw mut newl);
+        let config = get_char_class_bits(start, end, &mut newl);
         if config < 0 {
             return FAIL;
         }
@@ -1637,7 +1637,7 @@ unsafe fn nfa_regpiece_multi(
                 skipchr();
                 greedy = false;
             }
-            if read_limits(&raw mut minval, &raw mut maxval) == 0 {
+            if read_limits(&mut minval, &mut maxval) == 0 {
                 emsg(tr(
                     c"E870: (NFA regexp) Error reading repetition limits".as_ptr()
                 ));
@@ -2929,7 +2929,7 @@ unsafe fn addstate_here(
     state: Option<usize>,
     subs: *mut regsubs_T,
     pim: *mut nfa_pim_T,
-    ip: *mut c_int,
+    ip: &mut c_int,
 ) -> *mut regsubs_T {
     unsafe {
         let tlen = (*l).n;
@@ -3092,7 +3092,7 @@ unsafe fn check_char_class(cls: c_int, c: c_int) -> c_int {
     }
 }
 
-unsafe fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: *mut c_int) -> bool {
+unsafe fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: &mut c_int) -> bool {
     unsafe {
         if sub.in_use <= subidx {
             *bytelen = 0;
@@ -3110,7 +3110,7 @@ unsafe fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: *mut c_int) 
                 if cstrncmp(
                     re_st().rex.line.add(mpos.start_col as usize).cast(),
                     re_st().rex.input.cast(),
-                    &raw mut len,
+                    &mut len,
                 ) == 0
                 {
                     *bytelen = len;
@@ -3121,7 +3121,7 @@ unsafe fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: *mut c_int) 
                 mpos.start_col,
                 mpos.end_lnum,
                 mpos.end_col,
-                bytelen,
+                &raw mut *bytelen,
             ) == RA_MATCH
             {
                 return true;
@@ -3133,7 +3133,7 @@ unsafe fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: *mut c_int) 
                 return true;
             }
             let mut len = lpos.end.offset_from(lpos.start) as c_int;
-            if cstrncmp(lpos.start.cast(), re_st().rex.input.cast(), &raw mut len) == 0 {
+            if cstrncmp(lpos.start.cast(), re_st().rex.input.cast(), &mut len) == 0 {
                 *bytelen = len;
                 return true;
             }
@@ -3142,7 +3142,7 @@ unsafe fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: *mut c_int) 
     }
 }
 
-unsafe fn match_zref(subidx: c_int, bytelen: *mut c_int) -> bool {
+unsafe fn match_zref(subidx: c_int, bytelen: &mut c_int) -> bool {
     unsafe {
         cleanup_zsubexpr();
         let idx = subidx as usize;
@@ -3157,7 +3157,7 @@ unsafe fn match_zref(subidx: c_int, bytelen: *mut c_int) -> bool {
         };
         let m = m_cstr.as_ptr();
         let mut len = m_cstr.as_bytes().len() as c_int;
-        if cstrncmp(m, re_st().rex.input.cast(), &raw mut len) == 0 {
+        if cstrncmp(m, re_st().rex.input.cast(), &mut len) == 0 {
             *bytelen = len;
             return true;
         }
@@ -3372,7 +3372,7 @@ fn failure_chance(states: &[nfa_state_T], state: Option<usize>, depth: c_int) ->
     }
 }
 
-unsafe fn skip_to_start(c: c_int, colp: *mut colnr_T) -> c_int {
+unsafe fn skip_to_start(c: c_int, colp: &mut colnr_T) -> c_int {
     unsafe {
         let s = cstrchr(re_st().rex.line.add(*colp as usize).cast(), c);
         if s.is_null() {
@@ -3383,7 +3383,7 @@ unsafe fn skip_to_start(c: c_int, colp: *mut colnr_T) -> c_int {
     }
 }
 
-unsafe fn find_match_text(startcol: *mut colnr_T, regstart: c_int, match_text: *const u8) -> c_int {
+unsafe fn find_match_text(startcol: &mut colnr_T, regstart: c_int, match_text: *const u8) -> c_int {
     unsafe {
         let mut col = *startcol;
         loop {
@@ -3419,7 +3419,7 @@ unsafe fn find_match_text(startcol: *mut colnr_T, regstart: c_int, match_text: *
             }
 
             col += regstart_len2;
-            if skip_to_start(regstart, &raw mut col) == FAIL {
+            if skip_to_start(regstart, &mut col) == FAIL {
                 break;
             }
         }
@@ -3767,7 +3767,7 @@ unsafe fn nfa_regmatch(
                                 out1_out,
                                 &raw mut (*t).subs,
                                 &raw mut pim,
-                                &raw mut listidx,
+                                &mut listidx,
                             )
                             .is_null()
                             {
@@ -4189,10 +4189,10 @@ unsafe fn nfa_regmatch(
                         let mut bytelen: c_int = 0;
                         let matched = if (NFA_BACKREF1..=NFA_BACKREF9).contains(&c) {
                             let subidx = c - NFA_BACKREF1 + 1;
-                            match_backref(&mut (*t).subs.norm, subidx, &raw mut bytelen)
+                            match_backref(&mut (*t).subs.norm, subidx, &mut bytelen)
                         } else {
                             let subidx = c - NFA_ZREF1 + 1;
-                            match_zref(subidx, &raw mut bytelen)
+                            match_zref(subidx, &mut bytelen)
                         };
                         if matched {
                             let out_out = t_st.out.and_then(|o| (&(*prog).state)[o].out);
@@ -4429,7 +4429,7 @@ unsafe fn nfa_regmatch(
                             add_state,
                             &raw mut (*t).subs,
                             pim,
-                            &raw mut listidx,
+                            &mut listidx,
                         )
                     } else {
                         let r = addstate(
@@ -4478,7 +4478,7 @@ unsafe fn nfa_regmatch(
                     if (*prog).regstart != NUL as c_int && clen != 0 {
                         if (*nextlist).n == 0 {
                             let mut col = (re_st().rex.input.offset_from(re_st().rex.line) as colnr_T) + clen;
-                            if skip_to_start((*prog).regstart, &raw mut col) == FAIL {
+                            if skip_to_start((*prog).regstart, &mut col) == FAIL {
                                 break;
                             }
                             re_st().rex.input = re_st().rex.line.add((col - clen) as usize);
@@ -4752,14 +4752,14 @@ unsafe fn nfa_regexec_both(
         }
 
         if (*prog).regstart != NUL as c_int {
-            if skip_to_start((*prog).regstart, &raw mut col) == FAIL {
+            if skip_to_start((*prog).regstart, &mut col) == FAIL {
                 return 0;
             }
             if let Some(ref mt) = (*prog).match_text
                 && !mt.as_bytes().is_empty()
                 && !re_st().rex.reg_icombine
             {
-                retval = find_match_text(&raw mut col, (*prog).regstart, mt.as_ptr().cast::<u8>());
+                retval = find_match_text(&mut col, (*prog).regstart, mt.as_ptr().cast::<u8>());
                 if REG_MULTI() {
                     (*re_st().rex.reg_mmatch).rmm_matchcol = col;
                 } else {

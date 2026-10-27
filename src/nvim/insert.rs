@@ -550,7 +550,7 @@ unsafe fn insert_enter(s: *mut InsertState) {
 
         loop {
             state_enter(s);
-            if ins_esc(&raw mut (*s).count, (*s).cmdchar, (*s).nomove) {
+            if ins_esc(&mut (*s).count, (*s).cmdchar, (*s).nomove) {
                 break;
             }
         }
@@ -1771,7 +1771,7 @@ pub unsafe fn get_literal(no_simplify: bool) -> c_int {
         loop {
             nc = plain_vgetc();
             if !no_simplify {
-                nc = merge_modifiers(nc, &raw mut g_st().mod_mask);
+                nc = merge_modifiers(nc, &mut g_st().mod_mask);
             }
             if (g_st().mod_mask & !MOD_MASK_SHIFT) != 0 {
                 break;
@@ -2852,7 +2852,7 @@ unsafe fn ins_ctrl_hat() {
     }
 }
 
-unsafe fn ins_esc(count: *mut c_int, cmdchar: c_int, nomove: bool) -> bool {
+unsafe fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
     unsafe {
         check_spell_redraw();
 

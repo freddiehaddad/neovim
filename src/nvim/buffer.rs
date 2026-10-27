@@ -1003,7 +1003,7 @@ unsafe fn read_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_in
                 ptr::null_mut(),
                 false,
                 g_st().curbuf,
-                &raw mut retval,
+                &mut retval,
             );
         }
         retval
@@ -1234,7 +1234,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
             ptr::null_mut(),
             false,
             g_st().curbuf,
-            &raw mut retval,
+            &mut retval,
         );
 
         if retval == FAIL {
@@ -1261,7 +1261,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
                     ptr::null_mut(),
                     false,
                     g_st().curbuf,
-                    &raw mut retval,
+                    &mut retval,
                 );
             }
 

@@ -1187,8 +1187,8 @@ pub unsafe fn pum_redraw() {
 unsafe fn pum_preview_set_text(
     win: &mut win_T,
     info: *mut c_char,
-    lnum: *mut linenr_T,
-    max_width: *mut c_int,
+    lnum: &mut linenr_T,
+    max_width: &mut c_int,
 ) {
     unsafe {
         let mut err = Error::new();
@@ -1313,7 +1313,7 @@ pub unsafe fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
         }
         let mut lnum: linenr_T = 0;
         let mut max_info_width: c_int = 0;
-        pum_preview_set_text(&mut *wp, info, &raw mut lnum, &raw mut max_info_width);
+        pum_preview_set_text(&mut *wp, info, &mut lnum, &mut max_info_width);
         g_st().no_u_sync -= 1;
         g_st().RedrawingDisabled -= 1;
         redraw_later(wp, UPD_NOT_VALID);
@@ -1462,8 +1462,8 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                         pum_preview_set_text(
                             &mut **curwin.as_ptr(),
                             (*pum().array.add(pum().selected as usize)).info_ptr(),
-                            &raw mut lnum,
-                            &raw mut max_info_width,
+                            &mut lnum,
+                            &mut max_info_width,
                         );
                         if repeat == 0 && !use_float {
                             lnum = lnum.min(opt_vars().p_pvh as linenr_T);

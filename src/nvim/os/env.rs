@@ -857,7 +857,7 @@ pub unsafe fn vim_env_iter(
     val: *const c_char,
     iter: *const c_char,
     dir: *mut *const c_char,
-    len: *mut usize,
+    len: &mut usize,
 ) -> *const c_char {
     unsafe {
         let varval = if iter.is_null() { val } else { iter };
@@ -879,7 +879,7 @@ pub unsafe fn vim_env_iter_rev(
     val: *const c_char,
     iter: *const c_char,
     dir: *mut *const c_char,
-    len: *mut usize,
+    len: &mut usize,
 ) -> *const c_char {
     unsafe {
         let varend = if iter.is_null() {
@@ -1308,7 +1308,7 @@ mod tests {
                 val.as_ptr(),
                 iter,
                 &raw mut dir,
-                &raw mut len,
+                &mut len,
             );
             assert_eq!(len, 2);
             assert!(!iter.is_null());
@@ -1318,7 +1318,7 @@ mod tests {
                 val.as_ptr(),
                 iter,
                 &raw mut dir,
-                &raw mut len,
+                &mut len,
             );
             assert_eq!(len, 3);
             assert!(!iter.is_null());
@@ -1328,7 +1328,7 @@ mod tests {
                 val.as_ptr(),
                 iter,
                 &raw mut dir,
-                &raw mut len,
+                &mut len,
             );
             assert_eq!(len, 4);
             assert!(iter.is_null());

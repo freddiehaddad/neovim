@@ -1739,7 +1739,7 @@ pub unsafe fn ui_ext_win_position(wp: &mut win_T, validate: bool) {
                     let mut row_off: c_int = 0;
                     let mut col_off: c_int = 0;
                     win_grid_alloc(win);
-                    grid = grid_adjust(&raw mut (*win).w_grid, &raw mut row_off, &raw mut col_off);
+                    grid = grid_adjust(&raw mut (*win).w_grid, &mut row_off, &mut col_off);
                     row += f64::from(row_off);
                     col += f64::from(col_off);
                     if c.bufpos.lnum >= 0 {
@@ -1756,10 +1756,10 @@ pub unsafe fn ui_ext_win_position(wp: &mut win_T, validate: bool) {
                         textpos2screenpos(
                             &mut *win,
                             &mut pos,
-                            &raw mut trow,
-                            &raw mut tcol,
-                            &raw mut tcolc,
-                            &raw mut tcole,
+                            &mut trow,
+                            &mut tcol,
+                            &mut tcolc,
+                            &mut tcole,
                             true,
                         );
                         row += f64::from(trow - 1);
@@ -1883,7 +1883,7 @@ pub unsafe fn ui_ext_win_viewport(wp: &mut win_T) {
                     wp,
                     cur_topline,
                     i64::from(wp.w_skipcol),
-                    &raw mut lnume,
+                    &mut lnume,
                     &raw mut vcole,
                     ptr::null_mut(),
                     i64::MAX,
@@ -1902,7 +1902,7 @@ pub unsafe fn ui_ext_win_viewport(wp: &mut win_T) {
                     wp,
                     last_topline,
                     last_skipcol,
-                    &raw mut lnume,
+                    &mut lnume,
                     &raw mut vcole,
                     ptr::null_mut(),
                     i64::MAX,
@@ -3750,7 +3750,7 @@ pub unsafe fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
 
         let had_cmdline_ruler = opt_vars().p_ru != 0 && ptr::eq(win, *curwin.as_ptr()) && (*win).w_status_height == 0;
         let mut dir: c_int = 0;
-        let mut wp = win_free_mem(win, &raw mut dir, ptr::null_mut());
+        let mut wp = win_free_mem(win, &mut dir, ptr::null_mut());
 
         if help_window || quickfix_window {
             let prev_win = get_snapshot_curwin(if help_window {
@@ -4077,7 +4077,7 @@ pub unsafe fn win_close_othertab(
         }
 
         let mut dir: c_int = 0;
-        win_free_mem(win, &raw mut dir, tp);
+        win_free_mem(win, &mut dir, tp);
 
         if !bufref.br_buf.is_null()
             && bufref_valid(&raw mut bufref)
@@ -4113,14 +4113,14 @@ pub unsafe fn win_close_othertab(
     }
 }
 
-unsafe fn win_free_mem(win: *mut win_T, dirp: *mut c_int, tp: *mut tabpage_T) -> *mut win_T {
+unsafe fn win_free_mem(win: *mut win_T, dirp: &mut c_int, tp: *mut tabpage_T) -> *mut win_T {
     unsafe {
         let wp: *mut win_T;
         let win_tp = if tp.is_null() { g_st().curtab } else { tp };
 
         if !(*win).w_floating {
             let frp = (*win).w_frame;
-            wp = winframe_remove(win, dirp, tp, ptr::null_mut());
+            wp = winframe_remove(win, &raw mut *dirp, tp, ptr::null_mut());
             drop(Box::from_raw(frp));
         } else {
             *dirp = b'h' as c_int;
@@ -4231,7 +4231,7 @@ pub unsafe fn winframe_remove(
         }
 
         if !ptr::eq(altfr, (*frp_close).fr_prev) {
-            frame_comp_pos(&mut *(*frp_close).fr_parent, &raw mut row, &raw mut col);
+            frame_comp_pos(&mut *(*frp_close).fr_parent, &mut row, &mut col);
         }
 
         if unflat_altfr.is_null() {
@@ -4422,7 +4422,7 @@ pub unsafe fn winframe_restore(wp: *mut win_T, dir: c_int, unflat_altfr: &mut fr
             let mut row = (*topleft).w_winrow;
             let mut col = (*topleft).w_wincol;
 
-            frame_comp_pos(&mut *(*frp).fr_parent, &raw mut row, &raw mut col);
+            frame_comp_pos(&mut *(*frp).fr_parent, &mut row, &mut col);
         }
     }
 }
@@ -6933,7 +6933,7 @@ pub unsafe fn win_comp_pos() -> c_int {
         let mut row = tabline_height();
         let mut col: c_int = 0;
 
-        frame_comp_pos(&mut *g_st().topframe, &raw mut row, &raw mut col);
+        frame_comp_pos(&mut *g_st().topframe, &mut row, &mut col);
 
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
@@ -6947,7 +6947,7 @@ pub unsafe fn win_comp_pos() -> c_int {
     }
 }
 
-unsafe fn frame_comp_pos(topfrp: &mut frame_T, row: *mut c_int, col: *mut c_int) {
+unsafe fn frame_comp_pos(topfrp: &mut frame_T, row: &mut c_int, col: &mut c_int) {
     unsafe {
         let wp = topfrp.fr_win;
         if !wp.is_null() {
@@ -8469,7 +8469,7 @@ pub unsafe fn win_locked(wp: *mut win_T) -> c_int {
     unsafe { (*wp).w_locked }
 }
 
-pub unsafe fn win_get_tabwin(id: handle_T, tabnr: *mut c_int, winnr: *mut c_int) {
+pub unsafe fn win_get_tabwin(id: handle_T, tabnr: &mut c_int, winnr: &mut c_int) {
     unsafe {
         *tabnr = 0;
         *winnr = 0;

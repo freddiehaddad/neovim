@@ -4046,10 +4046,10 @@ unsafe fn may_advance_cpt_index(cpt: *const c_char) -> bool {
 
 unsafe fn process_next_cpt_value(
     st: *mut ins_compl_next_state_T,
-    compl_type_arg: *mut c_int,
+    compl_type_arg: &mut c_int,
     start_match_pos: &mut pos_T,
     fuzzy_collect: bool,
-    advance_cpt_idx: *mut bool,
+    advance_cpt_idx: &mut bool,
 ) -> c_int {
     unsafe {
         let mut compl_type: c_int = -1;
@@ -5220,10 +5220,10 @@ unsafe fn ins_compl_get_exp(ini: &mut pos_T) -> c_int {
             {
                 let status = process_next_cpt_value(
                     ptr::from_mut(st),
-                    &raw mut type_,
+                    &mut type_,
                     &mut start_pos,
                     cot_fuzzy(),
-                    &raw mut may_advance_cpt_idx,
+                    &mut may_advance_cpt_idx,
                 );
                 if status == INS_COMPL_CPT_END {
                     break;

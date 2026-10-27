@@ -210,7 +210,7 @@ pub unsafe fn encode_read_from_list(
     state: *mut ListReaderState,
     buf: *mut c_char,
     nbuf: usize,
-    read_bytes: *mut usize,
+    read_bytes: &mut usize,
 ) -> c_int {
     let state = unsafe { &mut *state };
     let buf_end = unsafe { buf.add(nbuf) };
@@ -228,9 +228,7 @@ pub unsafe fn encode_read_from_list(
         if (p as usize) < (buf_end as usize) {
             state.li = unsafe { (*state.li).li_next };
             if state.li.is_null() {
-                unsafe {
-                    *read_bytes = (p as usize) - (buf as usize);
-                }
+                *read_bytes = (p as usize) - (buf as usize);
                 return OK;
             }
             unsafe {
@@ -238,9 +236,7 @@ pub unsafe fn encode_read_from_list(
                 p = p.add(1);
             }
             if unsafe { (*state.li).li_tv.v_type } != VarType::VAR_STRING {
-                unsafe {
-                    *read_bytes = (p as usize) - (buf as usize);
-                }
+                *read_bytes = (p as usize) - (buf as usize);
                 return FAIL;
             }
             state.offset = 0;
@@ -252,9 +248,7 @@ pub unsafe fn encode_read_from_list(
             };
         }
     }
-    unsafe {
-        *read_bytes = nbuf;
-    }
+    *read_bytes = nbuf;
     if state.offset < state.li_length || unsafe { !(*state.li).li_next.is_null() } {
         NOTDONE
     } else {
@@ -1096,7 +1090,7 @@ impl EncodeBackend<'_> {
     unsafe fn check_self_reference(
         &mut self,
         container: MPContainerRef,
-        val_copy_id: *mut c_int,
+        val_copy_id: &mut c_int,
         mpstack: &[MPConvStackVal],
         copy_id: c_int,
         objname: *const c_char,

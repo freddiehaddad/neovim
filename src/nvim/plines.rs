@@ -863,8 +863,8 @@ pub unsafe fn getvcols(
     wp: *mut win_T,
     pos1: &mut pos_T,
     pos2: &mut pos_T,
-    left: *mut colnr_T,
-    right: *mut colnr_T,
+    left: &mut colnr_T,
+    right: &mut colnr_T,
     flags: c_int,
 ) {
     unsafe {
@@ -1088,7 +1088,7 @@ pub unsafe fn win_text_height(
     wp: &mut win_T,
     start_lnum: linenr_T,
     start_vcol: i64,
-    end_lnum: *mut linenr_T,
+    end_lnum: &mut linenr_T,
     end_vcol: *mut i64,
     fill: *mut i64,
     max: i64,

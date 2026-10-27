@@ -3307,7 +3307,7 @@ pub unsafe extern "C" fn nvim__complete_set(
     }
 }
 
-unsafe fn redraw_status(wp: &mut win_T, opts: *mut KeyDict_redraw, flush: *mut bool) {
+unsafe fn redraw_status(wp: &mut win_T, opts: *mut KeyDict_redraw, flush: &mut bool) {
     unsafe {
         if (*opts).statuscolumn && *wp.w_onebuf_opt.wo_stc != NUL {
             wp.w_nrwidth_line_count = 0;
@@ -3481,12 +3481,12 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error
                 let mut wp = g_st().firstwin;
                 while !wp.is_null() {
                     if buf.is_null() || (*wp).w_buffer == buf {
-                        redraw_status(&mut *wp, opts, &raw mut (*opts).flush);
+                        redraw_status(&mut *wp, opts, &mut (*opts).flush);
                     }
                     wp = (*wp).w_next;
                 }
             } else {
-                redraw_status(&mut *win, opts, &raw mut (*opts).flush);
+                redraw_status(&mut *win, opts, &mut (*opts).flush);
             }
             flush_ui = true;
         }

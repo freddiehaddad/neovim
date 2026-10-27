@@ -416,7 +416,7 @@ unsafe fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
         let winrow = row;
         let wincol = col;
 
-        let below_buffer = mouse_comp_pos(&mut *wp, &raw mut row, &raw mut col, &raw mut mpos.lnum);
+        let below_buffer = mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut mpos.lnum);
 
         if !below_buffer
             && *(*wp).w_onebuf_opt.wo_stc != NUL
@@ -487,8 +487,8 @@ unsafe fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> 
                         *curwin.as_ptr(),
                         &mut (**curwin.as_ptr()).w_cursor,
                         &mut g_st().Visual.start,
-                        &raw mut leftcol,
-                        &raw mut rightcol,
+                        &mut leftcol,
+                        &mut rightcol,
                         0,
                     );
                     let mut col = m_pos.col;
@@ -540,7 +540,7 @@ pub unsafe fn do_mouse(
         let mut is_drag = false;
 
         loop {
-            which_button = get_mouse_button(key2termcap1(c), &raw mut is_click, &raw mut is_drag);
+            which_button = get_mouse_button(key2termcap1(c), &mut is_click, &mut is_drag);
             if is_drag && g_st().KeyStuffed == 0 && vpeekc() != 0 {
                 let save_mouse_grid = g_st().mouse_grid;
                 let save_mouse_row = g_st().mouse_row;
@@ -955,8 +955,8 @@ pub unsafe fn do_mouse(
                     *curwin.as_ptr(),
                     &mut start_visual,
                     &mut end_visual,
-                    &raw mut leftcol,
-                    &raw mut rightcol,
+                    &mut leftcol,
+                    &mut rightcol,
                     0,
                 );
                 if (**curwin.as_ptr()).w_curswant > (leftcol + rightcol) / 2 {
@@ -1697,9 +1697,9 @@ pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button
 
         if mouse_comp_pos(
             &mut **curwin.as_ptr(),
-            &raw mut row,
-            &raw mut col,
-            &raw mut (**curwin.as_ptr()).w_cursor.lnum,
+            &mut row,
+            &mut col,
+            &mut (**curwin.as_ptr()).w_cursor.lnum,
         ) {
             g_st().mouse_past_bottom = true;
         }
@@ -1807,9 +1807,9 @@ pub unsafe fn nv_mouse(cap: &mut cmdarg_T) {
 /// Returns true if the position is below the last line.
 pub unsafe fn mouse_comp_pos(
     win: &mut win_T,
-    rowp: *mut c_int,
-    colp: *mut c_int,
-    lnump: *mut linenr_T,
+    rowp: &mut c_int,
+    colp: &mut c_int,
+    lnump: &mut linenr_T,
 ) -> bool {
     unsafe {
         let mut col = *colp;
@@ -2164,8 +2164,8 @@ unsafe fn mouse_check_grid(vcolp: *mut colnr_T, flagsp: *mut c_int) {
         let mut start_col: c_int = 0;
         let gp = &*grid_adjust(
             &raw mut (**curwin.as_ptr()).w_grid,
-            &raw mut start_row,
-            &raw mut start_col,
+            &mut start_row,
+            &mut start_col,
         );
         if gp.handle != click_grid || gp.chars.is_empty() {
             return;
@@ -2228,7 +2228,7 @@ pub unsafe fn f_getmousepos(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr
                 winrow = varnumber_T::from(row + 1 + (*wp).w_winrow_off);
                 wincol = varnumber_T::from(col + 1 + (*wp).w_wincol_off);
                 if row >= 0 && row < (*wp).w_height && col >= 0 && col < (*wp).w_width {
-                    mouse_comp_pos(&mut *wp, &raw mut row, &raw mut col, &raw mut lnum);
+                    mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut lnum);
                     col = vcol2col(&mut *wp, lnum, col, &raw mut coladd);
                     column = varnumber_T::from(col) + 1;
                 }

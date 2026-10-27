@@ -1956,7 +1956,7 @@ unsafe fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
 }
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
-unsafe fn get_digraph_chars(arg: *const typval_T, char1: *mut c_int, char2: *mut c_int) -> c_int {
+unsafe fn get_digraph_chars(arg: *const typval_T, char1: &mut c_int, char2: &mut c_int) -> c_int {
     unsafe {
         let mut buf_chars = [0 as c_char; NUMBUFLEN];
         let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr());
@@ -1986,7 +1986,7 @@ unsafe fn digraph_set_common(argchars: *const typval_T, argdigraph: *const typva
     unsafe {
         let mut char1: c_int = 0;
         let mut char2: c_int = 0;
-        if get_digraph_chars(argchars, &raw mut char1, &raw mut char2) == FAIL {
+        if get_digraph_chars(argchars, &mut char1, &mut char2) == FAIL {
             return false;
         }
 

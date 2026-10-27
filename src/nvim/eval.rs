@@ -462,7 +462,7 @@ pub unsafe fn fill_evalarg_from_eap(evalarg: &mut evalarg_T, _eap: *mut exarg_T,
 /// Sets "error" to true if there was an error.
 pub unsafe fn eval_to_bool(
     arg: *mut c_char,
-    error: *mut bool,
+    error: &mut bool,
     eap: &mut exarg_T,
     skip: bool,
     use_simple_function: bool,
@@ -487,7 +487,7 @@ pub unsafe fn eval_to_bool(
         } else {
             *error = false;
             if !skip {
-                retval = tv_get_number_chk(&raw const tv, error) != 0;
+                retval = tv_get_number_chk(&raw const tv, &raw mut *error) != 0;
                 tv_clear(&raw mut tv);
             }
         }
@@ -652,7 +652,7 @@ pub unsafe fn eval_expr_typval(
 }
 
 /// Like eval_to_bool() but using a typval_T instead of a string.
-pub unsafe fn eval_expr_to_bool(expr: *const typval_T, error: *mut bool) -> bool {
+pub unsafe fn eval_expr_to_bool(expr: *const typval_T, error: &mut bool) -> bool {
     unsafe {
         let mut argv = tv_initial_value();
         let mut rettv = tv_initial_value();
@@ -661,7 +661,7 @@ pub unsafe fn eval_expr_to_bool(expr: *const typval_T, error: *mut bool) -> bool
             *error = true;
             return false;
         }
-        let res = tv_get_number_chk(&raw const rettv, error) != 0;
+        let res = tv_get_number_chk(&raw const rettv, &raw mut *error) != 0;
         tv_clear(&raw mut rettv);
         res
     }
@@ -1007,7 +1007,7 @@ pub unsafe fn eval_expr_option_tv(
 
 /// Evaluate 'foldexpr'. Returns the foldlevel, and any character preceding
 /// it in "*cp". Doesn't give error messages.
-pub unsafe fn eval_foldexpr(wp: &mut win_T, cp: *mut c_int) -> c_int {
+pub unsafe fn eval_foldexpr(wp: &mut win_T, cp: &mut c_int) -> c_int {
     unsafe {
         let saved_sctx = g_st().current_sctx;
         let use_sandbox = was_set_insecurely(&raw mut *wp, kOptFoldexpr, OPT_LOCAL) != 0;
@@ -3670,7 +3670,7 @@ pub unsafe fn eval_option(arg: *mut *const c_char, rettv: *mut typval_T, evaluat
         let mut opt_idx: OptIndex = 0;
         let mut opt_flags: c_int = 0;
 
-        let option_end = find_option_var_end(arg, &raw mut opt_idx, &raw mut opt_flags).cast_mut();
+        let option_end = find_option_var_end(arg, &raw mut opt_idx, &mut opt_flags).cast_mut();
 
         if option_end.is_null() {
             if !rettv.is_null() {
@@ -6782,7 +6782,7 @@ pub unsafe fn ex_execute(eap: &mut exarg_T) {
 pub unsafe fn find_option_var_end(
     arg: *mut *const c_char,
     opt_idxp: *mut OptIndex,
-    opt_flags: *mut c_int,
+    opt_flags: &mut c_int,
 ) -> *const c_char {
     unsafe {
         let mut p = (*arg).add(1);

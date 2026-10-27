@@ -836,7 +836,7 @@ pub unsafe fn ex_checktime(eap: &mut exarg_T) {
 unsafe fn script_host_execute(name: *const c_char, eap: &mut exarg_T) {
     unsafe {
         let mut len: usize = 0;
-        if let Some(script) = script_get(eap, &raw mut len) {
+        if let Some(script) = script_get(eap, &mut len) {
             let args = tv_list_alloc(3);
             crate::eval::typval::tv_list_append_string(args, script.as_ptr(), -1);
             tv_list_append_number(args, eap.line1 as varnumber_T);

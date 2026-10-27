@@ -2241,7 +2241,7 @@ pub unsafe fn do_write(eap: &mut exarg_T) -> c_int {
                 if check_writable((*g_st().curbuf).b_ffname) == FAIL {
                     break 'theend;
                 }
-                if check_readonly(&raw mut eap.forceit, &mut *g_st().curbuf) {
+                if check_readonly(&mut eap.forceit, &mut *g_st().curbuf) {
                     break 'theend;
                 }
             }
@@ -2516,7 +2516,7 @@ pub unsafe fn do_wqall(eap: &mut exarg_T) {
                     (*buf).b_fnum as i64,
                 );
                 error += 1;
-            } else if check_readonly(&raw mut eap.forceit, &mut *buf)
+            } else if check_readonly(&mut eap.forceit, &mut *buf)
                 || check_overwrite(eap, &mut *buf, (*buf).b_fname, (*buf).b_ffname, false) == FAIL
             {
                 error += 1;
@@ -2563,7 +2563,7 @@ unsafe fn not_writing() -> bool {
 }
 
 /// Check if a buffer is read-only.
-unsafe fn check_readonly(forceit: *mut c_int, buf: &mut buf_T) -> bool {
+unsafe fn check_readonly(forceit: &mut c_int, buf: &mut buf_T) -> bool {
     unsafe {
         if *forceit == 0
             && (buf.b_p_ro != 0
@@ -3145,7 +3145,7 @@ pub unsafe fn do_ecmd(
                         ptr::null_mut(),
                         false,
                         g_st().curbuf,
-                        &raw mut retval,
+                        &mut retval,
                     );
                     if (flags & ECMD_NOWINENTER) == 0 {
                         apply_autocmds_retval(
@@ -3154,7 +3154,7 @@ pub unsafe fn do_ecmd(
                             ptr::null_mut(),
                             false,
                             g_st().curbuf,
-                            &raw mut retval,
+                            &mut retval,
                         );
                     }
                 }
@@ -3811,7 +3811,7 @@ fn sub_grow_buf(new_start: &mut SubBuf, new_start_size: &mut usize, mut needed_s
 unsafe fn sub_parse_flags(
     mut cmd: *mut c_char,
     subflags_arg: *mut subflags_T,
-    which_pat: *mut c_int,
+    which_pat: &mut c_int,
 ) -> *mut c_char {
     unsafe {
         if *cmd == b'&' as c_char {
@@ -4042,7 +4042,7 @@ unsafe fn do_sub(
             return 0;
         }
 
-        cmd = sub_parse_flags(cmd, &raw mut excmds_st().subflags, &raw mut which_pat);
+        cmd = sub_parse_flags(cmd, &raw mut excmds_st().subflags, &mut which_pat);
 
         let save_do_all = excmds_st().subflags.do_all;
         let save_do_ask = excmds_st().subflags.do_ask;

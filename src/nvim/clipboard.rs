@@ -48,7 +48,7 @@ const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":
 
 /// Determine if register `*name` should be used as a clipboard (`adjust_clipboard_name`).
 pub unsafe fn adjust_clipboard_name(
-    name: *mut c_int,
+    name: &mut c_int,
     quiet: bool,
     writing: bool,
 ) -> *mut yankreg_T {

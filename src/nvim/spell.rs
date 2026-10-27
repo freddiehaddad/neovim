@@ -305,7 +305,7 @@ pub unsafe fn spell_check(
         mi.mi_fend = ptr;
         if spell_iswordp(mi.mi_fend, wp) {
             if use_camel_case {
-                mi.mi_fend = advance_camelcase_word(ptr, wp, &raw mut is_camel_case);
+                mi.mi_fend = advance_camelcase_word(ptr, wp, &mut is_camel_case);
             } else {
                 loop {
                     mb_ptr_adv(&mut mi.mi_fend);
@@ -437,7 +437,7 @@ unsafe fn get_char_type(c: c_int) -> c_int {
 unsafe fn advance_camelcase_word(
     str_: *mut c_char,
     wp: *mut win_T,
-    is_camel_case: *mut bool,
+    is_camel_case: &mut bool,
 ) -> *mut c_char {
     unsafe {
         let mut end = str_;
@@ -1090,7 +1090,7 @@ pub unsafe fn no_spell_checking(wp: *mut win_T) -> bool {
 unsafe fn decor_spell_nav_col(
     wp: *mut win_T,
     lnum: linenr_T,
-    decor_lnum: *mut linenr_T,
+    decor_lnum: &mut linenr_T,
     col: c_int,
 ) -> TriState {
     unsafe {
@@ -1205,7 +1205,7 @@ pub unsafe fn spell_move_to(
                             let no_plain_buffer =
                                 ((*w_s).b_p_spo_flags & kOptSpoFlagNoplainbuffer) != 0;
                             let mut can_spell = !no_plain_buffer;
-                            match decor_spell_nav_col(wp, lnum, &raw mut decor_lnum, col) {
+                            match decor_spell_nav_col(wp, lnum, &mut decor_lnum, col) {
                                 kTrue => can_spell = true,
                                 kFalse => can_spell = false,
                                 kNone if has_syntax => {

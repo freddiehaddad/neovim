@@ -2750,11 +2750,10 @@ unsafe fn is_qf_entry_present(qfl: &qf_list_T, qf_index: c_int) -> bool {
 
 unsafe fn get_next_valid_entry(
     qfl: &mut qf_list_T,
-    qf_index: *mut c_int,
+    qf_index: &mut c_int,
     dir: c_int,
 ) -> *mut qfline_T {
-    unsafe {
-        let mut idx = *qf_index;
+    let mut idx = *qf_index;
         if idx < 1 || (idx as usize) > qfl.qf_items.len() {
             return ptr::null_mut();
         }
@@ -2775,16 +2774,14 @@ unsafe fn get_next_valid_entry(
 
         *qf_index = idx;
         &raw mut (&mut qfl.qf_items)[(idx - 1) as usize]
-    }
 }
 
 unsafe fn get_prev_valid_entry(
     qfl: &mut qf_list_T,
-    qf_index: *mut c_int,
+    qf_index: &mut c_int,
     dir: c_int,
 ) -> *mut qfline_T {
-    unsafe {
-        let mut idx = *qf_index;
+    let mut idx = *qf_index;
         if idx < 1 || (idx as usize) > qfl.qf_items.len() {
             return ptr::null_mut();
         }
@@ -2805,7 +2802,6 @@ unsafe fn get_prev_valid_entry(
 
         *qf_index = idx;
         &raw mut (&mut qfl.qf_items)[(idx - 1) as usize]
-    }
 }
 
 unsafe fn get_nth_valid_entry(
@@ -2825,9 +2821,9 @@ unsafe fn get_nth_valid_entry(
             let prev_index = qf_idx;
 
             if dir == FORWARD || dir == FORWARD_FILE {
-                qf_ptr = get_next_valid_entry(qfl, &raw mut qf_idx, dir);
+                qf_ptr = get_next_valid_entry(qfl, &mut qf_idx, dir);
             } else {
-                qf_ptr = get_prev_valid_entry(qfl, &raw mut qf_idx, dir);
+                qf_ptr = get_prev_valid_entry(qfl, &mut qf_idx, dir);
             }
 
             if qf_ptr.is_null() {
@@ -2851,24 +2847,22 @@ unsafe fn get_nth_valid_entry(
 unsafe fn get_nth_entry(
     qfl: &mut qf_list_T,
     errornr: c_int,
-    new_qfidx: *mut c_int,
+    new_qfidx: &mut c_int,
 ) -> *mut qfline_T {
-    unsafe {
-        if qfl.qf_items.is_empty() {
+    if qfl.qf_items.is_empty() {
             *new_qfidx = qfl.qf_index;
             return ptr::null_mut();
         }
         let qf_idx = errornr.clamp(1, qfl.count());
         *new_qfidx = qf_idx;
         &raw mut (&mut qfl.qf_items)[(qf_idx - 1) as usize]
-    }
 }
 
 unsafe fn qf_get_entry(
     qfl: &mut qf_list_T,
     errornr: c_int,
     dir: c_int,
-    new_qfidx: *mut c_int,
+    new_qfidx: &mut c_int,
 ) -> *mut qfline_T {
     unsafe {
         let mut qf_ptr = qfl.cur_entry();
@@ -2877,7 +2871,7 @@ unsafe fn qf_get_entry(
         if dir != 0 {
             qf_ptr = get_nth_valid_entry(qfl, errornr, dir, &raw mut qfidx);
         } else if errornr != 0 {
-            qf_ptr = get_nth_entry(qfl, errornr, &raw mut qfidx);
+            qf_ptr = get_nth_entry(qfl, errornr, &mut qfidx);
         }
 
         *new_qfidx = qfidx;
@@ -3490,7 +3484,7 @@ unsafe fn qf_jump_newwin(
         let mut qf_index = qfl.qf_index;
         let old_qf_index = qf_index;
 
-        let qf_ptr = qf_get_entry(qfl, errornr, dir, &raw mut qf_index);
+        let qf_ptr = qf_get_entry(qfl, errornr, dir, &mut qf_index);
         if !qf_ptr.is_null() {
             qfl.qf_index = qf_index;
 
@@ -5602,7 +5596,7 @@ unsafe fn vgr_match_buflines(
     buf: &mut buf_T,
     spat: *mut c_char,
     regmatch: &mut regmmatch_T,
-    tomatch: *mut c_int,
+    tomatch: &mut c_int,
     duplicate_name: c_int,
     flags: c_int,
 ) -> bool {
@@ -5732,7 +5726,7 @@ unsafe fn vgr_match_buflines(
 unsafe fn vgr_jump_to_match(
     qi: &mut qf_info_T,
     forceit: c_int,
-    redraw_for_dummy: *mut bool,
+    redraw_for_dummy: &mut bool,
     first_match_buf: *mut buf_T,
     target_dir: *mut c_char,
 ) {
@@ -5811,7 +5805,7 @@ unsafe fn vgr_process_files(
     wp: *mut win_T,
     qi: &mut qf_info_T,
     cmd_args: *mut vgr_args_T,
-    redraw_for_dummy: *mut bool,
+    redraw_for_dummy: &mut bool,
     first_match_buf: *mut *mut buf_T,
     target_dir: &mut Option<std::ffi::CString>,
 ) -> c_int {
@@ -5875,7 +5869,7 @@ unsafe fn vgr_process_files(
                     &mut *buf,
                     (*cmd_args).spat_ptr(),
                     &mut (*cmd_args).regmatch,
-                    &raw mut (*cmd_args).tomatch,
+                    &mut (*cmd_args).tomatch,
                     c_int::from(duplicate_name),
                     (*cmd_args).flags,
                 );
@@ -5979,7 +5973,7 @@ pub unsafe fn ex_vimgrep(eap: &mut exarg_T) {
                 wp,
                 &mut *qi,
                 &raw mut args,
-                &raw mut redraw_for_dummy,
+                &mut redraw_for_dummy,
                 &raw mut first_match_buf,
                 &mut target_dir,
             );
@@ -6010,7 +6004,7 @@ pub unsafe fn ex_vimgrep(eap: &mut exarg_T) {
                             vgr_jump_to_match(
                                 &mut *qi,
                                 eap.forceit,
-                                &raw mut redraw_for_dummy,
+                                &mut redraw_for_dummy,
                                 first_match_buf,
                                 target_dir
                                     .as_ref()
@@ -6721,7 +6715,7 @@ unsafe fn qf_add_entry_from_dict(
     qfl: &mut qf_list_T,
     d: *mut dict_T,
     first_entry: bool,
-    valid_entry: *mut bool,
+    valid_entry: &mut bool,
 ) -> c_int {
     unsafe {
         if first_entry {
@@ -6920,7 +6914,7 @@ unsafe fn qf_add_entries(
             if (*li).li_tv.v_type == VarType::VAR_DICT {
                 let d = (*li).li_tv.vval.v_dict();
                 if !d.is_null() {
-                    retval = qf_add_entry_from_dict(qfl, d, li == first_li, &raw mut valid_entry);
+                    retval = qf_add_entry_from_dict(qfl, d, li == first_li, &mut valid_entry);
                     if retval == QF_FAIL {
                         break;
                     }
@@ -6965,7 +6959,7 @@ unsafe fn qf_setprop_get_qfidx(
     qi: &qf_info_T,
     what: *const dict_T,
     action: c_int,
-    newlist: *mut bool,
+    newlist: &mut bool,
 ) -> c_int {
     unsafe {
         let mut qf_idx = qi.qf_curlist;
@@ -7157,7 +7151,7 @@ unsafe fn qf_setprop_curidx(
         }
         newidx = newidx.min(qfl.count());
         let old_qfidx = qfl.qf_index;
-        let qf_ptr = get_nth_entry(qfl, newidx, &raw mut newidx);
+        let qf_ptr = get_nth_entry(qfl, newidx, &mut newidx);
         if qf_ptr.is_null() {
             return FAIL;
         }
@@ -7178,7 +7172,7 @@ unsafe fn qf_set_properties(
 ) -> c_int {
     unsafe {
         let mut newlist = action == b' ' as c_int || qf_stack_empty(&raw mut *qi);
-        let mut qf_idx = qf_setprop_get_qfidx(qi, what, action, &raw mut newlist);
+        let mut qf_idx = qf_setprop_get_qfidx(qi, what, action, &mut newlist);
         if qf_idx == INVALID_QFIDX {
             return FAIL;
         }
@@ -7642,7 +7636,7 @@ pub unsafe fn ex_cexpr(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn hgr_get_ll(new_ll: *mut bool) -> *mut qf_info_T {
+unsafe fn hgr_get_ll(new_ll: &mut bool) -> *mut qf_info_T {
     unsafe {
         let wp = if bt_help((**curwin.as_ptr()).w_buffer) {
             *curwin.as_ptr()
@@ -7787,7 +7781,7 @@ pub unsafe fn ex_helpgrep(eap: &mut exarg_T) {
 
         let mut new_qi = false;
         if is_loclist_cmd(eap.cmdidx) {
-            qi = hgr_get_ll(&raw mut new_qi);
+            qi = hgr_get_ll(&mut new_qi);
         }
 
         incr_quickfix_busy();

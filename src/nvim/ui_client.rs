@@ -285,10 +285,10 @@ pub unsafe fn ui_client_run() -> ! {
     unsafe {
         tui_start(
             &raw mut uic_st().tui,
-            &raw mut uic_st().tui_width,
-            &raw mut uic_st().tui_height,
+            &mut uic_st().tui_width,
+            &mut uic_st().tui_height,
             &raw mut uic_st().tui_term,
-            &raw mut uic_st().tui_rgb,
+            &mut uic_st().tui_rgb,
         );
         ui_client_attach(
             uic_st().tui_width,

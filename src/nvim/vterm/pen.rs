@@ -135,7 +135,7 @@ pub struct VTermStateCallbacks {
         Option<unsafe fn(prop: VTermProp, val: *mut VTermValue, user: *mut VTermScreen) -> c_int>,
     pub bell: Option<unsafe fn(user: *mut VTermScreen) -> c_int>,
     pub resize: Option<VTermStateResizeFn>,
-    pub theme: Option<unsafe fn(dark: *mut bool, user: *mut VTermScreen) -> c_int>,
+    pub theme: Option<unsafe fn(dark: &mut bool, user: *mut VTermScreen) -> c_int>,
     pub setlineinfo: Option<VTermSetLineInfoFn>,
     pub sb_clear: Option<unsafe fn(user: *mut VTermScreen) -> c_int>,
 }

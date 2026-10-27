@@ -954,7 +954,7 @@ pub unsafe fn os_open_stdin_fd() -> c_int {
 /// Read from a file.
 pub unsafe fn os_read(
     fd: c_int,
-    ret_eof: *mut bool,
+    ret_eof: &mut bool,
     ret_buf: *mut c_char,
     size: usize,
     non_blocking: bool,
@@ -1007,7 +1007,7 @@ pub unsafe fn os_read(
 #[cfg(unix)]
 pub unsafe fn os_readv(
     fd: c_int,
-    ret_eof: *mut bool,
+    ret_eof: &mut bool,
     mut iov: *mut iovec,
     mut iov_size: usize,
     non_blocking: bool,
@@ -2041,14 +2041,14 @@ mod tests {
             let rfd = os_open(fpath_c.as_ptr(), O_RDONLY, 0);
             assert!(rfd >= 0);
             let mut eof = true;
-            assert_eq!(os_read(rfd, &raw mut eof, ptr::null_mut(), 0, false), 0);
+            assert_eq!(os_read(rfd, &mut eof, ptr::null_mut(), 0, false), 0);
             assert!(!eof);
 
             let mut rbuf = vec![0u8; payload.len()];
             assert_eq!(
                 os_read(
                     rfd,
-                    &raw mut eof,
+                    &mut eof,
                     rbuf.as_mut_ptr().cast(),
                     rbuf.len(),
                     false
@@ -2058,7 +2058,7 @@ mod tests {
             assert!(!eof);
             assert_eq!(rbuf, payload);
             assert_eq!(
-                os_read(rfd, &raw mut eof, rbuf.as_mut_ptr().cast(), 16, false),
+                os_read(rfd, &mut eof, rbuf.as_mut_ptr().cast(), 16, false),
                 0
             );
             assert!(eof);

@@ -1637,9 +1637,8 @@ unsafe fn updatescript(c: c_int) {
 }
 
 /// Merge `modifiers` into `c_arg`.
-pub unsafe fn merge_modifiers(c_arg: c_int, modifiers: *mut c_int) -> c_int {
-    unsafe {
-        let mut c = c_arg;
+pub unsafe fn merge_modifiers(c_arg: c_int, modifiers: &mut c_int) -> c_int {
+    let mut c = c_arg;
 
         if (*modifiers & (MOD_MASK_CTRL as c_int)) != 0 {
             if c >= b'@' as c_int && c <= 0x7f {
@@ -1655,7 +1654,6 @@ pub unsafe fn merge_modifiers(c_arg: c_int, modifiers: *mut c_int) -> c_int {
             }
         }
         c
-    }
 }
 
 unsafe fn add_byte_to_showcmd(byte: u8) {
@@ -1693,7 +1691,7 @@ unsafe fn add_byte_to_showcmd(byte: u8) {
             }
             if c <= 0x7f {
                 let mut modifiers_after = modifiers;
-                let mod_c = merge_modifiers(c, &raw mut modifiers_after);
+                let mod_c = merge_modifiers(c, &mut modifiers_after);
                 if modifiers_after == 0 {
                     modifiers = 0;
                     c = mod_c;
@@ -2084,7 +2082,7 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
                     if win.is_null() {
                         return;
                     }
-                    mouse_comp_pos(&mut *win, &raw mut row, &raw mut col, &raw mut lnum);
+                    mouse_comp_pos(&mut *win, &mut row, &mut col, &mut lnum);
                     let mut wp = g_st().firstwin;
                     while wp != win {
                         winnr += 1;
@@ -2188,7 +2186,7 @@ unsafe fn check_simplify_modifier(max_offset: c_int) -> c_int {
             if *tp == K_SPECIAL && *tp.add(1) == KS_MODIFIER {
                 let mut modifier = *tp.add(2) as c_int;
                 let c = *tp.add(3) as c_int;
-                let new_c = merge_modifiers(c, &raw mut modifier);
+                let new_c = merge_modifiers(c, &mut modifier);
 
                 if new_c != c {
                     if offset == 0 {
@@ -2381,7 +2379,7 @@ unsafe fn handle_mapping(
                         } else {
                             if c2 == K_SPECIAL as c_int {
                                 nomap = 2;
-                            } else if merge_modifiers(c2, &raw mut modifiers) == c2 {
+                            } else if merge_modifiers(c2, &mut modifiers) == c2 {
                                 langmap_adjust(&mut c2, true);
                             }
                             modifiers = 0;
@@ -3191,7 +3189,7 @@ pub unsafe fn get_keystroke(events: *mut MultiQueue) -> c_int {
         }
 
         g_st().mapped_ctrl_c = save_mapped_ctrl_c;
-        merge_modifiers(n, &raw mut g_st().mod_mask)
+        merge_modifiers(n, &mut g_st().mod_mask)
     }
 }
 
@@ -3485,7 +3483,7 @@ mod tests {
         assert_eq!(tmp[0] as u8, K_SPECIAL);
 
         let mut mods = MOD_MASK_CTRL as c_int;
-        let merged = unsafe { merge_modifiers(b'c' as c_int, &raw mut mods) };
+        let merged = unsafe { merge_modifiers(b'c' as c_int, &mut mods) };
         assert_eq!(merged, Ctrl_C);
         assert_eq!(mods, 0);
     }

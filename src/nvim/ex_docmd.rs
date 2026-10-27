@@ -5281,7 +5281,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                             &mut cstack,
                             prev_idx,
                             CSF_WHILE | CSF_FOR,
-                            &raw mut looplevel,
+                            &mut looplevel,
                         );
                         cstack.cs_looplevel = looplevel;
                     }
@@ -5372,7 +5372,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                     &mut cstack,
                     idx,
                     CSF_WHILE | CSF_FOR,
-                    &raw mut looplevel,
+                    &mut looplevel,
                 );
                 cstack.cs_looplevel = looplevel;
                 if cstack.cs_idx < 0 {
@@ -8056,7 +8056,7 @@ unsafe fn ex_script_ni(eap: &mut exarg_T) {
             ex_ni(eap);
         } else {
             let mut len: usize = 0;
-            let _ = script_get(eap, &raw mut len);
+            let _ = script_get(eap, &mut len);
         }
     }
 }
@@ -12156,7 +12156,7 @@ const SPEC_AMATCH: isize = 12;
 const SPEC_SFLNUM: isize = 13;
 const SPEC_SID: isize = 14;
 
-pub unsafe fn find_cmdline_var(src: *const c_char, usedlen: *mut usize) -> isize {
+pub unsafe fn find_cmdline_var(src: *const c_char, usedlen: &mut usize) -> isize {
     const SPEC_STR: [&CStr; 15] = [
         c"%",
         c"#",
@@ -12212,7 +12212,7 @@ pub unsafe fn eval_vars(
             *escaped = c_int::from(false);
         }
 
-        let spec_idx = find_cmdline_var(src, usedlen);
+        let spec_idx = find_cmdline_var(src, &mut *usedlen);
         if spec_idx < 0 {
             *usedlen = 1;
             return None;
@@ -13136,16 +13136,16 @@ mod tests {
         unsafe {
             let mut usedlen = 0usize;
             assert_eq!(
-                find_cmdline_var(c"<cword>".as_ptr(), &raw mut usedlen),
+                find_cmdline_var(c"<cword>".as_ptr(), &mut usedlen),
                 SPEC_CWORD
             );
             assert_eq!(usedlen, 7);
             assert_eq!(
-                find_cmdline_var(c"%:p".as_ptr(), &raw mut usedlen),
+                find_cmdline_var(c"%:p".as_ptr(), &mut usedlen),
                 SPEC_PERC
             );
             assert_eq!(usedlen, 1);
-            assert_eq!(find_cmdline_var(c"foo".as_ptr(), &raw mut usedlen), -1);
+            assert_eq!(find_cmdline_var(c"foo".as_ptr(), &mut usedlen), -1);
         }
     }
 }

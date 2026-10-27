@@ -633,7 +633,7 @@ pub unsafe fn hl_ns_get_attrs(
 ) -> bool {
     unsafe {
         let mut opt = if !optional.is_null() { *optional } else { true };
-        let syn_attr = syn_ns_id2attr(ns_id, hl_id, &raw mut opt);
+        let syn_attr = syn_ns_id2attr(ns_id, hl_id, &mut opt);
         if !optional.is_null() {
             *optional = opt;
         }

@@ -1740,7 +1740,7 @@ unsafe fn ex_let_option(
         let mut opt_flags: c_int = 0;
 
         let mut arg_const: *const c_char = arg;
-        let p = find_option_var_end(&raw mut arg_const, &raw mut opt_idx, &raw mut opt_flags)
+        let p = find_option_var_end(&raw mut arg_const, &raw mut opt_idx, &mut opt_flags)
             .cast_mut();
         let arg_name = arg_const.cast_mut();
 

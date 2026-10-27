@@ -467,7 +467,7 @@ pub unsafe fn vim_strsave_shellescape(
                 }
             }
             let mut l: usize = 0;
-            if do_special && find_cmdline_var(p, &raw mut l) >= 0 {
+            if do_special && find_cmdline_var(p, &mut l) >= 0 {
                 length += 1;
                 p = p.add(l - 1);
             }
@@ -522,7 +522,7 @@ pub unsafe fn vim_strsave_shellescape(
                 continue;
             }
             let mut l: usize = 0;
-            if do_special && find_cmdline_var(p, &raw mut l) >= 0 {
+            if do_special && find_cmdline_var(p, &mut l) >= 0 {
                 *d = b'\\' as c_char;
                 d = d.add(1);
                 ptr::copy_nonoverlapping(p, d, l);
@@ -778,7 +778,7 @@ pub unsafe fn concat_str(str1: *const c_char, str2: *const c_char) -> std::ffi::
     }
 }
 
-pub unsafe fn tv_nr(tvs: *mut typval_T, idxp: *mut c_int) -> varnumber_T {
+pub unsafe fn tv_nr(tvs: *mut typval_T, idxp: &mut c_int) -> varnumber_T {
     unsafe {
         let idx = (*idxp - 1) as usize;
         let mut n: varnumber_T = 0;
@@ -798,7 +798,7 @@ pub unsafe fn tv_nr(tvs: *mut typval_T, idxp: *mut c_int) -> varnumber_T {
 
 pub unsafe fn tv_str(
     tvs: *mut typval_T,
-    idxp: *mut c_int,
+    idxp: &mut c_int,
     tofree: &mut Option<std::ffi::CString>,
 ) -> *const c_char {
     unsafe {
@@ -822,7 +822,7 @@ pub unsafe fn tv_str(
     }
 }
 
-pub unsafe fn tv_ptr(tvs: *const typval_T, idxp: *mut c_int) -> *const c_void {
+pub unsafe fn tv_ptr(tvs: *const typval_T, idxp: &mut c_int) -> *const c_void {
     unsafe {
         let idx = (*idxp - 1) as usize;
         if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
@@ -834,7 +834,7 @@ pub unsafe fn tv_ptr(tvs: *const typval_T, idxp: *mut c_int) -> *const c_void {
     }
 }
 
-pub unsafe fn tv_float(tvs: *mut typval_T, idxp: *mut c_int) -> float_T {
+pub unsafe fn tv_float(tvs: *mut typval_T, idxp: &mut c_int) -> float_T {
     unsafe {
         let idx = (*idxp - 1) as usize;
         let mut f: float_T = 0.0;
@@ -1022,7 +1022,7 @@ pub unsafe fn format_overflow_error(pstart: *const c_char) {
 pub unsafe fn get_unsigned_int(
     pstart: *const c_char,
     p: *mut *const c_char,
-    uj: *mut c_uint,
+    uj: &mut c_uint,
     overflow_err: bool,
 ) -> c_int {
     unsafe {
@@ -1099,7 +1099,7 @@ pub unsafe fn parse_fmt_types(
                         fail!();
                     }
                     let mut uj: c_uint = 0;
-                    if get_unsigned_int(pstart, &raw mut p, &raw mut uj, !tvs.is_null()) == FAIL {
+                    if get_unsigned_int(pstart, &raw mut p, &mut uj, !tvs.is_null()) == FAIL {
                         fail!();
                     }
                     pos_arg = uj as c_int;
@@ -1117,7 +1117,7 @@ pub unsafe fn parse_fmt_types(
                     p = p.add(1);
                     if ascii_isdigit(*p) {
                         let mut uj: c_uint = 0;
-                        if get_unsigned_int(arg.add(1), &raw mut p, &raw mut uj, !tvs.is_null())
+                        if get_unsigned_int(arg.add(1), &raw mut p, &mut uj, !tvs.is_null())
                             == FAIL
                         {
                             fail!();
@@ -1139,7 +1139,7 @@ pub unsafe fn parse_fmt_types(
                 } else if ascii_isdigit(*p) {
                     let digstart = p;
                     let mut uj: c_uint = 0;
-                    if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null()) == FAIL {
+                    if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) == FAIL {
                         fail!();
                     }
                     if *p == b'$' as c_char {
@@ -1155,7 +1155,7 @@ pub unsafe fn parse_fmt_types(
                         p = p.add(1);
                         if ascii_isdigit(*p) {
                             let mut uj: c_uint = 0;
-                            if get_unsigned_int(arg.add(1), &raw mut p, &raw mut uj, !tvs.is_null())
+                            if get_unsigned_int(arg.add(1), &raw mut p, &mut uj, !tvs.is_null())
                                 == FAIL
                             {
                                 fail!();
@@ -1178,7 +1178,7 @@ pub unsafe fn parse_fmt_types(
                     } else if ascii_isdigit(*p) {
                         let digstart = p;
                         let mut uj: c_uint = 0;
-                        if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null())
+                        if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
                             == FAIL
                         {
                             fail!();
@@ -1502,7 +1502,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                 if *ptype == b'$' as c_char {
                     let digstart = p;
                     let mut uj: c_uint = 0;
-                    if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null()) == FAIL {
+                    if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) == FAIL {
                         had_error = true;
                         break 'fmt_loop;
                     }
@@ -1546,7 +1546,7 @@ unsafe fn vim_vsnprintf_typval_inner(
 
                     if ascii_isdigit(*p) {
                         let mut uj: c_uint = 0;
-                        if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null())
+                        if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
                             == FAIL
                         {
                             had_error = true;
@@ -1557,7 +1557,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                     }
 
                     let mut j = if !tvs.is_null() {
-                        tv_nr(tvs, &raw mut arg_idx) as c_int
+                        tv_nr(tvs, &mut arg_idx) as c_int
                     } else {
                         fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_int
                     };
@@ -1581,7 +1581,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                 } else if ascii_isdigit(*p) {
                     let digstart = p;
                     let mut uj: c_uint = 0;
-                    if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null()) == FAIL {
+                    if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null()) == FAIL {
                         had_error = true;
                         break 'fmt_loop;
                     }
@@ -1595,7 +1595,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                     if ascii_isdigit(*p) {
                         let digstart = p;
                         let mut uj: c_uint = 0;
-                        if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null())
+                        if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
                             == FAIL
                         {
                             had_error = true;
@@ -1608,7 +1608,7 @@ unsafe fn vim_vsnprintf_typval_inner(
 
                         if ascii_isdigit(*p) {
                             let mut uj: c_uint = 0;
-                            if get_unsigned_int(digstart, &raw mut p, &raw mut uj, !tvs.is_null())
+                            if get_unsigned_int(digstart, &raw mut p, &mut uj, !tvs.is_null())
                                 == FAIL
                             {
                                 had_error = true;
@@ -1619,7 +1619,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                         }
 
                         let mut j = if !tvs.is_null() {
-                            tv_nr(tvs, &raw mut arg_idx) as c_int
+                            tv_nr(tvs, &mut arg_idx) as c_int
                         } else {
                             fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_int
                         };
@@ -1690,7 +1690,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                             }
                             b'c' => {
                                 let j = if !tvs.is_null() {
-                                    tv_nr(tvs, &raw mut arg_idx) as c_int
+                                    tv_nr(tvs, &mut arg_idx) as c_int
                                 } else {
                                     fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_int
                                 };
@@ -1699,7 +1699,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                             }
                             b's' | b'S' => {
                                 str_arg = if !tvs.is_null() {
-                                    tv_str(tvs, &raw mut arg_idx, &mut tofree)
+                                    tv_str(tvs, &mut arg_idx, &mut tofree)
                                 } else {
                                     fmt_arg_val(fmt_args, &mut arg_idx)
                                         .as_ptr()
@@ -1746,7 +1746,7 @@ unsafe fn vim_vsnprintf_typval_inner(
 
                         if fmt_spec == b'p' as c_char {
                             ptr_arg = if !tvs.is_null() {
-                                tv_ptr(tvs, &raw mut arg_idx)
+                                tv_ptr(tvs, &mut arg_idx)
                             } else {
                                 fmt_arg_val(fmt_args, &mut arg_idx).as_ptr()
                             };
@@ -1755,7 +1755,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                             }
                         } else if fmt_spec == b'b' as c_char || fmt_spec == b'B' as c_char {
                             uarg = if !tvs.is_null() {
-                                tv_nr(tvs, &raw mut arg_idx) as c_ulonglong
+                                tv_nr(tvs, &mut arg_idx) as c_ulonglong
                             } else {
                                 fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
                             };
@@ -1764,7 +1764,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                             match length_modifier as u8 {
                                 0 => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &raw mut arg_idx) as c_int
+                                        tv_nr(tvs, &mut arg_idx) as c_int
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_int
                                     };
@@ -1772,7 +1772,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                                 }
                                 b'h' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &raw mut arg_idx) as c_int
+                                        tv_nr(tvs, &mut arg_idx) as c_int
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_int
                                     };
@@ -1780,7 +1780,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                                 }
                                 b'l' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &raw mut arg_idx) as c_long
+                                        tv_nr(tvs, &mut arg_idx) as c_long
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as c_long
                                     };
@@ -1788,7 +1788,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                                 }
                                 b'L' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &raw mut arg_idx) as c_longlong
+                                        tv_nr(tvs, &mut arg_idx) as c_longlong
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_i64()
                                     };
@@ -1796,7 +1796,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                                 }
                                 b'z' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &raw mut arg_idx) as isize
+                                        tv_nr(tvs, &mut arg_idx) as isize
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as isize
                                     };
@@ -1813,7 +1813,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                             match length_modifier as u8 {
                                 0 => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &raw mut arg_idx) as c_uint
+                                        tv_nr(tvs, &mut arg_idx) as c_uint
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as c_uint
                                     };
@@ -1821,7 +1821,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                                 }
                                 b'h' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &raw mut arg_idx) as c_uint
+                                        tv_nr(tvs, &mut arg_idx) as c_uint
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as c_uint
                                     };
@@ -1829,7 +1829,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                                 }
                                 b'l' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &raw mut arg_idx) as c_ulong
+                                        tv_nr(tvs, &mut arg_idx) as c_ulong
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as c_ulong
                                     };
@@ -1837,7 +1837,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                                 }
                                 b'L' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &raw mut arg_idx) as c_ulonglong
+                                        tv_nr(tvs, &mut arg_idx) as c_ulonglong
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
                                     };
@@ -1845,7 +1845,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                                 }
                                 b'z' => {
                                     let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &raw mut arg_idx) as usize
+                                        tv_nr(tvs, &mut arg_idx) as usize
                                     } else {
                                         fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as usize
                                     };
@@ -2000,7 +2000,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                         let mut remove_trailing_zeroes = false;
 
                         let f = if !tvs.is_null() {
-                            tv_float(tvs, &raw mut arg_idx)
+                            tv_float(tvs, &mut arg_idx)
                         } else {
                             fmt_arg_val(fmt_args, &mut arg_idx).as_f64()
                         };
