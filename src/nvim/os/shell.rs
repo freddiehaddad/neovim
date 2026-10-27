@@ -31,7 +31,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::CP_UTF8;
 use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
 use crate::memline::ml_append;
-use crate::memory::{xstrlcat, xstrlcpy};
+use crate::memory::{xstrlcpy};
 #[cfg(unix)]
 use crate::message::msg;
 use crate::message::{
@@ -620,9 +620,9 @@ pub unsafe fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
             return rv;
         }
         for arg in argv {
-            xstrlcat(rv_ptr, c"'".as_ptr(), maxsize);
-            xstrlcat(rv_ptr, arg.as_ptr(), maxsize);
-            n = xstrlcat(rv_ptr, c"' ".as_ptr(), maxsize);
+            { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"'".as_ptr(), _dsize - _dlen); };
+            { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), arg.as_ptr(), _dsize - _dlen); };
+            n = { let _dst: *mut c_char = rv_ptr; let _dsize: usize = maxsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"' ".as_ptr(), _dsize - _dlen) + _dlen };
             if n >= maxsize {
                 break;
             }
@@ -1138,7 +1138,7 @@ unsafe fn tokenize(str_in: *const c_char, argv: &mut Vec<std::ffi::CString>) {
 
         while *p != NUL {
             let len = word_length(p);
-            argv.push(vim_strnsave_unquoted(p, len));
+            argv.push(vim_strnsave_unquoted(std::slice::from_raw_parts(p.cast::<u8>(), len)));
             p = skipwhite(p.add(len));
         }
     }
@@ -1256,7 +1256,7 @@ unsafe fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
 
         let sxq_bytes = CStr::from_ptr(opt_vars().p_sxq).to_bytes();
         let owned_ecmd = if *opt_vars().p_sxe != NUL && sxq_bytes == b"(" {
-            Some(vim_strsave_escaped_ext(cmd, opt_vars().p_sxe, b'^' as c_char, false))
+            Some(vim_strsave_escaped_ext(std::ffi::CStr::from_ptr(cmd), std::ffi::CStr::from_ptr(opt_vars().p_sxe), b'^' as c_char, false))
         } else {
             None
         };

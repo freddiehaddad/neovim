@@ -14,8 +14,6 @@ use crate::lua::converter::LuaRef;
 use crate::mbyte::{utf_isalnum, utf_ptr2char, utf_ptr2len};
 #[cfg(windows)]
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
-#[cfg(any(windows, test))]
-use crate::memory::xstrlcat;
 use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
 #[cfg(windows)]
 use crate::message::emsg;
@@ -513,7 +511,7 @@ pub unsafe fn init_homedir() {
                 {
                     let buf = (&raw mut g_st().os_buf).cast::<c_char>();
                     xstrlcpy(buf, hd.as_ptr(), MAXPATHL);
-                    xstrlcat(buf, homepath_ptr, MAXPATHL);
+                    { let _dst: *mut c_char = buf; let _dsize: usize = MAXPATHL; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), homepath_ptr, _dsize - _dlen); };
                     if *buf != NUL {
                         var = buf;
                     }
@@ -535,7 +533,7 @@ pub unsafe fn init_homedir() {
                         && exp.as_bytes().len() + std::ffi::CStr::from_ptr(p).to_bytes().len() < MAXPATHL
                     {
                         xstrlcpy(buf, exp.as_ptr(), MAXPATHL);
-                        xstrlcat(buf, p.add(1), MAXPATHL);
+                        { let _dst: *mut c_char = buf; let _dsize: usize = MAXPATHL; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), p.add(1), _dsize - _dlen); };
                         var = buf;
                     }
                 }
@@ -752,7 +750,7 @@ pub unsafe fn expand_env_esc(
                     let var_bytes = CStr::from_ptr(var).to_bytes();
                     let esc_bytes = CStr::from_ptr(esc_chars).to_bytes();
                     if var_bytes.iter().any(|b| esc_bytes.contains(b)) {
-                        var_cstr = Some(vim_strsave_escaped(var, esc_chars));
+                        var_cstr = Some(vim_strsave_escaped(std::ffi::CStr::from_ptr(var), std::ffi::CStr::from_ptr(esc_chars)));
                         var = var_cstr
                             .as_ref()
                             .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
@@ -1215,10 +1213,10 @@ pub unsafe fn os_setenv_append_path(fname: *const c_char) -> bool {
             if let Some(ref path) = path_cstr {
                 xstrlcpy(temp, path.as_ptr(), newlen);
                 if path.as_bytes().last().copied() != Some(ENV_SEPCHAR) {
-                    xstrlcat(temp, ENV_SEPSTR.as_ptr(), newlen);
+                    { let _dst: *mut c_char = temp; let _dsize: usize = newlen; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), ENV_SEPSTR.as_ptr(), _dsize - _dlen); };
                 }
             }
-            xstrlcat(temp, buf, newlen);
+            { let _dst: *mut c_char = temp; let _dsize: usize = newlen; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), buf, _dsize - _dlen); };
             let _ = os_setenv(c"PATH".as_ptr(), temp, 1);
             retval = true;
         }

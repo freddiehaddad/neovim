@@ -86,7 +86,7 @@ use crate::mbyte::{convert_setup, ptr2cells, remove_bom, string_convert, utfc_pt
 use crate::memline::{
     check_need_swap, ml_append_buf, ml_delete, ml_get_buf, ml_get_buf_len, ml_open,
 };
-use crate::memory::{xstrlcat, xstrlcpy};
+use crate::memory::{xstrlcpy};
 use crate::message::{
     emsg, internal_error, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_keep,
     msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl, msg_start, msg_strtrunc, semsg,
@@ -1891,7 +1891,7 @@ unsafe fn qf_parse_fmt_s(rmp: &mut regmatch_T, midx: usize, fields: &mut qffield
         len = len.min(CMDBUFFSIZE - 5);
         let pat_ptr = fields.pattern.as_mut_ptr();
         { let s = c"^\\V".as_ptr(); std::ptr::copy_nonoverlapping(s, pat_ptr, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-        xstrlcat(pat_ptr, rmp.startp[midx], len + 4);
+        { let _dst: *mut c_char = pat_ptr; let _dsize: usize = len + 4; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), rmp.startp[midx], _dsize - _dlen); };
         *pat_ptr.add(len + 3) = b'\\' as c_char;
         *pat_ptr.add(len + 4) = b'$' as c_char;
         *pat_ptr.add(len + 5) = NUL;
@@ -1907,7 +1907,7 @@ unsafe fn qf_parse_fmt_o(rmp: &mut regmatch_T, midx: usize, fields: &mut qffield
         let len = rmp.endp[midx].offset_from(rmp.startp[midx]) as usize;
         let mod_ptr = fields.module.as_mut_ptr();
         let dsize = (std::ffi::CStr::from_ptr(mod_ptr).to_bytes().len() + len + 1).min(CMDBUFFSIZE);
-        xstrlcat(mod_ptr, rmp.startp[midx], dsize);
+        { let _dst: *mut c_char = mod_ptr; let _dsize: usize = dsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), rmp.startp[midx], _dsize - _dlen); };
         QF_OK
     }
 }
@@ -3781,7 +3781,7 @@ unsafe fn qf_msg(qi: &mut qf_info_T, which: c_int, lead: *const c_char) {
                 ptr::write_bytes(buf.as_mut_ptr().add(len), b' ', 34 - len);
                 buf[34] = NUL;
             }
-            xstrlcat(buf.as_mut_ptr(), title.as_ptr(), IOSIZE);
+            { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), title.as_ptr(), _dsize - _dlen); };
         }
         trunc_string(buf.as_ptr(), buf.as_mut_ptr(), g_st().Columns - 1, IOSIZE as c_int);
         msg(buf.as_ptr(), 0);

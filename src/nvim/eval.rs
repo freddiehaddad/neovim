@@ -2615,7 +2615,7 @@ pub unsafe fn grow_string_tv(tv1: *mut typval_T, s2: *const c_char) -> c_int {
             return FAIL;
         }
 
-        let joined = concat_str((*tv1).vval.v_string(), s2);
+        let joined = concat_str(std::ffi::CStr::from_ptr((*tv1).vval.v_string()), std::ffi::CStr::from_ptr(s2));
         crate::eval::typval::tv_set_string(tv1, joined.as_ptr());
         OK
     }
@@ -2638,7 +2638,7 @@ unsafe fn eval_concat_str(tv1: *mut typval_T, tv2: *mut typval_T) -> c_int {
             return OK;
         }
 
-        let p = concat_str(s1, s2);
+        let p = concat_str(std::ffi::CStr::from_ptr(s1), std::ffi::CStr::from_ptr(s2));
         crate::eval::typval::tv_set_string(tv1, p.as_ptr());
 
         OK

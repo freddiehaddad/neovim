@@ -40,7 +40,7 @@ use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
 use crate::math::OK;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
-use crate::memory::{Arena, xstrlcat};
+use crate::memory::{Arena};
 use crate::message::{
     emsg, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_putchar,
     msg_puts_hl, msg_source, semsg,
@@ -1940,9 +1940,9 @@ unsafe fn highlight_list_arg(
                     || ((flag & HL_UNDERLINE_MASK) == 0 && (iarg & flag) != 0)
                 {
                     if buf[0] != NUL {
-                        xstrlcat(buf.as_mut_ptr(), c",".as_ptr(), 100);
+                        { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = 100; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c",".as_ptr(), _dsize - _dlen); };
                     }
-                    xstrlcat(buf.as_mut_ptr(), HL_NAME_TABLE[i].as_ptr(), 100);
+                    { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = 100; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), HL_NAME_TABLE[i].as_ptr(), _dsize - _dlen); };
                     if (flag & HL_UNDERLINE_MASK) == 0 {
                         iarg &= !flag;
                     }

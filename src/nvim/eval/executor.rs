@@ -131,7 +131,7 @@ unsafe fn tv_op_string(tv1: &mut typval_T, tv2: &typval_T) -> c_int {
         }
 
         let tvs = tv_get_string(tv1);
-        let s = concat_str(tvs, s2);
+        let s = concat_str(std::ffi::CStr::from_ptr(tvs), std::ffi::CStr::from_ptr(s2));
         crate::eval::typval::tv_set_string(tv1, s.as_ptr());
     }
 

@@ -145,7 +145,7 @@ use crate::math::{FAIL, OK};
 use crate::mbyte::{get_encoding_name, mb_copy_char, utf_head_off, utfc_ptr2len};
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
 use crate::memory::{
-    ArenaMem, arena_mem_free, cstr_from_bytes, cstr_to_cstring, xstrlcat, xstrlcpy,
+    ArenaMem, arena_mem_free, cstr_from_bytes, cstr_to_cstring, xstrlcpy,
 };
 use crate::menu::{ex_emenu, ex_menu, ex_menutranslate, save_state_T};
 use crate::message::{
@@ -7382,7 +7382,7 @@ unsafe fn append_command(cmd: *const c_char) {
             d = d.sub(utf_head_off(iobuf_ptr, d) as usize);
             { let s = c"...".as_ptr(); std::ptr::copy_nonoverlapping(s, d, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         }
-        xstrlcat(iobuf_ptr, c": ".as_ptr(), IOSIZE);
+        { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c": ".as_ptr(), _dsize - _dlen); };
         d = iobuf_ptr.add(std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len());
         while *s != NUL && ((d as usize) - (iobuf_ptr as usize) + 5 < IOSIZE) {
             if (*s as u8) == 0xc2 && (*s.add(1) as u8) == 0xa0 {
@@ -8204,7 +8204,7 @@ pub unsafe fn replace_makeprg(
 
             arg = skipwhite(arg);
 
-            let new_buf: Vec<c_char> = if let Some(rep) = strrep(program, c"$*".as_ptr(), arg) {
+            let new_buf: Vec<c_char> = if let Some(rep) = strrep(std::ffi::CStr::from_ptr(program), c"$*", std::ffi::CStr::from_ptr(arg)) {
                 rep.into_bytes_with_nul()
                     .into_iter()
                     .map(|b| b as c_char)
@@ -8297,7 +8297,7 @@ pub unsafe fn expand_filename(
                 let mut l = repl_cstr.as_ptr();
                 while *l != NUL {
                     if !vim_strchr(esc_chars, c_int::from(*l as u8)).is_null() {
-                        repl_cstr = vim_strsave_escaped(repl_cstr.as_ptr(), esc_chars);
+                        repl_cstr = vim_strsave_escaped(&repl_cstr, std::ffi::CStr::from_ptr(esc_chars));
                         break;
                     }
                     l = l.add(1);
@@ -8309,7 +8309,7 @@ pub unsafe fn expand_filename(
                 || eap.cmdidx == cmdidx_T::CMD_terminal as c_int)
                 && repl_cstr.as_bytes().contains(&b'!')
             {
-                repl_cstr = vim_strsave_escaped(repl_cstr.as_ptr(), c"!".as_ptr());
+                repl_cstr = vim_strsave_escaped(&repl_cstr, c"!");
             }
 
             p = repl_cmdline(eap, p, srclen, repl_cstr.as_ptr().cast_mut(), cmdlinep);

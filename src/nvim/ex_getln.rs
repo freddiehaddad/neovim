@@ -4693,7 +4693,7 @@ pub unsafe fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> std:
                 cp = cp.add(1);
             }
             buf[j] = NUL;
-            vim_strsave_escaped(fname, buf.as_ptr())
+            vim_strsave_escaped(std::ffi::CStr::from_ptr(fname), std::ffi::CStr::from_ptr(buf.as_ptr()))
         };
 
         #[cfg(not(windows))]
@@ -4705,9 +4705,9 @@ pub unsafe fn vim_strsave_fnameescape(fname: *const c_char, what: c_int) -> std:
             } else {
                 PATH_ESC_CHARS.as_ptr()
             };
-            let mut res = vim_strsave_escaped(fname, chars);
+            let mut res = vim_strsave_escaped(std::ffi::CStr::from_ptr(fname), std::ffi::CStr::from_ptr(chars));
             if what == VSE_SHELL && csh_like_shell() != 0 {
-                res = vim_strsave_escaped(res.as_ptr(), c"!".as_ptr());
+                res = vim_strsave_escaped(std::ffi::CStr::from_ptr(res.as_ptr()), c"!");
             }
             res
         };

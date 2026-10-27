@@ -49,7 +49,7 @@ use crate::mbyte::{
 };
 use crate::memline::ml_get;
 use crate::memory::{
-    Arena, cstr_from_bytes, cstr_to_cstring, xstrlcat, xstrlcpy,
+    Arena, cstr_from_bytes, cstr_to_cstring, xstrlcpy,
 };
 #[cfg(windows)]
 use crate::message::msg_source;
@@ -1786,7 +1786,7 @@ unsafe fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
                     continue;
                 }
                 xstrlcpy(buf, fname_cstr.as_ptr(), MAXPATHL);
-                xstrlcat(buf, pat.as_ptr(), MAXPATHL);
+                { let _dst: *mut c_char = buf; let _dsize: usize = MAXPATHL; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), pat.as_ptr(), _dsize - _dlen); };
                 if pack_has_entries(buf) {
                     add_pack_dir_to_rtp(buf, true);
                 }
@@ -2301,7 +2301,7 @@ unsafe fn add_dir(
             { let _d = (iobuff).cast::<u8>(); let _n = appname_len; if _n > 0 { std::ptr::copy_nonoverlapping((appname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
             #[cfg(windows)]
             if matches!(type_, XDGVarType::kXDGDataHome | XDGVarType::kXDGStateHome) {
-                xstrlcat(iobuff, c"-data".as_ptr(), IOSIZE);
+                { let _dst: *mut c_char = iobuff; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"-data".as_ptr(), _dsize - _dlen); };
                 appname_len += 5;
             }
             { let _d = (dest).cast::<u8>(); let _n = appname_len; if _n > 0 { std::ptr::copy_nonoverlapping((iobuff).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };

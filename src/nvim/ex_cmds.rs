@@ -96,7 +96,7 @@ use crate::memline::{
     ml_find_line_or_offset, ml_firstmarked, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len,
     ml_replace, ml_replace_buf, ml_setmarked,
 };
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
 use crate::message::{
     emsg, message_filtered, messaging, msg, msg_check_for_delay, msg_clr_eos, msg_end,
     msg_ext_no_fast, msg_ext_set_kind, msg_multiline, msg_outtrans, msg_prt_line, msg_putchar,
@@ -1511,7 +1511,7 @@ pub unsafe fn do_bang(
                     .as_ref()
                     .unwrap()
                     .as_ptr();
-                let cmd = vim_strsave_escaped(prev_ptr.cast_mut(), c"%#".as_ptr());
+                let cmd = vim_strsave_escaped(std::ffi::CStr::from_ptr(prev_ptr.cast_mut()), c"%#");
                 redo_append_lit(cmd.as_ptr().cast_mut(), -1);
                 redo_append_str(c"\n".as_ptr(), 1);
                 g_st().bangredo = false;
@@ -1922,13 +1922,13 @@ pub unsafe fn make_filter_cmd(
         if is_pwsh {
             if !itmp.is_null() {
                 xstrlcpy(buf, c"& { Get-Content ".as_ptr(), len - 1);
-                xstrlcat(buf, itmp, len - 1);
-                xstrlcat(buf, c" | & ".as_ptr(), len - 1);
-                xstrlcat(buf, cmd, len - 1);
-                xstrlcat(buf, c" }".as_ptr(), len - 1);
+                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c" | & ".as_ptr(), _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), cmd, _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c" }".as_ptr(), _dsize - _dlen); };
             } else if do_in {
                 xstrlcpy(buf, c" $input | ".as_ptr(), len - 1);
-                xstrlcat(buf, cmd, len);
+                { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), cmd, _dsize - _dlen); };
             } else {
                 xstrlcpy(buf, cmd, len);
             }
@@ -1947,8 +1947,8 @@ pub unsafe fn make_filter_cmd(
                 }
 
                 if !itmp.is_null() {
-                    xstrlcat(buf, c" < ".as_ptr(), len - 1);
-                    xstrlcat(buf, itmp, len - 1);
+                    { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c" < ".as_ptr(), _dsize - _dlen); };
+                    { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
                 }
             }
             #[cfg(not(unix))]
@@ -1961,13 +1961,13 @@ pub unsafe fn make_filter_cmd(
                             *p = NUL;
                         }
                     }
-                    xstrlcat(buf, c" < ".as_ptr(), len);
-                    xstrlcat(buf, itmp, len);
+                    { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c" < ".as_ptr(), _dsize - _dlen); };
+                    { let _dst: *mut c_char = buf; let _dsize: usize = len; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), itmp, _dsize - _dlen); };
                     if *opt_vars().p_shq == NUL {
                         let p = find_pipe(cmd);
                         if !p.is_null() {
-                            xstrlcat(buf, c" ".as_ptr(), len - 1);
-                            xstrlcat(buf, p, len - 1);
+                            { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c" ".as_ptr(), _dsize - _dlen); };
+                            { let _dst: *mut c_char = buf; let _dsize: usize = len - 1; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), p, _dsize - _dlen); };
                         }
                     }
                 }
@@ -4260,8 +4260,8 @@ unsafe fn do_sub(
                                     orig_line =
                                         SubBuf::from_cbuf(ml_get(lnum), ml_get_len(lnum) as usize);
                                     let new_line = concat_str(
-                                        new_start.data(),
-                                        sub_firstline.data().add(copycol as usize),
+                                        std::ffi::CStr::from_ptr(new_start.data()),
+                                        std::ffi::CStr::from_ptr(sub_firstline.data().add(copycol as usize)),
                                     );
                                     let new_line_size =
                                         new_start.size + (sub_firstline.size - copycol as usize);

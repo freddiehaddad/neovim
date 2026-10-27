@@ -775,7 +775,7 @@ unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
                         mesg,
                         gettext(c"Exception".as_ptr()),
                     );
-                    mesg_owned = Some(concat_str(ptr::addr_of!(g_st().IObuff).cast(), c": %s".as_ptr()));
+                    mesg_owned = Some(concat_str(std::ffi::CStr::from_ptr(ptr::addr_of!(g_st().IObuff).cast()), c": %s"));
                     mesg = mesg_owned
                         .as_ref()
                         .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut());

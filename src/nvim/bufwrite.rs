@@ -37,7 +37,7 @@ use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::mbyte::{enc_canonize, my_iconv_open, utf_ptr2char, utf_ptr2len_len};
 use crate::memline::{get_file_in_dir, make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp};
-use crate::memory::{xstrlcat, xstrlcpy};
+use crate::memory::{xstrlcpy};
 use crate::message::{emsg, msg, msg_progress, msg_puts_hl, msg_with_id, semsg, set_keep_msg};
 use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, shortmess};
 use crate::option_vars::*;
@@ -1846,7 +1846,7 @@ pub unsafe fn buf_write(
                         add_quoted_fname(iobuf, IOSIZE, buf, fname);
                         let mut insert_space = false;
                         if write_info.bw_conv_error != 0 {
-                            xstrlcat(iobuf, gettext(c" CONVERSION ERROR".as_ptr()), IOSIZE);
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c" CONVERSION ERROR".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                             if write_info.bw_conv_error_lnum != 0 {
                                 let _ = vim_snprintf_add!(
@@ -1857,21 +1857,21 @@ pub unsafe fn buf_write(
                                 );
                             }
                         } else if notconverted {
-                            xstrlcat(iobuf, gettext(c"[NOT converted]".as_ptr()), IOSIZE);
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[NOT converted]".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                         } else if converted {
-                            xstrlcat(iobuf, gettext(c"[converted]".as_ptr()), IOSIZE);
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[converted]".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                         }
                         if device {
-                            xstrlcat(iobuf, gettext(c"[Device]".as_ptr()), IOSIZE);
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[Device]".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                         } else if newfile {
-                            xstrlcat(iobuf, gettext(c"[New]".as_ptr()), IOSIZE);
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[New]".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                         }
                         if no_eol {
-                            xstrlcat(iobuf, gettext(c"[noeol]".as_ptr()), IOSIZE);
+                            { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"[noeol]".as_ptr()), _dsize - _dlen); };
                             insert_space = true;
                         }
                         if msg_add_fileformat(fileformat) {
@@ -1880,25 +1880,17 @@ pub unsafe fn buf_write(
                         msg_add_lines(c_int::from(insert_space), lnum, nchars);
                         if !shortmess(kShmWrite) {
                             if append {
-                                xstrlcat(
-                                    iobuf,
-                                    if shortmess(kShmWri) {
+                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(kShmWri) {
                                         gettext(c" [a]".as_ptr())
                                     } else {
                                         gettext(c" appended".as_ptr())
-                                    },
-                                    IOSIZE,
-                                );
+                                    }, _dsize - _dlen); };
                             } else {
-                                xstrlcat(
-                                    iobuf,
-                                    if shortmess(kShmWri) {
+                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(kShmWri) {
                                         gettext(c" [w]".as_ptr())
                                     } else {
                                         gettext(c" written".as_ptr())
-                                    },
-                                    IOSIZE,
-                                );
+                                    }, _dsize - _dlen); };
                             }
                         }
                         set_keep_msg(

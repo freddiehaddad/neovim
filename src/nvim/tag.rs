@@ -44,7 +44,7 @@ use crate::mark::{fm_getname, fmark_T, fmarkv_T, mark_view_make, mark_view_resto
 use crate::mbyte::{
     convert_setup, mb_ptr_adv, mb_strnicmp, string_convert, utfc_ptr2len, vimconv_T,
 };
-use crate::memory::{cstr_to_cstring, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_to_cstring, xstrlcpy};
 use crate::message::{
     emsg, give_warning, msg, msg_delay, msg_outtrans, msg_putchar, msg_puts, msg_puts_title, semsg,
     smsg, verbose_enter, verbose_leave, wait_return,
@@ -849,11 +849,7 @@ pub unsafe fn do_tag(
                             more_str,
                         );
                         if ic {
-                            xstrlcat(
-                                iobuf_ptr,
-                                gettext(c"  Using tag with different case!".as_ptr()),
-                                IOSIZE,
-                            );
+                            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c"  Using tag with different case!".as_ptr()), _dsize - _dlen); };
                         }
                         if (do_tag_num_matches > prev_num_matches || new_tag)
                             && do_tag_num_matches > 1

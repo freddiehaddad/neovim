@@ -1806,15 +1806,15 @@ unsafe fn wildescape(xp: &mut expand_T, str_arg: *const c_char, files: &mut [CSt
                     } else {
                         c" ".as_ptr()
                     };
-                    *file_slot = vim_strsave_escaped(file_slot.as_ptr(), pat);
+                    *file_slot = vim_strsave_escaped(std::ffi::CStr::from_ptr(file_slot.as_ptr()), std::ffi::CStr::from_ptr(pat));
                     #[cfg(windows)]
                     {
-                        *file_slot = vim_strsave_escaped(file_slot.as_ptr(), c" ".as_ptr());
+                        *file_slot = vim_strsave_escaped(std::ffi::CStr::from_ptr(file_slot.as_ptr()), c" ");
                     }
                 } else if (xp.xp_backslash & XP_BS_COMMA) != 0
                     && file_slot.as_bytes().contains(&b',')
                 {
-                    *file_slot = vim_strsave_escaped(file_slot.as_ptr(), c",".as_ptr());
+                    *file_slot = vim_strsave_escaped(std::ffi::CStr::from_ptr(file_slot.as_ptr()), c",");
                 }
 
                 #[cfg(windows)]
@@ -1845,7 +1845,7 @@ unsafe fn wildescape(xp: &mut expand_T, str_arg: *const c_char, files: &mut [CSt
             }
         } else if xp.xp_context == EXPAND_TAGS {
             for file_slot in files.iter_mut() {
-                *file_slot = vim_strsave_escaped(file_slot.as_ptr(), c"\\|\"".as_ptr());
+                *file_slot = vim_strsave_escaped(std::ffi::CStr::from_ptr(file_slot.as_ptr()), c"\\|\"");
             }
         }
     }
@@ -5116,7 +5116,7 @@ pub unsafe fn ExpandGeneric(
             }
 
             let mut item_cstr = if escaped {
-                vim_strsave_escaped(str_item, c" \t\\.".as_ptr())
+                vim_strsave_escaped(std::ffi::CStr::from_ptr(str_item), c" \t\\.")
             } else {
                 cstr_to_cstring(str_item)
             };
@@ -6198,7 +6198,7 @@ unsafe fn concat_pattern_with_buffer_match(
             );
             if lowercase {
                 let mword = cstr_from_bytes(match_slice);
-                let lower = strcase_save(mword.as_ptr(), false);
+                let lower = strcase_save(&mword, false);
                 let lower_bytes = lower.to_bytes();
                 out.extend_from_slice(&lower_bytes[..lower_bytes.len().min(match_len as usize)]);
             } else {

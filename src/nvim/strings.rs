@@ -335,19 +335,21 @@ fn write_fmt_to_c_buf(dst: &mut [c_char], args: std::fmt::Arguments<'_>) -> usiz
 
 
 pub unsafe fn vim_strsave_escaped(
-    string: *const c_char,
-    esc_chars: *const c_char,
+    string: &CStr,
+    esc_chars: &CStr,
 ) -> std::ffi::CString {
     unsafe { vim_strsave_escaped_ext(string, esc_chars, b'\\' as c_char, false) }
 }
 
 pub unsafe fn vim_strsave_escaped_ext(
-    string: *const c_char,
-    esc_chars: *const c_char,
+    string: &CStr,
+    esc_chars: &CStr,
     cc: c_char,
     bsl: bool,
 ) -> std::ffi::CString {
     unsafe {
+        let string = string.as_ptr();
+        let esc_chars = esc_chars.as_ptr();
         let mut length: usize = 0;
         let mut p = string;
         while *p != NUL {
@@ -384,60 +386,36 @@ pub unsafe fn vim_strsave_escaped_ext(
     }
 }
 
-pub unsafe fn vim_strnsave_unquoted(
-    string: *const c_char,
-    length: usize,
-) -> std::ffi::CString {
-    unsafe {
-        let mut ret_length: usize = 0;
-        let mut inquote = false;
-        let string_end = string.add(length);
-        let mut p = string;
-        while p < string_end {
-            if *p == b'"' as c_char {
-                inquote = !inquote;
-            } else if *p == b'\\' as c_char
-                && inquote
-                && p.add(1) < string_end
-                && (*p.add(1) == b'\\' as c_char || *p.add(1) == b'"' as c_char)
-            {
-                ret_length += 1;
-                p = p.add(1);
-            } else {
-                ret_length += 1;
-            }
-            p = p.add(1);
+pub fn vim_strnsave_unquoted(bytes: &[u8]) -> std::ffi::CString {
+    let mut ret = Vec::with_capacity(bytes.len());
+    let mut inquote = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'"' {
+            inquote = !inquote;
+        } else if bytes[i] == b'\\'
+            && inquote
+            && i + 1 < bytes.len()
+            && (bytes[i + 1] == b'\\' || bytes[i + 1] == b'"')
+        {
+            i += 1;
+            ret.push(bytes[i]);
+        } else {
+            ret.push(bytes[i]);
         }
-
-        let mut ret = Vec::with_capacity(ret_length);
-        inquote = false;
-        p = string;
-        while p < string_end {
-            if *p == b'"' as c_char {
-                inquote = !inquote;
-            } else if *p == b'\\' as c_char
-                && inquote
-                && p.add(1) < string_end
-                && (*p.add(1) == b'\\' as c_char || *p.add(1) == b'"' as c_char)
-            {
-                p = p.add(1);
-                ret.push(*p as u8);
-            } else {
-                ret.push(*p as u8);
-            }
-            p = p.add(1);
-        }
-
-        crate::memory::cstr_from_bytes(&ret)
+        i += 1;
     }
+
+    crate::memory::cstr_from_bytes(&ret)
 }
 
 pub unsafe fn vim_strsave_shellescape(
-    string: *const c_char,
+    string: &CStr,
     do_special: bool,
     do_newline: bool,
 ) -> std::ffi::CString {
     unsafe {
+        let string = string.as_ptr();
         let csh_like = csh_like_shell() != 0;
         let fish_like = fish_like_shell();
         #[cfg(windows)]
@@ -572,11 +550,11 @@ pub unsafe fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
     }
 }
 
-pub unsafe fn strcase_save(orig: *const c_char, upper: bool) -> std::ffi::CString {
+pub unsafe fn strcase_save(orig: &CStr, upper: bool) -> std::ffi::CString {
     unsafe {
-        let orig_len = CStr::from_ptr(orig).to_bytes().len();
+        let orig_len = orig.to_bytes().len();
         let mut res = Vec::<c_char>::with_capacity(orig_len + 1);
-        let mut p = orig;
+        let mut p = orig.as_ptr();
 
         while *p != NUL {
             let char_info = utf_ptr2StrCharInfo(p).chr;
@@ -650,15 +628,13 @@ pub fn sort_strings(files: &mut [std::ffi::CString]) {
     }
 }
 
-pub unsafe fn concat_str(str1: *const c_char, str2: *const c_char) -> std::ffi::CString {
-    unsafe {
-        let b1 = CStr::from_ptr(str1).to_bytes();
-        let b2 = CStr::from_ptr(str2).to_bytes();
-        let mut dest = Vec::with_capacity(b1.len() + b2.len());
-        dest.extend_from_slice(b1);
-        dest.extend_from_slice(b2);
-        crate::memory::cstr_from_bytes(&dest)
-    }
+pub fn concat_str(str1: &CStr, str2: &CStr) -> std::ffi::CString {
+    let b1 = str1.to_bytes();
+    let b2 = str2.to_bytes();
+    let mut dest = Vec::with_capacity(b1.len() + b2.len());
+    dest.extend_from_slice(b1);
+    dest.extend_from_slice(b2);
+    crate::memory::cstr_from_bytes(&dest)
 }
 
 pub unsafe fn tv_nr(tvs: *mut typval_T, idxp: &mut c_int) -> varnumber_T {
@@ -2233,9 +2209,10 @@ pub unsafe fn vim_snprintf_typval_only(
     unsafe { vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[]) }
 }
 
-pub unsafe fn reverse_text(s: *mut c_char) -> std::ffi::CString {
+pub unsafe fn reverse_text(s: &CStr) -> std::ffi::CString {
     unsafe {
-        let len = CStr::from_ptr(s).to_bytes().len();
+        let len = s.to_bytes().len();
+        let s = s.as_ptr();
         let mut rev = vec![0u8; len];
         let mut s_i: usize = 0;
         let mut rev_i: usize = len;
@@ -2249,57 +2226,55 @@ pub unsafe fn reverse_text(s: *mut c_char) -> std::ffi::CString {
     }
 }
 
-pub unsafe fn strrep(
-    src: *const c_char,
-    what: *const c_char,
-    rep: *const c_char,
+pub fn strrep(
+    src: &CStr,
+    what: &CStr,
+    rep: &CStr,
 ) -> Option<std::ffi::CString> {
-    unsafe {
-        let src_bytes = CStr::from_ptr(src).to_bytes();
-        let what_bytes = CStr::from_ptr(what).to_bytes();
-        let rep_bytes = CStr::from_ptr(rep).to_bytes();
+    let src_bytes = src.to_bytes();
+    let what_bytes = what.to_bytes();
+    let rep_bytes = rep.to_bytes();
 
-        if what_bytes.is_empty() {
-            return None;
-        }
-
-        let mut count: usize = 0;
-        let mut idx: usize = 0;
-        while idx + what_bytes.len() <= src_bytes.len() {
-            if let Some(rel) = src_bytes[idx..]
-                .windows(what_bytes.len())
-                .position(|w| w == what_bytes)
-            {
-                count += 1;
-                idx += rel + what_bytes.len();
-            } else {
-                break;
-            }
-        }
-
-        if count == 0 {
-            return None;
-        }
-
-        let total_len = (src_bytes.len() + count * rep_bytes.len()) - count * what_bytes.len();
-        let mut ret = Vec::with_capacity(total_len);
-        let mut cur: usize = 0;
-        while cur + what_bytes.len() <= src_bytes.len() {
-            if let Some(rel) = src_bytes[cur..]
-                .windows(what_bytes.len())
-                .position(|w| w == what_bytes)
-            {
-                ret.extend_from_slice(&src_bytes[cur..cur + rel]);
-                ret.extend_from_slice(rep_bytes);
-                cur += rel + what_bytes.len();
-            } else {
-                break;
-            }
-        }
-        ret.extend_from_slice(&src_bytes[cur..]);
-
-        Some(crate::memory::cstr_from_bytes(&ret))
+    if what_bytes.is_empty() {
+        return None;
     }
+
+    let mut count: usize = 0;
+    let mut idx: usize = 0;
+    while idx + what_bytes.len() <= src_bytes.len() {
+        if let Some(rel) = src_bytes[idx..]
+            .windows(what_bytes.len())
+            .position(|w| w == what_bytes)
+        {
+            count += 1;
+            idx += rel + what_bytes.len();
+        } else {
+            break;
+        }
+    }
+
+    if count == 0 {
+        return None;
+    }
+
+    let total_len = (src_bytes.len() + count * rep_bytes.len()) - count * what_bytes.len();
+    let mut ret = Vec::with_capacity(total_len);
+    let mut cur: usize = 0;
+    while cur + what_bytes.len() <= src_bytes.len() {
+        if let Some(rel) = src_bytes[cur..]
+            .windows(what_bytes.len())
+            .position(|w| w == what_bytes)
+        {
+            ret.extend_from_slice(&src_bytes[cur..cur + rel]);
+            ret.extend_from_slice(rep_bytes);
+            cur += rel + what_bytes.len();
+        } else {
+            break;
+        }
+    }
+    ret.extend_from_slice(&src_bytes[cur..]);
+
+    Some(crate::memory::cstr_from_bytes(&ret))
 }
 
 unsafe fn byteidx_common(argvars: *mut typval_T, rettv: &mut typval_T, comp: bool) {
@@ -2929,7 +2904,7 @@ pub unsafe fn f_tolower(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
     unsafe {
         crate::eval::typval::tv_set_string(
             rettv,
-            strcase_save(tv_get_string(argvars), false).as_ptr(),
+            strcase_save(CStr::from_ptr(tv_get_string(argvars)), false).as_ptr(),
         );
     }
 }
@@ -2938,7 +2913,7 @@ pub unsafe fn f_toupper(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
     unsafe {
         crate::eval::typval::tv_set_string(
             rettv,
-            strcase_save(tv_get_string(argvars), true).as_ptr(),
+            strcase_save(CStr::from_ptr(tv_get_string(argvars)), true).as_ptr(),
         );
     }
 }
@@ -3114,14 +3089,13 @@ mod tests {
     #[test]
     fn vim_strnsave_unquoted_and_strrep_and_format_typeof_work() {
         unsafe {
-            let unquoted = vim_strnsave_unquoted(c"\"/bin/sh\"".as_ptr(), 9);
+            let unquoted = vim_strnsave_unquoted(b"\"/bin/sh\"");
             assert_eq!(unquoted.to_str().unwrap(), "/bin/sh");
 
-            let rep =
-                strrep(c"foo bar foo".as_ptr(), c"foo".as_ptr(), c"baz".as_ptr()).unwrap();
+            let rep = strrep(c"foo bar foo", c"foo", c"baz").unwrap();
             assert_eq!(rep.to_str().unwrap(), "baz bar baz");
 
-            let cat = concat_str(c"hello ".as_ptr(), c"world".as_ptr());
+            let cat = concat_str(c"hello ", c"world");
             assert_eq!(cat.to_str().unwrap(), "hello world");
 
             assert_eq!(format_typeof(c"lld".as_ptr()), TYPE_LONGLONGINT);
@@ -3194,7 +3168,7 @@ mod tests {
                 (c"", c"\r", ""),
                 (c"some text", c"a", "some text"),
             ] {
-                let res = vim_strsave_escaped(s.as_ptr(), esc.as_ptr());
+                let res = vim_strsave_escaped(s, esc);
                 assert_eq!(res.to_str().unwrap(), expected);
             }
 
@@ -3223,7 +3197,7 @@ mod tests {
                 (c"/Program\\ Files/sh\\", 19, "/Program\\ Files/sh\\"),
                 (c"/Program\"\\n\"Files/sh", 20, "/Program\\nFiles/sh"),
             ] {
-                let res = vim_strnsave_unquoted(s.as_ptr(), len);
+                let res = vim_strnsave_unquoted(&s.to_bytes()[..len]);
                 assert_eq!(res.to_str().unwrap(), expected);
             }
 
@@ -3246,8 +3220,8 @@ mod tests {
             assert!(vim_strchr(s_utf.as_ptr(), 0x201D).is_null());
 
             let overlong = c"\xc1\x81";
-            let up = strcase_save(overlong.as_ptr(), true);
-            let lo = strcase_save(overlong.as_ptr(), false);
+            let up = strcase_save(overlong, true);
+            let lo = strcase_save(overlong, false);
             assert_eq!(up.to_str().unwrap(), "A");
             assert_eq!(lo.to_str().unwrap(), "a");
 
@@ -3259,7 +3233,7 @@ mod tests {
                 (b"ab\xc0\0", b"\xc0ba"),
                 (b"ab\xc2\0", b"\xc2ba"),
             ] {
-                let rev = reverse_text(inp.as_ptr().cast_mut().cast());
+                let rev = reverse_text(CStr::from_bytes_with_nul(inp).unwrap());
                 assert_eq!(rev.as_bytes(), exp);
             }
         }

@@ -556,8 +556,8 @@ unsafe fn store_session_globals(fd: *mut FILE) -> c_int {
                     && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
                 {
                     let p = vim_strsave_escaped(
-                        tv_get_string(&raw const (*this_var).di_tv),
-                        c"\\\"\n\r".as_ptr(),
+                        std::ffi::CStr::from_ptr(tv_get_string(&raw const (*this_var).di_tv)),
+                        c"\\\"\n\r",
                     );
                     let mut p_vec: Vec<c_char> = p
                         .into_bytes_with_nul()

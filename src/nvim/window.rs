@@ -69,7 +69,7 @@ use crate::main_init::getout;
 use crate::mark::{copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
-use crate::memory::{xstrlcat, xstrlcpy};
+use crate::memory::{xstrlcpy};
 use crate::message::{
     emsg, iemsg, internal_error, kZIndexMessages, msg, msg_clr_eos_force, msg_grid_validate,
     msg_ui_flush, semsg, set_keep_msg,
@@ -1131,9 +1131,9 @@ unsafe fn do_window_newwindow(nchar: c_int, Prenum: c_int, cbuf: &mut [c_char; 4
             cbuf[0] = NUL;
         }
         if nchar == b'v' as c_int || nchar == Ctrl_V {
-            xstrlcat(cbuf.as_mut_ptr(), c"v".as_ptr(), cbuf.len());
+            { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"v".as_ptr(), _dsize - _dlen); };
         }
-        xstrlcat(cbuf.as_mut_ptr(), c"new".as_ptr(), cbuf.len());
+        { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"new".as_ptr(), _dsize - _dlen); };
         do_cmdline_cmd(cbuf.as_ptr());
     }
 }

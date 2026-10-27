@@ -12,7 +12,7 @@ use crate::math::{FAIL, OK};
 #[cfg(unix)]
 use crate::mbyte::mb_isalpha;
 use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::os::env::{expand_env_esc, expand_env_save_opt, os_getenv_cstr, vim_env_iter};
@@ -2325,8 +2325,8 @@ pub unsafe fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize
                 if os_dirname(buf, MAXPATHL) != OK {
                     *buf = NUL;
                 }
-                xstrlcat(buf, PATHSEPSTR.as_ptr().cast::<c_char>(), bufsize);
-                xstrlcat(buf, argv0, bufsize);
+                { let _dst: *mut c_char = buf; let _dsize: usize = bufsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), PATHSEPSTR.as_ptr().cast::<c_char>(), _dsize - _dlen); };
+                { let _dst: *mut c_char = buf; let _dsize: usize = bufsize; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), argv0, _dsize - _dlen); };
             } else {
                 let path = path_cstr.as_ptr();
                 let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
@@ -2342,8 +2342,8 @@ pub unsafe fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize
                         continue;
                     }
                     { let _d = (namebuff).cast::<u8>(); let _n = dir_len; if _n > 0 { std::ptr::copy_nonoverlapping((dir).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
-                    xstrlcat(namebuff, PATHSEPSTR.as_ptr().cast::<c_char>(), MAXPATHL);
-                    xstrlcat(namebuff, argv0, MAXPATHL);
+                    { let _dst: *mut c_char = namebuff; let _dsize: usize = MAXPATHL; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), PATHSEPSTR.as_ptr().cast::<c_char>(), _dsize - _dlen); };
+                    { let _dst: *mut c_char = namebuff; let _dsize: usize = MAXPATHL; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), argv0, _dsize - _dlen); };
                     if os_can_exe(namebuff, None, false) {
                         xstrlcpy(buf, namebuff, bufsize);
                         to_slash(buf);

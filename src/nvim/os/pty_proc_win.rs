@@ -9,7 +9,7 @@ use crate::log::logmsg;
 #[cfg(windows)]
 use crate::mbyte::utf8_to_utf16;
 #[cfg(any(test, windows))]
-use crate::memory::{xstrlcat, xstrlcpy};
+use crate::memory::{xstrlcpy};
 #[cfg(windows)]
 use crate::os::env::os_shell_is_cmdexe;
 #[cfg(windows)]
@@ -61,8 +61,8 @@ pub(crate) unsafe fn quote_cmd_arg(
 
         if !src_bytes.iter().any(|&b| b == b'"' || b == b'\\') {
             xstrlcpy(dest, c"\"".as_ptr(), dest_remaining);
-            xstrlcat(dest, src, dest_remaining);
-            xstrlcat(dest, c"\"".as_ptr(), dest_remaining);
+            { let _dst: *mut c_char = dest; let _dsize: usize = dest_remaining; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), src, _dsize - _dlen); };
+            { let _dst: *mut c_char = dest; let _dsize: usize = dest_remaining; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"\"".as_ptr(), _dsize - _dlen); };
             return;
         }
 

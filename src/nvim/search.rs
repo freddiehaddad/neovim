@@ -384,7 +384,7 @@ pub unsafe fn search_regcomp(
         srch().mr_pattern = if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0
             && *(**curwin.as_ptr()).w_onebuf_opt.wo_rlc == b's' as c_char
         {
-            Some(reverse_text(pat))
+            Some(reverse_text(std::ffi::CStr::from_ptr(pat)))
         } else {
             Some(
                 CString::new(std::slice::from_raw_parts(pat.cast::<u8>(), patlen))
@@ -1455,7 +1455,7 @@ pub unsafe fn do_search(
                     if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0
                         && *(**curwin.as_ptr()).w_onebuf_opt.wo_rlc == b's' as c_char
                     {
-                        let rev = reverse_text(msgbuf);
+                        let rev = reverse_text(std::ffi::CStr::from_ptr(msgbuf));
                         msgbuflen = rev.as_bytes().len();
                         msgbuf_vec = rev
                             .into_bytes_with_nul()

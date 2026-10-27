@@ -56,7 +56,7 @@ use crate::mbyte::{
     mb_string2cells_len, mb_unescape, ptr2cells, utf_char2bytes, utf_char2cells, utf_head_off,
     utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf8len_tab, utfc_ptr2len, utfc_ptr2len_len,
 };
-use crate::memory::{Arena, arena_alloc, xstrlcat, xstrlcpy, xstrnlen};
+use crate::memory::{Arena, arena_alloc, xstrlcpy, xstrnlen};
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::shortmess;
@@ -2075,7 +2075,7 @@ pub unsafe fn msgmore(n: c_int) {
                 );
             }
             if g_st().got_int {
-                xstrlcat(msg_ptr, gettext(c" (Interrupted)".as_ptr()), MSG_BUF_LEN);
+                { let _dst: *mut c_char = msg_ptr; let _dsize: usize = MSG_BUF_LEN; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), gettext(c" (Interrupted)".as_ptr()), _dsize - _dlen); };
             }
             if msg(msg_ptr, 0) {
                 set_keep_msg(msg_ptr, 0);

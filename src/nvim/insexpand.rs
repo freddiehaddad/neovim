@@ -2156,7 +2156,7 @@ unsafe fn ins_compl_dictionaries(
         }
 
         if ctrl_x_mode_line_or_eval() {
-            let pat_esc = vim_strsave_escaped(pat, c"\\".as_ptr());
+            let pat_esc = vim_strsave_escaped(std::ffi::CStr::from_ptr(pat), c"\\");
             let len = pat_esc.as_bytes().len() + 10;
             let mut ptr_vec = vec![0 as c_char; len];
             let ptr = ptr_vec.as_mut_ptr();

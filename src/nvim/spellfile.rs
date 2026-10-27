@@ -20,7 +20,7 @@ use crate::mbyte::{
     vimconv_T,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
-use crate::memory::{xstrlcat, xstrlcpy};
+use crate::memory::{xstrlcpy};
 use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
@@ -3335,7 +3335,7 @@ unsafe fn store_aff_word(
                                         i -= 1;
                                     }
                                 }
-                                xstrlcat(newword.as_mut_ptr(), p, MAXWLEN);
+                                { let _dst: *mut c_char = newword.as_mut_ptr(); let _dsize: usize = MAXWLEN; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), p, _dsize - _dlen); };
                             } else {
                                 xstrlcpy(newword.as_mut_ptr(), word, MAXWLEN);
                                 if !ae_chop.is_null() {
@@ -3348,7 +3348,7 @@ unsafe fn store_aff_word(
                                     *p = NUL;
                                 }
                                 if !ae_add.is_null() {
-                                    xstrlcat(newword.as_mut_ptr(), ae_add, MAXWLEN);
+                                    { let _dst: *mut c_char = newword.as_mut_ptr(); let _dsize: usize = MAXWLEN; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), ae_add, _dsize - _dlen); };
                                 }
                             }
 
@@ -5449,7 +5449,7 @@ unsafe fn init_spellfile() {
             let xdg_path = get_xdg_home(XDGVarType::kXDGDataHome).unwrap_or_default();
             xstrlcpy(buf, xdg_path.as_ptr(), buf_len);
 
-            xstrlcat(buf, c"/site/spell".as_ptr(), buf_len);
+            { let _dst: *mut c_char = buf; let _dsize: usize = buf_len; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c"/site/spell".as_ptr(), _dsize - _dlen); };
 
             let mut failed_dir: Option<std::ffi::CString> = None;
             if os_mkdir_recurse(buf, 0o755, &mut failed_dir, None) != 0 {

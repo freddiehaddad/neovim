@@ -998,7 +998,7 @@ pub unsafe fn pum_redraw() {
                         };
 
                         if pum().rl {
-                            let mut rt_bytes = reverse_text(st).into_bytes_with_nul();
+                            let mut rt_bytes = reverse_text(std::ffi::CStr::from_ptr(st)).into_bytes_with_nul();
                             let mut rt = rt_bytes.as_mut_ptr().cast::<c_char>();
                             let mut cells = mb_string2cells(rt) as c_int;
                             let pad = if next_isempty { 0 } else { 2 };

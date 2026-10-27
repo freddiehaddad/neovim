@@ -52,7 +52,7 @@ use crate::memfile::mf_fullname;
 use crate::memline::{
     check_need_swap, ml_append, ml_delete, ml_get, ml_get_buf, ml_get_len, ml_open,
 };
-use crate::memory::{cstr_to_cstring, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_to_cstring, xstrlcpy};
 use crate::message::{
     emsg, msg, msg_check_for_delay, msg_clr_eos, msg_delay, msg_end, msg_may_trunc, msg_outtrans,
     msg_progress, msg_putchar, msg_puts, msg_puts_hl, msg_schedule_semsg, msg_start, msg_trunc,
@@ -883,7 +883,7 @@ unsafe fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id:
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         add_quoted_fname(iobuf_ptr, IOSIZE - 100, buf, name);
 
-        xstrlcat(iobuf_ptr, s, IOSIZE);
+        { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), s, _dsize - _dlen); };
 
         let msg_scroll_save = g_st().msg_scroll;
         if shortmess(kShmOverall) && g_st().msg_listdo_overwrite == 0 && !g_st().exiting && opt_vars().p_verbose == 0 {
@@ -3054,16 +3054,16 @@ pub unsafe fn msg_add_fileformat(eol_type: c_int) -> bool {
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         #[cfg(not(windows))]
         if eol_type == EOL_DOS {
-            xstrlcat(iobuf_ptr, tr(c"[dos]".as_ptr()), IOSIZE);
+            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[dos]".as_ptr()), _dsize - _dlen); };
             return true;
         }
         if eol_type == EOL_MAC {
-            xstrlcat(iobuf_ptr, tr(c"[mac]".as_ptr()), IOSIZE);
+            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[mac]".as_ptr()), _dsize - _dlen); };
             return true;
         }
         #[cfg(windows)]
         if eol_type == EOL_UNIX {
-            xstrlcat(iobuf_ptr, tr(c"[unix]".as_ptr()), IOSIZE);
+            { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[unix]".as_ptr()), _dsize - _dlen); };
             return true;
         }
         false

@@ -48,7 +48,6 @@ use crate::mcursor::mc_undo_time;
 #[cfg(unix)]
 use crate::memline::resolve_symlink;
 use crate::memline::{ml_append_flags, ml_delete, ml_get, ml_get_buf, ml_replace};
-use crate::memory::{xstrlcat};
 use crate::message::{
     emsg, give_warning, iemsg, internal_error, messaging, msg, msg_end, msg_ext_set_kind,
     msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, smsg, smsg_keep, verb_msg, verbose_enter,
@@ -2514,7 +2513,7 @@ pub unsafe fn ex_undolist(_eap: &mut exarg_T) {
                 undo_fmt_time(iobuf_ptr.add(cur_len), IOSIZE - cur_len, uh_time);
                 if uh_save_nr > 0 {
                     while std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len() < 33 {
-                        xstrlcat(iobuf_ptr, c" ".as_ptr(), IOSIZE);
+                        { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), c" ".as_ptr(), _dsize - _dlen); };
                     }
                     vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d".as_ptr(), uh_save_nr);
                 }

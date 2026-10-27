@@ -912,7 +912,7 @@ pub unsafe fn f_reverse(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
             if !arg0.vval.v_string().is_null() {
                 crate::eval::typval::tv_set_string(
                     rettv,
-                    reverse_text(arg0.vval.v_string()).as_ptr(),
+                    reverse_text(std::ffi::CStr::from_ptr(arg0.vval.v_string())).as_ptr(),
                 );
             } else {
                 rettv.vval = crate::eval::typval::TypvalVval::String(std::ptr::null_mut());

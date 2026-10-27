@@ -1311,16 +1311,16 @@ pub unsafe fn ex_diffpatch(eap: &mut exarg_T) {
             {
                 fullname = crate::path::FullName_save(eap.arg, false);
                 esc_name = Some(vim_strsave_shellescape(
-                    fullname
+                    std::ffi::CStr::from_ptr(fullname
                         .as_ref()
-                        .map_or(eap.arg, |s| s.as_ptr().cast_mut()),
+                        .map_or(eap.arg, |s| s.as_ptr().cast_mut())),
                     true,
                     true,
                 ));
             }
             #[cfg(not(unix))]
             {
-                esc_name = Some(vim_strsave_shellescape(eap.arg, true, true));
+                esc_name = Some(vim_strsave_shellescape(std::ffi::CStr::from_ptr(eap.arg), true, true));
             }
             let esc_ptr = esc_name
                 .as_ref()

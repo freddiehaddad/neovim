@@ -4555,7 +4555,7 @@ unsafe fn nv_ident(cap: &mut cmdarg_T) {
             let p = if kp_ex {
                 vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)
             } else {
-                vim_strsave_shellescape(ptr_cstr.as_ptr(), true, true)
+                vim_strsave_shellescape(&ptr_cstr, true, true)
             };
             let plen = p.to_bytes().len();
             buf_vec.resize(buflen + plen + 1, 0);

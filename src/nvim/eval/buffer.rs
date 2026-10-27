@@ -468,13 +468,13 @@ pub unsafe fn f_prompt_appendbuf(
                 if !l.is_null() && tv_list_len(l) > 0 {
                     let li = tv_list_first(l);
                     let str_ = tv_get_string(&raw const (*li).li_tv);
-                    let new_str = concat_str(text, str_);
+                    let new_str = concat_str(std::ffi::CStr::from_ptr(text), std::ffi::CStr::from_ptr(str_));
                     crate::eval::typval::tv_set_string(&raw mut (*li).li_tv, new_str.as_ptr());
                     did_concat = true;
                 }
             } else if (*lines).v_type == VarType::VAR_STRING {
                 let str_ = tv_get_string(lines);
-                let new_str = concat_str(text, str_);
+                let new_str = concat_str(std::ffi::CStr::from_ptr(text), std::ffi::CStr::from_ptr(str_));
                 crate::eval::typval::tv_set_string(lines, new_str.as_ptr());
             }
         }
@@ -1138,7 +1138,7 @@ pub unsafe fn f_prompt_setprompt(
                 );
                 cursor_col = new_prompt_len;
             } else {
-                let new_line = concat_str(new_prompt, old_line.add(mark_col as usize));
+                let new_line = concat_str(std::ffi::CStr::from_ptr(new_prompt), std::ffi::CStr::from_ptr(old_line.add(mark_col as usize)));
                 let _ = ml_replace_buf(buf, prompt_lno, new_line.as_ptr().cast_mut(), true, false);
                 extmark_splice_cols(
                     buf,

@@ -2145,8 +2145,8 @@ pub unsafe fn f_escape(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
     unsafe {
         let mut buf = [0 as c_char; NUMBUFLEN];
         let escaped = vim_strsave_escaped(
-            tv_get_string(argvars),
-            tv_get_string_buf(argvars.add(1), buf.as_mut_ptr()),
+            std::ffi::CStr::from_ptr(tv_get_string(argvars)),
+            std::ffi::CStr::from_ptr(tv_get_string_buf(argvars.add(1), buf.as_mut_ptr())),
         );
         crate::eval::typval::tv_set_string_len(
             rettv,
@@ -8246,7 +8246,7 @@ pub unsafe fn f_shellescape(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         let do_special = non_zero_arg(argvars.add(1));
         crate::eval::typval::tv_set_string(
             rettv,
-            vim_strsave_shellescape(tv_get_string(argvars), do_special, do_special).as_ptr(),
+            vim_strsave_shellescape(std::ffi::CStr::from_ptr(tv_get_string(argvars)), do_special, do_special).as_ptr(),
         );
         rettv.v_type = VarType::VAR_STRING;
     }

@@ -52,7 +52,7 @@ use crate::hashtab::{
 use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::utf_char2bytes;
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
 use crate::message::{
     emsg, internal_error, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind,
     msg_outtrans, msg_putchar, msg_puts, msg_puts_len, msg_start, semsg,
@@ -1498,7 +1498,7 @@ pub unsafe fn list_hashtable_vars(
                 let mut buf = [0 as c_char; IOSIZE];
 
                 xstrlcpy(buf.as_mut_ptr(), prefix, IOSIZE);
-                xstrlcat(buf.as_mut_ptr(), (*di).di_key.as_ptr(), IOSIZE);
+                { let _dst: *mut c_char = buf.as_mut_ptr(); let _dsize: usize = IOSIZE; let _dlen = std::ffi::CStr::from_ptr(_dst).to_bytes().len(); crate::memory::xstrlcpy(_dst.add(_dlen), (*di).di_key.as_ptr(), _dsize - _dlen); };
                 if message_filtered(buf.as_ptr()) {
                     hi = hi.add(1);
                     continue;
@@ -1831,7 +1831,7 @@ unsafe fn ex_let_option(
 
                 if !curval_data.is_null() && !newval_data.is_null() {
                     let newval_old = newval;
-                    let joined = concat_str(curval_data, newval_data);
+                    let joined = concat_str(std::ffi::CStr::from_ptr(curval_data), std::ffi::CStr::from_ptr(newval_data));
                     newval = crate::api::private::helpers::cstr_to_obj(joined.as_ptr());
                     optval_free(newval_old);
                 }
