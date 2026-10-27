@@ -28,7 +28,7 @@ use crate::os::shell::os_expand_wildcards;
 use crate::regexp::{
     RE_MAGIC, RE_NOBREAK, RE_STRING, regmatch_T, vim_regcomp, vim_regexec, vim_regfree,
 };
-use crate::strings::{sort_strings, vim_snprintf, vim_strchr, vim_stricmp};
+use crate::strings::{sort_strings, vim_snprintf, vim_strchr};
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -1897,7 +1897,7 @@ pub unsafe fn path_fix_case(name: *mut c_char) {
             if entry.is_null() {
                 break;
             }
-            if vim_stricmp(tail, entry) == 0 && taillen == CStr::from_ptr(entry).to_bytes().len() {
+            if std::ffi::CStr::from_ptr(tail).to_bytes().eq_ignore_ascii_case(std::ffi::CStr::from_ptr(entry).to_bytes()) && taillen == CStr::from_ptr(entry).to_bytes().len() {
                 let mut newname = [0 as c_char; MAXPATHL + 1];
                 let tail_off = tail.offset_from(name) as usize;
                 xstrlcpy(newname.as_mut_ptr(), name, MAXPATHL + 1);

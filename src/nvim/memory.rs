@@ -293,8 +293,11 @@ pub unsafe fn free_cstring(p: *mut c_char) {
 
 /// Portable `strnlen` (`xstrnlen`).
 pub unsafe fn xstrnlen(s: *const c_char, n: usize) -> usize {
-    let slice = unsafe { std::slice::from_raw_parts(s.cast::<u8>(), n) };
-    slice.iter().position(|&b| b == 0).unwrap_or(n)
+    let mut len = 0;
+    while len < n && unsafe { *s.add(len) } != 0 {
+        len += 1;
+    }
+    len
 }
 
 /// Copy `src` into sized buffer `dst[..dsize]` (`xstrlcpy`).

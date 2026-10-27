@@ -36,8 +36,7 @@ use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::strings::{
-    strcoll, strtod, tr, vim_snprintf, vim_stricmp,
-};
+    strcoll, strtod, tr, vim_snprintf, };
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -2028,7 +2027,7 @@ unsafe fn item_compare(
             if info.item_compare_lc {
                 res = strcoll(p1, p2);
             } else if info.item_compare_ic != 0 {
-                res = vim_stricmp(p1, p2);
+                res = std::ffi::CStr::from_ptr(p1).to_bytes().iter().map(u8::to_ascii_lowercase).cmp(std::ffi::CStr::from_ptr(p2).to_bytes().iter().map(u8::to_ascii_lowercase)) as c_int;
             } else {
                 res = std::ffi::CStr::from_ptr(p1).to_bytes().cmp(std::ffi::CStr::from_ptr(p2).to_bytes()) as c_int;
             }

@@ -49,8 +49,7 @@ use crate::regexp::{
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
     gettext, vim_snprintf, vim_strchr,
-    vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up,
-};
+    };
 use crate::window::win_T;
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
@@ -2802,9 +2801,9 @@ unsafe fn syn_cmd_conceal(eap: &mut exarg_T, _syncing: c_int) {
             } else {
                 msg(c"syntax conceal off".as_ptr(), 0);
             }
-        } else if vim_strnicmp(arg, c"on".as_ptr(), 2) == 0 && next.offset_from(arg) == 2 {
+        } else if { let _p1 = arg; let _p2 = c"on".as_ptr(); let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 2 {
             (*win_s(*curwin.as_ptr())).b_syn_conceal = 1;
-        } else if vim_strnicmp(arg, c"off".as_ptr(), 3) == 0 && next.offset_from(arg) == 3 {
+        } else if { let _p1 = arg; let _p2 = c"off".as_ptr(); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 3 {
             (*win_s(*curwin.as_ptr())).b_syn_conceal = 0;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2827,9 +2826,9 @@ unsafe fn syn_cmd_case(eap: &mut exarg_T, _syncing: c_int) {
             } else {
                 msg(c"syntax case match".as_ptr(), 0);
             }
-        } else if vim_strnicmp(arg, c"match".as_ptr(), 5) == 0 && next.offset_from(arg) == 5 {
+        } else if { let _p1 = arg; let _p2 = c"match".as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 5 {
             (*win_s(*curwin.as_ptr())).b_syn_ic = 0;
-        } else if vim_strnicmp(arg, c"ignore".as_ptr(), 6) == 0 && next.offset_from(arg) == 6 {
+        } else if { let _p1 = arg; let _p2 = c"ignore".as_ptr(); let _n = 6; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 6 {
             (*win_s(*curwin.as_ptr())).b_syn_ic = 1;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2859,9 +2858,9 @@ unsafe fn syn_cmd_foldlevel(eap: &mut exarg_T, _syncing: c_int) {
         }
 
         let arg_end = skiptowhite(arg);
-        if vim_strnicmp(arg, c"start".as_ptr(), 5) == 0 && arg_end.offset_from(arg) == 5 {
+        if { let _p1 = arg; let _p2 = c"start".as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && arg_end.offset_from(arg) == 5 {
             (*win_s(*curwin.as_ptr())).b_syn_foldlevel = SYNFLD_START;
-        } else if vim_strnicmp(arg, c"minimum".as_ptr(), 7) == 0 && arg_end.offset_from(arg) == 7 {
+        } else if { let _p1 = arg; let _p2 = c"minimum".as_ptr(); let _n = 7; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && arg_end.offset_from(arg) == 7 {
             (*win_s(*curwin.as_ptr())).b_syn_foldlevel = SYNFLD_MINIMUM;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2892,12 +2891,12 @@ unsafe fn syn_cmd_spell(eap: &mut exarg_T, _syncing: c_int) {
             } else {
                 msg(c"syntax spell default".as_ptr(), 0);
             }
-        } else if vim_strnicmp(arg, c"toplevel".as_ptr(), 8) == 0 && next.offset_from(arg) == 8 {
+        } else if { let _p1 = arg; let _p2 = c"toplevel".as_ptr(); let _n = 8; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 8 {
             (*win_s(*curwin.as_ptr())).b_syn_spell = SYNSPL_TOP;
-        } else if vim_strnicmp(arg, c"notoplevel".as_ptr(), 10) == 0 && next.offset_from(arg) == 10
+        } else if { let _p1 = arg; let _p2 = c"notoplevel".as_ptr(); let _n = 10; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 10
         {
             (*win_s(*curwin.as_ptr())).b_syn_spell = SYNSPL_NOTOP;
-        } else if vim_strnicmp(arg, c"default".as_ptr(), 7) == 0 && next.offset_from(arg) == 7 {
+        } else if { let _p1 = arg; let _p2 = c"default".as_ptr(); let _n = 7; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 7 {
             (*win_s(*curwin.as_ptr())).b_syn_spell = SYNSPL_DEFAULT;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2924,7 +2923,7 @@ unsafe fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
             } else {
                 msg_outtrans(gettext(c"syntax iskeyword not set".as_ptr()), 0, false);
             }
-        } else if vim_strnicmp(arg, c"clear".as_ptr(), 5) == 0 {
+        } else if { let _p1 = arg; let _p2 = c"clear".as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
             (*win_s(*curwin.as_ptr())).b_syn_chartab = (*g_st().curbuf).b_chartab;
             (*win_s(*curwin.as_ptr())).b_syn_isk = None;
         } else {
@@ -4169,7 +4168,10 @@ unsafe fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
             while *key_end != NUL && !ascii_iswhite(*key_end) && *key_end != b'=' as c_char {
                 key_end = key_end.add(1);
             }
-            key = Some(vim_strnsave_up(rest, key_end.offset_from(rest) as usize));
+            key = Some(crate::memory::cstr_from_bytes(
+                &std::slice::from_raw_parts(rest.cast::<u8>(), key_end.offset_from(rest) as usize)
+                    .to_ascii_uppercase(),
+            ));
             let key_ptr = key.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
             let item = if std::ffi::CStr::from_ptr(key_ptr).to_bytes() == b"MATCHGROUP" {
                 ITEM_MATCHGROUP
@@ -4364,7 +4366,9 @@ fn syn_combine_list(clstr1: &mut SynIdList, clstr2: &mut SynIdList, list_op: c_i
 
 unsafe fn syn_scl_name2id(name: *const c_char) -> c_int {
     unsafe {
-        let name_u = vim_strsave_up(name);
+        let name_u = crate::memory::cstr_from_bytes(
+            &std::ffi::CStr::from_ptr(name).to_bytes().to_ascii_uppercase(),
+        );
         let mut i = (*win_s(*curwin.as_ptr())).b_syn_clusters.len() as c_int - 1;
         while i >= 0 {
             let clp = syn_clstr(win_s(*curwin.as_ptr())).offset(i as isize);
@@ -4408,9 +4412,11 @@ unsafe fn syn_add_cluster(name: std::ffi::CString) -> c_int {
         }
 
         let name_ptr = name.as_ptr();
-        let is_spell = vim_stricmp(name_ptr, c"Spell".as_ptr()) == 0;
-        let is_nospell = vim_stricmp(name_ptr, c"NoSpell".as_ptr()) == 0;
-        let scl_name_u = vim_strsave_up(name_ptr);
+        let is_spell = std::ffi::CStr::from_ptr(name_ptr).to_bytes().eq_ignore_ascii_case(b"Spell");
+        let is_nospell = std::ffi::CStr::from_ptr(name_ptr).to_bytes().eq_ignore_ascii_case(b"NoSpell");
+        let scl_name_u = crate::memory::cstr_from_bytes(
+            &std::ffi::CStr::from_ptr(name_ptr).to_bytes().to_ascii_uppercase(),
+        );
 
         let clusters = &mut (*win_s(*curwin.as_ptr())).b_syn_clusters;
         clusters.push(syn_cluster_T {
@@ -4451,15 +4457,15 @@ unsafe fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
             scl_id -= SYNID_CLUSTER as c_int;
 
             loop {
-                let (opt_len, list_op) = if vim_strnicmp(rest, c"add".as_ptr(), 3) == 0
+                let (opt_len, list_op) = if { let _p1 = rest; let _p2 = c"add".as_ptr(); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
                     && (ascii_iswhite(*rest.add(3)) || *rest.add(3) == b'=' as c_char)
                 {
                     (3, CLUSTER_ADD)
-                } else if vim_strnicmp(rest, c"remove".as_ptr(), 6) == 0
+                } else if { let _p1 = rest; let _p2 = c"remove".as_ptr(); let _n = 6; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
                     && (ascii_iswhite(*rest.add(6)) || *rest.add(6) == b'=' as c_char)
                 {
                     (6, CLUSTER_SUBTRACT)
-                } else if vim_strnicmp(rest, c"contains".as_ptr(), 8) == 0
+                } else if { let _p1 = rest; let _p2 = c"contains".as_ptr(); let _n = 8; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
                     && (ascii_iswhite(*rest.add(8)) || *rest.add(8) == b'=' as c_char)
                 {
                     (8, CLUSTER_REPLACE)
@@ -4603,9 +4609,12 @@ unsafe fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
         while ends_excmd(*arg_start as c_int) == 0 {
             let mut arg_end = skiptowhite(arg_start);
             let mut next_arg = skipwhite(arg_end);
-            key_owned = Some(vim_strnsave_up(
-                arg_start,
-                arg_end.offset_from(arg_start) as usize,
+            key_owned = Some(crate::memory::cstr_from_bytes(
+                &std::slice::from_raw_parts(
+                    arg_start.cast::<u8>(),
+                    arg_end.offset_from(arg_start) as usize,
+                )
+                .to_ascii_uppercase(),
             ));
             let key = key_owned.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
             if std::ffi::CStr::from_ptr(key).to_bytes() == b"CCOMMENT" {
@@ -5209,22 +5218,22 @@ pub unsafe fn set_context_in_syntax_cmd(xp: &mut expand_T, arg: *const c_char) {
             xp.xp_context = EXPAND_NOTHING;
         } else {
             let n = p.offset_from(arg) as usize;
-            if vim_strnicmp(arg, c"case".as_ptr(), n) == 0 {
+            if { let _p1 = arg; let _p2 = c"case".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
                 syn_st().expand_what = EXP_CASE;
-            } else if vim_strnicmp(arg, c"spell".as_ptr(), n) == 0 {
+            } else if { let _p1 = arg; let _p2 = c"spell".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
                 syn_st().expand_what = EXP_SPELL;
-            } else if vim_strnicmp(arg, c"sync".as_ptr(), n) == 0 {
+            } else if { let _p1 = arg; let _p2 = c"sync".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
                 syn_st().expand_what = EXP_SYNC;
-            } else if vim_strnicmp(arg, c"list".as_ptr(), n) == 0 {
+            } else if { let _p1 = arg; let _p2 = c"list".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
                 let p2 = skipwhite(p);
                 if *p2 == b'@' as c_char {
                     syn_st().expand_what = EXP_CLUSTER;
                 } else {
                     xp.xp_context = EXPAND_HIGHLIGHT;
                 }
-            } else if vim_strnicmp(arg, c"keyword".as_ptr(), n) == 0
-                || vim_strnicmp(arg, c"region".as_ptr(), n) == 0
-                || vim_strnicmp(arg, c"match".as_ptr(), n) == 0
+            } else if { let _p1 = arg; let _p2 = c"keyword".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+                || { let _p1 = arg; let _p2 = c"region".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+                || { let _p1 = arg; let _p2 = c"match".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
             {
                 xp.xp_context = EXPAND_HIGHLIGHT;
             } else {

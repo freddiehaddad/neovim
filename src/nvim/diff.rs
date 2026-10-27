@@ -52,7 +52,7 @@ use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{FileInfo, os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
 use crate::strings::{
-    gettext, tolower, vim_snprintf, vim_strchr,
+    gettext, vim_snprintf, vim_strchr,
     vim_strsave_shellescape,
 };
 use crate::ui::vim_beep;
@@ -2233,7 +2233,7 @@ unsafe fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: *mut c_int)
         } else {
             if *p1 != *p2
                 && ((diff_st().diff_flags & DIFF_ICASE) == 0
-                    || tolower(*p1 as u8 as c_int) != tolower(*p2 as u8 as c_int))
+                    || !(*p1 as u8).eq_ignore_ascii_case(&(*p2 as u8)))
             {
                 return false;
             }

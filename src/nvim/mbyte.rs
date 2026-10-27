@@ -30,7 +30,7 @@ use crate::os::fs::os_errno;
 use crate::os::lang::nl_langinfo;
 use crate::os::lang::{LC_CTYPE, setlocale};
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
-use crate::strings::{tolower, toupper, vim_strchr};
+use crate::strings::{vim_strchr};
 use crate::utf8proc::{
     UTF8PROC_BOUNDCLASS_CONTROL, UTF8PROC_BOUNDCLASS_CR, UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC,
     UTF8PROC_BOUNDCLASS_OTHER, UTF8PROC_BOUNDCLASS_PREPEND, UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR,
@@ -2115,7 +2115,7 @@ pub unsafe fn mb_toupper(a: c_int) -> c_int {
             return towupper(a as wint_t) as c_int;
         }
         if a < 128 {
-            return toupper(a);
+            return toupper_asc(a);
         }
         utf8proc_toupper(a)
     }
@@ -2134,7 +2134,7 @@ pub unsafe fn mb_tolower(a: c_int) -> c_int {
             return towlower(a as wint_t) as c_int;
         }
         if a < 128 {
-            return tolower(a);
+            return tolower_asc(a);
         }
         utf8proc_tolower(a)
     }

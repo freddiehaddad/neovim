@@ -198,7 +198,7 @@ use crate::state::{MODE_CMDLINE, MODE_MAX_LENGTH, get_mode, get_was_safe_state, 
 use crate::strings::mb_strup_buf;
 use crate::strings::{
     gettext, vim_snprintf, vim_snprintf_safelen,
-    vim_snprintf_typval_only, vim_strchr, vim_stricmp, vim_strnicmp, vim_strsave_escaped,
+    vim_snprintf_typval_only, vim_strchr, vim_strsave_escaped,
     vim_strsave_shellescape,
 };
 use crate::syntax::{
@@ -3813,7 +3813,7 @@ pub unsafe fn f_has(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFun
         let mut n = false;
         let name = tv_get_string(argvars);
 
-        if vim_strnicmp(name, c"patch".as_ptr(), 5) == 0 {
+        if { let _p1 = name; let _p2 = c"patch".as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
             x = true;
             if *name.add(5) == b'-' as c_char
                 && std::ffi::CStr::from_ptr(name).to_bytes().len() >= 11
@@ -3834,28 +3834,28 @@ pub unsafe fn f_has(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFun
             } else if ascii_isdigit(*name.add(5)) {
                 n = has_vim_patch(crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(name.add(5)).to_bytes()) as c_int, 0);
             }
-        } else if vim_strnicmp(name, c"nvim-".as_ptr(), 5) == 0 {
+        } else if { let _p1 = name; let _p2 = c"nvim-".as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
             x = true;
             n = has_nvim_version(CStr::from_ptr(name.add(5)).to_bytes());
-        } else if vim_stricmp(name, c"vim_starting".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"vim_starting") {
             x = true;
             n = *starting.as_ptr() != 0;
-        } else if vim_stricmp(name, c"ttyin".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"ttyin") {
             x = true;
             n = g_st().stdin_isatty;
-        } else if vim_stricmp(name, c"ttyout".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"ttyout") {
             x = true;
             n = g_st().stdout_isatty;
-        } else if vim_stricmp(name, c"multi_byte_encoding".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"multi_byte_encoding") {
             x = true;
             n = true;
-        } else if vim_stricmp(name, c"gui_running".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"gui_running") {
             x = true;
             n = ui_gui_attached();
-        } else if vim_stricmp(name, c"syntax_items".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"syntax_items") {
             x = true;
             n = syntax_present(*curwin.as_ptr());
-        } else if vim_stricmp(name, c"wsl".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"wsl") {
             x = true;
             n = has_wsl();
         }
@@ -3867,11 +3867,11 @@ pub unsafe fn f_has(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFun
 
         if !x {
             let save_shell_error = get_vim_var_nr(VV_SHELL_ERROR) as c_int;
-            if vim_stricmp(name, c"clipboard_working".as_ptr()) == 0
-                || (cfg!(not(windows)) && vim_stricmp(name, c"unnamedplus".as_ptr()) == 0)
+            if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"clipboard_working")
+                || (cfg!(not(windows)) && std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"unnamedplus"))
             {
                 n = eval_has_provider(c"clipboard".as_ptr(), true);
-            } else if vim_stricmp(name, c"pythonx".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"pythonx") {
                 n = eval_has_provider(c"python3".as_ptr(), true);
             } else if eval_has_provider(name, true) {
                 n = true;
@@ -4006,16 +4006,16 @@ static EVAL_HAS_LIST: &[&CStr] = &[
 unsafe fn eval_has_static_feature(name: *const c_char) -> bool {
     unsafe {
         for &feat in EVAL_HAS_LIST {
-            if vim_stricmp(name, feat.as_ptr()) == 0 {
+            if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(std::ffi::CStr::from_ptr(feat.as_ptr()).to_bytes()) {
                 return true;
             }
         }
         let flags = NVIM_BUILD_HAS_FLAGS;
-        ((flags & (1 << 0)) != 0 && vim_stricmp(name, c"acl".as_ptr()) == 0)
-            || ((flags & (1 << 1)) != 0 && vim_stricmp(name, c"terminfo".as_ptr()) == 0)
-            || ((flags & (1 << 2)) != 0 && vim_stricmp(name, c"xattr".as_ptr()) == 0)
-            || ((flags & (1 << 3)) != 0 && vim_stricmp(name, c"termux".as_ptr()) == 0)
-            || ((flags & (1 << 4)) != 0 && vim_stricmp(name, c"gettext".as_ptr()) == 0)
+        ((flags & (1 << 0)) != 0 && std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"acl"))
+            || ((flags & (1 << 1)) != 0 && std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"terminfo"))
+            || ((flags & (1 << 2)) != 0 && std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"xattr"))
+            || ((flags & (1 << 3)) != 0 && std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"termux"))
+            || ((flags & (1 << 4)) != 0 && std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"gettext"))
     }
 }
 

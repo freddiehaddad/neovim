@@ -108,12 +108,8 @@ use crate::spell::{
     expand_spelling, spell_dump_compl, spell_expand_check_cap, spell_move_to, spell_word_start,
 };
 use crate::state::{MODE_INSERT, REPLACE_FLAG, may_trigger_modechanged, save_v_event_T};
-#[cfg(unix)]
-use crate::strings::vim_strnicmp;
-#[cfg(windows)]
-use crate::strings::vim_strnicmp;
 use crate::strings::{
-    gettext, tolower, vim_snprintf, vim_strchr, vim_strsave_escaped,
+    gettext, vim_snprintf, vim_strchr, vim_strsave_escaped,
 };
 use crate::tag::find_tags;
 use crate::textformat::auto_format;
@@ -1378,7 +1374,7 @@ unsafe fn ins_compl_equal(match_: *mut compl_T, str_ptr: *const c_char, len: usi
             return true;
         }
         if ((*match_).cp_flags & CP_ICASE) != 0 {
-            return vim_strnicmp((*match_).cp_str.data, str_ptr, len) == 0;
+            return { let _p1 = (*match_).cp_str.data; let _p2 = str_ptr; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) };
         }
         { let _p1 = (*match_).cp_str.data; let _p2 = str_ptr; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
     }
@@ -1405,9 +1401,9 @@ unsafe fn ins_compl_equal_sc(match_: *mut compl_T, str_ptr: *const c_char, len: 
         for i in 0..len {
             let idx = i as c_int;
             let mismatch = if idx >= typed && idx < longest_end {
-                let c1 = *(*match_).cp_str.data.add(i) as u8 as c_int;
-                let c2 = *str_ptr.add(i) as u8 as c_int;
-                tolower(c1) != tolower(c2)
+                let c1 = *(*match_).cp_str.data.add(i) as u8;
+                let c2 = *str_ptr.add(i) as u8;
+                !c1.eq_ignore_ascii_case(&c2)
             } else {
                 *(*match_).cp_str.data.add(i) != *str_ptr.add(i)
             };
@@ -4853,7 +4849,7 @@ unsafe fn get_register_completion() {
 
                     let matches = insexp().compl_orig_text.data.is_null()
                         || if opt_vars().p_ic != 0 {
-                            vim_strnicmp(str_ptr, insexp().compl_orig_text.data, insexp().compl_orig_text.size) == 0
+                            { let _p1 = str_ptr; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
                         } else {
                             { let _p1 = str_ptr; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                         };
@@ -4892,7 +4888,7 @@ unsafe fn get_register_completion() {
                         let len = word_end.offset_from(p) as c_int;
                         let matches = insexp().compl_orig_text.data.is_null()
                             || if opt_vars().p_ic != 0 {
-                                vim_strnicmp(p, insexp().compl_orig_text.data, insexp().compl_orig_text.size) == 0
+                                { let _p1 = p; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
                             } else {
                                 { let _p1 = p; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                             };

@@ -62,9 +62,6 @@ const E_INVALID_FORMAT_SPECIFIER: &CStr = c"E1505: Invalid format specifier: %s"
 
 unsafe extern "C" {
     pub fn strcoll(s1: *const c_char, s2: *const c_char) -> c_int;
-    pub fn tolower(c: c_int) -> c_int;
-    pub fn toupper(c: c_int) -> c_int;
-    pub fn isalpha(c: c_int) -> c_int;
     pub fn strerror(errnum: c_int) -> *mut c_char;
 }
 
@@ -555,70 +552,6 @@ pub unsafe fn vim_strsave_shellescape(
     }
 }
 
-pub unsafe fn vim_strsave_up(string: *const c_char) -> std::ffi::CString {
-    unsafe {
-        let len = CStr::from_ptr(string).to_bytes().len();
-        let mut buf = vec![0 as c_char; len + 1];
-        vim_strcpy_up(buf.as_mut_ptr(), string);
-        crate::memory::cstr_from_bytes(std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), len))
-    }
-}
-
-pub unsafe fn vim_strnsave_up(string: *const c_char, len: usize) -> std::ffi::CString {
-    unsafe {
-        let mut buf = vec![0 as c_char; len + 1];
-        vim_strncpy_up(buf.as_mut_ptr(), string, len);
-        let out_len = CStr::from_ptr(buf.as_ptr()).to_bytes().len();
-        crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
-            buf.as_ptr().cast::<u8>(),
-            out_len,
-        ))
-    }
-}
-
-pub unsafe fn vim_strcpy_up(mut dst: *mut c_char, mut src: *const c_char) {
-    unsafe {
-        loop {
-            let c = *src as u8;
-            src = src.add(1);
-            if c == 0 {
-                break;
-            }
-            *dst = c.to_ascii_uppercase() as c_char;
-            dst = dst.add(1);
-        }
-        *dst = NUL;
-    }
-}
-
-pub unsafe fn vim_strncpy_up(mut dst: *mut c_char, mut src: *const c_char, mut n: usize) {
-    unsafe {
-        while n > 0 {
-            n -= 1;
-            let c = *src as u8;
-            src = src.add(1);
-            if c == 0 {
-                break;
-            }
-            *dst = c.to_ascii_uppercase() as c_char;
-            dst = dst.add(1);
-        }
-        *dst = NUL;
-    }
-}
-
-pub unsafe fn vim_memcpy_up(mut dst: *mut c_char, mut src: *const c_char, mut n: usize) {
-    unsafe {
-        while n > 0 {
-            n -= 1;
-            let c = *src as u8;
-            src = src.add(1);
-            *dst = c.to_ascii_uppercase() as c_char;
-            dst = dst.add(1);
-        }
-    }
-}
-
 #[cfg(windows)]
 pub unsafe fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
     unsafe {
@@ -684,41 +617,6 @@ pub unsafe fn del_trailing_spaces(ptr: *mut c_char) {
     }
 }
 
-pub unsafe fn vim_stricmp(mut s1: *const c_char, mut s2: *const c_char) -> c_int {
-    unsafe {
-        loop {
-            let i = tolower((*s1 as u8) as c_int) - tolower((*s2 as u8) as c_int);
-            if i != 0 {
-                return i;
-            }
-            if *s1 == NUL {
-                break;
-            }
-            s1 = s1.add(1);
-            s2 = s2.add(1);
-        }
-        0
-    }
-}
-
-pub unsafe fn vim_strnicmp(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> c_int {
-    unsafe {
-        while len > 0 {
-            let i = tolower((*s1 as u8) as c_int) - tolower((*s2 as u8) as c_int);
-            if i != 0 {
-                return i;
-            }
-            if *s1 == NUL {
-                break;
-            }
-            s1 = s1.add(1);
-            s2 = s2.add(1);
-            len -= 1;
-        }
-        0
-    }
-}
-
 pub unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
     unsafe {
         if string.is_null() || c <= 0 {
@@ -749,21 +647,6 @@ pub unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
 pub fn sort_strings(files: &mut [std::ffi::CString]) {
     if files.len() > 1 {
         files.sort_unstable();
-    }
-}
-
-pub unsafe fn has_non_ascii(s: *const c_char) -> bool {
-    unsafe {
-        if !s.is_null() {
-            let mut p = s;
-            while *p != NUL {
-                if (*p as u8) >= 128 {
-                    return true;
-                }
-                p = p.add(1);
-            }
-        }
-        false
     }
 }
 
@@ -3241,7 +3124,6 @@ mod tests {
             let cat = concat_str(c"hello ".as_ptr(), c"world".as_ptr());
             assert_eq!(cat.to_str().unwrap(), "hello world");
 
-            assert!(!has_non_ascii(c"ascii".as_ptr()));
             assert_eq!(format_typeof(c"lld".as_ptr()), TYPE_LONGLONGINT);
             assert_eq!(format_typeof(c"zu".as_ptr()), TYPE_SIZET);
 

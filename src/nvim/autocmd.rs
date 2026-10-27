@@ -1326,7 +1326,7 @@ unsafe fn au_st() -> &'static mut AutocmdState {
     unsafe { &mut *AU_STATE.as_ptr() }
 }
 
-use crate::strings::{vim_strchr, vim_stricmp, vim_strnicmp};
+use crate::strings::{vim_strchr};
 
 unsafe fn map_put_name_to_id(name: *const c_char, val: c_int) {
     unsafe {
@@ -1769,7 +1769,7 @@ pub unsafe fn aubuflocal_remove(buf: *mut buf_T) {
 
 pub unsafe fn augroup_add(name: *const c_char) -> c_int {
     unsafe {
-        assert!(vim_stricmp(name, c"end".as_ptr()) != 0);
+        assert!(!std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"end"));
 
         let existing_id = augroup_find(name);
         if existing_id > 0 {
@@ -1914,7 +1914,7 @@ pub unsafe fn do_augroup(arg: *mut c_char, del_group: bool) {
             } else {
                 augroup_del(arg, -1, true);
             }
-        } else if vim_stricmp(arg, c"end".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr(arg).to_bytes().eq_ignore_ascii_case(b"end") {
             au_st().current_augroup = AUGROUP_DEFAULT;
         } else if *arg != NUL {
             au_st().current_augroup = augroup_add(arg);
@@ -2002,7 +2002,7 @@ pub unsafe fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
             if unignore {
                 ei = ei.add(1);
             }
-            if vim_strnicmp(ei, c"all".as_ptr(), 3) == 0
+            if { let _p1 = ei; let _p2 = c"all".as_ptr(); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
                 && (*ei.add(3) == NUL || *ei.add(3) == b',' as c_char)
             {
                 ignored = ptr::eq(ei.cast_const(), opt_vars().p_ei.cast_const())
@@ -2022,7 +2022,7 @@ pub unsafe fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
 pub unsafe fn check_ei(mut ei: *mut c_char, win: bool) -> c_int {
     unsafe {
         while *ei != NUL {
-            if vim_strnicmp(ei, c"all".as_ptr(), 3) == 0
+            if { let _p1 = ei; let _p2 = c"all".as_ptr(); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
                 && (*ei.add(3) == NUL || *ei.add(3) == b',' as c_char)
             {
                 ei = ei.add(3 + usize::from(*ei.add(3) == b',' as c_char));
@@ -3732,7 +3732,7 @@ pub unsafe fn au_exists(arg: *const c_char) -> bool {
         if event != NUM_EVENTS as event_T {
             let acs = &raw mut au_st().autocmds[event as usize];
             if !(*acs).is_empty() {
-                if !pattern.is_null() && vim_stricmp(pattern, c"<buffer>".as_ptr()) == 0 {
+                if !pattern.is_null() && std::ffi::CStr::from_ptr(pattern).to_bytes().eq_ignore_ascii_case(b"<buffer>") {
                     buflocal_buf = g_st().curbuf;
                 }
 
@@ -3777,7 +3777,7 @@ pub unsafe fn aupat_get_buflocal_nr(pat: *const c_char, patlen: c_int) -> c_int 
         }
 
         if patlen > 9 && *pat.add(7) == b'=' as c_char {
-            if patlen == 13 && vim_strnicmp(pat, c"<buffer=abuf>".as_ptr(), 13) == 0 {
+            if patlen == 13 && { let _p1 = pat; let _p2 = c"<buffer=abuf>".as_ptr(); let _n = 13; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
                 return g_st().autocmd_bufnr;
             }
 

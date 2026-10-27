@@ -54,7 +54,7 @@ use crate::os::time::os_delay;
 use crate::runtime::{
     DIP_OPT, DIP_START, sctx_T, source_runtime_vim_lua, sourcing_lnum, sourcing_name,
 };
-use crate::strings::{gettext, vim_memcpy_up};
+use crate::strings::{gettext};
 use crate::ui::{
     ui_call_hl_group_set, ui_default_colors_set, ui_flush, ui_has, ui_mode_info_set, ui_refresh,
     ui_rgb_attached,
@@ -1305,7 +1305,9 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
                     error = true;
                     break;
                 }
-                vim_memcpy_up(key.as_mut_ptr(), key_start, key_len);
+                for i in 0..key_len {
+                    key[i] = (*key_start.add(i) as u8).to_ascii_uppercase() as c_char;
+                }
                 key[key_len] = NUL;
                 linep = skipwhite(linep);
 
@@ -2179,7 +2181,9 @@ pub unsafe fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
         }
 
         let mut name_u = [0 as c_char; MAX_SYN_NAME + 1];
-        vim_memcpy_up(name_u.as_mut_ptr(), name, len);
+        for i in 0..len {
+            name_u[i] = (*name.add(i) as u8).to_ascii_uppercase() as c_char;
+        }
         name_u[len] = NUL;
 
         let unames_ptr = &raw const hlg_st().highlight_unames;

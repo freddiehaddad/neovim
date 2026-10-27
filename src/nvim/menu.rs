@@ -32,7 +32,7 @@ use crate::state::{
     MODE_TERMINAL, MODE_VISUAL, get_real_state,
 };
 use crate::strings::{
-    gettext, vim_strchr, vim_stricmp, };
+    gettext, vim_strchr, };
 use crate::ui::ui_call_update_menu;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -376,7 +376,7 @@ pub unsafe fn ex_menu(eap: &mut exarg_T) {
                 return;
             }
 
-            let map_buf_owned = if vim_stricmp(map_to, c"<nop>".as_ptr()) == 0 {
+            let map_buf_owned = if std::ffi::CStr::from_ptr(map_to).to_bytes().eq_ignore_ascii_case(b"<nop>") {
                 map_to = c"".as_ptr().cast_mut();
                 None
             } else if (modes & MENU_TIP_MODE) == 0 {
@@ -1865,7 +1865,7 @@ unsafe fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
         let dname = menu_text(name, ptr::null_mut(), None);
         *name.add(u_len) = c;
         for entry in menutrans {
-            if vim_stricmp(dname.as_ptr(), entry.from_noamp.as_ptr()) == 0 {
+            if std::ffi::CStr::from_ptr(dname.as_ptr()).to_bytes().eq_ignore_ascii_case(std::ffi::CStr::from_ptr(entry.from_noamp.as_ptr()).to_bytes()) {
                 return entry.to.as_ptr().cast_mut();
             }
         }

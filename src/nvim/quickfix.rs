@@ -110,7 +110,7 @@ use crate::path::{
 };
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, last_search_pat};
 use crate::strings::{
-    gettext, has_non_ascii, vim_snprintf, vim_snprintf_safelen,
+    gettext, vim_snprintf, vim_snprintf_safelen,
     vim_strchr,
 };
 use crate::ui::ui_flush;
@@ -1308,7 +1308,7 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
 
         let cur_linebuf = (*state).linebuf_ptr();
         if (*state).vc.vc_type != CONV_NONE
-            && has_non_ascii(cur_linebuf)
+            && !cur_linebuf.is_null() && !std::ffi::CStr::from_ptr(cur_linebuf).to_bytes().is_ascii()
             && let Some(line) =
                 string_convert(&(*state).vc, cur_linebuf, &raw mut (*state).linelen)
         {

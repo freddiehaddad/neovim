@@ -51,7 +51,7 @@ use crate::optionstr::{
 use crate::os::env::home_replace;
 use crate::path::{path_tail, shorten_dir};
 use crate::sign::describe_sign_text;
-use crate::strings::{toupper, tr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
+use crate::strings::{tr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::bufIsChanged;
 use crate::window::{global_stl_height, lastwin_nofloating, tabline_height, win_T};
@@ -2134,7 +2134,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         vim_snprintf!(buf_tmp.as_mut_ptr(), buf_tmp.len(), c",%s".as_ptr(), ft);
                         let mut t = buf_tmp.as_mut_ptr();
                         while *t != NUL {
-                            *t = toupper(c_int::from(*t as u8)) as c_char;
+                            *t = (*t as u8).to_ascii_uppercase() as c_char;
                             t = t.add(1);
                         }
                         str = buf_tmp.as_mut_ptr();

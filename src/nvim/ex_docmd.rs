@@ -219,7 +219,7 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
-    del_trailing_spaces, gettext, ngettext, strrep, vim_snprintf, vim_strchr, vim_stricmp, vim_strsave_escaped,
+    del_trailing_spaces, gettext, ngettext, strrep, vim_snprintf, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
 use crate::tag::{do_tag, do_tags};
@@ -8536,9 +8536,9 @@ pub unsafe fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
 
 pub unsafe fn get_bad_opt(p: *const c_char, eap: &mut exarg_T) -> c_int {
     unsafe {
-        if vim_stricmp(p, c"keep".as_ptr()) == 0 {
+        if std::ffi::CStr::from_ptr(p).to_bytes().eq_ignore_ascii_case(b"keep") {
             eap.bad_char = BAD_KEEP;
-        } else if vim_stricmp(p, c"drop".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr(p).to_bytes().eq_ignore_ascii_case(b"drop") {
             eap.bad_char = BAD_DROP;
         } else if utfc_ptr2len(p) == 1 && *p.add(1) == NUL {
             eap.bad_char = c_int::from(*p as u8);
@@ -11519,7 +11519,7 @@ unsafe fn ex_redir(eap: &mut exarg_T) {
     unsafe {
         let mut arg = eap.arg;
 
-        if vim_stricmp(eap.arg, c"END".as_ptr()) == 0 {
+        if std::ffi::CStr::from_ptr(eap.arg).to_bytes().eq_ignore_ascii_case(b"END") {
             close_redir();
         } else if *arg == b'>' as c_char {
             arg = arg.add(1);

@@ -23,7 +23,7 @@ use crate::plines::getvcol;
 use crate::regexp::MAXCOL;
 use crate::search::{findmatchlimit, linewhite};
 use crate::state::MODE_INSERT;
-use crate::strings::{tolower, vim_strchr};
+use crate::strings::{vim_strchr};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 pub(crate) const FM_BACKWARD: c_int = 0x01;
@@ -3117,7 +3117,7 @@ pub unsafe fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> b
                     } else if keytyped == *p.sub(1) as u8 as c_int
                         || (icase
                             && (0..256).contains(&keytyped)
-                            && tolower(keytyped) == tolower(*p.sub(1) as u8 as c_int))
+                            && (keytyped as u8).eq_ignore_ascii_case(&(*p.sub(1) as u8)))
                     {
                         let line = get_cursor_pos_ptr();
                         if ((**curwin.as_ptr()).w_cursor.col as usize == word_len

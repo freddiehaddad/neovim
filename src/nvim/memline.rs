@@ -387,7 +387,6 @@ unsafe fn db_idx_ptr(dp: *mut DataBlock, idx: usize) -> *mut c_uint {
     unsafe { (&raw mut (*dp).db_index).cast::<c_uint>().add(idx) }
 }
 
-use crate::strings::{vim_stricmp, vim_strnicmp};
 
 #[inline]
 unsafe fn sb_push_cstr(sb: &mut Vec<u8>, s: *const c_char) {
@@ -877,7 +876,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         let len = std::ffi::CStr::from_ptr(fname).to_bytes().len();
         if checkext
             && len >= 4
-            && vim_strnicmp(fname.add(len - 4), c".s".as_ptr(), 2) == 0
+            && { let _p1 = fname.add(len - 4); let _p2 = c".s".as_ptr(); let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
             && !vim_strchr(
                 c"abcdefghijklmnopqrstuvw".as_ptr(),
                 ((*fname.add(len - 2) as u8).to_ascii_lowercase()) as c_int,
@@ -1892,10 +1891,7 @@ unsafe fn swapfile_unchanged(fname: *mut c_char) -> bool {
             os_get_hostname((&raw mut hostname).cast(), B0_HNAME_SIZE);
             hostname[B0_HNAME_SIZE - 1] = NUL;
             b0.b0_hname[B0_HNAME_SIZE - 1] = NUL;
-            if vim_stricmp(
-                (&raw const b0.b0_hname).cast(),
-                (&raw const hostname).cast(),
-            ) != 0
+            if !std::ffi::CStr::from_ptr((&raw const b0.b0_hname).cast()).to_bytes().eq_ignore_ascii_case(std::ffi::CStr::from_ptr((&raw const hostname).cast()).to_bytes())
             {
                 ret = false;
             }

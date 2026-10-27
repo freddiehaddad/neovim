@@ -130,8 +130,8 @@ use crate::shada::SubReplacementString;
 use crate::spell::parse_spelllang;
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP};
 use crate::strings::{
-    concat_str, gettext, isalpha, ngettext, strcoll, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
-    vim_strchr, vim_stricmp, vim_strsave_escaped,
+    concat_str, gettext, ngettext, strcoll, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
+    vim_strchr, vim_strsave_escaped,
 };
 use crate::terminal::{terminal_check_size, terminal_running};
 use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
@@ -585,7 +585,7 @@ unsafe fn string_compare(s1: *const c_char, s2: *const c_char) -> c_int {
             return strcoll(s1, s2);
         }
         if excmds_st().sort_ic {
-            vim_stricmp(s1, s2)
+            std::ffi::CStr::from_ptr(s1).to_bytes().iter().map(u8::to_ascii_lowercase).cmp(std::ffi::CStr::from_ptr(s2).to_bytes().iter().map(u8::to_ascii_lowercase)) as c_int
         } else {
             std::ffi::CStr::from_ptr(s1).to_bytes().cmp(std::ffi::CStr::from_ptr(s2).to_bytes()) as c_int
         }
@@ -3884,7 +3884,7 @@ unsafe fn skip_substitute(start: *mut c_char, delimiter: c_int) -> *mut c_char {
 
 unsafe fn check_regexp_delim(c: c_int) -> c_int {
     unsafe {
-        if isalpha(c) != 0 {
+        if ascii_isalpha(c) {
             emsg(gettext(
                 c"E146: Regular expressions can't be delimited by letters".as_ptr(),
             ));

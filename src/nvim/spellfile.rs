@@ -47,7 +47,7 @@ use crate::spell::{
 };
 use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
-    gettext, has_non_ascii, strerror, vim_snprintf, vim_strchr,
+    gettext, strerror, vim_snprintf, vim_strchr,
 };
 use crate::syntax::win_s;
 use crate::ui::ui_flush;
@@ -2248,8 +2248,8 @@ unsafe fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<a
                     }
 
                     if spin.si_ascii == 0
-                        || !(has_non_ascii((*aff_entry).chop_ptr())
-                            || has_non_ascii((*aff_entry).add_ptr()))
+                        || !({ let _s = (*aff_entry).chop_ptr(); !_s.is_null() && !std::ffi::CStr::from_ptr(_s).to_bytes().is_ascii() }
+                            || { let _s = (*aff_entry).add_ptr(); !_s.is_null() && !std::ffi::CStr::from_ptr(_s).to_bytes().is_ascii() })
                     {
                         (*cur_aff).ah_entries.insert(0, aff_entry_val);
                         let aff_entry: *mut affentry_T = (*cur_aff).ah_entries.as_mut_ptr();
@@ -3030,7 +3030,7 @@ unsafe fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &af
                 mb_ptr_adv(&mut p);
             }
 
-            if spin.si_ascii != 0 && has_non_ascii(w) {
+            if spin.si_ascii != 0 && { let _s = w; !_s.is_null() && !std::ffi::CStr::from_ptr(_s).to_bytes().is_ascii() } {
                 non_ascii += 1;
                 continue;
             }
@@ -3759,7 +3759,7 @@ unsafe fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> c_i
                 }
             }
 
-            if spin.si_ascii != 0 && has_non_ascii(line) {
+            if spin.si_ascii != 0 && { let _s = line; !_s.is_null() && !std::ffi::CStr::from_ptr(_s).to_bytes().is_ascii() } {
                 non_ascii += 1;
                 continue;
             }
