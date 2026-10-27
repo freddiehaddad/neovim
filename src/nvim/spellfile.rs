@@ -48,8 +48,8 @@ use crate::spell::{
 };
 use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
-    atoi, gettext, has_non_ascii, memchr, memcmp, strcat, strcmp, strcpy, strerror, strlen,
-    strncmp, strrchr, strstr, vim_snprintf, vim_strchr,
+    atoi, gettext, has_non_ascii, memchr, memcmp, strcmp, strcpy, strerror, strlen, strncmp,
+    strrchr, strstr, vim_snprintf, vim_strchr,
 };
 use crate::syntax::win_s;
 use crate::ui::ui_flush;
@@ -196,13 +196,43 @@ struct afffile_T {
 
 #[repr(C)]
 struct affentry_T {
-    ae_chop: *mut c_char,
-    ae_add: *mut c_char,
-    ae_flags: *mut c_char,
-    ae_cond: *mut c_char,
+    ae_chop: Option<std::ffi::CString>,
+    ae_add: Option<std::ffi::CString>,
+    ae_flags: Option<std::ffi::CString>,
+    ae_cond: Option<std::ffi::CString>,
     ae_prog: Option<Box<regprog_T>>,
     ae_compforbid: c_char,
     ae_comppermit: c_char,
+}
+
+impl affentry_T {
+    #[inline]
+    fn chop_ptr(&self) -> *mut c_char {
+        self.ae_chop
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+
+    #[inline]
+    fn add_ptr(&self) -> *mut c_char {
+        self.ae_add
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+
+    #[inline]
+    fn flags_ptr(&self) -> *mut c_char {
+        self.ae_flags
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
+
+    #[inline]
+    fn cond_ptr(&self) -> *mut c_char {
+        self.ae_cond
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    }
 }
 
 #[repr(C)]
@@ -2175,10 +2205,10 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
 
                     aff_todo -= 1;
                     let mut aff_entry_val = affentry_T {
-                        ae_chop: ptr::null_mut(),
-                        ae_add: ptr::null_mut(),
-                        ae_flags: ptr::null_mut(),
-                        ae_cond: ptr::null_mut(),
+                        ae_chop: None,
+                        ae_add: None,
+                        ae_flags: None,
+                        ae_cond: None,
                         ae_prog: None,
                         ae_compforbid: 0,
                         ae_comppermit: 0,
@@ -2186,28 +2216,34 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                     let aff_entry: *mut affentry_T = &raw mut aff_entry_val;
 
                     if strcmp(items[2], c"0".as_ptr()) != 0 {
-                        (*aff_entry).ae_chop = getroom_save(spin, items[2]);
+                        (*aff_entry).ae_chop = Some(std::ffi::CStr::from_ptr(items[2]).to_owned());
                     }
                     if strcmp(items[3], c"0".as_ptr()) != 0 {
-                        (*aff_entry).ae_add = getroom_save(spin, items[3]);
-                        (*aff_entry).ae_flags = vim_strchr((*aff_entry).ae_add, b'/' as c_int);
-                        if !(*aff_entry).ae_flags.is_null() {
-                            *(*aff_entry).ae_flags = NUL;
-                            (*aff_entry).ae_flags = (*aff_entry).ae_flags.add(1);
+                        let item3_bytes = std::ffi::CStr::from_ptr(items[3]).to_bytes();
+                        if let Some(slash_pos) = item3_bytes.iter().position(|&b| b == b'/') {
+                            (*aff_entry).ae_add =
+                                Some(std::ffi::CString::new(&item3_bytes[..slash_pos]).unwrap());
+                            (*aff_entry).ae_flags = Some(
+                                std::ffi::CString::new(&item3_bytes[slash_pos + 1..]).unwrap(),
+                            );
                             aff_process_flags(&aff, &mut *aff_entry);
+                        } else {
+                            (*aff_entry).ae_add =
+                                Some(std::ffi::CString::new(item3_bytes).unwrap());
                         }
                     }
 
                     if (*spin).si_ascii == 0
-                        || !(has_non_ascii((*aff_entry).ae_chop)
-                            || has_non_ascii((*aff_entry).ae_add))
+                        || !(has_non_ascii((*aff_entry).chop_ptr())
+                            || has_non_ascii((*aff_entry).add_ptr()))
                     {
                         (*cur_aff).ah_entries.insert(0, aff_entry_val);
                         let aff_entry: *mut affentry_T = (*cur_aff).ah_entries.as_mut_ptr();
 
                         if strcmp(items[4], c".".as_ptr()) != 0 {
                             let mut buf = [0 as c_char; MAXLINELEN];
-                            (*aff_entry).ae_cond = getroom_save(spin, items[4]);
+                            (*aff_entry).ae_cond =
+                                Some(std::ffi::CStr::from_ptr(items[4]).to_owned());
                             vim_snprintf!(
                                 buf.as_mut_ptr(),
                                 MAXLINELEN,
@@ -2235,83 +2271,78 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
 
                         if *items[0] == b'P' as c_char
                             && aff.af_pfxpostpone != 0
-                            && (*aff_entry).ae_flags.is_null()
+                            && (*aff_entry).ae_flags.is_none()
                         {
                             let mut upper = false;
-                            if !(*aff_entry).ae_chop.is_null()
-                                && !(*aff_entry).ae_add.is_null()
+                            if (*aff_entry).ae_chop.is_some()
+                                && (*aff_entry).ae_add.is_some()
                                 && *(*aff_entry)
-                                    .ae_chop
-                                    .add(utfc_ptr2len((*aff_entry).ae_chop) as usize)
+                                    .chop_ptr()
+                                    .add(utfc_ptr2len((*aff_entry).chop_ptr()) as usize)
                                     == NUL
                             {
-                                let c = utf_ptr2char((*aff_entry).ae_chop);
+                                let c = utf_ptr2char((*aff_entry).chop_ptr());
                                 let c_up = spell_toupper(c);
                                 if c_up != c
-                                    && ((*aff_entry).ae_cond.is_null()
-                                        || utf_ptr2char((*aff_entry).ae_cond) == c)
+                                    && ((*aff_entry).ae_cond.is_none()
+                                        || utf_ptr2char((*aff_entry).cond_ptr()) == c)
                                 {
-                                    let mut p_end =
-                                        (*aff_entry).ae_add.add(strlen((*aff_entry).ae_add));
-                                    mb_ptr_back((*aff_entry).ae_add, &mut p_end);
+                                    let add_ptr = (*aff_entry).add_ptr();
+                                    let mut p_end = add_ptr.add(strlen(add_ptr));
+                                    mb_ptr_back(add_ptr, &mut p_end);
                                     if utf_ptr2char(p_end) == c_up {
                                         upper = true;
-                                        (*aff_entry).ae_chop = ptr::null_mut();
-                                        *p_end = NUL;
+                                        (*aff_entry).ae_chop = None;
+                                        let new_add_len = p_end.offset_from(add_ptr) as usize;
+                                        let new_add_slice = std::slice::from_raw_parts(
+                                            add_ptr.cast::<u8>(),
+                                            new_add_len,
+                                        );
+                                        (*aff_entry).ae_add =
+                                            Some(std::ffi::CString::new(new_add_slice).unwrap());
 
-                                        if !(*aff_entry).ae_cond.is_null() {
+                                        if (*aff_entry).ae_cond.is_some() {
                                             let mut buf = [0 as c_char; MAXLINELEN];
                                             onecap_copy(items[4], buf.as_mut_ptr(), true);
-                                            (*aff_entry).ae_cond =
-                                                getroom_save(spin, buf.as_mut_ptr());
-                                            if !(*aff_entry).ae_cond.is_null() {
-                                                vim_snprintf!(
-                                                    buf.as_mut_ptr(),
-                                                    MAXLINELEN,
-                                                    c"^%s".as_ptr(),
-                                                    (*aff_entry).ae_cond,
-                                                );
-                                                (*aff_entry).ae_prog =
-                                                    crate::regexp::vim_regcomp_box(
-                                                        buf.as_ptr(),
-                                                        RE_MAGIC + RE_STRING,
-                                                    );
-                                            }
+                                            let cond_cstr =
+                                                std::ffi::CStr::from_ptr(buf.as_ptr()).to_owned();
+                                            vim_snprintf!(
+                                                buf.as_mut_ptr(),
+                                                MAXLINELEN,
+                                                c"^%s".as_ptr(),
+                                                cond_cstr.as_ptr(),
+                                            );
+                                            (*aff_entry).ae_cond = Some(cond_cstr);
+                                            (*aff_entry).ae_prog = crate::regexp::vim_regcomp_box(
+                                                buf.as_ptr(),
+                                                RE_MAGIC + RE_STRING,
+                                            );
                                         }
                                     }
                                 }
                             }
 
-                            if (*aff_entry).ae_chop.is_null() {
+                            if (*aff_entry).ae_chop.is_none() {
                                 let prefcond = &mut (*spin).si_prefcond;
                                 let mut idx = prefcond.len() as c_int - 1;
                                 while idx >= 0 {
                                     let p_cond = prefcond[idx as usize]
                                         .as_ref()
                                         .map_or(ptr::null(), |s| s.as_ptr());
-                                    if strequal(p_cond, (*aff_entry).ae_cond) {
+                                    if strequal(p_cond, (*aff_entry).cond_ptr()) {
                                         break;
                                     }
                                     idx -= 1;
                                 }
                                 if idx < 0 {
                                     idx = prefcond.len() as c_int;
-                                    let cond_str = if (*aff_entry).ae_cond.is_null() {
-                                        None
-                                    } else {
-                                        Some(
-                                            std::ffi::CStr::from_ptr((*aff_entry).ae_cond)
-                                                .to_owned(),
-                                        )
-                                    };
-                                    prefcond.push(cond_str);
+                                    prefcond.push((*aff_entry).ae_cond.clone());
                                 }
 
-                                let p_add = if (*aff_entry).ae_add.is_null() {
-                                    c"".as_ptr()
-                                } else {
-                                    (*aff_entry).ae_add
-                                };
+                                let p_add = (*aff_entry)
+                                    .ae_add
+                                    .as_ref()
+                                    .map_or(c"".as_ptr(), |s| s.as_ptr());
 
                                 let mut n = PFX_FLAGS;
                                 if (*cur_aff).ah_combine == 0 {
@@ -2602,8 +2633,15 @@ unsafe fn is_aff_rule(
 
 unsafe fn aff_process_flags(affile: &afffile_T, entry: &mut affentry_T) {
     unsafe {
-        if !entry.ae_flags.is_null() && (affile.af_compforbid != 0 || affile.af_comppermit != 0) {
-            let mut p = entry.ae_flags;
+        if let Some(ref flags_cstr) = entry.ae_flags
+            && (affile.af_compforbid != 0 || affile.af_comppermit != 0)
+        {
+            let mut flags_buf: Vec<c_char> = flags_cstr
+                .as_bytes_with_nul()
+                .iter()
+                .map(|&b| b as c_char)
+                .collect();
+            let mut p = flags_buf.as_mut_ptr();
             while *p != NUL {
                 let prevp = p;
                 let flag = get_affitem(affile.af_flagtype, &raw mut p);
@@ -2620,8 +2658,10 @@ unsafe fn aff_process_flags(affile: &afffile_T, entry: &mut affentry_T) {
                     p = p.add(1);
                 }
             }
-            if *entry.ae_flags == NUL {
-                entry.ae_flags = ptr::null_mut();
+            if flags_buf[0] == NUL {
+                entry.ae_flags = None;
+            } else {
+                entry.ae_flags = Some(std::ffi::CStr::from_ptr(flags_buf.as_ptr()).to_owned());
             }
         }
     }
@@ -3266,31 +3306,34 @@ unsafe fn store_aff_word(
                 {
                     for ae_ref in &ah.ah_entries {
                         let ae: *mut affentry_T = (&raw const *ae_ref).cast_mut();
+                        let ae_chop = (*ae).chop_ptr();
+                        let ae_add = (*ae).add_ptr();
+                        let ae_flags = (*ae).flags_ptr();
                         if (xht.is_some()
                             || affile.af_pfxpostpone == 0
-                            || !(*ae).ae_chop.is_null()
-                            || !(*ae).ae_flags.is_null())
-                            && ((*ae).ae_chop.is_null() || strlen((*ae).ae_chop) < wordlen)
+                            || !ae_chop.is_null()
+                            || !ae_flags.is_null())
+                            && (ae_chop.is_null() || strlen(ae_chop) < wordlen)
                             && ((*ae).ae_prog.is_none()
                                 || vim_regexec_prog((*ae).ae_prog.as_deref(), false, word, 0))
                             && (((condit & CONDIT_CFIX) == 0)
                                 == ((condit & CONDIT_AFF) == 0
-                                    || (*ae).ae_flags.is_null()
+                                    || ae_flags.is_null()
                                     || !flag_in_afflist(
                                         affile.af_flagtype,
-                                        (*ae).ae_flags,
+                                        ae_flags,
                                         affile.af_circumfix,
                                     )))
                         {
                             if xht.is_none() {
-                                if (*ae).ae_add.is_null() {
+                                if ae_add.is_null() {
                                     newword[0] = NUL;
                                 } else {
-                                    xstrlcpy(newword.as_mut_ptr(), (*ae).ae_add, MAXWLEN);
+                                    xstrlcpy(newword.as_mut_ptr(), ae_add, MAXWLEN);
                                 }
                                 let mut p = word;
-                                if !(*ae).ae_chop.is_null() {
-                                    let mut i = mb_charlen((*ae).ae_chop);
+                                if !ae_chop.is_null() {
+                                    let mut i = mb_charlen(ae_chop);
                                     while i > 0 {
                                         mb_ptr_adv(&mut p);
                                         i -= 1;
@@ -3299,17 +3342,17 @@ unsafe fn store_aff_word(
                                 xstrlcat(newword.as_mut_ptr(), p, MAXWLEN);
                             } else {
                                 xstrlcpy(newword.as_mut_ptr(), word, MAXWLEN);
-                                if !(*ae).ae_chop.is_null() {
+                                if !ae_chop.is_null() {
                                     let mut p = newword.as_mut_ptr().add(strlen(newword.as_ptr()));
-                                    let mut i = mb_charlen((*ae).ae_chop);
+                                    let mut i = mb_charlen(ae_chop);
                                     while i > 0 {
                                         mb_ptr_back(newword.as_ptr(), &mut p);
                                         i -= 1;
                                     }
                                     *p = NUL;
                                 }
-                                if !(*ae).ae_add.is_null() {
-                                    xstrlcat(newword.as_mut_ptr(), (*ae).ae_add, MAXWLEN);
+                                if !ae_add.is_null() {
+                                    xstrlcat(newword.as_mut_ptr(), ae_add, MAXWLEN);
                                 }
                             }
 
@@ -3318,13 +3361,13 @@ unsafe fn store_aff_word(
                             let mut use_pfxlen = pfxlen;
                             let mut need_affix = false;
                             let mut use_condit = condit | CONDIT_COMB | CONDIT_AFF;
-                            if !(*ae).ae_flags.is_null() {
-                                use_flags |= get_affix_flags(affile, (*ae).ae_flags);
+                            if !ae_flags.is_null() {
+                                use_flags |= get_affix_flags(affile, ae_flags);
 
                                 if affile.af_needaffix != 0
                                     && flag_in_afflist(
                                         affile.af_flagtype,
-                                        (*ae).ae_flags,
+                                        ae_flags,
                                         affile.af_needaffix,
                                     )
                                 {
@@ -3334,7 +3377,7 @@ unsafe fn store_aff_word(
                                 if affile.af_circumfix != 0
                                     && flag_in_afflist(
                                         affile.af_flagtype,
-                                        (*ae).ae_flags,
+                                        ae_flags,
                                         affile.af_circumfix,
                                     )
                                 {
@@ -3350,7 +3393,7 @@ unsafe fn store_aff_word(
                                     if affile.af_pfxpostpone != 0 {
                                         if get_pfxlist(
                                             affile,
-                                            (*ae).ae_flags,
+                                            ae_flags,
                                             store_afflist.as_mut_ptr(),
                                             &raw mut listlen,
                                         ) == FAIL
@@ -3393,7 +3436,7 @@ unsafe fn store_aff_word(
                                     if (*spin).si_compflags.is_some() {
                                         if get_compflags(
                                             affile,
-                                            (*ae).ae_flags,
+                                            ae_flags,
                                             use_pfxlist,
                                             &raw mut listlen,
                                         ) == FAIL
@@ -3475,13 +3518,13 @@ unsafe fn store_aff_word(
                                 retval = FAIL;
                             }
 
-                            if (condit & CONDIT_SUF) != 0 && !(*ae).ae_flags.is_null() {
+                            if (condit & CONDIT_SUF) != 0 && !ae_flags.is_null() {
                                 let next_condit =
                                     use_condit & if xht.is_none() { !0 } else { !CONDIT_SUF };
                                 if store_aff_word(
                                     spin,
                                     newword.as_mut_ptr(),
-                                    (*ae).ae_flags,
+                                    ae_flags,
                                     affile,
                                     &affile.af_suff,
                                     xht,
@@ -3509,11 +3552,11 @@ unsafe fn store_aff_word(
                                     use_pfxlist,
                                     pfxlen,
                                 ) == FAIL
-                                    || (!(*ae).ae_flags.is_null()
+                                    || (!ae_flags.is_null()
                                         && store_aff_word(
                                             spin,
                                             newword.as_mut_ptr(),
-                                            (*ae).ae_flags,
+                                            ae_flags,
                                             affile,
                                             xht_ref,
                                             None,
