@@ -72,7 +72,7 @@ use crate::statusline::{STL_FOLDCOL, STL_SIGNCOL};
 use crate::statusline::{build_statuscol_str, foldinfo_T, statuscol_T};
 use crate::strings::{vim_snprintf, vim_strchr};
 use crate::syntax::{
-    HL_CONCEAL, get_syntax_attr, get_syntax_info, syn_get_sub_char, synblock_T, syntax_present,
+    HL_CONCEAL, get_syntax_attr, get_syntax_info, syn_get_sub_char, syntax_present,
     syntax_start,
 };
 use crate::terminal::{Terminal, terminal_get_line_attributes};
@@ -1497,7 +1497,7 @@ pub unsafe fn win_line(
 
         if col_rows == 0 && draw_text {
             extra_check = (*wp).w_onebuf_opt.wo_lbr != 0;
-            let w_s = (*wp).w_s.cast::<synblock_T>();
+            let w_s = (*wp).w_s_ptr();
             if syntax_present(wp) && !(*w_s).b_syn_error && !(*w_s).b_syn_slow && !has_foldtext {
                 let save_did_emsg = did_emsg;
                 did_emsg = 0;
@@ -2542,7 +2542,7 @@ pub unsafe fn win_line(
                     decor_attr = 0;
                     syntax_attr = 0;
                     if extra_check {
-                        let w_s = (*wp).w_s.cast::<synblock_T>();
+                        let w_s = (*wp).w_s_ptr();
                         let no_plain_buffer =
                             ((*w_s).b_p_spo_flags & kOptSpoFlagNoplainbuffer) != 0;
                         let mut can_spell = !no_plain_buffer;

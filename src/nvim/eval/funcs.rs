@@ -203,7 +203,7 @@ use crate::strings::{
     vim_strsave_shellescape,
 };
 use crate::syntax::{
-    HL_CONCEAL, get_syntax_info, syn_get_id, syn_get_stack_item, syn_get_sub_char, synblock_T,
+    HL_CONCEAL, get_syntax_info, syn_get_id, syn_get_stack_item, syn_get_sub_char,
     syntax_present,
 };
 use crate::tag::{get_tagfname, get_tags, get_tagstack, set_tagstack, tagname_T};
@@ -8369,7 +8369,7 @@ pub unsafe fn f_spellbadword(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
             (*curwin).w_onebuf_opt.wo_spell = 1;
         }
 
-        let ws = (*curwin).w_s.cast::<synblock_T>();
+        let ws = (*curwin).w_s_ptr();
         if *(*ws).b_p_spl == NUL {
             emsg(gettext(e_no_spell.as_ptr()));
             (*curwin).w_onebuf_opt.wo_spell = wo_spell_save;
@@ -8433,7 +8433,7 @@ pub unsafe fn f_spellsuggest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
             (*curwin).w_onebuf_opt.wo_spell = 1;
         }
 
-        let ws = (*curwin).w_s.cast::<synblock_T>();
+        let ws = (*curwin).w_s_ptr();
         if *(*ws).b_p_spl == NUL {
             emsg(gettext(e_no_spell.as_ptr()));
             (*curwin).w_onebuf_opt.wo_spell = wo_spell_save;

@@ -724,7 +724,6 @@ unsafe fn ctx_win_prep(cs: *mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
         (*cs).cs_ctxwin_idx = idx as c_int;
 
         (*cw_win).w_buffer = buf;
-        (*cw_win).w_s = &raw mut (*buf).b_s;
         (*buf).b_nwindows += 1;
         win_init_empty(cw_win);
 
@@ -963,9 +962,6 @@ pub unsafe fn ctx_restore(cs: *mut CtxSwitch) {
                 && bufref_valid(&raw mut (*cs).cs_new_curbuf)
                 && (*saved_buf).b_ml.ml_mfp.is_some()
             {
-                if (*curwin).w_s == &raw mut (*curbuf).b_s {
-                    (*curwin).w_s = &raw mut (*saved_buf).b_s;
-                }
                 (*curbuf).b_nwindows -= 1;
                 curbuf = saved_buf;
                 (*curwin).w_buffer = curbuf;

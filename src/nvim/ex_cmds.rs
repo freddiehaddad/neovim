@@ -82,7 +82,6 @@ use crate::regexp::{
     vim_regexec_multi, vim_regfree, vim_regsub_multi,
 };
 use crate::runtime::SID_NONE;
-use crate::syntax::synblock_T;
 use crate::window::{
     check_can_set_curbuf_forceit, check_lnums, curwin_init, update_cwd, win_T, win_enter,
     win_split, win_valid,
@@ -3002,12 +3001,6 @@ pub unsafe fn do_ecmd(
                         if buf == curbuf {
                             auto_buf = true;
                         } else {
-                            if (*curwin).w_buffer.is_null()
-                                || (*curwin).w_s == &raw mut (*(*curwin).w_buffer).b_s
-                            {
-                                (*curwin).w_s = &raw mut (*buf).b_s;
-                            }
-
                             if !(*curwin).w_buffer.is_null() {
                                 (*(*curwin).w_buffer).b_nwindows -= 1;
                             }
@@ -3201,7 +3194,7 @@ pub unsafe fn do_ecmd(
 
             if did_get_winopts
                 && (*curwin).w_onebuf_opt.wo_spell != 0
-                && *(*(*curwin).w_s.cast::<synblock_T>()).b_p_spl != NUL
+                && *(*(*curwin).w_s_ptr()).b_p_spl != NUL
             {
                 parse_spelllang(curwin);
             }

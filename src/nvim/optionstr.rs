@@ -62,7 +62,6 @@ use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
     atoi, gettext, strcmp, strcspn, strlen, strncmp, strpbrk, strstr, vim_snprintf, vim_strchr,
 };
-use crate::syntax::synblock_T;
 use crate::terminal::terminal_notify_theme;
 use crate::ui::ui_has;
 use crate::window::{check_colorcolumn, fcs_chars_T, global_stl_height, lcs_chars_T, win_T};
@@ -3039,7 +3038,7 @@ pub unsafe fn did_set_spellcapcheck(args: *mut optset_T) -> *const c_char {
             return ptr::null();
         }
         let win = (*args).os_win;
-        let ws = (*win).w_s;
+        let ws = (*win).w_s_ptr();
         (*ws).b_cap_prog = (*args).os_prep.take_spellcap_prog();
         ptr::null()
     }
@@ -3097,7 +3096,7 @@ pub unsafe fn did_set_spelloptions(args: *mut optset_T) -> *const c_char {
             }
         }
         if (opt_flags & OPT_GLOBAL) == 0 {
-            let ws = (*win).w_s.cast::<synblock_T>();
+            let ws = (*win).w_s_ptr();
             let errmsg = opt_strings_flags(
                 val,
                 &opt_spo_values,

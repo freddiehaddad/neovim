@@ -50,7 +50,7 @@ use crate::spellsuggest::{idx_T, langp_T, slang_T, spell_suggest_list, spelltab_
 use crate::strings::{
     concat_str, gettext, strcat, strcmp, strcpy, strlen, strncmp, strstr, vim_snprintf, vim_strchr,
 };
-use crate::syntax::{syn_get_id, synblock_T, syntax_present};
+use crate::syntax::{syn_get_id, syntax_present};
 use crate::undo::u_save_cursor;
 use crate::window::{win_T, win_valid_any_tab};
 use std::ffi::{c_char, c_int};
@@ -238,7 +238,7 @@ pub unsafe fn spell_check(
         if (*ptr as u8) <= b' ' {
             return 1;
         }
-        let w_s = (*wp).w_s.cast::<synblock_T>();
+        let w_s = (*wp).w_s_ptr();
         if (*w_s).b_langp.is_empty() {
             return 1;
         }
@@ -734,7 +734,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                     if (flags & WF_COMPROOT as u32) != 0 {
                         (*mip).mi_compextra += 1;
                     }
-                    let w_s = (*(*mip).mi_win).w_s;
+                    let w_s = (*(*mip).mi_win).w_s_ptr();
                     for lpi in 0..(*w_s).b_langp.len() {
                         if (*slang).sl_nobreak {
                             (*mip).mi_lp = &raw mut (&mut (*w_s).b_langp)[lpi];
@@ -1035,7 +1035,7 @@ pub unsafe fn spell_valid_case(wordflags: c_int, treeflags: c_int) -> bool {
 }
 pub unsafe fn spell_check_window(wp: *mut win_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s.cast::<synblock_T>();
+        let w_s = (*wp).w_s_ptr();
         (*wp).w_onebuf_opt.wo_spell != 0
             && *(*w_s).b_p_spl != NUL
             && !(*w_s).b_langp.is_empty()
@@ -1044,7 +1044,7 @@ pub unsafe fn spell_check_window(wp: *mut win_T) -> bool {
 }
 pub unsafe fn no_spell_checking(wp: *mut win_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s.cast::<synblock_T>();
+        let w_s = (*wp).w_s_ptr();
         if (*wp).w_onebuf_opt.wo_spell == 0 || *(*w_s).b_p_spl == NUL || (*w_s).b_langp.is_empty() {
             emsg(gettext((&raw const e_no_spell).cast()));
             return true;
@@ -1166,7 +1166,7 @@ pub unsafe fn spell_move_to(
                             || check_col > (*wp).w_cursor.col
                         {
                             let col = p.offset_from(buf) as colnr_T;
-                            let w_s = (*wp).w_s.cast::<synblock_T>();
+                            let w_s = (*wp).w_s_ptr();
                             let no_plain_buffer =
                                 ((*w_s).b_p_spo_flags & kOptSpoFlagNoplainbuffer) != 0;
                             let mut can_spell = !no_plain_buffer;
@@ -1640,7 +1640,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
         parse_spelllang_recursive = true;
         let mut ga: Vec<langp_T> = Vec::with_capacity(2);
         clear_midword(wp);
-        let w_s = (*wp).w_s.cast::<synblock_T>();
+        let w_s = (*wp).w_s_ptr();
         let spl_copy = std::ffi::CStr::from_ptr((*w_s).b_p_spl).to_owned();
         (*w_s).b_cjk = 0;
         'theend: {
@@ -1780,7 +1780,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     }
                 }
             }
-            let cur_w_s = (*curwin).w_s.cast::<synblock_T>();
+            let cur_w_s = (*curwin).w_s_ptr();
             let mut spf = (*cur_w_s).b_p_spf;
             let mut round = 0;
             while round == 0 || *spf != NUL {
@@ -1900,7 +1900,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
 }
 unsafe fn clear_midword(wp: *mut win_T) {
     unsafe {
-        let w_s = (*wp).w_s.cast::<synblock_T>();
+        let w_s = (*wp).w_s_ptr();
         (*w_s).b_spell_ismw = [false; 256];
         (*w_s).b_spell_ismw_mb = None;
     }
@@ -1910,7 +1910,7 @@ unsafe fn use_midword(lp: *mut slang_T, wp: *mut win_T) {
         let Some(ref sl_midword) = (*lp).sl_midword else {
             return;
         };
-        let w_s = (*wp).w_s.cast::<synblock_T>();
+        let w_s = (*wp).w_s_ptr();
         let mut p = sl_midword.as_ptr();
         while *p != NUL {
             let c = utf_ptr2char(p);
@@ -2012,7 +2012,7 @@ pub unsafe fn spell_reload() {
         spell_free_all();
         let mut wp = firstwin;
         while !wp.is_null() {
-            let w_s = (*wp).w_s.cast::<synblock_T>();
+            let w_s = (*wp).w_s_ptr();
             if *(*w_s).b_p_spl != NUL && (*wp).w_onebuf_opt.wo_spell != 0 {
                 let _ = parse_spelllang(wp);
                 break;
@@ -2085,7 +2085,7 @@ pub unsafe fn init_spell_chartab() {
 }
 pub unsafe fn spell_iswordp(p: *const c_char, wp: *const win_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s.cast::<synblock_T>();
+        let w_s = (*wp).w_s_ptr();
         let l = utfc_ptr2len(p);
         let mut s = p;
         if l == 1 {
@@ -2123,7 +2123,7 @@ pub unsafe fn spell_iswordp_nmw(p: *const c_char, wp: *mut win_T) -> bool {
 }
 unsafe fn spell_mb_isword_class(cl: c_int, wp: *const win_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s.cast::<synblock_T>();
+        let w_s = (*wp).w_s_ptr();
         if (*w_s).b_cjk != 0 {
             return cl == 2 || cl == 0x2800;
         }
@@ -2132,7 +2132,7 @@ unsafe fn spell_mb_isword_class(cl: c_int, wp: *const win_T) -> bool {
 }
 unsafe fn spell_iswordp_w(p: *const c_int, wp: *const win_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s.cast::<synblock_T>();
+        let w_s = (*wp).w_s_ptr();
         let s = if if *p < 256 && *p >= 0 {
             (*w_s).b_spell_ismw[*p as usize]
         } else {
@@ -2189,7 +2189,7 @@ pub unsafe fn spell_casefold(
 }
 pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bool {
     unsafe {
-        let w_s = (*wp).w_s.cast::<synblock_T>();
+        let w_s = (*wp).w_s_ptr();
         if (*w_s).b_cap_prog.is_none() {
             return false;
         }
@@ -2388,7 +2388,7 @@ pub unsafe fn make_case_word(fword: *mut c_char, cword: *mut c_char, flags: c_in
 }
 pub unsafe fn eval_soundfold(word: *const c_char) -> std::ffi::CString {
     unsafe {
-        let w_s = (*curwin).w_s.cast::<synblock_T>();
+        let w_s = (*curwin).w_s_ptr();
         if (*curwin).w_onebuf_opt.wo_spell != 0 && *(*w_s).b_p_spl != NUL {
             for lp in &(*w_s).b_langp {
                 if (*lp.lp_slang).has_sal() {
@@ -2758,7 +2758,7 @@ pub unsafe fn ex_spellinfo(_eap: *mut exarg_T) {
         }
         msg_ext_set_kind(c"list_cmd".as_ptr());
         msg_start();
-        let w_s = (*curwin).w_s.cast::<synblock_T>();
+        let w_s = (*curwin).w_s_ptr();
         let len = (*w_s).b_langp.len();
         let mut lpi: usize = 0;
         while lpi < len && !got_int {
@@ -2843,7 +2843,7 @@ pub unsafe fn spell_dump_compl(
                 }
             }
         }
-        let w_s = (*curwin).w_s.cast::<synblock_T>();
+        let w_s = (*curwin).w_s_ptr();
         for lp in &(*w_s).b_langp {
             let p = (&raw mut (*lp.lp_slang).sl_regions).cast::<c_char>();
             if *p != 0 {

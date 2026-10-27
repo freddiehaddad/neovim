@@ -2616,7 +2616,7 @@ unsafe fn enter_buffer(buf: *mut buf_T) {
             diff_buf_add(curbuf);
         }
 
-        (*curwin).w_s = &raw mut (*curbuf).b_s;
+        (*curwin).w_s_owned = None;
 
         (*curwin).w_cursor.lnum = 1;
         (*curwin).w_cursor.col = 0;
@@ -2673,7 +2673,7 @@ unsafe fn enter_buffer(buf: *mut buf_T) {
         }
         if !(*curbuf).b_help
             && (*curwin).w_onebuf_opt.wo_spell != 0
-            && *(*(*curwin).w_s).b_p_spl != NUL
+            && *(*(*curwin).w_s_ptr()).b_p_spl != NUL
         {
             parse_spelllang(curwin);
         }

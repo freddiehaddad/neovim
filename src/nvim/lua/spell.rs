@@ -10,7 +10,6 @@ use crate::lua::converter::{
 use crate::message::emsg;
 use crate::spell::{parse_spelllang, spell_check};
 use crate::strings::gettext;
-use crate::syntax::synblock_T;
 use std::ffi::c_int;
 use std::ptr;
 
@@ -39,7 +38,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> c_in
             (*curwin).w_onebuf_opt.wo_spell = 1;
         }
 
-        let w_s = (*curwin).w_s.cast::<synblock_T>();
+        let w_s = (*curwin).w_s_ptr();
         if *(*w_s).b_p_spl == NUL {
             emsg(gettext(e_no_spell.as_ptr()));
             (*curwin).w_onebuf_opt.wo_spell = wo_spell_save;

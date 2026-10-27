@@ -169,7 +169,7 @@ use crate::statusline::{draw_tabline, win_redr_status};
 use crate::strings::{
     strcat, strchr, strcpy, strlen, tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
 };
-use crate::syntax::{syn_stack_free_all, synblock_T};
+use crate::syntax::syn_stack_free_all;
 use crate::tag::do_tag;
 use crate::terminal::terminal_check_refresh;
 use crate::textformat::{auto_format, has_format_option, oparg_T};
@@ -4257,10 +4257,10 @@ unsafe fn nv_clear(cap: *mut cmdarg_T) {
             return;
         }
 
-        syn_stack_free_all((*curwin).w_s.cast::<synblock_T>());
+        syn_stack_free_all((*curwin).w_s_ptr());
         let mut wp = firstwin;
         while !wp.is_null() {
-            (*(*wp).w_s.cast::<synblock_T>()).b_syn_slow = false;
+            (*(*wp).w_s_ptr()).b_syn_slow = false;
             wp = (*wp).w_next;
         }
         redraw_later(curwin, UPD_CLEAR);

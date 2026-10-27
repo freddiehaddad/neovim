@@ -42,7 +42,6 @@ use crate::strings::{
     atoi, gettext, strcat, strcmp, strcpy, strlen, strmove, strncmp, strncpy, vim_snprintf,
     vim_strchr,
 };
-use crate::syntax::synblock_T;
 use crate::ui::vim_beep;
 use crate::undo::u_save_cursor;
 use crate::viml::parser::expressions::TAB;
@@ -678,7 +677,7 @@ pub unsafe fn spell_suggest(count: c_int) {
         check_cursor(curwin);
         let prev_cursor = (*curwin).w_cursor;
         'skip: {
-            let w_s = (*curwin).w_s.cast::<synblock_T>();
+            let w_s = (*curwin).w_s_ptr();
             if *(*w_s).b_p_spl == NUL {
                 emsg(gettext((&raw const e_no_spell).cast()));
                 break 'skip;
@@ -1135,7 +1134,7 @@ unsafe fn suggest_try_change(su: *mut suginfo_T) {
         if (n as usize) < MAXWLEN {
             fword[n as usize] = NUL;
         }
-        let w_s = (*curwin).w_s.cast::<synblock_T>();
+        let w_s = (*curwin).w_s_ptr();
         for lp in &(*w_s).b_langp {
             if (*lp.lp_slang).sl_fbyts.is_empty() {
                 continue;
@@ -2309,7 +2308,7 @@ unsafe fn score_comp_sal(su: *mut suginfo_T) {
         let mut badsound: [c_char; MAXWLEN] = [0; MAXWLEN];
         let sga = &mut (*su).su_sga;
         sga.reserve((*su).su_ga.len());
-        let w_s = (*curwin).w_s.cast::<synblock_T>();
+        let w_s = (*curwin).w_s_ptr();
         for lp in &(*w_s).b_langp {
             if (*lp.lp_slang).has_sal() {
                 spell_soundfold(
@@ -2343,7 +2342,7 @@ unsafe fn score_combine(su: *mut suginfo_T) {
     unsafe {
         let mut badsound: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut slang: *mut slang_T = ptr::null_mut();
-        let w_s = (*curwin).w_s.cast::<synblock_T>();
+        let w_s = (*curwin).w_s_ptr();
         for lp in &(*w_s).b_langp {
             if (*lp.lp_slang).has_sal() {
                 slang = lp.lp_slang;
@@ -2477,7 +2476,7 @@ unsafe fn stp_sal_score(
 }
 unsafe fn suggest_try_soundalike_prep() {
     unsafe {
-        let w_s = (*curwin).w_s;
+        let w_s = (*curwin).w_s_ptr();
         for lp in &(*w_s).b_langp {
             let slang = lp.lp_slang;
             if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
@@ -2489,7 +2488,7 @@ unsafe fn suggest_try_soundalike_prep() {
 unsafe fn suggest_try_soundalike(su: *mut suginfo_T) {
     unsafe {
         let mut salword: [c_char; MAXWLEN] = [0; MAXWLEN];
-        let w_s = (*curwin).w_s;
+        let w_s = (*curwin).w_s_ptr();
         for lp in &(*w_s).b_langp {
             let slang = lp.lp_slang;
             if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {
@@ -2506,7 +2505,7 @@ unsafe fn suggest_try_soundalike(su: *mut suginfo_T) {
 }
 unsafe fn suggest_try_soundalike_finish() {
     unsafe {
-        let w_s = (*curwin).w_s;
+        let w_s = (*curwin).w_s_ptr();
         for lp in &(*w_s).b_langp {
             let slang = lp.lp_slang;
             if (*slang).has_sal() && !(*slang).sl_sbyts.is_empty() {

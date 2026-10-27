@@ -550,7 +550,7 @@ static mut expand_what: c_int = EXP_SUBCMD;
 
 #[inline]
 pub unsafe fn win_s(wp: *mut win_T) -> *mut synblock_T {
-    unsafe { (*wp).w_s }
+    unsafe { (*wp).w_s_ptr() }
 }
 
 #[inline]
@@ -2944,10 +2944,7 @@ impl Drop for synblock_T {
 /// Get rid of ownsyntax for window "wp".
 pub unsafe fn reset_synblock(wp: *mut win_T) {
     unsafe {
-        if (*wp).w_s_owned.is_some() {
-            (*wp).w_s_owned = None;
-            (*wp).w_s = &raw mut (*(*wp).w_buffer).b_s;
-        }
+        (*wp).w_s_owned = None;
     }
 }
 
@@ -5088,11 +5085,10 @@ pub unsafe fn ex_syntax(eap: *mut exarg_T) {
 /// @deprecated
 pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
     unsafe {
-        if win_s(curwin) == &raw mut (*(*curwin).w_buffer).b_s {
+        if (*curwin).w_s_owned.is_none() {
             let mut new_s = Box::new(synblock_T::new());
             let new_s_ptr: *mut synblock_T = &raw mut *new_s;
             (*curwin).w_s_owned = Some(new_s);
-            (*curwin).w_s = new_s_ptr;
             (*curwin).w_onebuf_opt.wo_spell = 0;
             clear_string_option(&raw mut (*new_s_ptr).b_p_spc);
             clear_string_option(&raw mut (*new_s_ptr).b_p_spf);

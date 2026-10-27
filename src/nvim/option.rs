@@ -132,7 +132,6 @@ use crate::strings::{
     gettext, strchr, strcmp, strcpy, strlen, strncmp, strstr, tr, vim_snprintf,
     vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
 };
-use crate::syntax::synblock_T;
 use crate::tag::free_tagfunc_option;
 use crate::terminal::on_scrollback_option_changed;
 use crate::ui::ui_call_option_set;
@@ -2353,7 +2352,7 @@ unsafe fn didset_options() {
         if spell_check_sps(p_sps, &raw mut sps_flags, &raw mut sps_limit) == OK {
             spell_apply_sps(sps_flags, sps_limit);
         }
-        let ws = (*curwin).w_s.cast::<synblock_T>();
+        let ws = (*curwin).w_s_ptr();
         compile_cap_prog((*ws).b_p_spc, &mut (*ws).b_cap_prog);
         did_set_spell_option();
         did_set_cedit(ptr::null_mut());
@@ -3589,7 +3588,7 @@ unsafe fn do_syntax_autocmd(buf: *mut buf_T, value_changed: bool) {
 unsafe fn do_spelllang_source(win: *mut win_T) {
     unsafe {
         let mut fname = [0 as c_char; 200];
-        let ws = (*win).w_s.cast::<synblock_T>();
+        let ws = (*win).w_s_ptr();
         let mut q = (*ws).b_p_spl;
 
         if strncmp(q, c"cjk,".as_ptr(), 4) == 0 {
@@ -5721,7 +5720,7 @@ unsafe fn did_set_option(
             return errmsg;
         }
 
-        let ws = (*curwin).w_s.cast::<synblock_T>();
+        let ws = (*curwin).w_s_ptr();
         if varp == (&raw mut (*curbuf).b_p_syn).cast::<c_void>() {
             do_syntax_autocmd(curbuf, (*args).os_value_changed);
         } else if varp == (&raw mut (*curbuf).b_p_ft).cast::<c_void>() {
@@ -7187,19 +7186,19 @@ pub unsafe fn get_varp_from(p: *mut vimoption_T, buf: *mut buf_T, win: *mut win_
             kOptSynmaxcol => (&raw mut (*buf).b_p_smc).cast(),
             kOptSyntax => (&raw mut (*buf).b_p_syn).cast(),
             kOptSpellcapcheck => {
-                let ws = (*win).w_s.cast::<synblock_T>();
+                let ws = (*win).w_s_ptr();
                 (&raw mut (*ws).b_p_spc).cast()
             }
             kOptSpellfile => {
-                let ws = (*win).w_s.cast::<synblock_T>();
+                let ws = (*win).w_s_ptr();
                 (&raw mut (*ws).b_p_spf).cast()
             }
             kOptSpelllang => {
-                let ws = (*win).w_s.cast::<synblock_T>();
+                let ws = (*win).w_s_ptr();
                 (&raw mut (*ws).b_p_spl).cast()
             }
             kOptSpelloptions => {
-                let ws = (*win).w_s.cast::<synblock_T>();
+                let ws = (*win).w_s_ptr();
                 (&raw mut (*ws).b_p_spo).cast()
             }
             kOptShiftwidth => (&raw mut (*buf).b_p_sw).cast(),

@@ -434,7 +434,6 @@ impl frame_T {
 pub struct win_T {
     pub handle: handle_T,
     pub w_buffer: *mut buf_T,
-    pub w_s: *mut crate::syntax::synblock_T,
     pub w_s_owned: Option<Box<crate::syntax::synblock_T>>,
     pub w_ns_hl: c_int,
     pub w_ns_hl_winhl: c_int,
@@ -604,7 +603,6 @@ impl win_T {
         Self {
             handle: 0,
             w_buffer: ptr::null_mut(),
-            w_s: ptr::null_mut(),
             w_s_owned: None,
             w_ns_hl: 0,
             w_ns_hl_winhl: 0,
@@ -797,6 +795,15 @@ impl win_T {
             w_status_click_defs: Vec::new(),
             w_winbar_click_defs: Vec::new(),
             w_statuscol_click_defs: std::collections::BTreeMap::new(),
+        }
+    }
+
+    #[inline]
+    pub unsafe fn w_s_ptr(&self) -> *mut crate::syntax::synblock_T {
+        if let Some(ref owned) = self.w_s_owned {
+            (&raw const **owned).cast_mut()
+        } else {
+            unsafe { &raw mut (*self.w_buffer).b_s }
         }
     }
 }
@@ -2495,7 +2502,7 @@ pub unsafe fn win_split_ins(
 pub unsafe fn win_init(newp: *mut win_T, oldp: *mut win_T, flags: c_int) {
     unsafe {
         (*newp).w_buffer = (*oldp).w_buffer;
-        (*newp).w_s = &raw mut (*(*oldp).w_buffer).b_s;
+        (*newp).w_s_owned = None;
         (*(*oldp).w_buffer).b_nwindows += 1;
         (*newp).w_cursor = (*oldp).w_cursor;
         (*newp).w_valid = 0;
@@ -3318,7 +3325,7 @@ pub unsafe fn win_init_empty(wp: *mut win_T) {
         (*wp).w_topfill = 0;
         (*wp).w_botline = 2;
         (*wp).w_valid = 0;
-        (*wp).w_s = (&raw mut (*(*wp).w_buffer).b_s).cast();
+        (*wp).w_s_owned = None;
     }
 }
 
@@ -5043,7 +5050,7 @@ unsafe fn win_alloc_firstwin(oldwin: *mut win_T) -> c_int {
                 return FAIL;
             }
             (*curwin).w_buffer = curbuf;
-            (*curwin).w_s = &raw mut (*curbuf).b_s;
+            (*curwin).w_s_owned = None;
             (*curbuf).b_nwindows = 1;
             (*curwin).w_alist = None;
             curwin_init();
