@@ -176,7 +176,7 @@ pub struct funcexe_T {
     pub fe_argv_func: ArgvFunc,
     pub fe_firstline: linenr_T,
     pub fe_lastline: linenr_T,
-    pub fe_doesrange: *mut bool,
+    pub fe_doesrange: bool,
     pub fe_evaluate: bool,
     pub fe_partial: *mut partial_T,
     pub fe_selfdict: *mut dict_T,
@@ -190,7 +190,7 @@ impl funcexe_T {
             fe_argv_func: None,
             fe_firstline: 0,
             fe_lastline: 0,
-            fe_doesrange: ptr::null_mut(),
+            fe_doesrange: false,
             fe_evaluate: false,
             fe_partial: ptr::null_mut(),
             fe_selfdict: ptr::null_mut(),
@@ -1594,8 +1594,8 @@ unsafe fn call_user_func_check(
             return nlua_exec_typval_callable((*fp).uf_luaref, argcount, argvars, rettv);
         }
 
-        if ((*fp).uf_flags & FC_RANGE) != 0 && !(*funcexe).fe_doesrange.is_null() {
-            *(*funcexe).fe_doesrange = true;
+        if ((*fp).uf_flags & FC_RANGE) != 0 {
+            (*funcexe).fe_doesrange = true;
         }
         let mut error = check_user_func_argcount(fp, argcount);
         if error != FCERR_UNKNOWN {
@@ -1901,9 +1901,7 @@ pub unsafe fn call_func(
             name_owned = Some(nm);
         }
 
-        if !(*funcexe).fe_doesrange.is_null() {
-            *(*funcexe).fe_doesrange = false;
-        }
+        (*funcexe).fe_doesrange = false;
 
         let mut skip_eval = false;
         if !partial.is_null() {
@@ -3588,7 +3586,6 @@ unsafe fn ex_call_inner(
     evalarg: *mut evalarg_T,
 ) -> bool {
     unsafe {
-        let mut doesrange = false;
         let mut failed = false;
 
         for lnum in (*eap).line1..=(*eap).line2 {
@@ -3604,7 +3601,7 @@ unsafe fn ex_call_inner(
             *arg = startarg;
 
             let mut funcexe = *funcexe_init;
-            funcexe.fe_doesrange = &raw mut doesrange;
+            funcexe.fe_doesrange = false;
             let mut rettv: typval_T = typval_T::new();
             rettv.v_type = VarType::VAR_UNKNOWN;
             if get_func_tv(name, -1, &raw mut rettv, arg, evalarg, &raw mut funcexe) == FAIL {
@@ -3624,7 +3621,7 @@ unsafe fn ex_call_inner(
             }
 
             tv_clear(&raw mut rettv);
-            if doesrange {
+            if funcexe.fe_doesrange {
                 break;
             }
 

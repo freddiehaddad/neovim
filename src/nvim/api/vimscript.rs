@@ -273,7 +273,7 @@ unsafe fn call_function_impl(
             fe_argv_func: None,
             fe_firstline: lnum,
             fe_lastline: lnum,
-            fe_doesrange: std::ptr::null_mut(),
+            fe_doesrange: false,
             fe_evaluate: true,
             fe_partial: std::ptr::null_mut(),
             fe_selfdict: self_dict,

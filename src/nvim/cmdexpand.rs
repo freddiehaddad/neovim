@@ -1431,7 +1431,7 @@ pub struct CmdlineInfo {
     pub special_shift: bool,
     pub redraw_state: c_int,
     pub one_key: bool,
-    pub mouse_used: *mut bool,
+    pub mouse_used: Option<bool>,
 }
 
 impl CmdlineInfo {
@@ -1462,7 +1462,7 @@ impl CmdlineInfo {
             special_shift: false,
             redraw_state: 0,
             one_key: false,
-            mouse_used: ptr::null_mut(),
+            mouse_used: None,
         }
     }
 }

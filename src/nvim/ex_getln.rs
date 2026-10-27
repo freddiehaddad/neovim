@@ -2603,8 +2603,8 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                         if (*s).ignore_drag_release {
                             return command_line_not_changed(s);
                         }
-                        if !ccline.mouse_used.is_null() && mouse_row < cmdline_row {
-                            *ccline.mouse_used = true;
+                        if { ccline.mouse_used }.is_some() && mouse_row < cmdline_row {
+                            ccline.mouse_used = Some(true);
                             return 0;
                         }
                         command_line_left_right_mouse(s);
@@ -2612,8 +2612,8 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                     }
 
                     K_LEFTMOUSE => {
-                        if !ccline.mouse_used.is_null() && mouse_row < cmdline_row {
-                            *ccline.mouse_used = true;
+                        if { ccline.mouse_used }.is_some() && mouse_row < cmdline_row {
+                            ccline.mouse_used = Some(true);
                             return 0;
                         }
                         command_line_left_right_mouse(s);
@@ -2810,7 +2810,7 @@ unsafe fn command_line_handle_key(s: *mut CommandLineState) -> c_int {
                     }
 
                     c if c == b'q' as c_int => {
-                        if !ccline.mouse_used.is_null() {
+                        if { ccline.mouse_used }.is_some() {
                             *ccline.cmdbuff = NUL;
                             return 0;
                         }
@@ -3385,7 +3385,7 @@ pub unsafe fn getcmdline_prompt(
         ccline.input_fn = c_int::from(firstc == b'@' as c_int);
         ccline.highlight_callback = highlight_callback;
         ccline.one_key = one_key;
-        ccline.mouse_used = mouse_used;
+        ccline.mouse_used = (!mouse_used.is_null()).then_some(false);
 
         let cmd_silent_saved = cmd_silent;
         let msg_silent_saved = msg_silent;
@@ -3393,6 +3393,9 @@ pub unsafe fn getcmdline_prompt(
         cmd_silent = false;
 
         let ret = command_line_enter(firstc, 1, 0, false);
+        if !mouse_used.is_null() {
+            *mouse_used = ccline.mouse_used.unwrap_or(false);
+        }
         ccline.redraw_state = kCmdRedrawNone;
         ccline.highlight_callback = Callback::NONE;
 

@@ -2671,7 +2671,7 @@ unsafe fn vim_regsub_both(
                         fe_argv_func: Some(fill_submatch_list),
                         fe_firstline: 0,
                         fe_lastline: 0,
-                        fe_doesrange: ptr::null_mut(),
+                        fe_doesrange: false,
                         fe_evaluate: true,
                         fe_partial: ptr::null_mut(),
                         fe_selfdict: ptr::null_mut(),

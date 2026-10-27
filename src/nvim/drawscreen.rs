@@ -309,7 +309,7 @@ unsafe fn cmdline_number_prompt() -> bool {
     unsafe {
         !ui_has(kUIMessages)
             && (State & MODE_CMDLINE) != 0
-            && !(*get_cmdline_info()).mouse_used.is_null()
+            && (*get_cmdline_info()).mouse_used.is_some()
     }
 }
 
