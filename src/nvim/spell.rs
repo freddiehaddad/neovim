@@ -1095,12 +1095,12 @@ unsafe fn decor_spell_nav_col(
 ) -> TriState {
     unsafe {
         if *decor_lnum != lnum {
-            decor_redraw_reset(wp, &raw mut g_st().decor_state);
+            decor_redraw_reset(wp, &mut g_st().decor_state);
             decor_providers_invoke_spell(wp, lnum - 1, col, lnum - 1, -1);
-            decor_redraw_line(wp, lnum - 1, &raw mut g_st().decor_state);
+            decor_redraw_line(wp, lnum - 1, &mut g_st().decor_state);
             *decor_lnum = lnum;
         }
-        decor_redraw_col(wp, col, 0, false, &raw mut g_st().decor_state, MAXCOL);
+        decor_redraw_col(wp, col, 0, false, &mut g_st().decor_state, MAXCOL);
         g_st().decor_state.spell
     }
 }

@@ -40,17 +40,17 @@ impl Default for TimeWatcher {
 }
 
 #[inline]
-pub unsafe fn loop_fast_events(loop_: *mut Loop) -> *mut MultiQueue {
-    unsafe { (*loop_).fast_events }
+pub unsafe fn loop_fast_events(loop_: &mut Loop) -> *mut MultiQueue {
+    loop_.fast_events
 }
 
 pub unsafe fn time_watcher_init(
-    loop_: *mut Loop,
+    loop_: &mut Loop,
     watcher: *mut TimeWatcher,
     data: TimeWatcherData,
 ) {
     unsafe {
-        uv_timer_init(loop_.cast(), (&raw mut (*watcher).uv).cast());
+        uv_timer_init((&raw mut loop_.uv).cast(), (&raw mut (*watcher).uv).cast());
         *(&raw mut (*watcher).uv).cast::<*mut TimeWatcher>() = watcher;
         (*watcher).data = data;
         (*watcher).events = loop_fast_events(loop_);

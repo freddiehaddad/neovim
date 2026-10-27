@@ -3480,12 +3480,12 @@ unsafe fn op_colon(oap: &mut oparg_T) {
 
 pub unsafe fn free_operatorfunc_option() {
     unsafe {
-        callback_free(&raw mut opt_vars().p_opfunc);
+        callback_free(&mut opt_vars().p_opfunc);
     }
 }
 
 pub unsafe fn set_ref_in_opfunc(copyID: c_int) -> bool {
-    unsafe { set_ref_in_callback(&raw mut opt_vars().p_opfunc, copyID, ptr::null_mut(), ptr::null_mut()) }
+    unsafe { set_ref_in_callback(&mut opt_vars().p_opfunc, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
 unsafe fn op_function(oap: &oparg_T) {

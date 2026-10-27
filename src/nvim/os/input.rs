@@ -303,7 +303,7 @@ pub unsafe fn os_breakcheck() {
             return;
         }
 
-        loop_poll_events(main_loop_ptr(), 0);
+        loop_poll_events(&mut *main_loop_ptr(), 0);
     }
 }
 
@@ -629,7 +629,7 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
         }
 
         if ms == 0 {
-            loop_poll_events(main_loop_ptr(), 0);
+            loop_poll_events(&mut *main_loop_ptr(), 0);
             return os_input_ready(events);
         }
 
@@ -647,7 +647,7 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
         let mut remaining = i64::from(ms);
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
         while !(os_input_ready(events) || input_unanswerable()) {
-            loop_poll_events(main_loop_ptr(), remaining);
+            loop_poll_events(&mut *main_loop_ptr(), remaining);
             if remaining == 0 {
                 break;
             } else if remaining > 0 {

@@ -379,7 +379,7 @@ pub unsafe fn tui_start(
         *tui_out = Some(Box::new(TUIData::new()));
         let tui: &mut TUIData = &mut **(*tui_out).as_mut().unwrap();
 
-        signal_watcher_init(tui.loop_, tui_winch_handle(tui), &raw mut *tui);
+        signal_watcher_init(&mut *tui.loop_, tui_winch_handle(tui), &raw mut *tui);
         signal_watcher_start(tui_winch_handle(tui), SIGWINCH);
 
         tui.grid.cells.clear();
@@ -390,7 +390,7 @@ pub unsafe fn tui_start(
         *timer.cast::<*mut TUIData>() = &raw mut *tui;
         uv_timer_start(timer, Some(after_startup_cb), 100, 0);
 
-        loop_poll_events((&raw mut g_st().main_loop).cast::<Loop>(), 1);
+        loop_poll_events(&mut *(&raw mut g_st().main_loop).cast::<Loop>(), 1);
         *width = tui.width;
         *height = tui.height;
         *term = tui.term.clone();
@@ -1185,7 +1185,7 @@ pub unsafe fn tui_stop(tui: &mut TUIData) {
         terminfo_disable(tui);
 
         let wait_start = os_hrtime();
-        let events = (*loop_queues(tui.loop_)).events;
+        let events = (*loop_queues(&mut *tui.loop_)).events;
         let rs = &raw mut (*input).read_stream;
         let mut remaining: i64 = EXIT_TIMEOUT_MS;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
@@ -1195,7 +1195,7 @@ pub unsafe fn tui_stop(tui: &mut TUIData) {
             if !events.is_null() && !multiqueue_empty(events) {
                 multiqueue_process_events(events);
             } else {
-                loop_poll_events(tui.loop_, remaining);
+                loop_poll_events(&mut *tui.loop_, remaining);
             }
             if remaining == 0 {
                 break;
@@ -2182,7 +2182,7 @@ pub unsafe fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
 
 pub unsafe fn tui_flush(tui: &mut TUIData) {
     unsafe {
-        let nrevents = loop_size(tui.loop_);
+        let nrevents = loop_size(&mut *tui.loop_);
         if nrevents > TOO_MANY_EVENTS {
             if log_st().g_min_log_level <= LOGLVL_WRN {
                 logmsg!(
@@ -2195,7 +2195,7 @@ pub unsafe fn tui_flush(tui: &mut TUIData) {
                     nrevents,
                 );
             }
-            loop_purge(tui.loop_);
+            loop_purge(&mut *tui.loop_);
             tui_busy_stop(tui);
         }
 

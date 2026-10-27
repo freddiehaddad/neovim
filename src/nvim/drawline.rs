@@ -1994,8 +1994,8 @@ pub unsafe fn win_line(
             ptr = line.add(col as usize);
         }
 
-        decor_redraw_line(wp, lnum - 1, &raw mut g_st().decor_state);
-        if !has_decor && decor_has_more_decorations(&raw mut g_st().decor_state, lnum - 1) {
+        decor_redraw_line(wp, lnum - 1, &mut g_st().decor_state);
+        if !has_decor && decor_has_more_decorations(&mut g_st().decor_state, lnum - 1) {
             has_decor = true;
             extra_check = true;
         }
@@ -2059,7 +2059,7 @@ pub unsafe fn win_line(
                 decor_provider_end_col = invoke_range_next(wp, lnum, col, 100);
                 line = ml_get_buf((*wp).w_buffer, lnum);
                 ptr = line.add(col as usize);
-                if !has_decor && decor_has_more_decorations(&raw mut g_st().decor_state, lnum - 1) {
+                if !has_decor && decor_has_more_decorations(&mut g_st().decor_state, lnum - 1) {
                     has_decor = true;
                     extra_check = true;
                 }
@@ -2172,7 +2172,7 @@ pub unsafe fn win_line(
                         (ptr.offset_from(line) as colnr_T) - 1,
                         wlv.off,
                         true,
-                        &raw mut g_st().decor_state,
+                        &mut g_st().decor_state,
                         decor_provider_end_col - 1,
                     );
                 }
@@ -2231,7 +2231,7 @@ pub unsafe fn win_line(
                         let selected = area_active;
                         if decor_need_recheck {
                             if !may_have_inline_virt {
-                                decor_recheck_draw_col(wlv.off, selected, &raw mut g_st().decor_state);
+                                decor_recheck_draw_col(wlv.off, selected, &mut g_st().decor_state);
                             }
                             decor_need_recheck = false;
                         }
@@ -2240,7 +2240,7 @@ pub unsafe fn win_line(
                             ptr.offset_from(line) as colnr_T,
                             if may_have_inline_virt { -3 } else { wlv.off },
                             selected,
-                            &raw mut g_st().decor_state,
+                            &mut g_st().decor_state,
                             decor_provider_end_col - 1,
                         );
                         if may_have_inline_virt {
@@ -3235,7 +3235,7 @@ pub unsafe fn win_line(
                     if has_decor {
                         decor_redraw_eol(
                             wp,
-                            &raw mut g_st().decor_state,
+                            &mut g_st().decor_state,
                             &raw mut wlv.line_attr,
                             wlv.col + eol_skip,
                         );
@@ -3355,7 +3355,7 @@ pub unsafe fn win_line(
                             ptr.offset_from(line) as colnr_T,
                             -1,
                             false,
-                            &raw mut g_st().decor_state,
+                            &mut g_st().decor_state,
                             decor_provider_end_col - 1,
                         );
                     }
@@ -3524,18 +3524,18 @@ pub unsafe fn win_line(
                             ptr.offset_from(line) as colnr_T,
                             -3,
                             false,
-                            &raw mut g_st().decor_state,
+                            &mut g_st().decor_state,
                             decor_provider_end_col - 1,
                         );
                         decor_need_recheck = true;
                     } else if !is_wrapped {
-                        decor_recheck_draw_col(-1, true, &raw mut g_st().decor_state);
+                        decor_recheck_draw_col(-1, true, &mut g_st().decor_state);
                         decor_redraw_col(
                             wp,
                             MAXCOL,
                             -1,
                             true,
-                            &raw mut g_st().decor_state,
+                            &mut g_st().decor_state,
                             decor_provider_end_col - 1,
                         );
                     }

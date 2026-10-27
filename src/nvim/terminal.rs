@@ -531,7 +531,7 @@ pub unsafe fn emit_termrequest(mut req: Box<TermRequestEvent>) {
 
         if term.buf_handle == 0 && term.refcount == 0 {
             term.destroy = true;
-            channel_term_close(term.opts.data);
+            channel_term_close(&mut *term.opts.data);
         }
     }
 }
@@ -553,7 +553,7 @@ unsafe fn schedule_termrequest(term: &mut Terminal) {
         });
 
         multiqueue_put_event(
-            (*loop_queues((&raw mut g_st().main_loop).cast())).events,
+            (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
             Event::TermRequest(req),
         );
     }
@@ -707,11 +707,11 @@ pub unsafe fn terminal_init() {
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_init(
-            (&raw mut g_st().main_loop).cast(),
+            &mut *(&raw mut g_st().main_loop).cast(),
             timer,
             TimeWatcherData::TerminalRefresh,
         );
-        (*timer).events = multiqueue_new_child((*loop_queues((&raw mut g_st().main_loop).cast())).events);
+        (*timer).events = multiqueue_new_child((*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events);
     }
 }
 
@@ -974,7 +974,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
             }
             if term.refcount == 0 {
                 term.destroy = true;
-                channel_term_close(term.opts.data);
+                channel_term_close(&mut *term.opts.data);
             }
         } else if !only_destroy {
             let mut wp = g_st().firstwin;
@@ -1274,7 +1274,7 @@ pub unsafe fn terminal_enter() -> bool {
             (*s.term).refcount -= 1;
             let buf_handle = (*s.term).buf_handle;
             (*s.term).destroy = true;
-            channel_term_close((*s.term).opts.data);
+            channel_term_close(&mut *(*s.term).opts.data);
             if buf_handle != 0 {
                 do_buffer(DOBUF_WIPE, DOBUF_FIRST, FORWARD, buf_handle, 1);
             }
@@ -1329,7 +1329,7 @@ unsafe fn terminal_check_focus(s: *mut TerminalState) -> bool {
             terminal_focus(&mut *(*s).term, false);
             if (*s).close {
                 (*(*s).term).destroy = true;
-                channel_term_close((*(*s).term).opts.data);
+                channel_term_close(&mut *(*(*s).term).opts.data);
                 (*s).close = false;
             }
 
@@ -1450,7 +1450,7 @@ unsafe fn terminal_execute(s: *mut TerminalState, key: c_int) -> c_int {
                     return 1;
                 }
                 if (*(*s).term).suspended {
-                    channel_term_resume((*(*s).term).opts.data);
+                    channel_term_resume(&mut *(*(*s).term).opts.data);
                     terminal_set_state(&mut *(*s).term, false);
                     return 1;
                 }
@@ -1504,7 +1504,7 @@ unsafe fn terminal_send(term: &mut Terminal, data: *const c_char, size: usize) {
             }
             return;
         }
-        channel_term_write(data, size, term.opts.data);
+        channel_term_write(data, size, &mut *term.opts.data);
     }
 }
 
@@ -1644,7 +1644,7 @@ pub unsafe fn terminal_receive(term: &mut Terminal, data: *const c_char, len: us
             term.invalid_start = 0;
             term.invalid_end = height;
             multiqueue_put_event(
-                (*loop_queues((&raw mut g_st().main_loop).cast())).events,
+                (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
                 Event::TermSyncFlush(term.buf_handle),
             );
         }
@@ -2114,7 +2114,7 @@ unsafe fn term_selection_set(
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
             let data = std::ffi::CString::new(&bytes[..end]).unwrap();
             multiqueue_put_event(
-                (*loop_queues((&raw mut g_st().main_loop).cast())).events,
+                (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
                 Event::TermClipboardSet { mask, data },
             );
         }
@@ -2463,8 +2463,8 @@ unsafe fn refresh_terminal(term: &mut Terminal) {
         }
 
         multiqueue_move_events(
-            (*loop_queues((&raw mut g_st().main_loop).cast())).events,
-            term.pending.events,
+            &mut *(*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events,
+            &mut *term.pending.events,
         );
     }
 }
@@ -2549,7 +2549,7 @@ unsafe fn refresh_size(term: &mut Terminal, _buf: *mut buf_T) -> bool {
         vterm_get_size(&term.vt, &mut height, &mut width);
         term.invalid_start = 0;
         term.invalid_end = height;
-        channel_term_resize(width as u16, height as u16, term.opts.data);
+        channel_term_resize(width as u16, height as u16, &mut *term.opts.data);
         true
     }
 }
@@ -2598,7 +2598,7 @@ unsafe fn adjust_scrollback(term: &mut Terminal, buf: *mut buf_T) {
 
 unsafe fn refresh_scrollback(term: &mut Terminal, buf: *mut buf_T) {
     unsafe {
-        channel_term_read_pause(true, term.opts.data);
+        channel_term_read_pause(true, &mut *term.opts.data);
 
         let mut deleted = (term.sb_deleted - term.old_sb_deleted) as linenr_T;
         deleted = deleted.min((*buf).b_ml.ml_line_count);
@@ -2646,7 +2646,7 @@ unsafe fn refresh_scrollback(term: &mut Terminal, buf: *mut buf_T) {
 
         adjust_scrollback(term, buf);
 
-        channel_term_read_pause(false, term.opts.data);
+        channel_term_read_pause(false, &mut *term.opts.data);
     }
 }
 

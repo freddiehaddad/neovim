@@ -1504,7 +1504,7 @@ fn event_name2nr_hash(str_: *const c_char, len: usize) -> isize {
 
 pub unsafe fn autocmd_init() {
     unsafe {
-        let events = (*loop_queues((&raw mut g_st().main_loop).cast::<Loop>())).events;
+        let events = (*loop_queues(&mut *(&raw mut g_st().main_loop).cast::<Loop>())).events;
         g_st().deferred_events = multiqueue_new_child(events);
     }
 }
@@ -2280,7 +2280,7 @@ pub unsafe fn do_autocmd_event(
                     nested != 0,
                     ptr::null_mut(),
                     cmd,
-                    &raw mut handler_fn,
+                    &mut handler_fn,
                 );
             }
 
@@ -2302,7 +2302,7 @@ pub unsafe fn autocmd_register(
     nested: bool,
     desc: *mut c_char,
     handler_cmd: *const c_char,
-    handler_fn: *mut Callback,
+    handler_fn: &mut Callback,
 ) -> c_int {
     unsafe {
         assert!(group != 0);
@@ -2422,7 +2422,7 @@ pub unsafe fn autocmd_register(
             ac.handler = AutoCmdHandler::Cmd(CStr::from_ptr(handler_cmd).to_owned());
         } else {
             let mut cb = Callback::new();
-            callback_copy(&raw mut cb, handler_fn);
+            callback_copy(&mut cb, handler_fn);
             ac.handler = AutoCmdHandler::Fn(cb);
         }
         ac.script_ctx = g_st().current_sctx;
@@ -3940,7 +3940,7 @@ pub unsafe fn may_trigger_vim_suspend_resume(suspend: bool) {
             au_st().pending_vimresume = kTrue;
         } else if !suspend && au_st().pending_vimresume == kTrue {
             au_st().pending_vimresume = kNone;
-            let events = (*loop_queues((&raw mut g_st().main_loop).cast::<Loop>())).events;
+            let events = (*loop_queues(&mut *(&raw mut g_st().main_loop).cast::<Loop>())).events;
             multiqueue_put_event(events, Event::AutoCmdVimResume);
         }
     }

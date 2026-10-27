@@ -1452,7 +1452,7 @@ unsafe fn win_update(wp: *mut win_T) {
         let extmarks = &raw mut g_st().win_extmark_arr;
         (*extmarks).clear();
 
-        decor_redraw_reset(wp, &raw mut g_st().decor_state);
+        decor_redraw_reset(wp, &mut g_st().decor_state);
         decor_providers_invoke_win(wp);
 
         if !(*buf).terminal.is_null() && terminal_suspended(&*(*buf).terminal) {
@@ -1464,7 +1464,7 @@ unsafe fn win_update(wp: *mut win_T) {
                 });
             }
             decor_range_add_virt(
-                &raw mut g_st().decor_state,
+                &mut g_st().decor_state,
                 (*buf).b_ml.ml_line_count - 1,
                 0,
                 (*buf).b_ml.ml_line_count - 1,
@@ -2276,7 +2276,7 @@ unsafe fn win_update(wp: *mut win_T) {
                     lnum = (*wp).w_topline;
                     (*wp).w_lines_valid = 0;
                     (*wp).w_valid &= !VALID_WCOL;
-                    decor_redraw_reset(wp, &raw mut g_st().decor_state);
+                    decor_redraw_reset(wp, &mut g_st().decor_state);
                     decor_providers_invoke_win(wp);
                     continue;
                 }
@@ -2379,7 +2379,7 @@ unsafe fn win_update(wp: *mut win_T) {
                             lnum = (*wp).w_topline;
                             (*wp).w_lines_valid = 0;
                             (*wp).w_valid &= !VALID_WCOL;
-                            decor_redraw_reset(wp, &raw mut g_st().decor_state);
+                            decor_redraw_reset(wp, &mut g_st().decor_state);
                             decor_providers_invoke_win(wp);
                             continue 'statuscol_retry;
                         }

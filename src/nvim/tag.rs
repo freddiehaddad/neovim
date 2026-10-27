@@ -385,14 +385,14 @@ use crate::charset::toupper_asc;
 
 pub unsafe fn free_tagfunc_option() {
     unsafe {
-        callback_free(&raw mut opt_vars().p_tfu);
+        callback_free(&mut opt_vars().p_tfu);
     }
 }
 
 /// Mark the global `'tagfunc'` callback with `copyID` so that it is not garbage
 /// collected.
 pub unsafe fn set_ref_in_tagfunc(copyID: c_int) -> bool {
-    unsafe { set_ref_in_callback(&raw mut opt_vars().p_tfu, copyID, ptr::null_mut(), ptr::null_mut()) }
+    unsafe { set_ref_in_callback(&mut opt_vars().p_tfu, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
 /// Jump to tag; handling of tag commands and tag stack.

@@ -266,7 +266,7 @@ pub unsafe fn tinput_destroy(input: &mut TermInput) {
             uv_close((&raw mut input.timer_handle).cast(), None);
             uv_close((&raw mut input.bg_query_timer).cast(), None);
         }
-        rstream_may_close(&raw mut input.read_stream);
+        rstream_may_close(&mut input.read_stream);
         input.tk = None;
         input.loop_ = ptr::null_mut();
     }
@@ -274,16 +274,17 @@ pub unsafe fn tinput_destroy(input: &mut TermInput) {
 
 pub unsafe fn tinput_start(input: &mut TermInput) {
     unsafe {
+        let input_ptr = &raw mut *input;
         rstream_start(
-            &raw mut input.read_stream,
-            StreamCbData::Input(input),
+            &mut input.read_stream,
+            StreamCbData::Input(input_ptr),
         );
     }
 }
 
 pub unsafe fn tinput_stop(input: &mut TermInput) {
     unsafe {
-        rstream_stop(&raw mut input.read_stream);
+        rstream_stop(&mut input.read_stream);
         {
             uv_timer_stop((&raw mut input.timer_handle).cast());
             uv_timer_stop((&raw mut input.bg_query_timer).cast());
@@ -622,10 +623,10 @@ unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
     unsafe {
         let input = &mut **handle.cast::<*mut TermInput>();
         let rs = &raw mut input.read_stream;
-        let size = rstream_available(rs);
+        let size = rstream_available(&mut *rs);
         if size != 0 {
             let consumed = handle_raw_buffer(input, true, (*rs).read_ptr(), size);
-            rstream_consume(rs, consumed);
+            rstream_consume(&mut *rs, consumed);
         }
         tk_getkeys(input, true);
         tinput_flush(input);
@@ -1022,7 +1023,7 @@ unsafe fn handle_raw_buffer(
 }
 
 pub(crate) unsafe fn tinput_read_cb(
-    _stream: *mut RStream,
+    _stream: &mut RStream,
     buf: *const c_char,
     count_: usize,
     input: &mut TermInput,
@@ -1035,7 +1036,7 @@ pub(crate) unsafe fn tinput_read_cb(
         tinput_flush(input);
 
         if eof {
-            loop_schedule_fast((&raw mut g_st().main_loop).cast(), Event::TInputDone);
+            loop_schedule_fast(&mut *(&raw mut g_st().main_loop).cast(), Event::TInputDone);
             return consumed;
         }
 

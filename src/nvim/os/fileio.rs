@@ -67,7 +67,7 @@ pub fn file_space(fp: &FileDescriptor) -> usize {
 /// # Safety
 /// `ret_fp` and `fname` must be valid pointers.
 pub unsafe fn file_open(
-    ret_fp: *mut FileDescriptor,
+    ret_fp: &mut FileDescriptor,
     fname: *const c_char,
     flags: c_int,
     mode: c_int,
@@ -130,8 +130,8 @@ pub unsafe fn file_open(
 ///
 /// # Safety
 /// `ret_fp` must be a valid writable pointer.
-pub unsafe fn file_open_fd(ret_fp: *mut FileDescriptor, fd: c_int, flags: c_int) -> c_int {
-    let fp = unsafe { &mut *ret_fp };
+pub unsafe fn file_open_fd(ret_fp: &mut FileDescriptor, fd: c_int, flags: c_int) -> c_int {
+    let fp = &mut *ret_fp;
     fp.wr = (flags
         & (K_FILE_CREATE
             | K_FILE_CREATE_ONLY
@@ -154,7 +154,7 @@ pub unsafe fn file_open_fd(ret_fp: *mut FileDescriptor, fd: c_int, flags: c_int)
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer.
-pub unsafe fn file_open_stdin(fp: *mut FileDescriptor) -> c_int {
+pub unsafe fn file_open_stdin(fp: &mut FileDescriptor) -> c_int {
     let fd = unsafe { os_open_stdin_fd() };
     unsafe { file_open_fd(fp, fd, K_FILE_READ_ONLY | K_FILE_NON_BLOCKING) }
 }
@@ -163,8 +163,8 @@ pub unsafe fn file_open_stdin(fp: *mut FileDescriptor) -> c_int {
 ///
 /// # Safety
 /// `ret_fp` must be a valid writable pointer, and `data` must be valid for `len` bytes.
-pub unsafe fn file_open_buffer(ret_fp: *mut FileDescriptor, data: *mut c_char, len: usize) {
-    let fp = unsafe { &mut *ret_fp };
+pub unsafe fn file_open_buffer(ret_fp: &mut FileDescriptor, data: *mut c_char, len: usize) {
+    let fp = &mut *ret_fp;
     fp.wr = false;
     fp.non_blocking = false;
     fp.fd = -1;
@@ -183,9 +183,9 @@ pub unsafe fn file_open_buffer(ret_fp: *mut FileDescriptor, data: *mut c_char, l
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-pub unsafe fn file_close(fp: *mut FileDescriptor, do_fsync: bool) -> c_int {
-    let fp_ref = unsafe { &mut *fp };
-    if fp_ref.fd < 0 {
+pub unsafe fn file_close(fp: &mut FileDescriptor, do_fsync: bool) -> c_int {
+    
+    if fp.fd < 0 {
         return 0;
     }
 
@@ -194,10 +194,10 @@ pub unsafe fn file_close(fp: *mut FileDescriptor, do_fsync: bool) -> c_int {
     } else {
         unsafe { file_flush(fp) }
     };
-    let close_error = unsafe { os_close(fp_ref.fd) };
-    fp_ref.buffer = Vec::new();
-    fp_ref.read_pos = 0;
-    fp_ref.write_pos = 0;
+    let close_error = unsafe { os_close(fp.fd) };
+    fp.buffer = Vec::new();
+    fp.read_pos = 0;
+    fp.write_pos = 0;
     if close_error != 0 {
         return close_error;
     }
@@ -208,16 +208,16 @@ pub unsafe fn file_close(fp: *mut FileDescriptor, do_fsync: bool) -> c_int {
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-pub unsafe fn file_fsync(fp: *mut FileDescriptor) -> c_int {
-    let fp_ref = unsafe { &mut *fp };
-    if !fp_ref.wr {
+pub unsafe fn file_fsync(fp: &mut FileDescriptor) -> c_int {
+    
+    if !fp.wr {
         return 0;
     }
     let flush_error = unsafe { file_flush(fp) };
     if flush_error != 0 {
         return flush_error;
     }
-    let fsync_error = unsafe { os_fsync(fp_ref.fd) };
+    let fsync_error = unsafe { os_fsync(fp.fd) };
     if fsync_error != UV_EINVAL && fsync_error != UV_EROFS && fsync_error != UV_ENOTSUP {
         return fsync_error;
     }
@@ -390,19 +390,19 @@ pub unsafe fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *m
 ///
 /// # Safety
 /// `fp` must be a valid writable `FileDescriptor`, and `buf` must be valid for `size` bytes.
-pub unsafe fn file_write(fp: *mut FileDescriptor, buf: *const c_char, size: usize) -> isize {
-    let fp_ref = unsafe { &mut *fp };
-    assert!(fp_ref.wr);
-    if size < file_space(fp_ref) {
+pub unsafe fn file_write(fp: &mut FileDescriptor, buf: *const c_char, size: usize) -> isize {
+    
+    assert!(fp.wr);
+    if size < file_space(fp) {
         if size > 0 {
             unsafe {
                 std::ptr::copy_nonoverlapping(
                     buf.cast::<u8>(),
-                    fp_ref.buffer.as_mut_ptr().add(fp_ref.write_pos).cast::<u8>(),
+                    fp.buffer.as_mut_ptr().add(fp.write_pos).cast::<u8>(),
                     size,
                 );
             }
-            fp_ref.write_pos += size;
+            fp.write_pos += size;
         }
         return size as isize;
     }
@@ -417,16 +417,16 @@ pub unsafe fn file_write(fp: *mut FileDescriptor, buf: *const c_char, size: usiz
             unsafe {
                 std::ptr::copy_nonoverlapping(
                     buf.cast::<u8>(),
-                    fp_ref.buffer.as_mut_ptr().add(fp_ref.write_pos).cast::<u8>(),
+                    fp.buffer.as_mut_ptr().add(fp.write_pos).cast::<u8>(),
                     size,
                 );
             }
-            fp_ref.write_pos += size;
+            fp.write_pos += size;
         }
         return size as isize;
     }
 
-    let wres = unsafe { os_write(fp_ref.fd, buf, size, fp_ref.non_blocking) };
+    let wres = unsafe { os_write(fp.fd, buf, size, fp.non_blocking) };
     if wres != size as isize && wres >= 0 {
         UV_EIO as isize
     } else {

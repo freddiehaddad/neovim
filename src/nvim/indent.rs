@@ -1622,7 +1622,7 @@ pub unsafe fn get_expr_indent() -> c_int {
         g_st().textlock += 1;
         g_st().current_sctx = (*g_st().curbuf).b_p_script_ctx[kBufOptIndentexpr];
 
-        let mut indent = eval_expr_option_number(&raw mut (*g_st().curbuf).b_p_inde, use_sandbox);
+        let mut indent = eval_expr_option_number(&mut (*g_st().curbuf).b_p_inde, use_sandbox);
 
         g_st().textlock -= 1;
         g_st().current_sctx = save_sctx;

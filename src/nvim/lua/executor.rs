@@ -699,7 +699,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
 
             let mut len: usize = 0;
             let error = nlua_get_error(lstate, &raw mut len);
-            let queues = loop_queues((&raw mut g_st().main_loop).cast());
+            let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
             put_event(
                 (*queues).events,
                 Event::NluaLuvError {
@@ -793,7 +793,7 @@ unsafe fn nlua_luv_thread_common_cfpcall(
                     kThread
                 },
             };
-            loop_schedule_deferred((&raw mut g_st().main_loop).cast(), ev);
+            loop_schedule_deferred(&mut *(&raw mut g_st().main_loop).cast(), ev);
             lua_pop(lstate, 1);
             -status
         } else {
@@ -898,13 +898,13 @@ unsafe extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> c_int {
         }
 
         lua_pushnil(lstate);
-        if *loop_closing_ptr((&raw mut g_st().main_loop).cast()) {
+        if *loop_closing_ptr(&mut *(&raw mut g_st().main_loop).cast()) {
             lua_pushlstring(lstate, c"main loop is closing".as_ptr(), 20);
             return 2;
         }
 
         let cb = nlua_ref_global(lstate, 1);
-        let queues = loop_queues((&raw mut g_st().main_loop).cast());
+        let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
         put_event(
             (*queues).events,
             Event::NluaSchedule {
@@ -922,7 +922,7 @@ unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> c_int {
         let timeout = luaL_checkinteger(lstate, 1) as i64;
         let fast_only = lua_toboolean(lstate, 2) != 0;
 
-        let queues = loop_queues((&raw mut g_st().main_loop).cast());
+        let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
         let loop_events = if fast_only {
             (*queues).fast_events
         } else {
@@ -931,7 +931,7 @@ unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> c_int {
         if !loop_events.is_null() && !multiqueue_empty(loop_events) {
             multiqueue_process_events(loop_events);
         } else {
-            loop_poll_events((&raw mut g_st().main_loop).cast(), timeout);
+            loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), timeout);
         }
 
         0
@@ -1486,11 +1486,11 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
 
         if is_thread {
             loop_schedule_deferred(
-                (&raw mut g_st().main_loop).cast(),
+                &mut *(&raw mut g_st().main_loop).cast(),
                 Event::NluaPrint(msg_str),
             );
         } else if nlua_st().IN_FAST_CALLBACK != 0 {
-            let queues = loop_queues((&raw mut g_st().main_loop).cast());
+            let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
             put_event((*queues).events, Event::NluaPrint(msg_str));
         } else {
             nlua_print_event(msg_str);
@@ -2473,19 +2473,19 @@ pub unsafe fn nlua_exec_file(path: *const c_char) -> bool {
             lua_pushstring(lstate, path);
         } else {
             let mut stdin_dup = FileDescriptor::new();
-            if file_open_stdin(&raw mut stdin_dup) != 0 {
+            if file_open_stdin(&mut stdin_dup) != 0 {
                 return false;
             }
 
             let mut sb: Vec<u8> = Vec::with_capacity(64);
             loop {
                 if g_st().got_int {
-                    file_close(&raw mut stdin_dup, false);
+                    file_close(&mut stdin_dup, false);
                     return false;
                 }
                 let read_size = file_read(&raw mut stdin_dup, (&raw mut g_st().IObuff).cast(), 64);
                 if read_size < 0 {
-                    file_close(&raw mut stdin_dup, false);
+                    file_close(&mut stdin_dup, false);
                     return false;
                 }
                 if read_size > 0 {
@@ -2500,7 +2500,7 @@ pub unsafe fn nlua_exec_file(path: *const c_char) -> bool {
                 }
             }
             sb.push(0);
-            file_close(&raw mut stdin_dup, false);
+            file_close(&mut stdin_dup, false);
 
             lua_getglobal(lstate, c"loadstring".as_ptr());
             lua_pushstring(lstate, sb.as_ptr().cast());

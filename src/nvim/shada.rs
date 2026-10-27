@@ -771,8 +771,8 @@ unsafe fn file_eof(fp: *const FileDescriptor) -> bool {
 
 #[inline]
 #[cfg(unix)]
-unsafe fn file_fd(fp: *const FileDescriptor) -> c_int {
-    unsafe { (*fp).fd }
+fn file_fd(fp: &FileDescriptor) -> c_int {
+    fp.fd
 }
 
 use crate::os::fileio::file_space;
@@ -989,7 +989,7 @@ unsafe fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDa
     }
 }
 
-unsafe fn close_file(cookie: *mut FileDescriptor) {
+unsafe fn close_file(cookie: &mut FileDescriptor) {
     unsafe {
         let error = file_close(cookie, opt_vars().p_fs != 0);
         if error != 0 {
@@ -1311,7 +1311,7 @@ fn marklist_insert<T>(jumps: &mut [T; JUMPLISTSIZE], jl_len: c_int, mut i: c_int
     i
 }
 
-unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
+unsafe fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
     unsafe {
         let mut oldfiles_list = get_vim_var_list(VV_OLDFILES);
         let force = (flags & kShaDaForceit) != 0;
@@ -1384,7 +1384,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
         }
 
         loop {
-            let srni_ret = shada_read_next_item(sd_reader, &mut cur_entry, srni_flags, 0);
+            let srni_ret = shada_read_next_item(&raw mut *sd_reader, &mut cur_entry, srni_flags, 0);
             if srni_ret == ShaDaReadResult::kSDReadStatusFinished {
                 break;
             }
@@ -2633,15 +2633,15 @@ pub(crate) unsafe fn flush_file_buffer(buffer: &mut PackerBuffer) {
     }
 }
 
-unsafe fn packer_buffer_for_file(file: *mut FileDescriptor) -> PackerBuffer {
+unsafe fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
     unsafe {
         if file_space(&*file) < SHADA_MPACK_FREE_SPACE {
-            file_flush(file);
+            file_flush(&raw mut *file);
         }
         let base = (&mut *file).buffer.as_mut_ptr();
         PackerBuffer {
             startptr: base,
-            ptr: base.add((*file).write_pos),
+            ptr: base.add(file.write_pos),
             endptr: base.add(ARENA_BLOCK_SIZE),
             anydata: crate::msgpack_rpc::packer::PackerData::File(file),
             anyint: 0,
@@ -2720,7 +2720,7 @@ unsafe fn shada_write(
                 0
             };
 
-        let mut packer = packer_buffer_for_file(sd_writer);
+        let mut packer = packer_buffer_for_file(&mut *sd_writer);
 
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {

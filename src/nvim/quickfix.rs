@@ -2550,8 +2550,8 @@ unsafe fn copy_loclist(from_qfl: &qf_list_T, to_qfl: &mut qf_list_T) -> c_int {
             to_qfl.qf_ctx = None;
         }
         callback_copy(
-            &raw mut to_qfl.qf_qftf_cb,
-            (&raw const from_qfl.qf_qftf_cb).cast_mut(),
+            &mut to_qfl.qf_qftf_cb,
+            &*(&raw const from_qfl.qf_qftf_cb),
         );
 
         if !from_qfl.qf_items.is_empty() && copy_loclist_entries(from_qfl, to_qfl) == FAIL {
@@ -3883,7 +3883,7 @@ unsafe fn qf_free(qfl: &mut qf_list_T) {
             tv_clear(ctx);
         }
         qfl.qf_ctx = None;
-        callback_free(&raw mut qfl.qf_qftf_cb);
+        callback_free(&mut qfl.qf_qftf_cb);
         qfl.qf_id = 0;
         qfl.qf_changedtick = 0;
     }
@@ -4919,7 +4919,7 @@ unsafe fn get_mef_name() -> Option<std::ffi::CString> {
             );
             c_strcat(name, p.add(2));
             let mut file_info = FileInfo::new();
-            let file_or_link_found = os_fileinfo_link(name, &raw mut file_info);
+            let file_or_link_found = os_fileinfo_link(name, &mut file_info);
             if !file_or_link_found {
                 return Some(CStr::from_ptr(name).to_owned());
             }
@@ -6609,7 +6609,7 @@ unsafe fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: *mut dict_T) -> c_int {
     unsafe {
         if qfl.qf_qftf_cb.cb_type() != kCallbackNone {
             let mut tv: typval_T = typval_T::new();
-            callback_put(&raw mut qfl.qf_qftf_cb, &raw mut tv);
+            callback_put(&mut qfl.qf_qftf_cb, &raw mut tv);
             let status = tv_dict_add_tv(retdict, c"quickfixtextfunc".as_ptr(), 16, &raw mut tv);
             tv_clear(&raw mut tv);
             status
@@ -6719,8 +6719,8 @@ unsafe fn qf_setprop_qftf(qfl: &mut qf_list_T, di: *mut dictitem_T) -> c_int {
         }
 
         let mut cb: Callback = Callback::new();
-        callback_free(&raw mut qfl.qf_qftf_cb);
-        if callback_from_typval(&raw mut cb, &raw mut (*di).di_tv) {
+        callback_free(&mut qfl.qf_qftf_cb);
+        if callback_from_typval(&mut cb, &raw mut (*di).di_tv) {
             qfl.qf_qftf_cb = cb;
         }
         OK
@@ -7363,7 +7363,7 @@ unsafe fn mark_quickfix_ctx(qi: &mut qf_info_T, copyID: c_int) -> bool {
             }
 
             let cb = &raw mut qfl.qf_qftf_cb;
-            abort = abort || set_ref_in_callback(cb, copyID, ptr::null_mut(), ptr::null_mut());
+            abort = abort || set_ref_in_callback(&mut *cb, copyID, ptr::null_mut(), ptr::null_mut());
             i += 1;
         }
         abort
@@ -7374,7 +7374,7 @@ pub unsafe fn set_ref_in_quickfix(copyID: c_int) -> bool {
     unsafe {
         if mark_quickfix_ctx(&mut *ql_info_ptr(), copyID)
             || mark_quickfix_user_data(&mut *ql_info_ptr(), copyID)
-            || set_ref_in_callback(&raw mut opt_vars().p_qftf, copyID, ptr::null_mut(), ptr::null_mut())
+            || set_ref_in_callback(&mut opt_vars().p_qftf, copyID, ptr::null_mut(), ptr::null_mut())
         {
             return true;
         }
@@ -7882,7 +7882,7 @@ pub unsafe fn free_quickfix() {
             tab = (*tab).tp_next;
         }
 
-        callback_free(&raw mut opt_vars().p_qftf);
+        callback_free(&mut opt_vars().p_qftf);
         let gap = &raw mut qf_st().qfga;
         *gap = Vec::new();
     }

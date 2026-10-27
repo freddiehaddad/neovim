@@ -1761,8 +1761,8 @@ impl Drop for buf_T {
             self.b_prevdir = None;
             self.additional_data = None;
             self.b_prompt_text = None;
-            callback_free(&raw mut self.b_prompt_callback);
-            callback_free(&raw mut self.b_prompt_interrupt);
+            callback_free(&mut self.b_prompt_callback);
+            callback_free(&mut self.b_prompt_interrupt);
             clear_fmark(&raw mut self.b_last_cursor, 0);
             clear_fmark(&raw mut self.b_last_insert, 0);
             clear_fmark(&raw mut self.b_last_change, 0);
@@ -1789,8 +1789,8 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         if g_st().autocmd_busy {
             (*buf).additional_data = None;
             (*buf).b_prompt_text = None;
-            callback_free(&raw mut (*buf).b_prompt_callback);
-            callback_free(&raw mut (*buf).b_prompt_interrupt);
+            callback_free(&mut (*buf).b_prompt_callback);
+            callback_free(&mut (*buf).b_prompt_interrupt);
             clear_fmark(&raw mut (*buf).b_last_cursor, 0);
             clear_fmark(&raw mut (*buf).b_last_insert, 0);
             clear_fmark(&raw mut (*buf).b_last_change, 0);
@@ -2975,11 +2975,11 @@ pub unsafe fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
         }
         clear_string_option(&raw mut (*buf).b_p_def);
         clear_string_option(&raw mut (*buf).b_p_inc);
-        callback_free(&raw mut (*buf).b_p_inex);
-        callback_free(&raw mut (*buf).b_p_inde);
+        callback_free(&mut (*buf).b_p_inex);
+        callback_free(&mut (*buf).b_p_inde);
         clear_string_option(&raw mut (*buf).b_p_indk);
         clear_string_option(&raw mut (*buf).b_p_fp);
-        callback_free(&raw mut (*buf).b_p_fex);
+        callback_free(&mut (*buf).b_p_fex);
         clear_string_option(&raw mut (*buf).b_p_kp);
         clear_string_option(&raw mut (*buf).b_p_mps);
         clear_string_option(&raw mut (*buf).b_p_fo);
@@ -3013,9 +3013,9 @@ pub unsafe fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
         clear_string_option(&raw mut (*buf).b_p_cpt);
         #[cfg(windows)]
         clear_string_option(&raw mut (*buf).b_p_csl);
-        callback_free(&raw mut (*buf).b_p_cfu);
-        callback_free(&raw mut (*buf).b_p_ofu);
-        callback_free(&raw mut (*buf).b_p_tsrfu);
+        callback_free(&mut (*buf).b_p_cfu);
+        callback_free(&mut (*buf).b_p_ofu);
+        callback_free(&mut (*buf).b_p_tsrfu);
         clear_cpt_callbacks(&mut (*buf).b_p_cpt_cb);
         clear_string_option(&raw mut (*buf).b_p_gefm);
         clear_string_option(&raw mut (*buf).b_p_gp);
@@ -3025,8 +3025,8 @@ pub unsafe fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
         clear_string_option(&raw mut (*buf).b_p_path);
         clear_string_option(&raw mut (*buf).b_p_tags);
         clear_string_option(&raw mut (*buf).b_p_tc);
-        callback_free(&raw mut (*buf).b_p_tfu);
-        callback_free(&raw mut (*buf).b_p_ffu);
+        callback_free(&mut (*buf).b_p_tfu);
+        callback_free(&mut (*buf).b_p_ffu);
         clear_string_option(&raw mut (*buf).b_p_dict);
         clear_string_option(&raw mut (*buf).b_p_dia);
         clear_string_option(&raw mut (*buf).b_p_tsr);

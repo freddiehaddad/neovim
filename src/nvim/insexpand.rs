@@ -3275,7 +3275,7 @@ unsafe fn parse_cpt_callbacks(cpt: *mut c_char, cbp: &mut Vec<Callback>) {
                     if !caret.is_null() {
                         *caret = NUL;
                     }
-                    if option_set_callback_func(buf.as_mut_ptr().add(1), &raw mut cbp[idx]) != OK {
+                    if option_set_callback_func(buf.as_mut_ptr().add(1), &mut cbp[idx]) != OK {
                         cbp[idx] = Callback::NONE;
                     }
                 }
@@ -3325,11 +3325,11 @@ pub unsafe fn set_ref_in_cpt_callbacks(callbacks: &mut [Callback], copyID: c_int
 pub unsafe fn set_ref_in_insexpand_funcs(copyID: c_int) -> bool {
     unsafe {
         let mut abort =
-            set_ref_in_callback(&raw mut opt_vars().p_cfu, copyID, ptr::null_mut(), ptr::null_mut());
+            set_ref_in_callback(&mut opt_vars().p_cfu, copyID, ptr::null_mut(), ptr::null_mut());
         abort =
-            abort || set_ref_in_callback(&raw mut opt_vars().p_ofu, copyID, ptr::null_mut(), ptr::null_mut());
+            abort || set_ref_in_callback(&mut opt_vars().p_ofu, copyID, ptr::null_mut(), ptr::null_mut());
         abort = abort
-            || set_ref_in_callback(&raw mut opt_vars().p_tsrfu, copyID, ptr::null_mut(), ptr::null_mut());
+            || set_ref_in_callback(&mut opt_vars().p_tsrfu, copyID, ptr::null_mut(), ptr::null_mut());
         let global_cb = &raw mut insexp().cpt_cb;
         abort = abort || set_ref_in_cpt_callbacks(&mut *global_cb, copyID);
         abort
@@ -4980,7 +4980,7 @@ unsafe fn get_next_completion_match(
             }
             CTRL_X_FUNCTION => {
                 if ctrl_x_mode_normal() {
-                    get_cpt_func_completion_matches((*st).func_cb.as_ptr());
+                    get_cpt_func_completion_matches(&mut *(*st).func_cb.as_ptr());
                 } else {
                     expand_by_function(type_, compl_pattern_ptr(), ptr::null_mut());
                 }
@@ -6838,9 +6838,9 @@ pub unsafe fn free_insexpand_stuff() {
         api_clear_string(&raw mut insexp().compl_orig_text);
         let extmarks = &raw mut insexp().compl_orig_extmarks;
         *extmarks = Vec::new();
-        callback_free(&raw mut opt_vars().p_cfu);
-        callback_free(&raw mut opt_vars().p_ofu);
-        callback_free(&raw mut opt_vars().p_tsrfu);
+        callback_free(&mut opt_vars().p_cfu);
+        callback_free(&mut opt_vars().p_ofu);
+        callback_free(&mut opt_vars().p_tsrfu);
         let global_cb = &raw mut insexp().cpt_cb;
         clear_cpt_callbacks(&mut *global_cb);
     }
@@ -6980,7 +6980,7 @@ unsafe fn remove_old_matches() {
     }
 }
 
-unsafe fn get_cpt_func_completion_matches(cb: *mut Callback) {
+unsafe fn get_cpt_func_completion_matches(cb: &mut Callback) {
     unsafe {
         let cpt_src = &raw mut insexp().cpt_sources_array[insexp().cpt_sources_index as usize];
         let startcol = (*cpt_src).cs_startcol;
@@ -6995,7 +6995,7 @@ unsafe fn get_cpt_func_completion_matches(cb: *mut Callback) {
             ins_compl_insert_bytes(ins_compl_leader(), -1);
         }
 
-        expand_by_function(0, insexp().cpt_compl_pattern.data, cb);
+        expand_by_function(0, insexp().cpt_compl_pattern.data, &raw mut *cb);
 
         if !(*cpt_src).cs_refresh_always {
             ins_compl_delete(false);
@@ -7046,7 +7046,7 @@ unsafe fn cpt_compl_refresh() {
                     insexp().cpt_sources_array[insexp().cpt_sources_index as usize].cs_startcol = startcol;
                     if ret == OK {
                         compl_source_start_timer(insexp().cpt_sources_index);
-                        get_cpt_func_completion_matches(cb);
+                        get_cpt_func_completion_matches(&mut *cb);
                     }
                 }
             }

@@ -313,7 +313,7 @@ impl Drop for timer_T {
             if !self.watcher.events.is_null() {
                 multiqueue_free(self.watcher.events);
             }
-            callback_free(&raw mut self.callback);
+            callback_free(&mut self.callback);
         }
     }
 }
@@ -955,10 +955,10 @@ pub unsafe fn call_func_retlist(
 }
 
 /// Evaluate a number-valued "expr" option ('indentexpr'/'formatexpr') via its callback.
-pub unsafe fn eval_expr_option_number(cb: *mut Callback, use_sandbox: bool) -> c_int {
+pub unsafe fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> c_int {
     unsafe {
         let mut copy = Callback::NONE;
-        callback_copy(&raw mut copy, cb);
+        callback_copy(&mut copy, cb);
         if use_sandbox {
             g_st().sandbox += 1;
         }
@@ -974,7 +974,7 @@ pub unsafe fn eval_expr_option_number(cb: *mut Callback, use_sandbox: bool) -> c
         if use_sandbox {
             g_st().sandbox -= 1;
         }
-        callback_free(&raw mut copy);
+        callback_free(&mut copy);
         retval
     }
 }
@@ -982,7 +982,7 @@ pub unsafe fn eval_expr_option_number(cb: *mut Callback, use_sandbox: bool) -> c
 /// Evaluate a "expr" option ('foldtext'/'includeexpr') via its callback, under |textlock| and an
 /// isolated funccal stack; evaluates in the |sandbox| when `use_sandbox`.
 pub unsafe fn eval_expr_option_tv(
-    cb: *mut Callback,
+    cb: &mut Callback,
     use_sandbox: bool,
     ret_tv: *mut typval_T,
 ) -> bool {
@@ -995,7 +995,7 @@ pub unsafe fn eval_expr_option_tv(
             g_st().textlock += 1;
         }
         let mut argv = [tv_initial_value()];
-        let ok = callback_call(cb, 0, argv.as_mut_ptr(), ret_tv);
+        let ok = callback_call(&raw mut *cb, 0, argv.as_mut_ptr(), ret_tv);
         {
             g_st().textlock -= 1;
             if use_sandbox {
@@ -1067,7 +1067,7 @@ pub unsafe fn eval_foldtext(wp: *mut win_T) -> Object {
         let mut tv = tv_initial_value();
         let retval: Object;
         if !eval_expr_option_tv(
-            (&raw mut (*wp).w_onebuf_opt.wo_fdt).cast(),
+            &mut *(&raw mut (*wp).w_onebuf_opt.wo_fdt).cast(),
             use_sandbox,
             &raw mut tv,
         ) {
@@ -4355,49 +4355,49 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &raw mut (*buf).b_prompt_callback,
+                        &mut (*buf).b_prompt_callback,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &raw mut (*buf).b_prompt_interrupt,
+                        &mut (*buf).b_prompt_interrupt,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &raw mut (*buf).b_p_cfu,
+                        &mut (*buf).b_p_cfu,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &raw mut (*buf).b_p_ofu,
+                        &mut (*buf).b_p_ofu,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &raw mut (*buf).b_p_tsrfu,
+                        &mut (*buf).b_p_tsrfu,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &raw mut (*buf).b_p_tfu,
+                        &mut (*buf).b_p_tfu,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
                     );
                 abort = abort
                     || set_ref_in_callback(
-                        &raw mut (*buf).b_p_ffu,
+                        &mut (*buf).b_p_ffu,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
@@ -4487,7 +4487,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
                     ptr::null_mut(),
                 );
                 set_ref_in_callback(
-                    &raw mut (*ct).on_exit,
+                    &mut (*ct).on_exit,
                     copyID,
                     ptr::null_mut(),
                     ptr::null_mut(),
@@ -4498,7 +4498,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         let timers_ptr = &raw const eval_st().timers;
         for &timer in (*timers_ptr).values() {
             set_ref_in_callback(
-                &raw mut (*timer).callback,
+                &mut (*timer).callback,
                 copyID,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -4668,7 +4668,7 @@ unsafe fn set_ref_in_item_dict(
         (*ht_stack).push(&raw mut (*dd).dv_hashtab);
 
         for watcher in &mut (*dd).watchers {
-            set_ref_in_callback(&raw mut watcher.callback, copyID, ht_stack, list_stack);
+            set_ref_in_callback(&mut watcher.callback, copyID, ht_stack, list_stack);
         }
 
         false
@@ -5210,7 +5210,7 @@ pub unsafe fn f_systemlist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// Get a callback from "arg". It can be a Funcref or a function name.
-pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T) -> bool {
+pub unsafe fn callback_from_typval(callback: &mut Callback, arg: *const typval_T) -> bool {
     unsafe {
         let mut r = OK;
 
@@ -5218,7 +5218,7 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
 
         if (*arg).v_type == VarType::VAR_PARTIAL && !tv_partial(arg).is_null() {
             let pt = tv_partial(arg);
-            (*callback).data = crate::eval::typval::CallbackData::partial(pt);
+            callback.data = crate::eval::typval::CallbackData::partial(pt);
             (*pt).pt_refcount += 1;
         } else if (*arg).v_type == VarType::VAR_STRING
             && !(*arg).vval.v_string().is_null()
@@ -5240,13 +5240,13 @@ pub unsafe fn callback_from_typval(callback: *mut Callback, arg: *const typval_T
                     CStr::from_ptr(name).to_owned()
                 };
                 func_ref(funcref.as_ptr().cast_mut());
-                (*callback).data = crate::eval::typval::CallbackData::funcref(funcref);
+                callback.data = crate::eval::typval::CallbackData::funcref(funcref);
             }
         } else if is_lua_tbl {
             {
                 let name = nlua_register_table_as_callable(arg);
                 if !name.is_null() {
-                    (*callback).data = crate::eval::typval::CallbackData::funcref(
+                    callback.data = crate::eval::typval::CallbackData::funcref(
                         CStr::from_ptr(name).to_owned(),
                     );
                 } else {
@@ -5378,17 +5378,17 @@ pub unsafe fn callback_call(
 }
 
 pub unsafe fn set_ref_in_callback(
-    callback: *mut Callback,
+    callback: &mut Callback,
     copyID: c_int,
     ht_stack: *mut ht_stack_T,
     list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
-        if (*callback).cb_type() == kCallbackPartial {
+        if callback.cb_type() == kCallbackPartial {
             let mut tv = typval_T {
                 v_type: VarType::VAR_PARTIAL,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Partial((*callback).data.as_partial()),
+                vval: TypvalVval::Partial(callback.data.as_partial()),
             };
             return set_ref_in_item(&raw mut tv, copyID, ht_stack, list_stack);
         }
@@ -5403,7 +5403,7 @@ unsafe fn set_ref_in_callback_reader(
     list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
-        if set_ref_in_callback(&raw mut (*reader).cb, copyID, ht_stack, list_stack) {
+        if set_ref_in_callback(&mut (*reader).cb, copyID, ht_stack, list_stack) {
             return true;
         }
 
@@ -5463,7 +5463,7 @@ pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
         if tv_dict_add(dict, di) == FAIL {
             tv_dict_item_free(di);
         } else {
-            callback_put(&raw mut (*timer).callback, &raw mut (*di).di_tv);
+            callback_put(&mut (*timer).callback, &raw mut (*di).di_tv);
         }
     }
 }
@@ -5552,11 +5552,11 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback)
         {
             let main_loop_ptr = (&raw mut g_st().main_loop).cast();
             time_watcher_init(
-                main_loop_ptr,
+                &mut *main_loop_ptr,
                 &raw mut (*timer).watcher,
                 TimeWatcherData::EvalTimer(timer),
             );
-            (*timer).watcher.events = multiqueue_new_child((*loop_queues(main_loop_ptr)).events);
+            (*timer).watcher.events = multiqueue_new_child((*loop_queues(&mut *main_loop_ptr)).events);
             (*timer).watcher.blockable = true;
             time_watcher_start(&raw mut (*timer).watcher, timeout as u64, timeout as u64);
         }
@@ -6966,11 +6966,11 @@ pub unsafe fn common_job_callbacks(
     vopts: *mut dict_T,
     on_stdout: *mut CallbackReader,
     on_stderr: *mut CallbackReader,
-    on_exit: *mut Callback,
+    on_exit: &mut Callback,
 ) -> bool {
     unsafe {
-        if tv_dict_get_callback(vopts, c"on_stdout".as_ptr(), 9, &raw mut (*on_stdout).cb)
-            && tv_dict_get_callback(vopts, c"on_stderr".as_ptr(), 9, &raw mut (*on_stderr).cb)
+        if tv_dict_get_callback(vopts, c"on_stdout".as_ptr(), 9, &mut (*on_stdout).cb)
+            && tv_dict_get_callback(vopts, c"on_stderr".as_ptr(), 9, &mut (*on_stderr).cb)
             && tv_dict_get_callback(vopts, c"on_exit".as_ptr(), 7, on_exit)
         {
             (*on_stdout).buffered = tv_dict_get_number(vopts, c"stdout_buffered".as_ptr()) != 0;

@@ -327,7 +327,7 @@ unsafe fn buf_write_bytes(ip: *mut bw_info) -> c_int {
     }
 }
 
-unsafe fn check_mtime(buf: *mut buf_T, file_info: *const FileInfo) -> c_int {
+unsafe fn check_mtime(buf: *mut buf_T, file_info: &FileInfo) -> c_int {
     unsafe {
         if (*buf).b_mtime_read != 0
             && time_differs(file_info, (*buf).b_mtime_read, (*buf).b_mtime_read_ns)
@@ -686,7 +686,7 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
 #[cfg(not(windows))]
 unsafe fn get_fileinfo_os(
     fname: *mut c_char,
-    file_info_old: *mut FileInfo,
+    file_info_old: &mut FileInfo,
     _overwriting: bool,
     perm: *mut c_int,
     device: *mut bool,
@@ -698,9 +698,9 @@ unsafe fn get_fileinfo_os(
         if !os_fileinfo(fname, file_info_old) {
             *newfile = true;
         } else {
-            *perm = (*file_info_old).stat.st_mode as c_int;
-            if !s_isreg((*file_info_old).stat.st_mode) {
-                if s_isdir((*file_info_old).stat.st_mode) {
+            *perm = file_info_old.stat.st_mode as c_int;
+            if !s_isreg(file_info_old.stat.st_mode) {
+                if s_isdir(file_info_old.stat.st_mode) {
                     {
                         *err = set_err_num(c"E502", gettext(c"is a directory".as_ptr()));
                     }
@@ -727,7 +727,7 @@ unsafe fn get_fileinfo_os(
 #[cfg(windows)]
 unsafe fn get_fileinfo_os(
     fname: *mut c_char,
-    file_info_old: *mut FileInfo,
+    file_info_old: &mut FileInfo,
     overwriting: bool,
     perm: *mut c_int,
     device: *mut bool,
@@ -776,7 +776,7 @@ unsafe fn get_fileinfo(
     fname: *mut c_char,
     overwriting: bool,
     forceit: bool,
-    file_info_old: *mut FileInfo,
+    file_info_old: &mut FileInfo,
     perm: *mut c_int,
     device: *mut bool,
     newfile: *mut bool,
@@ -868,7 +868,7 @@ pub unsafe fn buf_get_backup_name(
 unsafe fn buf_write_make_backup(
     fname: *mut c_char,
     append: bool,
-    file_info_old: *mut FileInfo,
+    file_info_old: &mut FileInfo,
     acl: vim_acl_T,
     perm: c_int,
     bkc: c_uint,
@@ -886,8 +886,8 @@ unsafe fn buf_write_make_backup(
             *backup_copyp = true;
         } else if (bkc & kOptBkcFlagAuto) != 0 {
             if os_fileinfo_hardlinks(file_info_old) > 1
-                || !os_fileinfo_link(fname, &raw mut file_info)
-                || !os_fileinfo_id_equal(&raw const file_info, file_info_old)
+                || !os_fileinfo_link(fname, &mut file_info)
+                || !os_fileinfo_id_equal(&file_info, file_info_old)
             {
                 *backup_copyp = true;
             } else {
@@ -903,7 +903,7 @@ unsafe fn buf_write_make_backup(
                         tmp_fname.as_mut_ptr().add(dirlen),
                         suffix.len(),
                     );
-                    if !os_fileinfo_link(tmp_fname.as_ptr(), &raw mut file_info) {
+                    if !os_fileinfo_link(tmp_fname.as_ptr(), &mut file_info) {
                         break;
                     }
                     i += 123;
@@ -920,13 +920,13 @@ unsafe fn buf_write_make_backup(
                     {
                         let _ = os_fchown(
                             fd,
-                            (*file_info_old).stat.st_uid as uv_uid_t,
-                            (*file_info_old).stat.st_gid as uv_gid_t,
+                            file_info_old.stat.st_uid as uv_uid_t,
+                            file_info_old.stat.st_gid as uv_gid_t,
                         );
                         let _ = os_fsetperm(fd, perm);
-                        if !os_fileinfo(tmp_fname.as_ptr(), &raw mut file_info)
-                            || file_info.stat.st_uid != (*file_info_old).stat.st_uid
-                            || file_info.stat.st_gid != (*file_info_old).stat.st_gid
+                        if !os_fileinfo(tmp_fname.as_ptr(), &mut file_info)
+                            || file_info.stat.st_uid != file_info_old.stat.st_uid
+                            || file_info.stat.st_gid != file_info_old.stat.st_gid
                             || (file_info.stat.st_mode as c_int) != perm
                         {
                             *backup_copyp = true;
@@ -940,16 +940,16 @@ unsafe fn buf_write_make_backup(
 
         #[cfg(not(windows))]
         if (bkc & (kOptBkcFlagBreaksymlink | kOptBkcFlagBreakhardlink)) != 0 {
-            let file_info_link_ok = os_fileinfo_link(fname, &raw mut file_info);
+            let file_info_link_ok = os_fileinfo_link(fname, &mut file_info);
             if (bkc & kOptBkcFlagBreaksymlink) != 0
                 && file_info_link_ok
-                && !os_fileinfo_id_equal(&raw const file_info, file_info_old)
+                && !os_fileinfo_id_equal(&file_info, file_info_old)
             {
                 *backup_copyp = false;
             }
             if (bkc & kOptBkcFlagBreakhardlink) != 0
                 && os_fileinfo_hardlinks(file_info_old) > 1
-                && (!file_info_link_ok || os_fileinfo_id_equal(&raw const file_info, file_info_old))
+                && (!file_info_link_ok || os_fileinfo_id_equal(&file_info, file_info_old))
             {
                 *backup_copyp = false;
             }
@@ -981,8 +981,8 @@ unsafe fn buf_write_make_backup(
                     let mut keep_bk = true;
 
                     let mut file_info_new = FileInfo::new();
-                    if os_fileinfo(bk_ptr, &raw mut file_info_new) {
-                        if os_fileinfo_id_equal(&raw const file_info_new, file_info_old) {
+                    if os_fileinfo(bk_ptr, &mut file_info_new) {
+                        if os_fileinfo_id_equal(&file_info_new, file_info_old) {
                             keep_bk = false;
                         } else if opt_vars().p_bk == 0 {
                             let blen = std::ffi::CStr::from_ptr(bk_ptr).to_bytes().len();
@@ -997,7 +997,7 @@ unsafe fn buf_write_make_backup(
                             }
                             *wp = b'z' as c_char;
                             while (*wp as u8) > b'a'
-                                && os_fileinfo(bk_ptr, &raw mut file_info_new)
+                                && os_fileinfo(bk_ptr, &mut file_info_new)
                             {
                                 *wp -= 1;
                             }
@@ -1020,19 +1020,19 @@ unsafe fn buf_write_make_backup(
 
                         #[cfg(not(windows))]
                         {
-                            if file_info_new.stat.st_gid != (*file_info_old).stat.st_gid
+                            if file_info_new.stat.st_gid != file_info_old.stat.st_gid
                                 && os_chown(
                                     bk_ptr,
                                     u32::MAX as uv_uid_t,
-                                    (*file_info_old).stat.st_gid as uv_gid_t,
+                                    file_info_old.stat.st_gid as uv_gid_t,
                                 ) != 0
                             {
                                 let _ = os_setperm(bk_ptr, (perm & 0o707) | ((perm & 0o7) << 3));
                             }
                             let _ = os_file_settime(
                                 bk_ptr,
-                                (*file_info_old).stat.st_atim.tv_sec as f64,
-                                (*file_info_old).stat.st_mtim.tv_sec as f64,
+                                file_info_old.stat.st_atim.tv_sec as f64,
+                                file_info_old.stat.st_mtim.tv_sec as f64,
                             );
                         }
 
@@ -1286,7 +1286,7 @@ pub unsafe fn buf_write(
                     fname,
                     overwriting,
                     forceit,
-                    &raw mut file_info_old,
+                    &mut file_info_old,
                     &raw mut perm,
                     &raw mut device,
                     &raw mut newfile,
@@ -1318,7 +1318,7 @@ pub unsafe fn buf_write(
                     && buf_write_make_backup(
                         fname,
                         append,
-                        &raw mut file_info_old,
+                        &mut file_info_old,
                         acl,
                         perm,
                         bkc,
@@ -1471,11 +1471,11 @@ pub unsafe fn buf_write(
                                     {
                                         let mut file_info = FileInfo::new();
                                         if (!newfile
-                                            && os_fileinfo_hardlinks(&raw const file_info_old) > 1)
-                                            || (os_fileinfo_link(fname, &raw mut file_info)
+                                            && os_fileinfo_hardlinks(&file_info_old) > 1)
+                                            || (os_fileinfo_link(fname, &mut file_info)
                                                 && !os_fileinfo_id_equal(
-                                                    &raw const file_info,
-                                                    &raw const file_info_old,
+                                                    &file_info,
+                                                    &file_info_old,
                                                 ))
                                         {
                                             err = set_err(gettext(
@@ -1736,7 +1736,7 @@ pub unsafe fn buf_write(
                         #[cfg(not(windows))]
                         if backup.is_some() && !backup_copy {
                             let mut file_info = FileInfo::new();
-                            if !os_fileinfo(wfname, &raw mut file_info)
+                            if !os_fileinfo(wfname, &mut file_info)
                                 || file_info.stat.st_uid != file_info_old.stat.st_uid
                                 || file_info.stat.st_gid != file_info_old.stat.st_gid
                             {
@@ -2070,8 +2070,8 @@ pub unsafe fn buf_write(
                     true,
                 );
 
-                if os_fileinfo(fname, &raw mut file_info_old) {
-                    buf_store_file_info(buf, &raw mut file_info_old);
+                if os_fileinfo(fname, &mut file_info_old) {
+                    buf_store_file_info(buf, &mut file_info_old);
                     (*buf).b_mtime_read = (*buf).b_mtime;
                     (*buf).b_mtime_read_ns = (*buf).b_mtime_ns;
                 }

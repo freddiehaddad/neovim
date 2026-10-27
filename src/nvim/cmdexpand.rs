@@ -2027,7 +2027,7 @@ pub unsafe fn nextwild(xp: &mut expand_T, type_arg: c_int, options: c_int, escap
 
 /// Create completion popup menu with items from "matches".
 unsafe fn cmdline_pum_create(
-    ccline: *const CmdlineInfo,
+    ccline: &CmdlineInfo,
     xp: &expand_T,
     matches: &[CString],
     showtail: bool,
@@ -2083,9 +2083,9 @@ unsafe fn cmdline_pum_create(
             xp.xp_pattern
         };
         if ui_has(kUICmdline) && g_st().cmdline_win.is_null() {
-            cmdexp().compl_startcol = endpos.offset_from((*ccline).cmdbuff) as c_int;
+            cmdexp().compl_startcol = endpos.offset_from(ccline.cmdbuff) as c_int;
         } else {
-            cmdexp().compl_startcol = cmd_screencol(endpos.offset_from((*ccline).cmdbuff) as c_int);
+            cmdexp().compl_startcol = cmd_screencol(endpos.offset_from(ccline.cmdbuff) as c_int);
         }
     }
 }
@@ -2119,7 +2119,7 @@ pub unsafe fn cmdline_pum_remove(defer_redraw: bool) {
     }
 }
 
-pub unsafe fn cmdline_pum_cleanup(cclp: *mut CmdlineInfo) {
+pub unsafe fn cmdline_pum_cleanup(cclp: &mut CmdlineInfo) {
     unsafe {
         cmdline_pum_remove(false);
         wildmenu_cleanup(cclp);
@@ -2445,7 +2445,7 @@ unsafe fn get_next_or_prev_match(mode: c_int, xp: &mut expand_T) -> Option<CStri
                 cmdline_pum_display(false);
             } else if cmdline_compl_use_pum(true) {
                 cmdline_pum_create(
-                    get_cmdline_info(),
+                    &*get_cmdline_info(),
                     xp,
                     &xp.xp_files.as_slice()[..xp.xp_numfiles as usize],
                     cmdexp().cmd_showtail,
@@ -2784,7 +2784,7 @@ unsafe fn showmatches_oneline(
 
 #[inline]
 unsafe fn show_pum_matches(
-    ccline: *mut CmdlineInfo,
+    ccline: &mut CmdlineInfo,
     xp: &expand_T,
     matches: &[CString],
     showtail: bool,
@@ -2831,7 +2831,7 @@ pub unsafe fn showmatches(
         };
 
         if cmdline_compl_use_pum(display_wildmenu && !display_list) {
-            show_pum_matches(ccline, xp, matches, showtail, noselect, cmdline_unchanged);
+            show_pum_matches(&mut *ccline, xp, matches, showtail, noselect, cmdline_unchanged);
             if xp.xp_numfiles == -1 {
                 free_xp_files_extra(xp);
             }
@@ -2904,7 +2904,7 @@ pub unsafe fn showmatches(
 
         if display_wildmenu && display_list {
             if cmdline_compl_use_pum(true) {
-                show_pum_matches(ccline, xp, matches, showtail, noselect, cmdline_unchanged);
+                show_pum_matches(&mut *ccline, xp, matches, showtail, noselect, cmdline_unchanged);
             } else {
                 redraw_wildmenu(xp, matches, if noselect { -1 } else { 0 }, showtail);
             }
@@ -5584,7 +5584,7 @@ pub unsafe fn globpath(
 
 /// Translate some keys pressed when 'wildmenu' is used.
 pub unsafe fn wildmenu_translate_key(
-    cclp: *mut CmdlineInfo,
+    cclp: &mut CmdlineInfo,
     key: c_int,
     xp: &mut expand_T,
     did_wild_list: bool,
@@ -5601,9 +5601,9 @@ pub unsafe fn wildmenu_translate_key(
         }
 
         if xp.xp_context == EXPAND_MENUNAMES
-            && (*cclp).cmdpos > 1
-            && *(*cclp).cmdbuff.add(((*cclp).cmdpos - 1) as usize) == b'.' as c_char
-            && *(*cclp).cmdbuff.add(((*cclp).cmdpos - 2) as usize) != b'\\' as c_char
+            && cclp.cmdpos > 1
+            && *cclp.cmdbuff.add((cclp.cmdpos - 1) as usize) == b'.' as c_char
+            && *cclp.cmdbuff.add((cclp.cmdpos - 2) as usize) != b'\\' as c_char
             && (c == b'\n' as c_int || c == b'\r' as c_int || c == K_KENTER)
         {
             c = K_DOWN;
@@ -5614,49 +5614,49 @@ pub unsafe fn wildmenu_translate_key(
 }
 
 /// Delete characters on the command line, from "from" to the current position.
-unsafe fn cmdline_del(cclp: *mut CmdlineInfo, from: c_int) {
+unsafe fn cmdline_del(cclp: &mut CmdlineInfo, from: c_int) {
     unsafe {
-        debug_assert!((*cclp).cmdpos <= (*cclp).cmdlen);
+        debug_assert!(cclp.cmdpos <= cclp.cmdlen);
         ptr::copy(
-            (*cclp).cmdbuff.add((*cclp).cmdpos as usize),
-            (*cclp).cmdbuff.add(from as usize),
-            ((*cclp).cmdlen as usize) - ((*cclp).cmdpos as usize) + 1,
+            cclp.cmdbuff.add(cclp.cmdpos as usize),
+            cclp.cmdbuff.add(from as usize),
+            (cclp.cmdlen as usize) - (cclp.cmdpos as usize) + 1,
         );
-        (*cclp).cmdlen -= (*cclp).cmdpos - from;
-        (*cclp).cmdpos = from;
+        cclp.cmdlen -= cclp.cmdpos - from;
+        cclp.cmdpos = from;
     }
 }
 
 /// Handle a key pressed when the wild menu for the menu names (EXPAND_MENUNAMES) is displayed.
 unsafe fn wildmenu_process_key_menunames(
-    cclp: *mut CmdlineInfo,
+    cclp: &mut CmdlineInfo,
     mut key: c_int,
     xp: &mut expand_T,
 ) -> c_int {
     unsafe {
         if key == K_DOWN
-            && (*cclp).cmdpos > 0
-            && *(*cclp).cmdbuff.add(((*cclp).cmdpos - 1) as usize) == b'.' as c_char
+            && cclp.cmdpos > 0
+            && *cclp.cmdbuff.add((cclp.cmdpos - 1) as usize) == b'.' as c_char
         {
             key = opt_vars().p_wc as c_int;
             g_st().KeyTyped = true;
         } else if key == K_UP {
             let mut found = false;
 
-            let mut j = xp.xp_pattern.offset_from((*cclp).cmdbuff) as c_int;
+            let mut j = xp.xp_pattern.offset_from(cclp.cmdbuff) as c_int;
             let mut i: c_int = 0;
             while {
                 j -= 1;
                 j > 0
             } {
-                if *(*cclp).cmdbuff.add(j as usize) == b' ' as c_char
-                    && *(*cclp).cmdbuff.add((j - 1) as usize) != b'\\' as c_char
+                if *cclp.cmdbuff.add(j as usize) == b' ' as c_char
+                    && *cclp.cmdbuff.add((j - 1) as usize) != b'\\' as c_char
                 {
                     i = j + 1;
                     break;
                 }
-                if *(*cclp).cmdbuff.add(j as usize) == b'.' as c_char
-                    && *(*cclp).cmdbuff.add((j - 1) as usize) != b'\\' as c_char
+                if *cclp.cmdbuff.add(j as usize) == b'.' as c_char
+                    && *cclp.cmdbuff.add((j - 1) as usize) != b'\\' as c_char
                 {
                     if found {
                         i = j + 1;
@@ -5680,7 +5680,7 @@ unsafe fn wildmenu_process_key_menunames(
 
 /// Handle a key pressed when the wild menu for file/dir/shellcmd names is displayed.
 unsafe fn wildmenu_process_key_filenames(
-    cclp: *mut CmdlineInfo,
+    cclp: &mut CmdlineInfo,
     mut key: c_int,
     xp: &mut expand_T,
 ) -> c_int {
@@ -5694,33 +5694,33 @@ unsafe fn wildmenu_process_key_filenames(
         ];
 
         if key == K_DOWN
-            && (*cclp).cmdpos > 0
-            && *(*cclp).cmdbuff.add(((*cclp).cmdpos - 1) as usize) == PATHSEP as c_char
-            && ((*cclp).cmdpos < 3
-                || *(*cclp).cmdbuff.add(((*cclp).cmdpos - 2) as usize) != b'.' as c_char
-                || *(*cclp).cmdbuff.add(((*cclp).cmdpos - 3) as usize) != b'.' as c_char)
+            && cclp.cmdpos > 0
+            && *cclp.cmdbuff.add((cclp.cmdpos - 1) as usize) == PATHSEP as c_char
+            && (cclp.cmdpos < 3
+                || *cclp.cmdbuff.add((cclp.cmdpos - 2) as usize) != b'.' as c_char
+                || *cclp.cmdbuff.add((cclp.cmdpos - 3) as usize) != b'.' as c_char)
         {
             key = opt_vars().p_wc as c_int;
             g_st().KeyTyped = true;
         } else if { let _p1 = xp.xp_pattern; let _p2 = upseg.as_ptr().add(1); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } && key == K_DOWN {
             let mut found = false;
 
-            let mut j = (*cclp).cmdpos;
-            let i = xp.xp_pattern.offset_from((*cclp).cmdbuff) as c_int;
+            let mut j = cclp.cmdpos;
+            let i = xp.xp_pattern.offset_from(cclp.cmdbuff) as c_int;
             while {
                 j -= 1;
                 j > i
             } {
-                j -= utf_head_off((*cclp).cmdbuff, (*cclp).cmdbuff.add(j as usize));
-                if vim_ispathsep(*(*cclp).cmdbuff.add(j as usize) as c_int) {
+                j -= utf_head_off(cclp.cmdbuff, cclp.cmdbuff.add(j as usize));
+                if vim_ispathsep(*cclp.cmdbuff.add(j as usize) as c_int) {
                     found = true;
                     break;
                 }
             }
             if found
-                && *(*cclp).cmdbuff.add((j - 1) as usize) == b'.' as c_char
-                && *(*cclp).cmdbuff.add((j - 2) as usize) == b'.' as c_char
-                && (vim_ispathsep(*(*cclp).cmdbuff.add((j - 3) as usize) as c_int) || j == i + 2)
+                && *cclp.cmdbuff.add((j - 1) as usize) == b'.' as c_char
+                && *cclp.cmdbuff.add((j - 2) as usize) == b'.' as c_char
+                && (vim_ispathsep(*cclp.cmdbuff.add((j - 3) as usize) as c_int) || j == i + 2)
             {
                 cmdline_del(cclp, j - 2);
                 key = opt_vars().p_wc as c_int;
@@ -5729,22 +5729,22 @@ unsafe fn wildmenu_process_key_filenames(
         } else if key == K_UP {
             let mut found = false;
 
-            let mut j = (*cclp).cmdpos - 1;
-            let mut i = xp.xp_pattern.offset_from((*cclp).cmdbuff) as c_int;
+            let mut j = cclp.cmdpos - 1;
+            let mut i = xp.xp_pattern.offset_from(cclp.cmdbuff) as c_int;
             while {
                 j -= 1;
                 j > i
             } {
-                j -= utf_head_off((*cclp).cmdbuff, (*cclp).cmdbuff.add(j as usize));
+                j -= utf_head_off(cclp.cmdbuff, cclp.cmdbuff.add(j as usize));
                 #[cfg(windows)]
-                let is_sep = vim_ispathsep(*(*cclp).cmdbuff.add(j as usize) as c_int)
+                let is_sep = vim_ispathsep(*cclp.cmdbuff.add(j as usize) as c_int)
                     && vim_strchr(
                         c" *?[{`$%#".as_ptr(),
-                        *(*cclp).cmdbuff.add((j + 1) as usize) as u8 as c_int,
+                        *cclp.cmdbuff.add((j + 1) as usize) as u8 as c_int,
                     )
                     .is_null();
                 #[cfg(not(windows))]
-                let is_sep = vim_ispathsep(*(*cclp).cmdbuff.add(j as usize) as c_int);
+                let is_sep = vim_ispathsep(*cclp.cmdbuff.add(j as usize) as c_int);
 
                 if is_sep {
                     if found {
@@ -5758,9 +5758,9 @@ unsafe fn wildmenu_process_key_filenames(
 
             if !found {
                 j = i;
-            } else if { let _p1 = (*cclp).cmdbuff.add(j as usize); let _p2 = upseg.as_ptr(); let _n = 4; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+            } else if { let _p1 = cclp.cmdbuff.add(j as usize); let _p2 = upseg.as_ptr(); let _n = 4; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                 j += 4;
-            } else if { let _p1 = (*cclp).cmdbuff.add(j as usize); let _p2 = upseg.as_ptr().add(1); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            } else if { let _p1 = cclp.cmdbuff.add(j as usize); let _p2 = upseg.as_ptr().add(1); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                 && j == i
             {
                 j += 3;
@@ -5771,7 +5771,7 @@ unsafe fn wildmenu_process_key_filenames(
             if j > 0 {
                 cmdline_del(cclp, j);
                 put_on_cmdline(upseg.as_ptr().add(1), 3, false);
-            } else if (*cclp).cmdpos > i {
+            } else if cclp.cmdpos > i {
                 cmdline_del(cclp, i);
             }
 
@@ -5784,7 +5784,7 @@ unsafe fn wildmenu_process_key_filenames(
 }
 
 /// Handle a key pressed when wild menu is displayed.
-pub unsafe fn wildmenu_process_key(cclp: *mut CmdlineInfo, key: c_int, xp: &mut expand_T) -> c_int {
+pub unsafe fn wildmenu_process_key(cclp: &mut CmdlineInfo, key: c_int, xp: &mut expand_T) -> c_int {
     unsafe {
         if xp.xp_context == EXPAND_MENUNAMES {
             return wildmenu_process_key_menunames(cclp, key, xp);
@@ -5801,7 +5801,7 @@ pub unsafe fn wildmenu_process_key(cclp: *mut CmdlineInfo, key: c_int, xp: &mut 
 }
 
 /// Free expanded names when finished walking through the matches.
-pub unsafe fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
+pub unsafe fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
     unsafe {
         if opt_vars().p_wmnu == 0 || g_st().wild_menu_showing == 0 {
             return;
@@ -5810,7 +5810,7 @@ pub unsafe fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
         let skt = g_st().KeyTyped;
         let old_RedrawingDisabled = g_st().RedrawingDisabled;
 
-        if (*cclp).input_fn != 0 {
+        if cclp.input_fn != 0 {
             g_st().RedrawingDisabled = 0;
         }
 
@@ -5834,7 +5834,7 @@ pub unsafe fn wildmenu_cleanup(cclp: *mut CmdlineInfo) {
             redraw_statuslines();
         }
         g_st().KeyTyped = skt;
-        if (*cclp).input_fn != 0 {
+        if cclp.input_fn != 0 {
             g_st().RedrawingDisabled = old_RedrawingDisabled;
         }
     }

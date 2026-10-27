@@ -1004,11 +1004,11 @@ pub unsafe fn f_prompt_setcallback(
             return;
         }
 
-        if !callback_from_typval(&raw mut prompt_callback, argvars.add(1)) {
+        if !callback_from_typval(&mut prompt_callback, argvars.add(1)) {
             return;
         }
 
-        callback_free(&raw mut (*buf).b_prompt_callback);
+        callback_free(&mut (*buf).b_prompt_callback);
         (*buf).b_prompt_callback = prompt_callback;
     }
 }
@@ -1030,11 +1030,11 @@ pub unsafe fn f_prompt_setinterrupt(
             return;
         }
 
-        if !callback_from_typval(&raw mut interrupt_callback, argvars.add(1)) {
+        if !callback_from_typval(&mut interrupt_callback, argvars.add(1)) {
             return;
         }
 
-        callback_free(&raw mut (*buf).b_prompt_interrupt);
+        callback_free(&mut (*buf).b_prompt_interrupt);
         (*buf).b_prompt_interrupt = interrupt_callback;
     }
 }

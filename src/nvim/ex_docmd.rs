@@ -9602,7 +9602,7 @@ unsafe fn ex_restart(eap: &mut exarg_T) {
         }
 
         let proc_ptr = &raw mut (*channel).uv.proc_;
-        proc_stop(proc_ptr);
+        proc_stop(&mut *proc_ptr);
         if proc_wait(proc_ptr, -1, ptr::null_mut()) < 0 {
             let _ = emsg(c"killing new nvim server failed".as_ptr());
         }
@@ -10104,12 +10104,12 @@ unsafe fn findfunc_find_file(
 
 pub unsafe fn free_findfunc_option() {
     unsafe {
-        callback_free(&raw mut opt_vars().p_ffu);
+        callback_free(&mut opt_vars().p_ffu);
     }
 }
 
 pub unsafe fn set_ref_in_findfunc(copyID: c_int) -> bool {
-    unsafe { set_ref_in_callback(&raw mut opt_vars().p_ffu, copyID, ptr::null_mut(), ptr::null_mut()) }
+    unsafe { set_ref_in_callback(&mut opt_vars().p_ffu, copyID, ptr::null_mut(), ptr::null_mut()) }
 }
 
 unsafe fn set_browse_edit_arg(eap: &mut exarg_T) {
@@ -11099,14 +11099,14 @@ pub unsafe fn do_sleep(msec: i64, hide_cursor: bool) {
 
         ui_flush();
         let main_loop_ptr = (&raw mut g_st().main_loop).cast();
-        let events = (*loop_queues(main_loop_ptr)).events;
+        let events = (*loop_queues(&mut *main_loop_ptr)).events;
         let mut remaining = msec;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
         while !g_st().got_int {
             if !events.is_null() && !multiqueue_empty(events) {
                 multiqueue_process_events(events);
             } else {
-                loop_poll_events(main_loop_ptr, remaining);
+                loop_poll_events(&mut *main_loop_ptr, remaining);
             }
             if remaining == 0 {
                 break;

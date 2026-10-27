@@ -421,7 +421,7 @@ unsafe fn fuzzy_match_in_list(
     str_ptr: *mut c_char,
     matchseq: bool,
     key: *const c_char,
-    item_cb: *mut Callback,
+    item_cb: &mut Callback,
     retmatchpos: bool,
     fmatchlist: *mut list_T,
     max_matches: c_int,
@@ -460,7 +460,7 @@ unsafe fn fuzzy_match_in_list(
             if tv.v_type == VarType::VAR_STRING {
                 itemstr = tv.vval.v_string();
             } else if tv.v_type == VarType::VAR_DICT
-                && (!key.is_null() || (*item_cb).cb_type() != K_CALLBACK_NONE)
+                && (!key.is_null() || item_cb.cb_type() != K_CALLBACK_NONE)
             {
                 let d = tv.vval.v_dict();
                 if !key.is_null() {
@@ -479,7 +479,7 @@ unsafe fn fuzzy_match_in_list(
                             vval: TypvalVval::Number(0),
                         },
                     ];
-                    if callback_call(item_cb, 1, argv.as_mut_ptr(), &mut rettv)
+                    if callback_call(&raw mut *item_cb, 1, argv.as_mut_ptr(), &mut rettv)
                         && rettv.v_type == VarType::VAR_STRING
                     {
                         itemstr = rettv.vval.v_string();

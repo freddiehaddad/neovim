@@ -1266,7 +1266,7 @@ pub unsafe fn msg_semsg_event(s: std::ffi::CString) {
 pub unsafe fn msg_schedule_semsg_cstr(s: *const c_char) {
     unsafe {
         let dup = CStr::from_ptr(s).to_owned();
-        loop_schedule_deferred((&raw mut g_st().main_loop).cast(), Event::MsgSemsg(dup));
+        loop_schedule_deferred(&mut *(&raw mut g_st().main_loop).cast(), Event::MsgSemsg(dup));
     }
 }
 
@@ -1279,7 +1279,7 @@ pub unsafe fn msg_semsg_multiline_event(s: std::ffi::CString) {
 pub unsafe fn msg_schedule_semsg_multiline_cstr(s: *const c_char) {
     unsafe {
         let dup = CStr::from_ptr(s).to_owned();
-        loop_schedule_deferred((&raw mut g_st().main_loop).cast(), Event::MsgSemsgMultiline(dup));
+        loop_schedule_deferred(&mut *(&raw mut g_st().main_loop).cast(), Event::MsgSemsgMultiline(dup));
     }
 }
 

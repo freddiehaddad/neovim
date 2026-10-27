@@ -1190,7 +1190,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
                 if !virt_text.data.virt_text().is_empty() {
                     decor_range_add_virt(
-                        &raw mut g_st().decor_state,
+                        &mut g_st().decor_state,
                         r,
                         c,
                         line2,
@@ -1201,7 +1201,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 }
                 if !virt_lines.data.virt_lines().is_empty() {
                     decor_range_add_virt(
-                        &raw mut g_st().decor_state,
+                        &mut g_st().decor_state,
                         r,
                         c,
                         line2,
@@ -1214,7 +1214,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                     let mut sh = decor_sh_from_inline(hl);
                     sh.url = url.take();
                     decor_range_add_sh(
-                        &raw mut g_st().decor_state,
+                        &mut g_st().decor_state,
                         r,
                         c,
                         line2,

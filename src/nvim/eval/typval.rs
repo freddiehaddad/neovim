@@ -576,7 +576,7 @@ pub struct DictWatcher {
 impl Drop for DictWatcher {
     fn drop(&mut self) {
         unsafe {
-            callback_free(&raw mut self.callback);
+            callback_free(&mut self.callback);
         }
     }
 }
@@ -2562,17 +2562,17 @@ pub unsafe fn tv_dict_watcher_add(
 }
 
 /// Check whether two callbacks are equal.
-pub unsafe fn tv_callback_equal(cb1: *const Callback, cb2: *const Callback) -> bool {
+pub unsafe fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
     unsafe {
-        if (*cb1).cb_type() != (*cb2).cb_type() {
+        if cb1.cb_type() != cb2.cb_type() {
             return false;
         }
-        match (*cb1).cb_type() {
+        match cb1.cb_type() {
             kCallbackFuncref | kCallbackExpr => {
-                { let _a = (*cb1).data.as_funcref(); let _b = (*cb2).data.as_funcref(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) }
+                { let _a = cb1.data.as_funcref(); let _b = cb2.data.as_funcref(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) }
             }
-            kCallbackPartial => (*cb1).data.as_partial() == (*cb2).data.as_partial(),
-            kCallbackLua => (*cb1).data.as_luaref() == (*cb2).data.as_luaref(),
+            kCallbackPartial => cb1.data.as_partial() == cb2.data.as_partial(),
+            kCallbackLua => cb1.data.as_luaref() == cb2.data.as_luaref(),
             kCallbackNone => true,
             _ => std::process::abort(),
         }
@@ -2580,17 +2580,17 @@ pub unsafe fn tv_callback_equal(cb1: *const Callback, cb2: *const Callback) -> b
 }
 
 /// Unref/free callback.
-pub unsafe fn callback_free(callback: *mut Callback) {
+pub unsafe fn callback_free(callback: &mut Callback) {
     unsafe {
-        match (*callback).cb_type() {
+        match callback.cb_type() {
             kCallbackFuncref => {
-                func_unref((*callback).data.as_funcref());
+                func_unref(callback.data.as_funcref());
             }
             kCallbackPartial => {
-                partial_unref((*callback).data.as_partial());
+                partial_unref(callback.data.as_partial());
             }
             kCallbackLua => {
-                let mut luaref = (*callback).data.as_luaref();
+                let mut luaref = callback.data.as_luaref();
                 nlua_clear_ref(&mut luaref);
             }
             _ => {}
@@ -2600,17 +2600,17 @@ pub unsafe fn callback_free(callback: *mut Callback) {
 }
 
 /// Copy a callback into a typval_T.
-pub unsafe fn callback_put(cb: *mut Callback, tv: *mut typval_T) {
+pub unsafe fn callback_put(cb: &mut Callback, tv: *mut typval_T) {
     unsafe {
-        match (*cb).cb_type() {
+        match cb.cb_type() {
             kCallbackPartial => {
-                let pt = (*cb).data.as_partial();
+                let pt = cb.data.as_partial();
                 (*tv).v_type = VarType::VAR_PARTIAL;
                 (*tv).vval = crate::eval::typval::TypvalVval::Partial(pt);
                 (*pt).pt_refcount += 1;
             }
             kCallbackFuncref => {
-                let funcref = (*cb).data.as_funcref();
+                let funcref = cb.data.as_funcref();
                 tv_set_string(tv, funcref);
                 (*tv).v_type = VarType::VAR_FUNC;
                 func_ref((*tv).vval.v_string());
@@ -2624,47 +2624,47 @@ pub unsafe fn callback_put(cb: *mut Callback, tv: *mut typval_T) {
 }
 
 /// Copy callback from "src" to "dest", incrementing the refcounts.
-pub unsafe fn callback_copy(dest: *mut Callback, src: *mut Callback) {
+pub unsafe fn callback_copy(dest: &mut Callback, src: &Callback) {
     unsafe {
-        match (*src).cb_type() {
+        match src.cb_type() {
             kCallbackPartial => {
-                let pt = (*src).data.as_partial();
-                (*dest).data = CallbackData::partial(pt);
+                let pt = src.data.as_partial();
+                dest.data = CallbackData::partial(pt);
                 (*pt).pt_refcount += 1;
             }
             kCallbackFuncref => {
-                let funcref = (*src).data.as_funcref();
-                (*dest).data = CallbackData::funcref(CStr::from_ptr(funcref).to_owned());
+                let funcref = src.data.as_funcref();
+                dest.data = CallbackData::funcref(CStr::from_ptr(funcref).to_owned());
                 func_ref(funcref);
             }
             kCallbackLua => {
-                let new_ref = api_new_luaref((*src).data.as_luaref());
-                (*dest).data = CallbackData::lua(new_ref);
+                let new_ref = api_new_luaref(src.data.as_luaref());
+                dest.data = CallbackData::lua(new_ref);
             }
             kCallbackExpr => {
-                (*dest).data =
-                    CallbackData::expr(CStr::from_ptr((*src).data.as_funcref()).to_owned());
+                dest.data =
+                    CallbackData::expr(CStr::from_ptr(src.data.as_funcref()).to_owned());
             }
             _ => {
-                (*dest).data = CallbackData::NONE;
+                dest.data = CallbackData::NONE;
             }
         }
     }
 }
 
 /// Generate a string description of a callback.
-pub unsafe fn callback_to_string(cb: *mut Callback) -> std::ffi::CString {
+pub unsafe fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
     unsafe {
-        if (*cb).cb_type() == kCallbackLua {
-            return nlua_funcref_str((*cb).data.as_luaref(), true);
+        if cb.cb_type() == kCallbackLua {
+            return nlua_funcref_str(cb.data.as_luaref(), true);
         }
 
         const MSGLEN: usize = 100;
         let mut msg: Vec<u8> = Vec::with_capacity(MSGLEN);
 
-        match (*cb).cb_type() {
+        match cb.cb_type() {
             kCallbackFuncref => {
-                let s = CStr::from_ptr((*cb).data.as_funcref()).to_bytes();
+                let s = CStr::from_ptr(cb.data.as_funcref()).to_bytes();
                 let prefix = b"<vim function: ";
                 let suffix = b">";
                 let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());
@@ -2675,7 +2675,7 @@ pub unsafe fn callback_to_string(cb: *mut Callback) -> std::ffi::CString {
                 }
             }
             kCallbackPartial => {
-                let pt = (*cb).data.as_partial();
+                let pt = cb.data.as_partial();
                 let s = (*pt).pt_name.as_ref().map_or(&[][..], |n| n.as_bytes());
                 let prefix = b"<vim partial: ";
                 let suffix = b">";
@@ -2711,7 +2711,7 @@ pub unsafe fn tv_dict_watcher_remove(
                 queue_is_busy = true;
             }
             if matched_idx.is_none()
-                && tv_callback_equal(&raw const w.callback, callback)
+                && tv_callback_equal(&w.callback, callback)
                 && w.key_pattern_len == key_pattern_len
                 && w.key_pattern.as_bytes()
                     == std::slice::from_raw_parts(key_pattern.cast::<u8>(), key_pattern_len)
@@ -3099,7 +3099,7 @@ pub unsafe fn tv_dict_get_callback(
     d: *mut dict_T,
     key: *const c_char,
     key_len: isize,
-    result: *mut Callback,
+    result: &mut Callback,
 ) -> bool {
     unsafe {
         *result = Callback::NONE;

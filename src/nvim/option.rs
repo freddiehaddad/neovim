@@ -1143,7 +1143,7 @@ pub unsafe fn free_all_options() {
                 && (option_is_global_only(opt_idx) || !option_is_window_local(opt_idx))
             {
                 if is_callback_option(opt_idx) {
-                    callback_free((*opt).var.cast::<Callback>());
+                    callback_free(&mut *(*opt).var.cast::<Callback>());
                 } else if option_has_type(opt_idx, ObjectType::kObjectTypeString) {
                     crate::optionstr::clear_string_option((*opt).var.cast::<*mut c_char>());
                 }
@@ -5270,15 +5270,15 @@ unsafe fn optval_snapshot_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
     }
 }
 
-unsafe fn opt_from_callback(cb: *mut Callback) -> Object {
+unsafe fn opt_from_callback(cb: &mut Callback) -> Object {
     unsafe {
-        match (*cb).cb_type() {
+        match cb.cb_type() {
             kCallbackLua => {
-                let luaref = (*cb).data.as_luaref();
+                let luaref = cb.data.as_luaref();
                 return luaref_obj(api_new_luaref(luaref));
             }
             kCallbackExpr | kCallbackFuncref => {
-                return cstr_to_obj((*cb).data.as_funcref());
+                return cstr_to_obj(cb.data.as_funcref());
             }
             kCallbackPartial => {
                 let mut tv = typval_T::new();
@@ -5303,7 +5303,7 @@ unsafe fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
             }
             ObjectType::kObjectTypeString => {
                 if !is_expr {
-                    option_set_callback_func(value.data.string().data, &raw mut cb);
+                    option_set_callback_func(value.data.string().data, &mut cb);
                 } else if value.data.string().size > 0 {
                     let funcref =
                         if let Some(name) = get_scriptlocal_funcname(value.data.string().data) {
@@ -5337,7 +5337,7 @@ pub unsafe fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
         }
 
         if is_callback_option(opt_idx) {
-            return opt_from_callback(varp.cast::<Callback>());
+            return opt_from_callback(&mut *varp.cast::<Callback>());
         }
 
         match (*opt).opt_type {
@@ -5363,7 +5363,7 @@ unsafe fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
 
         if is_callback_option(opt_idx) {
             let cb = varp.cast::<Callback>();
-            callback_free(cb);
+            callback_free(&mut *cb);
             *cb = opt_to_callback(value, ((*opt).flags & kOptFlagExpr) != 0);
             return;
         }
@@ -5940,10 +5940,10 @@ unsafe fn set_option(
                 && value.data.string().size > 0
             {
                 let mut cb = Callback::NONE;
-                if option_set_callback_func(value.data.string().data, &raw mut cb) == FAIL {
+                if option_set_callback_func(value.data.string().data, &mut cb) == FAIL {
                     errmsg = e_invarg.as_ptr();
                 }
-                callback_free(&raw mut cb);
+                callback_free(&mut cb);
             }
         } else if value.obj_type == ObjectType::kObjectTypeString && is_dict_option(opt_idx) {
             errmsg = opt_strings_check(
@@ -7354,12 +7354,12 @@ pub unsafe fn copy_winopt(from: *mut winopt_T, to: *mut winopt_T) {
         };
         (*to).wo_fdn = (*from).wo_fdn;
         callback_copy(
-            &raw mut (*to).wo_fde,
-            (&raw const (*from).wo_fde).cast_mut(),
+            &mut (*to).wo_fde,
+            &*(&raw const (*from).wo_fde),
         );
         callback_copy(
-            &raw mut (*to).wo_fdt,
-            (&raw const (*from).wo_fdt).cast_mut(),
+            &mut (*to).wo_fdt,
+            &*(&raw const (*from).wo_fdt),
         );
         (*to).wo_fmr = copy_option_val((*from).wo_fmr);
         (*to).wo_scl = copy_option_val((*from).wo_scl);
@@ -7420,8 +7420,8 @@ pub unsafe fn clear_winopt(wop: *mut winopt_T) {
         clear_string_option(&raw mut (*wop).wo_fdi);
         clear_string_option(&raw mut (*wop).wo_fdm);
         clear_string_option(&raw mut (*wop).wo_fdm_save);
-        callback_free(&raw mut (*wop).wo_fde);
-        callback_free(&raw mut (*wop).wo_fdt);
+        callback_free(&mut (*wop).wo_fde);
+        callback_free(&mut (*wop).wo_fdt);
         clear_string_option(&raw mut (*wop).wo_fmr);
         clear_string_option(&raw mut (*wop).wo_eiw);
         clear_string_option(&raw mut (*wop).wo_scl);
@@ -7580,11 +7580,11 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                     (*buf).b_p_csl = alloc_string_option(opt_vars().p_csl);
                     copy_opt_sctx(buf, kBufOptCompleteslash);
                 }
-                callback_copy(&raw mut (*buf).b_p_cfu, &raw mut opt_vars().p_cfu);
+                callback_copy(&mut (*buf).b_p_cfu, &mut opt_vars().p_cfu);
                 copy_opt_sctx(buf, kBufOptCompletefunc);
-                callback_copy(&raw mut (*buf).b_p_ofu, &raw mut opt_vars().p_ofu);
+                callback_copy(&mut (*buf).b_p_ofu, &mut opt_vars().p_ofu);
                 copy_opt_sctx(buf, kBufOptOmnifunc);
-                callback_copy(&raw mut (*buf).b_p_tfu, &raw mut opt_vars().p_tfu);
+                callback_copy(&mut (*buf).b_p_tfu, &mut opt_vars().p_tfu);
                 copy_opt_sctx(buf, kBufOptTagfunc);
                 (*buf).b_p_sts = opt_vars().p_sts;
                 copy_opt_sctx(buf, kBufOptSofttabstop);
@@ -7647,13 +7647,13 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_s.b_p_spo = alloc_string_option(opt_vars().p_spo);
                 copy_opt_sctx(buf, kBufOptSpelloptions);
                 (*buf).b_s.b_p_spo_flags = opt_vars().spo_flags;
-                callback_copy(&raw mut (*buf).b_p_inde, &raw mut opt_vars().p_inde);
+                callback_copy(&mut (*buf).b_p_inde, &mut opt_vars().p_inde);
                 copy_opt_sctx(buf, kBufOptIndentexpr);
                 (*buf).b_p_inde_flags = copy_opt_insecure(kBufOptIndentexpr);
                 (*buf).b_p_indk = alloc_string_option(opt_vars().p_indk);
                 copy_opt_sctx(buf, kBufOptIndentkeys);
                 (*buf).b_p_fp = empty_opt;
-                callback_copy(&raw mut (*buf).b_p_fex, &raw mut opt_vars().p_fex);
+                callback_copy(&mut (*buf).b_p_fex, &mut opt_vars().p_fex);
                 copy_opt_sctx(buf, kBufOptFormatexpr);
                 (*buf).b_p_fex_flags = copy_opt_insecure(kBufOptFormatexpr);
                 (*buf).b_p_sua = alloc_string_option(opt_vars().p_sua);
@@ -7685,7 +7685,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_tc_flags = 0;
                 (*buf).b_p_def = empty_opt;
                 (*buf).b_p_inc = empty_opt;
-                callback_copy(&raw mut (*buf).b_p_inex, &raw mut opt_vars().p_inex);
+                callback_copy(&mut (*buf).b_p_inex, &mut opt_vars().p_inex);
                 copy_opt_sctx(buf, kBufOptIncludeexpr);
                 (*buf).b_p_inex_flags = copy_opt_insecure(kBufOptIncludeexpr);
                 (*buf).b_p_cot = empty_opt;
@@ -8395,7 +8395,7 @@ pub unsafe fn fill_culopt_flags(val: *mut c_char, flags: *mut c_uint) -> c_int {
 }
 
 /// Set the callback function value for an option that accepts a function name, lambda, et al.
-pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: *mut Callback) -> c_int {
+pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback) -> c_int {
     unsafe {
         if optval.is_null() || *optval == NUL {
             callback_free(optcb);
@@ -8417,7 +8417,7 @@ pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: *mut Callback
         };
 
         let mut cb = Callback::NONE;
-        if !callback_from_typval(&raw mut cb, &raw mut tv) || cb.cb_type() == kCallbackNone {
+        if !callback_from_typval(&mut cb, &raw mut tv) || cb.cb_type() == kCallbackNone {
             tv_clear(&raw mut tv);
             return FAIL;
         }

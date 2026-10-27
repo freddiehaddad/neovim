@@ -311,11 +311,11 @@ pub unsafe fn ui_client_run() -> ! {
         time_finish();
 
         loop {
-            let events = (*loop_queues((&raw mut g_st().main_loop).cast())).events;
+            let events = (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events;
             if !multiqueue_empty(events) {
                 multiqueue_process_events(events);
             } else {
-                loop_poll_events((&raw mut g_st().main_loop).cast(), -1);
+                loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), -1);
                 multiqueue_process_events(events);
             }
         }
@@ -479,7 +479,7 @@ pub unsafe fn ui_client_event_connect(args: Array) {
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
         let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
         multiqueue_put_event(
-            (*loop_queues((&raw mut g_st().main_loop).cast())).fast_events,
+            (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).fast_events,
             Event::UiClientConnect(server_addr),
         );
         g_st().ui_client_channel_id = u64::MAX;

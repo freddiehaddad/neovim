@@ -917,7 +917,7 @@ pub unsafe fn fex_format(lnum: linenr_T, count: c_long, c: c_int) -> c_int {
 
         g_st().current_sctx = (*g_st().curbuf).b_p_script_ctx[kBufOptFormatexpr];
 
-        let r = eval_expr_option_number(&raw mut (*g_st().curbuf).b_p_fex, use_sandbox);
+        let r = eval_expr_option_number(&mut (*g_st().curbuf).b_p_fex, use_sandbox);
 
         set_vim_var_string(VV_CHAR, ptr::null(), -1);
         g_st().current_sctx = save_sctx;

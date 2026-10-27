@@ -102,7 +102,7 @@ pub fn os_delay(ms: u64, ignoreinput: bool) {
             if cond {
                 break;
             }
-            loop_poll_events((&raw mut g_st().main_loop).cast(), remaining);
+            loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), remaining);
             if remaining == 0 {
                 break;
             } else if remaining > 0 {

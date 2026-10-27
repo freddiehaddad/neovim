@@ -203,27 +203,23 @@ use crate::autocmd::EVENT_CHANINFO;
 use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 
 #[inline]
-pub unsafe fn channel_instream(chan: *mut Channel) -> *mut Stream {
-    unsafe {
-        match (*chan).streamtype {
-            kChannelStreamProc => &raw mut (*chan).uv.proc_.r#in,
-            kChannelStreamSocket => &raw mut (*chan).socket.s,
-            kChannelStreamStdio => &raw mut (*chan).stdio_out,
+pub unsafe fn channel_instream(chan: &mut Channel) -> *mut Stream {
+    match chan.streamtype {
+            kChannelStreamProc => &raw mut chan.uv.proc_.r#in,
+            kChannelStreamSocket => &raw mut chan.socket.s,
+            kChannelStreamStdio => &raw mut chan.stdio_out,
             _ => std::process::abort(),
         }
-    }
 }
 
 #[inline]
-pub unsafe fn channel_outstream(chan: *mut Channel) -> *mut RStream {
-    unsafe {
-        match (*chan).streamtype {
-            kChannelStreamProc => &raw mut (*chan).uv.proc_.out,
-            kChannelStreamSocket => &raw mut (*chan).socket,
-            kChannelStreamStdio => &raw mut (*chan).stdio_in,
+pub unsafe fn channel_outstream(chan: &mut Channel) -> *mut RStream {
+    match chan.streamtype {
+            kChannelStreamProc => &raw mut chan.uv.proc_.out,
+            kChannelStreamSocket => &raw mut chan.socket,
+            kChannelStreamStdio => &raw mut chan.stdio_in,
             _ => std::process::abort(),
         }
-    }
 }
 
 #[inline]
@@ -241,17 +237,17 @@ fn unpacker_closed(p: *const Unpacker) -> bool {
 
 pub unsafe fn rpc_init() {
     unsafe {
-        let qc = loop_queues((&raw mut g_st().main_loop).cast());
+        let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
         g_st().ch_before_blocking_events = multiqueue_new_child((*qc).events);
     }
 }
 
-pub unsafe fn rpc_start(channel: *mut Channel) {
+pub unsafe fn rpc_start(channel: &mut Channel) {
     unsafe {
-        channel_incref(channel);
+        channel_incref(&raw mut *channel);
 
-        let cp = channel;
-        let ct = channel;
+        let cp = &raw mut *channel;
+        let ct = &raw mut *channel;
         (*ct).is_rpc = true;
         let rpc = &raw mut (*ct).rpc;
         (*rpc).closed = false;
@@ -268,7 +264,7 @@ pub unsafe fn rpc_start(channel: *mut Channel) {
 
         if (*cp).streamtype != kChannelStreamInternal {
             let out = channel_outstream(channel);
-            rstream_start(out, StreamCbData::ChannelRpc(channel));
+            rstream_start(&mut *out, StreamCbData::ChannelRpc(channel));
         }
     }
 }
@@ -329,8 +325,8 @@ pub unsafe fn rpc_send_call(
 
         channel_incref(channel);
 
-        let cp = channel;
-        let ct = channel;
+        let cp = &raw mut *channel;
+        let ct = &raw mut *channel;
         let rpc = &raw mut (*ct).rpc;
         let request_id = (*rpc).next_request_id;
         (*rpc).next_request_id += 1;
@@ -350,7 +346,7 @@ pub unsafe fn rpc_send_call(
             if !(*cp).events.is_null() && !multiqueue_empty((*cp).events) {
                 multiqueue_process_events((*cp).events);
             } else {
-                loop_poll_events((&raw mut g_st().main_loop).cast(), -1);
+                loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), -1);
             }
         }
         (*rpc).call_stack.pop();
@@ -428,18 +424,18 @@ pub unsafe fn rpc_send_call(
 }
 
 pub(crate) unsafe fn receive_msgpack(
-    _stream: *mut RStream,
+    _stream: &mut RStream,
     rbuf: *const c_char,
     c: usize,
-    channel: *mut Channel,
+    channel: &mut Channel,
     eof: bool,
 ) -> usize {
     unsafe {
-        channel_incref(channel);
+        channel_incref(&raw mut *channel);
 
         let mut consumed: usize = 0;
-        let cp = channel;
-        let ct = channel;
+        let cp = &raw mut *channel;
+        let ct = &raw mut *channel;
 
         if c > 0 {
             let p: *mut Unpacker = (*ct).rpc.unpacker.as_deref_mut().unwrap();
@@ -457,7 +453,7 @@ pub(crate) unsafe fn receive_msgpack(
             chan_close_on_err(channel, msg.as_ptr().cast::<c_char>(), LOGLVL_INF);
         }
 
-        channel_decref(channel);
+        channel_decref(&raw mut *channel);
 
         consumed
     }
@@ -472,10 +468,10 @@ fn find_call_frame(rpc: &RpcState, request_id: u32) -> Option<std::rc::Rc<Channe
     None
 }
 
-unsafe fn parse_msgpack(channel: *mut Channel) {
+unsafe fn parse_msgpack(channel: &mut Channel) {
     unsafe {
-        let cp = channel;
-        let ct = channel;
+        let cp = &raw mut *channel;
+        let ct = &raw mut *channel;
         let p: *mut Unpacker = (*ct).rpc.unpacker.as_deref_mut().unwrap();
 
         while unpacker_advance(p) {
@@ -550,7 +546,7 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
     }
 }
 
-unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
+unsafe fn handle_request(channel: &mut Channel, p: *mut Unpacker, args: Array) {
     unsafe {
         assert!(
             (*p).msg_type == MessageType::kMessageTypeRequest
@@ -570,7 +566,7 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
             return;
         }
 
-        let cp = channel;
+        let cp = &raw mut *channel;
         let evdata = RequestEvent {
             r#type: (*p).msg_type,
             channel,
@@ -584,7 +580,7 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
             pos: 0,
             size: 0,
         };
-        channel_incref(channel);
+        channel_incref(&raw mut *channel);
 
         if (*p).handler.fast {
             let is_get_mode = (*p)
@@ -620,8 +616,8 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
 pub unsafe fn request_event(mut e: RequestEvent) {
     unsafe {
         let channel = e.channel;
-        let cp = channel;
-        let ct = channel;
+        let cp = &raw mut *channel;
+        let ct = &raw mut *channel;
         let handler = e.handler;
         let mut error = Error::new();
 
@@ -632,7 +628,7 @@ pub unsafe fn request_event(mut e: RequestEvent) {
                 || error.err_type != ErrorType::kErrorTypeNone
             {
                 serialize_response(
-                    channel,
+                    &mut *channel,
                     e.handler,
                     e.r#type,
                     e.request_id,
@@ -657,14 +653,14 @@ pub unsafe fn rpc_write_raw(id: u64, buffer: std::rc::Rc<WBuffer>) -> bool {
             return false;
         }
 
-        channel_write(channel, buffer)
+        channel_write(&mut *channel, buffer)
     }
 }
 
-unsafe fn channel_write(channel: *mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
+unsafe fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
     unsafe {
-        let cp = channel;
-        let ct = channel;
+        let cp = &raw mut *channel;
+        let ct = &raw mut *channel;
         let mut err: c_int = 0;
 
         if (*ct).rpc.closed {
@@ -672,9 +668,9 @@ unsafe fn channel_write(channel: *mut Channel, buffer: std::rc::Rc<WBuffer>) -> 
         }
 
         if (*cp).streamtype == kChannelStreamInternal {
-            channel_incref(channel);
+            channel_incref(&raw mut *channel);
             if !(*cp).events.is_null() {
-                multiqueue_put_event((*cp).events, Event::RpcInternalRead { channel, buffer });
+                multiqueue_put_event((*cp).events, Event::RpcInternalRead { channel: &raw mut *channel, buffer });
             } else {
                 internal_read_event(channel, buffer);
             }
@@ -704,9 +700,9 @@ unsafe fn channel_write(channel: *mut Channel, buffer: std::rc::Rc<WBuffer>) -> 
     }
 }
 
-pub unsafe fn internal_read_event(channel: *mut Channel, buffer: std::rc::Rc<WBuffer>) {
+pub unsafe fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) {
     unsafe {
-        let ct = channel;
+        let ct = &raw mut *channel;
         let p: *mut Unpacker = (*ct).rpc.unpacker.as_deref_mut().unwrap();
 
         (*p).read_ptr = buffer.data_ptr();
@@ -723,12 +719,12 @@ pub unsafe fn internal_read_event(channel: *mut Channel, buffer: std::rc::Rc<WBu
             }
         }
 
-        channel_decref(channel);
+        channel_decref(&raw mut *channel);
     }
 }
 
 unsafe fn send_error(
-    chan: *mut Channel,
+    chan: &mut Channel,
     handler: MsgpackRpcRequestHandler,
     r#type: MessageType,
     id: u32,
@@ -778,9 +774,9 @@ unsafe fn has_undetached_rpc_chan() -> bool {
     false
 }
 
-pub unsafe fn rpc_close(channel: *mut Channel) {
+pub unsafe fn rpc_close(channel: &mut Channel) {
     unsafe {
-        let ct = channel;
+        let ct = &raw mut *channel;
         if (*ct).rpc.closed {
             return;
         }
@@ -788,8 +784,8 @@ pub unsafe fn rpc_close(channel: *mut Channel) {
         (*ct).rpc.closed = true;
 
         {
-            let qc = loop_queues((&raw mut g_st().main_loop).cast());
-            multiqueue_put_event((*qc).fast_events, Event::RpcClose(channel));
+            let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+            multiqueue_put_event((*qc).fast_events, Event::RpcClose(&raw mut *channel));
         }
     }
 }
@@ -800,8 +796,8 @@ pub unsafe fn rpc_close_event(channel: *mut Channel) {
 
         channel_decref(channel);
 
-        let cp = channel;
-        let ct = channel;
+        let cp = &raw mut *channel;
+        let ct = &raw mut *channel;
 
         #[cfg(windows)]
         let ui_closed = (*ct).rpc.has_ui;
@@ -833,7 +829,7 @@ pub unsafe fn rpc_close_event(channel: *mut Channel) {
     }
 }
 
-unsafe fn chan_close_on_err(channel: *mut Channel, msg: *const c_char, loglevel: c_int) {
+unsafe fn chan_close_on_err(channel: &mut Channel, msg: *const c_char, loglevel: c_int) {
     unsafe {
         logmsg!(
             loglevel,
@@ -845,8 +841,8 @@ unsafe fn chan_close_on_err(channel: *mut Channel, msg: *const c_char, loglevel:
             msg,
         );
 
-        let cp = channel;
-        let ct = channel;
+        let cp = &raw mut *channel;
+        let ct = &raw mut *channel;
         let p: *mut Unpacker = (*ct).rpc.unpacker.as_deref_mut().unwrap();
 
         for frame in &(*ct).rpc.call_stack {
@@ -904,7 +900,7 @@ unsafe fn serialize_request(
 }
 
 pub unsafe fn serialize_response(
-    mut channel: *mut Channel,
+    channel: &mut Channel,
     handler: MsgpackRpcRequestHandler,
     r#type: MessageType,
     response_id: u32,
@@ -940,13 +936,15 @@ pub unsafe fn serialize_response(
                     size: 2,
                     capacity: 2,
                 };
-                serialize_request(&raw mut channel, 1, 0, c"nvim_error_event".as_ptr(), args);
+                let mut ch_ptr = &raw mut *channel;
+                serialize_request(&raw mut ch_ptr, 1, 0, c"nvim_error_event".as_ptr(), args);
             }
             return;
         }
 
         let mut packer = PackerBuffer::new();
-        packer_buffer_init_channels(&raw mut channel, 1, &mut packer);
+        let mut ch_ptr = &raw mut *channel;
+        packer_buffer_init_channels(&raw mut ch_ptr, 1, &mut packer);
 
         mpack_array(&raw mut packer.ptr, 4);
         mpack_w(&raw mut packer.ptr, 1);
@@ -1000,7 +998,7 @@ unsafe fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
             let buf = wstream_new_vec_buffer(vec);
             let chans = packer.anydata.as_chans();
             for i in 0..(packer.anyint as usize) {
-                let _ = channel_write(*chans.add(i), std::rc::Rc::clone(&buf));
+                let _ = channel_write(&mut **chans.add(i), std::rc::Rc::clone(&buf));
             }
         }
     }
@@ -1028,7 +1026,7 @@ pub unsafe fn rpc_set_client_info(id: u64, info: Dict) {
         api_free_dict((*ct).rpc.info);
         (*ct).rpc.info = info;
 
-        let r#type = get_client_info(chan, c"type".as_ptr());
+        let r#type = get_client_info(&mut *chan, c"type".as_ptr());
         (*ct).rpc.client_type = if r#type.is_null() {
             kClientTypeRemote
         } else {
@@ -1047,7 +1045,7 @@ pub unsafe fn rpc_set_client_info(id: u64, info: Dict) {
     }
 }
 
-pub unsafe fn get_client_info(chan: *mut Channel, key: *const c_char) -> *const c_char {
+pub unsafe fn get_client_info(chan: &mut Channel, key: *const c_char) -> *const c_char {
     unsafe {
         let ct = chan;
         if !(*ct).is_rpc {

@@ -372,11 +372,9 @@ const fn ml_simple(x: c_int) -> bool {
 }
 
 #[inline]
-unsafe fn pb_count_max(mfp: *const memfile_T) -> u16 {
-    unsafe {
-        (((*mfp).mf_page_size as usize - std::mem::offset_of!(PointerBlock, pb_pointer))
+unsafe fn pb_count_max(mfp: &memfile_T) -> u16 {
+    ((mfp.mf_page_size as usize - std::mem::offset_of!(PointerBlock, pb_pointer))
             / size_of::<PointerEntry>()) as u16
-    }
 }
 
 #[inline]
@@ -425,7 +423,7 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
         (*buf).b_ml.ml_flags = ML_EMPTY;
         (*buf).b_ml.ml_line_count = 1;
 
-        let mut hp = mf_new(mfp, false, 1);
+        let mut hp = mf_new(&mut *mfp, false, 1);
         if (*hp).bh_bnum != 0 {
             iemsg(tr(c"E298: Didn't get block nr 0?"));
             return ml_open_error(buf, mfp, hp);
@@ -460,10 +458,10 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
 
         mf_put(mfp, hp, true, false);
         if !(*buf).b_help && !(*buf).b_spell {
-            mf_sync(mfp, 0);
+            mf_sync(&mut *mfp, 0);
         }
 
-        hp = ml_new_ptr(mfp);
+        hp = ml_new_ptr(&mut *mfp);
         assert!(!hp.is_null());
         if (*hp).bh_bnum != 1 {
             iemsg(tr(c"E298: Didn't get block nr 1?"));
@@ -478,7 +476,7 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
         (*pe0).pe_line_count = 1;
         mf_put(mfp, hp, true, false);
 
-        hp = ml_new_data(mfp, false, 1);
+        hp = ml_new_data(&mut *mfp, false, 1);
         if (*hp).bh_bnum != 2 {
             iemsg(tr(c"E298: Didn't get block nr 2?"));
             return ml_open_error(buf, mfp, hp);
@@ -556,8 +554,8 @@ pub unsafe fn ml_setname(buf: *mut buf_T) {
 
             if vim_rename(mf_fname_ptr, fname.as_ptr()) == 0 {
                 success = true;
-                mf_free_fnames(mfp);
-                mf_set_fnames(mfp, fname);
+                mf_free_fnames(&mut *mfp);
+                mf_set_fnames(&mut *mfp, fname);
                 ml_upd_block0(buf, upd_block0_T::UB_SAME_DIR);
                 break;
             }
@@ -605,7 +603,7 @@ pub unsafe fn ml_open_file(buf: *mut buf_T) {
 
         if (*buf).b_spell {
             if let Some(fname) = vim_tempname() {
-                mf_open_file(mfp, fname);
+                mf_open_file(&mut *mfp, fname);
             }
             (*buf).b_may_swap = false;
             return;
@@ -632,12 +630,12 @@ pub unsafe fn ml_open_file(buf: *mut buf_T) {
             let Some(fname) = fname else {
                 continue;
             };
-            if mf_open_file(mfp, fname) == OK {
+            if mf_open_file(&mut *mfp, fname) == OK {
                 (*mfp).mf_dirty = MF_DIRTY_YES_NOSYNC;
                 ml_upd_block0(buf, upd_block0_T::UB_SAME_DIR);
 
-                if mf_sync(mfp, MFS_ZERO) == OK {
-                    mf_set_dirty(mfp);
+                if mf_sync(&mut *mfp, MFS_ZERO) == OK {
+                    mf_set_dirty(&mut *mfp);
                     break;
                 }
                 mf_close_file(buf, false);
@@ -743,7 +741,7 @@ unsafe fn ml_upd_block0(buf: *mut buf_T, what: upd_block0_T) {
         if mfp.is_null() {
             return;
         }
-        let hp = mf_get(mfp, 0, 1);
+        let hp = mf_get(&mut *mfp, 0, 1);
         if hp.is_null() {
             return;
         }
@@ -784,16 +782,16 @@ unsafe fn set_b0_fname(b0p: *mut ZeroBlock, buf: *mut buf_T) {
                 }
             }
             let mut file_info = FileInfo::new();
-            if os_fileinfo((*buf).b_ffname, &raw mut file_info) {
+            if os_fileinfo((*buf).b_ffname, &mut file_info) {
                 long_to_char(
                     file_info.stat.st_mtim.tv_sec as c_long,
                     (&raw mut (*b0p).b0_mtime).cast(),
                 );
                 long_to_char(
-                    os_fileinfo_inode(&raw const file_info) as c_long,
+                    os_fileinfo_inode(&file_info) as c_long,
                     (&raw mut (*b0p).b0_ino).cast(),
                 );
-                buf_store_file_info(buf, &raw mut file_info);
+                buf_store_file_info(buf, &mut file_info);
                 (*buf).b_mtime_read = (*buf).b_mtime;
                 (*buf).b_mtime_read_ns = (*buf).b_mtime_ns;
             } else {
@@ -846,7 +844,7 @@ unsafe fn swapfile_proc_running(b0p: *const ZeroBlock, swap_fname: *const c_char
     unsafe {
         let mut st = FileInfo::new();
         let mut uptime: f64 = 0.0;
-        if os_fileinfo(swap_fname, &raw mut st)
+        if os_fileinfo(swap_fname, &mut st)
             && uv_uptime(&raw mut uptime) == 0
             && (st.stat.st_mtim.tv_sec as Timestamp) < os_time().wrapping_sub(uptime as Timestamp)
         {
@@ -941,7 +939,7 @@ pub unsafe fn ml_recover(checkext: bool) {
 
         let hl_id = HLF_E;
         msg_ext_set_kind(c"emsg".as_ptr());
-        hp = mf_get(mfp, 0, 1);
+        hp = mf_get(&mut *mfp, 0, 1);
         if hp.is_null() {
             msg_start();
             msg_puts_hl(tr(c"Unable to read block 0 from "), hl_id, true);
@@ -1023,7 +1021,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         let b0_page_size = char_to_long((&raw const (*b0p).b0_page_size).cast()) as c_uint;
         if (*mfp).mf_page_size != b0_page_size {
             let previous_page_size = (*mfp).mf_page_size;
-            mf_new_page_size(mfp, b0_page_size);
+            mf_new_page_size(&mut *mfp, b0_page_size);
             if (*mfp).mf_page_size < previous_page_size {
                 msg_start();
                 msg_outtrans(
@@ -1100,8 +1098,8 @@ pub unsafe fn ml_recover(checkext: bool) {
         let mut swp_file_info = FileInfo::new();
         let mtime = char_to_long((&raw const (*b0p).b0_mtime).cast()) as i64;
         if !(*g_st().curbuf).b_ffname.is_null()
-            && os_fileinfo((*g_st().curbuf).b_ffname, &raw mut org_file_info)
-            && ((os_fileinfo(mf_fname_ptr, &raw mut swp_file_info)
+            && os_fileinfo((*g_st().curbuf).b_ffname, &mut org_file_info)
+            && ((os_fileinfo(mf_fname_ptr, &mut swp_file_info)
                 && org_file_info.stat.st_mtim.tv_sec > swp_file_info.stat.st_mtim.tv_sec)
                 || mtime != org_file_info.stat.st_mtim.tv_sec as _)
         {
@@ -1174,7 +1172,7 @@ pub unsafe fn ml_recover(checkext: bool) {
             if !hp.is_null() {
                 mf_put(mfp, hp, false, false);
             }
-            hp = mf_get(mfp, bnum, page_count);
+            hp = mf_get(&mut *mfp, bnum, page_count);
             if hp.is_null() {
                 if bnum == 1 {
                     semsg!(
@@ -1194,7 +1192,7 @@ pub unsafe fn ml_recover(checkext: bool) {
                 let pp = (*hp).data_ptr().cast::<PointerBlock>();
                 if (*pp).pb_id == PTR_ID {
                     let mut ptr_block_error = false;
-                    let max_cnt = pb_count_max(mfp);
+                    let max_cnt = pb_count_max(&*mfp);
                     if (*pp).pb_count_max != max_cnt {
                         ptr_block_error = true;
                         (*pp).pb_count_max = max_cnt;
@@ -1631,7 +1629,7 @@ pub unsafe fn make_percent_swname(
         let fname_ptr = fname_vec.as_mut_ptr();
 
         let mut file_info = FileInfo::new();
-        if !os_fileinfo2(fname_ptr, &raw mut file_info) {
+        if !os_fileinfo2(fname_ptr, &mut file_info) {
             return None;
         }
         let mut fixed_data = fname_ptr.add(file_info.root_off);
@@ -1751,7 +1749,7 @@ unsafe fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
         let mut x: time_t = 0;
 
         let mut file_info = FileInfo::new();
-        if os_fileinfo(fname, &raw mut file_info) {
+        if os_fileinfo(fname, &mut file_info) {
             #[cfg(unix)]
             {
                 let mut uname = [0 as c_char; B0_UNAME_SIZE];
@@ -1964,14 +1962,14 @@ pub unsafe fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) 
             ml_find_line(buf, 0, ML_FLUSH);
             if bufIsChanged(buf)
                 && check_file != 0
-                && mf_need_trans(mfp)
+                && mf_need_trans(&mut *mfp)
                 && !(*buf).b_ffname.is_null()
             {
                 let mut file_info = FileInfo::new();
-                if !os_fileinfo((*buf).b_ffname, &raw mut file_info)
+                if !os_fileinfo((*buf).b_ffname, &mut file_info)
                     || (*buf).b_mtime_read != file_info.stat.st_mtim.tv_sec as _
                     || (*buf).b_mtime_read_ns != file_info.stat.st_mtim.tv_nsec as _
-                    || os_fileinfo_size(&raw const file_info) != (*buf).b_orig_size
+                    || os_fileinfo_size(&file_info) != (*buf).b_orig_size
                 {
                     ml_preserve(buf, false, do_fsync);
                     g_st().did_check_timestamps = false;
@@ -1980,7 +1978,7 @@ pub unsafe fn ml_sync_all(check_file: c_int, check_char: c_int, do_fsync: bool) 
             }
             if (*mfp).mf_dirty == MF_DIRTY_YES {
                 mf_sync(
-                    mfp,
+                    &mut *mfp,
                     (if check_char != 0 { MFS_STOP } else { 0 })
                         | (if do_fsync && bufIsChanged(buf) {
                             MFS_FLUSH
@@ -2014,13 +2012,13 @@ pub unsafe fn ml_preserve(buf: *mut buf_T, message: bool, do_fsync: bool) {
 
         ml_flush_line(buf, false);
         ml_find_line(buf, 0, ML_FLUSH);
-        let mut status = mf_sync(mfp, MFS_ALL | if do_fsync { MFS_FLUSH } else { 0 });
+        let mut status = mf_sync(&mut *mfp, MFS_ALL | if do_fsync { MFS_FLUSH } else { 0 });
 
         (*buf).b_ml.ml_stack_top = 0;
 
-        if mf_need_trans(mfp) && !g_st().got_int {
+        if mf_need_trans(&mut *mfp) && !g_st().got_int {
             let mut lnum: linenr_T = 1;
-            while mf_need_trans(mfp) && lnum <= (*buf).b_ml.ml_line_count {
+            while mf_need_trans(&mut *mfp) && lnum <= (*buf).b_ml.ml_line_count {
                 let hp = ml_find_line(buf, lnum, ML_FIND);
                 if hp.is_null() {
                     status = FAIL;
@@ -2030,7 +2028,7 @@ pub unsafe fn ml_preserve(buf: *mut buf_T, message: bool, do_fsync: bool) {
             }
             if status != FAIL {
                 ml_find_line(buf, 0, ML_FLUSH);
-                if mf_sync(mfp, MFS_ALL | if do_fsync { MFS_FLUSH } else { 0 }) == FAIL {
+                if mf_sync(&mut *mfp, MFS_ALL | if do_fsync { MFS_FLUSH } else { 0 }) == FAIL {
                     status = FAIL;
                 }
                 (*buf).b_ml.ml_stack_top = 0;
@@ -2340,7 +2338,7 @@ unsafe fn ml_append_int(
             }
 
             let new_page_count = ((space_needed + HEADER_SIZE as i64) + page_size - 1) / page_size;
-            let mut hp_new = ml_new_data(mfp, (flags & ML_APPEND_NEW) != 0, new_page_count);
+            let mut hp_new = ml_new_data(&mut *mfp, (flags & ML_APPEND_NEW) != 0, new_page_count);
             let hp_left: *mut bhdr_T;
             let hp_right: *mut bhdr_T;
             let mut line_count_left: c_int;
@@ -2458,7 +2456,7 @@ unsafe fn ml_append_int(
             while stack_idx >= 0 {
                 let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(stack_idx as usize);
                 let pb_idx = (*ip).ip_index as usize;
-                hp = mf_get(mfp, (*ip).ip_bnum, 1);
+                hp = mf_get(&mut *mfp, (*ip).ip_bnum, 1);
                 if hp.is_null() {
                     return FAIL;
                 }
@@ -2513,7 +2511,7 @@ unsafe fn ml_append_int(
 
                 let mut pp_new: *mut PointerBlock;
                 loop {
-                    hp_new = ml_new_ptr(mfp);
+                    hp_new = ml_new_ptr(&mut *mfp);
                     if hp_new.is_null() {
                         return FAIL;
                     }
@@ -2851,7 +2849,7 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
         );
 
         if count == 1 {
-            mf_free(mfp, hp);
+            mf_free(&mut *mfp, hp);
             (*buf).b_ml.ml_locked = ptr::null_mut();
 
             let mut stack_idx = (*buf).b_ml.ml_stack_top - 1;
@@ -2859,7 +2857,7 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
                 (*buf).b_ml.ml_stack_top = 0;
                 let ip = (*buf).b_ml.ml_stack.as_mut_ptr().add(stack_idx as usize);
                 idx = (*ip).ip_index;
-                hp = mf_get(mfp, (*ip).ip_bnum, 1);
+                hp = mf_get(&mut *mfp, (*ip).ip_bnum, 1);
                 if hp.is_null() {
                     return FAIL;
                 }
@@ -2872,7 +2870,7 @@ unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int 
                 (*pp).pb_count -= 1;
                 count = c_int::from((*pp).pb_count);
                 if count == 0 {
-                    mf_free(mfp, hp);
+                    mf_free(&mut *mfp, hp);
                 } else {
                     if count != idx {
                         ptr::copy(
@@ -3127,13 +3125,13 @@ unsafe fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
     }
 }
 
-unsafe fn ml_new_data(mfp: *mut memfile_T, negative: bool, page_count: i64) -> *mut bhdr_T {
+unsafe fn ml_new_data(mfp: &mut memfile_T, negative: bool, page_count: i64) -> *mut bhdr_T {
     unsafe {
         assert!(page_count >= 0);
         let hp = mf_new(mfp, negative, page_count as c_uint);
         let dp = (*hp).data_ptr().cast::<DataBlock>();
         (*dp).db_id = DATA_ID;
-        (*dp).db_txt_end = (page_count as c_uint).wrapping_mul((*mfp).mf_page_size);
+        (*dp).db_txt_end = (page_count as c_uint).wrapping_mul(mfp.mf_page_size);
         (*dp).db_txt_start = (*dp).db_txt_end;
         (*dp).db_free = (*dp).db_txt_start - (HEADER_SIZE as c_uint);
         (*dp).db_line_count = 0;
@@ -3141,7 +3139,7 @@ unsafe fn ml_new_data(mfp: *mut memfile_T, negative: bool, page_count: i64) -> *
     }
 }
 
-unsafe fn ml_new_ptr(mfp: *mut memfile_T) -> *mut bhdr_T {
+unsafe fn ml_new_ptr(mfp: &mut memfile_T) -> *mut bhdr_T {
     unsafe {
         let hp = mf_new(mfp, false, 1);
         let pp = (*hp).data_ptr().cast::<PointerBlock>();
@@ -3214,7 +3212,7 @@ unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut b
         }
 
         loop {
-            let hp = mf_get(mfp, bnum, page_count as c_uint);
+            let hp = mf_get(&mut *mfp, bnum, page_count as c_uint);
             if hp.is_null() {
                 return ml_find_line_error_noblock(buf, action);
             }
@@ -3263,7 +3261,7 @@ unsafe fn ml_find_line(buf: *mut buf_T, lnum: linenr_T, action: c_int) -> *mut b
                     low -= t;
 
                     if bnum < 0 {
-                        let bnum2 = mf_trans_del(mfp, bnum);
+                        let bnum2 = mf_trans_del(&mut *mfp, bnum);
                         if bnum != bnum2 {
                             bnum = bnum2;
                             (*pe).pe_bnum = bnum;
@@ -3330,7 +3328,7 @@ unsafe fn ml_lineadd(buf: *mut buf_T, count: c_int) {
         let mut idx = (*buf).b_ml.ml_stack_top - 1;
         while idx >= 0 {
             let ip = &mut (&mut (*buf).b_ml.ml_stack)[idx as usize];
-            let hp = mf_get(mfp, ip.ip_bnum, 1);
+            let hp = mf_get(&mut *mfp, ip.ip_bnum, 1);
             if hp.is_null() {
                 break;
             }
@@ -3511,7 +3509,7 @@ unsafe fn attention_message(
         sb_push_cstr(msg, (*buf).b_fname);
         msg.extend_from_slice(b"\"\n");
         let mut file_info = FileInfo::new();
-        if !os_fileinfo((*buf).b_fname, &raw mut file_info) {
+        if !os_fileinfo((*buf).b_fname, &mut file_info) {
             sb_push_cstr(msg, tr(c"      CANNOT BE FOUND"));
         } else {
             sb_push_cstr(msg, tr(c"             dated: "));
@@ -3606,7 +3604,7 @@ unsafe fn findswapname(
                 break;
             }
             let mut file_info = FileInfo::new();
-            let file_or_link_found = os_fileinfo_link(fname, &raw mut file_info);
+            let file_or_link_found = os_fileinfo_link(fname, &mut file_info);
             if !file_or_link_found {
                 break;
             }
@@ -3831,12 +3829,12 @@ unsafe fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c
         let mut buf_s = [0 as c_char; MAXPATHL];
 
         let mut file_info = FileInfo::new();
-        if os_fileinfo(fname_c, &raw mut file_info) {
-            ino_c = os_fileinfo_inode(&raw const file_info);
+        if os_fileinfo(fname_c, &mut file_info) {
+            ino_c = os_fileinfo_inode(&file_info);
         }
 
-        let ino_s: u64 = if os_fileinfo(fname_s, &raw mut file_info) {
-            os_fileinfo_inode(&raw const file_info)
+        let ino_s: u64 = if os_fileinfo(fname_s, &mut file_info) {
+            os_fileinfo_inode(&file_info)
         } else {
             ino_block0 as u64
         };
@@ -3905,7 +3903,7 @@ pub unsafe fn ml_setflags(buf: *mut buf_T) {
             (*b0p).set_flags(((*b0p).flags() & !B0_FF_MASK) | ff_bits);
             add_b0_fenc(b0p, buf);
             (*hp).bh_flags |= BH_DIRTY;
-            mf_sync(mfp, MFS_ZERO);
+            mf_sync(&mut *mfp, MFS_ZERO);
         }
     }
 }

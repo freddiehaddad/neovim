@@ -1205,8 +1205,8 @@ pub unsafe fn readfile(
             }
 
             if newfile && !read_stdin && !read_buffer && !read_fifo {
-                if os_fileinfo(fname, &raw mut file_info) {
-                    buf_store_file_info(g_st().curbuf, &raw mut file_info);
+                if os_fileinfo(fname, &mut file_info) {
+                    buf_store_file_info(g_st().curbuf, &mut file_info);
                     (*g_st().curbuf).b_mtime_read = (*g_st().curbuf).b_mtime;
                     (*g_st().curbuf).b_mtime_read_ns = (*g_st().curbuf).b_mtime_ns;
                     #[cfg(unix)]
@@ -1331,7 +1331,7 @@ pub unsafe fn readfile(
                         let swap_fname = swap_fname.as_ptr();
                         if (swap_mode & 0o44) == 0o40 {
                             let mut swap_info: FileInfo = FileInfo::new();
-                            if os_fileinfo(swap_fname, &raw mut swap_info)
+                            if os_fileinfo(swap_fname, &mut swap_info)
                                 && file_info.stat.st_gid != swap_info.stat.st_gid
                                 && os_fchown(
                                     (*mfp).mf_fd,
@@ -2339,8 +2339,8 @@ pub unsafe fn readfile(
 
                     if show_msg && (progress || os_hrtime() - read_start > slow_io_ns()) {
                         let mut info: FileInfo = FileInfo::new();
-                        let total = if os_fileinfo_fd(fd, &raw mut info) {
-                            os_fileinfo_size(&raw const info)
+                        let total = if os_fileinfo_fd(fd, &mut info) {
+                            os_fileinfo_size(&info)
                         } else {
                             0
                         };
@@ -3116,10 +3116,9 @@ pub unsafe fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) 
     }
 }
 
-pub unsafe fn time_differs(file_info: *const FileInfo, mtime: i64, mtime_ns: i64) -> bool {
-    unsafe {
-        let sec: i64 = (*file_info).stat.st_mtim.tv_sec as _;
-        let nsec: i64 = (*file_info).stat.st_mtim.tv_nsec as _;
+pub unsafe fn time_differs(file_info: &FileInfo, mtime: i64, mtime_ns: i64) -> bool {
+    let sec: i64 = file_info.stat.st_mtim.tv_sec as _;
+        let nsec: i64 = file_info.stat.st_mtim.tv_nsec as _;
         #[cfg(any(target_os = "linux", windows))]
         {
             nsec != mtime_ns || sec - mtime > 1 || mtime - sec > 1
@@ -3128,7 +3127,6 @@ pub unsafe fn time_differs(file_info: *const FileInfo, mtime: i64, mtime_ns: i64
         {
             nsec != mtime_ns || sec != mtime
         }
-    }
 }
 
 /// Return true if file encoding "fenc" requires conversion from or to 'encoding'.
@@ -3594,13 +3592,13 @@ pub unsafe fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
         }
 
         let mut from_info: FileInfo = FileInfo::new();
-        if !os_fileinfo(from, &raw mut from_info) {
+        if !os_fileinfo(from, &mut from_info) {
             return -1;
         }
 
         let mut to_info: FileInfo = FileInfo::new();
-        if os_fileinfo(to, &raw mut to_info)
-            && os_fileinfo_id_equal(&raw const from_info, &raw const to_info)
+        if os_fileinfo(to, &mut to_info)
+            && os_fileinfo_id_equal(&from_info, &to_info)
         {
             use_tmp_file = true;
         }
@@ -3622,7 +3620,7 @@ pub unsafe fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
             return -1;
         }
 
-        if os_fileinfo(from, &raw mut from_info) {
+        if os_fileinfo(from, &mut from_info) {
             os_remove(from);
         }
 
@@ -3636,7 +3634,7 @@ pub unsafe fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int {
         #[cfg(not(windows))]
         {
             let mut from_info: FileInfo = FileInfo::new();
-            if os_fileinfo_link(from, &raw mut from_info) && s_islnk(from_info.stat.st_mode) {
+            if os_fileinfo_link(from, &mut from_info) && s_islnk(from_info.stat.st_mode) {
                 let mut ret = -1;
                 let mut linkbuf: [c_char; MAXPATHL + 1] = [0; MAXPATHL + 1];
                 let len = readlink(from, linkbuf.as_mut_ptr(), MAXPATHL);
@@ -3780,9 +3778,9 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
         if ((*buf).b_flags & BF_NOTEDITED) == 0
             && (*buf).b_mtime != 0
             && ({
-                file_info_ok = os_fileinfo((*buf).b_ffname, &raw mut file_info);
+                file_info_ok = os_fileinfo((*buf).b_ffname, &mut file_info);
                 !file_info_ok
-                    || time_differs(&raw const file_info, (*buf).b_mtime, (*buf).b_mtime_ns)
+                    || time_differs(&file_info, (*buf).b_mtime, (*buf).b_mtime_ns)
                     || (file_info.stat.st_mode as c_int) != (*buf).b_orig_mode
             })
         {
@@ -3795,7 +3793,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
                 (*buf).b_orig_size = 0;
                 (*buf).b_orig_mode = 0;
             } else {
-                buf_store_file_info(buf, &raw mut file_info);
+                buf_store_file_info(buf, &mut file_info);
             }
 
             if os_isdir((*buf).b_fname) {
@@ -4116,12 +4114,12 @@ pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool
     }
 }
 
-pub unsafe fn buf_store_file_info(buf: *mut buf_T, file_info: *mut FileInfo) {
+pub unsafe fn buf_store_file_info(buf: *mut buf_T, file_info: &mut FileInfo) {
     unsafe {
-        (*buf).b_mtime = (*file_info).stat.st_mtim.tv_sec as _;
-        (*buf).b_mtime_ns = (*file_info).stat.st_mtim.tv_nsec as _;
+        (*buf).b_mtime = file_info.stat.st_mtim.tv_sec as _;
+        (*buf).b_mtime_ns = file_info.stat.st_mtim.tv_nsec as _;
         (*buf).b_orig_size = os_fileinfo_size(file_info);
-        (*buf).b_orig_mode = (*file_info).stat.st_mode as c_int;
+        (*buf).b_orig_mode = file_info.stat.st_mode as c_int;
     }
 }
 

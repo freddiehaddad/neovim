@@ -240,11 +240,11 @@ pub unsafe fn remote_ui_free_all_mem() {
 pub unsafe fn remote_ui_wait_for_attach() {
     unsafe {
         while ui_active() == 0 {
-            let events = (*loop_queues((&raw mut g_st().main_loop).cast())).events;
+            let events = (*loop_queues(&mut *(&raw mut g_st().main_loop).cast())).events;
             if !multiqueue_empty(events) {
                 multiqueue_process_events(events);
             } else {
-                loop_poll_events((&raw mut g_st().main_loop).cast(), -1);
+                loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), -1);
                 multiqueue_process_events(events);
             }
         }

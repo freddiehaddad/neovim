@@ -112,13 +112,11 @@ impl LibuvProc {
 use crate::event::r#loop::{uv_pipe, uv_process_get_pid, uv_spawn};
 
 #[inline]
-pub unsafe fn proc_get_exepath(proc_: *mut Proc) -> *const c_char {
-    unsafe {
-        (*proc_)
+pub unsafe fn proc_get_exepath(proc_: &mut Proc) -> *const c_char {
+    (*proc_)
             .exepath
             .as_ref()
-            .map_or_else(|| (*proc_).argv.as_slice()[0].as_ptr(), |s| s.as_ptr())
-    }
+            .map_or_else(|| proc_.argv.as_slice()[0].as_ptr(), |s| s.as_ptr())
 }
 
 unsafe fn libuv_proc_stdio(
@@ -217,7 +215,7 @@ pub unsafe fn libuv_proc_spawn(uvproc: *mut LibuvProc) -> c_int {
             .map(|s| s.as_ptr().cast_mut())
             .chain(std::iter::once(ptr::null_mut()))
             .collect();
-        (*uvproc).uvopts.file = proc_get_exepath(proc_);
+        (*uvproc).uvopts.file = proc_get_exepath(&mut *proc_);
         (*uvproc).uvopts.args = (*uvproc).args_ptrs.as_mut_ptr();
         (*uvproc).uvopts.flags |= UV_PROCESS_WINDOWS_HIDE;
 
@@ -323,7 +321,7 @@ pub unsafe fn libuv_proc_close(uvproc: *mut LibuvProc) {
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
         let proc_ = *handle.cast::<*mut Proc>();
-        crate::event::proc::proc_decref(proc_);
+        crate::event::proc::proc_decref(&mut *proc_);
         let uvproc = proc_.cast::<LibuvProc>();
         (*uvproc).env_ptrs.clear();
         (*uvproc).env_vec.clear();
@@ -342,6 +340,6 @@ unsafe extern "C" fn exit_cb(handle: *mut uv_process_t, status: i64, term_signal
         #[cfg(not(windows))]
         let sig = term_signal;
         (*proc_).status = if sig != 0 { 128 + sig } else { status as c_int };
-        crate::event::proc::on_proc_exit(proc_);
+        crate::event::proc::on_proc_exit(&mut *proc_);
     }
 }

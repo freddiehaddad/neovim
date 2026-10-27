@@ -1251,7 +1251,7 @@ unsafe fn command_line_enter(
             } else {
                 pum_check_clear();
             }
-            wildmenu_cleanup(&raw mut getln_st().ccline);
+            wildmenu_cleanup(&mut getln_st().ccline);
             (*s).did_wild_list = false;
             (*s).wim_index = 0;
 
@@ -1648,7 +1648,7 @@ unsafe fn command_line_end_wildmenu(s: &mut CommandLineState, key_is_wc: bool, c
             s.xpc.xp_context = EXPAND_NOTHING;
         }
         s.wim_index = 0;
-        wildmenu_cleanup(&raw mut getln_st().ccline);
+        wildmenu_cleanup(&mut getln_st().ccline);
     }
 }
 
@@ -1767,7 +1767,7 @@ unsafe fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
 
         if opt_vars().p_wmnu != 0 {
             s.c = wildmenu_translate_key(
-                &raw mut getln_st().ccline,
+                &mut getln_st().ccline,
                 s.c,
                 &mut s.xpc,
                 s.did_wild_list,
@@ -1831,7 +1831,7 @@ unsafe fn command_line_execute(s: &mut CommandLineState, key: c_int) -> c_int {
         }
 
         if opt_vars().p_wmnu != 0 {
-            s.c = wildmenu_process_key(&raw mut getln_st().ccline, s.c, &mut s.xpc);
+            s.c = wildmenu_process_key(&mut getln_st().ccline, s.c, &mut s.xpc);
         }
 
         if s.c == Ctrl_BSL {
@@ -2673,7 +2673,7 @@ unsafe fn command_line_handle_key(s: &mut CommandLineState) -> c_int {
 
                     Ctrl_A => {
                         if cmdline_pum_active() {
-                            cmdline_pum_cleanup(&raw mut getln_st().ccline);
+                            cmdline_pum_cleanup(&mut getln_st().ccline);
                         }
 
                         if nextwild(&mut s.xpc, WILD_ALL, 0, s.firstc != b'@' as c_int)
@@ -3688,14 +3688,14 @@ pub unsafe fn realloc_cmdbuff(mut len: c_int) {
 
 /// Color expression cmdline using built-in expressions parser.
 unsafe fn color_expr_cmdline(
-    colored_ccline: *const CmdlineInfo,
+    colored_ccline: &CmdlineInfo,
     ret_ccline_colors: *mut ColoredCmdline,
 ) {
     unsafe {
         let parser_lines = [
             ParserLine {
-                data: (*colored_ccline).cmdbuff,
-                size: std::ffi::CStr::from_ptr((*colored_ccline).cmdbuff).to_bytes().len(),
+                data: colored_ccline.cmdbuff,
+                size: std::ffi::CStr::from_ptr(colored_ccline.cmdbuff).to_bytes().len(),
             },
             ParserLine {
                 data: ptr::null(),
@@ -3730,10 +3730,10 @@ unsafe fn color_expr_cmdline(
             });
             prev_end = chunk.end_col;
         }
-        if prev_end < (*colored_ccline).cmdlen as usize {
+        if prev_end < colored_ccline.cmdlen as usize {
             (*ret_ccline_colors).colors.push(CmdlineColorChunk {
                 start: prev_end as c_int,
-                end: (*colored_ccline).cmdlen,
+                end: colored_ccline.cmdlen,
                 hl_id: 0,
             });
         }
@@ -3741,25 +3741,25 @@ unsafe fn color_expr_cmdline(
 }
 
 /// Color command-line.
-unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
+unsafe fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
     unsafe {
         let mut printed_errmsg = false;
         let mut ret = true;
 
-        let ccline_colors = &raw mut (*colored_ccline).last_colors;
+        let ccline_colors = &raw mut colored_ccline.last_colors;
 
-        if (*ccline_colors).prompt_id == (*colored_ccline).prompt_id
+        if (*ccline_colors).prompt_id == colored_ccline.prompt_id
             && (*ccline_colors)
                 .cmdbuff
                 .as_ref()
-                .is_some_and(|cb| std::ffi::CStr::from_ptr(cb.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr((*colored_ccline).cmdbuff).to_bytes())
+                .is_some_and(|cb| std::ffi::CStr::from_ptr(cb.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(colored_ccline.cmdbuff).to_bytes())
         {
             return ret;
         }
 
         (*ccline_colors).colors.clear();
 
-        if (*colored_ccline).cmdbuff.is_null() || *(*colored_ccline).cmdbuff == NUL {
+        if colored_ccline.cmdbuff.is_null() || *colored_ccline.cmdbuff == NUL {
             (*ccline_colors).cmdbuff = None;
             return ret;
         }
@@ -3768,7 +3768,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
         let mut arg = typval_T {
             v_type: VarType::VAR_STRING,
             v_lock: 0,
-            vval: TypvalVval::String((*colored_ccline).cmdbuff),
+            vval: TypvalVval::String(colored_ccline.cmdbuff),
         };
         let mut tv = typval_T {
             v_type: VarType::VAR_UNKNOWN,
@@ -3784,16 +3784,16 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
 
         'color_cmdline_end: {
             'color_cmdline_error: {
-                if (*colored_ccline).prompt_id != getln_st().prev_prompt_id {
+                if colored_ccline.prompt_id != getln_st().prev_prompt_id {
                     getln_st().prev_prompt_errors = 0;
-                    getln_st().prev_prompt_id = (*colored_ccline).prompt_id;
+                    getln_st().prev_prompt_id = colored_ccline.prompt_id;
                 } else if getln_st().prev_prompt_errors >= MAX_CB_ERRORS {
                     break 'color_cmdline_end;
                 }
-                if (*colored_ccline).highlight_callback.cb_type() != kCallbackNone {
-                    debug_assert!((*colored_ccline).input_fn != 0);
-                    color_cb = (*colored_ccline).highlight_callback.clone();
-                } else if (*colored_ccline).cmdfirstc == b':' as c_int {
+                if colored_ccline.highlight_callback.cb_type() != kCallbackNone {
+                    debug_assert!(colored_ccline.input_fn != 0);
+                    color_cb = colored_ccline.highlight_callback.clone();
+                } else if colored_ccline.cmdfirstc == b':' as c_int {
                     let mut tstate = TryState::new();
                     try_enter(&raw mut tstate);
                     err_errmsg = c"E5408: Unable to get g:Nvim_color_cmdline callback: %s".as_ptr();
@@ -3801,11 +3801,11 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                         get_globvar_dict(),
                         c"Nvim_color_cmdline".as_ptr(),
                         18,
-                        &raw mut color_cb,
+                        &mut color_cb,
                     );
                     try_leave(&raw const tstate, &mut err);
                     can_free_cb = true;
-                } else if (*colored_ccline).cmdfirstc == b'=' as c_int {
+                } else if colored_ccline.cmdfirstc == b'=' as c_int {
                     color_expr_cmdline(colored_ccline, ccline_colors);
                 }
                 if error_set(&err) || !dgc_ret {
@@ -3817,12 +3817,12 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                 }
                 if *(*colored_ccline)
                     .cmdbuff
-                    .add((*colored_ccline).cmdlen as usize)
+                    .add(colored_ccline.cmdlen as usize)
                     != NUL
                 {
                     let cstr = std::ffi::CString::new(std::slice::from_raw_parts(
-                        (*colored_ccline).cmdbuff.cast::<u8>(),
-                        (*colored_ccline).cmdlen as usize,
+                        colored_ccline.cmdbuff.cast::<u8>(),
+                        colored_ccline.cmdlen as usize,
                     ))
                     .unwrap_or_default();
                     arg.vval = crate::eval::typval::TypvalVval::String(cstr.as_ptr().cast_mut());
@@ -3895,7 +3895,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     if error {
                         break 'color_cmdline_error;
                     } else if !(prev_end <= start
-                        && start < (*colored_ccline).cmdlen as varnumber_T)
+                        && start < colored_ccline.cmdlen as varnumber_T)
                     {
                         g_st().msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
@@ -3905,12 +3905,12 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                             i,
                             start,
                             prev_end,
-                            (*colored_ccline).cmdlen,
+                            colored_ccline.cmdlen,
                         );
                         printed_errmsg = true;
                         break 'color_cmdline_error;
                     } else if utf8len_tab_zero
-                        [*(*colored_ccline).cmdbuff.add(start as usize) as u8 as usize]
+                        [*colored_ccline.cmdbuff.add(start as usize) as u8 as usize]
                         == 0
                     {
                         g_st().msg_scroll = 1;
@@ -3937,7 +3937,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     let end = tv_get_number_chk(&raw const (*second_li).li_tv, &mut error);
                     if error {
                         break 'color_cmdline_error;
-                    } else if !(start < end && end <= (*colored_ccline).cmdlen as varnumber_T) {
+                    } else if !(start < end && end <= colored_ccline.cmdlen as varnumber_T) {
                         g_st().msg_scroll = 1;
                         msg_putchar(b'\n' as c_int);
                         smsg!(
@@ -3946,13 +3946,13 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                             i,
                             end,
                             start,
-                            (*colored_ccline).cmdlen,
+                            colored_ccline.cmdlen,
                         );
                         printed_errmsg = true;
                         break 'color_cmdline_error;
-                    } else if end < (*colored_ccline).cmdlen as varnumber_T
+                    } else if end < colored_ccline.cmdlen as varnumber_T
                         && utf8len_tab_zero
-                            [*(*colored_ccline).cmdbuff.add(end as usize) as u8 as usize]
+                            [*colored_ccline.cmdbuff.add(end as usize) as u8 as usize]
                             == 0
                     {
                         g_st().msg_scroll = 1;
@@ -3982,10 +3982,10 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
                     i += 1;
                     li = (*li).li_next;
                 }
-                if prev_end < (*colored_ccline).cmdlen as varnumber_T {
+                if prev_end < colored_ccline.cmdlen as varnumber_T {
                     (*ccline_colors).colors.push(CmdlineColorChunk {
                         start: prev_end as c_int,
-                        end: (*colored_ccline).cmdlen,
+                        end: colored_ccline.cmdlen,
                         hl_id: 0,
                     });
                 }
@@ -4012,14 +4012,14 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
         // color_cmdline_end:
         debug_assert!(!error_set(&err));
         if can_free_cb {
-            callback_free(&raw mut color_cb);
+            callback_free(&mut color_cb);
         }
-        (*ccline_colors).prompt_id = (*colored_ccline).prompt_id;
+        (*ccline_colors).prompt_id = colored_ccline.prompt_id;
         (*ccline_colors).cmdbuff = arg_owned.or_else(|| {
             Some(
                 std::ffi::CString::new(std::slice::from_raw_parts(
-                    (*colored_ccline).cmdbuff.cast::<u8>(),
-                    (*colored_ccline).cmdlen as usize,
+                    colored_ccline.cmdbuff.cast::<u8>(),
+                    colored_ccline.cmdlen as usize,
                 ))
                 .unwrap_or_default(),
             )
@@ -4032,7 +4032,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
 /// Draw part of the cmdline at the current cursor position.
 unsafe fn draw_cmdline(start: c_int, len: c_int) {
     unsafe {
-        if getln_st().ccline.cmdbuff.is_null() || !color_cmdline(&raw mut getln_st().ccline) {
+        if getln_st().ccline.cmdbuff.is_null() || !color_cmdline(&mut getln_st().ccline) {
             return;
         }
 
@@ -4069,7 +4069,7 @@ unsafe fn draw_cmdline(start: c_int, len: c_int) {
     }
 }
 
-unsafe fn ui_ext_cmdline_show(line: *mut CmdlineInfo) {
+unsafe fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     unsafe {
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
@@ -4092,9 +4092,9 @@ unsafe fn ui_ext_cmdline_show(line: *mut CmdlineInfo) {
             add_c(&mut item, string_obj(cbuf_as_string(buf, len)));
             add_c(&mut item, integer_obj(0));
             add_c(&mut content, array_obj(item));
-        } else if !(*line).last_colors.colors.is_empty() {
-            content = arena_array(&raw mut arena, (*line).last_colors.colors.len());
-            for &chunk in &(*line).last_colors.colors {
+        } else if !line.last_colors.colors.is_empty() {
+            content = arena_array(&raw mut arena, line.last_colors.colors.len());
+            for &chunk in &line.last_colors.colors {
                 let mut item = arena_array(&raw mut arena, 3);
                 add_c(
                     &mut item,
@@ -4109,7 +4109,7 @@ unsafe fn ui_ext_cmdline_show(line: *mut CmdlineInfo) {
                 add_c(
                     &mut item,
                     string_obj(cbuf_as_string(
-                        (*line).cmdbuff.add(chunk.start as usize),
+                        line.cmdbuff.add(chunk.start as usize),
                         (chunk.end - chunk.start) as usize,
                     )),
                 );
@@ -4119,15 +4119,15 @@ unsafe fn ui_ext_cmdline_show(line: *mut CmdlineInfo) {
         } else {
             let mut item = arena_array(&raw mut arena, 3);
             add_c(&mut item, integer_obj(0));
-            add_c(&mut item, cstr_as_obj((*line).cmdbuff));
+            add_c(&mut item, cstr_as_obj(line.cmdbuff));
             add_c(&mut item, integer_obj(0));
             content = arena_array(&raw mut arena, 1);
             add_c(&mut content, array_obj(item));
         }
-        let mut charbuf: [c_char; 2] = [(*line).cmdfirstc as c_char, 0];
+        let mut charbuf: [c_char; 2] = [line.cmdfirstc as c_char, 0];
         ui_call_cmdline_show(
             content,
-            (*line).cmdpos as Integer,
+            line.cmdpos as Integer,
             cstr_as_string(charbuf.as_ptr()),
             cstr_as_string(
                 (*line)
@@ -4135,20 +4135,20 @@ unsafe fn ui_ext_cmdline_show(line: *mut CmdlineInfo) {
                     .as_ref()
                     .map_or(ptr::null(), |p| p.as_ptr()),
             ),
-            (*line).cmdindent as Integer,
-            (*line).level as Integer,
-            if (*line).cmdprompt.is_some() {
-                (*line).hl_id as Integer
+            line.cmdindent as Integer,
+            line.level as Integer,
+            if line.cmdprompt.is_some() {
+                line.hl_id as Integer
             } else {
                 -1
             },
         );
-        if (*line).special_char != NUL {
-            charbuf[0] = (*line).special_char;
+        if line.special_char != NUL {
+            charbuf[0] = line.special_char;
             ui_call_cmdline_special_char(
                 cstr_as_string(charbuf.as_ptr()),
-                (*line).special_shift,
-                (*line).level as Integer,
+                line.special_shift,
+                line.level as Integer,
             );
         }
         arena_mem_free(arena_finish(&raw mut arena));
@@ -4249,7 +4249,7 @@ pub unsafe fn cmdline_ui_flush() {
                 (*line).redraw_state = kCmdRedrawNone;
                 if redraw_state == kCmdRedrawAll {
                     g_st().cmdline_was_last_drawn = true;
-                    ui_ext_cmdline_show(line);
+                    ui_ext_cmdline_show(&mut *line);
                 } else if redraw_state == kCmdRedrawPos && g_st().cmdline_was_last_drawn {
                     ui_call_cmdline_pos((*line).cmdpos as Integer, (*line).level as Integer);
                 }
@@ -5224,7 +5224,7 @@ unsafe fn open_cmdwin() -> c_int {
         getln_st().ccline.cmdpos = 0;
 
         loop_schedule_deferred(
-            (&raw mut g_st().main_loop).cast(),
+            &mut *(&raw mut g_st().main_loop).cast(),
             Event::CmdwinOpen {
                 firstc: ft,
                 content,
@@ -5360,7 +5360,7 @@ pub unsafe fn get_user_input(
             if xp_name == def.as_ptr() {
                 xp_name = ptr::null();
             }
-            if !tv_dict_get_callback(dict, c"highlight".as_ptr(), 9, &raw mut input_callback) {
+            if !tv_dict_get_callback(dict, c"highlight".as_ptr(), 9, &mut input_callback) {
                 return;
             }
         } else {
@@ -5440,7 +5440,7 @@ pub unsafe fn get_user_input(
         );
         atom_payload_end();
         g_st().ex_normal_busy = save_ex_normal_busy;
-        callback_free(&raw mut input_callback);
+        callback_free(&mut input_callback);
 
         if let Some(res_cstr) = res {
             crate::eval::typval::tv_set_string_len(

@@ -1385,8 +1385,8 @@ pub unsafe fn ex_diffpatch(eap: &mut exarg_T) {
             { let d = buf; let s = c".rej".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             let _ = os_remove(buf);
             let mut file_info = FileInfo::new();
-            let info_ok = os_fileinfo(tmp_new, &raw mut file_info);
-            let filesize = os_fileinfo_size(&raw const file_info);
+            let info_ok = os_fileinfo(tmp_new, &mut file_info);
+            let filesize = os_fileinfo_size(&file_info);
             if !info_ok || filesize == 0 {
                 emsg(gettext(c"E816: Cannot read patch output".as_ptr()));
             } else {

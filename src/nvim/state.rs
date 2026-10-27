@@ -169,7 +169,7 @@ pub unsafe fn state_handle_k_event() {
     unsafe {
         loop {
             let events = main_loop_events();
-            multiqueue_get(events).dispatch();
+            multiqueue_get(&mut *events).dispatch();
 
             if multiqueue_empty(main_loop_events()) {
                 return;

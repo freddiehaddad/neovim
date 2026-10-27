@@ -1493,7 +1493,7 @@ pub unsafe fn openscript(name: *mut c_char, directly: bool) {
         let scriptin_ptr = (&raw mut inp_st().scriptin)
             .cast::<FileDescriptor>()
             .add(inp_st().curscript as usize);
-        let error = file_open(scriptin_ptr, namebuff_ptr, K_FILE_READ_ONLY, 0);
+        let error = file_open(&mut *scriptin_ptr, namebuff_ptr, K_FILE_READ_ONLY, 0);
         if error != 0 {
             semsg!(
                 gettext((&raw const e_notopen_2).cast()),
@@ -1547,7 +1547,7 @@ unsafe fn closescript() {
         let scriptin_ptr = (&raw mut inp_st().scriptin)
             .cast::<FileDescriptor>()
             .add(inp_st().curscript as usize);
-        file_close(scriptin_ptr, false);
+        file_close(&mut *scriptin_ptr, false);
         inp_st().curscript -= 1;
     }
 }
@@ -1567,10 +1567,10 @@ pub unsafe fn open_scriptin(scriptin_name: *mut c_char) -> bool {
 
         let scriptin0 = (&raw mut inp_st().scriptin).cast::<FileDescriptor>();
         let error = if std::ffi::CStr::from_ptr(scriptin_name).to_bytes() == b"-" {
-            file_open_stdin(scriptin0)
+            file_open_stdin(&mut *scriptin0)
         } else {
             file_open(
-                scriptin0,
+                &mut *scriptin0,
                 scriptin_name,
                 K_FILE_READ_ONLY | K_FILE_NON_BLOCKING,
                 0,

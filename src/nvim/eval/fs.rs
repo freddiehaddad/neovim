@@ -273,7 +273,7 @@ pub unsafe fn modify_fname(
             }
 
             let mut file_info = FileInfo::new();
-            os_fileinfo2(*fnamep, &raw mut file_info);
+            os_fileinfo2(*fnamep, &mut file_info);
             if *src.add(*usedlen) == b':' as c_char && *src.add(*usedlen + 1) == b'h' as c_char {
                 s = (*fnamep).add(file_info.rest_off);
                 *fnamep = (*fnamep).add(file_info.prefix_off);
@@ -609,7 +609,7 @@ pub unsafe fn f_filecopy(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
         let from = tv_get_string(argvars);
 
         let mut from_info = FileInfo::new();
-        if os_fileinfo_link(from, &raw mut from_info)
+        if os_fileinfo_link(from, &mut from_info)
             && (s_isreg(from_info.stat.st_mode) || s_islnk(from_info.stat.st_mode))
         {
             rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(
@@ -1011,8 +1011,8 @@ pub unsafe fn f_getfsize(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
         let fname = tv_get_string(argvars);
 
         let mut file_info = FileInfo::new();
-        if os_fileinfo(fname, &raw mut file_info) {
-            let filesize = os_fileinfo_size(&raw const file_info);
+        if os_fileinfo(fname, &mut file_info) {
+            let filesize = os_fileinfo_size(&file_info);
             if s_isdir(file_info.stat.st_mode) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);
             } else {
@@ -1035,7 +1035,7 @@ pub unsafe fn f_getftime(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
         let fname = tv_get_string(argvars);
 
         let mut file_info = FileInfo::new();
-        if os_fileinfo(fname, &raw mut file_info) {
+        if os_fileinfo(fname, &mut file_info) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(file_info.stat.st_mtim.tv_sec as varnumber_T);
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -1049,7 +1049,7 @@ pub unsafe fn f_getftype(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
         let fname = tv_get_string(argvars);
 
         let mut file_info = FileInfo::new();
-        if os_fileinfo_link(fname, &raw mut file_info) {
+        if os_fileinfo_link(fname, &mut file_info) {
             let mode = file_info.stat.st_mode;
             let t = if s_isreg(mode) {
                 c"file".as_ptr()
@@ -1449,18 +1449,18 @@ unsafe fn read_blob(
     unsafe {
         let blob = (*rettv).vval.v_blob();
         let mut file_info = FileInfo::new();
-        if !os_fileinfo_fd(fileno(fd), &raw mut file_info) {
+        if !os_fileinfo_fd(fileno(fd), &mut file_info) {
             return FAIL; // can't read the file, error
         }
 
         let mut size = size_arg;
-        let file_size = os_fileinfo_size(&raw const file_info) as off_T;
+        let file_size = os_fileinfo_size(&file_info) as off_T;
         let whence = if offset >= 0 {
             // The size defaults to the whole file.  If a size is given it is
             // limited to not go past the end of the file.
             if size == -1 || (size > file_size - offset && !s_ischr(file_info.stat.st_mode)) {
                 // size may become negative, checked below
-                size = os_fileinfo_size(&raw const file_info) as off_T - offset;
+                size = os_fileinfo_size(&file_info) as off_T - offset;
             }
             SEEK_SET
         } else {
@@ -1920,7 +1920,7 @@ pub unsafe fn f_tempname(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 }
 
 /// Write "list" of strings to file "fp".
-unsafe fn write_list(fp: *mut FileDescriptor, list: *const list_T, binary: bool) -> bool {
+unsafe fn write_list(fp: &mut FileDescriptor, list: *const list_T, binary: bool) -> bool {
     unsafe {
         let mut error: c_int = 0;
         let mut li = tv_list_first(list);
@@ -1969,7 +1969,7 @@ unsafe fn write_list(fp: *mut FileDescriptor, list: *const list_T, binary: bool)
             li = (*li).li_next;
         }
         if error == 0 {
-            error = file_flush(fp);
+            error = file_flush(&raw mut *fp);
             if error == 0 {
                 return true;
             }
@@ -1983,7 +1983,7 @@ unsafe fn write_list(fp: *mut FileDescriptor, list: *const list_T, binary: bool)
 }
 
 /// Write a blob to file with descriptor `fp`.
-unsafe fn write_data(fp: *mut FileDescriptor, data: *const c_char, len: usize) -> bool {
+unsafe fn write_data(fp: &mut FileDescriptor, data: *const c_char, len: usize) -> bool {
     unsafe {
         if len > 0 {
             let written = file_write(fp, data, len);
@@ -1996,7 +1996,7 @@ unsafe fn write_data(fp: *mut FileDescriptor, data: *const c_char, len: usize) -
                 return false;
             }
         }
-        let error = file_flush(fp);
+        let error = file_flush(&raw mut *fp);
         if error != 0 {
             semsg!(
                 gettext(E_ERROR_WHILE_WRITING_STR.as_ptr()),
@@ -2008,7 +2008,7 @@ unsafe fn write_data(fp: *mut FileDescriptor, data: *const c_char, len: usize) -
     }
 }
 
-unsafe fn write_blob(fp: *mut FileDescriptor, blob: *const blob_T) -> bool {
+unsafe fn write_blob(fp: &mut FileDescriptor, blob: *const blob_T) -> bool {
     unsafe {
         write_data(
             fp,
@@ -2018,7 +2018,7 @@ unsafe fn write_blob(fp: *mut FileDescriptor, blob: *const blob_T) -> bool {
     }
 }
 
-unsafe fn write_string(fp: *mut FileDescriptor, data: *const c_char) -> bool {
+unsafe fn write_string(fp: &mut FileDescriptor, data: *const c_char) -> bool {
     unsafe { write_data(fp, data, std::ffi::CStr::from_ptr(data).to_bytes().len()) }
 }
 
@@ -2103,7 +2103,7 @@ pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
             } else {
                 K_FILE_CREATE
             }) | K_FILE_CREATE;
-            let mut error = file_open(&raw mut fp, fname, open_flags, 0o666);
+            let mut error = file_open(&mut fp, fname, open_flags, 0o666);
             if error != 0 {
                 semsg!(
                     gettext(c"E482: Can't open file %s for writing: %s".as_ptr()),
@@ -2123,16 +2123,16 @@ pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 
                 let write_ok = if (*argvars).v_type == VarType::VAR_BLOB {
                     (*argvars).vval.v_blob().is_null()
-                        || write_blob(&raw mut fp, (*argvars).vval.v_blob())
+                        || write_blob(&mut fp, (*argvars).vval.v_blob())
                 } else if (*argvars).v_type == VarType::VAR_STRING {
-                    write_string(&raw mut fp, (*argvars).vval.v_string())
+                    write_string(&mut fp, (*argvars).vval.v_string())
                 } else {
-                    write_list(&raw mut fp, (*argvars).vval.v_list(), binary)
+                    write_list(&mut fp, (*argvars).vval.v_list(), binary)
                 };
                 if write_ok {
                     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
                 }
-                error = file_close(&raw mut fp, do_fsync);
+                error = file_close(&mut fp, do_fsync);
                 if error != 0 {
                     semsg!(
                         gettext(c"E80: Error when closing file %s: %s".as_ptr()),

@@ -445,8 +445,8 @@ unsafe fn tv_get_float_chk(tv: *const typval_T, ret_f: *mut float_T) -> bool {
 }
 
 #[inline]
-unsafe fn proc_is_stopped(proc_: *mut Proc) -> bool {
-    unsafe { (*proc_).status >= 0 || (*proc_).stopped_time != 0 }
+unsafe fn proc_is_stopped(proc_: &mut Proc) -> bool {
+    proc_.status >= 0 || proc_.stopped_time != 0
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal
@@ -2039,7 +2039,7 @@ pub unsafe fn f_dictwatcheradd(argvars: *mut typval_T, _rettv: &mut typval_T, _f
         let key_pattern_len = std::ffi::CStr::from_ptr(key_pattern).to_bytes().len();
 
         let mut callback = Callback::NONE;
-        if !callback_from_typval(&raw mut callback, argvars.add(2)) {
+        if !callback_from_typval(&mut callback, argvars.add(2)) {
             semsg!(gettext(e_invarg2.as_ptr()), c"funcref".as_ptr());
             return;
         }
@@ -2076,7 +2076,7 @@ pub unsafe fn f_dictwatcherdel(argvars: *mut typval_T, _rettv: &mut typval_T, _f
         }
 
         let mut callback = Callback::NONE;
-        if !callback_from_typval(&raw mut callback, argvars.add(2)) {
+        if !callback_from_typval(&mut callback, argvars.add(2)) {
             return;
         }
 
@@ -2089,7 +2089,7 @@ pub unsafe fn f_dictwatcherdel(argvars: *mut typval_T, _rettv: &mut typval_T, _f
             emsg(c"Couldn't find a watcher matching key and callback".as_ptr());
         }
 
-        callback_free(&raw mut callback);
+        callback_free(&mut callback);
     }
 }
 
@@ -3708,7 +3708,7 @@ pub unsafe fn f_gettagstack(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 
 pub(crate) unsafe fn dummy_timer_due_cb(tw: *mut TimeWatcher) {
     unsafe {
-        if *loop_closing_ptr((&raw mut g_st().main_loop).cast()) {
+        if *loop_closing_ptr(&mut *(&raw mut g_st().main_loop).cast()) {
             time_watcher_stop(tw);
             time_watcher_close(tw);
         }
@@ -3744,7 +3744,7 @@ pub unsafe fn f_wait(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
         let tw = Box::into_raw(Box::new(TimeWatcher::new()));
 
         let main_loop_ptr: *mut Loop = (&raw mut g_st().main_loop).cast();
-        time_watcher_init(main_loop_ptr, tw, TimeWatcherData::WaitDummy);
+        time_watcher_init(&mut *main_loop_ptr, tw, TimeWatcherData::WaitDummy);
         (*tw).events = ptr::null_mut();
         time_watcher_start(tw, interval as u64, interval as u64);
 
@@ -3763,11 +3763,11 @@ pub unsafe fn f_wait(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
             || error
             || g_st().got_int)
         {
-            let events = (*loop_queues(main_loop_ptr)).events;
+            let events = (*loop_queues(&mut *main_loop_ptr)).events;
             if !events.is_null() && !multiqueue_empty(events) {
                 multiqueue_process_events(events);
             } else {
-                loop_poll_events(main_loop_ptr, remaining);
+                loop_poll_events(&mut *main_loop_ptr, remaining);
             }
             if remaining == 0 {
                 break;
@@ -4517,7 +4517,7 @@ pub unsafe fn f_jobresize(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         }
 
         pty_proc_resize(
-            proc_ptr as *mut PtyProc,
+            &mut *proc_ptr.cast::<PtyProc>(),
             (*argvars.add(1)).vval.v_number() as u16,
             (*argvars.add(2)).vval.v_number() as u16,
         );
@@ -4758,7 +4758,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
                 job_opts,
                 &raw mut on_stdout,
                 &raw mut on_stderr,
-                &raw mut on_exit,
+                &mut on_exit,
             ) {
                 return;
             }
@@ -4835,7 +4835,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
         if chan.is_null() {
             // do nothing
         } else if !term {
-            channel_create_event(chan, ptr::null());
+            channel_create_event(&mut *chan, ptr::null());
         } else {
             if rettv.vval.v_number() <= 0 {
                 return;
@@ -4846,13 +4846,13 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 
             (*buf).b_p_swf = 0;
             if (*buf).b_ml.ml_mfp.is_none() && ml_open(buf) == FAIL {
-                proc_stop(&raw mut (*chan).uv.proc_);
+                proc_stop(&mut (*chan).uv.proc_);
                 channel_decref(chan);
                 return;
             }
 
             channel_incref(chan);
-            channel_terminal_alloc(buf, chan);
+            channel_terminal_alloc(buf, &mut *chan);
 
             let ct = chan;
             'term_done: {
@@ -4942,7 +4942,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 
                 terminal_open(&raw mut (*ct).term, buf);
             }
-            channel_create_event(chan, ptr::null());
+            channel_create_event(&mut *chan, ptr::null());
             channel_decref(chan);
         }
     }
@@ -4971,7 +4971,7 @@ pub unsafe fn f_jobstop(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
         if (*data).is_rpc {
             channel_close((*data).id, kChannelPartRpc, &mut error);
         }
-        proc_stop(&raw mut (*data).uv.proc_);
+        proc_stop(&mut (*data).uv.proc_);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         if !error.is_null() {
             emsg(error);
@@ -5015,7 +5015,7 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
                 jobs[i] = ptr::null_mut();
             } else {
                 let proc_ptr = &raw mut (*chan).uv.proc_;
-                if proc_is_stopped(proc_ptr) {
+                if proc_is_stopped(&mut *proc_ptr) {
                     proc_wait(proc_ptr, -1, ptr::null_mut());
                     jobs[i] = ptr::null_mut();
                 } else {
@@ -5024,7 +5024,7 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
                     if (*proc_ptr).status < 0 {
                         let events = (*chan).events;
                         multiqueue_process_events(events);
-                        multiqueue_replace_parent(events, waiting_jobs);
+                        multiqueue_replace_parent(&mut *events, &mut *waiting_jobs);
                     }
                 }
             }
@@ -5071,7 +5071,7 @@ pub unsafe fn f_jobwait(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
             }
             let events = (*job).events;
             multiqueue_process_events(events);
-            multiqueue_replace_parent(events, (*loop_queues(main_loop_ptr)).events);
+            multiqueue_replace_parent(&mut *events, &mut *(*loop_queues(&mut *main_loop_ptr)).events);
 
             let status = (*job).uv.proc_.status;
             tv_list_append_number(rv, varnumber_T::from(status));
@@ -7241,7 +7241,7 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
             let mut name: *const c_char = ptr::null();
             let chan = find_channel(chan_id);
             if !chan.is_null() {
-                name = get_client_info(chan, c"name".as_ptr());
+                name = get_client_info(&mut *chan, c"name".as_ptr());
             }
             if !name.is_null() {
                 semsg_multiline!(
@@ -8307,7 +8307,7 @@ pub unsafe fn f_sockconnect(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
                 let opts = (*argvars.add(2)).vval.v_dict().cast::<dict_T>();
                 rpc = tv_dict_get_number(opts, c"rpc".as_ptr()) != 0;
 
-                if !tv_dict_get_callback(opts, c"on_data".as_ptr(), 7, &raw mut on_data.cb) {
+                if !tv_dict_get_callback(opts, c"on_data".as_ptr(), 7, &mut on_data.cb) {
                     break 'cleanup;
                 }
                 on_data.buffered = tv_dict_get_number(opts, c"data_buffered".as_ptr()) != 0;
@@ -8342,10 +8342,10 @@ pub unsafe fn f_stdioopen(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
         let opts = (*argvars).vval.v_dict().cast::<dict_T>();
         let rpc = tv_dict_get_number(opts, c"rpc".as_ptr()) != 0;
 
-        if !tv_dict_get_callback(opts, c"on_stdin".as_ptr(), 8, &raw mut on_stdin.cb) {
+        if !tv_dict_get_callback(opts, c"on_stdin".as_ptr(), 8, &mut on_stdin.cb) {
             return;
         }
-        if !tv_dict_get_callback(opts, c"on_print".as_ptr(), 8, &raw mut g_st().on_print) {
+        if !tv_dict_get_callback(opts, c"on_print".as_ptr(), 8, &mut g_st().on_print) {
             return;
         }
 
@@ -9184,7 +9184,7 @@ pub unsafe fn f_timer_start(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         }
 
         let mut callback = Callback::NONE;
-        if !callback_from_typval(&raw mut callback, argvars.add(1)) {
+        if !callback_from_typval(&mut callback, argvars.add(1)) {
             return;
         }
         rettv.vval = crate::eval::typval::TypvalVval::Number(timer_start(tv_get_number(argvars), repeat, callback) as varnumber_T);

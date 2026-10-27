@@ -94,32 +94,32 @@ impl Event {
                     }
                 }
                 Self::LoopDeferred { loop_, event } => {
-                    crate::event::r#loop::loop_deferred_event(loop_, *event);
+                    crate::event::r#loop::loop_deferred_event(&mut *loop_, *event);
                 }
                 Self::TimeWatcher(watcher) => crate::event::time::time_event(watcher),
                 Self::TimeWatcherClose(watcher) => crate::event::time::close_event(watcher),
                 Self::Signal(watcher) => crate::event::signal::signal_event(watcher),
-                Self::RStreamRead(stream) => crate::event::rstream::read_event(stream),
+                Self::RStreamRead(stream) => crate::event::rstream::read_event(&mut *stream),
                 Self::SocketConnection { watcher, status } => {
                     crate::event::socket::connection_event(watcher, status);
                 }
-                Self::ProcCloseHandles(proc_) => crate::event::proc::proc_close_handles(proc_),
-                Self::ProcClose(proc_) => crate::event::proc::proc_close_event(proc_),
+                Self::ProcCloseHandles(proc_) => crate::event::proc::proc_close_handles(&mut *proc_),
+                Self::ProcClose(proc_) => crate::event::proc::proc_close_event(&mut *proc_),
                 Self::ProcExit(status) => crate::event::proc::exit_event(status),
                 Self::AutoCmdDeferred(ev) => crate::autocmd::deferred_event(*ev),
                 Self::AutoCmdOptionSetModified { bufnr, new_val } => {
                     crate::autocmd::deferred_optionset_modified(bufnr, new_val);
                 }
                 Self::AutoCmdVimResume => crate::autocmd::vimresume_event(),
-                Self::ChannelFree(chan) => crate::channel::free_channel_event(chan),
-                Self::ChannelCallback(chan) => crate::channel::on_channel_event(chan),
-                Self::ChannelTermDelayedFree(chan) => crate::channel::term_delayed_free(chan),
+                Self::ChannelFree(chan) => crate::channel::free_channel_event(&mut *chan),
+                Self::ChannelCallback(chan) => crate::channel::on_channel_event(&mut *chan),
+                Self::ChannelTermDelayedFree(chan) => crate::channel::term_delayed_free(&mut *chan),
                 Self::ChannelSetInfo { chan, event } => {
-                    crate::channel::set_info_event(chan, event);
+                    crate::channel::set_info_event(&mut *chan, event);
                 }
                 Self::RpcRequest(ev) => crate::msgpack_rpc::channel::request_event(*ev),
                 Self::RpcInternalRead { channel, buffer } => {
-                    crate::msgpack_rpc::channel::internal_read_event(channel, buffer);
+                    crate::msgpack_rpc::channel::internal_read_event(&mut *channel, buffer);
                 }
                 Self::RpcClose(chan) => crate::msgpack_rpc::channel::rpc_close_event(chan),
                 Self::NluaLuvError { msg, kind } => {
@@ -135,7 +135,7 @@ impl Event {
                 Self::MsgSemsgMultiline(s) => crate::message::msg_semsg_multiline_event(s),
                 Self::CursorHold => crate::os::input::cursorhold_event(),
                 #[cfg(windows)]
-                Self::PtyProcFinish(proc_) => crate::os::pty_proc_win::pty_proc_finish(proc_),
+                Self::PtyProcFinish(proc_) => crate::os::pty_proc_win::pty_proc_finish(&mut *proc_),
                 Self::ShellOutData { str_copy, fd } => {
                     crate::os::shell::out_data_event(str_copy, fd);
                 }
@@ -274,12 +274,12 @@ unsafe fn multiqueue_push(this: *mut MultiQueue, event: Event) {
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-pub unsafe fn multiqueue_get(this: *mut MultiQueue) -> Event {
+pub unsafe fn multiqueue_get(this: &mut MultiQueue) -> Event {
     unsafe {
-        if multiqueue_empty(this) {
+        if multiqueue_empty(&raw mut *this) {
             Event::nil()
         } else {
-            multiqueue_remove(this)
+            multiqueue_remove(&raw mut *this)
         }
     }
 }
@@ -294,7 +294,7 @@ pub unsafe fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
         multiqueue_push(this, event);
         let parent = (*this).parent;
         if !parent.is_null() && !(*parent).notify_loop.is_null() {
-            crate::event::r#loop::loop_on_put((*parent).notify_loop);
+            crate::event::r#loop::loop_on_put(&mut *(*parent).notify_loop);
         }
     }
 }
@@ -303,11 +303,11 @@ pub unsafe fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
 ///
 /// # Safety
 /// `dest` and `src` must be valid pointers to `MultiQueue`s.
-pub unsafe fn multiqueue_move_events(dest: *mut MultiQueue, src: *mut MultiQueue) {
+pub unsafe fn multiqueue_move_events(dest: &mut MultiQueue, src: &mut MultiQueue) {
     unsafe {
-        while !multiqueue_empty(src) {
+        while !multiqueue_empty(&raw mut *src) {
             let event = multiqueue_get(src);
-            multiqueue_put_event(dest, event);
+            multiqueue_put_event(&raw mut *dest, event);
         }
     }
 }
@@ -352,19 +352,17 @@ pub unsafe fn multiqueue_empty(this: *mut MultiQueue) -> bool {
 ///
 /// # Safety
 /// `this` must be a valid pointer to an empty `MultiQueue`.
-pub unsafe fn multiqueue_replace_parent(this: *mut MultiQueue, new_parent: *mut MultiQueue) {
-    assert!(unsafe { multiqueue_empty(this) });
-    unsafe {
-        (*this).parent = new_parent;
-    }
+pub unsafe fn multiqueue_replace_parent(this: &mut MultiQueue, new_parent: &mut MultiQueue) {
+    assert!(unsafe { multiqueue_empty(&raw mut *this) });
+    this.parent = new_parent;
 }
 
 /// Return the size counter of `this` (`multiqueue_size`).
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-pub unsafe fn multiqueue_size(this: *mut MultiQueue) -> usize {
-    unsafe { (*this).size }
+pub unsafe fn multiqueue_size(this: &mut MultiQueue) -> usize {
+    this.size
 }
 
 /// Create a shared one-shot multicast event cell (`event_create_oneshot`).
@@ -380,8 +378,8 @@ mod tests {
     fn parent_and_child_interleaved_ordering() {
         unsafe {
             let parent = multiqueue_new(std::ptr::null_mut());
-            let c1 = multiqueue_new_child(parent);
-            let c2 = multiqueue_new_child(parent);
+            let c1 = multiqueue_new_child(&mut *parent);
+            let c2 = multiqueue_new_child(&mut *parent);
 
             let make_ev = Event::Test;
             let ev_val = |ev: Event| match ev {
@@ -392,26 +390,26 @@ mod tests {
             multiqueue_put_event(c1, make_ev(11));
             multiqueue_put_event(c2, make_ev(21));
             multiqueue_put_event(c1, make_ev(12));
-            assert_eq!(multiqueue_size(c1), 2);
-            assert_eq!(multiqueue_size(c2), 1);
+            assert_eq!(multiqueue_size(&mut *c1), 2);
+            assert_eq!(multiqueue_size(&mut *c2), 1);
 
             // Pop from c2 first; should also unlink from parent.
-            assert_eq!(ev_val(multiqueue_get(c2)), 21);
-            assert_eq!(multiqueue_size(c2), 0);
+            assert_eq!(ev_val(multiqueue_get(&mut *c2)), 21);
+            assert_eq!(multiqueue_size(&mut *c2), 0);
 
             // Remaining in parent should be 11 then 12.
-            assert_eq!(ev_val(multiqueue_get(parent)), 11);
-            assert_eq!(ev_val(multiqueue_get(parent)), 12);
+            assert_eq!(ev_val(multiqueue_get(&mut *parent)), 11);
+            assert_eq!(ev_val(multiqueue_get(&mut *parent)), 12);
             assert!(multiqueue_empty(parent));
 
             // Child free unlinks remaining events from parent.
-            let c3 = multiqueue_new_child(parent);
+            let c3 = multiqueue_new_child(&mut *parent);
             multiqueue_put_event(c1, make_ev(101));
             multiqueue_put_event(c2, make_ev(201));
             multiqueue_put_event(c3, make_ev(301));
             multiqueue_free(c2);
-            assert_eq!(ev_val(multiqueue_get(parent)), 101);
-            assert_eq!(ev_val(multiqueue_get(c3)), 301);
+            assert_eq!(ev_val(multiqueue_get(&mut *parent)), 101);
+            assert_eq!(ev_val(multiqueue_get(&mut *c3)), 301);
             assert!(multiqueue_empty(parent));
 
             multiqueue_free(c1);

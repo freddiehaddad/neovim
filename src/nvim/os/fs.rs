@@ -1287,8 +1287,8 @@ pub unsafe fn os_file_owned(fname: *const c_char) -> bool {
     unsafe {
         let uid = u64::from(getuid());
         let mut finfo = FileInfo::new();
-        let file_owned = os_fileinfo(fname, &raw mut finfo) && finfo.stat.st_uid == uid;
-        let link_owned = os_fileinfo_link(fname, &raw mut finfo) && finfo.stat.st_uid == uid;
+        let file_owned = os_fileinfo(fname, &mut finfo) && finfo.stat.st_uid == uid;
+        let link_owned = os_fileinfo_link(fname, &mut finfo) && finfo.stat.st_uid == uid;
         file_owned && link_owned
     }
     #[cfg(windows)]
@@ -1552,15 +1552,15 @@ pub unsafe fn os_remove(path: *const c_char) -> c_int {
 }
 
 /// Get the file information for a given path.
-pub unsafe fn os_fileinfo(path: *const c_char, file_info: *mut FileInfo) -> bool {
+pub unsafe fn os_fileinfo(path: *const c_char, file_info: &mut FileInfo) -> bool {
     unsafe {
         *file_info = FileInfo::new();
-        os_stat(path, &raw mut (*file_info).stat) == 0
+        os_stat(path, &raw mut file_info.stat) == 0
     }
 }
 
 /// Parses `path` into a `FileInfo` structure.
-pub unsafe fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) -> bool {
+pub unsafe fn os_fileinfo2(path: *const c_char, info: &mut FileInfo) -> bool {
     unsafe {
         *info = FileInfo::new();
         {
@@ -1578,17 +1578,17 @@ pub unsafe fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) -> bool {
                 let p0 = *p as u8;
                 let p1 = *p.add(1) as u8;
                 if leading_slashes == 0 && p0.is_ascii_alphabetic() && p1 == b':' {
-                    (*info).r#type = kPathDrive;
+                    info.r#type = kPathDrive;
                     p = path_skip_sep(p.add(2), false);
-                    (*info).rest_off = (p as usize) - (path as usize);
+                    info.rest_off = (p as usize) - (path as usize);
                     return true;
                 }
                 if leading_slashes >= 2 && (p0 == b'?' || p0 == b'.') {
                     if !vim_ispathsep_nocolon(c_int::from(p1)) {
                         return true;
                     }
-                    (*info).r#type = kPathDevice;
-                    (*info).prefix_off = leading_slashes - 2;
+                    info.r#type = kPathDevice;
+                    info.prefix_off = leading_slashes - 2;
                     p = path_skip_sep(p.add(2), false);
                     let p_bytes = [
                         (*p as u8).to_ascii_lowercase(),
@@ -1596,46 +1596,46 @@ pub unsafe fn os_fileinfo2(path: *const c_char, info: *mut FileInfo) -> bool {
                         (*p.add(2) as u8).to_ascii_lowercase(),
                     ];
                     if &p_bytes == b"unc" && vim_ispathsep_nocolon(c_int::from(*p.add(3) as u8)) {
-                        (*info).r#type = kPathDeviceUNC;
+                        info.r#type = kPathDeviceUNC;
                         p = path_skip_sep(p.add(4), false);
-                        (*info).root_off = (p as usize) - (path as usize);
+                        info.root_off = (p as usize) - (path as usize);
                         p = path_skip_sep(path_next_component(p), false);
                         p = path_skip_sep(path_next_component(p), false);
-                        (*info).rest_off = (p as usize) - (path as usize);
+                        info.rest_off = (p as usize) - (path as usize);
                         return true;
                     }
-                    (*info).root_off = (p as usize) - (path as usize);
+                    info.root_off = (p as usize) - (path as usize);
                     if (*p as u8).is_ascii_alphabetic() && (*p.add(1) as u8) == b':' {
                         p = p.add(2);
                     }
                     p = path_skip_sep(path_next_component(p), false);
-                    (*info).rest_off = (p as usize) - (path as usize);
+                    info.rest_off = (p as usize) - (path as usize);
                     return true;
                 }
                 if leading_slashes == 2 {
-                    (*info).r#type = kPathUNC;
+                    info.r#type = kPathUNC;
                     p = path_skip_sep(path_next_component(p), false);
                     p = path_skip_sep(path_next_component(p), false);
-                    (*info).rest_off = (p as usize) - (path as usize);
+                    info.rest_off = (p as usize) - (path as usize);
                     return true;
                 }
             }
 
-            (*info).r#type = kPathGeneric;
-            (*info).rest_off = leading_slashes;
-            (*info).root_off = if leading_slashes > 2 {
+            info.r#type = kPathGeneric;
+            info.rest_off = leading_slashes;
+            info.root_off = if leading_slashes > 2 {
                 leading_slashes - 1
             } else {
                 0
             };
-            (*info).prefix_off = (*info).root_off;
+            info.prefix_off = info.root_off;
         }
         true
     }
 }
 
 /// Get the file information for a given path without following links.
-pub unsafe fn os_fileinfo_link(path: *const c_char, file_info: *mut FileInfo) -> bool {
+pub unsafe fn os_fileinfo_link(path: *const c_char, file_info: &mut FileInfo) -> bool {
     unsafe {
         *file_info = FileInfo::new();
         if path.is_null() {
@@ -1645,7 +1645,7 @@ pub unsafe fn os_fileinfo_link(path: *const c_char, file_info: *mut FileInfo) ->
             let mut request: uv_fs_buf_t = [0; 80];
             let ok = uv_fs_lstat(ptr::null_mut(), &raw mut request, path, ptr::null()) == 0;
             if ok {
-                (*file_info).stat = *uv_fs_get_statbuf(&raw mut request);
+                file_info.stat = *uv_fs_get_statbuf(&raw mut request);
             }
             uv_fs_req_cleanup((&raw mut request).cast());
             ok
@@ -1654,7 +1654,7 @@ pub unsafe fn os_fileinfo_link(path: *const c_char, file_info: *mut FileInfo) ->
 }
 
 /// Get the file information for a given file descriptor.
-pub unsafe fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut FileInfo) -> bool {
+pub unsafe fn os_fileinfo_fd(file_descriptor: c_int, file_info: &mut FileInfo) -> bool {
     unsafe {
         *file_info = FileInfo::new();
         {
@@ -1666,7 +1666,7 @@ pub unsafe fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut FileInfo) -
                 ptr::null(),
             ) == 0;
             if ok {
-                (*file_info).stat = *uv_fs_get_statbuf(&raw mut request);
+                file_info.stat = *uv_fs_get_statbuf(&raw mut request);
             }
             uv_fs_req_cleanup((&raw mut request).cast());
             ok
@@ -1676,42 +1676,40 @@ pub unsafe fn os_fileinfo_fd(file_descriptor: c_int, file_info: *mut FileInfo) -
 
 /// Compare the inodes of two `FileInfo`s.
 pub unsafe fn os_fileinfo_id_equal(
-    file_info_1: *const FileInfo,
-    file_info_2: *const FileInfo,
+    file_info_1: &FileInfo,
+    file_info_2: &FileInfo,
 ) -> bool {
-    unsafe {
-        (*file_info_1).stat.st_ino == (*file_info_2).stat.st_ino
-            && (*file_info_1).stat.st_dev == (*file_info_2).stat.st_dev
-    }
+    file_info_1.stat.st_ino == file_info_2.stat.st_ino
+            && file_info_1.stat.st_dev == file_info_2.stat.st_dev
 }
 
 /// Get the `FileID` of a `FileInfo`.
 #[cfg(test)]
-pub unsafe fn os_fileinfo_id(file_info: *const FileInfo, file_id: *mut FileID) {
+pub unsafe fn os_fileinfo_id(file_info: &FileInfo, file_id: *mut FileID) {
     unsafe {
-        (*file_id).inode = (*file_info).stat.st_ino;
-        (*file_id).device_id = (*file_info).stat.st_dev;
+        (*file_id).inode = file_info.stat.st_ino;
+        (*file_id).device_id = file_info.stat.st_dev;
     }
 }
 
 /// Get the inode of a `FileInfo`.
-pub unsafe fn os_fileinfo_inode(file_info: *const FileInfo) -> u64 {
-    unsafe { (*file_info).stat.st_ino }
+pub unsafe fn os_fileinfo_inode(file_info: &FileInfo) -> u64 {
+    file_info.stat.st_ino
 }
 
 /// Get the size of a file from a `FileInfo`.
-pub unsafe fn os_fileinfo_size(file_info: *const FileInfo) -> u64 {
-    unsafe { (*file_info).stat.st_size }
+pub unsafe fn os_fileinfo_size(file_info: &FileInfo) -> u64 {
+    file_info.stat.st_size
 }
 
 /// Get the number of hardlinks from a `FileInfo`.
-pub unsafe fn os_fileinfo_hardlinks(file_info: *const FileInfo) -> u64 {
-    unsafe { (*file_info).stat.st_nlink }
+pub unsafe fn os_fileinfo_hardlinks(file_info: &FileInfo) -> u64 {
+    file_info.stat.st_nlink
 }
 
 /// Get the blocksize from a `FileInfo`.
-pub unsafe fn os_fileinfo_blocksize(file_info: *const FileInfo) -> u64 {
-    unsafe { (*file_info).stat.st_blksize }
+pub unsafe fn os_fileinfo_blocksize(file_info: &FileInfo) -> u64 {
+    file_info.stat.st_blksize
 }
 
 /// Get the `FileID` for a given path.
@@ -1914,14 +1912,14 @@ mod tests {
             fi1.stat.st_blksize = 4096;
 
             let fi2 = fi1;
-            assert!(os_fileinfo_id_equal(&raw const fi1, &raw const fi2));
-            assert_eq!(os_fileinfo_inode(&raw const fi1), 42);
-            assert_eq!(os_fileinfo_size(&raw const fi1), 1234);
-            assert_eq!(os_fileinfo_hardlinks(&raw const fi1), 2);
-            assert_eq!(os_fileinfo_blocksize(&raw const fi1), 4096);
+            assert!(os_fileinfo_id_equal(&fi1, &fi2));
+            assert_eq!(os_fileinfo_inode(&fi1), 42);
+            assert_eq!(os_fileinfo_size(&fi1), 1234);
+            assert_eq!(os_fileinfo_hardlinks(&fi1), 2);
+            assert_eq!(os_fileinfo_blocksize(&fi1), 4096);
 
             let mut id1 = FileID::new();
-            os_fileinfo_id(&raw const fi1, &raw mut id1);
+            os_fileinfo_id(&fi1, &raw mut id1);
             let id2 = FileID {
                 inode: 42,
                 device_id: 7,
@@ -2032,9 +2030,9 @@ mod tests {
             assert_eq!(os_fchown(fd, uv_uid_t::MAX, uv_gid_t::MAX), 0);
 
             let mut fi_fd = FileInfo::new();
-            assert!(!os_fileinfo_fd(-1, &raw mut fi_fd));
-            assert!(os_fileinfo_fd(fd, &raw mut fi_fd));
-            assert_eq!(os_fileinfo_size(&raw const fi_fd), payload.len() as u64);
+            assert!(!os_fileinfo_fd(-1, &mut fi_fd));
+            assert!(os_fileinfo_fd(fd, &mut fi_fd));
+            assert_eq!(os_fileinfo_size(&fi_fd), payload.len() as u64);
             assert_eq!(os_close(fd), 0);
 
             assert!(os_file_is_readable(fpath_c.as_ptr()));
@@ -2068,12 +2066,12 @@ mod tests {
 
             // os_fileinfo & os_fileid
             let mut fi = FileInfo::new();
-            assert!(!os_fileinfo(ptr::null(), &raw mut fi));
-            assert!(!os_fileinfo(c"/non-existent-xyz".as_ptr(), &raw mut fi));
-            assert!(os_fileinfo(fpath_c.as_ptr(), &raw mut fi));
-            assert!(os_fileinfo_link(fpath_c.as_ptr(), &raw mut fi));
-            assert_eq!(os_fileinfo_size(&raw const fi), payload.len() as u64);
-            assert!(os_fileinfo_blocksize(&raw const fi) > 0);
+            assert!(!os_fileinfo(ptr::null(), &mut fi));
+            assert!(!os_fileinfo(c"/non-existent-xyz".as_ptr(), &mut fi));
+            assert!(os_fileinfo(fpath_c.as_ptr(), &mut fi));
+            assert!(os_fileinfo_link(fpath_c.as_ptr(), &mut fi));
+            assert_eq!(os_fileinfo_size(&fi), payload.len() as u64);
+            assert!(os_fileinfo_blocksize(&fi) > 0);
 
             let mut fid = FileID::new();
             assert!(!os_fileid(c"/non-existent-xyz".as_ptr(), &raw mut fid));

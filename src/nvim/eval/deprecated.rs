@@ -105,7 +105,7 @@ pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
             rettv.vval.v_number_mut(),
         );
         if !chan.is_null() {
-            channel_create_event(chan, std::ptr::null());
+            channel_create_event(&mut *chan, std::ptr::null());
         }
     }
 }

@@ -236,7 +236,7 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
         let watcher = Box::into_raw(Box::new(SocketWatcher::new()));
         let endpoint = addr_gen.as_ref().map_or(addr, |s| s.as_ptr());
         let mut result =
-            socket_watcher_init(ptr::addr_of_mut!(g_st().main_loop).cast(), watcher, endpoint);
+            socket_watcher_init(&mut *ptr::addr_of_mut!(g_st().main_loop).cast(), watcher, endpoint);
         drop(addr_gen);
         if result < 0 {
             let _ = Box::from_raw(watcher);

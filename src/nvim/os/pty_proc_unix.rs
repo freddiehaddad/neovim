@@ -271,12 +271,12 @@ mod unix_impl {
     }
 
     #[inline]
-    unsafe fn pty_proc_unix_tail(ptyproc: *mut PtyProc) -> *mut PtyProc {
+    unsafe fn pty_proc_unix_tail(ptyproc: &mut PtyProc) -> *mut PtyProc {
         ptyproc
     }
 
     /// @returns zero on success, or negative error code
-    pub unsafe fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int {
+    pub unsafe fn pty_proc_spawn(ptyproc: &mut PtyProc) -> c_int {
         unsafe {
             let termios_default_ptr = TERMIOS_DEFAULT.as_ptr();
             if (*termios_default_ptr).c_cflag == 0 {
@@ -292,7 +292,7 @@ mod unix_impl {
 
             debug_assert!((*r_err).s.closed);
             uv_signal_start(
-                loop_children_watcher((*hdr).loop_),
+                loop_children_watcher(&mut *(*hdr).loop_),
                 Some(chld_handler),
                 SIGCHLD,
             );
@@ -303,7 +303,7 @@ mod unix_impl {
                 ws_ypixel: 0,
             };
             uv_disable_stdio_inheritance();
-            let prog = proc_get_exepath(proc_);
+            let prog = proc_get_exepath(&mut *proc_);
             debug_assert!(!(*hdr).env.is_null());
             let new_env = tv_dict_to_env((*hdr).env);
             let mut new_env_ptrs: Vec<*mut c_char> = new_env
@@ -415,14 +415,14 @@ mod unix_impl {
         }
     }
 
-    pub unsafe fn pty_proc_tty_name(ptyproc: *mut PtyProc) -> *const c_char {
+    pub unsafe fn pty_proc_tty_name(ptyproc: &mut PtyProc) -> *const c_char {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
             ptsname((*ptail).tty_fd)
         }
     }
 
-    pub unsafe fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16) {
+    pub unsafe fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
             (*ptail).winsize = winsize {
@@ -441,7 +441,7 @@ mod unix_impl {
         }
     }
 
-    pub unsafe fn pty_proc_flush_master(ptyproc: *mut PtyProc) {
+    pub unsafe fn pty_proc_flush_master(ptyproc: &mut PtyProc) {
         #[cfg(target_os = "linux")]
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
@@ -461,15 +461,15 @@ mod unix_impl {
         let _ = ptyproc;
     }
 
-    pub unsafe fn pty_proc_close(ptyproc: *mut PtyProc) {
+    pub unsafe fn pty_proc_close(ptyproc: &mut PtyProc) {
         unsafe {
             pty_proc_close_master(ptyproc);
             let proc_: *mut Proc = ptyproc;
-            crate::event::proc::proc_decref(proc_);
+            crate::event::proc::proc_decref(&mut *proc_);
         }
     }
 
-    pub unsafe fn pty_proc_close_master(ptyproc: *mut PtyProc) {
+    pub unsafe fn pty_proc_close_master(ptyproc: &mut PtyProc) {
         unsafe {
             let ptail = pty_proc_unix_tail(ptyproc);
             if (*ptail).tty_fd >= 0 {
@@ -479,14 +479,14 @@ mod unix_impl {
         }
     }
 
-    pub unsafe fn pty_proc_teardown(loop_: *mut Loop) {
+    pub unsafe fn pty_proc_teardown(loop_: &mut Loop) {
         unsafe {
             uv_signal_stop(loop_children_watcher(loop_));
         }
     }
 
     unsafe fn init_child(
-        ptyproc: *mut PtyProc,
+        ptyproc: &mut PtyProc,
         prog: *const c_char,
         argv_ptrs: *const *mut c_char,
         new_env: *mut *mut c_char,
@@ -625,7 +625,7 @@ mod unix_impl {
             let mut stat: c_int = 0;
             let uv_loop = uv_handle_get_loop(handle.cast());
             let loop_ = *uv_loop.cast::<*mut Loop>();
-            let qc = loop_queues(loop_);
+            let qc = loop_queues(&mut *loop_);
 
             for &proc_ in &(*qc).children {
                 let hdr = proc_;
@@ -645,13 +645,13 @@ mod unix_impl {
 
                 if wifstopped(stat) {
                     if !(*hdr).data.is_null() {
-                        crate::channel::channel_proc_state_cb(proc_, true, (*hdr).data);
+                        crate::channel::channel_proc_state_cb(&mut *proc_, true, &mut *(*hdr).data);
                     }
                     continue;
                 }
                 if wifcontinued(stat) {
                     if !(*hdr).data.is_null() {
-                        crate::channel::channel_proc_state_cb(proc_, false, (*hdr).data);
+                        crate::channel::channel_proc_state_cb(&mut *proc_, false, &mut *(*hdr).data);
                     }
                     continue;
                 }
@@ -662,7 +662,7 @@ mod unix_impl {
                     (*hdr).status = 128 + wtermsig(stat);
                 }
                 let _ = proc_t;
-                crate::event::proc::on_proc_exit(proc_);
+                crate::event::proc::on_proc_exit(&mut *proc_);
             }
         }
     }

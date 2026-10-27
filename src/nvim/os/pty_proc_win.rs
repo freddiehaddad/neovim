@@ -146,7 +146,7 @@ mod win_impl {
     }
 
     #[inline]
-    unsafe fn pty_proc_win_tail(ptyproc: *mut PtyProc) -> *mut PtyProc {
+    unsafe fn pty_proc_win_tail(ptyproc: &mut PtyProc) -> *mut PtyProc {
         ptyproc
     }
 
@@ -170,7 +170,7 @@ mod win_impl {
     unsafe extern "system" fn pty_proc_terminate_cb(context: *mut c_void, _unused: BOOLEAN) {
         unsafe {
             let proc_: *mut Proc = context.cast();
-            loop_schedule_fast((*proc_).loop_, Event::PtyProcFinish(proc_));
+            loop_schedule_fast(&mut *(*proc_).loop_, Event::PtyProcFinish(proc_));
         }
     }
 
@@ -181,7 +181,7 @@ mod win_impl {
             let hdr = proc_;
             let r_out = &raw mut (*proc_).out;
             let r_fields = r_out;
-            let ptail = pty_proc_win_tail(ptyproc);
+            let ptail = pty_proc_win_tail(&mut *ptyproc);
             let Some(conpty) = (*ptail).conpty.take() else {
                 return;
             };
@@ -202,7 +202,7 @@ mod win_impl {
     }
 
     /// @returns zero on success, or negative error code.
-    pub unsafe fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int {
+    pub unsafe fn pty_proc_spawn(ptyproc: &mut PtyProc) -> c_int {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
@@ -336,7 +336,7 @@ mod win_impl {
                     &raw mut (*ptail).finish_wait,
                     proc_handle,
                     Some(pty_proc_terminate_cb),
-                    ptyproc.cast(),
+                    (&raw mut *ptyproc).cast(),
                     INFINITE,
                     WT_EXECUTEDEFAULT | WT_EXECUTEONLYONCE,
                 ) == 0
@@ -384,11 +384,11 @@ mod win_impl {
         }
     }
 
-    pub unsafe fn pty_proc_tty_name(_ptyproc: *mut PtyProc) -> *const c_char {
+    pub unsafe fn pty_proc_tty_name(_ptyproc: &mut PtyProc) -> *const c_char {
         c"?".as_ptr()
     }
 
-    pub unsafe fn pty_proc_resize(ptyproc: *mut PtyProc, width: u16, height: u16) {
+    pub unsafe fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
         unsafe {
             let ptail = pty_proc_win_tail(ptyproc);
             if let Some(ref conpty) = (*ptail).conpty {
@@ -397,11 +397,11 @@ mod win_impl {
         }
     }
 
-    pub unsafe fn pty_proc_resume(_ptyproc: *mut PtyProc) {}
+    pub unsafe fn pty_proc_resume(_ptyproc: &mut PtyProc) {}
 
-    pub unsafe fn pty_proc_flush_master(_ptyproc: *mut PtyProc) {}
+    pub unsafe fn pty_proc_flush_master(_ptyproc: &mut PtyProc) {}
 
-    pub unsafe fn pty_proc_close(ptyproc: *mut PtyProc) {
+    pub unsafe fn pty_proc_close(ptyproc: &mut PtyProc) {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let proc_t = proc_;
@@ -419,13 +419,13 @@ mod win_impl {
             }
 
             let _ = proc_t;
-            crate::event::proc::proc_decref(proc_);
+            crate::event::proc::proc_decref(&mut *proc_);
         }
     }
 
-    pub unsafe fn pty_proc_close_master(_ptyproc: *mut PtyProc) {}
+    pub unsafe fn pty_proc_close_master(_ptyproc: &mut PtyProc) {}
 
-    pub unsafe fn pty_proc_teardown(_loop_: *mut Loop) {}
+    pub unsafe fn pty_proc_teardown(_loop_: &mut Loop) {}
 
     unsafe extern "C" fn pty_proc_connect_cb(req: *mut uv_connect_t, status: c_int) {
         debug_assert_eq!(status, 0);
@@ -434,7 +434,7 @@ mod win_impl {
         }
     }
 
-    pub unsafe fn pty_proc_finish(ptyproc: *mut PtyProc) {
+    pub unsafe fn pty_proc_finish(ptyproc: &mut PtyProc) {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
@@ -448,7 +448,7 @@ mod win_impl {
                 exit_code as c_int
             };
 
-            crate::event::proc::on_proc_exit(proc_);
+            crate::event::proc::on_proc_exit(&mut *proc_);
         }
     }
 

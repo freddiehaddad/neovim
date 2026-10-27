@@ -1185,8 +1185,8 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                 let mut file_info_old = FileInfo::new();
                 let mut file_info_new = FileInfo::new();
                 if !(*buf).b_ffname.is_null()
-                    && os_fileinfo((*buf).b_ffname, &raw mut file_info_old)
-                    && os_fileinfo(file_name, &raw mut file_info_new)
+                    && os_fileinfo((*buf).b_ffname, &mut file_info_old)
+                    && os_fileinfo(file_name, &mut file_info_new)
                     && file_info_old.stat.st_gid != file_info_new.stat.st_gid
                     && os_fchown(
                         fd,
@@ -1321,8 +1321,8 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
             {
                 let mut file_info_orig = FileInfo::new();
                 let mut file_info_undo = FileInfo::new();
-                if os_fileinfo(orig_name, &raw mut file_info_orig)
-                    && os_fileinfo(f, &raw mut file_info_undo)
+                if os_fileinfo(orig_name, &mut file_info_orig)
+                    && os_fileinfo(f, &mut file_info_undo)
                     && file_info_orig.stat.st_uid != file_info_undo.stat.st_uid
                     && file_info_undo.stat.st_uid != u64::from(getuid())
                 {
@@ -1364,8 +1364,8 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 let fp = bi_fp.as_ptr();
 
                 let mut file_info = FileInfo::new();
-                let fsize = if os_fileinfo_fd(fileno(fp), &raw mut file_info) {
-                    os_fileinfo_size(&raw const file_info) as off_T
+                let fsize = if os_fileinfo_fd(fileno(fp), &mut file_info) {
+                    os_fileinfo_size(&file_info) as off_T
                 } else {
                     0
                 };

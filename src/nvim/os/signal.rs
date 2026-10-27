@@ -119,17 +119,17 @@ pub unsafe fn signal_init() {
         }
 
         let loop_ptr = &raw mut g_st().main_loop;
-        signal_watcher_init(loop_ptr, &raw mut sig_st().spipe, ptr::null_mut());
-        signal_watcher_init(loop_ptr, &raw mut sig_st().shup, ptr::null_mut());
-        signal_watcher_init(loop_ptr, &raw mut sig_st().sint, ptr::null_mut());
-        signal_watcher_init(loop_ptr, &raw mut sig_st().squit, ptr::null_mut());
-        signal_watcher_init(loop_ptr, &raw mut sig_st().sterm, ptr::null_mut());
-        signal_watcher_init(loop_ptr, &raw mut sig_st().ststp, ptr::null_mut());
+        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().spipe, ptr::null_mut());
+        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().shup, ptr::null_mut());
+        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().sint, ptr::null_mut());
+        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().squit, ptr::null_mut());
+        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().sterm, ptr::null_mut());
+        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().ststp, ptr::null_mut());
         #[cfg(target_os = "linux")]
-        signal_watcher_init(loop_ptr, &raw mut sig_st().spwr, ptr::null_mut());
+        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().spwr, ptr::null_mut());
         #[cfg(unix)]
-        signal_watcher_init(loop_ptr, &raw mut sig_st().susr1, ptr::null_mut());
-        signal_watcher_init(loop_ptr, &raw mut sig_st().swinch, ptr::null_mut());
+        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().susr1, ptr::null_mut());
+        signal_watcher_init(&mut *loop_ptr, &raw mut sig_st().swinch, ptr::null_mut());
         signal_start();
     }
 }

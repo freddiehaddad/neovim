@@ -310,9 +310,9 @@ unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
 
 pub unsafe fn event_init() {
     unsafe {
-        loop_init(&raw mut g_st().main_loop);
+        loop_init(&mut g_st().main_loop);
         env_init();
-        let queues = loop_queues((&raw mut g_st().main_loop).cast());
+        let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
         g_st().resize_events = multiqueue_new_child((*queues).events);
 
         autocmd_init();
@@ -326,21 +326,21 @@ pub unsafe fn event_init() {
 
 unsafe fn event_teardown() -> bool {
     unsafe {
-        let queues = loop_queues((&raw mut g_st().main_loop).cast());
+        let queues = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
         if (*queues).events.is_null() {
             return true;
         }
 
         multiqueue_process_events((*queues).events);
-        loop_poll_events((&raw mut g_st().main_loop).cast(), 0);
+        loop_poll_events(&mut *(&raw mut g_st().main_loop).cast(), 0);
         server_teardown();
         channel_teardown();
-        proc_teardown((&raw mut g_st().main_loop).cast());
+        proc_teardown(&mut *(&raw mut g_st().main_loop).cast());
         timer_teardown();
         signal_teardown();
         terminal_teardown();
 
-        loop_close((&raw mut g_st().main_loop).cast(), true)
+        loop_close(&mut *(&raw mut g_st().main_loop).cast(), true)
     }
 }
 
@@ -416,8 +416,8 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         let mut fname: *mut c_char = ptr::null_mut();
         let mut params = mparm_T::new();
 
-        init_params(&raw mut params, argc, argv);
-        init_startuptime(&raw mut params);
+        init_params(&mut params, argc, argv);
+        init_startuptime(&mut params);
 
         for i in 1..params.argc {
             if { let _a = *params.argv.add(i as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"--clean") } {
@@ -429,8 +429,8 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         event_init();
         early_init(&raw mut params);
         set_argv_var(argv, argc);
-        check_and_set_isatty(&raw mut params);
-        command_line_scan(&raw mut params);
+        check_and_set_isatty(&mut params);
+        command_line_scan(&mut params);
         set_argf_var();
 
         nlua_init(argv, argc, params.lua_arg0);
@@ -455,7 +455,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         }
 
         if gargcount() > 0 {
-            fname = get_fname(&raw mut params);
+            fname = get_fname(&mut params);
         }
 
         if g_st().recoverymode && fname.is_null() {
@@ -474,9 +474,10 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
                 .server_addr
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr());
+            let remote = params.remote;
             remote_request(
-                &raw mut params,
-                params.remote,
+                &mut params,
+                remote,
                 server_addr_ptr,
                 argc,
                 argv,
@@ -579,7 +580,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         win_new_screensize();
         time_msg_if_enabled(c"clear screen".as_ptr());
 
-        if edit_stdin(&raw mut params) {
+        if edit_stdin(&mut params) {
             params.edit_type = EDIT_STDIN;
         }
 
@@ -617,13 +618,13 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
             opt_vars().p_lpl = 0;
         }
 
-        exe_pre_commands(&raw mut params);
+        exe_pre_commands(&mut params);
 
         if !vimrc_none || params.clean {
             filetype_plugin_enable();
         }
 
-        source_startup_scripts(&raw const params);
+        source_startup_scripts(&params);
 
         if !vimrc_none || params.clean {
             filetype_maybe_enable();
@@ -634,7 +635,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         load_plugins();
 
-        set_window_layout(&raw mut params);
+        set_window_layout(&mut params);
 
         if g_st().recoverymode && fname.is_null() {
             let mut items_tv = crate::eval::typval::typval_T::new();
@@ -670,7 +671,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
             set_vim_var_list(VV_OLDFILES, tv_list_alloc(0));
         }
 
-        handle_quickfix(&raw mut params);
+        handle_quickfix(&mut params);
 
         *starting.as_ptr() = NO_BUFFERS;
         g_st().no_wait_return = 0;
@@ -686,7 +687,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
 
         g_st().no_wait_return += 1;
 
-        create_windows(&raw mut params);
+        create_windows(&mut params);
         time_msg_if_enabled(c"opening buffers".as_ptr());
 
         set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
@@ -710,7 +711,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
             time_msg_if_enabled(c"jump to first error".as_ptr());
         }
 
-        edit_buffers(&raw mut params);
+        edit_buffers(&mut params);
 
         if params.diff_mode != 0 {
             let mut wp = (*g_st().curtab).tp_firstwin;
@@ -727,7 +728,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         handle_tag(params.tagname.as_deref());
 
         if !params.commands.is_empty() {
-            exe_commands(&raw mut params);
+            exe_commands(&mut params);
         }
 
         *starting.as_ptr() = 0;
@@ -1139,7 +1140,7 @@ unsafe fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char)
 }
 
 unsafe fn remote_request(
-    params: *mut mparm_T,
+    params: &mut mparm_T,
     remote_args: c_int,
     server_addr: *const c_char,
     argc: c_int,
@@ -1308,40 +1309,40 @@ unsafe fn remote_request(
             os_exit(0);
         }
         if tabbed == kTrue {
-            (*params).window_count = argc - remote_args - 1;
-            (*params).window_layout = WIN_TABS;
+            params.window_count = argc - remote_args - 1;
+            params.window_layout = WIN_TABS;
         }
     }
 }
 
-unsafe fn edit_stdin(parmp: *mut mparm_T) -> bool {
+unsafe fn edit_stdin(parmp: &mut mparm_T) -> bool {
     unsafe {
         let implicit = !g_st().headless_mode
             && !(g_st().embedded_mode && g_st().stdin_fd <= 0)
-            && (!(*parmp).exmode || (*parmp).input_istext)
+            && (!parmp.exmode || parmp.input_istext)
             && !g_st().stdin_isatty
-            && (*parmp).edit_type <= EDIT_STDIN
-            && (*parmp).scriptin.is_none();
-        (*parmp).had_stdin_file || implicit
+            && parmp.edit_type <= EDIT_STDIN
+            && parmp.scriptin.is_none();
+        parmp.had_stdin_file || implicit
     }
 }
 
-unsafe fn command_line_scan(parmp: *mut mparm_T) {
+unsafe fn command_line_scan(parmp: &mut mparm_T) {
     unsafe {
-        let mut argc = (*parmp).argc - 1;
-        let mut argv = (*parmp).argv.add(1);
+        let mut argc = parmp.argc - 1;
+        let mut argv = parmp.argv.add(1);
         let mut argv_idx: c_int = 1;
         let mut had_minmin = false;
 
         while argc > 0 {
             let arg0 = *argv;
             if *arg0 == b'+' as c_char && !had_minmin {
-                if (*parmp).commands.len() >= MAX_ARG_CMDS {
+                if parmp.commands.len() >= MAX_ARG_CMDS {
                     mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
                 }
                 argv_idx = -1;
                 if *arg0.add(1) == NUL {
-                    (*parmp).commands.push(c"$".to_owned());
+                    parmp.commands.push(c"$".to_owned());
                 } else {
                     (*parmp)
                         .commands
@@ -1353,16 +1354,16 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                 argv_idx += 1;
                 match c {
                     0 => {
-                        if (*parmp).exmode {
+                        if parmp.exmode {
                             g_st().silent_mode = true;
                             g_st().exmode_active = true;
-                            (*parmp).no_swap_file = 1;
+                            parmp.no_swap_file = 1;
                         } else {
-                            if (*parmp).edit_type > EDIT_STDIN {
+                            if parmp.edit_type > EDIT_STDIN {
                                 mainerr(ERR_TOO_MANY_ARGS.as_ptr(), arg0, ptr::null());
                             }
-                            (*parmp).had_stdin_file = true;
-                            (*parmp).edit_type = EDIT_STDIN;
+                            parmp.had_stdin_file = true;
+                            parmp.edit_type = EDIT_STDIN;
                         }
                         argv_idx = -1;
                     }
@@ -1399,7 +1400,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         } else if strnicmp_ascii(sub, b"literal") {
                             // Do nothing: file args are always literal.
                         } else if strnicmp_ascii(sub, b"remote") {
-                            (*parmp).remote = (*parmp).argc - argc;
+                            parmp.remote = parmp.argc - argc;
                         } else if strnicmp_ascii(sub, b"server") {
                             want_argument = true;
                             argv_idx += 6;
@@ -1412,8 +1413,8 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             want_argument = true;
                             argv_idx += 11;
                         } else if strnicmp_ascii(sub, b"clean") {
-                            (*parmp).use_vimrc = Some(c"NONE".to_owned());
-                            (*parmp).clean = true;
+                            parmp.use_vimrc = Some(c"NONE".to_owned());
+                            parmp.clean = true;
                             set_option_value_give_err(
                                 kOptShadafile,
                                 cstr_as_obj(c"NONE".as_ptr()),
@@ -1439,17 +1440,17 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         (*g_st().curbuf).b_p_bin = 1;
                     }
                     b'D' => {
-                        (*parmp).use_debug_break_level = 9999;
+                        parmp.use_debug_break_level = 9999;
                     }
                     b'd' => {
-                        (*parmp).diff_mode = 1;
+                        parmp.diff_mode = 1;
                     }
                     b'e' => {
-                        (*parmp).exmode = true;
+                        parmp.exmode = true;
                     }
                     b'E' => {
-                        (*parmp).exmode = true;
-                        (*parmp).input_istext = true;
+                        parmp.exmode = true;
+                        parmp.input_istext = true;
                     }
                     b'f' | b'N' | b'X' => {}
                     b'?' | b'h' => {
@@ -1468,27 +1469,27 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         opt_vars().p_write = 0;
                     }
                     b'n' => {
-                        (*parmp).no_swap_file = 1;
+                        parmp.no_swap_file = 1;
                     }
                     b'p' => {
-                        (*parmp).window_count = get_number_arg(arg0, &raw mut argv_idx, 0);
-                        (*parmp).window_layout = WIN_TABS;
+                        parmp.window_count = get_number_arg(arg0, &raw mut argv_idx, 0);
+                        parmp.window_layout = WIN_TABS;
                     }
                     b'o' => {
-                        (*parmp).window_count = get_number_arg(arg0, &raw mut argv_idx, 0);
-                        (*parmp).window_layout = WIN_HOR;
+                        parmp.window_count = get_number_arg(arg0, &raw mut argv_idx, 0);
+                        parmp.window_layout = WIN_HOR;
                     }
                     b'O' => {
-                        (*parmp).window_count = get_number_arg(arg0, &raw mut argv_idx, 0);
-                        (*parmp).window_layout = WIN_VER;
+                        parmp.window_count = get_number_arg(arg0, &raw mut argv_idx, 0);
+                        parmp.window_layout = WIN_VER;
                     }
                     b'q' => {
-                        if (*parmp).edit_type != EDIT_NONE {
+                        if parmp.edit_type != EDIT_NONE {
                             mainerr(ERR_TOO_MANY_ARGS.as_ptr(), arg0, ptr::null());
                         }
-                        (*parmp).edit_type = EDIT_QF;
+                        parmp.edit_type = EDIT_QF;
                         if *arg0.add(argv_idx as usize) != NUL {
-                            (*parmp).use_ef =
+                            parmp.use_ef =
                                 Some(CStr::from_ptr(arg0.add(argv_idx as usize)).to_owned());
                             argv_idx = -1;
                         } else if argc > 1 {
@@ -1504,10 +1505,10 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         g_st().recoverymode = true;
                     }
                     b's' => {
-                        if (*parmp).exmode {
+                        if parmp.exmode {
                             g_st().silent_mode = true;
                             g_st().exmode_active = true;
-                            (*parmp).no_swap_file = 1;
+                            parmp.no_swap_file = 1;
                             if opt_vars().p_shadafile.is_null() || *opt_vars().p_shadafile == NUL {
                                 set_option_value_give_err(
                                     kOptShadafile,
@@ -1520,12 +1521,12 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                         }
                     }
                     b't' => {
-                        if (*parmp).edit_type != EDIT_NONE {
+                        if parmp.edit_type != EDIT_NONE {
                             mainerr(ERR_TOO_MANY_ARGS.as_ptr(), arg0, ptr::null());
                         }
-                        (*parmp).edit_type = EDIT_TAG;
+                        parmp.edit_type = EDIT_TAG;
                         if *arg0.add(argv_idx as usize) != NUL {
-                            (*parmp).tagname =
+                            parmp.tagname =
                                 Some(CStr::from_ptr(arg0.add(argv_idx as usize)).to_owned());
                             argv_idx = -1;
                         } else {
@@ -1557,7 +1558,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                     }
                     b'c' => {
                         if *arg0.add(argv_idx as usize) != NUL {
-                            if (*parmp).commands.len() >= MAX_ARG_CMDS {
+                            if parmp.commands.len() >= MAX_ARG_CMDS {
                                 mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
                             }
                             (*parmp)
@@ -1593,7 +1594,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
 
                     match c {
                         b'c' | b'S' => {
-                            if (*parmp).commands.len() >= MAX_ARG_CMDS {
+                            if parmp.commands.len() >= MAX_ARG_CMDS {
                                 mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
                             }
                             if c == b'S' {
@@ -1615,12 +1616,12 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                     .commands
                                     .push(std::ffi::CString::new(s).unwrap_or_default());
                             } else {
-                                (*parmp).commands.push(CStr::from_ptr(cur_arg).to_owned());
+                                parmp.commands.push(CStr::from_ptr(cur_arg).to_owned());
                             }
                         }
                         b'-' => {
                             if { let _a = prev_arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--cmd" } {
-                                if (*parmp).pre_commands.len() >= MAX_ARG_CMDS {
+                                if parmp.pre_commands.len() >= MAX_ARG_CMDS {
                                     mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
                                 }
                                 (*parmp)
@@ -1628,14 +1629,14 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                     .push(CStr::from_ptr(cur_arg).to_owned());
                             } else if { let _a = prev_arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--listen" } {
                                 to_slash_if_needed(cur_arg);
-                                (*parmp).listen_addr = Some(CStr::from_ptr(cur_arg).to_owned());
+                                parmp.listen_addr = Some(CStr::from_ptr(cur_arg).to_owned());
                             } else if { let _a = prev_arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--server" } {
                                 to_slash_if_needed(cur_arg);
-                                (*parmp).server_addr = Some(CStr::from_ptr(cur_arg).to_owned());
+                                parmp.server_addr = Some(CStr::from_ptr(cur_arg).to_owned());
                             }
                         }
                         b'q' => {
-                            (*parmp).use_ef = Some(CStr::from_ptr(cur_arg).to_owned());
+                            parmp.use_ef = Some(CStr::from_ptr(cur_arg).to_owned());
                         }
                         b'i' => {
                             set_option_value_give_err(kOptShadafile, cstr_as_obj(cur_arg), 0);
@@ -1644,9 +1645,9 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                             g_st().headless_mode = true;
                             g_st().silent_mode = true;
                             opt_vars().p_verbose = 1;
-                            (*parmp).no_swap_file = 1;
-                            if (*parmp).use_vimrc.is_none() {
-                                (*parmp).use_vimrc = Some(c"NONE".to_owned());
+                            parmp.no_swap_file = 1;
+                            if parmp.use_vimrc.is_none() {
+                                parmp.use_vimrc = Some(c"NONE".to_owned());
                             }
                             if opt_vars().p_shadafile.is_null() || *opt_vars().p_shadafile == NUL {
                                 set_option_value_give_err(
@@ -1655,15 +1656,15 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                     0,
                                 );
                             }
-                            (*parmp).luaf = Some(CStr::from_ptr(cur_arg).to_owned());
+                            parmp.luaf = Some(CStr::from_ptr(cur_arg).to_owned());
                             argc -= 1;
                             if argc >= 0 {
-                                (*parmp).lua_arg0 = (*parmp).argc - argc;
+                                parmp.lua_arg0 = parmp.argc - argc;
                                 argc = 0;
                             }
                         }
                         b's' => {
-                            if (*parmp).scriptin.is_some() {
+                            if parmp.scriptin.is_some() {
                                 vim_snprintf!(
                                     (&raw mut g_st().IObuff).cast(),
                                     IOSIZE,
@@ -1680,14 +1681,14 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                 );
                                 os_exit(2);
                             }
-                            (*parmp).scriptin = Some(CStr::from_ptr(cur_arg).to_owned());
+                            parmp.scriptin = Some(CStr::from_ptr(cur_arg).to_owned());
                         }
                         b't' => {
-                            (*parmp).tagname = Some(CStr::from_ptr(cur_arg).to_owned());
+                            parmp.tagname = Some(CStr::from_ptr(cur_arg).to_owned());
                         }
                         b'u' => {
                             to_slash_if_needed(cur_arg);
-                            (*parmp).use_vimrc = Some(CStr::from_ptr(cur_arg).to_owned());
+                            parmp.use_vimrc = Some(CStr::from_ptr(cur_arg).to_owned());
                         }
                         b'U' => {}
                         b'w' | b'W' => {
@@ -1701,7 +1702,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                 );
                                 argv_idx = -1;
                             } else {
-                                if (*parmp).scriptout.is_some() {
+                                if parmp.scriptout.is_some() {
                                     vim_snprintf!(
                                         (&raw mut g_st().IObuff).cast(),
                                         IOSIZE,
@@ -1719,8 +1720,8 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                                     );
                                     os_exit(2);
                                 }
-                                (*parmp).scriptout = Some(CStr::from_ptr(cur_arg).to_owned());
-                                (*parmp).scriptout_append = c == b'w';
+                                parmp.scriptout = Some(CStr::from_ptr(cur_arg).to_owned());
+                                parmp.scriptout_append = c == b'w';
                             }
                         }
                         _ => {}
@@ -1729,10 +1730,10 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
             } else {
                 argv_idx = -1;
 
-                if (*parmp).edit_type > EDIT_STDIN {
+                if parmp.edit_type > EDIT_STDIN {
                     mainerr(ERR_TOO_MANY_ARGS.as_ptr(), arg0, ptr::null());
                 }
-                (*parmp).edit_type = EDIT_FILE;
+                parmp.edit_type = EDIT_FILE;
 
                 let mut p_vec: Vec<c_char> = CStr::from_ptr(arg0)
                     .to_bytes_with_nul()
@@ -1755,7 +1756,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
                     }
                 }
 
-                if (*parmp).diff_mode != 0
+                if parmp.diff_mode != 0
                     && os_isdir(p_vec.as_ptr())
                     && gargcount() > 0
                     && !os_isdir(alist_name(garglist()))
@@ -1789,7 +1790,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
             }
         }
 
-        if g_st().embedded_mode && (g_st().silent_mode || (*parmp).luaf.is_some()) {
+        if g_st().embedded_mode && (g_st().silent_mode || parmp.luaf.is_some()) {
             mainerr(
                 gettext(c"--embed conflicts with -es/-Es/-l".as_ptr()),
                 ptr::null(),
@@ -1797,7 +1798,7 @@ unsafe fn command_line_scan(parmp: *mut mparm_T) {
             );
         }
 
-        if let Some(cmd0) = (*parmp).commands.first() {
+        if let Some(cmd0) = parmp.commands.first() {
             let cmd0_bytes = cmd0.as_bytes();
             let swcmd_len = cmd0_bytes.len() + 2;
             let mut swcmd = Vec::with_capacity(swcmd_len + 1);
@@ -1828,34 +1829,32 @@ unsafe fn set_argf_var() {
     }
 }
 
-unsafe fn init_params(paramp: *mut mparm_T, argc: c_int, argv: *mut *mut c_char) {
-    unsafe {
-        *paramp = mparm_T::new();
-        (*paramp).argc = argc;
-        (*paramp).argv = argv;
-        (*paramp).use_debug_break_level = -1;
-        (*paramp).window_count = -1;
-        (*paramp).listen_addr = None;
-        (*paramp).server_addr = None;
-        (*paramp).remote = 0;
-        (*paramp).luaf = None;
-        (*paramp).lua_arg0 = -1;
-    }
+unsafe fn init_params(paramp: &mut mparm_T, argc: c_int, argv: *mut *mut c_char) {
+    *paramp = mparm_T::new();
+        paramp.argc = argc;
+        paramp.argv = argv;
+        paramp.use_debug_break_level = -1;
+        paramp.window_count = -1;
+        paramp.listen_addr = None;
+        paramp.server_addr = None;
+        paramp.remote = 0;
+        paramp.luaf = None;
+        paramp.lua_arg0 = -1;
 }
 
-unsafe fn init_startuptime(paramp: *mut mparm_T) {
+unsafe fn init_startuptime(paramp: &mut mparm_T) {
     unsafe {
         let mut is_embed = false;
-        for i in 1..((*paramp).argc - 1) {
-            if { let _a = *(*paramp).argv.add(i as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"--embed") } {
+        for i in 1..(paramp.argc - 1) {
+            if { let _a = *paramp.argv.add(i as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"--embed") } {
                 is_embed = true;
                 break;
             }
         }
-        for i in 1..((*paramp).argc - 1) {
-            if { let _a = *(*paramp).argv.add(i as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"--startuptime") } {
+        for i in 1..(paramp.argc - 1) {
+            if { let _a = *paramp.argv.add(i as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"--startuptime") } {
                 time_init(
-                    *(*paramp).argv.add((i + 1) as usize),
+                    *paramp.argv.add((i + 1) as usize),
                     if is_embed {
                         c"Embedded".as_ptr()
                     } else {
@@ -1869,7 +1868,7 @@ unsafe fn init_startuptime(paramp: *mut mparm_T) {
     }
 }
 
-unsafe fn check_and_set_isatty(_paramp: *mut mparm_T) {
+unsafe fn check_and_set_isatty(_paramp: &mut mparm_T) {
     unsafe {
         g_st().stdin_isatty = os_isatty(STDIN_FILENO);
         g_st().stdout_isatty = os_isatty(STDOUT_FILENO);
@@ -1895,14 +1894,14 @@ unsafe fn init_path(exename: *const c_char) {
     }
 }
 
-unsafe fn get_fname(_parmp: *mut mparm_T) -> *mut c_char {
+unsafe fn get_fname(_parmp: &mut mparm_T) -> *mut c_char {
     unsafe { alist_name(garglist()) }
 }
 
-unsafe fn set_window_layout(paramp: *mut mparm_T) {
+unsafe fn set_window_layout(paramp: &mut mparm_T) {
     unsafe {
-        if (*paramp).diff_mode != 0 && (*paramp).window_layout == 0 {
-            (*paramp).window_layout = if diffopt_horizontal() {
+        if paramp.diff_mode != 0 && paramp.window_layout == 0 {
+            paramp.window_layout = if diffopt_horizontal() {
                 WIN_HOR
             } else {
                 WIN_VER
@@ -1911,10 +1910,10 @@ unsafe fn set_window_layout(paramp: *mut mparm_T) {
     }
 }
 
-unsafe fn handle_quickfix(paramp: *mut mparm_T) {
+unsafe fn handle_quickfix(paramp: &mut mparm_T) {
     unsafe {
-        if (*paramp).edit_type == EDIT_QF {
-            if let Some(ref use_ef) = (*paramp).use_ef {
+        if paramp.edit_type == EDIT_QF {
+            if let Some(ref use_ef) = paramp.use_ef {
                 set_option_direct(kOptErrorfile, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
             }
             vim_snprintf!((&raw mut g_st().IObuff).cast(), IOSIZE, c"cfile %s".as_ptr(), opt_vars().p_ef);
@@ -2019,30 +2018,30 @@ unsafe fn read_stdin() {
     }
 }
 
-unsafe fn create_windows(parmp: *mut mparm_T) {
+unsafe fn create_windows(parmp: &mut mparm_T) {
     unsafe {
-        if (*parmp).window_count == -1 {
-            (*parmp).window_count = 1;
+        if parmp.window_count == -1 {
+            parmp.window_count = 1;
         }
-        if (*parmp).window_count == 0 {
-            (*parmp).window_count = gargcount();
+        if parmp.window_count == 0 {
+            parmp.window_count = gargcount();
         }
-        if (*parmp).window_count > 1 {
-            if (*parmp).window_layout == 0 {
-                (*parmp).window_layout = WIN_HOR;
+        if parmp.window_count > 1 {
+            if parmp.window_layout == 0 {
+                parmp.window_layout = WIN_HOR;
             }
-            if (*parmp).window_layout == WIN_TABS {
-                (*parmp).window_count = make_tabpages((*parmp).window_count);
+            if parmp.window_layout == WIN_TABS {
+                parmp.window_count = make_tabpages(parmp.window_count);
                 time_msg_if_enabled(c"making tab pages".as_ptr());
             } else if (*g_st().firstwin).w_next.is_null() || (*(*g_st().firstwin).w_next).w_floating {
-                (*parmp).window_count =
-                    make_windows((*parmp).window_count, (*parmp).window_layout == WIN_VER);
+                parmp.window_count =
+                    make_windows(parmp.window_count, parmp.window_layout == WIN_VER);
                 time_msg_if_enabled(c"making windows".as_ptr());
             } else {
-                (*parmp).window_count = win_count();
+                parmp.window_count = win_count();
             }
         } else {
-            (*parmp).window_count = 1;
+            parmp.window_count = 1;
         }
 
         if g_st().recoverymode {
@@ -2061,12 +2060,12 @@ unsafe fn create_windows(parmp: *mut mparm_T) {
             while done < 1000 {
                 done += 1;
                 if dorewind {
-                    if (*parmp).window_layout == WIN_TABS {
+                    if parmp.window_layout == WIN_TABS {
                         goto_tabpage(1);
                     } else {
                         *curwin.as_ptr() = g_st().firstwin;
                     }
-                } else if (*parmp).window_layout == WIN_TABS {
+                } else if parmp.window_layout == WIN_TABS {
                     if (*g_st().curtab).tp_next.is_null() {
                         break;
                     }
@@ -2108,9 +2107,9 @@ unsafe fn create_windows(parmp: *mut mparm_T) {
                     break;
                 }
             }
-            if (*parmp).window_layout == WIN_TABS {
+            if parmp.window_layout == WIN_TABS {
                 goto_tabpage(1);
-            } else if (*parmp).window_count > 1 || !win_valid(startup_curwin) {
+            } else if parmp.window_count > 1 || !win_valid(startup_curwin) {
                 *curwin.as_ptr() = g_st().firstwin;
             } else {
                 *curwin.as_ptr() = startup_curwin;
@@ -2122,7 +2121,7 @@ unsafe fn create_windows(parmp: *mut mparm_T) {
     }
 }
 
-unsafe fn edit_buffers(parmp: *mut mparm_T) {
+unsafe fn edit_buffers(parmp: &mut mparm_T) {
     unsafe {
         let mut advance = true;
         let mut p_shm_save: Option<std::ffi::CString> = None;
@@ -2136,7 +2135,7 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
         }
 
         let mut arg_idx: c_int = 1;
-        for i in 1..(*parmp).window_count {
+        for i in 1..parmp.window_count {
             if (**curwin.as_ptr()).w_arg_idx == -1 {
                 arg_idx += 1;
                 win_close(*curwin.as_ptr(), true, false);
@@ -2145,7 +2144,7 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
             }
 
             if advance {
-                if (*parmp).window_layout == WIN_TABS {
+                if parmp.window_layout == WIN_TABS {
                     if (*g_st().curtab).tp_next.is_null() {
                         break;
                     }
@@ -2207,12 +2206,12 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
             set_option_value_give_err(kOptShortmess, cstr_as_obj(p_shm_save.as_ptr()), 0);
         }
 
-        if (*parmp).window_layout == WIN_TABS {
+        if parmp.window_layout == WIN_TABS {
             goto_tabpage(1);
         }
         g_st().autocmd_no_enter -= 1;
 
-        let mut win = if (*parmp).window_count > 1 {
+        let mut win = if parmp.window_count > 1 {
             g_st().firstwin
         } else {
             *curwin.as_ptr()
@@ -2228,22 +2227,22 @@ unsafe fn edit_buffers(parmp: *mut mparm_T) {
 
         g_st().autocmd_no_leave -= 1;
         time_msg_if_enabled(c"editing files in windows".as_ptr());
-        if (*parmp).window_count > 1 && (*parmp).window_layout != WIN_TABS {
+        if parmp.window_count > 1 && parmp.window_layout != WIN_TABS {
             win_equal(*curwin.as_ptr(), false, b'b' as c_int);
         }
     }
 }
 
-unsafe fn exe_pre_commands(parmp: *mut mparm_T) {
+unsafe fn exe_pre_commands(parmp: &mut mparm_T) {
     unsafe {
-        if (*parmp).pre_commands.is_empty() {
+        if parmp.pre_commands.is_empty() {
             return;
         }
 
         (**curwin.as_ptr()).w_cursor.lnum = 0;
         estack_push(ETYPE_ARGS, gettext(c"pre-vimrc command line".as_ptr()), 0);
         g_st().current_sctx.sc_sid = SID_CMDARG;
-        for cmd in &(*parmp).pre_commands {
+        for cmd in &parmp.pre_commands {
             do_cmdline_cmd(cmd.as_ptr());
         }
         estack_pop();
@@ -2252,16 +2251,16 @@ unsafe fn exe_pre_commands(parmp: *mut mparm_T) {
     }
 }
 
-unsafe fn exe_commands(parmp: *mut mparm_T) {
+unsafe fn exe_commands(parmp: &mut mparm_T) {
     unsafe {
         g_st().msg_scroll = 1;
-        if (*parmp).tagname.is_none() && (**curwin.as_ptr()).w_cursor.lnum <= 1 {
+        if parmp.tagname.is_none() && (**curwin.as_ptr()).w_cursor.lnum <= 1 {
             (**curwin.as_ptr()).w_cursor.lnum = 0;
         }
         estack_push(ETYPE_ARGS, c"command line".as_ptr().cast_mut(), 0);
         g_st().current_sctx.sc_sid = SID_CARG;
         g_st().current_sctx.sc_seq = 0;
-        let cmds = std::mem::take(&mut (*parmp).commands);
+        let cmds = std::mem::take(&mut parmp.commands);
         for cmd in &cmds {
             do_cmdline_cmd(cmd.as_ptr());
         }
@@ -2273,7 +2272,7 @@ unsafe fn exe_commands(parmp: *mut mparm_T) {
 
         g_st().msg_scroll = 0;
 
-        if (*parmp).edit_type == EDIT_QF {
+        if parmp.edit_type == EDIT_QF {
             qf_jump(ptr::null_mut(), 0, 0, 0);
         }
         time_msg_if_enabled(c"executing command arguments".as_ptr());
@@ -2470,9 +2469,9 @@ unsafe fn do_exrc_initialization() {
     }
 }
 
-unsafe fn source_startup_scripts(parmp: *const mparm_T) {
+unsafe fn source_startup_scripts(parmp: &mparm_T) {
     unsafe {
-        if let Some(ref use_vimrc) = (*parmp).use_vimrc {
+        if let Some(ref use_vimrc) = parmp.use_vimrc {
             if use_vimrc.as_c_str() == c"NONE" || use_vimrc.as_c_str() == c"NORC" {
                 // Do nothing.
             } else if do_source(
@@ -2694,7 +2693,7 @@ mod tests {
             assert_eq!(idx, 3);
 
             let mut params = mparm_T::new();
-            init_params(&raw mut params, 3, ptr::null_mut());
+            init_params(&mut params, 3, ptr::null_mut());
             assert_eq!(params.argc, 3);
             assert_eq!(params.window_count, -1);
             assert_eq!(params.use_debug_break_level, -1);

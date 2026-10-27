@@ -90,7 +90,7 @@ impl CallbackReader {
 impl Drop for CallbackReader {
     fn drop(&mut self) {
         unsafe {
-            callback_free(&raw mut self.cb);
+            callback_free(&mut self.cb);
         }
     }
 }
@@ -221,7 +221,7 @@ pub unsafe fn channel_free_all_mem() {
             drop(Box::from_raw(chan));
         }
 
-        callback_free(&raw mut g_st().on_print);
+        callback_free(&mut g_st().on_print);
     }
 }
 
@@ -244,14 +244,14 @@ pub unsafe fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c
             return false;
         }
 
-        let cp = chan;
-        let ct = chan;
+        let cp = &raw mut *chan;
+        let ct = &raw mut *chan;
 
         let mut close_main = false;
         if part == kChannelPartRpc || part == kChannelPartAll {
             close_main = true;
             if (*ct).is_rpc {
-                rpc_close(chan);
+                rpc_close(&mut *chan);
             } else if part == kChannelPartRpc {
                 {
                     *error = e_invstream.as_ptr();
@@ -273,7 +273,7 @@ pub unsafe fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c
                     }
                     return false;
                 }
-                rstream_may_close(&raw mut (*chan).socket);
+                rstream_may_close(&mut (*chan).socket);
             }
             kChannelStreamProc => {
                 let proc_ptr = &raw mut (*chan).uv.proc_;
@@ -281,18 +281,18 @@ pub unsafe fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c
                     stream_may_close(&raw mut (*proc_ptr).r#in);
                 }
                 if part == kChannelPartStdout || close_main {
-                    rstream_may_close(&raw mut (*proc_ptr).out);
+                    rstream_may_close(&mut (*proc_ptr).out);
                 }
                 if part == kChannelPartStderr || part == kChannelPartAll {
-                    rstream_may_close(&raw mut (*proc_ptr).err);
+                    rstream_may_close(&mut (*proc_ptr).err);
                 }
                 if (*proc_ptr).r#type == kProcTypePty && part == kChannelPartAll {
-                    pty_proc_close_master(proc_ptr);
+                    pty_proc_close_master(&mut *proc_ptr);
                 }
             }
             kChannelStreamStdio => {
                 if part == kChannelPartStdin || close_main {
-                    rstream_may_close(&raw mut (*chan).stdio_in);
+                    rstream_may_close(&mut (*chan).stdio_in);
                 }
                 if part == kChannelPartStdout || close_main {
                     stream_may_close(&raw mut (*chan).stdio_out);
@@ -366,7 +366,7 @@ pub unsafe fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         };
         assert!(id <= (i64::MAX as u64));
 
-        let qc = loop_queues((&raw mut g_st().main_loop).cast());
+        let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
         let chan = Box::into_raw(Box::new(Channel {
             id,
             refcount: 1,
@@ -403,9 +403,9 @@ pub unsafe fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
     }
 }
 
-pub unsafe fn channel_create_event(chan: *mut Channel, _ext_source: *const c_char) {
+pub unsafe fn channel_create_event(chan: &mut Channel, _ext_source: *const c_char) {
     unsafe {
-        channel_event(chan, EVENT_CHANOPEN);
+        channel_event(&raw mut *chan, EVENT_CHANOPEN);
     }
 }
 
@@ -424,7 +424,7 @@ pub unsafe fn channel_decref(chan: *mut Channel) {
 
         (*chan).refcount -= 1;
         if (*chan).refcount == 0 {
-            let qc = loop_queues((&raw mut g_st().main_loop).cast());
+            let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
             multiqueue_put_event((*qc).events, Event::ChannelFree(chan));
         }
     }
@@ -436,17 +436,17 @@ pub unsafe fn callback_reader_start(reader: *mut CallbackReader, r#type: &'stati
     }
 }
 
-pub unsafe fn free_channel_event(chan: *mut Channel) {
+pub unsafe fn free_channel_event(chan: &mut Channel) {
     unsafe {
         let chans_ptr = &raw mut g_st().channels;
-        let _ = (*chans_ptr).remove(&(*chan).id);
+        let _ = (*chans_ptr).remove(&chan.id);
         drop(Box::from_raw(chan));
     }
 }
 
-unsafe fn channel_destroy_early(chan: *mut Channel) {
+unsafe fn channel_destroy_early(chan: &mut Channel) {
     unsafe {
-        let cp = chan;
+        let cp = &raw mut *chan;
         chan_st().NEXT_CHAN_ID -= 1;
         if (*cp).id != chan_st().NEXT_CHAN_ID {
             std::process::abort();
@@ -460,8 +460,8 @@ unsafe fn channel_destroy_early(chan: *mut Channel) {
             std::process::abort();
         }
 
-        let qc = loop_queues((&raw mut g_st().main_loop).cast());
-        multiqueue_put_event((*qc).events, Event::ChannelFree(chan));
+        let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
+        multiqueue_put_event((*qc).events, Event::ChannelFree(&raw mut *chan));
     }
 }
 
@@ -485,8 +485,8 @@ pub unsafe fn channel_job_start(
 ) -> *mut Channel {
     unsafe {
         let chan = channel_alloc(kChannelStreamProc);
-        let cp = chan;
-        let ct = chan;
+        let cp = &raw mut *chan;
+        let ct = &raw mut *chan;
         (*ct).on_data = on_stdout;
         (*ct).on_stderr = on_stderr;
         (*ct).on_exit = on_exit;
@@ -504,7 +504,7 @@ pub unsafe fn channel_job_start(
                     }
                 }
                 drop(argv);
-                channel_destroy_early(chan);
+                channel_destroy_early(&mut *chan);
                 *status_out = 0;
                 return ptr::null_mut();
             }
@@ -579,7 +579,7 @@ pub unsafe fn channel_job_start(
 
         let has_in = stdin_mode == kChannelStdinPipe;
 
-        let status = proc_spawn(proc_ptr, has_in, has_out, has_err);
+        let status = proc_spawn(&mut *proc_ptr, has_in, has_out, has_err);
         if status != 0 {
             {
                 semsg!(
@@ -591,7 +591,7 @@ pub unsafe fn channel_job_start(
                     tv_dict_free((*ph).env);
                 }
             }
-            channel_destroy_early(chan);
+            channel_destroy_early(&mut *chan);
             *status_out = varnumber_T::from((*ph).status);
             return ptr::null_mut();
         }
@@ -609,16 +609,16 @@ pub unsafe fn channel_job_start(
         }
 
         if rpc {
-            rpc_start(chan);
+            rpc_start(&mut *chan);
         } else if has_out {
             callback_reader_start(&raw mut (*ct).on_data, c"stdout");
-            rstream_start(&raw mut (*proc_ptr).out, StreamCbData::ChannelData(chan));
+            rstream_start(&mut (*proc_ptr).out, StreamCbData::ChannelData(chan));
         }
 
         if has_err {
             callback_reader_start(&raw mut (*ct).on_stderr, c"stderr");
             rstream_init(&raw mut (*proc_ptr).err);
-            rstream_start(&raw mut (*proc_ptr).err, StreamCbData::ChannelStderr(chan));
+            rstream_start(&mut (*proc_ptr).err, StreamCbData::ChannelStderr(chan));
         }
 
         *status_out = (*cp).id as varnumber_T;
@@ -638,16 +638,16 @@ pub unsafe fn channel_connect(
         if !tcp && rpc && server_owns_pipe_address(address) {
             let channel = channel_alloc(kChannelStreamInternal);
             (*channel).internal.cb = LUA_NOREF;
-            rpc_start(channel);
-            channel_create_event(channel, address);
+            rpc_start(&mut *channel);
+            channel_create_event(&mut *channel, address);
             return (*channel).id;
         }
 
         let channel = channel_alloc(kChannelStreamSocket);
         let socket_stream = &raw mut (*channel).socket;
         let connected = socket_connect(
-            (&raw mut g_st().main_loop).cast(),
-            socket_stream,
+            &mut *(&raw mut g_st().main_loop).cast(),
+            &mut *socket_stream,
             tcp,
             address,
             timeout,
@@ -664,14 +664,14 @@ pub unsafe fn channel_connect(
         rstream_init(socket_stream);
 
         if rpc {
-            rpc_start(channel);
+            rpc_start(&mut *channel);
         } else {
             (*channel).on_data = on_output;
             callback_reader_start(&raw mut (*channel).on_data, c"data");
-            rstream_start(socket_stream, StreamCbData::ChannelData(channel));
+            rstream_start(&mut *socket_stream, StreamCbData::ChannelData(channel));
         }
 
-        channel_create_event(channel, address);
+        channel_create_event(&mut *channel, address);
         (*channel).id
     }
 }
@@ -681,16 +681,16 @@ pub unsafe fn channel_from_connection(watcher: *mut SocketWatcher) {
     unsafe {
         let channel = channel_alloc(kChannelStreamSocket);
         let socket_stream = &raw mut (*channel).socket;
-        let result = socket_watcher_accept(watcher, socket_stream);
+        let result = socket_watcher_accept(watcher, &mut *socket_stream);
         if result != 0 {
-            channel_destroy_early(channel);
+            channel_destroy_early(&mut *channel);
             return;
         }
         (*socket_stream).s.internal_data = StreamInternalData::Channel(channel);
         wstream_init(&raw mut (*socket_stream).s, 0);
         rstream_init(socket_stream);
-        rpc_start(channel);
-        channel_create_event(channel, (*watcher).addr.as_ptr());
+        rpc_start(&mut *channel);
+        channel_create_event(&mut *channel, (*watcher).addr.as_ptr());
     }
 }
 
@@ -737,15 +737,15 @@ pub unsafe fn channel_from_stdio(
         let stdio_out = &raw mut (*channel).stdio_out;
         {
             rstream_init_fd((&raw mut g_st().main_loop).cast(), stdio_in, stdin_dup_fd);
-            wstream_init_fd((&raw mut g_st().main_loop).cast(), stdio_out, stdout_dup_fd, 0);
+            wstream_init_fd(&mut *(&raw mut g_st().main_loop).cast(), stdio_out, stdout_dup_fd, 0);
         }
 
         if rpc {
-            rpc_start(channel);
+            rpc_start(&mut *channel);
         } else {
             (*channel).on_data = on_output;
             callback_reader_start(&raw mut (*channel).on_data, c"stdin");
-            rstream_start(stdio_in, StreamCbData::ChannelData(channel));
+            rstream_start(&mut *stdio_in, StreamCbData::ChannelData(channel));
         }
 
         (*channel).id
@@ -762,8 +762,8 @@ pub unsafe fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char
             return 0;
         }
 
-        let cp = chan;
-        let ct = chan;
+        let cp = &raw mut *chan;
+        let ct = &raw mut *chan;
 
         if (*cp).streamtype == kChannelStreamStderr {
             if (*chan).err_closed {
@@ -788,7 +788,7 @@ pub unsafe fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char
             return len;
         }
 
-        let in_stream = channel_instream(chan);
+        let in_stream = channel_instream(&mut *chan);
         if (*in_stream).closed {
             *error = gettext(c"Can't send data to closed stream".as_ptr());
             return 0;
@@ -821,41 +821,41 @@ unsafe fn buffer_to_tv_list(buf: *const c_char, len: usize) -> *mut list_T {
 }
 
 pub unsafe fn on_channel_data(
-    stream: *mut RStream,
+    stream: &mut RStream,
     buf: *const c_char,
     count: usize,
-    chan: *mut Channel,
+    chan: &mut Channel,
     eof: bool,
 ) -> usize {
     unsafe {
-        let ct = chan;
+        let ct = &raw mut *chan;
         on_channel_output(stream, chan, buf, count, eof, &raw mut (*ct).on_data)
     }
 }
 
 pub unsafe fn on_job_stderr(
-    stream: *mut RStream,
+    stream: &mut RStream,
     buf: *const c_char,
     count: usize,
-    chan: *mut Channel,
+    chan: &mut Channel,
     eof: bool,
 ) -> usize {
     unsafe {
-        let ct = chan;
+        let ct = &raw mut *chan;
         on_channel_output(stream, chan, buf, count, eof, &raw mut (*ct).on_stderr)
     }
 }
 
 unsafe fn on_channel_output(
-    _stream: *mut RStream,
-    chan: *mut Channel,
+    _stream: &mut RStream,
+    chan: &mut Channel,
     buf: *const c_char,
     count: usize,
     eof: bool,
     reader: *mut CallbackReader,
 ) -> usize {
     unsafe {
-        let ct = chan;
+        let ct = &raw mut *chan;
         if !(*ct).term.is_null() {
             terminal_receive(&mut *(*ct).term, buf, count);
         }
@@ -883,24 +883,24 @@ unsafe fn on_channel_output(
     }
 }
 
-unsafe fn schedule_channel_event(chan: *mut Channel) {
+unsafe fn schedule_channel_event(chan: &mut Channel) {
     unsafe {
-        let cp = chan;
-        let ct = chan;
+        let cp = &raw mut *chan;
+        let ct = &raw mut *chan;
         if !(*ct).callback_scheduled {
             if !(*ct).callback_busy {
-                multiqueue_put_event((*cp).events, Event::ChannelCallback(chan));
-                channel_incref(chan);
+                multiqueue_put_event((*cp).events, Event::ChannelCallback(&raw mut *chan));
+                channel_incref(&raw mut *chan);
             }
             (*ct).callback_scheduled = true;
         }
     }
 }
 
-pub unsafe fn on_channel_event(chan: *mut Channel) {
+pub unsafe fn on_channel_event(chan: &mut Channel) {
     unsafe {
-        let cp = chan;
-        let ct = chan;
+        let cp = &raw mut *chan;
+        let ct = &raw mut *chan;
 
         (*ct).callback_busy = true;
         (*ct).callback_scheduled = false;
@@ -915,15 +915,15 @@ pub unsafe fn on_channel_event(chan: *mut Channel) {
 
         (*ct).callback_busy = false;
         if (*ct).callback_scheduled {
-            multiqueue_put_event((*cp).events, Event::ChannelCallback(chan));
-            channel_incref(chan);
+            multiqueue_put_event((*cp).events, Event::ChannelCallback(&raw mut *chan));
+            channel_incref(&raw mut *chan);
         }
 
-        channel_decref(chan);
+        channel_decref(&raw mut *chan);
     }
 }
 
-pub unsafe fn channel_reader_callbacks(chan: *mut Channel, reader: *mut CallbackReader) {
+pub unsafe fn channel_reader_callbacks(chan: &mut Channel, reader: *mut CallbackReader) {
     unsafe {
         if (*reader).buffered {
             if (*reader).eof {
@@ -943,7 +943,7 @@ pub unsafe fn channel_reader_callbacks(chan: *mut Channel, reader: *mut Callback
                         semsg!(
                             gettext(e_streamkey.as_ptr()),
                             reader_type.as_ptr(),
-                            (*chan).id,
+                            chan.id,
                         );
                     }
                 } else {
@@ -964,17 +964,17 @@ pub unsafe fn channel_reader_callbacks(chan: *mut Channel, reader: *mut Callback
     }
 }
 
-pub(crate) unsafe fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, chan: *mut Channel) {
+pub(crate) unsafe fn channel_proc_exit_cb(proc_: &mut Proc, status: c_int, chan: &mut Channel) {
     unsafe {
-        let cp = chan;
-        let ct = chan;
+        let cp = &raw mut *chan;
+        let ct = &raw mut *chan;
 
         if !(*ct).term.is_null() {
             terminal_close(&raw mut (*ct).term, status);
         }
 
         if !g_st().exiting && g_st().ui_client_channel_id == (*cp).id {
-            ui_client_attach_to_restarted_server((*proc_).status != 0);
+            ui_client_attach_to_restarted_server(proc_.status != 0);
             if g_st().ui_client_channel_id == (*cp).id {
                 exit_on_closed_chan(status);
             }
@@ -988,24 +988,24 @@ pub(crate) unsafe fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, chan:
             (*ct).exit_status = status;
         }
 
-        channel_decref(chan);
+        channel_decref(&raw mut *chan);
     }
 }
 
 #[cfg(unix)]
-pub(crate) unsafe fn channel_proc_state_cb(_proc: *mut Proc, suspended: bool, chan: *mut Channel) {
+pub(crate) unsafe fn channel_proc_state_cb(_proc: &mut Proc, suspended: bool, chan: &mut Channel) {
     unsafe {
-        let ct = chan;
+        let ct = &raw mut *chan;
         if !(*ct).term.is_null() {
             terminal_set_state(&mut *(*ct).term, suspended);
         }
     }
 }
 
-unsafe fn channel_callback_call(chan: *mut Channel, reader: *mut CallbackReader) {
+unsafe fn channel_callback_call(chan: &mut Channel, reader: *mut CallbackReader) {
     unsafe {
-        let cp = chan;
-        let ct = chan;
+        let cp = &raw mut *chan;
+        let ct = &raw mut *chan;
 
         let mut argv: [typval_T; 4] = [typval_T::new(); 4];
         argv[0].v_type = VarType::VAR_NUMBER;
@@ -1047,53 +1047,53 @@ unsafe fn channel_callback_call(chan: *mut Channel, reader: *mut CallbackReader)
 }
 
 /// Allocate terminal for channel.
-pub unsafe fn channel_terminal_alloc(buf: *mut buf_T, chan: *mut Channel) {
+pub unsafe fn channel_terminal_alloc(buf: *mut buf_T, chan: &mut Channel) {
     unsafe {
-        let cp = chan;
-        let ct = chan;
+        let cp = &raw mut *chan;
+        let ct = &raw mut *chan;
         let topts = TerminalOptions {
             data: chan,
-            width: (*chan).uv.proc_.width,
-            height: (*chan).uv.proc_.height,
+            width: chan.uv.proc_.width,
+            height: chan.uv.proc_.height,
             force_crlf: false,
         };
         (*buf).b_p_channel = (*cp).id as OptInt;
-        channel_incref(chan);
+        channel_incref(&raw mut *chan);
         {
             (*ct).term = terminal_alloc(buf, topts);
         }
     }
 }
 
-pub unsafe fn channel_term_read_pause(pause: bool, chan: *mut Channel) {
+pub unsafe fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
     unsafe {
-        if (*chan).streamtype == kChannelStreamInternal {
+        if chan.streamtype == kChannelStreamInternal {
             return;
         }
-        let out_stream = &raw mut (*chan).uv.proc_.out;
+        let out_stream = &raw mut chan.uv.proc_.out;
         if (*out_stream).s.closed {
             return;
         }
         if pause {
-            rstream_stop_inner(out_stream);
+            rstream_stop_inner(&mut *out_stream);
         } else {
-            rstream_start_inner(out_stream);
+            rstream_start_inner(&mut *out_stream);
         }
     }
 }
 
-pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: *mut Channel) {
+pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: &mut Channel) {
     unsafe {
-        if (*chan).streamtype == kChannelStreamInternal {
-            let internal = &raw mut (*chan).internal;
+        if chan.streamtype == kChannelStreamInternal {
+            let internal = &raw mut chan.internal;
             let cb = (*internal).cb;
             if cb == LUA_NOREF {
                 return;
             }
             let mut args_items = [
-                crate::api::private::helpers::integer_obj((*chan).id as Integer),
+                crate::api::private::helpers::integer_obj(chan.id as Integer),
                 crate::api::private::helpers::buffer_obj(
-                    crate::terminal::terminal_buf(&*(*chan).term),
+                    crate::terminal::terminal_buf(&*chan.term),
                 ),
                 crate::api::private::helpers::string_obj(NvimString {
                     data: buf.cast_mut(),
@@ -1117,7 +1117,7 @@ pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: *mut Cha
             g_st().textlock -= 1;
             return;
         }
-        let in_stream = &raw mut (*chan).uv.proc_.r#in;
+        let in_stream = &raw mut chan.uv.proc_.r#in;
         if (*in_stream).closed {
             return;
         }
@@ -1131,54 +1131,54 @@ pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: *mut Cha
     }
 }
 
-pub unsafe fn channel_term_resize(width: u16, height: u16, chan: *mut Channel) {
+pub unsafe fn channel_term_resize(width: u16, height: u16, chan: &mut Channel) {
     unsafe {
-        if (*chan).streamtype == kChannelStreamInternal {
+        if chan.streamtype == kChannelStreamInternal {
             return;
         }
-        pty_proc_resize(&raw mut (*chan).uv.proc_, width, height);
+        pty_proc_resize(&mut chan.uv.proc_, width, height);
     }
 }
 
-pub unsafe fn channel_term_resume(chan: *mut Channel) {
+pub unsafe fn channel_term_resume(chan: &mut Channel) {
     unsafe {
-        if (*chan).streamtype == kChannelStreamInternal {
+        if chan.streamtype == kChannelStreamInternal {
             return;
         }
-        pty_proc_resume(&raw mut (*chan).uv.proc_);
+        pty_proc_resume(&mut chan.uv.proc_);
     }
 }
 
-pub unsafe fn term_delayed_free(chan: *mut Channel) {
+pub unsafe fn term_delayed_free(chan: &mut Channel) {
     unsafe {
-        let cp = chan;
-        let ct = chan;
-        let proc_ptr = &raw mut (*chan).uv.proc_;
+        let cp = &raw mut *chan;
+        let ct = &raw mut *chan;
+        let proc_ptr = &raw mut chan.uv.proc_;
         if (*proc_ptr).r#in.pending_reqs != 0 || (*proc_ptr).out.s.pending_reqs != 0 {
-            multiqueue_put_event((*cp).events, Event::ChannelTermDelayedFree(chan));
+            multiqueue_put_event((*cp).events, Event::ChannelTermDelayedFree(&raw mut *chan));
             return;
         }
 
         if !(*ct).term.is_null() {
             terminal_destroy(&raw mut (*ct).term);
         }
-        channel_decref(chan);
+        channel_decref(&raw mut *chan);
     }
 }
 
-pub unsafe fn channel_term_close(chan: *mut Channel) {
+pub unsafe fn channel_term_close(chan: &mut Channel) {
     unsafe {
-        if (*chan).streamtype == kChannelStreamInternal {
-            let internal = &raw mut (*chan).internal;
-            terminal_destroy(&raw mut (*chan).term);
+        if chan.streamtype == kChannelStreamInternal {
+            let internal = &raw mut chan.internal;
+            terminal_destroy(&raw mut chan.term);
             crate::lua::executor::api_free_luaref((*internal).cb);
             (*internal).cb = LUA_NOREF;
-            channel_decref(chan);
+            channel_decref(&raw mut *chan);
             return;
         }
-        let cp = chan;
-        proc_stop(&raw mut (*chan).uv.proc_);
-        multiqueue_put_event((*cp).events, Event::ChannelTermDelayedFree(chan));
+        let cp = &raw mut *chan;
+        proc_stop(&mut chan.uv.proc_);
+        multiqueue_put_event((*cp).events, Event::ChannelTermDelayedFree(&raw mut *chan));
     }
 }
 
@@ -1186,13 +1186,13 @@ pub unsafe fn channel_event(chan: *mut Channel, event: event_T) {
     unsafe {
         if has_event(event) {
             channel_incref(chan);
-            let qc = loop_queues((&raw mut g_st().main_loop).cast());
+            let qc = loop_queues(&mut *(&raw mut g_st().main_loop).cast());
             multiqueue_put_event((*qc).events, Event::ChannelSetInfo { chan, event });
         }
     }
 }
 
-pub unsafe fn set_info_event(chan: *mut Channel, event: event_T) {
+pub unsafe fn set_info_event(chan: &mut Channel, event: event_T) {
     unsafe {
         let mut save_v_event: save_v_event_T = save_v_event_T::new();
         let dict = get_v_event(&raw mut save_v_event);
@@ -1201,7 +1201,7 @@ pub unsafe fn set_info_event(chan: *mut Channel, event: event_T) {
             pos: 0,
             size: 0,
         };
-        let info = channel_info((*chan).id, &raw mut arena);
+        let info = channel_info(chan.id, &raw mut arena);
         let mut retval: typval_T = typval_T::new();
         object_to_vim(
             Object {
@@ -1219,7 +1219,7 @@ pub unsafe fn set_info_event(chan: *mut Channel, event: event_T) {
 
         restore_v_event(dict, &raw mut save_v_event);
         arena_mem_free(arena_finish(&raw mut arena));
-        channel_decref(chan);
+        channel_decref(&raw mut *chan);
     }
 }
 
@@ -1250,8 +1250,8 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
 
         let mut info = arena_dict(arena, 9);
 
-        let cp = chan;
-        let ct = chan;
+        let cp = &raw mut *chan;
+        let ct = &raw mut *chan;
 
         put_c(
             &mut info,
@@ -1267,7 +1267,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
                 let proc_ptr = &raw mut (*chan).uv.proc_;
                 let ph = proc_ptr;
                 if (*ph).r#type == kProcTypePty {
-                    let name = pty_proc_tty_name(proc_ptr.cast());
+                    let name = pty_proc_tty_name(&mut *proc_ptr.cast());
                     let s = if name.is_null() {
                         NvimString {
                             data: c"".as_ptr().cast_mut(),

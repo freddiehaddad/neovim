@@ -872,15 +872,15 @@ unsafe fn do_os_system(
         (*proc_).out.s.fd = STDOUT_FILENO;
         (*proc_).err.s.fd = STDERR_FILENO;
 
-        let qc = loop_queues(mloop);
+        let qc = loop_queues(&mut *mloop);
         let events = multiqueue_new_child((*qc).events);
         (*proc_).events = events;
         (*proc_).argv = argv;
 
         'end: {
-            let status = proc_spawn(proc_, has_input, true, true);
+            let status = proc_spawn(&mut *proc_, has_input, true, true);
             if status != 0 {
-                loop_poll_events(mloop, 0);
+                loop_poll_events(&mut *mloop, 0);
                 if !silent {
                     msg_puts(gettext(c"\nshell failed to start: ".as_ptr()));
                     msg_outtrans(uv_strerror(status), 0, false);
@@ -899,15 +899,15 @@ unsafe fn do_os_system(
                 wstream_init(s_in, 0);
             }
             rstream_init(r_out);
-            rstream_start(r_out, cb_data);
+            rstream_start(&mut *r_out, cb_data);
             rstream_init(r_err);
-            rstream_start(r_err, cb_data);
+            rstream_start(&mut *r_err, cb_data);
 
             if has_input {
                 let input_buffer =
                     wstream_new_vec_buffer(std::slice::from_raw_parts(input, len).to_vec());
                 if wstream_write(s_in, input_buffer) != 0 {
-                    proc_stop(proc_);
+                    proc_stop(&mut *proc_);
                     break 'end;
                 }
                 wstream_set_write_cb(s_in);
@@ -955,7 +955,7 @@ unsafe fn do_os_system(
 }
 
 pub(crate) unsafe fn system_data_cb(
-    _stream: *mut RStream,
+    _stream: &mut RStream,
     buf: *const c_char,
     count: usize,
     dbuf: *mut Vec<c_char>,
@@ -1107,7 +1107,7 @@ unsafe fn out_data_append_to_screen(
 
         let str_copy = std::slice::from_raw_parts(output, *count).to_vec();
         if ui_has(kUIMessages) {
-            let qc = loop_queues(main_loop_ptr());
+            let qc = loop_queues(&mut *main_loop_ptr());
             multiqueue_put_event((*qc).fast_events, Event::ShellOutData { str_copy, fd });
         } else {
             out_data_event(str_copy, fd);
@@ -1116,7 +1116,7 @@ unsafe fn out_data_append_to_screen(
 }
 
 pub(crate) unsafe fn out_data_cb(
-    stream: *mut RStream,
+    stream: &mut RStream,
     ptr_data: *const c_char,
     mut count: usize,
     eof: bool,
@@ -1125,7 +1125,7 @@ pub(crate) unsafe fn out_data_cb(
         if count > 0 && out_data_decide_throttle(count) {
             out_data_ring(ptr_data, count);
         } else if count > 0 {
-            let fd = (*stream).s.fd;
+            let fd = stream.s.fd;
             out_data_append_to_screen(ptr_data, &raw mut count, fd, eof);
         }
         count
