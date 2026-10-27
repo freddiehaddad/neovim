@@ -162,7 +162,7 @@ use crate::spellfile::{SPELL_ADD_BAD, SPELL_ADD_GOOD, spell_add_word};
 use crate::spellsuggest::spell_suggest;
 use crate::state::{
     MODE_INSERT, MODE_LANGMAP, MODE_LREPLACE, MODE_NORMAL, MODE_NORMAL_BUSY, MODE_REPLACE,
-    MODE_SELECT, MODE_TERMINAL, VimState, get_real_state, may_trigger_modechanged,
+    EditorState, MODE_SELECT, MODE_TERMINAL, get_real_state, may_trigger_modechanged,
     may_trigger_safestate, state_enter, state_handle_k_event, state_no_longer_safe, virtual_active,
 };
 use crate::statusline::{draw_tabline, win_redr_status};
@@ -338,7 +338,6 @@ unsafe fn nv_mouse_cmd(cap: *mut cmdarg_T) {
 
 #[repr(C)]
 struct NormalState {
-    state: VimState,
     command_finished: bool,
     ctrl_w: bool,
     need_flushbuf: bool,
@@ -358,7 +357,6 @@ struct NormalState {
 impl NormalState {
     const fn new() -> Self {
         Self {
-            state: VimState::new(),
             command_finished: false,
             ctrl_w: false,
             need_flushbuf: false,
@@ -374,6 +372,16 @@ impl NormalState {
             old_col: 0,
             old_pos: pos_T::new(),
         }
+    }
+}
+
+impl EditorState for NormalState {
+    unsafe fn check(&mut self) -> c_int {
+        unsafe { normal_check(self) }
+    }
+
+    unsafe fn execute(&mut self, key: c_int) -> c_int {
+        unsafe { normal_execute(self, key) }
     }
 }
 
@@ -419,8 +427,6 @@ use crate::memory::strequal;
 unsafe fn normal_state_init(s: *mut NormalState) {
     unsafe {
         *s = NormalState::new();
-        (*s).state.check = Some(normal_check);
-        (*s).state.execute = Some(normal_execute);
     }
 }
 
@@ -1677,7 +1683,7 @@ pub unsafe fn normal_enter() {
         let prev_oap = current_oap;
         current_oap = &raw mut state.oa;
         state.toplevel = true;
-        state_enter(&raw mut state.state);
+        state_enter(&raw mut state);
         current_oap = prev_oap;
     }
 }
@@ -2151,11 +2157,10 @@ unsafe fn normal_finish_command(s: *mut NormalState) {
     }
 }
 
-unsafe fn normal_execute(state: *mut VimState, key: c_int) -> c_int {
+unsafe fn normal_execute(s: *mut NormalState, key: c_int) -> c_int {
     unsafe {
         atom_cmd_start(key);
 
-        let s = state.cast::<NormalState>();
         (*s).command_finished = false;
         (*s).ctrl_w = false;
         (*s).old_col = (*curwin).w_curswant;
@@ -2443,9 +2448,8 @@ unsafe fn normal_redraw(_s: *mut NormalState) {
     }
 }
 
-unsafe fn normal_check(state: *mut VimState) -> c_int {
+unsafe fn normal_check(s: *mut NormalState) -> c_int {
     unsafe {
-        let s = state.cast::<NormalState>();
         normal_check_stuff_buffer(s);
         normal_check_interrupt(s);
 
@@ -7787,7 +7791,7 @@ pub unsafe fn normal_cmd(oap: *mut oparg_T, toplevel: bool) {
         s.toplevel = toplevel;
         s.oa = *oap;
         normal_prepare(&raw mut s);
-        normal_execute(&raw mut s.state, safe_vgetc());
+        normal_execute(&raw mut s, safe_vgetc());
         *oap = s.oa;
     }
 }

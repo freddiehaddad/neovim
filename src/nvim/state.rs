@@ -48,23 +48,9 @@ pub const MODE_SHOWMATCH: c_int = 0x6000 | MODE_INSERT;
 
 const kOptVeFlagInsert: c_uint = 0x06;
 
-pub type state_check_callback = Option<unsafe fn(state: *mut VimState) -> c_int>;
-pub type state_execute_callback = Option<unsafe fn(state: *mut VimState, key: c_int) -> c_int>;
-
-#[repr(C)]
-#[derive(Clone, Copy, Default)]
-pub struct VimState {
-    pub check: state_check_callback,
-    pub execute: state_execute_callback,
-}
-
-impl VimState {
-    pub const fn new() -> Self {
-        Self {
-            check: None,
-            execute: None,
-        }
-    }
+pub trait EditorState {
+    unsafe fn check(&mut self) -> c_int;
+    unsafe fn execute(&mut self, key: c_int) -> c_int;
 }
 
 use crate::cursor::kOptVeFlagAll;
@@ -96,14 +82,10 @@ impl Default for save_v_event_T {
 
 static mut was_safe: bool = false;
 
-pub unsafe fn state_enter(s: *mut VimState) {
+pub unsafe fn state_enter<S: EditorState>(s: *mut S) {
     unsafe {
         loop {
-            let check_result = if let Some(check_fn) = (*s).check {
-                check_fn(s)
-            } else {
-                1
-            };
+            let check_result = (*s).check();
 
             if check_result == 0 {
                 break;
@@ -154,8 +136,7 @@ pub unsafe fn state_enter(s: *mut VimState) {
                     );
                 }
 
-                let execute_fn = (*s).execute.unwrap_unchecked();
-                let execute_result = execute_fn(s, key);
+                let execute_result = (*s).execute(key);
                 if execute_result == 0 {
                     return;
                 } else if execute_result == -1 {

@@ -88,7 +88,7 @@ use crate::msgpack_rpc::packer::handle_T;
 use crate::option_vars::*;
 use crate::optionstr::{alloc_string_option, free_string_option};
 use crate::state::{
-    MODE_TERMINAL, VimState, may_trigger_modechanged, save_v_event_T, state_enter,
+    EditorState, MODE_TERMINAL, may_trigger_modechanged, save_v_event_T, state_enter,
     state_handle_k_event,
 };
 use crate::strings::vim_snprintf;
@@ -196,7 +196,6 @@ const TERM_ATTRS_MAX: c_int = 1024;
 
 #[repr(C)]
 struct TerminalState {
-    state: VimState,
     term: *mut Terminal,
     save_rd: c_int,
     close: bool,
@@ -215,7 +214,6 @@ struct TerminalState {
 impl TerminalState {
     const fn new() -> Self {
         Self {
-            state: VimState::new(),
             term: ptr::null_mut(),
             save_rd: 0,
             close: false,
@@ -230,6 +228,16 @@ impl TerminalState {
             save_w_p_so: 0,
             save_w_p_siso: 0,
         }
+    }
+}
+
+impl EditorState for TerminalState {
+    unsafe fn check(&mut self) -> c_int {
+        unsafe { terminal_check(self) }
+    }
+
+    unsafe fn execute(&mut self, key: c_int) -> c_int {
+        unsafe { terminal_execute(self, key) }
     }
 }
 
@@ -1201,9 +1209,7 @@ pub unsafe fn terminal_enter() -> bool {
             s.close = true;
         }
 
-        s.state.execute = Some(terminal_execute);
-        s.state.check = Some(terminal_check);
-        state_enter(&mut s.state);
+        state_enter(&raw mut s);
 
         if !s.got_bsl_o {
             restart_edit = 0;
@@ -1313,10 +1319,8 @@ unsafe fn terminal_check_focus(s: *mut TerminalState) -> bool {
     }
 }
 
-unsafe fn terminal_check(state: *mut VimState) -> c_int {
+unsafe fn terminal_check(s: *mut TerminalState) -> c_int {
     unsafe {
-        let s = state.cast::<TerminalState>();
-
         debug_assert!(
             !(*s).close
                 || ((*(*s).term).buf_handle == 0
@@ -1374,9 +1378,8 @@ unsafe fn terminal_check(state: *mut VimState) -> c_int {
     }
 }
 
-unsafe fn terminal_execute(state: *mut VimState, key: c_int) -> c_int {
+unsafe fn terminal_execute(s: *mut TerminalState, key: c_int) -> c_int {
     unsafe {
-        let s = state.cast::<TerminalState>();
         let mut tmp_mod_mask = mod_mask;
         let mod_key = merge_modifiers(key, &mut tmp_mod_mask);
 

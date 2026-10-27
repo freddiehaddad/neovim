@@ -131,7 +131,7 @@ use crate::search::{
     save_search_patterns, searchit, searchit_arg_T,
 };
 use crate::state::{
-    MODE_CMDLINE, MODE_LANGMAP, VimState, may_trigger_modechanged, may_trigger_safestate,
+    EditorState, MODE_CMDLINE, MODE_LANGMAP, may_trigger_modechanged, may_trigger_safestate,
     save_v_event_T, state_enter, state_handle_k_event,
 };
 use crate::strings::{
@@ -265,7 +265,6 @@ impl incsearch_state_T {
 
 #[repr(C)]
 struct CommandLineState {
-    state: VimState,
     firstc: c_int,
     count: c_int,
     indent: c_int,
@@ -300,7 +299,6 @@ struct CommandLineState {
 impl CommandLineState {
     const fn new() -> Self {
         Self {
-            state: VimState::new(),
             firstc: 0,
             count: 0,
             indent: 0,
@@ -331,6 +329,16 @@ impl CommandLineState {
             event_cmdlineleavepre_triggered: false,
             did_hist_navigate: false,
         }
+    }
+}
+
+impl EditorState for CommandLineState {
+    unsafe fn check(&mut self) -> c_int {
+        unsafe { command_line_check(self) }
+    }
+
+    unsafe fn execute(&mut self, key: c_int) -> c_int {
+        unsafe { command_line_execute(self, key) }
     }
 }
 
@@ -1186,10 +1194,8 @@ unsafe fn command_line_enter(
 
             did_emsg = 0;
             got_int = false;
-            (*s).state.check = Some(command_line_check);
-            (*s).state.execute = Some(command_line_execute);
 
-            state_enter(&raw mut (*s).state);
+            state_enter(s);
 
             if !(*s).event_cmdlineleavepre_triggered {
                 set_vim_var_char((*s).c);
@@ -1358,10 +1364,8 @@ unsafe fn command_line_enter(
     }
 }
 
-unsafe fn command_line_check(state: *mut VimState) -> c_int {
+unsafe fn command_line_check(s: *mut CommandLineState) -> c_int {
     unsafe {
-        let s = state.cast::<CommandLineState>();
-
         (*s).prev_cmdpos = ccline.cmdpos;
         (*s).prev_cmdbuff = None;
 
@@ -1640,14 +1644,13 @@ unsafe fn command_line_end_wildmenu(s: *mut CommandLineState, key_is_wc: bool, c
     }
 }
 
-unsafe fn command_line_execute(state: *mut VimState, key: c_int) -> c_int {
+unsafe fn command_line_execute(s: *mut CommandLineState, key: c_int) -> c_int {
     unsafe {
         if key == K_IGNORE || key == K_NOP {
             return -1; // get another key
         }
 
         let display_tick_saved: disptick_T = (*curwin).w_display_tick;
-        let s = state.cast::<CommandLineState>();
         (*s).c = key;
 
         if ccline.cmdbuff_replaced && (*s).xpc.xp_numfiles > 0 {

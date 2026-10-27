@@ -143,7 +143,7 @@ use crate::register::{
 use crate::search::{BACKWARD, FORWARD};
 use crate::state::{
     MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL, MODE_REPLACE, MODE_VREPLACE,
-    REPLACE_FLAG, VREPLACE_FLAG, VimState, may_trigger_modechanged, may_trigger_safestate,
+    EditorState, REPLACE_FLAG, VREPLACE_FLAG, may_trigger_modechanged, may_trigger_safestate,
     state_enter, state_handle_k_event, virtual_active,
 };
 use crate::strings::{gettext, strlen, vim_snprintf, vim_strchr};
@@ -225,7 +225,6 @@ const PC_STATUS_SET: c_int = 3;
 
 #[repr(C)]
 struct InsertState {
-    state: VimState,
     mincol: c_int,
     cmdchar: c_int,
     cmdchar_todo: c_int,
@@ -248,7 +247,6 @@ struct InsertState {
 impl InsertState {
     const fn new() -> Self {
         Self {
-            state: VimState::new(),
             mincol: 0,
             cmdchar: 0,
             cmdchar_todo: 0,
@@ -267,6 +265,16 @@ impl InsertState {
             did_restart_edit: 0,
             nomove: false,
         }
+    }
+}
+
+impl EditorState for InsertState {
+    unsafe fn check(&mut self) -> c_int {
+        unsafe { insert_check(self) }
+    }
+
+    unsafe fn execute(&mut self, key: c_int) -> c_int {
+        unsafe { insert_execute(self, key) }
     }
 }
 
@@ -518,7 +526,7 @@ unsafe fn insert_enter(s: *mut InsertState) {
         old_indent = 0;
 
         loop {
-            state_enter(&raw mut (*s).state);
+            state_enter(s);
             if ins_esc(&raw mut (*s).count, (*s).cmdchar, (*s).nomove) {
                 break;
             }
@@ -542,10 +550,8 @@ unsafe fn insert_enter(s: *mut InsertState) {
     }
 }
 
-unsafe fn insert_check(state: *mut VimState) -> c_int {
+unsafe fn insert_check(s: *mut InsertState) -> c_int {
     unsafe {
-        let s = state.cast::<InsertState>();
-
         mc_ins_cascade();
 
         if Ins.revins_legal == 0 {
@@ -694,9 +700,8 @@ unsafe fn insert_check(state: *mut VimState) -> c_int {
     }
 }
 
-unsafe fn insert_execute(state: *mut VimState, key: c_int) -> c_int {
+unsafe fn insert_execute(s: *mut InsertState, key: c_int) -> c_int {
     unsafe {
-        let s = state.cast::<InsertState>();
         if Ins.stop_insert_mode {
             if key != K_IGNORE && key != K_NOP {
                 vungetc(key);
@@ -1360,8 +1365,6 @@ pub unsafe fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
         }
 
         let mut s = InsertState::new();
-        s.state.execute = Some(insert_execute);
-        s.state.check = Some(insert_check);
         s.cmdchar = cmdchar;
         s.startln = c_int::from(startln);
         s.count = count;
