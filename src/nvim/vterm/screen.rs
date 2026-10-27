@@ -376,7 +376,7 @@ pub struct VTermScreenCallbacks {
 pub struct VTermScreen {
     pub vt: *mut VTerm,
     pub state: *mut VTermStateFull,
-    pub callbacks: *const VTermScreenCallbacks,
+    pub callbacks: Option<&'static VTermScreenCallbacks>,
     pub cbdata: *mut Terminal,
     pub damage_merge: VTermDamageSize,
     pub damaged: VTermRect,
@@ -488,8 +488,8 @@ unsafe fn damagerect(screen: *mut VTermScreen, rect: VTermRect) {
             _ => return,
         };
 
-        if !(*screen).callbacks.is_null()
-            && let Some(cb) = (*(*screen).callbacks).damage
+        if let Some(callbacks) = (*screen).callbacks
+            && let Some(cb) = callbacks.damage
         {
             cb(emit, (*screen).cbdata);
         }
@@ -555,7 +555,9 @@ unsafe fn sb_pushline_from_row(screen: *mut VTermScreen, row: c_int) {
             pos.col += 1;
         }
 
-        if let Some(cb) = (*(*screen).callbacks).sb_pushline {
+        if let Some(callbacks) = (*screen).callbacks
+            && let Some(cb) = callbacks.sb_pushline
+        {
             cb((*screen).cols, sb_buf_ptr, (*screen).cbdata);
         }
     }
@@ -563,8 +565,9 @@ unsafe fn sb_pushline_from_row(screen: *mut VTermScreen, row: c_int) {
 
 unsafe fn moverect_internal(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) -> c_int {
     unsafe {
-        if !(*screen).callbacks.is_null()
-            && (*(*screen).callbacks).sb_pushline.is_some()
+        if (*screen)
+            .callbacks
+            .is_some_and(|cbs| cbs.sb_pushline.is_some())
             && dest.start_row == 0
             && dest.start_col == 0
             && dest.end_col == (*screen).cols
@@ -600,8 +603,8 @@ unsafe fn moverect_internal(dest: VTermRect, src: VTermRect, screen: *mut VTermS
 
 unsafe fn moverect_user(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) -> c_int {
     unsafe {
-        if !(*screen).callbacks.is_null()
-            && let Some(cb) = (*(*screen).callbacks).moverect
+        if let Some(callbacks) = (*screen).callbacks
+            && let Some(cb) = callbacks.moverect
         {
             if (*screen).damage_merge != VTERM_DAMAGE_SCROLL {
                 vterm_screen_flush_damage(screen);
@@ -772,8 +775,8 @@ unsafe fn movecursor(
     screen: *mut VTermScreen,
 ) -> c_int {
     unsafe {
-        if !(*screen).callbacks.is_null()
-            && let Some(cb) = (*(*screen).callbacks).movecursor
+        if let Some(callbacks) = (*screen).callbacks
+            && let Some(cb) = callbacks.movecursor
         {
             return cb(pos, oldpos, visible, (*screen).cbdata);
         }
@@ -872,8 +875,8 @@ unsafe fn settermprop(prop: VTermProp, val: *mut VTermValue, screen: *mut VTermS
             _ => {}
         }
 
-        if !(*screen).callbacks.is_null()
-            && let Some(cb) = (*(*screen).callbacks).settermprop
+        if let Some(callbacks) = (*screen).callbacks
+            && let Some(cb) = callbacks.settermprop
         {
             return cb(prop, val, (*screen).cbdata);
         }
@@ -884,8 +887,8 @@ unsafe fn settermprop(prop: VTermProp, val: *mut VTermValue, screen: *mut VTermS
 
 unsafe fn bell(screen: *mut VTermScreen) -> c_int {
     unsafe {
-        if !(*screen).callbacks.is_null()
-            && let Some(cb) = (*(*screen).callbacks).bell
+        if let Some(callbacks) = (*screen).callbacks
+            && let Some(cb) = callbacks.bell
         {
             return cb((*screen).cbdata);
         }
@@ -1089,7 +1092,10 @@ unsafe fn resize_buffer(
         }
 
         if old_row >= 0 && bufidx == BUFIDX_PRIMARY {
-            if !(*screen).callbacks.is_null() && (*(*screen).callbacks).sb_pushline.is_some() {
+            if (*screen)
+                .callbacks
+                .is_some_and(|cbs| cbs.sb_pushline.is_some())
+            {
                 for row in 0..=old_row {
                     sb_pushline_from_row(screen, row);
                 }
@@ -1100,8 +1106,8 @@ unsafe fn resize_buffer(
         }
         if new_row >= 0
             && bufidx == BUFIDX_PRIMARY
-            && !(*screen).callbacks.is_null()
-            && let Some(sb_popline) = (*(*screen).callbacks).sb_popline
+            && let Some(callbacks) = (*screen).callbacks
+            && let Some(sb_popline) = callbacks.sb_popline
         {
             while new_row >= 0 {
                 let sb_buf_ptr = (&mut *screen).sb_buffer.as_mut_ptr();
@@ -1225,8 +1231,8 @@ unsafe fn resize(
 
         damagescreen(screen);
 
-        if !(*screen).callbacks.is_null()
-            && let Some(cb) = (*(*screen).callbacks).resize
+        if let Some(callbacks) = (*screen).callbacks
+            && let Some(cb) = callbacks.resize
         {
             return cb(new_rows, new_cols, (*screen).cbdata);
         }
@@ -1237,8 +1243,8 @@ unsafe fn resize(
 
 unsafe fn theme(dark: *mut bool, screen: *mut VTermScreen) -> c_int {
     unsafe {
-        if !(*screen).callbacks.is_null()
-            && let Some(cb) = (*(*screen).callbacks).theme
+        if let Some(callbacks) = (*screen).callbacks
+            && let Some(cb) = callbacks.theme
         {
             return cb(dark, (*screen).cbdata);
         }
@@ -1290,8 +1296,8 @@ unsafe fn setlineinfo(
 
 unsafe fn sb_clear(screen: *mut VTermScreen) -> c_int {
     unsafe {
-        if !(*screen).callbacks.is_null()
-            && let Some(cb) = (*(*screen).callbacks).sb_clear
+        if let Some(callbacks) = (*screen).callbacks
+            && let Some(cb) = callbacks.sb_clear
             && cb((*screen).cbdata) != 0
         {
             return 1;
@@ -1330,7 +1336,7 @@ unsafe fn screen_new(vt: *mut VTerm) -> Option<Box<VTermScreen>> {
         let mut screen = Box::new(VTermScreen {
             vt,
             state,
-            callbacks: ptr::null(),
+            callbacks: None,
             cbdata: ptr::null_mut(),
             damage_merge: VTERM_DAMAGE_CELL,
             damaged: VTermRect {
@@ -1362,7 +1368,7 @@ unsafe fn screen_new(vt: *mut VTerm) -> Option<Box<VTermScreen>> {
         let screen_ptr: *mut VTermScreen = &raw mut *screen;
         screen.buffers[BUFIDX_PRIMARY] = alloc_buffer(screen_ptr, rows, cols);
 
-        vterm_state_set_callbacks(screen.state, &raw const STATE_CBS, screen_ptr);
+        vterm_state_set_callbacks(screen.state, Some(&STATE_CBS), screen_ptr);
 
         Some(screen)
     }
@@ -1457,7 +1463,7 @@ pub unsafe fn vterm_screen_enable_altscreen(screen: *mut VTermScreen, altscreen:
 
 pub unsafe fn vterm_screen_set_callbacks(
     screen: *mut VTermScreen,
-    callbacks: *const VTermScreenCallbacks,
+    callbacks: Option<&'static VTermScreenCallbacks>,
     user: *mut Terminal,
 ) {
     unsafe {
@@ -1468,7 +1474,7 @@ pub unsafe fn vterm_screen_set_callbacks(
 
 pub unsafe fn vterm_screen_set_unrecognised_fallbacks(
     screen: *mut VTermScreen,
-    fallbacks: *const VTermStateFallbacks,
+    fallbacks: Option<&'static VTermStateFallbacks>,
     user: *mut Terminal,
 ) {
     unsafe {
@@ -1492,8 +1498,8 @@ pub unsafe fn vterm_screen_flush_damage(screen: *mut VTermScreen) {
         }
 
         if (*screen).damaged.start_row != -1 {
-            if !(*screen).callbacks.is_null()
-                && let Some(cb) = (*(*screen).callbacks).damage
+            if let Some(callbacks) = (*screen).callbacks
+                && let Some(cb) = callbacks.damage
             {
                 cb((*screen).damaged, (*screen).cbdata);
             }

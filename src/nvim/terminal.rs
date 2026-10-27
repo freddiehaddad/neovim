@@ -333,7 +333,7 @@ impl Drop for Terminal {
 static mut REFRESH_TIMER: TimeWatcher = TimeWatcher::new();
 static mut REFRESH_PENDING: bool = false;
 
-static mut VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
+static VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
     damage: Some(term_damage),
     moverect: Some(term_moverect),
     movecursor: Some(term_movecursor),
@@ -346,12 +346,12 @@ static mut VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
     sb_clear: Some(term_sb_clear),
 };
 
-static mut VTERM_SELECTION_CALLBACKS: VTermSelectionCallbacks = VTermSelectionCallbacks {
+static VTERM_SELECTION_CALLBACKS: VTermSelectionCallbacks = VTermSelectionCallbacks {
     set: Some(term_selection_set),
     query: None,
 };
 
-static mut VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
+static VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
     control: None,
     csi: None,
     osc: Some(on_osc),
@@ -775,15 +775,15 @@ pub unsafe fn terminal_alloc(buf: *mut buf_T, mut opts: TerminalOptions) -> *mut
         (*term).vts = vterm_obtain_screen(&raw mut (*term).vt);
         vterm_screen_enable_altscreen((*term).vts, 1);
         vterm_screen_enable_reflow((*term).vts, true);
-        vterm_screen_set_callbacks((*term).vts, &raw const VTERM_SCREEN_CALLBACKS, term);
-        vterm_screen_set_unrecognised_fallbacks((*term).vts, &raw const VTERM_FALLBACKS, term);
+        vterm_screen_set_callbacks((*term).vts, Some(&VTERM_SCREEN_CALLBACKS), term);
+        vterm_screen_set_unrecognised_fallbacks((*term).vts, Some(&VTERM_FALLBACKS), term);
         vterm_screen_set_damage_merge((*term).vts, VTERM_DAMAGE_SCROLL);
         vterm_screen_reset((*term).vts, 1);
         vterm_output_set_callback(&raw mut (*term).vt, Some(term_output_callback), term);
 
         vterm_state_set_selection_callbacks(
             &mut *state,
-            &raw const VTERM_SELECTION_CALLBACKS,
+            Some(&VTERM_SELECTION_CALLBACKS),
             term,
             SELECTIONBUF_SIZE,
         );

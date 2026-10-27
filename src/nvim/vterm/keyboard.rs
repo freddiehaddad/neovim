@@ -71,7 +71,7 @@ pub struct VTermStateTmp {
 
 #[repr(C)]
 pub struct VTermStateSelection {
-    pub callbacks: *const crate::vterm::state::VTermSelectionCallbacks,
+    pub callbacks: Option<&'static crate::vterm::state::VTermSelectionCallbacks>,
     pub user: *mut Terminal,
     pub buffer: Vec<c_char>,
 }
@@ -86,9 +86,9 @@ pub struct VTermKeyEncodingStack {
 #[repr(C)]
 pub struct VTermStateFull {
     pub vt: *mut VTerm,
-    pub callbacks: *const crate::vterm::pen::VTermStateCallbacks,
+    pub callbacks: Option<&'static crate::vterm::pen::VTermStateCallbacks>,
     pub cbdata: *mut VTermScreen,
-    pub fallbacks: *const crate::vterm::state::VTermStateFallbacks,
+    pub fallbacks: Option<&'static crate::vterm::state::VTermStateFallbacks>,
     pub fbdata: *mut Terminal,
     pub rows: c_int,
     pub cols: c_int,

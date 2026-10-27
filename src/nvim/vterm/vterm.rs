@@ -24,7 +24,7 @@ pub fn vterm_new(rows: c_int, cols: c_int) -> VTerm {
     vt.rows = rows;
     vt.cols = cols;
     vt.parser.state = NORMAL;
-    vt.parser.callbacks = ptr::null();
+    vt.parser.callbacks = None;
     vt.parser.cbdata = ptr::null_mut();
     vt.parser.emit_nul = false;
     vt.outfunc = None;
@@ -52,9 +52,8 @@ pub unsafe fn vterm_set_size(vt: *mut VTerm, rows: c_int, cols: c_int) {
         (*vt).rows = rows;
         (*vt).cols = cols;
 
-        let callbacks = (*vt).parser.callbacks;
-        if !callbacks.is_null()
-            && let Some(resize_cb) = (*callbacks).resize
+        if let Some(callbacks) = (*vt).parser.callbacks
+            && let Some(resize_cb) = callbacks.resize
         {
             let _ = resize_cb(rows, cols, (*vt).parser.cbdata);
         }

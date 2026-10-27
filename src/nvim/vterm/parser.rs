@@ -120,9 +120,8 @@ fn is_string_state(state: c_int) -> bool {
 
 unsafe fn do_control(vt: *mut VTerm, control: u8) {
     unsafe {
-        let callbacks = (*vt).parser.callbacks;
-        if !callbacks.is_null()
-            && let Some(cb) = (*callbacks).control
+        if let Some(callbacks) = (*vt).parser.callbacks
+            && let Some(cb) = callbacks.control
         {
             cb(control, (*vt).parser.cbdata);
         }
@@ -131,9 +130,8 @@ unsafe fn do_control(vt: *mut VTerm, control: u8) {
 
 unsafe fn do_csi(vt: *mut VTerm, command: c_char) {
     unsafe {
-        let callbacks = (*vt).parser.callbacks;
-        if !callbacks.is_null()
-            && let Some(cb) = (*callbacks).csi
+        if let Some(callbacks) = (*vt).parser.callbacks
+            && let Some(cb) = callbacks.csi
         {
             let leader = if (*vt).parser.csi.leaderlen != 0 {
                 (*vt).parser.csi.leader.as_ptr()
@@ -166,9 +164,8 @@ unsafe fn do_escape(vt: *mut VTerm, command: c_char) {
         len += 1;
         seq[len] = 0;
 
-        let callbacks = (*vt).parser.callbacks;
-        if !callbacks.is_null()
-            && let Some(cb) = (*callbacks).escape
+        if let Some(callbacks) = (*vt).parser.callbacks
+            && let Some(cb) = callbacks.escape
         {
             cb(seq.as_ptr(), len, (*vt).parser.cbdata);
         }
@@ -189,15 +186,15 @@ unsafe fn string_fragment(
 
         match (*vt).parser.state {
             OSC => {
-                if !callbacks.is_null()
-                    && let Some(cb) = (*callbacks).osc
+                if let Some(cbs) = callbacks
+                    && let Some(cb) = cbs.osc
                 {
                     cb((*vt).parser.osc.command, frag, (*vt).parser.cbdata);
                 }
             }
             DCS_VTERM => {
-                if !callbacks.is_null()
-                    && let Some(cb) = (*callbacks).dcs
+                if let Some(cbs) = callbacks
+                    && let Some(cb) = cbs.dcs
                 {
                     cb(
                         (*vt).parser.dcs.command.as_ptr(),
@@ -208,22 +205,22 @@ unsafe fn string_fragment(
                 }
             }
             APC => {
-                if !callbacks.is_null()
-                    && let Some(cb) = (*callbacks).apc
+                if let Some(cbs) = callbacks
+                    && let Some(cb) = cbs.apc
                 {
                     cb(frag, (*vt).parser.cbdata);
                 }
             }
             PM => {
-                if !callbacks.is_null()
-                    && let Some(cb) = (*callbacks).pm
+                if let Some(cbs) = callbacks
+                    && let Some(cb) = cbs.pm
                 {
                     cb(frag, (*vt).parser.cbdata);
                 }
             }
             SOS => {
-                if !callbacks.is_null()
-                    && let Some(cb) = (*callbacks).sos
+                if let Some(cbs) = callbacks
+                    && let Some(cb) = cbs.sos
                 {
                     cb(frag, (*vt).parser.cbdata);
                 }
@@ -506,9 +503,8 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
                             }
                         } else {
                             let mut eaten: usize = 0;
-                            let callbacks = (*vt).parser.callbacks;
-                            if !callbacks.is_null()
-                                && let Some(cb) = (*callbacks).text
+                            if let Some(callbacks) = (*vt).parser.callbacks
+                                && let Some(cb) = callbacks.text
                             {
                                 eaten = cb(bytes.add(pos), len - pos, (*vt).parser.cbdata) as usize;
                             }
@@ -543,7 +539,7 @@ pub unsafe fn vterm_input_write(vt: *mut VTerm, bytes: *const c_char, len: usize
 
 pub unsafe fn vterm_parser_set_callbacks(
     vt: *mut VTerm,
-    callbacks: *const VTermParserCallbacks,
+    callbacks: Option<&'static VTermParserCallbacks>,
     user: *mut VTermStateFull,
 ) {
     unsafe {

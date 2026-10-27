@@ -1077,28 +1077,24 @@ mod tests {
 
     unsafe fn wantparser(vt: *mut VTerm) {
         unsafe {
-            vterm_parser_set_callbacks(vt, &raw const PARSER_CBS, ptr::null_mut());
+            vterm_parser_set_callbacks(vt, Some(&PARSER_CBS), ptr::null_mut());
         }
     }
 
     unsafe fn wantstate(vt: *mut VTerm, opts: StateOpts) -> *mut VTermStateFull {
         unsafe {
             let state = vterm_obtain_state(vt);
-            vterm_state_set_callbacks(state, &raw const STATE_CBS, ptr::null_mut());
+            vterm_state_set_callbacks(state, Some(&STATE_CBS), ptr::null_mut());
             vterm_state_set_selection_callbacks(
                 &mut *state,
-                &raw const SELECTION_CBS,
+                Some(&SELECTION_CBS),
                 ptr::null_mut(),
                 16,
             );
             vterm_state_set_bold_highbright(state, 1);
             vterm_state_reset(state, 1);
 
-            let fb = if opts.f {
-                &raw const FALLBACK_CBS
-            } else {
-                ptr::null()
-            };
+            let fb = opts.f.then_some(&FALLBACK_CBS);
             want_state_scrollback = opts.b;
             want_state_erase = opts.e;
             vterm_state_set_unrecognised_fallbacks(state, fb, ptr::null_mut());
@@ -1113,7 +1109,7 @@ mod tests {
     unsafe fn wantscreen(vt: *mut VTerm, opts: ScreenOpts) -> *mut VTermScreen {
         unsafe {
             let screen = vterm_obtain_screen(vt);
-            vterm_screen_set_callbacks(screen, &raw const SCREEN_CBS, ptr::null_mut());
+            vterm_screen_set_callbacks(screen, Some(&SCREEN_CBS), ptr::null_mut());
             if opts.a {
                 vterm_screen_enable_altscreen(screen, 1);
             }
