@@ -41,7 +41,7 @@ impl<'a> ParserInputReader<'a> {
             conv: vimconv_T {
                 vc_type: CONV_NONE,
                 vc_factor: 1,
-                vc_fd: std::ptr::null_mut(),
+                vc_fd: None,
                 vc_fail: false,
             },
         }

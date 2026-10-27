@@ -1556,7 +1556,8 @@ pub unsafe fn readfile(
                     }
 
                     if fio_flags == 0 && !did_iconv {
-                        iconv_fd = my_iconv_open(c"utf-8".as_ptr().cast_mut(), fenc) as iconv_t;
+                        iconv_fd = my_iconv_open(c"utf-8".as_ptr().cast_mut(), fenc)
+                            .map_or(-1, |fd| fd as iconv_t);
                     }
 
                     if fio_flags == 0

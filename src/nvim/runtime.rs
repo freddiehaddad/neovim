@@ -268,7 +268,7 @@ impl source_cookie_T {
             conv: vimconv_T {
                 vc_type: 0,
                 vc_factor: 0,
-                vc_fd: ptr::null_mut(),
+                vc_fd: None,
                 vc_fail: false,
             },
         }

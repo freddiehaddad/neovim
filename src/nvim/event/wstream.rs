@@ -18,28 +18,20 @@ const UV_ENOMEM: c_int = -12;
 
 pub type uv_write_t = c_void;
 
-#[derive(PartialEq, Eq)]
-pub enum WBufferFinalizer {
-    None,
-    Vec(Vec<c_char>),
-    FreeBlock,
-}
-
 #[repr(C)]
 pub struct WBuffer {
-    pub size: usize,
-    pub data: *mut c_char,
-    pub cb: WBufferFinalizer,
+    pub data: Vec<c_char>,
 }
 
-impl Drop for WBuffer {
-    fn drop(&mut self) {
-        unsafe {
-            match self.cb {
-                WBufferFinalizer::None | WBufferFinalizer::Vec(_) => {}
-                WBufferFinalizer::FreeBlock => crate::memory::free_block(self.data),
-            }
-        }
+impl WBuffer {
+    #[inline]
+    pub fn size(&self) -> usize {
+        self.data.len()
+    }
+
+    #[inline]
+    pub fn data_ptr(&self) -> *mut c_char {
+        self.data.as_ptr().cast_mut()
     }
 }
 
@@ -112,7 +104,7 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: std::rc::Rc<WBuffer>) -
         assert!((*stream).maxmem != 0);
         assert!(!(*stream).closed);
 
-        let uvbuf = uv_buf_t::new(buffer.data, buffer.size);
+        let uvbuf = uv_buf_t::new(buffer.data_ptr(), buffer.size());
 
         if !(*stream).has_uvstream {
             let mut req_buf = [0u64; 128];
@@ -144,7 +136,7 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: std::rc::Rc<WBuffer>) -
             return UV_ENOMEM;
         }
 
-        (*stream).curmem += buffer.size;
+        (*stream).curmem += buffer.size();
 
         let data = Box::into_raw(Box::new(WRequest {
             stream,
@@ -165,22 +157,8 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: std::rc::Rc<WBuffer>) -
     }
 }
 
-pub fn wstream_new_buffer(
-    data: *mut c_char,
-    size: usize,
-    cb: WBufferFinalizer,
-) -> std::rc::Rc<WBuffer> {
-    std::rc::Rc::new(WBuffer { size, cb, data })
-}
-
-pub fn wstream_new_vec_buffer(mut buf: Vec<c_char>) -> std::rc::Rc<WBuffer> {
-    let size = buf.len();
-    let data = buf.as_mut_ptr();
-    std::rc::Rc::new(WBuffer {
-        size,
-        data,
-        cb: WBufferFinalizer::Vec(buf),
-    })
+pub fn wstream_new_vec_buffer(buf: Vec<c_char>) -> std::rc::Rc<WBuffer> {
+    std::rc::Rc::new(WBuffer { data: buf })
 }
 
 unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
@@ -188,7 +166,7 @@ unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
         let data = Box::from_raw(*req.cast::<*mut WRequest>());
         let stream = data.stream;
 
-        (*stream).curmem -= data.buffer.size;
+        (*stream).curmem -= data.buffer.size();
         drop(data);
 
         if (*stream).notify_write {

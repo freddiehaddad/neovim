@@ -13,13 +13,13 @@ use crate::channel::channel_close;
 use crate::errors::*;
 use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{multiqueue_empty, multiqueue_process_events};
-use crate::event::wstream::{WBufferFinalizer, wstream_new_buffer};
+use crate::event::wstream::wstream_new_vec_buffer;
 use crate::globals::*;
 use crate::grid::{sattr_T, schar_T, schar_from_ascii, schar_get, schar_get_adv};
 use crate::highlight::{HlAttrs, hl_get_url, hlattrs2dict, syn_attr2entry};
 use crate::lua::converter::{Boolean, Float};
 use crate::mbyte::utf_ambiguous_width;
-use crate::memory::{Arena, alloc_block, arena_finish, arena_mem_free, strequal};
+use crate::memory::{Arena, arena_finish, arena_mem_free, strequal};
 use crate::msgpack_rpc::channel::{RemoteUI, find_channel, rpc_write_raw};
 use crate::msgpack_rpc::packer::{
     Integer, PackerBuffer, handle_T, mpack_array, mpack_bool, mpack_object_array, mpack_uint,
@@ -853,7 +853,8 @@ unsafe fn flush_event(ui: *mut RemoteUI) {
 
 unsafe fn ui_alloc_buf(ui: *mut RemoteUI) {
     unsafe {
-        (*ui).packer.startptr = alloc_block();
+        (*ui).packer.owned_buf = vec![0; UI_BUF_SIZE];
+        (*ui).packer.startptr = (*ui).packer.owned_buf.as_mut_ptr();
         (*ui).packer.ptr = (*ui).packer.startptr;
         (*ui).packer.endptr = (*ui).packer.startptr.add(UI_BUF_SIZE);
     }
@@ -1402,15 +1403,15 @@ unsafe fn ui_flush_buf(ui: *mut RemoteUI, incomplete_event: bool) {
             (*ui).nevents_pos = None;
         }
 
-        let buf = wstream_new_buffer(
-            (*ui).packer.startptr,
-            buf_pos(ui),
-            WBufferFinalizer::FreeBlock,
-        );
+        let len = buf_pos(ui);
+        let mut vec = std::mem::take(&mut (*ui).packer.owned_buf);
+        vec.truncate(len);
+        let buf = wstream_new_vec_buffer(vec);
         rpc_write_raw((*ui).channel_id, buf);
 
         (*ui).packer.startptr = ptr::null_mut();
         (*ui).packer.ptr = ptr::null_mut();
+        (*ui).packer.endptr = ptr::null_mut();
 
         (*ui).flushed_events = true;
         (*ui).ncells_pending = 0;

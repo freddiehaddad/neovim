@@ -17,7 +17,7 @@ use crate::event::proc::{LibuvProc, Proc, proc_spawn, proc_stop, proc_wait};
 use crate::event::rstream::{RStream, rstream_init, rstream_start};
 use crate::event::stream::{Stream, StreamCbData, stream_may_close};
 use crate::event::wstream::{
-    WBufferFinalizer, wstream_init, wstream_new_buffer, wstream_set_write_cb, wstream_write,
+    wstream_init, wstream_new_vec_buffer, wstream_set_write_cb, wstream_write,
 };
 use crate::ex_cmds::{check_secure, kShellOptRead, kShellOptWrite, make_filter_cmd};
 use crate::ex_docmd::CAR;
@@ -880,7 +880,7 @@ unsafe fn do_os_system(
 
             if has_input {
                 let input_buffer =
-                    wstream_new_buffer(input.cast_mut(), len, WBufferFinalizer::None);
+                    wstream_new_vec_buffer(std::slice::from_raw_parts(input, len).to_vec());
                 if wstream_write(s_in, input_buffer) != 0 {
                     proc_stop(proc_);
                     break 'end;

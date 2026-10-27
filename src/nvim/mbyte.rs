@@ -99,7 +99,7 @@ pub(crate) const CP_UTF8: u32 = 65001;
 pub struct vimconv_T {
     pub vc_type: c_int,
     pub vc_factor: c_int,
-    pub vc_fd: *mut c_void,
+    pub vc_fd: Option<usize>,
     pub vc_fail: bool,
 }
 
@@ -108,7 +108,7 @@ impl vimconv_T {
         Self {
             vc_type: 0,
             vc_factor: 0,
-            vc_fd: ptr::null_mut(),
+            vc_fd: None,
             vc_fail: false,
         }
     }
@@ -122,13 +122,15 @@ impl Default for vimconv_T {
 
 impl Drop for vimconv_T {
     fn drop(&mut self) {
-        if self.vc_type == CONV_ICONV && self.vc_fd != usize::MAX as *mut c_void {
+        if self.vc_type == CONV_ICONV
+            && let Some(fd) = self.vc_fd.take()
+        {
             unsafe {
-                call_iconv_close(self.vc_fd);
+                call_iconv_close(fd as *mut c_void);
             }
         }
         self.vc_type = CONV_NONE;
-        self.vc_fd = ptr::null_mut();
+        self.vc_fd = None;
     }
 }
 
@@ -2708,7 +2710,7 @@ pub unsafe fn utf_find_illegal() {
         let mut vimconv = vimconv_T {
             vc_type: CONV_NONE,
             vc_factor: 1,
-            vc_fd: ptr::null_mut(),
+            vc_fd: None,
             vc_fail: false,
         };
         let mut tofree: Option<Vec<u8>> = None;
@@ -3062,11 +3064,11 @@ pub unsafe fn enc_locale() -> Option<std::ffi::CString> {
     }
 }
 
-pub unsafe fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> *mut c_void {
+pub unsafe fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> Option<usize> {
     unsafe {
         const ICONV_TESTLEN: usize = 400;
         if iconv_working == WorkingStatus::kBroken {
-            return usize::MAX as *mut c_void;
+            return None;
         }
         let mut fd = call_iconv_open(enc_skip(to), enc_skip(from));
         if fd != usize::MAX as *mut c_void && iconv_working == WorkingStatus::kUnknown {
@@ -3088,7 +3090,7 @@ pub unsafe fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> *mut c_void {
                 iconv_working = WorkingStatus::kWorking;
             }
         }
-        fd
+        (fd != usize::MAX as *mut c_void).then_some(fd as usize)
     }
 }
 
@@ -3104,6 +3106,7 @@ unsafe fn iconv_string(
         let mut len = 0usize;
         let mut done = 0usize;
         let mut result_vec: Vec<u8> = Vec::new();
+        let fd = vcp.vc_fd.unwrap_or(usize::MAX) as *mut c_void;
 
         let mut from = str_;
         let mut fromlen = slen;
@@ -3117,7 +3120,7 @@ unsafe fn iconv_string(
             to = result.add(done);
             let mut tolen = len - done - 2;
             if call_iconv(
-                vcp.vc_fd,
+                fd,
                 &raw mut from,
                 &raw mut fromlen,
                 &raw mut to,
@@ -3177,7 +3180,7 @@ pub unsafe fn f_iconv(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
         let mut vimconv = vimconv_T {
             vc_type: CONV_NONE,
             vc_factor: 1,
-            vc_fd: ptr::null_mut(),
+            vc_fd: None,
             vc_fail: false,
         };
         convert_setup(
@@ -3210,7 +3213,7 @@ pub unsafe fn convert_setup_ext(
         *vcp = vimconv_T {
             vc_type: CONV_NONE,
             vc_factor: 1,
-            vc_fd: ptr::null_mut(),
+            vc_fd: None,
             vc_fail: false,
         };
 
@@ -3258,7 +3261,7 @@ pub unsafe fn convert_setup_ext(
                 from
             };
             vcp.vc_fd = my_iconv_open(to_arg, from_arg);
-            if vcp.vc_fd != usize::MAX as *mut c_void {
+            if vcp.vc_fd.is_some() {
                 vcp.vc_type = CONV_ICONV;
                 vcp.vc_factor = 4;
             }

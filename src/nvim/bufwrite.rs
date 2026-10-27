@@ -1405,8 +1405,8 @@ pub unsafe fn buf_write(
                     }
 
                     if converted && wb_flags == 0 {
-                        write_info.bw_iconv_fd =
-                            my_iconv_open(fenc, c"utf-8".as_ptr().cast_mut()) as iconv_t;
+                        write_info.bw_iconv_fd = my_iconv_open(fenc, c"utf-8".as_ptr().cast_mut())
+                            .map_or(-1, |fd| fd as iconv_t);
                         if write_info.bw_iconv_fd != -1 {
                             write_info.bw_conv_buflen = (bufsize as usize) * ICONV_MULT;
                             conv_buf_vec = vec![0; write_info.bw_conv_buflen];

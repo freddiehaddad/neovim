@@ -21,12 +21,10 @@ use crate::event::multiqueue::{
 use crate::event::proc::{LibuvProc, exit_on_closed_chan};
 use crate::event::rstream::{RStream, rstream_start};
 use crate::event::stream::{Stream, StreamCbData};
-use crate::event::wstream::{WBuffer, WBufferFinalizer, wstream_new_buffer, wstream_write};
+use crate::event::wstream::{WBuffer, wstream_new_vec_buffer, wstream_write};
 use crate::globals::*;
 use crate::log::logmsg;
-use crate::memory::{
-    ARENA_BLOCK_SIZE, Arena, ArenaMem, alloc_block, arena_finish, arena_mem_free, free_block,
-};
+use crate::memory::{ARENA_BLOCK_SIZE, Arena, ArenaMem, arena_finish, arena_mem_free};
 use crate::message::semsg;
 use crate::msgpack_rpc::packer::{
     Integer, PackerBuffer, mpack_array, mpack_integer, mpack_nil, mpack_object, mpack_object_array,
@@ -93,16 +91,6 @@ pub struct RemoteUI {
     pub client_row: Integer,
     pub client_col: Integer,
     pub wildmenu_active: bool,
-}
-
-impl Drop for RemoteUI {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.packer.startptr.is_null() {
-                free_block(self.packer.startptr);
-            }
-        }
-    }
 }
 
 #[repr(C)]
@@ -721,8 +709,8 @@ pub unsafe fn internal_read_event(channel: *mut Channel, buffer: std::rc::Rc<WBu
         let ct = channel;
         let p: *mut Unpacker = (*ct).rpc.unpacker.as_deref_mut().unwrap();
 
-        (*p).read_ptr = buffer.data;
-        (*p).read_size = buffer.size;
+        (*p).read_ptr = buffer.data_ptr();
+        (*p).read_size = buffer.size();
         if !unpacker_closed(p) {
             parse_msgpack(channel);
 
@@ -991,7 +979,8 @@ unsafe fn packer_buffer_init_channels(
                 remote_ui_flush_if_incomplete((*ct).id);
             }
         }
-        (*packer).startptr = alloc_block();
+        (*packer).owned_buf = vec![0; ARENA_BLOCK_SIZE];
+        (*packer).startptr = (*packer).owned_buf.as_mut_ptr();
         (*packer).ptr = (*packer).startptr;
         (*packer).endptr = (*packer).startptr.add(ARENA_BLOCK_SIZE);
         (*packer).anydata = crate::msgpack_rpc::packer::PackerData::Chans(chans);
@@ -1002,14 +991,17 @@ unsafe fn packer_buffer_init_channels(
 unsafe fn packer_buffer_finish_channels(packer: *mut PackerBuffer) {
     unsafe {
         let len = ((*packer).ptr as usize) - ((*packer).startptr as usize);
+        let mut vec = std::mem::take(&mut (*packer).owned_buf);
+        (*packer).startptr = ptr::null_mut();
+        (*packer).ptr = ptr::null_mut();
+        (*packer).endptr = ptr::null_mut();
         if len > 0 {
-            let buf = wstream_new_buffer((*packer).startptr, len, WBufferFinalizer::FreeBlock);
+            vec.truncate(len);
+            let buf = wstream_new_vec_buffer(vec);
             let chans = (*packer).anydata.as_chans();
             for i in 0..((*packer).anyint as usize) {
                 let _ = channel_write(*chans.add(i), std::rc::Rc::clone(&buf));
             }
-        } else {
-            free_block((*packer).startptr);
         }
     }
 }
