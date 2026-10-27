@@ -31,11 +31,11 @@ static GIVEUP: Instruction = Instruction {
 };
 
 #[inline]
-unsafe fn getoffset(p: *const Instruction) -> isize {
+fn getoffset(p: *const Instruction) -> isize {
     unsafe { (*p.add(1)).offset as isize }
 }
 
-pub unsafe fn charinset(i: *const Instruction, buff: *const byte, mut c: uint) -> c_int {
+pub fn charinset(i: *const Instruction, buff: *const byte, mut c: uint) -> c_int {
     unsafe {
         c = c.wrapping_sub(uint::from((*i).i.aux2.set.offset));
         if c >= (uint::from((*i).i.aux2.set.size) * (size_of::<Instruction>() as uint) * 8) {
@@ -45,7 +45,7 @@ pub unsafe fn charinset(i: *const Instruction, buff: *const byte, mut c: uint) -
     }
 }
 
-unsafe fn utf8_decode(o: *const c_char, val: *mut c_int) -> *const c_char {
+fn utf8_decode(o: *const c_char, val: *mut c_int) -> *const c_char {
     const LIMITS: [uint; 4] = [0xFF, 0x7F, 0x7FF, 0xFFFF];
     let mut s = o.cast::<u8>();
     unsafe {
@@ -84,7 +84,7 @@ struct Stack {
 }
 
 #[inline]
-unsafe fn getstackbase(l: *mut lua_State, ptop: c_int) -> *mut Stack {
+fn getstackbase(l: *mut lua_State, ptop: c_int) -> *mut Stack {
     unsafe { lua_touserdata(l, stackidx(ptop)).cast::<Stack>() }
 }
 
@@ -98,7 +98,7 @@ const MAXNEWSIZE: usize = {
     }
 };
 
-unsafe fn growcap(
+fn growcap(
     l: *mut lua_State,
     capture: *mut Capture,
     capsize: *mut c_int,
@@ -128,7 +128,7 @@ unsafe fn growcap(
     }
 }
 
-unsafe fn doublestack(l: *mut lua_State, stacklimit: *mut *mut Stack, ptop: c_int) -> *mut Stack {
+fn doublestack(l: *mut lua_State, stacklimit: *mut *mut Stack, ptop: c_int) -> *mut Stack {
     unsafe {
         let stack = getstackbase(l, ptop);
         let n = (*stacklimit).offset_from(stack) as c_int;
@@ -154,7 +154,7 @@ unsafe fn doublestack(l: *mut lua_State, stacklimit: *mut *mut Stack, ptop: c_in
     }
 }
 
-unsafe fn resdyncaptures(l: *mut lua_State, fr: c_int, curr: c_int, limit: c_int) -> c_int {
+fn resdyncaptures(l: *mut lua_State, fr: c_int, curr: c_int, limit: c_int) -> c_int {
     unsafe {
         let res: lua_Integer;
         if lua_toboolean(l, fr) == 0 {
@@ -176,7 +176,7 @@ unsafe fn resdyncaptures(l: *mut lua_State, fr: c_int, curr: c_int, limit: c_int
     }
 }
 
-unsafe fn adddyncaptures(index: Index_t, capture: *mut Capture, n: c_int, fd: c_int) {
+fn adddyncaptures(index: Index_t, capture: *mut Capture, n: c_int, fd: c_int) {
     unsafe {
         let prev = capture.sub(1);
         debug_assert!((*prev).kind == Cgroup && (*prev).siz == 0);
@@ -195,7 +195,7 @@ unsafe fn adddyncaptures(index: Index_t, capture: *mut Capture, n: c_int, fd: c_
     }
 }
 
-unsafe fn removedyncap(
+fn removedyncap(
     l: *mut lua_State,
     capture: *mut Capture,
     level: c_int,
@@ -212,7 +212,7 @@ unsafe fn removedyncap(
     }
 }
 
-unsafe fn findopen_full(mut cap: *mut Capture, currindex: Index_t) -> *mut Capture {
+fn findopen_full(mut cap: *mut Capture, currindex: Index_t) -> *mut Capture {
     unsafe {
         cap = cap.sub(1);
         if !isopencap(cap) && (*cap).index == currindex {
@@ -232,7 +232,7 @@ unsafe fn findopen_full(mut cap: *mut Capture, currindex: Index_t) -> *mut Captu
     ptr::null_mut()
 }
 
-pub unsafe fn r#match(
+pub fn r#match(
     l: *mut lua_State,
     o: *const c_char,
     mut s: *const c_char,

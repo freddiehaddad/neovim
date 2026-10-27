@@ -865,7 +865,7 @@ pub unsafe extern "C" fn nvim_exec_lua(
     arena: *mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe { nlua_exec(code, ptr::null(), args, kRetObject, arena, err) }
+    nlua_exec(code, ptr::null(), args, kRetObject, arena, err)
 }
 
 /// Like |nvim_exec_lua()|, but can be called during |api-fast| contexts.
@@ -2662,8 +2662,7 @@ pub unsafe extern "C" fn nvim_get_proc_children(
 // DLLEXPORT Object nvim_get_proc(Integer pid, Arena *arena, Error *err) FUNC_API_SINCE(4);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: &mut Error) -> Object {
-    unsafe {
-        if !validate_int(
+    if !validate_int(
             pid > 0 && pid <= Integer::from(c_int::MAX),
             c"pid".as_ptr(),
             pid,
@@ -2682,7 +2681,7 @@ pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: &mu
             rvobj
         }
         #[cfg(not(windows))]
-        {
+        unsafe {
             let mut rvobj = nil_obj();
             let mut a_items = [integer_obj(pid)];
             let a = Array {
@@ -2712,7 +2711,6 @@ pub unsafe extern "C" fn nvim_get_proc(pid: Integer, arena: *mut Arena, err: &mu
             }
             rvobj
         }
-    }
 }
 
 /// Selects an item in the completion popup menu.
@@ -2820,7 +2818,7 @@ pub unsafe extern "C" fn nvim__unpack(
     arena: *mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe { unpack(str_.data, str_.size, arena, err) }
+    unpack(str_.data, str_.size, arena, err)
 }
 
 /// Deletes an uppercase/file named mark. See |mark-motions|.

@@ -435,7 +435,7 @@ pub fn os_conpty_init(
 }
 
 #[cfg(windows)]
-pub unsafe fn os_conpty_spawn(
+pub fn os_conpty_spawn(
     conpty_object: &mut conpty_t,
     proc_handle: *mut HANDLE,
     name: *mut u16,

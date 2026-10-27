@@ -1346,12 +1346,10 @@ fn can_unload_buffer(buf: &mut buf_T) -> bool {
 }
 
 pub fn buf_close_terminal(buf: &mut buf_T) {
-    unsafe {
-        debug_assert!(!buf.terminal.is_null());
+    debug_assert!(!buf.terminal.is_null());
         buf.b_locked += 1;
         terminal_close((&raw mut buf.terminal).cast::<*mut Terminal>(), -1);
         buf.b_locked -= 1;
-    }
 }
 
 /// Close the link to a buffer.
@@ -2755,15 +2753,13 @@ pub fn no_write_message_nobang(buf: &buf_T) {
 
 #[inline]
 fn buf_init_changedtick(buf: &mut buf_T) {
-    unsafe {
-        buf.changedtick_di.di_tv = typval_T {
+    buf.changedtick_di.di_tv = typval_T {
             v_type: VarType::VAR_NUMBER,
             v_lock: VAR_FIXED,
             vval: TypvalVval::Number(buf_get_changedtick(buf)),
         };
         buf.changedtick_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
         tv_dict_add(buf.b_vars(), (&raw mut buf.changedtick_di).cast());
-    }
 }
 
 /// Add a file name to the buffer list.

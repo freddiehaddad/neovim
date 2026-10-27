@@ -101,16 +101,16 @@ pub struct VTermRect {
 }
 
 pub type VTermMoveCursorFn<T = VTermScreen> =
-    unsafe fn(pos: VTermPos, oldpos: VTermPos, visible: c_int, user: *mut T) -> c_int;
+    fn(pos: VTermPos, oldpos: VTermPos, visible: c_int, user: *mut T) -> c_int;
 pub type VTermScrollRectFn =
-    unsafe fn(rect: VTermRect, downward: c_int, rightward: c_int, user: *mut VTermScreen) -> c_int;
-pub type VTermStateResizeFn = unsafe fn(
+    fn(rect: VTermRect, downward: c_int, rightward: c_int, user: *mut VTermScreen) -> c_int;
+pub type VTermStateResizeFn = fn(
     rows: c_int,
     cols: c_int,
     fields: *mut VTermStateFields,
     user: *mut VTermScreen,
 ) -> c_int;
-pub type VTermSetLineInfoFn = unsafe fn(
+pub type VTermSetLineInfoFn = fn(
     row: c_int,
     newinfo: *const VTermLineInfo,
     oldinfo: *const VTermLineInfo,
@@ -120,24 +120,24 @@ pub type VTermSetLineInfoFn = unsafe fn(
 #[repr(C)]
 pub struct VTermStateCallbacks {
     pub putglyph: Option<
-        unsafe fn(info: *mut VTermGlyphInfo, pos: VTermPos, user: *mut VTermScreen) -> c_int,
+        fn(info: *mut VTermGlyphInfo, pos: VTermPos, user: *mut VTermScreen) -> c_int,
     >,
     pub movecursor: Option<VTermMoveCursorFn>,
     pub scrollrect: Option<VTermScrollRectFn>,
     pub moverect:
-        Option<unsafe fn(dest: VTermRect, src: VTermRect, user: *mut VTermScreen) -> c_int>,
+        Option<fn(dest: VTermRect, src: VTermRect, user: *mut VTermScreen) -> c_int>,
     pub erase:
-        Option<unsafe fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int>,
-    pub initpen: Option<unsafe fn(user: *mut VTermScreen) -> c_int>,
+        Option<fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int>,
+    pub initpen: Option<fn(user: *mut VTermScreen) -> c_int>,
     pub setpenattr:
-        Option<unsafe fn(attr: VTermAttr, val: &mut VTermValue, user: *mut VTermScreen) -> c_int>,
+        Option<fn(attr: VTermAttr, val: &mut VTermValue, user: *mut VTermScreen) -> c_int>,
     pub settermprop:
-        Option<unsafe fn(prop: VTermProp, val: &mut VTermValue, user: *mut VTermScreen) -> c_int>,
-    pub bell: Option<unsafe fn(user: *mut VTermScreen) -> c_int>,
+        Option<fn(prop: VTermProp, val: &mut VTermValue, user: *mut VTermScreen) -> c_int>,
+    pub bell: Option<fn(user: *mut VTermScreen) -> c_int>,
     pub resize: Option<VTermStateResizeFn>,
-    pub theme: Option<unsafe fn(dark: &mut bool, user: *mut VTermScreen) -> c_int>,
+    pub theme: Option<fn(dark: &mut bool, user: *mut VTermScreen) -> c_int>,
     pub setlineinfo: Option<VTermSetLineInfoFn>,
-    pub sb_clear: Option<unsafe fn(user: *mut VTermScreen) -> c_int>,
+    pub sb_clear: Option<fn(user: *mut VTermScreen) -> c_int>,
 }
 
 #[derive(Clone, Copy)]
@@ -432,7 +432,7 @@ fn lookup_colour_palette(
     }
 }
 
-unsafe fn lookup_colour(
+fn lookup_colour(
     _state: &VTermStateFull,
     palette: c_int,
     args: *const c_long,
@@ -479,7 +479,7 @@ unsafe fn lookup_colour(
     }
 }
 
-unsafe fn setpenattr(
+fn setpenattr(
     state: &mut VTermStateFull,
     attr: VTermAttr,
     _type: VTermValueType,
@@ -496,23 +496,17 @@ unsafe fn setpenattr(
 
 fn setpenattr_bool(state: &mut VTermStateFull, attr: VTermAttr, boolean: c_int) {
     let mut val = VTermValue::Boolean(boolean);
-    unsafe {
-        setpenattr(state, attr, VTERM_VALUETYPE_BOOL, &raw mut val);
-    }
+    setpenattr(state, attr, VTERM_VALUETYPE_BOOL, &raw mut val);
 }
 
 fn setpenattr_int(state: &mut VTermStateFull, attr: VTermAttr, number: c_int) {
     let mut val = VTermValue::Number(number);
-    unsafe {
-        setpenattr(state, attr, VTERM_VALUETYPE_INT, &raw mut val);
-    }
+    setpenattr(state, attr, VTERM_VALUETYPE_INT, &raw mut val);
 }
 
 fn setpenattr_col(state: &mut VTermStateFull, attr: VTermAttr, color: VTermColor) {
     let mut val = VTermValue::Color(color);
-    unsafe {
-        setpenattr(state, attr, VTERM_VALUETYPE_COLOR, &raw mut val);
-    }
+    setpenattr(state, attr, VTERM_VALUETYPE_COLOR, &raw mut val);
 }
 
 fn set_pen_col_ansi(state: &mut VTermStateFull, attr: VTermAttr, col: c_int) {
@@ -528,8 +522,7 @@ fn set_pen_col_ansi(state: &mut VTermStateFull, attr: VTermAttr, col: c_int) {
 }
 
 pub fn vterm_state_newpen(state: &mut VTermStateFull) {
-    unsafe {
-        state.default_fg.set_rgb(240, 240, 240);
+    state.default_fg.set_rgb(240, 240, 240);
         state.default_bg.set_rgb(0, 0, 0);
         let dfg = state.default_fg;
         let dbg = state.default_bg;
@@ -538,7 +531,6 @@ pub fn vterm_state_newpen(state: &mut VTermStateFull) {
         for col in 0..16 {
             lookup_default_colour_ansi(col as isize, &mut state.colors[col]);
         }
-    }
 }
 
 pub fn vterm_state_resetpen(state: &mut VTermStateFull) {
@@ -606,7 +598,7 @@ pub fn vterm_state_savepen(state: &mut VTermStateFull, save: c_int) {
         }
 }
 
-pub unsafe fn vterm_state_set_default_colors(
+pub fn vterm_state_set_default_colors(
     state: &mut VTermStateFull,
     default_fg: *const VTermColor,
     default_bg: *const VTermColor,
@@ -646,7 +638,7 @@ pub fn vterm_state_convert_color_to_rgb(state: &VTermStateFull, col: &mut VTermC
         col.set_type_byte(t);
 }
 
-pub unsafe fn vterm_state_setpen(state: &mut VTermStateFull, args: *const c_long, argcount: c_int) {
+pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const c_long, argcount: c_int) {
     unsafe {
         let mut argi: c_int = 0;
 
@@ -845,7 +837,7 @@ pub unsafe fn vterm_state_setpen(state: &mut VTermStateFull, args: *const c_long
     }
 }
 
-unsafe fn vterm_state_getpen_color(
+fn vterm_state_getpen_color(
     col: &VTermColor,
     mut argi: c_int,
     args: *mut c_long,
@@ -889,7 +881,7 @@ unsafe fn vterm_state_getpen_color(
     argi
 }
 
-pub unsafe fn vterm_state_getpen(
+pub fn vterm_state_getpen(
     state: &mut VTermStateFull,
     args: *mut c_long,
     _argcount: c_int,
@@ -967,7 +959,7 @@ pub unsafe fn vterm_state_getpen(
     }
 }
 
-pub unsafe fn vterm_state_set_penattr(
+pub fn vterm_state_set_penattr(
     state: &mut VTermStateFull,
     attr: VTermAttr,
     r#type: VTermValueType,

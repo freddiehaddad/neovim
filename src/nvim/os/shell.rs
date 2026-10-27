@@ -138,7 +138,7 @@ unsafe extern "system" {
 }
 
 #[cfg(unix)]
-unsafe fn save_patterns(
+fn save_patterns(
     num_pat: c_int,
     pat: *mut *mut c_char,
     file: &mut Vec<std::ffi::CString>,
@@ -159,7 +159,7 @@ unsafe fn save_patterns(
 }
 
 #[cfg(unix)]
-unsafe fn have_wildcard(num: c_int, file: *mut *mut c_char) -> bool {
+fn have_wildcard(num: c_int, file: *mut *mut c_char) -> bool {
     unsafe {
         for i in 0..(num as usize) {
             if path_has_wildcard(*file.add(i), true) {
@@ -171,7 +171,7 @@ unsafe fn have_wildcard(num: c_int, file: *mut *mut c_char) -> bool {
 }
 
 #[cfg(unix)]
-unsafe fn have_dollars(num: c_int, file: *mut *mut c_char) -> bool {
+fn have_dollars(num: c_int, file: *mut *mut c_char) -> bool {
     unsafe {
         for i in 0..(num as usize) {
             if !vim_strchr(*file.add(i), b'$' as c_int).is_null() {
@@ -184,7 +184,7 @@ unsafe fn have_dollars(num: c_int, file: *mut *mut c_char) -> bool {
 
 /// Performs wildcard pattern matching using the shell.
 #[cfg(unix)]
-pub unsafe fn os_expand_wildcards(
+pub fn os_expand_wildcards(
     num_pat: c_int,
     pat: *mut *mut c_char,
     file: &mut Vec<std::ffi::CString>,
@@ -586,7 +586,7 @@ pub unsafe fn os_expand_wildcards(
 
 /// Builds the argument vector for running the user-configured 'shell' (opt_vars().p_sh)
 /// with an optional command prefixed by 'shellcmdflag' (opt_vars().p_shcf).
-pub unsafe fn shell_build_argv(
+pub fn shell_build_argv(
     cmd: *const c_char,
     extra_args: *const c_char,
 ) -> Vec<std::ffi::CString> {
@@ -640,7 +640,7 @@ pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
 }
 
 /// Calls the user-configured 'shell' (opt_vars().p_sh) for running a command or wildcard expansion.
-pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> c_int {
+pub fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> c_int {
     unsafe {
         let mut input: Vec<c_char> = Vec::new();
         let mut output: Vec<c_char> = Vec::new();
@@ -704,7 +704,7 @@ pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_ch
 }
 
 /// os_call_shell() wrapper. Handles 'verbose', :profile, and v:shell_error.
-pub unsafe fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -> c_int {
+pub fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_char) -> c_int {
     unsafe {
         let mut wait_time: proftime_T = 0;
 
@@ -743,7 +743,7 @@ pub unsafe fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_
 }
 
 /// Get the stdout of an external command.
-pub unsafe fn get_cmd_output(
+pub fn get_cmd_output(
     cmd: *mut c_char,
     infile: *mut c_char,
     flags: c_int,
@@ -812,16 +812,16 @@ pub unsafe fn get_cmd_output(
 }
 
 /// os_system - synchronously execute a command in the shell
-pub unsafe fn os_system(
+pub fn os_system(
     argv: Vec<std::ffi::CString>,
     input: *const c_char,
     len: usize,
     output: Option<&mut Vec<c_char>>,
 ) -> c_int {
-    unsafe { do_os_system(argv, input, len, output, true, false) }
+    do_os_system(argv, input, len, output, true, false)
 }
 
-unsafe fn do_os_system(
+fn do_os_system(
     argv: Vec<std::ffi::CString>,
     input: *const c_char,
     len: usize,
@@ -954,7 +954,7 @@ unsafe fn do_os_system(
     }
 }
 
-pub(crate) unsafe fn system_data_cb(
+pub(crate) fn system_data_cb(
     _stream: &mut RStream,
     buf: *const c_char,
     count: usize,
@@ -1026,7 +1026,7 @@ fn out_data_decide_throttle(size: usize) -> bool {
     }
 }
 
-unsafe fn out_data_ring(output: *const c_char, size: usize) {
+fn out_data_ring(output: *const c_char, size: usize) {
     unsafe {
         debug_assert!(!output.is_null() || size == 0 || size == usize::MAX);
 
@@ -1078,7 +1078,7 @@ pub fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
     }
 }
 
-unsafe fn out_data_append_to_screen(
+fn out_data_append_to_screen(
     output: *const c_char,
     count: &mut usize,
     fd: c_int,
@@ -1115,24 +1115,22 @@ unsafe fn out_data_append_to_screen(
     }
 }
 
-pub(crate) unsafe fn out_data_cb(
+pub(crate) fn out_data_cb(
     stream: &mut RStream,
     ptr_data: *const c_char,
     mut count: usize,
     eof: bool,
 ) -> usize {
-    unsafe {
-        if count > 0 && out_data_decide_throttle(count) {
+    if count > 0 && out_data_decide_throttle(count) {
             out_data_ring(ptr_data, count);
         } else if count > 0 {
             let fd = stream.s.fd;
             out_data_append_to_screen(ptr_data, &mut count, fd, eof);
         }
         count
-    }
 }
 
-unsafe fn tokenize(str_in: *const c_char, argv: &mut Vec<std::ffi::CString>) {
+fn tokenize(str_in: *const c_char, argv: &mut Vec<std::ffi::CString>) {
     unsafe {
         let mut p = str_in;
 
@@ -1144,7 +1142,7 @@ unsafe fn tokenize(str_in: *const c_char, argv: &mut Vec<std::ffi::CString>) {
     }
 }
 
-pub(crate) unsafe fn word_length(str_in: *const c_char) -> usize {
+pub(crate) fn word_length(str_in: *const c_char) -> usize {
     unsafe {
         let mut p = str_in;
         let mut inquote = false;
@@ -1177,7 +1175,7 @@ fn read_input(buf: &mut Vec<c_char>) {
     }
 }
 
-unsafe fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usize {
+fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usize {
     if output.is_null() {
         return 0;
     }
@@ -1248,7 +1246,7 @@ pub(crate) fn shell_write_cb(stream: &mut Stream, status: c_int) {
     }
 }
 
-unsafe fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
+fn shell_xescape_xquote(cmd: *const c_char) -> std::ffi::CString {
     unsafe {
         if *opt_vars().p_sxq == NUL {
             return CStr::from_ptr(cmd).to_owned();
@@ -1289,11 +1287,9 @@ mod tests {
 
     #[test]
     fn word_length_handles_quotes_and_escaped_chars() {
-        unsafe {
-            assert_eq!(word_length(c"foo bar".as_ptr()), 3);
+        assert_eq!(word_length(c"foo bar".as_ptr()), 3);
             assert_eq!(word_length(c"\"foo bar\" baz".as_ptr()), 9);
             assert_eq!(word_length(c"/Program\" \"Files/zsh -f".as_ptr()), 20);
-        }
     }
 
     #[test]

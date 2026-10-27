@@ -186,10 +186,10 @@ impl mpack_parser_t {
     }
 }
 
-pub type mpack_walk_cb = Option<unsafe fn(w: *mut mpack_parser_t, n: *mut mpack_node_t)>;
+pub type mpack_walk_cb = Option<fn(w: *mut mpack_parser_t, n: *mut mpack_node_t)>;
 
 #[inline]
-pub unsafe fn mpack_parent_node(n: *mut mpack_node_t) -> *mut mpack_node_t {
+pub fn mpack_parent_node(n: *mut mpack_node_t) -> *mut mpack_node_t {
     unsafe {
         let prev = n.sub(1);
         if (*prev).pos == usize::MAX {
@@ -201,9 +201,7 @@ pub unsafe fn mpack_parent_node(n: *mut mpack_node_t) -> *mut mpack_node_t {
 }
 
 pub fn mpack_parser_init(parser: &mut mpack_parser_t, capacity: mpack_uint32_t) {
-    unsafe {
-        mpack_tokbuf_init(&raw mut parser.tokbuf);
-    }
+    mpack_tokbuf_init(&raw mut parser.tokbuf);
     parser.data = mpack_data_t::Null;
     parser.capacity = if capacity != 0 {
         capacity
@@ -227,7 +225,7 @@ pub fn mpack_parser_grow(p: &mut mpack_parser_t) {
     p.capacity = new_capacity;
 }
 
-pub unsafe fn mpack_parse_tok(
+pub fn mpack_parse_tok(
     parser: *mut mpack_parser_t,
     tok: mpack_token_t,
     enter_cb: mpack_walk_cb,
@@ -275,7 +273,7 @@ pub unsafe fn mpack_parse_tok(
     }
 }
 
-pub unsafe fn mpack_unparse_tok(
+pub fn mpack_unparse_tok(
     parser: *mut mpack_parser_t,
     tok: *mut mpack_token_t,
     enter_cb: mpack_walk_cb,
@@ -323,7 +321,7 @@ pub unsafe fn mpack_unparse_tok(
     }
 }
 
-pub unsafe fn mpack_parse(
+pub fn mpack_parse(
     parser: *mut mpack_parser_t,
     buf: *mut *const c_char,
     buflen: *mut usize,
@@ -372,7 +370,7 @@ pub unsafe fn mpack_parse(
     }
 }
 
-pub unsafe fn mpack_unparse(
+pub fn mpack_unparse(
     parser: *mut mpack_parser_t,
     buf: *mut *mut c_char,
     buflen: *mut usize,
@@ -419,7 +417,7 @@ const fn mpack_parser_full(parser: &mpack_parser_t) -> bool {
     parser.size == parser.capacity
 }
 
-unsafe fn mpack_parser_push(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
+fn mpack_parser_push(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
     unsafe {
         debug_assert!((*parser).size < (*parser).capacity);
         let top_idx = ((*parser).size as usize) + 1;
@@ -433,7 +431,7 @@ unsafe fn mpack_parser_push(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
     }
 }
 
-unsafe fn mpack_parser_pop(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
+fn mpack_parser_pop(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
     unsafe {
         debug_assert!((*parser).size != 0);
         let top_idx = (*parser).size as usize;

@@ -617,8 +617,7 @@ pub unsafe fn path_has_wildcard(mut p: *const c_char, all: bool) -> bool {
 }
 
 unsafe fn scandir_next_with_dots(dir: *mut Directory) -> *const c_char {
-    unsafe {
-        if dir.is_null() {
+    if dir.is_null() {
             path_st().SCANDIR_COUNT = 0;
             return ptr::null();
         }
@@ -632,7 +631,6 @@ unsafe fn scandir_next_with_dots(dir: *mut Directory) -> *const c_char {
             };
         }
         os_scandir_next(dir)
-    }
 }
 
 unsafe fn path_expand(

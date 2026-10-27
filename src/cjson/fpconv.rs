@@ -7,7 +7,7 @@ use crate::strings::strtod;
 
 pub const FPCONV_G_FMT_BUFSIZE: usize = 32;
 
-pub unsafe fn fpconv_strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
+pub fn fpconv_strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
     unsafe { strtod(nptr, endptr) }
 }
 

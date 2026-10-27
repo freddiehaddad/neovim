@@ -65,17 +65,15 @@ impl Default for Charset {
 }
 
 #[inline]
-pub unsafe fn fillset(s: *mut byte, c: byte) {
+pub fn fillset(s: *mut byte, c: byte) {
     unsafe {
         ptr::write_bytes(s, c, CHARSETSIZE);
     }
 }
 
 #[inline]
-pub unsafe fn clearset(s: *mut byte) {
-    unsafe {
-        fillset(s, 0);
-    }
+pub fn clearset(s: *mut byte) {
+    fillset(s, 0);
 }
 
 #[inline]
@@ -84,14 +82,14 @@ pub const fn bytes2slots(n: usize) -> usize {
 }
 
 #[inline]
-pub unsafe fn setchar(cs: *mut byte, b: usize) {
+pub fn setchar(cs: *mut byte, b: usize) {
     unsafe {
         *cs.add(b >> 3) |= 1u8 << (b & 7);
     }
 }
 
 #[inline]
-pub unsafe fn testchar(st: *const byte, c: uint) -> c_int {
+pub fn testchar(st: *const byte, c: uint) -> c_int {
     unsafe { (((*st.add((c >> 3) as usize) as uint) >> (c & 7)) & 1) as c_int }
 }
 
@@ -164,22 +162,22 @@ pub struct CapState {
 }
 
 #[inline]
-pub unsafe fn captype(cap: *const Capture) -> byte {
+pub fn captype(cap: *const Capture) -> byte {
     unsafe { (*cap).kind }
 }
 
 #[inline]
-pub unsafe fn isclosecap(cap: *const Capture) -> bool {
-    unsafe { captype(cap) == Cclose }
+pub fn isclosecap(cap: *const Capture) -> bool {
+    captype(cap) == Cclose
 }
 
 #[inline]
-pub unsafe fn isopencap(cap: *const Capture) -> bool {
+pub fn isopencap(cap: *const Capture) -> bool {
     unsafe { (*cap).siz == 0 }
 }
 
 #[inline]
-pub unsafe fn capinside(c1: *const Capture, c2: *const Capture) -> bool {
+pub fn capinside(c1: *const Capture, c2: *const Capture) -> bool {
     unsafe {
         if isopencap(c1) {
             !isclosecap(c2)
@@ -242,17 +240,17 @@ pub const fn ttree_bitmap_offset() -> usize {
 }
 
 #[inline]
-pub unsafe fn treebuffer(t: *mut TTree) -> *mut byte {
+pub fn treebuffer(t: *mut TTree) -> *mut byte {
     unsafe { t.cast::<byte>().add(ttree_bitmap_offset()) }
 }
 
 #[inline]
-pub unsafe fn sib1(t: *mut TTree) -> *mut TTree {
+pub fn sib1(t: *mut TTree) -> *mut TTree {
     unsafe { t.add(1) }
 }
 
 #[inline]
-pub unsafe fn sib2(t: *mut TTree) -> *mut TTree {
+pub fn sib2(t: *mut TTree) -> *mut TTree {
     unsafe { t.offset((*t).u.ps as isize) }
 }
 
@@ -332,12 +330,12 @@ pub union Instruction {
 }
 
 #[inline]
-pub unsafe fn getkind(op: *const Instruction) -> c_int {
+pub fn getkind(op: *const Instruction) -> c_int {
     unsafe { c_int::from((*op).i.aux1 & 0xF) }
 }
 
 #[inline]
-pub unsafe fn getoff(op: *const Instruction) -> c_int {
+pub fn getoff(op: *const Instruction) -> c_int {
     unsafe { c_int::from(((*op).i.aux1 >> 4) & 0xF) }
 }
 
@@ -347,7 +345,7 @@ pub const fn joinkindoff(k: c_int, o: c_int) -> c_int {
 }
 
 #[inline]
-pub unsafe fn utf_to(inst: *const Instruction) -> c_int {
+pub fn utf_to(inst: *const Instruction) -> c_int {
     unsafe { (c_int::from((*inst).i.aux2.key) << 8) | c_int::from((*inst).i.aux1) }
 }
 
@@ -384,8 +382,7 @@ mod tests {
 
     #[test]
     fn test_charsettype_and_helpers() {
-        unsafe {
-            let mut cs = [0u8; CHARSETSIZE];
+        let mut cs = [0u8; CHARSETSIZE];
             let mut info = charsetinfo::new();
             assert_eq!(charsettype(cs.as_ptr(), &mut info), IFail);
 
@@ -396,6 +393,5 @@ mod tests {
 
             fillset(cs.as_mut_ptr(), 0xFF);
             assert_eq!(charsettype(cs.as_ptr(), &mut info), IAny);
-        }
     }
 }

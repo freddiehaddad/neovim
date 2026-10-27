@@ -1506,9 +1506,7 @@ pub fn autocmd_init() {
 }
 
 pub fn autocmd_free_all_mem() {
-    unsafe {
-        multiqueue_free(g_st().deferred_events);
-    }
+    multiqueue_free(g_st().deferred_events);
 }
 
 unsafe fn augroup_map_del(id: c_int, name: *const c_char) {

@@ -526,7 +526,7 @@ fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
     }
 }
 
-pub(crate) unsafe fn c_gettext(msgid: *const c_char) -> *mut c_char {
+pub(crate) fn c_gettext(msgid: *const c_char) -> *mut c_char {
     if msgid.is_null() || unsafe { *msgid == 0 } {
         return msgid.cast_mut();
     }
@@ -544,7 +544,7 @@ pub(crate) unsafe fn c_gettext(msgid: *const c_char) -> *mut c_char {
     }
 }
 
-pub(crate) unsafe fn c_ngettext(
+pub(crate) fn c_ngettext(
     msgid1: *const c_char,
     msgid2: *const c_char,
     n: u64,
@@ -574,7 +574,7 @@ pub(crate) unsafe fn c_ngettext(
 }
 
 #[inline]
-pub unsafe fn bind_textdomain_codeset(
+pub fn bind_textdomain_codeset(
     _domainname: *const c_char,
     codeset: *const c_char,
 ) -> *mut c_char {
@@ -592,7 +592,7 @@ fn get_locale_val(what: c_int) -> *mut c_char {
 }
 
 #[inline]
-unsafe fn is_valid_mess_lang(lang: *const c_char) -> bool {
+fn is_valid_mess_lang(lang: *const c_char) -> bool {
     if lang.is_null() {
         return false;
     }
@@ -601,17 +601,15 @@ unsafe fn is_valid_mess_lang(lang: *const c_char) -> bool {
 
 /// Obtain the current messages language. Used to set the default for `'helplang'`.
 pub fn get_mess_lang() -> *mut c_char {
-    unsafe {
-        #[cfg(not(windows))]
-        let p = get_locale_val(LC_MESSAGES);
-        #[cfg(windows)]
-        let p = get_locale_val(LC_COLLATE);
+    #[cfg(not(windows))]
+    let p = get_locale_val(LC_MESSAGES);
+    #[cfg(windows)]
+    let p = get_locale_val(LC_COLLATE);
 
-        if is_valid_mess_lang(p) {
-            p
-        } else {
-            ptr::null_mut()
-        }
+    if is_valid_mess_lang(p) {
+        p
+    } else {
+        ptr::null_mut()
     }
 }
 
@@ -645,8 +643,7 @@ fn get_mess_env(
 
 /// Set the `v:lang`, `v:lc_time`, `v:collate`, and `v:ctype` variables.
 pub fn set_lang_var() {
-    unsafe {
-        let mut buf = [0 as c_char; 64];
+    let mut buf = [0 as c_char; 64];
         let mut loc: *const c_char = get_locale_val(LC_CTYPE);
         set_vim_var_string(VV_CTYPE, loc, -1);
 
@@ -658,7 +655,6 @@ pub fn set_lang_var() {
 
         loc = get_locale_val(LC_COLLATE);
         set_vim_var_string(VV_COLLATE, loc, -1);
-    }
 }
 
 /// Setup to use the current locale.
@@ -787,21 +783,19 @@ pub fn ex_language(eap: &mut exarg_T) {
 
 #[cfg(not(windows))]
 fn find_locales() -> Vec<CString> {
-    unsafe {
-        let Some(locale_a) = get_cmd_output(
-            c"locale -a".as_ptr().cast_mut(),
-            ptr::null_mut(),
-            kShellOptSilent,
-        ) else {
-            return Vec::new();
-        };
-        locale_a
-            .as_bytes()
-            .split(|&b| b == b'\n')
-            .filter(|line| !line.is_empty())
-            .filter_map(|line| CString::new(line).ok())
-            .collect()
-    }
+    let Some(locale_a) = get_cmd_output(
+        c"locale -a".as_ptr().cast_mut(),
+        ptr::null_mut(),
+        kShellOptSilent,
+    ) else {
+        return Vec::new();
+    };
+    locale_a
+        .as_bytes()
+        .split(|&b| b == b'\n')
+        .filter(|line| !line.is_empty())
+        .filter_map(|line| CString::new(line).ok())
+        .collect()
 }
 
 fn init_locales() {

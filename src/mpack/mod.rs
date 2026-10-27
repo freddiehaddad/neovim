@@ -35,8 +35,7 @@ mod tests {
         let tn = mpack_pack_number(-1234.5);
         assert!((mpack_unpack_number(tn) - (-1234.5)).abs() < f64::EPSILON);
 
-        unsafe {
-            let mut wbuf = [0 as c_char; 32];
+        let mut wbuf = [0 as c_char; 32];
             let mut wptr = wbuf.as_mut_ptr();
             let mut wlen = wbuf.len();
             let mut wtb = mpack_tokbuf_t::new();
@@ -54,7 +53,6 @@ mod tests {
                 MPACK_OK
             );
             assert_eq!(mpack_unpack_uint(out_tok), 0x1_0000_0005);
-        }
 
         for (val, expected_len) in [(-128.0, 1), (-129.0, 2), (-32768.0, 2), (-32769.0, 4)] {
             let tok = mpack_pack_number(val);
@@ -65,8 +63,7 @@ mod tests {
             assert_eq!(tok.length, expected_len);
         }
 
-        unsafe {
-            let mut p = crate::mpack::object::mpack_parser_t::new(2);
+        let mut p = crate::mpack::object::mpack_parser_t::new(2);
             crate::mpack::object::mpack_parser_init(&mut p, 2);
             assert_eq!(p.capacity, 2);
             crate::mpack::object::mpack_parser_grow(&mut p);
@@ -76,6 +73,5 @@ mod tests {
             assert_eq!(s.slots.len(), 2);
             crate::mpack::rpc::mpack_rpc_session_grow(&mut s);
             assert_eq!(s.slots.len(), 4);
-        }
     }
 }

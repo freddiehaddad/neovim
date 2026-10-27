@@ -68,8 +68,7 @@ pub struct mpack_rpc_session_t {
 
 impl mpack_rpc_session_t {
     pub fn new(capacity: mpack_uint32_t) -> Self {
-        unsafe {
-            let cap = if capacity != 0 {
+        let cap = if capacity != 0 {
                 capacity as usize
             } else {
                 MPACK_RPC_MAX_REQUESTS
@@ -94,11 +93,10 @@ impl mpack_rpc_session_t {
             mpack_rpc_reset_hdr(&raw mut session.receive);
             mpack_rpc_reset_hdr(&raw mut session.send);
             session
-        }
     }
 }
 
-pub unsafe fn mpack_rpc_session_grow(session: *mut mpack_rpc_session_t) {
+pub fn mpack_rpc_session_grow(session: *mut mpack_rpc_session_t) {
     unsafe {
         let new_cap = (*session).slots.len() * 2;
         let empty_slot = mpack_rpc_slot_s {
@@ -117,7 +115,7 @@ pub unsafe fn mpack_rpc_session_grow(session: *mut mpack_rpc_session_t) {
     }
 }
 
-pub unsafe fn mpack_rpc_receive_tok(
+pub fn mpack_rpc_receive_tok(
     session: *mut mpack_rpc_session_t,
     tok: mpack_token_t,
     msg: *mut mpack_rpc_message_t,
@@ -177,7 +175,7 @@ pub unsafe fn mpack_rpc_receive_tok(
     }
 }
 
-pub unsafe fn mpack_rpc_request_tok(
+pub fn mpack_rpc_request_tok(
     session: *mut mpack_rpc_session_t,
     tok: *mut mpack_token_t,
     data: mpack_data_t,
@@ -220,7 +218,7 @@ pub unsafe fn mpack_rpc_request_tok(
     }
 }
 
-pub unsafe fn mpack_rpc_reply_tok(
+pub fn mpack_rpc_reply_tok(
     session: *mut mpack_rpc_session_t,
     tok: *mut mpack_token_t,
     id: mpack_uint32_t,
@@ -249,7 +247,7 @@ pub unsafe fn mpack_rpc_reply_tok(
     }
 }
 
-pub unsafe fn mpack_rpc_notify_tok(
+pub fn mpack_rpc_notify_tok(
     session: *mut mpack_rpc_session_t,
     tok: *mut mpack_token_t,
 ) -> c_int {
@@ -268,7 +266,7 @@ pub unsafe fn mpack_rpc_notify_tok(
     }
 }
 
-pub unsafe fn mpack_rpc_receive(
+pub fn mpack_rpc_receive(
     session: *mut mpack_rpc_session_t,
     buf: *mut *const c_char,
     buflen: *mut usize,
@@ -291,7 +289,7 @@ pub unsafe fn mpack_rpc_receive(
     }
 }
 
-pub unsafe fn mpack_rpc_request(
+pub fn mpack_rpc_request(
     session: *mut mpack_rpc_session_t,
     buf: *mut *mut c_char,
     buflen: *mut usize,
@@ -316,7 +314,7 @@ pub unsafe fn mpack_rpc_request(
     }
 }
 
-pub unsafe fn mpack_rpc_reply(
+pub fn mpack_rpc_reply(
     session: *mut mpack_rpc_session_t,
     buf: *mut *mut c_char,
     buflen: *mut usize,
@@ -338,7 +336,7 @@ pub unsafe fn mpack_rpc_reply(
     }
 }
 
-pub unsafe fn mpack_rpc_notify(
+pub fn mpack_rpc_notify(
     session: *mut mpack_rpc_session_t,
     buf: *mut *mut c_char,
     buflen: *mut usize,
@@ -384,7 +382,7 @@ fn mpack_rpc_notify_hdr() -> mpack_rpc_header_t {
     hdr
 }
 
-unsafe fn mpack_rpc_put(session: *mut mpack_rpc_session_t, msg: mpack_rpc_message_t) -> c_int {
+fn mpack_rpc_put(session: *mut mpack_rpc_session_t, msg: mpack_rpc_message_t) -> c_int {
     unsafe {
         let slots = &mut (*session).slots;
         let cap = slots.len() as mpack_uint32_t;
@@ -412,7 +410,7 @@ unsafe fn mpack_rpc_put(session: *mut mpack_rpc_session_t, msg: mpack_rpc_messag
     }
 }
 
-unsafe fn mpack_rpc_pop(session: *mut mpack_rpc_session_t, msg: *mut mpack_rpc_message_t) -> c_int {
+fn mpack_rpc_pop(session: *mut mpack_rpc_session_t, msg: *mut mpack_rpc_message_t) -> c_int {
     unsafe {
         let slots = &mut (*session).slots;
         let cap = slots.len() as mpack_uint32_t;
@@ -439,7 +437,7 @@ unsafe fn mpack_rpc_pop(session: *mut mpack_rpc_session_t, msg: *mut mpack_rpc_m
 }
 
 #[inline]
-unsafe fn mpack_rpc_reset_hdr(hdr: *mut mpack_rpc_header_t) {
+fn mpack_rpc_reset_hdr(hdr: *mut mpack_rpc_header_t) {
     unsafe {
         (*hdr).index = 0;
     }

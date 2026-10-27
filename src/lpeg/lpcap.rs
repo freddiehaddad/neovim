@@ -21,7 +21,7 @@ const MAXRECLEVEL: c_int = 200;
 const MAXSTRCAPS: usize = 10;
 
 #[inline]
-unsafe fn luaL_addchar(b: *mut luaL_Buffer, c: c_char) {
+fn luaL_addchar(b: *mut luaL_Buffer, c: c_char) {
     unsafe {
         let buf_start = (&raw mut (*b).buffer).cast::<c_char>();
         if (*b).p >= buf_start.add(LUAL_BUFFERSIZE) {
@@ -33,21 +33,21 @@ unsafe fn luaL_addchar(b: *mut luaL_Buffer, c: c_char) {
 }
 
 #[inline]
-unsafe fn getfromktable(cs: *mut CapState, v: c_int) {
+fn getfromktable(cs: *mut CapState, v: c_int) {
     unsafe {
         lua_rawgeti((*cs).L, ktableidx((*cs).ptop), v);
     }
 }
 
 #[inline]
-unsafe fn pushluaval(cs: *mut CapState) {
+fn pushluaval(cs: *mut CapState) {
     unsafe {
         getfromktable(cs, c_int::from((*(*cs).cap).idx));
     }
 }
 
 #[inline]
-unsafe fn skipclose(cs: *mut CapState, head: *const Capture) {
+fn skipclose(cs: *mut CapState, head: *const Capture) {
     unsafe {
         if isopencap(head) {
             debug_assert!(isclosecap((*cs).cap));
@@ -57,7 +57,7 @@ unsafe fn skipclose(cs: *mut CapState, head: *const Capture) {
 }
 
 #[inline]
-unsafe fn capsize(cap: *const Capture, close: *const Capture) -> Index_t {
+fn capsize(cap: *const Capture, close: *const Capture) -> Index_t {
     unsafe {
         if isopencap(cap) {
             debug_assert!(isclosecap(close));
@@ -69,11 +69,11 @@ unsafe fn capsize(cap: *const Capture, close: *const Capture) -> Index_t {
 }
 
 #[inline]
-unsafe fn closesize(cs: *const CapState, head: *const Capture) -> Index_t {
+fn closesize(cs: *const CapState, head: *const Capture) -> Index_t {
     unsafe { capsize(head, (*cs).cap) }
 }
 
-unsafe fn updatecache(cs: *mut CapState, v: c_int) -> c_int {
+fn updatecache(cs: *mut CapState, v: c_int) -> c_int {
     unsafe {
         let idx = (*cs).ptop + 1;
         if v != (*cs).valuecached {
@@ -85,7 +85,7 @@ unsafe fn updatecache(cs: *mut CapState, v: c_int) -> c_int {
     }
 }
 
-unsafe fn findopen(mut cap: *mut Capture) -> *mut Capture {
+fn findopen(mut cap: *mut Capture) -> *mut Capture {
     let mut n: c_int = 0;
     unsafe {
         loop {
@@ -102,7 +102,7 @@ unsafe fn findopen(mut cap: *mut Capture) -> *mut Capture {
     }
 }
 
-unsafe fn nextcap(cs: *mut CapState) {
+fn nextcap(cs: *mut CapState) {
     unsafe {
         let mut cap = (*cs).cap;
         if isopencap(cap) {
@@ -129,7 +129,7 @@ unsafe fn nextcap(cs: *mut CapState) {
     }
 }
 
-unsafe fn pushnestedvalues(cs: *mut CapState, addextra: bool) -> c_int {
+fn pushnestedvalues(cs: *mut CapState, addextra: bool) -> c_int {
     unsafe {
         let head = (*cs).cap;
         (*cs).cap = (*cs).cap.add(1);
@@ -150,7 +150,7 @@ unsafe fn pushnestedvalues(cs: *mut CapState, addextra: bool) -> c_int {
     }
 }
 
-unsafe fn pushonenestedvalue(cs: *mut CapState) {
+fn pushonenestedvalue(cs: *mut CapState) {
     unsafe {
         let n = pushnestedvalues(cs, false);
         if n > 1 {
@@ -159,7 +159,7 @@ unsafe fn pushonenestedvalue(cs: *mut CapState) {
     }
 }
 
-unsafe fn capvisible(cs: *const CapState, grp: *const Capture, r#ref: *const Capture) -> bool {
+fn capvisible(cs: *const CapState, grp: *const Capture, r#ref: *const Capture) -> bool {
     let mut cap = grp;
     let mut i = MAXLOP;
     unsafe {
@@ -179,7 +179,7 @@ unsafe fn capvisible(cs: *const CapState, grp: *const Capture, r#ref: *const Cap
     true
 }
 
-unsafe fn findback(cs: *mut CapState, r#ref: *mut Capture) -> *mut Capture {
+fn findback(cs: *mut CapState, r#ref: *mut Capture) -> *mut Capture {
     unsafe {
         let l = (*cs).L;
         let mut cap = r#ref;
@@ -209,7 +209,7 @@ unsafe fn findback(cs: *mut CapState, r#ref: *mut Capture) -> *mut Capture {
     }
 }
 
-unsafe fn backrefcap(cs: *mut CapState) -> c_int {
+fn backrefcap(cs: *mut CapState) -> c_int {
     unsafe {
         let curr = (*cs).cap;
         pushluaval(cs);
@@ -220,7 +220,7 @@ unsafe fn backrefcap(cs: *mut CapState) -> c_int {
     }
 }
 
-unsafe fn tablecap(cs: *mut CapState) -> c_int {
+fn tablecap(cs: *mut CapState) -> c_int {
     unsafe {
         let l = (*cs).L;
         let head = (*cs).cap;
@@ -247,7 +247,7 @@ unsafe fn tablecap(cs: *mut CapState) -> c_int {
     }
 }
 
-unsafe fn querycap(cs: *mut CapState) -> c_int {
+fn querycap(cs: *mut CapState) -> c_int {
     unsafe {
         let idx = c_int::from((*(*cs).cap).idx);
         pushonenestedvalue(cs);
@@ -262,7 +262,7 @@ unsafe fn querycap(cs: *mut CapState) -> c_int {
     }
 }
 
-unsafe fn foldcap(cs: *mut CapState) -> c_int {
+fn foldcap(cs: *mut CapState) -> c_int {
     unsafe {
         let l = (*cs).L;
         let head = (*cs).cap;
@@ -290,7 +290,7 @@ unsafe fn foldcap(cs: *mut CapState) -> c_int {
     }
 }
 
-unsafe fn functioncap(cs: *mut CapState) -> c_int {
+fn functioncap(cs: *mut CapState) -> c_int {
     unsafe {
         let top = lua_gettop((*cs).L);
         pushluaval(cs);
@@ -300,7 +300,7 @@ unsafe fn functioncap(cs: *mut CapState) -> c_int {
     }
 }
 
-unsafe fn accumulatorcap(cs: *mut CapState) -> c_int {
+fn accumulatorcap(cs: *mut CapState) -> c_int {
     unsafe {
         let l = (*cs).L;
         if lua_gettop(l) < (*cs).firstcap {
@@ -314,7 +314,7 @@ unsafe fn accumulatorcap(cs: *mut CapState) -> c_int {
     }
 }
 
-unsafe fn numcap(cs: *mut CapState) -> c_int {
+fn numcap(cs: *mut CapState) -> c_int {
     unsafe {
         let idx = c_int::from((*(*cs).cap).idx);
         if idx == 0 {
@@ -334,7 +334,7 @@ unsafe fn numcap(cs: *mut CapState) -> c_int {
     }
 }
 
-pub unsafe fn finddyncap(mut cap: *mut Capture, last: *mut Capture) -> c_int {
+pub fn finddyncap(mut cap: *mut Capture, last: *mut Capture) -> c_int {
     unsafe {
         while cap < last {
             if (*cap).kind == Cruntime {
@@ -398,7 +398,7 @@ impl Default for StrAux {
     }
 }
 
-unsafe fn getstrcaps(cs: *mut CapState, cps: *mut StrAux, mut n: c_int) -> c_int {
+fn getstrcaps(cs: *mut CapState, cps: *mut StrAux, mut n: c_int) -> c_int {
     unsafe {
         let k = n as usize;
         n += 1;
@@ -425,7 +425,7 @@ unsafe fn getstrcaps(cs: *mut CapState, cps: *mut StrAux, mut n: c_int) -> c_int
     }
 }
 
-unsafe fn stringcap(b: *mut luaL_Buffer, cs: *mut CapState) {
+fn stringcap(b: *mut luaL_Buffer, cs: *mut CapState) {
     unsafe {
         let mut cps: [StrAux; MAXSTRCAPS] = [StrAux::new(); MAXSTRCAPS];
         let mut len: usize = 0;
@@ -472,7 +472,7 @@ unsafe fn stringcap(b: *mut luaL_Buffer, cs: *mut CapState) {
     }
 }
 
-unsafe fn substcap(b: *mut luaL_Buffer, cs: *mut CapState) {
+fn substcap(b: *mut luaL_Buffer, cs: *mut CapState) {
     unsafe {
         let mut curr = (*cs).s.add((*(*cs).cap).index as usize);
         let head = (*cs).cap;
@@ -493,7 +493,7 @@ unsafe fn substcap(b: *mut luaL_Buffer, cs: *mut CapState) {
     }
 }
 
-unsafe fn addonestring(b: *mut luaL_Buffer, cs: *mut CapState, what: *const c_char) -> c_int {
+fn addonestring(b: *mut luaL_Buffer, cs: *mut CapState, what: *const c_char) -> c_int {
     unsafe {
         match captype((*cs).cap) {
             Cstring => {
@@ -531,7 +531,7 @@ unsafe fn addonestring(b: *mut luaL_Buffer, cs: *mut CapState, what: *const c_ch
     }
 }
 
-unsafe fn pushcapture(cs: *mut CapState) -> c_int {
+fn pushcapture(cs: *mut CapState) -> c_int {
     unsafe {
         let l = (*cs).L;
         luaL_checkstack(l, 4, c"too many captures".as_ptr());

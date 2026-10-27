@@ -730,24 +730,20 @@ pub fn diff_redraw(dofold: bool) {
     }
 }
 fn clear_diffin(din: &mut diffin_T) {
-    unsafe {
-        if let Some(ref fname) = din.din_fname {
+    if let Some(ref fname) = din.din_fname {
             let _ = os_remove(fname.as_ptr());
         } else {
             din.din_buf = Vec::new();
             din.din_mmfile.ptr = ptr::null_mut();
             din.din_mmfile.size = 0;
         }
-    }
 }
 fn clear_diffout(dout: &mut diffout_T) {
-    unsafe {
-        if let Some(ref fname) = dout.dout_fname {
+    if let Some(ref fname) = dout.dout_fname {
             let _ = os_remove(fname.as_ptr());
         } else {
             dout.dout_ga = Vec::new();
         }
-    }
 }
 fn diff_write_buffer(
     buf: &mut buf_T,

@@ -111,7 +111,7 @@ fn cstr_into_char_vec(s: std::ffi::CString) -> Vec<c_char> {
 }
 
 /// When there is an error, *fnamep is set to NULL.
-pub unsafe fn modify_fname(
+pub fn modify_fname(
     src: *mut c_char,
     tilde_file: bool,
     usedlen: *mut usize,
@@ -561,44 +561,40 @@ pub fn f_delete(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 pub fn f_executable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        if tv_check_for_string_arg(argvars, 0) == FAIL {
+    if tv_check_for_string_arg(argvars, 0) == FAIL {
             return;
         }
 
         // Check in $PATH and also check directly if there is a directory name
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_can_exe(tv_get_string(argvars), None, true)));
-    }
 }
 
 /// "exepath()" function
 pub fn f_exepath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        if tv_check_for_nonempty_string_arg(argvars, 0) == FAIL {
-            return;
+    if tv_check_for_nonempty_string_arg(argvars, 0) == FAIL {
+        return;
+    }
+
+    let mut path: Option<std::ffi::CString> = None;
+
+    os_can_exe(tv_get_string(argvars), Some(&mut path), true);
+
+    rettv.v_type = VarType::VAR_STRING;
+    if let Some(p) = path {
+        #[cfg(windows)]
+        unsafe {
+            let mut v = p.into_bytes_with_nul();
+            slash_adjust(v.as_mut_ptr().cast::<c_char>());
+            crate::eval::typval::tv_set_string(rettv, v.as_ptr().cast::<c_char>());
         }
-
-        let mut path: Option<std::ffi::CString> = None;
-
-        os_can_exe(tv_get_string(argvars), Some(&mut path), true);
-
-        rettv.v_type = VarType::VAR_STRING;
-        if let Some(p) = path {
-            #[cfg(windows)]
-            {
-                let mut v = p.into_bytes_with_nul();
-                slash_adjust(v.as_mut_ptr().cast::<c_char>());
-                crate::eval::typval::tv_set_string(rettv, v.as_ptr().cast::<c_char>());
-            }
-            #[cfg(not(windows))]
-            {
-                crate::eval::typval::tv_set_string(rettv, p.as_ptr());
-            }
-        } else {
-            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        #[cfg(not(windows))]
+        {
+            crate::eval::typval::tv_set_string(rettv, p.as_ptr());
         }
+    } else {
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
     }
 }
 
@@ -645,13 +641,11 @@ pub fn f_filereadable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 pub fn f_filewritable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        let filename = tv_get_string(argvars);
+    let filename = tv_get_string(argvars);
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_file_is_writable(filename)));
-    }
 }
 
-unsafe fn findfilendir(argvars: *mut typval_T, rettv: &mut typval_T, find_what: c_int) {
+fn findfilendir(argvars: *mut typval_T, rettv: &mut typval_T, find_what: c_int) {
     unsafe {
         let mut fresult: Option<std::ffi::CString> = None;
         let mut path = if *(*g_st().curbuf).b_p_path == NUL {
@@ -744,18 +738,14 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: &mut typval_T, find_what: 
 pub fn f_finddir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        findfilendir(argvars, rettv, FINDFILE_DIR);
-    }
+    findfilendir(argvars, rettv, FINDFILE_DIR);
 }
 
 /// "findfile({fname}[, {path}[, {count}]])" function
 pub fn f_findfile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        findfilendir(argvars, rettv, FINDFILE_FILE);
-    }
+    findfilendir(argvars, rettv, FINDFILE_FILE);
 }
 
 /// "fnamemodify({fname}, {mods})" function
@@ -803,7 +793,7 @@ pub fn f_fnamemodify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// Resolves the `[{winnr}[, {tabnr}[, {bufnr}]]]` arguments of `getcwd()`/`haslocaldir()` to the
 /// requested scope and the scope objects to inspect.
-unsafe fn getcwd_scope_args(
+fn getcwd_scope_args(
     argvars: *mut typval_T,
     default_scope: c_int,
     scope: &mut c_int,
@@ -1009,8 +999,7 @@ pub fn f_getcwd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 pub fn f_getfperm(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        let flags = [b'r' as c_char, b'w' as c_char, b'x' as c_char];
+    let flags = [b'r' as c_char, b'w' as c_char, b'x' as c_char];
 
         let filename = tv_get_string(argvars);
         let file_perm = os_getperm(filename);
@@ -1026,15 +1015,13 @@ pub fn f_getfperm(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             rettv.v_type = VarType::VAR_STRING;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
-    }
 }
 
 /// "getfsize({fname})" function
 pub fn f_getfsize(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        let fname = tv_get_string(argvars);
+    let fname = tv_get_string(argvars);
 
         let mut file_info = FileInfo::new();
         if os_fileinfo(fname, &mut file_info) {
@@ -1052,15 +1039,13 @@ pub fn f_getfsize(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         }
-    }
 }
 
 /// "getftime({fname})" function
 pub fn f_getftime(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        let fname = tv_get_string(argvars);
+    let fname = tv_get_string(argvars);
 
         let mut file_info = FileInfo::new();
         if os_fileinfo(fname, &mut file_info) {
@@ -1068,15 +1053,13 @@ pub fn f_getftime(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         }
-    }
 }
 
 /// "getftype({fname})" function
 pub fn f_getftype(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        let fname = tv_get_string(argvars);
+    let fname = tv_get_string(argvars);
 
         let mut file_info = FileInfo::new();
         if os_fileinfo_link(fname, &mut file_info) {
@@ -1103,7 +1086,6 @@ pub fn f_getftype(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             rettv.v_type = VarType::VAR_STRING;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
-    }
 }
 
 /// "glob()" function
@@ -1308,9 +1290,7 @@ pub fn f_isabsolutepath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
 pub fn f_isdirectory(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_isdir(tv_get_string(argvars))));
-    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_isdir(tv_get_string(argvars))));
 }
 
 /// "mkdir()" function
@@ -1427,7 +1407,7 @@ pub fn f_pathshorten(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 }
 
 /// Evaluate "expr" (= "context") for readdir().
-pub(crate) unsafe fn readdir_checkitem(expr: &mut typval_T, name: *const c_char) -> varnumber_T {
+pub(crate) fn readdir_checkitem(expr: &mut typval_T, name: *const c_char) -> varnumber_T {
     unsafe {
         let tv_init = typval_T {
             v_type: VarType::VAR_UNKNOWN,
@@ -1488,7 +1468,7 @@ pub fn f_readdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 
 /// Read blob from file "fd".
 /// Caller has allocated a blob in "rettv".
-unsafe fn read_blob(
+fn read_blob(
     fd: *mut FILE,
     rettv: &mut typval_T,
     mut offset: off_T,
@@ -1542,7 +1522,7 @@ unsafe fn read_blob(
 }
 
 /// "readfile()" or "readblob()" function
-unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: &mut typval_T, always_blob: bool) {
+fn read_file_or_blob(argvars: *mut typval_T, rettv: &mut typval_T, always_blob: bool) {
     unsafe {
         let mut binary = false;
         let mut blob = always_blob;
@@ -1718,26 +1698,22 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: &mut typval_T, always
 pub fn f_readblob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        if check_secure() {
+    if check_secure() {
             return;
         }
 
         read_file_or_blob(argvars, rettv, true);
-    }
 }
 
 /// "readfile()" function
 pub fn f_readfile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        if check_secure() {
+    if check_secure() {
             return;
         }
 
         read_file_or_blob(argvars, rettv, false);
-    }
 }
 
 /// "rename({from}, {to})" function
@@ -1967,18 +1943,16 @@ pub fn f_simplify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// "tempname()" function
 pub fn f_tempname(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        if let Some(tn) = vim_tempname() {
+    if let Some(tn) = vim_tempname() {
             crate::eval::typval::tv_set_string(rettv, tn.as_ptr());
         } else {
             rettv.v_type = VarType::VAR_STRING;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
-    }
 }
 
 /// Write "list" of strings to file "fp".
-unsafe fn write_list(fp: &mut FileDescriptor, list: *const list_T, binary: bool) -> bool {
+fn write_list(fp: &mut FileDescriptor, list: *const list_T, binary: bool) -> bool {
     unsafe {
         let mut error: c_int = 0;
         let mut li = tv_list_first(list);
@@ -2041,7 +2015,7 @@ unsafe fn write_list(fp: &mut FileDescriptor, list: *const list_T, binary: bool)
 }
 
 /// Write a blob to file with descriptor `fp`.
-unsafe fn write_data(fp: &mut FileDescriptor, data: *const c_char, len: usize) -> bool {
+fn write_data(fp: &mut FileDescriptor, data: *const c_char, len: usize) -> bool {
     unsafe {
         if len > 0 {
             let written = file_write(fp, data, len);
@@ -2067,16 +2041,14 @@ unsafe fn write_data(fp: &mut FileDescriptor, data: *const c_char, len: usize) -
 }
 
 fn write_blob(fp: &mut FileDescriptor, blob: &blob_T) -> bool {
-    unsafe {
-        write_data(
+    write_data(
             fp,
             blob.bv_ga.as_ptr().cast(),
             tv_blob_len(&raw const *blob) as usize,
         )
-    }
 }
 
-unsafe fn write_string(fp: &mut FileDescriptor, data: *const c_char) -> bool {
+fn write_string(fp: &mut FileDescriptor, data: *const c_char) -> bool {
     unsafe { write_data(fp, data, std::ffi::CStr::from_ptr(data).to_bytes().len()) }
 }
 

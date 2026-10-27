@@ -9013,10 +9013,8 @@ fn ex_highlight(eap: &mut exarg_T) {
 }
 
 pub fn not_exiting(save_exiting: bool) {
-    unsafe {
-        g_st().exiting = save_exiting;
+    g_st().exiting = save_exiting;
         set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
-    }
 }
 
 pub unsafe fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool) -> bool {
@@ -9157,8 +9155,7 @@ fn ex_quitall(eap: &mut exarg_T) {
 }
 
 fn ex_exmode(_eap: &mut exarg_T) {
-    unsafe {
-        if g_st().silent_mode {
+    if g_st().silent_mode {
             return;
         }
         if g_st().ex_normal_busy > 0 || g_st().global_busy != 0 {
@@ -9176,7 +9173,6 @@ fn ex_exmode(_eap: &mut exarg_T) {
             args.as_mut_ptr(),
             ptr::null_mut(),
         );
-    }
 }
 
 fn ex_restart(eap: &mut exarg_T) {
@@ -12818,63 +12814,53 @@ fn ex_terminal(eap: &mut exarg_T) {
 }
 
 fn ex_log(eap: &mut exarg_T) {
-    unsafe {
-        nlua_call_excmd(
+    nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_log".as_ptr(),
             eap,
             &g_st().cmdmod,
             ptr::null_mut(),
         );
-    }
 }
 
 fn ex_lsp(eap: &mut exarg_T) {
-    unsafe {
-        nlua_call_excmd(
+    nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_lsp".as_ptr(),
             eap,
             &g_st().cmdmod,
             ptr::null_mut(),
         );
-    }
 }
 
 fn ex_packdel(eap: &mut exarg_T) {
-    unsafe {
-        nlua_call_excmd(
+    nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_packdel".as_ptr(),
             eap,
             &g_st().cmdmod,
             ptr::null_mut(),
         );
-    }
 }
 
 fn ex_packupdate(eap: &mut exarg_T) {
-    unsafe {
-        nlua_call_excmd(
+    nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_packupdate".as_ptr(),
             eap,
             &g_st().cmdmod,
             ptr::null_mut(),
         );
-    }
 }
 
 fn ex_uptime(eap: &mut exarg_T) {
-    unsafe {
-        nlua_call_excmd(
+    nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_uptime".as_ptr(),
             eap,
             &g_st().cmdmod,
             ptr::null_mut(),
         );
-    }
 }
 
 fn ex_fclose(eap: &mut exarg_T) {

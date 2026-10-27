@@ -55,7 +55,7 @@ fn watchers_mut() -> &'static mut Vec<*mut SocketWatcher> {
     &mut srv_st().watchers
 }
 
-pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
+pub fn server_init(mut listen_addr: *const c_char) -> bool {
     unsafe {
         let mut ok = true;
         let mut owned_addr: Option<std::ffi::CString> = None;
@@ -138,7 +138,7 @@ pub fn server_teardown() {
     }
 }
 
-pub unsafe fn server_address_new(name: *const c_char) -> std::ffi::CString {
+pub fn server_address_new(name: *const c_char) -> std::ffi::CString {
     unsafe {
         let mut fmt: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
         let cur_count = srv_st().server_addr_count;
@@ -197,7 +197,7 @@ pub unsafe fn server_address_new(name: *const c_char) -> std::ffi::CString {
     }
 }
 
-pub unsafe fn server_owns_pipe_address(address: *const c_char) -> bool {
+pub fn server_owns_pipe_address(address: *const c_char) -> bool {
     unsafe {
         let path = fix_fname(address);
         for &watcher in watchers_mut().iter() {
@@ -210,7 +210,7 @@ pub unsafe fn server_owns_pipe_address(address: *const c_char) -> bool {
     }
 }
 
-pub unsafe fn server_start(addr: *const c_char) -> c_int {
+pub fn server_start(addr: *const c_char) -> c_int {
     unsafe {
         if addr.is_null() || *addr == 0 {
             logmsg!(
@@ -289,7 +289,7 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bool {
+pub fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bool {
     unsafe {
         let mut addr: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
 
@@ -333,7 +333,7 @@ pub fn server_address_list() -> Vec<std::ffi::CString> {
     }
 }
 
-pub(crate) unsafe fn connection_cb(watcher: *mut SocketWatcher, result: c_int) {
+pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: c_int) {
     unsafe {
         if result != 0 {
             logmsg!(

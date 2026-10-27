@@ -2538,13 +2538,11 @@ unsafe fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c
 }
 
 fn version() {
-    unsafe {
-        nlua_init(ptr::null_mut(), 0, -1);
+    nlua_init(ptr::null_mut(), 0, -1);
         g_st().info_message = true;
         list_version();
         msg_putchar(b'\n' as c_int);
         g_st().msg_didout = false;
-    }
 }
 
 fn usage() {

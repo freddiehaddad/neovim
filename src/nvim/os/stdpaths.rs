@@ -227,7 +227,7 @@ pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
 ///
 /// # Safety
 /// `fname` must be a valid C string.
-pub unsafe fn stdpaths_user_conf_subpath(fname: *const c_char) -> CString {
+pub fn stdpaths_user_conf_subpath(fname: *const c_char) -> CString {
     let home = get_xdg_home(XDGVarType::kXDGConfigHome).unwrap_or_default();
     unsafe { concat_fnames_cstr(home.as_ptr(), fname, true) }
 }
@@ -237,7 +237,7 @@ pub unsafe fn stdpaths_user_conf_subpath(fname: *const c_char) -> CString {
 ///
 /// # Safety
 /// `fname` must be a valid C string.
-pub unsafe fn stdpaths_user_state_subpath(
+pub fn stdpaths_user_state_subpath(
     fname: *const c_char,
     trailing_pathseps: usize,
     escape_commas: bool,
@@ -274,11 +274,9 @@ mod tests {
 
     #[test]
     fn state_subpath_escapes_commas_and_appends_separators() {
-        unsafe {
-            let p = stdpaths_user_state_subpath(c"a,b".as_ptr(), 2, true);
+        let p = stdpaths_user_state_subpath(c"a,b".as_ptr(), 2, true);
             let s = p.as_bytes();
             let expected_suffix = [b'/', b'a', b'\\', b',', b'b', PATHSEP as u8, PATHSEP as u8];
             assert!(s.ends_with(&expected_suffix));
-        }
     }
 }

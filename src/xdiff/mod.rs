@@ -72,9 +72,9 @@ impl xdemitcb_t {
     }
 
     #[inline]
-    pub unsafe fn out_line(self, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int {
+    pub fn out_line(self, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int {
         match self {
-            Self::Unified(out) => unsafe { crate::lua::xdiff::write_string(out, mb, nbuf) },
+            Self::Unified(out) => crate::lua::xdiff::write_string(out, mb, nbuf),
             _ => 0,
         }
     }
@@ -91,12 +91,8 @@ impl xdemitcb_t {
             Self::Diff(dout) => unsafe {
                 crate::diff::xdiff_out(start_a, count_a, start_b, count_b, &mut *dout)
             },
-            Self::OnHunk(priv_data) => unsafe {
-                crate::lua::xdiff::call_on_hunk_cb(start_a, count_a, start_b, count_b, priv_data)
-            },
-            Self::Locations(priv_data) => unsafe {
-                crate::lua::xdiff::hunk_locations_cb(start_a, count_a, start_b, count_b, priv_data)
-            },
+            Self::OnHunk(priv_data) => crate::lua::xdiff::call_on_hunk_cb(start_a, count_a, start_b, count_b, priv_data),
+            Self::Locations(priv_data) => crate::lua::xdiff::hunk_locations_cb(start_a, count_a, start_b, count_b, priv_data),
             Self::None | Self::Unified(_) => 0,
         }
     }
@@ -196,7 +192,7 @@ pub struct xdchange_t {
     pub ignore: c_int,
 }
 
-pub type emit_func_t = unsafe fn(
+pub type emit_func_t = fn(
     xe: *mut xdfenv_t,
     xscr: &[xdchange_t],
     ecb: *mut xdemitcb_t,
@@ -240,15 +236,13 @@ mod tests {
         assert_eq!(xdl_recmatch_slice(a, b, 0), 0);
         assert_eq!(xdl_recmatch_slice(a, b, XDF_IGNORE_WHITESPACE_CHANGE), 1);
         assert_eq!(
-            unsafe {
-                xdl_recmatch(
+            xdl_recmatch(
                     a.as_ptr().cast::<c_char>(),
                     a.len() as c_long,
                     b.as_ptr().cast::<c_char>(),
                     b.len() as c_long,
                     XDF_IGNORE_WHITESPACE_CHANGE as c_long,
-                )
-            },
+                ),
             1
         );
     }

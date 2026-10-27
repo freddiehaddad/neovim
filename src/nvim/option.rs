@@ -5217,8 +5217,7 @@ unsafe fn optval_snapshot_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
 }
 
 fn opt_from_callback(cb: &mut Callback) -> Object {
-    unsafe {
-        match cb.cb_type() {
+    match cb.cb_type() {
             kCallbackLua => {
                 let luaref = cb.data.as_luaref();
                 return luaref_obj(api_new_luaref(luaref));
@@ -5237,7 +5236,6 @@ fn opt_from_callback(cb: &mut Callback) -> Object {
             _ => {}
         }
         cstr_to_obj(c"".as_ptr())
-    }
 }
 
 fn opt_to_callback(value: Object, is_expr: bool) -> Callback {

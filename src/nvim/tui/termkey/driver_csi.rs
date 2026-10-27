@@ -210,7 +210,7 @@ const CSIFUNCS: [keyinfo; NCSIFUNCS] = {
 };
 
 #[inline]
-pub unsafe fn termkey_key_get_linecol(key: &TermKeyKey, line: *mut c_int, col: *mut c_int) {
+pub fn termkey_key_get_linecol(key: &TermKeyKey, line: *mut c_int, col: *mut c_int) {
     unsafe {
         if !col.is_null() {
             *col = c_int::from(key.code.mouse[1] as u8)
@@ -253,8 +253,7 @@ fn handle_csi_ss3_full(
     params: &[TermKeyCsiParam],
     nparams: c_int,
 ) -> TermKeyResult {
-    unsafe {
-        let mut result = TERMKEY_RES_KEY;
+    let mut result = TERMKEY_RES_KEY;
 
         if !(0x40..0x80).contains(&cmd) {
             return TERMKEY_RES_NONE;
@@ -298,7 +297,6 @@ fn handle_csi_ss3_full(
         }
 
         result
-    }
 }
 
 fn handle_csifunc(
@@ -312,8 +310,7 @@ fn handle_csifunc(
         return TERMKEY_RES_NONE;
     }
 
-    unsafe {
-        let mut result: TermKeyResult;
+    let mut result: TermKeyResult;
         let mut args = [0 as c_int; 3];
 
         if nparams > 1 && params[1].present {
@@ -383,7 +380,6 @@ fn handle_csifunc(
         }
 
         result
-    }
 }
 
 fn handle_csi_u(
@@ -393,8 +389,7 @@ fn handle_csi_u(
     params: &[TermKeyCsiParam],
     nparams: c_int,
 ) -> TermKeyResult {
-    unsafe {
-        if cmd != b'u' as c_int {
+    if cmd != b'u' as c_int {
             return TERMKEY_RES_NONE;
         }
         let mut args = [0 as c_int; 2];
@@ -439,7 +434,6 @@ fn handle_csi_u(
         key.modifiers |= m;
 
         TERMKEY_RES_KEY
-    }
 }
 
 fn handle_csi_m(
@@ -460,8 +454,7 @@ fn handle_csi_m(
         return TERMKEY_RES_NONE;
     }
 
-    unsafe {
-        let mut args = [0 as c_int; 3];
+    let mut args = [0 as c_int; 3];
         for (i, arg) in args.iter_mut().enumerate() {
             if termkey_interpret_csi_param(
                 params[i],
@@ -496,10 +489,9 @@ fn handle_csi_m(
         }
 
         TERMKEY_RES_NONE
-    }
 }
 
-pub unsafe fn termkey_interpret_mouse(
+pub fn termkey_interpret_mouse(
     _tk: &TermKey,
     key: &TermKeyKey,
     event: *mut TermKeyMouseEvent,
@@ -579,8 +571,7 @@ fn handle_csi_R(
     params: &[TermKeyCsiParam],
     nparams: c_int,
 ) -> TermKeyResult {
-    unsafe {
-        if cmd == (b'R' as c_int | ((b'?' as c_int) << 8)) {
+    if cmd == (b'R' as c_int | ((b'?' as c_int) << 8)) {
             if nparams < 2 {
                 return TERMKEY_RES_NONE;
             }
@@ -609,23 +600,20 @@ fn handle_csi_R(
         } else {
             handle_csi_ss3_full(tk, key, cmd, params, nparams)
         }
-    }
 }
 
 #[cfg(test)]
-pub unsafe fn termkey_interpret_position(
+pub fn termkey_interpret_position(
     _tk: &TermKey,
     key: &TermKeyKey,
     line: *mut c_int,
     col: *mut c_int,
 ) -> TermKeyResult {
-    unsafe {
-        if key.r#type != TERMKEY_TYPE_POSITION {
+    if key.r#type != TERMKEY_TYPE_POSITION {
             return TERMKEY_RES_NONE;
         }
         termkey_key_get_linecol(key, line, col);
         TERMKEY_RES_KEY
-    }
 }
 
 fn handle_csi_y(
@@ -637,8 +625,7 @@ fn handle_csi_y(
 ) -> TermKeyResult {
     const CMD_ANSI: c_int = (b'y' as c_int) | ((b'$' as c_int) << 16);
     const CMD_DEC: c_int = CMD_ANSI | ((b'?' as c_int) << 8);
-    unsafe {
-        if cmd == CMD_ANSI || cmd == CMD_DEC {
+    if cmd == CMD_ANSI || cmd == CMD_DEC {
             if nparams < 2 {
                 return TERMKEY_RES_NONE;
             }
@@ -670,10 +657,9 @@ fn handle_csi_y(
         } else {
             TERMKEY_RES_NONE
         }
-    }
 }
 
-pub unsafe fn termkey_interpret_modereport(
+pub fn termkey_interpret_modereport(
     _tk: &TermKey,
     key: &TermKeyKey,
     initial: *mut c_int,
@@ -698,7 +684,7 @@ pub unsafe fn termkey_interpret_modereport(
     }
 }
 
-unsafe fn parse_csi(
+fn parse_csi(
     tk: &TermKey,
     introlen: usize,
     csi_len: *mut usize,
@@ -770,15 +756,14 @@ unsafe fn parse_csi(
     }
 }
 
-pub unsafe fn termkey_interpret_csi(
+pub fn termkey_interpret_csi(
     tk: &TermKey,
     key: &TermKeyKey,
     params: &mut [TermKeyCsiParam; 16],
     nparams: *mut usize,
     cmd: *mut c_uint,
 ) -> TermKeyResult {
-    unsafe {
-        let mut dummy: usize = 0;
+    let mut dummy: usize = 0;
         if tk.hightide == 0 {
             return TERMKEY_RES_NONE;
         }
@@ -786,10 +771,9 @@ pub unsafe fn termkey_interpret_csi(
             return TERMKEY_RES_NONE;
         }
         parse_csi(tk, 0, &mut dummy, params, nparams, cmd)
-    }
 }
 
-pub unsafe fn termkey_interpret_csi_param(
+pub fn termkey_interpret_csi_param(
     param: TermKeyCsiParam,
     paramp: *mut c_int,
     subparams: *mut c_int,
@@ -828,7 +812,7 @@ pub unsafe fn termkey_interpret_csi_param(
     }
 }
 
-unsafe fn peekkey_csi_csi(
+fn peekkey_csi_csi(
     tk: &mut TermKey,
     introlen: usize,
     key: &mut TermKeyKey,
@@ -905,7 +889,7 @@ unsafe fn peekkey_csi_csi(
     }
 }
 
-unsafe fn peekkey_ss3(
+fn peekkey_ss3(
     tk: &mut TermKey,
     introlen: usize,
     key: &mut TermKeyKey,
@@ -958,7 +942,7 @@ unsafe fn peekkey_ss3(
     }
 }
 
-unsafe fn peekkey_ctrlstring(
+fn peekkey_ctrlstring(
     tk: &mut TermKey,
     introlen: usize,
     key: &mut TermKeyKey,
@@ -1028,14 +1012,13 @@ unsafe fn peekkey_ctrlstring(
     }
 }
 
-pub unsafe fn peekkey_csi(
+pub fn peekkey_csi(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
-    unsafe {
-        if tk.buffcount == 0 {
+    if tk.buffcount == 0 {
             return if tk.is_closed != 0 {
                 TERMKEY_RES_EOF
             } else {
@@ -1062,7 +1045,6 @@ pub unsafe fn peekkey_csi(
             0x9b => peekkey_csi_csi(tk, 1, key, force, nbytep),
             _ => TERMKEY_RES_NONE,
         }
-    }
 }
 
 #[cfg(test)]
@@ -1075,14 +1057,12 @@ mod tests {
         let mut p: c_int = 0;
         let mut sub = [0 as c_int; 2];
         let mut nsub: usize = 2;
-        unsafe {
-            assert_eq!(
+        assert_eq!(
                 termkey_interpret_csi_param(param, &mut p, sub.as_mut_ptr(), &mut nsub),
                 TERMKEY_RES_KEY
             );
             assert_eq!(p, 12);
             assert_eq!(nsub, 2);
             assert_eq!(sub, [3, 4]);
-        }
     }
 }

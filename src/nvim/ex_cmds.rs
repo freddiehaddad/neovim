@@ -2181,12 +2181,10 @@ unsafe fn check_writable(fname: *const c_char) -> c_int {
 }
 
 unsafe fn handle_mkdir_p_arg(eap: &mut exarg_T, fname: *mut c_char) -> c_int {
-    unsafe {
-        if eap.mkdir_p != 0 && os_file_mkdir(fname, 0o755) < 0 {
+    if eap.mkdir_p != 0 && os_file_mkdir(fname, 0o755) < 0 {
             return FAIL;
         }
         OK
-    }
 }
 
 /// Write current buffer to file `eap->arg`.
@@ -5351,13 +5349,11 @@ pub unsafe fn skip_vimgrep_pat(
 
 /// `:oldfiles` (sync) and `:browse oldfiles` (async).
 pub fn ex_oldfiles(eap: &mut exarg_T) {
-    unsafe {
-        nlua_call_excmd(
+    nlua_call_excmd(
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_oldfiles".as_ptr(),
             eap,
             &g_st().cmdmod,
             ptr::null_mut(),
         );
-    }
 }

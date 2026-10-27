@@ -407,7 +407,7 @@ fn insert_seq(root: &mut TrieNode, seq: &[u8], info: keyinfo) {
     }
 }
 
-unsafe fn try_load_terminfo_key(
+fn try_load_terminfo_key(
     ti: Option<&TerminfoEntry>,
     input: *mut crate::tui::input::TermInput,
     root: &mut TrieNode,
@@ -448,7 +448,7 @@ unsafe fn try_load_terminfo_key(
     }
 }
 
-unsafe fn load_terminfo(
+fn load_terminfo(
     tk: &mut TermKey,
     ti: Option<&TerminfoEntry>,
     input: *mut crate::tui::input::TermInput,
@@ -543,20 +543,18 @@ impl TermKeyTI {
     }
 }
 
-pub unsafe fn start_driver_ti(
+pub fn start_driver_ti(
     tk: &mut TermKey,
     ti: Option<&TerminfoEntry>,
     input: *mut crate::tui::input::TermInput,
 ) -> c_int {
-    unsafe {
-        if tk.ti.root.is_none() {
+    if tk.ti.root.is_none() {
             load_terminfo(tk, ti, input);
         }
         1
-    }
 }
 
-pub unsafe fn peekkey_ti(
+pub fn peekkey_ti(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     force: c_int,
@@ -645,9 +643,7 @@ mod tests {
         assert!(matches!(n3, TrieNode::Key(k) if k.sym == 1));
         assert!(n2.lookup_next(b'Q').is_none());
 
-        unsafe {
-            let mut tk = termkey_new_abstract(None, 0).unwrap();
+        let mut tk = termkey_new_abstract(None, 0).unwrap();
             assert_eq!(start_driver_ti(&mut tk, None, std::ptr::null_mut()), 1);
-        }
     }
 }

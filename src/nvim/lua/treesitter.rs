@@ -679,7 +679,7 @@ unsafe extern "C" {
 }
 
 #[inline]
-unsafe fn langs_has(lang_name: *const c_char) -> bool {
+fn langs_has(lang_name: *const c_char) -> bool {
     if lang_name.is_null() {
         return false;
     }
@@ -690,7 +690,7 @@ unsafe fn langs_has(lang_name: *const c_char) -> bool {
 }
 
 #[inline]
-unsafe fn langs_get(lang_name: *const c_char) -> *mut TSLanguage {
+fn langs_get(lang_name: *const c_char) -> *mut TSLanguage {
     if lang_name.is_null() {
         return ptr::null_mut();
     }
@@ -712,7 +712,7 @@ unsafe extern "C-unwind" fn tslua_has_language(L: *mut lua_State) -> c_int {
 }
 
 unsafe extern "C-unwind" fn tslua_add_language_from_object(L: *mut lua_State) -> c_int {
-    unsafe { add_language(L, false) }
+    add_language(L, false)
 }
 
 #[cfg(target_os = "emscripten")]
@@ -728,7 +728,7 @@ unsafe extern "C" {
 }
 
 #[cfg(target_os = "emscripten")]
-pub unsafe fn nvim_ts_get_parser(lang: *const c_char) -> *const TSLanguage {
+pub fn nvim_ts_get_parser(lang: *const c_char) -> *const TSLanguage {
     if lang.is_null() {
         return ptr::null();
     }
@@ -747,7 +747,7 @@ pub unsafe fn nvim_ts_get_parser(lang: *const c_char) -> *const TSLanguage {
     }
 }
 
-unsafe fn load_language_from_object(
+fn load_language_from_object(
     L: *mut lua_State,
     path: *const c_char,
     lang_name: *const c_char,
@@ -808,7 +808,7 @@ unsafe fn load_language_from_object(
     }
 }
 
-unsafe fn load_language_from_wasm(
+fn load_language_from_wasm(
     L: *mut lua_State,
     _path: *const c_char,
     _lang_name: *const c_char,
@@ -819,7 +819,7 @@ unsafe fn load_language_from_wasm(
     }
 }
 
-unsafe fn add_language(L: *mut lua_State, is_wasm: bool) -> c_int {
+fn add_language(L: *mut lua_State, is_wasm: bool) -> c_int {
     unsafe {
         let path = luaL_checkstring(L, 1);
         let lang_name = luaL_checkstring(L, 2);
@@ -878,7 +878,7 @@ unsafe extern "C-unwind" fn tslua_remove_lang(L: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn lang_check(L: *mut lua_State, index: c_int) -> *mut TSLanguage {
+fn lang_check(L: *mut lua_State, index: c_int) -> *mut TSLanguage {
     unsafe {
         let lang_name = luaL_checkstring(L, index);
         let lang = langs_get(lang_name);
@@ -1002,7 +1002,7 @@ unsafe extern "C-unwind" fn tslua_push_parser(L: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn parser_check(L: *mut lua_State, index: c_int) -> *mut TSParser {
+fn parser_check(L: *mut lua_State, index: c_int) -> *mut TSParser {
     unsafe {
         let ud = luaL_checkudata(L, index, TS_META_PARSER).cast::<*mut TSParser>();
         luaL_argcheck(
@@ -1089,7 +1089,7 @@ unsafe extern "C" fn input_cb(
     }
 }
 
-unsafe fn push_ranges(
+fn push_ranges(
     L: *mut lua_State,
     ranges: *const TSRange,
     length: usize,
@@ -1253,7 +1253,7 @@ unsafe extern "C-unwind" fn parser_reset(L: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn range_err(L: *mut lua_State) {
+fn range_err(L: *mut lua_State) {
     unsafe {
         luaL_error(
             L,
@@ -1262,7 +1262,7 @@ unsafe fn range_err(L: *mut lua_State) {
     }
 }
 
-unsafe fn lua_checkuint32(L: *mut lua_State, index: c_int) -> u32 {
+fn lua_checkuint32(L: *mut lua_State, index: c_int) -> u32 {
     unsafe {
         let value = luaL_checknumber(L, index);
         let converted = value as u32;
@@ -1273,7 +1273,7 @@ unsafe fn lua_checkuint32(L: *mut lua_State, index: c_int) -> u32 {
     }
 }
 
-unsafe fn range_from_lua(L: *mut lua_State, range: *mut TSRange) {
+fn range_from_lua(L: *mut lua_State, range: *mut TSRange) {
     unsafe {
         let mut node = TSNode {
             context: [0; 4],
@@ -1443,7 +1443,7 @@ unsafe extern "C-unwind" fn parser_get_logger(L: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn push_tree(L: *mut lua_State, tree: *const TSTree) {
+fn push_tree(L: *mut lua_State, tree: *const TSTree) {
     unsafe {
         if tree.is_null() {
             lua_pushnil(L);
@@ -1557,7 +1557,7 @@ unsafe extern "C-unwind" fn tree_root(L: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn push_node(L: *mut lua_State, node: TSNode, uindex: c_int) {
+fn push_node(L: *mut lua_State, node: TSNode, uindex: c_int) {
     unsafe {
         debug_assert!(!(-LUA_MINSTACK..=0).contains(&uindex));
         if ts_node_is_null(node) {
@@ -1575,7 +1575,7 @@ unsafe fn push_node(L: *mut lua_State, node: TSNode, uindex: c_int) {
     }
 }
 
-unsafe fn node_check_opt(L: *mut lua_State, index: c_int, res: *mut TSNode) -> bool {
+fn node_check_opt(L: *mut lua_State, index: c_int, res: *mut TSNode) -> bool {
     unsafe {
         let ud = luaL_checkudata(L, index, TS_META_NODE).cast::<TSNode>();
         if !ud.is_null() {
@@ -1586,7 +1586,7 @@ unsafe fn node_check_opt(L: *mut lua_State, index: c_int, res: *mut TSNode) -> b
     }
 }
 
-unsafe fn node_check(L: *mut lua_State, index: c_int) -> TSNode {
+fn node_check(L: *mut lua_State, index: c_int) -> TSNode {
     unsafe {
         let ud = luaL_checkudata(L, index, TS_META_NODE).cast::<TSNode>();
         *ud
@@ -2140,7 +2140,7 @@ unsafe extern "C-unwind" fn querycursor_next_match(L: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn querycursor_check(L: *mut lua_State, index: c_int) -> *mut TSQueryCursor {
+fn querycursor_check(L: *mut lua_State, index: c_int) -> *mut TSQueryCursor {
     unsafe {
         let ud = luaL_checkudata(L, index, TS_META_QUERYCURSOR).cast::<*mut TSQueryCursor>();
         luaL_argcheck(
@@ -2161,7 +2161,7 @@ unsafe extern "C-unwind" fn querycursor_gc(L: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn push_querymatch(L: *mut lua_State, match_: *const TSQueryMatch, uindex: c_int) {
+fn push_querymatch(L: *mut lua_State, match_: *const TSQueryMatch, uindex: c_int) {
     unsafe {
         let ud = lua_newuserdata(L, size_of::<TSQueryMatch>()).cast::<TSQueryMatch>();
         *ud = *match_;
@@ -2250,7 +2250,7 @@ fn query_err_to_string(error_type: TSQueryError) -> *const c_char {
     }
 }
 
-unsafe fn query_err_string(
+fn query_err_string(
     src: *const c_char,
     error_offset: c_int,
     error_type: TSQueryError,
@@ -2351,7 +2351,7 @@ unsafe fn query_err_string(
     }
 }
 
-unsafe fn query_check(L: *mut lua_State, index: c_int) -> *mut TSQuery {
+fn query_check(L: *mut lua_State, index: c_int) -> *mut TSQuery {
     unsafe {
         let ud = luaL_checkudata(L, index, TS_META_QUERY).cast::<*mut TSQuery>();
         luaL_argcheck(L, !(*ud).is_null(), index, c"TSQuery expected".as_ptr());
@@ -2452,7 +2452,7 @@ unsafe extern "C-unwind" fn query_disable_pattern(L: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn build_meta(L: *mut lua_State, tname: *const c_char, meta: *const luaL_Reg) {
+fn build_meta(L: *mut lua_State, tname: *const c_char, meta: *const luaL_Reg) {
     unsafe {
         if luaL_newmetatable(L, tname) != 0 {
             luaL_register(L, ptr::null(), meta);
@@ -2479,7 +2479,7 @@ unsafe extern "C" fn ts_free(ptr: *mut c_void) {
     unsafe { raw_dealloc(ptr) }
 }
 
-unsafe fn tslua_init(L: *mut lua_State) {
+fn tslua_init(L: *mut lua_State) {
     unsafe {
         build_meta(L, TS_META_PARSER, PARSER_META.as_ptr());
         build_meta(L, TS_META_TREE, TREE_META.as_ptr());

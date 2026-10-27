@@ -33,7 +33,7 @@ impl Default for SignalWatcher {
     }
 }
 
-pub unsafe fn signal_watcher_init(
+pub fn signal_watcher_init(
     loop_: &mut Loop,
     watcher: *mut SignalWatcher,
     data: *mut crate::tui::tui::TUIData,

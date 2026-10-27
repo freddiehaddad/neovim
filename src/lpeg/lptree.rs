@@ -35,11 +35,11 @@ use crate::lua::converter::{
 const MAXLIM: lua_Integer = (c_int::MAX / 100) as lua_Integer;
 
 #[inline]
-unsafe fn pattern_tree_ptr(p: *mut Pattern) -> *mut TTree {
+fn pattern_tree_ptr(p: *mut Pattern) -> *mut TTree {
     unsafe { (&raw mut (*p).tree).cast::<TTree>() }
 }
 
-unsafe fn val2str(l: *mut lua_State, idx: c_int) -> *const c_char {
+fn val2str(l: *mut lua_State, idx: c_int) -> *const c_char {
     unsafe {
         let k = lua_tostring(l, idx);
         if !k.is_null() {
@@ -50,7 +50,7 @@ unsafe fn val2str(l: *mut lua_State, idx: c_int) -> *const c_char {
     }
 }
 
-unsafe fn fixonecall(l: *mut lua_State, postable: c_int, g: *mut TTree, t: *mut TTree) {
+fn fixonecall(l: *mut lua_State, postable: c_int, g: *mut TTree, t: *mut TTree) {
     unsafe {
         lua_rawgeti(l, -1, c_int::from((*t).key));
         lua_gettable(l, postable);
@@ -71,7 +71,7 @@ unsafe fn fixonecall(l: *mut lua_State, postable: c_int, g: *mut TTree, t: *mut 
     }
 }
 
-unsafe fn correctassociativity(tree: *mut TTree) {
+fn correctassociativity(tree: *mut TTree) {
     unsafe {
         let t1 = sib1(tree);
         debug_assert!((*tree).tag == TChoice || (*tree).tag == TSeq);
@@ -87,7 +87,7 @@ unsafe fn correctassociativity(tree: *mut TTree) {
     }
 }
 
-unsafe fn finalfix(l: *mut lua_State, postable: c_int, g: *mut TTree, mut t: *mut TTree) {
+fn finalfix(l: *mut lua_State, postable: c_int, g: *mut TTree, mut t: *mut TTree) {
     unsafe {
         loop {
             match (*t).tag {
@@ -126,14 +126,14 @@ unsafe fn finalfix(l: *mut lua_State, postable: c_int, g: *mut TTree, mut t: *mu
     }
 }
 
-unsafe fn newktable(l: *mut lua_State, n: c_int) {
+fn newktable(l: *mut lua_State, n: c_int) {
     unsafe {
         lua_createtable(l, n, 0);
         lua_setfenv(l, -2);
     }
 }
 
-unsafe fn addtoktable(l: *mut lua_State, idx: c_int) -> c_int {
+fn addtoktable(l: *mut lua_State, idx: c_int) -> c_int {
     unsafe {
         if lua_isnil(l, idx) {
             0
@@ -152,7 +152,7 @@ unsafe fn addtoktable(l: *mut lua_State, idx: c_int) -> c_int {
     }
 }
 
-unsafe fn ktablelen(l: *mut lua_State, idx: c_int) -> c_int {
+fn ktablelen(l: *mut lua_State, idx: c_int) -> c_int {
     unsafe {
         if !lua_istable(l, idx) {
             0
@@ -162,7 +162,7 @@ unsafe fn ktablelen(l: *mut lua_State, idx: c_int) -> c_int {
     }
 }
 
-unsafe fn concattable(l: *mut lua_State, idx1: c_int, idx2: c_int) -> c_int {
+fn concattable(l: *mut lua_State, idx1: c_int, idx2: c_int) -> c_int {
     unsafe {
         let n1 = ktablelen(l, idx1);
         let n2 = ktablelen(l, idx2);
@@ -180,7 +180,7 @@ unsafe fn concattable(l: *mut lua_State, idx1: c_int, idx2: c_int) -> c_int {
     }
 }
 
-unsafe fn correctkeys(mut tree: *mut TTree, n: c_int) {
+fn correctkeys(mut tree: *mut TTree, n: c_int) {
     if n == 0 {
         return;
     }
@@ -214,7 +214,7 @@ unsafe fn correctkeys(mut tree: *mut TTree, n: c_int) {
     }
 }
 
-unsafe fn joinktables(l: *mut lua_State, p1: c_int, t2: *mut TTree, p2: c_int) {
+fn joinktables(l: *mut lua_State, p1: c_int, t2: *mut TTree, p2: c_int) {
     unsafe {
         lua_getfenv(l, p1);
         lua_getfenv(l, p2);
@@ -239,14 +239,14 @@ unsafe fn joinktables(l: *mut lua_State, p1: c_int, t2: *mut TTree, p2: c_int) {
     }
 }
 
-unsafe fn copyktable(l: *mut lua_State, idx: c_int) {
+fn copyktable(l: *mut lua_State, idx: c_int) {
     unsafe {
         lua_getfenv(l, idx);
         lua_setfenv(l, -2);
     }
 }
 
-unsafe fn mergektable(l: *mut lua_State, idx: c_int, stree: *mut TTree) {
+fn mergektable(l: *mut lua_State, idx: c_int, stree: *mut TTree) {
     unsafe {
         lua_getfenv(l, -1);
         lua_getfenv(l, idx);
@@ -258,17 +258,15 @@ unsafe fn mergektable(l: *mut lua_State, idx: c_int, stree: *mut TTree) {
     }
 }
 
-unsafe fn addtonewktable(l: *mut lua_State, p: c_int, idx: c_int) -> c_int {
-    unsafe {
-        newktable(l, 1);
+fn addtonewktable(l: *mut lua_State, p: c_int, idx: c_int) -> c_int {
+    newktable(l, 1);
         if p != 0 {
             mergektable(l, p, ptr::null_mut());
         }
         addtoktable(l, idx)
-    }
 }
 
-unsafe fn testpattern(l: *mut lua_State, idx: c_int) -> bool {
+fn testpattern(l: *mut lua_State, idx: c_int) -> bool {
     unsafe {
         if !lua_touserdata(l, idx).is_null() && lua_getmetatable(l, idx) != 0 {
             luaL_getmetatable(l, PATTERN_T.as_ptr());
@@ -282,15 +280,15 @@ unsafe fn testpattern(l: *mut lua_State, idx: c_int) -> bool {
     }
 }
 
-unsafe fn getpattern(l: *mut lua_State, idx: c_int) -> *mut Pattern {
+fn getpattern(l: *mut lua_State, idx: c_int) -> *mut Pattern {
     unsafe { luaL_checkudata(l, idx, PATTERN_T.as_ptr()).cast::<Pattern>() }
 }
 
-unsafe fn getsize(l: *mut lua_State, idx: c_int) -> c_int {
+fn getsize(l: *mut lua_State, idx: c_int) -> c_int {
     unsafe { ((lua_objlen(l, idx) - offset_of!(Pattern, tree)) / size_of::<TTree>()) as c_int }
 }
 
-unsafe fn gettree(l: *mut lua_State, idx: c_int, len: *mut c_int) -> *mut TTree {
+fn gettree(l: *mut lua_State, idx: c_int, len: *mut c_int) -> *mut TTree {
     unsafe {
         let p = getpattern(l, idx);
         if !len.is_null() {
@@ -300,7 +298,7 @@ unsafe fn gettree(l: *mut lua_State, idx: c_int, len: *mut c_int) -> *mut TTree 
     }
 }
 
-unsafe fn newtree(l: *mut lua_State, len: c_int) -> *mut TTree {
+fn newtree(l: *mut lua_State, len: c_int) -> *mut TTree {
     unsafe {
         let size = offset_of!(Pattern, tree) + (len as usize) * size_of::<TTree>();
         let p = lua_newuserdata(l, size).cast::<Pattern>();
@@ -313,7 +311,7 @@ unsafe fn newtree(l: *mut lua_State, len: c_int) -> *mut TTree {
     }
 }
 
-unsafe fn newleaf(l: *mut lua_State, tag: TTag) -> *mut TTree {
+fn newleaf(l: *mut lua_State, tag: TTag) -> *mut TTree {
     unsafe {
         let tree = newtree(l, 1);
         (*tree).tag = tag;
@@ -321,7 +319,7 @@ unsafe fn newleaf(l: *mut lua_State, tag: TTag) -> *mut TTree {
     }
 }
 
-unsafe fn newcharset(l: *mut lua_State, cs: *mut byte) -> *mut TTree {
+fn newcharset(l: *mut lua_State, cs: *mut byte) -> *mut TTree {
     unsafe {
         let mut info = charsetinfo::new();
         let op = charsettype(cs, &mut info);
@@ -351,7 +349,7 @@ unsafe fn newcharset(l: *mut lua_State, cs: *mut byte) -> *mut TTree {
     }
 }
 
-unsafe fn seqaux(tree: *mut TTree, sib: *const TTree, sibsize: c_int) -> *mut TTree {
+fn seqaux(tree: *mut TTree, sib: *const TTree, sibsize: c_int) -> *mut TTree {
     unsafe {
         (*tree).tag = TSeq;
         (*tree).u.ps = sibsize + 1;
@@ -360,7 +358,7 @@ unsafe fn seqaux(tree: *mut TTree, sib: *const TTree, sibsize: c_int) -> *mut TT
     }
 }
 
-unsafe fn fillseq(mut tree: *mut TTree, tag: TTag, n: c_int, s: *const c_char) {
+fn fillseq(mut tree: *mut TTree, tag: TTag, n: c_int, s: *const c_char) {
     unsafe {
         for i in 0..(n - 1) {
             (*tree).tag = TSeq;
@@ -382,7 +380,7 @@ unsafe fn fillseq(mut tree: *mut TTree, tag: TTag, n: c_int, s: *const c_char) {
     }
 }
 
-unsafe fn numtree(l: *mut lua_State, mut n: c_int) -> *mut TTree {
+fn numtree(l: *mut lua_State, mut n: c_int) -> *mut TTree {
     unsafe {
         if n == 0 {
             newleaf(l, TTrue)
@@ -403,7 +401,7 @@ unsafe fn numtree(l: *mut lua_State, mut n: c_int) -> *mut TTree {
     }
 }
 
-unsafe fn getpatt(l: *mut lua_State, idx: c_int, len: *mut c_int) -> *mut TTree {
+fn getpatt(l: *mut lua_State, idx: c_int, len: *mut c_int) -> *mut TTree {
     unsafe {
         let tree = match lua_type(l, idx) {
             LUA_TSTRING => {
@@ -446,7 +444,7 @@ unsafe fn getpatt(l: *mut lua_State, idx: c_int, len: *mut c_int) -> *mut TTree 
     }
 }
 
-unsafe fn newroot1sib(l: *mut lua_State, tag: TTag) -> *mut TTree {
+fn newroot1sib(l: *mut lua_State, tag: TTag) -> *mut TTree {
     unsafe {
         let mut s1: c_int = 0;
         let tree1 = getpatt(l, 1, &mut s1);
@@ -458,7 +456,7 @@ unsafe fn newroot1sib(l: *mut lua_State, tag: TTag) -> *mut TTree {
     }
 }
 
-unsafe fn newroot2sib(l: *mut lua_State, tag: TTag) -> *mut TTree {
+fn newroot2sib(l: *mut lua_State, tag: TTag) -> *mut TTree {
     unsafe {
         let mut s1: c_int = 0;
         let mut s2: c_int = 0;
@@ -558,17 +556,13 @@ unsafe extern "C-unwind" fn lp_star(l: *mut lua_State) -> c_int {
 }
 
 unsafe extern "C-unwind" fn lp_and(l: *mut lua_State) -> c_int {
-    unsafe {
-        newroot1sib(l, TAnd);
+    newroot1sib(l, TAnd);
         1
-    }
 }
 
 unsafe extern "C-unwind" fn lp_not(l: *mut lua_State) -> c_int {
-    unsafe {
-        newroot1sib(l, TNot);
+    newroot1sib(l, TNot);
         1
-    }
 }
 
 unsafe extern "C-unwind" fn lp_sub(l: *mut lua_State) -> c_int {
@@ -633,7 +627,7 @@ unsafe extern "C-unwind" fn lp_range(l: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn codeutftree(l: *mut lua_State, t: *mut TTree, cpu: lua_Unsigned, arg: c_int) {
+fn codeutftree(l: *mut lua_State, t: *mut TTree, cpu: lua_Unsigned, arg: c_int) {
     unsafe {
         let cp = cpu as c_int;
         let (len, fb) = if cp <= 0x7f {
@@ -712,7 +706,7 @@ unsafe extern "C-unwind" fn lp_V(l: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn capture_aux(l: *mut lua_State, cap: byte, labelidx: c_int) -> c_int {
+fn capture_aux(l: *mut lua_State, cap: byte, labelidx: c_int) -> c_int {
     unsafe {
         let tree = newroot1sib(l, TCapture);
         (*tree).cap = cap;
@@ -725,7 +719,7 @@ unsafe fn capture_aux(l: *mut lua_State, cap: byte, labelidx: c_int) -> c_int {
     }
 }
 
-unsafe fn auxemptycap(tree: *mut TTree, cap: byte) -> *mut TTree {
+fn auxemptycap(tree: *mut TTree, cap: byte) -> *mut TTree {
     unsafe {
         (*tree).tag = TCapture;
         (*tree).cap = cap;
@@ -734,7 +728,7 @@ unsafe fn auxemptycap(tree: *mut TTree, cap: byte) -> *mut TTree {
     }
 }
 
-unsafe fn newemptycap(l: *mut lua_State, cap: byte, key: c_int) -> *mut TTree {
+fn newemptycap(l: *mut lua_State, cap: byte, key: c_int) -> *mut TTree {
     unsafe {
         let tree = auxemptycap(newtree(l, 2), cap);
         (*tree).key = key as c_ushort;
@@ -742,7 +736,7 @@ unsafe fn newemptycap(l: *mut lua_State, cap: byte, key: c_int) -> *mut TTree {
     }
 }
 
-unsafe fn newemptycapkey(l: *mut lua_State, cap: byte, idx: c_int) -> *mut TTree {
+fn newemptycapkey(l: *mut lua_State, cap: byte, idx: c_int) -> *mut TTree {
     unsafe {
         let tree = auxemptycap(newtree(l, 2), cap);
         (*tree).key = addtonewktable(l, 0, idx) as c_ushort;
@@ -779,25 +773,23 @@ unsafe extern "C-unwind" fn lp_divcapture(l: *mut lua_State) -> c_int {
 }
 
 unsafe extern "C-unwind" fn lp_acccapture(l: *mut lua_State) -> c_int {
-    unsafe { capture_aux(l, Cacc, 2) }
+    capture_aux(l, Cacc, 2)
 }
 
 unsafe extern "C-unwind" fn lp_substcapture(l: *mut lua_State) -> c_int {
-    unsafe { capture_aux(l, Csubst, 0) }
+    capture_aux(l, Csubst, 0)
 }
 
 unsafe extern "C-unwind" fn lp_tablecapture(l: *mut lua_State) -> c_int {
-    unsafe { capture_aux(l, Ctable, 0) }
+    capture_aux(l, Ctable, 0)
 }
 
 unsafe extern "C-unwind" fn lp_groupcapture(l: *mut lua_State) -> c_int {
-    unsafe {
-        if lua_isnoneornil(l, 2) {
+    if lua_isnoneornil(l, 2) {
             capture_aux(l, Cgroup, 0)
         } else {
             capture_aux(l, Cgroup, 2)
         }
-    }
 }
 
 unsafe extern "C-unwind" fn lp_foldcapture(l: *mut lua_State) -> c_int {
@@ -808,14 +800,12 @@ unsafe extern "C-unwind" fn lp_foldcapture(l: *mut lua_State) -> c_int {
 }
 
 unsafe extern "C-unwind" fn lp_simplecapture(l: *mut lua_State) -> c_int {
-    unsafe { capture_aux(l, Csimple, 0) }
+    capture_aux(l, Csimple, 0)
 }
 
 unsafe extern "C-unwind" fn lp_poscapture(l: *mut lua_State) -> c_int {
-    unsafe {
-        newemptycap(l, Cposition, 0);
+    newemptycap(l, Cposition, 0);
         1
-    }
 }
 
 unsafe extern "C-unwind" fn lp_argcapture(l: *mut lua_State) -> c_int {
@@ -877,7 +867,7 @@ unsafe extern "C-unwind" fn lp_matchtime(l: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn getfirstrule(l: *mut lua_State, arg: c_int, postab: c_int) {
+fn getfirstrule(l: *mut lua_State, arg: c_int, postab: c_int) {
     unsafe {
         lua_rawgeti(l, arg, 1);
         if lua_isstring(l, -1) != 0 {
@@ -904,7 +894,7 @@ unsafe fn getfirstrule(l: *mut lua_State, arg: c_int, postab: c_int) {
     }
 }
 
-unsafe fn collectrules(l: *mut lua_State, arg: c_int, totalsize: *mut c_int) -> c_int {
+fn collectrules(l: *mut lua_State, arg: c_int, totalsize: *mut c_int) -> c_int {
     unsafe {
         let mut n: c_int = 1;
         let postab = lua_gettop(l) + 1;
@@ -933,7 +923,7 @@ unsafe fn collectrules(l: *mut lua_State, arg: c_int, totalsize: *mut c_int) -> 
     }
 }
 
-unsafe fn buildgrammar(l: *mut lua_State, grammar: *mut TTree, frule: c_int, n: c_int) {
+fn buildgrammar(l: *mut lua_State, grammar: *mut TTree, frule: c_int, n: c_int) {
     unsafe {
         let mut nd = sib1(grammar);
         for i in 0..n {
@@ -954,7 +944,7 @@ unsafe fn buildgrammar(l: *mut lua_State, grammar: *mut TTree, frule: c_int, n: 
     }
 }
 
-unsafe fn checkloops(mut tree: *mut TTree) -> bool {
+fn checkloops(mut tree: *mut TTree) -> bool {
     unsafe {
         loop {
             if (*tree).tag == TRep && nullable(sib1(tree)) {
@@ -982,7 +972,7 @@ unsafe fn checkloops(mut tree: *mut TTree) -> bool {
     }
 }
 
-unsafe fn verifyerror(l: *mut lua_State, passed: *const c_ushort, npassed: c_int) -> c_int {
+fn verifyerror(l: *mut lua_State, passed: *const c_ushort, npassed: c_int) -> c_int {
     unsafe {
         let mut i = npassed - 1;
         while i >= 0 {
@@ -1004,7 +994,7 @@ unsafe fn verifyerror(l: *mut lua_State, passed: *const c_ushort, npassed: c_int
     }
 }
 
-unsafe fn verifyrule(
+fn verifyrule(
     l: *mut lua_State,
     mut tree: *mut TTree,
     passed: *mut c_ushort,
@@ -1054,7 +1044,7 @@ unsafe fn verifyrule(
     }
 }
 
-unsafe fn verifygrammar(l: *mut lua_State, grammar: *mut TTree) {
+fn verifygrammar(l: *mut lua_State, grammar: *mut TTree) {
     unsafe {
         let mut passed = [0 as c_ushort; MAXRULES];
         let mut rule = sib1(grammar);
@@ -1078,7 +1068,7 @@ unsafe fn verifygrammar(l: *mut lua_State, grammar: *mut TTree) {
     }
 }
 
-unsafe fn initialrulename(l: *mut lua_State, grammar: *mut TTree, frule: c_int) {
+fn initialrulename(l: *mut lua_State, grammar: *mut TTree, frule: c_int) {
     unsafe {
         if (*sib1(grammar)).key == 0 {
             let n = (lua_objlen(l, -1) + 1) as c_int;
@@ -1089,7 +1079,7 @@ unsafe fn initialrulename(l: *mut lua_State, grammar: *mut TTree, frule: c_int) 
     }
 }
 
-unsafe fn newgrammar(l: *mut lua_State, arg: c_int) -> *mut TTree {
+fn newgrammar(l: *mut lua_State, arg: c_int) -> *mut TTree {
     unsafe {
         let mut treesize: c_int = 0;
         let frule = lua_gettop(l) + 2;
@@ -1117,7 +1107,7 @@ unsafe fn newgrammar(l: *mut lua_State, arg: c_int) -> *mut TTree {
     }
 }
 
-unsafe fn prepcompile(l: *mut lua_State, p: *mut Pattern, idx: c_int) -> *mut Instruction {
+fn prepcompile(l: *mut lua_State, p: *mut Pattern, idx: c_int) -> *mut Instruction {
     unsafe {
         lua_getfenv(l, idx);
         finalfix(l, 0, ptr::null_mut(), pattern_tree_ptr(p));
@@ -1146,7 +1136,7 @@ unsafe extern "C-unwind" fn lp_printcode(l: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn initposition(l: *mut lua_State, len: usize) -> usize {
+fn initposition(l: *mut lua_State, len: usize) -> usize {
     unsafe {
         let ii = luaL_optinteger(l, 3, 1);
         if ii > 0 {
@@ -1220,7 +1210,7 @@ pub unsafe extern "C-unwind" fn lp_gc(l: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn createcat(l: *mut lua_State, catname: *const c_char, catf: fn(u8) -> bool) {
+fn createcat(l: *mut lua_State, catname: *const c_char, catf: fn(u8) -> bool) {
     unsafe {
         let mut buff = [0 as byte; CHARSETSIZE];
         clearset(buff.as_mut_ptr());
@@ -1400,7 +1390,7 @@ const METAREG: [luaL_Reg; 10] = [
     },
 ];
 
-pub unsafe fn luaopen_lpeg(l: *mut lua_State) -> c_int {
+pub fn luaopen_lpeg(l: *mut lua_State) -> c_int {
     const LPEG_VERSION: &[u8] = b"LPeg 1.1.0";
     unsafe {
         luaL_newmetatable(l, PATTERN_T.as_ptr());

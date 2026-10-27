@@ -196,7 +196,7 @@ pub fn multiqueue_new(notify_loop: *mut crate::event::r#loop::Loop) -> *mut Mult
 ///
 /// # Safety
 /// `parent` must be a valid pointer to a root `MultiQueue` (`parent->parent == NULL`).
-pub unsafe fn multiqueue_new_child(parent: *mut MultiQueue) -> *mut MultiQueue {
+pub fn multiqueue_new_child(parent: *mut MultiQueue) -> *mut MultiQueue {
     let parent_ref = unsafe { &mut *parent };
     assert!(parent_ref.parent.is_null());
     parent_ref.size = parent_ref.size.wrapping_add(1);
@@ -219,15 +219,15 @@ impl Drop for MultiQueue {
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-pub unsafe fn multiqueue_free(this: *mut MultiQueue) {
+pub fn multiqueue_free(this: *mut MultiQueue) {
     assert!(!this.is_null());
     unsafe {
         drop(Box::from_raw(this));
     }
 }
 
-unsafe fn multiqueue_remove(this: *mut MultiQueue) -> Event {
-    assert!(unsafe { !multiqueue_empty(this) });
+fn multiqueue_remove(this: *mut MultiQueue) -> Event {
+    assert!(!multiqueue_empty(this));
     unsafe {
         let q = &mut *this;
         let entry = q.items.pop_front().unwrap();
@@ -259,7 +259,7 @@ unsafe fn multiqueue_remove(this: *mut MultiQueue) -> Event {
     }
 }
 
-unsafe fn multiqueue_push(this: *mut MultiQueue, event: Event) {
+fn multiqueue_push(this: *mut MultiQueue, event: Event) {
     unsafe {
         let q = &mut *this;
         q.items.push_back(QueueEntry::Event(event));
@@ -275,20 +275,18 @@ unsafe fn multiqueue_push(this: *mut MultiQueue, event: Event) {
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
 pub fn multiqueue_get(this: &mut MultiQueue) -> Event {
-    unsafe {
-        if multiqueue_empty(&raw mut *this) {
+    if multiqueue_empty(&raw mut *this) {
             Event::nil()
         } else {
             multiqueue_remove(&raw mut *this)
         }
-    }
 }
 
 /// Enqueue `event` into `this` (`multiqueue_put_event`).
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-pub unsafe fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
+pub fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
     assert!(!this.is_null());
     unsafe {
         multiqueue_push(this, event);
@@ -304,46 +302,40 @@ pub unsafe fn multiqueue_put_event(this: *mut MultiQueue, event: Event) {
 /// # Safety
 /// `dest` and `src` must be valid pointers to `MultiQueue`s.
 pub fn multiqueue_move_events(dest: &mut MultiQueue, src: &mut MultiQueue) {
-    unsafe {
-        while !multiqueue_empty(&raw mut *src) {
+    while !multiqueue_empty(&raw mut *src) {
             let event = multiqueue_get(src);
             multiqueue_put_event(&raw mut *dest, event);
         }
-    }
 }
 
 /// Process all events in `this` (`multiqueue_process_events`).
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-pub unsafe fn multiqueue_process_events(this: *mut MultiQueue) {
+pub fn multiqueue_process_events(this: *mut MultiQueue) {
     assert!(!this.is_null());
-    unsafe {
-        while !multiqueue_empty(this) {
+    while !multiqueue_empty(this) {
             let event = multiqueue_remove(this);
             event.dispatch();
         }
-    }
 }
 
 /// Remove all events from `this` without invoking handlers (`multiqueue_purge_events`).
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-pub unsafe fn multiqueue_purge_events(this: *mut MultiQueue) {
+pub fn multiqueue_purge_events(this: *mut MultiQueue) {
     assert!(!this.is_null());
-    unsafe {
-        while !multiqueue_empty(this) {
+    while !multiqueue_empty(this) {
             let _ = multiqueue_remove(this);
         }
-    }
 }
 
 /// Return true if `this` has no queued items (`multiqueue_empty`).
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-pub unsafe fn multiqueue_empty(this: *mut MultiQueue) -> bool {
+pub fn multiqueue_empty(this: *mut MultiQueue) -> bool {
     assert!(!this.is_null());
     unsafe { (*this).items.is_empty() }
 }
@@ -353,7 +345,7 @@ pub unsafe fn multiqueue_empty(this: *mut MultiQueue) -> bool {
 /// # Safety
 /// `this` must be a valid pointer to an empty `MultiQueue`.
 pub fn multiqueue_replace_parent(this: &mut MultiQueue, new_parent: &mut MultiQueue) {
-    assert!(unsafe { multiqueue_empty(&raw mut *this) });
+    assert!(multiqueue_empty(&raw mut *this));
     this.parent = new_parent;
 }
 

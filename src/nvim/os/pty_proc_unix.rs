@@ -485,7 +485,7 @@ mod unix_impl {
         }
     }
 
-    unsafe fn init_child(
+    fn init_child(
         ptyproc: &mut PtyProc,
         prog: *const c_char,
         argv_ptrs: *const *mut c_char,
@@ -565,7 +565,7 @@ mod unix_impl {
         }
     }
 
-    unsafe fn set_duplicating_descriptor(fd: c_int, pipe: *mut uv_pipe_t) -> c_int {
+    fn set_duplicating_descriptor(fd: c_int, pipe: *mut uv_pipe_t) -> c_int {
         unsafe {
             let fd_dup = dup(fd);
             if fd_dup < 0 {

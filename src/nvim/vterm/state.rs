@@ -126,26 +126,26 @@ pub static vterm_primary_device_attr: crate::globals::GlobalState<[c_char; 9]> =
 
 #[repr(C)]
 pub struct VTermStateFallbacks {
-    pub control: Option<unsafe fn(control: u8, user: *mut Terminal) -> c_int>,
+    pub control: Option<fn(control: u8, user: *mut Terminal) -> c_int>,
     pub csi: Option<crate::vterm::parser::VTermCsiFn<Terminal>>,
     pub osc:
-        Option<unsafe fn(command: c_int, frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
+        Option<fn(command: c_int, frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
     pub dcs: Option<crate::vterm::parser::VTermDcsFn<Terminal>>,
-    pub apc: Option<unsafe fn(frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
-    pub pm: Option<unsafe fn(frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
-    pub sos: Option<unsafe fn(frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
+    pub apc: Option<fn(frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
+    pub pm: Option<fn(frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
+    pub sos: Option<fn(frag: VTermStringFragment, user: *mut Terminal) -> c_int>,
 }
 
 #[repr(C)]
 pub struct VTermSelectionCallbacks {
     pub set: Option<
-        unsafe fn(
+        fn(
             mask: VTermSelectionMask,
             frag: VTermStringFragment,
             user: *mut Terminal,
         ) -> c_int,
     >,
-    pub query: Option<unsafe fn(mask: VTermSelectionMask, user: *mut Terminal) -> c_int>,
+    pub query: Option<fn(mask: VTermSelectionMask, user: *mut Terminal) -> c_int>,
 }
 
 #[inline]
@@ -269,8 +269,7 @@ fn set_tmp_selection_recvpartial(state: &mut VTermStateFull, val: u32) {
 }
 
 fn putglyph(state: &mut VTermStateFull, schar: schar_T, width: c_int, pos: VTermPos) {
-    unsafe {
-        let li = state.lineinfo()[pos.row as usize];
+    let li = state.lineinfo()[pos.row as usize];
         let flags = (state.protected_cell & 0x01)
             | ((li.doublewidth() & 0x01) << 1)
             | ((li.doubleheight() & 0x03) << 2);
@@ -285,12 +284,10 @@ fn putglyph(state: &mut VTermStateFull, schar: schar_T, width: c_int, pos: VTerm
         {
             let _ = cb(&raw mut info, pos, state.screen_ptr());
         }
-    }
 }
 
 fn updatecursor(state: &mut VTermStateFull, oldpos: &VTermPos, cancel_phantom: c_int) {
-    unsafe {
-        if state.pos.col == oldpos.col && state.pos.row == oldpos.row {
+    if state.pos.col == oldpos.col && state.pos.row == oldpos.row {
             return;
         }
 
@@ -304,12 +301,10 @@ fn updatecursor(state: &mut VTermStateFull, oldpos: &VTermPos, cancel_phantom: c
             let visible = c_int::from((state.mode & MODE_CURSOR_VISIBLE) != 0);
             let _ = cb(state.pos, *oldpos, visible, state.screen_ptr());
         }
-    }
 }
 
 fn erase(state: &mut VTermStateFull, rect: VTermRect, selective: c_int) {
-    unsafe {
-        if rect.end_col == state.cols {
+    if rect.end_col == state.cols {
             let rows = state.rows;
             let lineinfo = state.lineinfo_mut();
             let mut row = rect.start_row + 1;
@@ -324,7 +319,6 @@ fn erase(state: &mut VTermStateFull, rect: VTermRect, selective: c_int) {
         {
             let _ = cb(rect, selective, state.screen_ptr());
         }
-    }
 }
 
 fn vterm_state_new(vt: &mut VTerm) -> Box<VTermStateFull> {
@@ -403,8 +397,7 @@ fn scroll(
     mut downward: c_int,
     mut rightward: c_int,
 ) {
-    unsafe {
-        if downward == 0 && rightward == 0 {
+    if downward == 0 && rightward == 0 {
             return;
         }
 
@@ -462,7 +455,6 @@ fn scroll(
                 state.screen_ptr(),
             );
         }
-    }
 }
 
 fn linefeed(state: &mut VTermStateFull) {
@@ -541,8 +533,7 @@ fn set_lineinfo(
     dwl: c_int,
     dhl: c_int,
 ) {
-    unsafe {
-        let oldinfo = state.lineinfo()[row as usize];
+    let oldinfo = state.lineinfo()[row as usize];
         let mut info = oldinfo;
 
         if dwl == DWL_OFF {
@@ -568,10 +559,9 @@ fn set_lineinfo(
         if cb_ok || force != 0 {
             state.lineinfo_mut()[row as usize] = info;
         }
-    }
 }
 
-unsafe fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_int {
+fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_int {
     unsafe {
         let state = &mut *state;
         let oldpos = state.pos;
@@ -710,7 +700,7 @@ unsafe fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) 
     }
 }
 
-unsafe fn on_control(control: u8, state: *mut VTermStateFull) -> c_int {
+fn on_control(control: u8, state: *mut VTermStateFull) -> c_int {
     unsafe {
         let state = &mut *state;
         let oldpos = state.pos;
@@ -808,18 +798,14 @@ unsafe fn on_control(control: u8, state: *mut VTermStateFull) -> c_int {
 
 #[inline]
 fn settermprop_bool(state: &mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
-    unsafe {
-        let mut val = VTermValue::Boolean(v);
+    let mut val = VTermValue::Boolean(v);
         vterm_state_set_termprop(state, prop, &raw mut val)
-    }
 }
 
 #[inline]
 fn settermprop_int(state: &mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
-    unsafe {
-        let mut val = VTermValue::Number(v);
+    let mut val = VTermValue::Number(v);
         vterm_state_set_termprop(state, prop, &raw mut val)
-    }
 }
 
 #[inline]
@@ -828,10 +814,8 @@ fn settermprop_string(
     prop: VTermProp,
     frag: VTermStringFragment,
 ) -> c_int {
-    unsafe {
-        let mut val = VTermValue::String(frag);
+    let mut val = VTermValue::String(frag);
         vterm_state_set_termprop(state, prop, &raw mut val)
-    }
 }
 
 fn savecursor(state: &mut VTermStateFull, save: c_int) {
@@ -862,7 +846,7 @@ fn savecursor(state: &mut VTermStateFull, save: c_int) {
         }
 }
 
-unsafe fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_int {
+fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> c_int {
     unsafe {
         let state = &mut *state;
         match *bytes as u8 {
@@ -1254,7 +1238,7 @@ const fn intermed(i: c_int, b: c_int) -> c_int {
     (i << 16) | b
 }
 
-unsafe fn on_csi(
+fn on_csi(
     leader_ptr: *const c_char,
     args: *const c_long,
     argcount: c_int,
@@ -2202,7 +2186,7 @@ fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
     }
 }
 
-unsafe fn on_osc(command: c_int, frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
+fn on_osc(command: c_int, frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
     unsafe {
         let state = &mut *state;
         match command {
@@ -2336,7 +2320,7 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
     }
 }
 
-unsafe fn on_dcs(
+fn on_dcs(
     command: *const c_char,
     commandlen: usize,
     frag: VTermStringFragment,
@@ -2358,7 +2342,7 @@ unsafe fn on_dcs(
     }
 }
 
-unsafe fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
+fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
     unsafe {
         let state = &mut *state;
         if let Some(fallbacks) = state.fallbacks
@@ -2371,7 +2355,7 @@ unsafe fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int
     }
 }
 
-unsafe fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
+fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
     unsafe {
         let state = &mut *state;
         if let Some(fallbacks) = state.fallbacks
@@ -2384,7 +2368,7 @@ unsafe fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int 
     }
 }
 
-unsafe fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
+fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int {
     unsafe {
         let state = &mut *state;
         if let Some(fallbacks) = state.fallbacks
@@ -2397,7 +2381,7 @@ unsafe fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> c_int
     }
 }
 
-unsafe fn on_resize(rows: c_int, cols: c_int, state: *mut VTermStateFull) -> c_int {
+fn on_resize(rows: c_int, cols: c_int, state: *mut VTermStateFull) -> c_int {
     unsafe {
         let state = &mut *state;
         let state_ref = &mut *state;
@@ -2587,13 +2571,12 @@ pub fn vterm_state_reset(state: &mut VTermStateFull, hard: c_int) {
     }
 }
 
-pub unsafe fn vterm_state_set_callbacks(
+pub fn vterm_state_set_callbacks(
     state: &mut VTermStateFull,
     callbacks: Option<&'static VTermStateCallbacks>,
     _user: *mut VTermScreen,
 ) {
-    unsafe {
-        if let Some(cbs) = callbacks {
+    if let Some(cbs) = callbacks {
             state.callbacks = Some(cbs);
 
             if let Some(cb) = cbs.initpen {
@@ -2602,10 +2585,9 @@ pub unsafe fn vterm_state_set_callbacks(
         } else {
             state.callbacks = None;
         }
-    }
 }
 
-pub unsafe fn vterm_state_set_unrecognised_fallbacks(
+pub fn vterm_state_set_unrecognised_fallbacks(
     state: &mut VTermStateFull,
     fallbacks: Option<&'static VTermStateFallbacks>,
     user: *mut Terminal,
@@ -2622,7 +2604,7 @@ pub unsafe fn vterm_state_set_unrecognised_fallbacks(
     }
 }
 
-pub unsafe fn vterm_state_set_termprop(
+pub fn vterm_state_set_termprop(
     state: &mut VTermStateFull,
     prop: VTermProp,
     val: *mut VTermValue,

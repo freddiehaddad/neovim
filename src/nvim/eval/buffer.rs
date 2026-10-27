@@ -73,7 +73,7 @@ impl Default for cob_T {
 }
 
 /// Find a buffer by number or exact name (`find_buffer`).
-pub unsafe fn find_buffer(avar: *mut typval_T) -> *mut buf_T {
+pub fn find_buffer(avar: *mut typval_T) -> *mut buf_T {
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
 
@@ -113,7 +113,7 @@ fn find_win_for_curbuf() {
 }
 
 /// Used before making a change in `buf`, which is not the current one (`change_other_buffer_prepare`).
-unsafe fn change_other_buffer_prepare(cob: &mut cob_T, buf: *mut buf_T) {
+fn change_other_buffer_prepare(cob: &mut cob_T, buf: *mut buf_T) {
     unsafe {
         *cob = cob_T::new();
 
@@ -150,7 +150,7 @@ fn change_other_buffer_restore(cob: &mut cob_T) {
 }
 
 /// Set line or list of lines in buffer `buf` to `lines` (`set_buffer_lines`).
-unsafe fn set_buffer_lines(
+fn set_buffer_lines(
     buf: *mut buf_T,
     lnum_arg: linenr_T,
     append: bool,
@@ -283,7 +283,7 @@ pub fn f_append(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 }
 
 /// Set or append lines to a buffer (`buf_set_append_line`).
-unsafe fn buf_set_append_line(argvars: *mut typval_T, rettv: &mut typval_T, append: bool) {
+fn buf_set_append_line(argvars: *mut typval_T, rettv: &mut typval_T, append: bool) {
     unsafe {
         let did_emsg_before = g_st().did_emsg;
         let buf = tv_get_buf(argvars, 0);
@@ -302,9 +302,7 @@ unsafe fn buf_set_append_line(argvars: *mut typval_T, rettv: &mut typval_T, appe
 pub fn f_appendbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        buf_set_append_line(argvars, rettv, true);
-    }
+    buf_set_append_line(argvars, rettv, true);
 }
 
 /// Trim lines above the prompt to enforce `'scrollback'` limit (`prompt_trim_scrollback`).
@@ -536,9 +534,7 @@ pub fn f_bufadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 pub fn f_bufexists(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(!find_buffer(argvars).is_null()));
-    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(!find_buffer(argvars).is_null()));
 }
 
 /// `buflisted(expr)` function (`f_buflisted`).
@@ -631,7 +627,7 @@ pub fn f_bufnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
     }
 }
 
-unsafe fn buf_win_common(argvars: *mut typval_T, rettv: &mut typval_T, get_nr: bool) {
+fn buf_win_common(argvars: *mut typval_T, rettv: &mut typval_T, get_nr: bool) {
     unsafe {
         let buf: *const buf_T = tv_get_buf_from_arg(argvars);
         if buf.is_null() {
@@ -664,18 +660,14 @@ unsafe fn buf_win_common(argvars: *mut typval_T, rettv: &mut typval_T, get_nr: b
 pub fn f_bufwinid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        buf_win_common(argvars, rettv, false);
-    }
+    buf_win_common(argvars, rettv, false);
 }
 
 /// `bufwinnr(nr)` function (`f_bufwinnr`).
 pub fn f_bufwinnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        buf_win_common(argvars, rettv, true);
-    }
+    buf_win_common(argvars, rettv, true);
 }
 
 /// `deletebufline()` function (`f_deletebufline`).
@@ -893,7 +885,7 @@ pub fn f_getbufinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 }
 
 /// Get line or list of lines from buffer `buf` into `rettv` (`get_buffer_lines`).
-unsafe fn get_buffer_lines(
+fn get_buffer_lines(
     buf: *mut buf_T,
     mut start: linenr_T,
     mut end: linenr_T,
@@ -944,7 +936,7 @@ unsafe fn get_buffer_lines(
     }
 }
 
-unsafe fn getbufline(argvars: *mut typval_T, rettv: *mut typval_T, retlist: bool) {
+fn getbufline(argvars: *mut typval_T, rettv: *mut typval_T, retlist: bool) {
     unsafe {
         let mut lnum: linenr_T = 1;
         let mut end: linenr_T = 1;
@@ -970,18 +962,14 @@ unsafe fn getbufline(argvars: *mut typval_T, rettv: *mut typval_T, retlist: bool
 pub fn f_getbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        getbufline(argvars, rettv, true);
-    }
+    getbufline(argvars, rettv, true);
 }
 
 /// `getbufoneline()` function (`f_getbufoneline`).
 pub fn f_getbufoneline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        getbufline(argvars, rettv, false);
-    }
+    getbufline(argvars, rettv, false);
 }
 
 /// `getline(lnum, [end])` function (`f_getline`).
@@ -1004,9 +992,7 @@ pub fn f_getline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 pub fn f_setbufline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        buf_set_append_line(argvars, rettv, false);
-    }
+    buf_set_append_line(argvars, rettv, false);
 }
 
 /// `setline()` function (`f_setline`).

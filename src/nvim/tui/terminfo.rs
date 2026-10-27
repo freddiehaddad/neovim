@@ -2593,12 +2593,10 @@ fn unibi_from_dirs(list: &str, term: &str) -> Option<UnibiTerm> {
 }
 
 fn get_env_str(name: &CStr) -> Option<String> {
-    unsafe {
-        crate::os::env::os_getenv_cstr(name.as_ptr()).map(|c| c.to_string_lossy().into_owned())
-    }
+    crate::os::env::os_getenv_cstr(name.as_ptr()).map(|c| c.to_string_lossy().into_owned())
 }
 
-unsafe fn unibi_from_term(termname: *const c_char) -> Option<UnibiTerm> {
+fn unibi_from_term(termname: *const c_char) -> Option<UnibiTerm> {
     if termname.is_null() {
         return None;
     }
@@ -2632,7 +2630,7 @@ unsafe fn unibi_from_term(termname: *const c_char) -> Option<UnibiTerm> {
     unibi_from_dirs(UNIBI_TERMINFO_DIRS, term)
 }
 
-pub unsafe fn terminfo_is_term_family(term: *const c_char, family: *const c_char) -> bool {
+pub fn terminfo_is_term_family(term: *const c_char, family: *const c_char) -> bool {
     if term.is_null() {
         return false;
     }
@@ -2647,7 +2645,7 @@ pub unsafe fn terminfo_is_term_family(term: *const c_char, family: *const c_char
     }
 }
 
-pub unsafe fn terminfo_is_bsd_console(term: *const c_char) -> bool {
+pub fn terminfo_is_bsd_console(term: *const c_char) -> bool {
     #[cfg(any(
         target_os = "freebsd",
         target_os = "netbsd",
@@ -2668,7 +2666,7 @@ pub unsafe fn terminfo_is_bsd_console(term: *const c_char) -> bool {
     false
 }
 
-pub unsafe fn terminfo_from_builtin(
+pub fn terminfo_from_builtin(
     term: *const c_char,
     termname: &mut Option<std::ffi::CString>,
 ) -> TerminfoEntry {
@@ -2731,7 +2729,7 @@ pub unsafe fn terminfo_from_builtin(
     }
 }
 
-pub unsafe fn terminfo_from_database(ti: *mut TerminfoEntry, termname: *const c_char) -> bool {
+pub fn terminfo_from_database(ti: *mut TerminfoEntry, termname: *const c_char) -> bool {
     unsafe {
         let Some(ut) = unibi_from_term(termname) else {
             return false;
@@ -2894,7 +2892,7 @@ fn push(num: c_long, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> c_int 
     0
 }
 
-unsafe fn pop(num: *mut c_long, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPSTACK) -> c_int {
+fn pop(num: *mut c_long, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPSTACK) -> c_int {
     unsafe {
         if stack.offset == 0 {
             if !num.is_null() {
@@ -2916,7 +2914,7 @@ unsafe fn pop(num: *mut c_long, string: Option<&mut Option<[c_char; 8]>>, stack:
     }
 }
 
-unsafe fn ochar(buf: *mut *mut c_char, buf_end: *const c_char, mut c: c_int) -> bool {
+fn ochar(buf: *mut *mut c_char, buf_end: *const c_char, mut c: c_int) -> bool {
     unsafe {
         if c == 0 {
             c = 0o200;
@@ -2930,7 +2928,7 @@ unsafe fn ochar(buf: *mut *mut c_char, buf_end: *const c_char, mut c: c_int) -> 
     }
 }
 
-unsafe fn onum(
+fn onum(
     buf: *mut *mut c_char,
     buf_end: *const c_char,
     fmt: *const c_char,
@@ -2955,7 +2953,7 @@ unsafe fn onum(
     }
 }
 
-pub unsafe fn terminfo_fmt(
+pub fn terminfo_fmt(
     buf_start: *mut c_char,
     buf_end: *mut c_char,
     mut str_: *const c_char,

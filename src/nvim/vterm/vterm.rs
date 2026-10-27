@@ -16,7 +16,7 @@ use crate::vterm::pen::{
 use crate::vterm::screen::VTermScreen;
 use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8};
 
-pub type VTermOutputCallback = Option<unsafe fn(s: *const c_char, len: usize, user: *mut Terminal)>;
+pub type VTermOutputCallback = Option<fn(s: *const c_char, len: usize, user: *mut Terminal)>;
 
 /// Create a new `VTerm` instance of size `rows` x `cols` (`vterm_new`).
 pub fn vterm_new(rows: c_int, cols: c_int) -> VTerm {
@@ -31,7 +31,7 @@ pub fn vterm_new(rows: c_int, cols: c_int) -> VTerm {
     vt
 }
 
-pub unsafe fn vterm_get_size(vt: &VTerm, rowsp: *mut c_int, colsp: *mut c_int) {
+pub fn vterm_get_size(vt: &VTerm, rowsp: *mut c_int, colsp: *mut c_int) {
     unsafe {
         if !rowsp.is_null() {
             *rowsp = vt.rows;
@@ -47,8 +47,7 @@ pub fn vterm_set_size(vt: &mut VTerm, rows: c_int, cols: c_int) {
         return;
     }
 
-    unsafe {
-        vt.rows = rows;
+    vt.rows = rows;
         vt.cols = cols;
 
         if let Some(callbacks) = vt.parser.callbacks
@@ -56,7 +55,6 @@ pub fn vterm_set_size(vt: &mut VTerm, rows: c_int, cols: c_int) {
         {
             let _ = resize_cb(rows, cols, vt.state_mut_ptr());
         }
-    }
 }
 
 pub fn vterm_set_utf8(vt: &mut VTerm, is_utf8: c_int) {
@@ -76,18 +74,14 @@ pub fn vterm_output_set_callback(
     vt.outdata = user;
 }
 
-pub unsafe fn vterm_push_output_bytes(vt: &mut VTerm, bytes: *const c_char, len: usize) {
-    unsafe {
-        if let Some(func) = vt.outfunc {
+pub fn vterm_push_output_bytes(vt: &mut VTerm, bytes: *const c_char, len: usize) {
+    if let Some(func) = vt.outfunc {
             func(bytes, len, vt.outdata);
         }
-    }
 }
 
 pub fn vterm_push_output_bytes_slice(vt: &mut VTerm, payload: &[u8]) {
-    unsafe {
-        vterm_push_output_bytes(vt, payload.as_ptr().cast::<c_char>(), payload.len());
-    }
+    vterm_push_output_bytes(vt, payload.as_ptr().cast::<c_char>(), payload.len());
 }
 
 pub fn vterm_push_output_ctrl_bytes(vt: &mut VTerm, ctrl: u8, payload: &[u8]) {
@@ -143,18 +137,17 @@ pub fn vterm_get_attr_type(attr: VTermAttr) -> VTermValueType {
     }
 }
 
-pub unsafe fn vterm_scroll_rect(
+pub fn vterm_scroll_rect(
     mut rect: VTermRect,
     downward: c_int,
     rightward: c_int,
-    moverect: Option<unsafe fn(src: VTermRect, dest: VTermRect, user: *mut VTermScreen) -> c_int>,
+    moverect: Option<fn(src: VTermRect, dest: VTermRect, user: *mut VTermScreen) -> c_int>,
     eraserect: Option<
-        unsafe fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int,
+        fn(rect: VTermRect, selective: c_int, user: *mut VTermScreen) -> c_int,
     >,
     user: *mut VTermScreen,
 ) {
-    unsafe {
-        if downward.abs() >= rect.end_row - rect.start_row
+    if downward.abs() >= rect.end_row - rect.start_row
             || rightward.abs() >= rect.end_col - rect.start_col
         {
             if let Some(erase_cb) = eraserect {
@@ -229,7 +222,6 @@ pub unsafe fn vterm_scroll_rect(
         if let Some(erase_cb) = eraserect {
             let _ = erase_cb(rect, 0, user);
         }
-    }
 }
 
 #[cfg(test)]

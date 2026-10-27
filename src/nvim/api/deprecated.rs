@@ -115,7 +115,7 @@ pub unsafe extern "C" fn nvim_execute_lua(
     arena: *mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe { nlua_exec(code, ptr::null(), args, kRetObject, arena, err) }
+    nlua_exec(code, ptr::null(), args, kRetObject, arena, err)
 }
 
 /// Gets the buffer number
@@ -1297,8 +1297,7 @@ pub unsafe extern "C" fn nvim_notify(
     arena: *mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
-        let mut items = [string_obj(msg_str), integer_obj(log_level), dict_obj(opts)];
+    let mut items = [string_obj(msg_str), integer_obj(log_level), dict_obj(opts)];
         let args = Array {
             size: 3,
             capacity: 3,
@@ -1312,7 +1311,6 @@ pub unsafe extern "C" fn nvim_notify(
             arena,
             err,
         )
-    }
 }
 
 /// @deprecated

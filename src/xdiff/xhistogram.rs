@@ -43,7 +43,7 @@ struct Region {
 }
 
 #[inline]
-unsafe fn get_rec(env: *const xdfenv_t, side: c_int, line: c_uint) -> xrecord_t {
+fn get_rec(env: *const xdfenv_t, side: c_int, line: c_uint) -> xrecord_t {
     unsafe {
         if side == 1 {
             (&(*env).xdf1.recs)[(line as usize) - 1]
@@ -54,7 +54,7 @@ unsafe fn get_rec(env: *const xdfenv_t, side: c_int, line: c_uint) -> xrecord_t 
 }
 
 #[inline]
-unsafe fn cmp_recs(xpp: *const xpparam_t, r1: &xrecord_t, r2: &xrecord_t) -> bool {
+fn cmp_recs(xpp: *const xpparam_t, r1: &xrecord_t, r2: &xrecord_t) -> bool {
     unsafe {
         r1.ha == r2.ha
             && xdl_recmatch(r1.ptr, r1.size, r2.ptr, r2.size, (*xpp).flags as c_long) != 0
@@ -63,19 +63,15 @@ unsafe fn cmp_recs(xpp: *const xpparam_t, r1: &xrecord_t, r2: &xrecord_t) -> boo
 
 #[inline]
 fn cmp_index(index: &HistIndex, s1: c_int, l1: c_uint, s2: c_int, l2: c_uint) -> bool {
-    unsafe {
-        let r1 = get_rec(index.env, s1, l1);
+    let r1 = get_rec(index.env, s1, l1);
         let r2 = get_rec(index.env, s2, l2);
         cmp_recs(index.xpp, &r1, &r2)
-    }
 }
 
 #[inline]
 fn table_hash(index: &HistIndex, side: c_int, line: c_uint) -> usize {
-    unsafe {
-        let rec = get_rec(index.env, side, line);
+    let rec = get_rec(index.env, side, line);
         xdl_hashlong(rec.ha, index.table_bits) as usize
-    }
 }
 
 #[inline]
@@ -129,7 +125,7 @@ fn scan_a(index: &mut HistIndex, line1: c_int, count1: c_int) -> c_int {
     0
 }
 
-unsafe fn try_lcs(
+fn try_lcs(
     index: &mut HistIndex,
     lcs: *mut Region,
     b_ptr: c_int,
@@ -230,7 +226,7 @@ unsafe fn try_lcs(
     b_next as c_int
 }
 
-unsafe fn fall_back_to_classic_diff(
+fn fall_back_to_classic_diff(
     xpp: *const xpparam_t,
     env: *mut xdfenv_t,
     line1: c_int,
@@ -246,7 +242,7 @@ unsafe fn fall_back_to_classic_diff(
     }
 }
 
-unsafe fn find_lcs(
+fn find_lcs(
     xpp: *const xpparam_t,
     env: *mut xdfenv_t,
     lcs: *mut Region,
@@ -272,8 +268,7 @@ unsafe fn find_lcs(
         xpp,
     };
 
-    unsafe {
-        if scan_a(&mut index, line1, count1) != 0 {
+    if scan_a(&mut index, line1, count1) != 0 {
             return -1;
         }
 
@@ -288,10 +283,9 @@ unsafe fn find_lcs(
         } else {
             0
         }
-    }
 }
 
-unsafe fn histogram_diff(
+fn histogram_diff(
     xpp: *const xpparam_t,
     env: *mut xdfenv_t,
     mut line1: c_int,
@@ -364,7 +358,7 @@ unsafe fn histogram_diff(
     }
 }
 
-pub unsafe fn xdl_do_histogram_diff(
+pub fn xdl_do_histogram_diff(
     file1: *mut mmfile_t,
     file2: *mut mmfile_t,
     xpp: *const xpparam_t,

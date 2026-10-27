@@ -301,26 +301,26 @@ pub fn tv_dict_is_watched(d: *const dict_T) -> bool {
 }
 
 pub trait IntoDictKey {
-    unsafe fn into_dict_key(self) -> NvimString;
+    fn into_dict_key(self) -> NvimString;
 }
 
 impl IntoDictKey for *const c_char {
     #[inline]
-    unsafe fn into_dict_key(self) -> NvimString {
+    fn into_dict_key(self) -> NvimString {
         cstr_as_string(self)
     }
 }
 
 impl IntoDictKey for *mut c_char {
     #[inline]
-    unsafe fn into_dict_key(self) -> NvimString {
+    fn into_dict_key(self) -> NvimString {
         cstr_as_string(self)
     }
 }
 
 impl IntoDictKey for &'static CStr {
     #[inline]
-    unsafe fn into_dict_key(self) -> NvimString {
+    fn into_dict_key(self) -> NvimString {
         static_cstr_as_string(self)
     }
 }

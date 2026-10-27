@@ -356,9 +356,7 @@ pub fn ui_refresh_event() {
 }
 
 pub fn ui_schedule_refresh() {
-    unsafe {
-        multiqueue_put_event(g_st().resize_events, Event::UiRefresh);
-    }
+    multiqueue_put_event(g_st().resize_events, Event::UiRefresh);
 }
 
 pub fn ui_default_colors_set() {

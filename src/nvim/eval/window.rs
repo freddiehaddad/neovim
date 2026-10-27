@@ -71,7 +71,7 @@ impl viewstate_T {
     }
 }
 
-pub unsafe fn win_has_winnr(wp: &mut win_T, tp: *mut tabpage_T) -> bool {
+pub fn win_has_winnr(wp: &mut win_T, tp: *mut tabpage_T) -> bool {
     unsafe {
         let cur = if ptr::eq(tp, g_st().curtab) {
             *curwin.as_ptr()
@@ -82,7 +82,7 @@ pub unsafe fn win_has_winnr(wp: &mut win_T, tp: *mut tabpage_T) -> bool {
     }
 }
 
-pub unsafe fn win_find_nr(mut nr: c_int, mut tp: *mut tabpage_T) -> *mut win_T {
+pub fn win_find_nr(mut nr: c_int, mut tp: *mut tabpage_T) -> *mut win_T {
     unsafe {
         if tp.is_null() {
             debug_assert!(!g_st().curtab.is_null());
@@ -100,7 +100,7 @@ pub unsafe fn win_find_nr(mut nr: c_int, mut tp: *mut tabpage_T) -> *mut win_T {
     }
 }
 
-unsafe fn win_getid(argvars: *mut typval_T) -> c_int {
+fn win_getid(argvars: *mut typval_T) -> c_int {
     unsafe {
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
             return (**curwin.as_ptr()).handle;
@@ -142,7 +142,7 @@ unsafe fn win_getid(argvars: *mut typval_T) -> c_int {
     }
 }
 
-unsafe fn win_id2tabwin(argvars: *mut typval_T, rettv: *mut typval_T) {
+fn win_id2tabwin(argvars: *mut typval_T, rettv: *mut typval_T) {
     unsafe {
         let id = tv_get_number(argvars) as handle_T;
 
@@ -157,11 +157,11 @@ unsafe fn win_id2tabwin(argvars: *mut typval_T, rettv: *mut typval_T) {
 }
 
 pub fn win_id2wp(id: c_int) -> *mut win_T {
-    unsafe { win_id2wp_tp(id, ptr::null_mut()) }
+    win_id2wp_tp(id, ptr::null_mut())
 }
 
 /// Return the window and tab pointer of window `id` (`win_id2wp_tp`).
-pub unsafe fn win_id2wp_tp(id: c_int, tpp: *mut *mut tabpage_T) -> *mut win_T {
+pub fn win_id2wp_tp(id: c_int, tpp: *mut *mut tabpage_T) -> *mut win_T {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -181,7 +181,7 @@ pub unsafe fn win_id2wp_tp(id: c_int, tpp: *mut *mut tabpage_T) -> *mut win_T {
     }
 }
 
-unsafe fn win_id2win(argvars: *mut typval_T) -> c_int {
+fn win_id2win(argvars: *mut typval_T) -> c_int {
     unsafe {
         let mut nr: c_int = 1;
         let id = tv_get_number(argvars) as c_int;
@@ -198,7 +198,7 @@ unsafe fn win_id2win(argvars: *mut typval_T) -> c_int {
     }
 }
 
-pub unsafe fn win_findbuf(argvars: *mut typval_T, list: *mut list_T) {
+pub fn win_findbuf(argvars: *mut typval_T, list: *mut list_T) {
     unsafe {
         let bufnr = tv_get_number(argvars) as c_int;
 
@@ -217,7 +217,7 @@ pub unsafe fn win_findbuf(argvars: *mut typval_T, list: *mut list_T) {
 }
 
 /// Find window specified by `vp` in tabpage `tp` (`find_win_by_nr`).
-pub unsafe fn find_win_by_nr(vp: *mut typval_T, mut tp: *mut tabpage_T) -> *mut win_T {
+pub fn find_win_by_nr(vp: *mut typval_T, mut tp: *mut tabpage_T) -> *mut win_T {
     unsafe {
         let nr = tv_get_number_chk(vp, ptr::null_mut()) as c_int;
 
@@ -250,16 +250,14 @@ pub unsafe fn find_win_by_nr(vp: *mut typval_T, mut tp: *mut tabpage_T) -> *mut 
 
 /// Find a window: When using a Window ID in any tab page, when using a number
 /// in the current tab page (`find_win_by_nr_or_id`).
-pub unsafe fn find_win_by_nr_or_id(vp: *mut typval_T) -> *mut win_T {
-    unsafe {
-        let nr = tv_get_number_chk(vp, ptr::null_mut()) as c_int;
+pub fn find_win_by_nr_or_id(vp: *mut typval_T) -> *mut win_T {
+    let nr = tv_get_number_chk(vp, ptr::null_mut()) as c_int;
 
         if nr >= LOWEST_WIN_ID {
             return win_id2wp(tv_get_number(vp) as c_int);
         }
 
         find_win_by_nr(vp, ptr::null_mut())
-    }
 }
 
 /// Find window specified by `wvp` in tabpage `tvp` (`find_tabwin`).
@@ -290,7 +288,7 @@ pub fn find_tabwin(wvp: &mut typval_T, tvp: &mut typval_T) -> *mut win_T {
 }
 
 /// Get the layout of the given tab page for `winlayout()` (`get_framelayout`).
-unsafe fn get_framelayout(fr: *const frame_T, l: *mut list_T, outer: bool) {
+fn get_framelayout(fr: *const frame_T, l: *mut list_T, outer: bool) {
     unsafe {
         if fr.is_null() {
             return;
@@ -603,11 +601,9 @@ pub fn f_getwininfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
 /// `getwinpos({timeout})` function (`f_getwinpos`).
 pub fn f_getwinpos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        tv_list_alloc_ret(rettv, 2);
+    tv_list_alloc_ret(rettv, 2);
         tv_list_append_number(rettv.vval.v_list(), -1);
         tv_list_append_number(rettv.vval.v_list(), -1);
-    }
 }
 
 /// `getwinposx()` function (`f_getwinposx`).
@@ -698,19 +694,15 @@ pub fn f_win_execute(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 pub fn f_win_findbuf(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+    tv_list_alloc_ret(rettv, kListLenMayKnow);
         win_findbuf(argvars, rettv.vval.v_list());
-    }
 }
 
 /// `win_getid()` function (`f_win_getid`).
 pub fn f_win_getid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(win_getid(argvars) as varnumber_T);
-    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(win_getid(argvars) as varnumber_T);
 }
 
 /// `win_gotoid()` function (`f_win_gotoid`).
@@ -750,18 +742,14 @@ pub fn f_win_gotoid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 pub fn f_win_id2tabwin(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        win_id2tabwin(argvars, rettv);
-    }
+    win_id2tabwin(argvars, rettv);
 }
 
 /// `win_id2win()` function (`f_win_id2win`).
 pub fn f_win_id2win(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(win_id2win(argvars) as varnumber_T);
-    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(win_id2win(argvars) as varnumber_T);
 }
 
 /// `win_move_separator()` function (`f_win_move_separator`).
@@ -941,10 +929,8 @@ pub fn f_win_gettype(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// `getcmdwintype()` function (`f_getcmdwintype`).
 pub fn f_getcmdwintype(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        let buf = [g_st().cmdwin_type as c_char, 0];
+    let buf = [g_st().cmdwin_type as c_char, 0];
         tv_set_string(rettv, buf.as_ptr());
-    }
 }
 
 /// `winbufnr(nr)` function (`f_winbufnr`).

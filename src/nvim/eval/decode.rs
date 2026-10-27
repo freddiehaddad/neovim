@@ -55,7 +55,7 @@ struct ValuesStackItem {
     val: typval_T,
 }
 
-unsafe fn create_special_dict(rettv: *mut typval_T, mp_type: usize, val: typval_T) {
+fn create_special_dict(rettv: *mut typval_T, mp_type: usize, val: typval_T) {
     unsafe {
         let dict = tv_dict_alloc();
         let type_di = tv_dict_item_alloc_len(c"_TYPE".as_ptr(), 5);
@@ -78,7 +78,7 @@ unsafe fn create_special_dict(rettv: *mut typval_T, mp_type: usize, val: typval_
 }
 
 /// Create a special dictionary representing a MessagePack MAP (`decode_create_map_special_dict`).
-pub unsafe fn decode_create_map_special_dict(ret_tv: *mut typval_T, len: isize) -> *mut list_T {
+pub fn decode_create_map_special_dict(ret_tv: *mut typval_T, len: isize) -> *mut list_T {
     unsafe {
         let list = tv_list_alloc(len);
         tv_list_ref(list);
@@ -96,7 +96,7 @@ pub unsafe fn decode_create_map_special_dict(ret_tv: *mut typval_T, len: isize) 
 }
 
 /// Convert `s[..len]` into a `VAR_STRING` or `VAR_BLOB` `typval_T` (`decode_string`).
-pub unsafe fn decode_string(
+pub fn decode_string(
     s: *const c_char,
     len: usize,
     force_blob: bool,
@@ -134,9 +134,7 @@ pub unsafe fn decode_string(
         vval: TypvalVval::String(std::ptr::null_mut()),
     };
     if !s.is_null() {
-        unsafe {
-            crate::eval::typval::tv_set_string_len(&mut tv, s, len);
-        }
+        crate::eval::typval::tv_set_string_len(&mut tv, s, len);
     }
     tv
 }
@@ -247,7 +245,7 @@ fn json_decoder_pop(
     OK
 }
 
-unsafe fn parse_json_string(
+fn parse_json_string(
     buf: *const c_char,
     buf_len: usize,
     pp: &mut *const c_char,
@@ -484,7 +482,7 @@ unsafe fn parse_json_string(
     }
 }
 
-unsafe fn parse_json_number(
+fn parse_json_number(
     buf: *const c_char,
     buf_len: usize,
     pp: &mut *const c_char,
@@ -640,7 +638,7 @@ unsafe fn parse_json_number(
 }
 
 /// Convert JSON string `buf[..buf_len]` into a Vimscript `typval_T` (`json_decode_string`).
-pub unsafe fn json_decode_string(
+pub fn json_decode_string(
     buf: *const c_char,
     buf_len: usize,
     rettv: &mut typval_T,
@@ -1042,7 +1040,7 @@ pub unsafe fn json_decode_string(
     }
 }
 
-unsafe fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
+fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
     unsafe {
         if val <= (i64::MAX as u64) {
             *rettv = typval_T {
@@ -1070,7 +1068,7 @@ unsafe fn positive_integer_to_special_typval(rettv: *mut typval_T, val: u64) {
     }
 }
 
-unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let parser = &mut *parser;
         let node = &mut *node;
@@ -1191,7 +1189,7 @@ pub fn typval_parser_error_free(p: &mut mpack_parser_t) {
     }
 }
 
-unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let node = &mut *node;
         let result = node.data[0].typval();
@@ -1290,30 +1288,27 @@ unsafe fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_
 }
 
 /// Parse msgpack data into a `typval_T` using `parser` (`mpack_parse_typval`).
-pub unsafe fn mpack_parse_typval(
+pub fn mpack_parse_typval(
     parser: &mut mpack_parser_t,
     data: *mut *const c_char,
     size: *mut usize,
 ) -> c_int {
-    unsafe {
-        mpack_parse(
+    mpack_parse(
             parser,
             data,
             size,
             Some(typval_parse_enter),
             Some(typval_parse_exit),
         )
-    }
 }
 
 /// Unpack msgpack buffer `*data[..*size]` into `*ret` (`unpack_typval`).
-pub unsafe fn unpack_typval(
+pub fn unpack_typval(
     data: *mut *const c_char,
     size: *mut usize,
     ret: &mut typval_T,
 ) -> c_int {
-    unsafe {
-        ret.v_type = VarType::VAR_UNKNOWN;
+    ret.v_type = VarType::VAR_UNKNOWN;
         let mut parser = mpack_parser_t::new(0);
         mpack_parser_init(&mut parser, 0);
         parser.data = mpack_data_t::Typval(ret);
@@ -1323,7 +1318,6 @@ pub unsafe fn unpack_typval(
             tv_clear(&raw mut *ret);
         }
         status
-    }
 }
 
 #[cfg(test)]
@@ -1345,8 +1339,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
-            crate::globals::g_st().emsg_skip += 1;
+        crate::globals::g_st().emsg_skip += 1;
             let mut rettv = typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: VAR_UNLOCKED,
@@ -1411,6 +1404,5 @@ mod tests {
             tv_clear(&mut rettv);
 
             crate::globals::g_st().emsg_skip -= 1;
-        }
     }
 }

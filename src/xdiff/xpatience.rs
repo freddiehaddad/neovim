@@ -90,7 +90,7 @@ fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
     }
 }
 
-unsafe fn fill_hashmap(
+fn fill_hashmap(
     file1: *mut mmfile_t,
     file2: *mut mmfile_t,
     xpp: *const xpparam_t,
@@ -128,7 +128,7 @@ unsafe fn fill_hashmap(
     map
 }
 
-unsafe fn binary_search(sequence: &[*mut Entry], longest: c_int, entry: *mut Entry) -> c_int {
+fn binary_search(sequence: &[*mut Entry], longest: c_int, entry: *mut Entry) -> c_int {
     let mut left: c_int = -1;
     let mut right: c_int = longest;
 
@@ -191,7 +191,7 @@ fn match_lines(map: &HashMap, line1: c_int, line2: c_int) -> bool {
     }
 }
 
-unsafe fn walk_common_sequence(
+fn walk_common_sequence(
     map: &mut HashMap,
     mut first: *mut Entry,
     mut line1: c_int,
@@ -271,7 +271,7 @@ fn fall_back_to_classic_diff(
     }
 }
 
-unsafe fn patience_diff(
+fn patience_diff(
     file1: *mut mmfile_t,
     file2: *mut mmfile_t,
     xpp: *const xpparam_t,
@@ -323,7 +323,7 @@ unsafe fn patience_diff(
     }
 }
 
-pub unsafe fn xdl_do_patience_diff(
+pub fn xdl_do_patience_diff(
     file1: *mut mmfile_t,
     file2: *mut mmfile_t,
     xpp: *const xpparam_t,

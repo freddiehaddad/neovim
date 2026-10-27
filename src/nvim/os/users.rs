@@ -111,7 +111,7 @@ unsafe extern "system" {
 }
 
 #[cfg(unix)]
-unsafe fn add_user(users: &mut Vec<CString>, user: *const c_char) {
+fn add_user(users: &mut Vec<CString>, user: *const c_char) {
     if user.is_null() || unsafe { *user == 0 } {
         return;
     }
@@ -196,20 +196,20 @@ fn collect_usernames() -> Vec<CString> {
 ///
 /// # Safety
 /// `s` must be valid for `len` writable bytes.
-pub unsafe fn os_get_username(s: *mut c_char, len: usize) -> c_int {
+pub fn os_get_username(s: *mut c_char, len: usize) -> c_int {
     #[cfg(unix)]
     let uid = unsafe { getuid() };
     #[cfg(not(unix))]
     let uid = 0;
 
-    unsafe { os_get_uname(uid, s, len) }
+    os_get_uname(uid, s, len)
 }
 
 /// Get the username associated with `uid` (`os_get_uname`).
 ///
 /// # Safety
 /// `s` must be valid for `len` writable bytes.
-pub unsafe fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> c_int {
+pub fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> c_int {
     #[cfg(unix)]
     unsafe {
         let pw = getpwuid(uid);
@@ -230,7 +230,7 @@ pub unsafe fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> c_int {
 /// # Safety
 /// `name` must be null or a valid C string.
 #[cfg_attr(not(unix), cfg(test))]
-pub unsafe fn os_get_userdir(name: *const c_char) -> Option<CString> {
+pub fn os_get_userdir(name: *const c_char) -> Option<CString> {
     #[cfg(unix)]
     unsafe {
         if name.is_null() || *name == 0 {
@@ -285,7 +285,7 @@ pub fn get_users(_xp: &mut crate::os::env::expand_T, idx: c_int) -> *mut c_char 
 ///
 /// # Safety
 /// `name` must be a valid C string.
-pub unsafe fn match_user(name: *mut c_char) -> c_int {
+pub fn match_user(name: *mut c_char) -> c_int {
     unsafe {
         init_users();
         let target = CStr::from_ptr(name).to_bytes();

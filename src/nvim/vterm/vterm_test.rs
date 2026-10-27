@@ -155,7 +155,7 @@ fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
     }
 }
 
-pub unsafe fn parser_text(bytes: *const c_char, len: usize, _user: *mut VTermStateFull) -> c_int {
+pub fn parser_text(bytes: *const c_char, len: usize, _user: *mut VTermStateFull) -> c_int {
     let mut out = b"text ".to_vec();
     let mut i = 0usize;
     unsafe {
@@ -176,7 +176,7 @@ pub unsafe fn parser_text(bytes: *const c_char, len: usize, _user: *mut VTermSta
     i as c_int
 }
 
-pub unsafe fn parser_csi<T>(
+pub fn parser_csi<T>(
     leader: *const c_char,
     args: *const c_long,
     argcount: c_int,
@@ -224,7 +224,7 @@ pub unsafe fn parser_csi<T>(
     1
 }
 
-pub unsafe fn parser_osc<T>(command: c_int, frag: VTermStringFragment, _user: *mut T) -> c_int {
+pub fn parser_osc<T>(command: c_int, frag: VTermStringFragment, _user: *mut T) -> c_int {
     let mut out = b"osc ".to_vec();
     if frag.initial() {
         if command == -1 {
@@ -242,7 +242,7 @@ pub unsafe fn parser_osc<T>(command: c_int, frag: VTermStringFragment, _user: *m
     1
 }
 
-pub unsafe fn parser_dcs<T>(
+pub fn parser_dcs<T>(
     command: *const c_char,
     commandlen: usize,
     frag: VTermStringFragment,
@@ -265,7 +265,7 @@ pub unsafe fn parser_dcs<T>(
     1
 }
 
-pub unsafe fn parser_apc<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
+pub fn parser_apc<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     let mut out = b"apc ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -279,7 +279,7 @@ pub unsafe fn parser_apc<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     1
 }
 
-pub unsafe fn parser_pm<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
+pub fn parser_pm<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     let mut out = b"pm ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -293,7 +293,7 @@ pub unsafe fn parser_pm<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     1
 }
 
-pub unsafe fn parser_sos<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
+pub fn parser_sos<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     let mut out = b"sos ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -307,7 +307,7 @@ pub unsafe fn parser_sos<T>(frag: VTermStringFragment, _user: *mut T) -> c_int {
     1
 }
 
-pub unsafe fn selection_set(
+pub fn selection_set(
     mask: VTermSelectionMask,
     frag: VTermStringFragment,
     _user: *mut Terminal,
@@ -326,7 +326,7 @@ pub unsafe fn selection_set(
     1
 }
 
-pub unsafe fn selection_query(mask: VTermSelectionMask, _user: *mut Terminal) -> c_int {
+pub fn selection_query(mask: VTermSelectionMask, _user: *mut Terminal) -> c_int {
     let mut out = Vec::new();
     let _ = writeln!(out, "selection-query mask={mask:04X}");
     append_test_output(&out);
@@ -354,7 +354,7 @@ fn format_schar(out: &mut Vec<u8>, schar: schar_T) {
     }
 }
 
-pub unsafe fn state_putglyph(
+pub fn state_putglyph(
     info: *mut VTermGlyphInfo,
     pos: VTermPos,
     _user: *mut VTermScreen,
@@ -387,7 +387,7 @@ pub unsafe fn state_putglyph(
     }
 }
 
-pub unsafe fn state_movecursor<T>(
+pub fn state_movecursor<T>(
     pos: VTermPos,
     _oldpos: VTermPos,
     _visible: c_int,
@@ -402,7 +402,7 @@ pub unsafe fn state_movecursor<T>(
         1
 }
 
-pub unsafe fn state_scrollrect(
+pub fn state_scrollrect(
     rect: VTermRect,
     downward: c_int,
     rightward: c_int,
@@ -421,7 +421,7 @@ pub unsafe fn state_scrollrect(
         1
 }
 
-pub unsafe fn state_moverect<T>(dest: VTermRect, src: VTermRect, _user: *mut T) -> c_int {
+pub fn state_moverect<T>(dest: VTermRect, src: VTermRect, _user: *mut T) -> c_int {
     if !vtt_st().want_state_moverect {
             return 0;
         }
@@ -459,7 +459,7 @@ fn format_color_bytes(out: &mut Vec<u8>, col: &VTermColor) {
     out.push(b')');
 }
 
-pub unsafe fn print_color(col: *const VTermColor) {
+pub fn print_color(col: *const VTermColor) {
     if col.is_null() {
         return;
     }
@@ -485,7 +485,7 @@ const fn vterm_get_prop_type(prop: VTermProp) -> VTermValueType {
     }
 }
 
-pub unsafe fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: *mut T) -> c_int {
+pub fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: *mut T) -> c_int {
     if !vtt_st().want_state_settermprop {
             return 1;
         }
@@ -527,7 +527,7 @@ pub unsafe fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user:
         errcode
 }
 
-pub unsafe fn state_erase(rect: VTermRect, selective: c_int, _user: *mut VTermScreen) -> c_int {
+pub fn state_erase(rect: VTermRect, selective: c_int, _user: *mut VTermScreen) -> c_int {
     if !vtt_st().want_state_erase {
             return 1;
         }
@@ -542,7 +542,7 @@ pub unsafe fn state_erase(rect: VTermRect, selective: c_int, _user: *mut VTermSc
         1
 }
 
-pub unsafe fn state_setpenattr(
+pub fn state_setpenattr(
     attr: VTermAttr,
     val: &mut VTermValue,
     _user: *mut VTermScreen,
@@ -568,7 +568,7 @@ pub unsafe fn state_setpenattr(
         1
 }
 
-pub unsafe fn state_sb_clear(_user: *mut VTermScreen) -> c_int {
+pub fn state_sb_clear(_user: *mut VTermScreen) -> c_int {
     if !vtt_st().want_state_scrollback {
             return 1;
         }
@@ -576,7 +576,7 @@ pub unsafe fn state_sb_clear(_user: *mut VTermScreen) -> c_int {
         0
 }
 
-pub unsafe fn screen_sb_pushline(
+pub fn screen_sb_pushline(
     cols: c_int,
     cells: *const VTermScreenCell,
     _user: *mut Terminal,
@@ -601,7 +601,7 @@ pub unsafe fn screen_sb_pushline(
     }
 }
 
-pub unsafe fn screen_sb_popline(
+pub fn screen_sb_popline(
     cols: c_int,
     cells: *mut VTermScreenCell,
     _user: *mut Terminal,
@@ -626,7 +626,7 @@ pub unsafe fn screen_sb_popline(
     }
 }
 
-pub unsafe fn screen_sb_clear(_user: *mut Terminal) -> c_int {
+pub fn screen_sb_clear(_user: *mut Terminal) -> c_int {
     if !vtt_st().want_screen_scrollback {
             return 1;
         }
@@ -634,7 +634,7 @@ pub unsafe fn screen_sb_clear(_user: *mut Terminal) -> c_int {
         0
 }
 
-pub unsafe fn term_output(s: *const c_char, len: usize, _user: *mut Terminal) {
+pub fn term_output(s: *const c_char, len: usize, _user: *mut Terminal) {
     let mut out = b"output ".to_vec();
     unsafe {
         for i in 0..len {
@@ -646,7 +646,7 @@ pub unsafe fn term_output(s: *const c_char, len: usize, _user: *mut Terminal) {
     append_test_output(&out);
 }
 
-pub unsafe fn vterm_state_get_penattr(
+pub fn vterm_state_get_penattr(
     state: &VTermStateFull,
     attr: VTermAttr,
     val: *mut VTermValue,
@@ -734,7 +734,7 @@ pub fn vterm_color_is_equal(a: &VTermColor, b: &VTermColor) -> c_int {
         }
 }
 
-unsafe fn attrs_differ(attrs: VTermAttrMask, a: *const ScreenCell, b: *const ScreenCell) -> bool {
+fn attrs_differ(attrs: VTermAttrMask, a: *const ScreenCell, b: *const ScreenCell) -> bool {
     unsafe {
         let pa = &(*a).pen;
         let pb = &(*b).pen;
@@ -797,8 +797,7 @@ pub fn vterm_screen_get_attrs_extent(
     pos: VTermPos,
     attrs: VTermAttrMask,
 ) -> c_int {
-    unsafe {
-        let target = getcell(screen, pos.row, pos.col);
+    let target = getcell(screen, pos.row, pos.col);
         extent.start_row = pos.row;
         extent.end_row = pos.row + 1;
         if extent.start_col < 0 {
@@ -826,10 +825,9 @@ pub fn vterm_screen_get_attrs_extent(
         }
         extent.end_col = col - 1;
         1
-    }
 }
 
-pub unsafe fn vterm_screen_get_text(
+pub fn vterm_screen_get_text(
     screen: &VTermScreen,
     buffer: *mut c_char,
     len: usize,
@@ -889,7 +887,7 @@ pub fn vterm_screen_is_eol(screen: &VTermScreen, mut pos: VTermPos) -> c_int {
     }
 }
 
-pub unsafe fn vterm_state_get_cursorpos(state: &VTermStateFull, cursorpos: *mut VTermPos) {
+pub fn vterm_state_get_cursorpos(state: &VTermStateFull, cursorpos: *mut VTermPos) {
     unsafe {
         *cursorpos = state.pos;
     }
@@ -936,13 +934,13 @@ mod tests {
 
     static VTERM_TEST_LOCK: Mutex<()> = Mutex::new(());
 
-    unsafe fn parser_control<T>(control: u8, _user: *mut T) -> c_int {
+    fn parser_control<T>(control: u8, _user: *mut T) -> c_int {
         let s = format!("control {control:02x}\n");
         append_test_output(s.as_bytes());
         1
     }
 
-    unsafe fn parser_escape(
+    fn parser_escape(
         bytes: *const c_char,
         _len: usize,
         _user: *mut VTermStateFull,
@@ -955,7 +953,7 @@ mod tests {
         1
     }
 
-    unsafe fn state_setlineinfo(
+    fn state_setlineinfo(
         _row: c_int,
         _newinfo: *const VTermLineInfo,
         _oldinfo: *const VTermLineInfo,
@@ -1072,8 +1070,7 @@ mod tests {
     }
 
     fn wantstate(vt: &mut VTerm, opts: StateOpts) -> &'static mut VTermStateFull {
-        unsafe {
-            let state = vterm_obtain_state(vt);
+        let state = vterm_obtain_state(vt);
             vterm_state_set_callbacks(state, Some(&STATE_CBS), ptr::null_mut());
             vterm_state_set_selection_callbacks(
                 state,
@@ -1093,12 +1090,10 @@ mod tests {
             vtt_st().want_state_settermprop = opts.p;
             vtt_st().want_state_scrollrect = opts.s;
             state
-        }
     }
 
     fn wantscreen(vt: &mut VTerm, opts: ScreenOpts) -> &'static mut VTermScreen {
-        unsafe {
-            let screen = vterm_obtain_screen(vt);
+        let screen = vterm_obtain_screen(vt);
             vterm_screen_set_callbacks(screen, Some(&SCREEN_CBS), ptr::null_mut());
             if opts.a {
                 vterm_screen_enable_altscreen(screen, 1);
@@ -1111,25 +1106,20 @@ mod tests {
                 vterm_screen_enable_reflow(screen, true);
             }
             screen
-        }
     }
 
     fn reset(state: Option<&mut VTermStateFull>, screen: Option<&mut VTermScreen>) {
-        unsafe {
-            if let Some(state) = state {
+        if let Some(state) = state {
                 vterm_state_reset(state, 1);
                 vterm_state_get_cursorpos(state, &mut vtt_st().state_pos);
             }
             if let Some(screen) = screen {
                 vterm_screen_reset(screen, 1);
             }
-        }
     }
 
     fn push(input: &[u8], vt: &mut VTerm) {
-        unsafe {
-            vterm_input_write(vt, input.as_ptr().cast(), input.len());
-        }
+        vterm_input_write(vt, input.as_ptr().cast(), input.len());
     }
 
     fn expect(expected: &[u8]) {
@@ -1157,11 +1147,9 @@ mod tests {
     }
 
     fn cursor(row: c_int, col: c_int, state: &VTermStateFull) {
-        unsafe {
-            let mut pos = VTermPos { row: 0, col: 0 };
+        let mut pos = VTermPos { row: 0, col: 0 };
             vterm_state_get_cursorpos(state, &raw mut pos);
             assert_eq!((pos.row, pos.col), (row, col));
-        }
     }
 
     fn lineinfo(
@@ -1189,11 +1177,9 @@ mod tests {
             "overline" => VTERM_ATTR_OVERLINE,
             _ => unreachable!(),
         };
-        unsafe {
-            let mut val = VTermValue::Boolean(0);
+        let mut val = VTermValue::Boolean(0);
             vterm_state_get_penattr(state, attr, &raw mut val);
             assert_eq!(val.boolean(), expected);
-        }
     }
 
     fn resize(rows: c_int, cols: c_int, vt: &mut VTerm) {
@@ -1208,8 +1194,7 @@ mod tests {
         expected: &[u8],
         screen: &VTermScreen,
     ) {
-        unsafe {
-            let rect = VTermRect {
+        let rect = VTermRect {
                 start_row,
                 start_col,
                 end_row,
@@ -1219,7 +1204,6 @@ mod tests {
             let mut buf = vec![0u8; len];
             vterm_screen_get_text(screen, buf.as_mut_ptr().cast(), len, rect);
             assert_eq!(buf, expected);
-        }
     }
 
     fn screen_text(
@@ -1230,8 +1214,7 @@ mod tests {
         expected: &[u8],
         screen: &VTermScreen,
     ) {
-        unsafe {
-            let rect = VTermRect {
+        let rect = VTermRect {
                 start_row,
                 start_col,
                 end_row,
@@ -1249,7 +1232,6 @@ mod tests {
                 let _ = write!(actual, "{b:02x}");
             }
             assert_eq!(actual.as_bytes(), expected);
-        }
     }
 
     fn screen_row(row: c_int, expected: &[u8], screen: &VTermScreen, end_col: c_int) {

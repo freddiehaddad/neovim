@@ -134,9 +134,7 @@ pub struct except_T {
 
 impl Drop for except_T {
     fn drop(&mut self) {
-        unsafe {
-            tv_list_unref(self.stacktrace);
-        }
+        tv_list_unref(self.stacktrace);
     }
 }
 
@@ -232,9 +230,7 @@ fn check_skip(cstack: &cstack_T) -> bool {
 #[inline]
 fn discard_pending_return(p: &mut Option<typval_T>) {
     if let Some(ref mut tv) = p.take() {
-        unsafe {
-            tv_clear(tv);
-        }
+        tv_clear(tv);
     }
 }
 

@@ -1149,8 +1149,7 @@ fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
 }
 
 fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
-    unsafe {
-        let d = tv_dict_alloc();
+    let d = tv_dict_alloc();
         let sh = decor_find_sign(mt_decor(mark)).unwrap();
 
         tv_dict_add_str(d, c"name".as_ptr(), 4, sign_get_name(sh));
@@ -1164,7 +1163,6 @@ fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
         tv_dict_add_nr(d, c"lnum".as_ptr(), 4, i64::from(mark.pos.row + 1));
         tv_dict_add_nr(d, c"priority".as_ptr(), 8, i64::from(sh.priority));
         d
-    }
 }
 
 pub fn get_buffer_signs(buf: &mut buf_T) -> *mut list_T {

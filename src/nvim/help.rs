@@ -490,8 +490,7 @@ pub fn prepare_help_buffer() {
 
 /// Populate `*local-additions*` in `help.txt` (`get_local_additions`).
 pub fn get_local_additions() {
-    unsafe {
-        let mut no_args = [typval_T {
+    let mut no_args = [typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: 0,
             vval: TypvalVval::Number(0),
@@ -502,7 +501,6 @@ pub fn get_local_additions() {
             no_args.as_mut_ptr(),
             ptr::null_mut(),
         );
-    }
 }
 
 /// `:exusage` (`ex_exusage`).

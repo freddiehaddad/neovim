@@ -86,11 +86,11 @@ use crate::lpeg::lptree::luaopen_lpeg;
 use crate::lua::converter::lua_isstring;
 use crate::mpack::lmpack::luaopen_mpack;
 
-unsafe fn regex_check(lstate: *mut lua_State) -> *mut *mut regprog_T {
+fn regex_check(lstate: *mut lua_State) -> *mut *mut regprog_T {
     unsafe { luaL_checkudata(lstate, 1, c"nvim_regex".as_ptr()).cast::<*mut regprog_T>() }
 }
 
-unsafe fn regex_match(
+fn regex_match(
     lstate: *mut lua_State,
     prog: *mut *mut regprog_T,
     str_: *mut c_char,
@@ -351,7 +351,7 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut dict_T {
+fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut dict_T {
     unsafe {
         let scope = luaL_checkstring(lstate, 1);
         let handle = luaL_checkinteger(lstate, 2) as handle_T;
@@ -778,7 +778,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
     }
 }
 
-unsafe fn nlua_state_add_internal(lstate: *mut lua_State) {
+fn nlua_state_add_internal(lstate: *mut lua_State) {
     unsafe {
         lua_pushcfunction(lstate, Some(nlua_getvar));
         lua_setfield(lstate, -2, c"_getvar".as_ptr());

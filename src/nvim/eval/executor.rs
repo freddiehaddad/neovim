@@ -64,16 +64,14 @@ fn tv_op_list(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
             (*l2).lv_refcount += 1;
         }
     } else {
-        unsafe {
-            tv_list_extend(l1, l2, std::ptr::null_mut());
-        }
+        tv_list_extend(l1, l2, std::ptr::null_mut());
     }
 
     OK
 }
 
 fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
-    let mut n = unsafe { tv_get_number(tv1) };
+    let mut n = tv_get_number(tv1);
 
     if tv2.v_type == VarType::VAR_FLOAT {
         let mut f = n as f64;
@@ -88,13 +86,11 @@ fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
             b'/' => f /= rhs,
             _ => {}
         }
-        unsafe {
-            tv_clear(tv1);
-        }
+        tv_clear(tv1);
         tv1.v_type = VarType::VAR_FLOAT;
         tv1.vval = TypvalVval::Float(f);
     } else {
-        let rhs = unsafe { tv_get_number(tv2) };
+        let rhs = tv_get_number(tv2);
 
         match op {
             b'+' => n = n.wrapping_add(rhs),
@@ -108,9 +104,7 @@ fn tv_op_number(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
             }
             _ => {}
         }
-        unsafe {
-            tv_clear(tv1);
-        }
+        tv_clear(tv1);
         tv1.v_type = VarType::VAR_NUMBER;
         tv1.vval = TypvalVval::Number(n);
     }
@@ -163,7 +157,7 @@ fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
     let f = if tv2.v_type == VarType::VAR_FLOAT {
         tv2.vval.v_float()
     } else {
-        (unsafe { tv_get_number(tv2) }) as f64
+        (tv_get_number(tv2)) as f64
     };
 
     match op {
@@ -178,7 +172,7 @@ fn tv_op_float(tv1: &mut typval_T, tv2: &typval_T, op: u8) -> c_int {
 }
 
 /// Execute compound assignment `tv1 <op>= tv2` (`eexe_mod_op`).
-pub unsafe fn eexe_mod_op(tv1: *mut typval_T, tv2: *const typval_T, op: *const c_char) -> c_int {
+pub fn eexe_mod_op(tv1: *mut typval_T, tv2: *const typval_T, op: *const c_char) -> c_int {
     let tv1 = unsafe { &mut *tv1 };
     let tv2 = unsafe { &*tv2 };
     let op_byte = unsafe { *op as u8 };
@@ -231,11 +225,9 @@ mod tests {
             v_lock: 0,
             vval: TypvalVval::Number(5),
         };
-        unsafe {
-            assert_eq!(eexe_mod_op(&mut tv1, &tv2, c"+".as_ptr()), OK);
+        assert_eq!(eexe_mod_op(&mut tv1, &tv2, c"+".as_ptr()), OK);
             assert_eq!(tv1.vval.v_number(), 15);
             assert_eq!(eexe_mod_op(&mut tv1, &tv2, c"*".as_ptr()), OK);
             assert_eq!(tv1.vval.v_number(), 75);
-        }
     }
 }

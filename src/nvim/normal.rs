@@ -6940,8 +6940,7 @@ fn nv_operator(cap: &mut cmdarg_T) {
 }
 
 fn set_op_var(optype: c_int) {
-    unsafe {
-        if optype == OP_NOP {
+    if optype == OP_NOP {
             set_vim_var_string(VV_OP, ptr::null(), 0);
         } else {
             let opchar0 = get_op_char(optype);
@@ -6951,7 +6950,6 @@ fn set_op_var(optype: c_int) {
             let opchars: [c_char; 3] = [opchar0 as c_char, opchar1 as c_char, NUL];
             set_vim_var_string(VV_OP, opchars.as_ptr(), 2);
         }
-    }
 }
 
 fn nv_lineop(cap: &mut cmdarg_T) {

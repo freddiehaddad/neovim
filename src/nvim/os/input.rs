@@ -108,7 +108,7 @@ fn ensure_input_ptrs_init() {
         }
 }
 
-unsafe fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> {
+fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> {
     unsafe {
         if s.is_null() || *s as u8 != b'<' {
             return None;
@@ -171,11 +171,9 @@ pub fn cursorhold_event() {
 }
 
 fn create_cursorhold_event(events_enabled: bool) {
-    unsafe {
-        let events = main_loop_events();
+    let events = main_loop_events();
         debug_assert!(!events_enabled || multiqueue_empty(events));
         multiqueue_put_event(events, Event::CursorHold);
-    }
 }
 
 fn reset_cursorhold_wait(tb_change_cnt: c_int) {
@@ -184,7 +182,7 @@ fn reset_cursorhold_wait(tb_change_cnt: c_int) {
 }
 
 /// Reads OS input into `buf`, and consumes pending events while waiting (if `ms != 0`).
-pub unsafe fn input_get(
+pub fn input_get(
     buf: *mut u8,
     maxlen: c_int,
     ms: c_int,
@@ -289,7 +287,7 @@ pub unsafe fn input_get(
 
 /// Check if a character is available for reading
 pub fn os_char_avail() -> bool {
-    unsafe { inbuf_poll(0, ptr::null_mut()) }
+    inbuf_poll(0, ptr::null_mut())
 }
 
 /// Poll for fast events. `got_int` will be set to `true` if CTRL-C was typed.
@@ -348,7 +346,7 @@ fn input_space() -> usize {
     }
 }
 
-pub unsafe fn input_enqueue_raw(data: *const c_char, size: usize) {
+pub fn input_enqueue_raw(data: *const c_char, size: usize) {
     unsafe {
         ensure_input_ptrs_init();
         let buf_start = input_buf_ptr();
@@ -439,7 +437,7 @@ pub fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
     }
 }
 
-unsafe fn check_multiclick(
+fn check_multiclick(
     code: c_int,
     grid: c_int,
     row: c_int,
@@ -498,7 +496,7 @@ unsafe fn check_multiclick(
 }
 
 /// Mouse event handling code (extract row/col if available and detect multiple clicks)
-unsafe fn handle_mouse_event(
+fn handle_mouse_event(
     ptr_p: *mut *const c_char,
     buf: *mut u8,
     mut bufsize: c_uint,
@@ -610,7 +608,7 @@ pub fn input_blocking() -> bool {
 }
 
 /// Checks for (but does not read) available input, and consumes `main_loop.events` while waiting.
-unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
+fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
     unsafe {
         if os_input_ready(events) {
             return true;
@@ -713,7 +711,7 @@ fn process_ctrl_c() {
 
 /// Pushes bytes from the "event" key sequence (KE_EVENT) partially between calls to input_get when
 /// `maxlen < 3`.
-unsafe fn push_event_key(buf: *mut u8, maxlen: c_int) -> c_int {
+fn push_event_key(buf: *mut u8, maxlen: c_int) -> c_int {
     const KEY: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_EVENT];
     unsafe {
         let mut buf_idx: c_int = 0;
@@ -732,12 +730,12 @@ unsafe fn push_event_key(buf: *mut u8, maxlen: c_int) -> c_int {
 }
 
 /// Check if there's pending input already in typebuf or `events`
-pub unsafe fn os_input_ready(events: *mut MultiQueue) -> bool {
-    unsafe { g_st().typebuf_was_filled || input_available() != 0 || pending_events(events) }
+pub fn os_input_ready(events: *mut MultiQueue) -> bool {
+    g_st().typebuf_was_filled || input_available() != 0 || pending_events(events)
 }
 
-unsafe fn pending_events(events: *mut MultiQueue) -> bool {
-    unsafe { !events.is_null() && !multiqueue_empty(events) }
+fn pending_events(events: *mut MultiQueue) -> bool {
+    !events.is_null() && !multiqueue_empty(events)
 }
 
 #[cfg(test)]

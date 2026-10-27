@@ -2441,15 +2441,13 @@ pub fn did_set_guicursor(_args: &mut optset_T) -> *const c_char {
 
 /// The 'helpfile' option is changed.
 pub fn did_set_helpfile(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        if g_st().didset_vim {
+    if g_st().didset_vim {
             vim_unsetenv_ext(c"VIM".as_ptr());
         }
         if g_st().didset_vimruntime {
             vim_unsetenv_ext(c"VIMRUNTIME".as_ptr());
         }
         ptr::null()
-    }
 }
 
 /// Validate the 'helplang' option.

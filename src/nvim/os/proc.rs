@@ -82,7 +82,7 @@ unsafe extern "system" {
 }
 
 #[cfg(target_os = "windows")]
-unsafe fn os_proc_tree_kill_rec(proc_handle: *mut c_void, sig: c_int) -> bool {
+fn os_proc_tree_kill_rec(proc_handle: *mut c_void, sig: c_int) -> bool {
     if proc_handle.is_null() {
         return false;
     }
@@ -194,7 +194,7 @@ pub fn os_proc_children(ppid: c_int) -> Result<Vec<c_int>, c_int> {
 ///
 /// # Safety
 /// `arena` must be a valid pointer to an initialized `Arena`.
-pub unsafe fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
+pub fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
     let mut pinfo = Dict {
         size: 0,
         capacity: 0,

@@ -273,9 +273,7 @@ impl qfline_T {
 
 impl Drop for qfline_T {
     fn drop(&mut self) {
-        unsafe {
-            tv_clear(&raw mut self.qf_user_data);
-        }
+        tv_clear(&raw mut self.qf_user_data);
     }
 }
 
@@ -2683,8 +2681,7 @@ fn qf_pop_dir(stack: &mut Vec<std::ffi::CString>) {
 }
 
 unsafe fn qf_guess_filepath(qfl: &mut qf_list_T, filename: *mut c_char) -> *mut c_char {
-    unsafe {
-        let stack = &mut qfl.qf_dir_stack;
+    let stack = &mut qfl.qf_dir_stack;
         if stack.is_empty() {
             return ptr::null_mut();
         }
@@ -2706,7 +2703,6 @@ unsafe fn qf_guess_filepath(qfl: &mut qf_list_T, filename: *mut c_char) -> *mut 
         found_idx.map_or(ptr::null_mut(), |_| {
             stack[stack.len() - 2].as_ptr().cast_mut()
         })
-    }
 }
 
 unsafe fn qflist_valid(wp: *mut win_T, qf_id: c_uint) -> bool {
@@ -3856,8 +3852,7 @@ fn qf_free_items(qfl: &mut qf_list_T) {
 }
 
 fn qf_free(qfl: &mut qf_list_T) {
-    unsafe {
-        qf_free_items(qfl);
+    qf_free_items(qfl);
 
         qfl.qf_title = None;
         if let Some(ref mut ctx) = qfl.qf_ctx {
@@ -3867,7 +3862,6 @@ fn qf_free(qfl: &mut qf_list_T) {
         callback_free(&mut qfl.qf_qftf_cb);
         qfl.qf_id = 0;
         qfl.qf_changedtick = 0;
-    }
 }
 
 pub unsafe fn qf_mark_adjust(
@@ -4132,11 +4126,9 @@ fn qf_open_new_cwindow(qi: &mut qf_info_T, height: c_int) -> c_int {
 }
 
 fn qf_set_title_var(qfl: &mut qf_list_T) {
-    unsafe {
-        if let Some(ref title) = qfl.qf_title {
+    if let Some(ref title) = qfl.qf_title {
             set_internal_string_var(c"w:quickfix_title".as_ptr(), title.as_ptr().cast_mut());
         }
-    }
 }
 
 pub fn ex_copen(eap: &mut exarg_T) {
@@ -6143,8 +6135,7 @@ unsafe fn unload_dummy_buffer(buf: *mut buf_T, dirname_start: *mut c_char) {
 }
 
 unsafe fn get_qfline_items(qfp: &mut qfline_T, list: *mut list_T) -> c_int {
-    unsafe {
-        let mut bufnum = qfp.qf_fnum;
+    let mut bufnum = qfp.qf_fnum;
         if bufnum != 0 && buflist_findnr(bufnum).is_null() {
             bufnum = 0;
         }
@@ -6205,7 +6196,6 @@ unsafe fn get_qfline_items(qfp: &mut qfline_T, list: *mut list_T) -> c_int {
         }
 
         OK
-    }
 }
 
 unsafe fn get_errorlist(
@@ -6340,8 +6330,7 @@ unsafe fn qf_getprop_qfbufnr(qi: *const qf_info_T, retdict: *mut dict_T) -> c_in
 }
 
 unsafe fn qf_getprop_keys2flags(what: *const dict_T, loclist: bool) -> c_int {
-    unsafe {
-        let mut flags = QF_GETLIST_NONE;
+    let mut flags = QF_GETLIST_NONE;
 
         if !tv_dict_find(what, c"all".as_ptr(), 3).is_null() {
             flags |= QF_GETLIST_ALL;
@@ -6387,7 +6376,6 @@ unsafe fn qf_getprop_keys2flags(what: *const dict_T, loclist: bool) -> c_int {
         }
 
         flags
-    }
 }
 
 unsafe fn qf_getprop_qfidx(qi: &mut qf_info_T, what: *mut dict_T) -> c_int {
@@ -6484,14 +6472,12 @@ unsafe fn qf_getprop_defaults(
 }
 
 unsafe fn qf_getprop_title(qfl: &mut qf_list_T, retdict: *mut dict_T) -> c_int {
-    unsafe {
-        tv_dict_add_str(
+    tv_dict_add_str(
             retdict,
             c"title".as_ptr(),
             5,
             qfl.qf_title.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
         )
-    }
 }
 
 unsafe fn qf_getprop_filewinid(
@@ -6556,8 +6542,7 @@ unsafe fn qf_getprop_idx(qfl: &mut qf_list_T, mut eidx: c_int, retdict: *mut dic
 }
 
 unsafe fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: *mut dict_T) -> c_int {
-    unsafe {
-        if qfl.qf_qftf_cb.cb_type() != kCallbackNone {
+    if qfl.qf_qftf_cb.cb_type() != kCallbackNone {
             let mut tv: typval_T = typval_T::new();
             callback_put(&mut qfl.qf_qftf_cb, &mut tv);
             let status = tv_dict_add_tv(retdict, c"quickfixtextfunc".as_ptr(), 16, &raw mut tv);
@@ -6566,7 +6551,6 @@ unsafe fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: *mut dict_T) -> c_int {
         } else {
             tv_dict_add_str_len(retdict, c"quickfixtextfunc".as_ptr(), 16, c"".as_ptr(), 0)
         }
-    }
 }
 
 unsafe fn qf_get_properties(wp: *mut win_T, what: *mut dict_T, retdict: *mut dict_T) -> c_int {
@@ -7077,8 +7061,7 @@ unsafe fn qf_setprop_items_from_lines(
 }
 
 fn qf_setprop_context(qfl: &mut qf_list_T, di: &mut dictitem_T) -> c_int {
-    unsafe {
-        if let Some(ref mut ctx) = qfl.qf_ctx {
+    if let Some(ref mut ctx) = qfl.qf_ctx {
             tv_clear(ctx);
         }
         let mut ctx = tv_initial_value();
@@ -7086,7 +7069,6 @@ fn qf_setprop_context(qfl: &mut qf_list_T, di: &mut dictitem_T) -> c_int {
         qfl.qf_ctx = Some(ctx);
 
         OK
-    }
 }
 
 fn qf_setprop_curidx(

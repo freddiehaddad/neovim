@@ -129,7 +129,7 @@ pub fn os_sleep(ms: u64) {
 ///
 /// # Safety
 /// `clock` and `result` must be valid pointers.
-pub unsafe fn os_localtime_r(clock: *const time_t, result: *mut Tm) -> *mut Tm {
+pub fn os_localtime_r(clock: *const time_t, result: *mut Tm) -> *mut Tm {
     #[cfg(unix)]
     unsafe {
         let mut tz_buf = [0 as c_char; 64];
@@ -166,23 +166,23 @@ pub unsafe fn os_localtime_r(clock: *const time_t, result: *mut Tm) -> *mut Tm {
 ///
 /// # Safety
 /// `result` must be a valid writable pointer to `struct tm`.
-pub unsafe fn os_localtime(result: *mut Tm) -> *mut Tm {
+pub fn os_localtime(result: *mut Tm) -> *mut Tm {
     let rawtime = os_time() as time_t;
-    unsafe { os_localtime_r(&rawtime, result) }
+    os_localtime_r(&rawtime, result)
 }
 
 /// Format `clock` as local time into `result[..result_len]` (`os_ctime_r`).
 ///
 /// # Safety
 /// `clock` and `result` must be valid pointers, with `result` writable for `result_len` bytes.
-pub unsafe fn os_ctime_r(
+pub fn os_ctime_r(
     clock: *const time_t,
     result: *mut c_char,
     result_len: usize,
     add_newline: bool,
 ) -> *mut c_char {
     let mut clock_local = Tm { _fields: [0; 16] };
-    let ptr = unsafe { os_localtime_r(clock, &mut clock_local) };
+    let ptr = os_localtime_r(clock, &mut clock_local);
 
     unsafe {
         if ptr.is_null()
@@ -213,7 +213,7 @@ pub unsafe fn os_ctime_r(
 ///
 /// # Safety
 /// `str_ptr`, `format`, and `tm` must be valid pointers.
-pub unsafe fn os_strptime(
+pub fn os_strptime(
     str_ptr: *const c_char,
     format: *const c_char,
     tm: *mut Tm,

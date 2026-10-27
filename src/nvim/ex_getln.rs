@@ -4835,39 +4835,33 @@ fn get_cmdline_completion() -> Option<std::ffi::CString> {
 
 /// `"getcmdcomplpat()"` function.
 pub fn f_getcmdcomplpat(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        crate::eval::typval::tv_set_string(
+    crate::eval::typval::tv_set_string(
             rettv,
             get_cmdline_completion_pattern()
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr()),
         );
-    }
 }
 
 /// `"getcmdcompltype()"` function.
 pub fn f_getcmdcompltype(_argvars: &mut [typval_T], rettv: &mut typval_T,
     _fptr: EvalFuncData,){
-    unsafe {
-        crate::eval::typval::tv_set_string(
+    crate::eval::typval::tv_set_string(
             rettv,
             get_cmdline_completion()
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr()),
         );
-    }
 }
 
 /// `"getcmdline()"` function.
 pub fn f_getcmdline(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        if let Some(s) = get_cmdline_str() {
+    if let Some(s) = get_cmdline_str() {
             crate::eval::typval::tv_set_string_len(rettv, s.as_ptr(), s.as_bytes().len());
         } else {
             rettv.v_type = VarType::VAR_STRING;
             rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         }
-    }
 }
 
 /// `"getcmdpos()"` function.
@@ -4914,10 +4908,8 @@ pub fn f_getcmdscreenpos(_argvars: &mut [typval_T], rettv: &mut typval_T,
 
 /// `"getcmdtype()"` function.
 pub fn f_getcmdtype(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
-    unsafe {
-        let buf: [c_char; 2] = [get_cmdline_type() as c_char, 0];
+    let buf: [c_char; 2] = [get_cmdline_type() as c_char, 0];
         crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
-    }
 }
 
 /// Set the command line str to `str`.
@@ -4997,13 +4989,11 @@ pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 pub fn f_setcmdpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        let pos = (tv_get_number(argvars) - 1) as c_int;
+    let pos = (tv_get_number(argvars) - 1) as c_int;
 
         if pos >= 0 {
             rettv.vval = crate::eval::typval::TypvalVval::Number(set_cmdline_pos(pos) as varnumber_T);
         }
-    }
 }
 
 /// Return the first character of the current command line.

@@ -102,11 +102,9 @@ pub struct debuggy {
 
 impl Drop for debuggy {
     fn drop(&mut self) {
-        unsafe {
-            if let Some(ref mut val) = self.dbg_val {
+        if let Some(ref mut val) = self.dbg_val {
                 tv_clear(val);
             }
-        }
     }
 }
 

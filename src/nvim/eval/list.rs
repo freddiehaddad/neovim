@@ -40,7 +40,7 @@ fn tv_blob_set(b: &mut blob_T, idx: c_int, c: u8) {
     (&mut b.bv_ga)[idx as usize] = c;
 }
 
-unsafe fn filter_map_one(
+fn filter_map_one(
     tv: *mut typval_T,
     expr: *mut typval_T,
     filtermap: FilterMap,
@@ -91,7 +91,7 @@ unsafe fn filter_map_one(
     }
 }
 
-unsafe fn filter_map_dict(
+fn filter_map_dict(
     d: *mut dict_T,
     filtermap: FilterMap,
     arg_errmsg: *const c_char,
@@ -176,7 +176,7 @@ unsafe fn filter_map_dict(
     }
 }
 
-unsafe fn filter_map_blob(
+fn filter_map_blob(
     blob_arg: *mut blob_T,
     filtermap: FilterMap,
     expr: *mut typval_T,
@@ -254,7 +254,7 @@ unsafe fn filter_map_blob(
     }
 }
 
-unsafe fn filter_map_string(
+fn filter_map_string(
     str_ptr: *const c_char,
     filtermap: FilterMap,
     expr: *mut typval_T,
@@ -311,7 +311,7 @@ unsafe fn filter_map_string(
     }
 }
 
-unsafe fn filter_map_list(
+fn filter_map_list(
     l: *mut list_T,
     filtermap: FilterMap,
     arg_errmsg: *const c_char,
@@ -383,7 +383,7 @@ unsafe fn filter_map_list(
     }
 }
 
-unsafe fn filter_map(argvars: *mut typval_T, rettv: *mut typval_T, filtermap: FilterMap) {
+fn filter_map(argvars: *mut typval_T, rettv: *mut typval_T, filtermap: FilterMap) {
     unsafe {
         let (func_name, arg_errmsg) = match filtermap {
             FilterMap::Map => (c"map()".as_ptr(), c"map() argument".as_ptr()),
@@ -456,36 +456,28 @@ unsafe fn filter_map(argvars: *mut typval_T, rettv: *mut typval_T, filtermap: Fi
 pub fn f_filter(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        filter_map(argvars, rettv, FilterMap::Filter);
-    }
+    filter_map(argvars, rettv, FilterMap::Filter);
 }
 
 /// `"map()"` function (`f_map`).
 pub fn f_map(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        filter_map(argvars, rettv, FilterMap::Map);
-    }
+    filter_map(argvars, rettv, FilterMap::Map);
 }
 
 /// `"mapnew()"` function (`f_mapnew`).
 pub fn f_mapnew(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        filter_map(argvars, rettv, FilterMap::MapNew);
-    }
+    filter_map(argvars, rettv, FilterMap::MapNew);
 }
 
 /// `"foreach()"` function (`f_foreach`).
 pub fn f_foreach(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        filter_map(argvars, rettv, FilterMap::ForEach);
-    }
+    filter_map(argvars, rettv, FilterMap::ForEach);
 }
 
 /// `"add(list, item)"` function (`f_add`).
@@ -520,7 +512,7 @@ pub fn f_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData
     }
 }
 
-unsafe fn count_string(haystack: *const c_char, needle: *const c_char, ic: bool) -> i64 {
+fn count_string(haystack: *const c_char, needle: *const c_char, ic: bool) -> i64 {
     unsafe {
         if haystack.is_null() || needle.is_null() || *needle == 0 {
             return 0;
@@ -558,7 +550,7 @@ unsafe fn count_string(haystack: *const c_char, needle: *const c_char, ic: bool)
     }
 }
 
-unsafe fn count_list(l: *mut list_T, needle: *mut typval_T, idx: i64, ic: bool) -> i64 {
+fn count_list(l: *mut list_T, needle: *mut typval_T, idx: i64, ic: bool) -> i64 {
     unsafe {
         if tv_list_len(l) == 0 {
             return 0;
@@ -579,7 +571,7 @@ unsafe fn count_list(l: *mut list_T, needle: *mut typval_T, idx: i64, ic: bool) 
     }
 }
 
-unsafe fn count_dict(d: *mut dict_T, needle: *mut typval_T, ic: bool) -> i64 {
+fn count_dict(d: *mut dict_T, needle: *mut typval_T, ic: bool) -> i64 {
     unsafe {
         if d.is_null() {
             return 0;
@@ -648,7 +640,7 @@ pub fn f_count(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
     }
 }
 
-unsafe fn extend_dict(
+fn extend_dict(
     argvars: *mut typval_T,
     arg_errmsg: *const c_char,
     is_new: bool,
@@ -709,7 +701,7 @@ unsafe fn extend_dict(
     }
 }
 
-unsafe fn extend_list(
+fn extend_list(
     argvars: *mut typval_T,
     arg_errmsg: *const c_char,
     is_new: bool,
@@ -768,7 +760,7 @@ unsafe fn extend_list(
     }
 }
 
-unsafe fn extend_impl(
+fn extend_impl(
     argvars: *mut typval_T,
     rettv: *mut typval_T,
     arg_errmsg: *const c_char,
@@ -798,18 +790,14 @@ unsafe fn extend_impl(
 pub fn f_extend(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        extend_impl(argvars, rettv, c"extend() argument".as_ptr(), false);
-    }
+    extend_impl(argvars, rettv, c"extend() argument".as_ptr(), false);
 }
 
 /// `"extendnew()"` function (`f_extendnew`).
 pub fn f_extendnew(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        extend_impl(argvars, rettv, c"extendnew() argument".as_ptr(), true);
-    }
+    extend_impl(argvars, rettv, c"extendnew() argument".as_ptr(), true);
 }
 
 /// `"insert()"` function (`f_insert`).
@@ -959,11 +947,9 @@ mod tests {
 
     #[test]
     fn list_lock_and_len_helpers_handle_null() {
-        unsafe {
-            assert_eq!(tv_list_locked(std::ptr::null()), VAR_FIXED);
+        assert_eq!(tv_list_locked(std::ptr::null()), VAR_FIXED);
             assert_eq!(tv_list_len(std::ptr::null()), 0);
             assert!(tv_list_first(std::ptr::null()).is_null());
             assert_eq!(tv_blob_len(std::ptr::null()), 0);
-        }
     }
 }

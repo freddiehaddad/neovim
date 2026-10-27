@@ -198,7 +198,7 @@ unsafe extern "system" {
 }
 
 #[inline]
-unsafe fn env_name_valid(name: *const c_char) -> bool {
+fn env_name_valid(name: *const c_char) -> bool {
     unsafe {
         #[cfg(windows)]
         {
@@ -212,13 +212,11 @@ unsafe fn env_name_valid(name: *const c_char) -> bool {
 }
 
 pub fn env_init() {
-    unsafe {
-        g_st().nvim_testing = os_env_exists(c"NVIM_TEST".as_ptr(), false);
-    }
+    g_st().nvim_testing = os_env_exists(c"NVIM_TEST".as_ptr(), false);
 }
 
 /// Gets the length (bytes) of the env var name at `p`.
-pub unsafe fn env_name_len(p: *const c_char) -> usize {
+pub fn env_name_len(p: *const c_char) -> usize {
     unsafe {
         let mut s = p;
         loop {
@@ -244,7 +242,7 @@ pub unsafe fn env_name_len(p: *const c_char) -> usize {
 }
 
 /// Like `getenv()`, but returns `None` if the variable is empty, without C heap allocations.
-pub unsafe fn os_getenv_cstr(name: *const c_char) -> Option<std::ffi::CString> {
+pub fn os_getenv_cstr(name: *const c_char) -> Option<std::ffi::CString> {
     unsafe {
         if !env_name_valid(name) {
             return None;
@@ -273,7 +271,7 @@ pub unsafe fn os_getenv_cstr(name: *const c_char) -> Option<std::ffi::CString> {
 }
 
 /// Like `getenv()`, but stores the value in `buf` instead of allocating.
-pub unsafe fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usize) -> *mut c_char {
+pub fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usize) -> *mut c_char {
     unsafe {
         if !env_name_valid(name) {
             return ptr::null_mut();
@@ -299,7 +297,7 @@ pub unsafe fn os_getenv_buf(name: *const c_char, buf: *mut c_char, bufsize: usiz
 }
 
 /// Returns true if environment variable `name` is defined (even if empty).
-pub unsafe fn os_env_exists(name: *const c_char, nonempty: bool) -> bool {
+pub fn os_env_exists(name: *const c_char, nonempty: bool) -> bool {
     unsafe {
         if !env_name_valid(name) {
             return false;
@@ -315,7 +313,7 @@ pub unsafe fn os_env_exists(name: *const c_char, nonempty: bool) -> bool {
 }
 
 /// Sets an environment variable.
-pub unsafe fn os_setenv(name: *const c_char, value: *const c_char, overwrite: c_int) -> c_int {
+pub fn os_setenv(name: *const c_char, value: *const c_char, overwrite: c_int) -> c_int {
     unsafe {
         if !env_name_valid(name) {
             return -1;
@@ -353,7 +351,7 @@ pub unsafe fn os_setenv(name: *const c_char, value: *const c_char, overwrite: c_
 }
 
 /// Unset environment variable.
-pub unsafe fn os_unsetenv(name: *const c_char) -> c_int {
+pub fn os_unsetenv(name: *const c_char) -> c_int {
     unsafe {
         if !env_name_valid(name) {
             return -1;
@@ -429,7 +427,7 @@ pub fn os_get_pid() -> i64 {
 pub fn os_hint_priority() {}
 
 /// Gets the hostname of the current machine.
-pub unsafe fn os_get_hostname(hostname: *mut c_char, size: usize) {
+pub fn os_get_hostname(hostname: *mut c_char, size: usize) {
     #[cfg(not(windows))]
     unsafe {
         if gethostname(hostname, size) < 0 {
@@ -572,12 +570,12 @@ pub fn free_homedir() {
 }
 
 /// Call `expand_env()` and store the result in an allocated string.
-pub unsafe fn expand_env_save(src: *mut c_char) -> std::ffi::CString {
-    unsafe { expand_env_save_opt(src, false, ptr::null_mut()) }
+pub fn expand_env_save(src: *mut c_char) -> std::ffi::CString {
+    expand_env_save_opt(src, false, ptr::null_mut())
 }
 
 /// Similar to `expand_env_save()` with `one` and `esc_chars`.
-pub unsafe fn expand_env_save_opt(
+pub fn expand_env_save_opt(
     src: *mut c_char,
     one: bool,
     esc_chars: *mut c_char,
@@ -597,12 +595,12 @@ pub unsafe fn expand_env_save_opt(
 }
 
 /// Expand environment variable with path name.
-pub unsafe fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int) -> usize {
-    unsafe { expand_env_esc(src, dst, dstlen, ptr::null_mut(), false, ptr::null_mut()) }
+pub fn expand_env(src: *mut c_char, dst: *mut c_char, dstlen: c_int) -> usize {
+    expand_env_esc(src, dst, dstlen, ptr::null_mut(), false, ptr::null_mut())
 }
 
 /// Expand environment variable with path name and escaping.
-pub unsafe fn expand_env_esc(
+pub fn expand_env_esc(
     srcp: *const c_char,
     mut dst: *mut c_char,
     mut dstlen: c_int,
@@ -808,7 +806,7 @@ pub unsafe fn expand_env_esc(
     }
 }
 
-unsafe fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
+fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
     if vimdir.is_null() {
         return None;
     }
@@ -832,7 +830,7 @@ unsafe fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
     }
 }
 
-unsafe fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_char) -> *mut c_char {
+fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_char) -> *mut c_char {
     unsafe {
         let len = std::ffi::CStr::from_ptr(dirname).to_bytes().len();
         if (pend as usize) > (path as usize) + len {
@@ -848,7 +846,7 @@ unsafe fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_ch
 }
 
 /// Iterates `$PATH`-like delimited list `val`.
-pub unsafe fn vim_env_iter(
+pub fn vim_env_iter(
     delim: c_char,
     val: *const c_char,
     iter: *const c_char,
@@ -870,7 +868,7 @@ pub unsafe fn vim_env_iter(
 }
 
 /// Iterates `$PATH`-like delimited list `val` in reverse order.
-pub unsafe fn vim_env_iter_rev(
+pub fn vim_env_iter_rev(
     delim: c_char,
     val: *const c_char,
     iter: *const c_char,
@@ -896,7 +894,7 @@ pub unsafe fn vim_env_iter_rev(
     }
 }
 
-pub unsafe fn vim_get_prefix_from_exepath(exe_name: *mut c_char) {
+pub fn vim_get_prefix_from_exepath(exe_name: *mut c_char) {
     unsafe {
         xstrlcpy(exe_name, get_vim_var_str(VV_PROGPATH), MAXPATHL);
         let path_end = path_tail_with_sep(exe_name);
@@ -907,7 +905,7 @@ pub unsafe fn vim_get_prefix_from_exepath(exe_name: *mut c_char) {
 }
 
 /// Vim `getenv()` wrapper with special handling of `$HOME`, `$VIM`, `$VIMRUNTIME`.
-pub unsafe fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
+pub fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
     unsafe {
         assert!(*get_vim_var_str(VV_PROGPATH) != NUL);
 
@@ -1024,7 +1022,7 @@ pub unsafe fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
 }
 
 /// Replace home directory by `"~"` in each space or comma separated file name in `src`.
-pub unsafe fn home_replace(
+pub fn home_replace(
     buf: *const buf_T,
     mut src: *const c_char,
     dst: *mut c_char,
@@ -1164,7 +1162,7 @@ pub unsafe fn home_replace(
 }
 
 /// Like `home_replace`, store the replaced string in an owned `CString`.
-pub unsafe fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> std::ffi::CString {
+pub fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> std::ffi::CString {
     unsafe {
         let mut len: usize = 3;
         if !src.is_null() {
@@ -1190,7 +1188,7 @@ pub fn get_env_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
 /// Appends the head of `fname` to `$PATH` and sets it in the environment.
 #[cfg_attr(not(windows), cfg(test))]
-pub unsafe fn os_setenv_append_path(fname: *const c_char) -> bool {
+pub fn os_setenv_append_path(fname: *const c_char) -> bool {
     unsafe {
         if !path_is_absolute(fname) {
             internal_error(c"os_setenv_append_path()".as_ptr());
@@ -1224,7 +1222,7 @@ pub unsafe fn os_setenv_append_path(fname: *const c_char) -> bool {
 
 /// Returns true if `sh` looks like it resolves to `"cmd.exe"`.
 #[cfg_attr(not(windows), cfg(test))]
-pub unsafe fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
+pub fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
     unsafe {
         if *sh == NUL {
             return false;
@@ -1242,7 +1240,7 @@ pub unsafe fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
 }
 
 /// Removes environment variable `var` and takes care of side effects.
-pub unsafe fn vim_unsetenv_ext(var: *const c_char) {
+pub fn vim_unsetenv_ext(var: *const c_char) {
     unsafe {
         let _ = os_unsetenv(var);
         if std::ffi::CStr::from_ptr(var).to_bytes().eq_ignore_ascii_case(b"VIM") {
@@ -1254,7 +1252,7 @@ pub unsafe fn vim_unsetenv_ext(var: *const c_char) {
 }
 
 /// Set environment variable `name` and take care of side effects.
-pub unsafe fn vim_setenv_ext(name: *const c_char, val: *const c_char) {
+pub fn vim_setenv_ext(name: *const c_char, val: *const c_char) {
     unsafe {
         let _ = os_setenv(name, val, 1);
         if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"HOME") {
@@ -1271,14 +1269,12 @@ pub unsafe fn vim_setenv_ext(name: *const c_char, val: *const c_char) {
 
 /// Restore a previous environment variable value, or unset it if `None`.
 #[cfg(windows)]
-pub unsafe fn restore_env_var(name: *const c_char, old_value: Option<std::ffi::CString>) {
-    unsafe {
-        if let Some(old_value) = old_value {
+pub fn restore_env_var(name: *const c_char, old_value: Option<std::ffi::CString>) {
+    if let Some(old_value) = old_value {
             let _ = os_setenv(name, old_value.as_ptr(), 1);
             return;
         }
         let _ = os_unsetenv(name);
-    }
 }
 
 #[cfg(test)]

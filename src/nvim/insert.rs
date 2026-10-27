@@ -2990,8 +2990,7 @@ fn ins_start_select(c: c_int) -> bool {
 }
 
 fn ins_insert(replace_state: c_int) {
-    unsafe {
-        let mode_str = if (g_st().State & REPLACE_FLAG) != 0 {
+    let mode_str = if (g_st().State & REPLACE_FLAG) != 0 {
             c"i".as_ptr()
         } else if replace_state == MODE_VREPLACE {
             c"v".as_ptr()
@@ -3009,7 +3008,6 @@ fn ins_insert(replace_state: c_int) {
         redo_append_char(K_INS);
         showmode();
         ui_cursor_shape();
-    }
 }
 
 fn ins_ctrl_o() {

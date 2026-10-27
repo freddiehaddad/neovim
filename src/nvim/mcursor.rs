@@ -1373,8 +1373,7 @@ pub fn mc_following() -> bool {
 }
 
 fn mc_lua_enable(enable: bool) {
-    unsafe {
-        if g_st().exiting {
+    if g_st().exiting {
             return;
         }
         let mut tv_args = [
@@ -1395,7 +1394,6 @@ fn mc_lua_enable(enable: bool) {
             tv_args.as_mut_ptr(),
             ptr::null_mut(),
         );
-    }
 }
 
 pub unsafe fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
@@ -1750,8 +1748,7 @@ pub fn mc_zq(oap: &mut oparg_T, cap: &mut cmdarg_T, origin: pos_T) {
 }
 
 pub fn mc_counter(count1: c_long) {
-    unsafe {
-        atom_did_global_op();
+    atom_did_global_op();
         let mut tv_args = [
             typval_T {
                 v_type: VarType::VAR_NUMBER,
@@ -1770,7 +1767,6 @@ pub fn mc_counter(count1: c_long) {
             tv_args.as_mut_ptr(),
             ptr::null_mut(),
         );
-    }
 }
 
 pub fn mc_follow_set(on: TriState) {

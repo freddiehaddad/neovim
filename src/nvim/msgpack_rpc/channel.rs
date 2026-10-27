@@ -183,12 +183,10 @@ pub struct Channel {
 
 impl Drop for Channel {
     fn drop(&mut self) {
-        unsafe {
-            crate::eval::typval::callback_free(&mut self.on_exit);
+        crate::eval::typval::callback_free(&mut self.on_exit);
             if !self.events.is_null() {
                 multiqueue_free(self.events);
             }
-        }
     }
 }
 
@@ -282,9 +280,8 @@ fn find_rpc_channel(id: u64) -> *mut Channel {
     }
 }
 
-pub unsafe fn rpc_send_event(id: u64, name: *const c_char, args: Array) -> bool {
-    unsafe {
-        let mut channel: *mut Channel = ptr::null_mut();
+pub fn rpc_send_event(id: u64, name: *const c_char, args: Array) -> bool {
+    let mut channel: *mut Channel = ptr::null_mut();
         if id != 0 {
             channel = find_rpc_channel(id);
             if channel.is_null() {
@@ -299,10 +296,9 @@ pub unsafe fn rpc_send_event(id: u64, name: *const c_char, args: Array) -> bool 
         }
 
         true
-    }
 }
 
-pub unsafe fn rpc_send_call(
+pub fn rpc_send_call(
     id: u64,
     method_name: *const c_char,
     args: Array,
@@ -421,7 +417,7 @@ pub unsafe fn rpc_send_call(
     }
 }
 
-pub(crate) unsafe fn receive_msgpack(
+pub(crate) fn receive_msgpack(
     _stream: &mut RStream,
     rbuf: *const c_char,
     c: usize,
@@ -721,7 +717,7 @@ pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) 
     }
 }
 
-unsafe fn send_error(
+fn send_error(
     chan: &mut Channel,
     handler: MsgpackRpcRequestHandler,
     r#type: MessageType,
@@ -742,7 +738,7 @@ unsafe fn send_error(
     }
 }
 
-unsafe fn broadcast_event(name: *const c_char, args: Array) {
+fn broadcast_event(name: *const c_char, args: Array) {
     unsafe {
         let mut chans = Vec::<*mut Channel>::new();
 
@@ -788,7 +784,7 @@ pub fn rpc_close(channel: &mut Channel) {
     }
 }
 
-pub unsafe fn rpc_close_event(channel: *mut Channel) {
+pub fn rpc_close_event(channel: *mut Channel) {
     unsafe {
         assert!(!channel.is_null());
 
@@ -827,7 +823,7 @@ pub unsafe fn rpc_close_event(channel: *mut Channel) {
     }
 }
 
-unsafe fn chan_close_on_err(channel: &mut Channel, msg: *const c_char, loglevel: c_int) {
+fn chan_close_on_err(channel: &mut Channel, msg: *const c_char, loglevel: c_int) {
     unsafe {
         logmsg!(
             loglevel,
@@ -872,15 +868,14 @@ unsafe fn chan_close_on_err(channel: &mut Channel, msg: *const c_char, loglevel:
     }
 }
 
-unsafe fn serialize_request(
+fn serialize_request(
     chans: *mut *mut Channel,
     nchans: usize,
     request_id: u32,
     method: *const c_char,
     args: Array,
 ) {
-    unsafe {
-        let mut packer = PackerBuffer::new();
+    let mut packer = PackerBuffer::new();
         packer_buffer_init_channels(chans, nchans, &mut packer);
 
         mpack_array(&raw mut packer.ptr, if request_id != 0 { 4 } else { 3 });
@@ -894,10 +889,9 @@ unsafe fn serialize_request(
         mpack_object_array(args, &mut packer);
 
         packer_buffer_finish_channels(&mut packer);
-    }
 }
 
-pub unsafe fn serialize_response(
+pub fn serialize_response(
     channel: &mut Channel,
     handler: MsgpackRpcRequestHandler,
     r#type: MessageType,
@@ -962,7 +956,7 @@ pub unsafe fn serialize_response(
     }
 }
 
-unsafe fn packer_buffer_init_channels(
+fn packer_buffer_init_channels(
     chans: *mut *mut Channel,
     nchans: usize,
     packer: &mut PackerBuffer,
@@ -1003,14 +997,12 @@ fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
 }
 
 pub(crate) fn channel_flush_callback(packer: &mut PackerBuffer) {
-    unsafe {
-        packer_buffer_finish_channels(packer);
+    packer_buffer_finish_channels(packer);
         packer_buffer_init_channels(
             packer.anydata.as_chans(),
             packer.anyint as usize,
             packer,
         );
-    }
 }
 
 pub fn rpc_set_client_info(id: u64, info: Dict) {
@@ -1043,7 +1035,7 @@ pub fn rpc_set_client_info(id: u64, info: Dict) {
     }
 }
 
-pub unsafe fn get_client_info(chan: &mut Channel, key: *const c_char) -> *const c_char {
+pub fn get_client_info(chan: &mut Channel, key: *const c_char) -> *const c_char {
     unsafe {
         let ct = chan;
         if !ct.is_rpc {
@@ -1066,9 +1058,7 @@ pub unsafe fn get_client_info(chan: &mut Channel, key: *const c_char) -> *const 
 }
 
 pub fn rpc_free_all_mem() {
-    unsafe {
-        multiqueue_free(g_st().ch_before_blocking_events);
-    }
+    multiqueue_free(g_st().ch_before_blocking_events);
 }
 
 #[cfg(test)]

@@ -68,7 +68,7 @@ fn rstream_space(stream: &mut RStream) -> usize {
     stream.buffer.len().saturating_sub(stream.write_pos)
 }
 
-pub unsafe fn rstream_init_fd(loop_: *mut Loop, stream: *mut RStream, fd: c_int) {
+pub fn rstream_init_fd(loop_: *mut Loop, stream: *mut RStream, fd: c_int) {
     unsafe {
         stream_init(loop_, &mut (*stream).s, fd, false);
         rstream_init(&mut *stream);
@@ -241,8 +241,7 @@ pub fn rstream_consume(stream: &mut RStream, consumed: usize) {
 }
 
 fn invoke_read_cb(stream: &mut RStream, eof: bool) {
-    unsafe {
-        stream.did_eof |= eof;
+    stream.did_eof |= eof;
 
         if rstream_space(stream) == 0 {
             rstream_stop_inner(stream);
@@ -261,7 +260,6 @@ fn invoke_read_cb(stream: &mut RStream, eof: bool) {
         } else {
             read_event(stream);
         }
-    }
 }
 
 pub(crate) fn rstream_close_cb(s: &mut Stream) {

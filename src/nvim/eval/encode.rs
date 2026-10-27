@@ -118,7 +118,7 @@ pub(crate) struct MPConvStackVal {
 }
 
 /// Msgpack callback for writing to `readfile()`-style list (`encode_list_write`).
-pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usize) {
+pub fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usize) {
     unsafe {
         if len == 0 {
             return;
@@ -186,8 +186,8 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
 }
 
 /// Initialize `ListReaderState` structure (`encode_init_lrstate`).
-pub unsafe fn encode_init_lrstate(list: *const list_T) -> ListReaderState {
-    let first = unsafe { tv_list_first(list) };
+pub fn encode_init_lrstate(list: *const list_T) -> ListReaderState {
+    let first = tv_list_first(list);
     let li_length = if first.is_null() {
         0
     } else {
@@ -206,7 +206,7 @@ pub unsafe fn encode_init_lrstate(list: *const list_T) -> ListReaderState {
 }
 
 /// Read bytes from list (`encode_read_from_list`).
-pub unsafe fn encode_read_from_list(
+pub fn encode_read_from_list(
     state: *mut ListReaderState,
     buf: *mut c_char,
     nbuf: usize,
@@ -257,9 +257,9 @@ pub unsafe fn encode_read_from_list(
 }
 
 /// Convert `readfile()`-style list to a `Vec<c_char>` buffer (`encode_vim_list_to_buf`).
-pub unsafe fn encode_vim_list_to_buf(list: *const list_T) -> Option<Vec<c_char>> {
+pub fn encode_vim_list_to_buf(list: *const list_T) -> Option<Vec<c_char>> {
     let mut len = 0usize;
-    let mut li = unsafe { tv_list_first(list) };
+    let mut li = tv_list_first(list);
     while !li.is_null() {
         let tv = unsafe { &(*li).li_tv };
         if tv.v_type != VarType::VAR_STRING {
@@ -276,10 +276,10 @@ pub unsafe fn encode_vim_list_to_buf(list: *const list_T) -> Option<Vec<c_char>>
     if len == 0 {
         return Some(Vec::new());
     }
-    let mut lrstate = unsafe { encode_init_lrstate(list) };
+    let mut lrstate = encode_init_lrstate(list);
     let mut buf = vec![0 as c_char; len];
     let mut read_bytes = 0usize;
-    if unsafe { encode_read_from_list(&mut lrstate, buf.as_mut_ptr(), len, &mut read_bytes) } != OK
+    if encode_read_from_list(&mut lrstate, buf.as_mut_ptr(), len, &mut read_bytes) != OK
     {
         std::process::abort();
     }
@@ -288,7 +288,7 @@ pub unsafe fn encode_vim_list_to_buf(list: *const list_T) -> Option<Vec<c_char>>
 }
 
 /// Check whether given key can be used in `json_encode()` (`encode_check_json_key`).
-pub unsafe fn encode_check_json_key(tv: *const typval_T) -> bool {
+pub fn encode_check_json_key(tv: *const typval_T) -> bool {
     unsafe {
         let tv = &*tv;
         if tv.v_type == VarType::VAR_STRING {
@@ -328,7 +328,7 @@ pub unsafe fn encode_check_json_key(tv: *const typval_T) -> bool {
 }
 
 #[inline]
-unsafe fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
+fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
     unsafe {
         if !s.is_null() {
             gap.extend_from_slice(CStr::from_ptr(s).to_bytes());
@@ -337,7 +337,7 @@ unsafe fn buf_concat_cstr(gap: &mut Vec<u8>, s: *const c_char) {
 }
 
 #[inline]
-unsafe fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
+fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
     unsafe {
         if !s.is_null() && len > 0 {
             gap.extend_from_slice(std::slice::from_raw_parts(s.cast::<u8>(), len));
@@ -345,7 +345,7 @@ unsafe fn buf_concat_len(gap: &mut Vec<u8>, s: *const c_char, len: usize) {
     }
 }
 
-unsafe fn conv_error(
+fn conv_error(
     msg: *const c_char,
     mpstack: &[MPConvStackVal],
     objname: *const c_char,
@@ -448,7 +448,7 @@ unsafe fn conv_error(
     }
 }
 
-unsafe fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) {
+fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) {
     unsafe {
         if buf.is_null() {
             ga_concat_literal(gap, b"''");
@@ -468,7 +468,7 @@ unsafe fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: *const c_char,
     }
 }
 
-unsafe fn convert_to_json_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) -> c_int {
+fn convert_to_json_string(gap: &mut Vec<u8>, buf: *const c_char, len: usize) -> c_int {
     const XDIGITS: &[u8; 16] = b"0123456789ABCDEF";
 
     unsafe {
@@ -778,7 +778,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_string(&mut self, buf: *const c_char, len: usize) -> c_int {
+    fn conv_string(&mut self, buf: *const c_char, len: usize) -> c_int {
         unsafe {
             match self {
                 Self::Text {
@@ -807,7 +807,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_str_string(&mut self, buf: *const c_char, len: usize) -> c_int {
+    fn conv_str_string(&mut self, buf: *const c_char, len: usize) -> c_int {
         unsafe {
             match self {
                 Self::Text { .. } => self.conv_string(buf, len),
@@ -826,7 +826,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_ext_string(&mut self, buf: *mut c_char, len: usize, ext_type: i8) -> c_int {
+    fn conv_ext_string(&mut self, buf: *mut c_char, len: usize, ext_type: i8) -> c_int {
         unsafe {
             match self {
                 Self::Text {
@@ -846,7 +846,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_blob(&mut self, blob: *const blob_T, len: c_int) {
+    fn conv_blob(&mut self, blob: *const blob_T, len: c_int) {
         unsafe {
             match self {
                 Self::Text {
@@ -916,7 +916,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_func_start(
+    fn conv_func_start(
         &mut self,
         fun: *const c_char,
         prefix: &[u8],
@@ -1077,7 +1077,7 @@ impl EncodeBackend<'_> {
                 mode: TextEncodeMode::Json,
                 ..
             }
-        ) && unsafe { !encode_check_json_key(key) }
+        ) && !encode_check_json_key(key)
         {
             unsafe {
                 emsg(c"E474: Invalid key in special dictionary".as_ptr());
@@ -1087,7 +1087,7 @@ impl EncodeBackend<'_> {
         true
     }
 
-    unsafe fn check_self_reference(
+    fn check_self_reference(
         &mut self,
         container: MPContainerRef,
         val_copy_id: &mut c_int,
@@ -1172,7 +1172,7 @@ impl EncodeBackend<'_> {
     }
 }
 
-unsafe fn convert_one_value(
+fn convert_one_value(
     backend: &mut EncodeBackend,
     mpstack: &mut Vec<MPConvStackVal>,
     tv: *mut typval_T,
@@ -1509,7 +1509,7 @@ unsafe fn convert_one_value(
     }
 }
 
-unsafe fn encode_vim_with_backend(
+fn encode_vim_with_backend(
     backend: &mut EncodeBackend,
     top_tv: *mut typval_T,
     objname: *const c_char,
@@ -1721,34 +1721,30 @@ unsafe fn encode_vim_with_backend(
 }
 
 /// Convert Vimscript value to `:echo` output (`encode_vim_to_echo`).
-pub unsafe fn encode_vim_to_echo(
+pub fn encode_vim_to_echo(
     gap: &mut Vec<u8>,
     tv: *mut typval_T,
     objname: *const c_char,
 ) -> c_int {
-    unsafe {
-        let mut backend = EncodeBackend::Text {
+    let mut backend = EncodeBackend::Text {
             gap,
             mode: TextEncodeMode::Echo,
         };
         encode_vim_with_backend(&mut backend, tv, objname)
-    }
 }
 
 /// Convert Vimscript value to msgpack string (`encode_vim_to_msgpack`).
-pub unsafe fn encode_vim_to_msgpack(
+pub fn encode_vim_to_msgpack(
     packer: &mut PackerBuffer,
     tv: *mut typval_T,
     objname: *const c_char,
 ) -> c_int {
-    unsafe {
-        let mut backend = EncodeBackend::Msgpack { packer };
+    let mut backend = EncodeBackend::Msgpack { packer };
         encode_vim_with_backend(&mut backend, tv, objname)
-    }
 }
 
 /// Return a string with the string representation of a variable (`encode_tv2string`).
-pub unsafe fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
+pub fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {
@@ -1767,7 +1763,7 @@ pub unsafe fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> std::ffi::
 }
 
 /// Return a string with the `:echo` representation of a variable (`encode_tv2echo`).
-pub unsafe fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
+pub fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let tv_ref = &*tv;
@@ -1787,7 +1783,7 @@ pub unsafe fn encode_tv2echo(tv: *mut typval_T, len: *mut usize) -> std::ffi::CS
 }
 
 /// Return a JSON string representation of a variable (`encode_tv2json`).
-pub unsafe fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
+pub fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> std::ffi::CString {
     unsafe {
         let mut ga: Vec<u8> = Vec::with_capacity(80);
         let mut backend = EncodeBackend::Text {

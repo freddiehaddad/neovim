@@ -102,7 +102,7 @@ use crate::diff::{
 };
 use crate::lua::converter::{LUA_NOREF, LUA_TSTRING};
 
-unsafe fn lua_pushhunk(
+fn lua_pushhunk(
     lstate: *mut lua_State,
     mut start_a: isize,
     count_a: isize,
@@ -130,7 +130,7 @@ unsafe fn lua_pushhunk(
     }
 }
 
-unsafe fn get_linematch_results(
+fn get_linematch_results(
     lstate: *mut lua_State,
     ma: *mut mmfile_t,
     mb: *mut mmfile_t,
@@ -187,7 +187,7 @@ unsafe fn get_linematch_results(
     }
 }
 
-pub(crate) unsafe fn write_string(
+pub(crate) fn write_string(
     priv_data: *mut Vec<u8>,
     mb: *mut mmbuffer_t,
     nbuf: c_int,
@@ -205,7 +205,7 @@ pub(crate) unsafe fn write_string(
     0
 }
 
-pub(crate) unsafe fn hunk_locations_cb(
+pub(crate) fn hunk_locations_cb(
     start_a: c_int,
     count_a: c_int,
     start_b: c_int,
@@ -215,8 +215,7 @@ pub(crate) unsafe fn hunk_locations_cb(
     let priv_ref = unsafe { &mut *cb_data };
     let lstate = priv_ref.lstate;
     if priv_ref.linematch > 0 && i64::from(count_a) + i64::from(count_b) <= priv_ref.linematch {
-        unsafe {
-            get_linematch_results(
+        get_linematch_results(
                 lstate,
                 priv_ref.ma,
                 priv_ref.mb,
@@ -226,22 +225,19 @@ pub(crate) unsafe fn hunk_locations_cb(
                 count_b,
                 priv_ref.iwhite,
             );
-        }
     } else {
-        unsafe {
-            lua_pushhunk(
+        lua_pushhunk(
                 lstate,
                 start_a as isize,
                 count_a as isize,
                 start_b as isize,
                 count_b as isize,
             );
-        }
     }
     0
 }
 
-pub(crate) unsafe fn call_on_hunk_cb(
+pub(crate) fn call_on_hunk_cb(
     mut start_a: c_int,
     count_a: c_int,
     mut start_b: c_int,
@@ -287,7 +283,7 @@ pub(crate) unsafe fn call_on_hunk_cb(
     }
 }
 
-unsafe fn get_string_arg(lstate: *mut lua_State, idx: c_int) -> mmfile_t {
+fn get_string_arg(lstate: *mut lua_State, idx: c_int) -> mmfile_t {
     unsafe {
         if lua_type(lstate, idx) != LUA_TSTRING {
             luaL_argerror(lstate, idx, c"expected string".as_ptr());
@@ -304,7 +300,7 @@ unsafe fn get_string_arg(lstate: *mut lua_State, idx: c_int) -> mmfile_t {
     }
 }
 
-unsafe fn process_xdl_diff_opts(
+fn process_xdl_diff_opts(
     lstate: *mut lua_State,
     cfg: &mut xdemitconf_t,
     params: &mut xpparam_t,

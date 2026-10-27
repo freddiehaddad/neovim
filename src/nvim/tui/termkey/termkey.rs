@@ -300,7 +300,7 @@ const KEYNAMES: &[KeyNameInit] = &[
 
 const EVNAMES: [&str; 4] = ["Unknown", "Press", "Drag", "Release"];
 
-pub unsafe fn termkey_interpret_string(
+pub fn termkey_interpret_string(
     tk: &TermKey,
     key: &TermKeyKey,
     strp: *mut *const c_char,
@@ -323,7 +323,7 @@ pub unsafe fn termkey_interpret_string(
 }
 
 #[cfg(test)]
-unsafe fn strpncmp_camel(
+fn strpncmp_camel(
     strp: *mut *const c_char,
     strcamelp: *mut *const c_char,
     mut n: usize,
@@ -361,8 +361,7 @@ unsafe fn strpncmp_camel(
 }
 
 pub fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -> Option<TermKey> {
-    unsafe {
-        let mut tk = TermKey {
+    let mut tk = TermKey {
             flags: 0,
             canonflags: 0,
             buffer: vec![0u8; 256],
@@ -399,16 +398,14 @@ pub fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -> Optio
         }
 
         Some(tk)
-    }
 }
 
-pub unsafe fn termkey_start(
+pub fn termkey_start(
     tk: &mut TermKey,
     term: Option<&TerminfoEntry>,
     input: *mut crate::tui::input::TermInput,
 ) -> c_int {
-    unsafe {
-        if tk.is_started != 0 {
+    if tk.is_started != 0 {
             return 1;
         }
 
@@ -418,7 +415,6 @@ pub unsafe fn termkey_start(
 
         tk.is_started = 1;
         1
-    }
 }
 
 #[cfg(test)]
@@ -477,7 +473,7 @@ fn eat_bytes(tk: &mut TermKey, count: usize) {
     }
 }
 
-pub unsafe fn fill_utf8(codepoint: c_int, str_out: *mut c_char) -> c_int {
+pub fn fill_utf8(codepoint: c_int, str_out: *mut c_char) -> c_int {
     unsafe {
         let nbytes = utf_char2bytes(codepoint, str_out);
         *str_out.add(nbytes as usize) = 0;
@@ -543,8 +539,7 @@ fn parse_utf8(bytes: &[u8], cp: &mut c_int, nbytep: &mut usize) -> TermKeyResult
 }
 
 pub(crate) fn emit_codepoint(tk: &TermKey, codepoint: c_int, key: &mut TermKeyKey) {
-    unsafe {
-        if codepoint == 0 {
+    if codepoint == 0 {
             key.r#type = TERMKEY_TYPE_KEYSYM;
             key.code.sym = TERMKEY_SYM_SPACE;
             key.modifiers = TERMKEY_KEYMOD_CTRL;
@@ -592,12 +587,10 @@ pub(crate) fn emit_codepoint(tk: &TermKey, codepoint: c_int, key: &mut TermKeyKe
         if key.r#type == TERMKEY_TYPE_UNICODE {
             fill_utf8(key.code.codepoint, key.utf8.as_mut_ptr());
         }
-    }
 }
 
 pub fn termkey_canonicalise(tk: &TermKey, key: &mut TermKeyKey) {
-    unsafe {
-        let flags = tk.canonflags;
+    let flags = tk.canonflags;
 
         if (flags & TERMKEY_CANON_SPACESYMBOL) != 0 {
             if key.r#type == TERMKEY_TYPE_UNICODE && key.code.codepoint == 0x20 {
@@ -616,17 +609,15 @@ pub fn termkey_canonicalise(tk: &TermKey, key: &mut TermKeyKey) {
         {
             key.code.sym = TERMKEY_SYM_BACKSPACE;
         }
-    }
 }
 
-unsafe fn peekkey(
+fn peekkey(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
-    unsafe {
-        let mut again = false;
+    let mut again = false;
 
         if tk.is_started == 0 {
             return TERMKEY_RES_ERROR;
@@ -666,10 +657,9 @@ unsafe fn peekkey(
         }
 
         peekkey_simple(tk, key, force, nbytep)
-    }
 }
 
-unsafe fn peekkey_simple(
+fn peekkey_simple(
     tk: &mut TermKey,
     key: &mut TermKeyKey,
     force: c_int,
@@ -754,7 +744,7 @@ unsafe fn peekkey_simple(
     }
 }
 
-pub(crate) unsafe fn peekkey_mouse(
+pub(crate) fn peekkey_mouse(
     tk: &TermKey,
     key: &mut TermKeyKey,
     nbytep: *mut usize,
@@ -783,8 +773,7 @@ pub(crate) unsafe fn peekkey_mouse(
 }
 
 pub fn termkey_getkey(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyResult {
-    unsafe {
-        let mut nbytes: usize = 0;
+    let mut nbytes: usize = 0;
         let ret = peekkey(tk, key, 0, &mut nbytes);
 
         if ret == TERMKEY_RES_KEY {
@@ -796,12 +785,10 @@ pub fn termkey_getkey(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyResult {
         }
 
         ret
-    }
 }
 
 pub fn termkey_getkey_force(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyResult {
-    unsafe {
-        let mut nbytes: usize = 0;
+    let mut nbytes: usize = 0;
         let ret = peekkey(tk, key, 1, &mut nbytes);
 
         if ret == TERMKEY_RES_KEY {
@@ -809,10 +796,9 @@ pub fn termkey_getkey_force(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyRe
         }
 
         ret
-    }
 }
 
-pub unsafe fn termkey_push_bytes(tk: &mut TermKey, bytes: *const c_char, mut len: usize) -> usize {
+pub fn termkey_push_bytes(tk: &mut TermKey, bytes: *const c_char, mut len: usize) -> usize {
     unsafe {
         if tk.buffstart != 0 {
             let start = tk.buffstart;
@@ -870,7 +856,7 @@ pub fn termkey_get_keyname(tk: &TermKey, sym: TermKeySym) -> *const c_char {
 }
 
 #[cfg(test)]
-unsafe fn termkey_lookup_keyname_format(
+fn termkey_lookup_keyname_format(
     tk: &TermKey,
     str_in: *const c_char,
     sym: *mut TermKeySym,
@@ -909,12 +895,12 @@ unsafe fn termkey_lookup_keyname_format(
 }
 
 #[cfg(test)]
-pub unsafe fn termkey_lookup_keyname(
+pub fn termkey_lookup_keyname(
     tk: &TermKey,
     str_in: *const c_char,
     sym: *mut TermKeySym,
 ) -> *const c_char {
-    unsafe { termkey_lookup_keyname_format(tk, str_in, sym, 0) }
+    termkey_lookup_keyname_format(tk, str_in, sym, 0)
 }
 
 fn register_c0(
@@ -996,7 +982,7 @@ const MODNAMES: [ModNames; 8] = [
     },
 ];
 
-unsafe fn append_str(buffer: *mut c_char, len: usize, pos: &mut usize, s: &[u8]) -> bool {
+fn append_str(buffer: *mut c_char, len: usize, pos: &mut usize, s: &[u8]) -> bool {
     if s.is_empty() {
         return false;
     }
@@ -1029,7 +1015,7 @@ fn camel_to_spaces(src: &[u8]) -> Vec<u8> {
     out
 }
 
-pub unsafe fn termkey_strfkey(
+pub fn termkey_strfkey(
     tk: &TermKey,
     buffer: *mut c_char,
     len: usize,
@@ -1201,7 +1187,7 @@ mod tests {
     };
 
     fn push(tk: &mut TermKey, bytes: &[u8]) -> usize {
-        unsafe { termkey_push_bytes(tk, bytes.as_ptr().cast(), bytes.len()) }
+        termkey_push_bytes(tk, bytes.as_ptr().cast(), bytes.len())
     }
 
     #[test]

@@ -604,11 +604,9 @@ fn loop_uv_run(loop_: &mut Loop, ms: i64) -> bool {
 /// Processes all `Loop.fast_events` events.
 /// Does NOT process `Loop.events`, that is an application-specific decision.
 pub fn loop_poll_events(loop_: &mut Loop, ms: i64) -> bool {
-    unsafe {
-        let timeout_expired = loop_uv_run(loop_, ms);
+    let timeout_expired = loop_uv_run(loop_, ms);
         multiqueue_process_events(loop_.fast_events);
         timeout_expired
-    }
 }
 
 /// Schedules a fast event from another thread.
@@ -636,9 +634,7 @@ pub fn loop_schedule_deferred(loop_: &mut Loop, event: Event) {
 }
 
 pub fn loop_deferred_event(loop_: &mut Loop, event: Event) {
-    unsafe {
-        multiqueue_put_event(loop_.events, event);
-    }
+    multiqueue_put_event(loop_.events, event);
 }
 
 pub fn loop_on_put(loop_: &mut Loop) {

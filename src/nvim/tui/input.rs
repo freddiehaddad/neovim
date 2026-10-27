@@ -223,7 +223,7 @@ const fn kitty_key_name(key: c_int) -> Option<&'static str> {
     }
 }
 
-pub unsafe fn tinput_init(input: &mut TermInput, loop_: *mut Loop, ti: &TerminfoEntry) {
+pub fn tinput_init(input: &mut TermInput, loop_: *mut Loop, ti: &TerminfoEntry) {
     unsafe {
         assert!(input.loop_.is_null());
         input.loop_ = loop_;
@@ -296,8 +296,7 @@ pub fn tinput_done_event() {
 
 /// Send all pending input in key buffer to Nvim server.
 fn tinput_flush(input: &mut TermInput) {
-    unsafe {
-        let keys = NvimString {
+    let keys = NvimString {
             data: input.key_buffer.as_mut_ptr(),
             size: input.key_buffer_len,
         };
@@ -326,10 +325,9 @@ fn tinput_flush(input: &mut TermInput) {
             rpc_send_event(g_st().ui_client_channel_id, c"nvim_input".as_ptr(), args);
         }
         input.key_buffer_len = 0;
-    }
 }
 
-unsafe fn tinput_enqueue(input: &mut TermInput, buf: *const c_char, size: usize) {
+fn tinput_enqueue(input: &mut TermInput, buf: *const c_char, size: usize) {
     unsafe {
         if input.key_buffer_len > KEY_BUFFER_SIZE.saturating_sub(size) {
             tinput_flush(input);
@@ -371,8 +369,7 @@ fn push_more_modifiers(modifiers: c_int, out: &mut String) {
 }
 
 fn handle_kitty_key_protocol(input: &mut TermInput, key: &TermKeyKey) {
-    unsafe {
-        if let Some(name) = kitty_key_name(key.code.codepoint as c_int) {
+    if let Some(name) = kitty_key_name(key.code.codepoint as c_int) {
             let mut buf = String::with_capacity(32);
             buf.push('<');
             push_termkey_modifiers(key.modifiers, &mut buf);
@@ -381,7 +378,6 @@ fn handle_kitty_key_protocol(input: &mut TermInput, key: &TermKeyKey) {
             buf.push('>');
             tinput_enqueue(input, buf.as_ptr().cast::<c_char>(), buf.len());
         }
-    }
 }
 
 fn forward_simple_utf8(input: &mut TermInput, key: &TermKeyKey) {
@@ -634,7 +630,7 @@ unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
     }
 }
 
-unsafe fn handle_focus_event(_input: &mut TermInput, ptr: *const c_char, size: usize) -> usize {
+fn handle_focus_event(_input: &mut TermInput, ptr: *const c_char, size: usize) -> usize {
     unsafe {
         if size >= 3 {
             let bytes = std::slice::from_raw_parts(ptr.cast::<u8>(), 3);
@@ -654,7 +650,7 @@ unsafe fn handle_focus_event(_input: &mut TermInput, ptr: *const c_char, size: u
     }
 }
 
-unsafe fn handle_bracketed_paste(
+fn handle_bracketed_paste(
     input: &mut TermInput,
     ptr: *const c_char,
     size: usize,
@@ -706,9 +702,7 @@ fn send_termresponse(response: &[u8]) {
         size: 2,
         capacity: 2,
     };
-    unsafe {
-        rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_term_event".as_ptr(), args);
-    }
+    rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_term_event".as_ptr(), args);
 }
 
 fn handle_term_response(input: &mut TermInput, key: &TermKeyKey) {
@@ -924,7 +918,7 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
     }
 }
 
-unsafe fn handle_raw_buffer(
+fn handle_raw_buffer(
     input: &mut TermInput,
     force: bool,
     data: *const c_char,
@@ -1016,7 +1010,7 @@ unsafe fn handle_raw_buffer(
     }
 }
 
-pub(crate) unsafe fn tinput_read_cb(
+pub(crate) fn tinput_read_cb(
     _stream: &mut RStream,
     buf: *const c_char,
     count_: usize,

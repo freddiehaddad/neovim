@@ -81,10 +81,8 @@ struct WRequest {
 use crate::event::r#loop::uv_fs_write;
 
 pub fn wstream_init_fd(loop_: &mut Loop, stream: &mut Stream, fd: c_int, maxmem: usize) {
-    unsafe {
-        stream_init(&raw mut *loop_, stream, fd, false);
+    stream_init(&raw mut *loop_, stream, fd, false);
         wstream_init(stream, maxmem);
-    }
 }
 
 pub fn wstream_init(stream: &mut Stream, maxmem: usize) {

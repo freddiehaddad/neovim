@@ -22,47 +22,47 @@ impl Default for strbuf_t {
 }
 
 #[inline]
-pub unsafe fn strbuf_reset(s: *mut strbuf_t) {
+pub fn strbuf_reset(s: *mut strbuf_t) {
     unsafe {
         (*s).buf.clear();
     }
 }
 
 #[inline]
-pub unsafe fn strbuf_ensure_empty_length(s: *mut strbuf_t, len: usize) {
+pub fn strbuf_ensure_empty_length(s: *mut strbuf_t, len: usize) {
     unsafe {
         (*s).buf.reserve(len + 1);
     }
 }
 
 #[inline]
-pub unsafe fn strbuf_set_length(s: *mut strbuf_t, len: c_int) {
+pub fn strbuf_set_length(s: *mut strbuf_t, len: c_int) {
     unsafe {
         (*s).buf.truncate(len as usize);
     }
 }
 
 #[inline]
-pub unsafe fn strbuf_length(s: *mut strbuf_t) -> usize {
+pub fn strbuf_length(s: *mut strbuf_t) -> usize {
     unsafe { (*s).buf.len() }
 }
 
 #[inline]
-pub unsafe fn strbuf_append_char(s: *mut strbuf_t, c: c_char) {
+pub fn strbuf_append_char(s: *mut strbuf_t, c: c_char) {
     unsafe {
         (*s).buf.push(c);
     }
 }
 
 #[inline]
-pub unsafe fn strbuf_append_char_unsafe(s: *mut strbuf_t, c: c_char) {
+pub fn strbuf_append_char_unsafe(s: *mut strbuf_t, c: c_char) {
     unsafe {
         (*s).buf.push(c);
     }
 }
 
 #[inline]
-pub unsafe fn strbuf_append_mem(s: *mut strbuf_t, c: *const c_char, len: usize) {
+pub fn strbuf_append_mem(s: *mut strbuf_t, c: *const c_char, len: usize) {
     if len > 0 {
         unsafe {
             (*s).buf
@@ -72,7 +72,7 @@ pub unsafe fn strbuf_append_mem(s: *mut strbuf_t, c: *const c_char, len: usize) 
 }
 
 #[inline]
-pub unsafe fn strbuf_append_mem_unsafe(s: *mut strbuf_t, c: *const c_char, len: usize) {
+pub fn strbuf_append_mem_unsafe(s: *mut strbuf_t, c: *const c_char, len: usize) {
     if len > 0 {
         unsafe {
             (*s).buf
@@ -82,7 +82,7 @@ pub unsafe fn strbuf_append_mem_unsafe(s: *mut strbuf_t, c: *const c_char, len: 
 }
 
 #[inline]
-pub unsafe fn strbuf_ensure_null(s: *mut strbuf_t) {
+pub fn strbuf_ensure_null(s: *mut strbuf_t) {
     unsafe {
         (*s).buf.reserve(1);
         let len = (*s).buf.len();
@@ -91,7 +91,7 @@ pub unsafe fn strbuf_ensure_null(s: *mut strbuf_t) {
 }
 
 #[inline]
-pub unsafe fn strbuf_string(s: *mut strbuf_t, len: *mut usize) -> *mut c_char {
+pub fn strbuf_string(s: *mut strbuf_t, len: *mut usize) -> *mut c_char {
     unsafe {
         if !len.is_null() {
             *len = (*s).buf.len();
@@ -100,7 +100,7 @@ pub unsafe fn strbuf_string(s: *mut strbuf_t, len: *mut usize) -> *mut c_char {
     }
 }
 
-pub unsafe fn strbuf_init(s: *mut strbuf_t, len: usize) {
+pub fn strbuf_init(s: *mut strbuf_t, len: usize) {
     let size = if len == 0 {
         STRBUF_DEFAULT_SIZE
     } else {
@@ -113,7 +113,7 @@ pub unsafe fn strbuf_init(s: *mut strbuf_t, len: usize) {
     }
 }
 
-pub unsafe fn strbuf_append_string(s: *mut strbuf_t, str_in: *const c_char) {
+pub fn strbuf_append_string(s: *mut strbuf_t, str_in: *const c_char) {
     unsafe {
         let bytes = CStr::from_ptr(str_in).to_bytes();
         strbuf_append_mem(s, bytes.as_ptr().cast::<c_char>(), bytes.len());

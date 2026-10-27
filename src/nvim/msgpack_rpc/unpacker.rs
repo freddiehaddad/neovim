@@ -114,7 +114,7 @@ const fn empty_arena() -> Arena {
     }
 }
 
-unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
+fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
     unsafe {
         let parser = &mut *parser;
         let node = &mut *node;
@@ -290,12 +290,12 @@ unsafe fn api_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_t) 
     }
 }
 
-unsafe fn api_parse_exit(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
+fn api_parse_exit(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
 
-unsafe fn parse_nop(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
+fn parse_nop(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
-pub unsafe fn unpack(
+pub fn unpack(
     mut data: *const c_char,
     mut size: usize,
     arena: *mut Arena,
@@ -399,7 +399,7 @@ impl Drop for Unpacker {
     }
 }
 
-pub unsafe fn unpacker_init(p: *mut Unpacker) {
+pub fn unpacker_init(p: *mut Unpacker) {
     unsafe {
         let p_ref = &mut *p;
         mpack_parser_init(&mut p_ref.parser, 0);
@@ -412,7 +412,7 @@ pub unsafe fn unpacker_init(p: *mut Unpacker) {
 }
 
 /// Parse the header of a msgpack-rpc message (`unpacker_parse_header`).
-pub unsafe fn unpacker_parse_header(p: *mut Unpacker) -> bool {
+pub fn unpacker_parse_header(p: *mut Unpacker) -> bool {
     unsafe {
         let p = &mut *p;
         let mut tok = mpack_token_t::new();
@@ -526,7 +526,7 @@ pub unsafe fn unpacker_parse_header(p: *mut Unpacker) -> bool {
 }
 
 /// Advance the unpacker state machine (`unpacker_advance`).
-pub unsafe fn unpacker_advance(p: *mut Unpacker) -> bool {
+pub fn unpacker_advance(p: *mut Unpacker) -> bool {
     unsafe {
         let p_ref = &mut *p;
         assert!(p_ref.state >= 0);
@@ -633,7 +633,7 @@ fn next_type(
     tok: &mut mpack_token_t,
     expected: mpack_token_type_t,
 ) -> bool {
-    let result = unsafe { mpack_rtoken(data, size, tok) };
+    let result = mpack_rtoken(data, size, tok);
     if result == MPACK_EOF {
         return false;
     }
@@ -650,7 +650,7 @@ fn next_type(
 }
 
 /// Specialized redraw/grid_line parser (`unpacker_parse_redraw`).
-pub unsafe fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
+pub fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
     unsafe {
         let p = &mut *p;
         let mut tok = mpack_token_t::new();
@@ -711,7 +711,7 @@ pub unsafe fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
             p.read_ptr = data;
             p.read_size = size;
             if p.ui_handler.r#fn.is_none_or(|f| {
-                !std::ptr::fn_addr_eq(f, ui_client_event_grid_line as unsafe fn(Array))
+                !std::ptr::fn_addr_eq(f, ui_client_event_grid_line as fn(Array))
             }) {
                 p.state = 12;
                 return true;
@@ -887,7 +887,7 @@ pub unsafe fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
 }
 
 /// Unpack a complete msgpack string/bin token (`unpack_string`).
-pub unsafe fn unpack_string(data: *mut *const c_char, size: *mut usize) -> NvimString {
+pub fn unpack_string(data: *mut *const c_char, size: *mut usize) -> NvimString {
     unsafe {
         let mut data2 = *data;
         let mut size2 = *size;
@@ -920,35 +920,31 @@ pub unsafe fn unpack_string(data: *mut *const c_char, size: *mut usize) -> NvimS
 }
 
 /// Unpack a msgpack array header (`unpack_array`).
-pub unsafe fn unpack_array(data: *mut *const c_char, size: *mut usize) -> isize {
-    unsafe {
-        let mut tok = mpack_token_t::new();
+pub fn unpack_array(data: *mut *const c_char, size: *mut usize) -> isize {
+    let mut tok = mpack_token_t::new();
         let result = mpack_rtoken(data, size, &mut tok);
         if result != 0 || tok.r#type != mpack_token_type_t::MPACK_TOKEN_ARRAY {
             return -1;
         }
         tok.length as isize
-    }
 }
 
 /// Unpack a msgpack integer (`unpack_integer`).
-pub unsafe fn unpack_integer(
+pub fn unpack_integer(
     data: *mut *const c_char,
     size: *mut usize,
     res: *mut Integer,
 ) -> bool {
-    unsafe {
-        let mut tok = mpack_token_t::new();
+    let mut tok = mpack_token_t::new();
         let result = mpack_rtoken(data, size, &mut tok);
         if result != 0 {
             return false;
         }
         unpack_uint_or_sint(tok, res)
-    }
 }
 
 /// Unpack a uint or sint token into `Integer` (`unpack_uint_or_sint`).
-pub unsafe fn unpack_uint_or_sint(tok: mpack_token_t, res: *mut Integer) -> bool {
+pub fn unpack_uint_or_sint(tok: mpack_token_t, res: *mut Integer) -> bool {
     unsafe {
         if tok.r#type == mpack_token_type_t::MPACK_TOKEN_UINT {
             *res = mpack_unpack_uint(tok) as Integer;
@@ -963,16 +959,14 @@ pub unsafe fn unpack_uint_or_sint(tok: mpack_token_t, res: *mut Integer) -> bool
 }
 
 /// Skip one msgpack value (`unpack_skip`).
-pub unsafe fn unpack_skip(data: *mut *const c_char, size: *mut usize) -> c_int {
-    unsafe {
-        let mut parser = mpack_parser_t::new(0);
+pub fn unpack_skip(data: *mut *const c_char, size: *mut usize) -> c_int {
+    let mut parser = mpack_parser_t::new(0);
         mpack_parser_init(&mut parser, 0);
         mpack_parse(&mut parser, data, size, Some(parse_nop), Some(parse_nop))
-    }
 }
 
 /// Append raw msgpack key-value bytes to `AdditionalDataBuilder` (`push_additional_data`).
-pub unsafe fn push_additional_data(
+pub fn push_additional_data(
     ad: *mut AdditionalDataBuilder,
     data: *const c_char,
     size: usize,
@@ -994,7 +988,7 @@ pub fn additional_data_take(ad: &mut AdditionalDataBuilder) -> Option<Additional
 }
 
 /// Unpack a msgpack map into a `KeySet` struct (`unpack_keydict`).
-pub unsafe fn unpack_keydict(
+pub fn unpack_keydict(
     retval: *mut OptKeySet,
     hashy: FieldHashfn,
     ad: *mut AdditionalDataBuilder,
@@ -1109,19 +1103,16 @@ mod tests {
     #[test]
     fn push_additional_data_populates_header_and_payload() {
         let mut ad = AdditionalDataBuilder::default();
-        unsafe {
-            push_additional_data(&mut ad, c"abc".as_ptr(), 3);
+        push_additional_data(&mut ad, c"abc".as_ptr(), 3);
             push_additional_data(&mut ad, c"de".as_ptr(), 2);
             let hdr = ad.as_ref().unwrap();
             assert_eq!(hdr.nitems, 2);
             assert_eq!(hdr.bytes.len(), 5);
-        }
     }
 
     #[test]
     fn unpacker_handles_paused_and_empty_grid_line() {
-        unsafe {
-            let payload1: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x91\x93\xa1\x20\x00\x4d\xc2";
+        let payload1: &[u8] = b"\x93\x02\xa6\x72\x65\x64\x72\x61\x77\x91\x92\xa9\x67\x72\x69\x64\x5f\x6c\x69\x6e\x65\x95\x02\x00\x00\x91\x93\xa1\x20\x00\x4d\xc2";
             let mut unpacker = Unpacker::new();
             unpacker_init(&mut unpacker);
             unpacker.read_ptr = payload1.as_ptr().cast();
@@ -1136,6 +1127,5 @@ mod tests {
             unpacker.read_ptr = payload2.as_ptr().cast();
             unpacker.read_size = payload2.len();
             assert!(unpacker_advance(&mut unpacker));
-        }
     }
 }

@@ -49,8 +49,7 @@ fn xdl_classify_record(
     cf: &mut xdlclassifier_t,
     rec: &mut xrecord_t,
 ) -> c_int {
-    unsafe {
-        let line = rec.ptr;
+    let line = rec.ptr;
         let hi = xdl_hashlong(rec.ha, cf.hbits) as usize;
         let mut rcrec_idx = cf.rchash[hi];
         while let Some(idx) = rcrec_idx {
@@ -88,11 +87,10 @@ fn xdl_classify_record(
         }
 
         rec.ha = rcrec.idx as c_ulong;
-    }
     0
 }
 
-unsafe fn xdl_prepare_ctx(
+fn xdl_prepare_ctx(
     pass: c_uint,
     mf: *mut mmfile_t,
     narec: c_long,
@@ -144,7 +142,7 @@ unsafe fn xdl_prepare_ctx(
     0
 }
 
-pub unsafe fn xdl_prepare_env(
+pub fn xdl_prepare_env(
     mf1: *mut mmfile_t,
     mf2: *mut mmfile_t,
     xpp: *const xpparam_t,
@@ -193,7 +191,7 @@ pub unsafe fn xdl_prepare_env(
     0
 }
 
-unsafe fn xdl_clean_mmatch(dis: *const c_char, i: c_long, mut s: c_long, mut e: c_long) -> c_int {
+fn xdl_clean_mmatch(dis: *const c_char, i: c_long, mut s: c_long, mut e: c_long) -> c_int {
     if i - s > XDL_SIMSCAN_WINDOW {
         s = i - XDL_SIMSCAN_WINDOW;
     }
@@ -242,7 +240,7 @@ unsafe fn xdl_clean_mmatch(dis: *const c_char, i: c_long, mut s: c_long, mut e: 
     c_int::from(rpdis1 * XDL_KPDIS_RUN < (rpdis1 + rdis1))
 }
 
-unsafe fn xdl_cleanup_records(
+fn xdl_cleanup_records(
     cf: &xdlclassifier_t,
     xdf1: *mut xdfile_t,
     xdf2: *mut xdfile_t,
@@ -306,7 +304,7 @@ unsafe fn xdl_cleanup_records(
     0
 }
 
-unsafe fn xdl_trim_ends(xdf1: *mut xdfile_t, xdf2: *mut xdfile_t) -> c_int {
+fn xdl_trim_ends(xdf1: *mut xdfile_t, xdf2: *mut xdfile_t) -> c_int {
     unsafe {
         let recs1 = &(*xdf1).recs;
         let recs2 = &(*xdf2).recs;
@@ -339,12 +337,12 @@ unsafe fn xdl_trim_ends(xdf1: *mut xdfile_t, xdf2: *mut xdfile_t) -> c_int {
     0
 }
 
-unsafe fn xdl_optimize_ctxs(
+fn xdl_optimize_ctxs(
     cf: &xdlclassifier_t,
     xdf1: *mut xdfile_t,
     xdf2: *mut xdfile_t,
 ) -> c_int {
-    if unsafe { xdl_trim_ends(xdf1, xdf2) < 0 || xdl_cleanup_records(cf, xdf1, xdf2) < 0 } {
+    if xdl_trim_ends(xdf1, xdf2) < 0 || xdl_cleanup_records(cf, xdf1, xdf2) < 0 {
         return -1;
     }
     0

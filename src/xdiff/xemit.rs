@@ -9,7 +9,7 @@ use crate::xdiff::{
 };
 
 
-unsafe fn xdl_get_rec(xdf: *mut xdfile_t, ri: c_long, rec: *mut *const c_char) -> c_long {
+fn xdl_get_rec(xdf: *mut xdfile_t, ri: c_long, rec: *mut *const c_char) -> c_long {
     unsafe {
         let r = &(&(*xdf).recs)[ri as usize];
         *rec = r.ptr;
@@ -17,7 +17,7 @@ unsafe fn xdl_get_rec(xdf: *mut xdfile_t, ri: c_long, rec: *mut *const c_char) -
     }
 }
 
-unsafe fn xdl_emit_record(
+fn xdl_emit_record(
     xdf: *mut xdfile_t,
     ri: c_long,
     pre: *const c_char,
@@ -34,7 +34,7 @@ unsafe fn xdl_emit_record(
     0
 }
 
-pub unsafe fn xdl_get_hunk(
+pub fn xdl_get_hunk(
     xscr: &[xdchange_t],
     idx: &mut usize,
     xecfg: *const xdemitconf_t,
@@ -93,7 +93,7 @@ pub unsafe fn xdl_get_hunk(
     }
 }
 
-pub unsafe fn xdl_emit_diff(
+pub fn xdl_emit_diff(
     xe: *mut xdfenv_t,
     xscr: &[xdchange_t],
     ecb: *mut xdemitcb_t,

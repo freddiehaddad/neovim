@@ -74,7 +74,7 @@ impl VTermStringFragment {
     }
 }
 
-pub type VTermCsiFn<T> = unsafe fn(
+pub type VTermCsiFn<T> = fn(
     leader: *const c_char,
     args: *const c_long,
     argcount: c_int,
@@ -83,7 +83,7 @@ pub type VTermCsiFn<T> = unsafe fn(
     user: *mut T,
 ) -> c_int;
 
-pub type VTermDcsFn<T> = unsafe fn(
+pub type VTermDcsFn<T> = fn(
     command: *const c_char,
     commandlen: usize,
     frag: VTermStringFragment,
@@ -93,19 +93,19 @@ pub type VTermDcsFn<T> = unsafe fn(
 #[repr(C)]
 pub struct VTermParserCallbacks {
     pub text:
-        Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
-    pub control: Option<unsafe fn(control: u8, user: *mut VTermStateFull) -> c_int>,
+        Option<fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
+    pub control: Option<fn(control: u8, user: *mut VTermStateFull) -> c_int>,
     pub escape:
-        Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
+        Option<fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
     pub csi: Option<VTermCsiFn<VTermStateFull>>,
     pub osc: Option<
-        unsafe fn(command: c_int, frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int,
+        fn(command: c_int, frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int,
     >,
     pub dcs: Option<VTermDcsFn<VTermStateFull>>,
-    pub apc: Option<unsafe fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
-    pub pm: Option<unsafe fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
-    pub sos: Option<unsafe fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
-    pub resize: Option<unsafe fn(rows: c_int, cols: c_int, user: *mut VTermStateFull) -> c_int>,
+    pub apc: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
+    pub pm: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
+    pub sos: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
+    pub resize: Option<fn(rows: c_int, cols: c_int, user: *mut VTermStateFull) -> c_int>,
 }
 
 #[inline]
@@ -119,18 +119,15 @@ fn is_string_state(state: c_int) -> bool {
 }
 
 fn do_control(vt: &mut VTerm, control: u8) {
-    unsafe {
-        if let Some(callbacks) = vt.parser.callbacks
+    if let Some(callbacks) = vt.parser.callbacks
             && let Some(cb) = callbacks.control
         {
             cb(control, vt.state_mut_ptr());
         }
-    }
 }
 
 fn do_csi(vt: &mut VTerm, command: c_char) {
-    unsafe {
-        if let Some(callbacks) = vt.parser.callbacks
+    if let Some(callbacks) = vt.parser.callbacks
             && let Some(cb) = callbacks.csi
         {
             let leader = if vt.parser.csi.leaderlen != 0 {
@@ -152,7 +149,6 @@ fn do_csi(vt: &mut VTerm, command: c_char) {
                 vt.state_mut_ptr(),
             );
         }
-    }
 }
 
 fn do_escape(vt: &mut VTerm, command: c_char) {
@@ -172,15 +168,14 @@ fn do_escape(vt: &mut VTerm, command: c_char) {
     }
 }
 
-unsafe fn string_fragment(
+fn string_fragment(
     vt: &mut VTerm,
     str_: *const c_char,
     len: usize,
     final_: bool,
     terminator: VTermTerminator,
 ) {
-    unsafe {
-        let frag =
+    let frag =
             VTermStringFragment::new(str_, len, vt.parser.string_initial, final_, terminator);
         let callbacks = vt.parser.callbacks;
         let state = vt.state_mut_ptr();
@@ -230,10 +225,9 @@ unsafe fn string_fragment(
         }
 
         vt.parser.string_initial = false;
-    }
 }
 
-pub unsafe fn vterm_input_write(vt: &mut VTerm, bytes: *const c_char, len: usize) -> usize {
+pub fn vterm_input_write(vt: &mut VTerm, bytes: *const c_char, len: usize) -> usize {
     unsafe {
         let mut pos: usize = 0;
         let mut string_start: *const c_char = match vt.parser.state {

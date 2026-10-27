@@ -112,7 +112,7 @@ use crate::event::r#loop::{
 };
 
 #[inline]
-unsafe fn getaddrinfo_req_addrinfo_ptr(req: *mut uv_getaddrinfo_t) -> *mut *mut addrinfo {
+fn getaddrinfo_req_addrinfo_ptr(req: *mut uv_getaddrinfo_t) -> *mut *mut addrinfo {
     unsafe {
         req.cast::<u8>()
             .add(uv_req_size(UV_GETADDRINFO) - 2 * size_of::<*mut c_void>())
@@ -121,7 +121,7 @@ unsafe fn getaddrinfo_req_addrinfo_ptr(req: *mut uv_getaddrinfo_t) -> *mut *mut 
 }
 
 #[inline]
-unsafe fn connect_req_handle(req: *mut uv_connect_t) -> *mut uv_stream_t {
+fn connect_req_handle(req: *mut uv_connect_t) -> *mut uv_stream_t {
     unsafe {
         *req.cast::<u8>()
             .add(uv_req_size(UV_REQ) + size_of::<*mut c_void>())
@@ -130,7 +130,7 @@ unsafe fn connect_req_handle(req: *mut uv_connect_t) -> *mut uv_stream_t {
 }
 
 #[inline]
-unsafe fn poll_main_loop_until<F: FnMut() -> bool>(timeout: i64, mut cond: F) {
+fn poll_main_loop_until<F: FnMut() -> bool>(timeout: i64, mut cond: F) {
     unsafe {
         let mut remaining = timeout;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
@@ -151,7 +151,7 @@ unsafe fn poll_main_loop_until<F: FnMut() -> bool>(timeout: i64, mut cond: F) {
 }
 
 /// Checks if an address string looks like a TCP endpoint, and returns the end of the host part.
-pub unsafe fn socket_address_tcp_host_end(address: *const c_char) -> *mut c_char {
+pub fn socket_address_tcp_host_end(address: *const c_char) -> *mut c_char {
     if address.is_null() {
         return ptr::null_mut();
     }
@@ -174,7 +174,7 @@ pub unsafe fn socket_address_tcp_host_end(address: *const c_char) -> *mut c_char
     }
 }
 
-pub unsafe fn socket_watcher_init(
+pub fn socket_watcher_init(
     loop_: &mut Loop,
     watcher: *mut SocketWatcher,
     endpoint: *const c_char,
@@ -257,7 +257,7 @@ pub unsafe fn socket_watcher_init(
 }
 
 /// Check if a socket is alive by attempting to connect to it.
-unsafe fn socket_alive(loop_: &mut Loop, addr: *const c_char) -> bool {
+fn socket_alive(loop_: &mut Loop, addr: *const c_char) -> bool {
     unsafe {
         let mut stream = RStream::new();
         let mut error: *const c_char = std::ptr::null();
@@ -285,7 +285,7 @@ unsafe extern "C" fn early_server_close_cb(handle: *mut uv_handle_t) {
     }
 }
 
-pub unsafe fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_int {
+pub fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_int {
     unsafe {
         let addr = (*watcher).addr.as_mut_ptr();
         let uv_ptr: *mut c_void = (&raw mut (*watcher).uv).cast();
@@ -389,7 +389,7 @@ pub unsafe fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) 
     }
 }
 
-pub unsafe fn socket_watcher_accept(watcher: *mut SocketWatcher, stream: &mut RStream) -> c_int {
+pub fn socket_watcher_accept(watcher: *mut SocketWatcher, stream: &mut RStream) -> c_int {
     unsafe {
         let uv_ptr: *mut c_void = (&raw mut (*watcher).uv).cast();
         let client: *mut uv_stream_t = (&raw mut stream.s.uv).cast();
@@ -421,10 +421,8 @@ pub fn socket_watcher_close(watcher: &mut SocketWatcher) {
     }
 }
 
-pub unsafe fn connection_event(watcher: *mut SocketWatcher, status: c_int) {
-    unsafe {
-        crate::msgpack_rpc::server::connection_cb(watcher, status);
-    }
+pub fn connection_event(watcher: *mut SocketWatcher, status: c_int) {
+    crate::msgpack_rpc::server::connection_cb(watcher, status);
 }
 
 unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: c_int) {
@@ -460,7 +458,7 @@ unsafe extern "C" fn connect_cb(req: *mut uv_connect_t, status: c_int) {
     }
 }
 
-pub unsafe fn socket_connect(
+pub fn socket_connect(
     loop_: &mut Loop,
     stream: &mut RStream,
     is_tcp: bool,

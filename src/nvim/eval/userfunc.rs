@@ -225,11 +225,9 @@ pub(crate) struct defer_T {
 
 impl Drop for defer_T {
     fn drop(&mut self) {
-        unsafe {
-            for tv in self.dr_argvars.iter_mut().rev() {
+        for tv in self.dr_argvars.iter_mut().rev() {
                 tv_clear(tv);
             }
-        }
     }
 }
 
@@ -335,7 +333,7 @@ pub fn func_tbl_get() -> &'static mut std::collections::BTreeMap<Vec<u8>, *mut u
 /// Get one function argument.
 /// Return a pointer to after the type.
 /// When something is wrong return "arg".
-unsafe fn one_function_arg(
+fn one_function_arg(
     arg: *mut c_char,
     newargs: Option<&mut Vec<std::ffi::CString>>,
     skip: bool,
@@ -380,7 +378,7 @@ unsafe fn one_function_arg(
 }
 
 /// Get function arguments.
-unsafe fn get_function_args(
+fn get_function_args(
     argp: *mut *mut c_char,
     endchar: c_char,
     mut newargs: Option<&mut Vec<std::ffi::CString>>,
@@ -520,7 +518,7 @@ fn get_lambda_name() -> NvimString {
 }
 
 /// Allocate a `ufunc_T` for a function called `name`.
-unsafe fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
+fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
     unsafe {
         let mut name_vec = Vec::with_capacity(namelen + 1);
         name_vec.extend_from_slice(std::slice::from_raw_parts(name, namelen));
@@ -568,7 +566,7 @@ unsafe fn alloc_ufunc(name: *const c_char, namelen: usize) -> *mut ufunc_T {
 }
 
 /// Parse a lambda expression and get a Funcref from `*arg`.
-pub unsafe fn get_lambda_tv(
+pub fn get_lambda_tv(
     arg: *mut *mut c_char,
     rettv: *mut typval_T,
     evalarg: *mut evalarg_T,
@@ -682,7 +680,7 @@ pub unsafe fn get_lambda_tv(
 }
 
 /// Return name of the function corresponding to `name`.
-pub unsafe fn deref_func_name(
+pub fn deref_func_name(
     name: *const c_char,
     lenp: *mut c_int,
     partialp: *mut *mut partial_T,
@@ -731,7 +729,7 @@ pub unsafe fn deref_func_name(
 }
 
 /// Give an error message with a function name. Handle `<SNR>` things.
-pub unsafe fn emsg_funcname(errmsg: *const c_char, name: *const c_char) {
+pub fn emsg_funcname(errmsg: *const c_char, name: *const c_char) {
     unsafe {
         let mut p_owned: Option<std::ffi::CString> = None;
         let mut p = name;
@@ -750,7 +748,7 @@ pub unsafe fn emsg_funcname(errmsg: *const c_char, name: *const c_char) {
 }
 
 /// Get function arguments at `*arg` and advance it.
-unsafe fn get_func_arguments(
+fn get_func_arguments(
     arg: *mut *mut c_char,
     evalarg: *mut evalarg_T,
     partial_argc: c_int,
@@ -789,7 +787,7 @@ unsafe fn get_func_arguments(
 }
 
 /// Call a function and put the result in `rettv`.
-pub unsafe fn get_func_tv(
+pub fn get_func_tv(
     name: *const c_char,
     len: c_int,
     rettv: *mut typval_T,
@@ -853,12 +851,12 @@ pub unsafe fn get_func_tv(
 
 /// Check whether function name starts with `<SID>` or `s:`.
 #[inline]
-unsafe fn eval_fname_sid(name: *const c_char) -> bool {
+fn eval_fname_sid(name: *const c_char) -> bool {
     unsafe { *name == b's' as c_char || toupper_asc(*name.add(2) as c_int) == b'I' as c_int }
 }
 
 /// In a script transform script-local names into actually used names.
-unsafe fn fname_trans_sid(
+fn fname_trans_sid(
     name: *const c_char,
     fname_buf: *mut c_char,
     tofree: &mut Option<std::ffi::CString>,
@@ -908,7 +906,7 @@ unsafe fn fname_trans_sid(
     }
 }
 
-pub unsafe fn get_func_arity(
+pub fn get_func_arity(
     name: *const c_char,
     required: *mut c_int,
     optional: *mut c_int,
@@ -957,7 +955,7 @@ pub unsafe fn get_func_arity(
 }
 
 /// Find a function by name, return pointer to it in ufuncs.
-pub unsafe fn find_func(name: *const c_char) -> *mut ufunc_T {
+pub fn find_func(name: *const c_char) -> *mut ufunc_T {
     if name.is_null() {
         return ptr::null_mut();
     }
@@ -975,7 +973,7 @@ fn func_is_global(ufunc: &ufunc_T) -> bool {
     ufunc.uf_name.as_slice()[0] as u8 != K_SPECIAL
 }
 
-unsafe fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: &ufunc_T) -> c_int {
+fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: &ufunc_T) -> c_int {
     unsafe {
         let uflen = fp.uf_namelen;
         debug_assert!(uflen > 0);
@@ -996,7 +994,7 @@ unsafe fn cat_func_name(buf: *mut c_char, bufsize: usize, fp: &ufunc_T) -> c_int
 }
 
 /// Add a number variable `name` to dict `dp` with value `nr`.
-unsafe fn add_nr_var(dp: &mut dict_T, name: *const c_char, nr: varnumber_T) {
+fn add_nr_var(dp: &mut dict_T, name: *const c_char, nr: varnumber_T) {
     unsafe {
         let v = tv_dict_item_alloc(name);
         (*v).di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
@@ -1098,7 +1096,7 @@ fn cleanup_function_call(fc: &mut funccall_T) {
 
 /// Unreference `fc`: decrement the reference count and free it when it
 /// becomes zero. `fp` is detached from `fc`.
-unsafe fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
+fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
     unsafe {
         if fc.is_null() {
             return;
@@ -1156,7 +1154,7 @@ fn func_clear_items(fp: &mut ufunc_T) {
         fp.uf_tml_self.clear();
 }
 
-unsafe fn func_clear(fp: *mut ufunc_T, force: bool) {
+fn func_clear(fp: *mut ufunc_T, force: bool) {
     unsafe {
         if (*fp).uf_cleared {
             return;
@@ -1180,7 +1178,7 @@ impl Drop for ufunc_T {
     }
 }
 
-unsafe fn func_clear_free(fp: *mut ufunc_T, force: bool) {
+fn func_clear_free(fp: *mut ufunc_T, force: bool) {
     unsafe {
         func_clear(fp, force);
         drop(Box::from_raw(fp));
@@ -1188,7 +1186,7 @@ unsafe fn func_clear_free(fp: *mut ufunc_T, force: bool) {
 }
 
 /// Allocate a `funccall_T`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.
-pub unsafe fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) -> *mut funccall_T {
+pub fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) -> *mut funccall_T {
     unsafe {
         let fc = Box::into_raw(Box::new(funccall_T::new()));
         (*fc).fc_caller = uf_st().current_funccal;
@@ -1201,7 +1199,7 @@ pub unsafe fn create_funccal(fp: *mut ufunc_T, rettv: *mut typval_T) -> *mut fun
 }
 
 /// Call a user function.
-pub unsafe fn call_user_func(
+pub fn call_user_func(
     fp: *mut ufunc_T,
     argcount: c_int,
     argvars: *mut typval_T,
@@ -1580,7 +1578,7 @@ pub unsafe fn call_user_func(
 }
 
 #[inline]
-unsafe fn func_name_refcount(name: *const c_char) -> bool {
+fn func_name_refcount(name: *const c_char) -> bool {
     unsafe {
         (*name as u8).is_ascii_digit()
             || (*name == b'<' as c_char && *name.add(1) == b'l' as c_char)
@@ -1598,7 +1596,7 @@ fn check_user_func_argcount(fp: &mut ufunc_T, argcount: c_int) -> c_int {
         }
 }
 
-unsafe fn call_user_func_check(
+fn call_user_func_check(
     fp: *mut ufunc_T,
     argcount: c_int,
     argvars: *mut typval_T,
@@ -1664,7 +1662,7 @@ pub fn get_current_funccal() -> *mut funccall_T {
     uf_st().current_funccal
 }
 
-pub unsafe fn set_current_funccal(fc: *mut funccall_T) {
+pub fn set_current_funccal(fc: *mut funccall_T) {
     uf_st().current_funccal = fc;
 }
 
@@ -1726,7 +1724,7 @@ pub fn free_all_functions() {
 }
 
 /// Checks if a builtin function with the given name exists.
-unsafe fn builtin_function(name: *const c_char, len: c_int) -> bool {
+fn builtin_function(name: *const c_char, len: c_int) -> bool {
     unsafe {
         if !ascii_islower(*name as c_int) || *name.add(1) == b':' as c_char {
             return false;
@@ -1741,7 +1739,7 @@ unsafe fn builtin_function(name: *const c_char, len: c_int) -> bool {
     }
 }
 
-pub unsafe fn func_call(
+pub fn func_call(
     name: *mut c_char,
     args: *mut typval_T,
     partial: *mut partial_T,
@@ -1794,7 +1792,7 @@ pub unsafe fn func_call(
     }
 }
 
-pub unsafe fn callback_call_retnr(
+pub fn callback_call_retnr(
     callback: *mut Callback,
     argcount: c_int,
     argvars: *mut typval_T,
@@ -1811,7 +1809,7 @@ pub unsafe fn callback_call_retnr(
     }
 }
 
-unsafe fn user_func_error(error: c_int, name: *const c_char, found_var: bool) {
+fn user_func_error(error: c_int, name: *const c_char, found_var: bool) {
     unsafe {
         match error {
             FCERR_UNKNOWN => {
@@ -1850,7 +1848,7 @@ unsafe fn user_func_error(error: c_int, name: *const c_char, found_var: bool) {
     }
 }
 
-unsafe fn argv_add_base(
+fn argv_add_base(
     basetv: *mut typval_T,
     argvars: *mut *mut typval_T,
     argcount: &mut c_int,
@@ -1869,7 +1867,7 @@ unsafe fn argv_add_base(
 }
 
 /// Call a function with its resolved parameters.
-pub unsafe fn call_func(
+pub fn call_func(
     mut funcname: *const c_char,
     mut len: c_int,
     rettv: *mut typval_T,
@@ -2034,23 +2032,21 @@ pub unsafe fn call_func(
     }
 }
 
-pub unsafe fn call_simple_luafunc(
+pub fn call_simple_luafunc(
     funcname: *const c_char,
     len: usize,
     rettv: &mut typval_T,
 ) -> c_int {
-    unsafe {
-        rettv.v_type = VarType::VAR_NUMBER;
+    rettv.v_type = VarType::VAR_NUMBER;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
         let mut argvars: [typval_T; 1] = [typval_T::new(); 1];
         argvars[0].v_type = VarType::VAR_UNKNOWN;
         nlua_call_vlua(funcname, len, argvars.as_mut_ptr(), 0, rettv);
         OK
-    }
 }
 
-pub unsafe fn call_simple_func(funcname: *const c_char, len: usize, rettv: &mut typval_T) -> c_int {
+pub fn call_simple_func(funcname: *const c_char, len: usize, rettv: &mut typval_T) -> c_int {
     unsafe {
         let mut ret = FAIL;
 
@@ -2190,7 +2186,7 @@ fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> c_int {
 }
 
 /// Get a function name, translating `<SID>` and `<SNR>`.
-pub unsafe fn trans_function_name(
+pub fn trans_function_name(
     pp: *mut *mut c_char,
     skip: bool,
     flags: c_int,
@@ -2423,7 +2419,7 @@ pub unsafe fn trans_function_name(
     }
 }
 
-pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi::CString> {
+pub fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi::CString> {
     unsafe {
         if funcname.is_null() {
             return None;
@@ -2462,7 +2458,7 @@ pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi
 }
 
 /// Call `trans_function_name()`, except that a lambda is returned as-is.
-pub unsafe fn save_function_name(
+pub fn save_function_name(
     name: *mut *mut c_char,
     skip: bool,
     flags: c_int,
@@ -2490,7 +2486,7 @@ pub unsafe fn save_function_name(
     }
 }
 
-unsafe fn list_functions(regmatch: *mut regmatch_T) {
+fn list_functions(regmatch: *mut regmatch_T) {
     unsafe {
         let prev_ht_changed = uf_st().func_hashtab_changed;
         let ht = &raw const uf_st().func_hashtab;
@@ -2542,7 +2538,7 @@ fn list_functions_matching_pat(eap: &mut exarg_T) -> *mut c_char {
     }
 }
 
-unsafe fn list_one_function(eap: &mut exarg_T, name: *mut c_char, p: *mut c_char) -> *mut ufunc_T {
+fn list_one_function(eap: &mut exarg_T, name: *mut c_char, p: *mut c_char) -> *mut ufunc_T {
     unsafe {
         if ends_excmd(*skipwhite(p) as c_int) == 0 {
             semsg!(gettext(e_trailing_arg.as_ptr()), p);
@@ -2612,7 +2608,7 @@ unsafe fn list_one_function(eap: &mut exarg_T, name: *mut c_char, p: *mut c_char
     }
 }
 
-unsafe fn get_function_body(
+fn get_function_body(
     eap: &mut exarg_T,
     newlines: &mut Vec<Option<std::ffi::CString>>,
     line_arg_in: *mut c_char,
@@ -3293,7 +3289,7 @@ pub fn ex_function(eap: &mut exarg_T) {
 
 /// Return 5 if `p` starts with `<SID>` or `<SNR>` (ignoring case),
 /// 2 if `p` starts with `s:`, 0 otherwise.
-pub unsafe fn eval_fname_script(p: *const c_char) -> c_int {
+pub fn eval_fname_script(p: *const c_char) -> c_int {
     unsafe {
         if *p == b'<' as c_char
             && (mb_strnicmp(p.add(1), c"SID>".as_ptr(), 4) == 0
@@ -3308,16 +3304,14 @@ pub unsafe fn eval_fname_script(p: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn translated_function_exists(name: *const c_char) -> bool {
-    unsafe {
-        if builtin_function(name, -1) {
+pub fn translated_function_exists(name: *const c_char) -> bool {
+    if builtin_function(name, -1) {
             return !find_internal_func(name).is_null();
         }
         !find_func(name).is_null()
-    }
 }
 
-pub unsafe fn function_exists(name: *const c_char, no_deref: bool) -> bool {
+pub fn function_exists(name: *const c_char, no_deref: bool) -> bool {
     unsafe {
         let mut nm = name.cast_mut();
         let mut n = false;
@@ -3473,7 +3467,7 @@ pub fn ex_delfunction(eap: &mut exarg_T) {
 
 /// Unreference a Function: decrement the reference count and free it when it
 /// becomes zero.
-pub unsafe fn func_unref(name: *mut c_char) {
+pub fn func_unref(name: *mut c_char) {
     unsafe {
         if name.is_null() || !func_name_refcount(name) {
             return;
@@ -3488,7 +3482,7 @@ pub unsafe fn func_unref(name: *mut c_char) {
     }
 }
 
-pub unsafe fn func_ptr_unref(fp: *mut ufunc_T) {
+pub fn func_ptr_unref(fp: *mut ufunc_T) {
     unsafe {
         if !fp.is_null() {
             (*fp).uf_refcount -= 1;
@@ -3499,7 +3493,7 @@ pub unsafe fn func_ptr_unref(fp: *mut ufunc_T) {
     }
 }
 
-pub unsafe fn func_ref(name: *mut c_char) {
+pub fn func_ref(name: *mut c_char) {
     unsafe {
         if name.is_null() || !func_name_refcount(name) {
             return;
@@ -3513,7 +3507,7 @@ pub unsafe fn func_ref(name: *mut c_char) {
     }
 }
 
-pub unsafe fn func_ptr_ref(fp: *mut ufunc_T) {
+pub fn func_ptr_ref(fp: *mut ufunc_T) {
     unsafe {
         if !fp.is_null() {
             (*fp).uf_refcount += 1;
@@ -3522,7 +3516,7 @@ pub unsafe fn func_ptr_ref(fp: *mut ufunc_T) {
 }
 
 #[inline]
-unsafe fn fc_referenced(fc: *const funccall_T) -> bool {
+fn fc_referenced(fc: *const funccall_T) -> bool {
     unsafe {
         (*fc).fc_l_varlist.lv_refcount != DO_NOT_FREE_CNT
             || (*fc).fc_l_vars.dv_refcount != DO_NOT_FREE_CNT
@@ -3588,7 +3582,7 @@ pub fn ex_return(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn ex_call_inner(
+fn ex_call_inner(
     eap: &mut exarg_T,
     name: *mut c_char,
     arg: *mut *mut c_char,
@@ -3645,7 +3639,7 @@ unsafe fn ex_call_inner(
     }
 }
 
-unsafe fn ex_defer_inner(
+fn ex_defer_inner(
     name: *mut c_char,
     arg: *mut *mut c_char,
     partial: *const partial_T,
@@ -3735,7 +3729,7 @@ pub fn can_add_defer() -> bool {
     }
 }
 
-pub unsafe fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut typval_T) {
+pub fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut typval_T) {
     unsafe {
         let dr_name_cstr = cstr_to_cstring(name);
         let argcount = argcount_arg as usize;
@@ -3751,8 +3745,7 @@ pub unsafe fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut ty
 }
 
 fn handle_defer_one(funccal: &mut funccall_T) {
-    unsafe {
-        let mut idx = funccal.fc_defer.len() as isize - 1;
+    let mut idx = funccal.fc_defer.len() as isize - 1;
         while idx >= 0 {
             let dr = &mut (&mut funccal.fc_defer)[idx as usize];
 
@@ -3796,7 +3789,6 @@ fn handle_defer_one(funccal: &mut funccall_T) {
             idx -= 1;
         }
         funccal.fc_defer.clear();
-    }
 }
 
 pub fn invoke_all_defer() {
@@ -4058,7 +4050,7 @@ pub fn func_has_abort(fcp: &mut funccall_T) -> c_int {
 }
 
 /// Turn `dict.Func` into a partial for `Func` bound to `dict`.
-pub unsafe fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
+pub fn make_partial(selfdict: *mut dict_T, rettv: *mut typval_T) {
     unsafe {
         let mut fp: *mut ufunc_T = ptr::null_mut();
         let mut fname_buf = [0 as c_char; FLEN_FIXED + 1];
@@ -4269,7 +4261,7 @@ pub fn get_funccal_args_var() -> *mut dictitem_T {
     }
 }
 
-pub unsafe fn list_func_vars(first: *mut c_int) {
+pub fn list_func_vars(first: *mut c_int) {
     unsafe {
         if !uf_st().current_funccal.is_null() && (*uf_st().current_funccal).fc_l_vars.dv_refcount > 0 {
             list_hashtable_vars(
@@ -4282,7 +4274,7 @@ pub unsafe fn list_func_vars(first: *mut c_int) {
     }
 }
 
-pub unsafe fn get_current_funccal_dict(ht: *mut hashtab_T) -> *mut dict_T {
+pub fn get_current_funccal_dict(ht: *mut hashtab_T) -> *mut dict_T {
     unsafe {
         if !uf_st().current_funccal.is_null() && ht == &raw mut (*uf_st().current_funccal).fc_l_vars.dv_hashtab {
             return &raw mut (*uf_st().current_funccal).fc_l_vars;
@@ -4291,7 +4283,7 @@ pub unsafe fn get_current_funccal_dict(ht: *mut hashtab_T) -> *mut dict_T {
     }
 }
 
-pub unsafe fn find_hi_in_scoped_ht(
+pub fn find_hi_in_scoped_ht(
     name: *const c_char,
     pht: *mut *mut hashtab_T,
 ) -> *mut hashitem_T {
@@ -4326,7 +4318,7 @@ pub unsafe fn find_hi_in_scoped_ht(
     }
 }
 
-pub unsafe fn find_var_in_scoped_ht(
+pub fn find_var_in_scoped_ht(
     name: *const c_char,
     namelen: usize,
     no_autoload: c_int,
@@ -4461,7 +4453,7 @@ pub fn set_ref_in_func_args(copyID: c_int) -> bool {
     }
 }
 
-pub unsafe fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_int) -> bool {
+pub fn set_ref_in_func(name: *mut c_char, fp_in: *mut ufunc_T, copyID: c_int) -> bool {
     unsafe {
         let mut fp = fp_in;
         let mut error = FCERR_NONE;
@@ -4518,8 +4510,7 @@ mod tests {
 
     #[test]
     fn builtin_function_and_func_name_helpers_work() {
-        unsafe {
-            assert!(eval_fname_sid(c"s:Foo".as_ptr()));
+        assert!(eval_fname_sid(c"s:Foo".as_ptr()));
             assert!(eval_fname_sid(c"<SID>Foo".as_ptr()));
             assert!(eval_fname_sid(c"<sid>Foo".as_ptr()));
             assert!(!eval_fname_sid(c"<SNR>12_Foo".as_ptr()));
@@ -4530,6 +4521,5 @@ mod tests {
             assert!(!builtin_function(c"s:abs".as_ptr(), -1));
             assert!(!builtin_function(c"foo#bar".as_ptr(), -1));
             assert!(!builtin_function(c"Foo".as_ptr(), -1));
-        }
     }
 }

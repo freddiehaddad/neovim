@@ -141,7 +141,7 @@ impl mpack_tokbuf_t {
 }
 
 #[inline]
-unsafe fn advance(buf: *mut *const c_char, buflen: *mut usize) -> u8 {
+fn advance(buf: *mut *const c_char, buflen: *mut usize) -> u8 {
     unsafe {
         *buflen -= 1;
         let b = **buf as u8;
@@ -164,7 +164,7 @@ const fn mpack_byte(byte: u8) -> mpack_value_t {
 }
 
 #[inline]
-unsafe fn mpack_value(
+fn mpack_value(
     r#type: mpack_token_type_t,
     length: mpack_uint32_t,
     value: mpack_value_t,
@@ -179,7 +179,7 @@ unsafe fn mpack_value(
 }
 
 #[inline]
-unsafe fn mpack_blob(
+fn mpack_blob(
     r#type: mpack_token_type_t,
     length: mpack_uint32_t,
     ext_type: c_int,
@@ -193,7 +193,7 @@ unsafe fn mpack_blob(
     MPACK_OK
 }
 
-pub unsafe fn mpack_tokbuf_init(tokbuf: *mut mpack_tokbuf_t) {
+pub fn mpack_tokbuf_init(tokbuf: *mut mpack_tokbuf_t) {
     unsafe {
         (*tokbuf).ppos = 0;
         (*tokbuf).plen = 0;
@@ -201,7 +201,7 @@ pub unsafe fn mpack_tokbuf_init(tokbuf: *mut mpack_tokbuf_t) {
     }
 }
 
-pub unsafe fn mpack_read(
+pub fn mpack_read(
     tokbuf: *mut mpack_tokbuf_t,
     buf: *mut *const c_char,
     buflen: *mut usize,
@@ -268,7 +268,7 @@ pub unsafe fn mpack_read(
     }
 }
 
-pub unsafe fn mpack_write(
+pub fn mpack_write(
     tokbuf: *mut mpack_tokbuf_t,
     buf: *mut *mut c_char,
     buflen: *mut usize,
@@ -347,7 +347,7 @@ pub unsafe fn mpack_write(
     }
 }
 
-pub unsafe fn mpack_rtoken(
+pub fn mpack_rtoken(
     buf: *mut *const c_char,
     buflen: *mut usize,
     tok: *mut mpack_token_t,
@@ -396,7 +396,7 @@ pub unsafe fn mpack_rtoken(
     }
 }
 
-unsafe fn mpack_rpending(
+fn mpack_rpending(
     buf: *mut *const c_char,
     buflen: *mut usize,
     state: *mut mpack_tokbuf_t,
@@ -419,7 +419,7 @@ unsafe fn mpack_rpending(
     }
 }
 
-unsafe fn mpack_rvalue(
+fn mpack_rvalue(
     r#type: mpack_token_type_t,
     mut remaining: mpack_uint32_t,
     buf: *mut *const c_char,
@@ -464,7 +464,7 @@ unsafe fn mpack_rvalue(
     }
 }
 
-unsafe fn mpack_rblob(
+fn mpack_rblob(
     r#type: mpack_token_type_t,
     tlen: mpack_uint32_t,
     buf: *mut *const c_char,
@@ -491,7 +491,7 @@ unsafe fn mpack_rblob(
     }
 }
 
-unsafe fn mpack_wtoken(
+fn mpack_wtoken(
     tok: *const mpack_token_t,
     buf: *mut *mut c_char,
     buflen: *mut usize,
@@ -521,7 +521,7 @@ unsafe fn mpack_wtoken(
     }
 }
 
-unsafe fn mpack_wpending(
+fn mpack_wpending(
     buf: *mut *mut c_char,
     buflen: *mut usize,
     state: *mut mpack_tokbuf_t,
@@ -541,11 +541,10 @@ unsafe fn mpack_wpending(
     }
 }
 
-unsafe fn mpack_wpint(buf: *mut *mut c_char, buflen: *mut usize, val: mpack_value_t) -> c_int {
+fn mpack_wpint(buf: *mut *mut c_char, buflen: *mut usize, val: mpack_value_t) -> c_int {
     let hi = val.hi;
     let lo = val.lo;
-    unsafe {
-        if hi != 0 {
+    if hi != 0 {
             mpack_w1(buf, buflen, 0xcf);
             mpack_w4(buf, buflen, hi);
             mpack_w4(buf, buflen, lo)
@@ -561,14 +560,12 @@ unsafe fn mpack_wpint(buf: *mut *mut c_char, buflen: *mut usize, val: mpack_valu
         } else {
             mpack_w1(buf, buflen, lo)
         }
-    }
 }
 
-unsafe fn mpack_wnint(buf: *mut *mut c_char, buflen: *mut usize, val: mpack_value_t) -> c_int {
+fn mpack_wnint(buf: *mut *mut c_char, buflen: *mut usize, val: mpack_value_t) -> c_int {
     let hi = val.hi;
     let lo = val.lo;
-    unsafe {
-        if (hi != 0 && hi != 0xffffffff) || lo < 0x80000000 {
+    if (hi != 0 && hi != 0xffffffff) || lo < 0x80000000 {
             mpack_w1(buf, buflen, 0xd3);
             mpack_w4(buf, buflen, hi);
             mpack_w4(buf, buflen, lo)
@@ -584,10 +581,9 @@ unsafe fn mpack_wnint(buf: *mut *mut c_char, buflen: *mut usize, val: mpack_valu
         } else {
             mpack_w1(buf, buflen, 0x100u32.wrapping_add(lo))
         }
-    }
 }
 
-unsafe fn mpack_wfloat(
+fn mpack_wfloat(
     buf: *mut *mut c_char,
     buflen: *mut usize,
     tok: *const mpack_token_t,
@@ -607,9 +603,8 @@ unsafe fn mpack_wfloat(
     }
 }
 
-unsafe fn mpack_wstr(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uint32_t) -> c_int {
-    unsafe {
-        if len < 0x20 {
+fn mpack_wstr(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uint32_t) -> c_int {
+    if len < 0x20 {
             mpack_w1(buf, buflen, 0xa0 | len)
         } else if len < 0x100 {
             mpack_w1(buf, buflen, 0xd9);
@@ -621,12 +616,10 @@ unsafe fn mpack_wstr(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uint3
             mpack_w1(buf, buflen, 0xdb);
             mpack_w4(buf, buflen, len)
         }
-    }
 }
 
-unsafe fn mpack_wbin(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uint32_t) -> c_int {
-    unsafe {
-        if len < 0x100 {
+fn mpack_wbin(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uint32_t) -> c_int {
+    if len < 0x100 {
             mpack_w1(buf, buflen, 0xc4);
             mpack_w1(buf, buflen, len)
         } else if len < 0x10000 {
@@ -636,10 +629,9 @@ unsafe fn mpack_wbin(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uint3
             mpack_w1(buf, buflen, 0xc6);
             mpack_w4(buf, buflen, len)
         }
-    }
 }
 
-unsafe fn mpack_wext(
+fn mpack_wext(
     buf: *mut *mut c_char,
     buflen: *mut usize,
     r#type: c_int,
@@ -647,8 +639,7 @@ unsafe fn mpack_wext(
 ) -> c_int {
     debug_assert!((0..0x80).contains(&r#type));
     let t = r#type as mpack_uint32_t;
-    unsafe {
-        match len {
+    match len {
             1 => {
                 mpack_w1(buf, buflen, 0xd4);
                 mpack_w1(buf, buflen, t)
@@ -685,12 +676,10 @@ unsafe fn mpack_wext(
                 }
             }
         }
-    }
 }
 
-unsafe fn mpack_warray(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uint32_t) -> c_int {
-    unsafe {
-        if len < 0x10 {
+fn mpack_warray(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uint32_t) -> c_int {
+    if len < 0x10 {
             mpack_w1(buf, buflen, 0x90 | len)
         } else if len < 0x10000 {
             mpack_w1(buf, buflen, 0xdc);
@@ -699,12 +688,10 @@ unsafe fn mpack_warray(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uin
             mpack_w1(buf, buflen, 0xdd);
             mpack_w4(buf, buflen, len)
         }
-    }
 }
 
-unsafe fn mpack_wmap(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uint32_t) -> c_int {
-    unsafe {
-        if len < 0x10 {
+fn mpack_wmap(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uint32_t) -> c_int {
+    if len < 0x10 {
             mpack_w1(buf, buflen, 0x80 | len)
         } else if len < 0x10000 {
             mpack_w1(buf, buflen, 0xde);
@@ -713,11 +700,10 @@ unsafe fn mpack_wmap(buf: *mut *mut c_char, buflen: *mut usize, len: mpack_uint3
             mpack_w1(buf, buflen, 0xdf);
             mpack_w4(buf, buflen, len)
         }
-    }
 }
 
 #[inline]
-unsafe fn mpack_w1(b: *mut *mut c_char, bl: *mut usize, v: mpack_uint32_t) -> c_int {
+fn mpack_w1(b: *mut *mut c_char, bl: *mut usize, v: mpack_uint32_t) -> c_int {
     unsafe {
         *bl -= 1;
         **b = (v & 0xff) as u8 as c_char;
@@ -727,7 +713,7 @@ unsafe fn mpack_w1(b: *mut *mut c_char, bl: *mut usize, v: mpack_uint32_t) -> c_
 }
 
 #[inline]
-unsafe fn mpack_w2(b: *mut *mut c_char, bl: *mut usize, v: mpack_uint32_t) -> c_int {
+fn mpack_w2(b: *mut *mut c_char, bl: *mut usize, v: mpack_uint32_t) -> c_int {
     unsafe {
         *bl -= 2;
         **b = ((v >> 8) & 0xff) as u8 as c_char;
@@ -739,7 +725,7 @@ unsafe fn mpack_w2(b: *mut *mut c_char, bl: *mut usize, v: mpack_uint32_t) -> c_
 }
 
 #[inline]
-unsafe fn mpack_w4(b: *mut *mut c_char, bl: *mut usize, v: mpack_uint32_t) -> c_int {
+fn mpack_w4(b: *mut *mut c_char, bl: *mut usize, v: mpack_uint32_t) -> c_int {
     unsafe {
         *bl -= 4;
         **b = ((v >> 24) & 0xff) as u8 as c_char;

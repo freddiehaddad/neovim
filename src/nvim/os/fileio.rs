@@ -66,7 +66,7 @@ pub fn file_space(fp: &FileDescriptor) -> usize {
 ///
 /// # Safety
 /// `ret_fp` and `fname` must be valid pointers.
-pub unsafe fn file_open(
+pub fn file_open(
     ret_fp: &mut FileDescriptor,
     fname: *const c_char,
     flags: c_int,
@@ -113,13 +113,13 @@ pub unsafe fn file_open(
     }
 
     if (flags & K_FILE_MK_DIR) != 0 {
-        let mkdir_ret = unsafe { os_file_mkdir(fname.cast_mut(), 0o755) };
+        let mkdir_ret = os_file_mkdir(fname.cast_mut(), 0o755);
         if mkdir_ret < 0 {
             return mkdir_ret;
         }
     }
 
-    let fd = unsafe { os_open(fname, os_open_flags, mode) };
+    let fd = os_open(fname, os_open_flags, mode);
     if fd < 0 {
         return fd;
     }
@@ -163,7 +163,7 @@ pub fn file_open_stdin(fp: &mut FileDescriptor) -> c_int {
 ///
 /// # Safety
 /// `ret_fp` must be a valid writable pointer, and `data` must be valid for `len` bytes.
-pub unsafe fn file_open_buffer(ret_fp: &mut FileDescriptor, data: *mut c_char, len: usize) {
+pub fn file_open_buffer(ret_fp: &mut FileDescriptor, data: *mut c_char, len: usize) {
     let fp = &mut *ret_fp;
     fp.wr = false;
     fp.non_blocking = false;
@@ -192,7 +192,7 @@ pub fn file_close(fp: &mut FileDescriptor, do_fsync: bool) -> c_int {
     let flush_error = if do_fsync {
         file_fsync(fp)
     } else {
-        unsafe { file_flush(fp) }
+        file_flush(fp)
     };
     let close_error = os_close(fp.fd);
     fp.buffer = Vec::new();
@@ -213,7 +213,7 @@ pub fn file_fsync(fp: &mut FileDescriptor) -> c_int {
     if !fp.wr {
         return 0;
     }
-    let flush_error = unsafe { file_flush(fp) };
+    let flush_error = file_flush(fp);
     if flush_error != 0 {
         return flush_error;
     }
@@ -228,7 +228,7 @@ pub fn file_fsync(fp: &mut FileDescriptor) -> c_int {
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-pub unsafe fn file_flush(fp: *mut FileDescriptor) -> c_int {
+pub fn file_flush(fp: *mut FileDescriptor) -> c_int {
     let fp = unsafe { &mut *fp };
     if !fp.wr {
         return 0;
@@ -239,7 +239,7 @@ pub unsafe fn file_flush(fp: *mut FileDescriptor) -> c_int {
         return 0;
     }
     let read_ptr = unsafe { fp.buffer.as_ptr().add(fp.read_pos) };
-    let wres = unsafe { os_write(fp.fd, read_ptr, to_write, fp.non_blocking) };
+    let wres = os_write(fp.fd, read_ptr, to_write, fp.non_blocking);
     fp.read_pos = 0;
     fp.write_pos = 0;
     if wres != to_write as isize {
@@ -252,7 +252,7 @@ pub unsafe fn file_flush(fp: *mut FileDescriptor) -> c_int {
 ///
 /// # Safety
 /// `fp` must be a valid readable `FileDescriptor`, and `ret_buf` must be writable for `size` bytes.
-pub unsafe fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> isize {
+pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> isize {
     let fp = unsafe { &mut *fp };
     assert!(!fp.wr);
     let buffered = fp.write_pos.saturating_sub(fp.read_pos);
@@ -299,15 +299,13 @@ pub unsafe fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usi
                     iov_len: ARENA_BLOCK_SIZE,
                 },
             ];
-            let r_ret = unsafe {
-                os_readv(
-                    fp.fd,
-                    &mut fp.eof,
-                    iov.as_mut_ptr(),
-                    iov.len(),
-                    fp.non_blocking,
-                )
-            };
+            let r_ret = os_readv(
+                fp.fd,
+                &mut fp.eof,
+                iov.as_mut_ptr(),
+                iov.len(),
+                fp.non_blocking,
+            );
             if r_ret > 0 {
                 let r_usize = r_ret as usize;
                 if r_usize > read_remaining {
@@ -329,7 +327,7 @@ pub unsafe fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usi
         if !fp.eof {
             if read_remaining >= ARENA_BLOCK_SIZE {
                 let r_ret =
-                    unsafe { os_read(fp.fd, &mut fp.eof, buf, read_remaining, fp.non_blocking) };
+                    os_read(fp.fd, &mut fp.eof, buf, read_remaining, fp.non_blocking);
                 if r_ret >= 0 {
                     read_remaining -= r_ret as usize;
                 } else {
@@ -337,15 +335,13 @@ pub unsafe fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usi
                 }
             } else {
                 let write_ptr = unsafe { fp.buffer.as_mut_ptr().add(fp.write_pos) };
-                let r_ret = unsafe {
-                    os_read(
+                let r_ret = os_read(
                         fp.fd,
                         &mut fp.eof,
                         write_ptr,
                         ARENA_BLOCK_SIZE,
                         fp.non_blocking,
-                    )
-                };
+                    );
                 if r_ret < 0 {
                     return r_ret;
                 }
@@ -374,7 +370,7 @@ pub unsafe fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usi
 ///
 /// # Safety
 /// `fp` must be a valid writable pointer to a `FileDescriptor`.
-pub unsafe fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *mut c_char {
+pub fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *mut c_char {
     let fp = unsafe { &mut *fp };
     if fp.write_pos.saturating_sub(fp.read_pos) >= size {
         let ret = unsafe { fp.buffer.as_mut_ptr().add(fp.read_pos) };
@@ -390,7 +386,7 @@ pub unsafe fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *m
 ///
 /// # Safety
 /// `fp` must be a valid writable `FileDescriptor`, and `buf` must be valid for `size` bytes.
-pub unsafe fn file_write(fp: &mut FileDescriptor, buf: *const c_char, size: usize) -> isize {
+pub fn file_write(fp: &mut FileDescriptor, buf: *const c_char, size: usize) -> isize {
     
     assert!(fp.wr);
     if size < file_space(fp) {
@@ -407,7 +403,7 @@ pub unsafe fn file_write(fp: &mut FileDescriptor, buf: *const c_char, size: usiz
         return size as isize;
     }
 
-    let status = unsafe { file_flush(fp) };
+    let status = file_flush(fp);
     if status < 0 {
         return status as isize;
     }
@@ -426,7 +422,7 @@ pub unsafe fn file_write(fp: &mut FileDescriptor, buf: *const c_char, size: usiz
         return size as isize;
     }
 
-    let wres = unsafe { os_write(fp.fd, buf, size, fp.non_blocking) };
+    let wres = os_write(fp.fd, buf, size, fp.non_blocking);
     if wres != size as isize && wres >= 0 {
         UV_EIO as isize
     } else {
@@ -438,7 +434,7 @@ pub unsafe fn file_write(fp: &mut FileDescriptor, buf: *const c_char, size: usiz
 ///
 /// # Safety
 /// `fp` must be a valid readable `FileDescriptor`.
-pub unsafe fn file_skip(fp: *mut FileDescriptor, size: usize) -> isize {
+pub fn file_skip(fp: *mut FileDescriptor, size: usize) -> isize {
     let fp = unsafe { &mut *fp };
     assert!(!fp.wr);
     let buffered = fp.write_pos.saturating_sub(fp.read_pos);
@@ -457,15 +453,13 @@ pub unsafe fn file_skip(fp: *mut FileDescriptor, size: usize) -> isize {
         if fp.eof || (called_read && fp.non_blocking) {
             break;
         }
-        let r_ret = unsafe {
-            os_read(
+        let r_ret = os_read(
                 fp.fd,
                 &mut fp.eof,
                 fp.buffer.as_mut_ptr(),
                 ARENA_BLOCK_SIZE,
                 fp.non_blocking,
-            )
-        };
+            );
         if r_ret < 0 {
             return r_ret;
         }
@@ -521,8 +515,7 @@ mod tests {
         let _ = std::fs::remove_file(&tmp);
         let c_path = std::ffi::CString::new(tmp.to_string_lossy().as_bytes()).unwrap();
 
-        unsafe {
-            let mut fp = FileDescriptor::new();
+        let mut fp = FileDescriptor::new();
             assert_eq!(
                 file_open(&mut fp, c_path.as_ptr(), K_FILE_CREATE_ONLY, 0o600),
                 0
@@ -560,7 +553,6 @@ mod tests {
             );
             assert_eq!(all, fcontents);
             assert_eq!(file_close(&mut fp, false), 0);
-        }
         let _ = std::fs::remove_file(&tmp);
     }
 }

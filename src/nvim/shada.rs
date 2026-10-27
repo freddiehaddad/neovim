@@ -1773,9 +1773,7 @@ fn additional_data_len(src: &Option<AdditionalData>) -> u32 {
 #[inline]
 fn dump_additional_data(src: &Option<AdditionalData>, sbuf: &mut PackerBuffer) {
     if let Some(ad) = src {
-        unsafe {
-            mpack_raw(ad.bytes.as_ptr(), ad.bytes.len(), sbuf);
-        }
+        mpack_raw(ad.bytes.as_ptr(), ad.bytes.len(), sbuf);
     }
 }
 
@@ -4489,8 +4487,7 @@ pub fn shada_read_string(bytes: &[u8], flags: c_int) {
     if bytes.is_empty() {
         return;
     }
-    unsafe {
-        let mut sd_reader = FileDescriptor::new();
+    let mut sd_reader = FileDescriptor::new();
         file_open_buffer(
             &mut sd_reader,
             bytes.as_ptr().cast::<c_char>().cast_mut(),
@@ -4498,7 +4495,6 @@ pub fn shada_read_string(bytes: &[u8], flags: c_int) {
         );
         shada_read(&mut sd_reader, flags);
         close_file(&mut sd_reader);
-    }
 }
 
 /// Find the parameter represented by the given character in 'shada' (`get_shada_parameter`).

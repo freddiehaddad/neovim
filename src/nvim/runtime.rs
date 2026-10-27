@@ -544,8 +544,7 @@ unsafe fn stacktrace_push_item(
     lnum: linenr_T,
     filepath: *const c_char,
 ) {
-    unsafe {
-        let d = tv_dict_alloc_lock(VAR_FIXED);
+    let d = tv_dict_alloc_lock(VAR_FIXED);
         let mut tv = typval_T {
             v_type: VarType::VAR_DICT,
             v_lock: VAR_LOCKED,
@@ -562,7 +561,6 @@ unsafe fn stacktrace_push_item(
         tv_dict_add_str(d, c"filepath".as_ptr(), 8, filepath);
 
         tv_list_append_tv(l, &mut tv);
-    }
 }
 
 /// Create the stacktrace from rt_st().exestack.

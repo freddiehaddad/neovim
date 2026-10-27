@@ -50,7 +50,7 @@ impl StreamCbData {
         !matches!(self, Self::None)
     }
 
-    pub unsafe fn call_read_cb(
+    pub fn call_read_cb(
         self,
         stream: *mut crate::event::rstream::RStream,
         buf: *const std::ffi::c_char,
@@ -177,7 +177,7 @@ pub fn stream_set_blocking(fd: c_int, blocking: bool) -> c_int {
     }
 }
 
-pub unsafe fn stream_init(
+pub fn stream_init(
     loop_: *mut Loop,
     stream: &mut Stream,
     fd: c_int,

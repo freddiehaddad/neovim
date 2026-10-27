@@ -309,84 +309,84 @@ pub const fn lua_upvalueindex(i: c_int) -> c_int {
 }
 
 #[inline]
-pub unsafe fn lua_pop(lstate: *mut lua_State, n: c_int) {
+pub fn lua_pop(lstate: *mut lua_State, n: c_int) {
     unsafe {
         lua_settop(lstate, -n - 1);
     }
 }
 
 #[inline]
-pub unsafe fn lua_newtable(lstate: *mut lua_State) {
+pub fn lua_newtable(lstate: *mut lua_State) {
     unsafe {
         lua_createtable(lstate, 0, 0);
     }
 }
 
 #[inline]
-pub unsafe fn lua_pushcfunction(lstate: *mut lua_State, f: lua_CFunction) {
+pub fn lua_pushcfunction(lstate: *mut lua_State, f: lua_CFunction) {
     unsafe {
         lua_pushcclosure(lstate, f, 0);
     }
 }
 
 #[inline]
-pub unsafe fn lua_setglobal(lstate: *mut lua_State, s: *const c_char) {
+pub fn lua_setglobal(lstate: *mut lua_State, s: *const c_char) {
     unsafe {
         lua_setfield(lstate, LUA_GLOBALSINDEX, s);
     }
 }
 
 #[inline]
-pub unsafe fn lua_getglobal(lstate: *mut lua_State, s: *const c_char) {
+pub fn lua_getglobal(lstate: *mut lua_State, s: *const c_char) {
     unsafe {
         lua_getfield(lstate, LUA_GLOBALSINDEX, s);
     }
 }
 
 #[inline]
-pub unsafe fn lua_tostring(lstate: *mut lua_State, i: c_int) -> *const c_char {
+pub fn lua_tostring(lstate: *mut lua_State, i: c_int) -> *const c_char {
     unsafe { lua_tolstring(lstate, i, std::ptr::null_mut()) }
 }
 
 #[inline]
-pub unsafe fn lua_isfunction(lstate: *mut lua_State, n: c_int) -> bool {
+pub fn lua_isfunction(lstate: *mut lua_State, n: c_int) -> bool {
     unsafe { lua_type(lstate, n) == LUA_TFUNCTION }
 }
 
 #[inline]
-pub unsafe fn lua_istable(lstate: *mut lua_State, n: c_int) -> bool {
+pub fn lua_istable(lstate: *mut lua_State, n: c_int) -> bool {
     unsafe { lua_type(lstate, n) == LUA_TTABLE }
 }
 
 #[inline]
-pub unsafe fn lua_isnil(lstate: *mut lua_State, n: c_int) -> bool {
+pub fn lua_isnil(lstate: *mut lua_State, n: c_int) -> bool {
     unsafe { lua_type(lstate, n) == LUA_TNIL }
 }
 
 #[inline]
-pub unsafe fn lua_isboolean(lstate: *mut lua_State, n: c_int) -> bool {
+pub fn lua_isboolean(lstate: *mut lua_State, n: c_int) -> bool {
     unsafe { lua_type(lstate, n) == LUA_TBOOLEAN }
 }
 
 #[inline]
-pub unsafe fn lua_isnoneornil(lstate: *mut lua_State, n: c_int) -> bool {
+pub fn lua_isnoneornil(lstate: *mut lua_State, n: c_int) -> bool {
     unsafe { lua_type(lstate, n) <= 0 }
 }
 
 #[inline]
-pub unsafe fn luaL_typename(lstate: *mut lua_State, i: c_int) -> *const c_char {
+pub fn luaL_typename(lstate: *mut lua_State, i: c_int) -> *const c_char {
     unsafe { lua_typename(lstate, lua_type(lstate, i)) }
 }
 
 #[inline]
-pub unsafe fn luaL_getmetatable(lstate: *mut lua_State, n: *const c_char) {
+pub fn luaL_getmetatable(lstate: *mut lua_State, n: *const c_char) {
     unsafe {
         lua_getfield(lstate, LUA_REGISTRYINDEX, n);
     }
 }
 
 #[inline]
-pub unsafe fn luaL_argcheck(
+pub fn luaL_argcheck(
     lstate: *mut lua_State,
     cond: bool,
     numarg: c_int,
@@ -400,38 +400,38 @@ pub unsafe fn luaL_argcheck(
 }
 
 #[inline]
-pub unsafe fn luaL_checkstring(lstate: *mut lua_State, n: c_int) -> *const c_char {
+pub fn luaL_checkstring(lstate: *mut lua_State, n: c_int) -> *const c_char {
     unsafe { luaL_checklstring(lstate, n, std::ptr::null_mut()) }
 }
 
 #[inline]
-pub unsafe fn luaL_checkint(lstate: *mut lua_State, n: c_int) -> c_int {
+pub fn luaL_checkint(lstate: *mut lua_State, n: c_int) -> c_int {
     unsafe { luaL_checkinteger(lstate, n) as c_int }
 }
 
 #[inline]
-unsafe fn nlua_push_type_idx(lstate: *mut lua_State) {
+fn nlua_push_type_idx(lstate: *mut lua_State) {
     unsafe {
         lua_pushboolean(lstate, c_int::from(TYPE_IDX_VALUE));
     }
 }
 
 #[inline]
-unsafe fn nlua_push_val_idx(lstate: *mut lua_State) {
+fn nlua_push_val_idx(lstate: *mut lua_State) {
     unsafe {
         lua_pushboolean(lstate, c_int::from(VAL_IDX_VALUE));
     }
 }
 
 #[inline]
-unsafe fn nlua_push_type(lstate: *mut lua_State, obj_type: ObjectType) {
+fn nlua_push_type(lstate: *mut lua_State, obj_type: ObjectType) {
     unsafe {
         lua_pushnumber(lstate, (obj_type as c_int) as lua_Number);
     }
 }
 
 #[inline]
-unsafe fn nlua_create_typed_table(
+fn nlua_create_typed_table(
     lstate: *mut lua_State,
     narr: usize,
     nrec: usize,
@@ -445,7 +445,7 @@ unsafe fn nlua_create_typed_table(
     }
 }
 
-unsafe fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
+fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
     unsafe {
         let mut tsize = 0usize;
         let mut val_type = 0 as c_int;
@@ -850,7 +850,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
 }
 
 #[inline]
-unsafe fn lua_conv_nil(lstate: *mut lua_State) {
+fn lua_conv_nil(lstate: *mut lua_State) {
     unsafe {
         if luaconv_st().TYPVAL_CONV_SPECIAL {
             lua_pushnil(lstate);
@@ -861,7 +861,7 @@ unsafe fn lua_conv_nil(lstate: *mut lua_State) {
 }
 
 #[inline]
-unsafe fn lua_conv_empty_dict(lstate: *mut lua_State) {
+fn lua_conv_empty_dict(lstate: *mut lua_State) {
     unsafe {
         if luaconv_st().TYPVAL_CONV_SPECIAL {
             nlua_create_typed_table(lstate, 0, 0, ObjectType::kObjectTypeDict);
@@ -874,7 +874,7 @@ unsafe fn lua_conv_empty_dict(lstate: *mut lua_State) {
 }
 
 #[inline]
-unsafe fn lua_conv_list_start(lstate: *mut lua_State, len: c_int) -> c_int {
+fn lua_conv_list_start(lstate: *mut lua_State, len: c_int) -> c_int {
     unsafe {
         if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
             semsg!(
@@ -890,7 +890,7 @@ unsafe fn lua_conv_list_start(lstate: *mut lua_State, len: c_int) -> c_int {
 }
 
 #[inline]
-unsafe fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> c_int {
+fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> c_int {
     unsafe {
         if lua_checkstack(lstate, lua_gettop(lstate) + 3) == 0 {
             semsg!(
@@ -904,7 +904,7 @@ unsafe fn lua_conv_dict_start(lstate: *mut lua_State, len: usize) -> c_int {
     }
 }
 
-unsafe fn lua_check_self_reference(
+fn lua_check_self_reference(
     lstate: *mut lua_State,
     container: MPContainerRef,
     val_copy_id: &mut c_int,
@@ -936,7 +936,7 @@ unsafe fn lua_check_self_reference(
     }
 }
 
-unsafe fn lua_convert_one_value(
+fn lua_convert_one_value(
     lstate: *mut lua_State,
     mpstack: &mut Vec<MPConvStackVal>,
     tv: *mut typval_T,
@@ -1273,7 +1273,7 @@ unsafe fn lua_convert_one_value(
     }
 }
 
-unsafe fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: *mut typval_T) -> c_int {
+fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: *mut typval_T) -> c_int {
     unsafe {
         let copy_id = get_copyID();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
@@ -1630,7 +1630,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Boolean_strict(
     }
 }
 
-unsafe fn nlua_check_type(
+fn nlua_check_type(
     lstate: *mut lua_State,
     err: *mut Error,
     expected_type: ObjectType,
@@ -1702,7 +1702,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Float(
     }
 }
 
-unsafe fn nlua_pop_Array_unchecked(
+fn nlua_pop_Array_unchecked(
     lstate: *mut lua_State,
     table_props: LuaTableProps,
     arena: *mut Arena,
@@ -1743,8 +1743,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Array(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Array {
-    unsafe {
-        let table_props = nlua_check_type(lstate, err, ObjectType::kObjectTypeArray);
+    let table_props = nlua_check_type(lstate, err, ObjectType::kObjectTypeArray);
         if table_props.table_type != ObjectType::kObjectTypeArray {
             return Array {
                 size: 0,
@@ -1753,10 +1752,9 @@ pub unsafe extern "C-unwind" fn nlua_pop_Array(
             };
         }
         nlua_pop_Array_unchecked(lstate, table_props, arena, err)
-    }
 }
 
-unsafe fn nlua_pop_Dict_unchecked(
+fn nlua_pop_Dict_unchecked(
     lstate: *mut lua_State,
     table_props: LuaTableProps,
     ref_: bool,
@@ -1813,8 +1811,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Dict(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Dict {
-    unsafe {
-        let table_props = nlua_check_type(lstate, err, ObjectType::kObjectTypeDict);
+    let table_props = nlua_check_type(lstate, err, ObjectType::kObjectTypeDict);
         if table_props.table_type != ObjectType::kObjectTypeDict {
             lua_pop(lstate, 1);
             return Dict {
@@ -1824,7 +1821,6 @@ pub unsafe extern "C-unwind" fn nlua_pop_Dict(
             };
         }
         nlua_pop_Dict_unchecked(lstate, table_props, ref_, arena, err)
-    }
 }
 
 /// Convert Lua value to `Object` (`nlua_pop_Object`).
@@ -2043,11 +2039,9 @@ pub unsafe extern "C-unwind" fn nlua_pop_LuaRef(
     _arena: *mut Arena,
     _err: *mut Error,
 ) -> LuaRef {
-    unsafe {
-        let rv = nlua_ref_global(lstate, -1);
+    let rv = nlua_ref_global(lstate, -1);
         lua_pop(lstate, 1);
         rv
-    }
 }
 
 /// Convert Lua value to `handle_T` (`nlua_pop_handle`).
@@ -2124,7 +2118,7 @@ pub unsafe extern "C-unwind" fn nlua_init_types(lstate: *mut lua_State) {
 }
 
 /// Lua-specific variant of `api_dict_to_keydict` (`nlua_pop_keydict`).
-pub unsafe fn nlua_pop_keydict(
+pub fn nlua_pop_keydict(
     L: *mut lua_State,
     retval: *mut OptKeySet,
     hashy: FieldHashfn,

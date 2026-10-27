@@ -275,10 +275,8 @@ pub fn ui_client_attach(
 
 #[cfg(unix)]
 pub fn ui_client_detach() {
-    unsafe {
-        rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_detach".as_ptr(), ARRAY_INIT);
-        g_st().ui_client_attached = false;
-    }
+    rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_detach".as_ptr(), ARRAY_INIT);
+    g_st().ui_client_attached = false;
 }
 
 pub fn ui_client_run() -> ! {
@@ -331,8 +329,7 @@ pub fn ui_client_stop() {
 }
 
 pub fn ui_client_set_size(width: c_int, height: c_int) {
-    unsafe {
-        if g_st().ui_client_attached {
+    if g_st().ui_client_attached {
             let mut args_items: [Object; 2] = [
                 integer_obj(Integer::from(width)),
                 integer_obj(Integer::from(height)),
@@ -346,7 +343,6 @@ pub fn ui_client_set_size(width: c_int, height: c_int) {
         }
         uic_st().tui_width = width;
         uic_st().tui_height = height;
-    }
 }
 
 pub fn handle_ui_client_redraw(

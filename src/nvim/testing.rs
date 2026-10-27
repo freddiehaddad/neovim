@@ -951,9 +951,7 @@ pub fn f_test_write_list_log(argvars: &mut [typval_T], _rettv: &mut typval_T,
     _fptr: EvalFuncData,){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        let _fname = tv_get_string_chk(argvars);
-    }
+    let _fname = tv_get_string_chk(argvars);
 }
 
 #[cfg(test)]

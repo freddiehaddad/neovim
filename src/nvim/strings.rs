@@ -98,7 +98,7 @@ pub fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
 #[inline]
 pub unsafe fn gettext(msgid: *const c_char) -> *mut c_char {
     if crate::os::lang::HAVE_LIBINTL {
-        unsafe { crate::os::lang::c_gettext(msgid) }
+        crate::os::lang::c_gettext(msgid)
     } else {
         msgid.cast_mut()
     }
@@ -158,7 +158,7 @@ pub unsafe fn ngettext<N: IntoNgettextCount>(
 ) -> *mut c_char {
     let count = n.into_ngettext_count();
     if crate::os::lang::HAVE_LIBINTL {
-        unsafe { crate::os::lang::c_ngettext(msgid1, msgid2, count) }
+        crate::os::lang::c_ngettext(msgid1, msgid2, count)
     } else if count == 1 {
         msgid1.cast_mut()
     } else {
@@ -2556,12 +2556,10 @@ pub fn f_stridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 pub fn f_string(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        crate::eval::typval::tv_set_string(
+    crate::eval::typval::tv_set_string(
             rettv,
             encode_tv2string(argvars, ptr::null_mut()).as_ptr(),
         );
-    }
 }
 
 pub fn f_strlen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){

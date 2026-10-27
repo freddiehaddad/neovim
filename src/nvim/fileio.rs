@@ -3628,33 +3628,32 @@ pub unsafe fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
 
 /// Create the new file with same permissions as the original.
 pub unsafe fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int {
+    #[cfg(not(windows))]
     unsafe {
-        #[cfg(not(windows))]
-        {
-            let mut from_info: FileInfo = FileInfo::new();
-            if os_fileinfo_link(from, &mut from_info) && s_islnk(from_info.stat.st_mode) {
-                let mut ret = -1;
-                let mut linkbuf: [c_char; MAXPATHL + 1] = [0; MAXPATHL + 1];
-                let len = readlink(from, linkbuf.as_mut_ptr(), MAXPATHL);
-                if len > 0 {
-                    linkbuf[len as usize] = NUL;
-                    ret = symlink(linkbuf.as_ptr(), to);
-                }
-                return if ret == 0 { OK } else { FAIL };
+        let mut from_info: FileInfo = FileInfo::new();
+        if os_fileinfo_link(from, &mut from_info) && s_islnk(from_info.stat.st_mode) {
+            let mut ret = -1;
+            let mut linkbuf: [c_char; MAXPATHL + 1] = [0; MAXPATHL + 1];
+            let len = readlink(from, linkbuf.as_mut_ptr(), MAXPATHL);
+            if len > 0 {
+                linkbuf[len as usize] = NUL;
+                ret = symlink(linkbuf.as_ptr(), to);
             }
+            return if ret == 0 { OK } else { FAIL };
         }
-
-        let acl: vim_acl_T = os_get_acl(from);
-
-        if os_copy(from, to, UV_FS_COPYFILE_EXCL) != 0 {
-            os_free_acl(acl);
-            return FAIL;
-        }
-
-        os_set_acl(to, acl);
-        os_free_acl(acl);
-        OK
     }
+
+    let acl: vim_acl_T = os_get_acl(from);
+
+    if os_copy(from, to, UV_FS_COPYFILE_EXCL) != 0 {
+        os_free_acl(acl);
+        return FAIL;
+    }
+
+    os_set_acl(to, acl);
+    os_free_acl(acl);
+
+    OK
 }
 
 /// Check if any not hidden buffer has been changed.

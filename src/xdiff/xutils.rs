@@ -19,7 +19,7 @@ pub fn xdl_bogosqrt(mut n: c_long) -> c_long {
     i
 }
 
-pub unsafe fn xdl_emit_diffrec(
+pub fn xdl_emit_diffrec(
     rec: *const c_char,
     size: c_long,
     pre: *const c_char,
@@ -49,23 +49,23 @@ pub unsafe fn xdl_emit_diffrec(
     0
 }
 
-pub unsafe fn xdl_mmfile_first(mmf: *mut mmfile_t, size: *mut c_long) -> *mut c_char {
+pub fn xdl_mmfile_first(mmf: *mut mmfile_t, size: *mut c_long) -> *mut c_char {
     unsafe {
         *size = (*mmf).size as c_long;
         (*mmf).ptr
     }
 }
 
-pub unsafe fn xdl_mmfile_size(mmf: *mut mmfile_t) -> c_long {
+pub fn xdl_mmfile_size(mmf: *mut mmfile_t) -> c_long {
     unsafe { (*mmf).size as c_long }
 }
 
-pub unsafe fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c_long {
+pub fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c_long {
     let mut nl: c_long = 0;
     let mut size: c_long = 0;
     let mut tsize: c_long = 0;
 
-    let data = unsafe { xdl_mmfile_first(mf, &mut size) };
+    let data = xdl_mmfile_first(mf, &mut size);
     let mut cur = data;
     if !cur.is_null() {
         let top = unsafe { data.offset(size as isize) };
@@ -84,7 +84,7 @@ pub unsafe fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c_long {
     }
 
     if nl != 0 && tsize != 0 {
-        nl = unsafe { xdl_mmfile_size(mf) } / (tsize / nl);
+        nl = xdl_mmfile_size(mf) / (tsize / nl);
     }
 
     nl + 1
@@ -103,7 +103,7 @@ pub fn xdl_blankline_slice(line: &[u8], flags: c_ulong) -> c_int {
     c_int::from(i == line.len())
 }
 
-pub unsafe fn xdl_blankline(line: *const c_char, size: c_long, flags: c_long) -> c_int {
+pub fn xdl_blankline(line: *const c_char, size: c_long, flags: c_long) -> c_int {
     let slice = unsafe { std::slice::from_raw_parts(line.cast::<u8>(), size.max(0) as usize) };
     xdl_blankline_slice(slice, flags as c_ulong)
 }
@@ -210,7 +210,7 @@ pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: c_ulong) -> c_int {
     1
 }
 
-pub unsafe fn xdl_recmatch(
+pub fn xdl_recmatch(
     l1: *const c_char,
     s1: c_long,
     l2: *const c_char,
@@ -222,7 +222,7 @@ pub unsafe fn xdl_recmatch(
     xdl_recmatch_slice(b1, b2, flags as c_ulong)
 }
 
-unsafe fn xdl_hash_record_with_whitespace(
+fn xdl_hash_record_with_whitespace(
     data: *mut *const c_char,
     top: *const c_char,
     flags: c_long,
@@ -275,13 +275,13 @@ unsafe fn xdl_hash_record_with_whitespace(
     ha
 }
 
-pub unsafe fn xdl_hash_record(
+pub fn xdl_hash_record(
     data: *mut *const c_char,
     top: *const c_char,
     flags: c_long,
 ) -> c_ulong {
     if ((flags as c_ulong) & XDF_WHITESPACE_FLAGS) != 0 {
-        return unsafe { xdl_hash_record_with_whitespace(data, top, flags) };
+        return xdl_hash_record_with_whitespace(data, top, flags);
     }
 
     let mut ha: c_ulong = 5381;
@@ -311,7 +311,7 @@ pub fn xdl_hashbits(size: c_uint) -> c_uint {
     if bits != 0 { bits } else { 1 }
 }
 
-unsafe fn xdl_format_hunk_hdr(
+fn xdl_format_hunk_hdr(
     s1: c_long,
     c1: c_long,
     s2: c_long,
@@ -344,17 +344,17 @@ unsafe fn xdl_format_hunk_hdr(
     0
 }
 
-pub unsafe fn xdl_emit_hunk_hdr(
+pub fn xdl_emit_hunk_hdr(
     s1: c_long,
     c1: c_long,
     s2: c_long,
     c2: c_long,
     ecb: *mut xdemitcb_t,
 ) -> c_int {
-    unsafe { xdl_format_hunk_hdr(s1, c1, s2, c2, ecb) }
+    xdl_format_hunk_hdr(s1, c1, s2, c2, ecb)
 }
 
-pub unsafe fn xdl_fall_back_diff(
+pub fn xdl_fall_back_diff(
     diff_env: *mut xdfenv_t,
     xpp: *const xpparam_t,
     line1: c_int,

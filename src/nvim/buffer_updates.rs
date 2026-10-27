@@ -116,15 +116,13 @@ pub fn buf_updates_active(buf: &mut buf_T) -> bool {
 }
 
 pub fn buf_updates_send_end(buf: &mut buf_T, channelid: u64) {
-    unsafe {
-        let mut items = [buffer_obj(buf.b_fnum)];
+    let mut items = [buffer_obj(buf.b_fnum)];
         let args = Array {
             size: 1,
             capacity: 1,
             items: items.as_mut_ptr(),
         };
         rpc_send_event(channelid, c"nvim_buf_detach_event".as_ptr(), args);
-    }
 }
 
 pub fn buf_updates_unregister(buf: &mut buf_T, channelid: u64) {
@@ -148,8 +146,7 @@ pub fn buf_free_callbacks(buf: &mut buf_T) {
 }
 
 pub fn buf_updates_unload(buf: &mut buf_T, can_reload: bool) {
-    unsafe {
-        for channelid in std::mem::take(&mut buf.update_channels) {
+    for channelid in std::mem::take(&mut buf.update_channels) {
             buf_updates_send_end(buf, channelid);
         }
 
@@ -200,7 +197,6 @@ pub fn buf_updates_unload(buf: &mut buf_T, can_reload: bool) {
         if buf.update_callbacks.is_empty() {
             buf.update_callbacks = Vec::new();
         }
-    }
 }
 
 pub unsafe fn buf_updates_send_changes(
@@ -396,8 +392,7 @@ pub unsafe fn buf_updates_send_splice(
 }
 
 pub fn buf_updates_changedtick(buf: &mut buf_T) {
-    unsafe {
-        for idx in 0..buf.update_channels.len() {
+    for idx in 0..buf.update_channels.len() {
             let channel_id = buf.update_channels[idx];
             buf_updates_changedtick_single(buf, channel_id);
         }
@@ -439,12 +434,10 @@ pub fn buf_updates_changedtick(buf: &mut buf_T) {
                 buf.update_callbacks.remove(i);
             }
         }
-    }
 }
 
 pub fn buf_updates_changedtick_single(buf: &mut buf_T, channel_id: u64) {
-    unsafe {
-        let mut items = [
+    let mut items = [
             buffer_obj(buf.b_fnum),
             integer_obj(buf_get_changedtick(&*buf)),
         ];
@@ -454,7 +447,6 @@ pub fn buf_updates_changedtick_single(buf: &mut buf_T, channel_id: u64) {
             items: items.as_mut_ptr(),
         };
         rpc_send_event(channel_id, c"nvim_buf_changedtick_event".as_ptr(), args);
-    }
 }
 
 #[cfg(test)]

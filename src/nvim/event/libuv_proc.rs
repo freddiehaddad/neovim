@@ -119,7 +119,7 @@ pub fn proc_get_exepath(proc_: &mut Proc) -> *const c_char {
             .map_or_else(|| proc_.argv.as_slice()[0].as_ptr(), |s| s.as_ptr())
 }
 
-unsafe fn libuv_proc_stdio(
+fn libuv_proc_stdio(
     uvproc: *mut LibuvProc,
     idx: usize,
     parent_pipe: *mut uv_pipe_t,

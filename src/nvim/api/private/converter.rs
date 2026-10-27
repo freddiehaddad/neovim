@@ -393,7 +393,7 @@ pub fn object_to_vim_take_luaref(
         }
         ObjectType::kObjectTypeString => {
             let s = obj.data.string();
-            *tv_ref = unsafe { decode_string(s.data, s.size, false, false) };
+            *tv_ref = decode_string(s.data, s.size, false, false);
         }
         ObjectType::kObjectTypeArray => unsafe {
             let arr = obj.data.array();
@@ -425,7 +425,7 @@ pub fn object_to_vim_take_luaref(
             tv_ref.v_type = VarType::VAR_DICT;
             tv_ref.vval = TypvalVval::Dict(dict);
         },
-        ObjectType::kObjectTypeLuaRef => unsafe {
+        ObjectType::kObjectTypeLuaRef => {
             let mut ref_id = obj.data.luaref();
             if take_luaref {
                 obj.data = ObjectData::LuaRef(LUA_NOREF);
@@ -435,7 +435,7 @@ pub fn object_to_vim_take_luaref(
             let name = register_luafunc(ref_id);
             crate::eval::typval::tv_set_string(tv_ref, name);
             tv_ref.v_type = VarType::VAR_FUNC;
-        },
+        }
     }
 }
 

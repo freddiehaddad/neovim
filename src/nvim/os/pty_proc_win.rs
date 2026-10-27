@@ -34,7 +34,7 @@ use crate::os::pty_conpty_win::{
 
 #[cfg(any(test, windows))]
 /// Emulate quote_cmd_arg of libuv and quotes command line argument.
-pub(crate) unsafe fn quote_cmd_arg(
+pub(crate) fn quote_cmd_arg(
     dest: *mut c_char,
     mut dest_remaining: usize,
     src: *const c_char,
@@ -151,7 +151,7 @@ mod win_impl {
     }
 
     #[inline]
-    unsafe fn connect_req_handle_ptr(req: *mut uv_connect_t) -> *mut *mut uv_stream_t {
+    fn connect_req_handle_ptr(req: *mut uv_connect_t) -> *mut *mut uv_stream_t {
         unsafe {
             req.cast::<u8>()
                 .add(uv_req_size(UV_REQ) + size_of::<*mut c_void>())
@@ -488,7 +488,7 @@ mod win_impl {
         }
     }
 
-    unsafe fn build_env_block(denv: *mut dict_T, env_block: &mut Vec<u16>) -> c_int {
+    fn build_env_block(denv: *mut dict_T, env_block: &mut Vec<u16>) -> c_int {
         unsafe {
             env_block.clear();
             let mut rc: c_int = 0;

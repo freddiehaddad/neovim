@@ -309,12 +309,10 @@ pub struct timer_T {
 
 impl Drop for timer_T {
     fn drop(&mut self) {
-        unsafe {
-            if !self.watcher.events.is_null() {
+        if !self.watcher.events.is_null() {
                 multiqueue_free(self.watcher.events);
             }
             callback_free(&mut self.callback);
-        }
     }
 }
 

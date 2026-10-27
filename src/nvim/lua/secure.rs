@@ -12,7 +12,7 @@ use std::ffi::{CStr, CString, c_char};
 
 use crate::ex_docmd::exarg_T;
 
-unsafe fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
+fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
     unsafe {
         let lstate = get_global_lstate();
         let top = lua_gettop(lstate);

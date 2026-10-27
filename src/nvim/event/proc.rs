@@ -144,7 +144,7 @@ pub fn libuv_proc_uv(proc_: &mut Proc) -> *mut uv_handle_t {
 }
 
 #[inline]
-unsafe fn loop_process_events(loop_: *mut Loop, multiqueue: *mut MultiQueue, timeout: i64) {
+fn loop_process_events(loop_: *mut Loop, multiqueue: *mut MultiQueue, timeout: i64) {
     unsafe {
         if !multiqueue.is_null() && !multiqueue_empty(multiqueue) {
             multiqueue_process_events(multiqueue);
@@ -155,14 +155,13 @@ unsafe fn loop_process_events(loop_: *mut Loop, multiqueue: *mut MultiQueue, tim
 }
 
 #[inline]
-unsafe fn loop_process_events_until<F: FnMut() -> bool>(
+fn loop_process_events_until<F: FnMut() -> bool>(
     loop_: *mut Loop,
     multiqueue: *mut MultiQueue,
     timeout: i64,
     mut cond: F,
 ) {
-    unsafe {
-        let mut remaining = timeout;
+    let mut remaining = timeout;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
         while !cond() {
             loop_process_events(loop_, multiqueue, remaining);
@@ -177,7 +176,6 @@ unsafe fn loop_process_events_until<F: FnMut() -> bool>(
                 }
             }
         }
-    }
 }
 
 /// @returns zero on success, or negative error code
@@ -290,7 +288,7 @@ pub fn proc_close_streams(proc_: &mut Proc) {
 }
 
 /// Synchronously wait for a process to finish
-pub unsafe fn proc_wait(proc_: *mut Proc, ms: c_int, mut events: *mut MultiQueue) -> c_int {
+pub fn proc_wait(proc_: *mut Proc, ms: c_int, mut events: *mut MultiQueue) -> c_int {
     unsafe {
         if (*proc_).refcount == 0 {
             let status = (*proc_).status;
@@ -445,7 +443,7 @@ fn proc_close(proc_: &mut Proc) {
     }
 }
 
-unsafe fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
+fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
     unsafe {
         if stream.is_null() || (*stream).s.closed {
             return;
@@ -496,15 +494,13 @@ unsafe fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
 }
 
 pub fn proc_close_handles(proc_: &mut Proc) {
-    unsafe {
-        proc_st().exit_need_delay += 1;
+    proc_st().exit_need_delay += 1;
         flush_stream(&raw mut *proc_, &raw mut proc_.out);
         flush_stream(&raw mut *proc_, &raw mut proc_.err);
 
         proc_close_streams(proc_);
         proc_close(proc_);
         proc_st().exit_need_delay -= 1;
-    }
 }
 
 unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
