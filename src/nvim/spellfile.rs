@@ -252,27 +252,27 @@ struct compitem_T {
     ci_newID: c_int,
 }
 
-#[repr(C)]
-struct sblock_T {
-    sb_used: usize,
-    sb_data: [c_char; SBLOCKSIZE + 1],
+#[derive(Clone, Copy)]
+enum NodeSlot {
+    Sibling(usize),
+    Child(usize),
 }
 
-impl sblock_T {
-    const fn new() -> Self {
-        Self {
-            sb_used: 0,
-            sb_data: [0; SBLOCKSIZE + 1],
+impl NodeSlot {
+    fn set(self, nodes: &mut [wordnode_T], val: Option<usize>) {
+        match self {
+            Self::Sibling(idx) => nodes[idx].wn_sibling = val,
+            Self::Child(idx) => nodes[idx].wn_child = val,
         }
     }
 }
 
-#[repr(C)]
+#[derive(Clone, Copy, Default)]
 struct wordnode_T {
     wn_index: c_int,
-    wn_wnode: *mut wordnode_T,
-    wn_child: *mut wordnode_T,
-    wn_sibling: *mut wordnode_T,
+    wn_wnode: Option<usize>,
+    wn_child: Option<usize>,
+    wn_sibling: Option<usize>,
     wn_refs: c_int,
     wn_byte: u8,
     wn_affixID: u8,
@@ -284,9 +284,9 @@ impl wordnode_T {
     const fn new() -> Self {
         Self {
             wn_index: 0,
-            wn_wnode: ptr::null_mut(),
-            wn_child: ptr::null_mut(),
-            wn_sibling: ptr::null_mut(),
+            wn_wnode: None,
+            wn_child: None,
+            wn_sibling: None,
             wn_refs: 0,
             wn_byte: 0,
             wn_affixID: 0,
@@ -296,19 +296,17 @@ impl wordnode_T {
     }
 }
 
-#[repr(C)]
 struct spellinfo_T {
-    si_foldroot: *mut wordnode_T,
+    si_foldroot: Option<usize>,
     si_foldwcount: c_int,
-    si_keeproot: *mut wordnode_T,
+    si_keeproot: Option<usize>,
     si_keepwcount: c_int,
-    si_prefroot: *mut wordnode_T,
+    si_prefroot: Option<usize>,
     si_sugtree: c_int,
-    si_blocks: Vec<Box<sblock_T>>,
+    si_nodes: Vec<wordnode_T>,
     si_blocks_cnt: c_int,
-    si_did_emsg: c_int,
     si_compress_cnt: c_int,
-    si_first_free: *mut wordnode_T,
+    si_first_free: Option<usize>,
     si_free_count: c_int,
     si_spellbuf: Option<Box<buf_T>>,
     si_ascii: c_int,
@@ -353,17 +351,16 @@ struct spellinfo_T {
 impl Default for spellinfo_T {
     fn default() -> Self {
         Self {
-            si_foldroot: ptr::null_mut(),
+            si_foldroot: None,
             si_foldwcount: 0,
-            si_keeproot: ptr::null_mut(),
+            si_keeproot: None,
             si_keepwcount: 0,
-            si_prefroot: ptr::null_mut(),
+            si_prefroot: None,
             si_sugtree: 0,
-            si_blocks: Vec::new(),
+            si_nodes: Vec::new(),
             si_blocks_cnt: 0,
-            si_did_emsg: 0,
             si_compress_cnt: 0,
-            si_first_free: ptr::null_mut(),
+            si_first_free: None,
             si_free_count: 0,
             si_spellbuf: None,
             si_ascii: 0,
@@ -3046,13 +3043,7 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
                 }
             }
 
-            let dw = getroom_save(spin, w);
-            if dw.is_null() {
-                retval = FAIL;
-                break;
-            }
-
-            let dw_bytes = std::ffi::CStr::from_ptr(dw).to_bytes().to_vec();
+            let dw_bytes = std::ffi::CStr::from_ptr(w).to_bytes().to_vec();
             if !ht.insert(dw_bytes) {
                 if p_verbose > 0 {
                     smsg!(
@@ -3060,7 +3051,7 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
                         gettext(c"Duplicate word in %s line %d: %s".as_ptr()),
                         fname,
                         lnum,
-                        dw,
+                        w,
                     );
                 } else if duplicate == 0 {
                     smsg!(
@@ -3068,7 +3059,7 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
                         gettext(c"First duplicate word in %s line %d: %s".as_ptr()),
                         fname,
                         lnum,
-                        dw,
+                        w,
                     );
                 }
                 duplicate += 1;
@@ -3109,7 +3100,7 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
 
             if store_word(
                 spin,
-                dw,
+                w,
                 flags,
                 (*spin).si_region,
                 store_afflist.as_ptr(),
@@ -3122,7 +3113,7 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
             if !afflist.is_null() {
                 if store_aff_word(
                     spin,
-                    dw,
+                    w,
                     afflist,
                     affile,
                     &affile.af_suff,
@@ -3138,7 +3129,7 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
 
                 if store_aff_word(
                     spin,
-                    dw,
+                    w,
                     afflist,
                     affile,
                     &affile.af_pref,
@@ -3489,8 +3480,9 @@ unsafe fn store_aff_word(
                                 use_pfxlist = pfx_pfxlist.as_mut_ptr();
                             }
 
-                            if !(*spin).si_prefroot.is_null()
-                                && !(*(*spin).si_prefroot).wn_sibling.is_null()
+                            if (*spin)
+                                .si_prefroot
+                                .is_some_and(|r| (&(*spin).si_nodes)[r].wn_sibling.is_some())
                             {
                                 use_flags |= WF_HAS_AFF;
                                 if ah.ah_combine == 0 && !use_pfxlist.is_null() {
@@ -3794,42 +3786,8 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
     }
 }
 
-unsafe fn getroom(spin: *mut spellinfo_T, len: usize, align: bool) -> *mut u8 {
-    unsafe {
-        debug_assert!(len <= SBLOCKSIZE);
-
-        if align && let Some(bl) = (*spin).si_blocks.last_mut() {
-            let align_mask = size_of::<*mut c_char>() - 1;
-            bl.sb_used = (bl.sb_used + align_mask) & !align_mask;
-        }
-
-        if (*spin)
-            .si_blocks
-            .last()
-            .is_none_or(|bl| bl.sb_used + len > SBLOCKSIZE)
-        {
-            (*spin).si_blocks.push(Box::new(sblock_T::new()));
-            (*spin).si_blocks_cnt += 1;
-        }
-
-        let bl = (*spin).si_blocks.last_mut().unwrap();
-        let p = bl.sb_data.as_mut_ptr().add(bl.sb_used);
-        bl.sb_used += len;
-        p.cast()
-    }
-}
-
-unsafe fn getroom_save(spin: *mut spellinfo_T, s: *const c_char) -> *mut c_char {
-    unsafe {
-        let s_size = strlen(s) + 1;
-        let dst = getroom(spin, s_size, false).cast::<c_char>();
-        ptr::copy_nonoverlapping(s, dst, s_size);
-        dst
-    }
-}
-
-unsafe fn wordtree_alloc(spin: *mut spellinfo_T) -> *mut wordnode_T {
-    unsafe { getroom(spin, size_of::<wordnode_T>(), true).cast() }
+fn wordtree_alloc(spin: &mut spellinfo_T) -> Option<usize> {
+    Some(get_wordnode(spin))
 }
 
 unsafe fn valid_spell_word(word: *const c_char, end: *const c_char) -> bool {
@@ -3913,127 +3871,134 @@ unsafe fn store_word(
 unsafe fn tree_add_word(
     spin: *mut spellinfo_T,
     word: *const c_char,
-    root: *mut wordnode_T,
+    root: Option<usize>,
     flags: c_int,
     region: c_int,
     affixID: c_int,
 ) -> c_int {
     unsafe {
+        let spin = &mut *spin;
         let mut node = root;
-        let mut prev: *mut *mut wordnode_T = ptr::null_mut();
+        let mut prev: Option<NodeSlot> = None;
 
         let mut i: usize = 0;
         loop {
-            if !node.is_null() && (*node).wn_refs > 1 {
-                (*node).wn_refs -= 1;
+            if let Some(node_idx) = node
+                && spin.si_nodes[node_idx].wn_refs > 1
+            {
+                spin.si_nodes[node_idx].wn_refs -= 1;
                 let mut copyprev = prev;
-                let mut copyp = node;
-                while !copyp.is_null() {
+                let mut copyp = Some(node_idx);
+                while let Some(copyp_idx) = copyp {
                     let np = get_wordnode(spin);
-                    if np.is_null() {
-                        return FAIL;
+                    let copyp_node = spin.si_nodes[copyp_idx];
+                    spin.si_nodes[np].wn_child = copyp_node.wn_child;
+                    if let Some(child_idx) = copyp_node.wn_child {
+                        spin.si_nodes[child_idx].wn_refs += 1;
                     }
-                    (*np).wn_child = (*copyp).wn_child;
-                    if !(*np).wn_child.is_null() {
-                        (*(*np).wn_child).wn_refs += 1;
-                    }
-                    (*np).wn_byte = (*copyp).wn_byte;
-                    if (*np).wn_byte == 0 {
-                        (*np).wn_flags = (*copyp).wn_flags;
-                        (*np).wn_region = (*copyp).wn_region;
-                        (*np).wn_affixID = (*copyp).wn_affixID;
+                    spin.si_nodes[np].wn_byte = copyp_node.wn_byte;
+                    if copyp_node.wn_byte == 0 {
+                        spin.si_nodes[np].wn_flags = copyp_node.wn_flags;
+                        spin.si_nodes[np].wn_region = copyp_node.wn_region;
+                        spin.si_nodes[np].wn_affixID = copyp_node.wn_affixID;
                     }
 
-                    (*np).wn_refs = 1;
-                    if !copyprev.is_null() {
-                        *copyprev = np;
+                    spin.si_nodes[np].wn_refs = 1;
+                    if let Some(slot) = copyprev {
+                        slot.set(&mut spin.si_nodes, Some(np));
                     }
-                    copyprev = &raw mut (*np).wn_sibling;
+                    copyprev = Some(NodeSlot::Sibling(np));
 
-                    if copyp == node {
-                        node = np;
+                    if copyp_idx == node_idx {
+                        node = Some(np);
                     }
-                    copyp = (*copyp).wn_sibling;
+                    copyp = copyp_node.wn_sibling;
                 }
             }
 
             let wb = *word.add(i) as u8;
-            while !node.is_null()
-                && ((*node).wn_byte < wb
-                    || ((*node).wn_byte == 0
+            while let Some(node_idx) = node {
+                let n = spin.si_nodes[node_idx];
+                let advance = n.wn_byte < wb
+                    || (n.wn_byte == 0
                         && if flags < 0 {
-                            ((*node).wn_affixID as c_uint) < (affixID as c_uint)
+                            (n.wn_affixID as c_uint) < (affixID as c_uint)
                         } else {
-                            ((*node).wn_flags as c_uint) < ((flags & WN_MASK) as c_uint)
-                                || ((*node).wn_flags as c_int == (flags & WN_MASK)
-                                    && if (*spin).si_sugtree != 0 {
-                                        ((*node).wn_region as c_int & 0xffff) < region
+                            (n.wn_flags as c_uint) < ((flags & WN_MASK) as c_uint)
+                                || (n.wn_flags as c_int == (flags & WN_MASK)
+                                    && if spin.si_sugtree != 0 {
+                                        (n.wn_region as c_int & 0xffff) < region
                                     } else {
-                                        ((*node).wn_affixID as c_uint) < (affixID as c_uint)
+                                        (n.wn_affixID as c_uint) < (affixID as c_uint)
                                     })
-                        }))
-            {
-                prev = &raw mut (*node).wn_sibling;
-                node = *prev;
+                        });
+                if !advance {
+                    break;
+                }
+                prev = Some(NodeSlot::Sibling(node_idx));
+                node = n.wn_sibling;
             }
 
-            if node.is_null()
-                || (*node).wn_byte != wb
-                || (wb == 0
-                    && (flags < 0
-                        || (*spin).si_sugtree != 0
-                        || (*node).wn_flags as c_int != (flags & WN_MASK)
-                        || (*node).wn_affixID as c_int != affixID))
-            {
+            let need_new = match node {
+                None => true,
+                Some(node_idx) => {
+                    let n = spin.si_nodes[node_idx];
+                    n.wn_byte != wb
+                        || (wb == 0
+                            && (flags < 0
+                                || spin.si_sugtree != 0
+                                || n.wn_flags as c_int != (flags & WN_MASK)
+                                || n.wn_affixID as c_int != affixID))
+                }
+            };
+            if need_new {
                 let np = get_wordnode(spin);
-                if np.is_null() {
-                    return FAIL;
-                }
-                (*np).wn_byte = wb;
+                spin.si_nodes[np].wn_byte = wb;
 
-                if node.is_null() {
-                    (*np).wn_refs = 1;
+                if let Some(node_idx) = node {
+                    spin.si_nodes[np].wn_refs = spin.si_nodes[node_idx].wn_refs;
+                    spin.si_nodes[node_idx].wn_refs = 1;
                 } else {
-                    (*np).wn_refs = (*node).wn_refs;
-                    (*node).wn_refs = 1;
+                    spin.si_nodes[np].wn_refs = 1;
                 }
-                if !prev.is_null() {
-                    *prev = np;
+                if let Some(slot) = prev {
+                    slot.set(&mut spin.si_nodes, Some(np));
                 }
-                (*np).wn_sibling = node;
-                node = np;
+                spin.si_nodes[np].wn_sibling = node;
+                node = Some(np);
             }
 
+            let node_idx = node.unwrap();
             if wb == 0 {
-                (*node).wn_flags = flags as u16;
-                (*node).wn_region |= region as i16;
-                (*node).wn_affixID = affixID as u8;
+                spin.si_nodes[node_idx].wn_flags = flags as u16;
+                spin.si_nodes[node_idx].wn_region |= region as i16;
+                spin.si_nodes[node_idx].wn_affixID = affixID as u8;
                 break;
             }
-            prev = &raw mut (*node).wn_child;
-            node = *prev;
+            prev = Some(NodeSlot::Child(node_idx));
+            node = spin.si_nodes[node_idx].wn_child;
             i += 1;
         }
 
-        (*spin).si_msg_count += 1;
+        spin.si_msg_count += 1;
 
-        if (*spin).si_compress_cnt > 1 {
-            (*spin).si_compress_cnt -= 1;
-            if (*spin).si_compress_cnt == 1 {
-                (*spin).si_blocks_cnt += compress_inc;
+        if spin.si_compress_cnt > 1 {
+            spin.si_compress_cnt -= 1;
+            if spin.si_compress_cnt == 1 {
+                spin.si_blocks_cnt += compress_inc;
             }
         }
 
-        let do_compress = if (*spin).si_compress_cnt == 1 {
-            (*spin).si_free_count < MAXWLEN as c_int
+        let do_compress = if spin.si_compress_cnt == 1 {
+            spin.si_free_count < MAXWLEN as c_int
         } else {
-            (*spin).si_blocks_cnt >= compress_start
+            spin.si_blocks_cnt >= compress_start
         };
         if do_compress {
-            (*spin).si_blocks_cnt -= compress_inc;
-            (*spin).si_compress_cnt = compress_added;
+            spin.si_blocks_cnt -= compress_inc;
+            spin.si_compress_cnt = compress_added;
 
-            if (*spin).si_verbose != 0 {
+            if spin.si_verbose != 0 {
                 msg_start();
                 msg_puts(gettext(msg_compressing));
                 msg_clr_eos();
@@ -4042,9 +4007,11 @@ unsafe fn tree_add_word(
                 ui_flush();
             }
 
-            wordtree_compress(spin, (*spin).si_foldroot, c"case-folded".as_ptr());
+            let foldroot = spin.si_foldroot;
+            wordtree_compress(spin, foldroot, c"case-folded".as_ptr());
             if affixID >= 0 {
-                wordtree_compress(spin, (*spin).si_keeproot, c"keep-case".as_ptr());
+                let keeproot = spin.si_keeproot;
+                wordtree_compress(spin, keeproot, c"keep-case".as_ptr());
             }
         }
 
@@ -4052,63 +4019,65 @@ unsafe fn tree_add_word(
     }
 }
 
-unsafe fn get_wordnode(spin: *mut spellinfo_T) -> *mut wordnode_T {
-    unsafe {
-        if (*spin).si_first_free.is_null() {
-            getroom(spin, size_of::<wordnode_T>(), true).cast()
-        } else {
-            let n = (*spin).si_first_free;
-            (*spin).si_first_free = (*n).wn_child;
-            *n = wordnode_T::new();
-            (*spin).si_free_count -= 1;
-            n
+fn get_wordnode(spin: &mut spellinfo_T) -> usize {
+    if let Some(n) = spin.si_first_free {
+        spin.si_first_free = spin.si_nodes[n].wn_child;
+        spin.si_nodes[n] = wordnode_T::new();
+        spin.si_free_count -= 1;
+        n
+    } else {
+        let nodes_per_block = (SBLOCKSIZE / size_of::<wordnode_T>()).max(1);
+        if spin.si_nodes.len().is_multiple_of(nodes_per_block) {
+            spin.si_blocks_cnt += 1;
         }
+        let idx = spin.si_nodes.len();
+        spin.si_nodes.push(wordnode_T::new());
+        idx
     }
 }
 
-unsafe fn deref_wordnode(spin: *mut spellinfo_T, node: *mut wordnode_T) -> c_int {
-    unsafe {
-        let mut cnt: c_int = 0;
+fn deref_wordnode(spin: &mut spellinfo_T, node: usize) -> c_int {
+    let mut cnt: c_int = 0;
 
-        (*node).wn_refs -= 1;
-        if (*node).wn_refs == 0 {
-            let mut np = node;
-            while !np.is_null() {
-                let next = (*np).wn_sibling;
-                if !(*np).wn_child.is_null() {
-                    cnt += deref_wordnode(spin, (*np).wn_child);
-                }
-                free_wordnode(spin, np);
-                cnt += 1;
-                np = next;
+    spin.si_nodes[node].wn_refs -= 1;
+    if spin.si_nodes[node].wn_refs == 0 {
+        let mut np = Some(node);
+        while let Some(np_idx) = np {
+            let next = spin.si_nodes[np_idx].wn_sibling;
+            if let Some(child_idx) = spin.si_nodes[np_idx].wn_child {
+                cnt += deref_wordnode(spin, child_idx);
             }
+            free_wordnode(spin, np_idx);
             cnt += 1;
+            np = next;
         }
-        cnt
+        cnt += 1;
     }
+    cnt
 }
 
-unsafe fn free_wordnode(spin: *mut spellinfo_T, n: *mut wordnode_T) {
-    unsafe {
-        (*n).wn_child = (*spin).si_first_free;
-        (*spin).si_first_free = n;
-        (*spin).si_free_count += 1;
-    }
+fn free_wordnode(spin: &mut spellinfo_T, n: usize) {
+    spin.si_nodes[n].wn_child = spin.si_first_free;
+    spin.si_first_free = Some(n);
+    spin.si_free_count += 1;
 }
 
-unsafe fn wordtree_compress(spin: *mut spellinfo_T, root: *mut wordnode_T, name: *const c_char) {
+unsafe fn wordtree_compress(spin: *mut spellinfo_T, root: Option<usize>, name: *const c_char) {
     unsafe {
-        let mut ht: std::collections::HashMap<[u8; 6], *mut wordnode_T> =
-            std::collections::HashMap::new();
+        let spin = &mut *spin;
+        let mut ht: std::collections::HashMap<[u8; 6], usize> = std::collections::HashMap::new();
         let mut tot: c_int = 0;
 
-        if (*root).wn_sibling.is_null() {
+        let Some(root_idx) = root else {
             return;
-        }
+        };
+        let Some(first_sibling) = spin.si_nodes[root_idx].wn_sibling else {
+            return;
+        };
 
-        let (n, _) = node_compress(spin, (*root).wn_sibling, &mut ht, &raw mut tot);
+        let (n, _) = node_compress(spin, first_sibling, &mut ht, &mut tot);
 
-        if (*spin).si_verbose != 0 || p_verbose > 2 {
+        if spin.si_verbose != 0 || p_verbose > 2 {
             let perc: c_long = if tot > 1_000_000 {
                 ((tot - n) / (tot / 100)) as c_long
             } else if tot == 0 {
@@ -4132,61 +4101,65 @@ unsafe fn wordtree_compress(spin: *mut spellinfo_T, root: *mut wordnode_T, name:
 }
 
 unsafe fn node_compress(
-    spin: *mut spellinfo_T,
-    node: *mut wordnode_T,
-    ht: &mut std::collections::HashMap<[u8; 6], *mut wordnode_T>,
-    tot: *mut c_int,
+    spin: &mut spellinfo_T,
+    node: usize,
+    ht: &mut std::collections::HashMap<[u8; 6], usize>,
+    tot: &mut c_int,
 ) -> (c_int, [u8; 6]) {
     unsafe {
         let mut len: c_int = 0;
         let mut compressed: c_int = 0;
 
-        let mut np = node;
-        while !np.is_null() && !got_int {
+        let mut np = Some(node);
+        while let Some(np_idx) = np {
+            if got_int {
+                break;
+            }
             len += 1;
-            let child = (*np).wn_child;
-            if !child.is_null() {
+            if let Some(child) = spin.si_nodes[np_idx].wn_child {
                 let (child_compressed, hk) = node_compress(spin, child, ht, tot);
                 compressed += child_compressed;
 
                 if let Some(&first_tp) = ht.get(&hk) {
-                    let mut tp = first_tp;
-                    while !tp.is_null() {
-                        if node_equal(child, tp) {
-                            (*tp).wn_refs += 1;
+                    let mut tp = Some(first_tp);
+                    let mut found = false;
+                    while let Some(tp_idx) = tp {
+                        if node_equal(&spin.si_nodes, child, tp_idx) {
+                            spin.si_nodes[tp_idx].wn_refs += 1;
                             compressed += deref_wordnode(spin, child);
-                            (*np).wn_child = tp;
+                            spin.si_nodes[np_idx].wn_child = Some(tp_idx);
+                            found = true;
                             break;
                         }
-                        tp = (*tp).wn_wnode;
+                        tp = spin.si_nodes[tp_idx].wn_wnode;
                     }
-                    if tp.is_null() {
-                        tp = first_tp;
-                        (*child).wn_wnode = (*tp).wn_wnode;
-                        (*tp).wn_wnode = child;
+                    if !found {
+                        spin.si_nodes[child].wn_wnode = spin.si_nodes[first_tp].wn_wnode;
+                        spin.si_nodes[first_tp].wn_wnode = Some(child);
                     }
                 } else {
                     ht.insert(hk, child);
                 }
             }
-            np = (*np).wn_sibling;
+            np = spin.si_nodes[np_idx].wn_sibling;
         }
         *tot += len + 1;
 
         let mut hashkey = [0u8; 6];
         hashkey[0] = len as u8;
         let mut nr: c_uint = 0;
-        np = node;
-        while !np.is_null() {
-            let n: c_uint = if (*np).wn_byte == 0 {
-                ((*np).wn_flags as c_int
-                    + (((*np).wn_region as c_int) << 8)
-                    + (((*np).wn_affixID as c_int) << 16)) as c_uint
+        np = Some(node);
+        while let Some(np_idx) = np {
+            let n_node = spin.si_nodes[np_idx];
+            let n: c_uint = if n_node.wn_byte == 0 {
+                (n_node.wn_flags as c_int
+                    + ((n_node.wn_region as c_int) << 8)
+                    + ((n_node.wn_affixID as c_int) << 16)) as c_uint
             } else {
-                ((*np).wn_byte as usize).wrapping_add(((*np).wn_child as usize) << 8) as c_uint
+                (n_node.wn_byte as usize).wrapping_add(n_node.wn_child.unwrap_or(0) << 8) as c_uint
             };
             nr = nr.wrapping_mul(101).wrapping_add(n);
-            np = (*np).wn_sibling;
+            np = n_node.wn_sibling;
         }
 
         let mut n = nr & 0xff;
@@ -4205,27 +4178,25 @@ unsafe fn node_compress(
     }
 }
 
-unsafe extern "C-unwind" fn node_equal(n1: *mut wordnode_T, n2: *mut wordnode_T) -> bool {
-    unsafe {
-        let mut p1 = n1;
-        let mut p2 = n2;
-        while !p1.is_null() && !p2.is_null() {
-            if (*p1).wn_byte != (*p2).wn_byte
-                || if (*p1).wn_byte == 0 {
-                    (*p1).wn_flags != (*p2).wn_flags
-                        || (*p1).wn_region != (*p2).wn_region
-                        || (*p1).wn_affixID != (*p2).wn_affixID
-                } else {
-                    (*p1).wn_child != (*p2).wn_child
-                }
-            {
-                break;
+fn node_equal(nodes: &[wordnode_T], n1: usize, n2: usize) -> bool {
+    let mut p1 = Some(n1);
+    let mut p2 = Some(n2);
+    while let (Some(i1), Some(i2)) = (p1, p2) {
+        let a = nodes[i1];
+        let b = nodes[i2];
+        if a.wn_byte != b.wn_byte
+            || if a.wn_byte == 0 {
+                a.wn_flags != b.wn_flags || a.wn_region != b.wn_region || a.wn_affixID != b.wn_affixID
+            } else {
+                a.wn_child != b.wn_child
             }
-            p1 = (*p1).wn_sibling;
-            p2 = (*p2).wn_sibling;
+        {
+            break;
         }
-        p1.is_null() && p2.is_null()
+        p1 = a.wn_sibling;
+        p2 = b.wn_sibling;
     }
+    p1.is_none() && p2.is_none()
 }
 
 unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
@@ -4499,21 +4470,29 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
 
         (*spin).si_memtot = 0;
         for round in 1..=3 {
-            let tree = if round == 1 {
-                (*(*spin).si_foldroot).wn_sibling
+            let root = if round == 1 {
+                (*spin).si_foldroot
             } else if round == 2 {
-                (*(*spin).si_keeproot).wn_sibling
+                (*spin).si_keeproot
             } else {
-                (*(*spin).si_prefroot).wn_sibling
+                (*spin).si_prefroot
             };
+            let tree = root.and_then(|r| (&(*spin).si_nodes)[r].wn_sibling);
 
-            clear_node(tree);
+            clear_node(&mut (*spin).si_nodes, tree);
 
-            let nodecount = put_node(ptr::null_mut(), tree, 0, regionmask, round == 3) as usize;
+            let nodecount = put_node(
+                ptr::null_mut(),
+                &mut (*spin).si_nodes,
+                tree,
+                0,
+                regionmask,
+                round == 3,
+            ) as usize;
             put_bytes(fd, nodecount as u64, 4);
             (*spin).si_memtot += (nodecount + nodecount * size_of::<c_int>()) as c_int;
 
-            put_node(fd, tree, 0, regionmask, round == 3);
+            put_node(fd, &mut (*spin).si_nodes, tree, 0, regionmask, round == 3);
         }
 
         if fputc(0, fd) == EOF {
@@ -4534,73 +4513,72 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
     }
 }
 
-unsafe fn clear_node(node: *mut wordnode_T) {
-    unsafe {
-        if !node.is_null() {
-            let mut np = node;
-            while !np.is_null() {
-                (*np).wn_index = 0;
-                (*np).wn_wnode = ptr::null_mut();
+fn clear_node(nodes: &mut [wordnode_T], node: Option<usize>) {
+    let mut np = node;
+    while let Some(np_idx) = np {
+        nodes[np_idx].wn_index = 0;
+        nodes[np_idx].wn_wnode = None;
 
-                if (*np).wn_byte != 0 {
-                    clear_node((*np).wn_child);
-                }
-                np = (*np).wn_sibling;
-            }
+        if nodes[np_idx].wn_byte != 0 {
+            let child = nodes[np_idx].wn_child;
+            clear_node(nodes, child);
         }
+        np = nodes[np_idx].wn_sibling;
     }
 }
 
 unsafe fn put_node(
     fd: *mut FILE,
-    node: *mut wordnode_T,
+    nodes: &mut [wordnode_T],
+    node: Option<usize>,
     idx: c_int,
     regionmask: c_int,
     prefixtree: bool,
 ) -> c_int {
     unsafe {
-        if node.is_null() {
+        let Some(node_idx) = node else {
             return 0;
-        }
+        };
 
-        (*node).wn_index = idx;
+        nodes[node_idx].wn_index = idx;
 
         let mut siblingcount: c_int = 0;
-        let mut np = node;
-        while !np.is_null() {
+        let mut np = Some(node_idx);
+        while let Some(np_idx) = np {
             siblingcount += 1;
-            np = (*np).wn_sibling;
+            np = nodes[np_idx].wn_sibling;
         }
 
         if !fd.is_null() {
             fputc(siblingcount, fd);
         }
 
-        np = node;
-        while !np.is_null() {
-            if (*np).wn_byte == 0 {
+        np = Some(node_idx);
+        while let Some(np_idx) = np {
+            let n = nodes[np_idx];
+            if n.wn_byte == 0 {
                 if !fd.is_null() {
                     if prefixtree {
-                        if (*np).wn_flags == PFX_FLAGS as u16 {
+                        if n.wn_flags == PFX_FLAGS as u16 {
                             fputc(BY_NOFLAGS, fd);
                         } else {
                             fputc(BY_FLAGS, fd);
-                            fputc((*np).wn_flags as c_int, fd);
+                            fputc(n.wn_flags as c_int, fd);
                         }
-                        fputc((*np).wn_affixID as c_int, fd);
-                        put_bytes(fd, (*np).wn_region as u16 as u64, 2);
+                        fputc(n.wn_affixID as c_int, fd);
+                        put_bytes(fd, n.wn_region as u16 as u64, 2);
                     } else {
-                        let mut flags = (*np).wn_flags as c_int;
-                        if regionmask != 0 && ((*np).wn_region as c_int) != regionmask {
+                        let mut flags = n.wn_flags as c_int;
+                        if regionmask != 0 && (n.wn_region as c_int) != regionmask {
                             flags |= WF_REGION;
                         }
-                        if (*np).wn_affixID != 0 {
+                        if n.wn_affixID != 0 {
                             flags |= WF_AFX;
                         }
                         if flags == 0 {
                             fputc(BY_NOFLAGS, fd);
                         } else {
-                            if (*np).wn_flags >= 0x100 {
+                            if n.wn_flags >= 0x100 {
                                 fputc(BY_FLAGS2, fd);
                                 fputc(flags, fd);
                                 fputc(((flags as c_uint) >> 8) as c_int, fd);
@@ -4609,41 +4587,45 @@ unsafe fn put_node(
                                 fputc(flags, fd);
                             }
                             if (flags & WF_REGION) != 0 {
-                                fputc((*np).wn_region as c_int, fd);
+                                fputc(n.wn_region as c_int, fd);
                             }
                             if (flags & WF_AFX) != 0 {
-                                fputc((*np).wn_affixID as c_int, fd);
+                                fputc(n.wn_affixID as c_int, fd);
                             }
                         }
                     }
                 }
             } else {
-                let child = (*np).wn_child;
-                if (*child).wn_index != 0 && (*child).wn_wnode != node {
+                let child = n.wn_child.unwrap();
+                if nodes[child].wn_index != 0 && nodes[child].wn_wnode != Some(node_idx) {
                     if !fd.is_null() {
                         fputc(BY_INDEX, fd);
-                        put_bytes(fd, (*child).wn_index as u64, 3);
+                        put_bytes(fd, nodes[child].wn_index as u64, 3);
                     }
-                } else if (*child).wn_wnode.is_null() {
-                    (*child).wn_wnode = node;
+                } else if nodes[child].wn_wnode.is_none() {
+                    nodes[child].wn_wnode = Some(node_idx);
                 }
 
-                if !fd.is_null() && fputc((*np).wn_byte as c_int, fd) == EOF {
+                if !fd.is_null() && fputc(n.wn_byte as c_int, fd) == EOF {
                     emsg(gettext((&raw const e_write).cast()));
                     return 0;
                 }
             }
-            np = (*np).wn_sibling;
+            np = n.wn_sibling;
         }
 
         let mut newindex = idx + siblingcount + 1;
 
-        np = node;
-        while !np.is_null() {
-            if (*np).wn_byte != 0 && (*(*np).wn_child).wn_wnode == node {
-                newindex = put_node(fd, (*np).wn_child, newindex, regionmask, prefixtree);
+        np = Some(node_idx);
+        while let Some(np_idx) = np {
+            let n = nodes[np_idx];
+            if n.wn_byte != 0 {
+                let child = n.wn_child.unwrap();
+                if nodes[child].wn_wnode == Some(node_idx) {
+                    newindex = put_node(fd, nodes, Some(child), newindex, regionmask, prefixtree);
+                }
             }
-            np = (*np).wn_sibling;
+            np = n.wn_sibling;
         }
 
         newindex
@@ -4696,11 +4678,11 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
             temp_slang = Some(new_lp);
         }
 
-        (*spin).si_blocks.clear();
+        (*spin).si_nodes.clear();
         (*spin).si_blocks_cnt = 0;
         (*spin).si_compress_cnt = 0;
         (*spin).si_free_count = 0;
-        (*spin).si_first_free = ptr::null_mut();
+        (*spin).si_first_free = None;
         (*spin).si_foldwcount = 0;
 
         spell_message(spin, gettext(c"Performing soundfolding...".as_ptr()));
@@ -4724,7 +4706,7 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
         }
 
         drop(temp_slang);
-        (*spin).si_blocks.clear();
+        (*spin).si_nodes.clear();
         close_spellbuf(&mut (*spin).si_spellbuf);
     }
 }
@@ -4738,7 +4720,7 @@ unsafe fn sug_filltree(spin: *mut spellinfo_T, slang: *mut slang_T) -> c_int {
         let mut words_done: c_uint = 0;
         let mut wordcount = [0 as c_int; MAXWLEN];
 
-        (*spin).si_foldroot = wordtree_alloc(spin);
+        (*spin).si_foldroot = wordtree_alloc(&mut *spin);
         (*spin).si_sugtree = 1;
 
         if (*slang).sl_fbyts.is_empty() || (*slang).sl_fidxs.is_empty() {
@@ -4813,12 +4795,16 @@ unsafe fn sug_filltree(spin: *mut spellinfo_T, slang: *mut slang_T) -> c_int {
 
 unsafe fn sug_maketable(spin: *mut spellinfo_T) -> c_int {
     unsafe {
+        let spin = &mut *spin;
         let mut ga: Vec<c_char> = Vec::with_capacity(100);
         let mut res = OK;
 
-        (*spin).si_spellbuf = Some(open_spellbuf());
+        spin.si_spellbuf = Some(open_spellbuf());
 
-        if sug_filltable(spin, (*(*spin).si_foldroot).wn_sibling, 0, &mut ga) == -1 {
+        let first_sibling = spin
+            .si_foldroot
+            .and_then(|r| spin.si_nodes[r].wn_sibling);
+        if sug_filltable(spin, first_sibling, 0, &mut ga) == -1 {
             res = FAIL;
         }
 
@@ -4827,8 +4813,8 @@ unsafe fn sug_maketable(spin: *mut spellinfo_T) -> c_int {
 }
 
 unsafe fn sug_filltable(
-    spin: *mut spellinfo_T,
-    node: *mut wordnode_T,
+    spin: &mut spellinfo_T,
+    node: Option<usize>,
     startwordnr: c_int,
     gap: &mut Vec<c_char>,
 ) -> c_int {
@@ -4836,25 +4822,28 @@ unsafe fn sug_filltable(
         let mut wordnr = startwordnr;
 
         let mut p = node;
-        while !p.is_null() {
-            if (*p).wn_byte == 0 {
+        while let Some(p_idx) = p {
+            if spin.si_nodes[p_idx].wn_byte == 0 {
                 gap.clear();
                 let mut prev_nr: c_int = 0;
-                let mut np = p;
-                while !np.is_null() && (*np).wn_byte == 0 {
-                    let mut nr =
-                        (((*np).wn_flags as c_int) << 16) + ((*np).wn_region as c_int & 0xffff);
+                let mut np = Some(p_idx);
+                while let Some(np_idx) = np {
+                    let n = spin.si_nodes[np_idx];
+                    if n.wn_byte != 0 {
+                        break;
+                    }
+                    let mut nr = ((n.wn_flags as c_int) << 16) + (n.wn_region as c_int & 0xffff);
                     nr -= prev_nr;
                     prev_nr += nr;
                     let mut obuf = [0 as c_char; 8];
                     let olen = offset2bytes(nr, obuf.as_mut_ptr()) as usize;
                     gap.extend_from_slice(&obuf[..olen]);
-                    np = (*np).wn_sibling;
+                    np = n.wn_sibling;
                 }
 
                 gap.push(NUL);
 
-                let spellbuf = (*spin).si_spellbuf.as_deref_mut().unwrap();
+                let spellbuf = spin.si_spellbuf.as_deref_mut().unwrap();
                 if ml_append_buf(
                     spellbuf,
                     wordnr as linenr_T,
@@ -4867,19 +4856,23 @@ unsafe fn sug_filltable(
                 }
                 wordnr += 1;
 
-                while !(*p).wn_sibling.is_null() && (*(*p).wn_sibling).wn_byte == 0 {
-                    (*p).wn_sibling = (*(*p).wn_sibling).wn_sibling;
+                while let Some(sib_idx) = spin.si_nodes[p_idx].wn_sibling {
+                    if spin.si_nodes[sib_idx].wn_byte != 0 {
+                        break;
+                    }
+                    spin.si_nodes[p_idx].wn_sibling = spin.si_nodes[sib_idx].wn_sibling;
                 }
 
-                (*p).wn_flags = 0;
-                (*p).wn_region = 0;
+                spin.si_nodes[p_idx].wn_flags = 0;
+                spin.si_nodes[p_idx].wn_region = 0;
             } else {
-                wordnr = sug_filltable(spin, (*p).wn_child, wordnr, gap);
+                let child = spin.si_nodes[p_idx].wn_child;
+                wordnr = sug_filltable(spin, child, wordnr, gap);
                 if wordnr == -1 {
                     return -1;
                 }
             }
-            p = (*p).wn_sibling;
+            p = spin.si_nodes[p_idx].wn_sibling;
         }
         wordnr
     }
@@ -4944,14 +4937,16 @@ unsafe fn sug_write(spin: *mut spellinfo_T, fname: *mut c_char) {
         put_time(fd, (*spin).si_sugtime);
 
         (*spin).si_memtot = 0;
-        let tree = (*(*spin).si_foldroot).wn_sibling;
-        clear_node(tree);
+        let tree = (*spin)
+            .si_foldroot
+            .and_then(|r| (&(*spin).si_nodes)[r].wn_sibling);
+        clear_node(&mut (*spin).si_nodes, tree);
 
-        let nodecount = put_node(ptr::null_mut(), tree, 0, 0, false) as usize;
+        let nodecount = put_node(ptr::null_mut(), &mut (*spin).si_nodes, tree, 0, 0, false) as usize;
         put_bytes(fd, nodecount as u64, 4);
         (*spin).si_memtot += (nodecount + nodecount * size_of::<c_int>()) as c_int;
 
-        put_node(fd, tree, 0, 0, false);
+        put_node(fd, &mut (*spin).si_nodes, tree, 0, 0, false);
 
         let spellbuf: *mut buf_T = (*spin)
             .si_spellbuf
@@ -5099,9 +5094,9 @@ unsafe fn mkspell(
 
             if region_ok {
                 spin.si_region_count = incount;
-                spin.si_foldroot = wordtree_alloc(&raw mut spin);
-                spin.si_keeproot = wordtree_alloc(&raw mut spin);
-                spin.si_prefroot = wordtree_alloc(&raw mut spin);
+                spin.si_foldroot = wordtree_alloc(&mut spin);
+                spin.si_keeproot = wordtree_alloc(&mut spin);
+                spin.si_prefroot = wordtree_alloc(&mut spin);
 
                 if spin.si_add == 0 {
                     spin.si_clear_chartab = 1;
@@ -5177,7 +5172,7 @@ unsafe fn mkspell(
                     *slot = None;
                 }
 
-                spin.si_blocks.clear();
+                spin.si_nodes.clear();
 
                 if spin.si_sugtime != 0 && !error && !got_int {
                     spell_make_sugfile(&raw mut spin, wfname);
