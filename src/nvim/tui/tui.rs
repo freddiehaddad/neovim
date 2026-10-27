@@ -363,7 +363,7 @@ pub unsafe fn tui_start(
         let tui: *mut TUIData = &raw mut **(*tui_out).as_mut().unwrap();
 
         signal_watcher_init((*tui).loop_, tui_winch_handle(tui), tui);
-        signal_watcher_start(tui_winch_handle(tui), Some(sigwinch_cb), SIGWINCH);
+        signal_watcher_start(tui_winch_handle(tui), SIGWINCH);
 
         (*tui).input.tk_ti_hook_fn = Some(tui_tk_ti_getstr);
         (*tui).grid.cells.clear();
@@ -1213,7 +1213,7 @@ pub unsafe fn tui_stop(tui: *mut TUIData) {
         stream_set_blocking((*input).in_fd, true);
         tinput_destroy(input);
         signal_watcher_stop(tui_winch_handle(tui));
-        signal_watcher_close(tui_winch_handle(tui), None);
+        signal_watcher_close(tui_winch_handle(tui));
         uv_close(tui_startup_delay_timer(tui).cast(), None);
     }
 }
@@ -1244,7 +1244,7 @@ pub unsafe fn tui_free_all_mem(tui: Option<Box<TUIData>>) {
     }
 }
 
-unsafe fn sigwinch_cb(_watcher: *mut SignalWatcher, _signum: c_int, tui: *mut TUIData) {
+pub(crate) unsafe fn sigwinch_cb(tui: *mut TUIData) {
     unsafe {
         if tui_is_stopped(tui) || (*tui).resize_events_enabled {
             return;

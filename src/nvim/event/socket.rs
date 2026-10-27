@@ -53,9 +53,6 @@ use crate::event::rstream::RStream;
 pub type uv_tcp_t = c_void;
 pub type uv_getaddrinfo_t = c_void;
 
-pub type socket_cb = Option<unsafe fn(watcher: *mut SocketWatcher, result: c_int)>;
-pub type socket_close_cb = Option<unsafe fn(watcher: *mut SocketWatcher)>;
-
 #[repr(C)]
 pub struct addrinfo {
     pub ai_flags: c_int,
@@ -80,8 +77,6 @@ pub struct SocketWatcher {
     pub uv: UvSocketHandle,
     pub tcp_addrinfo: *mut addrinfo,
     pub stream: *mut uv_stream_t,
-    pub cb: socket_cb,
-    pub close_cb: socket_close_cb,
     pub events: *mut MultiQueue,
 }
 
@@ -92,8 +87,6 @@ impl SocketWatcher {
             uv: UvSocketHandle([0; 640]),
             tcp_addrinfo: ptr::null_mut(),
             stream: ptr::null_mut(),
-            cb: None,
-            close_cb: None,
             events: ptr::null_mut(),
         }
     }
@@ -256,8 +249,6 @@ pub unsafe fn socket_watcher_init(
         }
 
         *(*watcher).stream.cast::<*mut SocketWatcher>() = watcher;
-        (*watcher).cb = None;
-        (*watcher).close_cb = None;
         (*watcher).events = ptr::null_mut();
 
         0
@@ -293,15 +284,10 @@ unsafe extern "C" fn early_server_close_cb(handle: *mut uv_handle_t) {
     }
 }
 
-pub unsafe fn socket_watcher_start(
-    watcher: *mut SocketWatcher,
-    backlog: c_int,
-    cb: socket_cb,
-) -> c_int {
+pub unsafe fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) -> c_int {
     unsafe {
         let addr = (*watcher).addr.as_mut_ptr();
         let uv_ptr: *mut c_void = (&raw mut (*watcher).uv).cast();
-        (*watcher).cb = cb;
         let mut result: c_int = UV_EINVAL;
 
         if uv_handle_get_type((*watcher).stream.cast()) == UV_TCP {
@@ -429,18 +415,15 @@ pub unsafe fn socket_watcher_accept(watcher: *mut SocketWatcher, stream: *mut RS
     }
 }
 
-pub unsafe fn socket_watcher_close(watcher: *mut SocketWatcher, cb: socket_close_cb) {
+pub unsafe fn socket_watcher_close(watcher: *mut SocketWatcher) {
     unsafe {
-        (*watcher).close_cb = cb;
         uv_close((*watcher).stream.cast(), Some(close_cb));
     }
 }
 
 pub unsafe fn connection_event(watcher: *mut SocketWatcher, status: c_int) {
     unsafe {
-        if let Some(cb) = (*watcher).cb {
-            cb(watcher, status);
-        }
+        crate::msgpack_rpc::server::connection_cb(watcher, status);
     }
 }
 
@@ -461,9 +444,7 @@ unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: c_int) {
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
         let watcher = *handle.cast::<*mut SocketWatcher>();
-        if let Some(cb) = (*watcher).close_cb {
-            cb(watcher);
-        }
+        drop(Box::from_raw(watcher));
     }
 }
 

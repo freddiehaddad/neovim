@@ -31,8 +31,6 @@ pub type uv_pipe_t = c_void;
 pub type uv_idle_t = c_void;
 pub type uv_tty_t = c_void;
 
-pub type stream_write_cb = Option<unsafe fn(stream: *mut Stream, status: c_int)>;
-
 #[derive(Clone, Copy)]
 pub enum StreamCbData {
     None,
@@ -107,7 +105,7 @@ pub struct Stream {
     pub internal_data: StreamInternalData,
     pub pending_reqs: usize,
     pub events: *mut MultiQueue,
-    pub write_cb: stream_write_cb,
+    pub notify_write: bool,
     pub curmem: usize,
     pub maxmem: usize,
 }
@@ -127,7 +125,7 @@ impl Stream {
             internal_data: StreamInternalData::NONE,
             pending_reqs: 0,
             events: ptr::null_mut(),
-            write_cb: None,
+            notify_write: false,
             curmem: 0,
             maxmem: 0,
         }
@@ -219,7 +217,7 @@ pub unsafe fn stream_init(
         (*stream).curmem = 0;
         (*stream).maxmem = 0;
         (*stream).pending_reqs = 0;
-        (*stream).write_cb = None;
+        (*stream).notify_write = false;
         (*stream).is_rstream = false;
         #[cfg(windows)]
         {

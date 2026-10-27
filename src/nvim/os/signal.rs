@@ -121,35 +121,35 @@ pub unsafe fn signal_teardown() {
     unsafe {
         signal_stop();
         signal_ignore_deadly();
-        signal_watcher_close(&raw mut spipe, None);
-        signal_watcher_close(&raw mut shup, None);
-        signal_watcher_close(&raw mut sint, None);
-        signal_watcher_close(&raw mut squit, None);
-        signal_watcher_close(&raw mut sterm, None);
-        signal_watcher_close(&raw mut ststp, None);
+        signal_watcher_close(&raw mut spipe);
+        signal_watcher_close(&raw mut shup);
+        signal_watcher_close(&raw mut sint);
+        signal_watcher_close(&raw mut squit);
+        signal_watcher_close(&raw mut sterm);
+        signal_watcher_close(&raw mut ststp);
         #[cfg(target_os = "linux")]
-        signal_watcher_close(&raw mut spwr, None);
+        signal_watcher_close(&raw mut spwr);
         #[cfg(unix)]
-        signal_watcher_close(&raw mut susr1, None);
-        signal_watcher_close(&raw mut swinch, None);
+        signal_watcher_close(&raw mut susr1);
+        signal_watcher_close(&raw mut swinch);
     }
 }
 
 pub unsafe fn signal_start() {
     unsafe {
         #[cfg(unix)]
-        signal_watcher_start(&raw mut spipe, Some(on_signal), SIGPIPE);
-        signal_watcher_start(&raw mut shup, Some(on_signal), SIGHUP);
-        signal_watcher_start(&raw mut sint, Some(on_signal), SIGINT);
-        signal_watcher_start(&raw mut squit, Some(on_signal), SIGQUIT);
-        signal_watcher_start(&raw mut sterm, Some(on_signal), SIGTERM);
+        signal_watcher_start(&raw mut spipe, SIGPIPE);
+        signal_watcher_start(&raw mut shup, SIGHUP);
+        signal_watcher_start(&raw mut sint, SIGINT);
+        signal_watcher_start(&raw mut squit, SIGQUIT);
+        signal_watcher_start(&raw mut sterm, SIGTERM);
         #[cfg(unix)]
-        signal_watcher_start(&raw mut ststp, Some(on_signal), SIGTSTP);
+        signal_watcher_start(&raw mut ststp, SIGTSTP);
         #[cfg(target_os = "linux")]
-        signal_watcher_start(&raw mut spwr, Some(on_signal), SIGPWR);
+        signal_watcher_start(&raw mut spwr, SIGPWR);
         #[cfg(unix)]
-        signal_watcher_start(&raw mut susr1, Some(on_signal), SIGUSR1);
-        signal_watcher_start(&raw mut swinch, Some(on_signal), SIGWINCH);
+        signal_watcher_start(&raw mut susr1, SIGUSR1);
+        signal_watcher_start(&raw mut swinch, SIGWINCH);
     }
 }
 
@@ -233,11 +233,7 @@ unsafe fn deadly_signal(signum: c_int) -> ! {
     }
 }
 
-unsafe fn on_signal(
-    _handle: *mut SignalWatcher,
-    signum: c_int,
-    _data: *mut crate::tui::tui::TUIData,
-) {
+pub(crate) unsafe fn on_signal(signum: c_int) {
     debug_assert!(signum >= 0);
     unsafe {
         #[cfg(target_os = "linux")]

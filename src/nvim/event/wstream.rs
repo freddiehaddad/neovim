@@ -3,7 +3,7 @@
 use crate::event::r#loop::{
     Loop, uv_fs_get_result, uv_fs_req_cleanup, uv_fs_t, uv_handle_get_loop, uv_write,
 };
-use crate::event::stream::{Stream, stream_close_handle, stream_init, stream_write_cb};
+use crate::event::stream::{Stream, stream_close_handle, stream_init};
 #[cfg(windows)]
 use std::ffi::c_ulong;
 use std::ffi::{c_char, c_int, c_void};
@@ -102,9 +102,9 @@ pub unsafe fn wstream_init(stream: *mut Stream, maxmem: usize) {
     }
 }
 
-pub unsafe fn wstream_set_write_cb(stream: *mut Stream, cb: stream_write_cb) {
+pub unsafe fn wstream_set_write_cb(stream: *mut Stream) {
     unsafe {
-        (*stream).write_cb = cb;
+        (*stream).notify_write = true;
     }
 }
 
@@ -132,7 +132,7 @@ pub unsafe fn wstream_write(stream: *mut Stream, buffer: std::rc::Rc<WBuffer>) -
             uv_fs_req_cleanup(req_ptr);
 
             drop(buffer);
-            assert!((*stream).write_cb.is_none());
+            assert!(!(*stream).notify_write);
 
             if req_result > 0 {
                 (*stream).fpos += req_result as i64;
@@ -192,8 +192,8 @@ unsafe extern "C" fn write_cb(req: *mut uv_write_t, status: c_int) {
         (*stream).curmem -= data.buffer.size;
         drop(data);
 
-        if let Some(cb) = (*stream).write_cb {
-            cb(stream, status);
+        if (*stream).notify_write {
+            crate::os::shell::shell_write_cb(stream, status);
         }
 
         (*stream).pending_reqs -= 1;

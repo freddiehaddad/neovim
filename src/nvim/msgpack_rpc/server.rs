@@ -115,7 +115,7 @@ unsafe fn set_vservername(srvs: &[*mut SocketWatcher]) {
 pub unsafe fn server_teardown() {
     unsafe {
         for &watcher in watchers_mut().iter() {
-            socket_watcher_close(watcher, Some(free_server));
+            socket_watcher_close(watcher);
         }
         watchers = Vec::new();
     }
@@ -240,12 +240,12 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
                 if uv_handle_get_type((*watcher).stream.cast()) == UV_TCP {
                     uv_freeaddrinfo((*watcher).tcp_addrinfo.cast());
                 }
-                socket_watcher_close(watcher, Some(free_server));
+                socket_watcher_close(watcher);
                 return 2;
             }
         }
 
-        result = socket_watcher_start(watcher, MAX_CONNECTIONS, Some(connection_cb));
+        result = socket_watcher_start(watcher, MAX_CONNECTIONS);
         if result < 0 {
             logmsg!(
                 LOGLVL_WRN,
@@ -257,7 +257,7 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
                 uv_strerror(result),
                 (*watcher).addr.as_ptr(),
             );
-            socket_watcher_close(watcher, Some(free_server));
+            socket_watcher_close(watcher);
             return result;
         }
 
@@ -296,7 +296,7 @@ pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bo
         };
 
         let watcher = w.swap_remove(idx);
-        socket_watcher_close(watcher, Some(free_server));
+        socket_watcher_close(watcher);
 
         if !keep_vservername && strequal(addr.as_ptr(), get_vim_var_str(VV_SEND_SERVER)) {
             set_vservername(w);
@@ -315,7 +315,7 @@ pub unsafe fn server_address_list() -> Vec<std::ffi::CString> {
     }
 }
 
-unsafe fn connection_cb(watcher: *mut SocketWatcher, result: c_int) {
+pub(crate) unsafe fn connection_cb(watcher: *mut SocketWatcher, result: c_int) {
     unsafe {
         if result != 0 {
             logmsg!(
@@ -331,11 +331,5 @@ unsafe fn connection_cb(watcher: *mut SocketWatcher, result: c_int) {
         }
 
         channel_from_connection(watcher);
-    }
-}
-
-unsafe fn free_server(watcher: *mut SocketWatcher) {
-    unsafe {
-        let _ = Box::from_raw(watcher);
     }
 }

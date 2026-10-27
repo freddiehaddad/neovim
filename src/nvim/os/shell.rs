@@ -885,7 +885,7 @@ unsafe fn do_os_system(
                     proc_stop(proc_);
                     break 'end;
                 }
-                wstream_set_write_cb(s_in, Some(shell_write_cb));
+                wstream_set_write_cb(s_in);
             }
 
             ui_busy_start();
@@ -1213,7 +1213,7 @@ unsafe fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool)
     }
 }
 
-unsafe fn shell_write_cb(stream: *mut Stream, status: c_int) {
+pub(crate) unsafe fn shell_write_cb(stream: *mut Stream, status: c_int) {
     unsafe {
         if status != 0 {
             msg_schedule_semsg!(
