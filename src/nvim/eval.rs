@@ -133,8 +133,7 @@ use crate::mbyte::{
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring, memchrsub, strchrsub,
-    strequal, };
+    Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring, strequal, };
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
 use crate::optionstr::{OptIndex, free_string_option};
@@ -5177,7 +5176,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
             (*rettv).v_type = VarType::VAR_LIST;
         } else {
             let nread = res.len();
-            memchrsub(res.as_mut_ptr().cast(), NUL, 1, nread);
+            { let _d = (res.as_mut_ptr()).cast::<u8>(); let _sz = nread; if _sz > 0 { let _c = (NUL) as u8; let _x = (1) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
             #[cfg(windows)]
             {
                 let mut d = 0usize;
@@ -7154,7 +7153,7 @@ pub unsafe fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> boo
 
         let mut name = [0 as c_char; 32];
         vim_snprintf!(name.as_mut_ptr(), name.len(), c"%s".as_ptr(), feat);
-        strchrsub(name.as_mut_ptr(), b'_' as c_char, NUL);
+        { let _p = name.as_mut_ptr(); let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (b'_' as c_char) as u8 { *_b = (NUL) as u8; } } };
 
         let mut buf = [0 as c_char; 256];
         let mut tv = tv_initial_value();

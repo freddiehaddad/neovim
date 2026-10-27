@@ -16,7 +16,7 @@ use crate::mbyte::{utf_isalnum, utf_ptr2char, utf_ptr2len};
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
 #[cfg(any(windows, test))]
 use crate::memory::xstrlcat;
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xmemcpyz, xmemrchr, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, xmemcpyz, xstrlcpy};
 #[cfg(windows)]
 use crate::message::emsg;
 #[cfg(any(windows, test))]
@@ -890,7 +890,7 @@ pub unsafe fn vim_env_iter_rev(
             iter
         };
         let varlen = (varend as usize).wrapping_sub(val as usize).wrapping_add(1);
-        let colon = xmemrchr(val.cast(), delim as u8, varlen).cast::<c_char>();
+        let colon = { let _s = (val).cast::<u8>(); let _sz = varlen; if _sz == 0 { std::ptr::null_mut::<std::ffi::c_void>() } else { std::slice::from_raw_parts(_s, _sz).iter().rposition(|&_b| _b == delim as u8).map_or(std::ptr::null_mut::<std::ffi::c_void>(), |_i| _s.add(_i).cast_mut().cast::<std::ffi::c_void>()) } }.cast::<c_char>();
         if colon.is_null() {
             *len = varlen;
             *dir = val;

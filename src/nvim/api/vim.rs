@@ -83,7 +83,7 @@ use crate::mark::mark_get_global;
 use crate::math::{FAIL, xpopcount};
 use crate::mbyte::{mb_string2cells, utfc_ptr2len, utfc_ptr2schar};
 use crate::memline::ml_open;
-use crate::memory::{Arena, arena_alloc, arena_strdup, memchrsub, strequal};
+use crate::memory::{Arena, arena_alloc, arena_strdup, strequal};
 use crate::message::{
     msg_ext_no_fast, msg_id_exists, msg_multihl, verbose_enter, verbose_leave, verbose_stop,
 };
@@ -2023,7 +2023,7 @@ pub unsafe extern "C" fn nvim_put(
             let line = item.data.string();
             let copied = copy_string(line, ptr::null_mut());
             reg.y_array.push(copied);
-            memchrsub(copied.data.cast(), NUL, NL, line.size);
+            { let _d = (copied.data).cast::<u8>(); let _sz = line.size; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
         }
 
         finish_yankreg_from_object(&mut reg, false);

@@ -34,7 +34,7 @@ use crate::memfile::{
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
     mf_open_file, mf_put, mf_set_dirty, mf_set_fnames, mf_sync, mf_trans_del, pmap_get_bhdr,
 };
-use crate::memory::{xstpcpy, xstrlcpy};
+use crate::memory::{xstrlcpy};
 use crate::message::{
     emsg, iemsg, msg, msg_end, msg_ext_set_kind, msg_multiline, msg_outnum, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_reset_scroll, msg_start, semsg, set_keep_msg, siemsg,
@@ -438,7 +438,9 @@ pub unsafe fn ml_open(buf: *mut buf_T) -> c_int {
         (*b0p).b0_magic_int = B0_MAGIC_INT;
         (*b0p).b0_magic_short = B0_MAGIC_SHORT;
         (*b0p).b0_magic_char = B0_MAGIC_CHAR;
-        let ver_dst = xstpcpy((&raw mut (*b0p).b0_version).cast(), c"VIM ".as_ptr());
+        let ver_dst = (&raw mut (*b0p).b0_version).cast::<c_char>();
+        ptr::copy_nonoverlapping(c"VIM ".as_ptr(), ver_dst, 5);
+        let ver_dst = ver_dst.add(4);
         xstrlcpy(ver_dst, Versions[0].as_ptr(), 6);
         long_to_char(
             (*mfp).mf_page_size as c_long,

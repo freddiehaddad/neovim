@@ -19,7 +19,7 @@ use crate::mbyte::{
     utf_char2bytes, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2cells, utf_ptr2char, utf_ptr2len,
     utfc_ptr2len,
 };
-use crate::memory::{xmemscan, xstrchrnul, xstrlcpy};
+use crate::memory::{xstrlcpy};
 use crate::message::{emsg, semsg};
 use crate::option::{csh_like_shell, fish_like_shell};
 #[cfg(windows)]
@@ -1464,8 +1464,8 @@ unsafe fn vim_vsnprintf_typval_inner(
 
         'fmt_loop: while *p != NUL {
             if *p != b'%' as c_char {
-                let next_pct = xstrchrnul(p.add(1), b'%' as c_char);
-                let n = next_pct.offset_from(p) as usize;
+                let rem = CStr::from_ptr(p.add(1)).to_bytes();
+                let n = 1 + rem.iter().position(|&b| b == b'%').unwrap_or(rem.len());
                 if str_avail {
                     let avail = str_m - str_l;
                     ptr::copy(p, str_out.add(str_l), n.min(avail));
@@ -1714,10 +1714,7 @@ unsafe fn vim_vsnprintf_typval_inner(
                                 } else if precision == 0 {
                                     str_arg_l = 0;
                                 } else {
-                                    let end =
-                                        xmemscan(str_arg.cast(), NUL, precision.min(0x7fffffff))
-                                            .cast::<c_char>();
-                                    str_arg_l = end.offset_from(str_arg) as usize;
+                                    str_arg_l = crate::memory::xstrnlen(str_arg, precision.min(0x7fffffff));
                                 }
 
                                 if fmt_spec == b'S' as c_char {

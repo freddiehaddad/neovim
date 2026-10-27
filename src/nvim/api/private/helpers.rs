@@ -27,7 +27,7 @@ use crate::mark::setmark_pos;
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
     Arena, ArenaMem, alloc_cstring, alloc_cstring_len, arena_alloc, arena_finish, arena_memdupz,
-    free_cstring, free_items, memchrsub, xstrnlen,
+    free_cstring, free_items, xstrnlen,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
@@ -771,7 +771,7 @@ pub unsafe fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) 
                     size: line_len,
                 },
             );
-            memchrsub(s.data.cast(), NUL, NL, line_len);
+            { let _d = (s.data).cast::<u8>(); let _sz = line_len; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
             ret.push(Object {
                 obj_type: ObjectType::kObjectTypeString,
                 data: ObjectData::String(s),

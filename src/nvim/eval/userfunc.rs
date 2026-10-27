@@ -52,7 +52,7 @@ use crate::lua::executor::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st, xmemrchr, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st, xstrlcpy};
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
     msg_prt_line, msg_putchar, msg_puts, msg_start, semsg, smsg, swmsg, trunc_string,
@@ -2403,7 +2403,7 @@ pub unsafe fn trans_function_name(
         }
 
         if !skip && (flags & TFN_QUIET) == 0 && (flags & TFN_NO_DEREF) == 0 {
-            let cp = xmemrchr(lv.ll_name.cast(), b':', lv.ll_name_len).cast::<c_char>();
+            let cp = { let _s = (lv.ll_name).cast::<u8>(); let _sz = lv.ll_name_len; if _sz == 0 { std::ptr::null_mut::<std::ffi::c_void>() } else { std::slice::from_raw_parts(_s, _sz).iter().rposition(|&_b| _b == b':').map_or(std::ptr::null_mut::<std::ffi::c_void>(), |_i| _s.add(_i).cast_mut().cast::<std::ffi::c_void>()) } }.cast::<c_char>();
             if !cp.is_null() && cp.cast_const() < end {
                 semsg!(
                     gettext(c"E884: Function name cannot contain a colon: %s".as_ptr()),

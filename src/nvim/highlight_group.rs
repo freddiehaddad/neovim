@@ -40,7 +40,7 @@ use crate::lua::converter::Boolean;
 use crate::lua::executor::nlua_set_sctx;
 use crate::math::OK;
 use crate::mbyte::{mb_stricmp, mb_strnicmp};
-use crate::memory::{Arena, xmemrchr, xstrlcat};
+use crate::memory::{Arena, xstrlcat};
 use crate::message::{
     emsg, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_putchar,
     msg_puts_hl, msg_source, semsg,
@@ -2249,7 +2249,7 @@ unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
 
         let mut scoped_parent: c_int = 0;
         if len > 1 && *name == b'@' as c_char {
-            let delim = xmemrchr(name.cast(), b'.', len).cast::<c_char>();
+            let delim = { let _s = (name).cast::<u8>(); let _sz = len; if _sz == 0 { std::ptr::null_mut::<std::ffi::c_void>() } else { std::slice::from_raw_parts(_s, _sz).iter().rposition(|&_b| _b == b'.').map_or(std::ptr::null_mut::<std::ffi::c_void>(), |_i| _s.add(_i).cast_mut().cast::<std::ffi::c_void>()) } }.cast::<c_char>();
             if !delim.is_null() {
                 scoped_parent = syn_check_group(name, delim as usize - name as usize);
             }

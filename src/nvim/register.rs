@@ -56,7 +56,6 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_ins_cascading;
 use crate::memline::{decl, ml_append, ml_get, ml_get_buf, ml_get_len, ml_replace};
-use crate::memory::{memchrsub, memcnt};
 use crate::message::{
     emsg, emsg_invreg, message_filtered, msg, msg_ext_set_kind, msg_outtrans_len, msg_putchar,
     msg_puts, msg_puts_hl, msg_puts_title, msgmore, semsg, smsg,
@@ -2884,7 +2883,7 @@ unsafe fn str_to_reg(
                 ss = ss.add(1);
             }
         } else {
-            newlines = memcnt(str_.cast(), b'\n' as c_char, len);
+            newlines = { let _d = (str_).cast::<u8>(); let _sz = len; if _sz == 0 { 0 } else { std::slice::from_raw_parts(_d, _sz).iter().filter(|&&_b| _b == (b'\n' as c_char) as u8).count() } };
             if yank_type == MotionType::kMTCharWise
                 || len == 0
                 || *str_.add(len - 1) != b'\n' as c_char
@@ -2949,7 +2948,7 @@ unsafe fn str_to_reg(
                 if line_len > 0 {
                     ptr::copy_nonoverlapping(start, s_vec.as_mut_ptr().add(extra), line_len);
                 }
-                memchrsub(s_vec.as_mut_ptr().cast(), NUL, b'\n' as c_char, s_len);
+                { let _d = (s_vec.as_mut_ptr()).cast::<u8>(); let _sz = s_len; if _sz > 0 { let _c = (NUL) as u8; let _x = (b'\n' as c_char) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
                 let new_str = cbuf_to_string(s_vec.as_ptr(), s_len);
 
                 if append {

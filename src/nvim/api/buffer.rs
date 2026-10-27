@@ -37,7 +37,7 @@ use crate::memline::{
     ML_LINE_DIRTY, ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf,
     ml_get_buf_len, ml_replace_buf,
 };
-use crate::memory::{Arena, arena_alloc, arena_allocz, arena_memdupz, memchrsub, strchrsub};
+use crate::memory::{Arena, arena_alloc, arena_allocz, arena_memdupz};
 use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
 use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
@@ -486,7 +486,7 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
         for i in 0..new_len {
             let l = replacement[i].data.string();
             let p = arena_memdupz(arena, l.data, l.size);
-            memchrsub(p.cast(), NUL, NL, l.size);
+            { let _d = (p).cast::<u8>(); let _sz = l.size; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
             *lines.add(i) = p;
         }
 
@@ -784,12 +784,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
                 first_item.size,
             );
         }
-        memchrsub(
-            first.add(start_col as usize).cast(),
-            NUL,
-            NL,
-            first_item.size,
-        );
+        { let _d = (first.add(start_col as usize)).cast::<u8>(); let _sz = first_item.size; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
         if replacement.size == 1 {
             ptr::copy_nonoverlapping(
                 str_at_end.add(end_col as usize),
@@ -801,7 +796,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
             if last_item.size > 0 {
                 ptr::copy_nonoverlapping(last_item.data, last, last_item.size);
             }
-            memchrsub(last.cast(), NUL, NL, last_item.size);
+            { let _d = (last).cast::<u8>(); let _sz = last_item.size; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
             ptr::copy_nonoverlapping(
                 str_at_end.add(end_col as usize),
                 last.add(last_item.size),
@@ -816,7 +811,7 @@ pub unsafe extern "C" fn nvim_buf_set_text(
         for i in 1..new_len.saturating_sub(1) {
             let l = replacement[i].data.string();
             let p = arena_memdupz(arena, l.data, l.size);
-            memchrsub(p.cast(), NUL, NL, l.size);
+            { let _d = (p).cast::<u8>(); let _sz = l.size; if _sz > 0 { let _c = (NUL) as u8; let _x = (NL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
             *lines.add(i) = p;
             new_byte += (l.size as bcount_t) + 1;
         }
@@ -1936,7 +1931,7 @@ unsafe fn push_linestr(
         if !lstate.is_null() {
             if !s.is_null() && replace_nl && CStr::from_ptr(s).to_bytes().contains(&b'\n') {
                 let mut tmp: Vec<c_char> = std::slice::from_raw_parts(s, len + 1).to_vec();
-                strchrsub(tmp.as_mut_ptr(), NL, NUL);
+                { let _p = tmp.as_mut_ptr(); let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (NL) as u8 { *_b = (NUL) as u8; } } };
                 lua_pushlstring(lstate, tmp.as_ptr(), len);
             } else {
                 lua_pushlstring(lstate, s, len);
@@ -1950,7 +1945,7 @@ unsafe fn push_linestr(
             if len > 0 {
                 let data = arena_memdupz(arena, s, len);
                 if replace_nl {
-                    strchrsub(data, NL, NUL);
+                    { let _p = data; let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (NL) as u8 { *_b = (NUL) as u8; } } };
                 }
                 str_val = NvimString { data, size: len };
             }

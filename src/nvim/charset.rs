@@ -8,7 +8,7 @@ use crate::mbyte::{
     utf_char2cells, utf_char2len, utf_class_tab, utf_printable, utf_ptr2StrCharInfo, utf_ptr2char,
     utf_ptr2len, utf8len_tab, utfc_ptr2len,
 };
-use crate::memory::{cstr_from_bytes, xstrchrnul};
+use crate::memory::{cstr_from_bytes};
 use crate::option::{get_fileformat, skip_to_option_part};
 use crate::option_vars::*;
 use crate::path::path_has_wildcard;
@@ -903,7 +903,7 @@ pub unsafe fn skiptowhite_esc(mut p: *const c_char) -> *mut c_char {
 }
 
 pub unsafe fn skip_to_newline(p: *const c_char) -> *mut c_char {
-    unsafe { xstrchrnul(p, NL) }
+    unsafe { { let _s = p; let _b = std::ffi::CStr::from_ptr(_s).to_bytes(); let _off = _b.iter().position(|&_x| _x == (NL) as u8).unwrap_or(_b.len()); _s.add(_off).cast_mut() } }
 }
 
 pub unsafe fn try_getdigits(pp: *mut *mut c_char, nr: *mut i64) -> bool {

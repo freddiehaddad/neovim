@@ -56,7 +56,7 @@ use crate::mbyte::{
     mb_string2cells_len, mb_unescape, ptr2cells, utf_char2bytes, utf_char2cells, utf_head_off,
     utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf8len_tab, utfc_ptr2len, utfc_ptr2len_len,
 };
-use crate::memory::{Arena, arena_alloc, strequal, xmemrchr, xstrlcat, xstrlcpy, xstrnlen};
+use crate::memory::{Arena, arena_alloc, strequal, xstrlcat, xstrlcpy, xstrnlen};
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::shortmess;
@@ -2893,7 +2893,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
                 (*last_chunk).extend_from_slice(std::slice::from_raw_parts(str_, len));
             }
 
-            let lastline = xmemrchr(str_.cast(), b'\n', len).cast::<c_char>();
+            let lastline = { let _s = (str_).cast::<u8>(); let _sz = len; if _sz == 0 { std::ptr::null_mut::<std::ffi::c_void>() } else { std::slice::from_raw_parts(_s, _sz).iter().rposition(|&_b| _b == b'\n').map_or(std::ptr::null_mut::<std::ffi::c_void>(), |_i| _s.add(_i).cast_mut().cast::<std::ffi::c_void>()) } }.cast::<c_char>();
             let p = if !lastline.is_null() {
                 lastline.add(1)
             } else {

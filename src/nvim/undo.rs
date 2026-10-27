@@ -48,7 +48,7 @@ use crate::mcursor::mc_undo_time;
 #[cfg(unix)]
 use crate::memline::resolve_symlink;
 use crate::memline::{ml_append_flags, ml_delete, ml_get, ml_get_buf, ml_replace};
-use crate::memory::{time_to_bytes, xstrlcat};
+use crate::memory::{xstrlcat};
 use crate::message::{
     emsg, give_warning, iemsg, internal_error, messaging, msg, msg_end, msg_ext_set_kind,
     msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, smsg, smsg_keep, verb_msg, verbose_enter,
@@ -772,8 +772,7 @@ unsafe fn serialize_header(bi: &mut bufinfo_T, hash: *mut u8) -> bool {
         undo_write_bytes(bi, (*buf).b_u_numhead as u64, 4);
         undo_write_bytes(bi, (*buf).b_u_seq_last as u64, 4);
         undo_write_bytes(bi, (*buf).b_u_seq_cur as u64, 4);
-        let mut time_buf = [0u8; 8];
-        time_to_bytes((*buf).b_u_time_cur, time_buf.as_mut_ptr());
+        let mut time_buf = ((*buf).b_u_time_cur as u64).to_be_bytes();
         undo_write(bi, time_buf.as_mut_ptr(), time_buf.len());
 
         undo_write_bytes(bi, 4, 1);
@@ -805,8 +804,7 @@ unsafe fn serialize_uhp(bi: &mut bufinfo_T, uhp: usize) -> bool {
             serialize_pos(bi, uhp_ref(buf, uhp).uh_namedm[i].mark);
         }
         serialize_visualinfo(bi, &raw mut uhp_mut(buf, uhp).uh_visual);
-        let mut time_buf = [0u8; 8];
-        time_to_bytes(uhp_ref(buf, uhp).uh_time, time_buf.as_mut_ptr());
+        let mut time_buf = (uhp_ref(buf, uhp).uh_time as u64).to_be_bytes();
         undo_write(bi, time_buf.as_mut_ptr(), time_buf.len());
 
         undo_write_bytes(bi, 4, 1);

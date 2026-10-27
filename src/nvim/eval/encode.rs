@@ -19,7 +19,7 @@ use crate::hashtab::{hashitem_T, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2len, utf_printable, utf_ptr2char, utf_ptr2len};
-use crate::memory::{cstr_from_bytes, memchrsub, memcnt, xmemscan};
+use crate::memory::{cstr_from_bytes};
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{
     PackerBuffer, mpack_array, mpack_bin, mpack_bool, mpack_check_buffer, mpack_ext, mpack_float8,
@@ -128,7 +128,7 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
         let li = tv_list_last(list);
 
         if !li.is_null() {
-            line_end = xmemscan(buf.cast(), NL as c_char, len)
+            line_end = { let _a = (buf).cast::<u8>(); let _sz = len; let _off = if _sz == 0 { 0 } else { std::slice::from_raw_parts(_a, _sz).iter().position(|&_b| _b == (NL as c_char) as u8).unwrap_or(_sz) }; _a.add(_off).cast_mut().cast::<std::ffi::c_void>() }
                 .cast_const()
                 .cast::<c_char>();
             if line_end != buf {
@@ -145,7 +145,7 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
                 }
                 let dst = combined.as_mut_ptr().add(li_len);
                 std::ptr::copy_nonoverlapping(buf.cast::<u8>(), dst.cast::<u8>(), line_length);
-                memchrsub(dst.cast(), 0, NL as c_char, line_length);
+                { let _d = (dst).cast::<u8>(); let _sz = line_length; if _sz > 0 { let _c = (0) as u8; let _x = (NL as c_char) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
                 crate::eval::typval::tv_set_string_len(
                     &raw mut (*li).li_tv,
                     combined.as_ptr(),
@@ -157,11 +157,7 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
 
         while (line_end as usize) < (end as usize) {
             let line_start = line_end;
-            line_end = xmemscan(
-                line_start.cast(),
-                NL as c_char,
-                (end as usize) - (line_start as usize),
-            )
+            line_end = { let _a = (line_start).cast::<u8>(); let _sz = (end as usize) - (line_start as usize); let _off = if _sz == 0 { 0 } else { std::slice::from_raw_parts(_a, _sz).iter().position(|&_b| _b == (NL as c_char) as u8).unwrap_or(_sz) }; _a.add(_off).cast_mut().cast::<std::ffi::c_void>() }
             .cast_const()
             .cast::<c_char>();
             if line_end != line_start {
@@ -172,7 +168,7 @@ pub unsafe fn encode_list_write(list: *mut list_T, buf: *const c_char, len: usiz
                     line_buf.as_mut_ptr().cast::<u8>(),
                     line_length,
                 );
-                memchrsub(line_buf.as_mut_ptr().cast(), 0, NL as c_char, line_length);
+                { let _d = (line_buf.as_mut_ptr()).cast::<u8>(); let _sz = line_length; if _sz > 0 { let _c = (0) as u8; let _x = (NL as c_char) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
                 crate::eval::typval::tv_list_append_string(
                     list,
                     line_buf.as_ptr(),
@@ -463,7 +459,7 @@ unsafe fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: *const c_char,
         if buf.is_null() {
             ga_concat_literal(gap, b"''");
         } else {
-            let quotes = memcnt(buf.cast(), b'\'' as c_char, len);
+            let quotes = { let _d = (buf).cast::<u8>(); let _sz = len; if _sz == 0 { 0 } else { std::slice::from_raw_parts(_d, _sz).iter().filter(|&&_b| _b == (b'\'' as c_char) as u8).count() } };
             gap.reserve(2 + len + quotes);
             gap.push(b'\'');
             let bytes = std::slice::from_raw_parts(buf.cast::<u8>(), len);

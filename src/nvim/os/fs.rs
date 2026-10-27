@@ -13,7 +13,7 @@ use crate::globals::*;
 use crate::log::logmsg;
 #[cfg(windows)]
 use crate::mbyte::{mb_strnicmp, utf8_to_utf16, utf16_to_utf8};
-use crate::memory::{cstr_to_cstring, memcnt, xmemcpyz, xstrchrnul, xstrlcpy};
+use crate::memory::{cstr_to_cstring, xmemcpyz, xstrlcpy};
 use crate::message::{emsg, semsg, smsg, verbose_enter, verbose_leave};
 #[cfg(windows)]
 use crate::option::copy_option_part;
@@ -659,7 +659,7 @@ unsafe fn is_executable_ext(
 
         let buf = (&raw mut g_st().os_buf).cast::<c_char>();
         xstrlcpy(buf, name, MAXPATHL);
-        let buf_end = xstrchrnul(buf, NUL);
+        let buf_end = buf.add(std::ffi::CStr::from_ptr(buf).to_bytes().len());
         let mut pathext_buf = [0 as c_char; MAXPATHL];
         let mut pathext: *const c_char = os_getenv_buf(
             c"PATHEXT".as_ptr(),
@@ -746,7 +746,7 @@ unsafe fn is_executable_in_path(
         let mut p = path;
         let mut rv = false;
         loop {
-            let e = xstrchrnul(p, ENV_SEPCHAR as c_char);
+            let e = { let _s = p; let _b = std::ffi::CStr::from_ptr(_s).to_bytes(); let _off = _b.iter().position(|&_x| _x == (ENV_SEPCHAR as c_char) as u8).unwrap_or(_b.len()); _s.add(_off).cast_mut() };
             let _ = xmemcpyz(buf.cast(), p.cast(), (e as usize) - (p as usize));
             let _ = append_path(buf, name, bufsize);
 
@@ -1430,7 +1430,7 @@ pub unsafe fn os_mkdir_recurse(
             let component_len = std::ffi::CStr::from_ptr(e).to_bytes().len();
             e = e.add(component_len);
             if ptr::eq(e, real_end)
-                && memcnt(e.sub(component_len).cast(), PATHSEP, component_len) == component_len
+                && { let _d = (e.sub(component_len)).cast::<u8>(); let _sz = component_len; if _sz == 0 { 0 } else { std::slice::from_raw_parts(_d, _sz).iter().filter(|&&_b| _b == (PATHSEP) as u8).count() } } == component_len
             {
                 break;
             }

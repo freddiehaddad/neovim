@@ -49,7 +49,7 @@ use crate::mbyte::{
 };
 use crate::memline::ml_get;
 use crate::memory::{
-    Arena, cstr_from_bytes, cstr_to_cstring, memcnt, strequal, xmemcpyz, xstrlcat, xstrlcpy,
+    Arena, cstr_from_bytes, cstr_to_cstring, strequal, xmemcpyz, xstrlcat, xstrlcpy,
 };
 #[cfg(windows)]
 use crate::message::msg_source;
@@ -2201,7 +2201,7 @@ unsafe fn compute_double_env_sep_len(
             iter = vim_env_iter(ENV_SEPCHAR, val, iter, &mut dir, &mut dir_len);
             if !dir.is_null() && dir_len > 0 {
                 ret += (dir_len
-                    + memcnt(dir.cast(), b',' as c_char, dir_len)
+                    + std::slice::from_raw_parts(dir.cast::<u8>(), dir_len).iter().filter(|&&b| b == b',').count()
                     + common_suf_len
                     + usize::from(after_pathsep(dir, dir.add(dir_len)) == 0))
                     * 2
@@ -2390,7 +2390,7 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> 
             };
             if data_len != 0 {
                 rtp_size += (data_len
-                    + memcnt(data_home.cast(), b',' as c_char, data_len)
+                    + std::slice::from_raw_parts(data_home.cast::<u8>(), data_len).iter().filter(|&&b| b == b',').count()
                     + nvim_data_size
                     + 1
                     + SITE_SIZE
@@ -2405,7 +2405,7 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> 
             config_len = ch.as_bytes().len();
             if config_len != 0 {
                 rtp_size += (config_len
-                    + memcnt(config_home.cast(), b',' as c_char, config_len)
+                    +  ch.as_bytes().iter().filter(|&&b| b == b',').count()
                     + appname_len
                     + 1
                     + usize::from(after_pathsep(config_home, config_home.add(config_len)) == 0))
@@ -2418,13 +2418,13 @@ pub unsafe fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> 
             vimruntime_len = vr.as_bytes().len();
             if vimruntime_len != 0 {
                 rtp_size +=
-                    vimruntime_len + memcnt(vimruntime.cast(), b',' as c_char, vimruntime_len) + 1;
+                    vimruntime_len + vr.as_bytes().iter().filter(|&&b| b == b',').count() + 1;
             }
         }
         if let Some(ref ld) = libdir_cstr {
             libdir_len = ld.as_bytes().len();
             if libdir_len != 0 {
-                rtp_size += libdir_len + memcnt(libdir.cast(), b',' as c_char, libdir_len) + 1;
+                rtp_size += libdir_len + ld.as_bytes().iter().filter(|&&b| b == b',').count() + 1;
             }
         }
         rtp_size +=

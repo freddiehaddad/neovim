@@ -52,7 +52,7 @@ use crate::memfile::mf_fullname;
 use crate::memline::{
     check_need_swap, ml_append, ml_delete, ml_get, ml_get_buf, ml_get_len, ml_open,
 };
-use crate::memory::{cstr_to_cstring, memchrsub, strequal, time_to_bytes, xstrlcat, xstrlcpy};
+use crate::memory::{cstr_to_cstring, strequal, xstrlcat, xstrlcpy};
 use crate::message::{
     emsg, msg, msg_check_for_delay, msg_clr_eos, msg_delay, msg_end, msg_may_trunc, msg_outtrans,
     msg_progress, msg_putchar, msg_puts, msg_puts_hl, msg_schedule_semsg, msg_start, msg_trunc,
@@ -3532,8 +3532,7 @@ pub unsafe fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
 /// Writes time_t to file "fd" in 8 bytes.
 pub unsafe fn put_time(fd: *mut FILE, time_: time_t) -> c_int {
     unsafe {
-        let mut buf: [u8; 8] = [0; 8];
-        time_to_bytes(time_, buf.as_mut_ptr());
+        let buf: [u8; 8] = (time_ as u64).to_be_bytes();
         if fwrite(buf.as_ptr().cast(), size_of::<u8>(), buf.len(), fd) == 1 {
             OK
         } else {
@@ -4148,18 +4147,8 @@ unsafe fn vim_mktempdir() {
         let mut user: [c_char; 40] = [0; 40];
 
         os_get_username(user.as_mut_ptr(), user.len());
-        memchrsub(
-            user.as_mut_ptr().cast(),
-            b'/' as c_char,
-            b'_' as c_char,
-            user.len(),
-        );
-        memchrsub(
-            user.as_mut_ptr().cast(),
-            b'\\' as c_char,
-            b'_' as c_char,
-            user.len(),
-        );
+        { let _d = (user.as_mut_ptr()).cast::<u8>(); let _sz = user.len(); if _sz > 0 { let _c = (b'/' as c_char) as u8; let _x = (b'_' as c_char) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
+        { let _d = (user.as_mut_ptr()).cast::<u8>(); let _sz = user.len(); if _sz > 0 { let _c = (b'\\' as c_char) as u8; let _x = (b'_' as c_char) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
 
         let umask_save = call_umask(0o077);
         for temp_dir in TEMP_DIRS {

@@ -37,7 +37,7 @@ use crate::mbyte::{
     utf_ptr2char, utfc_ptr2len,
 };
 use crate::memline::{ml_append, ml_delete, ml_get_buf, ml_get_buf_len};
-use crate::memory::{memchrsub, strequal};
+use crate::memory::{strequal};
 use crate::message::{emsg, semsg};
 use crate::r#move::{
     changed_line_abv_curs, changed_line_abv_curs_win, changed_window_setting, check_topfill,
@@ -821,7 +821,7 @@ unsafe fn diff_write_buffer(
             } else {
                 let slen = std::ffi::CStr::from_ptr(s).to_bytes().len();
                 ptr::copy(s, ptr.add(len), slen);
-                memchrsub(ptr.add(len).cast(), NL, NUL, slen);
+                { let _d = (ptr.add(len)).cast::<u8>(); let _sz = slen; if _sz > 0 { let _c = (NL) as u8; let _x = (NUL) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
                 len += slen;
             }
             *ptr.add(len) = NL;

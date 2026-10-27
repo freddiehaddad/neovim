@@ -12,8 +12,6 @@ use crate::math::{FAIL, OK};
 #[cfg(unix)]
 use crate::mbyte::mb_isalpha;
 use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utf_ptr2char, utfc_ptr2len};
-#[cfg(windows)]
-use crate::memory::strchrsub;
 use crate::memory::{cstr_from_bytes, cstr_to_cstring, xmemcpyz, xstrlcat, xstrlcpy};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
@@ -1509,7 +1507,7 @@ pub unsafe fn slash_adjust(p: *mut c_char) {
 
         let from = if opt_vars().p_ssl != 0 { b'\\' as c_char } else { PATHSEP };
         let to = if opt_vars().p_ssl != 0 { PATHSEP } else { b'\\' as c_char };
-        strchrsub(p, from, to);
+        { let _p = p; let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (from) as u8 { *_b = (to) as u8; } } };
     }
 }
 
@@ -1517,7 +1515,7 @@ pub unsafe fn slash_adjust(p: *mut c_char) {
 pub unsafe fn path_to_backslash(p: *mut c_char) -> *mut c_char {
     if !p.is_null() {
         unsafe {
-            strchrsub(p, PATHSEP, b'\\' as c_char);
+            { let _p = p; let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (PATHSEP) as u8 { *_b = (b'\\' as c_char) as u8; } } };
         }
     }
     p
@@ -1528,7 +1526,7 @@ pub unsafe fn path_to_slash(p: *mut c_char) -> *mut c_char {
     if !p.is_null() {
         unsafe {
             if path_with_url(p) == 0 {
-                strchrsub(p, b'\\' as c_char, PATHSEP);
+                { let _p = p; let _len = std::ffi::CStr::from_ptr(_p).to_bytes().len(); for _b in std::slice::from_raw_parts_mut(_p.cast::<u8>(), _len) { if *_b == (b'\\' as c_char) as u8 { *_b = (PATHSEP) as u8; } } };
             }
         }
     }

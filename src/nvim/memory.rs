@@ -310,82 +310,6 @@ pub unsafe fn xstrnlen(s: *const c_char, n: usize) -> usize {
     slice.iter().position(|&b| b == 0).unwrap_or(n)
 }
 
-/// Find `c` in `str_ptr` or return a pointer to its terminating NUL (`xstrchrnul`).
-pub unsafe fn xstrchrnul(str_ptr: *const c_char, c: c_char) -> *mut c_char {
-    let target = c as u8;
-    let mut p = str_ptr.cast::<u8>();
-    loop {
-        let b = unsafe { *p };
-        if b == target || b == 0 {
-            return p.cast::<c_char>().cast_mut();
-        }
-        p = unsafe { p.add(1) };
-    }
-}
-
-/// Find `c` in `addr[..size]` or return `addr + size` (`xmemscan`).
-pub unsafe fn xmemscan(addr: *const c_void, c: c_char, size: usize) -> *mut c_void {
-    if size == 0 {
-        return addr.cast_mut();
-    }
-    let slice = unsafe { std::slice::from_raw_parts(addr.cast::<u8>(), size) };
-    let offset = slice.iter().position(|&b| b == (c as u8)).unwrap_or(size);
-    unsafe { addr.cast::<u8>().add(offset).cast::<c_void>().cast_mut() }
-}
-
-/// Replace every occurrence of non-NUL `c` in C string `str_ptr` with `x` (`strchrsub`).
-pub unsafe fn strchrsub(str_ptr: *mut c_char, c: c_char, x: c_char) {
-    assert_ne!(c, 0);
-    let target = c as u8;
-    let replacement = x as u8;
-    let mut p = str_ptr.cast::<u8>();
-    loop {
-        let b = unsafe { *p };
-        if b == 0 {
-            break;
-        }
-        if b == target {
-            unsafe {
-                *p = replacement;
-            }
-        }
-        p = unsafe { p.add(1) };
-    }
-}
-
-/// Replace every occurrence of `c` in `data[..len]` with `x` (`memchrsub`).
-pub unsafe fn memchrsub(data: *mut c_void, c: c_char, x: c_char, len: usize) {
-    if len == 0 {
-        return;
-    }
-    let target = c as u8;
-    let replacement = x as u8;
-    let slice = unsafe { std::slice::from_raw_parts_mut(data.cast::<u8>(), len) };
-    for b in slice {
-        if *b == target {
-            *b = replacement;
-        }
-    }
-}
-
-/// Count occurrences of `c` in `data[..len]` (`memcnt`).
-pub unsafe fn memcnt(data: *const c_void, c: c_char, len: usize) -> usize {
-    if len == 0 {
-        return 0;
-    }
-    let slice = unsafe { std::slice::from_raw_parts(data.cast::<u8>(), len) };
-    slice.iter().filter(|&&b| b == (c as u8)).count()
-}
-
-/// Copy `src` to `dst` (including NUL) and return a pointer to the trailing NUL (`xstpcpy`).
-pub unsafe fn xstpcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char {
-    let len = unsafe { CStr::from_ptr(src).to_bytes().len() };
-    unsafe {
-        std::ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), len + 1);
-        dst.add(len)
-    }
-}
-
 /// Copy `src` into sized buffer `dst[..dsize]` (`xstrlcpy`).
 pub unsafe fn xstrlcpy(dst: *mut c_char, src: *const c_char, dsize: usize) -> usize {
     let slen = unsafe { CStr::from_ptr(src).to_bytes().len() };
@@ -442,19 +366,6 @@ pub fn cstr_from_bytes(bytes: &[u8]) -> CString {
     unsafe { CString::from_vec_with_nul_unchecked(v) }
 }
 
-/// Reverse search for byte `c` in `src[..len]` (`xmemrchr`).
-pub unsafe fn xmemrchr(src: *const c_void, c: u8, len: usize) -> *mut c_void {
-    if len == 0 {
-        return std::ptr::null_mut();
-    }
-    let slice = unsafe { std::slice::from_raw_parts(src.cast::<u8>(), len) };
-    if let Some(pos) = slice.iter().rposition(|&b| b == c) {
-        unsafe { src.cast::<u8>().add(pos).cast::<c_void>().cast_mut() }
-    } else {
-        std::ptr::null_mut()
-    }
-}
-
 /// Return true if C string `a` equals Rust string `b` (`strequal_str`).
 #[inline]
 pub unsafe fn strequal_str(a: *const c_char, b: &str) -> bool {
@@ -486,14 +397,6 @@ pub unsafe fn strequal(a: *const c_char, b: *const c_char) -> bool {
         return false;
     }
     unsafe { CStr::from_ptr(a).to_bytes() == CStr::from_ptr(b).to_bytes() }
-}
-
-/// Write `time_` as 8 big-endian bytes into `buf[0..8]` (`time_to_bytes`).
-pub unsafe fn time_to_bytes(time_val: i64, buf: *mut u8) {
-    let bytes = (time_val as u64).to_be_bytes();
-    unsafe {
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), buf, 8);
-    }
 }
 
 /// Finish allocations in `arena` and return an `ArenaMem` handle (`arena_finish`).
