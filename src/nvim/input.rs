@@ -2502,12 +2502,10 @@ unsafe fn handle_mapping(
             let save_m_noremap = (*mp).m_noremap;
             let save_m_silent = (*mp).m_silent != 0;
             let mut save_m_keys: Option<std::ffi::CString> = None;
-            let mut save_alt_m_keys: Option<std::ffi::CString> = None;
-            let save_alt_m_keylen = if !(*mp).m_alt.is_null() {
-                (*(*mp).m_alt).m_keylen
-            } else {
-                0
-            };
+            let save_alt_m_keys = (*mp).alt_keys();
+            let save_alt_m_keylen = save_alt_m_keys
+                .as_ref()
+                .map_or(0, |k| k.as_bytes().len() as c_int);
 
             let mut owned_map_str: Option<std::ffi::CString> = None;
             let map_str: *mut c_char = if save_m_expr {
@@ -2519,11 +2517,6 @@ unsafe fn handle_mapping(
                 may_garbage_collect = false;
 
                 save_m_keys = Some((*mp).m_keys.clone());
-                save_alt_m_keys = if !(*mp).m_alt.is_null() {
-                    Some((*(*mp).m_alt).m_keys.clone())
-                } else {
-                    None
-                };
                 owned_map_str = eval_map_expr(mp, NUL);
 
                 if owned_map_str
@@ -2572,12 +2565,9 @@ unsafe fn handle_mapping(
                         })
                 } else {
                     strncmp(map_str, (*mp).m_keys.as_ptr(), keylen as usize) == 0
-                        || (!(*mp).m_alt.is_null()
-                            && strncmp(
-                                map_str,
-                                (*(*mp).m_alt).m_keys.as_ptr(),
-                                (*(*mp).m_alt).m_keylen as usize,
-                            ) == 0)
+                        || save_alt_m_keys.as_ref().is_some_and(|alt| {
+                            strncmp(map_str, alt.as_ptr(), save_alt_m_keylen as usize) == 0
+                        })
                 } {
                     REMAP_SKIP
                 } else {

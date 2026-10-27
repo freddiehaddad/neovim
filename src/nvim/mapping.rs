@@ -83,9 +83,13 @@ const kCpoBslash: c_int = b'B' as c_int;
 const KEYSET_OPTIDX_keymap__desc: u64 = 1;
 const KEYSET_OPTIDX_keymap__callback: u64 = 8;
 
+pub struct MapAltLink {
+    pub keys: [std::cell::Cell<Option<CString>>; 2],
+}
+
 #[repr(C)]
 pub struct mapblock_T {
-    pub m_alt: *mut mapblock_T,
+    pub m_alt: Option<std::rc::Rc<MapAltLink>>,
     pub m_keys: CString,
     pub m_str: CString,
     pub m_orig_str: CString,
@@ -102,14 +106,38 @@ pub struct mapblock_T {
     pub m_replace_keycodes: bool,
 }
 
+impl mapblock_T {
+    #[inline]
+    pub fn alt_keys(&self) -> Option<CString> {
+        let rc = self.m_alt.as_ref()?;
+        let slot = &rc.keys[usize::from(self.m_simplified == 0)];
+        let v = slot.take();
+        slot.set(v.clone());
+        v
+    }
+
+    #[inline]
+    unsafe fn clear_alt_or_luaref(&mut self) {
+        if let Some(alt) = self.m_alt.take() {
+            alt.keys[0].set(None);
+            alt.keys[1].set(None);
+            if std::rc::Rc::strong_count(&alt) == 1 {
+                unsafe {
+                    nlua_clear_ref(&mut self.m_luaref);
+                }
+            }
+        } else {
+            unsafe {
+                nlua_clear_ref(&mut self.m_luaref);
+            }
+        }
+    }
+}
+
 impl Drop for mapblock_T {
     fn drop(&mut self) {
         unsafe {
-            if !self.m_alt.is_null() {
-                (*self.m_alt).m_alt = ptr::null_mut();
-            } else {
-                nlua_clear_ref(&mut self.m_luaref);
-            }
+            self.clear_alt_or_luaref();
         }
     }
 }
@@ -697,7 +725,7 @@ unsafe fn map_add(
             ctx
         };
         let mut mp = Box::pin(mapblock_T {
-            m_alt: ptr::null_mut(),
+            m_alt: None,
             m_keys,
             m_str: args.rhs.clone().unwrap_or_default(),
             m_orig_str: args.orig_rhs.clone().unwrap_or_default(),
@@ -984,12 +1012,7 @@ unsafe fn buf_do_map(
                                     } else {
                                         (*mp).m_mode &= !mode;
                                         if (*mp).m_mode == 0 && !did_it {
-                                            if !(*mp).m_alt.is_null() {
-                                                (*(*mp).m_alt).m_alt = ptr::null_mut();
-                                                (*mp).m_alt = ptr::null_mut();
-                                            } else {
-                                                nlua_clear_ref(&mut (*mp).m_luaref);
-                                            }
+                                            (*mp).clear_alt_or_luaref();
                                             (*mp).m_str = args.rhs.clone().unwrap_or_default();
                                             (*mp).m_orig_str =
                                                 args.orig_rhs.clone().unwrap_or_default();
@@ -1078,8 +1101,14 @@ unsafe fn buf_do_map(
             }
 
             if !mp_result[0].is_null() && !mp_result[1].is_null() {
-                (*mp_result[0]).m_alt = mp_result[1];
-                (*mp_result[1]).m_alt = mp_result[0];
+                let alt = std::rc::Rc::new(MapAltLink {
+                    keys: [
+                        std::cell::Cell::new(Some((*mp_result[0]).m_keys.clone())),
+                        std::cell::Cell::new(Some((*mp_result[1]).m_keys.clone())),
+                    ],
+                });
+                (*mp_result[0]).m_alt = Some(alt.clone());
+                (*mp_result[1]).m_alt = Some(alt);
             }
         }
 
@@ -2490,8 +2519,14 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
         }
 
         if !mp_result[0].is_null() && !mp_result[1].is_null() {
-            (*mp_result[0]).m_alt = mp_result[1];
-            (*mp_result[1]).m_alt = mp_result[0];
+            let alt = std::rc::Rc::new(MapAltLink {
+                keys: [
+                    std::cell::Cell::new(Some((*mp_result[0]).m_keys.clone())),
+                    std::cell::Cell::new(Some((*mp_result[1]).m_keys.clone())),
+                ],
+            });
+            (*mp_result[0]).m_alt = Some(alt.clone());
+            (*mp_result[1]).m_alt = Some(alt);
         }
     }
 }
@@ -3046,11 +3081,8 @@ pub unsafe fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena)
                 if (*current_maphash).m_simplified == 0
                     && (int_mode & (*current_maphash).m_mode) != 0
                 {
-                    let alt_keys = if !(*current_maphash).m_alt.is_null() {
-                        (*(*current_maphash).m_alt).m_keys.as_ptr()
-                    } else {
-                        ptr::null()
-                    };
+                    let alt_cstr = (*current_maphash).alt_keys();
+                    let alt_keys = alt_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr());
                     mappings.push(dict_obj(mapblock_fill_dict(
                         current_maphash,
                         alt_keys,
