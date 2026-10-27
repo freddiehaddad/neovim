@@ -599,14 +599,13 @@ impl Drop for DictWatcher {
     }
 }
 
-#[repr(C)]
 struct sortinfo_T {
     item_compare_ic: c_int,
     item_compare_lc: bool,
     item_compare_numeric: bool,
     item_compare_numbers: bool,
     item_compare_float: bool,
-    item_compare_func: *const c_char,
+    item_compare_func: Option<std::ffi::CString>,
     item_compare_partial: *mut partial_T,
     item_compare_selfdict: *mut dict_T,
     item_compare_func_err: bool,
@@ -621,7 +620,7 @@ impl sortinfo_T {
             item_compare_numeric: false,
             item_compare_numbers: false,
             item_compare_float: false,
-            item_compare_func: ptr::null(),
+            item_compare_func: None,
             item_compare_partial: ptr::null_mut(),
             item_compare_selfdict: ptr::null_mut(),
             item_compare_func_err: false,
@@ -667,14 +666,11 @@ struct ListSortItem {
     key: ListSortKey,
 }
 
-type ListSorter = unsafe fn(&ListSortItem, &ListSortItem) -> c_int;
-
 pub static mut tv_in_free_unref_items: bool = false;
 
 static TV_EMPTY_STRING_BYTE: c_char = 0;
 pub const tv_empty_string: *const c_char = &raw const TV_EMPTY_STRING_BYTE;
 
-static mut SORTINFO: *mut sortinfo_T = ptr::null_mut();
 static mut TV_EQUAL_RECURSE_LIMIT: c_int = 0;
 
 static E_VARIABLE_NESTED_TOO_DEEP_FOR_UNLOCK: &CStr =
@@ -1921,7 +1917,12 @@ pub unsafe fn tv_list_remove(
 }
 
 /// Compare functions for f_sort() and f_uniq().
-unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) -> c_int {
+unsafe fn item_compare(
+    si1: &ListSortItem,
+    si2: &ListSortItem,
+    keep_zero: bool,
+    info: &sortinfo_T,
+) -> c_int {
     unsafe {
         let item1 = si1.item;
         let item2 = si2.item;
@@ -1931,13 +1932,13 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
 
         let mut res: c_int;
 
-        if (*SORTINFO).item_compare_numbers {
-            let v1 = if (*SORTINFO).item_compare_keys_ready {
+        if info.item_compare_numbers {
+            let v1 = if info.item_compare_keys_ready {
                 si1.key.as_int()
             } else {
                 tv_get_number(tv1)
             };
-            let v2 = if (*SORTINFO).item_compare_keys_ready {
+            let v2 = if info.item_compare_keys_ready {
                 si2.key.as_int()
             } else {
                 tv_get_number(tv2)
@@ -1956,13 +1957,13 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
             return res;
         }
 
-        if (*SORTINFO).item_compare_float {
-            let v1 = if (*SORTINFO).item_compare_keys_ready {
+        if info.item_compare_float {
+            let v1 = if info.item_compare_keys_ready {
                 si1.key.as_float()
             } else {
                 tv_get_float(tv1)
             };
-            let v2 = if (*SORTINFO).item_compare_keys_ready {
+            let v2 = if info.item_compare_keys_ready {
                 si2.key.as_float()
             } else {
                 tv_get_float(tv2)
@@ -1981,7 +1982,7 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
             return res;
         }
 
-        if (*SORTINFO).item_compare_numeric && (*SORTINFO).item_compare_keys_ready {
+        if info.item_compare_numeric && info.item_compare_keys_ready {
             let n1 = si1.key.as_float();
             let n2 = si2.key.as_float();
 
@@ -2004,7 +2005,7 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
         let mut p2: *mut c_char;
 
         if (*tv1).v_type == VarType::VAR_STRING {
-            if (*tv2).v_type != VarType::VAR_STRING || (*SORTINFO).item_compare_numeric {
+            if (*tv2).v_type != VarType::VAR_STRING || info.item_compare_numeric {
                 p1 = c"'".as_ptr().cast_mut();
             } else {
                 p1 = (*tv1).vval.v_string();
@@ -2015,7 +2016,7 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
             tofree1 = Some(s1);
         }
         if (*tv2).v_type == VarType::VAR_STRING {
-            if (*tv1).v_type != VarType::VAR_STRING || (*SORTINFO).item_compare_numeric {
+            if (*tv1).v_type != VarType::VAR_STRING || info.item_compare_numeric {
                 p2 = c"'".as_ptr().cast_mut();
             } else {
                 p2 = (*tv2).vval.v_string();
@@ -2031,10 +2032,10 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
         if p2.is_null() {
             p2 = c"".as_ptr().cast_mut();
         }
-        if !(*SORTINFO).item_compare_numeric {
-            if (*SORTINFO).item_compare_lc {
+        if !info.item_compare_numeric {
+            if info.item_compare_lc {
                 res = strcoll(p1, p2);
-            } else if (*SORTINFO).item_compare_ic != 0 {
+            } else if info.item_compare_ic != 0 {
                 res = vim_stricmp(p1, p2);
             } else {
                 res = strcmp(p1, p2);
@@ -2061,26 +2062,25 @@ unsafe fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) 
     }
 }
 
-unsafe fn item_compare_keeping_zero(s1: &ListSortItem, s2: &ListSortItem) -> c_int {
-    unsafe { item_compare(s1, s2, true) }
-}
-
-unsafe fn item_compare_not_keeping_zero(s1: &ListSortItem, s2: &ListSortItem) -> c_int {
-    unsafe { item_compare(s1, s2, false) }
-}
-
-unsafe fn item_compare2(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool) -> c_int {
+unsafe fn item_compare2(
+    si1: &ListSortItem,
+    si2: &ListSortItem,
+    keep_zero: bool,
+    info: &mut sortinfo_T,
+) -> c_int {
     unsafe {
-        if (*SORTINFO).item_compare_func_err {
+        if info.item_compare_func_err {
             return 0;
         }
 
         let item1 = si1.item;
         let item2 = si2.item;
 
-        let partial = (*SORTINFO).item_compare_partial;
+        let partial = info.item_compare_partial;
         let func_name = if partial.is_null() {
-            (*SORTINFO).item_compare_func
+            info.item_compare_func
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr())
         } else {
             partial_name(partial)
         };
@@ -2093,7 +2093,7 @@ unsafe fn item_compare2(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool)
         let mut funcexe: funcexe_T = funcexe_T::new();
         funcexe.fe_evaluate = true;
         funcexe.fe_partial = partial;
-        funcexe.fe_selfdict = (*SORTINFO).item_compare_selfdict;
+        funcexe.fe_selfdict = info.item_compare_selfdict;
         let mut res = call_func(
             func_name,
             -1,
@@ -2107,9 +2107,9 @@ unsafe fn item_compare2(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool)
 
         if res == FAIL {
             res = ITEM_COMPARE_FAIL;
-            (*SORTINFO).item_compare_func_err = true;
+            info.item_compare_func_err = true;
         } else {
-            let n = tv_get_number_chk(&raw const rettv, &raw mut (*SORTINFO).item_compare_func_err);
+            let n = tv_get_number_chk(&raw const rettv, &raw mut info.item_compare_func_err);
             res = if n > 0 {
                 1
             } else if n < 0 {
@@ -2118,7 +2118,7 @@ unsafe fn item_compare2(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool)
                 0
             };
         }
-        if (*SORTINFO).item_compare_func_err {
+        if info.item_compare_func_err {
             res = ITEM_COMPARE_FAIL;
         }
         tv_clear(&raw mut rettv);
@@ -2131,21 +2131,13 @@ unsafe fn item_compare2(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool)
     }
 }
 
-unsafe fn item_compare2_keeping_zero(s1: &ListSortItem, s2: &ListSortItem) -> c_int {
-    unsafe { item_compare2(s1, s2, true) }
-}
-
-unsafe fn item_compare2_not_keeping_zero(s1: &ListSortItem, s2: &ListSortItem) -> c_int {
-    unsafe { item_compare2(s1, s2, false) }
-}
-
-unsafe fn sort_compute_keys(ptrs: &mut [ListSortItem], info: *mut sortinfo_T) {
+unsafe fn sort_compute_keys(ptrs: &mut [ListSortItem], info: &mut sortinfo_T) {
     unsafe {
-        if (*info).item_compare_numbers {
+        if info.item_compare_numbers {
             for si in ptrs.iter_mut() {
                 si.key = ListSortKey::Int(tv_get_number(&raw const (*si.item).li_tv));
             }
-        } else if (*info).item_compare_float {
+        } else if info.item_compare_float {
             for si in ptrs.iter_mut() {
                 si.key = ListSortKey::Float(tv_get_float(&raw const (*si.item).li_tv));
             }
@@ -2161,11 +2153,11 @@ unsafe fn sort_compute_keys(ptrs: &mut [ListSortItem], info: *mut sortinfo_T) {
                 }
             }
         }
-        (*info).item_compare_keys_ready = true;
+        info.item_compare_keys_ready = true;
     }
 }
 
-unsafe fn do_sort(l: *mut list_T, info: *mut sortinfo_T) {
+unsafe fn do_sort(l: *mut list_T, info: &mut sortinfo_T) {
     unsafe {
         let len = tv_list_len_inline(l);
         let mut ptrs = Vec::with_capacity(len.max(0) as usize);
@@ -2182,26 +2174,24 @@ unsafe fn do_sort(l: *mut list_T, info: *mut sortinfo_T) {
             li = (*li).li_next;
         }
 
-        (*info).item_compare_func_err = false;
-        (*info).item_compare_keys_ready = false;
+        info.item_compare_func_err = false;
+        info.item_compare_keys_ready = false;
 
-        if (*info).item_compare_func.is_null()
-            && (*info).item_compare_partial.is_null()
-            && ((*info).item_compare_numbers
-                || (*info).item_compare_float
-                || (*info).item_compare_numeric)
+        let use_custom = info.item_compare_func.is_some() || !info.item_compare_partial.is_null();
+        if !use_custom
+            && (info.item_compare_numbers
+                || info.item_compare_float
+                || info.item_compare_numeric)
         {
             sort_compute_keys(&mut ptrs, info);
         }
-        let item_compare_func: ListSorter =
-            if (*info).item_compare_func.is_null() && (*info).item_compare_partial.is_null() {
-                item_compare_not_keeping_zero
-            } else {
-                item_compare2_not_keeping_zero
-            };
 
-        sort_slice_by(&mut ptrs, |a, b| item_compare_func(a, b));
-        if !(*info).item_compare_func_err {
+        if !use_custom {
+            sort_slice_by(&mut ptrs, |a, b| item_compare(a, b, false, info));
+        } else {
+            sort_slice_by(&mut ptrs, |a, b| item_compare2(a, b, false, info));
+        }
+        if !info.item_compare_func_err {
             (*l).lv_first = ptr::null_mut();
             (*l).lv_last = ptr::null_mut();
             (*l).lv_idx_item = ptr::null_mut();
@@ -2210,22 +2200,17 @@ unsafe fn do_sort(l: *mut list_T, info: *mut sortinfo_T) {
                 tv_list_append(l, si.item);
             }
         }
-        if (*info).item_compare_func_err {
+        if info.item_compare_func_err {
             emsg(tr(c"E702: Sort compare function failed".as_ptr()));
         }
     }
 }
 
-unsafe fn do_uniq(l: *mut list_T, info: *mut sortinfo_T) {
+unsafe fn do_uniq(l: *mut list_T, info: &mut sortinfo_T) {
     unsafe {
-        (*info).item_compare_func_err = false;
-        (*info).item_compare_keys_ready = false;
-        let item_compare_func: ListSorter =
-            if (*info).item_compare_func.is_null() && (*info).item_compare_partial.is_null() {
-                item_compare_keeping_zero
-            } else {
-                item_compare2_keeping_zero
-            };
+        info.item_compare_func_err = false;
+        info.item_compare_keys_ready = false;
+        let use_custom = info.item_compare_func.is_some() || !info.item_compare_partial.is_null();
 
         let first = tv_list_first_inline(l);
         let mut li = if first.is_null() {
@@ -2245,12 +2230,17 @@ unsafe fn do_uniq(l: *mut list_T, info: *mut sortinfo_T) {
                 idx: 0,
                 key: ListSortKey::Int(0),
             };
-            if item_compare_func(&prev_si, &cur_si) == 0 {
+            let cmp = if !use_custom {
+                item_compare(&prev_si, &cur_si, true, info)
+            } else {
+                item_compare2(&prev_si, &cur_si, true, info)
+            };
+            if cmp == 0 {
                 li = tv_list_item_remove(l, li);
             } else {
                 li = (*li).li_next;
             }
-            if (*info).item_compare_func_err {
+            if info.item_compare_func_err {
                 emsg(tr(c"E882: Uniq compare function failed".as_ptr()));
                 break;
             }
@@ -2258,26 +2248,29 @@ unsafe fn do_uniq(l: *mut list_T, info: *mut sortinfo_T) {
     }
 }
 
-unsafe fn parse_sort_uniq_args(argvars: *mut typval_T, info: *mut sortinfo_T) -> c_int {
+unsafe fn parse_sort_uniq_args(argvars: *mut typval_T, info: &mut sortinfo_T) -> c_int {
     unsafe {
-        (*info).item_compare_ic = 0;
-        (*info).item_compare_lc = false;
-        (*info).item_compare_numeric = false;
-        (*info).item_compare_numbers = false;
-        (*info).item_compare_float = false;
-        (*info).item_compare_func = ptr::null();
-        (*info).item_compare_partial = ptr::null_mut();
-        (*info).item_compare_selfdict = ptr::null_mut();
-        (*info).item_compare_keys_ready = false;
+        info.item_compare_ic = 0;
+        info.item_compare_lc = false;
+        info.item_compare_numeric = false;
+        info.item_compare_numbers = false;
+        info.item_compare_float = false;
+        info.item_compare_func = None;
+        info.item_compare_partial = ptr::null_mut();
+        info.item_compare_selfdict = ptr::null_mut();
+        info.item_compare_keys_ready = false;
 
         if (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN {
             return OK;
         }
 
         if (*argvars.add(1)).v_type == VarType::VAR_FUNC {
-            (*info).item_compare_func = (*argvars.add(1)).vval.v_string();
+            let s = (*argvars.add(1)).vval.v_string();
+            if !s.is_null() {
+                info.item_compare_func = Some(CStr::from_ptr(s).to_owned());
+            }
         } else if (*argvars.add(1)).v_type == VarType::VAR_PARTIAL {
-            (*info).item_compare_partial = (*argvars.add(1)).vval.v_partial();
+            info.item_compare_partial = (*argvars.add(1)).vval.v_partial();
         } else {
             let mut error = false;
             let nr = tv_get_number_chk(argvars.add(1), &raw mut error) as c_int;
@@ -2285,36 +2278,38 @@ unsafe fn parse_sort_uniq_args(argvars: *mut typval_T, info: *mut sortinfo_T) ->
                 return FAIL;
             }
             if nr == 1 {
-                (*info).item_compare_ic = 1;
+                info.item_compare_ic = 1;
             } else if (*argvars.add(1)).v_type != VarType::VAR_NUMBER {
-                (*info).item_compare_func = tv_get_string(argvars.add(1));
+                let s = tv_get_string(argvars.add(1));
+                if !s.is_null() {
+                    info.item_compare_func = Some(CStr::from_ptr(s).to_owned());
+                }
             } else if nr != 0 {
                 emsg(tr(e_invarg.as_ptr()));
                 return FAIL;
             }
-            if !(*info).item_compare_func.is_null() {
-                let fn_cstr = CStr::from_ptr((*info).item_compare_func).to_bytes();
-                match fn_cstr {
-                    b"" => (*info).item_compare_func = ptr::null(),
+            if let Some(ref func_cstr) = info.item_compare_func {
+                match func_cstr.to_bytes() {
+                    b"" => info.item_compare_func = None,
                     b"n" => {
-                        (*info).item_compare_func = ptr::null();
-                        (*info).item_compare_numeric = true;
+                        info.item_compare_func = None;
+                        info.item_compare_numeric = true;
                     }
                     b"N" => {
-                        (*info).item_compare_func = ptr::null();
-                        (*info).item_compare_numbers = true;
+                        info.item_compare_func = None;
+                        info.item_compare_numbers = true;
                     }
                     b"f" => {
-                        (*info).item_compare_func = ptr::null();
-                        (*info).item_compare_float = true;
+                        info.item_compare_func = None;
+                        info.item_compare_float = true;
                     }
                     b"i" => {
-                        (*info).item_compare_func = ptr::null();
-                        (*info).item_compare_ic = 1;
+                        info.item_compare_func = None;
+                        info.item_compare_ic = 1;
                     }
                     b"l" => {
-                        (*info).item_compare_func = ptr::null();
-                        (*info).item_compare_lc = true;
+                        info.item_compare_func = None;
+                        info.item_compare_lc = true;
                     }
                     _ => {}
                 }
@@ -2325,7 +2320,7 @@ unsafe fn parse_sort_uniq_args(argvars: *mut typval_T, info: *mut sortinfo_T) ->
             if tv_check_for_dict_arg(argvars, 2) == FAIL {
                 return FAIL;
             }
-            (*info).item_compare_selfdict = (*argvars.add(2)).vval.v_dict();
+            info.item_compare_selfdict = (*argvars.add(2)).vval.v_dict();
         }
 
         OK
@@ -2347,8 +2342,6 @@ unsafe fn do_sort_uniq(argvars: *mut typval_T, rettv: *mut typval_T, sort: bool)
         }
 
         let mut info = sortinfo_T::new();
-        let old_sortinfo = SORTINFO;
-        SORTINFO = &raw mut info;
 
         let arg_errmsg = if sort {
             c"sort() argument".as_ptr()
@@ -2360,16 +2353,14 @@ unsafe fn do_sort_uniq(argvars: *mut typval_T, rettv: *mut typval_T, sort: bool)
             tv_list_set_ret_inline(rettv, l);
 
             let len = tv_list_len_inline(l);
-            if len > 1 && parse_sort_uniq_args(argvars, &raw mut info) != FAIL {
+            if len > 1 && parse_sort_uniq_args(argvars, &mut info) != FAIL {
                 if sort {
-                    do_sort(l, &raw mut info);
+                    do_sort(l, &mut info);
                 } else {
-                    do_uniq(l, &raw mut info);
+                    do_uniq(l, &mut info);
                 }
             }
         }
-
-        SORTINFO = old_sortinfo;
     }
 }
 

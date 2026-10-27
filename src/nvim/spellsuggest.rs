@@ -189,6 +189,23 @@ pub struct langp_T {
     pub lp_replang: *mut slang_T,
     pub lp_region: c_int,
 }
+
+impl langp_T {
+    pub const fn new() -> Self {
+        Self {
+            lp_slang: ptr::null_mut(),
+            lp_sallang: ptr::null_mut(),
+            lp_replang: ptr::null_mut(),
+            lp_region: 0,
+        }
+    }
+}
+
+impl Default for langp_T {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct spelltab_T {

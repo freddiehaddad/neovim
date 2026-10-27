@@ -102,9 +102,8 @@ const DUMPFLAG_COUNT: c_int = 2;
 const DUMPFLAG_ICASE: c_int = 4;
 const DUMPFLAG_ONECAP: c_int = 8;
 const DUMPFLAG_ALLCAP: c_int = 16;
-#[repr(C)]
 struct matchinf_T {
-    mi_lp: *mut langp_T,
+    mi_lp: langp_T,
     mi_word: *mut c_char,
     mi_end: *mut c_char,
     mi_fend: *mut c_char,
@@ -129,7 +128,7 @@ struct matchinf_T {
 impl matchinf_T {
     const fn new() -> Self {
         Self {
-            mi_lp: ptr::null_mut(),
+            mi_lp: langp_T::new(),
             mi_word: ptr::null_mut(),
             mi_end: ptr::null_mut(),
             mi_fend: ptr::null_mut(),
@@ -306,14 +305,14 @@ pub unsafe fn spell_check(
         mi.mi_result = SP_BAD;
         mi.mi_result2 = SP_BAD;
         for lpi in 0..(*w_s).b_langp.len() {
-            mi.mi_lp = &raw mut (&mut (*w_s).b_langp)[lpi];
-            if (*(*mi.mi_lp).lp_slang).sl_fidxs.is_empty() {
+            mi.mi_lp = (&(*w_s).b_langp)[lpi];
+            if (*mi.mi_lp.lp_slang).sl_fidxs.is_empty() {
                 continue;
             }
             find_word(&raw mut mi, FIND_FOLDWORD);
             find_word(&raw mut mi, FIND_KEEPWORD);
             find_prefix(&raw mut mi, FIND_FOLDWORD);
-            if (*(*mi.mi_lp).lp_slang).sl_nobreak
+            if (*mi.mi_lp.lp_slang).sl_nobreak
                 && mi.mi_result == SP_BAD
                 && mi.mi_result2 != SP_BAD
             {
@@ -322,7 +321,7 @@ pub unsafe fn spell_check(
             }
             if count_word && mi.mi_result == SP_OK {
                 count_common_word(
-                    (*mi.mi_lp).lp_slang,
+                    mi.mi_lp.lp_slang,
                     ptr,
                     mi.mi_end.offset_from(ptr) as c_int,
                     1,
@@ -350,8 +349,8 @@ pub unsafe fn spell_check(
                 mb_ptr_adv(&mut mi.mi_end);
             } else if mi.mi_result == SP_BAD && (*(&(*w_s).b_langp)[0].lp_slang).sl_nobreak {
                 let save_result = mi.mi_result;
-                mi.mi_lp = (*w_s).b_langp.as_mut_ptr();
-                if !(*(*mi.mi_lp).lp_slang).sl_fidxs.is_empty() {
+                mi.mi_lp = (&(*w_s).b_langp)[0];
+                if !(*mi.mi_lp.lp_slang).sl_fidxs.is_empty() {
                     let mut p = mi.mi_word;
                     let mut fp = (&raw mut mi.mi_fword).cast::<c_char>();
                     loop {
@@ -435,7 +434,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
         let mut wlen: c_int = 0;
         let mut flen: c_int;
         let ptr: *mut c_char;
-        let slang = (*(*mip).mi_lp).lp_slang;
+        let slang = (*mip).mi_lp.lp_slang;
         let byts: *mut u8;
         let idxs: *mut idx_T;
         if mode == FIND_KEEPWORD || mode == FIND_KEEPCOMPOUND {
@@ -737,9 +736,9 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                     let w_s = (*(*mip).mi_win).w_s_ptr();
                     for lpi in 0..(*w_s).b_langp.len() {
                         if (*slang).sl_nobreak {
-                            (*mip).mi_lp = &raw mut (&mut (*w_s).b_langp)[lpi];
-                            if (*(*(*mip).mi_lp).lp_slang).sl_fidxs.is_empty()
-                                || !(*(*(*mip).mi_lp).lp_slang).sl_nobreak
+                            (*mip).mi_lp = (&(*w_s).b_langp)[lpi];
+                            if (*(*mip).mi_lp.lp_slang).sl_fidxs.is_empty()
+                                || !(*(*mip).mi_lp.lp_slang).sl_nobreak
                             {
                                 continue;
                             }
@@ -772,7 +771,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                 let res = if (flags & WF_BANNED as u32) != 0 {
                     SP_BANNED
                 } else if (flags & WF_REGION as u32) != 0 {
-                    if (((*(*mip).mi_lp).lp_region as u32) & (flags >> 16)) != 0 {
+                    if (((*mip).mi_lp.lp_region as u32) & (flags >> 16)) != 0 {
                         SP_OK
                     } else {
                         SP_LOCAL
@@ -934,7 +933,7 @@ unsafe fn find_prefix(mip: *mut matchinf_T, mode: c_int) {
     unsafe {
         let mut arridx: idx_T = 0;
         let mut wlen: c_int = 0;
-        let slang = (*(*mip).mi_lp).lp_slang;
+        let slang = (*mip).mi_lp.lp_slang;
         if (*slang).sl_pbyts.is_empty() {
             return;
         }
