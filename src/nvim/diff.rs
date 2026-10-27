@@ -1162,11 +1162,11 @@ fn diff_file_internal(diffio: &mut diffio_T) -> c_int {
             return FAIL;
         }
         if xdl_diff(
-            &raw mut diffio.dio_orig.din_mmfile,
-            &raw mut diffio.dio_new.din_mmfile,
-            &raw const param,
-            &raw const emit_cfg,
-            &raw mut emit_cb,
+            &mut diffio.dio_orig.din_mmfile,
+            &mut diffio.dio_new.din_mmfile,
+            &param,
+            &emit_cfg,
+            &mut emit_cb,
         ) < 0
         {
             emsg(gettext(

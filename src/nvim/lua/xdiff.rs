@@ -187,19 +187,12 @@ fn get_linematch_results(
     }
 }
 
-pub(crate) fn write_string(
-    priv_data: *mut Vec<u8>,
-    mb: *mut mmbuffer_t,
-    nbuf: c_int,
-) -> c_int {
-    let out = unsafe { &mut *priv_data };
-    for i in 0..nbuf.max(0) as usize {
-        unsafe {
-            let chunk = &*mb.add(i);
-            if chunk.size > 0 && !chunk.ptr.is_null() {
-                let slice = std::slice::from_raw_parts(chunk.ptr.cast::<u8>(), chunk.size as usize);
-                out.extend_from_slice(slice);
-            }
+pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[mmbuffer_t]) -> c_int {
+    for chunk in mb {
+        if chunk.size > 0 && !chunk.ptr.is_null() {
+            let slice =
+                unsafe { std::slice::from_raw_parts(chunk.ptr.cast::<u8>(), chunk.size as usize) };
+            out.extend_from_slice(slice);
         }
     }
     0

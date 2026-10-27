@@ -53,8 +53,8 @@ fn xdl_split(
     kvdf: *mut c_long,
     kvdb: *mut c_long,
     need_min: c_int,
-    spl: *mut xdpsplit_t,
-    xenv: *mut xdalgoenv_t,
+    spl: &mut xdpsplit_t,
+    xenv: &xdalgoenv_t,
 ) -> c_long {
     let dmin = off1 - lim2;
     let dmax = lim1 - off2;
@@ -101,15 +101,15 @@ fn xdl_split(
                     i1 += 1;
                     i2 += 1;
                 }
-                if i1 - prev1 > (*xenv).snake_cnt {
+                if i1 - prev1 > xenv.snake_cnt {
                     got_snake = true;
                 }
                 *kvdf.offset(d as isize) = i1;
                 if odd && bmin <= d && d <= bmax && *kvdb.offset(d as isize) <= i1 {
-                    (*spl).i1 = i1;
-                    (*spl).i2 = i2;
-                    (*spl).min_lo = 1;
-                    (*spl).min_hi = 1;
+                    spl.i1 = i1;
+                    spl.i2 = i2;
+                    spl.min_lo = 1;
+                    spl.min_hi = 1;
                     return ec;
                 }
                 d -= 2;
@@ -144,15 +144,15 @@ fn xdl_split(
                     i1 -= 1;
                     i2 -= 1;
                 }
-                if prev1 - i1 > (*xenv).snake_cnt {
+                if prev1 - i1 > xenv.snake_cnt {
                     got_snake = true;
                 }
                 *kvdb.offset(d as isize) = i1;
                 if !odd && fmin <= d && d <= fmax && i1 <= *kvdf.offset(d as isize) {
-                    (*spl).i1 = i1;
-                    (*spl).i2 = i2;
-                    (*spl).min_lo = 1;
-                    (*spl).min_hi = 1;
+                    spl.i1 = i1;
+                    spl.i2 = i2;
+                    spl.min_lo = 1;
+                    spl.min_hi = 1;
                     return ec;
                 }
                 d -= 2;
@@ -163,7 +163,7 @@ fn xdl_split(
                 continue;
             }
 
-            if got_snake && ec > (*xenv).heur_min {
+            if got_snake && ec > xenv.heur_min {
                 let mut best: c_long = 0;
                 d = fmax;
                 while d >= fmin {
@@ -174,17 +174,17 @@ fn xdl_split(
 
                     if v > XDL_K_HEUR * ec
                         && v > best
-                        && off1 + (*xenv).snake_cnt <= i1
+                        && off1 + xenv.snake_cnt <= i1
                         && i1 < lim1
-                        && off2 + (*xenv).snake_cnt <= i2
+                        && off2 + xenv.snake_cnt <= i2
                         && i2 < lim2
                     {
                         let mut k: c_long = 1;
                         while *ha1.offset((i1 - k) as isize) == *ha2.offset((i2 - k) as isize) {
-                            if k == (*xenv).snake_cnt {
+                            if k == xenv.snake_cnt {
                                 best = v;
-                                (*spl).i1 = i1;
-                                (*spl).i2 = i2;
+                                spl.i1 = i1;
+                                spl.i2 = i2;
                                 break;
                             }
                             k += 1;
@@ -193,8 +193,8 @@ fn xdl_split(
                     d -= 2;
                 }
                 if best > 0 {
-                    (*spl).min_lo = 1;
-                    (*spl).min_hi = 0;
+                    spl.min_lo = 1;
+                    spl.min_hi = 0;
                     return ec;
                 }
 
@@ -209,16 +209,16 @@ fn xdl_split(
                     if v > XDL_K_HEUR * ec
                         && v > best
                         && off1 < i1
-                        && i1 <= lim1 - (*xenv).snake_cnt
+                        && i1 <= lim1 - xenv.snake_cnt
                         && off2 < i2
-                        && i2 <= lim2 - (*xenv).snake_cnt
+                        && i2 <= lim2 - xenv.snake_cnt
                     {
                         let mut k: c_long = 0;
                         while *ha1.offset((i1 + k) as isize) == *ha2.offset((i2 + k) as isize) {
-                            if k == (*xenv).snake_cnt - 1 {
+                            if k == xenv.snake_cnt - 1 {
                                 best = v;
-                                (*spl).i1 = i1;
-                                (*spl).i2 = i2;
+                                spl.i1 = i1;
+                                spl.i2 = i2;
                                 break;
                             }
                             k += 1;
@@ -227,13 +227,13 @@ fn xdl_split(
                     d -= 2;
                 }
                 if best > 0 {
-                    (*spl).min_lo = 0;
-                    (*spl).min_hi = 1;
+                    spl.min_lo = 0;
+                    spl.min_hi = 1;
                     return ec;
                 }
             }
 
-            if ec >= (*xenv).mxcost {
+            if ec >= xenv.mxcost {
                 let mut fbest: c_long = -1;
                 let mut fbest1: c_long = -1;
                 d = fmax;
@@ -269,15 +269,15 @@ fn xdl_split(
                 }
 
                 if (lim1 + lim2) - bbest < fbest - (off1 + off2) {
-                    (*spl).i1 = fbest1;
-                    (*spl).i2 = fbest - fbest1;
-                    (*spl).min_lo = 1;
-                    (*spl).min_hi = 0;
+                    spl.i1 = fbest1;
+                    spl.i2 = fbest - fbest1;
+                    spl.min_lo = 1;
+                    spl.min_hi = 0;
                 } else {
-                    (*spl).i1 = bbest1;
-                    (*spl).i2 = bbest - bbest1;
-                    (*spl).min_lo = 0;
-                    (*spl).min_hi = 1;
+                    spl.i1 = bbest1;
+                    spl.i2 = bbest - bbest1;
+                    spl.min_lo = 0;
+                    spl.min_hi = 1;
                 }
                 return ec;
             }
@@ -288,20 +288,20 @@ fn xdl_split(
 }
 
 pub fn xdl_recs_cmp(
-    dd1: *mut diffdata_t,
+    dd1: &mut diffdata_t,
     mut off1: c_long,
     mut lim1: c_long,
-    dd2: *mut diffdata_t,
+    dd2: &mut diffdata_t,
     mut off2: c_long,
     mut lim2: c_long,
     kvdf: *mut c_long,
     kvdb: *mut c_long,
     need_min: c_int,
-    xenv: *mut xdalgoenv_t,
+    xenv: &xdalgoenv_t,
 ) -> c_int {
     unsafe {
-        let ha1 = (*dd1).ha;
-        let ha2 = (*dd2).ha;
+        let ha1 = dd1.ha;
+        let ha2 = dd2.ha;
 
         while off1 < lim1 && off2 < lim2 && *ha1.offset(off1 as isize) == *ha2.offset(off2 as isize)
         {
@@ -317,15 +317,15 @@ pub fn xdl_recs_cmp(
         }
 
         if off1 == lim1 {
-            let rchg2 = (*dd2).rchg;
-            let rindex2 = (*dd2).rindex;
+            let rchg2 = dd2.rchg;
+            let rindex2 = dd2.rindex;
             while off2 < lim2 {
                 *rchg2.offset(*rindex2.offset(off2 as isize) as isize) = 1;
                 off2 += 1;
             }
         } else if off2 == lim2 {
-            let rchg1 = (*dd1).rchg;
-            let rindex1 = (*dd1).rindex;
+            let rchg1 = dd1.rchg;
+            let rindex1 = dd1.rindex;
             while off1 < lim1 {
                 *rchg1.offset(*rindex1.offset(off1 as isize) as isize) = 1;
                 off1 += 1;
@@ -360,17 +360,17 @@ pub fn xdl_recs_cmp(
 }
 
 pub fn xdl_do_diff(
-    mf1: *mut mmfile_t,
-    mf2: *mut mmfile_t,
-    xpp: *const xpparam_t,
-    xe: *mut xdfenv_t,
+    mf1: &mut mmfile_t,
+    mf2: &mut mmfile_t,
+    xpp: &xpparam_t,
+    xe: &mut xdfenv_t,
 ) -> c_int {
     unsafe {
-        if xdf_diff_alg((*xpp).flags) == XDF_PATIENCE_DIFF {
+        if xdf_diff_alg(xpp.flags) == XDF_PATIENCE_DIFF {
             return xdl_do_patience_diff(mf1, mf2, xpp, xe);
         }
 
-        if xdf_diff_alg((*xpp).flags) == XDF_HISTOGRAM_DIFF {
+        if xdf_diff_alg(xpp.flags) == XDF_HISTOGRAM_DIFF {
             return xdl_do_histogram_diff(mf1, mf2, xpp, xe);
         }
 
@@ -378,44 +378,46 @@ pub fn xdl_do_diff(
             return -1;
         }
 
-        let ndiags = (*xe).xdf1.nreff + (*xe).xdf2.nreff + 3;
+        let ndiags = xe.xdf1.nreff + xe.xdf2.nreff + 3;
         let mut kvd_vec = vec![0 as c_long; (2 * ndiags + 2) as usize];
         let kvd = kvd_vec.as_mut_ptr();
         let mut kvdf = kvd;
         let mut kvdb = kvdf.offset(ndiags as isize);
-        kvdf = kvdf.offset(((*xe).xdf2.nreff + 1) as isize);
-        kvdb = kvdb.offset(((*xe).xdf2.nreff + 1) as isize);
+        kvdf = kvdf.offset((xe.xdf2.nreff + 1) as isize);
+        kvdb = kvdb.offset((xe.xdf2.nreff + 1) as isize);
 
-        let mut xenv = xdalgoenv_t {
+        let xenv = xdalgoenv_t {
             mxcost: xdl_bogosqrt(ndiags).max(XDL_MAX_COST_MIN),
             snake_cnt: XDL_SNAKE_CNT,
             heur_min: XDL_HEUR_MIN_COST,
         };
 
         let mut dd1 = diffdata_t {
-            nrec: (*xe).xdf1.nreff,
-            ha: (*xe).xdf1.ha.as_ptr(),
-            rchg: (*xe).xdf1.rchg,
-            rindex: (*xe).xdf1.rindex.as_mut_ptr(),
+            nrec: xe.xdf1.nreff,
+            ha: xe.xdf1.ha.as_ptr(),
+            rchg: xe.xdf1.rchg,
+            rindex: xe.xdf1.rindex.as_mut_ptr(),
         };
         let mut dd2 = diffdata_t {
-            nrec: (*xe).xdf2.nreff,
-            ha: (*xe).xdf2.ha.as_ptr(),
-            rchg: (*xe).xdf2.rchg,
-            rindex: (*xe).xdf2.rindex.as_mut_ptr(),
+            nrec: xe.xdf2.nreff,
+            ha: xe.xdf2.ha.as_ptr(),
+            rchg: xe.xdf2.rchg,
+            rindex: xe.xdf2.rindex.as_mut_ptr(),
         };
 
+        let dd1_nrec = dd1.nrec;
+        let dd2_nrec = dd2.nrec;
         if xdl_recs_cmp(
             &mut dd1,
             0,
-            dd1.nrec,
+            dd1_nrec,
             &mut dd2,
             0,
-            dd2.nrec,
+            dd2_nrec,
             kvdf,
             kvdb,
-            c_int::from(((*xpp).flags & XDF_NEED_MINIMAL) != 0),
-            &mut xenv,
+            c_int::from((xpp.flags & XDF_NEED_MINIMAL) != 0),
+            &xenv,
         ) < 0
         {
             *xe = xdfenv_t::new();
@@ -466,48 +468,46 @@ struct SplitScore {
     penalty: c_int,
 }
 
-fn measure_split(xdf: *const xdfile_t, split: c_long, m: &mut SplitMeasurement) {
-    unsafe {
-        let recs = &(*xdf).recs;
-        if split >= (*xdf).nrec {
-            m.end_of_file = 1;
-            m.indent = -1;
-        } else {
-            m.end_of_file = 0;
-            m.indent = xget_indent(&recs[split as usize]);
-        }
+fn measure_split(xdf: &xdfile_t, split: c_long, m: &mut SplitMeasurement) {
+    let recs = &xdf.recs;
+    if split >= xdf.nrec {
+        m.end_of_file = 1;
+        m.indent = -1;
+    } else {
+        m.end_of_file = 0;
+        m.indent = xget_indent(&recs[split as usize]);
+    }
 
-        m.pre_blank = 0;
-        m.pre_indent = -1;
-        let mut i = split - 1;
-        while i >= 0 {
-            m.pre_indent = xget_indent(&recs[i as usize]);
-            if m.pre_indent != -1 {
-                break;
-            }
-            m.pre_blank += 1;
-            if m.pre_blank == MAX_BLANKS {
-                m.pre_indent = 0;
-                break;
-            }
-            i -= 1;
+    m.pre_blank = 0;
+    m.pre_indent = -1;
+    let mut i = split - 1;
+    while i >= 0 {
+        m.pre_indent = xget_indent(&recs[i as usize]);
+        if m.pre_indent != -1 {
+            break;
         }
+        m.pre_blank += 1;
+        if m.pre_blank == MAX_BLANKS {
+            m.pre_indent = 0;
+            break;
+        }
+        i -= 1;
+    }
 
-        m.post_blank = 0;
-        m.post_indent = -1;
-        i = split + 1;
-        while i < (*xdf).nrec {
-            m.post_indent = xget_indent(&recs[i as usize]);
-            if m.post_indent != -1 {
-                break;
-            }
-            m.post_blank += 1;
-            if m.post_blank == MAX_BLANKS {
-                m.post_indent = 0;
-                break;
-            }
-            i += 1;
+    m.post_blank = 0;
+    m.post_indent = -1;
+    i = split + 1;
+    while i < xdf.nrec {
+        m.post_indent = xget_indent(&recs[i as usize]);
+        if m.post_indent != -1 {
+            break;
         }
+        m.post_blank += 1;
+        if m.post_blank == MAX_BLANKS {
+            m.post_indent = 0;
+            break;
+        }
+        i += 1;
     }
 }
 
@@ -570,25 +570,25 @@ struct XdlGroup {
     end: c_long,
 }
 
-fn group_init(xdf: *mut xdfile_t, g: &mut XdlGroup) {
+fn group_init(xdf: &mut xdfile_t, g: &mut XdlGroup) {
     g.start = 0;
     g.end = 0;
     unsafe {
-        while *(*xdf).rchg.offset(g.end as isize) != 0 {
+        while *xdf.rchg.offset(g.end as isize) != 0 {
             g.end += 1;
         }
     }
 }
 
 #[inline]
-fn group_next(xdf: *mut xdfile_t, g: &mut XdlGroup) -> c_int {
+fn group_next(xdf: &mut xdfile_t, g: &mut XdlGroup) -> c_int {
     unsafe {
-        if g.end == (*xdf).nrec {
+        if g.end == xdf.nrec {
             return -1;
         }
         g.start = g.end + 1;
         g.end = g.start;
-        while *(*xdf).rchg.offset(g.end as isize) != 0 {
+        while *xdf.rchg.offset(g.end as isize) != 0 {
             g.end += 1;
         }
     }
@@ -596,31 +596,30 @@ fn group_next(xdf: *mut xdfile_t, g: &mut XdlGroup) -> c_int {
 }
 
 #[inline]
-fn group_previous(xdf: *mut xdfile_t, g: &mut XdlGroup) -> c_int {
+fn group_previous(xdf: &mut xdfile_t, g: &mut XdlGroup) -> c_int {
     if g.start == 0 {
         return -1;
     }
     g.end = g.start - 1;
     g.start = g.end;
     unsafe {
-        while *(*xdf).rchg.offset((g.start - 1) as isize) != 0 {
+        while *xdf.rchg.offset((g.start - 1) as isize) != 0 {
             g.start -= 1;
         }
     }
     0
 }
 
-fn group_slide_down(xdf: *mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_int {
+fn group_slide_down(xdf: &mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_int {
     unsafe {
-        let recs = &(*xdf).recs;
-        if g.end < (*xdf).nrec && recs_match(&recs[g.start as usize], &recs[g.end as usize], flags)
-        {
-            *(*xdf).rchg.offset(g.start as isize) = 0;
+        let recs = &xdf.recs;
+        if g.end < xdf.nrec && recs_match(&recs[g.start as usize], &recs[g.end as usize], flags) {
+            *xdf.rchg.offset(g.start as isize) = 0;
             g.start += 1;
-            *(*xdf).rchg.offset(g.end as isize) = 1;
+            *xdf.rchg.offset(g.end as isize) = 1;
             g.end += 1;
 
-            while *(*xdf).rchg.offset(g.end as isize) != 0 {
+            while *xdf.rchg.offset(g.end as isize) != 0 {
                 g.end += 1;
             }
             0
@@ -630,9 +629,9 @@ fn group_slide_down(xdf: *mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_in
     }
 }
 
-fn group_slide_up(xdf: *mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_int {
+fn group_slide_up(xdf: &mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_int {
     unsafe {
-        let recs = &(*xdf).recs;
+        let recs = &xdf.recs;
         if g.start > 0
             && recs_match(
                 &recs[(g.start - 1) as usize],
@@ -641,11 +640,11 @@ fn group_slide_up(xdf: *mut xdfile_t, g: &mut XdlGroup, flags: c_long) -> c_int 
             )
         {
             g.start -= 1;
-            *(*xdf).rchg.offset(g.start as isize) = 1;
+            *xdf.rchg.offset(g.start as isize) = 1;
             g.end -= 1;
-            *(*xdf).rchg.offset(g.end as isize) = 0;
+            *xdf.rchg.offset(g.end as isize) = 0;
 
-            while *(*xdf).rchg.offset((g.start - 1) as isize) != 0 {
+            while *xdf.rchg.offset((g.start - 1) as isize) != 0 {
                 g.start -= 1;
             }
             0
@@ -660,7 +659,7 @@ fn xdl_bug(msg: &str) -> ! {
     std::process::exit(1);
 }
 
-pub fn xdl_change_compact(xdf: *mut xdfile_t, xdfo: *mut xdfile_t, flags: c_long) -> c_int {
+pub fn xdl_change_compact(xdf: &mut xdfile_t, xdfo: &mut xdfile_t, flags: c_long) -> c_int {
     let mut g = XdlGroup::default();
     let mut go = XdlGroup::default();
 
@@ -768,13 +767,13 @@ pub fn xdl_change_compact(xdf: *mut xdfile_t, xdfo: *mut xdfile_t, flags: c_long
     0
 }
 
-pub fn xdl_build_script(xe: *mut xdfenv_t, xscr: &mut Vec<xdchange_t>) -> c_int {
+pub fn xdl_build_script(xe: &mut xdfenv_t, xscr: &mut Vec<xdchange_t>) -> c_int {
     xscr.clear();
     unsafe {
-        let rchg1 = (*xe).xdf1.rchg;
-        let rchg2 = (*xe).xdf2.rchg;
-        let mut i1 = (*xe).xdf1.nrec;
-        let mut i2 = (*xe).xdf2.nrec;
+        let rchg1 = xe.xdf1.rchg;
+        let rchg2 = xe.xdf2.rchg;
+        let mut i1 = xe.xdf1.nrec;
+        let mut i2 = xe.xdf2.nrec;
 
         while i1 >= 0 || i2 >= 0 {
             if *rchg1.offset((i1 - 1) as isize) != 0 || *rchg2.offset((i2 - 1) as isize) != 0 {
@@ -805,98 +804,92 @@ pub fn xdl_build_script(xe: *mut xdfenv_t, xscr: &mut Vec<xdchange_t>) -> c_int 
 }
 
 fn xdl_call_hunk_func(
-    _xe: *mut xdfenv_t,
+    _xe: &mut xdfenv_t,
     xscr: &[xdchange_t],
-    ecb: *mut xdemitcb_t,
-    xecfg: *const xdemitconf_t,
+    ecb: &mut xdemitcb_t,
+    xecfg: &xdemitconf_t,
 ) -> c_int {
     let mut idx = 0;
-    unsafe {
-        while let Some(end_idx) = xdl_get_hunk(xscr, &mut idx, xecfg) {
-            let xch = &xscr[idx];
-            let xche = &xscr[end_idx];
-            if (*ecb).call_hunk(
-                xch.i1 as c_int,
-                (xche.i1 + xche.chg1 - xch.i1) as c_int,
-                xch.i2 as c_int,
-                (xche.i2 + xche.chg2 - xch.i2) as c_int,
-            ) < 0
-            {
-                return -1;
-            }
-            idx = end_idx + 1;
+    while let Some(end_idx) = xdl_get_hunk(xscr, &mut idx, xecfg) {
+        let xch = &xscr[idx];
+        let xche = &xscr[end_idx];
+        if ecb.call_hunk(
+            xch.i1 as c_int,
+            (xche.i1 + xche.chg1 - xch.i1) as c_int,
+            xch.i2 as c_int,
+            (xche.i2 + xche.chg2 - xch.i2) as c_int,
+        ) < 0
+        {
+            return -1;
         }
+        idx = end_idx + 1;
     }
     0
 }
 
-fn xdl_mark_ignorable_lines(xscr: &mut [xdchange_t], xe: *mut xdfenv_t, flags: c_long) {
-    unsafe {
-        let recs1 = &(*xe).xdf1.recs;
-        let recs2 = &(*xe).xdf2.recs;
-        for xch in xscr {
-            let mut ignore: c_int = 1;
-            let mut i: c_long = 0;
-            while i < xch.chg1 && ignore != 0 {
-                let r = &recs1[(xch.i1 + i) as usize];
-                ignore = xdl_blankline(r.ptr, r.size, flags);
-                i += 1;
-            }
-
-            i = 0;
-            while i < xch.chg2 && ignore != 0 {
-                let r = &recs2[(xch.i2 + i) as usize];
-                ignore = xdl_blankline(r.ptr, r.size, flags);
-                i += 1;
-            }
-
-            xch.ignore = ignore;
+fn xdl_mark_ignorable_lines(xscr: &mut [xdchange_t], xe: &xdfenv_t, flags: c_long) {
+    let recs1 = &xe.xdf1.recs;
+    let recs2 = &xe.xdf2.recs;
+    for xch in xscr {
+        let mut ignore: c_int = 1;
+        let mut i: c_long = 0;
+        while i < xch.chg1 && ignore != 0 {
+            let r = &recs1[(xch.i1 + i) as usize];
+            ignore = xdl_blankline(r.ptr, r.size, flags);
+            i += 1;
         }
+
+        i = 0;
+        while i < xch.chg2 && ignore != 0 {
+            let r = &recs2[(xch.i2 + i) as usize];
+            ignore = xdl_blankline(r.ptr, r.size, flags);
+            i += 1;
+        }
+
+        xch.ignore = ignore;
     }
 }
 
 fn xdl_emit_diff_wrapper(
-    xe: *mut xdfenv_t,
+    xe: &mut xdfenv_t,
     xscr: &[xdchange_t],
-    ecb: *mut xdemitcb_t,
-    xecfg: *const xdemitconf_t,
+    ecb: &mut xdemitcb_t,
+    xecfg: &xdemitconf_t,
 ) -> c_int {
     xdl_emit_diff(xe, xscr, ecb, xecfg)
 }
 
 pub fn xdl_diff(
-    mf1: *mut mmfile_t,
-    mf2: *mut mmfile_t,
-    xpp: *const xpparam_t,
-    xecfg: *const xdemitconf_t,
-    ecb: *mut xdemitcb_t,
+    mf1: &mut mmfile_t,
+    mf2: &mut mmfile_t,
+    xpp: &xpparam_t,
+    xecfg: &xdemitconf_t,
+    ecb: &mut xdemitcb_t,
 ) -> c_int {
-    unsafe {
-        let mut xscr: Vec<xdchange_t> = Vec::new();
-        let mut xe = xdfenv_t::new();
-        let ef: emit_func_t = if (*ecb).has_hunk_func() {
-            xdl_call_hunk_func
-        } else {
-            xdl_emit_diff_wrapper
-        };
+    let mut xscr: Vec<xdchange_t> = Vec::new();
+    let mut xe = xdfenv_t::new();
+    let ef: emit_func_t = if ecb.has_hunk_func() {
+        xdl_call_hunk_func
+    } else {
+        xdl_emit_diff_wrapper
+    };
 
-        if xdl_do_diff(mf1, mf2, xpp, &mut xe) < 0 {
-            return -1;
+    if xdl_do_diff(mf1, mf2, xpp, &mut xe) < 0 {
+        return -1;
+    }
+    if xdl_change_compact(&mut xe.xdf1, &mut xe.xdf2, xpp.flags as c_long) < 0
+        || xdl_change_compact(&mut xe.xdf2, &mut xe.xdf1, xpp.flags as c_long) < 0
+        || xdl_build_script(&mut xe, &mut xscr) < 0
+    {
+        return -1;
+    }
+    if !xscr.is_empty() {
+        if (xpp.flags & XDF_IGNORE_BLANK_LINES) != 0 {
+            xdl_mark_ignorable_lines(&mut xscr, &xe, xpp.flags as c_long);
         }
-        if xdl_change_compact(&mut xe.xdf1, &mut xe.xdf2, (*xpp).flags as c_long) < 0
-            || xdl_change_compact(&mut xe.xdf2, &mut xe.xdf1, (*xpp).flags as c_long) < 0
-            || xdl_build_script(&mut xe, &mut xscr) < 0
-        {
-            return -1;
-        }
-        if !xscr.is_empty() {
-            if ((*xpp).flags & XDF_IGNORE_BLANK_LINES) != 0 {
-                xdl_mark_ignorable_lines(&mut xscr, &mut xe, (*xpp).flags as c_long);
-            }
 
-            if ef(&mut xe, &xscr, ecb, xecfg) < 0 {
-                return -1;
-            }
+        if ef(&mut xe, &xscr, ecb, xecfg) < 0 {
+            return -1;
         }
     }
 

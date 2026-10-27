@@ -201,7 +201,7 @@ pub fn mpack_parent_node(n: *mut mpack_node_t) -> *mut mpack_node_t {
 }
 
 pub fn mpack_parser_init(parser: &mut mpack_parser_t, capacity: mpack_uint32_t) {
-    mpack_tokbuf_init(&raw mut parser.tokbuf);
+    mpack_tokbuf_init(&mut parser.tokbuf);
     parser.data = mpack_data_t::Null;
     parser.capacity = if capacity != 0 {
         capacity
@@ -226,45 +226,45 @@ pub fn mpack_parser_grow(p: &mut mpack_parser_t) {
 }
 
 pub fn mpack_parse_tok(
-    parser: *mut mpack_parser_t,
+    parser: &mut mpack_parser_t,
     tok: mpack_token_t,
     enter_cb: mpack_walk_cb,
     exit_cb: mpack_walk_cb,
 ) -> c_int {
     unsafe {
-        if (*parser).status == MPACK_EXCEPTION {
+        if parser.status == MPACK_EXCEPTION {
             return MPACK_EXCEPTION;
         }
 
-        if (*parser).exiting == 0 {
-            if mpack_parser_full(&*parser) {
+        if parser.exiting == 0 {
+            if mpack_parser_full(parser) {
                 return MPACK_NOMEM;
             }
             let n = mpack_parser_push(parser);
             (*n).tok = tok;
             if let Some(cb) = enter_cb {
-                cb(parser, n);
+                cb(&raw mut *parser, n);
             }
-            if (*parser).status == MPACK_EXCEPTION {
+            if parser.status == MPACK_EXCEPTION {
                 return MPACK_EXCEPTION;
             }
-            (*parser).exiting = 1;
+            parser.exiting = 1;
             return MPACK_EOF;
         }
 
-        (*parser).exiting = 0;
+        parser.exiting = 0;
         loop {
             let n = mpack_parser_pop(parser);
             if n.is_null() {
                 break;
             }
             if let Some(cb) = exit_cb {
-                cb(parser, n);
+                cb(&raw mut *parser, n);
             }
-            if (*parser).status == MPACK_EXCEPTION {
+            if parser.status == MPACK_EXCEPTION {
                 return MPACK_EXCEPTION;
             }
-            if (*parser).size == 0 {
+            if parser.size == 0 {
                 return MPACK_OK;
             }
         }
@@ -274,45 +274,45 @@ pub fn mpack_parse_tok(
 }
 
 pub fn mpack_unparse_tok(
-    parser: *mut mpack_parser_t,
-    tok: *mut mpack_token_t,
+    parser: &mut mpack_parser_t,
+    tok: &mut mpack_token_t,
     enter_cb: mpack_walk_cb,
     exit_cb: mpack_walk_cb,
 ) -> c_int {
     unsafe {
-        if (*parser).status == MPACK_EXCEPTION {
+        if parser.status == MPACK_EXCEPTION {
             return MPACK_EXCEPTION;
         }
 
-        if (*parser).exiting == 0 {
-            if mpack_parser_full(&*parser) {
+        if parser.exiting == 0 {
+            if mpack_parser_full(parser) {
                 return MPACK_NOMEM;
             }
             let n = mpack_parser_push(parser);
             if let Some(cb) = enter_cb {
-                cb(parser, n);
+                cb(&raw mut *parser, n);
             }
             *tok = (*n).tok;
-            if (*parser).status == MPACK_EXCEPTION {
+            if parser.status == MPACK_EXCEPTION {
                 return MPACK_EXCEPTION;
             }
-            (*parser).exiting = 1;
+            parser.exiting = 1;
             return MPACK_EOF;
         }
 
-        (*parser).exiting = 0;
+        parser.exiting = 0;
         loop {
             let n = mpack_parser_pop(parser);
             if n.is_null() {
                 break;
             }
             if let Some(cb) = exit_cb {
-                cb(parser, n);
+                cb(&raw mut *parser, n);
             }
-            if (*parser).status == MPACK_EXCEPTION {
+            if parser.status == MPACK_EXCEPTION {
                 return MPACK_EXCEPTION;
             }
-            if (*parser).size == 0 {
+            if parser.size == 0 {
                 return MPACK_OK;
             }
         }
@@ -322,94 +322,88 @@ pub fn mpack_unparse_tok(
 }
 
 pub fn mpack_parse(
-    parser: *mut mpack_parser_t,
-    buf: *mut *const c_char,
-    buflen: *mut usize,
+    parser: &mut mpack_parser_t,
+    buf: &mut *const c_char,
+    buflen: &mut usize,
     enter_cb: mpack_walk_cb,
     exit_cb: mpack_walk_cb,
 ) -> c_int {
-    unsafe {
-        let mut status = MPACK_EOF;
-        if (*parser).status == MPACK_EXCEPTION {
-            return MPACK_EXCEPTION;
-        }
-
-        while *buflen != 0 && status != 0 {
-            let mut tok = mpack_token_t::new();
-            let tb = &raw mut (*parser).tokbuf;
-            let buf_save = *buf;
-            let buflen_save = *buflen;
-
-            status = mpack_read(tb, buf, buflen, &mut tok);
-            if status == MPACK_EOF {
-                continue;
-            } else if status == MPACK_ERROR {
-                *buf = buf_save;
-                *buflen = buflen_save;
-                break;
-            }
-
-            loop {
-                status = mpack_parse_tok(parser, tok, enter_cb, exit_cb);
-                if (*parser).status == MPACK_EXCEPTION {
-                    return MPACK_EXCEPTION;
-                }
-                if (*parser).exiting == 0 {
-                    break;
-                }
-            }
-
-            if status == MPACK_NOMEM {
-                *buf = buf_save;
-                *buflen = buflen_save;
-                break;
-            }
-        }
-
-        status
+    let mut status = MPACK_EOF;
+    if parser.status == MPACK_EXCEPTION {
+        return MPACK_EXCEPTION;
     }
+
+    while *buflen != 0 && status != 0 {
+        let mut tok = mpack_token_t::new();
+        let buf_save = *buf;
+        let buflen_save = *buflen;
+
+        status = mpack_read(&mut parser.tokbuf, buf, buflen, &mut tok);
+        if status == MPACK_EOF {
+            continue;
+        } else if status == MPACK_ERROR {
+            *buf = buf_save;
+            *buflen = buflen_save;
+            break;
+        }
+
+        loop {
+            status = mpack_parse_tok(parser, tok, enter_cb, exit_cb);
+            if parser.status == MPACK_EXCEPTION {
+                return MPACK_EXCEPTION;
+            }
+            if parser.exiting == 0 {
+                break;
+            }
+        }
+
+        if status == MPACK_NOMEM {
+            *buf = buf_save;
+            *buflen = buflen_save;
+            break;
+        }
+    }
+
+    status
 }
 
 pub fn mpack_unparse(
-    parser: *mut mpack_parser_t,
-    buf: *mut *mut c_char,
-    buflen: *mut usize,
+    parser: &mut mpack_parser_t,
+    buf: &mut *mut c_char,
+    buflen: &mut usize,
     enter_cb: mpack_walk_cb,
     exit_cb: mpack_walk_cb,
 ) -> c_int {
-    unsafe {
-        let mut status = MPACK_EOF;
-        if (*parser).status == MPACK_EXCEPTION {
+    let mut status = MPACK_EOF;
+    if parser.status == MPACK_EXCEPTION {
+        return MPACK_EXCEPTION;
+    }
+
+    while *buflen != 0 && status != 0 {
+        let mut tok = mpack_token_t::new();
+
+        if parser.tokbuf.plen == 0 {
+            parser.status = mpack_unparse_tok(parser, &mut tok, enter_cb, exit_cb);
+        }
+
+        if parser.status == MPACK_EXCEPTION {
             return MPACK_EXCEPTION;
         }
 
-        while *buflen != 0 && status != 0 {
-            let mut tok = mpack_token_t::new();
-            let tb = &raw mut (*parser).tokbuf;
-
-            if (*tb).plen == 0 {
-                (*parser).status = mpack_unparse_tok(parser, &mut tok, enter_cb, exit_cb);
-            }
-
-            if (*parser).status == MPACK_EXCEPTION {
-                return MPACK_EXCEPTION;
-            }
-
-            status = (*parser).status;
-            if status == MPACK_NOMEM {
-                break;
-            }
-
-            if (*parser).exiting != 0 {
-                let write_status = mpack_write(tb, buf, buflen, &tok);
-                if write_status != 0 {
-                    status = write_status;
-                }
-            }
+        status = parser.status;
+        if status == MPACK_NOMEM {
+            break;
         }
 
-        status
+        if parser.exiting != 0 {
+            let write_status = mpack_write(&mut parser.tokbuf, buf, buflen, &tok);
+            if write_status != 0 {
+                status = write_status;
+            }
+        }
     }
+
+    status
 }
 
 #[inline]
@@ -417,25 +411,25 @@ const fn mpack_parser_full(parser: &mpack_parser_t) -> bool {
     parser.size == parser.capacity
 }
 
-fn mpack_parser_push(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
+fn mpack_parser_push(parser: &mut mpack_parser_t) -> *mut mpack_node_t {
+    debug_assert!(parser.size < parser.capacity);
+    let top_idx = (parser.size as usize) + 1;
+    let top = &raw mut parser.items[top_idx];
     unsafe {
-        debug_assert!((*parser).size < (*parser).capacity);
-        let top_idx = ((*parser).size as usize) + 1;
-        let top = &raw mut (&mut (*parser).items)[top_idx];
         (*top).data[0] = mpack_data_t::Null;
         (*top).data[1] = mpack_data_t::Null;
         (*top).pos = 0;
         (*top).key_visited = 0;
-        (*parser).size += 1;
-        top
     }
+    parser.size += 1;
+    top
 }
 
-fn mpack_parser_pop(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
+fn mpack_parser_pop(parser: &mut mpack_parser_t) -> *mut mpack_node_t {
     unsafe {
-        debug_assert!((*parser).size != 0);
-        let top_idx = (*parser).size as usize;
-        let top = &raw mut (&mut (*parser).items)[top_idx];
+        debug_assert!(parser.size != 0);
+        let top_idx = parser.size as usize;
+        let top = &raw mut parser.items[top_idx];
 
         if (*top).tok.r#type > MPACK_TOKEN_CHUNK && (*top).pos < ((*top).tok.length as usize) {
             return ptr::null_mut();
@@ -455,7 +449,7 @@ fn mpack_parser_pop(parser: *mut mpack_parser_t) -> *mut mpack_node_t {
             }
         }
 
-        (*parser).size -= 1;
+        parser.size -= 1;
         top
     }
 }

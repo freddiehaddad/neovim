@@ -72,9 +72,9 @@ impl xdemitcb_t {
     }
 
     #[inline]
-    pub fn out_line(self, mb: *mut mmbuffer_t, nbuf: c_int) -> c_int {
+    pub fn out_line(self, mb: &[mmbuffer_t]) -> c_int {
         match self {
-            Self::Unified(out) => crate::lua::xdiff::write_string(out, mb, nbuf),
+            Self::Unified(out) => crate::lua::xdiff::write_string(unsafe { &mut *out }, mb),
             _ => 0,
         }
     }
@@ -193,10 +193,10 @@ pub struct xdchange_t {
 }
 
 pub type emit_func_t = fn(
-    xe: *mut xdfenv_t,
+    xe: &mut xdfenv_t,
     xscr: &[xdchange_t],
-    ecb: *mut xdemitcb_t,
-    xecfg: *const xdemitconf_t,
+    ecb: &mut xdemitcb_t,
+    xecfg: &xdemitconf_t,
 ) -> c_int;
 
 #[inline]

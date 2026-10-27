@@ -43,35 +43,32 @@ struct Region {
 }
 
 #[inline]
-fn get_rec(env: *const xdfenv_t, side: c_int, line: c_uint) -> xrecord_t {
-    unsafe {
-        if side == 1 {
-            (&(*env).xdf1.recs)[(line as usize) - 1]
-        } else {
-            (&(*env).xdf2.recs)[(line as usize) - 1]
-        }
+fn get_rec(env: &xdfenv_t, side: c_int, line: c_uint) -> xrecord_t {
+    if side == 1 {
+        env.xdf1.recs[(line as usize) - 1]
+    } else {
+        env.xdf2.recs[(line as usize) - 1]
     }
 }
 
 #[inline]
-fn cmp_recs(xpp: *const xpparam_t, r1: &xrecord_t, r2: &xrecord_t) -> bool {
-    unsafe {
-        r1.ha == r2.ha
-            && xdl_recmatch(r1.ptr, r1.size, r2.ptr, r2.size, (*xpp).flags as c_long) != 0
-    }
+fn cmp_recs(xpp: &xpparam_t, r1: &xrecord_t, r2: &xrecord_t) -> bool {
+    r1.ha == r2.ha && xdl_recmatch(r1.ptr, r1.size, r2.ptr, r2.size, xpp.flags as c_long) != 0
 }
 
 #[inline]
 fn cmp_index(index: &HistIndex, s1: c_int, l1: c_uint, s2: c_int, l2: c_uint) -> bool {
-    let r1 = get_rec(index.env, s1, l1);
-        let r2 = get_rec(index.env, s2, l2);
-        cmp_recs(index.xpp, &r1, &r2)
+    let env = unsafe { &*index.env };
+    let xpp = unsafe { &*index.xpp };
+    let r1 = get_rec(env, s1, l1);
+    let r2 = get_rec(env, s2, l2);
+    cmp_recs(xpp, &r1, &r2)
 }
 
 #[inline]
 fn table_hash(index: &HistIndex, side: c_int, line: c_uint) -> usize {
-    let rec = get_rec(index.env, side, line);
-        xdl_hashlong(rec.ha, index.table_bits) as usize
+    let rec = get_rec(unsafe { &*index.env }, side, line);
+    xdl_hashlong(rec.ha, index.table_bits) as usize
 }
 
 #[inline]
@@ -127,7 +124,7 @@ fn scan_a(index: &mut HistIndex, line1: c_int, count1: c_int) -> c_int {
 
 fn try_lcs(
     index: &mut HistIndex,
-    lcs: *mut Region,
+    lcs: &mut Region,
     b_ptr: c_int,
     line1: c_int,
     count1: c_int,
@@ -139,113 +136,109 @@ fn try_lcs(
     let line_end1 = line1 + count1 - 1;
     let line_end2 = line2 + count2 - 1;
 
-    unsafe {
-        let mut rec_idx = index.records[table_hash(index, 2, ub_ptr)];
-        while let Some(ri) = rec_idx {
-            let rec = index.rcha[ri];
-            if rec.cnt > index.cnt {
-                if index.has_common == 0 {
-                    index.has_common = c_uint::from(cmp_index(index, 1, rec.ptr, 2, ub_ptr));
-                }
-                rec_idx = rec.next;
-                continue;
+    let mut rec_idx = index.records[table_hash(index, 2, ub_ptr)];
+    while let Some(ri) = rec_idx {
+        let rec = index.rcha[ri];
+        if rec.cnt > index.cnt {
+            if index.has_common == 0 {
+                index.has_common = c_uint::from(cmp_index(index, 1, rec.ptr, 2, ub_ptr));
             }
-
-            let mut as_ = rec.ptr;
-            if !cmp_index(index, 1, as_, 2, ub_ptr) {
-                rec_idx = rec.next;
-                continue;
-            }
-
-            index.has_common = 1;
-            loop {
-                let mut should_break = false;
-                let mut np = index.next_ptrs[line_map_idx(index, as_)];
-                let mut bs = ub_ptr;
-                let mut ae = as_;
-                let mut be = bs;
-                let mut rc = rec.cnt;
-
-                while line1 < (as_ as c_int)
-                    && line2 < (bs as c_int)
-                    && cmp_index(index, 1, as_ - 1, 2, bs - 1)
-                {
-                    as_ -= 1;
-                    bs -= 1;
-                    if 1 < rc {
-                        let lmi = index.line_map[line_map_idx(index, as_)].unwrap();
-                        rc = rc.min(index.rcha[lmi].cnt);
-                    }
-                }
-                while (ae as c_int) < line_end1
-                    && (be as c_int) < line_end2
-                    && cmp_index(index, 1, ae + 1, 2, be + 1)
-                {
-                    ae += 1;
-                    be += 1;
-                    if 1 < rc {
-                        let lmi = index.line_map[line_map_idx(index, ae)].unwrap();
-                        rc = rc.min(index.rcha[lmi].cnt);
-                    }
-                }
-
-                if b_next <= be {
-                    b_next = be + 1;
-                }
-                if (*lcs).end1 - (*lcs).begin1 < ae - as_ || rc < index.cnt {
-                    (*lcs).begin1 = as_;
-                    (*lcs).begin2 = bs;
-                    (*lcs).end1 = ae;
-                    (*lcs).end2 = be;
-                    index.cnt = rc;
-                }
-
-                if np == 0 {
-                    break;
-                }
-
-                while np <= ae {
-                    np = index.next_ptrs[line_map_idx(index, np)];
-                    if np == 0 {
-                        should_break = true;
-                        break;
-                    }
-                }
-
-                if should_break {
-                    break;
-                }
-
-                as_ = np;
-            }
-
             rec_idx = rec.next;
+            continue;
         }
+
+        let mut as_ = rec.ptr;
+        if !cmp_index(index, 1, as_, 2, ub_ptr) {
+            rec_idx = rec.next;
+            continue;
+        }
+
+        index.has_common = 1;
+        loop {
+            let mut should_break = false;
+            let mut np = index.next_ptrs[line_map_idx(index, as_)];
+            let mut bs = ub_ptr;
+            let mut ae = as_;
+            let mut be = bs;
+            let mut rc = rec.cnt;
+
+            while line1 < (as_ as c_int)
+                && line2 < (bs as c_int)
+                && cmp_index(index, 1, as_ - 1, 2, bs - 1)
+            {
+                as_ -= 1;
+                bs -= 1;
+                if 1 < rc {
+                    let lmi = index.line_map[line_map_idx(index, as_)].unwrap();
+                    rc = rc.min(index.rcha[lmi].cnt);
+                }
+            }
+            while (ae as c_int) < line_end1
+                && (be as c_int) < line_end2
+                && cmp_index(index, 1, ae + 1, 2, be + 1)
+            {
+                ae += 1;
+                be += 1;
+                if 1 < rc {
+                    let lmi = index.line_map[line_map_idx(index, ae)].unwrap();
+                    rc = rc.min(index.rcha[lmi].cnt);
+                }
+            }
+
+            if b_next <= be {
+                b_next = be + 1;
+            }
+            if lcs.end1 - lcs.begin1 < ae - as_ || rc < index.cnt {
+                lcs.begin1 = as_;
+                lcs.begin2 = bs;
+                lcs.end1 = ae;
+                lcs.end2 = be;
+                index.cnt = rc;
+            }
+
+            if np == 0 {
+                break;
+            }
+
+            while np <= ae {
+                np = index.next_ptrs[line_map_idx(index, np)];
+                if np == 0 {
+                    should_break = true;
+                    break;
+                }
+            }
+
+            if should_break {
+                break;
+            }
+
+            as_ = np;
+        }
+
+        rec_idx = rec.next;
     }
 
     b_next as c_int
 }
 
 fn fall_back_to_classic_diff(
-    xpp: *const xpparam_t,
-    env: *mut xdfenv_t,
+    xpp: &xpparam_t,
+    env: &mut xdfenv_t,
     line1: c_int,
     count1: c_int,
     line2: c_int,
     count2: c_int,
 ) -> c_int {
-    unsafe {
-        let xpparam = xpparam_t {
-            flags: (*xpp).flags & !XDF_DIFF_ALGORITHM_MASK,
-        };
-        xdl_fall_back_diff(env, &xpparam, line1, count1, line2, count2)
-    }
+    let xpparam = xpparam_t {
+        flags: xpp.flags & !XDF_DIFF_ALGORITHM_MASK,
+    };
+    xdl_fall_back_diff(env, &xpparam, line1, count1, line2, count2)
 }
 
 fn find_lcs(
-    xpp: *const xpparam_t,
-    env: *mut xdfenv_t,
-    lcs: *mut Region,
+    xpp: &xpparam_t,
+    env: &mut xdfenv_t,
+    lcs: &mut Region,
     line1: c_int,
     count1: c_int,
     line2: c_int,
@@ -269,25 +262,25 @@ fn find_lcs(
     };
 
     if scan_a(&mut index, line1, count1) != 0 {
-            return -1;
-        }
+        return -1;
+    }
 
-        let mut b_ptr = line2;
-        let line_end2 = line2 + count2 - 1;
-        while b_ptr <= line_end2 {
-            b_ptr = try_lcs(&mut index, lcs, b_ptr, line1, count1, line2, count2);
-        }
+    let mut b_ptr = line2;
+    let line_end2 = line2 + count2 - 1;
+    while b_ptr <= line_end2 {
+        b_ptr = try_lcs(&mut index, lcs, b_ptr, line1, count1, line2, count2);
+    }
 
-        if index.has_common != 0 && index.max_chain_length < index.cnt {
-            1
-        } else {
-            0
-        }
+    if index.has_common != 0 && index.max_chain_length < index.cnt {
+        1
+    } else {
+        0
+    }
 }
 
 fn histogram_diff(
-    xpp: *const xpparam_t,
-    env: *mut xdfenv_t,
+    xpp: &xpparam_t,
+    env: &mut xdfenv_t,
     mut line1: c_int,
     mut count1: c_int,
     mut line2: c_int,
@@ -306,14 +299,14 @@ fn histogram_diff(
             if count1 == 0 {
                 while count2 > 0 {
                     count2 -= 1;
-                    *(*env).xdf2.rchg.offset((line2 - 1) as isize) = 1;
+                    *env.xdf2.rchg.offset((line2 - 1) as isize) = 1;
                     line2 += 1;
                 }
                 return 0;
             } else if count2 == 0 {
                 while count1 > 0 {
                     count1 -= 1;
-                    *(*env).xdf1.rchg.offset((line1 - 1) as isize) = 1;
+                    *env.xdf1.rchg.offset((line1 - 1) as isize) = 1;
                     line1 += 1;
                 }
                 return 0;
@@ -328,12 +321,12 @@ fn histogram_diff(
             } else if lcs.begin1 == 0 && lcs.begin2 == 0 {
                 while count1 > 0 {
                     count1 -= 1;
-                    *(*env).xdf1.rchg.offset((line1 - 1) as isize) = 1;
+                    *env.xdf1.rchg.offset((line1 - 1) as isize) = 1;
                     line1 += 1;
                 }
                 while count2 > 0 {
                     count2 -= 1;
-                    *(*env).xdf2.rchg.offset((line2 - 1) as isize) = 1;
+                    *env.xdf2.rchg.offset((line2 - 1) as isize) = 1;
                     line2 += 1;
                 }
                 return 0;
@@ -359,23 +352,21 @@ fn histogram_diff(
 }
 
 pub fn xdl_do_histogram_diff(
-    file1: *mut mmfile_t,
-    file2: *mut mmfile_t,
-    xpp: *const xpparam_t,
-    env: *mut xdfenv_t,
+    file1: &mut mmfile_t,
+    file2: &mut mmfile_t,
+    xpp: &xpparam_t,
+    env: &mut xdfenv_t,
 ) -> c_int {
-    unsafe {
-        if xdl_prepare_env(file1, file2, xpp, env) < 0 {
-            return -1;
-        }
-
-        histogram_diff(
-            xpp,
-            env,
-            ((*env).xdf1.dstart + 1) as c_int,
-            ((*env).xdf1.dend - (*env).xdf1.dstart + 1) as c_int,
-            ((*env).xdf2.dstart + 1) as c_int,
-            ((*env).xdf2.dend - (*env).xdf2.dstart + 1) as c_int,
-        )
+    if xdl_prepare_env(file1, file2, xpp, env) < 0 {
+        return -1;
     }
+
+    histogram_diff(
+        xpp,
+        env,
+        (env.xdf1.dstart + 1) as c_int,
+        (env.xdf1.dend - env.xdf1.dstart + 1) as c_int,
+        (env.xdf2.dstart + 1) as c_int,
+        (env.xdf2.dend - env.xdf2.dstart + 1) as c_int,
+    )
 }

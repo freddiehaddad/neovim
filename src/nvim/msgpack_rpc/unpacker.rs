@@ -885,7 +885,7 @@ pub fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
 }
 
 /// Unpack a complete msgpack string/bin token (`unpack_string`).
-pub fn unpack_string(data: *mut *const c_char, size: *mut usize) -> NvimString {
+pub fn unpack_string(data: &mut *const c_char, size: &mut usize) -> NvimString {
     unsafe {
         let mut data2 = *data;
         let mut size2 = *size;
@@ -918,58 +918,56 @@ pub fn unpack_string(data: *mut *const c_char, size: *mut usize) -> NvimString {
 }
 
 /// Unpack a msgpack array header (`unpack_array`).
-pub fn unpack_array(data: *mut *const c_char, size: *mut usize) -> isize {
+pub fn unpack_array(data: &mut *const c_char, size: &mut usize) -> isize {
     let mut tok = mpack_token_t::new();
-        let result = mpack_rtoken(data, size, &mut tok);
-        if result != 0 || tok.r#type != mpack_token_type_t::MPACK_TOKEN_ARRAY {
-            return -1;
-        }
-        tok.length as isize
+    let result = mpack_rtoken(data, size, &mut tok);
+    if result != 0 || tok.r#type != mpack_token_type_t::MPACK_TOKEN_ARRAY {
+        return -1;
+    }
+    tok.length as isize
 }
 
 /// Unpack a msgpack integer (`unpack_integer`).
 pub fn unpack_integer(
-    data: *mut *const c_char,
-    size: *mut usize,
-    res: *mut Integer,
+    data: &mut *const c_char,
+    size: &mut usize,
+    res: &mut Integer,
 ) -> bool {
     let mut tok = mpack_token_t::new();
-        let result = mpack_rtoken(data, size, &mut tok);
-        if result != 0 {
-            return false;
-        }
-        unpack_uint_or_sint(tok, res)
+    let result = mpack_rtoken(data, size, &mut tok);
+    if result != 0 {
+        return false;
+    }
+    unpack_uint_or_sint(tok, res)
 }
 
 /// Unpack a uint or sint token into `Integer` (`unpack_uint_or_sint`).
-pub fn unpack_uint_or_sint(tok: mpack_token_t, res: *mut Integer) -> bool {
-    unsafe {
-        if tok.r#type == mpack_token_type_t::MPACK_TOKEN_UINT {
-            *res = mpack_unpack_uint(tok) as Integer;
-            true
-        } else if tok.r#type == mpack_token_type_t::MPACK_TOKEN_SINT {
-            *res = mpack_unpack_sint(tok) as Integer;
-            true
-        } else {
-            false
-        }
+pub fn unpack_uint_or_sint(tok: mpack_token_t, res: &mut Integer) -> bool {
+    if tok.r#type == mpack_token_type_t::MPACK_TOKEN_UINT {
+        *res = mpack_unpack_uint(tok) as Integer;
+        true
+    } else if tok.r#type == mpack_token_type_t::MPACK_TOKEN_SINT {
+        *res = mpack_unpack_sint(tok) as Integer;
+        true
+    } else {
+        false
     }
 }
 
 /// Skip one msgpack value (`unpack_skip`).
-pub fn unpack_skip(data: *mut *const c_char, size: *mut usize) -> c_int {
+pub fn unpack_skip(data: &mut *const c_char, size: &mut usize) -> c_int {
     let mut parser = mpack_parser_t::new(0);
-        mpack_parser_init(&mut parser, 0);
-        mpack_parse(&mut parser, data, size, Some(parse_nop), Some(parse_nop))
+    mpack_parser_init(&mut parser, 0);
+    mpack_parse(&mut parser, data, size, Some(parse_nop), Some(parse_nop))
 }
 
 /// Append raw msgpack key-value bytes to `AdditionalDataBuilder` (`push_additional_data`).
 pub fn push_additional_data(
-    ad: *mut AdditionalDataBuilder,
+    ad: &mut AdditionalDataBuilder,
     data: *const c_char,
     size: usize,
 ) {
-    let entry = unsafe { &mut *ad }.get_or_insert_with(AdditionalData::default);
+    let entry = ad.get_or_insert_with(AdditionalData::default);
     entry.nitems += 1;
     if !data.is_null() && size > 0 {
         unsafe {
@@ -989,9 +987,9 @@ pub fn additional_data_take(ad: &mut AdditionalDataBuilder) -> Option<Additional
 pub fn unpack_keydict(
     retval: *mut OptKeySet,
     hashy: FieldHashfn,
-    ad: *mut AdditionalDataBuilder,
-    data: *mut *const c_char,
-    size: *mut usize,
+    ad: &mut AdditionalDataBuilder,
+    data: &mut *const c_char,
+    size: &mut usize,
     error: &mut Option<std::ffi::CString>,
 ) -> bool {
     unsafe {
@@ -1034,9 +1032,7 @@ pub fn unpack_keydict(
                 if status != 0 {
                     return false;
                 }
-                if !ad.is_null() {
-                    push_additional_data(ad, item_start, (*data as usize) - (item_start as usize));
-                }
+                push_additional_data(ad, item_start, (*data as usize) - (item_start as usize));
                 continue;
             };
 
@@ -1059,7 +1055,7 @@ pub fn unpack_keydict(
                 *data = (*data).add(1);
                 *size -= 1;
             } else if field.key_type == (ObjectType::kObjectTypeInteger as c_int) {
-                if !unpack_integer(data, size, mem.cast::<Integer>()) {
+                if !unpack_integer(data, size, &mut *mem.cast::<Integer>()) {
                     *error = alloc_key_error(key, b" key value which is not an integer");
                     return false;
                 }

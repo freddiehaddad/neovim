@@ -91,10 +91,10 @@ fn insert_record(line: c_int, map: &mut HashMap, pass: c_int) {
 }
 
 fn fill_hashmap(
-    file1: *mut mmfile_t,
-    file2: *mut mmfile_t,
-    xpp: *const xpparam_t,
-    env: *mut xdfenv_t,
+    file1: &mut mmfile_t,
+    file2: &mut mmfile_t,
+    xpp: &xpparam_t,
+    env: &mut xdfenv_t,
     mut line1: c_int,
     mut count1: c_int,
     mut line2: c_int,
@@ -115,27 +115,27 @@ fn fill_hashmap(
     };
 
     while count1 > 0 {
-            count1 -= 1;
-            insert_record(line1, &mut map, 1);
-            line1 += 1;
-        }
+        count1 -= 1;
+        insert_record(line1, &mut map, 1);
+        line1 += 1;
+    }
 
-        while count2 > 0 {
-            count2 -= 1;
-            insert_record(line2, &mut map, 2);
-            line2 += 1;
-        }
+    while count2 > 0 {
+        count2 -= 1;
+        insert_record(line2, &mut map, 2);
+        line2 += 1;
+    }
     map
 }
 
-fn binary_search(sequence: &[*mut Entry], longest: c_int, entry: *mut Entry) -> c_int {
+fn binary_search(sequence: &[*mut Entry], longest: c_int, entry: &Entry) -> c_int {
     let mut left: c_int = -1;
     let mut right: c_int = longest;
 
     unsafe {
         while left + 1 < right {
             let middle = left + (right - left) / 2;
-            if (*sequence[middle as usize]).line2 > (*entry).line2 {
+            if (*sequence[middle as usize]).line2 > entry.line2 {
                 right = middle;
             } else {
                 left = middle;
@@ -154,7 +154,7 @@ fn find_longest_common_sequence(map: &mut HashMap) -> *mut Entry {
 
         while !entry.is_null() {
             if (*entry).line2 != 0 && (*entry).line2 != NON_UNIQUE {
-                let mut i = binary_search(&sequence, longest, entry);
+                let mut i = binary_search(&sequence, longest, &*entry);
                 (*entry).previous = if i < 0 {
                     ptr::null_mut()
                 } else {
@@ -224,10 +224,10 @@ fn walk_common_sequence(
 
             if (next1 > line1 || next2 > line2)
                 && patience_diff(
-                    map.file1,
-                    map.file2,
-                    map.xpp,
-                    map.env,
+                    &mut *map.file1,
+                    &mut *map.file2,
+                    &*map.xpp,
+                    &mut *map.env,
                     line1,
                     next1 - line1,
                     line2,
@@ -267,15 +267,15 @@ fn fall_back_to_classic_diff(
         let xpp = xpparam_t {
             flags: (*map.xpp).flags & !XDF_DIFF_ALGORITHM_MASK,
         };
-        xdl_fall_back_diff(map.env, &xpp, line1, count1, line2, count2)
+        xdl_fall_back_diff(&mut *map.env, &xpp, line1, count1, line2, count2)
     }
 }
 
 fn patience_diff(
-    file1: *mut mmfile_t,
-    file2: *mut mmfile_t,
-    xpp: *const xpparam_t,
-    env: *mut xdfenv_t,
+    file1: &mut mmfile_t,
+    file2: &mut mmfile_t,
+    xpp: &xpparam_t,
+    env: &mut xdfenv_t,
     mut line1: c_int,
     mut count1: c_int,
     mut line2: c_int,
@@ -285,14 +285,14 @@ fn patience_diff(
         if count1 == 0 {
             while count2 > 0 {
                 count2 -= 1;
-                *(*env).xdf2.rchg.offset((line2 - 1) as isize) = 1;
+                *env.xdf2.rchg.offset((line2 - 1) as isize) = 1;
                 line2 += 1;
             }
             return 0;
         } else if count2 == 0 {
             while count1 > 0 {
                 count1 -= 1;
-                *(*env).xdf1.rchg.offset((line1 - 1) as isize) = 1;
+                *env.xdf1.rchg.offset((line1 - 1) as isize) = 1;
                 line1 += 1;
             }
             return 0;
@@ -303,12 +303,12 @@ fn patience_diff(
         if map.has_matches == 0 {
             while count1 > 0 {
                 count1 -= 1;
-                *(*env).xdf1.rchg.offset((line1 - 1) as isize) = 1;
+                *env.xdf1.rchg.offset((line1 - 1) as isize) = 1;
                 line1 += 1;
             }
             while count2 > 0 {
                 count2 -= 1;
-                *(*env).xdf2.rchg.offset((line2 - 1) as isize) = 1;
+                *env.xdf2.rchg.offset((line2 - 1) as isize) = 1;
                 line2 += 1;
             }
             return 0;
@@ -324,25 +324,23 @@ fn patience_diff(
 }
 
 pub fn xdl_do_patience_diff(
-    file1: *mut mmfile_t,
-    file2: *mut mmfile_t,
-    xpp: *const xpparam_t,
-    env: *mut xdfenv_t,
+    file1: &mut mmfile_t,
+    file2: &mut mmfile_t,
+    xpp: &xpparam_t,
+    env: &mut xdfenv_t,
 ) -> c_int {
-    unsafe {
-        if xdl_prepare_env(file1, file2, xpp, env) < 0 {
-            return -1;
-        }
-
-        patience_diff(
-            file1,
-            file2,
-            xpp,
-            env,
-            1,
-            (*env).xdf1.nrec as c_int,
-            1,
-            (*env).xdf2.nrec as c_int,
-        )
+    if xdl_prepare_env(file1, file2, xpp, env) < 0 {
+        return -1;
     }
+
+    patience_diff(
+        file1,
+        file2,
+        xpp,
+        env,
+        1,
+        env.xdf1.nrec as c_int,
+        1,
+        env.xdf2.nrec as c_int,
+    )
 }

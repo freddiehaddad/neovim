@@ -6123,7 +6123,7 @@ fn msgpackparse_unpack_list(list: *const list_T, ret_list: *mut list_T) {
 
                 let mut ptr_ = buf.cast::<c_char>().cast_const();
                 while buf_size != 0 {
-                    status = mpack_parse_typval(&mut parser, &raw mut ptr_, &raw mut buf_size);
+                    status = mpack_parse_typval(&mut parser, &mut ptr_, &mut buf_size);
                     if status == MPACK_OK {
                         tv_list_append_owned_tv(ret_list, cur_item);
                         cur_item.v_type = VarType::VAR_UNKNOWN;
@@ -6166,7 +6166,7 @@ fn msgpackparse_unpack_blob(blob: *const blob_T, ret_list: *mut list_T) {
         let mut remaining = len as usize;
         while remaining != 0 {
             let mut tv = tv_initial_value();
-            let status = unpack_typval(&raw mut data, &raw mut remaining, &mut tv);
+            let status = unpack_typval(&mut data, &mut remaining, &mut tv);
             if status != MPACK_OK {
                 emsg_mpack_error(status);
                 return;

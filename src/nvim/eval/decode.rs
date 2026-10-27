@@ -1290,34 +1290,34 @@ fn typval_parse_exit(_parser: *mut mpack_parser_t, node: *mut mpack_node_t) {
 /// Parse msgpack data into a `typval_T` using `parser` (`mpack_parse_typval`).
 pub fn mpack_parse_typval(
     parser: &mut mpack_parser_t,
-    data: *mut *const c_char,
-    size: *mut usize,
+    data: &mut *const c_char,
+    size: &mut usize,
 ) -> c_int {
     mpack_parse(
-            parser,
-            data,
-            size,
-            Some(typval_parse_enter),
-            Some(typval_parse_exit),
-        )
+        parser,
+        data,
+        size,
+        Some(typval_parse_enter),
+        Some(typval_parse_exit),
+    )
 }
 
 /// Unpack msgpack buffer `*data[..*size]` into `*ret` (`unpack_typval`).
 pub fn unpack_typval(
-    data: *mut *const c_char,
-    size: *mut usize,
+    data: &mut *const c_char,
+    size: &mut usize,
     ret: &mut typval_T,
 ) -> c_int {
     ret.v_type = VarType::VAR_UNKNOWN;
-        let mut parser = mpack_parser_t::new(0);
-        mpack_parser_init(&mut parser, 0);
-        parser.data = mpack_data_t::Typval(ret);
-        let status = mpack_parse_typval(&mut parser, data, size);
-        if status != MPACK_OK {
-            typval_parser_error_free(&mut parser);
-            tv_clear(&raw mut *ret);
-        }
-        status
+    let mut parser = mpack_parser_t::new(0);
+    mpack_parser_init(&mut parser, 0);
+    parser.data = mpack_data_t::Typval(ret);
+    let status = mpack_parse_typval(&mut parser, data, size);
+    if status != MPACK_OK {
+        typval_parser_error_free(&mut parser);
+        tv_clear(&raw mut *ret);
+    }
+    status
 }
 
 #[cfg(test)]

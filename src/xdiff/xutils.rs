@@ -24,9 +24,9 @@ pub fn xdl_emit_diffrec(
     size: c_long,
     pre: *const c_char,
     psize: c_long,
-    ecb: *mut xdemitcb_t,
+    ecb: &mut xdemitcb_t,
 ) -> c_int {
-    let mut i: c_int = 2;
+    let mut i: usize = 2;
     let mut mb = [mmbuffer_t {
         ptr: ptr::null_mut(),
         size: 0,
@@ -42,25 +42,23 @@ pub fn xdl_emit_diffrec(
         mb[2].size = (NO_NL.len() - 1) as c_int;
         i += 1;
     }
-    if unsafe { (*ecb).out_line(mb.as_mut_ptr(), i) } < 0 {
+    if ecb.out_line(&mb[..i]) < 0 {
         return -1;
     }
 
     0
 }
 
-pub fn xdl_mmfile_first(mmf: *mut mmfile_t, size: *mut c_long) -> *mut c_char {
-    unsafe {
-        *size = (*mmf).size as c_long;
-        (*mmf).ptr
-    }
+pub fn xdl_mmfile_first(mmf: &mmfile_t, size: &mut c_long) -> *mut c_char {
+    *size = mmf.size as c_long;
+    mmf.ptr
 }
 
-pub fn xdl_mmfile_size(mmf: *mut mmfile_t) -> c_long {
-    unsafe { (*mmf).size as c_long }
+pub fn xdl_mmfile_size(mmf: &mmfile_t) -> c_long {
+    mmf.size as c_long
 }
 
-pub fn xdl_guess_lines(mf: *mut mmfile_t, sample: c_long) -> c_long {
+pub fn xdl_guess_lines(mf: &mmfile_t, sample: c_long) -> c_long {
     let mut nl: c_long = 0;
     let mut size: c_long = 0;
     let mut tsize: c_long = 0;
@@ -223,12 +221,12 @@ pub fn xdl_recmatch(
 }
 
 fn xdl_hash_record_with_whitespace(
-    data: *mut *const c_char,
+    data: &mut *const c_char,
     top: *const c_char,
     flags: c_long,
 ) -> c_ulong {
     let mut ha: c_ulong = 5381;
-    let mut ptr = unsafe { *data };
+    let mut ptr = *data;
     let uflags = flags as c_ulong;
     let cr_at_eol_only = (uflags & XDF_WHITESPACE_FLAGS) == XDF_IGNORE_CR_AT_EOL;
 
@@ -268,15 +266,13 @@ fn xdl_hash_record_with_whitespace(
         ha ^= unsafe { *ptr } as c_ulong;
         ptr = unsafe { ptr.add(1) };
     }
-    unsafe {
-        *data = if ptr < top { ptr.add(1) } else { ptr };
-    }
+    *data = if ptr < top { unsafe { ptr.add(1) } } else { ptr };
 
     ha
 }
 
 pub fn xdl_hash_record(
-    data: *mut *const c_char,
+    data: &mut *const c_char,
     top: *const c_char,
     flags: c_long,
 ) -> c_ulong {
@@ -285,16 +281,14 @@ pub fn xdl_hash_record(
     }
 
     let mut ha: c_ulong = 5381;
-    let mut ptr = unsafe { *data };
+    let mut ptr = *data;
 
     while ptr < top && unsafe { *ptr } != b'\n' as c_char {
         ha = ha.wrapping_add(ha << 5);
         ha ^= unsafe { *ptr } as c_ulong;
         ptr = unsafe { ptr.add(1) };
     }
-    unsafe {
-        *data = if ptr < top { ptr.add(1) } else { ptr };
-    }
+    *data = if ptr < top { unsafe { ptr.add(1) } } else { ptr };
 
     ha
 }
@@ -316,7 +310,7 @@ fn xdl_format_hunk_hdr(
     c1: c_long,
     s2: c_long,
     c2: c_long,
-    ecb: *mut xdemitcb_t,
+    ecb: &mut xdemitcb_t,
 ) -> c_int {
     use std::io::Write as _;
     let mut buf = [0u8; 128];
@@ -332,14 +326,12 @@ fn xdl_format_hunk_hdr(
     let _ = writeln!(cursor, " @@");
     let nb = cursor.position() as c_int;
 
-    unsafe {
-        let mut mb = mmbuffer_t {
-            ptr: buf.as_mut_ptr().cast::<c_char>(),
-            size: nb,
-        };
-        if (*ecb).out_line(&mut mb, 1) < 0 {
-            return -1;
-        }
+    let mb = [mmbuffer_t {
+        ptr: buf.as_mut_ptr().cast::<c_char>(),
+        size: nb,
+    }];
+    if ecb.out_line(&mb) < 0 {
+        return -1;
     }
     0
 }
@@ -349,14 +341,14 @@ pub fn xdl_emit_hunk_hdr(
     c1: c_long,
     s2: c_long,
     c2: c_long,
-    ecb: *mut xdemitcb_t,
+    ecb: &mut xdemitcb_t,
 ) -> c_int {
     xdl_format_hunk_hdr(s1, c1, s2, c2, ecb)
 }
 
 pub fn xdl_fall_back_diff(
-    diff_env: *mut xdfenv_t,
-    xpp: *const xpparam_t,
+    diff_env: &mut xdfenv_t,
+    xpp: &xpparam_t,
     line1: c_int,
     count1: c_int,
     line2: c_int,
@@ -364,24 +356,20 @@ pub fn xdl_fall_back_diff(
 ) -> c_int {
     unsafe {
         let mut subfile1 = mmfile_t {
-            ptr: (&(*diff_env).xdf1.recs)[(line1 - 1) as usize]
-                .ptr
-                .cast_mut(),
+            ptr: diff_env.xdf1.recs[(line1 - 1) as usize].ptr.cast_mut(),
             size: 0,
         };
-        let end_rec1 = &(&(*diff_env).xdf1.recs)[(line1 + count1 - 2) as usize];
+        let end_rec1 = &diff_env.xdf1.recs[(line1 + count1 - 2) as usize];
         subfile1.size = end_rec1
             .ptr
             .offset(end_rec1.size as isize)
             .offset_from(subfile1.ptr) as c_int;
 
         let mut subfile2 = mmfile_t {
-            ptr: (&(*diff_env).xdf2.recs)[(line2 - 1) as usize]
-                .ptr
-                .cast_mut(),
+            ptr: diff_env.xdf2.recs[(line2 - 1) as usize].ptr.cast_mut(),
             size: 0,
         };
-        let end_rec2 = &(&(*diff_env).xdf2.recs)[(line2 + count2 - 2) as usize];
+        let end_rec2 = &diff_env.xdf2.recs[(line2 + count2 - 2) as usize];
         subfile2.size = end_rec2
             .ptr
             .offset(end_rec2.size as isize)
@@ -394,12 +382,12 @@ pub fn xdl_fall_back_diff(
 
         ptr::copy_nonoverlapping(
             env.xdf1.rchg,
-            (*diff_env).xdf1.rchg.offset((line1 - 1) as isize),
+            diff_env.xdf1.rchg.offset((line1 - 1) as isize),
             count1 as usize,
         );
         ptr::copy_nonoverlapping(
             env.xdf2.rchg,
-            (*diff_env).xdf2.rchg.offset((line2 - 1) as isize),
+            diff_env.xdf2.rchg.offset((line2 - 1) as isize),
             count2 as usize,
         );
     }
