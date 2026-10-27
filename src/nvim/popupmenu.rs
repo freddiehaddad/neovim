@@ -798,7 +798,7 @@ pub unsafe fn pum_redraw() {
             }
 
             for i in 0..8 {
-                let mut attr = *hl_attr_active.add(HLF_PBR as usize);
+                let mut attr = crate::highlight::hl_attr(HLF_PBR);
                 if fconfig.border_hl_ids[i] != 0 {
                     attr = hl_get_ui_attr(-1, HLF_PBR, fconfig.border_hl_ids[i], false);
                 }
@@ -865,7 +865,7 @@ pub unsafe fn pum_redraw() {
                 &raw mut fconfig,
                 ptr::null_mut(),
                 0,
-                ptr::null_mut(),
+                None,
                 0,
             );
             if !fconfig.shadow {

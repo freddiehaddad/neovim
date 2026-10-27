@@ -449,7 +449,7 @@ unsafe fn compose_line(
 
             if row == (msg_sep_row as Integer) && (*grid).comp_index <= msg_grid.comp_index {
                 grid = &raw mut msg_grid;
-                let msg_sep_attr = *hl_attr_active.add(HLF_MSGSEP) as sattr_T;
+                let msg_sep_attr = crate::highlight::hl_attr(HLF_MSGSEP as c_int) as sattr_T;
                 for i in col..until {
                     let idx = (i - startcol as c_int) as usize;
                     *lbuf.add(idx) = msg_sep_char;

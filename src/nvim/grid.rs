@@ -1297,17 +1297,22 @@ unsafe fn grid_draw_bordertext(
     vt: &[VirtTextChunk],
     mut col: c_int,
     winbl: c_int,
-    hl_attr: *const c_int,
+    hl_attr: Option<&crate::highlight::NSHlAttr>,
     win_hl_attr_normal: c_int,
     bt: BorderTextType,
     mut overflow: c_int,
 ) {
     unsafe {
-        let mut default_attr = *hl_attr.add(if bt == kBorderTextTitle {
+        let hlf_idx = if bt == kBorderTextTitle {
             HLF_BTITLE
         } else {
             HLF_BFOOTER
-        });
+        };
+        let mut default_attr = if let Some(tbl) = hl_attr {
+            tbl[hlf_idx].get()
+        } else {
+            crate::highlight::hl_attr(hlf_idx as c_int)
+        };
         default_attr = hl_apply_winblend(winbl, default_attr);
         default_attr = hl_combine_attr(win_hl_attr_normal, default_attr);
 
@@ -1363,7 +1368,7 @@ pub unsafe fn grid_draw_border(
     config: *mut WinConfig,
     mut adj: *mut c_int,
     winbl: c_int,
-    mut hl_attr: *mut c_int,
+    hl_attr: Option<&crate::highlight::NSHlAttr>,
     win_hl_attr_normal: c_int,
 ) {
     unsafe {
@@ -1373,9 +1378,6 @@ pub unsafe fn grid_draw_border(
         }
         let mut chars = [0 as schar_T; 8];
         let mut border_attrs = [0 as c_int; 8];
-        if hl_attr.is_null() {
-            hl_attr = hl_attr_active;
-        }
 
         for i in 0..8 {
             chars[i] = schar_from_str((*config).border_chars[i].as_ptr());

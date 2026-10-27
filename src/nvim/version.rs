@@ -4245,7 +4245,7 @@ unsafe fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: b
             return;
         }
 
-        let hlf8_attr = *hl_attr_active.add(HLF_8);
+        let hlf8_attr = crate::highlight::hl_attr(HLF_8 as c_int);
         let mut p = mesg;
         while *p != NUL {
             let mut l: c_int = 0;

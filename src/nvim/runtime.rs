@@ -3498,7 +3498,7 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> Option<Vec<c_char>> {
                             buf.truncate(len);
                         } else {
                             if !(*sp).error {
-                                msg_source(*hl_attr_active.add(HLF_W));
+                                msg_source(crate::highlight::hl_attr(HLF_W as c_int));
                                 emsg(gettext(
                                     c"W15: Warning: Wrong line separator, ^M may be missing"
                                         .as_ptr(),

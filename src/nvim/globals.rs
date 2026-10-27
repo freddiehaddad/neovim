@@ -616,7 +616,7 @@ pub static mut ns_hl_global: NS = 0;
 pub static mut ns_hl_win: NS = -1;
 pub static mut ns_hl_fast: NS = -1;
 pub static mut ns_hl_active: NS = 0;
-pub static mut hl_attr_active: *mut c_int = (&raw mut highlight_attr).cast();
+pub static mut hl_attr_active: Option<std::rc::Rc<crate::highlight::NSHlAttr>> = None;
 #[unsafe(no_mangle)]
 pub static mut test_disable_char_avail: bool = false;
 pub static mut nlua_global_refs: *mut nlua_ref_state_t = ptr::null_mut();

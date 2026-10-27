@@ -1492,7 +1492,7 @@ pub unsafe fn edit_putchar(c: c_int, highlight: bool) {
         update_topline(curwin);
         validate_cursor(curwin);
         let attr = if highlight {
-            *hl_attr_active.add(HLF_8)
+            crate::highlight::hl_attr(HLF_8 as c_int)
         } else {
             0
         };

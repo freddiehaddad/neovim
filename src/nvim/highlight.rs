@@ -215,7 +215,7 @@ pub struct ColorItem {
     pub link_global: bool,
 }
 
-type NSHlAttr = [c_int; HLF_COUNT];
+pub type NSHlAttr = [std::cell::Cell<c_int>; HLF_COUNT];
 
 use crate::api::private::helpers::has_key;
 
@@ -233,7 +233,7 @@ static mut urls: Vec<std::ffi::CString> = Vec::new();
 static mut fonts: Vec<std::ffi::CString> = Vec::new();
 static mut ns_hls: std::collections::BTreeMap<ColorKey, ColorItem> =
     std::collections::BTreeMap::new();
-static mut ns_hl_attr: std::collections::BTreeMap<c_int, Box<NSHlAttr>> =
+static mut ns_hl_attr: std::collections::BTreeMap<c_int, std::rc::Rc<NSHlAttr>> =
     std::collections::BTreeMap::new();
 
 static mut get_attr_entry_recursive: bool = false;
@@ -257,18 +257,25 @@ use crate::lua::converter::LUA_NOREF;
 #[inline]
 pub unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
     unsafe {
-        let tbl = if !(*wp).w_ns_hl_attr.is_null() && ns_hl_fast < 0 {
-            (*wp).w_ns_hl_attr
+        if let Some(ref tbl) = (*wp).w_ns_hl_attr
+            && ns_hl_fast < 0
+        {
+            tbl[hlf as usize].get()
         } else {
-            hl_attr_active
-        };
-        *tbl.add(hlf as usize)
+            hl_attr(hlf)
+        }
     }
 }
 
 #[inline]
 pub unsafe fn hl_attr(n: c_int) -> c_int {
-    unsafe { *hl_attr_active.add(n as usize) }
+    unsafe {
+        if let Some(ref tbl) = *(&raw const hl_attr_active) {
+            tbl[n as usize].get()
+        } else {
+            highlight_attr[n as usize]
+        }
+    }
 }
 
 #[inline]
@@ -577,12 +584,12 @@ pub unsafe fn hl_check_ns() -> bool {
         }
 
         ns_hl_active = ns;
-        hl_attr_active = (&raw mut highlight_attr).cast::<c_int>();
+        hl_attr_active = None;
         if ns > 0 {
             update_ns_hl(ns);
             let ns_hl_attr_ptr = &raw const ns_hl_attr;
             if let Some(hl_def) = (*ns_hl_attr_ptr).get(&ns) {
-                hl_attr_active = hl_def.as_ptr().cast_mut();
+                hl_attr_active = Some(hl_def.clone());
             }
         }
         true
@@ -673,17 +680,16 @@ pub unsafe fn update_window_hl(wp: *mut win_T, invalid: bool) {
             (*wp).w_ns_hl_active = ns_id;
 
             let ns_hl_attr_ptr = &raw const ns_hl_attr;
-            if let Some(hl_def) = (*ns_hl_attr_ptr).get(&ns_id) {
-                (*wp).w_ns_hl_attr = hl_def.as_ptr().cast_mut();
-            } else {
-                (*wp).w_ns_hl_attr = ptr::null_mut();
-            }
+            (*wp).w_ns_hl_attr = (*ns_hl_attr_ptr).get(&ns_id).cloned();
         }
 
-        let hl_def = if !(*wp).w_ns_hl_attr.is_null() {
-            (*wp).w_ns_hl_attr
-        } else {
-            hl_attr_active
+        let w_ns_hl_attr = (*wp).w_ns_hl_attr.clone();
+        let hl_def_get = |idx: usize| -> c_int {
+            if let Some(ref tbl) = w_ns_hl_attr {
+                tbl[idx].get()
+            } else {
+                hl_attr(idx as c_int)
+            }
         };
 
         if (*wp).w_hl_needs_update == 0 && !invalid {
@@ -692,13 +698,13 @@ pub unsafe fn update_window_hl(wp: *mut win_T, invalid: bool) {
         (*wp).w_hl_needs_update = 0;
 
         let float_win = (*wp).w_floating && !(*wp).w_config.external;
-        if float_win && *hl_def.add(HLF_NFLOAT) != 0 && ns_id > 0 {
-            (*wp).w_hl_attr_normal = *hl_def.add(HLF_NFLOAT);
-        } else if *hl_def.add(HLF_NONE) > 0 {
-            (*wp).w_hl_attr_normal = *hl_def.add(HLF_NONE);
+        if float_win && hl_def_get(HLF_NFLOAT) != 0 && ns_id > 0 {
+            (*wp).w_hl_attr_normal = hl_def_get(HLF_NFLOAT);
+        } else if hl_def_get(HLF_NONE) > 0 {
+            (*wp).w_hl_attr_normal = hl_def_get(HLF_NONE);
         } else if float_win {
-            (*wp).w_hl_attr_normal = if *hl_attr_active.add(HLF_NFLOAT) > 0 {
-                *hl_attr_active.add(HLF_NFLOAT)
+            (*wp).w_hl_attr_normal = if hl_attr(HLF_NFLOAT as c_int) > 0 {
+                hl_attr(HLF_NFLOAT as c_int)
             } else {
                 highlight_attr[HLF_NFLOAT]
             };
@@ -714,7 +720,7 @@ pub unsafe fn update_window_hl(wp: *mut win_T, invalid: bool) {
         (*wp).w_config.shadow = false;
         if (*wp).w_floating && (*wp).w_config.border {
             for i in 0..8 {
-                let mut attr = *hl_def.add(HLF_BORDER);
+                let mut attr = hl_def_get(HLF_BORDER);
                 if (*wp).w_config.border_hl_ids[i] != 0 {
                     attr = hl_get_ui_attr(
                         ns_id,
@@ -733,11 +739,11 @@ pub unsafe fn update_window_hl(wp: *mut win_T, invalid: bool) {
 
         check_blending(wp);
 
-        if *hl_def.add(HLF_INACTIVE) == 0 {
+        if hl_def_get(HLF_INACTIVE) == 0 {
             (*wp).w_hl_attr_normalnc =
-                hl_combine_attr(*hl_attr_active.add(HLF_INACTIVE), (*wp).w_hl_attr_normal);
+                hl_combine_attr(hl_attr(HLF_INACTIVE as c_int), (*wp).w_hl_attr_normal);
         } else {
-            (*wp).w_hl_attr_normalnc = *hl_def.add(HLF_INACTIVE);
+            (*wp).w_hl_attr_normalnc = hl_def_get(HLF_INACTIVE);
         }
 
         if (*wp).w_floating {
@@ -762,18 +768,18 @@ pub unsafe fn update_ns_hl(ns_id: c_int) {
         let ns_hl_attr_ptr = &raw mut ns_hl_attr;
         let alloc = (*ns_hl_attr_ptr)
             .entry(ns_id)
-            .or_insert_with(|| Box::new([0; HLF_COUNT]));
-        let hl_attrs = alloc.as_mut_ptr();
+            .or_insert_with(|| std::rc::Rc::new([const { std::cell::Cell::new(0) }; HLF_COUNT]))
+            .clone();
 
         for hlf in 1..HLF_COUNT {
             let name = *(&raw const hlf_names).cast::<*const c_char>().add(hlf);
             let id = syn_check_group(name, CStr::from_ptr(name).to_bytes().len());
             let optional = hlf == HLF_INACTIVE || hlf == HLF_NFLOAT;
-            *hl_attrs.add(hlf) = hl_get_ui_attr(ns_id, hlf as c_int, id, optional);
+            alloc[hlf].set(hl_get_ui_attr(ns_id, hlf as c_int, id, optional));
         }
 
         let normality = syn_check_group(c"Normal".as_ptr(), 6);
-        *hl_attrs.add(HLF_NONE) = hl_get_ui_attr(ns_id, -1, normality, true);
+        alloc[HLF_NONE].set(hl_get_ui_attr(ns_id, -1, normality, true));
 
         p = get_decor_provider(ns_id, true);
         (*p).hl_cached = true;
@@ -793,10 +799,10 @@ pub unsafe fn win_bg_attr(wp: *mut win_T) -> c_int {
             }
         }
 
-        if ptr::eq(wp, curwin) || *hl_attr_active.add(HLF_INACTIVE) == 0 {
-            *hl_attr_active.add(HLF_NONE)
+        if ptr::eq(wp, curwin) || hl_attr(HLF_INACTIVE as c_int) == 0 {
+            hl_attr(HLF_NONE as c_int)
         } else {
-            *hl_attr_active.add(HLF_INACTIVE)
+            hl_attr(HLF_INACTIVE as c_int)
         }
     }
 }

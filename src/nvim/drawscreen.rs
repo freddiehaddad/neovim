@@ -295,7 +295,9 @@ pub unsafe fn screenclear() {
         msg_reset_scroll();
         msg_didany = false;
         msg_didout = false;
-        if *hl_attr_active.add(HLF_MSG) > 0 && msg_use_grid() && grid_allocated(&raw const msg_grid)
+        if crate::highlight::hl_attr(HLF_MSG as c_int) > 0
+            && msg_use_grid()
+            && grid_allocated(&raw const msg_grid)
         {
             grid_invalidate(&raw mut msg_grid);
             msg_grid_validate();
@@ -688,7 +690,7 @@ pub unsafe fn update_screen() -> c_int {
                     &raw mut (*wp).w_config,
                     (*wp).w_border_adj.as_mut_ptr(),
                     (*wp).w_onebuf_opt.wo_winbl as c_int,
-                    (*wp).w_ns_hl_attr,
+                    (*wp).w_ns_hl_attr.as_deref(),
                     (*wp).w_hl_attr_normal,
                 );
             }
