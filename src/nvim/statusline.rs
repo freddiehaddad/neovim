@@ -267,7 +267,7 @@ pub struct statuscol_T {
     pub lnum: linenr_T,
     pub sign_cul_id: c_int,
     pub draw: bool,
-    pub hlrec: *mut stl_hlrec_t,
+    pub hlrec: Vec<stl_hlrec_t>,
     pub foldinfo: foldinfo_T,
     pub fold_vcol: [colnr_T; 9],
     pub sattrs: [SignTextAttrs; 9],
@@ -280,7 +280,7 @@ impl statuscol_T {
             lnum: 0,
             sign_cul_id: 0,
             draw: false,
-            hlrec: ptr::null_mut(),
+            hlrec: Vec::new(),
             foldinfo: foldinfo_T::new(),
             fold_vcol: [0; 9],
             sattrs: [SignTextAttrs {
@@ -1118,6 +1118,7 @@ pub unsafe fn build_statuscol_str(
         set_vim_var_nr(VV_VIRTNUM, varnumber_T::from(virtnum));
 
         let mut clickrec: *mut StlClickRecord = ptr::null_mut();
+        let mut hlrec_ptr: *mut stl_hlrec_t = ptr::null_mut();
         let buf_data = buf.data;
         let stc = CStr::from_ptr((*wp).w_onebuf_opt.wo_stc).to_owned();
         let width = build_stl_str_hl(
@@ -1128,12 +1129,21 @@ pub unsafe fn build_statuscol_str(
             OPT_LOCAL,
             0,
             (*stcp).width,
-            &raw mut (*stcp).hlrec,
+            &raw mut hlrec_ptr,
             ptr::null_mut(),
             &raw mut clickrec,
             stcp,
         );
         drop(stc);
+
+        (*stcp).hlrec.clear();
+        if !hlrec_ptr.is_null() {
+            let mut sp = hlrec_ptr;
+            while !(*sp).start.is_null() {
+                (*stcp).hlrec.push(*sp);
+                sp = sp.add(1);
+            }
+        }
 
         if !(*clickrec).start.is_null() {
             let clicks = (*wp).w_statuscol_click_defs.entry(lnum).or_default();

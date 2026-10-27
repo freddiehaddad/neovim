@@ -344,6 +344,34 @@ impl Drop for compl_T {
 }
 
 /// State information used for getting the next set of insert completion matches.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CptFuncSource {
+    None,
+    Ofu,
+    Cfu,
+    CptCb(usize),
+}
+
+impl CptFuncSource {
+    unsafe fn as_ptr(self) -> *mut Callback {
+        unsafe {
+            match self {
+                Self::None => ptr::null_mut(),
+                Self::Ofu => &raw mut (*curbuf).b_p_ofu,
+                Self::Cfu => &raw mut (*curbuf).b_p_cfu,
+                Self::CptCb(idx) => {
+                    let cbs = &mut (*curbuf).b_p_cpt_cb;
+                    if idx < cbs.len() {
+                        &raw mut cbs[idx]
+                    } else {
+                        ptr::null_mut()
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[repr(C)]
 struct ins_compl_next_state_T {
     e_cpt_copy: Vec<c_char>,
@@ -357,7 +385,7 @@ struct ins_compl_next_state_T {
     found_all: bool,
     dict: *mut c_char,
     dict_f: c_int,
-    func_cb: *mut Callback,
+    func_cb: CptFuncSource,
 }
 
 impl ins_compl_next_state_T {
@@ -374,7 +402,7 @@ impl ins_compl_next_state_T {
             found_all: false,
             dict: ptr::null_mut(),
             dict_f: 0,
-            func_cb: ptr::null_mut(),
+            func_cb: CptFuncSource::None,
         }
     }
 
@@ -4018,7 +4046,7 @@ unsafe fn process_next_cpt_value(
             } else if *(*st).e_cpt == b'F' as c_char || *(*st).e_cpt == b'o' as c_char {
                 compl_type = CTRL_X_FUNCTION;
                 (*st).func_cb = get_callback_if_cpt_func((*st).e_cpt, cpt_sources_index);
-                if (*st).func_cb.is_null() {
+                if (*st).func_cb == CptFuncSource::None {
                     compl_type = -1;
                 }
             } else if !skip_source {
@@ -4800,31 +4828,30 @@ unsafe fn get_register_completion() {
     }
 }
 
-unsafe fn get_callback_if_cpt_func(p: *mut c_char, idx: c_int) -> *mut Callback {
+unsafe fn get_callback_if_cpt_func(p: *mut c_char, idx: c_int) -> CptFuncSource {
     unsafe {
         if *p == b'o' as c_char {
-            return &raw mut (*curbuf).b_p_ofu;
+            return CptFuncSource::Ofu;
         }
 
         if *p == b'F' as c_char {
             let next = *p.add(1);
             if next != b',' as c_char && next != NUL {
-                let cbs = &mut (*curbuf).b_p_cpt_cb;
+                let cbs = &(*curbuf).b_p_cpt_cb;
                 if idx < 0 || (idx as usize) >= cbs.len() {
-                    return ptr::null_mut();
+                    return CptFuncSource::None;
                 }
-                let cb = &raw mut cbs[idx as usize];
-                return if (*cb).cb_type() != kCallbackNone {
-                    cb
+                return if cbs[idx as usize].cb_type() != kCallbackNone {
+                    CptFuncSource::CptCb(idx as usize)
                 } else {
-                    ptr::null_mut()
+                    CptFuncSource::None
                 };
             } else {
-                return &raw mut (*curbuf).b_p_cfu;
+                return CptFuncSource::Cfu;
             }
         }
 
-        ptr::null_mut()
+        CptFuncSource::None
     }
 }
 
@@ -4856,7 +4883,7 @@ unsafe fn get_next_completion_match(
             }
             CTRL_X_FUNCTION => {
                 if ctrl_x_mode_normal() {
-                    get_cpt_func_completion_matches((*st).func_cb);
+                    get_cpt_func_completion_matches((*st).func_cb.as_ptr());
                 } else {
                     expand_by_function(type_, compl_pattern_ptr(), ptr::null_mut());
                 }
@@ -4970,7 +4997,7 @@ unsafe fn prepare_cpt_compl_funcs() {
                 break;
             }
 
-            let cb = get_callback_if_cpt_func(p, idx);
+            let cb = get_callback_if_cpt_func(p, idx).as_ptr();
             if !cb.is_null() {
                 let mut startcol: c_int = 0;
                 if get_userdefined_compl_info((*curwin).w_cursor.col, cb, &raw mut startcol) == FAIL
@@ -6910,7 +6937,7 @@ unsafe fn cpt_compl_refresh() {
             }
 
             if cpt_sources_array[cpt_sources_index as usize].cs_refresh_always {
-                let cb = get_callback_if_cpt_func(p, cpt_sources_index);
+                let cb = get_callback_if_cpt_func(p, cpt_sources_index).as_ptr();
                 if !cb.is_null() {
                     remove_old_matches();
                     let mut startcol: c_int = 0;

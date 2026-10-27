@@ -732,7 +732,7 @@ unsafe fn handle_term_response(input: *mut TermInput, key: *const TermKeyKey) {
 
 unsafe fn handle_primary_device_attr(
     input: *mut TermInput,
-    params: *mut TermKeyCsiParam,
+    params: &[TermKeyCsiParam],
     nparams: usize,
 ) {
     unsafe {
@@ -746,10 +746,10 @@ unsafe fn handle_primary_device_attr(
         }
 
         let mut response = String::from("\x1b[?");
-        for i in 0..nparams {
+        for (i, &param) in params.iter().enumerate().take(nparams) {
             let mut arg: c_int = 0;
             if termkey_interpret_csi_param(
-                *params.add(i),
+                param,
                 &raw mut arg,
                 ptr::null_mut(),
                 ptr::null_mut(),
@@ -792,16 +792,13 @@ unsafe fn handle_modereport(input: *mut TermInput, key: *const TermKeyKey) {
 unsafe fn handle_unknown_csi(input: *mut TermInput, key: *const TermKeyKey) {
     unsafe {
         let p = input;
-        let mut params = [TermKeyCsiParam {
-            param: ptr::null(),
-            length: 0,
-        }; 16];
+        let mut params = [TermKeyCsiParam::new(); 16];
         let mut nparams: usize = 16;
         let mut cmd: c_uint = 0;
         if termkey_interpret_csi(
             (*p).tk(),
             key,
-            params.as_mut_ptr(),
+            &mut params,
             &raw mut nparams,
             &raw mut cmd,
         ) != TERMKEY_RES_KEY
@@ -847,7 +844,7 @@ unsafe fn handle_unknown_csi(input: *mut TermInput, key: *const TermKeyKey) {
             }
             b'c' => {
                 if initial == b'?' {
-                    handle_primary_device_attr(input, params.as_mut_ptr(), nparams);
+                    handle_primary_device_attr(input, &params, nparams);
                 }
             }
             b't' => {

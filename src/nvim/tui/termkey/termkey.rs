@@ -1511,7 +1511,7 @@ mod tests {
             assert_eq!(termkey_getkey(tk, &mut key), TERMKEY_RES_KEY);
             assert_eq!(key.r#type, TERMKEY_TYPE_UNKNOWN_CSI);
             assert_eq!(
-                termkey_interpret_csi(tk, &key, args.as_mut_ptr(), &mut nargs, &mut command),
+                termkey_interpret_csi(tk, &key, &mut args, &mut nargs, &mut command),
                 TERMKEY_RES_KEY
             );
             assert_eq!((nargs, command), (2, u32::from(b'v')));

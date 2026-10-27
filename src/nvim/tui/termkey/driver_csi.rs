@@ -1,6 +1,6 @@
 //! CSI / SS3 / DCS / OSC / APC driver for libtermkey (`src/nvim/tui/termkey/driver-csi.c`).
 
-use std::ffi::{c_char, c_int, c_uchar, c_uint};
+use std::ffi::{c_char, c_int, c_uint};
 
 use crate::tui::termkey::driver_ti::{
     TERMKEY_EVENT_PRESS, TERMKEY_EVENT_RELEASE, TERMKEY_EVENT_REPEAT, TERMKEY_EVENT_UNKNOWN,
@@ -28,18 +28,53 @@ pub const TERMKEY_MOUSE_RELEASE: TermKeyMouseEvent = 3;
 
 pub const TERMKEY_FLAG_CONVERTKP: c_int = 1 << 1;
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub struct TermKeyCsiParam {
-    pub param: *const c_uchar,
-    pub length: usize,
+    pub present: bool,
+    pub param: c_int,
+    pub subparams: [c_int; 4],
+    pub nsubparams: usize,
 }
 
 impl TermKeyCsiParam {
     pub const fn new() -> Self {
         Self {
-            param: std::ptr::null(),
-            length: 0,
+            present: false,
+            param: 0,
+            subparams: [0; 4],
+            nsubparams: 0,
+        }
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        let mut arg: c_int = 0;
+        let mut param: c_int = 0;
+        let mut subparams = [0 as c_int; 4];
+        let mut length = 0usize;
+        for &c in bytes {
+            if c == b':' {
+                if length == 0 {
+                    param = arg;
+                } else if length - 1 < subparams.len() {
+                    subparams[length - 1] = arg;
+                }
+                arg = 0;
+                length += 1;
+                continue;
+            }
+            debug_assert!(c.is_ascii_digit());
+            arg = (10 * arg) + c_int::from(c - b'0');
+        }
+        if length == 0 {
+            param = arg;
+        } else if length - 1 < subparams.len() {
+            subparams[length - 1] = arg;
+        }
+        Self {
+            present: true,
+            param,
+            subparams,
+            nsubparams: length,
         }
     }
 }
@@ -217,7 +252,7 @@ unsafe fn handle_csi_ss3_full(
     _tk: &mut TermKey,
     key: *mut TermKeyKey,
     cmd: c_int,
-    params: *mut TermKeyCsiParam,
+    params: &[TermKeyCsiParam],
     nparams: c_int,
 ) -> TermKeyResult {
     unsafe {
@@ -227,12 +262,12 @@ unsafe fn handle_csi_ss3_full(
             return TERMKEY_RES_NONE;
         }
 
-        if nparams > 1 && !(*params.add(1)).param.is_null() {
+        if nparams > 1 && params[1].present {
             let mut arg: c_int = 0;
             let mut subparam: c_int = 0;
             let mut nsubparams: usize = 1;
             result = termkey_interpret_csi_param(
-                *params.add(1),
+                params[1],
                 &mut arg,
                 &mut subparam,
                 &mut nsubparams,
@@ -272,7 +307,7 @@ unsafe fn handle_csifunc(
     tk: &mut TermKey,
     key: *mut TermKeyKey,
     _cmd: c_int,
-    params: *mut TermKeyCsiParam,
+    params: &[TermKeyCsiParam],
     nparams: c_int,
 ) -> TermKeyResult {
     if nparams == 0 {
@@ -283,11 +318,11 @@ unsafe fn handle_csifunc(
         let mut result: TermKeyResult;
         let mut args = [0 as c_int; 3];
 
-        if nparams > 1 && !(*params.add(1)).param.is_null() {
+        if nparams > 1 && params[1].present {
             let mut subparam: c_int = 0;
             let mut nsubparams: usize = 1;
             result = termkey_interpret_csi_param(
-                *params.add(1),
+                params[1],
                 &mut args[1],
                 &mut subparam,
                 &mut nsubparams,
@@ -311,7 +346,7 @@ unsafe fn handle_csifunc(
         (*key).r#type = TERMKEY_TYPE_KEYSYM;
 
         result = termkey_interpret_csi_param(
-            *params,
+            params[0],
             &mut args[0],
             std::ptr::null_mut(),
             std::ptr::null_mut(),
@@ -320,9 +355,9 @@ unsafe fn handle_csifunc(
             return result;
         }
 
-        if args[0] == 27 && nparams > 2 && !(*params.add(2)).param.is_null() {
+        if args[0] == 27 && nparams > 2 && params[2].present {
             result = termkey_interpret_csi_param(
-                *params.add(2),
+                params[2],
                 &mut args[2],
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
@@ -357,7 +392,7 @@ unsafe fn handle_csi_u(
     tk: &mut TermKey,
     key: *mut TermKeyKey,
     cmd: c_int,
-    params: *mut TermKeyCsiParam,
+    params: &[TermKeyCsiParam],
     nparams: c_int,
 ) -> TermKeyResult {
     unsafe {
@@ -365,11 +400,11 @@ unsafe fn handle_csi_u(
             return TERMKEY_RES_NONE;
         }
         let mut args = [0 as c_int; 2];
-        if nparams > 1 && !(*params.add(1)).param.is_null() {
+        if nparams > 1 && params[1].present {
             let mut subparam: c_int = 0;
             let mut nsubparams: usize = 1;
             if termkey_interpret_csi_param(
-                *params.add(1),
+                params[1],
                 &mut args[1],
                 &mut subparam,
                 &mut nsubparams,
@@ -391,7 +426,7 @@ unsafe fn handle_csi_u(
         }
 
         if termkey_interpret_csi_param(
-            *params,
+            params[0],
             &mut args[0],
             std::ptr::null_mut(),
             std::ptr::null_mut(),
@@ -413,7 +448,7 @@ unsafe fn handle_csi_m(
     _tk: &mut TermKey,
     key: *mut TermKeyKey,
     mut cmd: c_int,
-    params: *mut TermKeyCsiParam,
+    params: &[TermKeyCsiParam],
     nparams: c_int,
 ) -> TermKeyResult {
     let initial = cmd >> 8;
@@ -431,7 +466,7 @@ unsafe fn handle_csi_m(
         let mut args = [0 as c_int; 3];
         for (i, arg) in args.iter_mut().enumerate() {
             if termkey_interpret_csi_param(
-                *params.add(i),
+                params[i],
                 arg,
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
@@ -543,7 +578,7 @@ unsafe fn handle_csi_R(
     tk: &mut TermKey,
     key: *mut TermKeyKey,
     cmd: c_int,
-    params: *mut TermKeyCsiParam,
+    params: &[TermKeyCsiParam],
     nparams: c_int,
 ) -> TermKeyResult {
     unsafe {
@@ -553,7 +588,7 @@ unsafe fn handle_csi_R(
             }
             let mut args = [0 as c_int; 2];
             if termkey_interpret_csi_param(
-                *params,
+                params[0],
                 &mut args[0],
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
@@ -562,7 +597,7 @@ unsafe fn handle_csi_R(
                 return TERMKEY_RES_ERROR;
             }
             if termkey_interpret_csi_param(
-                *params.add(1),
+                params[1],
                 &mut args[1],
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
@@ -599,7 +634,7 @@ unsafe fn handle_csi_y(
     _tk: &mut TermKey,
     key: *mut TermKeyKey,
     cmd: c_int,
-    params: *mut TermKeyCsiParam,
+    params: &[TermKeyCsiParam],
     nparams: c_int,
 ) -> TermKeyResult {
     const CMD_ANSI: c_int = (b'y' as c_int) | ((b'$' as c_int) << 16);
@@ -611,7 +646,7 @@ unsafe fn handle_csi_y(
             }
             let mut args = [0 as c_int; 2];
             if termkey_interpret_csi_param(
-                *params,
+                params[0],
                 &mut args[0],
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
@@ -620,7 +655,7 @@ unsafe fn handle_csi_y(
                 return TERMKEY_RES_ERROR;
             }
             if termkey_interpret_csi_param(
-                *params.add(1),
+                params[1],
                 &mut args[1],
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
@@ -669,7 +704,7 @@ unsafe fn parse_csi(
     tk: &TermKey,
     introlen: usize,
     csi_len: *mut usize,
-    params: *mut TermKeyCsiParam,
+    params: &mut [TermKeyCsiParam; 16],
     nargs: *mut usize,
     commandp: *mut c_uint,
 ) -> TermKeyResult {
@@ -692,7 +727,7 @@ unsafe fn parse_csi(
         let cmd = slice[csi_end];
         *commandp = c_uint::from(cmd);
 
-        let mut present = false;
+        let mut param_start: Option<usize> = None;
         let mut argi = 0usize;
         let mut p = introlen;
 
@@ -705,19 +740,14 @@ unsafe fn parse_csi(
             let c = slice[p];
 
             if (b'0'..b';').contains(&c) {
-                if !present {
-                    (*params.add(argi)).param = &raw const slice[p];
-                    present = true;
+                if param_start.is_none() {
+                    param_start = Some(p);
                 }
             } else if c == b';' {
-                if !present {
-                    (*params.add(argi)).param = std::ptr::null();
-                    (*params.add(argi)).length = 0;
-                } else {
-                    (*params.add(argi)).length =
-                        (&raw const slice[p]) as usize - (*params.add(argi)).param as usize;
-                }
-                present = false;
+                params[argi] = match param_start.take() {
+                    Some(start) => TermKeyCsiParam::from_bytes(&slice[start..p]),
+                    None => TermKeyCsiParam::new(),
+                };
                 argi += 1;
                 if argi >= 16 {
                     break;
@@ -730,9 +760,8 @@ unsafe fn parse_csi(
             p += 1;
         }
 
-        if present {
-            (*params.add(argi)).length =
-                (&raw const slice[p]) as usize - (*params.add(argi)).param as usize;
+        if let Some(start) = param_start {
+            params[argi] = TermKeyCsiParam::from_bytes(&slice[start..p]);
             argi += 1;
         }
 
@@ -746,7 +775,7 @@ unsafe fn parse_csi(
 pub unsafe fn termkey_interpret_csi(
     tk: &TermKey,
     key: *const TermKeyKey,
-    params: *mut TermKeyCsiParam,
+    params: &mut [TermKeyCsiParam; 16],
     nparams: *mut usize,
     cmd: *mut c_uint,
 ) -> TermKeyResult {
@@ -773,7 +802,7 @@ pub unsafe fn termkey_interpret_csi_param(
     }
 
     unsafe {
-        if param.param.is_null() {
+        if !param.present {
             *paramp = -1;
             if !nsubparams.is_null() {
                 *nsubparams = 0;
@@ -781,40 +810,20 @@ pub unsafe fn termkey_interpret_csi_param(
             return TERMKEY_RES_KEY;
         }
 
-        let mut arg: c_int = 0;
+        *paramp = param.param;
         let capacity = if !nsubparams.is_null() {
             *nsubparams
         } else {
             0
         };
-        let mut length = 0usize;
-        let mut i = 0usize;
-        while i < param.length && length <= capacity {
-            let c = *param.param.add(i);
-            if c == b':' {
-                if length == 0 {
-                    *paramp = arg;
-                } else if !subparams.is_null() {
-                    *subparams.add(length - 1) = arg;
-                }
-                arg = 0;
-                length += 1;
-                i += 1;
-                continue;
+        let count = param.nsubparams.min(capacity).min(param.subparams.len());
+        if !subparams.is_null() {
+            for i in 0..count {
+                *subparams.add(i) = param.subparams[i];
             }
-            debug_assert!(c.is_ascii_digit());
-            arg = (10 * arg) + c_int::from(c - b'0');
-            i += 1;
         }
-
-        if length == 0 {
-            *paramp = arg;
-        } else if !subparams.is_null() {
-            *subparams.add(length - 1) = arg;
-        }
-
         if !nsubparams.is_null() {
-            *nsubparams = length;
+            *nsubparams = count;
         }
 
         TERMKEY_RES_KEY
@@ -831,17 +840,14 @@ unsafe fn peekkey_csi_csi(
     unsafe {
         let mut csi_len: usize = 0;
         let mut nparams: usize = 16;
-        let mut params = [TermKeyCsiParam {
-            param: std::ptr::null(),
-            length: 0,
-        }; 16];
+        let mut params = [TermKeyCsiParam::new(); 16];
         let mut cmd: c_uint = 0;
 
         let ret = parse_csi(
             tk,
             introlen,
             &mut csi_len,
-            params.as_mut_ptr(),
+            &mut params,
             &mut nparams,
             &mut cmd,
         );
@@ -874,15 +880,14 @@ unsafe fn peekkey_csi_csi(
 
         let cmd_i32 = cmd as c_int;
         let np_i32 = nparams as c_int;
-        let params_ptr = params.as_mut_ptr();
         let result = match (cmd & 0xff) as u8 {
-            b'u' => handle_csi_u(tk, key, cmd_i32, params_ptr, np_i32),
-            b'M' | b'm' => handle_csi_m(tk, key, cmd_i32, params_ptr, np_i32),
-            b'R' => handle_csi_R(tk, key, cmd_i32, params_ptr, np_i32),
-            b'y' => handle_csi_y(tk, key, cmd_i32, params_ptr, np_i32),
-            b'~' => handle_csifunc(tk, key, cmd_i32, params_ptr, np_i32),
+            b'u' => handle_csi_u(tk, key, cmd_i32, &params, np_i32),
+            b'M' | b'm' => handle_csi_m(tk, key, cmd_i32, &params, np_i32),
+            b'R' => handle_csi_R(tk, key, cmd_i32, &params, np_i32),
+            b'y' => handle_csi_y(tk, key, cmd_i32, &params, np_i32),
+            b'~' => handle_csifunc(tk, key, cmd_i32, &params, np_i32),
             b'A'..=b'F' | b'H' | b'P'..=b'S' | b'Z' => {
-                handle_csi_ss3_full(tk, key, cmd_i32, params_ptr, np_i32)
+                handle_csi_ss3_full(tk, key, cmd_i32, &params, np_i32)
             }
             _ => TERMKEY_RES_NONE,
         };
@@ -1068,11 +1073,7 @@ mod tests {
 
     #[test]
     fn interpret_csi_param_parses_params_and_subparams() {
-        let raw = b"12:3:4";
-        let param = TermKeyCsiParam {
-            param: raw.as_ptr(),
-            length: raw.len(),
-        };
+        let param = TermKeyCsiParam::from_bytes(b"12:3:4");
         let mut p: c_int = 0;
         let mut sub = [0 as c_int; 2];
         let mut nsub: usize = 2;

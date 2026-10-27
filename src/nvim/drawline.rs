@@ -997,33 +997,31 @@ unsafe fn draw_statuscol(
         let num_attr = get_line_number_attr(wp, wlv);
         let mut cur_attr = num_attr;
 
-        let mut sp = (*stcp).hlrec;
-        while !(*sp).start.is_null() {
-            let textlen = (*sp).start.offset_from(p);
+        for sp in &(*stcp).hlrec {
+            let textlen = sp.start.offset_from(p);
             let translen = transstr_buf(p, textlen, transbuf_ptr, MAXPATHL, true);
             draw_col_buf(wp, wlv, transbuf_ptr, translen, cur_attr, fold_vcol, false);
-            let attr = if (*sp).item == c_int::from(STL_SIGNCOL as u8) {
+            let attr = if sp.item == c_int::from(STL_SIGNCOL as u8) {
                 scl_attr
-            } else if (*sp).item == c_int::from(STL_FOLDCOL as u8) {
+            } else if sp.item == c_int::from(STL_FOLDCOL as u8) {
                 0
             } else {
                 num_attr
             };
             cur_attr = hl_combine_attr(
                 attr,
-                if (*sp).userhl < 0 {
-                    syn_id2attr(-(*sp).userhl)
+                if sp.userhl < 0 {
+                    syn_id2attr(-sp.userhl)
                 } else {
                     0
                 },
             );
-            fold_vcol = if (*sp).item == c_int::from(STL_FOLDCOL as u8) {
+            fold_vcol = if sp.item == c_int::from(STL_FOLDCOL as u8) {
                 (&raw const (*stcp).fold_vcol).cast::<colnr_T>()
             } else {
                 ptr::null()
             };
-            p = (*sp).start;
-            sp = sp.add(1);
+            p = sp.start;
         }
         let translen = transstr_buf(
             p,
