@@ -447,10 +447,8 @@ use crate::buffer::{bt_cmdwin, bt_prompt, bt_quickfix};
 use crate::highlight::{hl_attr, win_hl_attr};
 
 #[inline]
-unsafe fn normal_state_init(s: *mut NormalState) {
-    unsafe {
-        *s = NormalState::new();
-    }
+unsafe fn normal_state_init(s: &mut NormalState) {
+    *s = NormalState::new();
 }
 
 const NV_CMDS_SIZE: usize = 188;
@@ -1702,7 +1700,7 @@ pub unsafe fn op_pending() -> bool {
 pub unsafe fn normal_enter() {
     unsafe {
         let mut state = NormalState::new();
-        normal_state_init(&raw mut state);
+        normal_state_init(&mut state);
         let prev_oap = norm_st().current_oap;
         norm_st().current_oap = &raw mut state.oa;
         state.toplevel = true;
@@ -1711,45 +1709,45 @@ pub unsafe fn normal_enter() {
     }
 }
 
-unsafe fn normal_prepare(s: *mut NormalState) {
+unsafe fn normal_prepare(s: &mut NormalState) {
     unsafe {
-        (*s).ca = cmdarg_T::new();
-        (*s).ca.oap = &mut (*s).oa;
+        s.ca = cmdarg_T::new();
+        s.ca.oap = &mut s.oa;
 
-        (*s).ca.opcount = g_st().opcount;
+        s.ca.opcount = g_st().opcount;
 
         let c = g_st().finish_op;
-        g_st().finish_op = (*s).oa.op_type != OP_NOP;
+        g_st().finish_op = s.oa.op_type != OP_NOP;
         if g_st().finish_op != c {
             ui_cursor_shape();
         }
         may_trigger_modechanged();
 
-        (*s).set_prevcount = false;
-        if !g_st().finish_op && (*s).oa.regname == 0 {
-            (*s).ca.opcount = 0;
-            (*s).set_prevcount = true;
+        s.set_prevcount = false;
+        if !g_st().finish_op && s.oa.regname == 0 {
+            s.ca.opcount = 0;
+            s.set_prevcount = true;
         }
 
-        if (*s).oa.prev_opcount > 0 || (*s).oa.prev_count0 > 0 {
-            (*s).ca.opcount = (*s).oa.prev_opcount;
-            (*s).ca.count0 = (*s).oa.prev_count0;
-            (*s).oa.prev_opcount = 0;
-            (*s).oa.prev_count0 = 0;
+        if s.oa.prev_opcount > 0 || s.oa.prev_count0 > 0 {
+            s.ca.opcount = s.oa.prev_opcount;
+            s.ca.count0 = s.oa.prev_count0;
+            s.oa.prev_opcount = 0;
+            s.oa.prev_count0 = 0;
         }
 
-        (*s).mapped_len = typebuf_maplen();
+        s.mapped_len = typebuf_maplen();
         g_st().State = MODE_NORMAL_BUSY;
 
-        if (*s).toplevel && readbuf1_empty() {
-            set_vcount_ca(&mut (*s).ca, &raw mut (*s).set_prevcount);
+        if s.toplevel && readbuf1_empty() {
+            set_vcount_ca(&mut s.ca, &raw mut s.set_prevcount);
         }
     }
 }
 
-unsafe fn normal_handle_special_visual_command(s: *mut NormalState) -> bool {
+unsafe fn normal_handle_special_visual_command(s: &mut NormalState) -> bool {
     unsafe {
-        let flags = nv_cmds[(*s).idx as usize].cmd_flags;
+        let flags = nv_cmds[s.idx as usize].cmd_flags;
         if g_st().km_stopsel && (flags & NV_STS) != 0 && (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) == 0 {
             end_visual_mode();
             redraw_curbuf_later(UPD_INVERTED);
@@ -1757,10 +1755,10 @@ unsafe fn normal_handle_special_visual_command(s: *mut NormalState) -> bool {
 
         if g_st().km_startsel {
             if (flags & NV_SS) != 0 {
-                unshift_special(&mut (*s).ca);
-                (*s).idx = find_command((*s).ca.cmdchar);
-                if (*s).idx < 0 {
-                    clearopbeep(&mut (*s).oa);
+                unshift_special(&mut s.ca);
+                s.idx = find_command(s.ca.cmdchar);
+                if s.idx < 0 {
+                    clearopbeep(&mut s.oa);
                     return true;
                 }
             } else if (flags & NV_SSS) != 0 && (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) != 0 {
@@ -1771,11 +1769,11 @@ unsafe fn normal_handle_special_visual_command(s: *mut NormalState) -> bool {
     }
 }
 
-unsafe fn normal_need_additional_char(s: *mut NormalState) -> bool {
+unsafe fn normal_need_additional_char(s: &mut NormalState) -> bool {
     unsafe {
-        let flags = nv_cmds[(*s).idx as usize].cmd_flags;
-        let pending_op = (*s).oa.op_type != OP_NOP;
-        let cmdchar = (*s).ca.cmdchar;
+        let flags = nv_cmds[s.idx as usize].cmd_flags;
+        let pending_op = s.oa.op_type != OP_NOP;
+        let cmdchar = s.ca.cmdchar;
         (flags & NV_NCH) != 0
             && (((flags & NV_NCH_NOP) == NV_NCH_NOP && !pending_op)
                 || (flags & NV_NCH_ALW) == NV_NCH_ALW
@@ -1788,31 +1786,31 @@ unsafe fn normal_need_additional_char(s: *mut NormalState) -> bool {
     }
 }
 
-unsafe fn normal_need_redraw_mode_message(s: *mut NormalState) -> bool {
+unsafe fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
     unsafe {
         ((opt_vars().p_smd != 0
             && g_st().msg_silent == 0
             && (g_st().restart_edit != 0
                 || (g_st().Visual.active
-                    && (*s).old_pos.lnum == (**curwin.as_ptr()).w_cursor.lnum
-                    && (*s).old_pos.col == (**curwin.as_ptr()).w_cursor.col))
+                    && s.old_pos.lnum == (**curwin.as_ptr()).w_cursor.lnum
+                    && s.old_pos.col == (**curwin.as_ptr()).w_cursor.col))
             && (g_st().clear_cmdline || g_st().redraw_cmdline)
             && (g_st().msg_didout || (g_st().msg_didany && g_st().msg_scroll != 0))
             && !g_st().msg_nowait
             && g_st().KeyTyped)
             || (g_st().restart_edit != 0 && !g_st().Visual.active && g_st().msg_scroll != 0 && g_st().emsg_on_display))
-            && (*s).oa.regname == 0
-            && ((*s).ca.retval & CA_COMMAND_BUSY) == 0
+            && s.oa.regname == 0
+            && (s.ca.retval & CA_COMMAND_BUSY) == 0
             && stuff_empty()
             && typebuf_typed() != 0
             && g_st().emsg_silent == 0
             && !g_st().in_assert_fails
             && !g_st().did_wait_return
-            && (*s).oa.op_type == OP_NOP
+            && s.oa.op_type == OP_NOP
     }
 }
 
-unsafe fn normal_redraw_mode_message(_s: *mut NormalState) {
+unsafe fn normal_redraw_mode_message(_s: &mut NormalState) {
     unsafe {
         let save_State = g_st().State;
 
@@ -1847,7 +1845,7 @@ unsafe fn normal_redraw_mode_message(_s: *mut NormalState) {
     }
 }
 
-unsafe fn normal_get_additional_char(s: *mut NormalState) {
+unsafe fn normal_get_additional_char(s: &mut NormalState) {
     unsafe {
         let cp: *mut c_int;
         let mut repl = false;
@@ -1856,17 +1854,17 @@ unsafe fn normal_get_additional_char(s: *mut NormalState) {
         g_st().no_mapping += 1;
         g_st().allow_keys += 1;
         g_st().did_cursorhold = true;
-        if (*s).ca.cmdchar == b'g' as c_int {
-            (*s).ca.nchar = plain_vgetc();
-            langmap_adjust(&mut (*s).ca.nchar, true);
-            (*s).need_flushbuf |= add_to_showcmd((*s).ca.nchar);
-            if (*s).ca.nchar == b'r' as c_int
-                || (*s).ca.nchar == b'\'' as c_int
-                || (*s).ca.nchar == b'`' as c_int
-                || (*s).ca.nchar == Ctrl_BSL
+        if s.ca.cmdchar == b'g' as c_int {
+            s.ca.nchar = plain_vgetc();
+            langmap_adjust(&mut s.ca.nchar, true);
+            s.need_flushbuf |= add_to_showcmd(s.ca.nchar);
+            if s.ca.nchar == b'r' as c_int
+                || s.ca.nchar == b'\'' as c_int
+                || s.ca.nchar == b'`' as c_int
+                || s.ca.nchar == Ctrl_BSL
             {
-                cp = &mut (*s).ca.extra_char;
-                if (*s).ca.nchar != b'r' as c_int {
+                cp = &mut s.ca.extra_char;
+                if s.ca.nchar != b'r' as c_int {
                     lit = true;
                 } else {
                     repl = true;
@@ -1875,12 +1873,12 @@ unsafe fn normal_get_additional_char(s: *mut NormalState) {
                 cp = ptr::null_mut();
             }
         } else {
-            if (*s).ca.cmdchar == b'r' as c_int {
+            if s.ca.cmdchar == b'r' as c_int {
                 repl = true;
             }
-            cp = &mut (*s).ca.nchar;
+            cp = &mut s.ca.nchar;
         }
-        let lang = repl || (nv_cmds[(*s).idx as usize].cmd_flags & NV_LANG) != 0;
+        let lang = repl || (nv_cmds[s.idx as usize].cmd_flags & NV_LANG) != 0;
 
         if !cp.is_null() {
             let mut langmap_active = false;
@@ -1906,36 +1904,36 @@ unsafe fn normal_get_additional_char(s: *mut NormalState) {
                 g_st().allow_keys += 1;
             }
             g_st().State = MODE_NORMAL_BUSY;
-            (*s).need_flushbuf |= add_to_showcmd(*cp);
+            s.need_flushbuf |= add_to_showcmd(*cp);
 
             if !lit {
                 if *cp == Ctrl_K
-                    && ((nv_cmds[(*s).idx as usize].cmd_flags & NV_LANG) != 0
-                        || ptr::eq(cp, &mut (*s).ca.extra_char))
+                    && ((nv_cmds[s.idx as usize].cmd_flags & NV_LANG) != 0
+                        || ptr::eq(cp, &mut s.ca.extra_char))
                     && vim_strchr(opt_vars().p_cpo, kCpoDigraph).is_null()
                 {
-                    (*s).c = get_digraph(false);
-                    if (*s).c > 0 {
-                        *cp = (*s).c;
+                    s.c = get_digraph(false);
+                    if s.c > 0 {
+                        *cp = s.c;
                         del_from_showcmd(3);
-                        (*s).need_flushbuf |= add_to_showcmd(*cp);
+                        s.need_flushbuf |= add_to_showcmd(*cp);
                     }
                 }
 
                 langmap_adjust(&mut *cp, !lang);
             }
 
-            if ptr::eq(cp, &mut (*s).ca.extra_char)
-                && (*s).ca.nchar == Ctrl_BSL
-                && ((*s).ca.extra_char == Ctrl_N || (*s).ca.extra_char == Ctrl_G)
+            if ptr::eq(cp, &mut s.ca.extra_char)
+                && s.ca.nchar == Ctrl_BSL
+                && (s.ca.extra_char == Ctrl_N || s.ca.extra_char == Ctrl_G)
             {
-                (*s).ca.cmdchar = Ctrl_BSL;
-                (*s).ca.nchar = (*s).ca.extra_char;
-                (*s).idx = find_command((*s).ca.cmdchar);
-            } else if ((*s).ca.nchar == b'n' as c_int || (*s).ca.nchar == b'N' as c_int)
-                && (*s).ca.cmdchar == b'g' as c_int
+                s.ca.cmdchar = Ctrl_BSL;
+                s.ca.nchar = s.ca.extra_char;
+                s.idx = find_command(s.ca.cmdchar);
+            } else if (s.ca.nchar == b'n' as c_int || s.ca.nchar == b'N' as c_int)
+                && s.ca.cmdchar == b'g' as c_int
             {
-                (*(*s).ca.oap).op_type = get_op_type(*cp, NUL as c_int);
+                (*s.ca.oap).op_type = get_op_type(*cp, NUL as c_int);
             } else if *cp == Ctrl_BSL {
                 let mut towait = if opt_vars().p_ttm >= 0 {
                     opt_vars().p_ttm as c_int
@@ -1943,21 +1941,21 @@ unsafe fn normal_get_additional_char(s: *mut NormalState) {
                     opt_vars().p_tm as c_int
                 };
                 while {
-                    (*s).c = vpeekc();
-                    (*s).c <= 0 && towait > 0
+                    s.c = vpeekc();
+                    s.c <= 0 && towait > 0
                 } {
                     do_sleep(i64::from(if towait > 50 { 50 } else { towait }), false);
                     towait -= 50;
                 }
-                if (*s).c > 0 {
-                    (*s).c = plain_vgetc();
-                    if (*s).c != Ctrl_N && (*s).c != Ctrl_G {
-                        vungetc((*s).c);
+                if s.c > 0 {
+                    s.c = plain_vgetc();
+                    if s.c != Ctrl_N && s.c != Ctrl_G {
+                        vungetc(s.c);
                     } else {
-                        (*s).ca.cmdchar = Ctrl_BSL;
-                        (*s).ca.nchar = (*s).c;
-                        (*s).idx = find_command((*s).ca.cmdchar);
-                        assert!((*s).idx >= 0);
+                        s.ca.cmdchar = Ctrl_BSL;
+                        s.ca.nchar = s.c;
+                        s.idx = find_command(s.ca.cmdchar);
+                        assert!(s.idx >= 0);
                     }
                 }
             }
@@ -1965,38 +1963,38 @@ unsafe fn normal_get_additional_char(s: *mut NormalState) {
             if lang {
                 g_st().no_mapping -= 1;
                 let mut state = GraphemeState::default();
-                let mut prev_code = (*s).ca.nchar;
+                let mut prev_code = s.ca.nchar;
 
                 while {
-                    (*s).c = vpeekc();
-                    (*s).c > 0 && ((*s).c >= 0x100 || utf_byte2len(vpeekc()) > 1)
+                    s.c = vpeekc();
+                    s.c > 0 && (s.c >= 0x100 || utf_byte2len(vpeekc()) > 1)
                 } {
-                    (*s).c = plain_vgetc();
+                    s.c = plain_vgetc();
 
-                    if !utf_iscomposing(prev_code, (*s).c, &raw mut state) {
-                        vungetc((*s).c);
+                    if !utf_iscomposing(prev_code, s.c, &raw mut state) {
+                        vungetc(s.c);
                         break;
                     }
 
-                    if (*s).ca.nchar_len == 0 {
-                        (*s).ca.nchar_len =
-                            utf_char2bytes((*s).ca.nchar, (*s).ca.nchar_composing.as_mut_ptr());
+                    if s.ca.nchar_len == 0 {
+                        s.ca.nchar_len =
+                            utf_char2bytes(s.ca.nchar, s.ca.nchar_composing.as_mut_ptr());
                     }
 
-                    if (((*s).ca.nchar_len + utf_char2len((*s).c)) as usize)
-                        < (*s).ca.nchar_composing.len()
+                    if ((s.ca.nchar_len + utf_char2len(s.c)) as usize)
+                        < s.ca.nchar_composing.len()
                     {
-                        (*s).ca.nchar_len += utf_char2bytes(
-                            (*s).c,
-                            (*s).ca
+                        s.ca.nchar_len += utf_char2bytes(
+                            s.c,
+                            s.ca
                                 .nchar_composing
                                 .as_mut_ptr()
-                                .add((*s).ca.nchar_len as usize),
+                                .add(s.ca.nchar_len as usize),
                         );
                     }
-                    prev_code = (*s).c;
+                    prev_code = s.c;
                 }
-                (*s).ca.nchar_composing[(*s).ca.nchar_len as usize] = NUL;
+                s.ca.nchar_composing[s.ca.nchar_len as usize] = NUL;
                 g_st().no_mapping += 1;
                 g_st().no_u_sync += 1;
                 gotchars_ignore();
@@ -2008,9 +2006,9 @@ unsafe fn normal_get_additional_char(s: *mut NormalState) {
     }
 }
 
-unsafe fn normal_invert_horizontal(s: *mut NormalState) {
+unsafe fn normal_invert_horizontal(s: &mut NormalState) {
     unsafe {
-        (*s).ca.cmdchar = match (*s).ca.cmdchar {
+        s.ca.cmdchar = match s.ca.cmdchar {
             c if c == b'l' as c_int => b'h' as c_int,
             K_RIGHT => K_LEFT,
             K_S_RIGHT => K_S_LEFT,
@@ -2023,59 +2021,59 @@ unsafe fn normal_invert_horizontal(s: *mut NormalState) {
             c if c == b'<' as c_int => b'>' as c_int,
             c => c,
         };
-        (*s).idx = find_command((*s).ca.cmdchar);
+        s.idx = find_command(s.ca.cmdchar);
     }
 }
 
-unsafe fn normal_get_command_count(s: *mut NormalState) -> bool {
+unsafe fn normal_get_command_count(s: &mut NormalState) -> bool {
     unsafe {
         if g_st().Visual.active && g_st().Visual.select {
             return false;
         }
-        while ((*s).c >= b'1' as c_int && (*s).c <= b'9' as c_int)
-            || ((*s).ca.count0 != 0
-                && ((*s).c == K_DEL || (*s).c == K_KDEL || (*s).c == b'0' as c_int))
+        while (s.c >= b'1' as c_int && s.c <= b'9' as c_int)
+            || (s.ca.count0 != 0
+                && (s.c == K_DEL || s.c == K_KDEL || s.c == b'0' as c_int))
         {
-            if (*s).c == K_DEL || (*s).c == K_KDEL {
-                (*s).ca.count0 /= 10;
+            if s.c == K_DEL || s.c == K_KDEL {
+                s.ca.count0 /= 10;
                 del_from_showcmd(4);
-            } else if (*s).ca.count0 > 99_999_999 {
-                (*s).ca.count0 = 999_999_999;
+            } else if s.ca.count0 > 99_999_999 {
+                s.ca.count0 = 999_999_999;
             } else {
-                (*s).ca.count0 = (*s).ca.count0 * 10 + ((*s).c - b'0' as c_int);
+                s.ca.count0 = s.ca.count0 * 10 + (s.c - b'0' as c_int);
             }
 
-            if (*s).toplevel && readbuf1_empty() {
-                set_vcount_ca(&mut (*s).ca, &raw mut (*s).set_prevcount);
+            if s.toplevel && readbuf1_empty() {
+                set_vcount_ca(&mut s.ca, &raw mut s.set_prevcount);
             }
 
-            if (*s).ctrl_w {
+            if s.ctrl_w {
                 g_st().no_mapping += 1;
                 g_st().allow_keys += 1;
             }
 
             g_st().no_zero_mapping += 1;
-            (*s).c = plain_vgetc();
-            langmap_adjust(&mut (*s).c, true);
+            s.c = plain_vgetc();
+            langmap_adjust(&mut s.c, true);
             g_st().no_zero_mapping -= 1;
-            if (*s).ctrl_w {
+            if s.ctrl_w {
                 g_st().no_mapping -= 1;
                 g_st().allow_keys -= 1;
             }
-            (*s).need_flushbuf |= add_to_showcmd((*s).c);
+            s.need_flushbuf |= add_to_showcmd(s.c);
         }
 
-        if (*s).c == Ctrl_W && !(*s).ctrl_w && (*s).oa.op_type == OP_NOP {
-            (*s).ctrl_w = true;
-            (*s).ca.opcount = (*s).ca.count0;
-            (*s).ca.count0 = 0;
+        if s.c == Ctrl_W && !s.ctrl_w && s.oa.op_type == OP_NOP {
+            s.ctrl_w = true;
+            s.ca.opcount = s.ca.count0;
+            s.ca.count0 = 0;
             g_st().no_mapping += 1;
             g_st().allow_keys += 1;
-            (*s).c = plain_vgetc();
-            langmap_adjust(&mut (*s).c, true);
+            s.c = plain_vgetc();
+            langmap_adjust(&mut s.c, true);
             g_st().no_mapping -= 1;
             g_st().allow_keys -= 1;
-            (*s).need_flushbuf |= add_to_showcmd((*s).c);
+            s.need_flushbuf |= add_to_showcmd(s.c);
             return true;
         }
 
@@ -2083,27 +2081,27 @@ unsafe fn normal_get_command_count(s: *mut NormalState) -> bool {
     }
 }
 
-unsafe fn normal_finish_command(s: *mut NormalState) {
+unsafe fn normal_finish_command(s: &mut NormalState) {
     unsafe {
         let mut did_visual_op = false;
 
-        if !(*s).command_finished {
+        if !s.command_finished {
             if !g_st().finish_op
-                && (*s).oa.op_type == 0
-                && ((*s).idx < 0 || (nv_cmds[(*s).idx as usize].cmd_flags & NV_KEEPREG) == 0)
+                && s.oa.op_type == 0
+                && (s.idx < 0 || (nv_cmds[s.idx as usize].cmd_flags & NV_KEEPREG) == 0)
             {
-                clearop(&mut (*s).oa);
+                clearop(&mut s.oa);
                 set_reg_var(get_default_register_name());
             }
 
-            if (*s).old_mapped_len > 0 {
-                (*s).old_mapped_len = typebuf_maplen();
+            if s.old_mapped_len > 0 {
+                s.old_mapped_len = typebuf_maplen();
             }
 
-            if (*s).ca.cmdchar != K_IGNORE && (*s).ca.cmdchar != K_MOUSEMOVE {
+            if s.ca.cmdchar != K_IGNORE && s.ca.cmdchar != K_MOUSEMOVE {
                 did_visual_op =
-                    g_st().Visual.active && (*s).oa.op_type != OP_NOP && (*s).oa.op_type != OP_COLON;
-                do_pending_operator(&mut (*s).ca, (*s).old_col, false);
+                    g_st().Visual.active && s.oa.op_type != OP_NOP && s.oa.op_type != OP_COLON;
+                do_pending_operator(&mut s.ca, s.old_col, false);
             }
 
             if normal_need_redraw_mode_message(s) {
@@ -2123,13 +2121,13 @@ unsafe fn normal_finish_command(s: *mut NormalState) {
         }
 
         let prev_finish_op = g_st().finish_op;
-        if (*s).oa.op_type == OP_NOP {
+        if s.oa.op_type == OP_NOP {
             g_st().finish_op = false;
             may_trigger_modechanged();
         }
         if prev_finish_op
-            || (*s).ca.cmdchar == b'r' as c_int
-            || ((*s).ca.cmdchar == b'g' as c_int && (*s).ca.nchar == b'r' as c_int)
+            || s.ca.cmdchar == b'r' as c_int
+            || (s.ca.cmdchar == b'g' as c_int && s.ca.nchar == b'r' as c_int)
         {
             ui_cursor_shape();
         }
@@ -2137,22 +2135,22 @@ unsafe fn normal_finish_command(s: *mut NormalState) {
         checkpcmark();
         mb_check_adjust_col(*curwin.as_ptr());
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 && (*s).toplevel {
+        if (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 && s.toplevel {
             validate_cursor(*curwin.as_ptr());
             do_check_scrollbind(true);
         }
 
-        if (**curwin.as_ptr()).w_onebuf_opt.wo_crb != 0 && (*s).toplevel {
+        if (**curwin.as_ptr()).w_onebuf_opt.wo_crb != 0 && s.toplevel {
             validate_cursor(*curwin.as_ptr());
             do_check_cursorbind();
         }
 
-        if (*s).oa.op_type == OP_NOP
-            && ((g_st().restart_edit != 0 && !g_st().Visual.active && (*s).old_mapped_len == 0)
+        if s.oa.op_type == OP_NOP
+            && ((g_st().restart_edit != 0 && !g_st().Visual.active && s.old_mapped_len == 0)
                 || g_st().Visual.restart_select == 1)
-            && ((*s).ca.retval & CA_COMMAND_BUSY) == 0
+            && (s.ca.retval & CA_COMMAND_BUSY) == 0
             && stuff_empty()
-            && (*s).oa.regname == 0
+            && s.oa.regname == 0
         {
             if g_st().Visual.restart_select == 1 {
                 g_st().Visual.select = true;
@@ -2161,7 +2159,7 @@ unsafe fn normal_finish_command(s: *mut NormalState) {
                 showmode();
                 g_st().Visual.restart_select = 0;
             }
-            if g_st().restart_edit != 0 && !g_st().Visual.active && (*s).old_mapped_len == 0 {
+            if g_st().restart_edit != 0 && !g_st().Visual.active && s.old_mapped_len == 0 {
                 edit(g_st().restart_edit, false, 1);
             }
         }
@@ -2170,119 +2168,119 @@ unsafe fn normal_finish_command(s: *mut NormalState) {
             g_st().Visual.restart_select = 1;
         }
 
-        g_st().opcount = (*s).ca.opcount;
+        g_st().opcount = s.ca.opcount;
 
-        atom_cmd_end(&mut (*s).ca);
+        atom_cmd_end(&mut s.ca);
 
-        if (*s).oa.op_type == OP_NOP && (*s).oa.regname == 0 && (*s).ca.cmdchar != K_EVENT {
+        if s.oa.op_type == OP_NOP && s.oa.regname == 0 && s.ca.cmdchar != K_EVENT {
             clear_showcmd();
         }
     }
 }
 
-unsafe fn normal_execute(s: *mut NormalState, key: c_int) -> c_int {
+unsafe fn normal_execute(s: &mut NormalState, key: c_int) -> c_int {
     unsafe {
         atom_cmd_start(key);
 
-        (*s).command_finished = false;
-        (*s).ctrl_w = false;
-        (*s).old_col = (**curwin.as_ptr()).w_curswant;
-        (*s).c = key;
+        s.command_finished = false;
+        s.ctrl_w = false;
+        s.old_col = (**curwin.as_ptr()).w_curswant;
+        s.c = key;
 
-        langmap_adjust(&mut (*s).c, get_real_state() != MODE_SELECT);
+        langmap_adjust(&mut s.c, get_real_state() != MODE_SELECT);
 
         if g_st().restart_edit == 0 {
-            (*s).old_mapped_len = 0;
-        } else if (*s).old_mapped_len != 0
-            || (g_st().Visual.active && (*s).mapped_len == 0 && typebuf_maplen() > 0)
+            s.old_mapped_len = 0;
+        } else if s.old_mapped_len != 0
+            || (g_st().Visual.active && s.mapped_len == 0 && typebuf_maplen() > 0)
         {
-            (*s).old_mapped_len = typebuf_maplen();
+            s.old_mapped_len = typebuf_maplen();
         }
 
-        if (*s).c == NUL as c_int {
-            (*s).c = K_ZERO;
+        if s.c == NUL as c_int {
+            s.c = K_ZERO;
         }
 
         if g_st().Visual.active
             && g_st().Visual.select
-            && (vim_isprintc((*s).c) || (*s).c == NL || (*s).c == CAR || (*s).c == K_KENTER)
+            && (vim_isprintc(s.c) || s.c == NL || s.c == CAR || s.c == K_KENTER)
         {
             requeue_key(g_st().vgetc_char, g_st().vgetc_mod_mask, 0, true);
             if g_st().restart_edit != 0 {
-                (*s).c = b'd' as c_int;
+                s.c = b'd' as c_int;
             } else {
-                (*s).c = b'c' as c_int;
+                s.c = b'c' as c_int;
             }
             g_st().msg_nowait = true;
-            (*s).old_mapped_len = 0;
+            s.old_mapped_len = 0;
         }
 
-        (*s).need_flushbuf = add_to_showcmd((*s).c);
+        s.need_flushbuf = add_to_showcmd(s.c);
 
         while normal_get_command_count(s) {}
 
-        if (*s).c == K_EVENT {
-            (*s).oa.prev_opcount = (*s).ca.opcount;
-            (*s).oa.prev_count0 = (*s).ca.count0;
-        } else if (*s).ca.opcount != 0 {
-            if (*s).ca.count0 != 0 {
-                if (*s).ca.opcount >= 999_999_999 / (*s).ca.count0 {
-                    (*s).ca.count0 = 999_999_999;
+        if s.c == K_EVENT {
+            s.oa.prev_opcount = s.ca.opcount;
+            s.oa.prev_count0 = s.ca.count0;
+        } else if s.ca.opcount != 0 {
+            if s.ca.count0 != 0 {
+                if s.ca.opcount >= 999_999_999 / s.ca.count0 {
+                    s.ca.count0 = 999_999_999;
                 } else {
-                    (*s).ca.count0 *= (*s).ca.opcount;
+                    s.ca.count0 *= s.ca.opcount;
                 }
             } else {
-                (*s).ca.count0 = (*s).ca.opcount;
+                s.ca.count0 = s.ca.opcount;
             }
         }
 
-        (*s).ca.opcount = (*s).ca.count0;
-        (*s).ca.count1 = if (*s).ca.count0 == 0 {
+        s.ca.opcount = s.ca.count0;
+        s.ca.count1 = if s.ca.count0 == 0 {
             1
         } else {
-            (*s).ca.count0
+            s.ca.count0
         };
 
-        if (*s).toplevel && readbuf1_empty() {
+        if s.toplevel && readbuf1_empty() {
             set_vcount(
-                i64::from((*s).ca.count0),
-                i64::from((*s).ca.count1),
-                (*s).set_prevcount,
+                i64::from(s.ca.count0),
+                i64::from(s.ca.count1),
+                s.set_prevcount,
             );
         }
 
-        if (*s).ctrl_w {
-            (*s).ca.nchar = (*s).c;
-            (*s).ca.cmdchar = Ctrl_W;
+        if s.ctrl_w {
+            s.ca.nchar = s.c;
+            s.ca.cmdchar = Ctrl_W;
         } else {
-            (*s).ca.cmdchar = (*s).c;
+            s.ca.cmdchar = s.c;
         }
 
-        (*s).idx = find_command((*s).ca.cmdchar);
+        s.idx = find_command(s.ca.cmdchar);
 
         'finish: {
-            if (*s).idx < 0 {
-                clearopbeep(&mut (*s).oa);
-                (*s).command_finished = true;
+            if s.idx < 0 {
+                clearopbeep(&mut s.oa);
+                s.command_finished = true;
                 break 'finish;
             }
 
-            if (nv_cmds[(*s).idx as usize].cmd_flags & NV_NCW) != 0
-                && check_text_or_curbuf_locked(&mut (*s).oa)
+            if (nv_cmds[s.idx as usize].cmd_flags & NV_NCW) != 0
+                && check_text_or_curbuf_locked(&mut s.oa)
             {
-                (*s).command_finished = true;
+                s.command_finished = true;
                 break 'finish;
             }
 
             if g_st().Visual.active && normal_handle_special_visual_command(s) {
-                (*s).command_finished = true;
+                s.command_finished = true;
                 break 'finish;
             }
 
             if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0
                 && g_st().KeyTyped
                 && g_st().KeyStuffed == 0
-                && (nv_cmds[(*s).idx as usize].cmd_flags & NV_RL) != 0
+                && (nv_cmds[s.idx as usize].cmd_flags & NV_RL) != 0
             {
                 normal_invert_horizontal(s);
             }
@@ -2291,53 +2289,53 @@ unsafe fn normal_execute(s: *mut NormalState, key: c_int) -> c_int {
                 normal_get_additional_char(s);
             }
 
-            if (*s).need_flushbuf {
+            if s.need_flushbuf {
                 ui_flush();
             }
 
-            if (*s).ca.cmdchar != K_IGNORE && (*s).ca.cmdchar != K_EVENT {
+            if s.ca.cmdchar != K_IGNORE && s.ca.cmdchar != K_EVENT {
                 g_st().did_cursorhold = false;
             }
 
             g_st().State = MODE_NORMAL;
 
-            if (*s).ca.nchar == ESC || (*s).ca.extra_char == ESC {
-                clearop(&mut (*s).oa);
-                (*s).command_finished = true;
+            if s.ca.nchar == ESC || s.ca.extra_char == ESC {
+                clearop(&mut s.oa);
+                s.command_finished = true;
                 break 'finish;
             }
 
-            if (*s).ca.cmdchar != K_IGNORE {
+            if s.ca.cmdchar != K_IGNORE {
                 g_st().msg_didout = false;
                 g_st().msg_col = 0;
             }
 
-            (*s).old_pos = (**curwin.as_ptr()).w_cursor;
+            s.old_pos = (**curwin.as_ptr()).w_cursor;
 
             if !g_st().Visual.active && g_st().km_startsel {
-                let flags = nv_cmds[(*s).idx as usize].cmd_flags;
+                let flags = nv_cmds[s.idx as usize].cmd_flags;
                 if (flags & NV_SS) != 0 {
                     start_selection();
-                    unshift_special(&mut (*s).ca);
-                    (*s).idx = find_command((*s).ca.cmdchar);
-                    assert!((*s).idx >= 0);
+                    unshift_special(&mut s.ca);
+                    s.idx = find_command(s.ca.cmdchar);
+                    assert!(s.idx >= 0);
                 } else if (flags & NV_SSS) != 0 && (g_st().mod_mask & c_int::from(MOD_MASK_SHIFT)) != 0 {
                     start_selection();
                     g_st().mod_mask &= !c_int::from(MOD_MASK_SHIFT);
                 }
             }
 
-            (*s).ca.arg = c_int::from(nv_cmds[(*s).idx as usize].cmd_arg);
-            (nv_cmds[(*s).idx as usize].cmd_func)(&mut (*s).ca);
+            s.ca.arg = c_int::from(nv_cmds[s.idx as usize].cmd_arg);
+            (nv_cmds[s.idx as usize].cmd_func)(&mut s.ca);
         }
 
         normal_finish_command(s);
-        (*s).ca.searchbuf = None;
+        s.ca.searchbuf = None;
         1
     }
 }
 
-unsafe fn normal_check_stuff_buffer(_s: *mut NormalState) {
+unsafe fn normal_check_stuff_buffer(_s: &mut NormalState) {
     unsafe {
         if stuff_empty() {
             g_st().did_check_timestamps = false;
@@ -2353,21 +2351,21 @@ unsafe fn normal_check_stuff_buffer(_s: *mut NormalState) {
     }
 }
 
-unsafe fn normal_check_interrupt(s: *mut NormalState) {
+unsafe fn normal_check_interrupt(s: &mut NormalState) {
     unsafe {
         if g_st().got_int {
             if !g_st().quit_more {
                 vgetc();
             }
             g_st().got_int = false;
-            (*s).previous_got_int = true;
+            s.previous_got_int = true;
         } else {
-            (*s).previous_got_int = false;
+            s.previous_got_int = false;
         }
     }
 }
 
-unsafe fn normal_check_window_scrolled(_s: *mut NormalState) {
+unsafe fn normal_check_window_scrolled(_s: &mut NormalState) {
     unsafe {
         if !g_st().finish_op {
             may_trigger_win_scrolled_resized();
@@ -2375,7 +2373,7 @@ unsafe fn normal_check_window_scrolled(_s: *mut NormalState) {
     }
 }
 
-unsafe fn normal_check_cursor_moved(_s: *mut NormalState) {
+unsafe fn normal_check_cursor_moved(_s: &mut NormalState) {
     unsafe {
         if !g_st().finish_op
             && has_event(EVENT_CURSORMOVED)
@@ -2395,7 +2393,7 @@ unsafe fn normal_check_cursor_moved(_s: *mut NormalState) {
     }
 }
 
-unsafe fn normal_check_text_changed(_s: *mut NormalState) {
+unsafe fn normal_check_text_changed(_s: &mut NormalState) {
     unsafe {
         if !g_st().finish_op
             && has_event(EVENT_TEXTCHANGED)
@@ -2413,13 +2411,13 @@ unsafe fn normal_check_text_changed(_s: *mut NormalState) {
     }
 }
 
-unsafe fn normal_check_safe_state(_s: *mut NormalState) {
+unsafe fn normal_check_safe_state(_s: &mut NormalState) {
     unsafe {
         may_trigger_safestate(!op_pending() && g_st().restart_edit == 0);
     }
 }
 
-unsafe fn normal_check_folds(_s: *mut NormalState) {
+unsafe fn normal_check_folds(_s: &mut NormalState) {
     unsafe {
         foldAdjustVisual();
 
@@ -2433,7 +2431,7 @@ unsafe fn normal_check_folds(_s: *mut NormalState) {
     }
 }
 
-unsafe fn normal_redraw(_s: *mut NormalState) {
+unsafe fn normal_redraw(_s: &mut NormalState) {
     unsafe {
         update_topline(*curwin.as_ptr());
         validate_cursor(*curwin.as_ptr());
@@ -2471,7 +2469,7 @@ unsafe fn normal_redraw(_s: *mut NormalState) {
     }
 }
 
-unsafe fn normal_check(s: *mut NormalState) -> c_int {
+unsafe fn normal_check(s: &mut NormalState) -> c_int {
     unsafe {
         normal_check_stuff_buffer(s);
         normal_check_interrupt(s);
@@ -7802,11 +7800,11 @@ unsafe fn nv_event(cap: &mut cmdarg_T) {
 pub unsafe fn normal_cmd(oap: &mut oparg_T, toplevel: bool) {
     unsafe {
         let mut s = NormalState::new();
-        normal_state_init(&raw mut s);
+        normal_state_init(&mut s);
         s.toplevel = toplevel;
         s.oa = *oap;
-        normal_prepare(&raw mut s);
-        normal_execute(&raw mut s, safe_vgetc());
+        normal_prepare(&mut s);
+        normal_execute(&mut s, safe_vgetc());
         *oap = s.oa;
     }
 }

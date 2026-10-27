@@ -441,24 +441,24 @@ pub unsafe fn msg_grid_set_pos(row: c_int, scrolled: bool) {
             msg_st().msg_grid_pos_at_flush = row;
         }
         g_st().msg_grid_pos = row;
-        if crate::grid::grid_allocated(&raw const g_st().msg_grid) {
+        if crate::grid::grid_allocated(&g_st().msg_grid) {
             g_st().msg_grid_adj.row_offset = -row;
         }
     }
 }
 
 pub unsafe fn msg_use_grid() -> bool {
-    unsafe { crate::grid::grid_allocated(&raw const g_st().default_grid) && !ui_has(kUIMessages) }
+    unsafe { crate::grid::grid_allocated(&g_st().default_grid) && !ui_has(kUIMessages) }
 }
 
 pub unsafe fn msg_grid_validate() {
     unsafe {
-        grid_assign_handle(&raw mut g_st().msg_grid);
+        grid_assign_handle(&mut g_st().msg_grid);
         let should_alloc = msg_use_grid();
         let max_rows = g_st().Rows - opt_vars().p_ch as c_int;
-        let msg_grid_empty = !crate::grid::grid_allocated(&raw const g_st().msg_grid);
+        let msg_grid_empty = !crate::grid::grid_allocated(&g_st().msg_grid);
         if should_alloc && (g_st().msg_grid.rows != g_st().Rows || g_st().msg_grid.cols != g_st().Columns || msg_grid_empty) {
-            grid_alloc(&raw mut g_st().msg_grid, g_st().Rows, g_st().Columns, false, true);
+            grid_alloc(&mut g_st().msg_grid, g_st().Rows, g_st().Columns, false, true);
             g_st().msg_grid.zindex = kZIndexMessages;
 
             g_st().msg_grid.dirty_col = vec![0; g_st().Rows as usize];
@@ -472,7 +472,7 @@ pub unsafe fn msg_grid_validate() {
             g_st().msg_grid.throttled = false; // don't throttle in 'cmdheight' area
             msg_grid_set_pos(pos, g_st().msg_scrolled != 0);
             ui_comp_put_grid(
-                &raw mut g_st().msg_grid,
+                &mut g_st().msg_grid,
                 pos,
                 0,
                 g_st().msg_grid.rows,
@@ -490,8 +490,8 @@ pub unsafe fn msg_grid_validate() {
             g_st().msg_grid.mouse_enabled = false;
             g_st().msg_grid_adj.target = &raw mut g_st().msg_grid;
         } else if !should_alloc && !msg_grid_empty {
-            ui_comp_remove_grid(&raw mut g_st().msg_grid);
-            grid_free(&raw mut g_st().msg_grid);
+            ui_comp_remove_grid(&mut g_st().msg_grid);
+            grid_free(&mut g_st().msg_grid);
             g_st().msg_grid.dirty_col = Vec::new();
             ui_call_grid_destroy(g_st().msg_grid.handle as Integer);
             g_st().msg_grid.throttled = false;
@@ -513,7 +513,7 @@ pub unsafe fn msg_grid_validate() {
             }
         }
 
-        if crate::grid::grid_allocated(&raw const g_st().msg_grid)
+        if crate::grid::grid_allocated(&g_st().msg_grid)
             && g_st().msg_scrolled == 0
             && g_st().cmdline_row < g_st().msg_grid_pos
         {
@@ -2824,7 +2824,7 @@ pub unsafe fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: 
             }
         }
         if msg_use_printf() == 0
-            || (g_st().headless_mode && crate::grid::grid_allocated(&raw const g_st().default_grid))
+            || (g_st().headless_mode && crate::grid::grid_allocated(&g_st().default_grid))
         {
             msg_puts_display(str_, len as c_int, hl_id, 0);
         }
@@ -3091,7 +3091,7 @@ pub unsafe fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
         if g_st().msg_grid_pos > 0 {
             msg_grid_set_pos(g_st().msg_grid_pos - 1, !zerocmd);
 
-            if zerocmd && crate::grid::grid_allocated(&raw const g_st().msg_grid) {
+            if zerocmd && crate::grid::grid_allocated(&g_st().msg_grid) {
                 grid_clear_line(
                     &raw mut g_st().msg_grid,
                     g_st().msg_grid.line_offset[0],
@@ -3100,7 +3100,7 @@ pub unsafe fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
                 );
             }
         } else {
-            grid_del_lines(&raw mut g_st().msg_grid, 0, 1, g_st().msg_grid.rows, 0, g_st().msg_grid.cols);
+            grid_del_lines(&mut g_st().msg_grid, 0, 1, g_st().msg_grid.rows, 0, g_st().msg_grid.cols);
             for i in 0..(g_st().msg_grid.rows - 1) as usize {
                 g_st().msg_grid.dirty_col[i] = g_st().msg_grid.dirty_col[i + 1];
             }
@@ -3176,7 +3176,7 @@ pub unsafe fn msg_reset_scroll() {
         g_st().msg_grid.throttled = false;
         msg_grid_set_pos(g_st().Rows - opt_vars().p_ch as c_int, false);
         g_st().clear_cmdline = true;
-        if crate::grid::grid_allocated(&raw const g_st().msg_grid) {
+        if crate::grid::grid_allocated(&g_st().msg_grid) {
             let limit = msg_scrollsize().min(g_st().msg_grid.rows);
             for i in 0..limit {
                 grid_clear_line(
@@ -3195,7 +3195,7 @@ pub unsafe fn msg_reset_scroll() {
 
 pub unsafe fn msg_ui_refresh() {
     unsafe {
-        if ui_has(kUIMultigrid) && crate::grid::grid_allocated(&raw const g_st().msg_grid) {
+        if ui_has(kUIMultigrid) && crate::grid::grid_allocated(&g_st().msg_grid) {
             ui_call_grid_resize(
                 g_st().msg_grid.handle as Integer,
                 g_st().msg_grid.cols as Integer,
@@ -3209,7 +3209,7 @@ pub unsafe fn msg_ui_refresh() {
 pub unsafe fn msg_ui_flush() {
     unsafe {
         if ui_has(kUIMultigrid)
-            && crate::grid::grid_allocated(&raw const g_st().msg_grid)
+            && crate::grid::grid_allocated(&g_st().msg_grid)
             && g_st().msg_grid.pending_comp_index_update
         {
             ui_ext_msg_set_pos(g_st().msg_grid_pos, g_st().msg_scrolled != 0);
@@ -3628,7 +3628,7 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
                         }
 
                         if toscroll == -1 && !to_redraw {
-                            grid_ins_lines(&raw mut g_st().msg_grid, 0, 1, g_st().Rows, 0, g_st().Columns);
+                            grid_ins_lines(&mut g_st().msg_grid, 0, 1, g_st().Rows, 0, g_st().Columns);
                             grid_clear(&raw mut g_st().msg_grid_adj, 0, 1, 0, g_st().Columns, hl_attr(HLF_MSG));
                             if let Some(cur_idx) = mp {
                                 disp_sb_line(0, cur_idx);
@@ -3796,7 +3796,7 @@ pub unsafe fn msg_clr_eos_force() {
             g_st().Columns
         };
 
-        if crate::grid::grid_allocated(&raw const g_st().msg_grid) && g_st().msg_row < g_st().msg_grid_pos {
+        if crate::grid::grid_allocated(&g_st().msg_grid) && g_st().msg_row < g_st().msg_grid_pos {
             msg_grid_validate();
             if g_st().msg_row < g_st().msg_grid_pos {
                 g_st().msg_row = g_st().msg_grid_pos;

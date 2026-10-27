@@ -460,8 +460,8 @@ pub unsafe fn line_do_arabic_shape(buf: *mut schar_T, cols: c_int) {
 }
 
 #[inline]
-pub unsafe fn grid_allocated(grid: *const ScreenGrid) -> bool {
-    unsafe { !(*grid).chars.is_empty() }
+pub unsafe fn grid_allocated(grid: &ScreenGrid) -> bool {
+    !grid.chars.is_empty()
 }
 
 /// Clear a line in the grid starting at `off` until `width` characters are cleared (`grid_clear_line`).
@@ -776,7 +776,7 @@ pub unsafe fn grid_line_flush() {
         }
 
         grid_put_linebuf(
-            grid,
+            &mut *grid,
             grid_st().grid_line_row,
             grid_st().grid_line_coloff,
             grid_st().grid_line_first,
@@ -846,7 +846,7 @@ unsafe fn grid_char_needs_redraw(
 }
 
 pub unsafe fn grid_put_linebuf(
-    grid_ptr: *mut ScreenGrid,
+    grid: &mut ScreenGrid,
     row: c_int,
     coloff: c_int,
     mut col: c_int,
@@ -858,7 +858,7 @@ pub unsafe fn grid_put_linebuf(
     flags: c_int,
 ) {
     unsafe {
-        let grid = &mut *grid_ptr;
+        
         let mut clear_next = false;
         assert!(0 <= row && row < grid.rows);
         if endcol > grid.cols {
@@ -869,8 +869,8 @@ pub unsafe fn grid_put_linebuf(
             return;
         }
 
-        let invalid_row = !ptr::eq(grid_ptr, &raw const g_st().default_grid)
-            && grid_invalid_row(grid_ptr, row)
+        let invalid_row = !ptr::eq(grid, &raw const g_st().default_grid)
+            && grid_invalid_row(grid, row)
             && col == 0;
         let off_to = grid.line_offset[row as usize] + coloff as usize;
         let max_off_to = grid.line_offset[row as usize] + grid.cols as usize;
@@ -900,7 +900,7 @@ pub unsafe fn grid_put_linebuf(
         }
 
         let mut redraw_next =
-            grid_char_needs_redraw(grid_ptr, col, off_to + col as usize, endcol - col);
+            grid_char_needs_redraw(grid, col, off_to + col as usize, endcol - col);
 
         let mut start_dirty: c_int = -1;
         let mut end_dirty: c_int = 0;
@@ -913,7 +913,7 @@ pub unsafe fn grid_put_linebuf(
             let redraw_this = redraw_next;
             let off = off_to + col as usize;
             redraw_next = grid_char_needs_redraw(
-                grid_ptr,
+                grid,
                 col + char_cells,
                 off + char_cells as usize,
                 endcol - col - char_cells,
@@ -1005,7 +1005,7 @@ pub unsafe fn grid_put_linebuf(
                 start_dirty = clear_dirty_start;
             } else {
                 ui_line(
-                    grid_ptr,
+                    grid,
                     row,
                     invalid_row,
                     coloff + clear_dirty_start,
@@ -1028,7 +1028,7 @@ pub unsafe fn grid_put_linebuf(
         if clear_end > start_dirty {
             if !grid.throttled {
                 ui_line(
-                    grid_ptr,
+                    grid,
                     row,
                     invalid_row,
                     coloff + start_dirty,
@@ -1045,14 +1045,14 @@ pub unsafe fn grid_put_linebuf(
 }
 
 pub unsafe fn grid_alloc(
-    grid_ptr: *mut ScreenGrid,
+    grid: &mut ScreenGrid,
     rows: c_int,
     columns: c_int,
     copy: bool,
     valid: bool,
 ) {
     unsafe {
-        let grid = &mut *grid_ptr;
+        
         assert!(rows >= 0 && columns >= 0);
         let ncells = rows as usize * columns as usize;
         let mut ngrid = ScreenGrid {
@@ -1108,19 +1108,17 @@ pub unsafe fn grid_alloc(
     }
 }
 
-pub unsafe fn grid_free(grid: *mut ScreenGrid) {
-    unsafe {
-        (*grid).chars = Vec::new();
-        (*grid).attrs = Vec::new();
-        (*grid).vcols = Vec::new();
-        (*grid).line_offset = Vec::new();
-    }
+pub unsafe fn grid_free(grid: &mut ScreenGrid) {
+    grid.chars = Vec::new();
+        grid.attrs = Vec::new();
+        grid.vcols = Vec::new();
+        grid.line_offset = Vec::new();
 }
 
 pub unsafe fn grid_free_all_mem() {
     unsafe {
-        grid_free(&raw mut g_st().default_grid);
-        grid_free(&raw mut g_st().msg_grid);
+        grid_free(&mut g_st().default_grid);
+        grid_free(&mut g_st().msg_grid);
         g_st().msg_grid.dirty_col = Vec::new();
         g_st().linebuf_char = Vec::new();
         g_st().linebuf_attr = Vec::new();
@@ -1159,7 +1157,7 @@ pub unsafe fn win_grid_alloc(wp: *mut win_T) {
                 || (*grid_allocated).cols != total_cols)
         {
             grid_alloc(
-                grid_allocated,
+                &mut *grid_allocated,
                 total_rows,
                 total_cols,
                 (*wp).w_grid_alloc.valid,
@@ -1171,7 +1169,7 @@ pub unsafe fn win_grid_alloc(wp: *mut win_T) {
             }
             was_resized = true;
         } else if !want_allocation && has_allocation {
-            grid_free(grid_allocated);
+            grid_free(&mut *grid_allocated);
             (*grid_allocated).valid = false;
             was_resized = true;
         } else if want_allocation && has_allocation && !(*wp).w_grid_alloc.valid {
@@ -1200,17 +1198,17 @@ pub unsafe fn win_grid_alloc(wp: *mut win_T) {
     }
 }
 
-pub unsafe fn grid_assign_handle(grid: *mut ScreenGrid) {
+pub unsafe fn grid_assign_handle(grid: &mut ScreenGrid) {
     unsafe {
-        if (*grid).handle == 0 {
+        if grid.handle == 0 {
             grid_st().last_grid_handle += 1;
-            (*grid).handle = grid_st().last_grid_handle;
+            grid.handle = grid_st().last_grid_handle;
         }
     }
 }
 
 pub unsafe fn grid_ins_lines(
-    grid_ptr: *mut ScreenGrid,
+    grid: &mut ScreenGrid,
     row: c_int,
     line_count: c_int,
     end: c_int,
@@ -1221,7 +1219,7 @@ pub unsafe fn grid_ins_lines(
         if line_count <= 0 {
             return;
         }
-        let grid = &mut *grid_ptr;
+        
 
         for i in 0..line_count {
             if width != grid.cols {
@@ -1230,11 +1228,11 @@ pub unsafe fn grid_ins_lines(
                     j -= line_count;
                     j >= row
                 } {
-                    linecopy(grid_ptr, j + line_count, j, col, width);
+                    linecopy(grid, j + line_count, j, col, width);
                 }
                 j += line_count;
                 let clear_off = grid.line_offset[j as usize] + col as usize;
-                grid_clear_line(grid_ptr, clear_off, width, false);
+                grid_clear_line(grid, clear_off, width, false);
             } else {
                 let mut j = end - 1 - i;
                 let temp = grid.line_offset[j as usize] as c_uint as usize;
@@ -1246,7 +1244,7 @@ pub unsafe fn grid_ins_lines(
                 }
                 grid.line_offset[(j + line_count) as usize] = temp;
                 let cols = grid.cols;
-                grid_clear_line(grid_ptr, temp, cols, false);
+                grid_clear_line(grid, temp, cols, false);
             }
         }
 
@@ -1265,7 +1263,7 @@ pub unsafe fn grid_ins_lines(
 }
 
 pub unsafe fn grid_del_lines(
-    grid_ptr: *mut ScreenGrid,
+    grid: &mut ScreenGrid,
     row: c_int,
     line_count: c_int,
     end: c_int,
@@ -1276,7 +1274,7 @@ pub unsafe fn grid_del_lines(
         if line_count <= 0 {
             return;
         }
-        let grid = &mut *grid_ptr;
+        
 
         for i in 0..line_count {
             if width != grid.cols {
@@ -1285,11 +1283,11 @@ pub unsafe fn grid_del_lines(
                     j += line_count;
                     j < end
                 } {
-                    linecopy(grid_ptr, j - line_count, j, col, width);
+                    linecopy(grid, j - line_count, j, col, width);
                 }
                 j -= line_count;
                 let clear_off = grid.line_offset[j as usize] + col as usize;
-                grid_clear_line(grid_ptr, clear_off, width, false);
+                grid_clear_line(grid, clear_off, width, false);
             } else {
                 let mut j = row + i;
                 let temp = grid.line_offset[j as usize] as c_uint as usize;
@@ -1301,7 +1299,7 @@ pub unsafe fn grid_del_lines(
                 }
                 grid.line_offset[(j - line_count) as usize] = temp;
                 let cols = grid.cols;
-                grid_clear_line(grid_ptr, temp, cols, false);
+                grid_clear_line(grid, temp, cols, false);
             }
         }
 
@@ -1390,7 +1388,7 @@ fn get_bordertext_col(total_col: c_int, text_width: c_int, align: AlignTextPos) 
 
 /// Draw border on floating window grid (`grid_draw_border`).
 pub unsafe fn grid_draw_border(
-    grid: *mut ScreenGrid,
+    grid: &mut ScreenGrid,
     config: *mut WinConfig,
     mut adj: *mut c_int,
     winbl: c_int,
@@ -1415,11 +1413,11 @@ pub unsafe fn grid_draw_border(
         let adj2 = *adj.add(2);
         let adj3 = *adj.add(3);
 
-        let irow = (*grid).rows - adj0 - adj2;
-        let icol = (*grid).cols - adj1 - adj3;
+        let irow = grid.rows - adj0 - adj2;
+        let icol = grid.cols - adj1 - adj3;
 
         if adj0 != 0 {
-            screengrid_line_start(grid, 0, 0);
+            screengrid_line_start(&raw mut *grid, 0, 0);
             if adj3 != 0 {
                 grid_line_put_schar(0, chars[0], border_attrs[0]);
             }
@@ -1449,7 +1447,7 @@ pub unsafe fn grid_draw_border(
 
         for i in 0..irow {
             if adj3 != 0 {
-                screengrid_line_start(grid, i + adj0, 0);
+                screengrid_line_start(&raw mut *grid, i + adj0, 0);
                 grid_line_put_schar(0, chars[7], border_attrs[7]);
                 grid_line_flush();
             }
@@ -1459,14 +1457,14 @@ pub unsafe fn grid_draw_border(
                 } else {
                     3
                 };
-                screengrid_line_start(grid, i + adj0, 0);
+                screengrid_line_start(&raw mut *grid, i + adj0, 0);
                 grid_line_put_schar(icol + adj3, chars[ic], border_attrs[ic]);
                 grid_line_flush();
             }
         }
 
         if adj2 != 0 {
-            screengrid_line_start(grid, irow + adj0, 0);
+            screengrid_line_start(&raw mut *grid, irow + adj0, 0);
             if adj3 != 0 {
                 grid_line_put_schar(0, chars[6], border_attrs[6]);
             }

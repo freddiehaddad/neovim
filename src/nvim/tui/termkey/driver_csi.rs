@@ -210,32 +210,30 @@ const CSIFUNCS: [keyinfo; NCSIFUNCS] = {
 };
 
 #[inline]
-pub unsafe fn termkey_key_get_linecol(key: *const TermKeyKey, line: *mut c_int, col: *mut c_int) {
+pub unsafe fn termkey_key_get_linecol(key: &TermKeyKey, line: *mut c_int, col: *mut c_int) {
     unsafe {
         if !col.is_null() {
-            *col = c_int::from((*key).code.mouse[1] as u8)
-                | (c_int::from((*key).code.mouse[3] as u8 & 0x0f) << 8);
+            *col = c_int::from(key.code.mouse[1] as u8)
+                | (c_int::from(key.code.mouse[3] as u8 & 0x0f) << 8);
         }
         if !line.is_null() {
-            *line = c_int::from((*key).code.mouse[2] as u8)
-                | (c_int::from((*key).code.mouse[3] as u8 & 0x70) << 4);
+            *line = c_int::from(key.code.mouse[2] as u8)
+                | (c_int::from(key.code.mouse[3] as u8 & 0x70) << 4);
         }
     }
 }
 
 #[inline]
-pub unsafe fn termkey_key_set_linecol(key: *mut TermKeyKey, mut line: c_int, mut col: c_int) {
+pub unsafe fn termkey_key_set_linecol(key: &mut TermKeyKey, mut line: c_int, mut col: c_int) {
     if line > 0xfff {
         line = 0xfff;
     }
     if col > 0x7ff {
         col = 0x7ff;
     }
-    unsafe {
-        (*key).code.mouse[1] = (line & 0x0ff) as u8 as c_char;
-        (*key).code.mouse[2] = (col & 0x0ff) as u8 as c_char;
-        (*key).code.mouse[3] = (((line & 0xf00) >> 8) | ((col & 0x300) >> 4)) as u8 as c_char;
-    }
+    key.code.mouse[1] = (line & 0x0ff) as u8 as c_char;
+        key.code.mouse[2] = (col & 0x0ff) as u8 as c_char;
+        key.code.mouse[3] = (((line & 0xf00) >> 8) | ((col & 0x300) >> 4)) as u8 as c_char;
 }
 
 #[inline]
@@ -250,7 +248,7 @@ fn parse_key_event(n: c_int) -> TermKeyEvent {
 
 unsafe fn handle_csi_ss3_full(
     _tk: &mut TermKey,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     cmd: c_int,
     params: &[TermKeyCsiParam],
     nparams: c_int,
@@ -277,25 +275,25 @@ unsafe fn handle_csi_ss3_full(
             }
 
             if nsubparams > 0 {
-                (*key).event = parse_key_event(subparam);
-                if (*key).event == TERMKEY_EVENT_UNKNOWN {
+                key.event = parse_key_event(subparam);
+                if key.event == TERMKEY_EVENT_UNKNOWN {
                     return TERMKEY_RES_NONE;
                 }
             }
 
-            (*key).modifiers = arg - 1;
+            key.modifiers = arg - 1;
         } else {
-            (*key).modifiers = 0;
+            key.modifiers = 0;
         }
 
         let idx = (cmd - 0x40) as usize;
-        (*key).r#type = CSI_SS3S[idx].r#type;
-        (*key).code.sym = CSI_SS3S[idx].sym;
-        (*key).code.number = CSI_SS3S[idx].sym;
-        (*key).modifiers &= !CSI_SS3S[idx].modifier_mask;
-        (*key).modifiers |= CSI_SS3S[idx].modifier_set;
+        key.r#type = CSI_SS3S[idx].r#type;
+        key.code.sym = CSI_SS3S[idx].sym;
+        key.code.number = CSI_SS3S[idx].sym;
+        key.modifiers &= !CSI_SS3S[idx].modifier_mask;
+        key.modifiers |= CSI_SS3S[idx].modifier_set;
 
-        if (*key).code.sym == TERMKEY_SYM_UNKNOWN {
+        if key.code.sym == TERMKEY_SYM_UNKNOWN {
             result = TERMKEY_RES_NONE;
         }
 
@@ -305,7 +303,7 @@ unsafe fn handle_csi_ss3_full(
 
 unsafe fn handle_csifunc(
     tk: &mut TermKey,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     _cmd: c_int,
     params: &[TermKeyCsiParam],
     nparams: c_int,
@@ -332,18 +330,18 @@ unsafe fn handle_csifunc(
             }
 
             if nsubparams > 0 {
-                (*key).event = parse_key_event(subparam);
-                if (*key).event == TERMKEY_EVENT_UNKNOWN {
+                key.event = parse_key_event(subparam);
+                if key.event == TERMKEY_EVENT_UNKNOWN {
                     return TERMKEY_RES_NONE;
                 }
             }
 
-            (*key).modifiers = args[1] - 1;
+            key.modifiers = args[1] - 1;
         } else {
-            (*key).modifiers = 0;
+            key.modifiers = 0;
         }
 
-        (*key).r#type = TERMKEY_TYPE_KEYSYM;
+        key.r#type = TERMKEY_TYPE_KEYSYM;
 
         result = termkey_interpret_csi_param(
             params[0],
@@ -366,21 +364,21 @@ unsafe fn handle_csifunc(
                 return result;
             }
 
-            let m = (*key).modifiers;
+            let m = key.modifiers;
             emit_codepoint(tk, args[2], key);
-            (*key).modifiers |= m;
+            key.modifiers |= m;
         } else if args[0] >= 0 && (args[0] as usize) < NCSIFUNCS {
             let idx = args[0] as usize;
-            (*key).r#type = CSIFUNCS[idx].r#type;
-            (*key).code.sym = CSIFUNCS[idx].sym;
-            (*key).code.number = CSIFUNCS[idx].sym;
-            (*key).modifiers &= !CSIFUNCS[idx].modifier_mask;
-            (*key).modifiers |= CSIFUNCS[idx].modifier_set;
+            key.r#type = CSIFUNCS[idx].r#type;
+            key.code.sym = CSIFUNCS[idx].sym;
+            key.code.number = CSIFUNCS[idx].sym;
+            key.modifiers &= !CSIFUNCS[idx].modifier_mask;
+            key.modifiers |= CSIFUNCS[idx].modifier_set;
         } else {
-            (*key).code.sym = TERMKEY_SYM_UNKNOWN;
+            key.code.sym = TERMKEY_SYM_UNKNOWN;
         }
 
-        if (*key).code.sym == TERMKEY_SYM_UNKNOWN {
+        if key.code.sym == TERMKEY_SYM_UNKNOWN {
             result = TERMKEY_RES_NONE;
         }
 
@@ -390,7 +388,7 @@ unsafe fn handle_csifunc(
 
 unsafe fn handle_csi_u(
     tk: &mut TermKey,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     cmd: c_int,
     params: &[TermKeyCsiParam],
     nparams: c_int,
@@ -414,15 +412,15 @@ unsafe fn handle_csi_u(
             }
 
             if nsubparams > 0 {
-                (*key).event = parse_key_event(subparam);
-                if (*key).event == TERMKEY_EVENT_UNKNOWN {
+                key.event = parse_key_event(subparam);
+                if key.event == TERMKEY_EVENT_UNKNOWN {
                     return TERMKEY_RES_NONE;
                 }
             }
 
-            (*key).modifiers = args[1] - 1;
+            key.modifiers = args[1] - 1;
         } else {
-            (*key).modifiers = 0;
+            key.modifiers = 0;
         }
 
         if termkey_interpret_csi_param(
@@ -435,10 +433,10 @@ unsafe fn handle_csi_u(
             return TERMKEY_RES_ERROR;
         }
 
-        let m = (*key).modifiers;
-        (*key).r#type = TERMKEY_TYPE_KEYSYM;
+        let m = key.modifiers;
+        key.r#type = TERMKEY_TYPE_KEYSYM;
         emit_codepoint(tk, args[0], key);
-        (*key).modifiers |= m;
+        key.modifiers |= m;
 
         TERMKEY_RES_KEY
     }
@@ -446,7 +444,7 @@ unsafe fn handle_csi_u(
 
 unsafe fn handle_csi_m(
     _tk: &mut TermKey,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     mut cmd: c_int,
     params: &[TermKeyCsiParam],
     nparams: c_int,
@@ -477,22 +475,22 @@ unsafe fn handle_csi_m(
         }
 
         if initial == 0 {
-            (*key).r#type = TERMKEY_TYPE_MOUSE;
-            (*key).code.mouse[0] = args[0] as u8 as c_char;
-            (*key).modifiers = c_int::from(((*key).code.mouse[0] as u8 & 0x1c) >> 2);
-            (*key).code.mouse[0] = ((*key).code.mouse[0] as u8 & !0x1c) as c_char;
+            key.r#type = TERMKEY_TYPE_MOUSE;
+            key.code.mouse[0] = args[0] as u8 as c_char;
+            key.modifiers = c_int::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
+            key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
             termkey_key_set_linecol(key, args[1], args[2]);
             return TERMKEY_RES_KEY;
         }
 
         if initial == b'<' as c_int {
-            (*key).r#type = TERMKEY_TYPE_MOUSE;
-            (*key).code.mouse[0] = args[0] as u8 as c_char;
-            (*key).modifiers = c_int::from(((*key).code.mouse[0] as u8 & 0x1c) >> 2);
-            (*key).code.mouse[0] = ((*key).code.mouse[0] as u8 & !0x1c) as c_char;
+            key.r#type = TERMKEY_TYPE_MOUSE;
+            key.code.mouse[0] = args[0] as u8 as c_char;
+            key.modifiers = c_int::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
+            key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
             termkey_key_set_linecol(key, args[1], args[2]);
             if cmd == b'm' as c_int {
-                (*key).code.mouse[3] = ((*key).code.mouse[3] as u8 | 0x80) as c_char;
+                key.code.mouse[3] = (key.code.mouse[3] as u8 | 0x80) as c_char;
             }
             return TERMKEY_RES_KEY;
         }
@@ -503,14 +501,14 @@ unsafe fn handle_csi_m(
 
 pub unsafe fn termkey_interpret_mouse(
     _tk: &TermKey,
-    key: *const TermKeyKey,
+    key: &TermKeyKey,
     event: *mut TermKeyMouseEvent,
     button: *mut c_int,
     line: *mut c_int,
     col: *mut c_int,
 ) -> TermKeyResult {
     unsafe {
-        if (*key).r#type != TERMKEY_TYPE_MOUSE {
+        if key.r#type != TERMKEY_TYPE_MOUSE {
             return TERMKEY_RES_NONE;
         }
 
@@ -525,7 +523,7 @@ pub unsafe fn termkey_interpret_mouse(
         }
 
         let mut btn: c_int = 0;
-        let mut code = c_int::from((*key).code.mouse[0] as u8);
+        let mut code = c_int::from(key.code.mouse[0] as u8);
         let drag = (code & 0x20) != 0;
         code &= !0x3c;
 
@@ -566,7 +564,7 @@ pub unsafe fn termkey_interpret_mouse(
             *button = btn;
         }
 
-        if ((*key).code.mouse[3] as u8 & 0x80) != 0 {
+        if (key.code.mouse[3] as u8 & 0x80) != 0 {
             *event = TERMKEY_MOUSE_RELEASE;
         }
 
@@ -576,7 +574,7 @@ pub unsafe fn termkey_interpret_mouse(
 
 unsafe fn handle_csi_R(
     tk: &mut TermKey,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     cmd: c_int,
     params: &[TermKeyCsiParam],
     nparams: c_int,
@@ -605,7 +603,7 @@ unsafe fn handle_csi_R(
             {
                 return TERMKEY_RES_ERROR;
             }
-            (*key).r#type = TERMKEY_TYPE_POSITION;
+            key.r#type = TERMKEY_TYPE_POSITION;
             termkey_key_set_linecol(key, args[1], args[0]);
             TERMKEY_RES_KEY
         } else {
@@ -617,12 +615,12 @@ unsafe fn handle_csi_R(
 #[cfg(test)]
 pub unsafe fn termkey_interpret_position(
     _tk: &TermKey,
-    key: *const TermKeyKey,
+    key: &TermKeyKey,
     line: *mut c_int,
     col: *mut c_int,
 ) -> TermKeyResult {
     unsafe {
-        if (*key).r#type != TERMKEY_TYPE_POSITION {
+        if key.r#type != TERMKEY_TYPE_POSITION {
             return TERMKEY_RES_NONE;
         }
         termkey_key_get_linecol(key, line, col);
@@ -632,7 +630,7 @@ pub unsafe fn termkey_interpret_position(
 
 unsafe fn handle_csi_y(
     _tk: &mut TermKey,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     cmd: c_int,
     params: &[TermKeyCsiParam],
     nparams: c_int,
@@ -663,11 +661,11 @@ unsafe fn handle_csi_y(
             {
                 return TERMKEY_RES_ERROR;
             }
-            (*key).r#type = TERMKEY_TYPE_MODEREPORT;
-            (*key).code.mouse[0] = ((cmd >> 8) & 0xff) as u8 as c_char;
-            (*key).code.mouse[1] = ((args[0] >> 8) & 0xff) as u8 as c_char;
-            (*key).code.mouse[2] = (args[0] & 0xff) as u8 as c_char;
-            (*key).code.mouse[3] = (args[1] & 0xff) as u8 as c_char;
+            key.r#type = TERMKEY_TYPE_MODEREPORT;
+            key.code.mouse[0] = ((cmd >> 8) & 0xff) as u8 as c_char;
+            key.code.mouse[1] = ((args[0] >> 8) & 0xff) as u8 as c_char;
+            key.code.mouse[2] = (args[0] & 0xff) as u8 as c_char;
+            key.code.mouse[3] = (args[1] & 0xff) as u8 as c_char;
             TERMKEY_RES_KEY
         } else {
             TERMKEY_RES_NONE
@@ -677,24 +675,24 @@ unsafe fn handle_csi_y(
 
 pub unsafe fn termkey_interpret_modereport(
     _tk: &TermKey,
-    key: *const TermKeyKey,
+    key: &TermKeyKey,
     initial: *mut c_int,
     mode: *mut c_int,
     value: *mut c_int,
 ) -> TermKeyResult {
     unsafe {
-        if (*key).r#type != TERMKEY_TYPE_MODEREPORT {
+        if key.r#type != TERMKEY_TYPE_MODEREPORT {
             return TERMKEY_RES_NONE;
         }
         if !initial.is_null() {
-            *initial = c_int::from((*key).code.mouse[0] as u8);
+            *initial = c_int::from(key.code.mouse[0] as u8);
         }
         if !mode.is_null() {
-            *mode = (c_int::from((*key).code.mouse[1] as u8) << 8)
-                | c_int::from((*key).code.mouse[2] as u8);
+            *mode = (c_int::from(key.code.mouse[1] as u8) << 8)
+                | c_int::from(key.code.mouse[2] as u8);
         }
         if !value.is_null() {
-            *value = c_int::from((*key).code.mouse[3] as u8);
+            *value = c_int::from(key.code.mouse[3] as u8);
         }
         TERMKEY_RES_KEY
     }
@@ -774,7 +772,7 @@ unsafe fn parse_csi(
 
 pub unsafe fn termkey_interpret_csi(
     tk: &TermKey,
-    key: *const TermKeyKey,
+    key: &TermKeyKey,
     params: &mut [TermKeyCsiParam; 16],
     nparams: *mut usize,
     cmd: *mut c_uint,
@@ -784,7 +782,7 @@ pub unsafe fn termkey_interpret_csi(
         if tk.hightide == 0 {
             return TERMKEY_RES_NONE;
         }
-        if (*key).r#type != TERMKEY_TYPE_UNKNOWN_CSI {
+        if key.r#type != TERMKEY_TYPE_UNKNOWN_CSI {
             return TERMKEY_RES_NONE;
         }
         parse_csi(tk, 0, &mut dummy, params, nparams, cmd)
@@ -833,7 +831,7 @@ pub unsafe fn termkey_interpret_csi_param(
 unsafe fn peekkey_csi_csi(
     tk: &mut TermKey,
     introlen: usize,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
@@ -857,7 +855,7 @@ unsafe fn peekkey_csi_csi(
                 return TERMKEY_RES_AGAIN;
             }
             emit_codepoint(tk, b'[' as c_int, key);
-            (*key).modifiers |= TERMKEY_KEYMOD_ALT;
+            key.modifiers |= TERMKEY_KEYMOD_ALT;
             *nbytep = introlen;
             return TERMKEY_RES_KEY;
         }
@@ -893,9 +891,9 @@ unsafe fn peekkey_csi_csi(
         };
 
         if result == TERMKEY_RES_NONE {
-            (*key).r#type = TERMKEY_TYPE_UNKNOWN_CSI;
-            (*key).code.number = cmd as c_int;
-            (*key).modifiers = 0;
+            key.r#type = TERMKEY_TYPE_UNKNOWN_CSI;
+            key.code.number = cmd as c_int;
+            key.modifiers = 0;
 
             tk.hightide = csi_len - introlen;
             *nbytep = introlen;
@@ -910,7 +908,7 @@ unsafe fn peekkey_csi_csi(
 unsafe fn peekkey_ss3(
     tk: &mut TermKey,
     introlen: usize,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
@@ -920,7 +918,7 @@ unsafe fn peekkey_ss3(
                 return TERMKEY_RES_AGAIN;
             }
             emit_codepoint(tk, b'O' as c_int, key);
-            (*key).modifiers |= TERMKEY_KEYMOD_ALT;
+            key.modifiers |= TERMKEY_KEYMOD_ALT;
             *nbytep = tk.buffcount;
             return TERMKEY_RES_KEY;
         }
@@ -931,27 +929,27 @@ unsafe fn peekkey_ss3(
         }
 
         let idx = usize::from(cmd - 0x40);
-        (*key).r#type = CSI_SS3S[idx].r#type;
-        (*key).code.sym = CSI_SS3S[idx].sym;
-        (*key).code.number = CSI_SS3S[idx].sym;
-        (*key).modifiers = CSI_SS3S[idx].modifier_set;
+        key.r#type = CSI_SS3S[idx].r#type;
+        key.code.sym = CSI_SS3S[idx].sym;
+        key.code.number = CSI_SS3S[idx].sym;
+        key.modifiers = CSI_SS3S[idx].modifier_set;
 
-        if (*key).code.sym == TERMKEY_SYM_UNKNOWN {
+        if key.code.sym == TERMKEY_SYM_UNKNOWN {
             if (tk.flags & TERMKEY_FLAG_CONVERTKP) != 0 && SS3_KPALTS[idx] != 0 {
-                (*key).r#type = TERMKEY_TYPE_UNICODE;
-                (*key).code.codepoint = c_int::from(SS3_KPALTS[idx] as u8);
-                (*key).modifiers = 0;
-                (*key).utf8[0] = SS3_KPALTS[idx];
-                (*key).utf8[1] = 0;
+                key.r#type = TERMKEY_TYPE_UNICODE;
+                key.code.codepoint = c_int::from(SS3_KPALTS[idx] as u8);
+                key.modifiers = 0;
+                key.utf8[0] = SS3_KPALTS[idx];
+                key.utf8[1] = 0;
             } else {
-                (*key).r#type = SS3S[idx].r#type;
-                (*key).code.sym = SS3S[idx].sym;
-                (*key).code.number = SS3S[idx].sym;
-                (*key).modifiers = SS3S[idx].modifier_set;
+                key.r#type = SS3S[idx].r#type;
+                key.code.sym = SS3S[idx].sym;
+                key.code.number = SS3S[idx].sym;
+                key.modifiers = SS3S[idx].modifier_set;
             }
         }
 
-        if (*key).code.sym == TERMKEY_SYM_UNKNOWN {
+        if key.code.sym == TERMKEY_SYM_UNKNOWN {
             return TERMKEY_RES_NONE;
         }
 
@@ -963,7 +961,7 @@ unsafe fn peekkey_ss3(
 unsafe fn peekkey_ctrlstring(
     tk: &mut TermKey,
     introlen: usize,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     _force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
@@ -1010,21 +1008,21 @@ unsafe fn peekkey_ctrlstring(
 
         match ctrl_type {
             0x10 => {
-                (*key).r#type = TERMKEY_TYPE_DCS;
+                key.r#type = TERMKEY_TYPE_DCS;
             }
             0x1d => {
-                (*key).r#type = TERMKEY_TYPE_OSC;
+                key.r#type = TERMKEY_TYPE_OSC;
             }
             0x1f => {
-                (*key).r#type = TERMKEY_TYPE_APC;
+                key.r#type = TERMKEY_TYPE_APC;
             }
             _ => {
                 std::process::abort();
             }
         }
 
-        (*key).code.number = tk.csi.saved_string_id;
-        (*key).modifiers = 0;
+        key.code.number = tk.csi.saved_string_id;
+        key.modifiers = 0;
 
         TERMKEY_RES_KEY
     }
@@ -1032,7 +1030,7 @@ unsafe fn peekkey_ctrlstring(
 
 pub unsafe fn peekkey_csi(
     tk: &mut TermKey,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {

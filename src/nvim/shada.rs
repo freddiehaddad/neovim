@@ -1767,7 +1767,7 @@ unsafe fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
 }
 
 #[inline]
-unsafe fn shada_check_buffer(packer: *mut PackerBuffer) {
+unsafe fn shada_check_buffer(packer: &mut PackerBuffer) {
     unsafe {
         let p = &mut *packer;
         let remaining = (p.endptr as usize).saturating_sub(p.ptr as usize);
@@ -1783,7 +1783,7 @@ fn additional_data_len(src: &Option<AdditionalData>) -> u32 {
 }
 
 #[inline]
-unsafe fn dump_additional_data(src: &Option<AdditionalData>, sbuf: *mut PackerBuffer) {
+unsafe fn dump_additional_data(src: &Option<AdditionalData>, sbuf: &mut PackerBuffer) {
     if let Some(ad) = src {
         unsafe {
             mpack_raw(ad.bytes.as_ptr(), ad.bytes.len(), sbuf);
@@ -1792,7 +1792,7 @@ unsafe fn dump_additional_data(src: &Option<AdditionalData>, sbuf: *mut PackerBu
 }
 
 unsafe fn shada_pack_entry(
-    packer: *mut PackerBuffer,
+    packer: &mut PackerBuffer,
     entry: &ShadaEntry,
     max_kbyte: usize,
 ) -> ShaDaWriteResult {
@@ -2052,16 +2052,16 @@ unsafe fn shada_pack_entry(
         if max_kbyte == 0 || packed.len() <= max_kbyte * 1024 {
             shada_check_buffer(packer);
             if entry.entry_type == ShadaEntryType::kSDItemUnknown {
-                mpack_uint64(&mut (*packer).ptr, entry.data.unknown_item().item_type);
+                mpack_uint64(&mut packer.ptr, entry.data.unknown_item().item_type);
             } else {
-                mpack_uint64(&mut (*packer).ptr, entry.entry_type as i32 as u64);
+                mpack_uint64(&mut packer.ptr, entry.entry_type as i32 as u64);
             }
-            mpack_uint64(&mut (*packer).ptr, entry.timestamp);
+            mpack_uint64(&mut packer.ptr, entry.timestamp);
             if !packed.is_empty() {
-                mpack_uint64(&mut (*packer).ptr, packed.len() as u64);
+                mpack_uint64(&mut packer.ptr, packed.len() as u64);
                 mpack_raw(packed.as_ptr().cast::<c_char>(), packed.len(), packer);
             }
-            if (*packer).anyint != 0 {
+            if packer.anyint != 0 {
                 return ret;
             }
         }
@@ -2072,7 +2072,7 @@ unsafe fn shada_pack_entry(
 
 #[inline]
 unsafe fn shada_pack_pfreed_entry(
-    packer: *mut PackerBuffer,
+    packer: &mut PackerBuffer,
     mut entry: ShadaEntry,
     max_kbyte: usize,
 ) -> ShaDaWriteResult {
@@ -2132,7 +2132,7 @@ unsafe fn shada_read_when_writing(
     srni_flags: c_uint,
     max_kbyte: usize,
     wms: *mut WriteMergerState,
-    packer: *mut PackerBuffer,
+    packer: &mut PackerBuffer,
 ) -> ShaDaWriteResult {
     unsafe {
         let mut ret = ShaDaWriteResult::kSDWriteSuccessful;
@@ -2623,13 +2623,13 @@ const fn hist_type2char(hist_type: c_int) -> c_int {
     }
 }
 
-pub(crate) unsafe fn flush_file_buffer(buffer: *mut PackerBuffer) {
+pub(crate) unsafe fn flush_file_buffer(buffer: &mut PackerBuffer) {
     unsafe {
-        let fd = (*buffer).anydata.as_file();
+        let fd = buffer.anydata.as_file();
         let base = (&*fd).buffer.as_ptr();
-        (*fd).write_pos = ((*buffer).ptr as usize).saturating_sub(base as usize);
-        (*buffer).anyint = i64::from(file_flush(fd));
-        (*buffer).ptr = (&mut *fd).buffer.as_mut_ptr().add((*fd).write_pos);
+        (*fd).write_pos = (buffer.ptr as usize).saturating_sub(base as usize);
+        buffer.anyint = i64::from(file_flush(fd));
+        buffer.ptr = (&mut *fd).buffer.as_mut_ptr().add((*fd).write_pos);
     }
 }
 
@@ -3193,7 +3193,7 @@ unsafe fn shada_write(
             }
         }
         (*wms).file_marks.clear();
-        crate::msgpack_rpc::packer::packer_flush_buffer(&raw mut packer);
+        crate::msgpack_rpc::packer::packer_flush_buffer(&mut packer);
         ret
     }
 }

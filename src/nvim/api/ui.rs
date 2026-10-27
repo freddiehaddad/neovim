@@ -907,13 +907,13 @@ unsafe fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
 pub unsafe fn push_call(ui: &mut RemoteUI, name: &'static CStr, args: Array) {
     unsafe {
         prepare_call(ui, name);
-        mpack_object_array(args, &raw mut ui.packer);
+        mpack_object_array(args, &mut ui.packer);
     }
 }
 
-pub(crate) unsafe fn ui_flush_callback(packer: *mut PackerBuffer) {
+pub(crate) unsafe fn ui_flush_callback(packer: &mut PackerBuffer) {
     unsafe {
-        let ui = &mut *(*packer).anydata.as_ui();
+        let ui = &mut *packer.anydata.as_ui();
         ui_flush_buf(ui, true);
         ui_alloc_buf(ui);
     }

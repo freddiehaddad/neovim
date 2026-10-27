@@ -434,7 +434,7 @@ unsafe fn try_load_terminfo_key(
         }
 
         if !input.is_null() {
-            value = crate::tui::tui::tui_tk_ti_getstr(name, value, input);
+            value = crate::tui::tui::tui_tk_ti_getstr(name, value, &mut *input);
         }
 
         if value.is_null() || value == (-1isize as *const c_char) || *value == 0 {
@@ -558,7 +558,7 @@ pub unsafe fn start_driver_ti(
 
 pub unsafe fn peekkey_ti(
     tk: &mut TermKey,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
@@ -604,10 +604,10 @@ pub unsafe fn peekkey_ti(
                 return mouse_result;
             }
 
-            (*key).r#type = k.r#type;
-            (*key).code.sym = k.sym;
-            (*key).code.number = k.sym;
-            (*key).modifiers = k.modifier_set;
+            key.r#type = k.r#type;
+            key.code.sym = k.sym;
+            key.code.number = k.sym;
+            key.modifiers = k.modifier_set;
             *nbytep = pos;
             return TERMKEY_RES_KEY;
         }

@@ -74,7 +74,7 @@ impl StreamCbData {
                 )),
                 Self::ShellOut => Some(crate::os::shell::out_data_cb(stream, buf, count, eof)),
                 Self::Input(input) => {
-                    Some(crate::tui::input::tinput_read_cb(stream, buf, count, input, eof))
+                    Some(crate::tui::input::tinput_read_cb(stream, buf, count, &mut *input, eof))
                 }
             }
         }

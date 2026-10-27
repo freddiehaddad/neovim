@@ -1810,7 +1810,7 @@ pub unsafe fn ui_ext_win_position(wp: *mut win_T, validate: bool) {
 
             if !c.hide {
                 ui_comp_put_grid(
-                    &raw mut (*wp).w_grid_alloc,
+                    &mut (*wp).w_grid_alloc,
                     comp_row,
                     comp_col,
                     (*wp).w_height_outer,
@@ -1844,7 +1844,7 @@ pub unsafe fn ui_ext_win_position(wp: *mut win_T, validate: bool) {
                 if ui_has(kUIMultigrid) {
                     ui_call_win_hide(Integer::from((*wp).w_grid_alloc.handle));
                 }
-                ui_comp_remove_grid(&raw mut (*wp).w_grid_alloc);
+                ui_comp_remove_grid(&mut (*wp).w_grid_alloc);
             }
         } else {
             ui_call_win_external_pos(Integer::from((*wp).w_grid_alloc.handle), (*wp).handle);
@@ -2244,7 +2244,7 @@ pub unsafe fn win_split_ins(
             new_frame(wp);
             win_init(wp, *curwin.as_ptr(), flags);
         } else if (*wp).w_floating {
-            ui_comp_remove_grid(&raw mut (*wp).w_grid_alloc);
+            ui_comp_remove_grid(&mut (*wp).w_grid_alloc);
             if ui_has(kUIMultigrid) {
                 (*wp).w_pos_changed = true;
             } else {
@@ -3733,7 +3733,7 @@ pub unsafe fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
         }
 
         if (*win).w_floating {
-            ui_comp_remove_grid(&raw mut (*win).w_grid_alloc);
+            ui_comp_remove_grid(&mut (*win).w_grid_alloc);
             debug_assert!(!g_st().first_tabpage.is_null());
             if (*win).w_config.external {
                 let mut tp = g_st().first_tabpage;
@@ -4071,7 +4071,7 @@ pub unsafe fn win_close_othertab(
             ui_call_win_close(Integer::from((*win).w_grid_alloc.handle));
         }
         if (*win).w_floating {
-            ui_comp_remove_grid(&raw mut (*win).w_grid_alloc);
+            ui_comp_remove_grid(&mut (*win).w_grid_alloc);
         }
 
         set_bufref(&raw mut bufref, (*win).w_buffer);
@@ -5588,7 +5588,7 @@ unsafe fn tabpage_check_windows(old_curtab: *mut tabpage_T) {
                     win_remove(wp, old_curtab);
                     win_append(lastwin_nofloating(ptr::null_mut()), wp, ptr::null_mut());
                 } else {
-                    ui_comp_remove_grid(&raw mut (*wp).w_grid_alloc);
+                    ui_comp_remove_grid(&mut (*wp).w_grid_alloc);
                 }
             }
             (*wp).w_pos_changed = true;
@@ -6247,7 +6247,7 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
         let map_ptr = &raw mut g_st().window_handles;
         (*map_ptr).insert((*new_wp).handle, new_wp);
 
-        grid_assign_handle(&raw mut (*new_wp).w_grid_alloc);
+        grid_assign_handle(&mut (*new_wp).w_grid_alloc);
 
         init_var_dict(
             tv_dict_alloc(),
@@ -6413,7 +6413,7 @@ pub unsafe fn win_free_grid(wp: *mut win_T, reinit: bool) {
         if (*wp).w_grid_alloc.handle != 0 && ui_has(kUIMultigrid) {
             ui_call_grid_destroy(Integer::from((*wp).w_grid_alloc.handle));
         }
-        grid_free(&raw mut (*wp).w_grid_alloc);
+        grid_free(&mut (*wp).w_grid_alloc);
         if reinit {
             (*wp).w_grid_alloc = SCREEN_GRID_INIT;
         }

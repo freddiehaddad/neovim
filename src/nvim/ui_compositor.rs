@@ -172,7 +172,7 @@ pub unsafe fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
 
 /// Places `grid` at `(col, row)` position with `(width * height)` size (`ui_comp_put_grid`).
 pub unsafe fn ui_comp_put_grid(
-    grid: *mut ScreenGrid,
+    grid: &mut ScreenGrid,
     row: c_int,
     col: c_int,
     height: c_int,
@@ -182,57 +182,58 @@ pub unsafe fn ui_comp_put_grid(
 ) -> bool {
     unsafe {
         let moved: bool;
-        (*grid).pending_comp_index_update = true;
+        grid.pending_comp_index_update = true;
 
-        if (*grid).comp_index != 0 {
-            moved = (row != (*grid).comp_row) || (col != (*grid).comp_col);
+        if grid.comp_index != 0 {
+            moved = (row != grid.comp_row) || (col != grid.comp_col);
             if ui_comp_should_draw() {
-                (*grid).comp_disabled = true;
+                grid.comp_disabled = true;
                 compose_area(
-                    (*grid).comp_row as Integer,
+                    grid.comp_row as Integer,
                     row as Integer,
-                    (*grid).comp_col as Integer,
-                    ((*grid).comp_col + (*grid).comp_width) as Integer,
+                    grid.comp_col as Integer,
+                    (grid.comp_col + grid.comp_width) as Integer,
                 );
-                if (*grid).comp_col < col {
+                if grid.comp_col < col {
                     compose_area(
-                        row.max((*grid).comp_row) as Integer,
-                        (row + height).min((*grid).comp_row + (*grid).comp_height) as Integer,
-                        (*grid).comp_col as Integer,
+                        row.max(grid.comp_row) as Integer,
+                        (row + height).min(grid.comp_row + grid.comp_height) as Integer,
+                        grid.comp_col as Integer,
                         col as Integer,
                     );
                 }
-                if col + width < (*grid).comp_col + (*grid).comp_width {
+                if col + width < grid.comp_col + grid.comp_width {
                     compose_area(
-                        row.max((*grid).comp_row) as Integer,
-                        (row + height).min((*grid).comp_row + (*grid).comp_height) as Integer,
+                        row.max(grid.comp_row) as Integer,
+                        (row + height).min(grid.comp_row + grid.comp_height) as Integer,
                         (col + width) as Integer,
-                        ((*grid).comp_col + (*grid).comp_width) as Integer,
+                        (grid.comp_col + grid.comp_width) as Integer,
                     );
                 }
                 compose_area(
                     (row + height) as Integer,
-                    ((*grid).comp_row + (*grid).comp_height) as Integer,
-                    (*grid).comp_col as Integer,
-                    ((*grid).comp_col + (*grid).comp_width) as Integer,
+                    (grid.comp_row + grid.comp_height) as Integer,
+                    grid.comp_col as Integer,
+                    (grid.comp_col + grid.comp_width) as Integer,
                 );
-                (*grid).comp_disabled = false;
+                grid.comp_disabled = false;
             }
-            (*grid).comp_row = row;
-            (*grid).comp_col = col;
+            grid.comp_row = row;
+            grid.comp_col = col;
         } else {
             moved = true;
             let l = layers_mut();
-            debug_assert!(!l.contains(&grid));
+            let grid_ptr = &raw mut *grid;
+            debug_assert!(!l.contains(&grid_ptr));
 
             let mut insert_at = l.len();
-            while insert_at > 0 && (*l[insert_at - 1]).zindex > (*grid).zindex {
+            while insert_at > 0 && (*l[insert_at - 1]).zindex > grid.zindex {
                 insert_at -= 1;
             }
 
             if !(*curwin.as_ptr()).is_null()
                 && l[insert_at - 1] == &raw mut (**curwin.as_ptr()).w_grid_alloc
-                && (*l[insert_at - 1]).zindex == (*grid).zindex
+                && (*l[insert_at - 1]).zindex == grid.zindex
                 && !on_top
             {
                 insert_at -= 1;
@@ -243,30 +244,30 @@ pub unsafe fn ui_comp_put_grid(
                 (*g).pending_comp_index_update = true;
             }
 
-            (*grid).comp_row = row;
-            (*grid).comp_col = col;
-            (*grid).comp_index = insert_at;
-            (*grid).pending_comp_index_update = true;
+            grid.comp_row = row;
+            grid.comp_col = col;
+            grid.comp_index = insert_at;
+            grid.pending_comp_index_update = true;
         }
 
-        (*grid).comp_height = height;
-        (*grid).comp_width = width;
+        grid.comp_height = height;
+        grid.comp_width = width;
         if moved && valid && ui_comp_should_draw() {
             compose_area(
-                (*grid).comp_row as Integer,
-                ((*grid).comp_row + (*grid).rows) as Integer,
-                (*grid).comp_col as Integer,
-                ((*grid).comp_col + (*grid).cols) as Integer,
+                grid.comp_row as Integer,
+                (grid.comp_row + grid.rows) as Integer,
+                grid.comp_col as Integer,
+                (grid.comp_col + grid.cols) as Integer,
             );
         }
         moved
     }
 }
 
-pub unsafe fn ui_comp_remove_grid(grid: *mut ScreenGrid) {
+pub unsafe fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
     unsafe {
         debug_assert!(!ptr::eq(grid, &raw const g_st().default_grid));
-        if (*grid).comp_index == 0 {
+        if grid.comp_index == 0 {
             return;
         }
 
@@ -275,14 +276,14 @@ pub unsafe fn ui_comp_remove_grid(grid: *mut ScreenGrid) {
         }
 
         let l = layers_mut();
-        let removed_idx = (*grid).comp_index;
+        let removed_idx = grid.comp_index;
         l.remove(removed_idx);
         for (idx, &g) in l.iter().enumerate().skip(removed_idx) {
             (*g).comp_index = idx;
             (*g).pending_comp_index_update = true;
         }
-        (*grid).comp_index = 0;
-        (*grid).pending_comp_index_update = true;
+        grid.comp_index = 0;
+        grid.pending_comp_index_update = true;
 
         ui_comp_compose_grid(grid);
     }
@@ -303,10 +304,10 @@ pub unsafe fn ui_comp_set_grid(handle: handle_T) -> bool {
     }
 }
 
-pub unsafe fn ui_comp_raise_grid(grid: *mut ScreenGrid, new_index: usize) {
+pub unsafe fn ui_comp_raise_grid(grid: &mut ScreenGrid, new_index: usize) {
     unsafe {
         let l = layers_mut();
-        let old_index = (*grid).comp_index;
+        let old_index = grid.comp_index;
         for i in old_index..new_index {
             let next = l[i + 1];
             l[i] = next;
@@ -314,14 +315,14 @@ pub unsafe fn ui_comp_raise_grid(grid: *mut ScreenGrid, new_index: usize) {
             (*next).pending_comp_index_update = true;
         }
         l[new_index] = grid;
-        (*grid).comp_index = new_index;
-        (*grid).pending_comp_index_update = true;
+        grid.comp_index = new_index;
+        grid.pending_comp_index_update = true;
         for &grid2 in l.iter().take(new_index).skip(old_index) {
-            let startcol = (*grid).comp_col.max((*grid2).comp_col);
-            let endcol = ((*grid).comp_col + (*grid).cols).min((*grid2).comp_col + (*grid2).cols);
+            let startcol = grid.comp_col.max((*grid2).comp_col);
+            let endcol = (grid.comp_col + grid.cols).min((*grid2).comp_col + (*grid2).cols);
             compose_area(
-                (*grid).comp_row.max((*grid2).comp_row) as Integer,
-                ((*grid).comp_row + (*grid).rows).min((*grid2).comp_row + (*grid2).rows) as Integer,
+                grid.comp_row.max((*grid2).comp_row) as Integer,
+                (grid.comp_row + grid.rows).min((*grid2).comp_row + (*grid2).rows) as Integer,
                 startcol as Integer,
                 endcol as Integer,
             );
@@ -344,7 +345,7 @@ pub unsafe fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Inte
                 new_index -= 1;
             }
             if (*comp().curgrid).comp_index < new_index {
-                ui_comp_raise_grid(comp().curgrid, new_index);
+                ui_comp_raise_grid(&mut *comp().curgrid, new_index);
             }
         }
 
@@ -650,14 +651,14 @@ unsafe fn compose_area(
 }
 
 /// Compose the area under the grid (`ui_comp_compose_grid`).
-pub unsafe fn ui_comp_compose_grid(grid: *mut ScreenGrid) {
+pub unsafe fn ui_comp_compose_grid(grid: &mut ScreenGrid) {
     unsafe {
         if ui_comp_should_draw() {
             compose_area(
-                (*grid).comp_row as Integer,
-                ((*grid).comp_row + (*grid).rows) as Integer,
-                (*grid).comp_col as Integer,
-                ((*grid).comp_col + (*grid).cols) as Integer,
+                grid.comp_row as Integer,
+                (grid.comp_row + grid.rows) as Integer,
+                grid.comp_col as Integer,
+                (grid.comp_col + grid.cols) as Integer,
             );
         }
     }

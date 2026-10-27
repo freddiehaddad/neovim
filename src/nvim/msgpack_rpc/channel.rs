@@ -887,7 +887,7 @@ unsafe fn serialize_request(
 ) {
     unsafe {
         let mut packer = PackerBuffer::new();
-        packer_buffer_init_channels(chans, nchans, &raw mut packer);
+        packer_buffer_init_channels(chans, nchans, &mut packer);
 
         mpack_array(&raw mut packer.ptr, if request_id != 0 { 4 } else { 3 });
         mpack_w(&raw mut packer.ptr, if request_id != 0 { 0 } else { 2 });
@@ -896,10 +896,10 @@ unsafe fn serialize_request(
             mpack_uint(&raw mut packer.ptr, request_id);
         }
 
-        mpack_str(cstr_as_string(method), &raw mut packer);
-        mpack_object_array(args, &raw mut packer);
+        mpack_str(cstr_as_string(method), &mut packer);
+        mpack_object_array(args, &mut packer);
 
-        packer_buffer_finish_channels(&raw mut packer);
+        packer_buffer_finish_channels(&mut packer);
     }
 }
 
@@ -946,7 +946,7 @@ pub unsafe fn serialize_response(
         }
 
         let mut packer = PackerBuffer::new();
-        packer_buffer_init_channels(&raw mut channel, 1, &raw mut packer);
+        packer_buffer_init_channels(&raw mut channel, 1, &mut packer);
 
         mpack_array(&raw mut packer.ptr, 4);
         mpack_w(&raw mut packer.ptr, 1);
@@ -955,21 +955,21 @@ pub unsafe fn serialize_response(
         if err.err_type != ErrorType::kErrorTypeNone {
             mpack_array(&raw mut packer.ptr, 2);
             mpack_integer(&raw mut packer.ptr, err.err_type as Integer);
-            mpack_str(cstr_as_string(err.msg_ptr()), &raw mut packer);
+            mpack_str(cstr_as_string(err.msg_ptr()), &mut packer);
             mpack_nil(&raw mut packer.ptr);
         } else {
             mpack_nil(&raw mut packer.ptr);
-            mpack_object(arg, &raw mut packer);
+            mpack_object(arg, &mut packer);
         }
 
-        packer_buffer_finish_channels(&raw mut packer);
+        packer_buffer_finish_channels(&mut packer);
     }
 }
 
 unsafe fn packer_buffer_init_channels(
     chans: *mut *mut Channel,
     nchans: usize,
-    packer: *mut PackerBuffer,
+    packer: &mut PackerBuffer,
 ) {
     unsafe {
         for i in 0..nchans {
@@ -979,39 +979,39 @@ unsafe fn packer_buffer_init_channels(
                 remote_ui_flush_if_incomplete((*ct).id);
             }
         }
-        (*packer).owned_buf = vec![0; ARENA_BLOCK_SIZE];
-        (*packer).startptr = (*packer).owned_buf.as_mut_ptr();
-        (*packer).ptr = (*packer).startptr;
-        (*packer).endptr = (*packer).startptr.add(ARENA_BLOCK_SIZE);
-        (*packer).anydata = crate::msgpack_rpc::packer::PackerData::Chans(chans);
-        (*packer).anyint = nchans as i64;
+        packer.owned_buf = vec![0; ARENA_BLOCK_SIZE];
+        packer.startptr = packer.owned_buf.as_mut_ptr();
+        packer.ptr = packer.startptr;
+        packer.endptr = packer.startptr.add(ARENA_BLOCK_SIZE);
+        packer.anydata = crate::msgpack_rpc::packer::PackerData::Chans(chans);
+        packer.anyint = nchans as i64;
     }
 }
 
-unsafe fn packer_buffer_finish_channels(packer: *mut PackerBuffer) {
+unsafe fn packer_buffer_finish_channels(packer: &mut PackerBuffer) {
     unsafe {
-        let len = ((*packer).ptr as usize) - ((*packer).startptr as usize);
-        let mut vec = std::mem::take(&mut (*packer).owned_buf);
-        (*packer).startptr = ptr::null_mut();
-        (*packer).ptr = ptr::null_mut();
-        (*packer).endptr = ptr::null_mut();
+        let len = (packer.ptr as usize) - (packer.startptr as usize);
+        let mut vec = std::mem::take(&mut packer.owned_buf);
+        packer.startptr = ptr::null_mut();
+        packer.ptr = ptr::null_mut();
+        packer.endptr = ptr::null_mut();
         if len > 0 {
             vec.truncate(len);
             let buf = wstream_new_vec_buffer(vec);
-            let chans = (*packer).anydata.as_chans();
-            for i in 0..((*packer).anyint as usize) {
+            let chans = packer.anydata.as_chans();
+            for i in 0..(packer.anyint as usize) {
                 let _ = channel_write(*chans.add(i), std::rc::Rc::clone(&buf));
             }
         }
     }
 }
 
-pub(crate) unsafe fn channel_flush_callback(packer: *mut PackerBuffer) {
+pub(crate) unsafe fn channel_flush_callback(packer: &mut PackerBuffer) {
     unsafe {
         packer_buffer_finish_channels(packer);
         packer_buffer_init_channels(
-            (*packer).anydata.as_chans(),
-            (*packer).anyint as usize,
+            packer.anydata.as_chans(),
+            packer.anyint as usize,
             packer,
         );
     }

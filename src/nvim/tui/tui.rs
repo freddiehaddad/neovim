@@ -1139,13 +1139,13 @@ unsafe fn tui_terminal_start(tui: &mut TUIData) {
         let input = tui_input(tui);
         if (*input).loop_.is_null() {
             tinput_init(
-                input,
+                &mut *input,
                 (&raw mut g_st().main_loop).cast::<Loop>(),
                 &tui.ti,
             );
         }
         tui_guess_size(tui);
-        tinput_start(input);
+        tinput_start(&mut *input);
     }
 }
 
@@ -1225,7 +1225,7 @@ pub unsafe fn tui_stop(tui: &mut TUIData) {
 
         tui_terminal_stop(tui);
         stream_set_blocking((*input).in_fd, true);
-        tinput_destroy(input);
+        tinput_destroy(&mut *input);
         signal_watcher_stop(tui_winch_handle(tui));
         signal_watcher_close(tui_winch_handle(tui));
         uv_close(tui_startup_delay_timer(tui).cast(), None);
@@ -1238,7 +1238,7 @@ fn tui_stop_cb(tui: &mut TUIData) {
 
 unsafe fn tui_terminal_stop(tui: &mut TUIData) {
     unsafe {
-        tinput_stop(tui_input(tui));
+        tinput_stop(&mut *tui_input(tui));
         terminfo_stop(tui);
     }
 }
@@ -3232,12 +3232,12 @@ unsafe fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush:
     }
 }
 
-unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
+unsafe fn tui_get_stty_erase(input: &mut TermInput) -> *const c_char {
     unsafe {
         #[cfg(unix)]
         {
             let mut t = unix_termios::termios::new();
-            if unix_termios::tcgetattr((*input).in_fd, &raw mut t) != -1 {
+            if unix_termios::tcgetattr(input.in_fd, &raw mut t) != -1 {
                 tui_st().stty_erase_buf[0] = t.c_cc[unix_termios::VERASE] as c_char;
                 tui_st().stty_erase_buf[1] = NUL;
                 if log_st().g_min_log_level <= LOGLVL_DBG {
@@ -3255,7 +3255,7 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
         }
         #[cfg(windows)]
         {
-            let uv_ptr = &raw mut (*input).read_stream.s.uv;
+            let uv_ptr = &raw mut input.read_stream.s.uv;
             let mut dw_mode: u32 = 0;
             if uv_handle_get_type(uv_ptr.cast()) == UV_TTY {
                 let tty_handle = *uv_ptr
@@ -3277,7 +3277,7 @@ unsafe fn tui_get_stty_erase(input: *mut TermInput) -> *const c_char {
 pub(crate) unsafe fn tui_tk_ti_getstr(
     name: *const c_char,
     value: *const c_char,
-    input: *mut TermInput,
+    input: &mut TermInput,
 ) -> *const c_char {
     unsafe {
         if tui_st().stty_erase_ptr.is_null() {

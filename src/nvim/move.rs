@@ -301,7 +301,7 @@ pub unsafe fn update_topline(wp: *mut win_T) {
             return;
         }
 
-        if !crate::grid::grid_allocated(&raw const g_st().default_grid) || (*wp).w_view_height == 0 {
+        if !crate::grid::grid_allocated(&g_st().default_grid) || (*wp).w_view_height == 0 {
             check_cursor_lnum(wp);
             (*wp).w_topline = (*wp).w_cursor.lnum;
             (*wp).w_botline = (*wp).w_topline;

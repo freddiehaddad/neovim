@@ -854,12 +854,12 @@ pub unsafe fn pum_redraw() {
             }
         }
         g_st().pum_grid.blending = opt_vars().p_pb > 0 || fconfig.shadow;
-        grid_assign_handle(&raw mut g_st().pum_grid);
+        grid_assign_handle(&mut g_st().pum_grid);
 
         pum().left_col = pum().col - col_off;
         pum().right_col = pum().left_col + grid_width;
         let moved = ui_comp_put_grid(
-            &raw mut g_st().pum_grid,
+            &mut g_st().pum_grid,
             pum().row,
             pum().left_col,
             pum().height + border_width,
@@ -871,12 +871,12 @@ pub unsafe fn pum_redraw() {
         pum().invalid = false;
         g_st().must_redraw_pum = false;
 
-        if !crate::grid::grid_allocated(&raw const g_st().pum_grid)
+        if !crate::grid::grid_allocated(&g_st().pum_grid)
             || g_st().pum_grid.rows != pum().height + border_width
             || g_st().pum_grid.cols != grid_width + border_width
         {
             grid_alloc(
-                &raw mut g_st().pum_grid,
+                &mut g_st().pum_grid,
                 pum().height + border_width,
                 grid_width + border_width,
                 !invalid_grid,
@@ -897,7 +897,7 @@ pub unsafe fn pum_redraw() {
         let scroll_range = pum().size - pum().height;
         if fconfig.border {
             grid_draw_border(
-                &raw mut g_st().pum_grid,
+                &mut g_st().pum_grid,
                 &raw mut fconfig,
                 ptr::null_mut(),
                 0,
@@ -1563,12 +1563,12 @@ pub unsafe fn pum_check_clear() {
             if pum().external {
                 ui_call_popupmenu_hide();
             } else {
-                ui_comp_remove_grid(&raw mut g_st().pum_grid);
+                ui_comp_remove_grid(&mut g_st().pum_grid);
                 if ui_has(kUIMultigrid) {
                     ui_call_win_close(i64::from(g_st().pum_grid.handle));
                     ui_call_grid_destroy(i64::from(g_st().pum_grid.handle));
                 }
-                grid_free(&raw mut g_st().pum_grid);
+                grid_free(&mut g_st().pum_grid);
             }
             pum().is_drawn = false;
             pum().external = false;

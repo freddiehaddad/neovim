@@ -302,18 +302,18 @@ const EVNAMES: [&str; 4] = ["Unknown", "Press", "Drag", "Release"];
 
 pub unsafe fn termkey_interpret_string(
     tk: &TermKey,
-    key: *const TermKeyKey,
+    key: &TermKeyKey,
     strp: *mut *const c_char,
 ) -> TermKeyResult {
     unsafe {
-        if (*key).r#type != TERMKEY_TYPE_DCS
-            && (*key).r#type != TERMKEY_TYPE_OSC
-            && (*key).r#type != TERMKEY_TYPE_APC
+        if key.r#type != TERMKEY_TYPE_DCS
+            && key.r#type != TERMKEY_TYPE_OSC
+            && key.r#type != TERMKEY_TYPE_APC
         {
             return TERMKEY_RES_NONE;
         }
 
-        if tk.csi.saved_string_id != (*key).code.number {
+        if tk.csi.saved_string_id != key.code.number {
             return TERMKEY_RES_NONE;
         }
 
@@ -542,86 +542,86 @@ fn parse_utf8(bytes: &[u8], cp: &mut c_int, nbytep: &mut usize) -> TermKeyResult
     TERMKEY_RES_KEY
 }
 
-pub(crate) unsafe fn emit_codepoint(tk: &TermKey, codepoint: c_int, key: *mut TermKeyKey) {
+pub(crate) unsafe fn emit_codepoint(tk: &TermKey, codepoint: c_int, key: &mut TermKeyKey) {
     unsafe {
         if codepoint == 0 {
-            (*key).r#type = TERMKEY_TYPE_KEYSYM;
-            (*key).code.sym = TERMKEY_SYM_SPACE;
-            (*key).modifiers = TERMKEY_KEYMOD_CTRL;
+            key.r#type = TERMKEY_TYPE_KEYSYM;
+            key.code.sym = TERMKEY_SYM_SPACE;
+            key.modifiers = TERMKEY_KEYMOD_CTRL;
         } else if codepoint < 0x20 && (tk.flags & TERMKEY_FLAG_KEEPC0) == 0 {
-            (*key).code.codepoint = 0;
-            (*key).modifiers = 0;
+            key.code.codepoint = 0;
+            key.modifiers = 0;
 
             let idx = codepoint as usize;
             if (tk.flags & TERMKEY_FLAG_NOINTERPRET) == 0 && tk.c0[idx].sym != TERMKEY_SYM_UNKNOWN {
-                (*key).code.sym = tk.c0[idx].sym;
-                (*key).modifiers |= tk.c0[idx].modifier_set;
+                key.code.sym = tk.c0[idx].sym;
+                key.modifiers |= tk.c0[idx].modifier_set;
             }
 
-            if (*key).code.sym == 0 {
-                (*key).r#type = TERMKEY_TYPE_UNICODE;
+            if key.code.sym == 0 {
+                key.r#type = TERMKEY_TYPE_UNICODE;
                 if (b'A' as c_int..=b'Z' as c_int).contains(&(codepoint + 0x40)) {
-                    (*key).code.codepoint = codepoint + 0x60;
+                    key.code.codepoint = codepoint + 0x60;
                 } else {
-                    (*key).code.codepoint = codepoint + 0x40;
+                    key.code.codepoint = codepoint + 0x40;
                 }
-                (*key).modifiers = TERMKEY_KEYMOD_CTRL;
+                key.modifiers = TERMKEY_KEYMOD_CTRL;
             } else {
-                (*key).r#type = TERMKEY_TYPE_KEYSYM;
+                key.r#type = TERMKEY_TYPE_KEYSYM;
             }
         } else if codepoint == 0x7f && (tk.flags & TERMKEY_FLAG_NOINTERPRET) == 0 {
-            (*key).r#type = TERMKEY_TYPE_KEYSYM;
-            (*key).code.sym = TERMKEY_SYM_DEL;
-            (*key).modifiers = 0;
+            key.r#type = TERMKEY_TYPE_KEYSYM;
+            key.code.sym = TERMKEY_SYM_DEL;
+            key.modifiers = 0;
         } else if codepoint > 0 && codepoint < 0x80 {
-            (*key).r#type = TERMKEY_TYPE_UNICODE;
-            (*key).code.codepoint = codepoint;
-            (*key).modifiers = 0;
+            key.r#type = TERMKEY_TYPE_UNICODE;
+            key.code.codepoint = codepoint;
+            key.modifiers = 0;
         } else if (0x80..0xa0).contains(&codepoint) {
-            (*key).r#type = TERMKEY_TYPE_UNICODE;
-            (*key).code.codepoint = codepoint - 0x40;
-            (*key).modifiers = TERMKEY_KEYMOD_CTRL | TERMKEY_KEYMOD_ALT;
+            key.r#type = TERMKEY_TYPE_UNICODE;
+            key.code.codepoint = codepoint - 0x40;
+            key.modifiers = TERMKEY_KEYMOD_CTRL | TERMKEY_KEYMOD_ALT;
         } else {
-            (*key).r#type = TERMKEY_TYPE_UNICODE;
-            (*key).code.codepoint = codepoint;
-            (*key).modifiers = 0;
+            key.r#type = TERMKEY_TYPE_UNICODE;
+            key.code.codepoint = codepoint;
+            key.modifiers = 0;
         }
 
         termkey_canonicalise(tk, key);
 
-        if (*key).r#type == TERMKEY_TYPE_UNICODE {
-            fill_utf8((*key).code.codepoint, (*key).utf8.as_mut_ptr());
+        if key.r#type == TERMKEY_TYPE_UNICODE {
+            fill_utf8(key.code.codepoint, key.utf8.as_mut_ptr());
         }
     }
 }
 
-pub unsafe fn termkey_canonicalise(tk: &TermKey, key: *mut TermKeyKey) {
+pub unsafe fn termkey_canonicalise(tk: &TermKey, key: &mut TermKeyKey) {
     unsafe {
         let flags = tk.canonflags;
 
         if (flags & TERMKEY_CANON_SPACESYMBOL) != 0 {
-            if (*key).r#type == TERMKEY_TYPE_UNICODE && (*key).code.codepoint == 0x20 {
-                (*key).r#type = TERMKEY_TYPE_KEYSYM;
-                (*key).code.sym = TERMKEY_SYM_SPACE;
+            if key.r#type == TERMKEY_TYPE_UNICODE && key.code.codepoint == 0x20 {
+                key.r#type = TERMKEY_TYPE_KEYSYM;
+                key.code.sym = TERMKEY_SYM_SPACE;
             }
-        } else if (*key).r#type == TERMKEY_TYPE_KEYSYM && (*key).code.sym == TERMKEY_SYM_SPACE {
-            (*key).r#type = TERMKEY_TYPE_UNICODE;
-            (*key).code.codepoint = 0x20;
-            fill_utf8((*key).code.codepoint, (*key).utf8.as_mut_ptr());
+        } else if key.r#type == TERMKEY_TYPE_KEYSYM && key.code.sym == TERMKEY_SYM_SPACE {
+            key.r#type = TERMKEY_TYPE_UNICODE;
+            key.code.codepoint = 0x20;
+            fill_utf8(key.code.codepoint, key.utf8.as_mut_ptr());
         }
 
         if (flags & TERMKEY_CANON_DELBS) != 0
-            && (*key).r#type == TERMKEY_TYPE_KEYSYM
-            && (*key).code.sym == TERMKEY_SYM_DEL
+            && key.r#type == TERMKEY_TYPE_KEYSYM
+            && key.code.sym == TERMKEY_SYM_DEL
         {
-            (*key).code.sym = TERMKEY_SYM_BACKSPACE;
+            key.code.sym = TERMKEY_SYM_BACKSPACE;
         }
     }
 }
 
 unsafe fn peekkey(
     tk: &mut TermKey,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
@@ -632,7 +632,7 @@ unsafe fn peekkey(
             return TERMKEY_RES_ERROR;
         }
 
-        (*key).event = TERMKEY_EVENT_PRESS;
+        key.event = TERMKEY_EVENT_PRESS;
 
         if tk.hightide != 0 {
             tk.buffstart += tk.hightide;
@@ -671,7 +671,7 @@ unsafe fn peekkey(
 
 unsafe fn peekkey_simple(
     tk: &mut TermKey,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     force: c_int,
     nbytep: *mut usize,
 ) -> TermKeyResult {
@@ -705,18 +705,18 @@ unsafe fn peekkey_simple(
             tk.buffcount += 1;
 
             if metakey_result == TERMKEY_RES_KEY {
-                if (*key).event == TERMKEY_EVENT_REPEAT
-                    || (*key).event == TERMKEY_EVENT_RELEASE
-                    || (*key).r#type == TERMKEY_TYPE_DCS
-                    || (*key).r#type == TERMKEY_TYPE_OSC
-                    || (*key).r#type == TERMKEY_TYPE_APC
+                if key.event == TERMKEY_EVENT_REPEAT
+                    || key.event == TERMKEY_EVENT_RELEASE
+                    || key.r#type == TERMKEY_TYPE_DCS
+                    || key.r#type == TERMKEY_TYPE_OSC
+                    || key.r#type == TERMKEY_TYPE_APC
                 {
-                    (*key).event = TERMKEY_EVENT_PRESS;
+                    key.event = TERMKEY_EVENT_PRESS;
                     emit_codepoint(tk, c_int::from(b0), key);
                     *nbytep = 1;
                     return TERMKEY_RES_KEY;
                 }
-                (*key).modifiers |= TERMKEY_KEYMOD_ALT;
+                key.modifiers |= TERMKEY_KEYMOD_ALT;
                 *nbytep += 1;
             }
 
@@ -738,16 +738,16 @@ unsafe fn peekkey_simple(
                 res = TERMKEY_RES_KEY;
             }
 
-            (*key).r#type = TERMKEY_TYPE_UNICODE;
-            (*key).modifiers = 0;
+            key.r#type = TERMKEY_TYPE_UNICODE;
+            key.modifiers = 0;
             emit_codepoint(tk, codepoint, key);
             res
         } else {
-            (*key).r#type = TERMKEY_TYPE_UNICODE;
-            (*key).code.codepoint = c_int::from(b0);
-            (*key).modifiers = 0;
-            (*key).utf8[0] = b0 as c_char;
-            (*key).utf8[1] = 0;
+            key.r#type = TERMKEY_TYPE_UNICODE;
+            key.code.codepoint = c_int::from(b0);
+            key.modifiers = 0;
+            key.utf8[0] = b0 as c_char;
+            key.utf8[1] = 0;
             *nbytep = 1;
             TERMKEY_RES_KEY
         }
@@ -756,7 +756,7 @@ unsafe fn peekkey_simple(
 
 pub(crate) unsafe fn peekkey_mouse(
     tk: &TermKey,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     nbytep: *mut usize,
 ) -> TermKeyResult {
     unsafe {
@@ -768,21 +768,21 @@ pub(crate) unsafe fn peekkey_mouse(
         let b0 = tk.buffer[start];
         let b1 = tk.buffer[start + 1];
         let b2 = tk.buffer[start + 2];
-        (*key).r#type = TERMKEY_TYPE_MOUSE;
-        (*key).code.mouse[0] = b0.wrapping_sub(0x20) as c_char;
-        (*key).code.mouse[1] = b1.wrapping_sub(0x20) as c_char;
-        (*key).code.mouse[2] = b2.wrapping_sub(0x20) as c_char;
-        (*key).code.mouse[3] = 0;
+        key.r#type = TERMKEY_TYPE_MOUSE;
+        key.code.mouse[0] = b0.wrapping_sub(0x20) as c_char;
+        key.code.mouse[1] = b1.wrapping_sub(0x20) as c_char;
+        key.code.mouse[2] = b2.wrapping_sub(0x20) as c_char;
+        key.code.mouse[3] = 0;
 
-        (*key).modifiers = c_int::from(((*key).code.mouse[0] as u8 & 0x1c) >> 2);
-        (*key).code.mouse[0] = ((*key).code.mouse[0] as u8 & !0x1c) as c_char;
+        key.modifiers = c_int::from((key.code.mouse[0] as u8 & 0x1c) >> 2);
+        key.code.mouse[0] = (key.code.mouse[0] as u8 & !0x1c) as c_char;
 
         *nbytep = 3;
         TERMKEY_RES_KEY
     }
 }
 
-pub unsafe fn termkey_getkey(tk: &mut TermKey, key: *mut TermKeyKey) -> TermKeyResult {
+pub unsafe fn termkey_getkey(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyResult {
     unsafe {
         let mut nbytes: usize = 0;
         let ret = peekkey(tk, key, 0, &mut nbytes);
@@ -799,7 +799,7 @@ pub unsafe fn termkey_getkey(tk: &mut TermKey, key: *mut TermKeyKey) -> TermKeyR
     }
 }
 
-pub unsafe fn termkey_getkey_force(tk: &mut TermKey, key: *mut TermKeyKey) -> TermKeyResult {
+pub unsafe fn termkey_getkey_force(tk: &mut TermKey, key: &mut TermKeyKey) -> TermKeyResult {
     unsafe {
         let mut nbytes: usize = 0;
         let ret = peekkey(tk, key, 1, &mut nbytes);
@@ -1033,7 +1033,7 @@ pub unsafe fn termkey_strfkey(
     tk: &TermKey,
     buffer: *mut c_char,
     len: usize,
-    key: *mut TermKeyKey,
+    key: &mut TermKeyKey,
     format: TermKeyFormat,
 ) -> usize {
     unsafe {
@@ -1044,7 +1044,7 @@ pub unsafe fn termkey_strfkey(
         let mods = &MODNAMES[mod_idx];
 
         let wrapbracket = (format & TERMKEY_FORMAT_WRAPBRACKET) != 0
-            && ((*key).r#type != TERMKEY_TYPE_UNICODE || (*key).modifiers != 0);
+            && (key.r#type != TERMKEY_TYPE_UNICODE || key.modifiers != 0);
 
         let sep = if (format & TERMKEY_FORMAT_SPACEMOD) != 0 {
             b' '
@@ -1053,10 +1053,10 @@ pub unsafe fn termkey_strfkey(
         };
 
         if (format & TERMKEY_FORMAT_CARETCTRL) != 0
-            && (*key).r#type == TERMKEY_TYPE_UNICODE
-            && (*key).modifiers == TERMKEY_KEYMOD_CTRL
+            && key.r#type == TERMKEY_TYPE_UNICODE
+            && key.modifiers == TERMKEY_KEYMOD_CTRL
         {
-            let codepoint = (*key).code.codepoint;
+            let codepoint = key.code.codepoint;
             if (b'a' as c_int..=b'z' as c_int).contains(&codepoint) {
                 let ch = (codepoint as u8 - 0x20) as char;
                 let s = if wrapbracket {
@@ -1084,7 +1084,7 @@ pub unsafe fn termkey_strfkey(
             return pos;
         }
 
-        if ((*key).modifiers & TERMKEY_KEYMOD_ALT) != 0 {
+        if (key.modifiers & TERMKEY_KEYMOD_ALT) != 0 {
             let mut s = mods.alt.as_bytes().to_vec();
             s.push(sep);
             if !append_str(buffer, len, &mut pos, &s) {
@@ -1092,7 +1092,7 @@ pub unsafe fn termkey_strfkey(
             }
         }
 
-        if ((*key).modifiers & TERMKEY_KEYMOD_CTRL) != 0 {
+        if (key.modifiers & TERMKEY_KEYMOD_CTRL) != 0 {
             let mut s = mods.ctrl.as_bytes().to_vec();
             s.push(sep);
             if !append_str(buffer, len, &mut pos, &s) {
@@ -1100,7 +1100,7 @@ pub unsafe fn termkey_strfkey(
             }
         }
 
-        if ((*key).modifiers & TERMKEY_KEYMOD_SHIFT) != 0 {
+        if (key.modifiers & TERMKEY_KEYMOD_SHIFT) != 0 {
             let mut s = mods.shift.as_bytes().to_vec();
             s.push(sep);
             if !append_str(buffer, len, &mut pos, &s) {
@@ -1108,16 +1108,16 @@ pub unsafe fn termkey_strfkey(
             }
         }
 
-        let ok = match (*key).r#type {
+        let ok = match key.r#type {
             TERMKEY_TYPE_UNICODE => {
-                if (*key).utf8[0] == 0 {
-                    fill_utf8((*key).code.codepoint, (*key).utf8.as_mut_ptr());
+                if key.utf8[0] == 0 {
+                    fill_utf8(key.code.codepoint, key.utf8.as_mut_ptr());
                 }
-                let u_bytes = CStr::from_ptr((*key).utf8.as_ptr()).to_bytes();
+                let u_bytes = CStr::from_ptr(key.utf8.as_ptr()).to_bytes();
                 append_str(buffer, len, &mut pos, u_bytes)
             }
             TERMKEY_TYPE_KEYSYM => {
-                let name = termkey_get_keyname(tk, (*key).code.sym);
+                let name = termkey_get_keyname(tk, key.code.sym);
                 let name_bytes = if name.is_null() {
                     &[][..]
                 } else {
@@ -1136,7 +1136,7 @@ pub unsafe fn termkey_strfkey(
                 } else {
                     'F'
                 };
-                let s = format!("{prefix}{}", (*key).code.number);
+                let s = format!("{prefix}{}", key.code.number);
                 append_str(buffer, len, &mut pos, s.as_bytes())
             }
             TERMKEY_TYPE_MOUSE => {
@@ -1174,7 +1174,7 @@ pub unsafe fn termkey_strfkey(
             TERMKEY_TYPE_OSC => append_str(buffer, len, &mut pos, b"OSC"),
             TERMKEY_TYPE_APC => append_str(buffer, len, &mut pos, b"APC"),
             TERMKEY_TYPE_UNKNOWN_CSI => {
-                let s = format!("CSI {}", ((*key).code.number & 0xff) as u8 as char);
+                let s = format!("CSI {}", (key.code.number & 0xff) as u8 as char);
                 append_str(buffer, len, &mut pos, s.as_bytes())
             }
             _ => false,

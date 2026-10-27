@@ -645,7 +645,7 @@ impl EncodeBackend<'_> {
     unsafe fn check_before(&mut self) {
         if let Self::Msgpack { packer } = *self {
             unsafe {
-                mpack_check_buffer(packer);
+                mpack_check_buffer(&mut *packer);
             }
         }
     }
@@ -804,7 +804,7 @@ impl EncodeBackend<'_> {
                             data: buf.cast_mut(),
                             size: len,
                         },
-                        *packer,
+                        &mut **packer,
                     );
                     OK
                 }
@@ -823,7 +823,7 @@ impl EncodeBackend<'_> {
                             data: buf.cast_mut(),
                             size: len,
                         },
-                        *packer,
+                        &mut **packer,
                     );
                     OK
                 }
@@ -844,7 +844,7 @@ impl EncodeBackend<'_> {
                 }
                 Self::Text { .. } => OK,
                 Self::Msgpack { packer } => {
-                    mpack_ext(buf, len, ext_type, *packer);
+                    mpack_ext(buf, len, ext_type, &mut **packer);
                     OK
                 }
             }
@@ -914,7 +914,7 @@ impl EncodeBackend<'_> {
                             data,
                             size: len as usize,
                         },
-                        *packer,
+                        &mut **packer,
                     );
                 }
             }
@@ -1743,7 +1743,7 @@ pub unsafe fn encode_vim_to_echo(
 
 /// Convert Vimscript value to msgpack string (`encode_vim_to_msgpack`).
 pub unsafe fn encode_vim_to_msgpack(
-    packer: *mut PackerBuffer,
+    packer: &mut PackerBuffer,
     tv: *mut typval_T,
     objname: *const c_char,
 ) -> c_int {

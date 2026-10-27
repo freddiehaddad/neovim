@@ -5950,13 +5950,13 @@ pub unsafe fn f_msgpackdump(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         while !li.is_null() {
             vim_snprintf!(msgbuf.as_mut_ptr(), msgbuf.len(), msg, idx);
             idx += 1;
-            if encode_vim_to_msgpack(&raw mut packer, &raw mut (*li).li_tv, msgbuf.as_ptr()) == FAIL
+            if encode_vim_to_msgpack(&mut packer, &raw mut (*li).li_tv, msgbuf.as_ptr()) == FAIL
             {
                 break;
             }
             li = (*li).li_next;
         }
-        let data = packer_take_string(&raw mut packer);
+        let data = packer_take_string(&mut packer);
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
             && { let _a = tv_get_string(argvars.add(1)); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"B" }
         {

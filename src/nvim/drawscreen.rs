@@ -235,7 +235,7 @@ pub unsafe fn default_grid_alloc() -> bool {
         }
         ds_st().default_grid_resizing = true;
 
-        if (grid_allocated(&raw const g_st().default_grid)
+        if (grid_allocated(&g_st().default_grid)
             && g_st().Rows == g_st().default_grid.rows
             && g_st().Columns == g_st().default_grid.cols)
             || g_st().Rows == 0
@@ -245,7 +245,7 @@ pub unsafe fn default_grid_alloc() -> bool {
             return false;
         }
 
-        grid_alloc(&raw mut g_st().default_grid, g_st().Rows, g_st().Columns, true, true);
+        grid_alloc(&mut g_st().default_grid, g_st().Rows, g_st().Columns, true, true);
 
         let tp_defs = &raw mut g_st().tab_page_click_defs;
         stl_clear_click_defs(&mut *tp_defs);
@@ -264,7 +264,7 @@ pub unsafe fn screenclear() {
     unsafe {
         msg_check_for_delay(false);
 
-        if *starting.as_ptr() == NO_SCREEN || !grid_allocated(&raw const g_st().default_grid) {
+        if *starting.as_ptr() == NO_SCREEN || !grid_allocated(&g_st().default_grid) {
             return;
         }
 
@@ -311,7 +311,7 @@ pub unsafe fn screenclear() {
         g_st().msg_didout = false;
         if crate::highlight::hl_attr(HLF_MSG as c_int) > 0
             && msg_use_grid()
-            && grid_allocated(&raw const g_st().msg_grid)
+            && grid_allocated(&g_st().msg_grid)
         {
             grid_invalidate(&raw mut g_st().msg_grid);
             msg_grid_validate();
@@ -378,7 +378,7 @@ pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
 
         while default_grid_alloc() {
             ui_comp_set_screen_valid(false);
-            if grid_allocated(&raw const g_st().msg_grid) {
+            if grid_allocated(&g_st().msg_grid) {
                 ds_st().msg_grid_invalid = true;
             }
 
@@ -423,7 +423,7 @@ pub unsafe fn screen_resize(mut width: c_int, mut height: c_int) {
                 if (g_st().State & MODE_CMDLINE) != 0 {
                     update_screen();
                 }
-                if grid_allocated(&raw const g_st().msg_grid) {
+                if grid_allocated(&g_st().msg_grid) {
                     msg_grid_validate();
                 }
                 ui_comp_set_screen_valid(true);
@@ -479,7 +479,7 @@ pub unsafe fn update_screen() -> c_int {
 
         let is_stl_global = global_stl_height() > 0;
 
-        if ds_st().resizing_autocmd || !grid_allocated(&raw const g_st().default_grid) {
+        if ds_st().resizing_autocmd || !grid_allocated(&g_st().default_grid) {
             return FAIL;
         }
 
@@ -524,7 +524,7 @@ pub unsafe fn update_screen() -> c_int {
         if g_st().msg_scrolled != 0 || ds_st().msg_grid_invalid {
             g_st().clear_cmdline = true;
             let valid = (g_st().Rows - msg_scrollsize()).max(0);
-            if grid_allocated(&raw const g_st().msg_grid) {
+            if grid_allocated(&g_st().msg_grid) {
                 let limit = msg_scrollsize().min(g_st().msg_grid.rows);
                 for i in 0..limit {
                     grid_clear_line(
@@ -700,7 +700,7 @@ pub unsafe fn update_screen() -> c_int {
 
             if (*wp).w_redr_border || (*wp).w_redr_type >= UPD_NOT_VALID {
                 grid_draw_border(
-                    &raw mut (*wp).w_grid_alloc,
+                    &mut (*wp).w_grid_alloc,
                     &raw mut (*wp).w_config,
                     (*wp).w_border_adj.as_mut_ptr(),
                     (*wp).w_onebuf_opt.wo_winbl as c_int,
@@ -2480,7 +2480,7 @@ pub unsafe fn win_scroll_lines(wp: *mut win_T, row: c_int, line_count: c_int) {
 
         if line_count < 0 {
             grid_del_lines(
-                grid,
+                &mut *grid,
                 row + row_off,
                 -line_count,
                 checked_height + row_off,
@@ -2489,7 +2489,7 @@ pub unsafe fn win_scroll_lines(wp: *mut win_T, row: c_int, line_count: c_int) {
             );
         } else {
             grid_ins_lines(
-                grid,
+                &mut *grid,
                 row + row_off,
                 line_count,
                 checked_height + row_off,

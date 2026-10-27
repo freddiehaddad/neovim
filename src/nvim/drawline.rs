@@ -3737,7 +3737,7 @@ unsafe fn wlv_put_linebuf(
         let mut coloff: c_int = 0;
         let g = grid_adjust(grid, &raw mut row, &raw mut coloff);
         grid_put_linebuf(
-            g,
+            &mut *g,
             row,
             coloff,
             startcol,
