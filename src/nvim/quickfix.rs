@@ -406,17 +406,28 @@ enum QfInputSource {
 }
 
 struct qfstate_T {
-    linebuf: *mut c_char,
+    use_growbuf: bool,
     linelen: usize,
     growbuf: Vec<c_char>,
     source: QfInputSource,
     vc: vimconv_T,
 }
 
+impl qfstate_T {
+    #[inline]
+    fn linebuf_ptr(&mut self) -> *mut c_char {
+        if self.use_growbuf {
+            self.growbuf.as_mut_ptr()
+        } else {
+            (&raw mut IObuff).cast::<c_char>()
+        }
+    }
+}
+
 impl Default for qfstate_T {
     fn default() -> Self {
         Self {
-            linebuf: ptr::null_mut(),
+            use_growbuf: false,
             linelen: 0,
             growbuf: Vec::new(),
             source: QfInputSource::None,
@@ -723,7 +734,13 @@ unsafe fn qf_init_process_nextline(
             return status;
         }
 
-        status = qf_parse_line(qfl, (*state).linebuf, (*state).linelen, fmt_first, fields);
+        status = qf_parse_line(
+            qfl,
+            (*state).linebuf_ptr(),
+            (*state).linelen,
+            fmt_first,
+            fields,
+        );
         if status != QF_OK {
             return status;
         }
@@ -1092,6 +1109,7 @@ unsafe fn qf_grow_linebuf(state: *mut qfstate_T, newsz: usize) -> *mut c_char {
         if (*state).growbuf.len() < (*state).linelen + 1 {
             (*state).growbuf.resize((*state).linelen + 1, 0);
         }
+        (*state).use_growbuf = true;
         (*state).growbuf.as_mut_ptr()
     }
 }
@@ -1109,14 +1127,15 @@ unsafe fn qf_get_next_str_line(state: *mut qfstate_T, mut p_str: *mut c_char) ->
             strlen(p_str)
         };
 
-        if len > IOSIZE - 2 {
-            (*state).linebuf = qf_grow_linebuf(state, len);
+        let linebuf = if len > IOSIZE - 2 {
+            qf_grow_linebuf(state, len)
         } else {
-            (*state).linebuf = (&raw mut IObuff).cast::<c_char>();
+            (*state).use_growbuf = false;
             (*state).linelen = len;
-        }
-        ptr::copy_nonoverlapping(p_str, (*state).linebuf, (*state).linelen);
-        *(*state).linebuf.add((*state).linelen) = NUL;
+            (&raw mut IObuff).cast::<c_char>()
+        };
+        ptr::copy_nonoverlapping(p_str, linebuf, (*state).linelen);
+        *linebuf.add((*state).linelen) = NUL;
 
         p_str = p_str.add(len);
         (*state).source = QfInputSource::Str(p_str);
@@ -1141,14 +1160,15 @@ unsafe fn qf_get_next_list_line(state: *mut qfstate_T, mut p_li: *mut listitem_T
 
         let s = (*p_li).li_tv.vval.v_string();
         let len = strlen(s);
-        if len > IOSIZE - 2 {
-            (*state).linebuf = qf_grow_linebuf(state, len);
+        let linebuf = if len > IOSIZE - 2 {
+            qf_grow_linebuf(state, len)
         } else {
-            (*state).linebuf = (&raw mut IObuff).cast::<c_char>();
+            (*state).use_growbuf = false;
             (*state).linelen = len;
-        }
+            (&raw mut IObuff).cast::<c_char>()
+        };
 
-        xstrlcpy((*state).linebuf, s, (*state).linelen + 1);
+        xstrlcpy(linebuf, s, (*state).linelen + 1);
         (*state).source = QfInputSource::List((*p_li).li_next);
         QF_OK
     }
@@ -1172,13 +1192,14 @@ unsafe fn qf_get_next_buf_line(
             lnumlast,
         };
 
-        if len > IOSIZE - 2 {
-            (*state).linebuf = qf_grow_linebuf(state, len);
+        let linebuf = if len > IOSIZE - 2 {
+            qf_grow_linebuf(state, len)
         } else {
-            (*state).linebuf = (&raw mut IObuff).cast::<c_char>();
+            (*state).use_growbuf = false;
             (*state).linelen = len;
-        }
-        xstrlcpy((*state).linebuf, p_buf, (*state).linelen + 1);
+            (&raw mut IObuff).cast::<c_char>()
+        };
+        xstrlcpy(linebuf, p_buf, (*state).linelen + 1);
         QF_OK
     }
 }
@@ -1252,29 +1273,27 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
                 }
             }
 
-            (*state).linebuf = (*state).growbuf.as_mut_ptr();
+            (*state).use_growbuf = true;
             (*state).linelen = growbuflen;
         } else {
-            (*state).linebuf = iobuff_ptr;
+            (*state).use_growbuf = false;
         }
 
+        let cur_linebuf = (*state).linebuf_ptr();
         if (*state).vc.vc_type != CONV_NONE
-            && has_non_ascii((*state).linebuf)
-            && let Some(line) = string_convert(
-                &(*state).vc,
-                (*state).linebuf,
-                &raw mut (*state).linelen,
-            )
+            && has_non_ascii(cur_linebuf)
+            && let Some(line) =
+                string_convert(&(*state).vc, cur_linebuf, &raw mut (*state).linelen)
         {
             if (*state).linelen < IOSIZE {
-                xstrlcpy((*state).linebuf, line.as_ptr().cast(), (*state).linelen + 1);
+                xstrlcpy(cur_linebuf, line.as_ptr().cast(), (*state).linelen + 1);
             } else {
                 let cap = ((*state).linelen + 1).min(LINE_MAXLEN);
                 if (*state).growbuf.len() < cap {
                     (*state).growbuf.resize(cap, 0);
                 }
                 xstrlcpy((*state).growbuf.as_mut_ptr(), line.as_ptr().cast(), cap);
-                (*state).linebuf = (*state).growbuf.as_mut_ptr();
+                (*state).use_growbuf = true;
             }
         }
         QF_OK
@@ -1299,15 +1318,16 @@ unsafe fn qf_get_nextline(state: *mut qfstate_T) -> c_int {
             return status;
         }
 
-        if (*state).linelen > 0 && *(*state).linebuf.add((*state).linelen - 1) == NL {
-            *(*state).linebuf.add((*state).linelen - 1) = NUL;
+        let linebuf = (*state).linebuf_ptr();
+        if (*state).linelen > 0 && *linebuf.add((*state).linelen - 1) == NL {
+            *linebuf.add((*state).linelen - 1) = NUL;
             #[cfg(windows)]
-            if (*state).linelen > 1 && *(*state).linebuf.add((*state).linelen - 2) == CAR {
-                *(*state).linebuf.add((*state).linelen - 2) = NUL;
+            if (*state).linelen > 1 && *linebuf.add((*state).linelen - 2) == CAR {
+                *linebuf.add((*state).linelen - 2) = NUL;
             }
         }
 
-        remove_bom((*state).linebuf);
+        remove_bom(linebuf);
 
         QF_OK
     }

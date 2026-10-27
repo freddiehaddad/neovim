@@ -300,7 +300,7 @@ struct findtags_state_T {
     vimconv: vimconv_T,
     help_lang: [c_char; 3],
     help_pri: c_int,
-    help_lang_find: *mut c_char,
+    help_lang_find: Option<[c_char; 3]>,
     is_txt: bool,
     match_count: c_int,
     ga_match: [Vec<Vec<c_char>>; MT_COUNT],
@@ -338,7 +338,7 @@ impl findtags_state_T {
             vimconv: vimconv_T::new(),
             help_lang: [0; 3],
             help_pri: 0,
-            help_lang_find: ptr::null_mut(),
+            help_lang_find: None,
             is_txt: false,
             match_count: 0,
             ga_match: [const { Vec::new() }; MT_COUNT],
@@ -1544,7 +1544,7 @@ unsafe fn findtags_state_init(
         };
         st.flags = flags;
         st.tag_file_sorted = NUL as c_int;
-        st.help_lang_find = ptr::null_mut();
+        st.help_lang_find = None;
         st.is_txt = false;
         st.did_open = false;
         st.help_only = (flags & TAG_HELP) != 0;
@@ -1590,8 +1590,12 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
             }
         }
 
-        if !st.help_lang_find.is_null()
-            && mb_strnicmp(st.help_lang.as_ptr(), st.help_lang_find, MAXCOL as usize) != 0
+        if let Some(ref lang_find) = st.help_lang_find
+            && mb_strnicmp(
+                st.help_lang.as_ptr(),
+                lang_find.as_ptr(),
+                MAXCOL as usize,
+            ) != 0
         {
             return false;
         }
@@ -1602,7 +1606,7 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
             0
         };
         if (st.flags & TAG_KEEP_LANG) != 0
-            && st.help_lang_find.is_null()
+            && st.help_lang_find.is_none()
             && !(*curbuf).b_fname.is_null()
             && fname_len > 4
             && *(*curbuf).b_fname.add((fname_len - 1) as usize) == b'x' as c_char
@@ -2342,7 +2346,11 @@ pub unsafe fn find_tags(
             let keep = (st.orgpat.len - 3) as usize;
             let cstr =
                 std::ffi::CString::new(std::slice::from_raw_parts(pat.cast::<u8>(), keep)).unwrap();
-            st.help_lang_find = pat.add((st.orgpat.len - 2) as usize);
+            st.help_lang_find = Some([
+                *pat.add((st.orgpat.len - 2) as usize),
+                *pat.add((st.orgpat.len - 1) as usize),
+                NUL,
+            ]);
             st.orgpat.pat = cstr.as_ptr().cast_mut();
             saved_pat = Some(cstr);
             st.orgpat.len -= 3;
@@ -2363,7 +2371,7 @@ pub unsafe fn find_tags(
                 retval = FAIL;
 
                 if (flags & TAG_KEEP_LANG) != 0
-                    && st.help_lang_find.is_null()
+                    && st.help_lang_find.is_none()
                     && !(*curbuf).b_fname.is_null()
                 {
                     let i = strlen((*curbuf).b_fname) as c_int;

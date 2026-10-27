@@ -2084,7 +2084,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_reg
             regflags: 0,
             regstart: 0,
             reganch: 0,
-            regmust: ptr::null_mut(),
+            regmust_off: None,
             regmlen: 0,
             reghasz: 0,
             program: vec![0u8; regsize as usize],
@@ -2103,7 +2103,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_reg
 
         r.regstart = NUL as c_int;
         r.reganch = 0;
-        r.regmust = ptr::null_mut();
+        r.regmust_off = None;
         r.regmlen = 0;
         r.regflags = regflags;
         if (flags & HASNL) != 0 {
@@ -2154,7 +2154,9 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_reg
                     }
                     scan = regnext(scan);
                 }
-                r.regmust = longest;
+                if !longest.is_null() {
+                    r.regmust_off = Some(longest.offset_from(r.program.as_ptr()) as usize);
+                }
                 r.regmlen = len;
             }
         }
@@ -3918,8 +3920,9 @@ unsafe fn bt_regexec_both(
             rex.reg_icombine = true;
         }
 
-        if !(*prog).regmust.is_null() {
-            let c = utf_ptr2char((*prog).regmust.cast());
+        if let Some(off) = (*prog).regmust_off {
+            let regmust = (*prog).program.as_ptr().add(off).cast::<c_char>();
+            let c = utf_ptr2char(regmust);
             let mut s = line.add(col as usize);
             if !rex.reg_ic {
                 loop {
@@ -3928,7 +3931,7 @@ unsafe fn bt_regexec_both(
                         break;
                     }
                     let mut len = (*prog).regmlen;
-                    if cstrncmp(s.cast(), (*prog).regmust.cast(), &raw mut len) == 0 {
+                    if cstrncmp(s.cast(), regmust.cast_mut(), &raw mut len) == 0 {
                         break;
                     }
                     mb_ptr_adv(&raw mut s);
@@ -3940,7 +3943,7 @@ unsafe fn bt_regexec_both(
                         break;
                     }
                     let mut len = (*prog).regmlen;
-                    if cstrncmp(s.cast(), (*prog).regmust.cast(), &raw mut len) == 0 {
+                    if cstrncmp(s.cast(), regmust.cast_mut(), &raw mut len) == 0 {
                         break;
                     }
                     mb_ptr_adv(&raw mut s);

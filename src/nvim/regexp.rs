@@ -315,12 +315,11 @@ pub(super) unsafe fn cstring_from_bytes(
     std::ffi::CString::new(&bytes[..end]).ok()
 }
 
-#[repr(C)]
 pub(super) struct bt_regprog_T {
     pub regflags: c_uint,
     pub regstart: c_int,
     pub reganch: u8,
-    pub regmust: *mut u8,
+    pub regmust_off: Option<usize>,
     pub regmlen: c_int,
     pub reghasz: u8,
     pub program: Vec<u8>,
