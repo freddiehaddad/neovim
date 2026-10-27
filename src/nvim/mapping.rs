@@ -2211,10 +2211,10 @@ unsafe fn mapblock_fill_dict(
     }
 }
 
-unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int) {
+unsafe fn get_maparg(argvars: *mut typval_T, rettv: &mut typval_T, exact: c_int) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let keys = tv_get_string(argvars) as *mut c_char;
         if *keys == NUL {
@@ -2297,10 +2297,10 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
         if !get_dict {
             if !rhs.is_null() {
                 if *rhs == NUL {
-                    crate::eval::typval::tv_set_string(rettv, c"<Nop>".as_ptr());
+                    crate::eval::typval::tv_set_string(&raw mut *rettv, c"<Nop>".as_ptr());
                 } else {
                     crate::eval::typval::tv_set_string(
-                        rettv,
+                        &raw mut *rettv,
                         str2special_save(rhs, false, kFalse).as_ptr(),
                     );
                 }
@@ -2308,7 +2308,7 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
                 && let Some(mp) = mp_opt
             {
                 let s = nlua_funcref_str(mp.m_luaref, true);
-                crate::eval::typval::tv_set_string_len(rettv, s.as_ptr(), s.as_bytes().len());
+                crate::eval::typval::tv_set_string_len(&raw mut *rettv, s.as_ptr(), s.as_bytes().len());
             }
         } else if let Some(mp) = mp_opt
             && (!rhs.is_null() || rhs_lua != LUA_NOREF)
@@ -2331,10 +2331,10 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: *mut typval_T, exact: c_int)
                 &mut arena,
             );
             let mut dobj = dict_obj(dict);
-            object_to_vim_take_luaref(&mut dobj, rettv, true, &mut crate::api::private::validate::Error::new());
+            object_to_vim_take_luaref(&mut dobj, &raw mut *rettv, true, &mut crate::api::private::validate::Error::new());
             arena_mem_free(arena_finish(&mut arena));
         } else {
-            tv_dict_alloc_ret(rettv);
+            tv_dict_alloc_ret(&raw mut *rettv);
         }
     }
 }

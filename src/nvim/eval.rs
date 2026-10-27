@@ -723,22 +723,22 @@ pub unsafe fn skip_expr(pp: *mut *mut c_char, evalarg: *mut evalarg_T) -> c_int 
 }
 
 /// Convert "tv" to a string.
-unsafe fn typval2string(tv: *mut typval_T, join_list: bool) -> Option<std::ffi::CString> {
+unsafe fn typval2string(tv: &mut typval_T, join_list: bool) -> Option<std::ffi::CString> {
     unsafe {
-        if join_list && (*tv).v_type == VarType::VAR_LIST {
+        if join_list && tv.v_type == VarType::VAR_LIST {
             let mut out: Vec<c_char> = Vec::with_capacity(80);
-            if !(*tv).vval.v_list().is_null() {
-                tv_list_join(&mut out, (*tv).vval.v_list(), c"\n".as_ptr());
-                if tv_list_len((*tv).vval.v_list()) > 0 {
+            if !tv.vval.v_list().is_null() {
+                tv_list_join(&mut out, tv.vval.v_list(), c"\n".as_ptr());
+                if tv_list_len(tv.vval.v_list()) > 0 {
                     out.push(NL as c_char);
                 }
             }
             let bytes = std::slice::from_raw_parts(out.as_ptr().cast::<u8>(), out.len());
             return Some(cstr_from_bytes(bytes));
-        } else if (*tv).v_type == VarType::VAR_LIST || (*tv).v_type == VarType::VAR_DICT {
-            return Some(encode_tv2string(tv, ptr::null_mut()));
+        } else if tv.v_type == VarType::VAR_LIST || tv.v_type == VarType::VAR_DICT {
+            return Some(encode_tv2string(&raw mut *tv, ptr::null_mut()));
         }
-        Some(cstr_to_cstring(tv_get_string(tv)))
+        Some(cstr_to_cstring(tv_get_string(&raw mut *tv)))
     }
 }
 
@@ -763,7 +763,7 @@ pub unsafe fn eval_to_string_eap(
         if r == FAIL {
             retval = None;
         } else {
-            retval = typval2string(&raw mut tv, join_list);
+            retval = typval2string(&mut tv, join_list);
             tv_clear(&raw mut tv);
         }
 
@@ -1668,7 +1668,7 @@ pub unsafe fn set_var_lval(
                 {
                     if (di.is_null()
                         || (!var_check_ro(c_int::from((*di).di_flags), lp.ll_name, TV_CSTRING)
-                            && !tv_check_lock(&raw const (*di).di_tv, lp.ll_name, TV_CSTRING)))
+                            && !tv_check_lock(&(*di).di_tv, lp.ll_name, TV_CSTRING)))
                         && eexe_mod_op(&raw mut tv, rettv, op) == OK
                     {
                         set_var(lp.ll_name, lp.ll_name_len, &raw mut tv, false);
@@ -2597,7 +2597,7 @@ unsafe fn eval_addblob(tv1: *mut typval_T, tv2: *mut typval_T) {
 unsafe fn eval_addlist(tv1: *mut typval_T, tv2: *mut typval_T) -> c_int {
     unsafe {
         let mut var3 = tv_initial_value();
-        if tv_list_concat((*tv1).vval.v_list(), (*tv2).vval.v_list(), &raw mut var3) == FAIL {
+        if tv_list_concat((*tv1).vval.v_list(), (*tv2).vval.v_list(), &mut var3) == FAIL {
             tv_clear(tv1);
             tv_clear(tv2);
             return FAIL;
@@ -3610,7 +3610,7 @@ unsafe fn eval_index_inner(
                 }
             }
             VarType::VAR_BLOB => {
-                tv_blob_slice_or_index((*rettv).vval.v_blob(), is_range, n1, n2, exclusive, rettv);
+                tv_blob_slice_or_index((*rettv).vval.v_blob(), is_range, n1, n2, exclusive, &mut *rettv);
             }
             VarType::VAR_LIST => {
                 if var1.is_null() {
@@ -3625,7 +3625,7 @@ unsafe fn eval_index_inner(
                     n1,
                     n2,
                     exclusive,
-                    rettv,
+                    &mut *rettv,
                     verbose,
                 ) == FAIL
                 {
@@ -4346,7 +4346,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
             while !buf.is_null() {
                 abort = abort
                     || set_ref_in_item(
-                        &raw mut (*buf).b_bufvar.di_tv,
+                        &mut (*buf).b_bufvar.di_tv,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
@@ -4425,7 +4425,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
                 while !wp.is_null() {
                     abort = abort
                         || set_ref_in_item(
-                            &raw mut (*wp).w_winvar.di_tv,
+                            &mut (*wp).w_winvar.di_tv,
                             copyID,
                             ptr::null_mut(),
                             ptr::null_mut(),
@@ -4441,7 +4441,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
                 if !cw_win.is_null() {
                     abort = abort
                         || set_ref_in_item(
-                            &raw mut (*cw_win).w_winvar.di_tv,
+                            &mut (*cw_win).w_winvar.di_tv,
                             copyID,
                             ptr::null_mut(),
                             ptr::null_mut(),
@@ -4455,7 +4455,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
             while !tp.is_null() {
                 abort = abort
                     || set_ref_in_item(
-                        &raw mut (*tp).tp_winvar.di_tv,
+                        &mut (*tp).tp_winvar.di_tv,
                         copyID,
                         ptr::null_mut(),
                         ptr::null_mut(),
@@ -4593,7 +4593,7 @@ pub unsafe fn set_ref_in_ht(
                         let di = tv_dict_hi2di(hi);
                         abort = abort
                             || set_ref_in_item(
-                                &raw mut (*di).di_tv,
+                                &mut (*di).di_tv,
                                 copyID,
                                 &raw mut ht_stack,
                                 list_stack,
@@ -4632,7 +4632,7 @@ pub unsafe fn set_ref_in_list_items(
                         break;
                     }
                     abort =
-                        set_ref_in_item(tv_list_item_tv(&mut *li), copyID, ht_stack, &raw mut list_stack);
+                        set_ref_in_item(&mut *tv_list_item_tv(&mut *li), copyID, ht_stack, &raw mut list_stack);
                     li = (*li).li_next;
                 }
             }
@@ -4723,7 +4723,7 @@ unsafe fn set_ref_in_item_partial(
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Dict((*pt).pt_dict),
             };
-            abort = abort || set_ref_in_item(&raw mut dtv, copyID, ht_stack, list_stack);
+            abort = abort || set_ref_in_item(&mut dtv, copyID, ht_stack, list_stack);
         }
 
         for arg in &mut (*pt).pt_argv {
@@ -4736,22 +4736,22 @@ unsafe fn set_ref_in_item_partial(
 
 /// Mark all lists and dicts referenced through typval "tv" with "copyID".
 pub unsafe fn set_ref_in_item(
-    tv: *mut typval_T,
+    tv: &mut typval_T,
     copyID: c_int,
     ht_stack: *mut ht_stack_T,
     list_stack: *mut list_stack_T,
 ) -> bool {
     unsafe {
-        match (*tv).v_type {
+        match tv.v_type {
             VarType::VAR_DICT => {
-                set_ref_in_item_dict((*tv).vval.v_dict(), copyID, ht_stack, list_stack)
+                set_ref_in_item_dict(tv.vval.v_dict(), copyID, ht_stack, list_stack)
             }
             VarType::VAR_LIST => {
-                set_ref_in_item_list((*tv).vval.v_list(), copyID, ht_stack, list_stack)
+                set_ref_in_item_list(tv.vval.v_list(), copyID, ht_stack, list_stack)
             }
-            VarType::VAR_FUNC => set_ref_in_func((*tv).vval.v_string(), ptr::null_mut(), copyID),
+            VarType::VAR_FUNC => set_ref_in_func(tv.vval.v_string(), ptr::null_mut(), copyID),
             VarType::VAR_PARTIAL => {
-                set_ref_in_item_partial(tv_partial(tv), copyID, ht_stack, list_stack)
+                set_ref_in_item_partial(tv_partial(&raw mut *tv), copyID, ht_stack, list_stack)
             }
             VarType::VAR_UNKNOWN
             | VarType::VAR_BOOL
@@ -5003,20 +5003,20 @@ unsafe fn eval_env_var(arg: *mut *mut c_char, rettv: *mut typval_T, evaluate: c_
 
 /// Builds a process argument vector from a Vimscript object (typval_T).
 pub unsafe fn tv_to_argv(
-    cmd_tv: *mut typval_T,
+    cmd_tv: &mut typval_T,
     cmd: Option<&mut std::ffi::CString>,
     executable: *mut bool,
 ) -> Vec<std::ffi::CString> {
     unsafe {
-        if (*cmd_tv).v_type == VarType::VAR_STRING {
-            let cmd_str = tv_get_string(cmd_tv);
+        if cmd_tv.v_type == VarType::VAR_STRING {
+            let cmd_str = tv_get_string(&raw mut *cmd_tv);
             if let Some(cmd_out) = cmd {
                 *cmd_out = CStr::from_ptr(cmd_str).to_owned();
             }
             return shell_build_argv(cmd_str, ptr::null());
         }
 
-        if (*cmd_tv).v_type != VarType::VAR_LIST {
+        if cmd_tv.v_type != VarType::VAR_LIST {
             semsg!(
                 gettext((&raw const e_invarg2).cast()),
                 c"expected String or List".as_ptr(),
@@ -5024,7 +5024,7 @@ pub unsafe fn tv_to_argv(
             return Vec::new();
         }
 
-        let argl = (*cmd_tv).vval.v_list();
+        let argl = cmd_tv.vval.v_list();
         let argc = tv_list_len(argl);
         if argc == 0 {
             emsg(gettext((&raw const e_invarg).cast()));
@@ -5092,24 +5092,24 @@ unsafe fn string_to_list(str_: *const c_char, mut len: usize, keepempty: bool) -
     }
 }
 
-unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_T, retlist: bool) {
+unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: &mut typval_T, retlist: bool) {
     unsafe {
         let mut wait_time: proftime_T = 0;
         let profiling = g_st().do_profiling == PROF_YES;
 
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if check_secure() {
             return;
         }
 
-        let Some(input) = save_tv_as_string(argvars.add(1), false, false) else {
+        let Some(input) = save_tv_as_string(&mut *argvars.add(1), false, false) else {
             return;
         };
 
         let mut executable = true;
-        let argv = tv_to_argv(argvars, None, &raw mut executable);
+        let argv = tv_to_argv(&mut *argvars, None, &raw mut executable);
         if argv.is_empty() {
             if !executable {
                 set_vim_var_nr(VV_SHELL_ERROR, -1);
@@ -5155,9 +5155,9 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
 
         if res.is_empty() {
             if retlist {
-                tv_list_alloc_ret(rettv, 0);
+                tv_list_alloc_ret(&raw mut *rettv, 0);
             } else {
-                crate::eval::typval::tv_set_string(rettv, c"".as_ptr());
+                crate::eval::typval::tv_set_string(&raw mut *rettv, c"".as_ptr());
             }
             return;
         }
@@ -5169,9 +5169,9 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
             {
                 keepempty = tv_get_number(argvars.add(2)) as c_int;
             }
-            (*rettv).vval = crate::eval::typval::TypvalVval::List(string_to_list(res.as_ptr(), res.len(), keepempty != 0));
-            tv_list_ref((*rettv).vval.v_list());
-            (*rettv).v_type = VarType::VAR_LIST;
+            rettv.vval = crate::eval::typval::TypvalVval::List(string_to_list(res.as_ptr(), res.len(), keepempty != 0));
+            tv_list_ref(rettv.vval.v_list());
+            rettv.v_type = VarType::VAR_LIST;
         } else {
             let nread = res.len();
             { let _d = (res.as_mut_ptr()).cast::<u8>(); let _sz = nread; if _sz > 0 { let _c = (NUL) as u8; let _x = (1) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
@@ -5189,7 +5189,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_
                 }
                 res.truncate(d);
             }
-            crate::eval::typval::tv_set_string_len(rettv, res.as_ptr(), res.len());
+            crate::eval::typval::tv_set_string_len(&raw mut *rettv, res.as_ptr(), res.len());
         }
     }
 }
@@ -5208,29 +5208,29 @@ pub unsafe fn f_systemlist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// Get a callback from "arg". It can be a Funcref or a function name.
-pub unsafe fn callback_from_typval(callback: &mut Callback, arg: *const typval_T) -> bool {
+pub unsafe fn callback_from_typval(callback: &mut Callback, arg: &typval_T) -> bool {
     unsafe {
         let mut r = OK;
 
-        let is_lua_tbl = nlua_is_table_from_lua(arg);
+        let is_lua_tbl = nlua_is_table_from_lua(&*arg);
 
-        if (*arg).v_type == VarType::VAR_PARTIAL && !tv_partial(arg).is_null() {
-            let pt = tv_partial(arg);
+        if arg.v_type == VarType::VAR_PARTIAL && !tv_partial(&raw const *arg).is_null() {
+            let pt = tv_partial(&raw const *arg);
             callback.data = crate::eval::typval::CallbackData::partial(pt);
             (*pt).pt_refcount += 1;
-        } else if (*arg).v_type == VarType::VAR_STRING
-            && !(*arg).vval.v_string().is_null()
-            && ascii_isdigit(*(*arg).vval.v_string())
+        } else if arg.v_type == VarType::VAR_STRING
+            && !arg.vval.v_string().is_null()
+            && ascii_isdigit(*arg.vval.v_string())
         {
             r = FAIL;
-        } else if (*arg).v_type == VarType::VAR_FUNC || (*arg).v_type == VarType::VAR_STRING {
-            let name = (*arg).vval.v_string();
+        } else if arg.v_type == VarType::VAR_FUNC || arg.v_type == VarType::VAR_STRING {
+            let name = arg.vval.v_string();
             if name.is_null() {
                 r = FAIL;
             } else if *name == NUL {
                 *callback = Callback::NONE;
             } else {
-                let funcref = if (*arg).v_type == VarType::VAR_STRING
+                let funcref = if arg.v_type == VarType::VAR_STRING
                     && let Some(sl) = get_scriptlocal_funcname(name)
                 {
                     sl
@@ -5242,7 +5242,7 @@ pub unsafe fn callback_from_typval(callback: &mut Callback, arg: *const typval_T
             }
         } else if is_lua_tbl {
             {
-                let name = nlua_register_table_as_callable(arg);
+                let name = nlua_register_table_as_callable(&*arg);
                 if !name.is_null() {
                     callback.data = crate::eval::typval::CallbackData::funcref(
                         CStr::from_ptr(name).to_owned(),
@@ -5251,8 +5251,8 @@ pub unsafe fn callback_from_typval(callback: &mut Callback, arg: *const typval_T
                     r = FAIL;
                 }
             }
-        } else if (*arg).v_type == VarType::VAR_SPECIAL
-            || ((*arg).v_type == VarType::VAR_NUMBER && (*arg).vval.v_number() == 0)
+        } else if arg.v_type == VarType::VAR_SPECIAL
+            || (arg.v_type == VarType::VAR_NUMBER && arg.vval.v_number() == 0)
         {
             *callback = Callback::NONE;
         } else {
@@ -5388,7 +5388,7 @@ pub unsafe fn set_ref_in_callback(
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Partial(callback.data.as_partial()),
             };
-            return set_ref_in_item(&raw mut tv, copyID, ht_stack, list_stack);
+            return set_ref_in_item(&mut tv, copyID, ht_stack, list_stack);
         }
         false
     }
@@ -5411,7 +5411,7 @@ unsafe fn set_ref_in_callback_reader(
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Dict((*reader).self_dict),
             };
-            return set_ref_in_item(&raw mut tv, copyID, ht_stack, list_stack);
+            return set_ref_in_item(&mut tv, copyID, ht_stack, list_stack);
         }
         false
     }
@@ -5461,7 +5461,7 @@ pub unsafe fn add_timer_info(rettv: *mut typval_T, timer: *mut timer_T) {
         if tv_dict_add(dict, di) == FAIL {
             tv_dict_item_free(di);
         } else {
-            callback_put(&mut (*timer).callback, &raw mut (*di).di_tv);
+            callback_put(&mut (*timer).callback, &mut (*di).di_tv);
         }
     }
 }
@@ -5612,14 +5612,14 @@ pub unsafe fn timer_teardown() {
 }
 
 /// Saves a typval_T as a string buffer (`None` on error, `Some(vec)` on success).
-pub unsafe fn save_tv_as_string(tv: *mut typval_T, endnl: bool, crlf: bool) -> Option<Vec<c_char>> {
+pub unsafe fn save_tv_as_string(tv: &mut typval_T, endnl: bool, crlf: bool) -> Option<Vec<c_char>> {
     unsafe {
-        if (*tv).v_type == VarType::VAR_UNKNOWN {
+        if tv.v_type == VarType::VAR_UNKNOWN {
             return Some(Vec::new());
         }
 
-        if (*tv).v_type != VarType::VAR_LIST && (*tv).v_type != VarType::VAR_NUMBER {
-            let ret = tv_get_string_chk(tv);
+        if tv.v_type != VarType::VAR_LIST && tv.v_type != VarType::VAR_NUMBER {
+            let ret = tv_get_string_chk(&raw mut *tv);
             if !ret.is_null() {
                 let len = std::ffi::CStr::from_ptr(ret).to_bytes().len();
                 let mut vec = Vec::with_capacity(len);
@@ -5632,8 +5632,8 @@ pub unsafe fn save_tv_as_string(tv: *mut typval_T, endnl: bool, crlf: bool) -> O
             }
         }
 
-        if (*tv).v_type == VarType::VAR_NUMBER {
-            let buf = buflist_findnr((*tv).vval.v_number() as c_int);
+        if tv.v_type == VarType::VAR_NUMBER {
+            let buf = buflist_findnr(tv.vval.v_number() as c_int);
             let mut total_len: usize = 0;
             if !buf.is_null() {
                 for lnum in 1..=(*buf).b_ml.ml_line_count {
@@ -5645,7 +5645,7 @@ pub unsafe fn save_tv_as_string(tv: *mut typval_T, endnl: bool, crlf: bool) -> O
                     total_len += 1;
                 }
             } else {
-                semsg!(gettext((&raw const e_nobufnr).cast()), (*tv).vval.v_number());
+                semsg!(gettext((&raw const e_nobufnr).cast()), tv.vval.v_number());
                 return None;
             }
 
@@ -5665,8 +5665,8 @@ pub unsafe fn save_tv_as_string(tv: *mut typval_T, endnl: bool, crlf: bool) -> O
             return Some(ret);
         }
 
-        debug_assert!((*tv).v_type == VarType::VAR_LIST);
-        let list = (*tv).vval.v_list();
+        debug_assert!(tv.v_type == VarType::VAR_LIST);
+        let list = tv.vval.v_list();
         let sep_len = if crlf { 2usize } else { 1usize };
         let mut total_len: usize = 0;
         let mut li = if list.is_null() {
@@ -5774,7 +5774,7 @@ pub unsafe fn buf_charidx_to_byteidx(
 
 /// Translate a Vimscript object into a position.
 pub unsafe fn var2fpos(
-    tv: *const typval_T,
+    tv: &typval_T,
     dollar_lnum: bool,
     ret_fnum: *mut c_int,
     charcol: bool,
@@ -5783,10 +5783,10 @@ pub unsafe fn var2fpos(
     unsafe {
         let bp = wp.w_buffer;
 
-        if (*tv).v_type == VarType::VAR_LIST {
+        if tv.v_type == VarType::VAR_LIST {
             let mut error = false;
 
-            let l = (*tv).vval.v_list();
+            let l = tv.vval.v_list();
             if l.is_null() {
                 return ptr::null_mut();
             }
@@ -5828,7 +5828,7 @@ pub unsafe fn var2fpos(
             return &raw mut eval_st().VAR2FPOS_POS;
         }
 
-        let name = tv_get_string_chk(tv);
+        let name = tv_get_string_chk(&raw const *tv);
         if name.is_null() {
             return ptr::null_mut();
         }
@@ -5915,17 +5915,17 @@ pub unsafe fn var2fpos(
 
 /// Convert list in "arg" into position "posp" and optional file number "fnump".
 pub unsafe fn list2fpos(
-    arg: *mut typval_T,
+    arg: &mut typval_T,
     posp: &mut pos_T,
     fnump: *mut c_int,
     curswantp: *mut colnr_T,
     charcol: bool,
 ) -> c_int {
     unsafe {
-        if (*arg).v_type != VarType::VAR_LIST {
+        if arg.v_type != VarType::VAR_LIST {
             return FAIL;
         }
-        let l = (*arg).vval.v_list();
+        let l = arg.vval.v_list();
         if l.is_null()
             || tv_list_len(l) < if fnump.is_null() { 2 } else { 3 }
             || tv_list_len(l) > if fnump.is_null() { 4 } else { 5 }

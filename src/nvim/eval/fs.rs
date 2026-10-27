@@ -637,7 +637,7 @@ pub unsafe fn f_filewritable(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
     }
 }
 
-unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: c_int) {
+unsafe fn findfilendir(argvars: *mut typval_T, rettv: &mut typval_T, find_what: c_int) {
     unsafe {
         let mut fresult: Option<std::ffi::CString> = None;
         let mut path = if *(*g_st().curbuf).b_p_path == NUL {
@@ -649,8 +649,8 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
         let mut first = true;
         let mut error = false;
 
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-        (*rettv).v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
 
         let fname = tv_get_string(argvars);
 
@@ -671,7 +671,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
         }
 
         if count < 0 {
-            tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN);
+            tv_list_alloc_ret(&raw mut *rettv, K_LIST_LEN_UNKNOWN);
         }
 
         if *fname != NUL && !error {
@@ -702,12 +702,12 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
                 first = false;
 
                 if let Some(ref res) = fresult
-                    && (*rettv).v_type == VarType::VAR_LIST
+                    && rettv.v_type == VarType::VAR_LIST
                 {
-                    tv_list_append_string((*rettv).vval.v_list(), res.as_ptr(), -1);
+                    tv_list_append_string(rettv.vval.v_list(), res.as_ptr(), -1);
                 }
 
-                let keep_going = (*rettv).v_type == VarType::VAR_LIST || {
+                let keep_going = rettv.v_type == VarType::VAR_LIST || {
                     count -= 1;
                     count > 0
                 };
@@ -717,9 +717,9 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
             }
         }
 
-        if (*rettv).v_type == VarType::VAR_STRING {
+        if rettv.v_type == VarType::VAR_STRING {
             crate::eval::typval::tv_set_string(
-                rettv,
+                &raw mut *rettv,
                 fresult.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
             );
         }
@@ -1381,7 +1381,7 @@ pub unsafe fn f_pathshorten(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 }
 
 /// Evaluate "expr" (= "context") for readdir().
-pub(crate) unsafe fn readdir_checkitem(expr: *mut typval_T, name: *const c_char) -> varnumber_T {
+pub(crate) unsafe fn readdir_checkitem(expr: &mut typval_T, name: *const c_char) -> varnumber_T {
     unsafe {
         let tv_init = typval_T {
             v_type: VarType::VAR_UNKNOWN,
@@ -1392,7 +1392,7 @@ pub(crate) unsafe fn readdir_checkitem(expr: *mut typval_T, name: *const c_char)
         let mut retval: varnumber_T = 0;
         let mut error = false;
 
-        if (*expr).v_type == VarType::VAR_UNKNOWN {
+        if expr.v_type == VarType::VAR_UNKNOWN {
             return 1;
         }
 
@@ -1403,7 +1403,7 @@ pub(crate) unsafe fn readdir_checkitem(expr: *mut typval_T, name: *const c_char)
         argv[0].vval = crate::eval::typval::TypvalVval::String(name.cast_mut());
 
         let mut rettv = tv_init;
-        if eval_expr_typval(expr, false, argv.as_mut_ptr(), 1, &raw mut rettv) != FAIL {
+        if eval_expr_typval(&raw mut *expr, false, argv.as_mut_ptr(), 1, &raw mut rettv) != FAIL {
             retval = tv_get_number_chk(&raw const rettv, &mut error);
             if error {
                 retval = -1;

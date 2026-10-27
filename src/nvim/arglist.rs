@@ -1266,19 +1266,19 @@ pub unsafe fn f_argidx(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
 pub unsafe fn f_arglistid(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-        let wp = find_tabwin(argvars, argvars.add(1));
+        let wp = find_tabwin(&mut *argvars, &mut *argvars.add(1));
         if !wp.is_null() {
             rettv.vval = crate::eval::typval::TypvalVval::Number((*win_alist(wp)).id as varnumber_T);
         }
     }
 }
 
-unsafe fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: *mut typval_T) {
+unsafe fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: &mut typval_T) {
     unsafe {
-        tv_list_alloc_ret(rettv, count as isize);
+        tv_list_alloc_ret(&raw mut *rettv, count as isize);
         if !arglist_ptr.is_null() {
             for idx in 0..(count as usize) {
-                tv_list_append_string((*rettv).vval.v_list(), alist_name(arglist_ptr.add(idx)), -1);
+                tv_list_append_string(rettv.vval.v_list(), alist_name(arglist_ptr.add(idx)), -1);
             }
         }
     }

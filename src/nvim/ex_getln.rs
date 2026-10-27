@@ -5290,13 +5290,13 @@ pub unsafe fn script_get(eap: &mut exarg_T, lenp: *mut usize) -> Option<std::ffi
 /// Used by `f_input()` and `f_inputdialog()` functions.
 pub unsafe fn get_user_input(
     argvars: *const typval_T,
-    rettv: *mut typval_T,
+    rettv: &mut typval_T,
     inputdialog: bool,
     secret: bool,
 ) {
     unsafe {
-        (*rettv).v_type = VarType::VAR_STRING;
-        (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.v_type = VarType::VAR_STRING;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         if g_st().cmdpreview {
             return;
@@ -5444,12 +5444,12 @@ pub unsafe fn get_user_input(
 
         if let Some(res_cstr) = res {
             crate::eval::typval::tv_set_string_len(
-                rettv,
+                &raw mut *rettv,
                 res_cstr.as_ptr(),
                 res_cstr.as_bytes().len(),
             );
         } else if !cancelreturn.is_null() {
-            tv_copy(cancelreturn, rettv);
+            tv_copy(cancelreturn, &raw mut *rettv);
         }
 
         g_st().need_wait_return = false;

@@ -263,14 +263,14 @@ pub unsafe fn find_win_by_nr_or_id(vp: *mut typval_T) -> *mut win_T {
 }
 
 /// Find window specified by `wvp` in tabpage `tvp` (`find_tabwin`).
-pub unsafe fn find_tabwin(wvp: *mut typval_T, tvp: *mut typval_T) -> *mut win_T {
+pub unsafe fn find_tabwin(wvp: &mut typval_T, tvp: &mut typval_T) -> *mut win_T {
     unsafe {
         let mut wp: *mut win_T = ptr::null_mut();
         let mut tp: *mut tabpage_T = ptr::null_mut();
 
-        if (*wvp).v_type != VarType::VAR_UNKNOWN {
-            if (*tvp).v_type != VarType::VAR_UNKNOWN {
-                let n = tv_get_number(tvp) as c_int;
+        if wvp.v_type != VarType::VAR_UNKNOWN {
+            if tvp.v_type != VarType::VAR_UNKNOWN {
+                let n = tv_get_number(&raw mut *tvp) as c_int;
                 if n >= 0 {
                     tp = find_tabpage(n);
                 }
@@ -279,7 +279,7 @@ pub unsafe fn find_tabwin(wvp: *mut typval_T, tvp: *mut typval_T) -> *mut win_T 
             }
 
             if !tp.is_null() {
-                wp = find_win_by_nr(wvp, tp);
+                wp = find_win_by_nr(&raw mut *wvp, tp);
             }
         } else {
             wp = *curwin.as_ptr();
@@ -328,7 +328,7 @@ unsafe fn get_framelayout(fr: *const frame_T, l: *mut list_T, outer: bool) {
 }
 
 /// Common code for `tabpagewinnr()` and `winnr()` (`get_winnr`).
-unsafe fn get_winnr(tp: &mut tabpage_T, argvar: *mut typval_T) -> c_int {
+unsafe fn get_winnr(tp: &mut tabpage_T, argvar: &mut typval_T) -> c_int {
     unsafe {
         let mut nr: c_int = 1;
 
@@ -337,9 +337,9 @@ unsafe fn get_winnr(tp: &mut tabpage_T, argvar: *mut typval_T) -> c_int {
         } else {
             tp.tp_curwin
         };
-        if (*argvar).v_type != VarType::VAR_UNKNOWN {
+        if argvar.v_type != VarType::VAR_UNKNOWN {
             let mut invalid_arg = false;
-            let arg = tv_get_string_chk(argvar);
+            let arg = tv_get_string_chk(&raw mut *argvar);
             if arg.is_null() {
                 nr = 0;
             } else {
@@ -651,7 +651,7 @@ pub unsafe fn f_tabpagewinnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
         let nr = if tp.is_null() {
             0
         } else {
-            get_winnr(&mut *tp, argvars.add(1))
+            get_winnr(&mut *tp, &mut *argvars.add(1))
         };
         rettv.vval = crate::eval::typval::TypvalVval::Number(nr as varnumber_T);
     }
@@ -985,7 +985,7 @@ pub unsafe fn f_winline(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 /// `winnr()` function (`f_winnr`).
 pub unsafe fn f_winnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(get_winnr(&mut *g_st().curtab, argvars) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(get_winnr(&mut *g_st().curtab, &mut *argvars) as varnumber_T);
     }
 }
 

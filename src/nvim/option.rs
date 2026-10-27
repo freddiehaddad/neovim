@@ -5282,7 +5282,7 @@ unsafe fn opt_from_callback(cb: &mut Callback) -> Object {
             }
             kCallbackPartial => {
                 let mut tv = typval_T::new();
-                callback_put(cb, &raw mut tv);
+                callback_put(cb, &mut tv);
                 let str_ = encode_tv2string(&raw mut tv, ptr::null_mut());
                 tv_clear(&raw mut tv);
                 return cstr_to_obj(str_.as_ptr());
@@ -8417,7 +8417,7 @@ pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback
         };
 
         let mut cb = Callback::NONE;
-        if !callback_from_typval(&mut cb, &raw mut tv) || cb.cb_type() == kCallbackNone {
+        if !callback_from_typval(&mut cb, &tv) || cb.cb_type() == kCallbackNone {
             tv_clear(&raw mut tv);
             return FAIL;
         }

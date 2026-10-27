@@ -4311,7 +4311,7 @@ pub unsafe fn readdir_core(
             let mut ignore = *p == b'.' as c_char
                 && (*p.add(1) == NUL || (*p.add(1) == b'.' as c_char && *p.add(2) == NUL));
             if !ignore && !context.is_null() {
-                let r = crate::eval::fs::readdir_checkitem(context, p);
+                let r = crate::eval::fs::readdir_checkitem(&mut *context, p);
                 if r < 0 {
                     break;
                 }

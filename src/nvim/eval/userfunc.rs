@@ -4461,7 +4461,7 @@ pub unsafe fn set_ref_in_func_args(copyID: c_int) -> bool {
     unsafe {
         let fa = &raw const uf_st().funcargs;
         for &tv in &*fa {
-            if set_ref_in_item(tv, copyID, ptr::null_mut(), ptr::null_mut()) {
+            if set_ref_in_item(&mut *tv, copyID, ptr::null_mut(), ptr::null_mut()) {
                 return true;
             }
         }

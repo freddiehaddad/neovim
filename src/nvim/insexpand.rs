@@ -3439,7 +3439,7 @@ unsafe fn get_user_highlight_id(hlname: *const c_char) -> c_int {
     }
 }
 
-unsafe fn ins_compl_add_tv(tv: *mut typval_T, dir: Direction, fast: bool) -> c_int {
+unsafe fn ins_compl_add_tv(tv: &mut typval_T, dir: Direction, fast: bool) -> c_int {
     unsafe {
         let word: *const c_char;
         let mut dup = false;
@@ -3452,8 +3452,8 @@ unsafe fn ins_compl_add_tv(tv: *mut typval_T, dir: Direction, fast: bool) -> c_i
         let mut user_data: typval_T = typval_T::new();
         user_data.v_type = VAR_UNKNOWN;
 
-        if (*tv).v_type == VAR_DICT && !(*tv).vval.v_dict().is_null() {
-            let d = (*tv).vval.v_dict();
+        if tv.v_type == VAR_DICT && !tv.vval.v_dict().is_null() {
+            let d = tv.vval.v_dict();
             word = tv_dict_get_string(d, c"word".as_ptr());
             cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(d, c"abbr".as_ptr());
             cptext[CPT_MENU] = crate::eval::typval::tv_dict_get_cstring(d, c"menu".as_ptr());
@@ -3481,7 +3481,7 @@ unsafe fn ins_compl_add_tv(tv: *mut typval_T, dir: Direction, fast: bool) -> c_i
                 flags |= CP_EQUAL;
             }
         } else {
-            word = tv_get_string_chk(tv);
+            word = tv_get_string_chk(&raw mut *tv);
         }
         if word.is_null() || (!empty && *word == NUL) {
             tv_clear(&raw mut user_data);
@@ -3517,7 +3517,7 @@ unsafe fn ins_compl_add_list(list: *mut list_T) {
         }
         let mut li = (*list).lv_first;
         while !li.is_null() {
-            if ins_compl_add_tv(&raw mut (*li).li_tv, dir, true) == OK {
+            if ins_compl_add_tv(&mut (*li).li_tv, dir, true) == OK {
                 dir = FORWARD;
             } else if g_st().did_emsg != 0 {
                 break;
@@ -3679,7 +3679,7 @@ pub unsafe fn f_complete(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: E
 
 pub unsafe fn f_complete_add(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_add_tv(argvars, 0, false)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_add_tv(&mut *argvars, 0, false)));
     }
 }
 

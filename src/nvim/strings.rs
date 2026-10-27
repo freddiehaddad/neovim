@@ -2419,9 +2419,9 @@ pub unsafe fn strrep(
     }
 }
 
-unsafe fn byteidx_common(argvars: *mut typval_T, rettv: *mut typval_T, comp: bool) {
+unsafe fn byteidx_common(argvars: *mut typval_T, rettv: &mut typval_T, comp: bool) {
     unsafe {
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let str_ = tv_get_string_chk(argvars);
         let mut idx = tv_get_number_chk(argvars.add(1), ptr::null_mut());
@@ -2471,7 +2471,7 @@ unsafe fn byteidx_common(argvars: *mut typval_T, rettv: *mut typval_T, comp: boo
             }
             idx -= 1;
         }
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(t.offset_from(str_) as varnumber_T);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(t.offset_from(str_) as varnumber_T);
     }
 }
 
@@ -2696,7 +2696,7 @@ pub unsafe fn f_strlen(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
     }
 }
 
-unsafe fn strchar_common(argvars: *mut typval_T, rettv: *mut typval_T, skipcc: bool) {
+unsafe fn strchar_common(argvars: *mut typval_T, rettv: &mut typval_T, skipcc: bool) {
     unsafe {
         let mut s = tv_get_string(argvars);
         let mut len: varnumber_T = 0;
@@ -2709,7 +2709,7 @@ unsafe fn strchar_common(argvars: *mut typval_T, rettv: *mut typval_T, skipcc: b
             func_mb_ptr2char_adv(&raw mut s);
             len += 1;
         }
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(len);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(len);
     }
 }
 

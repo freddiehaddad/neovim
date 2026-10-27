@@ -4096,7 +4096,7 @@ unsafe fn shada_read_next_item(
                             gv.value = decode_string(binval.data, binval.size, is_blob, false);
                         } else {
                             let status =
-                                unpack_typval(&mut read_ptr, &mut read_size, &raw mut gv.value);
+                                unpack_typval(&mut read_ptr, &mut read_size, &mut gv.value);
                             if status != MPACK_OK {
                                 semsg!(
                                     gettext(

@@ -1546,7 +1546,7 @@ pub unsafe fn f_sign_getplaced(argvars: *mut typval_T, rettv: &mut typval_T, _fp
                 let dict = (*argvars.add(1)).vval.v_dict().cast::<dict_T>();
                 let di_lnum = tv_dict_find(dict, c"lnum".as_ptr(), -1);
                 if !di_lnum.is_null() {
-                    lnum = tv_get_lnum(&raw const (*di_lnum).di_tv);
+                    lnum = tv_get_lnum(&(*di_lnum).di_tv);
                     if lnum <= 0 {
                         return;
                     }
@@ -1682,7 +1682,7 @@ unsafe fn sign_place_from_dict(
         let mut lnum: linenr_T = 0;
         let di_lnum = tv_dict_find(dict, c"lnum".as_ptr(), -1);
         if !di_lnum.is_null() {
-            lnum = tv_get_lnum(&raw const (*di_lnum).di_tv);
+            lnum = tv_get_lnum(&(*di_lnum).di_tv);
             if lnum <= 0 {
                 emsg(gettext(e_invarg.as_ptr()));
                 return -1;

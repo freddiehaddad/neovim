@@ -6599,7 +6599,7 @@ unsafe fn qf_getprop_qftf(qfl: &mut qf_list_T, retdict: *mut dict_T) -> c_int {
     unsafe {
         if qfl.qf_qftf_cb.cb_type() != kCallbackNone {
             let mut tv: typval_T = typval_T::new();
-            callback_put(&mut qfl.qf_qftf_cb, &raw mut tv);
+            callback_put(&mut qfl.qf_qftf_cb, &mut tv);
             let status = tv_dict_add_tv(retdict, c"quickfixtextfunc".as_ptr(), 16, &raw mut tv);
             tv_clear(&raw mut tv);
             status
@@ -6710,7 +6710,7 @@ unsafe fn qf_setprop_qftf(qfl: &mut qf_list_T, di: &mut dictitem_T) -> c_int {
 
         let mut cb: Callback = Callback::new();
         callback_free(&mut qfl.qf_qftf_cb);
-        if callback_from_typval(&mut cb, &raw mut di.di_tv) {
+        if callback_from_typval(&mut cb, &di.di_tv) {
             qfl.qf_qftf_cb = cb;
         }
         OK
@@ -7326,7 +7326,7 @@ unsafe fn mark_quickfix_user_data(qi: &mut qf_info_T, copyID: c_int) -> bool {
                         && (*user_data).v_type != VarType::VAR_FLOAT
                     {
                         abort = abort
-                            || set_ref_in_item(user_data, copyID, ptr::null_mut(), ptr::null_mut());
+                            || set_ref_in_item(&mut *user_data, copyID, ptr::null_mut(), ptr::null_mut());
                     }
                 }
             }
@@ -7572,13 +7572,13 @@ unsafe fn trigger_cexpr_autocmd(cmdidx: c_int) -> c_int {
     }
 }
 
-pub unsafe fn cexpr_core(eap: &exarg_T, tv: *mut typval_T) -> c_int {
+pub unsafe fn cexpr_core(eap: &exarg_T, tv: &mut typval_T) -> c_int {
     unsafe {
         let mut wp: *mut win_T = ptr::null_mut();
         let qi = qf_cmd_get_or_alloc_stack(eap, &raw mut wp);
 
-        if ((*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string().is_null())
-            || (*tv).v_type == VarType::VAR_LIST
+        if (tv.v_type == VarType::VAR_STRING && !tv.vval.v_string().is_null())
+            || tv.v_type == VarType::VAR_LIST
         {
             let au_name = cexpr_get_auname(eap.cmdidx);
             incr_quickfix_busy();
@@ -7587,7 +7587,7 @@ pub unsafe fn cexpr_core(eap: &exarg_T, tv: *mut typval_T) -> c_int {
                 (*qi).qf_curlist,
                 ptr::null(),
                 ptr::null_mut(),
-                tv,
+                &raw mut *tv,
                 opt_vars().p_efm,
                 eap.cmdidx != CMD_caddexpr && eap.cmdidx != CMD_laddexpr,
                 0,
@@ -7637,7 +7637,7 @@ pub unsafe fn ex_cexpr(eap: &mut exarg_T) {
             return;
         };
 
-        let _ = cexpr_core(eap, &raw mut tv);
+        let _ = cexpr_core(eap, &mut tv);
         tv_clear(&raw mut tv);
     }
 }
@@ -7879,22 +7879,22 @@ pub unsafe fn free_quickfix() {
 unsafe fn get_qf_loc_list(
     is_qf: bool,
     wp: *mut win_T,
-    what_arg: *mut typval_T,
-    rettv: *mut typval_T,
+    what_arg: &mut typval_T,
+    rettv: &mut typval_T,
 ) {
     unsafe {
-        if (*what_arg).v_type == VarType::VAR_UNKNOWN {
-            tv_list_alloc_ret(rettv, kListLenMayKnow);
+        if what_arg.v_type == VarType::VAR_UNKNOWN {
+            tv_list_alloc_ret(&raw mut *rettv, kListLenMayKnow);
             if is_qf || !wp.is_null() {
-                get_errorlist(ptr::null_mut(), wp, -1, 0, (*rettv).vval.v_list());
+                get_errorlist(ptr::null_mut(), wp, -1, 0, rettv.vval.v_list());
             }
         } else {
-            tv_dict_alloc_ret(rettv);
+            tv_dict_alloc_ret(&raw mut *rettv);
             if is_qf || !wp.is_null() {
-                if (*what_arg).v_type == VarType::VAR_DICT {
-                    let d = (*what_arg).vval.v_dict();
+                if what_arg.v_type == VarType::VAR_DICT {
+                    let d = what_arg.vval.v_dict();
                     if !d.is_null() {
-                        qf_get_properties(wp, d, (*rettv).vval.v_dict());
+                        qf_get_properties(wp, d, rettv.vval.v_dict());
                     }
                 } else {
                     emsg(gettext((&raw const e_dictreq).cast()));
@@ -7907,21 +7907,21 @@ unsafe fn get_qf_loc_list(
 pub unsafe fn f_getloclist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let wp = find_win_by_nr_or_id(argvars);
-        get_qf_loc_list(false, wp, argvars.add(1), rettv);
+        get_qf_loc_list(false, wp, &mut *argvars.add(1), rettv);
     }
 }
 
 pub unsafe fn f_getqflist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        get_qf_loc_list(true, ptr::null_mut(), argvars, rettv);
+        get_qf_loc_list(true, ptr::null_mut(), &mut *argvars, rettv);
     }
 }
 
-unsafe fn set_qf_ll_list(wp: *mut win_T, args: *mut typval_T, rettv: *mut typval_T) {
+unsafe fn set_qf_ll_list(wp: *mut win_T, args: *mut typval_T, rettv: &mut typval_T) {
     unsafe {
         let mut title: *const c_char = ptr::null();
         let mut action: c_char = b' ' as c_char;
-        (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
+        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         let mut what: *mut dict_T = ptr::null_mut();
 
         let list_arg = args;
@@ -7982,7 +7982,7 @@ unsafe fn set_qf_ll_list(wp: *mut win_T, args: *mut typval_T, rettv: *mut typval
         qf_st().set_qf_ll_recursive += 1;
         let l = (*list_arg).vval.v_list();
         if set_errorlist(wp, l, c_int::from(action), title.cast_mut(), what) == OK {
-            (*rettv).vval = crate::eval::typval::TypvalVval::Number(0);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
         qf_st().set_qf_ll_recursive -= 1;
     }

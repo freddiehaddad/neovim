@@ -3493,7 +3493,7 @@ unsafe fn tagstack_push_items(wp: *mut win_T, l: *mut list_T) {
                     };
                     let mut fnum: c_int = 0;
                     if list2fpos(
-                        &raw mut (*di).di_tv,
+                        &mut (*di).di_tv,
                         &mut mark,
                         &raw mut fnum,
                         ptr::null_mut(),

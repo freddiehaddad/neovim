@@ -939,22 +939,22 @@ pub unsafe fn get_search_match_hl(
 }
 
 unsafe fn matchadd_dict_arg(
-    tv: *mut typval_T,
+    tv: &mut typval_T,
     conceal_char: *mut *const c_char,
     win: *mut *mut win_T,
 ) -> c_int {
     unsafe {
-        if (*tv).v_type != VarType::VAR_DICT {
+        if tv.v_type != VarType::VAR_DICT {
             emsg(gettext((&raw const e_dictreq).cast()));
             return FAIL;
         }
 
-        let di = tv_dict_find((*tv).vval.v_dict(), c"conceal".as_ptr(), 7);
+        let di = tv_dict_find(tv.vval.v_dict(), c"conceal".as_ptr(), 7);
         if !di.is_null() {
             *conceal_char = tv_get_string(&raw const (*di).di_tv);
         }
 
-        let di = tv_dict_find((*tv).vval.v_dict(), c"window".as_ptr(), 6);
+        let di = tv_dict_find(tv.vval.v_dict(), c"window".as_ptr(), 6);
         if di.is_null() {
             return OK;
         }
@@ -1165,7 +1165,7 @@ pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
             if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
                 id = tv_get_number_chk(argvars.add(3), &mut error) as c_int;
                 if (*argvars.add(4)).v_type != VarType::VAR_UNKNOWN
-                    && matchadd_dict_arg(argvars.add(4), &raw mut conceal_char, &raw mut win)
+                    && matchadd_dict_arg(&mut *argvars.add(4), &raw mut conceal_char, &raw mut win)
                         == FAIL
                 {
                     return;
@@ -1222,7 +1222,7 @@ pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
             if (*argvars.add(3)).v_type != VarType::VAR_UNKNOWN {
                 id = tv_get_number_chk(argvars.add(3), &mut error) as c_int;
                 if (*argvars.add(4)).v_type != VarType::VAR_UNKNOWN
-                    && matchadd_dict_arg(argvars.add(4), &raw mut conceal_char, &raw mut win)
+                    && matchadd_dict_arg(&mut *argvars.add(4), &raw mut conceal_char, &raw mut win)
                         == FAIL
                 {
                     return;

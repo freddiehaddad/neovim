@@ -1308,17 +1308,17 @@ pub unsafe fn mpack_parse_typval(
 pub unsafe fn unpack_typval(
     data: *mut *const c_char,
     size: *mut usize,
-    ret: *mut typval_T,
+    ret: &mut typval_T,
 ) -> c_int {
     unsafe {
-        (*ret).v_type = VarType::VAR_UNKNOWN;
+        ret.v_type = VarType::VAR_UNKNOWN;
         let mut parser = mpack_parser_t::new(0);
         mpack_parser_init(&mut parser, 0);
         parser.data = mpack_data_t::Typval(ret);
         let status = mpack_parse_typval(&mut parser, data, size);
         if status != MPACK_OK {
             typval_parser_error_free(&mut parser);
-            tv_clear(ret);
+            tv_clear(&raw mut *ret);
         }
         status
     }

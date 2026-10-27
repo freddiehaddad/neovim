@@ -1568,7 +1568,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
         loop {
             lua_settop(lstate, 0);
             let mut input: typval_T = typval_T::new();
-            get_user_input(input_args.as_ptr(), &raw mut input, false, false);
+            get_user_input(input_args.as_ptr(), &mut input, false, false);
 
             if ui_has(kUICmdline) {
                 vim_snprintf!(
@@ -2605,24 +2605,24 @@ unsafe extern "C-unwind" fn nlua_is_thread(lstate: *mut lua_State) -> c_int {
     }
 }
 
-pub unsafe fn nlua_is_table_from_lua(arg: *const typval_T) -> bool {
+pub unsafe fn nlua_is_table_from_lua(arg: &typval_T) -> bool {
     unsafe {
-        if (*arg).v_type == VarType::VAR_DICT {
-            (*(*arg).vval.v_dict()).lua_table_ref != LUA_NOREF
-        } else if (*arg).v_type == VarType::VAR_LIST {
-            (*(*arg).vval.v_list()).lua_table_ref != LUA_NOREF
+        if arg.v_type == VarType::VAR_DICT {
+            (*arg.vval.v_dict()).lua_table_ref != LUA_NOREF
+        } else if arg.v_type == VarType::VAR_LIST {
+            (*arg.vval.v_list()).lua_table_ref != LUA_NOREF
         } else {
             false
         }
     }
 }
 
-pub unsafe fn nlua_register_table_as_callable(arg: *const typval_T) -> *mut c_char {
+pub unsafe fn nlua_register_table_as_callable(arg: &typval_T) -> *mut c_char {
     unsafe {
-        let table_ref = if (*arg).v_type == VarType::VAR_DICT {
-            (*(*arg).vval.v_dict()).lua_table_ref
-        } else if (*arg).v_type == VarType::VAR_LIST {
-            (*(*arg).vval.v_list()).lua_table_ref
+        let table_ref = if arg.v_type == VarType::VAR_DICT {
+            (*arg.vval.v_dict()).lua_table_ref
+        } else if arg.v_type == VarType::VAR_LIST {
+            (*arg.vval.v_list()).lua_table_ref
         } else {
             LUA_NOREF
         };
