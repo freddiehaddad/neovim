@@ -7,7 +7,7 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, Object, ObjectData, ObjectType,
 };
-use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_pending_data};
+use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_if_incomplete};
 use crate::channel::{
     CallbackReader, InternalState, channel_close, channel_decref, channel_event, channel_incref,
     kChannelPartRpc, kChannelStreamProc, kChannelStreamSocket, kChannelStreamStdio,
@@ -80,8 +80,8 @@ pub struct RemoteUI {
     pub channel_id: u64,
     pub packer: PackerBuffer,
     pub cur_event: Option<&'static std::ffi::CStr>,
-    pub nevents_pos: *mut c_char,
-    pub ncalls_pos: *mut c_char,
+    pub nevents_pos: Option<usize>,
+    pub ncalls_pos: Option<usize>,
     pub nevents: u32,
     pub ncalls: u32,
     pub flushed_events: bool,
@@ -137,7 +137,7 @@ impl Drop for RequestEvent {
 pub struct RpcState {
     pub closed: bool,
     pub unpacker: Option<Box<Unpacker>>,
-    pub ui: *mut RemoteUI,
+    pub has_ui: bool,
     pub next_request_id: u32,
     pub call_stack: Vec<std::rc::Rc<ChannelCallFrame>>,
     pub info: Dict,
@@ -149,7 +149,7 @@ impl RpcState {
         Self {
             closed: false,
             unpacker: None,
-            ui: ptr::null_mut(),
+            has_ui: false,
             next_request_id: 0,
             call_stack: Vec::new(),
             info: Dict {
@@ -816,7 +816,7 @@ pub unsafe fn rpc_close_event(channel: *mut Channel) {
         let ct = channel;
 
         #[cfg(windows)]
-        let ui_closed = !(*ct).rpc.ui.is_null();
+        let ui_closed = (*ct).rpc.has_ui;
 
         {
             remote_ui_disconnect((*cp).id, ptr::null_mut(), false);
@@ -987,8 +987,8 @@ unsafe fn packer_buffer_init_channels(
         for i in 0..nchans {
             let chan = *chans.add(i);
             let ct = chan;
-            if !(*ct).rpc.ui.is_null() && (*(*ct).rpc.ui).incomplete_event {
-                remote_ui_flush_pending_data((*ct).rpc.ui);
+            if (*ct).rpc.has_ui {
+                remote_ui_flush_if_incomplete((*ct).id);
             }
         }
         (*packer).startptr = alloc_block();
@@ -1092,7 +1092,7 @@ mod tests {
         let mut rpc = RpcState {
             closed: false,
             unpacker: None,
-            ui: ptr::null_mut(),
+            has_ui: false,
             next_request_id: 1,
             call_stack: Vec::new(),
             info: Dict {

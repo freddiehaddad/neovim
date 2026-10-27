@@ -144,8 +144,8 @@ pub unsafe fn remote_ui_disconnect(channel_id: u64, err: *mut Error, send_error_
         let ui_detached = ui_box.as_deref_mut().map_or(ui, |b| &raw mut *b);
         ui_detach_impl(ui_detached.cast(), channel_id);
         let chan = find_channel(channel_id);
-        if !chan.is_null() && (*chan).rpc.ui == ui {
-            (*chan).rpc.ui = ptr::null_mut();
+        if !chan.is_null() {
+            (*chan).rpc.has_ui = false;
         }
         drop(ui_box);
     }
@@ -311,8 +311,8 @@ pub unsafe extern "C" fn nvim_ui_attach(
             channel_id,
             packer: crate::msgpack_rpc::packer::PackerBuffer::new(),
             cur_event: None,
-            nevents_pos: ptr::null_mut(),
-            ncalls_pos: ptr::null_mut(),
+            nevents_pos: None,
+            ncalls_pos: None,
             nevents: 0,
             ncalls: 0,
             flushed_events: false,
@@ -346,11 +346,11 @@ pub unsafe extern "C" fn nvim_ui_attach(
         (*ui).cur_event = None;
         (*ui).hl_id = 0;
         (*ui).client_col = -1;
-        (*ui).nevents_pos = ptr::null_mut();
+        (*ui).nevents_pos = None;
         (*ui).nevents = 0;
         (*ui).flushed_events = false;
         (*ui).incomplete_event = false;
-        (*ui).ncalls_pos = ptr::null_mut();
+        (*ui).ncalls_pos = None;
         (*ui).ncalls = 0;
         (*ui).ncells_pending = 0;
         let uis_ptr = &raw mut connected_uis;
@@ -371,7 +371,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
 
         let chan = find_channel(channel_id);
         if !chan.is_null() {
-            (*chan).rpc.ui = ui;
+            (*chan).rpc.has_ui = true;
         }
 
         may_trigger_vim_suspend_resume(false);
@@ -840,9 +840,12 @@ pub unsafe extern "C" fn nvim_ui_pum_set_bounds(
 unsafe fn flush_event(ui: *mut RemoteUI) {
     unsafe {
         if (*ui).cur_event.is_some() {
-            mpack_w2(&raw mut (*ui).ncalls_pos, 1 + (*ui).ncalls);
+            if let Some(off) = (*ui).ncalls_pos {
+                let mut pos = (*ui).packer.startptr.add(off);
+                mpack_w2(&raw mut pos, 1 + (*ui).ncalls);
+            }
             (*ui).cur_event = None;
-            (*ui).ncalls_pos = ptr::null_mut();
+            (*ui).ncalls_pos = None;
             (*ui).ncalls = 0;
         }
     }
@@ -870,16 +873,18 @@ unsafe fn prepare_call(ui: *mut RemoteUI, name: &'static CStr) {
 
         if (*ui).cur_event != Some(name) {
             let buf = &raw mut (*ui).packer.ptr;
-            if (*ui).nevents_pos.is_null() {
+            if (*ui).nevents_pos.is_none() {
                 mpack_array(buf, 3);
                 mpack_uint(buf, 2);
                 mpack_str_small(buf, c"redraw".as_ptr(), 6);
-                (*ui).nevents_pos = mpack_array_dyn16(buf);
+                let pos = mpack_array_dyn16(buf);
+                (*ui).nevents_pos = Some(pos.offset_from((*ui).packer.startptr) as usize);
                 debug_assert!((*ui).cur_event.is_none());
             }
             flush_event(ui);
             (*ui).cur_event = Some(name);
-            (*ui).ncalls_pos = mpack_array_dyn16(buf);
+            let pos = mpack_array_dyn16(buf);
+            (*ui).ncalls_pos = Some(pos.offset_from((*ui).packer.startptr) as usize);
             mpack_str_small(buf, name.as_ptr(), name.to_bytes().len());
             (*ui).nevents += 1;
             (*ui).ncalls = 1;
@@ -1390,10 +1395,11 @@ unsafe fn ui_flush_buf(ui: *mut RemoteUI, incomplete_event: bool) {
         (*ui).incomplete_event = incomplete_event;
 
         flush_event(ui);
-        if !(*ui).nevents_pos.is_null() {
-            mpack_w2(&raw mut (*ui).nevents_pos, (*ui).nevents);
+        if let Some(off) = (*ui).nevents_pos {
+            let mut pos = (*ui).packer.startptr.add(off);
+            mpack_w2(&raw mut pos, (*ui).nevents);
             (*ui).nevents = 0;
-            (*ui).nevents_pos = ptr::null_mut();
+            (*ui).nevents_pos = None;
         }
 
         let buf = wstream_new_buffer(
@@ -1408,6 +1414,15 @@ unsafe fn ui_flush_buf(ui: *mut RemoteUI, incomplete_event: bool) {
 
         (*ui).flushed_events = true;
         (*ui).ncells_pending = 0;
+    }
+}
+
+pub(crate) unsafe fn remote_ui_flush_if_incomplete(channel_id: u64) {
+    unsafe {
+        let ui = get_ui_or_err(channel_id, ptr::null_mut());
+        if !ui.is_null() && (*ui).incomplete_event {
+            remote_ui_flush_pending_data(ui);
+        }
     }
 }
 

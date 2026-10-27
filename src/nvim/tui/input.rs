@@ -607,7 +607,7 @@ unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
         let rs = &raw mut (*input).read_stream;
         let size = rstream_available(rs);
         if size != 0 {
-            let consumed = handle_raw_buffer(input, true, (*rs).read_pos, size);
+            let consumed = handle_raw_buffer(input, true, (*rs).read_ptr(), size);
             rstream_consume(rs, consumed);
         }
         tk_getkeys(input, true);

@@ -468,7 +468,7 @@ unsafe fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
                     let _ = (*stream)
                         .s
                         .cb_data
-                        .call_read_cb(stream, (*stream).buffer, 0, true);
+                        .call_read_cb(stream, (*stream).buffer.as_ptr(), 0, true);
                 }
                 break;
             }
