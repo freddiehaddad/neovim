@@ -784,7 +784,7 @@ pub unsafe fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char
                 *error = gettext(c"Can't send data to closed stream".as_ptr());
                 return 0;
             }
-            terminal_receive((*ct).term, data.as_ptr(), len);
+            terminal_receive(&mut *(*ct).term, data.as_ptr(), len);
             return len;
         }
 
@@ -857,7 +857,7 @@ unsafe fn on_channel_output(
     unsafe {
         let ct = chan;
         if !(*ct).term.is_null() {
-            terminal_receive((*ct).term, buf, count);
+            terminal_receive(&mut *(*ct).term, buf, count);
         }
 
         if eof {
@@ -997,7 +997,7 @@ pub(crate) unsafe fn channel_proc_state_cb(_proc: *mut Proc, suspended: bool, ch
     unsafe {
         let ct = chan;
         if !(*ct).term.is_null() {
-            terminal_set_state((*ct).term, suspended);
+            terminal_set_state(&mut *(*ct).term, suspended);
         }
     }
 }
@@ -1093,7 +1093,7 @@ pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: *mut Cha
             let mut args_items = [
                 crate::api::private::helpers::integer_obj((*chan).id as Integer),
                 crate::api::private::helpers::buffer_obj(
-                    crate::terminal::terminal_buf((*chan).term),
+                    crate::terminal::terminal_buf(&*(*chan).term),
                 ),
                 crate::api::private::helpers::string_obj(NvimString {
                     data: buf.cast_mut(),
@@ -1363,7 +1363,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
             );
             c"rpc"
         } else if !(*ct).term.is_null() {
-            let tbuf = terminal_buf((*ct).term);
+            let tbuf = terminal_buf(&*(*ct).term);
             put_c(
                 &mut info,
                 c"buf",

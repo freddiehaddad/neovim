@@ -75,7 +75,7 @@ use crate::syntax::{
     HL_CONCEAL, get_syntax_attr, get_syntax_info, syn_get_sub_char, syntax_present,
     syntax_start,
 };
-use crate::terminal::{Terminal, terminal_get_line_attributes};
+use crate::terminal::{terminal_get_line_attributes};
 use crate::ui::ui_rgb_attached;
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int};
@@ -2031,8 +2031,8 @@ pub unsafe fn win_line(
 
         let mut term_attrs = [0 as c_int; TERM_ATTRS_MAX];
         if !(*(*wp).w_buffer).terminal.is_null() {
-            terminal_get_line_attributes(
-                (*(*wp).w_buffer).terminal.cast::<Terminal>(),
+            terminal_get_line_attributes(&mut *
+                (*(*wp).w_buffer).terminal,
                 wp,
                 lnum,
                 (&raw mut term_attrs).cast::<c_int>(),

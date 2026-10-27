@@ -133,7 +133,7 @@ use crate::strings::{
     concat_str, gettext, isalpha, ngettext, strcoll, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
     vim_strchr, vim_stricmp, vim_strsave_escaped,
 };
-use crate::terminal::{Terminal, terminal_check_size, terminal_running};
+use crate::terminal::{terminal_check_size, terminal_running};
 use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
 use crate::undo::{
     u_inssub, u_save, u_save_cursor, u_savecommon, u_savedel, u_savesub, u_sync, u_unchanged,
@@ -2964,7 +2964,7 @@ pub unsafe fn do_ecmd(
                             g_st().curbuf,
                             if (flags & ECMD_HIDE) != 0
                                 || (!(*g_st().curbuf).terminal.is_null()
-                                    && terminal_running((*g_st().curbuf).terminal.cast::<Terminal>()))
+                                    && terminal_running(&*(*g_st().curbuf).terminal))
                             {
                                 0
                             } else {
@@ -3268,12 +3268,12 @@ pub unsafe fn do_ecmd(
 
         // theend:
         if bufref_valid(&raw mut old_curbuf) && !(*old_curbuf.br_buf).terminal.is_null() {
-            terminal_check_size((*old_curbuf.br_buf).terminal.cast::<Terminal>());
+            terminal_check_size(&mut *(*old_curbuf.br_buf).terminal);
         }
         if (!bufref_valid(&raw mut old_curbuf) || g_st().curbuf != old_curbuf.br_buf)
             && !(*g_st().curbuf).terminal.is_null()
         {
-            terminal_check_size((*g_st().curbuf).terminal.cast::<Terminal>());
+            terminal_check_size(&mut *(*g_st().curbuf).terminal);
         }
 
         if did_inc_redrawing_disabled {

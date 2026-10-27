@@ -105,7 +105,7 @@ use crate::statusline::{kUITabline, stl_clear_click_defs};
 use crate::strings::{gettext, vim_snprintf};
 use crate::syntax::reset_synblock;
 use crate::tag::{kOptSwbFlagUseopen, tagstack_clear_entry};
-use crate::terminal::{Terminal, terminal_check_size};
+use crate::terminal::{terminal_check_size};
 use crate::ui::{
     ui_call_grid_destroy, ui_call_win_close, ui_call_win_external_pos, ui_call_win_float_pos,
     ui_call_win_hide, ui_call_win_pos, ui_call_win_viewport, ui_call_win_viewport_margins,
@@ -3819,7 +3819,7 @@ pub unsafe fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
             && bufref_valid(&raw mut bufref)
             && !(*bufref.br_buf).terminal.is_null()
         {
-            terminal_check_size((*bufref.br_buf).terminal.cast::<Terminal>());
+            terminal_check_size(&mut *(*bufref.br_buf).terminal);
         }
 
         if close_curwin {
@@ -4087,7 +4087,7 @@ pub unsafe fn win_close_othertab(
             && bufref_valid(&raw mut bufref)
             && !(*bufref.br_buf).terminal.is_null()
         {
-            terminal_check_size((*bufref.br_buf).terminal.cast::<Terminal>());
+            terminal_check_size(&mut *(*bufref.br_buf).terminal);
         }
         if free_tp_idx > 0 {
             free_tabpage(tp);
@@ -5235,7 +5235,7 @@ pub unsafe fn win_new_tabpage(
         last_status(false);
 
         if !(*g_st().curbuf).terminal.is_null() {
-            terminal_check_size((*g_st().curbuf).terminal.cast::<Terminal>());
+            terminal_check_size(&mut *(*g_st().curbuf).terminal);
         }
 
         if enter {
@@ -7738,7 +7738,7 @@ pub unsafe fn win_set_inner_size(wp: *mut win_T, valid_cursor: bool) {
         }
 
         if !(*(*wp).w_buffer).terminal.is_null() {
-            terminal_check_size((*(*wp).w_buffer).terminal.cast::<Terminal>());
+            terminal_check_size(&mut *(*(*wp).w_buffer).terminal);
         }
 
         let float_stl_height = if (*wp).w_floating && (*wp).w_status_height != 0 {

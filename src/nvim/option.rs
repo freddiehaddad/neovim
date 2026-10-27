@@ -3303,7 +3303,7 @@ pub unsafe fn did_set_scrollback(args: &mut optset_T) -> *const c_char {
         let value = args.os_newval.data.integer();
 
         if !(*buf).terminal.is_null() && value < old_value {
-            on_scrollback_option_changed((*buf).terminal.cast());
+            on_scrollback_option_changed(&mut *(*buf).terminal.cast());
         }
         ptr::null()
     }

@@ -2262,7 +2262,7 @@ unsafe fn do_buffer_ext(
 
             if (flags & DOBUF_FORCEIT) == 0
                 && !(*buf).terminal.is_null()
-                && terminal_running((*buf).terminal.cast())
+                && terminal_running(&*(*buf).terminal)
             {
                 if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                     if !dialog_close_terminal(buf) {
@@ -2601,7 +2601,7 @@ pub unsafe fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) 
         }
 
         if bufref_valid(&raw mut prevbufref) && !(*prevbuf).terminal.is_null() {
-            terminal_check_size((*prevbuf).terminal.cast());
+            terminal_check_size(&mut *(*prevbuf).terminal);
         }
 
         update_cwd(kCdCauseBuffer);
@@ -2699,7 +2699,7 @@ unsafe fn enter_buffer(buf: *mut buf_T) {
         (*g_st().curbuf).b_last_used = os_time() as i64;
 
         if !(*g_st().curbuf).terminal.is_null() {
-            terminal_check_size((*g_st().curbuf).terminal.cast());
+            terminal_check_size(&mut *(*g_st().curbuf).terminal);
         }
 
         redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
@@ -3689,7 +3689,7 @@ pub unsafe fn buflist_list(eap: &mut exarg_T) {
 
         while !buf.is_null() && !g_st().got_int {
             let is_terminal = !(*buf).terminal.is_null();
-            let job_running = is_terminal && terminal_running((*buf).terminal.cast());
+            let job_running = is_terminal && terminal_running(&*(*buf).terminal);
 
             let mut next_buf = || {
                 if use_buflist {
@@ -3754,7 +3754,7 @@ pub unsafe fn buflist_list(eap: &mut exarg_T) {
                 b' ' as c_int
             };
             if is_terminal {
-                ro_char = if terminal_running((*buf).terminal.cast()) {
+                ro_char = if terminal_running(&*(*buf).terminal) {
                     b'R' as c_int
                 } else {
                     b'F' as c_int

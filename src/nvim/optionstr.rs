@@ -1557,7 +1557,7 @@ pub unsafe fn did_set_background(args: &mut optset_T) -> *const c_char {
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             if !(*buf).terminal.is_null() {
-                terminal_notify_theme((*buf).terminal.cast(), dark);
+                terminal_notify_theme(&mut *(*buf).terminal.cast(), dark);
             }
             buf = (*buf).b_next;
         }

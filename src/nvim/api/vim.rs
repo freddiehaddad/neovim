@@ -1717,7 +1717,7 @@ pub unsafe extern "C" fn nvim_open_term(
 
         let mut may_read_buffer = true;
         if !(*b).terminal.is_null() {
-            if terminal_running((*b).terminal.cast()) {
+            if terminal_running(&*(*b).terminal) {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -1765,7 +1765,7 @@ pub unsafe extern "C" fn nvim_open_term(
         (*tail).term = terminal_alloc(b, topts);
         terminal_open((&raw mut (*tail).term).cast(), b);
         if !(*tail).term.is_null() {
-            terminal_check_size((*tail).term.cast());
+            terminal_check_size(&mut *(*tail).term.cast());
         }
         channel_decref(chan);
 
@@ -1917,7 +1917,7 @@ pub unsafe extern "C" fn nvim_paste(
         if phase == -1 || phase == 1 {
             api_vim_st().PASTE_CANCELLED = false;
             if !(*g_st().curbuf).terminal.is_null() {
-                terminal_set_streamed_paste((*g_st().curbuf).terminal.cast(), true);
+                terminal_set_streamed_paste(&mut *(*g_st().curbuf).terminal, true);
             }
         } else if api_vim_st().PASTE_CANCELLED {
             let retval = !api_vim_st().PASTE_CANCELLED;
@@ -1946,7 +1946,7 @@ pub unsafe extern "C" fn nvim_paste(
             api_vim_st().PASTE_CANCELLED = true;
         }
         if (phase == -1 || phase == 3 || api_vim_st().PASTE_CANCELLED) && !(*g_st().curbuf).terminal.is_null() {
-            terminal_set_streamed_paste((*g_st().curbuf).terminal.cast(), false);
+            terminal_set_streamed_paste(&mut *(*g_st().curbuf).terminal, false);
         }
         let null_str = NvimString {
             data: ptr::null_mut(),

@@ -4780,7 +4780,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
                 return;
             }
             if !(*g_st().curbuf).terminal.is_null() {
-                if terminal_running((*g_st().curbuf).terminal) {
+                if terminal_running(&*(*g_st().curbuf).terminal) {
                     semsg!(
                         gettext(c"Terminal already connected to buffer %d".as_ptr()),
                         (*g_st().curbuf).b_fnum,
@@ -4864,7 +4864,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
                     buf,
                 );
 
-                if (*ct).term.is_null() || terminal_buf((*ct).term) == 0 {
+                if (*ct).term.is_null() || terminal_buf(&*(*ct).term) == 0 {
                     break 'term_done;
                 }
 
@@ -4901,7 +4901,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
                     buf,
                 );
 
-                if (*ct).term.is_null() || terminal_buf((*ct).term) == 0 {
+                if (*ct).term.is_null() || terminal_buf(&*(*ct).term) == 0 {
                     break 'term_done;
                 }
 
@@ -4936,7 +4936,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
                 api_clear_error(&mut err);
                 (*buf).b_locked -= 1;
 
-                if (*ct).term.is_null() || terminal_buf((*ct).term) == 0 {
+                if (*ct).term.is_null() || terminal_buf(&*(*ct).term) == 0 {
                     break 'term_done;
                 }
 

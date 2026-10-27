@@ -78,7 +78,7 @@ use crate::syntax::{
     syn_set_timeout, syn_stack_apply_changes, syntax_check_changed, syntax_end_parsing,
     syntax_present,
 };
-use crate::terminal::{Terminal, terminal_check_size, terminal_suspended};
+use crate::terminal::{terminal_check_size, terminal_suspended};
 use crate::ui::{
     ui_call_grid_clear, ui_call_grid_resize, ui_call_msg_clear, ui_call_win_extmark, ui_flush,
     ui_grid_cursor_goto, ui_has,
@@ -1455,7 +1455,7 @@ unsafe fn win_update(wp: *mut win_T) {
         decor_redraw_reset(wp, &raw mut g_st().decor_state);
         decor_providers_invoke_win(wp);
 
-        if !(*buf).terminal.is_null() && terminal_suspended((*buf).terminal.cast::<Terminal>()) {
+        if !(*buf).terminal.is_null() && terminal_suspended(&*(*buf).terminal) {
             let svt_ptr = &raw mut ds_st().suspended_virt_text;
             if (*svt_ptr).data.virt_text().is_empty() {
                 (*svt_ptr).data.virt_text_mut().push(VirtTextChunk {
@@ -2450,7 +2450,7 @@ unsafe fn win_update(wp: *mut win_T) {
             }
 
             if nrwidth_before != (*wp).w_nrwidth && !(*buf).terminal.is_null() {
-                terminal_check_size((*buf).terminal.cast::<Terminal>());
+                terminal_check_size(&mut *(*buf).terminal);
             }
 
             if !g_st().got_int {
