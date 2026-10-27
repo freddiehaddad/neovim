@@ -200,14 +200,14 @@ pub unsafe fn extmark_set(
                 if mt_paired(old_mark) || end_row > -1 {
                     extmark_del_id(buf, ns_id, id);
                 } else {
-                    debug_assert!(!itr.x.is_null());
+                    debug_assert!(itr.x.is_some());
                     if old_mark.pos.row == row && old_mark.pos.col == col {
                         if !mt_invalid(old_mark) && mt_decor_any(old_mark) {
-                            (*itr.x).key[itr.i as usize].flags &= !MT_FLAG_EXTERNAL_MASK;
+                            (*buf).b_marktree.key_mut(&itr).flags &= !MT_FLAG_EXTERNAL_MASK;
                             buf_decor_remove(buf, row, row, col, mt_decor(old_mark), true);
                         }
-                        (*itr.x).key[itr.i as usize].flags |= flags;
-                        (*itr.x).key[itr.i as usize].decor_data = decor.data;
+                        (*buf).b_marktree.key_mut(&itr).flags |= flags;
+                        (*buf).b_marktree.key_mut(&itr).decor_data = decor.data;
                         marktree_revise_meta(&mut (*buf).b_marktree, &itr, old_mark);
                         revised_in_place = true;
                     } else {
@@ -308,8 +308,8 @@ unsafe fn extmark_setraw(buf: *mut buf_T, mark: u64, row: c_int, col: colnr_T, r
         let alt = marktree_get_alt(&(*buf).b_marktree, key, Some(&mut altitr));
 
         if invalid {
-            (*itr.x).key[itr.i as usize].flags &= !MT_FLAG_INVALID;
-            (*altitr.x).key[altitr.i as usize].flags &= !MT_FLAG_INVALID;
+            (*buf).b_marktree.key_mut(&itr).flags &= !MT_FLAG_INVALID;
+            (*buf).b_marktree.key_mut(&altitr).flags &= !MT_FLAG_INVALID;
             marktree_revise_meta(
                 &mut (*buf).b_marktree,
                 if mt_end(key) { &altitr } else { &itr },
@@ -433,7 +433,7 @@ pub unsafe fn extmark_clear(
         let mut itr = MarkTreeIter::new();
         marktree_itr_get(&(*buf).b_marktree, l_row, l_col, &mut itr);
         loop {
-            let mark = marktree_itr_current(&itr);
+            let mark = marktree_itr_current(&(*buf).b_marktree, &itr);
             if mark.pos.row < 0
                 || mark.pos.row > u_row
                 || (mark.pos.row == u_row && mark.pos.col > u_col)
@@ -512,7 +512,7 @@ pub unsafe fn extmark_get(
         }
 
         while (array.len() as i64) < amount {
-            let mark = marktree_itr_current(&itr);
+            let mark = marktree_itr_current(&(*buf).b_marktree, &itr);
             if mark.pos.row < 0
                 || mark.pos.row > u_row
                 || (mark.pos.row == u_row && mark.pos.col > u_col)
@@ -622,7 +622,7 @@ pub unsafe fn extmark_free_all(buf: *mut buf_T) {
         let mut itr = MarkTreeIter::new();
         marktree_itr_get(&(*buf).b_marktree, 0, 0, &mut itr);
         loop {
-            let mark = marktree_itr_current(&itr);
+            let mark = marktree_itr_current(&(*buf).b_marktree, &itr);
             if mark.pos.row < 0 {
                 break;
             }
@@ -658,7 +658,7 @@ pub unsafe fn extmark_splice_delete(
         let mut itr = MarkTreeIter::new();
         marktree_itr_get(&(*buf).b_marktree, l_row, l_col, &mut itr);
         loop {
-            let mark = marktree_itr_current(&itr);
+            let mark = marktree_itr_current(&(*buf).b_marktree, &itr);
             if mark.pos.row < 0 || mark.pos.row > u_row {
                 break;
             }
@@ -690,8 +690,8 @@ pub unsafe fn extmark_splice_delete(
                     } else {
                         copy = true;
                         invalidated = true;
-                        (*itr.x).key[itr.i as usize].flags |= MT_FLAG_INVALID;
-                        (*enditr.x).key[enditr.i as usize].flags |= MT_FLAG_INVALID;
+                        (*buf).b_marktree.key_mut(&itr).flags |= MT_FLAG_INVALID;
+                        (*buf).b_marktree.key_mut(&enditr).flags |= MT_FLAG_INVALID;
                         marktree_revise_meta(&mut (*buf).b_marktree, &itr, mark);
                         buf_decor_remove(
                             buf,

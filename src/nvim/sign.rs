@@ -310,8 +310,8 @@ unsafe fn buf_delete_signs(
             marktree_itr_get(&(*buf).b_marktree, 0, 0, &mut itr);
         }
 
-        while !itr.x.is_null() {
-            let mark = marktree_itr_current(&itr);
+        while itr.x.is_some() {
+            let mark = marktree_itr_current(&(*buf).b_marktree, &itr);
             if row != 0 && mark.pos.row > row {
                 break;
             }
@@ -380,8 +380,8 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                 let b = &(*buf).b_marktree;
                 marktree_itr_get(b, 0, 0, &mut itr);
 
-                while !itr.x.is_null() {
-                    let mark = marktree_itr_current(&itr);
+                while itr.x.is_some() {
+                    let mark = marktree_itr_current(b, &itr);
                     if !mt_end(mark)
                         && mt_decor_sign(mark)
                         && (ns == i64::from(u32::MAX) || ns == i64::from(mark.ns))
@@ -1159,8 +1159,8 @@ pub unsafe fn get_buffer_signs(buf: *mut buf_T) -> *mut list_T {
         let b = &(*buf).b_marktree;
         marktree_itr_get(b, 0, 0, &mut itr);
 
-        while !itr.x.is_null() {
-            let mark = marktree_itr_current(&itr);
+        while itr.x.is_some() {
+            let mark = marktree_itr_current(b, &itr);
             if !mt_end(mark) && mt_decor_sign(mark) {
                 tv_list_append_dict(l, sign_get_placed_info_dict(mark));
             }
@@ -1197,8 +1197,8 @@ unsafe fn sign_get_placed_in_buf(
         let b = &(*buf).b_marktree;
         marktree_itr_get(b, if lnum != 0 { lnum - 1 } else { 0 }, 0, &mut itr);
 
-        while !itr.x.is_null() {
-            let mark = marktree_itr_current(&itr);
+        while itr.x.is_some() {
+            let mark = marktree_itr_current(b, &itr);
             if lnum != 0 && mark.pos.row >= lnum {
                 break;
             }

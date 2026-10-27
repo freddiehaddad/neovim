@@ -254,7 +254,7 @@ unsafe fn inline_virt_text_width(
         let buf = (*wp).w_buffer;
         let mut width: c_int = 0;
         loop {
-            let mark = marktree_itr_current(iter);
+            let mark = marktree_itr_current(&(*buf).b_marktree, iter);
             if mark.pos.row != row || mark.pos.col > col {
                 break;
             } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
@@ -313,7 +313,7 @@ pub unsafe fn charsize_regular(
             let mut tab_size = size;
             let col = cur.offset_from(line) as c_int;
             loop {
-                let mark = marktree_itr_current(&(*csarg).iter);
+                let mark = marktree_itr_current(&(*buf).b_marktree, &(*csarg).iter);
                 if mark.pos.row != (*csarg).virt_row || mark.pos.col > col {
                     break;
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, wp) {

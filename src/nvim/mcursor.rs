@@ -1412,7 +1412,7 @@ pub unsafe fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
         let mut itr: MarkTreeIter = MarkTreeIter::new();
         marktree_itr_get(&(*buf).b_marktree, pos.lnum - 1, pos.col, &mut itr);
         loop {
-            let k = marktree_itr_current(&itr);
+            let k = marktree_itr_current(&(*buf).b_marktree, &itr);
             if k.id == 0 || k.pos.row != pos.lnum - 1 || k.pos.col != pos.col {
                 break;
             }

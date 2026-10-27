@@ -814,7 +814,7 @@ pub unsafe fn decor_find_virttext(buf: *mut buf_T, row: c_int, ns_id: u64) -> *m
         let mut itr = MarkTreeIter::new();
         marktree_itr_get(&(*buf).b_marktree, row, 0, &mut itr);
         loop {
-            let mark = marktree_itr_current(&itr);
+            let mark = marktree_itr_current(&(*buf).b_marktree, &itr);
             if mark.pos.row < 0 || mark.pos.row > row {
                 break;
             } else if !mt_invalid(mark) {
@@ -941,7 +941,7 @@ pub unsafe fn decor_has_more_decorations(state: *mut DecorState, row: c_int) -> 
             return true;
         }
 
-        let k = marktree_itr_current(&(*state).itr);
+        let k = marktree_itr_current(&(*(*(*state).win).w_buffer).b_marktree, &(*state).itr);
         k.pos.row >= 0 && k.pos.row <= row
     }
 }
@@ -1190,7 +1190,7 @@ pub unsafe fn decor_redraw_col_impl(
         let mut col_last = max_col_last;
 
         loop {
-            let mark = marktree_itr_current(&(*state).itr);
+            let mark = marktree_itr_current(&(*buf).b_marktree, &(*state).itr);
             if mark.pos.row < 0 || mark.pos.row > row {
                 break;
             } else if mark.pos.row == row && mark.pos.col > col {
@@ -1384,8 +1384,8 @@ pub unsafe fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool)
 
         marktree_itr_step_out_filter(b, &mut itr, &CONCEAL_FILTER);
 
-        while !itr.x.is_null() {
-            let mark = marktree_itr_current(&itr);
+        while itr.x.is_some() {
+            let mark = marktree_itr_current(b, &itr);
             if mark.pos.row > row {
                 break;
             }
@@ -1467,8 +1467,8 @@ pub unsafe fn decor_redraw_signs(
 
         marktree_itr_step_out_filter(b, &mut itr, &SIGN_FILTER);
 
-        while !itr.x.is_null() {
-            let mark = marktree_itr_current(&itr);
+        while itr.x.is_some() {
+            let mark = marktree_itr_current(b, &itr);
             if mark.pos.row != row {
                 break;
             }
@@ -1560,8 +1560,8 @@ pub unsafe fn buf_signcols_count_range(
 
         marktree_itr_step_out_filter(b, &mut itr, &SIGNTEXT_FILTER);
 
-        while !itr.x.is_null() {
-            let mark = marktree_itr_current(&itr);
+        while itr.x.is_some() {
+            let mark = marktree_itr_current(b, &itr);
             if mark.pos.row > row2 {
                 break;
             }
@@ -1730,7 +1730,7 @@ pub unsafe fn decor_virt_lines(
 
         let mut n_virt_lines: c_int = 0;
         loop {
-            let mark = marktree_itr_current(&itr);
+            let mark = marktree_itr_current(b, &itr);
             let mut vt = mt_decor_virt(mark);
             if !mt_invalid(mark) && ns_in_win(mark.ns, wp) {
                 while !vt.is_null() {
