@@ -326,13 +326,27 @@ pub(super) struct bt_regprog_T {
     pub program: Vec<u8>,
 }
 
-#[repr(C)]
+#[derive(Clone, Copy)]
+pub(super) enum NfaOutSlot {
+    Out(usize),
+    Out1(usize),
+}
+
+impl NfaOutSlot {
+    #[inline]
+    pub(super) fn set(self, states: &mut [nfa_state_T], target: Option<usize>) {
+        match self {
+            Self::Out(idx) => states[idx].out = target,
+            Self::Out1(idx) => states[idx].out1 = target,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(super) struct nfa_state_T {
     pub c: c_int,
-    pub out: *mut nfa_state_T,
-    pub out1: *mut nfa_state_T,
-    pub id: c_int,
+    pub out: Option<usize>,
+    pub out1: Option<usize>,
     pub lastlist: [c_int; 2],
     pub val: c_int,
 }
@@ -341,9 +355,8 @@ impl nfa_state_T {
     pub(super) const fn new() -> Self {
         Self {
             c: 0,
-            out: ptr::null_mut(),
-            out1: ptr::null_mut(),
-            id: 0,
+            out: None,
+            out1: None,
             lastlist: [0; 2],
             val: 0,
         }
@@ -356,11 +369,10 @@ impl Default for nfa_state_T {
     }
 }
 
-#[repr(C)]
 pub(super) struct nfa_regprog_T {
     pub regflags: c_uint,
     pub re_engine: c_uint,
-    pub start: *mut nfa_state_T,
+    pub start: Option<usize>,
     pub reganch: c_int,
     pub regstart: c_int,
     pub match_text: Option<std::ffi::CString>,
@@ -569,14 +581,14 @@ pub(super) struct regbehind_T {
 }
 
 pub(super) struct Frag_T {
-    pub start: *mut nfa_state_T,
-    pub out: Vec<*mut *mut nfa_state_T>,
+    pub start: Option<usize>,
+    pub out: Vec<NfaOutSlot>,
 }
 
 impl Frag_T {
     pub(super) const fn new() -> Self {
         Self {
-            start: ptr::null_mut(),
+            start: None,
             out: Vec::new(),
         }
     }
@@ -720,11 +732,10 @@ impl regsubs_T {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct nfa_pim_T {
     pub result: c_int,
-    pub state: *mut nfa_state_T,
+    pub state: Option<usize>,
     pub subs: regsubs_T,
     pub end: RegPos,
 }
@@ -733,7 +744,7 @@ impl nfa_pim_T {
     pub(super) const fn new() -> Self {
         Self {
             result: 0,
-            state: ptr::null_mut(),
+            state: None,
             subs: regsubs_T::new(),
             end: RegPos::new(),
         }
@@ -746,10 +757,9 @@ impl Default for nfa_pim_T {
     }
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct nfa_thread_T {
-    pub state: *mut nfa_state_T,
+    pub state: Option<usize>,
     pub count: c_int,
     pub pim: nfa_pim_T,
     pub subs: regsubs_T,
@@ -758,7 +768,7 @@ pub(super) struct nfa_thread_T {
 impl nfa_thread_T {
     pub(super) const fn new() -> Self {
         Self {
-            state: ptr::null_mut(),
+            state: None,
             count: 0,
             pim: nfa_pim_T::new(),
             subs: regsubs_T::new(),
@@ -1287,7 +1297,6 @@ pub(super) static mut nstate: c_int = 0;
 pub(super) static mut istate: c_int = 0;
 pub(super) static mut nfa_endp: *mut save_se_T = ptr::null_mut();
 pub(super) static mut nfa_ll_index: usize = 0;
-pub(super) static mut state_ptr: *mut nfa_state_T = ptr::null_mut();
 
 static mut regexp_engine: c_int = 0;
 
