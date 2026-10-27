@@ -2127,9 +2127,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_QUICKFIX => {
                     if bt_quickfix((*wp).w_buffer) {
                         str = if !(*wp).w_llist_ref.is_null() {
-                            tr(msg_loclist)
+                            tr(msg_loclist.as_ptr())
                         } else {
-                            tr(msg_qflist)
+                            tr(msg_qflist.as_ptr())
                         };
                     }
                 }

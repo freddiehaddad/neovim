@@ -28,7 +28,7 @@ use crate::event::multiqueue::{Event, multiqueue_process_events};
 use crate::ex_docmd::{do_sleep, exarg_T};
 use crate::ex_eval::cause_errthrow;
 use crate::extmark::{TriState, kFalse, kTrue};
-use crate::fileio::{FILE, check_timestamps, fclose, fprintf, fputc, fputs, printf};
+use crate::fileio::{check_timestamps, fprintf, fputc, fputs, printf};
 use crate::globals::*;
 use crate::grid::{
     grid_adjust, grid_alloc, grid_assign_handle, grid_clear, grid_clear_line, grid_del_lines,
@@ -147,7 +147,7 @@ static mut msg_hit_enter: bool = true;
 static mut msg_wait: c_int = 0;
 static mut progress_msg_target: c_int = PROGRESS_TARGET_CMD;
 
-static mut verbose_fd: *mut FILE = ptr::null_mut();
+static mut verbose_fd: Option<crate::os::fs::CFile> = None;
 static mut verbose_did_open: bool = false;
 
 static mut keep_msg_more: bool = false;
@@ -1843,9 +1843,8 @@ pub unsafe fn wait_return(redraw: c_int) {
                     allow_keys += 1;
 
                     let save_reg_recording = reg_recording;
-                    let save_scriptout = scriptout;
+                    let save_scriptout = (&raw mut scriptout).as_mut().unwrap().take();
                     reg_recording = 0;
-                    scriptout = ptr::null_mut();
                     c = safe_vgetc();
                     if had_got_int && global_busy == 0 {
                         got_int = false;
@@ -3942,7 +3941,7 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
             return;
         }
 
-        if *p_vfile != NUL && verbose_fd.is_null() {
+        if *p_vfile != NUL && (*(&raw const verbose_fd)).is_none() {
             verbose_open();
         }
 
@@ -3956,11 +3955,11 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
                         write_reg_contents(redir_reg, c" ".as_ptr(), 1, 1);
                     } else if redir_vname {
                         var_redir_str(c" ".as_ptr(), -1);
-                    } else if !redir_fd.is_null() {
-                        fputs(c" ".as_ptr(), redir_fd);
+                    } else if let Some(ref rf) = *(&raw const redir_fd) {
+                        fputs(c" ".as_ptr(), rf.as_ptr());
                     }
-                    if !verbose_fd.is_null() {
-                        fputs(c" ".as_ptr(), verbose_fd);
+                    if let Some(ref vf) = *(&raw const verbose_fd) {
+                        fputs(c" ".as_ptr(), vf.as_ptr());
                     }
                     redir_col += 1;
                 }
@@ -3982,11 +3981,15 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
             }
 
             while (maxlen < 0 || (s.offset_from(str_) as c_int) < maxlen as c_int) && *s != NUL {
-                if redir_reg == 0 && !redir_vname && capture_ga.is_null() && !redir_fd.is_null() {
-                    fputc(c_int::from(*s), redir_fd);
+                if redir_reg == 0
+                    && !redir_vname
+                    && capture_ga.is_null()
+                    && let Some(ref rf) = *(&raw const redir_fd)
+                {
+                    fputc(c_int::from(*s), rf.as_ptr());
                 }
-                if !verbose_fd.is_null() {
-                    fputc(c_int::from(*s), verbose_fd);
+                if let Some(ref vf) = *(&raw const verbose_fd) {
+                    fputc(c_int::from(*s), vf.as_ptr());
                 }
                 if *s == CAR as c_char || *s == NL as c_char {
                     redir_col = 0;
@@ -4008,7 +4011,7 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
 pub unsafe fn redirecting() -> c_int {
     unsafe {
         c_int::from(
-            !redir_fd.is_null()
+            has_redir_fd()
                 || *p_vfile != NUL
                 || redir_reg != 0
                 || redir_vname
@@ -4074,10 +4077,7 @@ pub unsafe fn verbose_leave_scroll() {
 /// Called when 'verbosefile' is set: stop writing to the file.
 pub unsafe fn verbose_stop() {
     unsafe {
-        if !verbose_fd.is_null() {
-            fclose(verbose_fd);
-            verbose_fd = ptr::null_mut();
-        }
+        verbose_fd = None;
         verbose_did_open = false;
     }
 }
@@ -4087,11 +4087,11 @@ pub unsafe fn verbose_stop() {
 /// @return  FAIL or OK.
 pub unsafe fn verbose_open() -> c_int {
     unsafe {
-        if verbose_fd.is_null() && !verbose_did_open {
+        if (*(&raw const verbose_fd)).is_none() && !verbose_did_open {
             verbose_did_open = true;
 
-            verbose_fd = os_fopen(p_vfile, c"a".as_ptr());
-            if verbose_fd.is_null() {
+            verbose_fd = crate::os::fs::CFile::from_raw(os_fopen(p_vfile, c"a".as_ptr()));
+            if (*(&raw const verbose_fd)).is_none() {
                 semsg!(gettext(e_notopen.as_ptr()), p_vfile);
                 return FAIL;
             }

@@ -1593,8 +1593,10 @@ pub unsafe fn before_blocking() {
 
 unsafe fn updatescript(c: c_int) {
     unsafe {
-        if c != 0 && !scriptout.is_null() {
-            fputc(c, scriptout);
+        if c != 0
+            && let Some(ref so) = *(&raw const scriptout)
+        {
+            fputc(c, so.as_ptr());
         }
         let idle = c == 0;
         if idle

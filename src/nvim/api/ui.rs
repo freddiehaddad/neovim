@@ -668,9 +668,8 @@ unsafe fn ui_set_option(
         }
 
         let is_popupmenu = strequal(name.data, c"popupmenu_external".as_ptr());
-        let ext_names_ptr = (&raw const ui_ext_names).cast::<*const c_char>();
         for i in 0..kUIExtCount {
-            if strequal(name.data, *ext_names_ptr.add(i)) || (i == kUIPopupmenu && is_popupmenu) {
+            if strequal(name.data, ui_ext_names[i].as_ptr()) || (i == kUIPopupmenu && is_popupmenu) {
                 if value.obj_type != ObjectType::kObjectTypeBoolean {
                     api_err_exp(
                         err,

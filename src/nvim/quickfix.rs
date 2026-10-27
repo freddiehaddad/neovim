@@ -395,7 +395,7 @@ struct efm_T {
 
 enum QfInputSource {
     None,
-    File(*mut FILE),
+    File(crate::os::fs::CFile),
     Str(*mut c_char),
     List(*mut listitem_T),
     Buf {
@@ -432,18 +432,6 @@ impl Default for qfstate_T {
             growbuf: Vec::new(),
             source: QfInputSource::None,
             vc: vimconv_T::new(),
-        }
-    }
-}
-
-impl Drop for qfstate_T {
-    fn drop(&mut self) {
-        unsafe {
-            if let QfInputSource::File(fd) = self.source
-                && !fd.is_null()
-            {
-                fclose(fd);
-            }
         }
     }
 }
@@ -1309,9 +1297,9 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
 
 unsafe fn qf_get_nextline(state: *mut qfstate_T) -> c_int {
     unsafe {
-        let status = match (*state).source {
+        let status = match (&*state).source {
             QfInputSource::None => QF_FAIL,
-            QfInputSource::File(fd) => qf_get_next_file_line(state, fd),
+            QfInputSource::File(ref fd) => qf_get_next_file_line(state, fd.as_ptr()),
             QfInputSource::Str(p_str) => qf_get_next_str_line(state, p_str),
             QfInputSource::List(p_li) => qf_get_next_list_line(state, p_li),
             QfInputSource::Buf {
@@ -1474,15 +1462,15 @@ unsafe fn qf_setup_state(
         }
 
         if !efile.is_null() {
-            let fd = if strequal(efile, c"-".as_ptr()) {
+            let raw_fd = if strequal(efile, c"-".as_ptr()) {
                 fdopen(os_open_stdin_fd(), c"r".as_ptr())
             } else {
                 os_fopen(efile, c"r".as_ptr()).cast::<FILE>()
             };
-            if fd.is_null() {
+            let Some(fd) = crate::os::fs::CFile::from_raw(raw_fd) else {
                 semsg!(gettext((&raw const e_openerrf).cast()), efile);
                 return FAIL;
-            }
+            };
             (*pstate).source = QfInputSource::File(fd);
         } else if !tv.is_null() {
             if (*tv).v_type == VarType::VAR_STRING {
@@ -1591,7 +1579,7 @@ unsafe fn qf_init_ext(
 
         if ok {
             let file_ok = match state.source {
-                QfInputSource::File(fd) => fd.is_null() || ferror(fd) == 0,
+                QfInputSource::File(ref fd) => ferror(fd.as_ptr()) == 0,
                 _ => true,
             };
             if file_ok {

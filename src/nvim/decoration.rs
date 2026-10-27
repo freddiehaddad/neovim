@@ -1874,9 +1874,7 @@ pub unsafe fn decor_to_dict_legacy(
 
         if !virt_text.is_null() {
             if (*virt_text).hl_mode != 0 {
-                let mode_str = *(&raw const hl_mode_str)
-                    .cast::<*const c_char>()
-                    .add((*virt_text).hl_mode as usize);
+                let mode_str = hl_mode_str[(*virt_text).hl_mode as usize].as_ptr();
                 put_c(&mut *dict, c"hl_mode".as_ptr(), cstr_as_obj(mode_str));
             }
 
@@ -1899,9 +1897,7 @@ pub unsafe fn decor_to_dict_legacy(
                     integer_obj(Integer::from((*virt_text).col)),
                 );
             }
-            let pos_str = *(&raw const virt_text_pos_str)
-                .cast::<*const c_char>()
-                .add((*virt_text).pos as usize);
+            let pos_str = virt_text_pos_str[(*virt_text).pos as usize].as_ptr();
             put_c(&mut *dict, c"virt_text_pos".as_ptr(), cstr_as_obj(pos_str));
             priority = i32::from((*virt_text).priority);
         }

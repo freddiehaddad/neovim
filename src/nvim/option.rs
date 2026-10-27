@@ -8062,7 +8062,7 @@ pub unsafe fn ExpandSettings(
 /// Escape an option value that can be used on the command-line with :set.
 pub unsafe fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CString {
     unsafe {
-        let buf_cstr = vim_strsave_escaped(var_arg, escape_chars);
+        let buf_cstr = vim_strsave_escaped(var_arg, escape_chars.as_ptr());
 
         #[cfg(windows)]
         {

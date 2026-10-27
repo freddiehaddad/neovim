@@ -53,7 +53,6 @@ use crate::option::{OPT_LOCAL, apply_optionset_autocmd_now, set_option_direct};
 use crate::option_vars::*;
 use crate::optionstr::OptIndex;
 use crate::os::env::{expand_T, expand_env_save};
-use crate::os::fs::MAXPATHL;
 use crate::os::input::line_breakcheck;
 use crate::os::time::{Timestamp, os_now};
 use crate::path::{FullName_save, path_tail, to_slash_save};
@@ -2878,44 +2877,38 @@ pub unsafe fn apply_autocmds_group(
                 break 'bypass_au;
             }
 
-            let save_autocmd_fname = autocmd_fname;
+            let save_autocmd_fname = (&raw mut autocmd_fname).as_mut().unwrap().take();
             let save_autocmd_fname_full = autocmd_fname_full;
             let save_autocmd_bufnr = autocmd_bufnr;
             let save_autocmd_winid = autocmd_winid;
-            let save_autocmd_match = autocmd_match;
+            let save_autocmd_match = (&raw mut autocmd_match).as_mut().unwrap().take();
             let save_autocmd_busy = autocmd_busy;
             let save_autocmd_nested = autocmd_nested;
 
-            if fname_io.is_null() {
+            let raw_autocmd_fname = if fname_io.is_null() {
                 if event == EVENT_COLORSCHEME
                     || event == EVENT_COLORSCHEMEPRE
                     || event == EVENT_OPTIONSET
                     || event == EVENT_MODECHANGED
                     || event == EVENT_MARKSET
                 {
-                    autocmd_fname = ptr::null_mut();
+                    ptr::null_mut()
                 } else if !fname.is_null() && ends_excmd(c_int::from(*fname.cast::<u8>())) == 0 {
-                    autocmd_fname = fname;
+                    fname
                 } else if !buf.is_null() {
-                    autocmd_fname = (*buf).b_ffname;
+                    (*buf).b_ffname
                 } else {
-                    autocmd_fname = ptr::null_mut();
+                    ptr::null_mut()
                 }
             } else {
-                autocmd_fname = fname_io;
-            }
-            let mut autocmd_fname_buf: Vec<c_char> = Vec::new();
-            let afile_orig_owned = if !autocmd_fname.is_null() {
-                let orig = CStr::from_ptr(autocmd_fname).to_owned();
-                let src_bytes = orig.as_bytes_with_nul();
-                autocmd_fname_buf = vec![0; MAXPATHL + 1];
-                let copy_len = src_bytes.len().min(MAXPATHL);
-                for (dst, &b) in autocmd_fname_buf[..copy_len].iter_mut().zip(src_bytes) {
-                    *dst = b as c_char;
-                }
-                autocmd_fname = autocmd_fname_buf.as_mut_ptr();
+                fname_io
+            };
+            let afile_orig_owned = if !raw_autocmd_fname.is_null() {
+                let orig = CStr::from_ptr(raw_autocmd_fname).to_owned();
+                autocmd_fname = Some(orig.clone());
                 Some(orig)
             } else {
+                autocmd_fname = None;
                 None
             };
             autocmd_fname_full = false;
@@ -3004,7 +2997,7 @@ pub unsafe fn apply_autocmds_group(
             let save_changed = (*curbuf).b_changed;
             let old_curbuf = curbuf;
 
-            autocmd_match = fname;
+            autocmd_match = (!fname.is_null()).then(|| CStr::from_ptr(fname).to_owned());
 
             RedrawingDisabled += 1;
 
@@ -3109,7 +3102,6 @@ pub unsafe fn apply_autocmds_group(
             filechangeshell_busy = false;
             autocmd_nested = save_autocmd_nested;
             estack_pop();
-            drop(autocmd_fname_buf);
             autocmd_fname = save_autocmd_fname;
             autocmd_fname_full = save_autocmd_fname_full;
             autocmd_bufnr = save_autocmd_bufnr;
@@ -3350,7 +3342,13 @@ unsafe fn au_callback(
             size += 1;
             data_items[size] = KeyValuePair {
                 key: static_cstr_as_string(c"match"),
-                value: cstr_as_obj(autocmd_match),
+                value: cstr_as_obj(
+                    (&raw const autocmd_match)
+                        .as_ref()
+                        .unwrap()
+                        .as_ref()
+                        .map_or(ptr::null(), |s| s.as_ptr()),
+                ),
             };
             size += 1;
             data_items[size] = KeyValuePair {

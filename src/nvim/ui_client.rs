@@ -181,7 +181,7 @@ pub unsafe fn ui_client_attach(
         rpc_send_event(ui_client_channel_id, c"nvim_ui_attach".as_ptr(), args);
         ui_client_attached = true;
 
-        if !time_fd.is_null() {
+        if has_time_fd() {
             time_msg(c"nvim_ui_attach".as_ptr(), ptr::null());
         }
 
@@ -249,7 +249,7 @@ pub unsafe fn ui_client_attach(
             args2,
         );
 
-        if !time_fd.is_null() {
+        if has_time_fd() {
             time_msg(c"nvim_set_client_info".as_ptr(), ptr::null());
         }
     }

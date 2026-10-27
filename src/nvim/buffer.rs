@@ -2702,7 +2702,7 @@ pub unsafe fn do_autochdir() {
             && !(*curbuf).b_ffname.is_null()
             && vim_chdirfile((*curbuf).b_ffname, kCdCauseAuto) == OK
         {
-            last_chdir_reason = c"autochdir".as_ptr().cast_mut();
+            last_chdir_reason = Some(c"autochdir");
             shorten_fnames(1);
         }
     }
@@ -4941,9 +4941,9 @@ pub unsafe fn buf_spname(buf: *mut buf_T) -> *mut c_char {
     unsafe {
         if bt_quickfix(buf) {
             if (*buf).b_fnum == qf_stack_get_bufnr() {
-                return gettext(msg_qflist);
+                return gettext(msg_qflist.as_ptr());
             }
-            return gettext(msg_loclist);
+            return gettext(msg_loclist.as_ptr());
         }
         if bt_nofilename(buf) {
             if !(*buf).b_fname.is_null() {

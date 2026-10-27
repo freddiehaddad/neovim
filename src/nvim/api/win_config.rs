@@ -1189,7 +1189,7 @@ pub unsafe extern "C" fn nvim_win_get_config(
                     }
                 }
                 rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__anchor;
-                rv.anchor = cstr_as_string(float_anchor_str[config.anchor as usize]);
+                rv.anchor = cstr_as_string(float_anchor_str[config.anchor as usize].as_ptr());
                 rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__row;
                 rv.row = config.row;
                 rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__col;

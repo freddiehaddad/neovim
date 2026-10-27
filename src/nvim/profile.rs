@@ -934,28 +934,31 @@ unsafe fn time_diff(then: proftime_T, now: proftime_T) {
     let diff = profile_sub(now, then);
     let s = format!("{:07.3}\0", (diff as f64) / 1.0e6);
     unsafe {
-        fprintf!(time_fd, c"%s".as_ptr(), s.as_ptr().cast::<c_char>());
+        if let Some(ref tf) = *(&raw const time_fd) {
+            fprintf!(tf.as_ptr(), c"%s".as_ptr(), s.as_ptr().cast::<c_char>());
+        }
     }
 }
 
 /// Initializes the startuptime code (`time_start`).
 pub unsafe fn time_start(message: *const c_char) {
     unsafe {
-        if time_fd.is_null() {
+        let Some(ref tf) = *(&raw const time_fd) else {
             return;
-        }
+        };
+        let fp = tf.as_ptr();
 
         let now = profile_start();
         G_START_TIME = now;
         G_PREV_TIME = now;
 
-        fprintf!(time_fd, c"\ntimes in msec\n".as_ptr());
+        fprintf!(fp, c"\ntimes in msec\n".as_ptr());
         fprintf!(
-            time_fd,
+            fp,
             c" clock   self+sourced   self:  sourced script\n".as_ptr(),
         );
         fprintf!(
-            time_fd,
+            fp,
             c" clock   elapsed:              other lines\n\n".as_ptr(),
         );
 
@@ -966,24 +969,25 @@ pub unsafe fn time_start(message: *const c_char) {
 /// Prints out timing info (`time_msg`).
 pub unsafe fn time_msg(mesg: *const c_char, start: *const proftime_T) {
     unsafe {
-        if time_fd.is_null() {
+        let Some(ref tf) = *(&raw const time_fd) else {
             return;
-        }
+        };
+        let fp = tf.as_ptr();
 
         let now = profile_start();
         time_diff(G_START_TIME, now);
 
         if !start.is_null() {
-            fprintf!(time_fd, c"  ".as_ptr());
+            fprintf!(fp, c"  ".as_ptr());
             time_diff(*start, now);
         }
 
-        fprintf!(time_fd, c"  ".as_ptr());
+        fprintf!(fp, c"  ".as_ptr());
         let prev = G_PREV_TIME;
         G_PREV_TIME = now;
         time_diff(prev, now);
 
-        fprintf!(time_fd, c": %s\n".as_ptr(), mesg);
+        fprintf!(fp, c": %s\n".as_ptr(), mesg);
     }
 }
 
@@ -991,29 +995,29 @@ pub unsafe fn time_msg(mesg: *const c_char, start: *const proftime_T) {
 pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
     unsafe {
         const BUFSIZE: usize = 8192;
-        time_fd = fopen(fname, c"a".as_ptr());
-        if time_fd.is_null() {
+        time_fd = crate::os::fs::CFile::from_raw(fopen(fname, c"a".as_ptr()));
+        let Some(ref tf) = *(&raw const time_fd) else {
             let fname_str = CStr::from_ptr(fname).to_string_lossy();
             eprint!("E484: Can't open file {fname_str}");
             return;
-        }
+        };
+        let fp = tf.as_ptr();
         STARTUPTIME_BUF = vec![0; BUFSIZE + 1];
         let r = setvbuf(
-            time_fd,
+            fp,
             (&raw mut STARTUPTIME_BUF).as_mut().unwrap().as_mut_ptr(),
             IOFBF,
             BUFSIZE + 1,
         );
         if r != 0 {
             STARTUPTIME_BUF = Vec::new();
-            fclose(time_fd);
-            time_fd = std::ptr::null_mut();
+            time_fd = None;
             let err_str = CStr::from_ptr(uv_err_name(r)).to_string_lossy();
             eprint!("time_init: setvbuf failed: {r} {err_str}");
             return;
         }
         fprintf!(
-            time_fd,
+            fp,
             c"--- Startup times for process: %s ---\n".as_ptr(),
             proc_name,
         );
@@ -1023,14 +1027,13 @@ pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
 /// Flushes the startuptimes to disk for the current process (`time_finish`).
 pub unsafe fn time_finish() {
     unsafe {
-        if time_fd.is_null() {
+        if !has_time_fd() {
             return;
         }
         assert!(!(&raw const STARTUPTIME_BUF).as_ref().unwrap().is_empty());
         time_msg(c"--- NVIM STARTED ---\n".as_ptr(), std::ptr::null());
 
-        fclose(time_fd);
-        time_fd = std::ptr::null_mut();
+        time_fd = None;
 
         STARTUPTIME_BUF = Vec::new();
     }

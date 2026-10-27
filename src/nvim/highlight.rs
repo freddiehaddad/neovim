@@ -383,7 +383,7 @@ pub unsafe fn ui_send_all_hls(ui: *mut RemoteUI) {
         for hlf in 0..HLF_COUNT {
             remote_ui_hl_group_set(
                 ui,
-                cstr_as_string(hlf_names[hlf]),
+                cstr_as_string(hlf_name_ptr(hlf)),
                 Integer::from(highlight_attr[hlf]),
             );
         }
@@ -773,8 +773,8 @@ pub unsafe fn update_ns_hl(ns_id: c_int) {
             .clone();
 
         for hlf in 1..HLF_COUNT {
-            let name = *(&raw const hlf_names).cast::<*const c_char>().add(hlf);
-            let id = syn_check_group(name, CStr::from_ptr(name).to_bytes().len());
+            let name_cstr = hlf_names[hlf].unwrap();
+            let id = syn_check_group(name_cstr.as_ptr(), name_cstr.to_bytes().len());
             let optional = hlf == HLF_INACTIVE || hlf == HLF_NFLOAT;
             alloc[hlf].set(hl_get_ui_attr(ns_id, hlf as c_int, id, optional));
         }
@@ -1858,7 +1858,7 @@ unsafe fn hl_inspect_impl(arr: *mut Array, attr: c_int, arena: *mut Arena) {
                 let ui_name = if e.id1 == -1 {
                     c"Normal".as_ptr()
                 } else {
-                    hlf_names[e.id1 as usize]
+                    hlf_name_ptr(e.id1 as usize)
                 };
                 put_c(&mut item, c"ui_name", cstr_as_obj(ui_name));
                 put_c(&mut item, c"hi_name", cstr_as_obj(syn_id2name(e.id2)));

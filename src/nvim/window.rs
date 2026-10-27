@@ -1790,10 +1790,7 @@ pub unsafe fn ui_ext_win_position(wp: *mut win_T, validate: bool) {
                     false,
                 );
                 if ui_has(kUIMultigrid) {
-                    let anchor_ptr = *(&raw const float_anchor_str)
-                        .cast::<*const c_char>()
-                        .add(c.anchor as usize);
-                    let anchor = cstr_as_string(anchor_ptr);
+                    let anchor = cstr_as_string(float_anchor_str[c.anchor as usize].as_ptr());
                     ui_call_win_float_pos(
                         Integer::from((*wp).w_grid_alloc.handle),
                         (*wp).handle,
@@ -6146,7 +6143,7 @@ pub unsafe fn update_cwd(cause: CdCause) {
             if os_chdir(new_dir_ptr) == 0 && p_acd == 0 && dir_differs {
                 do_autocmd_dirchanged(new_dir_ptr, scope, cause, false);
             }
-            last_chdir_reason = ptr::null_mut();
+            last_chdir_reason = None;
             shorten_fnames(1);
         } else if let Some(gdir) = (&raw mut globaldir).as_mut().unwrap().take() {
             let gdir_ptr = gdir.as_ptr().cast_mut();
@@ -6157,7 +6154,7 @@ pub unsafe fn update_cwd(cause: CdCause) {
             if os_chdir(gdir_ptr) == 0 && p_acd == 0 && dir_differs {
                 do_autocmd_dirchanged(gdir_ptr, kCdScopeGlobal, cause, false);
             }
-            last_chdir_reason = ptr::null_mut();
+            last_chdir_reason = None;
             shorten_fnames(1);
         }
     }

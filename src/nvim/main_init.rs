@@ -259,7 +259,7 @@ use crate::os::os_win_console::{GetVersionExA, OsVersionInfoA};
 #[inline]
 unsafe fn time_msg_if_enabled(s: *const c_char) {
     unsafe {
-        if !time_fd.is_null() {
+        if has_time_fd() {
             time_msg(s, ptr::null());
         }
     }
@@ -571,15 +571,15 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
             os_exit(2);
         }
         if let Some(ref scriptout_name) = params.scriptout {
-            scriptout = os_fopen(
+            scriptout = crate::os::fs::CFile::from_raw(os_fopen(
                 scriptout_name.as_ptr(),
                 if params.scriptout_append {
                     c"ab".as_ptr()
                 } else {
                     c"wb".as_ptr()
                 },
-            );
-            if scriptout.is_null() {
+            ));
+            if !has_scriptout() {
                 let stderr = log_get_stderr();
                 fprintf!(
                     stderr,

@@ -308,8 +308,8 @@ impl Drop for timer_T {
 pub struct caller_scope {
     pub script_ctx: sctx_T,
     pub es_entry: crate::profile::estack_T,
-    pub autocmd_fname: *mut c_char,
-    pub autocmd_match: *mut c_char,
+    pub autocmd_fname: Option<std::ffi::CString>,
+    pub autocmd_match: Option<std::ffi::CString>,
     pub autocmd_fname_full: bool,
     pub autocmd_bufnr: c_int,
     pub funccalp: *mut crate::profile::funccall_T,
@@ -7048,8 +7048,8 @@ pub unsafe fn eval_call_provider(
         let new_scope = caller_scope {
             script_ctx: current_sctx,
             es_entry: (*es).last().unwrap().clone(),
-            autocmd_fname,
-            autocmd_match,
+            autocmd_fname: (&raw const autocmd_fname).as_ref().unwrap().clone(),
+            autocmd_match: (&raw const autocmd_match).as_ref().unwrap().clone(),
             autocmd_fname_full,
             autocmd_bufnr,
             funccalp: get_current_funccal().cast(),

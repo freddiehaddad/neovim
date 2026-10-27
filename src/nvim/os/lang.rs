@@ -663,7 +663,7 @@ pub unsafe fn init_locale() {
             CATALOG_VALID = false;
         }
 
-        if !time_fd.is_null() {
+        if has_time_fd() {
             time_msg(c"locale set".as_ptr(), ptr::null());
         }
     }

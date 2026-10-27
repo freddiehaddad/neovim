@@ -217,14 +217,13 @@ pub unsafe fn ui_refresh() {
 
         let ui_ext_ptr = (&raw mut ui_ext).cast::<bool>();
         let ui_cb_ext_ptr = (&raw const ui_cb_ext).cast::<bool>();
-        let ext_names_ptr = (&raw const ui_ext_names).cast::<*const c_char>();
         let had_message = *ui_ext_ptr.add(kUIMessages);
 
         for (i, &widget) in ext_widgets.iter().enumerate().take(kUIExtCount) {
             let val = widget | *ui_cb_ext_ptr.add(i);
             *ui_ext_ptr.add(i) = val;
             if i < kUIGlobalCount {
-                ui_call_option_set(cstr_as_string(*ext_names_ptr.add(i)), boolean_obj(val));
+                ui_call_option_set(cstr_as_string(ui_ext_names[i].as_ptr()), boolean_obj(val));
             }
         }
 
@@ -483,7 +482,7 @@ pub unsafe fn ui_set_ext_option(ui: *mut RemoteUI, ext: UIExtension, active: boo
             ui_refresh();
             return;
         }
-        let name = *(&raw const ui_ext_names).cast::<*const c_char>().add(idx);
+        let name = ui_ext_names[idx].as_ptr();
         if *name != b'_' as c_char || active {
             remote_ui_option_set(ui, cstr_as_string(name), boolean_obj(active));
         }
@@ -756,7 +755,6 @@ pub unsafe fn ui_array(arena: *mut Arena) -> Array {
     unsafe {
         let uis_ptr = &raw const uis;
         let mut all_uis = arena_array(arena, (*uis_ptr).len());
-        let ext_names_ptr = (&raw const ui_ext_names).cast::<*const c_char>();
 
         for &ui in &*uis_ptr {
             let mut info = arena_dict(arena, 10 + kUIExtCount);
@@ -799,7 +797,7 @@ pub unsafe fn ui_array(arena: *mut Arena) -> Array {
             put_info(c"stdout_tty".as_ptr(), boolean_obj((*ui).stdout_tty));
 
             for j in 0..kUIExtCount {
-                let ename = *ext_names_ptr.add(j);
+                let ename = ui_ext_names[j].as_ptr();
                 if *ename != b'_' as c_char || (*ui).ui_ext[j] {
                     put_info(ename, boolean_obj((*ui).ui_ext[j]));
                 }

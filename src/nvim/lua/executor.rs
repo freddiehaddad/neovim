@@ -1164,7 +1164,6 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> c_int {
 
         let mut ext_widgets = [false; kUIGlobalCount];
         let mut tbl_has_true_val = false;
-        let ext_names_ptr = (&raw const ui_ext_names).cast::<*const c_char>();
 
         lua_pushvalue(lstate, 2);
         lua_pushnil(lstate);
@@ -1179,7 +1178,7 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> c_int {
                 matched = true;
             } else {
                 for (i, slot) in ext_widgets.iter_mut().enumerate() {
-                    if strequal(s, *ext_names_ptr.add(i)) {
+                    if strequal(s, ui_ext_names[i].as_ptr()) {
                         if val {
                             tbl_has_true_val = true;
                         }
@@ -1284,7 +1283,7 @@ unsafe fn nlua_state_init(lstate: *mut lua_State) -> bool {
         lua_setfield(lstate, -2, c"ex_docmd".as_ptr());
         lua_pop(lstate, 1);
 
-        if !time_fd.is_null() {
+        if has_time_fd() {
             lua_getglobal(lstate, c"require".as_ptr());
             REQUIRE_REF = nlua_ref_global(lstate, -1);
             lua_pop(lstate, 1);
@@ -1495,7 +1494,7 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
         nlua_pushref(lstate, REQUIRE_REF);
         lua_insert(lstate, 1);
 
-        if time_fd.is_null() {
+        if !has_time_fd() {
             lua_getglobal(lstate, c"require".as_ptr());
             if lua_iscfunction(lstate, -1) != 0
                 && lua_tocfunction(lstate, -1).is_some_and(|f| {

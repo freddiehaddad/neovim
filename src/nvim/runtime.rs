@@ -1825,7 +1825,7 @@ pub unsafe fn load_plugins() {
             }
 
             source_in_path_vim_lua(rtp_copy, plugin_pattern, DIP_ALL | DIP_NOAFTER);
-            if !time_fd.is_null() {
+            if has_time_fd() {
                 time_msg(c"loading rtp plugins".as_ptr(), ptr::null());
             }
 
@@ -1833,12 +1833,12 @@ pub unsafe fn load_plugins() {
                 drop(rtp_copy_owned);
                 load_start_packages();
             }
-            if !time_fd.is_null() {
+            if has_time_fd() {
                 time_msg(c"loading packages".as_ptr(), ptr::null());
             }
 
             source_runtime_vim_lua(plugin_pattern, DIP_ALL | DIP_AFTER);
-            if !time_fd.is_null() {
+            if has_time_fd() {
                 time_msg(c"loading after plugins".as_ptr(), ptr::null());
             }
         }
@@ -2892,8 +2892,8 @@ unsafe fn do_source_ext(
 
             let mut rel_time: proftime_T = 0;
             let mut start_time: proftime_T = 0;
-            let l_time_fd = time_fd;
-            if !l_time_fd.is_null() {
+            let l_has_time_fd = has_time_fd();
+            if l_has_time_fd {
                 time_push(&mut rel_time, &mut start_time);
             }
 
@@ -3045,7 +3045,7 @@ unsafe fn do_source_ext(
                 verbose_leave();
             }
 
-            if !l_time_fd.is_null() {
+            if l_has_time_fd {
                 let iobuff = (&raw mut IObuff).cast::<c_char>();
                 vim_snprintf!(iobuff, IOSIZE, c"sourcing %s".as_ptr(), fname);
                 time_msg(iobuff, &start_time);

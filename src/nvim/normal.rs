@@ -2490,7 +2490,7 @@ unsafe fn normal_check(s: *mut NormalState) -> c_int {
             normal_redraw(s);
             do_redraw = false;
 
-            if !time_fd.is_null() {
+            if has_time_fd() {
                 time_msg(c"first screen update".as_ptr(), ptr::null());
                 time_finish();
             }

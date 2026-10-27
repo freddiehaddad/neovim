@@ -119,7 +119,7 @@ use crate::file_search::{
     FNAME_HYP, FNAME_MESS, do_autocmd_dirchanged, ff_search_ctx_T, file_name_at_cursor,
     find_file_in_path, vim_chdir,
 };
-use crate::fileio::{FILE, fclose, readfile, shorten_fnames};
+use crate::fileio::{FILE, readfile, shorten_fnames};
 use crate::fold::{foldCreate, foldManualAllowed, hasFolding, opFoldRange};
 use crate::globals::IOSIZE;
 use crate::globals::*;
@@ -8263,7 +8263,7 @@ pub unsafe fn expand_filename(
                 #[cfg(windows)]
                 let esc_chars = c" \t\"|".as_ptr();
                 #[cfg(not(windows))]
-                let esc_chars: *const c_char = escape_chars;
+                let esc_chars: *const c_char = escape_chars.as_ptr();
 
                 let mut l = repl_cstr.as_ptr();
                 while *l != NUL {
@@ -10875,7 +10875,7 @@ unsafe fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
             _ => std::process::abort(),
         }
 
-        last_chdir_reason = ptr::null_mut();
+        last_chdir_reason = None;
         shorten_fnames(c_int::from(vim_strchr(p_cpo, kCpoNosymlinks).is_null()));
 
         if trigger_dirchanged {
@@ -11009,8 +11009,8 @@ unsafe fn ex_pwd(_eap: *mut exarg_T) {
             #[cfg(windows)]
             slash_adjust((&raw mut NameBuff).cast());
             if p_verbose > 0 {
-                let context = if !last_chdir_reason.is_null() {
-                    last_chdir_reason.cast_const()
+                let context = if let Some(reason) = last_chdir_reason {
+                    reason.as_ptr()
                 } else if (*curbuf).b_localdir.is_some() {
                     c"buffer".as_ptr()
                 } else if (*curwin).w_localdir.is_some() {
@@ -11504,7 +11504,11 @@ unsafe fn ex_redir(eap: *mut exarg_T) {
             close_redir();
 
             let fname = expand_env_save(arg);
-            redir_fd = open_exfile(fname.as_ptr().cast_mut(), (*eap).forceit, mode);
+            redir_fd = crate::os::fs::CFile::from_raw(open_exfile(
+                fname.as_ptr().cast_mut(),
+                (*eap).forceit,
+                mode,
+            ));
         } else if *arg == b'@' as c_char {
             close_redir();
             arg = arg.add(1);
@@ -11543,7 +11547,7 @@ unsafe fn ex_redir(eap: *mut exarg_T) {
             let _ = semsg!(gettext(e_invarg2.as_ptr()), (*eap).arg);
         }
 
-        if !redir_fd.is_null() || redir_reg != 0 || redir_vname {
+        if has_redir_fd() || redir_reg != 0 || redir_vname {
             redir_off = false;
         }
     }
@@ -11630,10 +11634,7 @@ unsafe fn ex_redrawtabline(_eap: *mut exarg_T) {
 
 unsafe fn close_redir() {
     unsafe {
-        if !redir_fd.is_null() {
-            fclose(redir_fd);
-            redir_fd = ptr::null_mut();
-        }
+        redir_fd = None;
         redir_reg = 0;
         if redir_vname {
             var_redir_stop();
@@ -12289,13 +12290,19 @@ pub unsafe fn eval_vars(
                 }
                 SPEC_AFILE => {
                     use_shellslash = !autocmd_fname_full;
-                    if !autocmd_fname.is_null() && !autocmd_fname_full {
+                    if !autocmd_fname_full
+                        && let Some(ref cur_fname) = *(&raw const autocmd_fname)
+                    {
                         autocmd_fname_full = true;
-                        if let Some(full) = FullName_save(autocmd_fname, false) {
-                            xstrlcpy(autocmd_fname, full.as_ptr(), MAXPATHL);
+                        if let Some(full) = FullName_save(cur_fname.as_ptr(), false) {
+                            autocmd_fname = Some(full);
                         }
                     }
-                    result = autocmd_fname;
+                    result = (&raw const autocmd_fname)
+                        .as_ref()
+                        .unwrap()
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                     if result.is_null() {
                         *errormsg =
                             gettext(e_no_autocommand_file_name_to_substitute_for_afile.as_ptr());
@@ -12313,7 +12320,11 @@ pub unsafe fn eval_vars(
                     result = strbuf.as_mut_ptr();
                 }
                 SPEC_AMATCH => {
-                    result = autocmd_match;
+                    result = (&raw const autocmd_match)
+                        .as_ref()
+                        .unwrap()
+                        .as_ref()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                     if result.is_null() {
                         *errormsg =
                             gettext(e_no_autocommand_match_name_to_substitute_for_amatch.as_ptr());

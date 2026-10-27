@@ -2421,8 +2421,8 @@ pub unsafe fn highlight_changed() {
         highlight_attr[HLF_NONE] = 0;
 
         for hlf in 1..HLF_COUNT {
-            let name = hlf_names[hlf];
-            let id = syn_check_group(name, CStr::from_ptr(name).to_bytes().len());
+            let name_cstr = hlf_names[hlf].unwrap();
+            let id = syn_check_group(name_cstr.as_ptr(), name_cstr.to_bytes().len());
             if id == 0 {
                 std::process::abort();
             }
@@ -2445,7 +2445,7 @@ pub unsafe fn highlight_changed() {
                     msg_grid.blending = attrs.hl_blend > -1;
                 }
                 ui_call_hl_group_set(
-                    cstr_as_string(hlf_names[hlf]),
+                    cstr_as_string(name_cstr.as_ptr()),
                     Integer::from(highlight_attr[hlf]),
                 );
                 highlight_attr_last[hlf] = highlight_attr[hlf];

@@ -7163,15 +7163,15 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         }
 
         let mut save_current_sctx = sctx_T::new();
-        let mut save_autocmd_fname: *mut c_char = ptr::null_mut();
-        let mut save_autocmd_match: *mut c_char = ptr::null_mut();
+        let mut save_autocmd_fname: Option<std::ffi::CString> = None;
+        let mut save_autocmd_match: Option<std::ffi::CString> = None;
         let mut save_autocmd_fname_full = false;
         let mut save_autocmd_bufnr: c_int = 0;
 
         if l_provider_call_nesting != 0 {
             save_current_sctx = current_sctx;
-            save_autocmd_fname = autocmd_fname;
-            save_autocmd_match = autocmd_match;
+            save_autocmd_fname = (&raw mut autocmd_fname).as_mut().unwrap().take();
+            save_autocmd_match = (&raw mut autocmd_match).as_mut().unwrap().take();
             save_autocmd_fname_full = autocmd_fname_full;
             save_autocmd_bufnr = autocmd_bufnr;
             save_funccal();
@@ -7184,8 +7184,14 @@ pub unsafe fn f_rpcrequest(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
                     .unwrap()
                     .clone(),
             );
-            autocmd_fname = provider_caller_scope.autocmd_fname;
-            autocmd_match = provider_caller_scope.autocmd_match;
+            autocmd_fname = (&raw const provider_caller_scope.autocmd_fname)
+                .as_ref()
+                .unwrap()
+                .clone();
+            autocmd_match = (&raw const provider_caller_scope.autocmd_match)
+                .as_ref()
+                .unwrap()
+                .clone();
             autocmd_fname_full = provider_caller_scope.autocmd_fname_full;
             autocmd_bufnr = provider_caller_scope.autocmd_bufnr;
             set_current_funccal(provider_caller_scope.funccalp);

@@ -22,7 +22,6 @@ use crate::event::multiqueue::MultiQueue;
 use crate::ex_eval::{except_T, msglist_T};
 use crate::ex_getln::{disptick_T, hlf_T};
 use crate::extmark::TriState;
-use crate::fileio::FILE;
 use crate::grid::{GridView, ScreenGrid, sattr_T, schar_T};
 use crate::lua::converter::nlua_ref_state_t;
 use crate::mapping::typebuf_T;
@@ -154,8 +153,8 @@ pub static mut provider_caller_scope: caller_scope = caller_scope {
         es_type: 0,
         es_info: crate::profile::EStackInfo::None,
     },
-    autocmd_fname: ptr::null_mut(),
-    autocmd_match: ptr::null_mut(),
+    autocmd_fname: None,
+    autocmd_match: None,
     autocmd_fname_full: false,
     autocmd_bufnr: 0,
     funccalp: ptr::null_mut(),
@@ -338,7 +337,7 @@ pub static mut skip_redraw: bool = false;
 pub static mut do_redraw: bool = false;
 pub static mut must_redraw_pum: bool = false;
 pub static mut need_highlight_changed: bool = true;
-pub static mut scriptout: *mut FILE = ptr::null_mut();
+pub static mut scriptout: Option<crate::os::fs::CFile> = None;
 pub static mut got_int: bool = false;
 pub static mut bangredo: bool = false;
 pub static mut reg_do_extmatch: c_int = 0;
@@ -359,10 +358,10 @@ pub static mut postponed_split_tab: c_int = 0;
 pub static mut g_do_tagpreview: c_int = 0;
 pub static mut g_tag_at_cursor: bool = false;
 pub static mut replace_offset: c_int = 0;
-pub static mut escape_chars: *const c_char = c" \t\\\"|".as_ptr();
+pub const escape_chars: &std::ffi::CStr = c" \t\\\"|";
 pub static mut keep_help_flag: bool = false;
 pub static mut redir_off: bool = false;
-pub static mut redir_fd: *mut FILE = ptr::null_mut();
+pub static mut redir_fd: Option<crate::os::fs::CFile> = None;
 pub static mut redir_reg: c_int = 0;
 pub static mut redir_vname: bool = false;
 pub static mut capture_ga: *mut Vec<c_char> = ptr::null_mut();
@@ -371,7 +370,7 @@ pub static mut save_p_ls: c_int = -1;
 pub static mut save_p_wmh: c_int = -1;
 pub static mut wild_menu_showing: c_int = 0;
 pub static mut globaldir: Option<std::ffi::CString> = None;
-pub static mut last_chdir_reason: *mut c_char = ptr::null_mut();
+pub static mut last_chdir_reason: Option<&'static std::ffi::CStr> = None;
 pub static mut km_stopsel: bool = false;
 pub static mut km_startsel: bool = false;
 pub static mut cmdwin_type: c_int = 0;
@@ -387,7 +386,22 @@ pub static mut virtual_op: TriState = -1;
 #[unsafe(no_mangle)]
 pub static mut display_tick: disptick_T = 0;
 pub static mut spell_redraw_lnum: linenr_T = 0;
-pub static mut time_fd: *mut FILE = ptr::null_mut();
+pub static mut time_fd: Option<crate::os::fs::CFile> = None;
+
+#[inline]
+pub fn has_time_fd() -> bool {
+    unsafe { (*(&raw const time_fd)).is_some() }
+}
+
+#[inline]
+pub fn has_redir_fd() -> bool {
+    unsafe { (*(&raw const redir_fd)).is_some() }
+}
+
+#[inline]
+pub fn has_scriptout() -> bool {
+    unsafe { (*(&raw const scriptout)).is_some() }
+}
 pub static mut vim_ignored: c_int = 0;
 pub static mut embedded_mode: bool = false;
 pub static mut headless_mode: bool = false;
@@ -428,17 +442,17 @@ pub static mut window_handles: std::collections::BTreeMap<c_int, *mut win_T> =
     std::collections::BTreeMap::new();
 pub static mut tabpage_handles: std::collections::BTreeMap<c_int, *mut tabpage_T> =
     std::collections::BTreeMap::new();
-pub static mut ui_ext_names: [*const c_char; 10] = [
-    c"ext_cmdline".as_ptr(),
-    c"ext_popupmenu".as_ptr(),
-    c"ext_tabline".as_ptr(),
-    c"ext_wildmenu".as_ptr(),
-    c"ext_messages".as_ptr(),
-    c"ext_linegrid".as_ptr(),
-    c"ext_multigrid".as_ptr(),
-    c"ext_hlstate".as_ptr(),
-    c"ext_termcolors".as_ptr(),
-    c"_debug_float".as_ptr(),
+pub const ui_ext_names: [&std::ffi::CStr; 10] = [
+    c"ext_cmdline",
+    c"ext_popupmenu",
+    c"ext_tabline",
+    c"ext_wildmenu",
+    c"ext_messages",
+    c"ext_linegrid",
+    c"ext_multigrid",
+    c"ext_hlstate",
+    c"ext_termcolors",
+    c"_debug_float",
 ];
 pub static mut last_cursormoved_win: *mut win_T = ptr::null_mut();
 pub static mut last_cursormoved: pos_T = pos_T {
@@ -456,31 +470,31 @@ pub static mut au_new_curbuf: bufref_T = bufref_T {
 };
 pub static mut au_pending_free_buf: Vec<Box<buf_T>> = Vec::new();
 pub static mut au_pending_free_win: Vec<Box<win_T>> = Vec::new();
-pub static mut autocmd_fname: *mut c_char = ptr::null_mut();
+pub static mut autocmd_fname: Option<std::ffi::CString> = None;
 pub static mut autocmd_fname_full: bool = false;
 pub static mut autocmd_bufnr: c_int = 0;
-pub static mut autocmd_match: *mut c_char = ptr::null_mut();
+pub static mut autocmd_match: Option<std::ffi::CString> = None;
 pub static mut did_cursorhold: bool = true;
 pub static mut deferred_events: *mut MultiQueue = ptr::null_mut();
-pub static mut msg_loclist: *mut c_char = c"[Location List]".as_ptr().cast_mut();
-pub static mut msg_qflist: *mut c_char = c"[Quickfix List]".as_ptr().cast_mut();
+pub const msg_loclist: &std::ffi::CStr = c"[Location List]";
+pub const msg_qflist: &std::ffi::CStr = c"[Quickfix List]";
 pub static mut channels: std::collections::BTreeMap<u64, *mut Channel> =
     std::collections::BTreeMap::new();
 pub static mut on_print: Callback = Callback::NONE;
 pub static mut ctx_win_vec: Vec<CtxWin> = Vec::new();
-pub static mut virt_text_pos_str: [*const c_char; 6] = [
-    c"eol".as_ptr(),
-    c"eol_right_align".as_ptr(),
-    c"inline".as_ptr(),
-    c"overlay".as_ptr(),
-    c"right_align".as_ptr(),
-    c"win_col".as_ptr(),
+pub const virt_text_pos_str: [&std::ffi::CStr; 6] = [
+    c"eol",
+    c"eol_right_align",
+    c"inline",
+    c"overlay",
+    c"right_align",
+    c"win_col",
 ];
-pub static mut hl_mode_str: [*const c_char; 4] = [
-    c"".as_ptr(),
-    c"replace".as_ptr(),
-    c"combine".as_ptr(),
-    c"blend".as_ptr(),
+pub const hl_mode_str: [&std::ffi::CStr; 4] = [
+    c"",
+    c"replace",
+    c"combine",
+    c"blend",
 ];
 pub static mut decor_state: DecorState = DecorState::new();
 pub static mut decor_items: Vec<DecorSignHighlight> = Vec::new();
@@ -525,84 +539,92 @@ pub static mut resizing_screen: bool = false;
 pub static mut linebuf_char: Vec<schar_T> = Vec::new();
 pub static mut linebuf_attr: Vec<sattr_T> = Vec::new();
 pub static mut linebuf_vcol: Vec<colnr_T> = Vec::new();
-pub static mut hlf_names: [*const c_char; HLF_COUNT] = [
-    ptr::null(),
-    c"SpecialKey".as_ptr(),
-    c"EndOfBuffer".as_ptr(),
-    c"TermCursor".as_ptr(),
-    c"NonText".as_ptr(),
-    c"Directory".as_ptr(),
-    c"ErrorMsg".as_ptr(),
-    c"IncSearch".as_ptr(),
-    c"Search".as_ptr(),
-    c"CurSearch".as_ptr(),
-    c"MoreMsg".as_ptr(),
-    c"ModeMsg".as_ptr(),
-    c"LineNr".as_ptr(),
-    c"LineNrAbove".as_ptr(),
-    c"LineNrBelow".as_ptr(),
-    c"CursorLineNr".as_ptr(),
-    c"CursorLineSign".as_ptr(),
-    c"CursorLineFold".as_ptr(),
-    c"Question".as_ptr(),
-    c"StatusLine".as_ptr(),
-    c"StatusLineNC".as_ptr(),
-    c"WinSeparator".as_ptr(),
-    c"VertSplit".as_ptr(),
-    c"Title".as_ptr(),
-    c"Visual".as_ptr(),
-    c"VisualNC".as_ptr(),
-    c"WarningMsg".as_ptr(),
-    c"WildMenu".as_ptr(),
-    c"Folded".as_ptr(),
-    c"FoldColumn".as_ptr(),
-    c"DiffAdd".as_ptr(),
-    c"DiffChange".as_ptr(),
-    c"DiffDelete".as_ptr(),
-    c"DiffText".as_ptr(),
-    c"DiffTextAdd".as_ptr(),
-    c"SignColumn".as_ptr(),
-    c"Conceal".as_ptr(),
-    c"SpellBad".as_ptr(),
-    c"SpellCap".as_ptr(),
-    c"SpellRare".as_ptr(),
-    c"SpellLocal".as_ptr(),
-    c"Pmenu".as_ptr(),
-    c"PmenuSel".as_ptr(),
-    c"PmenuMatch".as_ptr(),
-    c"PmenuMatchSel".as_ptr(),
-    c"PmenuKind".as_ptr(),
-    c"PmenuKindSel".as_ptr(),
-    c"PmenuExtra".as_ptr(),
-    c"PmenuExtraSel".as_ptr(),
-    c"PmenuSbar".as_ptr(),
-    c"PmenuThumb".as_ptr(),
-    c"PmenuBorder".as_ptr(),
-    c"TabLine".as_ptr(),
-    c"TabLineSel".as_ptr(),
-    c"TabLineFill".as_ptr(),
-    c"CursorColumn".as_ptr(),
-    c"CursorLine".as_ptr(),
-    c"ColorColumn".as_ptr(),
-    c"QuickFixLine".as_ptr(),
-    c"Whitespace".as_ptr(),
-    c"NormalNC".as_ptr(),
-    c"MsgSeparator".as_ptr(),
-    c"NormalFloat".as_ptr(),
-    c"MsgArea".as_ptr(),
-    c"FloatBorder".as_ptr(),
-    c"WinBar".as_ptr(),
-    c"WinBarNC".as_ptr(),
-    c"Cursor".as_ptr(),
-    c"FloatTitle".as_ptr(),
-    c"FloatFooter".as_ptr(),
-    c"StatusLineTerm".as_ptr(),
-    c"StatusLineTermNC".as_ptr(),
-    c"StderrMsg".as_ptr(),
-    c"StdoutMsg".as_ptr(),
-    c"OkMsg".as_ptr(),
-    c"PreInsert".as_ptr(),
+pub const hlf_names: [Option<&std::ffi::CStr>; HLF_COUNT] = [
+    None,
+    Some(c"SpecialKey"),
+    Some(c"EndOfBuffer"),
+    Some(c"TermCursor"),
+    Some(c"NonText"),
+    Some(c"Directory"),
+    Some(c"ErrorMsg"),
+    Some(c"IncSearch"),
+    Some(c"Search"),
+    Some(c"CurSearch"),
+    Some(c"MoreMsg"),
+    Some(c"ModeMsg"),
+    Some(c"LineNr"),
+    Some(c"LineNrAbove"),
+    Some(c"LineNrBelow"),
+    Some(c"CursorLineNr"),
+    Some(c"CursorLineSign"),
+    Some(c"CursorLineFold"),
+    Some(c"Question"),
+    Some(c"StatusLine"),
+    Some(c"StatusLineNC"),
+    Some(c"WinSeparator"),
+    Some(c"VertSplit"),
+    Some(c"Title"),
+    Some(c"Visual"),
+    Some(c"VisualNC"),
+    Some(c"WarningMsg"),
+    Some(c"WildMenu"),
+    Some(c"Folded"),
+    Some(c"FoldColumn"),
+    Some(c"DiffAdd"),
+    Some(c"DiffChange"),
+    Some(c"DiffDelete"),
+    Some(c"DiffText"),
+    Some(c"DiffTextAdd"),
+    Some(c"SignColumn"),
+    Some(c"Conceal"),
+    Some(c"SpellBad"),
+    Some(c"SpellCap"),
+    Some(c"SpellRare"),
+    Some(c"SpellLocal"),
+    Some(c"Pmenu"),
+    Some(c"PmenuSel"),
+    Some(c"PmenuMatch"),
+    Some(c"PmenuMatchSel"),
+    Some(c"PmenuKind"),
+    Some(c"PmenuKindSel"),
+    Some(c"PmenuExtra"),
+    Some(c"PmenuExtraSel"),
+    Some(c"PmenuSbar"),
+    Some(c"PmenuThumb"),
+    Some(c"PmenuBorder"),
+    Some(c"TabLine"),
+    Some(c"TabLineSel"),
+    Some(c"TabLineFill"),
+    Some(c"CursorColumn"),
+    Some(c"CursorLine"),
+    Some(c"ColorColumn"),
+    Some(c"QuickFixLine"),
+    Some(c"Whitespace"),
+    Some(c"NormalNC"),
+    Some(c"MsgSeparator"),
+    Some(c"NormalFloat"),
+    Some(c"MsgArea"),
+    Some(c"FloatBorder"),
+    Some(c"WinBar"),
+    Some(c"WinBarNC"),
+    Some(c"Cursor"),
+    Some(c"FloatTitle"),
+    Some(c"FloatFooter"),
+    Some(c"StatusLineTerm"),
+    Some(c"StatusLineTermNC"),
+    Some(c"StderrMsg"),
+    Some(c"StdoutMsg"),
+    Some(c"OkMsg"),
+    Some(c"PreInsert"),
 ];
+
+#[inline]
+pub const fn hlf_name_ptr(idx: usize) -> *const c_char {
+    match hlf_names[idx] {
+        Some(s) => s.as_ptr(),
+        None => ptr::null(),
+    }
+}
 pub static mut highlight_attr: [c_int; HLF_COUNT] = [0; HLF_COUNT];
 pub static mut highlight_attr_last: [c_int; HLF_COUNT] = [0; HLF_COUNT];
 pub static mut highlight_user: [c_int; 9] = [0; 9];
@@ -663,11 +685,11 @@ pub static mut ui_client_exit_status: c_int = 0;
 pub static mut ui_client_attached: bool = false;
 pub static mut ui_client_forward_stdin: bool = false;
 pub static mut tabpage_move_disallowed: c_int = 0;
-pub static mut float_anchor_str: [*const c_char; 4] = [
-    c"NW".as_ptr(),
-    c"NE".as_ptr(),
-    c"SW".as_ptr(),
-    c"SE".as_ptr(),
+pub const float_anchor_str: [&std::ffi::CStr; 4] = [
+    c"NW",
+    c"NE",
+    c"SW",
+    c"SE",
 ];
 
 #[cfg(test)]
