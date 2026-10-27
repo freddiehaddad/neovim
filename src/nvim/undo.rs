@@ -33,8 +33,8 @@ use crate::extmark::{
 #[cfg(unix)]
 use crate::fileio::getuid;
 use crate::fileio::{
-    EOF, FILE, O_RDONLY, fclose, fdopen, feof, fflush, fgetc, fileno, fread, fwrite, get2c, get4c,
-    get8ctime, off_T, read_eintr, vim_ftell,
+    EOF, O_RDONLY, fdopen, feof, fflush, fgetc, fileno, fread, fwrite, get2c, get4c, get8ctime,
+    off_T, read_eintr, vim_ftell,
 };
 use crate::fold::foldOpenCursor;
 use crate::globals::IOSIZE;
@@ -243,7 +243,7 @@ impl Default for UndoCheckpoint {
 
 struct bufinfo_T {
     bi_buf: *mut buf_T,
-    bi_fp: *mut FILE,
+    bi_fp: crate::os::fs::CFile,
     bi_fsize: off_T,
 }
 
@@ -709,7 +709,7 @@ unsafe fn corruption_error(mesg: *const c_char, file_name: *const c_char) {
 unsafe fn serialize_header(bi: &mut bufinfo_T, hash: *mut u8) -> bool {
     unsafe {
         let buf = bi.bi_buf;
-        let fp = bi.bi_fp;
+        let fp = bi.bi_fp.as_ptr();
 
         if fwrite(UF_START_MAGIC.as_ptr().cast(), UF_START_MAGIC_LEN, 1, fp) != 1 {
             return false;
@@ -1184,20 +1184,19 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                 }
             }
 
-            let fp = fdopen(fd, c"w".as_ptr());
-            if fp.is_null() {
+            let Some(bi_fp) = crate::os::fs::CFile::from_raw(fdopen(fd, c"w".as_ptr())) else {
                 semsg!(gettext(E_NOT_OPEN.as_ptr()), file_name);
                 os_close(fd);
                 os_remove(file_name);
                 break 'theend;
-            }
+            };
 
             u_sync(true);
 
             let mut write_ok = false;
             let mut bi = bufinfo_T {
                 bi_buf: buf,
-                bi_fp: fp,
+                bi_fp,
                 bi_fsize: 0,
             };
 
@@ -1250,12 +1249,12 @@ pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, 
                 } else {
                     p_fs != 0
                 };
-                if do_fsync && fflush(fp) == 0 && os_fsync(fd) != 0 {
+                if do_fsync && fflush(bi.bi_fp.as_ptr()) == 0 && os_fsync(fd) != 0 {
                     write_ok = false;
                 }
             }
 
-            fclose(fp);
+            drop(bi);
             if !write_ok {
                 semsg!(gettext(E_WRITE_ERROR_IN_UNDO_FILE_STR.as_ptr()), file_name);
             }
@@ -1336,10 +1335,10 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
             verbose_leave();
         }
 
-        let fp = os_fopen(file_name, c"r".as_ptr());
+        let fp_opt = crate::os::fs::CFile::from_raw(os_fopen(file_name, c"r".as_ptr()));
         'theend: {
             'error: {
-                if fp.is_null() {
+                let Some(bi_fp) = fp_opt else {
                     if !name.is_null() || p_verbose > 0 {
                         semsg!(
                             gettext(c"E822: Cannot open undo file for reading: %s".as_ptr()),
@@ -1347,7 +1346,8 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                         );
                     }
                     break 'error;
-                }
+                };
+                let fp = bi_fp.as_ptr();
 
                 let mut file_info = FileInfo::new();
                 let fsize = if os_fileinfo_fd(fileno(fp), &raw mut file_info) {
@@ -1357,7 +1357,7 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
                 };
                 let mut bi = bufinfo_T {
                     bi_buf: curbuf,
-                    bi_fp: fp,
+                    bi_fp,
                     bi_fsize: fsize,
                 };
 
@@ -1565,15 +1565,11 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
             drop(line_ptr);
             drop(uhp_table);
         }
-
-        if !fp.is_null() {
-            fclose(fp);
-        }
     }
 }
 
 unsafe fn undo_write(bi: &mut bufinfo_T, ptr: *mut u8, len: usize) -> bool {
-    unsafe { fwrite(ptr.cast(), len, 1, bi.bi_fp) == 1 }
+    unsafe { fwrite(ptr.cast(), len, 1, bi.bi_fp.as_ptr()) == 1 }
 }
 
 unsafe fn undo_write_bytes(bi: &mut bufinfo_T, nr: u64, len: usize) -> bool {
@@ -1603,7 +1599,7 @@ unsafe fn put_header_ptr(bi: &mut bufinfo_T, uhp: Option<usize>) {
 }
 
 unsafe fn undo_read_4c(bi: &mut bufinfo_T) -> c_int {
-    unsafe { get4c(bi.bi_fp) }
+    unsafe { get4c(bi.bi_fp.as_ptr()) }
 }
 
 unsafe fn undo_read_len(
@@ -1613,10 +1609,11 @@ unsafe fn undo_read_len(
 ) -> c_int {
     unsafe {
         let len = undo_read_4c(bi);
-        let pos = vim_ftell(bi.bi_fp);
+        let fp = bi.bi_fp.as_ptr();
+        let pos = vim_ftell(fp);
         if len < 0 || (bi.bi_fsize > 0 && (pos < 0 || (len as off_T) > bi.bi_fsize - pos)) {
             corruption_error(
-                if feof(bi.bi_fp) != 0 {
+                if feof(fp) != 0 {
                     c"truncated".as_ptr()
                 } else {
                     what
@@ -1630,20 +1627,20 @@ unsafe fn undo_read_len(
 }
 
 unsafe fn undo_read_2c(bi: &mut bufinfo_T) -> c_int {
-    unsafe { get2c(bi.bi_fp) }
+    unsafe { get2c(bi.bi_fp.as_ptr()) }
 }
 
 unsafe fn undo_read_byte(bi: &mut bufinfo_T) -> c_int {
-    unsafe { fgetc(bi.bi_fp) }
+    unsafe { fgetc(bi.bi_fp.as_ptr()) }
 }
 
 unsafe fn undo_read_time(bi: &mut bufinfo_T) -> time_t {
-    unsafe { get8ctime(bi.bi_fp) }
+    unsafe { get8ctime(bi.bi_fp.as_ptr()) }
 }
 
 unsafe fn undo_read(bi: &mut bufinfo_T, buffer: *mut u8, size: usize) -> bool {
     unsafe {
-        let retval = fread(buffer.cast(), size, 1, bi.bi_fp) == 1;
+        let retval = fread(buffer.cast(), size, 1, bi.bi_fp.as_ptr()) == 1;
         if !retval {
             ptr::write_bytes(buffer, 0, size);
         }

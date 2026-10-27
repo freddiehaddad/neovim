@@ -34,7 +34,7 @@ use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_exedit, exarg_T};
 use crate::ex_eval::{
     CSTP_FINISH, PendingVal, aborting, cleanup_conditionals, cstack_T, report_make_pending,
 };
-use crate::fileio::{EINTR, FILE, O_RDONLY, fclose, fdopen, fgets};
+use crate::fileio::{EINTR, FILE, O_RDONLY, fdopen, fgets};
 #[cfg(windows)]
 use crate::fileio::{EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
 use crate::globals::IOSIZE;
@@ -229,7 +229,7 @@ impl scriptvar_T {
 }
 
 pub struct source_cookie_T {
-    fp: *mut FILE,
+    fp: Option<crate::os::fs::CFile>,
     nextline: Option<Vec<c_char>>,
     sourcing_lnum: linenr_T,
     finished: bool,
@@ -250,7 +250,7 @@ pub struct source_cookie_T {
 impl source_cookie_T {
     const fn new() -> Self {
         Self {
-            fp: ptr::null_mut(),
+            fp: None,
             nextline: None,
             sourcing_lnum: 0,
             finished: false,
@@ -271,17 +271,6 @@ impl source_cookie_T {
                 vc_fd: None,
                 vc_fail: false,
             },
-        }
-    }
-}
-
-impl Drop for source_cookie_T {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.fp.is_null() {
-                fclose(self.fp);
-                self.fp = ptr::null_mut();
-            }
         }
     }
 }
@@ -2830,9 +2819,9 @@ unsafe fn do_source_ext(
             }
 
             if !cookie.source_from_buf_or_str {
-                cookie.fp = fopen_noinh_readbin(fname_exp);
+                cookie.fp = crate::os::fs::CFile::from_raw(fopen_noinh_readbin(fname_exp));
             }
-            if cookie.fp.is_null() && check_other {
+            if cookie.fp.is_none() && check_other {
                 let p = path_tail(fname_exp);
                 if *p == b'.' as c_char || *p == b'_' as c_char {
                     let rest = CStr::from_ptr(p.add(1)).to_bytes();
@@ -2842,12 +2831,12 @@ unsafe fn do_source_ext(
                         } else {
                             b'_' as c_char
                         };
-                        cookie.fp = fopen_noinh_readbin(fname_exp);
+                        cookie.fp = crate::os::fs::CFile::from_raw(fopen_noinh_readbin(fname_exp));
                     }
                 }
             }
 
-            if cookie.fp.is_null() && !cookie.source_from_buf_or_str {
+            if cookie.fp.is_none() && !cookie.source_from_buf_or_str {
                 if p_verbose > 1 {
                     verbose_enter();
                     if sourcing_name().is_null() {
@@ -3371,7 +3360,7 @@ pub unsafe fn getsourceline(
         }
         set_sourcing_lnum((*sp).sourcing_lnum + 1);
         let mut line_vec =
-            if (*sp).finished || (!(*sp).source_from_buf_or_str && (*sp).fp.is_null()) {
+            if (*sp).finished || (!(*sp).source_from_buf_or_str && (*sp).fp.is_none()) {
                 None
             } else if let Some(next) = (*sp).nextline.take() {
                 (*sp).sourcing_lnum += 1;
@@ -3474,9 +3463,10 @@ unsafe fn get_one_sourceline(sp: *mut source_cookie_T) -> Option<Vec<c_char>> {
                 let start = buf.len();
                 buf.resize(start + 120, 0);
                 let mut eof = false;
+                let fp = (&*sp).fp.as_ref().unwrap().as_ptr();
                 loop {
                     *errno_ptr() = 0;
-                    if fgets(buf.as_mut_ptr().add(start), 120, (*sp).fp).is_null() {
+                    if fgets(buf.as_mut_ptr().add(start), 120, fp).is_null() {
                         if *errno_ptr() == EINTR {
                             continue;
                         }

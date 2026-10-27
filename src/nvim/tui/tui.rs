@@ -30,7 +30,7 @@ use crate::event::stream::stream_set_blocking;
 use crate::event::stream::{ENABLE_VIRTUAL_TERMINAL_INPUT, UV_STREAM, UV_TTY};
 use crate::event::wstream::uv_buf_t;
 use crate::file_search::NULL_STRING;
-use crate::fileio::{FILE, fclose, fopen, fwrite};
+use crate::fileio::{fopen, fwrite};
 use crate::globals::{DFLT_COLS, DFLT_ROWS, *};
 use crate::grid::{
     sattr_T, schar_T, schar_cache_clear_if_full, schar_from_ascii, schar_get, schar_get_ascii,
@@ -188,7 +188,7 @@ pub struct TUIData {
     pub modes_grapheme_clusters: bool,
     pub modes_theme_updates: bool,
     pub modes_resize_events: bool,
-    pub screenshot: *mut FILE,
+    pub screenshot: Option<crate::os::fs::CFile>,
     pub cursor_shapes: [cursorentry_T; SHAPE_IDX_COUNT],
     pub clear_attrs: HlAttrs,
     pub attrs: Vec<HlAttrs>,
@@ -255,7 +255,7 @@ impl TUIData {
             modes_grapheme_clusters: false,
             modes_theme_updates: false,
             modes_resize_events: false,
-            screenshot: ptr::null_mut(),
+            screenshot: None,
             cursor_shapes: [cursorentry_T {
                 full_name: c"",
                 shape: CursorShape::SHAPE_BLOCK,
@@ -2383,18 +2383,18 @@ pub unsafe fn tui_set_icon(_tui: *mut TUIData, _icon: NvimString) {}
 
 pub unsafe fn tui_screenshot(tui: *mut TUIData, path: NvimString) {
     unsafe {
-        let f = fopen(path.data, c"w".as_ptr());
-        if f.is_null() {
+        let Some(f) = crate::os::fs::CFile::from_raw(fopen(path.data, c"w".as_ptr())) else {
             return;
-        }
+        };
 
         flush_buf(tui, FlushBufFinish::kFlushBufFinal);
         (*tui).grid.row = 0;
         (*tui).grid.col = 0;
 
-        (*tui).screenshot = f;
+        let fp = f.as_ptr();
+        (*tui).screenshot = Some(f);
         let header = format!("{},{}\n", (*tui).grid.height, (*tui).grid.width);
-        fwrite(header.as_ptr().cast(), header.len(), 1, f);
+        fwrite(header.as_ptr().cast(), header.len(), 1, fp);
         terminfo_out(tui, kTerm_clear_screen);
         for i in 0..(*tui).grid.height {
             cursor_goto(tui, i, 0);
@@ -2409,9 +2409,7 @@ pub unsafe fn tui_screenshot(tui: *mut TUIData, path: NvimString) {
             }
         }
         flush_buf(tui, FlushBufFinish::kFlushBufFinal);
-        (*tui).screenshot = ptr::null_mut();
-
-        fclose(f);
+        (*tui).screenshot = None;
     }
 }
 
@@ -3203,9 +3201,10 @@ unsafe fn flush_buf_raw(tui: *mut TUIData, finish: FlushBufFinish, buf_to_flush:
             uv_buf_t::new(post.as_mut_ptr(), post_len),
         ];
 
-        if !(*tui).screenshot.is_null() {
+        if let Some(ref screenshot) = (*tui).screenshot {
+            let fp = screenshot.as_ptr();
             for b in &bufs {
-                fwrite(b.base.cast(), b.len as _, 1, (*tui).screenshot);
+                fwrite(b.base.cast(), b.len as _, 1, fp);
             }
         } else {
             let mut nbufs = bufs.len();

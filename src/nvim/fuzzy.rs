@@ -5,7 +5,6 @@ use crate::charset::{ascii_isalnum, ascii_iswhite, skipwhite, vim_iswordc, vim_i
 use crate::cursor::{equalpos, pos_T};
 use crate::errors::{e_invarg2, e_invargNval, e_invargval, e_listarg};
 use crate::eval::callback_call;
-use crate::eval::decode::K_LIST_LEN_MAY_KNOW;
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 use crate::eval::typval::{
     Callback, EvalFuncData, TypvalVval, VAR_UNLOCKED, VarType, callback_free, list_T, listitem_T,
@@ -60,7 +59,7 @@ struct fuzzyItem_T {
     idx: c_int,
     item: *mut listitem_T,
     score: c_int,
-    lmatchpos: *mut list_T,
+    matchpos: Vec<i64>,
     itemstr: CString,
     startpos: c_int,
 }
@@ -502,15 +501,14 @@ unsafe fn fuzzy_match_in_list(
                 )
             {
                 let itemstr_copy = CStr::from_ptr(itemstr).to_owned();
-                let mut match_positions_list: *mut list_T = std::ptr::null_mut();
+                let mut matchpos: Vec<i64> = Vec::new();
 
                 if retmatchpos {
-                    match_positions_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
                     let mut j = 0usize;
                     let mut p: *const c_char = str_ptr;
                     while *p != 0 && j < FUZZY_MATCH_MAX_LEN {
                         if !ascii_iswhite(utf_ptr2char(p)) || matchseq {
-                            tv_list_append_number(match_positions_list, matches[j] as i64);
+                            matchpos.push(matches[j] as i64);
                             j += 1;
                         }
                         p = p.add(utf_ptr2len(p) as usize);
@@ -523,7 +521,7 @@ unsafe fn fuzzy_match_in_list(
                     score,
                     startpos: matches[0] as c_int,
                     itemstr: itemstr_copy,
-                    lmatchpos: match_positions_list,
+                    matchpos,
                 });
 
                 match_count += 1;
@@ -554,10 +552,12 @@ unsafe fn fuzzy_match_in_list(
                 assert!(!pos_li.is_null() && !(*pos_li).li_tv.vval.v_list().is_null());
                 retlist = (*pos_li).li_tv.vval.v_list();
 
-                for cur in &mut items {
-                    assert!(!cur.lmatchpos.is_null());
-                    tv_list_append_list(retlist, cur.lmatchpos);
-                    cur.lmatchpos = std::ptr::null_mut();
+                for cur in &items {
+                    let match_positions_list = tv_list_alloc(cur.matchpos.len() as isize);
+                    for &pos in &cur.matchpos {
+                        tv_list_append_number(match_positions_list, pos);
+                    }
+                    tv_list_append_list(retlist, match_positions_list);
                 }
 
                 let score_li = tv_list_find(fmatchlist, -1);
@@ -567,10 +567,6 @@ unsafe fn fuzzy_match_in_list(
                     tv_list_append_number(retlist, cur.score as i64);
                 }
             }
-        }
-
-        for cur in &items {
-            assert!(cur.lmatchpos.is_null());
         }
     }
 }

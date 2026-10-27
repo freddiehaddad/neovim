@@ -30,7 +30,7 @@ use crate::ex_docmd::{
     do_cmdline_cmd, exarg_T, set_no_hlsearch,
 };
 use crate::file_search::{FINDFILE_FILE, vim_findfile, vim_findfile_init, vim_findfile_stopdir};
-use crate::fileio::{FILE, fclose, off_T, vim_fgets, vim_fseek, vim_ftell};
+use crate::fileio::{FILE, off_T, vim_fgets, vim_fseek, vim_ftell};
 use crate::fold::foldOpenCursor;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
@@ -289,7 +289,7 @@ struct findtags_state_T {
     orgpat: pat_T,
     lbuf: Vec<c_char>,
     tag_fname: Vec<c_char>,
-    fp: *mut FILE,
+    fp: Option<crate::os::fs::CFile>,
     flags: c_int,
     tag_file_sorted: c_int,
     get_searchpat: bool,
@@ -327,7 +327,7 @@ impl findtags_state_T {
             },
             lbuf: Vec::new(),
             tag_fname: Vec::new(),
-            fp: ptr::null_mut(),
+            fp: None,
             flags: 0,
             tag_file_sorted: 0,
             get_searchpat: false,
@@ -1519,6 +1519,13 @@ unsafe fn find_tagfunc_tags(
     }
 }
 
+impl findtags_state_T {
+    #[inline]
+    fn fp_ptr(&self) -> *mut FILE {
+        self.fp.as_ref().map_or(ptr::null_mut(), |f| f.as_ptr())
+    }
+}
+
 unsafe fn findtags_state_init(
     st: *mut findtags_state_T,
     pat: *mut c_char,
@@ -1528,7 +1535,7 @@ unsafe fn findtags_state_init(
     unsafe {
         let st = &mut *st;
         st.tag_fname = vec![0 as c_char; MAXPATHL + 1];
-        st.fp = ptr::null_mut();
+        st.fp = None;
         st.orgpat = pat_T {
             pat,
             len: strlen(pat) as c_int,
@@ -1690,40 +1697,41 @@ unsafe fn findtags_get_next_line(
             (*sinfo_p).curr_offset -= (lbuf_size * 2) as off_T;
             if (*sinfo_p).curr_offset < 0 {
                 (*sinfo_p).curr_offset = 0;
-                vim_fseek((*st).fp, 0, SEEK_SET);
+                vim_fseek((&*st).fp_ptr(), 0, SEEK_SET);
                 (*st).state = tagsearch_state_T::TS_STEP_FORWARD;
             }
         }
 
         let lbuf_ptr = (&mut *st).lbuf.as_mut_ptr();
         let lbuf_size = (&*st).lbuf.len() as c_int;
+        let fp = (&*st).fp_ptr();
         if (*st).state == tagsearch_state_T::TS_BINARY
             || (*st).state == tagsearch_state_T::TS_SKIP_BACK
         {
             (*sinfo_p).curr_offset_used = (*sinfo_p).curr_offset;
-            vim_ignored = vim_fseek((*st).fp, (*sinfo_p).curr_offset, SEEK_SET);
-            eof = vim_fgets(lbuf_ptr, lbuf_size, (*st).fp);
+            vim_ignored = vim_fseek(fp, (*sinfo_p).curr_offset, SEEK_SET);
+            eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
             if !eof && (*sinfo_p).curr_offset != 0 {
-                (*sinfo_p).curr_offset = vim_ftell((*st).fp);
+                (*sinfo_p).curr_offset = vim_ftell(fp);
                 if (*sinfo_p).curr_offset == (*sinfo_p).high_offset {
-                    vim_ignored = vim_fseek((*st).fp, (*sinfo_p).low_offset, SEEK_SET);
+                    vim_ignored = vim_fseek(fp, (*sinfo_p).low_offset, SEEK_SET);
                     (*sinfo_p).curr_offset = (*sinfo_p).low_offset;
                 }
-                eof = vim_fgets(lbuf_ptr, lbuf_size, (*st).fp);
+                eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
             }
             while !eof && vim_isblankline(lbuf_ptr) {
-                (*sinfo_p).curr_offset = vim_ftell((*st).fp);
-                eof = vim_fgets(lbuf_ptr, lbuf_size, (*st).fp);
+                (*sinfo_p).curr_offset = vim_ftell(fp);
+                eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
             }
             if eof {
                 (*st).state = tagsearch_state_T::TS_SKIP_BACK;
-                (*sinfo_p).match_offset = vim_ftell((*st).fp);
+                (*sinfo_p).match_offset = vim_ftell(fp);
                 (*sinfo_p).curr_offset = (*sinfo_p).curr_offset_used;
                 return tags_read_status_T::TAGS_READ_IGNORE;
             }
         } else {
             loop {
-                eof = vim_fgets(lbuf_ptr, lbuf_size, (*st).fp);
+                eof = vim_fgets(lbuf_ptr, lbuf_size, fp);
                 if eof || !vim_isblankline(lbuf_ptr) {
                     break;
                 }
@@ -1793,11 +1801,12 @@ unsafe fn findtags_start_state_handler(
         }
 
         if (*st).state == tagsearch_state_T::TS_BINARY {
-            if vim_fseek((*st).fp, 0, SEEK_END) != 0 {
+            let fp = (&*st).fp_ptr();
+            if vim_fseek(fp, 0, SEEK_END) != 0 {
                 (*st).state = tagsearch_state_T::TS_LINEAR;
             } else {
-                let filesize = vim_ftell((*st).fp);
-                vim_ignored = vim_fseek((*st).fp, 0, SEEK_SET);
+                let filesize = vim_ftell(fp);
+                vim_ignored = vim_fseek(fp, 0, SEEK_SET);
 
                 (*sinfo_p).low_offset = 0;
                 (*sinfo_p).low_char = 0;
@@ -1870,7 +1879,7 @@ unsafe fn findtags_parse_line(
                     return tagmatch_status_T::TAG_MATCH_NEXT;
                 }
                 if tagcmp < 0 {
-                    (*sinfo_p).curr_offset = vim_ftell((*st).fp);
+                    (*sinfo_p).curr_offset = vim_ftell((&*st).fp_ptr());
                     if (*sinfo_p).curr_offset < (*sinfo_p).high_offset {
                         (*sinfo_p).low_offset = (*sinfo_p).curr_offset;
                         if margs.sortic {
@@ -1903,7 +1912,7 @@ unsafe fn findtags_parse_line(
             } else if (*st).state == tagsearch_state_T::TS_STEP_FORWARD {
                 assert!(cmplen >= 0);
                 if mb_strnicmp(tagpp.tagname, (*st).orgpat.head, cmplen as usize) != 0 {
-                    return if vim_ftell((*st).fp) > (*sinfo_p).match_offset {
+                    return if vim_ftell((&*st).fp_ptr()) > (*sinfo_p).match_offset {
                         tagmatch_status_T::TAG_MATCH_STOP
                     } else {
                         tagmatch_status_T::TAG_MATCH_NEXT
@@ -2175,7 +2184,7 @@ unsafe fn findtags_get_all_tags(
                 if st_ref.state == tagsearch_state_T::TS_STEP_FORWARD
                     || st_ref.state == tagsearch_state_T::TS_LINEAR
                 {
-                    vim_ignored = vim_fseek(st_ref.fp, search_info.curr_offset, SEEK_SET);
+                    vim_ignored = vim_fseek(st_ref.fp_ptr(), search_info.curr_offset, SEEK_SET);
                 }
                 search_info.curr_offset = 0;
                 continue;
@@ -2195,7 +2204,7 @@ unsafe fn findtags_get_all_tags(
                 );
                 semsg!(
                     gettext(c"Before byte %lld".as_ptr()),
-                    vim_ftell((*st).fp) as i64,
+                    vim_ftell((&*st).fp_ptr()) as i64,
                 );
                 (*st).stop_searching = true;
                 return;
@@ -2214,7 +2223,7 @@ unsafe fn findtags_in_file(st: *mut findtags_state_T, _flags: c_int, buf_ffname:
 
         (*st).vimconv.vc_type = CONV_NONE;
         (*st).tag_file_sorted = NUL as c_int;
-        (*st).fp = ptr::null_mut();
+        (*st).fp = None;
         findtags_matchargs_init(&mut margs, (*st).flags);
 
         if (*curbuf).b_help && !findtags_in_help_init(st) {
@@ -2222,8 +2231,8 @@ unsafe fn findtags_in_file(st: *mut findtags_state_T, _flags: c_int, buf_ffname:
         }
 
         let tag_fname_ptr = (&*st).tag_fname.as_ptr();
-        (*st).fp = os_fopen(tag_fname_ptr, c"r".as_ptr());
-        if (*st).fp.is_null() {
+        (*st).fp = crate::os::fs::CFile::from_raw(os_fopen(tag_fname_ptr, c"r".as_ptr()));
+        if (&*st).fp.is_none() {
             return;
         }
 
@@ -2241,10 +2250,7 @@ unsafe fn findtags_in_file(st: *mut findtags_state_T, _flags: c_int, buf_ffname:
 
         findtags_get_all_tags(st, &mut margs, buf_ffname);
 
-        if !(*st).fp.is_null() {
-            fclose((*st).fp);
-            (*st).fp = ptr::null_mut();
-        }
+        (*st).fp = None;
         if (*st).vimconv.vc_type != CONV_NONE {
             convert_setup(&mut (*st).vimconv, ptr::null_mut(), ptr::null_mut());
         }

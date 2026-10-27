@@ -784,6 +784,28 @@ pub unsafe fn os_open(path: *const c_char, flags: c_int, mode: c_int) -> c_int {
     }
 }
 
+pub struct CFile(std::ptr::NonNull<crate::fileio::FILE>);
+
+impl CFile {
+    #[inline]
+    pub unsafe fn from_raw(fp: *mut crate::fileio::FILE) -> Option<Self> {
+        std::ptr::NonNull::new(fp).map(Self)
+    }
+
+    #[inline]
+    pub fn as_ptr(&self) -> *mut crate::fileio::FILE {
+        self.0.as_ptr()
+    }
+}
+
+impl Drop for CFile {
+    fn drop(&mut self) {
+        unsafe {
+            crate::fileio::fclose(self.0.as_ptr());
+        }
+    }
+}
+
 /// Compatibility wrapper conforming to `fopen(3)`.
 pub unsafe fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut crate::fileio::FILE {
     unsafe {
