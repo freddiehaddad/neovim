@@ -14,7 +14,7 @@ use crate::event::multiqueue::{
     Event, multiqueue_empty, multiqueue_free, multiqueue_new_child, multiqueue_put_event,
 };
 use crate::event::proc::{LibuvProc, Proc, proc_spawn, proc_stop, proc_wait};
-use crate::event::rstream::{RStream, rstream_init, rstream_start, stream_read_cb};
+use crate::event::rstream::{RStream, rstream_init, rstream_start};
 use crate::event::stream::{Stream, StreamCbData, stream_may_close};
 use crate::event::wstream::{
     WBufferFinalizer, wstream_init, wstream_new_buffer, wstream_set_write_cb, wstream_write,
@@ -827,13 +827,13 @@ unsafe fn do_os_system(
         let has_input = !input.is_null() && len > 0;
 
         let mut buf: Vec<c_char> = Vec::new();
-        let mut data_cb: stream_read_cb = Some(system_data_cb);
-
-        if forward_output {
-            data_cb = Some(out_data_cb);
+        let cb_data = if forward_output {
+            StreamCbData::ShellOut
         } else if output.is_none() {
-            data_cb = None;
-        }
+            StreamCbData::None
+        } else {
+            StreamCbData::ShellBuf(&raw mut buf)
+        };
 
         let mut prog = [0 as c_char; MAXPATHL];
         xstrlcpy(prog.as_mut_ptr(), argv[0].as_ptr(), MAXPATHL);
@@ -874,9 +874,9 @@ unsafe fn do_os_system(
                 wstream_init(s_in, 0);
             }
             rstream_init(r_out);
-            rstream_start(r_out, data_cb, StreamCbData::Buf(&raw mut buf));
+            rstream_start(r_out, cb_data);
             rstream_init(r_err);
-            rstream_start(r_err, data_cb, StreamCbData::Buf(&raw mut buf));
+            rstream_start(r_err, cb_data);
 
             if has_input {
                 let input_buffer =
@@ -929,16 +929,15 @@ unsafe fn do_os_system(
     }
 }
 
-unsafe fn system_data_cb(
+pub(crate) unsafe fn system_data_cb(
     _stream: *mut RStream,
     buf: *const c_char,
     count: usize,
-    data: StreamCbData,
+    dbuf: *mut Vec<c_char>,
     _eof: bool,
 ) -> usize {
     unsafe {
         if !buf.is_null() && count > 0 {
-            let dbuf = data.as_buf();
             (*dbuf).extend_from_slice(std::slice::from_raw_parts(buf, count));
         }
         count
@@ -1091,11 +1090,10 @@ unsafe fn out_data_append_to_screen(
     }
 }
 
-unsafe fn out_data_cb(
+pub(crate) unsafe fn out_data_cb(
     stream: *mut RStream,
     ptr_data: *const c_char,
     mut count: usize,
-    _data: StreamCbData,
     eof: bool,
 ) -> usize {
     unsafe {

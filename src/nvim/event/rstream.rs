@@ -16,16 +16,6 @@ use crate::os::fs::{UV_ENOBUFS, UV_EOF};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-pub type stream_read_cb = Option<
-    unsafe fn(
-        stream: *mut RStream,
-        read_data: *const c_char,
-        count: usize,
-        data: StreamCbData,
-        eof: bool,
-    ) -> usize,
->;
-
 #[repr(C)]
 pub struct RStream {
     pub s: Stream,
@@ -37,7 +27,6 @@ pub struct RStream {
     pub read_pos: *mut c_char,
     pub write_pos: *mut c_char,
     pub uvbuf: uv_buf_t,
-    pub read_cb: stream_read_cb,
     pub num_bytes: usize,
 }
 
@@ -62,7 +51,6 @@ impl RStream {
                 #[cfg(not(windows))]
                 len: 0,
             },
-            read_cb: None,
             num_bytes: 0,
         }
     }
@@ -84,7 +72,6 @@ pub unsafe fn rstream_init_fd(loop_: *mut Loop, stream: *mut RStream, fd: c_int)
 
 pub unsafe fn rstream_init(stream: *mut RStream) {
     unsafe {
-        (*stream).read_cb = None;
         (*stream).num_bytes = 0;
         (*stream).buffer = alloc_block();
         (*stream).read_pos = (*stream).buffer;
@@ -103,9 +90,8 @@ pub unsafe fn rstream_start_inner(stream: *mut RStream) {
     }
 }
 
-pub unsafe fn rstream_start(stream: *mut RStream, cb: stream_read_cb, data: StreamCbData) {
+pub unsafe fn rstream_start(stream: *mut RStream, data: StreamCbData) {
     unsafe {
-        (*stream).read_cb = cb;
         (*stream).s.cb_data = data;
         (*stream).want_read = true;
         if !(*stream).paused_full {
@@ -211,15 +197,13 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
 pub unsafe fn read_event(stream: *mut RStream) {
     unsafe {
         (*stream).pending_read = false;
-        if let Some(read_cb) = (*stream).read_cb {
-            let available = rstream_available(stream);
-            let consumed = read_cb(
-                stream,
-                (*stream).read_pos.cast_const(),
-                available,
-                (*stream).s.cb_data,
-                (*stream).did_eof,
-            );
+        let available = rstream_available(stream);
+        if let Some(consumed) = (*stream).s.cb_data.call_read_cb(
+            stream,
+            (*stream).read_pos.cast_const(),
+            available,
+            (*stream).did_eof,
+        ) {
             assert!(consumed <= available);
             rstream_consume(stream, consumed);
         }
@@ -248,7 +232,7 @@ pub unsafe fn rstream_consume(stream: *mut RStream, consumed: usize) {
         }
 
         if (*stream).want_read && (*stream).paused_full && rstream_space(stream) != 0 {
-            assert!((*stream).read_cb.is_some());
+            assert!((*stream).s.cb_data.has_read_cb());
             (*stream).paused_full = false;
             rstream_start_inner(stream);
         }

@@ -594,21 +594,13 @@ pub unsafe fn channel_job_start(
             rpc_start(chan);
         } else if has_out {
             callback_reader_start(&raw mut (*ct).on_data, c"stdout");
-            rstream_start(
-                &raw mut (*proc_ptr).out,
-                Some(on_channel_data),
-                StreamCbData::Channel(chan),
-            );
+            rstream_start(&raw mut (*proc_ptr).out, StreamCbData::ChannelData(chan));
         }
 
         if has_err {
             callback_reader_start(&raw mut (*ct).on_stderr, c"stderr");
             rstream_init(&raw mut (*proc_ptr).err);
-            rstream_start(
-                &raw mut (*proc_ptr).err,
-                Some(on_job_stderr),
-                StreamCbData::Channel(chan),
-            );
+            rstream_start(&raw mut (*proc_ptr).err, StreamCbData::ChannelStderr(chan));
         }
 
         *status_out = (*cp).id as varnumber_T;
@@ -658,11 +650,7 @@ pub unsafe fn channel_connect(
         } else {
             (*channel).on_data = on_output;
             callback_reader_start(&raw mut (*channel).on_data, c"data");
-            rstream_start(
-                socket_stream,
-                Some(on_channel_data),
-                StreamCbData::Channel(channel),
-            );
+            rstream_start(socket_stream, StreamCbData::ChannelData(channel));
         }
 
         channel_create_event(channel, address);
@@ -739,11 +727,7 @@ pub unsafe fn channel_from_stdio(
         } else {
             (*channel).on_data = on_output;
             callback_reader_start(&raw mut (*channel).on_data, c"stdin");
-            rstream_start(
-                stdio_in,
-                Some(on_channel_data),
-                StreamCbData::Channel(channel),
-            );
+            rstream_start(stdio_in, StreamCbData::ChannelData(channel));
         }
 
         (*channel).id
@@ -822,11 +806,10 @@ pub unsafe fn on_channel_data(
     stream: *mut RStream,
     buf: *const c_char,
     count: usize,
-    data: StreamCbData,
+    chan: *mut Channel,
     eof: bool,
 ) -> usize {
     unsafe {
-        let chan = data.as_channel();
         let ct = chan;
         on_channel_output(stream, chan, buf, count, eof, &raw mut (*ct).on_data)
     }
@@ -836,11 +819,10 @@ pub unsafe fn on_job_stderr(
     stream: *mut RStream,
     buf: *const c_char,
     count: usize,
-    data: StreamCbData,
+    chan: *mut Channel,
     eof: bool,
 ) -> usize {
     unsafe {
-        let chan = data.as_channel();
         let ct = chan;
         on_channel_output(stream, chan, buf, count, eof, &raw mut (*ct).on_stderr)
     }

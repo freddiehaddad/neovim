@@ -280,7 +280,7 @@ pub unsafe fn rpc_start(channel: *mut Channel) {
 
         if (*cp).streamtype != kChannelStreamInternal {
             let out = channel_outstream(channel);
-            rstream_start(out, Some(receive_msgpack), StreamCbData::Channel(channel));
+            rstream_start(out, StreamCbData::ChannelRpc(channel));
         }
     }
 }
@@ -439,15 +439,14 @@ pub unsafe fn rpc_send_call(
     }
 }
 
-unsafe fn receive_msgpack(
+pub(crate) unsafe fn receive_msgpack(
     _stream: *mut RStream,
     rbuf: *const c_char,
     c: usize,
-    data: StreamCbData,
+    channel: *mut Channel,
     eof: bool,
 ) -> usize {
     unsafe {
-        let channel = data.as_channel();
         channel_incref(channel);
 
         let mut consumed: usize = 0;

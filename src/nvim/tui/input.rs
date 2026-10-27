@@ -265,7 +265,6 @@ pub unsafe fn tinput_start(input: *mut TermInput) {
     unsafe {
         rstream_start(
             &raw mut (*input).read_stream,
-            Some(tinput_read_cb),
             StreamCbData::Input(input),
         );
     }
@@ -1014,15 +1013,14 @@ unsafe fn handle_raw_buffer(
     }
 }
 
-unsafe fn tinput_read_cb(
+pub(crate) unsafe fn tinput_read_cb(
     _stream: *mut RStream,
     buf: *const c_char,
     count_: usize,
-    data: StreamCbData,
+    input: *mut TermInput,
     eof: bool,
 ) -> usize {
     unsafe {
-        let input = data.as_input();
         let p = input;
 
         let consumed = handle_raw_buffer(input, false, buf, count_);

@@ -48,7 +48,8 @@ use crate::event::multiqueue::{
     multiqueue_new_child, multiqueue_process_events, multiqueue_put_event,
 };
 use crate::event::time::{
-    TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
+    TimeWatcher, TimeWatcherData, time_watcher_close, time_watcher_init, time_watcher_start,
+    time_watcher_stop,
 };
 use crate::ex_docmd::do_cmdline;
 use crate::globals::*;
@@ -677,7 +678,11 @@ unsafe fn on_apc(frag: VTermStringFragment, term: *mut Terminal) -> c_int {
 pub unsafe fn terminal_init() {
     unsafe {
         let timer = refresh_timer_ptr();
-        time_watcher_init((&raw mut main_loop).cast(), timer, ptr::null_mut());
+        time_watcher_init(
+            (&raw mut main_loop).cast(),
+            timer,
+            TimeWatcherData::TerminalRefresh,
+        );
         (*timer).events = multiqueue_new_child((*loop_queues((&raw mut main_loop).cast())).events);
     }
 }
@@ -687,7 +692,7 @@ pub unsafe fn terminal_teardown() {
         let timer = refresh_timer_ptr();
         time_watcher_stop(timer);
         multiqueue_free((*timer).events);
-        time_watcher_close(timer, None);
+        time_watcher_close(timer);
         let inv_ptr = &raw mut INVALIDATED_TERMINALS;
         *inv_ptr = Vec::new();
     }
@@ -2379,12 +2384,7 @@ unsafe fn invalidate_terminal(term: *mut Terminal, start_row: c_int, end_row: c_
 
         invalidate_terminal_add(term);
         if !REFRESH_PENDING {
-            time_watcher_start(
-                refresh_timer_ptr(),
-                Some(refresh_timer_cb),
-                REFRESH_DELAY,
-                0,
-            );
+            time_watcher_start(refresh_timer_ptr(), REFRESH_DELAY, 0);
             REFRESH_PENDING = true;
         }
     }
@@ -2483,7 +2483,7 @@ unsafe fn refresh_cursor(term: *mut Terminal, cursor_visible: *mut bool) {
     }
 }
 
-unsafe fn refresh_timer_cb(_watcher: *mut TimeWatcher, _data: *mut crate::eval::timer_T) {
+pub(crate) unsafe fn refresh_timer_cb() {
     unsafe {
         REFRESH_PENDING = false;
         if exiting {

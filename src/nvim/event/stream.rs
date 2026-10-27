@@ -34,8 +34,11 @@ pub type uv_tty_t = c_void;
 #[derive(Clone, Copy)]
 pub enum StreamCbData {
     None,
-    Channel(*mut crate::channel::Channel),
-    Buf(*mut Vec<std::ffi::c_char>),
+    ChannelData(*mut crate::channel::Channel),
+    ChannelStderr(*mut crate::channel::Channel),
+    ChannelRpc(*mut crate::channel::Channel),
+    ShellBuf(*mut Vec<std::ffi::c_char>),
+    ShellOut,
     Input(*mut crate::tui::input::TermInput),
 }
 
@@ -43,26 +46,37 @@ impl StreamCbData {
     pub const NONE: Self = Self::None;
 
     #[inline]
-    pub const fn as_channel(self) -> *mut crate::channel::Channel {
-        match self {
-            Self::Channel(p) => p,
-            _ => ptr::null_mut(),
-        }
+    pub const fn has_read_cb(self) -> bool {
+        !matches!(self, Self::None)
     }
 
-    #[inline]
-    pub const fn as_buf(self) -> *mut Vec<std::ffi::c_char> {
-        match self {
-            Self::Buf(p) => p,
-            _ => ptr::null_mut(),
-        }
-    }
-
-    #[inline]
-    pub const fn as_input(self) -> *mut crate::tui::input::TermInput {
-        match self {
-            Self::Input(p) => p,
-            _ => ptr::null_mut(),
+    pub unsafe fn call_read_cb(
+        self,
+        stream: *mut crate::event::rstream::RStream,
+        buf: *const std::ffi::c_char,
+        count: usize,
+        eof: bool,
+    ) -> Option<usize> {
+        unsafe {
+            match self {
+                Self::None => None,
+                Self::ChannelData(chan) => {
+                    Some(crate::channel::on_channel_data(stream, buf, count, chan, eof))
+                }
+                Self::ChannelStderr(chan) => {
+                    Some(crate::channel::on_job_stderr(stream, buf, count, chan, eof))
+                }
+                Self::ChannelRpc(chan) => Some(crate::msgpack_rpc::channel::receive_msgpack(
+                    stream, buf, count, chan, eof,
+                )),
+                Self::ShellBuf(dbuf) => Some(crate::os::shell::system_data_cb(
+                    stream, buf, count, dbuf, eof,
+                )),
+                Self::ShellOut => Some(crate::os::shell::out_data_cb(stream, buf, count, eof)),
+                Self::Input(input) => {
+                    Some(crate::tui::input::tinput_read_cb(stream, buf, count, input, eof))
+                }
+            }
         }
     }
 }

@@ -114,7 +114,8 @@ use crate::eval::executor::eexe_mod_op;
 use crate::eval::gc::{gc_first_dict, gc_first_list};
 use crate::event::multiqueue::{multiqueue_free, multiqueue_new_child};
 use crate::event::time::{
-    TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
+    TimeWatcher, TimeWatcherData, time_watcher_close, time_watcher_init, time_watcher_start,
+    time_watcher_stop,
 };
 use crate::ex_eval::{aborting, discard_current_exception};
 use crate::hashtab::{hashitem_empty, hashtab_T};
@@ -5515,7 +5516,7 @@ pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, timer: *mut timer_T) {
         tv_clear(&raw mut rettv);
 
         if !(*timer).stopped && (*timer).timeout == 0 {
-            time_watcher_start(&raw mut (*timer).watcher, Some(timer_due_cb), 0, 0);
+            time_watcher_start(&raw mut (*timer).watcher, 0, 0);
         }
         timer_decref(timer);
     }
@@ -5539,15 +5540,14 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback)
 
         {
             let main_loop_ptr = (&raw mut main_loop).cast();
-            time_watcher_init(main_loop_ptr, &raw mut (*timer).watcher, timer);
+            time_watcher_init(
+                main_loop_ptr,
+                &raw mut (*timer).watcher,
+                TimeWatcherData::EvalTimer(timer),
+            );
             (*timer).watcher.events = multiqueue_new_child((*loop_queues(main_loop_ptr)).events);
             (*timer).watcher.blockable = true;
-            time_watcher_start(
-                &raw mut (*timer).watcher,
-                Some(timer_due_cb),
-                timeout as u64,
-                timeout as u64,
-            );
+            time_watcher_start(&raw mut (*timer).watcher, timeout as u64, timeout as u64);
         }
 
         let timers_ptr = &raw mut timers;
@@ -5564,12 +5564,12 @@ pub unsafe fn timer_stop(timer: *mut timer_T) {
         (*timer).stopped = true;
         {
             time_watcher_stop(&raw mut (*timer).watcher);
-            time_watcher_close(&raw mut (*timer).watcher, Some(timer_close_cb));
+            time_watcher_close(&raw mut (*timer).watcher);
         }
     }
 }
 
-unsafe fn timer_close_cb(_tw: *mut TimeWatcher, timer: *mut timer_T) {
+pub(crate) unsafe fn timer_close_cb(_tw: *mut TimeWatcher, timer: *mut timer_T) {
     unsafe {
         let timers_ptr = &raw mut timers;
         let _ = (*timers_ptr).remove(&((*timer).timer_id as u64));

@@ -464,10 +464,11 @@ unsafe fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
             }
 
             if num_bytes == (*stream).num_bytes {
-                if let Some(read_cb) = (*stream).read_cb
-                    && !(*stream).did_eof
-                {
-                    read_cb(stream, (*stream).buffer, 0, (*stream).s.cb_data, true);
+                if !(*stream).did_eof {
+                    let _ = (*stream)
+                        .s
+                        .cb_data
+                        .call_read_cb(stream, (*stream).buffer, 0, true);
                 }
                 break;
             }

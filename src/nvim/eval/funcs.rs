@@ -83,7 +83,7 @@ use crate::eval::{
     callback_from_typval, common_job_callbacks, do_string_sub, eval_expr_to_bool, eval_expr_typval,
     eval_expr_valid_arg, eval_has_provider, eval_option, eval1, find_job, find_timer_by_nr,
     get_callback_depth, get_copyID, get_lval, kListLenMayKnow, kListLenShouldKnow, kListLenUnknown,
-    list2fpos, partial_name, save_tv_as_string, script_host_eval, string2float, timer_due_cb,
+    list2fpos, partial_name, save_tv_as_string, script_host_eval, string2float,
     timer_start, timer_stop, timer_stop_all, tv_dict_set_ret, tv_to_argv, var_item_copy, var2fpos,
 };
 #[cfg(unix)]
@@ -95,7 +95,8 @@ use crate::event::multiqueue::{
 };
 use crate::event::proc::{Proc, PtyProc, proc_stop, proc_wait};
 use crate::event::time::{
-    TimeWatcher, time_watcher_close, time_watcher_init, time_watcher_start, time_watcher_stop,
+    TimeWatcher, TimeWatcherData, time_watcher_close, time_watcher_init, time_watcher_start,
+    time_watcher_stop,
 };
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{
@@ -3685,18 +3686,12 @@ pub unsafe fn f_gettagstack(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
     }
 }
 
-unsafe fn dummy_timer_due_cb(tw: *mut TimeWatcher, _data: *mut crate::eval::timer_T) {
+pub(crate) unsafe fn dummy_timer_due_cb(tw: *mut TimeWatcher) {
     unsafe {
         if *loop_closing_ptr((&raw mut main_loop).cast()) {
             time_watcher_stop(tw);
-            time_watcher_close(tw, Some(dummy_timer_close_cb));
+            time_watcher_close(tw);
         }
-    }
-}
-
-unsafe fn dummy_timer_close_cb(tw: *mut TimeWatcher, _data: *mut crate::eval::timer_T) {
-    unsafe {
-        drop(Box::from_raw(tw));
     }
 }
 
@@ -3729,14 +3724,9 @@ pub unsafe fn f_wait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         let tw = Box::into_raw(Box::new(TimeWatcher::new()));
 
         let main_loop_ptr: *mut Loop = (&raw mut main_loop).cast();
-        time_watcher_init(main_loop_ptr, tw, ptr::null_mut());
+        time_watcher_init(main_loop_ptr, tw, TimeWatcherData::WaitDummy);
         (*tw).events = ptr::null_mut();
-        time_watcher_start(
-            tw,
-            Some(dummy_timer_due_cb),
-            interval as u64,
-            interval as u64,
-        );
+        time_watcher_start(tw, interval as u64, interval as u64);
 
         let mut argv = tv_initial_value();
         let mut exprval = tv_initial_value();
@@ -3782,7 +3772,7 @@ pub unsafe fn f_wait(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFu
         }
 
         time_watcher_stop(tw);
-        time_watcher_close(tw, Some(dummy_timer_close_cb));
+        time_watcher_close(tw);
     }
 }
 
@@ -9135,7 +9125,6 @@ pub unsafe fn f_timer_pause(argvars: *mut typval_T, _unused: *mut typval_T, _fpt
             } else if (*timer).paused && !paused {
                 time_watcher_start(
                     &raw mut (*timer).watcher,
-                    Some(timer_due_cb),
                     (*timer).timeout as u64,
                     (*timer).timeout as u64,
                 );
