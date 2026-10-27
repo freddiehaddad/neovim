@@ -463,7 +463,7 @@ impl Default for stateitem_T {
 struct syn_opt_arg_T {
     flags: c_int,
     keyword: bool,
-    sync_idx: *mut c_int,
+    sync_idx: Option<c_int>,
     has_cont_list: bool,
     cont_list: SynIdList,
     cont_in_list: SynIdList,
@@ -3752,7 +3752,7 @@ unsafe fn get_syn_options(
                 arg = skipwhite(arg.add(len));
 
                 if flags == HL_SYNC_HERE || flags == HL_SYNC_THERE {
-                    if (*opt).sync_idx.is_null() {
+                    if (*opt).sync_idx.is_none() {
                         emsg(gettext(c"E393: group[t]here not accepted here".as_ptr()));
                         return ptr::null_mut();
                     }
@@ -3767,7 +3767,7 @@ unsafe fn get_syn_options(
                     );
                     let gname = std::ffi::CString::new(gname_slice).unwrap();
                     if gname.as_bytes() == b"NONE" {
-                        *(*opt).sync_idx = NONE_IDX;
+                        (*opt).sync_idx = Some(NONE_IDX);
                     } else {
                         let syn_id = syn_name2id(gname.as_ptr());
                         let mut i = (*win_s(curwin)).b_syn_patterns.len() as c_int - 1;
@@ -3775,7 +3775,7 @@ unsafe fn get_syn_options(
                             let spp = syn_items(win_s(curwin)).offset(i as isize);
                             if (*spp).sp_syn.id as c_int == syn_id && (*spp).sp_type == SPTYPE_START
                             {
-                                *(*opt).sync_idx = i;
+                                (*opt).sync_idx = Some(i);
                                 break;
                             }
                             i -= 1;
@@ -3902,7 +3902,7 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
                 let mut syn_opt_arg = syn_opt_arg_T {
                     flags: 0,
                     keyword: true,
-                    sync_idx: ptr::null_mut(),
+                    sync_idx: None,
                     has_cont_list: false,
                     cont_list: None,
                     cont_in_list: None,
@@ -4005,7 +4005,6 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
         let arg = (*eap).arg;
         let mut group_name_end: *mut c_char = ptr::null_mut();
         let mut item = synpat_T::new();
-        let mut sync_idx: c_int = 0;
         let mut conceal_char: c_int = NUL as c_int;
 
         let mut rest = get_group_name(arg, &raw mut group_name_end);
@@ -4013,11 +4012,7 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
         let mut syn_opt_arg = syn_opt_arg_T {
             flags: 0,
             keyword: false,
-            sync_idx: if syncing != 0 {
-                &raw mut sync_idx
-            } else {
-                ptr::null_mut()
-            },
+            sync_idx: (syncing != 0).then_some(0),
             has_cont_list: true,
             cont_list: None,
             cont_in_list: None,
@@ -4055,7 +4050,7 @@ unsafe fn syn_cmd_match(eap: *mut exarg_T, syncing: c_int) {
                     item.sp_syn.id = syn_id as i16;
                     item.sp_syn.inc_tag = current_syn_inc_tag;
                     item.sp_flags = syn_opt_arg.flags;
-                    item.sp_sync_idx = sync_idx;
+                    item.sp_sync_idx = syn_opt_arg.sync_idx.unwrap_or(0);
                     item.sp_cont_list = syn_opt_arg.cont_list.take();
                     item.sp_syn.cont_in_list = syn_opt_arg.cont_in_list.take();
                     item.sp_cchar = conceal_char;
@@ -4104,7 +4099,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
         let mut syn_opt_arg = syn_opt_arg_T {
             flags: 0,
             keyword: false,
-            sync_idx: ptr::null_mut(),
+            sync_idx: None,
             has_cont_list: true,
             cont_list: None,
             cont_in_list: None,

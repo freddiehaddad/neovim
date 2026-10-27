@@ -349,7 +349,7 @@ struct ins_compl_next_state_T {
     e_cpt_copy: Vec<c_char>,
     e_cpt: *mut c_char,
     ins_buf: *mut buf_T,
-    cur_match_pos: *mut pos_T,
+    cur_match_forward: bool,
     prev_match_pos: pos_T,
     set_match_pos: bool,
     first_match_pos: pos_T,
@@ -366,7 +366,7 @@ impl ins_compl_next_state_T {
             e_cpt_copy: Vec::new(),
             e_cpt: ptr::null_mut(),
             ins_buf: ptr::null_mut(),
-            cur_match_pos: ptr::null_mut(),
+            cur_match_forward: false,
             prev_match_pos: pos_T::new(),
             set_match_pos: false,
             first_match_pos: pos_T::new(),
@@ -375,6 +375,24 @@ impl ins_compl_next_state_T {
             dict: ptr::null_mut(),
             dict_f: 0,
             func_cb: ptr::null_mut(),
+        }
+    }
+
+    #[inline]
+    fn cur_match_pos(&self) -> pos_T {
+        if self.cur_match_forward {
+            self.last_match_pos
+        } else {
+            self.first_match_pos
+        }
+    }
+
+    #[inline]
+    fn cur_match_pos_ptr(&mut self) -> *mut pos_T {
+        if self.cur_match_forward {
+            &raw mut self.last_match_pos
+        } else {
+            &raw mut self.first_match_pos
         }
     }
 }
@@ -4561,7 +4579,7 @@ unsafe fn get_next_default_completion(
             if in_fuzzy_collect {
                 found_new_match = c_int::from(search_for_fuzzy_match(
                     (*st).ins_buf,
-                    (*st).cur_match_pos.cast(),
+                    (*st).cur_match_pos_ptr(),
                     leader,
                     compl_direction,
                     start_pos.cast(),
@@ -4575,7 +4593,7 @@ unsafe fn get_next_default_completion(
             {
                 found_new_match = search_for_exact_line(
                     (*st).ins_buf,
-                    (*st).cur_match_pos,
+                    (*st).cur_match_pos_ptr(),
                     compl_direction,
                     compl_pattern_ptr(),
                 );
@@ -4583,7 +4601,7 @@ unsafe fn get_next_default_completion(
                 found_new_match = searchit(
                     ptr::null_mut(),
                     (*st).ins_buf,
-                    (*st).cur_match_pos,
+                    (*st).cur_match_pos_ptr(),
                     ptr::null_mut(),
                     compl_direction,
                     compl_pattern_ptr(),
@@ -4596,23 +4614,24 @@ unsafe fn get_next_default_completion(
                 );
             }
             msg_silent -= 1;
+            let cur_pos = (*st).cur_match_pos();
             if !compl_started || (*st).set_match_pos {
                 compl_started = true;
-                (*st).first_match_pos = *(*st).cur_match_pos;
-                (*st).last_match_pos = *(*st).cur_match_pos;
+                (*st).first_match_pos = cur_pos;
+                (*st).last_match_pos = cur_pos;
                 (*st).set_match_pos = false;
             } else if (*st).first_match_pos.lnum == (*st).last_match_pos.lnum
                 && (*st).first_match_pos.col == (*st).last_match_pos.col
             {
                 found_new_match = FAIL;
             } else if (compl_dir_forward()
-                && ((*st).prev_match_pos.lnum > (*(*st).cur_match_pos).lnum
-                    || ((*st).prev_match_pos.lnum == (*(*st).cur_match_pos).lnum
-                        && (*st).prev_match_pos.col >= (*(*st).cur_match_pos).col)))
+                && ((*st).prev_match_pos.lnum > cur_pos.lnum
+                    || ((*st).prev_match_pos.lnum == cur_pos.lnum
+                        && (*st).prev_match_pos.col >= cur_pos.col)))
                 || (!compl_dir_forward()
-                    && ((*st).prev_match_pos.lnum < (*(*st).cur_match_pos).lnum
-                        || ((*st).prev_match_pos.lnum == (*(*st).cur_match_pos).lnum
-                            && (*st).prev_match_pos.col <= (*(*st).cur_match_pos).col)))
+                    && ((*st).prev_match_pos.lnum < cur_pos.lnum
+                        || ((*st).prev_match_pos.lnum == cur_pos.lnum
+                            && (*st).prev_match_pos.col <= cur_pos.col)))
             {
                 if looped_around {
                     found_new_match = FAIL;
@@ -4620,15 +4639,15 @@ unsafe fn get_next_default_completion(
                     looped_around = true;
                 }
             }
-            (*st).prev_match_pos = *(*st).cur_match_pos;
+            (*st).prev_match_pos = cur_pos;
             if found_new_match == FAIL {
                 break;
             }
 
             if compl_status_adding()
                 && in_curbuf
-                && (*start_pos).lnum == (*(*st).cur_match_pos).lnum
-                && (*start_pos).col == (*(*st).cur_match_pos).col
+                && (*start_pos).lnum == cur_pos.lnum
+                && (*start_pos).col == cur_pos.col
             {
                 continue;
             }
@@ -4636,7 +4655,7 @@ unsafe fn get_next_default_completion(
             if !in_fuzzy_collect {
                 ptr = ins_compl_get_next_word_or_line(
                     (*st).ins_buf,
-                    (*st).cur_match_pos,
+                    (*st).cur_match_pos_ptr(),
                     &raw mut len,
                     &raw mut cont_s_ipos,
                 );
@@ -4647,7 +4666,7 @@ unsafe fn get_next_default_completion(
             }
 
             if is_nearest_active() && in_curbuf {
-                score = ((*(*st).cur_match_pos).lnum - (*curwin).w_cursor.lnum).abs();
+                score = ((*st).cur_match_pos().lnum - (*curwin).w_cursor.lnum).abs();
             }
 
             if ins_compl_add_infercase(
@@ -5050,11 +5069,7 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
         debug_assert!(!st.ins_buf.is_null());
 
         compl_old_idx = compl_curr_idx;
-        st.cur_match_pos = if compl_dir_forward() {
-            &raw mut st.last_match_pos
-        } else {
-            &raw mut st.first_match_pos
-        };
+        st.cur_match_forward = compl_dir_forward();
 
         let cpt_sources = &raw const cpt_sources_array;
         let normal_mode_strict = ctrl_x_mode_normal()

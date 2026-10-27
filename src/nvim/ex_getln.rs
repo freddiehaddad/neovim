@@ -290,7 +290,7 @@ struct CommandLineState {
     ignore_drag_release: bool,
     break_ctrl_c: bool,
     xpc: expand_T,
-    b_im_ptr: *mut OptInt,
+    b_im_use_insert: Option<bool>,
     b_im_ptr_buf: *mut buf_T,
     cmdline_type: c_int,
     event_cmdlineleavepre_triggered: bool,
@@ -325,7 +325,7 @@ impl CommandLineState {
             ignore_drag_release: false,
             break_ctrl_c: false,
             xpc: expand_T::new(),
-            b_im_ptr: ptr::null_mut(),
+            b_im_use_insert: None,
             b_im_ptr_buf: ptr::null_mut(),
             cmdline_type: 0,
             event_cmdlineleavepre_triggered: false,
@@ -1095,13 +1095,14 @@ unsafe fn command_line_enter(
                 || (*s).firstc == b'?' as c_int
                 || (*s).firstc == b'@' as c_int
             {
-                if (*curbuf).b_p_imsearch == B_IMODE_USE_INSERT {
-                    (*s).b_im_ptr = &raw mut (*curbuf).b_p_iminsert;
+                let (use_insert, im_val) = if (*curbuf).b_p_imsearch == B_IMODE_USE_INSERT {
+                    (true, (*curbuf).b_p_iminsert)
                 } else {
-                    (*s).b_im_ptr = &raw mut (*curbuf).b_p_imsearch;
-                }
+                    (false, (*curbuf).b_p_imsearch)
+                };
+                (*s).b_im_use_insert = Some(use_insert);
                 (*s).b_im_ptr_buf = curbuf;
-                if *(*s).b_im_ptr == B_IMODE_LMAP {
+                if im_val == B_IMODE_LMAP {
                     State |= MODE_LANGMAP;
                 }
             }
@@ -2173,24 +2174,30 @@ unsafe fn command_line_erase_chars(s: *mut CommandLineState) -> c_int {
 /// language `:lmap` mappings and/or Input Method.
 unsafe fn command_line_toggle_langmap(s: *mut CommandLineState) {
     unsafe {
-        let b_im_ptr = if buf_valid((*s).b_im_ptr_buf) {
-            (*s).b_im_ptr
+        let use_insert_opt = if buf_valid((*s).b_im_ptr_buf) {
+            (*s).b_im_use_insert
         } else {
-            ptr::null_mut()
+            None
         };
         if map_to_exists_mode(c"".as_ptr(), MODE_LANGMAP, false) {
             State ^= MODE_LANGMAP;
-            if !b_im_ptr.is_null() {
-                if (State & MODE_LANGMAP) != 0 {
-                    *b_im_ptr = B_IMODE_LMAP;
+            if let Some(use_insert) = use_insert_opt {
+                let val = if (State & MODE_LANGMAP) != 0 {
+                    B_IMODE_LMAP
                 } else {
-                    *b_im_ptr = B_IMODE_NONE;
+                    B_IMODE_NONE
+                };
+                let buf = (*s).b_im_ptr_buf;
+                if use_insert {
+                    (*buf).b_p_iminsert = val;
+                } else {
+                    (*buf).b_p_imsearch = val;
                 }
             }
         }
 
-        if !b_im_ptr.is_null() {
-            if b_im_ptr == &raw mut (*curbuf).b_p_iminsert {
+        if let Some(use_insert) = use_insert_opt {
+            if use_insert && ptr::eq((*s).b_im_ptr_buf, curbuf) {
                 set_iminsert_global(curbuf);
             } else {
                 set_imsearch_global(curbuf);
