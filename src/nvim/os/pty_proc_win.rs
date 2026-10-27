@@ -176,7 +176,7 @@ mod win_impl {
         }
     }
 
-    unsafe fn pty_proc_close_console(stream: *mut Stream) {
+    pub(crate) unsafe fn pty_proc_close_console(stream: *mut Stream) {
         unsafe {
             let ptyproc = (*stream).internal_data.as_proc();
             let proc_: *mut Proc = ptyproc;
@@ -354,7 +354,7 @@ mod win_impl {
                     uv_run((*hdr).loop_.cast(), UV_RUN_ONCE);
                 }
 
-                (*r_out).s.before_close_cb = Some(pty_proc_close_console);
+                (*r_out).s.close_console = true;
                 (*ptail).conpty = conpty_object.take();
                 (*ptail).proc_handle = proc_handle;
                 proc_handle = ptr::null_mut();
@@ -420,9 +420,8 @@ mod win_impl {
                 (*ptail).proc_handle = ptr::null_mut();
             }
 
-            if let Some(cb) = (*proc_t).internal_close_cb {
-                cb(proc_);
-            }
+            let _ = proc_t;
+            crate::event::proc::proc_decref(proc_);
         }
     }
 
@@ -441,7 +440,6 @@ mod win_impl {
         unsafe {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
-            let proc_t = proc_;
             let ptail = pty_proc_win_tail(ptyproc);
 
             let mut exit_code: DWORD = 0;
@@ -452,9 +450,7 @@ mod win_impl {
                 exit_code as c_int
             };
 
-            if let Some(cb) = (*proc_t).internal_exit_cb {
-                cb(proc_);
-            }
+            crate::event::proc::on_proc_exit(proc_);
         }
     }
 

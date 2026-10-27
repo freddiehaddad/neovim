@@ -264,13 +264,6 @@ pub unsafe fn socket_watcher_init(
     }
 }
 
-/// Callback after closing a Stream initialized by socket_connect().
-unsafe fn connect_close_cb(_stream: *mut Stream, data: StreamInternalData) {
-    unsafe {
-        *data.as_closed() = true;
-    }
-}
-
 /// Check if a socket is alive by attempting to connect to it.
 unsafe fn socket_alive(loop_: *mut Loop, addr: *const c_char) -> bool {
     unsafe {
@@ -285,7 +278,6 @@ unsafe fn socket_alive(loop_: *mut Loop, addr: *const c_char) -> bool {
 
         let mut closed = false;
         let closed_ptr: *mut bool = &raw mut closed;
-        stream.s.internal_close_cb = Some(connect_close_cb);
         stream.s.internal_data = StreamInternalData::Closed(closed_ptr);
         stream_may_close(&raw mut stream.s);
         poll_main_loop_until(-1, || ptr::read_volatile(closed_ptr));
@@ -566,7 +558,6 @@ pub unsafe fn socket_connect(
                     pipe.cast()
                 };
                 stream_init(ptr::null_mut(), s_ptr, -1, uv_stream);
-                (*fields).internal_close_cb = Some(connect_close_cb);
                 (*fields).internal_data = StreamInternalData::Closed(closed_ptr);
                 ptr::write_volatile(closed_ptr, false);
                 ptr::write_volatile(status_ptr, 1);
@@ -589,7 +580,6 @@ pub unsafe fn socket_connect(
             }
         }
 
-        (*fields).internal_close_cb = None;
         (*fields).internal_data = StreamInternalData::NONE;
         drop(addr_buf);
         uv_freeaddrinfo((*getaddrinfo_req_addrinfo_ptr(addr_req_ptr)).cast());

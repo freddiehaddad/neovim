@@ -323,9 +323,7 @@ pub unsafe fn libuv_proc_close(uvproc: *mut LibuvProc) {
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
         let proc_ = *handle.cast::<*mut Proc>();
-        if let Some(cb) = (*proc_).internal_close_cb {
-            cb(proc_);
-        }
+        crate::event::proc::proc_decref(proc_);
         let uvproc = proc_.cast::<LibuvProc>();
         (*uvproc).env_ptrs.clear();
         (*uvproc).env_vec.clear();
@@ -344,8 +342,6 @@ unsafe extern "C" fn exit_cb(handle: *mut uv_process_t, status: i64, term_signal
         #[cfg(not(windows))]
         let sig = term_signal;
         (*proc_).status = if sig != 0 { 128 + sig } else { status as c_int };
-        if let Some(cb) = (*proc_).internal_exit_cb {
-            cb(proc_);
-        }
+        crate::event::proc::on_proc_exit(proc_);
     }
 }

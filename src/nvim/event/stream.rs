@@ -31,7 +31,6 @@ pub type uv_pipe_t = c_void;
 pub type uv_idle_t = c_void;
 pub type uv_tty_t = c_void;
 
-pub type stream_close_cb = Option<unsafe fn(stream: *mut Stream, data: StreamInternalData)>;
 pub type stream_write_cb = Option<unsafe fn(stream: *mut Stream, status: c_int)>;
 
 #[derive(Clone, Copy)]
@@ -81,26 +80,11 @@ pub enum StreamInternalData {
 impl StreamInternalData {
     pub const NONE: Self = Self::None;
 
-    #[inline]
-    pub const fn as_channel(self) -> *mut crate::channel::Channel {
-        match self {
-            Self::Channel(p) => p,
-            _ => ptr::null_mut(),
-        }
-    }
-
+    #[cfg(windows)]
     #[inline]
     pub const fn as_proc(self) -> *mut crate::event::proc::Proc {
         match self {
             Self::Proc(p) => p,
-            _ => ptr::null_mut(),
-        }
-    }
-
-    #[inline]
-    pub const fn as_closed(self) -> *mut bool {
-        match self {
-            Self::Closed(p) => p,
             _ => ptr::null_mut(),
         }
     }
@@ -117,9 +101,9 @@ pub struct Stream {
     pub fd: c_int,
     pub fpos: i64,
     pub cb_data: StreamCbData,
-    pub before_close_cb: Option<unsafe fn(stream: *mut Stream)>,
-    pub close_cb: Option<unsafe fn(stream: *mut Stream)>,
-    pub internal_close_cb: stream_close_cb,
+    pub is_rstream: bool,
+    #[cfg(windows)]
+    pub close_console: bool,
     pub internal_data: StreamInternalData,
     pub pending_reqs: usize,
     pub events: *mut MultiQueue,
@@ -137,9 +121,9 @@ impl Stream {
             fd: -1,
             fpos: 0,
             cb_data: StreamCbData::NONE,
-            before_close_cb: None,
-            close_cb: None,
-            internal_close_cb: None,
+            is_rstream: false,
+            #[cfg(windows)]
+            close_console: false,
             internal_data: StreamInternalData::NONE,
             pending_reqs: 0,
             events: ptr::null_mut(),
@@ -236,8 +220,11 @@ pub unsafe fn stream_init(
         (*stream).maxmem = 0;
         (*stream).pending_reqs = 0;
         (*stream).write_cb = None;
-        (*stream).close_cb = None;
-        (*stream).internal_close_cb = None;
+        (*stream).is_rstream = false;
+        #[cfg(windows)]
+        {
+            (*stream).close_console = false;
+        }
         (*stream).closed = false;
         (*stream).events = ptr::null_mut();
     }
@@ -297,9 +284,10 @@ pub unsafe fn stream_close_handle(stream: *mut Stream) {
 
         assert!(!handle.is_null());
 
-        if let Some(before_close_cb) = (*stream).before_close_cb {
+        #[cfg(windows)]
+        if (*stream).close_console {
             (*stream).pending_reqs += 1;
-            before_close_cb(stream);
+            crate::os::pty_proc_win::pty_proc_close_console(stream);
             (*stream).pending_reqs -= 1;
         }
         if uv_is_closing(handle) == 0 {
@@ -312,11 +300,14 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
         let stream = *handle.cast::<*mut Stream>();
         if !stream.is_null() {
-            if let Some(cb) = (*stream).close_cb {
-                cb(stream);
+            if (*stream).is_rstream {
+                crate::event::rstream::rstream_close_cb(stream);
             }
-            if let Some(internal_cb) = (*stream).internal_close_cb {
-                internal_cb(stream, (*stream).internal_data);
+            match (*stream).internal_data {
+                StreamInternalData::None => {}
+                StreamInternalData::Channel(chan) => crate::channel::channel_decref(chan),
+                StreamInternalData::Proc(proc_) => crate::event::proc::proc_decref(proc_),
+                StreamInternalData::Closed(closed_ptr) => *closed_ptr = true,
             }
         }
     }

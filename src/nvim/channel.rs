@@ -52,8 +52,9 @@ use crate::state::save_v_event_T;
 use crate::strings::gettext;
 use crate::terminal::{
     terminal_alloc, terminal_buf, terminal_close, terminal_destroy, terminal_receive,
-    terminal_set_state,
 };
+#[cfg(unix)]
+use crate::terminal::terminal_set_state;
 use crate::ui_client::ui_client_attach_to_restarted_server;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -446,12 +447,6 @@ unsafe fn channel_destroy_early(chan: *mut Channel) {
     }
 }
 
-unsafe fn close_cb(_stream: *mut Stream, data: StreamInternalData) {
-    unsafe {
-        channel_decref(data.as_channel());
-    }
-}
-
 /// Starts a job and returns the associated channel.
 pub unsafe fn channel_job_start(
     argv: Vec<std::ffi::CString>,
@@ -528,8 +523,6 @@ pub unsafe fn channel_job_start(
         } else {
             Some(CStr::from_ptr(exepath).to_owned())
         };
-        (*pt).cb = Some(channel_proc_exit_cb);
-        (*pt).state_cb = Some(channel_proc_state_cb);
         (*pt).events = (*cp).events;
         (*pt).detach = detach;
         (*ph).cwd = if cwd.is_null() {
@@ -656,7 +649,6 @@ pub unsafe fn channel_connect(
             return 0;
         }
 
-        (*socket_stream).s.internal_close_cb = Some(close_cb);
         (*socket_stream).s.internal_data = StreamInternalData::Channel(channel);
         wstream_init(&raw mut (*socket_stream).s, 0);
         rstream_init(socket_stream);
@@ -688,7 +680,6 @@ pub unsafe fn channel_from_connection(watcher: *mut SocketWatcher) {
             channel_destroy_early(channel);
             return;
         }
-        (*socket_stream).s.internal_close_cb = Some(close_cb);
         (*socket_stream).s.internal_data = StreamInternalData::Channel(channel);
         wstream_init(&raw mut (*socket_stream).s, 0);
         rstream_init(socket_stream);
@@ -973,7 +964,7 @@ pub unsafe fn channel_reader_callbacks(chan: *mut Channel, reader: *mut Callback
     }
 }
 
-unsafe fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, chan: *mut Channel) {
+pub(crate) unsafe fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, chan: *mut Channel) {
     unsafe {
         let cp = chan;
         let ct = chan;
@@ -1001,7 +992,8 @@ unsafe fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, chan: *mut Chann
     }
 }
 
-unsafe fn channel_proc_state_cb(_proc: *mut Proc, suspended: bool, chan: *mut Channel) {
+#[cfg(unix)]
+pub(crate) unsafe fn channel_proc_state_cb(_proc: *mut Proc, suspended: bool, chan: *mut Channel) {
     unsafe {
         let ct = chan;
         if !(*ct).term.is_null() {

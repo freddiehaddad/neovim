@@ -29,12 +29,6 @@ const KILL_TIMEOUT_MS: u64 = 2000;
 use crate::channel::{kProcTypePty, kProcTypeUv};
 use crate::os::signal::{SIGHUP, SIGKILL, SIGTERM};
 
-pub type proc_exit_cb =
-    Option<unsafe fn(proc_: *mut Proc, status: c_int, data: *mut crate::channel::Channel)>;
-pub type proc_state_cb =
-    Option<unsafe fn(proc_: *mut Proc, suspended: bool, data: *mut crate::channel::Channel)>;
-pub type internal_proc_cb = Option<unsafe fn(proc_: *mut Proc)>;
-
 #[repr(C)]
 pub struct Proc {
     pub r#type: c_int,
@@ -52,10 +46,6 @@ pub struct Proc {
     pub r#in: Stream,
     pub out: RStream,
     pub err: RStream,
-    pub cb: proc_exit_cb,
-    pub state_cb: proc_state_cb,
-    pub internal_exit_cb: internal_proc_cb,
-    pub internal_close_cb: internal_proc_cb,
     pub closed: bool,
     pub detach: bool,
     pub overlapped: bool,
@@ -94,10 +84,6 @@ impl Proc {
             r#in: Stream::new(),
             out: RStream::new(),
             err: RStream::new(),
-            cb: None,
-            state_cb: None,
-            internal_exit_cb: None,
-            internal_close_cb: None,
             closed: false,
             detach: false,
             overlapped: false,
@@ -231,26 +217,21 @@ pub unsafe fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c
         if in_ {
             stream_init(ptr::null_mut(), s_in, -1, (&raw mut (*s_in).uv).cast());
             (*s_in).internal_data = StreamInternalData::Proc(proc_);
-            (*s_in).internal_close_cb = Some(on_proc_stream_close);
             (*proc_).refcount += 1;
         }
 
         if out {
             stream_init(ptr::null_mut(), s_out, -1, (&raw mut (*s_out).uv).cast());
             (*s_out).internal_data = StreamInternalData::Proc(proc_);
-            (*s_out).internal_close_cb = Some(on_proc_stream_close);
             (*proc_).refcount += 1;
         }
 
         if err {
             stream_init(ptr::null_mut(), s_err, -1, (&raw mut (*s_err).uv).cast());
             (*s_err).internal_data = StreamInternalData::Proc(proc_);
-            (*s_err).internal_close_cb = Some(on_proc_stream_close);
             (*proc_).refcount += 1;
         }
 
-        (*proc_).internal_exit_cb = Some(on_proc_exit);
-        (*proc_).internal_close_cb = Some(decref);
         (*proc_).refcount += 1;
 
         let qc = loop_queues((*proc_).loop_);
@@ -322,7 +303,7 @@ pub unsafe fn proc_wait(proc_: *mut Proc, ms: c_int, mut events: *mut MultiQueue
         }
 
         if (*proc_).refcount == 1 {
-            decref(proc_);
+            proc_decref(proc_);
             if !(*proc_).events.is_null() {
                 multiqueue_process_events((*proc_).events);
             }
@@ -397,13 +378,13 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
 
 pub unsafe fn proc_close_event(proc_: *mut Proc) {
     unsafe {
-        if let Some(cb) = (*proc_).cb {
-            cb(proc_, (*proc_).status, (*proc_).data);
+        if !(*proc_).data.is_null() {
+            crate::channel::channel_proc_exit_cb(proc_, (*proc_).status, (*proc_).data);
         }
     }
 }
 
-unsafe fn decref(proc_: *mut Proc) {
+pub(crate) unsafe fn proc_decref(proc_: *mut Proc) {
     unsafe {
         (*proc_).refcount -= 1;
         if (*proc_).refcount != 0 {
@@ -547,7 +528,7 @@ pub unsafe fn exit_on_closed_chan(status: c_int) {
     }
 }
 
-unsafe fn on_proc_exit(proc_: *mut Proc) {
+pub(crate) unsafe fn on_proc_exit(proc_: *mut Proc) {
     unsafe {
         let qc = loop_queues((*proc_).loop_);
         let queue = if !(*proc_).events.is_null() {
@@ -560,11 +541,5 @@ unsafe fn on_proc_exit(proc_: *mut Proc) {
         } else {
             proc_close_handles(proc_);
         }
-    }
-}
-
-unsafe fn on_proc_stream_close(_stream: *mut Stream, data: StreamInternalData) {
-    unsafe {
-        decref(data.as_proc());
     }
 }

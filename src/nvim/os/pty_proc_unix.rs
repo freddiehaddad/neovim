@@ -463,9 +463,7 @@ mod unix_impl {
         unsafe {
             pty_proc_close_master(ptyproc);
             let proc_: *mut Proc = ptyproc;
-            if let Some(cb) = (*proc_).internal_close_cb {
-                cb(proc_);
-            }
+            crate::event::proc::proc_decref(proc_);
         }
     }
 
@@ -644,14 +642,14 @@ mod unix_impl {
                 }
 
                 if wifstopped(stat) {
-                    if let Some(state_cb) = (*proc_t).state_cb {
-                        state_cb(proc_, true, (*hdr).data);
+                    if !(*hdr).data.is_null() {
+                        crate::channel::channel_proc_state_cb(proc_, true, (*hdr).data);
                     }
                     continue;
                 }
                 if wifcontinued(stat) {
-                    if let Some(state_cb) = (*proc_t).state_cb {
-                        state_cb(proc_, false, (*hdr).data);
+                    if !(*hdr).data.is_null() {
+                        crate::channel::channel_proc_state_cb(proc_, false, (*hdr).data);
                     }
                     continue;
                 }
@@ -661,9 +659,8 @@ mod unix_impl {
                 } else if wifsignaled(stat) {
                     (*hdr).status = 128 + wtermsig(stat);
                 }
-                if let Some(exit_cb) = (*proc_t).internal_exit_cb {
-                    exit_cb(proc_);
-                }
+                let _ = proc_t;
+                crate::event::proc::on_proc_exit(proc_);
             }
         }
     }

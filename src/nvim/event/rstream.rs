@@ -89,7 +89,7 @@ pub unsafe fn rstream_init(stream: *mut RStream) {
         (*stream).buffer = alloc_block();
         (*stream).read_pos = (*stream).buffer;
         (*stream).write_pos = (*stream).buffer;
-        (*stream).s.close_cb = Some(rstream_close_cb);
+        (*stream).s.is_rstream = true;
     }
 }
 
@@ -279,7 +279,7 @@ unsafe fn invoke_read_cb(stream: *mut RStream, eof: bool) {
     }
 }
 
-unsafe fn rstream_close_cb(s: *mut Stream) {
+pub(crate) unsafe fn rstream_close_cb(s: *mut Stream) {
     unsafe {
         let stream = s.cast::<RStream>();
         assert!(!stream.is_null());
