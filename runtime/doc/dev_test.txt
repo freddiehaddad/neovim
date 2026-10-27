@@ -25,11 +25,11 @@ https://github.com/neovim/neovim/issues/34592
 ==============================================================================
 Test framework
 
-Tests are broadly divided into unit tests (`test/unit/`), functional tests
+Tests are broadly divided into Rust unit tests (`cargo test`), functional tests
 (`test/functional/`) and old tests (`test/old/testdir/`).
 
-- Unit testing is achieved by compiling the tests as a shared library which is
-  loaded and called by [LuaJit FFI](https://luajit.org/ext_ffi.html).
+- Rust unit tests live alongside the Rust modules in `src/` and are run via
+  `cargo test` or `cargo xtask unittest`.
 - Functional tests are driven by RPC, so they do not require LuaJit (as
   opposed to Lua). They are essentially "integration" tests, they test the
   full system. But they are fast.
@@ -38,9 +38,9 @@ You can learn [Lua concepts 15 minutes](https://learnxinyminutes.com/docs/lua/),
 see also |lua-guide|. Use any existing test as a template to start writing new
 tests, or see |dev-quickstart|.
 
-Tests are run by the `/cmake/RunTests.cmake` script using the repo-local Lua
+Tests are run via `cargo xtask` using the repo-local Lua
 test harness in `/test/harness.lua`.
-For some failures, `./build/nvim.log` (or `$NVIM_LOG_FILE`) may provide insight.
+For some failures, `./target/nvim-build/nvim.log` (or `$NVIM_LOG_FILE`) may provide insight.
 
 Depending on the presence of binaries (e.g., `xclip`) some tests will be
 skipped.
@@ -86,30 +86,26 @@ Running tests                                                   *dev-run-test*
 
 EXECUTING TESTS
 
-To run all tests (except "old" tests): >
-    make test
+To run all unit and functional tests: >
+    cargo xtask test
 
-To run only _unit_ tests: >
-    make unittest
+To run only Rust _unit_ tests: >
+    cargo xtask unittest
 
 To run only _functional_ tests: >
-    make functionaltest
+    cargo xtask functionaltest
 
-To run functional tests in parallel (used in CI): >
-    cmake --build build --target functionaltest-parallel -j2
-    cmake --build build --target functionaltest-summary
+To run a single functional test file: >
+    cargo xtask functionaltest test/functional/api/version_spec.lua
 
 
 LEGACY TESTS
 
 To run all legacy Vim tests: >
-    make oldtest
+    cargo xtask oldtest
 
-To run a _single_ legacy test file you can use either: >
-    # Specify only the test file name, not the full path.
-    make oldtest TEST_FILE=test_syntax.vim
-or: >
-    make test/old/testdir/test_syntax.vim
+To run a _single_ legacy test file: >
+    cargo xtask oldtest test_syntax
 
 
 DEBUGGING TESTS

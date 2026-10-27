@@ -8,7 +8,7 @@
 How to develop Nvim, explanation of modules and subsystems          *dev-arch*
 
 Module-specific details are documented at the top of each module
-(`terminal.c`, `undo.c`, …). The top of each major module has (or should have)
+(`terminal.rs`, `undo.rs`, …). The top of each major module has (or should have)
 an overview in a comment at the top of its file.
 
 The purpose of this document is to give:
@@ -23,28 +23,21 @@ The purpose of this document is to give:
 ==============================================================================
 Project layout: where things go                                   *dev-layout*
 
-C CODE
+RUST CODE
 
-- Nvim C code lives in `src/nvim/`.
-    - This includes third-party components which we have forked and fully
-      "own", meaning we no longer track the upstream. In particular: `vterm/`
-      and `tui/termkey/`.
-- Vendored third-party components live in `src/*`.
-    - `src/tee/` and `src/xxd/` have their own build files. They are shipped
-      with the Windows artifact to ensure those tools exists there.
-    - Other components like `src/cjson/` and `src/mpack/` are included with
-      Nvim itself. These vendored sources are synced from upstream, we do not
-      "own" them.
+- Nvim core Rust code lives in `src/nvim/`.
+    - This includes components which we have ported to Rust and fully
+      "own", including `vterm/` and `tui/termkey/`.
+- Ported and helper crates/modules live in `src/*`.
+    - `src/tee/` and `src/xxd/` are Rust binary targets shipped with the
+      Windows artifact to ensure those tools exist there.
+    - `src/xtask/` implements the Cargo build, test, lint, and packaging
+      automation (`cargo xtask`).
+    - Other subsystems like `src/cjson/`, `src/lpeg/`, `src/mpack/`,
+      `src/unibilium/`, and `src/xdiff/` are pure-Rust ports of their
+      respective libraries.
 
 See also "MAINTAIN.md".
-
-Generated C files use these filename conventions to hint their purpose:
-- `*.c`, `*.generated.c` - full C files, with all includes, etc.
-- `*.c.h` - parametrized C files, contain all necessary includes, but require
-  defining macros before actually using. Example: `typval_encode.c.h`
-- `*.h` - full headers, with all includes. Does not apply to `*.generated.h`.
-- `*.h.generated.h` - exported functions’ declarations.
-- `*.c.generated.h` - static functions’ declarations.
 
 
 LUA CODE
@@ -98,13 +91,10 @@ There are two ways to do that:
 ==============================================================================
 Data structures
 
-- StringBuilder
-- kvec or garray.c for dynamic lists / vectors (use StringBuilder for strings)
+- `String` / `Vec<u8>` / `CString` for owned strings and byte buffers
+- `Vec<T>` or `garray_T` for dynamic lists / vectors
 
-Use `kvec.h` for most lists. When you absolutely need a linked list, use
-`src/nvim/lib/queue_defs.h` which defines an "intrusive" linked list.
-
-Buffer text is stored as a tree of line segments, defined in `src/nvim/memline.c`.
+Buffer text is stored as a tree of line segments, defined in `src/nvim/memline.rs`.
 The central idea is found in `ml_find_line`.
 
 Many of the editor concepts are defined as Lua data files:
@@ -113,7 +103,7 @@ Many of the editor concepts are defined as Lua data files:
 - Ex (cmdline) commands: src/nvim/ex_cmds.lua
 - Options: src/nvim/options.lua
 - Vimscript functions: src/nvim/eval.lua
-  - Functions can be implemented in C (`f_foo` in eval/funcs.c), or in Lua
+  - Functions can be implemented in Rust (`f_foo` in `eval/funcs.rs`), or in Lua
     (set `func_lua` in eval.lua, implement in _core/vimfn.lua). Lua impl is
     preferred, for performance and maintainability.
     - VimScript callers go through `lua_wrapper` (typval <=> Object conversion).

@@ -30,10 +30,19 @@ but we nonetheless keep things as they are in order to preserve consistency.
 
 
 ==============================================================================
-Header Files                                            *dev-style-header*
+Module Organization                                     *dev-style-header*
 
+Rust modules in `src/nvim/` correspond to editor subsystems (e.g. `buffer.rs`,
+`window.rs`, `ex_docmd.rs`) and are declared in `src/nvim/lib.rs`.
 
-Header guard ~
+- Format all Rust code with `cargo fmt` (`cargo xtask formatrust`) and all Lua
+  code with `stylua` (`cargo xtask formatlua`).
+- Ensure `cargo xtask lintrust` (`cargo clippy --workspace --all-targets -- -D warnings`)
+  passes with zero warnings.
+- Prefer safe Rust references (`&T`, `&mut T`, `&[T]`, `Option<&T>`) over raw
+  pointers whenever possible.
+
+Legacy C style notes (preserved for historical context) ~
 
 All header files should start with `#pragma once` to prevent multiple inclusion.
 

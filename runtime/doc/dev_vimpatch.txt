@@ -6,92 +6,36 @@
 Merging patches from Vim                                    *dev-vimpatch*
 
 
-Nvim was forked from Vim 7.4.160; it is kept up-to-date with relevant Vim
-patches in order to avoid duplicate work. Run `vim-patch.sh` to see the status
-of Vim patches: >bash
-    ./scripts/vim-patch.sh -l
-<
-Everyone is welcome to create a |dev-vimpatch-pr| for relevant Vim patches,
-but some types of patches are |dev-vimpatch-na|. See |dev-vimpatch-quickstart|
-to get started immediately.
-
+Nvim was forked from Vim 7.4.160. In this pure-Rust repository, historical
+applied Vim patch numbers are recorded in `src/nvim/version.rs` (`PATCHES_*`)
+for `has('patch-x.y.z')` compatibility.
 
                                          Type |gO| to see the table of contents.
 
 ==============================================================================
 QUICKSTART                                           *dev-vimpatch-quickstart*
 
-1. Pull the Nvim source: >bash
-     git clone https://github.com/neovim/neovim.git
-2. Run `./scripts/vim-patch.sh -l` to see the list of missing Vim patches.
-3. Choose a patch from the list (usually the oldest one), e.g. `8.0.0123`.
-   - Check for open vim-patch PRs
-     https://github.com/neovim/neovim/pulls?q=is%3Apr+is%3Aopen+label%3Avim-patch.
-4. Run `./scripts/vim-patch.sh -p 8.0.0123`
-5. Follow the instructions given by the script.
-
-NOTES
-
-- It's strongly recommended to work on the oldest missing patch, because
-  later patches might depend on the changes.
-- Use `git log --grep` or `git log -G` to search the Nvim/Vim source history
-  (even deleted code). E.g. to find `reset_option_was_set`: >bash
-
-    git log -p -G reset_option_was_set
+1. Clone the repository: >bash
+     git clone https://github.com/freddiehaddad/neovim.git
+2. Use `git log --grep` or `git log -G` to search the commit history.
+   E.g. to find `reset_option_was_set`: >bash
+     git log -p -G reset_option_was_set
 <
-- Pass `git log` options like `--grep` and `-G` to `./scripts/vim-patch.sh -L`
-  to filter unmerged Vim patches E.g. to find `+quickfix` patches: >bash
 
-    ./scripts/vim-patch.sh -L --grep quickfix -- src
-<
 ==============================================================================
 PULL REQUESTS                                                *dev-vimpatch-pr*
 
-Note: vim-patch.sh automates these steps for you. Use it!
-
-- Install `gh` (https://cli.github.com/) if you want to use `vim-patch.sh` to
-  create PRs automatically
-- The pull request title should include `vim-patch:8.x.xxxx` (no whitespace)
-- The commit message
-  https://github.com/neovim/neovim/commit/4ccf1125ff569eccfc34abc4ad794044c5ab7455
-  should include:
-    - A token indicating the Vim patch number, formatted as follows:
-      `vim-patch:8.0.0123` (no whitespace)
-    - A URL pointing to the Vim commit:
-      https://github.com/vim/vim/commit/c8020ee825b9d9196b1329c0e097424576fc9b3a
-    - The original Vim commit message, including author
-
-Reviewers: hint for reviewing `runtime/` patches
-https://github.com/neovim/neovim/pull/1744#issuecomment-68202876
+When porting relevant behavior or runtime changes from Vim:
+- Translate any C logic into idiomatic Rust in `src/nvim/*.rs`.
+- Include the corresponding test in `test/functional/` or `test/old/testdir/`.
+- Add the patch number to the appropriate `PATCHES_*` slice in
+  `src/nvim/version.rs` if `has('patch-x.y.z')` should report it.
 
 ==============================================================================
 NA (NOT APPLICABLE) PATCHES                                  *dev-vimpatch-na*
 
-Most Vim patches are not applicable to Nvim. If you find NA patches, visit an
-the latest "version.c: update" pull request
-https://github.com/neovim/neovim/pulls?q=is%3Apr+author%3Aapp%2Fgithub-actions+version.c+is%3Aopen
-and mention the NA patches in a comment (please edit/update one comment,
-rather than adding a new comment for each patch).
-
-Or if there is no open `version.c: update` pull request, include NA patches in
-a commit message in this format:
->
-    vim-patch:<version-or-commit>
-    vim-patch:<version-or-commit>
-    ...
-<
-where `<version-or-commit>` is a valid Vim version (like `8.0.0123`) or
-commit-id (SHA). Each patch is on a separate line.
-
-Example: https://github.com/neovim/neovim/commit/00f60c2ce78fc1280e93d5a36bc7b2267d5f4ac6
-
-------------------------------------------------------------------------------
-HOW TO DECIDE IF A VIM-PATCH IS WANTED
-
-Legacy Vim is becoming much less relevant to Nvim: we expect to decline the
-majority of their patches. Thus this is an "allow-list" instead of
-a "deny-list". Generally, only modules explicitly noted in the "OWNED BY VIM"
-list below, are in-scope; everything else should be marked "N/A".
+Most Vim patches are not applicable to Nvim. Generally, only modules
+explicitly noted in the "OWNED BY VIM" list below are in-scope.
 
 OWNED BY VIM
 
@@ -99,10 +43,7 @@ OWNED BY VIM
 - regex
 - runtime files
 
-Everything else is owned by Nvim. Most of Vim's "bug fixes" for e.g.
-buffer/window behavior, or the events/autocmds subysytem, or "getchar" (input
-engine), just aren't relevant to Nvim anymore, because we've significantly
-enhanced and redesigned those subsystems to make them simpler.
+Everything else is owned by Nvim.
 
 UNWANTED VIM-PATCHES
 
@@ -113,22 +54,15 @@ UNWANTED VIM-PATCHES
 - "terminal"
 - Vim9script features, and anything related to `:scriptversion`. (Nvim
   supports Vimscript version 1 only.)
-- Fixes for build warnings.
+- Fixes for C compiler warnings.
 - GUI-related changes.
 - Most new Vimscript functions or Ex commands (with rare exceptions).
 
 ==============================================================================
-VERSION.C                                             *dev-vimpatch-version.c*
+VERSION.RS                                           *dev-vimpatch-version.c*
 
-The list of Vim patches in `src/nvim/version.c` is automatically updated
-https://github.com/neovim/neovim/pull/7780 based on the presence of
-`vim-patch:xxx` tokens in the Nvim git log.
-
-- Don't update `src/nvim/version.c` yourself.
-    - `scripts/vim-patch.sh -p` intentionally omits `version.c` to avoid merge
-      conflicts and save time when porting a patch.
-- The automation script (`scripts/vimpatch.lua`) only recognizes tokens like
-  `vim-patch:8.0.1206`, not `vim-patch:<hash>`.
+The list of included Vim patches lives in `src/nvim/version.rs` in the
+`PATCHES_*` slices and `NUM_PATCHES` array.
 
 ==============================================================================
 CODE DIFFERENCES                                           *dev-vimpatch-diff*
