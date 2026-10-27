@@ -268,11 +268,6 @@ pub struct MessageData {
     pub data: Dict,
 }
 
-pub struct RuntimeCookie {
-    rv: ArrayBuilder,
-    arena: *mut Arena,
-}
-
 static mut PASTE_CANCELLED: bool = false;
 
 #[inline]
@@ -947,23 +942,6 @@ pub unsafe extern "C" fn nvim__runtime_inspect(arena: *mut Arena) -> Array {
     unsafe { runtime_inspect(arena) }
 }
 
-pub unsafe fn find_runtime_cb(
-    fnames: &[std::ffi::CString],
-    all: bool,
-    c: *mut RuntimeCookie,
-) -> bool {
-    unsafe {
-        let cookie = &mut *c;
-        for fname in fnames {
-            cookie.rv.push(cstr_to_arena_obj(cookie.arena, fname.as_ptr()));
-            if !all {
-                return true;
-            }
-        }
-        !fnames.is_empty()
-    }
-}
-
 /// Finds files in runtime directories, in 'runtimepath' order.
 ///
 /// "name" can contain wildcards. For example
@@ -986,10 +964,7 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
     err: *mut Error,
 ) -> Array {
     unsafe {
-        let mut cookie = RuntimeCookie {
-            rv: ArrayBuilder::new(),
-            arena,
-        };
+        let mut files: Vec<std::ffi::CString> = Vec::new();
 
         let flags = DIP_DIRFILE | if all { DIP_ALL } else { 0 };
         let mut tstate = TryState::new();
@@ -1001,11 +976,15 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
                 c"".as_ptr().cast_mut()
             },
             flags,
-            RuntimeCallback::FindRuntime(&raw mut cookie),
+            &mut RuntimeCallback::FindRuntime(&mut files),
         );
         try_leave(&tstate, err);
 
-        arena_take_arraybuilder(arena, &raw mut cookie.rv)
+        let mut rv = ArrayBuilder::new();
+        for fname in &files {
+            rv.push(cstr_to_arena_obj(arena, fname.as_ptr()));
+        }
+        arena_take_arraybuilder(arena, &raw mut rv)
     }
 }
 

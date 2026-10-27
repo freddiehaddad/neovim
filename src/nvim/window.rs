@@ -179,7 +179,7 @@ impl lcs_chars_T {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct fcs_chars_T {
     pub stl: u32,
     pub stlnc: u32,

@@ -398,32 +398,6 @@ static mut expand_eiw: bool = false;
 static mut OPT_KEYSET_SHARED: [u64; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)] =
     [0; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)];
 
-static mut fcs_chars: fcs_chars_T = fcs_chars_T {
-    stl: 0,
-    stlnc: 0,
-    wbr: 0,
-    horiz: 0,
-    horizup: 0,
-    horizdown: 0,
-    vert: 0,
-    vertleft: 0,
-    vertright: 0,
-    verthoriz: 0,
-    fold: 0,
-    foldopen: 0,
-    foldclosed: 0,
-    foldsep: 0,
-    foldinner: 0,
-    diff: 0,
-    msgsep: 0,
-    eob: 0,
-    lastline: 0,
-    trunc: 0,
-    truncrl: 0,
-};
-
-static mut lcs_chars: lcs_chars_T = lcs_chars_T::new();
-
 static BRIOPT_TABLE: [KeySetLink; 6] = [
     KeySetLink {
         str: Some(c"min"),
@@ -3818,224 +3792,296 @@ unsafe fn get_encoded_char_adv(p: *mut *const c_char) -> schar_T {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CharsTarget {
+    FcsStl,
+    FcsStlnc,
+    FcsWbr,
+    FcsHoriz,
+    FcsHorizup,
+    FcsHorizdown,
+    FcsVert,
+    FcsVertleft,
+    FcsVertright,
+    FcsVerthoriz,
+    FcsFold,
+    FcsFoldopen,
+    FcsFoldclosed,
+    FcsFoldsep,
+    FcsFoldinner,
+    FcsDiff,
+    FcsMsgsep,
+    FcsEob,
+    FcsLastline,
+    FcsTrunc,
+    FcsTruncrl,
+    LcsEol,
+    LcsExt,
+    LcsNbsp,
+    LcsPrec,
+    LcsSpace,
+    LcsTab,
+    LcsLeadtab,
+    LcsLead,
+    LcsTrail,
+    LcsConceal,
+    LcsMultispace,
+    LcsLeadmultispace,
+}
+
+impl CharsTarget {
+    fn slot_mut<'a>(
+        self,
+        fcs: &'a mut fcs_chars_T,
+        lcs: &'a mut lcs_chars_T,
+    ) -> Option<&'a mut schar_T> {
+        match self {
+            Self::FcsStl => Some(&mut fcs.stl),
+            Self::FcsStlnc => Some(&mut fcs.stlnc),
+            Self::FcsWbr => Some(&mut fcs.wbr),
+            Self::FcsHoriz => Some(&mut fcs.horiz),
+            Self::FcsHorizup => Some(&mut fcs.horizup),
+            Self::FcsHorizdown => Some(&mut fcs.horizdown),
+            Self::FcsVert => Some(&mut fcs.vert),
+            Self::FcsVertleft => Some(&mut fcs.vertleft),
+            Self::FcsVertright => Some(&mut fcs.vertright),
+            Self::FcsVerthoriz => Some(&mut fcs.verthoriz),
+            Self::FcsFold => Some(&mut fcs.fold),
+            Self::FcsFoldopen => Some(&mut fcs.foldopen),
+            Self::FcsFoldclosed => Some(&mut fcs.foldclosed),
+            Self::FcsFoldsep => Some(&mut fcs.foldsep),
+            Self::FcsFoldinner => Some(&mut fcs.foldinner),
+            Self::FcsDiff => Some(&mut fcs.diff),
+            Self::FcsMsgsep => Some(&mut fcs.msgsep),
+            Self::FcsEob => Some(&mut fcs.eob),
+            Self::FcsLastline => Some(&mut fcs.lastline),
+            Self::FcsTrunc => Some(&mut fcs.trunc),
+            Self::FcsTruncrl => Some(&mut fcs.truncrl),
+            Self::LcsEol => Some(&mut lcs.eol),
+            Self::LcsExt => Some(&mut lcs.ext),
+            Self::LcsNbsp => Some(&mut lcs.nbsp),
+            Self::LcsPrec => Some(&mut lcs.prec),
+            Self::LcsSpace => Some(&mut lcs.space),
+            Self::LcsTab => Some(&mut lcs.tab2),
+            Self::LcsLeadtab => Some(&mut lcs.leadtab2),
+            Self::LcsLead => Some(&mut lcs.lead),
+            Self::LcsTrail => Some(&mut lcs.trail),
+            Self::LcsConceal => Some(&mut lcs.conceal),
+            Self::LcsMultispace | Self::LcsLeadmultispace => None,
+        }
+    }
+}
+
 struct CharsTabEntry {
-    cp: *mut schar_T,
+    target: CharsTarget,
     name: &'static CStr,
     def: Option<&'static CStr>,
     fallback: Option<&'static CStr>,
 }
 
-unsafe fn fcs_tab_entries() -> [CharsTabEntry; 21] {
-    unsafe {
-        [
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.stl,
-                name: c"stl",
-                def: Some(c" "),
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.stlnc,
-                name: c"stlnc",
-                def: Some(c" "),
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.wbr,
-                name: c"wbr",
-                def: Some(c" "),
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.horiz,
-                name: c"horiz",
-                def: Some(c"─"),
-                fallback: Some(c"-"),
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.horizup,
-                name: c"horizup",
-                def: Some(c"┴"),
-                fallback: Some(c"-"),
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.horizdown,
-                name: c"horizdown",
-                def: Some(c"┬"),
-                fallback: Some(c"-"),
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.vert,
-                name: c"vert",
-                def: Some(c"│"),
-                fallback: Some(c"|"),
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.vertleft,
-                name: c"vertleft",
-                def: Some(c"┤"),
-                fallback: Some(c"|"),
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.vertright,
-                name: c"vertright",
-                def: Some(c"├"),
-                fallback: Some(c"|"),
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.verthoriz,
-                name: c"verthoriz",
-                def: Some(c"┼"),
-                fallback: Some(c"+"),
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.fold,
-                name: c"fold",
-                def: Some(c"·"),
-                fallback: Some(c"-"),
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.foldopen,
-                name: c"foldopen",
-                def: Some(c"-"),
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.foldclosed,
-                name: c"foldclose",
-                def: Some(c"+"),
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.foldsep,
-                name: c"foldsep",
-                def: Some(c"│"),
-                fallback: Some(c"|"),
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.foldinner,
-                name: c"foldinner",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.diff,
-                name: c"diff",
-                def: Some(c"-"),
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.msgsep,
-                name: c"msgsep",
-                def: Some(c" "),
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.eob,
-                name: c"eob",
-                def: Some(c"~"),
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.lastline,
-                name: c"lastline",
-                def: Some(c"@"),
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.trunc,
-                name: c"trunc",
-                def: Some(c">"),
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut fcs_chars.truncrl,
-                name: c"truncrl",
-                def: Some(c"<"),
-                fallback: None,
-            },
-        ]
-    }
-}
+const FCS_TAB: [CharsTabEntry; 21] = [
+    CharsTabEntry {
+        target: CharsTarget::FcsStl,
+        name: c"stl",
+        def: Some(c" "),
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsStlnc,
+        name: c"stlnc",
+        def: Some(c" "),
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsWbr,
+        name: c"wbr",
+        def: Some(c" "),
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsHoriz,
+        name: c"horiz",
+        def: Some(c"─"),
+        fallback: Some(c"-"),
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsHorizup,
+        name: c"horizup",
+        def: Some(c"┴"),
+        fallback: Some(c"-"),
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsHorizdown,
+        name: c"horizdown",
+        def: Some(c"┬"),
+        fallback: Some(c"-"),
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsVert,
+        name: c"vert",
+        def: Some(c"│"),
+        fallback: Some(c"|"),
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsVertleft,
+        name: c"vertleft",
+        def: Some(c"┤"),
+        fallback: Some(c"|"),
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsVertright,
+        name: c"vertright",
+        def: Some(c"├"),
+        fallback: Some(c"|"),
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsVerthoriz,
+        name: c"verthoriz",
+        def: Some(c"┼"),
+        fallback: Some(c"+"),
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsFold,
+        name: c"fold",
+        def: Some(c"·"),
+        fallback: Some(c"-"),
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsFoldopen,
+        name: c"foldopen",
+        def: Some(c"-"),
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsFoldclosed,
+        name: c"foldclose",
+        def: Some(c"+"),
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsFoldsep,
+        name: c"foldsep",
+        def: Some(c"│"),
+        fallback: Some(c"|"),
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsFoldinner,
+        name: c"foldinner",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsDiff,
+        name: c"diff",
+        def: Some(c"-"),
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsMsgsep,
+        name: c"msgsep",
+        def: Some(c" "),
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsEob,
+        name: c"eob",
+        def: Some(c"~"),
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsLastline,
+        name: c"lastline",
+        def: Some(c"@"),
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsTrunc,
+        name: c"trunc",
+        def: Some(c">"),
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::FcsTruncrl,
+        name: c"truncrl",
+        def: Some(c"<"),
+        fallback: None,
+    },
+];
 
-unsafe fn lcs_tab_entries() -> [CharsTabEntry; 12] {
-    unsafe {
-        [
-            CharsTabEntry {
-                cp: &raw mut lcs_chars.eol,
-                name: c"eol",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut lcs_chars.ext,
-                name: c"extends",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut lcs_chars.nbsp,
-                name: c"nbsp",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut lcs_chars.prec,
-                name: c"precedes",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut lcs_chars.space,
-                name: c"space",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut lcs_chars.tab2,
-                name: c"tab",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut lcs_chars.leadtab2,
-                name: c"leadtab",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut lcs_chars.lead,
-                name: c"lead",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut lcs_chars.trail,
-                name: c"trail",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: &raw mut lcs_chars.conceal,
-                name: c"conceal",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: ptr::null_mut(),
-                name: c"multispace",
-                def: None,
-                fallback: None,
-            },
-            CharsTabEntry {
-                cp: ptr::null_mut(),
-                name: c"leadmultispace",
-                def: None,
-                fallback: None,
-            },
-        ]
-    }
-}
+const LCS_TAB: [CharsTabEntry; 12] = [
+    CharsTabEntry {
+        target: CharsTarget::LcsEol,
+        name: c"eol",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::LcsExt,
+        name: c"extends",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::LcsNbsp,
+        name: c"nbsp",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::LcsPrec,
+        name: c"precedes",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::LcsSpace,
+        name: c"space",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::LcsTab,
+        name: c"tab",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::LcsLeadtab,
+        name: c"leadtab",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::LcsLead,
+        name: c"lead",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::LcsTrail,
+        name: c"trail",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::LcsConceal,
+        name: c"conceal",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::LcsMultispace,
+        name: c"multispace",
+        def: None,
+        fallback: None,
+    },
+    CharsTabEntry {
+        target: CharsTarget::LcsLeadmultispace,
+        name: c"leadmultispace",
+        def: None,
+        fallback: None,
+    },
+];
 
 /// Handle setting 'listchars' or 'fillchars'.
 pub unsafe fn set_chars_option(
@@ -4050,19 +4096,19 @@ pub unsafe fn set_chars_option(
         let mut last_lmultispace: *const c_char = ptr::null();
         let mut multispace_len: usize = 0;
         let mut lead_multispace_len: usize = 0;
+        let mut fcs_chars = fcs_chars_T::default();
+        let mut lcs_chars = lcs_chars_T::new();
 
-        let fcs_storage = fcs_tab_entries();
-        let lcs_storage = lcs_tab_entries();
         let tab: &[CharsTabEntry] = if what == CharsOption::kListchars {
             if apply && *(*wp).w_onebuf_opt.wo_lcs == NUL {
                 value = p_lcs;
             }
-            &lcs_storage
+            &LCS_TAB
         } else {
             if apply && *(*wp).w_onebuf_opt.wo_fcs == NUL {
                 value = p_fcs;
             }
-            &fcs_storage
+            &FCS_TAB
         };
         let entries = tab.len();
 
@@ -4073,12 +4119,12 @@ pub unsafe fn set_chars_option(
 
             if round > 0 {
                 for entry in tab {
-                    if !entry.cp.is_null() {
+                    if let Some(slot) = entry.target.slot_mut(&mut fcs_chars, &mut lcs_chars) {
                         let s_ptr = match entry.def {
                             Some(d) if ptr2cells(d.as_ptr()) == 1 => d.as_ptr(),
                             _ => entry.fallback.map_or(ptr::null(), |f| f.as_ptr()),
                         };
-                        *entry.cp = schar_from_str(s_ptr);
+                        *slot = schar_from_str(s_ptr);
                     }
                 }
 
@@ -4106,9 +4152,7 @@ pub unsafe fn set_chars_option(
 
                     let mut s = p.add(name_len + 1);
 
-                    if what == CharsOption::kListchars
-                        && strcmp(name_ptr, c"multispace".as_ptr()) == 0
-                    {
+                    if tab[i].target == CharsTarget::LcsMultispace {
                         if round == 0 {
                             last_multispace = p;
                             multispace_len = 0;
@@ -4132,11 +4176,10 @@ pub unsafe fn set_chars_option(
                             }
                         } else {
                             let mut multispace_pos: usize = 0;
-                            let lcs = &raw mut lcs_chars;
                             while *s != NUL && *s != b',' as c_char {
                                 let c1 = get_encoded_char_adv(&raw mut s);
                                 if p == last_multispace {
-                                    (*lcs).multispace.as_mut_slice()[multispace_pos] = c1;
+                                    lcs_chars.multispace[multispace_pos] = c1;
                                     multispace_pos += 1;
                                 }
                             }
@@ -4145,9 +4188,7 @@ pub unsafe fn set_chars_option(
                         break;
                     }
 
-                    if what == CharsOption::kListchars
-                        && strcmp(name_ptr, c"leadmultispace".as_ptr()) == 0
-                    {
+                    if tab[i].target == CharsTarget::LcsLeadmultispace {
                         if round == 0 {
                             last_lmultispace = p;
                             lead_multispace_len = 0;
@@ -4171,11 +4212,10 @@ pub unsafe fn set_chars_option(
                             }
                         } else {
                             let mut multispace_pos: usize = 0;
-                            let lcs = &raw mut lcs_chars;
                             while *s != NUL && *s != b',' as c_char {
                                 let c1 = get_encoded_char_adv(&raw mut s);
                                 if p == last_lmultispace {
-                                    (*lcs).leadmultispace.as_mut_slice()[multispace_pos] = c1;
+                                    lcs_chars.leadmultispace[multispace_pos] = c1;
                                     multispace_pos += 1;
                                 }
                             }
@@ -4201,9 +4241,7 @@ pub unsafe fn set_chars_option(
                     }
                     let mut c2: schar_T = 0;
                     let mut c3: schar_T = 0;
-                    if ptr::eq(tab[i].cp, &raw mut lcs_chars.tab2)
-                        || ptr::eq(tab[i].cp, &raw mut lcs_chars.leadtab2)
-                    {
+                    if matches!(tab[i].target, CharsTarget::LcsTab | CharsTarget::LcsLeadtab) {
                         if *s == NUL {
                             return opt_error(
                                 errbuf,
@@ -4229,7 +4267,7 @@ pub unsafe fn set_chars_option(
                                 );
                             }
                         }
-                        if ptr::eq(tab[i].cp, &raw mut lcs_chars.tab2) {
+                        if tab[i].target == CharsTarget::LcsTab {
                             has_tab = true;
                         } else {
                             has_leadtab = true;
@@ -4238,16 +4276,18 @@ pub unsafe fn set_chars_option(
 
                     if *s == b',' as c_char || *s == NUL {
                         if round > 0 {
-                            if ptr::eq(tab[i].cp, &raw mut lcs_chars.tab2) {
+                            if tab[i].target == CharsTarget::LcsTab {
                                 lcs_chars.tab1 = c1;
                                 lcs_chars.tab2 = c2;
                                 lcs_chars.tab3 = c3;
-                            } else if ptr::eq(tab[i].cp, &raw mut lcs_chars.leadtab2) {
+                            } else if tab[i].target == CharsTarget::LcsLeadtab {
                                 lcs_chars.leadtab1 = c1;
                                 lcs_chars.leadtab2 = c2;
                                 lcs_chars.leadtab3 = c3;
-                            } else if !tab[i].cp.is_null() {
-                                *tab[i].cp = c1;
+                            } else if let Some(slot) =
+                                tab[i].target.slot_mut(&mut fcs_chars, &mut lcs_chars)
+                            {
+                                *slot = c1;
                             }
                         }
                         p = s;
@@ -4277,8 +4317,7 @@ pub unsafe fn set_chars_option(
 
         if apply {
             if what == CharsOption::kListchars {
-                let lcs = &raw mut lcs_chars;
-                (*wp).w_p_lcs_chars = std::mem::take(&mut *lcs);
+                (*wp).w_p_lcs_chars = lcs_chars;
             } else {
                 (*wp).w_p_fcs_chars = fcs_chars;
             }
@@ -4290,24 +4329,18 @@ pub unsafe fn set_chars_option(
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'fillchars' option.
 pub unsafe fn get_fillchars_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        let tab = fcs_tab_entries();
-        if idx < 0 || (idx as usize) >= tab.len() {
-            return ptr::null_mut();
-        }
-        tab[idx as usize].name.as_ptr().cast_mut()
+    if idx < 0 || (idx as usize) >= FCS_TAB.len() {
+        return ptr::null_mut();
     }
+    FCS_TAB[idx as usize].name.as_ptr().cast_mut()
 }
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'listchars' option.
 pub unsafe fn get_listchars_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        let tab = lcs_tab_entries();
-        if idx < 0 || (idx as usize) >= tab.len() {
-            return ptr::null_mut();
-        }
-        tab[idx as usize].name.as_ptr().cast_mut()
+    if idx < 0 || (idx as usize) >= LCS_TAB.len() {
+        return ptr::null_mut();
     }
+    LCS_TAB[idx as usize].name.as_ptr().cast_mut()
 }
 
 /// Check all global and local values of 'listchars' and 'fillchars'.

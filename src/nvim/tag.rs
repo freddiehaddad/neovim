@@ -2474,7 +2474,7 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
                 do_in_runtimepath(
                     c"doc/tags doc/tags-??".as_ptr().cast_mut(),
                     DIP_ALL,
-                    RuntimeCallback::FoundTagfile,
+                    &mut RuntimeCallback::FoundTagfile,
                 );
             }
 

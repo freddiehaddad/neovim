@@ -1300,7 +1300,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
             r = do_in_runtimepath(
                 (&raw mut fname_enc).cast(),
                 0,
-                RuntimeCallback::SpellLoad(&raw mut sl),
+                &mut RuntimeCallback::SpellLoad(&mut sl),
             );
             if r == FAIL && sl.sl_lang[0] != NUL {
                 vim_snprintf!(
@@ -1312,7 +1312,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
                 r = do_in_runtimepath(
                     (&raw mut fname_enc).cast(),
                     0,
-                    RuntimeCallback::SpellLoad(&raw mut sl),
+                    &mut RuntimeCallback::SpellLoad(&mut sl),
                 );
                 if r == FAIL
                     && sl.sl_lang[0] != NUL
@@ -1357,7 +1357,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
         } else if sl.sl_loaded {
             let fn_ptr = (&raw mut fname_enc).cast::<c_char>();
             strcpy(fn_ptr.add(strlen(fn_ptr) - 3), c"add.spl".as_ptr());
-            do_in_runtimepath(fn_ptr, DIP_ALL, RuntimeCallback::SpellLoad(&raw mut sl));
+            do_in_runtimepath(fn_ptr, DIP_ALL, &mut RuntimeCallback::SpellLoad(&mut sl));
         }
         (*curbuf).b_locked -= 1;
     }
@@ -1486,25 +1486,25 @@ pub unsafe fn slang_clear_sug(lp: *mut slang_T) {
 pub unsafe fn spell_load_cb(
     fnames: &[std::ffi::CString],
     all: bool,
-    slp: *mut spelload_T,
+    slp: &mut spelload_T,
 ) -> bool {
     unsafe {
         for fname in fnames {
             let slang = spell_load_file(
                 fname.as_ptr().cast_mut(),
-                (&raw mut (*slp).sl_lang).cast(),
+                (&raw mut slp.sl_lang).cast(),
                 ptr::null_mut(),
                 false,
             );
             if slang.is_null() {
                 continue;
             }
-            if (*slp).sl_nobreak != 0 && (*slang).sl_add {
+            if slp.sl_nobreak != 0 && (*slang).sl_add {
                 (*slang).sl_nobreak = true;
             } else if (*slang).sl_nobreak {
-                (*slp).sl_nobreak = 1;
+                slp.sl_nobreak = 1;
             }
-            (*slp).sl_loaded = true;
+            slp.sl_loaded = true;
             if !all {
                 break;
             }
