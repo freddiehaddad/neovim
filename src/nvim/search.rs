@@ -3026,7 +3026,9 @@ fn update_search_stat(
     }
 }
 
-pub unsafe fn f_searchcount(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut pos = (**curwin.as_ptr()).w_cursor;
         let mut pattern: *mut c_char = ptr::null_mut();

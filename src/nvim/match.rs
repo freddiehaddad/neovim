@@ -970,7 +970,9 @@ unsafe fn matchadd_dict_arg(
 }
 
 /// `clearmatches()` function (`f_clearmatches`).
-pub unsafe fn f_clearmatches(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_clearmatches(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let win = get_optional_window(argvars, 0);
         if !win.is_null() {
@@ -980,7 +982,9 @@ pub unsafe fn f_clearmatches(argvars: *mut typval_T, _rettv: &mut typval_T, _fpt
 }
 
 /// `getmatches()` function (`f_getmatches`).
-pub unsafe fn f_getmatches(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let win = get_optional_window(argvars, 0);
 
@@ -1037,7 +1041,9 @@ pub unsafe fn f_getmatches(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// `setmatches()` function (`f_setmatches`).
-pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_setmatches(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut s: *mut list_T = ptr::null_mut();
         let win = get_optional_window(argvars, 1);
@@ -1143,7 +1149,9 @@ pub unsafe fn f_setmatches(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// `matchadd()` function (`f_matchadd`).
-pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_matchadd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut grpbuf = [0 as c_char; NUMBUFLEN];
         let mut patbuf = [0 as c_char; NUMBUFLEN];
@@ -1188,7 +1196,9 @@ pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// `matchaddpos()` function (`f_matchaddpos`).
-pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_matchaddpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -1246,7 +1256,9 @@ pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 }
 
 /// `matcharg()` function (`f_matcharg`).
-pub unsafe fn f_matcharg(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_matcharg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let id = tv_get_number(argvars) as c_int;
 
@@ -1272,7 +1284,9 @@ pub unsafe fn f_matcharg(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// `matchdelete()` function (`f_matchdelete`).
-pub unsafe fn f_matchdelete(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_matchdelete(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let win = get_optional_window(argvars, 1);
         rettv.vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {

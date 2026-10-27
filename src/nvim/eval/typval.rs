@@ -1792,7 +1792,9 @@ pub unsafe fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: *const c_
 }
 
 /// "join()" function.
-pub unsafe fn f_join(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_join(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if (*argvars).v_type != VarType::VAR_LIST {
             emsg(tr(e_listreq.as_ptr()));
@@ -1817,7 +1819,9 @@ pub unsafe fn f_join(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
 }
 
 /// "list2str()" function.
-pub unsafe fn f_list2str(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_list2str(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -2350,14 +2354,18 @@ unsafe fn do_sort_uniq(argvars: *mut typval_T, rettv: *mut typval_T, sort: bool)
 }
 
 /// "sort({list})" function.
-pub unsafe fn f_sort(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_sort(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         do_sort_uniq(argvars, rettv, true);
     }
 }
 
 /// "uniq({list})" function.
-pub unsafe fn f_uniq(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_uniq(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         do_sort_uniq(argvars, rettv, false);
     }
@@ -3785,7 +3793,9 @@ pub unsafe fn tv_blob_remove(
 }
 
 /// blob2list() function.
-pub unsafe fn f_blob2list(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_blob2list(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
@@ -3802,7 +3812,9 @@ pub unsafe fn f_blob2list(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 }
 
 /// list2blob() function.
-pub unsafe fn f_list2blob(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_list2blob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let blob = tv_blob_alloc_ret(rettv);
 
@@ -3911,7 +3923,9 @@ unsafe fn tv_dict2list(argvars: *mut typval_T, rettv: *mut typval_T, what: DictL
 }
 
 /// "items()" function.
-pub unsafe fn f_items(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_items(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         match (*argvars).v_type {
             VarType::VAR_STRING => tv_string2items(argvars, rettv),
@@ -3929,21 +3943,27 @@ pub unsafe fn f_items(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
 }
 
 /// "keys()" function.
-pub unsafe fn f_keys(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_keys(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_dict2list(argvars, rettv, DictListType::Keys);
     }
 }
 
 /// "values(dict)" function.
-pub unsafe fn f_values(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_values(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_dict2list(argvars, rettv, DictListType::Values);
     }
 }
 
 /// "has_key()" function.
-pub unsafe fn f_has_key(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_has_key(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if tv_check_for_dict_arg(argvars, 0) == FAIL {
             return;

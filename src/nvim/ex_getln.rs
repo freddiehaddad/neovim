@@ -4836,7 +4836,7 @@ fn get_cmdline_completion() -> Option<std::ffi::CString> {
 }
 
 /// `"getcmdcomplpat()"` function.
-pub unsafe fn f_getcmdcomplpat(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getcmdcomplpat(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         crate::eval::typval::tv_set_string(
             rettv,
@@ -4848,11 +4848,8 @@ pub unsafe fn f_getcmdcomplpat(_argvars: *mut typval_T, rettv: &mut typval_T, _f
 }
 
 /// `"getcmdcompltype()"` function.
-pub unsafe fn f_getcmdcompltype(
-    _argvars: *mut typval_T,
-    rettv: &mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub fn f_getcmdcompltype(_argvars: &mut [typval_T], rettv: &mut typval_T,
+    _fptr: EvalFuncData,){
     unsafe {
         crate::eval::typval::tv_set_string(
             rettv,
@@ -4864,7 +4861,7 @@ pub unsafe fn f_getcmdcompltype(
 }
 
 /// `"getcmdline()"` function.
-pub unsafe fn f_getcmdline(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getcmdline(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         if let Some(s) = get_cmdline_str() {
             crate::eval::typval::tv_set_string_len(rettv, s.as_ptr(), s.as_bytes().len());
@@ -4876,7 +4873,7 @@ pub unsafe fn f_getcmdline(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 }
 
 /// `"getcmdpos()"` function.
-pub unsafe fn f_getcmdpos(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getcmdpos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         let p = get_ccline_ptr();
         rettv.vval = crate::eval::typval::TypvalVval::Number(if !p.is_null() {
@@ -4888,7 +4885,7 @@ pub unsafe fn f_getcmdpos(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// `"getcmdprompt()"` function.
-pub unsafe fn f_getcmdprompt(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getcmdprompt(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         let p = get_ccline_ptr();
         crate::eval::typval::tv_set_string(
@@ -4905,11 +4902,8 @@ pub unsafe fn f_getcmdprompt(_argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 }
 
 /// `"getcmdscreenpos()"` function.
-pub unsafe fn f_getcmdscreenpos(
-    _argvars: *mut typval_T,
-    rettv: &mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub fn f_getcmdscreenpos(_argvars: &mut [typval_T], rettv: &mut typval_T,
+    _fptr: EvalFuncData,){
     unsafe {
         let p = get_ccline_ptr();
         rettv.vval = crate::eval::typval::TypvalVval::Number(if !p.is_null() {
@@ -4921,7 +4915,7 @@ pub unsafe fn f_getcmdscreenpos(
 }
 
 /// `"getcmdtype()"` function.
-pub unsafe fn f_getcmdtype(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getcmdtype(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         let buf: [c_char; 2] = [get_cmdline_type() as c_char, 0];
         crate::eval::typval::tv_set_string(rettv, buf.as_ptr());
@@ -4973,7 +4967,9 @@ fn set_cmdline_pos(pos: c_int) -> c_int {
 }
 
 /// `"setcmdline()"` function.
-pub unsafe fn f_setcmdline(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_setcmdline(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if tv_check_for_string_arg(argvars, 0) == FAIL
             || tv_check_for_opt_number_arg(argvars, 1) == FAIL
@@ -5000,7 +4996,9 @@ pub unsafe fn f_setcmdline(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// `"setcmdpos()"` function.
-pub unsafe fn f_setcmdpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_setcmdpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let pos = (tv_get_number(argvars) - 1) as c_int;
 
@@ -5429,7 +5427,7 @@ pub unsafe fn get_user_input(
 }
 
 /// `"wildtrigger()"` function.
-pub unsafe fn f_wildtrigger(_argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_wildtrigger(_argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         if (g_st().State & MODE_CMDLINE) == 0
             || char_avail()

@@ -2733,21 +2733,27 @@ unsafe fn foldclosed_both(argvars: *mut typval_T, rettv: &mut typval_T, end: boo
 }
 
 /// "foldclosed()" function
-pub unsafe fn f_foldclosed(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_foldclosed(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         foldclosed_both(argvars, rettv, false);
     }
 }
 
 /// "foldclosedend()" function
-pub unsafe fn f_foldclosedend(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_foldclosedend(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         foldclosed_both(argvars, rettv, true);
     }
 }
 
 /// "foldlevel()" function
-pub unsafe fn f_foldlevel(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_foldlevel(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let lnum = tv_get_lnum(&*argvars);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
@@ -2757,7 +2763,7 @@ pub unsafe fn f_foldlevel(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 }
 
 /// "foldtext()" function
-pub unsafe fn f_foldtext(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_foldtext(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -2808,7 +2814,9 @@ pub unsafe fn f_foldtext(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 }
 
 /// "foldtextresult(lnum)" function
-pub unsafe fn f_foldtextresult(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_foldtextresult(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());

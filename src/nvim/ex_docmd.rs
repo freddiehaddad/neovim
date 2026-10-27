@@ -7608,7 +7608,9 @@ pub unsafe fn cmd_exists(name: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn f_fullcommand(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_fullcommand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut name = tv_get_string(argvars).cast_mut();
 

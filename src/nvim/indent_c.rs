@@ -3168,7 +3168,9 @@ pub fn do_c_expr_indent() {
     }
 }
 /// "cindent(lnum)" function
-pub unsafe fn f_cindent(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_cindent(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let pos = (**curwin.as_ptr()).w_cursor;
         let lnum = tv_get_lnum(&*argvars);

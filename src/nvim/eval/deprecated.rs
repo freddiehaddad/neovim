@@ -28,7 +28,9 @@ const fn callback_reader_init() -> CallbackReader {
 }
 
 /// `"rpcstart()"` function (`f_rpcstart`).
-pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.v_type = VarType::VAR_NUMBER;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -111,7 +113,7 @@ pub unsafe fn f_rpcstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// `"rpcstop()"` function (`f_rpcstop`).
-pub unsafe fn f_rpcstop(argvars: *mut typval_T, rettv: &mut typval_T, fptr: EvalFuncData) {
+pub fn f_rpcstop(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncData){
     unsafe {
         rettv.v_type = VarType::VAR_NUMBER;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -120,7 +122,7 @@ pub unsafe fn f_rpcstop(argvars: *mut typval_T, rettv: &mut typval_T, fptr: Eval
             return;
         }
 
-        let arg0 = &*argvars;
+        let arg0 = &argvars[0];
         if arg0.v_type != VarType::VAR_NUMBER {
             emsg(e_invarg.as_ptr());
             return;
@@ -141,7 +143,7 @@ pub unsafe fn f_rpcstop(argvars: *mut typval_T, rettv: &mut typval_T, fptr: Eval
 }
 
 /// `"last_buffer_nr()"` function (`f_last_buffer_nr`).
-pub unsafe fn f_last_buffer_nr(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_last_buffer_nr(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         let mut n: c_int = 0;
         let mut buf = g_st().firstbuf;
@@ -156,14 +158,14 @@ pub unsafe fn f_last_buffer_nr(_argvars: *mut typval_T, rettv: &mut typval_T, _f
 }
 
 /// `"termopen(cmd[, cwd])"` function (`f_termopen`).
-pub unsafe fn f_termopen(argvars: *mut typval_T, rettv: &mut typval_T, fptr: EvalFuncData) {
+pub fn f_termopen(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncData){
     unsafe {
         if check_secure() {
             return;
         }
 
         let mut must_free = false;
-        let arg1 = &mut *argvars.add(1);
+        let arg1 = &mut argvars[1];
         if arg1.v_type == VarType::VAR_UNKNOWN {
             must_free = true;
             arg1.v_type = VarType::VAR_DICT;

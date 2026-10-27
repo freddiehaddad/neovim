@@ -1992,7 +1992,9 @@ unsafe fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
 }
 
 /// `menu_info()` function (`f_menu_info`).
-pub unsafe fn f_menu_info(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_menu_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_dict_alloc_ret(rettv);
         let retdict = rettv.vval.v_dict();

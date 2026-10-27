@@ -1932,7 +1932,9 @@ pub fn fix_indent() {
 }
 
 /// `indent()` function (`f_indent`).
-pub unsafe fn f_indent(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_indent(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let lnum = tv_get_lnum(&*argvars);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
@@ -1944,7 +1946,9 @@ pub unsafe fn f_indent(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
 }
 
 /// `lispindent(lnum)` function (`f_lispindent`).
-pub unsafe fn f_lispindent(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_lispindent(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let pos = (**curwin.as_ptr()).w_cursor;
         let lnum = tv_get_lnum(&*argvars);

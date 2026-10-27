@@ -3497,7 +3497,9 @@ unsafe fn check_can_index(rettv: *mut typval_T, evaluate: bool, verbose: bool) -
 }
 
 /// slice() function
-pub unsafe fn f_slice(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_slice(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if check_can_index(argvars, true, false) != OK {
             return;
@@ -5189,13 +5191,17 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: &mut typval_
 }
 
 /// f_system - the Vimscript system() function
-pub unsafe fn f_system(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_system(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         get_system_output_as_rettv(argvars, rettv, false);
     }
 }
 
-pub unsafe fn f_systemlist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_systemlist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         get_system_output_as_rettv(argvars, rettv, true);
     }

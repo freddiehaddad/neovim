@@ -460,7 +460,9 @@ pub unsafe fn modify_fname(
 }
 
 /// "chdir(dir)" function
-pub unsafe fn f_chdir(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_chdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -517,7 +519,9 @@ pub unsafe fn f_chdir(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
 }
 
 /// "delete()" function
-pub unsafe fn f_delete(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_delete(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         if check_secure() {
@@ -554,7 +558,9 @@ pub unsafe fn f_delete(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
 }
 
 /// "executable()" function
-pub unsafe fn f_executable(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_executable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if tv_check_for_string_arg(argvars, 0) == FAIL {
             return;
@@ -566,7 +572,9 @@ pub unsafe fn f_executable(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// "exepath()" function
-pub unsafe fn f_exepath(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_exepath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if tv_check_for_nonempty_string_arg(argvars, 0) == FAIL {
             return;
@@ -595,7 +603,9 @@ pub unsafe fn f_exepath(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
 }
 
 /// "filecopy()" function
-pub unsafe fn f_filecopy(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_filecopy(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
@@ -620,7 +630,9 @@ pub unsafe fn f_filecopy(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// "filereadable()" function
-pub unsafe fn f_filereadable(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_filereadable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let p = tv_get_string(argvars);
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(*p != NUL && !os_isdir(p) && os_file_is_readable(p)));
@@ -630,7 +642,9 @@ pub unsafe fn f_filereadable(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
 /// @return  0 for not writable
 ///          1 for writable file
 ///          2 for a dir which we have rights to write into.
-pub unsafe fn f_filewritable(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_filewritable(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let filename = tv_get_string(argvars);
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_file_is_writable(filename)));
@@ -727,21 +741,27 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: &mut typval_T, find_what: 
 }
 
 /// "finddir({fname}[, {path}[, {count}]])" function
-pub unsafe fn f_finddir(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_finddir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         findfilendir(argvars, rettv, FINDFILE_DIR);
     }
 }
 
 /// "findfile({fname}[, {path}[, {count}]])" function
-pub unsafe fn f_findfile(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_findfile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         findfilendir(argvars, rettv, FINDFILE_FILE);
     }
 }
 
 /// "fnamemodify({fname}, {mods})" function
-pub unsafe fn f_fnamemodify(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_fnamemodify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut fbuf: Option<Vec<c_char>> = None;
         let mut len: usize = 0;
@@ -903,7 +923,9 @@ unsafe fn getcwd_scope_args(
 }
 
 /// `getcwd([{win}[, {tab}[, {buf}]]])` function
-pub unsafe fn f_getcwd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getcwd(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut scope: c_int = kCdScopeInvalid;
         let mut win: *mut win_T = ptr::null_mut();
@@ -984,7 +1006,9 @@ pub unsafe fn f_getcwd(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
 }
 
 /// "getfperm({fname})" function
-pub unsafe fn f_getfperm(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getfperm(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let flags = [b'r' as c_char, b'w' as c_char, b'x' as c_char];
 
@@ -1006,7 +1030,9 @@ pub unsafe fn f_getfperm(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// "getfsize({fname})" function
-pub unsafe fn f_getfsize(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getfsize(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let fname = tv_get_string(argvars);
 
@@ -1030,7 +1056,9 @@ pub unsafe fn f_getfsize(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// "getftime({fname})" function
-pub unsafe fn f_getftime(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getftime(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let fname = tv_get_string(argvars);
 
@@ -1044,7 +1072,9 @@ pub unsafe fn f_getftime(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// "getftype({fname})" function
-pub unsafe fn f_getftype(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getftype(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let fname = tv_get_string(argvars);
 
@@ -1077,7 +1107,9 @@ pub unsafe fn f_getftype(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// "glob()" function
-pub unsafe fn f_glob(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_glob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut options: c_int = WILD_SILENT | WILD_USE_NL;
         let mut xpc = expand_T::new();
@@ -1142,7 +1174,9 @@ pub unsafe fn f_glob(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
 }
 
 /// "globpath()" function
-pub unsafe fn f_globpath(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_globpath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut flags: c_int = 0; // Flags for globpath.
         let mut error = false;
@@ -1201,7 +1235,9 @@ pub unsafe fn f_globpath(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// "glob2regpat()" function
-pub unsafe fn f_glob2regpat(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_glob2regpat(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let pat = tv_get_string_chk(argvars); // NULL on type error
         let regpat = if pat.is_null() {
@@ -1217,7 +1253,9 @@ pub unsafe fn f_glob2regpat(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 }
 
 /// `haslocaldir([{win}[, {tab}[, {buf}]]])` function
-pub unsafe fn f_haslocaldir(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_haslocaldir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut scope: c_int = kCdScopeWindow;
         let mut win: *mut win_T = ptr::null_mut();
@@ -1258,21 +1296,27 @@ pub unsafe fn f_haslocaldir(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 }
 
 /// "isabsolutepath()" function
-pub unsafe fn f_isabsolutepath(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_isabsolutepath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(path_is_absolute(tv_get_string(argvars))));
     }
 }
 
 /// "isdirectory()" function
-pub unsafe fn f_isdirectory(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_isdirectory(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(os_isdir(tv_get_string(argvars))));
     }
 }
 
 /// "mkdir()" function
-pub unsafe fn f_mkdir(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_mkdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut prot: c_int = 0o755;
 
@@ -1357,7 +1401,9 @@ pub unsafe fn f_mkdir(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalF
 }
 
 /// "pathshorten()" function
-pub unsafe fn f_pathshorten(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_pathshorten(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut trim_len: c_int = 1;
 
@@ -1419,7 +1465,9 @@ pub(crate) unsafe fn readdir_checkitem(expr: &mut typval_T, name: *const c_char)
 }
 
 /// "readdir()" function
-pub unsafe fn f_readdir(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_readdir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN);
         if check_secure() {
@@ -1667,7 +1715,9 @@ unsafe fn read_file_or_blob(argvars: *mut typval_T, rettv: &mut typval_T, always
 }
 
 /// "readblob()" function
-pub unsafe fn f_readblob(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_readblob(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if check_secure() {
             return;
@@ -1678,7 +1728,9 @@ pub unsafe fn f_readblob(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// "readfile()" function
-pub unsafe fn f_readfile(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_readfile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if check_secure() {
             return;
@@ -1689,7 +1741,9 @@ pub unsafe fn f_readfile(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// "rename({from}, {to})" function
-pub unsafe fn f_rename(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_rename(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if check_secure() {
             rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -1704,7 +1758,9 @@ pub unsafe fn f_rename(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eval
 }
 
 /// "resolve()" function
-pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         let fname = tv_get_string(argvars);
@@ -1898,7 +1954,9 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
 }
 
 /// "simplify()" function
-pub unsafe fn f_simplify(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_simplify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let p = tv_get_string(argvars);
         let mut v = cstr_into_char_vec(cstr_to_cstring(p));
@@ -1908,7 +1966,7 @@ pub unsafe fn f_simplify(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// "tempname()" function
-pub unsafe fn f_tempname(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_tempname(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         if let Some(tn) = vim_tempname() {
             crate::eval::typval::tv_set_string(rettv, tn.as_ptr());
@@ -2023,7 +2081,9 @@ unsafe fn write_string(fp: &mut FileDescriptor, data: *const c_char) -> bool {
 }
 
 /// "writefile()" function
-pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_writefile(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -2146,16 +2206,14 @@ pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 }
 
 /// "browse(save, title, initdir, default)" function
-pub unsafe fn f_browse(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_browse(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
     rettv.v_type = VarType::VAR_STRING;
 }
 
 /// "browsedir(title, initdir)" function
-pub unsafe fn f_browsedir(argvars: *mut typval_T, rettv: &mut typval_T, fptr: EvalFuncData) {
-    unsafe {
-        f_browse(argvars, rettv, fptr);
-    }
+pub fn f_browsedir(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncData) {
+    f_browse(argvars, rettv, fptr);
 }
 
 #[cfg(test)]

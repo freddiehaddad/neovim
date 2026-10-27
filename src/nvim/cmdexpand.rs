@@ -5823,7 +5823,9 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
 }
 
 /// "getcompletion()" function.
-pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getcompletion(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut xpc: expand_T = expand_T::new();
         let mut filtered = false;
@@ -5960,11 +5962,10 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 }
 
 /// "getcompletiontype()" function.
-pub unsafe fn f_getcompletiontype(
-    argvars: *mut typval_T,
-    rettv: &mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub fn f_getcompletiontype(argvars: &mut [typval_T], rettv: &mut typval_T,
+    _fptr: EvalFuncData,){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -5994,11 +5995,8 @@ pub unsafe fn f_getcompletiontype(
 }
 
 /// "cmdcomplete_info()" function.
-pub unsafe fn f_cmdcomplete_info(
-    _argvars: *mut typval_T,
-    rettv: &mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub fn f_cmdcomplete_info(_argvars: &mut [typval_T], rettv: &mut typval_T,
+    _fptr: EvalFuncData,){
     unsafe {
         let ccline = get_cmdline_info();
 

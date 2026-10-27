@@ -1469,7 +1469,9 @@ unsafe fn sign_define_multiple(l: *const list_T, retlist: *mut list_T) {
     }
 }
 
-pub unsafe fn f_sign_define(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_sign_define(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if (*argvars).v_type == VarType::VAR_LIST
             && (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN
@@ -1499,7 +1501,9 @@ pub unsafe fn f_sign_define(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
     }
 }
 
-pub unsafe fn f_sign_getdefined(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_sign_getdefined(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_list_alloc_ret(rettv, 0);
 
@@ -1517,7 +1521,9 @@ pub unsafe fn f_sign_getdefined(argvars: *mut typval_T, rettv: &mut typval_T, _f
     }
 }
 
-pub unsafe fn f_sign_getplaced(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_sign_getplaced(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut buf: *mut buf_T = ptr::null_mut();
         let mut lnum: linenr_T = 0;
@@ -1570,7 +1576,9 @@ pub unsafe fn f_sign_getplaced(argvars: *mut typval_T, rettv: &mut typval_T, _fp
     }
 }
 
-pub unsafe fn f_sign_jump(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -1701,7 +1709,9 @@ unsafe fn sign_place_from_dict(
     }
 }
 
-pub unsafe fn f_sign_place(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_sign_place(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut dict: *mut dict_T = ptr::null_mut();
 
@@ -1724,7 +1734,9 @@ pub unsafe fn f_sign_place(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
     }
 }
 
-pub unsafe fn f_sign_placelist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 
@@ -1774,7 +1786,9 @@ unsafe fn sign_undefine_multiple(l: *const list_T, retlist: *mut list_T) {
     }
 }
 
-pub unsafe fn f_sign_undefine(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_sign_undefine(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if (*argvars).v_type == VarType::VAR_LIST
             && (*argvars.add(1)).v_type == VarType::VAR_UNKNOWN
@@ -1835,7 +1849,9 @@ unsafe fn sign_unplace_from_dict(group_tv: *mut typval_T, dict: *mut dict_T) -> 
     }
 }
 
-pub unsafe fn f_sign_unplace(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_sign_unplace(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut dict: *mut dict_T = ptr::null_mut();
 
@@ -1855,11 +1871,10 @@ pub unsafe fn f_sign_unplace(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
     }
 }
 
-pub unsafe fn f_sign_unplacelist(
-    argvars: *mut typval_T,
-    rettv: &mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub fn f_sign_unplacelist(argvars: &mut [typval_T], rettv: &mut typval_T,
+    _fptr: EvalFuncData,){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
 

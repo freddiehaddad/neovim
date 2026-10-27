@@ -2087,7 +2087,9 @@ pub unsafe fn check_map(
 }
 
 /// "hasmapto()" function
-pub unsafe fn f_hasmapto(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_hasmapto(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let name = tv_get_string(argvars);
         let mut abbr = false;
@@ -2379,7 +2381,9 @@ unsafe fn get_map_mode_string(mode_string: *const c_char, abbr: bool) -> c_int {
 }
 
 /// "mapset()" function
-pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_mapset(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if check_secure() {
             return;
@@ -2518,7 +2522,9 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: Eva
 }
 
 /// "maplist()" function
-pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_maplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
         let abbr = (*argvars).v_type != VarType::VAR_UNKNOWN && tv_get_bool(argvars) != 0;
@@ -2585,14 +2591,18 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
 }
 
 /// "maparg()" function
-pub unsafe fn f_maparg(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         get_maparg(argvars, rettv, 1);
     }
 }
 
 /// "mapcheck()" function
-pub unsafe fn f_mapcheck(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_mapcheck(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         get_maparg(argvars, rettv, 0);
     }

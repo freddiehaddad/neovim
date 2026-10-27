@@ -520,7 +520,9 @@ fn get_tabpage_info(tp: &mut tabpage_T, tp_idx: c_int) -> *mut dict_T {
 }
 
 /// `gettabinfo()` function (`f_gettabinfo`).
-pub unsafe fn f_gettabinfo(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_gettabinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut tparg: *mut tabpage_T = ptr::null_mut();
 
@@ -559,7 +561,9 @@ pub unsafe fn f_gettabinfo(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// `getwininfo()` function (`f_getwininfo`).
-pub unsafe fn f_getwininfo(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getwininfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut wparg: *mut win_T = ptr::null_mut();
 
@@ -598,7 +602,7 @@ pub unsafe fn f_getwininfo(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// `getwinpos({timeout})` function (`f_getwinpos`).
-pub unsafe fn f_getwinpos(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getwinpos(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         tv_list_alloc_ret(rettv, 2);
         tv_list_append_number(rettv.vval.v_list(), -1);
@@ -607,17 +611,19 @@ pub unsafe fn f_getwinpos(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// `getwinposx()` function (`f_getwinposx`).
-pub unsafe fn f_getwinposx(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getwinposx(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 }
 
 /// `getwinposy()` function (`f_getwinposy`).
-pub unsafe fn f_getwinposy(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getwinposy(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 }
 
 /// `tabpagenr()` function (`f_tabpagenr`).
-pub unsafe fn f_tabpagenr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_tabpagenr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut nr: c_int = 0;
 
@@ -645,7 +651,9 @@ pub unsafe fn f_tabpagenr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 }
 
 /// `tabpagewinnr()` function (`f_tabpagewinnr`).
-pub unsafe fn f_tabpagewinnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_tabpagewinnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let tp = find_tabpage(tv_get_number(argvars) as c_int);
         let nr = if tp.is_null() {
@@ -658,7 +666,9 @@ pub unsafe fn f_tabpagewinnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr
 }
 
 /// `win_execute(win_id, command)` function (`f_win_execute`).
-pub unsafe fn f_win_execute(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_win_execute(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -685,7 +695,9 @@ pub unsafe fn f_win_execute(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 }
 
 /// `win_findbuf()` function (`f_win_findbuf`).
-pub unsafe fn f_win_findbuf(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_win_findbuf(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_list_alloc_ret(rettv, kListLenMayKnow);
         win_findbuf(argvars, rettv.vval.v_list());
@@ -693,14 +705,18 @@ pub unsafe fn f_win_findbuf(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 }
 
 /// `win_getid()` function (`f_win_getid`).
-pub unsafe fn f_win_getid(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_win_getid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(win_getid(argvars) as varnumber_T);
     }
 }
 
 /// `win_gotoid()` function (`f_win_gotoid`).
-pub unsafe fn f_win_gotoid(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_win_gotoid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let id = tv_get_number(argvars) as c_int;
         if (**curwin.as_ptr()).handle == id {
@@ -731,25 +747,28 @@ pub unsafe fn f_win_gotoid(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 }
 
 /// `win_id2tabwin()` function (`f_win_id2tabwin`).
-pub unsafe fn f_win_id2tabwin(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_win_id2tabwin(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         win_id2tabwin(argvars, rettv);
     }
 }
 
 /// `win_id2win()` function (`f_win_id2win`).
-pub unsafe fn f_win_id2win(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_win_id2win(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(win_id2win(argvars) as varnumber_T);
     }
 }
 
 /// `win_move_separator()` function (`f_win_move_separator`).
-pub unsafe fn f_win_move_separator(
-    argvars: *mut typval_T,
-    rettv: &mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub fn f_win_move_separator(argvars: &mut [typval_T], rettv: &mut typval_T,
+    _fptr: EvalFuncData,){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
@@ -769,11 +788,10 @@ pub unsafe fn f_win_move_separator(
 }
 
 /// `win_move_statusline()` function (`f_win_move_statusline`).
-pub unsafe fn f_win_move_statusline(
-    argvars: *mut typval_T,
-    rettv: &mut typval_T,
-    _fptr: EvalFuncData,
-) {
+pub fn f_win_move_statusline(argvars: &mut [typval_T], rettv: &mut typval_T,
+    _fptr: EvalFuncData,){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
@@ -793,7 +811,9 @@ pub unsafe fn f_win_move_statusline(
 }
 
 /// `win_screenpos()` function (`f_win_screenpos`).
-pub unsafe fn f_win_screenpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_win_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_list_alloc_ret(rettv, 2);
         let wp = find_win_by_nr_or_id(argvars);
@@ -817,7 +837,9 @@ pub unsafe fn f_win_screenpos(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 }
 
 /// `win_splitmove()` function (`f_win_splitmove`).
-pub unsafe fn f_win_splitmove(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_win_splitmove(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let wp = find_win_by_nr_or_id(argvars);
         let targetwin = find_win_by_nr_or_id(argvars.add(1));
@@ -882,7 +904,9 @@ pub unsafe fn f_win_splitmove(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
 }
 
 /// `win_gettype(nr)` function (`f_win_gettype`).
-pub unsafe fn f_win_gettype(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_win_gettype(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let mut wp = *curwin.as_ptr();
 
@@ -916,7 +940,7 @@ pub unsafe fn f_win_gettype(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 }
 
 /// `getcmdwintype()` function (`f_getcmdwintype`).
-pub unsafe fn f_getcmdwintype(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getcmdwintype(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         let buf = [g_st().cmdwin_type as c_char, 0];
         tv_set_string(rettv, buf.as_ptr());
@@ -924,7 +948,9 @@ pub unsafe fn f_getcmdwintype(_argvars: *mut typval_T, rettv: &mut typval_T, _fp
 }
 
 /// `winbufnr(nr)` function (`f_winbufnr`).
-pub unsafe fn f_winbufnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_winbufnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let wp = find_win_by_nr_or_id(argvars);
         rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
@@ -936,7 +962,7 @@ pub unsafe fn f_winbufnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// `wincol()` function (`f_wincol`).
-pub unsafe fn f_wincol(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_wincol(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         validate_cursor(*curwin.as_ptr());
         rettv.vval = crate::eval::typval::TypvalVval::Number(((**curwin.as_ptr()).w_wcol + 1) as varnumber_T);
@@ -944,7 +970,9 @@ pub unsafe fn f_wincol(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
 }
 
 /// `winheight(nr)` function (`f_winheight`).
-pub unsafe fn f_winheight(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_winheight(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let wp = find_win_by_nr_or_id(argvars);
         rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
@@ -956,7 +984,9 @@ pub unsafe fn f_winheight(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 }
 
 /// `winlayout()` function (`f_winlayout`).
-pub unsafe fn f_winlayout(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_winlayout(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_list_alloc_ret(rettv, 2);
 
@@ -975,7 +1005,7 @@ pub unsafe fn f_winlayout(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 }
 
 /// `winline()` function (`f_winline`).
-pub unsafe fn f_winline(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_winline(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         validate_cursor(*curwin.as_ptr());
         rettv.vval = crate::eval::typval::TypvalVval::Number(((**curwin.as_ptr()).w_wrow + 1) as varnumber_T);
@@ -983,14 +1013,16 @@ pub unsafe fn f_winline(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 }
 
 /// `winnr()` function (`f_winnr`).
-pub unsafe fn f_winnr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_winnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(get_winnr(&mut *g_st().curtab, &mut *argvars) as varnumber_T);
     }
 }
 
 /// `winrestcmd()` function (`f_winrestcmd`).
-pub unsafe fn f_winrestcmd(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_winrestcmd(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         let mut buf = String::with_capacity(70);
         for _ in 0..2 {
@@ -1017,7 +1049,9 @@ pub unsafe fn f_winrestcmd(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 }
 
 /// `winrestview()` function (`f_winrestview`).
-pub unsafe fn f_winrestview(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_winrestview(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if tv_check_for_nonnull_dict_arg(argvars, 0) == FAIL {
             return;
@@ -1074,7 +1108,7 @@ pub unsafe fn f_winrestview(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr
 }
 
 /// `winsaveview()` function (`f_winsaveview`).
-pub unsafe fn f_winsaveview(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_winsaveview(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         tv_dict_alloc_ret(rettv);
         let dict = rettv.vval.v_dict();
@@ -1110,7 +1144,9 @@ pub unsafe fn f_winsaveview(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr
 }
 
 /// `winwidth(nr)` function (`f_winwidth`).
-pub unsafe fn f_winwidth(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_winwidth(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let wp = find_win_by_nr_or_id(argvars);
         rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {

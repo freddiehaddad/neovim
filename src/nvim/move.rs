@@ -1228,7 +1228,9 @@ pub fn textpos2screenpos(
 }
 
 /// `"screenpos({winid}, {lnum}, {col})"` function.
-pub unsafe fn f_screenpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_screenpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_dict_alloc_ret(rettv);
         let dict = rettv.vval.v_dict();
@@ -1296,7 +1298,9 @@ fn virtcol2col(wp: &mut win_T, lnum: linenr_T, vcol: c_int) -> c_int {
 }
 
 /// `"virtcol2col({winid}, {lnum}, {col})"` function.
-pub unsafe fn f_virtcol2col(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_virtcol2col(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 

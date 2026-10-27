@@ -3617,7 +3617,9 @@ unsafe fn set_completion(mut startcol: colnr_T, list: *mut list_T) {
     }
 }
 
-pub unsafe fn f_complete(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_complete(argvars: &mut [typval_T], _rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         if (g_st().State & MODE_INSERT) == 0 {
             emsg(gettext(
@@ -3641,13 +3643,15 @@ pub unsafe fn f_complete(argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: E
     }
 }
 
-pub unsafe fn f_complete_add(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_complete_add(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ins_compl_add_tv(&mut *argvars, 0, false)));
     }
 }
 
-pub unsafe fn f_complete_check(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_complete_check(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let saved = g_st().RedrawingDisabled;
         g_st().RedrawingDisabled = 0;
         ins_compl_check_keys(0, true);
@@ -3964,7 +3968,9 @@ unsafe fn get_complete_info(what_list: *mut list_T, retdict: *mut dict_T) {
     }
 }
 
-pub unsafe fn f_complete_info(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_complete_info(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_dict_alloc_ret(rettv);
 
@@ -6993,7 +6999,7 @@ fn cpt_compl_refresh() {
     }
 }
 
-pub unsafe fn f_preinserted(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_preinserted(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     if ins_compl_preinsert_effect() {
             rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         }

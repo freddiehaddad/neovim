@@ -608,7 +608,7 @@ pub fn stacktrace_create() -> *mut list_T {
 }
 
 /// getstacktrace() function
-pub unsafe fn f_getstacktrace(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getstacktrace(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     unsafe {
         let l = stacktrace_create();
         rettv.v_type = VarType::VAR_LIST;
@@ -3288,7 +3288,9 @@ fn get_script_local_funcs(sid: scid_T) -> *mut list_T {
 }
 
 /// "getscriptinfo()" function
-pub unsafe fn f_getscriptinfo(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getscriptinfo(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         tv_list_alloc_ret(rettv, script_items_len() as isize);
 

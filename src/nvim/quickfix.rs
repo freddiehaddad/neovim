@@ -7867,14 +7867,18 @@ unsafe fn get_qf_loc_list(
     }
 }
 
-pub unsafe fn f_getloclist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         let wp = find_win_by_nr_or_id(argvars);
         get_qf_loc_list(false, wp, &mut *argvars.add(1), rettv);
     }
 }
 
-pub unsafe fn f_getqflist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_getqflist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         get_qf_loc_list(true, ptr::null_mut(), &mut *argvars, rettv);
     }
@@ -7951,7 +7955,9 @@ unsafe fn set_qf_ll_list(wp: *mut win_T, args: *mut typval_T, rettv: &mut typval
     }
 }
 
-pub unsafe fn f_setloclist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_setloclist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -7962,7 +7968,9 @@ pub unsafe fn f_setloclist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
     }
 }
 
-pub unsafe fn f_setqflist(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
+pub fn f_setqflist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
+    let argvars = argvars.as_mut_ptr();
+
     unsafe {
         set_qf_ll_list(ptr::null_mut(), argvars, rettv);
     }
