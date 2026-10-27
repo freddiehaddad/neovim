@@ -53,16 +53,6 @@ const VTERM_ATTR_URI_MASK: VTermAttrMask = 1 << 12;
 const VTERM_ATTR_DIM_MASK: VTermAttrMask = 1 << 13;
 const VTERM_ATTR_OVERLINE_MASK: VTermAttrMask = 1 << 14;
 
-pub static mut state_pos: VTermPos = VTermPos { row: 0, col: 0 };
-pub static mut want_state_putglyph: bool = false;
-pub static mut want_state_movecursor: bool = false;
-pub static mut want_state_erase: bool = false;
-pub static mut want_state_scrollrect: bool = false;
-pub static mut want_state_moverect: bool = false;
-pub static mut want_state_settermprop: bool = false;
-pub static mut want_state_scrollback: bool = false;
-pub static mut want_screen_scrollback: bool = false;
-
 #[repr(C)]
 struct StatePenRecord {
     bold: c_int,
@@ -81,22 +71,60 @@ struct StatePenRecord {
     background: VTermColor,
 }
 
-static mut STATE_PEN: StatePenRecord = StatePenRecord {
-    bold: 0,
-    underline: 0,
-    italic: 0,
-    blink: 0,
-    reverse: 0,
-    conceal: 0,
-    strike: 0,
-    font: 0,
-    small: 0,
-    baseline: 0,
-    dim: 0,
-    overline: 0,
-    foreground: VTermColor { bytes: [0; 4] },
-    background: VTermColor { bytes: [0; 4] },
-};
+struct VTermTestState {
+    state_pos: VTermPos,
+    want_state_putglyph: bool,
+    want_state_movecursor: bool,
+    want_state_erase: bool,
+    want_state_scrollrect: bool,
+    want_state_moverect: bool,
+    want_state_settermprop: bool,
+    want_state_scrollback: bool,
+    want_screen_scrollback: bool,
+    STATE_PEN: StatePenRecord,
+    TEST_VT: Option<Box<std::cell::UnsafeCell<crate::vterm::mouse::VTerm>>>,
+}
+
+impl VTermTestState {
+    const fn new() -> Self {
+        Self {
+            state_pos: VTermPos { row: 0, col: 0 },
+            want_state_putglyph: false,
+            want_state_movecursor: false,
+            want_state_erase: false,
+            want_state_scrollrect: false,
+            want_state_moverect: false,
+            want_state_settermprop: false,
+            want_state_scrollback: false,
+            want_screen_scrollback: false,
+            STATE_PEN: StatePenRecord {
+                bold: 0,
+                underline: 0,
+                italic: 0,
+                blink: 0,
+                reverse: 0,
+                conceal: 0,
+                strike: 0,
+                font: 0,
+                small: 0,
+                baseline: 0,
+                dim: 0,
+                overline: 0,
+                foreground: VTermColor { bytes: [0; 4] },
+                background: VTermColor { bytes: [0; 4] },
+            },
+            TEST_VT: None,
+        }
+    }
+}
+
+static VT_TEST_STATE: crate::globals::GlobalState<VTermTestState> =
+    crate::globals::GlobalState::new(VTermTestState::new());
+
+#[inline]
+unsafe fn vtt_st() -> &'static mut VTermTestState {
+    unsafe { &mut *VT_TEST_STATE.as_ptr() }
+}
 
 static TEST_OUTPUT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 
@@ -344,7 +372,7 @@ pub unsafe fn state_putglyph(
     _user: *mut VTermScreen,
 ) -> c_int {
     unsafe {
-        if !want_state_putglyph {
+        if !vtt_st().want_state_putglyph {
             return 1;
         }
         let mut out = b"putglyph ".to_vec();
@@ -378,9 +406,9 @@ pub unsafe fn state_movecursor<T>(
     _user: *mut T,
 ) -> c_int {
     unsafe {
-        state_pos = pos;
+        vtt_st().state_pos = pos;
         let mut out = Vec::new();
-        if want_state_movecursor {
+        if vtt_st().want_state_movecursor {
             let _ = writeln!(out, "movecursor {},{}", pos.row, pos.col);
         }
         append_test_output(&out);
@@ -395,7 +423,7 @@ pub unsafe fn state_scrollrect(
     _user: *mut VTermScreen,
 ) -> c_int {
     unsafe {
-        if !want_state_scrollrect {
+        if !vtt_st().want_state_scrollrect {
             return 0;
         }
         let mut out = Vec::new();
@@ -411,7 +439,7 @@ pub unsafe fn state_scrollrect(
 
 pub unsafe fn state_moverect<T>(dest: VTermRect, src: VTermRect, _user: *mut T) -> c_int {
     unsafe {
-        if !want_state_moverect {
+        if !vtt_st().want_state_moverect {
             return 0;
         }
         let mut out = Vec::new();
@@ -477,7 +505,7 @@ const fn vterm_get_prop_type(prop: VTermProp) -> VTermValueType {
 
 pub unsafe fn state_settermprop<T>(prop: VTermProp, val: *mut VTermValue, _user: *mut T) -> c_int {
     unsafe {
-        if !want_state_settermprop {
+        if !vtt_st().want_state_settermprop {
             return 1;
         }
         let mut out = Vec::new();
@@ -521,7 +549,7 @@ pub unsafe fn state_settermprop<T>(prop: VTermProp, val: *mut VTermValue, _user:
 
 pub unsafe fn state_erase(rect: VTermRect, selective: c_int, _user: *mut VTermScreen) -> c_int {
     unsafe {
-        if !want_state_erase {
+        if !vtt_st().want_state_erase {
             return 1;
         }
         let mut out = Vec::new();
@@ -543,20 +571,20 @@ pub unsafe fn state_setpenattr(
 ) -> c_int {
     unsafe {
         match attr {
-            VTERM_ATTR_BOLD => STATE_PEN.bold = (*val).boolean(),
-            VTERM_ATTR_UNDERLINE => STATE_PEN.underline = (*val).number(),
-            VTERM_ATTR_ITALIC => STATE_PEN.italic = (*val).boolean(),
-            VTERM_ATTR_BLINK => STATE_PEN.blink = (*val).boolean(),
-            VTERM_ATTR_REVERSE => STATE_PEN.reverse = (*val).boolean(),
-            VTERM_ATTR_CONCEAL => STATE_PEN.conceal = (*val).boolean(),
-            VTERM_ATTR_STRIKE => STATE_PEN.strike = (*val).boolean(),
-            VTERM_ATTR_FONT => STATE_PEN.font = (*val).number(),
-            VTERM_ATTR_SMALL => STATE_PEN.small = (*val).boolean(),
-            VTERM_ATTR_BASELINE => STATE_PEN.baseline = (*val).number(),
-            VTERM_ATTR_DIM => STATE_PEN.dim = (*val).boolean(),
-            VTERM_ATTR_OVERLINE => STATE_PEN.overline = (*val).boolean(),
-            VTERM_ATTR_FOREGROUND => STATE_PEN.foreground = (*val).color(),
-            VTERM_ATTR_BACKGROUND => STATE_PEN.background = (*val).color(),
+            VTERM_ATTR_BOLD => vtt_st().STATE_PEN.bold = (*val).boolean(),
+            VTERM_ATTR_UNDERLINE => vtt_st().STATE_PEN.underline = (*val).number(),
+            VTERM_ATTR_ITALIC => vtt_st().STATE_PEN.italic = (*val).boolean(),
+            VTERM_ATTR_BLINK => vtt_st().STATE_PEN.blink = (*val).boolean(),
+            VTERM_ATTR_REVERSE => vtt_st().STATE_PEN.reverse = (*val).boolean(),
+            VTERM_ATTR_CONCEAL => vtt_st().STATE_PEN.conceal = (*val).boolean(),
+            VTERM_ATTR_STRIKE => vtt_st().STATE_PEN.strike = (*val).boolean(),
+            VTERM_ATTR_FONT => vtt_st().STATE_PEN.font = (*val).number(),
+            VTERM_ATTR_SMALL => vtt_st().STATE_PEN.small = (*val).boolean(),
+            VTERM_ATTR_BASELINE => vtt_st().STATE_PEN.baseline = (*val).number(),
+            VTERM_ATTR_DIM => vtt_st().STATE_PEN.dim = (*val).boolean(),
+            VTERM_ATTR_OVERLINE => vtt_st().STATE_PEN.overline = (*val).boolean(),
+            VTERM_ATTR_FOREGROUND => vtt_st().STATE_PEN.foreground = (*val).color(),
+            VTERM_ATTR_BACKGROUND => vtt_st().STATE_PEN.background = (*val).color(),
             VTERM_N_ATTRS => return 0,
             _ => {}
         }
@@ -566,7 +594,7 @@ pub unsafe fn state_setpenattr(
 
 pub unsafe fn state_sb_clear(_user: *mut VTermScreen) -> c_int {
     unsafe {
-        if !want_state_scrollback {
+        if !vtt_st().want_state_scrollback {
             return 1;
         }
         append_test_output(b"sb_clear\n");
@@ -580,7 +608,7 @@ pub unsafe fn screen_sb_pushline(
     _user: *mut Terminal,
 ) -> c_int {
     unsafe {
-        if !want_screen_scrollback {
+        if !vtt_st().want_screen_scrollback {
             return 1;
         }
         let mut eol = cols as usize;
@@ -605,7 +633,7 @@ pub unsafe fn screen_sb_popline(
     _user: *mut Terminal,
 ) -> c_int {
     unsafe {
-        if !want_screen_scrollback {
+        if !vtt_st().want_screen_scrollback {
             return 0;
         }
         for col in 0..(cols as usize) {
@@ -626,7 +654,7 @@ pub unsafe fn screen_sb_popline(
 
 pub unsafe fn screen_sb_clear(_user: *mut Terminal) -> c_int {
     unsafe {
-        if !want_screen_scrollback {
+        if !vtt_st().want_screen_scrollback {
             return 1;
         }
         append_test_output(b"sb_clear\n");
@@ -1046,23 +1074,21 @@ mod tests {
         r: bool,
     }
 
-    static mut TEST_VT: Option<Box<std::cell::UnsafeCell<VTerm>>> = None;
-
     unsafe fn init() -> *mut VTerm {
         unsafe {
             crate::option_vars::p_emoji = 1;
-            state_pos = VTermPos { row: 0, col: 0 };
-            want_state_putglyph = false;
-            want_state_movecursor = false;
-            want_state_erase = false;
-            want_state_scrollrect = false;
-            want_state_moverect = false;
-            want_state_settermprop = false;
-            want_state_scrollback = false;
-            want_screen_scrollback = false;
+            vtt_st().state_pos = VTermPos { row: 0, col: 0 };
+            vtt_st().want_state_putglyph = false;
+            vtt_st().want_state_movecursor = false;
+            vtt_st().want_state_erase = false;
+            vtt_st().want_state_scrollrect = false;
+            vtt_st().want_state_moverect = false;
+            vtt_st().want_state_settermprop = false;
+            vtt_st().want_state_scrollback = false;
+            vtt_st().want_screen_scrollback = false;
             let cell = Box::new(std::cell::UnsafeCell::new(vterm_new(25, 80)));
             let vt = cell.get();
-            TEST_VT = Some(cell);
+            vtt_st().TEST_VT = Some(cell);
             vterm_output_set_callback(vt, Some(term_output), ptr::null_mut());
             vterm_set_utf8(vt, 1);
             vt
@@ -1071,7 +1097,7 @@ mod tests {
 
     unsafe fn vterm_free(_vt: *mut VTerm) {
         unsafe {
-            TEST_VT = None;
+            vtt_st().TEST_VT = None;
         }
     }
 
@@ -1095,13 +1121,13 @@ mod tests {
             vterm_state_reset(state, 1);
 
             let fb = opts.f.then_some(&FALLBACK_CBS);
-            want_state_scrollback = opts.b;
-            want_state_erase = opts.e;
+            vtt_st().want_state_scrollback = opts.b;
+            vtt_st().want_state_erase = opts.e;
             vterm_state_set_unrecognised_fallbacks(state, fb, ptr::null_mut());
-            want_state_putglyph = opts.g;
-            want_state_moverect = opts.m;
-            want_state_settermprop = opts.p;
-            want_state_scrollrect = opts.s;
+            vtt_st().want_state_putglyph = opts.g;
+            vtt_st().want_state_moverect = opts.m;
+            vtt_st().want_state_settermprop = opts.p;
+            vtt_st().want_state_scrollrect = opts.s;
             state
         }
     }
@@ -1113,10 +1139,10 @@ mod tests {
             if opts.a {
                 vterm_screen_enable_altscreen(screen, 1);
             }
-            want_screen_scrollback = opts.b;
-            want_state_movecursor = opts.c;
-            want_state_moverect = opts.m;
-            want_state_settermprop = opts.p;
+            vtt_st().want_screen_scrollback = opts.b;
+            vtt_st().want_state_movecursor = opts.c;
+            vtt_st().want_state_moverect = opts.m;
+            vtt_st().want_state_settermprop = opts.p;
             if opts.r {
                 vterm_screen_enable_reflow(screen, true);
             }
@@ -1128,7 +1154,7 @@ mod tests {
         unsafe {
             if !state.is_null() {
                 vterm_state_reset(state, 1);
-                vterm_state_get_cursorpos(state, &raw mut state_pos);
+                vterm_state_get_cursorpos(state, &raw mut vtt_st().state_pos);
             }
             if !screen.is_null() {
                 vterm_screen_reset(screen, 1);

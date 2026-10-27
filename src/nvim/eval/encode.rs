@@ -41,7 +41,24 @@ const FF: c_int = 0x0c;
 pub const encode_bool_var_names: [*const c_char; 2] = [c"v:false".as_ptr(), c"v:true".as_ptr()];
 pub const encode_special_var_names: [*const c_char; 1] = [c"v:null".as_ptr()];
 
-static mut DID_ECHO_STRING_EMSG: bool = false;
+struct EvalEncodeState {
+    DID_ECHO_STRING_EMSG: bool,
+}
+
+impl EvalEncodeState {
+    const fn new() -> Self {
+        Self {
+            DID_ECHO_STRING_EMSG: false,
+        }
+    }
+}
+
+static ENCODE_STATE: crate::globals::GlobalState<EvalEncodeState> = crate::globals::GlobalState::new(EvalEncodeState::new());
+
+#[inline]
+unsafe fn encode_st() -> &'static mut EvalEncodeState {
+    unsafe { &mut *ENCODE_STATE.as_ptr() }
+}
 
 /// Structure defining state for `encode_read_from_list()` (`ListReaderState`).
 #[repr(C)]
@@ -1117,8 +1134,8 @@ impl EncodeBackend<'_> {
                     gap,
                     mode: TextEncodeMode::String,
                 } => {
-                    if !DID_ECHO_STRING_EMSG {
-                        DID_ECHO_STRING_EMSG = true;
+                    if !encode_st().DID_ECHO_STRING_EMSG {
+                        encode_st().DID_ECHO_STRING_EMSG = true;
                         emsg(
                             c"E724: unable to correctly dump variable with self-referencing container"
                                 .as_ptr(),
@@ -1146,8 +1163,8 @@ impl EncodeBackend<'_> {
                     mode: TextEncodeMode::Json,
                     ..
                 } => {
-                    if !DID_ECHO_STRING_EMSG {
-                        DID_ECHO_STRING_EMSG = true;
+                    if !encode_st().DID_ECHO_STRING_EMSG {
+                        encode_st().DID_ECHO_STRING_EMSG = true;
                         emsg(
                             c"E724: unable to correctly dump variable with self-referencing container"
                                 .as_ptr(),
@@ -1751,7 +1768,7 @@ pub unsafe fn encode_tv2string(tv: *mut typval_T, len: *mut usize) -> std::ffi::
         let evs_ret =
             encode_vim_with_backend(&mut backend, tv, c"encode_tv2string() argument".as_ptr());
         assert_eq!(evs_ret, OK);
-        DID_ECHO_STRING_EMSG = false;
+        encode_st().DID_ECHO_STRING_EMSG = false;
         if !len.is_null() {
             *len = ga.len();
         }
@@ -1789,7 +1806,7 @@ pub unsafe fn encode_tv2json(tv: *mut typval_T, len: *mut usize) -> std::ffi::CS
         };
         let evj_ret =
             encode_vim_with_backend(&mut backend, tv, c"encode_tv2json() argument".as_ptr());
-        DID_ECHO_STRING_EMSG = false;
+        encode_st().DID_ECHO_STRING_EMSG = false;
         if evj_ret == FAIL {
             ga.clear();
         }

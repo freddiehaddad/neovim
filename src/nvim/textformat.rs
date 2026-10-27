@@ -155,7 +155,24 @@ pub struct InsState {
     pub o_lnum: linenr_T,
 }
 
-static mut did_add_space: bool = false;
+struct TextformatState {
+    did_add_space: bool,
+}
+
+impl TextformatState {
+    const fn new() -> Self {
+        Self {
+            did_add_space: false,
+        }
+    }
+}
+
+static TF_STATE: crate::globals::GlobalState<TextformatState> = crate::globals::GlobalState::new(TextformatState::new());
+
+#[inline]
+unsafe fn tf_st() -> &'static mut TextformatState {
+    unsafe { &mut *TF_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn whitechar(cc: c_int) -> bool {
@@ -760,7 +777,7 @@ pub unsafe fn auto_format(trailblank: bool, prev_line: bool) {
                 pline.push(b' ' as c_char);
                 pline.push(NUL);
                 ml_replace((*curwin).w_cursor.lnum, pline.as_mut_ptr(), true);
-                did_add_space = true;
+                tf_st().did_add_space = true;
             } else {
                 check_auto_format(false);
             }
@@ -773,13 +790,13 @@ pub unsafe fn auto_format(trailblank: bool, prev_line: bool) {
 /// Delete extra space added to continue a paragraph for auto-formatting (`check_auto_format`).
 pub unsafe fn check_auto_format(end_insert: bool) {
     unsafe {
-        if !did_add_space {
+        if !tf_st().did_add_space {
             return;
         }
 
         let cc = gchar_cursor();
         if !whitechar(cc) {
-            did_add_space = false;
+            tf_st().did_add_space = false;
         } else {
             let mut c = b' ' as c_int;
             if !end_insert {
@@ -789,7 +806,7 @@ pub unsafe fn check_auto_format(end_insert: bool) {
             }
             if c != 0 {
                 del_char(false);
-                did_add_space = false;
+                tf_st().did_add_space = false;
             }
         }
     }

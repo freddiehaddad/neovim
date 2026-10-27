@@ -239,8 +239,26 @@ impl Default for mparm_T {
     }
 }
 
-static mut ARGV0: *mut c_char = ptr::null_mut();
-static mut REALLY_EXITING: bool = false;
+struct MainInitState {
+    ARGV0: *mut c_char,
+    REALLY_EXITING: bool,
+}
+
+impl MainInitState {
+    const fn new() -> Self {
+        Self {
+            ARGV0: ptr::null_mut(),
+            REALLY_EXITING: false,
+        }
+    }
+}
+
+static MAIN_INIT_STATE: crate::globals::GlobalState<MainInitState> = crate::globals::GlobalState::new(MainInitState::new());
+
+#[inline]
+unsafe fn main_init_st() -> &'static mut MainInitState {
+    unsafe { &mut *MAIN_INIT_STATE.as_ptr() }
+}
 
 use crate::charset::NUL;
 use crate::extmark::{kFalse, kNone, kTrue};
@@ -333,8 +351,8 @@ unsafe fn early_init(paramp: *mut mparm_T) {
         cmdline_init();
         eval_init();
         set_vim_var_nr(VV_STARTTIME, os_realtime() as varnumber_T);
-        init_path(if !ARGV0.is_null() {
-            ARGV0
+        init_path(if !main_init_st().ARGV0.is_null() {
+            main_init_st().ARGV0
         } else {
             c"nvim".as_ptr()
         });
@@ -384,8 +402,8 @@ unsafe fn early_init(paramp: *mut mparm_T) {
 
 pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
     unsafe {
-        ARGV0 = *argv;
-        to_slash_if_needed(ARGV0);
+        main_init_st().ARGV0 = *argv;
+        to_slash_if_needed(main_init_st().ARGV0);
 
         if !appname_is_valid() {
             fprintf!(
@@ -1024,10 +1042,10 @@ pub unsafe fn getout(mut exitval: c_int) -> ! {
 
 pub unsafe fn preserve_exit(errmsg: *const c_char) -> ! {
     unsafe {
-        if REALLY_EXITING {
+        if main_init_st().REALLY_EXITING {
             std::process::exit(2);
         }
-        REALLY_EXITING = true;
+        main_init_st().REALLY_EXITING = true;
         exiting = true;
         signal_reject_deadly();
 
@@ -2508,7 +2526,7 @@ unsafe fn mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char)
 
 unsafe fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) {
     unsafe {
-        let prgname = path_tail(ARGV0);
+        let prgname = path_tail(main_init_st().ARGV0);
         signal_stop();
 
         let stderr = log_get_stderr();

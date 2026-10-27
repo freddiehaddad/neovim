@@ -819,9 +819,28 @@ static ENC_ALIAS_TABLE: &[EncAliasEntry] = &[
     },
 ];
 
-static mut CW_TABLE: Vec<cw_interval_T> = Vec::new();
-static mut mb_unescape_buf: [c_char; 6] = [0; 6];
-static mut iconv_working: WorkingStatus = WorkingStatus::kUnknown;
+struct MbyteModuleState {
+    CW_TABLE: Vec<cw_interval_T>,
+    mb_unescape_buf: [c_char; 6],
+    iconv_working: WorkingStatus,
+}
+
+impl MbyteModuleState {
+    const fn new() -> Self {
+        Self {
+            CW_TABLE: Vec::new(),
+            mb_unescape_buf: [0; 6],
+            iconv_working: WorkingStatus::kUnknown,
+        }
+    }
+}
+
+static MBYTE_STATE: crate::globals::GlobalState<MbyteModuleState> = crate::globals::GlobalState::new(MbyteModuleState::new());
+
+#[inline]
+unsafe fn mbyte_st() -> &'static mut MbyteModuleState {
+    unsafe { &mut *MBYTE_STATE.as_ptr() }
+}
 
 unsafe extern "C" {
     fn towupper(wc: wint_t) -> wint_t;
@@ -2883,23 +2902,23 @@ pub unsafe fn mb_unescape(pp: *mut *const c_char) -> *const c_char {
                 && *str_.add(str_idx + 1) == KS_SPECIAL
                 && *str_.add(str_idx + 2) == KE_FILLER
             {
-                mb_unescape_buf[buf_idx] = K_SPECIAL as c_char;
+                mbyte_st().mb_unescape_buf[buf_idx] = K_SPECIAL as c_char;
                 buf_idx += 1;
                 str_idx += 2;
             } else if *str_.add(str_idx) == K_SPECIAL {
                 break;
             } else {
-                mb_unescape_buf[buf_idx] = *str_.add(str_idx) as c_char;
+                mbyte_st().mb_unescape_buf[buf_idx] = *str_.add(str_idx) as c_char;
                 buf_idx += 1;
             }
-            mb_unescape_buf[buf_idx] = NUL;
+            mbyte_st().mb_unescape_buf[buf_idx] = NUL;
 
-            if utf_ptr2len((&raw const mb_unescape_buf).cast::<c_char>()) > 1 {
+            if utf_ptr2len((&raw const mbyte_st().mb_unescape_buf).cast::<c_char>()) > 1 {
                 *pp = str_.add(str_idx + 1).cast::<c_char>();
-                return (&raw const mb_unescape_buf).cast::<c_char>();
+                return (&raw const mbyte_st().mb_unescape_buf).cast::<c_char>();
             }
 
-            if (mb_unescape_buf[0] as u8) < 128 {
+            if (mbyte_st().mb_unescape_buf[0] as u8) < 128 {
                 break;
             }
             str_idx += 1;
@@ -3067,11 +3086,11 @@ pub unsafe fn enc_locale() -> Option<std::ffi::CString> {
 pub unsafe fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> Option<usize> {
     unsafe {
         const ICONV_TESTLEN: usize = 400;
-        if iconv_working == WorkingStatus::kBroken {
+        if mbyte_st().iconv_working == WorkingStatus::kBroken {
             return None;
         }
         let mut fd = call_iconv_open(enc_skip(to), enc_skip(from));
-        if fd != usize::MAX as *mut c_void && iconv_working == WorkingStatus::kUnknown {
+        if fd != usize::MAX as *mut c_void && mbyte_st().iconv_working == WorkingStatus::kUnknown {
             let mut tobuf = [0 as c_char; ICONV_TESTLEN];
             let mut p = tobuf.as_mut_ptr();
             let mut tolen = ICONV_TESTLEN;
@@ -3083,11 +3102,11 @@ pub unsafe fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> Option<usize>
                 &raw mut tolen,
             );
             if p.is_null() {
-                iconv_working = WorkingStatus::kBroken;
+                mbyte_st().iconv_working = WorkingStatus::kBroken;
                 call_iconv_close(fd);
                 fd = usize::MAX as *mut c_void;
             } else {
-                iconv_working = WorkingStatus::kWorking;
+                mbyte_st().iconv_working = WorkingStatus::kWorking;
             }
         }
         (fd != usize::MAX as *mut c_void).then_some(fd as usize)
@@ -3403,8 +3422,7 @@ pub unsafe fn string_convert_ext(
 }
 
 unsafe fn cw_value(c: c_int) -> c_int {
-    let table_ptr = &raw const CW_TABLE;
-    let table = unsafe { (*table_ptr).as_slice() };
+    let table = unsafe { mbyte_st().CW_TABLE.as_slice() };
     let c64 = i64::from(c);
     table
         .binary_search_by(|entry| {
@@ -3502,7 +3520,7 @@ pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fp
             }
         }
 
-        let cw_ptr = &raw mut CW_TABLE;
+        let cw_ptr = &raw mut mbyte_st().CW_TABLE;
         let cw_table_save = std::mem::replace(&mut *cw_ptr, table);
 
         let error = check_chars_options();
@@ -3519,7 +3537,7 @@ pub unsafe fn f_setcellwidths(argvars: *mut typval_T, _rettv: *mut typval_T, _fp
 
 pub unsafe fn f_getcellwidths(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let cw_ptr = &raw const CW_TABLE;
+        let cw_ptr = &raw const mbyte_st().CW_TABLE;
         let table = (*cw_ptr).as_slice();
         tv_list_alloc_ret(rettv, table.len() as isize);
         for &entry_data in table {

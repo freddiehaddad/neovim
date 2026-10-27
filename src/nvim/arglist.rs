@@ -106,7 +106,24 @@ struct arg_all_state_T {
     new_curtab: *mut tabpage_T,
 }
 
-static mut arglist_locked: bool = false;
+struct ArglistModuleState {
+    arglist_locked: bool,
+}
+
+impl ArglistModuleState {
+    const fn new() -> Self {
+        Self {
+            arglist_locked: false,
+        }
+    }
+}
+
+static ARGLIST_STATE: crate::globals::GlobalState<ArglistModuleState> = crate::globals::GlobalState::new(ArglistModuleState::new());
+
+#[inline]
+unsafe fn arglist_st() -> &'static mut ArglistModuleState {
+    unsafe { &mut *ARGLIST_STATE.as_ptr() }
+}
 
 #[inline]
 pub unsafe fn win_alist(wp: *const win_T) -> *mut alist_T {
@@ -158,7 +175,7 @@ pub unsafe fn gargcount() -> c_int {
 
 unsafe fn check_arglist_locked() -> c_int {
     unsafe {
-        if arglist_locked {
+        if arglist_st().arglist_locked {
             emsg(gettext(
                 (&raw const e_cannot_change_arglist_recursively).cast(),
             ));
@@ -222,7 +239,7 @@ pub unsafe fn alist_add(al: *mut alist_T, ae_fname: CString, set_fnum: c_int) {
         if check_arglist_locked() == FAIL {
             return;
         }
-        arglist_locked = true;
+        arglist_st().arglist_locked = true;
         (*wp).w_locked += 1;
 
         let ae_fnum = if set_fnum > 0 {
@@ -238,7 +255,7 @@ pub unsafe fn alist_add(al: *mut alist_T, ae_fname: CString, set_fnum: c_int) {
             ae_fnum,
         });
 
-        arglist_locked = false;
+        arglist_st().arglist_locked = false;
         (*wp).w_locked -= 1;
     }
 }
@@ -342,7 +359,7 @@ unsafe fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool)
             let wp = curwin;
             let al = win_alist(wp);
             after = after.clamp(0, old_argcount);
-            arglist_locked = true;
+            arglist_st().arglist_locked = true;
             (*wp).w_locked += 1;
             let count = files.len() as c_int;
             let mut new_entries = Vec::with_capacity(files.len());
@@ -359,7 +376,7 @@ unsafe fn alist_add_list(files: Vec<CString>, mut after: c_int, will_edit: bool)
             }
             let pos = after as usize;
             (*al).al_ga.splice(pos..pos, new_entries);
-            arglist_locked = false;
+            arglist_st().arglist_locked = false;
             (*wp).w_locked -= 1;
             if old_argcount > 0 && (*wp).w_arg_idx >= after {
                 (*wp).w_arg_idx += count;
@@ -1112,7 +1129,7 @@ unsafe fn arg_all_open_windows(aall: *mut arg_all_state_T, count: c_int) {
 /// Open up to `count` windows, one for each argument (`do_arg_all`).
 unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
     unsafe {
-        let prev_arglist_locked = arglist_locked;
+        let prev_arglist_locked = arglist_st().arglist_locked;
         debug_assert!(!firstwin.is_null());
 
         let acount = argcount();
@@ -1133,7 +1150,7 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
             new_curtab: ptr::null_mut(),
         };
 
-        arglist_locked = true;
+        arglist_st().arglist_locked = true;
 
         let new_lu_tp = curtab;
 
@@ -1155,7 +1172,7 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
         arg_all_open_windows(&raw mut aall, count);
 
         drop(aall.local_alist.take());
-        arglist_locked = prev_arglist_locked;
+        arglist_st().arglist_locked = prev_arglist_locked;
 
         autocmd_no_enter -= 1;
 

@@ -201,7 +201,24 @@ use crate::charset::NUL;
 use crate::globals::IOSIZE;
 use crate::math::{FAIL, OK};
 
-static mut cause_abort: bool = false;
+struct ExEvalModuleState {
+    cause_abort: bool,
+}
+
+impl ExEvalModuleState {
+    const fn new() -> Self {
+        Self {
+            cause_abort: false,
+        }
+    }
+}
+
+static EXEVAL_STATE: crate::globals::GlobalState<ExEvalModuleState> = crate::globals::GlobalState::new(ExEvalModuleState::new());
+
+#[inline]
+unsafe fn exeval_st() -> &'static mut ExEvalModuleState {
+    unsafe { &mut *EXEVAL_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn check_skip(cstack: *const cstack_T) -> bool {
@@ -229,7 +246,7 @@ pub unsafe fn aborting() -> bool {
 
 pub unsafe fn update_force_abort() {
     unsafe {
-        if cause_abort {
+        if exeval_st().cause_abort {
             force_abort = true;
         }
     }
@@ -256,11 +273,11 @@ pub unsafe fn cause_errthrow(
         }
 
         if did_emsg == 0 {
-            cause_abort = force_abort;
+            exeval_st().cause_abort = force_abort;
             force_abort = false;
         }
 
-        if ((trylevel == 0 && !cause_abort) || emsg_silent != 0) && !did_throw {
+        if ((trylevel == 0 && !exeval_st().cause_abort) || emsg_silent != 0) && !did_throw {
             return false;
         }
 
@@ -269,7 +286,7 @@ pub unsafe fn cause_errthrow(
             return true;
         }
 
-        cause_abort = true;
+        exeval_st().cause_abort = true;
 
         if did_throw {
             let ce = &raw const current_exception;
@@ -328,8 +345,8 @@ pub unsafe fn free_global_msglist() {
 
 pub unsafe fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char) {
     unsafe {
-        if cause_abort {
-            cause_abort = false;
+        if exeval_st().cause_abort {
+            exeval_st().cause_abort = false;
             force_abort = true;
         }
 
@@ -1530,8 +1547,8 @@ pub unsafe fn enter_cleanup(csp: *mut cleanup_T) {
             } else {
                 (*csp).exception = None;
                 if did_emsg != 0 {
-                    force_abort |= cause_abort;
-                    cause_abort = false;
+                    force_abort |= exeval_st().cause_abort;
+                    exeval_st().cause_abort = false;
                 }
             }
             did_emsg = 0;
@@ -1568,7 +1585,7 @@ pub unsafe fn leave_cleanup(csp: *mut cleanup_T) {
             if (pending & CSTP_THROW) != 0 {
                 current_exception = (*csp).exception.take();
             } else if (pending & CSTP_ERROR) != 0 {
-                cause_abort = force_abort;
+                exeval_st().cause_abort = force_abort;
                 force_abort = false;
             }
 

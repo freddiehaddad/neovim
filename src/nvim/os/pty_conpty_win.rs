@@ -157,9 +157,29 @@ pub static mut pResizePseudoConsole: ResizePseudoConsoleFn = None;
 pub static mut pClosePseudoConsole: ClosePseudoConsoleFn = None;
 
 #[cfg(windows)]
-static mut HAS_CONPTY: TriState = kNone;
+struct ConptyModuleState {
+    HAS_CONPTY: TriState,
+    CONPTY_COUNT: c_int,
+}
+
 #[cfg(windows)]
-static mut CONPTY_COUNT: c_int = 0;
+impl ConptyModuleState {
+    const fn new() -> Self {
+        Self {
+            HAS_CONPTY: kNone,
+            CONPTY_COUNT: 0,
+        }
+    }
+}
+
+#[cfg(windows)]
+static CONPTY_STATE: crate::globals::GlobalState<ConptyModuleState> = crate::globals::GlobalState::new(ConptyModuleState::new());
+
+#[cfg(windows)]
+#[inline]
+unsafe fn conpty_st() -> &'static mut ConptyModuleState {
+    unsafe { &mut *CONPTY_STATE.as_ptr() }
+}
 
 #[cfg(windows)]
 #[link(name = "kernel32")]
@@ -212,10 +232,10 @@ use crate::os::os_win_console::{CloseHandle, GetLastError};
 #[cfg(windows)]
 pub unsafe fn os_has_conpty_working() -> bool {
     unsafe {
-        if HAS_CONPTY == kNone {
-            HAS_CONPTY = os_dyn_conpty_init();
+        if conpty_st().HAS_CONPTY == kNone {
+            conpty_st().HAS_CONPTY = os_dyn_conpty_init();
         }
-        HAS_CONPTY == kTrue
+        conpty_st().HAS_CONPTY == kTrue
     }
 }
 
@@ -297,7 +317,7 @@ pub unsafe fn os_conpty_init(
         let mode = PIPE_ACCESS_INBOUND | PIPE_ACCESS_OUTBOUND | FILE_FLAG_FIRST_PIPE_INSTANCE;
 
         let pid = os_get_pid();
-        let count = CONPTY_COUNT;
+        let count = conpty_st().CONPTY_COUNT;
         let in_pipe_cstr =
             CString::new(format!("\\\\.\\pipe\\nvim-term-in-{pid}-{count}")).unwrap();
         let in_pipe_ptr = in_pipe_cstr.as_ptr();
@@ -386,7 +406,7 @@ pub unsafe fn os_conpty_init(
                 break 'init;
             }
 
-            CONPTY_COUNT += 1;
+            conpty_st().CONPTY_COUNT += 1;
             if in_read != INVALID_HANDLE_VALUE {
                 CloseHandle(in_read);
             }

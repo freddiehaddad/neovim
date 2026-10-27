@@ -169,9 +169,28 @@ const e_afftrailing: *const c_char = c"Trailing text in %s line %d: %s".as_ptr()
 const e_affname: *const c_char = c"Affix name too long in %s line %d: %s".as_ptr();
 const msg_compressing: *const c_char = c"Compressing word tree...".as_ptr();
 
-static mut compress_start: c_int = 30000;
-static mut compress_inc: c_int = 100;
-static mut compress_added: c_int = 500000;
+struct SpellfileModuleState {
+    compress_start: c_int,
+    compress_inc: c_int,
+    compress_added: c_int,
+}
+
+impl SpellfileModuleState {
+    const fn new() -> Self {
+        Self {
+            compress_start: 30000,
+            compress_inc: 100,
+            compress_added: 500000,
+        }
+    }
+}
+
+static SPELLFILE_STATE: crate::globals::GlobalState<SpellfileModuleState> = crate::globals::GlobalState::new(SpellfileModuleState::new());
+
+#[inline]
+unsafe fn spellfile_st() -> &'static mut SpellfileModuleState {
+    unsafe { &mut *SPELLFILE_STATE.as_ptr() }
+}
 
 #[repr(C)]
 struct afffile_T {
@@ -1693,9 +1712,9 @@ pub unsafe fn spell_check_msm(value: *mut c_char, apply: bool) -> c_int {
         }
 
         if apply {
-            compress_start = start;
-            compress_inc = incr;
-            compress_added = added;
+            spellfile_st().compress_start = start;
+            spellfile_st().compress_inc = incr;
+            spellfile_st().compress_added = added;
         }
         OK
     }
@@ -3989,18 +4008,18 @@ unsafe fn tree_add_word(
         if spin.si_compress_cnt > 1 {
             spin.si_compress_cnt -= 1;
             if spin.si_compress_cnt == 1 {
-                spin.si_blocks_cnt += compress_inc;
+                spin.si_blocks_cnt += spellfile_st().compress_inc;
             }
         }
 
         let do_compress = if spin.si_compress_cnt == 1 {
             spin.si_free_count < MAXWLEN as c_int
         } else {
-            spin.si_blocks_cnt >= compress_start
+            spin.si_blocks_cnt >= spellfile_st().compress_start
         };
         if do_compress {
-            spin.si_blocks_cnt -= compress_inc;
-            spin.si_compress_cnt = compress_added;
+            spin.si_blocks_cnt -= spellfile_st().compress_inc;
+            spin.si_compress_cnt = spellfile_st().compress_added;
 
             if spin.si_verbose != 0 {
                 msg_start();

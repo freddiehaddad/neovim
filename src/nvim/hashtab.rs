@@ -73,15 +73,16 @@ impl Default for hashtab_T {
     }
 }
 
-static mut EMPTY_HASHARRAY: [hashitem_T; HT_INIT_SIZE] = [hashitem_T {
-    hi_hash: 0,
-    hi_removed: false,
-    hi_di: std::ptr::null_mut(),
-}; HT_INIT_SIZE];
+static EMPTY_HASHARRAY: crate::globals::GlobalState<[hashitem_T; HT_INIT_SIZE]> =
+    crate::globals::GlobalState::new([hashitem_T {
+        hi_hash: 0,
+        hi_removed: false,
+        hi_di: std::ptr::null_mut(),
+    }; HT_INIT_SIZE]);
 
 #[inline]
 pub const fn empty_hasharray_ptr() -> *mut hashitem_T {
-    (&raw mut EMPTY_HASHARRAY).cast::<hashitem_T>()
+    EMPTY_HASHARRAY.as_ptr().cast::<hashitem_T>()
 }
 
 #[inline]

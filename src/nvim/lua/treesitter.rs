@@ -226,10 +226,26 @@ struct TSLuaParserCallbackPayload {
     timeout_threshold_ns: u64,
 }
 
-static mut LANGS: std::collections::BTreeMap<Vec<u8>, *mut TSLanguage> =
-    std::collections::BTreeMap::new();
+struct TreesitterModuleState {
+    LANGS: std::collections::BTreeMap<Vec<u8>, *mut TSLanguage>,
+    INPUT_BUF: [c_char; BUFSIZE],
+}
 
-static mut INPUT_BUF: [c_char; BUFSIZE] = [0; BUFSIZE];
+impl TreesitterModuleState {
+    const fn new() -> Self {
+        Self {
+            LANGS: std::collections::BTreeMap::new(),
+            INPUT_BUF: [0; BUFSIZE],
+        }
+    }
+}
+
+static TS_STATE: crate::globals::GlobalState<TreesitterModuleState> = crate::globals::GlobalState::new(TreesitterModuleState::new());
+
+#[inline]
+unsafe fn ts_st() -> &'static mut TreesitterModuleState {
+    unsafe { &mut *TS_STATE.as_ptr() }
+}
 
 static PARSER_META: [luaL_Reg; 9] = [
     luaL_Reg {
@@ -668,7 +684,7 @@ unsafe fn langs_has(lang_name: *const c_char) -> bool {
         return false;
     }
     unsafe {
-        let langs_ptr = &raw const LANGS;
+        let langs_ptr = &raw const ts_st().LANGS;
         (*langs_ptr).contains_key(CStr::from_ptr(lang_name).to_bytes())
     }
 }
@@ -679,7 +695,7 @@ unsafe fn langs_get(lang_name: *const c_char) -> *mut TSLanguage {
         return ptr::null_mut();
     }
     unsafe {
-        let langs_ptr = &raw const LANGS;
+        let langs_ptr = &raw const ts_st().LANGS;
         (*langs_ptr)
             .get(CStr::from_ptr(lang_name).to_bytes())
             .copied()
@@ -838,7 +854,7 @@ unsafe fn add_language(L: *mut lua_State, is_wasm: bool) -> c_int {
             );
         }
 
-        let langs_ptr = &raw mut LANGS;
+        let langs_ptr = &raw mut ts_st().LANGS;
         (*langs_ptr).insert(
             CStr::from_ptr(lang_name).to_bytes().to_vec(),
             lang.cast_mut(),
@@ -852,7 +868,7 @@ unsafe fn add_language(L: *mut lua_State, is_wasm: bool) -> c_int {
 unsafe extern "C-unwind" fn tslua_remove_lang(L: *mut lua_State) -> c_int {
     unsafe {
         let lang_name = luaL_checkstring(L, 1);
-        let langs_ptr = &raw mut LANGS;
+        let langs_ptr = &raw mut ts_st().LANGS;
         let present = !lang_name.is_null()
             && (*langs_ptr)
                 .remove(CStr::from_ptr(lang_name).to_bytes())
@@ -1037,7 +1053,7 @@ unsafe extern "C" fn input_cb(
 ) -> *const c_char {
     unsafe {
         let bp = payload.cast::<buf_T>();
-        let buf_ptr = (&raw mut INPUT_BUF).cast::<c_char>();
+        let buf_ptr = (&raw mut ts_st().INPUT_BUF).cast::<c_char>();
 
         if (position.row as linenr_T) >= (*bp).b_ml.ml_line_count {
             *bytes_read = 0;

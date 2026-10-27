@@ -175,7 +175,24 @@ const OPCHARS: [[u8; 3]; 31] = [
     [b'z', b'q', 0],                      // OP_MCURSOR
 ];
 
-static mut addsub_hexupper: bool = false;
+struct OpsModuleState {
+    addsub_hexupper: bool,
+}
+
+impl OpsModuleState {
+    const fn new() -> Self {
+        Self {
+            addsub_hexupper: false,
+        }
+    }
+}
+
+static OPS_STATE: crate::globals::GlobalState<OpsModuleState> = crate::globals::GlobalState::new(OpsModuleState::new());
+
+#[inline]
+unsafe fn ops_st() -> &'static mut OpsModuleState {
+    unsafe { &mut *OPS_STATE.as_ptr() }
+}
 
 #[inline]
 const fn char_ord(x: c_int) -> c_int {
@@ -2913,7 +2930,7 @@ pub unsafe fn do_addsub(
             while todel > 0 {
                 todel -= 1;
                 if c < 0x100 && ascii_isalpha(c) {
-                    addsub_hexupper = ascii_isupper(c);
+                    ops_st().addsub_hexupper = ascii_isupper(c);
                 }
                 del_char(false);
                 c = gchar_cursor();
@@ -2978,7 +2995,7 @@ pub unsafe fn do_addsub(
                     c"%llo".as_ptr(),
                     n as std::ffi::c_ulonglong,
                 );
-            } else if addsub_hexupper {
+            } else if ops_st().addsub_hexupper {
                 buf2len = vim_snprintf!(
                     buf2_ptr,
                     NUMBUFLEN,

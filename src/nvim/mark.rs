@@ -201,8 +201,26 @@ const INIT_XFMARK: xfmark_T = xfmark_T {
     fname: None,
 };
 
-static mut POS_TO_MARK_FMS: fmark_T = INIT_FMARK;
-static mut MARK_MOVE_TO_FM_COPY: fmark_T = INIT_FMARK;
+struct MarkModuleState {
+    POS_TO_MARK_FMS: fmark_T,
+    MARK_MOVE_TO_FM_COPY: fmark_T,
+}
+
+impl MarkModuleState {
+    const fn new() -> Self {
+        Self {
+            POS_TO_MARK_FMS: INIT_FMARK,
+            MARK_MOVE_TO_FM_COPY: INIT_FMARK,
+        }
+    }
+}
+
+static MARK_STATE: crate::globals::GlobalState<MarkModuleState> = crate::globals::GlobalState::new(MarkModuleState::new());
+
+#[inline]
+unsafe fn mark_st() -> &'static mut MarkModuleState {
+    unsafe { &mut *MARK_STATE.as_ptr() }
+}
 
 #[inline]
 pub const fn mark_global_index(name: c_char) -> c_int {
@@ -751,7 +769,7 @@ pub unsafe fn mark_get_visual(buf: *mut buf_T, name: c_int) -> *mut fmark_T {
 pub unsafe fn pos_to_mark(buf: *mut buf_T, fmp: *mut fmark_T, pos: pos_T) -> *mut fmark_T {
     unsafe {
         let fm = if fmp.is_null() {
-            &raw mut POS_TO_MARK_FMS
+            &raw mut mark_st().POS_TO_MARK_FMS
         } else {
             fmp
         };
@@ -789,8 +807,8 @@ pub unsafe fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes
         }
 
         if (*fm).fnum != (*curbuf).b_fnum {
-            MARK_MOVE_TO_FM_COPY = (*fm).clone();
-            fm = &raw mut MARK_MOVE_TO_FM_COPY;
+            mark_st().MARK_MOVE_TO_FM_COPY = (*fm).clone();
+            fm = &raw mut mark_st().MARK_MOVE_TO_FM_COPY;
             res |= switch_to_mark_buf(fm, (flags & kMarkJumpList) == 0);
             if (res & kMarkMoveFailed) != 0 {
                 return res;

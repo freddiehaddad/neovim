@@ -147,7 +147,24 @@ pub(crate) const LUA_ERRMEM: c_int = 4;
 
 pub(crate) const LUAL_BUFFERSIZE: usize = if cfg!(windows) { 512 } else { 8192 };
 
-static mut TYPVAL_CONV_SPECIAL: bool = false;
+struct LuaConverterState {
+    TYPVAL_CONV_SPECIAL: bool,
+}
+
+impl LuaConverterState {
+    const fn new() -> Self {
+        Self {
+            TYPVAL_CONV_SPECIAL: false,
+        }
+    }
+}
+
+static LUACONV_STATE: crate::globals::GlobalState<LuaConverterState> = crate::globals::GlobalState::new(LuaConverterState::new());
+
+#[inline]
+unsafe fn luaconv_st() -> &'static mut LuaConverterState {
+    unsafe { &mut *LUACONV_STATE.as_ptr() }
+}
 
 #[repr(C)]
 pub struct nlua_ref_state_t {
@@ -835,7 +852,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
 #[inline]
 unsafe fn lua_conv_nil(lstate: *mut lua_State) {
     unsafe {
-        if TYPVAL_CONV_SPECIAL {
+        if luaconv_st().TYPVAL_CONV_SPECIAL {
             lua_pushnil(lstate);
         } else {
             nlua_pushref(lstate, (*nlua_global_refs).nil_ref);
@@ -846,7 +863,7 @@ unsafe fn lua_conv_nil(lstate: *mut lua_State) {
 #[inline]
 unsafe fn lua_conv_empty_dict(lstate: *mut lua_State) {
     unsafe {
-        if TYPVAL_CONV_SPECIAL {
+        if luaconv_st().TYPVAL_CONV_SPECIAL {
             nlua_create_typed_table(lstate, 0, 0, ObjectType::kObjectTypeDict);
         } else {
             lua_createtable(lstate, 0, 0);
@@ -1359,7 +1376,7 @@ pub unsafe extern "C-unwind" fn nlua_push_typval(
     flags: c_int,
 ) -> bool {
     unsafe {
-        TYPVAL_CONV_SPECIAL = (flags & K_NLUA_PUSH_SPECIAL) != 0;
+        luaconv_st().TYPVAL_CONV_SPECIAL = (flags & K_NLUA_PUSH_SPECIAL) != 0;
         let initial_size = lua_gettop(lstate);
 
         if lua_checkstack(lstate, initial_size + 2) == 0 {

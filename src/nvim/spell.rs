@@ -196,8 +196,26 @@ pub static mut did_set_spelltab: bool = false;
 pub const e_format: &std::ffi::CStr = c"E759: Format error in spell file";
 pub static mut repl_from: Option<std::ffi::CString> = None;
 pub static mut repl_to: Option<std::ffi::CString> = None;
-static mut parse_spelllang_recursive: bool = false;
-static mut spell_expand_need_cap: bool = false;
+struct SpellPrivateState {
+    parse_spelllang_recursive: bool,
+    spell_expand_need_cap: bool,
+}
+
+impl SpellPrivateState {
+    const fn new() -> Self {
+        Self {
+            parse_spelllang_recursive: false,
+            spell_expand_need_cap: false,
+        }
+    }
+}
+
+static SPELL_PRIV_STATE: crate::globals::GlobalState<SpellPrivateState> = crate::globals::GlobalState::new(SpellPrivateState::new());
+
+#[inline]
+unsafe fn spell_priv_st() -> &'static mut SpellPrivateState {
+    unsafe { &mut *SPELL_PRIV_STATE.as_ptr() }
+}
 #[inline]
 pub unsafe fn spell_isupper(c: c_int) -> bool {
     unsafe {
@@ -1648,10 +1666,10 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
             br_buf_free_count: 0,
         };
         set_bufref(&raw mut bufref, (*wp).w_buffer);
-        if parse_spelllang_recursive {
+        if spell_priv_st().parse_spelllang_recursive {
             return ptr::null_mut();
         }
-        parse_spelllang_recursive = true;
+        spell_priv_st().parse_spelllang_recursive = true;
         let mut ga: Vec<langp_T> = Vec::with_capacity(2);
         clear_midword(wp);
         let w_s = (*wp).w_s_ptr();
@@ -1908,7 +1926,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
             (*w_s).b_langp = ga;
             redraw_later(wp, UPD_NOT_VALID);
         }
-        parse_spelllang_recursive = false;
+        spell_priv_st().parse_spelllang_recursive = false;
         ret_msg
     }
 }
@@ -3238,7 +3256,7 @@ pub unsafe fn spell_word_start(startcol: c_int) -> c_int {
 }
 pub unsafe fn spell_expand_check_cap(col: colnr_T) {
     unsafe {
-        spell_expand_need_cap = check_need_cap(curwin, (*curwin).w_cursor.lnum, col);
+        spell_priv_st().spell_expand_need_cap = check_need_cap(curwin, (*curwin).w_cursor.lnum, col);
     }
 }
 pub unsafe fn expand_spelling(
@@ -3247,7 +3265,7 @@ pub unsafe fn expand_spelling(
     matches: &mut Vec<std::ffi::CString>,
 ) {
     unsafe {
-        *matches = spell_suggest_list(pat, 100, spell_expand_need_cap, true);
+        *matches = spell_suggest_list(pat, 100, spell_priv_st().spell_expand_need_cap, true);
     }
 }
 pub unsafe fn valid_spelllang(val: *const c_char) -> bool {

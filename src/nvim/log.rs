@@ -27,12 +27,34 @@ pub const LOGLVL_ERR: c_int = 4;
 #[repr(C, align(8))]
 struct UvMutex([u8; 128]);
 
-static mut LOG_FILE_PATH: [c_char; MAXPATHL + 1] = [0; MAXPATHL + 1];
-static mut DID_LOG_INIT: bool = false;
-static mut MUTEX: UvMutex = UvMutex([0; 128]);
-static mut RECURSIVE: bool = false;
-static mut DID_MSG: bool = false;
-static mut INSTANCE_NAME: [c_char; 32] = [0; 32];
+struct LogModuleState {
+    LOG_FILE_PATH: [c_char; MAXPATHL + 1],
+    DID_LOG_INIT: bool,
+    MUTEX: UvMutex,
+    RECURSIVE: bool,
+    DID_MSG: bool,
+    INSTANCE_NAME: [c_char; 32],
+}
+
+impl LogModuleState {
+    const fn new() -> Self {
+        Self {
+            LOG_FILE_PATH: [0; MAXPATHL + 1],
+            DID_LOG_INIT: false,
+            MUTEX: UvMutex([0; 128]),
+            RECURSIVE: false,
+            DID_MSG: false,
+            INSTANCE_NAME: [0; 32],
+        }
+    }
+}
+
+static LOG_STATE: crate::globals::GlobalState<LogModuleState> = crate::globals::GlobalState::new(LogModuleState::new());
+
+#[inline]
+unsafe fn log_st() -> &'static mut LogModuleState {
+    unsafe { &mut *LOG_STATE.as_ptr() }
+}
 
 pub static mut g_min_log_level: c_int = LOGLVL_WRN;
 
@@ -146,7 +168,7 @@ unsafe fn log_try_create(fname: *const c_char) -> bool {
 unsafe fn log_path_init() {
     unsafe {
         let size = MAXPATHL + 1;
-        let path_ptr = (&raw mut LOG_FILE_PATH).cast::<c_char>();
+        let path_ptr = (&raw mut log_st().LOG_FILE_PATH).cast::<c_char>();
         expand_env(
             c"$NVIM_LOG_FILE".as_ptr().cast_mut(),
             path_ptr,
@@ -223,27 +245,27 @@ unsafe fn log_path_init() {
 
 pub unsafe fn log_init() {
     unsafe {
-        uv_mutex_init_recursive((&raw mut MUTEX).cast());
+        uv_mutex_init_recursive((&raw mut log_st().MUTEX).cast());
         log_path_init();
-        DID_LOG_INIT = true;
+        log_st().DID_LOG_INIT = true;
     }
 }
 
 pub unsafe fn log_lock() {
     unsafe {
-        uv_mutex_lock((&raw mut MUTEX).cast());
+        uv_mutex_lock((&raw mut log_st().MUTEX).cast());
     }
 }
 
 pub unsafe fn log_unlock() {
     unsafe {
-        uv_mutex_unlock((&raw mut MUTEX).cast());
+        uv_mutex_unlock((&raw mut log_st().MUTEX).cast());
     }
 }
 
 pub unsafe fn log_should_log(log_level: c_int) -> bool {
     unsafe {
-        if !DID_LOG_INIT {
+        if !log_st().DID_LOG_INIT {
             g_stats.log_skip += 1;
             return false;
         }
@@ -260,7 +282,7 @@ pub unsafe fn logmsg_str(
     msg: *const c_char,
 ) -> bool {
     unsafe {
-        if !DID_LOG_INIT {
+        if !log_st().DID_LOG_INIT {
             g_stats.log_skip += 1;
             return false;
         }
@@ -285,9 +307,9 @@ pub unsafe fn logmsg_str(
         }
 
         log_lock();
-        if RECURSIVE {
-            if !DID_MSG {
-                DID_MSG = true;
+        if log_st().RECURSIVE {
+            if !log_st().DID_MSG {
+                log_st().DID_MSG = true;
                 msg_schedule_semsg!(
                     c"E5430: %s:%d: recursive log!".as_ptr(),
                     if !func_name.is_null() {
@@ -302,13 +324,13 @@ pub unsafe fn logmsg_str(
             log_unlock();
             return false;
         }
-        RECURSIVE = true;
+        log_st().RECURSIVE = true;
         let log_file = open_log_file();
         let ret = do_log_to_file_str(log_file, log_level, context, func_name, line_num, eol, msg);
         if !log_is_std_stream(log_file) {
             fclose(log_file);
         }
-        RECURSIVE = false;
+        log_st().RECURSIVE = false;
         log_unlock();
         ret
     }
@@ -331,7 +353,7 @@ pub unsafe fn log_uv_handles(loop_: *mut crate::event::r#loop::uv_loop_t) {
 /// @return Log file, or `stderr` on failure
 pub unsafe fn open_log_file() -> *mut FILE {
     unsafe {
-        let path_ptr = (&raw const LOG_FILE_PATH).cast::<c_char>();
+        let path_ptr = (&raw const log_st().LOG_FILE_PATH).cast::<c_char>();
         let mut errnum: c_int = 0;
         if *path_ptr != NUL {
             let f = fopen(path_ptr, c"a".as_ptr());
@@ -402,7 +424,7 @@ unsafe fn do_log_to_file_str(
         }
 
         let ui = ui_client_channel_id != 0;
-        let name_ptr = (&raw mut INSTANCE_NAME).cast::<u8>();
+        let name_ptr = (&raw mut log_st().INSTANCE_NAME).cast::<u8>();
         let first_byte = *name_ptr;
         let regen = ui || first_byte == 0 || first_byte == b'?';
 
@@ -436,7 +458,7 @@ unsafe fn do_log_to_file_str(
         }
 
         let level_ptr = LOG_LEVELS[log_level as usize].as_ptr();
-        let name_cptr = (&raw const INSTANCE_NAME).cast::<c_char>();
+        let name_cptr = (&raw const log_st().INSTANCE_NAME).cast::<c_char>();
         let rv = if line_num == -1 || func_name.is_null() {
             fprintf!(
                 log_file,

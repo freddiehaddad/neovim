@@ -732,7 +732,24 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
     }
 }
 
-static mut default_shada_file: Option<std::ffi::CString> = None;
+struct ShadaModuleState {
+    default_shada_file: Option<std::ffi::CString>,
+}
+
+impl ShadaModuleState {
+    const fn new() -> Self {
+        Self {
+            default_shada_file: None,
+        }
+    }
+}
+
+static SHADA_STATE: crate::globals::GlobalState<ShadaModuleState> = crate::globals::GlobalState::new(ShadaModuleState::new());
+
+#[inline]
+unsafe fn shada_st() -> &'static mut ShadaModuleState {
+    unsafe { &mut *SHADA_STATE.as_ptr() }
+}
 
 use crate::api::private::dispatch::{
     KeyDict__shada_buflist_item_get_field as shada_buflist_item_get_field_cb,
@@ -1704,15 +1721,15 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
 
 unsafe fn shada_get_default_file() -> *const c_char {
     unsafe {
-        if (&raw const default_shada_file).as_ref().unwrap().is_none() {
+        if (&raw const shada_st().default_shada_file).as_ref().unwrap().is_none() {
             let shada_dir = stdpaths_user_state_subpath(c"shada".as_ptr(), 0, false);
-            default_shada_file = Some(concat_fnames_cstr(
+            shada_st().default_shada_file = Some(concat_fnames_cstr(
                 shada_dir.as_ptr(),
                 c"main.shada".as_ptr(),
                 true,
             ));
         }
-        (&raw const default_shada_file)
+        (&raw const shada_st().default_shada_file)
             .as_ref()
             .unwrap()
             .as_ref()

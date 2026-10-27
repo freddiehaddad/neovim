@@ -136,9 +136,28 @@ pub const kPathCmpLiteral: PathCmpFlags = 1 << 0;
 pub const kPathCmpExpand: PathCmpFlags = 1 << 1;
 pub const kPathCmpFull: PathCmpFlags = 1 << 2;
 
-static mut SCANDIR_COUNT: c_int = 0;
-static mut STARDEPTH: c_int = 0;
-static mut EXPAND_RECURSIVE: bool = false;
+struct PathModuleState {
+    SCANDIR_COUNT: c_int,
+    STARDEPTH: c_int,
+    EXPAND_RECURSIVE: bool,
+}
+
+impl PathModuleState {
+    const fn new() -> Self {
+        Self {
+            SCANDIR_COUNT: 0,
+            STARDEPTH: 0,
+            EXPAND_RECURSIVE: false,
+        }
+    }
+}
+
+static PATH_STATE: crate::globals::GlobalState<PathModuleState> = crate::globals::GlobalState::new(PathModuleState::new());
+
+#[inline]
+unsafe fn path_st() -> &'static mut PathModuleState {
+    unsafe { &mut *PATH_STATE.as_ptr() }
+}
 
 #[cfg(windows)]
 use crate::fileio::_getdrive;
@@ -602,13 +621,13 @@ pub unsafe fn path_has_wildcard(mut p: *const c_char, all: bool) -> bool {
 unsafe fn scandir_next_with_dots(dir: *mut Directory) -> *const c_char {
     unsafe {
         if dir.is_null() {
-            SCANDIR_COUNT = 0;
+            path_st().SCANDIR_COUNT = 0;
             return ptr::null();
         }
 
-        SCANDIR_COUNT += 1;
-        if SCANDIR_COUNT == 1 || SCANDIR_COUNT == 2 {
-            return if SCANDIR_COUNT == 1 {
+        path_st().SCANDIR_COUNT += 1;
+        if path_st().SCANDIR_COUNT == 1 || path_st().SCANDIR_COUNT == 2 {
+            return if path_st().SCANDIR_COUNT == 1 {
                 c".".as_ptr()
             } else {
                 c"..".as_ptr()
@@ -637,7 +656,7 @@ unsafe fn do_path_expand(
         let start_len = gap.len();
         let mut starstar = false;
 
-        if STARDEPTH > 0 && (flags & EW_NOBREAK) == 0 {
+        if path_st().STARDEPTH > 0 && (flags & EW_NOBREAK) == 0 {
             os_breakcheck();
             if got_int {
                 return 0;
@@ -736,15 +755,15 @@ unsafe fn do_path_expand(
 
         let mut len = s.offset_from(buf) as usize;
         if !didstar
-            && STARDEPTH < 100
+            && path_st().STARDEPTH < 100
             && starstar
             && e.offset_from(s) == 2
             && *path_end == b'/' as c_char
         {
             vim_snprintf!(s, buflen - len, c"%s".as_ptr(), path_end.add(1));
-            STARDEPTH += 1;
+            path_st().STARDEPTH += 1;
             do_path_expand(gap, buf, len, flags, true);
-            STARDEPTH -= 1;
+            path_st().STARDEPTH -= 1;
         }
         *s = NUL;
 
@@ -773,19 +792,19 @@ unsafe fn do_path_expand(
                         continue;
                     }
 
-                    if starstar && STARDEPTH < 100 {
+                    if starstar && path_st().STARDEPTH < 100 {
                         vim_snprintf!(buf.add(len), buflen - len, c"/**%s".as_ptr(), path_end);
-                        STARDEPTH += 1;
+                        path_st().STARDEPTH += 1;
                         do_path_expand(gap, buf, len + 1, flags, true);
-                        STARDEPTH -= 1;
+                        path_st().STARDEPTH -= 1;
                     }
 
                     vim_snprintf!(buf.add(len), buflen - len, c"%s".as_ptr(), path_end);
                     if path_has_wildcard(path_end, false) {
-                        if STARDEPTH < 100 {
-                            STARDEPTH += 1;
+                        if path_st().STARDEPTH < 100 {
+                            path_st().STARDEPTH += 1;
                             do_path_expand(gap, buf, len + 1, flags, false);
-                            STARDEPTH -= 1;
+                            path_st().STARDEPTH -= 1;
                         }
                     } else {
                         let mut file_info: FileInfo = FileInfo::new();
@@ -1261,7 +1280,7 @@ pub unsafe fn gen_expand_wildcards_vec(
             (*curbuf).b_p_path
         };
 
-        if EXPAND_RECURSIVE {
+        if path_st().EXPAND_RECURSIVE {
             #[cfg(unix)]
             {
                 return os_expand_wildcards(num_pat, pat, file, flags);
@@ -1282,7 +1301,7 @@ pub unsafe fn gen_expand_wildcards_vec(
             }
         }
 
-        EXPAND_RECURSIVE = true;
+        path_st().EXPAND_RECURSIVE = true;
 
         for i in 0..num_pat {
             if got_int {
@@ -1295,7 +1314,7 @@ pub unsafe fn gen_expand_wildcards_vec(
             if vim_backtick(p) {
                 add_pat = expand_backtick(file, p, flags);
                 if add_pat == -1 {
-                    EXPAND_RECURSIVE = false;
+                    path_st().EXPAND_RECURSIVE = false;
                     file.clear();
                     return FAIL;
                 }
@@ -1310,7 +1329,7 @@ pub unsafe fn gen_expand_wildcards_vec(
                         file.clear();
                         let res =
                             os_expand_wildcards(num_pat, pat, file, flags | EW_KEEPDOLLAR);
-                        EXPAND_RECURSIVE = false;
+                        path_st().EXPAND_RECURSIVE = false;
                         return res;
                     }
                 }
@@ -1323,14 +1342,14 @@ pub unsafe fn gen_expand_wildcards_vec(
                                 || (*p.add(1) == b'.' as c_char
                                     && vim_ispathsep(*p.add(2) as c_int))))
                     {
-                        EXPAND_RECURSIVE = false;
+                        path_st().EXPAND_RECURSIVE = false;
                         add_pat = expand_in_path(file, p, flags);
-                        EXPAND_RECURSIVE = true;
+                        path_st().EXPAND_RECURSIVE = true;
                         did_expand_in_path = true;
                     } else {
-                        EXPAND_RECURSIVE = false;
+                        path_st().EXPAND_RECURSIVE = false;
                         let tmp_add_pat = path_expand(file, p, flags);
-                        EXPAND_RECURSIVE = true;
+                        path_st().EXPAND_RECURSIVE = true;
                         debug_assert!(tmp_add_pat <= c_int::MAX as usize);
                         add_pat = tmp_add_pat as c_int;
                     }
@@ -1348,14 +1367,14 @@ pub unsafe fn gen_expand_wildcards_vec(
             }
 
             if did_expand_in_path && !file.is_empty() && (flags & (EW_PATH | EW_CDPATH)) != 0 {
-                EXPAND_RECURSIVE = false;
+                path_st().EXPAND_RECURSIVE = false;
                 uniquefy_paths(file, p, path_option);
-                EXPAND_RECURSIVE = true;
+                path_st().EXPAND_RECURSIVE = true;
             }
             drop(p_owned);
         }
 
-        EXPAND_RECURSIVE = false;
+        path_st().EXPAND_RECURSIVE = false;
 
         if (flags & EW_EMPTYOK) != 0 || !file.is_empty() {
             OK

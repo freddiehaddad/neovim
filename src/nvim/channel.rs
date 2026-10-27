@@ -130,8 +130,26 @@ const F_DUPFD_CLOEXEC: c_int = 17;
 ))]
 const F_DUPFD_CLOEXEC: c_int = 12;
 
-static mut DID_STDIO: bool = false;
-static mut NEXT_CHAN_ID: u64 = CHAN_STDERR + 1;
+struct ChannelModuleState {
+    DID_STDIO: bool,
+    NEXT_CHAN_ID: u64,
+}
+
+impl ChannelModuleState {
+    const fn new() -> Self {
+        Self {
+            DID_STDIO: false,
+            NEXT_CHAN_ID: CHAN_STDERR + 1,
+        }
+    }
+}
+
+static CHAN_STATE: crate::globals::GlobalState<ChannelModuleState> = crate::globals::GlobalState::new(ChannelModuleState::new());
+
+#[inline]
+unsafe fn chan_st() -> &'static mut ChannelModuleState {
+    unsafe { &mut *CHAN_STATE.as_ptr() }
+}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -217,7 +235,7 @@ pub unsafe fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c
 
         let chan = find_channel(id);
         if chan.is_null() {
-            if id < NEXT_CHAN_ID {
+            if id < chan_st().NEXT_CHAN_ID {
                 return true;
             }
             {
@@ -342,8 +360,8 @@ pub unsafe fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         } else if r#type == kChannelStreamStderr {
             CHAN_STDERR
         } else {
-            let id = NEXT_CHAN_ID;
-            NEXT_CHAN_ID += 1;
+            let id = chan_st().NEXT_CHAN_ID;
+            chan_st().NEXT_CHAN_ID += 1;
             id
         };
         assert!(id <= (i64::MAX as u64));
@@ -429,8 +447,8 @@ pub unsafe fn free_channel_event(chan: *mut Channel) {
 unsafe fn channel_destroy_early(chan: *mut Channel) {
     unsafe {
         let cp = chan;
-        NEXT_CHAN_ID -= 1;
-        if (*cp).id != NEXT_CHAN_ID {
+        chan_st().NEXT_CHAN_ID -= 1;
+        if (*cp).id != chan_st().NEXT_CHAN_ID {
             std::process::abort();
         }
         let chans_ptr = &raw mut channels;
@@ -688,13 +706,13 @@ pub unsafe fn channel_from_stdio(
             return 0;
         }
 
-        if DID_STDIO {
+        if chan_st().DID_STDIO {
             {
                 *error = gettext(c"channel was already open".as_ptr());
             }
             return 0;
         }
-        DID_STDIO = true;
+        chan_st().DID_STDIO = true;
 
         let channel = channel_alloc(kChannelStreamStdio);
         let mut stdin_dup_fd = STDIN_FILENO;

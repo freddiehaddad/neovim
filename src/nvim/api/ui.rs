@@ -72,8 +72,24 @@ const DICT_INIT: Dict = Dict {
     capacity: 0,
 };
 
-static mut connected_uis: std::collections::BTreeMap<u64, Box<RemoteUI>> =
-    std::collections::BTreeMap::new();
+struct ApiUiState {
+    connected_uis: std::collections::BTreeMap<u64, Box<RemoteUI>>,
+}
+
+impl ApiUiState {
+    const fn new() -> Self {
+        Self {
+            connected_uis: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+static API_UI_STATE: crate::globals::GlobalState<ApiUiState> = crate::globals::GlobalState::new(ApiUiState::new());
+
+#[inline]
+unsafe fn api_ui_st() -> &'static mut ApiUiState {
+    unsafe { &mut *API_UI_STATE.as_ptr() }
+}
 
 use crate::msgpack_rpc::packer::mpack_w2;
 
@@ -84,7 +100,7 @@ unsafe fn buf_pos(ui: *const RemoteUI) -> usize {
 
 unsafe fn get_ui_or_err(chan_id: u64, err: *mut Error) -> *mut RemoteUI {
     unsafe {
-        let uis_ptr = &raw mut connected_uis;
+        let uis_ptr = &raw mut api_ui_st().connected_uis;
         let ui = (*uis_ptr)
             .get_mut(&chan_id)
             .map_or(ptr::null_mut(), |b| &raw mut **b);
@@ -139,7 +155,7 @@ pub unsafe fn remote_ui_disconnect(channel_id: u64, err: *mut Error, send_error_
             push_call(ui, c"error_exit", args);
             ui_flush_buf(ui, false);
         }
-        let uis_ptr = &raw mut connected_uis;
+        let uis_ptr = &raw mut api_ui_st().connected_uis;
         let mut ui_box = (*uis_ptr).remove(&channel_id);
         let ui_detached = ui_box.as_deref_mut().map_or(ui, |b| &raw mut *b);
         ui_detach_impl(ui_detached.cast(), channel_id);
@@ -192,7 +208,7 @@ pub unsafe fn ui_detach_channel(chan: u64, err: *mut Error) {
 pub unsafe fn ui_detach_others(keep_chan: u64) -> usize {
     unsafe {
         let mut chans = Vec::<u64>::new();
-        let uis_ptr = &raw const connected_uis;
+        let uis_ptr = &raw const api_ui_st().connected_uis;
         for &chan in (*uis_ptr).keys() {
             if chan != keep_chan {
                 chans.push(chan);
@@ -217,7 +233,7 @@ pub unsafe fn ui_detach_others(keep_chan: u64) -> usize {
 // DLLEXPORT void remote_ui_free_all_mem(void);
 pub unsafe fn remote_ui_free_all_mem() {
     unsafe {
-        let uis_ptr = &raw mut connected_uis;
+        let uis_ptr = &raw mut api_ui_st().connected_uis;
         (*uis_ptr).clear();
     }
 }
@@ -264,7 +280,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
     err: *mut Error,
 ) {
     unsafe {
-        let uis_ptr = &raw const connected_uis;
+        let uis_ptr = &raw const api_ui_st().connected_uis;
         if (*uis_ptr).contains_key(&channel_id) {
             api_set_error!(
                 err,
@@ -353,7 +369,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
         (*ui).ncalls_pos = None;
         (*ui).ncalls = 0;
         (*ui).ncells_pending = 0;
-        let uis_ptr = &raw mut connected_uis;
+        let uis_ptr = &raw mut api_ui_st().connected_uis;
         (*uis_ptr).insert(channel_id, ui_box);
         let ui: *mut RemoteUI = &raw mut **(*uis_ptr).get_mut(&channel_id).unwrap();
         (*ui).packer = PackerBuffer {
@@ -455,7 +471,7 @@ pub unsafe fn remote_ui_connect(channel_id: u64, server_addr: *mut c_char, err: 
 // DLLEXPORT void remote_ui_restart(String listen_addr);
 pub unsafe fn remote_ui_restart(listen_addr: NvimString) {
     unsafe {
-        let uis_ptr = &raw mut connected_uis;
+        let uis_ptr = &raw mut api_ui_st().connected_uis;
         for ui in (*uis_ptr).values_mut() {
             let chan = find_channel(ui.channel_id);
             let detach_val = !chan.is_null() && (*chan).detach;

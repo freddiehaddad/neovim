@@ -47,12 +47,28 @@ pub struct DecorProvider {
     pub error_count: u8,
 }
 
-static mut decor_providers: Vec<DecorProvider> = Vec::new();
+struct DecorProviderState {
+    decor_providers: Vec<DecorProvider>,
+}
+
+impl DecorProviderState {
+    const fn new() -> Self {
+        Self {
+            decor_providers: Vec::new(),
+        }
+    }
+}
+
+static DECOR_PROV_STATE: crate::globals::GlobalState<DecorProviderState> = crate::globals::GlobalState::new(DecorProviderState::new());
+
+#[inline]
+unsafe fn decor_prov_st() -> &'static mut DecorProviderState {
+    unsafe { &mut *DECOR_PROV_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn providers_mut() -> &'static mut Vec<DecorProvider> {
-    let ptr = &raw mut decor_providers;
-    unsafe { &mut *ptr }
+    unsafe { &mut decor_prov_st().decor_providers }
 }
 
 #[inline]
@@ -114,7 +130,7 @@ unsafe fn decor_provider_error(
     }
 }
 
-/// Note we pass in a provider index as this function may cause `decor_providers` to be
+/// Note we pass in a provider index as this function may cause `decor_prov_st().decor_providers` to be
 /// reallocated so we need to be careful with `DecorProvider` pointers (`decor_provider_invoke`).
 unsafe fn decor_provider_invoke(
     provider_idx: c_int,
@@ -570,6 +586,6 @@ impl Drop for DecorProvider {
 
 pub unsafe fn decor_free_all_mem() {
     unsafe {
-        decor_providers = Vec::new();
+        decor_prov_st().decor_providers = Vec::new();
     }
 }

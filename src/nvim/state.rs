@@ -80,7 +80,24 @@ impl Default for save_v_event_T {
     }
 }
 
-static mut was_safe: bool = false;
+struct StateModuleState {
+    was_safe: bool,
+}
+
+impl StateModuleState {
+    const fn new() -> Self {
+        Self {
+            was_safe: false,
+        }
+    }
+}
+
+static STATE_MOD_STATE: crate::globals::GlobalState<StateModuleState> = crate::globals::GlobalState::new(StateModuleState::new());
+
+#[inline]
+unsafe fn state_mod_st() -> &'static mut StateModuleState {
+    unsafe { &mut *STATE_MOD_STATE.as_ptr() }
+}
 
 pub unsafe fn state_enter<S: EditorState>(s: *mut S) {
     unsafe {
@@ -361,7 +378,7 @@ pub unsafe fn may_trigger_safestate(safe: bool) {
     unsafe {
         let is_safe = safe && is_safe_now();
 
-        if was_safe != is_safe && g_min_log_level <= LOGLVL_DBG {
+        if state_mod_st().was_safe != is_safe && g_min_log_level <= LOGLVL_DBG {
             let msg: &CStr = if is_safe {
                 c"SafeState: Start triggering"
             } else {
@@ -386,13 +403,13 @@ pub unsafe fn may_trigger_safestate(safe: bool) {
                 curbuf,
             );
         }
-        was_safe = is_safe;
+        state_mod_st().was_safe = is_safe;
     }
 }
 
 pub unsafe fn state_no_longer_safe(reason: *const c_char) {
     unsafe {
-        if was_safe && !reason.is_null() && g_min_log_level <= LOGLVL_DBG {
+        if state_mod_st().was_safe && !reason.is_null() && g_min_log_level <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
                 ptr::null(),
@@ -403,12 +420,12 @@ pub unsafe fn state_no_longer_safe(reason: *const c_char) {
                 reason,
             );
         }
-        was_safe = false;
+        state_mod_st().was_safe = false;
     }
 }
 
 pub unsafe fn get_was_safe_state() -> bool {
-    unsafe { was_safe }
+    unsafe { state_mod_st().was_safe }
 }
 
 #[cfg(test)]

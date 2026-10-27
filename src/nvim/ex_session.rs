@@ -58,7 +58,24 @@ const kOptSsopFlagTabpages: c_uint = 0x8000;
 const kOptSsopFlagTerminal: c_uint = 0x10000;
 const kOptSsopFlagSkiprtp: c_uint = 0x20000;
 
-static mut did_lcd: bool = false;
+struct ExSessionState {
+    did_lcd: bool,
+}
+
+impl ExSessionState {
+    const fn new() -> Self {
+        Self {
+            did_lcd: false,
+        }
+    }
+}
+
+static EXSES_STATE: crate::globals::GlobalState<ExSessionState> = crate::globals::GlobalState::new(ExSessionState::new());
+
+#[inline]
+unsafe fn exses_st() -> &'static mut ExSessionState {
+    unsafe { &mut *EXSES_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn cstr_to_str<'a>(p: *const c_char) -> &'a str {
@@ -276,7 +293,7 @@ unsafe fn ses_get_fname(buf: *mut buf_T, flagp: *const c_uint) -> *mut c_char {
             && ptr::eq(flagp, &raw const ssop_flags)
             && (ssop_flags & (kOptSsopFlagCurdir | kOptSsopFlagSesdir)) != 0
             && p_acd == 0
-            && !did_lcd
+            && !exses_st().did_lcd
         {
             return (*buf).b_sfname;
         }
@@ -517,7 +534,7 @@ unsafe fn put_view(
             {
                 return FAIL;
             }
-            did_lcd = true;
+            exses_st().did_lcd = true;
         }
 
         OK
@@ -742,7 +759,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                 {
                     return FAIL;
                 }
-                did_lcd = true;
+                exses_st().did_lcd = true;
                 b = (*b).b_next;
             }
         }
@@ -827,7 +844,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                 {
                     return FAIL;
                 }
-                did_lcd = true;
+                exses_st().did_lcd = true;
             }
 
             let mut wp = tab_firstwin;
@@ -1045,7 +1062,7 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
             view_session = true;
         }
 
-        did_lcd = false;
+        exses_st().did_lcd = false;
 
         let fname: *mut c_char;
         if (*eap).cmdidx == CMD_mkview

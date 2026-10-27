@@ -166,9 +166,28 @@ const VARNUMBER_MAX: uvarnumber_T = i64::MAX as u64;
 pub(crate) const VARNUMBER_MIN: varnumber_T = i64::MIN;
 const UVARNUMBER_MAX: uvarnumber_T = u64::MAX;
 
-static mut isf_chartab: [u64; 4] = [0; 4];
-static mut isi_chartab: [u64; 4] = [0; 4];
-static mut transchar_charbuf: [u8; 11] = [0; 11];
+struct CharsetModuleState {
+    isf_chartab: [u64; 4],
+    isi_chartab: [u64; 4],
+    transchar_charbuf: [u8; 11],
+}
+
+impl CharsetModuleState {
+    const fn new() -> Self {
+        Self {
+            isf_chartab: [0; 4],
+            isi_chartab: [0; 4],
+            transchar_charbuf: [0; 11],
+        }
+    }
+}
+
+static CHARSET_STATE: crate::globals::GlobalState<CharsetModuleState> = crate::globals::GlobalState::new(CharsetModuleState::new());
+
+#[inline]
+unsafe fn charset_st() -> &'static mut CharsetModuleState {
+    unsafe { &mut *CHARSET_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn set_chartab(chartab: *mut u64, c: c_int) {
@@ -238,10 +257,10 @@ pub unsafe fn buf_init_isk_chartab(buf: *mut buf_T) -> c_int {
 
 pub unsafe fn init_isf_chartab() -> c_int {
     unsafe {
-        let save_chartab = isf_chartab;
-        isf_chartab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
-        if parse_isopt(p_isf, (&raw mut isf_chartab).cast::<u64>()) == FAIL {
-            isf_chartab = save_chartab;
+        let save_chartab = charset_st().isf_chartab;
+        charset_st().isf_chartab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
+        if parse_isopt(p_isf, (&raw mut charset_st().isf_chartab).cast::<u64>()) == FAIL {
+            charset_st().isf_chartab = save_chartab;
             return FAIL;
         }
         OK
@@ -250,10 +269,10 @@ pub unsafe fn init_isf_chartab() -> c_int {
 
 pub unsafe fn init_isi_chartab() -> c_int {
     unsafe {
-        let save_chartab = isi_chartab;
-        isi_chartab = [0; 4];
-        if parse_isopt(p_isi, (&raw mut isi_chartab).cast::<u64>()) == FAIL {
-            isi_chartab = save_chartab;
+        let save_chartab = charset_st().isi_chartab;
+        charset_st().isi_chartab = [0; 4];
+        if parse_isopt(p_isi, (&raw mut charset_st().isi_chartab).cast::<u64>()) == FAIL {
+            charset_st().isi_chartab = save_chartab;
             return FAIL;
         }
         OK
@@ -579,7 +598,7 @@ pub unsafe fn transchar(c: c_int) -> *mut c_char {
 
 pub unsafe fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut c_char {
     unsafe {
-        let charbuf_ptr = (&raw mut transchar_charbuf).cast::<u8>();
+        let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<u8>();
         let mut i: usize = 0;
         if is_special(c) {
             *charbuf_ptr = b'~';
@@ -607,7 +626,7 @@ pub unsafe fn transchar_byte(c: c_int) -> *mut c_char {
 pub unsafe fn transchar_byte_buf(buf: *const buf_T, c: c_int) -> *mut c_char {
     unsafe {
         if c >= 0x80 {
-            let charbuf_ptr = (&raw mut transchar_charbuf).cast::<c_char>();
+            let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<c_char>();
             transchar_nonprint(buf, charbuf_ptr, c);
             return charbuf_ptr;
         }
@@ -710,7 +729,7 @@ pub unsafe fn vim_strnsize(s: *const c_char, mut len: c_int) -> c_int {
 }
 
 pub unsafe fn vim_isIDc(c: c_int) -> bool {
-    unsafe { c > 0 && c < 0x100 && get_chartab((&raw const isi_chartab).cast::<u64>(), c) != 0 }
+    unsafe { c > 0 && c < 0x100 && get_chartab((&raw const charset_st().isi_chartab).cast::<u64>(), c) != 0 }
 }
 
 pub unsafe fn vim_iswordc(c: c_int) -> bool {
@@ -746,7 +765,7 @@ pub unsafe fn vim_iswordp_buf(p: *const c_char, buf: *mut buf_T) -> bool {
 }
 
 pub unsafe fn vim_isfilec(c: c_int) -> bool {
-    unsafe { c >= 0x100 || (c > 0 && get_chartab((&raw const isf_chartab).cast::<u64>(), c) != 0) }
+    unsafe { c >= 0x100 || (c > 0 && get_chartab((&raw const charset_st().isf_chartab).cast::<u64>(), c) != 0) }
 }
 
 pub unsafe fn vim_is_fname_char(c: c_int) -> bool {

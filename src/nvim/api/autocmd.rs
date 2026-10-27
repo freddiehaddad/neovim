@@ -118,7 +118,24 @@ pub struct KeyDict_exec_autocmds {
     pub data: Object,
 }
 
-static mut NEXT_AUTOCMD_ID: i64 = 1;
+struct ApiAutocmdState {
+    NEXT_AUTOCMD_ID: i64,
+}
+
+impl ApiAutocmdState {
+    const fn new() -> Self {
+        Self {
+            NEXT_AUTOCMD_ID: 1,
+        }
+    }
+}
+
+static API_AU_STATE: crate::globals::GlobalState<ApiAutocmdState> = crate::globals::GlobalState::new(ApiAutocmdState::new());
+
+#[inline]
+unsafe fn api_au_st() -> &'static mut ApiAutocmdState {
+    unsafe { &mut *API_AU_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn api_err_con(err: *mut Error, name: *const c_char, name2: *const c_char) {
@@ -938,8 +955,8 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                 break 'body;
             }
 
-            autocmd_id = NEXT_AUTOCMD_ID;
-            NEXT_AUTOCMD_ID += 1;
+            autocmd_id = api_au_st().NEXT_AUTOCMD_ID;
+            api_au_st().NEXT_AUTOCMD_ID += 1;
 
             for i in 0..event_array.size {
                 let event_str = event_array[i];

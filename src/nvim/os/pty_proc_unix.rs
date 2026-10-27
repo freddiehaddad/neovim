@@ -241,7 +241,8 @@ mod unix_impl {
         revents: i16,
     }
 
-    static mut termios_default: termios = termios::ZERO;
+    static TERMIOS_DEFAULT: crate::globals::GlobalState<termios> =
+        crate::globals::GlobalState::new(termios::ZERO);
 
     use crate::event::r#loop::{uv_chdir, uv_pipe_open, uv_signal_start, uv_signal_stop};
     use crate::fileio::{close, dup, fcntl, kill};
@@ -277,8 +278,9 @@ mod unix_impl {
     /// @returns zero on success, or negative error code
     pub unsafe fn pty_proc_spawn(ptyproc: *mut PtyProc) -> c_int {
         unsafe {
-            if termios_default.c_cflag == 0 {
-                init_termios(&raw mut termios_default);
+            let termios_default_ptr = TERMIOS_DEFAULT.as_ptr();
+            if (*termios_default_ptr).c_cflag == 0 {
+                init_termios(termios_default_ptr);
             }
 
             let proc_: *mut Proc = ptyproc;
@@ -319,7 +321,7 @@ mod unix_impl {
             let pid = forkpty(
                 &raw mut master,
                 ptr::null_mut(),
-                &raw const termios_default,
+                termios_default_ptr.cast_const(),
                 &raw const (*ptail).winsize,
             );
 

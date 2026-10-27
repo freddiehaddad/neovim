@@ -16,8 +16,26 @@ use std::ffi::{CStr, CString, c_char, c_int};
 
 use crate::event::r#loop::uv_uid_t;
 
-static mut USERS: Vec<CString> = Vec::new();
-static mut LAZY_INIT_DONE: bool = false;
+struct OsUsersState {
+    USERS: Vec<CString>,
+    LAZY_INIT_DONE: bool,
+}
+
+impl OsUsersState {
+    const fn new() -> Self {
+        Self {
+            USERS: Vec::new(),
+            LAZY_INIT_DONE: false,
+        }
+    }
+}
+
+static USERS_STATE: crate::globals::GlobalState<OsUsersState> = crate::globals::GlobalState::new(OsUsersState::new());
+
+#[inline]
+unsafe fn users_st() -> &'static mut OsUsersState {
+    unsafe { &mut *USERS_STATE.as_ptr() }
+}
 
 #[cfg(all(
     unix,
@@ -235,17 +253,17 @@ pub unsafe fn os_get_userdir(name: *const c_char) -> Option<CString> {
 /// Must only be called during exit cleanup.
 pub unsafe fn free_users() {
     unsafe {
-        USERS = Vec::new();
+        users_st().USERS = Vec::new();
     }
 }
 
 unsafe fn init_users() {
     unsafe {
-        if LAZY_INIT_DONE {
+        if users_st().LAZY_INIT_DONE {
             return;
         }
-        LAZY_INIT_DONE = true;
-        USERS = collect_usernames();
+        users_st().LAZY_INIT_DONE = true;
+        users_st().USERS = collect_usernames();
     }
 }
 
@@ -259,7 +277,7 @@ pub unsafe fn get_users(_xp: *mut crate::os::env::expand_T, idx: c_int) -> *mut 
     }
     unsafe {
         init_users();
-        let users_ptr = &raw const USERS;
+        let users_ptr = &raw const users_st().USERS;
         let users = &*users_ptr;
         users
             .get(idx as usize)
@@ -275,7 +293,7 @@ pub unsafe fn match_user(name: *mut c_char) -> c_int {
     unsafe {
         init_users();
         let target = CStr::from_ptr(name).to_bytes();
-        let users_ptr = &raw const USERS;
+        let users_ptr = &raw const users_st().USERS;
         let users = &*users_ptr;
         let mut result = 0;
 

@@ -337,8 +337,28 @@ impl Drop for Terminal {
     }
 }
 
-static mut REFRESH_TIMER: TimeWatcher = TimeWatcher::new();
-static mut REFRESH_PENDING: bool = false;
+struct TerminalModuleState {
+    REFRESH_TIMER: TimeWatcher,
+    REFRESH_PENDING: bool,
+    INVALIDATED_TERMINALS: Vec<*mut Terminal>,
+}
+
+impl TerminalModuleState {
+    const fn new() -> Self {
+        Self {
+            REFRESH_TIMER: TimeWatcher::new(),
+            REFRESH_PENDING: false,
+            INVALIDATED_TERMINALS: Vec::new(),
+        }
+    }
+}
+
+static TERM_MOD_STATE: crate::globals::GlobalState<TerminalModuleState> = crate::globals::GlobalState::new(TerminalModuleState::new());
+
+#[inline]
+unsafe fn term_st() -> &'static mut TerminalModuleState {
+    unsafe { &mut *TERM_MOD_STATE.as_ptr() }
+}
 
 static VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
     damage: Some(term_damage),
@@ -368,12 +388,10 @@ static VTERM_FALLBACKS: VTermStateFallbacks = VTermStateFallbacks {
     sos: None,
 };
 
-static mut INVALIDATED_TERMINALS: Vec<*mut Terminal> = Vec::new();
-
 #[inline]
 unsafe fn invalidate_terminal_add(term: *mut Terminal) {
     unsafe {
-        let inv_ptr = &raw mut INVALIDATED_TERMINALS;
+        let inv_ptr = &raw mut term_st().INVALIDATED_TERMINALS;
         if !(*inv_ptr).contains(&term) {
             (*inv_ptr).push(term);
         }
@@ -387,7 +405,7 @@ const fn vterm_key_function(n: c_int) -> VTermKey {
 
 #[inline]
 unsafe fn refresh_timer_ptr() -> *mut TimeWatcher {
-    &raw mut REFRESH_TIMER
+    unsafe { &raw mut term_st().REFRESH_TIMER }
 }
 
 #[inline]
@@ -700,7 +718,7 @@ pub unsafe fn terminal_teardown() {
         time_watcher_stop(timer);
         multiqueue_free((*timer).events);
         time_watcher_close(timer);
-        let inv_ptr = &raw mut INVALIDATED_TERMINALS;
+        let inv_ptr = &raw mut term_st().INVALIDATED_TERMINALS;
         *inv_ptr = Vec::new();
     }
 }
@@ -1455,7 +1473,7 @@ pub unsafe fn terminal_destroy(termpp: *mut *mut Terminal) {
         }
 
         if (*term).refcount == 0 {
-            let inv_ptr = &raw mut INVALIDATED_TERMINALS;
+            let inv_ptr = &raw mut term_st().INVALIDATED_TERMINALS;
             if let Some(pos) = (*inv_ptr).iter().position(|&t| t == term) {
                 block_autocmds();
                 refresh_terminal(term);
@@ -2384,9 +2402,9 @@ unsafe fn invalidate_terminal(term: *mut Terminal, start_row: c_int, end_row: c_
         }
 
         invalidate_terminal_add(term);
-        if !REFRESH_PENDING {
+        if !term_st().REFRESH_PENDING {
             time_watcher_start(refresh_timer_ptr(), REFRESH_DELAY, 0);
-            REFRESH_PENDING = true;
+            term_st().REFRESH_PENDING = true;
         }
     }
 }
@@ -2486,13 +2504,13 @@ unsafe fn refresh_cursor(term: *mut Terminal, cursor_visible: *mut bool) {
 
 pub(crate) unsafe fn refresh_timer_cb() {
     unsafe {
-        REFRESH_PENDING = false;
+        term_st().REFRESH_PENDING = false;
         if exiting {
             return;
         }
 
         block_autocmds();
-        let inv_ptr = &raw mut INVALIDATED_TERMINALS;
+        let inv_ptr = &raw mut term_st().INVALIDATED_TERMINALS;
         let to_refresh = std::mem::take(&mut *inv_ptr);
 
         for term in to_refresh {

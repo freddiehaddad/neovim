@@ -89,11 +89,28 @@ use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::math::{FAIL, OK};
 use crate::os::env::expand_T;
 
-static mut sign_map: Vec<sign_T> = Vec::new();
+struct SignModuleState {
+    sign_map: Vec<sign_T>,
+    sign_ns: Vec<Integer>,
+    expand_what: c_int,
+}
 
-static mut sign_ns: Vec<Integer> = Vec::new();
+impl SignModuleState {
+    const fn new() -> Self {
+        Self {
+            sign_map: Vec::new(),
+            sign_ns: Vec::new(),
+            expand_what: EXP_SUBCMD,
+        }
+    }
+}
 
-static mut expand_what: c_int = EXP_SUBCMD;
+static SIGN_STATE: crate::globals::GlobalState<SignModuleState> = crate::globals::GlobalState::new(SignModuleState::new());
+
+#[inline]
+unsafe fn sign_st() -> &'static mut SignModuleState {
+    unsafe { &mut *SIGN_STATE.as_ptr() }
+}
 
 const CMDS: [*const c_char; 7] = [
     c"define".as_ptr(),
@@ -111,7 +128,7 @@ unsafe fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
         return ptr::null_mut();
     }
     unsafe {
-        let sm_ptr = &raw mut sign_map;
+        let sm_ptr = &raw mut sign_st().sign_map;
         for sp in &mut *sm_ptr {
             if strcmp(sp.sn_name.as_ptr(), name) == 0 {
                 return sp;
@@ -171,7 +188,7 @@ unsafe fn buf_set_sign(
 ) {
     unsafe {
         if !group.is_null() && find_ns_by_name(group) == 0 {
-            let ns_vec_ptr = &raw mut sign_ns;
+            let ns_vec_ptr = &raw mut sign_st().sign_ns;
             let ns_vec = &mut *ns_vec_ptr;
             ns_vec.push(nvim_create_namespace(cstr_as_string(group)));
         }
@@ -534,7 +551,7 @@ unsafe fn sign_define_by_name(
         let existing = pmap_get_sign(name);
         let new_sign = existing.is_null();
         let sp = if new_sign {
-            let sm_ptr = &raw mut sign_map;
+            let sm_ptr = &raw mut sign_st().sign_map;
             (*sm_ptr).push(sign_T {
                 sn_name: CStr::from_ptr(name).to_owned(),
                 sn_icon: None,
@@ -617,7 +634,7 @@ unsafe fn sign_define_by_name(
 
 unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
     unsafe {
-        let sm_ptr = &raw mut sign_map;
+        let sm_ptr = &raw mut sign_st().sign_map;
         let Some(pos) = (*sm_ptr)
             .iter()
             .position(|sp| strcmp(sp.sn_name.as_ptr(), name) == 0)
@@ -1039,7 +1056,7 @@ pub unsafe fn ex_sign(eap: *mut exarg_T) {
 
         if idx <= SIGNCMD_LIST {
             if idx == SIGNCMD_LIST && *arg == NUL {
-                let sm_ptr = &raw mut sign_map;
+                let sm_ptr = &raw mut sign_st().sign_map;
                 for sp in &mut *sm_ptr {
                     sign_list_defined(sp);
                 }
@@ -1248,13 +1265,13 @@ unsafe fn sign_get_placed(
 
 pub unsafe fn free_signs() {
     unsafe {
-        sign_map = Vec::new();
+        sign_st().sign_map = Vec::new();
     }
 }
 
 unsafe fn get_nth_sign_name(idx: c_int) -> *mut c_char {
     unsafe {
-        let sm_ptr = &raw const sign_map;
+        let sm_ptr = &raw const sign_st().sign_map;
         if let Ok(idx_usize) = usize::try_from(idx)
             && let Some(sp) = (*sm_ptr).as_slice().get(idx_usize)
         {
@@ -1269,7 +1286,7 @@ unsafe fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
         return ptr::null_mut();
     }
     unsafe {
-        let ns_ptr = &raw const sign_ns;
+        let ns_ptr = &raw const sign_st().sign_ns;
         let ns_slice = (*ns_ptr).as_slice();
         ns_slice.get(idx as usize).map_or(ptr::null_mut(), |&ns| {
             describe_ns(ns as NS, c"".as_ptr()).cast_mut()
@@ -1279,7 +1296,7 @@ unsafe fn get_nth_sign_group_name(idx: c_int) -> *mut c_char {
 
 pub unsafe fn get_sign_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
-        match expand_what {
+        match sign_st().expand_what {
             EXP_SUBCMD => CMDS[idx as usize].cast_mut(),
             EXP_DEFINE => {
                 const DEFINE_ARG: [*const c_char; 8] = [
@@ -1325,7 +1342,7 @@ pub unsafe fn get_sign_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
 pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
     unsafe {
         (*xp).xp_context = EXPAND_SIGN;
-        expand_what = EXP_SUBCMD;
+        sign_st().expand_what = EXP_SUBCMD;
         (*xp).xp_pattern = arg;
 
         let end_subcmd = skiptowhite(arg);
@@ -1351,16 +1368,16 @@ pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
         if p.is_null() {
             (*xp).xp_pattern = last;
             match cmd_idx {
-                SIGNCMD_DEFINE => expand_what = EXP_DEFINE,
+                SIGNCMD_DEFINE => sign_st().expand_what = EXP_DEFINE,
                 SIGNCMD_PLACE => {
                     if ascii_isdigit(*begin_subcmd_args as c_int) {
-                        expand_what = EXP_PLACE;
+                        sign_st().expand_what = EXP_PLACE;
                     } else {
-                        expand_what = EXP_LIST;
+                        sign_st().expand_what = EXP_LIST;
                     }
                 }
-                SIGNCMD_LIST | SIGNCMD_UNDEFINE => expand_what = EXP_SIGN_NAMES,
-                SIGNCMD_JUMP | SIGNCMD_UNPLACE => expand_what = EXP_UNPLACE,
+                SIGNCMD_LIST | SIGNCMD_UNDEFINE => sign_st().expand_what = EXP_SIGN_NAMES,
+                SIGNCMD_JUMP | SIGNCMD_UNPLACE => sign_st().expand_what = EXP_UNPLACE,
                 _ => (*xp).xp_context = EXPAND_NOTHING,
             }
         } else {
@@ -1381,9 +1398,9 @@ pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
                 }
                 SIGNCMD_PLACE => {
                     if strncmp(last, c"name".as_ptr(), 4) == 0 {
-                        expand_what = EXP_SIGN_NAMES;
+                        sign_st().expand_what = EXP_SIGN_NAMES;
                     } else if strncmp(last, c"group".as_ptr(), 5) == 0 {
-                        expand_what = EXP_SIGN_GROUPS;
+                        sign_st().expand_what = EXP_SIGN_GROUPS;
                     } else if strncmp(last, c"file".as_ptr(), 4) == 0 {
                         (*xp).xp_context = EXPAND_BUFFERS;
                     } else {
@@ -1392,7 +1409,7 @@ pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
                 }
                 SIGNCMD_UNPLACE | SIGNCMD_JUMP => {
                     if strncmp(last, c"group".as_ptr(), 5) == 0 {
-                        expand_what = EXP_SIGN_GROUPS;
+                        sign_st().expand_what = EXP_SIGN_GROUPS;
                     } else if strncmp(last, c"file".as_ptr(), 4) == 0 {
                         (*xp).xp_context = EXPAND_BUFFERS;
                     } else {
@@ -1493,7 +1510,7 @@ pub unsafe fn f_sign_getdefined(argvars: *mut typval_T, rettv: *mut typval_T, _f
         tv_list_alloc_ret(rettv, 0);
 
         if (*argvars).v_type == VarType::VAR_UNKNOWN {
-            let sm_ptr = &raw mut sign_map;
+            let sm_ptr = &raw mut sign_st().sign_map;
             for sp in &mut *sm_ptr {
                 tv_list_append_dict((*rettv).vval.v_list(), sign_get_info_dict(sp));
             }

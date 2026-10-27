@@ -137,8 +137,26 @@ impl Drop for expand_T {
     }
 }
 
-static mut HOMEDIR: Option<std::ffi::CString> = None;
-static mut HOMEDIR_BUF: [c_char; MAXPATHL] = [0; MAXPATHL];
+struct EnvModuleState {
+    HOMEDIR: Option<std::ffi::CString>,
+    HOMEDIR_BUF: [c_char; MAXPATHL],
+}
+
+impl EnvModuleState {
+    const fn new() -> Self {
+        Self {
+            HOMEDIR: None,
+            HOMEDIR_BUF: [0; MAXPATHL],
+        }
+    }
+}
+
+static ENV_STATE: crate::globals::GlobalState<EnvModuleState> = crate::globals::GlobalState::new(EnvModuleState::new());
+
+#[inline]
+unsafe fn env_st() -> &'static mut EnvModuleState {
+    unsafe { &mut *ENV_STATE.as_ptr() }
+}
 
 use crate::version::{default_vim_dir, default_vimruntime_dir};
 
@@ -454,7 +472,7 @@ pub unsafe fn os_get_hostname(hostname: *mut c_char, size: usize) {
 #[cfg(windows)]
 pub unsafe fn os_homedir() -> *const c_char {
     unsafe {
-        let Some(ref hd) = *(&raw const HOMEDIR).as_ref().unwrap() else {
+        let Some(ref hd) = *(&raw const env_st().HOMEDIR).as_ref().unwrap() else {
             emsg(c"os_homedir failed: homedir not initialized".as_ptr());
             return ptr::null();
         };
@@ -464,7 +482,7 @@ pub unsafe fn os_homedir() -> *const c_char {
 
 unsafe fn os_uv_homedir() -> *mut c_char {
     unsafe {
-        let buf = (&raw mut HOMEDIR_BUF).cast::<c_char>();
+        let buf = (&raw mut env_st().HOMEDIR_BUF).cast::<c_char>();
         *buf = NUL;
         let mut homedir_size = MAXPATHL;
         let ret_value = uv_os_homedir(buf, &raw mut homedir_size);
@@ -479,7 +497,7 @@ unsafe fn os_uv_homedir() -> *mut c_char {
 /// Sets `homedir` to the "real", resolved user home directory.
 pub unsafe fn init_homedir() {
     unsafe {
-        HOMEDIR = None;
+        env_st().HOMEDIR = None;
 
         let home_cstr = os_getenv_cstr(c"HOME".as_ptr());
         let mut var: *mut c_char = home_cstr
@@ -550,14 +568,14 @@ pub unsafe fn init_homedir() {
         }
 
         if !var.is_null() {
-            HOMEDIR = to_slash_save(var);
+            env_st().HOMEDIR = to_slash_save(var);
         }
     }
 }
 
 pub unsafe fn free_homedir() {
     unsafe {
-        HOMEDIR = None;
+        env_st().HOMEDIR = None;
     }
 }
 
@@ -695,7 +713,7 @@ pub unsafe fn expand_env_esc(
                     || vim_ispathsep(c_int::from(*src.add(1) as u8))
                     || !vim_strchr(c" ,\t\n".as_ptr(), c_int::from(*src.add(1) as u8)).is_null()
                 {
-                    var = (&raw const HOMEDIR)
+                    var = (&raw const env_st().HOMEDIR)
                         .as_ref()
                         .unwrap()
                         .as_ref()
@@ -903,7 +921,7 @@ pub unsafe fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
 
         #[cfg(windows)]
         if CStr::from_ptr(name).to_bytes() == b"HOME" {
-            return (&raw const HOMEDIR).as_ref().unwrap().clone();
+            return (&raw const env_st().HOMEDIR).as_ref().unwrap().clone();
         }
 
         let kos_env_path = os_getenv_cstr(name);
@@ -1032,7 +1050,7 @@ pub unsafe fn home_replace(
             return dlen.min(dstlen - 1);
         }
 
-        let homedir_ptr = (&raw const HOMEDIR)
+        let homedir_ptr = (&raw const env_st().HOMEDIR)
             .as_ref()
             .unwrap()
             .as_ref()

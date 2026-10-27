@@ -23,7 +23,27 @@ pub struct Tm {
 }
 
 #[cfg(unix)]
-static mut TZ_CACHE: [u8; 64] = [0u8; 64];
+struct OsTimeState {
+    TZ_CACHE: [u8; 64],
+}
+
+#[cfg(unix)]
+impl OsTimeState {
+    const fn new() -> Self {
+        Self {
+            TZ_CACHE: [0u8; 64],
+        }
+    }
+}
+
+#[cfg(unix)]
+static OSTIME_STATE: crate::globals::GlobalState<OsTimeState> = crate::globals::GlobalState::new(OsTimeState::new());
+
+#[cfg(unix)]
+#[inline]
+unsafe fn ostime_st() -> &'static mut OsTimeState {
+    unsafe { &mut *OSTIME_STATE.as_ptr() }
+}
 
 unsafe extern "C" {
     #[cfg_attr(target_os = "windows", link_name = "_mktime64")]
@@ -119,7 +139,7 @@ pub unsafe fn os_localtime_r(clock: *const time_t, result: *mut Tm) -> *mut Tm {
         } else {
             CStr::from_ptr(tz_ptr).to_bytes()
         };
-        let cache_ptr = &raw mut TZ_CACHE;
+        let cache_ptr = &raw mut ostime_st().TZ_CACHE;
         let cache = &mut *cache_ptr;
         let cache_len = cache.iter().position(|&b| b == 0).unwrap_or(cache.len());
         let cmp_len = tz_bytes.len().min(cache.len() - 1);

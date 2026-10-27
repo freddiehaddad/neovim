@@ -118,7 +118,24 @@ impl TermInput {
     }
 }
 
-static mut LAST_PRESSED_BUTTON: c_int = 0;
+struct TuiInputModuleState {
+    LAST_PRESSED_BUTTON: c_int,
+}
+
+impl TuiInputModuleState {
+    const fn new() -> Self {
+        Self {
+            LAST_PRESSED_BUTTON: 0,
+        }
+    }
+}
+
+static TUI_INP_STATE: crate::globals::GlobalState<TuiInputModuleState> = crate::globals::GlobalState::new(TuiInputModuleState::new());
+
+#[inline]
+unsafe fn tui_inp_st() -> &'static mut TuiInputModuleState {
+    unsafe { &mut *TUI_INP_STATE.as_ptr() }
+}
 
 use crate::event::r#loop::uv_timer_get_due_in;
 
@@ -482,7 +499,7 @@ unsafe fn forward_mouse_event(input: *mut TermInput, key: *const TermKeyKey) {
         );
 
         if (ev == TERMKEY_MOUSE_RELEASE || ev == TERMKEY_MOUSE_DRAG) && button == 0 {
-            button = LAST_PRESSED_BUTTON;
+            button = tui_inp_st().LAST_PRESSED_BUTTON;
         }
 
         if (button == 0 && ev != TERMKEY_MOUSE_RELEASE)
@@ -517,7 +534,7 @@ unsafe fn forward_mouse_event(input: *mut TermInput, key: *const TermKeyKey) {
                 7 => buf.push_str("ScrollWheelRight"),
                 _ => {
                     buf.push_str("Mouse");
-                    LAST_PRESSED_BUTTON = button;
+                    tui_inp_st().LAST_PRESSED_BUTTON = button;
                 }
             },
             TERMKEY_MOUSE_DRAG => {
@@ -525,7 +542,7 @@ unsafe fn forward_mouse_event(input: *mut TermInput, key: *const TermKeyKey) {
             }
             TERMKEY_MOUSE_RELEASE => {
                 buf.push_str(if button != 0 { "Release" } else { "MouseMove" });
-                LAST_PRESSED_BUTTON = 0;
+                tui_inp_st().LAST_PRESSED_BUTTON = 0;
             }
             _ => std::process::abort(),
         }

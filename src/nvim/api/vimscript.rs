@@ -41,8 +41,26 @@ pub struct KeyDict_exec_opts {
 use crate::eval::funcs::MAX_FUNC_ARGS;
 use crate::math::{FAIL, OK};
 
-static mut EVAL_RECURSIVE: c_int = 0;
-static mut CALL_FUNC_RECURSIVE: c_int = 0;
+struct ApiVimscriptState {
+    EVAL_RECURSIVE: c_int,
+    CALL_FUNC_RECURSIVE: c_int,
+}
+
+impl ApiVimscriptState {
+    const fn new() -> Self {
+        Self {
+            EVAL_RECURSIVE: 0,
+            CALL_FUNC_RECURSIVE: 0,
+        }
+    }
+}
+
+static API_VIMS_STATE: crate::globals::GlobalState<ApiVimscriptState> = crate::globals::GlobalState::new(ApiVimscriptState::new());
+
+#[inline]
+unsafe fn api_vims_st() -> &'static mut ApiVimscriptState {
+    unsafe { &mut *API_VIMS_STATE.as_ptr() }
+}
 
 use crate::api::private::helpers::cstr_to_string;
 
@@ -188,13 +206,13 @@ pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: *mu
     unsafe {
         let mut rv = nil_obj();
 
-        if EVAL_RECURSIVE == 0 {
+        if api_vims_st().EVAL_RECURSIVE == 0 {
             force_abort = false;
             suppress_errthrow = false;
             did_throw = false;
             did_emsg = 0;
         }
-        EVAL_RECURSIVE += 1;
+        api_vims_st().EVAL_RECURSIVE += 1;
 
         let mut rettv: typval_T = typval_T::new();
         let mut tstate = TryState::new();
@@ -226,7 +244,7 @@ pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: *mu
         }
 
         tv_clear(&mut rettv);
-        EVAL_RECURSIVE -= 1;
+        api_vims_st().EVAL_RECURSIVE -= 1;
 
         rv
     }
@@ -259,13 +277,13 @@ unsafe fn call_function_impl(
             i += 1;
         }
 
-        if CALL_FUNC_RECURSIVE == 0 {
+        if api_vims_st().CALL_FUNC_RECURSIVE == 0 {
             force_abort = false;
             suppress_errthrow = false;
             did_throw = false;
             did_emsg = 0;
         }
-        CALL_FUNC_RECURSIVE += 1;
+        api_vims_st().CALL_FUNC_RECURSIVE += 1;
 
         let mut rettv: typval_T = typval_T::new();
         let lnum = (*curwin).w_cursor.lnum;
@@ -300,7 +318,7 @@ unsafe fn call_function_impl(
         }
 
         tv_clear(&mut rettv);
-        CALL_FUNC_RECURSIVE -= 1;
+        api_vims_st().CALL_FUNC_RECURSIVE -= 1;
 
         while i > 0 {
             i -= 1;

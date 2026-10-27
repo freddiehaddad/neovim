@@ -268,7 +268,24 @@ pub struct MessageData {
     pub data: Dict,
 }
 
-static mut PASTE_CANCELLED: bool = false;
+struct ApiVimState {
+    PASTE_CANCELLED: bool,
+}
+
+impl ApiVimState {
+    const fn new() -> Self {
+        Self {
+            PASTE_CANCELLED: false,
+        }
+    }
+}
+
+static API_VIM_STATE: crate::globals::GlobalState<ApiVimState> = crate::globals::GlobalState::new(ApiVimState::new());
+
+#[inline]
+unsafe fn api_vim_st() -> &'static mut ApiVimState {
+    unsafe { &mut *API_VIM_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn validate_int(cond: bool, name: *const c_char, val: i64, err: *mut Error) -> bool {
@@ -1898,14 +1915,14 @@ pub unsafe extern "C" fn nvim_paste(
             return false;
         }
         if phase == -1 || phase == 1 {
-            PASTE_CANCELLED = false;
+            api_vim_st().PASTE_CANCELLED = false;
             if !(*curbuf).terminal.is_null() {
                 terminal_set_streamed_paste((*curbuf).terminal.cast(), true);
             }
-        } else if PASTE_CANCELLED {
-            let retval = !PASTE_CANCELLED;
+        } else if api_vim_st().PASTE_CANCELLED {
+            let retval = !api_vim_st().PASTE_CANCELLED;
             if phase == 3 {
-                PASTE_CANCELLED = false;
+                api_vim_st().PASTE_CANCELLED = false;
             }
             return retval;
         }
@@ -1926,28 +1943,28 @@ pub unsafe extern "C" fn nvim_paste(
             err,
         );
         if error_set(&*err) || (rv.obj_type == ObjectType::kObjectTypeBoolean && !rv.data.boolean()) {
-            PASTE_CANCELLED = true;
+            api_vim_st().PASTE_CANCELLED = true;
         }
-        if (phase == -1 || phase == 3 || PASTE_CANCELLED) && !(*curbuf).terminal.is_null() {
+        if (phase == -1 || phase == 3 || api_vim_st().PASTE_CANCELLED) && !(*curbuf).terminal.is_null() {
             terminal_set_streamed_paste((*curbuf).terminal.cast(), false);
         }
         let null_str = NvimString {
             data: ptr::null_mut(),
             size: 0,
         };
-        if !PASTE_CANCELLED && (phase == -1 || phase == 1) {
+        if !api_vim_st().PASTE_CANCELLED && (phase == -1 || phase == 1) {
             paste_store(channel_id, kFalse, null_str, crlf);
         }
-        if !PASTE_CANCELLED {
+        if !api_vim_st().PASTE_CANCELLED {
             paste_store(channel_id, kNone, data, crlf);
         }
-        if phase == 3 || phase == (if PASTE_CANCELLED { 2 } else { -1 }) {
+        if phase == 3 || phase == (if api_vim_st().PASTE_CANCELLED { 2 } else { -1 }) {
             paste_store(channel_id, kTrue, null_str, crlf);
         }
 
-        let retval = !PASTE_CANCELLED;
+        let retval = !api_vim_st().PASTE_CANCELLED;
         if phase == -1 || phase == 3 {
-            PASTE_CANCELLED = false;
+            api_vim_st().PASTE_CANCELLED = false;
         }
         retval
     }

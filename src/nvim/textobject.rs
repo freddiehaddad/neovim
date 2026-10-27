@@ -30,7 +30,24 @@ use crate::regexp::MAXCOL;
 
 const kCpoEndofsent: c_int = b'J' as c_int;
 
-static mut CLS_BIGWORD: bool = false;
+struct TextobjectState {
+    CLS_BIGWORD: bool,
+}
+
+impl TextobjectState {
+    const fn new() -> Self {
+        Self {
+            CLS_BIGWORD: false,
+        }
+    }
+}
+
+static TOBJ_STATE: crate::globals::GlobalState<TextobjectState> = crate::globals::GlobalState::new(TextobjectState::new());
+
+#[inline]
+unsafe fn tobj_st() -> &'static mut TextobjectState {
+    unsafe { &mut *TOBJ_STATE.as_ptr() }
+}
 
 /// Find the start of the next sentence, searching in the direction specified
 /// by the `dir` argument (`findsent`).
@@ -309,7 +326,7 @@ unsafe fn cls() -> c_int {
 
         c = utf_class(c);
 
-        if c != 0 && CLS_BIGWORD {
+        if c != 0 && tobj_st().CLS_BIGWORD {
             return 1;
         }
         c
@@ -320,7 +337,7 @@ unsafe fn cls() -> c_int {
 pub unsafe fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
     unsafe {
         (*curwin).w_cursor.coladd = 0;
-        CLS_BIGWORD = bigword;
+        tobj_st().CLS_BIGWORD = bigword;
         while {
             count -= 1;
             count >= 0
@@ -372,7 +389,7 @@ pub unsafe fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
 pub unsafe fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int {
     unsafe {
         (*curwin).w_cursor.coladd = 0;
-        CLS_BIGWORD = bigword;
+        tobj_st().CLS_BIGWORD = bigword;
         while {
             count -= 1;
             count >= 0
@@ -421,7 +438,7 @@ pub unsafe fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int
 pub unsafe fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) -> c_int {
     unsafe {
         (*curwin).w_cursor.coladd = 0;
-        CLS_BIGWORD = bigword;
+        tobj_st().CLS_BIGWORD = bigword;
 
         if *p_sel == b'e' as c_char
             && Visual.active
@@ -481,7 +498,7 @@ pub unsafe fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: b
 pub unsafe fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
     unsafe {
         (*curwin).w_cursor.coladd = 0;
-        CLS_BIGWORD = bigword;
+        tobj_st().CLS_BIGWORD = bigword;
         while {
             count -= 1;
             count >= 0
@@ -601,7 +618,7 @@ pub unsafe fn current_word(
         let mut inclusive = true;
         let mut include_white = false;
 
-        CLS_BIGWORD = bigword;
+        tobj_st().CLS_BIGWORD = bigword;
         clearpos(&mut start_pos);
 
         if Visual.active && *p_sel == b'e' as c_char && lt(Visual.start, (*curwin).w_cursor) {

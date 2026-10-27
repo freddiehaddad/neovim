@@ -29,13 +29,30 @@ const ENV_TEST_LOG: &CStr = c"__NVIM_TEST_LOG";
 use crate::event::stream::UV_TCP;
 use crate::globals::IOSIZE;
 
-static mut watchers: Vec<*mut SocketWatcher> = Vec::new();
-static mut server_addr_count: u32 = 0;
+struct RpcServerState {
+    watchers: Vec<*mut SocketWatcher>,
+    server_addr_count: u32,
+}
+
+impl RpcServerState {
+    const fn new() -> Self {
+        Self {
+            watchers: Vec::new(),
+            server_addr_count: 0,
+        }
+    }
+}
+
+static SERVER_STATE: crate::globals::GlobalState<RpcServerState> = crate::globals::GlobalState::new(RpcServerState::new());
+
+#[inline]
+unsafe fn srv_st() -> &'static mut RpcServerState {
+    unsafe { &mut *SERVER_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn watchers_mut() -> &'static mut Vec<*mut SocketWatcher> {
-    let ptr = &raw mut watchers;
-    unsafe { &mut *ptr }
+    unsafe { &mut srv_st().watchers }
 }
 
 pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
@@ -43,7 +60,7 @@ pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
         let mut ok = true;
         let mut owned_addr: Option<std::ffi::CString> = None;
         let mut user_arg: TriState = kTrue;
-        watchers = Vec::new();
+        srv_st().watchers = Vec::new();
 
         if listen_addr.is_null() || *listen_addr == 0 {
             if os_env_exists(ENV_LISTEN.as_ptr(), true) {
@@ -117,15 +134,15 @@ pub unsafe fn server_teardown() {
         for &watcher in watchers_mut().iter() {
             socket_watcher_close(watcher);
         }
-        watchers = Vec::new();
+        srv_st().watchers = Vec::new();
     }
 }
 
 pub unsafe fn server_address_new(name: *const c_char) -> std::ffi::CString {
     unsafe {
         let mut fmt: [c_char; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
-        let cur_count = server_addr_count;
-        server_addr_count = server_addr_count.wrapping_add(1);
+        let cur_count = srv_st().server_addr_count;
+        srv_st().server_addr_count = srv_st().server_addr_count.wrapping_add(1);
 
         #[cfg(windows)]
         let r = {

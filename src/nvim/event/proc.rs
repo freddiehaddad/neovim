@@ -113,9 +113,28 @@ impl Proc {
 
 pub type PtyProc = Proc;
 
-static mut proc_is_tearing_down: bool = false;
-static mut exit_need_delay: c_int = 0;
-static mut exit_delay_status: c_int = 0;
+struct ProcModuleState {
+    proc_is_tearing_down: bool,
+    exit_need_delay: c_int,
+    exit_delay_status: c_int,
+}
+
+impl ProcModuleState {
+    const fn new() -> Self {
+        Self {
+            proc_is_tearing_down: false,
+            exit_need_delay: 0,
+            exit_delay_status: 0,
+        }
+    }
+}
+
+static PROC_STATE: crate::globals::GlobalState<ProcModuleState> = crate::globals::GlobalState::new(ProcModuleState::new());
+
+#[inline]
+unsafe fn proc_st() -> &'static mut ProcModuleState {
+    unsafe { &mut *PROC_STATE.as_ptr() }
+}
 
 use crate::event::r#loop::{uv_recv_buffer_size, uv_unref};
 
@@ -243,7 +262,7 @@ pub unsafe fn proc_spawn(proc_: *mut Proc, in_: bool, out: bool, err: bool) -> c
 
 pub unsafe fn proc_teardown(loop_: *mut Loop) {
     unsafe {
-        proc_is_tearing_down = true;
+        proc_st().proc_is_tearing_down = true;
         let qc = loop_queues(loop_);
         for &proc_ in &(*qc).children {
             if (*proc_).detach || (*proc_).r#type == kProcTypePty {
@@ -405,7 +424,7 @@ pub(crate) unsafe fn proc_decref(proc_: *mut Proc) {
 
 unsafe fn proc_close(proc_: *mut Proc) {
     unsafe {
-        if proc_is_tearing_down
+        if proc_st().proc_is_tearing_down
             && (*proc_).closed
             && ((*proc_).detach || (*proc_).r#type == kProcTypePty)
         {
@@ -436,7 +455,7 @@ unsafe fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
         let limit_bytes = if cfg!(windows) {
             true
         } else {
-            (*proc_).r#type != kProcTypePty || proc_is_tearing_down
+            (*proc_).r#type != kProcTypePty || proc_st().proc_is_tearing_down
         };
         if limit_bytes {
             let mut system_buffer_size: c_int = 0;
@@ -478,13 +497,13 @@ unsafe fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
 
 pub unsafe fn proc_close_handles(proc_: *mut Proc) {
     unsafe {
-        exit_need_delay += 1;
+        proc_st().exit_need_delay += 1;
         flush_stream(proc_, &raw mut (*proc_).out);
         flush_stream(proc_, &raw mut (*proc_).err);
 
         proc_close_streams(proc_);
         proc_close(proc_);
-        exit_need_delay -= 1;
+        proc_st().exit_need_delay -= 1;
     }
 }
 
@@ -494,17 +513,17 @@ unsafe extern "C" fn exit_delay_cb(_handle: *mut uv_timer_t) {
         let exit_timer = loop_exit_delay_timer(mloop);
         uv_timer_stop(exit_timer);
         let qc = loop_queues(mloop);
-        let status = exit_delay_status;
+        let status = proc_st().exit_delay_status;
         multiqueue_put_event((*qc).fast_events, Event::ProcExit(status));
     }
 }
 
 pub unsafe fn exit_event(status: c_int) {
     unsafe {
-        if exit_need_delay != 0 {
+        if proc_st().exit_need_delay != 0 {
             let mloop = main_loop_ptr();
             let exit_timer = loop_exit_delay_timer(mloop);
-            exit_delay_status = status;
+            proc_st().exit_delay_status = status;
             uv_timer_start(exit_timer, Some(exit_delay_cb), 0, 0);
             return;
         }
