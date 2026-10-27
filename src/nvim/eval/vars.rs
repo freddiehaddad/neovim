@@ -344,15 +344,35 @@ const fn empty_scope_var() -> ScopeDictDictItem {
     }
 }
 
-static mut globvars_var: ScopeDictDictItem = empty_scope_var();
-static mut globvardict: dict_T = empty_dict();
-static mut compat_hashtab: hashtab_T = hashtab_T::new();
+struct VarsModuleState {
+    globvars_var: ScopeDictDictItem,
+    globvardict: dict_T,
+    compat_hashtab: hashtab_T,
+    vimvars_var: ScopeDictDictItem,
+    vimvardict: dict_T,
+    vimvars: [VimVar; VV_LEN],
+    varnamebuf: Vec<c_char>,
+    redir_lval: Option<lval_T>,
+    redir_buf: Vec<c_char>,
+    redir_endp: *mut c_char,
+    redir_varname: Option<std::ffi::CString>,
+    GDONE: usize,
+    BDONE: usize,
+    WDONE: usize,
+    TDONE: usize,
+    VIDX: usize,
+    HI: *mut hashitem_T,
+}
 
-static mut vimvars_var: ScopeDictDictItem = empty_scope_var();
-static mut vimvardict: dict_T = empty_dict();
-
-// Note: indexed by `VV_*` enum values (`VV_TERMREQUEST` = 10, `VV_TERMRESPONSE` = 11).
-static mut vimvars: [VimVar; VV_LEN] = [
+impl VarsModuleState {
+    const fn new() -> Self {
+        Self {
+            globvars_var: empty_scope_var(),
+            globvardict: empty_dict(),
+            compat_hashtab: hashtab_T::new(),
+            vimvars_var: empty_scope_var(),
+            vimvardict: empty_dict(),
+            vimvars: [
     make_vimvar(c"count", VarType::VAR_NUMBER, VV_RO),
     make_vimvar(c"count1", VarType::VAR_NUMBER, VV_RO),
     make_vimvar(c"prevcount", VarType::VAR_NUMBER, VV_RO),
@@ -462,7 +482,29 @@ static mut vimvars: [VimVar; VV_LEN] = [
     make_vimvar(c"useractive", VarType::VAR_NUMBER, VV_RO),
     make_vimvar(c"startreason", VarType::VAR_STRING, VV_RO),
     make_vimvar(c"cascading", VarType::VAR_BOOL, VV_RO),
-];
+],
+            varnamebuf: Vec::new(),
+            redir_lval: None,
+            redir_buf: Vec::new(),
+            redir_endp: ptr::null_mut(),
+            redir_varname: None,
+            GDONE: 0,
+            BDONE: 0,
+            WDONE: 0,
+            TDONE: 0,
+            VIDX: 0,
+            HI: ptr::null_mut(),
+        }
+    }
+}
+
+static VARS_STATE: GlobalState<VarsModuleState> = GlobalState::new(VarsModuleState::new());
+
+#[inline]
+unsafe fn vars_st() -> &'static mut VarsModuleState {
+    unsafe { &mut *VARS_STATE.as_ptr() }
+}
+
 
 const MSGPACK_TYPE_NAMES: [&CStr; NUM_MSGPACK_TYPES] = [
     c"nil", c"boolean", c"integer", c"float", c"string", c"array", c"map", c"ext",
@@ -471,12 +513,7 @@ const MSGPACK_TYPE_NAMES: [&CStr; NUM_MSGPACK_TYPES] = [
 pub static mut eval_msgpack_type_lists: [*const list_T; NUM_MSGPACK_TYPES] =
     [ptr::null(); NUM_MSGPACK_TYPES];
 
-static mut varnamebuf: Vec<c_char> = Vec::new();
 
-static mut redir_lval: Option<lval_T> = None;
-static mut redir_buf: Vec<c_char> = Vec::new();
-static mut redir_endp: *mut c_char = ptr::null_mut();
-static mut redir_varname: Option<std::ffi::CString> = None;
 
 #[inline]
 unsafe fn c_memchr(s: *const c_char, c: u8, n: usize) -> *const c_char {
@@ -534,12 +571,12 @@ use crate::api::private::helpers::integer_obj;
 
 pub unsafe fn evalvars_init() {
     unsafe {
-        init_var_dict(get_globvar_dict(), &raw mut globvars_var, VAR_DEF_SCOPE);
-        init_var_dict(&raw mut vimvardict, &raw mut vimvars_var, VAR_SCOPE);
-        vimvardict.dv_lock = VAR_FIXED;
-        hash_clear(&raw mut compat_hashtab);
+        init_var_dict(get_globvar_dict(), &raw mut vars_st().globvars_var, VAR_DEF_SCOPE);
+        init_var_dict(&raw mut vars_st().vimvardict, &raw mut vars_st().vimvars_var, VAR_SCOPE);
+        vars_st().vimvardict.dv_lock = VAR_FIXED;
+        hash_clear(&raw mut vars_st().compat_hashtab);
 
-        let vimvars_ptr = (&raw mut vimvars).cast::<VimVar>();
+        let vimvars_ptr = (&raw mut vars_st().vimvars).cast::<VimVar>();
         for i in 0..VV_LEN {
             let p = vimvars_ptr.add(i);
             if ((*p).vv_flags & VV_RO) != 0 {
@@ -556,10 +593,10 @@ pub unsafe fn evalvars_init() {
                 .di_key
                 .extend(name_bytes.iter().map(|&b| b as c_char));
             if (*p).vv_di.di_tv.v_type != VarType::VAR_UNKNOWN {
-                hash_add(&raw mut vimvardict.dv_hashtab, &raw mut (*p).vv_di);
+                hash_add(&raw mut vars_st().vimvardict.dv_hashtab, &raw mut (*p).vv_di);
             }
             if ((*p).vv_flags & VV_COMPAT) != 0 {
-                hash_add(&raw mut compat_hashtab, &raw mut (*p).vv_di);
+                hash_add(&raw mut vars_st().compat_hashtab, &raw mut (*p).vv_di);
             }
         }
         let vim_version = varnumber_T::from(min_vim_version());
@@ -650,7 +687,7 @@ pub unsafe fn evalvars_init() {
 
 pub unsafe fn evalvars_clear() {
     unsafe {
-        let vimvars_ptr = (&raw mut vimvars).cast::<VimVar>();
+        let vimvars_ptr = (&raw mut vars_st().vimvars).cast::<VimVar>();
         for i in 0..VV_LEN {
             let p = vimvars_ptr.add(i);
             if (*p).vv_di.di_tv.v_type == VarType::VAR_STRING
@@ -663,8 +700,8 @@ pub unsafe fn evalvars_clear() {
 
         partial_unref(get_vim_var_partial(VV_LUA));
         set_vim_var_partial(VV_LUA, ptr::null_mut());
-        hash_clear(&raw mut vimvardict.dv_hashtab);
-        hash_clear(&raw mut compat_hashtab);
+        hash_clear(&raw mut vars_st().vimvardict.dv_hashtab);
+        hash_clear(&raw mut vars_st().compat_hashtab);
 
         vars_clear(get_globvar_ht());
 
@@ -677,7 +714,7 @@ pub unsafe fn evalvars_clear() {
 pub unsafe fn garbage_collect_globvars(copyID: c_int) -> c_int {
     unsafe {
         c_int::from(set_ref_in_ht(
-            &raw mut globvardict.dv_hashtab,
+            &raw mut vars_st().globvardict.dv_hashtab,
             copyID,
             ptr::null_mut(),
         ))
@@ -685,7 +722,7 @@ pub unsafe fn garbage_collect_globvars(copyID: c_int) -> c_int {
 }
 
 pub unsafe fn garbage_collect_vimvars(copyID: c_int) -> bool {
-    unsafe { set_ref_in_ht(&raw mut vimvardict.dv_hashtab, copyID, ptr::null_mut()) }
+    unsafe { set_ref_in_ht(&raw mut vars_st().vimvardict.dv_hashtab, copyID, ptr::null_mut()) }
 }
 
 pub unsafe fn garbage_collect_scriptvars(copyID: c_int) -> bool {
@@ -866,11 +903,11 @@ pub unsafe fn get_spellword(list: *mut list_T, ret_word: *mut *const c_char) -> 
 /// Prepare v: variable "idx" to be used.
 pub unsafe fn prepare_vimvar(idx: c_int, save_tv: *mut typval_T) {
     unsafe {
-        let p = (&raw mut vimvars).cast::<VimVar>().add(idx as usize);
+        let p = (&raw mut vars_st().vimvars).cast::<VimVar>().add(idx as usize);
         *save_tv = (*p).vv_di.di_tv;
         (*p).vv_di.di_tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if (*p).vv_di.di_tv.v_type == VarType::VAR_UNKNOWN {
-            hash_add(&raw mut vimvardict.dv_hashtab, &raw mut (*p).vv_di);
+            hash_add(&raw mut vars_st().vimvardict.dv_hashtab, &raw mut (*p).vv_di);
         }
     }
 }
@@ -878,17 +915,17 @@ pub unsafe fn prepare_vimvar(idx: c_int, save_tv: *mut typval_T) {
 /// Restore v: variable "idx" to typeval "save_tv".
 pub unsafe fn restore_vimvar(idx: c_int, save_tv: *mut typval_T) {
     unsafe {
-        let p = (&raw mut vimvars).cast::<VimVar>().add(idx as usize);
+        let p = (&raw mut vars_st().vimvars).cast::<VimVar>().add(idx as usize);
         (*p).vv_di.di_tv = *save_tv;
         if (*p).vv_di.di_tv.v_type != VarType::VAR_UNKNOWN {
             return;
         }
 
-        let hi = hash_find(&raw const vimvardict.dv_hashtab, (*p).vv_di.di_key.as_ptr());
+        let hi = hash_find(&raw const vars_st().vimvardict.dv_hashtab, (*p).vv_di.di_key.as_ptr());
         if hashitem_empty(&*hi) {
             internal_error(c"restore_vimvar()".as_ptr());
         } else {
-            hash_remove(&raw mut vimvardict.dv_hashtab, hi);
+            hash_remove(&raw mut vars_st().vimvardict.dv_hashtab, hi);
         }
     }
 }
@@ -897,7 +934,7 @@ pub unsafe fn restore_vimvar(idx: c_int, save_tv: *mut typval_T) {
 unsafe fn list_vim_vars(first: *mut c_int) {
     unsafe {
         list_hashtable_vars(
-            &raw mut vimvardict.dv_hashtab,
+            &raw mut vars_st().vimvardict.dv_hashtab,
             c"v:".as_ptr(),
             false as c_int,
             first,
@@ -1477,7 +1514,7 @@ pub unsafe fn list_hashtable_vars(
 unsafe fn list_glob_vars(first: *mut c_int) {
     unsafe {
         list_hashtable_vars(
-            &raw mut globvardict.dv_hashtab,
+            &raw mut vars_st().globvardict.dv_hashtab,
             c"".as_ptr(),
             true as c_int,
             first,
@@ -2098,10 +2135,10 @@ pub unsafe fn do_unlet(name: *const c_char, name_len: usize, forceit: bool) -> c
         if !ht.is_null() && *varname != NUL {
             let mut d = get_current_funccal_dict(ht);
             if d.is_null() {
-                if ptr::eq(ht, &raw mut globvardict.dv_hashtab) {
-                    d = &raw mut globvardict;
-                } else if ptr::eq(ht, &raw mut compat_hashtab) {
-                    d = &raw mut vimvardict;
+                if ptr::eq(ht, &raw mut vars_st().globvardict.dv_hashtab) {
+                    d = &raw mut vars_st().globvardict;
+                } else if ptr::eq(ht, &raw mut vars_st().compat_hashtab) {
+                    d = &raw mut vars_st().vimvardict;
                 } else {
                     let di = find_var_in_ht(ht, *name as u8 as c_int, c"".as_ptr(), 0, 0);
                     d = (*di).di_tv.vval.v_dict();
@@ -2211,7 +2248,7 @@ unsafe fn do_lock_var(
 /// Delete all "menutrans_" variables.
 pub unsafe fn del_menutrans_vars() {
     unsafe {
-        let ht = &raw mut globvardict.dv_hashtab;
+        let ht = &raw mut vars_st().globvardict.dv_hashtab;
         hash_lock(ht);
         let mut todo = (*ht).ht_used;
         let mut hi = (&*ht).array_ptr();
@@ -2229,15 +2266,15 @@ pub unsafe fn del_menutrans_vars() {
 }
 
 pub unsafe fn get_globvar_dict() -> *mut dict_T {
-    &raw mut globvardict
+    unsafe { &raw mut vars_st().globvardict }
 }
 
 pub unsafe fn get_globvar_ht() -> *mut hashtab_T {
-    unsafe { &raw mut globvardict.dv_hashtab }
+    unsafe { &raw mut vars_st().globvardict.dv_hashtab }
 }
 
 pub unsafe fn get_vimvar_dict() -> *mut dict_T {
-    &raw mut vimvardict
+    unsafe { &raw mut vars_st().vimvardict }
 }
 
 pub unsafe fn set_vim_var_tv(idx: VimVarIndex, tv: *mut typval_T) {
@@ -2250,7 +2287,7 @@ pub unsafe fn set_vim_var_tv(idx: VimVarIndex, tv: *mut typval_T) {
 
 pub unsafe fn get_vim_var_name(idx: VimVarIndex) -> *mut c_char {
     unsafe {
-        (*(&raw const vimvars).cast::<VimVar>().add(idx as usize))
+        (*(&raw const vars_st().vimvars).cast::<VimVar>().add(idx as usize))
             .vv_name
             .as_ptr()
             .cast_mut()
@@ -2259,7 +2296,7 @@ pub unsafe fn get_vim_var_name(idx: VimVarIndex) -> *mut c_char {
 
 pub unsafe fn get_vim_var_tv(idx: VimVarIndex) -> *mut typval_T {
     unsafe {
-        &raw mut (*(&raw mut vimvars).cast::<VimVar>().add(idx as usize))
+        &raw mut (*(&raw mut vars_st().vimvars).cast::<VimVar>().add(idx as usize))
             .vv_di
             .di_tv
     }
@@ -2289,7 +2326,7 @@ pub unsafe fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T {
 pub unsafe fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_char {
     unsafe {
         let name_len = strlen(name);
-        let buf = &raw mut varnamebuf;
+        let buf = &raw mut vars_st().varnamebuf;
         (*buf).clear();
         (*buf).reserve(name_len + 3);
         (*buf).push(prefix as u8 as c_char);
@@ -2301,33 +2338,27 @@ pub unsafe fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_c
 
 /// Function given to ExpandGeneric() to obtain the list of user defined variable names.
 pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
-    static mut GDONE: usize = 0;
-    static mut BDONE: usize = 0;
-    static mut WDONE: usize = 0;
-    static mut TDONE: usize = 0;
-    static mut VIDX: usize = 0;
-    static mut HI: *mut hashitem_T = ptr::null_mut();
 
     unsafe {
         if idx == 0 {
-            GDONE = 0;
-            BDONE = 0;
-            WDONE = 0;
-            VIDX = 0;
-            TDONE = 0;
+            vars_st().GDONE = 0;
+            vars_st().BDONE = 0;
+            vars_st().WDONE = 0;
+            vars_st().VIDX = 0;
+            vars_st().TDONE = 0;
         }
 
-        if GDONE < globvardict.dv_hashtab.ht_used {
-            if GDONE == 0 {
-                HI = (&*get_globvar_ht()).array_ptr();
+        if vars_st().GDONE < vars_st().globvardict.dv_hashtab.ht_used {
+            if vars_st().GDONE == 0 {
+                vars_st().HI = (&*get_globvar_ht()).array_ptr();
             } else {
-                HI = HI.add(1);
+                vars_st().HI = vars_st().HI.add(1);
             }
-            GDONE += 1;
-            while hashitem_empty(&*HI) {
-                HI = HI.add(1);
+            vars_st().GDONE += 1;
+            while hashitem_empty(&*vars_st().HI) {
+                vars_st().HI = vars_st().HI.add(1);
             }
-            let hi_key = (&*HI).key_ptr();
+            let hi_key = (&*vars_st().HI).key_ptr();
             if strncmp(c"g:".as_ptr(), (*xp).xp_pattern, 2) == 0 {
                 return cat_prefix_varname(b'g' as c_int, hi_key);
             }
@@ -2336,54 +2367,54 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
 
         let mut ht: *const hashtab_T =
             &raw const (*(*(*prevwin_curwin()).w_buffer).b_vars()).dv_hashtab;
-        if BDONE < (*ht).ht_used {
-            if BDONE == 0 {
-                HI = (&*ht).array_ptr();
+        if vars_st().BDONE < (*ht).ht_used {
+            if vars_st().BDONE == 0 {
+                vars_st().HI = (&*ht).array_ptr();
             } else {
-                HI = HI.add(1);
+                vars_st().HI = vars_st().HI.add(1);
             }
-            BDONE += 1;
-            while hashitem_empty(&*HI) {
-                HI = HI.add(1);
+            vars_st().BDONE += 1;
+            while hashitem_empty(&*vars_st().HI) {
+                vars_st().HI = vars_st().HI.add(1);
             }
-            return cat_prefix_varname(b'b' as c_int, (&*HI).key_ptr());
+            return cat_prefix_varname(b'b' as c_int, (&*vars_st().HI).key_ptr());
         }
 
         ht = &raw const (*(*prevwin_curwin()).w_vars()).dv_hashtab;
-        if WDONE < (*ht).ht_used {
-            if WDONE == 0 {
-                HI = (&*ht).array_ptr();
+        if vars_st().WDONE < (*ht).ht_used {
+            if vars_st().WDONE == 0 {
+                vars_st().HI = (&*ht).array_ptr();
             } else {
-                HI = HI.add(1);
+                vars_st().HI = vars_st().HI.add(1);
             }
-            WDONE += 1;
-            while hashitem_empty(&*HI) {
-                HI = HI.add(1);
+            vars_st().WDONE += 1;
+            while hashitem_empty(&*vars_st().HI) {
+                vars_st().HI = vars_st().HI.add(1);
             }
-            return cat_prefix_varname(b'w' as c_int, (&*HI).key_ptr());
+            return cat_prefix_varname(b'w' as c_int, (&*vars_st().HI).key_ptr());
         }
 
         ht = &raw const (*(*curtab).tp_vars()).dv_hashtab;
-        if TDONE < (*ht).ht_used {
-            if TDONE == 0 {
-                HI = (&*ht).array_ptr();
+        if vars_st().TDONE < (*ht).ht_used {
+            if vars_st().TDONE == 0 {
+                vars_st().HI = (&*ht).array_ptr();
             } else {
-                HI = HI.add(1);
+                vars_st().HI = vars_st().HI.add(1);
             }
-            TDONE += 1;
-            while hashitem_empty(&*HI) {
-                HI = HI.add(1);
+            vars_st().TDONE += 1;
+            while hashitem_empty(&*vars_st().HI) {
+                vars_st().HI = vars_st().HI.add(1);
             }
-            return cat_prefix_varname(b't' as c_int, (&*HI).key_ptr());
+            return cat_prefix_varname(b't' as c_int, (&*vars_st().HI).key_ptr());
         }
 
-        if VIDX < VV_LEN {
-            let v = VIDX as VimVarIndex;
-            VIDX += 1;
+        if vars_st().VIDX < VV_LEN {
+            let v = vars_st().VIDX as VimVarIndex;
+            vars_st().VIDX += 1;
             return cat_prefix_varname(b'v' as c_int, get_vim_var_name(v));
         }
 
-        varnamebuf = Vec::new();
+        vars_st().varnamebuf = Vec::new();
         ptr::null_mut()
     }
 }
@@ -2707,8 +2738,8 @@ pub unsafe fn find_var_in_ht(
         if varname_len == 0 {
             return match htname as u8 {
                 b's' => (&raw mut (*script_sv(current_sctx.sc_sid)).sv_var).cast::<dictitem_T>(),
-                b'g' => (&raw mut globvars_var).cast::<dictitem_T>(),
-                b'v' => (&raw mut vimvars_var).cast::<dictitem_T>(),
+                b'g' => (&raw mut vars_st().globvars_var).cast::<dictitem_T>(),
+                b'v' => (&raw mut vars_st().vimvars_var).cast::<dictitem_T>(),
                 b'b' => (&raw mut (*curbuf).b_bufvar).cast::<dictitem_T>(),
                 b'w' => (&raw mut (*curwin).w_winvar).cast::<dictitem_T>(),
                 b't' => (&raw mut (*curtab).tp_winvar).cast::<dictitem_T>(),
@@ -2753,9 +2784,9 @@ unsafe fn find_var_ht_dict(
             }
             *varname = name;
 
-            let hi = hash_find_len(&raw const compat_hashtab, name, name_len);
+            let hi = hash_find_len(&raw const vars_st().compat_hashtab, name, name_len);
             if !hashitem_empty(&*hi) {
-                return &raw mut compat_hashtab;
+                return &raw mut vars_st().compat_hashtab;
             }
 
             *d = get_funccal_local_dict();
@@ -3003,7 +3034,7 @@ pub unsafe fn before_set_vvar(
             }
             if watched {
                 tv_dict_watcher_notify(
-                    &raw mut vimvardict,
+                    &raw mut vars_st().vimvardict,
                     varname,
                     &raw mut (*di).di_tv,
                     &raw mut oldtv,
@@ -3029,7 +3060,7 @@ pub unsafe fn before_set_vvar(
             }
             if watched {
                 tv_dict_watcher_notify(
-                    &raw mut vimvardict,
+                    &raw mut vars_st().vimvardict,
                     varname,
                     &raw mut (*di).di_tv,
                     &raw mut oldtv,
@@ -3096,7 +3127,7 @@ pub unsafe fn set_var_const(
             }
 
             let mut type_error = false;
-            if ptr::eq(ht, &raw mut vimvardict.dv_hashtab)
+            if ptr::eq(ht, &raw mut vars_st().vimvardict.dv_hashtab)
                 && !before_set_vvar(varname, di, tv, copy, watched, &raw mut type_error)
             {
                 if type_error {
@@ -3113,7 +3144,7 @@ pub unsafe fn set_var_const(
             }
             tv_clear(&raw mut (*di).di_tv);
         } else {
-            if ptr::eq(ht, &raw mut vimvardict.dv_hashtab) || ht == get_funccal_args_ht() {
+            if ptr::eq(ht, &raw mut vars_st().vimvardict.dv_hashtab) || ht == get_funccal_args_ht() {
                 semsg!(gettext(e_illvar.as_ptr()), name);
                 return;
             }
@@ -3670,15 +3701,15 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
 
         let name_cstr = cstr_to_cstring(name);
         let name_ptr = name_cstr.as_ptr().cast_mut();
-        redir_varname = Some(name_cstr);
-        let rl = &raw mut redir_lval;
+        vars_st().redir_varname = Some(name_cstr);
+        let rl = &raw mut vars_st().redir_lval;
         *rl = Some(lval_T::new());
         let lval_ptr: *mut lval_T = (*rl).as_mut().unwrap();
 
-        let buf = &raw mut redir_buf;
+        let buf = &raw mut vars_st().redir_buf;
         (*buf).clear();
 
-        redir_endp = get_lval(
+        vars_st().redir_endp = get_lval(
             name_ptr,
             ptr::null_mut(),
             lval_ptr,
@@ -3687,13 +3718,13 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
             0,
             FNE_CHECK_START,
         );
-        if redir_endp.is_null() || (*lval_ptr).ll_name.is_null() || *redir_endp != NUL {
-            if !redir_endp.is_null() && *redir_endp != NUL {
-                semsg!(gettext(e_trailing_arg.as_ptr()), redir_endp);
+        if vars_st().redir_endp.is_null() || (*lval_ptr).ll_name.is_null() || *vars_st().redir_endp != NUL {
+            if !vars_st().redir_endp.is_null() && *vars_st().redir_endp != NUL {
+                semsg!(gettext(e_trailing_arg.as_ptr()), vars_st().redir_endp);
             } else {
                 semsg!(gettext(e_invarg2.as_ptr()), name);
             }
-            redir_endp = ptr::null_mut();
+            vars_st().redir_endp = ptr::null_mut();
             var_redir_stop();
             return FAIL;
         }
@@ -3708,7 +3739,7 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
         if append {
             set_var_lval(
                 lval_ptr,
-                redir_endp,
+                vars_st().redir_endp,
                 &raw mut tv,
                 true,
                 false,
@@ -3717,7 +3748,7 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
         } else {
             set_var_lval(
                 lval_ptr,
-                redir_endp,
+                vars_st().redir_endp,
                 &raw mut tv,
                 true,
                 false,
@@ -3726,7 +3757,7 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
         }
         *lval_ptr = lval_T::new();
         if called_emsg > called_emsg_before {
-            redir_endp = ptr::null_mut();
+            vars_st().redir_endp = ptr::null_mut();
             var_redir_stop();
             return FAIL;
         }
@@ -3738,7 +3769,7 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
 /// Append "value[value_len]" to the variable set by var_redir_start().
 pub unsafe fn var_redir_str(value: *const c_char, value_len: c_int) {
     unsafe {
-        let rl = &raw const redir_lval;
+        let rl = &raw const vars_st().redir_lval;
         if (*rl).is_none() {
             return;
         }
@@ -3751,7 +3782,7 @@ pub unsafe fn var_redir_str(value: *const c_char, value_len: c_int) {
 
         if len > 0 {
             let slice = std::slice::from_raw_parts(value, len);
-            let buf = &raw mut redir_buf;
+            let buf = &raw mut vars_st().redir_buf;
             (*buf).extend_from_slice(slice);
         }
     }
@@ -3760,23 +3791,23 @@ pub unsafe fn var_redir_str(value: *const c_char, value_len: c_int) {
 /// Stop redirecting command output to a variable.
 pub unsafe fn var_redir_stop() {
     unsafe {
-        let rl = &raw mut redir_lval;
+        let rl = &raw mut vars_st().redir_lval;
         if let Some(ref mut lval) = *rl {
             let lval_ptr: *mut lval_T = lval;
-            let buf = &raw mut redir_buf;
-            if !redir_endp.is_null() {
+            let buf = &raw mut vars_st().redir_buf;
+            if !vars_st().redir_endp.is_null() {
                 (*buf).push(0);
                 let mut tv = typval_T {
                     v_type: VarType::VAR_STRING,
                     v_lock: 0,
                     vval: TypvalVval::String((*buf).as_mut_ptr()),
                 };
-                let vn_ptr = (&raw const redir_varname)
+                let vn_ptr = (&raw const vars_st().redir_varname)
                     .as_ref()
                     .unwrap()
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                redir_endp = get_lval(
+                vars_st().redir_endp = get_lval(
                     vn_ptr,
                     ptr::null_mut(),
                     lval_ptr,
@@ -3785,10 +3816,10 @@ pub unsafe fn var_redir_stop() {
                     0,
                     FNE_CHECK_START,
                 );
-                if !redir_endp.is_null() && !(*lval_ptr).ll_name.is_null() {
+                if !vars_st().redir_endp.is_null() && !(*lval_ptr).ll_name.is_null() {
                     set_var_lval(
                         lval_ptr,
-                        redir_endp,
+                        vars_st().redir_endp,
                         &raw mut tv,
                         false,
                         false,
@@ -3800,7 +3831,7 @@ pub unsafe fn var_redir_stop() {
             *buf = Vec::new();
             *rl = None;
         }
-        redir_varname = None;
+        vars_st().redir_varname = None;
     }
 }
 

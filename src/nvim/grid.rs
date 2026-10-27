@@ -90,24 +90,50 @@ pub struct wline_T {
     pub wl_lastlnum: linenr_T,
 }
 
-static mut linebuf_scratch: Vec<sscratch_T> = Vec::new();
+struct GridModuleState {
+    linebuf_scratch: Vec<sscratch_T>,
+    glyph_cache_keys: Vec<c_char>,
+    glyph_cache_offsets: std::collections::BTreeMap<Vec<u8>, u32>,
+    grid_line_grid: *mut ScreenGrid,
+    grid_line_row: c_int,
+    grid_line_coloff: c_int,
+    grid_line_maxcol: c_int,
+    grid_line_first: c_int,
+    grid_line_last: c_int,
+    grid_line_clear_to: c_int,
+    grid_line_bg_attr: c_int,
+    grid_line_clear_attr: c_int,
+    grid_line_flags: c_int,
+    last_grid_handle: c_int,
+}
 
-static mut glyph_cache_keys: Vec<c_char> = Vec::new();
-static mut glyph_cache_offsets: std::collections::BTreeMap<Vec<u8>, u32> =
-    std::collections::BTreeMap::new();
+impl GridModuleState {
+    const fn new() -> Self {
+        Self {
+            linebuf_scratch: Vec::new(),
+            glyph_cache_keys: Vec::new(),
+            glyph_cache_offsets: std::collections::BTreeMap::new(),
+            grid_line_grid: ptr::null_mut(),
+            grid_line_row: -1,
+            grid_line_coloff: 0,
+            grid_line_maxcol: 0,
+            grid_line_first: c_int::MAX,
+            grid_line_last: 0,
+            grid_line_clear_to: 0,
+            grid_line_bg_attr: 0,
+            grid_line_clear_attr: 0,
+            grid_line_flags: 0,
+            last_grid_handle: DEFAULT_GRID_HANDLE,
+        }
+    }
+}
 
-static mut grid_line_grid: *mut ScreenGrid = ptr::null_mut();
-static mut grid_line_row: c_int = -1;
-static mut grid_line_coloff: c_int = 0;
-static mut grid_line_maxcol: c_int = 0;
-static mut grid_line_first: c_int = c_int::MAX;
-static mut grid_line_last: c_int = 0;
-static mut grid_line_clear_to: c_int = 0;
-static mut grid_line_bg_attr: c_int = 0;
-static mut grid_line_clear_attr: c_int = 0;
-static mut grid_line_flags: c_int = 0;
+static GRID_STATE: GlobalState<GridModuleState> = GlobalState::new(GridModuleState::new());
 
-static mut last_grid_handle: c_int = DEFAULT_GRID_HANDLE;
+#[inline]
+unsafe fn grid_st() -> &'static mut GridModuleState {
+    unsafe { &mut *GRID_STATE.as_ptr() }
+}
 
 #[inline]
 pub const fn schar_from_ascii(x: u8) -> schar_T {
@@ -181,8 +207,8 @@ pub unsafe fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T {
             sc
         } else {
             let bytes = std::slice::from_raw_parts(buf.cast::<u8>(), len);
-            let keys_ptr = &raw mut glyph_cache_keys;
-            let offsets_ptr = &raw mut glyph_cache_offsets;
+            let keys_ptr = &raw mut grid_st().glyph_cache_keys;
+            let offsets_ptr = &raw mut grid_st().glyph_cache_offsets;
             let idx = if let Some(&existing_idx) = (*offsets_ptr).get(bytes) {
                 existing_idx
             } else {
@@ -207,7 +233,7 @@ pub unsafe fn schar_from_buf(buf: *const c_char, len: usize) -> schar_T {
 
 pub unsafe fn schar_cache_clear_if_full() -> bool {
     unsafe {
-        let keys_ptr = &raw const glyph_cache_keys;
+        let keys_ptr = &raw const grid_st().glyph_cache_keys;
         if (*keys_ptr).len() > (1 << 21) {
             schar_cache_clear();
             return true;
@@ -219,9 +245,9 @@ pub unsafe fn schar_cache_clear_if_full() -> bool {
 pub unsafe fn schar_cache_clear() {
     unsafe {
         decor_check_invalid_glyphs();
-        let keys_ptr = &raw mut glyph_cache_keys;
+        let keys_ptr = &raw mut grid_st().glyph_cache_keys;
         (*keys_ptr).clear();
-        let offsets_ptr = &raw mut glyph_cache_offsets;
+        let offsets_ptr = &raw mut grid_st().glyph_cache_offsets;
         (*offsets_ptr).clear();
 
         if !check_chars_options().is_null() {
@@ -256,7 +282,7 @@ pub unsafe fn schar_get_adv(buf_out: *mut *mut c_char, sc: schar_T) -> usize {
         let len: usize;
         if schar_high(sc) {
             let idx = schar_idx(sc) as usize;
-            let keys_ptr = &raw const glyph_cache_keys;
+            let keys_ptr = &raw const grid_st().glyph_cache_keys;
             assert!(idx < (*keys_ptr).len());
             let key_ptr = (*keys_ptr).as_ptr().add(idx);
             len = CStr::from_ptr(key_ptr).to_bytes().len();
@@ -275,7 +301,7 @@ pub unsafe fn schar_len(sc: schar_T) -> usize {
     unsafe {
         if schar_high(sc) {
             let idx = schar_idx(sc) as usize;
-            let keys_ptr = &raw const glyph_cache_keys;
+            let keys_ptr = &raw const grid_st().glyph_cache_keys;
             assert!(idx < (*keys_ptr).len());
             CStr::from_ptr((*keys_ptr).as_ptr().add(idx))
                 .to_bytes()
@@ -306,7 +332,7 @@ pub unsafe fn schar_cells(sc: schar_T) -> c_int {
 #[inline]
 unsafe fn schar_get_first_byte(sc: schar_T) -> c_char {
     unsafe {
-        let keys_ptr = &raw const glyph_cache_keys;
+        let keys_ptr = &raw const grid_st().glyph_cache_keys;
         assert!(!(schar_high(sc) && (schar_idx(sc) as usize) >= (*keys_ptr).len()));
         if schar_high(sc) {
             (*keys_ptr).as_slice()[schar_idx(sc) as usize]
@@ -500,20 +526,20 @@ pub unsafe fn screengrid_line_start(grid: *mut ScreenGrid, row: c_int, col: c_in
         let lbuf_char_ptr = &raw mut linebuf_char;
         let lbuf_attr_ptr = &raw mut linebuf_attr;
         let linebuf_size = (*lbuf_char_ptr).len();
-        grid_line_maxcol = (*grid).cols;
-        assert!(grid_line_grid.is_null());
-        grid_line_row = row;
-        grid_line_grid = grid;
-        grid_line_coloff = col;
-        grid_line_first = linebuf_size as c_int;
-        grid_line_maxcol = grid_line_maxcol.min((*grid).cols - grid_line_coloff);
-        grid_line_last = 0;
-        grid_line_clear_to = 0;
-        grid_line_bg_attr = 0;
-        grid_line_clear_attr = 0;
-        grid_line_flags = 0;
+        grid_st().grid_line_maxcol = (*grid).cols;
+        assert!(grid_st().grid_line_grid.is_null());
+        grid_st().grid_line_row = row;
+        grid_st().grid_line_grid = grid;
+        grid_st().grid_line_coloff = col;
+        grid_st().grid_line_first = linebuf_size as c_int;
+        grid_st().grid_line_maxcol = grid_st().grid_line_maxcol.min((*grid).cols - grid_st().grid_line_coloff);
+        grid_st().grid_line_last = 0;
+        grid_st().grid_line_clear_to = 0;
+        grid_st().grid_line_bg_attr = 0;
+        grid_st().grid_line_clear_attr = 0;
+        grid_st().grid_line_flags = 0;
 
-        assert!(grid_line_maxcol as usize <= linebuf_size);
+        assert!(grid_st().grid_line_maxcol as usize <= linebuf_size);
 
         if full_screen && (rdb_flags & kOptRdbFlagInvalid) != 0 {
             assert!(linebuf_size > 0);
@@ -525,10 +551,10 @@ pub unsafe fn screengrid_line_start(grid: *mut ScreenGrid, row: c_int, col: c_in
 
 pub unsafe fn grid_line_getchar(mut col: c_int, attr: *mut c_int) -> schar_T {
     unsafe {
-        if col < grid_line_maxcol {
-            col += grid_line_coloff;
-            let grid = &*grid_line_grid;
-            let off = grid.line_offset[grid_line_row as usize] + col as usize;
+        if col < grid_st().grid_line_maxcol {
+            col += grid_st().grid_line_coloff;
+            let grid = &*grid_st().grid_line_grid;
+            let off = grid.line_offset[grid_st().grid_line_row as usize] + col as usize;
             if !attr.is_null() {
                 *attr = grid.attrs[off];
             }
@@ -541,16 +567,16 @@ pub unsafe fn grid_line_getchar(mut col: c_int, attr: *mut c_int) -> schar_T {
 
 pub unsafe fn grid_line_put_schar(col: c_int, schar: schar_T, attr: c_int) {
     unsafe {
-        assert!(!grid_line_grid.is_null());
-        if col >= grid_line_maxcol {
+        assert!(!grid_st().grid_line_grid.is_null());
+        if col >= grid_st().grid_line_maxcol {
             return;
         }
 
         linebuf_char[col as usize] = schar;
         linebuf_attr[col as usize] = attr;
 
-        grid_line_first = grid_line_first.min(col);
-        grid_line_last = grid_line_last.max(col + 1);
+        grid_st().grid_line_first = grid_st().grid_line_first.min(col);
+        grid_st().grid_line_last = grid_st().grid_line_last.max(col + 1);
         linebuf_vcol[col as usize] = -1;
     }
 }
@@ -562,11 +588,11 @@ pub unsafe fn grid_line_puts(
     attr: c_int,
 ) -> c_int {
     unsafe {
-        assert!(!grid_line_grid.is_null());
+        assert!(!grid_st().grid_line_grid.is_null());
         let mut len = if textlen >= 0 { textlen } else { c_int::MAX };
 
         let start_col = col;
-        let max_col = grid_line_maxcol;
+        let max_col = grid_st().grid_line_maxcol;
         let mut ci = utf_ptr2StrCharInfo_len(text, len);
         while col < max_col && len > 0 && *ci.ptr != NUL {
             let cli = utf_ClusterInfo_len(ci, &raw mut len);
@@ -588,8 +614,8 @@ pub unsafe fn grid_line_puts(
             }
 
             if ptr::eq(ci.ptr, text)
-                && col > grid_line_first
-                && col < grid_line_last
+                && col > grid_st().grid_line_first
+                && col < grid_st().grid_line_last
                 && linebuf_char[col as usize] == 0
             {
                 linebuf_char[(col - 1) as usize] = schar_from_ascii(b'>');
@@ -609,8 +635,8 @@ pub unsafe fn grid_line_puts(
         }
 
         if col > start_col {
-            grid_line_first = grid_line_first.min(start_col);
-            grid_line_last = grid_line_last.max(col);
+            grid_st().grid_line_first = grid_st().grid_line_first.min(start_col);
+            grid_st().grid_line_last = grid_st().grid_line_last.max(col);
         }
 
         col - start_col
@@ -624,7 +650,7 @@ pub unsafe fn grid_line_fill(
     attr: c_int,
 ) -> c_int {
     unsafe {
-        end_col = end_col.min(grid_line_maxcol);
+        end_col = end_col.min(grid_st().grid_line_maxcol);
         if start_col >= end_col {
             return end_col;
         }
@@ -635,8 +661,8 @@ pub unsafe fn grid_line_fill(
             linebuf_vcol[col as usize] = -1;
         }
 
-        grid_line_first = grid_line_first.min(start_col);
-        grid_line_last = grid_line_last.max(end_col);
+        grid_st().grid_line_first = grid_st().grid_line_first.min(start_col);
+        grid_st().grid_line_last = grid_st().grid_line_last.max(end_col);
         end_col
     }
 }
@@ -648,35 +674,35 @@ pub unsafe fn grid_line_clear_end(
     clear_attr: c_int,
 ) {
     unsafe {
-        if grid_line_first > start_col {
-            grid_line_first = start_col;
-            grid_line_last = start_col;
+        if grid_st().grid_line_first > start_col {
+            grid_st().grid_line_first = start_col;
+            grid_st().grid_line_last = start_col;
         }
-        grid_line_clear_to = end_col;
-        grid_line_bg_attr = bg_attr;
-        grid_line_clear_attr = clear_attr;
+        grid_st().grid_line_clear_to = end_col;
+        grid_st().grid_line_bg_attr = bg_attr;
+        grid_st().grid_line_clear_attr = clear_attr;
     }
 }
 
 pub unsafe fn grid_line_cursor_goto(col: c_int) {
     unsafe {
-        ui_grid_cursor_goto((*grid_line_grid).handle, grid_line_row, col);
+        ui_grid_cursor_goto((*grid_st().grid_line_grid).handle, grid_st().grid_line_row, col);
     }
 }
 
 pub unsafe fn grid_line_mirror(width: c_int) {
     unsafe {
-        grid_line_clear_to = grid_line_last.max(grid_line_clear_to);
-        if grid_line_first >= grid_line_clear_to {
+        grid_st().grid_line_clear_to = grid_st().grid_line_last.max(grid_st().grid_line_clear_to);
+        if grid_st().grid_line_first >= grid_st().grid_line_clear_to {
             return;
         }
         linebuf_mirror(
-            &raw mut grid_line_first,
-            &raw mut grid_line_last,
-            &raw mut grid_line_clear_to,
+            &raw mut grid_st().grid_line_first,
+            &raw mut grid_st().grid_line_last,
+            &raw mut grid_st().grid_line_clear_to,
             width,
         );
-        grid_line_flags |= SLF_RIGHTLEFT;
+        grid_st().grid_line_flags |= SLF_RIGHTLEFT;
     }
 }
 
@@ -692,7 +718,7 @@ pub unsafe fn linebuf_mirror(
 
         let n = (last - first) as usize;
         let mirror = width - 1;
-        let scratch = &raw mut linebuf_scratch;
+        let scratch = &raw mut grid_st().linebuf_scratch;
         let scratch_ptr = (*scratch).as_mut_ptr();
         let scratch_char = scratch_ptr.cast::<schar_T>();
         ptr::copy_nonoverlapping(
@@ -741,36 +767,36 @@ pub unsafe fn linebuf_mirror(
 
 pub unsafe fn grid_line_flush() {
     unsafe {
-        let grid = grid_line_grid;
-        grid_line_grid = ptr::null_mut();
-        grid_line_clear_to = grid_line_last.max(grid_line_clear_to);
-        assert!(grid_line_clear_to <= grid_line_maxcol);
-        if grid_line_first >= grid_line_clear_to {
+        let grid = grid_st().grid_line_grid;
+        grid_st().grid_line_grid = ptr::null_mut();
+        grid_st().grid_line_clear_to = grid_st().grid_line_last.max(grid_st().grid_line_clear_to);
+        assert!(grid_st().grid_line_clear_to <= grid_st().grid_line_maxcol);
+        if grid_st().grid_line_first >= grid_st().grid_line_clear_to {
             return;
         }
 
         grid_put_linebuf(
             grid,
-            grid_line_row,
-            grid_line_coloff,
-            grid_line_first,
-            grid_line_last,
-            grid_line_clear_to,
-            grid_line_bg_attr,
-            grid_line_clear_attr,
+            grid_st().grid_line_row,
+            grid_st().grid_line_coloff,
+            grid_st().grid_line_first,
+            grid_st().grid_line_last,
+            grid_st().grid_line_clear_to,
+            grid_st().grid_line_bg_attr,
+            grid_st().grid_line_clear_attr,
             -1,
-            grid_line_flags,
+            grid_st().grid_line_flags,
         );
     }
 }
 
 pub unsafe fn grid_line_flush_if_valid_row() {
     unsafe {
-        if grid_line_row < 0 || grid_line_row >= (*grid_line_grid).rows {
+        if grid_st().grid_line_row < 0 || grid_st().grid_line_row >= (*grid_st().grid_line_grid).rows {
             if (rdb_flags & kOptRdbFlagInvalid) != 0 {
                 std::process::abort();
             } else {
-                grid_line_grid = ptr::null_mut();
+                grid_st().grid_line_grid = ptr::null_mut();
                 return;
             }
         }
@@ -789,9 +815,9 @@ pub unsafe fn grid_clear(
     unsafe {
         for row in start_row..end_row {
             grid_line_start(grid, row);
-            end_col = end_col.min(grid_line_maxcol);
-            if grid_line_row >= (*grid_line_grid).rows || start_col >= end_col {
-                grid_line_grid = ptr::null_mut();
+            end_col = end_col.min(grid_st().grid_line_maxcol);
+            if grid_st().grid_line_row >= (*grid_st().grid_line_grid).rows || start_col >= end_col {
+                grid_st().grid_line_grid = ptr::null_mut();
                 return;
             }
             grid_line_clear_end(start_col, end_col, attr, 0);
@@ -1077,7 +1103,7 @@ pub unsafe fn grid_alloc(
             linebuf_char = vec![0; cols];
             linebuf_attr = vec![0; cols];
             linebuf_vcol = vec![0; cols];
-            linebuf_scratch = vec![0; cols];
+            grid_st().linebuf_scratch = vec![0; cols];
         }
     }
 }
@@ -1099,10 +1125,10 @@ pub unsafe fn grid_free_all_mem() {
         linebuf_char = Vec::new();
         linebuf_attr = Vec::new();
         linebuf_vcol = Vec::new();
-        linebuf_scratch = Vec::new();
-        let keys_ptr = &raw mut glyph_cache_keys;
+        grid_st().linebuf_scratch = Vec::new();
+        let keys_ptr = &raw mut grid_st().glyph_cache_keys;
         *keys_ptr = Vec::new();
-        let offsets_ptr = &raw mut glyph_cache_offsets;
+        let offsets_ptr = &raw mut grid_st().glyph_cache_offsets;
         *offsets_ptr = std::collections::BTreeMap::new();
     }
 }
@@ -1177,8 +1203,8 @@ pub unsafe fn win_grid_alloc(wp: *mut win_T) {
 pub unsafe fn grid_assign_handle(grid: *mut ScreenGrid) {
     unsafe {
         if (*grid).handle == 0 {
-            last_grid_handle += 1;
-            (*grid).handle = last_grid_handle;
+            grid_st().last_grid_handle += 1;
+            (*grid).handle = grid_st().last_grid_handle;
         }
     }
 }

@@ -289,25 +289,54 @@ type RuntimeSearchPath = Vec<SearchPathItem>;
 
 pub static mut exestack: Vec<estack_T> = Vec::new();
 pub static mut script_items: Vec<scriptitem_T> = Vec::new();
-static mut ga_loaded: Vec<std::ffi::CString> = Vec::new();
-
-static mut last_current_SID_seq: c_int = 0;
-static mut last_current_SID: scid_T = 0;
-
-static mut runtime_search_path_valid: bool = false;
-static mut runtime_search_path_valid_thread: bool = false;
-static mut runtime_search_path_refcount: usize = 0;
-static mut runtime_search_path_old: Vec<RuntimeSearchPath> = Vec::new();
-static mut runtime_search_path: RuntimeSearchPath = Vec::new();
-static mut runtime_search_path_thread: RuntimeSearchPath = Vec::new();
 static RUNTIME_SEARCH_PATH_MUTEX: Mutex<()> = Mutex::new(());
 
-static mut runtime_expand_flags: c_int = 0;
-static mut get_named_buf: [c_char; MAXPATHL] = [0; MAXPATHL];
-static mut get_named_thread_buf: [c_char; MAXPATHL] = [0; MAXPATHL];
-static mut pack_entry_buf: [c_char; MAXPATHL] = [0; MAXPATHL];
-static mut build_rtp_buf: [c_char; MAXPATHL] = [0; MAXPATHL];
-static mut pack_start_buf: [c_char; MAXPATHL] = [0; MAXPATHL];
+struct RuntimeModuleState {
+    ga_loaded: Vec<std::ffi::CString>,
+    last_current_SID_seq: c_int,
+    last_current_SID: scid_T,
+    runtime_search_path_valid: bool,
+    runtime_search_path_valid_thread: bool,
+    runtime_search_path_refcount: usize,
+    runtime_search_path_old: Vec<RuntimeSearchPath>,
+    runtime_search_path: RuntimeSearchPath,
+    runtime_search_path_thread: RuntimeSearchPath,
+    runtime_expand_flags: c_int,
+    get_named_buf: [c_char; MAXPATHL],
+    get_named_thread_buf: [c_char; MAXPATHL],
+    pack_entry_buf: [c_char; MAXPATHL],
+    build_rtp_buf: [c_char; MAXPATHL],
+    pack_start_buf: [c_char; MAXPATHL],
+}
+
+impl RuntimeModuleState {
+    const fn new() -> Self {
+        Self {
+            ga_loaded: Vec::new(),
+            last_current_SID_seq: 0,
+            last_current_SID: 0,
+            runtime_search_path_valid: false,
+            runtime_search_path_valid_thread: false,
+            runtime_search_path_refcount: 0,
+            runtime_search_path_old: Vec::new(),
+            runtime_search_path: Vec::new(),
+            runtime_search_path_thread: Vec::new(),
+            runtime_expand_flags: 0,
+            get_named_buf: [0; MAXPATHL],
+            get_named_thread_buf: [0; MAXPATHL],
+            pack_entry_buf: [0; MAXPATHL],
+            build_rtp_buf: [0; MAXPATHL],
+            pack_start_buf: [0; MAXPATHL],
+        }
+    }
+}
+
+static RT_STATE: GlobalState<RuntimeModuleState> = GlobalState::new(RuntimeModuleState::new());
+
+#[inline]
+unsafe fn rt_st() -> &'static mut RuntimeModuleState {
+    unsafe { &mut *RT_STATE.as_ptr() }
+}
 
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
 use crate::charset::NUL;
@@ -632,7 +661,7 @@ pub unsafe fn set_context_in_runtime_cmd(xp: *mut expand_T, mut arg: *const c_ch
     unsafe {
         let mut p = skiptowhite(arg);
         let mut arg_mut = arg as *mut c_char;
-        runtime_expand_flags = if *p != NUL {
+        rt_st().runtime_expand_flags = if *p != NUL {
             get_runtime_cmd_flags(&mut arg_mut, (p as usize) - (arg as usize))
         } else {
             0
@@ -643,8 +672,8 @@ pub unsafe fn set_context_in_runtime_cmd(xp: *mut expand_T, mut arg: *const c_ch
             if *p == NUL {
                 break;
             }
-            if runtime_expand_flags == 0 {
-                runtime_expand_flags = DIP_ALL;
+            if rt_st().runtime_expand_flags == 0 {
+                rt_st().runtime_expand_flags = DIP_ALL;
             }
             arg = skipwhite(p);
         }
@@ -835,8 +864,8 @@ pub unsafe fn do_in_path(
 unsafe fn runtime_search_path_get_cached() -> *mut [SearchPathItem] {
     unsafe {
         runtime_search_path_validate();
-        runtime_search_path_refcount += 1;
-        let rsp_ptr = &raw mut runtime_search_path;
+        rt_st().runtime_search_path_refcount += 1;
+        let rsp_ptr = &raw mut rt_st().runtime_search_path;
         let rsp = &mut *rsp_ptr;
         ptr::slice_from_raw_parts_mut(rsp.as_mut_ptr(), rsp.len())
     }
@@ -848,9 +877,9 @@ fn copy_runtime_search_path(src: &[SearchPathItem]) -> RuntimeSearchPath {
 
 unsafe fn runtime_search_path_unref() {
     unsafe {
-        runtime_search_path_refcount -= 1;
-        if runtime_search_path_refcount == 0 {
-            let old_ptr = &raw mut runtime_search_path_old;
+        rt_st().runtime_search_path_refcount -= 1;
+        if rt_st().runtime_search_path_refcount == 0 {
+            let old_ptr = &raw mut rt_st().runtime_search_path_old;
             (*old_ptr).clear();
         }
     }
@@ -955,7 +984,7 @@ unsafe fn do_in_cached_path(
 
 pub unsafe fn runtime_inspect(arena: *mut Arena) -> Array {
     unsafe {
-        let rsp_ptr = &raw const runtime_search_path;
+        let rsp_ptr = &raw const rt_st().runtime_search_path;
         let rsp = &*rsp_ptr;
         let mut rv = arena_array(arena, rsp.len());
 
@@ -991,7 +1020,7 @@ pub unsafe fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: *mut Ar
             pat,
             all,
             path,
-            (&raw mut get_named_buf).cast::<c_char>(),
+            (&raw mut rt_st().get_named_buf).cast::<c_char>(),
             MAXPATHL,
             arena,
         );
@@ -1005,14 +1034,14 @@ pub unsafe fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Arra
         let _guard = RUNTIME_SEARCH_PATH_MUTEX
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let path_ptr = &raw mut runtime_search_path_thread;
+        let path_ptr = &raw mut rt_st().runtime_search_path_thread;
         let path = &mut *path_ptr;
         runtime_get_named_common(
             lua,
             pat,
             all,
             path,
-            (&raw mut get_named_thread_buf).cast::<c_char>(),
+            (&raw mut rt_st().get_named_thread_buf).cast::<c_char>(),
             MAXPATHL,
             ptr::null_mut(),
         )
@@ -1173,7 +1202,7 @@ unsafe fn expand_pack_entry(
     pos_in_rtp: usize,
 ) {
     unsafe {
-        let buf = (&raw mut pack_entry_buf).cast::<c_char>();
+        let buf = (&raw mut rt_st().pack_entry_buf).cast::<c_char>();
         let start_pats = [c"/pack/*/start/*", c"/start/*"];
         for pat in &start_pats {
             let pat_len = pat.to_bytes().len();
@@ -1211,7 +1240,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
         let mut search_path = RuntimeSearchPath::new();
         let mut after_path: Vec<std::ffi::CString> = Vec::new();
 
-        let buf = (&raw mut build_rtp_buf).cast::<c_char>();
+        let buf = (&raw mut rt_st().build_rtp_buf).cast::<c_char>();
         let mut entry = p_pp;
         while *entry != NUL {
             let cur_entry = entry;
@@ -1302,7 +1331,7 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
 
 pub unsafe fn did_set_runtimepackpath(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        runtime_search_path_valid = false;
+        rt_st().runtime_search_path_valid = false;
         ptr::null()
     }
 }
@@ -1312,18 +1341,18 @@ pub unsafe fn runtime_search_path_validate() {
         if !nlua_is_deferred_safe() {
             return;
         }
-        if !runtime_search_path_valid {
+        if !rt_st().runtime_search_path_valid {
             let new_path = runtime_search_path_build();
-            let rsp_ptr = &raw mut runtime_search_path;
+            let rsp_ptr = &raw mut rt_st().runtime_search_path;
             let old_path = std::mem::replace(&mut *rsp_ptr, new_path);
-            if runtime_search_path_refcount == 0 {
+            if rt_st().runtime_search_path_refcount == 0 {
                 msg_ext_ui_flush();
                 drop(old_path);
             } else {
-                let old_ptr = &raw mut runtime_search_path_old;
+                let old_ptr = &raw mut rt_st().runtime_search_path_old;
                 (*old_ptr).push(old_path);
             }
-            runtime_search_path_valid = true;
+            rt_st().runtime_search_path_valid = true;
             update_runtime_search_path_thread(true);
         }
     }
@@ -1331,17 +1360,17 @@ pub unsafe fn runtime_search_path_validate() {
 
 pub unsafe fn update_runtime_search_path_thread(force: bool) {
     unsafe {
-        if !force && !(runtime_search_path_valid && !runtime_search_path_valid_thread) {
+        if !force && !(rt_st().runtime_search_path_valid && !rt_st().runtime_search_path_valid_thread) {
             return;
         }
 
         let _guard = RUNTIME_SEARCH_PATH_MUTEX
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let rsp_ptr = &raw const runtime_search_path;
-        runtime_search_path_thread = copy_runtime_search_path(&*rsp_ptr);
+        let rsp_ptr = &raw const rt_st().runtime_search_path;
+        rt_st().runtime_search_path_thread = copy_runtime_search_path(&*rsp_ptr);
         drop(_guard);
-        runtime_search_path_valid_thread = true;
+        rt_st().runtime_search_path_valid_thread = true;
     }
 }
 
@@ -1576,14 +1605,14 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
                 new_rtp.size += afterdir.size;
             }
 
-            let was_valid = runtime_search_path_valid;
+            let was_valid = rt_st().runtime_search_path_valid;
             set_option_value_give_err(kOptRuntimepath, string_obj(new_rtp), 0);
 
-            debug_assert!(!runtime_search_path_valid);
-            if was_valid && !is_pack && runtime_search_path_refcount == 0 {
-                runtime_search_path_valid = true;
-                runtime_search_path_valid_thread = false;
-                let rsp_ptr = &raw mut runtime_search_path;
+            debug_assert!(!rt_st().runtime_search_path_valid);
+            if was_valid && !is_pack && rt_st().runtime_search_path_refcount == 0 {
+                rt_st().runtime_search_path_valid = true;
+                rt_st().runtime_search_path_valid_thread = false;
+                let rsp_ptr = &raw mut rt_st().runtime_search_path;
                 let rsp = &mut *rsp_ptr;
 
                 let idx1 = rsp
@@ -1746,7 +1775,7 @@ unsafe fn pack_has_entries(buf: *mut c_char) -> bool {
 
 unsafe fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
     unsafe {
-        let buf = (&raw mut pack_start_buf).cast::<c_char>();
+        let buf = (&raw mut rt_st().pack_start_buf).cast::<c_char>();
         let start_pats = [c"/start/*", c"/pack/*/start/*"];
         for fname_cstr in fnames {
             let fname_len = fname_cstr.as_bytes().len();
@@ -2086,13 +2115,13 @@ pub unsafe fn expand_runtime_cmd(
         ExpandRTDir_int(
             pat,
             pat_len,
-            runtime_expand_flags,
+            rt_st().runtime_expand_flags,
             true,
             matches,
             dirnames.as_mut_ptr(),
         );
 
-        if runtime_expand_flags == 0 {
+        if rt_st().runtime_expand_flags == 0 {
             let where_values = [c"START", c"OPT", c"PACK", c"ALL"];
             let pat_slice = std::slice::from_raw_parts(pat.cast::<u8>(), pat_len);
             for wv in &where_values {
@@ -2604,8 +2633,8 @@ pub unsafe fn new_script_item(
     sid_out: *mut scid_T,
 ) -> *mut scriptitem_T {
     unsafe {
-        last_current_SID += 1;
-        let sid = last_current_SID;
+        rt_st().last_current_SID += 1;
+        let sid = rt_st().last_current_SID;
         if !sid_out.is_null() {
             *sid_out = sid;
         }
@@ -2909,8 +2938,8 @@ unsafe fn do_source_ext(
 
             let save_current_sctx = current_sctx;
 
-            last_current_SID_seq += 1;
-            current_sctx.sc_seq = last_current_SID_seq;
+            rt_st().last_current_SID_seq += 1;
+            current_sctx.sc_seq = rt_st().last_current_SID_seq;
 
             if sid > 0 {
                 si = script_item(sid);
@@ -3227,7 +3256,7 @@ pub unsafe fn free_scriptnames() {
 
 pub unsafe fn free_autoload_scriptnames() {
     unsafe {
-        let loaded = &raw mut ga_loaded;
+        let loaded = &raw mut rt_st().ga_loaded;
         *loaded = Vec::new();
     }
 }
@@ -3661,7 +3690,7 @@ pub unsafe fn script_autoload(name: *const c_char, name_len: usize, reload: bool
         let scriptname = scriptname_cstr.as_ptr().cast_mut();
 
         let target_tail = &scriptname_cstr.as_bytes()[9..];
-        let loaded = &raw mut ga_loaded;
+        let loaded = &raw mut rt_st().ga_loaded;
         let already_loaded = (*loaded)
             .iter()
             .any(|entry| &entry.as_bytes()[9..] == target_tail);

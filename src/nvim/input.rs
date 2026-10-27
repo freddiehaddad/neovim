@@ -266,18 +266,7 @@ impl InputModuleState {
     const fn new() -> Self {
         Self {
             curscript: -1,
-            scriptin: [const {
-                FileDescriptor {
-                    fd: 0,
-                    buffer: ptr::null_mut(),
-                    read_pos: ptr::null_mut(),
-                    write_pos: ptr::null_mut(),
-                    wr: false,
-                    eof: false,
-                    non_blocking: false,
-                    bytes_read: 0,
-                }
-            }; NSCRIPT],
+            scriptin: [const { FileDescriptor::new() }; NSCRIPT],
             redobuff: RedoState::new(),
             recordbuff: Vec::new(),
             readbuf1: StuffBuf::new(),

@@ -50,35 +50,62 @@ const Ctrl_C: u8 = 3;
 
 const BREAKCHECK_SKIP: c_int = 1000;
 
-static mut input_buffer: [c_char; INPUT_BUFFER_SIZE] = [0; INPUT_BUFFER_SIZE];
-static mut input_read_pos: *mut c_char = ptr::null_mut();
-static mut input_write_pos: *mut c_char = ptr::null_mut();
+struct OsInputState {
+    input_buffer: [c_char; INPUT_BUFFER_SIZE],
+    input_read_pos: *mut c_char,
+    input_write_pos: *mut c_char,
+    blocking: bool,
+    cursorhold_time: c_int,
+    cursorhold_tb_change_cnt: c_int,
+    breakcheck_count: c_int,
+    orig_num_clicks: c_int,
+    orig_mouse_code: c_int,
+    orig_mouse_grid: c_int,
+    orig_mouse_col: c_int,
+    orig_mouse_row: c_int,
+    orig_mouse_time: u64,
+    push_event_key_idx: usize,
+}
 
-static mut blocking: bool = false;
-static mut cursorhold_time: c_int = 0;
-static mut cursorhold_tb_change_cnt: c_int = 0;
-static mut breakcheck_count: c_int = 0;
+impl OsInputState {
+    const fn new() -> Self {
+        Self {
+            input_buffer: [0; INPUT_BUFFER_SIZE],
+            input_read_pos: ptr::null_mut(),
+            input_write_pos: ptr::null_mut(),
+            blocking: false,
+            cursorhold_time: 0,
+            cursorhold_tb_change_cnt: 0,
+            breakcheck_count: 0,
+            orig_num_clicks: 0,
+            orig_mouse_code: 0,
+            orig_mouse_grid: 0,
+            orig_mouse_col: 0,
+            orig_mouse_row: 0,
+            orig_mouse_time: 0,
+            push_event_key_idx: 0,
+        }
+    }
+}
 
-static mut orig_num_clicks: c_int = 0;
-static mut orig_mouse_code: c_int = 0;
-static mut orig_mouse_grid: c_int = 0;
-static mut orig_mouse_col: c_int = 0;
-static mut orig_mouse_row: c_int = 0;
-static mut orig_mouse_time: u64 = 0;
+static OSI_STATE: GlobalState<OsInputState> = GlobalState::new(OsInputState::new());
 
-static mut push_event_key_idx: usize = 0;
+#[inline]
+unsafe fn osi_st() -> &'static mut OsInputState {
+    unsafe { &mut *OSI_STATE.as_ptr() }
+}
 
 #[inline]
 unsafe fn input_buf_ptr() -> *mut c_char {
-    (&raw mut input_buffer).cast::<c_char>()
+    unsafe { (&raw mut osi_st().input_buffer).cast::<c_char>() }
 }
 
 #[inline]
 unsafe fn ensure_input_ptrs_init() {
     unsafe {
-        if input_read_pos.is_null() {
-            input_read_pos = input_buf_ptr();
-            input_write_pos = input_buf_ptr();
+        if osi_st().input_read_pos.is_null() {
+            osi_st().input_read_pos = input_buf_ptr();
+            osi_st().input_write_pos = input_buf_ptr();
         }
     }
 }
@@ -155,8 +182,8 @@ unsafe fn create_cursorhold_event(events_enabled: bool) {
 
 unsafe fn reset_cursorhold_wait(tb_change_cnt: c_int) {
     unsafe {
-        cursorhold_time = 0;
-        cursorhold_tb_change_cnt = tb_change_cnt;
+        osi_st().cursorhold_time = 0;
+        osi_st().cursorhold_tb_change_cnt = tb_change_cnt;
     }
 }
 
@@ -172,15 +199,15 @@ pub unsafe fn input_get(
         ensure_input_ptrs_init();
         debug_assert!((maxlen > 0 && !buf.is_null()) || maxlen == 0);
         // This check is needed so that feeding typeahead from RPC can prevent CursorHold.
-        if tb_change_cnt != cursorhold_tb_change_cnt {
+        if tb_change_cnt != osi_st().cursorhold_tb_change_cnt {
             reset_cursorhold_wait(tb_change_cnt);
         }
 
         if maxlen != 0 && input_available() != 0 {
             reset_cursorhold_wait(tb_change_cnt);
             let to_read = (maxlen as usize).min(input_available());
-            ptr::copy_nonoverlapping(input_read_pos.cast::<u8>(), buf, to_read);
-            input_read_pos = input_read_pos.add(to_read);
+            ptr::copy_nonoverlapping(osi_st().input_read_pos.cast::<u8>(), buf, to_read);
+            osi_st().input_read_pos = osi_st().input_read_pos.add(to_read);
             debug_assert!(to_read <= c_int::MAX as usize);
             return to_read as c_int;
         }
@@ -196,13 +223,13 @@ pub unsafe fn input_get(
             }
         } else {
             let wait_start = os_hrtime();
-            cursorhold_time = cursorhold_time.min(p_ut as c_int);
+            osi_st().cursorhold_time = osi_st().cursorhold_time.min(p_ut as c_int);
             let delay_pending = ins_compl_autocomplete_pending()
                 && p_acl > 0
                 && typebuf.tb_len == 0
                 && !ins_compl_active()
                 && (get_real_state() & MODE_INSERT) != 0;
-            let mut wait_time = p_ut - i64::from(cursorhold_time);
+            let mut wait_time = p_ut - i64::from(osi_st().cursorhold_time);
             if delay_pending {
                 let delay_left = p_acl - ins_compl_autocomplete_elapsed();
                 wait_time = delay_left.max(0).min(wait_time);
@@ -235,7 +262,7 @@ pub unsafe fn input_get(
                     inbuf_poll(-1, events);
                 }
             } else {
-                cursorhold_time += ((os_hrtime() - wait_start) / 1_000_000) as c_int;
+                osi_st().cursorhold_time += ((os_hrtime() - wait_start) / 1_000_000) as c_int;
             }
         }
 
@@ -249,8 +276,8 @@ pub unsafe fn input_get(
         if maxlen != 0 && input_available() != 0 {
             reset_cursorhold_wait(tb_change_cnt);
             let to_read = (maxlen as usize).min(input_available());
-            ptr::copy_nonoverlapping(input_read_pos.cast::<u8>(), buf, to_read);
-            input_read_pos = input_read_pos.add(to_read);
+            ptr::copy_nonoverlapping(osi_st().input_read_pos.cast::<u8>(), buf, to_read);
+            osi_st().input_read_pos = osi_st().input_read_pos.add(to_read);
             debug_assert!(to_read <= c_int::MAX as usize);
             return to_read as c_int;
         }
@@ -283,9 +310,9 @@ pub unsafe fn os_breakcheck() {
 /// Check for CTRL-C pressed, but only once in a while.
 pub unsafe fn line_breakcheck() {
     unsafe {
-        breakcheck_count += 1;
-        if breakcheck_count >= BREAKCHECK_SKIP {
-            breakcheck_count = 0;
+        osi_st().breakcheck_count += 1;
+        if osi_st().breakcheck_count >= BREAKCHECK_SKIP {
+            osi_st().breakcheck_count = 0;
             os_breakcheck();
         }
     }
@@ -294,9 +321,9 @@ pub unsafe fn line_breakcheck() {
 /// Like line_breakcheck() but check 10 times less often.
 pub unsafe fn fast_breakcheck() {
     unsafe {
-        breakcheck_count += 1;
-        if breakcheck_count >= BREAKCHECK_SKIP * 10 {
-            breakcheck_count = 0;
+        osi_st().breakcheck_count += 1;
+        if osi_st().breakcheck_count >= BREAKCHECK_SKIP * 10 {
+            osi_st().breakcheck_count = 0;
             os_breakcheck();
         }
     }
@@ -305,9 +332,9 @@ pub unsafe fn fast_breakcheck() {
 /// Like line_breakcheck() but check 100 times less often.
 pub unsafe fn veryfast_breakcheck() {
     unsafe {
-        breakcheck_count += 1;
-        if breakcheck_count >= BREAKCHECK_SKIP * 100 {
-            breakcheck_count = 0;
+        osi_st().breakcheck_count += 1;
+        if osi_st().breakcheck_count >= BREAKCHECK_SKIP * 100 {
+            osi_st().breakcheck_count = 0;
             os_breakcheck();
         }
     }
@@ -321,7 +348,7 @@ pub unsafe fn os_isatty(fd: c_int) -> bool {
 pub unsafe fn input_available() -> usize {
     unsafe {
         ensure_input_ptrs_init();
-        (input_write_pos as usize).wrapping_sub(input_read_pos as usize)
+        (osi_st().input_write_pos as usize).wrapping_sub(osi_st().input_read_pos as usize)
     }
 }
 
@@ -329,7 +356,7 @@ unsafe fn input_space() -> usize {
     unsafe {
         ensure_input_ptrs_init();
         let buf_end = input_buf_ptr().add(INPUT_BUFFER_SIZE);
-        (buf_end as usize).wrapping_sub(input_write_pos as usize)
+        (buf_end as usize).wrapping_sub(osi_st().input_write_pos as usize)
     }
 }
 
@@ -337,16 +364,16 @@ pub unsafe fn input_enqueue_raw(data: *const c_char, size: usize) {
     unsafe {
         ensure_input_ptrs_init();
         let buf_start = input_buf_ptr();
-        if (input_read_pos as usize) > (buf_start as usize) {
+        if (osi_st().input_read_pos as usize) > (buf_start as usize) {
             let available = input_available();
-            ptr::copy(input_read_pos, buf_start, available);
-            input_read_pos = buf_start;
-            input_write_pos = buf_start.add(available);
+            ptr::copy(osi_st().input_read_pos, buf_start, available);
+            osi_st().input_read_pos = buf_start;
+            osi_st().input_write_pos = buf_start.add(available);
         }
 
         let to_write = size.min(input_space());
-        ptr::copy_nonoverlapping(data, input_write_pos, to_write);
-        input_write_pos = input_write_pos.add(to_write);
+        ptr::copy_nonoverlapping(data, osi_st().input_write_pos, to_write);
+        osi_st().input_write_pos = osi_st().input_write_pos.add(to_write);
     }
 }
 
@@ -355,9 +382,9 @@ pub unsafe fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
         ensure_input_ptrs_init();
         current_ui = chan_id;
 
-        if input_read_pos == input_write_pos {
-            input_read_pos = input_buf_ptr();
-            input_write_pos = input_buf_ptr();
+        if osi_st().input_read_pos == osi_st().input_write_pos {
+            osi_st().input_read_pos = input_buf_ptr();
+            osi_st().input_write_pos = input_buf_ptr();
         }
 
         if keys.size > 0 {
@@ -436,7 +463,7 @@ unsafe fn check_multiclick(
             return 0;
         }
 
-        let no_move = orig_mouse_grid == grid && orig_mouse_col == col && orig_mouse_row == row;
+        let no_move = osi_st().orig_mouse_grid == grid && osi_st().orig_mouse_col == col && osi_st().orig_mouse_row == row;
         let mut is_click = false;
         let mut is_drag = false;
         let _ = get_mouse_button(code, &raw mut is_click, &raw mut is_drag);
@@ -449,32 +476,32 @@ unsafe fn check_multiclick(
         if is_click {
             // For click events the number of clicks is updated.
             let mouse_time = os_hrtime(); // time of current mouse click (ns)
-            let timediff = mouse_time.wrapping_sub(orig_mouse_time);
+            let timediff = mouse_time.wrapping_sub(osi_st().orig_mouse_time);
             let mouset = (p_mouset as u64).wrapping_mul(1_000_000);
-            if code == orig_mouse_code && no_move && timediff < mouset && orig_num_clicks != 4 {
-                orig_num_clicks += 1;
+            if code == osi_st().orig_mouse_code && no_move && timediff < mouset && osi_st().orig_num_clicks != 4 {
+                osi_st().orig_num_clicks += 1;
             } else {
-                orig_num_clicks = 1;
+                osi_st().orig_num_clicks = 1;
             }
-            orig_mouse_code = code;
-            orig_mouse_time = mouse_time;
+            osi_st().orig_mouse_code = code;
+            osi_st().orig_mouse_time = mouse_time;
         } else if !no_move {
             // For drag and release events the number of clicks is kept.
             // However, if the mouse has moved, the next click should reset the click count.
-            orig_mouse_code = code;
+            osi_st().orig_mouse_code = code;
         }
 
-        orig_mouse_grid = grid;
-        orig_mouse_col = col;
-        orig_mouse_row = row;
+        osi_st().orig_mouse_grid = grid;
+        osi_st().orig_mouse_col = col;
+        osi_st().orig_mouse_row = row;
 
         let mut modifiers: u8 = 0;
         if code != KE_MOUSEMOVE {
-            if orig_num_clicks == 2 {
+            if osi_st().orig_num_clicks == 2 {
                 modifiers |= MOD_MASK_2CLICK;
-            } else if orig_num_clicks == 3 {
+            } else if osi_st().orig_num_clicks == 3 {
                 modifiers |= MOD_MASK_3CLICK;
-            } else if orig_num_clicks == 4 {
+            } else if osi_st().orig_num_clicks == 4 {
                 modifiers |= MOD_MASK_4CLICK;
             }
         }
@@ -591,7 +618,7 @@ pub unsafe fn input_enqueue_mouse(
 
 /// @return true if the main loop is blocked and waiting for input.
 pub unsafe fn input_blocking() -> bool {
-    unsafe { blocking }
+    unsafe { osi_st().blocking }
 }
 
 /// Checks for (but does not read) available input, and consumes `main_loop.events` while waiting.
@@ -611,8 +638,8 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
         }
 
         if events != main_loop_events() {
-            // The pending input provoked a blocking wait. Do special events now. #6247
-            blocking = true;
+            // The pending input provoked a osi_st().blocking wait. Do special events now. #6247
+            osi_st().blocking = true;
             multiqueue_process_events(ch_before_blocking_events);
         }
 
@@ -633,7 +660,7 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
             }
         }
 
-        blocking = false;
+        osi_st().blocking = false;
 
         if do_profiling == PROF_YES {
             prof_input_end();
@@ -674,15 +701,15 @@ unsafe fn process_ctrl_c() {
         let available = input_available();
         let mut i = available as isize - 1;
         while i >= 0 {
-            let c = *input_read_pos.offset(i) as u8;
+            let c = *osi_st().input_read_pos.offset(i) as u8;
             if c == Ctrl_C
                 || (c == b'C'
                     && i >= 3
-                    && *input_read_pos.offset(i - 3) as u8 == K_SPECIAL
-                    && *input_read_pos.offset(i - 2) as u8 == KS_MODIFIER
-                    && *input_read_pos.offset(i - 1) as u8 == MOD_MASK_CTRL)
+                    && *osi_st().input_read_pos.offset(i - 3) as u8 == K_SPECIAL
+                    && *osi_st().input_read_pos.offset(i - 2) as u8 == KS_MODIFIER
+                    && *osi_st().input_read_pos.offset(i - 1) as u8 == MOD_MASK_CTRL)
             {
-                *input_read_pos.offset(i) = Ctrl_C as c_char;
+                *osi_st().input_read_pos.offset(i) = Ctrl_C as c_char;
                 got_int = true;
                 break;
             }
@@ -691,7 +718,7 @@ unsafe fn process_ctrl_c() {
 
         if got_int && i > 0 {
             // Remove all unprocessed input (typeahead) before the CTRL-C.
-            input_read_pos = input_read_pos.offset(i);
+            osi_st().input_read_pos = osi_st().input_read_pos.offset(i);
         }
     }
 }
@@ -704,10 +731,10 @@ unsafe fn push_event_key(buf: *mut u8, maxlen: c_int) -> c_int {
         let mut buf_idx: c_int = 0;
 
         loop {
-            *buf.add(buf_idx as usize) = KEY[push_event_key_idx];
+            *buf.add(buf_idx as usize) = KEY[osi_st().push_event_key_idx];
             buf_idx += 1;
-            push_event_key_idx = (push_event_key_idx + 1) % 3;
-            if push_event_key_idx == 0 || buf_idx >= maxlen {
+            osi_st().push_event_key_idx = (osi_st().push_event_key_idx + 1) % 3;
+            if osi_st().push_event_key_idx == 0 || buf_idx >= maxlen {
                 break;
             }
         }
@@ -732,15 +759,15 @@ mod tests {
     #[test]
     fn input_enqueue_raw_and_push_event_key_work() {
         unsafe {
-            input_read_pos = input_buf_ptr();
-            input_write_pos = input_buf_ptr();
+            osi_st().input_read_pos = input_buf_ptr();
+            osi_st().input_write_pos = input_buf_ptr();
             assert_eq!(input_available(), 0);
             input_enqueue_raw(c"abc".as_ptr(), 3);
             assert_eq!(input_available(), 3);
-            input_read_pos = input_buf_ptr();
-            input_write_pos = input_buf_ptr();
+            osi_st().input_read_pos = input_buf_ptr();
+            osi_st().input_write_pos = input_buf_ptr();
 
-            push_event_key_idx = 0;
+            osi_st().push_event_key_idx = 0;
             let mut buf = [0u8; 3];
             assert_eq!(push_event_key(buf.as_mut_ptr(), 2), 2);
             assert_eq!(buf[0], K_SPECIAL);

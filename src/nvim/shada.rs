@@ -2609,9 +2609,10 @@ const fn hist_type2char(hist_type: c_int) -> c_int {
 pub(crate) unsafe fn flush_file_buffer(buffer: *mut PackerBuffer) {
     unsafe {
         let fd = (*buffer).anydata.as_file();
-        (*fd).write_pos = (*buffer).ptr;
+        let base = (&*fd).buffer.as_ptr();
+        (*fd).write_pos = ((*buffer).ptr as usize).saturating_sub(base as usize);
         (*buffer).anyint = i64::from(file_flush(fd));
-        (*buffer).ptr = (*fd).write_pos;
+        (*buffer).ptr = (&mut *fd).buffer.as_mut_ptr().add((*fd).write_pos);
     }
 }
 
@@ -2620,10 +2621,11 @@ unsafe fn packer_buffer_for_file(file: *mut FileDescriptor) -> PackerBuffer {
         if file_space(&*file) < SHADA_MPACK_FREE_SPACE {
             file_flush(file);
         }
+        let base = (&mut *file).buffer.as_mut_ptr();
         PackerBuffer {
-            startptr: (*file).buffer,
-            ptr: (*file).write_pos,
-            endptr: (*file).buffer.add(ARENA_BLOCK_SIZE),
+            startptr: base,
+            ptr: base.add((*file).write_pos),
+            endptr: base.add(ARENA_BLOCK_SIZE),
             anydata: crate::msgpack_rpc::packer::PackerData::File(file),
             anyint: 0,
             owned_buf: Vec::new(),

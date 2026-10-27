@@ -932,19 +932,48 @@ const E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER: &CStr =
     c"E1159: Cannot split a window when closing the buffer";
 const M_ONLYONE: &CStr = c"Already only one window";
 
-static mut split_disallowed: c_int = 0;
-static mut close_disallowed: c_int = 0;
-static mut frame_locked: c_int = 0;
-static mut min_set_ch: OptInt = 1;
-static mut command_frame_height: bool = true;
-static mut last_tp_handle: c_int = 0;
-static mut last_win_id: c_int = LOWEST_WIN_ID - 1;
-static mut old_Rows: c_int = 0;
-static mut old_Columns: c_int = 0;
-static mut did_initial_scroll_size_snapshot: bool = false;
-static mut winclosed_recursive: bool = false;
-static mut tabclosedpre_recursive: bool = false;
-static mut win_scrolled_resized_recursive: bool = false;
+struct WindowModuleState {
+    split_disallowed: c_int,
+    close_disallowed: c_int,
+    frame_locked: c_int,
+    min_set_ch: OptInt,
+    command_frame_height: bool,
+    last_tp_handle: c_int,
+    last_win_id: c_int,
+    old_Rows: c_int,
+    old_Columns: c_int,
+    did_initial_scroll_size_snapshot: bool,
+    winclosed_recursive: bool,
+    tabclosedpre_recursive: bool,
+    win_scrolled_resized_recursive: bool,
+}
+
+impl WindowModuleState {
+    const fn new() -> Self {
+        Self {
+            split_disallowed: 0,
+            close_disallowed: 0,
+            frame_locked: 0,
+            min_set_ch: 1,
+            command_frame_height: true,
+            last_tp_handle: 0,
+            last_win_id: LOWEST_WIN_ID - 1,
+            old_Rows: 0,
+            old_Columns: 0,
+            did_initial_scroll_size_snapshot: false,
+            winclosed_recursive: false,
+            tabclosedpre_recursive: false,
+            win_scrolled_resized_recursive: false,
+        }
+    }
+}
+
+static WIN_STATE: GlobalState<WindowModuleState> = GlobalState::new(WindowModuleState::new());
+
+#[inline]
+unsafe fn win_st() -> &'static mut WindowModuleState {
+    unsafe { &mut *WIN_STATE.as_ptr() }
+}
 
 const ERROR_INIT: Error = Error::new();
 
@@ -980,20 +1009,20 @@ pub unsafe fn reset_binding(wp: *mut win_T) {
 /// window). Resizing is still allowed.
 pub unsafe fn window_layout_lock() {
     unsafe {
-        split_disallowed += 1;
-        close_disallowed += 1;
+        win_st().split_disallowed += 1;
+        win_st().close_disallowed += 1;
     }
 }
 
 pub unsafe fn window_layout_unlock() {
     unsafe {
-        split_disallowed -= 1;
-        close_disallowed -= 1;
+        win_st().split_disallowed -= 1;
+        win_st().close_disallowed -= 1;
     }
 }
 
 pub unsafe fn frames_locked() -> bool {
-    unsafe { frame_locked != 0 }
+    unsafe { win_st().frame_locked != 0 }
 }
 
 /// When the window layout cannot be changed give an error and return true.
@@ -1012,8 +1041,8 @@ pub unsafe fn window_layout_locked(cmd: cmdidx_T) -> bool {
 /// Like `window_layout_locked`, but set `err` to the (untranslated) error message when locked.
 pub unsafe fn window_layout_locked_err(cmd: cmdidx_T, err: *mut Error) -> bool {
     unsafe {
-        if split_disallowed > 0 || close_disallowed > 0 {
-            if close_disallowed == 0 && cmd == cmdidx_T::CMD_tabnew {
+        if win_st().split_disallowed > 0 || win_st().close_disallowed > 0 {
+            if win_st().close_disallowed == 0 && cmd == cmdidx_T::CMD_tabnew {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeException,
@@ -1436,7 +1465,7 @@ pub unsafe fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 win_setheight(if Prenum != 0 {
                     Prenum
                 } else {
-                    Rows - min_set_ch as c_int
+                    Rows - win_st().min_set_ch as c_int
                 });
             }
             c if c == b'>' as c_int => {
@@ -1908,7 +1937,7 @@ pub unsafe fn ui_ext_win_viewport(wp: *mut win_T) {
     }
 }
 
-/// If "split_disallowed" is set, or "wp"'s buffer is closing, give an error and return FAIL.
+/// If "win_st().split_disallowed" is set, or "wp"'s buffer is closing, give an error and return FAIL.
 /// Otherwise return OK.
 pub unsafe fn check_split_disallowed(wp: *const win_T) -> c_int {
     unsafe {
@@ -1926,7 +1955,7 @@ pub unsafe fn check_split_disallowed(wp: *const win_T) -> c_int {
 /// return false. Otherwise return true.
 pub unsafe fn check_split_disallowed_err(wp: *const win_T, err: *mut Error) -> bool {
     unsafe {
-        if split_disallowed > 0 {
+        if win_st().split_disallowed > 0 {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -3696,7 +3725,7 @@ pub unsafe fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
             return FAIL;
         }
 
-        split_disallowed += 1;
+        win_st().split_disallowed += 1;
 
         let was_floating = (*win).w_floating;
         if ui_has(kUIMultigrid) {
@@ -3823,7 +3852,7 @@ pub unsafe fn win_close(win: *mut win_T, free_buf: bool, force: bool) -> c_int {
             );
         }
 
-        split_disallowed -= 1;
+        win_st().split_disallowed -= 1;
 
         if help_window || quickfix_window {
             restore_snapshot(
@@ -3874,10 +3903,10 @@ unsafe fn trigger_winnewpre() {
 
 unsafe fn do_autocmd_winclosed(win: *mut win_T) {
     unsafe {
-        if winclosed_recursive || !has_event(EVENT_WINCLOSED) {
+        if win_st().winclosed_recursive || !has_event(EVENT_WINCLOSED) {
             return;
         }
-        winclosed_recursive = true;
+        win_st().winclosed_recursive = true;
         let mut winid = [0 as c_char; NUMBUFLEN];
         vim_snprintf!(
             winid.as_mut_ptr(),
@@ -3893,7 +3922,7 @@ unsafe fn do_autocmd_winclosed(win: *mut win_T) {
             (*win).w_buffer,
             win,
         );
-        winclosed_recursive = false;
+        win_st().winclosed_recursive = false;
     }
 }
 
@@ -3901,14 +3930,14 @@ pub unsafe fn trigger_tabclosedpre(tp: *mut tabpage_T) {
     unsafe {
         let ptp = curtab;
 
-        if !has_event(EVENT_TABCLOSEDPRE) || tabclosedpre_recursive {
+        if !has_event(EVENT_TABCLOSEDPRE) || win_st().tabclosedpre_recursive {
             return;
         }
 
         if valid_tabpage(tp) {
             goto_tabpage_tp(tp, false, false);
         }
-        tabclosedpre_recursive = true;
+        win_st().tabclosedpre_recursive = true;
         window_layout_lock();
         apply_autocmds(
             EVENT_TABCLOSEDPRE,
@@ -3918,7 +3947,7 @@ pub unsafe fn trigger_tabclosedpre(tp: *mut tabpage_T) {
             ptr::null_mut(),
         );
         window_layout_unlock();
-        tabclosedpre_recursive = false;
+        win_st().tabclosedpre_recursive = false;
         if valid_tabpage(ptp) {
             goto_tabpage_tp(ptp, false, false);
         } else {
@@ -4172,7 +4201,7 @@ pub unsafe fn winframe_remove(
 
         let frp_close = (*win).w_frame;
 
-        frame_locked += 1;
+        win_st().frame_locked += 1;
 
         let topleft = frame2win((*frp_close).fr_parent);
         let mut row = (*topleft).w_winrow;
@@ -4215,7 +4244,7 @@ pub unsafe fn winframe_remove(
             *unflat_altfr = altfr;
         }
 
-        frame_locked -= 1;
+        win_st().frame_locked -= 1;
 
         wp
     }
@@ -4512,11 +4541,11 @@ pub unsafe fn frame_new_height(
 ) {
     unsafe {
         if (*topfrp).fr_parent.is_null() && set_ch {
-            let new_ch = min_set_ch.max(p_ch + OptInt::from((*topfrp).fr_height - height));
+            let new_ch = win_st().min_set_ch.max(p_ch + OptInt::from((*topfrp).fr_height - height));
             if new_ch != p_ch {
-                let save_ch = min_set_ch;
+                let save_ch = win_st().min_set_ch;
                 set_option_value(kOptCmdheight, integer_obj(new_ch), 0, true, None);
-                min_set_ch = save_ch;
+                win_st().min_set_ch = save_ch;
             }
             height = (rows_avail() as c_int).min(height);
         }
@@ -5100,8 +5129,8 @@ pub unsafe fn win_init_size() {
 unsafe fn alloc_tabpage() -> *mut tabpage_T {
     unsafe {
         let tp = Box::into_raw(Box::new(tabpage_T::new()));
-        last_tp_handle += 1;
-        (*tp).handle = last_tp_handle;
+        win_st().last_tp_handle += 1;
+        (*tp).handle = win_st().last_tp_handle;
         let map_ptr = &raw mut tabpage_handles;
         (*map_ptr).insert((*tp).handle, tp);
 
@@ -5482,9 +5511,9 @@ unsafe fn enter_tabpage(
             tabpage_check_windows(old_curtab);
             let new_ch = p_ch;
             p_ch = prev_p_ch;
-            command_frame_height = false;
+            win_st().command_frame_height = false;
             set_option_value(kOptCmdheight, integer_obj(new_ch), 0, true, None);
-            command_frame_height = true;
+            win_st().command_frame_height = true;
         } else if !ptr::eq(old_curtab, curtab) {
             tabpage_check_windows(old_curtab);
         }
@@ -6213,8 +6242,8 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
     unsafe {
         let new_wp = Box::into_raw(Box::new(win_T::new()));
 
-        last_win_id += 1;
-        (*new_wp).handle = last_win_id;
+        win_st().last_win_id += 1;
+        (*new_wp).handle = win_st().last_win_id;
         let map_ptr = &raw mut window_handles;
         (*map_ptr).insert((*new_wp).handle, new_wp);
 
@@ -6489,17 +6518,17 @@ unsafe fn frame_remove(frp: *mut frame_T) {
 
 pub unsafe fn win_new_screensize() {
     unsafe {
-        if old_Rows != Rows {
-            if p_window == OptInt::from(old_Rows - 1)
-                || (old_Rows == 0 && !option_was_set(kOptWindow))
+        if win_st().old_Rows != Rows {
+            if p_window == OptInt::from(win_st().old_Rows - 1)
+                || (win_st().old_Rows == 0 && !option_was_set(kOptWindow))
             {
                 p_window = OptInt::from(Rows - 1);
             }
-            old_Rows = Rows;
+            win_st().old_Rows = Rows;
             win_new_screen_rows();
         }
-        if old_Columns != Columns {
-            old_Columns = Columns;
+        if win_st().old_Columns != Columns {
+            win_st().old_Columns = Columns;
             win_new_screen_cols();
         }
     }
@@ -6561,8 +6590,8 @@ pub unsafe fn snapshot_windows_scroll_size() {
 
 pub unsafe fn may_make_initial_scroll_size_snapshot() {
     unsafe {
-        if !did_initial_scroll_size_snapshot {
-            did_initial_scroll_size_snapshot = true;
+        if !win_st().did_initial_scroll_size_snapshot {
+            win_st().did_initial_scroll_size_snapshot = true;
             snapshot_windows_scroll_size();
         }
     }
@@ -6724,9 +6753,9 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
         let do_resize = has_event(EVENT_WINRESIZED);
         let do_scroll = has_event(EVENT_WINSCROLLED);
 
-        if win_scrolled_resized_recursive
+        if win_st().win_scrolled_resized_recursive
             || !(do_scroll || do_resize)
-            || !did_initial_scroll_size_snapshot
+            || !win_st().did_initial_scroll_size_snapshot
         {
             return;
         }
@@ -6774,7 +6803,7 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
 
         snapshot_windows_scroll_size();
 
-        win_scrolled_resized_recursive = true;
+        win_st().win_scrolled_resized_recursive = true;
 
         let mut resize_winid = [0 as c_char; NUMBUFLEN];
         let mut resize_win: *mut win_T = ptr::null_mut();
@@ -6862,7 +6891,7 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
             restore_v_event(v_event, &raw mut save_v_event);
         }
 
-        win_scrolled_resized_recursive = false;
+        win_st().win_scrolled_resized_recursive = false;
     }
 }
 
@@ -7330,7 +7359,7 @@ pub unsafe fn win_drag_status_line(dragwin: *mut win_T, mut offset: c_int) {
             room = Rows - cmdline_row;
             if !(*curfr).fr_next.is_null() {
                 room -= p_ch as c_int + global_stl_height();
-            } else if min_set_ch > 0 {
+            } else if win_st().min_set_ch > 0 {
                 room -= 1;
             }
             room = room.max(0);
@@ -7782,7 +7811,7 @@ pub unsafe fn command_height() {
             frp = (*frp).fr_prev;
         }
 
-        while p_ch > OptInt::from(old_p_ch) && command_frame_height {
+        while p_ch > OptInt::from(old_p_ch) && win_st().command_frame_height {
             if frp.is_null() {
                 emsg(gettext(e_noroom.as_ptr()));
                 p_ch = OptInt::from(old_p_ch);
@@ -7794,7 +7823,7 @@ pub unsafe fn command_height() {
             old_p_ch += h;
             frp = (*frp).fr_prev;
         }
-        if p_ch < OptInt::from(old_p_ch) && command_frame_height && !frp.is_null() {
+        if p_ch < OptInt::from(old_p_ch) && win_st().command_frame_height && !frp.is_null() {
             frame_add_height(frp, (OptInt::from(old_p_ch) - p_ch) as c_int);
         }
 
@@ -7814,7 +7843,7 @@ pub unsafe fn command_height() {
         }
 
         (*curtab).tp_ch_used = p_ch;
-        min_set_ch = p_ch;
+        win_st().min_set_ch = p_ch;
     }
 }
 
@@ -8557,11 +8586,11 @@ mod tests {
         unsafe {
             assert!(!frames_locked());
             window_layout_lock();
-            assert!(split_disallowed > 0);
-            assert!(close_disallowed > 0);
+            assert!(win_st().split_disallowed > 0);
+            assert!(win_st().close_disallowed > 0);
             window_layout_unlock();
-            assert!(split_disallowed == 0);
-            assert!(close_disallowed == 0);
+            assert!(win_st().split_disallowed == 0);
+            assert!(win_st().close_disallowed == 0);
         }
     }
 
