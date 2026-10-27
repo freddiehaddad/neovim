@@ -639,53 +639,37 @@ impl Default for linepos {
     }
 }
 
+#[repr(C, align(8))]
 #[derive(Clone, Copy)]
-pub(super) enum RegSubList {
-    Multi([multipos; NSUBEXP]),
-    Line([linepos; NSUBEXP]),
+pub(super) struct RegSubList {
+    raw: [[u64; 2]; NSUBEXP],
 }
 
 impl RegSubList {
     pub(super) const fn new() -> Self {
-        Self::Line([linepos::new(); NSUBEXP])
+        Self {
+            raw: [[0; 2]; NSUBEXP],
+        }
     }
 
     #[inline]
     pub(super) fn multi(&self) -> &[multipos; NSUBEXP] {
-        match self {
-            Self::Multi(m) => m,
-            Self::Line(_) => const { &[multipos::new(); NSUBEXP] },
-        }
+        unsafe { &*(&raw const self.raw).cast::<[multipos; NSUBEXP]>() }
     }
 
     #[inline]
     pub(super) fn multi_mut(&mut self) -> &mut [multipos; NSUBEXP] {
-        if !matches!(*self, Self::Multi(_)) {
-            *self = Self::Multi([multipos::new(); NSUBEXP]);
-        }
-        match self {
-            Self::Multi(m) => m,
-            Self::Line(_) => unreachable!(),
-        }
+        unsafe { &mut *(&raw mut self.raw).cast::<[multipos; NSUBEXP]>() }
     }
 
     #[inline]
     pub(super) fn line(&self) -> &[linepos; NSUBEXP] {
-        match self {
-            Self::Line(l) => l,
-            Self::Multi(_) => const { &[linepos::new(); NSUBEXP] },
-        }
+        unsafe { &*(&raw const self.raw).cast::<[linepos; NSUBEXP]>() }
     }
 
     #[inline]
     pub(super) fn line_mut(&mut self) -> &mut [linepos; NSUBEXP] {
-        if !matches!(*self, Self::Line(_)) {
-            *self = Self::Line([linepos::new(); NSUBEXP]);
-        }
-        match self {
-            Self::Line(l) => l,
-            Self::Multi(_) => unreachable!(),
-        }
+        unsafe { &mut *(&raw mut self.raw).cast::<[linepos; NSUBEXP]>() }
     }
 }
 

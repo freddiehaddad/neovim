@@ -2714,8 +2714,8 @@ fn addstate(
                     }
                 }
 
-                if (*l).n as usize == (*l).t.len() {
-                    let newlen = (*l).t.len() * 3 / 2 + 50;
+                if (*l).n as usize == (*l).t.capacity() {
+                    let newlen = (*l).t.capacity() * 3 / 2 + 50;
                     let newsize = newlen * size_of::<nfa_thread_T>();
                     if ((newsize >> 10) as i64) >= opt_vars().p_mmp {
                         emsg(tr(e_pattern_uses_more_memory_than_maxmempattern.as_ptr()));
@@ -2728,12 +2728,15 @@ fn addstate(
                         }
                         subs = &raw mut nfa_st().temp_subs;
                     }
-                    (*l).t.resize(newlen, nfa_thread_T::new());
+                    (*l).t.reserve(newlen - (*l).t.len());
                 }
 
                 states[state_idx].lastlist[re_st().nfa_ll_index] = (*l).id;
                 let thread_idx = (*l).n as usize;
                 (*l).n += 1;
+                if thread_idx == (*l).t.len() {
+                    (*l).t.push(nfa_thread_T::new());
+                }
                 let thread = &mut (&mut (*l).t)[thread_idx];
                 thread.state = Some(state_idx);
                 if pim.is_null() {
@@ -3496,11 +3499,15 @@ fn nfa_regmatch(
         nfa_st().nfa_match = 0;
 
         let init_len = (*prog).nstate as usize + 1;
-        let mut list: [nfa_list_T; 2] = if toplevel && !(*prog).listbuf[0].is_empty() {
+        let mut list: [nfa_list_T; 2] = if toplevel && (*prog).listbuf[0].capacity() > 0 {
             let mut t0 = std::mem::take(&mut (*prog).listbuf[0]);
             let mut t1 = std::mem::take(&mut (*prog).listbuf[1]);
-            t0.resize(init_len, nfa_thread_T::new());
-            t1.resize(init_len, nfa_thread_T::new());
+            if t0.capacity() < init_len {
+                t0.reserve(init_len - t0.len());
+            }
+            if t1.capacity() < init_len {
+                t1.reserve(init_len - t1.len());
+            }
             [
                 nfa_list_T {
                     t: t0,
@@ -3518,13 +3525,13 @@ fn nfa_regmatch(
         } else {
             [
                 nfa_list_T {
-                    t: vec![nfa_thread_T::new(); init_len],
+                    t: Vec::with_capacity(init_len),
                     n: 0,
                     id: re_st().rex.nfa_listid + 1,
                     has_pim: 0,
                 },
                 nfa_list_T {
-                    t: vec![nfa_thread_T::new(); init_len],
+                    t: Vec::with_capacity(init_len),
                     n: 0,
                     id: 0,
                     has_pim: 0,
@@ -3565,7 +3572,7 @@ fn nfa_regmatch(
         };
         if r.is_null() {
             nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-            return finish_nfa_regmatch(prog, &mut list);
+            return finish_nfa_regmatch(prog, toplevel, &mut list);
         }
 
         loop {
@@ -3593,7 +3600,7 @@ fn nfa_regmatch(
             re_st().rex.nfa_listid += 1;
             if (*prog).re_engine == AUTOMATIC_ENGINE as c_uint && re_st().rex.nfa_listid >= NFA_MAX_STATES {
                 nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-                return finish_nfa_regmatch(prog, &mut list);
+                return finish_nfa_regmatch(prog, toplevel, &mut list);
             }
 
             (*thislist).id = re_st().rex.nfa_listid;
@@ -3705,7 +3712,7 @@ fn nfa_regmatch(
                             );
                             if res == NFA_TOO_EXPENSIVE {
                                 nfa_st().nfa_match = res;
-                                return finish_nfa_regmatch(prog, &mut list);
+                                return finish_nfa_regmatch(prog, toplevel, &mut list);
                             }
                             let is_neg = st_c == NFA_START_INVISIBLE_NEG
                                 || st_c == NFA_START_INVISIBLE_NEG_FIRST
@@ -3746,7 +3753,7 @@ fn nfa_regmatch(
                             .is_null()
                             {
                                 nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-                                return finish_nfa_regmatch(prog, &mut list);
+                                return finish_nfa_regmatch(prog, toplevel, &mut list);
                             }
                         }
                     }
@@ -3790,7 +3797,7 @@ fn nfa_regmatch(
                             );
                             if res == NFA_TOO_EXPENSIVE {
                                 nfa_st().nfa_match = res;
-                                return finish_nfa_regmatch(prog, &mut list);
+                                return finish_nfa_regmatch(prog, toplevel, &mut list);
                             }
                             if res != 0 {
                                 copy_sub_off(&mut (*t).subs.norm, &mut (*m).norm);
@@ -4423,7 +4430,7 @@ fn nfa_regmatch(
                     };
                     if r.is_null() {
                         nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-                        return finish_nfa_regmatch(prog, &mut list);
+                        return finish_nfa_regmatch(prog, toplevel, &mut list);
                     }
                 }
 
@@ -4486,7 +4493,7 @@ fn nfa_regmatch(
                         .is_null()
                         {
                             nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-                            return finish_nfa_regmatch(prog, &mut list);
+                            return finish_nfa_regmatch(prog, toplevel, &mut list);
                         }
                     }
                 } else {
@@ -4523,7 +4530,7 @@ fn nfa_regmatch(
 
                     if r.is_null() {
                         nfa_st().nfa_match = NFA_TOO_EXPENSIVE;
-                        return finish_nfa_regmatch(prog, &mut list);
+                        return finish_nfa_regmatch(prog, toplevel, &mut list);
                     }
                 }
             }
@@ -4553,13 +4560,21 @@ fn nfa_regmatch(
             }
         }
 
-        finish_nfa_regmatch(prog, &mut list)
+        finish_nfa_regmatch(prog, toplevel, &mut list)
     }
 }
 
-fn finish_nfa_regmatch(prog: *mut nfa_regprog_T, list: &mut [nfa_list_T; 2]) -> c_int {
+fn finish_nfa_regmatch(
+    prog: *mut nfa_regprog_T,
+    toplevel: bool,
+    list: &mut [nfa_list_T; 2],
+) -> c_int {
     unsafe {
-        if (*prog).listbuf[0].is_empty() && !list[0].t.is_empty() && !list[1].t.is_empty() {
+        if toplevel
+            && (*prog).listbuf[0].capacity() == 0
+            && list[0].t.capacity() > 0
+            && list[1].t.capacity() > 0
+        {
             (*prog).listbuf[0] = std::mem::take(&mut list[0].t);
             (*prog).listbuf[1] = std::mem::take(&mut list[1].t);
         }

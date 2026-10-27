@@ -64,6 +64,28 @@ Transitioning from Vim
 
 See [`:help nvim-from-vim`](https://neovim.io/doc/user/nvim.html#nvim-from-vim) for instructions.
 
+Performance
+-----------
+
+Head-to-head comparison against upstream `neovim/neovim` Nightly (C) using the built-in benchmark suite (`cargo xtask benchmark --release`):
+
+| Benchmark (`test/benchmark/`) | Upstream C (`nightly`) | Rust Port (`--release`, ThinLTO) | Comparison |
+|---|---:|---:|---|
+| **`autocmd_spec.lua` (suite total)** | `452.6 ms` | **`331.9 ms`** | **27% faster in Rust** |
+| — `nvim_del_autocmd` (10k, same pattern) | `24.21 ms` | **`13.76 ms`** | **43% faster in Rust** |
+| — `nvim_del_autocmd` (10k, unique patterns) | `27.67 ms` | **`15.35 ms`** | **45% faster in Rust** |
+| **`extmark_spec.lua` (suite total)** | `193.3 ms` | **`157.0 ms`** | **19% faster in Rust** |
+| — `nvim_buf_clear_namespace` (10k calls) | `0.582 ms` | **`0.544 ms`** | **7% faster in Rust** |
+| — `redraw` (2,000 virt lines, bottom) | `0.684 ms` | **`0.585 ms`** | **14% faster in Rust** |
+| — `redraw` (2,000 virt lines, top) | `0.733 ms` | **`0.598 ms`** | **18% faster in Rust** |
+| — cursor move across virt lines | `0.114 ms` | **`0.061 ms`** | **46% faster in Rust** |
+| **`option_spec.lua` (suite total, 7×20k)** | `599.8 ms` | **`532.1 ms`** | **11% faster in Rust** |
+| — `nvim_set_option_value` (median) | `0.0024 ms` | **`0.0024 ms`** | **Identical** |
+| **`bench_regexp_spec.lua`** | | | |
+| — `regexpengine=1` (backtracking) | `5.89 ms` | **`3.64 ms`** | **38% faster in Rust** |
+| — `regexpengine=0` (auto) | `7.35 ms` | **`5.77 ms`** | **21% faster in Rust** |
+| — `regexpengine=2` (NFA `re.freeze.txt`) | **`3,413 ms`** | `4,770 ms` | **28% slower in Rust** |
+
 Project layout
 --------------
 

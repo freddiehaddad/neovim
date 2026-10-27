@@ -56,7 +56,7 @@ vendor-bit = []
 codegen-units = 256
 
 [profile.release]
-codegen-units = 256
+lto = "thin"
 
 [lints.rust]
 non_camel_case_types = "allow"

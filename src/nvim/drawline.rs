@@ -50,8 +50,8 @@ use crate::r#match::{
     get_prevcol_hl_flag, get_search_match_hl, prepare_search_hl_line, update_search_hl,
 };
 use crate::mbyte::{
-    mb_charlen, mb_off_next, mb_string2cells, ptr2cells, utf_ClusterInfo, utf_head_off,
-    utf_ptr2StrCharInfo, utf_ptr2cells, utfc_ptr2len,
+    mb_charlen, mb_off_next, mb_string2cells, utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo,
+    utf_ptr2cells, utfc_ptr2len,
 };
 use crate::memline::{gchar_pos, ml_get_buf, ml_get_buf_len};
 use crate::memory::xstrlcpy;
@@ -1337,7 +1337,7 @@ fn schar_get_single_width(mb_schar: schar_T) -> c_int {
     {
         let mut sc_buf = [0 as c_char; MAX_SCHAR_SIZE];
         schar_get(sc_buf.as_mut_ptr(), mb_schar);
-        debug_assert_eq!(ptr2cells(sc_buf.as_ptr()), 1);
+        debug_assert_eq!(crate::mbyte::ptr2cells(sc_buf.as_ptr()), 1);
     }
     let _ = mb_schar;
     1
