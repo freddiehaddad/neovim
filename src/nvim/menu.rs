@@ -84,7 +84,6 @@ pub struct vimmenu_T {
     pub noremap: [c_int; MENU_MODES],
     pub silent: [bool; MENU_MODES],
     pub children: Vec<vimmenu_T>,
-    pub parent: *mut vimmenu_T,
 }
 
 impl vimmenu_T {
@@ -103,7 +102,6 @@ impl vimmenu_T {
             noremap: [0; MENU_MODES],
             silent: [false; MENU_MODES],
             children: Vec::new(),
-            parent: ptr::null_mut(),
         }
     }
 }
@@ -417,23 +415,16 @@ unsafe fn add_menu_path(
         let path_name = path_name_vec.as_mut_ptr();
         let root_menu_ptr = get_root_menu(menu_path);
         let mut menup: *mut Vec<vimmenu_T> = root_menu_ptr;
-        let mut parent: *mut vimmenu_T = ptr::null_mut();
+        let mut ancestor_stack: Vec<(*mut Vec<vimmenu_T>, usize)> = Vec::new();
         let mut name = path_name;
 
-        let cleanup_erret = |mut parent: *mut vimmenu_T,
-                             root_menu_ptr: *mut Vec<vimmenu_T>|
-         -> c_int {
-            while !parent.is_null() && (*parent).children.is_empty() {
-                let mp = if (*parent).parent.is_null() {
-                    root_menu_ptr
+        let cleanup_erret = |ancestor_stack: &[(*mut Vec<vimmenu_T>, usize)]| -> c_int {
+            for &(mp, idx) in ancestor_stack.iter().rev() {
+                if (&(*mp))[idx].children.is_empty() {
+                    (*mp).remove(idx);
                 } else {
-                    &raw mut (*(*parent).parent).children
-                };
-                let Some(idx) = (*mp).iter().position(|m| ptr::eq(m, parent)) else {
                     break;
-                };
-                parent = (*parent).parent;
-                (*mp).remove(idx);
+                }
             }
             FAIL
         };
@@ -451,10 +442,11 @@ unsafe fn add_menu_path(
             let dname = menu_text(name, ptr::null_mut(), None);
             if dname.as_bytes().is_empty() {
                 emsg(gettext(c"E792: Empty menu name".as_ptr()));
-                return cleanup_erret(parent, root_menu_ptr);
+                return cleanup_erret(&ancestor_stack);
             }
 
             let mut lower_pri_idx: usize = 0;
+            let mut found_idx: usize = 0;
             menu = ptr::null_mut();
             for (idx, m) in (*menup).iter_mut().enumerate() {
                 if menu_name_equal(name, m) || menu_name_equal(dname.as_ptr(), m) {
@@ -464,19 +456,20 @@ unsafe fn add_menu_path(
                                 c"E330: Menu path must not lead to a sub-menu".as_ptr(),
                             ));
                         }
-                        return cleanup_erret(parent, root_menu_ptr);
+                        return cleanup_erret(&ancestor_stack);
                     }
                     if *next_name != NUL && m.children.is_empty() {
                         if !sys_menu {
                             emsg(gettext(E_NOTSUBMENU.as_ptr()));
                         }
-                        return cleanup_erret(parent, root_menu_ptr);
+                        return cleanup_erret(&ancestor_stack);
                     }
                     menu = m;
+                    found_idx = idx;
                     break;
                 }
 
-                if (!parent.is_null() || menu_is_menubar(m.name.as_ptr()))
+                if (!ancestor_stack.is_empty() || menu_is_menubar(m.name.as_ptr()))
                     && m.priority <= *pri_tab.add(pri_idx)
                 {
                     lower_pri_idx = idx + 1;
@@ -484,18 +477,18 @@ unsafe fn add_menu_path(
             }
 
             if menu.is_null() {
-                if *next_name == NUL && parent.is_null() {
+                if *next_name == NUL && ancestor_stack.is_empty() {
                     emsg(gettext(
                         c"E331: Must not add menu items directly to menu bar".as_ptr(),
                     ));
-                    return cleanup_erret(parent, root_menu_ptr);
+                    return cleanup_erret(&ancestor_stack);
                 }
 
                 if menu_is_separator(dname.as_ptr().cast_mut()) && *next_name != NUL {
                     emsg(gettext(
                         c"E332: Separator cannot be part of a menu path".as_ptr(),
                     ));
-                    return cleanup_erret(parent, root_menu_ptr);
+                    return cleanup_erret(&ancestor_stack);
                 }
 
                 let mut new_menu = vimmenu_T::new();
@@ -509,10 +502,10 @@ unsafe fn add_menu_path(
                     new_menu.en_dname = Some(menu_text(en_name, ptr::null_mut(), None));
                 }
                 new_menu.priority = *pri_tab.add(pri_idx);
-                new_menu.parent = parent;
 
                 (*menup).insert(lower_pri_idx, new_menu);
                 menu = &raw mut (&mut (*menup))[lower_pri_idx];
+                found_idx = lower_pri_idx;
 
                 old_modes = 0;
             } else {
@@ -521,8 +514,8 @@ unsafe fn add_menu_path(
                 (*menu).enabled |= modes;
             }
 
+            ancestor_stack.push((menup, found_idx));
             menup = &raw mut (*menu).children;
-            parent = menu;
             name = next_name;
             if *pri_tab.add(pri_idx + 1) != -1 {
                 pri_idx += 1;
