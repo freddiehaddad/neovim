@@ -1495,7 +1495,7 @@ fn event_name2nr_hash(str_: *const c_char, len: usize) -> isize {
 
     for (i, &ev_raw) in EVENT_HASH.iter().enumerate().take(high).skip(low) {
         let ev = ev_raw as usize;
-        if unsafe { { let _p1 = str_; let _p2 = EVENT_NAMES[ev].name.as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } } {
+        if unsafe { crate::memory::cstr_prefix_bytes(str_, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(EVENT_NAMES[ev].name.as_ptr(), len)) } {
             return i as isize;
         }
     }
@@ -2002,7 +2002,7 @@ pub unsafe fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
             if unignore {
                 ei = ei.add(1);
             }
-            if { let _p1 = ei; let _p2 = c"all".as_ptr(); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+            if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"all".as_ptr(), 3))
                 && (*ei.add(3) == NUL || *ei.add(3) == b',' as c_char)
             {
                 ignored = ptr::eq(ei.cast_const(), opt_vars().p_ei.cast_const())
@@ -2022,7 +2022,7 @@ pub unsafe fn event_ignored(event: event_T, mut ei: *mut c_char) -> bool {
 pub unsafe fn check_ei(mut ei: *mut c_char, win: bool) -> c_int {
     unsafe {
         while *ei != NUL {
-            if { let _p1 = ei; let _p2 = c"all".as_ptr(); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+            if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"all".as_ptr(), 3))
                 && (*ei.add(3) == NUL || *ei.add(3) == b',' as c_char)
             {
                 ei = ei.add(3 + usize::from(*ei.add(3) == b',' as c_char));
@@ -3777,7 +3777,7 @@ pub unsafe fn aupat_get_buflocal_nr(pat: *const c_char, patlen: c_int) -> c_int 
         }
 
         if patlen > 9 && *pat.add(7) == b'=' as c_char {
-            if patlen == 13 && { let _p1 = pat; let _p2 = c"<buffer=abuf>".as_ptr(); let _n = 13; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
+            if patlen == 13 && crate::memory::cstr_prefix_bytes(pat, 13).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"<buffer=abuf>".as_ptr(), 13)) {
                 return g_st().autocmd_bufnr;
             }
 

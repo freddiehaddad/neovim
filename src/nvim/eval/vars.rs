@@ -680,7 +680,7 @@ pub unsafe fn evalvars_init() {
             startreason_buf.as_mut_ptr(),
             startreason_buf.len(),
         );
-        if { let _a = startreason; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"restart!" } || { let _a = startreason; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"restart" }
+        if (crate::memory::cstr_as_opt_bytes(startreason) == Some(b"restart!")) || (crate::memory::cstr_as_opt_bytes(startreason) == Some(b"restart"))
         {
             set_vim_var_string(VV_STARTREASON, startreason, -1);
         }
@@ -1078,7 +1078,7 @@ pub unsafe fn heredoc_get(
         let mut evalstr = false;
         let mut eval_failed = false;
         loop {
-            if { let _p = cmd; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"trim"[..4] }
+            if (crate::memory::cstr_prefix_bytes(cmd, 4) == &b"trim"[..4])
                 && (*cmd.add(4) == NUL || ascii_iswhite(*cmd.add(4) as c_int))
             {
                 cmd = skipwhite(cmd.add(4));
@@ -1091,7 +1091,7 @@ pub unsafe fn heredoc_get(
                 text_indent_len = -1;
                 continue;
             }
-            if { let _p = cmd; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"eval"[..4] }
+            if (crate::memory::cstr_prefix_bytes(cmd, 4) == &b"eval"[..4])
                 && (*cmd.add(4) == NUL || ascii_iswhite(*cmd.add(4) as c_int))
             {
                 cmd = skipwhite(cmd.add(4));
@@ -1159,7 +1159,7 @@ pub unsafe fn heredoc_get(
             };
 
             if marker_indent_len > 0
-                && { let _p1 = theline; let _p2 = *eap.cmdlinep; let _n = marker_indent_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                && (crate::memory::cstr_prefix_bytes(theline, marker_indent_len as usize) == crate::memory::cstr_prefix_bytes(*eap.cmdlinep, marker_indent_len as usize))
             {
                 mi = marker_indent_len;
             }
@@ -1232,7 +1232,7 @@ pub unsafe fn ex_let(eap: &mut exarg_T) {
             return;
         }
         let mut expr = skipwhite(argend);
-        let concat = { let _p = expr; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"..="[..3] };
+        let concat = crate::memory::cstr_prefix_bytes(expr, 3) == &b"..="[..3];
         let has_assign = *expr == b'=' as c_char
             || (!vim_strchr(c"+-*/%.".as_ptr(), *expr as u8 as c_int).is_null()
                 && *expr.add(1) == b'=' as c_char);
@@ -1490,7 +1490,7 @@ pub unsafe fn list_hashtable_vars(
 ) {
     unsafe {
         let mut todo = ht.ht_used as c_int;
-        let mut hi = (&*ht).array_ptr();
+        let mut hi = (*ht).array_ptr();
         while todo > 0 && !g_st().got_int {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
@@ -2262,7 +2262,7 @@ pub unsafe fn del_menutrans_vars() {
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
-                if { let _p = (&*hi).key_ptr(); crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"menutrans_"[..10] } {
+                if crate::memory::cstr_prefix_bytes((&*hi).key_ptr(), 10) == &b"menutrans_"[..10] {
                     delete_var(&mut *ht, hi);
                 }
             }
@@ -2366,7 +2366,7 @@ pub unsafe fn get_user_var_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
                 vars_st().HI = vars_st().HI.add(1);
             }
             let hi_key = (&*vars_st().HI).key_ptr();
-            if { let _p1 = c"g:".as_ptr(); let _p2 = xp.xp_pattern; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+            if crate::memory::cstr_prefix_bytes(c"g:".as_ptr(), 2) == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2) {
                 return cat_prefix_varname(b'g' as c_int, hi_key);
             }
             return hi_key;
@@ -2917,7 +2917,7 @@ pub unsafe fn vars_clear_ext(ht: &mut hashtab_T, free_val: bool) {
     unsafe {
         hash_lock(ht);
         let mut todo = ht.ht_used as c_int;
-        let mut hi = (&*ht).array_ptr();
+        let mut hi = (*ht).array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;

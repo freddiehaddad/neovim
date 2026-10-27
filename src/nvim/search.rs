@@ -1726,7 +1726,7 @@ pub unsafe fn search_for_exact_line(
                 let eq = if opt_vars().p_ic != 0 {
                     mb_strnicmp(p, pat, compl_len as usize) == 0
                 } else {
-                    { let _p1 = p; let _p2 = pat; let _n = compl_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                    crate::memory::cstr_prefix_bytes(p, compl_len as usize) == crate::memory::cstr_prefix_bytes(pat, compl_len as usize)
                 };
                 if eq {
                     return OK;
@@ -1797,7 +1797,7 @@ pub unsafe fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> c_int {
                     if c_int::from(*p.add(col as usize) as u8) == c && stop {
                         break;
                     }
-                } else if { let _p1 = p.add(col as usize); let _p2 = (&raw const srch().lastc_bytes).cast::<c_char>(); let _n = srch().lastc_bytelen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                } else if (crate::memory::cstr_prefix_bytes(p.add(col as usize), srch().lastc_bytelen as usize) == crate::memory::cstr_prefix_bytes((&raw const srch().lastc_bytes).cast::<c_char>(), srch().lastc_bytelen as usize))
                     && stop
                 {
                     break;
@@ -1873,7 +1873,7 @@ unsafe fn find_rawstring_end(
                     break;
                 }
                 if *p == b')' as c_char
-                    && { let _p1 = delim_copy.as_ptr(); let _p2 = p.add(1); let _n = delim_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                    && (crate::memory::cstr_prefix_bytes(delim_copy.as_ptr(), delim_len) == crate::memory::cstr_prefix_bytes(p.add(1), delim_len))
                     && *p.add(delim_len + 1) == b'"' as c_char
                 {
                     found = true;
@@ -1996,9 +1996,9 @@ pub unsafe fn findmatchlimit(
                         && srch().findmatch_pos.col <= (ptr_line.offset_from(linep) as colnr_T)
                     {
                         ptr_line = skipwhite(ptr_line.add(1));
-                        if { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"if"[..2] }
-                            || { let _p = ptr_line; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"endif"[..5] }
-                            || { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"el"[..2] }
+                        if (crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"if"[..2])
+                            || (crate::memory::cstr_prefix_bytes(ptr_line, 5) == &b"endif"[..5])
+                            || (crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"el"[..2])
                         {
                             hash_dir = 1;
                         }
@@ -2065,11 +2065,11 @@ pub unsafe fn findmatchlimit(
                 }
                 if initc != b'#' as c_int {
                     ptr_line = skipwhite(skipwhite(linep).add(1));
-                    if { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"if"[..2] }
-                        || { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"el"[..2] }
+                    if (crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"if"[..2])
+                        || (crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"el"[..2])
                     {
                         hash_dir = 1;
-                    } else if { let _p = ptr_line; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"endif"[..5] } {
+                    } else if crate::memory::cstr_prefix_bytes(ptr_line, 5) == &b"endif"[..5] {
                         hash_dir = -1;
                     } else {
                         return ptr::null_mut();
@@ -2094,28 +2094,28 @@ pub unsafe fn findmatchlimit(
                     srch().findmatch_pos.col = ptr_line.offset_from(linep) as colnr_T;
                     ptr_line = skipwhite(ptr_line.add(1));
                     if hash_dir > 0 {
-                        if { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"if"[..2] } {
+                        if crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"if"[..2] {
                             count += 1;
-                        } else if { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"el"[..2] } {
+                        } else if crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"el"[..2] {
                             if count == 0 {
                                 return &raw mut srch().findmatch_pos;
                             }
-                        } else if { let _p = ptr_line; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"endif"[..5] } {
+                        } else if crate::memory::cstr_prefix_bytes(ptr_line, 5) == &b"endif"[..5] {
                             if count == 0 {
                                 return &raw mut srch().findmatch_pos;
                             }
                             count -= 1;
                         }
-                    } else if { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"if"[..2] } {
+                    } else if crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"if"[..2] {
                         if count == 0 {
                             return &raw mut srch().findmatch_pos;
                         }
                         count -= 1;
-                    } else if initc == b'#' as c_int && { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"el"[..2] } {
+                    } else if initc == b'#' as c_int && (crate::memory::cstr_prefix_bytes(ptr_line, 2) == &b"el"[..2]) {
                         if count == 0 {
                             return &raw mut srch().findmatch_pos;
                         }
-                    } else if { let _p = ptr_line; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"endif"[..5] } {
+                    } else if crate::memory::cstr_prefix_bytes(ptr_line, 5) == &b"endif"[..5] {
                         count += 1;
                     }
                 }
@@ -3514,7 +3514,7 @@ pub unsafe fn find_pattern_in_path(
                             if opt_vars().p_ic != 0 {
                                 matched = mb_strnicmp(startp, ptr_pat, len) == 0;
                             } else {
-                                matched = { let _p1 = startp; let _p2 = ptr_pat; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) };
+                                matched = crate::memory::cstr_prefix_bytes(startp, len) == crate::memory::cstr_prefix_bytes(ptr_pat, len);
                             }
                             if matched
                                 && define_matched
@@ -3530,7 +3530,7 @@ pub unsafe fn find_pattern_in_path(
                             startp = regmatch.startp[0];
                             if skip_comments {
                                 if (*line != b'#' as c_char
-                                    || !({ let _p = skipwhite(line.add(1)); crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"define"[..6] }))
+                                    || !(crate::memory::cstr_prefix_bytes(skipwhite(line.add(1)), 6) == &b"define"[..6]))
                                     && get_leader_len(line, ptr::null_mut(), false, true) != 0
                                 {
                                     matched = false;

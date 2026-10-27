@@ -1245,17 +1245,17 @@ unsafe fn json_next_token(json: *mut json_parse_t, token: *mut json_token_t) {
         } else if ch_u8 == b'-' || ch_u8.is_ascii_digit() {
             json_next_number_token(json, token);
             return;
-        } else if { let _p = (*json).ptr; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"true"[..4] } {
+        } else if crate::memory::cstr_prefix_bytes((*json).ptr, 4) == &b"true"[..4] {
             (*token).r#type = T_BOOLEAN;
             (*token).value = JsonTokenValue::Boolean(1);
             (*json).ptr = (*json).ptr.add(4);
             return;
-        } else if { let _p = (*json).ptr; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"false"[..5] } {
+        } else if crate::memory::cstr_prefix_bytes((*json).ptr, 5) == &b"false"[..5] {
             (*token).r#type = T_BOOLEAN;
             (*token).value = JsonTokenValue::Boolean(0);
             (*json).ptr = (*json).ptr.add(5);
             return;
-        } else if { let _p = (*json).ptr; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"null"[..4] } {
+        } else if crate::memory::cstr_prefix_bytes((*json).ptr, 4) == &b"null"[..4] {
             (*token).r#type = T_NULL;
             (*json).ptr = (*json).ptr.add(4);
             return;

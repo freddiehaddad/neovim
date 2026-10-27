@@ -115,7 +115,7 @@ pub unsafe fn mf_open(fname: Option<std::ffi::CString>, flags: c_int) -> Option<
         });
 
         if let Some(fname) = fname
-            && !mf_do_open(&mut *mfp, fname, flags)
+            && !mf_do_open(&mut mfp, fname, flags)
         {
             return None;
         }
@@ -326,7 +326,7 @@ pub unsafe fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> c_int {
 
         let mut status = OK;
         let mut completed_all = true;
-        let blocks: Vec<*mut bhdr_T> = (*mfp)
+        let blocks: Vec<*mut bhdr_T> = mfp
             .mf_hash
             .values()
             .map(|b| (&raw const **b).cast_mut())

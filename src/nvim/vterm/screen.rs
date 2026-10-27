@@ -550,7 +550,7 @@ unsafe fn putglyph(info: *mut VTermGlyphInfo, pos: VTermPos, screen: *mut VTermS
 unsafe fn sb_pushline_from_row(screen: &mut VTermScreen, row: c_int) {
     unsafe {
         let mut pos = VTermPos { row, col: 0 };
-        let sb_buf_ptr = (&mut *screen).sb_buffer.as_mut_ptr();
+        let sb_buf_ptr = screen.sb_buffer.as_mut_ptr();
         while pos.col < screen.cols {
             vterm_screen_get_cell(screen, pos, sb_buf_ptr.add(pos.col as usize));
             pos.col += 1;
@@ -567,7 +567,7 @@ unsafe fn sb_pushline_from_row(screen: &mut VTermScreen, row: c_int) {
 unsafe fn moverect_internal(dest: VTermRect, src: VTermRect, screen: *mut VTermScreen) -> c_int {
     unsafe {
         let screen = &mut *screen;
-        if (*screen)
+        if screen
             .callbacks
             .is_some_and(|cbs| cbs.sb_pushline.is_some())
             && dest.start_row == 0
@@ -867,7 +867,7 @@ unsafe fn settermprop(prop: VTermProp, val: &mut VTermValue, screen: *mut VTermS
         let screen = &mut *screen;
         match prop {
             VTERM_PROP_ALTSCREEN => {
-                if val.boolean() != 0 && (&*screen).buffers[BUFIDX_ALTSCREEN].is_empty() {
+                if val.boolean() != 0 && screen.buffers[BUFIDX_ALTSCREEN].is_empty() {
                     return 0;
                 }
                 screen.bufidx = if val.boolean() != 0 {
@@ -942,7 +942,7 @@ unsafe fn resize_buffer(
         let do_reflow = screen.reflow() && (bufidx == BUFIDX_PRIMARY);
 
         {
-            let old_buffer = &(&*screen).buffers[bufidx];
+            let old_buffer = &screen.buffers[bufidx];
             let old_lineinfo = &(&*statefields).lineinfos[bufidx];
             let has_old_lineinfo = !old_lineinfo.is_empty();
 
@@ -1104,7 +1104,7 @@ unsafe fn resize_buffer(
         }
 
         if old_row >= 0 && bufidx == BUFIDX_PRIMARY {
-            if (*screen)
+            if screen
                 .callbacks
                 .is_some_and(|cbs| cbs.sb_pushline.is_some())
             {
@@ -1122,7 +1122,7 @@ unsafe fn resize_buffer(
             && let Some(sb_popline) = callbacks.sb_popline
         {
             while new_row >= 0 {
-                let sb_buf_ptr = (&mut *screen).sb_buffer.as_mut_ptr();
+                let sb_buf_ptr = screen.sb_buffer.as_mut_ptr();
                 if sb_popline(old_cols, sb_buf_ptr, screen.term_ptr()) == 0 {
                     break;
                 }
@@ -1132,7 +1132,7 @@ unsafe fn resize_buffer(
                     col: 0,
                 };
                 while pos.col < old_cols && pos.col < new_cols {
-                    let src = &(&*screen).sb_buffer[pos.col as usize];
+                    let src = &screen.sb_buffer[pos.col as usize];
                     let dst_idx = (pos.row * new_cols + pos.col) as usize;
                     let dst = &mut new_buffer_vec[dst_idx];
 
@@ -1194,7 +1194,7 @@ unsafe fn resize_buffer(
             }
         }
 
-        (&mut *screen).buffers[bufidx] = new_buffer_vec;
+        screen.buffers[bufidx] = new_buffer_vec;
         (&mut *statefields).lineinfos[bufidx] = new_lineinfo_vec;
 
         if active {
@@ -1211,18 +1211,18 @@ unsafe fn resize(
 ) -> c_int {
     unsafe {
         let screen = &mut *screen;
-        let altscreen_active = !(&*screen).buffers[BUFIDX_ALTSCREEN].is_empty()
+        let altscreen_active = !screen.buffers[BUFIDX_ALTSCREEN].is_empty()
             && screen.bufidx == BUFIDX_ALTSCREEN;
 
         let old_rows = screen.rows;
         let old_cols = screen.cols;
 
         if new_cols > old_cols {
-            (&mut *screen).sb_buffer = vec![VTermScreenCell::default(); new_cols as usize];
+            screen.sb_buffer = vec![VTermScreenCell::default(); new_cols as usize];
         }
 
         resize_buffer(screen, 0, new_rows, new_cols, !altscreen_active, fields);
-        if !(&*screen).buffers[BUFIDX_ALTSCREEN].is_empty() {
+        if !screen.buffers[BUFIDX_ALTSCREEN].is_empty() {
             resize_buffer(screen, 1, new_rows, new_cols, altscreen_active, fields);
         } else if new_rows != old_rows {
             (&mut *fields).lineinfos[BUFIDX_ALTSCREEN] =
@@ -1239,7 +1239,7 @@ unsafe fn resize(
         screen.cols = new_cols;
 
         if new_cols <= old_cols {
-            (&mut *screen).sb_buffer = vec![VTermScreenCell::default(); new_cols as usize];
+            screen.sb_buffer = vec![VTermScreenCell::default(); new_cols as usize];
         }
 
         damagescreen(screen);
@@ -1465,12 +1465,12 @@ pub unsafe fn vterm_screen_enable_reflow(screen: &mut VTermScreen, reflow: bool)
 
 pub unsafe fn vterm_screen_enable_altscreen(screen: &mut VTermScreen, altscreen: c_int) {
     unsafe {
-        if (&*screen).buffers[BUFIDX_ALTSCREEN].is_empty() && altscreen != 0 {
+        if screen.buffers[BUFIDX_ALTSCREEN].is_empty() && altscreen != 0 {
             let mut rows: c_int = 0;
             let mut cols: c_int = 0;
             vterm_get_size(&*screen.vt, &raw mut rows, &raw mut cols);
 
-            (&mut *screen).buffers[BUFIDX_ALTSCREEN] = alloc_buffer(screen, rows, cols);
+            screen.buffers[BUFIDX_ALTSCREEN] = alloc_buffer(screen, rows, cols);
         }
     }
 }
@@ -1629,7 +1629,7 @@ mod tests {
         unsafe {
             assert_eq!(rect_intersects(&mut r1, &mut r2), 1);
             assert_eq!(rect_equal(&mut r1, &mut r2), 0);
-            rect_expand(&mut r1, &mut r2);
+            rect_expand(&mut r1, &r2);
             assert_eq!(
                 (r1.start_row, r1.end_row, r1.start_col, r1.end_col),
                 (1, 5, 3, 10)

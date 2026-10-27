@@ -870,7 +870,7 @@ unsafe fn on_channel_output(
 
         if callback_reader_set(&*reader) {
             if !buf.is_null() && count > 0 {
-                (*reader)
+                reader
                     .buffer
                     .extend_from_slice(std::slice::from_raw_parts(buf, count));
             }

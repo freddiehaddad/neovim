@@ -792,7 +792,7 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
                 false,
             );
             let p_ptr = p.as_ptr().cast_mut();
-            if g_st().Visual.active && { let _p = p_ptr; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"'<,'>"[..5] } {
+            if g_st().Visual.active && (crate::memory::cstr_prefix_bytes(p_ptr, 5) == &b"'<,'>"[..5]) {
                 retval = put_in_typebuf(p_ptr.add(5), true, true, silent);
             } else {
                 retval = put_in_typebuf(p_ptr, true, true, silent);

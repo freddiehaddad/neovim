@@ -2036,7 +2036,7 @@ unsafe fn cmdline_pum_create(
     unsafe {
         let mut items = Vec::with_capacity(matches.len());
         for i in 0..matches.len() {
-            let pum_text = (*xp)
+            let pum_text = xp
                 .xp_files_abbr
                 .as_slice()
                 .get(i)
@@ -2049,17 +2049,17 @@ unsafe fn cmdline_pum_create(
                         Some(CStr::from_ptr(p).to_owned())
                     }
                 });
-            let pum_info = (*xp)
+            let pum_info = xp
                 .xp_files_info
                 .as_slice()
                 .get(i)
                 .and_then(|opt| opt.clone());
-            let pum_extra = (*xp)
+            let pum_extra = xp
                 .xp_files_menu
                 .as_slice()
                 .get(i)
                 .and_then(|opt| opt.clone());
-            let pum_kind = (*xp)
+            let pum_kind = xp
                 .xp_files_kind
                 .as_slice()
                 .get(i)
@@ -3480,10 +3480,10 @@ unsafe fn set_context_in_lang_cmd(xp: &mut expand_T, arg: *const c_char) -> *con
             xp.xp_pattern = arg.cast_mut();
         } else {
             let n = p.offset_from(arg) as usize;
-            if { let _p1 = arg; let _p2 = c"messages".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-                || { let _p1 = arg; let _p2 = c"ctype".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-                || { let _p1 = arg; let _p2 = c"time".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-                || { let _p1 = arg; let _p2 = c"collate".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            if (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"messages".as_ptr(), n))
+                || (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"ctype".as_ptr(), n))
+                || (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"time".as_ptr(), n))
+                || (crate::memory::cstr_prefix_bytes(arg, n) == crate::memory::cstr_prefix_bytes(c"collate".as_ptr(), n))
             {
                 xp.xp_context = EXPAND_LOCALES;
                 xp.xp_pattern = skipwhite(p);
@@ -3520,7 +3520,7 @@ unsafe fn set_context_in_breakadd_cmd(
         }
         let subcmd_start = p;
 
-        if { let _p1 = c"file ".as_ptr(); let _p2 = p; let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } || { let _p1 = c"func ".as_ptr(); let _p2 = p; let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+        if (crate::memory::cstr_prefix_bytes(c"file ".as_ptr(), 5) == crate::memory::cstr_prefix_bytes(p, 5)) || (crate::memory::cstr_prefix_bytes(c"func ".as_ptr(), 5) == crate::memory::cstr_prefix_bytes(p, 5)) {
             p = p.add(4);
             p = skipwhite(p);
 
@@ -3532,13 +3532,13 @@ unsafe fn set_context_in_breakadd_cmd(
                 }
                 p = skipwhite(p);
             }
-            if { let _p1 = c"file".as_ptr(); let _p2 = subcmd_start; let _n = 4; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+            if crate::memory::cstr_prefix_bytes(c"file".as_ptr(), 4) == crate::memory::cstr_prefix_bytes(subcmd_start, 4) {
                 xp.xp_context = EXPAND_FILES;
             } else {
                 xp.xp_context = EXPAND_USER_FUNC;
             }
             xp.xp_pattern = p.cast_mut();
-        } else if { let _p1 = c"expr ".as_ptr(); let _p2 = p; let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+        } else if crate::memory::cstr_prefix_bytes(c"expr ".as_ptr(), 5) == crate::memory::cstr_prefix_bytes(p, 5) {
             xp.xp_context = EXPAND_EXPRESSION;
             xp.xp_pattern = skipwhite(p.add(5));
         }
@@ -3579,12 +3579,12 @@ unsafe fn set_context_in_filetype_cmd(xp: &mut expand_T, arg: *const c_char) -> 
         let mut val: c_int = 0;
 
         loop {
-            if { let _p = p; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"plugin"[..6] } && ascii_iswhite(*p.add(6) as c_int) {
+            if (crate::memory::cstr_prefix_bytes(p, 6) == &b"plugin"[..6]) && ascii_iswhite(*p.add(6) as c_int) {
                 val |= EXPAND_FILETYPECMD_PLUGIN;
                 p = skipwhite(p.add(6));
                 continue;
             }
-            if { let _p = p; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"indent"[..6] } && ascii_iswhite(*p.add(6) as c_int) {
+            if (crate::memory::cstr_prefix_bytes(p, 6) == &b"indent"[..6]) && ascii_iswhite(*p.add(6) as c_int) {
                 val |= EXPAND_FILETYPECMD_INDENT;
                 p = skipwhite(p.add(6));
                 continue;
@@ -4116,7 +4116,7 @@ unsafe fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const 
         let mut arg: *const c_char = skipwhite(p);
 
         if (ea.argt & EX_ARGOPT) != 0 {
-            while *arg != NUL && { let _p = arg; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"++"[..2] } {
+            while *arg != NUL && (crate::memory::cstr_prefix_bytes(arg, 2) == &b"++"[..2]) {
                 p = arg.add(2);
                 while *p != NUL && !ascii_isspace(*p as c_int) {
                     p = p.add(utfc_ptr2len(p) as usize);
@@ -5021,7 +5021,7 @@ unsafe fn ExpandFromContext(
         }
 
         let mut tofree: Option<Vec<c_char>> = None;
-        if xp.xp_context == EXPAND_USER_FUNC && { let _p = pat; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"^s:"[..3] } {
+        if xp.xp_context == EXPAND_USER_FUNC && (crate::memory::cstr_prefix_bytes(pat, 3) == &b"^s:"[..3]) {
             let len = std::ffi::CStr::from_ptr(pat).to_bytes().len() + 20;
             let mut buf = vec![0 as c_char; len];
             vim_snprintf!(buf.as_mut_ptr(), len, c"^<SNR>\\d\\+_%s".as_ptr(), pat.add(3));
@@ -5275,7 +5275,7 @@ unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flag
                 }
 
                 pathlen = e.offset_from(s) as usize;
-                if { let _p1 = s; let _p2 = c".".as_ptr(); let _n = pathlen; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                if crate::memory::cstr_prefix_bytes(s, pathlen) == crate::memory::cstr_prefix_bytes(c".".as_ptr(), pathlen) {
                     did_curdir = true;
                     flags |= EW_DIR;
                 } else {
@@ -5702,7 +5702,7 @@ unsafe fn wildmenu_process_key_filenames(
         {
             key = opt_vars().p_wc as c_int;
             g_st().KeyTyped = true;
-        } else if { let _p1 = xp.xp_pattern; let _p2 = upseg.as_ptr().add(1); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } && key == K_DOWN {
+        } else if (crate::memory::cstr_prefix_bytes(xp.xp_pattern, 3) == crate::memory::cstr_prefix_bytes(upseg.as_ptr().add(1), 3)) && key == K_DOWN {
             let mut found = false;
 
             let mut j = cclp.cmdpos;
@@ -5758,9 +5758,9 @@ unsafe fn wildmenu_process_key_filenames(
 
             if !found {
                 j = i;
-            } else if { let _p1 = cclp.cmdbuff.add(j as usize); let _p2 = upseg.as_ptr(); let _n = 4; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+            } else if crate::memory::cstr_prefix_bytes(cclp.cmdbuff.add(j as usize), 4) == crate::memory::cstr_prefix_bytes(upseg.as_ptr(), 4) {
                 j += 4;
-            } else if { let _p1 = cclp.cmdbuff.add(j as usize); let _p2 = upseg.as_ptr().add(1); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            } else if (crate::memory::cstr_prefix_bytes(cclp.cmdbuff.add(j as usize), 3) == crate::memory::cstr_prefix_bytes(upseg.as_ptr().add(1), 3))
                 && j == i
             {
                 j += 3;
@@ -5898,14 +5898,14 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: &mut typval_T, _fpt
                     return;
                 }
                 EXPAND_USER_DEFINED => {
-                    if !({ let _p = type_str; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"custom,"[..7] }) {
+                    if !(crate::memory::cstr_prefix_bytes(type_str, 7) == &b"custom,"[..7]) {
                         semsg!(gettext(e_invarg2.as_ptr()), type_str);
                         return;
                     }
                     xpc.xp_arg = type_str.add(7).cast_mut();
                 }
                 EXPAND_USER_LIST => {
-                    if !({ let _p = type_str; crate::memory::xstrnlen(_p, 11) == 11 && std::slice::from_raw_parts(_p.cast::<u8>(), 11) == &b"customlist,"[..11] }) {
+                    if !(crate::memory::cstr_prefix_bytes(type_str, 11) == &b"customlist,"[..11]) {
                         semsg!(gettext(e_invarg2.as_ptr()), type_str);
                         return;
                     }

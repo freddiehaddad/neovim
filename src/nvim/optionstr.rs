@@ -1118,22 +1118,22 @@ pub unsafe fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
             if wp.is_null() {
                 return OK;
             }
-            if { let _p = val; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"no"[..2] } {
+            if crate::memory::cstr_prefix_bytes(val, 2) == &b"no"[..2] {
                 (*wp).w_minscwidth = SCL_NO;
                 (*wp).w_maxscwidth = SCL_NO;
-            } else if { let _p = val; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"nu"[..2] }
+            } else if (crate::memory::cstr_prefix_bytes(val, 2) == &b"nu"[..2])
                 && ((*wp).w_onebuf_opt.wo_nu != 0 || (*wp).w_onebuf_opt.wo_rnu != 0)
             {
                 (*wp).w_minscwidth = SCL_NUM;
                 (*wp).w_maxscwidth = SCL_NUM;
-            } else if { let _p = val; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"yes:"[..4] } {
+            } else if crate::memory::cstr_prefix_bytes(val, 4) == &b"yes:"[..4] {
                 let n = (*val.add(4) as c_int) - (b'0' as c_int);
                 (*wp).w_minscwidth = n;
                 (*wp).w_maxscwidth = n;
             } else if *val == b'y' as c_char {
                 (*wp).w_minscwidth = 1;
                 (*wp).w_maxscwidth = 1;
-            } else if { let _p = val; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"auto:"[..5] } {
+            } else if crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5] {
                 (*wp).w_minscwidth = 0;
                 (*wp).w_maxscwidth = (*val.add(5) as c_int) - (b'0' as c_int);
             } else {
@@ -1141,7 +1141,7 @@ pub unsafe fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
                 (*wp).w_maxscwidth = 1;
             }
         } else {
-            if !({ let _p = val; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"auto:"[..5] })
+            if !(crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5])
                 || std::ffi::CStr::from_ptr(val).to_bytes().len() != 8
                 || !ascii_isdigit(*val.add(5) as c_int)
                 || *val.add(6) != b'-' as c_char
@@ -1510,7 +1510,7 @@ unsafe fn completing_value_for_subopt(args: &mut optexpand_T, name_suffix: *cons
         let len = std::ffi::CStr::from_ptr(name_suffix).to_bytes().len();
 
         colon.offset_from(args.oe_set_arg) >= (len as isize)
-            && { let _p1 = colon.sub(len); let _p2 = name_suffix; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            && (crate::memory::cstr_prefix_bytes(colon.sub(len), len) == crate::memory::cstr_prefix_bytes(name_suffix, len))
     }
 }
 
@@ -3009,7 +3009,7 @@ pub unsafe fn validate_spellcapcheck(args: &mut optset_T) -> *const c_char {
         g_st().suppress_errthrow = save_suppress_errthrow;
         args.os_prep = OptSetPrep::SpellcapProg(prog);
         if err.err_type != ErrorType::kErrorTypeNone {
-            let msg = if { let _p = err.msg_ptr(); crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"Vim:"[..4] } {
+            let msg = if crate::memory::cstr_prefix_bytes(err.msg_ptr(), 4) == &b"Vim:"[..4] {
                 err.msg_ptr().add(4)
             } else {
                 err.msg_ptr()
@@ -3515,7 +3515,7 @@ unsafe fn opt_strings_flags(
             let mut matched = false;
             for (i, &v) in values.iter().enumerate() {
                 let len = v.to_bytes().len();
-                if { let _p1 = v.as_ptr(); let _p2 = val; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                if (crate::memory::cstr_prefix_bytes(v.as_ptr(), len) == crate::memory::cstr_prefix_bytes(val, len))
                     && ((list && *val.add(len) == b',' as c_char) || *val.add(len) == NUL)
                 {
                     val = val.add(len + usize::from(*val.add(len) == b',' as c_char));
@@ -4153,7 +4153,7 @@ pub unsafe fn set_chars_option(
                 while i < entries {
                     let name_ptr = tab[i].name.as_ptr();
                     let name_len = tab[i].name.to_bytes().len();
-                    if !({ let _p1 = p; let _p2 = name_ptr; let _n = name_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } && *p.add(name_len) == b':' as c_char)
+                    if !((crate::memory::cstr_prefix_bytes(p, name_len) == crate::memory::cstr_prefix_bytes(name_ptr, name_len)) && *p.add(name_len) == b':' as c_char)
                     {
                         i += 1;
                         continue;

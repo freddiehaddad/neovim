@@ -541,18 +541,18 @@ pub unsafe fn parse_pattern_and_range(
         }
 
         let cmd_len = p.offset_from(cmd) as usize;
-        if { let _p1 = cmd; let _p2 = c"substitute".as_ptr(); let _n = cmd_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-            || { let _p1 = cmd; let _p2 = c"smagic".as_ptr(); let _n = cmd_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-            || { let _p1 = cmd; let _p2 = c"snomagic".as_ptr(); let _n = cmd_len.max(3); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-            || { let _p1 = cmd; let _p2 = c"vglobal".as_ptr(); let _n = cmd_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+        if (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"substitute".as_ptr(), cmd_len))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"smagic".as_ptr(), cmd_len))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"snomagic".as_ptr(), cmd_len.max(3)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"vglobal".as_ptr(), cmd_len))
         {
             if *cmd == b's' as c_char && *cmd.add(1) == b'm' as c_char {
                 *is_magic = true;
             } else if *cmd == b's' as c_char && *cmd.add(1) == b'n' as c_char {
                 *is_magic = false;
             }
-        } else if { let _p1 = cmd; let _p2 = c"sort".as_ptr(); let _n = cmd_len.max(3); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-            || { let _p1 = cmd; let _p2 = c"uniq".as_ptr(); let _n = cmd_len.max(3); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+        } else if (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"sort".as_ptr(), cmd_len.max(3)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"uniq".as_ptr(), cmd_len.max(3)))
         {
             // skip over ! and flags
             if *p == b'!' as c_char {
@@ -568,11 +568,11 @@ pub unsafe fn parse_pattern_and_range(
             if *p == NUL {
                 return false;
             }
-        } else if { let _p1 = cmd; let _p2 = c"vimgrep".as_ptr(); let _n = cmd_len.max(3); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-            || { let _p1 = cmd; let _p2 = c"vimgrepadd".as_ptr(); let _n = cmd_len.max(8); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-            || { let _p1 = cmd; let _p2 = c"lvimgrep".as_ptr(); let _n = cmd_len.max(2); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-            || { let _p1 = cmd; let _p2 = c"lvimgrepadd".as_ptr(); let _n = cmd_len.max(9); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-            || { let _p1 = cmd; let _p2 = c"global".as_ptr(); let _n = cmd_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+        } else if (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(3)) == crate::memory::cstr_prefix_bytes(c"vimgrep".as_ptr(), cmd_len.max(3)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(8)) == crate::memory::cstr_prefix_bytes(c"vimgrepadd".as_ptr(), cmd_len.max(8)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(2)) == crate::memory::cstr_prefix_bytes(c"lvimgrep".as_ptr(), cmd_len.max(2)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len.max(9)) == crate::memory::cstr_prefix_bytes(c"lvimgrepadd".as_ptr(), cmd_len.max(9)))
+            || (crate::memory::cstr_prefix_bytes(cmd, cmd_len) == crate::memory::cstr_prefix_bytes(c"global".as_ptr(), cmd_len))
         {
             // skip optional "!"
             if *p == b'!' as c_char {
@@ -2342,7 +2342,7 @@ unsafe fn command_line_next_histidx(s: *mut CommandLineState, next_match: bool) 
                 .map_or(c"".as_ptr(), |s| s.as_ptr());
             if ((*s).c != K_UP && (*s).c != K_DOWN)
                 || (*s).hiscnt == (*s).save_hiscnt
-                || { let _p1 = hist[(*s).hiscnt as usize].hisstr_ptr(); let _p2 = lookfor_ptr; let _n = (*s).lookforlen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                || (crate::memory::cstr_prefix_bytes(hist[(*s).hiscnt as usize].hisstr_ptr(), (*s).lookforlen as usize) == crate::memory::cstr_prefix_bytes(lookfor_ptr, (*s).lookforlen as usize))
             {
                 break;
             }
@@ -3313,7 +3313,7 @@ unsafe fn command_line_changed(s: &mut CommandLineState) -> c_int {
 
         if !getln_st().ccline.cmdbuff_replaced
             && (getln_st().ccline.cmdpos != s.prev_cmdpos
-                || (*s)
+                || s
                     .prev_cmdbuff
                     .as_ref()
                     .is_some_and(|prev| std::ffi::CStr::from_ptr(prev.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(getln_st().ccline.cmdbuff).to_bytes()))
@@ -3440,17 +3440,17 @@ pub unsafe fn check_opt_wim(value: *const c_char, flags: *mut u8) -> c_int {
             if *p.add(i) != NUL && *p.add(i) != b',' as c_char && *p.add(i) != b':' as c_char {
                 return FAIL;
             }
-            if i == 7 && { let _p = p; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"longest"[..7] } {
+            if i == 7 && (crate::memory::cstr_prefix_bytes(p, 7) == &b"longest"[..7]) {
                 new_wim_flags[idx] |= kOptWimFlagLongest;
-            } else if i == 4 && { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"full"[..4] } {
+            } else if i == 4 && (crate::memory::cstr_prefix_bytes(p, 4) == &b"full"[..4]) {
                 new_wim_flags[idx] |= kOptWimFlagFull;
-            } else if i == 4 && { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"list"[..4] } {
+            } else if i == 4 && (crate::memory::cstr_prefix_bytes(p, 4) == &b"list"[..4]) {
                 new_wim_flags[idx] |= kOptWimFlagList;
-            } else if i == 8 && { let _p = p; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"lastused"[..8] } {
+            } else if i == 8 && (crate::memory::cstr_prefix_bytes(p, 8) == &b"lastused"[..8]) {
                 new_wim_flags[idx] |= kOptWimFlagLastused;
-            } else if i == 8 && { let _p = p; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"noselect"[..8] } {
+            } else if i == 8 && (crate::memory::cstr_prefix_bytes(p, 8) == &b"noselect"[..8]) {
                 new_wim_flags[idx] |= kOptWimFlagNoselect;
-            } else if i == 8 && { let _p = p; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"noinsert"[..8] } {
+            } else if i == 8 && (crate::memory::cstr_prefix_bytes(p, 8) == &b"noinsert"[..8]) {
                 new_wim_flags[idx] |= kOptWimFlagNoinsert;
             } else {
                 return FAIL;
@@ -3814,7 +3814,7 @@ unsafe fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                 if color_cb.cb_type() == kCallbackNone {
                     break 'color_cmdline_end;
                 }
-                if *(*colored_ccline)
+                if *colored_ccline
                     .cmdbuff
                     .add(colored_ccline.cmdlen as usize)
                     != NUL
@@ -4129,7 +4129,7 @@ unsafe fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
             line.cmdpos as Integer,
             cstr_as_string(charbuf.as_ptr()),
             cstr_as_string(
-                (*line)
+                line
                     .cmdprompt
                     .as_ref()
                     .map_or(ptr::null(), |p| p.as_ptr()),
@@ -4467,9 +4467,9 @@ unsafe fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
                 }
                 let len = getln_st().ccline.cmdbuff.add(getln_st().ccline.cmdpos as usize).offset_from(w) as usize;
                 let matches = if opt_vars().p_ic != 0 {
-                    { let _p1 = w; let _p2 = arg; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+                    crate::memory::cstr_prefix_bytes(w, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(arg, len))
                 } else {
-                    { let _p1 = w; let _p2 = arg; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                    crate::memory::cstr_prefix_bytes(w, len) == crate::memory::cstr_prefix_bytes(arg, len)
                 };
                 if matches {
                     p = p.add(len);

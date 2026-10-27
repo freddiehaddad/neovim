@@ -3657,27 +3657,27 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
         let lbr_saved = (**curwin.as_ptr()).w_onebuf_opt.wo_lbr != 0;
 
         let old_cursor = (**curwin.as_ptr()).w_cursor;
-        let op_origin = (*oap).start;
+        let op_origin = oap.start;
 
-        if (g_st().finish_op || g_st().Visual.active) && (*oap).op_type != OP_NOP {
+        if (g_st().finish_op || g_st().Visual.active) && oap.op_type != OP_NOP {
             let mut include_line_break = false;
             let redo_yank = !vim_strchr(opt_vars().p_cpo, kCpoYank).is_null() && !gui_yank;
 
             reset_lbr();
-            (*oap).is_VIsual = g_st().Visual.active;
-            if (*oap).motion_force == b'V' as c_int {
-                (*oap).motion_type = kMTLineWise;
-            } else if (*oap).motion_force == b'v' as c_int {
-                if (*oap).motion_type == kMTLineWise {
-                    (*oap).inclusive = false;
-                } else if (*oap).motion_type == kMTCharWise {
-                    (*oap).inclusive = !(*oap).inclusive;
+            oap.is_VIsual = g_st().Visual.active;
+            if oap.motion_force == b'V' as c_int {
+                oap.motion_type = kMTLineWise;
+            } else if oap.motion_force == b'v' as c_int {
+                if oap.motion_type == kMTLineWise {
+                    oap.inclusive = false;
+                } else if oap.motion_type == kMTCharWise {
+                    oap.inclusive = !oap.inclusive;
                 }
-                (*oap).motion_type = kMTCharWise;
-            } else if (*oap).motion_force == Ctrl_V {
+                oap.motion_type = kMTCharWise;
+            } else if oap.motion_force == Ctrl_V {
                 if !g_st().Visual.active {
                     g_st().Visual.active = true;
-                    g_st().Visual.start = (*oap).start;
+                    g_st().Visual.start = oap.start;
                 }
                 g_st().Visual.mode = Ctrl_V;
                 g_st().Visual.select = false;
@@ -3709,26 +3709,26 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                     include_line_break = unadjust_for_sel();
                 }
 
-                (*oap).start = g_st().Visual.start;
+                oap.start = g_st().Visual.start;
                 if g_st().Visual.mode == b'V' as c_int {
-                    (*oap).start.col = 0;
-                    (*oap).start.coladd = 0;
+                    oap.start.col = 0;
+                    oap.start.coladd = 0;
                 }
             }
 
-            if lt((*oap).start, (**curwin.as_ptr()).w_cursor) {
+            if lt(oap.start, (**curwin.as_ptr()).w_cursor) {
                 if !g_st().Visual.active {
                     if hasFolding(
                         *curwin.as_ptr(),
-                        (*oap).start.lnum,
-                        &raw mut (*oap).start.lnum,
+                        oap.start.lnum,
+                        &raw mut oap.start.lnum,
                         ptr::null_mut(),
                     ) {
-                        (*oap).start.col = 0;
+                        oap.start.col = 0;
                     }
                     if ((**curwin.as_ptr()).w_cursor.col > 0
-                        || (*oap).inclusive
-                        || (*oap).motion_type == kMTLineWise)
+                        || oap.inclusive
+                        || oap.motion_type == kMTLineWise)
                         && hasFolding(
                             *curwin.as_ptr(),
                             (**curwin.as_ptr()).w_cursor.lnum,
@@ -3739,12 +3739,12 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                         (**curwin.as_ptr()).w_cursor.col = get_cursor_line_len();
                     }
                 }
-                (*oap).end = (**curwin.as_ptr()).w_cursor;
-                (**curwin.as_ptr()).w_cursor = (*oap).start;
+                oap.end = (**curwin.as_ptr()).w_cursor;
+                (**curwin.as_ptr()).w_cursor = oap.start;
 
                 (**curwin.as_ptr()).w_valid &= !VALID_VIRTCOL;
             } else {
-                if !g_st().Visual.active && (*oap).motion_type == kMTLineWise {
+                if !g_st().Visual.active && oap.motion_type == kMTLineWise {
                     if hasFolding(
                         *curwin.as_ptr(),
                         (**curwin.as_ptr()).w_cursor.lnum,
@@ -3755,19 +3755,19 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                     }
                     if hasFolding(
                         *curwin.as_ptr(),
-                        (*oap).start.lnum,
+                        oap.start.lnum,
                         ptr::null_mut(),
-                        &raw mut (*oap).start.lnum,
+                        &raw mut oap.start.lnum,
                     ) {
-                        (*oap).start.col = ml_get_len((*oap).start.lnum);
+                        oap.start.col = ml_get_len(oap.start.lnum);
                     }
                 }
-                (*oap).end = (*oap).start;
-                (*oap).start = (**curwin.as_ptr()).w_cursor;
+                oap.end = oap.start;
+                oap.start = (**curwin.as_ptr()).w_cursor;
             }
 
-            check_pos(&mut *(**curwin.as_ptr()).w_buffer, &mut (*oap).end);
-            (*oap).line_count = (*oap).end.lnum - (*oap).start.lnum + 1;
+            check_pos(&mut *(**curwin.as_ptr()).w_buffer, &mut oap.end);
+            oap.line_count = oap.end.lnum - oap.start.lnum + 1;
 
             g_st().virtual_op = TriState::from(virtual_active(*curwin.as_ptr()));
 
@@ -3782,55 +3782,55 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                         if g_st().Visual.mode != Ctrl_V {
                             getvvcol(
                                 *curwin.as_ptr(),
-                                &mut (*oap).end,
+                                &mut oap.end,
                                 ptr::null_mut(),
                                 ptr::null_mut(),
-                                &raw mut (*oap).end_vcol,
+                                &raw mut oap.end_vcol,
                                 0,
                             );
                         }
-                        if g_st().Visual.mode == Ctrl_V || (*oap).line_count <= 1 {
+                        if g_st().Visual.mode == Ctrl_V || oap.line_count <= 1 {
                             if g_st().Visual.mode != Ctrl_V {
                                 getvvcol(
                                     *curwin.as_ptr(),
-                                    &mut (*oap).start,
-                                    &raw mut (*oap).start_vcol,
+                                    &mut oap.start,
+                                    &raw mut oap.start_vcol,
                                     ptr::null_mut(),
                                     ptr::null_mut(),
                                     0,
                                 );
                             }
-                            g_st().Visual.resel.vcol = (*oap).end_vcol - (*oap).start_vcol + 1;
+                            g_st().Visual.resel.vcol = oap.end_vcol - oap.start_vcol + 1;
                         } else {
-                            g_st().Visual.resel.vcol = (*oap).end_vcol;
+                            g_st().Visual.resel.vcol = oap.end_vcol;
                         }
                     }
-                    g_st().Visual.resel.line_count = (*oap).line_count;
+                    g_st().Visual.resel.line_count = oap.line_count;
                 }
 
-                if (*oap).motion_force == c_int::from(NUL) || (*oap).motion_type == kMTLineWise {
-                    (*oap).inclusive = true;
+                if oap.motion_force == c_int::from(NUL) || oap.motion_type == kMTLineWise {
+                    oap.inclusive = true;
                 }
                 if g_st().Visual.mode == b'V' as c_int {
-                    (*oap).motion_type = kMTLineWise;
+                    oap.motion_type = kMTLineWise;
                 } else if g_st().Visual.mode == b'v' as c_int {
-                    (*oap).motion_type = kMTCharWise;
-                    if *ml_get_pos(&(*oap).end) == NUL
+                    oap.motion_type = kMTCharWise;
+                    if *ml_get_pos(&oap.end) == NUL
                         && (include_line_break || g_st().virtual_op == 0)
                     {
-                        (*oap).inclusive = false;
+                        oap.inclusive = false;
                         if *opt_vars().p_sel != b'o' as c_char
-                            && op_on_lines((*oap).op_type) == 0
-                            && (*oap).end.lnum < (*g_st().curbuf).b_ml.ml_line_count
+                            && op_on_lines(oap.op_type) == 0
+                            && oap.end.lnum < (*g_st().curbuf).b_ml.ml_line_count
                         {
-                            (*oap).end.lnum += 1;
-                            (*oap).end.col = 0;
-                            (*oap).end.coladd = 0;
-                            (*oap).line_count += 1;
+                            oap.end.lnum += 1;
+                            oap.end.col = 0;
+                            oap.end.coladd = 0;
+                            oap.line_count += 1;
                         }
                     }
                 } else if g_st().Visual.mode == Ctrl_V {
-                    (*oap).motion_type = kMTBlockWise;
+                    oap.motion_type = kMTBlockWise;
                 }
 
                 if !gui_yank {
@@ -3838,11 +3838,11 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                     setmouse();
                     g_st().mouse_dragging = 0;
                     may_clear_cmdline();
-                    if ((*oap).op_type == OP_YANK
-                        || (*oap).op_type == OP_COLON
-                        || (*oap).op_type == OP_FUNCTION
-                        || (*oap).op_type == OP_FILTER)
-                        && (*oap).motion_force == c_int::from(NUL)
+                    if (oap.op_type == OP_YANK
+                        || oap.op_type == OP_COLON
+                        || oap.op_type == OP_FUNCTION
+                        || oap.op_type == OP_FILTER)
+                        && oap.motion_force == c_int::from(NUL)
                     {
                         restore_lbr(lbr_saved);
                         redraw_curbuf_later(UPD_INVERTED);
@@ -3850,67 +3850,67 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                 }
             }
 
-            if (*oap).inclusive {
-                let l = utfc_ptr2len(ml_get_pos(&(*oap).end));
+            if oap.inclusive {
+                let l = utfc_ptr2len(ml_get_pos(&oap.end));
                 if l > 1 {
-                    (*oap).end.col += l - 1;
+                    oap.end.col += l - 1;
                 }
             }
             (**curwin.as_ptr()).w_set_curswant = true;
 
-            (*oap).empty = (*oap).motion_type != kMTLineWise
-                && ((!(*oap).inclusive && (*oap).motion_type != kMTBlockWise)
-                    || ((*oap).op_type == OP_YANK
-                        && gchar_pos(&mut (*oap).end) == c_int::from(NUL)))
-                && equalpos((*oap).start, (*oap).end)
-                && !(g_st().virtual_op != 0 && (*oap).start.coladd != (*oap).end.coladd);
-            let empty_region_error = (*oap).empty && !vim_strchr(opt_vars().p_cpo, kCpoEmptyregion).is_null();
+            oap.empty = oap.motion_type != kMTLineWise
+                && ((!oap.inclusive && oap.motion_type != kMTBlockWise)
+                    || (oap.op_type == OP_YANK
+                        && gchar_pos(&mut oap.end) == c_int::from(NUL)))
+                && equalpos(oap.start, oap.end)
+                && !(g_st().virtual_op != 0 && oap.start.coladd != oap.end.coladd);
+            let empty_region_error = oap.empty && !vim_strchr(opt_vars().p_cpo, kCpoEmptyregion).is_null();
 
-            if (*oap).is_VIsual
-                && ((*oap).empty || !modifiable(&*g_st().curbuf) || (*oap).op_type == OP_FOLD)
+            if oap.is_VIsual
+                && (oap.empty || !modifiable(&*g_st().curbuf) || oap.op_type == OP_FOLD)
             {
                 restore_lbr(lbr_saved);
                 redraw_curbuf_later(UPD_INVERTED);
             }
 
-            if (*oap).motion_type == kMTCharWise
-                && !(*oap).inclusive
+            if oap.motion_type == kMTCharWise
+                && !oap.inclusive
                 && (cap.retval & CA_NO_ADJ_OP_END) == 0
-                && (*oap).end.col == 0
-                && (!(*oap).is_VIsual || *opt_vars().p_sel == b'o' as c_char)
-                && (*oap).line_count > 1
+                && oap.end.col == 0
+                && (!oap.is_VIsual || *opt_vars().p_sel == b'o' as c_char)
+                && oap.line_count > 1
             {
-                (*oap).end_adjusted = true;
-                (*oap).line_count -= 1;
-                (*oap).end.lnum -= 1;
+                oap.end_adjusted = true;
+                oap.line_count -= 1;
+                oap.end.lnum -= 1;
                 if inindent(0) {
-                    (*oap).motion_type = kMTLineWise;
+                    oap.motion_type = kMTLineWise;
                 } else {
-                    (*oap).end.col = ml_get_len((*oap).end.lnum);
-                    if (*oap).end.col != 0 {
-                        (*oap).end.col -= 1;
-                        (*oap).inclusive = true;
+                    oap.end.col = ml_get_len(oap.end.lnum);
+                    if oap.end.col != 0 {
+                        oap.end.col -= 1;
+                        oap.inclusive = true;
                     }
                 }
             } else {
-                (*oap).end_adjusted = false;
+                oap.end_adjusted = false;
             }
 
-            match (*oap).op_type {
+            match oap.op_type {
                 OP_LSHIFT | OP_RSHIFT => {
-                    op_shift(oap, true, if (*oap).is_VIsual { cap.count1 } else { 1 });
+                    op_shift(oap, true, if oap.is_VIsual { cap.count1 } else { 1 });
                     auto_format(false, true);
                 }
                 OP_JOIN_NS | OP_JOIN => {
-                    (*oap).line_count = (*oap).line_count.max(2);
-                    if (**curwin.as_ptr()).w_cursor.lnum + (*oap).line_count - 1
+                    oap.line_count = oap.line_count.max(2);
+                    if (**curwin.as_ptr()).w_cursor.lnum + oap.line_count - 1
                         > (*g_st().curbuf).b_ml.ml_line_count
                     {
                         beep_flush();
                     } else {
                         do_join(
-                            (*oap).line_count as usize,
-                            (*oap).op_type == OP_JOIN,
+                            oap.line_count as usize,
+                            oap.op_type == OP_JOIN,
                             true,
                             true,
                             true,
@@ -3925,7 +3925,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                         redo_cancel();
                     } else {
                         op_delete(oap);
-                        if (*oap).motion_type == kMTLineWise
+                        if oap.motion_type == kMTLineWise
                             && has_format_option(kFoAuto)
                             && u_save_cursor() == OK
                         {
@@ -3941,9 +3941,9 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                         }
                     } else {
                         restore_lbr(lbr_saved);
-                        (*oap).excl_tr_ws = cap.cmdchar == b'z' as c_int;
-                        if (*oap).restore_cursor {
-                            (**curwin.as_ptr()).w_cursor = (*oap).cursor_start;
+                        oap.excl_tr_ws = cap.cmdchar == b'z' as c_int;
+                        if oap.restore_cursor {
+                            (**curwin.as_ptr()).w_cursor = oap.cursor_start;
                         }
                         op_yank(oap, !gui_yank);
                     }
@@ -3966,7 +3966,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                             b'c' as c_int,
                             c_long::from(cap.count0),
                             op_ins_visual(oap, cap),
-                            (*oap).is_VIsual && (*oap).motion_type == kMTBlockWise,
+                            oap.is_VIsual && oap.motion_type == kMTBlockWise,
                         );
                         let busy = op_change(oap) != 0;
                         if busy {
@@ -3979,7 +3979,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                     }
                 }
                 OP_FILTER | OP_INDENT | OP_COLON => {
-                    if (*oap).op_type == OP_FILTER {
+                    if oap.op_type == OP_FILTER {
                         if !vim_strchr(opt_vars().p_cpo, kCpoFilter).is_null() {
                             redo_append_str(c"!\r".as_ptr(), 2);
                         } else {
@@ -3987,7 +3987,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                         }
                     }
 
-                    if (*oap).op_type == OP_INDENT && *get_equalprg() == NUL {
+                    if oap.op_type == OP_INDENT && *get_equalprg() == NUL {
                         if (*g_st().curbuf).b_p_lisp != 0 {
                             if use_indentexpr_for_lisp() {
                                 op_reindent(oap, get_expr_indent);
@@ -4050,7 +4050,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                             b'I' as c_int,
                             c_long::from(cap.count1),
                             op_ins_visual(oap, cap),
-                            (*oap).motion_type == kMTBlockWise,
+                            oap.motion_type == kMTBlockWise,
                         );
                         op_insert(oap, cap.count1);
                         atom_ins_end(&mut session, false);
@@ -4077,7 +4077,7 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                 }
                 OP_FOLD => {
                     g_st().Visual.reselect = 0;
-                    foldCreate(&mut **curwin.as_ptr(), (*oap).start, (*oap).end);
+                    foldCreate(&mut **curwin.as_ptr(), oap.start, oap.end);
                 }
                 OP_MCURSOR => {
                     restore_lbr(lbr_saved);
@@ -4086,25 +4086,25 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
                 OP_FOLDOPEN | OP_FOLDOPENREC | OP_FOLDCLOSE | OP_FOLDCLOSEREC => {
                     g_st().Visual.reselect = 0;
                     opFoldRange(
-                        (*oap).start,
-                        (*oap).end,
+                        oap.start,
+                        oap.end,
                         c_int::from(
-                            (*oap).op_type == OP_FOLDOPEN || (*oap).op_type == OP_FOLDOPENREC,
+                            oap.op_type == OP_FOLDOPEN || oap.op_type == OP_FOLDOPENREC,
                         ),
                         c_int::from(
-                            (*oap).op_type == OP_FOLDOPENREC || (*oap).op_type == OP_FOLDCLOSEREC,
+                            oap.op_type == OP_FOLDOPENREC || oap.op_type == OP_FOLDCLOSEREC,
                         ),
-                        (*oap).is_VIsual,
+                        oap.is_VIsual,
                     );
                 }
                 OP_FOLDDEL | OP_FOLDDELREC => {
                     g_st().Visual.reselect = 0;
                     deleteFold(
                         &mut **curwin.as_ptr(),
-                        (*oap).start.lnum,
-                        (*oap).end.lnum,
-                        c_int::from((*oap).op_type == OP_FOLDDELREC),
-                        (*oap).is_VIsual,
+                        oap.start.lnum,
+                        oap.end.lnum,
+                        c_int::from(oap.op_type == OP_FOLDDELREC),
+                        oap.is_VIsual,
                     );
                 }
                 OP_NR_ADD | OP_NR_SUB => {
@@ -4126,11 +4126,11 @@ pub unsafe fn do_pending_operator(cap: &mut cmdarg_T, old_col: c_int, gui_yank: 
             g_st().virtual_op = kNone;
             if !gui_yank {
                 if opt_vars().p_sol == 0
-                    && (*oap).motion_type == kMTLineWise
-                    && !(*oap).end_adjusted
-                    && ((*oap).op_type == OP_LSHIFT
-                        || (*oap).op_type == OP_RSHIFT
-                        || (*oap).op_type == OP_DELETE)
+                    && oap.motion_type == kMTLineWise
+                    && !oap.end_adjusted
+                    && (oap.op_type == OP_LSHIFT
+                        || oap.op_type == OP_RSHIFT
+                        || oap.op_type == OP_DELETE)
                 {
                     reset_lbr();
                     (**curwin.as_ptr()).w_curswant = old_col;

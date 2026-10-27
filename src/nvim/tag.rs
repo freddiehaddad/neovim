@@ -1686,18 +1686,18 @@ unsafe fn findtags_get_next_line(
                 sinfo_p.curr_offset = offset;
             }
         } else if st.state == tagsearch_state_T::TS_SKIP_BACK {
-            let lbuf_size = (&*st).lbuf.len() as c_int;
+            let lbuf_size = st.lbuf.len() as c_int;
             sinfo_p.curr_offset -= (lbuf_size * 2) as off_T;
             if sinfo_p.curr_offset < 0 {
                 sinfo_p.curr_offset = 0;
-                vim_fseek((&*st).fp_ptr(), 0, SEEK_SET);
+                vim_fseek((*st).fp_ptr(), 0, SEEK_SET);
                 st.state = tagsearch_state_T::TS_STEP_FORWARD;
             }
         }
 
-        let lbuf_ptr = (&mut *st).lbuf.as_mut_ptr();
-        let lbuf_size = (&*st).lbuf.len() as c_int;
-        let fp = (&*st).fp_ptr();
+        let lbuf_ptr = st.lbuf.as_mut_ptr();
+        let lbuf_size = st.lbuf.len() as c_int;
+        let fp = (*st).fp_ptr();
         if st.state == tagsearch_state_T::TS_BINARY
             || st.state == tagsearch_state_T::TS_SKIP_BACK
         {
@@ -1740,15 +1740,15 @@ unsafe fn findtags_get_next_line(
 
 unsafe fn findtags_hdr_parse(st: &mut findtags_state_T) -> bool {
     unsafe {
-        let lbuf = (&mut *st).lbuf.as_mut_ptr();
-        if !({ let _p = lbuf; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"!_TAG_"[..6] }) {
+        let lbuf = st.lbuf.as_mut_ptr();
+        if !(crate::memory::cstr_prefix_bytes(lbuf, 6) == &b"!_TAG_"[..6]) {
             return true;
         }
 
-        if { let _p = lbuf; crate::memory::xstrnlen(_p, 18) == 18 && std::slice::from_raw_parts(_p.cast::<u8>(), 18) == &b"!_TAG_FILE_SORTED\t"[..18] } {
+        if crate::memory::cstr_prefix_bytes(lbuf, 18) == &b"!_TAG_FILE_SORTED\t"[..18] {
             st.tag_file_sorted = *lbuf.add(18) as u8 as c_int;
         }
-        if { let _p = lbuf; crate::memory::xstrnlen(_p, 20) == 20 && std::slice::from_raw_parts(_p.cast::<u8>(), 20) == &b"!_TAG_FILE_ENCODING\t"[..20] } {
+        if crate::memory::cstr_prefix_bytes(lbuf, 20) == &b"!_TAG_FILE_ENCODING\t"[..20] {
             let mut p = lbuf.add(20);
             while (*p as u8) > b' ' && (*p as u8) < 127 {
                 p = p.add(1);
@@ -1768,7 +1768,7 @@ unsafe fn findtags_start_state_handler(
 ) -> bool {
     unsafe {
         let noic = (st.flags & TAG_NOIC) != 0;
-        let lbuf = (&*st).lbuf.as_ptr();
+        let lbuf = st.lbuf.as_ptr();
 
         if { let _p1 = lbuf; let _p2 = c"!_TAG_".as_ptr(); let _n = 6; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) <= std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             || (*lbuf == b'!' as c_char && ascii_islower(*lbuf.add(1)))
@@ -1794,7 +1794,7 @@ unsafe fn findtags_start_state_handler(
         }
 
         if st.state == tagsearch_state_T::TS_BINARY {
-            let fp = (&*st).fp_ptr();
+            let fp = (*st).fp_ptr();
             if vim_fseek(fp, 0, SEEK_END) != 0 {
                 st.state = tagsearch_state_T::TS_LINEAR;
             } else {
@@ -1822,7 +1822,7 @@ unsafe fn findtags_parse_line(
 ) -> tagmatch_status_T {
     unsafe {
         let status: c_int;
-        let lbuf = (&mut *st).lbuf.as_mut_ptr();
+        let lbuf = st.lbuf.as_mut_ptr();
 
         if st.orgpat.headlen != 0 {
             *tagpp = tagptrs_T::default();
@@ -1872,7 +1872,7 @@ unsafe fn findtags_parse_line(
                     return tagmatch_status_T::TAG_MATCH_NEXT;
                 }
                 if tagcmp < 0 {
-                    (*sinfo_p).curr_offset = vim_ftell((&*st).fp_ptr());
+                    (*sinfo_p).curr_offset = vim_ftell((*st).fp_ptr());
                     if (*sinfo_p).curr_offset < (*sinfo_p).high_offset {
                         (*sinfo_p).low_offset = (*sinfo_p).curr_offset;
                         if margs.sortic {
@@ -1905,7 +1905,7 @@ unsafe fn findtags_parse_line(
             } else if st.state == tagsearch_state_T::TS_STEP_FORWARD {
                 assert!(cmplen >= 0);
                 if mb_strnicmp(tagpp.tagname, st.orgpat.head, cmplen as usize) != 0 {
-                    return if vim_ftell((&*st).fp_ptr()) > (*sinfo_p).match_offset {
+                    return if vim_ftell((*st).fp_ptr()) > (*sinfo_p).match_offset {
                         tagmatch_status_T::TAG_MATCH_STOP
                     } else {
                         tagmatch_status_T::TAG_MATCH_NEXT
@@ -1965,10 +1965,10 @@ unsafe fn findtags_match_tag(
             assert!(cmplen >= 0);
             match_ = mb_strnicmp(tagpp.tagname, st.orgpat.pat, cmplen as usize) == 0;
             if match_ {
-                margs.match_no_ic = { let _p1 = tagpp.tagname; let _p2 = st.orgpat.pat; let _n = cmplen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) };
+                margs.match_no_ic = crate::memory::cstr_prefix_bytes(tagpp.tagname, cmplen as usize) == crate::memory::cstr_prefix_bytes(st.orgpat.pat, cmplen as usize);
             }
         } else {
-            match_ = { let _p1 = tagpp.tagname; let _p2 = st.orgpat.pat; let _n = cmplen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) };
+            match_ = crate::memory::cstr_prefix_bytes(tagpp.tagname, cmplen as usize) == crate::memory::cstr_prefix_bytes(st.orgpat.pat, cmplen as usize);
         }
 
         margs.match_re = false;
@@ -2021,8 +2021,8 @@ unsafe fn findtags_add_match(
 ) {
     unsafe {
         let name_only = (st.flags & TAG_NAMES) != 0;
-        let tag_fname_ptr = (&mut *st).tag_fname.as_mut_ptr();
-        let lbuf_ptr = (&*st).lbuf.as_ptr();
+        let tag_fname_ptr = st.tag_fname.as_mut_ptr();
+        let lbuf_ptr = st.lbuf.as_ptr();
 
         let is_current =
             test_for_current(tagpp.fname, tagpp.fname_end, tag_fname_ptr, buf_ffname) != 0;
@@ -2193,11 +2193,11 @@ unsafe fn findtags_get_all_tags(
             if retval == tagmatch_status_T::TAG_MATCH_FAIL {
                 semsg!(
                     gettext(c"E431: Format error in tags file \"%s\"".as_ptr()),
-                    (&*st).tag_fname.as_ptr(),
+                    st.tag_fname.as_ptr(),
                 );
                 semsg!(
                     gettext(c"Before byte %lld".as_ptr()),
-                    vim_ftell((&*st).fp_ptr()) as i64,
+                    vim_ftell((*st).fp_ptr()) as i64,
                 );
                 st.stop_searching = true;
                 return;
@@ -2223,9 +2223,9 @@ unsafe fn findtags_in_file(st: &mut findtags_state_T, _flags: c_int, buf_ffname:
             return;
         }
 
-        let tag_fname_ptr = (&*st).tag_fname.as_ptr();
+        let tag_fname_ptr = st.tag_fname.as_ptr();
         st.fp = crate::os::fs::CFile::from_raw(os_fopen(tag_fname_ptr, c"r".as_ptr()));
-        if (&*st).fp.is_none() {
+        if st.fp.is_none() {
             return;
         }
 
@@ -2251,7 +2251,7 @@ unsafe fn findtags_in_file(st: &mut findtags_state_T, _flags: c_int, buf_ffname:
         if margs.sort_error {
             semsg!(
                 gettext(c"E432: Tags file not sorted: %s".as_ptr()),
-                (&*st).tag_fname.as_ptr(),
+                st.tag_fname.as_ptr(),
             );
         }
 
@@ -2609,7 +2609,7 @@ unsafe fn test_for_static(tagp: &tagptrs_T) -> bool {
                 break;
             }
             p = p.add(1);
-            if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"file:"[..5] } {
+            if crate::memory::cstr_prefix_bytes(p, 5) == &b"file:"[..5] {
                 return true;
             }
         }
@@ -2651,11 +2651,11 @@ unsafe fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
             if *p == TAB {
                 p = p.add(1);
                 while ascii_isalpha(*p) || utfc_ptr2len(p) > 1 {
-                    if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"kind:"[..5] } {
+                    if crate::memory::cstr_prefix_bytes(p, 5) == &b"kind:"[..5] {
                         tagp.tagkind = p.add(5);
-                    } else if { let _p = p; crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"user_data:"[..10] } {
+                    } else if crate::memory::cstr_prefix_bytes(p, 10) == &b"user_data:"[..10] {
                         tagp.user_data = p.add(10);
-                    } else if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"line:"[..5] } {
+                    } else if crate::memory::cstr_prefix_bytes(p, 5) == &b"line:"[..5] {
                         tagp.tagline = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(p.add(5)).to_bytes()) as c_int;
                     }
                     if !tagp.tagkind.is_null() && !tagp.user_data.is_null() {
@@ -3260,7 +3260,7 @@ pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_ch
 
             let is_static = test_for_static(&tp);
 
-            if { let _p = tp.tagname; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"!_TAG_"[..6] } {
+            if crate::memory::cstr_prefix_bytes(tp.tagname, 6) == &b"!_TAG_"[..6] {
                 continue;
             }
 
@@ -3296,10 +3296,10 @@ pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_ch
                 let mut p = tp.command_end.add(3);
                 while *p != NUL && *p != b'\n' as c_char && *p != b'\r' as c_char {
                     if p == tp.tagkind
-                        || (p.add(5) == tp.tagkind && { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"kind:"[..5] })
+                        || (p.add(5) == tp.tagkind && (crate::memory::cstr_prefix_bytes(p, 5) == &b"kind:"[..5]))
                     {
                         p = tp.tagkind_end.sub(1);
-                    } else if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"file:"[..5] } {
+                    } else if crate::memory::cstr_prefix_bytes(p, 5) == &b"file:"[..5] {
                         p = p.add(4);
                     } else if !ascii_iswhite(*p) {
                         let n = p;

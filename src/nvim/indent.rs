@@ -1413,7 +1413,7 @@ pub unsafe fn ex_retab(eap: &mut exarg_T) {
         let mut is_indent_only = false;
 
         let mut ptr = eap.arg;
-        if { let _p = ptr; crate::memory::xstrnlen(_p, 11) == 11 && std::slice::from_raw_parts(_p.cast::<u8>(), 11) == &b"-indentonly"[..11] } && ascii_iswhite_or_nul(*ptr.add(11)) {
+        if (crate::memory::cstr_prefix_bytes(ptr, 11) == &b"-indentonly"[..11]) && ascii_iswhite_or_nul(*ptr.add(11)) {
             is_indent_only = true;
             ptr = skipwhite(ptr.add(11));
         }
@@ -1881,7 +1881,7 @@ unsafe fn lisp_match(p: *const c_char) -> bool {
 
         while *word != NUL {
             let len = copy_option_part(&raw mut word, buf.as_mut_ptr(), buf.len(), c",".as_ptr());
-            if { let _p1 = buf.as_ptr(); let _p2 = p; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } && ascii_iswhite_or_nul(*p.add(len)) {
+            if (crate::memory::cstr_prefix_bytes(buf.as_ptr(), len) == crate::memory::cstr_prefix_bytes(p, len)) && ascii_iswhite_or_nul(*p.add(len)) {
                 return true;
             }
         }

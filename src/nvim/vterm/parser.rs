@@ -97,11 +97,11 @@ pub struct VTermParserCallbacks {
     pub control: Option<unsafe fn(control: u8, user: *mut VTermStateFull) -> c_int>,
     pub escape:
         Option<unsafe fn(bytes: *const c_char, len: usize, user: *mut VTermStateFull) -> c_int>,
-    pub csi: Option<unsafe fn(leader: *const c_char, args: *const c_long, argcount: c_int, intermed: *const c_char, command: c_char, user: *mut VTermStateFull) -> c_int>,
+    pub csi: Option<VTermCsiFn<VTermStateFull>>,
     pub osc: Option<
         unsafe fn(command: c_int, frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int,
     >,
-    pub dcs: Option<unsafe fn(command: *const c_char, commandlen: usize, frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
+    pub dcs: Option<VTermDcsFn<VTermStateFull>>,
     pub apc: Option<unsafe fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
     pub pm: Option<unsafe fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,
     pub sos: Option<unsafe fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> c_int>,

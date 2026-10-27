@@ -1553,7 +1553,7 @@ pub unsafe fn edit_putchar(c: c_int, highlight: bool) {
 
 /// Return the effective prompt for the specified buffer.
 pub unsafe fn buf_prompt_text(buf: &buf_T) -> *mut c_char {
-    (*buf)
+    buf
             .b_prompt_text
             .as_ref()
             .map_or(c"% ".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut())

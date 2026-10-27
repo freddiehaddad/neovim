@@ -338,7 +338,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
             client_col: -1,
             wildmenu_active: false,
         });
-        let ui: &mut RemoteUI = &mut *ui_box;
+        let ui: &mut RemoteUI = &mut ui_box;
 
         for i in 0..options.size {
             let item = options[i];
@@ -368,7 +368,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
         ui.ncells_pending = 0;
         let uis_ptr = &raw mut api_ui_st().connected_uis;
         (*uis_ptr).insert(channel_id, ui_box);
-        let ui: &mut RemoteUI = &mut **(*uis_ptr).get_mut(&channel_id).unwrap();
+        let ui: &mut RemoteUI = (*uis_ptr).get_mut(&channel_id).unwrap();
         ui.packer = PackerBuffer {
             startptr: ptr::null_mut(),
             ptr: ptr::null_mut(),
@@ -486,7 +486,7 @@ pub unsafe fn remote_ui_restart(listen_addr: NvimString) {
                 size: 2,
                 capacity: 2,
             };
-            push_call(&mut **ui, c"restart", args);
+            push_call(ui, c"restart", args);
         }
     }
 }
@@ -543,7 +543,7 @@ unsafe fn ui_set_option(
     err: &mut Error,
 ) {
     unsafe {
-        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"override" } {
+        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"override") {
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
@@ -557,7 +557,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"rgb" } {
+        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"rgb") {
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
@@ -574,7 +574,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"term_name" } {
+        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"term_name") {
             if value.obj_type != ObjectType::kObjectTypeString {
                 api_err_exp(
                     err,
@@ -596,7 +596,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"term_colors" } {
+        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"term_colors") {
             if value.obj_type != ObjectType::kObjectTypeInteger {
                 api_err_exp(
                     err,
@@ -611,7 +611,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"stdin_fd" } {
+        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdin_fd") {
             if value.obj_type != ObjectType::kObjectTypeInteger {
                 api_err_exp(
                     err,
@@ -643,7 +643,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"stdin_tty" } {
+        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdin_tty") {
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
@@ -660,7 +660,7 @@ unsafe fn ui_set_option(
             return;
         }
 
-        if { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"stdout_tty" } {
+        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdout_tty") {
             if value.obj_type != ObjectType::kObjectTypeBoolean {
                 api_err_exp(
                     err,
@@ -677,9 +677,9 @@ unsafe fn ui_set_option(
             return;
         }
 
-        let is_popupmenu = { let _a = name.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"popupmenu_external" };
+        let is_popupmenu = crate::memory::cstr_as_opt_bytes(name.data) == Some(b"popupmenu_external");
         for (i, ext_name) in ui_ext_names.iter().enumerate().take(kUIExtCount) {
-            if { let _a = name.data; let _b = ext_name.as_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } || (i == kUIPopupmenu && is_popupmenu) {
+            if (crate::memory::cstr_as_opt_bytes(name.data) == crate::memory::cstr_as_opt_bytes(ext_name.as_ptr())) || (i == kUIPopupmenu && is_popupmenu) {
                 if value.obj_type != ObjectType::kObjectTypeBoolean {
                     api_err_exp(
                         err,

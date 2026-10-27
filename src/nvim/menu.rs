@@ -202,7 +202,7 @@ use crate::eval::typval::tv_dict_len;
 
 /// Return true if `name` is a window toolbar menu name (`menu_is_winbar`).
 unsafe fn menu_is_winbar(name: *const c_char) -> bool {
-    unsafe { { let _p = name; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"WinBar"[..6] } }
+    unsafe { crate::memory::cstr_prefix_bytes(name, 6) == &b"WinBar"[..6] }
 }
 
 unsafe fn get_root_menu(_name: *const c_char) -> *mut Vec<vimmenu_T> {
@@ -238,24 +238,24 @@ pub unsafe fn ex_menu(eap: &mut exarg_T) {
         let mut arg = eap.arg;
 
         loop {
-            if { let _p = arg; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"<script>"[..8] } {
+            if crate::memory::cstr_prefix_bytes(arg, 8) == &b"<script>"[..8] {
                 noremap = REMAP_SCRIPT;
                 arg = skipwhite(arg.add(8));
                 continue;
             }
-            if { let _p = arg; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"<silent>"[..8] } {
+            if crate::memory::cstr_prefix_bytes(arg, 8) == &b"<silent>"[..8] {
                 silent = true;
                 arg = skipwhite(arg.add(8));
                 continue;
             }
-            if { let _p = arg; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"<special>"[..9] } {
+            if crate::memory::cstr_prefix_bytes(arg, 9) == &b"<special>"[..9] {
                 arg = skipwhite(arg.add(9));
                 continue;
             }
             break;
         }
 
-        if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"icon="[..5] } {
+        if crate::memory::cstr_prefix_bytes(arg, 5) == &b"icon="[..5] {
             arg = arg.add(5);
             while *arg != NUL && *arg != b' ' as c_char {
                 if *arg == b'\\' as c_char {
@@ -302,10 +302,10 @@ pub unsafe fn ex_menu(eap: &mut exarg_T) {
         }
         pri_tab[MENUDEPTH] = -1;
 
-        if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"enable"[..6] } && ascii_iswhite(*arg.add(6)) {
+        if (crate::memory::cstr_prefix_bytes(arg, 6) == &b"enable"[..6]) && ascii_iswhite(*arg.add(6)) {
             enable = kTrue;
             arg = skipwhite(arg.add(6));
-        } else if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"disable"[..7] } && ascii_iswhite(*arg.add(7)) {
+        } else if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"disable"[..7]) && ascii_iswhite(*arg.add(7)) {
             enable = kFalse;
             arg = skipwhite(arg.add(7));
         }
@@ -1033,11 +1033,11 @@ pub unsafe fn set_context_in_menu_cmd(
         }
 
         if !ascii_iswhite(*p) {
-            if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"enable"[..6] }
+            if (crate::memory::cstr_prefix_bytes(arg, 6) == &b"enable"[..6])
                 && (*arg.add(6) == NUL || ascii_iswhite(*arg.add(6)))
             {
                 p = arg.add(6);
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"disable"[..7] }
+            } else if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"disable"[..7])
                 && (*arg.add(7) == NUL || ascii_iswhite(*arg.add(7)))
             {
                 p = arg.add(7);
@@ -1270,7 +1270,7 @@ unsafe fn menu_name_equal(name: *const c_char, menu: &vimmenu_T) -> bool {
     unsafe {
         if let Some(ref en_name) = menu.en_name
             && (menu_namecmp(name, en_name.as_ptr())
-                || (*menu)
+                || menu
                     .en_dname
                     .as_ref()
                     .is_some_and(|ed| menu_namecmp(name, ed.as_ptr())))
@@ -1467,12 +1467,12 @@ pub unsafe fn menu_is_menubar(name: *const c_char) -> bool {
 
 /// Return true if `name` is a popup menu name (`menu_is_popup`).
 pub unsafe fn menu_is_popup(name: *const c_char) -> bool {
-    unsafe { { let _p = name; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"PopUp"[..5] } }
+    unsafe { crate::memory::cstr_prefix_bytes(name, 5) == &b"PopUp"[..5] }
 }
 
 /// Return true if `name` is a toolbar menu name (`menu_is_toolbar`).
 pub unsafe fn menu_is_toolbar(name: *const c_char) -> bool {
-    unsafe { { let _p = name; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"ToolBar"[..7] } }
+    unsafe { crate::memory::cstr_prefix_bytes(name, 7) == &b"ToolBar"[..7] }
 }
 
 /// Return true if the name is a menu separator identifier (`menu_is_separator`).
@@ -1545,8 +1545,8 @@ pub unsafe fn show_popupmenu() {
         let mut menu: *mut vimmenu_T = ptr::null_mut();
         let root_ptr = &raw mut g_st().root_menu;
         for m in &mut *root_ptr {
-            if { let _p1 = c"PopUp".as_ptr(); let _p2 = m.name.as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-                && { let _p1 = m.name.as_ptr().add(5); let _p2 = mode; let _n = mode_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            if (crate::memory::cstr_prefix_bytes(c"PopUp".as_ptr(), 5) == crate::memory::cstr_prefix_bytes(m.name.as_ptr(), 5))
+                && (crate::memory::cstr_prefix_bytes(m.name.as_ptr().add(5), mode_len) == crate::memory::cstr_prefix_bytes(mode, mode_len))
             {
                 menu = m;
                 break;
@@ -1791,7 +1791,7 @@ pub unsafe fn ex_menutranslate(eap: &mut exarg_T) {
         let mt_ptr = &raw mut menu_st().MENUTRANS_GA;
         let menutrans = &mut *mt_ptr;
 
-        if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"clear"[..5] }
+        if (crate::memory::cstr_prefix_bytes(arg, 5) == &b"clear"[..5])
             && ends_excmd(c_int::from(*skipwhite(arg.add(5)) as u8)) != 0
         {
             menutrans.clear();
@@ -1855,7 +1855,7 @@ unsafe fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
 
         for entry in menutrans {
             let from_ptr = entry.from.as_ptr();
-            if { let _p1 = name; let _p2 = from_ptr; let _n = u_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } && *from_ptr.add(u_len) == NUL {
+            if crate::memory::cstr_prefix_bytes(name, u_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(from_ptr, u_len)) && *from_ptr.add(u_len) == NUL {
                 return entry.to.as_ptr().cast_mut();
             }
         }
@@ -1895,7 +1895,7 @@ unsafe fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
         while *arg != NUL && !ascii_iswhite(*arg) {
             if (*arg == b'\\' as c_char || *arg == Ctrl_V) && *arg.add(1) != NUL {
                 arg = arg.add(1);
-            } else if { let _p1 = arg; let _p2 = c"<TAB>".as_ptr(); let _n = 5; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"<TAB>".as_ptr(), 5)) {
                 *arg = TAB;
                 ptr::copy(arg.add(5), arg.add(1), std::ffi::CStr::from_ptr(arg.add(5)).to_bytes_with_nul().len());
             }

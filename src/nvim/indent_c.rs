@@ -245,7 +245,7 @@ unsafe fn skip_string(mut p: *const c_char) -> *const c_char {
                     p = p.add(3);
                     while *p != NUL {
                         if *p == b')' as c_char
-                            && { let _p1 = p.add(1); let _p2 = delim; let _n = delim_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                            && (crate::memory::cstr_prefix_bytes(p.add(1), delim_len) == crate::memory::cstr_prefix_bytes(delim, delim_len))
                             && *p.add(delim_len + 1) == b'"' as c_char
                         {
                             p = p.add(delim_len + 1);
@@ -291,7 +291,7 @@ pub unsafe fn cin_is_cinword(mut line: *const c_char) -> bool {
                 cinw_len,
                 c",".as_ptr(),
             );
-            if { let _p1 = line; let _p2 = cinw_buf.as_ptr(); let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            if (crate::memory::cstr_prefix_bytes(line, len) == crate::memory::cstr_prefix_bytes(cinw_buf.as_ptr(), len))
                 && (!vim_iswordc(*line.add(len) as u8 as c_int)
                     || (len > 0 && !vim_iswordc(*line.add(len - 1) as u8 as c_int)))
             {
@@ -471,7 +471,7 @@ unsafe fn cin_is_compound_init(s: *const c_char) -> bool {
             if *p == b'=' as c_char {
                 r = cin_skipcomment(p.add(1));
                 p = r;
-            } else if { let _p = p; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"return"[..6] }
+            } else if (crate::memory::cstr_prefix_bytes(p, 6) == &b"return"[..6])
                 && !vim_isIDc(*p.add(6) as u8 as c_int)
                 && (p == s || (p > s && !vim_isIDc(*p.sub(1) as u8 as c_int)))
             {
@@ -586,7 +586,7 @@ unsafe fn cin_iscase(mut s: *const c_char, strict: bool) -> bool {
 }
 unsafe fn cin_isdefault(mut s: *const c_char) -> bool {
     unsafe {
-        if !({ let _p = s; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"default"[..7] }) {
+        if !(crate::memory::cstr_prefix_bytes(s, 7) == &b"default"[..7]) {
             return false;
         }
         s = cin_skipcomment(s.add(7));
@@ -607,7 +607,7 @@ unsafe fn cin_isscopedecl(p: *const c_char) -> bool {
                 cinsd_len,
                 c",".as_ptr(),
             );
-            if { let _p1 = s; let _p2 = cinsd_buf.as_ptr(); let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+            if crate::memory::cstr_prefix_bytes(s, len) == crate::memory::cstr_prefix_bytes(cinsd_buf.as_ptr(), len) {
                 let skip = cin_skipcomment(s.add(len));
                 if *skip == b':' as c_char && *skip.add(1) != b':' as c_char {
                     found = true;
@@ -623,12 +623,12 @@ unsafe fn cin_is_cpp_namespace(mut s: *const c_char) -> bool {
         let mut has_name = false;
         let mut has_name_start = false;
         s = cin_skipcomment(s);
-        while ({ let _p = s; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"inline"[..6] } || { let _p = s; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"export"[..6] })
+        while ((crate::memory::cstr_prefix_bytes(s, 6) == &b"inline"[..6]) || (crate::memory::cstr_prefix_bytes(s, 6) == &b"export"[..6]))
             && (*s.add(6) == NUL || !vim_iswordc(*s.add(6) as u8 as c_int))
         {
             s = cin_skipcomment(skipwhite(s.add(6)));
         }
-        if { let _p = s; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"namespace"[..9] }
+        if (crate::memory::cstr_prefix_bytes(s, 9) == &b"namespace"[..9])
             && (*s.add(9) == NUL || !vim_iswordc(*s.add(9) as u8 as c_int))
         {
             let mut p = cin_skipcomment(skipwhite(s.add(9)));
@@ -736,22 +736,22 @@ unsafe fn cin_first_id_amount() -> c_int {
         let line = get_cursor_line_ptr();
         let mut p = skipwhite(line);
         let mut len = skiptowhite(p).offset_from(p) as c_int;
-        if len == 6 && { let _p = p; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"static"[..6] } {
+        if len == 6 && (crate::memory::cstr_prefix_bytes(p, 6) == &b"static"[..6]) {
             p = skipwhite(p.add(6));
             len = skiptowhite(p).offset_from(p) as c_int;
         }
-        if len == 6 && { let _p = p; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"struct"[..6] } {
+        if len == 6 && (crate::memory::cstr_prefix_bytes(p, 6) == &b"struct"[..6]) {
             p = skipwhite(p.add(6));
-        } else if len == 4 && { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"enum"[..4] } {
+        } else if len == 4 && (crate::memory::cstr_prefix_bytes(p, 4) == &b"enum"[..4]) {
             p = skipwhite(p.add(4));
-        } else if (len == 8 && { let _p = p; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"unsigned"[..8] })
-            || (len == 6 && { let _p = p; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"signed"[..6] })
+        } else if (len == 8 && (crate::memory::cstr_prefix_bytes(p, 8) == &b"unsigned"[..8]))
+            || (len == 6 && (crate::memory::cstr_prefix_bytes(p, 6) == &b"signed"[..6]))
         {
             let s = skipwhite(p.add(len as usize));
-            if ({ let _p = s; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"int"[..3] } && ascii_iswhite(*s.add(3)))
-                || ({ let _p = s; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"long"[..4] } && ascii_iswhite(*s.add(4)))
-                || ({ let _p = s; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"short"[..5] } && ascii_iswhite(*s.add(5)))
-                || ({ let _p = s; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"char"[..4] } && ascii_iswhite(*s.add(4)))
+            if ((crate::memory::cstr_prefix_bytes(s, 3) == &b"int"[..3]) && ascii_iswhite(*s.add(3)))
+                || ((crate::memory::cstr_prefix_bytes(s, 4) == &b"long"[..4]) && ascii_iswhite(*s.add(4)))
+                || ((crate::memory::cstr_prefix_bytes(s, 5) == &b"short"[..5]) && ascii_iswhite(*s.add(5)))
+                || ((crate::memory::cstr_prefix_bytes(s, 4) == &b"char"[..4]) && ascii_iswhite(*s.add(4)))
             {
                 p = s;
             }
@@ -1064,15 +1064,15 @@ unsafe fn cin_is_if_for_while_before_offset(line: *const c_char, poffset: &mut c
         }
         offset -= 1;
         let mut probably_found = false;
-        if { let _p = line.add(offset as usize); crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"if"[..2] } {
+        if crate::memory::cstr_prefix_bytes(line.add(offset as usize), 2) == &b"if"[..2] {
             probably_found = true;
         } else if offset >= 1 {
             offset -= 1;
-            if { let _p = line.add(offset as usize); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"for"[..3] } {
+            if crate::memory::cstr_prefix_bytes(line.add(offset as usize), 3) == &b"for"[..3] {
                 probably_found = true;
             } else if offset >= 2 {
                 offset -= 2;
-                if { let _p = line.add(offset as usize); crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"while"[..5] } {
+                if crate::memory::cstr_prefix_bytes(line.add(offset as usize), 5) == &b"while"[..5] {
                     probably_found = true;
                 }
             }
@@ -1205,9 +1205,9 @@ unsafe fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
                 } else {
                     s = cin_skipcomment(s.add(1));
                 }
-            } else if ({ let _p = s; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"class"[..5] }
+            } else if ((crate::memory::cstr_prefix_bytes(s, 5) == &b"class"[..5])
                 && !vim_isIDc(*s.add(5) as u8 as c_int))
-                || ({ let _p = s; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"struct"[..6] } && !vim_isIDc(*s.add(6) as u8 as c_int))
+                || ((crate::memory::cstr_prefix_bytes(s, 6) == &b"struct"[..6]) && !vim_isIDc(*s.add(6) as u8 as c_int))
             {
                 class_or_struct = true;
                 lookfor_ctor_init = false;
@@ -1287,7 +1287,7 @@ unsafe fn cin_ends_in(s: *const c_char, find: *const c_char) -> bool {
         let len = std::ffi::CStr::from_ptr(find).to_bytes().len();
         while *p != NUL {
             p = cin_skipcomment(p);
-            if { let _p1 = p; let _p2 = find; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+            if crate::memory::cstr_prefix_bytes(p, len) == crate::memory::cstr_prefix_bytes(find, len) {
                 let r = skipwhite(p.add(len));
                 if cin_nocode(r) {
                     return true;
@@ -1313,7 +1313,7 @@ unsafe fn cin_is_cpp_extern_c(mut s: *const c_char) -> bool {
     unsafe {
         let mut has_string_literal = false;
         s = cin_skipcomment(s);
-        if { let _p = s; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"extern"[..6] }
+        if (crate::memory::cstr_prefix_bytes(s, 6) == &b"extern"[..6])
             && (*s.add(6) == NUL || !vim_iswordc(*s.add(6) as u8 as c_int))
         {
             let mut p = cin_skipcomment(skipwhite(s.add(6)));
@@ -1697,7 +1697,7 @@ pub unsafe fn get_c_indent() -> c_int {
                         || in_cinkeys(b'#' as c_int, b' ' as c_int, true))
                 {
                     let directive = skipwhite(theline.add(1));
-                    if (*g_st().curbuf).b_ind_pragma == 0 || !({ let _p = directive; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"pragma"[..6] })
+                    if (*g_st().curbuf).b_ind_pragma == 0 || !(crate::memory::cstr_prefix_bytes(directive, 6) == &b"pragma"[..6])
                     {
                         amount = (*g_st().curbuf).b_ind_hash_comment;
                         break 'theend;
@@ -1795,21 +1795,21 @@ pub unsafe fn get_c_indent() -> c_int {
                             { let s = (&raw const lead_end).cast(); std::ptr::copy_nonoverlapping(s, (&raw mut lead_middle).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                             lead_middle_len = lead_end_len;
                         } else if what == COM_END as u8 as c_int {
-                            if { let _p1 = theline; let _p2 = (&raw const lead_middle).cast::<c_char>(); let _n = lead_middle_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-                                && { let _p1 = theline; let _p2 = (&raw const lead_end).cast::<c_char>(); let _n = lead_end_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                            if (crate::memory::cstr_prefix_bytes(theline, lead_middle_len as usize) == crate::memory::cstr_prefix_bytes((&raw const lead_middle).cast::<c_char>(), lead_middle_len as usize))
+                                && (crate::memory::cstr_prefix_bytes(theline, lead_end_len as usize) != crate::memory::cstr_prefix_bytes((&raw const lead_end).cast::<c_char>(), lead_end_len as usize))
                             {
                                 done = true;
                                 if (**curwin.as_ptr()).w_cursor.lnum > 1 {
                                     look = skipwhite(ml_get((**curwin.as_ptr()).w_cursor.lnum - 1));
-                                    if { let _p1 = look; let _p2 = (&raw const lead_start).cast::<c_char>(); let _n = lead_start_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                                    if crate::memory::cstr_prefix_bytes(look, lead_start_len as usize) == crate::memory::cstr_prefix_bytes((&raw const lead_start).cast::<c_char>(), lead_start_len as usize)
                                     {
                                         amount = get_indent_lnum((**curwin.as_ptr()).w_cursor.lnum - 1);
-                                    } else if { let _p1 = look; let _p2 = (&raw const lead_middle).cast::<c_char>(); let _n = lead_middle_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                                    } else if crate::memory::cstr_prefix_bytes(look, lead_middle_len as usize) == crate::memory::cstr_prefix_bytes((&raw const lead_middle).cast::<c_char>(), lead_middle_len as usize)
                                     {
                                         amount = get_indent_lnum((**curwin.as_ptr()).w_cursor.lnum - 1);
                                         break;
-                                    } else if { let _p1 = ml_get((*comment_pos).lnum)
-                                            .add((*comment_pos).col as usize); let _p2 = (&raw const lead_start).cast::<c_char>(); let _n = lead_start_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                                    } else if crate::memory::cstr_prefix_bytes(ml_get((*comment_pos).lnum)
+                                            .add((*comment_pos).col as usize), lead_start_len as usize) != crate::memory::cstr_prefix_bytes((&raw const lead_start).cast::<c_char>(), lead_start_len as usize)
                                     {
                                         continue;
                                     }
@@ -1822,8 +1822,8 @@ pub unsafe fn get_c_indent() -> c_int {
                                 }
                                 break;
                             }
-                            if { let _p1 = theline; let _p2 = (&raw const lead_middle).cast::<c_char>(); let _n = lead_middle_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
-                                && { let _p1 = theline; let _p2 = (&raw const lead_end).cast::<c_char>(); let _n = lead_end_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                            if (crate::memory::cstr_prefix_bytes(theline, lead_middle_len as usize) != crate::memory::cstr_prefix_bytes((&raw const lead_middle).cast::<c_char>(), lead_middle_len as usize))
+                                && (crate::memory::cstr_prefix_bytes(theline, lead_end_len as usize) == crate::memory::cstr_prefix_bytes((&raw const lead_end).cast::<c_char>(), lead_end_len as usize))
                             {
                                 amount = get_indent_lnum((**curwin.as_ptr()).w_cursor.lnum - 1);
                                 if off != 0 {
@@ -3033,7 +3033,7 @@ pub unsafe fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> b
                 if try_match && keytyped == b'e' as c_int && (**curwin.as_ptr()).w_cursor.col >= 4 {
                     let p = get_cursor_line_ptr();
                     if skipwhite(p) == p.add((**curwin.as_ptr()).w_cursor.col as usize - 4)
-                        && { let _p = p.add((**curwin.as_ptr()).w_cursor.col as usize - 4); crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"else"[..4] }
+                        && (crate::memory::cstr_prefix_bytes(p.add((**curwin.as_ptr()).w_cursor.col as usize - 4), 4) == &b"else"[..4])
                     {
                         return true;
                     }

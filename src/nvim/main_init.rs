@@ -420,7 +420,7 @@ pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
         init_startuptime(&mut params);
 
         for i in 1..params.argc {
-            if { let _a = *params.argv.add(i as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"--clean") } {
+            if crate::memory::cstr_as_opt_bytes(*params.argv.add(i as usize)).is_some_and(|b| b.eq_ignore_ascii_case(b"--clean")) {
                 params.clean = true;
                 break;
             }
@@ -1148,7 +1148,7 @@ unsafe fn remote_request(
     ui_only: bool,
 ) {
     unsafe {
-        let is_ui = { let _a = *argv.add(remote_args as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--remote-ui" };
+        let is_ui = crate::memory::cstr_as_opt_bytes(*argv.add(remote_args as usize)) == Some(b"--remote-ui");
         if ui_only && !is_ui {
             return;
         }
@@ -1176,7 +1176,7 @@ unsafe fn remote_request(
                     nvim_env_buf.as_mut_ptr(),
                     nvim_env_buf.len(),
                 );
-                if { let _a = server_addr; let _b = nvim_env; (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
+                if crate::memory::cstr_as_opt_bytes(server_addr) == crate::memory::cstr_as_opt_bytes(nvim_env) {
                     fprintf!(
                         stderr,
                         c"%s".as_ptr(),
@@ -1248,7 +1248,7 @@ unsafe fn remote_request(
 
         for i in 0..dict.size {
             let item = &*dict.items.add(i);
-            if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"errmsg" } {
+            if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"errmsg") {
                 if item.value.obj_type != ObjectType::kObjectTypeString {
                     fprintf!(
                         stderr,
@@ -1258,7 +1258,7 @@ unsafe fn remote_request(
                 }
                 fprintf!(stderr, c"%s\n".as_ptr(), item.value.data.string().data);
                 os_exit(2);
-            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"result" } {
+            } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"result") {
                 if item.value.obj_type != ObjectType::kObjectTypeString {
                     fprintf!(
                         stderr,
@@ -1267,7 +1267,7 @@ unsafe fn remote_request(
                     os_exit(2);
                 }
                 printf!(c"%s".as_ptr(), item.value.data.string().data);
-            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"tabbed" } {
+            } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"tabbed") {
                 if item.value.obj_type != ObjectType::kObjectTypeBoolean {
                     fprintf!(
                         stderr,
@@ -1280,7 +1280,7 @@ unsafe fn remote_request(
                 } else {
                     kFalse
                 };
-            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"should_exit" } {
+            } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"should_exit") {
                 if item.value.obj_type != ObjectType::kObjectTypeBoolean {
                     fprintf!(
                         stderr,
@@ -1344,7 +1344,7 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                 if *arg0.add(1) == NUL {
                     parmp.commands.push(c"$".to_owned());
                 } else {
-                    (*parmp)
+                    parmp
                         .commands
                         .push(CStr::from_ptr(arg0.add(1)).to_owned());
                 }
@@ -1369,13 +1369,13 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                     }
                     b'-' => {
                         let sub = arg0.add(argv_idx as usize);
-                        if { let _a = sub; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"help") } {
+                        if crate::memory::cstr_as_opt_bytes(sub).is_some_and(|b| b.eq_ignore_ascii_case(b"help")) {
                             usage();
                             os_exit(0);
-                        } else if { let _a = sub; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"version") } {
+                        } else if crate::memory::cstr_as_opt_bytes(sub).is_some_and(|b| b.eq_ignore_ascii_case(b"version")) {
                             version();
                             os_exit(0);
-                        } else if { let _a = sub; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"api-info") } {
+                        } else if crate::memory::cstr_as_opt_bytes(sub).is_some_and(|b| b.eq_ignore_ascii_case(b"api-info")) {
                             #[cfg(windows)]
                             {
                                 _setmode(STDOUT_FILENO, 0x8000);
@@ -1390,9 +1390,9 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                                 );
                             }
                             os_exit(0);
-                        } else if { let _a = sub; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"headless") } {
+                        } else if crate::memory::cstr_as_opt_bytes(sub).is_some_and(|b| b.eq_ignore_ascii_case(b"headless")) {
                             g_st().headless_mode = true;
-                        } else if { let _a = sub; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"embed") } {
+                        } else if crate::memory::cstr_as_opt_bytes(sub).is_some_and(|b| b.eq_ignore_ascii_case(b"embed")) {
                             g_st().embedded_mode = true;
                         } else if strnicmp_ascii(sub, b"listen") {
                             want_argument = true;
@@ -1561,7 +1561,7 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                             if parmp.commands.len() >= MAX_ARG_CMDS {
                                 mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
                             }
-                            (*parmp)
+                            parmp
                                 .commands
                                 .push(CStr::from_ptr(arg0.add(argv_idx as usize)).to_owned());
                             argv_idx = -1;
@@ -1612,7 +1612,7 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                                 let mut s = Vec::with_capacity(3 + a_bytes.len());
                                 s.extend_from_slice(b"so ");
                                 s.extend_from_slice(a_bytes);
-                                (*parmp)
+                                parmp
                                     .commands
                                     .push(std::ffi::CString::new(s).unwrap_or_default());
                             } else {
@@ -1620,17 +1620,17 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                             }
                         }
                         b'-' => {
-                            if { let _a = prev_arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--cmd" } {
+                            if crate::memory::cstr_as_opt_bytes(prev_arg) == Some(b"--cmd") {
                                 if parmp.pre_commands.len() >= MAX_ARG_CMDS {
                                     mainerr(ERR_EXTRA_CMD.as_ptr(), ptr::null(), ptr::null());
                                 }
-                                (*parmp)
+                                parmp
                                     .pre_commands
                                     .push(CStr::from_ptr(cur_arg).to_owned());
-                            } else if { let _a = prev_arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--listen" } {
+                            } else if crate::memory::cstr_as_opt_bytes(prev_arg) == Some(b"--listen") {
                                 to_slash_if_needed(cur_arg);
                                 parmp.listen_addr = Some(CStr::from_ptr(cur_arg).to_owned());
-                            } else if { let _a = prev_arg; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"--server" } {
+                            } else if crate::memory::cstr_as_opt_bytes(prev_arg) == Some(b"--server") {
                                 to_slash_if_needed(cur_arg);
                                 parmp.server_addr = Some(CStr::from_ptr(cur_arg).to_owned());
                             }
@@ -1759,9 +1759,9 @@ unsafe fn command_line_scan(parmp: &mut mparm_T) {
                 if parmp.diff_mode != 0
                     && os_isdir(p_vec.as_ptr())
                     && gargcount() > 0
-                    && !os_isdir(alist_name(&mut *garglist()))
+                    && !os_isdir(alist_name(&*garglist()))
                 {
-                    let tail = path_tail(alist_name(&mut *garglist()));
+                    let tail = path_tail(alist_name(&*garglist()));
                     let joined =
                         concat_fnames(cstr_as_string(p_vec.as_ptr()), cstr_as_string(tail), true);
                     p_vec = joined
@@ -1818,7 +1818,7 @@ unsafe fn set_argf_var() {
         let list = tv_list_alloc(kListLenMayKnow);
         let count = gargcount();
         for i in 0..count {
-            let fname = alist_name(&mut *garglist().add(i as usize));
+            let fname = alist_name(&*garglist().add(i as usize));
             if !fname.is_null() {
                 let _ = vim_FullName(fname, (&raw mut g_st().NameBuff).cast(), MAXPATHL, false);
                 tv_list_append_string(list, (&raw const g_st().NameBuff).cast(), -1);
@@ -1846,13 +1846,13 @@ unsafe fn init_startuptime(paramp: &mut mparm_T) {
     unsafe {
         let mut is_embed = false;
         for i in 1..(paramp.argc - 1) {
-            if { let _a = *paramp.argv.add(i as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"--embed") } {
+            if crate::memory::cstr_as_opt_bytes(*paramp.argv.add(i as usize)).is_some_and(|b| b.eq_ignore_ascii_case(b"--embed")) {
                 is_embed = true;
                 break;
             }
         }
         for i in 1..(paramp.argc - 1) {
-            if { let _a = *paramp.argv.add(i as usize); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes().eq_ignore_ascii_case(b"--startuptime") } {
+            if crate::memory::cstr_as_opt_bytes(*paramp.argv.add(i as usize)).is_some_and(|b| b.eq_ignore_ascii_case(b"--startuptime")) {
                 time_init(
                     *paramp.argv.add((i + 1) as usize),
                     if is_embed {
@@ -1895,7 +1895,7 @@ unsafe fn init_path(exename: *const c_char) {
 }
 
 unsafe fn get_fname(_parmp: &mut mparm_T) -> *mut c_char {
-    unsafe { alist_name(&mut *garglist()) }
+    unsafe { alist_name(&*garglist()) }
 }
 
 unsafe fn set_window_layout(paramp: &mut mparm_T) {
@@ -2168,7 +2168,7 @@ unsafe fn edit_buffers(parmp: &mut mparm_T) {
                 (**curwin.as_ptr()).w_arg_idx = arg_idx;
                 g_st().swap_exists_did_quit = false;
                 let fname = if arg_idx < gargcount() {
-                    alist_name(&mut *garglist().add(arg_idx as usize))
+                    alist_name(&*garglist().add(arg_idx as usize))
                 } else {
                     ptr::null_mut()
                 };

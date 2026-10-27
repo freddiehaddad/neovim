@@ -713,42 +713,42 @@ pub unsafe extern "C" fn nvim_input_mouse(
                 break 'check None;
             }
 
-            let mut code: c_int = if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"left" } {
+            let mut code: c_int = if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"left") {
                 c_int::from(KE_LEFTMOUSE)
-            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"middle" } {
+            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"middle") {
                 c_int::from(KE_MIDDLEMOUSE)
-            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"right" } {
+            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"right") {
                 c_int::from(KE_RIGHTMOUSE)
-            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"wheel" } {
+            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"wheel") {
                 c_int::from(KE_MOUSEDOWN)
-            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"x1" } {
+            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"x1") {
                 c_int::from(KE_X1MOUSE)
-            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"x2" } {
+            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"x2") {
                 c_int::from(KE_X2MOUSE)
-            } else if { let _a = button.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"move" } {
+            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"move") {
                 c_int::from(KE_MOUSEMOVE)
             } else {
                 break 'check None;
             };
 
             if code == c_int::from(KE_MOUSEDOWN) {
-                if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"down" } {
+                if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"down") {
                     code = c_int::from(KE_MOUSEUP);
-                } else if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"up" } {
+                } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"up") {
                     // code = KE_MOUSEDOWN
-                } else if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"left" } {
+                } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"left") {
                     code = c_int::from(KE_MOUSERIGHT);
-                } else if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"right" } {
+                } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"right") {
                     code = c_int::from(KE_MOUSELEFT);
                 } else {
                     break 'check None;
                 }
             } else if code != c_int::from(KE_MOUSEMOVE) {
-                if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"press" } {
+                if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"press") {
                     // pass
-                } else if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"drag" } {
+                } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"drag") {
                     code += c_int::from(KE_LEFTDRAG) - c_int::from(KE_LEFTMOUSE);
-                } else if { let _a = action.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"release" } {
+                } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"release") {
                     code += c_int::from(KE_LEFTRELEASE) - c_int::from(KE_LEFTMOUSE);
                 } else {
                     break 'check None;
@@ -1323,7 +1323,7 @@ pub unsafe extern "C" fn nvim_echo(
             };
         }
 
-        let is_progress = { let _a = kind; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"progress" };
+        let is_progress = crate::memory::cstr_as_opt_bytes(kind) == Some(b"progress");
         let mut needs_clear = !history;
         let has_percent =
             ((*opts).is_set__echo_opts_ & (1u64 << KEYSET_OPTIDX_echo_opts__percent)) != 0;
@@ -1347,10 +1347,10 @@ pub unsafe extern "C" fn nvim_echo(
             }
 
             if is_progress
-                && !({ let _a = (*opts).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"success" }
-                    || { let _a = (*opts).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"failed" }
-                    || { let _a = (*opts).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"running" }
-                    || { let _a = (*opts).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"cancel" })
+                && !((crate::memory::cstr_as_opt_bytes((*opts).status.data) == Some(b"success"))
+                    || (crate::memory::cstr_as_opt_bytes((*opts).status.data) == Some(b"failed"))
+                    || (crate::memory::cstr_as_opt_bytes((*opts).status.data) == Some(b"running"))
+                    || (crate::memory::cstr_as_opt_bytes((*opts).status.data) == Some(b"cancel")))
             {
                 api_err_exp(
                     err,
@@ -1378,7 +1378,7 @@ pub unsafe extern "C" fn nvim_echo(
             }
 
             if !validate_s(
-                !is_progress || !{ let _a = (*opts).source.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"nvim" },
+                !is_progress || !(crate::memory::cstr_as_opt_bytes((*opts).source.data) == Some(b"nvim")),
                 c"source".as_ptr(),
                 (*opts).source.data,
                 err,
@@ -2122,17 +2122,17 @@ pub unsafe extern "C" fn nvim_get_context(
                 let item = types[i];
                 if item.obj_type == ObjectType::kObjectTypeString {
                     let s = item.data.string().data;
-                    if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"regs" } {
+                    if crate::memory::cstr_as_opt_bytes(s) == Some(b"regs") {
                         int_types |= kCtxRegs;
-                    } else if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"jumps" } {
+                    } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"jumps") {
                         int_types |= kCtxJumps;
-                    } else if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"bufs" } {
+                    } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"bufs") {
                         int_types |= kCtxBufs;
-                    } else if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"gvars" } {
+                    } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"gvars") {
                         int_types |= kCtxGVars;
-                    } else if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"sfuncs" } {
+                    } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"sfuncs") {
                         int_types |= kCtxSFuncs;
-                    } else if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"funcs" } {
+                    } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"funcs") {
                         int_types |= kCtxFuncs;
                     } else {
                         let _ = validate_s(false, c"type".as_ptr(), s, err);
@@ -2371,7 +2371,7 @@ pub unsafe extern "C" fn nvim_set_client_info(
 
         let mut has_major = false;
         for i in 0..version.size {
-            if { let _a = version[i].key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"major" } {
+            if crate::memory::cstr_as_opt_bytes(version[i].key.data) == Some(b"major") {
                 has_major = true;
                 break;
             }

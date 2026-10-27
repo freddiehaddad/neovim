@@ -1876,7 +1876,7 @@ pub unsafe fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
                             if mp.m_str.as_bytes().is_empty() {
                                 did_cpo = true;
                             } else {
-                                let specials = [K_SPECIAL as u8, NL as u8];
+                                let specials = [K_SPECIAL, NL as u8];
                                 if mp.m_str.as_bytes().iter().any(|b| specials.contains(b))
                                     || mp.m_keys.as_bytes().iter().any(|b| specials.contains(b))
                                 {

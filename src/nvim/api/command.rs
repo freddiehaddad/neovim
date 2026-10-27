@@ -1103,17 +1103,17 @@ pub unsafe extern "C" fn nvim_cmd(
                 if has_key(mods_mask, KEYSET_OPTIDX_cmd_mods__split) {
                     if *mods.split.data == NUL {
                         // Empty string
-                    } else if { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"aboveleft" }
-                        || { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"leftabove" }
+                    } else if (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"aboveleft"))
+                        || (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"leftabove"))
                     {
                         cmod.cmod_split |= WSP_ABOVE;
-                    } else if { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"belowright" }
-                        || { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"rightbelow" }
+                    } else if (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"belowright"))
+                        || (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"rightbelow"))
                     {
                         cmod.cmod_split |= WSP_BELOW;
-                    } else if { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"topleft" } {
+                    } else if crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"topleft") {
                         cmod.cmod_split |= WSP_TOP;
-                    } else if { let _a = mods.split.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"botright" } {
+                    } else if crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"botright") {
                         cmod.cmod_split |= WSP_BOT;
                     } else {
                         api_err_invalid(err, c"mods.split".as_ptr(), c"".as_ptr(), 0, true);

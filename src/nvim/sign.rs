@@ -847,19 +847,19 @@ unsafe fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
                 break;
             }
             cmdline = skiptowhite_esc(arg);
-            if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"icon="[..5] } {
+            if crate::memory::cstr_prefix_bytes(arg, 5) == &b"icon="[..5] {
                 icon = arg.add(5);
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"text="[..5] } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 5) == &b"text="[..5] {
                 text = arg.add(5);
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"linehl="[..7] } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 7) == &b"linehl="[..7] {
                 linehl = arg.add(7);
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"texthl="[..7] } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 7) == &b"texthl="[..7] {
                 texthl = arg.add(7);
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"culhl="[..6] } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 6) == &b"culhl="[..6] {
                 culhl = arg.add(6);
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"numhl="[..6] } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 6) == &b"numhl="[..6] {
                 numhl = arg.add(6);
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"priority="[..9] } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 9) == &b"priority="[..9] {
                 prio = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg.add(9)).to_bytes()) as c_int;
             } else {
                 semsg!(gettext(e_invarg2.as_ptr()), arg);
@@ -974,19 +974,19 @@ unsafe fn parse_sign_cmd_args(
         }
 
         while *arg != NUL {
-            if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"line="[..5] } {
+            if crate::memory::cstr_prefix_bytes(arg, 5) == &b"line="[..5] {
                 arg = arg.add(5);
                 *lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg).to_bytes()) as c_int;
                 arg = skiptowhite(arg);
                 lnum_arg = true;
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 1) == 1 && std::slice::from_raw_parts(_p.cast::<u8>(), 1) == &b"*"[..1] } && cmd == SIGNCMD_UNPLACE {
+            } else if (crate::memory::cstr_prefix_bytes(arg, 1) == &b"*"[..1]) && cmd == SIGNCMD_UNPLACE {
                 if *id != -1 {
                     emsg(gettext(e_invarg.as_ptr()));
                     return FAIL;
                 }
                 *id = -2;
                 arg = skiptowhite(arg.add(1));
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"name="[..5] } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 5) == &b"name="[..5] {
                 arg = arg.add(5);
                 let mut namep = arg;
                 arg = skiptowhite(arg);
@@ -998,7 +998,7 @@ unsafe fn parse_sign_cmd_args(
                     namep = namep.add(1);
                 }
                 *name = namep;
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"group="[..6] } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 6) == &b"group="[..6] {
                 arg = arg.add(6);
                 *group = arg;
                 arg = skiptowhite(arg);
@@ -1006,16 +1006,16 @@ unsafe fn parse_sign_cmd_args(
                     *arg = NUL;
                     arg = arg.add(1);
                 }
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"priority="[..9] } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 9) == &b"priority="[..9] {
                 arg = arg.add(9);
                 *prio = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg).to_bytes()) as c_int;
                 arg = skiptowhite(arg);
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"file="[..5] } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 5) == &b"file="[..5] {
                 arg = arg.add(5);
                 filename = arg;
                 *buf = buflist_findname_exp(arg);
                 break;
-            } else if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"buffer="[..7] } {
+            } else if crate::memory::cstr_prefix_bytes(arg, 7) == &b"buffer="[..7] {
                 arg = arg.add(7);
                 filename = arg;
                 *buf = buflist_findnr(getdigits_int(&raw mut arg, true, 0));
@@ -1384,33 +1384,33 @@ pub unsafe fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
             xp.xp_pattern = p.add(1);
             match cmd_idx {
                 SIGNCMD_DEFINE => {
-                    if { let _p = last; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"texthl"[..6] }
-                        || { let _p = last; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"linehl"[..6] }
-                        || { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"culhl"[..5] }
-                        || { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"numhl"[..5] }
+                    if (crate::memory::cstr_prefix_bytes(last, 6) == &b"texthl"[..6])
+                        || (crate::memory::cstr_prefix_bytes(last, 6) == &b"linehl"[..6])
+                        || (crate::memory::cstr_prefix_bytes(last, 5) == &b"culhl"[..5])
+                        || (crate::memory::cstr_prefix_bytes(last, 5) == &b"numhl"[..5])
                     {
                         xp.xp_context = EXPAND_HIGHLIGHT;
-                    } else if { let _p = last; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"icon"[..4] } {
+                    } else if crate::memory::cstr_prefix_bytes(last, 4) == &b"icon"[..4] {
                         xp.xp_context = EXPAND_FILES;
                     } else {
                         xp.xp_context = EXPAND_NOTHING;
                     }
                 }
                 SIGNCMD_PLACE => {
-                    if { let _p = last; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"name"[..4] } {
+                    if crate::memory::cstr_prefix_bytes(last, 4) == &b"name"[..4] {
                         sign_st().expand_what = EXP_SIGN_NAMES;
-                    } else if { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"group"[..5] } {
+                    } else if crate::memory::cstr_prefix_bytes(last, 5) == &b"group"[..5] {
                         sign_st().expand_what = EXP_SIGN_GROUPS;
-                    } else if { let _p = last; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"file"[..4] } {
+                    } else if crate::memory::cstr_prefix_bytes(last, 4) == &b"file"[..4] {
                         xp.xp_context = EXPAND_BUFFERS;
                     } else {
                         xp.xp_context = EXPAND_NOTHING;
                     }
                 }
                 SIGNCMD_UNPLACE | SIGNCMD_JUMP => {
-                    if { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"group"[..5] } {
+                    if crate::memory::cstr_prefix_bytes(last, 5) == &b"group"[..5] {
                         sign_st().expand_what = EXP_SIGN_GROUPS;
-                    } else if { let _p = last; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"file"[..4] } {
+                    } else if crate::memory::cstr_prefix_bytes(last, 4) == &b"file"[..4] {
                         xp.xp_context = EXPAND_BUFFERS;
                     } else {
                         xp.xp_context = EXPAND_NOTHING;

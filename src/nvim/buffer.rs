@@ -4748,8 +4748,8 @@ unsafe fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
         let mut line_end = s.add(ml_get_len(lnum) as usize);
         while *s != NUL {
             if prev == -1 || ascii_isspace(prev) {
-                if (prev != -1 && { let _p = s; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"ex:"[..3] })
-                    || { let _p = s; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"vi:"[..3] }
+                if (prev != -1 && (crate::memory::cstr_prefix_bytes(s, 3) == &b"ex:"[..3]))
+                    || (crate::memory::cstr_prefix_bytes(s, 3) == &b"vi:"[..3])
                 {
                     break;
                 }
@@ -4773,7 +4773,7 @@ unsafe fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
                     let vim_version = i64::from(min_vim_version());
                     if *e == b':' as c_char
                         && (*s != b'V' as c_char
-                            || { let _p = skipwhite(e.add(1)); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"set"[..3] })
+                            || (crate::memory::cstr_prefix_bytes(skipwhite(e.add(1)), 3) == &b"set"[..3]))
                         && (s3 == b':' as c_char
                             || (vim_version >= vers && (s3 as u8).is_ascii_digit())
                             || (vim_version < vers && s3 == b'<' as c_char)
@@ -4830,7 +4830,7 @@ unsafe fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
                 end = true;
             }
 
-            if { let _p = s; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"set "[..4] } || { let _p = s; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"se "[..3] } {
+            if (crate::memory::cstr_prefix_bytes(s, 4) == &b"set "[..4]) || (crate::memory::cstr_prefix_bytes(s, 3) == &b"se "[..3]) {
                 if *e != b':' as c_char {
                     break;
                 }

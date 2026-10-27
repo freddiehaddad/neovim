@@ -484,7 +484,7 @@ unsafe fn diff_mark_adjust_tp(
                     if deleted > 0 {
                         let mut n: linenr_T;
                         let mut off: linenr_T = 0;
-                        let next_lnum = (*tp)
+                        let next_lnum = tp
                             .tp_diffs
                             .as_slice()
                             .get(dp_idx + 1)
@@ -1114,8 +1114,8 @@ unsafe fn check_external_diff(diffio: &mut diffio_T) -> c_int {
                             if vim_fgets((&raw mut linebuf).cast(), LBUFLEN as c_int, fd) {
                                 break;
                             }
-                            if { let _p = (&raw const linebuf).cast(); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"1c1"[..3] }
-                                || { let _p = (&raw const linebuf).cast(); crate::memory::xstrnlen(_p, 11) == 11 && std::slice::from_raw_parts(_p.cast::<u8>(), 11) == &b"@@ -1 +1 @@"[..11] }
+                            if (crate::memory::cstr_prefix_bytes((&raw const linebuf).cast(), 3) == &b"1c1"[..3])
+                                || (crate::memory::cstr_prefix_bytes((&raw const linebuf).cast(), 11) == &b"@@ -1 +1 @@"[..11])
                             {
                                 ok = kTrue;
                             }
@@ -1198,17 +1198,17 @@ unsafe fn diff_file_internal(diffio: &mut diffio_T) -> c_int {
 }
 unsafe fn diff_file(dio: &mut diffio_T) -> c_int {
     unsafe {
-        let tmp_orig = (*dio)
+        let tmp_orig = dio
             .dio_orig
             .din_fname
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        let tmp_new = (*dio)
+        let tmp_new = dio
             .dio_new
             .din_fname
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        let tmp_diff = (*dio)
+        let tmp_diff = dio
             .dio_diff
             .dout_fname
             .as_ref()
@@ -1648,12 +1648,12 @@ unsafe fn extract_hunk(fd: *mut FILE, hunk: *mut diffhunk_T, diffstyle: *mut dif
             if *diffstyle == diffstyle_T::DIFF_NONE {
                 if ascii_isdigit(line[0]) {
                     *diffstyle = diffstyle_T::DIFF_ED;
-                } else if { let _p = (&raw const line).cast(); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"@@ "[..3] }
-                    || ({ let _p = (&raw const line).cast(); crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"--- "[..4] }
+                } else if (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3])
+                    || ((crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4) == &b"--- "[..4])
                         && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
-                        && { let _p = (&raw const line).cast(); crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"+++ "[..4] }
+                        && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 4) == &b"+++ "[..4])
                         && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
-                        && { let _p = (&raw const line).cast(); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"@@ "[..3] })
+                        && (crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3]))
                 {
                     *diffstyle = diffstyle_T::DIFF_UNIFIED;
                 } else {
@@ -1669,7 +1669,7 @@ unsafe fn extract_hunk(fd: *mut FILE, hunk: *mut diffhunk_T, diffstyle: *mut dif
                 }
             } else {
                 debug_assert!(*diffstyle == diffstyle_T::DIFF_UNIFIED);
-                if !({ let _p = (&raw const line).cast(); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"@@ "[..3] }) {
+                if !(crate::memory::cstr_prefix_bytes((&raw const line).cast(), 3) == &b"@@ "[..3]) {
                     continue;
                 }
                 if parse_diff_unified((&raw mut line).cast(), hunk) == FAIL {
@@ -1733,7 +1733,7 @@ unsafe fn process_hunk(
                 dp.df_lnum[idx_new] = hunk.lnum_new + off;
                 dp.df_count[idx_new] = hunk.count_new - off;
             } else {
-                let orig_size_in_dp = (*hunk)
+                let orig_size_in_dp = hunk
                     .count_orig
                     .min(dp.df_lnum[idx_orig] + dp.df_count[idx_orig] - hunk.lnum_orig);
                 let size_diff = hunk.count_new - orig_size_in_dp;
@@ -2114,7 +2114,7 @@ pub unsafe fn diff_check_with_linestatus(
             && lnum < (*wp).w_botline
             && !(&(*g_st().curtab).tp_diffs)[dp_idx].is_linematched
             && diff_linematch(&(&(*g_st().curtab).tp_diffs)[dp_idx])
-            && diff_check_sanity(&mut *g_st().curtab, &(&(*g_st().curtab).tp_diffs)[dp_idx]) != 0
+            && diff_check_sanity(&*g_st().curtab, &(&(*g_st().curtab).tp_diffs)[dp_idx]) != 0
         {
             run_linematch_algorithm(dp_idx);
         }
@@ -2196,7 +2196,7 @@ unsafe fn diff_equal_entry(dp: &diff_T, idx1: usize, idx2: usize) -> bool {
         if dp.df_count[idx1] != dp.df_count[idx2] {
             return false;
         }
-        if diff_check_sanity(&mut *g_st().curtab, dp) == FAIL {
+        if diff_check_sanity(&*g_st().curtab, dp) == FAIL {
             return false;
         }
         for i in 0..dp.df_count[idx1] {
@@ -2223,7 +2223,7 @@ unsafe fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: *mut c_int)
             return false;
         }
         if l > 1 {
-            if { let _p1 = p1; let _p2 = p2; let _n = l as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            if (crate::memory::cstr_prefix_bytes(p1, l as usize) != crate::memory::cstr_prefix_bytes(p2, l as usize))
                 && ((diff_st().diff_flags & DIFF_ICASE) == 0
                     || utf_fold(utf_ptr2char(p1)) != utf_fold(utf_ptr2char(p2)))
             {
@@ -2468,11 +2468,11 @@ pub unsafe fn diffopt_changed() -> c_int {
         if has_dip_key(&*v, KEYSET_OPTIDX_dip__inline_) {
             flags &= !ALL_INLINE;
             let inline_ptr = (&raw const (*v).inline_).cast::<c_char>();
-            if { let _a = inline_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"simple" } {
+            if crate::memory::cstr_as_opt_bytes(inline_ptr) == Some(b"simple") {
                 flags |= DIFF_INLINE_SIMPLE;
-            } else if { let _a = inline_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"char" } {
+            } else if crate::memory::cstr_as_opt_bytes(inline_ptr) == Some(b"char") {
                 flags |= DIFF_INLINE_CHAR;
-            } else if { let _a = inline_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"word" } {
+            } else if crate::memory::cstr_as_opt_bytes(inline_ptr) == Some(b"word") {
                 flags |= DIFF_INLINE_WORD;
             } else {
                 flags |= DIFF_INLINE_NONE;
@@ -2485,11 +2485,11 @@ pub unsafe fn diffopt_changed() -> c_int {
         };
         if has_dip_key(&*v, KEYSET_OPTIDX_dip__algorithm) {
             let algo_ptr = (&raw const (*v).algorithm).cast::<c_char>();
-            if { let _a = algo_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"minimal" } {
+            if crate::memory::cstr_as_opt_bytes(algo_ptr) == Some(b"minimal") {
                 algorithm |= XDF_NEED_MINIMAL;
-            } else if { let _a = algo_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"patience" } {
+            } else if crate::memory::cstr_as_opt_bytes(algo_ptr) == Some(b"patience") {
                 algorithm |= XDF_PATIENCE_DIFF;
-            } else if { let _a = algo_ptr; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"histogram" } {
+            } else if crate::memory::cstr_as_opt_bytes(algo_ptr) == Some(b"histogram") {
                 algorithm |= XDF_HISTOGRAM_DIFF;
             }
         }
@@ -3112,7 +3112,7 @@ pub unsafe fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: *mut di
         else {
             return false;
         };
-        if diff_check_sanity(&mut *g_st().curtab, &(&(*g_st().curtab).tp_diffs)[dp_idx]) == FAIL {
+        if diff_check_sanity(&*g_st().curtab, &(&(*g_st().curtab).tp_diffs)[dp_idx]) == FAIL {
             return false;
         }
         let off = lnum - (&(*g_st().curtab).tp_diffs)[dp_idx].df_lnum[u_idx];

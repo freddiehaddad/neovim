@@ -605,13 +605,13 @@ unsafe fn format_progress_message(
             let mut hl_id = 0;
             if (*msg_data).status.data.is_null() {
                 hl_id = 0;
-            } else if { let _a = (*msg_data).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"success" } {
+            } else if crate::memory::cstr_as_opt_bytes((*msg_data).status.data) == Some(b"success") {
                 hl_id = syn_check_group(c"OkMsg".as_ptr(), 5);
-            } else if { let _a = (*msg_data).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"failed" } {
+            } else if crate::memory::cstr_as_opt_bytes((*msg_data).status.data) == Some(b"failed") {
                 hl_id = syn_check_group(c"ErrorMsg".as_ptr(), 8);
-            } else if { let _a = (*msg_data).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"running" } {
+            } else if crate::memory::cstr_as_opt_bytes((*msg_data).status.data) == Some(b"running") {
                 hl_id = syn_check_group(c"MoreMsg".as_ptr(), 7);
-            } else if { let _a = (*msg_data).status.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"cancel" } {
+            } else if crate::memory::cstr_as_opt_bytes((*msg_data).status.data) == Some(b"cancel") {
                 hl_id = syn_check_group(c"WarningMsg".as_ptr(), 10);
             }
             updated_msg.push(HlMessageChunk {
@@ -678,7 +678,7 @@ pub unsafe fn msg_multihl(
         let mut updated_msg = HlMessage::new();
         let mut hl_msg_updated = false;
         // don't display progress message in cmd when target doesn't have cmd
-        if { let _a = kind; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"progress" } {
+        if crate::memory::cstr_as_opt_bytes(kind) == Some(b"progress") {
             do_autocmd_progress(id, hl_msg, msg_data);
             if (msg_st().progress_msg_target & PROGRESS_TARGET_CMD) == 0 {
                 *needs_msg_clear = true;
@@ -1661,7 +1661,7 @@ pub unsafe fn did_set_messagesopt(_args: &mut optset_T) -> *const c_char {
 
         msg_st().msg_hit_enter = (*v).hit_enter;
         msg_st().msg_wait = (*v).wait as c_int;
-        msg_st().progress_msg_target = if { let _a = (*v).progress.as_ptr(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"c" } {
+        msg_st().progress_msg_target = if crate::memory::cstr_as_opt_bytes((*v).progress.as_ptr()) == Some(b"c") {
             PROGRESS_TARGET_CMD
         } else {
             0

@@ -785,7 +785,7 @@ pub unsafe fn suggest_load_files() {
         let mut lpi: usize = 0;
         while lpi < (*win_s(*curwin.as_ptr())).b_langp.len() {
             let lp = &(&(*win_s(*curwin.as_ptr())).b_langp)[lpi];
-            let slang = (*lp).lp_slang;
+            let slang = lp.lp_slang;
             if (*slang).sl_sugtime != 0 && !(*slang).sl_sugloaded {
                 (*slang).sl_sugloaded = true;
 
@@ -960,7 +960,7 @@ unsafe fn read_region_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_
         if len > (MAXREGIONS * 2) as c_int {
             return SP_FORMERROR;
         }
-        let regions_ptr = (&raw mut (*lp).sl_regions).cast::<c_char>();
+        let regions_ptr = (&raw mut lp.sl_regions).cast::<c_char>();
         let ret = spell_read_nonnul_bytes(regions_ptr, len as usize, fd);
         if ret != 0 {
             return ret;
@@ -1003,7 +1003,7 @@ unsafe fn read_prefcond_section(fd: *mut FILE, lp: &mut slang_T) -> c_int {
             return SP_FORMERROR;
         }
 
-        (*lp).sl_prefprog.resize_with(cnt as usize, || None);
+        lp.sl_prefprog.resize_with(cnt as usize, || None);
 
         for i in 0..cnt {
             let n = fgetc(fd);
@@ -1019,7 +1019,7 @@ unsafe fn read_prefcond_section(fd: *mut FILE, lp: &mut slang_T) -> c_int {
                     return ret;
                 }
                 buf[(n + 1) as usize] = NUL;
-                (*lp).sl_prefprog.as_mut_slice()[i as usize] =
+                lp.sl_prefprog.as_mut_slice()[i as usize] =
                     crate::regexp::vim_regcomp_box(buf.as_ptr(), RE_MAGIC | RE_STRING);
             }
         }
@@ -1406,13 +1406,13 @@ unsafe fn read_compound(fd: *mut FILE, slang: &mut slang_T, len: c_int) -> c_int
 
 unsafe fn set_sofo(lp: &mut slang_T, from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
-        (*lp).sl_sal = Vec::new();
-        (*lp).sl_sofo_sal = Vec::new();
+        lp.sl_sal = Vec::new();
+        lp.sl_sofo_sal = Vec::new();
 
-        let gap = &mut (*lp).sl_sofo_sal;
+        let gap = &mut lp.sl_sofo_sal;
         gap.resize_with(256, Vec::new);
-        (*lp).sl_sofo = true;
-        (*lp).sl_sal_first = [0; 256];
+        lp.sl_sofo = true;
+        lp.sl_sal_first = [0; 256];
 
         let mut p = from;
         let mut s = to;
@@ -1422,7 +1422,7 @@ unsafe fn set_sofo(lp: &mut slang_T, from: *const c_char, to: *const c_char) -> 
             if c >= 256 {
                 gap[(c & 0xff) as usize].push((c, i));
             } else {
-                (*lp).sl_sal_first[c as usize] = i;
+                lp.sl_sal_first[c as usize] = i;
             }
         }
         if *p != NUL || *s != NUL {
@@ -1434,14 +1434,14 @@ unsafe fn set_sofo(lp: &mut slang_T, from: *const c_char, to: *const c_char) -> 
 }
 
 unsafe fn set_sal_first(lp: &mut slang_T) {
-    let gap = &mut (*lp).sl_sal;
-        (*lp).sl_sal_first.fill(-1);
+    let gap = &mut lp.sl_sal;
+        lp.sl_sal_first.fill(-1);
         let len = gap.len() as c_int;
         let mut i: c_int = 0;
         while i < len {
             let c = (gap[i as usize].sm_lead_w[0] & 0xff) as usize;
-            if (*lp).sl_sal_first[c] == -1 {
-                (*lp).sl_sal_first[c] = i;
+            if lp.sl_sal_first[c] == -1 {
+                lp.sl_sal_first[c] = i;
 
                 while i + 1 < len && (gap[(i + 1) as usize].sm_lead_w[0] & 0xff) as usize == c {
                     i += 1;
@@ -1895,7 +1895,7 @@ unsafe fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<a
                         );
                     }
                 } else if spell_info_item(items[0]) && itemcnt > 1 {
-                    let mut bytes = (*spin)
+                    let mut bytes = spin
                         .si_info
                         .as_ref()
                         .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
@@ -2248,8 +2248,8 @@ unsafe fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<a
                     }
 
                     if spin.si_ascii == 0
-                        || !({ let _s = (*aff_entry).chop_ptr(); !_s.is_null() && !std::ffi::CStr::from_ptr(_s).to_bytes().is_ascii() }
-                            || { let _s = (*aff_entry).add_ptr(); !_s.is_null() && !std::ffi::CStr::from_ptr(_s).to_bytes().is_ascii() })
+                        || !(!crate::memory::cstr_as_bytes((*aff_entry).chop_ptr()).is_ascii()
+                            || !crate::memory::cstr_as_bytes((*aff_entry).add_ptr()).is_ascii())
                     {
                         (*cur_aff).ah_entries.insert(0, aff_entry_val);
                         let aff_entry: *mut affentry_T = (*cur_aff).ah_entries.as_mut_ptr();
@@ -2343,7 +2343,7 @@ unsafe fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<a
                                     let p_cond = prefcond[idx as usize]
                                         .as_ref()
                                         .map_or(ptr::null(), |s| s.as_ptr());
-                                    if { let _a = p_cond; let _b = (*aff_entry).cond_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
+                                    if crate::memory::cstr_as_opt_bytes(p_cond) == crate::memory::cstr_as_opt_bytes((*aff_entry).cond_ptr()) {
                                         break;
                                     }
                                     idx -= 1;
@@ -2503,7 +2503,7 @@ unsafe fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<a
                     sofoto = Some(std::ffi::CStr::from_ptr(items[1]).to_owned());
                 } else if std::ffi::CStr::from_ptr(items[0]).to_bytes() == b"COMMON" {
                     for &item in items.iter().take(itemcnt).skip(1) {
-                        (*spin)
+                        spin
                             .si_commonwords
                             .insert(std::ffi::CStr::from_ptr(item).to_bytes().to_vec());
                     }
@@ -2766,7 +2766,7 @@ unsafe fn process_compflags(spin: &mut spellinfo_T, aff: &mut afffile_T, compfla
     unsafe {
         let mut key = [0 as c_char; AH_KEY_LEN];
 
-        let mut bytes = (*spin)
+        let mut bytes = spin
             .si_compflags
             .as_ref()
             .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
@@ -3030,7 +3030,7 @@ unsafe fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &af
                 mb_ptr_adv(&mut p);
             }
 
-            if spin.si_ascii != 0 && { let _s = w; !_s.is_null() && !std::ffi::CStr::from_ptr(_s).to_bytes().is_ascii() } {
+            if spin.si_ascii != 0 && !crate::memory::cstr_as_bytes(w).is_ascii() {
                 non_ascii += 1;
                 continue;
             }
@@ -3481,7 +3481,7 @@ unsafe fn store_aff_word(
                                 use_pfxlist = pfx_pfxlist.as_mut_ptr();
                             }
 
-                            if (*spin)
+                            if spin
                                 .si_prefroot
                                 .is_some_and(|r| (&spin.si_nodes)[r].wn_sibling.is_some())
                             {
@@ -3634,7 +3634,7 @@ unsafe fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> c_i
 
             if *line == b'/' as c_char {
                 line = line.add(1);
-                if { let _p = line; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"encoding="[..9] } {
+                if crate::memory::cstr_prefix_bytes(line, 9) == &b"encoding="[..9] {
                     if spin.si_conv.vc_type != CONV_NONE {
                         smsg!(
                             0,
@@ -3675,7 +3675,7 @@ unsafe fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> c_i
                     continue;
                 }
 
-                if { let _p = line; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"regions="[..8] } {
+                if crate::memory::cstr_prefix_bytes(line, 8) == &b"regions="[..8] {
                     if spin.si_region_count > 1 {
                         smsg!(
                             0,
@@ -3759,7 +3759,7 @@ unsafe fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> c_i
                 }
             }
 
-            if spin.si_ascii != 0 && { let _s = line; !_s.is_null() && !std::ffi::CStr::from_ptr(_s).to_bytes().is_ascii() } {
+            if spin.si_ascii != 0 && !crate::memory::cstr_as_bytes(line).is_ascii() {
                 non_ascii += 1;
                 continue;
             }
@@ -4641,7 +4641,7 @@ pub unsafe fn ex_mkspell(eap: &mut exarg_T) {
         let mut arg = eap.arg;
         let mut ascii = false;
 
-        if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"-ascii"[..6] } {
+        if crate::memory::cstr_prefix_bytes(arg, 6) == &b"-ascii"[..6] {
             ascii = true;
             arg = skipwhite(arg.add(6));
         }
@@ -4939,7 +4939,7 @@ unsafe fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
         put_time(fd, spin.si_sugtime);
 
         spin.si_memtot = 0;
-        let tree = (*spin)
+        let tree = spin
             .si_foldroot
             .and_then(|r| (&spin.si_nodes)[r].wn_sibling);
         clear_node(&mut spin.si_nodes, tree);
@@ -4950,7 +4950,7 @@ unsafe fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
 
         put_node(fd, &mut spin.si_nodes, tree, 0, 0, false);
 
-        let spellbuf: *mut buf_T = (*spin)
+        let spellbuf: *mut buf_T = spin
             .si_spellbuf
             .as_deref_mut()
             .map_or(ptr::null_mut(), |b| &raw mut *b);
@@ -5316,7 +5316,7 @@ pub unsafe fn spell_add_word(
                     let linelen = std::ffi::CStr::from_ptr(line.as_ptr()).to_bytes().len();
                     let ulen = len as usize;
                     if linelen >= ulen
-                        && { let _p1 = word; let _p2 = line.as_ptr(); let _n = ulen; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                        && (crate::memory::cstr_prefix_bytes(word, ulen) == crate::memory::cstr_prefix_bytes(line.as_ptr(), ulen))
                         && (line[ulen] == b'/' as c_char || (line[ulen] as u8) < b' ')
                     {
                         fclose(fd);

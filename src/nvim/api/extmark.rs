@@ -523,13 +523,13 @@ pub unsafe extern "C" fn nvim_buf_get_extmarks(
 
         let mut type_filter = kExtmarkNone;
         if has_key(mask, KEYSET_OPTIDX_get_extmarks__type) {
-            if { let _a = (*opts).type_.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"sign" } {
+            if crate::memory::cstr_as_opt_bytes((*opts).type_.data) == Some(b"sign") {
                 type_filter = kExtmarkSign;
-            } else if { let _a = (*opts).type_.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"virt_text" } {
+            } else if crate::memory::cstr_as_opt_bytes((*opts).type_.data) == Some(b"virt_text") {
                 type_filter = kExtmarkVirtText;
-            } else if { let _a = (*opts).type_.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"virt_lines" } {
+            } else if crate::memory::cstr_as_opt_bytes((*opts).type_.data) == Some(b"virt_lines") {
                 type_filter = kExtmarkVirtLines;
-            } else if { let _a = (*opts).type_.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"highlight" } {
+            } else if crate::memory::cstr_as_opt_bytes((*opts).type_.data) == Some(b"highlight") {
                 type_filter = kExtmarkHighlight;
             } else {
                 api_err_exp(
@@ -943,15 +943,15 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_text_pos) {
                 let str_val = (*opts).virt_text_pos;
-                if { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"eol" } {
+                if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"eol") {
                     virt_text.pos = kVPosEndOfLine;
-                } else if { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"overlay" } {
+                } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"overlay") {
                     virt_text.pos = kVPosOverlay;
-                } else if { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"right_align" } {
+                } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"right_align") {
                     virt_text.pos = kVPosRightAlign;
-                } else if { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"eol_right_align" } {
+                } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"eol_right_align") {
                     virt_text.pos = kVPosEndOfLineRightAlign;
-                } else if { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"inline" } {
+                } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"inline") {
                     virt_text.pos = kVPosInline;
                 } else {
                     api_err_invalid(err, c"virt_text_pos".as_ptr(), str_val.data, 0, true);
@@ -974,11 +974,11 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
             if has_key(mask, KEYSET_OPTIDX_set_extmark__hl_mode) {
                 let str_val = (*opts).hl_mode;
-                if { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"replace" } {
+                if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"replace") {
                     virt_text.hl_mode = kHlModeReplace;
-                } else if { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"combine" } {
+                } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"combine") {
                     virt_text.hl_mode = kHlModeCombine;
-                } else if { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"blend" } {
+                } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"blend") {
                     if virt_text.pos == kVPosInline {
                         api_set_error!(
                             err,
@@ -1003,13 +1003,13 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
             let mut virt_lines_overflow = kVLOverflowTrunc;
             if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_lines_overflow) {
                 let str_val = (*opts).virt_lines_overflow;
-                if { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"scroll" } {
+                if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"scroll") {
                     virt_lines_overflow = kVLOverflowScroll;
-                } else if { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"wrap" } {
+                } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"wrap") {
                     virt_lines_overflow = kVLOverflowWrap;
-                } else if { let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"auto" } {
+                } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"auto") {
                     virt_lines_overflow = kVLOverflowAuto;
-                } else if !{ let _a = str_val.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"trunc" } {
+                } else if !(crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"trunc")) {
                     api_err_invalid(err, c"virt_lines_overflow".as_ptr(), str_val.data, 0, true);
                     break 'error;
                 }

@@ -497,7 +497,7 @@ unsafe fn nlua_push_cmdmod(lstate: *mut lua_State, cmod: &cmdmod_T) {
         lua_newtable(lstate);
         lua_pushstring(
             lstate,
-            (*cmod)
+            cmod
                 .cmod_filter_pat
                 .as_ref()
                 .map_or(c"".as_ptr(), |s| s.as_ptr()),
@@ -1193,12 +1193,12 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> c_int {
             let val = lua_toboolean(lstate, -1) != 0;
 
             let mut matched = false;
-            if { let _a = s; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"set_cmdheight" } {
+            if crate::memory::cstr_as_opt_bytes(s) == Some(b"set_cmdheight") {
                 g_st().ui_refresh_cmdheight = val;
                 matched = true;
             } else {
                 for (i, slot) in ext_widgets.iter_mut().enumerate() {
-                    if { let _a = s; let _b = ui_ext_names[i].as_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
+                    if crate::memory::cstr_as_opt_bytes(s) == crate::memory::cstr_as_opt_bytes(ui_ext_names[i].as_ptr()) {
                         if val {
                             tbl_has_true_val = true;
                         }
@@ -2468,7 +2468,7 @@ pub unsafe fn ex_luafile(eap: &mut exarg_T) {
 pub unsafe fn nlua_exec_file(path: *const c_char) -> bool {
     unsafe {
         let lstate = nlua_st().GLOBAL_LSTATE;
-        if !{ let _a = path; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"-" } {
+        if !(crate::memory::cstr_as_opt_bytes(path) == Some(b"-")) {
             lua_getglobal(lstate, c"loadfile".as_ptr());
             lua_pushstring(lstate, path);
         } else {

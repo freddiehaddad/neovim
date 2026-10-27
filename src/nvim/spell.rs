@@ -591,7 +591,7 @@ unsafe fn find_word(mip: &mut matchinf_T, mode: c_int) {
             let mut prefix_found = false;
             if mode != FIND_KEEPWORD {
                 let mut p = mip.mi_word;
-                if { let _p1 = ptr; let _p2 = p; let _n = wlen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                if crate::memory::cstr_prefix_bytes(ptr, wlen as usize) != crate::memory::cstr_prefix_bytes(p, wlen as usize) {
                     let mut s = ptr;
                     let s_end = ptr.add(wlen as usize);
                     while s < s_end {
@@ -682,7 +682,7 @@ unsafe fn find_word(mip: &mut matchinf_T, mode: c_int) {
                     }
                     if mode == FIND_COMPOUND {
                         let mut p: *mut c_char;
-                        if { let _p1 = ptr; let _p2 = mip.mi_word; let _n = mip.mi_compoff as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                        if crate::memory::cstr_prefix_bytes(ptr, mip.mi_compoff as usize) != crate::memory::cstr_prefix_bytes(mip.mi_word, mip.mi_compoff as usize) {
                             p = mip.mi_word;
                             let mut s = ptr;
                             let s_end = ptr.add(mip.mi_compoff as usize);
@@ -724,7 +724,7 @@ unsafe fn find_word(mip: &mut matchinf_T, mode: c_int) {
                                     MAXWLEN as c_int,
                                 );
                             } else {
-                                { let _d = ((&raw mut fword)).cast::<u8>(); let _n = endlen[endidxcnt] as usize; if _n > 0 { std::ptr::copy_nonoverlapping((ptr).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                                { let _d = (&raw mut fword).cast::<u8>(); let _n = endlen[endidxcnt] as usize; if _n > 0 { std::ptr::copy_nonoverlapping((ptr).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                             }
                         }
                         if !can_compound(
@@ -753,7 +753,7 @@ unsafe fn find_word(mip: &mut matchinf_T, mode: c_int) {
                     mip.mi_compoff = endlen[endidxcnt];
                     if mode == FIND_KEEPWORD {
                         let mut p = (&raw mut mip.mi_fword).cast::<c_char>();
-                        if { let _p1 = ptr; let _p2 = p; let _n = wlen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                        if crate::memory::cstr_prefix_bytes(ptr, wlen as usize) != crate::memory::cstr_prefix_bytes(p, wlen as usize) {
                             let mut s = ptr;
                             let s_end = ptr.add(wlen as usize);
                             while s < s_end {
@@ -850,10 +850,10 @@ pub unsafe fn match_checkcompoundpattern(
         let mut i: usize = 0;
         while i + 1 < gap.len() {
             let p2 = gap[i + 1].as_ptr();
-            if { let _p1 = ptr.add(wlen as usize); let _p2 = p2; let _n = gap[i + 1].as_bytes().len(); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+            if crate::memory::cstr_prefix_bytes(ptr.add(wlen as usize), gap[i + 1].as_bytes().len()) == crate::memory::cstr_prefix_bytes(p2, gap[i + 1].as_bytes().len()) {
                 let p1 = gap[i].as_ptr();
                 let len = gap[i].as_bytes().len() as c_int;
-                if len <= wlen && { let _p1 = ptr.add((wlen - len) as usize); let _p2 = p1; let _n = len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                if len <= wlen && (crate::memory::cstr_prefix_bytes(ptr.add((wlen - len) as usize), len as usize) == crate::memory::cstr_prefix_bytes(p1, len as usize)) {
                     return true;
                 }
             }
@@ -1603,7 +1603,7 @@ pub unsafe fn init_syl_tab(slang: &mut slang_T) -> c_int {
                     sy_chars: [0; SY_MAXLEN],
                     sy_len: part.len() as c_int,
                 };
-                { let _d = ((&raw mut syl.sy_chars)).cast::<u8>(); let _n = part.len(); if _n > 0 { std::ptr::copy_nonoverlapping((part.as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                { let _d = (&raw mut syl.sy_chars).cast::<u8>(); let _n = part.len(); if _n > 0 { std::ptr::copy_nonoverlapping((part.as_ptr()).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 syl_items.push(syl);
             }
         }
@@ -1628,7 +1628,7 @@ unsafe fn count_syllables(slang: &mut slang_T, word: *const c_char) -> c_int {
             }
             let mut len: c_int = 0;
             for syl in &slang.sl_syl_items {
-                if syl.sy_len > len && { let _p1 = p; let _p2 = syl.sy_chars.as_ptr(); let _n = syl.sy_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                if syl.sy_len > len && (crate::memory::cstr_prefix_bytes(p, syl.sy_len as usize) == crate::memory::cstr_prefix_bytes(syl.sy_chars.as_ptr(), syl.sy_len as usize)) {
                     len = syl.sy_len;
                 }
             }
@@ -1765,13 +1765,13 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                 }
                 let langs = &raw mut spell_priv_st().first_lang;
                 for s in (*langs).iter_mut().rev() {
-                    let slang: &mut slang_T = &mut **s;
+                    let slang: &mut slang_T = s;
                     let matched = if filename {
                         slang.sl_fname.as_ref().is_some_and(|f| {
                             path_equal(lang_ptr, f.as_ptr(), kPathCmpExpand as PathCmpFlags)
                         })
                     } else {
-                        (*slang)
+                        slang
                             .sl_name
                             .as_ref()
                             .is_some_and(|n| mb_stricmp(lang_ptr, n.as_ptr()) == 0)
@@ -1901,7 +1901,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                             .sl_name
                             .as_ref()
                             .map_or(c"".as_ptr(), |s| s.as_ptr());
-                        if (*lp2.lp_slang).has_sal() && { let _p1 = lp_name; let _p2 = lp2_name; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                        if (*lp2.lp_slang).has_sal() && (crate::memory::cstr_prefix_bytes(lp_name, 2) == crate::memory::cstr_prefix_bytes(lp2_name, 2)) {
                             ga[i].lp_sallang = lp2.lp_slang;
                             break;
                         }
@@ -1915,7 +1915,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                             .sl_name
                             .as_ref()
                             .map_or(c"".as_ptr(), |s| s.as_ptr());
-                        if !(*lp2.lp_slang).sl_rep.is_empty() && { let _p1 = lp_name; let _p2 = lp2_name; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                        if !(*lp2.lp_slang).sl_rep.is_empty() && (crate::memory::cstr_prefix_bytes(lp_name, 2) == crate::memory::cstr_prefix_bytes(lp2_name, 2))
                         {
                             ga[i].lp_replang = lp2.lp_slang;
                             break;
@@ -2058,7 +2058,7 @@ pub unsafe fn open_spellbuf() -> Box<buf_T> {
         let mut buf = Box::new(buf_T::new());
         buf.b_spell = true;
         buf.b_p_swf = 1;
-        if ml_open(&mut *buf) == FAIL {
+        if ml_open(&mut buf) == FAIL {
             let _ = logmsg!(
                 3,
                 std::ptr::null(),
@@ -2315,7 +2315,7 @@ pub unsafe fn ex_spellrepall(_eap: &mut exarg_T) {
             }
             let line = get_cursor_line_ptr();
             if addlen <= 0
-                || { let _p1 = line.add((**curwin.as_ptr()).w_cursor.col as usize); let _p2 = repl_to_ptr; let _n = repl_to_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                || (crate::memory::cstr_prefix_bytes(line.add((**curwin.as_ptr()).w_cursor.col as usize), repl_to_len) != crate::memory::cstr_prefix_bytes(repl_to_ptr, repl_to_len))
             {
                 let mut p_vec: Vec<c_char> =
                     vec![0; (get_cursor_line_len() as i64 + addlen + 1) as usize];
@@ -2903,7 +2903,7 @@ pub unsafe fn spell_dump_compl(
                     (&raw mut g_st().IObuff).cast(),
                     IOSIZE,
                     c"# file: %s".as_ptr(),
-                    (*slang)
+                    slang
                         .sl_fname
                         .as_ref()
                         .map_or(c"".as_ptr(), |s| s.as_ptr()),
@@ -3083,7 +3083,7 @@ unsafe fn dump_word(
         } else if (if (dumpflags & DUMPFLAG_ICASE) != 0 {
             mb_strnicmp(p, pat, std::ffi::CStr::from_ptr(pat).to_bytes().len()) == 0
         } else {
-            { let _p1 = p; let _p2 = pat; let _n = std::ffi::CStr::from_ptr(pat).to_bytes().len(); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            crate::memory::cstr_prefix_bytes(p, std::ffi::CStr::from_ptr(pat).to_bytes().len()) == crate::memory::cstr_prefix_bytes(pat, std::ffi::CStr::from_ptr(pat).to_bytes().len())
         }) && ins_compl_add_infercase(
             p,
             std::ffi::CStr::from_ptr(p).to_bytes().len() as c_int,

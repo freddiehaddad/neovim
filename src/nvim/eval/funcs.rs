@@ -461,7 +461,7 @@ pub unsafe fn get_function_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
             if !name.is_null() {
                 if *name != NUL
                     && *name != b'<' as c_char
-                    && { let _p1 = c"g:".as_ptr(); let _p2 = xp.xp_pattern; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                    && (crate::memory::cstr_prefix_bytes(c"g:".as_ptr(), 2) == crate::memory::cstr_prefix_bytes(xp.xp_pattern, 2))
                 {
                     return cat_prefix_varname(b'g' as c_int, name);
                 }
@@ -2242,7 +2242,7 @@ pub unsafe fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_o
             if *s == NUL {
                 echo_output = true;
             }
-            if { let _p = s; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"silent"[..6] } {
+            if crate::memory::cstr_prefix_bytes(s, 6) == &b"silent"[..6] {
                 g_st().msg_silent += 1;
             }
             if std::ffi::CStr::from_ptr(s).to_bytes() == b"silent!" {
@@ -2694,8 +2694,8 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: &mut typval_T, is_funcr
                 let mut dict_idx: usize = 0;
                 let mut arg_idx: usize = 0;
                 let mut list: *mut list_T = ptr::null_mut();
-                let name_cstr = if { let _p = s; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"s:"[..2] }
-                    || { let _p = s; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"<SID>"[..5] }
+                let name_cstr = if (crate::memory::cstr_prefix_bytes(s, 2) == &b"s:"[..2])
+                    || (crate::memory::cstr_prefix_bytes(s, 5) == &b"<SID>"[..5])
                 {
                     get_scriptlocal_funcname(s).unwrap_or_default()
                 } else {
@@ -3813,7 +3813,7 @@ pub unsafe fn f_has(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFun
         let mut n = false;
         let name = tv_get_string(argvars);
 
-        if { let _p1 = name; let _p2 = c"patch".as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
+        if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"patch".as_ptr(), 5)) {
             x = true;
             if *name.add(5) == b'-' as c_char
                 && std::ffi::CStr::from_ptr(name).to_bytes().len() >= 11
@@ -3834,7 +3834,7 @@ pub unsafe fn f_has(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFun
             } else if ascii_isdigit(*name.add(5)) {
                 n = has_vim_patch(crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(name.add(5)).to_bytes()) as c_int, 0);
             }
-        } else if { let _p1 = name; let _p2 = c"nvim-".as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
+        } else if crate::memory::cstr_prefix_bytes(name, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"nvim-".as_ptr(), 5)) {
             x = true;
             n = has_nvim_version(CStr::from_ptr(name.add(5)).to_bytes());
         } else if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"vim_starting") {
@@ -4701,9 +4701,9 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
 
             let s = tv_dict_get_string(job_opts, c"stdin".as_ptr());
             if !s.is_null() {
-                if { let _p1 = s; let _p2 = c"null".as_ptr(); let _n = NUMBUFLEN; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN) == crate::memory::cstr_prefix_bytes(c"null".as_ptr(), NUMBUFLEN) {
                     stdin_mode = kChannelStdinNull;
-                } else if { let _p1 = s; let _p2 = c"pipe".as_ptr(); let _n = NUMBUFLEN; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                } else if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN) == crate::memory::cstr_prefix_bytes(c"pipe".as_ptr(), NUMBUFLEN) {
                     // default
                 } else {
                     semsg!(gettext(e_invargNval.as_ptr()), c"stdin".as_ptr(), s);
@@ -5958,7 +5958,7 @@ pub unsafe fn f_msgpackdump(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
         }
         let data = packer_take_string(&mut packer);
         if (*argvars.add(1)).v_type != VarType::VAR_UNKNOWN
-            && { let _a = tv_get_string(argvars.add(1)); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"B" }
+            && (crate::memory::cstr_as_opt_bytes(tv_get_string(argvars.add(1))) == Some(b"B"))
         {
             let b = &mut *tv_blob_alloc_ret(rettv);
             if !data.is_empty() {
@@ -8611,34 +8611,34 @@ pub unsafe fn f_stdpath(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
             return;
         }
 
-        if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"config" } {
+        if crate::memory::cstr_as_opt_bytes(p) == Some(b"config") {
             if let Some(s) = get_xdg_home(XDGVarType::kXDGConfigHome) {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
             }
-        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"data" } {
+        } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"data") {
             if let Some(s) = get_xdg_home(XDGVarType::kXDGDataHome) {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
             }
-        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"cache" } {
+        } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"cache") {
             if let Some(s) = get_xdg_home(XDGVarType::kXDGCacheHome) {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
             }
-        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"state" } {
+        } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"state") {
             if let Some(s) = get_xdg_home(XDGVarType::kXDGStateHome) {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
             }
-        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"log" } {
+        } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"log") {
             if let Some(state_home) = get_xdg_home(XDGVarType::kXDGStateHome) {
                 let log_dir = concat_fnames_cstr(state_home.as_ptr(), c"logs".as_ptr(), true);
                 crate::eval::typval::tv_set_string(rettv, log_dir.as_ptr());
             }
-        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"run" } {
+        } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"run") {
             if let Some(s) = stdpaths_get_xdg_var(XDGVarType::kXDGRuntimeDir) {
                 crate::eval::typval::tv_set_string(rettv, s.as_ptr());
             }
-        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"config_dirs" } {
+        } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"config_dirs") {
             get_xdg_var_list(XDGVarType::kXDGConfigDirs, rettv);
-        } else if { let _a = p; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"data_dirs" } {
+        } else if crate::memory::cstr_as_opt_bytes(p) == Some(b"data_dirs") {
             get_xdg_var_list(XDGVarType::kXDGDataDirs, rettv);
         } else {
             semsg!(gettext(c"E6100: \"%s\" is not a valid stdpath".as_ptr()), p);

@@ -118,9 +118,9 @@ unsafe fn validate_option_value_args(
         }
 
         if has_key(mask, KEYSET_OPTIDX_option__scope) {
-            if { let _a = (*opts).scope.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"local" } {
+            if crate::memory::cstr_as_opt_bytes((*opts).scope.data) == Some(b"local") {
                 *opt_flags = OPT_LOCAL;
-            } else if { let _a = (*opts).scope.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"global" } {
+            } else if crate::memory::cstr_as_opt_bytes((*opts).scope.data) == Some(b"global") {
                 *opt_flags = OPT_GLOBAL;
             } else {
                 api_err_exp(
@@ -180,13 +180,13 @@ unsafe fn validate_option_value_args(
         }
 
         if !operation.is_null() && has_key(mask, KEYSET_OPTIDX_option__operation) {
-            if { let _a = (*opts).operation.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"set" } {
+            if crate::memory::cstr_as_opt_bytes((*opts).operation.data) == Some(b"set") {
                 *operation = OP_NONE;
-            } else if { let _a = (*opts).operation.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"append" } {
+            } else if crate::memory::cstr_as_opt_bytes((*opts).operation.data) == Some(b"append") {
                 *operation = OP_ADDING;
-            } else if { let _a = (*opts).operation.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"prepend" } {
+            } else if crate::memory::cstr_as_opt_bytes((*opts).operation.data) == Some(b"prepend") {
                 *operation = OP_PREPENDING;
-            } else if { let _a = (*opts).operation.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"remove" } {
+            } else if crate::memory::cstr_as_opt_bytes((*opts).operation.data) == Some(b"remove") {
                 *operation = OP_REMOVING;
             } else {
                 api_err_exp(
@@ -892,8 +892,8 @@ mod tests {
         assert!(has_key(mask, KEYSET_OPTIDX_option__scope));
         assert!(!has_key(mask, KEYSET_OPTIDX_option__win));
         unsafe {
-            assert!({ let _a = c"local".as_ptr(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"local" });
-            assert!(!{ let _a = c"local".as_ptr(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"global" });
+            assert!((crate::memory::cstr_as_opt_bytes(c"local".as_ptr()) == Some(b"local")));
+            assert!(!(crate::memory::cstr_as_opt_bytes(c"local".as_ptr()) == Some(b"global")));
             assert!(!{ let _a: *const c_char = std::ptr::null(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"local" });
         }
     }

@@ -1045,7 +1045,7 @@ pub unsafe fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                         next_leader_flags,
                     ))
                     && (next_leader_flags.is_null()
-                        || !({ let _p = next_leader_flags; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"://"[..3] })
+                        || !(crate::memory::cstr_prefix_bytes(next_leader_flags, 3) == &b"://"[..3])
                         || check_linecomment(get_cursor_line_ptr()) == MAXCOL)
                 {
                     is_end_par = true;

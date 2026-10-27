@@ -2212,7 +2212,7 @@ pub unsafe fn may_call_simple_func(arg: *const c_char, rettv: *mut typval_T) -> 
                     r = call_simple_luafunc(p, (parens as usize).wrapping_sub(p as usize), rettv);
                 }
             } else {
-                let p = if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"<SNR>"[..5] } {
+                let p = if crate::memory::cstr_prefix_bytes(arg, 5) == &b"<SNR>"[..5] {
                     skipdigits(arg.add(5))
                 } else {
                     arg
@@ -5174,7 +5174,7 @@ unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: &mut typval_
             rettv.v_type = VarType::VAR_LIST;
         } else {
             let nread = res.len();
-            { let _d = (res.as_mut_ptr()).cast::<u8>(); let _sz = nread; if _sz > 0 { let _c = (NUL) as u8; let _x = (1) as u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
+            { let _d = (res.as_mut_ptr()).cast::<u8>(); let _sz = nread; if _sz > 0 { let _c = (NUL) as u8; let _x = 1_u8; for _b in std::slice::from_raw_parts_mut(_d, _sz) { if *_b == _c { *_b = _x; } } } };
             #[cfg(windows)]
             {
                 let mut d = 0usize;
@@ -5212,7 +5212,7 @@ pub unsafe fn callback_from_typval(callback: &mut Callback, arg: &typval_T) -> b
     unsafe {
         let mut r = OK;
 
-        let is_lua_tbl = nlua_is_table_from_lua(&*arg);
+        let is_lua_tbl = nlua_is_table_from_lua(arg);
 
         if arg.v_type == VarType::VAR_PARTIAL && !tv_partial(&raw const *arg).is_null() {
             let pt = tv_partial(&raw const *arg);
@@ -5242,7 +5242,7 @@ pub unsafe fn callback_from_typval(callback: &mut Callback, arg: &typval_T) -> b
             }
         } else if is_lua_tbl {
             {
-                let name = nlua_register_table_as_callable(&*arg);
+                let name = nlua_register_table_as_callable(arg);
                 if !name.is_null() {
                     callback.data = crate::eval::typval::CallbackData::funcref(
                         CStr::from_ptr(name).to_owned(),
@@ -7130,13 +7130,13 @@ pub unsafe fn eval_call_provider(
 /// Checks if provider for feature `feat` is enabled.
 pub unsafe fn eval_has_provider(feat: *const c_char, throw_if_fast: bool) -> bool {
     unsafe {
-        if !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"clipboard" }
-            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"python3" }
-            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"python3_compiled" }
-            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"python3_dynamic" }
-            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"perl" }
-            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"ruby" }
-            && !{ let _a = feat; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"node" }
+        if !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"clipboard"))
+            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"python3"))
+            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"python3_compiled"))
+            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"python3_dynamic"))
+            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"perl"))
+            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"ruby"))
+            && !(crate::memory::cstr_as_opt_bytes(feat) == Some(b"node"))
         {
             return false;
         }

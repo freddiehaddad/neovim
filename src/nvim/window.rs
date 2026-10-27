@@ -7890,14 +7890,14 @@ pub unsafe fn win_remove_status_line(wp: *mut win_T, add_hsep: bool) {
 unsafe fn find_horizontally_resizable_frame(fr: &mut frame_T) -> *mut frame_T {
     unsafe {
         let mut fp = fr;
-        while (*fp).fr_height <= frame_minheight(fp, ptr::null_mut()) {
+        while fp.fr_height <= frame_minheight(fp, ptr::null_mut()) {
             if ptr::eq(fp, g_st().topframe) {
                 return ptr::null_mut();
             }
-            if (*(*fp).fr_parent).fr_layout == FR_COL && !(*fp).fr_prev.is_null() {
-                fp = &mut *(*fp).fr_prev;
+            if (*fp.fr_parent).fr_layout == FR_COL && !fp.fr_prev.is_null() {
+                fp = &mut *fp.fr_prev;
             } else {
-                fp = &mut *(*fp).fr_parent;
+                fp = &mut *fp.fr_parent;
             }
         }
         fp

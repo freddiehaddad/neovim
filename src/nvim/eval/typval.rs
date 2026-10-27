@@ -1008,7 +1008,7 @@ pub unsafe fn tv_list_watch_add(l: &mut list_T, lw: std::rc::Rc<listwatch_T>) {
 
 /// Remove a watcher from a list.
 pub unsafe fn tv_list_watch_remove(l: &mut list_T, lwrem: &std::rc::Rc<listwatch_T>) {
-    if let Some(pos) = (*l)
+    if let Some(pos) = l
             .lv_watch
             .iter()
             .position(|lw| std::rc::Rc::ptr_eq(lw, lwrem))
@@ -2558,7 +2558,7 @@ pub unsafe fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
         }
         match cb1.cb_type() {
             kCallbackFuncref | kCallbackExpr => {
-                { let _a = cb1.data.as_funcref(); let _b = cb2.data.as_funcref(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) }
+                crate::memory::cstr_as_opt_bytes(cb1.data.as_funcref()) == crate::memory::cstr_as_opt_bytes(cb2.data.as_funcref())
             }
             kCallbackPartial => cb1.data.as_partial() == cb2.data.as_partial(),
             kCallbackLua => cb1.data.as_luaref() == cb2.data.as_luaref(),
@@ -2731,7 +2731,7 @@ unsafe fn tv_dict_watcher_matches(watcher: &DictWatcher, key: *const c_char) -> 
         let len = watcher.key_pattern_len;
         let pat_ptr = watcher.key_pattern.as_ptr();
         if len > 0 && *pat_ptr.add(len - 1) == b'*' as c_char {
-            { let _p1 = key; let _p2 = pat_ptr; let _n = len - 1; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            crate::memory::cstr_prefix_bytes(key, len - 1) == crate::memory::cstr_prefix_bytes(pat_ptr, len - 1)
         } else {
             std::ffi::CStr::from_ptr(key).to_bytes() == std::ffi::CStr::from_ptr(pat_ptr).to_bytes()
         }

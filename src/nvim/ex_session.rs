@@ -270,7 +270,7 @@ unsafe fn ses_arglist(
             Vec::new()
         };
         for entry in gap {
-            let mut s = alist_name(&*(&raw const *entry));
+            let mut s = alist_name(entry);
             if !s.is_null() {
                 if fullname {
                     vim_FullName(s, buf.as_mut_ptr(), MAXPATHL, false);

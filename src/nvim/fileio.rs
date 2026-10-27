@@ -3318,7 +3318,7 @@ pub unsafe fn modname(
         if fname.is_null() || *fname == NUL {
             retval_vec = vec![0; MAXPATHL + extlen + 3];
             retval = retval_vec.as_mut_ptr();
-            if os_dirname(retval, MAXPATHL) == FAIL || std::ffi::CStr::from_ptr(retval).to_bytes().len() == 0 {
+            if os_dirname(retval, MAXPATHL) == FAIL || std::ffi::CStr::from_ptr(retval).to_bytes().is_empty() {
                 return None;
             }
             add_pathsep(retval);
@@ -4156,7 +4156,7 @@ unsafe fn vim_mktempdir() {
                 (TEMP_FILE_PATH_MAXLEN - 64) as c_int,
             );
             if !os_isdir(tmp.as_ptr()) {
-                if { let _b = temp_dir.as_ptr(); !_b.is_null() && std::ffi::CStr::from_ptr(_b).to_bytes() == b"$TMPDIR" } {
+                if crate::memory::cstr_as_opt_bytes(temp_dir.as_ptr()) == Some(b"$TMPDIR") {
                     if !os_env_exists(c"TMPDIR".as_ptr(), true) {
                         logmsg!(
                             LOG_DEBUG,

@@ -886,7 +886,7 @@ pub unsafe fn ex_sort(eap: &mut exarg_T) {
                 let bytelen: colnr_T = ml_get_len(get_lnum) + 1;
                 old_count += bytelen as bcount_t;
                 if !unique || i == 0 || string_compare(s, sortbuf1) != 0 {
-                    { let s = s; std::ptr::copy_nonoverlapping(s, sortbuf1, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    { std::ptr::copy_nonoverlapping(s, sortbuf1, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     if ml_append(lnum, sortbuf1, 0, false) == FAIL {
                         break;
                     }
@@ -1495,7 +1495,7 @@ pub unsafe fn do_bang(
             trailarg = newcmd.as_mut_ptr().add(start);
         }
 
-        if std::ffi::CStr::from_ptr(newcmd.as_ptr()).to_bytes().len() > 0 {
+        if !std::ffi::CStr::from_ptr(newcmd.as_ptr()).to_bytes().is_empty() {
             excmds_st().prevcmd = Some(CStr::from_ptr(newcmd.as_ptr()).to_owned());
         }
 
@@ -1883,12 +1883,15 @@ pub unsafe fn make_filter_cmd(
 ) -> std::ffi::CString {
     unsafe {
         #[cfg(unix)]
-        let is_fish_shell = { let _p = invocation_path_tail(opt_vars().p_sh, ptr::null_mut()); crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"fish"[..4] };
+        let is_fish_shell = crate::memory::cstr_prefix_bytes(
+            invocation_path_tail(opt_vars().p_sh, ptr::null_mut()),
+            4,
+        ) == &b"fish"[..4];
         #[cfg(not(unix))]
         let is_fish_shell = false;
 
-        let is_pwsh = { let _p = invocation_path_tail(opt_vars().p_sh, ptr::null_mut()); crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"pwsh"[..4] }
-            || { let _p = invocation_path_tail(opt_vars().p_sh, ptr::null_mut()); crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"powershell"[..10] };
+        let is_pwsh = (crate::memory::cstr_prefix_bytes(invocation_path_tail(opt_vars().p_sh, ptr::null_mut()), 4) == &b"pwsh"[..4])
+            || (crate::memory::cstr_prefix_bytes(invocation_path_tail(opt_vars().p_sh, ptr::null_mut()), 10) == &b"powershell"[..10]);
 
         let mut len = std::ffi::CStr::from_ptr(cmd).to_bytes().len() + 1;
 
@@ -3554,7 +3557,7 @@ pub unsafe fn ex_z(eap: &mut exarg_T) {
                 emsg(gettext(E_NON_NUMERIC_ARGUMENT_TO_Z.as_ptr()));
                 return;
             }
-            bigness = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(x).to_bytes()) as std::ffi::c_long as i64;
+            bigness = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(x).to_bytes());
 
             if bigness > 2 * ((*g_st().curbuf).b_ml.ml_line_count as i64) || bigness < 0 {
                 bigness = 2 * ((*g_st().curbuf).b_ml.ml_line_count as i64);

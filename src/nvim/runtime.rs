@@ -2724,7 +2724,7 @@ unsafe fn do_source_str_init(sp: &mut source_cookie_T, mut str_ptr: *const c_cha
                 str_ptr.cast::<u8>(),
                 (eol as usize) - (str_ptr as usize),
             );
-            (*sp)
+            sp
                 .buflines
                 .push(std::ffi::CString::new(slice).unwrap_or_default());
             str_ptr = eol.add(usize::from(*eol != NUL));
@@ -2988,7 +2988,7 @@ unsafe fn do_source_ext(
             if fname.is_null()
                 && !eap.is_null()
                 && !ex_lua
-                && !{ let _a = (*g_st().curbuf).b_p_ft; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"lua" }
+                && !(crate::memory::cstr_as_opt_bytes((*g_st().curbuf).b_p_ft) == Some(b"lua"))
                 && !(!(*g_st().curbuf).b_fname.is_null()
                     && path_with_extension((*g_st().curbuf).b_fname, c"lua".as_ptr()))
             {
@@ -3023,7 +3023,7 @@ unsafe fn do_source_ext(
             if fname.is_null()
                 && (ex_lua
                     || ts_lua
-                    || { let _a = (*g_st().curbuf).b_p_ft; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"lua" }
+                    || (crate::memory::cstr_as_opt_bytes((*g_st().curbuf).b_p_ft) == Some(b"lua"))
                     || (!(*g_st().curbuf).b_fname.is_null()
                         && path_with_extension((*g_st().curbuf).b_fname, c"lua".as_ptr())))
             {
@@ -3382,7 +3382,7 @@ pub unsafe fn getsourceline(
 ) -> Option<std::ffi::CString> {
     unsafe {
         if sp.dbg_tick < g_st().debug_tick && !sp.source_from_buf_or_str {
-            let fname_ptr = (*sp)
+            let fname_ptr = sp
                 .fname
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -3456,7 +3456,7 @@ pub unsafe fn getsourceline(
             && sp.breakpoint != 0
             && sp.breakpoint <= sourcing_lnum()
         {
-            let fname_ptr = (*sp)
+            let fname_ptr = sp
                 .fname
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -3497,7 +3497,7 @@ unsafe fn get_one_sourceline(sp: &mut source_cookie_T) -> Option<Vec<c_char>> {
                 let start = buf.len();
                 buf.resize(start + 120, 0);
                 let mut eof = false;
-                let fp = (&*sp).fp.as_ref().unwrap().as_ptr();
+                let fp = sp.fp.as_ref().unwrap().as_ptr();
                 loop {
                     *errno_ptr() = 0;
                     if fgets(buf.as_mut_ptr().add(start), 120, fp).is_null() {

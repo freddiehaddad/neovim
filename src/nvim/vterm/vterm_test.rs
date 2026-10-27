@@ -748,8 +748,8 @@ pub unsafe fn vterm_state_get_penattr(
 }
 
 pub unsafe fn vterm_color_is_equal(a: &VTermColor, b: &VTermColor) -> c_int {
-    let ca = &*a;
-        let cb = &*b;
+    let ca = a;
+        let cb = b;
         if ca.type_byte() != cb.type_byte() {
             return 0;
         }

@@ -2800,9 +2800,9 @@ unsafe fn syn_cmd_conceal(eap: &mut exarg_T, _syncing: c_int) {
             } else {
                 msg(c"syntax conceal off".as_ptr(), 0);
             }
-        } else if { let _p1 = arg; let _p2 = c"on".as_ptr(); let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 2 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 2).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"on".as_ptr(), 2)) && next.offset_from(arg) == 2 {
             (*win_s(*curwin.as_ptr())).b_syn_conceal = 1;
-        } else if { let _p1 = arg; let _p2 = c"off".as_ptr(); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 3 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"off".as_ptr(), 3)) && next.offset_from(arg) == 3 {
             (*win_s(*curwin.as_ptr())).b_syn_conceal = 0;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2825,9 +2825,9 @@ unsafe fn syn_cmd_case(eap: &mut exarg_T, _syncing: c_int) {
             } else {
                 msg(c"syntax case match".as_ptr(), 0);
             }
-        } else if { let _p1 = arg; let _p2 = c"match".as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 5 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"match".as_ptr(), 5)) && next.offset_from(arg) == 5 {
             (*win_s(*curwin.as_ptr())).b_syn_ic = 0;
-        } else if { let _p1 = arg; let _p2 = c"ignore".as_ptr(); let _n = 6; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 6 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 6).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"ignore".as_ptr(), 6)) && next.offset_from(arg) == 6 {
             (*win_s(*curwin.as_ptr())).b_syn_ic = 1;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2857,9 +2857,9 @@ unsafe fn syn_cmd_foldlevel(eap: &mut exarg_T, _syncing: c_int) {
         }
 
         let arg_end = skiptowhite(arg);
-        if { let _p1 = arg; let _p2 = c"start".as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && arg_end.offset_from(arg) == 5 {
+        if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"start".as_ptr(), 5)) && arg_end.offset_from(arg) == 5 {
             (*win_s(*curwin.as_ptr())).b_syn_foldlevel = SYNFLD_START;
-        } else if { let _p1 = arg; let _p2 = c"minimum".as_ptr(); let _n = 7; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && arg_end.offset_from(arg) == 7 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"minimum".as_ptr(), 7)) && arg_end.offset_from(arg) == 7 {
             (*win_s(*curwin.as_ptr())).b_syn_foldlevel = SYNFLD_MINIMUM;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2890,12 +2890,12 @@ unsafe fn syn_cmd_spell(eap: &mut exarg_T, _syncing: c_int) {
             } else {
                 msg(c"syntax spell default".as_ptr(), 0);
             }
-        } else if { let _p1 = arg; let _p2 = c"toplevel".as_ptr(); let _n = 8; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 8 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 8).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"toplevel".as_ptr(), 8)) && next.offset_from(arg) == 8 {
             (*win_s(*curwin.as_ptr())).b_syn_spell = SYNSPL_TOP;
-        } else if { let _p1 = arg; let _p2 = c"notoplevel".as_ptr(); let _n = 10; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 10
+        } else if crate::memory::cstr_prefix_bytes(arg, 10).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"notoplevel".as_ptr(), 10)) && next.offset_from(arg) == 10
         {
             (*win_s(*curwin.as_ptr())).b_syn_spell = SYNSPL_NOTOP;
-        } else if { let _p1 = arg; let _p2 = c"default".as_ptr(); let _n = 7; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } && next.offset_from(arg) == 7 {
+        } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"default".as_ptr(), 7)) && next.offset_from(arg) == 7 {
             (*win_s(*curwin.as_ptr())).b_syn_spell = SYNSPL_DEFAULT;
         } else {
             semsg!(gettext(e_illegal_arg), arg);
@@ -2922,7 +2922,7 @@ unsafe fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
             } else {
                 msg_outtrans(gettext(c"syntax iskeyword not set".as_ptr()), 0, false);
             }
-        } else if { let _p1 = arg; let _p2 = c"clear".as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
+        } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"clear".as_ptr(), 5)) {
             (*win_s(*curwin.as_ptr())).b_syn_chartab = (*g_st().curbuf).b_chartab;
             (*win_s(*curwin.as_ptr())).b_syn_isk = None;
         } else {
@@ -3480,7 +3480,7 @@ unsafe fn put_pattern(s: *const c_char, c: c_int, spp: &synpat_T, hl_id: c_int) 
         msg_puts_hl(s, hl_id, false);
         msg_putchar(c);
 
-        let pat_ptr = (*spp)
+        let pat_ptr = spp
             .sp_pattern
             .as_ref()
             .map_or(c"".as_ptr(), |s| s.as_ptr());
@@ -4201,7 +4201,7 @@ unsafe fn syn_cmd_region(eap: &mut exarg_T, syncing: c_int) {
 
             if item == ITEM_MATCHGROUP {
                 let p = skiptowhite(rest);
-                if (p.offset_from(rest) == 4 && { let _p = rest; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"NONE"[..4] })
+                if (p.offset_from(rest) == 4 && (crate::memory::cstr_prefix_bytes(rest, 4) == &b"NONE"[..4]))
                     || eap.skip != 0
                 {
                     matchgroup_id = 0;
@@ -4456,15 +4456,15 @@ unsafe fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
             scl_id -= SYNID_CLUSTER as c_int;
 
             loop {
-                let (opt_len, list_op) = if { let _p1 = rest; let _p2 = c"add".as_ptr(); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+                let (opt_len, list_op) = if crate::memory::cstr_prefix_bytes(rest, 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"add".as_ptr(), 3))
                     && (ascii_iswhite(*rest.add(3)) || *rest.add(3) == b'=' as c_char)
                 {
                     (3, CLUSTER_ADD)
-                } else if { let _p1 = rest; let _p2 = c"remove".as_ptr(); let _n = 6; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+                } else if crate::memory::cstr_prefix_bytes(rest, 6).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"remove".as_ptr(), 6))
                     && (ascii_iswhite(*rest.add(6)) || *rest.add(6) == b'=' as c_char)
                 {
                     (6, CLUSTER_SUBTRACT)
-                } else if { let _p1 = rest; let _p2 = c"contains".as_ptr(); let _n = 8; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+                } else if crate::memory::cstr_prefix_bytes(rest, 8).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"contains".as_ptr(), 8))
                     && (ascii_iswhite(*rest.add(8)) || *rest.add(8) == b'=' as c_char)
                 {
                     (8, CLUSTER_REPLACE)
@@ -4539,7 +4539,7 @@ unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
         loop {
             let mut idx: isize = SPO_COUNT as isize - 1;
             while idx >= 0 {
-                if { let _p1 = end; let _p2 = spo_name_tab[idx as usize]; let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                if crate::memory::cstr_prefix_bytes(end, 3) == crate::memory::cstr_prefix_bytes(spo_name_tab[idx as usize], 3) {
                     break;
                 }
                 idx -= 1;
@@ -4631,10 +4631,10 @@ unsafe fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
                 } else if eap.skip == 0 {
                     (*win_s(*curwin.as_ptr())).b_syn_sync_id = syn_name2id(c"Comment".as_ptr()) as i16;
                 }
-            } else if { let _p = key; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"LINES"[..5] }
-                || { let _p = key; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"MINLINES"[..8] }
-                || { let _p = key; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"MAXLINES"[..8] }
-                || { let _p = key; crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"LINEBREAKS"[..10] }
+            } else if (crate::memory::cstr_prefix_bytes(key, 5) == &b"LINES"[..5])
+                || (crate::memory::cstr_prefix_bytes(key, 8) == &b"MINLINES"[..8])
+                || (crate::memory::cstr_prefix_bytes(key, 8) == &b"MAXLINES"[..8])
+                || (crate::memory::cstr_prefix_bytes(key, 10) == &b"LINEBREAKS"[..10])
             {
                 arg_end = (if *key.add(4) == b'S' as c_char {
                     key.add(6)
@@ -5217,22 +5217,22 @@ pub unsafe fn set_context_in_syntax_cmd(xp: &mut expand_T, arg: *const c_char) {
             xp.xp_context = EXPAND_NOTHING;
         } else {
             let n = p.offset_from(arg) as usize;
-            if { let _p1 = arg; let _p2 = c"case".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
+            if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"case".as_ptr(), n)) {
                 syn_st().expand_what = EXP_CASE;
-            } else if { let _p1 = arg; let _p2 = c"spell".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
+            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"spell".as_ptr(), n)) {
                 syn_st().expand_what = EXP_SPELL;
-            } else if { let _p1 = arg; let _p2 = c"sync".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
+            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"sync".as_ptr(), n)) {
                 syn_st().expand_what = EXP_SYNC;
-            } else if { let _p1 = arg; let _p2 = c"list".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) } {
+            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"list".as_ptr(), n)) {
                 let p2 = skipwhite(p);
                 if *p2 == b'@' as c_char {
                     syn_st().expand_what = EXP_CLUSTER;
                 } else {
                     xp.xp_context = EXPAND_HIGHLIGHT;
                 }
-            } else if { let _p1 = arg; let _p2 = c"keyword".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
-                || { let _p1 = arg; let _p2 = c"region".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
-                || { let _p1 = arg; let _p2 = c"match".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+            } else if crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"keyword".as_ptr(), n))
+                || crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"region".as_ptr(), n))
+                || crate::memory::cstr_prefix_bytes(arg, n).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"match".as_ptr(), n))
             {
                 xp.xp_context = EXPAND_HIGHLIGHT;
             } else {

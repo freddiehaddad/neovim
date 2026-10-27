@@ -341,7 +341,7 @@ unsafe fn tinput_enqueue(input: &mut TermInput, buf: *const c_char, size: usize)
         let to_copy = size.min(KEY_BUFFER_SIZE - input.key_buffer_len);
         ptr::copy_nonoverlapping(
             buf,
-            (*input)
+            input
                 .key_buffer
                 .as_mut_ptr()
                 .add(input.key_buffer_len),
@@ -636,7 +636,7 @@ unsafe extern "C" fn tinput_timer_cb(handle: *mut uv_timer_t) {
 unsafe extern "C" fn bg_query_timer_cb(handle: *mut uv_timer_t) {
     unsafe {
         let input = &mut **handle.cast::<*mut TermInput>();
-        tui_query_bg_color(&mut *(*input).tui_data);
+        tui_query_bg_color(&mut *input.tui_data);
     }
 }
 

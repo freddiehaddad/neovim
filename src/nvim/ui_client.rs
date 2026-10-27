@@ -212,7 +212,7 @@ pub unsafe fn ui_client_attach(
         debug_assert!(m.data.dict().size > 0);
         for i in 0..m.data.dict().size {
             let item = *m.data.dict().items.add(i);
-            if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"version" } {
+            if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"version") {
                 version = item.value.data.dict();
                 break;
             } else if i + 1 == m.data.dict().size {
@@ -494,7 +494,7 @@ pub unsafe fn channel_connect_event(server_addr: std::ffi::CString) {
         let on_data = CallbackReader::none();
         let chan = channel_connect(is_tcp, addr_ptr, true, on_data, 50, &mut err);
 
-        if !{ let _a = err; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"" } {
+        if !(crate::memory::cstr_as_opt_bytes(err) == Some(b"")) {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),

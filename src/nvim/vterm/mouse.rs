@@ -254,18 +254,18 @@ pub unsafe fn vterm_mouse_move(vt: &mut VTerm, row: c_int, col: c_int, mod_: VTe
     unsafe {
         let state = &mut *vt.state_mut_ptr();
 
-        if col == (*state).mouse_col && row == (*state).mouse_row {
+        if col == state.mouse_col && row == state.mouse_row {
             return;
         }
 
-        (*state).mouse_col = col;
-        (*state).mouse_row = row;
+        state.mouse_col = col;
+        state.mouse_row = row;
 
-        if (((*state).mouse_flags & MOUSE_WANT_DRAG) != 0 && (*state).mouse_buttons != 0)
-            || ((*state).mouse_flags & MOUSE_WANT_MOVE) != 0
+        if ((state.mouse_flags & MOUSE_WANT_DRAG) != 0 && state.mouse_buttons != 0)
+            || (state.mouse_flags & MOUSE_WANT_MOVE) != 0
         {
-            if (*state).mouse_buttons != 0 {
-                let button = xctz((*state).mouse_buttons as u64) + 1;
+            if state.mouse_buttons != 0 {
+                let button = xctz(state.mouse_buttons as u64) + 1;
                 if button < 4 {
                     output_mouse(state, button - 1 + 0x20, 1, mod_, col, row);
                 } else if (8..12).contains(&button) {
@@ -287,21 +287,21 @@ pub unsafe fn vterm_mouse_button(
     unsafe {
         let state = &mut *vt.state_mut_ptr();
 
-        let old_buttons = (*state).mouse_buttons;
+        let old_buttons = state.mouse_buttons;
 
         if (1..=3).contains(&button) || (8..=11).contains(&button) {
             if pressed {
-                (*state).mouse_buttons |= 1 << (button - 1);
+                state.mouse_buttons |= 1 << (button - 1);
             } else {
-                (*state).mouse_buttons &= !(1 << (button - 1));
+                state.mouse_buttons &= !(1 << (button - 1));
             }
         }
 
-        if (*state).mouse_buttons == old_buttons && !(4..=7).contains(&button) {
+        if state.mouse_buttons == old_buttons && !(4..=7).contains(&button) {
             return;
         }
 
-        if (*state).mouse_flags == 0 {
+        if state.mouse_flags == 0 {
             return;
         }
 
@@ -311,8 +311,8 @@ pub unsafe fn vterm_mouse_button(
                 button - 1,
                 c_int::from(pressed),
                 mod_,
-                (*state).mouse_col,
-                (*state).mouse_row,
+                state.mouse_col,
+                state.mouse_row,
             );
         } else if button < 8 {
             output_mouse(
@@ -320,8 +320,8 @@ pub unsafe fn vterm_mouse_button(
                 button - 4 + 0x40,
                 c_int::from(pressed),
                 mod_,
-                (*state).mouse_col,
-                (*state).mouse_row,
+                state.mouse_col,
+                state.mouse_row,
             );
         } else if button < 12 {
             output_mouse(
@@ -329,8 +329,8 @@ pub unsafe fn vterm_mouse_button(
                 button - 8 + 0x80,
                 c_int::from(pressed),
                 mod_,
-                (*state).mouse_col,
-                (*state).mouse_row,
+                state.mouse_col,
+                state.mouse_row,
             );
         }
     }

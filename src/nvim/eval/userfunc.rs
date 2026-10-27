@@ -349,8 +349,8 @@ unsafe fn one_function_arg(
         let len = p.offset_from(arg);
         if arg == p
             || (*arg as u8).is_ascii_digit()
-            || (len == 9 && { let _p = arg; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"firstline"[..9] })
-            || (len == 8 && { let _p = arg; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"lastline"[..8] })
+            || (len == 9 && (crate::memory::cstr_prefix_bytes(arg, 9) == &b"firstline"[..9]))
+            || (len == 8 && (crate::memory::cstr_prefix_bytes(arg, 8) == &b"lastline"[..8]))
         {
             if !skip {
                 semsg!(gettext(c"E125: Illegal argument: %s".as_ptr()), arg);
@@ -1250,7 +1250,7 @@ pub unsafe fn call_user_func(
         (*fc).fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(&*fp), 0);
         (*fc).fc_dbg_tick = g_st().debug_tick;
 
-        if { let _p = uf2hikey(&*fp); crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"<lambda>"[..8] } {
+        if crate::memory::cstr_prefix_bytes(uf2hikey(&*fp), 8) == &b"<lambda>"[..8] {
             islambda = true;
         }
 
@@ -2336,7 +2336,7 @@ pub unsafe fn trans_function_name(
         }
         if !name.is_null() {
             *pp = end.cast_mut();
-            if { let _p = name; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"<SNR>"[..5] } {
+            if crate::memory::cstr_prefix_bytes(name, 5) == &b"<SNR>"[..5] {
                 let tail = CStr::from_ptr(name.add(5)).to_bytes();
                 let mut bytes = Vec::with_capacity(3 + tail.len());
                 bytes.extend_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
@@ -2351,7 +2351,7 @@ pub unsafe fn trans_function_name(
             if lead <= 2
                 && lv.ll_name == exp_name.as_ptr()
                 && lv.ll_name_len >= 2
-                && { let _p = lv.ll_name; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"s:"[..2] }
+                && (crate::memory::cstr_prefix_bytes(lv.ll_name, 2) == &b"s:"[..2])
             {
                 lv.ll_name = lv.ll_name.add(2);
                 lv.ll_name_len -= 2;
@@ -2437,7 +2437,7 @@ pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi
             return None;
         }
 
-        if !({ let _p = funcname; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"s:"[..2] }) && !({ let _p = funcname; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"<SID>"[..5] })
+        if !(crate::memory::cstr_prefix_bytes(funcname, 2) == &b"s:"[..2]) && !(crate::memory::cstr_prefix_bytes(funcname, 5) == &b"<SID>"[..5])
         {
             return None;
         }
@@ -2480,7 +2480,7 @@ pub unsafe fn save_function_name(
         let mut p = *name;
         let saved: Option<std::ffi::CString>;
 
-        if { let _p = p; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"<lambda>"[..8] } {
+        if crate::memory::cstr_prefix_bytes(p, 8) == &b"<lambda>"[..8] {
             p = p.add(8);
             getdigits(&raw mut p, false, 0);
             saved = Some(cstr_from_bytes(std::slice::from_raw_parts(
@@ -2702,7 +2702,7 @@ unsafe fn get_function_body(
                     || (is_heredoc && skipwhite(theline) == theline)
                     || heredoc_trimmed
                         .as_ref()
-                        .is_some_and(|ht| { let _p1 = theline; let _p2 = ht.as_ptr(); let _n = heredoc_trimmedlen; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) })
+                        .is_some_and(|ht| crate::memory::cstr_prefix_bytes(theline, heredoc_trimmedlen) == crate::memory::cstr_prefix_bytes(ht.as_ptr(), heredoc_trimmedlen))
                 {
                     p = if heredoc_trimmed.is_none() {
                         theline
@@ -2766,12 +2766,12 @@ unsafe fn get_function_body(
                     }
                 }
 
-                if indent > 2 && { let _p = p; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"end"[..3] } {
+                if indent > 2 && (crate::memory::cstr_prefix_bytes(p, 3) == &b"end"[..3]) {
                     indent -= 2;
-                } else if { let _p = p; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"if"[..2] }
-                    || { let _p = p; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"wh"[..2] }
-                    || { let _p = p; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"for"[..3] }
-                    || { let _p = p; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"try"[..3] }
+                } else if (crate::memory::cstr_prefix_bytes(p, 2) == &b"if"[..2])
+                    || (crate::memory::cstr_prefix_bytes(p, 2) == &b"wh"[..2])
+                    || (crate::memory::cstr_prefix_bytes(p, 3) == &b"for"[..3])
+                    || (crate::memory::cstr_prefix_bytes(p, 3) == &b"try"[..3])
                 {
                     indent += 2;
                 }
@@ -2829,7 +2829,7 @@ unsafe fn get_function_body(
                         || (p0 == b'm' && p1 == b'z' && (!p2.is_ascii_alphabetic() || p2 == b's')));
                 if is_script_heredoc {
                     p = skipwhite(arg.add(2));
-                    if { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"trim"[..4] }
+                    if (crate::memory::cstr_prefix_bytes(p, 4) == &b"trim"[..4])
                         && (*p.add(4) == NUL || ascii_iswhite(*p.add(4) as c_int))
                     {
                         p = skipwhite(p.add(4));
@@ -2863,18 +2863,18 @@ unsafe fn get_function_body(
                         if !arg.is_null() {
                             arg = skipwhite(arg);
                         }
-                        if !arg.is_null() && { let _p = arg; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"=<<"[..3] } {
+                        if !arg.is_null() && (crate::memory::cstr_prefix_bytes(arg, 3) == &b"=<<"[..3]) {
                             p = skipwhite(arg.add(3));
                             let mut has_trim = false;
                             loop {
-                                if { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"trim"[..4] }
+                                if (crate::memory::cstr_prefix_bytes(p, 4) == &b"trim"[..4])
                                     && (*p.add(4) == NUL || ascii_iswhite(*p.add(4) as c_int))
                                 {
                                     p = skipwhite(p.add(4));
                                     has_trim = true;
                                     continue;
                                 }
-                                if { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"eval"[..4] }
+                                if (crate::memory::cstr_prefix_bytes(p, 4) == &b"eval"[..4])
                                     && (*p.add(4) == NUL || ascii_iswhite(*p.add(4) as c_int))
                                 {
                                     p = skipwhite(p.add(4));
@@ -3088,16 +3088,16 @@ pub unsafe fn ex_function(eap: &mut exarg_T) {
 
         loop {
             p = skipwhite(p);
-            if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"range"[..5] } {
+            if crate::memory::cstr_prefix_bytes(p, 5) == &b"range"[..5] {
                 flags |= FC_RANGE;
                 p = p.add(5);
-            } else if { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"dict"[..4] } {
+            } else if crate::memory::cstr_prefix_bytes(p, 4) == &b"dict"[..4] {
                 flags |= FC_DICT;
                 p = p.add(4);
-            } else if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"abort"[..5] } {
+            } else if crate::memory::cstr_prefix_bytes(p, 5) == &b"abort"[..5] {
                 flags |= FC_ABORT;
                 p = p.add(5);
-            } else if { let _p = p; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"closure"[..7] } {
+            } else if crate::memory::cstr_prefix_bytes(p, 7) == &b"closure"[..7] {
                 flags |= FC_CLOSURE;
                 p = p.add(7);
                 if uf_st().current_funccal.is_null() {
@@ -3363,7 +3363,7 @@ pub unsafe fn get_user_func_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
             uf_st().get_uf_done += 1;
 
             if ((*fp).uf_flags & FC_DICT) != 0
-                || { let _p = uf2hikey(&*fp); crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"<lambda>"[..8] }
+                || (crate::memory::cstr_prefix_bytes(uf2hikey(&*fp), 8) == &b"<lambda>"[..8])
             {
                 return c"".as_ptr().cast_mut();
             }

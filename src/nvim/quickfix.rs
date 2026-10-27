@@ -1494,7 +1494,7 @@ unsafe fn qf_setup_state(
         }
 
         if !efile.is_null() {
-            let raw_fd = if { let _a = efile; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"-" } {
+            let raw_fd = if crate::memory::cstr_as_opt_bytes(efile) == Some(b"-") {
                 fdopen(os_open_stdin_fd(), c"r".as_ptr())
             } else {
                 os_fopen(efile, c"r".as_ptr()).cast::<FILE>()
@@ -2551,7 +2551,7 @@ unsafe fn copy_loclist(from_qfl: &qf_list_T, to_qfl: &mut qf_list_T) -> c_int {
         }
         callback_copy(
             &mut to_qfl.qf_qftf_cb,
-            &*(&raw const from_qfl.qf_qftf_cb),
+            &from_qfl.qf_qftf_cb,
         );
 
         if !from_qfl.qf_items.is_empty() && copy_loclist_entries(from_qfl, to_qfl) == FAIL {
@@ -3550,7 +3550,7 @@ unsafe fn qf_list_entry(qfp: &mut qfline_T, qf_idx: c_int, cursel: bool) {
             if qfp.qf_fnum != 0 {
                 let buf = buflist_findnr(qfp.qf_fnum);
                 if !buf.is_null() {
-                    fname = (*qfp)
+                    fname = qfp
                         .qf_fname
                         .as_ref()
                         .map_or((*buf).b_fname, |s| s.as_ptr().cast_mut());
@@ -4238,13 +4238,13 @@ pub unsafe fn qf_current_entry(wp: &mut win_T) -> linenr_T {
             qi = wp.w_llist_ref;
         }
 
-        (*qf_get_curlist(qi)).qf_index
+        qf_get_curlist(qi).qf_index
     }
 }
 
 unsafe fn qf_win_pos_update(qi: *mut qf_info_T, old_qf_index: c_int) -> bool {
     unsafe {
-        let qf_index = (*qf_get_curlist(qi)).qf_index;
+        let qf_index = qf_get_curlist(qi).qf_index;
 
         let win = qf_find_win(qi);
         if !win.is_null()
@@ -4469,7 +4469,7 @@ unsafe fn qf_buf_add_line(
                         }
                         qfga_concat(
                             gap,
-                            (*qfp)
+                            qfp
                                 .qf_fname
                                 .as_ref()
                                 .map_or((*errbuf).b_fname.cast_const(), |s| s.as_ptr()),
@@ -4679,7 +4679,7 @@ unsafe fn qf_fill_buffer(qfl: *mut qf_list_T, buf: &mut buf_T, old_count: usize,
 
 #[inline]
 unsafe fn qf_list_changed(qfl: &mut qf_list_T) {
-    (*qfl).qf_changedtick += 1;
+    qfl.qf_changedtick += 1;
 }
 
 unsafe fn qf_id2nr(qi: &qf_info_T, qfid: c_uint) -> c_int {
@@ -4693,7 +4693,7 @@ unsafe fn qf_id2nr(qi: &qf_info_T, qfid: c_uint) -> c_int {
 
 unsafe fn qf_restore_list(qi: &mut qf_info_T, save_qfid: c_uint) -> c_int {
     unsafe {
-        if (*qf_get_curlist(&raw mut *qi)).qf_id == save_qfid {
+        if qf_get_curlist(&raw mut *qi).qf_id == save_qfid {
             return OK;
         }
 
@@ -4851,7 +4851,7 @@ pub unsafe fn ex_make(eap: &mut exarg_T) {
             if res >= 0 {
                 qf_list_changed(qf_get_curlist(qi));
             }
-            let save_qfid = (*qf_get_curlist(qi)).qf_id;
+            let save_qfid = qf_get_curlist(qi).qf_id;
             if !au_name.is_null() {
                 apply_autocmds(
                     EVENT_QUICKFIXCMDPOST,
@@ -4927,7 +4927,7 @@ pub unsafe fn qf_get_size(eap: *mut exarg_T) -> usize {
         if qi.is_null() {
             return 0;
         }
-        (*qf_get_curlist(qi)).qf_items.len()
+        qf_get_curlist(qi).qf_items.len()
     }
 }
 
@@ -4966,8 +4966,8 @@ pub unsafe fn qf_get_cur_idx(eap: *mut exarg_T) -> usize {
             return 0;
         }
 
-        assert!((*qf_get_curlist(qi)).qf_index >= 0);
-        (*qf_get_curlist(qi)).qf_index as usize
+        assert!(qf_get_curlist(qi).qf_index >= 0);
+        qf_get_curlist(qi).qf_index as usize
     }
 }
 
@@ -5478,7 +5478,7 @@ pub unsafe fn ex_cfile(eap: &mut exarg_T) {
         if res >= 0 {
             qf_list_changed(qf_get_curlist(qi));
         }
-        let save_qfid = (*qf_get_curlist(qi)).qf_id;
+        let save_qfid = qf_get_curlist(qi).qf_id;
         if !au_name.is_null() {
             apply_autocmds(
                 EVENT_QUICKFIXCMDPOST,
@@ -5812,7 +5812,7 @@ unsafe fn vgr_process_files(
 ) -> c_int {
     unsafe {
         let mut status = FAIL;
-        let mut save_qfid = (*qf_get_curlist(&raw mut *qi)).qf_id;
+        let mut save_qfid = qf_get_curlist(&raw mut *qi).qf_id;
         let mut duplicate_name = false;
 
         let mut dirname_start = vec![0 as c_char; MAXPATHL];
@@ -5848,7 +5848,7 @@ unsafe fn vgr_process_files(
                 wp,
                 qi,
                 save_qfid,
-                (*cmd_args)
+                cmd_args
                     .qf_title
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
@@ -5857,7 +5857,7 @@ unsafe fn vgr_process_files(
                 break;
             }
 
-            save_qfid = (*qf_get_curlist(&raw mut *qi)).qf_id;
+            save_qfid = qf_get_curlist(&raw mut *qi).qf_id;
 
             if buf.is_null() {
                 if !g_st().got_int {
@@ -5987,7 +5987,7 @@ pub unsafe fn ex_vimgrep(eap: &mut exarg_T) {
 
                 qf_update_buffer(&mut *qi, 0);
 
-                let save_qfid = (*qf_get_curlist(qi)).qf_id;
+                let save_qfid = qf_get_curlist(qi).qf_id;
 
                 if !au_name.is_null() {
                     apply_autocmds(
@@ -6438,7 +6438,7 @@ unsafe fn qf_getprop_qfidx(qi: &mut qf_info_T, what: *mut dict_T) -> c_int {
                     }
                 }
             } else if (*di).di_tv.v_type == VarType::VAR_STRING
-                && { let _a = (*di).di_tv.vval.v_string(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"$" }
+                && (crate::memory::cstr_as_opt_bytes((*di).di_tv.vval.v_string()) == Some(b"$"))
             {
                 qf_idx = qi.qf_listcount - 1;
             } else {
@@ -6987,7 +6987,7 @@ unsafe fn qf_setprop_get_qfidx(
                     *newlist = false;
                 }
             } else if (*di).di_tv.v_type == VarType::VAR_STRING
-                && { let _a = (*di).di_tv.vval.v_string(); !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"$" }
+                && (crate::memory::cstr_as_opt_bytes((*di).di_tv.vval.v_string()) == Some(b"$"))
             {
                 if !qf_stack_empty(&raw const *qi) {
                     qf_idx = qi.qf_listcount - 1;
@@ -7511,7 +7511,7 @@ pub unsafe fn ex_cbuffer(eap: &mut exarg_T) {
         if res >= 0 {
             qf_list_changed(qf_get_curlist(qi));
         }
-        let save_qfid = (*qf_get_curlist(qi)).qf_id;
+        let save_qfid = qf_get_curlist(qi).qf_id;
         if !au_name.is_null() {
             let curbuf_old = g_st().curbuf;
             apply_autocmds(
@@ -7597,7 +7597,7 @@ pub unsafe fn cexpr_core(eap: &exarg_T, tv: &mut typval_T) -> c_int {
             if res >= 0 {
                 qf_list_changed(qf_get_curlist(qi));
             }
-            let save_qfid = (*qf_get_curlist(qi)).qf_id;
+            let save_qfid = qf_get_curlist(qi).qf_id;
             if !au_name.is_null() {
                 apply_autocmds(
                     EVENT_QUICKFIXCMDPOST,
@@ -7730,9 +7730,9 @@ unsafe fn hgr_search_files_in_dir(
                 let flen = f_cstr.as_bytes().len();
                 if !lang.is_null()
                     && flen >= 3
-                    && !({ let _p1 = lang; let _p2 = f.add(flen - 3); let _n = 2; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) })
-                    && !({ let _p1 = lang; let _p2 = c"en".as_ptr(); let _n = 2; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) }
-                        && { let _p1 = c"txt".as_ptr(); let _p2 = f.add(flen - 3); let _n = 3; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) })
+                    && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(f.add(flen - 3), 2)))
+                    && !(crate::memory::cstr_prefix_bytes(lang, 2).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"en".as_ptr(), 2))
+                        && crate::memory::cstr_prefix_bytes(c"txt".as_ptr(), 3).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(f.add(flen - 3), 3)))
                 {
                     continue;
                 }

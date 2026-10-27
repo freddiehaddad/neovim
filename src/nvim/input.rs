@@ -2571,9 +2571,9 @@ unsafe fn handle_mapping(
 
                 let noremap = if save_m_noremap != REMAP_YES {
                     save_m_noremap
-                } else if { let _p1 = map_str; let _p2 = save_m_keys.as_ptr(); let _n = keylen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                } else if (crate::memory::cstr_prefix_bytes(map_str, keylen as usize) == crate::memory::cstr_prefix_bytes(save_m_keys.as_ptr(), keylen as usize))
                     || save_alt_m_keys.as_ref().is_some_and(|alt| {
-                        { let _p1 = map_str; let _p2 = alt.as_ptr(); let _n = save_alt_m_keylen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                        crate::memory::cstr_prefix_bytes(map_str, save_alt_m_keylen as usize) == crate::memory::cstr_prefix_bytes(alt.as_ptr(), save_alt_m_keylen as usize)
                     })
                 {
                     REMAP_SKIP

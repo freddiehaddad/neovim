@@ -312,7 +312,7 @@ unsafe fn match_add(
             }
         }
 
-        let insert_idx = (*wp)
+        let insert_idx = wp
             .w_match_head
             .iter()
             .position(|cur| prio < cur.mit_priority)
@@ -366,7 +366,7 @@ pub unsafe fn clear_matches(wp: *mut win_T) {
 
 /// Get match from ID `id` in window `wp` (`get_match`).
 unsafe fn get_match(wp: &mut win_T, id: c_int) -> *mut matchitem_T {
-    (*wp)
+    wp
             .w_match_head
             .iter_mut()
             .find(|cur| cur.mit_id == id)

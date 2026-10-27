@@ -583,7 +583,7 @@ unsafe fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
         channel_incref(&raw mut *channel);
 
         if p.handler.fast {
-            let is_get_mode = (*p)
+            let is_get_mode = p
                 .handler
                 .r#fn
                 .is_some_and(|f| f as *const () == handle_nvim_get_mode as *const ());
@@ -597,7 +597,7 @@ unsafe fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
                 request_event(evdata);
             }
         } else {
-            let is_resize = (*p)
+            let is_resize = p
                 .handler
                 .r#fn
                 .is_some_and(|f| f as *const () == handle_nvim_ui_try_resize as *const ());
@@ -1048,11 +1048,11 @@ pub unsafe fn rpc_set_client_info(id: u64, info: Dict) {
 pub unsafe fn get_client_info(chan: &mut Channel, key: *const c_char) -> *const c_char {
     unsafe {
         let ct = chan;
-        if !(*ct).is_rpc {
+        if !ct.is_rpc {
             return ptr::null();
         }
         let key_bytes = CStr::from_ptr(key).to_bytes();
-        let info = (*ct).rpc.info;
+        let info = ct.rpc.info;
         for i in 0..info.size {
             let item = &*info.items.add(i);
             if !item.key.data.is_null()

@@ -894,7 +894,7 @@ unsafe fn buf_write_make_backup(
                 let dirlen = (path_tail(fname) as usize) - (fname as usize);
                 assert!(dirlen < MAXPATHL);
                 let mut tmp_fname = [0 as c_char; MAXPATHL];
-                let _ = { let _d = (tmp_fname.as_mut_ptr()).cast::<u8>(); let _n = dirlen; if _n > 0 { std::ptr::copy_nonoverlapping((fname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+                { let _d = (tmp_fname.as_mut_ptr()).cast::<u8>(); let _n = dirlen; if _n > 0 { std::ptr::copy_nonoverlapping((fname).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
                 let mut i: c_int = 4913;
                 loop {
                     let suffix = format!(".{i}.swp\0");

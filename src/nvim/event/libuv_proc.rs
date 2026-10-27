@@ -113,7 +113,7 @@ use crate::event::r#loop::{uv_pipe, uv_process_get_pid, uv_spawn};
 
 #[inline]
 pub unsafe fn proc_get_exepath(proc_: &mut Proc) -> *const c_char {
-    (*proc_)
+    proc_
             .exepath
             .as_ref()
             .map_or_else(|| proc_.argv.as_slice()[0].as_ptr(), |s| s.as_ptr())
@@ -238,7 +238,7 @@ pub unsafe fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> c_int {
 
         if !(*proc_).env.is_null() {
             uvproc.env_vec = tv_dict_to_env((*proc_).env);
-            uvproc.env_ptrs = (*uvproc)
+            uvproc.env_ptrs = uvproc
                 .env_vec
                 .iter()
                 .map(|s| s.as_ptr().cast_mut())

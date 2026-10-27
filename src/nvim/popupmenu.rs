@@ -410,9 +410,9 @@ unsafe fn pum_compute_horizontal_placement(
 #[inline]
 unsafe fn pum_border_width() -> c_int {
     unsafe {
-        if *opt_vars().p_pumborder == NUL || { let _a = opt_vars().p_pumborder; let _b = opt_winborder_values[7].as_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
+        if *opt_vars().p_pumborder == NUL || (crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(opt_winborder_values[7].as_ptr())) {
             0
-        } else if { let _a = opt_vars().p_pumborder; let _b = opt_winborder_values[3].as_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
+        } else if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(opt_winborder_values[3].as_ptr()) {
             1
         } else {
             2
@@ -822,7 +822,7 @@ pub unsafe fn pum_redraw() {
                 return;
             }
 
-            if { let _a = opt_vars().p_pumborder; let _b = opt_winborder_values[3].as_ptr(); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
+            if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(opt_winborder_values[3].as_ptr()) {
                 fconfig.shadow = true;
                 let blend = syn_check_group(c"PmenuShadow".as_ptr(), 11);
                 let through = syn_check_group(c"PmenuShadowThrough".as_ptr(), 18);

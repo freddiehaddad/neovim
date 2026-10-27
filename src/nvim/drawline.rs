@@ -1535,7 +1535,7 @@ pub unsafe fn win_line(
                 if !(*wp.w_buffer).terminal.is_null() || wp.w_p_cc_cols.is_empty() {
                     &[]
                 } else {
-                    (*(&raw const wp.w_p_cc_cols)).as_slice()
+                    std::slice::from_raw_parts(wp.w_p_cc_cols.as_ptr(), wp.w_p_cc_cols.len())
                 };
             let hlc = vcol_hlc(&wlv);
             advance_color_col(&mut wlv, hlc);

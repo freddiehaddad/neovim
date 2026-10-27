@@ -2499,7 +2499,7 @@ pub unsafe fn regtilde(
 
         let mut p = newsub;
         while *p != NUL as c_char {
-            if { let _p1 = p; let _p2 = tilde.as_ptr(); let _n = tildelen; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+            if crate::memory::cstr_prefix_bytes(p, tildelen) == crate::memory::cstr_prefix_bytes(tilde.as_ptr(), tildelen) {
                 let prefixlen = p.offset_from(newsub) as usize;
                 let postfix = p.add(tildelen);
                 if newsublen == 0 {
@@ -3115,7 +3115,7 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     len = (reg_getline_submatch_len(lnum) - (*re_st().rsm.sm_mmatch).startpos[no].col)
                         as isize;
                     if round == 2 {
-                        { let s = s; std::ptr::copy_nonoverlapping(s, retval, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                        { std::ptr::copy_nonoverlapping(s, retval, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                         *retval.add(len as usize) = b'\n' as c_char;
                     }
                     len += 1;
@@ -3123,7 +3123,7 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     while lnum < (*re_st().rsm.sm_mmatch).endpos[no].lnum {
                         s = reg_getline_submatch(lnum);
                         if round == 2 {
-                            { let s = s; std::ptr::copy_nonoverlapping(s, retval.add(len as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                            { std::ptr::copy_nonoverlapping(s, retval.add(len as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                         }
                         len += reg_getline_submatch_len(lnum) as isize;
                         if round == 2 {
@@ -3388,7 +3388,7 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
 
         re_st().regexp_engine = opt_vars().p_re as c_int;
 
-        if { let _p = expr; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"\\%#="[..4] } {
+        if crate::memory::cstr_prefix_bytes(expr, 4) == &b"\\%#="[..4] {
             let newengine = (*expr.add(4) as u8).wrapping_sub(b'0') as c_int;
             if newengine == AUTOMATIC_ENGINE
                 || newengine == BACKTRACKING_ENGINE

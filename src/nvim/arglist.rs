@@ -410,7 +410,7 @@ unsafe fn arglist_del_files(alist_ga: &[*mut c_char]) {
                 let entries = arglist();
                 if vim_regexec(
                     &mut regmatch,
-                    alist_name(&mut *entries.add(match_idx as usize)),
+                    alist_name(&*entries.add(match_idx as usize)),
                     0,
                 ) {
                     didone = true;
@@ -498,7 +498,7 @@ pub unsafe fn editing_arg_idx(win: &mut win_T) -> bool {
             return true;
         }
         let ffname = (*win.w_buffer).b_ffname;
-        !ffname.is_null() && path_equal(alist_name(&mut *entry), ffname, kPathCmpExpand | kPathCmpFull)
+        !ffname.is_null() && path_equal(alist_name(&*entry), ffname, kPathCmpExpand | kPathCmpFull)
     }
 }
 
@@ -520,7 +520,7 @@ pub unsafe fn check_arg_idx(win: &mut win_T) {
                 if (*buf).b_fnum == (*last_entry).ae_fnum
                     || (!(*buf).b_ffname.is_null()
                         && path_equal(
-                            alist_name(&mut *last_entry),
+                            alist_name(&*last_entry),
                             (*buf).b_ffname,
                             kPathCmpExpand | kPathCmpFull,
                         ))
@@ -569,7 +569,7 @@ pub unsafe fn ex_args(eap: &mut exarg_T) {
 
             let entries = arglist();
             let items: Vec<*mut c_char> = (0..(count as usize))
-                .map(|i| alist_name(&mut *entries.add(i)))
+                .map(|i| alist_name(&*entries.add(i)))
                 .collect();
             list_in_columns(&items, (**curwin.as_ptr()).w_arg_idx);
             return;
@@ -668,7 +668,7 @@ pub unsafe fn do_argfile(eap: &mut exarg_T, argn: c_int) {
         } else {
             let mut other = true;
             if buf_hide(&*g_st().curbuf) {
-                let p = fix_fname(alist_name(&mut *arglist().add(argn as usize)));
+                let p = fix_fname(alist_name(&*arglist().add(argn as usize)));
                 other = otherfile(
                     p.as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
@@ -694,7 +694,7 @@ pub unsafe fn do_argfile(eap: &mut exarg_T, argn: c_int) {
 
         if do_ecmd(
             0,
-            alist_name(&mut *arglist().add((**curwin.as_ptr()).w_arg_idx as usize)),
+            alist_name(&*arglist().add((**curwin.as_ptr()).w_arg_idx as usize)),
             ptr::null_mut(),
             &raw mut *eap,
             ECMD_LAST,
@@ -877,7 +877,7 @@ pub unsafe fn get_arglist_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
         if idx >= argcount() {
             return ptr::null_mut();
         }
-        alist_name(&mut *arglist().add(idx as usize))
+        alist_name(&*arglist().add(idx as usize))
     }
 }
 
@@ -942,7 +942,7 @@ unsafe fn arg_all_close_unused_windows(aall: &mut arg_all_state_T) {
                             let entry = aarglist(&mut *al).add(i as usize);
                             if (*entry).ae_fnum == (*buf).b_fnum
                                 || path_equal(
-                                    alist_name(&mut *entry),
+                                    alist_name(&*entry),
                                     (*buf).b_ffname,
                                     kPathCmpExpand | kPathCmpFull,
                                 )
@@ -1051,7 +1051,7 @@ unsafe fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
             if ptr::eq(aall.alist, &raw const g_st().global_alist) && i == gargcount() - 1 {
                 g_st().arg_had_last = true;
             }
-            if (&*aall).opened[i as usize] > 0 {
+            if aall.opened[i as usize] > 0 {
                 if (**curwin.as_ptr()).w_arg_idx != i {
                     let mut wp = g_st().firstwin;
                     while !wp.is_null() {
@@ -1097,7 +1097,7 @@ unsafe fn arg_all_open_windows(aall: &mut arg_all_state_T, count: c_int) {
                 }
                 do_ecmd(
                     0,
-                    alist_name(&mut *aarglist(&mut *aall.alist).add(i as usize)),
+                    alist_name(&*aarglist(&mut *aall.alist).add(i as usize)),
                     ptr::null_mut(),
                     ptr::null_mut(),
                     ECMD_ONE,
@@ -1216,7 +1216,7 @@ pub unsafe fn arg_all() -> CString {
         let mut bytes: Vec<u8> = Vec::new();
         let count = argcount();
         for idx in 0..(count as usize) {
-            let mut p = alist_name(&mut *arglist().add(idx));
+            let mut p = alist_name(&*arglist().add(idx));
             if p.is_null() {
                 continue;
             }
@@ -1278,7 +1278,7 @@ unsafe fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: 
         tv_list_alloc_ret(&raw mut *rettv, count as isize);
         if !arglist_ptr.is_null() {
             for idx in 0..(count as usize) {
-                tv_list_append_string(rettv.vval.v_list(), alist_name(&mut *arglist_ptr.add(idx)), -1);
+                tv_list_append_string(rettv.vval.v_list(), alist_name(&*arglist_ptr.add(idx)), -1);
             }
         }
     }
@@ -1314,7 +1314,7 @@ pub unsafe fn f_argv(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
         tv_set_string(rettv, ptr::null());
         let idx = tv_get_number_chk(argvars, ptr::null_mut()) as c_int;
         if !al_ptr.is_null() && idx >= 0 && idx < count {
-            tv_set_string(rettv, alist_name(&mut *al_ptr.add(idx as usize)));
+            tv_set_string(rettv, alist_name(&*al_ptr.add(idx as usize)));
         } else if idx == -1 {
             get_arglist_as_rettv(al_ptr, count, rettv);
         }

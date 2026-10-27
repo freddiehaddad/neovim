@@ -558,19 +558,19 @@ pub unsafe fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: &mut Error) -> C
             if item.value.obj_type != ObjectType::kObjectTypeArray {
                 continue;
             }
-            if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"regs" } {
+            if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"regs") {
                 types |= kCtxRegs;
                 (*ctx).regs = array_to_string(item.value.data.array(), err);
-            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"jumps" } {
+            } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"jumps") {
                 types |= kCtxJumps;
                 (*ctx).jumps = array_to_string(item.value.data.array(), err);
-            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"bufs" } {
+            } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"bufs") {
                 types |= kCtxBufs;
                 (*ctx).bufs = array_to_string(item.value.data.array(), err);
-            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"gvars" } {
+            } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"gvars") {
                 types |= kCtxGVars;
                 (*ctx).gvars = array_to_string(item.value.data.array(), err);
-            } else if { let _a = item.key.data; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"funcs" } {
+            } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"funcs") {
                 types |= kCtxFuncs;
                 (*ctx).funcs = copy_object(item.value, ptr::null_mut()).data.array();
             }

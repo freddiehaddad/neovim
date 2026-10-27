@@ -1739,7 +1739,7 @@ unsafe fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
     unsafe {
         if file.is_null() || *file == NUL {
             if !opt_vars().p_shadafile.is_null() && *opt_vars().p_shadafile != NUL {
-                if !{ let _a = opt_vars().p_shadafile; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"NONE" } {
+                if !(crate::memory::cstr_as_opt_bytes(opt_vars().p_shadafile) == Some(b"NONE")) {
                     file = opt_vars().p_shadafile;
                 } else {
                     return None;
@@ -2636,7 +2636,7 @@ unsafe fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
         if file_space(&*file) < SHADA_MPACK_FREE_SPACE {
             file_flush(&raw mut *file);
         }
-        let base = (&mut *file).buffer.as_mut_ptr();
+        let base = file.buffer.as_mut_ptr();
         PackerBuffer {
             startptr: base,
             ptr: base.add(file.write_pos),
@@ -4401,7 +4401,7 @@ unsafe fn shada_init_jumps(
 pub unsafe fn shada_encode_regs(scale_ts: bool, since: Timestamp) -> Vec<u8> {
     unsafe {
         let mut wms = WriteMergerState::new();
-        shada_initialize_registers(&mut *wms, -1, scale_ts);
+        shada_initialize_registers(&mut wms, -1, scale_ts);
         let mut packer = packer_string_buffer();
         for entry in wms.registers {
             if entry.entry_type == ShadaEntryType::kSDItemRegister

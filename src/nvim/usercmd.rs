@@ -359,15 +359,15 @@ pub unsafe fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: *const c_char) 
                 }
 
                 let attr_len = p.offset_from(arg) as usize;
-                if { let _p1 = arg; let _p2 = c"complete".as_ptr(); let _n = attr_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+                if crate::memory::cstr_prefix_bytes(arg, attr_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"complete".as_ptr(), attr_len)) {
                     xp.xp_context = EXPAND_USER_COMPLETE;
                     xp.xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
-                } else if { let _p1 = arg; let _p2 = c"nargs".as_ptr(); let _n = attr_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+                } else if crate::memory::cstr_prefix_bytes(arg, attr_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"nargs".as_ptr(), attr_len)) {
                     xp.xp_context = EXPAND_USER_NARGS;
                     xp.xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
-                } else if { let _p1 = arg; let _p2 = c"addr".as_ptr(); let _n = attr_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+                } else if crate::memory::cstr_prefix_bytes(arg, attr_len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"addr".as_ptr(), attr_len)) {
                     xp.xp_context = EXPAND_USER_ADDR_TYPE;
                     xp.xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
@@ -576,10 +576,10 @@ pub unsafe fn cmdcomplete_type_to_str(expand: c_int, compl_arg: *const c_char) -
 
 pub unsafe fn cmdcomplete_str_to_type(complete_str: *const c_char) -> c_int {
     unsafe {
-        if { let _p = complete_str; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"custom,"[..7] } {
+        if crate::memory::cstr_prefix_bytes(complete_str, 7) == &b"custom,"[..7] {
             return EXPAND_USER_DEFINED;
         }
-        if { let _p = complete_str; crate::memory::xstrnlen(_p, 11) == 11 && std::slice::from_raw_parts(_p.cast::<u8>(), 11) == &b"customlist,"[..11] } {
+        if crate::memory::cstr_prefix_bytes(complete_str, 11) == &b"customlist,"[..11] {
             return EXPAND_USER_LIST;
         }
 
@@ -610,7 +610,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 let cmd = &gap[i as usize];
                 let a = cmd.uc_argt;
 
-                if { let _p1 = name; let _p2 = cmd.uc_name.as_ptr(); let _n = name_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                if (crate::memory::cstr_prefix_bytes(name, name_len) != crate::memory::cstr_prefix_bytes(cmd.uc_name.as_ptr(), name_len))
                     || message_filtered(cmd.uc_name.as_ptr())
                 {
                     i += 1;
@@ -836,7 +836,7 @@ pub unsafe fn parse_addr_type_arg(
             }
             if let Some(name) = entry.name {
                 let a = name.to_bytes().len() as c_int == vallen;
-                let b = { let _p1 = value; let _p2 = name.as_ptr(); let _n = vallen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) };
+                let b = crate::memory::cstr_prefix_bytes(value, vallen as usize) == crate::memory::cstr_prefix_bytes(name.as_ptr(), vallen as usize);
                 if a && b {
                     *addr_type_arg = entry.expand;
                     return OK;
@@ -887,7 +887,7 @@ pub unsafe fn parse_compl_arg(
                 continue;
             }
             if CStr::from_ptr(cmd_compl).to_bytes().len() as c_int == valend
-                && { let _p1 = value; let _p2 = cmd_compl; let _n = valend as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                && (crate::memory::cstr_prefix_bytes(value, valend as usize) == crate::memory::cstr_prefix_bytes(cmd_compl, valend as usize))
             {
                 *complp = i;
                 if i == EXPAND_BUFFERS {
@@ -945,15 +945,15 @@ unsafe fn uc_scan_attr(
             return FAIL;
         }
 
-        if { let _p1 = attr; let _p2 = c"bang".as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"bang".as_ptr(), len)) {
             *argt |= EX_BANG;
-        } else if { let _p1 = attr; let _p2 = c"buffer".as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"buffer".as_ptr(), len)) {
             *flags |= UC_BUFFER;
-        } else if { let _p1 = attr; let _p2 = c"register".as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"register".as_ptr(), len)) {
             *argt |= EX_REGSTR;
-        } else if { let _p1 = attr; let _p2 = c"keepscript".as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"keepscript".as_ptr(), len)) {
             *argt |= EX_KEEPSCRIPT;
-        } else if { let _p1 = attr; let _p2 = c"bar".as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(attr, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"bar".as_ptr(), len)) {
             *argt |= EX_TRLBAR;
         } else {
             let mut val: *mut c_char = ptr::null_mut();
@@ -969,7 +969,7 @@ unsafe fn uc_scan_attr(
                 }
             }
 
-            if { let _p1 = attr; let _p2 = c"nargs".as_ptr(); let _n = attrlen; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+            if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"nargs".as_ptr(), attrlen)) {
                 if vallen == 1 {
                     match *val as u8 {
                         b'0' => {}
@@ -987,7 +987,7 @@ unsafe fn uc_scan_attr(
                     emsg(gettext(c"E176: Invalid number of arguments".as_ptr()));
                     return FAIL;
                 }
-            } else if { let _p1 = attr; let _p2 = c"range".as_ptr(); let _n = attrlen; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"range".as_ptr(), attrlen)) {
                 *argt |= EX_RANGE;
                 if vallen == 1 && *val == b'%' as c_char {
                     *argt |= EX_DFLALL;
@@ -1009,7 +1009,7 @@ unsafe fn uc_scan_attr(
                 if *addr_type_arg == ADDR_NONE {
                     *addr_type_arg = ADDR_LINES;
                 }
-            } else if { let _p1 = attr; let _p2 = c"count".as_ptr(); let _n = attrlen; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"count".as_ptr(), attrlen)) {
                 *argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                 if *addr_type_arg == ADDR_NONE {
                     *addr_type_arg = ADDR_OTHER;
@@ -1033,7 +1033,7 @@ unsafe fn uc_scan_attr(
                 if *def < 0 {
                     *def = 0;
                 }
-            } else if { let _p1 = attr; let _p2 = c"complete".as_ptr(); let _n = attrlen; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"complete".as_ptr(), attrlen)) {
                 if val.is_null() {
                     semsg!(
                         gettext(E_ARGUMENT_REQUIRED_FOR_STR.as_ptr()),
@@ -1045,7 +1045,7 @@ unsafe fn uc_scan_attr(
                 if parse_compl_arg(val, vallen as c_int, complp, argt, compl_arg) == FAIL {
                     return FAIL;
                 }
-            } else if { let _p1 = attr; let _p2 = c"addr".as_ptr(); let _n = attrlen; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+            } else if crate::memory::cstr_prefix_bytes(attr, attrlen).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"addr".as_ptr(), attrlen)) {
                 *argt |= EX_RANGE;
                 if val.is_null() {
                     semsg!(
@@ -1246,7 +1246,7 @@ pub unsafe fn ex_command(eap: &mut exarg_T) {
             emsg(gettext(
                 c"E183: User defined commands must start with an uppercase letter".as_ptr(),
             ));
-        } else if name_len <= 4 && { let _p1 = name; let _p2 = c"Next".as_ptr(); let _n = name_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+        } else if name_len <= 4 && (crate::memory::cstr_prefix_bytes(name, name_len) == crate::memory::cstr_prefix_bytes(c"Next".as_ptr(), name_len)) {
             emsg(gettext(
                 c"E841: Reserved name, cannot be used for user defined command".as_ptr(),
             ));
@@ -1291,7 +1291,7 @@ pub unsafe fn ex_delcommand(eap: &mut exarg_T) {
         let mut arg: *const c_char = eap.arg;
         let mut buffer_only = false;
 
-        if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"-buffer"[..7] } && ascii_iswhite(*arg.add(7)) {
+        if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"-buffer"[..7]) && ascii_iswhite(*arg.add(7)) {
             buffer_only = true;
             arg = skipwhite(arg.add(7));
         }
@@ -1694,25 +1694,25 @@ unsafe fn uc_check_code(
         l += 1;
         if l <= 1 {
             // type_ = CodeType::None
-        } else if { let _p1 = p; let _p2 = c"args>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"args>".as_ptr(), l)) {
             type_ = CodeType::Args;
-        } else if { let _p1 = p; let _p2 = c"bang>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"bang>".as_ptr(), l)) {
             type_ = CodeType::Bang;
-        } else if { let _p1 = p; let _p2 = c"count>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"count>".as_ptr(), l)) {
             type_ = CodeType::Count;
-        } else if { let _p1 = p; let _p2 = c"line1>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"line1>".as_ptr(), l)) {
             type_ = CodeType::Line1;
-        } else if { let _p1 = p; let _p2 = c"line2>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"line2>".as_ptr(), l)) {
             type_ = CodeType::Line2;
-        } else if { let _p1 = p; let _p2 = c"range>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"range>".as_ptr(), l)) {
             type_ = CodeType::Range;
-        } else if { let _p1 = p; let _p2 = c"lt>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"lt>".as_ptr(), l)) {
             type_ = CodeType::Lt;
-        } else if { let _p1 = p; let _p2 = c"reg>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) }
-            || { let _p1 = p; let _p2 = c"register>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) }
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"reg>".as_ptr(), l))
+            || crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"register>".as_ptr(), l))
         {
             type_ = CodeType::Register;
-        } else if { let _p1 = p; let _p2 = c"mods>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
+        } else if crate::memory::cstr_prefix_bytes(p, l).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"mods>".as_ptr(), l)) {
             type_ = CodeType::Mods;
         }
 

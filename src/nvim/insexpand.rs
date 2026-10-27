@@ -1245,7 +1245,7 @@ unsafe fn ins_compl_add(
                 if is_nearest_active() && score > 0 {
                     for match_ in &mut *list {
                         if !match_at_original_text(match_)
-                            && { let _p1 = match_.cp_str.data; let _p2 = str_ptr; let _n = len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                            && (crate::memory::cstr_prefix_bytes(match_.cp_str.data, len as usize) == crate::memory::cstr_prefix_bytes(str_ptr, len as usize))
                             && (match_.cp_str.size as c_int <= len
                                 || *match_.cp_str.data.add(len as usize) == NUL)
                         {
@@ -1374,9 +1374,9 @@ unsafe fn ins_compl_equal(match_: &mut compl_T, str_ptr: *const c_char, len: usi
             return true;
         }
         if (match_.cp_flags & CP_ICASE) != 0 {
-            return { let _p1 = match_.cp_str.data; let _p2 = str_ptr; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) };
+            return crate::memory::cstr_prefix_bytes(match_.cp_str.data, len).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(str_ptr, len));
         }
-        { let _p1 = match_.cp_str.data; let _p2 = str_ptr; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+        crate::memory::cstr_prefix_bytes(match_.cp_str.data, len) == crate::memory::cstr_prefix_bytes(str_ptr, len)
     }
 }
 
@@ -1908,7 +1908,7 @@ unsafe fn ins_compl_build_pum() -> c_int {
         let list = &raw mut insexp().compl_list;
         let mut shown_match_ok = match_at_original_text(&*compl_opt(insexp().compl_shown_idx));
 
-        if { let _a = insexp().compl_leader.data; let _b = insexp().compl_orig_text.data; (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } && !shown_match_ok {
+        if (crate::memory::cstr_as_opt_bytes(insexp().compl_leader.data) == crate::memory::cstr_as_opt_bytes(insexp().compl_orig_text.data)) && !shown_match_ok {
             insexp().compl_shown_idx = if compl_no_select {
                 Some(0)
             } else {
@@ -4357,7 +4357,7 @@ unsafe fn fuzzy_longest_match() {
             let mut j: c_int = 0;
 
             while j < prefix_len && *match_ptr != NUL && *prefix_ptr != NUL {
-                if { let _p1 = prefix_ptr; let _p2 = match_ptr; let _n = utfc_ptr2len(prefix_ptr) as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                if crate::memory::cstr_prefix_bytes(prefix_ptr, utfc_ptr2len(prefix_ptr) as usize) != crate::memory::cstr_prefix_bytes(match_ptr, utfc_ptr2len(prefix_ptr) as usize) {
                     break;
                 }
 
@@ -4374,7 +4374,7 @@ unsafe fn fuzzy_longest_match() {
         let leader = ins_compl_leader();
         let leader_len = ins_compl_leader_len();
 
-        if leader_len == 0 || { let _p1 = prefix; let _p2 = leader; let _n = leader_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+        if leader_len == 0 || (crate::memory::cstr_prefix_bytes(prefix, leader_len) == crate::memory::cstr_prefix_bytes(leader, leader_len)) {
             let mut dup_vec: Vec<c_char> = vec![0; prefix_len as usize + 1];
             ptr::copy_nonoverlapping(prefix, dup_vec.as_mut_ptr(), prefix_len as usize);
             ins_compl_longest_insert(dup_vec.as_mut_ptr());
@@ -4849,9 +4849,9 @@ unsafe fn get_register_completion() {
 
                     let matches = insexp().compl_orig_text.data.is_null()
                         || if opt_vars().p_ic != 0 {
-                            { let _p1 = str_ptr; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+                            crate::memory::cstr_prefix_bytes(str_ptr, insexp().compl_orig_text.size).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size))
                         } else {
-                            { let _p1 = str_ptr; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                            crate::memory::cstr_prefix_bytes(str_ptr, insexp().compl_orig_text.size) == crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size)
                         };
                     if matches
                         && ins_compl_add_infercase(
@@ -4888,9 +4888,9 @@ unsafe fn get_register_completion() {
                         let len = word_end.offset_from(p) as c_int;
                         let matches = insexp().compl_orig_text.data.is_null()
                             || if opt_vars().p_ic != 0 {
-                                { let _p1 = p; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+                                crate::memory::cstr_prefix_bytes(p, insexp().compl_orig_text.size).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size))
                             } else {
-                                { let _p1 = p; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                                crate::memory::cstr_prefix_bytes(p, insexp().compl_orig_text.size) == crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size)
                             };
                         if len > 0
                             && matches
@@ -5015,7 +5015,7 @@ unsafe fn get_next_bufname_token() {
         while !b.is_null() {
             if (*b).b_p_bl != 0 && !(*b).b_sfname.is_null() {
                 let tail = path_tail((*b).b_sfname);
-                if { let _p1 = tail; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
+                if crate::memory::cstr_prefix_bytes(tail, insexp().compl_orig_text.size) == crate::memory::cstr_prefix_bytes(insexp().compl_orig_text.data, insexp().compl_orig_text.size) {
                     ins_compl_add(
                         tail,
                         std::ffi::CStr::from_ptr(tail).to_bytes().len() as c_int,
@@ -5510,7 +5510,7 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                             && insexp().cpt_sources_array[cur_source as usize].cs_flag == b'.' as c_char))
                 {
                     if first.is_null()
-                        && { let _p1 = ins_compl_leader(); let _p2 = compl.cp_str.data; let _n = ins_compl_leader_len(); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                        && (crate::memory::cstr_prefix_bytes(ins_compl_leader(), ins_compl_leader_len()) == crate::memory::cstr_prefix_bytes(compl.cp_str.data, ins_compl_leader_len()))
                     {
                         first = compl.cp_str.data;
                         len = std::ffi::CStr::from_ptr(first).to_bytes().len() as c_int;
@@ -5550,7 +5550,7 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                     let text_len = end.offset_from(p) as c_int;
                     if text_len > 0
                         && text_len < len - ins_compl_leader_len() as c_int
-                        && { let _p1 = first.add((len - text_len) as usize); let _p2 = p; let _n = text_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                        && (crate::memory::cstr_prefix_bytes(first.add((len - text_len) as usize), text_len as usize) == crate::memory::cstr_prefix_bytes(p, text_len as usize))
                     {
                         len -= text_len;
                     }
@@ -5861,7 +5861,7 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
                 ins_compl_insert_bytes(insexp().compl_leader.data.add(get_compl_len() as usize), -1);
             }
             let shown = compl_opt(insexp().compl_shown_idx);
-            if { let _a = (*shown).cp_str.data; let _b = insexp().compl_orig_text.data; (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
+            if crate::memory::cstr_as_opt_bytes((*shown).cp_str.data) == crate::memory::cstr_as_opt_bytes(insexp().compl_orig_text.data) {
                 restore_orig_extmarks();
             }
         } else {

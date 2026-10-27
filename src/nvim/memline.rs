@@ -876,7 +876,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         let len = std::ffi::CStr::from_ptr(fname).to_bytes().len();
         if checkext
             && len >= 4
-            && { let _p1 = fname.add(len - 4); let _p2 = c".s".as_ptr(); let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) }
+            && crate::memory::cstr_prefix_bytes(fname.add(len - 4), 2).eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c".s".as_ptr(), 2))
             && !vim_strchr(
                 c"abcdefghijklmnopqrstuvw".as_ptr(),
                 ((*fname.add(len - 2) as u8).to_ascii_lowercase()) as c_int,

@@ -300,6 +300,29 @@ pub unsafe fn xstrnlen(s: *const c_char, n: usize) -> usize {
     len
 }
 
+/// View up to `n` bytes of a NUL-terminated C string as a byte slice.
+#[inline]
+pub unsafe fn cstr_prefix_bytes<'a>(s: *const c_char, n: usize) -> &'a [u8] {
+    let len = unsafe { xstrnlen(s, n) };
+    unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) }
+}
+
+/// View a NUL-terminated C string as a byte slice, returning `b""` if null.
+#[inline]
+pub unsafe fn cstr_as_bytes<'a>(s: *const c_char) -> &'a [u8] {
+    if s.is_null() {
+        b""
+    } else {
+        unsafe { CStr::from_ptr(s).to_bytes() }
+    }
+}
+
+/// View a nullable NUL-terminated C string as `Option<&[u8]>`.
+#[inline]
+pub unsafe fn cstr_as_opt_bytes<'a>(s: *const c_char) -> Option<&'a [u8]> {
+    (!s.is_null()).then(|| unsafe { CStr::from_ptr(s).to_bytes() })
+}
+
 /// Copy `src` into sized buffer `dst[..dsize]` (`xstrlcpy`).
 pub unsafe fn xstrlcpy(dst: *mut c_char, src: *const c_char, dsize: usize) -> usize {
     let slen = unsafe { CStr::from_ptr(src).to_bytes().len() };

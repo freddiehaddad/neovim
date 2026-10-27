@@ -487,19 +487,19 @@ unsafe fn linefeed(state: &mut VTermStateFull) {
 #[inline]
 unsafe fn set_col_tabstop(state: &mut VTermStateFull, col: c_int) {
     let mask = 1u8 << (col & 7);
-        (&mut *state).tabstops[(col >> 3) as usize] |= mask;
+        state.tabstops[(col >> 3) as usize] |= mask;
 }
 
 #[inline]
 unsafe fn clear_col_tabstop(state: &mut VTermStateFull, col: c_int) {
     let mask = 1u8 << (col & 7);
-        (&mut *state).tabstops[(col >> 3) as usize] &= !mask;
+        state.tabstops[(col >> 3) as usize] &= !mask;
 }
 
 #[inline]
 unsafe fn is_col_tabstop(state: &VTermStateFull, col: c_int) -> bool {
     let mask = 1u8 << (col & 7);
-        ((&*state).tabstops[(col >> 3) as usize] & mask) != 0
+        (state.tabstops[(col >> 3) as usize] & mask) != 0
 }
 
 #[inline]

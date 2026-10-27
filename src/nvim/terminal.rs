@@ -606,13 +606,13 @@ unsafe fn on_osc(command: c_int, frag: VTermStringFragment, term: *mut Terminal)
                 command,
             );
             if n > 0 {
-                (*term)
+                term
                     .termrequest_buffer
                     .extend_from_slice(&prefix[..n as usize]);
             }
         }
         if !frag.is_empty() {
-            (*term)
+            term
                 .termrequest_buffer
                 .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
         }
@@ -653,17 +653,17 @@ unsafe fn on_dcs(
 
         if frag.initial() {
             term.termrequest_buffer.clear();
-            (*term)
+            term
                 .termrequest_buffer
                 .extend_from_slice(&[b'\x1b' as c_char, b'P' as c_char]);
             if commandlen > 0 {
-                (*term)
+                term
                     .termrequest_buffer
                     .extend_from_slice(std::slice::from_raw_parts(command, commandlen));
             }
         }
         if !frag.is_empty() {
-            (*term)
+            term
                 .termrequest_buffer
                 .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
         }
@@ -688,11 +688,11 @@ unsafe fn on_apc(frag: VTermStringFragment, term: *mut Terminal) -> c_int {
 
         if frag.initial() {
             term.termrequest_buffer.clear();
-            (*term)
+            term
                 .termrequest_buffer
                 .extend_from_slice(&[b'\x1b' as c_char, b'_' as c_char]);
         }
-        (*term)
+        term
             .termrequest_buffer
             .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
         if frag.final_() {
@@ -1116,7 +1116,7 @@ unsafe fn set_terminal_winopts(s: *mut TerminalState) {
         if (**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0
             && ((**curwin.as_ptr()).w_p_culopt_flags & kOptCuloptFlagNumber) != 0
         {
-            if !{ let _a = (**curwin.as_ptr()).w_onebuf_opt.wo_culopt; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"number" } {
+            if !(crate::memory::cstr_as_opt_bytes((**curwin.as_ptr()).w_onebuf_opt.wo_culopt) == Some(b"number")) {
                 (*s).save_w_p_culopt =
                     Some(CStr::from_ptr((**curwin.as_ptr()).w_onebuf_opt.wo_culopt).to_owned());
                 free_string_option((**curwin.as_ptr()).w_onebuf_opt.wo_culopt);
@@ -1917,7 +1917,7 @@ unsafe fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term: *mut Ter
                     term.title.reserve(flen.max(1024));
                 }
 
-                (*term)
+                term
                     .title
                     .extend_from_slice(std::slice::from_raw_parts(frag.str_, flen));
 
@@ -2101,7 +2101,7 @@ unsafe fn term_selection_set(
         }
 
         if !frag.is_empty() {
-            (*term)
+            term
                 .selection
                 .extend_from_slice(std::slice::from_raw_parts(frag.str_, frag.len()));
         }
@@ -2397,7 +2397,7 @@ unsafe fn fetch_cell(
                 return false;
             }
         } else {
-            vterm_screen_get_cell(&mut *term.vt.screen_mut_ptr(), VTermPos { row, col }, cell);
+            vterm_screen_get_cell(&*term.vt.screen_mut_ptr(), VTermPos { row, col }, cell);
         }
         true
     }

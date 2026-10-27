@@ -281,7 +281,7 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
 
         w.push(watcher);
 
-        if std::ffi::CStr::from_ptr(get_vim_var_str(VV_SEND_SERVER)).to_bytes().len() == 0 {
+        if std::ffi::CStr::from_ptr(get_vim_var_str(VV_SEND_SERVER)).to_bytes().is_empty() {
             set_vservername(w);
         }
 
@@ -316,7 +316,7 @@ pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bo
         let watcher = w.swap_remove(idx);
         socket_watcher_close(&mut *watcher);
 
-        if !keep_vservername && { let _a = addr.as_ptr(); let _b = get_vim_var_str(VV_SEND_SERVER); (_a.is_null() && _b.is_null()) || (!_a.is_null() && !_b.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == std::ffi::CStr::from_ptr(_b).to_bytes()) } {
+        if !keep_vservername && (crate::memory::cstr_as_opt_bytes(addr.as_ptr()) == crate::memory::cstr_as_opt_bytes(get_vim_var_str(VV_SEND_SERVER))) {
             set_vservername(w);
         }
 

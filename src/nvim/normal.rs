@@ -1909,7 +1909,7 @@ unsafe fn normal_get_additional_char(s: &mut NormalState) {
             if !lit {
                 if *cp == Ctrl_K
                     && ((nv_cmds[s.idx as usize].cmd_flags & NV_LANG) != 0
-                        || ptr::eq(cp, &mut s.ca.extra_char))
+                        || ptr::eq(cp, &s.ca.extra_char))
                     && vim_strchr(opt_vars().p_cpo, kCpoDigraph).is_null()
                 {
                     s.c = get_digraph(false);
@@ -1923,7 +1923,7 @@ unsafe fn normal_get_additional_char(s: &mut NormalState) {
                 langmap_adjust(&mut *cp, !lang);
             }
 
-            if ptr::eq(cp, &mut s.ca.extra_char)
+            if ptr::eq(cp, &s.ca.extra_char)
                 && s.ca.nchar == Ctrl_BSL
                 && (s.ca.extra_char == Ctrl_N || s.ca.extra_char == Ctrl_G)
             {
@@ -4390,8 +4390,8 @@ unsafe fn nv_K_getcmd(
             return 0;
         }
 
-        let isman = { let _a = kp; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"man" };
-        let isman_s = { let _a = kp; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"man -s" };
+        let isman = crate::memory::cstr_as_opt_bytes(kp) == Some(b"man");
+        let isman_s = crate::memory::cstr_as_opt_bytes(kp) == Some(b"man -s");
         if cap.count0 != 0 && !(isman || isman_s) {
             *buflen = vim_snprintf!(
                 buf,
@@ -4478,11 +4478,11 @@ unsafe fn nv_ident(cap: &mut cmdarg_T) {
         } else {
             (*g_st().curbuf).b_p_kp
         };
-        let kp_helpbang = { let _a = kp; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b":help!" };
+        let kp_helpbang = crate::memory::cstr_as_opt_bytes(kp) == Some(b":help!");
         let kp_help = kp_helpbang
             || *kp == NUL
-            || { let _a = kp; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b":he" }
-            || { let _a = kp; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b":help" };
+            || (crate::memory::cstr_as_opt_bytes(kp) == Some(b":he"))
+            || (crate::memory::cstr_as_opt_bytes(kp) == Some(b":help"));
         if kp_help && !kp_helpbang && *skipwhite(ptr) == NUL {
             emsg(tr(e_noident.as_ptr()));
             return;
@@ -4575,7 +4575,7 @@ unsafe fn nv_ident(cap: &mut cmdarg_T) {
                     c"/?^$\\".as_ptr()
                 }
             } else if tag_cmd {
-                if { let _a = (*g_st().curbuf).b_p_ft; !_a.is_null() && std::ffi::CStr::from_ptr(_a).to_bytes() == b"help" } {
+                if crate::memory::cstr_as_opt_bytes((*g_st().curbuf).b_p_ft) == Some(b"help") {
                     c"".as_ptr()
                 } else {
                     c"\\|\"\n[".as_ptr()

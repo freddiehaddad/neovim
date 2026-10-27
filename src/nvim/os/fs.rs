@@ -747,7 +747,7 @@ unsafe fn is_executable_in_path(
         let mut rv = false;
         loop {
             let e = { let _s = p; let _b = std::ffi::CStr::from_ptr(_s).to_bytes(); let _off = _b.iter().position(|&_x| _x == (ENV_SEPCHAR as c_char) as u8).unwrap_or(_b.len()); _s.add(_off).cast_mut() };
-            let _ = { let _d = (buf).cast::<u8>(); let _n = (e as usize) - (p as usize); if _n > 0 { std::ptr::copy_nonoverlapping((p).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
+            { let _d = (buf).cast::<u8>(); let _n = (e as usize) - (p as usize); if _n > 0 { std::ptr::copy_nonoverlapping((p).cast::<u8>(), _d, _n); } *_d.add(_n) = 0; };
             let _ = append_path(buf, name, bufsize);
 
             if is_executable_ext(buf, abspath.as_deref_mut()) {
