@@ -80,16 +80,16 @@ pub const kTermKey_left: usize = 14;
 pub const kTermKey_right: usize = 15;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct TPVAR {
     pub num: c_long,
-    pub string: *mut c_char,
+    pub string: Option<[c_char; 8]>,
 }
 
 #[repr(C)]
 struct TPSTACK {
     nums: [c_long; 20],
-    strings: [*mut c_char; 20],
+    strings: [Option<[c_char; 8]>; 20],
     offset: usize,
 }
 
@@ -2885,7 +2885,7 @@ pub unsafe fn terminfo_info_msg(
     }
 }
 
-fn push(num: c_long, string: *mut c_char, stack: &mut TPSTACK) -> c_int {
+fn push(num: c_long, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> c_int {
     if stack.offset >= stack.nums.len() {
         return -1;
     }
@@ -2895,14 +2895,14 @@ fn push(num: c_long, string: *mut c_char, stack: &mut TPSTACK) -> c_int {
     0
 }
 
-unsafe fn pop(num: *mut c_long, string: *mut *mut c_char, stack: &mut TPSTACK) -> c_int {
+unsafe fn pop(num: *mut c_long, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPSTACK) -> c_int {
     unsafe {
         if stack.offset == 0 {
             if !num.is_null() {
                 *num = 0;
             }
-            if !string.is_null() {
-                *string = ptr::null_mut();
+            if let Some(s) = string {
+                *s = None;
             }
             return -1;
         }
@@ -2910,8 +2910,8 @@ unsafe fn pop(num: *mut c_long, string: *mut *mut c_char, stack: &mut TPSTACK) -
         if !num.is_null() {
             *num = stack.nums[stack.offset];
         }
-        if !string.is_null() {
-            *string = stack.strings[stack.offset];
+        if let Some(s) = string {
+            *s = stack.strings[stack.offset];
         }
         0
     }
@@ -2964,7 +2964,7 @@ pub unsafe fn terminfo_fmt(
 ) -> usize {
     unsafe {
         let mut fmt = [0 as c_char; 64];
-        let mut ostr: *mut c_char = ptr::null_mut();
+        let mut ostr: Option<[c_char; 8]> = None;
         let mut val: c_long;
         let mut val2: c_long = 0;
         let mut dnums = [0 as c_long; 26];
@@ -2973,7 +2973,7 @@ pub unsafe fn terminfo_fmt(
         let mut buf = buf_start;
         let mut stack = TPSTACK {
             nums: [0; 20],
-            strings: [ptr::null_mut(); 20],
+            strings: [None; 20],
             offset: 0,
         };
 
@@ -3082,15 +3082,16 @@ pub unsafe fn terminfo_fmt(
 
             match c as u8 {
                 b'c' => {
-                    pop(&mut val, ptr::null_mut(), &mut stack);
+                    pop(&mut val, None, &mut stack);
                     if !ochar(&mut buf, buf_end, (val as u8) as c_int) {
                         return 0;
                     }
                 }
                 b's' => {
-                    pop(ptr::null_mut(), &mut ostr, &mut stack);
-                    if !ostr.is_null() {
-                        let mut l = CStr::from_ptr(ostr).to_bytes().len();
+                    pop(ptr::null_mut(), Some(&mut ostr), &mut stack);
+                    if let Some(ref s_arr) = ostr {
+                        let ostr_ptr = s_arr.as_ptr();
+                        let mut l = CStr::from_ptr(ostr_ptr).to_bytes().len();
                         if l < olen {
                             l = olen;
                         }
@@ -3098,7 +3099,7 @@ pub unsafe fn terminfo_fmt(
                             return 0;
                         }
                         {
-                            let r = vim_snprintf!(buf, l + 1, fmt.as_ptr(), ostr);
+                            let r = vim_snprintf!(buf, l + 1, fmt.as_ptr(), ostr_ptr);
                             if r >= 0 {
                                 buf = buf.add(r as usize);
                             }
@@ -3106,16 +3107,14 @@ pub unsafe fn terminfo_fmt(
                     }
                 }
                 b'l' => {
-                    pop(ptr::null_mut(), &mut ostr, &mut stack);
-                    let l = if ostr.is_null() {
-                        0
-                    } else {
-                        CStr::from_ptr(ostr).to_bytes().len()
-                    };
-                    push(l as c_long, ptr::null_mut(), &mut stack);
+                    pop(ptr::null_mut(), Some(&mut ostr), &mut stack);
+                    let l = ostr.map_or(0, |s_arr| {
+                        CStr::from_ptr(s_arr.as_ptr()).to_bytes().len()
+                    });
+                    push(l as c_long, None, &mut stack);
                 }
                 b'd' | b'o' | b'x' | b'X' => {
-                    pop(&mut val, ptr::null_mut(), &mut stack);
+                    pop(&mut val, None, &mut stack);
                     if !onum(&mut buf, buf_end, fmt.as_ptr(), val as c_int, olen) {
                         return 0;
                     }
@@ -3133,7 +3132,7 @@ pub unsafe fn terminfo_fmt(
                     }
                 }
                 b'P' => {
-                    pop(&mut val, ptr::null_mut(), &mut stack);
+                    pop(&mut val, None, &mut stack);
                     let sc = *str_ as u8;
                     if sc.is_ascii_lowercase() {
                         dnums[(sc - b'a') as usize] = val;
@@ -3144,11 +3143,11 @@ pub unsafe fn terminfo_fmt(
                 b'g' => {
                     let sc = *str_ as u8;
                     if sc.is_ascii_lowercase() {
-                        if push(dnums[(sc - b'a') as usize], ptr::null_mut(), &mut stack) != 0 {
+                        if push(dnums[(sc - b'a') as usize], None, &mut stack) != 0 {
                             return 0;
                         }
                     } else if sc.is_ascii_uppercase()
-                        && push(snums[(sc - b'A') as usize], ptr::null_mut(), &mut stack) != 0
+                        && push(snums[(sc - b'A') as usize], None, &mut stack) != 0
                     {
                         return 0;
                     }
@@ -3160,7 +3159,7 @@ pub unsafe fn terminfo_fmt(
                 b'\'' => {
                     let ch = *str_ as u8;
                     str_ = str_.add(1);
-                    if push(c_long::from(ch), ptr::null_mut(), &mut stack) != 0 {
+                    if push(c_long::from(ch), None, &mut stack) != 0 {
                         return 0;
                     }
                     while *str_ != NUL && *str_ != b'\'' as c_char {
@@ -3176,7 +3175,7 @@ pub unsafe fn terminfo_fmt(
                         val = (val * 10) + c_long::from((*str_ as u8) - b'0');
                         str_ = str_.add(1);
                     }
-                    if push(val, ptr::null_mut(), &mut stack) != 0 {
+                    if push(val, None, &mut stack) != 0 {
                         return 0;
                     }
                     while *str_ != NUL && *str_ != b'}' as c_char {
@@ -3188,8 +3187,8 @@ pub unsafe fn terminfo_fmt(
                 }
                 b'+' | b'-' | b'*' | b'/' | b'm' | b'A' | b'O' | b'&' | b'|' | b'^' | b'='
                 | b'<' | b'>' => {
-                    pop(&mut val, ptr::null_mut(), &mut stack);
-                    pop(&mut val2, ptr::null_mut(), &mut stack);
+                    pop(&mut val, None, &mut stack);
+                    pop(&mut val2, None, &mut stack);
                     val = match c as u8 {
                         b'+' => val.wrapping_add(val2),
                         b'-' => val2.wrapping_sub(val),
@@ -3218,24 +3217,24 @@ pub unsafe fn terminfo_fmt(
                         b'>' => c_long::from(val2 > val),
                         _ => val,
                     };
-                    if push(val, ptr::null_mut(), &mut stack) != 0 {
+                    if push(val, None, &mut stack) != 0 {
                         return 0;
                     }
                 }
                 b'!' | b'~' => {
-                    pop(&mut val, ptr::null_mut(), &mut stack);
+                    pop(&mut val, None, &mut stack);
                     val = match c as u8 {
                         b'!' => c_long::from(val == 0),
                         b'~' => !val,
                         _ => val,
                     };
-                    if push(val, ptr::null_mut(), &mut stack) != 0 {
+                    if push(val, None, &mut stack) != 0 {
                         return 0;
                     }
                 }
                 b'?' => {}
                 b't' => {
-                    pop(&mut val, ptr::null_mut(), &mut stack);
+                    pop(&mut val, None, &mut stack);
                     if val == 0 {
                         let mut l: usize = 0;
                         while *str_ != NUL {
@@ -3359,7 +3358,7 @@ mod tests {
         let mut buf = [0 as c_char; 256];
         let mut params = [TPVAR {
             num: 65,
-            string: ptr::null_mut(),
+            string: None,
         }; 9];
         let valid_fmt = format!("{}%c\0", "%p1".repeat(20));
         let overflow_fmt = format!("{}%c\0", "%p1".repeat(21));

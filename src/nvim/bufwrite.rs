@@ -105,12 +105,11 @@ struct Error_T {
 #[repr(C)]
 struct bw_info {
     bw_fd: c_int,
-    bw_buf: *mut c_char,
+    bw_buf: Vec<c_char>,
     bw_len: c_int,
     bw_flags: c_int,
     bw_first: c_int,
-    bw_conv_buf: *mut c_char,
-    bw_conv_buflen: usize,
+    bw_conv_buf: Vec<c_char>,
     bw_conv_error: c_int,
     bw_conv_error_lnum: linenr_T,
     bw_start_lnum: linenr_T,
@@ -188,8 +187,9 @@ unsafe fn buf_write_convert_with_iconv(
         let len = *lenp;
         let mut from: *const c_char = *bufp;
         let mut fromlen = len as usize;
-        let mut tolen = (*ip).bw_conv_buflen;
-        let mut to = (*ip).bw_conv_buf;
+        let mut tolen = (*ip).bw_conv_buf.len();
+        let conv_buf = (*ip).bw_conv_buf.as_mut_ptr();
+        let mut to = conv_buf;
 
         if (*ip).bw_first != 0 {
             let save_len = tolen;
@@ -201,7 +201,7 @@ unsafe fn buf_write_convert_with_iconv(
                 &raw mut tolen,
             );
             if to.is_null() {
-                to = (*ip).bw_conv_buf;
+                to = conv_buf;
                 tolen = save_len;
             }
             (*ip).bw_first = 0;
@@ -220,8 +220,8 @@ unsafe fn buf_write_convert_with_iconv(
             return -1;
         }
 
-        *bufp = (*ip).bw_conv_buf;
-        *lenp = ((to as usize) - ((*ip).bw_conv_buf as usize)) as c_int;
+        *bufp = conv_buf;
+        *lenp = ((to as usize) - (conv_buf as usize)) as c_int;
 
         len - (fromlen as c_int)
     }
@@ -231,12 +231,14 @@ unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: *mut
     unsafe {
         let flags = (*ip).bw_flags;
         let mut wlen = *lenp;
+        let conv_buflen = (*ip).bw_conv_buf.len();
+        let conv_buf = (*ip).bw_conv_buf.as_mut_ptr();
 
         if (flags & (FIO_UCS4 | FIO_UTF16 | FIO_UCS2 | FIO_LATIN1)) != 0 {
             let mut p = if (flags & FIO_LATIN1) != 0 {
                 *bufp
             } else {
-                (*ip).bw_conv_buf
+                conv_buf
             };
             wlen = 0;
             while wlen < *lenp {
@@ -255,7 +257,7 @@ unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: *mut
                     if (flags & FIO_UTF16) != 0 && c >= 0x10000 {
                         need = 4;
                     }
-                    if ((p as usize) - ((*ip).bw_conv_buf as usize)) + need > (*ip).bw_conv_buflen {
+                    if ((p as usize) - (conv_buf as usize)) + need > conv_buflen {
                         return FAIL;
                     }
                 }
@@ -272,8 +274,8 @@ unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: *mut
             if (flags & FIO_LATIN1) != 0 {
                 *lenp = ((p as usize) - (*bufp as usize)) as c_int;
             } else {
-                *bufp = (*ip).bw_conv_buf;
-                *lenp = ((p as usize) - ((*ip).bw_conv_buf as usize)) as c_int;
+                *bufp = conv_buf;
+                *lenp = ((p as usize) - (conv_buf as usize)) as c_int;
             }
         }
 
@@ -287,7 +289,7 @@ unsafe fn buf_write_convert(ip: *mut bw_info, bufp: *mut *mut c_char, lenp: *mut
 
 unsafe fn buf_write_bytes(ip: *mut bw_info) -> c_int {
     unsafe {
-        let mut buf = (*ip).bw_buf;
+        let mut buf = (*ip).bw_buf.as_mut_ptr();
         let mut len = (*ip).bw_len;
         let flags = (*ip).bw_flags;
 
@@ -307,11 +309,9 @@ unsafe fn buf_write_bytes(ip: *mut bw_info) -> c_int {
             }
 
             if remaining > 0 {
-                ptr::copy(
-                    (*ip).bw_buf.add(converted as usize),
-                    (*ip).bw_buf,
-                    remaining as usize,
-                );
+                let c = converted as usize;
+                let r = remaining as usize;
+                (*ip).bw_buf.as_mut_slice().copy_within(c..c + r, 0);
             }
         } else {
             (*ip).bw_len = 0;
@@ -1149,12 +1149,11 @@ pub unsafe fn buf_write(
 
         let mut write_info = bw_info {
             bw_fd: 0,
-            bw_buf: ptr::null_mut(),
+            bw_buf: Vec::new(),
             bw_len: 0,
             bw_flags: 0,
             bw_first: 0,
-            bw_conv_buf: ptr::null_mut(),
-            bw_conv_buflen: 0,
+            bw_conv_buf: Vec::new(),
             bw_conv_error: 0,
             bw_conv_error_lnum: 0,
             bw_start_lnum: 0,
@@ -1267,10 +1266,8 @@ pub unsafe fn buf_write(
         let write_tick = buf_get_changedtick(buf);
         msg_scroll = 0;
 
-        let mut buffer_vec: Vec<c_char> = vec![0; WRITEBUFSIZE];
-        let buffer = buffer_vec.as_mut_ptr();
+        write_info.bw_buf = vec![0; WRITEBUFSIZE];
         let bufsize: c_int = WRITEBUFSIZE as c_int;
-        let mut conv_buf_vec: Vec<c_char> = Vec::new();
 
         let mut err = set_err(ptr::null());
         let mut perm: c_int = -1;
@@ -1393,14 +1390,13 @@ pub unsafe fn buf_write(
                     if converted {
                         wb_flags = get_fio_flags(fenc);
                         if (wb_flags & (FIO_UCS2 | FIO_UCS4 | FIO_UTF16 | FIO_UTF8)) != 0 {
-                            write_info.bw_conv_buflen =
+                            let conv_buflen =
                                 if (wb_flags & (FIO_UCS2 | FIO_UTF16 | FIO_UTF8)) != 0 {
                                     (bufsize as usize) * 2
                                 } else {
                                     (bufsize as usize) * 4
                                 };
-                            conv_buf_vec = vec![0; write_info.bw_conv_buflen];
-                            write_info.bw_conv_buf = conv_buf_vec.as_mut_ptr();
+                            write_info.bw_conv_buf = vec![0; conv_buflen];
                         }
                     }
 
@@ -1408,9 +1404,7 @@ pub unsafe fn buf_write(
                         write_info.bw_iconv_fd = my_iconv_open(fenc, c"utf-8".as_ptr().cast_mut())
                             .map_or(-1, |fd| fd as iconv_t);
                         if write_info.bw_iconv_fd != -1 {
-                            write_info.bw_conv_buflen = (bufsize as usize) * ICONV_MULT;
-                            conv_buf_vec = vec![0; write_info.bw_conv_buflen];
-                            write_info.bw_conv_buf = conv_buf_vec.as_mut_ptr();
+                            write_info.bw_conv_buf = vec![0; (bufsize as usize) * ICONV_MULT];
                             write_info.bw_first = 1;
                         } else if crate::eval::typval::Callback::raw_cb_type(&raw const p_ccv) != kCallbackNone {
                             wfname_owned = vim_tempname();
@@ -1542,7 +1536,7 @@ pub unsafe fn buf_write(
                         }
                         err = set_err(ptr::null());
 
-                        write_info.bw_buf = buffer;
+                        let buffer = write_info.bw_buf.as_mut_ptr();
                         nchars = 0;
 
                         let write_bin = if !eap.is_null() && (*eap).force_bin != 0 {
@@ -2044,9 +2038,7 @@ pub unsafe fn buf_write(
         }
 
         drop(backup);
-        drop(buffer_vec);
         drop(fenc_tofree);
-        drop(conv_buf_vec);
         if write_info.bw_iconv_fd != -1 {
             let _ = call_iconv_close(write_info.bw_iconv_fd);
         }

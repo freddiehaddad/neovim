@@ -488,7 +488,7 @@ impl Default for qffields_T {
 #[repr(C)]
 struct vgr_args_T {
     tomatch: c_int,
-    spat: *mut c_char,
+    spat: Option<std::ffi::CString>,
     flags: c_int,
     fnames: Vec<std::ffi::CString>,
     regmatch: regmmatch_T,
@@ -499,12 +499,19 @@ impl vgr_args_T {
     const fn new() -> Self {
         Self {
             tomatch: 0,
-            spat: ptr::null_mut(),
+            spat: None,
             flags: 0,
             fnames: Vec::new(),
             regmatch: regmmatch_T::new(),
             qf_title: None,
         }
+    }
+
+    #[inline]
+    fn spat_ptr(&self) -> *mut c_char {
+        self.spat
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
     }
 }
 
@@ -5768,13 +5775,15 @@ unsafe fn vgr_process_args(eap: *mut exarg_T, args: *mut vgr_args_T) -> c_int {
             MAXLNUM
         };
 
-        let mut p = skip_vimgrep_pat((*eap).arg, &raw mut (*args).spat, &raw mut (*args).flags);
+        let mut spat: *mut c_char = ptr::null_mut();
+        let mut p = skip_vimgrep_pat((*eap).arg, &raw mut spat, &raw mut (*args).flags);
         if p.is_null() {
             emsg(gettext((&raw const e_invalpat).cast()));
             return FAIL;
         }
+        (*args).spat = (!spat.is_null()).then(|| CStr::from_ptr(spat).to_owned());
 
-        vgr_init_regmatch(&raw mut (*args).regmatch, (*args).spat);
+        vgr_init_regmatch(&raw mut (*args).regmatch, (*args).spat_ptr());
         if (*args).regmatch.regprog.is_null() {
             return FAIL;
         }
@@ -5862,7 +5871,7 @@ unsafe fn vgr_process_files(
                     qf_get_curlist(qi),
                     fname,
                     buf,
-                    (*cmd_args).spat,
+                    (*cmd_args).spat_ptr(),
                     &raw mut (*cmd_args).regmatch,
                     &raw mut (*cmd_args).tomatch,
                     c_int::from(duplicate_name),
@@ -6007,7 +6016,7 @@ pub unsafe fn ex_vimgrep(eap: *mut exarg_T) {
                             );
                         }
                     } else {
-                        semsg!(gettext((&raw const e_nomatch2).cast()), args.spat);
+                        semsg!(gettext((&raw const e_nomatch2).cast()), args.spat_ptr());
                     }
 
                     decr_quickfix_busy();

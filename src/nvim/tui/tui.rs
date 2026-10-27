@@ -148,7 +148,6 @@ enum FlushBufFinish {
 pub struct TUIData {
     pub loop_: *mut Loop,
     pub buf: [c_char; OUTBUF_SIZE],
-    pub buf_to_flush: *mut c_char,
     pub bufpos: usize,
     pub input: TermInput,
     pub write_loop: [u64; 256],
@@ -216,7 +215,6 @@ impl TUIData {
         Self {
             loop_: (&raw mut main_loop).cast::<Loop>(),
             buf: [0; OUTBUF_SIZE],
-            buf_to_flush: ptr::null_mut(),
             bufpos: 0,
             input: TermInput::new(),
             write_loop: [0; 256],
@@ -1331,10 +1329,7 @@ unsafe fn update_attrs(tui: *mut TUIData, attr_id: c_int) {
 
         if (*tui).ti.defs[kTerm_set_attributes].is_some() {
             if bold || dim || blink || reverse || underline || standout {
-                let mut params = [TPVAR {
-                    num: 0,
-                    string: ptr::null_mut(),
-                }; 9];
+                let mut params = [TPVAR::default(); 9];
                 params[0].num = c_long::from(standout);
                 params[1].num = c_long::from(underline);
                 params[2].num = c_long::from(reverse);
@@ -1935,16 +1930,14 @@ unsafe fn tui_set_mode(tui: *mut TUIData, mode: ModeShape) {
             if !(*tui).want_invisible && (aep.rgb_ae_attr & HL_INVERSE) != 0 {
                 terminfo_out(tui, kTerm_reset_cursor_color);
             } else if !(*tui).want_invisible && aep.rgb_bg_color >= 0 {
-                let mut params = [TPVAR {
-                    num: 0,
-                    string: ptr::null_mut(),
-                }; 9];
-                let mut hexbuf = [0u8; 8];
+                let mut params = [TPVAR::default(); 9];
                 if (*tui).set_cursor_color_as_str {
                     let s = format!("#{:06x}", aep.rgb_bg_color as u32 & 0x00ff_ffff);
-                    hexbuf[..7].copy_from_slice(s.as_bytes());
-                    hexbuf[7] = 0;
-                    params[0].string = hexbuf.as_mut_ptr().cast::<c_char>();
+                    let mut hexbuf = [0 as c_char; 8];
+                    for (i, &b) in s.as_bytes().iter().enumerate().take(7) {
+                        hexbuf[i] = b as c_char;
+                    }
+                    params[0].string = Some(hexbuf);
                 } else {
                     params[0].num = c_long::from(aep.rgb_bg_color);
                 }
@@ -2666,9 +2659,8 @@ unsafe fn out(tui: *mut TUIData, str_: *const c_char, len: usize) {
         if len > available {
             flush_buf(tui, FlushBufFinish::kFlushBufPartial);
             if len > (*tui).buf.len() {
-                (*tui).buf_to_flush = str_.cast_mut();
                 (*tui).bufpos = len;
-                flush_buf(tui, FlushBufFinish::kFlushBufPartial);
+                flush_buf_raw(tui, FlushBufFinish::kFlushBufPartial, str_.cast_mut());
                 return;
             }
         }
@@ -2709,10 +2701,7 @@ unsafe fn out_printf_str(tui: *mut TUIData, limit: usize, formatted: &str) {
 
 unsafe fn terminfo_out(tui: *mut TUIData, what: TerminfoDef) {
     unsafe {
-        let mut null_params = [TPVAR {
-            num: 0,
-            string: ptr::null_mut(),
-        }; 9];
+        let mut null_params = [TPVAR::default(); 9];
         terminfo_print(tui, what, null_params.as_mut_ptr());
     }
 }
@@ -2737,10 +2726,7 @@ unsafe fn terminfo_print_num(
     num3: c_int,
 ) {
     unsafe {
-        let mut params = [TPVAR {
-            num: 0,
-            string: ptr::null_mut(),
-        }; 9];
+        let mut params = [TPVAR::default(); 9];
         params[0].num = c_long::from(num1);
         params[1].num = c_long::from(num2);
         params[2].num = c_long::from(num3);
@@ -2765,10 +2751,7 @@ unsafe fn terminfo_print(tui: *mut TUIData, what: TerminfoDef, params: *mut TPVA
         let buf_start = (*tui).buf.as_mut_ptr();
         let buf_end = buf_start.add((*tui).buf.len());
         if (*tui).buf.len() - (*tui).bufpos > TERMINFO_SEQ_LIMIT {
-            let mut copy_params = [TPVAR {
-                num: 0,
-                string: ptr::null_mut(),
-            }; 9];
+            let mut copy_params = [TPVAR::default(); 9];
             ptr::copy_nonoverlapping(params, copy_params.as_mut_ptr(), 9);
             let len = terminfo_fmt(
                 buf_start.add((*tui).bufpos),
@@ -3132,6 +3115,12 @@ unsafe fn should_invisible(tui: *mut TUIData) -> bool {
 
 unsafe fn flush_buf(tui: *mut TUIData, finish: FlushBufFinish) {
     unsafe {
+        flush_buf_raw(tui, finish, ptr::null_mut());
+    }
+}
+
+unsafe fn flush_buf_raw(tui: *mut TUIData, finish: FlushBufFinish, buf_to_flush: *mut c_char) {
+    unsafe {
         let should_be_invisible = should_invisible(tui);
 
         if (*tui).bufpos == 0
@@ -3146,10 +3135,7 @@ unsafe fn flush_buf(tui: *mut TUIData, finish: FlushBufFinish) {
         let mut post = [0 as c_char; 32];
         let mut pre_len = 0usize;
         let mut post_len = 0usize;
-        let mut null_params = [TPVAR {
-            num: 0,
-            string: ptr::null_mut(),
-        }; 9];
+        let mut null_params = [TPVAR::default(); 9];
 
         if !(*tui).sync_output_active && (*tui).sync_output && (*tui).has_sync_mode {
             let sync_start = b"\x1b[?2026h\0";
@@ -3206,8 +3192,8 @@ unsafe fn flush_buf(tui: *mut TUIData, finish: FlushBufFinish) {
             }
         }
 
-        let mid_base = if !(*tui).buf_to_flush.is_null() {
-            (*tui).buf_to_flush
+        let mid_base = if !buf_to_flush.is_null() {
+            buf_to_flush
         } else {
             (*tui).buf.as_mut_ptr()
         };
@@ -3248,7 +3234,6 @@ unsafe fn flush_buf(tui: *mut TUIData, finish: FlushBufFinish) {
                 uv_run(tui_write_loop(tui), UV_RUN_DEFAULT);
             }
         }
-        (*tui).buf_to_flush = ptr::null_mut();
         (*tui).bufpos = 0;
     }
 }
