@@ -355,36 +355,34 @@ fn format_schar(out: &mut Vec<u8>, schar: schar_T) {
 }
 
 pub fn state_putglyph(
-    info: *mut VTermGlyphInfo,
+    info: &mut VTermGlyphInfo,
     pos: VTermPos,
     _user: *mut VTermScreen,
 ) -> c_int {
-    unsafe {
-        if !vtt_st().want_state_putglyph {
-            return 1;
-        }
-        let mut out = b"putglyph ".to_vec();
-        format_schar(&mut out, (*info).schar);
-        let _ = write!(out, " {} {},{}", (*info).width, pos.row, pos.col);
-        if (*info).protected_cell() != 0 {
-            out.extend_from_slice(b" prot");
-        }
-        if (*info).dwl() != 0 {
-            out.extend_from_slice(b" dwl");
-        }
-        let dhl = (*info).dhl();
-        if dhl != 0 {
-            let s = match dhl {
-                1 => "top",
-                2 => "bottom",
-                _ => "?",
-            };
-            let _ = write!(out, " dhl-{s}");
-        }
-        out.push(b'\n');
-        append_test_output(&out);
-        1
+    if !vtt_st().want_state_putglyph {
+        return 1;
     }
+    let mut out = b"putglyph ".to_vec();
+    format_schar(&mut out, info.schar);
+    let _ = write!(out, " {} {},{}", info.width, pos.row, pos.col);
+    if info.protected_cell() != 0 {
+        out.extend_from_slice(b" prot");
+    }
+    if info.dwl() != 0 {
+        out.extend_from_slice(b" dwl");
+    }
+    let dhl = info.dhl();
+    if dhl != 0 {
+        let s = match dhl {
+            1 => "top",
+            2 => "bottom",
+            _ => "?",
+        };
+        let _ = write!(out, " dhl-{s}");
+    }
+    out.push(b'\n');
+    append_test_output(&out);
+    1
 }
 
 pub fn state_movecursor<T>(
@@ -459,14 +457,9 @@ fn format_color_bytes(out: &mut Vec<u8>, col: &VTermColor) {
     out.push(b')');
 }
 
-pub fn print_color(col: *const VTermColor) {
-    if col.is_null() {
-        return;
-    }
+pub fn print_color(col: &VTermColor) {
     let mut out = Vec::new();
-    unsafe {
-        format_color_bytes(&mut out, &*col);
-    }
+    format_color_bytes(&mut out, col);
     append_test_output(&out);
 }
 
@@ -649,73 +642,71 @@ pub fn term_output(s: *const c_char, len: usize, _user: *mut Terminal) {
 pub fn vterm_state_get_penattr(
     state: &VTermStateFull,
     attr: VTermAttr,
-    val: *mut VTermValue,
+    val: &mut VTermValue,
 ) -> c_int {
-    unsafe {
-        let pen = &state.pen;
-        match attr {
-            VTERM_ATTR_BOLD => {
-                *val = VTermValue::Boolean(pen.bold() as c_int);
-                1
-            }
-            VTERM_ATTR_UNDERLINE => {
-                *val = VTermValue::Number(pen.underline() as c_int);
-                1
-            }
-            VTERM_ATTR_ITALIC => {
-                *val = VTermValue::Boolean(pen.italic() as c_int);
-                1
-            }
-            VTERM_ATTR_BLINK => {
-                *val = VTermValue::Boolean(pen.blink() as c_int);
-                1
-            }
-            VTERM_ATTR_REVERSE => {
-                *val = VTermValue::Boolean(pen.reverse() as c_int);
-                1
-            }
-            VTERM_ATTR_CONCEAL => {
-                *val = VTermValue::Boolean(pen.conceal() as c_int);
-                1
-            }
-            VTERM_ATTR_STRIKE => {
-                *val = VTermValue::Boolean(pen.strike() as c_int);
-                1
-            }
-            VTERM_ATTR_FONT => {
-                *val = VTermValue::Number(pen.font() as c_int);
-                1
-            }
-            VTERM_ATTR_FOREGROUND => {
-                *val = VTermValue::Color(pen.fg);
-                1
-            }
-            VTERM_ATTR_BACKGROUND => {
-                *val = VTermValue::Color(pen.bg);
-                1
-            }
-            VTERM_ATTR_SMALL => {
-                *val = VTermValue::Boolean(pen.small() as c_int);
-                1
-            }
-            VTERM_ATTR_BASELINE => {
-                *val = VTermValue::Number(pen.baseline() as c_int);
-                1
-            }
-            VTERM_ATTR_URI => {
-                *val = VTermValue::Number(pen.uri);
-                1
-            }
-            VTERM_ATTR_DIM => {
-                *val = VTermValue::Boolean(pen.dim() as c_int);
-                1
-            }
-            VTERM_ATTR_OVERLINE => {
-                *val = VTermValue::Boolean(pen.overline() as c_int);
-                1
-            }
-            _ => 0,
+    let pen = &state.pen;
+    match attr {
+        VTERM_ATTR_BOLD => {
+            *val = VTermValue::Boolean(pen.bold() as c_int);
+            1
         }
+        VTERM_ATTR_UNDERLINE => {
+            *val = VTermValue::Number(pen.underline() as c_int);
+            1
+        }
+        VTERM_ATTR_ITALIC => {
+            *val = VTermValue::Boolean(pen.italic() as c_int);
+            1
+        }
+        VTERM_ATTR_BLINK => {
+            *val = VTermValue::Boolean(pen.blink() as c_int);
+            1
+        }
+        VTERM_ATTR_REVERSE => {
+            *val = VTermValue::Boolean(pen.reverse() as c_int);
+            1
+        }
+        VTERM_ATTR_CONCEAL => {
+            *val = VTermValue::Boolean(pen.conceal() as c_int);
+            1
+        }
+        VTERM_ATTR_STRIKE => {
+            *val = VTermValue::Boolean(pen.strike() as c_int);
+            1
+        }
+        VTERM_ATTR_FONT => {
+            *val = VTermValue::Number(pen.font() as c_int);
+            1
+        }
+        VTERM_ATTR_FOREGROUND => {
+            *val = VTermValue::Color(pen.fg);
+            1
+        }
+        VTERM_ATTR_BACKGROUND => {
+            *val = VTermValue::Color(pen.bg);
+            1
+        }
+        VTERM_ATTR_SMALL => {
+            *val = VTermValue::Boolean(pen.small() as c_int);
+            1
+        }
+        VTERM_ATTR_BASELINE => {
+            *val = VTermValue::Number(pen.baseline() as c_int);
+            1
+        }
+        VTERM_ATTR_URI => {
+            *val = VTermValue::Number(pen.uri);
+            1
+        }
+        VTERM_ATTR_DIM => {
+            *val = VTermValue::Boolean(pen.dim() as c_int);
+            1
+        }
+        VTERM_ATTR_OVERLINE => {
+            *val = VTermValue::Boolean(pen.overline() as c_int);
+            1
+        }
+        _ => 0,
     }
 }
 
@@ -734,61 +725,59 @@ pub fn vterm_color_is_equal(a: &VTermColor, b: &VTermColor) -> c_int {
         }
 }
 
-fn attrs_differ(attrs: VTermAttrMask, a: *const ScreenCell, b: *const ScreenCell) -> bool {
-    unsafe {
-        let pa = &(*a).pen;
-        let pb = &(*b).pen;
-        if (attrs & VTERM_ATTR_BOLD_MASK) != 0 && pa.bold() != pb.bold() {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_UNDERLINE_MASK) != 0 && pa.underline() != pb.underline() {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_ITALIC_MASK) != 0 && pa.italic() != pb.italic() {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_BLINK_MASK) != 0 && pa.blink() != pb.blink() {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_REVERSE_MASK) != 0 && pa.reverse() != pb.reverse() {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_CONCEAL_MASK) != 0 && pa.conceal() != pb.conceal() {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_STRIKE_MASK) != 0 && pa.strike() != pb.strike() {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_FONT_MASK) != 0 && pa.font() != pb.font() {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_FOREGROUND_MASK) != 0
-            && vterm_color_is_equal(&pa.fg, &pb.fg) == 0
-        {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_BACKGROUND_MASK) != 0
-            && vterm_color_is_equal(&pa.bg, &pb.bg) == 0
-        {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_SMALL_MASK) != 0 && pa.small() != pb.small() {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_BASELINE_MASK) != 0 && pa.baseline() != pb.baseline() {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_URI_MASK) != 0 && pa.uri != pb.uri {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_DIM_MASK) != 0 && pa.dim() != pb.dim() {
-            return true;
-        }
-        if (attrs & VTERM_ATTR_OVERLINE_MASK) != 0 && pa.overline() != pb.overline() {
-            return true;
-        }
-        false
+fn attrs_differ(attrs: VTermAttrMask, a: &ScreenCell, b: &ScreenCell) -> bool {
+    let pa = &a.pen;
+    let pb = &b.pen;
+    if (attrs & VTERM_ATTR_BOLD_MASK) != 0 && pa.bold() != pb.bold() {
+        return true;
     }
+    if (attrs & VTERM_ATTR_UNDERLINE_MASK) != 0 && pa.underline() != pb.underline() {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_ITALIC_MASK) != 0 && pa.italic() != pb.italic() {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_BLINK_MASK) != 0 && pa.blink() != pb.blink() {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_REVERSE_MASK) != 0 && pa.reverse() != pb.reverse() {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_CONCEAL_MASK) != 0 && pa.conceal() != pb.conceal() {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_STRIKE_MASK) != 0 && pa.strike() != pb.strike() {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_FONT_MASK) != 0 && pa.font() != pb.font() {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_FOREGROUND_MASK) != 0
+        && vterm_color_is_equal(&pa.fg, &pb.fg) == 0
+    {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_BACKGROUND_MASK) != 0
+        && vterm_color_is_equal(&pa.bg, &pb.bg) == 0
+    {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_SMALL_MASK) != 0 && pa.small() != pb.small() {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_BASELINE_MASK) != 0 && pa.baseline() != pb.baseline() {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_URI_MASK) != 0 && pa.uri != pb.uri {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_DIM_MASK) != 0 && pa.dim() != pb.dim() {
+        return true;
+    }
+    if (attrs & VTERM_ATTR_OVERLINE_MASK) != 0 && pa.overline() != pb.overline() {
+        return true;
+    }
+    false
 }
 
 pub fn vterm_screen_get_attrs_extent(
@@ -797,34 +786,34 @@ pub fn vterm_screen_get_attrs_extent(
     pos: VTermPos,
     attrs: VTermAttrMask,
 ) -> c_int {
-    let target = getcell(screen, pos.row, pos.col);
-        extent.start_row = pos.row;
-        extent.end_row = pos.row + 1;
-        if extent.start_col < 0 {
-            extent.start_col = 0;
-        }
-        if extent.end_col < 0 {
-            extent.end_col = screen.cols;
-        }
+    let target = unsafe { &*getcell(screen, pos.row, pos.col) };
+    extent.start_row = pos.row;
+    extent.end_row = pos.row + 1;
+    if extent.start_col < 0 {
+        extent.start_col = 0;
+    }
+    if extent.end_col < 0 {
+        extent.end_col = screen.cols;
+    }
 
-        let mut col = pos.col - 1;
-        while col >= extent.start_col {
-            if attrs_differ(attrs, target, getcell(screen, pos.row, col)) {
-                break;
-            }
-            col -= 1;
+    let mut col = pos.col - 1;
+    while col >= extent.start_col {
+        if attrs_differ(attrs, target, unsafe { &*getcell(screen, pos.row, col) }) {
+            break;
         }
-        extent.start_col = col + 1;
+        col -= 1;
+    }
+    extent.start_col = col + 1;
 
-        col = pos.col + 1;
-        while col < extent.end_col {
-            if attrs_differ(attrs, target, getcell(screen, pos.row, col)) {
-                break;
-            }
-            col += 1;
+    col = pos.col + 1;
+    while col < extent.end_col {
+        if attrs_differ(attrs, target, unsafe { &*getcell(screen, pos.row, col) }) {
+            break;
         }
-        extent.end_col = col - 1;
-        1
+        col += 1;
+    }
+    extent.end_col = col - 1;
+    1
 }
 
 pub fn vterm_screen_get_text(
@@ -887,10 +876,8 @@ pub fn vterm_screen_is_eol(screen: &VTermScreen, mut pos: VTermPos) -> c_int {
     }
 }
 
-pub fn vterm_state_get_cursorpos(state: &VTermStateFull, cursorpos: *mut VTermPos) {
-    unsafe {
-        *cursorpos = state.pos;
-    }
+pub fn vterm_state_get_cursorpos(state: &VTermStateFull, cursorpos: &mut VTermPos) {
+    *cursorpos = state.pos;
 }
 
 pub fn vterm_state_set_bold_highbright(
@@ -955,8 +942,8 @@ mod tests {
 
     fn state_setlineinfo(
         _row: c_int,
-        _newinfo: *const VTermLineInfo,
-        _oldinfo: *const VTermLineInfo,
+        _newinfo: &VTermLineInfo,
+        _oldinfo: &VTermLineInfo,
         _user: *mut VTermScreen,
     ) -> c_int {
         1
@@ -1148,8 +1135,8 @@ mod tests {
 
     fn cursor(row: c_int, col: c_int, state: &VTermStateFull) {
         let mut pos = VTermPos { row: 0, col: 0 };
-            vterm_state_get_cursorpos(state, &raw mut pos);
-            assert_eq!((pos.row, pos.col), (row, col));
+        vterm_state_get_cursorpos(state, &mut pos);
+        assert_eq!((pos.row, pos.col), (row, col));
     }
 
     fn lineinfo(
@@ -1160,9 +1147,9 @@ mod tests {
         state: &VTermStateFull,
     ) {
         let info = vterm_state_get_lineinfo(state, row);
-            assert_eq!(info.doublewidth() == 1, exp_dwl);
-            assert_eq!(info.doubleheight() == 1, exp_dhl);
-            assert_eq!(info.continuation(), exp_cont);
+        assert_eq!(info.doublewidth() == 1, exp_dwl);
+        assert_eq!(info.doubleheight() == 1, exp_dhl);
+        assert_eq!(info.continuation(), exp_cont);
     }
 
     fn pen(attribute: &str, expected: c_int, state: &VTermStateFull) {
@@ -1178,8 +1165,8 @@ mod tests {
             _ => unreachable!(),
         };
         let mut val = VTermValue::Boolean(0);
-            vterm_state_get_penattr(state, attr, &raw mut val);
-            assert_eq!(val.boolean(), expected);
+        vterm_state_get_penattr(state, attr, &mut val);
+        assert_eq!(val.boolean(), expected);
     }
 
     fn resize(rows: c_int, cols: c_int, vt: &mut VTerm) {
@@ -1243,7 +1230,7 @@ mod tests {
         unsafe {
             let pos = VTermPos { row, col };
             let mut cell = VTermScreenCell::default();
-            vterm_screen_get_cell(screen, pos, &raw mut cell);
+            vterm_screen_get_cell(screen, pos, &mut cell);
 
             let mut buf = [0u8; 32];
             schar_get(buf.as_mut_ptr().cast(), cell.schar);
@@ -1303,11 +1290,11 @@ mod tests {
             }
             actual.push_str("fg=");
             vterm_screen_convert_color_to_rgb(screen, &mut cell.fg);
-            print_color(&raw const cell.fg);
+            print_color(&cell.fg);
             actual.push_str(&String::from_utf8_lossy(&take_test_output()));
             actual.push_str(" bg=");
             vterm_screen_convert_color_to_rgb(screen, &mut cell.bg);
-            print_color(&raw const cell.bg);
+            print_color(&cell.bg);
             actual.push_str(&String::from_utf8_lossy(&take_test_output()));
 
             assert_eq!(actual, String::from_utf8_lossy(expected));

@@ -1636,7 +1636,8 @@ pub fn terminal_receive(term: &mut Terminal, data: *const c_char, len: usize) {
         if term.sync_flush_pending {
             term.sync_flush_pending = false;
             let mut height: c_int = 0;
-            vterm_get_size(&term.vt, &mut height, ptr::null_mut());
+            let mut width: c_int = 0;
+            vterm_get_size(&term.vt, &mut height, &mut width);
             term.invalid_start = 0;
             term.invalid_end = height;
             multiqueue_put_event(
@@ -2365,7 +2366,7 @@ fn fetch_cell(
     term: &mut Terminal,
     row: c_int,
     col: c_int,
-    cell: *mut VTermScreenCell,
+    cell: &mut VTermScreenCell,
 ) -> bool {
     unsafe {
         if row < 0 {

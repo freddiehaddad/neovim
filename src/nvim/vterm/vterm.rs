@@ -31,15 +31,9 @@ pub fn vterm_new(rows: c_int, cols: c_int) -> VTerm {
     vt
 }
 
-pub fn vterm_get_size(vt: &VTerm, rowsp: *mut c_int, colsp: *mut c_int) {
-    unsafe {
-        if !rowsp.is_null() {
-            *rowsp = vt.rows;
-        }
-        if !colsp.is_null() {
-            *colsp = vt.cols;
-        }
-    }
+pub fn vterm_get_size(vt: &VTerm, rowsp: &mut c_int, colsp: &mut c_int) {
+    *rowsp = vt.rows;
+    *colsp = vt.cols;
 }
 
 pub fn vterm_set_size(vt: &mut VTerm, rows: c_int, cols: c_int) {

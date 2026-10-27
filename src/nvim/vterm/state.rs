@@ -282,7 +282,7 @@ fn putglyph(state: &mut VTermStateFull, schar: schar_T, width: c_int, pos: VTerm
         if let Some(callbacks) = state.callbacks
             && let Some(cb) = callbacks.putglyph
         {
-            let _ = cb(&raw mut info, pos, state.screen_ptr());
+            let _ = cb(&mut info, pos, state.screen_ptr());
         }
 }
 
@@ -552,7 +552,7 @@ fn set_lineinfo(
 
         let cb_ok = state.callbacks.is_some_and(|cbs| {
             cbs.setlineinfo.is_some_and(|cb| {
-                cb(row, &raw const info, &raw const oldinfo, state.screen_ptr()) != 0
+                cb(row, &info, &oldinfo, state.screen_ptr()) != 0
             })
         });
 
@@ -799,13 +799,13 @@ fn on_control(control: u8, state: *mut VTermStateFull) -> c_int {
 #[inline]
 fn settermprop_bool(state: &mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
     let mut val = VTermValue::Boolean(v);
-        vterm_state_set_termprop(state, prop, &raw mut val)
+    vterm_state_set_termprop(state, prop, &mut val)
 }
 
 #[inline]
 fn settermprop_int(state: &mut VTermStateFull, prop: VTermProp, v: c_int) -> c_int {
     let mut val = VTermValue::Number(v);
-        vterm_state_set_termprop(state, prop, &raw mut val)
+    vterm_state_set_termprop(state, prop, &mut val)
 }
 
 #[inline]
@@ -815,7 +815,7 @@ fn settermprop_string(
     frag: VTermStringFragment,
 ) -> c_int {
     let mut val = VTermValue::String(frag);
-        vterm_state_set_termprop(state, prop, &raw mut val)
+    vterm_state_set_termprop(state, prop, &mut val)
 }
 
 fn savecursor(state: &mut VTermStateFull, save: c_int) {
@@ -2259,7 +2259,7 @@ fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) 
             KEY_M => {
                 // Query SGR
                 let mut args = [0 as c_long; 20];
-                let argc = vterm_state_getpen(state, args.as_mut_ptr(), args.len() as c_int);
+                let argc = vterm_state_getpen(state, &mut args);
                 let mut s = String::from("1$r");
                 for argi in 0..(argc as usize) {
                     let sep = if argi == (argc as usize) - 1 {
@@ -2432,7 +2432,7 @@ fn on_resize(rows: c_int, cols: c_int, state: *mut VTermStateFull) -> c_int {
                 pos: state_ref.pos,
                 lineinfos: std::mem::take(&mut state_ref.lineinfos),
             };
-            let _ = resize_cb(rows, cols, &raw mut fields, state_ref.screen_ptr());
+            let _ = resize_cb(rows, cols, &mut fields, state_ref.screen_ptr());
             state_ref.pos = fields.pos;
             state_ref.lineinfos = fields.lineinfos;
         } else if rows != old_rows {
@@ -2607,87 +2607,84 @@ pub fn vterm_state_set_unrecognised_fallbacks(
 pub fn vterm_state_set_termprop(
     state: &mut VTermStateFull,
     prop: VTermProp,
-    val: *mut VTermValue,
+    val: &mut VTermValue,
 ) -> c_int {
-    unsafe {
-        if let Some(callbacks) = state.callbacks
-            && let Some(cb) = callbacks.settermprop
-            && cb(prop, &mut *val, state.screen_ptr()) == 0
-        {
-            return 0;
-        }
+    if let Some(callbacks) = state.callbacks
+        && let Some(cb) = callbacks.settermprop
+        && cb(prop, val, state.screen_ptr()) == 0
+    {
+        return 0;
+    }
 
-        match prop {
-            VTERM_PROP_TITLE | VTERM_PROP_ICONNAME => 1,
-            VTERM_PROP_CURSORVISIBLE => {
-                set_mode_bit(
-                    &mut state.mode,
-                    MODE_CURSOR_VISIBLE,
-                    (*val).boolean() != 0,
-                );
-                1
-            }
-            VTERM_PROP_CURSORBLINK => {
-                set_mode_bit(&mut state.mode, MODE_CURSOR_BLINK, (*val).boolean() != 0);
-                1
-            }
-            VTERM_PROP_CURSORSHAPE => {
-                set_cursor_shape(&mut state.mode, (*val).number() as u32);
-                1
-            }
-            VTERM_PROP_REVERSE => {
-                set_mode_bit(&mut state.mode, MODE_SCREEN, (*val).boolean() != 0);
-                1
-            }
-            VTERM_PROP_ALTSCREEN => {
-                let state_ref = &mut *state;
-                set_mode_bit(&mut state_ref.mode, MODE_ALT_SCREEN, (*val).boolean() != 0);
-                if (state.mode & MODE_ALT_SCREEN) != 0 {
-                    let rect = VTermRect {
-                        start_row: 0,
-                        end_row: state.rows,
-                        start_col: 0,
-                        end_col: state.cols,
-                    };
-                    erase(state, rect, 0);
-                }
-                1
-            }
-            VTERM_PROP_MOUSE => {
-                state.mouse_flags = 0;
-                if (*val).number() != 0 {
-                    state.mouse_flags |= MOUSE_WANT_CLICK;
-                }
-                if (*val).number() == VTERM_PROP_MOUSE_DRAG {
-                    state.mouse_flags |= MOUSE_WANT_DRAG;
-                }
-                if (*val).number() == VTERM_PROP_MOUSE_MOVE {
-                    state.mouse_flags |= MOUSE_WANT_MOVE;
-                }
-                1
-            }
-            VTERM_PROP_FOCUSREPORT => {
-                set_mode_bit(&mut state.mode, MODE_REPORT_FOCUS, (*val).boolean() != 0);
-                1
-            }
-            VTERM_PROP_THEMEUPDATES => {
-                set_mode_bit(
-                    &mut state.mode,
-                    MODE_THEME_UPDATES,
-                    (*val).boolean() != 0,
-                );
-                1
-            }
-            VTERM_PROP_SYNCOUTPUT => {
-                set_mode_bit(
-                    &mut state.mode,
-                    MODE_SYNCHRONIZED_OUTPUT,
-                    (*val).boolean() != 0,
-                );
-                1
-            }
-            _ => 0,
+    match prop {
+        VTERM_PROP_TITLE | VTERM_PROP_ICONNAME => 1,
+        VTERM_PROP_CURSORVISIBLE => {
+            set_mode_bit(
+                &mut state.mode,
+                MODE_CURSOR_VISIBLE,
+                val.boolean() != 0,
+            );
+            1
         }
+        VTERM_PROP_CURSORBLINK => {
+            set_mode_bit(&mut state.mode, MODE_CURSOR_BLINK, val.boolean() != 0);
+            1
+        }
+        VTERM_PROP_CURSORSHAPE => {
+            set_cursor_shape(&mut state.mode, val.number() as u32);
+            1
+        }
+        VTERM_PROP_REVERSE => {
+            set_mode_bit(&mut state.mode, MODE_SCREEN, val.boolean() != 0);
+            1
+        }
+        VTERM_PROP_ALTSCREEN => {
+            set_mode_bit(&mut state.mode, MODE_ALT_SCREEN, val.boolean() != 0);
+            if (state.mode & MODE_ALT_SCREEN) != 0 {
+                let rect = VTermRect {
+                    start_row: 0,
+                    end_row: state.rows,
+                    start_col: 0,
+                    end_col: state.cols,
+                };
+                erase(state, rect, 0);
+            }
+            1
+        }
+        VTERM_PROP_MOUSE => {
+            state.mouse_flags = 0;
+            if val.number() != 0 {
+                state.mouse_flags |= MOUSE_WANT_CLICK;
+            }
+            if val.number() == VTERM_PROP_MOUSE_DRAG {
+                state.mouse_flags |= MOUSE_WANT_DRAG;
+            }
+            if val.number() == VTERM_PROP_MOUSE_MOVE {
+                state.mouse_flags |= MOUSE_WANT_MOVE;
+            }
+            1
+        }
+        VTERM_PROP_FOCUSREPORT => {
+            set_mode_bit(&mut state.mode, MODE_REPORT_FOCUS, val.boolean() != 0);
+            1
+        }
+        VTERM_PROP_THEMEUPDATES => {
+            set_mode_bit(
+                &mut state.mode,
+                MODE_THEME_UPDATES,
+                val.boolean() != 0,
+            );
+            1
+        }
+        VTERM_PROP_SYNCOUTPUT => {
+            set_mode_bit(
+                &mut state.mode,
+                MODE_SYNCHRONIZED_OUTPUT,
+                val.boolean() != 0,
+            );
+            1
+        }
+        _ => 0,
     }
 }
 

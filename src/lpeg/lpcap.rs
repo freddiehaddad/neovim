@@ -21,38 +21,35 @@ const MAXRECLEVEL: c_int = 200;
 const MAXSTRCAPS: usize = 10;
 
 #[inline]
-fn luaL_addchar(b: *mut luaL_Buffer, c: c_char) {
+fn luaL_addchar(b: &mut luaL_Buffer, c: c_char) {
     unsafe {
-        let buf_start = (&raw mut (*b).buffer).cast::<c_char>();
-        if (*b).p >= buf_start.add(LUAL_BUFFERSIZE) {
+        let buf_start = (&raw mut b.buffer).cast::<c_char>();
+        if b.p >= buf_start.add(LUAL_BUFFERSIZE) {
             luaL_prepbuffer(b);
         }
-        *(*b).p = c;
-        (*b).p = (*b).p.add(1);
+        *b.p = c;
+        b.p = b.p.add(1);
     }
 }
 
 #[inline]
-fn getfromktable(cs: *mut CapState, v: c_int) {
+fn getfromktable(cs: &mut CapState, v: c_int) {
     unsafe {
-        lua_rawgeti((*cs).L, ktableidx((*cs).ptop), v);
+        lua_rawgeti(cs.L, ktableidx(cs.ptop), v);
     }
 }
 
 #[inline]
-fn pushluaval(cs: *mut CapState) {
-    unsafe {
-        getfromktable(cs, c_int::from((*(*cs).cap).idx));
-    }
+fn pushluaval(cs: &mut CapState) {
+    let idx = unsafe { c_int::from((*cs.cap).idx) };
+    getfromktable(cs, idx);
 }
 
 #[inline]
-fn skipclose(cs: *mut CapState, head: *const Capture) {
-    unsafe {
-        if isopencap(head) {
-            debug_assert!(isclosecap((*cs).cap));
-            (*cs).cap = (*cs).cap.add(1);
-        }
+fn skipclose(cs: &mut CapState, head: *const Capture) {
+    if isopencap(head) {
+        debug_assert!(isclosecap(cs.cap));
+        cs.cap = unsafe { cs.cap.add(1) };
     }
 }
 
@@ -69,20 +66,20 @@ fn capsize(cap: *const Capture, close: *const Capture) -> Index_t {
 }
 
 #[inline]
-fn closesize(cs: *const CapState, head: *const Capture) -> Index_t {
-    unsafe { capsize(head, (*cs).cap) }
+fn closesize(cs: &CapState, head: *const Capture) -> Index_t {
+    capsize(head, cs.cap)
 }
 
-fn updatecache(cs: *mut CapState, v: c_int) -> c_int {
-    unsafe {
-        let idx = (*cs).ptop + 1;
-        if v != (*cs).valuecached {
-            getfromktable(cs, v);
-            lua_replace((*cs).L, idx);
-            (*cs).valuecached = v;
+fn updatecache(cs: &mut CapState, v: c_int) -> c_int {
+    let idx = cs.ptop + 1;
+    if v != cs.valuecached {
+        getfromktable(cs, v);
+        unsafe {
+            lua_replace(cs.L, idx);
         }
-        idx
+        cs.valuecached = v;
     }
+    idx
 }
 
 fn findopen(mut cap: *mut Capture) -> *mut Capture {
@@ -102,9 +99,9 @@ fn findopen(mut cap: *mut Capture) -> *mut Capture {
     }
 }
 
-fn nextcap(cs: *mut CapState) {
+fn nextcap(cs: &mut CapState) {
     unsafe {
-        let mut cap = (*cs).cap;
+        let mut cap = cs.cap;
         if isopencap(cap) {
             let mut n: c_int = 0;
             loop {
@@ -118,29 +115,29 @@ fn nextcap(cs: *mut CapState) {
                     n -= 1;
                 }
             }
-            (*cs).cap = cap.add(1);
+            cs.cap = cap.add(1);
         } else {
             let mut next = cap.add(1);
             while capinside(cap, next) {
                 next = next.add(1);
             }
-            (*cs).cap = next;
+            cs.cap = next;
         }
     }
 }
 
-fn pushnestedvalues(cs: *mut CapState, addextra: bool) -> c_int {
+fn pushnestedvalues(cs: &mut CapState, addextra: bool) -> c_int {
     unsafe {
-        let head = (*cs).cap;
-        (*cs).cap = (*cs).cap.add(1);
+        let head = cs.cap;
+        cs.cap = cs.cap.add(1);
         let mut n: c_int = 0;
-        while capinside(head, (*cs).cap) {
+        while capinside(head, cs.cap) {
             n += pushcapture(cs);
         }
         if addextra || n == 0 {
             lua_pushlstring(
-                (*cs).L,
-                (*cs).s.add((*head).index as usize),
+                cs.L,
+                cs.s.add((*head).index as usize),
                 closesize(cs, head) as usize,
             );
             n += 1;
@@ -150,23 +147,21 @@ fn pushnestedvalues(cs: *mut CapState, addextra: bool) -> c_int {
     }
 }
 
-fn pushonenestedvalue(cs: *mut CapState) {
-    unsafe {
-        let n = pushnestedvalues(cs, false);
-        if n > 1 {
-            lua_pop((*cs).L, n - 1);
-        }
+fn pushonenestedvalue(cs: &mut CapState) {
+    let n = pushnestedvalues(cs, false);
+    if n > 1 {
+        lua_pop(cs.L, n - 1);
     }
 }
 
-fn capvisible(cs: *const CapState, grp: *const Capture, r#ref: *const Capture) -> bool {
+fn capvisible(cs: &CapState, grp: *const Capture, r#ref: *const Capture) -> bool {
     let mut cap = grp;
     let mut i = MAXLOP;
     unsafe {
         while i > 0 {
             i -= 1;
             cap = cap.sub(1);
-            if cap <= (*cs).ocap {
+            if cap <= cs.ocap {
                 break;
             }
             if isclosecap(cap) || (*grp).index - (*cap).index >= Index_t::from(u8::MAX) {
@@ -179,11 +174,11 @@ fn capvisible(cs: *const CapState, grp: *const Capture, r#ref: *const Capture) -
     true
 }
 
-fn findback(cs: *mut CapState, r#ref: *mut Capture) -> *mut Capture {
+fn findback(cs: &mut CapState, r#ref: *mut Capture) -> *mut Capture {
     unsafe {
-        let l = (*cs).L;
+        let l = cs.L;
         let mut cap = r#ref;
-        while cap > (*cs).ocap {
+        while cap > cs.ocap {
             cap = cap.sub(1);
             if isclosecap(cap) {
                 cap = findopen(cap);
@@ -209,26 +204,26 @@ fn findback(cs: *mut CapState, r#ref: *mut Capture) -> *mut Capture {
     }
 }
 
-fn backrefcap(cs: *mut CapState) -> c_int {
+fn backrefcap(cs: &mut CapState) -> c_int {
     unsafe {
-        let curr = (*cs).cap;
+        let curr = cs.cap;
         pushluaval(cs);
-        (*cs).cap = findback(cs, curr);
+        cs.cap = findback(cs, curr);
         let n = pushnestedvalues(cs, false);
-        (*cs).cap = curr.add(1);
+        cs.cap = curr.add(1);
         n
     }
 }
 
-fn tablecap(cs: *mut CapState) -> c_int {
+fn tablecap(cs: &mut CapState) -> c_int {
     unsafe {
-        let l = (*cs).L;
-        let head = (*cs).cap;
-        (*cs).cap = (*cs).cap.add(1);
+        let l = cs.L;
+        let head = cs.cap;
+        cs.cap = cs.cap.add(1);
         let mut n: c_int = 0;
         lua_newtable(l);
-        while capinside(head, (*cs).cap) {
-            if captype((*cs).cap) == Cgroup && (*(*cs).cap).idx != 0 {
+        while capinside(head, cs.cap) {
+            if captype(cs.cap) == Cgroup && (*cs.cap).idx != 0 {
                 pushluaval(cs);
                 pushonenestedvalue(cs);
                 lua_settable(l, -3);
@@ -247,28 +242,28 @@ fn tablecap(cs: *mut CapState) -> c_int {
     }
 }
 
-fn querycap(cs: *mut CapState) -> c_int {
+fn querycap(cs: &mut CapState) -> c_int {
     unsafe {
-        let idx = c_int::from((*(*cs).cap).idx);
+        let idx = c_int::from((*cs.cap).idx);
         pushonenestedvalue(cs);
         let cache_idx = updatecache(cs, idx);
-        lua_gettable((*cs).L, cache_idx);
-        if !lua_isnil((*cs).L, -1) {
+        lua_gettable(cs.L, cache_idx);
+        if !lua_isnil(cs.L, -1) {
             1
         } else {
-            lua_pop((*cs).L, 1);
+            lua_pop(cs.L, 1);
             0
         }
     }
 }
 
-fn foldcap(cs: *mut CapState) -> c_int {
+fn foldcap(cs: &mut CapState) -> c_int {
     unsafe {
-        let l = (*cs).L;
-        let head = (*cs).cap;
-        (*cs).cap = (*cs).cap.add(1);
+        let l = cs.L;
+        let head = cs.cap;
+        cs.cap = cs.cap.add(1);
         let idx = c_int::from((*head).idx);
-        if isclosecap((*cs).cap) {
+        if isclosecap(cs.cap) {
             return luaL_error(l, c"no initial value for fold capture".as_ptr());
         }
         let mut n = pushcapture(cs);
@@ -278,7 +273,7 @@ fn foldcap(cs: *mut CapState) -> c_int {
         if n > 1 {
             lua_pop(l, n - 1);
         }
-        while capinside(head, (*cs).cap) {
+        while capinside(head, cs.cap) {
             let cache_idx = updatecache(cs, idx);
             lua_pushvalue(l, cache_idx);
             lua_insert(l, -2);
@@ -290,20 +285,20 @@ fn foldcap(cs: *mut CapState) -> c_int {
     }
 }
 
-fn functioncap(cs: *mut CapState) -> c_int {
+fn functioncap(cs: &mut CapState) -> c_int {
     unsafe {
-        let top = lua_gettop((*cs).L);
+        let top = lua_gettop(cs.L);
         pushluaval(cs);
         let n = pushnestedvalues(cs, false);
-        lua_call((*cs).L, n, LUA_MULTRET);
-        lua_gettop((*cs).L) - top
+        lua_call(cs.L, n, LUA_MULTRET);
+        lua_gettop(cs.L) - top
     }
 }
 
-fn accumulatorcap(cs: *mut CapState) -> c_int {
+fn accumulatorcap(cs: &mut CapState) -> c_int {
     unsafe {
-        let l = (*cs).L;
-        if lua_gettop(l) < (*cs).firstcap {
+        let l = cs.L;
+        if lua_gettop(l) < cs.firstcap {
             luaL_error(l, c"no previous value for accumulator capture".as_ptr());
         }
         pushluaval(cs);
@@ -314,20 +309,20 @@ fn accumulatorcap(cs: *mut CapState) -> c_int {
     }
 }
 
-fn numcap(cs: *mut CapState) -> c_int {
+fn numcap(cs: &mut CapState) -> c_int {
     unsafe {
-        let idx = c_int::from((*(*cs).cap).idx);
+        let idx = c_int::from((*cs.cap).idx);
         if idx == 0 {
             nextcap(cs);
             0
         } else {
             let n = pushnestedvalues(cs, false);
             if n < idx {
-                luaL_error((*cs).L, c"no capture '%d'".as_ptr(), idx)
+                luaL_error(cs.L, c"no capture '%d'".as_ptr(), idx)
             } else {
-                lua_pushvalue((*cs).L, -(n - idx + 1));
-                lua_replace((*cs).L, -(n + 1));
-                lua_pop((*cs).L, n - 1);
+                lua_pushvalue(cs.L, -(n - idx + 1));
+                lua_replace(cs.L, -(n + 1));
+                lua_pop(cs.L, n - 1);
                 1
             }
         }
@@ -346,26 +341,26 @@ pub fn finddyncap(mut cap: *mut Capture, last: *mut Capture) -> c_int {
     0
 }
 
-pub unsafe extern "C-unwind" fn runtimecap(
-    cs: *mut CapState,
+pub fn runtimecap(
+    cs: &mut CapState,
     close: *mut Capture,
     s: *const c_char,
-    rem: *mut c_int,
+    rem: &mut c_int,
 ) -> c_int {
     unsafe {
-        let l = (*cs).L;
+        let l = cs.L;
         let otop = lua_gettop(l);
         let open = findopen(close);
         debug_assert_eq!(captype(open), Cgroup);
         let id = finddyncap(open, close);
         (*close).kind = Cclose;
-        (*close).index = s.offset_from((*cs).s) as Index_t;
-        (*cs).cap = open;
-        (*cs).valuecached = 0;
+        (*close).index = s.offset_from(cs.s) as Index_t;
+        cs.cap = open;
+        cs.valuecached = 0;
         luaL_checkstack(l, 4, c"too many runtime captures".as_ptr());
         pushluaval(cs);
         lua_pushvalue(l, SUBJIDX);
-        lua_pushinteger(l, (s.offset_from((*cs).s) + 1) as lua_Integer);
+        lua_pushinteger(l, (s.offset_from(cs.s) + 1) as lua_Integer);
         let n = pushnestedvalues(cs, false);
         lua_call(l, n + 2, LUA_MULTRET);
         if id > 0 {
@@ -398,25 +393,25 @@ impl Default for StrAux {
     }
 }
 
-fn getstrcaps(cs: *mut CapState, cps: *mut StrAux, mut n: c_int) -> c_int {
+fn getstrcaps(cs: &mut CapState, cps: &mut [StrAux; MAXSTRCAPS], mut n: c_int) -> c_int {
     unsafe {
         let k = n as usize;
         n += 1;
-        let head = (*cs).cap;
+        let head = cs.cap;
         let head_idx = (*head).index;
-        (*cs).cap = (*cs).cap.add(1);
-        while capinside(head, (*cs).cap) {
+        cs.cap = cs.cap.add(1);
+        while capinside(head, cs.cap) {
             if (n as usize) >= MAXSTRCAPS {
                 nextcap(cs);
-            } else if captype((*cs).cap) == Csimple {
+            } else if captype(cs.cap) == Csimple {
                 n = getstrcaps(cs, cps, n);
             } else {
-                *cps.add(n as usize) = StrAux::Capture((*cs).cap);
+                cps[n as usize] = StrAux::Capture(cs.cap);
                 nextcap(cs);
                 n += 1;
             }
         }
-        *cps.add(k) = StrAux::Span {
+        cps[k] = StrAux::Span {
             idx: head_idx,
             siz: closesize(cs, head),
         };
@@ -425,13 +420,14 @@ fn getstrcaps(cs: *mut CapState, cps: *mut StrAux, mut n: c_int) -> c_int {
     }
 }
 
-fn stringcap(b: *mut luaL_Buffer, cs: *mut CapState) {
+fn stringcap(b: &mut luaL_Buffer, cs: &mut CapState) {
     unsafe {
         let mut cps: [StrAux; MAXSTRCAPS] = [StrAux::new(); MAXSTRCAPS];
         let mut len: usize = 0;
-        let cache_idx = updatecache(cs, c_int::from((*(*cs).cap).idx));
-        let fmt = lua_tolstring((*cs).L, cache_idx, &mut len);
-        let n = getstrcaps(cs, cps.as_mut_ptr(), 0) - 1;
+        let cap_idx = c_int::from((*cs.cap).idx);
+        let cache_idx = updatecache(cs, cap_idx);
+        let fmt = lua_tolstring(cs.L, cache_idx, &mut len);
+        let n = getstrcaps(cs, &mut cps, 0) - 1;
         let mut i = 0usize;
         while i < len {
             let ch = *fmt.add(i);
@@ -445,23 +441,23 @@ fn stringcap(b: *mut luaL_Buffer, cs: *mut CapState) {
                 } else {
                     let l = c_int::from(next_ch - b'0');
                     if l > n {
-                        luaL_error((*cs).L, c"invalid capture index (%d)".as_ptr(), l);
+                        luaL_error(cs.L, c"invalid capture index (%d)".as_ptr(), l);
                     } else {
                         match cps[l as usize] {
                             StrAux::Span { idx, siz } => {
-                                luaL_addlstring(b, (*cs).s.add(idx as usize), siz as usize);
+                                luaL_addlstring(b, cs.s.add(idx as usize), siz as usize);
                             }
                             StrAux::Capture(cp) => {
-                                let curr = (*cs).cap;
-                                (*cs).cap = cp;
+                                let curr = cs.cap;
+                                cs.cap = cp;
                                 if addonestring(b, cs, c"capture".as_ptr()) == 0 {
                                     luaL_error(
-                                        (*cs).L,
+                                        cs.L,
                                         c"no values in capture index %d".as_ptr(),
                                         l,
                                     );
                                 }
-                                (*cs).cap = curr;
+                                cs.cap = curr;
                             }
                         }
                     }
@@ -472,30 +468,30 @@ fn stringcap(b: *mut luaL_Buffer, cs: *mut CapState) {
     }
 }
 
-fn substcap(b: *mut luaL_Buffer, cs: *mut CapState) {
+fn substcap(b: &mut luaL_Buffer, cs: &mut CapState) {
     unsafe {
-        let mut curr = (*cs).s.add((*(*cs).cap).index as usize);
-        let head = (*cs).cap;
-        (*cs).cap = (*cs).cap.add(1);
-        while capinside(head, (*cs).cap) {
-            let cap = (*cs).cap;
-            let caps = (*cs).s.add((*cap).index as usize);
+        let mut curr = cs.s.add((*cs.cap).index as usize);
+        let head = cs.cap;
+        cs.cap = cs.cap.add(1);
+        while capinside(head, cs.cap) {
+            let cap = cs.cap;
+            let caps = cs.s.add((*cap).index as usize);
             luaL_addlstring(b, curr, caps.offset_from(curr) as usize);
             if addonestring(b, cs, c"replacement".as_ptr()) != 0 {
-                curr = caps.add(capsize(cap, (*cs).cap.sub(1)) as usize);
+                curr = caps.add(capsize(cap, cs.cap.sub(1)) as usize);
             } else {
                 curr = caps;
             }
         }
-        let end = (*cs).s.add(((*head).index + closesize(cs, head)) as usize);
+        let end = cs.s.add(((*head).index + closesize(cs, head)) as usize);
         luaL_addlstring(b, curr, end.offset_from(curr) as usize);
         skipclose(cs, head);
     }
 }
 
-fn addonestring(b: *mut luaL_Buffer, cs: *mut CapState, what: *const c_char) -> c_int {
+fn addonestring(b: &mut luaL_Buffer, cs: &mut CapState, what: *const c_char) -> c_int {
     unsafe {
-        match captype((*cs).cap) {
+        match captype(cs.cap) {
             Cstring => {
                 stringcap(b, cs);
                 1
@@ -505,11 +501,11 @@ fn addonestring(b: *mut luaL_Buffer, cs: *mut CapState, what: *const c_char) -> 
                 1
             }
             Cacc => luaL_error(
-                (*cs).L,
+                cs.L,
                 c"invalid context for an accumulator capture".as_ptr(),
             ),
             _ => {
-                let l = (*cs).L;
+                let l = cs.L;
                 let n = pushcapture(cs);
                 if n > 0 {
                     if n > 1 {
@@ -531,30 +527,30 @@ fn addonestring(b: *mut luaL_Buffer, cs: *mut CapState, what: *const c_char) -> 
     }
 }
 
-fn pushcapture(cs: *mut CapState) -> c_int {
+fn pushcapture(cs: &mut CapState) -> c_int {
     unsafe {
-        let l = (*cs).L;
+        let l = cs.L;
         luaL_checkstack(l, 4, c"too many captures".as_ptr());
-        let old_rec = (*cs).reclevel;
-        (*cs).reclevel += 1;
+        let old_rec = cs.reclevel;
+        cs.reclevel += 1;
         if old_rec > MAXRECLEVEL {
             return luaL_error(l, c"subcapture nesting too deep".as_ptr());
         }
-        let res = match captype((*cs).cap) {
+        let res = match captype(cs.cap) {
             Cposition => {
-                lua_pushinteger(l, ((*(*cs).cap).index + 1) as lua_Integer);
-                (*cs).cap = (*cs).cap.add(1);
+                lua_pushinteger(l, ((*cs.cap).index + 1) as lua_Integer);
+                cs.cap = cs.cap.add(1);
                 1
             }
             Cconst => {
                 pushluaval(cs);
-                (*cs).cap = (*cs).cap.add(1);
+                cs.cap = cs.cap.add(1);
                 1
             }
             Carg => {
-                let arg = c_int::from((*(*cs).cap).idx);
-                (*cs).cap = (*cs).cap.add(1);
-                if arg + FIXEDARGS > (*cs).ptop {
+                let arg = c_int::from((*cs.cap).idx);
+                cs.cap = cs.cap.add(1);
+                if arg + FIXEDARGS > cs.ptop {
                     return luaL_error(l, c"reference to absent extra argument #%d".as_ptr(), arg);
                 }
                 lua_pushvalue(l, arg + FIXEDARGS);
@@ -566,8 +562,8 @@ fn pushcapture(cs: *mut CapState) -> c_int {
                 k
             }
             Cruntime => {
-                let idx = c_int::from((*(*cs).cap).idx);
-                (*cs).cap = (*cs).cap.add(1);
+                let idx = c_int::from((*cs.cap).idx);
+                cs.cap = cs.cap.add(1);
                 lua_pushvalue(l, idx);
                 1
             }
@@ -586,7 +582,7 @@ fn pushcapture(cs: *mut CapState) -> c_int {
                 1
             }
             Cgroup => {
-                if (*(*cs).cap).idx == 0 {
+                if (*cs.cap).idx == 0 {
                     pushnestedvalues(cs, false)
                 } else {
                     nextcap(cs);
@@ -605,7 +601,7 @@ fn pushcapture(cs: *mut CapState) -> c_int {
                 0
             }
         };
-        (*cs).reclevel -= 1;
+        cs.reclevel -= 1;
         res
     }
 }

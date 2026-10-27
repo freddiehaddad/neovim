@@ -65,15 +65,13 @@ impl Default for Charset {
 }
 
 #[inline]
-pub fn fillset(s: *mut byte, c: byte) {
-    unsafe {
-        ptr::write_bytes(s, c, CHARSETSIZE);
-    }
+pub fn fillset(s: &mut [byte; CHARSETSIZE], c: byte) {
+    s.fill(c);
 }
 
 #[inline]
-pub fn clearset(s: *mut byte) {
-    fillset(s, 0);
+pub fn clearset(s: &mut [byte; CHARSETSIZE]) {
+    s.fill(0);
 }
 
 #[inline]
@@ -82,10 +80,8 @@ pub const fn bytes2slots(n: usize) -> usize {
 }
 
 #[inline]
-pub fn setchar(cs: *mut byte, b: usize) {
-    unsafe {
-        *cs.add(b >> 3) |= 1u8 << (b & 7);
-    }
+pub fn setchar(cs: &mut [byte; CHARSETSIZE], b: usize) {
+    cs[b >> 3] |= 1u8 << (b & 7);
 }
 
 #[inline]
@@ -383,15 +379,15 @@ mod tests {
     #[test]
     fn test_charsettype_and_helpers() {
         let mut cs = [0u8; CHARSETSIZE];
-            let mut info = charsetinfo::new();
-            assert_eq!(charsettype(cs.as_ptr(), &mut info), IFail);
+        let mut info = charsetinfo::new();
+        assert_eq!(charsettype(&cs, &mut info), IFail);
 
-            setchar(cs.as_mut_ptr(), b'A' as usize);
-            assert_eq!(testchar(cs.as_ptr(), b'A' as uint), 1);
-            assert_eq!(charsettype(cs.as_ptr(), &mut info), IChar);
-            assert_eq!(info.offset, c_int::from(b'A'));
+        setchar(&mut cs, b'A' as usize);
+        assert_eq!(testchar(cs.as_ptr(), b'A' as uint), 1);
+        assert_eq!(charsettype(&cs, &mut info), IChar);
+        assert_eq!(info.offset, c_int::from(b'A'));
 
-            fillset(cs.as_mut_ptr(), 0xFF);
-            assert_eq!(charsettype(cs.as_ptr(), &mut info), IAny);
+        fillset(&mut cs, 0xFF);
+        assert_eq!(charsettype(&cs, &mut info), IAny);
     }
 }

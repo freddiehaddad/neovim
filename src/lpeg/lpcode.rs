@@ -191,8 +191,8 @@ pub fn fixedlen(mut tree: *mut TTree) -> c_int {
 
 fn getfirst(
     mut tree: *mut TTree,
-    mut follow: *const Charset,
-    firstset: *mut Charset,
+    mut follow: &Charset,
+    firstset: &mut Charset,
 ) -> c_int {
     unsafe {
         loop {
@@ -202,16 +202,16 @@ fn getfirst(
                     return 0;
                 }
                 TUTFR => {
-                    clearset((*firstset).cs.as_mut_ptr());
+                    clearset(&mut firstset.cs);
                     let start = usize::from((*tree).key);
                     let end = usize::from((*sib1(tree)).key);
                     for c in start..=end {
-                        setchar((*firstset).cs.as_mut_ptr(), c);
+                        setchar(&mut firstset.cs, c);
                     }
                     return 0;
                 }
                 TTrue => {
-                    (*firstset).cs = (*follow).cs;
+                    firstset.cs = follow.cs;
                     return 1;
                 }
                 TChoice => {
@@ -219,14 +219,14 @@ fn getfirst(
                     let e1 = getfirst(sib1(tree), follow, firstset);
                     let e2 = getfirst(sib2(tree), follow, &mut csaux);
                     for i in 0..CHARSETSIZE {
-                        (*firstset).cs[i] |= csaux.cs[i];
+                        firstset.cs[i] |= csaux.cs[i];
                     }
                     return e1 | e2;
                 }
                 TSeq => {
                     if !nullable(sib1(tree)) {
                         tree = sib1(tree);
-                        follow = &raw const FULLSET;
+                        follow = &FULLSET;
                     } else {
                         let mut csaux = Charset::new();
                         let e2 = getfirst(sib2(tree), follow, &mut csaux);
@@ -243,7 +243,7 @@ fn getfirst(
                 TRep => {
                     getfirst(sib1(tree), follow, firstset);
                     for i in 0..CHARSETSIZE {
-                        (*firstset).cs[i] |= (*follow).cs[i];
+                        firstset.cs[i] |= follow.cs[i];
                     }
                     return 1;
                 }
@@ -251,7 +251,7 @@ fn getfirst(
                     tree = sib1(tree);
                 }
                 TRunTime => {
-                    let e = getfirst(sib1(tree), &raw const FULLSET, firstset);
+                    let e = getfirst(sib1(tree), &FULLSET, firstset);
                     return if e != 0 { 2 } else { 0 };
                 }
                 TCall => {
@@ -260,22 +260,22 @@ fn getfirst(
                 TAnd => {
                     let e = getfirst(sib1(tree), follow, firstset);
                     for i in 0..CHARSETSIZE {
-                        (*firstset).cs[i] &= (*follow).cs[i];
+                        firstset.cs[i] &= follow.cs[i];
                     }
                     return e;
                 }
                 TNot => {
                     if tocharset(sib1(tree), firstset) != 0 {
-                        cs_complement(&mut *firstset);
+                        cs_complement(firstset);
                         return 1;
                     }
                     let e = getfirst(sib1(tree), follow, firstset);
-                    (*firstset).cs = (*follow).cs;
+                    firstset.cs = follow.cs;
                     return e | 1;
                 }
                 TBehind => {
                     let e = getfirst(sib1(tree), follow, firstset);
-                    (*firstset).cs = (*follow).cs;
+                    firstset.cs = follow.cs;
                     return e | 1;
                 }
                 _ => {
@@ -361,29 +361,29 @@ struct CompileState {
     L: *mut lua_State,
 }
 
-fn nextinstruction(compst: *mut CompileState, n: c_int) -> c_int {
+fn nextinstruction(compst: &mut CompileState, n: c_int) -> c_int {
     unsafe {
-        let code = &mut (*(*compst).p).code;
+        let code = &mut (*compst.p).code;
         let size = code.len() as c_int;
-        let ncode = (*compst).ncode;
+        let ncode = compst.ncode;
         if ncode > size - n {
             let nsize = (size as uint) + ((size as uint) >> 1) + (n as uint);
             if nsize >= (c_int::MAX as uint) {
-                luaL_error((*compst).L, c"pattern code too large".as_ptr());
+                luaL_error(compst.L, c"pattern code too large".as_ptr());
             }
             code.resize(nsize as usize, Instruction { offset: 0 });
         }
-        (*compst).ncode = ncode + n;
+        compst.ncode = ncode + n;
         ncode
     }
 }
 
 #[inline]
-fn getinstr(cs: *mut CompileState, i: c_int) -> *mut Instruction {
-    unsafe { (*(*cs).p).code.as_mut_ptr().add(i as usize) }
+fn getinstr(cs: &mut CompileState, i: c_int) -> *mut Instruction {
+    unsafe { (*cs.p).code.as_mut_ptr().add(i as usize) }
 }
 
-fn addinstruction(compst: *mut CompileState, op: Opcode, aux: c_int) -> c_int {
+fn addinstruction(compst: &mut CompileState, op: Opcode, aux: c_int) -> c_int {
     unsafe {
         let i = nextinstruction(compst, 1);
         let inst = getinstr(compst, i);
@@ -393,21 +393,21 @@ fn addinstruction(compst: *mut CompileState, op: Opcode, aux: c_int) -> c_int {
     }
 }
 
-fn addoffsetinst(compst: *mut CompileState, op: Opcode) -> c_int {
+fn addoffsetinst(compst: &mut CompileState, op: Opcode) -> c_int {
     let i = addinstruction(compst, op, 0);
-        addinstruction(compst, 0, 0);
-        debug_assert!(op == ITestSet || sizei(getinstr(compst, i)) == 2);
-        i
+    addinstruction(compst, 0, 0);
+    debug_assert!(op == ITestSet || sizei(getinstr(compst, i)) == 2);
+    i
 }
 
 #[inline]
-fn setoffset(compst: *mut CompileState, instruction: c_int, offset: c_int) {
+fn setoffset(compst: &mut CompileState, instruction: c_int, offset: c_int) {
     unsafe {
         (*getinstr(compst, instruction + 1)).offset = offset;
     }
 }
 
-fn codeutfr(compst: *mut CompileState, tree: *mut TTree) {
+fn codeutfr(compst: &mut CompileState, tree: *mut TTree) {
     unsafe {
         let i = addoffsetinst(compst, IUTFR);
         let to = (*sib1(tree)).u.n;
@@ -420,7 +420,7 @@ fn codeutfr(compst: *mut CompileState, tree: *mut TTree) {
 }
 
 fn addinstcap(
-    compst: *mut CompileState,
+    compst: &mut CompileState,
     op: Opcode,
     cap: c_int,
     key: c_int,
@@ -439,20 +439,19 @@ fn target(code: *const Instruction, i: c_int) -> c_int {
 }
 
 #[inline]
-fn jumptothere(compst: *mut CompileState, instruction: c_int, target_pos: c_int) {
+fn jumptothere(compst: &mut CompileState, instruction: c_int, target_pos: c_int) {
     if instruction >= 0 {
         setoffset(compst, instruction, target_pos - instruction);
     }
 }
 
 #[inline]
-fn jumptohere(compst: *mut CompileState, instruction: c_int) {
-    unsafe {
-        jumptothere(compst, instruction, (*compst).ncode);
-    }
+fn jumptohere(compst: &mut CompileState, instruction: c_int) {
+    let ncode = compst.ncode;
+    jumptothere(compst, instruction, ncode);
 }
 
-fn codechar(compst: *mut CompileState, c: c_int, tt: c_int) {
+fn codechar(compst: &mut CompileState, c: c_int, tt: c_int) {
     unsafe {
         if tt >= 0
             && (*getinstr(compst, tt)).i.code == ITestChar
@@ -465,14 +464,14 @@ fn codechar(compst: *mut CompileState, c: c_int, tt: c_int) {
     }
 }
 
-fn addcharset(compst: *mut CompileState, inst: c_int, info: *const charsetinfo) {
+fn addcharset(compst: &mut CompileState, inst: c_int, info: &charsetinfo) {
     unsafe {
-        let isize = instsize((*info).size);
+        let isize = instsize(info.size);
         {
             let i_ptr = getinstr(compst, inst);
-            (*i_ptr).i.aux2.set.offset = ((*info).offset * 8) as byte;
+            (*i_ptr).i.aux2.set.offset = (info.offset * 8) as byte;
             (*i_ptr).i.aux2.set.size = isize as byte;
-            (*i_ptr).i.aux1 = (*info).deflt as byte;
+            (*i_ptr).i.aux1 = info.deflt as byte;
         }
         let p = nextinstruction(compst, isize);
         let charset = getinstr(compst, p).cast::<byte>();
@@ -482,15 +481,15 @@ fn addcharset(compst: *mut CompileState, inst: c_int, info: *const charsetinfo) 
     }
 }
 
-fn cs_equal(p: *const Instruction, info: *const charsetinfo) -> bool {
+fn cs_equal(p: *const Instruction, info: &charsetinfo) -> bool {
     unsafe {
         if (*p).i.code != ITestSet {
             return false;
         }
-        let isize = instsize((*info).size);
-        if c_int::from((*p).i.aux2.set.offset) != (*info).offset * 8
+        let isize = instsize(info.size);
+        if c_int::from((*p).i.aux2.set.offset) != info.offset * 8
             || c_int::from((*p).i.aux2.set.size) != isize
-            || c_int::from((*p).i.aux1) != (*info).deflt
+            || c_int::from((*p).i.aux1) != info.deflt
         {
             return false;
         }
@@ -504,24 +503,24 @@ fn cs_equal(p: *const Instruction, info: *const charsetinfo) -> bool {
     }
 }
 
-fn codecharset(compst: *mut CompileState, tree: *mut TTree, tt: c_int) {
+fn codecharset(compst: &mut CompileState, tree: *mut TTree, tt: c_int) {
     let mut info = charsetinfo::new();
-        tree2cset(tree, &mut info);
-        if tt >= 0 && cs_equal(getinstr(compst, tt), &info) {
-            addinstruction(compst, IAny, 0);
-        } else {
-            let i = addinstruction(compst, ISet, 0);
-            addcharset(compst, i, &info);
-        }
+    tree2cset(tree, &mut info);
+    if tt >= 0 && cs_equal(getinstr(compst, tt), &info) {
+        addinstruction(compst, IAny, 0);
+    } else {
+        let i = addinstruction(compst, ISet, 0);
+        addcharset(compst, i, &info);
+    }
 }
 
-fn codetestset(compst: *mut CompileState, cs: *const Charset, e: c_int) -> c_int {
+fn codetestset(compst: &mut CompileState, cs: &Charset, e: c_int) -> c_int {
     if e != 0 {
         NOINST
     } else {
         unsafe {
             let mut info = charsetinfo::new();
-            let op = charsettype((*cs).cs.as_ptr(), &mut info);
+            let op = charsettype(&cs.cs, &mut info);
             match op {
                 IFail => addoffsetinst(compst, IJmp),
                 IAny => addoffsetinst(compst, ITestAny),
@@ -554,27 +553,27 @@ fn finallabel(code: *const Instruction, i: c_int) -> c_int {
     finaltarget(code, target(code, i))
 }
 
-fn codebehind(compst: *mut CompileState, tree: *mut TTree) {
+fn codebehind(compst: &mut CompileState, tree: *mut TTree) {
     unsafe {
         if (*tree).u.n > 0 {
             addinstruction(compst, IBehind, (*tree).u.n);
         }
-        codegen(compst, sib1(tree), false, NOINST, &raw const FULLSET);
+        codegen(compst, sib1(tree), false, NOINST, &FULLSET);
     }
 }
 
 fn codechoice(
-    compst: *mut CompileState,
+    compst: &mut CompileState,
     p1: *mut TTree,
     p2: *mut TTree,
     opt: bool,
-    fl: *const Charset,
+    fl: &Charset,
 ) {
     unsafe {
         let emptyp2 = (*p2).tag == TTrue;
         let mut cs1 = Charset::new();
         let mut cs2 = Charset::new();
-        let e1 = getfirst(p1, &raw const FULLSET, &mut cs1);
+        let e1 = getfirst(p1, &FULLSET, &mut cs1);
         if headfail(p1)
             || (e1 == 0 && {
                 getfirst(p2, fl, &mut cs2);
@@ -593,11 +592,11 @@ fn codechoice(
         } else if opt && emptyp2 {
             let pc = addoffsetinst(compst, IPartialCommit);
             jumptohere(compst, pc);
-            codegen(compst, p1, true, NOINST, &raw const FULLSET);
+            codegen(compst, p1, true, NOINST, &FULLSET);
         } else {
             let test = codetestset(compst, &cs1, e1);
             let pchoice = addoffsetinst(compst, IChoice);
-            codegen(compst, p1, emptyp2, test, &raw const FULLSET);
+            codegen(compst, p1, emptyp2, test, &FULLSET);
             let pcommit = addoffsetinst(compst, ICommit);
             jumptohere(compst, pchoice);
             jumptohere(compst, test);
@@ -607,24 +606,24 @@ fn codechoice(
     }
 }
 
-fn codeand(compst: *mut CompileState, tree: *mut TTree, tt: c_int) {
+fn codeand(compst: &mut CompileState, tree: *mut TTree, tt: c_int) {
     let n = fixedlen(tree);
-        if (0..=MAXBEHIND).contains(&n) && hascaptures(tree) == 0 {
-            codegen(compst, tree, false, tt, &raw const FULLSET);
-            if n > 0 {
-                addinstruction(compst, IBehind, n);
-            }
-        } else {
-            let pchoice = addoffsetinst(compst, IChoice);
-            codegen(compst, tree, false, tt, &raw const FULLSET);
-            let pcommit = addoffsetinst(compst, IBackCommit);
-            jumptohere(compst, pchoice);
-            addinstruction(compst, IFail, 0);
-            jumptohere(compst, pcommit);
+    if (0..=MAXBEHIND).contains(&n) && hascaptures(tree) == 0 {
+        codegen(compst, tree, false, tt, &FULLSET);
+        if n > 0 {
+            addinstruction(compst, IBehind, n);
         }
+    } else {
+        let pchoice = addoffsetinst(compst, IChoice);
+        codegen(compst, tree, false, tt, &FULLSET);
+        let pcommit = addoffsetinst(compst, IBackCommit);
+        jumptohere(compst, pchoice);
+        addinstruction(compst, IFail, 0);
+        jumptohere(compst, pcommit);
+    }
 }
 
-fn codecapture(compst: *mut CompileState, tree: *mut TTree, tt: c_int, fl: *const Charset) {
+fn codecapture(compst: &mut CompileState, tree: *mut TTree, tt: c_int, fl: &Charset) {
     unsafe {
         let len = fixedlen(sib1(tree));
         if (0..=MAXOFF).contains(&len) && hascaptures(sib1(tree)) == 0 {
@@ -650,7 +649,7 @@ fn codecapture(compst: *mut CompileState, tree: *mut TTree, tt: c_int, fl: *cons
     }
 }
 
-fn coderuntime(compst: *mut CompileState, tree: *mut TTree, tt: c_int) {
+fn coderuntime(compst: &mut CompileState, tree: *mut TTree, tt: c_int) {
     unsafe {
         addinstcap(
             compst,
@@ -659,18 +658,18 @@ fn coderuntime(compst: *mut CompileState, tree: *mut TTree, tt: c_int) {
             c_int::from((*tree).key),
             0,
         );
-        codegen(compst, sib1(tree), false, tt, &raw const FULLSET);
+        codegen(compst, sib1(tree), false, tt, &FULLSET);
         addinstcap(compst, ICloseRunTime, c_int::from(Cclose), 0, 0);
     }
 }
 
-fn closeloop(compst: *mut CompileState, test: c_int) {
+fn closeloop(compst: &mut CompileState, test: c_int) {
     let jmp = addoffsetinst(compst, IJmp);
-        jumptohere(compst, test);
-        jumptothere(compst, jmp, test);
+    jumptohere(compst, test);
+    jumptothere(compst, jmp, test);
 }
 
-fn coderepcharset(compst: *mut CompileState, tree: *mut TTree) -> bool {
+fn coderepcharset(compst: &mut CompileState, tree: *mut TTree) -> bool {
     unsafe {
         match (*tree).tag {
             TFalse => true,
@@ -699,59 +698,57 @@ fn coderepcharset(compst: *mut CompileState, tree: *mut TTree) -> bool {
     }
 }
 
-fn coderep(compst: *mut CompileState, tree: *mut TTree, opt: bool, fl: *const Charset) {
-    unsafe {
-        if !coderepcharset(compst, tree) {
-            let mut st = Charset::new();
-            let e1 = getfirst(tree, &raw const FULLSET, &mut st);
-            if headfail(tree) || (e1 == 0 && cs_disjoint(&st, &*fl)) {
-                let test = codetestset(compst, &st, 0);
-                codegen(compst, tree, false, test, &raw const FULLSET);
-                closeloop(compst, test);
+fn coderep(compst: &mut CompileState, tree: *mut TTree, opt: bool, fl: &Charset) {
+    if !coderepcharset(compst, tree) {
+        let mut st = Charset::new();
+        let e1 = getfirst(tree, &FULLSET, &mut st);
+        if headfail(tree) || (e1 == 0 && cs_disjoint(&st, fl)) {
+            let test = codetestset(compst, &st, 0);
+            codegen(compst, tree, false, test, &FULLSET);
+            closeloop(compst, test);
+        } else {
+            let test = codetestset(compst, &st, e1);
+            let mut pchoice = NOINST;
+            if opt {
+                let pc = addoffsetinst(compst, IPartialCommit);
+                jumptohere(compst, pc);
             } else {
-                let test = codetestset(compst, &st, e1);
-                let mut pchoice = NOINST;
-                if opt {
-                    let pc = addoffsetinst(compst, IPartialCommit);
-                    jumptohere(compst, pc);
-                } else {
-                    pchoice = addoffsetinst(compst, IChoice);
-                }
-                let l2 = (*compst).ncode;
-                codegen(compst, tree, false, NOINST, &raw const FULLSET);
-                let commit = addoffsetinst(compst, IPartialCommit);
-                jumptothere(compst, commit, l2);
-                jumptohere(compst, pchoice);
-                jumptohere(compst, test);
+                pchoice = addoffsetinst(compst, IChoice);
             }
+            let l2 = compst.ncode;
+            codegen(compst, tree, false, NOINST, &FULLSET);
+            let commit = addoffsetinst(compst, IPartialCommit);
+            jumptothere(compst, commit, l2);
+            jumptohere(compst, pchoice);
+            jumptohere(compst, test);
         }
     }
 }
 
-fn codenot(compst: *mut CompileState, tree: *mut TTree) {
+fn codenot(compst: &mut CompileState, tree: *mut TTree) {
     let mut st = Charset::new();
-        let e = getfirst(tree, &raw const FULLSET, &mut st);
-        let test = codetestset(compst, &st, e);
-        if headfail(tree) {
-            addinstruction(compst, IFail, 0);
-        } else {
-            let pchoice = addoffsetinst(compst, IChoice);
-            codegen(compst, tree, false, NOINST, &raw const FULLSET);
-            addinstruction(compst, IFailTwice, 0);
-            jumptohere(compst, pchoice);
-        }
-        jumptohere(compst, test);
+    let e = getfirst(tree, &FULLSET, &mut st);
+    let test = codetestset(compst, &st, e);
+    if headfail(tree) {
+        addinstruction(compst, IFail, 0);
+    } else {
+        let pchoice = addoffsetinst(compst, IChoice);
+        codegen(compst, tree, false, NOINST, &FULLSET);
+        addinstruction(compst, IFailTwice, 0);
+        jumptohere(compst, pchoice);
+    }
+    jumptohere(compst, test);
 }
 
-fn correctcalls(compst: *mut CompileState, positions: *const c_int, from: c_int, to: c_int) {
+fn correctcalls(compst: &mut CompileState, positions: &[c_int; MAXRULES], from: c_int, to: c_int) {
     unsafe {
-        let code = (*(*compst).p).code.as_mut_ptr();
+        let code = (*compst.p).code.as_mut_ptr();
         let mut i = from;
         while i < to {
             let inst = code.add(i as usize);
             if (*inst).i.code == IOpenCall {
-                let n = (*inst).i.aux2.key as isize;
-                let rule = *positions.offset(n);
+                let n = (*inst).i.aux2.key as usize;
+                let rule = positions[n];
                 debug_assert!(rule == from || (*code.add((rule - 1) as usize)).i.code == IRet);
                 if (*code.add(finaltarget(code, i + 2) as usize)).i.code == IRet {
                     (*inst).i.code = IJmp;
@@ -766,31 +763,32 @@ fn correctcalls(compst: *mut CompileState, positions: *const c_int, from: c_int,
     }
 }
 
-fn codegrammar(compst: *mut CompileState, grammar: *mut TTree) {
+fn codegrammar(compst: &mut CompileState, grammar: *mut TTree) {
     unsafe {
         let mut positions = [0 as c_int; MAXRULES];
         let mut rulenumber = 0usize;
         let firstcall = addoffsetinst(compst, ICall);
         let jumptoend = addoffsetinst(compst, IJmp);
-        let start = (*compst).ncode;
+        let start = compst.ncode;
         jumptohere(compst, firstcall);
         let mut rule = sib1(grammar);
         while (*rule).tag == TRule {
             let r = sib1(rule);
             debug_assert_eq!((*r).tag, TXInfo);
-            positions[rulenumber] = (*compst).ncode;
+            positions[rulenumber] = compst.ncode;
             rulenumber += 1;
-            codegen(compst, sib1(r), false, NOINST, &raw const FULLSET);
+            codegen(compst, sib1(r), false, NOINST, &FULLSET);
             addinstruction(compst, IRet, 0);
             rule = sib2(rule);
         }
         debug_assert_eq!((*rule).tag, TTrue);
         jumptohere(compst, jumptoend);
-        correctcalls(compst, positions.as_ptr(), start, (*compst).ncode);
+        let ncode = compst.ncode;
+        correctcalls(compst, &positions, start, ncode);
     }
 }
 
-fn codecall(compst: *mut CompileState, call: *mut TTree) {
+fn codecall(compst: &mut CompileState, call: *mut TTree) {
     unsafe {
         let c = addoffsetinst(compst, IOpenCall);
         debug_assert_eq!((*sib1(sib2(call))).tag, TXInfo);
@@ -799,28 +797,28 @@ fn codecall(compst: *mut CompileState, call: *mut TTree) {
 }
 
 fn codeseq1(
-    compst: *mut CompileState,
+    compst: &mut CompileState,
     p1: *mut TTree,
     p2: *mut TTree,
     tt: c_int,
-    fl: *const Charset,
+    fl: &Charset,
 ) -> c_int {
     if needfollow(p1) {
-            let mut fl1 = Charset::new();
-            getfirst(p2, fl, &mut fl1);
-            codegen(compst, p1, false, tt, &fl1);
-        } else {
-            codegen(compst, p1, false, tt, &raw const FULLSET);
-        }
-        if fixedlen(p1) != 0 { NOINST } else { tt }
+        let mut fl1 = Charset::new();
+        getfirst(p2, fl, &mut fl1);
+        codegen(compst, p1, false, tt, &fl1);
+    } else {
+        codegen(compst, p1, false, tt, &FULLSET);
+    }
+    if fixedlen(p1) != 0 { NOINST } else { tt }
 }
 
 fn codegen(
-    compst: *mut CompileState,
+    compst: &mut CompileState,
     mut tree: *mut TTree,
     opt: bool,
     mut tt: c_int,
-    fl: *const Charset,
+    fl: &Charset,
 ) {
     unsafe {
         loop {
@@ -895,11 +893,11 @@ fn codegen(
     }
 }
 
-fn peephole(compst: *mut CompileState) {
+fn peephole(compst: &mut CompileState) {
     unsafe {
-        let code = (*(*compst).p).code.as_mut_ptr();
+        let code = (*compst.p).code.as_mut_ptr();
         let mut i: c_int = 0;
-        while i < (*compst).ncode {
+        while i < compst.ncode {
             loop {
                 let inst = code.add(i as usize);
                 match (*inst).i.code {
@@ -938,17 +936,15 @@ fn peephole(compst: *mut CompileState) {
     }
 }
 
-pub fn compile(l: *mut lua_State, p: *mut Pattern, size: uint) -> *mut Instruction {
-    unsafe {
-        let mut compst = CompileState { p, ncode: 0, L: l };
-        let init_size = ((size / 2) + 2) as usize;
-        (*p).code = vec![Instruction { offset: 0 }; init_size];
-        let tree_ptr = (&raw mut (*p).tree).cast::<TTree>();
-        codegen(&mut compst, tree_ptr, false, NOINST, &raw const FULLSET);
-        addinstruction(&mut compst, IEnd, 0);
-        (*p).code.truncate(compst.ncode as usize);
-        (*p).code.shrink_to_fit();
-        peephole(&mut compst);
-        (*p).code.as_mut_ptr()
-    }
+pub fn compile(l: *mut lua_State, p: &mut Pattern, size: uint) -> *mut Instruction {
+    let mut compst = CompileState { p, ncode: 0, L: l };
+    let init_size = ((size / 2) + 2) as usize;
+    p.code = vec![Instruction { offset: 0 }; init_size];
+    let tree_ptr = (&raw mut p.tree).cast::<TTree>();
+    codegen(&mut compst, tree_ptr, false, NOINST, &FULLSET);
+    addinstruction(&mut compst, IEnd, 0);
+    p.code.truncate(compst.ncode as usize);
+    p.code.shrink_to_fit();
+    peephole(&mut compst);
+    p.code.as_mut_ptr()
 }

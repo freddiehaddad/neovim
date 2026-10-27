@@ -45,7 +45,7 @@ pub fn charinset(i: *const Instruction, buff: *const byte, mut c: uint) -> c_int
     }
 }
 
-fn utf8_decode(o: *const c_char, val: *mut c_int) -> *const c_char {
+fn utf8_decode(o: *const c_char, val: &mut c_int) -> *const c_char {
     const LIMITS: [uint; 4] = [0xFF, 0x7F, 0x7FF, 0xFFFF];
     let mut s = o.cast::<u8>();
     unsafe {
@@ -101,7 +101,7 @@ const MAXNEWSIZE: usize = {
 fn growcap(
     l: *mut lua_State,
     capture: *mut Capture,
-    capsize: *mut c_int,
+    capsize: &mut c_int,
     captop: c_int,
     n: c_int,
     ptop: c_int,
@@ -128,7 +128,7 @@ fn growcap(
     }
 }
 
-fn doublestack(l: *mut lua_State, stacklimit: *mut *mut Stack, ptop: c_int) -> *mut Stack {
+fn doublestack(l: *mut lua_State, stacklimit: &mut *mut Stack, ptop: c_int) -> *mut Stack {
     unsafe {
         let stack = getstackbase(l, ptop);
         let n = (*stacklimit).offset_from(stack) as c_int;
