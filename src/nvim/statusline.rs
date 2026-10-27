@@ -270,7 +270,7 @@ pub struct statuscol_T {
     pub hlrec: *mut stl_hlrec_t,
     pub foldinfo: foldinfo_T,
     pub fold_vcol: [colnr_T; 9],
-    pub sattrs: *mut SignTextAttrs,
+    pub sattrs: [SignTextAttrs; 9],
 }
 
 impl statuscol_T {
@@ -283,7 +283,10 @@ impl statuscol_T {
             hlrec: ptr::null_mut(),
             foldinfo: foldinfo_T::new(),
             fold_vcol: [0; 9],
-            sattrs: ptr::null_mut(),
+            sattrs: [SignTextAttrs {
+                text: [0; 2],
+                hl_id: 0,
+            }; 9],
         }
     }
 }
@@ -1936,7 +1939,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         && ((*wp).w_onebuf_opt.wo_nu != 0 || (*wp).w_onebuf_opt.wo_rnu != 0)
                         && get_vim_var_nr(VV_VIRTNUM) == 0
                     {
-                        if (*wp).w_maxscwidth == SCL_NUM && (*(*stcp).sattrs).text[0] != 0 {
+                        if (*wp).w_maxscwidth == SCL_NUM && (*stcp).sattrs[0].text[0] != 0 {
                             handle_stcsign = true;
                         } else {
                             let relnum = get_vim_var_nr(VV_RELNUM) as c_int;
@@ -2205,7 +2208,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     for i in 0..width {
                         stl_items!()[curitem as usize].start = out_p.add(signlen);
                         if fdc == 0 {
-                            let mut sattr = *(*stcp).sattrs.add(i as usize);
+                            let mut sattr = (*stcp).sattrs[i as usize];
                             if sattr.text[0] != 0 && get_vim_var_nr(VV_VIRTNUM) == 0 {
                                 signlen += describe_sign_text(
                                     buf_tmp.as_mut_ptr().add(signlen),

@@ -1714,24 +1714,10 @@ pub unsafe fn win_line(
             &raw mut wlv.sign_num_attr,
         );
 
-        let mut statuscol = statuscol_T {
-            width: 0,
-            lnum: 0,
-            sign_cul_id: 0,
-            draw: false,
-            hlrec: ptr::null_mut(),
-            foldinfo: foldinfo_T {
-                fi_lnum: 0,
-                fi_level: 0,
-                fi_low_level: 0,
-                fi_lines: 0,
-            },
-            fold_vcol: [0; 9],
-            sattrs: ptr::null_mut(),
-        };
+        let mut statuscol = statuscol_T::new();
         if *(*wp).w_onebuf_opt.wo_stc != NUL {
             statuscol.draw = true;
-            statuscol.sattrs = (&raw mut wlv.sattrs).cast();
+            statuscol.sattrs = wlv.sattrs;
             statuscol.lnum = lnum;
             statuscol.foldinfo = foldinfo;
             statuscol.width = win_col_off(wp);

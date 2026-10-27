@@ -39,7 +39,7 @@ use crate::context::{
     kCtxBufs, kCtxFuncs, kCtxGVars, kCtxJumps, kCtxRegs, kCtxSFuncs,
 };
 use crate::cursor::{get_cursor_rel_lnum, linenr_T};
-use crate::decoration::{NS, SignTextAttrs, decor_redraw_signs};
+use crate::decoration::{NS, decor_redraw_signs};
 use crate::drawline::use_cursor_line_highlight;
 use crate::drawscreen::{
     UPD_CLEAR, UPD_NOT_VALID, UPD_VALID, redraw_all_later, redraw_buf_later,
@@ -3148,10 +3148,6 @@ pub unsafe extern "C" fn nvim_eval_statusline(
         let mut stc_hl_id: c_int = 0;
         let mut scl_hl_id: c_int = 0;
         let mut statuscol = statuscol_T::new();
-        let mut sattrs = [crate::decoration::SignTextAttrs {
-            text: [0; 2],
-            hl_id: 0,
-        }; SIGN_SHOW_MAX];
 
         if statuscol_lnum != 0 {
             let mut line_id: c_int = 0;
@@ -3163,13 +3159,12 @@ pub unsafe extern "C" fn nvim_eval_statusline(
                 wp,
                 (*wp).w_buffer,
                 lnum - 1,
-                sattrs.as_mut_ptr(),
+                statuscol.sattrs.as_mut_ptr(),
                 &mut line_id,
                 &mut cul_id,
                 &mut num_id,
             );
 
-            statuscol.sattrs = sattrs.as_mut_ptr().cast::<SignTextAttrs>();
             statuscol.foldinfo = fold_info(wp, lnum);
             win_update_cursorline(wp, &mut cursorline_fi);
             let use_cul = use_cursor_line_highlight(wp, lnum);

@@ -61,7 +61,6 @@ struct fuzzyItem_T {
     item: *mut listitem_T,
     score: c_int,
     lmatchpos: *mut list_T,
-    pat: *mut c_char,
     itemstr: CString,
     startpos: c_int,
 }
@@ -388,39 +387,34 @@ pub unsafe fn fuzzy_match(
     }
 }
 
-unsafe fn fuzzy_match_item_compare(item1: &fuzzyItem_T, item2: &fuzzyItem_T) -> std::cmp::Ordering {
-    unsafe {
-        let v1 = item1.score;
-        let v2 = item2.score;
+fn fuzzy_match_item_compare(
+    item1: &fuzzyItem_T,
+    item2: &fuzzyItem_T,
+    pat_bytes: &[u8],
+) -> std::cmp::Ordering {
+    let v1 = item1.score;
+    let v2 = item2.score;
 
-        if v1 == v2 {
-            let pat_bytes = CStr::from_ptr(item1.pat).to_bytes();
-            let patlen = pat_bytes.len();
+    if v1 == v2 {
+        let exact_match1 = item1.startpos >= 0
+            && item1
+                .itemstr
+                .to_bytes()
+                .get(item1.startpos as usize..)
+                .is_some_and(|s| s.starts_with(pat_bytes));
 
-            let exact_match1 = if item1.startpos >= 0 {
-                let s1_ptr = item1.itemstr.as_ptr().add(item1.startpos as usize);
-                let s1_len = CStr::from_ptr(s1_ptr).to_bytes().len();
-                s1_len >= patlen
-                    && std::slice::from_raw_parts(s1_ptr.cast::<u8>(), patlen) == pat_bytes
-            } else {
-                false
-            };
+        let exact_match2 = item2.startpos >= 0
+            && item2
+                .itemstr
+                .to_bytes()
+                .get(item2.startpos as usize..)
+                .is_some_and(|s| s.starts_with(pat_bytes));
 
-            let exact_match2 = if item2.startpos >= 0 {
-                let s2_ptr = item2.itemstr.as_ptr().add(item2.startpos as usize);
-                let s2_len = CStr::from_ptr(s2_ptr).to_bytes().len();
-                s2_len >= patlen
-                    && std::slice::from_raw_parts(s2_ptr.cast::<u8>(), patlen) == pat_bytes
-            } else {
-                false
-            };
-
-            exact_match2
-                .cmp(&exact_match1)
-                .then_with(|| item1.idx.cmp(&item2.idx))
-        } else {
-            v2.cmp(&v1)
-        }
+        exact_match2
+            .cmp(&exact_match1)
+            .then_with(|| item1.idx.cmp(&item2.idx))
+    } else {
+        v2.cmp(&v1)
     }
 }
 
@@ -527,7 +521,6 @@ unsafe fn fuzzy_match_in_list(
                     idx: match_count,
                     item: li,
                     score,
-                    pat: str_ptr,
                     startpos: matches[0] as c_int,
                     itemstr: itemstr_copy,
                     lmatchpos: match_positions_list,
@@ -540,7 +533,8 @@ unsafe fn fuzzy_match_in_list(
         }
 
         if !items.is_empty() {
-            items.sort_unstable_by(|a, b| fuzzy_match_item_compare(a, b));
+            let pat_bytes = CStr::from_ptr(str_ptr).to_bytes();
+            items.sort_unstable_by(|a, b| fuzzy_match_item_compare(a, b, pat_bytes));
 
             let mut retlist = if retmatchpos {
                 let first_li = tv_list_find(fmatchlist, 0);
