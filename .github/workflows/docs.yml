@@ -20,15 +20,15 @@ jobs:
 
       - name: Generate docs
         run: |
-          make doc
+          cargo xtask doc
           if [ -n "$(git status --porcelain)" ]; then
-            echo "::error::Job failed, run 'make doc' and commit your doc changes."
+            echo "::error::Job failed, run 'cargo xtask doc' and commit your doc changes."
             echo "::error::The doc generation produces the following changes:"
             git diff --color --exit-code
           fi
 
       - name: lintdoc
-        run: make lintdoc
+        run: cargo xtask lintdoc
 
       - name: linterrcodes
-        run: make linterrcodes
+        run: cargo xtask linterrcodes

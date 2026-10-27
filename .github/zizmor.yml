@@ -1,13 +1,11 @@
 rules:
   cache-poisoning:
     ignore:
+      - release.yml
       - test.yml
   dangerous-triggers:
     ignore:
-      - backport.yml
       - labeler_pr.yml
-      - reviewers_add.yml
-      - reviewers_remove.yml
   unpinned-uses:
     config:
       policies:

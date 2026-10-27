@@ -17,10 +17,6 @@ runs:
       shell: bash
       run: ulimit -c unlimited
 
-    - if: ${{ runner.os == 'Windows' }}
-      run: .github/scripts/env.ps1
-      shell: pwsh
-
     - name: Install dependencies
       env:
         INSTALL_FLAGS: ${{ inputs.install_flags }}

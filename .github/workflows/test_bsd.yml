@@ -34,12 +34,11 @@ jobs:
           usesh: true
           cache-after-prepare: true
           prepare: |
-            pkg install -y cmake gmake ninja unzip wget gettext python git
+            pkg install -y rust curl gmake gettext python git
           run: |
             set -e
-            gmake deps
-            gmake CMAKE_EXTRA_FLAGS="-DCI_BUILD=ON" nvim
-            ./build/bin/nvim --version
+            cargo xtask build
+            ./target/nvim-build/bin/nvim --version
 
   openbsd:
     name: OpenBSD
@@ -56,9 +55,8 @@ jobs:
           usesh: true
           cache-after-prepare: true
           prepare: |
-            pkg_add -I cmake gmake ninja gettext-tools gettext-runtime git
+            pkg_add -I rust curl gmake gettext-tools gettext-runtime git
           run: |
             set -e
-            gmake deps
-            gmake CMAKE_EXTRA_FLAGS="-DCI_BUILD=ON" nvim
-            ./build/bin/nvim --version
+            cargo xtask build
+            ./target/nvim-build/bin/nvim --version

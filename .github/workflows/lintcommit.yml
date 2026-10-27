@@ -21,12 +21,5 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      - name: Build
-        run: |
-          cmake -S cmake.deps --preset ci
-          cmake --build .deps
-          cmake --preset ci
-          cmake --build build
-
       - name: lintcommit
-        run: cmake --build build --target lintcommit
+        run: cargo xtask lintcommit

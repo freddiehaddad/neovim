@@ -14,26 +14,7 @@ OS=$(uname -s)
 ARCH=$(uname -m)
 if [[ $OS == Linux ]]; then
   sudo apt-get update
-  sudo apt-get install -y build-essential cmake curl gettext ninja-build
-
-  if [[ $CC == clang ]]; then
-    DEFAULT_CLANG_VERSION=$(echo |  clang -dM -E - | grep __clang_major | awk '{print $3}')
-    CLANG_VERSION=21
-    if ((DEFAULT_CLANG_VERSION >= CLANG_VERSION)); then
-      echo "Default clang version is $DEFAULT_CLANG_VERSION, which is equal or larger than wanted version $CLANG_VERSION. Aborting!"
-      exit 1
-    fi
-
-    wget https://apt.llvm.org/llvm.sh
-    chmod +x llvm.sh
-    sudo ./llvm.sh $CLANG_VERSION
-    # Alternatively could use `./llvm.sh … all` above, but that is heavy/slow.
-    sudo apt-get install -y clang-tidy-$CLANG_VERSION
-    sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-$CLANG_VERSION 100
-    sudo update-alternatives --set clang /usr/bin/clang-$CLANG_VERSION
-    sudo update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-$CLANG_VERSION 100
-    sudo update-alternatives --set clang-tidy /usr/bin/clang-tidy-$CLANG_VERSION
-  fi
+  sudo apt-get install -y build-essential curl gettext
 
   if [[ -n $TEST ]]; then
     sudo apt-get install -y locales-all cpanminus attr libattr1-dev fish gdb inotify-tools xdg-utils

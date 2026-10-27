@@ -177,14 +177,23 @@ impl CompilerEnv {
             !install_dir.is_empty(),
             "vswhere did not find a Visual Studio C++ installation"
         );
-        let vcvars = PathBuf::from(install_dir)
+        let vcvars_dir = PathBuf::from(install_dir)
             .join("VC")
             .join("Auxiliary")
-            .join("Build")
-            .join("vcvars64.bat");
+            .join("Build");
+        let vcvars = if cfg!(target_arch = "aarch64") {
+            let native = vcvars_dir.join("vcvarsarm64.bat");
+            if native.exists() {
+                native
+            } else {
+                vcvars_dir.join("vcvarsx86_arm64.bat")
+            }
+        } else {
+            vcvars_dir.join("vcvars64.bat")
+        };
         assert!(
             vcvars.exists(),
-            "vcvars64.bat not found at {}",
+            "vcvars script not found at {}",
             vcvars.display()
         );
 
