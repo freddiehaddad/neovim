@@ -19,7 +19,10 @@ use crate::autocmd::{
 };
 use crate::buffer::{DOBUF_FIRST, DOBUF_WIPE, MAXLNUM, buf_T, buf_get_changedtick, do_buffer};
 use crate::change::{appended_lines_buf, changed_lines, deleted_lines_buf};
-use crate::channel::TerminalOptions;
+use crate::channel::{
+    TerminalOptions, channel_term_close, channel_term_read_pause, channel_term_resize,
+    channel_term_resume, channel_term_write,
+};
 use crate::charset::{NUL, is_special};
 use crate::context::{
     CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window, is_ctx_win,
@@ -502,9 +505,7 @@ pub unsafe fn emit_termrequest(mut req: Box<TermRequestEvent>) {
 
         if (*term).buf_handle == 0 && (*term).refcount == 0 {
             (*term).destroy = true;
-            if let Some(close_cb) = (*term).opts.close_cb {
-                close_cb((*term).opts.data);
-            }
+            channel_term_close((*term).opts.data);
         }
     }
 }
@@ -939,9 +940,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
             }
             if (*term).refcount == 0 {
                 (*term).destroy = true;
-                if let Some(close_cb) = (*term).opts.close_cb {
-                    close_cb((*term).opts.data);
-                }
+                channel_term_close((*term).opts.data);
             }
         } else if !only_destroy {
             let mut wp = firstwin;
@@ -1243,9 +1242,7 @@ pub unsafe fn terminal_enter() -> bool {
             (*s.term).refcount -= 1;
             let buf_handle = (*s.term).buf_handle;
             (*s.term).destroy = true;
-            if let Some(close_cb) = (*s.term).opts.close_cb {
-                close_cb((*s.term).opts.data);
-            }
+            channel_term_close((*s.term).opts.data);
             if buf_handle != 0 {
                 do_buffer(DOBUF_WIPE, DOBUF_FIRST, FORWARD, buf_handle, 1);
             }
@@ -1300,9 +1297,7 @@ unsafe fn terminal_check_focus(s: *mut TerminalState) -> bool {
             terminal_focus((*s).term, false);
             if (*s).close {
                 (*(*s).term).destroy = true;
-                if let Some(close_cb) = (*(*s).term).opts.close_cb {
-                    close_cb((*(*s).term).opts.data);
-                }
+                channel_term_close((*(*s).term).opts.data);
                 (*s).close = false;
             }
 
@@ -1426,9 +1421,7 @@ unsafe fn terminal_execute(state: *mut VimState, key: c_int) -> c_int {
                     return 1;
                 }
                 if (*(*s).term).suspended {
-                    if let Some(resume_cb) = (*(*s).term).opts.resume_cb {
-                        resume_cb((*(*s).term).opts.data);
-                    }
+                    channel_term_resume((*(*s).term).opts.data);
                     terminal_set_state((*s).term, false);
                     return 1;
                 }
@@ -1482,9 +1475,7 @@ unsafe fn terminal_send(term: *mut Terminal, data: *const c_char, size: usize) {
             }
             return;
         }
-        if let Some(write_cb) = (*term).opts.write_cb {
-            write_cb(data, size, (*term).opts.data);
-        }
+        channel_term_write(data, size, (*term).opts.data);
     }
 }
 
@@ -2525,9 +2516,7 @@ unsafe fn refresh_size(term: *mut Terminal, _buf: *mut buf_T) -> bool {
         vterm_get_size(&raw const (*term).vt, &mut height, &mut width);
         (*term).invalid_start = 0;
         (*term).invalid_end = height;
-        if let Some(resize_cb) = (*term).opts.resize_cb {
-            resize_cb(width as u16, height as u16, (*term).opts.data);
-        }
+        channel_term_resize(width as u16, height as u16, (*term).opts.data);
         true
     }
 }
@@ -2576,9 +2565,7 @@ unsafe fn adjust_scrollback(term: *mut Terminal, buf: *mut buf_T) {
 
 unsafe fn refresh_scrollback(term: *mut Terminal, buf: *mut buf_T) {
     unsafe {
-        if let Some(read_pause_cb) = (*term).opts.read_pause_cb {
-            read_pause_cb(true, (*term).opts.data);
-        }
+        channel_term_read_pause(true, (*term).opts.data);
 
         let mut deleted = ((*term).sb_deleted - (*term).old_sb_deleted) as linenr_T;
         deleted = deleted.min((*buf).b_ml.ml_line_count);
@@ -2626,9 +2613,7 @@ unsafe fn refresh_scrollback(term: *mut Terminal, buf: *mut buf_T) {
 
         adjust_scrollback(term, buf);
 
-        if let Some(read_pause_cb) = (*term).opts.read_pause_cb {
-            read_pause_cb(false, (*term).opts.data);
-        }
+        channel_term_read_pause(false, (*term).opts.data);
     }
 }
 

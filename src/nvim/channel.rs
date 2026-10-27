@@ -145,11 +145,6 @@ pub struct TerminalOptions {
     pub data: *mut Channel,
     pub width: u16,
     pub height: u16,
-    pub read_pause_cb: Option<unsafe fn(pause: bool, data: *mut Channel)>,
-    pub write_cb: Option<unsafe fn(buffer: *const c_char, size: usize, data: *mut Channel)>,
-    pub resize_cb: Option<unsafe fn(width: u16, height: u16, data: *mut Channel)>,
-    pub resume_cb: Option<unsafe fn(data: *mut Channel)>,
-    pub close_cb: Option<unsafe fn(data: *mut Channel)>,
     pub force_crlf: bool,
 }
 
@@ -1068,11 +1063,6 @@ pub unsafe fn channel_terminal_alloc(buf: *mut buf_T, chan: *mut Channel) {
             data: chan,
             width: (*chan).uv.proc_.width,
             height: (*chan).uv.proc_.height,
-            read_pause_cb: Some(term_read_pause),
-            write_cb: Some(term_write),
-            resize_cb: Some(term_resize),
-            resume_cb: Some(term_resume),
-            close_cb: Some(term_close),
             force_crlf: false,
         };
         (*buf).b_p_channel = (*cp).id as OptInt;
@@ -1083,8 +1073,11 @@ pub unsafe fn channel_terminal_alloc(buf: *mut buf_T, chan: *mut Channel) {
     }
 }
 
-unsafe fn term_read_pause(pause: bool, chan: *mut Channel) {
+pub unsafe fn channel_term_read_pause(pause: bool, chan: *mut Channel) {
     unsafe {
+        if (*chan).streamtype == kChannelStreamInternal {
+            return;
+        }
         let out_stream = &raw mut (*chan).uv.proc_.out;
         if (*out_stream).s.closed {
             return;
@@ -1097,8 +1090,41 @@ unsafe fn term_read_pause(pause: bool, chan: *mut Channel) {
     }
 }
 
-unsafe fn term_write(buf: *const c_char, size: usize, chan: *mut Channel) {
+pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: *mut Channel) {
     unsafe {
+        if (*chan).streamtype == kChannelStreamInternal {
+            let internal = &raw mut (*chan).internal;
+            let cb = (*internal).cb;
+            if cb == LUA_NOREF {
+                return;
+            }
+            let mut args_items = [
+                crate::api::private::helpers::integer_obj((*chan).id as Integer),
+                crate::api::private::helpers::buffer_obj(
+                    crate::terminal::terminal_buf((*chan).term),
+                ),
+                crate::api::private::helpers::string_obj(NvimString {
+                    data: buf.cast_mut(),
+                    size,
+                }),
+            ];
+            let args = Array {
+                items: args_items.as_mut_ptr(),
+                size: 3,
+                capacity: 3,
+            };
+            textlock += 1;
+            crate::lua::executor::nlua_call_ref(
+                cb,
+                c"input".as_ptr(),
+                args,
+                crate::lua::executor::kRetNilBool,
+                ptr::null_mut(),
+                ptr::null_mut(),
+            );
+            textlock -= 1;
+            return;
+        }
         let in_stream = &raw mut (*chan).uv.proc_.r#in;
         if (*in_stream).closed {
             return;
@@ -1113,14 +1139,20 @@ unsafe fn term_write(buf: *const c_char, size: usize, chan: *mut Channel) {
     }
 }
 
-unsafe fn term_resize(width: u16, height: u16, chan: *mut Channel) {
+pub unsafe fn channel_term_resize(width: u16, height: u16, chan: *mut Channel) {
     unsafe {
+        if (*chan).streamtype == kChannelStreamInternal {
+            return;
+        }
         pty_proc_resize(&raw mut (*chan).uv.proc_, width, height);
     }
 }
 
-unsafe fn term_resume(chan: *mut Channel) {
+pub unsafe fn channel_term_resume(chan: *mut Channel) {
     unsafe {
+        if (*chan).streamtype == kChannelStreamInternal {
+            return;
+        }
         pty_proc_resume(&raw mut (*chan).uv.proc_);
     }
 }
@@ -1142,8 +1174,16 @@ pub unsafe fn term_delayed_free(chan: *mut Channel) {
     }
 }
 
-unsafe fn term_close(chan: *mut Channel) {
+pub unsafe fn channel_term_close(chan: *mut Channel) {
     unsafe {
+        if (*chan).streamtype == kChannelStreamInternal {
+            let internal = &raw mut (*chan).internal;
+            terminal_destroy(&raw mut (*chan).term);
+            crate::lua::executor::api_free_luaref((*internal).cb);
+            (*internal).cb = LUA_NOREF;
+            channel_decref(chan);
+            return;
+        }
         let cp = chan;
         proc_stop(&raw mut (*chan).uv.proc_);
         multiqueue_put_event((*cp).events, Event::ChannelTermDelayedFree(chan));

@@ -30,7 +30,7 @@ use crate::buffer::{
     do_buffer, read_buffer_into, set_bufref,
 };
 use crate::channel::{
-    Channel, TerminalOptions, channel_all_info, channel_alloc, channel_decref, channel_event,
+    TerminalOptions, channel_all_info, channel_alloc, channel_decref, channel_event,
     channel_incref, channel_info, channel_send,
 };
 use crate::charset::{NL, NUL};
@@ -76,8 +76,7 @@ use crate::keycodes::{
 };
 use crate::lua::converter::{Boolean, Float, LUA_NOREF, LuaRef};
 use crate::lua::executor::{
-    api_free_luaref, kRetNilBool, kRetObject, nlua_call_ref, nlua_exec, nlua_get_global_ref_count,
-    nlua_is_deferred_safe,
+    kRetNilBool, kRetObject, nlua_exec, nlua_get_global_ref_count, nlua_is_deferred_safe,
 };
 use crate::mapping::{MAPTYPE_MAP, REMAP_NONE, REMAP_YES, keymap_array, modify_keymap};
 use crate::mark::mark_get_global;
@@ -116,8 +115,8 @@ use crate::statusline::{
     win_redr_status, win_redr_winbar,
 };
 use crate::terminal::{
-    terminal_alloc, terminal_buf, terminal_check_size, terminal_destroy, terminal_open,
-    terminal_running, terminal_set_streamed_paste,
+    terminal_alloc, terminal_check_size, terminal_open, terminal_running,
+    terminal_set_streamed_paste,
 };
 use crate::ui::{ui_array, ui_call__set_restart_on_crash_exit, ui_call_screenshot, ui_flush};
 use crate::window::{
@@ -1672,58 +1671,6 @@ pub unsafe extern "C" fn nvim_create_buf(
     }
 }
 
-unsafe fn term_read_pause(_pause: bool, _data: *mut Channel) {}
-
-unsafe fn term_write(buf: *const c_char, size: usize, chan: *mut Channel) {
-    unsafe {
-        let internal = &raw mut (*chan).internal;
-        let cb = (*internal).cb;
-        if cb == LUA_NOREF {
-            return;
-        }
-        let prefix = chan;
-        let tail = chan;
-        let mut args_items = [
-            integer_obj((*prefix).id as Integer),
-            buffer_obj(terminal_buf((*tail).term.cast())),
-            string_obj(NvimString {
-                data: buf.cast_mut(),
-                size,
-            }),
-        ];
-        let args = Array {
-            items: args_items.as_mut_ptr(),
-            size: 3,
-            capacity: 3,
-        };
-        textlock += 1;
-        nlua_call_ref(
-            cb,
-            c"input".as_ptr(),
-            args,
-            kRetNilBool,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
-        textlock -= 1;
-    }
-}
-
-unsafe fn term_resize(_width: u16, _height: u16, _data: *mut Channel) {}
-
-unsafe fn term_resume(_data: *mut Channel) {}
-
-unsafe fn term_close(chan: *mut Channel) {
-    unsafe {
-        let internal = &raw mut (*chan).internal;
-        let tail = chan;
-        terminal_destroy((&raw mut (*tail).term).cast());
-        api_free_luaref((*internal).cb);
-        (*internal).cb = LUA_NOREF;
-        channel_decref(chan);
-    }
-}
-
 /// Open a terminal instance in a buffer
 ///
 /// By default (and currently the only option) the terminal will not be
@@ -1811,11 +1758,6 @@ pub unsafe extern "C" fn nvim_open_term(
             data: chan,
             width: ((*curwin).w_view_width - win_col_off(curwin)).max(0) as u16,
             height: (*curwin).w_view_height as u16,
-            read_pause_cb: Some(term_read_pause),
-            write_cb: Some(term_write),
-            resize_cb: Some(term_resize),
-            resume_cb: Some(term_resume),
-            close_cb: Some(term_close),
             force_crlf,
         };
 
