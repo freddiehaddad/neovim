@@ -68,11 +68,11 @@ unsafe extern "C" {
     #[cfg(not(windows))]
     #[cfg_attr(target_os = "linux", link_name = "stderr")]
     #[cfg_attr(not(target_os = "linux"), link_name = "__stderrp")]
-    static mut c_stderr: *mut FILE;
+    static c_stderr: *mut FILE;
     #[cfg(not(windows))]
     #[cfg_attr(target_os = "linux", link_name = "stdout")]
     #[cfg_attr(not(target_os = "linux"), link_name = "__stdoutp")]
-    static mut c_stdout: *mut FILE;
+    static c_stdout: *mut FILE;
 }
 
 pub unsafe fn log_get_stdout() -> *mut FILE {
@@ -266,7 +266,7 @@ pub unsafe fn log_unlock() {
 pub unsafe fn log_should_log(log_level: c_int) -> bool {
     unsafe {
         if !log_st().DID_LOG_INIT {
-            g_stats.log_skip += 1;
+            g_st().g_stats.log_skip += 1;
             return false;
         }
         log_level >= log_st().g_min_log_level
@@ -283,7 +283,7 @@ pub unsafe fn logmsg_str(
 ) -> bool {
     unsafe {
         if !log_st().DID_LOG_INIT {
-            g_stats.log_skip += 1;
+            g_st().g_stats.log_skip += 1;
             return false;
         }
         if log_level < log_st().g_min_log_level {
@@ -320,7 +320,7 @@ pub unsafe fn logmsg_str(
                     line_num,
                 );
             }
-            g_stats.log_skip += 1;
+            g_st().g_stats.log_skip += 1;
             log_unlock();
             return false;
         }
@@ -423,7 +423,7 @@ unsafe fn do_log_to_file_str(
             millis = curtime.tv_usec / 1000;
         }
 
-        let ui = ui_client_channel_id != 0;
+        let ui = g_st().ui_client_channel_id != 0;
         let name_ptr = (&raw mut log_st().INSTANCE_NAME).cast::<u8>();
         let first_byte = *name_ptr;
         let regen = ui || first_byte == 0 || first_byte == b'?';

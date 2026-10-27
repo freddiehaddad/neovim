@@ -762,7 +762,7 @@ unsafe fn load_language_from_object(
             }
         }
 
-        let iobuff = (&raw mut IObuff).cast::<c_char>();
+        let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
         let mut lib = UvLib {
             _opaque: [ptr::null_mut(); 4],
         };
@@ -2214,7 +2214,7 @@ unsafe extern "C-unwind" fn tslua_parse_query(L: *mut lua_State) -> c_int {
         let mut len: usize = 0;
         let src = lua_tolstring(L, 2, &mut len);
 
-        tslua_query_parse_count += 1;
+        g_st().tslua_query_parse_count += 1;
         let mut error_offset: u32 = 0;
         let mut error_type: TSQueryError = TSQueryErrorNone;
         let query = ts_query_new(lang, src, len as u32, &mut error_offset, &mut error_type);

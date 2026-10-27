@@ -657,7 +657,7 @@ unsafe fn is_executable_ext(
             (ptr::null(), 0)
         };
 
-        let buf = (&raw mut os_buf).cast::<c_char>();
+        let buf = (&raw mut g_st().os_buf).cast::<c_char>();
         xstrlcpy(buf, name, MAXPATHL);
         let buf_end = xstrchrnul(buf, NUL);
         let mut pathext_buf = [0 as c_char; MAXPATHL];
@@ -940,8 +940,8 @@ pub unsafe fn os_dup_cloexec(fd: c_int) -> c_int {
 /// Open the file descriptor for stdin.
 pub unsafe fn os_open_stdin_fd() -> c_int {
     unsafe {
-        if stdin_fd > 0 {
-            stdin_fd
+        if g_st().stdin_fd > 0 {
+            g_st().stdin_fd
         } else {
             let fd = os_dup(STDIN_FILENO);
             #[cfg(windows)]
@@ -1133,7 +1133,7 @@ pub unsafe fn os_fsync(fd: c_int) -> c_int {
         let mut req: uv_fs_buf_t = [0; 80];
         let r = uv_fs_fsync(ptr::null_mut(), &raw mut req, fd, ptr::null());
         uv_fs_req_cleanup((&raw mut req).cast());
-        g_stats.fsync += 1;
+        g_st().g_stats.fsync += 1;
         r
     }
 }

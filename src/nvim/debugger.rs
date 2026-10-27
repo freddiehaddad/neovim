@@ -139,15 +139,15 @@ unsafe fn get_maxbacktrace_level(sname: *const c_char) -> c_int {
 
 unsafe fn do_checkbacktracelevel() {
     unsafe {
-        if debug_backtrace_level < 0 {
-            debug_backtrace_level = 0;
+        if g_st().debug_backtrace_level < 0 {
+            g_st().debug_backtrace_level = 0;
             msg(c"frame is zero".as_ptr(), 0);
         } else {
             let sname = estack_sfile(ESTACK_NONE);
             let max =
                 get_maxbacktrace_level(sname.as_ref().map_or(std::ptr::null(), |s| s.as_ptr()));
-            if debug_backtrace_level > max {
-                debug_backtrace_level = max;
+            if g_st().debug_backtrace_level > max {
+                g_st().debug_backtrace_level = max;
                 smsg!(0, c"frame at highest level: %d".as_ptr(), max);
             }
         }
@@ -158,9 +158,9 @@ unsafe fn do_setdebugtracelevel(arg: *mut c_char) {
     unsafe {
         let level = atoi(arg);
         if *arg as u8 == b'+' || level < 0 {
-            debug_backtrace_level += level;
+            g_st().debug_backtrace_level += level;
         } else {
-            debug_backtrace_level = level;
+            g_st().debug_backtrace_level = level;
         }
         do_checkbacktracelevel();
     }
@@ -179,13 +179,13 @@ unsafe fn do_showbacktrace(cmd: *const c_char) {
                 .collect();
             let mut i: c_int = 0;
             let mut cur = sname_vec.as_mut_ptr();
-            while !got_int {
+            while !g_st().got_int {
                 let cur_bytes = CStr::from_ptr(cur).to_bytes();
                 let next_off = cur_bytes.windows(2).position(|w| w == b"..");
                 if let Some(off) = next_off {
                     *cur.add(off) = 0;
                 }
-                if i == max - debug_backtrace_level {
+                if i == max - g_st().debug_backtrace_level {
                     smsg!(0, c"->%d %s".as_ptr(), max - i, cur);
                 } else {
                     smsg!(0, c"  %d %s".as_ptr(), max - i, cur);
@@ -213,30 +213,30 @@ unsafe fn do_showbacktrace(cmd: *const c_char) {
 /// Interactive debug mode loop (`do_debug`).
 pub unsafe fn do_debug(cmd: *mut c_char) {
     unsafe {
-        let save_msg_scroll = msg_scroll;
-        let save_state = State;
-        let save_did_emsg = did_emsg;
-        let save_cmd_silent = cmd_silent;
-        let save_msg_silent = msg_silent;
-        let save_emsg_silent = emsg_silent;
-        let save_redir_off = redir_off;
+        let save_msg_scroll = g_st().msg_scroll;
+        let save_state = g_st().State;
+        let save_did_emsg = g_st().did_emsg;
+        let save_cmd_silent = g_st().cmd_silent;
+        let save_msg_silent = g_st().msg_silent;
+        let save_emsg_silent = g_st().emsg_silent;
+        let save_redir_off = g_st().redir_off;
         let mut typeaheadbuf = tasave_T::new();
         let mut typeahead_saved = false;
         let mut save_ignore_script = false;
         let mut cmdline_cstr: Option<CString>;
 
-        RedrawingDisabled += 1;
-        no_wait_return += 1;
-        did_emsg = 0;
-        cmd_silent = false;
-        msg_silent = 0;
-        emsg_silent = 0;
-        redir_off = true;
+        g_st().RedrawingDisabled += 1;
+        g_st().no_wait_return += 1;
+        g_st().did_emsg = 0;
+        g_st().cmd_silent = false;
+        g_st().msg_silent = 0;
+        g_st().emsg_silent = 0;
+        g_st().redir_off = true;
 
-        State = MODE_NORMAL;
-        debug_mode = true;
+        g_st().State = MODE_NORMAL;
+        g_st().debug_mode = true;
 
-        if !debug_did_msg {
+        if !g_st().debug_did_msg {
             msg(
                 c"Entering Debug mode.  Type \"cont\" to continue.".as_ptr(),
                 0,
@@ -260,20 +260,20 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
         }
 
         loop {
-            msg_scroll = 1;
-            need_wait_return = false;
+            g_st().msg_scroll = 1;
+            g_st().need_wait_return = false;
 
-            let save_ex_normal_busy = ex_normal_busy;
-            ex_normal_busy = 0;
+            let save_ex_normal_busy = g_st().ex_normal_busy;
+            g_st().ex_normal_busy = 0;
             if !dbg_st().DEBUG_GREEDY {
                 save_typeahead(&mut typeaheadbuf);
                 typeahead_saved = true;
-                save_ignore_script = ignore_script;
-                ignore_script = true;
+                save_ignore_script = g_st().ignore_script;
+                g_st().ignore_script = true;
             }
 
-            let n = debug_break_level;
-            debug_break_level = -1;
+            let n = g_st().debug_break_level;
+            g_st().debug_break_level = -1;
 
             cmdline_cstr = getcmdline_prompt(
                 b'>' as c_int,
@@ -289,14 +289,14 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                 .as_ref()
                 .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
-            debug_break_level = n;
+            g_st().debug_break_level = n;
             if typeahead_saved {
                 restore_typeahead(&mut typeaheadbuf);
-                ignore_script = save_ignore_script;
+                g_st().ignore_script = save_ignore_script;
             }
-            ex_normal_busy = save_ex_normal_busy;
+            g_st().ex_normal_busy = save_ex_normal_busy;
 
-            cmdline_row = msg_row;
+            g_st().cmdline_row = g_st().msg_row;
             msg_starthere();
             if !cmdline.is_null() {
                 let mut p = skipwhite(cmdline);
@@ -346,24 +346,24 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                 if cur_last != 0 {
                     match cur_last {
                         CMD_CONT => {
-                            debug_break_level = -1;
+                            g_st().debug_break_level = -1;
                         }
                         CMD_NEXT => {
-                            debug_break_level = ex_nesting_level;
+                            g_st().debug_break_level = g_st().ex_nesting_level;
                         }
                         CMD_STEP => {
-                            debug_break_level = 9999;
+                            g_st().debug_break_level = 9999;
                         }
                         CMD_FINISH => {
-                            debug_break_level = ex_nesting_level - 1;
+                            g_st().debug_break_level = g_st().ex_nesting_level - 1;
                         }
                         CMD_QUIT => {
-                            got_int = true;
-                            debug_break_level = -1;
+                            g_st().got_int = true;
+                            g_st().debug_break_level = -1;
                         }
                         CMD_INTERRUPT => {
-                            got_int = true;
-                            debug_break_level = 9999;
+                            g_st().got_int = true;
+                            g_st().debug_break_level = 9999;
                             dbg_st().LAST_CMD = CMD_STEP;
                         }
                         CMD_BACKTRACE => {
@@ -380,58 +380,58 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
                             continue;
                         }
                         CMD_UP => {
-                            debug_backtrace_level += 1;
+                            g_st().debug_backtrace_level += 1;
                             do_checkbacktracelevel();
                             continue;
                         }
                         CMD_DOWN => {
-                            debug_backtrace_level -= 1;
+                            g_st().debug_backtrace_level -= 1;
                             do_checkbacktracelevel();
                             continue;
                         }
                         _ => {}
                     }
-                    debug_backtrace_level = 0;
+                    g_st().debug_backtrace_level = 0;
                     break;
                 }
 
-                let n2 = debug_break_level;
-                debug_break_level = -1;
+                let n2 = g_st().debug_break_level;
+                g_st().debug_break_level = -1;
                 do_cmdline(
                     cmdline,
                     crate::cmdexpand::LineGetter::ExLine,
                     DOCMD_VERBOSE | DOCMD_EXCRESET,
                 );
-                debug_break_level = n2;
+                g_st().debug_break_level = n2;
             }
-            lines_left = Rows - 1;
+            g_st().lines_left = g_st().Rows - 1;
         }
 
-        RedrawingDisabled -= 1;
-        no_wait_return -= 1;
+        g_st().RedrawingDisabled -= 1;
+        g_st().no_wait_return -= 1;
         redraw_all_later(UPD_NOT_VALID);
-        need_wait_return = false;
-        msg_scroll = save_msg_scroll;
-        lines_left = Rows - 1;
-        State = save_state;
-        debug_mode = false;
-        did_emsg = save_did_emsg;
-        cmd_silent = save_cmd_silent;
-        msg_silent = save_msg_silent;
-        emsg_silent = save_emsg_silent;
-        redir_off = save_redir_off;
+        g_st().need_wait_return = false;
+        g_st().msg_scroll = save_msg_scroll;
+        g_st().lines_left = g_st().Rows - 1;
+        g_st().State = save_state;
+        g_st().debug_mode = false;
+        g_st().did_emsg = save_did_emsg;
+        g_st().cmd_silent = save_cmd_silent;
+        g_st().msg_silent = save_msg_silent;
+        g_st().emsg_silent = save_emsg_silent;
+        g_st().redir_off = save_redir_off;
 
-        debug_did_msg = true;
+        g_st().debug_did_msg = true;
     }
 }
 
 /// `:debug` command (`ex_debug`).
 pub unsafe fn ex_debug(eap: *mut exarg_T) {
     unsafe {
-        let save = debug_break_level;
-        debug_break_level = 9999;
+        let save = g_st().debug_break_level;
+        g_st().debug_break_level = 9999;
         do_cmdline_cmd((*eap).arg);
-        debug_break_level = save;
+        g_st().debug_break_level = save;
     }
 }
 
@@ -461,7 +461,7 @@ pub unsafe fn dbg_check_breakpoint(eap: *mut exarg_T) {
                 dbg_st().DEBUG_SKIPPED_NAME = dbg_st().DEBUG_BREAKPOINT_NAME;
                 dbg_st().DEBUG_BREAKPOINT_NAME = std::ptr::null_mut();
             }
-        } else if ex_nesting_level <= debug_break_level {
+        } else if g_st().ex_nesting_level <= g_st().debug_break_level {
             if eap.skip == 0 {
                 do_debug(eap.cmd);
             } else {
@@ -478,22 +478,22 @@ pub unsafe fn dbg_check_skipped(eap: *mut exarg_T) -> bool {
         if !dbg_st().DEBUG_SKIPPED {
             return false;
         }
-        let prev_got_int = got_int;
-        got_int = false;
+        let prev_got_int = g_st().got_int;
+        g_st().got_int = false;
         dbg_st().DEBUG_BREAKPOINT_NAME = dbg_st().DEBUG_SKIPPED_NAME;
         (*eap).skip = 0;
         dbg_check_breakpoint(eap);
         (*eap).skip = 1;
-        got_int |= prev_got_int;
+        g_st().got_int |= prev_got_int;
         true
     }
 }
 
 unsafe fn eval_expr_no_emsg(name: *mut c_char) -> Option<typval_T> {
     unsafe {
-        emsg_off += 1;
+        g_st().emsg_off += 1;
         let tv = eval_expr(name, std::ptr::null_mut());
-        emsg_off -= 1;
+        g_st().emsg_off -= 1;
         tv
     }
 }
@@ -519,7 +519,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
         } else if p_bytes.starts_with(b"file") {
             bp.dbg_type = DBG_FILE;
         } else if !is_prof && p_bytes.starts_with(b"here") {
-            if (*curbuf).b_ffname.is_null() {
+            if (*g_st().curbuf).b_ffname.is_null() {
                 emsg(e_noname.as_ptr());
                 return None;
             }
@@ -534,7 +534,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
         p = skipwhite(p.add(4));
 
         if here {
-            bp.dbg_lnum = (*curwin).w_cursor.lnum;
+            bp.dbg_lnum = (**curwin.as_ptr()).w_cursor.lnum;
         } else if !is_prof && (*p as u8).is_ascii_digit() {
             bp.dbg_lnum = getdigits_int32(&mut p, true, 0);
             p = skipwhite(p);
@@ -559,10 +559,10 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
             };
             bp.dbg_name = CStr::from_ptr(name_src).to_owned();
         } else if here {
-            if (*curbuf).b_ffname.is_null() {
+            if (*g_st().curbuf).b_ffname.is_null() {
                 return None;
             }
-            bp.dbg_name = CStr::from_ptr((*curbuf).b_ffname).to_owned();
+            bp.dbg_name = CStr::from_ptr((*g_st().curbuf).b_ffname).to_owned();
         } else if bp.dbg_type == DBG_EXPR {
             bp.dbg_name = CStr::from_ptr(p).to_owned();
             bp.dbg_val = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut());
@@ -611,7 +611,7 @@ pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
                 if eap.cmdidx != CMD_PROFILE {
                     dbg_st().LAST_BREAKP += 1;
                     bp.dbg_nr = dbg_st().LAST_BREAKP;
-                    debug_tick += 1;
+                    g_st().debug_tick += 1;
                 }
                 gap.push(bp);
             }
@@ -619,7 +619,7 @@ pub unsafe fn ex_breakadd(eap: *mut exarg_T) {
             dbg_st().LAST_BREAKP += 1;
             bp.dbg_nr = dbg_st().LAST_BREAKP;
             gap.push(bp);
-            debug_tick += 1;
+            g_st().debug_tick += 1;
             if !is_prof {
                 dbg_st().HAS_EXPR_BREAKPOINT = true;
             }
@@ -685,7 +685,7 @@ pub unsafe fn ex_breakdel(eap: *mut exarg_T) {
         while idx < gap.len() {
             let _ = gap.remove(idx);
             if eap.cmdidx == CMD_BREAKDEL {
-                debug_tick += 1;
+                g_st().debug_tick += 1;
             }
             if !del_all {
                 break;
@@ -770,15 +770,15 @@ unsafe fn debuggy_find(
                 && bp.dbg_type != DBG_EXPR
                 && (is_prof || (bp.dbg_lnum > after && (lnum == 0 || bp.dbg_lnum < lnum)))
             {
-                let prev_got_int = got_int;
-                got_int = false;
+                let prev_got_int = g_st().got_int;
+                g_st().got_int = false;
                 if vim_regexec_prog(bp.dbg_prog.as_deref(), false, name, 0) {
                     lnum = bp.dbg_lnum;
                     if !fp.is_null() {
                         *fp = bp.dbg_forceit != 0;
                     }
                 }
-                got_int |= prev_got_int;
+                g_st().got_int |= prev_got_int;
             } else if bp.dbg_type == DBG_EXPR {
                 let mut line = false;
                 if let Some(mut tv) = eval_expr_no_emsg(bp.dbg_name.as_ptr().cast_mut()) {

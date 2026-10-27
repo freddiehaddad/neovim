@@ -1099,13 +1099,13 @@ unsafe fn decor_spell_nav_col(
 ) -> TriState {
     unsafe {
         if *decor_lnum != lnum {
-            decor_redraw_reset(wp, &raw mut decor_state);
+            decor_redraw_reset(wp, &raw mut g_st().decor_state);
             decor_providers_invoke_spell(wp, lnum - 1, col, lnum - 1, -1);
-            decor_redraw_line(wp, lnum - 1, &raw mut decor_state);
+            decor_redraw_line(wp, lnum - 1, &raw mut g_st().decor_state);
             *decor_lnum = lnum;
         }
-        decor_redraw_col(wp, col, 0, false, &raw mut decor_state, MAXCOL);
-        decor_state.spell
+        decor_redraw_col(wp, col, 0, false, &raw mut g_st().decor_state, MAXCOL);
+        g_st().decor_state.spell
     }
 }
 #[inline]
@@ -1144,11 +1144,11 @@ pub unsafe fn spell_move_to(
         let mut wrapped = false;
         let mut ret: usize = 0;
         let mut lnum = (*wp).w_cursor.lnum;
-        let ds = &raw mut decor_state;
+        let ds = &raw mut g_st().decor_state;
         let saved_decor_start = std::mem::replace(&mut *ds, crate::decoration::DecorState::new());
         let mut decor_lnum: linenr_T = -1;
         'theend: {
-            while !got_int {
+            while !g_st().got_int {
                 let mut line = ml_get_buf((*wp).w_buffer, lnum);
                 let mut len = ml_get_buf_len((*wp).w_buffer, lnum) as usize;
                 if buflen < len + MAXWLEN + 2 {
@@ -1161,9 +1161,9 @@ pub unsafe fn spell_move_to(
                 }
                 if capcol == 0 {
                     capcol = getwhitecols(line) as colnr_T;
-                } else if curline && wp == curwin {
+                } else if curline && wp == *curwin.as_ptr() {
                     let col = getwhitecols(line) as colnr_T;
-                    if check_need_cap(curwin, lnum, col) {
+                    if check_need_cap(*curwin.as_ptr(), lnum, col) {
                         capcol = col;
                     }
                     line = ml_get_buf((*wp).w_buffer, lnum);
@@ -1327,7 +1327,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
             sl_nobreak: 0,
         };
         strcpy((&raw mut sl.sl_lang).cast(), lang);
-        (*curbuf).b_locked += 1;
+        (*g_st().curbuf).b_locked += 1;
         for round in 1..=2 {
             vim_snprintf!(
                 (&raw mut fname_enc).cast(),
@@ -1359,9 +1359,9 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
                     && apply_autocmds(
                         EVENT_SPELLFILEMISSING,
                         lang,
-                        (*curbuf).b_fname,
+                        (*g_st().curbuf).b_fname,
                         false,
-                        curbuf,
+                        g_st().curbuf,
                     )
                 {
                     continue;
@@ -1371,7 +1371,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
             break;
         }
         if r == FAIL {
-            if starting != 0 {
+            if *starting.as_ptr() != 0 {
                 let mut autocmd_buf: [c_char; 512] = [0; 512];
                 vim_snprintf!(
                     (&raw mut autocmd_buf).cast(),
@@ -1398,7 +1398,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
             strcpy(fn_ptr.add(strlen(fn_ptr) - 3), c"add.spl".as_ptr());
             do_in_runtimepath(fn_ptr, DIP_ALL, &mut RuntimeCallback::SpellLoad(&mut sl));
         }
-        (*curbuf).b_locked -= 1;
+        (*g_st().curbuf).b_locked -= 1;
     }
 }
 pub unsafe fn spell_enc() -> *mut c_char {
@@ -1819,7 +1819,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     }
                 }
             }
-            let cur_w_s = (*curwin).w_s_ptr();
+            let cur_w_s = (**curwin.as_ptr()).w_s_ptr();
             let mut spf = (*cur_w_s).b_p_spf;
             let mut round = 0;
             while round == 0 || *spf != NUL {
@@ -1986,7 +1986,7 @@ unsafe fn find_region(rp: *const c_char, region: *const c_char) -> c_int {
 pub unsafe fn captype(word: *const c_char, end: *const c_char) -> c_int {
     unsafe {
         let mut p = word;
-        while !spell_iswordp_nmw(p, curwin) {
+        while !spell_iswordp_nmw(p, *curwin.as_ptr()) {
             if if end.is_null() { *p == NUL } else { p >= end } {
                 return 0;
             }
@@ -1997,7 +1997,7 @@ pub unsafe fn captype(word: *const c_char, end: *const c_char) -> c_int {
         let firstcap = allcap;
         let mut past_second = false;
         while if end.is_null() { *p != NUL } else { p < end } {
-            if spell_iswordp_nmw(p, curwin) {
+            if spell_iswordp_nmw(p, *curwin.as_ptr()) {
                 c = utf_ptr2char(p);
                 if !spell_isupper(c) {
                     if past_second && allcap {
@@ -2034,7 +2034,7 @@ pub unsafe fn spell_delete_wordlist() {
 }
 pub unsafe fn spell_free_all() {
     unsafe {
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             (*buf).b_s.b_langp = Vec::new();
             buf = (*buf).b_next;
@@ -2049,7 +2049,7 @@ pub unsafe fn spell_reload() {
     unsafe {
         init_spell_chartab();
         spell_free_all();
-        let mut wp = firstwin;
+        let mut wp = g_st().firstwin;
         while !wp.is_null() {
             let w_s = (*wp).w_s_ptr();
             if *(*w_s).b_p_spl != NUL && (*wp).w_onebuf_opt.wo_spell != 0 {
@@ -2282,7 +2282,7 @@ pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bo
 }
 pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
     unsafe {
-        let pos = (*curwin).w_cursor;
+        let pos = (**curwin.as_ptr()).w_cursor;
         let save_ws = opt_vars().p_ws;
         let mut prev_lnum: linenr_T = 0;
         let (Some(repl_from_cstr), Some(repl_to_cstr)) = (
@@ -2303,10 +2303,10 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
         let frompatlen =
             vim_snprintf!(frompat, frompatsize, c"\\V\\<%s\\>".as_ptr(), repl_from_ptr,) as usize;
         opt_vars().p_ws = 0;
-        sub_nsubs = 0;
-        sub_nlines = 0;
-        (*curwin).w_cursor.lnum = 0;
-        while !got_int {
+        g_st().sub_nsubs = 0;
+        g_st().sub_nlines = 0;
+        (**curwin.as_ptr()).w_cursor.lnum = 0;
+        while !g_st().got_int {
             if do_search(
                 ptr::null_mut(),
                 b'/' as c_int,
@@ -2325,7 +2325,7 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
             let line = get_cursor_line_ptr();
             if addlen <= 0
                 || strncmp(
-                    line.add((*curwin).w_cursor.col as usize),
+                    line.add((**curwin.as_ptr()).w_cursor.col as usize),
                     repl_to_ptr,
                     repl_to_len,
                 ) != 0
@@ -2333,27 +2333,27 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
                 let mut p_vec: Vec<c_char> =
                     vec![0; (get_cursor_line_len() as i64 + addlen + 1) as usize];
                 let p = p_vec.as_mut_ptr();
-                ptr::copy(line, p, (*curwin).w_cursor.col as usize);
-                strcpy(p.add((*curwin).w_cursor.col as usize), repl_to_ptr);
-                strcat(p, line.add((*curwin).w_cursor.col as usize + repl_from_len));
-                let _ = ml_replace((*curwin).w_cursor.lnum, p, true);
+                ptr::copy(line, p, (**curwin.as_ptr()).w_cursor.col as usize);
+                strcpy(p.add((**curwin.as_ptr()).w_cursor.col as usize), repl_to_ptr);
+                strcat(p, line.add((**curwin.as_ptr()).w_cursor.col as usize + repl_from_len));
+                let _ = ml_replace((**curwin.as_ptr()).w_cursor.lnum, p, true);
                 inserted_bytes(
-                    (*curwin).w_cursor.lnum,
-                    (*curwin).w_cursor.col,
+                    (**curwin.as_ptr()).w_cursor.lnum,
+                    (**curwin.as_ptr()).w_cursor.col,
                     repl_from_len as c_int,
                     repl_to_len as c_int,
                 );
-                if (*curwin).w_cursor.lnum != prev_lnum {
-                    sub_nlines += 1;
-                    prev_lnum = (*curwin).w_cursor.lnum;
+                if (**curwin.as_ptr()).w_cursor.lnum != prev_lnum {
+                    g_st().sub_nlines += 1;
+                    prev_lnum = (**curwin.as_ptr()).w_cursor.lnum;
                 }
-                sub_nsubs += 1;
+                g_st().sub_nsubs += 1;
             }
-            (*curwin).w_cursor.col += repl_to_len as colnr_T;
+            (**curwin.as_ptr()).w_cursor.col += repl_to_len as colnr_T;
         }
         opt_vars().p_ws = save_ws;
-        (*curwin).w_cursor = pos;
-        if sub_nsubs == 0 {
+        (**curwin.as_ptr()).w_cursor = pos;
+        if g_st().sub_nsubs == 0 {
             semsg!(gettext(c"E753: Not found: %s".as_ptr()), repl_from_ptr);
         } else {
             do_sub_msg(false);
@@ -2427,8 +2427,8 @@ pub unsafe fn make_case_word(fword: *mut c_char, cword: *mut c_char, flags: c_in
 }
 pub unsafe fn eval_soundfold(word: *const c_char) -> std::ffi::CString {
     unsafe {
-        let w_s = (*curwin).w_s_ptr();
-        if (*curwin).w_onebuf_opt.wo_spell != 0 && *(*w_s).b_p_spl != NUL {
+        let w_s = (**curwin.as_ptr()).w_s_ptr();
+        if (**curwin.as_ptr()).w_onebuf_opt.wo_spell != 0 && *(*w_s).b_p_spl != NUL {
             for lp in &(*w_s).b_langp {
                 if (*lp.lp_slang).has_sal() {
                     let mut sound: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -2455,7 +2455,7 @@ pub unsafe fn spell_soundfold(
                 inword
             } else {
                 spell_casefold(
-                    curwin,
+                    *curwin.as_ptr(),
                     inword,
                     strlen(inword) as c_int,
                     (&raw mut fword).cast(),
@@ -2513,7 +2513,7 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
                     did_white = true;
                 } else {
                     did_white = false;
-                    if !spell_iswordp_nmw(t, curwin) {
+                    if !spell_iswordp_nmw(t, *curwin.as_ptr()) {
                         continue;
                     }
                 }
@@ -2602,13 +2602,13 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
                         || (*sr == b'^' as c_char
                             && (i == 0
                                 || !(word[i - 1] == b' ' as c_int
-                                    || spell_iswordp_w(word_ptr.add(i - 1), curwin)))
+                                    || spell_iswordp_w(word_ptr.add(i - 1), *curwin.as_ptr())))
                             && (*sr.add(1) != b'$' as c_char
-                                || !spell_iswordp_w(word_ptr.add(i + k0), curwin)))
+                                || !spell_iswordp_w(word_ptr.add(i + k0), *curwin.as_ptr())))
                         || (*sr == b'$' as c_char
                             && i > 0
-                            && spell_iswordp_w(word_ptr.add(i - 1), curwin)
-                            && !spell_iswordp_w(word_ptr.add(i + k0), curwin))
+                            && spell_iswordp_w(word_ptr.add(i - 1), *curwin.as_ptr())
+                            && !spell_iswordp_w(word_ptr.add(i + k0), *curwin.as_ptr()))
                     {
                         let c0 = word[i + k - 1];
                         let mut n0 = (*slang).sl_sal_first[(c0 & 0xff) as usize];
@@ -2679,7 +2679,7 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
                                 }
                                 if *sr == NUL
                                     || (*sr == b'$' as c_char
-                                        && !spell_iswordp_w(word_ptr.add(i + k0), curwin))
+                                        && !spell_iswordp_w(word_ptr.add(i + k0), *curwin.as_ptr()))
                                 {
                                     if k0 == k {
                                         n0 += 1;
@@ -2792,15 +2792,15 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
 }
 pub unsafe fn ex_spellinfo(_eap: *mut exarg_T) {
     unsafe {
-        if no_spell_checking(curwin) {
+        if no_spell_checking(*curwin.as_ptr()) {
             return;
         }
         msg_ext_set_kind(c"list_cmd".as_ptr());
         msg_start();
-        let w_s = (*curwin).w_s_ptr();
+        let w_s = (**curwin.as_ptr()).w_s_ptr();
         let len = (*w_s).b_langp.len();
         let mut lpi: usize = 0;
-        while lpi < len && !got_int {
+        while lpi < len && !g_st().got_int {
             let lp = &(&(*w_s).b_langp)[lpi];
             msg_puts(c"file: ".as_ptr());
             msg_puts(
@@ -2829,7 +2829,7 @@ pub unsafe fn ex_spellinfo(_eap: *mut exarg_T) {
 }
 pub unsafe fn ex_spelldump(eap: *mut exarg_T) {
     unsafe {
-        if no_spell_checking(curwin) {
+        if no_spell_checking(*curwin.as_ptr()) {
             return;
         }
         let spl = get_option_value(kOptSpelllang, OPT_LOCAL);
@@ -2837,7 +2837,7 @@ pub unsafe fn ex_spelldump(eap: *mut exarg_T) {
         set_option_value_give_err(kOptSpell, boolean_obj(true), OPT_LOCAL);
         set_option_value_give_err(kOptSpelllang, spl, OPT_LOCAL);
         optval_free(spl);
-        if !buf_is_empty(curbuf) {
+        if !buf_is_empty(g_st().curbuf) {
             return;
         }
         spell_dump_compl(
@@ -2850,10 +2850,10 @@ pub unsafe fn ex_spelldump(eap: *mut exarg_T) {
                 0
             },
         );
-        if (*curbuf).b_ml.ml_line_count > 1 {
-            let _ = ml_delete((*curbuf).b_ml.ml_line_count);
+        if (*g_st().curbuf).b_ml.ml_line_count > 1 {
+            let _ = ml_delete((*g_st().curbuf).b_ml.ml_line_count);
         }
-        redraw_later(curwin, UPD_NOT_VALID);
+        redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
     }
 }
 pub unsafe fn spell_dump_compl(
@@ -2882,7 +2882,7 @@ pub unsafe fn spell_dump_compl(
                 }
             }
         }
-        let w_s = (*curwin).w_s_ptr();
+        let w_s = (**curwin.as_ptr()).w_s_ptr();
         for lp in &(*w_s).b_langp {
             let p = (&raw mut (*lp.lp_slang).sl_regions).cast::<c_char>();
             if *p != 0 {
@@ -2896,12 +2896,12 @@ pub unsafe fn spell_dump_compl(
         }
         if do_region && !region_names.is_null() && pat.is_null() {
             vim_snprintf!(
-                (&raw mut IObuff).cast(),
+                (&raw mut g_st().IObuff).cast(),
                 IOSIZE,
                 c"/regions=%s".as_ptr(),
                 region_names,
             );
-            let _ = ml_append(lnum, (&raw mut IObuff).cast(), 0, false);
+            let _ = ml_append(lnum, (&raw mut g_st().IObuff).cast(), 0, false);
             lnum += 1;
         } else {
             do_region = false;
@@ -2913,7 +2913,7 @@ pub unsafe fn spell_dump_compl(
             }
             if pat.is_null() {
                 vim_snprintf!(
-                    (&raw mut IObuff).cast(),
+                    (&raw mut g_st().IObuff).cast(),
                     IOSIZE,
                     c"# file: %s".as_ptr(),
                     (*slang)
@@ -2921,7 +2921,7 @@ pub unsafe fn spell_dump_compl(
                         .as_ref()
                         .map_or(c"".as_ptr(), |s| s.as_ptr()),
                 );
-                let _ = ml_append(lnum, (&raw mut IObuff).cast(), 0, false);
+                let _ = ml_append(lnum, (&raw mut g_st().IObuff).cast(), 0, false);
                 lnum += 1;
             }
             let patlen: isize = if !pat.is_null() && (*slang).sl_pbyts.is_empty() {
@@ -2952,7 +2952,7 @@ pub unsafe fn spell_dump_compl(
                 let mut depth: isize = 0;
                 arridx[0] = 0;
                 curi[0] = 1;
-                while depth >= 0 && !got_int && (pat.is_null() || !ins_compl_interrupted()) {
+                while depth >= 0 && !g_st().got_int && (pat.is_null() || !ins_compl_interrupted()) {
                     let udepth = depth as usize;
                     if curi[udepth] > *byts.add(arridx[udepth] as usize) as c_int {
                         depth -= 1;
@@ -3083,13 +3083,13 @@ unsafe fn dump_word(
                 let tw_bytes = std::ffi::CStr::from_ptr(tw).to_bytes();
                 if let Some(&wc_count) = (*slang).sl_wordcount.get(tw_bytes) {
                     vim_snprintf!(
-                        (&raw mut IObuff).cast(),
+                        (&raw mut g_st().IObuff).cast(),
                         IOSIZE,
                         c"%s\t%d".as_ptr(),
                         tw,
                         wc_count as c_int,
                     );
-                    p = (&raw mut IObuff).cast();
+                    p = (&raw mut g_st().IObuff).cast();
                 }
             }
             let _ = ml_append(lnum, p, 0, false);
@@ -3138,7 +3138,7 @@ unsafe fn dump_prefixes(
             let mut depth: isize = 0;
             arridx[0] = 0;
             curi[0] = 1;
-            while depth >= 0 && !got_int {
+            while depth >= 0 && !g_st().got_int {
                 let udepth = depth as usize;
                 let mut n = arridx[udepth];
                 let len = *byts.add(n as usize) as c_int;
@@ -3238,14 +3238,14 @@ pub unsafe fn spell_to_word_end(start: *mut c_char, win: *mut win_T) -> *mut c_c
 }
 pub unsafe fn spell_word_start(startcol: c_int) -> c_int {
     unsafe {
-        if no_spell_checking(curwin) {
+        if no_spell_checking(*curwin.as_ptr()) {
             return startcol;
         }
         let line = get_cursor_line_ptr();
         let mut p = line.add(startcol as usize);
         while p > line {
             mb_ptr_back(line, &mut p);
-            if spell_iswordp_nmw(p, curwin) {
+            if spell_iswordp_nmw(p, *curwin.as_ptr()) {
                 break;
             }
         }
@@ -3253,7 +3253,7 @@ pub unsafe fn spell_word_start(startcol: c_int) -> c_int {
         while p > line {
             col = p.offset_from(line) as c_int;
             mb_ptr_back(line, &mut p);
-            if !spell_iswordp(p, curwin) {
+            if !spell_iswordp(p, *curwin.as_ptr()) {
                 break;
             }
             col = 0;
@@ -3263,7 +3263,7 @@ pub unsafe fn spell_word_start(startcol: c_int) -> c_int {
 }
 pub unsafe fn spell_expand_check_cap(col: colnr_T) {
     unsafe {
-        spell_priv_st().spell_expand_need_cap = check_need_cap(curwin, (*curwin).w_cursor.lnum, col);
+        spell_priv_st().spell_expand_need_cap = check_need_cap(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum, col);
     }
 }
 pub unsafe fn expand_spelling(
@@ -3313,9 +3313,9 @@ pub unsafe fn valid_spellfile(val: *const c_char) -> bool {
 pub unsafe fn did_set_spell_option() -> *const c_char {
     unsafe {
         let mut errmsg: *const c_char = ptr::null();
-        let mut wp = firstwin;
+        let mut wp = g_st().firstwin;
         while !wp.is_null() {
-            if (*wp).w_buffer == curbuf && (*wp).w_onebuf_opt.wo_spell != 0 {
+            if (*wp).w_buffer == g_st().curbuf && (*wp).w_onebuf_opt.wo_spell != 0 {
                 errmsg = parse_spelllang(wp);
                 break;
             }

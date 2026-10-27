@@ -306,11 +306,11 @@ pub unsafe fn proc_wait(proc_: *mut Proc, ms: c_int, mut events: *mut MultiQueue
 
         (*proc_).refcount += 1;
         loop_process_events_until((*proc_).loop_, events, i64::from(ms), || {
-            got_int || (*proc_).refcount == 1
+            g_st().got_int || (*proc_).refcount == 1
         });
 
-        if got_int {
-            got_int = false;
+        if g_st().got_int {
+            g_st().got_int = false;
             proc_stop(proc_);
             if ms == -1 {
                 loop_process_events_until((*proc_).loop_, events, -1, || (*proc_).refcount == 1);
@@ -528,9 +528,9 @@ pub unsafe fn exit_event(status: c_int) {
             return;
         }
 
-        if !exiting {
-            if ui_client_channel_id != 0 {
-                ui_client_exit_status = status;
+        if !g_st().exiting {
+            if g_st().ui_client_channel_id != 0 {
+                g_st().ui_client_exit_status = status;
                 os_exit(status);
             } else {
                 debug_assert_eq!(status, 0);

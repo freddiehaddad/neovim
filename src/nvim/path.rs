@@ -658,7 +658,7 @@ unsafe fn do_path_expand(
 
         if path_st().STARDEPTH > 0 && (flags & EW_NOBREAK) == 0 {
             os_breakcheck();
-            if got_int {
+            if g_st().got_int {
                 return 0;
             }
         }
@@ -739,13 +739,13 @@ unsafe fn do_path_expand(
         };
 
         if (flags & (EW_NOERROR | EW_NOTWILD)) != 0 {
-            emsg_silent += 1;
+            g_st().emsg_silent += 1;
         }
         let nobreak = (flags & EW_NOBREAK) != 0;
         regmatch.regprog =
             vim_regcomp(pat.as_ptr().cast_mut(), RE_MAGIC | if nobreak { RE_NOBREAK } else { 0 });
         if (flags & (EW_NOERROR | EW_NOTWILD)) != 0 {
-            emsg_silent -= 1;
+            g_st().emsg_silent -= 1;
         }
         drop(pat);
 
@@ -771,7 +771,7 @@ unsafe fn do_path_expand(
         let dirpath = if *buf == NUL { c".".as_ptr() } else { buf };
         if os_file_is_readable(dirpath) && os_scandir(&mut dir, dirpath) {
             scandir_next_with_dots(ptr::null_mut());
-            while !got_int {
+            while !g_st().got_int {
                 let name = scandir_next_with_dots(&mut dir);
                 if name.is_null() {
                     break;
@@ -828,7 +828,7 @@ unsafe fn do_path_expand(
         vim_regfree(regmatch.regprog);
 
         let matches = gap.len() - start_len;
-        if matches > 0 && !got_int {
+        if matches > 0 && !g_st().got_int {
             gap[start_len..].sort_by(|a, b| {
                 let cmp = path_cmp(opt_vars().p_fic != 0, a.as_ptr(), b.as_ptr(), MAXPATHL);
                 if cmp < 0 {
@@ -905,11 +905,11 @@ unsafe fn expand_path_option(
 
             if *buf == b'.' as c_char && (*buf.add(1) == NUL || vim_ispathsep(*buf.add(1) as c_int))
             {
-                if (*curbuf).b_ffname.is_null() {
+                if (*g_st().curbuf).b_ffname.is_null() {
                     continue;
                 }
-                let p = path_tail((*curbuf).b_ffname);
-                let plen = p.offset_from((*curbuf).b_ffname) as usize;
+                let p = path_tail((*g_st().curbuf).b_ffname);
+                let plen = p.offset_from((*g_st().curbuf).b_ffname) as usize;
                 if plen + CStr::from_ptr(buf).to_bytes().len() >= MAXPATHL {
                     continue;
                 }
@@ -918,7 +918,7 @@ unsafe fn expand_path_option(
                 } else {
                     ptr::copy(buf.add(2), buf.add(plen), (buflen - 2) + 1);
                 }
-                ptr::copy((*curbuf).b_ffname, buf, plen);
+                ptr::copy((*g_st().curbuf).b_ffname, buf, plen);
                 buflen = simplify_filename(buf);
             } else if *buf == NUL {
                 let c_len = CStr::from_ptr(curdir).to_bytes().len();
@@ -1029,7 +1029,7 @@ unsafe fn uniquefy_paths(
         let mut in_curdir: Vec<Option<std::ffi::CString>> = vec![None; gap.len()];
 
         for i in 0..gap.len() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             let path = gap[i].as_ptr().cast_mut();
@@ -1091,7 +1091,7 @@ unsafe fn uniquefy_paths(
         }
 
         for (i, path_opt) in in_curdir.iter().enumerate() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             let Some(path_cstr) = path_opt else {
@@ -1164,10 +1164,10 @@ unsafe fn expand_in_path(
 ) -> c_int {
     unsafe {
         let mut path_ga: Vec<std::ffi::CString> = Vec::new();
-        let path_option = if *(*curbuf).b_p_path == NUL {
+        let path_option = if *(*g_st().curbuf).b_p_path == NUL {
             opt_vars().p_path
         } else {
-            (*curbuf).b_p_path
+            (*g_st().curbuf).b_p_path
         };
 
         let mut curdir_arr = [0 as c_char; MAXPATHL];
@@ -1274,10 +1274,10 @@ pub unsafe fn gen_expand_wildcards_vec(
     unsafe {
         file.clear();
         let mut did_expand_in_path = false;
-        let path_option = if *(*curbuf).b_p_path == NUL {
+        let path_option = if *(*g_st().curbuf).b_p_path == NUL {
             opt_vars().p_path
         } else {
-            (*curbuf).b_p_path
+            (*g_st().curbuf).b_p_path
         };
 
         if path_st().EXPAND_RECURSIVE {
@@ -1304,7 +1304,7 @@ pub unsafe fn gen_expand_wildcards_vec(
         path_st().EXPAND_RECURSIVE = true;
 
         for i in 0..num_pat {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             let mut add_pat: c_int = -1;
@@ -1405,7 +1405,7 @@ pub unsafe fn expand_wildcards_vec(
             });
         }
 
-        if files.len() > 1 && !got_int {
+        if files.len() > 1 && !g_st().got_int {
             let mut non_suf_match = 0;
             for i in 0..files.len() {
                 let fi = files[i].as_ptr().cast_mut();
@@ -2088,7 +2088,7 @@ pub unsafe fn expand_wildcards_eval(
         file.clear();
 
         if is_cur_alt_file || *exp_pat == b'<' as c_char {
-            emsg_off += 1;
+            g_st().emsg_off += 1;
             eval_pat = eval_vars(
                 exp_pat,
                 exp_pat,
@@ -2098,7 +2098,7 @@ pub unsafe fn expand_wildcards_eval(
                 ptr::null_mut(),
                 true,
             );
-            emsg_off -= 1;
+            g_st().emsg_off -= 1;
             if let Some(ref ep) = eval_pat {
                 let tail_bytes = CStr::from_ptr(exp_pat.add(usedlen)).to_bytes();
                 star_follows = tail_bytes == b"*";
@@ -2331,7 +2331,7 @@ pub unsafe fn path_guess_exepath(argv0: *const c_char, buf: *mut c_char, bufsize
                 xstrlcat(buf, argv0, bufsize);
             } else {
                 let path = path_cstr.as_ptr();
-                let namebuff = (&raw mut NameBuff).cast::<c_char>();
+                let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
                 let mut iter: *const c_char = ptr::null();
                 loop {
                     let mut dir: *const c_char = ptr::null();

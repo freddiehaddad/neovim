@@ -1804,7 +1804,7 @@ unsafe fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
 /// Load plugins from all packages in the "start" directory.
 pub unsafe fn load_start_packages() {
     unsafe {
-        did_source_packages = true;
+        g_st().did_source_packages = true;
         do_in_path(
             opt_vars().p_pp,
             c"".as_ptr(),
@@ -1833,7 +1833,7 @@ pub unsafe fn load_start_packages() {
 /// ":packloadall"
 pub unsafe fn ex_packloadall(eap: *mut exarg_T) {
     unsafe {
-        if !did_source_packages || (*eap).forceit != 0 {
+        if !g_st().did_source_packages || (*eap).forceit != 0 {
             add_pack_start_dirs();
             load_start_packages();
         }
@@ -1848,7 +1848,7 @@ pub unsafe fn load_plugins() {
             let mut rtp_copy = opt_vars().p_rtp;
             let plugin_pattern = c"plugin/**/*".as_ptr() as *mut c_char;
 
-            if !did_source_packages {
+            if !g_st().did_source_packages {
                 let copy = cstr_to_cstring(opt_vars().p_rtp);
                 rtp_copy = copy.as_ptr().cast_mut();
                 rtp_copy_owned = Some(copy);
@@ -1860,7 +1860,7 @@ pub unsafe fn load_plugins() {
                 time_msg(c"loading rtp plugins".as_ptr(), ptr::null());
             }
 
-            if !did_source_packages {
+            if !g_st().did_source_packages {
                 drop(rtp_copy_owned);
                 load_start_packages();
             }
@@ -1889,7 +1889,7 @@ pub unsafe fn ex_packadd(eap: *mut exarg_T) {
             PackAddAction::Both
         };
 
-        if !did_source_packages {
+        if !g_st().did_source_packages {
             vim_snprintf!(
                 pat,
                 len,
@@ -2297,7 +2297,7 @@ unsafe fn add_dir(
             #[cfg(not(windows))]
             let appname_len = CStr::from_ptr(appname).to_bytes().len();
             debug_assert!(appname_len < IOSIZE - 6);
-            let iobuff = (&raw mut IObuff).cast::<c_char>();
+            let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
             xmemcpyz(iobuff.cast(), appname.cast(), appname_len);
             #[cfg(windows)]
             if matches!(type_, XDGVarType::kXDGDataHome | XDGVarType::kXDGStateHome) {
@@ -2548,8 +2548,8 @@ unsafe fn cmd_source(fname: *mut c_char, eap: *mut exarg_T) {
         } else if !eap.is_null() && (*eap).forceit != 0 {
             openscript(
                 fname,
-                global_busy != 0
-                    || listcmd_busy
+                g_st().global_busy != 0
+                    || g_st().listcmd_busy
                     || !(*eap).nextcmd.is_null()
                     || (*(*eap).cstack.cast::<cstack_T>()).cs_idx >= 0,
             );
@@ -2572,7 +2572,7 @@ pub unsafe fn ex_options(_eap: *mut exarg_T) {
         let mut buf = [0 as c_char; 500];
         let mut multi_mods = false;
 
-        add_win_cmd_modifiers(buf.as_mut_ptr(), &raw mut cmdmod, &mut multi_mods);
+        add_win_cmd_modifiers(buf.as_mut_ptr(), &raw mut g_st().cmdmod, &mut multi_mods);
 
         os_setenv(c"OPTWIN_CMD".as_ptr(), buf.as_ptr(), 1);
         cmd_source(
@@ -2675,27 +2675,27 @@ unsafe fn do_source_buffer_init(
     ex_lua: bool,
 ) -> Option<std::ffi::CString> {
     unsafe {
-        if curbuf.is_null() {
+        if g_st().curbuf.is_null() {
             return None;
         }
 
-        let iobuff = (&raw mut IObuff).cast::<c_char>();
-        let fname = if !(*curbuf).b_ffname.is_null() {
-            cstr_to_cstring((*curbuf).b_ffname)
+        let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
+        let fname = if !(*g_st().curbuf).b_ffname.is_null() {
+            cstr_to_cstring((*g_st().curbuf).b_ffname)
         } else {
             if ex_lua {
                 vim_snprintf!(
                     iobuff,
                     IOSIZE,
                     c":{range}lua buffer=%d".as_ptr(),
-                    (*curbuf).b_fnum,
+                    (*g_st().curbuf).b_fnum,
                 );
             } else {
                 vim_snprintf!(
                     iobuff,
                     IOSIZE,
                     c":source buffer=%d".as_ptr(),
-                    (*curbuf).b_fnum,
+                    (*g_st().curbuf).b_fnum,
                 );
             }
             cstr_to_cstring(iobuff)
@@ -2790,7 +2790,7 @@ unsafe fn do_source_ext(
         let mut cookie = source_cookie_T::new();
         let mut firstline: Option<std::ffi::CString> = None;
         let mut retval = FAIL;
-        let save_debug_break_level = debug_break_level;
+        let save_debug_break_level = g_st().debug_break_level;
         let mut si: *mut scriptitem_T = ptr::null_mut();
         let mut wait_start: proftime_T = 0;
         let mut trigger_source_post = false;
@@ -2840,16 +2840,16 @@ unsafe fn do_source_ext(
                     has_autocmd_fullname(EVENT_SOURCECMD, fname_exp, ptr::null_mut())
                 };
                 if has_sourcecmd
-                    && apply_autocmds(EVENT_SOURCECMD, fname_exp, fname_exp, false, curbuf)
+                    && apply_autocmds(EVENT_SOURCECMD, fname_exp, fname_exp, false, g_st().curbuf)
                 {
                     retval = if aborting() { FAIL } else { OK };
                     if retval == OK {
-                        apply_autocmds(EVENT_SOURCEPOST, fname_exp, fname_exp, false, curbuf);
+                        apply_autocmds(EVENT_SOURCEPOST, fname_exp, fname_exp, false, g_st().curbuf);
                     }
                     break 'block;
                 }
 
-                apply_autocmds(EVENT_SOURCEPRE, fname_exp, fname_exp, false, curbuf);
+                apply_autocmds(EVENT_SOURCEPRE, fname_exp, fname_exp, false, g_st().curbuf);
             }
 
             if !cookie.source_from_buf_or_str {
@@ -2921,8 +2921,8 @@ unsafe fn do_source_ext(
             } else {
                 Some(CStr::from_ptr(fname_exp).to_owned())
             };
-            cookie.dbg_tick = debug_tick;
-            cookie.level = ex_nesting_level;
+            cookie.dbg_tick = g_st().debug_tick;
+            cookie.level = g_st().ex_nesting_level;
 
             let mut rel_time: proftime_T = 0;
             let mut start_time: proftime_T = 0;
@@ -2931,17 +2931,17 @@ unsafe fn do_source_ext(
                 time_push(&mut rel_time, &mut start_time);
             }
 
-            let l_do_profiling = do_profiling;
+            let l_do_profiling = g_st().do_profiling;
             if l_do_profiling == PROF_YES {
                 prof_child_enter(&mut wait_start);
             }
 
             save_funccal();
 
-            let save_current_sctx = current_sctx;
+            let save_current_sctx = g_st().current_sctx;
 
             rt_st().last_current_SID_seq += 1;
-            current_sctx.sc_seq = rt_st().last_current_SID_seq;
+            g_st().current_sctx.sc_seq = rt_st().last_current_SID_seq;
 
             if sid > 0 {
                 si = script_item(sid);
@@ -2954,9 +2954,9 @@ unsafe fn do_source_ext(
             }
             debug_assert_eq!(!si.is_null(), str_ptr.is_null());
 
-            if str_ptr.is_null() || !script_is_lua(current_sctx.sc_sid) {
-                current_sctx.sc_sid = sid;
-                current_sctx.sc_lnum = 0;
+            if str_ptr.is_null() || !script_is_lua(g_st().current_sctx.sc_sid) {
+                g_st().current_sctx.sc_sid = sid;
+                g_st().current_sctx.sc_lnum = 0;
             }
 
             estack_push(
@@ -2988,12 +2988,12 @@ unsafe fn do_source_ext(
             if fname.is_null()
                 && !eap.is_null()
                 && !ex_lua
-                && !strequal((*curbuf).b_p_ft, c"lua".as_ptr())
-                && !(!(*curbuf).b_fname.is_null()
-                    && path_with_extension((*curbuf).b_fname, c"lua".as_ptr()))
+                && !strequal((*g_st().curbuf).b_p_ft, c"lua".as_ptr())
+                && !(!(*g_st().curbuf).b_fname.is_null()
+                    && path_with_extension((*g_st().curbuf).b_fname, c"lua".as_ptr()))
             {
                 let mut args_items = [
-                    integer_obj(Integer::from((*curbuf).b_fnum)),
+                    integer_obj(Integer::from((*g_st().curbuf).b_fnum)),
                     integer_obj(Integer::from((*eap).line1)),
                     integer_obj(Integer::from((*eap).line2)),
                 ];
@@ -3023,9 +3023,9 @@ unsafe fn do_source_ext(
             if fname.is_null()
                 && (ex_lua
                     || ts_lua
-                    || strequal((*curbuf).b_p_ft, c"lua".as_ptr())
-                    || (!(*curbuf).b_fname.is_null()
-                        && path_with_extension((*curbuf).b_fname, c"lua".as_ptr())))
+                    || strequal((*g_st().curbuf).b_p_ft, c"lua".as_ptr())
+                    || (!(*g_st().curbuf).b_fname.is_null()
+                        && path_with_extension((*g_st().curbuf).b_fname, c"lua".as_ptr())))
             {
                 nlua_exec_lines(&cookie.buflines, fname_exp);
             } else if !si.is_null() && (*si).sn_lua {
@@ -3055,7 +3055,7 @@ unsafe fn do_source_ext(
             retval = OK;
 
             if l_do_profiling == PROF_YES && !si.is_null() {
-                si = script_item(current_sctx.sc_sid);
+                si = script_item(g_st().current_sctx.sc_sid);
                 if (*si).sn_prof_on {
                     (*si).sn_pr_start = profile_end((*si).sn_pr_start);
                     (*si).sn_pr_start = profile_sub_wait(wait_start, (*si).sn_pr_start);
@@ -3065,7 +3065,7 @@ unsafe fn do_source_ext(
                 }
             }
 
-            if got_int {
+            if g_st().got_int {
                 emsg(gettext(e_interr.as_ptr()));
             }
             estack_pop();
@@ -3080,21 +3080,21 @@ unsafe fn do_source_ext(
             }
 
             if l_has_time_fd {
-                let iobuff = (&raw mut IObuff).cast::<c_char>();
+                let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
                 vim_snprintf!(iobuff, IOSIZE, c"sourcing %s".as_ptr(), fname);
                 time_msg(iobuff, &start_time);
                 time_pop(rel_time);
             }
 
-            if !got_int {
+            if !g_st().got_int {
                 trigger_source_post = true;
             }
 
-            if save_debug_break_level > ex_nesting_level && debug_break_level == ex_nesting_level {
-                debug_break_level += 1;
+            if save_debug_break_level > g_st().ex_nesting_level && g_st().debug_break_level == g_st().ex_nesting_level {
+                g_st().debug_break_level += 1;
             }
 
-            current_sctx = save_current_sctx;
+            g_st().current_sctx = save_current_sctx;
             restore_funccal();
             if l_do_profiling == PROF_YES {
                 prof_child_exit(&mut wait_start);
@@ -3103,7 +3103,7 @@ unsafe fn do_source_ext(
             drop(cookie);
 
             if str_ptr.is_null() && trigger_source_post {
-                apply_autocmds(EVENT_SOURCEPOST, fname_exp, fname_exp, false, curbuf);
+                apply_autocmds(EVENT_SOURCEPOST, fname_exp, fname_exp, false, g_st().curbuf);
             }
         }
 
@@ -3164,8 +3164,8 @@ pub unsafe fn find_script_by_name(name: *mut c_char) -> c_int {
 /// ":scriptnames"
 pub unsafe fn ex_scriptnames(eap: *mut exarg_T) {
     unsafe {
-        let namebuff = (&raw mut NameBuff).cast::<c_char>();
-        let iobuff = (&raw mut IObuff).cast::<c_char>();
+        let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
+        let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
         if (*eap).addr_count > 0 || *(*eap).arg != NUL {
             if (*eap).addr_count > 0 && !script_id_valid((*eap).line2) {
                 emsg(gettext(e_invarg.as_ptr()));
@@ -3184,13 +3184,13 @@ pub unsafe fn ex_scriptnames(eap: *mut exarg_T) {
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
         let mut i = 1;
-        while i <= script_items_len() && !got_int {
+        while i <= script_items_len() && !g_st().got_int {
             let si = script_item(i);
             if let Some(ref sn) = (*si).sn_name {
                 home_replace(ptr::null_mut(), sn.as_ptr(), namebuff, MAXPATHL, true);
                 vim_snprintf!(iobuff, IOSIZE, c"%3d: %s".as_ptr(), i, namebuff);
                 if !message_filtered(iobuff) {
-                    if msg_col > 0 {
+                    if g_st().msg_col > 0 {
                         msg_putchar(b'\n' as c_int);
                     }
                     msg_outtrans(iobuff, 0, false);
@@ -3209,7 +3209,7 @@ pub unsafe fn get_scriptname(
 ) -> std::borrow::Cow<'static, CStr> {
     use std::borrow::Cow;
     unsafe {
-        let iobuff = (&raw mut IObuff).cast::<c_char>();
+        let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
         let ptr = match script_ctx.sc_sid {
             SID_MODELINE => gettext(c"modeline".as_ptr()),
             SID_CMDARG => gettext(c"--cmd argument".as_ptr()),
@@ -3381,15 +3381,15 @@ pub unsafe fn getsourceline(
     do_concat: bool,
 ) -> Option<std::ffi::CString> {
     unsafe {
-        if (*sp).dbg_tick < debug_tick && !(*sp).source_from_buf_or_str {
+        if (*sp).dbg_tick < g_st().debug_tick && !(*sp).source_from_buf_or_str {
             let fname_ptr = (*sp)
                 .fname
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             (*sp).breakpoint = dbg_find_breakpoint(true, fname_ptr, sourcing_lnum());
-            (*sp).dbg_tick = debug_tick;
+            (*sp).dbg_tick = g_st().debug_tick;
         }
-        if do_profiling == PROF_YES {
+        if g_st().do_profiling == PROF_YES {
             script_line_end();
         }
         set_sourcing_lnum((*sp).sourcing_lnum + 1);
@@ -3402,7 +3402,7 @@ pub unsafe fn getsourceline(
             } else {
                 get_one_sourceline(sp)
             };
-        if line_vec.is_some() && do_profiling == PROF_YES {
+        if line_vec.is_some() && g_st().do_profiling == PROF_YES {
             script_line_start();
         }
 
@@ -3462,7 +3462,7 @@ pub unsafe fn getsourceline(
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             dbg_breakpoint(fname_ptr, sourcing_lnum());
             (*sp).breakpoint = dbg_find_breakpoint(true, fname_ptr, sourcing_lnum());
-            (*sp).dbg_tick = debug_tick;
+            (*sp).dbg_tick = g_st().debug_tick;
         }
 
         line

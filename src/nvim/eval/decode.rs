@@ -1344,7 +1344,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
-            crate::globals::emsg_skip += 1;
+            crate::globals::g_st().emsg_skip += 1;
             let mut rettv = typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: VAR_UNLOCKED,
@@ -1408,7 +1408,7 @@ mod tests {
             assert_eq!(rettv.vval.v_bool(), K_BOOL_VAR_TRUE as c_int);
             tv_clear(&mut rettv);
 
-            crate::globals::emsg_skip -= 1;
+            crate::globals::g_st().emsg_skip -= 1;
         }
     }
 }

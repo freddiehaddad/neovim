@@ -499,11 +499,11 @@ pub unsafe fn f_chdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
                 semsg!(gettext(e_invargNval.as_ptr()), c"scope".as_ptr(), s);
                 return;
             }
-        } else if (*curbuf).b_localdir.is_some() {
+        } else if (*g_st().curbuf).b_localdir.is_some() {
             scope = kCdScopeBuffer;
-        } else if (*curwin).w_localdir.is_some() {
+        } else if (**curwin.as_ptr()).w_localdir.is_some() {
             scope = kCdScopeWindow;
-        } else if (*curtab).tp_localdir.is_some() {
+        } else if (*g_st().curtab).tp_localdir.is_some() {
             scope = kCdScopeTabpage;
         }
 
@@ -640,10 +640,10 @@ pub unsafe fn f_filewritable(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
 unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: c_int) {
     unsafe {
         let mut fresult: Option<std::ffi::CString> = None;
-        let mut path = if *(*curbuf).b_p_path == NUL {
+        let mut path = if *(*g_st().curbuf).b_p_path == NUL {
             opt_vars().p_path
         } else {
-            (*curbuf).b_p_path
+            (*g_st().curbuf).b_p_path
         };
         let mut count: c_int = 1;
         let mut first = true;
@@ -690,11 +690,11 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
                     c_int::from(first),
                     path,
                     find_what,
-                    (*curbuf).b_ffname,
+                    (*g_st().curbuf).b_ffname,
                     if find_what == FINDFILE_DIR {
                         c"".as_ptr().cast_mut()
                     } else {
-                        (*curbuf).b_p_sua
+                        (*g_st().curbuf).b_p_sua
                     },
                     &mut file_to_find,
                     &mut search_ctx,
@@ -799,9 +799,9 @@ unsafe fn getcwd_scope_args(
         let mut argc: usize = 0;
 
         *scope = default_scope;
-        *win = curwin;
-        *tp = curtab;
-        *buf = curbuf;
+        *win = *curwin.as_ptr();
+        *tp = g_st().curtab;
+        *buf = g_st().curbuf;
 
         while argc < 3 {
             // If there is no argument there are no more scopes after it, break out.
@@ -963,7 +963,7 @@ pub unsafe fn f_getcwd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             }
         }
         if cur_scope == kCdScopeGlobal {
-            if let Some(ref gdir) = *(&raw const globaldir).as_ref().unwrap() {
+            if let Some(ref gdir) = *(&raw const g_st().globaldir).as_ref().unwrap() {
                 from = gdir.as_ptr();
             } else {
                 cur_scope = kCdScopeInvalid;
@@ -2041,7 +2041,7 @@ pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             }
         } else if (*argvars).v_type != VarType::VAR_BLOB
             && !((*argvars).v_type == VarType::VAR_STRING
-                && (script_is_lua(current_sctx.sc_sid) || current_sctx.sc_sid == SID_API_CLIENT))
+                && (script_is_lua(g_st().current_sctx.sc_sid) || g_st().current_sctx.sc_sid == SID_API_CLIENT))
         {
             semsg!(
                 gettext(e_invarg2.as_ptr()),

@@ -661,13 +661,13 @@ pub unsafe fn get_lambda_tv(
             if prof_def_func() {
                 func_do_profile(fp);
             }
-            if sandbox != 0 {
+            if g_st().sandbox != 0 {
                 flags |= FC_SANDBOX;
             }
             (*fp).uf_varargs = 1;
             (*fp).uf_flags = flags;
             (*fp).uf_calls = 0;
-            (*fp).uf_script_ctx = current_sctx;
+            (*fp).uf_script_ctx = g_st().current_sctx;
             (*fp).uf_script_ctx.sc_lnum += sourcing_lnum() - newlines_len;
 
             (*pt).pt_func = fp;
@@ -876,14 +876,14 @@ unsafe fn fname_trans_sid(
         let mut fname_buflen = 3usize;
         *fname_buf.add(fname_buflen) = NUL;
         if eval_fname_sid(name) {
-            if current_sctx.sc_sid <= 0 {
+            if g_st().current_sctx.sc_sid <= 0 {
                 *error = FCERR_SCRIPT;
             } else {
                 fname_buflen += vim_snprintf!(
                     fname_buf.add(fname_buflen),
                     FLEN_FIXED + 1 - fname_buflen,
                     c"%d_".as_ptr(),
-                    current_sctx.sc_sid,
+                    g_st().current_sctx.sc_sid,
                 ) as usize;
             }
         }
@@ -1083,13 +1083,13 @@ unsafe fn cleanup_function_call(fc: *mut funccall_T) {
             let pfc = &raw mut uf_st().previous_funccal;
             (*pfc).push(RetainedFunccall(Box::from_raw(fc)));
 
-            if want_garbage_collect {
+            if g_st().want_garbage_collect {
                 uf_st().made_copy = 0;
             } else {
                 uf_st().made_copy += 1;
                 if uf_st().made_copy >= ((4096 * 1024) / std::mem::size_of::<funccall_T>()) as c_int {
                     uf_st().made_copy = 0;
-                    want_garbage_collect = true;
+                    g_st().want_garbage_collect = true;
                 }
             }
         }
@@ -1246,9 +1246,9 @@ pub unsafe fn call_user_func(
         line_breakcheck();
 
         let fc = create_funccal(fp, rettv);
-        (*fc).fc_level = ex_nesting_level;
+        (*fc).fc_level = g_st().ex_nesting_level;
         (*fc).fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(fp), 0);
-        (*fc).fc_dbg_tick = debug_tick;
+        (*fc).fc_dbg_tick = g_st().debug_tick;
 
         if strncmp(uf2hikey(fp), c"<lambda>".as_ptr(), 8) == 0 {
             islambda = true;
@@ -1338,7 +1338,7 @@ pub unsafe fn call_user_func(
                     if eval1(
                         &raw mut default_expr,
                         &raw mut def_rettv,
-                        &raw mut EVALARG_EVALUATE,
+                        &raw mut g_st().EVALARG_EVALUATE,
                     ) == FAIL
                     {
                         default_arg_err = true;
@@ -1386,18 +1386,18 @@ pub unsafe fn call_user_func(
             }
         }
 
-        RedrawingDisabled += 1;
+        g_st().RedrawingDisabled += 1;
 
         if ((*fp).uf_flags & FC_SANDBOX) != 0 {
             using_sandbox = true;
-            sandbox += 1;
+            g_st().sandbox += 1;
         }
 
         estack_push_ufunc(fp, 1);
         let es = &raw const rt_st().exestack;
         let estack_len_before = (*es).len() as c_int;
         if opt_vars().p_verbose >= 12 {
-            no_wait_return += 1;
+            g_st().no_wait_return += 1;
             verbose_enter_scroll();
 
             smsg!(0, gettext(c"calling %s".as_ptr()), sourcing_name());
@@ -1411,9 +1411,9 @@ pub unsafe fn call_user_func(
                     if (*arg_tv).v_type == VarType::VAR_NUMBER {
                         msg_outnum((*arg_tv).vval.v_number() as c_int);
                     } else {
-                        emsg_off += 1;
+                        g_st().emsg_off += 1;
                         let tf = encode_tv2string(arg_tv, ptr::null_mut());
-                        emsg_off -= 1;
+                        g_st().emsg_off -= 1;
                         let mut s = tf.as_ptr().cast_mut();
                         let mut buf = [0 as c_char; MSG_BUF_LEN];
                         if vim_strsize(s) > MSG_BUF_CLEN {
@@ -1433,10 +1433,10 @@ pub unsafe fn call_user_func(
             msg_puts(c"\n".as_ptr());
 
             verbose_leave_scroll();
-            no_wait_return -= 1;
+            g_st().no_wait_return -= 1;
         }
 
-        let do_profiling_yes = do_profiling == PROF_YES;
+        let do_profiling_yes = g_st().do_profiling == PROF_YES;
         let func_not_yet_profiling_but_should = do_profiling_yes
             && (*fp).uf_profiling == 0
             && has_profiling(false, uf2hikey(fp), ptr::null_mut());
@@ -1460,13 +1460,13 @@ pub unsafe fn call_user_func(
             script_prof_save(&raw mut wait_start);
         }
 
-        let save_current_sctx = current_sctx;
-        current_sctx = (*fp).uf_script_ctx;
-        let save_did_emsg = did_emsg;
-        did_emsg = 0;
+        let save_current_sctx = g_st().current_sctx;
+        g_st().current_sctx = (*fp).uf_script_ctx;
+        let save_did_emsg = g_st().did_emsg;
+        g_st().did_emsg = 0;
 
-        if default_arg_err && (((*fp).uf_flags & FC_ABORT) != 0 || trylevel > 0) {
-            did_emsg = 1;
+        if default_arg_err && (((*fp).uf_flags & FC_ABORT) != 0 || g_st().trylevel > 0) {
+            g_st().did_emsg = 1;
         } else if islambda {
             let mut p = (&(*fp).uf_lines)[0]
                 .as_ref()
@@ -1474,9 +1474,9 @@ pub unsafe fn call_user_func(
                 .as_ptr()
                 .add(7)
                 .cast_mut();
-            ex_nesting_level += 1;
-            eval1(&raw mut p, rettv, &raw mut EVALARG_EVALUATE);
-            ex_nesting_level -= 1;
+            g_st().ex_nesting_level += 1;
+            eval1(&raw mut p, rettv, &raw mut g_st().EVALARG_EVALUATE);
+            g_st().ex_nesting_level -= 1;
         } else {
             do_cmdline(
                 ptr::null_mut(),
@@ -1487,9 +1487,9 @@ pub unsafe fn call_user_func(
 
         handle_defer_one(uf_st().current_funccal);
 
-        RedrawingDisabled -= 1;
+        g_st().RedrawingDisabled -= 1;
 
-        if (did_emsg != 0 && ((*fp).uf_flags & FC_ABORT) != 0)
+        if (g_st().did_emsg != 0 && ((*fp).uf_flags & FC_ABORT) != 0)
             || (*rettv).v_type == VarType::VAR_UNKNOWN
         {
             tv_clear(rettv);
@@ -1514,7 +1514,7 @@ pub unsafe fn call_user_func(
         }
 
         if opt_vars().p_verbose >= 12 {
-            no_wait_return += 1;
+            g_st().no_wait_return += 1;
             verbose_enter_scroll();
 
             if aborting() {
@@ -1528,9 +1528,9 @@ pub unsafe fn call_user_func(
                 );
             } else {
                 let mut buf = [0 as c_char; MSG_BUF_LEN];
-                emsg_off += 1;
+                g_st().emsg_off += 1;
                 let tf = encode_tv2string((*fc).fc_rettv, ptr::null_mut());
-                emsg_off -= 1;
+                g_st().emsg_off -= 1;
                 let mut s = tf.as_ptr().cast_mut();
                 if vim_strsize(s) > MSG_BUF_CLEN {
                     trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as c_int);
@@ -1541,31 +1541,31 @@ pub unsafe fn call_user_func(
             msg_puts(c"\n".as_ptr());
 
             verbose_leave_scroll();
-            no_wait_return -= 1;
+            g_st().no_wait_return -= 1;
         }
 
         let _ = estack_len_before;
         estack_pop();
-        current_sctx = save_current_sctx;
+        g_st().current_sctx = save_current_sctx;
         if do_profiling_yes {
             script_prof_restore(&raw const wait_start);
         }
         if using_sandbox {
-            sandbox -= 1;
+            g_st().sandbox -= 1;
         }
 
         if opt_vars().p_verbose >= 12 && !sourcing_name().is_null() {
-            no_wait_return += 1;
+            g_st().no_wait_return += 1;
             verbose_enter_scroll();
 
             smsg!(0, gettext(c"continuing in %s".as_ptr()), sourcing_name());
             msg_puts(c"\n".as_ptr());
 
             verbose_leave_scroll();
-            no_wait_return -= 1;
+            g_st().no_wait_return -= 1;
         }
 
-        did_emsg |= save_did_emsg;
+        g_st().did_emsg |= save_did_emsg;
         uf_st().call_depth -= 1;
         for &tv in tv_to_free.iter().take(tv_to_free_len) {
             tv_clear(tv);
@@ -1786,8 +1786,8 @@ pub unsafe fn func_call(
 
         if !skip_call {
             let mut funcexe = funcexe_T::new();
-            funcexe.fe_firstline = (*curwin).w_cursor.lnum;
-            funcexe.fe_lastline = (*curwin).w_cursor.lnum;
+            funcexe.fe_firstline = (**curwin.as_ptr()).w_cursor.lnum;
+            funcexe.fe_lastline = (**curwin.as_ptr()).w_cursor.lnum;
             funcexe.fe_evaluate = true;
             funcexe.fe_partial = partial;
             funcexe.fe_selfdict = selfdict;
@@ -2383,7 +2383,7 @@ pub unsafe fn trans_function_name(
                 .is_some_and(|s| eval_fname_sid(s.as_ptr()))
                 || eval_fname_sid(*pp)
             {
-                if current_sctx.sc_sid <= 0 {
+                if g_st().current_sctx.sc_sid <= 0 {
                     emsg(gettext(e_usingsid.as_ptr()));
                     return None;
                 }
@@ -2391,7 +2391,7 @@ pub unsafe fn trans_function_name(
                     sid_buf.as_mut_ptr(),
                     sid_buf.len(),
                     c"%d_".as_ptr(),
-                    current_sctx.sc_sid,
+                    g_st().current_sctx.sc_sid,
                 ) as usize;
                 lead += sid_buflen as c_int;
             }
@@ -2445,7 +2445,7 @@ pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi
             return None;
         }
 
-        if !crate::runtime::script_id_valid(current_sctx.sc_sid) {
+        if !crate::runtime::script_id_valid(g_st().current_sctx.sc_sid) {
             emsg(gettext(e_usingsid.as_ptr()));
             return None;
         }
@@ -2455,7 +2455,7 @@ pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi
             sid_buf.as_mut_ptr(),
             sid_buf.len(),
             c"<SNR>%d_".as_ptr(),
-            current_sctx.sc_sid,
+            g_st().current_sctx.sc_sid,
         ) as usize;
         let off = if *funcname == b's' as c_char { 2 } else { 5 };
         let newnamesize = sid_buflen + strlen(funcname.add(off)) + 1;
@@ -2509,7 +2509,7 @@ unsafe fn list_functions(regmatch: *mut regmatch_T) {
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
         for fp in funcs {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             let matches = if regmatch.is_null() {
@@ -2566,7 +2566,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
             *p = NUL;
         }
 
-        if (*eap).skip != 0 || got_int {
+        if (*eap).skip != 0 || g_st().got_int {
             return ptr::null_mut();
         }
 
@@ -2584,7 +2584,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
         }
 
         let mut j = 0;
-        while j < (*fp).uf_lines.len() as c_int && !got_int {
+        while j < (*fp).uf_lines.len() as c_int && !g_st().got_int {
             let Some(ref line_cstr) = (&(*fp).uf_lines)[j as usize] else {
                 j += 1;
                 continue;
@@ -2608,7 +2608,7 @@ unsafe fn list_one_function(eap: *mut exarg_T, name: *mut c_char, p: *mut c_char
             j += 1;
         }
 
-        if !got_int {
+        if !g_st().got_int {
             msg_putchar(b'\n' as c_int);
             if !function_list_modified(prev_ht_changed) {
                 msg_puts(if (*eap).forceit != 0 {
@@ -2630,7 +2630,7 @@ unsafe fn get_function_body(
     show_block: bool,
 ) -> c_int {
     unsafe {
-        let mut saved_wait_return = need_wait_return;
+        let mut saved_wait_return = g_st().need_wait_return;
         let mut line_arg = line_arg_in;
         let mut line_to_free: Option<std::ffi::CString> = None;
         let mut indent: c_int = 2;
@@ -2643,11 +2643,11 @@ unsafe fn get_function_body(
         let mut do_concat = true;
 
         loop {
-            if KeyTyped {
-                msg_scroll = 1;
+            if g_st().KeyTyped {
+                g_st().msg_scroll = 1;
                 saved_wait_return = false;
             }
-            need_wait_return = false;
+            g_st().need_wait_return = false;
 
             let theline: *mut c_char;
             let mut p: *mut c_char;
@@ -2672,8 +2672,8 @@ unsafe fn get_function_body(
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             }
-            if KeyTyped {
-                lines_left = Rows - 1;
+            if g_st().KeyTyped {
+                g_st().lines_left = g_st().Rows - 1;
             }
             if theline.is_null() {
                 if let Some(ref marker) = skip_until {
@@ -2684,7 +2684,7 @@ unsafe fn get_function_body(
                 } else {
                     emsg(gettext(c"E126: Missing :endfunction".as_ptr()));
                 }
-                need_wait_return |= saved_wait_return;
+                g_st().need_wait_return |= saved_wait_return;
                 return ret;
             }
             if show_block {
@@ -2918,11 +2918,11 @@ unsafe fn get_function_body(
             }
         }
 
-        if did_emsg == 0 {
+        if g_st().did_emsg == 0 {
             ret = OK;
         }
 
-        need_wait_return |= saved_wait_return;
+        g_st().need_wait_return |= saved_wait_return;
         ret
     }
 }
@@ -2974,13 +2974,13 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
             (*eap).skip = 1;
         }
 
-        let saved_did_emsg = did_emsg;
-        did_emsg = 0;
+        let saved_did_emsg = g_st().did_emsg;
+        g_st().did_emsg = 0;
 
         macro_rules! ret_free {
             () => {{
                 drop(name_owned);
-                did_emsg |= saved_did_emsg;
+                g_st().did_emsg |= saved_did_emsg;
                 if show_block {
                     ui_ext_cmdline_block_leave();
                 }
@@ -3084,7 +3084,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
             errret_2!();
         }
 
-        if KeyTyped && ui_has(kUICmdline) {
+        if g_st().KeyTyped && ui_has(kUICmdline) {
             show_block = true;
             ui_ext_cmdline_block_append(0, (*eap).cmd);
         }
@@ -3117,11 +3117,11 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         if *p == b'\n' as c_char {
             line_arg = p.add(1);
-        } else if *p != NUL && *p != b'"' as c_char && (*eap).skip == 0 && did_emsg == 0 {
+        } else if *p != NUL && *p != b'"' as c_char && (*eap).skip == 0 && g_st().did_emsg == 0 {
             semsg!(gettext(e_trailing_arg.as_ptr()), p);
         }
 
-        if KeyTyped {
+        if g_st().KeyTyped {
             if (*eap).skip == 0 && (*eap).forceit == 0 {
                 if !fudi.fd_dict.is_null() && fudi.fd_newkey.is_none() {
                     emsg(gettext(E_FUNCDICT.as_ptr()));
@@ -3130,14 +3130,14 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                 }
             }
 
-            if (*eap).skip == 0 && did_emsg != 0 {
+            if (*eap).skip == 0 && g_st().did_emsg != 0 {
                 erret!();
             }
 
             if !ui_has(kUICmdline) {
                 msg_putchar(b'\n' as c_int);
             }
-            cmdline_row = msg_row;
+            g_st().cmdline_row = g_st().msg_row;
         }
 
         let sourcing_lnum_top = sourcing_lnum();
@@ -3162,8 +3162,8 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
             fp = find_func(name);
             if !fp.is_null() {
                 if (*eap).forceit == 0
-                    && ((*fp).uf_script_ctx.sc_sid != current_sctx.sc_sid
-                        || (*fp).uf_script_ctx.sc_seq == current_sctx.sc_seq)
+                    && ((*fp).uf_script_ctx.sc_sid != g_st().current_sctx.sc_sid
+                        || (*fp).uf_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
                 {
                     emsg_funcname(E_FUNCEXTS.as_ptr(), name);
                     errret_keep!();
@@ -3289,12 +3289,12 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
             func_do_profile(fp);
         }
         (*fp).uf_varargs = varargs;
-        if sandbox != 0 {
+        if g_st().sandbox != 0 {
             flags |= FC_SANDBOX;
         }
         (*fp).uf_flags = flags;
         (*fp).uf_calls = 0;
-        (*fp).uf_script_ctx = current_sctx;
+        (*fp).uf_script_ctx = g_st().current_sctx;
         (*fp).uf_script_ctx.sc_lnum += sourcing_lnum_top;
         nlua_set_sctx(&raw mut (*fp).uf_script_ctx);
 
@@ -3375,7 +3375,7 @@ pub unsafe fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
                 return uf2hikey(fp);
             }
 
-            let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
+            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
             let mut len = cat_func_name(iobuff_ptr, IOSIZE, fp);
             if (*xp).xp_context != EXPAND_USER_FUNC {
                 xstrlcpy(
@@ -3568,7 +3568,7 @@ pub unsafe fn ex_return(eap: *mut exarg_T) {
         };
 
         if (*eap).skip != 0 {
-            emsg_skip += 1;
+            g_st().emsg_skip += 1;
         }
 
         (*eap).nextcmd = ptr::null_mut();
@@ -3595,7 +3595,7 @@ pub unsafe fn ex_return(eap: *mut exarg_T) {
         }
 
         if (*eap).skip != 0 {
-            emsg_skip -= 1;
+            g_st().emsg_skip -= 1;
         }
         clear_evalarg(&raw mut evalarg, eap);
     }
@@ -3614,13 +3614,13 @@ unsafe fn ex_call_inner(
 
         for lnum in (*eap).line1..=(*eap).line2 {
             if (*eap).addr_count > 0 {
-                if lnum > (*curbuf).b_ml.ml_line_count {
+                if lnum > (*g_st().curbuf).b_ml.ml_line_count {
                     emsg(gettext(e_invrange.as_ptr()));
                     break;
                 }
-                (*curwin).w_cursor.lnum = lnum;
-                (*curwin).w_cursor.col = 0;
-                (*curwin).w_cursor.coladd = 0;
+                (**curwin.as_ptr()).w_cursor.lnum = lnum;
+                (**curwin.as_ptr()).w_cursor.col = 0;
+                (**curwin.as_ptr()).w_cursor.coladd = 0;
             }
             *arg = startarg;
 
@@ -3636,7 +3636,7 @@ unsafe fn ex_call_inner(
             if handle_subscript(
                 arg.cast::<*const c_char>(),
                 &raw mut rettv,
-                &raw mut EVALARG_EVALUATE,
+                &raw mut g_st().EVALARG_EVALUATE,
                 true,
             ) == FAIL
             {
@@ -3842,11 +3842,11 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
         fill_evalarg_from_eap(&raw mut evalarg, eap, (*eap).skip != 0);
         if (*eap).skip != 0 {
             let mut rettv: typval_T = typval_T::new();
-            emsg_skip += 1;
+            g_st().emsg_skip += 1;
             if eval0((*eap).arg, &raw mut rettv, eap, &raw mut evalarg) != FAIL {
                 tv_clear(&raw mut rettv);
             }
-            emsg_skip -= 1;
+            g_st().emsg_skip -= 1;
             clear_evalarg(&raw mut evalarg, eap);
             return;
         }
@@ -3913,12 +3913,12 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
             )
         };
 
-        if (!aborting() || did_throw)
+        if (!aborting() || g_st().did_throw)
             && (!failed || (*(*eap).cstack.cast::<cstack_T>()).cs_trylevel > 0)
         {
             if ends_excmd(*arg as c_int) == 0 {
                 if !failed && !aborting() {
-                    emsg_severe = true;
+                    g_st().emsg_severe = true;
                     semsg!(gettext(e_trailing_arg.as_ptr()), arg);
                 }
             } else {
@@ -3985,7 +3985,7 @@ pub unsafe fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
             (c"".as_ptr(), 0)
         };
 
-        let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
+        let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         xstrlcpy(iobuff_ptr, c":return ".as_ptr(), IOSIZE);
         xstrlcpy(iobuff_ptr.add(8), s, IOSIZE - 8);
         let mut iobuff_len = 8 + slen;
@@ -4012,17 +4012,17 @@ pub unsafe fn get_func_line(
         let fp = (*fcp).fc_func;
         let retval: Option<std::ffi::CString>;
 
-        if (*fcp).fc_dbg_tick != debug_tick {
+        if (*fcp).fc_dbg_tick != g_st().debug_tick {
             (*fcp).fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(fp), sourcing_lnum());
-            (*fcp).fc_dbg_tick = debug_tick;
+            (*fcp).fc_dbg_tick = g_st().debug_tick;
         }
-        if do_profiling == PROF_YES {
+        if g_st().do_profiling == PROF_YES {
             func_line_end(fcp);
         }
 
         let lines = &(*fp).uf_lines;
         let lines_len = lines.len() as c_int;
-        if (((*fp).uf_flags & FC_ABORT) != 0 && did_emsg != 0 && !aborted_in_try())
+        if (((*fp).uf_flags & FC_ABORT) != 0 && g_st().did_emsg != 0 && !aborted_in_try())
             || (*fcp).fc_returned != 0
         {
             retval = None;
@@ -4037,7 +4037,7 @@ pub unsafe fn get_func_line(
                 (*fcp).fc_linenr += 1;
                 retval = line;
                 set_sourcing_lnum((*fcp).fc_linenr);
-                if do_profiling == PROF_YES {
+                if g_st().do_profiling == PROF_YES {
                     func_line_start(fcp);
                 }
             }
@@ -4047,7 +4047,7 @@ pub unsafe fn get_func_line(
         if (*fcp).fc_breakpoint != 0 && (*fcp).fc_breakpoint <= cur_lnum {
             dbg_breakpoint(uf2hikey(fp), cur_lnum);
             (*fcp).fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(fp), sourcing_lnum());
-            (*fcp).fc_dbg_tick = debug_tick;
+            (*fcp).fc_dbg_tick = g_st().debug_tick;
         }
 
         retval
@@ -4056,7 +4056,7 @@ pub unsafe fn get_func_line(
 
 pub unsafe fn func_has_ended(fcp: *mut funccall_T) -> c_int {
     unsafe {
-        if (((*(*fcp).fc_func).uf_flags & FC_ABORT) != 0 && did_emsg != 0 && !aborted_in_try())
+        if (((*(*fcp).fc_func).uf_flags & FC_ABORT) != 0 && g_st().did_emsg != 0 && !aborted_in_try())
             || (*fcp).fc_returned != 0
         {
             1
@@ -4188,13 +4188,13 @@ pub unsafe fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
 pub unsafe fn get_funccal() -> *mut funccall_T {
     unsafe {
         let mut funccal = uf_st().current_funccal;
-        if debug_backtrace_level > 0 {
-            for i in 0..debug_backtrace_level {
+        if g_st().debug_backtrace_level > 0 {
+            for i in 0..g_st().debug_backtrace_level {
                 let temp_funccal = (*funccal).fc_caller;
                 if !temp_funccal.is_null() {
                     funccal = temp_funccal;
                 } else {
-                    debug_backtrace_level = i;
+                    g_st().debug_backtrace_level = i;
                     break;
                 }
             }
@@ -4451,7 +4451,7 @@ pub unsafe fn set_ref_in_functions(copyID: c_int) -> bool {
     unsafe {
         let ht = &raw const uf_st().func_hashtab;
         for &fp in (*ht).values() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             if !func_name_refcount(uf2hikey(fp)) && set_ref_in_func(ptr::null_mut(), fp, copyID) {
@@ -4516,7 +4516,7 @@ pub unsafe fn register_luafunc(ref_: LuaRef) -> *mut c_char {
         (*fp).uf_varargs = 1;
         (*fp).uf_flags = FC_LUAREF;
         (*fp).uf_calls = 0;
-        (*fp).uf_script_ctx = current_sctx;
+        (*fp).uf_script_ctx = g_st().current_sctx;
         (*fp).uf_luaref = ref_;
 
         func_hashtab_add(fp);

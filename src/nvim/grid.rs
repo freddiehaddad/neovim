@@ -523,8 +523,8 @@ pub unsafe fn grid_line_start(view: *mut GridView, mut row: c_int) {
 
 pub unsafe fn screengrid_line_start(grid: *mut ScreenGrid, row: c_int, col: c_int) {
     unsafe {
-        let lbuf_char_ptr = &raw mut linebuf_char;
-        let lbuf_attr_ptr = &raw mut linebuf_attr;
+        let lbuf_char_ptr = &raw mut g_st().linebuf_char;
+        let lbuf_attr_ptr = &raw mut g_st().linebuf_attr;
         let linebuf_size = (*lbuf_char_ptr).len();
         grid_st().grid_line_maxcol = (*grid).cols;
         assert!(grid_st().grid_line_grid.is_null());
@@ -541,7 +541,7 @@ pub unsafe fn screengrid_line_start(grid: *mut ScreenGrid, row: c_int, col: c_in
 
         assert!(grid_st().grid_line_maxcol as usize <= linebuf_size);
 
-        if full_screen && (opt_vars().rdb_flags & kOptRdbFlagInvalid) != 0 {
+        if g_st().full_screen && (opt_vars().rdb_flags & kOptRdbFlagInvalid) != 0 {
             assert!(linebuf_size > 0);
             (&mut *lbuf_char_ptr).fill(u32::MAX);
             (&mut *lbuf_attr_ptr).fill(-1);
@@ -572,12 +572,12 @@ pub unsafe fn grid_line_put_schar(col: c_int, schar: schar_T, attr: c_int) {
             return;
         }
 
-        linebuf_char[col as usize] = schar;
-        linebuf_attr[col as usize] = attr;
+        g_st().linebuf_char[col as usize] = schar;
+        g_st().linebuf_attr[col as usize] = attr;
 
         grid_st().grid_line_first = grid_st().grid_line_first.min(col);
         grid_st().grid_line_last = grid_st().grid_line_last.max(col + 1);
-        linebuf_vcol[col as usize] = -1;
+        g_st().linebuf_vcol[col as usize] = -1;
     }
 }
 
@@ -616,18 +616,18 @@ pub unsafe fn grid_line_puts(
             if ptr::eq(ci.ptr, text)
                 && col > grid_st().grid_line_first
                 && col < grid_st().grid_line_last
-                && linebuf_char[col as usize] == 0
+                && g_st().linebuf_char[col as usize] == 0
             {
-                linebuf_char[(col - 1) as usize] = schar_from_ascii(b'>');
+                g_st().linebuf_char[(col - 1) as usize] = schar_from_ascii(b'>');
             }
 
-            linebuf_char[col as usize] = schar;
-            linebuf_attr[col as usize] = attr;
-            linebuf_vcol[col as usize] = -1;
+            g_st().linebuf_char[col as usize] = schar;
+            g_st().linebuf_attr[col as usize] = attr;
+            g_st().linebuf_vcol[col as usize] = -1;
             if mbyte_cells == 2 {
-                linebuf_char[(col + 1) as usize] = 0;
-                linebuf_attr[(col + 1) as usize] = attr;
-                linebuf_vcol[(col + 1) as usize] = -1;
+                g_st().linebuf_char[(col + 1) as usize] = 0;
+                g_st().linebuf_attr[(col + 1) as usize] = attr;
+                g_st().linebuf_vcol[(col + 1) as usize] = -1;
             }
 
             col += mbyte_cells;
@@ -656,9 +656,9 @@ pub unsafe fn grid_line_fill(
         }
 
         for col in start_col..end_col {
-            linebuf_char[col as usize] = sc;
-            linebuf_attr[col as usize] = attr;
-            linebuf_vcol[col as usize] = -1;
+            g_st().linebuf_char[col as usize] = sc;
+            g_st().linebuf_attr[col as usize] = attr;
+            g_st().linebuf_vcol[col as usize] = -1;
         }
 
         grid_st().grid_line_first = grid_st().grid_line_first.min(start_col);
@@ -722,7 +722,7 @@ pub unsafe fn linebuf_mirror(
         let scratch_ptr = (*scratch).as_mut_ptr();
         let scratch_char = scratch_ptr.cast::<schar_T>();
         ptr::copy_nonoverlapping(
-            &raw const linebuf_char[first as usize],
+            &raw const g_st().linebuf_char[first as usize],
             scratch_char.add(first as usize),
             n,
         );
@@ -730,33 +730,33 @@ pub unsafe fn linebuf_mirror(
         while col < last {
             let rev = mirror - col;
             if col + 1 < last && *scratch_char.add((col + 1) as usize) == 0 {
-                linebuf_char[(rev - 1) as usize] = *scratch_char.add(col as usize);
-                linebuf_char[rev as usize] = 0;
+                g_st().linebuf_char[(rev - 1) as usize] = *scratch_char.add(col as usize);
+                g_st().linebuf_char[rev as usize] = 0;
                 col += 1;
             } else {
-                linebuf_char[rev as usize] = *scratch_char.add(col as usize);
+                g_st().linebuf_char[rev as usize] = *scratch_char.add(col as usize);
             }
             col += 1;
         }
 
         let scratch_attr = scratch_ptr.cast::<sattr_T>();
         ptr::copy_nonoverlapping(
-            &raw const linebuf_attr[first as usize],
+            &raw const g_st().linebuf_attr[first as usize],
             scratch_attr.add(first as usize),
             n,
         );
         for c in first..last {
-            linebuf_attr[(mirror - c) as usize] = *scratch_attr.add(c as usize);
+            g_st().linebuf_attr[(mirror - c) as usize] = *scratch_attr.add(c as usize);
         }
 
         let scratch_vcol = scratch_ptr.cast::<colnr_T>();
         ptr::copy_nonoverlapping(
-            &raw const linebuf_vcol[first as usize],
+            &raw const g_st().linebuf_vcol[first as usize],
             scratch_vcol.add(first as usize),
             n,
         );
         for c in first..last {
-            linebuf_vcol[(mirror - c) as usize] = *scratch_vcol.add(c as usize);
+            g_st().linebuf_vcol[(mirror - c) as usize] = *scratch_vcol.add(c as usize);
         }
 
         *firstp = width - *clearp;
@@ -836,11 +836,11 @@ unsafe fn grid_char_needs_redraw(
     unsafe {
         let grid = &*grid;
         cols > 0
-            && ((linebuf_char[col as usize] != grid.chars[off_to]
-                || linebuf_attr[col as usize] != grid.attrs[off_to]
+            && ((g_st().linebuf_char[col as usize] != grid.chars[off_to]
+                || g_st().linebuf_attr[col as usize] != grid.attrs[off_to]
                 || (cols > 1
-                    && linebuf_char[(col + 1) as usize] == 0
-                    && linebuf_char[(col + 1) as usize] != grid.chars[off_to + 1]))
+                    && g_st().linebuf_char[(col + 1) as usize] == 0
+                    && g_st().linebuf_char[(col + 1) as usize] != grid.chars[off_to + 1]))
                 || (opt_vars().rdb_flags & kOptRdbFlagNodelta) != 0)
     }
 }
@@ -869,15 +869,15 @@ pub unsafe fn grid_put_linebuf(
             return;
         }
 
-        let invalid_row = !ptr::eq(grid_ptr, &raw const default_grid)
+        let invalid_row = !ptr::eq(grid_ptr, &raw const g_st().default_grid)
             && grid_invalid_row(grid_ptr, row)
             && col == 0;
         let off_to = grid.line_offset[row as usize] + coloff as usize;
         let max_off_to = grid.line_offset[row as usize] + grid.cols as usize;
 
         if col > 0 && grid.chars[off_to + col as usize] == 0 {
-            linebuf_char[(col - 1) as usize] = schar_from_ascii(b'>');
-            linebuf_attr[(col - 1) as usize] = grid.attrs[off_to + col as usize - 1];
+            g_st().linebuf_char[(col - 1) as usize] = schar_from_ascii(b'>');
+            g_st().linebuf_attr[(col - 1) as usize] = grid.attrs[off_to + col as usize - 1];
             col -= 1;
         }
 
@@ -890,12 +890,12 @@ pub unsafe fn grid_put_linebuf(
         }
 
         if opt_vars().p_arshape != 0 && opt_vars().p_tbidi == 0 && endcol > col {
-            line_do_arabic_shape(&raw mut linebuf_char[col as usize], endcol - col);
+            line_do_arabic_shape(&raw mut g_st().linebuf_char[col as usize], endcol - col);
         }
 
         if bg_attr != 0 {
             for c in col..endcol {
-                linebuf_attr[c as usize] = hl_combine_attr(bg_attr, linebuf_attr[c as usize]);
+                g_st().linebuf_attr[c as usize] = hl_combine_attr(bg_attr, g_st().linebuf_attr[c as usize]);
             }
         }
 
@@ -907,7 +907,7 @@ pub unsafe fn grid_put_linebuf(
 
         while col < endcol {
             let mut char_cells: c_int = 1;
-            if col + 1 < endcol && linebuf_char[(col + 1) as usize] == 0 {
+            if col + 1 < endcol && g_st().linebuf_char[(col + 1) as usize] == 0 {
                 char_cells = 2;
             }
             let redraw_this = redraw_next;
@@ -931,20 +931,20 @@ pub unsafe fn grid_put_linebuf(
                     clear_next = true;
                 }
 
-                grid.chars[off] = linebuf_char[col as usize];
+                grid.chars[off] = g_st().linebuf_char[col as usize];
                 if char_cells == 2 {
-                    grid.chars[off + 1] = linebuf_char[(col + 1) as usize];
+                    grid.chars[off + 1] = g_st().linebuf_char[(col + 1) as usize];
                 }
 
-                grid.attrs[off] = linebuf_attr[col as usize];
+                grid.attrs[off] = g_st().linebuf_attr[col as usize];
                 if char_cells == 2 {
-                    grid.attrs[off + 1] = linebuf_attr[col as usize];
+                    grid.attrs[off + 1] = g_st().linebuf_attr[col as usize];
                 }
             }
 
-            grid.vcols[off] = linebuf_vcol[col as usize];
+            grid.vcols[off] = g_st().linebuf_vcol[col as usize];
             if char_cells == 2 {
-                grid.vcols[off + 1] = linebuf_vcol[(col + 1) as usize];
+                grid.vcols[off + 1] = g_st().linebuf_vcol[(col + 1) as usize];
             }
 
             col += char_cells;
@@ -1098,11 +1098,11 @@ pub unsafe fn grid_alloc(
         *grid = ngrid;
 
         let cols = columns as usize;
-        let lbuf_char = &raw const linebuf_char;
+        let lbuf_char = &raw const g_st().linebuf_char;
         if (*lbuf_char).len() < cols {
-            linebuf_char = vec![0; cols];
-            linebuf_attr = vec![0; cols];
-            linebuf_vcol = vec![0; cols];
+            g_st().linebuf_char = vec![0; cols];
+            g_st().linebuf_attr = vec![0; cols];
+            g_st().linebuf_vcol = vec![0; cols];
             grid_st().linebuf_scratch = vec![0; cols];
         }
     }
@@ -1119,12 +1119,12 @@ pub unsafe fn grid_free(grid: *mut ScreenGrid) {
 
 pub unsafe fn grid_free_all_mem() {
     unsafe {
-        grid_free(&raw mut default_grid);
-        grid_free(&raw mut msg_grid);
-        msg_grid.dirty_col = Vec::new();
-        linebuf_char = Vec::new();
-        linebuf_attr = Vec::new();
-        linebuf_vcol = Vec::new();
+        grid_free(&raw mut g_st().default_grid);
+        grid_free(&raw mut g_st().msg_grid);
+        g_st().msg_grid.dirty_col = Vec::new();
+        g_st().linebuf_char = Vec::new();
+        g_st().linebuf_attr = Vec::new();
+        g_st().linebuf_vcol = Vec::new();
         grid_st().linebuf_scratch = Vec::new();
         let keys_ptr = &raw mut grid_st().glyph_cache_keys;
         *keys_ptr = Vec::new();
@@ -1184,12 +1184,12 @@ pub unsafe fn win_grid_alloc(wp: *mut win_T) {
             (*grid).row_offset = (*wp).w_winrow_off;
             (*grid).col_offset = (*wp).w_wincol_off;
         } else {
-            (*grid).target = &raw mut default_grid;
+            (*grid).target = &raw mut g_st().default_grid;
             (*grid).row_offset = (*wp).w_winrow + (*wp).w_winrow_off;
             (*grid).col_offset = (*wp).w_wincol + (*wp).w_wincol_off;
         }
 
-        if (resizing_screen || was_resized) && want_allocation {
+        if (g_st().resizing_screen || was_resized) && want_allocation {
             ui_call_grid_resize(
                 i64::from((*grid_allocated).handle),
                 i64::from((*grid_allocated).cols),
@@ -1516,7 +1516,7 @@ unsafe fn linecopy(grid: *mut ScreenGrid, to: c_int, from: c_int, col: c_int, wi
 
 pub unsafe fn get_win_by_grid_handle(handle: handle_T) -> *mut win_T {
     unsafe {
-        let mut wp = firstwin;
+        let mut wp = g_st().firstwin;
         while !wp.is_null() {
             if (*wp).w_grid_alloc.handle == handle {
                 return wp;

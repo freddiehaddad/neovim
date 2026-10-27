@@ -716,7 +716,7 @@ unsafe fn get_opt_idx(opt: *mut vimoption_T) -> OptIndex {
 
 #[inline]
 unsafe fn get_varp(p: *mut vimoption_T) -> *mut c_void {
-    unsafe { get_varp_from(p, curbuf, curwin) }
+    unsafe { get_varp_from(p, g_st().curbuf, *curwin.as_ptr()) }
 }
 
 pub unsafe fn set_init_tablocal() {
@@ -896,7 +896,7 @@ unsafe fn set_init_expand_env() {
 /// Initialize the encoding used for "default" in 'fileencodings'.
 unsafe fn set_init_fenc_default() {
     unsafe {
-        fenc_default = Some(enc_locale().unwrap_or_else(|| c"utf-8".to_owned()));
+        g_st().fenc_default = Some(enc_locale().unwrap_or_else(|| c"utf-8".to_owned()));
     }
 }
 
@@ -940,13 +940,13 @@ pub unsafe fn set_init_1(clean_arg: bool) {
 
         set_options_default(0);
 
-        (*curbuf).b_p_initialized = true;
-        (*curbuf).b_p_ac = -1;
-        (*curbuf).b_p_ar = -1;
-        (*curbuf).b_p_fs = -1;
-        (*curbuf).b_p_ul = NO_LOCAL_UNDOLEVEL;
-        check_buf_options(curbuf);
-        check_win_options(curwin);
+        (*g_st().curbuf).b_p_initialized = true;
+        (*g_st().curbuf).b_p_ac = -1;
+        (*g_st().curbuf).b_p_ar = -1;
+        (*g_st().curbuf).b_p_fs = -1;
+        (*g_st().curbuf).b_p_ul = NO_LOCAL_UNDOLEVEL;
+        check_buf_options(g_st().curbuf);
+        check_win_options(*curwin.as_ptr());
         check_options();
 
         last_status(false);
@@ -961,7 +961,7 @@ pub unsafe fn set_init_1(clean_arg: bool) {
             set_option_value_give_err(kOptTtyfast, boolean_obj(false), 0);
         }
 
-        save_file_ff(curbuf);
+        save_file_ff(g_st().curbuf);
 
         if os_env_exists(c"MLTERM".as_ptr(), false) {
             set_option_value_give_err(kOptTermbidi, boolean_obj(true), 0);
@@ -1034,17 +1034,17 @@ unsafe fn set_option_default(opt_idx: OptIndex, opt_flags: c_int) {
     unsafe {
         let both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
         let def_val = get_option_default(opt_idx, opt_flags);
-        set_option_direct(opt_idx, def_val, opt_flags, current_sctx.sc_sid);
+        set_option_direct(opt_idx, def_val, opt_flags, g_st().current_sctx.sc_sid);
         optval_free_read(opt_idx, def_val);
 
         if opt_idx == kOptScroll {
-            win_comp_scroll(curwin);
+            win_comp_scroll(*curwin.as_ptr());
         }
 
-        let mut flagsp = insecure_flag(curwin, opt_idx, opt_flags);
+        let mut flagsp = insecure_flag(*curwin.as_ptr(), opt_idx, opt_flags);
         *flagsp &= !kOptFlagInsecure;
         if both {
-            flagsp = insecure_flag(curwin, opt_idx, OPT_LOCAL);
+            flagsp = insecure_flag(*curwin.as_ptr(), opt_idx, OPT_LOCAL);
             *flagsp &= !kOptFlagInsecure;
         }
     }
@@ -1059,10 +1059,10 @@ unsafe fn set_options_default(opt_flags: c_int) {
             }
         }
 
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
@@ -1073,7 +1073,7 @@ unsafe fn set_options_default(opt_flags: c_int) {
             tp = (*tp).tp_next;
         }
 
-        parse_cino(curbuf);
+        parse_cino(g_st().curbuf);
     }
 }
 
@@ -1147,7 +1147,7 @@ pub unsafe fn free_all_options() {
         free_operatorfunc_option();
         free_tagfunc_option();
         free_findfunc_option();
-        fenc_default = None;
+        g_st().fenc_default = None;
         opt_st().P_TERM = None;
         opt_st().P_TTYTYPE = None;
     }
@@ -1172,9 +1172,9 @@ pub unsafe fn set_init_2(_headless: bool) {
         comp_col();
 
         if !option_was_set(kOptWindow) {
-            opt_vars().p_window = OptInt::from(Rows - 1);
+            opt_vars().p_window = OptInt::from(g_st().Rows - 1);
         }
-        change_option_default(kOptWindow, integer_obj(OptInt::from(Rows - 1)));
+        change_option_default(kOptWindow, integer_obj(OptInt::from(g_st().Rows - 1)));
     }
 }
 
@@ -1218,7 +1218,7 @@ pub unsafe fn set_init_3() {
             break;
         }
 
-        if buf_is_empty(curbuf) && ((*get_option(kOptFileformats)).flags & kOptFlagWasSet) != 0 {
+        if buf_is_empty(g_st().curbuf) && ((*get_option(kOptFileformats)).flags & kOptFlagWasSet) != 0 {
             set_fileformat(default_fileformat(), OPT_LOCAL);
         }
 
@@ -1777,7 +1777,7 @@ unsafe fn validate_opt_idx(
             }
         }
 
-        if sandbox != 0 && (flags & kOptFlagSecure) != 0 {
+        if g_st().sandbox != 0 && (flags & kOptFlagSecure) != 0 {
             *errmsg = e_sandbox.as_ptr();
             return FAIL;
         }
@@ -2034,7 +2034,7 @@ unsafe fn do_one_set_option(
         let varp = get_varp_scope(opt, opt_flags);
 
         let mut errmsg: *const c_char = ptr::null();
-        if validate_opt_idx(curwin, opt_idx, opt_flags, flags, prefix, &raw mut errmsg) == FAIL {
+        if validate_opt_idx(*curwin.as_ptr(), opt_idx, opt_flags, flags, prefix, &raw mut errmsg) == FAIL {
             return errmsg;
         }
 
@@ -2078,12 +2078,12 @@ unsafe fn do_one_set_option(
                     last_set_msg((*opt).script_ctx);
                 } else if option_has_scope(opt_idx, kOptScopeWin) {
                     last_set_msg(
-                        (*curwin).w_onebuf_opt.wo_script_ctx
+                        (**curwin.as_ptr()).w_onebuf_opt.wo_script_ctx
                             [option_scope_idx(opt_idx, kOptScopeWin) as usize],
                     );
                 } else if option_has_scope(opt_idx, kOptScopeBuf) {
                     last_set_msg(
-                        (*curbuf).b_p_script_ctx[option_scope_idx(opt_idx, kOptScopeBuf) as usize],
+                        (*g_st().curbuf).b_p_script_ctx[option_scope_idx(opt_idx, kOptScopeBuf) as usize],
                     );
                 }
             }
@@ -2179,7 +2179,7 @@ pub unsafe fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
                     }
 
                     if !errmsg.is_null() {
-                        let iobuf_ptr = (&raw mut IObuff).cast::<c_char>();
+                        let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
                         let i = (vim_snprintf!(iobuf_ptr, IOSIZE, c"%s".as_ptr(), tr(errmsg)) + 2)
                             as isize;
                         let arg_len = arg.offset_from(startarg);
@@ -2195,9 +2195,9 @@ pub unsafe fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
                         }
                         trans_characters(iobuf_ptr, IOSIZE as c_int);
 
-                        no_wait_return += 1;
+                        g_st().no_wait_return += 1;
                         emsg(iobuf_ptr);
-                        no_wait_return -= 1;
+                        g_st().no_wait_return -= 1;
 
                         return FAIL;
                     }
@@ -2207,12 +2207,12 @@ pub unsafe fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
             }
         }
 
-        if silent_mode && did_show {
-            silent_mode = false;
-            info_message = true;
+        if g_st().silent_mode && did_show {
+            g_st().silent_mode = false;
+            g_st().info_message = true;
             msg_putchar(b'\n' as c_int);
-            silent_mode = true;
-            info_message = false;
+            g_st().silent_mode = true;
+            g_st().info_message = false;
         }
 
         OK
@@ -2265,7 +2265,7 @@ pub unsafe fn string_to_key(arg: *mut c_char) -> c_int {
 
 pub unsafe fn did_set_title() {
     unsafe {
-        if starting != NO_SCREEN {
+        if *starting.as_ptr() != NO_SCREEN {
             maketitle();
         }
     }
@@ -2277,10 +2277,10 @@ pub unsafe fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int) {
         if newval != 0 {
             if oldval == 0 {
                 if (opt_flags & OPT_GLOBAL) == 0 {
-                    (*curbuf).b_p_tw_nobin = (*curbuf).b_p_tw;
-                    (*curbuf).b_p_wm_nobin = (*curbuf).b_p_wm;
-                    (*curbuf).b_p_ml_nobin = (*curbuf).b_p_ml;
-                    (*curbuf).b_p_et_nobin = (*curbuf).b_p_et;
+                    (*g_st().curbuf).b_p_tw_nobin = (*g_st().curbuf).b_p_tw;
+                    (*g_st().curbuf).b_p_wm_nobin = (*g_st().curbuf).b_p_wm;
+                    (*g_st().curbuf).b_p_ml_nobin = (*g_st().curbuf).b_p_ml;
+                    (*g_st().curbuf).b_p_et_nobin = (*g_st().curbuf).b_p_et;
                 }
                 if (opt_flags & OPT_LOCAL) == 0 {
                     opt_st().P_TW_NOBIN = opt_vars().p_tw;
@@ -2291,10 +2291,10 @@ pub unsafe fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int) {
             }
 
             if (opt_flags & OPT_GLOBAL) == 0 {
-                (*curbuf).b_p_tw = 0;
-                (*curbuf).b_p_wm = 0;
-                (*curbuf).b_p_ml = 0;
-                (*curbuf).b_p_et = 0;
+                (*g_st().curbuf).b_p_tw = 0;
+                (*g_st().curbuf).b_p_wm = 0;
+                (*g_st().curbuf).b_p_ml = 0;
+                (*g_st().curbuf).b_p_et = 0;
             }
             if (opt_flags & OPT_LOCAL) == 0 {
                 opt_vars().p_tw = 0;
@@ -2305,10 +2305,10 @@ pub unsafe fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int) {
             }
         } else if oldval != 0 {
             if (opt_flags & OPT_GLOBAL) == 0 {
-                (*curbuf).b_p_tw = (*curbuf).b_p_tw_nobin;
-                (*curbuf).b_p_wm = (*curbuf).b_p_wm_nobin;
-                (*curbuf).b_p_ml = (*curbuf).b_p_ml_nobin;
-                (*curbuf).b_p_et = (*curbuf).b_p_et_nobin;
+                (*g_st().curbuf).b_p_tw = (*g_st().curbuf).b_p_tw_nobin;
+                (*g_st().curbuf).b_p_wm = (*g_st().curbuf).b_p_wm_nobin;
+                (*g_st().curbuf).b_p_ml = (*g_st().curbuf).b_p_ml_nobin;
+                (*g_st().curbuf).b_p_et = (*g_st().curbuf).b_p_et_nobin;
             }
             if (opt_flags & OPT_LOCAL) == 0 {
                 opt_vars().p_tw = opt_st().P_TW_NOBIN;
@@ -2340,7 +2340,7 @@ unsafe fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_cha
 
         let var = (*opt).var.cast::<*mut c_char>();
         let esc = var == &raw mut opt_vars().p_tags || var == &raw mut opt_vars().p_path;
-        let namebuf_ptr = (&raw mut NameBuff).cast::<c_char>();
+        let namebuf_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
         expand_env_esc(
             val,
             namebuf_ptr,
@@ -2368,7 +2368,7 @@ unsafe fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_cha
 /// After setting various option values: recompute variables that depend on option values.
 unsafe fn didset_options() {
     unsafe {
-        buf_init_isk_chartab(curbuf);
+        buf_init_isk_chartab(g_st().curbuf);
         init_isf_chartab();
         init_isi_chartab();
 
@@ -2379,12 +2379,12 @@ unsafe fn didset_options() {
         if spell_check_sps(opt_vars().p_sps, &raw mut sps_flags, &raw mut sps_limit) == OK {
             spell_apply_sps(sps_flags, sps_limit);
         }
-        let ws = (*curwin).w_s_ptr();
+        let ws = (**curwin.as_ptr()).w_s_ptr();
         compile_cap_prog((*ws).b_p_spc, &mut (*ws).b_cap_prog);
         did_set_spell_option();
         did_set_cedit(ptr::null_mut());
         did_set_breakat(ptr::null_mut());
-        didset_window_options(curwin, true);
+        didset_window_options(*curwin.as_ptr(), true);
     }
 }
 
@@ -2393,27 +2393,27 @@ unsafe fn didset_options2() {
         highlight_changed();
 
         set_chars_option(
-            curwin,
-            (*curwin).w_onebuf_opt.wo_fcs,
+            *curwin.as_ptr(),
+            (**curwin.as_ptr()).w_onebuf_opt.wo_fcs,
             CharsOption::kFillchars,
             true,
             None,
         );
         set_chars_option(
-            curwin,
-            (*curwin).w_onebuf_opt.wo_lcs,
+            *curwin.as_ptr(),
+            (**curwin.as_ptr()).w_onebuf_opt.wo_lcs,
             CharsOption::kListchars,
             true,
             None,
         );
 
-        check_opt_wim(opt_vars().p_wim, (&raw mut wim_flags).cast::<u8>());
+        check_opt_wim(opt_vars().p_wim, (&raw mut g_st().wim_flags).cast::<u8>());
         tabstop_set(
-            (*curbuf).b_p_vsts,
-            &mut (*curbuf).b_p_vsts_array,
+            (*g_st().curbuf).b_p_vsts,
+            &mut (*g_st().curbuf).b_p_vsts_array,
             None,
         );
-        tabstop_set((*curbuf).b_p_vts, &mut (*curbuf).b_p_vts_array, None);
+        tabstop_set((*g_st().curbuf).b_p_vts, &mut (*g_st().curbuf).b_p_vts_array, None);
     }
 }
 
@@ -2485,8 +2485,8 @@ pub unsafe fn insecure_flag(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int)
 /// Redraw the window title and/or tab page text later.
 pub unsafe fn redraw_titles() {
     unsafe {
-        need_maketitle = true;
-        redraw_tabline = true;
+        g_st().need_maketitle = true;
+        g_st().redraw_tabline = true;
     }
 }
 
@@ -2624,13 +2624,13 @@ pub unsafe fn set_option_sctx(opt_idx: OptIndex, opt_flags: c_int, mut script_ct
         }
         if both || (opt_flags & OPT_LOCAL) != 0 {
             if option_has_scope(opt_idx, kOptScopeBuf) {
-                (*curbuf).b_p_script_ctx[option_scope_idx(opt_idx, kOptScopeBuf) as usize] =
+                (*g_st().curbuf).b_p_script_ctx[option_scope_idx(opt_idx, kOptScopeBuf) as usize] =
                     script_ctx;
             } else if option_has_scope(opt_idx, kOptScopeWin) {
                 let win_idx = option_scope_idx(opt_idx, kOptScopeWin) as usize;
-                (*curwin).w_onebuf_opt.wo_script_ctx[win_idx] = script_ctx;
+                (**curwin.as_ptr()).w_onebuf_opt.wo_script_ctx[win_idx] = script_ctx;
                 if both {
-                    (*curwin).w_allbuf_opt.wo_script_ctx[win_idx] = script_ctx;
+                    (**curwin.as_ptr()).w_allbuf_opt.wo_script_ctx[win_idx] = script_ctx;
                 }
             }
         }
@@ -2647,7 +2647,7 @@ pub unsafe fn apply_optionset_autocmd_now(
     newval: Object,
 ) {
     unsafe {
-        if starting != 0 || *get_vim_var_str(VV_OPTION_TYPE) != NUL {
+        if *starting.as_ptr() != 0 || *get_vim_var_str(VV_OPTION_TYPE) != NUL {
             return;
         }
 
@@ -2725,11 +2725,11 @@ unsafe fn apply_optionset_autocmd(
     newval: Object,
 ) {
     unsafe {
-        if starting != 0 {
+        if *starting.as_ptr() != 0 {
             return;
         }
         if opt_idx == kOptModified {
-            aucmd_defer_modified(curbuf, newval.data.boolean());
+            aucmd_defer_modified(g_st().curbuf, newval.data.boolean());
             return;
         }
         apply_optionset_autocmd_now(opt_idx, opt_flags, oldval, oldval_g, oldval_l, newval);
@@ -2835,14 +2835,14 @@ pub unsafe fn did_set_cmdheight(args: *mut optset_T) -> *const c_char {
     unsafe {
         let old_value = (*args).os_oldval.data.integer();
 
-        if opt_vars().p_ch > OptInt::from(Rows - min_rows(curtab) + 1) {
-            opt_vars().p_ch = OptInt::from(Rows - min_rows(curtab) + 1);
+        if opt_vars().p_ch > OptInt::from(g_st().Rows - min_rows(g_st().curtab) + 1) {
+            opt_vars().p_ch = OptInt::from(g_st().Rows - min_rows(g_st().curtab) + 1);
         }
 
         if (opt_vars().p_ch != old_value
-            || OptInt::from(tabline_height() + global_stl_height() + (*topframe).fr_height)
-                != OptInt::from(Rows) - opt_vars().p_ch)
-            && full_screen
+            || OptInt::from(tabline_height() + global_stl_height() + (*g_st().topframe).fr_height)
+                != OptInt::from(g_st().Rows) - opt_vars().p_ch)
+            && g_st().full_screen
         {
             command_height();
         }
@@ -2890,7 +2890,7 @@ pub unsafe fn did_set_foldenable(args: *mut optset_T) -> *const c_char {
             && foldmethodIsDiff(win)
             && (*win).w_onebuf_opt.wo_scb != 0
         {
-            let mut wp = firstwin;
+            let mut wp = g_st().firstwin;
             while !wp.is_null() {
                 if wp != win && foldmethodIsDiff(wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
                     (*wp).w_onebuf_opt.wo_fen = (*win).w_onebuf_opt.wo_fen;
@@ -2933,7 +2933,7 @@ pub unsafe fn did_set_foldnestmax(args: *mut optset_T) -> *const c_char {
 /// Multicursor: handle updates to 'follow' option.
 pub unsafe fn did_set_follow(args: *mut optset_T) -> *const c_char {
     unsafe {
-        if (*args).os_buf == curbuf {
+        if (*args).os_buf == g_st().curbuf {
             atom_follow_changed();
         }
         ptr::null()
@@ -2943,9 +2943,9 @@ pub unsafe fn did_set_follow(args: *mut optset_T) -> *const c_char {
 /// Process the new 'helpheight' option value.
 pub unsafe fn did_set_helpheight(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        if !(*firstwin).w_next.is_null()
-            && (*curbuf).b_help
-            && OptInt::from((*curwin).w_height) < opt_vars().p_hh
+        if !(*g_st().firstwin).w_next.is_null()
+            && (*g_st().curbuf).b_help
+            && OptInt::from((**curwin.as_ptr()).w_height) < opt_vars().p_hh
         {
             win_setheight(opt_vars().p_hh as c_int);
         }
@@ -3004,19 +3004,19 @@ pub unsafe fn did_set_laststatus(args: *mut optset_T) -> *const c_char {
 
         if value == 3 && old_value != 3 {
             frame_new_height(
-                topframe,
-                (*topframe).fr_height - STATUS_HEIGHT,
+                g_st().topframe,
+                (*g_st().topframe).fr_height - STATUS_HEIGHT,
                 false,
                 false,
                 false,
             );
             win_comp_pos();
-            clear_cmdline = true;
+            g_st().clear_cmdline = true;
         }
         if old_value == 3 && value != 3 {
             frame_new_height(
-                topframe,
-                (*topframe).fr_height + STATUS_HEIGHT,
+                g_st().topframe,
+                (*g_st().topframe).fr_height + STATUS_HEIGHT,
                 false,
                 false,
                 false,
@@ -3034,28 +3034,28 @@ pub unsafe fn did_set_laststatus(args: *mut optset_T) -> *const c_char {
 /// Process the updated 'lines' or 'columns' option value.
 pub unsafe fn did_set_lines_or_columns(args: *mut optset_T) -> *const c_char {
     unsafe {
-        if opt_vars().p_lines != OptInt::from(Rows) || opt_vars().p_columns != OptInt::from(Columns) {
-            if updating_screen {
+        if opt_vars().p_lines != OptInt::from(g_st().Rows) || opt_vars().p_columns != OptInt::from(g_st().Columns) {
+            if g_st().updating_screen {
                 let oldval = integer_obj((*args).os_oldval.data.integer());
                 set_option_varp((*args).os_idx, (*args).os_varp, oldval);
-            } else if full_screen {
+            } else if g_st().full_screen {
                 screen_resize(opt_vars().p_columns as c_int, opt_vars().p_lines as c_int);
             } else {
-                Rows = opt_vars().p_lines as c_int;
-                Columns = opt_vars().p_columns as c_int;
+                g_st().Rows = opt_vars().p_lines as c_int;
+                g_st().Columns = opt_vars().p_columns as c_int;
                 check_screensize();
-                let new_row = (OptInt::from(Rows) - opt_vars().p_ch.max(1)) as c_int;
-                if cmdline_row > new_row && OptInt::from(Rows) > opt_vars().p_ch {
-                    cmdline_row = new_row;
+                let new_row = (OptInt::from(g_st().Rows) - opt_vars().p_ch.max(1)) as c_int;
+                if g_st().cmdline_row > new_row && OptInt::from(g_st().Rows) > opt_vars().p_ch {
+                    g_st().cmdline_row = new_row;
                 }
             }
-            if opt_vars().p_window >= OptInt::from(Rows) || !option_was_set(kOptWindow) {
-                opt_vars().p_window = OptInt::from(Rows - 1);
+            if opt_vars().p_window >= OptInt::from(g_st().Rows) || !option_was_set(kOptWindow) {
+                opt_vars().p_window = OptInt::from(g_st().Rows - 1);
             }
         }
 
-        if opt_vars().p_sj >= OptInt::from(Rows) && full_screen {
-            opt_vars().p_sj = OptInt::from(Rows / 2);
+        if opt_vars().p_sj >= OptInt::from(g_st().Rows) && g_st().full_screen {
+            opt_vars().p_sj = OptInt::from(g_st().Rows / 2);
         }
 
         ptr::null()
@@ -3117,7 +3117,7 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
         let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         if opt_vars().p_paste != 0 {
             if opt_st().OLD_P_PASTE == 0 {
-                let mut buf = firstbuf;
+                let mut buf = g_st().firstbuf;
                 while !buf.is_null() {
                     (*buf).b_p_tw_nopaste = (*buf).b_p_tw;
                     (*buf).b_p_wm_nopaste = (*buf).b_p_wm;
@@ -3149,7 +3149,7 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
                 };
             }
 
-            let mut buf = firstbuf;
+            let mut buf = g_st().firstbuf;
             while !buf.is_null() {
                 (*buf).b_p_tw = 0;
                 (*buf).b_p_wm = 0;
@@ -3181,7 +3181,7 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
             }
             opt_vars().p_vsts = empty_opt;
         } else if opt_st().OLD_P_PASTE != 0 {
-            let mut buf = firstbuf;
+            let mut buf = g_st().firstbuf;
             while !buf.is_null() {
                 (*buf).b_p_tw = (*buf).b_p_tw_nopaste;
                 (*buf).b_p_wm = (*buf).b_p_wm_nopaste;
@@ -3239,13 +3239,13 @@ pub unsafe fn validate_previewwindow(args: *mut optset_T) -> *const c_char {
             return ptr::null();
         }
         let win = (*args).os_win;
-        let tab = if win == curwin {
-            curtab
+        let tab = if win == *curwin.as_ptr() {
+            g_st().curtab
         } else {
             win_find_tabpage(win)
         };
-        let mut wp = if tab == curtab {
-            firstwin
+        let mut wp = if tab == g_st().curtab {
+            g_st().firstwin
         } else {
             (*tab).tp_firstwin
         };
@@ -3276,7 +3276,7 @@ pub unsafe fn did_set_readonly(args: *mut optset_T) -> *const c_char {
         let buf = (*args).os_buf;
 
         if (*buf).b_p_ro == 0 && ((*args).os_flags & OPT_LOCAL) == 0 {
-            readonlymode = false;
+            g_st().readonlymode = false;
         }
 
         if (*buf).b_p_ro != 0 {
@@ -3379,10 +3379,10 @@ pub unsafe fn did_set_swapfile(args: *mut optset_T) -> *const c_char {
 /// Process the new 'textwidth' option value.
 pub unsafe fn did_set_textwidth(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
@@ -3408,8 +3408,8 @@ pub unsafe fn did_set_title_icon(_args: *mut optset_T) -> *const c_char {
 pub unsafe fn did_set_titlelen(args: *mut optset_T) -> *const c_char {
     unsafe {
         let old_value = (*args).os_oldval.data.integer();
-        if starting != NO_SCREEN && old_value != opt_vars().p_titlelen {
-            need_maketitle = true;
+        if *starting.as_ptr() != NO_SCREEN && old_value != opt_vars().p_titlelen {
+            g_st().need_maketitle = true;
         }
         ptr::null()
     }
@@ -3426,7 +3426,7 @@ pub unsafe fn did_set_undofile(args: *mut optset_T) -> *const c_char {
 
         let mut hash = [0u8; UNDO_HASH_SIZE];
 
-        let mut bp = firstbuf;
+        let mut bp = g_st().firstbuf;
         while !bp.is_null() {
             if (buf == bp || ((*args).os_flags & OPT_GLOBAL) != 0 || (*args).os_flags == 0)
                 && !bufIsChanged(bp)
@@ -3534,8 +3534,8 @@ pub unsafe fn did_set_winblend(args: *mut optset_T) -> *const c_char {
 /// Process the new 'window' option value.
 pub unsafe fn did_set_window(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        if opt_vars().p_window < 1 || opt_vars().p_window >= OptInt::from(Rows) {
-            opt_vars().p_window = OptInt::from(Rows - 1);
+        if opt_vars().p_window < 1 || opt_vars().p_window >= OptInt::from(g_st().Rows) {
+            opt_vars().p_window = OptInt::from(g_st().Rows - 1);
         }
         ptr::null()
     }
@@ -3544,7 +3544,7 @@ pub unsafe fn did_set_window(_args: *mut optset_T) -> *const c_char {
 /// Process the new 'winheight' value.
 pub unsafe fn did_set_winheight(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        if !(*firstwin).w_next.is_null() && OptInt::from((*curwin).w_height) < opt_vars().p_wh {
+        if !(*g_st().firstwin).w_next.is_null() && OptInt::from((**curwin.as_ptr()).w_height) < opt_vars().p_wh {
             win_setheight(opt_vars().p_wh as c_int);
         }
         ptr::null()
@@ -3554,7 +3554,7 @@ pub unsafe fn did_set_winheight(_args: *mut optset_T) -> *const c_char {
 /// Process the new 'winwidth' option value.
 pub unsafe fn did_set_winwidth(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        if !(*firstwin).w_next.is_null() && OptInt::from((*curwin).w_width) < opt_vars().p_wiw {
+        if !(*g_st().firstwin).w_next.is_null() && OptInt::from((**curwin.as_ptr()).w_width) < opt_vars().p_wiw {
             win_setwidth(opt_vars().p_wiw as c_int);
         }
         ptr::null()
@@ -3652,14 +3652,14 @@ unsafe fn check_num_option_bounds(
         match opt_idx {
             kOptLines => {
                 let min_r = min_rows_for_all_tabpages();
-                if *newval < OptInt::from(min_r) && full_screen {
+                if *newval < OptInt::from(min_r) && g_st().full_screen {
                     errmsg = opt_error_int(errbuf, c"E593: Need at least %d lines".as_ptr(), min_r);
                     *newval = OptInt::from(min_r);
                 }
                 *newval = (*newval).min(OptInt::from(c_int::MAX));
             }
             kOptColumns => {
-                if *newval < OptInt::from(MIN_COLUMNS) && full_screen {
+                if *newval < OptInt::from(MIN_COLUMNS) && g_st().full_screen {
                     errmsg = opt_error_int(
                         errbuf,
                         c"E594: Need at least %d columns".as_ptr(),
@@ -3673,7 +3673,7 @@ unsafe fn check_num_option_bounds(
                 *newval = (*newval).clamp(0, 100);
             }
             kOptScrolljump => {
-                if (*newval < -100 || *newval >= OptInt::from(Rows)) && full_screen {
+                if (*newval < -100 || *newval >= OptInt::from(g_st().Rows)) && g_st().full_screen {
                     errmsg = e_scroll.as_ptr();
                     *newval = 1;
                 }
@@ -3682,7 +3682,7 @@ unsafe fn check_num_option_bounds(
                 if (*newval <= 0
                     || (*newval > OptInt::from((*win).w_view_height)
                         && (*win).w_view_height > 0))
-                    && full_screen =>
+                    && g_st().full_screen =>
             {
                 if *newval != 0 {
                     errmsg = e_scroll.as_ptr();
@@ -3776,7 +3776,7 @@ unsafe fn validate_num_option(
                 }
             }
             kOptScrolloff => {
-                if value < 0 && full_screen {
+                if value < 0 && g_st().full_screen {
                     return e_positive.as_ptr();
                 }
             }
@@ -3786,7 +3786,7 @@ unsafe fn validate_num_option(
                 }
             }
             kOptSidescrolloff => {
-                if value < 0 && full_screen {
+                if value < 0 && g_st().full_screen {
                     return e_positive.as_ptr();
                 }
             }
@@ -3865,7 +3865,7 @@ pub unsafe fn check_redraw_for(buf: *mut buf_T, win: *mut win_T, flags: u32) {
         }
 
         if (flags & kOptFlagRedrTabl) != 0 || all {
-            redraw_tabline = true;
+            g_st().redraw_tabline = true;
         }
 
         if (flags & kOptFlagRedrBuf) != 0 || (flags & kOptFlagRedrWin) != 0 || all {
@@ -3886,7 +3886,7 @@ pub unsafe fn check_redraw_for(buf: *mut buf_T, win: *mut win_T, flags: u32) {
 
 pub unsafe fn check_redraw(flags: u32) {
     unsafe {
-        check_redraw_for(curbuf, curwin, flags);
+        check_redraw_for(g_st().curbuf, *curwin.as_ptr(), flags);
     }
 }
 
@@ -3898,11 +3898,11 @@ pub unsafe fn is_tty_option(name: *const c_char) -> bool {
 pub unsafe fn get_tty_option(name: *const c_char) -> Object {
     unsafe {
         if strequal(name, c"t_Co".as_ptr()) {
-            if t_colors <= 1 {
+            if g_st().t_colors <= 1 {
                 cstr_to_obj(c"".as_ptr())
             } else {
                 let mut value = [0 as c_char; NUMBUFLEN];
-                vim_snprintf!(value.as_mut_ptr(), NUMBUFLEN, c"%d".as_ptr(), t_colors);
+                vim_snprintf!(value.as_mut_ptr(), NUMBUFLEN, c"%d".as_ptr(), g_st().t_colors);
                 cstr_to_obj(value.as_ptr())
             }
         } else if strequal(name, c"term".as_ptr()) {
@@ -5333,7 +5333,7 @@ pub unsafe fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
             };
         }
 
-        if varp.cast::<c_int>() == &raw mut (*curbuf).b_changed {
+        if varp.cast::<c_int>() == &raw mut (*g_st().curbuf).b_changed {
             return boolean_obj(curbufIsChanged());
         }
 
@@ -5690,7 +5690,7 @@ unsafe fn did_set_option(
 
         if direct {
             // Don't do any extra processing if setting directly.
-        } else if (secure != 0 || sandbox != 0) && ((*opt).flags & kOptFlagSecure) != 0 {
+        } else if (g_st().secure != 0 || g_st().sandbox != 0) && ((*opt).flags & kOptFlagSecure) != 0 {
             errmsg = e_secure.as_ptr();
         } else if (*args).os_newval.obj_type == ObjectType::kObjectTypeString
             && !is_callback_option(opt_idx)
@@ -5711,7 +5711,7 @@ unsafe fn did_set_option(
 
         if set_sid != SID_NONE {
             let script_ctx = if set_sid == 0 {
-                current_sctx
+                g_st().current_sctx
             } else {
                 sctx_T {
                     sc_sid: set_sid,
@@ -5744,15 +5744,15 @@ unsafe fn did_set_option(
             return errmsg;
         }
 
-        let ws = (*curwin).w_s_ptr();
-        if varp == (&raw mut (*curbuf).b_p_syn).cast::<c_void>() {
-            do_syntax_autocmd(curbuf, (*args).os_value_changed);
-        } else if varp == (&raw mut (*curbuf).b_p_ft).cast::<c_void>() {
+        let ws = (**curwin.as_ptr()).w_s_ptr();
+        if varp == (&raw mut (*g_st().curbuf).b_p_syn).cast::<c_void>() {
+            do_syntax_autocmd(g_st().curbuf, (*args).os_value_changed);
+        } else if varp == (&raw mut (*g_st().curbuf).b_p_ft).cast::<c_void>() {
             if (opt_flags & OPT_MODELINE) == 0 || (*args).os_value_changed {
-                do_filetype_autocmd(curbuf, (*args).os_value_changed);
+                do_filetype_autocmd(g_st().curbuf, (*args).os_value_changed);
             }
         } else if varp == (&raw mut (*ws).b_p_spl).cast::<c_void>() {
-            do_spelllang_source(curwin);
+            do_spelllang_source(*curwin.as_ptr());
         }
 
         comp_col();
@@ -5760,12 +5760,12 @@ unsafe fn did_set_option(
         if varp == (&raw mut opt_vars().p_mouse).cast::<c_void>() {
             setmouse();
         } else if (varp == (&raw mut opt_vars().p_flp).cast::<c_void>()
-            || varp == (&raw mut (*curbuf).b_p_flp).cast::<c_void>())
-            && (*curwin).w_briopt_list != 0
+            || varp == (&raw mut (*g_st().curbuf).b_p_flp).cast::<c_void>())
+            && (**curwin.as_ptr()).w_briopt_list != 0
         {
             redraw_all_later(UPD_NOT_VALID);
         } else if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>()
-            || varp == (&raw mut (*curwin).w_onebuf_opt.wo_wbr).cast::<c_void>()
+            || varp == (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_wbr).cast::<c_void>()
         {
             if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>() {
                 set_winbar_all(true);
@@ -5774,11 +5774,11 @@ unsafe fn did_set_option(
             }
         }
 
-        if (*curwin).w_curswant != MAXCOL
+        if (**curwin.as_ptr()).w_curswant != MAXCOL
             && ((*opt).flags & (kOptFlagCurswant | kOptFlagRedrAll)) != 0
             && ((*opt).flags & kOptFlagHLOnly) == 0
         {
-            (*curwin).w_set_curswant = true;
+            (**curwin.as_ptr()).w_set_curswant = true;
         }
 
         check_redraw((*opt).flags);
@@ -5786,9 +5786,9 @@ unsafe fn did_set_option(
         if errmsg.is_null() {
             (*opt).flags |= kOptFlagWasSet;
 
-            let flagsp = insecure_flag(curwin, opt_idx, opt_flags);
+            let flagsp = insecure_flag(*curwin.as_ptr(), opt_idx, opt_flags);
             let flagsp_local = if scope_both {
-                insecure_flag(curwin, opt_idx, OPT_LOCAL)
+                insecure_flag(*curwin.as_ptr(), opt_idx, OPT_LOCAL)
             } else {
                 ptr::null_mut()
             };
@@ -5921,13 +5921,13 @@ unsafe fn set_option(
             os_value_changed: false,
             os_restore_chartab: false,
             os_errbuf: errbuf,
-            os_win: curwin,
-            os_buf: curbuf,
+            os_win: *curwin.as_ptr(),
+            os_buf: g_st().curbuf,
         };
 
         let opt = get_option(opt_idx);
         if !direct {
-            if (secure != 0 || sandbox != 0) && ((*opt).flags & kOptFlagSecure) != 0 {
+            if (g_st().secure != 0 || g_st().sandbox != 0) && ((*opt).flags & kOptFlagSecure) != 0 {
                 optval_free(value);
                 return e_secure.as_ptr();
             }
@@ -6022,14 +6022,14 @@ unsafe fn set_option(
             };
         }
 
-        let secure_saved = secure;
+        let secure_saved = g_st().secure;
 
-        let value_untrusted = secure != 0
-            || sandbox != 0
+        let value_untrusted = g_st().secure != 0
+            || g_st().sandbox != 0
             || (opt_flags & OPT_MODELINE) != 0
-            || (!value_replaced && was_set_insecurely(curwin, opt_idx, opt_flags) != 0);
-        if secure == 0 && value_untrusted {
-            secure = 1;
+            || (!value_replaced && was_set_insecurely(*curwin.as_ptr(), opt_idx, opt_flags) != 0);
+        if g_st().secure == 0 && value_untrusted {
+            g_st().secure = 1;
         }
 
         set_option_varp(opt_idx, varp, value);
@@ -6042,8 +6042,8 @@ unsafe fn set_option(
         args.os_varp = varp;
         args.os_oldval = old_value;
         args.os_newval = value;
-        args.os_buf = curbuf;
-        args.os_win = curwin;
+        args.os_buf = g_st().curbuf;
+        args.os_win = *curwin.as_ptr();
         errmsg = did_set_option(
             &raw mut args,
             set_sid,
@@ -6053,10 +6053,10 @@ unsafe fn set_option(
         );
         args.os_prep = crate::optionstr::OptSetPrep::None;
 
-        secure = secure_saved;
+        g_st().secure = secure_saved;
 
         if errmsg.is_null() && !direct {
-            if starting == 0 {
+            if *starting.as_ptr() == 0 {
                 apply_optionset_autocmd(
                     opt_idx,
                     opt_flags,
@@ -6115,25 +6115,25 @@ pub unsafe fn set_option_direct_for(
     target: OptTarget,
 ) {
     unsafe {
-        let save_curbuf = curbuf;
-        let save_curwin = curwin;
+        let save_curbuf = g_st().curbuf;
+        let save_curwin = *curwin.as_ptr();
 
         match target {
             OptTarget::Global => {}
             OptTarget::Win(win) => {
-                curwin = win;
-                curbuf = (*curwin).w_buffer;
+                *curwin.as_ptr() = win;
+                g_st().curbuf = (**curwin.as_ptr()).w_buffer;
             }
             OptTarget::Buf(buf) => {
-                curbuf = buf;
+                g_st().curbuf = buf;
             }
             OptTarget::Tab(_) => std::process::abort(),
         }
 
         set_option_direct(opt_idx, value, opt_flags, set_sid);
 
-        curwin = save_curwin;
-        curbuf = save_curbuf;
+        *curwin.as_ptr() = save_curwin;
+        g_st().curbuf = save_curbuf;
     }
 }
 
@@ -6149,7 +6149,7 @@ pub unsafe fn set_option_value(
         assert!(opt_idx != kOptInvalid);
 
         let flags = (*get_option(opt_idx)).flags;
-        if sandbox > 0 && (flags & kOptFlagSecure) != 0 {
+        if g_st().sandbox > 0 && (flags & kOptFlagSecure) != 0 {
             return tr(e_sandbox.as_ptr());
         }
 
@@ -6217,7 +6217,7 @@ unsafe fn switch_option_context(
                 let OptTarget::Win(win) = from else {
                     return false;
                 };
-                if win == curwin {
+                if win == *curwin.as_ptr() {
                     return false;
                 }
                 let mut cs = CtxSwitch::new();
@@ -6245,7 +6245,7 @@ unsafe fn switch_option_context(
                 let OptTarget::Buf(buf) = from else {
                     return false;
                 };
-                if buf == curbuf {
+                if buf == g_st().curbuf {
                     return false;
                 }
                 let mut cs = CtxSwitch::new();
@@ -6257,11 +6257,11 @@ unsafe fn switch_option_context(
                 let OptTarget::Tab(tab) = from else {
                     return false;
                 };
-                if tab == curtab {
+                if tab == g_st().curtab {
                     return false;
                 }
-                *ctx = OptSavedCtx::Tab(curtab);
-                unuse_tabpage(curtab);
+                *ctx = OptSavedCtx::Tab(g_st().curtab);
+                unuse_tabpage(g_st().curtab);
                 use_tabpage(tab);
                 true
             }
@@ -6278,7 +6278,7 @@ unsafe fn restore_option_context(ctx: &mut OptSavedCtx, scope: OptScope) {
                 ctx_restore(cs);
             }
             (kOptScopeTab, OptSavedCtx::Tab(saved_curtab)) => {
-                unuse_tabpage(curtab);
+                unuse_tabpage(g_st().curtab);
                 use_tabpage(*saved_curtab);
             }
             _ => {}
@@ -6324,7 +6324,7 @@ pub unsafe fn set_option_value_for(
 ) {
     unsafe {
         if let (kOptScopeTab, OptTarget::Tab(tab)) = (scope, from)
-            && tab != curtab
+            && tab != g_st().curtab
         {
             assert!(opt_idx == kOptCmdheight);
             if value.obj_type != ObjectType::kObjectTypeInteger {
@@ -6379,7 +6379,7 @@ unsafe fn showoptions(all: bool, opt_flags: c_int) {
         }
 
         let mut run = 1;
-        while run <= 2 && !got_int {
+        while run <= 2 && !g_st().got_int {
             items.clear();
             for opt_idx in 0..kOptCount {
                 let opt = get_option(opt_idx);
@@ -6397,13 +6397,13 @@ unsafe fn showoptions(all: bool, opt_flags: c_int) {
                 }
                 if !varp.is_null() && (all || optval_default(opt_idx, varp) == 0) {
                     let len = if (opt_flags & OPT_ONECOLUMN) != 0 {
-                        Columns
+                        g_st().Columns
                     } else if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
                         1
                     } else {
                         optval_fmt(opt_idx, opt_flags);
                         ((*opt).fullname.to_bytes().len() as c_int)
-                            + vim_strsize((&raw const NameBuff).cast())
+                            + vim_strsize((&raw const g_st().NameBuff).cast())
                             + 1
                     };
                     if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
@@ -6414,7 +6414,7 @@ unsafe fn showoptions(all: bool, opt_flags: c_int) {
 
             let item_count = items.len();
             let rows = if run == 1 {
-                let mut cols = (Columns + GAP - 3) / INC;
+                let mut cols = (g_st().Columns + GAP - 3) / INC;
                 if cols == 0 {
                     cols = 1;
                 }
@@ -6424,9 +6424,9 @@ unsafe fn showoptions(all: bool, opt_flags: c_int) {
             };
 
             let mut row = 0;
-            while row < rows && !got_int {
+            while row < rows && !g_st().got_int {
                 msg_putchar(b'\n' as c_int);
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
                 let mut col: c_int = 0;
@@ -6480,10 +6480,10 @@ pub unsafe fn ui_refresh_options() {
 
 unsafe fn showoneopt(opt: *mut vimoption_T, opt_flags: c_int) {
     unsafe {
-        let save_silent = silent_mode;
+        let save_silent = g_st().silent_mode;
 
-        silent_mode = false;
-        info_message = true;
+        g_st().silent_mode = false;
+        g_st().info_message = true;
 
         let opt_idx = get_opt_idx(opt);
         let varp = get_varp_scope(opt, opt_flags);
@@ -6491,7 +6491,7 @@ unsafe fn showoneopt(opt: *mut vimoption_T, opt_flags: c_int) {
         if option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
             let val_int = if (*opt).immutable {
                 c_int::from((*opt).def_val.data.boolean())
-            } else if varp.cast::<c_int>() == &raw mut (*curbuf).b_changed {
+            } else if varp.cast::<c_int>() == &raw mut (*g_st().curbuf).b_changed {
                 c_int::from(curbufIsChanged())
             } else {
                 *(varp.cast::<c_int>())
@@ -6510,14 +6510,14 @@ unsafe fn showoneopt(opt: *mut vimoption_T, opt_flags: c_int) {
         if !option_has_type(opt_idx, ObjectType::kObjectTypeBoolean) {
             msg_putchar(b'=' as c_int);
             optval_fmt(opt_idx, opt_flags);
-            let namebuf_ptr = (&raw const NameBuff).cast::<c_char>();
+            let namebuf_ptr = (&raw const g_st().NameBuff).cast::<c_char>();
             if *namebuf_ptr != NUL {
                 msg_outtrans(namebuf_ptr, 0, false);
             }
         }
 
-        silent_mode = save_silent;
-        info_message = false;
+        g_st().silent_mode = save_silent;
+        g_st().info_message = false;
     }
 }
 
@@ -6616,49 +6616,49 @@ pub unsafe fn makefoldset(fd: *mut FILE) -> c_int {
             fd,
             cmd,
             kOptFoldmethod,
-            (&raw mut (*curwin).w_onebuf_opt.wo_fdm).cast(),
+            (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdm).cast(),
         ) == FAIL
             || put_set(
                 fd,
                 cmd,
                 kOptFoldexpr,
-                (&raw mut (*curwin).w_onebuf_opt.wo_fde).cast(),
+                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fde).cast(),
             ) == FAIL
             || put_set(
                 fd,
                 cmd,
                 kOptFoldmarker,
-                (&raw mut (*curwin).w_onebuf_opt.wo_fmr).cast(),
+                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fmr).cast(),
             ) == FAIL
             || put_set(
                 fd,
                 cmd,
                 kOptFoldignore,
-                (&raw mut (*curwin).w_onebuf_opt.wo_fdi).cast(),
+                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdi).cast(),
             ) == FAIL
             || put_set(
                 fd,
                 cmd,
                 kOptFoldlevel,
-                (&raw mut (*curwin).w_onebuf_opt.wo_fdl).cast(),
+                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdl).cast(),
             ) == FAIL
             || put_set(
                 fd,
                 cmd,
                 kOptFoldminlines,
-                (&raw mut (*curwin).w_onebuf_opt.wo_fml).cast(),
+                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fml).cast(),
             ) == FAIL
             || put_set(
                 fd,
                 cmd,
                 kOptFoldnestmax,
-                (&raw mut (*curwin).w_onebuf_opt.wo_fdn).cast(),
+                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fdn).cast(),
             ) == FAIL
             || put_set(
                 fd,
                 cmd,
                 kOptFoldenable,
-                (&raw mut (*curwin).w_onebuf_opt.wo_fen).cast(),
+                (&raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_fen).cast(),
             ) == FAIL
         {
             return FAIL;
@@ -6851,7 +6851,7 @@ pub unsafe fn get_varp_scope_from(
 
 /// Get pointer to option variable, depending on local or global scope.
 pub unsafe fn get_varp_scope(p: *mut vimoption_T, opt_flags: c_int) -> *mut c_void {
-    unsafe { get_varp_scope_from(p, opt_flags, curbuf, curwin) }
+    unsafe { get_varp_scope_from(p, opt_flags, g_st().curbuf, *curwin.as_ptr()) }
 }
 
 /// Get pointer to option variable at 'opt_idx', depending on local or global scope.
@@ -7249,10 +7249,10 @@ pub unsafe fn get_varp_from(p: *mut vimoption_T, buf: *mut buf_T, win: *mut win_
 /// Get the value of 'equalprg', either the buffer-local one or the global one.
 pub unsafe fn get_equalprg() -> *mut c_char {
     unsafe {
-        if *(*curbuf).b_p_ep == NUL {
+        if *(*g_st().curbuf).b_p_ep == NUL {
             opt_vars().p_ep
         } else {
-            (*curbuf).b_p_ep
+            (*g_st().curbuf).b_p_ep
         }
     }
 }
@@ -7260,8 +7260,8 @@ pub unsafe fn get_equalprg() -> *mut c_char {
 /// Get the value of 'findfunc', either the buffer-local one or the global one.
 pub unsafe fn get_findfunc() -> *mut Callback {
     unsafe {
-        if (*curbuf).b_p_ffu.cb_type() != kCallbackNone {
-            &raw mut (*curbuf).b_p_ffu
+        if (*g_st().curbuf).b_p_ffu.cb_type() != kCallbackNone {
+            &raw mut (*g_st().curbuf).b_p_ffu
         } else {
             &raw mut opt_vars().p_ffu
         }
@@ -7566,7 +7566,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_p_ml_nobin = opt_st().P_ML_NOBIN;
                 (*buf).b_p_inf = opt_vars().p_inf;
                 copy_opt_sctx(buf, kBufOptInfercase);
-                if (cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
+                if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
                     (*buf).b_p_swf = 0;
                 } else {
                     (*buf).b_p_swf = opt_vars().p_swf;
@@ -7746,7 +7746,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
 /// Reset the 'modifiable' option and its default value.
 pub unsafe fn reset_modifiable() {
     unsafe {
-        (*curbuf).b_p_ma = 0;
+        (*g_st().curbuf).b_p_ma = 0;
         opt_vars().p_ma = 0;
         change_option_default(kOptModifiable, boolean_obj(false));
     }
@@ -8137,7 +8137,7 @@ pub unsafe fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> c_int {
                 return OK;
             }
             optval_fmt(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS);
-            (&raw mut NameBuff).cast::<c_char>()
+            (&raw mut g_st().NameBuff).cast::<c_char>()
         } else {
             c"".as_ptr().cast_mut()
         };
@@ -8175,7 +8175,7 @@ pub unsafe fn ExpandStringSetting(
         };
 
         optval_fmt(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS);
-        let buf = escape_option_str_cmdline((&raw mut NameBuff).cast::<c_char>());
+        let buf = escape_option_str_cmdline((&raw mut g_st().NameBuff).cast::<c_char>());
         args.oe_opt_value = buf.as_ptr().cast_mut();
 
         expand_cb(&raw mut args, matches)
@@ -8197,7 +8197,7 @@ pub unsafe fn ExpandSettingSubtract(
         }
 
         let option_val =
-            *(get_option_varp_scope_from(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS, curbuf, curwin)
+            *(get_option_varp_scope_from(opt_st().EXPAND_OPTION_IDX, opt_st().EXPAND_OPTION_FLAGS, g_st().curbuf, *curwin.as_ptr())
                 .cast::<*mut c_char>());
 
         let option_flags = (*get_option(opt_st().EXPAND_OPTION_IDX)).flags;
@@ -8275,7 +8275,7 @@ unsafe fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
         let varp = get_varp_scope(opt, opt_flags);
         assert!(!varp.is_null());
 
-        let namebuf_ptr = (&raw mut NameBuff).cast::<c_char>();
+        let namebuf_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
         let mut wc: OptInt = 0;
         if wc_use_keyname(varp.cast::<OptInt>(), &raw mut wc) != 0 {
             xstrlcpy(namebuf_ptr, get_special_key_name(wc as c_int, 0), MAXPATHL);
@@ -8433,7 +8433,7 @@ pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: *mut Callback
 unsafe fn didset_options_sctx(opt_flags: c_int, opts: &[c_int]) {
     unsafe {
         for &opt_idx in opts {
-            set_option_sctx(opt_idx, opt_flags, current_sctx);
+            set_option_sctx(opt_idx, opt_flags, g_st().current_sctx);
         }
     }
 }
@@ -8441,7 +8441,7 @@ unsafe fn didset_options_sctx(opt_flags: c_int, opts: &[c_int]) {
 /// Check if backspacing over something is allowed.
 pub unsafe fn can_bs(what: c_int) -> bool {
     unsafe {
-        if what == BS_START && bt_prompt(curbuf) {
+        if what == BS_START && bt_prompt(g_st().curbuf) {
             return false;
         }
 
@@ -8570,9 +8570,9 @@ pub unsafe fn set_fileformat(eol_style: c_int, opt_flags: c_int) {
             set_option_direct(kOptFileformat, cstr_as_obj(p), opt_flags, 0);
         }
 
-        redraw_buf_status_later(curbuf);
-        redraw_tabline = true;
-        need_maketitle = true;
+        redraw_buf_status_later(g_st().curbuf);
+        g_st().redraw_tabline = true;
+        g_st().need_maketitle = true;
     }
 }
 
@@ -8718,7 +8718,7 @@ pub unsafe fn get_winbuf_options(bufopt: c_int) -> *mut dict_T {
 /// Return the effective 'scrolloff' value for the current window.
 pub unsafe fn get_scrolloff_value(wp: *mut win_T) -> i64 {
     unsafe {
-        if (State & MODE_TERMINAL) != 0 && !(*(*wp).w_buffer).terminal.is_null() {
+        if (g_st().State & MODE_TERMINAL) != 0 && !(*(*wp).w_buffer).terminal.is_null() {
             return 0;
         }
         if (*wp).w_onebuf_opt.wo_so < 0 {
@@ -8782,7 +8782,7 @@ pub unsafe fn get_all_options_info(arena: *mut Arena) -> Dict {
         let mut retval = arena_dict(arena, kOptCount as usize);
         for opt_idx in 0..kOptCount {
             let opt = get_option(opt_idx);
-            let opt_dict = option_info_dict(opt, OPT_GLOBAL, curbuf, curwin, arena);
+            let opt_dict = option_info_dict(opt, OPT_GLOBAL, g_st().curbuf, *curwin.as_ptr(), arena);
             put_c(&mut retval, (*opt).fullname.as_ptr(), dict_obj(opt_dict));
         }
         retval

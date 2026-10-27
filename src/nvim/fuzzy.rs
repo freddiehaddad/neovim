@@ -826,7 +826,7 @@ pub unsafe fn search_for_fuzzy_match(
         let mut looped_around = false;
 
         let whole_line = ctrl_x_mode_whole_line();
-        let circly_end = if buf == curbuf {
+        let circly_end = if buf == g_st().curbuf {
             *start_pos
         } else {
             pos_T {

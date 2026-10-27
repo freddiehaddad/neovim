@@ -811,7 +811,7 @@ pub unsafe extern "C" fn nvim_get_option_info(
     arena: *mut Arena,
     err: *mut Error,
 ) -> Dict {
-    unsafe { get_option_info(name, OPT_GLOBAL, curbuf.cast(), curwin, arena, err) }
+    unsafe { get_option_info(name, OPT_GLOBAL, g_st().curbuf.cast(), *curwin.as_ptr(), arena, err) }
 }
 
 /// Sets the global value of an option.
@@ -1218,8 +1218,8 @@ unsafe fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
             } else {
                 msg(line_buf.as_ptr(), 0);
             }
-            if msg_silent == 0 {
-                msg_didout = true;
+            if g_st().msg_silent == 0 {
+                g_st().msg_didout = true;
             }
             line_buf.clear();
             line_buf.shrink_to(LINE_BUFFER_MIN_SIZE);
@@ -1241,9 +1241,9 @@ unsafe fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
         let line_buf = &mut *line_buf_ptr;
 
         msg_ext_no_fast();
-        no_wait_return += 1;
+        g_st().no_wait_return += 1;
         for i in 0..message.size {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             push_char(line_buf, *message.data.add(i), to_err);
@@ -1251,7 +1251,7 @@ unsafe fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
         if writeln {
             push_char(line_buf, NL, to_err);
         }
-        no_wait_return -= 1;
+        g_st().no_wait_return -= 1;
         msg_end();
     }
 }

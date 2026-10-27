@@ -535,7 +535,7 @@ pub unsafe fn alloc_block() -> *mut c_char {
             mem_st().ARENA_REUSE_COUNT -= 1;
             retval
         } else {
-            arena_alloc_count += 1;
+            g_st().arena_alloc_count += 1;
             raw_alloc(ARENA_BLOCK_SIZE).cast::<c_char>()
         }
     }
@@ -585,7 +585,7 @@ pub unsafe fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c
     if alloc_pos + size > a.size {
         if size > (ARENA_BLOCK_SIZE - std::mem::size_of::<ConsumedBlk>()) >> 1 {
             unsafe {
-                arena_alloc_count += 1;
+                g_st().arena_alloc_count += 1;
             }
             let hdr_size = std::mem::size_of::<ConsumedBlk>();
             let aligned_hdr_size = if align {
@@ -733,20 +733,20 @@ pub unsafe fn free_all_mem() {
         block_autocmds();
 
         opt_vars().p_ea = 0;
-        if !first_tabpage.is_null() && !(*first_tabpage).tp_next.is_null() {
+        if !g_st().first_tabpage.is_null() && !(*g_st().first_tabpage).tp_next.is_null() {
             do_cmdline_cmd(c"tabonly!".as_ptr());
         }
 
         spell_free_all();
         ex_comclear(std::ptr::null_mut::<exarg_T>());
 
-        if !curbuf.is_null() {
+        if !g_st().curbuf.is_null() {
             do_cmdline_cmd(c"aunmenu *".as_ptr());
             do_cmdline_cmd(c"tlunmenu *".as_ptr());
             do_cmdline_cmd(c"menutranslate clear".as_ptr());
 
-            map_clear_mode(curbuf, MAP_ALL_MODES, false, false);
-            map_clear_mode(curbuf, MAP_ALL_MODES, false, true);
+            map_clear_mode(g_st().curbuf, MAP_ALL_MODES, false, false);
+            map_clear_mode(g_st().curbuf, MAP_ALL_MODES, false, true);
             do_cmdline_cmd(c"breakdel *".as_ptr());
             do_cmdline_cmd(c"profdel *".as_ptr());
             do_cmdline_cmd(c"set keymap=".as_ptr());
@@ -757,7 +757,7 @@ pub unsafe fn free_all_mem() {
 
         free_all_autocmds();
         free_all_marks();
-        alist_clear(&raw mut global_alist);
+        alist_clear(&raw mut g_st().global_alist);
         free_homedir();
         free_users();
         free_search_patterns();
@@ -770,13 +770,13 @@ pub unsafe fn free_all_mem() {
         free_cd_dir();
         free_signs();
         set_expr_line(None);
-        if !curtab.is_null() {
-            diff_clear(curtab);
+        if !g_st().curtab.is_null() {
+            diff_clear(g_st().curtab);
         }
         clear_sb_text(true);
 
-        last_cmdline = None;
-        new_last_cmdline = None;
+        g_st().last_cmdline = None;
+        g_st().new_last_cmdline = None;
         set_keep_msg(std::ptr::null(), 0);
 
         opt_vars().p_hi = 0;
@@ -785,14 +785,14 @@ pub unsafe fn free_all_mem() {
         free_quickfix();
         close_all_scripts();
 
-        if !curwin.is_null() {
+        if !(*curwin.as_ptr()).is_null() {
             win_free_all();
         }
 
         free_all_options();
 
         opt_vars().p_acd = 0;
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             let mut bufref = bufref_T {
                 br_buf: std::ptr::null_mut(),
@@ -808,7 +808,7 @@ pub unsafe fn free_all_mem() {
             buf = if bufref_valid(&raw mut bufref) {
                 nextbuf
             } else {
-                firstbuf
+                g_st().firstbuf
             };
         }
 
@@ -817,9 +817,9 @@ pub unsafe fn free_all_mem() {
         free_highlight();
         reset_last_sourcing();
 
-        if !first_tabpage.is_null() {
-            free_tabpage(first_tabpage);
-            first_tabpage = std::ptr::null_mut();
+        if !g_st().first_tabpage.is_null() {
+            free_tabpage(g_st().first_tabpage);
+            g_st().first_tabpage = std::ptr::null_mut();
         }
 
         msg_hist_clear(0);
@@ -830,15 +830,15 @@ pub unsafe fn free_all_mem() {
         atom_free_all();
         mc_free_all();
 
-        let bh_ptr = &raw mut buffer_handles;
+        let bh_ptr = &raw mut g_st().buffer_handles;
         *bh_ptr = std::collections::BTreeMap::new();
-        let wh_ptr = &raw mut window_handles;
+        let wh_ptr = &raw mut g_st().window_handles;
         *wh_ptr = std::collections::BTreeMap::new();
-        let th_ptr = &raw mut tabpage_handles;
+        let th_ptr = &raw mut g_st().tabpage_handles;
         *th_ptr = std::collections::BTreeMap::new();
 
         grid_free_all_mem();
-        let tp_defs = &raw mut tab_page_click_defs;
+        let tp_defs = &raw mut g_st().tab_page_click_defs;
         stl_clear_click_defs(&mut *tp_defs);
         *tp_defs = Vec::new();
 
@@ -847,7 +847,7 @@ pub unsafe fn free_all_mem() {
         decor_free_all_mem();
         drawline_free_all_mem();
 
-        if ui_client_channel_id != 0 {
+        if g_st().ui_client_channel_id != 0 {
             ui_client_free_all_mem();
         }
 

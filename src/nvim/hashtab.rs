@@ -423,9 +423,9 @@ mod tests {
             }
             assert_eq!((*ht).ht_used, 50);
             // Duplicate key returns FAIL
-            crate::globals::emsg_skip += 1;
+            crate::globals::g_st().emsg_skip += 1;
             assert_eq!(hash_add(ht, items[0]), FAIL);
-            crate::globals::emsg_skip -= 1;
+            crate::globals::g_st().emsg_skip -= 1;
 
             for (k, &di) in keys.iter().zip(&items) {
                 let hi = hash_find(ht, k.as_ptr());

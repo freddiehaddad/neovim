@@ -664,7 +664,7 @@ pub unsafe fn evalvars_init() {
         );
         set_vim_var_nr(VV_MAXCOL, MAXCOL);
 
-        set_vim_var_nr(VV_ECHOSPACE, varnumber_T::from(sc_col - 1));
+        set_vim_var_nr(VV_ECHOSPACE, varnumber_T::from(g_st().sc_col - 1));
 
         let mut vvlua_pt = partial_T::default();
         vvlua_pt.pt_name = Some(std::ffi::CString::default());
@@ -762,7 +762,7 @@ pub unsafe fn eval_charconvert(
     fname_to: *const c_char,
 ) -> c_int {
     unsafe {
-        let saved_sctx = current_sctx;
+        let saved_sctx = g_st().current_sctx;
 
         set_vim_var_string(VV_CC_FROM, enc_from, -1);
         set_vim_var_string(VV_CC_TO, enc_to, -1);
@@ -770,7 +770,7 @@ pub unsafe fn eval_charconvert(
         set_vim_var_string(VV_FNAME_OUT, fname_to, -1);
         let ctx = get_option_sctx(kOptCharconvert);
         if !ctx.is_null() {
-            current_sctx = *ctx;
+            g_st().current_sctx = *ctx;
         }
 
         let mut err = false;
@@ -789,7 +789,7 @@ pub unsafe fn eval_charconvert(
         set_vim_var_string(VV_CC_TO, ptr::null(), -1);
         set_vim_var_string(VV_FNAME_IN, ptr::null(), -1);
         set_vim_var_string(VV_FNAME_OUT, ptr::null(), -1);
-        current_sctx = saved_sctx;
+        g_st().current_sctx = saved_sctx;
 
         if err { FAIL } else { OK }
     }
@@ -797,14 +797,14 @@ pub unsafe fn eval_charconvert(
 
 pub unsafe fn eval_diff(origfile: *const c_char, newfile: *const c_char, outfile: *const c_char) {
     unsafe {
-        let saved_sctx = current_sctx;
+        let saved_sctx = g_st().current_sctx;
         set_vim_var_string(VV_FNAME_IN, origfile, -1);
         set_vim_var_string(VV_FNAME_NEW, newfile, -1);
         set_vim_var_string(VV_FNAME_OUT, outfile, -1);
 
         let ctx = get_option_sctx(kOptDiffexpr);
         if !ctx.is_null() {
-            current_sctx = *ctx;
+            g_st().current_sctx = *ctx;
         }
 
         let mut tv: typval_T = typval_T::new();
@@ -816,20 +816,20 @@ pub unsafe fn eval_diff(origfile: *const c_char, newfile: *const c_char, outfile
         set_vim_var_string(VV_FNAME_IN, ptr::null(), -1);
         set_vim_var_string(VV_FNAME_NEW, ptr::null(), -1);
         set_vim_var_string(VV_FNAME_OUT, ptr::null(), -1);
-        current_sctx = saved_sctx;
+        g_st().current_sctx = saved_sctx;
     }
 }
 
 pub unsafe fn eval_patch(origfile: *const c_char, difffile: *const c_char, outfile: *const c_char) {
     unsafe {
-        let saved_sctx = current_sctx;
+        let saved_sctx = g_st().current_sctx;
         set_vim_var_string(VV_FNAME_IN, origfile, -1);
         set_vim_var_string(VV_FNAME_DIFF, difffile, -1);
         set_vim_var_string(VV_FNAME_OUT, outfile, -1);
 
         let ctx = get_option_sctx(kOptPatchexpr);
         if !ctx.is_null() {
-            current_sctx = *ctx;
+            g_st().current_sctx = *ctx;
         }
 
         let mut tv: typval_T = typval_T::new();
@@ -841,7 +841,7 @@ pub unsafe fn eval_patch(origfile: *const c_char, difffile: *const c_char, outfi
         set_vim_var_string(VV_FNAME_IN, ptr::null(), -1);
         set_vim_var_string(VV_FNAME_DIFF, ptr::null(), -1);
         set_vim_var_string(VV_FNAME_OUT, ptr::null(), -1);
-        current_sctx = saved_sctx;
+        g_st().current_sctx = saved_sctx;
     }
 }
 
@@ -852,21 +852,21 @@ pub unsafe fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut l
         let mut rettv: typval_T = typval_T::new();
         let mut list: *mut list_T = ptr::null_mut();
         let mut p = skipwhite(expr);
-        let saved_sctx = current_sctx;
+        let saved_sctx = g_st().current_sctx;
 
         prepare_vimvar(VV_VAL, &raw mut save_val);
         set_vim_var_string(VV_VAL, badword, -1);
         if opt_vars().p_verbose == 0 {
-            emsg_off += 1;
+            g_st().emsg_off += 1;
         }
         let ctx = get_option_sctx(kOptSpellsuggest);
         if !ctx.is_null() {
-            current_sctx = *ctx;
+            g_st().current_sctx = *ctx;
         }
 
         let mut r = may_call_simple_func(p, &raw mut rettv);
         if r == NOTDONE {
-            r = eval1(&raw mut p, &raw mut rettv, &raw mut EVALARG_EVALUATE);
+            r = eval1(&raw mut p, &raw mut rettv, &raw mut g_st().EVALARG_EVALUATE);
         }
         if r == OK {
             if rettv.v_type != VarType::VAR_LIST {
@@ -877,11 +877,11 @@ pub unsafe fn eval_spell_expr(badword: *mut c_char, expr: *mut c_char) -> *mut l
         }
 
         if opt_vars().p_verbose == 0 {
-            emsg_off -= 1;
+            g_st().emsg_off -= 1;
         }
         tv_clear(get_vim_var_tv(VV_VAL));
         restore_vimvar(VV_VAL, &raw mut save_val);
-        current_sctx = saved_sctx;
+        g_st().current_sctx = saved_sctx;
 
         list
     }
@@ -950,9 +950,9 @@ unsafe fn list_vim_vars(first: *mut c_int) {
 /// List script-local variables, if there is a script.
 unsafe fn list_script_vars(first: *mut c_int) {
     unsafe {
-        if crate::runtime::script_id_valid(current_sctx.sc_sid) {
+        if crate::runtime::script_id_valid(g_st().current_sctx.sc_sid) {
             list_hashtable_vars(
-                script_vars_ht(current_sctx.sc_sid),
+                script_vars_ht(g_st().current_sctx.sc_sid),
                 c"s:".as_ptr(),
                 false as c_int,
                 first,
@@ -1298,13 +1298,13 @@ pub unsafe fn ex_let(eap: *mut exarg_T) {
         expr = skipwhite(expr);
 
         if (*eap).skip != 0 {
-            emsg_skip += 1;
+            g_st().emsg_skip += 1;
         }
         let mut evalarg = evalarg_T::new();
         fill_evalarg_from_eap(&raw mut evalarg, eap, (*eap).skip != 0);
         let eval_res = eval0(expr, &raw mut rettv, eap, &raw mut evalarg);
         if (*eap).skip != 0 {
-            emsg_skip -= 1;
+            g_st().emsg_skip -= 1;
         }
         clear_evalarg(&raw mut evalarg, eap);
 
@@ -1491,7 +1491,7 @@ pub unsafe fn list_hashtable_vars(
     unsafe {
         let mut todo = (*ht).ht_used as c_int;
         let mut hi = (&*ht).array_ptr();
-        while todo > 0 && !got_int {
+        while todo > 0 && !g_st().got_int {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let di = tv_dict_hi2di(hi);
@@ -1530,7 +1530,7 @@ unsafe fn list_glob_vars(first: *mut c_int) {
 unsafe fn list_buf_vars(first: *mut c_int) {
     unsafe {
         list_hashtable_vars(
-            &raw mut (*(*curbuf).b_vars()).dv_hashtab,
+            &raw mut (*(*g_st().curbuf).b_vars()).dv_hashtab,
             c"b:".as_ptr(),
             true as c_int,
             first,
@@ -1541,7 +1541,7 @@ unsafe fn list_buf_vars(first: *mut c_int) {
 unsafe fn list_win_vars(first: *mut c_int) {
     unsafe {
         list_hashtable_vars(
-            &raw mut (*(*curwin).w_vars()).dv_hashtab,
+            &raw mut (*(**curwin.as_ptr()).w_vars()).dv_hashtab,
             c"w:".as_ptr(),
             true as c_int,
             first,
@@ -1552,7 +1552,7 @@ unsafe fn list_win_vars(first: *mut c_int) {
 unsafe fn list_tab_vars(first: *mut c_int) {
     unsafe {
         list_hashtable_vars(
-            &raw mut (*(*curtab).tp_vars()).dv_hashtab,
+            &raw mut (*(*g_st().curtab).tp_vars()).dv_hashtab,
             c"t:".as_ptr(),
             true as c_int,
             first,
@@ -1570,7 +1570,7 @@ unsafe fn list_arg_vars(
         let mut error = false;
         let mut tv: typval_T = typval_T::new();
 
-        while ends_excmd(*arg as c_int) == 0 && !got_int {
+        while ends_excmd(*arg as c_int) == 0 && !g_st().got_int {
             if error || (*eap).skip != 0 {
                 arg = find_name_end(
                     arg,
@@ -1579,7 +1579,7 @@ unsafe fn list_arg_vars(
                     FNE_INCL_BR | FNE_CHECK_START,
                 );
                 if !ascii_iswhite(*arg as c_int) && ends_excmd(*arg as c_int) == 0 {
-                    emsg_severe = true;
+                    g_st().emsg_severe = true;
                     semsg!(gettext(e_trailing_arg.as_ptr()), arg);
                     break;
                 }
@@ -1590,7 +1590,7 @@ unsafe fn list_arg_vars(
                 let len = get_name_len((&raw mut arg).cast(), &mut tofree, true, true);
                 if len <= 0 {
                     if len < 0 && !aborting() {
-                        emsg_severe = true;
+                        g_st().emsg_severe = true;
                         semsg!(gettext(e_invarg2.as_ptr()), arg);
                         break;
                     }
@@ -1606,7 +1606,7 @@ unsafe fn list_arg_vars(
                         if handle_subscript(
                             (&raw mut arg).cast(),
                             &raw mut tv,
-                            &raw mut EVALARG_EVALUATE,
+                            &raw mut g_st().EVALARG_EVALUATE,
                             true,
                         ) == FAIL
                         {
@@ -2019,7 +2019,7 @@ unsafe fn ex_unletlock(
                     || (!ascii_iswhite(*name_end as c_int) && ends_excmd(*name_end as c_int) == 0)
                 {
                     if !name_end.is_null() {
-                        emsg_severe = true;
+                        g_st().emsg_severe = true;
                         semsg!(gettext(e_trailing_arg.as_ptr()), name_end);
                     }
                     break;
@@ -2399,7 +2399,7 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             return cat_prefix_varname(b'w' as c_int, (&*vars_st().HI).key_ptr());
         }
 
-        ht = &raw const (*(*curtab).tp_vars()).dv_hashtab;
+        ht = &raw const (*(*g_st().curtab).tp_vars()).dv_hashtab;
         if vars_st().TDONE < (*ht).ht_used {
             if vars_st().TDONE == 0 {
                 vars_st().HI = (&*ht).array_ptr();
@@ -2742,12 +2742,12 @@ pub unsafe fn find_var_in_ht(
     unsafe {
         if varname_len == 0 {
             return match htname as u8 {
-                b's' => (&raw mut (*script_sv(current_sctx.sc_sid)).sv_var).cast::<dictitem_T>(),
+                b's' => (&raw mut (*script_sv(g_st().current_sctx.sc_sid)).sv_var).cast::<dictitem_T>(),
                 b'g' => (&raw mut vars_st().globvars_var).cast::<dictitem_T>(),
                 b'v' => (&raw mut vars_st().vimvars_var).cast::<dictitem_T>(),
-                b'b' => (&raw mut (*curbuf).b_bufvar).cast::<dictitem_T>(),
-                b'w' => (&raw mut (*curwin).w_winvar).cast::<dictitem_T>(),
-                b't' => (&raw mut (*curtab).tp_winvar).cast::<dictitem_T>(),
+                b'b' => (&raw mut (*g_st().curbuf).b_bufvar).cast::<dictitem_T>(),
+                b'w' => (&raw mut (**curwin.as_ptr()).w_winvar).cast::<dictitem_T>(),
+                b't' => (&raw mut (*g_st().curtab).tp_winvar).cast::<dictitem_T>(),
                 b'l' => get_funccal_local_var(),
                 b'a' => get_funccal_args_var(),
                 _ => ptr::null_mut(),
@@ -2814,11 +2814,11 @@ unsafe fn find_var_ht_dict(
         }
 
         if *name == b'b' as c_char {
-            *d = (*curbuf).b_vars();
+            *d = (*g_st().curbuf).b_vars();
         } else if *name == b'w' as c_char {
-            *d = (*curwin).w_vars();
+            *d = (**curwin.as_ptr()).w_vars();
         } else if *name == b't' as c_char {
-            *d = (*curtab).tp_vars();
+            *d = (*g_st().curtab).tp_vars();
         } else if *name == b'v' as c_char {
             *d = get_vimvar_dict();
         } else if *name == b'a' as c_char {
@@ -2826,16 +2826,16 @@ unsafe fn find_var_ht_dict(
         } else if *name == b'l' as c_char {
             *d = get_funccal_local_dict();
         } else if *name == b's' as c_char
-            && (current_sctx.sc_sid > 0
-                || current_sctx.sc_sid == SID_STR
-                || current_sctx.sc_sid == SID_LUA)
-            && current_sctx.sc_sid <= crate::runtime::script_items_len()
+            && (g_st().current_sctx.sc_sid > 0
+                || g_st().current_sctx.sc_sid == SID_STR
+                || g_st().current_sctx.sc_sid == SID_LUA)
+            && g_st().current_sctx.sc_sid <= crate::runtime::script_items_len()
         {
-            nlua_set_sctx(&raw mut current_sctx);
-            if current_sctx.sc_sid == SID_STR || current_sctx.sc_sid == SID_LUA {
-                new_script_item(None, &raw mut current_sctx.sc_sid);
+            nlua_set_sctx(&raw mut g_st().current_sctx);
+            if g_st().current_sctx.sc_sid == SID_STR || g_st().current_sctx.sc_sid == SID_LUA {
+                new_script_item(None, &raw mut g_st().current_sctx.sc_sid);
             }
-            *d = &raw mut (*script_sv(current_sctx.sc_sid)).sv_dict;
+            *d = &raw mut (*script_sv(g_st().current_sctx.sc_sid)).sv_dict;
         }
 
         if !(*d).is_null() {
@@ -3060,7 +3060,7 @@ pub unsafe fn before_set_vvar(
                     b'?' as c_int
                 });
             } else if strcmp(varname, c"hlsearch".as_ptr()) == 0 {
-                Search.no_hlsearch = (*di).di_tv.vval.v_number() == 0;
+                g_st().Search.no_hlsearch = (*di).di_tv.vval.v_number() == 0;
                 redraw_all_later(UPD_SOME_VALID);
             }
             if watched {
@@ -3199,7 +3199,7 @@ pub unsafe fn var_check_ro(flags: c_int, mut name: *const c_char, mut name_len: 
     unsafe {
         let error_message = if (flags as u8 & DI_FLAGS_RO) != 0 {
             e_cannot_change_readonly_variable_str.as_ptr()
-        } else if (flags as u8 & DI_FLAGS_RO_SBX) != 0 && sandbox != 0 {
+        } else if (flags as u8 & DI_FLAGS_RO_SBX) != 0 && g_st().sandbox != 0 {
             e_cannot_set_variable_in_sandbox_str.as_ptr()
         } else {
             ptr::null()
@@ -3326,7 +3326,7 @@ unsafe fn get_var_from(
         let mut done = false;
         let do_change_curbuf = !buf.is_null() && htname == b'b' as c_int;
 
-        emsg_off += 1;
+        g_st().emsg_off += 1;
 
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -3336,7 +3336,7 @@ unsafe fn get_var_from(
             && !win.is_null()
             && (htname != b'b' as c_int || !buf.is_null())
         {
-            let need_switch_win = !(tp == curtab && win == curwin) && !do_change_curbuf;
+            let need_switch_win = !(tp == g_st().curtab && win == *curwin.as_ptr()) && !do_change_curbuf;
             let mut switchwin: CtxSwitch = CtxSwitch::new();
             if !need_switch_win
                 || ctx_switch(
@@ -3348,10 +3348,10 @@ unsafe fn get_var_from(
                 )
             {
                 if *varname == b'&' as c_char && htname != b't' as c_int {
-                    let save_curbuf = curbuf;
+                    let save_curbuf = g_st().curbuf;
 
                     if do_change_curbuf {
-                        curbuf = buf;
+                        g_st().curbuf = buf;
                     }
 
                     if *varname.add(1) == NUL {
@@ -3364,7 +3364,7 @@ unsafe fn get_var_from(
                         done = true;
                     }
 
-                    curbuf = save_curbuf;
+                    g_st().curbuf = save_curbuf;
                 } else if *varname == NUL {
                     let v: *const ScopeDictDictItem = if htname == b'b' as c_int {
                         &raw const (*buf).b_bufvar
@@ -3401,7 +3401,7 @@ unsafe fn get_var_from(
             tv_copy(deftv, rettv);
         }
 
-        emsg_off -= 1;
+        g_st().emsg_off -= 1;
     }
 }
 
@@ -3411,7 +3411,7 @@ unsafe fn getwinvar(argvars: *mut typval_T, rettv: *mut typval_T, off: usize) {
         let tp = if off == 1 {
             find_tabpage(tv_get_number_chk(argvars, ptr::null_mut()) as c_int)
         } else {
-            curtab
+            g_st().curtab
         };
         let win = find_win_by_nr(argvars.add(off), tp);
         let varname = tv_get_string_chk(argvars.add(off + 1));
@@ -3600,7 +3600,7 @@ unsafe fn setwinvar(argvars: *mut typval_T, off: usize) {
         let tp = if off == 1 {
             find_tabpage(tv_get_number_chk(argvars, ptr::null_mut()) as c_int)
         } else {
-            curtab
+            g_st().curtab
         };
         let win = find_win_by_nr(argvars.add(off), tp);
         let varname = tv_get_string_chk(argvars.add(off + 1));
@@ -3610,7 +3610,7 @@ unsafe fn setwinvar(argvars: *mut typval_T, off: usize) {
             return;
         }
 
-        let need_switch_win = !(tp == curtab && win == curwin);
+        let need_switch_win = !(tp == g_st().curtab && win == *curwin.as_ptr());
         let mut switchwin: CtxSwitch = CtxSwitch::new();
         if !need_switch_win
             || ctx_switch(
@@ -3680,7 +3680,7 @@ pub unsafe fn var_exists(mut var: *const c_char) -> bool {
             }
             n = eval_variable(name, len, &raw mut tv, ptr::null_mut(), false, true) == OK;
             if n {
-                n = handle_subscript(&raw mut var, &raw mut tv, &raw mut EVALARG_EVALUATE, false)
+                n = handle_subscript(&raw mut var, &raw mut tv, &raw mut g_st().EVALARG_EVALUATE, false)
                     == OK;
                 if n {
                     tv_clear(&raw mut tv);
@@ -3734,8 +3734,8 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
             return FAIL;
         }
 
-        let called_emsg_before = called_emsg;
-        did_emsg = 0;
+        let called_emsg_before = g_st().called_emsg;
+        g_st().did_emsg = 0;
         let mut tv = typval_T {
             v_type: VarType::VAR_STRING,
             v_lock: 0,
@@ -3761,7 +3761,7 @@ pub unsafe fn var_redir_start(name: *mut c_char, append: bool) -> c_int {
             );
         }
         *lval_ptr = lval_T::new();
-        if called_emsg > called_emsg_before {
+        if g_st().called_emsg > called_emsg_before {
             vars_st().redir_endp = ptr::null_mut();
             var_redir_stop();
             return FAIL;
@@ -3848,8 +3848,8 @@ pub unsafe fn f_gettabvar(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         let mut win: *mut win_T = ptr::null_mut();
 
         if !tp.is_null() {
-            win = if tp == curtab || (*tp).tp_firstwin.is_null() {
-                firstwin
+            win = if tp == g_st().curtab || (*tp).tp_firstwin.is_null() {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
@@ -3892,8 +3892,8 @@ pub unsafe fn f_getbufvar(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
             rettv,
             argvars.add(2),
             b'b' as c_int,
-            curtab,
-            curwin,
+            g_st().curtab,
+            *curwin.as_ptr(),
             buf,
         );
     }
@@ -3914,8 +3914,8 @@ pub unsafe fn f_settabvar(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: 
             return;
         }
 
-        let save_curtab = curtab;
-        let save_lu_tp = lastused_tabpage;
+        let save_curtab = g_st().curtab;
+        let save_lu_tp = g_st().lastused_tabpage;
         goto_tabpage_tp(tp, false, false);
 
         let varname_len = strlen(varname);
@@ -3928,7 +3928,7 @@ pub unsafe fn f_settabvar(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: 
         if valid_tabpage(save_curtab) {
             goto_tabpage_tp(save_curtab, false, false);
             if valid_tabpage(save_lu_tp) {
-                lastused_tabpage = save_lu_tp;
+                g_st().lastused_tabpage = save_lu_tp;
             }
         }
     }
@@ -3970,13 +3970,13 @@ pub unsafe fn f_setbufvar(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: 
         } else {
             let varname_len = strlen(varname);
             let mut bufvarname = Vec::with_capacity(varname_len + 3);
-            let save_curbuf = curbuf;
-            curbuf = buf;
+            let save_curbuf = g_st().curbuf;
+            g_st().curbuf = buf;
             bufvarname.push(b'b' as c_char);
             bufvarname.push(b':' as c_char);
             bufvarname.extend_from_slice(std::slice::from_raw_parts(varname, varname_len + 1));
             set_var(bufvarname.as_ptr(), varname_len + 2, varp, true);
-            curbuf = save_curbuf;
+            g_st().curbuf = save_curbuf;
         }
     }
 }

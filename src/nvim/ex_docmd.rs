@@ -4860,46 +4860,46 @@ unsafe fn sourcing_lnum_ptr() -> *mut linenr_T {
 
 unsafe fn save_dbg_stuff(dsp: *mut dbg_stuff) {
     unsafe {
-        (*dsp).trylevel = trylevel;
-        trylevel = 0;
-        (*dsp).force_abort = c_int::from(force_abort);
-        force_abort = false;
-        let stack = &raw mut caught_stack;
+        (*dsp).trylevel = g_st().trylevel;
+        g_st().trylevel = 0;
+        (*dsp).force_abort = c_int::from(g_st().force_abort);
+        g_st().force_abort = false;
+        let stack = &raw mut g_st().caught_stack;
         (*dsp).caught_stack = std::mem::take(&mut *stack);
         (*dsp).vv_exception = v_exception(None);
         (*dsp).vv_throwpoint = v_throwpoint(None);
 
         // Necessary for debugging an inactive ":catch", ":finally", ":endtry".
-        (*dsp).did_emsg = did_emsg;
-        did_emsg = 0;
-        (*dsp).got_int = c_int::from(got_int);
-        got_int = false;
-        (*dsp).did_throw = did_throw;
-        did_throw = false;
-        (*dsp).need_rethrow = c_int::from(need_rethrow);
-        need_rethrow = false;
-        (*dsp).check_cstack = c_int::from(check_cstack);
-        check_cstack = false;
-        let ce = &raw mut current_exception;
+        (*dsp).did_emsg = g_st().did_emsg;
+        g_st().did_emsg = 0;
+        (*dsp).got_int = c_int::from(g_st().got_int);
+        g_st().got_int = false;
+        (*dsp).did_throw = g_st().did_throw;
+        g_st().did_throw = false;
+        (*dsp).need_rethrow = c_int::from(g_st().need_rethrow);
+        g_st().need_rethrow = false;
+        (*dsp).check_cstack = c_int::from(g_st().check_cstack);
+        g_st().check_cstack = false;
+        let ce = &raw mut g_st().current_exception;
         (*dsp).current_exception = (*ce).take();
     }
 }
 
 unsafe fn restore_dbg_stuff(dsp: *mut dbg_stuff) {
     unsafe {
-        suppress_errthrow = false;
-        trylevel = (*dsp).trylevel;
-        force_abort = (*dsp).force_abort != 0;
-        let stack = &raw mut caught_stack;
+        g_st().suppress_errthrow = false;
+        g_st().trylevel = (*dsp).trylevel;
+        g_st().force_abort = (*dsp).force_abort != 0;
+        let stack = &raw mut g_st().caught_stack;
         *stack = std::mem::take(&mut (*dsp).caught_stack);
         v_exception((*dsp).vv_exception.take());
         v_throwpoint((*dsp).vv_throwpoint.take());
-        did_emsg = (*dsp).did_emsg;
-        got_int = (*dsp).got_int != 0;
-        did_throw = (*dsp).did_throw;
-        need_rethrow = (*dsp).need_rethrow != 0;
-        check_cstack = (*dsp).check_cstack != 0;
-        current_exception = (*dsp).current_exception.take();
+        g_st().did_emsg = (*dsp).did_emsg;
+        g_st().got_int = (*dsp).got_int != 0;
+        g_st().did_throw = (*dsp).did_throw;
+        g_st().need_rethrow = (*dsp).need_rethrow != 0;
+        g_st().check_cstack = (*dsp).check_cstack != 0;
+        g_st().current_exception = (*dsp).current_exception.take();
     }
 }
 
@@ -4907,7 +4907,7 @@ unsafe fn restore_dbg_stuff(dsp: *mut dbg_stuff) {
 unsafe fn is_other_file(fnum: c_int, ffname: *mut c_char) -> bool {
     unsafe {
         if fnum != 0 {
-            if fnum == (*curbuf).b_fnum {
+            if fnum == (*g_st().curbuf).b_fnum {
                 return false;
             }
             return true;
@@ -4921,8 +4921,8 @@ unsafe fn is_other_file(fnum: c_int, ffname: *mut c_char) -> bool {
             return false;
         }
 
-        if !(*curbuf).file_id_valid && !(*curbuf).b_sfname.is_null() && *(*curbuf).b_sfname != NUL {
-            return !path_equal(ffname, (*curbuf).b_sfname, kPathCmpLiteral);
+        if !(*g_st().curbuf).file_id_valid && !(*g_st().curbuf).b_sfname.is_null() && *(*g_st().curbuf).b_sfname != NUL {
+            return !path_equal(ffname, (*g_st().curbuf).b_sfname, kPathCmpLiteral);
         }
 
         otherfile(ffname)
@@ -4932,7 +4932,7 @@ unsafe fn is_other_file(fnum: c_int, ffname: *mut c_char) -> bool {
 /// Print the executed command for when 'verbose' is set.
 unsafe fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
     unsafe {
-        no_wait_return += 1;
+        g_st().no_wait_return += 1;
         verbose_enter_scroll();
 
         if lnum == 0 {
@@ -4940,12 +4940,12 @@ unsafe fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
         } else {
             let _ = smsg!(0, gettext(c"line %d: %s".as_ptr()), lnum as c_int, cmd);
         }
-        if msg_silent == 0 {
+        if g_st().msg_silent == 0 {
             msg_puts(c"\n".as_ptr());
         }
 
         verbose_leave_scroll();
-        no_wait_return -= 1;
+        g_st().no_wait_return -= 1;
     }
 }
 
@@ -5006,13 +5006,13 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
         let mut cmd_getline: LineGetter;
         let mut cmd_loop_cookie = loop_cookie::new();
 
-        let ml = &raw mut msg_list;
+        let ml = &raw mut g_st().msg_list;
         let saved_msg_list = (*ml).replace(Vec::new());
 
         if do_cmdline_start() == FAIL {
             let _ = emsg(gettext(e_command_too_recursive.as_ptr()));
             do_errthrow(ptr::null_mut(), ptr::null_mut());
-            msg_list = saved_msg_list;
+            g_st().msg_list = saved_msg_list;
             return FAIL;
         }
 
@@ -5020,8 +5020,8 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
         let source_cookie = fgetline.as_source();
 
         if let Some(fcp) = func_cookie {
-            if ex_nesting_level == func_level(fcp) {
-                ex_nesting_level += 1;
+            if g_st().ex_nesting_level == func_level(fcp) {
+                g_st().ex_nesting_level += 1;
             }
             fname = func_name(fcp);
             breakpoint = func_breakpoint(fcp);
@@ -5033,21 +5033,21 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
         }
 
         if RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) == 0 {
-            force_abort = false;
-            suppress_errthrow = false;
+            g_st().force_abort = false;
+            g_st().suppress_errthrow = false;
         }
 
         if (flags & DOCMD_EXCRESET) != 0 {
             save_dbg_stuff(&raw mut debug_saved);
         }
 
-        let initial_trylevel = trylevel;
+        let initial_trylevel = g_st().trylevel;
 
-        did_throw = false;
-        did_emsg = 0;
+        g_st().did_throw = false;
+        g_st().did_emsg = 0;
 
         if (flags & DOCMD_KEYTYPED) == 0 && !fgetline.is_exline() {
-            KeyTyped = false;
+            g_st().KeyTyped = false;
         }
 
         next_cmdline = cmdline;
@@ -5055,11 +5055,11 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             let func_cookie = fgetline.as_func();
 
             if next_cmdline.is_null()
-                && !force_abort
+                && !g_st().force_abort
                 && cstack.cs_idx < 0
                 && !func_cookie.is_some_and(|fcp| func_has_abort(fcp) != 0)
             {
-                did_emsg = 0;
+                g_st().did_emsg = 0;
             }
 
             if cstack.cs_looplevel > 0 && (current_line as usize) < cmd_loop_cookie.lines.len() {
@@ -5067,14 +5067,14 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 cmdline_copy = ptr::null_mut();
 
                 if let Some(fcp) = func_cookie {
-                    if do_profiling == PROF_YES {
+                    if g_st().do_profiling == PROF_YES {
                         func_line_end(fcp);
                     }
                     if func_has_ended(fcp) != 0 {
                         retval = FAIL;
                         break;
                     }
-                } else if do_profiling == PROF_YES && fgetline.is_source() {
+                } else if g_st().do_profiling == PROF_YES && fgetline.is_source() {
                     script_line_end();
                 }
 
@@ -5083,10 +5083,10 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                     break;
                 }
 
-                if !breakpoint.is_null() && !dbg_tick.is_null() && *dbg_tick != debug_tick {
+                if !breakpoint.is_null() && !dbg_tick.is_null() && *dbg_tick != g_st().debug_tick {
                     *breakpoint =
                         dbg_find_breakpoint(fgetline.is_source(), fname, *sourcing_lnum_ptr());
-                    *dbg_tick = debug_tick;
+                    *dbg_tick = g_st().debug_tick;
                 }
 
                 let wp = &cmd_loop_cookie.lines[current_line as usize];
@@ -5098,9 +5098,9 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                     dbg_breakpoint(fname, *sourcing_lnum_ptr());
                     *breakpoint =
                         dbg_find_breakpoint(fgetline.is_source(), fname, *sourcing_lnum_ptr());
-                    *dbg_tick = debug_tick;
+                    *dbg_tick = g_st().debug_tick;
                 }
-                if do_profiling == PROF_YES {
+                if g_st().do_profiling == PROF_YES {
                     if let Some(fcp) = func_cookie {
                         func_line_start(fcp);
                     } else if fgetline.is_source() {
@@ -5118,26 +5118,26 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 
                 if count == 1 && fgetline.is_exline() {
                     if ui_has(kUICmdline) {
-                        let last_cmd_ptr = &raw const last_cmdline;
+                        let last_cmd_ptr = &raw const g_st().last_cmdline;
                         ui_ext_cmdline_block_append(
                             0,
                             (*last_cmd_ptr).as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                         );
                         did_block = true;
                     }
-                    msg_didout = true;
+                    g_st().msg_didout = true;
                 }
 
                 if fgetline.is_none() {
-                    if KeyTyped && (flags & DOCMD_REPEAT) == 0 {
-                        need_wait_return = false;
+                    if g_st().KeyTyped && (flags & DOCMD_REPEAT) == 0 {
+                        g_st().need_wait_return = false;
                     }
                     retval = FAIL;
                     break;
                 }
                 let Some(next_cstr) = fgetline.call(b':' as c_int, indent, true) else {
-                    if KeyTyped && (flags & DOCMD_REPEAT) == 0 {
-                        need_wait_return = false;
+                    if g_st().KeyTyped && (flags & DOCMD_REPEAT) == 0 {
+                        g_st().need_wait_return = false;
                     }
                     retval = FAIL;
                     break;
@@ -5157,9 +5157,9 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 
                 if (flags & DOCMD_KEEPLINE) != 0 {
                     if count == 0 {
-                        repeat_cmdline = Some(next_cstr);
+                        g_st().repeat_cmdline = Some(next_cstr);
                     } else {
-                        repeat_cmdline = None;
+                        g_st().repeat_cmdline = None;
                     }
                 }
             } else if cmdline_copy.is_null() {
@@ -5190,7 +5190,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 cmd_getline = fgetline;
             }
 
-            did_endif = false;
+            g_st().did_endif = false;
 
             let prev_count = count;
             count += 1;
@@ -5198,12 +5198,12 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 && (flags & DOCMD_NOWAIT) == 0
                 && RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) == 0
             {
-                msg_didout_before_start = msg_didout;
-                msg_didany = false;
+                msg_didout_before_start = g_st().msg_didout;
+                g_st().msg_didany = false;
                 msg_start();
-                msg_scroll = c_int::from(true);
-                no_wait_return += 1;
-                RedrawingDisabled += 1;
+                g_st().msg_scroll = c_int::from(true);
+                g_st().no_wait_return += 1;
+                g_st().RedrawingDisabled += 1;
                 did_inc = true;
             }
 
@@ -5229,24 +5229,24 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 cmdline_buf.clear();
                 cmdline_copy = ptr::null_mut();
 
-                let new_last_ptr = &raw mut new_last_cmdline;
+                let new_last_ptr = &raw mut g_st().new_last_cmdline;
                 if fgetline.is_exline()
                     && let Some(new_cmd) = (*new_last_ptr).take()
                 {
-                    last_cmdline = Some(new_cmd);
+                    g_st().last_cmdline = Some(new_cmd);
                 }
             } else {
                 strmove(cmdline_copy, next_cmdline);
                 next_cmdline = cmdline_copy;
             }
 
-            if did_emsg != 0
-                && !force_abort
+            if g_st().did_emsg != 0
+                && !g_st().force_abort
                 && fgetline
                     .as_func()
                     .is_some_and(|fcp| func_has_abort(fcp) == 0)
             {
-                did_emsg = 0;
+                g_st().did_emsg = 0;
             }
 
             if cstack.cs_looplevel > 0 {
@@ -5255,9 +5255,9 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 if (cstack.cs_lflags & (CSL_HAD_CONT | CSL_HAD_ENDLOOP)) != 0 {
                     cstack.cs_lflags &= !(CSL_HAD_CONT | CSL_HAD_ENDLOOP);
 
-                    if did_emsg == 0
-                        && !got_int
-                        && !did_throw
+                    if g_st().did_emsg == 0
+                        && !g_st().got_int
+                        && !g_st().did_throw
                         && cstack.cs_idx >= 0
                         && (cstack.cs_flags[cstack.cs_idx as usize] & (CSF_WHILE | CSF_FOR)) != 0
                         && cstack.cs_line[cstack.cs_idx as usize] >= 0
@@ -5273,7 +5273,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                             let wp = &cmd_loop_cookie.lines[current_line as usize];
                             *breakpoint =
                                 dbg_find_breakpoint(fgetline.is_source(), fname, wp.lnum - 1);
-                            *dbg_tick = debug_tick;
+                            *dbg_tick = g_st().debug_tick;
                         }
                     } else if cstack.cs_idx >= 0 {
                         rewind_conditionals(
@@ -5299,34 +5299,34 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 
             if (cstack.cs_lflags & CSL_HAD_FINA) != 0 {
                 cstack.cs_lflags &= !CSL_HAD_FINA;
-                let ce = &raw const current_exception;
+                let ce = &raw const g_st().current_exception;
                 report_make_pending(
                     c_int::from(cstack.cs_pending[cstack.cs_idx as usize])
                         & (CSTP_ERROR | CSTP_INTERRUPT | CSTP_THROW),
-                    if did_throw {
+                    if g_st().did_throw {
                         PendingVal::Throw((*ce).clone())
                     } else {
                         PendingVal::None
                     },
                 );
-                did_emsg = 0;
-                got_int = false;
-                did_throw = false;
+                g_st().did_emsg = 0;
+                g_st().got_int = false;
+                g_st().did_throw = false;
                 cstack.cs_flags[cstack.cs_idx as usize] |= CSF_ACTIVE | CSF_FINALLY;
             }
 
-            trylevel = initial_trylevel + cstack.cs_trylevel;
+            g_st().trylevel = initial_trylevel + cstack.cs_trylevel;
 
-            if trylevel == 0 && did_emsg == 0 && !got_int && !did_throw {
-                force_abort = false;
+            if g_st().trylevel == 0 && g_st().did_emsg == 0 && !g_st().got_int && !g_st().did_throw {
+                g_st().force_abort = false;
             }
 
             do_intthrow(&raw mut cstack);
 
-            let keep_going = !((got_int || (did_emsg != 0 && force_abort) || did_throw)
+            let keep_going = !((g_st().got_int || (g_st().did_emsg != 0 && g_st().force_abort) || g_st().did_throw)
                 && cstack.cs_trylevel == 0)
-                && !(did_emsg != 0
-                    && (cstack.cs_trylevel == 0 || did_emsg_syntax)
+                && !(g_st().did_emsg != 0
+                    && (cstack.cs_trylevel == 0 || g_st().did_emsg_syntax)
                     && used_getline
                     && fgetline.is_exline())
                 && (!next_cmdline.is_null() || cstack.cs_idx >= 0 || (flags & DOCMD_REPEAT) != 0);
@@ -5336,12 +5336,12 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
         }
 
         drop(cmdline_buf);
-        did_emsg_syntax = false;
+        g_st().did_emsg_syntax = false;
         drop(cmd_loop_cookie);
 
         if cstack.cs_idx >= 0 {
-            if !got_int
-                && !did_throw
+            if !g_st().got_int
+                && !g_st().did_throw
                 && !aborting()
                 && ((fgetline.is_source() && !source_finished(fgetline))
                     || fgetline
@@ -5375,7 +5375,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                     break;
                 }
             }
-            trylevel = initial_trylevel;
+            g_st().trylevel = initial_trylevel;
         }
 
         do_errthrow(
@@ -5387,32 +5387,32 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             },
         );
 
-        if trylevel == 0 {
-            if did_throw {
+        if g_st().trylevel == 0 {
+            if g_st().did_throw {
                 handle_did_throw();
-            } else if got_int || (did_emsg != 0 && force_abort) {
-                suppress_errthrow = true;
+            } else if g_st().got_int || (g_st().did_emsg != 0 && g_st().force_abort) {
+                g_st().suppress_errthrow = true;
             }
         }
 
-        if did_throw {
-            need_rethrow = true;
+        if g_st().did_throw {
+            g_st().need_rethrow = true;
         }
         if fgetline
             .as_source()
-            .is_some_and(|sp| ex_nesting_level > source_level(sp))
+            .is_some_and(|sp| g_st().ex_nesting_level > source_level(sp))
             || fgetline
                 .as_func()
-                .is_some_and(|fcp| ex_nesting_level > func_level(fcp) + 1)
+                .is_some_and(|fcp| g_st().ex_nesting_level > func_level(fcp) + 1)
         {
-            if !did_throw {
-                check_cstack = true;
+            if !g_st().did_throw {
+                g_st().check_cstack = true;
             }
         } else {
             if fgetline.is_func() {
-                ex_nesting_level -= 1;
+                g_st().ex_nesting_level -= 1;
             }
-            if (fgetline.is_source() || fgetline.is_func()) && ex_nesting_level < debug_break_level
+            if (fgetline.is_source() || fgetline.is_func()) && g_st().ex_nesting_level < g_st().debug_break_level
             {
                 do_debug(if fgetline.is_source() {
                     gettext(c"End of sourced file".as_ptr())
@@ -5426,20 +5426,20 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             restore_dbg_stuff(&raw mut debug_saved);
         }
 
-        msg_list = saved_msg_list;
+        g_st().msg_list = saved_msg_list;
 
         cstack.cs_emsg_silent_list.clear();
 
         if did_inc {
-            RedrawingDisabled -= 1;
-            no_wait_return -= 1;
-            msg_scroll = 0;
+            g_st().RedrawingDisabled -= 1;
+            g_st().no_wait_return -= 1;
+            g_st().msg_scroll = 0;
 
-            if retval == FAIL || (did_endif && KeyTyped && did_emsg == 0) {
-                need_wait_return = false;
-                msg_didany = false;
-            } else if need_wait_return {
-                msg_didout |= msg_didout_before_start;
+            if retval == FAIL || (g_st().did_endif && g_st().KeyTyped && g_st().did_emsg == 0) {
+                g_st().need_wait_return = false;
+                g_st().msg_didany = false;
+            } else if g_st().need_wait_return {
+                g_st().msg_didout |= msg_didout_before_start;
                 wait_return(0);
             }
         }
@@ -5448,7 +5448,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             ui_ext_cmdline_block_leave();
         }
 
-        did_endif = false;
+        g_st().did_endif = false;
 
         do_cmdline_end();
         retval
@@ -5458,7 +5458,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 /// Handle when "did_throw" is set after executing commands.
 pub unsafe fn handle_did_throw() {
     unsafe {
-        let ce = &raw const current_exception;
+        let ce = &raw const g_st().current_exception;
         let cur_excp = (*ce).clone();
         debug_assert!(cur_excp.is_some());
         let excp = cur_excp.as_ref().unwrap();
@@ -5468,12 +5468,12 @@ pub unsafe fn handle_did_throw() {
         match excp.r#type {
             ET_USER => {
                 let _ = vim_snprintf!(
-                    (&raw mut IObuff).cast(),
+                    (&raw mut g_st().IObuff).cast(),
                     IOSIZE,
                     gettext(c"E605: Exception not caught: %s".as_ptr()),
                     excp.value.as_ptr(),
                 );
-                p = Some(cstr_to_cstring((&raw const IObuff).cast()));
+                p = Some(cstr_to_cstring((&raw const g_st().IObuff).cast()));
             }
             ET_ERROR => {
                 messages = excp.messages.clone();
@@ -5491,9 +5491,9 @@ pub unsafe fn handle_did_throw() {
 
         discard_current_exception();
 
-        if emsg_silent == 0 {
-            suppress_errthrow = true;
-            force_abort = true;
+        if g_st().emsg_silent == 0 {
+            g_st().suppress_errthrow = true;
+            g_st().force_abort = true;
         }
 
         if !messages.is_empty() {
@@ -5538,7 +5538,7 @@ pub unsafe fn get_loop_line(
             return line;
         }
 
-        KeyTyped = false;
+        g_st().KeyTyped = false;
         (*cp).current_line += 1;
         let wp = &lines[(*cp).current_line as usize];
         *sourcing_lnum_ptr() = wp.lnum;
@@ -5563,7 +5563,7 @@ unsafe fn compute_buffer_local_count(
 ) -> c_int {
     unsafe {
         let mut count = offset;
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !(*buf).b_next.is_null() && (*buf).b_fnum < lnum {
             buf = (*buf).b_next;
         }
@@ -5614,9 +5614,9 @@ unsafe fn current_win_nr(win: *const win_T, cmdarg: *mut exarg_T) -> c_int {
         let nonnr = !cmdarg.is_null() && (*cmdarg).cmdidx != cmdidx_T::CMD_quit as c_int;
         let mut nr = 0;
 
-        let mut wp = firstwin;
+        let mut wp = g_st().firstwin;
         while !wp.is_null() {
-            let include_this = nonnr || win_has_winnr(wp, curtab);
+            let include_this = nonnr || win_has_winnr(wp, g_st().curtab);
             nr += c_int::from(include_this);
             if ptr::eq(wp, win) {
                 if !include_this {
@@ -5633,7 +5633,7 @@ unsafe fn current_win_nr(win: *const win_T, cmdarg: *mut exarg_T) -> c_int {
 unsafe fn current_tab_nr(tab: *mut tabpage_T) -> c_int {
     unsafe {
         let mut nr = 0;
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             nr += 1;
             if tp == tab {
@@ -5757,7 +5757,7 @@ pub unsafe fn set_cmd_addr_type(eap: *mut exarg_T, p: *mut c_char) {
         }
         if ((*eap).cmdidx == cmdidx_T::CMD_cc as c_int
             || (*eap).cmdidx == cmdidx_T::CMD_ll as c_int)
-            && bt_quickfix(curbuf)
+            && bt_quickfix(g_st().curbuf)
         {
             (*eap).addr_type = ADDR_OTHER;
         }
@@ -5767,11 +5767,11 @@ pub unsafe fn set_cmd_addr_type(eap: *mut exarg_T, p: *mut c_char) {
 pub unsafe fn get_cmd_default_range(eap: *mut exarg_T) -> linenr_T {
     unsafe {
         match (*eap).addr_type {
-            ADDR_LINES | ADDR_OTHER => (*curwin).w_cursor.lnum.min((*curbuf).b_ml.ml_line_count),
-            ADDR_WINDOWS => current_win_nr(curwin, ptr::null_mut()),
-            ADDR_ARGUMENTS => ((*curwin).w_arg_idx + 1).min(argcount()),
-            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => (*curbuf).b_fnum,
-            ADDR_TABS => current_tab_nr(curtab),
+            ADDR_LINES | ADDR_OTHER => (**curwin.as_ptr()).w_cursor.lnum.min((*g_st().curbuf).b_ml.ml_line_count),
+            ADDR_WINDOWS => current_win_nr(*curwin.as_ptr(), ptr::null_mut()),
+            ADDR_ARGUMENTS => ((**curwin.as_ptr()).w_arg_idx + 1).min(argcount()),
+            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => (*g_st().curbuf).b_fnum,
+            ADDR_TABS => current_tab_nr(g_st().curtab),
             ADDR_TABS_RELATIVE | ADDR_UNSIGNED => 1,
             ADDR_QUICKFIX => qf_get_cur_idx(eap) as linenr_T,
             ADDR_QUICKFIX_VALID => qf_get_cur_valid_idx(eap),
@@ -5785,23 +5785,23 @@ pub unsafe fn set_cmd_dflall_range(eap: *mut exarg_T) {
         (*eap).line1 = 1;
         match (*eap).addr_type {
             ADDR_LINES | ADDR_OTHER => {
-                (*eap).line2 = (*curbuf).b_ml.ml_line_count;
+                (*eap).line2 = (*g_st().curbuf).b_ml.ml_line_count;
             }
             ADDR_LOADED_BUFFERS => {
-                let mut buf = firstbuf;
+                let mut buf = g_st().firstbuf;
                 while !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none() {
                     buf = (*buf).b_next;
                 }
                 (*eap).line1 = (*buf).b_fnum;
-                buf = lastbuf;
+                buf = g_st().lastbuf;
                 while !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none() {
                     buf = (*buf).b_prev;
                 }
                 (*eap).line2 = (*buf).b_fnum;
             }
             ADDR_BUFFERS => {
-                (*eap).line1 = (*firstbuf).b_fnum;
-                (*eap).line2 = (*lastbuf).b_fnum;
+                (*eap).line1 = (*g_st().firstbuf).b_fnum;
+                (*eap).line2 = (*g_st().lastbuf).b_fnum;
             }
             ADDR_WINDOWS => {
                 (*eap).line2 = current_win_nr(ptr::null(), eap);
@@ -5879,8 +5879,8 @@ pub unsafe fn set_cmd_count(eap: *mut exarg_T, count: linenr_T, validate: bool) 
                 (*eap).line2 += count - 1;
             }
             (*eap).addr_count += 1;
-            if validate && (*eap).line2 > (*curbuf).b_ml.ml_line_count {
-                (*eap).line2 = (*curbuf).b_ml.ml_line_count;
+            if validate && (*eap).line2 > (*g_st().curbuf).b_ml.ml_line_count {
+                (*eap).line2 = (*g_st().curbuf).b_ml.ml_line_count;
             }
         }
     }
@@ -5972,7 +5972,7 @@ pub unsafe fn parse_cmdline(
 ) -> bool {
     unsafe {
         let mut retval = false;
-        let save_cursor = (*curwin).w_cursor;
+        let save_cursor = (**curwin.as_ptr()).w_cursor;
         save_last_search_pattern();
 
         *cmod = cmdmod_T::new();
@@ -6029,7 +6029,7 @@ pub unsafe fn parse_cmdline(
 
             if (*eap).cmdidx == CMD_SIZE_I32 {
                 xstrlcpy(
-                    (&raw mut IObuff).cast(),
+                    (&raw mut g_st().IObuff).cast(),
                     gettext(e_not_an_editor_command.as_ptr()),
                     IOSIZE,
                 );
@@ -6039,7 +6039,7 @@ pub unsafe fn parse_cmdline(
                     *cmdline
                 };
                 append_command(cmdname);
-                *errormsg = (&raw const IObuff).cast();
+                *errormsg = (&raw const g_st().IObuff).cast();
                 break 'end;
             }
 
@@ -6071,9 +6071,9 @@ pub unsafe fn parse_cmdline(
                 let mut arg = (*eap).arg;
                 while *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
                     let start = arg;
-                    emsg_skip += 1;
+                    g_st().emsg_skip += 1;
                     skip_expr(&raw mut arg, ptr::null_mut());
-                    emsg_skip -= 1;
+                    g_st().emsg_skip -= 1;
                     if arg == start {
                         arg = arg.add(1);
                     }
@@ -6116,7 +6116,7 @@ pub unsafe fn parse_cmdline(
         if !retval {
             undo_cmdmod(cmod);
         }
-        (*curwin).w_cursor = save_cursor;
+        (**curwin.as_ptr()).w_cursor = save_cursor;
         restore_last_search_pattern();
         retval
     }
@@ -6189,12 +6189,12 @@ unsafe fn execute_cmd0(
             }
         }
 
-        if (*eap).cmdidx == cmdidx_T::CMD_try as c_int && cmdmod.cmod_did_esilent > 0 {
-            emsg_silent -= cmdmod.cmod_did_esilent;
-            if emsg_silent < 0 {
-                emsg_silent = 0;
+        if (*eap).cmdidx == cmdidx_T::CMD_try as c_int && g_st().cmdmod.cmod_did_esilent > 0 {
+            g_st().emsg_silent -= g_st().cmdmod.cmod_did_esilent;
+            if g_st().emsg_silent < 0 {
+                g_st().emsg_silent = 0;
             }
-            cmdmod.cmod_did_esilent = 0;
+            g_st().cmdmod.cmod_did_esilent = 0;
         }
 
         if (*eap).cmdidx < 0 {
@@ -6226,14 +6226,14 @@ pub unsafe fn execute_cmd(eap: *mut exarg_T, cmod: *mut cmdmod_T, preview: bool)
         }
 
         let mut errormsg: *const c_char = ptr::null();
-        let save_cmdmod = ptr::replace(&raw mut cmdmod, std::mem::take(&mut *cmod));
+        let save_cmdmod = ptr::replace(&raw mut g_st().cmdmod, std::mem::take(&mut *cmod));
 
-        apply_cmdmod(&raw mut cmdmod);
+        apply_cmdmod(&raw mut g_st().cmdmod);
 
         'end: {
-            if (*curbuf).b_p_ma == 0
+            if (*g_st().curbuf).b_p_ma == 0
                 && ((*eap).argt & EX_MODIFY) != 0
-                && !(!(*curbuf).terminal.is_null()
+                && !(!(*g_st().curbuf).terminal.is_null()
                     && ((*eap).cmdidx == cmdidx_T::CMD_put as c_int
                         || (*eap).cmdidx == cmdidx_T::CMD_iput as c_int))
             {
@@ -6261,11 +6261,11 @@ pub unsafe fn execute_cmd(eap: *mut exarg_T, cmod: *mut cmdmod_T, preview: bool)
             }
 
             if (((*eap).argt & EX_WHOLEFOLD) != 0 || (*eap).addr_count >= 2)
-                && global_busy == 0
+                && g_st().global_busy == 0
                 && (*eap).addr_type == ADDR_LINES
             {
-                hasFolding(curwin, (*eap).line1, &raw mut (*eap).line1, ptr::null_mut());
-                hasFolding(curwin, (*eap).line2, ptr::null_mut(), &raw mut (*eap).line2);
+                hasFolding(*curwin.as_ptr(), (*eap).line1, &raw mut (*eap).line1, ptr::null_mut());
+                hasFolding(*curwin.as_ptr(), (*eap).line2, ptr::null_mut(), &raw mut (*eap).line2);
             }
 
             if parse_count(eap, &raw mut errormsg, true) == FAIL {
@@ -6282,8 +6282,8 @@ pub unsafe fn execute_cmd(eap: *mut exarg_T, cmod: *mut cmdmod_T, preview: bool)
             let _ = emsg(errormsg);
         }
 
-        undo_cmdmod(&raw mut cmdmod);
-        cmdmod = save_cmdmod;
+        undo_cmdmod(&raw mut g_st().cmdmod);
+        g_st().cmdmod = save_cmdmod;
 
         do_cmdline_end();
         retv
@@ -6292,13 +6292,13 @@ pub unsafe fn execute_cmd(eap: *mut exarg_T, cmod: *mut cmdmod_T, preview: bool)
 
 unsafe fn profile_cmd(eap: *const exarg_T, cstack: *mut cstack_T, fgetline: LineGetter) {
     unsafe {
-        if do_profiling == PROF_YES
+        if g_st().do_profiling == PROF_YES
             && ((*eap).skip == 0
                 || (*cstack).cs_idx == 0
                 || ((*cstack).cs_idx > 0
                     && ((*cstack).cs_flags[((*cstack).cs_idx - 1) as usize] & CSF_ACTIVE) != 0))
         {
-            let mut skip = did_emsg != 0 || got_int || did_throw;
+            let mut skip = g_st().did_emsg != 0 || g_st().got_int || g_st().did_throw;
 
             if (*eap).cmdidx == cmdidx_T::CMD_catch as c_int {
                 skip = !skip
@@ -6440,19 +6440,19 @@ unsafe fn do_one_cmd(
 ) -> *mut c_char {
     unsafe {
         let mut errormsg: *const c_char = ptr::null();
-        let save_reg_executing = reg_executing;
-        let save_pending_end_reg_executing = pending_end_reg_executing;
+        let save_reg_executing = g_st().reg_executing;
+        let save_pending_end_reg_executing = g_st().pending_end_reg_executing;
 
         let mut ea: exarg_T = exarg_T::new();
         ea.line1 = 1;
         ea.line2 = 1;
-        ex_nesting_level += 1;
+        g_st().ex_nesting_level += 1;
 
         if docmd_st().quitmore != 0 && !fgetline.is_func() && !fgetline.is_autocmd() {
             docmd_st().quitmore -= 1;
         }
 
-        let save_cmdmod = ptr::replace(&raw mut cmdmod, cmdmod_T::new());
+        let save_cmdmod = ptr::replace(&raw mut g_st().cmdmod, cmdmod_T::new());
 
         'doend: {
             if *(*cmdlinep) == b'#' as c_char && *(*cmdlinep).add(1) == b'!' as c_char {
@@ -6465,19 +6465,19 @@ unsafe fn do_one_cmd(
             ea.ea_getline = fgetline;
             ea.cstack = cstack.cast();
 
-            if parse_command_modifiers(&raw mut ea, &raw mut errormsg, &raw mut cmdmod, false)
+            if parse_command_modifiers(&raw mut ea, &raw mut errormsg, &raw mut g_st().cmdmod, false)
                 == FAIL
             {
                 break 'doend;
             }
-            apply_cmdmod(&raw mut cmdmod);
+            apply_cmdmod(&raw mut g_st().cmdmod);
 
             let after_modifier = ea.cmd;
 
             ea.skip = c_int::from(
-                did_emsg != 0
-                    || got_int
-                    || did_throw
+                g_st().did_emsg != 0
+                    || g_st().got_int
+                    || g_st().did_throw
                     || ((*cstack).cs_idx >= 0
                         && ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_ACTIVE) == 0),
             );
@@ -6485,10 +6485,10 @@ unsafe fn do_one_cmd(
             let mut p = find_excmd_after_range(&raw mut ea);
             profile_cmd(&raw const ea, cstack, fgetline);
 
-            if !exiting {
+            if !g_st().exiting {
                 dbg_check_breakpoint((&raw mut ea).cast());
             }
-            if ea.skip == 0 && got_int {
+            if ea.skip == 0 && g_st().got_int {
                 ea.skip = 1;
                 do_intthrow(cstack);
             }
@@ -6551,7 +6551,7 @@ unsafe fn do_one_cmd(
             if ea.cmdidx == CMD_SIZE_I32 {
                 if ea.skip == 0 {
                     xstrlcpy(
-                        (&raw mut IObuff).cast(),
+                        (&raw mut g_st().IObuff).cast(),
                         gettext(e_not_an_editor_command.as_ptr()),
                         IOSIZE,
                     );
@@ -6563,8 +6563,8 @@ unsafe fn do_one_cmd(
                     if (flags & DOCMD_VERBOSE) == 0 {
                         append_command(cmdname);
                     }
-                    errormsg = (&raw const IObuff).cast();
-                    did_emsg_syntax = true;
+                    errormsg = (&raw const g_st().IObuff).cast();
+                    g_st().did_emsg_syntax = true;
                     verify_command(cmdname);
                 }
                 break 'doend;
@@ -6579,13 +6579,13 @@ unsafe fn do_one_cmd(
             }
 
             if ea.skip == 0 {
-                if sandbox != 0 && (ea.argt & EX_SBOXOK) == 0 {
+                if g_st().sandbox != 0 && (ea.argt & EX_SBOXOK) == 0 {
                     errormsg = gettext(e_sandbox.as_ptr());
                     break 'doend;
                 }
-                if (*curbuf).b_p_ma == 0
+                if (*g_st().curbuf).b_p_ma == 0
                     && (ea.argt & EX_MODIFY) != 0
-                    && !(!(*curbuf).terminal.is_null()
+                    && !(!(*g_st().curbuf).terminal.is_null()
                         && (ea.cmdidx == cmdidx_T::CMD_put as c_int
                             || ea.cmdidx == cmdidx_T::CMD_iput as c_int))
                 {
@@ -6620,9 +6620,9 @@ unsafe fn do_one_cmd(
             }
 
             if ea.skip == 0 && !ni && (ea.argt & EX_RANGE) != 0 {
-                if global_busy == 0 && ea.line1 > ea.line2 {
-                    if msg_silent == 0 {
-                        if (flags & DOCMD_VERBOSE) != 0 || silent_mode {
+                if g_st().global_busy == 0 && ea.line1 > ea.line2 {
+                    if g_st().msg_silent == 0 {
+                        if (flags & DOCMD_VERBOSE) != 0 || g_st().silent_mode {
                             errormsg = gettext(c"E493: Backwards range given".as_ptr());
                             break 'doend;
                         }
@@ -6647,11 +6647,11 @@ unsafe fn do_one_cmd(
             correct_range(&raw mut ea);
 
             if ((ea.argt & EX_WHOLEFOLD) != 0 || ea.addr_count >= 2)
-                && global_busy == 0
+                && g_st().global_busy == 0
                 && ea.addr_type == ADDR_LINES
             {
-                hasFolding(curwin, ea.line1, &raw mut ea.line1, ptr::null_mut());
-                hasFolding(curwin, ea.line2, ptr::null_mut(), &raw mut ea.line2);
+                hasFolding(*curwin.as_ptr(), ea.line1, &raw mut ea.line1, ptr::null_mut());
+                hasFolding(*curwin.as_ptr(), ea.line2, ptr::null_mut(), &raw mut ea.line2);
             }
 
             p = replace_makeprg(&raw mut ea, p, cmdlinep);
@@ -6773,29 +6773,29 @@ unsafe fn do_one_cmd(
                 break 'doend;
             }
 
-            if need_rethrow {
+            if g_st().need_rethrow {
                 do_throw(cstack);
-            } else if check_cstack {
+            } else if g_st().check_cstack {
                 if source_finished(fgetline) {
                     do_finish(&raw mut ea, true);
                 } else if fgetline.is_func() && current_func_returned() != 0 {
                     let _ = do_return(&raw mut ea, true, false, None);
                 }
             }
-            need_rethrow = false;
-            check_cstack = false;
+            g_st().need_rethrow = false;
+            g_st().check_cstack = false;
         }
 
-        if (*curwin).w_cursor.lnum == 0 {
-            (*curwin).w_cursor.lnum = 1;
-            (*curwin).w_cursor.col = 0;
+        if (**curwin.as_ptr()).w_cursor.lnum == 0 {
+            (**curwin.as_ptr()).w_cursor.lnum = 1;
+            (**curwin.as_ptr()).w_cursor.col = 0;
         }
 
-        if !errormsg.is_null() && *errormsg != NUL && did_emsg == 0 {
+        if !errormsg.is_null() && *errormsg != NUL && g_st().did_emsg == 0 {
             if (flags & DOCMD_VERBOSE) != 0 {
-                let iobuf_ptr: *const c_char = (&raw const IObuff).cast();
+                let iobuf_ptr: *const c_char = (&raw const g_st().IObuff).cast();
                 if errormsg != iobuf_ptr {
-                    xstrlcpy((&raw mut IObuff).cast(), errormsg, IOSIZE);
+                    xstrlcpy((&raw mut g_st().IObuff).cast(), errormsg, IOSIZE);
                     errormsg = iobuf_ptr;
                 }
                 append_command(*ea.cmdlinep);
@@ -6811,16 +6811,16 @@ unsafe fn do_one_cmd(
             },
         );
 
-        undo_cmdmod(&raw mut cmdmod);
-        cmdmod = save_cmdmod;
-        reg_executing = save_reg_executing;
-        pending_end_reg_executing = save_pending_end_reg_executing;
+        undo_cmdmod(&raw mut g_st().cmdmod);
+        g_st().cmdmod = save_cmdmod;
+        g_st().reg_executing = save_reg_executing;
+        g_st().pending_end_reg_executing = save_pending_end_reg_executing;
 
         if !ea.nextcmd.is_null() && *ea.nextcmd == NUL {
             ea.nextcmd = ptr::null_mut();
         }
 
-        ex_nesting_level -= 1;
+        g_st().ex_nesting_level -= 1;
 
         ea.nextcmd
     }
@@ -6839,15 +6839,15 @@ unsafe fn ex_range_without_command(eap: *mut exarg_T) -> *mut c_char {
                 ex_print(eap);
             }
         } else if (*eap).addr_count != 0 {
-            (*eap).line2 = (*eap).line2.min((*curbuf).b_ml.ml_line_count);
+            (*eap).line2 = (*eap).line2.min((*g_st().curbuf).b_ml.ml_line_count);
 
             if (*eap).line2 < 0 {
                 errormsg = gettext(e_invrange.as_ptr());
             } else {
                 if (*eap).line2 == 0 {
-                    (*curwin).w_cursor.lnum = 1;
+                    (**curwin.as_ptr()).w_cursor.lnum = 1;
                 } else {
-                    (*curwin).w_cursor.lnum = (*eap).line2;
+                    (**curwin.as_ptr()).w_cursor.lnum = (*eap).line2;
                 }
                 beginline(BL_SOL | BL_FIX);
             }
@@ -7060,7 +7060,7 @@ pub unsafe fn parse_command_modifiers(
                                 return FAIL;
                             }
                             if tabnr == MAXLNUM {
-                                (*cmod).cmod_tab = tabpage_index(curtab) + 1;
+                                (*cmod).cmod_tab = tabpage_index(g_st().curtab) + 1;
                             } else {
                                 if tabnr < 0 || tabnr > current_tab_nr(ptr::null_mut()) {
                                     *errormsg = gettext(e_invrange.as_ptr());
@@ -7127,7 +7127,7 @@ pub unsafe fn parse_command_modifiers(
 pub unsafe fn apply_cmdmod(cmod: *mut cmdmod_T) {
     unsafe {
         if ((*cmod).cmod_flags & CMOD_SANDBOX) != 0 && (*cmod).cmod_did_sandbox == 0 {
-            sandbox += 1;
+            g_st().sandbox += 1;
             (*cmod).cmod_did_sandbox = 1;
         }
         if (*cmod).cmod_verbose > 0 {
@@ -7140,18 +7140,18 @@ pub unsafe fn apply_cmdmod(cmod: *mut cmdmod_T) {
         if ((*cmod).cmod_flags & (CMOD_SILENT | CMOD_UNSILENT)) != 0
             && (*cmod).cmod_save_msg_silent == 0
         {
-            (*cmod).cmod_save_msg_silent = msg_silent + 1;
-            (*cmod).cmod_save_msg_scroll = msg_scroll;
+            (*cmod).cmod_save_msg_silent = g_st().msg_silent + 1;
+            (*cmod).cmod_save_msg_scroll = g_st().msg_scroll;
         }
         if ((*cmod).cmod_flags & CMOD_SILENT) != 0 {
-            msg_silent += 1;
+            g_st().msg_silent += 1;
         }
         if ((*cmod).cmod_flags & CMOD_UNSILENT) != 0 {
-            msg_silent = 0;
+            g_st().msg_silent = 0;
         }
 
         if ((*cmod).cmod_flags & CMOD_ERRSILENT) != 0 {
-            emsg_silent += 1;
+            g_st().emsg_silent += 1;
             (*cmod).cmod_did_esilent += 1;
         }
 
@@ -7170,7 +7170,7 @@ pub unsafe fn undo_cmdmod(cmod: *mut cmdmod_T) {
         }
 
         if (*cmod).cmod_did_sandbox != 0 {
-            sandbox -= 1;
+            g_st().sandbox -= 1;
             (*cmod).cmod_did_sandbox = 0;
         }
 
@@ -7182,17 +7182,17 @@ pub unsafe fn undo_cmdmod(cmod: *mut cmdmod_T) {
         vim_regfree((*cmod).cmod_filter_regmatch.regprog);
 
         if (*cmod).cmod_save_msg_silent > 0 {
-            if did_emsg == 0 || msg_silent > (*cmod).cmod_save_msg_silent - 1 {
-                msg_silent = (*cmod).cmod_save_msg_silent - 1;
+            if g_st().did_emsg == 0 || g_st().msg_silent > (*cmod).cmod_save_msg_silent - 1 {
+                g_st().msg_silent = (*cmod).cmod_save_msg_silent - 1;
             }
-            emsg_silent -= (*cmod).cmod_did_esilent;
-            if emsg_silent < 0 {
-                emsg_silent = 0;
+            g_st().emsg_silent -= (*cmod).cmod_did_esilent;
+            if g_st().emsg_silent < 0 {
+                g_st().emsg_silent = 0;
             }
-            msg_scroll = (*cmod).cmod_save_msg_scroll;
+            g_st().msg_scroll = (*cmod).cmod_save_msg_scroll;
 
             if redirecting() != 0 {
-                msg_col = 0;
+                g_st().msg_col = 0;
             }
 
             (*cmod).cmod_save_msg_silent = 0;
@@ -7238,23 +7238,23 @@ pub unsafe fn parse_cmd_address(
                         match (*eap).addr_type {
                             ADDR_LINES | ADDR_OTHER => {
                                 (*eap).line1 = 1;
-                                (*eap).line2 = (*curbuf).b_ml.ml_line_count;
+                                (*eap).line2 = (*g_st().curbuf).b_ml.ml_line_count;
                             }
                             ADDR_LOADED_BUFFERS => {
-                                let mut buf = firstbuf;
+                                let mut buf = g_st().firstbuf;
                                 while !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none() {
                                     buf = (*buf).b_next;
                                 }
                                 (*eap).line1 = (*buf).b_fnum;
-                                buf = lastbuf;
+                                buf = g_st().lastbuf;
                                 while !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none() {
                                     buf = (*buf).b_prev;
                                 }
                                 (*eap).line2 = (*buf).b_fnum;
                             }
                             ADDR_BUFFERS => {
-                                (*eap).line1 = (*firstbuf).b_fnum;
-                                (*eap).line2 = (*lastbuf).b_fnum;
+                                (*eap).line1 = (*g_st().firstbuf).b_fnum;
+                                (*eap).line2 = (*g_st().lastbuf).b_fnum;
                             }
                             ADDR_WINDOWS | ADDR_TABS => {
                                 if (*eap).cmdidx < 0 {
@@ -7301,12 +7301,12 @@ pub unsafe fn parse_cmd_address(
 
                         (*eap).cmd = (*eap).cmd.add(1);
                         if (*eap).skip == 0 {
-                            let fm1 = mark_get_visual(curbuf, b'<' as c_int);
+                            let fm1 = mark_get_visual(g_st().curbuf, b'<' as c_int);
                             if !mark_check(fm1, errormsg) {
                                 break 'theend;
                             }
                             (*eap).line1 = (*fm1).mark.lnum;
-                            let fm2 = mark_get_visual(curbuf, b'>' as c_int);
+                            let fm2 = mark_get_visual(g_st().curbuf, b'>' as c_int);
                             if !mark_check(fm2, errormsg) {
                                 break 'theend;
                             }
@@ -7321,11 +7321,11 @@ pub unsafe fn parse_cmd_address(
 
                 if *(*eap).cmd == b';' as c_char {
                     if (*eap).skip == 0 {
-                        (*curwin).w_cursor.lnum = (*eap).line2;
+                        (**curwin.as_ptr()).w_cursor.lnum = (*eap).line2;
                         if (*eap).line2 > 0 {
-                            check_cursor(curwin);
+                            check_cursor(*curwin.as_ptr());
                         } else {
-                            check_cursor_col(curwin);
+                            check_cursor_col(*curwin.as_ptr());
                         }
                         need_check_cursor = true;
                     }
@@ -7345,7 +7345,7 @@ pub unsafe fn parse_cmd_address(
         }
 
         if need_check_cursor {
-            check_cursor(curwin);
+            check_cursor(*curwin.as_ptr());
         }
         ret
     }
@@ -7370,7 +7370,7 @@ pub unsafe fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, len: c_int) 
 
 unsafe fn append_command(cmd: *const c_char) {
     unsafe {
-        let iobuf_ptr: *mut c_char = (&raw mut IObuff).cast();
+        let iobuf_ptr: *mut c_char = (&raw mut g_st().IObuff).cast();
         let len = strlen(iobuf_ptr);
         let mut s = cmd;
         let mut d: *mut c_char;
@@ -7742,11 +7742,11 @@ pub unsafe fn get_address(
                     b'.' => {
                         cmd = cmd.add(1);
                         match addr_type {
-                            ADDR_LINES | ADDR_OTHER => lnum = (*curwin).w_cursor.lnum,
-                            ADDR_WINDOWS => lnum = current_win_nr(curwin, ptr::null_mut()),
-                            ADDR_ARGUMENTS => lnum = (*curwin).w_arg_idx + 1,
-                            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = (*curbuf).b_fnum,
-                            ADDR_TABS => lnum = current_tab_nr(curtab),
+                            ADDR_LINES | ADDR_OTHER => lnum = (**curwin.as_ptr()).w_cursor.lnum,
+                            ADDR_WINDOWS => lnum = current_win_nr(*curwin.as_ptr(), ptr::null_mut()),
+                            ADDR_ARGUMENTS => lnum = (**curwin.as_ptr()).w_arg_idx + 1,
+                            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = (*g_st().curbuf).b_fnum,
+                            ADDR_TABS => lnum = current_tab_nr(g_st().curtab),
                             ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
                                 *errormsg = addr_error(addr_type);
                                 cmd = ptr::null_mut();
@@ -7760,11 +7760,11 @@ pub unsafe fn get_address(
                     b'$' => {
                         cmd = cmd.add(1);
                         match addr_type {
-                            ADDR_LINES | ADDR_OTHER => lnum = (*curbuf).b_ml.ml_line_count,
+                            ADDR_LINES | ADDR_OTHER => lnum = (*g_st().curbuf).b_ml.ml_line_count,
                             ADDR_WINDOWS => lnum = current_win_nr(ptr::null(), eap),
                             ADDR_ARGUMENTS => lnum = argcount(),
                             ADDR_LOADED_BUFFERS => {
-                                let mut buf = lastbuf;
+                                let mut buf = g_st().lastbuf;
                                 while (*buf).b_ml.ml_mfp.is_none() {
                                     if (*buf).b_prev.is_null() {
                                         break;
@@ -7773,7 +7773,7 @@ pub unsafe fn get_address(
                                 }
                                 lnum = (*buf).b_fnum;
                             }
-                            ADDR_BUFFERS => lnum = (*lastbuf).b_fnum,
+                            ADDR_BUFFERS => lnum = (*g_st().lastbuf).b_fnum,
                             ADDR_TABS => lnum = current_tab_nr(ptr::null_mut()),
                             ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
                                 *errormsg = addr_error(addr_type);
@@ -7815,16 +7815,16 @@ pub unsafe fn get_address(
                                 kMarkBufLocal
                             };
                             let fm = mark_get(
-                                curbuf,
-                                curwin,
+                                g_st().curbuf,
+                                *curwin.as_ptr(),
                                 ptr::null_mut(),
                                 flag,
                                 c_int::from(*cmd as u8),
                             );
                             cmd = cmd.add(1);
-                            if !fm.is_null() && (*fm).fnum != (*curbuf).b_fnum {
+                            if !fm.is_null() && (*fm).fnum != (*g_st().curbuf).b_fnum {
                                 mark_move_to(fm, 0);
-                                lnum = (*curwin).w_cursor.lnum;
+                                lnum = (**curwin.as_ptr()).w_cursor.lnum;
                             } else {
                                 if !mark_check(fm, errormsg) {
                                     cmd = ptr::null_mut();
@@ -7848,17 +7848,17 @@ pub unsafe fn get_address(
                                 cmd = cmd.add(1);
                             }
                         } else {
-                            let pos = (*curwin).w_cursor;
+                            let pos = (**curwin.as_ptr()).w_cursor;
                             if lnum > 0 && lnum != MAXLNUM {
-                                (*curwin).w_cursor.lnum = lnum.min((*curbuf).b_ml.ml_line_count);
+                                (**curwin.as_ptr()).w_cursor.lnum = lnum.min((*g_st().curbuf).b_ml.ml_line_count);
                             }
-                            (*curwin).w_cursor.col =
-                                if c == b'/' as c_int && (*curwin).w_cursor.lnum > 0 {
+                            (**curwin.as_ptr()).w_cursor.col =
+                                if c == b'/' as c_int && (**curwin.as_ptr()).w_cursor.lnum > 0 {
                                     MAXCOL
                                 } else {
                                     0
                                 };
-                            Search.cmdlen = 0;
+                            g_st().Search.cmdlen = 0;
                             let search_flags = if silent {
                                 SEARCH_KEEP
                             } else {
@@ -7876,13 +7876,13 @@ pub unsafe fn get_address(
                                 ptr::null_mut(),
                             ) == 0
                             {
-                                (*curwin).w_cursor = pos;
+                                (**curwin.as_ptr()).w_cursor = pos;
                                 cmd = ptr::null_mut();
                                 break 'error;
                             }
-                            lnum = (*curwin).w_cursor.lnum;
-                            (*curwin).w_cursor = pos;
-                            cmd = cmd.add(Search.cmdlen as usize);
+                            lnum = (**curwin.as_ptr()).w_cursor.lnum;
+                            (**curwin.as_ptr()).w_cursor = pos;
+                            cmd = cmd.add(g_st().Search.cmdlen as usize);
                         }
                     }
                     b'\\' => {
@@ -7906,14 +7906,14 @@ pub unsafe fn get_address(
                                 lnum: if lnum != MAXLNUM {
                                     lnum
                                 } else {
-                                    (*curwin).w_cursor.lnum
+                                    (**curwin.as_ptr()).w_cursor.lnum
                                 },
                                 col: if *cmd != b'?' as c_char { MAXCOL } else { 0 },
                                 coladd: 0,
                             };
                             if searchit(
-                                curwin,
-                                curbuf,
+                                *curwin.as_ptr(),
+                                g_st().curbuf,
                                 &raw mut pos,
                                 ptr::null_mut(),
                                 if *cmd == b'?' as c_char {
@@ -7953,11 +7953,11 @@ pub unsafe fn get_address(
 
                     if lnum == MAXLNUM {
                         match addr_type {
-                            ADDR_LINES | ADDR_OTHER => lnum = (*curwin).w_cursor.lnum,
-                            ADDR_WINDOWS => lnum = current_win_nr(curwin, ptr::null_mut()),
-                            ADDR_ARGUMENTS => lnum = (*curwin).w_arg_idx + 1,
-                            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = (*curbuf).b_fnum,
-                            ADDR_TABS => lnum = current_tab_nr(curtab),
+                            ADDR_LINES | ADDR_OTHER => lnum = (**curwin.as_ptr()).w_cursor.lnum,
+                            ADDR_WINDOWS => lnum = current_win_nr(*curwin.as_ptr(), ptr::null_mut()),
+                            ADDR_ARGUMENTS => lnum = (**curwin.as_ptr()).w_arg_idx + 1,
+                            ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = (*g_st().curbuf).b_fnum,
+                            ADDR_TABS => lnum = current_tab_nr(g_st().curtab),
                             ADDR_TABS_RELATIVE => lnum = 1,
                             ADDR_QUICKFIX => lnum = qf_get_cur_idx(eap) as linenr_T,
                             ADDR_QUICKFIX_VALID => lnum = qf_get_cur_valid_idx(eap),
@@ -7999,7 +7999,7 @@ pub unsafe fn get_address(
                             && (op == b'-' as c_int || op == b'+' as c_int)
                             && address_count >= 2
                         {
-                            hasFolding(curwin, lnum, ptr::null_mut(), &raw mut lnum);
+                            hasFolding(*curwin.as_ptr(), lnum, ptr::null_mut(), &raw mut lnum);
                         }
                         if op == b'-' as c_int {
                             lnum -= n;
@@ -8072,7 +8072,7 @@ pub unsafe fn invalid_range(eap: *mut exarg_T) -> *mut c_char {
                         (*eap).cmdidx == cmdidx_T::CMD_diffget as c_int
                             || (*eap).cmdidx == cmdidx_T::CMD_diffput as c_int,
                     );
-                    if (*eap).line2 > (*curbuf).b_ml.ml_line_count + extra {
+                    if (*eap).line2 > (*g_st().curbuf).b_ml.ml_line_count + extra {
                         return gettext(e_invrange.as_ptr());
                     }
                 }
@@ -8088,7 +8088,7 @@ pub unsafe fn invalid_range(eap: *mut exarg_T) -> *mut c_char {
                     }
                 }
                 ADDR_LOADED_BUFFERS => {
-                    let mut buf = firstbuf;
+                    let mut buf = g_st().firstbuf;
                     while (*buf).b_ml.ml_mfp.is_none() {
                         if (*buf).b_next.is_null() {
                             return gettext(e_invrange.as_ptr());
@@ -8098,7 +8098,7 @@ pub unsafe fn invalid_range(eap: *mut exarg_T) -> *mut c_char {
                     if (*eap).line1 < (*buf).b_fnum {
                         return gettext(e_invrange.as_ptr());
                     }
-                    buf = lastbuf;
+                    buf = g_st().lastbuf;
                     while (*buf).b_ml.ml_mfp.is_none() {
                         if (*buf).b_prev.is_null() {
                             return gettext(e_invrange.as_ptr());
@@ -8190,15 +8190,15 @@ pub unsafe fn replace_makeprg(
             && !((*eap).cmdidx >= 0 && grep_internal((*eap).cmdidx) != 0)
         {
             let program = if isgrep {
-                if *(*curbuf).b_p_gp == NUL {
+                if *(*g_st().curbuf).b_p_gp == NUL {
                     opt_vars().p_gp
                 } else {
-                    (*curbuf).b_p_gp
+                    (*g_st().curbuf).b_p_gp
                 }
-            } else if *(*curbuf).b_p_mp == NUL {
+            } else if *(*g_st().curbuf).b_p_mp == NUL {
                 opt_vars().p_mp
             } else {
-                (*curbuf).b_p_mp
+                (*g_st().curbuf).b_p_mp
             };
 
             arg = skipwhite(arg);
@@ -8325,14 +8325,14 @@ pub unsafe fn expand_filename(
                     let esc_wildcards = c" \t*?[{".as_ptr().cast_mut();
                     expand_env_esc(
                         (*eap).arg,
-                        (&raw mut NameBuff).cast(),
+                        (&raw mut g_st().NameBuff).cast(),
                         MAXPATHL as c_int,
                         esc_wildcards,
                         true,
                         ptr::null_mut(),
                     );
-                    has_wildcards = path_has_wildcard((&raw const NameBuff).cast(), true);
-                    p = (&raw mut NameBuff).cast();
+                    has_wildcards = path_has_wildcard((&raw const g_st().NameBuff).cast(), true);
+                    p = (&raw mut g_st().NameBuff).cast();
                 } else {
                     p = ptr::null_mut();
                 }
@@ -8721,8 +8721,8 @@ unsafe fn get_tabpage_arg(eap: *mut exarg_T) -> c_int {
                     if strcmp(p, c"$".as_ptr()) == 0 {
                         tab_number = last_tab;
                     } else if strcmp(p, c"#".as_ptr()) == 0 {
-                        if valid_tabpage(lastused_tabpage) {
-                            tab_number = tabpage_index(lastused_tabpage);
+                        if valid_tabpage(g_st().lastused_tabpage) {
+                            tab_number = tabpage_index(g_st().lastused_tabpage);
                         } else {
                             (*eap).errmsg = ex_errmsg(e_invargval.as_ptr(), (*eap).arg);
                             tab_number = 0;
@@ -8747,7 +8747,7 @@ unsafe fn get_tabpage_arg(eap: *mut exarg_T) -> c_int {
                         (*eap).errmsg = ex_errmsg(e_invarg2.as_ptr(), (*eap).arg);
                         break 'theend;
                     }
-                    tab_number = tab_number * relative + tabpage_index(curtab);
+                    tab_number = tab_number * relative + tabpage_index(g_st().curtab);
                     if unaccept_arg0 == 0 && relative == -1 {
                         tab_number -= 1;
                     }
@@ -8777,14 +8777,14 @@ unsafe fn get_tabpage_arg(eap: *mut exarg_T) -> c_int {
                     }
                 }
             } else if (*eap).cmdidx == cmdidx_T::CMD_tabnext as c_int {
-                tab_number = tabpage_index(curtab) + 1;
+                tab_number = tabpage_index(g_st().curtab) + 1;
                 if tab_number > last_tab {
                     tab_number = 1;
                 }
             } else if (*eap).cmdidx == cmdidx_T::CMD_tabmove as c_int {
                 tab_number = last_tab;
             } else {
-                tab_number = tabpage_index(curtab);
+                tab_number = tabpage_index(g_st().curtab);
             }
         }
 
@@ -8794,8 +8794,8 @@ unsafe fn get_tabpage_arg(eap: *mut exarg_T) -> c_int {
 
 unsafe fn ex_autocmd(eap: *mut exarg_T) {
     unsafe {
-        if secure != 0 {
-            secure = 2;
+        if g_st().secure != 0 {
+            g_st().secure = 2;
             (*eap).errmsg = gettext(e_curdir.as_ptr());
         } else if (*eap).cmdidx == cmdidx_T::CMD_autocmd as c_int {
             do_autocmd(eap, (*eap).arg, (*eap).forceit);
@@ -8937,12 +8937,12 @@ pub unsafe fn check_nextcmd(p: *mut c_char) -> *mut c_char {
 unsafe fn check_more(message: bool, forceit: bool) -> c_int {
     unsafe {
         let ac = argcount();
-        let n = ac - (*curwin).w_arg_idx - 1;
+        let n = ac - (**curwin.as_ptr()).w_arg_idx - 1;
 
-        if !forceit && only_one_window() && ac > 1 && !arg_had_last && n > 0 && docmd_st().quitmore == 0 {
+        if !forceit && only_one_window() && ac > 1 && !g_st().arg_had_last && n > 0 && docmd_st().quitmore == 0 {
             if message {
-                if (opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-                    && !(*curbuf).b_fname.is_null()
+                if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+                    && !(*g_st().curbuf).b_fname.is_null()
                 {
                     let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
                     let _ = vim_snprintf!(
@@ -8991,9 +8991,9 @@ unsafe fn ex_colorscheme(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg == NUL {
             let mut expr = *b"g:colors_name\0";
-            emsg_off += 1;
+            g_st().emsg_off += 1;
             let p = eval_to_string(expr.as_mut_ptr().cast(), false, false);
-            emsg_off -= 1;
+            g_st().emsg_off -= 1;
 
             msg_ext_set_kind(c"list_cmd".as_ptr());
             if let Some(ref p) = p {
@@ -9021,7 +9021,7 @@ unsafe fn ex_highlight(eap: *mut exarg_T) {
 
 pub unsafe fn not_exiting(save_exiting: bool) {
     unsafe {
-        exiting = save_exiting;
+        g_st().exiting = save_exiting;
         set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
     }
 }
@@ -9054,11 +9054,11 @@ pub unsafe fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool
                 ptr::null_mut(),
                 ptr::null_mut(),
                 false,
-                curbuf,
+                g_st().curbuf,
             );
             if !win_valid(wp)
                 || curbuf_locked()
-                || ((*curbuf).b_nwindows == 1 && (*curbuf).b_locked > 0)
+                || ((*g_st().curbuf).b_nwindows == 1 && (*g_st().curbuf).b_locked > 0)
             {
                 set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
                 return true;
@@ -9079,7 +9079,7 @@ unsafe fn ex_quit(eap: *mut exarg_T) {
         let mut wp: *mut win_T;
         if (*eap).addr_count > 0 {
             let mut wnr = (*eap).line2;
-            wp = firstwin;
+            wp = g_st().firstwin;
             while !(*wp).w_next.is_null() {
                 wnr -= 1;
                 if wnr <= 0 {
@@ -9088,7 +9088,7 @@ unsafe fn ex_quit(eap: *mut exarg_T) {
                 wp = (*wp).w_next;
             }
         } else {
-            wp = curwin;
+            wp = *curwin.as_ptr();
         }
 
         if curbuf_locked() {
@@ -9099,9 +9099,9 @@ unsafe fn ex_quit(eap: *mut exarg_T) {
             return;
         }
 
-        let save_exiting = exiting;
+        let save_exiting = g_st().exiting;
         if check_more(false, (*eap).forceit != 0) == OK && only_one_window() {
-            exiting = true;
+            g_st().exiting = true;
         }
         if (!buf_hide((*wp).w_buffer)
             && check_changed(
@@ -9115,7 +9115,7 @@ unsafe fn ex_quit(eap: *mut exarg_T) {
         {
             not_exiting(save_exiting);
         } else {
-            if only_one_window() && (firstwin == lastwin || (*eap).addr_count == 0) {
+            if only_one_window() && (g_st().firstwin == g_st().lastwin || (*eap).addr_count == 0) {
                 getout(0);
             }
             not_exiting(save_exiting);
@@ -9146,7 +9146,7 @@ pub unsafe fn before_quit_all(eap: *mut exarg_T) -> c_int {
             text_locked_msg();
             return FAIL;
         }
-        if before_quit_autocmds(curwin, true, (*eap).forceit != 0) {
+        if before_quit_autocmds(*curwin.as_ptr(), true, (*eap).forceit != 0) {
             return FAIL;
         }
         OK
@@ -9158,8 +9158,8 @@ unsafe fn ex_quitall(eap: *mut exarg_T) {
         if before_quit_all(eap) == FAIL {
             return;
         }
-        let save_exiting = exiting;
-        exiting = true;
+        let save_exiting = g_st().exiting;
+        g_st().exiting = true;
         if (*eap).forceit != 0 || !check_changed_any(false, false) {
             getout(0);
         }
@@ -9169,10 +9169,10 @@ unsafe fn ex_quitall(eap: *mut exarg_T) {
 
 unsafe fn ex_exmode(_eap: *mut exarg_T) {
     unsafe {
-        if silent_mode {
+        if g_st().silent_mode {
             return;
         }
-        if ex_normal_busy > 0 || global_busy != 0 {
+        if g_st().ex_normal_busy > 0 || g_st().global_busy != 0 {
             flush_buffers(FLUSH_TYPEAHEAD);
             return;
         }
@@ -9213,7 +9213,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
                 c"vim._core.server".as_ptr(),
                 c"ex_session_restart".as_ptr(),
                 eap,
-                &raw mut cmdmod,
+                &raw mut g_st().cmdmod,
                 &raw mut extra_tv,
             );
             tv_clear(&raw mut extra_tv);
@@ -9384,7 +9384,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             true,
             true,
             kChannelStdinPipe,
-            (&raw const globaldir)
+            (&raw const g_st().globaldir)
                 .as_ref()
                 .unwrap()
                 .as_ref()
@@ -9559,7 +9559,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             set_vim_var_string(VV_EXITREASON, startreason, -1);
 
             let mut quit_cmd_copy: Option<std::ffi::CString> = None;
-            if (cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+            if (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                 let mut bytes = Vec::from(&b"confirm "[..]);
                 bytes.extend_from_slice(CStr::from_ptr(quit_cmd).to_bytes());
                 let cstr = cstr_from_bytes(&bytes);
@@ -9571,7 +9571,7 @@ unsafe fn ex_restart(eap: *mut exarg_T) {
             if error_set(&raw const err) {
                 let _ = emsg(err.msg_ptr());
                 api_clear_error(&raw mut err);
-            } else if !exiting {
+            } else if !g_st().exiting {
                 let _ = semsg!(e_restart_failed_cmd_no_quit.as_ptr(), quit_cmd);
             }
             drop(quit_cmd_copy);
@@ -9621,10 +9621,10 @@ unsafe fn ex_close(eap: *mut exarg_T) {
     unsafe {
         if !text_locked() && !curbuf_locked() {
             let win = if (*eap).addr_count == 0 {
-                curwin
+                *curwin.as_ptr()
             } else {
-                let w = win_find_nr((*eap).line2, curtab);
-                if w.is_null() { lastwin } else { w }
+                let w = win_find_nr((*eap).line2, g_st().curtab);
+                if w.is_null() { g_st().lastwin } else { w }
             };
             ex_win_close((*eap).forceit, win, ptr::null_mut());
         }
@@ -9633,7 +9633,7 @@ unsafe fn ex_close(eap: *mut exarg_T) {
 
 unsafe fn ex_pclose(eap: *mut exarg_T) {
     unsafe {
-        let mut win = firstwin;
+        let mut win = g_st().firstwin;
         while !win.is_null() {
             if (*win).w_onebuf_opt.wo_pvw != 0 {
                 ex_win_close((*eap).forceit, win, ptr::null_mut());
@@ -9647,7 +9647,7 @@ unsafe fn ex_pclose(eap: *mut exarg_T) {
 
 pub unsafe fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) {
     unsafe {
-        debug_assert!(tp.is_null() || tp != curtab);
+        debug_assert!(tp.is_null() || tp != g_st().curtab);
 
         if is_ctx_win(win) {
             let _ = emsg(gettext(e_autocmd_close.as_ptr()));
@@ -9661,7 +9661,7 @@ pub unsafe fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) 
 
         let mut need_hide = bufIsChanged(buf) && (*buf).b_nwindows <= 1;
         if need_hide && !buf_hide(buf) && forceit == 0 {
-            if (opt_vars().p_confirm != 0 || (cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
+            if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0) && opt_vars().p_write != 0 {
                 let mut bufref: bufref_T = bufref_T::new();
                 set_bufref(&raw mut bufref, buf);
                 dialog_changed(buf, false);
@@ -9690,7 +9690,7 @@ pub unsafe fn ex_win_close(forceit: c_int, win: *mut win_T, tp: *mut tabpage_T) 
 
 unsafe fn ex_tabclose(eap: *mut exarg_T) {
     unsafe {
-        if (*first_tabpage).tp_next.is_null() {
+        if (*g_st().first_tabpage).tp_next.is_null() {
             let _ = emsg(gettext(c"E784: Cannot close last tab page".as_ptr()));
             return;
         }
@@ -9709,7 +9709,7 @@ unsafe fn ex_tabclose(eap: *mut exarg_T) {
             beep_flush();
             return;
         }
-        if tp != curtab {
+        if tp != g_st().curtab {
             tabpage_close_other(tp, (*eap).forceit);
         } else if !text_locked() && !curbuf_locked() {
             tabpage_close((*eap).forceit);
@@ -9719,7 +9719,7 @@ unsafe fn ex_tabclose(eap: *mut exarg_T) {
 
 unsafe fn ex_tabonly(eap: *mut exarg_T) {
     unsafe {
-        if (*first_tabpage).tp_next.is_null() {
+        if (*g_st().first_tabpage).tp_next.is_null() {
             let _ = msg(gettext(c"Already only one tab page".as_ptr()), 0);
             return;
         }
@@ -9736,9 +9736,9 @@ unsafe fn ex_tabonly(eap: *mut exarg_T) {
         goto_tabpage(tab_number);
         let mut done: c_int = 0;
         while done < 1000 {
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                if (*tp).tp_topframe != topframe.cast() {
+                if (*tp).tp_topframe != g_st().topframe.cast() {
                     tabpage_close_other(tp, (*eap).forceit);
                     if valid_tabpage(tp) {
                         done = 1000;
@@ -9747,7 +9747,7 @@ unsafe fn ex_tabonly(eap: *mut exarg_T) {
                 }
                 tp = (*tp).tp_next;
             }
-            if (*first_tabpage).tp_next.is_null() {
+            if (*g_st().first_tabpage).tp_next.is_null() {
                 break;
             }
             done += 1;
@@ -9763,28 +9763,28 @@ pub unsafe fn tabpage_close(forceit: c_int) {
             return;
         }
 
-        trigger_tabclosedpre(curtab);
-        (*curtab).tp_did_tabclosedpre = true;
-        let save_curtab = curtab;
+        trigger_tabclosedpre(g_st().curtab);
+        (*g_st().curtab).tp_did_tabclosedpre = true;
+        let save_curtab = g_st().curtab;
 
-        while (*curwin).w_floating && {
+        while (**curwin.as_ptr()).w_floating && {
             done += 1;
             done < 1000
         } {
-            ex_win_close(forceit, curwin, ptr::null_mut());
+            ex_win_close(forceit, *curwin.as_ptr(), ptr::null_mut());
         }
         if done == 1000 {
             return;
         }
 
-        if firstwin != lastwin {
+        if g_st().firstwin != g_st().lastwin {
             close_others(1, forceit, true);
         }
-        if firstwin == lastwin {
-            ex_win_close(forceit, curwin, ptr::null_mut());
+        if g_st().firstwin == g_st().lastwin {
+            ex_win_close(forceit, *curwin.as_ptr(), ptr::null_mut());
         }
-        if curtab == save_curtab {
-            (*curtab).tp_did_tabclosedpre = false;
+        if g_st().curtab == save_curtab {
+            (*g_st().curtab).tp_did_tabclosedpre = false;
         }
     }
 }
@@ -9794,7 +9794,7 @@ pub unsafe fn tabpage_close_other(tp: *mut tabpage_T, forceit: c_int) {
         let mut done: c_int = 0;
         let mut prev_idx = [0 as c_char; NUMBUFLEN];
 
-        debug_assert!(tp != curtab);
+        debug_assert!(tp != g_st().curtab);
 
         if window_layout_locked(cmdidx_T::CMD_SIZE) {
             return;
@@ -9815,7 +9815,7 @@ pub unsafe fn tabpage_close_other(tp: *mut tabpage_T, forceit: c_int) {
             );
             let wp = (*tp).tp_lastwin;
 
-            if tp == curtab {
+            if tp == g_st().curtab {
                 done = 1000;
                 break;
             }
@@ -9844,7 +9844,7 @@ unsafe fn ex_only(eap: *mut exarg_T) {
 
         if (*eap).addr_count > 0 {
             let mut wnr = (*eap).line2;
-            let mut wp = firstwin;
+            let mut wp = g_st().firstwin;
             while {
                 wnr -= 1;
                 wnr > 0
@@ -9854,7 +9854,7 @@ unsafe fn ex_only(eap: *mut exarg_T) {
                 }
                 wp = (*wp).w_next;
             }
-            if wp != curwin {
+            if wp != *curwin.as_ptr() {
                 win_goto(wp);
             }
         }
@@ -9869,10 +9869,10 @@ unsafe fn ex_hide(eap: *mut exarg_T) {
         }
 
         let win = if (*eap).addr_count == 0 {
-            curwin
+            *curwin.as_ptr()
         } else {
-            let w = win_find_nr((*eap).line2, curtab);
-            if w.is_null() { lastwin } else { w }
+            let w = win_find_nr((*eap).line2, g_st().curtab);
+            if w.is_null() { g_st().lastwin } else { w }
         };
 
         if !(*win).w_floating && window_layout_locked(cmdidx_T::CMD_hide) {
@@ -9901,13 +9901,13 @@ unsafe fn ex_exit(eap: *mut exarg_T) {
             return;
         }
 
-        let save_exiting = exiting;
+        let save_exiting = g_st().exiting;
         if check_more(false, (*eap).forceit != 0) == OK && only_one_window() {
-            exiting = true;
+            g_st().exiting = true;
         }
         if (((*eap).cmdidx == cmdidx_T::CMD_wq as c_int || curbufIsChanged())
             && do_write(eap) == FAIL)
-            || before_quit_autocmds(curwin, false, (*eap).forceit != 0)
+            || before_quit_autocmds(*curwin.as_ptr(), false, (*eap).forceit != 0)
             || check_more(true, (*eap).forceit != 0) == FAIL
             || (only_one_window() && check_changed_any((*eap).forceit != 0, false))
         {
@@ -9917,18 +9917,18 @@ unsafe fn ex_exit(eap: *mut exarg_T) {
                 getout(0);
             }
             not_exiting(save_exiting);
-            win_close(curwin, !buf_hide((*curwin).w_buffer), (*eap).forceit != 0);
+            win_close(*curwin.as_ptr(), !buf_hide((**curwin.as_ptr()).w_buffer), (*eap).forceit != 0);
         }
     }
 }
 
 unsafe fn ex_print(eap: *mut exarg_T) {
     unsafe {
-        if ((*curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
+        if ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) != 0 {
             let _ = emsg(gettext(e_empty_buffer.as_ptr()));
         } else {
             let mut line = (*eap).line1;
-            while line <= (*eap).line2 && !got_int {
+            while line <= (*eap).line2 && !g_st().got_int {
                 print_line(
                     line,
                     (*eap).cmdidx == cmdidx_T::CMD_number as c_int
@@ -9942,7 +9942,7 @@ unsafe fn ex_print(eap: *mut exarg_T) {
                 os_breakcheck();
             }
             setpcmark();
-            (*curwin).w_cursor.lnum = (*eap).line2;
+            (**curwin.as_ptr()).w_cursor.lnum = (*eap).line2;
             beginline(BL_SOL | BL_FIX);
         }
     }
@@ -9956,24 +9956,24 @@ unsafe fn ex_goto(eap: *mut exarg_T) {
 
 unsafe fn ex_preserve(_eap: *mut exarg_T) {
     unsafe {
-        ml_preserve(curbuf, true, true);
+        ml_preserve(g_st().curbuf, true, true);
     }
 }
 
 unsafe fn ex_recover(eap: *mut exarg_T) {
     unsafe {
-        recoverymode = true;
+        g_st().recoverymode = true;
         if !check_changed(
-            curbuf,
+            g_st().curbuf,
             (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
                 | CCGD_MULTWIN
                 | (if (*eap).forceit != 0 { CCGD_FORCEIT } else { 0 })
                 | CCGD_EXCMD,
-        ) && (*(*eap).arg == NUL || setfname(curbuf, (*eap).arg, ptr::null_mut(), true) == OK)
+        ) && (*(*eap).arg == NUL || setfname(g_st().curbuf, (*eap).arg, ptr::null_mut(), true) == OK)
         {
             ml_recover(true);
         }
-        recoverymode = false;
+        g_st().recoverymode = false;
     }
 }
 
@@ -9985,7 +9985,7 @@ unsafe fn ex_wrongmodifier(eap: *mut exarg_T) {
 
 unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut list_T {
     unsafe {
-        let saved_sctx = current_sctx;
+        let saved_sctx = g_st().current_sctx;
 
         let mut args = [
             typval_T {
@@ -10005,19 +10005,19 @@ unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut lis
             },
         ];
 
-        textlock += 1;
+        g_st().textlock += 1;
 
         let ctx = get_option_sctx(kOptFindfunc);
         if !ctx.is_null() {
-            current_sctx = *ctx;
+            g_st().current_sctx = *ctx;
         }
 
         let cb = get_findfunc();
         let mut rettv: typval_T = typval_T::new();
         let retval = callback_call(cb, 2, args.as_mut_ptr(), &raw mut rettv);
 
-        current_sctx = saved_sctx;
-        textlock -= 1;
+        g_st().current_sctx = saved_sctx;
+        g_st().textlock -= 1;
 
         let mut retlist: *mut list_T = ptr::null_mut();
         if retval {
@@ -10117,7 +10117,7 @@ pub unsafe fn set_ref_in_findfunc(copyID: c_int) -> bool {
 
 unsafe fn set_browse_edit_arg(eap: *mut exarg_T) {
     unsafe {
-        if (cmdmod.cmod_flags & CMOD_BROWSE) != 0
+        if (g_st().cmdmod.cmod_flags & CMOD_BROWSE) != 0
             && *(*eap).arg == NUL
             && ((*eap).cmdidx == cmdidx_T::CMD_edit as c_int
                 || (*eap).cmdidx == cmdidx_T::CMD_split as c_int
@@ -10133,13 +10133,13 @@ unsafe fn set_browse_edit_arg(eap: *mut exarg_T) {
 pub unsafe fn ex_splitview(eap: *mut exarg_T) {
     unsafe {
         set_browse_edit_arg(eap);
-        let old_curwin = curwin;
+        let old_curwin = *curwin.as_ptr();
         let mut fname: Option<std::ffi::CString> = None;
         let use_tab = (*eap).cmdidx == cmdidx_T::CMD_tabedit as c_int
             || (*eap).cmdidx == cmdidx_T::CMD_tabfind as c_int
             || (*eap).cmdidx == cmdidx_T::CMD_tabnew as c_int;
 
-        if bt_quickfix(curbuf) && cmdmod.cmod_tab == 0 {
+        if bt_quickfix(g_st().curbuf) && g_st().cmdmod.cmod_tab == 0 {
             if (*eap).cmdidx == cmdidx_T::CMD_split as c_int {
                 (*eap).cmdidx = cmdidx_T::CMD_new as c_int;
             }
@@ -10170,7 +10170,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                         strlen((*eap).arg),
                         FNAME_MESS,
                         c_int::from(true),
-                        (*curbuf).b_ffname,
+                        (*g_st().curbuf).b_ffname,
                         &mut file_to_find,
                         &mut search_ctx,
                     );
@@ -10182,8 +10182,8 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
             }
 
             if use_tab {
-                let after = if cmdmod.cmod_tab != 0 {
-                    cmdmod.cmod_tab
+                let after = if g_st().cmdmod.cmod_tab != 0 {
+                    g_st().cmdmod.cmod_tab
                 } else if (*eap).addr_count == 0 {
                     0
                 } else {
@@ -10196,15 +10196,15 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                         ptr::null_mut(),
                         ptr::null_mut(),
                         false,
-                        curbuf,
+                        g_st().curbuf,
                     );
 
-                    if curwin != old_curwin
+                    if *curwin.as_ptr() != old_curwin
                         && win_valid(old_curwin)
-                        && (*old_curwin).w_buffer != curbuf
-                        && (cmdmod.cmod_flags & CMOD_KEEPALT) == 0
+                        && (*old_curwin).w_buffer != g_st().curbuf
+                        && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
                     {
-                        (*old_curwin).w_alt_fnum = (*curbuf).b_fnum;
+                        (*old_curwin).w_alt_fnum = (*g_st().curbuf).b_fnum;
                     }
                 }
             } else if win_split(
@@ -10221,8 +10221,8 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
             ) != FAIL
             {
                 if *(*eap).arg != NUL {
-                    (*curwin).w_onebuf_opt.wo_scb = 0;
-                    (*curwin).w_onebuf_opt.wo_crb = 0;
+                    (**curwin.as_ptr()).w_onebuf_opt.wo_scb = 0;
+                    (**curwin.as_ptr()).w_onebuf_opt.wo_crb = 0;
                 } else {
                     do_check_scrollbind(false);
                 }
@@ -10303,40 +10303,40 @@ unsafe fn ex_tabs(_eap: *mut exarg_T) {
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
         msg_start();
-        msg_scroll = c_int::from(true);
+        g_st().msg_scroll = c_int::from(true);
 
-        let lastused_win = if valid_tabpage(lastused_tabpage) {
-            (*lastused_tabpage).tp_curwin
+        let lastused_win = if valid_tabpage(g_st().lastused_tabpage) {
+            (*g_st().lastused_tabpage).tp_curwin
         } else {
             ptr::null_mut()
         };
 
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
 
-            if msg_col > 0 {
+            if g_st().msg_col > 0 {
                 msg_putchar(b'\n' as c_int);
             }
             let _ = vim_snprintf!(
-                (&raw mut IObuff).cast(),
+                (&raw mut g_st().IObuff).cast(),
                 IOSIZE,
                 gettext(c"Tab page %d".as_ptr()),
                 tabcount,
             );
             tabcount += 1;
-            let _ = msg_outtrans((&raw const IObuff).cast(), HLF_T, false);
+            let _ = msg_outtrans((&raw const g_st().IObuff).cast(), HLF_T, false);
             os_breakcheck();
 
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
             while !wp.is_null() {
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
                 if !(*wp).w_config.focusable || (*wp).w_config.hide {
@@ -10345,7 +10345,7 @@ unsafe fn ex_tabs(_eap: *mut exarg_T) {
                 }
 
                 msg_putchar(b'\n' as c_int);
-                msg_putchar(if wp == curwin {
+                msg_putchar(if wp == *curwin.as_ptr() {
                     b'>' as c_int
                 } else if wp == lastused_win {
                     b'#' as c_int
@@ -10361,17 +10361,17 @@ unsafe fn ex_tabs(_eap: *mut exarg_T) {
                 msg_putchar(b' ' as c_int);
                 let spname = buf_spname((*wp).w_buffer);
                 if !spname.is_null() {
-                    xstrlcpy((&raw mut IObuff).cast(), spname, IOSIZE);
+                    xstrlcpy((&raw mut g_st().IObuff).cast(), spname, IOSIZE);
                 } else {
                     home_replace(
                         (*wp).w_buffer,
                         (*(*wp).w_buffer).b_fname,
-                        (&raw mut IObuff).cast(),
+                        (&raw mut g_st().IObuff).cast(),
                         IOSIZE,
                         true,
                     );
                 }
-                let _ = msg_outtrans((&raw const IObuff).cast(), 0, false);
+                let _ = msg_outtrans((&raw const g_st().IObuff).cast(), 0, false);
                 os_breakcheck();
 
                 wp = (*wp).w_next;
@@ -10384,7 +10384,7 @@ unsafe fn ex_tabs(_eap: *mut exarg_T) {
 
 unsafe fn ex_detach(eap: *mut exarg_T) {
     unsafe {
-        let chan = find_channel(current_ui);
+        let chan = find_channel(g_st().current_ui);
         if chan.is_null() {
             let _ = emsg(gettext(e_noui.as_ptr()));
             return;
@@ -10401,12 +10401,12 @@ unsafe fn ex_detach(eap: *mut exarg_T) {
         }
 
         if !eap.is_null() && (*eap).addr_count > 0 {
-            if (*eap).line1 != 1 || (*eap).line2 != (*curbuf).b_ml.ml_line_count {
+            if (*eap).line1 != 1 || (*eap).line2 != (*g_st().curbuf).b_ml.ml_line_count {
                 let _ = emsg(gettext(e_invrange.as_ptr()));
                 return;
             }
 
-            let n = ui_detach_others(current_ui);
+            let n = ui_detach_others(g_st().current_ui);
             if n == 0 {
                 let _ = msg(gettext(c"No other UIs are attached".as_ptr()), 0);
             } else {
@@ -10424,13 +10424,13 @@ unsafe fn ex_detach(eap: *mut exarg_T) {
                     line!() as c_int,
                     true,
                     c"%%detach current_ui=%llu detached=%zu".as_ptr(),
-                    current_ui,
+                    g_st().current_ui,
                     n,
                 );
             }
         } else {
             let mut err = error_init();
-            ui_detach_channel(current_ui, &raw mut err);
+            ui_detach_channel(g_st().current_ui, &raw mut err);
             if error_set(&raw const err) {
                 let _ = emsg(err.msg_ptr());
                 api_clear_error(&raw mut err);
@@ -10444,7 +10444,7 @@ unsafe fn ex_detach(eap: *mut exarg_T) {
                     line!() as c_int,
                     true,
                     c"detach current_ui=%llu".as_ptr(),
-                    current_ui,
+                    g_st().current_ui,
                 );
             }
         }
@@ -10460,7 +10460,7 @@ unsafe fn ex_connect(eap: *mut exarg_T) {
         };
 
         let mut err = error_init();
-        remote_ui_connect(current_ui, (*eap).arg, &raw mut err);
+        remote_ui_connect(g_st().current_ui, (*eap).arg, &raw mut err);
 
         if error_set(&raw const err) {
             let _ = emsg(err.msg_ptr());
@@ -10470,7 +10470,7 @@ unsafe fn ex_connect(eap: *mut exarg_T) {
 
         ex_detach(ptr::null_mut());
         if stop_server {
-            exiting = true;
+            g_st().exiting = true;
             getout(0);
         }
     }
@@ -10479,7 +10479,7 @@ unsafe fn ex_connect(eap: *mut exarg_T) {
 unsafe fn ex_mode(eap: *mut exarg_T) {
     unsafe {
         if *(*eap).arg == NUL {
-            must_redraw = UPD_CLEAR;
+            g_st().must_redraw = UPD_CLEAR;
             ex_redraw(eap);
         } else {
             let _ = emsg(gettext(e_screenmode.as_ptr()));
@@ -10489,11 +10489,11 @@ unsafe fn ex_mode(eap: *mut exarg_T) {
 
 unsafe fn ex_resize(eap: *mut exarg_T) {
     unsafe {
-        let mut wp = curwin;
+        let mut wp = *curwin.as_ptr();
 
         if (*eap).addr_count > 0 {
             let mut n = (*eap).line2;
-            wp = firstwin;
+            wp = g_st().firstwin;
             while !(*wp).w_next.is_null() && {
                 n -= 1;
                 n > 0
@@ -10503,18 +10503,18 @@ unsafe fn ex_resize(eap: *mut exarg_T) {
         }
 
         let mut n = atol((*eap).arg) as c_int;
-        if (cmdmod.cmod_split & WSP_VERT) != 0 {
+        if (g_st().cmdmod.cmod_split & WSP_VERT) != 0 {
             if *(*eap).arg == b'-' as c_char || *(*eap).arg == b'+' as c_char {
                 n += (*wp).w_width;
             } else if n == 0 && *(*eap).arg == NUL {
-                n = Columns;
+                n = g_st().Columns;
             }
             win_setwidth_win(n, wp, true);
         } else {
             if *(*eap).arg == b'-' as c_char || *(*eap).arg == b'+' as c_char {
                 n += (*wp).w_height;
             } else if n == 0 && *(*eap).arg == NUL {
-                n = Rows - 1;
+                n = g_st().Rows - 1;
             }
             win_setheight_win(n, wp, true);
         }
@@ -10546,7 +10546,7 @@ unsafe fn ex_find(eap: *mut exarg_T) {
                     strlen((*eap).arg),
                     FNAME_MESS,
                     c_int::from(true),
-                    (*curbuf).b_ffname,
+                    (*g_st().curbuf).b_ffname,
                     &mut file_to_find,
                     &mut search_ctx,
                 );
@@ -10561,7 +10561,7 @@ unsafe fn ex_find(eap: *mut exarg_T) {
                             0,
                             FNAME_MESS,
                             c_int::from(false),
-                            (*curbuf).b_ffname,
+                            (*g_st().curbuf).b_ffname,
                             &mut file_to_find,
                             &mut search_ctx,
                         );
@@ -10595,7 +10595,7 @@ unsafe fn ex_edit(eap: *mut exarg_T) {
             return;
         }
 
-        if bt_prompt(curbuf) && (*eap).cmdidx == cmdidx_T::CMD_edit as c_int && *(*eap).arg == NUL {
+        if bt_prompt(g_st().curbuf) && (*eap).cmdidx == cmdidx_T::CMD_edit as c_int && *(*eap).arg == NUL {
             let _ = emsg(c"cannot :edit a prompt buffer".as_ptr());
             return;
         }
@@ -10621,7 +10621,7 @@ pub unsafe fn do_exedit(eap: *mut exarg_T, old_curwin: *mut win_T) {
                 ECMD_ONE,
                 ECMD_HIDE + if (*eap).forceit != 0 { ECMD_FORCEIT } else { 0 },
                 if old_curwin.is_null() {
-                    curwin
+                    *curwin.as_ptr()
                 } else {
                     ptr::null_mut()
                 },
@@ -10633,20 +10633,20 @@ pub unsafe fn do_exedit(eap: *mut exarg_T, old_curwin: *mut win_T) {
             if *(*eap).arg != NUL && text_or_buf_locked() {
                 return;
             }
-            let n = readonlymode;
+            let n = g_st().readonlymode;
             if (*eap).cmdidx == cmdidx_T::CMD_view as c_int
                 || (*eap).cmdidx == cmdidx_T::CMD_sview as c_int
             {
-                readonlymode = true;
+                g_st().readonlymode = true;
             } else if (*eap).cmdidx == cmdidx_T::CMD_enew as c_int {
-                readonlymode = false;
+                g_st().readonlymode = false;
             }
             if (*eap).cmdidx != cmdidx_T::CMD_balt as c_int
                 && (*eap).cmdidx != cmdidx_T::CMD_badd as c_int
             {
                 setpcmark();
             }
-            let ecmd_flags = (if buf_hide(curbuf) { ECMD_HIDE } else { 0 })
+            let ecmd_flags = (if buf_hide(g_st().curbuf) { ECMD_HIDE } else { 0 })
                 + (if (*eap).forceit != 0 { ECMD_FORCEIT } else { 0 })
                 + (if !old_curwin.is_null() {
                     ECMD_OLDBUF
@@ -10675,44 +10675,44 @@ pub unsafe fn do_exedit(eap: *mut exarg_T, old_curwin: *mut win_T) {
                 (*eap).do_ecmd_lnum,
                 ecmd_flags,
                 if old_curwin.is_null() {
-                    curwin
+                    *curwin.as_ptr()
                 } else {
                     ptr::null_mut()
                 },
             ) == FAIL
             {
                 if !old_curwin.is_null() {
-                    let need_hide = curbufIsChanged() && (*curbuf).b_nwindows <= 1;
-                    if !need_hide || buf_hide(curbuf) {
+                    let need_hide = curbufIsChanged() && (*g_st().curbuf).b_nwindows <= 1;
+                    if !need_hide || buf_hide(g_st().curbuf) {
                         let mut cs: cleanup_T = cleanup_T::new();
                         enter_cleanup(&raw mut cs);
-                        win_close(curwin, !need_hide && !buf_hide(curbuf), false);
+                        win_close(*curwin.as_ptr(), !need_hide && !buf_hide(g_st().curbuf), false);
                         leave_cleanup(&raw mut cs);
                     }
                 }
-            } else if readonlymode && (*curbuf).b_nwindows == 1 {
-                (*curbuf).b_p_ro = c_int::from(true);
+            } else if g_st().readonlymode && (*g_st().curbuf).b_nwindows == 1 {
+                (*g_st().curbuf).b_p_ro = c_int::from(true);
             }
-            readonlymode = n;
+            g_st().readonlymode = n;
         } else {
             if !(*eap).do_ecmd_cmd.is_null() {
                 do_cmdline_cmd((*eap).do_ecmd_cmd);
             }
-            let n = (*curwin).w_arg_idx_invalid;
-            check_arg_idx(curwin);
-            if n != (*curwin).w_arg_idx_invalid {
+            let n = (**curwin.as_ptr()).w_arg_idx_invalid;
+            check_arg_idx(*curwin.as_ptr());
+            if n != (**curwin.as_ptr()).w_arg_idx_invalid {
                 maketitle();
             }
         }
 
         if !old_curwin.is_null()
             && *(*eap).arg != NUL
-            && curwin != old_curwin
+            && *curwin.as_ptr() != old_curwin
             && win_valid(old_curwin)
-            && (*old_curwin).w_buffer != curbuf
-            && (cmdmod.cmod_flags & CMOD_KEEPALT) == 0
+            && (*old_curwin).w_buffer != g_st().curbuf
+            && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
         {
-            (*old_curwin).w_alt_fnum = (*curbuf).b_fnum;
+            (*old_curwin).w_alt_fnum = (*g_st().curbuf).b_fnum;
         }
     }
 }
@@ -10731,7 +10731,7 @@ unsafe fn ex_popup(eap: *mut exarg_T) {
 
 unsafe fn ex_swapname(_eap: *mut exarg_T) {
     unsafe {
-        let mfp = (*curbuf).b_ml.mfp_ptr();
+        let mfp = (*g_st().curbuf).b_ml.mfp_ptr();
         if mfp.is_null() {
             let _ = msg(gettext(c"No swap file".as_ptr()), 0);
         } else if let Some(ref mf_fname) = (*mfp).mf_fname {
@@ -10744,16 +10744,16 @@ unsafe fn ex_swapname(_eap: *mut exarg_T) {
 
 unsafe fn ex_syncbind(_eap: *mut exarg_T) {
     unsafe {
-        let old_linenr = (*curwin).w_cursor.lnum;
+        let old_linenr = (**curwin.as_ptr()).w_cursor.lnum;
         setpcmark();
 
-        let vtopline = if (*curwin).w_onebuf_opt.wo_scb != 0 {
-            let mut vt = get_vtopline(curwin);
-            let mut wp = firstwin;
+        let vtopline = if (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
+            let mut vt = get_vtopline(*curwin.as_ptr());
+            let mut wp = g_st().firstwin;
             while !wp.is_null() {
                 if (*wp).w_onebuf_opt.wo_scb != 0 && !(*wp).w_buffer.is_null() {
                     let y = plines_m_win_fill(wp, 1, (*(*wp).w_buffer).b_ml.ml_line_count)
-                        - (get_scrolloff_value(curwin) as c_int);
+                        - (get_scrolloff_value(*curwin.as_ptr()) as c_int);
                     vt = vt.min(y);
                 }
                 wp = (*wp).w_next;
@@ -10763,7 +10763,7 @@ unsafe fn ex_syncbind(_eap: *mut exarg_T) {
             1
         };
 
-        let mut wp = firstwin;
+        let mut wp = g_st().firstwin;
         while !wp.is_null() {
             if (*wp).w_onebuf_opt.wo_scb != 0 {
                 let y = vtopline - get_vtopline(wp);
@@ -10780,10 +10780,10 @@ unsafe fn ex_syncbind(_eap: *mut exarg_T) {
             wp = (*wp).w_next;
         }
 
-        if (*curwin).w_onebuf_opt.wo_scb != 0 {
-            did_syncbind = true;
+        if (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
+            g_st().did_syncbind = true;
             checkpcmark();
-            if old_linenr != (*curwin).w_cursor.lnum {
+            if old_linenr != (**curwin.as_ptr()).w_cursor.lnum {
                 let mut ctrl_o = [Ctrl_O, 0];
                 let _ = ins_typebuf(ctrl_o.as_mut_ptr(), REMAP_NONE, 0, true, false);
             }
@@ -10807,8 +10807,8 @@ unsafe fn ex_read(eap: *mut exarg_T) {
                 return;
             }
             readfile(
-                (*curbuf).b_ffname,
-                (*curbuf).b_fname,
+                (*g_st().curbuf).b_ffname,
+                (*g_st().curbuf).b_fname,
                 (*eap).line2,
                 0,
                 MAXLNUM,
@@ -10844,16 +10844,16 @@ unsafe fn ex_read(eap: *mut exarg_T) {
 pub unsafe fn free_cd_dir() {
     unsafe {
         docmd_st().prev_dir = None;
-        globaldir = None;
+        g_st().globaldir = None;
     }
 }
 
 unsafe fn get_prevdir(scope: CdScope) -> *mut Option<std::ffi::CString> {
     unsafe {
         match scope {
-            kCdScopeTabpage => &raw mut (*curtab).tp_prevdir,
-            kCdScopeBuffer => &raw mut (*curbuf).b_prevdir,
-            kCdScopeWindow => &raw mut (*curwin).w_prevdir,
+            kCdScopeTabpage => &raw mut (*g_st().curtab).tp_prevdir,
+            kCdScopeBuffer => &raw mut (*g_st().curbuf).b_prevdir,
+            kCdScopeWindow => &raw mut (**curwin.as_ptr()).w_prevdir,
             _ => &raw mut docmd_st().prev_dir,
         }
     }
@@ -10862,19 +10862,19 @@ unsafe fn get_prevdir(scope: CdScope) -> *mut Option<std::ffi::CString> {
 unsafe fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     unsafe {
         if scope == kCdScopeBuffer {
-            (*curbuf).b_localdir = None;
+            (*g_st().curbuf).b_localdir = None;
         }
         if scope >= kCdScopeWindow {
-            (*curwin).w_localdir = None;
+            (**curwin.as_ptr()).w_localdir = None;
         }
         if scope >= kCdScopeTabpage {
-            (*curtab).tp_localdir = None;
+            (*g_st().curtab).tp_localdir = None;
         }
 
         if scope < kCdScopeGlobal {
             let pdir = &*get_prevdir(scope);
-            if (&raw const globaldir).as_ref().unwrap().is_none() && pdir.is_some() {
-                globaldir = pdir.clone();
+            if (&raw const g_st().globaldir).as_ref().unwrap().is_none() && pdir.is_some() {
+                g_st().globaldir = pdir.clone();
             }
         }
 
@@ -10885,25 +10885,25 @@ unsafe fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
         let cwd_cstr = std::ffi::CStr::from_ptr(cwd.as_ptr()).to_owned();
         match scope {
             kCdScopeGlobal => {
-                globaldir = if (*curbuf).b_localdir.is_some() {
+                g_st().globaldir = if (*g_st().curbuf).b_localdir.is_some() {
                     Some(cwd_cstr)
                 } else {
                     None
                 };
             }
             kCdScopeTabpage => {
-                (*curtab).tp_localdir = Some(cwd_cstr);
+                (*g_st().curtab).tp_localdir = Some(cwd_cstr);
             }
             kCdScopeBuffer => {
-                (*curbuf).b_localdir = Some(cwd_cstr);
+                (*g_st().curbuf).b_localdir = Some(cwd_cstr);
             }
             kCdScopeWindow => {
-                (*curwin).w_localdir = Some(cwd_cstr);
+                (**curwin.as_ptr()).w_localdir = Some(cwd_cstr);
             }
             _ => std::process::abort(),
         }
 
-        last_chdir_reason = None;
+        g_st().last_chdir_reason = None;
         shorten_fnames(c_int::from(vim_strchr(opt_vars().p_cpo, kCpoNosymlinks).is_null()));
 
         if trigger_dirchanged {
@@ -10926,8 +10926,8 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             new_dir = prev.as_ptr().cast_mut();
         }
 
-        let pdir = if os_dirname((&raw mut NameBuff).cast(), MAXPATHL) == OK {
-            Some(std::ffi::CStr::from_ptr((&raw const NameBuff).cast()).to_owned())
+        let pdir = if os_dirname((&raw mut g_st().NameBuff).cast(), MAXPATHL) == OK {
+            Some(std::ffi::CStr::from_ptr((&raw const g_st().NameBuff).cast()).to_owned())
         } else {
             None
         };
@@ -10935,16 +10935,16 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
         if *new_dir == NUL && opt_vars().p_cdh != 0 {
             expand_env(
                 c"$HOME".as_ptr().cast_mut(),
-                (&raw mut NameBuff).cast(),
+                (&raw mut g_st().NameBuff).cast(),
                 MAXPATHL as c_int,
             );
-            new_dir = (&raw mut NameBuff).cast();
+            new_dir = (&raw mut g_st().NameBuff).cast();
         }
 
         let new_dir_owned = to_slash_save(new_dir).unwrap_or_default();
         new_dir = new_dir_owned.as_ptr().cast_mut();
 
-        let bcd_active = scope != kCdScopeBuffer && (*curbuf).b_localdir.is_some();
+        let bcd_active = scope != kCdScopeBuffer && (*g_st().curbuf).b_localdir.is_some();
 
         let dir_differs = pdir
             .as_ref()
@@ -10965,7 +10965,7 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
 
         post_chdir(scope, dir_differs && !bcd_active);
         if bcd_active {
-            os_chdir((*curbuf).b_localdir.as_ref().unwrap().as_ptr());
+            os_chdir((*g_st().curbuf).b_localdir.as_ref().unwrap().as_ptr());
             shorten_fnames(c_int::from(true));
         }
         ctx_did_chdir();
@@ -10977,11 +10977,11 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
 unsafe fn chdir_clear(scope: CdScope) {
     unsafe {
         let localdir = if scope == kCdScopeBuffer {
-            &raw mut (*curbuf).b_localdir
+            &raw mut (*g_st().curbuf).b_localdir
         } else if scope == kCdScopeWindow {
-            &raw mut (*curwin).w_localdir
+            &raw mut (**curwin.as_ptr()).w_localdir
         } else {
-            &raw mut (*curtab).tp_localdir
+            &raw mut (*g_st().curtab).tp_localdir
         };
         if (*localdir).is_none() {
             return;
@@ -11014,7 +11014,7 @@ pub unsafe fn ex_cd(eap: *mut exarg_T) {
 
         if (*eap).forceit != 0 && *new_dir == NUL && scope != kCdScopeGlobal {
             chdir_clear(scope);
-            if KeyTyped || opt_vars().p_verbose >= 5 {
+            if g_st().KeyTyped || opt_vars().p_verbose >= 5 {
                 ex_pwd(eap);
             }
             return;
@@ -11025,7 +11025,7 @@ pub unsafe fn ex_cd(eap: *mut exarg_T) {
             return;
         }
 
-        if do_chdir(new_dir, scope) && (KeyTyped || opt_vars().p_verbose >= 5) {
+        if do_chdir(new_dir, scope) && (g_st().KeyTyped || opt_vars().p_verbose >= 5) {
             ex_pwd(eap);
         }
     }
@@ -11033,17 +11033,17 @@ pub unsafe fn ex_cd(eap: *mut exarg_T) {
 
 unsafe fn ex_pwd(_eap: *mut exarg_T) {
     unsafe {
-        if os_dirname((&raw mut NameBuff).cast(), MAXPATHL) == OK {
+        if os_dirname((&raw mut g_st().NameBuff).cast(), MAXPATHL) == OK {
             #[cfg(windows)]
-            slash_adjust((&raw mut NameBuff).cast());
+            slash_adjust((&raw mut g_st().NameBuff).cast());
             if opt_vars().p_verbose > 0 {
-                let context = if let Some(reason) = last_chdir_reason {
+                let context = if let Some(reason) = g_st().last_chdir_reason {
                     reason.as_ptr()
-                } else if (*curbuf).b_localdir.is_some() {
+                } else if (*g_st().curbuf).b_localdir.is_some() {
                     c"buffer".as_ptr()
-                } else if (*curwin).w_localdir.is_some() {
+                } else if (**curwin.as_ptr()).w_localdir.is_some() {
                     c"window".as_ptr()
-                } else if (*curtab).tp_localdir.is_some() {
+                } else if (*g_st().curtab).tp_localdir.is_some() {
                     c"tabpage".as_ptr()
                 } else {
                     c"global".as_ptr()
@@ -11052,10 +11052,10 @@ unsafe fn ex_pwd(_eap: *mut exarg_T) {
                     0,
                     c"[%s] %s".as_ptr(),
                     context,
-                    (&raw const NameBuff).cast::<c_char>(),
+                    (&raw const g_st().NameBuff).cast::<c_char>(),
                 );
             } else {
-                let _ = msg((&raw const NameBuff).cast(), 0);
+                let _ = msg((&raw const g_st().NameBuff).cast(), 0);
             }
         } else {
             let _ = emsg(gettext(c"E187: Unknown".as_ptr()));
@@ -11076,8 +11076,8 @@ unsafe fn ex_equal(eap: *mut exarg_T) {
 
 unsafe fn ex_sleep(eap: *mut exarg_T) {
     unsafe {
-        if cursor_valid(curwin) != 0 {
-            setcursor_mayforce(curwin, true);
+        if cursor_valid(*curwin.as_ptr()) != 0 {
+            setcursor_mayforce(*curwin.as_ptr(), true);
         }
 
         let mut len = i64::from((*eap).line2);
@@ -11101,11 +11101,11 @@ pub unsafe fn do_sleep(msec: i64, hide_cursor: bool) {
         }
 
         ui_flush();
-        let main_loop_ptr = (&raw mut main_loop).cast();
+        let main_loop_ptr = (&raw mut g_st().main_loop).cast();
         let events = (*loop_queues(main_loop_ptr)).events;
         let mut remaining = msec;
         let mut before = if remaining > 0 { os_hrtime() } else { 0 };
-        while !got_int {
+        while !g_st().got_int {
             if !events.is_null() && !multiqueue_empty(events) {
                 multiqueue_process_events(events);
             } else {
@@ -11123,7 +11123,7 @@ pub unsafe fn do_sleep(msec: i64, hide_cursor: bool) {
             }
         }
 
-        if got_int {
+        if g_st().got_int {
             let _ = vpeekc();
         }
 
@@ -11175,8 +11175,8 @@ unsafe fn ex_wincmd(eap: *mut exarg_T) {
         if *p != NUL && *p != b'"' as c_char && (*eap).nextcmd.is_null() {
             let _ = emsg(gettext(e_invarg.as_ptr()));
         } else if (*eap).skip == 0 {
-            postponed_split_flags = cmdmod.cmod_split;
-            postponed_split_tab = cmdmod.cmod_tab;
+            g_st().postponed_split_flags = g_st().cmdmod.cmod_split;
+            g_st().postponed_split_tab = g_st().cmdmod.cmod_tab;
             do_window(
                 c_int::from(*(*eap).arg as u8),
                 if (*eap).addr_count > 0 {
@@ -11186,8 +11186,8 @@ unsafe fn ex_wincmd(eap: *mut exarg_T) {
                 },
                 xchar,
             );
-            postponed_split_flags = 0;
-            postponed_split_tab = 0;
+            g_st().postponed_split_flags = 0;
+            g_st().postponed_split_tab = 0;
         }
     }
 }
@@ -11200,14 +11200,14 @@ unsafe fn ex_operators(eap: *mut exarg_T) {
         oa.end.lnum = (*eap).line2;
         oa.line_count = (*eap).line2 - (*eap).line1 + 1;
         oa.motion_type = kMTLineWise;
-        virtual_op = kFalse;
+        g_st().virtual_op = kFalse;
         if (*eap).cmdidx != cmdidx_T::CMD_yank as c_int {
             setpcmark();
-            (*curwin).w_cursor.lnum = (*eap).line1;
+            (**curwin.as_ptr()).w_cursor.lnum = (*eap).line1;
             beginline(BL_SOL | BL_FIX);
         }
 
-        if Visual.active {
+        if g_st().Visual.active {
             end_visual_mode();
         }
 
@@ -11219,7 +11219,7 @@ unsafe fn ex_operators(eap: *mut exarg_T) {
             op_yank(&raw mut oa, true);
         } else {
             if ((*eap).cmdidx == cmdidx_T::CMD_rshift as c_int)
-                ^ ((*curwin).w_onebuf_opt.wo_rl != 0)
+                ^ ((**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0)
             {
                 oa.op_type = OP_RSHIFT;
             } else {
@@ -11227,7 +11227,7 @@ unsafe fn ex_operators(eap: *mut exarg_T) {
             }
             op_shift(&raw mut oa, false, (*eap).amount);
         }
-        virtual_op = kNone;
+        g_st().virtual_op = kNone;
         ex_may_print(eap);
     }
 }
@@ -11238,8 +11238,8 @@ unsafe fn ex_put(eap: *mut exarg_T) {
             (*eap).line2 = 1;
             (*eap).forceit = c_int::from(true);
         }
-        (*curwin).w_cursor.lnum = (*eap).line2;
-        check_cursor_col(curwin);
+        (**curwin.as_ptr()).w_cursor.lnum = (*eap).line2;
+        check_cursor_col(*curwin.as_ptr());
         do_put(
             (*eap).regname,
             ptr::null_mut(),
@@ -11260,8 +11260,8 @@ unsafe fn ex_iput(eap: *mut exarg_T) {
             (*eap).line2 = 1;
             (*eap).forceit = c_int::from(true);
         }
-        (*curwin).w_cursor.lnum = (*eap).line2;
-        check_cursor_col(curwin);
+        (**curwin.as_ptr()).w_cursor.lnum = (*eap).line2;
+        check_cursor_col(*curwin.as_ptr());
         do_put(
             (*eap).regname,
             ptr::null_mut(),
@@ -11298,7 +11298,7 @@ unsafe fn ex_copymove(eap: *mut exarg_T) {
         }
         get_flags(eap);
 
-        if n == MAXLNUM || n < 0 || n > (*curbuf).b_ml.ml_line_count {
+        if n == MAXLNUM || n < 0 || n > (*g_st().curbuf).b_ml.ml_line_count {
             let _ = emsg(gettext(e_invrange.as_ptr()));
             return;
         }
@@ -11310,7 +11310,7 @@ unsafe fn ex_copymove(eap: *mut exarg_T) {
         } else {
             ex_copy((*eap).line1, (*eap).line2, n);
         }
-        u_clearline(curbuf);
+        u_clearline(g_st().curbuf);
         beginline(BL_SOL | BL_FIX);
         ex_may_print(eap);
     }
@@ -11320,7 +11320,7 @@ pub unsafe fn ex_may_print(eap: *mut exarg_T) {
     unsafe {
         if (*eap).flags != 0 {
             print_line(
-                (*curwin).w_cursor.lnum,
+                (**curwin.as_ptr()).w_cursor.lnum,
                 ((*eap).flags & EXFLAG_NR) != 0,
                 ((*eap).flags & EXFLAG_LIST) != 0,
                 true,
@@ -11331,12 +11331,12 @@ pub unsafe fn ex_may_print(eap: *mut exarg_T) {
 
 unsafe fn ex_join(eap: *mut exarg_T) {
     unsafe {
-        (*curwin).w_cursor.lnum = (*eap).line1;
+        (**curwin.as_ptr()).w_cursor.lnum = (*eap).line1;
         if (*eap).line1 == (*eap).line2 {
             if (*eap).addr_count >= 2 {
                 return;
             }
-            if (*eap).line2 == (*curbuf).b_ml.ml_line_count {
+            if (*eap).line2 == (*g_st().curbuf).b_ml.ml_line_count {
                 beep_flush();
                 return;
             }
@@ -11356,10 +11356,10 @@ unsafe fn ex_join(eap: *mut exarg_T) {
 
 unsafe fn ex_at(eap: *mut exarg_T) {
     unsafe {
-        let prev_len = typebuf.tb_len;
+        let prev_len = g_st().typebuf.tb_len;
 
-        (*curwin).w_cursor.lnum = (*eap).line2;
-        check_cursor_col(curwin);
+        (**curwin.as_ptr()).w_cursor.lnum = (*eap).line2;
+        check_cursor_col(*curwin.as_ptr());
 
         let mut c = c_int::from(*(*eap).arg as u8);
         if c == 0 {
@@ -11377,10 +11377,10 @@ unsafe fn ex_at(eap: *mut exarg_T) {
             return;
         }
 
-        let save_efr = exec_from_reg;
-        exec_from_reg = true;
+        let save_efr = g_st().exec_from_reg;
+        g_st().exec_from_reg = true;
 
-        while !stuff_empty() || typebuf.tb_len > prev_len {
+        while !stuff_empty() || g_st().typebuf.tb_len > prev_len {
             do_cmdline(
                 ptr::null_mut(),
                 LineGetter::ExLine,
@@ -11388,7 +11388,7 @@ unsafe fn ex_at(eap: *mut exarg_T) {
             );
         }
 
-        exec_from_reg = save_efr;
+        g_st().exec_from_reg = save_efr;
     }
 }
 
@@ -11412,19 +11412,19 @@ unsafe fn ex_undo(eap: *mut exarg_T) {
         let step = (*eap).line2;
 
         if (*eap).forceit != 0 {
-            if step >= (*curbuf).b_u_seq_cur {
+            if step >= (*g_st().curbuf).b_u_seq_cur {
                 let _ = emsg(gettext(e_undobang_cannot_redo_or_move_branch.as_ptr()));
                 return;
             }
-            let mut uhp = (*curbuf).b_u_curhead.or((*curbuf).b_u_newhead);
+            let mut uhp = (*g_st().curbuf).b_u_curhead.or((*g_st().curbuf).b_u_newhead);
             let mut count: c_int = 0;
             while let Some(uh) = uhp
-                && uhp_ref(curbuf, uh).uh_seq > step
+                && uhp_ref(g_st().curbuf, uh).uh_seq > step
             {
-                uhp = uhp_ref(curbuf, uh).uh_next;
+                uhp = uhp_ref(g_st().curbuf, uh).uh_next;
                 count += 1;
             }
-            if step != 0 && uhp.is_none_or(|uh| uhp_ref(curbuf, uh).uh_seq < step) {
+            if step != 0 && uhp.is_none_or(|uh| uhp_ref(g_st().curbuf, uh).uh_seq < step) {
                 let _ = emsg(gettext(e_undobang_cannot_redo_or_move_branch.as_ptr()));
                 return;
             }
@@ -11438,15 +11438,15 @@ unsafe fn ex_undo(eap: *mut exarg_T) {
 unsafe fn ex_wundo(eap: *mut exarg_T) {
     unsafe {
         let mut hash = [0u8; UNDO_HASH_SIZE];
-        u_compute_hash(curbuf, hash.as_mut_ptr());
-        u_write_undo((*eap).arg, (*eap).forceit != 0, curbuf, hash.as_mut_ptr());
+        u_compute_hash(g_st().curbuf, hash.as_mut_ptr());
+        u_write_undo((*eap).arg, (*eap).forceit != 0, g_st().curbuf, hash.as_mut_ptr());
     }
 }
 
 unsafe fn ex_rundo(eap: *mut exarg_T) {
     unsafe {
         let mut hash = [0u8; UNDO_HASH_SIZE];
-        u_compute_hash(curbuf, hash.as_mut_ptr());
+        u_compute_hash(g_st().curbuf, hash.as_mut_ptr());
         u_read_undo((*eap).arg, hash.as_ptr(), ptr::null());
     }
 }
@@ -11532,7 +11532,7 @@ unsafe fn ex_redir(eap: *mut exarg_T) {
             close_redir();
 
             let fname = expand_env_save(arg);
-            redir_fd = crate::os::fs::CFile::from_raw(open_exfile(
+            g_st().redir_fd = crate::os::fs::CFile::from_raw(open_exfile(
                 fname.as_ptr().cast_mut(),
                 (*eap).forceit,
                 mode,
@@ -11541,7 +11541,7 @@ unsafe fn ex_redir(eap: *mut exarg_T) {
             close_redir();
             arg = arg.add(1);
             if valid_yank_reg(c_int::from(*arg as u8), true) && *arg != b'_' as c_char {
-                redir_reg = c_int::from(*arg as u8);
+                g_st().redir_reg = c_int::from(*arg as u8);
                 arg = arg.add(1);
                 if *arg == b'>' as c_char && *arg.add(1) == b'>' as c_char {
                     arg = arg.add(2);
@@ -11549,13 +11549,13 @@ unsafe fn ex_redir(eap: *mut exarg_T) {
                     if *arg == b'>' as c_char {
                         arg = arg.add(1);
                     }
-                    if *arg == NUL && !ascii_isupper(redir_reg as c_char) {
-                        write_reg_contents(redir_reg, c"".as_ptr(), 0, c_int::from(false));
+                    if *arg == NUL && !ascii_isupper(g_st().redir_reg as c_char) {
+                        write_reg_contents(g_st().redir_reg, c"".as_ptr(), 0, c_int::from(false));
                     }
                 }
             }
             if *arg != NUL {
-                redir_reg = 0;
+                g_st().redir_reg = 0;
                 let _ = semsg!(gettext(e_invarg2.as_ptr()), (*eap).arg);
             }
         } else if *arg == b'=' as c_char && *arg.add(1) == b'>' as c_char {
@@ -11569,46 +11569,46 @@ unsafe fn ex_redir(eap: *mut exarg_T) {
             };
 
             if var_redir_start(skipwhite(arg), append) == OK {
-                redir_vname = true;
+                g_st().redir_vname = true;
             }
         } else {
             let _ = semsg!(gettext(e_invarg2.as_ptr()), (*eap).arg);
         }
 
-        if has_redir_fd() || redir_reg != 0 || redir_vname {
-            redir_off = false;
+        if has_redir_fd() || g_st().redir_reg != 0 || g_st().redir_vname {
+            g_st().redir_off = false;
         }
     }
 }
 
 unsafe fn ex_redraw(eap: *mut exarg_T) {
     unsafe {
-        if cmdpreview {
+        if g_st().cmdpreview {
             return;
         }
-        let r = RedrawingDisabled;
+        let r = g_st().RedrawingDisabled;
         let p = opt_vars().p_lz;
 
-        RedrawingDisabled = 0;
+        g_st().RedrawingDisabled = 0;
         opt_vars().p_lz = 0;
-        validate_cursor(curwin);
-        update_topline(curwin);
+        validate_cursor(*curwin.as_ptr());
+        update_topline(*curwin.as_ptr());
         if (*eap).forceit != 0 {
             redraw_all_later(UPD_NOT_VALID);
-            redraw_cmdline = true;
-        } else if Visual.active {
+            g_st().redraw_cmdline = true;
+        } else if g_st().Visual.active {
             redraw_curbuf_later(UPD_INVERTED);
         }
         update_screen();
-        if need_maketitle {
+        if g_st().need_maketitle {
             maketitle();
         }
-        RedrawingDisabled = r;
+        g_st().RedrawingDisabled = r;
         opt_vars().p_lz = p;
 
-        msg_didout = false;
-        msg_col = 0;
-        need_wait_return = false;
+        g_st().msg_didout = false;
+        g_st().msg_col = 0;
+        g_st().need_wait_return = false;
 
         ui_flush();
     }
@@ -11616,10 +11616,10 @@ unsafe fn ex_redraw(eap: *mut exarg_T) {
 
 unsafe fn ex_redrawstatus(eap: *mut exarg_T) {
     unsafe {
-        if cmdpreview {
+        if g_st().cmdpreview {
             return;
         }
-        let r = RedrawingDisabled;
+        let r = g_st().RedrawingDisabled;
         let p = opt_vars().p_lz;
 
         if (*eap).forceit != 0 {
@@ -11628,17 +11628,17 @@ unsafe fn ex_redrawstatus(eap: *mut exarg_T) {
             status_redraw_curbuf();
         }
 
-        RedrawingDisabled = 0;
+        g_st().RedrawingDisabled = 0;
         opt_vars().p_lz = 0;
-        if (State & MODE_CMDLINE) != 0 {
+        if (g_st().State & MODE_CMDLINE) != 0 {
             redraw_statuslines();
         } else {
-            if Visual.active {
+            if g_st().Visual.active {
                 redraw_curbuf_later(UPD_INVERTED);
             }
             update_screen();
         }
-        RedrawingDisabled = r;
+        g_st().RedrawingDisabled = r;
         opt_vars().p_lz = p;
         ui_flush();
     }
@@ -11646,15 +11646,15 @@ unsafe fn ex_redrawstatus(eap: *mut exarg_T) {
 
 unsafe fn ex_redrawtabline(_eap: *mut exarg_T) {
     unsafe {
-        let r = RedrawingDisabled;
+        let r = g_st().RedrawingDisabled;
         let p = opt_vars().p_lz;
 
-        RedrawingDisabled = 0;
+        g_st().RedrawingDisabled = 0;
         opt_vars().p_lz = 0;
 
         draw_tabline();
 
-        RedrawingDisabled = r;
+        g_st().RedrawingDisabled = r;
         opt_vars().p_lz = p;
         ui_flush();
     }
@@ -11662,11 +11662,11 @@ unsafe fn ex_redrawtabline(_eap: *mut exarg_T) {
 
 unsafe fn close_redir() {
     unsafe {
-        redir_fd = None;
-        redir_reg = 0;
-        if redir_vname {
+        g_st().redir_fd = None;
+        g_st().redir_reg = 0;
+        if g_st().redir_vname {
             var_redir_stop();
-            redir_vname = false;
+            g_st().redir_vname = false;
         }
     }
 }
@@ -11720,24 +11720,24 @@ unsafe fn ex_mark(eap: *mut exarg_T) {
             return;
         }
 
-        let pos = (*curwin).w_cursor;
-        (*curwin).w_cursor.lnum = (*eap).line2;
+        let pos = (**curwin.as_ptr()).w_cursor;
+        (**curwin.as_ptr()).w_cursor.lnum = (*eap).line2;
         beginline(BL_WHITE | BL_FIX);
         if setmark(c_int::from(*(*eap).arg as u8)) == FAIL {
             let _ = emsg(gettext(
                 c"E191: Argument must be a letter or forward/backward quote".as_ptr(),
             ));
         }
-        (*curwin).w_cursor = pos;
+        (**curwin.as_ptr()).w_cursor = pos;
     }
 }
 
 pub unsafe fn update_topline_cursor() {
     unsafe {
-        check_cursor(curwin);
-        update_topline(curwin);
-        if (*curwin).w_onebuf_opt.wo_wrap == 0 {
-            validate_cursor(curwin);
+        check_cursor(*curwin.as_ptr());
+        update_topline(*curwin.as_ptr());
+        if (**curwin.as_ptr()).w_onebuf_opt.wo_wrap == 0 {
+            validate_cursor(*curwin.as_ptr());
         }
         update_curswant();
     }
@@ -11745,17 +11745,17 @@ pub unsafe fn update_topline_cursor() {
 
 pub unsafe fn save_current_state(sst: *mut save_state_T) {
     unsafe {
-        (*sst).save_msg_scroll = msg_scroll;
-        (*sst).save_restart_edit = restart_edit;
-        (*sst).save_msg_didout = msg_didout;
-        (*sst).save_State = State;
-        (*sst).save_finish_op = finish_op;
-        (*sst).save_opcount = opcount;
-        (*sst).save_reg_executing = reg_executing;
-        (*sst).save_pending_end_reg_executing = pending_end_reg_executing;
+        (*sst).save_msg_scroll = g_st().msg_scroll;
+        (*sst).save_restart_edit = g_st().restart_edit;
+        (*sst).save_msg_didout = g_st().msg_didout;
+        (*sst).save_State = g_st().State;
+        (*sst).save_finish_op = g_st().finish_op;
+        (*sst).save_opcount = g_st().opcount;
+        (*sst).save_reg_executing = g_st().reg_executing;
+        (*sst).save_pending_end_reg_executing = g_st().pending_end_reg_executing;
 
-        msg_scroll = 0;
-        restart_edit = 0;
+        g_st().msg_scroll = 0;
+        g_st().restart_edit = 0;
 
         save_typeahead((&raw mut (*sst).tabuf).cast());
     }
@@ -11765,31 +11765,31 @@ pub unsafe fn restore_current_state(sst: *mut save_state_T) {
     unsafe {
         restore_typeahead((&raw mut (*sst).tabuf).cast());
 
-        msg_scroll = (*sst).save_msg_scroll;
-        if force_restart_edit {
-            force_restart_edit = false;
+        g_st().msg_scroll = (*sst).save_msg_scroll;
+        if g_st().force_restart_edit {
+            g_st().force_restart_edit = false;
         } else {
-            restart_edit = (*sst).save_restart_edit;
+            g_st().restart_edit = (*sst).save_restart_edit;
         }
-        finish_op = (*sst).save_finish_op;
-        opcount = (*sst).save_opcount;
-        reg_executing = (*sst).save_reg_executing;
-        pending_end_reg_executing = (*sst).save_pending_end_reg_executing;
+        g_st().finish_op = (*sst).save_finish_op;
+        g_st().opcount = (*sst).save_opcount;
+        g_st().reg_executing = (*sst).save_reg_executing;
+        g_st().pending_end_reg_executing = (*sst).save_pending_end_reg_executing;
 
-        msg_didout |= (*sst).save_msg_didout;
+        g_st().msg_didout |= (*sst).save_msg_didout;
 
-        State = (*sst).save_State;
+        g_st().State = (*sst).save_State;
         ui_cursor_shape();
     }
 }
 
 pub unsafe fn expr_map_locked() -> bool {
-    unsafe { expr_map_lock > 0 && ((*curbuf).b_flags & BF_DUMMY) == 0 }
+    unsafe { g_st().expr_map_lock > 0 && ((*g_st().curbuf).b_flags & BF_DUMMY) == 0 }
 }
 
 unsafe fn ex_normal(eap: *mut exarg_T) {
     unsafe {
-        if !(*curbuf).terminal.is_null() && (State & MODE_TERMINAL) != 0 {
+        if !(*g_st().curbuf).terminal.is_null() && (g_st().State & MODE_TERMINAL) != 0 {
             let _ = emsg(c"Can't re-enter normal mode from terminal mode".as_ptr());
             return;
         }
@@ -11799,7 +11799,7 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
             return;
         }
 
-        if OptInt::from(ex_normal_busy) >= opt_vars().p_mmd {
+        if OptInt::from(g_st().ex_normal_busy) >= opt_vars().p_mmd {
             let _ = emsg(gettext(c"E192: Recursive use of :normal too deep".as_ptr()));
             return;
         }
@@ -11845,16 +11845,16 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
             arg_vec = Some(v);
         }
 
-        ex_normal_busy += 1;
+        g_st().ex_normal_busy += 1;
         let mut save_state = save_state_T::new();
         save_current_state(&raw mut save_state);
 
         loop {
             if (*eap).addr_count != 0 {
-                (*curwin).w_cursor.lnum = (*eap).line1;
+                (**curwin.as_ptr()).w_cursor.lnum = (*eap).line1;
                 (*eap).line1 += 1;
-                (*curwin).w_cursor.col = 0;
-                check_cursor_moved(curwin);
+                (**curwin.as_ptr()).w_cursor.col = 0;
+                check_cursor_moved(*curwin.as_ptr());
             }
 
             exec_normal_cmd(
@@ -11869,14 +11869,14 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
                 false,
             );
 
-            if !((*eap).addr_count > 0 && (*eap).line1 <= (*eap).line2 && !got_int) {
+            if !((*eap).addr_count > 0 && (*eap).line1 <= (*eap).line2 && !g_st().got_int) {
                 break;
             }
         }
 
         update_topline_cursor();
         restore_current_state(&raw mut save_state);
-        ex_normal_busy -= 1;
+        g_st().ex_normal_busy -= 1;
 
         setmouse();
         ui_cursor_shape();
@@ -11886,37 +11886,37 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
 
 unsafe fn ex_startinsert(eap: *mut exarg_T) {
     unsafe {
-        if (*curbuf).b_p_ma == 0 && (*curbuf).terminal.is_null() {
+        if (*g_st().curbuf).b_p_ma == 0 && (*g_st().curbuf).terminal.is_null() {
             let _ = emsg(gettext(e_modifiable.as_ptr()));
             return;
         }
         if (*eap).forceit != 0 {
-            if (*curwin).w_cursor.lnum == 0 {
-                (*curwin).w_cursor.lnum = 1;
+            if (**curwin.as_ptr()).w_cursor.lnum == 0 {
+                (**curwin.as_ptr()).w_cursor.lnum = 1;
             }
             set_cursor_for_append_to_line();
         }
 
-        if (State & MODE_INSERT) != 0 {
+        if (g_st().State & MODE_INSERT) != 0 {
             return;
         }
 
         if (*eap).cmdidx == cmdidx_T::CMD_startinsert as c_int {
-            restart_edit = b'a' as c_int;
+            g_st().restart_edit = b'a' as c_int;
         } else if (*eap).cmdidx == cmdidx_T::CMD_startreplace as c_int {
-            restart_edit = b'R' as c_int;
+            g_st().restart_edit = b'R' as c_int;
         } else {
-            restart_edit = b'V' as c_int;
+            g_st().restart_edit = b'V' as c_int;
         }
 
         if (*eap).forceit == 0 {
             if (*eap).cmdidx == cmdidx_T::CMD_startinsert as c_int {
-                restart_edit = b'i' as c_int;
+                g_st().restart_edit = b'i' as c_int;
             }
-            (*curwin).w_curswant = 0;
+            (**curwin.as_ptr()).w_curswant = 0;
         }
 
-        if Visual.active {
+        if g_st().Visual.active {
             showmode();
         }
     }
@@ -11924,8 +11924,8 @@ unsafe fn ex_startinsert(eap: *mut exarg_T) {
 
 unsafe fn ex_stopinsert(_eap: *mut exarg_T) {
     unsafe {
-        restart_edit = 0;
-        Ins.stop_insert_mode = true;
+        g_st().restart_edit = 0;
+        g_st().Ins.stop_insert_mode = true;
         clearmode();
     }
 }
@@ -11940,14 +11940,14 @@ pub unsafe fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool) {
 pub unsafe fn exec_normal(was_typed: bool, use_vpeekc: bool) {
     unsafe {
         let mut oa = oparg_T::new();
-        finish_op = false;
+        g_st().finish_op = false;
         while (!stuff_empty()
-            || ((was_typed || typebuf_typed() == 0) && typebuf.tb_len > 0)
+            || ((was_typed || typebuf_typed() == 0) && g_st().typebuf.tb_len > 0)
             || (use_vpeekc && {
                 let c = vpeekc();
                 c != 0 && c != c_int::from(Ctrl_C)
             }))
-            && !got_int
+            && !g_st().got_int
         {
             update_topline_cursor();
             normal_cmd(&raw mut oa, true);
@@ -11980,9 +11980,9 @@ unsafe fn ex_checkpath(eap: *mut exarg_T) {
 
 unsafe fn ex_psearch(eap: *mut exarg_T) {
     unsafe {
-        g_do_tagpreview = opt_vars().p_pvh as c_int;
+        g_st().g_do_tagpreview = opt_vars().p_pvh as c_int;
         ex_findpat(eap);
-        g_do_tagpreview = 0;
+        g_st().g_do_tagpreview = 0;
     }
 }
 
@@ -12048,14 +12048,14 @@ unsafe fn ex_findpat(eap: *mut exarg_T) {
 
 unsafe fn ex_ptag(eap: *mut exarg_T) {
     unsafe {
-        g_do_tagpreview = opt_vars().p_pvh as c_int;
+        g_st().g_do_tagpreview = opt_vars().p_pvh as c_int;
         ex_tag_cmd(eap, CMDNAMES[(*eap).cmdidx as usize].cmd_name.as_ptr().add(1));
     }
 }
 
 unsafe fn ex_pedit(eap: *mut exarg_T) {
     unsafe {
-        let curwin_save = curwin;
+        let curwin_save = *curwin.as_ptr();
         prepare_preview_window();
         do_exedit(eap, ptr::null_mut());
         back_to_current_window(curwin_save);
@@ -12064,7 +12064,7 @@ unsafe fn ex_pedit(eap: *mut exarg_T) {
 
 unsafe fn ex_pbuffer(eap: *mut exarg_T) {
     unsafe {
-        let curwin_save = curwin;
+        let curwin_save = *curwin.as_ptr();
         prepare_preview_window();
         do_exbuffer(eap);
         back_to_current_window(curwin_save);
@@ -12073,30 +12073,30 @@ unsafe fn ex_pbuffer(eap: *mut exarg_T) {
 
 unsafe fn prepare_preview_window() {
     unsafe {
-        g_do_tagpreview = opt_vars().p_pvh as c_int;
+        g_st().g_do_tagpreview = opt_vars().p_pvh as c_int;
         prepare_tagpreview(true, *opt_vars().p_pvp != NUL);
     }
 }
 
 unsafe fn back_to_current_window(curwin_save: *mut win_T) {
     unsafe {
-        if curwin != curwin_save && win_valid(curwin_save) {
-            validate_cursor(curwin);
-            redraw_later(curwin, UPD_VALID);
+        if *curwin.as_ptr() != curwin_save && win_valid(curwin_save) {
+            validate_cursor(*curwin.as_ptr());
+            redraw_later(*curwin.as_ptr(), UPD_VALID);
             win_enter(curwin_save, true);
         }
-        g_do_tagpreview = 0;
+        g_st().g_do_tagpreview = 0;
     }
 }
 
 unsafe fn ex_stag(eap: *mut exarg_T) {
     unsafe {
-        postponed_split = -1;
-        postponed_split_flags = cmdmod.cmod_split;
-        postponed_split_tab = cmdmod.cmod_tab;
+        g_st().postponed_split = -1;
+        g_st().postponed_split_flags = g_st().cmdmod.cmod_split;
+        g_st().postponed_split_tab = g_st().cmdmod.cmod_tab;
         ex_tag_cmd(eap, CMDNAMES[(*eap).cmdidx as usize].cmd_name.as_ptr().add(1));
-        postponed_split_flags = 0;
-        postponed_split_tab = 0;
+        g_st().postponed_split_flags = 0;
+        g_st().postponed_split_tab = 0;
     }
 }
 
@@ -12238,11 +12238,11 @@ pub unsafe fn eval_vars(
         } else {
             match spec_idx {
                 SPEC_PERC => {
-                    if (*curbuf).b_fname.is_null() {
+                    if (*g_st().curbuf).b_fname.is_null() {
                         result = c"".as_ptr().cast_mut();
                         valid = 0;
                     } else {
-                        result = (*curbuf).b_fname;
+                        result = (*g_st().curbuf).b_fname;
                         tilde_file = strcmp(result, c"~".as_ptr()) == 0;
                     }
                     use_shellslash = true;
@@ -12317,16 +12317,16 @@ pub unsafe fn eval_vars(
                     resultbuf = Some(v);
                 }
                 SPEC_AFILE => {
-                    use_shellslash = !autocmd_fname_full;
-                    if !autocmd_fname_full
-                        && let Some(ref cur_fname) = *(&raw const autocmd_fname)
+                    use_shellslash = !g_st().autocmd_fname_full;
+                    if !g_st().autocmd_fname_full
+                        && let Some(ref cur_fname) = *(&raw const g_st().autocmd_fname)
                     {
-                        autocmd_fname_full = true;
+                        g_st().autocmd_fname_full = true;
                         if let Some(full) = FullName_save(cur_fname.as_ptr(), false) {
-                            autocmd_fname = Some(full);
+                            g_st().autocmd_fname = Some(full);
                         }
                     }
-                    result = (&raw const autocmd_fname)
+                    result = (&raw const g_st().autocmd_fname)
                         .as_ref()
                         .unwrap()
                         .as_ref()
@@ -12339,16 +12339,16 @@ pub unsafe fn eval_vars(
                     result = path_try_shorten_fname(result);
                 }
                 SPEC_ABUF => {
-                    if autocmd_bufnr <= 0 {
+                    if g_st().autocmd_bufnr <= 0 {
                         *errormsg =
                             gettext(e_no_autocommand_buffer_number_to_substitute_for_abuf.as_ptr());
                         return None;
                     }
-                    let _ = vim_snprintf!(strbuf.as_mut_ptr(), 30, c"%d".as_ptr(), autocmd_bufnr);
+                    let _ = vim_snprintf!(strbuf.as_mut_ptr(), 30, c"%d".as_ptr(), g_st().autocmd_bufnr);
                     result = strbuf.as_mut_ptr();
                 }
                 SPEC_AMATCH => {
-                    result = (&raw const autocmd_match)
+                    result = (&raw const g_st().autocmd_match)
                         .as_ref()
                         .unwrap()
                         .as_ref()
@@ -12416,7 +12416,7 @@ pub unsafe fn eval_vars(
                     result = strbuf.as_mut_ptr();
                 }
                 SPEC_SFLNUM => {
-                    let sflnum = current_sctx.sc_lnum + *sourcing_lnum_ptr();
+                    let sflnum = g_st().current_sctx.sc_lnum + *sourcing_lnum_ptr();
                     if sflnum == 0 {
                         *errormsg = gettext(e_no_line_number_to_use_for_sflnum.as_ptr());
                         return None;
@@ -12425,7 +12425,7 @@ pub unsafe fn eval_vars(
                     result = strbuf.as_mut_ptr();
                 }
                 SPEC_SID => {
-                    if current_sctx.sc_sid <= 0 {
+                    if g_st().current_sctx.sc_sid <= 0 {
                         *errormsg = gettext(e_usingsid.as_ptr());
                         return None;
                     }
@@ -12433,7 +12433,7 @@ pub unsafe fn eval_vars(
                         strbuf.as_mut_ptr(),
                         30,
                         c"<SNR>%d_".as_ptr(),
-                        current_sctx.sc_sid,
+                        g_st().current_sctx.sc_sid,
                     );
                     result = strbuf.as_mut_ptr();
                 }
@@ -12680,7 +12680,7 @@ pub unsafe fn filetype_maybe_enable() {
 
 unsafe fn ex_setfiletype(eap: *mut exarg_T) {
     unsafe {
-        if (*curbuf).b_did_filetype {
+        if (*g_st().curbuf).b_did_filetype {
             return;
         }
 
@@ -12691,7 +12691,7 @@ unsafe fn ex_setfiletype(eap: *mut exarg_T) {
 
         set_option_value_give_err(kOptFiletype, cstr_as_obj(arg), OPT_LOCAL);
         if arg != (*eap).arg {
-            (*curbuf).b_did_filetype = false;
+            (*g_st().curbuf).b_did_filetype = false;
         }
     }
 }
@@ -12708,10 +12708,10 @@ unsafe fn ex_digraphs(eap: *mut exarg_T) {
 
 pub unsafe fn set_no_hlsearch(flag: bool) {
     unsafe {
-        Search.no_hlsearch = flag;
+        g_st().Search.no_hlsearch = flag;
         set_vim_var_nr(
             VV_HLSEARCH,
-            varnumber_T::from(!Search.no_hlsearch && opt_vars().p_hls != 0),
+            varnumber_T::from(!g_st().Search.no_hlsearch && opt_vars().p_hls != 0),
         );
     }
 }
@@ -12736,7 +12736,7 @@ unsafe fn ex_fold(eap: *mut exarg_T) {
                 col: 1,
                 coladd: 0,
             };
-            foldCreate(curwin, start, end);
+            foldCreate(*curwin.as_ptr(), start, end);
         }
     }
 }
@@ -12767,7 +12767,7 @@ unsafe fn ex_folddo(eap: *mut exarg_T) {
     unsafe {
         let mut lnum = (*eap).line1;
         while lnum <= (*eap).line2 {
-            if hasFolding(curwin, lnum, ptr::null_mut(), ptr::null_mut())
+            if hasFolding(*curwin.as_ptr(), lnum, ptr::null_mut(), ptr::null_mut())
                 == ((*eap).cmdidx == cmdidx_T::CMD_folddoclosed as c_int)
             {
                 ml_setmarked(lnum);
@@ -12789,15 +12789,15 @@ pub unsafe fn is_loclist_cmd(cmdidx: c_int) -> bool {
 
 unsafe fn ex_checkhealth(eap: *mut exarg_T) {
     unsafe {
-        emsg_off += 1;
+        g_st().emsg_off += 1;
         let ok = nlua_call_excmd(
             c"vim.health".as_ptr(),
             c"_check".as_ptr(),
             eap,
-            &raw mut cmdmod,
+            &raw mut g_st().cmdmod,
             ptr::null_mut(),
         );
-        emsg_off -= 1;
+        g_st().emsg_off -= 1;
         if ok {
             return;
         }
@@ -12820,17 +12820,17 @@ unsafe fn ex_checkhealth(eap: *mut exarg_T) {
 
 unsafe fn ex_terminal(eap: *mut exarg_T) {
     unsafe {
-        let scroll_save = msg_scroll;
-        msg_scroll = 0;
+        let scroll_save = g_st().msg_scroll;
+        g_st().msg_scroll = 0;
         autowrite_all();
-        msg_scroll = scroll_save;
+        g_st().msg_scroll = scroll_save;
 
         if *(*eap).arg != NUL {
             nlua_call_excmd(
                 c"vim._core.ex_cmd".as_ptr(),
                 c"ex_terminal".as_ptr(),
                 eap,
-                &raw mut cmdmod,
+                &raw mut g_st().cmdmod,
                 ptr::null_mut(),
             );
         } else {
@@ -12852,7 +12852,7 @@ unsafe fn ex_terminal(eap: *mut exarg_T) {
                 c"vim._core.ex_cmd".as_ptr(),
                 c"ex_terminal".as_ptr(),
                 eap,
-                &raw mut cmdmod,
+                &raw mut g_st().cmdmod,
                 &raw mut shell_tv,
             );
             tv_clear(&raw mut shell_tv);
@@ -12866,7 +12866,7 @@ unsafe fn ex_log(eap: *mut exarg_T) {
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_log".as_ptr(),
             eap,
-            &raw mut cmdmod,
+            &raw mut g_st().cmdmod,
             ptr::null_mut(),
         );
     }
@@ -12878,7 +12878,7 @@ unsafe fn ex_lsp(eap: *mut exarg_T) {
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_lsp".as_ptr(),
             eap,
-            &raw mut cmdmod,
+            &raw mut g_st().cmdmod,
             ptr::null_mut(),
         );
     }
@@ -12890,7 +12890,7 @@ unsafe fn ex_packdel(eap: *mut exarg_T) {
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_packdel".as_ptr(),
             eap,
-            &raw mut cmdmod,
+            &raw mut g_st().cmdmod,
             ptr::null_mut(),
         );
     }
@@ -12902,7 +12902,7 @@ unsafe fn ex_packupdate(eap: *mut exarg_T) {
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_packupdate".as_ptr(),
             eap,
-            &raw mut cmdmod,
+            &raw mut g_st().cmdmod,
             ptr::null_mut(),
         );
     }
@@ -12914,7 +12914,7 @@ unsafe fn ex_uptime(eap: *mut exarg_T) {
             c"vim._core.ex_cmd".as_ptr(),
             c"ex_uptime".as_ptr(),
             eap,
-            &raw mut cmdmod,
+            &raw mut g_st().cmdmod,
             ptr::null_mut(),
         );
     }

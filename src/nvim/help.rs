@@ -52,7 +52,7 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
         let mut wp: *mut win_T;
         let mut empty_fnum: c_int = 0;
         let mut alt_fnum: c_int = 0;
-        let old_KeyTyped = KeyTyped;
+        let old_KeyTyped = g_st().KeyTyped;
 
         if !eap.is_null() {
             arg = (*eap).arg;
@@ -166,12 +166,12 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
 
         // Re-use an existing help window or open a new one.
         let mut early_ret = false;
-        if !bt_help((*curwin).w_buffer) || cmdmod.cmod_tab != 0 {
-            if cmdmod.cmod_tab != 0 {
+        if !bt_help((**curwin.as_ptr()).w_buffer) || g_st().cmdmod.cmod_tab != 0 {
+            if g_st().cmdmod.cmod_tab != 0 {
                 wp = ptr::null_mut();
             } else {
                 wp = ptr::null_mut();
-                let mut wp2 = firstwin;
+                let mut wp2 = g_st().firstwin;
                 while !wp2.is_null() {
                     if bt_help((*wp2).w_buffer)
                         && !(*wp2).w_config.hide
@@ -194,20 +194,20 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
                     fclose(helpfd);
 
                     n = WSP_HELP;
-                    if cmdmod.cmod_split == 0
-                        && (*curwin).w_width != Columns
-                        && (*curwin).w_width < 80
+                    if g_st().cmdmod.cmod_split == 0
+                        && (**curwin.as_ptr()).w_width != g_st().Columns
+                        && (**curwin.as_ptr()).w_width < 80
                     {
                         n |= if opt_vars().p_sb != 0 { WSP_BOT } else { WSP_TOP };
                     }
                     if win_split(0, n) == FAIL {
                         early_ret = true;
                     } else {
-                        if ((*curwin).w_height as OptInt) < opt_vars().p_hh {
+                        if ((**curwin.as_ptr()).w_height as OptInt) < opt_vars().p_hh {
                             win_setheight(opt_vars().p_hh as c_int);
                         }
 
-                        alt_fnum = (*curbuf).b_fnum;
+                        alt_fnum = (*g_st().curbuf).b_fnum;
                         do_ecmd(
                             0,
                             ptr::null_mut(),
@@ -218,18 +218,18 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
                             ptr::null_mut(),
                         );
 
-                        if (cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-                            (*curwin).w_alt_fnum = alt_fnum;
+                        if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
+                            (**curwin.as_ptr()).w_alt_fnum = alt_fnum;
                         }
-                        empty_fnum = (*curbuf).b_fnum;
+                        empty_fnum = (*g_st().curbuf).b_fnum;
                     }
                 }
             }
         }
 
         if !early_ret {
-            restart_edit = 0;
-            KeyTyped = old_KeyTyped;
+            g_st().restart_edit = 0;
+            g_st().KeyTyped = old_KeyTyped;
 
             do_tag(
                 ptr::null_mut(),
@@ -240,7 +240,7 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
                 true,
             );
 
-            if empty_fnum != 0 && (*curbuf).b_fnum != empty_fnum {
+            if empty_fnum != 0 && (*g_st().curbuf).b_fnum != empty_fnum {
                 let buf = buflist_findnr(empty_fnum);
                 if !buf.is_null() && (*buf).b_nwindows == 0 {
                     wipe_buffer(buf, true);
@@ -248,10 +248,10 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
             }
 
             if alt_fnum != 0
-                && (*curwin).w_alt_fnum == empty_fnum
-                && (cmdmod.cmod_flags & CMOD_KEEPALT) == 0
+                && (**curwin.as_ptr()).w_alt_fnum == empty_fnum
+                && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
             {
-                (*curwin).w_alt_fnum = alt_fnum;
+                (**curwin.as_ptr()).w_alt_fnum = alt_fnum;
             }
         }
         drop(allocated_arg);
@@ -261,7 +261,7 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
 /// `:helpclose`: Close one help window (`ex_helpclose`).
 pub unsafe fn ex_helpclose(eap: *mut exarg_T) {
     unsafe {
-        let mut win = firstwin;
+        let mut win = g_st().firstwin;
         while !win.is_null() {
             if bt_help((*win).w_buffer) {
                 win_close(win, false, (*eap).forceit != 0);
@@ -370,7 +370,7 @@ pub unsafe fn find_help_tags(
             tv_clear(&raw mut rettv);
             return FAIL;
         }
-        xstrlcpy((&raw mut IObuff).cast(), rettv.vval.v_string(), IOSIZE);
+        xstrlcpy((&raw mut g_st().IObuff).cast(), rettv.vval.v_string(), IOSIZE);
         tv_clear(&raw mut rettv);
 
         matches.clear();
@@ -380,7 +380,7 @@ pub unsafe fn find_help_tags(
         }
         let mut raw_matches: Vec<Vec<c_char>> = Vec::new();
         if find_tags(
-            (&raw mut IObuff).cast(),
+            (&raw mut g_st().IObuff).cast(),
             &mut raw_matches,
             flags,
             crate::regexp::MAXCOL,
@@ -452,14 +452,14 @@ pub unsafe fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
 /// Called when starting to edit a buffer for a help file (`prepare_help_buffer`).
 pub unsafe fn prepare_help_buffer() {
     unsafe {
-        (*curbuf).b_help = true;
+        (*g_st().curbuf).b_help = true;
         set_option_direct(kOptBuftype, cstr_as_obj(c"help".as_ptr()), OPT_LOCAL, 0);
 
         let p = c"!-~,^*,^|,^\",192-255";
-        if CStr::from_ptr((*curbuf).b_p_isk) != p {
+        if CStr::from_ptr((*g_st().curbuf).b_p_isk) != p {
             set_option_direct(kOptIskeyword, cstr_as_obj(p.as_ptr()), OPT_LOCAL, 0);
-            check_buf_options(curbuf);
-            buf_init_isk_chartab(curbuf);
+            check_buf_options(g_st().curbuf);
+            buf_init_isk_chartab(g_st().curbuf);
         }
 
         set_option_direct(
@@ -469,20 +469,20 @@ pub unsafe fn prepare_help_buffer() {
             0,
         );
 
-        (*curbuf).b_p_ts = 8;
-        (*curwin).w_onebuf_opt.wo_list = 0;
+        (*g_st().curbuf).b_p_ts = 8;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_list = 0;
 
-        (*curbuf).b_p_ma = 0;
-        (*curbuf).b_p_bin = 0;
-        (*curwin).w_onebuf_opt.wo_nu = 0;
-        (*curwin).w_onebuf_opt.wo_rnu = 0;
-        (*curwin).w_onebuf_opt.wo_scb = 0;
-        (*curwin).w_onebuf_opt.wo_crb = 0;
-        (*curwin).w_onebuf_opt.wo_arab = 0;
-        (*curwin).w_onebuf_opt.wo_rl = 0;
-        (*curwin).w_onebuf_opt.wo_fen = 0;
-        (*curwin).w_onebuf_opt.wo_diff = 0;
-        (*curwin).w_onebuf_opt.wo_spell = 0;
+        (*g_st().curbuf).b_p_ma = 0;
+        (*g_st().curbuf).b_p_bin = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_nu = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_rnu = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_scb = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_crb = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_arab = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_rl = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_fen = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_diff = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_spell = 0;
 
         set_buflisted(0);
     }

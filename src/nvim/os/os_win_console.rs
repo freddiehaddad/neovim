@@ -325,7 +325,7 @@ pub unsafe fn os_icon_init() {
         }
 
         if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME".as_ptr()) {
-            let namebuff = std::ptr::addr_of_mut!(NameBuff).cast::<c_char>();
+            let namebuff = std::ptr::addr_of_mut!(g_st().NameBuff).cast::<c_char>();
             vim_snprintf!(
                 namebuff,
                 MAXPATHL,

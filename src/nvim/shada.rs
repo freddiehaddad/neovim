@@ -1273,7 +1273,7 @@ unsafe fn find_buffer(
             return buf;
         }
 
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             if !(*buf).b_ffname.is_null() && path_equal(fname, (*buf).b_ffname, kPathCmpLiteral) {
                 fname_bufs.insert(key.to_vec(), buf);
@@ -1564,9 +1564,9 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             shada_free_shada_entry(&mut cur_entry);
                         }
                     } else {
-                        let mut i = (*curwin).w_jumplistlen;
+                        let mut i = (**curwin.as_ptr()).w_jumplistlen;
                         while i > 0 {
-                            let jl_entry = &(*curwin).w_jumplist[(i - 1) as usize];
+                            let jl_entry = &(**curwin.as_ptr()).w_jumplist[(i - 1) as usize];
                             if jl_entry.fmark.timestamp <= cur_entry.timestamp {
                                 if marks_equal(jl_entry.fmark.mark, fm_mark)
                                     && (if buf.is_null() {
@@ -1581,19 +1581,19 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             }
                             i -= 1;
                         }
-                        if i > 0 && (*curwin).w_jumplistlen == (JUMPLISTSIZE as c_int) {
-                            free_xfmark(&mut (*curwin).w_jumplist[0]);
+                        if i > 0 && (**curwin.as_ptr()).w_jumplistlen == (JUMPLISTSIZE as c_int) {
+                            free_xfmark(&mut (**curwin.as_ptr()).w_jumplist[0]);
                         }
-                        i = marklist_insert(&mut (*curwin).w_jumplist, (*curwin).w_jumplistlen, i);
+                        i = marklist_insert(&mut (**curwin.as_ptr()).w_jumplist, (**curwin.as_ptr()).w_jumplistlen, i);
                         if i != -1 {
-                            (*curwin).w_jumplist[i as usize] = fm;
-                            if (*curwin).w_jumplistlen < (JUMPLISTSIZE as c_int) {
-                                (*curwin).w_jumplistlen += 1;
+                            (**curwin.as_ptr()).w_jumplist[i as usize] = fm;
+                            if (**curwin.as_ptr()).w_jumplistlen < (JUMPLISTSIZE as c_int) {
+                                (**curwin.as_ptr()).w_jumplistlen += 1;
                             }
-                            if (*curwin).w_jumplistidx >= i
-                                && (*curwin).w_jumplistidx < (*curwin).w_jumplistlen
+                            if (**curwin.as_ptr()).w_jumplistidx >= i
+                                && (**curwin.as_ptr()).w_jumplistidx < (**curwin.as_ptr()).w_jumplistlen
                             {
-                                (*curwin).w_jumplistidx += 1;
+                                (**curwin.as_ptr()).w_jumplistidx += 1;
                             }
                         } else {
                             shada_free_shada_entry(&mut cur_entry);
@@ -1618,7 +1618,7 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
                             };
                             buflist_setfpos(
                                 buf,
-                                curwin,
+                                *curwin.as_ptr(),
                                 (*buf).b_last_cursor.mark.lnum,
                                 (*buf).b_last_cursor.mark.col,
                                 false,
@@ -1700,10 +1700,10 @@ unsafe fn shada_read(sd_reader: *mut FileDescriptor, flags: c_int) {
             }
         }
         if !cl_bufs.is_empty() {
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut wp = if tp == curtab {
-                    firstwin
+                let mut wp = if tp == g_st().curtab {
+                    g_st().firstwin
                 } else {
                     (*tp).tp_firstwin
                 };
@@ -1751,7 +1751,7 @@ unsafe fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
                 if file.is_null() || *file == NUL {
                     file = shada_get_default_file();
                 }
-                let name_buff_ptr = (&raw mut NameBuff).cast::<c_char>();
+                let name_buff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
                 let len = expand_env(file.cast_mut(), name_buff_ptr, MAXPATHL as c_int);
                 return Some(
                     std::ffi::CString::new(std::slice::from_raw_parts(
@@ -2293,7 +2293,7 @@ unsafe fn shada_read_when_writing(
                             &raw mut (*wms).numbered_marks[u_idx - 26]
                         };
                         if (*mark).entry_type == ShadaEntryType::kSDItemMissing
-                            && namedfm[u_idx].fmark.timestamp >= entry.timestamp
+                            && g_st().namedfm[u_idx].fmark.timestamp >= entry.timestamp
                         {
                             shada_free_shada_entry(&mut entry);
                             continue;
@@ -2345,7 +2345,7 @@ unsafe fn shada_read_when_writing(
                                     shada_free_shada_entry(wms_entry);
                                 }
                             } else {
-                                let mut buf = firstbuf;
+                                let mut buf = g_st().firstbuf;
                                 while !buf.is_null() {
                                     if !(*buf).b_ffname.is_null()
                                         && path_equal(fname_ptr, (*buf).b_ffname, kPathCmpLiteral)
@@ -2353,7 +2353,7 @@ unsafe fn shada_read_when_writing(
                                         let mut fm = fmark_T::new();
                                         mark_get(
                                             buf,
-                                            curwin,
+                                            *curwin.as_ptr(),
                                             &mut fm,
                                             kMarkBufLocal,
                                             c_int::from(fm_name),
@@ -2456,7 +2456,7 @@ unsafe fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_
     unsafe {
         let max_bufs = get_shada_parameter(b'%' as c_int);
         let mut buffers = Vec::new();
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             if !ignore_buf(buf, removable_bufs) && (*buf).b_p_bl != 0 {
                 if max_bufs >= 0 && buffers.len() >= (max_bufs as usize) {
@@ -2602,7 +2602,7 @@ unsafe fn replace_numbered_mark(wms: *mut WriteMergerState, idx: usize, entry: S
 #[inline]
 unsafe fn find_removable_bufs(removable_bufs: &mut std::collections::HashSet<*mut buf_T>) {
     unsafe {
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             if !(*buf).b_ffname.is_null() && shada_removable((*buf).b_ffname) {
                 removable_bufs.insert(buf);
@@ -2722,10 +2722,10 @@ unsafe fn shada_write(
 
         let mut packer = packer_buffer_for_file(sd_writer);
 
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
@@ -2884,7 +2884,7 @@ unsafe fn shada_write(
 
             if dump_one_history[HIST_SEARCH as usize] {
                 let search_highlighted =
-                    !(Search.no_hlsearch || !find_shada_parameter(b'h' as c_int).is_null());
+                    !(g_st().Search.no_hlsearch || !find_shada_parameter(b'h' as c_int).is_null());
                 let search_last_used = search_was_last_used();
 
                 add_search_pattern(
@@ -2980,7 +2980,7 @@ unsafe fn shada_write(
             }
 
             if num_marked_files > 0 {
-                let mut buf = firstbuf;
+                let mut buf = g_st().firstbuf;
                 while !buf.is_null() {
                     if !ignore_buf(buf, &removable_bufs) {
                         let mut local_marks_iter: Option<c_char> = None;
@@ -3049,8 +3049,8 @@ unsafe fn shada_write(
             }
 
             if dump_global_marks
-                && !ignore_buf(curbuf, &removable_bufs)
-                && (*curwin).w_cursor.lnum != 0
+                && !ignore_buf(g_st().curbuf, &removable_bufs)
+                && (**curwin.as_ptr()).w_cursor.lnum != 0
             {
                 replace_numbered_mark(
                     wms,
@@ -3060,9 +3060,9 @@ unsafe fn shada_write(
                         entry_type: ShadaEntryType::kSDItemGlobalMark,
                         timestamp: os_time(),
                         data: ShadaEntryData::Filemark(ShadaFilemark {
-                            mark: (*curwin).w_cursor,
+                            mark: (**curwin.as_ptr()).w_cursor,
                             name: b'0' as c_char,
-                            fname: Some(CStr::from_ptr((*curbuf).b_ffname).to_owned()),
+                            fname: Some(CStr::from_ptr((*g_st().curbuf).b_ffname).to_owned()),
                         }),
                         additional_data: None,
                     },
@@ -4307,7 +4307,7 @@ unsafe fn shada_removable(name: *const c_char) -> bool {
         while *p != 0 {
             copy_option_part(&mut p, part.as_mut_ptr(), part.len(), c", ".as_ptr());
             if part[0] == (b'r' as c_char) {
-                let name_buff_ptr = (&raw mut NameBuff).cast::<c_char>();
+                let name_buff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
                 let n = home_replace(
                     ptr::null_mut(),
                     part.as_ptr().add(1),
@@ -4334,16 +4334,16 @@ unsafe fn shada_init_jumps(
         let mut jumps_size = 0usize;
         let mut jump_iter: Option<usize> = None;
         setpcmark();
-        cleanup_jumplist(curwin, false);
+        cleanup_jumplist(*curwin.as_ptr(), false);
         loop {
             let mut fm = xfmark_T::new();
-            jump_iter = mark_jumplist_iter(jump_iter, &*curwin, &mut fm);
+            jump_iter = mark_jumplist_iter(jump_iter, &**curwin.as_ptr(), &mut fm);
             if fm.fmark.mark.lnum == 0 {
                 siemsg!(
                     c"ShaDa: mark lnum zero (ji:%zu, js:%p, len:%i)".as_ptr(),
                     jump_iter.unwrap_or(0),
-                    &raw const (*curwin).w_jumplist,
-                    (*curwin).w_jumplistlen,
+                    &raw const (**curwin.as_ptr()).w_jumplist,
+                    (**curwin.as_ptr()).w_jumplistlen,
                 );
                 if jump_iter.is_none() {
                     break;
@@ -4562,13 +4562,13 @@ pub unsafe fn find_shada_parameter(param_type: c_int) -> *mut c_char {
 /// Read marks for the current buffer from the ShaDa file (`check_marks_read`).
 pub unsafe fn check_marks_read() {
     unsafe {
-        if !(*curbuf).b_marks_read
+        if !(*g_st().curbuf).b_marks_read
             && get_shada_parameter(b'\'' as c_int) > 0
-            && !(*curbuf).b_ffname.is_null()
+            && !(*g_st().curbuf).b_ffname.is_null()
         {
             shada_read_marks();
         }
-        (*curbuf).b_marks_read = true;
+        (*g_st().curbuf).b_marks_read = true;
     }
 }
 

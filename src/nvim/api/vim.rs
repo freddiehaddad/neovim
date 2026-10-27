@@ -493,7 +493,7 @@ pub unsafe extern "C" fn nvim_set_hl(
         if !error_set(&*err) {
             let save_current_sctx = api_set_sctx(channel_id);
             ns_hl_def(ns_id as NS, hl_id, attrs, link_id, val);
-            current_sctx = save_current_sctx;
+            g_st().current_sctx = save_current_sctx;
         }
     }
 }
@@ -518,7 +518,7 @@ pub unsafe extern "C" fn nvim_get_hl_ns(opts: *mut KeyDict_get_ns, err: *mut Err
             }
             Integer::from((*win).w_ns_hl)
         } else {
-            Integer::from(ns_hl_global)
+            Integer::from(g_st().ns_hl_global)
         }
     }
 }
@@ -535,7 +535,7 @@ pub unsafe extern "C" fn nvim_set_hl_ns(ns_id: Integer, err: *mut Error) {
         if !validate_int(ns_id >= 0, c"namespace".as_ptr(), ns_id, err) {
             return;
         }
-        ns_hl_global = ns_id as NS;
+        g_st().ns_hl_global = ns_id as NS;
         hl_check_ns();
         redraw_all_later(UPD_NOT_VALID);
     }
@@ -553,7 +553,7 @@ pub unsafe extern "C" fn nvim_set_hl_ns(ns_id: Integer, err: *mut Error) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_set_hl_ns_fast(ns_id: Integer, _err: *mut Error) {
     unsafe {
-        ns_hl_fast = ns_id as NS;
+        g_st().ns_hl_fast = ns_id as NS;
         hl_check_ns();
     }
 }
@@ -618,27 +618,27 @@ pub unsafe extern "C" fn nvim_feedkeys(keys: NvimString, mode: NvimString, escap
             ins_typebuf(
                 keys_esc,
                 if remap { REMAP_YES } else { REMAP_NONE },
-                if insert { 0 } else { typebuf.tb_len },
+                if insert { 0 } else { g_st().typebuf.tb_len },
                 !typed,
                 false,
             );
-            if vgetc_busy != 0 {
-                typebuf_was_filled = true;
+            if g_st().vgetc_busy != 0 {
+                g_st().typebuf_was_filled = true;
             }
         }
         drop(owned_keys_esc);
 
         if execute {
-            let save_msg_scroll = msg_scroll;
-            msg_scroll = 0;
+            let save_msg_scroll = g_st().msg_scroll;
+            g_st().msg_scroll = 0;
             if !dangerous {
-                ex_normal_busy += 1;
+                g_st().ex_normal_busy += 1;
             }
             exec_normal(true, lowlevel);
             if !dangerous {
-                ex_normal_busy -= 1;
+                g_st().ex_normal_busy -= 1;
             }
-            msg_scroll |= save_msg_scroll;
+            g_st().msg_scroll |= save_msg_scroll;
         }
     }
 }
@@ -1093,8 +1093,8 @@ pub unsafe extern "C" fn nvim_set_current_dir(dir: NvimString, err: *mut Error) 
 pub unsafe extern "C" fn nvim_get_current_line(arena: *mut Arena, err: *mut Error) -> NvimString {
     unsafe {
         buffer_get_line(
-            (*curbuf).b_fnum,
-            Integer::from((*curwin).w_cursor.lnum - 1),
+            (*g_st().curbuf).b_fnum,
+            Integer::from((**curwin.as_ptr()).w_cursor.lnum - 1),
             arena,
             err,
         )
@@ -1115,8 +1115,8 @@ pub unsafe extern "C" fn nvim_set_current_line(
 ) {
     unsafe {
         buffer_set_line(
-            (*curbuf).b_fnum,
-            Integer::from((*curwin).w_cursor.lnum - 1),
+            (*g_st().curbuf).b_fnum,
+            Integer::from((**curwin.as_ptr()).w_cursor.lnum - 1),
             line,
             arena,
             err,
@@ -1132,8 +1132,8 @@ pub unsafe extern "C" fn nvim_set_current_line(
 pub unsafe extern "C" fn nvim_del_current_line(arena: *mut Arena, err: *mut Error) {
     unsafe {
         buffer_del_line(
-            (*curbuf).b_fnum,
-            Integer::from((*curwin).w_cursor.lnum - 1),
+            (*g_st().curbuf).b_fnum,
+            Integer::from((**curwin.as_ptr()).w_cursor.lnum - 1),
             arena,
             err,
         );
@@ -1411,14 +1411,14 @@ pub unsafe extern "C" fn nvim_echo(
             data: (*opts).data,
         };
 
-        let save_nwr = need_wait_return;
-        let save_lines_left = lines_left;
-        let save_msg_didany = msg_didany;
+        let save_nwr = g_st().need_wait_return;
+        let save_lines_left = g_st().lines_left;
+        let save_msg_didany = g_st().msg_didany;
         if (*opts)._truncate {
-            no_wait_return += 1;
-            lines_left = 0;
-            msg_didany = true;
-            msg_no_more = true;
+            g_st().no_wait_return += 1;
+            g_st().lines_left = 0;
+            g_st().msg_didany = true;
+            g_st().msg_no_more = true;
         }
         msg_ext_no_fast();
         id = msg_multihl(
@@ -1432,11 +1432,11 @@ pub unsafe extern "C" fn nvim_echo(
             false,
         );
         if (*opts)._truncate {
-            msg_no_more = false;
-            msg_didany = save_msg_didany;
-            lines_left = save_lines_left;
-            no_wait_return -= 1;
-            need_wait_return = save_nwr;
+            g_st().msg_no_more = false;
+            g_st().msg_didany = save_msg_didany;
+            g_st().lines_left = save_lines_left;
+            g_st().no_wait_return -= 1;
+            g_st().need_wait_return = save_nwr;
         }
 
         if (*opts).verbose {
@@ -1459,14 +1459,14 @@ pub unsafe extern "C" fn nvim_echo(
 pub unsafe extern "C" fn nvim_list_bufs(arena: *mut Arena) -> Array {
     unsafe {
         let mut n = 0usize;
-        let mut b = firstbuf;
+        let mut b = g_st().firstbuf;
         while !b.is_null() {
             n += 1;
             b = (*b).b_next;
         }
 
         let mut rv = arena_array(arena, n);
-        b = firstbuf;
+        b = g_st().firstbuf;
         while !b.is_null() {
             add_c(&mut rv, buffer_obj((*b).b_fnum));
             b = (*b).b_next;
@@ -1481,7 +1481,7 @@ pub unsafe extern "C" fn nvim_list_bufs(arena: *mut Arena) -> Array {
 // DLLEXPORT Buffer nvim_get_current_buf(void) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_current_buf() -> Buffer {
-    unsafe { (*curbuf).b_fnum }
+    unsafe { (*g_st().curbuf).b_fnum }
 }
 
 /// Sets the current window's buffer to `buf`.
@@ -1511,10 +1511,10 @@ pub unsafe extern "C" fn nvim_set_current_buf(buf: Buffer, err: *mut Error) {
 pub unsafe extern "C" fn nvim_list_wins(arena: *mut Arena) -> Array {
     unsafe {
         let mut n = 0usize;
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
@@ -1526,10 +1526,10 @@ pub unsafe extern "C" fn nvim_list_wins(arena: *mut Arena) -> Array {
         }
 
         let mut rv = arena_array(arena, n);
-        tp = first_tabpage;
+        tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
@@ -1549,7 +1549,7 @@ pub unsafe extern "C" fn nvim_list_wins(arena: *mut Arena) -> Array {
 // DLLEXPORT Window nvim_get_current_win(void) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_current_win() -> Window {
-    unsafe { (*curwin).handle }
+    unsafe { (**curwin.as_ptr()).handle }
 }
 
 /// Navigates to the given window (and tabpage, implicitly).
@@ -1566,7 +1566,7 @@ pub unsafe extern "C" fn nvim_set_current_win(win: Window, err: *mut Error) {
         }
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        if (*w).w_buffer != curbuf {
+        if (*w).w_buffer != g_st().curbuf {
             reset_VIsual_and_resel();
         }
         goto_tabpage_win(win_find_tabpage(w), w);
@@ -1751,8 +1751,8 @@ pub unsafe extern "C" fn nvim_open_term(
         (*internal).closed = false;
         let topts = TerminalOptions {
             data: chan,
-            width: ((*curwin).w_view_width - win_col_off(curwin)).max(0) as u16,
-            height: (*curwin).w_view_height as u16,
+            width: ((**curwin.as_ptr()).w_view_width - win_col_off(*curwin.as_ptr())).max(0) as u16,
+            height: (**curwin.as_ptr()).w_view_height as u16,
             force_crlf,
         };
 
@@ -1819,14 +1819,14 @@ pub unsafe extern "C" fn nvim_chan_send(chan: Integer, data: NvimString, err: *m
 pub unsafe extern "C" fn nvim_list_tabpages(arena: *mut Arena) -> Array {
     unsafe {
         let mut n = 0usize;
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             n += 1;
             tp = (*tp).tp_next;
         }
 
         let mut rv = arena_array(arena, n);
-        tp = first_tabpage;
+        tp = g_st().first_tabpage;
         while !tp.is_null() {
             add_c(&mut rv, tabpage_obj((*tp).handle));
             tp = (*tp).tp_next;
@@ -1841,7 +1841,7 @@ pub unsafe extern "C" fn nvim_list_tabpages(arena: *mut Arena) -> Array {
 // DLLEXPORT Tabpage nvim_get_current_tabpage(void) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_current_tabpage() -> Tabpage {
-    unsafe { (*curtab).handle }
+    unsafe { (*g_st().curtab).handle }
 }
 
 /// Sets the current tabpage.
@@ -1916,8 +1916,8 @@ pub unsafe extern "C" fn nvim_paste(
         }
         if phase == -1 || phase == 1 {
             api_vim_st().PASTE_CANCELLED = false;
-            if !(*curbuf).terminal.is_null() {
-                terminal_set_streamed_paste((*curbuf).terminal.cast(), true);
+            if !(*g_st().curbuf).terminal.is_null() {
+                terminal_set_streamed_paste((*g_st().curbuf).terminal.cast(), true);
             }
         } else if api_vim_st().PASTE_CANCELLED {
             let retval = !api_vim_st().PASTE_CANCELLED;
@@ -1945,8 +1945,8 @@ pub unsafe extern "C" fn nvim_paste(
         if error_set(&*err) || (rv.obj_type == ObjectType::kObjectTypeBoolean && !rv.data.boolean()) {
             api_vim_st().PASTE_CANCELLED = true;
         }
-        if (phase == -1 || phase == 3 || api_vim_st().PASTE_CANCELLED) && !(*curbuf).terminal.is_null() {
-            terminal_set_streamed_paste((*curbuf).terminal.cast(), false);
+        if (phase == -1 || phase == 3 || api_vim_st().PASTE_CANCELLED) && !(*g_st().curbuf).terminal.is_null() {
+            terminal_set_streamed_paste((*g_st().curbuf).terminal.cast(), false);
         }
         let null_str = NvimString {
             data: ptr::null_mut(),
@@ -2030,8 +2030,8 @@ pub unsafe extern "C" fn nvim_put(
 
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        let visual_was_active = Visual.active;
-        msg_silent += 1;
+        let visual_was_active = g_st().Visual.active;
+        g_st().msg_silent += 1;
         do_put(
             b'_' as c_int,
             &mut reg,
@@ -2039,8 +2039,8 @@ pub unsafe extern "C" fn nvim_put(
             1,
             if follow { PUT_CURSEND } else { 0 },
         );
-        msg_silent -= 1;
-        Visual.active = visual_was_active;
+        g_st().msg_silent -= 1;
+        g_st().Visual.active = visual_was_active;
         try_leave(&tstate, err);
     }
 }
@@ -2158,8 +2158,8 @@ pub unsafe extern "C" fn nvim_get_context(
 pub unsafe extern "C" fn nvim_load_context(dict: Dict, err: *mut Error) -> Object {
     unsafe {
         let mut ctx = CONTEXT_INIT;
-        let save_did_emsg = did_emsg;
-        did_emsg = 0;
+        let save_did_emsg = g_st().did_emsg;
+        g_st().did_emsg = 0;
 
         ctx_from_dict(dict, &mut ctx, err);
         if !error_set(&*err) {
@@ -2167,7 +2167,7 @@ pub unsafe extern "C" fn nvim_load_context(dict: Dict, err: *mut Error) -> Objec
         }
 
         ctx_free(&mut ctx);
-        did_emsg = save_did_emsg;
+        g_st().did_emsg = save_did_emsg;
         nil_obj()
     }
 }
@@ -2435,16 +2435,16 @@ pub unsafe extern "C" fn nvim_chan_set(
 pub unsafe extern "C" fn nvim__cmdwin_set(type_str: NvimString, buf: Buffer, err: *mut Error) {
     unsafe {
         if type_str.size == 0 || buf == 0 {
-            cmdwin_type = 0;
-            cmdwin_buf = ptr::null_mut();
+            g_st().cmdwin_type = 0;
+            g_st().cmdwin_buf = ptr::null_mut();
             return;
         }
         let b = find_buffer_by_handle(buf, err);
         if error_set(&*err) {
             return;
         }
-        cmdwin_type = c_int::from(*type_str.data as u8);
-        cmdwin_buf = b;
+        g_st().cmdwin_type = c_int::from(*type_str.data as u8);
+        g_st().cmdwin_buf = b;
     }
 }
 
@@ -2570,27 +2570,27 @@ pub extern "C" fn nvim__id_float(flt: Float) -> Float {
 pub unsafe extern "C" fn nvim__stats(arena: *mut Arena) -> Dict {
     unsafe {
         let mut rv = arena_dict(arena, 6);
-        put_c(&mut rv, c"fsync".as_ptr(), integer_obj(g_stats.fsync));
+        put_c(&mut rv, c"fsync".as_ptr(), integer_obj(g_st().g_stats.fsync));
         put_c(
             &mut rv,
             c"log_skip".as_ptr(),
-            integer_obj(Integer::from(g_stats.log_skip)),
+            integer_obj(Integer::from(g_st().g_stats.log_skip)),
         );
         put_c(
             &mut rv,
             c"lua_refcount".as_ptr(),
             integer_obj(Integer::from(nlua_get_global_ref_count())),
         );
-        put_c(&mut rv, c"redraw".as_ptr(), integer_obj(g_stats.redraw));
+        put_c(&mut rv, c"redraw".as_ptr(), integer_obj(g_st().g_stats.redraw));
         put_c(
             &mut rv,
             c"arena_alloc_count".as_ptr(),
-            integer_obj(arena_alloc_count as Integer),
+            integer_obj(g_st().arena_alloc_count as Integer),
         );
         put_c(
             &mut rv,
             c"ts_query_parse_count".as_ptr(),
-            integer_obj(tslua_query_parse_count as Integer),
+            integer_obj(g_st().tslua_query_parse_count as Integer),
         );
         rv
     }
@@ -2785,9 +2785,9 @@ pub unsafe extern "C" fn nvim__inspect_cell(
 ) -> Array {
     unsafe {
         let mut ret = Array::new();
-        let mut g: *mut ScreenGrid = &raw mut default_grid;
-        if grid == Integer::from(pum_grid.handle) {
-            g = &raw mut pum_grid;
+        let mut g: *mut ScreenGrid = &raw mut g_st().default_grid;
+        if grid == Integer::from(g_st().pum_grid.handle) {
+            g = &raw mut g_st().pum_grid;
         } else if grid > 1 {
             let wp = get_win_by_grid_handle(grid as handle_T);
             if !validate_int(
@@ -2838,7 +2838,7 @@ pub unsafe extern "C" fn nvim__screenshot(path: NvimString) {
 pub unsafe extern "C" fn nvim__invalidate_glyph_cache() {
     unsafe {
         schar_cache_clear();
-        must_redraw = UPD_CLEAR;
+        g_st().must_redraw = UPD_CLEAR;
     }
 }
 
@@ -3049,7 +3049,7 @@ pub unsafe extern "C" fn nvim_eval_statusline(
         let mut use_bools = c_int::from((*opts).use_winbar) + c_int::from((*opts).use_tabline);
 
         let wp = if (*opts).use_tabline {
-            curwin
+            *curwin.as_ptr()
         } else {
             find_window_by_handle(window, err)
         };
@@ -3143,7 +3143,7 @@ pub unsafe extern "C" fn nvim_eval_statusline(
         } else if statuscol_lnum != 0 {
             win_col_off(wp)
         } else if (*opts).use_tabline || (!(*opts).use_winbar && global_stl_height() > 0) {
-            Columns
+            g_st().Columns
         } else {
             (*wp).w_width
         };
@@ -3443,7 +3443,7 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
             } else if !buf.is_null() {
                 buf
             } else {
-                curbuf
+                g_st().curbuf
             };
             let line_count = i64::from((*rbuf).b_ml.ml_line_count);
             let begin = begin_raw.min(line_count) as c_int;
@@ -3464,7 +3464,7 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
 
         let mut flush_ui = (*opts).flush;
         if (*opts).tabline {
-            if redraw_tabline && (*firstwin).w_lines_valid == 0 {
+            if g_st().redraw_tabline && (*g_st().firstwin).w_lines_valid == 0 {
                 (*opts).flush = true;
             } else {
                 draw_tabline();
@@ -3473,12 +3473,12 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
         }
 
         let save_lz = opt_vars().p_lz;
-        let save_rd = RedrawingDisabled;
-        RedrawingDisabled = 0;
+        let save_rd = g_st().RedrawingDisabled;
+        g_st().RedrawingDisabled = 0;
         opt_vars().p_lz = 0;
         if (*opts).statuscolumn || (*opts).statusline || (*opts).winbar {
             if win.is_null() {
-                let mut wp = firstwin;
+                let mut wp = g_st().firstwin;
                 while !wp.is_null() {
                     if buf.is_null() || (*wp).w_buffer == buf {
                         redraw_status(wp, opts, &raw mut (*opts).flush);
@@ -3491,14 +3491,14 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
             flush_ui = true;
         }
 
-        let cwin = if !win.is_null() { win } else { curwin };
+        let cwin = if !win.is_null() { win } else { *curwin.as_ptr() };
         if (*opts).cursor && ((*cwin).w_grid.target.is_null() || !(*(*cwin).w_grid.target).valid) {
             (*opts).flush = true;
         }
 
-        if (*opts).flush && !cmdpreview {
-            validate_cursor(curwin);
-            update_topline(curwin);
+        if (*opts).flush && !g_st().cmdpreview {
+            validate_cursor(*curwin.as_ptr());
+            update_topline(*curwin.as_ptr());
             update_screen();
         }
 
@@ -3511,7 +3511,7 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: *mut Error
             ui_flush();
         }
 
-        RedrawingDisabled = save_rd;
+        g_st().RedrawingDisabled = save_rd;
         opt_vars().p_lz = save_lz;
     }
 }

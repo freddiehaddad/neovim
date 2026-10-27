@@ -3959,10 +3959,10 @@ pub unsafe fn ex_version(eap: *mut exarg_T) {
 unsafe fn version_msg_wrap(s: *const c_char, wrap: bool) {
     unsafe {
         let len = vim_strsize(s) + if wrap { 2 } else { 0 };
-        if !got_int && len < Columns && msg_col + len >= Columns && *s != b'\n' as c_char {
+        if !g_st().got_int && len < g_st().Columns && g_st().msg_col + len >= g_st().Columns && *s != b'\n' as c_char {
             msg_putchar(b'\n' as c_int);
         }
-        if !got_int {
+        if !g_st().got_int {
             if wrap {
                 msg_puts(c"[".as_ptr());
             }
@@ -3994,22 +3994,22 @@ pub unsafe fn list_in_columns(items: &[*mut c_char], current: c_int) {
         }
         width += 1;
 
-        if Columns < width {
+        if g_st().Columns < width {
             for (idx, &item) in items.iter().enumerate() {
                 version_msg_wrap(item, idx as c_int == current);
-                if msg_col > 0 && (idx as c_int) < item_count - 1 {
+                if g_st().msg_col > 0 && (idx as c_int) < item_count - 1 {
                     msg_putchar(b'\n' as c_int);
                 }
             }
             return;
         }
 
-        let ncol = (Columns + 1) / width;
+        let ncol = (g_st().Columns + 1) / width;
         let nrow = item_count / ncol + c_int::from(item_count % ncol != 0);
         let mut cur_row: c_int = 1;
 
         let mut idx_i: c_int = 0;
-        while !got_int && idx_i < nrow * ncol {
+        while !g_st().got_int && idx_i < nrow * ncol {
             let idx = (idx_i / ncol) + (idx_i % ncol) * nrow;
             if idx < item_count {
                 let last_col = (idx_i + 1) % ncol == 0;
@@ -4021,16 +4021,16 @@ pub unsafe fn list_in_columns(items: &[*mut c_char], current: c_int) {
                     msg_putchar(b']' as c_int);
                 }
                 if last_col {
-                    if msg_col > 0 && cur_row < nrow {
+                    if g_st().msg_col > 0 && cur_row < nrow {
                         msg_putchar(b'\n' as c_int);
                     }
                     cur_row += 1;
                 } else {
-                    while msg_col % width != 0 {
+                    while g_st().msg_col % width != 0 {
                         msg_putchar(b' ' as c_int);
                     }
                 }
-            } else if msg_col > 0 {
+            } else if g_st().msg_col > 0 {
                 if cur_row < nrow {
                     msg_putchar(b'\n' as c_int);
                 }
@@ -4113,7 +4113,7 @@ pub unsafe fn list_version() {
 
         version_msg(if opt_vars().p_verbose > 0 {
             c"\nRun :checkhealth for more info".as_ptr()
-        } else if starting != 0 {
+        } else if *starting.as_ptr() != 0 {
             c"\nRun \"nvim -V1 -v\" for more info".as_ptr()
         } else {
             c"\nRun \":verbose version\" for more info".as_ptr()
@@ -4124,11 +4124,11 @@ pub unsafe fn list_version() {
 /// Whether it still is not too late to show an intro message (`may_show_intro`).
 pub unsafe fn may_show_intro() -> bool {
     unsafe {
-        buf_is_empty(curbuf)
-            && (*curbuf).b_fname.is_null()
-            && (*curbuf).b_fnum == 1
-            && (*curwin).handle == LOWEST_WIN_ID
-            && one_window(curwin, ptr::null_mut())
+        buf_is_empty(g_st().curbuf)
+            && (*g_st().curbuf).b_fname.is_null()
+            && (*g_st().curbuf).b_fnum == 1
+            && (**curwin.as_ptr()).handle == LOWEST_WIN_ID
+            && one_window(*curwin.as_ptr(), ptr::null_mut())
             && vim_strchr(opt_vars().p_shm, kShmIntro).is_null()
     }
 }
@@ -4158,16 +4158,16 @@ pub unsafe fn intro_message(colon: bool) {
         ];
 
         let lines_size = lines.len() as c_int;
-        let mut blanklines = Rows - (lines_size - 1);
+        let mut blanklines = g_st().Rows - (lines_size - 1);
         if opt_vars().p_ls > 1 {
-            blanklines -= Rows - (*topframe).fr_height;
+            blanklines -= g_st().Rows - (*g_st().topframe).fr_height;
         }
         if blanklines < 0 {
             blanklines = 0;
         }
 
         let mut row = blanklines / 2;
-        if (row >= 2 && Columns >= 50) || colon {
+        if (row >= 2 && g_st().Columns >= 50) || colon {
             for (i, &p) in lines.iter().enumerate() {
                 let formatted_cstr: Option<CString>;
 
@@ -4194,7 +4194,7 @@ pub unsafe fn intro_message(colon: bool) {
                     c"".as_ptr()
                 };
 
-                if *mesg != NUL && row < Rows - 1 {
+                if *mesg != NUL && row < g_st().Rows - 1 {
                     do_intro_line(row, mesg, colon, i < 3);
                 }
                 row += 1;
@@ -4205,15 +4205,15 @@ pub unsafe fn intro_message(colon: bool) {
 
 unsafe fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
     unsafe {
-        let mut col = (Columns - vim_strsize(mesg)) / 2;
+        let mut col = (g_st().Columns - vim_strsize(mesg)) / 2;
         if col < 0 {
             col = 0;
         }
 
         let grid = if !colon && ui_has(kUIMultigrid) {
-            (&raw mut (*firstwin).w_grid).cast::<GridView>()
+            (&raw mut (*g_st().firstwin).w_grid).cast::<GridView>()
         } else {
-            &raw mut default_gridview
+            &raw mut g_st().default_gridview
         };
         grid_line_start(grid, row);
 

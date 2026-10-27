@@ -1350,7 +1350,7 @@ pub unsafe fn tv_list_copy(
         }
         let mut item = (*orig).lv_first;
         while !item.is_null() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             let ni = tv_list_item_alloc();
@@ -1522,7 +1522,7 @@ pub unsafe fn tv_list_flatten(
             let next = (*item).li_next;
 
             fast_breakcheck();
-            if got_int {
+            if g_st().got_int {
                 return;
             }
             if (*item).li_tv.v_type == VarType::VAR_LIST {
@@ -1753,7 +1753,7 @@ unsafe fn list_join_inner(
 
         let mut item = (*l).lv_first;
         while !item.is_null() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             let mut size: usize = 0;
@@ -1773,7 +1773,7 @@ unsafe fn list_join_inner(
         gap.reserve(sumlen + 2);
 
         for s in join_vec.iter() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             if first {
@@ -3496,7 +3496,7 @@ pub unsafe fn tv_dict_copy(
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
                 let di = tv_dict_hi2di(hi);
@@ -3535,7 +3535,7 @@ pub unsafe fn tv_dict_copy(
         }
 
         (*copy).dv_refcount += 1;
-        if got_int {
+        if g_st().got_int {
             tv_dict_unref(copy);
             copy = ptr::null_mut();
         }
@@ -4881,11 +4881,11 @@ pub unsafe fn tv_get_bool_chk(tv: *const typval_T, ret_error: *mut bool) -> varn
 /// Get the line number from Vimscript object.
 pub unsafe fn tv_get_lnum(tv: *const typval_T) -> linenr_T {
     unsafe {
-        let did_emsg_before = did_emsg;
+        let did_emsg_before = g_st().did_emsg;
         let mut lnum = tv_get_number_chk(tv, ptr::null_mut()) as linenr_T;
-        if lnum <= 0 && did_emsg_before == did_emsg && (*tv).v_type != VarType::VAR_NUMBER {
+        if lnum <= 0 && did_emsg_before == g_st().did_emsg && (*tv).v_type != VarType::VAR_NUMBER {
             let mut fnum: c_int = 0;
-            let fp = var2fpos(tv, true, &raw mut fnum, false, curwin);
+            let fp = var2fpos(tv, true, &raw mut fnum, false, *curwin.as_ptr());
             if !fp.is_null() {
                 lnum = (*fp).lnum;
             }
@@ -5335,7 +5335,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
             crate::main_init::ensure_test_editor_init();
-            crate::globals::emsg_skip += 1;
+            crate::globals::g_st().emsg_skip += 1;
 
             // Basic alloc, append_number, find, reverse
             let l = tv_list_alloc(0);
@@ -5430,7 +5430,7 @@ mod tests {
 
             tv_list_unref(l2_copy);
             tv_list_unref(l2);
-            crate::globals::emsg_skip -= 1;
+            crate::globals::g_st().emsg_skip -= 1;
         }
     }
 
@@ -5441,7 +5441,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
             crate::main_init::ensure_test_editor_init();
-            crate::globals::emsg_skip += 1;
+            crate::globals::g_st().emsg_skip += 1;
 
             let d = tv_dict_alloc();
             assert!(!d.is_null());
@@ -5503,7 +5503,7 @@ mod tests {
             tv_dict_unref(d2);
             tv_dict_unref(d_copy);
             tv_dict_unref(d);
-            crate::globals::emsg_skip -= 1;
+            crate::globals::g_st().emsg_skip -= 1;
         }
     }
 
@@ -5514,7 +5514,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
             crate::main_init::ensure_test_editor_init();
-            crate::globals::emsg_skip += 1;
+            crate::globals::g_st().emsg_skip += 1;
 
             let mut tv = tv_initial_value();
             tv.v_type = VarType::VAR_NUMBER;
@@ -5569,7 +5569,7 @@ mod tests {
             tv_clear(&raw mut tv_str);
             tv_clear(&raw mut tv_l);
             tv_clear(&raw mut tv_d);
-            crate::globals::emsg_skip -= 1;
+            crate::globals::g_st().emsg_skip -= 1;
         }
     }
 

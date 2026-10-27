@@ -144,7 +144,7 @@ pub unsafe fn f_rpcstop(argvars: *mut typval_T, rettv: *mut typval_T, fptr: Eval
 pub unsafe fn f_last_buffer_nr(_argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
         let mut n: c_int = 0;
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             if n < (*buf).b_fnum {
                 n = (*buf).b_fnum;

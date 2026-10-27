@@ -83,7 +83,7 @@ pub unsafe fn find_buffer(avar: *mut typval_T) -> *mut buf_T {
             buf = buflist_findname_exp((*avar).vval.v_string());
             if buf.is_null() {
                 let target = CStr::from_ptr((*avar).vval.v_string()).to_bytes();
-                let mut bp = firstbuf;
+                let mut bp = g_st().firstbuf;
                 while !bp.is_null() {
                     if !(*bp).b_fname.is_null()
                         && (path_with_url((*bp).b_fname) != 0 || bt_nofilename(bp))
@@ -103,9 +103,9 @@ pub unsafe fn find_buffer(avar: *mut typval_T) -> *mut buf_T {
 /// If there is a window for `curbuf`, make it the current window (`find_win_for_curbuf`).
 unsafe fn find_win_for_curbuf() {
     unsafe {
-        for wip in &(*curbuf).b_wininfo {
-            if !wip.wi_win.is_null() && (*wip.wi_win).w_buffer == curbuf {
-                curwin = wip.wi_win;
+        for wip in &(*g_st().curbuf).b_wininfo {
+            if !wip.wi_win.is_null() && (*wip.wi_win).w_buffer == g_st().curbuf {
+                *curwin.as_ptr() = wip.wi_win;
                 break;
             }
         }
@@ -117,14 +117,14 @@ unsafe fn change_other_buffer_prepare(cob: *mut cob_T, buf: *mut buf_T) {
     unsafe {
         *cob = cob_T::new();
 
-        (*cob).cob_save_VIsual_active = c_int::from(Visual.active);
-        Visual.active = false;
-        (*cob).cob_curwin_save = curwin;
-        curbuf = buf;
+        (*cob).cob_save_VIsual_active = c_int::from(g_st().Visual.active);
+        g_st().Visual.active = false;
+        (*cob).cob_curwin_save = *curwin.as_ptr();
+        g_st().curbuf = buf;
         find_win_for_curbuf();
 
-        if (*curwin).w_buffer != buf {
-            curbuf = (*curwin).w_buffer;
+        if (**curwin.as_ptr()).w_buffer != buf {
+            g_st().curbuf = (**curwin.as_ptr()).w_buffer;
             ctx_switch(
                 &raw mut (*cob).cob_aco,
                 ptr::null_mut(),
@@ -142,10 +142,10 @@ unsafe fn change_other_buffer_restore(cob: *mut cob_T) {
         if (*cob).cob_using_aco != 0 {
             ctx_restore(&raw mut (*cob).cob_aco);
         } else {
-            curwin = (*cob).cob_curwin_save;
-            curbuf = (*curwin).w_buffer;
+            *curwin.as_ptr() = (*cob).cob_curwin_save;
+            g_st().curbuf = (**curwin.as_ptr()).w_buffer;
         }
-        Visual.active = (*cob).cob_save_VIsual_active != 0;
+        g_st().Visual.active = (*cob).cob_save_VIsual_active != 0;
     }
 }
 
@@ -161,7 +161,7 @@ unsafe fn set_buffer_lines(
         let mut lnum = lnum_arg + if append { 1 } else { 0 };
         let mut added: c_int = 0;
 
-        let is_curbuf = buf == curbuf;
+        let is_curbuf = buf == g_st().curbuf;
         if buf.is_null() || (!is_curbuf && (*buf).b_ml.ml_mfp.is_none()) || lnum < 1 {
             (*rettv).vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
             return;
@@ -175,7 +175,7 @@ unsafe fn set_buffer_lines(
         let append_lnum = if append {
             lnum - 1
         } else {
-            (*curbuf).b_ml.ml_line_count
+            (*g_st().curbuf).b_ml.ml_line_count
         };
 
         let mut l: *mut list_T = ptr::null_mut();
@@ -207,24 +207,24 @@ unsafe fn set_buffer_lines(
             let Some(ref line_cstr) = line else {
                 break;
             };
-            if lnum > (*curbuf).b_ml.ml_line_count + 1 {
+            if lnum > (*g_st().curbuf).b_ml.ml_line_count + 1 {
                 break;
             }
 
-            if u_sync_once == 2 {
-                u_sync_once = 1;
+            if g_st().u_sync_once == 2 {
+                g_st().u_sync_once = 1;
                 u_sync(true);
             }
 
-            if !append && lnum <= (*curbuf).b_ml.ml_line_count {
+            if !append && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
                 let old_len = CStr::from_ptr(ml_get(lnum)).to_bytes().len() as c_int;
                 if u_savesub(lnum) == OK
                     && ml_replace(lnum, line_cstr.as_ptr().cast_mut(), true) == OK
                 {
                     let new_len = line_cstr.to_bytes().len() as c_int;
                     inserted_bytes(lnum, 0, old_len, new_len);
-                    if is_curbuf && lnum == (*curwin).w_cursor.lnum {
-                        check_cursor_col(curwin);
+                    if is_curbuf && lnum == (**curwin.as_ptr()).w_cursor.lnum {
+                        check_cursor_col(*curwin.as_ptr());
                     }
                     (*rettv).vval = crate::eval::typval::TypvalVval::Number(0); // OK
                 }
@@ -245,12 +245,12 @@ unsafe fn set_buffer_lines(
         if added > 0 {
             appended_lines_mark(append_lnum, added);
 
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
                 let mut wp = first_win_in_tab(tp);
                 while !wp.is_null() {
                     if (*wp).w_buffer == buf
-                        && ((*wp).w_buffer != curbuf || wp == curwin)
+                        && ((*wp).w_buffer != g_st().curbuf || wp == *curwin.as_ptr())
                         && (*wp).w_cursor.lnum > append_lnum
                     {
                         (*wp).w_cursor.lnum += added as linenr_T;
@@ -259,8 +259,8 @@ unsafe fn set_buffer_lines(
                 }
                 tp = (*tp).tp_next;
             }
-            check_cursor_col(curwin);
-            update_topline(curwin);
+            check_cursor_col(*curwin.as_ptr());
+            update_topline(*curwin.as_ptr());
         }
 
         if !is_curbuf {
@@ -272,10 +272,10 @@ unsafe fn set_buffer_lines(
 /// `append(lnum, string/list)` function (`f_append`).
 pub unsafe fn f_append(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let did_emsg_before = did_emsg;
+        let did_emsg_before = g_st().did_emsg;
         let lnum = tv_get_lnum(argvars);
-        if did_emsg == did_emsg_before {
-            set_buffer_lines(curbuf, lnum, true, argvars.add(1), rettv);
+        if g_st().did_emsg == did_emsg_before {
+            set_buffer_lines(g_st().curbuf, lnum, true, argvars.add(1), rettv);
         }
     }
 }
@@ -283,13 +283,13 @@ pub unsafe fn f_append(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
 /// Set or append lines to a buffer (`buf_set_append_line`).
 unsafe fn buf_set_append_line(argvars: *mut typval_T, rettv: *mut typval_T, append: bool) {
     unsafe {
-        let did_emsg_before = did_emsg;
+        let did_emsg_before = g_st().did_emsg;
         let buf = tv_get_buf(argvars, 0);
         if buf.is_null() {
             (*rettv).vval = crate::eval::typval::TypvalVval::Number(1); // FAIL
         } else {
             let lnum = tv_get_lnum_buf(argvars.add(1), buf);
-            if did_emsg == did_emsg_before {
+            if g_st().did_emsg == did_emsg_before {
                 set_buffer_lines(buf, lnum, append, argvars.add(2), rettv);
             }
         }
@@ -332,7 +332,7 @@ unsafe fn prompt_trim_scrollback(buf: *mut buf_T) {
         );
         deleted_lines_buf(buf, 1, to_delete);
 
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             let mut wp = first_win_in_tab(tp);
             while !wp.is_null() {
@@ -350,25 +350,25 @@ unsafe fn prompt_trim_scrollback(buf: *mut buf_T) {
             }
             tp = (*tp).tp_next;
         }
-        check_cursor_col(curwin);
+        check_cursor_col(*curwin.as_ptr());
     }
 }
 
 /// Invokes the user-defined callback defined for the current prompt-buffer (`prompt_invoke_callback`).
 pub unsafe fn prompt_invoke_callback() {
     unsafe {
-        let lnum = (*curbuf).b_ml.ml_line_count;
-        let Some(user_input) = prompt_get_input(curbuf) else {
+        let lnum = (*g_st().curbuf).b_ml.ml_line_count;
+        let Some(user_input) = prompt_get_input(g_st().curbuf) else {
             return;
         };
 
         ml_append(lnum, c"".as_ptr().cast_mut(), 0, false);
         appended_lines_mark(lnum, 1);
-        (*curwin).w_cursor.lnum = lnum + 1;
-        (*curwin).w_cursor.col = 0;
-        (*curbuf).b_prompt_start.mark.lnum = lnum + 1;
+        (**curwin.as_ptr()).w_cursor.lnum = lnum + 1;
+        (**curwin.as_ptr()).w_cursor.col = 0;
+        (*g_st().curbuf).b_prompt_start.mark.lnum = lnum + 1;
 
-        if (*curbuf).b_prompt_callback.cb_type() != kCallbackNone {
+        if (*g_st().curbuf).b_prompt_callback.cb_type() != kCallbackNone {
             let mut rettv = typval_T {
                 v_type: VarType::VAR_UNKNOWN,
                 v_lock: 0,
@@ -389,7 +389,7 @@ pub unsafe fn prompt_invoke_callback() {
             tv_set_string(&raw mut argv[0], user_input.as_ptr());
 
             callback_call(
-                &raw mut (*curbuf).b_prompt_callback,
+                &raw mut (*g_st().curbuf).b_prompt_callback,
                 1,
                 argv.as_mut_ptr(),
                 &raw mut rettv,
@@ -398,19 +398,19 @@ pub unsafe fn prompt_invoke_callback() {
             tv_clear(&raw mut rettv);
         }
 
-        u_clearallandblockfree(curbuf);
+        u_clearallandblockfree(g_st().curbuf);
 
-        (*curbuf).b_prompt_start.mark.lnum = (*curbuf).b_ml.ml_line_count;
-        (*curbuf).b_prompt_append_new_line = true;
+        (*g_st().curbuf).b_prompt_start.mark.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+        (*g_st().curbuf).b_prompt_append_new_line = true;
 
-        prompt_trim_scrollback(curbuf);
+        prompt_trim_scrollback(g_st().curbuf);
     }
 }
 
 /// Return true when the interrupt callback was invoked (`invoke_prompt_interrupt`).
 pub unsafe fn invoke_prompt_interrupt() -> bool {
     unsafe {
-        if (*curbuf).b_prompt_interrupt.cb_type() == kCallbackNone {
+        if (*g_st().curbuf).b_prompt_interrupt.cb_type() == kCallbackNone {
             return false;
         }
         let mut rettv = typval_T {
@@ -424,9 +424,9 @@ pub unsafe fn invoke_prompt_interrupt() -> bool {
             vval: TypvalVval::Number(0),
         }];
 
-        got_int = false;
+        g_st().got_int = false;
         let ret = callback_call(
-            &raw mut (*curbuf).b_prompt_interrupt,
+            &raw mut (*g_st().curbuf).b_prompt_interrupt,
             0,
             argv.as_mut_ptr(),
             &raw mut rettv,
@@ -443,7 +443,7 @@ pub unsafe fn f_prompt_appendbuf(
     _fptr: EvalFuncData,
 ) {
     unsafe {
-        let did_emsg_before = did_emsg;
+        let did_emsg_before = g_st().did_emsg;
 
         (*rettv).v_type = VarType::VAR_NUMBER;
         (*rettv).vval = crate::eval::typval::TypvalVval::Number(1);
@@ -479,7 +479,7 @@ pub unsafe fn f_prompt_appendbuf(
             }
         }
 
-        if did_emsg == did_emsg_before {
+        if g_st().did_emsg == did_emsg_before {
             if did_concat && tv_list_len((*lines).vval.v_list()) > 1 {
                 let l = (*lines).vval.v_list();
                 let li = tv_list_first(l);
@@ -547,8 +547,8 @@ pub unsafe fn f_bufload(argvars: *mut typval_T, _unused: *mut typval_T, _fptr: E
     unsafe {
         let buf = get_buf_arg(argvars);
         if !buf.is_null() {
-            if swap_exists_action != SEA_READONLY {
-                swap_exists_action = SEA_NONE;
+            if g_st().swap_exists_action != SEA_READONLY {
+                g_st().swap_exists_action = SEA_NONE;
             }
             buf_ensure_loaded(buf);
         }
@@ -568,7 +568,7 @@ pub unsafe fn f_bufname(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
     unsafe {
         tv_set_string(rettv, ptr::null());
         let buf: *const buf_T = if (*argvars).v_type == VarType::VAR_UNKNOWN {
-            curbuf
+            g_st().curbuf
         } else {
             tv_get_buf_from_arg(argvars)
         };
@@ -586,14 +586,14 @@ pub unsafe fn f_bufnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
         (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
 
         let mut buf: *const buf_T = if (*argvars).v_type == VarType::VAR_UNKNOWN {
-            curbuf
+            g_st().curbuf
         } else {
             if !tv_check_str_or_nr(argvars) {
                 return;
             }
-            emsg_off += 1;
+            g_st().emsg_off += 1;
             let b = tv_get_buf(argvars, 0);
-            emsg_off -= 1;
+            g_st().emsg_off -= 1;
             b
         };
 
@@ -625,10 +625,10 @@ unsafe fn buf_win_common(argvars: *mut typval_T, rettv: *mut typval_T, get_nr: b
         let mut winnr: c_int = 0;
         let mut winid: c_int = 0;
         let mut found_buf = false;
-        let mut wp = firstwin;
+        let mut wp = g_st().firstwin;
         while !wp.is_null() {
-            winnr += c_int::from(win_has_winnr(wp, curtab));
-            if ptr::eq((*wp).w_buffer, buf) && (!get_nr || win_has_winnr(wp, curtab)) {
+            winnr += c_int::from(win_has_winnr(wp, g_st().curtab));
+            if ptr::eq((*wp).w_buffer, buf) && (!get_nr || win_has_winnr(wp, g_st().curtab)) {
                 found_buf = true;
                 winid = (*wp).handle;
                 break;
@@ -660,7 +660,7 @@ pub unsafe fn f_bufwinnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 /// `deletebufline()` function (`f_deletebufline`).
 pub unsafe fn f_deletebufline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let did_emsg_before = did_emsg;
+        let did_emsg_before = g_st().did_emsg;
         (*rettv).vval = crate::eval::typval::TypvalVval::Number(1); // FAIL by default
         let buf = tv_get_buf(argvars, 0);
         if buf.is_null() {
@@ -668,7 +668,7 @@ pub unsafe fn f_deletebufline(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         }
 
         let first = tv_get_lnum_buf(argvars.add(1), buf);
-        if did_emsg > did_emsg_before {
+        if g_st().did_emsg > did_emsg_before {
             return;
         }
         let mut last = if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
@@ -685,19 +685,19 @@ pub unsafe fn f_deletebufline(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
             return;
         }
 
-        let is_curbuf = buf == curbuf;
+        let is_curbuf = buf == g_st().curbuf;
         let mut cob = cob_T::new();
         if !is_curbuf {
             change_other_buffer_prepare(&raw mut cob, buf);
         }
 
-        if last > (*curbuf).b_ml.ml_line_count {
-            last = (*curbuf).b_ml.ml_line_count;
+        if last > (*g_st().curbuf).b_ml.ml_line_count {
+            last = (*g_st().curbuf).b_ml.ml_line_count;
         }
         let count: c_int = last - first + 1;
 
-        if u_sync_once == 2 {
-            u_sync_once = 1;
+        if g_st().u_sync_once == 2 {
+            g_st().u_sync_once = 1;
             u_sync(true);
         }
 
@@ -706,7 +706,7 @@ pub unsafe fn f_deletebufline(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                 ml_delete_flags(first, ML_DEL_MESSAGE);
             }
 
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
                 let mut wp = first_win_in_tab(tp);
                 while !wp.is_null() {
@@ -724,7 +724,7 @@ pub unsafe fn f_deletebufline(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                 }
                 tp = (*tp).tp_next;
             }
-            check_cursor_col(curwin);
+            check_cursor_col(*curwin.as_ptr());
             deleted_lines_mark(first, count);
             (*rettv).vval = crate::eval::typval::TypvalVval::Number(0); // OK
         }
@@ -751,8 +751,8 @@ unsafe fn get_buffer_info(buf: *mut buf_T) -> *mut dict_T {
                 c"".as_ptr()
             },
         );
-        let lnum = if buf == curbuf {
-            (*curwin).w_cursor.lnum
+        let lnum = if buf == g_st().curbuf {
+            (**curwin.as_ptr()).w_cursor.lnum
         } else {
             buflist_findlnum(buf)
         };
@@ -793,7 +793,7 @@ unsafe fn get_buffer_info(buf: *mut buf_T) -> *mut dict_T {
         tv_dict_add_dict(dict, c"variables".as_ptr(), 9, (*buf).b_vars());
 
         let windows = tv_list_alloc(kListLenMayKnow);
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             let mut wp = first_win_in_tab(tp);
             while !wp.is_null() {
@@ -842,7 +842,7 @@ pub unsafe fn f_getbufinfo(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
             }
         }
 
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             if !argbuf.is_null() && argbuf != buf {
                 buf = (*buf).b_next;
@@ -923,11 +923,11 @@ unsafe fn getbufline(argvars: *mut typval_T, rettv: *mut typval_T, retlist: bool
     unsafe {
         let mut lnum: linenr_T = 1;
         let mut end: linenr_T = 1;
-        let did_emsg_before = did_emsg;
+        let did_emsg_before = g_st().did_emsg;
         let buf = tv_get_buf_from_arg(argvars);
         if !buf.is_null() {
             lnum = tv_get_lnum_buf(argvars.add(1), buf);
-            if did_emsg > did_emsg_before {
+            if g_st().did_emsg > did_emsg_before {
                 return;
             }
             end = if (*argvars.add(2)).v_type == VarType::VAR_UNKNOWN {
@@ -965,7 +965,7 @@ pub unsafe fn f_getline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             (tv_get_lnum(argvars.add(1)), true)
         };
 
-        get_buffer_lines(curbuf, lnum, end, retlist, rettv);
+        get_buffer_lines(g_st().curbuf, lnum, end, retlist, rettv);
     }
 }
 
@@ -979,10 +979,10 @@ pub unsafe fn f_setbufline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
 /// `setline()` function (`f_setline`).
 pub unsafe fn f_setline(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let did_emsg_before = did_emsg;
+        let did_emsg_before = g_st().did_emsg;
         let lnum = tv_get_lnum(argvars);
-        if did_emsg == did_emsg_before {
-            set_buffer_lines(curbuf, lnum, false, argvars.add(1), rettv);
+        if g_st().did_emsg == did_emsg_before {
+            set_buffer_lines(g_st().curbuf, lnum, false, argvars.add(1), rettv);
         }
     }
 }
@@ -1096,7 +1096,7 @@ pub unsafe fn f_prompt_setprompt(
 
         if bt_prompt(buf) && (*buf).b_ml.ml_mfp.is_some() {
             if (*buf).b_prompt_start.mark.lnum < 1
-                || (*buf).b_prompt_start.mark.lnum > (*curbuf).b_ml.ml_line_count
+                || (*buf).b_prompt_start.mark.lnum > (*g_st().curbuf).b_ml.ml_line_count
             {
                 (*buf).b_prompt_start.mark.lnum = (*buf)
                     .b_prompt_start
@@ -1104,7 +1104,7 @@ pub unsafe fn f_prompt_setprompt(
                     .lnum
                     .min((*buf).b_ml.ml_line_count)
                     .max(1);
-                (*curbuf).b_prompt_append_new_line = true;
+                (*g_st().curbuf).b_prompt_append_new_line = true;
             }
 
             let prompt_lno = (*buf).b_prompt_start.mark.lnum;
@@ -1114,7 +1114,7 @@ pub unsafe fn f_prompt_setprompt(
 
             let old_prompt_bytes = CStr::from_ptr(old_prompt).to_bytes();
             let old_prompt_len = old_prompt_bytes.len() as c_int;
-            let mut cursor_col = (*curwin).w_cursor.col;
+            let mut cursor_col = (**curwin.as_ptr()).w_cursor.col;
 
             let mark_col = (*buf).b_prompt_start.mark.col;
             let prefix_matches = mark_col >= old_prompt_len
@@ -1151,9 +1151,9 @@ pub unsafe fn f_prompt_setprompt(
                 cursor_col += new_prompt_len - mark_col;
             }
 
-            if (*curwin).w_buffer == buf && (*curwin).w_cursor.lnum == prompt_lno {
-                (*curwin).w_cursor.col = cursor_col;
-                check_cursor_col(curwin);
+            if (**curwin.as_ptr()).w_buffer == buf && (**curwin.as_ptr()).w_cursor.lnum == prompt_lno {
+                (**curwin.as_ptr()).w_cursor.col = cursor_col;
+                check_cursor_col(*curwin.as_ptr());
             }
             changed_lines(buf, prompt_lno, 0, prompt_lno + 1, 0, true);
             u_clearallandblockfree(buf);

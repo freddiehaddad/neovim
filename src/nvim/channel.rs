@@ -206,7 +206,7 @@ use crate::api::private::helpers::add_c;
 /// Teardown the module.
 pub unsafe fn channel_teardown() {
     unsafe {
-        let chans_ptr = &raw const channels;
+        let chans_ptr = &raw const g_st().channels;
         let all_chans: Vec<*mut Channel> = (*chans_ptr).values().copied().collect();
         for chan in all_chans {
             channel_close((*chan).id, kChannelPartAll, ptr::null_mut());
@@ -216,12 +216,12 @@ pub unsafe fn channel_teardown() {
 
 pub unsafe fn channel_free_all_mem() {
     unsafe {
-        let chans_ptr = &raw mut channels;
+        let chans_ptr = &raw mut g_st().channels;
         for (_, chan) in std::mem::take(&mut *chans_ptr) {
             drop(Box::from_raw(chan));
         }
 
-        callback_free(&raw mut on_print);
+        callback_free(&raw mut g_st().on_print);
     }
 }
 
@@ -313,7 +313,7 @@ pub unsafe fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c
                 }
                 if !(*chan).err_closed {
                     (*chan).err_closed = true;
-                    if !exiting {
+                    if !g_st().exiting {
                         redirect_stderr_to_null();
                     }
                     channel_decref(chan);
@@ -366,7 +366,7 @@ pub unsafe fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         };
         assert!(id <= (i64::MAX as u64));
 
-        let qc = loop_queues((&raw mut main_loop).cast());
+        let qc = loop_queues((&raw mut g_st().main_loop).cast());
         let chan = Box::into_raw(Box::new(Channel {
             id,
             refcount: 1,
@@ -395,7 +395,7 @@ pub unsafe fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         }));
 
         {
-            let chans_ptr = &raw mut channels;
+            let chans_ptr = &raw mut g_st().channels;
             (*chans_ptr).insert(id, chan);
         }
 
@@ -424,7 +424,7 @@ pub unsafe fn channel_decref(chan: *mut Channel) {
 
         (*chan).refcount -= 1;
         if (*chan).refcount == 0 {
-            let qc = loop_queues((&raw mut main_loop).cast());
+            let qc = loop_queues((&raw mut g_st().main_loop).cast());
             multiqueue_put_event((*qc).events, Event::ChannelFree(chan));
         }
     }
@@ -438,7 +438,7 @@ pub unsafe fn callback_reader_start(reader: *mut CallbackReader, r#type: &'stati
 
 pub unsafe fn free_channel_event(chan: *mut Channel) {
     unsafe {
-        let chans_ptr = &raw mut channels;
+        let chans_ptr = &raw mut g_st().channels;
         let _ = (*chans_ptr).remove(&(*chan).id);
         drop(Box::from_raw(chan));
     }
@@ -451,7 +451,7 @@ unsafe fn channel_destroy_early(chan: *mut Channel) {
         if (*cp).id != chan_st().NEXT_CHAN_ID {
             std::process::abort();
         }
-        let chans_ptr = &raw mut channels;
+        let chans_ptr = &raw mut g_st().channels;
         let _ = (*chans_ptr).remove(&(*cp).id);
         (*cp).id = 0;
 
@@ -460,7 +460,7 @@ unsafe fn channel_destroy_early(chan: *mut Channel) {
             std::process::abort();
         }
 
-        let qc = loop_queues((&raw mut main_loop).cast());
+        let qc = loop_queues((&raw mut g_st().main_loop).cast());
         multiqueue_put_event((*qc).events, Event::ChannelFree(chan));
     }
 }
@@ -511,7 +511,7 @@ pub unsafe fn channel_job_start(
             (*proc_ptr).r#type = kProcTypePty;
             (*proc_ptr).data = chan;
             {
-                (*proc_ptr).loop_ = (&raw mut main_loop).cast();
+                (*proc_ptr).loop_ = (&raw mut g_st().main_loop).cast();
             }
             (*proc_ptr).status = -1;
             (*proc_ptr).out.s.fd = STDOUT_FILENO;
@@ -526,7 +526,7 @@ pub unsafe fn channel_job_start(
             (*proc_ptr).r#type = kProcTypeUv;
             (*proc_ptr).data = chan;
             {
-                (*proc_ptr).loop_ = (&raw mut main_loop).cast();
+                (*proc_ptr).loop_ = (&raw mut g_st().main_loop).cast();
             }
             (*proc_ptr).status = -1;
             (*proc_ptr).out.s.fd = STDOUT_FILENO;
@@ -646,7 +646,7 @@ pub unsafe fn channel_connect(
         let channel = channel_alloc(kChannelStreamSocket);
         let socket_stream = &raw mut (*channel).socket;
         let connected = socket_connect(
-            (&raw mut main_loop).cast(),
+            (&raw mut g_st().main_loop).cast(),
             socket_stream,
             tcp,
             address,
@@ -701,7 +701,7 @@ pub unsafe fn channel_from_stdio(
     error: *mut *const c_char,
 ) -> u64 {
     unsafe {
-        if !headless_mode && !embedded_mode {
+        if !g_st().headless_mode && !g_st().embedded_mode {
             *error = gettext(c"can only be opened in headless mode".as_ptr());
             return 0;
         }
@@ -719,14 +719,14 @@ pub unsafe fn channel_from_stdio(
         let mut stdout_dup_fd = STDOUT_FILENO;
 
         #[cfg(windows)]
-        if embedded_mode && os_has_conpty_working() {
+        if g_st().embedded_mode && os_has_conpty_working() {
             stdin_dup_fd = os_dup_cloexec(STDIN_FILENO);
             stdout_dup_fd = os_dup_cloexec(STDOUT_FILENO);
             os_attach_parent_console();
         }
 
         #[cfg(not(windows))]
-        if embedded_mode {
+        if g_st().embedded_mode {
             stdin_dup_fd = fcntl(STDIN_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
             stdout_dup_fd = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
             let _ = dup2(STDERR_FILENO, STDOUT_FILENO);
@@ -736,8 +736,8 @@ pub unsafe fn channel_from_stdio(
         let stdio_in = &raw mut (*channel).stdio_in;
         let stdio_out = &raw mut (*channel).stdio_out;
         {
-            rstream_init_fd((&raw mut main_loop).cast(), stdio_in, stdin_dup_fd);
-            wstream_init_fd((&raw mut main_loop).cast(), stdio_out, stdout_dup_fd, 0);
+            rstream_init_fd((&raw mut g_st().main_loop).cast(), stdio_in, stdin_dup_fd);
+            wstream_init_fd((&raw mut g_st().main_loop).cast(), stdio_out, stdout_dup_fd, 0);
         }
 
         if rpc {
@@ -973,9 +973,9 @@ pub(crate) unsafe fn channel_proc_exit_cb(proc_: *mut Proc, status: c_int, chan:
             terminal_close(&raw mut (*ct).term, status);
         }
 
-        if !exiting && ui_client_channel_id == (*cp).id {
+        if !g_st().exiting && g_st().ui_client_channel_id == (*cp).id {
             ui_client_attach_to_restarted_server((*proc_).status != 0);
-            if ui_client_channel_id == (*cp).id {
+            if g_st().ui_client_channel_id == (*cp).id {
                 exit_on_closed_chan(status);
             }
         }
@@ -1105,7 +1105,7 @@ pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: *mut Cha
                 size: 3,
                 capacity: 3,
             };
-            textlock += 1;
+            g_st().textlock += 1;
             crate::lua::executor::nlua_call_ref(
                 cb,
                 c"input".as_ptr(),
@@ -1114,7 +1114,7 @@ pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: *mut Cha
                 ptr::null_mut(),
                 ptr::null_mut(),
             );
-            textlock -= 1;
+            g_st().textlock -= 1;
             return;
         }
         let in_stream = &raw mut (*chan).uv.proc_.r#in;
@@ -1186,7 +1186,7 @@ pub unsafe fn channel_event(chan: *mut Channel, event: event_T) {
     unsafe {
         if has_event(event) {
             channel_incref(chan);
-            let qc = loop_queues((&raw mut main_loop).cast());
+            let qc = loop_queues((&raw mut g_st().main_loop).cast());
             multiqueue_put_event((*qc).events, Event::ChannelSetInfo { chan, event });
         }
     }
@@ -1215,7 +1215,7 @@ pub unsafe fn set_info_event(chan: *mut Channel, event: event_T) {
         let _ = tv_dict_add_dict(dict, c"info".as_ptr(), 4, retval.vval.v_dict());
         tv_dict_set_keys_readonly(dict);
 
-        let _ = apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), true, curbuf);
+        let _ = apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), true, g_st().curbuf);
 
         restore_v_event(dict, &raw mut save_v_event);
         arena_mem_free(arena_finish(&raw mut arena));
@@ -1408,7 +1408,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
 
 pub unsafe fn channel_all_info(arena: *mut Arena) -> Array {
     unsafe {
-        let chans_ptr = &raw const channels;
+        let chans_ptr = &raw const g_st().channels;
         let mut ret = arena_array(arena, (*chans_ptr).len());
 
         for &id in (*chans_ptr).keys() {

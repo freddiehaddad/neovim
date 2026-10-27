@@ -130,7 +130,7 @@ pub unsafe fn ui_client_start_server(
             return 0;
         }
 
-        if ui_client_forward_stdin {
+        if g_st().ui_client_forward_stdin {
             close(0);
             #[cfg(windows)]
             {
@@ -138,7 +138,7 @@ pub unsafe fn ui_client_start_server(
             }
             #[cfg(not(windows))]
             {
-                let _ = dup(if stderr_isatty { 2 } else { 1 });
+                let _ = dup(if g_st().stderr_isatty { 2 } else { 1 });
             }
         }
 
@@ -175,16 +175,16 @@ pub unsafe fn ui_client_attach(
         }
         put_opt(
             c"term_colors".as_ptr(),
-            integer_obj(Integer::from(t_colors)),
+            integer_obj(Integer::from(g_st().t_colors)),
         );
-        put_opt(c"stdin_tty".as_ptr(), boolean_obj(stdin_isatty));
-        put_opt(c"stdout_tty".as_ptr(), boolean_obj(stdout_isatty));
-        if ui_client_forward_stdin {
+        put_opt(c"stdin_tty".as_ptr(), boolean_obj(g_st().stdin_isatty));
+        put_opt(c"stdout_tty".as_ptr(), boolean_obj(g_st().stdout_isatty));
+        if g_st().ui_client_forward_stdin {
             put_opt(
                 c"stdin_fd".as_ptr(),
                 integer_obj(Integer::from(UI_CLIENT_STDIN_FD)),
             );
-            ui_client_forward_stdin = false;
+            g_st().ui_client_forward_stdin = false;
         }
 
         let mut args_items: [Object; 3] = [
@@ -201,8 +201,8 @@ pub unsafe fn ui_client_attach(
             capacity: 3,
         };
 
-        rpc_send_event(ui_client_channel_id, c"nvim_ui_attach".as_ptr(), args);
-        ui_client_attached = true;
+        rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_attach".as_ptr(), args);
+        g_st().ui_client_attached = true;
 
         if has_time_fd() {
             time_msg(c"nvim_ui_attach".as_ptr(), ptr::null());
@@ -267,7 +267,7 @@ pub unsafe fn ui_client_attach(
             capacity: 5,
         };
         rpc_send_event(
-            ui_client_channel_id,
+            g_st().ui_client_channel_id,
             c"nvim_set_client_info".as_ptr(),
             args2,
         );
@@ -281,8 +281,8 @@ pub unsafe fn ui_client_attach(
 #[cfg(unix)]
 pub unsafe fn ui_client_detach() {
     unsafe {
-        rpc_send_event(ui_client_channel_id, c"nvim_ui_detach".as_ptr(), ARRAY_INIT);
-        ui_client_attached = false;
+        rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_detach".as_ptr(), ARRAY_INIT);
+        g_st().ui_client_attached = false;
     }
 }
 
@@ -316,11 +316,11 @@ pub unsafe fn ui_client_run() -> ! {
         time_finish();
 
         loop {
-            let events = (*loop_queues((&raw mut main_loop).cast())).events;
+            let events = (*loop_queues((&raw mut g_st().main_loop).cast())).events;
             if !multiqueue_empty(events) {
                 multiqueue_process_events(events);
             } else {
-                loop_poll_events((&raw mut main_loop).cast(), -1);
+                loop_poll_events((&raw mut g_st().main_loop).cast(), -1);
                 multiqueue_process_events(events);
             }
         }
@@ -329,7 +329,7 @@ pub unsafe fn ui_client_run() -> ! {
 
 pub unsafe fn ui_client_stop() {
     unsafe {
-        ui_client_attached = false;
+        g_st().ui_client_attached = false;
         let t = tui_ptr();
         if !tui_is_stopped(t) {
             tui_stop(t);
@@ -339,7 +339,7 @@ pub unsafe fn ui_client_stop() {
 
 pub unsafe fn ui_client_set_size(width: c_int, height: c_int) {
     unsafe {
-        if ui_client_attached {
+        if g_st().ui_client_attached {
             let mut args_items: [Object; 2] = [
                 integer_obj(Integer::from(width)),
                 integer_obj(Integer::from(height)),
@@ -349,7 +349,7 @@ pub unsafe fn ui_client_set_size(width: c_int, height: c_int) {
                 size: 2,
                 capacity: 2,
             };
-            rpc_send_event(ui_client_channel_id, c"nvim_ui_try_resize".as_ptr(), args);
+            rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_try_resize".as_ptr(), args);
         }
         uic_st().tui_width = width;
         uic_st().tui_height = height;
@@ -423,10 +423,10 @@ pub unsafe fn ui_client_event_grid_resize(args: Array) {
         tui_grid_resize(tui_ptr(), grid, width, height);
 
         let cols = width as usize;
-        let char_buf = &raw const grid_line_buf_char;
+        let char_buf = &raw const g_st().grid_line_buf_char;
         if (*char_buf).len() < cols {
-            grid_line_buf_char = vec![0; cols];
-            grid_line_buf_attr = vec![0; cols];
+            g_st().grid_line_buf_char = vec![0; cols];
+            g_st().grid_line_buf_attr = vec![0; cols];
         }
     }
 }
@@ -444,8 +444,8 @@ pub unsafe fn ui_client_event_raw_line(g: *mut GridLineEvent) {
         let clearcol = endcol + Integer::from((*g).clear_width);
         let lineflags = if (*g).wrap { kLineFlagWrap } else { 0 };
 
-        let char_buf = &raw mut grid_line_buf_char;
-        let attr_buf = &raw mut grid_line_buf_attr;
+        let char_buf = &raw mut g_st().grid_line_buf_char;
+        let attr_buf = &raw mut g_st().grid_line_buf_attr;
         tui_raw_line(
             tui_ptr(),
             Integer::from(grid),
@@ -484,10 +484,10 @@ pub unsafe fn ui_client_event_connect(args: Array) {
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
         let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
         multiqueue_put_event(
-            (*loop_queues((&raw mut main_loop).cast())).fast_events,
+            (*loop_queues((&raw mut g_st().main_loop).cast())).fast_events,
             Event::UiClientConnect(server_addr),
         );
-        ui_client_channel_id = u64::MAX;
+        g_st().ui_client_channel_id = u64::MAX;
     }
 }
 
@@ -511,11 +511,11 @@ pub unsafe fn channel_connect_event(server_addr: std::ffi::CString) {
                 err,
             );
             drop(server_addr);
-            ui_client_exit_status = 1;
+            g_st().ui_client_exit_status = 1;
             os_exit(1);
         }
 
-        ui_client_channel_id = chan;
+        g_st().ui_client_channel_id = chan;
         ui_client_attach(
             uic_st().tui_width,
             uic_st().tui_height,
@@ -556,7 +556,7 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
         let mut args = uic_st().restart_args;
         let mut start_server = false;
         if !uic_st().restart_pending {
-            if error_restart && ui_client_error_exit == -1 && uic_st().restart_args_after_crash_exit.size > 0
+            if error_restart && g_st().ui_client_error_exit == -1 && uic_st().restart_args_after_crash_exit.size > 0
             {
                 start_server = true;
                 args = uic_st().restart_args_after_crash_exit;
@@ -613,7 +613,7 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
                 }
             }
             let id = ui_client_start_server(first_arg, cmdargs.size, argv.as_mut_ptr());
-            ui_client_error_exit = -1;
+            g_st().ui_client_error_exit = -1;
             id
         } else {
             let is_tcp = !socket_address_tcp_host_end(first_arg).is_null();
@@ -646,7 +646,7 @@ pub unsafe fn ui_client_attach_to_restarted_server(error_restart: bool) {
             id
         };
 
-        ui_client_channel_id = chan_id;
+        g_st().ui_client_channel_id = chan_id;
         ui_client_attach(
             uic_st().tui_width,
             uic_st().tui_height,
@@ -681,7 +681,7 @@ pub unsafe fn ui_client_event_error_exit(args: Array) {
             );
             return;
         }
-        ui_client_error_exit = (*args.items).data.integer() as c_int;
+        g_st().ui_client_error_exit = (*args.items).data.integer() as c_int;
     }
 }
 
@@ -689,8 +689,8 @@ pub unsafe fn ui_client_free_all_mem() {
     unsafe {
         let tui_out = &raw mut uic_st().tui;
         tui_free_all_mem((*tui_out).take());
-        grid_line_buf_char = Vec::new();
-        grid_line_buf_attr = Vec::new();
+        g_st().grid_line_buf_char = Vec::new();
+        g_st().grid_line_buf_attr = Vec::new();
     }
 }
 

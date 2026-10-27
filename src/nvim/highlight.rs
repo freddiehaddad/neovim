@@ -279,7 +279,7 @@ use crate::lua::converter::LUA_NOREF;
 pub unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
     unsafe {
         if let Some(ref tbl) = (*wp).w_ns_hl_attr
-            && ns_hl_fast < 0
+            && g_st().ns_hl_fast < 0
         {
             tbl[hlf as usize].get()
         } else {
@@ -291,11 +291,11 @@ pub unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
 #[inline]
 pub unsafe fn hl_attr(n: c_int) -> c_int {
     unsafe {
-        let ha = &raw const hl_attr_active;
+        let ha = &raw const g_st().hl_attr_active;
         if let Some(ref tbl) = *ha {
             tbl[n as usize].get()
         } else {
-            highlight_attr[n as usize]
+            g_st().highlight_attr[n as usize]
         }
     }
 }
@@ -405,7 +405,7 @@ pub unsafe fn ui_send_all_hls(ui: *mut RemoteUI) {
             remote_ui_hl_group_set(
                 ui,
                 cstr_as_string(hlf_name_ptr(hlf)),
-                Integer::from(highlight_attr[hlf]),
+                Integer::from(g_st().highlight_attr[hlf]),
             );
         }
     }
@@ -482,10 +482,10 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
         }
 
         if *ns_hl < 0 {
-            if ns_hl_active <= 0 {
+            if g_st().ns_hl_active <= 0 {
                 return -1;
             }
-            *ns_hl = ns_hl_active;
+            *ns_hl = g_st().ns_hl_active;
         }
 
         let ns_id = *ns_hl;
@@ -594,24 +594,24 @@ pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: boo
 
 pub unsafe fn hl_check_ns() -> bool {
     unsafe {
-        let ns = if ns_hl_fast > 0 {
-            ns_hl_fast
-        } else if ns_hl_win >= 0 {
-            ns_hl_win
+        let ns = if g_st().ns_hl_fast > 0 {
+            g_st().ns_hl_fast
+        } else if g_st().ns_hl_win >= 0 {
+            g_st().ns_hl_win
         } else {
-            ns_hl_global
+            g_st().ns_hl_global
         };
-        if ns_hl_active == ns {
+        if g_st().ns_hl_active == ns {
             return false;
         }
 
-        ns_hl_active = ns;
-        hl_attr_active = None;
+        g_st().ns_hl_active = ns;
+        g_st().hl_attr_active = None;
         if ns > 0 {
             update_ns_hl(ns);
             let ns_hl_attr_ptr = &raw const hl_st().ns_hl_attr;
             if let Some(hl_def) = (*ns_hl_attr_ptr).get(&ns) {
-                hl_attr_active = Some(hl_def.clone());
+                g_st().hl_attr_active = Some(hl_def.clone());
             }
         }
         true
@@ -620,7 +620,7 @@ pub unsafe fn hl_check_ns() -> bool {
 
 pub unsafe fn win_check_ns_hl(wp: *mut win_T) -> bool {
     unsafe {
-        ns_hl_win = if !wp.is_null() { (*wp).w_ns_hl } else { -1 };
+        g_st().ns_hl_win = if !wp.is_null() { (*wp).w_ns_hl } else { -1 };
         hl_check_ns()
     }
 }
@@ -664,7 +664,7 @@ pub unsafe fn hl_get_ui_attr(
                 attrs.hl_blend = opt_vars().p_pb as i32;
             }
             if pum_drawn() {
-                must_redraw_pum = true;
+                g_st().must_redraw_pum = true;
             }
         }
 
@@ -728,7 +728,7 @@ pub unsafe fn update_window_hl(wp: *mut win_T, invalid: bool) {
             (*wp).w_hl_attr_normal = if hl_attr(HLF_NFLOAT as c_int) > 0 {
                 hl_attr(HLF_NFLOAT as c_int)
             } else {
-                highlight_attr[HLF_NFLOAT]
+                g_st().highlight_attr[HLF_NFLOAT]
             };
         } else {
             (*wp).w_hl_attr_normal = 0;
@@ -810,8 +810,8 @@ pub unsafe fn update_ns_hl(ns_id: c_int) {
 
 pub unsafe fn win_bg_attr(wp: *mut win_T) -> c_int {
     unsafe {
-        if ns_hl_fast < 0 {
-            let local = if ptr::eq(wp, curwin) {
+        if g_st().ns_hl_fast < 0 {
+            let local = if ptr::eq(wp, *curwin.as_ptr()) {
                 (*wp).w_hl_attr_normal
             } else {
                 (*wp).w_hl_attr_normalnc
@@ -821,7 +821,7 @@ pub unsafe fn win_bg_attr(wp: *mut win_T) -> c_int {
             }
         }
 
-        if ptr::eq(wp, curwin) || hl_attr(HLF_INACTIVE as c_int) == 0 {
+        if ptr::eq(wp, *curwin.as_ptr()) || hl_attr(HLF_INACTIVE as c_int) == 0 {
             hl_attr(HLF_NONE as c_int)
         } else {
             hl_attr(HLF_INACTIVE as c_int)
@@ -930,7 +930,7 @@ pub unsafe fn clear_hl_tables(reinit: bool) {
             (*blend_ptr).clear();
             (*blendthrough_ptr).clear();
             (*urls_ptr).clear();
-            highlight_attr_last = [-1; HLF_COUNT];
+            g_st().highlight_attr_last = [-1; HLF_COUNT];
             highlight_attr_set_all();
             highlight_changed();
             screen_invalidate_highlights();
@@ -958,7 +958,7 @@ pub unsafe fn hl_invalidate_blends() {
         let blendthrough_ptr = &raw mut hl_st().blendthrough_attr_entries;
         (*blendthrough_ptr).clear();
         highlight_changed();
-        update_window_hl(curwin, true);
+        update_window_hl(*curwin.as_ptr(), true);
     }
 }
 
@@ -1055,13 +1055,13 @@ pub unsafe fn hl_combine_attr(char_attr: c_int, prim_attr: c_int) -> c_int {
 unsafe fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
     unsafe {
         if attrs.rgb_bg_color == -1 {
-            attrs.rgb_bg_color = normal_bg;
+            attrs.rgb_bg_color = g_st().normal_bg;
         }
         if attrs.rgb_fg_color == -1 {
-            attrs.rgb_fg_color = normal_fg;
+            attrs.rgb_fg_color = g_st().normal_fg;
         }
         if attrs.rgb_sp_color == -1 {
-            attrs.rgb_sp_color = normal_sp;
+            attrs.rgb_sp_color = g_st().normal_sp;
         }
         let dark = *opt_vars().p_bg == b'd' as c_char;
         if attrs.rgb_fg_color == -1 {

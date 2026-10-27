@@ -243,11 +243,11 @@ pub unsafe fn remote_ui_free_all_mem() {
 pub unsafe fn remote_ui_wait_for_attach() {
     unsafe {
         while ui_active() == 0 {
-            let events = (*loop_queues((&raw mut main_loop).cast())).events;
+            let events = (*loop_queues((&raw mut g_st().main_loop).cast())).events;
             if !multiqueue_empty(events) {
                 multiqueue_process_events(events);
             } else {
-                loop_poll_events((&raw mut main_loop).cast(), -1);
+                loop_poll_events((&raw mut g_st().main_loop).cast(), -1);
                 multiqueue_process_events(events);
             }
         }
@@ -382,7 +382,7 @@ pub unsafe extern "C" fn nvim_ui_attach(
         };
         (*ui).wildmenu_active = false;
 
-        current_ui = channel_id;
+        g_st().current_ui = channel_id;
         ui_attach_impl(ui.cast(), channel_id);
 
         let chan = find_channel(channel_id);
@@ -428,7 +428,7 @@ pub unsafe extern "C" fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, err
             return;
         }
         if gained {
-            current_ui = channel_id;
+            g_st().current_ui = channel_id;
             may_trigger_vim_suspend_resume(false);
         }
         do_autocmd_focusgained(gained);
@@ -612,7 +612,7 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            t_colors = value.data.integer() as c_int;
+            g_st().t_colors = value.data.integer() as c_int;
             (*ui).term_colors = value.data.integer() as c_int;
             return;
         }
@@ -636,7 +636,7 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            if starting != NO_SCREEN {
+            if *starting.as_ptr() != NO_SCREEN {
                 api_set_error!(
                     err,
                     ErrorType::kErrorTypeValidation,
@@ -645,7 +645,7 @@ unsafe fn ui_set_option(
                 );
                 return;
             }
-            stdin_fd = value.data.integer() as c_int;
+            g_st().stdin_fd = value.data.integer() as c_int;
             return;
         }
 
@@ -660,7 +660,7 @@ unsafe fn ui_set_option(
                 return;
             }
             if (*ui).channel_id == CHAN_STDIO {
-                stdin_isatty = value.data.boolean();
+                g_st().stdin_isatty = value.data.boolean();
             }
             (*ui).stdin_tty = value.data.boolean();
             return;
@@ -677,7 +677,7 @@ unsafe fn ui_set_option(
                 return;
             }
             if (*ui).channel_id == CHAN_STDIO {
-                stdout_isatty = value.data.boolean();
+                g_st().stdout_isatty = value.data.boolean();
             }
             (*ui).stdout_tty = value.data.boolean();
             return;
@@ -1389,7 +1389,7 @@ pub unsafe fn remote_ui_raw_line(
             if endcol < clearcol {
                 remote_ui_cursor_goto(ui, row, endcol);
                 remote_ui_highlight_set(ui, clearattr as c_int);
-                if clearattr == 0 && clearcol == Integer::from(Columns) {
+                if clearattr == 0 && clearcol == Integer::from(g_st().Columns) {
                     push_call(ui, c"eol_clear", ARRAY_INIT);
                 } else {
                     let mut c = endcol;

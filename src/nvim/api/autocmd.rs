@@ -983,7 +983,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
                             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                         &mut handler_fn,
                     );
-                    current_sctx = save_current_sctx;
+                    g_st().current_sctx = save_current_sctx;
 
                     if retval == FAIL {
                         api_set_error!(
@@ -1164,7 +1164,7 @@ pub unsafe extern "C" fn nvim_create_augroup(
                 ErrorType::kErrorTypeException,
                 c"Failed to set augroup".as_ptr(),
             );
-            current_sctx = save_current_sctx;
+            g_st().current_sctx = save_current_sctx;
             return -1;
         }
 
@@ -1173,7 +1173,7 @@ pub unsafe extern "C" fn nvim_create_augroup(
                 aucmd_del_for_event_and_group(event as event_T, augroup);
             }
         }
-        current_sctx = save_current_sctx;
+        g_st().current_sctx = save_current_sctx;
 
         i64::from(augroup)
     }
@@ -1238,7 +1238,7 @@ pub unsafe extern "C" fn nvim_exec_autocmds(
 ) {
     unsafe {
         let mut au_group = AUGROUP_ALL;
-        let mut b = curbuf;
+        let mut b = g_st().curbuf;
         let mut data: *mut Object = std::ptr::null_mut();
 
         let event_array = unpack_string_or_array(event, c"event".as_ptr(), true, arena, err);
@@ -1348,7 +1348,7 @@ pub unsafe extern "C" fn nvim_exec_autocmds(
                     true,
                     au_group,
                     b,
-                    curwin,
+                    *curwin.as_ptr(),
                     std::ptr::null_mut(),
                     data,
                     has_buf,

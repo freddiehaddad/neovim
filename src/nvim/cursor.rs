@@ -98,8 +98,8 @@ pub unsafe fn getviscol() -> c_int {
     unsafe {
         let mut x: colnr_T = 0;
         getvvcol(
-            curwin,
-            &raw mut (*curwin).w_cursor,
+            *curwin.as_ptr(),
+            &raw mut (**curwin.as_ptr()).w_cursor,
             &raw mut x,
             ptr::null_mut(),
             ptr::null_mut(),
@@ -114,12 +114,12 @@ pub unsafe fn getviscol2(col: colnr_T, coladd: colnr_T) -> c_int {
     unsafe {
         let mut x: colnr_T = 0;
         let mut pos = pos_T {
-            lnum: (*curwin).w_cursor.lnum,
+            lnum: (**curwin.as_ptr()).w_cursor.lnum,
             col,
             coladd,
         };
         getvvcol(
-            curwin,
+            *curwin.as_ptr(),
             &raw mut pos,
             &raw mut x,
             ptr::null_mut(),
@@ -133,12 +133,12 @@ pub unsafe fn getviscol2(col: colnr_T, coladd: colnr_T) -> c_int {
 /// Go to column `wcol`, and add/insert white space as necessary (`coladvance_force`).
 pub unsafe fn coladvance_force(wcol: colnr_T) -> c_int {
     unsafe {
-        let rc = coladvance2(curwin, &raw mut (*curwin).w_cursor, true, false, wcol);
+        let rc = coladvance2(*curwin.as_ptr(), &raw mut (**curwin.as_ptr()).w_cursor, true, false, wcol);
 
         if wcol == MAXCOL {
-            (*curwin).w_valid &= !VALID_VIRTCOL;
+            (**curwin.as_ptr()).w_valid &= !VALID_VIRTCOL;
         } else {
-            set_valid_virtcol(curwin, wcol);
+            set_valid_virtcol(*curwin.as_ptr(), wcol);
         }
         rc
     }
@@ -155,7 +155,7 @@ pub unsafe fn coladvance(wp: *mut win_T, wcol: colnr_T) -> c_int {
             .add((*wp).w_cursor.col as usize))
             != TAB
         {
-            set_valid_virtcol(curwin, wcol);
+            set_valid_virtcol(*curwin.as_ptr(), wcol);
         }
         rc
     }
@@ -169,17 +169,17 @@ unsafe fn coladvance2(
     wcol_arg: colnr_T,
 ) -> c_int {
     unsafe {
-        debug_assert!(wp == curwin || !addspaces);
+        debug_assert!(wp == *curwin.as_ptr() || !addspaces);
         let mut wcol = wcol_arg;
         let mut idx: c_int;
         let mut col: colnr_T;
         let mut head: c_int = 0;
 
         let one_more = c_int::from(
-            (State & MODE_INSERT) != 0
-                || (State & MODE_TERMINAL) != 0
-                || restart_edit != 0
-                || (Visual.active && *opt_vars().p_sel != b'o' as c_char)
+            (g_st().State & MODE_INSERT) != 0
+                || (g_st().State & MODE_TERMINAL) != 0
+                || g_st().restart_edit != 0
+                || (g_st().Visual.active && *opt_vars().p_sel != b'o' as c_char)
                 || ((get_ve_flags(wp) & kOptVeFlagOnemore) != 0 && wcol < MAXCOL),
         );
 
@@ -190,7 +190,7 @@ unsafe fn coladvance2(
             idx = linelen - 1 + one_more;
             col = wcol;
 
-            if (addspaces || finetune) && !Visual.active {
+            if (addspaces || finetune) && !g_st().Visual.active {
                 (*wp).w_curswant = linetabsize(wp, (*pos).lnum) + one_more;
                 if (*wp).w_curswant > 0 {
                     (*wp).w_curswant -= 1;
@@ -211,7 +211,7 @@ unsafe fn coladvance2(
                     csize -= 1;
                 }
 
-                if wcol / width > csize / width && ((State & MODE_INSERT) == 0 || wcol > csize + 1)
+                if wcol / width > csize / width && ((g_st().State & MODE_INSERT) == 0 || wcol > csize + 1)
                 {
                     wcol = (csize / width + 1) * width - 1;
                 }
@@ -326,12 +326,12 @@ pub unsafe fn getvpos(wp: *mut win_T, pos: *mut pos_T, wcol: colnr_T) -> c_int {
 
 /// Increment the cursor position (`inc_cursor`).
 pub unsafe fn inc_cursor() -> c_int {
-    unsafe { inc(&raw mut (*curwin).w_cursor) }
+    unsafe { inc(&raw mut (**curwin.as_ptr()).w_cursor) }
 }
 
 /// Decrement the cursor position (`dec_cursor`).
 pub unsafe fn dec_cursor() -> c_int {
-    unsafe { dec(&raw mut (*curwin).w_cursor) }
+    unsafe { dec(&raw mut (**curwin.as_ptr()).w_cursor) }
 }
 
 /// Get the line number relative to the current cursor position (`get_cursor_rel_lnum`).
@@ -401,10 +401,10 @@ pub unsafe fn check_cursor_col(win: *mut win_T) {
         if len == 0 {
             (*win).w_cursor.col = 0;
         } else if (*win).w_cursor.col >= len {
-            if (State & MODE_INSERT) != 0
-                || restart_edit != 0
-                || (State & MODE_TERMINAL) != 0
-                || (Visual.active && *opt_vars().p_sel != b'o' as c_char)
+            if (g_st().State & MODE_INSERT) != 0
+                || g_st().restart_edit != 0
+                || (g_st().State & MODE_TERMINAL) != 0
+                || (g_st().Visual.active && *opt_vars().p_sel != b'o' as c_char)
                 || (cur_ve_flags & kOptVeFlagOnemore) != 0
                 || virtual_active(win)
             {
@@ -455,15 +455,15 @@ pub unsafe fn check_cursor(wp: *mut win_T) {
 /// Check if `Visual.start` position is valid, correct it if not (`check_visual_pos`).
 pub unsafe fn check_visual_pos() {
     unsafe {
-        if Visual.start.lnum > (*curbuf).b_ml.ml_line_count {
-            Visual.start.lnum = (*curbuf).b_ml.ml_line_count;
-            Visual.start.col = 0;
-            Visual.start.coladd = 0;
+        if g_st().Visual.start.lnum > (*g_st().curbuf).b_ml.ml_line_count {
+            g_st().Visual.start.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+            g_st().Visual.start.col = 0;
+            g_st().Visual.start.coladd = 0;
         } else {
-            let len = ml_get_len(Visual.start.lnum);
-            if Visual.start.col > len {
-                Visual.start.col = len;
-                Visual.start.coladd = 0;
+            let len = ml_get_len(g_st().Visual.start.lnum);
+            if g_st().Visual.start.col > len {
+                g_st().Visual.start.col = len;
+                g_st().Visual.start.coladd = 0;
             }
         }
     }
@@ -472,11 +472,11 @@ pub unsafe fn check_visual_pos() {
 /// Make sure `curwin->w_cursor` is not on the NUL at the end of the line (`adjust_cursor_col`).
 pub unsafe fn adjust_cursor_col() {
     unsafe {
-        if (*curwin).w_cursor.col > 0
-            && (!Visual.active || *opt_vars().p_sel == b'o' as c_char)
+        if (**curwin.as_ptr()).w_cursor.col > 0
+            && (!g_st().Visual.active || *opt_vars().p_sel == b'o' as c_char)
             && gchar_cursor() == 0
         {
-            (*curwin).w_cursor.col -= 1;
+            (**curwin.as_ptr()).w_cursor.col -= 1;
         }
     }
 }
@@ -484,32 +484,32 @@ pub unsafe fn adjust_cursor_col() {
 /// Set `curwin->w_leftcol` to `leftcol` (`set_leftcol`).
 pub unsafe fn set_leftcol(leftcol: colnr_T) -> bool {
     unsafe {
-        if (*curwin).w_leftcol == leftcol {
+        if (**curwin.as_ptr()).w_leftcol == leftcol {
             return false;
         }
-        (*curwin).w_leftcol = leftcol;
+        (**curwin.as_ptr()).w_leftcol = leftcol;
 
-        changed_cline_bef_curs(curwin);
-        let lastcol = i64::from((*curwin).w_leftcol) + i64::from((*curwin).w_view_width)
-            - i64::from(win_col_off(curwin))
+        changed_cline_bef_curs(*curwin.as_ptr());
+        let lastcol = i64::from((**curwin.as_ptr()).w_leftcol) + i64::from((**curwin.as_ptr()).w_view_width)
+            - i64::from(win_col_off(*curwin.as_ptr()))
             - 1;
-        validate_virtcol(curwin);
+        validate_virtcol(*curwin.as_ptr());
 
         let mut retval = false;
-        let siso = get_sidescrolloff_value(curwin);
-        if (*curwin).w_virtcol > (lastcol - siso) as colnr_T {
+        let siso = get_sidescrolloff_value(*curwin.as_ptr());
+        if (**curwin.as_ptr()).w_virtcol > (lastcol - siso) as colnr_T {
             retval = true;
-            coladvance(curwin, (lastcol - siso) as colnr_T);
-        } else if (*curwin).w_virtcol < (i64::from((*curwin).w_leftcol) + siso) as colnr_T {
+            coladvance(*curwin.as_ptr(), (lastcol - siso) as colnr_T);
+        } else if (**curwin.as_ptr()).w_virtcol < (i64::from((**curwin.as_ptr()).w_leftcol) + siso) as colnr_T {
             retval = true;
-            coladvance(curwin, (i64::from((*curwin).w_leftcol) + siso) as colnr_T);
+            coladvance(*curwin.as_ptr(), (i64::from((**curwin.as_ptr()).w_leftcol) + siso) as colnr_T);
         }
 
         let mut s: colnr_T = 0;
         let mut e: colnr_T = 0;
         getvvcol(
-            curwin,
-            &raw mut (*curwin).w_cursor,
+            *curwin.as_ptr(),
+            &raw mut (**curwin.as_ptr()).w_cursor,
             &raw mut s,
             ptr::null_mut(),
             &raw mut e,
@@ -517,19 +517,19 @@ pub unsafe fn set_leftcol(leftcol: colnr_T) -> bool {
         );
         if e > lastcol as colnr_T {
             retval = true;
-            coladvance(curwin, s - 1);
-        } else if s < (*curwin).w_leftcol {
+            coladvance(*curwin.as_ptr(), s - 1);
+        } else if s < (**curwin.as_ptr()).w_leftcol {
             retval = true;
-            if coladvance(curwin, e + 1) == FAIL {
-                (*curwin).w_leftcol = s;
-                changed_cline_bef_curs(curwin);
+            if coladvance(*curwin.as_ptr(), e + 1) == FAIL {
+                (**curwin.as_ptr()).w_leftcol = s;
+                changed_cline_bef_curs(*curwin.as_ptr());
             }
         }
 
         if retval {
-            (*curwin).w_set_curswant = true;
+            (**curwin.as_ptr()).w_set_curswant = true;
         }
-        redraw_later(curwin, UPD_NOT_VALID);
+        redraw_later(*curwin.as_ptr(), UPD_NOT_VALID);
         retval
     }
 }
@@ -541,12 +541,12 @@ pub unsafe fn gchar_cursor() -> c_int {
 /// Return the character immediately before the cursor (`char_before_cursor`).
 pub unsafe fn char_before_cursor() -> c_int {
     unsafe {
-        if (*curwin).w_cursor.col == 0 {
+        if (**curwin.as_ptr()).w_cursor.col == 0 {
             return -1;
         }
 
         let line = get_cursor_line_ptr();
-        let p = line.add((*curwin).w_cursor.col as usize);
+        let p = line.add((**curwin.as_ptr()).w_cursor.col as usize);
         let prev_len = utf_head_off(line, p.sub(1)) + 1;
         utf_ptr2char(p.sub(prev_len as usize))
     }
@@ -555,28 +555,28 @@ pub unsafe fn char_before_cursor() -> c_int {
 /// Write a character at the current cursor position (`pchar_cursor`).
 pub unsafe fn pchar_cursor(c: c_char) {
     unsafe {
-        *ml_get_buf_mut(curbuf, (*curwin).w_cursor.lnum).add((*curwin).w_cursor.col as usize) = c;
+        *ml_get_buf_mut(g_st().curbuf, (**curwin.as_ptr()).w_cursor.lnum).add((**curwin.as_ptr()).w_cursor.col as usize) = c;
     }
 }
 
 /// Return pointer to cursor line (`get_cursor_line_ptr`).
 pub unsafe fn get_cursor_line_ptr() -> *mut c_char {
-    unsafe { ml_get_buf(curbuf, (*curwin).w_cursor.lnum) }
+    unsafe { ml_get_buf(g_st().curbuf, (**curwin.as_ptr()).w_cursor.lnum) }
 }
 
 /// Return pointer to cursor position (`get_cursor_pos_ptr`).
 pub unsafe fn get_cursor_pos_ptr() -> *mut c_char {
-    unsafe { ml_get_buf(curbuf, (*curwin).w_cursor.lnum).add((*curwin).w_cursor.col as usize) }
+    unsafe { ml_get_buf(g_st().curbuf, (**curwin.as_ptr()).w_cursor.lnum).add((**curwin.as_ptr()).w_cursor.col as usize) }
 }
 
 /// Return length (excluding the NUL) of the cursor line (`get_cursor_line_len`).
 pub unsafe fn get_cursor_line_len() -> colnr_T {
-    unsafe { ml_get_buf_len(curbuf, (*curwin).w_cursor.lnum) }
+    unsafe { ml_get_buf_len(g_st().curbuf, (**curwin.as_ptr()).w_cursor.lnum) }
 }
 
 /// Return length (excluding the NUL) of the cursor position (`get_cursor_pos_len`).
 pub unsafe fn get_cursor_pos_len() -> colnr_T {
-    unsafe { ml_get_buf_len(curbuf, (*curwin).w_cursor.lnum) - (*curwin).w_cursor.col }
+    unsafe { ml_get_buf_len(g_st().curbuf, (**curwin.as_ptr()).w_cursor.lnum) - (**curwin.as_ptr()).w_cursor.col }
 }
 
 #[cfg(test)]

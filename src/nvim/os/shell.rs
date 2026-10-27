@@ -216,11 +216,11 @@ pub unsafe fn os_expand_wildcards(
             return OK;
         }
 
-        if sandbox != 0 && check_secure() {
+        if g_st().sandbox != 0 && check_secure() {
             return FAIL;
         }
 
-        if secure != 0 {
+        if g_st().secure != 0 {
             for i in 0..(num_pat as usize) {
                 if !vim_strchr(*pat.add(i), b'`' as c_int).is_null() && check_secure() {
                     return FAIL;
@@ -400,7 +400,7 @@ pub unsafe fn os_expand_wildcards(
             os_remove(tempname);
             if (flags & EW_SILENT) == 0 {
                 msg_putchar(b'\n' as c_int);
-                cmdline_row = Rows - 1;
+                g_st().cmdline_row = g_st().Rows - 1;
                 msg(gettext(e_wildexpand.as_ptr()), 0);
                 msg_start();
             }
@@ -644,7 +644,7 @@ pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_ch
         let mut input: Vec<c_char> = Vec::new();
         let mut output: Vec<c_char> = Vec::new();
         let mut want_output = false;
-        let current_state = State;
+        let current_state = g_st().State;
         let mut forward_output = true;
 
         signal_reject_deadly();
@@ -652,7 +652,7 @@ pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_ch
         if (opts & (kShellOptHideMess | kShellOptExpand)) != 0 {
             forward_output = false;
         } else {
-            State = MODE_EXTERNCMD;
+            g_st().State = MODE_EXTERNCMD;
 
             if (opts & kShellOptWrite) != 0 {
                 read_input(&mut input);
@@ -675,7 +675,7 @@ pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_ch
             },
             input.len(),
             want_output.then_some(&mut output),
-            emsg_silent != 0,
+            g_st().emsg_silent != 0,
             forward_output,
         );
         drop(input);
@@ -685,7 +685,7 @@ pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_ch
             write_output(output.as_mut_ptr(), nread, true);
         }
 
-        if emsg_silent == 0 && exitcode != 0 && (opts & kShellOptSilent) == 0 {
+        if g_st().emsg_silent == 0 && exitcode != 0 && (opts & kShellOptSilent) == 0 {
             msg_ext_set_kind(c"shell_ret".as_ptr());
             msg_ext_no_fast();
             if !ui_has(kUIMessages) {
@@ -695,7 +695,7 @@ pub unsafe fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_ch
             msg_outnum(exitcode);
         }
 
-        State = current_state;
+        g_st().State = current_state;
         signal_accept_deadly();
 
         exitcode
@@ -720,7 +720,7 @@ pub unsafe fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_
             verbose_leave();
         }
 
-        if do_profiling == PROF_YES {
+        if g_st().do_profiling == PROF_YES {
             prof_child_enter(&raw mut wait_time);
         }
 
@@ -733,7 +733,7 @@ pub unsafe fn call_shell(cmd: *mut c_char, opts: c_int, extra_shell_arg: *mut c_
         };
 
         set_vim_var_nr(VV_SHELL_ERROR, varnumber_T::from(retval));
-        if do_profiling == PROF_YES {
+        if g_st().do_profiling == PROF_YES {
             prof_child_exit(&raw mut wait_time);
         }
 
@@ -760,13 +760,13 @@ pub unsafe fn get_cmd_output(
 
         let command = make_filter_cmd(cmd, infile, tempname, false);
 
-        no_check_timestamps += 1;
+        g_st().no_check_timestamps += 1;
         call_shell(
             command.as_ptr().cast_mut(),
             kShellOptDoOut | kShellOptExpand | flags,
             ptr::null_mut(),
         );
-        no_check_timestamps -= 1;
+        g_st().no_check_timestamps -= 1;
 
         drop(command);
 
@@ -917,18 +917,18 @@ unsafe fn do_os_system(
             if forward_output {
                 msg_sb_eol();
                 msg_start();
-                msg_no_more = true;
-                lines_left = -1;
+                g_st().msg_no_more = true;
+                g_st().lines_left = -1;
             }
             exitcode = proc_wait(proc_, -1, ptr::null_mut());
-            if !got_int && out_data_decide_throttle(0) {
+            if !g_st().got_int && out_data_decide_throttle(0) {
                 out_data_ring(ptr::null(), usize::MAX);
             }
             if forward_output {
-                no_wait_return += 1;
+                g_st().no_wait_return += 1;
                 msg_end();
-                no_wait_return -= 1;
-                msg_no_more = false;
+                g_st().no_wait_return -= 1;
+                g_st().msg_no_more = false;
             }
 
             ui_busy_stop();
@@ -1168,9 +1168,9 @@ pub(crate) unsafe fn word_length(str_in: *const c_char) -> usize {
 unsafe fn read_input(buf: &mut Vec<c_char>) {
     unsafe {
         read_buffer_into(
-            curbuf,
-            (*curbuf).b_op_start.lnum,
-            (*curbuf).b_op_end.lnum,
+            g_st().curbuf,
+            (*g_st().curbuf).b_op_start.lnum,
+            (*g_st().curbuf).b_op_end.lnum,
             buf,
         );
     }
@@ -1187,22 +1187,22 @@ unsafe fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool)
             if *output.add(off) == CAR
                 && off + 1 < remaining
                 && *output.add(off + 1) == NL
-                && (*curbuf).b_p_bin == 0
+                && (*g_st().curbuf).b_p_bin == 0
             {
                 *output.add(off) = NUL;
-                let lnum = (*curwin).w_cursor.lnum;
-                (*curwin).w_cursor.lnum += 1;
+                let lnum = (**curwin.as_ptr()).w_cursor.lnum;
+                (**curwin.as_ptr()).w_cursor.lnum += 1;
                 ml_append(lnum, output, off as c_int + 1, false);
                 let skip = off + 2;
                 output = output.add(skip);
                 remaining -= skip;
                 off = 0;
                 continue;
-            } else if (*output.add(off) == CAR && (*curbuf).b_p_bin == 0) || *output.add(off) == NL
+            } else if (*output.add(off) == CAR && (*g_st().curbuf).b_p_bin == 0) || *output.add(off) == NL
             {
                 *output.add(off) = NUL;
-                let lnum = (*curwin).w_cursor.lnum;
-                (*curwin).w_cursor.lnum += 1;
+                let lnum = (**curwin.as_ptr()).w_cursor.lnum;
+                (**curwin.as_ptr()).w_cursor.lnum += 1;
                 ml_append(lnum, output, off as c_int + 1, false);
                 let skip = off + 1;
                 output = output.add(skip);
@@ -1219,13 +1219,13 @@ unsafe fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool)
 
         if eof {
             if remaining != 0 {
-                let lnum = (*curwin).w_cursor.lnum;
-                (*curwin).w_cursor.lnum += 1;
+                let lnum = (**curwin.as_ptr()).w_cursor.lnum;
+                (**curwin.as_ptr()).w_cursor.lnum += 1;
                 ml_append(lnum, output, 0, false);
-                (*curbuf).b_no_eol_lnum = (*curwin).w_cursor.lnum;
+                (*g_st().curbuf).b_no_eol_lnum = (**curwin.as_ptr()).w_cursor.lnum;
                 output = output.add(remaining);
             } else {
-                (*curbuf).b_no_eol_lnum = 0;
+                (*g_st().curbuf).b_no_eol_lnum = 0;
             }
         }
 

@@ -592,9 +592,9 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
                 kExtmarkNOOP,
             );
 
-            if Visual.active && b == curbuf && Visual.start.lnum >= (start as linenr_T) {
-                if Visual.start.lnum >= (end as linenr_T) {
-                    Visual.start.lnum += extra as linenr_T;
+            if g_st().Visual.active && b == g_st().curbuf && g_st().Visual.start.lnum >= (start as linenr_T) {
+                if g_st().Visual.start.lnum >= (end as linenr_T) {
+                    g_st().Visual.start.lnum += extra as linenr_T;
                 }
                 check_visual_pos();
             }
@@ -621,10 +621,10 @@ pub unsafe extern "C" fn nvim_buf_set_lines(
                 true,
             );
 
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut win = if tp == curtab {
-                    firstwin
+                let mut win = if tp == g_st().curtab {
+                    g_st().firstwin
                 } else {
                     (*tp).tp_firstwin
                 };
@@ -929,10 +929,10 @@ pub unsafe extern "C" fn nvim_buf_set_text(
                 kExtmarkNOOP,
             );
 
-            if Visual.active && b == curbuf && Visual.mode != Ctrl_V {
+            if g_st().Visual.active && b == g_st().curbuf && g_st().Visual.mode != Ctrl_V {
                 fix_pos_col(
                     b,
-                    &raw mut Visual.start,
+                    &raw mut g_st().Visual.start,
                     start_row as linenr_T,
                     start_col as colnr_T,
                     end_row as linenr_T,
@@ -966,10 +966,10 @@ pub unsafe extern "C" fn nvim_buf_set_text(
                 true,
             );
 
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut win = if tp == curtab {
-                    firstwin
+                let mut win = if tp == g_st().curtab {
+                    g_st().firstwin
                 } else {
                     (*tp).tp_firstwin
                 };
@@ -1417,10 +1417,10 @@ pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: *
 
         let mut ren_ret = OK;
         try_wrap(err, || {
-            let is_curbuf = b == curbuf;
+            let is_curbuf = b == g_st().curbuf;
             let save_acd = opt_vars().p_acd;
             if !is_curbuf {
-                RedrawingDisabled += 1;
+                g_st().RedrawingDisabled += 1;
                 opt_vars().p_acd = 0;
             }
 
@@ -1430,7 +1430,7 @@ pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: *
             ctx_restore(&mut aco);
 
             if !is_curbuf {
-                RedrawingDisabled -= 1;
+                g_st().RedrawingDisabled -= 1;
                 opt_vars().p_acd = save_acd;
             }
         });
@@ -1570,7 +1570,7 @@ pub unsafe extern "C" fn nvim_buf_del_mark(
 
         let fm = mark_get(
             b,
-            curwin,
+            *curwin.as_ptr(),
             ptr::null_mut(),
             kMarkAllNoResolve,
             c_int::from(*name.data.cast::<u8>()),
@@ -1677,7 +1677,7 @@ pub unsafe extern "C" fn nvim_buf_get_mark(
         }
 
         let mark = c_int::from(*name.data.cast::<u8>());
-        let fm = mark_get(b, curwin, ptr::null_mut(), kMarkAllNoResolve, mark);
+        let fm = mark_get(b, *curwin.as_ptr(), ptr::null_mut(), kMarkAllNoResolve, mark);
         if fm.is_null() {
             api_err_invalid(err, c"mark name".as_ptr(), name.data, 0, true);
             return rv;
@@ -1889,7 +1889,7 @@ unsafe fn fix_cursor_cols(
     new_cols_at_end_row: colnr_T,
 ) {
     unsafe {
-        let mode_col_adj = if win == curwin && (State & MODE_INSERT) != 0 {
+        let mode_col_adj = if win == *curwin.as_ptr() && (g_st().State & MODE_INSERT) != 0 {
             0
         } else {
             1

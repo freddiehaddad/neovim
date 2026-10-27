@@ -339,7 +339,7 @@ pub unsafe fn win_redr_status(wp: *mut win_T) {
     unsafe {
         let is_stl_global = global_stl_height() > 0;
 
-        if stl_st().redr_status_busy || (wild_menu_showing != 0 && !ui_has(kUIWildmenu)) {
+        if stl_st().redr_status_busy || (g_st().wild_menu_showing != 0 && !ui_has(kUIWildmenu)) {
             return;
         }
 
@@ -348,12 +348,12 @@ pub unsafe fn win_redr_status(wp: *mut win_T) {
 
         let mut stl_curwin = ctx_saved_curwin();
         if stl_curwin.is_null() {
-            stl_curwin = curwin;
+            stl_curwin = *curwin.as_ptr();
         }
         let is_stl_curwin = wp == stl_curwin;
 
         if (*wp).w_status_height == 0 && !(is_stl_global && is_stl_curwin) {
-            redraw_cmdline = true;
+            g_st().redraw_cmdline = true;
         } else if !redrawing() {
             (*wp).w_redr_status = true;
         } else if *(*wp).w_onebuf_opt.wo_stl != NUL
@@ -371,7 +371,7 @@ pub unsafe fn win_redr_status(wp: *mut win_T) {
                 (*wp).w_p_fcs_chars.vert
             };
             let attr = win_hl_attr(wp, group);
-            grid_line_start(&raw mut default_gridview, w_endrow(wp));
+            grid_line_start(&raw mut g_st().default_gridview, w_endrow(wp));
             grid_line_put_schar(w_endcol(wp), fillchar, attr);
             grid_line_flush();
         }
@@ -381,7 +381,7 @@ pub unsafe fn win_redr_status(wp: *mut win_T) {
 
 pub unsafe fn get_trans_bufname(buf: *mut buf_T) {
     unsafe {
-        let name_buff = (&raw mut NameBuff).cast::<c_char>();
+        let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
         let sp = buf_spname(buf);
         if !sp.is_null() {
             xstrlcpy(name_buff, sp, MAXPATHL);
@@ -501,7 +501,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
         let mut grid: *mut ScreenGrid = if !wp.is_null() && (*wp).w_floating && !is_stl_global {
             &raw mut (*wp).w_grid_alloc
         } else {
-            &raw mut default_grid
+            &raw mut g_st().default_grid
         };
 
         if !is_stl_global && !wp.is_null() && (*wp).w_config.hide {
@@ -515,13 +515,13 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
 
         let save_curwin = ctx_saved_curwin();
         let restore_curwin = if !save_curwin.is_null() {
-            curwin
+            *curwin.as_ptr()
         } else {
             ptr::null_mut()
         };
         if !save_curwin.is_null() {
-            curwin = save_curwin;
-            curbuf = (*curwin).w_buffer;
+            *curwin.as_ptr() = save_curwin;
+            g_st().curbuf = (**curwin.as_ptr()).w_buffer;
         }
 
         if wp.is_null() {
@@ -530,9 +530,9 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             fillchar = schar_from_ascii(b' ');
             group = HLF_TPF;
             attr = hl_attr(group);
-            maxwidth = Columns;
+            maxwidth = g_st().Columns;
             opt_idx = kOptTabline;
-            let defs = &raw mut tab_page_click_defs;
+            let defs = &raw mut g_st().tab_page_click_defs;
             click_defs = (*defs).as_mut_ptr();
         } else if draw_winbar {
             opt_idx = kOptWinbar;
@@ -553,14 +553,14 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
             if row < 0 {
                 stl_st().stl_expr_entered = false;
                 if !restore_curwin.is_null() {
-                    curwin = restore_curwin;
-                    curbuf = (*restore_curwin).w_buffer;
+                    *curwin.as_ptr() = restore_curwin;
+                    g_st().curbuf = (*restore_curwin).w_buffer;
                 }
                 return;
             }
 
             fillchar = (*wp).w_p_fcs_chars.wbr;
-            group = if wp == curwin { HLF_WBR } else { HLF_WBRNC };
+            group = if wp == *curwin.as_ptr() { HLF_WBR } else { HLF_WBRNC };
             attr = win_hl_attr(wp, group);
             maxwidth = (*wp).w_view_width;
             stl_clear_click_defs(&mut (*wp).w_winbar_click_defs);
@@ -568,7 +568,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
         } else if draw_ruler && ui_event {
             stl = opt_vars().p_ruf;
             opt_idx = kOptRulerformat;
-            maxwidth = Columns / 2;
+            maxwidth = g_st().Columns / 2;
             fillchar = schar_from_ascii(b' ');
             group = HLF_MSG;
             attr = hl_attr(group);
@@ -592,10 +592,10 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
                     stl = opt_vars().p_ruf;
                 }
             }
-            row = Rows - 1;
-            col = ru_col.max(Columns / 2);
-            grid = grid_adjust(&raw mut msg_grid_adj, &raw mut row, &raw mut col);
-            maxwidth = Columns - col;
+            row = g_st().Rows - 1;
+            col = g_st().ru_col.max(g_st().Columns / 2);
+            grid = grid_adjust(&raw mut g_st().msg_grid_adj, &raw mut row, &raw mut col);
+            maxwidth = g_st().Columns - col;
             fillchar = schar_from_ascii(b' ');
             group = HLF_MSG;
             attr = hl_attr(group);
@@ -613,14 +613,14 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
                 0
             };
             if is_stl_global {
-                row = Rows - (opt_vars().p_ch as c_int) - 1;
+                row = g_st().Rows - (opt_vars().p_ch as c_int) - 1;
                 col = 0;
-                maxwidth = Columns;
+                maxwidth = g_st().Columns;
             } else if (*wp).w_status_height == 0 {
                 stl_st().stl_expr_entered = false;
                 if !restore_curwin.is_null() {
-                    curwin = restore_curwin;
-                    curbuf = (*restore_curwin).w_buffer;
+                    *curwin.as_ptr() = restore_curwin;
+                    g_st().curbuf = (*restore_curwin).w_buffer;
                 }
                 return;
             } else if (*wp).w_floating {
@@ -639,7 +639,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
         }
 
         if maxwidth > 0 {
-            let ewp = if wp.is_null() { curwin } else { wp };
+            let ewp = if wp.is_null() { *curwin.as_ptr() } else { wp };
             let p_crb_save = (*ewp).w_onebuf_opt.wo_crb;
             (*ewp).w_onebuf_opt.wo_crb = 0;
 
@@ -736,10 +736,10 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
                     }
                     curgroup = -(*sp).userhl;
                 } else {
-                    let userhl = if !wp.is_null() && wp != curwin && (*wp).w_status_height != 0 {
-                        &raw const highlight_stlnc[0]
+                    let userhl = if !wp.is_null() && wp != *curwin.as_ptr() && (*wp).w_status_height != 0 {
+                        &raw const g_st().highlight_stlnc[0]
                     } else {
-                        &raw const highlight_user[0]
+                        &raw const g_st().highlight_user[0]
                     };
                     let userbuf: [c_char; 5] = [
                         b'U' as c_char,
@@ -775,8 +775,8 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
         stl_st().stl_expr_entered = false;
 
         if !restore_curwin.is_null() {
-            curwin = restore_curwin;
-            curbuf = (*restore_curwin).w_buffer;
+            *curwin.as_ptr() = restore_curwin;
+            g_st().curbuf = (*restore_curwin).w_buffer;
         }
     }
 }
@@ -799,8 +799,8 @@ pub unsafe fn win_redr_winbar(wp: *mut win_T) {
 
 pub unsafe fn redraw_ruler() {
     unsafe {
-        let wp = if !(*curwin).w_config.hide && (*curwin).w_status_height == 0 {
-            curwin
+        let wp = if !(**curwin.as_ptr()).w_config.hide && (**curwin.as_ptr()).w_status_height == 0 {
+            *curwin.as_ptr()
         } else {
             lastwin_nofloating(ptr::null_mut())
         };
@@ -822,7 +822,7 @@ pub unsafe fn redraw_ruler() {
             return;
         }
 
-        if (*wp).w_status_height == 0 && !is_stl_global && !edit_submode.is_null() {
+        if (*wp).w_status_height == 0 && !is_stl_global && !g_st().edit_submode.is_null() {
             return;
         }
 
@@ -834,7 +834,7 @@ pub unsafe fn redraw_ruler() {
 /// Get the character to use in a status line. Get its attributes in `*group`.
 pub unsafe fn fillchar_status(group: *mut hlf_T, wp: *mut win_T) -> schar_T {
     unsafe {
-        if wp == curwin {
+        if wp == *curwin.as_ptr() {
             *group = HLF_S;
             (*wp).w_p_fcs_chars.stl
         } else {
@@ -851,17 +851,17 @@ unsafe fn ui_ext_tabline_update() {
             pos: 0,
             size: 0,
         };
-        let name_buff = (&raw mut NameBuff).cast::<c_char>();
+        let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
 
         let mut n_tabs: usize = 0;
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             n_tabs += 1;
             tp = (*tp).tp_next;
         }
 
         let mut tabs = arena_array(&raw mut arena, n_tabs);
-        tp = first_tabpage;
+        tp = g_st().first_tabpage;
         while !tp.is_null() {
             let mut tab_info = arena_dict(&raw mut arena, 2);
             put_c(
@@ -873,8 +873,8 @@ unsafe fn ui_ext_tabline_update() {
                 },
             );
 
-            let cwp = if tp == curtab {
-                curwin
+            let cwp = if tp == g_st().curtab {
+                *curwin.as_ptr()
             } else {
                 (*tp).tp_curwin
             };
@@ -899,7 +899,7 @@ unsafe fn ui_ext_tabline_update() {
         }
 
         let mut n_buffers: usize = 0;
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             if (*buf).b_p_bl != 0 {
                 n_buffers += 1;
@@ -908,7 +908,7 @@ unsafe fn ui_ext_tabline_update() {
         }
 
         let mut buffers = arena_array(&raw mut arena, n_buffers);
-        buf = firstbuf;
+        buf = g_st().firstbuf;
         while !buf.is_null() {
             if (*buf).b_p_bl != 0 {
                 let mut buffer_info = arena_dict(&raw mut arena, 2);
@@ -942,7 +942,7 @@ unsafe fn ui_ext_tabline_update() {
             buf = (*buf).b_next;
         }
 
-        ui_call_tabline_update((*curtab).handle, tabs, (*curbuf).b_fnum, buffers);
+        ui_call_tabline_update((*g_st().curtab).handle, tabs, (*g_st().curbuf).b_fnum, buffers);
         arena_mem_free(arena_finish(&raw mut arena));
     }
 }
@@ -952,13 +952,13 @@ pub unsafe fn draw_tabline() {
     unsafe {
         let attr_fill = hl_attr(HLF_TPF);
         let attr_nosel = hl_combine_attr(attr_fill, hl_attr(HLF_TP));
-        let use_sep_chars = t_colors < 8;
-        let name_buff = (&raw mut NameBuff).cast::<c_char>();
+        let use_sep_chars = g_st().t_colors < 8;
+        let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
 
-        if !crate::grid::grid_allocated(&raw const default_grid) {
+        if !crate::grid::grid_allocated(&raw const g_st().default_grid) {
             return;
         }
-        redraw_tabline = false;
+        g_st().redraw_tabline = false;
 
         if ui_has(kUITabline) {
             ui_ext_tabline_update();
@@ -969,8 +969,8 @@ pub unsafe fn draw_tabline() {
             return;
         }
 
-        let defs = &raw mut tab_page_click_defs;
-        debug_assert!((*defs).len() >= Columns as usize);
+        let defs = &raw mut g_st().tab_page_click_defs;
+        debug_assert!((*defs).len() >= g_st().Columns as usize);
         stl_clear_click_defs(&mut *defs);
 
         if *opt_vars().p_tal != NUL {
@@ -978,15 +978,15 @@ pub unsafe fn draw_tabline() {
         } else {
             let mut tabcount: c_int = 0;
             let mut col: c_int = 0;
-            grid_line_start(&raw mut default_gridview, 0);
-            let mut tp = first_tabpage;
+            grid_line_start(&raw mut g_st().default_gridview, 0);
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
                 tabcount += 1;
                 tp = (*tp).tp_next;
             }
 
             let tabwidth = (if tabcount > 0 {
-                (Columns - 1 + tabcount / 2) / tabcount
+                (g_st().Columns - 1 + tabcount / 2) / tabcount
             } else {
                 0
             })
@@ -995,20 +995,20 @@ pub unsafe fn draw_tabline() {
             let mut attr = attr_nosel;
             tabcount = 0;
 
-            tp = first_tabpage;
+            tp = g_st().first_tabpage;
             while !tp.is_null() {
-                if col >= Columns - 4 {
+                if col >= g_st().Columns - 4 {
                     break;
                 }
 
                 let mut scol = col;
-                let (cwp, mut wp) = if tp == curtab {
-                    (curwin, firstwin)
+                let (cwp, mut wp) = if tp == g_st().curtab {
+                    (*curwin.as_ptr(), g_st().firstwin)
                 } else {
                     ((*tp).tp_curwin, (*tp).tp_firstwin)
                 };
 
-                if (*tp).tp_topframe == topframe {
+                if (*tp).tp_topframe == g_st().topframe {
                     attr = hl_combine_attr(attr_fill, win_hl_attr(cwp, HLF_TPS));
                 }
                 if use_sep_chars && col > 0 {
@@ -1016,7 +1016,7 @@ pub unsafe fn draw_tabline() {
                     col += 1;
                 }
 
-                if (*tp).tp_topframe != topframe {
+                if (*tp).tp_topframe != g_st().topframe {
                     attr = hl_combine_attr(attr_fill, win_hl_attr(cwp, HLF_TP));
                 }
 
@@ -1038,7 +1038,7 @@ pub unsafe fn draw_tabline() {
                 if modified || wincount > 1 {
                     if wincount > 1 {
                         let len = vim_snprintf!(name_buff, MAXPATHL, c"%d".as_ptr(), wincount);
-                        if col + len >= Columns - 3 {
+                        if col + len >= g_st().Columns - 3 {
                             break;
                         }
                         grid_line_puts(
@@ -1067,7 +1067,7 @@ pub unsafe fn draw_tabline() {
                         len -= ptr2cells(p);
                         p = p.add(utfc_ptr2len(p) as usize);
                     }
-                    let n = Columns - col - 1;
+                    let n = g_st().Columns - col - 1;
                     len = len.min(n);
 
                     grid_line_puts(col, p, -1, attr);
@@ -1089,7 +1089,7 @@ pub unsafe fn draw_tabline() {
                 tp = (*tp).tp_next;
             }
 
-            for scol in col..Columns {
+            for scol in col..g_st().Columns {
                 (*defs).as_mut_slice()[scol as usize] = StlClickDefinition {
                     type_: kStlClickTabSwitch,
                     tabnr: 0,
@@ -1098,16 +1098,16 @@ pub unsafe fn draw_tabline() {
             }
 
             let c = if use_sep_chars { b'_' } else { b' ' };
-            grid_line_fill(col, Columns, schar_from_ascii(c), attr_fill);
+            grid_line_fill(col, g_st().Columns, schar_from_ascii(c), attr_fill);
 
             if opt_vars().p_sc != 0 && *opt_vars().p_sloc == b't' as c_char {
-                let n = Columns - col - c_int::from(tabcount > 1) * 3;
+                let n = g_st().Columns - col - c_int::from(tabcount > 1) * 3;
                 let sc_width = 10.min(n);
 
                 if sc_width > 0 {
                     grid_line_puts(
-                        Columns - sc_width - c_int::from(tabcount > 1) * 2,
-                        (&raw const showcmd_buf).cast(),
+                        g_st().Columns - sc_width - c_int::from(tabcount > 1) * 2,
+                        (&raw const g_st().showcmd_buf).cast(),
                         sc_width,
                         attr_nosel,
                     );
@@ -1116,8 +1116,8 @@ pub unsafe fn draw_tabline() {
             }
 
             if tabcount > 1 {
-                grid_line_put_schar(Columns - 1, schar_from_ascii(b'X'), attr_nosel);
-                (*defs).as_mut_slice()[(Columns - 1) as usize] = StlClickDefinition {
+                grid_line_put_schar(g_st().Columns - 1, schar_from_ascii(b'X'), attr_nosel);
+                (*defs).as_mut_slice()[(g_st().Columns - 1) as usize] = StlClickDefinition {
                     type_: kStlClickTabClose,
                     tabnr: 999,
                     func: None,
@@ -1127,7 +1127,7 @@ pub unsafe fn draw_tabline() {
             grid_line_flush();
         }
 
-        redraw_tabline = false;
+        g_st().redraw_tabline = false;
     }
 }
 
@@ -1387,13 +1387,13 @@ pub unsafe extern "C" fn build_stl_str_hl(
         let mut buf_tmp: [c_char; TMPLEN] = [0; TMPLEN];
         let mut owned_usefmt: Option<std::ffi::CString> = None;
         let mut usefmt = fmt;
-        let save_redraw_not_allowed = redraw_not_allowed;
-        let save_KeyTyped = KeyTyped;
-        let did_emsg_before = did_emsg;
-        let name_buff = (&raw mut NameBuff).cast::<c_char>();
+        let save_redraw_not_allowed = g_st().redraw_not_allowed;
+        let save_KeyTyped = g_st().KeyTyped;
+        let did_emsg_before = g_st().did_emsg;
+        let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
 
-        if updating_screen {
-            redraw_not_allowed = true;
+        if g_st().updating_screen {
+            g_st().redraw_not_allowed = true;
         }
 
         let items_vec_ptr = &raw mut stl_st().stl_items_vec;
@@ -1900,24 +1900,24 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             buf_tmp.as_mut_ptr(),
                             buf_tmp.len(),
                             c"%d".as_ptr(),
-                            (*curbuf).b_fnum,
+                            (*g_st().curbuf).b_fnum,
                         );
                         set_internal_string_var(c"g:actual_curbuf".as_ptr(), buf_tmp.as_mut_ptr());
                         vim_snprintf!(
                             buf_tmp.as_mut_ptr(),
                             buf_tmp.len(),
                             c"%d".as_ptr(),
-                            (*curwin).handle,
+                            (**curwin.as_ptr()).handle,
                         );
                         set_internal_string_var(c"g:actual_curwin".as_ptr(), buf_tmp.as_mut_ptr());
 
-                        let save_curbuf = curbuf;
-                        let save_curwin = curwin;
-                        let save_VIsual_active = Visual.active;
-                        curwin = wp;
-                        curbuf = (*wp).w_buffer;
-                        if curwin != save_curwin {
-                            Visual.active = false;
+                        let save_curbuf = g_st().curbuf;
+                        let save_curwin = *curwin.as_ptr();
+                        let save_VIsual_active = g_st().Visual.active;
+                        *curwin.as_ptr() = wp;
+                        g_st().curbuf = (*wp).w_buffer;
+                        if *curwin.as_ptr() != save_curwin {
+                            g_st().Visual.active = false;
                         }
 
                         owned_str = eval_to_string_safe(out_p, use_sandbox, false);
@@ -1925,9 +1925,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                             .as_ref()
                             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
-                        curwin = save_curwin;
-                        curbuf = save_curbuf;
-                        Visual.active = save_VIsual_active;
+                        *curwin.as_ptr() = save_curwin;
+                        g_st().curbuf = save_curbuf;
+                        g_st().Visual.active = save_VIsual_active;
 
                         do_unlet(c"g:actual_curbuf".as_ptr(), "g:actual_curbuf".len(), true);
                         do_unlet(c"g:actual_curwin".as_ptr(), "g:actual_curwin".len(), true);
@@ -2008,7 +2008,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     num = (*(*wp).w_buffer).b_ml.ml_line_count;
                 }
                 STL_COLUMN => {
-                    num = if (State & MODE_INSERT) == 0 && empty_line {
+                    num = if (g_st().State & MODE_INSERT) == 0 && empty_line {
                         0
                     } else {
                         (*wp).w_cursor.col + 1
@@ -2016,7 +2016,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_VIRTCOL | STL_VIRTCOL_ALT => {
                     let virtcol = (*wp).w_virtcol + 1;
-                    let col_1 = if (State & MODE_INSERT) == 0 && empty_line {
+                    let col_1 = if (g_st().State & MODE_INSERT) == 0 && empty_line {
                         0
                     } else {
                         (*wp).w_cursor.col + 1
@@ -2037,7 +2037,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 }
                 STL_SHOWCMD => {
                     if opt_vars().p_sc != 0 && (opt_idx == kOptInvalid || find_option(opt_vars().p_sloc) == opt_idx) {
-                        str = (&raw mut showcmd_buf).cast();
+                        str = (&raw mut g_st().showcmd_buf).cast();
                     }
                 }
                 STL_ARGLISTSTAT => {
@@ -2079,7 +2079,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         0
                     } else {
                         l + 1
-                            + if (State & MODE_INSERT) == 0 && empty_line {
+                            + if (g_st().State & MODE_INSERT) == 0 && empty_line {
                                 0
                             } else {
                                 (*wp).w_cursor.col
@@ -2546,15 +2546,15 @@ pub unsafe extern "C" fn build_stl_str_hl(
         }
 
         stl_st().curitem = evalstart;
-        redraw_not_allowed = save_redraw_not_allowed;
+        g_st().redraw_not_allowed = save_redraw_not_allowed;
 
-        if opt_idx != kOptInvalid && did_emsg > did_emsg_before {
+        if opt_idx != kOptInvalid && g_st().did_emsg > did_emsg_before {
             let def = get_option_default(opt_idx, opt_scope);
             set_option_direct(opt_idx, def, opt_scope, SID_ERROR);
             optval_free_read(opt_idx, def);
         }
 
-        KeyTyped = save_KeyTyped;
+        g_st().KeyTyped = save_KeyTyped;
         width
     }
 }
@@ -2588,7 +2588,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
             crate::main_init::ensure_test_editor_init();
-            emsg_skip += 1;
+            g_st().emsg_skip += 1;
 
             let check = |max_cells: c_int,
                          pat: &str,
@@ -2598,11 +2598,11 @@ mod tests {
                          exp_cells: Option<c_int>| {
                 if let Some(fname) = file_name {
                     let mut fn_c = CString::new(fname).unwrap().into_bytes_with_nul();
-                    setfname(curbuf, fn_c.as_mut_ptr().cast(), ptr::null_mut(), true);
+                    setfname(g_st().curbuf, fn_c.as_mut_ptr().cast(), ptr::null_mut(), true);
                 } else {
-                    setfname(curbuf, ptr::null_mut(), ptr::null_mut(), true);
+                    setfname(g_st().curbuf, ptr::null_mut(), ptr::null_mut(), true);
                 }
-                (*curwin).w_cursor.lnum = 0;
+                (**curwin.as_ptr()).w_cursor.lnum = 0;
 
                 let fillchar = match fill {
                     None => schar_from_str(c" ".as_ptr()),
@@ -2616,7 +2616,7 @@ mod tests {
                 let mut out_buf = [b' ' as c_char; 120];
                 let mut pat_c = CString::new(pat).unwrap().into_bytes_with_nul();
                 let cells = build_stl_str_hl(
-                    curwin,
+                    *curwin.as_ptr(),
                     CharBuf {
                         data: out_buf.as_mut_ptr(),
                         size: out_buf.len(),
@@ -2756,7 +2756,7 @@ mod tests {
             check(3, "abc%%abcabc", "<bc", None, None, None);
             check(1, "%%", "%", None, None, None);
 
-            emsg_skip -= 1;
+            g_st().emsg_skip -= 1;
         }
     }
 }

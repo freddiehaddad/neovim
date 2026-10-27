@@ -159,7 +159,7 @@ pub unsafe fn win_chartabsize(wp: *mut win_T, p: *const c_char, col: colnr_T) ->
 pub unsafe fn linetabsize_col(startvcol: c_int, s: *mut c_char) -> c_int {
     unsafe {
         let mut csarg = CharsizeArg::new();
-        let cstype = init_charsize_arg(&mut csarg, curwin, 0, s);
+        let cstype = init_charsize_arg(&mut csarg, *curwin.as_ptr(), 0, s);
         if cstype == kCharsizeFast {
             linesize_fast(&csarg, startvcol, MAXCOL)
         } else {
@@ -695,10 +695,10 @@ pub unsafe fn linesize_fast(csarg: *const CharsizeArg, mut vcol_arg: c_int, len:
 unsafe fn virt_text_cursor_off(csarg: *const CharsizeArg, on_nul: bool) -> c_int {
     unsafe {
         let mut off = 0;
-        if !on_nul || (State & MODE_NORMAL) == 0 {
+        if !on_nul || (g_st().State & MODE_NORMAL) == 0 {
             off += (*csarg).cur_text_width_left;
         }
-        if !on_nul && (State & MODE_NORMAL) != 0 {
+        if !on_nul && (g_st().State & MODE_NORMAL) != 0 {
             off += (*csarg).cur_text_width_right;
         }
         off
@@ -786,10 +786,10 @@ pub unsafe fn getvcol(
         }
         if !cursor.is_null() {
             if ci.chr.value == TAB
-                && (State & MODE_NORMAL) != 0
+                && (g_st().State & MODE_NORMAL) != 0
                 && (*wp).w_onebuf_opt.wo_list == 0
                 && !virtual_active(wp)
-                && !(Visual.active && (*opt_vars().p_sel == b'e' as c_char || ltoreq(*pos, Visual.start)))
+                && !(g_st().Visual.active && (*opt_vars().p_sel == b'e' as c_char || ltoreq(*pos, g_st().Visual.start)))
             {
                 *cursor = vcol + incr - 1;
             } else {
@@ -802,16 +802,16 @@ pub unsafe fn getvcol(
 
 pub unsafe fn getvcol_nolist(posp: *mut pos_T) -> colnr_T {
     unsafe {
-        let list_save = (*curwin).w_onebuf_opt.wo_list;
+        let list_save = (**curwin.as_ptr()).w_onebuf_opt.wo_list;
         let mut vcol: colnr_T = 0;
 
-        (*curwin).w_onebuf_opt.wo_list = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_list = 0;
         if (*posp).coladd != 0 {
-            getvvcol(curwin, posp, ptr::null_mut(), &mut vcol, ptr::null_mut(), 0);
+            getvvcol(*curwin.as_ptr(), posp, ptr::null_mut(), &mut vcol, ptr::null_mut(), 0);
         } else {
-            getvcol(curwin, posp, ptr::null_mut(), &mut vcol, ptr::null_mut(), 0);
+            getvcol(*curwin.as_ptr(), posp, ptr::null_mut(), &mut vcol, ptr::null_mut(), 0);
         }
-        (*curwin).w_onebuf_opt.wo_list = list_save;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_list = list_save;
         vcol
     }
 }
@@ -1000,7 +1000,7 @@ pub unsafe fn plines_win_col(wp: *mut win_T, lnum: linenr_T, column: c_long) -> 
         }
 
         let mut col = vcol;
-        if ci.chr.value == TAB && (State & MODE_NORMAL) != 0 && csarg.use_tabstop {
+        if ci.chr.value == TAB && (g_st().State & MODE_NORMAL) != 0 && csarg.use_tabstop {
             col += win_charsize(cstype, col, ci.ptr, ci.chr.value, &mut csarg, 1).width - 1;
         }
 

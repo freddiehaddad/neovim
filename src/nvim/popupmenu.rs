@@ -274,7 +274,7 @@ unsafe fn pum_compute_vertical_placement(
         {
             pum().above = true;
 
-            if (State & MODE_CMDLINE) != 0 && target_win.is_null() {
+            if (g_st().State & MODE_CMDLINE) != 0 && target_win.is_null() {
                 context_lines = 0;
             } else {
                 context_lines = 2.min((*target_win).w_wrow - (*target_win).w_cline_row);
@@ -302,7 +302,7 @@ unsafe fn pum_compute_vertical_placement(
         } else {
             pum().above = false;
 
-            if (State & MODE_CMDLINE) != 0 && target_win.is_null() {
+            if (g_st().State & MODE_CMDLINE) != 0 && target_win.is_null() {
                 context_lines = 0;
             } else {
                 validate_cheight(target_win);
@@ -317,7 +317,7 @@ unsafe fn pum_compute_vertical_placement(
                 pum().height = opt_vars().p_ph as c_int;
             }
 
-            if pum().row + pum().height + pum_border_size >= cmdline_row {
+            if pum().row + pum().height + pum_border_size >= g_st().cmdline_row {
                 pum().height -= pum_border_size;
             }
         }
@@ -360,7 +360,7 @@ unsafe fn pum_compute_horizontal_placement(
     border_width: c_int,
 ) {
     unsafe {
-        let max_col = Columns.max(if !target_win.is_null() {
+        let max_col = g_st().Columns.max(if !target_win.is_null() {
             (*target_win).w_wincol + (*target_win).w_view_width
         } else {
             0
@@ -433,25 +433,25 @@ pub unsafe fn pum_display(
 
         if !pum().is_visible {
             pum().external =
-                ui_has(kUIPopupmenu) || ((State & MODE_CMDLINE) != 0 && ui_has(kUIWildmenu));
+                ui_has(kUIPopupmenu) || ((g_st().State & MODE_CMDLINE) != 0 && ui_has(kUIWildmenu));
         }
 
-        pum().rl = (State & MODE_CMDLINE) == 0 && (*curwin).w_onebuf_opt.wo_rl != 0;
+        pum().rl = (g_st().State & MODE_CMDLINE) == 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0;
 
         let border_width = pum_border_width();
         loop {
             pum().is_visible = true;
             pum().is_drawn = true;
-            validate_cursor_col(curwin);
+            validate_cursor_col(*curwin.as_ptr());
             let mut above_row: c_int = 0;
-            let mut below_row = cmdline_row.max((*curwin).w_winrow + (*curwin).w_view_height);
-            if (State & MODE_CMDLINE) != 0 {
-                below_row = cmdline_row;
+            let mut below_row = g_st().cmdline_row.max((**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_view_height);
+            if (g_st().State & MODE_CMDLINE) != 0 {
+                below_row = g_st().cmdline_row;
             }
-            let target_win = if (State & MODE_CMDLINE) != 0 {
-                cmdline_win
+            let target_win = if (g_st().State & MODE_CMDLINE) != 0 {
+                g_st().cmdline_win
             } else {
-                curwin
+                *curwin.as_ptr()
             };
             pum().win_row_offset = 0;
             pum().win_col_offset = 0;
@@ -459,23 +459,23 @@ pub unsafe fn pum_display(
             let mut pum_win_row: c_int;
             let mut cursor_col: c_int;
 
-            if (State & MODE_CMDLINE) != 0 {
-                pum_win_row = if !cmdline_win.is_null() {
-                    (*cmdline_win).w_wrow
+            if (g_st().State & MODE_CMDLINE) != 0 {
+                pum_win_row = if !g_st().cmdline_win.is_null() {
+                    (*g_st().cmdline_win).w_wrow
                 } else if ui_has(kUICmdline) {
                     0
                 } else {
-                    cmdline_row
+                    g_st().cmdline_row
                 };
-                cursor_col = (if !cmdline_win.is_null() {
-                    (*cmdline_win).w_config._cmdline_offset
+                cursor_col = (if !g_st().cmdline_win.is_null() {
+                    (*g_st().cmdline_win).w_config._cmdline_offset
                 } else {
                     0
                 }) + cmd_startcol;
-                cursor_col %= if !cmdline_win.is_null() {
-                    (*cmdline_win).w_view_width
+                cursor_col %= if !g_st().cmdline_win.is_null() {
+                    (*g_st().cmdline_win).w_view_width
                 } else {
-                    Columns
+                    g_st().Columns
                 };
                 pum().anchor_grid = if ui_has(kUICmdline) {
                     -1
@@ -483,16 +483,16 @@ pub unsafe fn pum_display(
                     DEFAULT_GRID_HANDLE
                 };
             } else {
-                pum_win_row = (*curwin).w_wrow;
-                let mut wcol = (*curwin).w_wcol;
-                if (*curwin).w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin) {
-                    wcol -= (*curwin).w_wcol_conceal_off;
+                pum_win_row = (**curwin.as_ptr()).w_wrow;
+                let mut wcol = (**curwin.as_ptr()).w_wcol;
+                if (**curwin.as_ptr()).w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(*curwin.as_ptr()) {
+                    wcol -= (**curwin.as_ptr()).w_wcol_conceal_off;
                     if wcol < 0 {
                         wcol = 0;
                     }
                 }
                 if pum().rl {
-                    cursor_col = (*curwin).w_view_width - wcol - 1;
+                    cursor_col = (**curwin.as_ptr()).w_view_width - wcol - 1;
                 } else {
                     cursor_col = wcol;
                 }
@@ -502,7 +502,7 @@ pub unsafe fn pum_display(
                 pum().anchor_grid = (*(*target_win).w_grid.target).handle;
                 pum_win_row += (*target_win).w_grid.row_offset;
                 cursor_col += (*target_win).w_grid.col_offset;
-                if !ptr::eq((*target_win).w_grid.target, &raw const default_grid) {
+                if !ptr::eq((*target_win).w_grid.target, &raw const g_st().default_grid) {
                     pum_win_row += (*target_win).w_winrow;
                     cursor_col += (*target_win).w_wincol;
                     if !ui_has(kUIMultigrid) {
@@ -546,7 +546,7 @@ pub unsafe fn pum_display(
             }
 
             let mut pvwin: *mut win_T = ptr::null_mut();
-            let mut wp = first_win_in_tab(curtab);
+            let mut wp = first_win_in_tab(g_st().curtab);
             while !wp.is_null() {
                 if (*wp).w_onebuf_opt.wo_pvw != 0 {
                     pvwin = wp;
@@ -556,9 +556,9 @@ pub unsafe fn pum_display(
             }
 
             if !pvwin.is_null() {
-                if (*pvwin).w_winrow < (*curwin).w_winrow {
+                if (*pvwin).w_winrow < (**curwin.as_ptr()).w_winrow {
                     above_row = (*pvwin).w_winrow + (*pvwin).w_height;
-                } else if (*pvwin).w_winrow > (*curwin).w_winrow + (*curwin).w_height {
+                } else if (*pvwin).w_winrow > (**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_height {
                     below_row = (*pvwin).w_winrow;
                 }
             }
@@ -597,7 +597,7 @@ pub unsafe fn pum_display(
             }
         }
 
-        pum_grid.zindex = if (State & MODE_CMDLINE) != 0 {
+        g_st().pum_grid.zindex = if (g_st().State & MODE_CMDLINE) != 0 {
             kZIndexCmdlinePopupMenu
         } else {
             kZIndexPopupMenu
@@ -615,13 +615,13 @@ unsafe fn pum_compute_text_attrs(
     unsafe {
         if *text == NUL
             || (hlf != HLF_PSI && hlf != HLF_PNI)
-            || (win_hl_attr(curwin, HLF_PMSI) == win_hl_attr(curwin, HLF_PSI)
-                && win_hl_attr(curwin, HLF_PMNI) == win_hl_attr(curwin, HLF_PNI))
+            || (win_hl_attr(*curwin.as_ptr(), HLF_PMSI) == win_hl_attr(*curwin.as_ptr(), HLF_PSI)
+                && win_hl_attr(*curwin.as_ptr(), HLF_PMNI) == win_hl_attr(*curwin.as_ptr(), HLF_PNI))
         {
             return None;
         }
 
-        let leader = if (State & MODE_CMDLINE) != 0 {
+        let leader = if (g_st().State & MODE_CMDLINE) != 0 {
             cmdline_compl_pattern()
         } else {
             ins_compl_leader()
@@ -630,7 +630,7 @@ unsafe fn pum_compute_text_attrs(
             return None;
         }
 
-        let in_fuzzy = if (State & MODE_CMDLINE) != 0 {
+        let in_fuzzy = if (g_st().State & MODE_CMDLINE) != 0 {
             cmdline_compl_is_fuzzy()
         } else {
             (get_cot_flags() & kOptCotFlagFuzzy) != 0
@@ -652,27 +652,27 @@ unsafe fn pum_compute_text_attrs(
         let is_select = hlf == HLF_PSI;
 
         while *ptr != NUL {
-            let mut new_attr = win_hl_attr(curwin, hlf);
+            let mut new_attr = win_hl_attr(*curwin.as_ptr(), hlf);
 
             if let Some(ref positions) = match_positions {
                 if positions.contains(&char_pos) {
-                    new_attr = win_hl_attr(curwin, if is_select { HLF_PMSI } else { HLF_PMNI });
-                    new_attr = hl_combine_attr(win_hl_attr(curwin, HLF_PMNI), new_attr);
-                    new_attr = hl_combine_attr(win_hl_attr(curwin, hlf), new_attr);
+                    new_attr = win_hl_attr(*curwin.as_ptr(), if is_select { HLF_PMSI } else { HLF_PMNI });
+                    new_attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), HLF_PMNI), new_attr);
+                    new_attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), hlf), new_attr);
                 }
             } else {
                 if matched_len < 0 && mb_strnicmp(ptr, leader, leader_len) == 0 {
                     matched_len = leader_len as c_int;
                 }
                 if matched_len > 0 {
-                    new_attr = win_hl_attr(curwin, if is_select { HLF_PMSI } else { HLF_PMNI });
-                    new_attr = hl_combine_attr(win_hl_attr(curwin, HLF_PMNI), new_attr);
-                    new_attr = hl_combine_attr(win_hl_attr(curwin, hlf), new_attr);
+                    new_attr = win_hl_attr(*curwin.as_ptr(), if is_select { HLF_PMSI } else { HLF_PMNI });
+                    new_attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), HLF_PMNI), new_attr);
+                    new_attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), hlf), new_attr);
                     matched_len -= 1;
                 }
             }
 
-            new_attr = hl_combine_attr(win_hl_attr(curwin, HLF_PNI), new_attr);
+            new_attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), HLF_PNI), new_attr);
 
             if user_hlattr > 0 {
                 new_attr = hl_combine_attr(new_attr, user_hlattr);
@@ -772,14 +772,14 @@ unsafe fn pum_user_attr_combine(idx: c_int, type_: c_int, attr: c_int) -> c_int 
 pub unsafe fn pum_redraw() {
     unsafe {
         let mut row: c_int = 0;
-        let attr_scroll = win_hl_attr(curwin, HLF_PSB);
-        let attr_thumb = win_hl_attr(curwin, HLF_PST);
+        let attr_scroll = win_hl_attr(*curwin.as_ptr(), HLF_PSB);
+        let attr_thumb = win_hl_attr(*curwin.as_ptr(), HLF_PST);
         let mut thumb_pos: c_int = 0;
         let mut thumb_height: c_int = 1;
         let fcs_trunc: schar_T = if pum().rl {
-            (*curwin).w_p_fcs_chars.truncrl
+            (**curwin.as_ptr()).w_p_fcs_chars.truncrl
         } else {
-            (*curwin).w_p_fcs_chars.trunc
+            (**curwin.as_ptr()).w_p_fcs_chars.trunc
         };
 
         const HLFS_NORM: [hlf_T; 3] = [HLF_PNI, HLF_PNK, HLF_PNX];
@@ -790,8 +790,8 @@ pub unsafe fn pum_redraw() {
         let mut extra_space = false;
         if pum().rl {
             col_off = pum().width - 1;
-            debug_assert!((State & MODE_CMDLINE) == 0);
-            let win_end_col = (*curwin).w_wincol + (*curwin).w_view_width;
+            debug_assert!((g_st().State & MODE_CMDLINE) == 0);
+            let win_end_col = (**curwin.as_ptr()).w_wincol + (**curwin.as_ptr()).w_view_width;
             if pum().col < win_end_col - 1 {
                 grid_width += 1;
                 extra_space = true;
@@ -853,13 +853,13 @@ pub unsafe fn pum_redraw() {
                 col_off += 1;
             }
         }
-        pum_grid.blending = opt_vars().p_pb > 0 || fconfig.shadow;
-        grid_assign_handle(&raw mut pum_grid);
+        g_st().pum_grid.blending = opt_vars().p_pb > 0 || fconfig.shadow;
+        grid_assign_handle(&raw mut g_st().pum_grid);
 
         pum().left_col = pum().col - col_off;
         pum().right_col = pum().left_col + grid_width;
         let moved = ui_comp_put_grid(
-            &raw mut pum_grid,
+            &raw mut g_st().pum_grid,
             pum().row,
             pum().left_col,
             pum().height + border_width,
@@ -869,26 +869,26 @@ pub unsafe fn pum_redraw() {
         );
         let invalid_grid = moved || pum().invalid;
         pum().invalid = false;
-        must_redraw_pum = false;
+        g_st().must_redraw_pum = false;
 
-        if !crate::grid::grid_allocated(&raw const pum_grid)
-            || pum_grid.rows != pum().height + border_width
-            || pum_grid.cols != grid_width + border_width
+        if !crate::grid::grid_allocated(&raw const g_st().pum_grid)
+            || g_st().pum_grid.rows != pum().height + border_width
+            || g_st().pum_grid.cols != grid_width + border_width
         {
             grid_alloc(
-                &raw mut pum_grid,
+                &raw mut g_st().pum_grid,
                 pum().height + border_width,
                 grid_width + border_width,
                 !invalid_grid,
                 false,
             );
             ui_call_grid_resize(
-                i64::from(pum_grid.handle),
-                i64::from(pum_grid.cols),
-                i64::from(pum_grid.rows),
+                i64::from(g_st().pum_grid.handle),
+                i64::from(g_st().pum_grid.cols),
+                i64::from(g_st().pum_grid.rows),
             );
         } else if invalid_grid {
-            grid_invalidate(&raw mut pum_grid);
+            grid_invalidate(&raw mut g_st().pum_grid);
         }
         if ui_has(kUIMultigrid) {
             pum_pos_ui_flush(true);
@@ -897,7 +897,7 @@ pub unsafe fn pum_redraw() {
         let scroll_range = pum().size - pum().height;
         if fconfig.border {
             grid_draw_border(
-                &raw mut pum_grid,
+                &raw mut g_st().pum_grid,
                 &raw mut fconfig,
                 ptr::null_mut(),
                 0,
@@ -924,12 +924,12 @@ pub unsafe fn pum_redraw() {
             let idx = i + pum().first;
             let selected = idx == pum().selected;
             let hlfs = if selected { &HLFS_SEL } else { &HLFS_NORM };
-            let trunc_attr = win_hl_attr(curwin, if selected { HLF_PSI } else { HLF_PNI });
+            let trunc_attr = win_hl_attr(*curwin.as_ptr(), if selected { HLF_PSI } else { HLF_PNI });
             let mut hlf = hlfs[0];
-            let mut attr = win_hl_attr(curwin, hlf);
-            attr = hl_combine_attr(win_hl_attr(curwin, HLF_PNI), attr);
+            let mut attr = win_hl_attr(*curwin.as_ptr(), hlf);
+            attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), HLF_PNI), attr);
 
-            screengrid_line_start(&raw mut pum_grid, row, 0);
+            screengrid_line_start(&raw mut g_st().pum_grid, row, 0);
 
             if extra_space {
                 if pum().rl {
@@ -952,8 +952,8 @@ pub unsafe fn pum_redraw() {
             for j in 0..3 {
                 let item_type = order[j];
                 hlf = hlfs[item_type as usize];
-                attr = win_hl_attr(curwin, hlf);
-                attr = hl_combine_attr(win_hl_attr(curwin, HLF_PNI), attr);
+                attr = win_hl_attr(*curwin.as_ptr(), hlf);
+                attr = hl_combine_attr(win_hl_attr(*curwin.as_ptr(), HLF_PNI), attr);
                 orig_attr = attr;
                 if item_type < 2 {
                     attr = pum_user_attr_combine(idx, item_type, attr);
@@ -1131,29 +1131,29 @@ pub unsafe fn pum_redraw() {
                 let lcol = col_off - pum().width + 1;
                 grid_line_fill(lcol, grid_col + 1, schar_from_ascii(b' '), orig_attr);
                 if need_fcs_trunc {
-                    linebuf_char[lcol as usize] = if fcs_trunc != 0 {
+                    g_st().linebuf_char[lcol as usize] = if fcs_trunc != 0 {
                         fcs_trunc
                     } else {
                         schar_from_ascii(b'<')
                     };
-                    linebuf_attr[lcol as usize] = trunc_attr;
-                    if pum().width > 1 && linebuf_char[(lcol + 1) as usize] == 0 {
-                        linebuf_char[(lcol + 1) as usize] = schar_from_ascii(b' ');
+                    g_st().linebuf_attr[lcol as usize] = trunc_attr;
+                    if pum().width > 1 && g_st().linebuf_char[(lcol + 1) as usize] == 0 {
+                        g_st().linebuf_char[(lcol + 1) as usize] = schar_from_ascii(b' ');
                     }
                 }
             } else {
                 let rcol = col_off + pum().width;
                 grid_line_fill(grid_col, rcol, schar_from_ascii(b' '), orig_attr);
                 if need_fcs_trunc {
-                    if pum().width > 1 && linebuf_char[(rcol - 1) as usize] == 0 {
-                        linebuf_char[(rcol - 2) as usize] = schar_from_ascii(b' ');
+                    if pum().width > 1 && g_st().linebuf_char[(rcol - 1) as usize] == 0 {
+                        g_st().linebuf_char[(rcol - 2) as usize] = schar_from_ascii(b' ');
                     }
-                    linebuf_char[(rcol - 1) as usize] = if fcs_trunc != 0 {
+                    g_st().linebuf_char[(rcol - 1) as usize] = if fcs_trunc != 0 {
                         fcs_trunc
                     } else {
                         schar_from_ascii(b'>')
                     };
-                    linebuf_attr[(rcol - 1) as usize] = trunc_attr;
+                    g_st().linebuf_attr[(rcol - 1) as usize] = trunc_attr;
                 }
             }
 
@@ -1230,8 +1230,8 @@ unsafe fn pum_preview_set_text(
             }
         }
 
-        let original_textlock = textlock;
-        textlock = 0;
+        let original_textlock = g_st().textlock;
+        g_st().textlock = 0;
         nvim_buf_set_lines(
             0,
             (*buf).b_fnum,
@@ -1242,7 +1242,7 @@ unsafe fn pum_preview_set_text(
             &raw mut arena,
             &raw mut err,
         );
-        textlock = original_textlock;
+        g_st().textlock = original_textlock;
         if err.err_type != ErrorType::kErrorTypeNone {
             emsg(err.msg_ptr());
             api_clear_error(&raw mut err);
@@ -1258,7 +1258,7 @@ unsafe fn pum_adjust_info_position(wp: *mut win_T, width: c_int) -> bool {
     unsafe {
         let border_width = pum_border_width();
         let col = pum().col + pum().width + 1 + border_width.max(pum().scrollbar);
-        let right_extra = Columns - col;
+        let right_extra = g_st().Columns - col;
         let left_extra = pum().col - 2;
 
         let max_extra = right_extra.max(left_extra);
@@ -1285,7 +1285,7 @@ unsafe fn pum_adjust_info_position(wp: *mut win_T, width: c_int) -> bool {
         (*wp).w_config.anchor = 0;
         let count = (*(*wp).w_buffer).b_ml.ml_line_count;
         (*wp).w_view_width = (*wp).w_config.width;
-        (*wp).w_config.height = plines_m_win(wp, (*wp).w_topline, count, Rows);
+        (*wp).w_config.height = plines_m_win(wp, (*wp).w_topline, count, g_st().Rows);
         (*wp).w_config.row = f64::from(pum().row);
         (*wp).w_config.hide = false;
         win_config_float(wp, (*wp).w_config.clone());
@@ -1300,8 +1300,8 @@ pub unsafe fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
             return ptr::null_mut();
         }
         block_autocmds();
-        RedrawingDisabled += 1;
-        no_u_sync += 1;
+        g_st().RedrawingDisabled += 1;
+        g_st().no_u_sync += 1;
         let mut wp = win_float_find(kWinInfo);
         if wp.is_null() {
             wp = win_float_special(false, true, kWinInfo);
@@ -1314,8 +1314,8 @@ pub unsafe fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
         let mut lnum: linenr_T = 0;
         let mut max_info_width: c_int = 0;
         pum_preview_set_text(wp, info, &raw mut lnum, &raw mut max_info_width);
-        no_u_sync -= 1;
-        RedrawingDisabled -= 1;
+        g_st().no_u_sync -= 1;
+        g_st().RedrawingDisabled -= 1;
         redraw_later(wp, UPD_NOT_VALID);
 
         if !pum_adjust_info_position(wp, max_info_width) {
@@ -1380,24 +1380,24 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
             pum().first = pum().first.min(pum().size - pum().height);
 
             if (*pum().array.add(pum().selected as usize)).pum_info.is_some()
-                && Rows > 10
+                && g_st().Rows > 10
                 && repeat <= 1
                 && (cur_cot_flags & (kOptCotFlagPopup | kOptCotFlagPreview)) != 0
-                && !((cur_cot_flags & kOptCotFlagPreview) != 0 && !cmdwin_buf.is_null())
+                && !((cur_cot_flags & kOptCotFlagPreview) != 0 && !g_st().cmdwin_buf.is_null())
             {
-                let curwin_save = curwin;
-                let curtab_save = curtab;
+                let curwin_save = *curwin.as_ptr();
+                let curtab_save = g_st().curtab;
 
                 if use_float {
                     block_autocmds();
                 }
 
-                g_do_tagpreview = 3;
-                if opt_vars().p_pvh > 0 && opt_vars().p_pvh < i64::from(g_do_tagpreview) {
-                    g_do_tagpreview = opt_vars().p_pvh as c_int;
+                g_st().g_do_tagpreview = 3;
+                if opt_vars().p_pvh > 0 && opt_vars().p_pvh < i64::from(g_st().g_do_tagpreview) {
+                    g_st().g_do_tagpreview = opt_vars().p_pvh as c_int;
                 }
-                RedrawingDisabled += 1;
-                no_u_sync += 1;
+                g_st().RedrawingDisabled += 1;
+                g_st().no_u_sync += 1;
 
                 if !use_float {
                     resized = prepare_tagpreview(false, false);
@@ -1413,21 +1413,21 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                     }
                 }
 
-                no_u_sync -= 1;
-                RedrawingDisabled -= 1;
-                g_do_tagpreview = 0;
+                g_st().no_u_sync -= 1;
+                g_st().RedrawingDisabled -= 1;
+                g_st().g_do_tagpreview = 0;
 
-                if (*curwin).w_onebuf_opt.wo_pvw != 0 || (*curwin).w_kind == kWinInfo {
+                if (**curwin.as_ptr()).w_onebuf_opt.wo_pvw != 0 || (**curwin.as_ptr()).w_kind == kWinInfo {
                     let mut res = OK;
                     if !resized
-                        && (*curbuf).b_nwindows == 1
-                        && (*curbuf).b_fname.is_null()
-                        && bt_nofile(curbuf)
-                        && *(*curbuf).b_p_bh == b'w' as c_char
+                        && (*g_st().curbuf).b_nwindows == 1
+                        && (*g_st().curbuf).b_fname.is_null()
+                        && bt_nofile(g_st().curbuf)
+                        && *(*g_st().curbuf).b_p_bh == b'w' as c_char
                     {
                         buf_clear();
                     } else {
-                        no_u_sync += 1;
+                        g_st().no_u_sync += 1;
                         res = do_ecmd(
                             0,
                             ptr::null_mut(),
@@ -1437,7 +1437,7 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                             0,
                             ptr::null_mut(),
                         );
-                        no_u_sync -= 1;
+                        g_st().no_u_sync -= 1;
 
                         if res == OK {
                             set_option_value_give_err(kOptSwapfile, boolean_obj(false), OPT_LOCAL);
@@ -1460,55 +1460,55 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                         let mut lnum: linenr_T = 0;
                         let mut max_info_width: c_int = 0;
                         pum_preview_set_text(
-                            curwin,
+                            *curwin.as_ptr(),
                             (*pum().array.add(pum().selected as usize)).info_ptr(),
                             &raw mut lnum,
                             &raw mut max_info_width,
                         );
                         if repeat == 0 && !use_float {
                             lnum = lnum.min(opt_vars().p_pvh as linenr_T);
-                            if (*curwin).w_height < lnum {
+                            if (**curwin.as_ptr()).w_height < lnum {
                                 win_setheight(lnum);
                                 resized = true;
                             }
                         }
 
-                        (*curbuf).b_changed = 0;
-                        (*curbuf).b_p_ma = 0;
+                        (*g_st().curbuf).b_changed = 0;
+                        (*g_st().curbuf).b_p_ma = 0;
                         if pum().selected != prev_selected {
-                            (*curwin).w_topline = 1;
-                        } else if (*curwin).w_topline > (*curbuf).b_ml.ml_line_count {
-                            (*curwin).w_topline = (*curbuf).b_ml.ml_line_count;
+                            (**curwin.as_ptr()).w_topline = 1;
+                        } else if (**curwin.as_ptr()).w_topline > (*g_st().curbuf).b_ml.ml_line_count {
+                            (**curwin.as_ptr()).w_topline = (*g_st().curbuf).b_ml.ml_line_count;
                         }
-                        (*curwin).w_cursor.lnum = 1;
-                        (*curwin).w_cursor.col = 0;
+                        (**curwin.as_ptr()).w_cursor.lnum = 1;
+                        (**curwin.as_ptr()).w_cursor.col = 0;
 
                         if use_float
-                            && !pum_adjust_info_position(curwin, max_info_width)
+                            && !pum_adjust_info_position(*curwin.as_ptr(), max_info_width)
                             && win_valid(curwin_save)
                         {
                             win_enter(curwin_save, false);
                         }
 
-                        if (curwin != curwin_save && win_valid(curwin_save))
-                            || (curtab != curtab_save && valid_tabpage(curtab_save))
+                        if (*curwin.as_ptr() != curwin_save && win_valid(curwin_save))
+                            || (g_st().curtab != curtab_save && valid_tabpage(curtab_save))
                         {
-                            if curtab != curtab_save && valid_tabpage(curtab_save) {
+                            if g_st().curtab != curtab_save && valid_tabpage(curtab_save) {
                                 goto_tabpage_tp(curtab_save, false, false);
                             }
 
                             if ins_compl_active() && !resized {
-                                (*curwin).w_redr_status = false;
+                                (**curwin.as_ptr()).w_redr_status = false;
                             }
 
-                            validate_cursor(curwin);
-                            redraw_later(curwin, UPD_SOME_VALID);
+                            validate_cursor(*curwin.as_ptr());
+                            redraw_later(*curwin.as_ptr(), UPD_SOME_VALID);
 
                             if resized && win_valid(curwin_save) {
-                                no_u_sync += 1;
+                                g_st().no_u_sync += 1;
                                 win_enter(curwin_save, true);
-                                no_u_sync -= 1;
-                                update_topline(curwin);
+                                g_st().no_u_sync -= 1;
+                                update_topline(*curwin.as_ptr());
                             }
 
                             let save_pum_is_drawn = pum().is_drawn;
@@ -1520,9 +1520,9 @@ unsafe fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                             pum().is_drawn = save_pum_is_drawn;
 
                             if !resized && win_valid(curwin_save) {
-                                no_u_sync += 1;
+                                g_st().no_u_sync += 1;
                                 win_enter(curwin_save, true);
-                                no_u_sync -= 1;
+                                g_st().no_u_sync -= 1;
                             }
 
                             pum().is_visible = false;
@@ -1549,7 +1549,7 @@ pub unsafe fn pum_undisplay(immediate: bool) {
     unsafe {
         pum().is_visible = false;
         pum().array = ptr::null_mut();
-        must_redraw_pum = false;
+        g_st().must_redraw_pum = false;
 
         if immediate {
             pum_check_clear();
@@ -1563,12 +1563,12 @@ pub unsafe fn pum_check_clear() {
             if pum().external {
                 ui_call_popupmenu_hide();
             } else {
-                ui_comp_remove_grid(&raw mut pum_grid);
+                ui_comp_remove_grid(&raw mut g_st().pum_grid);
                 if ui_has(kUIMultigrid) {
-                    ui_call_win_close(i64::from(pum_grid.handle));
-                    ui_call_grid_destroy(i64::from(pum_grid.handle));
+                    ui_call_win_close(i64::from(g_st().pum_grid.handle));
+                    ui_call_grid_destroy(i64::from(g_st().pum_grid.handle));
                 }
-                grid_free(&raw mut pum_grid);
+                grid_free(&raw mut g_st().pum_grid);
             }
             pum().is_drawn = false;
             pum().external = false;
@@ -1606,10 +1606,10 @@ pub unsafe fn pum_ext_select_item(item: c_int, insert: bool, finish: bool) {
         if !pum_visible() || item < -1 || item >= pum().size {
             return;
         }
-        pum_want.active = true;
-        pum_want.item = item;
-        pum_want.insert = insert;
-        pum_want.finish = finish;
+        g_st().pum_want.active = true;
+        g_st().pum_want.item = item;
+        g_st().pum_want.insert = insert;
+        g_st().pum_want.finish = finish;
     }
 }
 
@@ -1664,11 +1664,11 @@ unsafe fn pum_position_at_mouse(min_width: c_int) {
     unsafe {
         let min_row: c_int = 0;
         let min_col: c_int = 0;
-        let mut max_row = Rows;
-        let mut max_col = Columns;
-        let mut grid = mouse_grid;
-        let mut row = mouse_row;
-        let mut col = mouse_col;
+        let mut max_row = g_st().Rows;
+        let mut max_col = g_st().Columns;
+        let mut grid = g_st().mouse_grid;
+        let mut row = g_st().mouse_row;
+        let mut col = g_st().mouse_col;
         pum().win_row_offset = 0;
         pum().win_col_offset = 0;
 
@@ -1684,12 +1684,12 @@ unsafe fn pum_position_at_mouse(min_width: c_int) {
                 pum().win_col_offset = (*wp).w_wincol;
 
                 if (*wp).w_view_height > 0 || (*wp).w_view_width > 0 {
-                    max_row = (Rows - (*wp).w_winrow).max((*wp).w_winrow + (*wp).w_view_height);
-                    max_col = (Columns - (*wp).w_wincol).max((*wp).w_wincol + (*wp).w_view_width);
+                    max_row = (g_st().Rows - (*wp).w_winrow).max((*wp).w_winrow + (*wp).w_view_height);
+                    max_col = (g_st().Columns - (*wp).w_wincol).max((*wp).w_wincol + (*wp).w_view_width);
                 }
             }
         }
-        if pum_grid.handle != 0 && grid == pum_grid.handle {
+        if g_st().pum_grid.handle != 0 && grid == g_st().pum_grid.handle {
             row += pum().row;
             col += pum().left_col;
         } else {
@@ -1741,15 +1741,15 @@ unsafe fn pum_position_at_mouse(min_width: c_int) {
 /// Select the pum entry at the mouse position (`pum_select_mouse_pos`).
 unsafe fn pum_select_mouse_pos() {
     unsafe {
-        let mut grid = mouse_grid;
-        let mut row = mouse_row;
-        let mut col = mouse_col;
+        let mut grid = g_st().mouse_grid;
+        let mut row = g_st().mouse_row;
+        let mut col = g_st().mouse_col;
 
         if grid == 0 {
             mouse_find_win_outer(&raw mut grid, &raw mut row, &raw mut col);
         }
 
-        if grid == pum_grid.handle {
+        if grid == g_st().pum_grid.handle {
             let border_offset = if pum_border_width() == 2 { 1 } else { 0 };
             let item = row - border_offset;
             pum().selected = if item >= 0 && item < pum().height {
@@ -1841,7 +1841,7 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
         pum_compute_size();
         pum().scrollbar = 0;
         pum().height = pum().size;
-        pum().rl = (*curwin).w_onebuf_opt.wo_rl != 0;
+        pum().rl = (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0;
         pum_position_at_mouse(20);
 
         pum().selected = -1;
@@ -1859,9 +1859,9 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
         loop {
             pum().is_visible = true;
             pum().is_drawn = true;
-            pum_grid.zindex = kZIndexCmdlinePopupMenu;
+            g_st().pum_grid.zindex = kZIndexCmdlinePopupMenu;
             pum_redraw();
-            setcursor_mayforce(curwin, true);
+            setcursor_mayforce(*curwin.as_ptr(), true);
 
             let c = vgetc();
 
@@ -1925,19 +1925,19 @@ pub unsafe fn pum_show_popupmenu(menu: *mut vimmenu_T) {
 pub unsafe fn pum_make_popup(path_name: *const c_char, use_mouse_pos: c_int) {
     unsafe {
         if use_mouse_pos == 0 {
-            mouse_row = (*curwin).w_grid.row_offset + (*curwin).w_wrow;
-            mouse_col = (*curwin).w_grid.col_offset
-                + if (*curwin).w_onebuf_opt.wo_rl != 0 {
-                    (*curwin).w_view_width - (*curwin).w_wcol - 1
+            g_st().mouse_row = (**curwin.as_ptr()).w_grid.row_offset + (**curwin.as_ptr()).w_wrow;
+            g_st().mouse_col = (**curwin.as_ptr()).w_grid.col_offset
+                + if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 {
+                    (**curwin.as_ptr()).w_view_width - (**curwin.as_ptr()).w_wcol - 1
                 } else {
-                    (*curwin).w_wcol
+                    (**curwin.as_ptr()).w_wcol
                 };
             if ui_has(kUIMultigrid) {
-                mouse_grid = (*(*curwin).w_grid.target).handle;
-            } else if !ptr::eq((*curwin).w_grid.target, &raw const default_grid) {
-                mouse_grid = 0;
-                mouse_row += (*curwin).w_winrow;
-                mouse_col += (*curwin).w_wincol;
+                g_st().mouse_grid = (*(**curwin.as_ptr()).w_grid.target).handle;
+            } else if !ptr::eq((**curwin.as_ptr()).w_grid.target, &raw const g_st().default_grid) {
+                g_st().mouse_grid = 0;
+                g_st().mouse_row += (**curwin.as_ptr()).w_winrow;
+                g_st().mouse_col += (**curwin.as_ptr()).w_wincol;
             }
         }
 
@@ -1954,8 +1954,8 @@ pub unsafe fn pum_pos_ui_flush(force: bool) {
             || (ui_has(kUIMultigrid)
                 && pum().is_drawn
                 && !pum().external
-                && pum_grid.handle != 0
-                && pum_grid.pending_comp_index_update)
+                && g_st().pum_grid.handle != 0
+                && g_st().pum_grid.pending_comp_index_update)
         {
             let anchor = if pum().above {
                 c"SW".as_ptr()
@@ -1964,19 +1964,19 @@ pub unsafe fn pum_pos_ui_flush(force: bool) {
             };
             let row_off = if pum().above { -pum().height } else { 0 };
             ui_call_win_float_pos(
-                i64::from(pum_grid.handle),
+                i64::from(g_st().pum_grid.handle),
                 -1,
                 cstr_as_string(anchor),
                 i64::from(pum().anchor_grid),
                 f64::from(pum().row - row_off - pum().win_row_offset),
                 f64::from(pum().left_col - pum().win_col_offset),
                 false,
-                i64::from(pum_grid.zindex),
-                pum_grid.comp_index as i64,
-                i64::from(pum_grid.comp_row),
-                i64::from(pum_grid.comp_col),
+                i64::from(g_st().pum_grid.zindex),
+                g_st().pum_grid.comp_index as i64,
+                i64::from(g_st().pum_grid.comp_row),
+                i64::from(g_st().pum_grid.comp_col),
             );
-            pum_grid.pending_comp_index_update = false;
+            g_st().pum_grid.pending_comp_index_update = false;
         }
     }
 }

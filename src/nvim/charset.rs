@@ -593,7 +593,7 @@ pub unsafe fn str_foldcase(
 }
 
 pub unsafe fn transchar(c: c_int) -> *mut c_char {
-    unsafe { transchar_buf(curbuf, c) }
+    unsafe { transchar_buf(g_st().curbuf, c) }
 }
 
 pub unsafe fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut c_char {
@@ -620,7 +620,7 @@ pub unsafe fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut c_char {
 }
 
 pub unsafe fn transchar_byte(c: c_int) -> *mut c_char {
-    unsafe { transchar_byte_buf(curbuf, c) }
+    unsafe { transchar_byte_buf(g_st().curbuf, c) }
 }
 
 pub unsafe fn transchar_byte_buf(buf: *const buf_T, c: c_int) -> *mut c_char {
@@ -733,7 +733,7 @@ pub unsafe fn vim_isIDc(c: c_int) -> bool {
 }
 
 pub unsafe fn vim_iswordc(c: c_int) -> bool {
-    unsafe { vim_iswordc_buf(c, curbuf) }
+    unsafe { vim_iswordc_buf(c, g_st().curbuf) }
 }
 
 pub unsafe fn vim_iswordc_tab(c: c_int, chartab: *const u64) -> bool {
@@ -751,7 +751,7 @@ pub unsafe fn vim_iswordc_buf(c: c_int, buf: *mut buf_T) -> bool {
 }
 
 pub unsafe fn vim_iswordp(p: *const c_char) -> bool {
-    unsafe { vim_iswordp_buf(p, curbuf) }
+    unsafe { vim_iswordp_buf(p, g_st().curbuf) }
 }
 
 pub unsafe fn vim_iswordp_buf(p: *const c_char, buf: *mut buf_T) -> bool {

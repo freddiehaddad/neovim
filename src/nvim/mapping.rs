@@ -297,7 +297,7 @@ pub unsafe fn get_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] 
 
 /// Get the buffer-local hashed map list for "state" and first character "c".
 pub unsafe fn get_buf_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] {
-    unsafe { (*curbuf).b_maphash[map_hash(state, c as u8)].as_slice() }
+    unsafe { (*g_st().curbuf).b_maphash[map_hash(state, c as u8)].as_slice() }
 }
 
 #[inline]
@@ -340,7 +340,7 @@ pub unsafe fn map_luaid_get(n: c_int) -> LuaRef {
         if mp.is_none() {
             mp = map_luaid_scan(std::slice::from_ref(first_abbr_ref), n);
         }
-        let mut fb = firstbuf;
+        let mut fb = g_st().firstbuf;
         while !fb.is_null() {
             if mp.is_none() {
                 mp = map_luaid_scan(&(*fb).b_maphash, n);
@@ -418,9 +418,9 @@ unsafe fn showmap(mp: &mapblock_T, local: bool) {
             return;
         }
 
-        if msg_col > 0 || msg_silent != 0 {
+        if g_st().msg_col > 0 || g_st().msg_silent != 0 {
             msg_putchar(b'\n' as c_int);
-            if got_int {
+            if g_st().got_int {
                 return;
             }
         }
@@ -706,7 +706,7 @@ unsafe fn map_add(
             if local {
                 (*buf).b_mapped_ctrl_c |= mode;
             } else {
-                mapped_ctrl_c |= mode;
+                g_st().mapped_ctrl_c |= mode;
             }
         }
 
@@ -723,7 +723,7 @@ unsafe fn map_add(
                 sc_chan: 0,
             }
         } else {
-            let mut ctx = current_sctx;
+            let mut ctx = g_st().current_sctx;
             ctx.sc_lnum += sourcing_lnum();
             nlua_set_sctx(&mut ctx);
             ctx
@@ -869,7 +869,7 @@ unsafe fn buf_do_map(
                 }
 
                 if has_lhs && has_rhs && is_abbrev {
-                    no_abbr = false;
+                    g_st().no_abbr = false;
                 }
 
                 if do_print {
@@ -879,11 +879,11 @@ unsafe fn buf_do_map(
                 if args.unique && local && has_lhs && has_rhs && maptype != MAPTYPE_UNMAP {
                     let lhs_slice = std::slice::from_raw_parts(lhs.cast::<u8>(), len as usize);
                     for bucket in get_map_buckets(ptr::null(), is_abbrev) {
-                        if got_int {
+                        if g_st().got_int {
                             break;
                         }
                         for mp in bucket {
-                            if got_int {
+                            if g_st().got_int {
                                 break;
                             }
                             if (mp.m_mode & mode) != 0 && mp.m_keylen == len {
@@ -899,11 +899,11 @@ unsafe fn buf_do_map(
 
                 if !local && !has_rhs && maptype != MAPTYPE_UNMAP {
                     for bucket in get_map_buckets(buf, is_abbrev) {
-                        if got_int {
+                        if g_st().got_int {
                             break;
                         }
                         for mp in bucket {
-                            if got_int {
+                            if g_st().got_int {
                                 break;
                             }
                             if mp.m_simplified == 0 && (mp.m_mode & mode) != 0 {
@@ -932,7 +932,7 @@ unsafe fn buf_do_map(
                     1
                 };
                 for round in 0..num_rounds {
-                    if did_it || got_int {
+                    if did_it || g_st().got_int {
                         break;
                     }
                     let (hash_start, hash_end) = if (round == 0 && has_lhs) || is_abbrev {
@@ -946,7 +946,7 @@ unsafe fn buf_do_map(
                         (0, 256)
                     };
                     for hash in hash_start..hash_end {
-                        if got_int {
+                        if g_st().got_int {
                             break;
                         }
                         let mpp: &mut Vec<mapblock_T> = if is_abbrev {
@@ -963,7 +963,7 @@ unsafe fn buf_do_map(
                             &mut (*mh)[hash]
                         };
                         let mut idx: usize = 0;
-                        while idx < mpp.len() && !got_int {
+                        while idx < mpp.len() && !g_st().got_int {
                             let mp: &mut mapblock_T = &mut mpp[idx];
                             if (mp.m_mode & mode) == 0 {
                                 idx += 1;
@@ -1029,7 +1029,7 @@ unsafe fn buf_do_map(
                                             mp.m_simplified = c_int::from(keyround1_simplified);
                                             mp.m_expr = args.expr as c_char;
                                             mp.m_replace_keycodes = args.replace_keycodes;
-                                            mp.m_script_ctx = current_sctx;
+                                            mp.m_script_ctx = g_st().current_sctx;
                                             mp.m_script_ctx.sc_lnum += sourcing_lnum();
                                             nlua_set_sctx(&mut mp.m_script_ctx);
                                             mp.m_desc = args.desc.clone();
@@ -1072,7 +1072,7 @@ unsafe fn buf_do_map(
                         if local {
                             (*buf).b_mapped_ctrl_c &= !mode;
                         } else {
-                            mapped_ctrl_c &= !mode;
+                            g_st().mapped_ctrl_c &= !mode;
                         }
                     }
                     continue;
@@ -1133,7 +1133,7 @@ pub unsafe fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: b
         let mut result = str_to_mapargs(arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
         match result {
             0 => {
-                result = buf_do_map(maptype, &mut parsed_args, mode, is_abbrev, curbuf);
+                result = buf_do_map(maptype, &mut parsed_args, mode, is_abbrev, g_st().curbuf);
             }
             1 => {}
             _ => {
@@ -1192,7 +1192,7 @@ unsafe fn do_mapclear(mut cmdp: *mut c_char, arg: *mut c_char, forceit: c_int, a
         }
 
         let mode = get_map_mode(&mut cmdp, forceit != 0);
-        map_clear_mode(curbuf, mode, local, abbr != 0);
+        map_clear_mode(g_st().curbuf, mode, local, abbr != 0);
     }
 }
 
@@ -1292,7 +1292,7 @@ pub unsafe fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, ab
 pub unsafe fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool {
     unsafe {
         for exp_buffer in [false, true] {
-            let b = if exp_buffer { curbuf } else { ptr::null() };
+            let b = if exp_buffer { g_st().curbuf } else { ptr::null() };
             for bucket in get_map_buckets(b, abbr) {
                 for mp in bucket {
                     if (mp.m_mode & mode) != 0 && !strstr(mp.m_str.as_ptr(), rhs).is_null() {
@@ -1482,7 +1482,7 @@ pub unsafe fn ExpandMappings(
         }
 
         let exp_buf = if !map_st().expand_isabbrev && map_st().expand_buffer {
-            curbuf
+            g_st().curbuf
         } else {
             ptr::null()
         };
@@ -1555,7 +1555,7 @@ pub unsafe fn check_abbr(
     unsafe {
         let mut tb = [0u8; MB_MAXBYTES + 4];
 
-        if typebuf.tb_no_abbr_cnt != 0 {
+        if g_st().typebuf.tb_no_abbr_cnt != 0 {
             return false;
         }
 
@@ -1601,7 +1601,7 @@ pub unsafe fn check_abbr(
             let mut len = col - scol;
             let mut mp_opt: Option<&mapblock_T> = None;
             let first_abbr_slice = (&raw const map_st().first_abbr).as_ref().unwrap().as_slice();
-            for cand in (*curbuf).b_first_abbr.iter().chain(first_abbr_slice) {
+            for cand in (*g_st().curbuf).b_first_abbr.iter().chain(first_abbr_slice) {
                 let mut qlen = cand.m_keylen;
                 let mut q_vec: Vec<c_char>;
                 let mut q = cand.m_keys.as_ptr().cast_mut();
@@ -1616,7 +1616,7 @@ pub unsafe fn check_abbr(
                     q = q_vec.as_mut_ptr();
                     qlen = vim_unescape_ks(q) as c_int;
                 }
-                let match_found = (cand.m_mode & State) != 0
+                let match_found = (cand.m_mode & g_st().State) != 0
                     && qlen == len
                     && std::slice::from_raw_parts(q.cast::<u8>(), len as usize)
                         == std::slice::from_raw_parts(ptr_arg.cast::<u8>(), len as usize);
@@ -1672,7 +1672,7 @@ pub unsafe fn check_abbr(
                 if let Some(ref cs) = owned_s {
                     let s = cs.as_ptr().cast_mut();
                     ins_typebuf(s, noremap, 0, true, silent);
-                    typebuf.tb_no_abbr_cnt += (cs.to_bytes().len() + j + 1) as c_int;
+                    g_st().typebuf.tb_no_abbr_cnt += (cs.to_bytes().len() + j + 1) as c_int;
                 }
 
                 tb[0] = Ctrl_H;
@@ -1706,11 +1706,11 @@ pub unsafe fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
             vim_unescape_ks(expr_bytes.as_mut_ptr());
         }
 
-        expr_map_lock += 1;
+        g_st().expr_map_lock += 1;
         set_vim_var_char(c);
-        let save_cursor = (*curwin).w_cursor;
-        let save_msg_col = msg_col;
-        let save_msg_row = msg_row;
+        let save_cursor = (**curwin.as_ptr()).w_cursor;
+        let save_msg_col = g_st().msg_col;
+        let save_msg_row = g_st().msg_row;
         if luaref != LUA_NOREF {
             let mut err = Error::new();
             let args = Array {
@@ -1737,10 +1737,10 @@ pub unsafe fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
         } else {
             p = eval_to_string(expr_bytes.as_mut_ptr(), false, false);
         }
-        expr_map_lock -= 1;
-        (*curwin).w_cursor = save_cursor;
-        msg_col = save_msg_col;
-        msg_row = save_msg_row;
+        g_st().expr_map_lock -= 1;
+        (**curwin.as_ptr()).w_cursor = save_cursor;
+        g_st().msg_col = save_msg_col;
+        g_st().msg_row = save_msg_row;
 
         let p = p?;
 
@@ -2053,7 +2053,7 @@ pub unsafe fn check_map(
 
         let len = CStr::from_ptr(keys).to_bytes().len() as c_int;
         for local in (0..=1).rev() {
-            let b = if local != 0 { curbuf } else { ptr::null() };
+            let b = if local != 0 { g_st().curbuf } else { ptr::null() };
             for bucket in get_map_buckets(b, abbr != 0) {
                 for mp in bucket {
                     if (mp.m_mode & mode) != 0 && (exact == 0 || mp.m_keylen == len) {
@@ -2485,7 +2485,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
             &mut unmap_args,
             mode,
             is_abbr != 0,
-            curbuf,
+            g_st().curbuf,
         );
 
         let alt = (!lhsrawalt.is_null()).then(|| {
@@ -2494,7 +2494,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
             })
         });
         map_add(
-            curbuf,
+            g_st().curbuf,
             buffer,
             lhsraw,
             &args,
@@ -2508,7 +2508,7 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
         );
         if !lhsrawalt.is_null() {
             map_add(
-                curbuf,
+                g_st().curbuf,
                 buffer,
                 lhsrawalt,
                 &args,
@@ -2534,7 +2534,7 @@ pub unsafe fn f_maplist(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
 
         for buffer_local in 0..=1 {
             let b = if buffer_local != 0 {
-                curbuf
+                g_st().curbuf
             } else {
                 ptr::null()
             };
@@ -2620,7 +2620,7 @@ pub unsafe fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: b
         );
         args.buffer = buffer;
 
-        buf_do_map(MAPTYPE_NOREMAP, &mut args, mode, false, curbuf);
+        buf_do_map(MAPTYPE_NOREMAP, &mut args, mode, false, g_st().curbuf);
     }
 }
 
@@ -2646,7 +2646,7 @@ pub unsafe fn langmap_adjust_mb(c: c_int) -> c_int {
 pub unsafe fn langmap_init() {
     unsafe {
         for i in 0..256 {
-            *(&raw mut langmap_mapchar).cast::<u8>().add(i) = i as u8;
+            *(&raw mut g_st().langmap_mapchar).cast::<u8>().add(i) = i as u8;
         }
         map_st().langmap_mapga = Vec::new();
     }
@@ -2721,7 +2721,7 @@ pub unsafe fn did_set_langmap(args: *mut optset_T) -> *const c_char {
                             to_ptr,
                         );
                     }
-                    langmap_mapchar[(from & 255) as usize] = to as u8;
+                    g_st().langmap_mapchar[(from & 255) as usize] = to as u8;
                 }
 
                 p = p.add(utfc_ptr2len(p) as usize);
@@ -2765,7 +2765,7 @@ unsafe fn do_exmap(eap: *mut exarg_T, isabbrev: bool) {
         let mut parsed_args = MapArguments::new();
         let result = str_to_mapargs((*eap).arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
         match result {
-            0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, curbuf) {
+            0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, g_st().curbuf) {
                 1 => {
                     emsg(gettext(e_invarg.as_ptr()));
                 }
@@ -2818,8 +2818,8 @@ pub unsafe fn ex_abbreviate(eap: *mut exarg_T) {
 /// ":map" and friends.
 pub unsafe fn ex_map(eap: *mut exarg_T) {
     unsafe {
-        if secure != 0 {
-            secure = 2;
+        if g_st().secure != 0 {
+            g_st().secure = 2;
             msg_outtrans((*eap).cmd, 0, false);
             msg_putchar(b'\n' as c_int);
         }
@@ -3040,7 +3040,7 @@ pub unsafe fn modify_keymap(
             }
         }
 
-        current_sctx = save_current_sctx;
+        g_st().current_sctx = save_current_sctx;
         nlua_clear_ref(&mut parsed_args.rhs_lua);
     }
 }

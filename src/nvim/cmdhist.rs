@@ -313,12 +313,12 @@ pub unsafe fn add_to_history(
     assert_ne!(histype, HIST_DEFAULT);
 
     unsafe {
-        if (cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 && histype == HIST_SEARCH {
+        if (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 && histype == HIST_SEARCH {
             return;
         }
 
         if histype == HIST_SEARCH && in_map {
-            if maptick == hist_st().LAST_MAPTICK && hist_st().HISIDX[HIST_SEARCH as usize] >= 0 {
+            if g_st().maptick == hist_st().LAST_MAPTICK && hist_st().HISIDX[HIST_SEARCH as usize] >= 0 {
                 let sidx = hist_st().HISIDX[HIST_SEARCH as usize] as usize;
                 hist_free_entry(&raw mut hist_st().HISTORY[HIST_SEARCH as usize][sidx]);
                 hist_st().HISNUM[histype as usize] -= 1;
@@ -354,7 +354,7 @@ pub unsafe fn add_to_history(
         hisptr.hisnum = hist_st().HISNUM[htype];
 
         if histype == HIST_SEARCH && in_map {
-            hist_st().LAST_MAPTICK = maptick;
+            hist_st().LAST_MAPTICK = g_st().maptick;
         }
     }
 }
@@ -502,7 +502,7 @@ unsafe fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
         let hislen = hist_st().HISLEN;
         hist_free_entry(&raw mut hist_st().HISTORY[htype][i as usize]);
 
-        if histype == HIST_SEARCH && maptick == hist_st().LAST_MAPTICK && i == idx {
+        if histype == HIST_SEARCH && g_st().maptick == hist_st().LAST_MAPTICK && i == idx {
             hist_st().LAST_MAPTICK = -1;
         }
 
@@ -670,7 +670,7 @@ pub unsafe fn ex_history(eap: *mut exarg_T) {
         }
 
         let mut iobuf = [0 as c_char; IOSIZE];
-        while !got_int && histype1 <= histype2 {
+        while !g_st().got_int && histype1 <= histype2 {
             let hname = HISTORY_NAMES[histype1 as usize].to_str().unwrap();
             let title = format!("\n      #  {hname} history\0");
             msg_puts_title(title.as_ptr().cast::<c_char>());
@@ -695,7 +695,7 @@ pub unsafe fn ex_history(eap: *mut exarg_T) {
             }
             if idx >= 0 && j <= k {
                 let mut i = idx + 1;
-                while !got_int {
+                while !g_st().got_int {
                     if i == hislen {
                         i = 0;
                     }
@@ -716,11 +716,11 @@ pub unsafe fn ex_history(eap: *mut exarg_T) {
                             prefix_bytes.len(),
                         );
                         let len = prefix_bytes.len();
-                        if vim_strsize(entry_ptr) > Columns - 10 {
+                        if vim_strsize(entry_ptr) > g_st().Columns - 10 {
                             trunc_string(
                                 entry_ptr,
                                 iobuf.as_mut_ptr().add(len),
-                                Columns - 10,
+                                g_st().Columns - 10,
                                 (IOSIZE - len) as c_int,
                             );
                         } else {

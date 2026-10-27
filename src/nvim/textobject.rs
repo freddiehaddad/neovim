@@ -57,7 +57,7 @@ pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
         let func: unsafe fn(*mut pos_T) -> c_int = if dir == FORWARD { incl } else { decl };
         let mut noskip = false;
 
-        let mut pos = (*curwin).w_cursor;
+        let mut pos = (**curwin.as_ptr()).w_cursor;
 
         while {
             let old = count;
@@ -83,7 +83,7 @@ pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
             } else if dir == FORWARD && pos.col == 0 && startPS(pos.lnum, c_int::from(NUL), false) {
                 // if on the start of a paragraph or a section and searching forward,
                 // go to the next line
-                if pos.lnum == (*curbuf).b_ml.ml_line_count {
+                if pos.lnum == (*g_st().curbuf).b_ml.ml_line_count {
                     return FAIL;
                 }
                 pos.lnum += 1;
@@ -191,7 +191,7 @@ pub unsafe fn findsent(dir: Direction, mut count: c_int) -> c_int {
         }
 
         setpcmark();
-        (*curwin).w_cursor = pos;
+        (**curwin.as_ptr()).w_cursor = pos;
         OK
     }
 }
@@ -207,7 +207,7 @@ pub unsafe fn findpar(
     unsafe {
         let mut fold_first: linenr_T = 0;
         let mut fold_last: linenr_T = 0;
-        let mut curr = (*curwin).w_cursor.lnum;
+        let mut curr = (**curwin.as_ptr()).w_cursor.lnum;
 
         while {
             let old = count;
@@ -223,7 +223,7 @@ pub unsafe fn findpar(
 
                 // skip folded lines
                 let mut fold_skipped = false;
-                if first && hasFolding(curwin, curr, &raw mut fold_first, &raw mut fold_last) {
+                if first && hasFolding(*curwin.as_ptr(), curr, &raw mut fold_first, &raw mut fold_last) {
                     curr = (if dir > 0 { fold_last } else { fold_first }) + dir;
                     fold_skipped = true;
                 }
@@ -236,7 +236,7 @@ pub unsafe fn findpar(
                     curr -= dir;
                 }
                 curr += dir;
-                if curr < 1 || curr > (*curbuf).b_ml.ml_line_count {
+                if curr < 1 || curr > (*g_st().curbuf).b_ml.ml_line_count {
                     if count != 0 {
                         return false;
                     }
@@ -250,21 +250,21 @@ pub unsafe fn findpar(
         if both && *ml_get(curr) == b'}' as c_char {
             curr += 1;
         }
-        (*curwin).w_cursor.lnum = curr;
-        if curr == (*curbuf).b_ml.ml_line_count && what != b'}' as c_int && dir == FORWARD {
+        (**curwin.as_ptr()).w_cursor.lnum = curr;
+        if curr == (*g_st().curbuf).b_ml.ml_line_count && what != b'}' as c_int && dir == FORWARD {
             let line = ml_get(curr);
 
             // Put the cursor on the last character in the last line and make the
             // motion inclusive.
-            (*curwin).w_cursor.col = ml_get_len(curr);
-            if (*curwin).w_cursor.col != 0 {
-                (*curwin).w_cursor.col -= 1;
-                (*curwin).w_cursor.col -=
-                    utf_head_off(line, line.add((*curwin).w_cursor.col as usize));
+            (**curwin.as_ptr()).w_cursor.col = ml_get_len(curr);
+            if (**curwin.as_ptr()).w_cursor.col != 0 {
+                (**curwin.as_ptr()).w_cursor.col -= 1;
+                (**curwin.as_ptr()).w_cursor.col -=
+                    utf_head_off(line, line.add((**curwin.as_ptr()).w_cursor.col as usize));
                 *pincl = true;
             }
         } else {
-            (*curwin).w_cursor.col = 0;
+            (**curwin.as_ptr()).w_cursor.col = 0;
         }
         true
     }
@@ -336,23 +336,23 @@ unsafe fn cls() -> c_int {
 /// Move forward `count` words (`fwd_word`).
 pub unsafe fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
     unsafe {
-        (*curwin).w_cursor.coladd = 0;
+        (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
         while {
             count -= 1;
             count >= 0
         } {
             if hasFolding(
-                curwin,
-                (*curwin).w_cursor.lnum,
+                *curwin.as_ptr(),
+                (**curwin.as_ptr()).w_cursor.lnum,
                 ptr::null_mut(),
-                &raw mut (*curwin).w_cursor.lnum,
+                &raw mut (**curwin.as_ptr()).w_cursor.lnum,
             ) {
-                coladvance(curwin, MAXCOL);
+                coladvance(*curwin.as_ptr(), MAXCOL);
             }
             let sclass = cls();
 
-            let last_line = (*curwin).w_cursor.lnum == (*curbuf).b_ml.ml_line_count;
+            let last_line = (**curwin.as_ptr()).w_cursor.lnum == (*g_st().curbuf).b_ml.ml_line_count;
             let mut i = inc_cursor();
             if i == -1 || (i >= 1 && last_line) {
                 return FAIL;
@@ -371,7 +371,7 @@ pub unsafe fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
             }
 
             while cls() == 0 {
-                if (*curwin).w_cursor.col == 0 && *get_cursor_line_ptr() == NUL {
+                if (**curwin.as_ptr()).w_cursor.col == 0 && *get_cursor_line_ptr() == NUL {
                     break;
                 }
 
@@ -388,19 +388,19 @@ pub unsafe fn fwd_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
 /// Move backward `count` words (`bck_word`).
 pub unsafe fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int {
     unsafe {
-        (*curwin).w_cursor.coladd = 0;
+        (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
         while {
             count -= 1;
             count >= 0
         } {
             if hasFolding(
-                curwin,
-                (*curwin).w_cursor.lnum,
-                &raw mut (*curwin).w_cursor.lnum,
+                *curwin.as_ptr(),
+                (**curwin.as_ptr()).w_cursor.lnum,
+                &raw mut (**curwin.as_ptr()).w_cursor.lnum,
                 ptr::null_mut(),
             ) {
-                (*curwin).w_cursor.col = 0;
+                (**curwin.as_ptr()).w_cursor.col = 0;
             }
             let sclass = cls();
             if dec_cursor() == -1 {
@@ -410,7 +410,7 @@ pub unsafe fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int
             let mut finished = false;
             if !stop || sclass == cls() || sclass == 0 {
                 while cls() == 0 {
-                    if (*curwin).w_cursor.col == 0 && lineempty((*curwin).w_cursor.lnum) {
+                    if (**curwin.as_ptr()).w_cursor.col == 0 && lineempty((**curwin.as_ptr()).w_cursor.lnum) {
                         finished = true;
                         break;
                     }
@@ -437,13 +437,13 @@ pub unsafe fn bck_word(mut count: c_int, bigword: bool, mut stop: bool) -> c_int
 /// Move to the end of the word (`end_word`).
 pub unsafe fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: bool) -> c_int {
     unsafe {
-        (*curwin).w_cursor.coladd = 0;
+        (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
 
         if *opt_vars().p_sel == b'e' as c_char
-            && Visual.active
-            && Visual.mode == b'v' as c_int
-            && Visual.select_exclu_adj
+            && g_st().Visual.active
+            && g_st().Visual.mode == b'v' as c_int
+            && g_st().Visual.select_exclu_adj
         {
             unadjust_for_sel();
         }
@@ -453,12 +453,12 @@ pub unsafe fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: b
             count >= 0
         } {
             if hasFolding(
-                curwin,
-                (*curwin).w_cursor.lnum,
+                *curwin.as_ptr(),
+                (**curwin.as_ptr()).w_cursor.lnum,
                 ptr::null_mut(),
-                &raw mut (*curwin).w_cursor.lnum,
+                &raw mut (**curwin.as_ptr()).w_cursor.lnum,
             ) {
-                coladvance(curwin, MAXCOL);
+                coladvance(*curwin.as_ptr(), MAXCOL);
             }
             let sclass = cls();
             if inc_cursor() == -1 {
@@ -472,7 +472,7 @@ pub unsafe fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: b
                 }
             } else if !stop || sclass == 0 {
                 while cls() == 0 {
-                    if empty && (*curwin).w_cursor.col == 0 && lineempty((*curwin).w_cursor.lnum) {
+                    if empty && (**curwin.as_ptr()).w_cursor.col == 0 && lineempty((**curwin.as_ptr()).w_cursor.lnum) {
                         finished = true;
                         break;
                     }
@@ -497,7 +497,7 @@ pub unsafe fn end_word(mut count: c_int, bigword: bool, mut stop: bool, empty: b
 /// Move back to the end of the word (`bckend_word`).
 pub unsafe fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
     unsafe {
-        (*curwin).w_cursor.coladd = 0;
+        (**curwin.as_ptr()).w_cursor.coladd = 0;
         tobj_st().CLS_BIGWORD = bigword;
         while {
             count -= 1;
@@ -522,7 +522,7 @@ pub unsafe fn bckend_word(mut count: c_int, bigword: bool, eol: bool) -> c_int {
             }
 
             while cls() == 0 {
-                if (*curwin).w_cursor.col == 0 && lineempty((*curwin).w_cursor.lnum) {
+                if (**curwin.as_ptr()).w_cursor.col == 0 && lineempty((**curwin.as_ptr()).w_cursor.lnum) {
                     break;
                 }
                 i = dec_cursor();
@@ -558,7 +558,7 @@ unsafe fn back_in_line() {
     unsafe {
         let sclass = cls();
         loop {
-            if (*curwin).w_cursor.col == 0 {
+            if (**curwin.as_ptr()).w_cursor.col == 0 {
                 break;
             }
             dec_cursor();
@@ -592,10 +592,10 @@ unsafe fn findsent_forward(mut count: c_int, mut at_start_sent: bool) {
         } {
             findsent(FORWARD, 1);
             if at_start_sent {
-                find_first_blank(&raw mut (*curwin).w_cursor);
+                find_first_blank(&raw mut (**curwin.as_ptr()).w_cursor);
             }
             if count == 0 || at_start_sent {
-                decl(&raw mut (*curwin).w_cursor);
+                decl(&raw mut (**curwin.as_ptr()).w_cursor);
             }
             at_start_sent = !at_start_sent;
         }
@@ -621,13 +621,13 @@ pub unsafe fn current_word(
         tobj_st().CLS_BIGWORD = bigword;
         clearpos(&mut start_pos);
 
-        if Visual.active && *opt_vars().p_sel == b'e' as c_char && lt(Visual.start, (*curwin).w_cursor) {
+        if g_st().Visual.active && *opt_vars().p_sel == b'e' as c_char && lt(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
             dec_cursor();
         }
 
-        if !Visual.active || equalpos((*curwin).w_cursor, Visual.start) {
+        if !g_st().Visual.active || equalpos((**curwin.as_ptr()).w_cursor, g_st().Visual.start) {
             back_in_line();
-            start_pos = (*curwin).w_cursor;
+            start_pos = (**curwin.as_ptr()).w_cursor;
 
             if (cls() == 0) == include {
                 if end_word(1, bigword, true, true) == FAIL {
@@ -635,8 +635,8 @@ pub unsafe fn current_word(
                 }
             } else {
                 fwd_word(1, bigword, true);
-                if (*curwin).w_cursor.col == 0 {
-                    decl(&raw mut (*curwin).w_cursor);
+                if (**curwin.as_ptr()).w_cursor.col == 0 {
+                    decl(&raw mut (**curwin.as_ptr()).w_cursor);
                 } else {
                     oneleft();
                 }
@@ -646,8 +646,8 @@ pub unsafe fn current_word(
                 }
             }
 
-            if Visual.active {
-                Visual.start = start_pos;
+            if g_st().Visual.active {
+                g_st().Visual.start = start_pos;
                 redraw_curbuf_later(UPD_INVERTED);
             } else {
                 (*oap).start = start_pos;
@@ -658,8 +658,8 @@ pub unsafe fn current_word(
 
         while count > 0 {
             inclusive = true;
-            if Visual.active && lt((*curwin).w_cursor, Visual.start) {
-                if decl(&raw mut (*curwin).w_cursor) == -1 {
+            if g_st().Visual.active && lt((**curwin.as_ptr()).w_cursor, g_st().Visual.start) {
+                if decl(&raw mut (**curwin.as_ptr()).w_cursor) == -1 {
                     return FAIL;
                 }
                 if include != (cls() != 0) {
@@ -670,10 +670,10 @@ pub unsafe fn current_word(
                     if bckend_word(1, bigword, true) == FAIL {
                         return FAIL;
                     }
-                    let _ = incl(&raw mut (*curwin).w_cursor);
+                    let _ = incl(&raw mut (**curwin.as_ptr()).w_cursor);
                 }
             } else {
-                if incl(&raw mut (*curwin).w_cursor) == -1 {
+                if incl(&raw mut (**curwin.as_ptr()).w_cursor) == -1 {
                     return FAIL;
                 }
                 if include != (cls() == 0) {
@@ -690,29 +690,29 @@ pub unsafe fn current_word(
             count -= 1;
         }
 
-        if include_white && (cls() != 0 || ((*curwin).w_cursor.col == 0 && !inclusive)) {
-            let pos = (*curwin).w_cursor;
-            (*curwin).w_cursor = start_pos;
+        if include_white && (cls() != 0 || ((**curwin.as_ptr()).w_cursor.col == 0 && !inclusive)) {
+            let pos = (**curwin.as_ptr()).w_cursor;
+            (**curwin.as_ptr()).w_cursor = start_pos;
             if oneleft() == OK {
                 back_in_line();
-                if cls() == 0 && (*curwin).w_cursor.col > 0 {
-                    if Visual.active {
-                        Visual.start = (*curwin).w_cursor;
+                if cls() == 0 && (**curwin.as_ptr()).w_cursor.col > 0 {
+                    if g_st().Visual.active {
+                        g_st().Visual.start = (**curwin.as_ptr()).w_cursor;
                     } else {
-                        (*oap).start = (*curwin).w_cursor;
+                        (*oap).start = (**curwin.as_ptr()).w_cursor;
                     }
                 }
             }
-            (*curwin).w_cursor = pos;
+            (**curwin.as_ptr()).w_cursor = pos;
         }
 
-        if Visual.active {
-            if *opt_vars().p_sel == b'e' as c_char && inclusive && ltoreq(Visual.start, (*curwin).w_cursor) {
+        if g_st().Visual.active {
+            if *opt_vars().p_sel == b'e' as c_char && inclusive && ltoreq(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
                 inc_cursor();
             }
-            if Visual.mode == b'V' as c_int {
-                Visual.mode = b'v' as c_int;
-                redraw_cmdline = true;
+            if g_st().Visual.mode == b'V' as c_int {
+                g_st().Visual.mode = b'v' as c_int;
+                g_st().redraw_cmdline = true;
             }
         } else {
             (*oap).inclusive = inclusive;
@@ -726,28 +726,28 @@ pub unsafe fn current_word(
 pub unsafe fn current_line(oap: *mut oparg_T, include: bool) -> c_int {
     unsafe {
         if include {
-            if Visual.active {
-                Visual.start.lnum = 1;
-                Visual.start.col = 0;
-                Visual.start.coladd = 0;
-                Visual.mode = b'V' as c_int;
+            if g_st().Visual.active {
+                g_st().Visual.start.lnum = 1;
+                g_st().Visual.start.col = 0;
+                g_st().Visual.start.coladd = 0;
+                g_st().Visual.mode = b'V' as c_int;
                 redraw_curbuf_later(UPD_INVERTED);
                 showmode();
             } else {
-                (*oap).cursor_start = (*curwin).w_cursor;
+                (*oap).cursor_start = (**curwin.as_ptr()).w_cursor;
                 (*oap).restore_cursor = true;
                 (*oap).start.lnum = 1;
                 (*oap).start.col = 0;
                 (*oap).start.coladd = 0;
                 (*oap).motion_type = kMTLineWise;
             }
-            (*curwin).w_cursor.lnum = (*curbuf).b_ml.ml_line_count;
-            (*curwin).w_cursor.col = 0;
-            (*curwin).w_cursor.coladd = 0;
+            (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf).b_ml.ml_line_count;
+            (**curwin.as_ptr()).w_cursor.col = 0;
+            (**curwin.as_ptr()).w_cursor.coladd = 0;
             return OK;
         }
 
-        let line = ml_get((*curwin).w_cursor.lnum);
+        let line = ml_get((**curwin.as_ptr()).w_cursor.lnum);
         let start = skipwhite(line);
         let mut end = line.add(CStr::from_ptr(line).to_bytes().len());
         while end > start {
@@ -761,28 +761,28 @@ pub unsafe fn current_line(oap: *mut oparg_T, include: bool) -> c_int {
             return FAIL;
         }
 
-        let mut start_pos = (*curwin).w_cursor;
+        let mut start_pos = (**curwin.as_ptr()).w_cursor;
         start_pos.col = start.offset_from(line) as colnr_T;
         start_pos.coladd = 0;
 
-        let mut end_pos = (*curwin).w_cursor;
+        let mut end_pos = (**curwin.as_ptr()).w_cursor;
         end_pos.col = mb_prevptr(line, end).offset_from(line) as colnr_T;
         end_pos.coladd = 0;
 
-        if Visual.active {
-            Visual.start = start_pos;
-            (*curwin).w_cursor = end_pos;
-            if *opt_vars().p_sel == b'e' as c_char && ltoreq(Visual.start, (*curwin).w_cursor) {
+        if g_st().Visual.active {
+            g_st().Visual.start = start_pos;
+            (**curwin.as_ptr()).w_cursor = end_pos;
+            if *opt_vars().p_sel == b'e' as c_char && ltoreq(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
                 inc_cursor();
             }
-            Visual.mode = b'v' as c_int;
+            g_st().Visual.mode = b'v' as c_int;
             redraw_curbuf_later(UPD_INVERTED);
             showmode();
         } else {
             (*oap).start = start_pos;
             (*oap).motion_type = kMTCharWise;
             (*oap).inclusive = true;
-            (*curwin).w_cursor = end_pos;
+            (**curwin.as_ptr()).w_cursor = end_pos;
         }
 
         OK
@@ -792,21 +792,21 @@ pub unsafe fn current_line(oap: *mut oparg_T, include: bool) -> c_int {
 /// Find sentence(s) under the cursor, cursor at end (`current_sent`).
 pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -> c_int {
     unsafe {
-        let mut start_pos = (*curwin).w_cursor;
+        let mut start_pos = (**curwin.as_ptr()).w_cursor;
         let mut pos = start_pos;
         findsent(FORWARD, 1);
 
-        let do_extend = Visual.active && !equalpos(start_pos, Visual.start);
+        let do_extend = g_st().Visual.active && !equalpos(start_pos, g_st().Visual.start);
         if !do_extend {
             while ascii_iswhite(gchar_pos(&raw mut pos)) {
                 incl(&raw mut pos);
             }
-            let start_blank = if equalpos(pos, (*curwin).w_cursor) {
+            let start_blank = if equalpos(pos, (**curwin.as_ptr()).w_cursor) {
                 find_first_blank(&raw mut start_pos);
                 true
             } else {
                 findsent(BACKWARD, 1);
-                start_pos = (*curwin).w_cursor;
+                start_pos = (**curwin.as_ptr()).w_cursor;
                 false
             };
 
@@ -822,34 +822,34 @@ pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -
             if ncount > 0 {
                 findsent_forward(ncount, true);
             } else {
-                decl(&raw mut (*curwin).w_cursor);
+                decl(&raw mut (**curwin.as_ptr()).w_cursor);
             }
 
             if include {
                 if start_blank {
-                    find_first_blank(&raw mut (*curwin).w_cursor);
-                    let c = gchar_pos(&raw mut (*curwin).w_cursor);
+                    find_first_blank(&raw mut (**curwin.as_ptr()).w_cursor);
+                    let c = gchar_pos(&raw mut (**curwin.as_ptr()).w_cursor);
                     if ascii_iswhite(c) {
-                        decl(&raw mut (*curwin).w_cursor);
+                        decl(&raw mut (**curwin.as_ptr()).w_cursor);
                     }
                 } else if !ascii_iswhite(gchar_cursor()) {
                     find_first_blank(&raw mut start_pos);
                 }
             }
 
-            if Visual.active {
-                if !equalpos(start_pos, (*curwin).w_cursor) {
+            if g_st().Visual.active {
+                if !equalpos(start_pos, (**curwin.as_ptr()).w_cursor) {
                     if *opt_vars().p_sel == b'e' as c_char {
-                        (*curwin).w_cursor.col += 1;
+                        (**curwin.as_ptr()).w_cursor.col += 1;
                     }
-                    Visual.start = start_pos;
-                    Visual.mode = b'v' as c_int;
-                    redraw_cmdline = true;
+                    g_st().Visual.start = start_pos;
+                    g_st().Visual.mode = b'v' as c_int;
+                    g_st().redraw_cmdline = true;
                     redraw_curbuf_later(UPD_INVERTED);
                     return OK;
                 }
             } else {
-                (*oap).inclusive = incl(&raw mut (*curwin).w_cursor) == -1;
+                (*oap).inclusive = incl(&raw mut (**curwin.as_ptr()).w_cursor) == -1;
                 (*oap).start = start_pos;
                 (*oap).motion_type = kMTCharWise;
                 return OK;
@@ -858,10 +858,10 @@ pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -
         }
 
         // extend:
-        if lt(start_pos, Visual.start) {
+        if lt(start_pos, g_st().Visual.start) {
             let mut at_start_sent = true;
             decl(&raw mut pos);
-            while lt(pos, (*curwin).w_cursor) {
+            while lt(pos, (**curwin.as_ptr()).w_cursor) {
                 let c = gchar_pos(&raw mut pos);
                 if !ascii_iswhite(c) {
                     at_start_sent = false;
@@ -871,7 +871,7 @@ pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -
             }
             if !at_start_sent {
                 findsent(BACKWARD, 1);
-                if equalpos((*curwin).w_cursor, start_pos) {
+                if equalpos((**curwin.as_ptr()).w_cursor, start_pos) {
                     at_start_sent = true;
                 } else {
                     findsent(FORWARD, 1);
@@ -886,7 +886,7 @@ pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -
                 old != 0
             } {
                 if at_start_sent {
-                    find_first_blank(&raw mut (*curwin).w_cursor);
+                    find_first_blank(&raw mut (**curwin.as_ptr()).w_cursor);
                 }
                 let c = gchar_cursor();
                 if !at_start_sent || (!include && !ascii_iswhite(c)) {
@@ -897,9 +897,9 @@ pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -
         } else {
             incl(&raw mut pos);
             let mut at_start_sent = true;
-            if !equalpos(pos, (*curwin).w_cursor) {
+            if !equalpos(pos, (**curwin.as_ptr()).w_cursor) {
                 at_start_sent = false;
-                while lt(pos, (*curwin).w_cursor) {
+                while lt(pos, (**curwin.as_ptr()).w_cursor) {
                     let c = gchar_pos(&raw mut pos);
                     if !ascii_iswhite(c) {
                         at_start_sent = true;
@@ -910,7 +910,7 @@ pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -
                 if at_start_sent {
                     findsent(BACKWARD, 1);
                 } else {
-                    (*curwin).w_cursor = start_pos;
+                    (**curwin.as_ptr()).w_cursor = start_pos;
                 }
             }
 
@@ -919,7 +919,7 @@ pub unsafe fn current_sent(oap: *mut oparg_T, mut count: c_int, include: bool) -
             }
             findsent_forward(count, at_start_sent);
             if *opt_vars().p_sel == b'e' as c_char {
-                (*curwin).w_cursor.col += 1;
+                (**curwin.as_ptr()).w_cursor.col += 1;
             }
         }
         OK
@@ -944,11 +944,11 @@ pub unsafe fn current_block(
         let mut end_pos: *mut pos_T;
         let mut sol = false;
 
-        let old_pos = (*curwin).w_cursor;
-        let mut old_end = (*curwin).w_cursor;
+        let old_pos = (**curwin.as_ptr()).w_cursor;
+        let mut old_end = (**curwin.as_ptr()).w_cursor;
         let mut old_start = old_end;
 
-        if !Visual.active || equalpos(Visual.start, (*curwin).w_cursor) {
+        if !g_st().Visual.active || equalpos(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
             setpcmark();
             if what == b'{' as c_int {
                 while inindent(1) {
@@ -958,13 +958,13 @@ pub unsafe fn current_block(
                 }
             }
             if gchar_cursor() == what {
-                (*curwin).w_cursor.col += 1;
+                (**curwin.as_ptr()).w_cursor.col += 1;
             }
-        } else if lt(Visual.start, (*curwin).w_cursor) {
-            old_start = Visual.start;
-            (*curwin).w_cursor = Visual.start;
+        } else if lt(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
+            old_start = g_st().Visual.start;
+            (**curwin.as_ptr()).w_cursor = g_st().Visual.start;
         } else {
-            old_end = Visual.start;
+            old_end = g_st().Visual.start;
         }
 
         let save_cpo = opt_vars().p_cpo;
@@ -984,7 +984,7 @@ pub unsafe fn current_block(
                 if pos.is_null() {
                     break;
                 }
-                (*curwin).w_cursor = *pos;
+                (**curwin.as_ptr()).w_cursor = *pos;
                 start_pos = *pos;
             }
         } else {
@@ -997,7 +997,7 @@ pub unsafe fn current_block(
                 if pos.is_null() {
                     break;
                 }
-                (*curwin).w_cursor = *pos;
+                (**curwin.as_ptr()).w_cursor = *pos;
                 start_pos = *pos;
             }
         }
@@ -1007,63 +1007,63 @@ pub unsafe fn current_block(
             end_pos = findmatch(ptr::null_mut(), other);
             end_pos.is_null()
         } {
-            (*curwin).w_cursor = old_pos;
+            (**curwin.as_ptr()).w_cursor = old_pos;
             return FAIL;
         }
-        (*curwin).w_cursor = *end_pos;
+        (**curwin.as_ptr()).w_cursor = *end_pos;
 
         if !include {
             loop {
                 incl(&raw mut start_pos);
-                sol = (*curwin).w_cursor.col == 0;
-                decl(&raw mut (*curwin).w_cursor);
+                sol = (**curwin.as_ptr()).w_cursor.col == 0;
+                decl(&raw mut (**curwin.as_ptr()).w_cursor);
                 while inindent(1) {
                     sol = true;
-                    if decl(&raw mut (*curwin).w_cursor) != 0 {
+                    if decl(&raw mut (**curwin.as_ptr()).w_cursor) != 0 {
                         break;
                     }
                 }
 
-                if equalpos(start_pos, *end_pos) && Visual.active {
-                    (*curwin).w_cursor = old_pos;
+                if equalpos(start_pos, *end_pos) && g_st().Visual.active {
+                    (**curwin.as_ptr()).w_cursor = old_pos;
                     return FAIL;
                 }
 
                 if !lt(start_pos, old_start)
-                    && !lt(old_end, (*curwin).w_cursor)
-                    && !equalpos(start_pos, (*curwin).w_cursor)
-                    && Visual.active
+                    && !lt(old_end, (**curwin.as_ptr()).w_cursor)
+                    && !equalpos(start_pos, (**curwin.as_ptr()).w_cursor)
+                    && g_st().Visual.active
                 {
-                    (*curwin).w_cursor = old_start;
-                    decl(&raw mut (*curwin).w_cursor);
+                    (**curwin.as_ptr()).w_cursor = old_start;
+                    decl(&raw mut (**curwin.as_ptr()).w_cursor);
                     pos = findmatch(ptr::null_mut(), what);
                     if pos.is_null() {
-                        (*curwin).w_cursor = old_pos;
+                        (**curwin.as_ptr()).w_cursor = old_pos;
                         return FAIL;
                     }
                     start_pos = *pos;
-                    (*curwin).w_cursor = *pos;
+                    (**curwin.as_ptr()).w_cursor = *pos;
                     end_pos = findmatch(ptr::null_mut(), other);
                     if end_pos.is_null() {
-                        (*curwin).w_cursor = old_pos;
+                        (**curwin.as_ptr()).w_cursor = old_pos;
                         return FAIL;
                     }
-                    (*curwin).w_cursor = *end_pos;
+                    (**curwin.as_ptr()).w_cursor = *end_pos;
                 } else {
                     break;
                 }
             }
         }
 
-        if Visual.active {
+        if g_st().Visual.active {
             if *opt_vars().p_sel == b'e' as c_char {
-                inc(&raw mut (*curwin).w_cursor);
+                inc(&raw mut (**curwin.as_ptr()).w_cursor);
             }
             if sol && gchar_cursor() != c_int::from(NUL) {
-                inc(&raw mut (*curwin).w_cursor);
+                inc(&raw mut (**curwin.as_ptr()).w_cursor);
             }
-            Visual.start = start_pos;
-            Visual.mode = b'v' as c_int;
+            g_st().Visual.start = start_pos;
+            g_st().Visual.mode = b'v' as c_int;
             redraw_curbuf_later(UPD_INVERTED);
             showmode();
         } else {
@@ -1071,11 +1071,11 @@ pub unsafe fn current_block(
             (*oap).motion_type = kMTCharWise;
             (*oap).inclusive = false;
             if sol {
-                incl(&raw mut (*curwin).w_cursor);
-            } else if ltoreq(start_pos, (*curwin).w_cursor) {
+                incl(&raw mut (**curwin.as_ptr()).w_cursor);
+            } else if ltoreq(start_pos, (**curwin.as_ptr()).w_cursor) {
                 (*oap).inclusive = true;
             } else {
-                (*curwin).w_cursor = start_pos;
+                (**curwin.as_ptr()).w_cursor = start_pos;
             }
         }
 
@@ -1087,7 +1087,7 @@ pub unsafe fn current_block(
 unsafe fn in_html_tag(end_tag: bool) -> bool {
     unsafe {
         let line = get_cursor_line_ptr();
-        let mut p = line.add((*curwin).w_cursor.col as usize);
+        let mut p = line.add((**curwin.as_ptr()).w_cursor.col as usize);
         let mut lc: c_int = c_int::from(NUL);
 
         while p > line {
@@ -1105,7 +1105,7 @@ unsafe fn in_html_tag(end_tag: bool) -> bool {
         }
 
         let mut pos = pos_T {
-            lnum: (*curwin).w_cursor.lnum,
+            lnum: (**curwin.as_ptr()).w_cursor.lnum,
             col: p.offset_from(line) as colnr_T,
             coladd: 0,
         };
@@ -1144,14 +1144,14 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
 
         opt_vars().p_ws = 0;
 
-        let old_pos = (*curwin).w_cursor;
-        let mut old_end = (*curwin).w_cursor;
+        let old_pos = (**curwin.as_ptr()).w_cursor;
+        let mut old_end = (**curwin.as_ptr()).w_cursor;
         let mut old_start = old_end;
-        if !Visual.active || *opt_vars().p_sel == b'e' as c_char {
+        if !g_st().Visual.active || *opt_vars().p_sel == b'e' as c_char {
             decl(&raw mut old_end);
         }
 
-        if !Visual.active || equalpos(Visual.start, (*curwin).w_cursor) {
+        if !g_st().Visual.active || equalpos(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
             setpcmark();
 
             while inindent(1) {
@@ -1173,13 +1173,13 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
                     }
                 }
                 dec_cursor();
-                old_end = (*curwin).w_cursor;
+                old_end = (**curwin.as_ptr()).w_cursor;
             }
-        } else if lt(Visual.start, (*curwin).w_cursor) {
-            old_start = Visual.start;
-            (*curwin).w_cursor = Visual.start;
+        } else if lt(g_st().Visual.start, (**curwin.as_ptr()).w_cursor) {
+            old_start = g_st().Visual.start;
+            (**curwin.as_ptr()).w_cursor = g_st().Visual.start;
         } else {
-            old_end = Visual.start;
+            old_end = g_st().Visual.start;
         }
 
         'again: loop {
@@ -1196,12 +1196,12 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
                     0,
                 ) <= 0
                 {
-                    (*curwin).w_cursor = old_pos;
+                    (**curwin.as_ptr()).w_cursor = old_pos;
                     opt_vars().p_ws = save_p_ws;
                     return retval;
                 }
             }
-            let mut start_pos = (*curwin).w_cursor;
+            let mut start_pos = (**curwin.as_ptr()).w_cursor;
 
             inc_cursor();
             let p = get_cursor_pos_ptr();
@@ -1211,7 +1211,7 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
             }
             let len = cp.offset_from(p) as usize;
             if len == 0 {
-                (*curwin).w_cursor = old_pos;
+                (**curwin.as_ptr()).w_cursor = old_pos;
                 opt_vars().p_ws = save_p_ws;
                 return retval;
             }
@@ -1239,9 +1239,9 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
                 0,
             );
 
-            if r < 1 || lt((*curwin).w_cursor, old_end) {
+            if r < 1 || lt((**curwin.as_ptr()).w_cursor, old_end) {
                 count = 1;
-                (*curwin).w_cursor = start_pos;
+                (**curwin.as_ptr()).w_cursor = start_pos;
                 continue 'again;
             }
 
@@ -1253,52 +1253,52 @@ pub unsafe fn current_tagblock(oap: *mut oparg_T, count_arg: c_int, include: boo
                 }
             } else {
                 let c = get_cursor_pos_ptr();
-                if *c == b'<' as c_char && !Visual.active && (*curwin).w_cursor.col == 0 {
+                if *c == b'<' as c_char && !g_st().Visual.active && (**curwin.as_ptr()).w_cursor.col == 0 {
                     is_inclusive = false;
                 } else if *c == b'<' as c_char {
                     dec_cursor();
                 }
             }
-            let end_pos = (*curwin).w_cursor;
+            let end_pos = (**curwin.as_ptr()).w_cursor;
 
             if !do_include {
                 let mut in_quotes = false;
-                (*curwin).w_cursor = start_pos;
+                (**curwin.as_ptr()).w_cursor = start_pos;
                 while inc_cursor() >= 0 {
                     let p_cur = get_cursor_pos_ptr();
                     if *p_cur == b'>' as c_char && !in_quotes {
                         inc_cursor();
-                        start_pos = (*curwin).w_cursor;
+                        start_pos = (**curwin.as_ptr()).w_cursor;
                         break;
                     } else if *p_cur == b'"' as c_char || *p_cur == b'\'' as c_char {
                         in_quotes = !in_quotes;
                     }
                 }
-                (*curwin).w_cursor = end_pos;
+                (**curwin.as_ptr()).w_cursor = end_pos;
 
-                if Visual.active && equalpos(start_pos, old_start) && equalpos(end_pos, old_end) {
+                if g_st().Visual.active && equalpos(start_pos, old_start) && equalpos(end_pos, old_end) {
                     do_include = true;
-                    (*curwin).w_cursor = old_start;
+                    (**curwin.as_ptr()).w_cursor = old_start;
                     count = count_arg;
                     continue 'again;
                 }
             }
 
-            if Visual.active {
+            if g_st().Visual.active {
                 if lt(end_pos, start_pos) {
-                    (*curwin).w_cursor = start_pos;
+                    (**curwin.as_ptr()).w_cursor = start_pos;
                 } else if *opt_vars().p_sel == b'e' as c_char {
                     inc_cursor();
                 }
-                Visual.start = start_pos;
-                Visual.mode = b'v' as c_int;
+                g_st().Visual.start = start_pos;
+                g_st().Visual.mode = b'v' as c_int;
                 redraw_curbuf_later(UPD_INVERTED);
                 showmode();
             } else {
                 (*oap).start = start_pos;
                 (*oap).motion_type = kMTCharWise;
                 if lt(end_pos, start_pos) {
-                    (*curwin).w_cursor = start_pos;
+                    (**curwin.as_ptr()).w_cursor = start_pos;
                     (*oap).inclusive = false;
                 } else {
                     (*oap).inclusive = is_inclusive;
@@ -1323,9 +1323,9 @@ pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_:
             return FAIL;
         }
 
-        let mut start_lnum = (*curwin).w_cursor.lnum;
+        let mut start_lnum = (**curwin.as_ptr()).w_cursor.lnum;
 
-        let do_extend = Visual.active && start_lnum != Visual.start.lnum;
+        let do_extend = g_st().Visual.active && start_lnum != g_st().Visual.start.lnum;
         if !do_extend {
             let white_in_front = linewhite(start_lnum);
             while start_lnum > 1 {
@@ -1340,7 +1340,7 @@ pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_:
             }
 
             let mut end_lnum = start_lnum;
-            while end_lnum <= (*curbuf).b_ml.ml_line_count && linewhite(end_lnum) {
+            while end_lnum <= (*g_st().curbuf).b_ml.ml_line_count && linewhite(end_lnum) {
                 end_lnum += 1;
             }
 
@@ -1354,7 +1354,7 @@ pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_:
                 i -= 1;
                 old != 0
             } {
-                if end_lnum == (*curbuf).b_ml.ml_line_count {
+                if end_lnum == (*g_st().curbuf).b_ml.ml_line_count {
                     return FAIL;
                 }
 
@@ -1364,7 +1364,7 @@ pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_:
 
                 if include || !do_white {
                     end_lnum += 1;
-                    while end_lnum < (*curbuf).b_ml.ml_line_count
+                    while end_lnum < (*g_st().curbuf).b_ml.ml_line_count
                         && !linewhite(end_lnum + 1)
                         && !startPS(end_lnum + 1, 0, false)
                     {
@@ -1377,7 +1377,7 @@ pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_:
                 }
 
                 if include || do_white {
-                    while end_lnum < (*curbuf).b_ml.ml_line_count && linewhite(end_lnum + 1) {
+                    while end_lnum < (*g_st().curbuf).b_ml.ml_line_count && linewhite(end_lnum + 1) {
                         end_lnum += 1;
                     }
                 }
@@ -1389,31 +1389,31 @@ pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_:
                 }
             }
 
-            if Visual.active {
-                if !(Visual.mode == b'V' as c_int && start_lnum == (*curwin).w_cursor.lnum) {
-                    if Visual.start.lnum != start_lnum {
-                        Visual.start.lnum = start_lnum;
-                        Visual.start.col = 0;
+            if g_st().Visual.active {
+                if !(g_st().Visual.mode == b'V' as c_int && start_lnum == (**curwin.as_ptr()).w_cursor.lnum) {
+                    if g_st().Visual.start.lnum != start_lnum {
+                        g_st().Visual.start.lnum = start_lnum;
+                        g_st().Visual.start.col = 0;
                     }
-                    Visual.mode = b'V' as c_int;
+                    g_st().Visual.mode = b'V' as c_int;
                     redraw_curbuf_later(UPD_INVERTED);
                     showmode();
-                    (*curwin).w_cursor.lnum = end_lnum;
-                    (*curwin).w_cursor.col = 0;
+                    (**curwin.as_ptr()).w_cursor.lnum = end_lnum;
+                    (**curwin.as_ptr()).w_cursor.col = 0;
                     return OK;
                 }
             } else {
                 (*oap).start.lnum = start_lnum;
                 (*oap).start.col = 0;
                 (*oap).motion_type = kMTLineWise;
-                (*curwin).w_cursor.lnum = end_lnum;
-                (*curwin).w_cursor.col = 0;
+                (**curwin.as_ptr()).w_cursor.lnum = end_lnum;
+                (**curwin.as_ptr()).w_cursor.col = 0;
                 return OK;
             }
         }
 
         // extend:
-        let dir = if start_lnum < Visual.start.lnum {
+        let dir = if start_lnum < g_st().Visual.start.lnum {
             BACKWARD
         } else {
             FORWARD
@@ -1427,7 +1427,7 @@ pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_:
                 == (if dir == BACKWARD {
                     1
                 } else {
-                    (*curbuf).b_ml.ml_line_count
+                    (*g_st().curbuf).b_ml.ml_line_count
                 })
             {
                 retval = FAIL;
@@ -1447,7 +1447,7 @@ pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_:
                         == (if dir == BACKWARD {
                             1
                         } else {
-                            (*curbuf).b_ml.ml_line_count
+                            (*g_st().curbuf).b_ml.ml_line_count
                         })
                     {
                         break;
@@ -1467,7 +1467,7 @@ pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_:
                     == (if dir == BACKWARD {
                         1
                     } else {
-                        (*curbuf).b_ml.ml_line_count
+                        (*g_st().curbuf).b_ml.ml_line_count
                     })
                 {
                     break;
@@ -1475,8 +1475,8 @@ pub unsafe fn current_par(oap: *mut oparg_T, count: c_int, include: bool, type_:
                 prev_start_is_white = c_int::from(start_is_white);
             }
         }
-        (*curwin).w_cursor.lnum = start_lnum;
-        (*curwin).w_cursor.col = 0;
+        (**curwin.as_ptr()).w_cursor.lnum = start_lnum;
+        (**curwin.as_ptr()).w_cursor.col = 0;
         retval
     }
 }
@@ -1550,7 +1550,7 @@ pub unsafe fn current_quote(
     unsafe {
         let line = get_cursor_line_ptr();
         let mut col_end: c_int;
-        let mut col_start: c_int = (*curwin).w_cursor.col;
+        let mut col_start: c_int = (**curwin.as_ptr()).w_cursor.col;
         let mut inclusive = false;
         let mut vis_empty = true;
         let mut vis_bef_curs = false;
@@ -1560,35 +1560,35 @@ pub unsafe fn current_quote(
         let mut restore_vis_bef = false;
 
         let abort_search = |did_exclusive_adj: bool, restore_vis_bef: bool| -> bool {
-            if Visual.active && *opt_vars().p_sel == b'e' as c_char {
+            if g_st().Visual.active && *opt_vars().p_sel == b'e' as c_char {
                 if did_exclusive_adj {
                     inc_cursor();
                 }
                 if restore_vis_bef {
-                    ptr::swap(&raw mut (*curwin).w_cursor, &raw mut Visual.start);
+                    ptr::swap(&raw mut (**curwin.as_ptr()).w_cursor, &raw mut g_st().Visual.start);
                 }
             }
             false
         };
 
-        if Visual.active {
-            if Visual.start.lnum != (*curwin).w_cursor.lnum {
+        if g_st().Visual.active {
+            if g_st().Visual.start.lnum != (**curwin.as_ptr()).w_cursor.lnum {
                 return false;
             }
 
-            vis_bef_curs = lt(Visual.start, (*curwin).w_cursor);
-            vis_empty = equalpos(Visual.start, (*curwin).w_cursor);
+            vis_bef_curs = lt(g_st().Visual.start, (**curwin.as_ptr()).w_cursor);
+            vis_empty = equalpos(g_st().Visual.start, (**curwin.as_ptr()).w_cursor);
             if *opt_vars().p_sel == b'e' as c_char {
                 if vis_bef_curs {
                     dec_cursor();
                     did_exclusive_adj = true;
                 } else if !vis_empty {
-                    dec(&raw mut Visual.start);
+                    dec(&raw mut g_st().Visual.start);
                     did_exclusive_adj = true;
                 }
-                vis_empty = equalpos(Visual.start, (*curwin).w_cursor);
+                vis_empty = equalpos(g_st().Visual.start, (**curwin.as_ptr()).w_cursor);
                 if !vis_bef_curs && !vis_empty {
-                    ptr::swap(&raw mut (*curwin).w_cursor, &raw mut Visual.start);
+                    ptr::swap(&raw mut (**curwin.as_ptr()).w_cursor, &raw mut g_st().Visual.start);
                     vis_bef_curs = true;
                     restore_vis_bef = true;
                 }
@@ -1598,21 +1598,21 @@ pub unsafe fn current_quote(
         if !vis_empty {
             let mut i: c_int;
             if vis_bef_curs {
-                inside_quotes = Visual.start.col > 0
-                    && c_int::from(*line.add((Visual.start.col - 1) as usize) as u8) == quotechar
-                    && *line.add((*curwin).w_cursor.col as usize) != NUL
-                    && c_int::from(*line.add(((*curwin).w_cursor.col + 1) as usize) as u8)
+                inside_quotes = g_st().Visual.start.col > 0
+                    && c_int::from(*line.add((g_st().Visual.start.col - 1) as usize) as u8) == quotechar
+                    && *line.add((**curwin.as_ptr()).w_cursor.col as usize) != NUL
+                    && c_int::from(*line.add(((**curwin.as_ptr()).w_cursor.col + 1) as usize) as u8)
                         == quotechar;
-                i = Visual.start.col;
-                col_end = (*curwin).w_cursor.col;
+                i = g_st().Visual.start.col;
+                col_end = (**curwin.as_ptr()).w_cursor.col;
             } else {
-                inside_quotes = (*curwin).w_cursor.col > 0
-                    && c_int::from(*line.add(((*curwin).w_cursor.col - 1) as usize) as u8)
+                inside_quotes = (**curwin.as_ptr()).w_cursor.col > 0
+                    && c_int::from(*line.add(((**curwin.as_ptr()).w_cursor.col - 1) as usize) as u8)
                         == quotechar
-                    && *line.add(Visual.start.col as usize) != NUL
-                    && c_int::from(*line.add((Visual.start.col + 1) as usize) as u8) == quotechar;
-                i = (*curwin).w_cursor.col;
-                col_end = Visual.start.col;
+                    && *line.add(g_st().Visual.start.col as usize) != NUL
+                    && c_int::from(*line.add((g_st().Visual.start.col + 1) as usize) as u8) == quotechar;
+                i = (**curwin.as_ptr()).w_cursor.col;
+                col_end = g_st().Visual.start.col;
             }
 
             while i <= col_end {
@@ -1634,20 +1634,20 @@ pub unsafe fn current_quote(
                 if col_start < 0 {
                     return abort_search(did_exclusive_adj, restore_vis_bef);
                 }
-                col_end = find_next_quote(line, col_start + 1, quotechar, (*curbuf).b_p_qe);
+                col_end = find_next_quote(line, col_start + 1, quotechar, (*g_st().curbuf).b_p_qe);
                 if col_end < 0 {
                     col_end = col_start;
-                    col_start = (*curwin).w_cursor.col;
+                    col_start = (**curwin.as_ptr()).w_cursor.col;
                 }
             } else {
                 col_end = find_prev_quote(line, col_start, quotechar, ptr::null_mut());
                 if c_int::from(*line.add(col_end as usize) as u8) != quotechar {
                     return abort_search(did_exclusive_adj, restore_vis_bef);
                 }
-                col_start = find_prev_quote(line, col_end, quotechar, (*curbuf).b_p_qe);
+                col_start = find_prev_quote(line, col_end, quotechar, (*g_st().curbuf).b_p_qe);
                 if c_int::from(*line.add(col_start as usize) as u8) != quotechar {
                     col_start = col_end;
-                    col_end = (*curwin).w_cursor.col;
+                    col_end = (**curwin.as_ptr()).w_cursor.col;
                 }
             }
         } else if c_int::from(*line.add(col_start as usize) as u8) == quotechar || !vis_empty {
@@ -1666,7 +1666,7 @@ pub unsafe fn current_quote(
                 if col_start < 0 || col_start > first_col {
                     return abort_search(did_exclusive_adj, restore_vis_bef);
                 }
-                col_end = find_next_quote(line, col_start + 1, quotechar, (*curbuf).b_p_qe);
+                col_end = find_next_quote(line, col_start + 1, quotechar, (*g_st().curbuf).b_p_qe);
                 if col_end < 0 {
                     return abort_search(did_exclusive_adj, restore_vis_bef);
                 }
@@ -1676,7 +1676,7 @@ pub unsafe fn current_quote(
                 col_start = col_end + 1;
             }
         } else {
-            col_start = find_prev_quote(line, col_start, quotechar, (*curbuf).b_p_qe);
+            col_start = find_prev_quote(line, col_start, quotechar, (*g_st().curbuf).b_p_qe);
             if c_int::from(*line.add(col_start as usize) as u8) != quotechar {
                 col_start = find_next_quote(line, col_start, quotechar, ptr::null_mut());
                 if col_start < 0 {
@@ -1684,7 +1684,7 @@ pub unsafe fn current_quote(
                 }
             }
 
-            col_end = find_next_quote(line, col_start + 1, quotechar, (*curbuf).b_p_qe);
+            col_end = find_next_quote(line, col_start + 1, quotechar, (*g_st().curbuf).b_p_qe);
             if col_end < 0 {
                 return abort_search(did_exclusive_adj, restore_vis_bef);
             }
@@ -1707,30 +1707,30 @@ pub unsafe fn current_quote(
         if !include && count < 2 && (vis_empty || !inside_quotes) {
             col_start += 1;
         }
-        (*curwin).w_cursor.col = col_start;
-        if Visual.active {
+        (**curwin.as_ptr()).w_cursor.col = col_start;
+        if g_st().Visual.active {
             if vis_empty
                 || (vis_bef_curs
                     && !selected_quote
                     && (inside_quotes
-                        || (c_int::from(*line.add(Visual.start.col as usize) as u8) != quotechar
-                            && (Visual.start.col == 0
-                                || c_int::from(*line.add((Visual.start.col - 1) as usize) as u8)
+                        || (c_int::from(*line.add(g_st().Visual.start.col as usize) as u8) != quotechar
+                            && (g_st().Visual.start.col == 0
+                                || c_int::from(*line.add((g_st().Visual.start.col - 1) as usize) as u8)
                                     != quotechar))))
             {
-                Visual.start = (*curwin).w_cursor;
+                g_st().Visual.start = (**curwin.as_ptr()).w_cursor;
                 redraw_curbuf_later(UPD_INVERTED);
             }
         } else {
-            (*oap).start = (*curwin).w_cursor;
+            (*oap).start = (**curwin.as_ptr()).w_cursor;
             (*oap).motion_type = kMTCharWise;
         }
 
-        (*curwin).w_cursor.col = col_end;
+        (**curwin.as_ptr()).w_cursor.col = col_end;
         if (include || count > 1 || (!vis_empty && inside_quotes)) && inc_cursor() == 2 {
             inclusive = true;
         }
-        if Visual.active {
+        if g_st().Visual.active {
             if vis_empty || vis_bef_curs {
                 if *opt_vars().p_sel != b'e' as c_char {
                     dec_cursor();
@@ -1738,19 +1738,19 @@ pub unsafe fn current_quote(
             } else {
                 if inside_quotes
                     || (!selected_quote
-                        && c_int::from(*line.add(Visual.start.col as usize) as u8) != quotechar
-                        && (*line.add(Visual.start.col as usize) == NUL
-                            || c_int::from(*line.add((Visual.start.col + 1) as usize) as u8)
+                        && c_int::from(*line.add(g_st().Visual.start.col as usize) as u8) != quotechar
+                        && (*line.add(g_st().Visual.start.col as usize) == NUL
+                            || c_int::from(*line.add((g_st().Visual.start.col + 1) as usize) as u8)
                                 != quotechar))
                 {
                     dec_cursor();
-                    Visual.start = (*curwin).w_cursor;
+                    g_st().Visual.start = (**curwin.as_ptr()).w_cursor;
                 }
-                (*curwin).w_cursor.col = col_start;
+                (**curwin.as_ptr()).w_cursor.col = col_start;
             }
-            if Visual.mode == b'V' as c_int {
-                Visual.mode = b'v' as c_int;
-                redraw_cmdline = true;
+            if g_st().Visual.mode == b'V' as c_int {
+                g_st().Visual.mode = b'v' as c_int;
+                g_st().redraw_cmdline = true;
             }
         } else {
             (*oap).inclusive = inclusive;

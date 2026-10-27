@@ -563,7 +563,7 @@ unsafe fn nlua_traverse_table(lstate: *mut lua_State) -> LuaTableProps {
         {
             ret.table_type = ObjectType::kObjectTypeArray;
             if tsize == 0 && lua_getmetatable(lstate, -1) != 0 {
-                nlua_pushref(lstate, (*nlua_global_refs).empty_dict_ref);
+                nlua_pushref(lstate, (*g_st().nlua_global_refs).empty_dict_ref);
                 if lua_rawequal(lstate, -2, -1) != 0 {
                     ret.table_type = ObjectType::kObjectTypeDict;
                 }
@@ -814,7 +814,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_typval(
                     (*cur.tv).v_type = VarType::VAR_FUNC;
                 }
                 LUA_TUSERDATA => {
-                    nlua_pushref(lstate, (*nlua_global_refs).nil_ref);
+                    nlua_pushref(lstate, (*g_st().nlua_global_refs).nil_ref);
                     let is_nil = lua_rawequal(lstate, -2, -1) != 0;
                     lua_pop(lstate, 1);
                     if is_nil {
@@ -855,7 +855,7 @@ unsafe fn lua_conv_nil(lstate: *mut lua_State) {
         if luaconv_st().TYPVAL_CONV_SPECIAL {
             lua_pushnil(lstate);
         } else {
-            nlua_pushref(lstate, (*nlua_global_refs).nil_ref);
+            nlua_pushref(lstate, (*g_st().nlua_global_refs).nil_ref);
         }
     }
 }
@@ -867,7 +867,7 @@ unsafe fn lua_conv_empty_dict(lstate: *mut lua_State) {
             nlua_create_typed_table(lstate, 0, 0, ObjectType::kObjectTypeDict);
         } else {
             lua_createtable(lstate, 0, 0);
-            nlua_pushref(lstate, (*nlua_global_refs).empty_dict_ref);
+            nlua_pushref(lstate, (*g_st().nlua_global_refs).empty_dict_ref);
             lua_setmetatable(lstate, -2);
         }
     }
@@ -1451,7 +1451,7 @@ pub unsafe extern "C-unwind" fn nlua_push_Dict(
     unsafe {
         lua_createtable(lstate, 0, dict.size as c_int);
         if dict.size == 0 {
-            nlua_pushref(lstate, (*nlua_global_refs).empty_dict_ref);
+            nlua_pushref(lstate, (*g_st().nlua_global_refs).empty_dict_ref);
             lua_setmetatable(lstate, -2);
         }
         for item in dict.as_mut_slice() {
@@ -1501,7 +1501,7 @@ pub unsafe extern "C-unwind" fn nlua_push_Object(
                 if (flags & K_NLUA_PUSH_SPECIAL) != 0 {
                     lua_pushnil(lstate);
                 } else {
-                    nlua_pushref(lstate, (*nlua_global_refs).nil_ref);
+                    nlua_pushref(lstate, (*g_st().nlua_global_refs).nil_ref);
                 }
             }
             ObjectType::kObjectTypeLuaRef => {
@@ -1999,7 +1999,7 @@ pub unsafe extern "C-unwind" fn nlua_pop_Object(
                     }
                 }
                 LUA_TUSERDATA => {
-                    nlua_pushref(lstate, (*nlua_global_refs).nil_ref);
+                    nlua_pushref(lstate, (*g_st().nlua_global_refs).nil_ref);
                     let is_nil = lua_rawequal(lstate, -2, -1) != 0;
                     lua_pop(lstate, 1);
                     if is_nil {

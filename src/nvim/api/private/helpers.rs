@@ -277,7 +277,7 @@ pub unsafe fn with_script_context<F: FnOnce()>(channel_id: u64, f: F) {
     unsafe {
         let save_current_sctx = api_set_sctx(channel_id);
         f();
-        current_sctx = save_current_sctx;
+        g_st().current_sctx = save_current_sctx;
     }
 }
 
@@ -356,42 +356,42 @@ pub unsafe fn error_set(e: *const Error) -> bool {
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
 pub unsafe fn try_enter(tstate: *mut TryState) {
     unsafe {
-        let ml = &raw mut msg_list;
+        let ml = &raw mut g_st().msg_list;
         let saved_msg_list = (*ml).replace(Vec::new());
-        let ce = &raw mut current_exception;
+        let ce = &raw mut g_st().current_exception;
         let saved_excp = (*ce).take();
         ptr::write(
             tstate,
             TryState {
                 current_exception: saved_excp,
                 msg_list: saved_msg_list,
-                got_int: c_int::from(got_int),
-                did_throw,
-                need_rethrow: c_int::from(need_rethrow),
-                did_emsg,
+                got_int: c_int::from(g_st().got_int),
+                did_throw: g_st().did_throw,
+                need_rethrow: c_int::from(g_st().need_rethrow),
+                did_emsg: g_st().did_emsg,
             },
         );
-        got_int = false;
-        did_throw = false;
-        need_rethrow = false;
-        did_emsg = 0;
-        trylevel += 1;
+        g_st().got_int = false;
+        g_st().did_throw = false;
+        g_st().need_rethrow = false;
+        g_st().did_emsg = 0;
+        g_st().trylevel += 1;
     }
 }
 
 /// Ends a `try_enter` block; sets error message if any (`try_leave`).
 pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
     unsafe {
-        debug_assert!(trylevel > 0);
-        trylevel -= 1;
+        debug_assert!(g_st().trylevel > 0);
+        g_st().trylevel -= 1;
 
-        did_emsg = 0;
-        force_abort = false;
+        g_st().did_emsg = 0;
+        g_st().force_abort = false;
 
-        let ml = &raw const msg_list;
-        let ce = &raw const current_exception;
-        if got_int {
-            if did_throw {
+        let ml = &raw const g_st().msg_list;
+        let ce = &raw const g_st().current_exception;
+        if g_st().got_int {
+            if g_st().did_throw {
                 discard_current_exception();
             }
             api_set_error!(
@@ -399,7 +399,7 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
                 ErrorType::kErrorTypeException,
                 c"Keyboard interrupt".as_ptr(),
             );
-            got_int = false;
+            g_st().got_int = false;
         } else if let Some(ref msgs) = *ml
             && !msgs.is_empty()
         {
@@ -412,7 +412,7 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
                 msg.as_ptr()
             );
             free_global_msglist();
-        } else if did_throw || need_rethrow {
+        } else if g_st().did_throw || g_st().need_rethrow {
             if let Some(ref excp) = *ce {
                 if !excp.throw_name.as_bytes().is_empty() {
                     if excp.throw_lnum != 0 {
@@ -445,12 +445,12 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
             discard_current_exception();
         }
 
-        msg_list = (*tstate).msg_list.clone();
-        current_exception = (*tstate).current_exception.clone();
-        got_int = (*tstate).got_int != 0;
-        did_throw = (*tstate).did_throw;
-        need_rethrow = (*tstate).need_rethrow != 0;
-        did_emsg = (*tstate).did_emsg;
+        g_st().msg_list = (*tstate).msg_list.clone();
+        g_st().current_exception = (*tstate).current_exception.clone();
+        g_st().got_int = (*tstate).got_int != 0;
+        g_st().did_throw = (*tstate).did_throw;
+        g_st().need_rethrow = (*tstate).need_rethrow != 0;
+        g_st().did_emsg = (*tstate).did_emsg;
     }
 }
 
@@ -620,9 +620,9 @@ pub unsafe fn dict_set_var(
 pub unsafe fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf_T {
     unsafe {
         if buffer == 0 {
-            return curbuf;
+            return g_st().curbuf;
         }
-        let map_ptr = &raw const buffer_handles;
+        let map_ptr = &raw const g_st().buffer_handles;
         let rv = (*map_ptr).get(&buffer).copied().unwrap_or(ptr::null_mut());
         if rv.is_null() {
             api_set_error!(
@@ -641,9 +641,9 @@ pub unsafe fn find_buffer_by_handle(buffer: Buffer, err: *mut Error) -> *mut buf
 pub unsafe extern "C" fn find_window_by_handle(window: Window, err: *mut Error) -> *mut win_T {
     unsafe {
         if window == 0 {
-            return curwin;
+            return *curwin.as_ptr();
         }
-        let map_ptr = &raw const window_handles;
+        let map_ptr = &raw const g_st().window_handles;
         let rv = (*map_ptr).get(&window).copied().unwrap_or(ptr::null_mut());
         if rv.is_null() {
             api_set_error!(
@@ -661,9 +661,9 @@ pub unsafe extern "C" fn find_window_by_handle(window: Window, err: *mut Error) 
 pub unsafe fn find_tab_by_handle(tabpage: Tabpage, err: *mut Error) -> *mut tabpage_T {
     unsafe {
         if tabpage == 0 {
-            return curtab;
+            return g_st().curtab;
         }
-        let map_ptr = &raw const tabpage_handles;
+        let map_ptr = &raw const g_st().tabpage_handles;
         let rv = (*map_ptr).get(&tabpage).copied().unwrap_or(ptr::null_mut());
         if rv.is_null() {
             api_set_error!(
@@ -1448,7 +1448,7 @@ pub unsafe fn set_mark(
 ) -> bool {
     unsafe {
         if buf.is_null() {
-            buf = curbuf;
+            buf = g_st().curbuf;
         }
         let mut deleting = false;
         if line == 0 {
@@ -1513,14 +1513,14 @@ pub unsafe fn get_default_stl_hl(
         if wp.is_null() {
             c"TabLineFill".as_ptr()
         } else if use_winbar {
-            if wp == curwin {
+            if wp == *curwin.as_ptr() {
                 c"WinBar".as_ptr()
             } else {
                 c"WinBarNC".as_ptr()
             }
         } else if stc_hl_id > 0 {
             syn_id2name(stc_hl_id)
-        } else if wp == curwin {
+        } else if wp == *curwin.as_ptr() {
             c"StatusLine".as_ptr()
         } else {
             c"StatusLineNC".as_ptr()
@@ -1530,16 +1530,16 @@ pub unsafe fn get_default_stl_hl(
 
 pub unsafe fn api_set_sctx(channel_id: u64) -> sctx_T {
     unsafe {
-        let old_current_sctx = current_sctx;
+        let old_current_sctx = g_st().current_sctx;
         if channel_id != VIML_INTERNAL_CALL {
-            current_sctx.sc_lnum = 0;
+            g_st().current_sctx.sc_lnum = 0;
             if channel_id == LUA_INTERNAL_CALL {
-                if !script_is_lua(current_sctx.sc_sid) {
-                    current_sctx.sc_sid = SID_LUA;
+                if !script_is_lua(g_st().current_sctx.sc_sid) {
+                    g_st().current_sctx.sc_sid = SID_LUA;
                 }
             } else {
-                current_sctx.sc_sid = SID_API_CLIENT;
-                current_sctx.sc_chan = channel_id;
+                g_st().current_sctx.sc_sid = SID_API_CLIENT;
+                g_st().current_sctx.sc_chan = channel_id;
             }
         }
         old_current_sctx

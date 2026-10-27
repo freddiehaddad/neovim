@@ -229,7 +229,7 @@ pub unsafe fn channel_outstream(chan: *mut Channel) -> *mut RStream {
 #[inline]
 pub unsafe fn find_channel(id: u64) -> *mut Channel {
     unsafe {
-        let chans_ptr = &raw const channels;
+        let chans_ptr = &raw const g_st().channels;
         (*chans_ptr).get(&id).copied().unwrap_or(ptr::null_mut())
     }
 }
@@ -241,8 +241,8 @@ fn unpacker_closed(p: *const Unpacker) -> bool {
 
 pub unsafe fn rpc_init() {
     unsafe {
-        let qc = loop_queues((&raw mut main_loop).cast());
-        ch_before_blocking_events = multiqueue_new_child((*qc).events);
+        let qc = loop_queues((&raw mut g_st().main_loop).cast());
+        g_st().ch_before_blocking_events = multiqueue_new_child((*qc).events);
     }
 }
 
@@ -350,7 +350,7 @@ pub unsafe fn rpc_send_call(
             if !(*cp).events.is_null() && !multiqueue_empty((*cp).events) {
                 multiqueue_process_events((*cp).events);
             } else {
-                loop_poll_events((&raw mut main_loop).cast(), -1);
+                loop_poll_events((&raw mut g_st().main_loop).cast(), -1);
             }
         }
         (*rpc).call_stack.pop();
@@ -480,7 +480,7 @@ unsafe fn parse_msgpack(channel: *mut Channel) {
 
         while unpacker_advance(p) {
             if (*p).msg_type == MessageType::kMessageTypeRedrawEvent {
-                if ui_client_attached {
+                if g_st().ui_client_attached {
                     if (*p).has_grid_line_event {
                         ui_client_event_raw_line(&raw mut (*p).grid_line_event);
                         (*p).has_grid_line_event = false;
@@ -594,7 +594,7 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
 
             if is_get_mode && !input_blocking() {
                 multiqueue_put_event(
-                    ch_before_blocking_events,
+                    g_st().ch_before_blocking_events,
                     Event::RpcRequest(Box::new(evdata)),
                 );
             } else {
@@ -609,7 +609,7 @@ unsafe fn handle_request(channel: *mut Channel, p: *mut Unpacker, args: Array) {
             if is_resize {
                 let oneshot = event_create_oneshot(Event::RpcRequest(Box::new(evdata)));
                 multiqueue_put_event((*cp).events, Event::Oneshot(std::rc::Rc::clone(&oneshot)));
-                multiqueue_put_event(resize_events, Event::Oneshot(oneshot));
+                multiqueue_put_event(g_st().resize_events, Event::Oneshot(oneshot));
             } else {
                 multiqueue_put_event((*cp).events, Event::RpcRequest(Box::new(evdata)));
             }
@@ -752,7 +752,7 @@ unsafe fn broadcast_event(name: *const c_char, args: Array) {
     unsafe {
         let mut chans = Vec::<*mut Channel>::new();
 
-        let chans_ptr = &raw const channels;
+        let chans_ptr = &raw const g_st().channels;
         for &channel in (*chans_ptr).values() {
             if (*channel).is_rpc {
                 chans.push(channel);
@@ -767,7 +767,7 @@ unsafe fn broadcast_event(name: *const c_char, args: Array) {
 
 unsafe fn has_undetached_rpc_chan() -> bool {
     unsafe {
-        let chans_ptr = &raw const channels;
+        let chans_ptr = &raw const g_st().channels;
         for &chan in (*chans_ptr).values() {
             let ct = chan;
             if (*ct).is_rpc && !(*ct).rpc.closed && !(*ct).detach {
@@ -788,7 +788,7 @@ pub unsafe fn rpc_close(channel: *mut Channel) {
         (*ct).rpc.closed = true;
 
         {
-            let qc = loop_queues((&raw mut main_loop).cast());
+            let qc = loop_queues((&raw mut g_st().main_loop).cast());
             multiqueue_put_event((*qc).fast_events, Event::RpcClose(channel));
         }
     }
@@ -809,15 +809,15 @@ pub unsafe fn rpc_close_event(channel: *mut Channel) {
         {
             remote_ui_disconnect((*cp).id, ptr::null_mut(), false);
 
-            let is_ui_client = ui_client_channel_id != 0 && (*cp).id == ui_client_channel_id;
+            let is_ui_client = g_st().ui_client_channel_id != 0 && (*cp).id == g_st().ui_client_channel_id;
             if is_ui_client {
-                if !exiting && (*cp).streamtype != kChannelStreamProc {
+                if !g_st().exiting && (*cp).streamtype != kChannelStreamProc {
                     ui_client_attach_to_restarted_server(false);
                 }
-                if ui_client_channel_id != (*cp).id {
+                if g_st().ui_client_channel_id != (*cp).id {
                     return;
                 }
-                if (*cp).streamtype == kChannelStreamProc && ui_client_error_exit < 0 {
+                if (*cp).streamtype == kChannelStreamProc && g_st().ui_client_error_exit < 0 {
                     return;
                 }
                 exit_on_closed_chan(0);
@@ -1071,7 +1071,7 @@ pub unsafe fn get_client_info(chan: *mut Channel, key: *const c_char) -> *const 
 
 pub unsafe fn rpc_free_all_mem() {
     unsafe {
-        multiqueue_free(ch_before_blocking_events);
+        multiqueue_free(g_st().ch_before_blocking_events);
     }
 }
 

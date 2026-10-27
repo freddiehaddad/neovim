@@ -531,7 +531,7 @@ pub unsafe fn decor_redraw(
                 vt = (*vt).next_ptr();
             }
 
-            let items = &raw const decor_items;
+            let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
                 let sh = &(*items).as_slice()[idx as usize];
@@ -556,7 +556,7 @@ pub unsafe fn decor_redraw_sh(buf: *mut buf_T, row1: c_int, row2: c_int, sh: Dec
             redraw_buf_range_later(buf, row1 + 1, row2 + 1);
         }
         if (sh.flags & kSHConcealLines) != 0 {
-            let mut wp = firstwin;
+            let mut wp = g_st().firstwin;
             while !wp.is_null() {
                 if (*wp).w_buffer == buf {
                     changed_window_setting(wp);
@@ -572,7 +572,7 @@ pub unsafe fn decor_redraw_sh(buf: *mut buf_T, row1: c_int, row2: c_int, sh: Dec
 
 pub unsafe fn decor_put_sh(item: DecorSignHighlight) -> u32 {
     unsafe {
-        let items = &raw mut decor_items;
+        let items = &raw mut g_st().decor_items;
         if decor_st().decor_freelist != u32::MAX {
             let pos = decor_st().decor_freelist;
             decor_st().decor_freelist = (*items).as_slice()[decor_st().decor_freelist as usize].next;
@@ -611,7 +611,7 @@ pub unsafe fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighl
 pub unsafe fn buf_put_decor(buf: *mut buf_T, decor: DecorInline, row: c_int, mut row2: c_int) {
     unsafe {
         if decor.is_ext() && row < (*buf).b_ml.ml_line_count {
-            let items = &raw mut decor_items;
+            let items = &raw mut g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             row2 = row2.min((*buf).b_ml.ml_line_count - 1);
             while idx != DECOR_ID_INVALID {
@@ -626,10 +626,10 @@ pub unsafe fn buf_put_decor(buf: *mut buf_T, decor: DecorInline, row: c_int, mut
 
 unsafe fn may_force_numberwidth_recompute(buf: *mut buf_T, unplace: bool) {
     unsafe {
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if ptr::eq(tp, curtab) {
-                firstwin
+            let mut wp = if ptr::eq(tp, g_st().curtab) {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
@@ -677,7 +677,7 @@ pub unsafe fn buf_decor_remove(
     unsafe {
         decor_redraw(buf, row1, row2, col1, decor);
         if decor.is_ext() && row1 < (*buf).b_ml.ml_line_count {
-            let items = &raw const decor_items;
+            let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             row2 = row2.min((*buf).b_ml.ml_line_count - 1);
             while idx != DECOR_ID_INVALID {
@@ -721,12 +721,12 @@ pub unsafe fn decor_free(decor: DecorInline) {
         let vt = ext.vt;
         let mut idx = ext.sh_idx;
 
-        if decor_state.running_decor_provider {
+        if g_st().decor_state.running_decor_provider {
             if !vt.is_null() {
                 let list = &raw mut decor_st().to_free_virt;
                 (*list).push(*Box::from_raw(vt));
             }
-            let items = &raw mut decor_items;
+            let items = &raw mut g_st().decor_items;
             while idx != DECOR_ID_INVALID {
                 let sh = &mut (&mut *items)[idx as usize];
                 if sh.next == DECOR_ID_INVALID {
@@ -747,7 +747,7 @@ pub unsafe fn decor_free(decor: DecorInline) {
 
 unsafe fn decor_free_sh(first_idx: u32) {
     unsafe {
-        let items = &raw mut decor_items;
+        let items = &raw mut g_st().decor_items;
         let mut idx = first_idx;
         while idx != DECOR_ID_INVALID {
             let sh = &mut (&mut *items)[idx as usize];
@@ -766,26 +766,26 @@ unsafe fn decor_free_sh(first_idx: u32) {
 
 pub unsafe fn decor_state_invalidate(buf: *mut buf_T) {
     unsafe {
-        if !decor_state.win.is_null() && (*decor_state.win).w_buffer == buf {
-            decor_state.itr_valid = false;
+        if !g_st().decor_state.win.is_null() && (*g_st().decor_state.win).w_buffer == buf {
+            g_st().decor_state.itr_valid = false;
         }
     }
 }
 
 pub unsafe fn decor_check_to_be_deleted() {
     unsafe {
-        assert!(!decor_state.running_decor_provider);
+        assert!(!g_st().decor_state.running_decor_provider);
         let list = &raw mut decor_st().to_free_virt;
         (*list).clear();
         decor_free_sh(decor_st().to_free_sh);
         decor_st().to_free_sh = DECOR_ID_INVALID;
-        decor_state.win = ptr::null_mut();
+        g_st().decor_state.win = ptr::null_mut();
     }
 }
 
 pub unsafe fn decor_check_invalid_glyphs() {
     unsafe {
-        let items = &raw mut decor_items;
+        let items = &raw mut g_st().decor_items;
         for it in (*items).iter_mut() {
             let width = if (it.flags & kSHIsSign) != 0 {
                 SIGN_WIDTH
@@ -984,7 +984,7 @@ unsafe fn decor_range_add_from_inline(
                 decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt, owned);
                 vt = (*vt).next_ptr();
             }
-            let items = &raw const decor_items;
+            let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
                 let sh = &(&*items)[idx as usize];
@@ -1381,7 +1381,7 @@ pub unsafe fn decor_conceal_line(wp: *mut win_T, row: c_int, check_cursor: bool)
         if row < 0
             || (*wp).w_onebuf_opt.wo_cole < 2
             || (!check_cursor
-                && ptr::eq(wp, curwin)
+                && ptr::eq(wp, *curwin.as_ptr())
                 && row + 1 == (*wp).w_cursor.lnum
                 && !conceal_cursor_line(wp))
         {
@@ -1537,7 +1537,7 @@ pub unsafe fn decor_find_sign(decor: DecorInline) -> Option<&'static DecorSignHi
         if !decor.is_ext() {
             return None;
         }
-        let items = &raw const decor_items;
+        let items = &raw const g_st().decor_items;
         let mut decor_id = decor.data.ext().sh_idx;
         loop {
             if decor_id == DECOR_ID_INVALID {
@@ -1827,7 +1827,7 @@ pub unsafe fn decor_to_dict_legacy(
                 vt = (*vt).next_ptr();
             }
 
-            let items = &raw const decor_items;
+            let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
                 let sh = &(*items).as_slice()[idx as usize];
@@ -2015,7 +2015,7 @@ pub unsafe fn decor_type_flags(decor: DecorInline) -> u16 {
                 };
                 vt = (*vt).next_ptr();
             }
-            let items = &raw const decor_items;
+            let items = &raw const g_st().decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
                 let sh = &(*items).as_slice()[idx as usize];

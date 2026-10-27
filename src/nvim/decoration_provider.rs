@@ -143,7 +143,7 @@ unsafe fn decor_provider_invoke(
     unsafe {
         let mut err = error_init();
 
-        textlock += 1;
+        g_st().textlock += 1;
         let ret = nlua_call_ref(
             ref_,
             name,
@@ -156,7 +156,7 @@ unsafe fn decor_provider_invoke(
             ptr::null_mut(),
             &raw mut err,
         );
-        textlock -= 1;
+        g_st().textlock -= 1;
 
         let provider = &raw mut providers_mut()[provider_idx as usize];
         if !error_set(&err) {
@@ -272,7 +272,7 @@ pub unsafe fn decor_providers_start() {
             let p = &providers_mut()[i];
             if p.state != kDecorProviderDisabled && p.redraw_start != LUA_NOREF {
                 let redraw_start = p.redraw_start;
-                let mut args_buf = [integer_obj((display_tick as c_int) as Integer)];
+                let mut args_buf = [integer_obj((*display_tick.as_ptr() as c_int) as Integer)];
                 let args = Array {
                     items: args_buf.as_mut_ptr(),
                     size: 1,
@@ -302,7 +302,7 @@ pub unsafe fn decor_providers_start() {
 /// For each provider run 'win' (`decor_providers_invoke_win`).
 pub unsafe fn decor_providers_invoke_win(wp: *mut win_T) {
     unsafe {
-        let ds = &raw const decor_state;
+        let ds = &raw const g_st().decor_state;
         debug_assert!(
             (*ds).current_end == 0 && (*ds).future_begin == (*ds).ranges_i.len() as c_int
         );
@@ -354,7 +354,7 @@ pub unsafe fn decor_providers_invoke_win(wp: *mut win_T) {
 /// For each provider invoke the 'line' callback for a given window row (`decor_providers_invoke_line`).
 pub unsafe fn decor_providers_invoke_line(wp: *mut win_T, row: c_int) {
     unsafe {
-        decor_state.running_decor_provider = true;
+        g_st().decor_state.running_decor_provider = true;
         let mut i = 0usize;
         while i < providers_mut().len() {
             let p = &providers_mut()[i];
@@ -385,7 +385,7 @@ pub unsafe fn decor_providers_invoke_line(wp: *mut win_T, row: c_int) {
             }
             i += 1;
         }
-        decor_state.running_decor_provider = false;
+        g_st().decor_state.running_decor_provider = false;
     }
 }
 
@@ -397,7 +397,7 @@ pub unsafe fn decor_providers_invoke_range(
     end_col: c_int,
 ) {
     unsafe {
-        decor_state.running_decor_provider = true;
+        g_st().decor_state.running_decor_provider = true;
         let mut i = 0usize;
         while i < providers_mut().len() {
             let p = &providers_mut()[i];
@@ -462,7 +462,7 @@ pub unsafe fn decor_providers_invoke_range(
             }
             i += 1;
         }
-        decor_state.running_decor_provider = false;
+        g_st().decor_state.running_decor_provider = false;
     }
 }
 
@@ -476,7 +476,7 @@ pub unsafe fn decor_providers_invoke_buf(buf: *mut buf_T) {
                 let redraw_buf = p.redraw_buf;
                 let mut args_buf = [
                     buffer_obj((*buf).b_fnum),
-                    integer_obj(display_tick as Integer),
+                    integer_obj(*display_tick.as_ptr() as Integer),
                 ];
                 let args = Array {
                     items: args_buf.as_mut_ptr(),
@@ -505,7 +505,7 @@ pub unsafe fn decor_providers_invoke_end() {
             let p = &providers_mut()[i];
             if p.state != kDecorProviderDisabled && p.redraw_end != LUA_NOREF {
                 let redraw_end = p.redraw_end;
-                let mut args_buf = [integer_obj((display_tick as c_int) as Integer)];
+                let mut args_buf = [integer_obj((*display_tick.as_ptr() as c_int) as Integer)];
                 let args = Array {
                     items: args_buf.as_mut_ptr(),
                     size: 1,
@@ -533,8 +533,8 @@ pub unsafe fn decor_provider_invalidate_hl() {
             p.hl_cached = false;
         }
 
-        if ns_hl_active != 0 {
-            ns_hl_active = -1;
+        if g_st().ns_hl_active != 0 {
+            g_st().ns_hl_active = -1;
             hl_check_ns();
         }
     }

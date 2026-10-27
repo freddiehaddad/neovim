@@ -166,8 +166,8 @@ unsafe fn ui_state() -> &'static mut UiState {
 
 pub unsafe fn ui_init() {
     unsafe {
-        default_grid.handle = 1;
-        msg_grid_adj.target = &raw mut default_grid;
+        g_st().default_grid.handle = 1;
+        g_st().msg_grid_adj.target = &raw mut g_st().default_grid;
         ui_comp_init();
     }
 }
@@ -178,7 +178,7 @@ pub unsafe fn ui_free_all_mem() {
         (*cbs_ptr).clear();
         ui_state().uis = Vec::new();
 
-        multiqueue_free(resize_events);
+        multiqueue_free(g_st().resize_events);
     }
 }
 
@@ -232,7 +232,7 @@ pub unsafe fn ui_active() -> usize {
 
 pub unsafe fn ui_refresh() {
     unsafe {
-        if ui_client_channel_id != 0 {
+        if g_st().ui_client_channel_id != 0 {
             std::process::abort();
         }
 
@@ -268,7 +268,7 @@ pub unsafe fn ui_refresh() {
         }
 
         if had_message != *ui_ext_ptr.add(kUIMessages) {
-            if ui_refresh_cmdheight {
+            if g_st().ui_refresh_cmdheight {
                 set_option_value(
                     kOptCmdheight,
                     integer_obj(Integer::from(had_message)),
@@ -276,7 +276,7 @@ pub unsafe fn ui_refresh() {
                     true,
                     None,
                 );
-                let mut tp = first_tabpage;
+                let mut tp = g_st().first_tabpage;
                 while !tp.is_null() {
                     (*tp).tp_ch_used = i64::from(had_message);
                     tp = (*tp).tp_next;
@@ -290,7 +290,7 @@ pub unsafe fn ui_refresh() {
             return;
         }
 
-        if updating_screen {
+        if g_st().updating_screen {
             ui_schedule_refresh();
             return;
         }
@@ -357,14 +357,14 @@ pub unsafe fn ui_refresh_event() {
 
 pub unsafe fn ui_schedule_refresh() {
     unsafe {
-        multiqueue_put_event(resize_events, Event::UiRefresh);
+        multiqueue_put_event(g_st().resize_events, Event::UiRefresh);
     }
 }
 
 pub unsafe fn ui_default_colors_set() {
     unsafe {
         ui_state().pending_default_colors = true;
-        if starting == 0 {
+        if *starting.as_ptr() == 0 {
             ui_may_set_default_colors();
         }
     }
@@ -375,11 +375,11 @@ unsafe fn ui_may_set_default_colors() {
         if ui_state().pending_default_colors {
             ui_state().pending_default_colors = false;
             ui_call_default_colors_set(
-                Integer::from(normal_fg),
-                Integer::from(normal_bg),
-                Integer::from(normal_sp),
-                Integer::from(cterm_normal_fg_color),
-                Integer::from(cterm_normal_bg_color),
+                Integer::from(g_st().normal_fg),
+                Integer::from(g_st().normal_bg),
+                Integer::from(g_st().normal_sp),
+                Integer::from(g_st().cterm_normal_fg_color),
+                Integer::from(g_st().cterm_normal_bg_color),
             );
         }
     }
@@ -406,11 +406,11 @@ pub unsafe fn ui_busy_stop() {
 
 pub unsafe fn vim_beep(val: c_uint) {
     unsafe {
-        if emsg_silent != 0 || in_assert_fails {
-            did_beep_silent += 1;
+        if g_st().emsg_silent != 0 || g_st().in_assert_fails {
+            g_st().did_beep_silent += 1;
             return;
         }
-        did_beep += 1;
+        g_st().did_beep += 1;
 
         if (opt_vars().bo_flags & val) == 0 && (opt_vars().bo_flags & kOptBoFlagAll) == 0 {
             let now = os_hrtime();
@@ -457,7 +457,7 @@ pub unsafe fn ui_attach_impl(ui: *mut RemoteUI, chanid: u64) {
         if (*uis_ptr).len() >= MAX_UI_COUNT {
             std::process::abort();
         }
-        if !(*ui).ui_ext[kUIMultigrid] && !(*ui).ui_ext[kUIFloatDebug] && ui_client_channel_id == 0
+        if !(*ui).ui_ext[kUIMultigrid] && !(*ui).ui_ext[kUIFloatDebug] && g_st().ui_client_channel_id == 0
         {
             ui_comp_attach(ui.cast());
         }
@@ -503,7 +503,7 @@ pub unsafe fn ui_detach_impl(ui: *mut RemoteUI, chanid: u64) {
         };
         (*uis_ptr).remove(shift_index);
 
-        if !(*uis_ptr).is_empty() && !exiting {
+        if !(*uis_ptr).is_empty() && !g_st().exiting {
             ui_schedule_refresh();
         }
 
@@ -620,12 +620,12 @@ pub unsafe fn ui_current_col() -> c_int {
 
 pub unsafe fn ui_flush() {
     unsafe {
-        debug_assert!(ui_client_channel_id == 0);
+        debug_assert!(g_st().ui_client_channel_id == 0);
         if ui_active() == 0 {
             return;
         }
 
-        if (State & MODE_CMDLINE) == 0 && (*curwin).w_floating && (*curwin).w_config.hide {
+        if (g_st().State & MODE_CMDLINE) == 0 && (**curwin.as_ptr()).w_floating && (**curwin.as_ptr()).w_config.hide {
             if !ui_state().ui_flush_was_busy {
                 ui_call_busy_start();
                 ui_state().ui_flush_was_busy = true;
@@ -636,7 +636,7 @@ pub unsafe fn ui_flush() {
         }
 
         win_ui_flush(false);
-        if textlock == 0 && expr_map_lock == 0 {
+        if g_st().textlock == 0 && g_st().expr_map_lock == 0 {
             cmdline_ui_flush();
             msg_ext_ui_flush();
         }
@@ -665,7 +665,7 @@ pub unsafe fn ui_flush() {
         }
 
         let cursor_obscured = ui_cursor_is_behind_floatwin();
-        if (cursor_obscured != ui_state().ui_flush_cursor_was_obscured || ui_state().pending_mode_update) && starting == 0
+        if (cursor_obscured != ui_state().ui_flush_cursor_was_obscured || ui_state().pending_mode_update) && *starting.as_ptr() == 0
         {
             let idx = if cursor_obscured {
                 SHAPE_IDX_R
@@ -704,15 +704,15 @@ pub unsafe fn ui_check_mouse() {
             return;
         }
 
-        let checkfor = if Visual.active {
+        let checkfor = if g_st().Visual.active {
             kMouseVisual
-        } else if State == MODE_HITRETURN || State == MODE_ASKMORE || State == MODE_SETWSIZE {
+        } else if g_st().State == MODE_HITRETURN || g_st().State == MODE_ASKMORE || g_st().State == MODE_SETWSIZE {
             kMouseReturn
-        } else if (State & MODE_INSERT) != 0 {
+        } else if (g_st().State & MODE_INSERT) != 0 {
             kMouseInsert
-        } else if (State & MODE_CMDLINE) != 0 {
+        } else if (g_st().State & MODE_CMDLINE) != 0 {
             kMouseCommand
-        } else if State == MODE_EXTERNCMD {
+        } else if g_st().State == MODE_EXTERNCMD {
             b' ' as c_int
         } else {
             kMouseNormal
@@ -733,7 +733,7 @@ pub unsafe fn ui_mouse_has(mode: c_int) -> bool {
                     return true;
                 }
             } else if *p == kMouseHelp {
-                if mode != kMouseReturn && (*curbuf).b_help {
+                if mode != kMouseReturn && (*g_st().curbuf).b_help {
                     return true;
                 }
             } else if mode == *p as c_int {
@@ -747,7 +747,7 @@ pub unsafe fn ui_mouse_has(mode: c_int) -> bool {
 
 pub unsafe fn ui_cursor_shape_no_check_conceal() {
     unsafe {
-        if !full_screen {
+        if !g_st().full_screen {
             return;
         }
         let new_mode_idx = cursor_get_mode_idx();
@@ -767,23 +767,23 @@ pub unsafe fn ui_cursor_shape() {
 
 unsafe fn ui_cursor_is_behind_floatwin() -> bool {
     unsafe {
-        if (State & MODE_CMDLINE) != 0 || !ui_comp_should_draw() {
+        if (g_st().State & MODE_CMDLINE) != 0 || !ui_comp_should_draw() {
             return false;
         }
 
-        let crow = (*curwin).w_winrow + (*curwin).w_winrow_off + (*curwin).w_wrow;
-        let ccol = (*curwin).w_wincol
-            + (*curwin).w_wincol_off
-            + if (*curwin).w_onebuf_opt.wo_rl != 0 {
-                (*curwin).w_view_width - (*curwin).w_wcol - 1
+        let crow = (**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_winrow_off + (**curwin.as_ptr()).w_wrow;
+        let ccol = (**curwin.as_ptr()).w_wincol
+            + (**curwin.as_ptr()).w_wincol_off
+            + if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 {
+                (**curwin.as_ptr()).w_view_width - (**curwin.as_ptr()).w_wcol - 1
             } else {
-                (*curwin).w_wcol
+                (**curwin.as_ptr()).w_wcol
             };
 
         let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
-        top_grid != &raw mut (*curwin).w_grid_alloc
-            && top_grid != &raw mut default_grid
-            && (*top_grid).zindex >= (*curwin).w_grid_alloc.zindex + 50
+        top_grid != &raw mut (**curwin.as_ptr()).w_grid_alloc
+            && top_grid != &raw mut g_st().default_grid
+            && (*top_grid).zindex >= (**curwin.as_ptr()).w_grid_alloc.zindex + 50
     }
 }
 
@@ -911,20 +911,20 @@ unsafe fn ui_attach_error(ns_id: u32, name: *const c_char, msg: *const c_char) {
 
 pub unsafe fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
     unsafe {
-        let save_expr_map_lock = expr_map_lock;
-        let save_textlock = textlock;
-        expr_map_lock = 0;
-        textlock = 0;
+        let save_expr_map_lock = g_st().expr_map_lock;
+        let save_textlock = g_st().textlock;
+        g_st().expr_map_lock = 0;
+        g_st().textlock = 0;
 
         let mut handled = false;
-        let fast = msg_ext_fast && name == c"msg_show";
+        let fast = g_st().msg_ext_fast && name == c"msg_show";
         let cbs_ptr = &raw const ui_state().ui_event_cbs;
         let entries: Vec<(u32, LuaRef)> = (*cbs_ptr).iter().map(|(&k, v)| (k, v.cb)).collect();
         for (ns_id, cb_ref) in entries {
             if !(*cbs_ptr).contains_key(&ns_id) {
                 continue;
             }
-            ui_event_ns_id = ns_id;
+            g_st().ui_event_ns_id = ns_id;
             let mut err = Error::new();
             let res = nlua_call_ref_ctx(
                 fast,
@@ -935,7 +935,7 @@ pub unsafe fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
                 ptr::null_mut(),
                 &raw mut err,
             );
-            ui_event_ns_id = 0;
+            g_st().ui_event_ns_id = 0;
             if res.obj_type == ObjectType::kObjectTypeBoolean && res.data.boolean() {
                 handled = true;
             }
@@ -945,8 +945,8 @@ pub unsafe fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
             }
             api_clear_error(&raw mut err);
         }
-        expr_map_lock = save_expr_map_lock;
-        textlock = save_textlock;
+        g_st().expr_map_lock = save_expr_map_lock;
+        g_st().textlock = save_textlock;
 
         if !handled {
             let uis_ptr = &raw const ui_state().uis;

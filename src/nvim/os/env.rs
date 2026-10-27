@@ -166,7 +166,7 @@ unsafe extern "C" {
     #[cfg(target_os = "macos")]
     fn _NSGetEnviron() -> *mut *mut *mut c_char;
     #[cfg(all(not(windows), not(target_os = "macos")))]
-    static mut environ: *mut *mut c_char;
+    static environ: *mut *mut c_char;
 
     #[cfg(windows)]
     fn _putenv_s(varname: *const c_char, value_string: *const c_char) -> c_int;
@@ -184,7 +184,7 @@ pub(crate) unsafe fn os_environ_ptr() -> *mut *mut *mut c_char {
     }
     #[cfg(not(target_os = "macos"))]
     {
-        &raw mut environ
+        (&raw const environ).cast_mut()
     }
 }
 
@@ -219,7 +219,7 @@ unsafe fn env_name_valid(name: *const c_char) -> bool {
 
 pub unsafe fn env_init() {
     unsafe {
-        nvim_testing = os_env_exists(c"NVIM_TEST".as_ptr(), false);
+        g_st().nvim_testing = os_env_exists(c"NVIM_TEST".as_ptr(), false);
     }
 }
 
@@ -515,7 +515,7 @@ pub unsafe fn init_homedir() {
                 if let Some(ref hd) = homedrive
                     && hd.as_bytes().len() + strlen(homepath_ptr) < MAXPATHL
                 {
-                    let buf = (&raw mut os_buf).cast::<c_char>();
+                    let buf = (&raw mut g_st().os_buf).cast::<c_char>();
                     xstrlcpy(buf, hd.as_ptr(), MAXPATHL);
                     xstrlcat(buf, homepath_ptr, MAXPATHL);
                     if *buf != NUL {
@@ -531,7 +531,7 @@ pub unsafe fn init_homedir() {
                 let rest = CStr::from_ptr(var.add(1)).to_bytes();
                 if let Some(pos) = rest.iter().position(|&b| b == b'%') {
                     let p = var.add(1 + pos);
-                    let buf = (&raw mut os_buf).cast::<c_char>();
+                    let buf = (&raw mut g_st().os_buf).cast::<c_char>();
                     let _ = xmemcpyz(buf.cast(), var.add(1).cast(), pos);
                     var = ptr::null_mut();
                     if let Some(exp) = os_getenv_cstr(buf)
@@ -556,14 +556,14 @@ pub unsafe fn init_homedir() {
                 var = os_uv_homedir();
             }
 
-            if !var.is_null() && !os_realpath(var, (&raw mut IObuff).cast(), IOSIZE).is_null() {
-                var = (&raw mut IObuff).cast();
+            if !var.is_null() && !os_realpath(var, (&raw mut g_st().IObuff).cast(), IOSIZE).is_null() {
+                var = (&raw mut g_st().IObuff).cast();
             }
 
             if (var.is_null() || *var == NUL)
-                && os_dirname((&raw mut os_buf).cast(), MAXPATHL) == OK
+                && os_dirname((&raw mut g_st().os_buf).cast(), MAXPATHL) == OK
             {
-                var = (&raw mut os_buf).cast();
+                var = (&raw mut g_st().os_buf).cast();
             }
         }
 
@@ -1018,10 +1018,10 @@ pub unsafe fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
             if let Some(vim_path_cstr) = vim_path_cstr {
                 if vimruntime {
                     let _ = os_setenv(c"VIMRUNTIME".as_ptr(), vim_path_cstr.as_ptr(), 1);
-                    didset_vimruntime = true;
+                    g_st().didset_vimruntime = true;
                 } else {
                     let _ = os_setenv(c"VIM".as_ptr(), vim_path_cstr.as_ptr(), 1);
-                    didset_vim = true;
+                    g_st().didset_vim = true;
                 }
                 Some(vim_path_cstr)
             } else {
@@ -1206,7 +1206,7 @@ pub unsafe fn os_setenv_append_path(fname: *const c_char) -> bool {
         }
         let tail = path_tail_with_sep(fname.cast_mut());
         let dirlen = (tail as usize) - (fname as usize);
-        let buf = (&raw mut os_buf).cast::<c_char>();
+        let buf = (&raw mut g_st().os_buf).cast::<c_char>();
         assert!((tail as usize) >= (fname as usize) && dirlen + 1 < MAXPATHL);
         let _ = xmemcpyz(buf.cast(), fname.cast(), dirlen);
         let path_cstr = os_getenv_cstr(c"PATH".as_ptr());
@@ -1254,9 +1254,9 @@ pub unsafe fn vim_unsetenv_ext(var: *const c_char) {
     unsafe {
         let _ = os_unsetenv(var);
         if striequal(var, c"VIM".as_ptr()) {
-            didset_vim = false;
+            g_st().didset_vim = false;
         } else if striequal(var, c"VIMRUNTIME".as_ptr()) {
-            didset_vimruntime = false;
+            g_st().didset_vimruntime = false;
         }
     }
 }
@@ -1268,10 +1268,10 @@ pub unsafe fn vim_setenv_ext(name: *const c_char, val: *const c_char) {
         if striequal(name, c"HOME".as_ptr()) {
             init_homedir();
         } else {
-            if didset_vim && striequal(name, c"VIM".as_ptr()) {
-                didset_vim = false;
-            } else if didset_vimruntime && striequal(name, c"VIMRUNTIME".as_ptr()) {
-                didset_vimruntime = false;
+            if g_st().didset_vim && striequal(name, c"VIM".as_ptr()) {
+                g_st().didset_vim = false;
+            } else if g_st().didset_vimruntime && striequal(name, c"VIMRUNTIME".as_ptr()) {
+                g_st().didset_vimruntime = false;
             }
         }
     }

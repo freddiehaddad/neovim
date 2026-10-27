@@ -507,7 +507,7 @@ pub unsafe fn emit_termrequest(mut req: Box<TermRequestEvent>) {
             true,
             AUGROUP_ALL,
             buf,
-            curwin,
+            *curwin.as_ptr(),
             ptr::null_mut(),
             &mut data_obj,
             false,
@@ -553,7 +553,7 @@ unsafe fn schedule_termrequest(term: *mut Terminal) {
         });
 
         multiqueue_put_event(
-            (*loop_queues((&raw mut main_loop).cast())).events,
+            (*loop_queues((&raw mut g_st().main_loop).cast())).events,
             Event::TermRequest(req),
         );
     }
@@ -704,11 +704,11 @@ pub unsafe fn terminal_init() {
     unsafe {
         let timer = refresh_timer_ptr();
         time_watcher_init(
-            (&raw mut main_loop).cast(),
+            (&raw mut g_st().main_loop).cast(),
             timer,
             TimeWatcherData::TerminalRefresh,
         );
-        (*timer).events = multiqueue_new_child((*loop_queues((&raw mut main_loop).cast())).events);
+        (*timer).events = multiqueue_new_child((*loop_queues((&raw mut g_st().main_loop).cast())).events);
     }
 }
 
@@ -877,9 +877,9 @@ pub unsafe fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf_T) {
                 CStr::from_ptr((*buf).b_ffname).to_bytes().len(),
             );
         }
-        (*curwin).w_onebuf_opt.wo_scb = 0;
-        (*curwin).w_onebuf_opt.wo_crb = 0;
-        (*curwin).w_cursor = pos_T {
+        (**curwin.as_ptr()).w_onebuf_opt.wo_scb = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_crb = 0;
+        (**curwin.as_ptr()).w_cursor = pos_T {
             lnum: 1,
             col: 0,
             coladd: 0,
@@ -940,7 +940,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
         if (*term).closed {
             only_destroy = true;
         } else {
-            if !exiting {
+            if !g_st().exiting {
                 let mut height: c_int = 0;
                 let mut width: c_int = 0;
                 vterm_get_size(&raw const (*term).vt, &mut height, &mut width);
@@ -962,7 +962,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
         } else {
             0
         };
-        if status == -1 || exiting {
+        if status == -1 || g_st().exiting {
             (*term).buf_handle = 0;
             if !buf.is_null() {
                 (*buf).terminal = ptr::null_mut();
@@ -972,7 +972,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
                 channel_term_close((*term).opts.data);
             }
         } else if !only_destroy {
-            let mut wp = firstwin;
+            let mut wp = g_st().firstwin;
             while !wp.is_null() {
                 if (*wp).w_buffer == buf {
                     (*wp).w_redr_status = true;
@@ -987,8 +987,8 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
         }
 
         if status >= 0 {
-            did_check_timestamps = false;
-            need_check_timestamps = true;
+            g_st().did_check_timestamps = false;
+            g_st().need_check_timestamps = true;
         }
 
         if !buf.is_null() && !is_autocmd_blocked() {
@@ -1017,7 +1017,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
                 status >= 0,
                 AUGROUP_ALL,
                 buf,
-                curwin,
+                *curwin.as_ptr(),
                 ptr::null_mut(),
                 &mut data_obj,
                 false,
@@ -1061,10 +1061,10 @@ pub unsafe fn terminal_check_size(term: *mut Terminal) {
         let mut width: u16 = 0;
         let mut height: u16 = 0;
 
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
@@ -1100,38 +1100,38 @@ unsafe fn set_terminal_winopts(s: *mut TerminalState) {
     unsafe {
         debug_assert!((*s).save_curwin_handle == 0);
 
-        (*s).save_curwin_handle = (*curwin).handle;
-        (*s).save_w_p_cul = (*curwin).w_onebuf_opt.wo_cul != 0;
+        (*s).save_curwin_handle = (**curwin.as_ptr()).handle;
+        (*s).save_w_p_cul = (**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0;
         (*s).save_w_p_culopt = None;
-        (*s).save_w_p_culopt_flags = (*curwin).w_p_culopt_flags;
-        (*s).save_w_p_cuc = (*curwin).w_onebuf_opt.wo_cuc;
-        (*s).save_w_p_so = (*curwin).w_onebuf_opt.wo_so;
-        (*s).save_w_p_siso = (*curwin).w_onebuf_opt.wo_siso;
+        (*s).save_w_p_culopt_flags = (**curwin.as_ptr()).w_p_culopt_flags;
+        (*s).save_w_p_cuc = (**curwin.as_ptr()).w_onebuf_opt.wo_cuc;
+        (*s).save_w_p_so = (**curwin.as_ptr()).w_onebuf_opt.wo_so;
+        (*s).save_w_p_siso = (**curwin.as_ptr()).w_onebuf_opt.wo_siso;
 
-        if (*curwin).w_onebuf_opt.wo_cul != 0
-            && ((*curwin).w_p_culopt_flags & kOptCuloptFlagNumber) != 0
+        if (**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0
+            && ((**curwin.as_ptr()).w_p_culopt_flags & kOptCuloptFlagNumber) != 0
         {
-            if !strequal((*curwin).w_onebuf_opt.wo_culopt, c"number".as_ptr()) {
+            if !strequal((**curwin.as_ptr()).w_onebuf_opt.wo_culopt, c"number".as_ptr()) {
                 (*s).save_w_p_culopt =
-                    Some(CStr::from_ptr((*curwin).w_onebuf_opt.wo_culopt).to_owned());
-                free_string_option((*curwin).w_onebuf_opt.wo_culopt);
-                (*curwin).w_onebuf_opt.wo_culopt = alloc_string_option(c"number".as_ptr());
+                    Some(CStr::from_ptr((**curwin.as_ptr()).w_onebuf_opt.wo_culopt).to_owned());
+                free_string_option((**curwin.as_ptr()).w_onebuf_opt.wo_culopt);
+                (**curwin.as_ptr()).w_onebuf_opt.wo_culopt = alloc_string_option(c"number".as_ptr());
             }
-            (*curwin).w_p_culopt_flags = kOptCuloptFlagNumber;
+            (**curwin.as_ptr()).w_p_culopt_flags = kOptCuloptFlagNumber;
         } else {
-            (*curwin).w_onebuf_opt.wo_cul = 0;
+            (**curwin.as_ptr()).w_onebuf_opt.wo_cul = 0;
         }
-        (*curwin).w_onebuf_opt.wo_cuc = 0;
-        (*curwin).w_onebuf_opt.wo_so = 0;
-        (*curwin).w_onebuf_opt.wo_siso = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_cuc = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_so = 0;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_siso = 0;
 
-        if (*curwin).w_onebuf_opt.wo_cuc != (*s).save_w_p_cuc {
-            redraw_later(curwin, UPD_SOME_VALID);
-        } else if ((*curwin).w_onebuf_opt.wo_cul != 0) != (*s).save_w_p_cul
-            || ((*curwin).w_onebuf_opt.wo_cul != 0
-                && (*curwin).w_p_culopt_flags != (*s).save_w_p_culopt_flags)
+        if (**curwin.as_ptr()).w_onebuf_opt.wo_cuc != (*s).save_w_p_cuc {
+            redraw_later(*curwin.as_ptr(), UPD_SOME_VALID);
+        } else if ((**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0) != (*s).save_w_p_cul
+            || ((**curwin.as_ptr()).w_onebuf_opt.wo_cul != 0
+                && (**curwin.as_ptr()).w_p_culopt_flags != (*s).save_w_p_culopt_flags)
         {
-            redraw_later(curwin, UPD_VALID);
+            redraw_later(*curwin.as_ptr(), UPD_VALID);
         }
     }
 }
@@ -1187,21 +1187,21 @@ unsafe fn unset_terminal_winopts(s: *mut TerminalState) {
 
 pub unsafe fn terminal_enter() -> bool {
     unsafe {
-        let buf = curbuf;
+        let buf = g_st().curbuf;
         debug_assert!(!(*buf).terminal.is_null());
         let mut s = TerminalState::new();
         s.term = (*buf).terminal.cast::<Terminal>();
         s.cursor_visible = true;
-        Ins.stop_insert_mode = false;
+        g_st().Ins.stop_insert_mode = false;
 
         terminal_check_size(s.term);
 
         atom_term_enter();
-        let save_state = State;
-        s.save_rd = RedrawingDisabled;
-        State = MODE_TERMINAL;
-        mapped_ctrl_c |= MODE_TERMINAL;
-        RedrawingDisabled = 0;
+        let save_state = g_st().State;
+        s.save_rd = g_st().RedrawingDisabled;
+        g_st().State = MODE_TERMINAL;
+        g_st().mapped_ctrl_c |= MODE_TERMINAL;
+        g_st().RedrawingDisabled = 0;
 
         set_terminal_winopts(&mut s);
 
@@ -1211,7 +1211,7 @@ pub unsafe fn terminal_enter() -> bool {
         ui_cursor_shape();
 
         terminal_focus(s.term, true);
-        (*curbuf).b_last_changedtick_i = buf_get_changedtick(curbuf);
+        (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(g_st().curbuf);
 
         (*s.term).refcount += 1;
         apply_autocmds(
@@ -1219,7 +1219,7 @@ pub unsafe fn terminal_enter() -> bool {
             ptr::null_mut(),
             ptr::null_mut(),
             false,
-            curbuf,
+            g_st().curbuf,
         );
         may_trigger_modechanged();
         (*s.term).refcount -= 1;
@@ -1230,10 +1230,10 @@ pub unsafe fn terminal_enter() -> bool {
         state_enter(&raw mut s);
 
         if !s.got_bsl_o {
-            restart_edit = 0;
+            g_st().restart_edit = 0;
         }
-        State = save_state;
-        RedrawingDisabled = s.save_rd;
+        g_st().State = save_state;
+        g_st().RedrawingDisabled = s.save_rd;
         if !s.cursor_visible {
             ui_busy_stop();
         }
@@ -1243,12 +1243,12 @@ pub unsafe fn terminal_enter() -> bool {
         unset_terminal_winopts(&mut s);
 
         terminal_focus(s.term, false);
-        (*curbuf).b_last_changedtick = buf_get_changedtick(curbuf);
+        (*g_st().curbuf).b_last_changedtick = buf_get_changedtick(g_st().curbuf);
 
-        if (*curbuf).terminal.cast::<Terminal>() == s.term && !s.close {
+        if (*g_st().curbuf).terminal.cast::<Terminal>() == s.term && !s.close {
             terminal_check_cursor();
         }
-        if restart_edit != 0 {
+        if g_st().restart_edit != 0 {
             showmode();
         } else {
             unshowmode(true);
@@ -1263,7 +1263,7 @@ pub unsafe fn terminal_enter() -> bool {
             ptr::null_mut(),
             ptr::null_mut(),
             false,
-            curbuf,
+            g_st().curbuf,
         );
         if s.close {
             (*s.term).refcount -= 1;
@@ -1281,45 +1281,45 @@ pub unsafe fn terminal_enter() -> bool {
 
 unsafe fn terminal_check_cursor() {
     unsafe {
-        let term = (*curbuf).terminal.cast::<Terminal>();
-        (*curwin).w_cursor.lnum = (*curbuf)
+        let term = (*g_st().curbuf).terminal.cast::<Terminal>();
+        (**curwin.as_ptr()).w_cursor.lnum = (*g_st().curbuf)
             .b_ml
             .ml_line_count
             .min(row_to_linenr(term, (*term).cursor.row));
-        let topline = ((*curbuf).b_ml.ml_line_count - (*curwin).w_view_height + 1).max(1);
-        if topline != (*curwin).w_topline {
-            set_topline(curwin, topline);
+        let topline = ((*g_st().curbuf).b_ml.ml_line_count - (**curwin.as_ptr()).w_view_height + 1).max(1);
+        if topline != (**curwin.as_ptr()).w_topline {
+            set_topline(*curwin.as_ptr(), topline);
         }
-        if (*term).suspended && (State & MODE_TERMINAL) != 0 {
-            (*curwin).w_cursor = pos_T {
-                lnum: (*curbuf).b_ml.ml_line_count,
+        if (*term).suspended && (g_st().State & MODE_TERMINAL) != 0 {
+            (**curwin.as_ptr()).w_cursor = pos_T {
+                lnum: (*g_st().curbuf).b_ml.ml_line_count,
                 col: 0,
                 coladd: 0,
             };
         } else {
-            let off = if (State & MODE_TERMINAL) != 0 {
+            let off = if (g_st().State & MODE_TERMINAL) != 0 {
                 0
-            } else if (*curwin).w_onebuf_opt.wo_rl != 0 {
+            } else if (**curwin.as_ptr()).w_onebuf_opt.wo_rl != 0 {
                 1
             } else {
                 -1
             };
-            coladvance(curwin, ((*term).cursor.col + off).max(0));
+            coladvance(*curwin.as_ptr(), ((*term).cursor.col + off).max(0));
         }
     }
 }
 
 unsafe fn terminal_check_focus(s: *mut TerminalState) -> bool {
     unsafe {
-        if (*curbuf).terminal.is_null() {
+        if (*g_st().curbuf).terminal.is_null() {
             return false;
         }
 
-        if (*s).save_curwin_handle != (*curwin).handle {
+        if (*s).save_curwin_handle != (**curwin.as_ptr()).handle {
             unset_terminal_winopts(s);
             set_terminal_winopts(s);
         }
-        let cur_term = (*curbuf).terminal.cast::<Terminal>();
+        let cur_term = (*g_st().curbuf).terminal.cast::<Terminal>();
         if (*s).term != cur_term {
             terminal_focus((*s).term, false);
             if (*s).close {
@@ -1342,30 +1342,30 @@ unsafe fn terminal_check(s: *mut TerminalState) -> c_int {
         debug_assert!(
             !(*s).close
                 || ((*(*s).term).buf_handle == 0
-                    && (*s).term != (*curbuf).terminal.cast::<Terminal>())
+                    && (*s).term != (*g_st().curbuf).terminal.cast::<Terminal>())
         );
 
-        if Ins.stop_insert_mode || !terminal_check_focus(s) {
+        if g_st().Ins.stop_insert_mode || !terminal_check_focus(s) {
             return 0;
         }
 
         terminal_check_refresh();
 
         terminal_check_cursor();
-        validate_cursor(curwin);
+        validate_cursor(*curwin.as_ptr());
 
         (*(*s).term).refcount += 1;
         if has_event(EVENT_TEXTCHANGEDT)
-            && (*curbuf).b_last_changedtick_i != buf_get_changedtick(curbuf)
+            && (*g_st().curbuf).b_last_changedtick_i != buf_get_changedtick(g_st().curbuf)
         {
             apply_autocmds(
                 EVENT_TEXTCHANGEDT,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 false,
-                curbuf,
+                g_st().curbuf,
             );
-            (*curbuf).b_last_changedtick_i = buf_get_changedtick(curbuf);
+            (*g_st().curbuf).b_last_changedtick_i = buf_get_changedtick(g_st().curbuf);
         }
         may_trigger_win_scrolled_resized();
         (*(*s).term).refcount -= 1;
@@ -1377,14 +1377,14 @@ unsafe fn terminal_check(s: *mut TerminalState) -> c_int {
             return 0;
         }
         terminal_check_cursor();
-        validate_cursor(curwin);
+        validate_cursor(*curwin.as_ptr());
 
         show_cursor_info_later(false);
-        if must_redraw != 0 {
+        if g_st().must_redraw != 0 {
             update_screen();
         } else {
             redraw_statuslines();
-            if clear_cmdline || redraw_cmdline || redraw_mode {
+            if g_st().clear_cmdline || g_st().redraw_cmdline || g_st().redraw_mode {
                 showmode();
             }
         }
@@ -1398,7 +1398,7 @@ unsafe fn terminal_check(s: *mut TerminalState) -> c_int {
 
 unsafe fn terminal_execute(s: *mut TerminalState, key: c_int) -> c_int {
     unsafe {
-        let mut tmp_mod_mask = mod_mask;
+        let mut tmp_mod_mask = g_st().mod_mask;
         let mod_key = merge_modifiers(key, &mut tmp_mod_mask);
 
         match mod_key {
@@ -1434,11 +1434,11 @@ unsafe fn terminal_execute(s: *mut TerminalState, key: c_int) -> c_int {
                 }
                 if mod_key == Ctrl_O && (*s).got_bsl {
                     (*s).got_bsl_o = true;
-                    restart_edit = b'I' as c_int;
+                    g_st().restart_edit = b'I' as c_int;
                     return 0;
                 }
                 if mod_key == Ctrl_C {
-                    got_int = false;
+                    g_st().got_int = false;
                 }
                 if mod_key == Ctrl_BSL && !(*s).got_bsl {
                     (*s).got_bsl = true;
@@ -1527,7 +1527,7 @@ unsafe fn is_filter_char(c: c_int) -> bool {
 pub unsafe fn terminal_set_streamed_paste(term: *mut Terminal, streamed: bool) {
     unsafe {
         if (*term).streamed_paste != streamed {
-            let cur_term = (*curbuf).terminal.cast::<Terminal>();
+            let cur_term = (*g_st().curbuf).terminal.cast::<Terminal>();
             if streamed {
                 vterm_keyboard_start_paste(&raw mut (*cur_term).vt);
             } else {
@@ -1543,7 +1543,7 @@ pub unsafe fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usi
         if y_size == 0 {
             return;
         }
-        let cur_term = (*curbuf).terminal.cast::<Terminal>();
+        let cur_term = (*g_st().curbuf).terminal.cast::<Terminal>();
         if !(*cur_term).streamed_paste {
             vterm_keyboard_start_paste(&raw mut (*cur_term).vt);
         }
@@ -1551,7 +1551,7 @@ pub unsafe fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usi
         for _ in 0..count {
             for j in 0..y_size {
                 if j > 0 {
-                    let term_now = (*curbuf).terminal.cast::<Terminal>();
+                    let term_now = (*g_st().curbuf).terminal.cast::<Terminal>();
                     #[cfg(windows)]
                     terminal_send(term_now, c"\r\n".as_ptr(), 2);
                     #[cfg(not(windows))]
@@ -1569,11 +1569,11 @@ pub unsafe fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usi
                     }
                     src = src.add(len);
                 }
-                let term_now = (*curbuf).terminal.cast::<Terminal>();
+                let term_now = (*g_st().curbuf).terminal.cast::<Terminal>();
                 terminal_send(term_now, buff.as_ptr(), buff.len());
             }
         }
-        let term_end = (*curbuf).terminal.cast::<Terminal>();
+        let term_end = (*g_st().curbuf).terminal.cast::<Terminal>();
         if !(*term_end).streamed_paste {
             vterm_keyboard_end_paste(&raw mut (*term_end).vt);
         }
@@ -1587,7 +1587,7 @@ unsafe fn terminal_send_key(term: *mut Terminal, mut c: c_int) {
             c = Ctrl_AT;
         }
 
-        let key = convert_key(&mut c, mod_mask, &mut mod_);
+        let key = convert_key(&mut c, g_st().mod_mask, &mut mod_);
         if key != VTERM_KEY_NONE {
             vterm_keyboard_key(&raw mut (*term).vt, key, mod_);
         } else if !is_special(c) {
@@ -1598,7 +1598,7 @@ unsafe fn terminal_send_key(term: *mut Terminal, mut c: c_int) {
 
 pub unsafe fn on_sync_flush(buf_handle: handle_T) {
     unsafe {
-        if exiting {
+        if g_st().exiting {
             return;
         }
         let buf = handle_get_buffer(buf_handle);
@@ -1639,7 +1639,7 @@ pub unsafe fn terminal_receive(term: *mut Terminal, data: *const c_char, len: us
             (*term).invalid_start = 0;
             (*term).invalid_end = height;
             multiqueue_put_event(
-                (*loop_queues((&raw mut main_loop).cast())).events,
+                (*loop_queues((&raw mut g_st().main_loop).cast())).events,
                 Event::TermSyncFlush((*term).buf_handle),
             );
         }
@@ -2101,7 +2101,7 @@ unsafe fn term_selection_set(
             let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
             let data = std::ffi::CString::new(&bytes[..end]).unwrap();
             multiqueue_put_event(
-                (*loop_queues((&raw mut main_loop).cast())).events,
+                (*loop_queues((&raw mut g_st().main_loop).cast())).events,
                 Event::TermClipboardSet { mask, data },
             );
         }
@@ -2256,9 +2256,9 @@ unsafe fn mouse_action(
 
 unsafe fn send_mouse_event(term: *mut Terminal, mut c: c_int) -> bool {
     unsafe {
-        let mut row = mouse_row;
-        let mut col = mouse_col;
-        let mut grid = mouse_grid;
+        let mut row = g_st().mouse_row;
+        let mut col = g_st().mouse_col;
+        let mut grid = g_st().mouse_grid;
         let mouse_win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
         if !mouse_win.is_null() {
             let offset: c_int;
@@ -2294,15 +2294,15 @@ unsafe fn send_mouse_event(term: *mut Terminal, mut c: c_int) -> bool {
                 };
 
                 let mut mod_: VTermModifier = VTERM_MOD_NONE;
-                convert_modifiers(&mut c, mod_mask, &mut mod_);
+                convert_modifiers(&mut c, g_st().mod_mask, &mut mod_);
                 mouse_action(term, button, row, col - offset, pressed, mod_);
                 return false;
             }
 
             if c == K_MOUSEUP || c == K_MOUSEDOWN || c == K_MOUSELEFT || c == K_MOUSERIGHT {
-                let save_curwin = curwin;
-                curwin = mouse_win;
-                curbuf = (*curwin).w_buffer;
+                let save_curwin = *curwin.as_ptr();
+                *curwin.as_ptr() = mouse_win;
+                g_st().curbuf = (**curwin.as_ptr()).w_buffer;
 
                 let mut cap = cmdarg_T::new();
                 let mut oa = oparg_T::new();
@@ -2318,12 +2318,12 @@ unsafe fn send_mouse_event(term: *mut Terminal, mut c: c_int) -> bool {
 
                 do_mousescroll(&mut cap);
 
-                (*curwin).w_redr_status = true;
-                curwin = save_curwin;
-                curbuf = (*curwin).w_buffer;
+                (**curwin.as_ptr()).w_redr_status = true;
+                *curwin.as_ptr() = save_curwin;
+                g_st().curbuf = (**curwin.as_ptr()).w_buffer;
                 redraw_later(mouse_win, UPD_NOT_VALID);
                 invalidate_terminal(term, -1, -1);
-                return mouse_win == curwin;
+                return mouse_win == *curwin.as_ptr();
             }
         }
 
@@ -2335,7 +2335,7 @@ unsafe fn send_mouse_event(term: *mut Terminal, mut c: c_int) -> bool {
             return false;
         }
 
-        requeue_key(vgetc_char, vgetc_mod_mask, 0, true);
+        requeue_key(g_st().vgetc_char, g_st().vgetc_mod_mask, 0, true);
         true
     }
 }
@@ -2431,10 +2431,10 @@ unsafe fn refresh_terminal(term: *mut Terminal) {
         adjust_topline_cursor(term, buf, ml_added);
 
         if resized {
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut wp = if tp == curtab {
-                    firstwin
+                let mut wp = if tp == g_st().curtab {
+                    g_st().firstwin
                 } else {
                     (*tp).tp_firstwin
                 };
@@ -2450,7 +2450,7 @@ unsafe fn refresh_terminal(term: *mut Terminal) {
         }
 
         multiqueue_move_events(
-            (*loop_queues((&raw mut main_loop).cast())).events,
+            (*loop_queues((&raw mut g_st().main_loop).cast())).events,
             (*term).pending.events,
         );
     }
@@ -2505,7 +2505,7 @@ unsafe fn refresh_cursor(term: *mut Terminal, cursor_visible: *mut bool) {
 pub(crate) unsafe fn refresh_timer_cb() {
     unsafe {
         term_st().REFRESH_PENDING = false;
-        if exiting {
+        if g_st().exiting {
             return;
         }
 
@@ -2681,16 +2681,16 @@ unsafe fn adjust_topline_cursor(term: *mut Terminal, buf: *mut buf_T, added: c_i
     unsafe {
         let ml_end = (*buf).b_ml.ml_line_count;
 
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
             while !wp.is_null() {
                 if (*wp).w_buffer == buf {
-                    if wp == curwin && is_focused(term) {
+                    if wp == *curwin.as_ptr() && is_focused(term) {
                         terminal_check_cursor();
                         wp = (*wp).w_next;
                         continue;
@@ -2738,7 +2738,7 @@ unsafe fn linenr_to_row(term: *mut Terminal, linenr: c_int) -> c_int {
 
 #[inline]
 unsafe fn is_focused(term: *mut Terminal) -> bool {
-    unsafe { (State & MODE_TERMINAL) != 0 && (*curbuf).terminal.cast::<Terminal>() == term }
+    unsafe { (g_st().State & MODE_TERMINAL) != 0 && (*g_st().curbuf).terminal.cast::<Terminal>() == term }
 }
 
 unsafe fn get_config_string(buf: *mut buf_T, key: *mut c_char) -> *mut c_char {

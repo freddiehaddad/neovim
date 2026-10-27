@@ -2718,13 +2718,13 @@ pub unsafe fn replace_termcodes(
                 // Change <SID>Func to K_SNR <script-nr> _Func. This name is used
                 // for script-local user functions.
                 if rem >= 5 && vim_strnicmp_asc(src, c"<SID>".as_ptr(), 5) == 0 {
-                    if sid_arg < 0 || (sid_arg == 0 && current_sctx.sc_sid <= 0) {
+                    if sid_arg < 0 || (sid_arg == 0 && g_st().current_sctx.sc_sid <= 0) {
                         emsg(e_usingsid.as_ptr());
                     } else {
                         let sid: scid_T = if sid_arg != 0 {
                             sid_arg
                         } else {
-                            current_sctx.sc_sid
+                            g_st().current_sctx.sc_sid
                         };
                         src = src.add(5);
                         *result.add(dlen) = K_SPECIAL as c_char;

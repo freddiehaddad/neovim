@@ -213,7 +213,7 @@ pub struct TUIData {
 impl TUIData {
     pub fn new() -> Self {
         Self {
-            loop_: (&raw mut main_loop).cast::<Loop>(),
+            loop_: unsafe { (&raw mut g_st().main_loop).cast::<Loop>() },
             buf: [0; OUTBUF_SIZE],
             bufpos: 0,
             input: TermInput::new(),
@@ -390,7 +390,7 @@ pub unsafe fn tui_start(
         *timer.cast::<*mut TUIData>() = tui;
         uv_timer_start(timer, Some(after_startup_cb), 100, 0);
 
-        loop_poll_events((&raw mut main_loop).cast::<Loop>(), 1);
+        loop_poll_events((&raw mut g_st().main_loop).cast::<Loop>(), 1);
         *width = (*tui).width;
         *height = (*tui).height;
         *term = (*tui).term.clone();
@@ -420,7 +420,7 @@ pub unsafe fn tui_handle_term_mode(tui: *mut TUIData, mode: TermMode, state: Ter
         let mut is_set = false;
         match state {
             kTermModeNotRecognized | kTermModePermanentlyReset => {
-                if !nvim_testing && log_st().g_min_log_level <= LOGLVL_WRN {
+                if !g_st().nvim_testing && log_st().g_min_log_level <= LOGLVL_WRN {
                     logmsg!(
                         LOGLVL_WRN,
                         ptr::null(),
@@ -437,7 +437,7 @@ pub unsafe fn tui_handle_term_mode(tui: *mut TUIData, mode: TermMode, state: Ter
                 if state == kTermModePermanentlySet || state == kTermModeSet {
                     is_set = true;
                 }
-                if !nvim_testing && log_st().g_min_log_level <= LOGLVL_WRN {
+                if !g_st().nvim_testing && log_st().g_min_log_level <= LOGLVL_WRN {
                     logmsg!(
                         LOGLVL_WRN,
                         ptr::null(),
@@ -845,7 +845,7 @@ unsafe fn apply_termdefs(tui: *mut TUIData) {
                 size: 3,
                 capacity: 3,
             };
-            rpc_send_event(ui_client_channel_id, c"nvim_echo".as_ptr(), args);
+            rpc_send_event(g_st().ui_client_channel_id, c"nvim_echo".as_ptr(), args);
         }
 
         arena_mem_free(arena_finish(&raw mut err_arena));
@@ -972,7 +972,7 @@ unsafe fn terminfo_start(tui: *mut TUIData) {
             || terminfo_is_term_family(term, c"win32con".as_ptr())
             || terminfo_is_term_family(term, c"interix".as_ptr());
         (*tui).bce = (*tui).ti.back_color_erase;
-        t_colors = (*tui).ti.max_colors;
+        g_st().t_colors = (*tui).ti.max_colors;
 
         terminfo_out(tui, kTerm_enter_ca_mode);
         terminfo_out(tui, kTerm_keypad_xmit);
@@ -1113,11 +1113,11 @@ unsafe fn terminfo_disable(tui: *mut TUIData) {
 
 unsafe fn terminfo_stop(tui: *mut TUIData) {
     unsafe {
-        if ui_client_exit_status == 0 && ui_client_error_exit > 0 {
-            ui_client_exit_status = ui_client_error_exit;
+        if g_st().ui_client_exit_status == 0 && g_st().ui_client_error_exit > 0 {
+            g_st().ui_client_exit_status = g_st().ui_client_error_exit;
         }
 
-        if ui_client_exit_status == ui_client_error_exit.max(0) {
+        if g_st().ui_client_exit_status == g_st().ui_client_error_exit.max(0) {
             cursor_goto(tui, (*tui).height - 1, 0);
             terminfo_out(tui, kTerm_exit_ca_mode);
         }
@@ -1142,7 +1142,7 @@ unsafe fn tui_terminal_start(tui: *mut TUIData) {
         if (*input).loop_.is_null() {
             tinput_init(
                 input,
-                (&raw mut main_loop).cast::<Loop>(),
+                (&raw mut g_st().main_loop).cast::<Loop>(),
                 &(*tui).ti,
             );
         }
@@ -1982,7 +1982,7 @@ unsafe fn tui_set_mode(tui: *mut TUIData, mode: ModeShape) {
 pub unsafe fn tui_mode_change(tui: *mut TUIData, _mode: NvimString, mode_idx: Integer) {
     unsafe {
         #[cfg(unix)]
-        if (*tui).out_isatty && (*tui).is_starting && !stdin_isatty {
+        if (*tui).out_isatty && (*tui).is_starting && !g_st().stdin_isatty {
             let ret = uv_tty_set_mode(tui_output_handle(tui).cast(), UV_TTY_MODE_NORMAL);
             if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
                 logmsg!(
@@ -2315,7 +2315,7 @@ unsafe fn show_verbose_terminfo(tui: *mut TUIData) {
             size: 3,
             capacity: 3,
         };
-        rpc_send_event(ui_client_channel_id, c"nvim_echo".as_ptr(), args);
+        rpc_send_event(g_st().ui_client_channel_id, c"nvim_echo".as_ptr(), args);
         drop(str_bytes);
     }
 }
@@ -2449,7 +2449,7 @@ pub unsafe fn tui_option_set(tui: *mut TUIData, name: NvimString, value: Object)
             (*tui).print_attr_id = -1;
             invalidate(tui, 0, (*tui).grid.height, 0, (*tui).grid.width);
 
-            if ui_client_channel_id != 0 {
+            if g_st().ui_client_channel_id != 0 {
                 let mut args_items = [
                     cstr_as_obj(c"rgb".as_ptr()),
                     boolean_obj(value.data.boolean()),
@@ -2459,7 +2459,7 @@ pub unsafe fn tui_option_set(tui: *mut TUIData, name: NvimString, value: Object)
                     size: 2,
                     capacity: 2,
                 };
-                rpc_send_event(ui_client_channel_id, c"nvim_ui_set_option".as_ptr(), args);
+                rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_option".as_ptr(), args);
             }
         } else if strequal(name.data, c"ttimeout".as_ptr()) {
             (*tui).input.ttimeout = value.data.boolean();

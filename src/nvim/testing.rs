@@ -383,11 +383,11 @@ unsafe fn assert_beeps(argvars: *mut typval_T, no_beep: bool) -> c_int {
         let cmd = tv_get_string_chk(argvars);
         let mut ret: c_int = 0;
 
-        let beeps = did_beep;
-        suppress_errthrow = true;
-        emsg_silent = 0;
+        let beeps = g_st().did_beep;
+        g_st().suppress_errthrow = true;
+        g_st().emsg_silent = 0;
         do_cmdline_cmd(cmd);
-        let beeped = did_beep != beeps;
+        let beeped = g_st().did_beep != beeps;
         if if no_beep { beeped } else { !beeped } {
             let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
@@ -401,8 +401,8 @@ unsafe fn assert_beeps(argvars: *mut typval_T, no_beep: bool) -> c_int {
             ret = 1;
         }
 
-        suppress_errthrow = false;
-        emsg_on_display = false;
+        g_st().suppress_errthrow = false;
+        g_st().emsg_on_display = false;
         ret
     }
 }
@@ -600,8 +600,8 @@ pub unsafe fn f_assert_exception(
 /// `"assert_fails(cmd [, error [, msg]])"` function (`f_assert_fails`).
 pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFuncData) {
     unsafe {
-        let save_trylevel = trylevel;
-        let called_emsg_before = called_emsg;
+        let save_trylevel = g_st().trylevel;
+        let called_emsg_before = g_st().called_emsg;
         let mut wrong_arg_msg: *const c_char = std::ptr::null();
         let mut tofree: Option<std::ffi::CString> = None;
 
@@ -616,18 +616,18 @@ pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
             return;
         }
 
-        trylevel = 0;
-        suppress_errthrow = true;
-        in_assert_fails = true;
-        no_wait_return += 1;
+        g_st().trylevel = 0;
+        g_st().suppress_errthrow = true;
+        g_st().in_assert_fails = true;
+        g_st().no_wait_return += 1;
 
         let cmd = tv_get_string_chk(argvars);
         do_cmdline_cmd(cmd);
 
-        trylevel = save_trylevel;
-        suppress_errthrow = false;
+        g_st().trylevel = save_trylevel;
+        g_st().suppress_errthrow = false;
 
-        if called_emsg == called_emsg_before {
+        if g_st().called_emsg == called_emsg_before {
             let mut ga = Vec::new();
             prepare_assert_error(&mut ga);
             ga_concat_literal(&mut ga, b"command did not fail: ");
@@ -639,7 +639,7 @@ pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
             let mut expected_str: *const c_char = std::ptr::null();
             let mut error_found = false;
             let mut error_found_index: usize = 1;
-            let mut actual: *mut c_char = (&raw const emsg_assert_fails_msg)
+            let mut actual: *mut c_char = (&raw const g_st().emsg_assert_fails_msg)
                 .as_ref()
                 .unwrap()
                 .as_ref()
@@ -708,7 +708,7 @@ pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
                         c"E1115: \"assert_fails()\" fourth argument must be a number".as_ptr();
                     valid_args = false;
                 } else if arg3.vval.v_number() >= 0 && {
-                    let expected: i64 = emsg_assert_fails_lnum as _;
+                    let expected: i64 = g_st().emsg_assert_fails_lnum as _;
                     arg3.vval.v_number() != expected
                 } {
                     error_found = true;
@@ -723,7 +723,7 @@ pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
                     } else if !arg4.vval.v_string().is_null()
                         && pattern_match(
                             arg4.vval.v_string(),
-                            (&raw const emsg_assert_fails_context)
+                            (&raw const g_st().emsg_assert_fails_context)
                                 .as_ref()
                                 .unwrap()
                                 .as_ref()
@@ -748,11 +748,11 @@ pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
                 if error_found_index == 3 {
                     actual_tv.v_type = VarType::VAR_NUMBER;
                     {
-                        actual_tv.vval = crate::eval::typval::TypvalVval::Number(emsg_assert_fails_lnum as _);
+                        actual_tv.vval = crate::eval::typval::TypvalVval::Number(g_st().emsg_assert_fails_lnum as _);
                     }
                 } else if error_found_index == 4 {
                     actual_tv.v_type = VarType::VAR_STRING;
-                    actual_tv.vval = crate::eval::typval::TypvalVval::String((&raw const emsg_assert_fails_context)
+                    actual_tv.vval = crate::eval::typval::TypvalVval::String((&raw const g_st().emsg_assert_fails_context)
                         .as_ref()
                         .unwrap()
                         .as_ref()
@@ -776,18 +776,18 @@ pub unsafe fn f_assert_fails(argvars: *mut typval_T, rettv: *mut typval_T, _fptr
             }
         }
 
-        trylevel = save_trylevel;
-        suppress_errthrow = false;
-        in_assert_fails = false;
-        did_emsg = 0;
-        got_int = false;
-        msg_col = 0;
-        no_wait_return -= 1;
-        need_wait_return = false;
-        emsg_on_display = false;
+        g_st().trylevel = save_trylevel;
+        g_st().suppress_errthrow = false;
+        g_st().in_assert_fails = false;
+        g_st().did_emsg = 0;
+        g_st().got_int = false;
+        g_st().msg_col = 0;
+        g_st().no_wait_return -= 1;
+        g_st().need_wait_return = false;
+        g_st().emsg_on_display = false;
         msg_reset_scroll();
-        lines_left = Rows;
-        emsg_assert_fails_msg = None;
+        g_st().lines_left = g_st().Rows;
+        g_st().emsg_assert_fails_msg = None;
         drop(tofree);
         set_vim_var_string(VV_ERRMSG, std::ptr::null(), 0);
         if !wrong_arg_msg.is_null() {

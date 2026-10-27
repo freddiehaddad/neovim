@@ -317,7 +317,7 @@ pub unsafe fn mf_free(mfp: *mut memfile_T, hp: *mut bhdr_T) {
 /// Sync memory file to disk.
 pub unsafe fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
     unsafe {
-        let got_int_save = got_int;
+        let got_int_save = g_st().got_int;
 
         if (*mfp).mf_fd < 0 {
             (*mfp).mf_dirty = MF_DIRTY_NO;
@@ -325,7 +325,7 @@ pub unsafe fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
         }
 
         {
-            got_int = false;
+            g_st().got_int = false;
         }
 
         let mut status = OK;
@@ -357,11 +357,11 @@ pub unsafe fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
                         break;
                     }
                 } else {
-                    if *loop_recursive_ptr((&raw mut main_loop).cast()) == 0 {
+                    if *loop_recursive_ptr((&raw mut g_st().main_loop).cast()) == 0 {
                         os_breakcheck();
                     }
                 }
-                if got_int {
+                if g_st().got_int {
                     completed_all = false;
                     break;
                 }
@@ -377,7 +377,7 @@ pub unsafe fn mf_sync(mfp: *mut memfile_T, flags: c_int) -> c_int {
         }
 
         {
-            got_int |= got_int_save;
+            g_st().got_int |= got_int_save;
         }
 
         status
@@ -400,7 +400,7 @@ pub unsafe fn mf_set_dirty(mfp: *mut memfile_T) {
 pub unsafe fn mf_release_all() -> bool {
     let mut retval = false;
     unsafe {
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             let mfp = (*buf).b_ml.mfp_ptr();
             if !mfp.is_null() {
@@ -530,17 +530,17 @@ unsafe fn mf_write(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
                 }
                 if attempt == 2 || (*mfp).mf_fd < 0 {
                     {
-                        if !did_swapwrite_msg {
+                        if !g_st().did_swapwrite_msg {
                             emsg(gettext(c"E297: Write error in swap file".as_ptr()));
                         }
-                        did_swapwrite_msg = true;
+                        g_st().did_swapwrite_msg = true;
                     }
                     return FAIL;
                 }
             }
 
             {
-                did_swapwrite_msg = false;
+                g_st().did_swapwrite_msg = false;
             }
             if !hp2.is_null() {
                 (*hp2).bh_flags &= !BH_DIRTY;

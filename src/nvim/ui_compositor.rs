@@ -96,8 +96,8 @@ unsafe fn attrbuf_mut() -> &'static mut Vec<sattr_T> {
 
 pub unsafe fn ui_comp_init() {
     unsafe {
-        layers_mut().push(&raw mut default_grid);
-        comp().curgrid = &raw mut default_grid;
+        layers_mut().push(&raw mut g_st().default_grid);
+        comp().curgrid = &raw mut g_st().default_grid;
     }
 }
 
@@ -230,8 +230,8 @@ pub unsafe fn ui_comp_put_grid(
                 insert_at -= 1;
             }
 
-            if !curwin.is_null()
-                && l[insert_at - 1] == &raw mut (*curwin).w_grid_alloc
+            if !(*curwin.as_ptr()).is_null()
+                && l[insert_at - 1] == &raw mut (**curwin.as_ptr()).w_grid_alloc
                 && (*l[insert_at - 1]).zindex == (*grid).zindex
                 && !on_top
             {
@@ -265,13 +265,13 @@ pub unsafe fn ui_comp_put_grid(
 
 pub unsafe fn ui_comp_remove_grid(grid: *mut ScreenGrid) {
     unsafe {
-        debug_assert!(!ptr::eq(grid, &raw const default_grid));
+        debug_assert!(!ptr::eq(grid, &raw const g_st().default_grid));
         if (*grid).comp_index == 0 {
             return;
         }
 
         if comp().curgrid == grid {
-            comp().curgrid = &raw mut default_grid;
+            comp().curgrid = &raw mut g_st().default_grid;
         }
 
         let l = layers_mut();
@@ -337,7 +337,7 @@ pub unsafe fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Inte
         let cursor_row = (*comp().curgrid).comp_row + (r as c_int);
         let cursor_col = (*comp().curgrid).comp_col + (c as c_int);
 
-        if !ptr::eq(comp().curgrid, &raw const default_grid) {
+        if !ptr::eq(comp().curgrid, &raw const g_st().default_grid) {
             let l = layers_mut();
             let mut new_index = l.len() - 1;
             while new_index > 1 && (*l[new_index]).zindex > (*comp().curgrid).zindex {
@@ -348,7 +348,7 @@ pub unsafe fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Inte
             }
         }
 
-        if cursor_col >= default_grid.cols || cursor_row >= default_grid.rows {
+        if cursor_col >= g_st().default_grid.cols || cursor_row >= g_st().default_grid.rows {
             return;
         }
         ui_composed_call_grid_cursor_goto(1, cursor_row as Integer, cursor_col as Integer);
@@ -369,7 +369,7 @@ pub unsafe fn ui_comp_mouse_focus(row: c_int, col: c_int) -> *mut ScreenGrid {
             }
         }
         if ui_has(kUIMultigrid) {
-            let mut wp = firstwin;
+            let mut wp = g_st().firstwin;
             while !wp.is_null() {
                 let grid = &raw mut (*wp).w_grid_alloc;
                 if (*grid).mouse_enabled
@@ -401,7 +401,7 @@ pub unsafe fn ui_comp_get_grid_at_coord(row: c_int, col: c_int) -> *mut ScreenGr
             }
         }
 
-        let mut wp = firstwin;
+        let mut wp = g_st().firstwin;
         while !wp.is_null() {
             let grid = &raw mut (*wp).w_grid_alloc;
             if row >= (*grid).comp_row
@@ -414,7 +414,7 @@ pub unsafe fn ui_comp_get_grid_at_coord(row: c_int, col: c_int) -> *mut ScreenGr
             }
             wp = (*wp).w_next;
         }
-        &raw mut default_grid
+        &raw mut g_st().default_grid
     }
 }
 
@@ -432,16 +432,16 @@ unsafe fn compose_line(
             startcol -= 1;
             skipstart = 1;
         }
-        if endcol < (default_grid.cols as Integer) && (flags & kLineFlagInvalid) != 0 {
+        if endcol < (g_st().default_grid.cols as Integer) && (flags & kLineFlagInvalid) != 0 {
             endcol += 1;
             skipend = 1;
         }
 
         let mut col = startcol as c_int;
         let mut grid: *mut ScreenGrid = ptr::null_mut();
-        let line_off = default_grid.line_offset[row as usize] + (startcol as usize);
-        let bg_line = &raw mut default_grid.chars[line_off];
-        let bg_attrs = &raw mut default_grid.attrs[line_off];
+        let line_off = g_st().default_grid.line_offset[row as usize] + (startcol as usize);
+        let bg_line = &raw mut g_st().default_grid.chars[line_off];
+        let bg_attrs = &raw mut g_st().default_grid.attrs[line_off];
         let lbuf = linebuf_mut().as_mut_ptr();
         let abuf = attrbuf_mut().as_mut_ptr();
         let l = layers_mut();
@@ -468,11 +468,11 @@ unsafe fn compose_line(
 
             debug_assert!(!grid.is_null());
             debug_assert!(until > col);
-            debug_assert!(until <= default_grid.cols);
+            debug_assert!(until <= g_st().default_grid.cols);
             let n = (until - col) as usize;
 
-            if row == (comp().msg_sep_row as Integer) && (*grid).comp_index <= msg_grid.comp_index {
-                grid = &raw mut msg_grid;
+            if row == (comp().msg_sep_row as Integer) && (*grid).comp_index <= g_st().msg_grid.comp_index {
+                grid = &raw mut g_st().msg_grid;
                 let msg_sep_attr = crate::highlight::hl_attr(HLF_MSGSEP as c_int) as sattr_T;
                 for i in col..until {
                     let idx = (i - startcol as c_int) as usize;
@@ -547,8 +547,8 @@ unsafe fn compose_line(
         debug_assert!(row < comp().chk_height as Integer);
 
         if !(!grid.is_null()
-            && (ptr::eq(grid, &raw const default_grid)
-                || ((*grid).comp_col == 0 && (*grid).cols == Columns)))
+            && (ptr::eq(grid, &raw const g_st().default_grid)
+                || ((*grid).comp_col == 0 && (*grid).cols == g_st().Columns)))
         {
             flags &= !kLineFlagWrap;
         }
@@ -591,8 +591,8 @@ unsafe fn compose_debug(
             return;
         }
 
-        endrow = endrow.min(default_grid.rows as Integer);
-        endcol = endcol.min(default_grid.cols as Integer);
+        endrow = endrow.min(g_st().default_grid.rows as Integer);
+        endcol = endcol.min(g_st().default_grid.cols as Integer);
         let attr = syn_id2attr(syn_id);
 
         if delay {
@@ -638,8 +638,8 @@ unsafe fn compose_area(
 ) {
     unsafe {
         compose_debug(startrow, endrow, startcol, endcol, comp().dbghl_recompose, true);
-        endrow = endrow.min(default_grid.rows as Integer);
-        endcol = endcol.min(default_grid.cols as Integer);
+        endrow = endrow.min(g_st().default_grid.rows as Integer);
+        endcol = endcol.min(g_st().default_grid.cols as Integer);
         if endcol <= startcol {
             return;
         }
@@ -683,20 +683,20 @@ pub unsafe fn ui_comp_raw_line(
         startcol += (*comp().curgrid).comp_col as Integer;
         endcol += (*comp().curgrid).comp_col as Integer;
         clearcol += (*comp().curgrid).comp_col as Integer;
-        if !ptr::eq(comp().curgrid, &raw const default_grid) {
+        if !ptr::eq(comp().curgrid, &raw const g_st().default_grid) {
             flags &= !kLineFlagWrap;
         }
 
         debug_assert!(endcol <= clearcol);
 
-        if row >= default_grid.rows as Integer {
+        if row >= g_st().default_grid.rows as Integer {
             return;
         }
-        if clearcol > default_grid.cols as Integer {
-            if startcol >= default_grid.cols as Integer {
+        if clearcol > g_st().default_grid.cols as Integer {
+            if startcol >= g_st().default_grid.cols as Integer {
                 return;
             }
-            clearcol = default_grid.cols as Integer;
+            clearcol = g_st().default_grid.cols as Integer;
             endcol = endcol.min(clearcol);
         }
 
@@ -750,8 +750,8 @@ pub unsafe fn ui_comp_msg_set_pos(
     _compindex: Integer,
 ) {
     unsafe {
-        msg_grid.pending_comp_index_update = true;
-        msg_grid.comp_row = row as c_int;
+        g_st().msg_grid.pending_comp_index_update = true;
+        g_st().msg_grid.comp_row = row as c_int;
         if scrolled && row > 0 {
             comp().msg_sep_row = (row as c_int) - 1;
             if !sep_char.data.is_null() {
@@ -766,34 +766,34 @@ pub unsafe fn ui_comp_msg_set_pos(
                 (comp().msg_current_row - 1).max(0) as Integer,
                 row,
                 0,
-                default_grid.cols as Integer,
+                g_st().default_grid.cols as Integer,
             );
         } else if row < (comp().msg_current_row as Integer)
             && ui_comp_should_draw()
-            && (comp().msg_current_row < Rows || (scrolled && !comp().msg_was_scrolled))
+            && (comp().msg_current_row < g_st().Rows || (scrolled && !comp().msg_was_scrolled))
         {
             let delta = comp().msg_current_row - (row as c_int);
-            if msg_grid.blending {
+            if g_st().msg_grid.blending {
                 let first_row = ((row as c_int) - if scrolled { 1 } else { 0 }).max(0);
                 compose_area(
                     first_row as Integer,
-                    (Rows - delta) as Integer,
+                    (g_st().Rows - delta) as Integer,
                     0,
-                    Columns as Integer,
+                    g_st().Columns as Integer,
                 );
             } else {
                 let first_row = ((row as c_int) - if comp().msg_was_scrolled { 1 } else { 0 }).max(0);
                 ui_composed_call_grid_scroll(
                     1,
                     first_row as Integer,
-                    Rows as Integer,
+                    g_st().Rows as Integer,
                     0,
-                    Columns as Integer,
+                    g_st().Columns as Integer,
                     delta as Integer,
                     0,
                 );
                 if scrolled && !comp().msg_was_scrolled && row > 0 {
-                    compose_area(row - 1, row, 0, Columns as Integer);
+                    compose_area(row - 1, row, 0, g_st().Columns as Integer);
                 }
             }
         }
@@ -808,7 +808,7 @@ unsafe fn curgrid_covered_above(top: c_int, bot: c_int, left: c_int, right: c_in
     unsafe {
         for &g in layers_mut().iter().skip((*comp().curgrid).comp_index + 1) {
             let grid_top = (*g).comp_row
-                - if ptr::eq(g, &raw const msg_grid) && comp().msg_was_scrolled {
+                - if ptr::eq(g, &raw const g_st().msg_grid) && comp().msg_was_scrolled {
                     1
                 } else {
                     0

@@ -58,7 +58,7 @@ pub unsafe fn win_new_float(
         let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         if wp.is_null() {
             let mut tp_last = if last {
-                lastwin
+                g_st().lastwin
             } else {
                 lastwin_nofloating(ptr::null_mut())
             };
@@ -72,10 +72,10 @@ pub unsafe fn win_new_float(
                 if tp.is_null() {
                     return ptr::null_mut();
                 }
-                tp_last = lastwin_nofloating(if tp == curtab { ptr::null_mut() } else { tp });
+                tp_last = lastwin_nofloating(if tp == g_st().curtab { ptr::null_mut() } else { tp });
             }
             wp = win_alloc(tp_last, false);
-            win_init(wp, curwin, 0);
+            win_init(wp, *curwin.as_ptr(), 0);
             if !(*wp).w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
                 if (*wp).w_onebuf_opt.wo_wbr != empty_opt {
                     free_string_option((*wp).w_onebuf_opt.wo_wbr);
@@ -91,8 +91,8 @@ pub unsafe fn win_new_float(
             debug_assert!(!(*wp).w_floating);
             let win_tp = win_find_tabpage(wp);
             debug_assert!(!win_tp.is_null());
-            if (win_tp == curtab && firstwin == wp && lastwin_nofloating(ptr::null_mut()) == wp)
-                || (win_tp != curtab
+            if (win_tp == g_st().curtab && g_st().firstwin == wp && lastwin_nofloating(ptr::null_mut()) == wp)
+                || (win_tp != g_st().curtab
                     && (*win_tp).tp_firstwin == wp
                     && lastwin_nofloating(win_tp) == wp)
             {
@@ -103,7 +103,7 @@ pub unsafe fn win_new_float(
                 );
                 return ptr::null_mut();
             }
-            let tp = if win_tp == curtab {
+            let tp = if win_tp == g_st().curtab {
                 ptr::null_mut()
             } else {
                 win_tp
@@ -115,7 +115,7 @@ pub unsafe fn win_new_float(
             }
             (*wp).w_frame = ptr::null_mut();
             win_remove(wp, tp);
-            if win_tp == curtab {
+            if win_tp == g_st().curtab {
                 last_status(false);
                 win_comp_pos();
             }
@@ -231,15 +231,15 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
         (*wp).w_height = fconfig.height.max(1);
 
         if fconfig.relative == kFloatRelativeCursor {
-            validate_cursor(curwin);
+            validate_cursor(*curwin.as_ptr());
             fconfig.relative = kFloatRelativeWindow;
-            fconfig.row += (*curwin).w_wrow as f64;
-            fconfig.col += (*curwin).w_wcol as f64;
-            fconfig.window = (*curwin).handle;
+            fconfig.row += (**curwin.as_ptr()).w_wrow as f64;
+            fconfig.col += (**curwin.as_ptr()).w_wcol as f64;
+            fconfig.window = (**curwin.as_ptr()).handle;
         } else if fconfig.relative == kFloatRelativeMouse {
-            let mut row = mouse_row;
-            let mut col = mouse_col;
-            let mut grid = mouse_grid;
+            let mut row = g_st().mouse_row;
+            let mut col = g_st().mouse_col;
+            let mut grid = g_st().mouse_grid;
             let mouse_win = mouse_find_win_inner(&raw mut grid, &raw mut row, &raw mut col);
             if !mouse_win.is_null() {
                 fconfig.relative = kFloatRelativeWindow;
@@ -270,8 +270,8 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
             } else {
                 0
             };
-            (*wp).w_height = (*wp).w_height.min(Rows - win_border_height(wp) - above_ch);
-            (*wp).w_width = (*wp).w_width.min(Columns - win_border_width(wp));
+            (*wp).w_height = (*wp).w_height.min(g_st().Rows - win_border_height(wp) - above_ch);
+            (*wp).w_width = (*wp).w_width.min(g_st().Columns - win_border_width(wp));
         }
 
         win_set_inner_size(wp, true);
@@ -336,7 +336,7 @@ pub unsafe fn win_config_float(wp: *mut win_T, mut fconfig: WinConfig) {
 pub unsafe fn win_float_remove(bang: bool, mut count: c_int) {
     unsafe {
         let mut float_win_arr: Vec<*mut win_T> = Vec::new();
-        let mut wp = lastwin;
+        let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
             if !(*wp).w_config.hide && (*wp).w_onebuf_opt.wo_wp == 0 {
                 float_win_arr.push(wp);
@@ -362,7 +362,7 @@ pub unsafe fn win_float_remove(bang: bool, mut count: c_int) {
 
 pub unsafe fn win_check_anchored_floats(win: *mut win_T) {
     unsafe {
-        let mut wp = lastwin;
+        let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
             if (*wp).w_config.relative == kFloatRelativeWindow
                 && (*wp).w_config.window == (*win).handle
@@ -376,7 +376,7 @@ pub unsafe fn win_check_anchored_floats(win: *mut win_T) {
 
 pub unsafe fn win_float_update_statusline() {
     unsafe {
-        let mut wp = lastwin;
+        let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
             let has_status = (*wp).w_status_height > 0;
             let should_show = *(*wp).w_onebuf_opt.wo_stl != NUL && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
@@ -390,7 +390,7 @@ pub unsafe fn win_float_update_statusline() {
 
 pub unsafe fn win_float_anchor_laststatus() {
     unsafe {
-        let mut win = firstwin;
+        let mut win = g_st().firstwin;
         while !win.is_null() {
             if (*win).w_config.relative == kFloatRelativeLaststatus {
                 (*win).w_pos_changed = true;
@@ -402,7 +402,7 @@ pub unsafe fn win_float_anchor_laststatus() {
 
 pub unsafe fn win_reconfig_floats() {
     unsafe {
-        let mut wp = lastwin;
+        let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
             win_config_float(wp, (*wp).w_config.clone());
             wp = (*wp).w_prev;
@@ -413,7 +413,7 @@ pub unsafe fn win_reconfig_floats() {
 /// Find the floating window of the given kind in the current tabpage (`win_float_find`).
 pub unsafe fn win_float_find(kind: WinKind) -> *mut win_T {
     unsafe {
-        let mut wp = lastwin;
+        let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
             if (*wp).w_kind == kind {
                 return wp;
@@ -427,7 +427,7 @@ pub unsafe fn win_float_find(kind: WinKind) -> *mut win_T {
 /// Select an alternative window to `win` (assumed floating) in tabpage `tp` (`win_float_find_altwin`).
 pub unsafe fn win_float_find_altwin(win: *const win_T, tp: *const tabpage_T) -> *mut win_T {
     unsafe {
-        let mut wp = prevwin;
+        let mut wp = g_st().prevwin;
         if tp.is_null() {
             return if win_valid(wp)
                 && !ptr::eq(wp, win)
@@ -436,11 +436,11 @@ pub unsafe fn win_float_find_altwin(win: *const win_T, tp: *const tabpage_T) -> 
             {
                 wp
             } else {
-                firstwin
+                g_st().firstwin
             };
         }
 
-        debug_assert!(!ptr::eq(tp, curtab));
+        debug_assert!(!ptr::eq(tp, g_st().curtab));
         wp = if tabpage_win_valid(tp, (*tp).tp_prevwin) {
             (*tp).tp_prevwin
         } else {
@@ -474,8 +474,8 @@ unsafe fn win_float_special_fail(wp: *mut win_T, err: *mut Error) -> *mut win_T 
 /// Snapshot a 'previewpopup' preview's anchor: the current cursor's screen cell (`win_float_anchor_preview`).
 pub unsafe fn win_float_anchor_preview(wp: *mut win_T) {
     unsafe {
-        (*wp).w_wantline = (*curwin).w_winrow + (*curwin).w_wrow;
-        (*wp).w_wantcol = (*curwin).w_wincol + (*curwin).w_wcol;
+        (*wp).w_wantline = (**curwin.as_ptr()).w_winrow + (**curwin.as_ptr()).w_wrow;
+        (*wp).w_wantcol = (**curwin.as_ptr()).w_wincol + (**curwin.as_ptr()).w_wcol;
     }
 }
 
@@ -483,8 +483,8 @@ pub unsafe fn win_float_anchor_preview(wp: *mut win_T) {
 pub unsafe fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut win_T {
     unsafe {
         let mut config = WIN_CONFIG_INIT;
-        config.col = (*curwin).w_wcol as f64;
-        config.row = (*curwin).w_wrow as f64;
+        config.col = (**curwin.as_ptr()).w_wcol as f64;
+        config.row = (**curwin.as_ptr()).w_wrow as f64;
         config.relative = kFloatRelativeEditor;
         config.focusable = false;
         config.mouse = true;
@@ -584,8 +584,8 @@ pub unsafe fn win_float_update_preview(wp: *mut win_T) {
 
         let border_h = win_border_height(wp);
         let border_w = win_border_width(wp);
-        let row = (*wp).w_wantline.max(0).min(Rows - 1);
-        let col = (*wp).w_wantcol.max(0).min(Columns - 1);
+        let row = (*wp).w_wantline.max(0).min(g_st().Rows - 1);
+        let col = (*wp).w_wantcol.max(0).min(g_st().Columns - 1);
 
         let v = opt_keyset(opt_vars().p_pvp, kOptPreviewpopup, ptr::null_mut()).cast::<OptKeyDict_pvp>();
         let mut want_w = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__width) {
@@ -602,23 +602,23 @@ pub unsafe fn win_float_update_preview(wp: *mut win_T) {
         // If a dimension is not given in 'previewpopup', autosize to the content.
         let last: linenr_T = (*(*wp).w_buffer).b_ml.ml_line_count;
         if want_w == 0 {
-            want_w = win_max_displaywidth(wp, 1, last, Columns).max(1);
+            want_w = win_max_displaywidth(wp, 1, last, g_st().Columns).max(1);
         }
-        want_w = want_w.min(Columns);
+        want_w = want_w.min(g_st().Columns);
 
         if want_h == 0 {
             let saved_view_width = (*wp).w_view_width;
             (*wp).w_view_width = want_w;
-            want_h = plines_m_win(wp, 1, last, Rows).max(1);
+            want_h = plines_m_win(wp, 1, last, g_st().Rows).max(1);
             (*wp).w_view_width = saved_view_width;
         }
-        want_h = want_h.min(Rows);
+        want_h = want_h.min(g_st().Rows);
 
         let need_h = want_h + border_h;
         let need_w = want_w + border_w;
-        let space_below = Rows - row - 1 - (opt_vars().p_ch as c_int);
+        let space_below = g_st().Rows - row - 1 - (opt_vars().p_ch as c_int);
         let space_above = row - 1;
-        let space_right = Columns - col - 1;
+        let space_right = g_st().Columns - col - 1;
         let space_left = col;
         // Prefer below/right; flip only if this side can't fit but the other can.
         let below = space_below >= need_h || space_above < need_h;

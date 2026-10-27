@@ -64,100 +64,439 @@ impl<T> GlobalState<T> {
     }
 }
 
-pub static mut main_loop: Loop = Loop::new();
+pub struct EditorState {
+    pub main_loop: Loop,
+    pub g_stats: NvimStats,
+    pub Rows: c_int,
+    pub Columns: c_int,
+    pub mod_mask: c_int,
+    pub vgetc_mod_mask: c_int,
+    pub vgetc_char: c_int,
+    pub cmdline_row: c_int,
+    pub redraw_cmdline: bool,
+    pub redraw_mode: bool,
+    pub clear_cmdline: bool,
+    pub mode_displayed: bool,
+    pub cmdline_star: c_int,
+    pub redrawing_cmdline: bool,
+    pub cmdline_was_last_drawn: bool,
+    pub exec_from_reg: bool,
+    pub dollar_vcol: colnr_T,
+    pub edit_submode: *const c_char,
+    pub edit_submode_pre: *const c_char,
+    pub edit_submode_extra: *mut c_char,
+    pub edit_submode_highl: hlf_T,
+    pub cmdmsg_rl: bool,
+    pub msg_col: c_int,
+    pub msg_row: c_int,
+    pub msg_scrolled: c_int,
+    pub msg_scrolled_ign: bool,
+    pub msg_did_scroll: bool,
+    pub keep_msg: Option<std::ffi::CString>,
+    pub keep_msg_hl_id: c_int,
+    pub need_fileinfo: bool,
+    pub msg_scroll: c_int,
+    pub msg_didout: bool,
+    pub msg_didany: bool,
+    pub msg_nowait: bool,
+    pub emsg_off: c_int,
+    pub info_message: bool,
+    pub msg_hist_off: bool,
+    pub need_clr_eos: bool,
+    pub emsg_skip: c_int,
+    pub emsg_severe: bool,
+    pub emsg_assert_fails_msg: Option<std::ffi::CString>,
+    pub emsg_assert_fails_lnum: c_long,
+    pub emsg_assert_fails_context: Option<std::ffi::CString>,
+    pub did_endif: bool,
+    pub did_emsg: c_int,
+    pub did_beep: u64,
+    pub did_beep_silent: u64,
+    pub did_emsg_syntax: bool,
+    pub called_emsg: c_int,
+    pub ex_exitval: c_int,
+    pub emsg_on_display: bool,
+    pub rc_did_emsg: bool,
+    pub no_wait_return: c_int,
+    pub need_wait_return: bool,
+    pub did_wait_return: bool,
+    pub need_maketitle: bool,
+    pub quit_more: bool,
+    pub vgetc_busy: c_int,
+    pub didset_vim: bool,
+    pub didset_vimruntime: bool,
+    pub lines_left: c_int,
+    pub msg_no_more: bool,
+    pub ex_nesting_level: c_int,
+    pub debug_break_level: c_int,
+    pub debug_did_msg: bool,
+    pub debug_tick: c_int,
+    pub debug_backtrace_level: c_int,
+    pub do_profiling: c_int,
+    pub current_exception: Option<std::rc::Rc<except_T>>,
+    pub did_throw: bool,
+    pub need_rethrow: bool,
+    pub check_cstack: bool,
+    pub trylevel: c_int,
+    pub force_abort: bool,
+    pub msg_list: Option<Vec<msglist_T>>,
+    pub suppress_errthrow: bool,
+    pub caught_stack: Vec<std::rc::Rc<except_T>>,
+    pub may_garbage_collect: bool,
+    pub want_garbage_collect: bool,
+    pub garbage_collect_at_exit: bool,
+    pub current_sctx: sctx_T,
+    pub current_ui: u64,
+    pub did_source_packages: bool,
+    pub provider_caller_scope: caller_scope,
+    pub provider_call_nesting: c_int,
+    pub t_colors: c_int,
+    pub include_none: c_int,
+    pub include_default: c_int,
+    pub include_link: c_int,
+    pub Search: SearchState,
+    pub need_check_timestamps: bool,
+    pub did_check_timestamps: bool,
+    pub no_check_timestamps: c_int,
+    pub mouse_grid: c_int,
+    pub mouse_row: c_int,
+    pub mouse_col: c_int,
+    pub mouse_past_bottom: bool,
+    pub mouse_past_eol: bool,
+    pub mouse_dragging: c_int,
+    pub root_menu: Vec<vimmenu_T>,
+    pub sys_menu: bool,
+    pub firstwin: *mut win_T,
+    pub lastwin: *mut win_T,
+    pub prevwin: *mut win_T,
+    pub topframe: *mut frame_T,
+    pub first_tabpage: *mut tabpage_T,
+    pub curtab: *mut tabpage_T,
+    pub lastused_tabpage: *mut tabpage_T,
+    pub redraw_tabline: bool,
+    pub firstbuf: *mut buf_T,
+    pub lastbuf: *mut buf_T,
+    pub curbuf: *mut buf_T,
+    pub global_alist: alist_T,
+    pub max_alist_id: c_int,
+    pub arg_had_last: bool,
+    pub ru_col: c_int,
+    pub ru_wid: c_int,
+    pub sc_col: c_int,
+    pub exiting: bool,
+    pub v_dying: c_int,
+    pub stdin_isatty: bool,
+    pub stdout_isatty: bool,
+    pub stderr_isatty: bool,
+    pub stdin_fd: c_int,
+    pub full_screen: bool,
+    pub secure: c_int,
+    pub textlock: c_int,
+    pub allbuf_lock: c_int,
+    pub sandbox: c_int,
+    pub silent_mode: bool,
+    pub exmode_active: bool,
+    pub Visual: VisualState,
+    pub where_paste_started: pos_T,
+    pub did_syncbind: bool,
+    pub old_indent: c_int,
+    pub saved_cursor: pos_T,
+    pub Ins: InsState,
+    pub orig_line_count: linenr_T,
+    pub vr_lines_changed: c_int,
+    pub inhibit_delete_count: c_int,
+    pub fenc_default: Option<std::ffi::CString>,
+    pub State: c_int,
+    pub debug_mode: bool,
+    pub finish_op: bool,
+    pub opcount: c_int,
+    pub motion_force: c_int,
+    pub cmdpreview: bool,
+    pub reg_recording: c_int,
+    pub reg_executing: c_int,
+    pub pending_end_reg_executing: bool,
+    pub reg_recorded: c_int,
+    pub no_mapping: c_int,
+    pub no_zero_mapping: c_int,
+    pub allow_keys: c_int,
+    pub no_u_sync: c_int,
+    pub u_sync_once: c_int,
+    pub force_restart_edit: bool,
+    pub restart_edit: c_int,
+    pub ins_at_eol: bool,
+    pub no_abbr: bool,
+    pub mapped_ctrl_c: c_int,
+    pub ctrl_c_interrupts: bool,
+    pub cmdmod: cmdmod_T,
+    pub msg_silent: c_int,
+    pub emsg_silent: c_int,
+    pub emsg_noredir: bool,
+    pub cmd_silent: bool,
+    pub in_assert_fails: bool,
+    pub swap_exists_action: c_int,
+    pub swap_exists_did_quit: bool,
+    pub IObuff: [c_char; IOSIZE],
+    pub NameBuff: [c_char; MAXPATHL],
+    pub msg_buf: [c_char; MSG_BUF_LEN],
+    pub os_buf: [c_char; MAXPATHL],
+    pub RedrawingDisabled: c_int,
+    pub readonlymode: bool,
+    pub recoverymode: bool,
+    pub typebuf: typebuf_T,
+    pub typebuf_was_empty: bool,
+    pub ex_normal_busy: c_int,
+    pub expr_map_lock: c_int,
+    pub ignore_script: bool,
+    pub KeyTyped: bool,
+    pub KeyStuffed: c_int,
+    pub maptick: c_int,
+    pub must_redraw: c_int,
+    pub skip_redraw: bool,
+    pub do_redraw: bool,
+    pub must_redraw_pum: bool,
+    pub need_highlight_changed: bool,
+    pub scriptout: Option<crate::os::fs::CFile>,
+    pub got_int: bool,
+    pub bangredo: bool,
+    pub reg_do_extmatch: c_int,
+    pub re_extmatch_in: Option<std::rc::Rc<reg_extmatch_T>>,
+    pub re_extmatch_out: Option<std::rc::Rc<reg_extmatch_T>>,
+    pub did_outofmem_msg: bool,
+    pub did_swapwrite_msg: bool,
+    pub global_busy: c_int,
+    pub listcmd_busy: bool,
+    pub need_start_insertmode: bool,
+    pub last_mode: [c_char; MODE_MAX_LENGTH],
+    pub last_cmdline: Option<std::ffi::CString>,
+    pub repeat_cmdline: Option<std::ffi::CString>,
+    pub new_last_cmdline: Option<std::ffi::CString>,
+    pub postponed_split: c_int,
+    pub postponed_split_flags: c_int,
+    pub postponed_split_tab: c_int,
+    pub g_do_tagpreview: c_int,
+    pub g_tag_at_cursor: bool,
+    pub replace_offset: c_int,
+    pub keep_help_flag: bool,
+    pub redir_off: bool,
+    pub redir_fd: Option<crate::os::fs::CFile>,
+    pub redir_reg: c_int,
+    pub redir_vname: bool,
+    pub capture_ga: *mut Vec<c_char>,
+    pub langmap_mapchar: [u8; 256],
+    pub save_p_ls: c_int,
+    pub save_p_wmh: c_int,
+    pub wild_menu_showing: c_int,
+    pub globaldir: Option<std::ffi::CString>,
+    pub last_chdir_reason: Option<&'static std::ffi::CStr>,
+    pub km_stopsel: bool,
+    pub km_startsel: bool,
+    pub cmdwin_type: c_int,
+    pub cmdwin_buf: *mut buf_T,
+    pub cmdline_win: *mut win_T,
+    pub sub_nsubs: c_int,
+    pub sub_nlines: linenr_T,
+    pub wim_flags: [u8; 4],
+    pub stl_syntax: c_int,
+    pub typebuf_was_filled: bool,
+    pub virtual_op: TriState,
+    pub spell_redraw_lnum: linenr_T,
+    pub time_fd: Option<crate::os::fs::CFile>,
+    pub vim_ignored: c_int,
+    pub embedded_mode: bool,
+    pub headless_mode: bool,
+    pub windowsVersion: [c_char; 20],
+    pub skip_win_fix_scroll: bool,
+    pub skip_update_topline: bool,
+    pub namespace_ids: Vec<(std::ffi::CString, c_int)>,
+    pub namespace_localscope: std::collections::BTreeSet<u32>,
+    pub next_namespace_id: handle_T,
+    pub buffer_handles: std::collections::BTreeMap<c_int, *mut buf_T>,
+    pub window_handles: std::collections::BTreeMap<c_int, *mut win_T>,
+    pub tabpage_handles: std::collections::BTreeMap<c_int, *mut tabpage_T>,
+    pub last_cursormoved_win: *mut win_T,
+    pub last_cursormoved: pos_T,
+    pub autocmd_busy: bool,
+    pub autocmd_no_enter: c_int,
+    pub autocmd_no_leave: c_int,
+    pub au_new_curbuf: bufref_T,
+    pub au_pending_free_buf: Vec<Box<buf_T>>,
+    pub au_pending_free_win: Vec<Box<win_T>>,
+    pub autocmd_fname: Option<std::ffi::CString>,
+    pub autocmd_fname_full: bool,
+    pub autocmd_bufnr: c_int,
+    pub autocmd_match: Option<std::ffi::CString>,
+    pub did_cursorhold: bool,
+    pub deferred_events: *mut MultiQueue,
+    pub channels: std::collections::BTreeMap<u64, *mut Channel>,
+    pub on_print: Callback,
+    pub ctx_win_vec: Vec<CtxWin>,
+    pub decor_state: DecorState,
+    pub decor_items: Vec<DecorSignHighlight>,
+    pub diff_context: c_int,
+    pub diff_foldcolumn: c_int,
+    pub diff_need_scrollbind: bool,
+    pub need_diff_redraw: bool,
+    pub win_extmark_arr: Vec<WinExtmark>,
+    pub updating_screen: bool,
+    pub redraw_not_allowed: bool,
+    pub screen_search_hl: match_T,
+    pub search_hl_has_cursor_lnum: linenr_T,
+    pub EVALARG_EVALUATE: evalarg_T,
+    pub curbuf_splice_pending: c_int,
+    pub disable_fold_update: c_int,
+    pub default_grid: ScreenGrid,
+    pub default_gridview: GridView,
+    pub resizing_screen: bool,
+    pub linebuf_char: Vec<schar_T>,
+    pub linebuf_attr: Vec<sattr_T>,
+    pub linebuf_vcol: Vec<colnr_T>,
+    pub highlight_attr: [c_int; HLF_COUNT],
+    pub highlight_attr_last: [c_int; HLF_COUNT],
+    pub highlight_user: [c_int; 9],
+    pub highlight_stlnc: [c_int; 9],
+    pub cterm_normal_fg_color: c_int,
+    pub cterm_normal_bg_color: c_int,
+    pub normal_fg: RgbValue,
+    pub normal_bg: RgbValue,
+    pub normal_sp: RgbValue,
+    pub ns_hl_global: NS,
+    pub ns_hl_win: NS,
+    pub ns_hl_fast: NS,
+    pub ns_hl_active: NS,
+    pub hl_attr_active: Option<std::rc::Rc<crate::highlight::NSHlAttr>>,
+    pub nlua_global_refs: *mut nlua_ref_state_t,
+    pub nlua_disable_preload: bool,
+    pub tslua_query_parse_count: u64,
+    pub repeat_luamap: c_int,
+    pub namedfm: [xfmark_T; 36],
+    pub arena_alloc_count: usize,
+    pub msg_ext_skip_flush: bool,
+    pub msg_ext_overwrite: bool,
+    pub msg_ext_skip_verbose: bool,
+    pub msg_ext_fast: bool,
+    pub msg_grid: ScreenGrid,
+    pub msg_grid_pos: c_int,
+    pub msg_grid_adj: GridView,
+    pub msg_scrolled_at_flush: c_int,
+    pub msg_grid_scroll_discount: c_int,
+    pub msg_listdo_overwrite: c_int,
+    pub ch_before_blocking_events: *mut MultiQueue,
+    pub showcmd_buf: [c_char; 51],
+    pub nvim_testing: bool,
+    pub pum_grid: ScreenGrid,
+    pub pum_want: PumWant,
+    pub last_insert_ga: Vec<c_char>,
+    pub add_last_insert: c_int,
+    pub tab_page_click_defs: Vec<StlClickDefinition>,
+    pub ui_event_ns_id: u32,
+    pub resize_events: *mut MultiQueue,
+    pub ui_refresh_cmdheight: bool,
+    pub grid_line_buf_char: Vec<schar_T>,
+    pub grid_line_buf_attr: Vec<sattr_T>,
+    pub ui_client_channel_id: u64,
+    pub ui_client_error_exit: c_int,
+    pub ui_client_exit_status: c_int,
+    pub ui_client_attached: bool,
+    pub ui_client_forward_stdin: bool,
+    pub tabpage_move_disallowed: c_int,
+}
 
-pub static mut g_stats: NvimStats = NvimStats {
+impl EditorState {
+    pub const fn new() -> Self {
+        Self {
+            main_loop: Loop::new(),
+            g_stats: NvimStats {
     fsync: 0,
     redraw: 0,
     log_skip: 0,
-};
-pub static mut Rows: c_int = DFLT_ROWS;
-pub static mut Columns: c_int = DFLT_COLS;
-pub static mut mod_mask: c_int = 0;
-pub static mut vgetc_mod_mask: c_int = 0;
-pub static mut vgetc_char: c_int = 0;
-pub static mut cmdline_row: c_int = 0;
-pub static mut redraw_cmdline: bool = false;
-pub static mut redraw_mode: bool = false;
-pub static mut clear_cmdline: bool = false;
-pub static mut mode_displayed: bool = false;
-pub static mut cmdline_star: c_int = 0;
-pub static mut redrawing_cmdline: bool = false;
-pub static mut cmdline_was_last_drawn: bool = false;
-pub static mut exec_from_reg: bool = false;
-pub static mut dollar_vcol: colnr_T = -1;
-pub static mut edit_submode: *const c_char = ptr::null();
-pub static mut edit_submode_pre: *const c_char = ptr::null();
-pub static mut edit_submode_extra: *mut c_char = ptr::null_mut();
-pub static mut edit_submode_highl: hlf_T = 0;
-pub static mut cmdmsg_rl: bool = false;
-pub static mut msg_col: c_int = 0;
-pub static mut msg_row: c_int = 0;
-pub static mut msg_scrolled: c_int = 0;
-pub static mut msg_scrolled_ign: bool = false;
-pub static mut msg_did_scroll: bool = false;
-pub static mut keep_msg: Option<std::ffi::CString> = None;
-pub static mut keep_msg_hl_id: c_int = 0;
-pub static mut need_fileinfo: bool = false;
-pub static mut msg_scroll: c_int = 0;
-pub static mut msg_didout: bool = false;
-pub static mut msg_didany: bool = false;
-pub static mut msg_nowait: bool = false;
-pub static mut emsg_off: c_int = 0;
-pub static mut info_message: bool = false;
-pub static mut msg_hist_off: bool = false;
-pub static mut need_clr_eos: bool = false;
-pub static mut emsg_skip: c_int = 0;
-pub static mut emsg_severe: bool = false;
-pub static mut emsg_assert_fails_msg: Option<std::ffi::CString> = None;
-pub static mut emsg_assert_fails_lnum: c_long = 0;
-pub static mut emsg_assert_fails_context: Option<std::ffi::CString> = None;
-pub static mut did_endif: bool = false;
-pub static mut did_emsg: c_int = 0;
-pub static mut did_beep: u64 = 0;
-pub static mut did_beep_silent: u64 = 0;
-pub static mut did_emsg_syntax: bool = false;
-pub static mut called_emsg: c_int = 0;
-pub static mut ex_exitval: c_int = 0;
-pub static mut emsg_on_display: bool = false;
-pub static mut rc_did_emsg: bool = false;
-pub static mut no_wait_return: c_int = 0;
-pub static mut need_wait_return: bool = false;
-pub static mut did_wait_return: bool = false;
-pub static mut need_maketitle: bool = true;
-pub static mut quit_more: bool = false;
-pub static mut vgetc_busy: c_int = 0;
-pub static mut didset_vim: bool = false;
-pub static mut didset_vimruntime: bool = false;
-pub static mut lines_left: c_int = -1;
-pub static mut msg_no_more: bool = false;
-pub static mut ex_nesting_level: c_int = 0;
-pub static mut debug_break_level: c_int = -1;
-pub static mut debug_did_msg: bool = false;
-pub static mut debug_tick: c_int = 0;
-pub static mut debug_backtrace_level: c_int = 0;
-pub static mut do_profiling: c_int = PROF_NONE;
-pub static mut current_exception: Option<std::rc::Rc<except_T>> = None;
-pub static mut did_throw: bool = false;
-pub static mut need_rethrow: bool = false;
-pub static mut check_cstack: bool = false;
-pub static mut trylevel: c_int = 0;
-pub static mut force_abort: bool = false;
-pub static mut msg_list: Option<Vec<msglist_T>> = None;
-pub static mut suppress_errthrow: bool = false;
-pub static mut caught_stack: Vec<std::rc::Rc<except_T>> = Vec::new();
-pub static mut may_garbage_collect: bool = false;
-pub static mut want_garbage_collect: bool = false;
-pub static mut garbage_collect_at_exit: bool = false;
-pub static mut current_sctx: sctx_T = sctx_T {
+},
+            Rows: DFLT_ROWS,
+            Columns: DFLT_COLS,
+            mod_mask: 0,
+            vgetc_mod_mask: 0,
+            vgetc_char: 0,
+            cmdline_row: 0,
+            redraw_cmdline: false,
+            redraw_mode: false,
+            clear_cmdline: false,
+            mode_displayed: false,
+            cmdline_star: 0,
+            redrawing_cmdline: false,
+            cmdline_was_last_drawn: false,
+            exec_from_reg: false,
+            dollar_vcol: -1,
+            edit_submode: ptr::null(),
+            edit_submode_pre: ptr::null(),
+            edit_submode_extra: ptr::null_mut(),
+            edit_submode_highl: 0,
+            cmdmsg_rl: false,
+            msg_col: 0,
+            msg_row: 0,
+            msg_scrolled: 0,
+            msg_scrolled_ign: false,
+            msg_did_scroll: false,
+            keep_msg: None,
+            keep_msg_hl_id: 0,
+            need_fileinfo: false,
+            msg_scroll: 0,
+            msg_didout: false,
+            msg_didany: false,
+            msg_nowait: false,
+            emsg_off: 0,
+            info_message: false,
+            msg_hist_off: false,
+            need_clr_eos: false,
+            emsg_skip: 0,
+            emsg_severe: false,
+            emsg_assert_fails_msg: None,
+            emsg_assert_fails_lnum: 0,
+            emsg_assert_fails_context: None,
+            did_endif: false,
+            did_emsg: 0,
+            did_beep: 0,
+            did_beep_silent: 0,
+            did_emsg_syntax: false,
+            called_emsg: 0,
+            ex_exitval: 0,
+            emsg_on_display: false,
+            rc_did_emsg: false,
+            no_wait_return: 0,
+            need_wait_return: false,
+            did_wait_return: false,
+            need_maketitle: true,
+            quit_more: false,
+            vgetc_busy: 0,
+            didset_vim: false,
+            didset_vimruntime: false,
+            lines_left: -1,
+            msg_no_more: false,
+            ex_nesting_level: 0,
+            debug_break_level: -1,
+            debug_did_msg: false,
+            debug_tick: 0,
+            debug_backtrace_level: 0,
+            do_profiling: PROF_NONE,
+            current_exception: None,
+            did_throw: false,
+            need_rethrow: false,
+            check_cstack: false,
+            trylevel: 0,
+            force_abort: false,
+            msg_list: None,
+            suppress_errthrow: false,
+            caught_stack: Vec::new(),
+            may_garbage_collect: false,
+            want_garbage_collect: false,
+            garbage_collect_at_exit: false,
+            current_sctx: sctx_T {
     sc_sid: 0,
     sc_seq: 0,
     sc_lnum: 0,
     sc_chan: 0,
-};
-pub static mut current_ui: u64 = 0;
-pub static mut did_source_packages: bool = false;
-pub static mut provider_caller_scope: caller_scope = caller_scope {
+},
+            current_ui: 0,
+            did_source_packages: false,
+            provider_caller_scope: caller_scope {
     script_ctx: sctx_T {
         sc_sid: 0,
         sc_seq: 0,
@@ -175,13 +514,13 @@ pub static mut provider_caller_scope: caller_scope = caller_scope {
     autocmd_fname_full: false,
     autocmd_bufnr: 0,
     funccalp: ptr::null_mut(),
-};
-pub static mut provider_call_nesting: c_int = 0;
-pub static mut t_colors: c_int = 256;
-pub static mut include_none: c_int = 0;
-pub static mut include_default: c_int = 0;
-pub static mut include_link: c_int = 0;
-pub static mut Search: SearchState = SearchState {
+},
+            provider_call_nesting: 0,
+            t_colors: 256,
+            include_none: 0,
+            include_default: 0,
+            include_link: 0,
+            Search: SearchState {
     hl_match: false,
     match_lines: 0,
     match_endcol: 0,
@@ -190,53 +529,49 @@ pub static mut Search: SearchState = SearchState {
     no_smartcase: false,
     cmdlen: 0,
     no_hlsearch: false,
-};
-pub static mut need_check_timestamps: bool = false;
-pub static mut did_check_timestamps: bool = false;
-pub static mut no_check_timestamps: c_int = 0;
-pub static mut mouse_grid: c_int = 0;
-pub static mut mouse_row: c_int = 0;
-pub static mut mouse_col: c_int = 0;
-pub static mut mouse_past_bottom: bool = false;
-pub static mut mouse_past_eol: bool = false;
-pub static mut mouse_dragging: c_int = 0;
-pub static mut root_menu: Vec<vimmenu_T> = Vec::new();
-pub static mut sys_menu: bool = false;
-pub static mut firstwin: *mut win_T = ptr::null_mut();
-pub static mut lastwin: *mut win_T = ptr::null_mut();
-pub static mut prevwin: *mut win_T = ptr::null_mut();
-#[unsafe(no_mangle)]
-pub static mut curwin: *mut win_T = ptr::null_mut();
-pub static mut topframe: *mut frame_T = ptr::null_mut();
-pub static mut first_tabpage: *mut tabpage_T = ptr::null_mut();
-pub static mut curtab: *mut tabpage_T = ptr::null_mut();
-pub static mut lastused_tabpage: *mut tabpage_T = ptr::null_mut();
-pub static mut redraw_tabline: bool = false;
-pub static mut firstbuf: *mut buf_T = ptr::null_mut();
-pub static mut lastbuf: *mut buf_T = ptr::null_mut();
-pub static mut curbuf: *mut buf_T = ptr::null_mut();
-pub static mut global_alist: alist_T = alist_T::new();
-pub static mut max_alist_id: c_int = 0;
-pub static mut arg_had_last: bool = false;
-pub static mut ru_col: c_int = 0;
-pub static mut ru_wid: c_int = 0;
-pub static mut sc_col: c_int = 0;
-#[unsafe(no_mangle)]
-pub static mut starting: c_int = NO_SCREEN;
-pub static mut exiting: bool = false;
-pub static mut v_dying: c_int = 0;
-pub static mut stdin_isatty: bool = true;
-pub static mut stdout_isatty: bool = true;
-pub static mut stderr_isatty: bool = true;
-pub static mut stdin_fd: c_int = -1;
-pub static mut full_screen: bool = false;
-pub static mut secure: c_int = 0;
-pub static mut textlock: c_int = 0;
-pub static mut allbuf_lock: c_int = 0;
-pub static mut sandbox: c_int = 0;
-pub static mut silent_mode: bool = false;
-pub static mut exmode_active: bool = false;
-pub static mut Visual: VisualState = VisualState {
+},
+            need_check_timestamps: false,
+            did_check_timestamps: false,
+            no_check_timestamps: 0,
+            mouse_grid: 0,
+            mouse_row: 0,
+            mouse_col: 0,
+            mouse_past_bottom: false,
+            mouse_past_eol: false,
+            mouse_dragging: 0,
+            root_menu: Vec::new(),
+            sys_menu: false,
+            firstwin: ptr::null_mut(),
+            lastwin: ptr::null_mut(),
+            prevwin: ptr::null_mut(),
+            topframe: ptr::null_mut(),
+            first_tabpage: ptr::null_mut(),
+            curtab: ptr::null_mut(),
+            lastused_tabpage: ptr::null_mut(),
+            redraw_tabline: false,
+            firstbuf: ptr::null_mut(),
+            lastbuf: ptr::null_mut(),
+            curbuf: ptr::null_mut(),
+            global_alist: alist_T::new(),
+            max_alist_id: 0,
+            arg_had_last: false,
+            ru_col: 0,
+            ru_wid: 0,
+            sc_col: 0,
+            exiting: false,
+            v_dying: 0,
+            stdin_isatty: true,
+            stdout_isatty: true,
+            stderr_isatty: true,
+            stdin_fd: -1,
+            full_screen: false,
+            secure: 0,
+            textlock: 0,
+            allbuf_lock: 0,
+            sandbox: 0,
+            silent_mode: false,
+            exmode_active: false,
+            Visual: VisualState {
     start: pos_T {
         lnum: 0,
         col: 0,
@@ -255,20 +590,20 @@ pub static mut Visual: VisualState = VisualState {
         line_count: 0,
         vcol: 0,
     },
-};
-pub static mut where_paste_started: pos_T = pos_T {
+},
+            where_paste_started: pos_T {
     lnum: 0,
     col: 0,
     coladd: 0,
-};
-pub static mut did_syncbind: bool = false;
-pub static mut old_indent: c_int = 0;
-pub static mut saved_cursor: pos_T = pos_T {
+},
+            did_syncbind: false,
+            old_indent: 0,
+            saved_cursor: pos_T {
     lnum: 0,
     col: 0,
     coladd: 0,
-};
-pub static mut Ins: InsState = InsState {
+},
+            Ins: InsState {
     start: pos_T {
         lnum: 0,
         col: 0,
@@ -300,132 +635,275 @@ pub static mut Ins: InsState = InsState {
     revins_scol: 0,
     dont_sync_undo: crate::extmark::kNone,
     o_lnum: 0,
-};
-pub static mut orig_line_count: linenr_T = 0;
-pub static mut vr_lines_changed: c_int = 0;
-pub static mut inhibit_delete_count: c_int = 0;
-pub static mut fenc_default: Option<std::ffi::CString> = None;
-pub static mut State: c_int = MODE_NORMAL;
-pub static mut debug_mode: bool = false;
-pub static mut finish_op: bool = false;
-pub static mut opcount: c_int = 0;
-pub static mut motion_force: c_int = 0;
-pub static mut cmdpreview: bool = false;
-pub static mut reg_recording: c_int = 0;
-pub static mut reg_executing: c_int = 0;
-pub static mut pending_end_reg_executing: bool = false;
-pub static mut reg_recorded: c_int = 0;
-pub static mut no_mapping: c_int = 0;
-pub static mut no_zero_mapping: c_int = 0;
-pub static mut allow_keys: c_int = 0;
-pub static mut no_u_sync: c_int = 0;
-pub static mut u_sync_once: c_int = 0;
-pub static mut force_restart_edit: bool = false;
-pub static mut restart_edit: c_int = 0;
-pub static mut ins_at_eol: bool = false;
-pub static mut no_abbr: bool = true;
-pub static mut mapped_ctrl_c: c_int = 0;
-pub static mut ctrl_c_interrupts: bool = true;
-pub static mut cmdmod: cmdmod_T = cmdmod_T::new();
-pub static mut msg_silent: c_int = 0;
-pub static mut emsg_silent: c_int = 0;
-pub static mut emsg_noredir: bool = false;
-pub static mut cmd_silent: bool = false;
-pub static mut in_assert_fails: bool = false;
-pub static mut swap_exists_action: c_int = SEA_NONE;
-pub static mut swap_exists_did_quit: bool = false;
-pub static mut IObuff: [c_char; IOSIZE] = [0 as c_char; IOSIZE];
-pub static mut NameBuff: [c_char; MAXPATHL] = [0 as c_char; MAXPATHL];
-pub static mut msg_buf: [c_char; MSG_BUF_LEN] = [0 as c_char; MSG_BUF_LEN];
-pub static mut os_buf: [c_char; MAXPATHL] = [0 as c_char; MAXPATHL];
-pub static mut RedrawingDisabled: c_int = 0;
-pub static mut readonlymode: bool = false;
-pub static mut recoverymode: bool = false;
-pub static mut typebuf: typebuf_T = typebuf_T::ZERO;
-pub static mut typebuf_was_empty: bool = false;
-pub static mut ex_normal_busy: c_int = 0;
-pub static mut expr_map_lock: c_int = 0;
-pub static mut ignore_script: bool = false;
-pub static mut KeyTyped: bool = false;
-pub static mut KeyStuffed: c_int = 0;
-pub static mut maptick: c_int = 0;
-pub static mut must_redraw: c_int = 0;
-pub static mut skip_redraw: bool = false;
-pub static mut do_redraw: bool = false;
-pub static mut must_redraw_pum: bool = false;
-pub static mut need_highlight_changed: bool = true;
-pub static mut scriptout: Option<crate::os::fs::CFile> = None;
-pub static mut got_int: bool = false;
-pub static mut bangredo: bool = false;
-pub static mut reg_do_extmatch: c_int = 0;
-pub static mut re_extmatch_in: Option<std::rc::Rc<reg_extmatch_T>> = None;
-pub static mut re_extmatch_out: Option<std::rc::Rc<reg_extmatch_T>> = None;
-pub static mut did_outofmem_msg: bool = false;
-pub static mut did_swapwrite_msg: bool = false;
-pub static mut global_busy: c_int = 0;
-pub static mut listcmd_busy: bool = false;
-pub static mut need_start_insertmode: bool = false;
-pub static mut last_mode: [c_char; MODE_MAX_LENGTH] = [b'n' as c_char, 0, 0, 0];
-pub static mut last_cmdline: Option<std::ffi::CString> = None;
-pub static mut repeat_cmdline: Option<std::ffi::CString> = None;
-pub static mut new_last_cmdline: Option<std::ffi::CString> = None;
-pub static mut postponed_split: c_int = 0;
-pub static mut postponed_split_flags: c_int = 0;
-pub static mut postponed_split_tab: c_int = 0;
-pub static mut g_do_tagpreview: c_int = 0;
-pub static mut g_tag_at_cursor: bool = false;
-pub static mut replace_offset: c_int = 0;
-pub const escape_chars: &std::ffi::CStr = c" \t\\\"|";
-pub static mut keep_help_flag: bool = false;
-pub static mut redir_off: bool = false;
-pub static mut redir_fd: Option<crate::os::fs::CFile> = None;
-pub static mut redir_reg: c_int = 0;
-pub static mut redir_vname: bool = false;
-pub static mut capture_ga: *mut Vec<c_char> = ptr::null_mut();
-pub static mut langmap_mapchar: [u8; 256] = [0; 256];
-pub static mut save_p_ls: c_int = -1;
-pub static mut save_p_wmh: c_int = -1;
-pub static mut wild_menu_showing: c_int = 0;
-pub static mut globaldir: Option<std::ffi::CString> = None;
-pub static mut last_chdir_reason: Option<&'static std::ffi::CStr> = None;
-pub static mut km_stopsel: bool = false;
-pub static mut km_startsel: bool = false;
-pub static mut cmdwin_type: c_int = 0;
-pub static mut cmdwin_buf: *mut buf_T = ptr::null_mut();
-pub static mut cmdline_win: *mut win_T = ptr::null_mut();
-pub static no_lines_msg: [c_char; 23] = bytes_to_chars(b"--No lines in buffer--\0");
-pub static mut sub_nsubs: c_int = 0;
-pub static mut sub_nlines: linenr_T = 0;
-pub static mut wim_flags: [u8; 4] = [0; 4];
-pub static mut stl_syntax: c_int = 0;
-pub static mut typebuf_was_filled: bool = false;
-pub static mut virtual_op: TriState = -1;
-#[unsafe(no_mangle)]
-pub static mut display_tick: disptick_T = 0;
-pub static mut spell_redraw_lnum: linenr_T = 0;
-pub static mut time_fd: Option<crate::os::fs::CFile> = None;
+},
+            orig_line_count: 0,
+            vr_lines_changed: 0,
+            inhibit_delete_count: 0,
+            fenc_default: None,
+            State: MODE_NORMAL,
+            debug_mode: false,
+            finish_op: false,
+            opcount: 0,
+            motion_force: 0,
+            cmdpreview: false,
+            reg_recording: 0,
+            reg_executing: 0,
+            pending_end_reg_executing: false,
+            reg_recorded: 0,
+            no_mapping: 0,
+            no_zero_mapping: 0,
+            allow_keys: 0,
+            no_u_sync: 0,
+            u_sync_once: 0,
+            force_restart_edit: false,
+            restart_edit: 0,
+            ins_at_eol: false,
+            no_abbr: true,
+            mapped_ctrl_c: 0,
+            ctrl_c_interrupts: true,
+            cmdmod: cmdmod_T::new(),
+            msg_silent: 0,
+            emsg_silent: 0,
+            emsg_noredir: false,
+            cmd_silent: false,
+            in_assert_fails: false,
+            swap_exists_action: SEA_NONE,
+            swap_exists_did_quit: false,
+            IObuff: [0 as c_char; IOSIZE],
+            NameBuff: [0 as c_char; MAXPATHL],
+            msg_buf: [0 as c_char; MSG_BUF_LEN],
+            os_buf: [0 as c_char; MAXPATHL],
+            RedrawingDisabled: 0,
+            readonlymode: false,
+            recoverymode: false,
+            typebuf: typebuf_T::ZERO,
+            typebuf_was_empty: false,
+            ex_normal_busy: 0,
+            expr_map_lock: 0,
+            ignore_script: false,
+            KeyTyped: false,
+            KeyStuffed: 0,
+            maptick: 0,
+            must_redraw: 0,
+            skip_redraw: false,
+            do_redraw: false,
+            must_redraw_pum: false,
+            need_highlight_changed: true,
+            scriptout: None,
+            got_int: false,
+            bangredo: false,
+            reg_do_extmatch: 0,
+            re_extmatch_in: None,
+            re_extmatch_out: None,
+            did_outofmem_msg: false,
+            did_swapwrite_msg: false,
+            global_busy: 0,
+            listcmd_busy: false,
+            need_start_insertmode: false,
+            last_mode: [b'n' as c_char, 0, 0, 0],
+            last_cmdline: None,
+            repeat_cmdline: None,
+            new_last_cmdline: None,
+            postponed_split: 0,
+            postponed_split_flags: 0,
+            postponed_split_tab: 0,
+            g_do_tagpreview: 0,
+            g_tag_at_cursor: false,
+            replace_offset: 0,
+            keep_help_flag: false,
+            redir_off: false,
+            redir_fd: None,
+            redir_reg: 0,
+            redir_vname: false,
+            capture_ga: ptr::null_mut(),
+            langmap_mapchar: [0; 256],
+            save_p_ls: -1,
+            save_p_wmh: -1,
+            wild_menu_showing: 0,
+            globaldir: None,
+            last_chdir_reason: None,
+            km_stopsel: false,
+            km_startsel: false,
+            cmdwin_type: 0,
+            cmdwin_buf: ptr::null_mut(),
+            cmdline_win: ptr::null_mut(),
+            sub_nsubs: 0,
+            sub_nlines: 0,
+            wim_flags: [0; 4],
+            stl_syntax: 0,
+            typebuf_was_filled: false,
+            virtual_op: -1,
+            spell_redraw_lnum: 0,
+            time_fd: None,
+            vim_ignored: 0,
+            embedded_mode: false,
+            headless_mode: false,
+            windowsVersion: [0 as c_char; 20],
+            skip_win_fix_scroll: false,
+            skip_update_topline: false,
+            namespace_ids: Vec::new(),
+            namespace_localscope: std::collections::BTreeSet::new(),
+            next_namespace_id: 1,
+            buffer_handles: std::collections::BTreeMap::new(),
+            window_handles: std::collections::BTreeMap::new(),
+            tabpage_handles: std::collections::BTreeMap::new(),
+            last_cursormoved_win: ptr::null_mut(),
+            last_cursormoved: pos_T {
+    lnum: 0,
+    col: 0,
+    coladd: 0,
+},
+            autocmd_busy: false,
+            autocmd_no_enter: 0,
+            autocmd_no_leave: 0,
+            au_new_curbuf: bufref_T {
+    br_buf: ptr::null_mut(),
+    br_fnum: 0,
+    br_buf_free_count: 0,
+},
+            au_pending_free_buf: Vec::new(),
+            au_pending_free_win: Vec::new(),
+            autocmd_fname: None,
+            autocmd_fname_full: false,
+            autocmd_bufnr: 0,
+            autocmd_match: None,
+            did_cursorhold: true,
+            deferred_events: ptr::null_mut(),
+            channels: std::collections::BTreeMap::new(),
+            on_print: Callback::NONE,
+            ctx_win_vec: Vec::new(),
+            decor_state: DecorState::new(),
+            decor_items: Vec::new(),
+            diff_context: 6,
+            diff_foldcolumn: 2,
+            diff_need_scrollbind: false,
+            need_diff_redraw: false,
+            win_extmark_arr: Vec::new(),
+            updating_screen: false,
+            redraw_not_allowed: false,
+            screen_search_hl: match_T {
+    rm: crate::regexp::regmmatch_T {
+        regprog: ptr::null_mut(),
+        startpos: [crate::cursor::lpos_T { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
+        endpos: [crate::cursor::lpos_T { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
+        rmm_matchcol: 0,
+        rmm_ic: 0,
+        rmm_maxcol: 0,
+    },
+    buf: ptr::null_mut(),
+    lnum: 0,
+    attr: 0,
+    attr_cur: 0,
+    first_lnum: 0,
+    startcol: 0,
+    endcol: 0,
+    is_addpos: false,
+    has_cursor: false,
+    tm: 0,
+},
+            search_hl_has_cursor_lnum: 0,
+            EVALARG_EVALUATE: evalarg_T { eval_flags: 1 },
+            curbuf_splice_pending: 0,
+            disable_fold_update: 0,
+            default_grid: SCREEN_GRID_INIT,
+            default_gridview: GridView {
+    target: unsafe { &raw mut (*EDITOR_STATE.as_ptr()).default_grid },
+    row_offset: 0,
+    col_offset: 0,
+},
+            resizing_screen: false,
+            linebuf_char: Vec::new(),
+            linebuf_attr: Vec::new(),
+            linebuf_vcol: Vec::new(),
+            highlight_attr: [0; HLF_COUNT],
+            highlight_attr_last: [0; HLF_COUNT],
+            highlight_user: [0; 9],
+            highlight_stlnc: [0; 9],
+            cterm_normal_fg_color: 0,
+            cterm_normal_bg_color: 0,
+            normal_fg: -1,
+            normal_bg: -1,
+            normal_sp: -1,
+            ns_hl_global: 0,
+            ns_hl_win: -1,
+            ns_hl_fast: -1,
+            ns_hl_active: 0,
+            hl_attr_active: None,
+            nlua_global_refs: ptr::null_mut(),
+            nlua_disable_preload: false,
+            tslua_query_parse_count: 0,
+            repeat_luamap: 0,
+            namedfm: [const { xfmark_T::ZERO }; 36],
+            arena_alloc_count: 0,
+            msg_ext_skip_flush: false,
+            msg_ext_overwrite: false,
+            msg_ext_skip_verbose: false,
+            msg_ext_fast: true,
+            msg_grid: SCREEN_GRID_INIT,
+            msg_grid_pos: 0,
+            msg_grid_adj: GridView {
+    target: ptr::null_mut(),
+    row_offset: 0,
+    col_offset: 0,
+},
+            msg_scrolled_at_flush: 0,
+            msg_grid_scroll_discount: 0,
+            msg_listdo_overwrite: 0,
+            ch_before_blocking_events: ptr::null_mut(),
+            showcmd_buf: [0; 51],
+            nvim_testing: false,
+            pum_grid: SCREEN_GRID_INIT,
+            pum_want: PumWant {
+    active: false,
+    item: 0,
+    insert: false,
+    finish: false,
+},
+            last_insert_ga: Vec::new(),
+            add_last_insert: 0,
+            tab_page_click_defs: Vec::new(),
+            ui_event_ns_id: 0,
+            resize_events: ptr::null_mut(),
+            ui_refresh_cmdheight: true,
+            grid_line_buf_char: Vec::new(),
+            grid_line_buf_attr: Vec::new(),
+            ui_client_channel_id: 0,
+            ui_client_error_exit: -1,
+            ui_client_exit_status: 0,
+            ui_client_attached: false,
+            ui_client_forward_stdin: false,
+            tabpage_move_disallowed: 0,
+        }
+    }
+}
 
+pub static EDITOR_STATE: GlobalState<EditorState> = GlobalState::new(EditorState::new());
+
+#[inline]
+pub unsafe fn g_st() -> &'static mut EditorState {
+    unsafe { &mut *EDITOR_STATE.as_ptr() }
+}
+
+#[unsafe(no_mangle)]
+pub static curwin: GlobalState<*mut win_T> = GlobalState::new(ptr::null_mut());
+#[unsafe(no_mangle)]
+pub static starting: GlobalState<c_int> = GlobalState::new(NO_SCREEN);
+pub const escape_chars: &std::ffi::CStr = c" \t\\\"|";
+pub static no_lines_msg: [c_char; 23] = bytes_to_chars(b"--No lines in buffer--\0");
+#[unsafe(no_mangle)]
+pub static display_tick: GlobalState<disptick_T> = GlobalState::new(0);
 #[inline]
 pub fn has_time_fd() -> bool {
-    unsafe { (*(&raw const time_fd)).is_some() }
+    unsafe { (*(&raw const g_st().time_fd)).is_some() }
 }
-
 #[inline]
 pub fn has_redir_fd() -> bool {
-    unsafe { (*(&raw const redir_fd)).is_some() }
+    unsafe { (*(&raw const g_st().redir_fd)).is_some() }
 }
-
 #[inline]
 pub fn has_scriptout() -> bool {
-    unsafe { (*(&raw const scriptout)).is_some() }
+    unsafe { (*(&raw const g_st().scriptout)).is_some() }
 }
-pub static mut vim_ignored: c_int = 0;
-pub static mut embedded_mode: bool = false;
-pub static mut headless_mode: bool = false;
-pub static mut windowsVersion: [c_char; 20] = [0 as c_char; 20];
-pub static mut skip_win_fix_scroll: bool = false;
-pub static mut skip_update_topline: bool = false;
-
 pub const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid {
     handle: 0,
     chars: Vec::new(),
@@ -448,17 +926,6 @@ pub const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid {
     comp_disabled: false,
     pending_comp_index_update: true,
 };
-
-pub static mut namespace_ids: Vec<(std::ffi::CString, c_int)> = Vec::new();
-pub static mut namespace_localscope: std::collections::BTreeSet<u32> =
-    std::collections::BTreeSet::new();
-pub static mut next_namespace_id: handle_T = 1;
-pub static mut buffer_handles: std::collections::BTreeMap<c_int, *mut buf_T> =
-    std::collections::BTreeMap::new();
-pub static mut window_handles: std::collections::BTreeMap<c_int, *mut win_T> =
-    std::collections::BTreeMap::new();
-pub static mut tabpage_handles: std::collections::BTreeMap<c_int, *mut tabpage_T> =
-    std::collections::BTreeMap::new();
 pub const ui_ext_names: [&std::ffi::CStr; 10] = [
     c"ext_cmdline",
     c"ext_popupmenu",
@@ -471,34 +938,8 @@ pub const ui_ext_names: [&std::ffi::CStr; 10] = [
     c"ext_termcolors",
     c"_debug_float",
 ];
-pub static mut last_cursormoved_win: *mut win_T = ptr::null_mut();
-pub static mut last_cursormoved: pos_T = pos_T {
-    lnum: 0,
-    col: 0,
-    coladd: 0,
-};
-pub static mut autocmd_busy: bool = false;
-pub static mut autocmd_no_enter: c_int = 0;
-pub static mut autocmd_no_leave: c_int = 0;
-pub static mut au_new_curbuf: bufref_T = bufref_T {
-    br_buf: ptr::null_mut(),
-    br_fnum: 0,
-    br_buf_free_count: 0,
-};
-pub static mut au_pending_free_buf: Vec<Box<buf_T>> = Vec::new();
-pub static mut au_pending_free_win: Vec<Box<win_T>> = Vec::new();
-pub static mut autocmd_fname: Option<std::ffi::CString> = None;
-pub static mut autocmd_fname_full: bool = false;
-pub static mut autocmd_bufnr: c_int = 0;
-pub static mut autocmd_match: Option<std::ffi::CString> = None;
-pub static mut did_cursorhold: bool = true;
-pub static mut deferred_events: *mut MultiQueue = ptr::null_mut();
 pub const msg_loclist: &std::ffi::CStr = c"[Location List]";
 pub const msg_qflist: &std::ffi::CStr = c"[Quickfix List]";
-pub static mut channels: std::collections::BTreeMap<u64, *mut Channel> =
-    std::collections::BTreeMap::new();
-pub static mut on_print: Callback = Callback::NONE;
-pub static mut ctx_win_vec: Vec<CtxWin> = Vec::new();
 pub const virt_text_pos_str: [&std::ffi::CStr; 6] = [
     c"eol",
     c"eol_right_align",
@@ -513,49 +954,6 @@ pub const hl_mode_str: [&std::ffi::CStr; 4] = [
     c"combine",
     c"blend",
 ];
-pub static mut decor_state: DecorState = DecorState::new();
-pub static mut decor_items: Vec<DecorSignHighlight> = Vec::new();
-pub static mut diff_context: c_int = 6;
-pub static mut diff_foldcolumn: c_int = 2;
-pub static mut diff_need_scrollbind: bool = false;
-pub static mut need_diff_redraw: bool = false;
-pub static mut win_extmark_arr: Vec<WinExtmark> = Vec::new();
-pub static mut updating_screen: bool = false;
-pub static mut redraw_not_allowed: bool = false;
-pub static mut screen_search_hl: match_T = match_T {
-    rm: crate::regexp::regmmatch_T {
-        regprog: ptr::null_mut(),
-        startpos: [crate::cursor::lpos_T { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
-        endpos: [crate::cursor::lpos_T { lnum: 0, col: 0 }; crate::regexp::NSUBEXP],
-        rmm_matchcol: 0,
-        rmm_ic: 0,
-        rmm_maxcol: 0,
-    },
-    buf: ptr::null_mut(),
-    lnum: 0,
-    attr: 0,
-    attr_cur: 0,
-    first_lnum: 0,
-    startcol: 0,
-    endcol: 0,
-    is_addpos: false,
-    has_cursor: false,
-    tm: 0,
-};
-pub static mut search_hl_has_cursor_lnum: linenr_T = 0;
-pub static mut EVALARG_EVALUATE: evalarg_T = evalarg_T { eval_flags: 1 };
-pub static mut curbuf_splice_pending: c_int = 0;
-pub static mut disable_fold_update: c_int = 0;
-pub static mut default_grid: ScreenGrid = SCREEN_GRID_INIT;
-pub static mut default_gridview: GridView = GridView {
-    target: &raw mut default_grid,
-    row_offset: 0,
-    col_offset: 0,
-};
-pub static mut resizing_screen: bool = false;
-pub static mut linebuf_char: Vec<schar_T> = Vec::new();
-pub static mut linebuf_attr: Vec<sattr_T> = Vec::new();
-pub static mut linebuf_vcol: Vec<colnr_T> = Vec::new();
 pub const hlf_names: [Option<&std::ffi::CStr>; HLF_COUNT] = [
     None,
     Some(c"SpecialKey"),
@@ -634,7 +1032,6 @@ pub const hlf_names: [Option<&std::ffi::CStr>; HLF_COUNT] = [
     Some(c"OkMsg"),
     Some(c"PreInsert"),
 ];
-
 #[inline]
 pub const fn hlf_name_ptr(idx: usize) -> *const c_char {
     match hlf_names[idx] {
@@ -642,66 +1039,8 @@ pub const fn hlf_name_ptr(idx: usize) -> *const c_char {
         None => ptr::null(),
     }
 }
-pub static mut highlight_attr: [c_int; HLF_COUNT] = [0; HLF_COUNT];
-pub static mut highlight_attr_last: [c_int; HLF_COUNT] = [0; HLF_COUNT];
-pub static mut highlight_user: [c_int; 9] = [0; 9];
-pub static mut highlight_stlnc: [c_int; 9] = [0; 9];
-pub static mut cterm_normal_fg_color: c_int = 0;
-pub static mut cterm_normal_bg_color: c_int = 0;
-pub static mut normal_fg: RgbValue = -1;
-pub static mut normal_bg: RgbValue = -1;
-pub static mut normal_sp: RgbValue = -1;
-pub static mut ns_hl_global: NS = 0;
-pub static mut ns_hl_win: NS = -1;
-pub static mut ns_hl_fast: NS = -1;
-pub static mut ns_hl_active: NS = 0;
-pub static mut hl_attr_active: Option<std::rc::Rc<crate::highlight::NSHlAttr>> = None;
 #[unsafe(no_mangle)]
-pub static mut test_disable_char_avail: bool = false;
-pub static mut nlua_global_refs: *mut nlua_ref_state_t = ptr::null_mut();
-pub static mut nlua_disable_preload: bool = false;
-pub static mut tslua_query_parse_count: u64 = 0;
-pub static mut repeat_luamap: c_int = 0;
-pub static mut namedfm: [xfmark_T; 36] = [const { xfmark_T::ZERO }; 36];
-pub static mut arena_alloc_count: usize = 0;
-pub static mut msg_ext_skip_flush: bool = false;
-pub static mut msg_ext_overwrite: bool = false;
-pub static mut msg_ext_skip_verbose: bool = false;
-pub static mut msg_ext_fast: bool = true;
-pub static mut msg_grid: ScreenGrid = SCREEN_GRID_INIT;
-pub static mut msg_grid_pos: c_int = 0;
-pub static mut msg_grid_adj: GridView = GridView {
-    target: ptr::null_mut(),
-    row_offset: 0,
-    col_offset: 0,
-};
-pub static mut msg_scrolled_at_flush: c_int = 0;
-pub static mut msg_grid_scroll_discount: c_int = 0;
-pub static mut msg_listdo_overwrite: c_int = 0;
-pub static mut ch_before_blocking_events: *mut MultiQueue = ptr::null_mut();
-pub static mut showcmd_buf: [c_char; 51] = [0; 51];
-pub static mut nvim_testing: bool = false;
-pub static mut pum_grid: ScreenGrid = SCREEN_GRID_INIT;
-pub static mut pum_want: PumWant = PumWant {
-    active: false,
-    item: 0,
-    insert: false,
-    finish: false,
-};
-pub static mut last_insert_ga: Vec<c_char> = Vec::new();
-pub static mut add_last_insert: c_int = 0;
-pub static mut tab_page_click_defs: Vec<StlClickDefinition> = Vec::new();
-pub static mut ui_event_ns_id: u32 = 0;
-pub static mut resize_events: *mut MultiQueue = ptr::null_mut();
-pub static mut ui_refresh_cmdheight: bool = true;
-pub static mut grid_line_buf_char: Vec<schar_T> = Vec::new();
-pub static mut grid_line_buf_attr: Vec<sattr_T> = Vec::new();
-pub static mut ui_client_channel_id: u64 = 0;
-pub static mut ui_client_error_exit: c_int = -1;
-pub static mut ui_client_exit_status: c_int = 0;
-pub static mut ui_client_attached: bool = false;
-pub static mut ui_client_forward_stdin: bool = false;
-pub static mut tabpage_move_disallowed: c_int = 0;
+pub static test_disable_char_avail: GlobalState<bool> = GlobalState::new(false);
 pub const float_anchor_str: [&std::ffi::CStr; 4] = [
     c"NW",
     c"NE",
@@ -721,14 +1060,14 @@ mod tests {
     fn default_globals_match_c_initializers() {
         let _guard = TEST_GLOBAL_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         unsafe {
-            assert_eq!({ Rows }, 24);
-            assert_eq!({ Columns }, 80);
-            assert_eq!({ dollar_vcol }, -1);
-            assert_eq!({ t_colors }, 256);
-            assert_eq!({ starting }, 2);
-            assert_eq!({ State }, 0x01);
-            assert_eq!({ Visual.mode }, b'v' as c_int);
-            assert_eq!({ Search.last_line }, 0x7fffffff);
+            assert_eq!({ g_st().Rows }, 24);
+            assert_eq!({ g_st().Columns }, 80);
+            assert_eq!({ g_st().dollar_vcol }, -1);
+            assert_eq!({ g_st().t_colors }, 256);
+            assert_eq!({ *starting.as_ptr() }, 2);
+            assert_eq!({ g_st().State }, 0x01);
+            assert_eq!({ g_st().Visual.mode }, b'v' as c_int);
+            assert_eq!({ g_st().Search.last_line }, 0x7fffffff);
             assert_eq!(
                 CStr::from_ptr(no_lines_msg.as_ptr()).to_bytes(),
                 b"--No lines in buffer--"

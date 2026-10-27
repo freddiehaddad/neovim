@@ -207,7 +207,7 @@ unsafe fn menu_is_winbar(name: *const c_char) -> bool {
 }
 
 unsafe fn get_root_menu(_name: *const c_char) -> *mut Vec<vimmenu_T> {
-    &raw mut root_menu
+    unsafe { &raw mut g_st().root_menu }
 }
 
 /// If `menus_locked` is set then give an error and return true (`is_menus_locked`).
@@ -477,7 +477,7 @@ unsafe fn add_menu_path(
             for (idx, m) in (*menup).iter_mut().enumerate() {
                 if menu_name_equal(name, m) || menu_name_equal(dname.as_ptr(), m) {
                     if *next_name == NUL && !m.children.is_empty() {
-                        if !sys_menu {
+                        if !g_st().sys_menu {
                             emsg(gettext(
                                 c"E330: Menu path must not lead to a sub-menu".as_ptr(),
                             ));
@@ -485,7 +485,7 @@ unsafe fn add_menu_path(
                         return cleanup_erret(&ancestor_stack);
                     }
                     if *next_name != NUL && m.children.is_empty() {
-                        if !sys_menu {
+                        if !g_st().sys_menu {
                             emsg(gettext(E_NOTSUBMENU.as_ptr()));
                         }
                         return cleanup_erret(&ancestor_stack);
@@ -551,7 +551,7 @@ unsafe fn add_menu_path(
 
         let amenu = (modes & (MENU_NORMAL_MODE | MENU_INSERT_MODE))
             == (MENU_NORMAL_MODE | MENU_INSERT_MODE);
-        if sys_menu {
+        if g_st().sys_menu {
             modes &= !old_modes;
         }
 
@@ -936,7 +936,7 @@ unsafe fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_
 
         if !menu.is_null() {
             msg_putchar(b'\n' as c_int);
-            if got_int {
+            if g_st().got_int {
                 return;
             }
             for _ in 0..depth {
@@ -953,7 +953,7 @@ unsafe fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_
             for (bit, mode_cstr) in MENU_MODE_CHARS.iter().enumerate() {
                 if ((*menu).modes & modes & (1 << bit)) != 0 {
                     msg_putchar(b'\n' as c_int);
-                    if got_int {
+                    if g_st().got_int {
                         return;
                     }
                     for _ in 0..(depth + 2) {
@@ -995,13 +995,13 @@ unsafe fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_
         } else {
             let children = if menu.is_null() {
                 depth -= 1;
-                (&raw mut root_menu).as_mut().unwrap().as_mut_slice()
+                (&raw mut g_st().root_menu).as_mut().unwrap().as_mut_slice()
             } else {
                 (*menu).children.as_mut_slice()
             };
 
             for child in children {
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
                 if !menu_is_hidden(child.dname.as_ptr().cast_mut()) {
@@ -1075,7 +1075,7 @@ pub unsafe fn set_context_in_menu_cmd(
                 menu_st().EXPAND_MODES = MENU_ALL_MODES;
             }
 
-            let mut menu_list: *const Vec<vimmenu_T> = &raw const root_menu;
+            let mut menu_list: *const Vec<vimmenu_T> = &raw const g_st().root_menu;
             let mut path_name_vec: Vec<c_char>;
             if after_dot > arg {
                 let path_len = after_dot.offset_from(arg) as usize;
@@ -1491,28 +1491,28 @@ unsafe fn menu_is_hidden(name: *mut c_char) -> bool {
 
 unsafe fn get_menu_mode() -> c_int {
     unsafe {
-        if (State & MODE_TERMINAL) != 0 {
+        if (g_st().State & MODE_TERMINAL) != 0 {
             return MENU_INDEX_TERMINAL;
         }
-        if Visual.active {
-            if Visual.select {
+        if g_st().Visual.active {
+            if g_st().Visual.select {
                 return MENU_INDEX_SELECT;
             }
             return MENU_INDEX_VISUAL;
         }
-        if (State & MODE_INSERT) != 0 {
+        if (g_st().State & MODE_INSERT) != 0 {
             return MENU_INDEX_INSERT;
         }
-        if (State & MODE_CMDLINE) != 0 || State == MODE_ASKMORE || State == MODE_HITRETURN {
+        if (g_st().State & MODE_CMDLINE) != 0 || g_st().State == MODE_ASKMORE || g_st().State == MODE_HITRETURN {
             return MENU_INDEX_CMDLINE;
         }
-        if finish_op {
+        if g_st().finish_op {
             return MENU_INDEX_OP_PENDING;
         }
-        if (State & MODE_NORMAL) != 0 {
+        if (g_st().State & MODE_NORMAL) != 0 {
             return MENU_INDEX_NORMAL;
         }
-        if (State & MODE_LANGMAP) != 0 {
+        if (g_st().State & MODE_LANGMAP) != 0 {
             return MENU_INDEX_INSERT;
         }
         MENU_INDEX_INVALID
@@ -1541,10 +1541,10 @@ pub unsafe fn show_popupmenu() {
         let mode = mode_cstr.as_ptr().cast_mut();
         let mode_len = mode_cstr.to_bytes().len();
 
-        apply_autocmds(EVENT_MENUPOPUP, mode, ptr::null_mut(), false, curbuf);
+        apply_autocmds(EVENT_MENUPOPUP, mode, ptr::null_mut(), false, g_st().curbuf);
 
         let mut menu: *mut vimmenu_T = ptr::null_mut();
-        let root_ptr = &raw mut root_menu;
+        let root_ptr = &raw mut g_st().root_menu;
         for m in &mut *root_ptr {
             if strncmp(c"PopUp".as_ptr(), m.name.as_ptr(), 5) == 0
                 && strncmp(m.name.as_ptr().add(5), mode, mode_len) == 0
@@ -1568,30 +1568,30 @@ pub unsafe fn execute_menu(eap: *const exarg_T, menu: *mut vimmenu_T, mode_idx: 
         let mut idx = mode_idx;
 
         if idx < 0 {
-            if (State & MODE_TERMINAL) != 0 {
+            if (g_st().State & MODE_TERMINAL) != 0 {
                 idx = MENU_INDEX_TERMINAL;
-            } else if (State & MODE_CMDLINE) != 0 {
+            } else if (g_st().State & MODE_CMDLINE) != 0 {
                 idx = MENU_INDEX_CMDLINE;
             } else if (get_real_state() & MODE_VISUAL) != 0 {
                 idx = MENU_INDEX_VISUAL;
-            } else if ((State & MODE_INSERT) != 0 || restart_edit != 0) && current_sctx.sc_sid == 0
+            } else if ((g_st().State & MODE_INSERT) != 0 || g_st().restart_edit != 0) && g_st().current_sctx.sc_sid == 0
             {
                 idx = MENU_INDEX_INSERT;
             } else if !eap.is_null() && (*eap).addr_count != 0 {
                 idx = MENU_INDEX_VISUAL;
 
                 let tpos: pos_T;
-                if (*curbuf).b_visual.vi_start.lnum == (*eap).line1
-                    && (*curbuf).b_visual.vi_end.lnum == (*eap).line2
+                if (*g_st().curbuf).b_visual.vi_start.lnum == (*eap).line1
+                    && (*g_st().curbuf).b_visual.vi_end.lnum == (*eap).line2
                 {
-                    Visual.mode = (*curbuf).b_visual.vi_mode;
-                    tpos = (*curbuf).b_visual.vi_end;
-                    (*curwin).w_cursor = (*curbuf).b_visual.vi_start;
-                    (*curwin).w_curswant = (*curbuf).b_visual.vi_curswant;
+                    g_st().Visual.mode = (*g_st().curbuf).b_visual.vi_mode;
+                    tpos = (*g_st().curbuf).b_visual.vi_end;
+                    (**curwin.as_ptr()).w_cursor = (*g_st().curbuf).b_visual.vi_start;
+                    (**curwin.as_ptr()).w_curswant = (*g_st().curbuf).b_visual.vi_curswant;
                 } else {
-                    Visual.mode = b'V' as c_int;
-                    (*curwin).w_cursor.lnum = (*eap).line1;
-                    (*curwin).w_cursor.col = 1;
+                    g_st().Visual.mode = b'V' as c_int;
+                    (**curwin.as_ptr()).w_cursor.lnum = (*eap).line1;
+                    (**curwin.as_ptr()).w_cursor.col = 1;
                     tpos = pos_T {
                         lnum: (*eap).line2,
                         col: MAXCOL,
@@ -1599,16 +1599,16 @@ pub unsafe fn execute_menu(eap: *const exarg_T, menu: *mut vimmenu_T, mode_idx: 
                     };
                 }
 
-                Visual.active = true;
-                Visual.reselect = 1;
-                check_cursor(curwin);
-                Visual.start = (*curwin).w_cursor;
-                (*curwin).w_cursor = tpos;
+                g_st().Visual.active = true;
+                g_st().Visual.reselect = 1;
+                check_cursor(*curwin.as_ptr());
+                g_st().Visual.start = (**curwin.as_ptr()).w_cursor;
+                (**curwin.as_ptr()).w_cursor = tpos;
 
-                check_cursor(curwin);
+                check_cursor(*curwin.as_ptr());
 
                 if *opt_vars().p_sel == b'e' as c_char && gchar_cursor() != c_int::from(NUL) {
-                    (*curwin).w_cursor.col += 1;
+                    (**curwin.as_ptr()).w_cursor.col += 1;
                 }
             }
         }
@@ -1622,13 +1622,13 @@ pub unsafe fn execute_menu(eap: *const exarg_T, menu: *mut vimmenu_T, mode_idx: 
             && ((*menu).modes & (1 << idx)) != 0
         {
             let cmd_ptr = cmd_str.as_ptr().cast_mut();
-            if eap.is_null() || current_sctx.sc_sid != 0 {
+            if eap.is_null() || g_st().current_sctx.sc_sid != 0 {
                 let mut save_state = save_state_T::new();
-                ex_normal_busy += 1;
+                g_st().ex_normal_busy += 1;
                 save_current_state(&raw mut save_state);
                 exec_normal_cmd(cmd_ptr, (*menu).noremap[u_idx], (*menu).silent[u_idx]);
                 restore_current_state(&raw mut save_state);
-                ex_normal_busy -= 1;
+                g_st().ex_normal_busy -= 1;
             } else {
                 ins_typebuf(
                     cmd_ptr,

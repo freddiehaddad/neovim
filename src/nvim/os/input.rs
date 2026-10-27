@@ -162,13 +162,13 @@ use crate::event::stream::UV_TTY;
 
 pub unsafe fn cursorhold_event() {
     unsafe {
-        let event = if (State & MODE_INSERT) != 0 {
+        let event = if (g_st().State & MODE_INSERT) != 0 {
             EVENT_CURSORHOLDI
         } else {
             EVENT_CURSORHOLD
         };
-        apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), false, curbuf);
-        did_cursorhold = true;
+        apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), false, g_st().curbuf);
+        g_st().did_cursorhold = true;
     }
 }
 
@@ -213,8 +213,8 @@ pub unsafe fn input_get(
         }
 
         // No risk of a UI flood, so disable CTRL-C "interrupt" behavior if it's mapped.
-        if ((mapped_ctrl_c | (*curbuf).b_mapped_ctrl_c) & get_real_state()) != 0 {
-            ctrl_c_interrupts = false;
+        if ((g_st().mapped_ctrl_c | (*g_st().curbuf).b_mapped_ctrl_c) & get_real_state()) != 0 {
+            g_st().ctrl_c_interrupts = false;
         }
 
         if ms >= 0 {
@@ -226,7 +226,7 @@ pub unsafe fn input_get(
             osi_st().cursorhold_time = osi_st().cursorhold_time.min(opt_vars().p_ut as c_int);
             let delay_pending = ins_compl_autocomplete_pending()
                 && opt_vars().p_acl > 0
-                && typebuf.tb_len == 0
+                && g_st().typebuf.tb_len == 0
                 && !ins_compl_active()
                 && (get_real_state() & MODE_INSERT) != 0;
             let mut wait_time = opt_vars().p_ut - i64::from(osi_st().cursorhold_time);
@@ -235,7 +235,7 @@ pub unsafe fn input_get(
                 wait_time = delay_left.max(0).min(wait_time);
             }
             if !inbuf_poll(wait_time as c_int, events) {
-                if silent_mode {
+                if g_st().silent_mode {
                     // Ran out of input: exit silent/batch-mode (-es/-Es).
                     getout(0);
                 }
@@ -266,7 +266,7 @@ pub unsafe fn input_get(
             }
         }
 
-        ctrl_c_interrupts = true;
+        g_st().ctrl_c_interrupts = true;
 
         // If input was put directly in typeahead buffer bail out here.
         if typebuf_changed(tb_change_cnt) {
@@ -299,7 +299,7 @@ pub unsafe fn os_char_avail() -> bool {
 /// Poll for fast events. `got_int` will be set to `true` if CTRL-C was typed.
 pub unsafe fn os_breakcheck() {
     unsafe {
-        if got_int {
+        if g_st().got_int {
             return;
         }
 
@@ -380,7 +380,7 @@ pub unsafe fn input_enqueue_raw(data: *const c_char, size: usize) {
 pub unsafe fn input_enqueue(chan_id: u64, keys: NvimString) -> usize {
     unsafe {
         ensure_input_ptrs_init();
-        current_ui = chan_id;
+        g_st().current_ui = chan_id;
 
         if osi_st().input_read_pos == osi_st().input_write_pos {
             osi_st().input_read_pos = input_buf_ptr();
@@ -539,15 +539,15 @@ unsafe fn handle_mouse_event(
 
         if let Some((mut col, mut row, advance)) = parse_mouse_coords(*ptr_p) {
             if col >= 0 && row >= 0 {
-                if col >= Columns {
-                    col = Columns - 1;
+                if col >= g_st().Columns {
+                    col = g_st().Columns - 1;
                 }
-                if row >= Rows {
-                    row = Rows - 1;
+                if row >= g_st().Rows {
+                    row = g_st().Rows - 1;
                 }
-                mouse_grid = 0;
-                mouse_row = row;
-                mouse_col = col;
+                g_st().mouse_grid = 0;
+                g_st().mouse_row = row;
+                g_st().mouse_col = col;
             }
             *ptr_p = (*ptr_p).add(advance);
         }
@@ -555,9 +555,9 @@ unsafe fn handle_mouse_event(
         let mut skip_event = false;
         let modifiers = check_multiclick(
             mouse_code,
-            mouse_grid,
-            mouse_row,
-            mouse_col,
+            g_st().mouse_grid,
+            g_st().mouse_row,
+            g_st().mouse_col,
             &raw mut skip_event,
         );
         if skip_event {
@@ -607,9 +607,9 @@ pub unsafe fn input_enqueue_mouse(
         *p.add(1) = KS_EXTRA;
         *p.add(2) = code as u8;
 
-        mouse_grid = grid;
-        mouse_row = row;
-        mouse_col = col;
+        g_st().mouse_grid = grid;
+        g_st().mouse_row = row;
+        g_st().mouse_col = col;
 
         let written = 3 + (p as usize).wrapping_sub(buf.as_ptr() as usize);
         input_enqueue_raw(buf.as_ptr().cast(), written);
@@ -633,14 +633,14 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
             return os_input_ready(events);
         }
 
-        if do_profiling == PROF_YES {
+        if g_st().do_profiling == PROF_YES {
             prof_input_start();
         }
 
         if events != main_loop_events() {
             // The pending input provoked a osi_st().blocking wait. Do special events now. #6247
             osi_st().blocking = true;
-            multiqueue_process_events(ch_before_blocking_events);
+            multiqueue_process_events(g_st().ch_before_blocking_events);
         }
 
         // LOOP_PROCESS_EVENTS_UNTIL(&main_loop, NULL, ms, os_input_ready(events) || input_unanswerable());
@@ -662,7 +662,7 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
 
         osi_st().blocking = false;
 
-        if do_profiling == PROF_YES {
+        if g_st().do_profiling == PROF_YES {
             prof_input_end();
         }
 
@@ -685,7 +685,7 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
             }
             input_enqueue_raw(c"\x03".as_ptr(), 1);
             // Also interrupt the code that prompted. Skips remaining exit autocmds.
-            got_int = true;
+            g_st().got_int = true;
         }
 
         os_input_ready(events)
@@ -694,7 +694,7 @@ unsafe fn inbuf_poll(ms: c_int, events: *mut MultiQueue) -> bool {
 
 unsafe fn process_ctrl_c() {
     unsafe {
-        if !ctrl_c_interrupts {
+        if !g_st().ctrl_c_interrupts {
             return;
         }
 
@@ -710,13 +710,13 @@ unsafe fn process_ctrl_c() {
                     && *osi_st().input_read_pos.offset(i - 1) as u8 == MOD_MASK_CTRL)
             {
                 *osi_st().input_read_pos.offset(i) = Ctrl_C as c_char;
-                got_int = true;
+                g_st().got_int = true;
                 break;
             }
             i -= 1;
         }
 
-        if got_int && i > 0 {
+        if g_st().got_int && i > 0 {
             // Remove all unprocessed input (typeahead) before the CTRL-C.
             osi_st().input_read_pos = osi_st().input_read_pos.offset(i);
         }
@@ -745,7 +745,7 @@ unsafe fn push_event_key(buf: *mut u8, maxlen: c_int) -> c_int {
 
 /// Check if there's pending input already in typebuf or `events`
 pub unsafe fn os_input_ready(events: *mut MultiQueue) -> bool {
-    unsafe { typebuf_was_filled || input_available() != 0 || pending_events(events) }
+    unsafe { g_st().typebuf_was_filled || input_available() != 0 || pending_events(events) }
 }
 
 unsafe fn pending_events(events: *mut MultiQueue) -> bool {

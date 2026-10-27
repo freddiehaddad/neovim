@@ -56,7 +56,7 @@ unsafe fn filter_map_one(
         (*newtv).v_type = VarType::VAR_UNKNOWN;
         if filtermap == FilterMap::ForEach && (*expr).v_type == VarType::VAR_STRING {
             do_cmdline_cmd((*expr).vval.v_string());
-            if did_emsg == 0 {
+            if g_st().did_emsg == 0 {
                 retval = OK;
             }
             tv_clear(get_vim_var_tv(VV_VAL));
@@ -146,7 +146,7 @@ unsafe fn filter_map_dict(
                 let mut rem = false;
                 let r = filter_map_one(&mut (*di).di_tv, expr, filtermap, &mut newtv, &mut rem);
                 tv_clear(get_vim_var_tv(VV_KEY));
-                if r == FAIL || did_emsg != 0 {
+                if r == FAIL || g_st().did_emsg != 0 {
                     tv_clear(&mut newtv);
                     break;
                 }
@@ -228,7 +228,7 @@ unsafe fn filter_map_blob(
             };
             let mut rem = false;
             if filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem) == FAIL
-                || did_emsg != 0
+                || g_st().did_emsg != 0
             {
                 break;
             }
@@ -284,7 +284,7 @@ unsafe fn filter_map_string(
             };
             let mut rem = false;
             if filter_map_one(&mut tv, expr, filtermap, &mut newtv, &mut rem) == FAIL
-                || did_emsg != 0
+                || g_st().did_emsg != 0
             {
                 tv_clear(&mut newtv);
                 tv_clear(&mut tv);
@@ -362,7 +362,7 @@ unsafe fn filter_map_list(
             if filter_map_one(&mut (*li).li_tv, expr, filtermap, &mut newtv, &mut rem) == FAIL {
                 break;
             }
-            if did_emsg != 0 {
+            if g_st().did_emsg != 0 {
                 tv_clear(&mut newtv);
                 break;
             }
@@ -428,8 +428,8 @@ unsafe fn filter_map(argvars: *mut typval_T, rettv: *mut typval_T, filtermap: Fi
         prepare_vimvar(VV_VAL, &mut save_val);
         prepare_vimvar(VV_KEY, &mut save_key);
 
-        let save_did_emsg = did_emsg;
-        did_emsg = 0;
+        let save_did_emsg = g_st().did_emsg;
+        g_st().did_emsg = 0;
 
         match arg0.v_type {
             VarType::VAR_DICT => {
@@ -450,7 +450,7 @@ unsafe fn filter_map(argvars: *mut typval_T, rettv: *mut typval_T, filtermap: Fi
         restore_vimvar(VV_KEY, &mut save_key);
         restore_vimvar(VV_VAL, &mut save_val);
 
-        did_emsg |= save_did_emsg;
+        g_st().did_emsg |= save_did_emsg;
     }
 }
 

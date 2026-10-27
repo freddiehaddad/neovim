@@ -419,7 +419,7 @@ impl qfstate_T {
         if self.use_growbuf {
             self.growbuf.as_mut_ptr()
         } else {
-            (&raw mut IObuff).cast::<c_char>()
+            unsafe { (&raw mut g_st().IObuff).cast::<c_char>() }
         }
     }
 }
@@ -699,8 +699,8 @@ unsafe fn get_loc_list(wp: *const win_T) -> *mut qf_info_T {
 #[inline]
 unsafe fn tab_firstwin(tp: *const tabpage_T) -> *mut win_T {
     unsafe {
-        if tp == curtab.cast_const() {
-            firstwin
+        if tp == g_st().curtab.cast_const() {
+            g_st().firstwin
         } else {
             (*tp).tp_firstwin
         }
@@ -822,7 +822,7 @@ pub unsafe fn qf_init(
             qi,
             (*qi).qf_curlist,
             efile,
-            curbuf,
+            g_st().curbuf,
             ptr::null_mut(),
             errorformat,
             newlist != 0,
@@ -1160,7 +1160,7 @@ unsafe fn qf_get_next_str_line(state: *mut qfstate_T, mut p_str: *mut c_char) ->
         } else {
             (*state).use_growbuf = false;
             (*state).linelen = len;
-            (&raw mut IObuff).cast::<c_char>()
+            (&raw mut g_st().IObuff).cast::<c_char>()
         };
         ptr::copy_nonoverlapping(p_str, linebuf, (*state).linelen);
         *linebuf.add((*state).linelen) = NUL;
@@ -1193,7 +1193,7 @@ unsafe fn qf_get_next_list_line(state: *mut qfstate_T, mut p_li: *mut listitem_T
         } else {
             (*state).use_growbuf = false;
             (*state).linelen = len;
-            (&raw mut IObuff).cast::<c_char>()
+            (&raw mut g_st().IObuff).cast::<c_char>()
         };
 
         xstrlcpy(linebuf, s, (*state).linelen + 1);
@@ -1225,7 +1225,7 @@ unsafe fn qf_get_next_buf_line(
         } else {
             (*state).use_growbuf = false;
             (*state).linelen = len;
-            (&raw mut IObuff).cast::<c_char>()
+            (&raw mut g_st().IObuff).cast::<c_char>()
         };
         xstrlcpy(linebuf, p_buf, (*state).linelen + 1);
         QF_OK
@@ -1234,7 +1234,7 @@ unsafe fn qf_get_next_buf_line(
 
 unsafe fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
     unsafe {
-        let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
+        let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         loop {
             os_set_errno(0);
             if fgets(iobuff_ptr, IOSIZE as c_int, fd).is_null() {
@@ -1591,8 +1591,8 @@ unsafe fn qf_init_ext(
 
         let mut ok = !(*cache_ptr).is_empty();
         if ok {
-            got_int = false;
-            while !got_int {
+            g_st().got_int = false;
+            while !g_st().got_int {
                 let status = qf_init_process_nextline(
                     qfl,
                     (*cache_ptr).as_slice(),
@@ -2176,15 +2176,15 @@ unsafe fn wipe_qf_buffer(qi: *mut qf_info_T) {
         let qfbuf = buflist_findnr((*qi).qf_bufnr);
         if !qfbuf.is_null() && (*qfbuf).b_nwindows == 0 {
             let mut buf_was_null = false;
-            if (*curwin).w_buffer.is_null() {
-                (*curwin).w_buffer = curbuf;
+            if (**curwin.as_ptr()).w_buffer.is_null() {
+                (**curwin.as_ptr()).w_buffer = g_st().curbuf;
                 buf_was_null = true;
             }
 
             close_buffer(ptr::null_mut(), qfbuf, DOBUF_WIPE, false, false, false);
             (*qi).qf_bufnr = INVALID_QFBUFNR;
             if buf_was_null {
-                (*curwin).w_buffer = ptr::null_mut();
+                (**curwin.as_ptr()).w_buffer = ptr::null_mut();
             }
         }
     }
@@ -2411,7 +2411,7 @@ unsafe fn qf_sync_win_to_llw(pwp: *mut win_T) {
     unsafe {
         let llw = (*pwp).w_llist;
         if !llw.is_null() {
-            let mut wp = tab_firstwin(curtab);
+            let mut wp = tab_firstwin(g_st().curtab);
             while !wp.is_null() {
                 if (*wp).w_llist_ref == llw && bt_quickfix((*wp).w_buffer) {
                     (*wp).w_onebuf_opt.wo_lhi = (*pwp).w_onebuf_opt.wo_lhi;
@@ -2470,7 +2470,7 @@ unsafe fn qf_cmd_get_stack(eap: *mut exarg_T, print_emsg: bool) -> *mut qf_info_
         assert!(!qi.is_null());
 
         if is_loclist_cmd((*eap).cmdidx) {
-            qi = get_loc_list(curwin);
+            qi = get_loc_list(*curwin.as_ptr());
             if qi.is_null() {
                 if print_emsg {
                     emsg(gettext((&raw const e_loclist).cast()));
@@ -2487,8 +2487,8 @@ unsafe fn qf_cmd_get_or_alloc_stack(eap: *const exarg_T, pwinp: *mut *mut win_T)
     unsafe {
         let mut qi = ql_info_ptr();
         if is_loclist_cmd((*eap).cmdidx) {
-            qi = ll_get_or_alloc_list(curwin);
-            *pwinp = curwin;
+            qi = ll_get_or_alloc_list(*curwin.as_ptr());
+            *pwinp = *curwin.as_ptr();
         }
         qi
     }
@@ -2497,7 +2497,7 @@ unsafe fn qf_cmd_get_or_alloc_stack(eap: *const exarg_T, pwinp: *mut *mut win_T)
 unsafe fn copy_loclist_entries(from_qfl: *const qf_list_T, to_qfl: *mut qf_list_T) -> c_int {
     unsafe {
         for from_qfp in &(*from_qfl).qf_items {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             if qf_add_entry(
@@ -2748,7 +2748,7 @@ unsafe fn qflist_valid(wp: *mut win_T, qf_id: c_uint) -> bool {
 }
 
 unsafe fn is_qf_entry_present(qfl: *const qf_list_T, qf_index: c_int) -> bool {
-    unsafe { !got_int && qf_index >= 1 && (qf_index as usize) <= (*qfl).qf_items.len() }
+    unsafe { !g_st().got_int && qf_index >= 1 && (qf_index as usize) <= (*qfl).qf_items.len() }
 }
 
 unsafe fn get_next_valid_entry(
@@ -2890,7 +2890,7 @@ unsafe fn qf_get_entry(
 
 unsafe fn qf_find_help_win() -> *mut win_T {
     unsafe {
-        let mut wp = tab_firstwin(curtab);
+        let mut wp = tab_firstwin(g_st().curtab);
         while !wp.is_null() {
             if bt_help((*wp).w_buffer) && !(*wp).w_config.hide && (*wp).w_config.focusable {
                 return wp;
@@ -2910,7 +2910,7 @@ unsafe fn win_set_loclist(wp: *mut win_T, qi: *mut qf_info_T) {
 
 unsafe fn jump_to_help_window(qi: *mut qf_info_T, newwin: bool, opened_window: *mut bool) -> c_int {
     unsafe {
-        let wp = if cmdmod.cmod_tab != 0 || newwin {
+        let wp = if g_st().cmdmod.cmod_tab != 0 || newwin {
             ptr::null_mut()
         } else {
             qf_find_help_win()
@@ -2920,7 +2920,7 @@ unsafe fn jump_to_help_window(qi: *mut qf_info_T, newwin: bool, opened_window: *
             win_enter(wp, true);
         } else {
             let mut flags = WSP_HELP;
-            if cmdmod.cmod_split == 0 && (*curwin).w_width != Columns && (*curwin).w_width < 80 {
+            if g_st().cmdmod.cmod_split == 0 && (**curwin.as_ptr()).w_width != g_st().Columns && (**curwin.as_ptr()).w_width < 80 {
                 flags |= WSP_TOP;
             }
 
@@ -2934,16 +2934,16 @@ unsafe fn jump_to_help_window(qi: *mut qf_info_T, newwin: bool, opened_window: *
 
             *opened_window = true;
 
-            if i64::from((*curwin).w_height) < opt_vars().p_hh {
+            if i64::from((**curwin.as_ptr()).w_height) < opt_vars().p_hh {
                 win_setheight(opt_vars().p_hh as c_int);
             }
 
             if is_ll_stack(qi) && !newwin {
-                win_set_loclist(curwin, qi);
+                win_set_loclist(*curwin.as_ptr(), qi);
             }
         }
 
-        restart_edit = 0;
+        g_st().restart_edit = 0;
 
         OK
     }
@@ -2951,7 +2951,7 @@ unsafe fn jump_to_help_window(qi: *mut qf_info_T, newwin: bool, opened_window: *
 
 unsafe fn qf_find_win_with_loclist(ll: *const qf_info_T) -> *mut win_T {
     unsafe {
-        let mut wp = tab_firstwin(curtab);
+        let mut wp = tab_firstwin(g_st().curtab);
         while !wp.is_null() {
             if (*wp).w_llist.cast_const() == ll && !bt_quickfix((*wp).w_buffer)
             {
@@ -2965,7 +2965,7 @@ unsafe fn qf_find_win_with_loclist(ll: *const qf_info_T) -> *mut win_T {
 
 unsafe fn qf_find_win_with_normal_buf() -> *mut win_T {
     unsafe {
-        let mut wp = tab_firstwin(curtab);
+        let mut wp = tab_firstwin(g_st().curtab);
         while !wp.is_null() {
             if bt_normal((*wp).w_buffer) {
                 return wp;
@@ -2978,7 +2978,7 @@ unsafe fn qf_find_win_with_normal_buf() -> *mut win_T {
 
 unsafe fn qf_goto_tabwin_with_file(fnum: c_int) -> bool {
     unsafe {
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             let mut wp = tab_firstwin(tp);
             while !wp.is_null() {
@@ -3005,9 +3005,9 @@ unsafe fn qf_open_new_file_win(ll_ref: *mut qf_info_T) -> c_int {
         }
         opt_vars().p_swb = empty_string_option.as_ptr().cast::<c_char>();
         opt_vars().swb_flags = 0;
-        reset_binding(curwin);
+        reset_binding(*curwin.as_ptr());
         if !ll_ref.is_null() {
-            win_set_loclist(curwin, ll_ref);
+            win_set_loclist(*curwin.as_ptr(), ll_ref);
         }
         OK
     }
@@ -3018,7 +3018,7 @@ unsafe fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: 
         let mut win = use_win;
 
         if win.is_null() {
-            let mut win2 = tab_firstwin(curtab);
+            let mut win2 = tab_firstwin(g_st().curtab);
             while !win2.is_null() {
                 if (*(*win2).w_buffer).b_fnum == qf_fnum {
                     win = win2;
@@ -3027,17 +3027,17 @@ unsafe fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: 
                 win2 = (*win2).w_next;
             }
             if win.is_null() {
-                win = curwin;
+                win = *curwin.as_ptr();
                 loop {
                     if bt_normal((*win).w_buffer) {
                         break;
                     }
                     if (*win).w_prev.is_null() {
-                        win = lastwin;
+                        win = g_st().lastwin;
                     } else {
                         win = (*win).w_prev;
                     }
-                    if win == curwin {
+                    if win == *curwin.as_ptr() {
                         break;
                     }
                 }
@@ -3053,30 +3053,30 @@ unsafe fn qf_goto_win_with_ll_file(use_win: *mut win_T, qf_fnum: c_int, ll_ref: 
 
 unsafe fn qf_goto_win_with_qfl_file(qf_fnum: c_int) {
     unsafe {
-        let mut win = curwin;
+        let mut win = *curwin.as_ptr();
         let mut altwin: *mut win_T = ptr::null_mut();
         loop {
             if (*(*win).w_buffer).b_fnum == qf_fnum {
                 break;
             }
             if (*win).w_prev.is_null() {
-                win = lastwin;
+                win = g_st().lastwin;
             } else {
                 win = (*win).w_prev;
             }
 
             if is_qf_window(win) {
                 if (opt_vars().swb_flags & kOptSwbFlagUselast) != 0
-                    && win_valid(prevwin)
-                    && (*prevwin).w_onebuf_opt.wo_wfb == 0
+                    && win_valid(g_st().prevwin)
+                    && (*g_st().prevwin).w_onebuf_opt.wo_wfb == 0
                 {
-                    win = prevwin;
+                    win = g_st().prevwin;
                 } else if !altwin.is_null() {
                     win = altwin;
-                } else if !(*curwin).w_prev.is_null() {
-                    win = (*curwin).w_prev;
+                } else if !(**curwin.as_ptr()).w_prev.is_null() {
+                    win = (**curwin.as_ptr()).w_prev;
                 } else {
-                    win = (*curwin).w_next;
+                    win = (**curwin.as_ptr()).w_next;
                 }
                 break;
             }
@@ -3106,7 +3106,7 @@ unsafe fn qf_jump_to_usable_window(
         let ll_ref = if newwin {
             ptr::null_mut()
         } else {
-            (*curwin).w_llist_ref
+            (**curwin.as_ptr()).w_llist_ref
         };
         if !ll_ref.is_null() {
             usable_wp = qf_find_win_with_loclist(ll_ref);
@@ -3126,12 +3126,12 @@ unsafe fn qf_jump_to_usable_window(
             usable_win = qf_goto_tabwin_with_file(qf_fnum);
         }
 
-        if ((firstwin == lastwin) && bt_quickfix(curbuf)) || !usable_win || newwin {
+        if ((g_st().firstwin == g_st().lastwin) && bt_quickfix(g_st().curbuf)) || !usable_win || newwin {
             if qf_open_new_file_win(ll_ref) != OK {
                 return FAIL;
             }
             *opened_window = true;
-        } else if !(*curwin).w_llist_ref.is_null() {
+        } else if !(**curwin.as_ptr()).w_llist_ref.is_null() {
             qf_goto_win_with_ll_file(usable_wp, qf_fnum, ll_ref);
         } else {
             qf_goto_win_with_qfl_file(qf_fnum);
@@ -3161,7 +3161,7 @@ unsafe fn qf_jump_edit_buffer(
         };
 
         if qf_type == 1 {
-            if !can_abandon(curbuf, forceit != 0) {
+            if !can_abandon(g_st().curbuf, forceit != 0) {
                 no_write_message();
                 return FAIL;
             }
@@ -3172,30 +3172,30 @@ unsafe fn qf_jump_edit_buffer(
                 ptr::null_mut(),
                 1,
                 ECMD_HIDE + ECMD_SET_HELP,
-                if prev_winid == (*curwin).handle {
-                    curwin
+                if prev_winid == (**curwin.as_ptr()).handle {
+                    *curwin.as_ptr()
                 } else {
                     ptr::null_mut()
                 },
             );
         } else {
-            if forceit == 0 && (*curwin).w_onebuf_opt.wo_wfb != 0 && (*curbuf).b_fnum != fnum {
+            if forceit == 0 && (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 && (*g_st().curbuf).b_fnum != fnum {
                 if (*qi).qfl_type == QFLT_LOCATION {
                     emsg(gettext((&raw const e_winfixbuf_cannot_go_to_buffer).cast()));
                     return FAIL;
                 }
 
-                if win_valid(prevwin)
-                    && (*prevwin).w_onebuf_opt.wo_wfb == 0
-                    && !bt_quickfix((*prevwin).w_buffer)
+                if win_valid(g_st().prevwin)
+                    && (*g_st().prevwin).w_onebuf_opt.wo_wfb == 0
+                    && !bt_quickfix((*g_st().prevwin).w_buffer)
                 {
-                    win_goto(prevwin);
+                    win_goto(g_st().prevwin);
                 }
-                if (*curwin).w_onebuf_opt.wo_wfb != 0 {
+                if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
                     if win_split(0, 0) == OK {
                         *opened_window = true;
                     }
-                    if (*curwin).w_onebuf_opt.wo_wfb != 0 {
+                    if (**curwin.as_ptr()).w_onebuf_opt.wo_wfb != 0 {
                         emsg(gettext((&raw const e_winfixbuf_cannot_go_to_buffer).cast()));
                         retval = FAIL;
                     }
@@ -3209,7 +3209,7 @@ unsafe fn qf_jump_edit_buffer(
 
         if qfl_type == QFLT_LOCATION {
             let wp = win_id2wp(prev_winid);
-            if wp.is_null() && (*curwin).w_llist != qi {
+            if wp.is_null() && (**curwin.as_ptr()).w_llist != qi {
                 emsg(gettext(c"E924: Current window was closed".as_ptr()));
                 *opened_window = false;
                 return QF_ABORT;
@@ -3268,24 +3268,24 @@ unsafe fn qf_jump_goto_line(
         if qf_pattern.is_null() {
             let mut i = qf_lnum;
             if i > 0 {
-                i = i.min((*curbuf).b_ml.ml_line_count);
-                (*curwin).w_cursor.lnum = i;
+                i = i.min((*g_st().curbuf).b_ml.ml_line_count);
+                (**curwin.as_ptr()).w_cursor.lnum = i;
             }
             if qf_col > 0 {
-                (*curwin).w_cursor.coladd = 0;
+                (**curwin.as_ptr()).w_cursor.coladd = 0;
                 if qf_viscol != 0 {
-                    (*curwin).w_cursor.col = qf_screen_col_to_idx(qf_col - 1);
+                    (**curwin.as_ptr()).w_cursor.col = qf_screen_col_to_idx(qf_col - 1);
                 } else {
-                    (*curwin).w_cursor.col = qf_col - 1;
+                    (**curwin.as_ptr()).w_cursor.col = qf_col - 1;
                 }
-                (*curwin).w_set_curswant = true;
-                check_cursor(curwin);
+                (**curwin.as_ptr()).w_set_curswant = true;
+                check_cursor(*curwin.as_ptr());
             } else {
                 beginline(BL_WHITE | BL_FIX);
             }
         } else {
-            let save_cursor = (*curwin).w_cursor;
-            (*curwin).w_cursor.lnum = 0;
+            let save_cursor = (**curwin.as_ptr()).w_cursor;
+            (**curwin.as_ptr()).w_cursor.lnum = 0;
             if do_search(
                 ptr::null_mut(),
                 b'/' as c_int,
@@ -3298,7 +3298,7 @@ unsafe fn qf_jump_goto_line(
                 ptr::null_mut(),
             ) == 0
             {
-                (*curwin).w_cursor = save_cursor;
+                (**curwin.as_ptr()).w_cursor = save_cursor;
             }
         }
     }
@@ -3314,13 +3314,13 @@ unsafe fn qf_jump_print_msg(
     unsafe {
         let gap = qfga_get();
 
-        if msg_scrolled == 0 {
-            update_topline(curwin);
-            if must_redraw != 0 {
+        if g_st().msg_scrolled == 0 {
+            update_topline(*curwin.as_ptr());
+            if g_st().must_redraw != 0 {
                 update_screen();
             }
         }
-        let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
+        let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         let deleted_str = if (*qf_ptr).qf_cleared != 0 {
             gettext(c" (line deleted)".as_ptr()).cast_const()
         } else {
@@ -3339,16 +3339,16 @@ unsafe fn qf_jump_print_msg(
         qf_fmt_text(gap, skipwhite((*qf_ptr).qf_text.as_ptr()));
         gap.push(NUL);
 
-        let i = msg_scroll;
-        if curbuf == old_curbuf && (*curwin).w_cursor.lnum == old_lnum {
-            msg_scroll = 1;
-        } else if (msg_scrolled == 0 || (opt_vars().p_ch == 0 && msg_scrolled == 1)) && shortmess(kShmOverall)
+        let i = g_st().msg_scroll;
+        if g_st().curbuf == old_curbuf && (**curwin.as_ptr()).w_cursor.lnum == old_lnum {
+            g_st().msg_scroll = 1;
+        } else if (g_st().msg_scrolled == 0 || (opt_vars().p_ch == 0 && g_st().msg_scrolled == 1)) && shortmess(kShmOverall)
         {
-            msg_scroll = 0;
+            g_st().msg_scroll = 0;
         }
         msg_ext_set_kind(c"quickfix".as_ptr());
         msg_keep(gap.as_ptr(), 0, true, false);
-        msg_scroll = i;
+        g_st().msg_scroll = i;
 
         qfga_clear();
     }
@@ -3368,7 +3368,7 @@ unsafe fn qf_jump_open_window(
         let qf_type = (&(*qfl).qf_items)[(qf_index - 1) as usize].qf_type;
 
         if qf_type == 1
-            && (!bt_help((*curwin).w_buffer) || cmdmod.cmod_tab != 0)
+            && (!bt_help((**curwin.as_ptr()).w_buffer) || g_st().cmdmod.cmod_tab != 0)
             && jump_to_help_window(qi, newwin, opened_window) == FAIL
         {
             return FAIL;
@@ -3386,7 +3386,7 @@ unsafe fn qf_jump_open_window(
         }
 
         let qf_fnum = (&(*qfl).qf_items)[(qf_index - 1) as usize].qf_fnum;
-        if bt_quickfix(curbuf) && !*opened_window {
+        if bt_quickfix(g_st().curbuf) && !*opened_window {
             if qf_fnum == 0 {
                 return NOTDONE;
             }
@@ -3421,8 +3421,8 @@ unsafe fn qf_jump_to_buffer(
     print_message: bool,
 ) -> c_int {
     unsafe {
-        let old_curbuf = curbuf;
-        let old_lnum = (*curwin).w_cursor.lnum;
+        let old_curbuf = g_st().curbuf;
+        let old_lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut retval = OK;
         let qfl = qf_get_curlist(qi);
 
@@ -3433,7 +3433,7 @@ unsafe fn qf_jump_to_buffer(
             }
         }
 
-        if curbuf == old_curbuf {
+        if g_st().curbuf == old_curbuf {
             setpcmark();
         }
 
@@ -3475,7 +3475,7 @@ unsafe fn qf_jump_newwin(
     unsafe {
         let old_swb = opt_vars().p_swb;
         let old_swb_flags = opt_vars().swb_flags;
-        let old_KeyTyped = KeyTyped;
+        let old_KeyTyped = g_st().KeyTyped;
 
         if qi.is_null() {
                 qi = ql_info_ptr();
@@ -3498,7 +3498,7 @@ unsafe fn qf_jump_newwin(
             (*qfl).qf_index = qf_index;
 
             let print_message = !qf_win_pos_update(qi, old_qf_index);
-            let prev_winid = (*curwin).handle;
+            let prev_winid = (**curwin.as_ptr()).handle;
             let mut opened_window = false;
             let mut retval = qf_jump_open_window(qi, qf_index, newwin, &raw mut opened_window);
             if retval == FAIL {
@@ -3519,7 +3519,7 @@ unsafe fn qf_jump_newwin(
                     qi = ptr::null_mut();
                 } else if retval != OK {
                     if opened_window {
-                        win_close(curwin, true, false);
+                        win_close(*curwin.as_ptr(), true, false);
                     }
                     if (&(*qfl).qf_items)[(qf_index - 1) as usize].qf_fnum != 0 {
                         qf_index = old_qf_index;
@@ -3544,7 +3544,7 @@ unsafe fn qf_jump_newwin(
 unsafe fn qf_list_entry(qfp: *mut qfline_T, qf_idx: c_int, cursel: bool) {
     unsafe {
         let mut fname: *mut c_char = ptr::null_mut();
-        let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
+        let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         if let Some(ref module) = (*qfp).qf_module
             && !module.as_bytes().is_empty()
         {
@@ -3594,7 +3594,7 @@ unsafe fn qf_list_entry(qfp: *mut qfline_T, qf_idx: c_int, cursel: bool) {
             return;
         }
 
-        if msg_col > 0 {
+        if g_st().msg_col > 0 {
             msg_putchar(b'\n' as c_int);
         }
         msg_outtrans(
@@ -3697,7 +3697,7 @@ pub unsafe fn qf_list(eap: *mut exarg_T) {
         }
         msg_ext_set_kind(c"list_cmd".as_ptr());
         for (idx, qfp) in (*qfl).qf_items.iter_mut().enumerate() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             let i = (idx + 1) as c_int;
@@ -3735,7 +3735,7 @@ unsafe fn qf_fmt_text(gap: &mut Vec<c_char>, text: *const c_char) {
 
 unsafe fn qf_range_text(gap: &mut Vec<c_char>, qfp: *const qfline_T) {
     unsafe {
-        let buf_data = (&raw mut IObuff).cast::<c_char>();
+        let buf_data = (&raw mut g_st().IObuff).cast::<c_char>();
         let mut buf_size = vim_snprintf_safelen!(buf_data, IOSIZE, c"%d".as_ptr(), (*qfp).qf_lnum);
 
         if (*qfp).qf_end_lnum > 0 && (*qfp).qf_lnum != (*qfp).qf_end_lnum {
@@ -3792,7 +3792,7 @@ unsafe fn qf_msg(qi: *mut qf_info_T, which: c_int, lead: *const c_char) {
             }
             xstrlcat(buf.as_mut_ptr(), title.as_ptr(), IOSIZE);
         }
-        trunc_string(buf.as_ptr(), buf.as_mut_ptr(), Columns - 1, IOSIZE as c_int);
+        trunc_string(buf.as_ptr(), buf.as_mut_ptr(), g_st().Columns - 1, IOSIZE as c_int);
         msg(buf.as_ptr(), 0);
     }
 }
@@ -3925,7 +3925,7 @@ pub unsafe fn qf_mark_adjust(
         for idx in 0..(*qi).qf_listcount {
             let qfl = qf_get_list(qi, idx);
             for qfp in &mut (*qfl).qf_items {
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
                 if qfp.qf_fnum == (*buf).b_fnum {
@@ -3984,8 +3984,8 @@ pub unsafe fn qf_view_result(split: bool) {
         let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
 
-        if is_ll_window(curwin) {
-            qi = get_loc_list(curwin);
+        if is_ll_window(*curwin.as_ptr()) {
+            qi = get_loc_list(*curwin.as_ptr());
         }
 
         if qf_list_empty(qf_get_curlist(qi)) {
@@ -3994,12 +3994,12 @@ pub unsafe fn qf_view_result(split: bool) {
         }
 
         if split {
-            qf_jump_newwin(qi, 0, (*curwin).w_cursor.lnum as c_int, 0, true);
+            qf_jump_newwin(qi, 0, (**curwin.as_ptr()).w_cursor.lnum as c_int, 0, true);
             do_cmdline_cmd(c"clearjumps".as_ptr());
             return;
         }
 
-        do_cmdline_cmd(if is_ll_window(curwin) {
+        do_cmdline_cmd(if is_ll_window(*curwin.as_ptr()) {
             c".ll".as_ptr()
         } else {
             c".cc".as_ptr()
@@ -4059,7 +4059,7 @@ unsafe fn qf_goto_cwindow(qi: *const qf_info_T, resize: bool, sz: c_int, vertspl
                     + (*win).w_hsep_height
                     + (*win).w_status_height
                     + tabline_height()
-                    < cmdline_row)
+                    < g_st().cmdline_row)
             {
                 win_setheight(sz);
             }
@@ -4074,22 +4074,22 @@ unsafe fn qf_set_cwindow_options() {
         set_option_value_give_err(kOptSwapfile, boolean_obj(false), OPT_LOCAL);
         set_option_value_give_err(kOptBuftype, cstr_as_obj(c"quickfix".as_ptr()), OPT_LOCAL);
         set_option_value_give_err(kOptBufhidden, cstr_as_obj(c"hide".as_ptr()), OPT_LOCAL);
-        reset_binding(curwin);
-        (*curwin).w_onebuf_opt.wo_diff = 0;
+        reset_binding(*curwin.as_ptr());
+        (**curwin.as_ptr()).w_onebuf_opt.wo_diff = 0;
         set_option_value_give_err(kOptFoldmethod, cstr_as_obj(c"manual".as_ptr()), OPT_LOCAL);
     }
 }
 
 unsafe fn qf_open_new_cwindow(qi: *mut qf_info_T, height: c_int) -> c_int {
     unsafe {
-        let mut oldwin = curwin;
-        let prevtab = curtab;
+        let mut oldwin = *curwin.as_ptr();
+        let prevtab = g_st().curtab;
         let mut flags: c_int = 0;
 
         let qf_buf = qf_find_buf(qi);
-        let win = curwin;
+        let win = *curwin.as_ptr();
 
-        if cmdmod.cmod_split == 0 {
+        if g_st().cmdmod.cmod_split == 0 {
             flags = if is_qf_stack(qi) { WSP_BOT } else { WSP_BELOW };
         }
         flags |= WSP_NEWLOC;
@@ -4101,14 +4101,14 @@ unsafe fn qf_open_new_cwindow(qi: *mut qf_info_T, height: c_int) -> c_int {
         if win_split(height, flags) == FAIL {
             return FAIL;
         }
-        reset_binding(curwin);
+        reset_binding(*curwin.as_ptr());
 
         if is_ll_stack(qi) {
-            (*curwin).w_llist_ref = qi;
+            (**curwin.as_ptr()).w_llist_ref = qi;
             (*qi).qf_refcount += 1;
         }
 
-        if oldwin != curwin {
+        if oldwin != *curwin.as_ptr() {
             oldwin = ptr::null_mut();
         }
         if !qf_buf.is_null() {
@@ -4137,19 +4137,19 @@ unsafe fn qf_open_new_cwindow(qi: *mut qf_info_T, height: c_int) -> c_int {
             {
                 return FAIL;
             }
-            (*qi).qf_bufnr = (*curbuf).b_fnum;
+            (*qi).qf_bufnr = (*g_st().curbuf).b_fnum;
         }
 
-        if !bt_quickfix(curbuf) {
+        if !bt_quickfix(g_st().curbuf) {
             qf_set_cwindow_options();
         }
 
-        if curtab == prevtab && (*curwin).w_width == Columns {
+        if g_st().curtab == prevtab && (**curwin.as_ptr()).w_width == g_st().Columns {
             win_setheight(height);
         }
-        (*curwin).w_onebuf_opt.wo_wfh = 1;
+        (**curwin.as_ptr()).w_onebuf_opt.wo_wfh = 1;
         if win_valid(win) {
-            prevwin = win;
+            g_st().prevwin = win;
         }
         OK
     }
@@ -4180,12 +4180,12 @@ pub unsafe fn ex_copen(eap: *mut exarg_T) {
         reset_VIsual_and_resel();
 
         let mut status = FAIL;
-        if cmdmod.cmod_tab == 0 {
+        if g_st().cmdmod.cmod_tab == 0 {
             status = qf_goto_cwindow(
                 qi,
                 (*eap).addr_count != 0,
                 height,
-                (cmdmod.cmod_split & WSP_VERT) != 0,
+                (g_st().cmdmod.cmod_split & WSP_VERT) != 0,
             );
         }
         if status == FAIL && qf_open_new_cwindow(qi, height) == FAIL {
@@ -4197,32 +4197,32 @@ pub unsafe fn ex_copen(eap: *mut exarg_T) {
         qf_set_title_var(qfl);
         let lnum = (*qfl).qf_index;
 
-        qf_fill_buffer(qfl, curbuf, 0, (*curwin).handle);
+        qf_fill_buffer(qfl, g_st().curbuf, 0, (**curwin.as_ptr()).handle);
 
         decr_quickfix_busy();
 
-        (*curwin).w_cursor.lnum = lnum;
-        (*curwin).w_cursor.col = 0;
-        check_cursor(curwin);
-        update_topline(curwin);
+        (**curwin.as_ptr()).w_cursor.lnum = lnum;
+        (**curwin.as_ptr()).w_cursor.col = 0;
+        check_cursor(*curwin.as_ptr());
+        update_topline(*curwin.as_ptr());
     }
 }
 
 unsafe fn qf_win_goto(win: *mut win_T, lnum: linenr_T) {
     unsafe {
-        let old_curwin = curwin;
+        let old_curwin = *curwin.as_ptr();
 
-        curwin = win;
-        curbuf = (*win).w_buffer;
-        (*curwin).w_cursor.lnum = lnum;
-        (*curwin).w_cursor.col = 0;
-        (*curwin).w_cursor.coladd = 0;
-        (*curwin).w_curswant = 0;
-        update_topline(curwin);
-        redraw_later(curwin, UPD_VALID);
-        (*curwin).w_redr_status = true;
-        curwin = old_curwin;
-        curbuf = (*curwin).w_buffer;
+        *curwin.as_ptr() = win;
+        g_st().curbuf = (*win).w_buffer;
+        (**curwin.as_ptr()).w_cursor.lnum = lnum;
+        (**curwin.as_ptr()).w_cursor.col = 0;
+        (**curwin.as_ptr()).w_cursor.coladd = 0;
+        (**curwin.as_ptr()).w_curswant = 0;
+        update_topline(*curwin.as_ptr());
+        redraw_later(*curwin.as_ptr(), UPD_VALID);
+        (**curwin.as_ptr()).w_redr_status = true;
+        *curwin.as_ptr() = old_curwin;
+        g_st().curbuf = (**curwin.as_ptr()).w_buffer;
     }
 }
 
@@ -4285,7 +4285,7 @@ unsafe fn is_qf_win(win: *const win_T, qi: *const qf_info_T) -> bool {
 
 unsafe fn qf_find_win(qi: *const qf_info_T) -> *mut win_T {
     unsafe {
-        let mut win = tab_firstwin(curtab);
+        let mut win = tab_firstwin(g_st().curtab);
         while !win.is_null() {
             if is_qf_win(win, qi) {
                 return win;
@@ -4306,7 +4306,7 @@ unsafe fn qf_find_buf(qi: *mut qf_info_T) -> *mut buf_T {
             (*qi).qf_bufnr = INVALID_QFBUFNR;
         }
 
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             let mut win = tab_firstwin(tp);
             while !win.is_null() {
@@ -4325,21 +4325,21 @@ unsafe fn qf_find_buf(qi: *mut qf_info_T) -> *mut buf_T {
 unsafe fn qf_update_win_titlevar(qi: *mut qf_info_T) {
     unsafe {
         let qfl = qf_get_curlist(qi);
-        let save_curwin = curwin;
+        let save_curwin = *curwin.as_ptr();
 
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             let mut win = tab_firstwin(tp);
             while !win.is_null() {
                 if is_qf_win(win, qi) {
-                    curwin = win;
+                    *curwin.as_ptr() = win;
                     qf_set_title_var(qfl);
                 }
                 win = (*win).w_next;
             }
             tp = (*tp).tp_next;
         }
-        curwin = save_curwin;
+        *curwin.as_ptr() = save_curwin;
     }
 }
 
@@ -4357,8 +4357,8 @@ unsafe fn qf_update_buffer(qi: *mut qf_info_T, old_count: usize) {
 
         let mut win: *mut win_T;
         if is_ll_stack(qi) {
-            if (*curwin).w_llist == qi {
-                win = curwin;
+            if (**curwin.as_ptr()).w_llist == qi {
+                win = *curwin.as_ptr();
             } else {
                 win = qf_find_win_with_loclist(qi);
                 if win.is_null() {
@@ -4554,7 +4554,7 @@ unsafe fn call_qftf_func(
             args[0].v_type = VarType::VAR_DICT;
             args[0].vval = crate::eval::typval::TypvalVval::Dict(dict);
 
-            textlock += 1;
+            g_st().textlock += 1;
             if callback_call(cb, 1, args.as_mut_ptr(), &raw mut rettv) {
                 if rettv.v_type == VarType::VAR_LIST {
                     qftf_list = rettv.vval.v_list();
@@ -4562,7 +4562,7 @@ unsafe fn call_qftf_func(
                 }
                 tv_clear(&raw mut rettv);
             }
-            textlock -= 1;
+            g_st().textlock -= 1;
             tv_dict_unref(dict);
         }
 
@@ -4573,26 +4573,26 @@ unsafe fn call_qftf_func(
 
 unsafe fn qf_fill_buffer(qfl: *mut qf_list_T, buf: *mut buf_T, old_count: usize, qf_winid: c_int) {
     unsafe {
-        let old_KeyTyped = KeyTyped;
+        let old_KeyTyped = g_st().KeyTyped;
 
         if old_count == 0 {
-            if buf != curbuf {
+            if buf != g_st().curbuf {
                 internal_error(c"qf_fill_buffer()".as_ptr());
                 return;
             }
 
-            while ((*curbuf).b_ml.ml_flags & ML_EMPTY) == 0 {
+            while ((*g_st().curbuf).b_ml.ml_flags & ML_EMPTY) == 0 {
                 if ml_delete(1) == FAIL {
                     internal_error(c"qf_fill_buffer()".as_ptr());
                     return;
                 }
             }
 
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
                 let mut wp = tab_firstwin(tp);
                 while !wp.is_null() {
-                    if (*wp).w_buffer == curbuf {
+                    if (*wp).w_buffer == g_st().curbuf {
                         (*wp).w_skipcol = 0;
                     }
                     wp = (*wp).w_next;
@@ -4600,7 +4600,7 @@ unsafe fn qf_fill_buffer(qfl: *mut qf_list_T, buf: *mut buf_T, old_count: usize,
                 tp = (*tp).tp_next;
             }
 
-            u_clearallandblockfree(curbuf);
+            u_clearallandblockfree(g_st().curbuf);
         }
 
         if !qfl.is_null() && !(*qfl).qf_items.is_empty() {
@@ -4659,32 +4659,32 @@ unsafe fn qf_fill_buffer(qfl: *mut qf_list_T, buf: *mut buf_T, old_count: usize,
         check_lnums(true);
 
         if old_count == 0 {
-            (*curbuf).b_ro_locked += 1;
+            (*g_st().curbuf).b_ro_locked += 1;
             set_option_value_give_err(kOptFiletype, cstr_as_obj(c"qf".as_ptr()), OPT_LOCAL);
-            (*curbuf).b_p_ma = 0;
+            (*g_st().curbuf).b_p_ma = 0;
 
-            (*curbuf).b_keep_filetype = true;
+            (*g_st().curbuf).b_keep_filetype = true;
             apply_autocmds(
                 EVENT_BUFREADPOST,
                 c"quickfix".as_ptr().cast_mut(),
                 ptr::null_mut(),
                 false,
-                curbuf,
+                g_st().curbuf,
             );
             apply_autocmds(
                 EVENT_BUFWINENTER,
                 c"quickfix".as_ptr().cast_mut(),
                 ptr::null_mut(),
                 false,
-                curbuf,
+                g_st().curbuf,
             );
-            (*curbuf).b_keep_filetype = false;
-            (*curbuf).b_ro_locked -= 1;
+            (*g_st().curbuf).b_keep_filetype = false;
+            (*g_st().curbuf).b_ro_locked -= 1;
 
             redraw_curbuf_later(UPD_NOT_VALID);
         }
 
-        KeyTyped = old_KeyTyped;
+        g_st().KeyTyped = old_KeyTyped;
     }
 }
 
@@ -4739,10 +4739,10 @@ unsafe fn qf_jump_first(qi: *mut qf_info_T, save_qfid: c_uint, forceit: c_int) {
 
 pub unsafe fn grep_internal(cmdidx: c_int) -> c_int {
     unsafe {
-        let gp = if *(*curbuf).b_p_gp == NUL {
+        let gp = if *(*g_st().curbuf).b_p_gp == NUL {
             opt_vars().p_gp
         } else {
-            (*curbuf).b_p_gp
+            (*g_st().curbuf).b_p_gp
         };
         c_int::from(
             (cmdidx == CMD_grep
@@ -4780,8 +4780,8 @@ unsafe fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> std:
             append_redir(cmd, len, opt_vars().p_sp, fname);
         }
 
-        if msg_col == 0 {
-            msg_didout = false;
+        if g_st().msg_col == 0 {
+            g_st().msg_didout = false;
         }
         msg_start();
         msg_puts(c":!".as_ptr());
@@ -4793,8 +4793,8 @@ unsafe fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> std:
 
 pub unsafe fn ex_make(eap: *mut exarg_T) {
     unsafe {
-        let enc = if *(*curbuf).b_p_menc != NUL {
-            (*curbuf).b_p_menc
+        let enc = if *(*g_st().curbuf).b_p_menc != NUL {
+            (*g_st().curbuf).b_p_menc
         } else {
             opt_vars().p_menc
         };
@@ -4809,9 +4809,9 @@ pub unsafe fn ex_make(eap: *mut exarg_T) {
             && apply_autocmds(
                 EVENT_QUICKFIXCMDPRE,
                 au_name.cast_mut(),
-                (*curbuf).b_fname,
+                (*g_st().curbuf).b_fname,
                 true,
-                curbuf,
+                g_st().curbuf,
             )
             && aborting()
         {
@@ -4820,7 +4820,7 @@ pub unsafe fn ex_make(eap: *mut exarg_T) {
 
         let mut wp: *mut win_T = ptr::null_mut();
         if is_loclist_cmd((*eap).cmdidx) {
-            wp = curwin;
+            wp = *curwin.as_ptr();
         }
 
         autowrite_all();
@@ -4837,8 +4837,8 @@ pub unsafe fn ex_make(eap: *mut exarg_T) {
         incr_quickfix_busy();
 
         let errorformat = if (*eap).cmdidx != CMD_make && (*eap).cmdidx != CMD_lmake {
-            if *(*curbuf).b_p_gefm != NUL {
-                (*curbuf).b_p_gefm
+            if *(*g_st().curbuf).b_p_gefm != NUL {
+                (*g_st().curbuf).b_p_gefm
             } else {
                 opt_vars().p_gefm
             }
@@ -4871,9 +4871,9 @@ pub unsafe fn ex_make(eap: *mut exarg_T) {
                 apply_autocmds(
                     EVENT_QUICKFIXCMDPOST,
                     au_name.cast_mut(),
-                    (*curbuf).b_fname,
+                    (*g_st().curbuf).b_fname,
                     true,
-                    curbuf,
+                    g_st().curbuf,
                 );
             }
             if res > 0 && (*eap).forceit == 0 && qflist_valid(wp, save_qfid) {
@@ -4957,7 +4957,7 @@ pub unsafe fn qf_get_valid_size(eap: *mut exarg_T) -> usize {
         let mut sz: usize = 0;
         let qfl = qf_get_curlist(qi);
         for qfp in &(*qfl).qf_items {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             if qfp.qf_valid != 0 {
@@ -5028,7 +5028,7 @@ unsafe fn qf_get_nth_valid_entry(qfl: *mut qf_list_T, n: usize, fdo: bool) -> us
         let mut prev_fnum: c_int = 0;
         let mut eidx: usize = 0;
         for (idx, qfp) in (*qfl).qf_items.iter().enumerate() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             if qfp.qf_valid != 0 {
@@ -5124,7 +5124,7 @@ pub unsafe fn ex_cnext(eap: *mut exarg_T) {
 unsafe fn qf_find_first_entry_in_buf(items: &[qfline_T], bnr: c_int) -> Option<usize> {
     unsafe {
         for (idx, qfp) in items.iter().enumerate() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             if qfp.qf_fnum == bnr {
@@ -5137,7 +5137,7 @@ unsafe fn qf_find_first_entry_in_buf(items: &[qfline_T], bnr: c_int) -> Option<u
 
 unsafe fn qf_find_first_entry_on_line(items: &[qfline_T], mut idx: usize) -> usize {
     unsafe {
-        while !got_int
+        while !g_st().got_int
             && idx > 0
             && items[idx].qf_fnum == items[idx - 1].qf_fnum
             && items[idx].qf_lnum == items[idx - 1].qf_lnum
@@ -5150,7 +5150,7 @@ unsafe fn qf_find_first_entry_on_line(items: &[qfline_T], mut idx: usize) -> usi
 
 unsafe fn qf_find_last_entry_on_line(items: &[qfline_T], mut idx: usize) -> usize {
     unsafe {
-        while !got_int
+        while !g_st().got_int
             && idx + 1 < items.len()
             && items[idx].qf_fnum == items[idx + 1].qf_fnum
             && items[idx].qf_lnum == items[idx + 1].qf_lnum
@@ -5296,7 +5296,7 @@ unsafe fn qf_get_nth_below_entry(
     linewise: bool,
 ) -> usize {
     unsafe {
-        while n > 0 && !got_int {
+        while n > 0 && !g_st().got_int {
             n -= 1;
             let first_idx = idx;
 
@@ -5324,7 +5324,7 @@ unsafe fn qf_get_nth_above_entry(
     linewise: bool,
 ) -> usize {
     unsafe {
-        while n > 0 && !got_int {
+        while n > 0 && !g_st().got_int {
             n -= 1;
             if idx == 0 || items[idx - 1].qf_fnum != items[idx].qf_fnum {
                 break;
@@ -5384,7 +5384,7 @@ pub unsafe fn ex_cbelow(eap: *mut exarg_T) {
             BUF_HAS_LL_ENTRY
         };
 
-        if ((*curbuf).b_has_qf_entry & buf_has_flag) == 0 {
+        if ((*g_st().curbuf).b_has_qf_entry & buf_has_flag) == 0 {
             emsg(gettext((&raw const e_no_errors).cast()));
             return;
         }
@@ -5410,11 +5410,11 @@ pub unsafe fn ex_cbelow(eap: *mut exarg_T) {
             BACKWARD
         };
 
-        let mut pos = (*curwin).w_cursor;
+        let mut pos = (**curwin.as_ptr()).w_cursor;
         pos.col += 1;
         let errornr = qf_find_nth_adj_entry(
             qfl,
-            (*curbuf).b_fnum,
+            (*g_st().curbuf).b_fnum,
             &raw mut pos,
             if (*eap).addr_count > 0 {
                 (*eap).line2
@@ -5461,7 +5461,7 @@ pub unsafe fn ex_cfile(eap: *mut exarg_T) {
                 au_name.cast_mut(),
                 ptr::null_mut(),
                 false,
-                curbuf,
+                g_st().curbuf,
             )
             && aborting()
         {
@@ -5471,14 +5471,14 @@ pub unsafe fn ex_cfile(eap: *mut exarg_T) {
             set_option_direct(kOptErrorfile, cstr_as_obj((*eap).arg), 0, 0);
         }
 
-        let enc = if *(*curbuf).b_p_menc != NUL {
-            (*curbuf).b_p_menc
+        let enc = if *(*g_st().curbuf).b_p_menc != NUL {
+            (*g_st().curbuf).b_p_menc
         } else {
             opt_vars().p_menc
         };
 
         if is_loclist_cmd((*eap).cmdidx) {
-            wp = curwin;
+            wp = *curwin.as_ptr();
         }
 
         incr_quickfix_busy();
@@ -5508,7 +5508,7 @@ pub unsafe fn ex_cfile(eap: *mut exarg_T) {
                 au_name.cast_mut(),
                 ptr::null_mut(),
                 false,
-                curbuf,
+                g_st().curbuf,
             );
         }
         if res > 0
@@ -5563,9 +5563,9 @@ unsafe fn vgr_display_fname(fname: *mut c_char) {
             None => msg_outtrans(fname, 0, false),
         };
         msg_clr_eos();
-        msg_didout = false;
-        msg_nowait = true;
-        msg_col = 0;
+        g_st().msg_didout = false;
+        g_st().msg_nowait = true;
+        g_st().msg_col = 0;
         ui_flush();
     }
 }
@@ -5633,7 +5633,7 @@ unsafe fn vgr_match_buflines(
             if (flags & VGR_FUZZY) == 0 {
                 while vim_regexec_multi(
                     regmatch,
-                    curwin,
+                    *curwin.as_ptr(),
                     buf,
                     lnum,
                     col,
@@ -5664,7 +5664,7 @@ unsafe fn vgr_match_buflines(
                         1,
                     ) == QF_FAIL
                     {
-                        got_int = true;
+                        g_st().got_int = true;
                         break;
                     }
                     found_match = true;
@@ -5718,7 +5718,7 @@ unsafe fn vgr_match_buflines(
                         1,
                     ) == QF_FAIL
                     {
-                        got_int = true;
+                        g_st().got_int = true;
                         break;
                     }
                     found_match = true;
@@ -5736,7 +5736,7 @@ unsafe fn vgr_match_buflines(
                 }
             }
             line_breakcheck();
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             lnum += 1;
@@ -5754,13 +5754,13 @@ unsafe fn vgr_jump_to_match(
     target_dir: *mut c_char,
 ) {
     unsafe {
-        let buf = curbuf;
+        let buf = g_st().curbuf;
         qf_jump(qi, 0, 0, forceit);
-        if buf != curbuf {
+        if buf != g_st().curbuf {
             *redraw_for_dummy = false;
         }
 
-        if curbuf == first_match_buf && !target_dir.is_null() {
+        if g_st().curbuf == first_match_buf && !target_dir.is_null() {
             let mut ea: exarg_T = exarg_T::new();
             ea.arg = target_dir;
             ea.cmdidx = CMD_lcd;
@@ -5847,7 +5847,7 @@ unsafe fn vgr_process_files(
         let mut seconds: time_t = 0;
         let mut fi: usize = 0;
         let mut aborted = false;
-        while fi < (*cmd_args).fnames.len() && !got_int && (*cmd_args).tomatch > 0 {
+        while fi < (*cmd_args).fnames.len() && !g_st().got_int && (*cmd_args).tomatch > 0 {
             let fname_exp = (*cmd_args).fnames.as_slice()[fi].as_ptr().cast_mut();
             let fname = path_try_shorten_fname(fname_exp);
             let now = os_time() as time_t;
@@ -5884,7 +5884,7 @@ unsafe fn vgr_process_files(
             save_qfid = (*qf_get_curlist(qi)).qf_id;
 
             if buf.is_null() {
-                if !got_int {
+                if !g_st().got_int {
                     smsg!(0, gettext(c"Cannot open file \"%s\"".as_ptr()), fname);
                 }
             } else {
@@ -5906,7 +5906,7 @@ unsafe fn vgr_process_files(
                     if duplicate_name {
                         wipe_dummy_buffer(buf, dirname_start.as_mut_ptr());
                         buf = ptr::null_mut();
-                    } else if (cmdmod.cmod_flags & CMOD_HIDE) == 0
+                    } else if (g_st().cmdmod.cmod_flags & CMOD_HIDE) == 0
                         || *(*buf).b_p_bh == b'u' as c_char
                         || *(*buf).b_p_bh == b'w' as c_char
                         || *(*buf).b_p_bh == b'd' as c_char
@@ -5964,9 +5964,9 @@ pub unsafe fn ex_vimgrep(eap: *mut exarg_T) {
             && apply_autocmds(
                 EVENT_QUICKFIXCMDPRE,
                 au_name.cast_mut(),
-                (*curbuf).b_fname,
+                (*g_st().curbuf).b_fname,
                 true,
-                curbuf,
+                g_st().curbuf,
             )
             && aborting()
         {
@@ -6017,9 +6017,9 @@ pub unsafe fn ex_vimgrep(eap: *mut exarg_T) {
                     apply_autocmds(
                         EVENT_QUICKFIXCMDPOST,
                         au_name.cast_mut(),
-                        (*curbuf).b_fname,
+                        (*g_st().curbuf).b_fname,
                         true,
-                        curbuf,
+                        g_st().curbuf,
                     );
                 }
 
@@ -6043,7 +6043,7 @@ pub unsafe fn ex_vimgrep(eap: *mut exarg_T) {
                     decr_quickfix_busy();
 
                     if redraw_for_dummy {
-                        foldUpdateAll(curwin);
+                        foldUpdateAll(*curwin.as_ptr());
                     }
                 } else {
                     decr_quickfix_busy();
@@ -6066,7 +6066,7 @@ unsafe fn restore_start_dir(dirname_start: *mut c_char) {
         if strcmp(dirname_start, dirname_now.as_ptr()) != 0 {
             let mut ea: exarg_T = exarg_T::new();
             ea.arg = dirname_start;
-            ea.cmdidx = if (*curwin).w_localdir.is_none() {
+            ea.cmdidx = if (**curwin.as_ptr()).w_localdir.is_none() {
                 CMD_cd
             } else {
                 CMD_lcd
@@ -6098,9 +6098,9 @@ unsafe fn load_dummy_buffer(
             let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
 
-            setfname(curbuf, fname, ptr::null_mut(), false);
+            setfname(g_st().curbuf, fname, ptr::null_mut(), false);
             check_need_swap(true);
-            (*curbuf).b_flags &= !BF_DUMMY;
+            (*g_st().curbuf).b_flags &= !BF_DUMMY;
 
             let mut newbuf_to_wipe: bufref_T = bufref_T::new();
             let readfile_result = readfile(
@@ -6114,11 +6114,11 @@ unsafe fn load_dummy_buffer(
                 false,
             );
             (*newbuf).b_locked -= 1;
-            if readfile_result == OK && !got_int && ((*curbuf).b_flags & BF_NEW) == 0 {
+            if readfile_result == OK && !g_st().got_int && ((*g_st().curbuf).b_flags & BF_NEW) == 0 {
                 failed = false;
-                if curbuf != newbuf {
+                if g_st().curbuf != newbuf {
                     set_bufref(&raw mut newbuf_to_wipe, newbuf);
-                    newbuf = curbuf;
+                    newbuf = g_st().curbuf;
                 }
             }
 
@@ -6156,8 +6156,8 @@ unsafe fn wipe_dummy_buffer(buf: *mut buf_T, dirname_start: *mut c_char) {
             }
             let mut did_one = false;
 
-            if !(*firstwin).w_next.is_null() {
-                let mut wp = firstwin;
+            if !(*g_st().firstwin).w_next.is_null() {
+                let mut wp = g_st().firstwin;
                 while !wp.is_null() {
                     if (*wp).w_buffer == buf {
                         if win_close(wp, false, false) == OK {
@@ -6174,7 +6174,7 @@ unsafe fn wipe_dummy_buffer(buf: *mut buf_T, dirname_start: *mut c_char) {
             }
         }
 
-        if !give_up && curbuf != buf && (*buf).b_nwindows == 0 {
+        if !give_up && g_st().curbuf != buf && (*buf).b_nwindows == 0 {
             let mut cs: cleanup_T = cleanup_T::new();
             enter_cleanup(&raw mut cs);
             wipe_buffer(buf, true);
@@ -6192,7 +6192,7 @@ unsafe fn wipe_dummy_buffer(buf: *mut buf_T, dirname_start: *mut c_char) {
 
 unsafe fn unload_dummy_buffer(buf: *mut buf_T, dirname_start: *mut c_char) {
     unsafe {
-        if curbuf == buf {
+        if g_st().curbuf == buf {
             return;
         }
 
@@ -6304,7 +6304,7 @@ unsafe fn get_errorlist(
         }
 
         for (idx, qfp) in (*qfl).qf_items.iter_mut().enumerate() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             let i = (idx + 1) as c_int;
@@ -7338,7 +7338,7 @@ unsafe fn mark_quickfix_user_data(qi: *mut qf_info_T, copyID: c_int) -> bool {
             let qfl = &mut (&mut (*qi).qf_lists)[i as usize];
             if qfl.qf_has_user_data {
                 for qfp in &mut qfl.qf_items {
-                    if got_int {
+                    if g_st().got_int {
                         break;
                     }
                     let user_data = &raw mut qfp.qf_user_data;
@@ -7388,7 +7388,7 @@ pub unsafe fn set_ref_in_quickfix(copyID: c_int) -> bool {
             return true;
         }
 
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             let mut win = tab_firstwin(tp);
             while !win.is_null() {
@@ -7439,7 +7439,7 @@ unsafe fn cbuffer_process_args(
         let mut buf: *mut buf_T = ptr::null_mut();
 
         if *(*eap).arg == NUL {
-            buf = curbuf;
+            buf = g_st().curbuf;
         } else if *skipwhite(skipdigits((*eap).arg)) == NUL {
             buf = buflist_findnr(atoi((*eap).arg));
         }
@@ -7483,9 +7483,9 @@ pub unsafe fn ex_cbuffer(eap: *mut exarg_T) {
             && apply_autocmds(
                 EVENT_QUICKFIXCMDPRE,
                 au_name.cast_mut(),
-                (*curbuf).b_fname,
+                (*g_st().curbuf).b_fname,
                 true,
-                curbuf,
+                g_st().curbuf,
             )
             && aborting()
         {
@@ -7504,7 +7504,7 @@ pub unsafe fn ex_cbuffer(eap: *mut exarg_T) {
 
         let mut qf_title = qf_cmdtitle(*(*eap).cmdlinep);
         if !(*buf).b_sfname.is_null() {
-            let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
+            let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
             vim_snprintf!(
                 iobuff_ptr,
                 IOSIZE,
@@ -7539,15 +7539,15 @@ pub unsafe fn ex_cbuffer(eap: *mut exarg_T) {
         }
         let save_qfid = (*qf_get_curlist(qi)).qf_id;
         if !au_name.is_null() {
-            let curbuf_old = curbuf;
+            let curbuf_old = g_st().curbuf;
             apply_autocmds(
                 EVENT_QUICKFIXCMDPOST,
                 au_name.cast_mut(),
-                (*curbuf).b_fname,
+                (*g_st().curbuf).b_fname,
                 true,
-                curbuf,
+                g_st().curbuf,
             );
-            if curbuf != curbuf_old {
+            if g_st().curbuf != curbuf_old {
                 res = 0;
             }
         }
@@ -7581,9 +7581,9 @@ unsafe fn trigger_cexpr_autocmd(cmdidx: c_int) -> c_int {
             && apply_autocmds(
                 EVENT_QUICKFIXCMDPRE,
                 au_name.cast_mut(),
-                (*curbuf).b_fname,
+                (*g_st().curbuf).b_fname,
                 true,
-                curbuf,
+                g_st().curbuf,
             )
             && aborting()
         {
@@ -7628,9 +7628,9 @@ pub unsafe fn cexpr_core(eap: *const exarg_T, tv: *mut typval_T) -> c_int {
                 apply_autocmds(
                     EVENT_QUICKFIXCMDPOST,
                     au_name.cast_mut(),
-                    (*curbuf).b_fname,
+                    (*g_st().curbuf).b_fname,
                     true,
-                    curbuf,
+                    g_st().curbuf,
                 );
             }
             if res > 0
@@ -7665,8 +7665,8 @@ pub unsafe fn ex_cexpr(eap: *mut exarg_T) {
 
 unsafe fn hgr_get_ll(new_ll: *mut bool) -> *mut qf_info_T {
     unsafe {
-        let wp = if bt_help((*curwin).w_buffer) {
-            curwin
+        let wp = if bt_help((**curwin.as_ptr()).w_buffer) {
+            *curwin.as_ptr()
         } else {
             qf_find_help_win()
         };
@@ -7692,9 +7692,9 @@ unsafe fn hgr_search_file(qfl: *mut qf_list_T, fname: *mut c_char, p_regmatch: *
             return;
         }
 
-        let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
+        let iobuff_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         let mut lnum: linenr_T = 1;
-        while !vim_fgets(iobuff_ptr, IOSIZE as c_int, fd.cast()) && !got_int {
+        while !vim_fgets(iobuff_ptr, IOSIZE as c_int, fd.cast()) && !g_st().got_int {
             let line = iobuff_ptr;
 
             if vim_regexec(p_regmatch, line, 0) {
@@ -7723,7 +7723,7 @@ unsafe fn hgr_search_file(qfl: *mut qf_list_T, fname: *mut c_char, p_regmatch: *
                     1,
                 ) == QF_FAIL
                 {
-                    got_int = true;
+                    g_st().got_int = true;
                     break;
                 }
             }
@@ -7749,7 +7749,7 @@ unsafe fn hgr_search_files_in_dir(
             && !fnames.is_empty()
         {
             for f_cstr in &fnames {
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
                 let f = f_cstr.as_ptr().cast_mut();
@@ -7772,8 +7772,8 @@ unsafe fn hgr_search_files_in_dir(
 unsafe fn hgr_search_in_rtp(qfl: *mut qf_list_T, p_regmatch: *mut regmatch_T, lang: *const c_char) {
     unsafe {
         let mut p = opt_vars().p_rtp;
-        let name_buff_ptr = (&raw mut NameBuff).cast::<c_char>();
-        while *p != NUL && !got_int {
+        let name_buff_ptr = (&raw mut g_st().NameBuff).cast::<c_char>();
+        while *p != NUL && !g_st().got_int {
             copy_option_part(&raw mut p, name_buff_ptr, MAXPATHL, c",".as_ptr());
             hgr_search_files_in_dir(qfl, name_buff_ptr, p_regmatch, lang);
         }
@@ -7793,9 +7793,9 @@ pub unsafe fn ex_helpgrep(eap: *mut exarg_T) {
             && apply_autocmds(
                 EVENT_QUICKFIXCMDPRE,
                 au_name.cast_mut(),
-                (*curbuf).b_fname,
+                (*g_st().curbuf).b_fname,
                 true,
-                curbuf,
+                g_st().curbuf,
             )
             && aborting()
         {
@@ -7848,9 +7848,9 @@ pub unsafe fn ex_helpgrep(eap: *mut exarg_T) {
             apply_autocmds(
                 EVENT_QUICKFIXCMDPOST,
                 au_name.cast_mut(),
-                (*curbuf).b_fname,
+                (*g_st().curbuf).b_fname,
                 true,
-                curbuf,
+                g_st().curbuf,
             );
             if !new_qi && is_ll_stack(qi) && qf_find_win_with_loclist(qi).is_null() {
                 decr_quickfix_busy();
@@ -7867,12 +7867,12 @@ pub unsafe fn ex_helpgrep(eap: *mut exarg_T) {
         decr_quickfix_busy();
 
         if (*eap).cmdidx == CMD_lhelpgrep {
-            if !bt_help((*curwin).w_buffer) || (*curwin).w_llist == qi {
+            if !bt_help((**curwin.as_ptr()).w_buffer) || (**curwin.as_ptr()).w_llist == qi {
                 if new_qi {
                     ll_free_all(&raw mut qi);
                 }
-            } else if (*curwin).w_llist.is_null() && new_qi {
-                (*curwin).w_llist = qi;
+            } else if (**curwin.as_ptr()).w_llist.is_null() && new_qi {
+                (**curwin.as_ptr()).w_llist = qi;
             }
         }
     }
@@ -7881,7 +7881,7 @@ pub unsafe fn ex_helpgrep(eap: *mut exarg_T) {
 pub unsafe fn free_quickfix() {
     unsafe {
         qf_free_all(ptr::null_mut());
-        let mut tab = first_tabpage;
+        let mut tab = g_st().first_tabpage;
         while !tab.is_null() {
             let mut win = tab_firstwin(tab);
             while !win.is_null() {

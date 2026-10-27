@@ -119,28 +119,28 @@ unsafe fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut win
                 n += 1;
 
                 if (*wp).w_height + (*wp).w_hsep_height + (*wp).w_status_height
-                    < (*topframe).fr_height
+                    < (*g_st().topframe).fr_height
                     && !write_fmt(
                         fd,
                         format!(
                             "exe '{n}resize ' . ((&lines * {} + {}) / {})\n",
                             i64::from((*wp).w_height),
-                            i64::from(Rows) / 2,
-                            i64::from(Rows)
+                            i64::from(g_st().Rows) / 2,
+                            i64::from(g_st().Rows)
                         ),
                     )
                 {
                     return FAIL;
                 }
 
-                if (*wp).w_width < Columns
+                if (*wp).w_width < g_st().Columns
                     && !write_fmt(
                         fd,
                         format!(
                             "exe 'vert {n}resize ' . ((&columns * {} + {}) / {})\n",
                             i64::from((*wp).w_width),
-                            i64::from(Columns) / 2,
-                            i64::from(Columns)
+                            i64::from(g_st().Columns) / 2,
+                            i64::from(g_st().Columns)
                         ),
                     )
                 {
@@ -445,9 +445,9 @@ unsafe fn put_view(
             return FAIL;
         }
 
-        let save_curwin = curwin;
-        curwin = wp;
-        curbuf = (*curwin).w_buffer;
+        let save_curwin = *curwin.as_ptr();
+        *curwin.as_ptr() = wp;
+        g_st().curbuf = (**curwin.as_ptr()).w_buffer;
         let f = if (*flagp & (kOptSsopFlagOptions | kOptSsopFlagLocaloptions)) != 0 {
             makeset(
                 fd,
@@ -461,8 +461,8 @@ unsafe fn put_view(
         } else {
             OK
         };
-        curwin = save_curwin;
-        curbuf = (*curwin).w_buffer;
+        *curwin.as_ptr() = save_curwin;
+        g_st().curbuf = (**curwin.as_ptr()).w_buffer;
         if f == FAIL {
             return FAIL;
         }
@@ -663,7 +663,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
         } else if (opt_vars().ssop_flags & kOptSsopFlagCurdir) != 0 {
             let sname = home_replace_save(
                 ptr::null_mut(),
-                (&raw const globaldir)
+                (&raw const g_st().globaldir)
                     .as_ref()
                     .unwrap()
                     .as_ref()
@@ -692,7 +692,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
             return FAIL;
         }
 
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             if !(only_save_windows && (*buf).b_nwindows == 0)
                 && !((*buf).b_help && (opt_vars().ssop_flags & kOptSsopFlagHelp) == 0)
@@ -713,7 +713,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
             buf = (*buf).b_next;
         }
 
-        let ga_ptr = &raw const global_alist;
+        let ga_ptr = &raw const g_st().global_alist;
         if ses_arglist(
             fd,
             c"argglobal".as_ptr(),
@@ -726,7 +726,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
         }
 
         if (opt_vars().ssop_flags & kOptSsopFlagCurdir) != 0 {
-            let mut b = firstbuf;
+            let mut b = g_st().firstbuf;
             while !b.is_null() {
                 let Some(ref b_localdir) = (*b).b_localdir else {
                     b = (*b).b_next;
@@ -769,8 +769,8 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                 fd,
                 format!(
                     "set lines={} columns={}\n",
-                    i64::from(Rows),
-                    i64::from(Columns)
+                    i64::from(g_st().Rows),
+                    i64::from(g_st().Columns)
                 ),
             )
         {
@@ -778,7 +778,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
         }
 
         let mut restore_stal = false;
-        if opt_vars().p_stal == 1 && !(*first_tabpage).tp_next.is_null() {
+        if opt_vars().p_stal == 1 && !(*g_st().first_tabpage).tp_next.is_null() {
             if put_line(fd, c"set stal=2".as_ptr().cast_mut()) == FAIL {
                 return FAIL;
             }
@@ -786,7 +786,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
         }
 
         if (opt_vars().ssop_flags & kOptSsopFlagTabpages) != 0 {
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
                 if !(*tp).tp_next.is_null()
                     && put_line(fd, c"tabnew +setlocal\\ bufhidden=wipe".as_ptr().cast_mut())
@@ -797,7 +797,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                 tp = (*tp).tp_next;
             }
 
-            if !(*first_tabpage).tp_next.is_null()
+            if !(*g_st().first_tabpage).tp_next.is_null()
                 && put_line(fd, c"tabrewind".as_ptr().cast_mut()) == FAIL
             {
                 return FAIL;
@@ -805,7 +805,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
         }
 
         let mut restore_height_width = false;
-        let mut tp_iter = first_tabpage;
+        let mut tp_iter = g_st().first_tabpage;
         while !tp_iter.is_null() {
             let mut tp = tp_iter;
             let mut need_tabnext = false;
@@ -814,20 +814,20 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
             let tab_topframe: *mut frame_T;
 
             if (opt_vars().ssop_flags & kOptSsopFlagTabpages) != 0 {
-                if ptr::eq(tp, curtab) {
-                    tab_firstwin = firstwin;
-                    tab_topframe = topframe;
+                if ptr::eq(tp, g_st().curtab) {
+                    tab_firstwin = g_st().firstwin;
+                    tab_topframe = g_st().topframe;
                 } else {
                     tab_firstwin = (*tp).tp_firstwin;
                     tab_topframe = (*tp).tp_topframe.cast::<frame_T>();
                 }
-                if !ptr::eq(tp, first_tabpage) {
+                if !ptr::eq(tp, g_st().first_tabpage) {
                     need_tabnext = true;
                 }
             } else {
-                tp = curtab;
-                tab_firstwin = firstwin;
-                tab_topframe = topframe;
+                tp = g_st().curtab;
+                tab_firstwin = g_st().firstwin;
+                tab_topframe = g_st().topframe;
             }
 
             if (opt_vars().ssop_flags & kOptSsopFlagCurdir) != 0
@@ -908,7 +908,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
                 } else if !(*wp).w_floating {
                     restore_size = false;
                 }
-                if ptr::eq(curwin, wp) {
+                if ptr::eq(*curwin.as_ptr(), wp) {
                     cnr = nr;
                 }
                 wp = (*wp).w_next;
@@ -985,7 +985,7 @@ unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
         }
 
         if (opt_vars().ssop_flags & kOptSsopFlagTabpages) != 0
-            && !write_fmt(fd, format!("tabnext {}\n", tabpage_index(curtab)))
+            && !write_fmt(fd, format!("tabnext {}\n", tabpage_index(g_st().curtab)))
         {
             return FAIL;
         }
@@ -1105,7 +1105,7 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                     ptr::null_mut(),
                     ptr::null_mut(),
                     false,
-                    curbuf,
+                    g_st().curbuf,
                 );
             }
 
@@ -1152,7 +1152,7 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                         }
                     } else if *dirnow != NUL
                         && (opt_vars().ssop_flags & kOptSsopFlagCurdir) != 0
-                        && let Some(ref gdir) = *(&raw const globaldir).as_ref().unwrap()
+                        && let Some(ref gdir) = *(&raw const g_st().globaldir).as_ref().unwrap()
                         && os_chdir(gdir.as_ptr()) == 0
                     {
                         shorten_fnames(1);
@@ -1163,7 +1163,7 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                     if *dirnow != NUL
                         && ((opt_vars().ssop_flags & kOptSsopFlagSesdir) != 0
                             || ((opt_vars().ssop_flags & kOptSsopFlagCurdir) != 0
-                                && (&raw const globaldir).as_ref().unwrap().is_some()))
+                                && (&raw const g_st().globaldir).as_ref().unwrap().is_some()))
                     {
                         if os_chdir(dirnow) != 0 {
                             emsg(gettext(e_prev_dir.as_ptr()));
@@ -1171,7 +1171,7 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                         shorten_fnames(1);
                     }
                 } else {
-                    failed |= put_view(fd, curwin, curtab, !using_vdir, flagp, -1) == FAIL;
+                    failed |= put_view(fd, *curwin.as_ptr(), g_st().curtab, !using_vdir, flagp, -1) == FAIL;
                 }
                 if !write_bytes(fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                     failed = true;
@@ -1179,7 +1179,7 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                 if opt_vars().p_hls != 0 && !write_bytes(fd, b"set hlsearch\n") {
                     failed = true;
                 }
-                if Search.no_hlsearch && !write_bytes(fd, b"nohlsearch\n") {
+                if g_st().Search.no_hlsearch && !write_bytes(fd, b"nohlsearch\n") {
                     failed = true;
                 }
                 if (*eap).cmdidx == CMD_mksession
@@ -1212,7 +1212,7 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
                 ptr::null_mut(),
                 ptr::null_mut(),
                 false,
-                curbuf,
+                g_st().curbuf,
             );
         }
     }
@@ -1220,11 +1220,11 @@ pub unsafe fn ex_mkrc(eap: *mut exarg_T) {
 
 unsafe fn get_view_file(c: c_char) -> Option<CString> {
     unsafe {
-        if (*curbuf).b_ffname.is_null() {
+        if (*g_st().curbuf).b_ffname.is_null() {
             emsg(gettext(e_noname.as_ptr()));
             return None;
         }
-        let sname_cstr = home_replace_save(ptr::null_mut(), (*curbuf).b_ffname);
+        let sname_cstr = home_replace_save(ptr::null_mut(), (*g_st().curbuf).b_ffname);
         let sname = sname_cstr.as_ptr();
 
         let mut len: usize = 0;

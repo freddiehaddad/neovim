@@ -480,15 +480,15 @@ pub unsafe fn cursor_mode_uses_syn_id(syn_id: c_int) -> bool {
 /// Return the index into `(*shape_table_mut())[]` for the current mode (`cursor_get_mode_idx`).
 pub unsafe fn cursor_get_mode_idx() -> c_int {
     unsafe {
-        if State == MODE_SHOWMATCH {
+        if g_st().State == MODE_SHOWMATCH {
             SHAPE_IDX_SM as c_int
-        } else if State == MODE_TERMINAL {
+        } else if g_st().State == MODE_TERMINAL {
             SHAPE_IDX_TERM as c_int
-        } else if (State & VREPLACE_FLAG) != 0 || (State & REPLACE_FLAG) != 0 {
+        } else if (g_st().State & VREPLACE_FLAG) != 0 || (g_st().State & REPLACE_FLAG) != 0 {
             SHAPE_IDX_R as c_int
-        } else if (State & MODE_INSERT) != 0 {
+        } else if (g_st().State & MODE_INSERT) != 0 {
             SHAPE_IDX_I as c_int
-        } else if (State & MODE_CMDLINE) != 0 {
+        } else if (g_st().State & MODE_CMDLINE) != 0 {
             if cmdline_at_end() {
                 SHAPE_IDX_C as c_int
             } else if cmdline_overstrike() {
@@ -496,9 +496,9 @@ pub unsafe fn cursor_get_mode_idx() -> c_int {
             } else {
                 SHAPE_IDX_CI as c_int
             }
-        } else if finish_op {
+        } else if g_st().finish_op {
             SHAPE_IDX_O as c_int
-        } else if Visual.active {
+        } else if g_st().Visual.active {
             if *opt_vars().p_sel as u8 == b'e' {
                 SHAPE_IDX_VE as c_int
             } else {

@@ -332,8 +332,8 @@ unsafe fn check_mtime(buf: *mut buf_T, file_info: *const FileInfo) -> c_int {
         if (*buf).b_mtime_read != 0
             && time_differs(file_info, (*buf).b_mtime_read, (*buf).b_mtime_read_ns)
         {
-            msg_scroll = 1;
-            msg_silent = 0;
+            g_st().msg_scroll = 1;
+            g_st().msg_silent = 0;
             msg(
                 gettext(c"WARNING: The file has been changed since reading it!!!".as_ptr()),
                 HLF_E,
@@ -341,7 +341,7 @@ unsafe fn check_mtime(buf: *mut buf_T, file_info: *const FileInfo) -> c_int {
             if ask_yesno(gettext(c"Do you really want to write to it".as_ptr())) == b'n' as c_int {
                 return FAIL;
             }
-            msg_scroll = 0;
+            g_st().msg_scroll = 0;
         }
     }
     OK
@@ -385,7 +385,7 @@ unsafe fn buf_write_do_autocmds(
 ) -> c_int {
     unsafe {
         let old_line_count = (*buf).b_ml.ml_line_count;
-        let msg_save = msg_scroll;
+        let msg_save = g_st().msg_scroll;
 
         let mut aco: CtxSwitch = CtxSwitch::new();
         let mut did_cmd = false;
@@ -407,9 +407,9 @@ unsafe fn buf_write_do_autocmds(
         set_bufref(&raw mut bufref, buf);
 
         if append {
-            did_cmd = apply_autocmds_exarg(EVENT_FILEAPPENDCMD, sfname, sfname, false, curbuf, eap);
+            did_cmd = apply_autocmds_exarg(EVENT_FILEAPPENDCMD, sfname, sfname, false, g_st().curbuf, eap);
             if !did_cmd {
-                if overwriting && bt_nofilename(curbuf) {
+                if overwriting && bt_nofilename(g_st().curbuf) {
                     nofile_err = true;
                 } else {
                     let _ = apply_autocmds_exarg(
@@ -417,7 +417,7 @@ unsafe fn buf_write_do_autocmds(
                         sfname,
                         sfname,
                         false,
-                        curbuf,
+                        g_st().curbuf,
                         eap,
                     );
                 }
@@ -428,26 +428,26 @@ unsafe fn buf_write_do_autocmds(
                 ptr::null_mut(),
                 sfname,
                 false,
-                curbuf,
+                g_st().curbuf,
                 eap,
             );
         } else if reset_changed && whole {
             let was_changed = curbufIsChanged();
-            did_cmd = apply_autocmds_exarg(EVENT_BUFWRITECMD, sfname, sfname, false, curbuf, eap);
+            did_cmd = apply_autocmds_exarg(EVENT_BUFWRITECMD, sfname, sfname, false, g_st().curbuf, eap);
             if did_cmd {
                 if was_changed && !curbufIsChanged() {
-                    u_unchanged(curbuf);
-                    u_update_save_nr(curbuf);
+                    u_unchanged(g_st().curbuf);
+                    u_update_save_nr(g_st().curbuf);
                 }
-            } else if overwriting && bt_nofilename(curbuf) {
+            } else if overwriting && bt_nofilename(g_st().curbuf) {
                 nofile_err = true;
             } else {
-                let _ = apply_autocmds_exarg(EVENT_BUFWRITEPRE, sfname, sfname, false, curbuf, eap);
+                let _ = apply_autocmds_exarg(EVENT_BUFWRITEPRE, sfname, sfname, false, g_st().curbuf, eap);
             }
         } else {
-            did_cmd = apply_autocmds_exarg(EVENT_FILEWRITECMD, sfname, sfname, false, curbuf, eap);
+            did_cmd = apply_autocmds_exarg(EVENT_FILEWRITECMD, sfname, sfname, false, g_st().curbuf, eap);
             if !did_cmd {
-                if overwriting && bt_nofilename(curbuf) {
+                if overwriting && bt_nofilename(g_st().curbuf) {
                     nofile_err = true;
                 } else {
                     let _ = apply_autocmds_exarg(
@@ -455,7 +455,7 @@ unsafe fn buf_write_do_autocmds(
                         sfname,
                         sfname,
                         false,
-                        curbuf,
+                        g_st().curbuf,
                         eap,
                     );
                 }
@@ -473,17 +473,17 @@ unsafe fn buf_write_do_autocmds(
             || nofile_err
             || aborting()
         {
-            if !buf.is_null() && (cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
+            if !buf.is_null() && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
                 (*buf).b_op_start = orig_start;
                 (*buf).b_op_end = orig_end;
             }
 
-            no_wait_return -= 1;
-            msg_scroll = msg_save;
+            g_st().no_wait_return -= 1;
+            g_st().msg_scroll = msg_save;
             if nofile_err {
                 let _ = semsg!(
                     gettext(c"E676: No matching autocommands for buftype=%s buffer".as_ptr()),
-                    (*curbuf).b_p_bt,
+                    (*g_st().curbuf).b_p_bt,
                 );
             }
 
@@ -527,8 +527,8 @@ unsafe fn buf_write_do_autocmds(
             } else {
                 *endp -= old_line_count - (*buf).b_ml.ml_line_count;
                 if *endp < start {
-                    no_wait_return -= 1;
-                    msg_scroll = msg_save;
+                    g_st().no_wait_return -= 1;
+                    g_st().msg_scroll = msg_save;
                     emsg(gettext(
                         c"E204: Autocommand changed number of lines in unexpected way".as_ptr(),
                     ));
@@ -564,25 +564,25 @@ unsafe fn buf_write_do_post_autocmds(
 ) {
     unsafe {
         let mut aco: CtxSwitch = CtxSwitch::new();
-        (*curbuf).b_no_eol_lnum = 0;
+        (*g_st().curbuf).b_no_eol_lnum = 0;
 
         let _ = ctx_switch(&raw mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
 
         if append {
-            let _ = apply_autocmds_exarg(EVENT_FILEAPPENDPOST, fname, fname, false, curbuf, eap);
+            let _ = apply_autocmds_exarg(EVENT_FILEAPPENDPOST, fname, fname, false, g_st().curbuf, eap);
         } else if filtering {
             let _ = apply_autocmds_exarg(
                 EVENT_FILTERWRITEPOST,
                 ptr::null_mut(),
                 fname,
                 false,
-                curbuf,
+                g_st().curbuf,
                 eap,
             );
         } else if reset_changed && whole {
-            let _ = apply_autocmds_exarg(EVENT_BUFWRITEPOST, fname, fname, false, curbuf, eap);
+            let _ = apply_autocmds_exarg(EVENT_BUFWRITEPOST, fname, fname, false, g_st().curbuf, eap);
         } else {
-            let _ = apply_autocmds_exarg(EVENT_FILEWRITEPOST, fname, fname, false, curbuf, eap);
+            let _ = apply_autocmds_exarg(EVENT_FILEWRITEPOST, fname, fname, false, g_st().curbuf, eap);
         }
 
         ctx_restore(&raw mut aco);
@@ -645,7 +645,7 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
                     IOSIZE,
                     c"%s: %s%s: %s".as_ptr(),
                     num.as_ptr(),
-                    (&raw const IObuff).cast::<c_char>(),
+                    (&raw const g_st().IObuff).cast::<c_char>(),
                     msg_ptr,
                     uv_strerror((*e).arg),
                 );
@@ -655,7 +655,7 @@ unsafe fn emit_err(e: *mut Error_T, msg_id: *const c_char) {
                     IOSIZE,
                     c"%s: %s%s".as_ptr(),
                     num.as_ptr(),
-                    (&raw const IObuff).cast::<c_char>(),
+                    (&raw const g_st().IObuff).cast::<c_char>(),
                     msg_ptr,
                 );
             }
@@ -833,7 +833,7 @@ pub unsafe fn buf_get_backup_name(
 ) -> Option<std::ffi::CString> {
     unsafe {
         let mut backup: Option<std::ffi::CString> = None;
-        let iobuf = (&raw mut IObuff).cast::<c_char>();
+        let iobuf = (&raw mut g_st().IObuff).cast::<c_char>();
         let dir_len = copy_option_part(dirp, iobuf, IOSIZE, c",".as_ptr());
         let p = iobuf.add(dir_len);
         if **dirp == NUL && !os_isdir(iobuf) {
@@ -1125,8 +1125,8 @@ pub unsafe fn buf_write(
 ) -> c_int {
     unsafe {
         let mut retval = OK;
-        let msg_save = msg_scroll;
-        let mut prev_got_int = got_int;
+        let msg_save = g_st().msg_scroll;
+        let mut prev_got_int = g_st().got_int;
         let whole = start == 1 && end == (*buf).b_ml.ml_line_count;
         let mut write_undo_file = false;
         let mut sha_ctx = context_sha256_T::new();
@@ -1163,7 +1163,7 @@ pub unsafe fn buf_write(
         if (*buf).b_ffname.is_null()
             && reset_changed
             && whole
-            && buf == curbuf
+            && buf == g_st().curbuf
             && !bt_nofilename(buf)
             && !filtering
             && (!append || !vim_strchr(opt_vars().p_cpo, kCpoFnameapp).is_null())
@@ -1172,7 +1172,7 @@ pub unsafe fn buf_write(
             if set_rw_fname(fname, sfname) == FAIL {
                 return FAIL;
             }
-            buf = curbuf;
+            buf = g_st().curbuf;
         }
 
         if sfname.is_null() {
@@ -1188,7 +1188,7 @@ pub unsafe fn buf_write(
         let overwriting =
             !(*buf).b_ffname.is_null() && path_equal(ffname, (*buf).b_ffname, kPathCmpLiteral);
 
-        no_wait_return += 1;
+        g_st().no_wait_return += 1;
 
         let orig_start = (*buf).b_op_start;
         let orig_end = (*buf).b_op_end;
@@ -1231,12 +1231,12 @@ pub unsafe fn buf_write(
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
-        if (cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
+        if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
             (*buf).b_op_start = orig_start;
             (*buf).b_op_end = orig_end;
         }
 
-        msg_scroll = c_int::from(!(shortmess(kShmOver) && !exiting));
+        g_st().msg_scroll = c_int::from(!(shortmess(kShmOver) && !g_st().exiting));
 
         let mut msg_id = [0 as c_char; MAXPATHL + 32];
         #[cfg(windows)]
@@ -1252,7 +1252,7 @@ pub unsafe fn buf_write(
             msgname,
         );
 
-        let show_msg = !filtering && msg_silent == 0;
+        let show_msg = !filtering && g_st().msg_silent == 0;
         if show_msg {
             ui_busy_start();
         }
@@ -1264,7 +1264,7 @@ pub unsafe fn buf_write(
         let mut progress_nchars: i64 = 0;
         let write_start = os_hrtime();
         let write_tick = buf_get_changedtick(buf);
-        msg_scroll = 0;
+        g_st().msg_scroll = 0;
 
         write_info.bw_buf = vec![0; WRITEBUFSIZE];
         let bufsize: c_int = WRITEBUFSIZE as c_int;
@@ -1307,8 +1307,8 @@ pub unsafe fn buf_write(
                 }
 
                 let mut backup_copy = false;
-                prev_got_int = got_int;
-                got_int = false;
+                prev_got_int = g_st().got_int;
+                g_st().got_int = false;
                 (*buf).b_saving = true;
 
                 if !(append && *opt_vars().p_pm == NUL)
@@ -1349,7 +1349,7 @@ pub unsafe fn buf_write(
 
                 if forceit && overwriting && vim_strchr(opt_vars().p_cpo, kCpoKeepro).is_null() {
                     (*buf).b_p_ro = 0;
-                    need_maketitle = true;
+                    g_st().need_maketitle = true;
                     status_redraw_all();
                 }
 
@@ -1362,14 +1362,14 @@ pub unsafe fn buf_write(
                 let mut wfname_owned: Option<std::ffi::CString> = None;
 
                 'restore_backup: {
-                    if reset_changed && !newfile && overwriting && !(exiting && backup.is_some()) {
+                    if reset_changed && !newfile && overwriting && !(g_st().exiting && backup.is_some()) {
                         let fsync_opt = if (*buf).b_p_fs >= 0 {
                             (*buf).b_p_fs != 0
                         } else {
                             opt_vars().p_fs != 0
                         };
                         ml_preserve(buf, false, fsync_opt);
-                        if got_int {
+                        if g_st().got_int {
                             err = set_err(gettext(e_interr.as_ptr()));
                             break 'restore_backup;
                         }
@@ -1649,7 +1649,7 @@ pub unsafe fn buf_write(
                                 s = buffer.add(write_info.bw_len as usize);
 
                                 os_breakcheck();
-                                if got_int {
+                                if g_st().got_int {
                                     end = 0;
                                     break;
                                 }
@@ -1664,7 +1664,7 @@ pub unsafe fn buf_write(
                                     && (progress >= 0 || os_hrtime() - write_start > slow_io_ns())
                                 {
                                     progress = percent;
-                                    let iobuf = (&raw mut IObuff).cast::<c_char>();
+                                    let iobuf = (&raw mut g_st().IObuff).cast::<c_char>();
                                     add_quoted_fname(iobuf, IOSIZE, buf, msgname);
                                     let _ = msg_progress(
                                         iobuf,
@@ -1809,7 +1809,7 @@ pub unsafe fn buf_write(
                                         arg: 0,
                                     };
                                 }
-                            } else if got_int {
+                            } else if g_st().got_int {
                                 err = set_err(gettext(e_interr.as_ptr()));
                             } else {
                                 err = set_err(gettext(
@@ -1820,7 +1820,7 @@ pub unsafe fn buf_write(
 
                         if let Some(ref bk) = backup {
                             if backup_copy {
-                                if got_int {
+                                if g_st().got_int {
                                     msg(gettext(e_interr.as_ptr()), 0);
                                     ui_flush();
                                 }
@@ -1835,14 +1835,14 @@ pub unsafe fn buf_write(
                     }
 
                     lnum -= start;
-                    no_wait_return -= 1;
+                    g_st().no_wait_return -= 1;
 
                     #[cfg(windows)]
                     {
                         fname = sfname;
                     }
                     if !filtering {
-                        let iobuf = (&raw mut IObuff).cast::<c_char>();
+                        let iobuf = (&raw mut g_st().IObuff).cast::<c_char>();
                         add_quoted_fname(iobuf, IOSIZE, buf, fname);
                         let mut insert_space = false;
                         if write_info.bw_conv_error != 0 {
@@ -2030,7 +2030,7 @@ pub unsafe fn buf_write(
                 drop(wfname_owned);
             } // 'fail
 
-            no_wait_return -= 1;
+            g_st().no_wait_return -= 1;
         } // 'nofail
 
         if show_msg {
@@ -2045,7 +2045,7 @@ pub unsafe fn buf_write(
         os_free_acl(acl);
 
         if err.msg.is_some() {
-            add_quoted_fname((&raw mut IObuff).cast(), IOSIZE - 100, buf, msgname);
+            add_quoted_fname((&raw mut g_st().IObuff).cast(), IOSIZE - 100, buf, msgname);
             emit_err(
                 &raw mut err,
                 if progress >= 0 {
@@ -2079,7 +2079,7 @@ pub unsafe fn buf_write(
         }
 
         (*buf).b_saving = false;
-        msg_scroll = msg_save;
+        g_st().msg_scroll = msg_save;
 
         if retval == OK && write_undo_file {
             let mut hash = [0u8; UNDO_HASH_SIZE];
@@ -2094,7 +2094,7 @@ pub unsafe fn buf_write(
             }
         }
 
-        got_int |= prev_got_int;
+        g_st().got_int |= prev_got_int;
 
         drop(fname_copy);
         drop(sfname_copy);

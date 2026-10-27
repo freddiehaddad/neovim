@@ -35,11 +35,11 @@ pub unsafe fn luaret_truthy(res: Object) -> bool {
 
 unsafe fn textlock_wrap<F: FnOnce()>(f: F) {
     unsafe {
-        let save_cursor = (*curwin).w_cursor;
-        textlock += 1;
+        let save_cursor = (**curwin.as_ptr()).w_cursor;
+        g_st().textlock += 1;
         f();
-        textlock -= 1;
-        (*curwin).w_cursor = save_cursor;
+        g_st().textlock -= 1;
+        (**curwin.as_ptr()).w_cursor = save_cursor;
     }
 }
 
@@ -224,7 +224,7 @@ pub unsafe fn buf_updates_send_changes(
             return;
         }
 
-        let send_tick = !(cmdpreview && buf == curbuf);
+        let send_tick = !(g_st().cmdpreview && buf == g_st().curbuf);
         let mut badchannelid: u64 = 0;
 
         let mut arena = ARENA_EMPTY;
@@ -287,7 +287,7 @@ pub unsafe fn buf_updates_send_changes(
             let preview = (*buf).update_callbacks.as_slice()[i].preview;
             let utf_sizes = (*buf).update_callbacks.as_slice()[i].utf_sizes;
             let mut keep = true;
-            if on_lines != LUA_NOREF && (preview || !cmdpreview) {
+            if on_lines != LUA_NOREF && (preview || !g_st().cmdpreview) {
                 let mut items = [
                     buffer_obj((*buf).b_fnum),
                     if send_tick {
@@ -355,7 +355,7 @@ pub unsafe fn buf_updates_send_splice(
             let on_bytes = (*buf).update_callbacks.as_slice()[i].on_bytes;
             let preview = (*buf).update_callbacks.as_slice()[i].preview;
             let mut keep = true;
-            if on_bytes != LUA_NOREF && (preview || !cmdpreview) {
+            if on_bytes != LUA_NOREF && (preview || !g_st().cmdpreview) {
                 let mut items = [
                     buffer_obj((*buf).b_fnum),
                     integer_obj(buf_get_changedtick(buf)),

@@ -113,18 +113,18 @@ pub unsafe fn state_enter<S: EditorState>(s: *mut S) {
             'getkey: loop {
                 let key = loop {
                     let events = main_loop_events();
-                    if vpeekc() != 0 || typebuf.tb_len > 0 {
+                    if vpeekc() != 0 || g_st().typebuf.tb_len > 0 {
                         break safe_vgetc();
                     } else if !multiqueue_empty(events) {
                         ui_flush();
                         break K_EVENT;
                     } else {
-                        if must_redraw != 0 && !need_wait_return && (State & MODE_CMDLINE) == 0 {
+                        if g_st().must_redraw != 0 && !g_st().need_wait_return && (g_st().State & MODE_CMDLINE) == 0 {
                             update_screen();
                             setcursor();
                         }
                         ui_flush();
-                        input_get(ptr::null_mut(), 0, -1, typebuf.tb_change_cnt, events);
+                        input_get(ptr::null_mut(), 0, -1, g_st().typebuf.tb_change_cnt, events);
                         if input_available() == 0 && !multiqueue_empty(main_loop_events()) {
                             break K_EVENT;
                         }
@@ -140,7 +140,7 @@ pub unsafe fn state_enter<S: EditorState>(s: *mut S) {
                     let keyname = if key == K_EVENT {
                         c"K_EVENT".as_ptr()
                     } else {
-                        get_special_key_name(key, mod_mask).cast_const()
+                        get_special_key_name(key, g_st().mod_mask).cast_const()
                     };
                     logmsg!(
                         LOGLVL_DBG,
@@ -176,7 +176,7 @@ pub unsafe fn state_handle_k_event() {
             }
 
             os_breakcheck();
-            if input_available() != 0 || got_int {
+            if input_available() != 0 || g_st().got_int {
                 return;
             }
         }
@@ -185,38 +185,38 @@ pub unsafe fn state_handle_k_event() {
 
 pub unsafe fn virtual_active(wp: *mut win_T) -> bool {
     unsafe {
-        if (State & MODE_TERMINAL) != 0 {
+        if (g_st().State & MODE_TERMINAL) != 0 {
             return true;
         }
 
         let cur_ve_flags = get_ve_flags(wp);
 
         if cur_ve_flags == kOptVeFlagAll
-            || ((cur_ve_flags & kOptVeFlagInsert) != 0 && (State & MODE_INSERT) != 0)
+            || ((cur_ve_flags & kOptVeFlagInsert) != 0 && (g_st().State & MODE_INSERT) != 0)
         {
             return true;
         }
 
-        if virtual_op != kNone {
-            return virtual_op != 0;
+        if g_st().virtual_op != kNone {
+            return g_st().virtual_op != 0;
         }
-        (cur_ve_flags & kOptVeFlagBlock) != 0 && Visual.active && Visual.mode == Ctrl_V
+        (cur_ve_flags & kOptVeFlagBlock) != 0 && g_st().Visual.active && g_st().Visual.mode == Ctrl_V
     }
 }
 
 pub unsafe fn get_real_state() -> c_int {
     unsafe {
-        if (State & MODE_NORMAL) != 0 {
-            if Visual.active {
-                if Visual.select {
+        if (g_st().State & MODE_NORMAL) != 0 {
+            if g_st().Visual.active {
+                if g_st().Visual.select {
                     return MODE_SELECT;
                 }
                 return MODE_VISUAL;
-            } else if finish_op {
+            } else if g_st().finish_op {
                 return MODE_OP_PENDING;
             }
         }
-        State
+        g_st().State
     }
 }
 
@@ -224,30 +224,30 @@ pub unsafe fn get_mode(buf: *mut c_char) {
     unsafe {
         let mut i: usize = 0;
 
-        if State == MODE_HITRETURN
-            || State == MODE_ASKMORE
-            || State == MODE_SETWSIZE
-            || ((State & MODE_CMDLINE) != 0 && (*get_cmdline_info()).one_key)
+        if g_st().State == MODE_HITRETURN
+            || g_st().State == MODE_ASKMORE
+            || g_st().State == MODE_SETWSIZE
+            || ((g_st().State & MODE_CMDLINE) != 0 && (*get_cmdline_info()).one_key)
         {
             *buf.add(i) = b'r' as c_char;
             i += 1;
-            if State == MODE_ASKMORE {
+            if g_st().State == MODE_ASKMORE {
                 *buf.add(i) = b'm' as c_char;
                 i += 1;
-            } else if (State & MODE_CMDLINE) != 0 {
+            } else if (g_st().State & MODE_CMDLINE) != 0 {
                 *buf.add(i) = b'?' as c_char;
                 i += 1;
             }
-        } else if State == MODE_EXTERNCMD {
+        } else if g_st().State == MODE_EXTERNCMD {
             *buf.add(i) = b'!' as c_char;
             i += 1;
-        } else if (State & MODE_INSERT) != 0 {
-            if (State & VREPLACE_FLAG) != 0 {
+        } else if (g_st().State & MODE_INSERT) != 0 {
+            if (g_st().State & VREPLACE_FLAG) != 0 {
                 *buf.add(i) = b'R' as c_char;
                 i += 1;
                 *buf.add(i) = b'v' as c_char;
                 i += 1;
-            } else if (State & REPLACE_FLAG) != 0 {
+            } else if (g_st().State & REPLACE_FLAG) != 0 {
                 *buf.add(i) = b'R' as c_char;
                 i += 1;
             } else {
@@ -261,28 +261,28 @@ pub unsafe fn get_mode(buf: *mut c_char) {
                 *buf.add(i) = b'x' as c_char;
                 i += 1;
             }
-        } else if (State & MODE_CMDLINE) != 0 || exmode_active {
+        } else if (g_st().State & MODE_CMDLINE) != 0 || g_st().exmode_active {
             *buf.add(i) = b'c' as c_char;
             i += 1;
-            if exmode_active {
+            if g_st().exmode_active {
                 *buf.add(i) = b'v' as c_char;
                 i += 1;
             }
-            if (State & MODE_CMDLINE) != 0 && cmdline_overstrike() {
+            if (g_st().State & MODE_CMDLINE) != 0 && cmdline_overstrike() {
                 *buf.add(i) = b'r' as c_char;
                 i += 1;
             }
-        } else if (State & MODE_TERMINAL) != 0 {
+        } else if (g_st().State & MODE_TERMINAL) != 0 {
             *buf.add(i) = b't' as c_char;
             i += 1;
-        } else if Visual.active {
-            if Visual.select {
-                *buf.add(i) = (Visual.mode + (b's' as c_int) - (b'v' as c_int)) as c_char;
+        } else if g_st().Visual.active {
+            if g_st().Visual.select {
+                *buf.add(i) = (g_st().Visual.mode + (b's' as c_int) - (b'v' as c_int)) as c_char;
                 i += 1;
             } else {
-                *buf.add(i) = Visual.mode as c_char;
+                *buf.add(i) = g_st().Visual.mode as c_char;
                 i += 1;
-                if Visual.restart_select != 0 {
+                if g_st().Visual.restart_select != 0 {
                     *buf.add(i) = b's' as c_char;
                     i += 1;
                 }
@@ -290,25 +290,25 @@ pub unsafe fn get_mode(buf: *mut c_char) {
         } else {
             *buf.add(i) = b'n' as c_char;
             i += 1;
-            if finish_op {
+            if g_st().finish_op {
                 *buf.add(i) = b'o' as c_char;
                 i += 1;
-                *buf.add(i) = motion_force as c_char;
+                *buf.add(i) = g_st().motion_force as c_char;
                 i += 1;
-            } else if !(*curbuf).terminal.is_null() {
+            } else if !(*g_st().curbuf).terminal.is_null() {
                 *buf.add(i) = b't' as c_char;
                 i += 1;
-                if restart_edit == b'I' as c_int {
+                if g_st().restart_edit == b'I' as c_int {
                     *buf.add(i) = b'T' as c_char;
                     i += 1;
                 }
-            } else if restart_edit == b'I' as c_int
-                || restart_edit == b'R' as c_int
-                || restart_edit == b'V' as c_int
+            } else if g_st().restart_edit == b'I' as c_int
+                || g_st().restart_edit == b'R' as c_int
+                || g_st().restart_edit == b'V' as c_int
             {
                 *buf.add(i) = b'i' as c_char;
                 i += 1;
-                *buf.add(i) = restart_edit as c_char;
+                *buf.add(i) = g_st().restart_edit as c_char;
                 i += 1;
             }
         }
@@ -319,7 +319,7 @@ pub unsafe fn get_mode(buf: *mut c_char) {
 
 pub unsafe fn may_trigger_modechanged() {
     unsafe {
-        if !has_event(EVENT_MODECHANGED) || got_int {
+        if !has_event(EVENT_MODECHANGED) || g_st().got_int {
             return;
         }
 
@@ -327,7 +327,7 @@ pub unsafe fn may_trigger_modechanged() {
         let mut pattern_buf: [c_char; 2 * MODE_MAX_LENGTH] = [0; 2 * MODE_MAX_LENGTH];
 
         get_mode(curr_mode.as_mut_ptr());
-        if strcmp(curr_mode.as_ptr(), ptr::addr_of!(last_mode).cast()) == 0 {
+        if strcmp(curr_mode.as_ptr(), ptr::addr_of!(g_st().last_mode).cast()) == 0 {
             return;
         }
 
@@ -338,7 +338,7 @@ pub unsafe fn may_trigger_modechanged() {
             v_event,
             c"old_mode".as_ptr(),
             8,
-            ptr::addr_of!(last_mode).cast(),
+            ptr::addr_of!(g_st().last_mode).cast(),
         );
         tv_dict_set_keys_readonly(v_event);
 
@@ -346,7 +346,7 @@ pub unsafe fn may_trigger_modechanged() {
             pattern_buf.as_mut_ptr(),
             pattern_buf.len(),
             c"%s:%s".as_ptr(),
-            ptr::addr_of!(last_mode).cast::<c_char>(),
+            ptr::addr_of!(g_st().last_mode).cast::<c_char>(),
             curr_mode.as_ptr(),
         );
 
@@ -355,9 +355,9 @@ pub unsafe fn may_trigger_modechanged() {
             pattern_buf.as_mut_ptr(),
             ptr::null_mut(),
             false,
-            curbuf,
+            g_st().curbuf,
         );
-        strcpy(ptr::addr_of_mut!(last_mode).cast(), curr_mode.as_ptr());
+        strcpy(ptr::addr_of_mut!(g_st().last_mode).cast(), curr_mode.as_ptr());
 
         restore_v_event(v_event, &mut save_v_event);
     }
@@ -367,10 +367,10 @@ pub unsafe fn may_trigger_modechanged() {
 unsafe fn is_safe_now() -> bool {
     unsafe {
         stuff_empty()
-            && typebuf.tb_len == 0
+            && g_st().typebuf.tb_len == 0
             && using_script() == 0
-            && global_busy == 0
-            && !debug_mode
+            && g_st().global_busy == 0
+            && !g_st().debug_mode
     }
 }
 
@@ -400,7 +400,7 @@ pub unsafe fn may_trigger_safestate(safe: bool) {
                 ptr::null_mut(),
                 ptr::null_mut(),
                 false,
-                curbuf,
+                g_st().curbuf,
             );
         }
         state_mod_st().was_safe = is_safe;

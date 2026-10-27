@@ -157,7 +157,7 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> c_int {
         let buf = if bufnr != 0 {
             handle_get_buffer(bufnr)
         } else {
-            curbuf
+            g_st().curbuf
         };
         if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
             return luaL_error(lstate, c"invalid buffer".as_ptr());
@@ -667,9 +667,9 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
         if log_level >= 0 {
             log_st().g_min_log_level = log_level;
         }
-        let save_cmdmod = ptr::replace(&raw mut cmdmod, crate::ex_docmd::cmdmod_T::new());
-        cmdmod.cmod_flags = flags;
-        apply_cmdmod(&raw mut cmdmod);
+        let save_cmdmod = ptr::replace(&raw mut g_st().cmdmod, crate::ex_docmd::cmdmod_T::new());
+        g_st().cmdmod.cmod_flags = flags;
+        apply_cmdmod(&raw mut g_st().cmdmod);
 
         let mut err = Error::new();
         let mut tstate = TryState::new();
@@ -709,8 +709,8 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
         }
         try_leave(&raw const tstate, &raw mut err);
 
-        undo_cmdmod(&raw mut cmdmod);
-        cmdmod = save_cmdmod;
+        undo_cmdmod(&raw mut g_st().cmdmod);
+        g_st().cmdmod = save_cmdmod;
         if log_level >= 0 {
             log_st().g_min_log_level = save_min_log_level;
         }

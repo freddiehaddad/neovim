@@ -896,7 +896,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                 let p = vim_strchr(classchars.as_ptr().cast(), no_Magic(c)).cast::<u8>();
                 if p.is_null() {
                     emsg(tr(e_invalid_use_of_underscore.as_ptr()));
-                    rc_did_emsg = true;
+                    g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
                 if c == Magic(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
@@ -945,7 +945,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                 let p = vim_strchr(classchars.as_ptr().cast(), no_Magic(c)).cast::<u8>();
                 if p.is_null() {
                     emsg(tr(e_invalid_use_of_underscore.as_ptr()));
-                    rc_did_emsg = true;
+                    g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
                 if c == Magic(b'.' as c_int) && utf_iscomposing_legacy(peekchr()) {
@@ -978,7 +978,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                             c"\\".as_ptr()
                         },
                     );
-                    rc_did_emsg = true;
+                    g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
                 ret = reg(REG_PAREN, &raw mut flags);
@@ -1001,11 +1001,11 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                             c"\\".as_ptr()
                         },
                     );
-                    rc_did_emsg = true;
+                    g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
                 iemsg(tr((&raw const e_internal_error_in_regexp).cast()));
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return ptr::null_mut();
             } else if c == Magic(b'=' as c_int)
                 || c == Magic(b'?' as c_int)
@@ -1029,7 +1029,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                     },
                     c,
                 );
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return ptr::null_mut();
             } else if c == Magic(b'~' as c_int) {
                 if let Some(prev_sub) = reg_prev_sub_ref() {
@@ -1047,7 +1047,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                     return ret;
                 } else {
                     emsg(tr((&raw const e_nopresub).cast()));
-                    rc_did_emsg = true;
+                    g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
             } else if (Magic(b'1' as c_int)..=Magic(b'9' as c_int)).contains(&c) {
@@ -1060,9 +1060,9 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                 c = no_Magic(getchr());
                 match c as u8 {
                     b'(' => {
-                        if (reg_do_extmatch & REX_SET) == 0 {
+                        if (g_st().reg_do_extmatch & REX_SET) == 0 {
                             emsg(tr(e_z_not_allowed.as_ptr()));
-                            rc_did_emsg = true;
+                            g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
                         if re_st().one_exactly {
@@ -1074,7 +1074,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                     c"\\".as_ptr()
                                 },
                             );
-                            rc_did_emsg = true;
+                            g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
                         ret = reg(REG_ZPAREN, &raw mut flags);
@@ -1086,9 +1086,9 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                         return ret;
                     }
                     b'1'..=b'9' => {
-                        if (reg_do_extmatch & REX_USE) == 0 {
+                        if (g_st().reg_do_extmatch & REX_USE) == 0 {
                             emsg(tr(e_z1_not_allowed.as_ptr()));
-                            rc_did_emsg = true;
+                            g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
                         ret = regnode(ZREF + c - b'0' as c_int);
@@ -1111,7 +1111,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                     }
                     _ => {
                         emsg(tr(c"E68: Invalid character after \\z".as_ptr()));
-                        rc_did_emsg = true;
+                        g_st().rc_did_emsg = true;
                         return ptr::null_mut();
                     }
                 }
@@ -1128,7 +1128,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                     c"\\".as_ptr()
                                 },
                             );
-                            rc_did_emsg = true;
+                            g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
                         ret = reg(REG_NPAREN, &raw mut flags);
@@ -1165,7 +1165,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                     c"\\".as_ptr()
                                 },
                             );
-                            rc_did_emsg = true;
+                            g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
                         let mut lastnode: *mut u8 = ptr::null_mut();
@@ -1184,7 +1184,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                         c"\\".as_ptr()
                                     },
                                 );
-                                rc_did_emsg = true;
+                                g_st().rc_did_emsg = true;
                                 return ptr::null_mut();
                             }
                             let br = regnode(BRANCH);
@@ -1213,7 +1213,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                     c"\\".as_ptr()
                                 },
                             );
-                            rc_did_emsg = true;
+                            g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
                         let lastbranch = regnode(BRANCH);
@@ -1255,7 +1255,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                     c"\\".as_ptr()
                                 },
                             );
-                            rc_did_emsg = true;
+                            g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
                         if use_multibytecode(i as c_int) {
@@ -1317,12 +1317,12 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                         tr(e_regexp_number_after_dot_pos_search_chr.as_ptr()),
                                         no_Magic(c),
                                     );
-                                    rc_did_emsg = true;
+                                    g_st().rc_did_emsg = true;
                                     return ptr::null_mut();
                                 }
                                 if c == b'l' as c_int {
                                     if cur {
-                                        n = (*curwin).w_cursor.lnum as u32;
+                                        n = (**curwin.as_ptr()).w_cursor.lnum as u32;
                                     }
                                     ret = regnode(RE_LNUM);
                                     if save_prev_at_start != 0 {
@@ -1330,15 +1330,15 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                     }
                                 } else if c == b'c' as c_int {
                                     if cur {
-                                        n = (*curwin).w_cursor.col as u32 + 1;
+                                        n = (**curwin.as_ptr()).w_cursor.col as u32 + 1;
                                     }
                                     ret = regnode(RE_COL);
                                 } else {
                                     if cur {
                                         let mut vcol: colnr_T = 0;
                                         getvvcol(
-                                            curwin,
-                                            &raw mut (*curwin).w_cursor,
+                                            *curwin.as_ptr(),
+                                            &raw mut (**curwin.as_ptr()).w_cursor,
                                             ptr::null_mut(),
                                             ptr::null_mut(),
                                             &raw mut vcol,
@@ -1367,7 +1367,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                                 c"\\".as_ptr()
                             },
                         );
-                        rc_did_emsg = true;
+                        g_st().rc_did_emsg = true;
                         return ptr::null_mut();
                     }
                 }
@@ -1429,13 +1429,13 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                             }
                             if startc > endc {
                                 emsg(tr(e_reverse_range.as_ptr()));
-                                rc_did_emsg = true;
+                                g_st().rc_did_emsg = true;
                                 return ptr::null_mut();
                             }
                             if utf_char2len(startc) > 1 || utf_char2len(endc) > 1 {
                                 if endc > startc + 256 {
                                     emsg(tr(e_large_class.as_ptr()));
-                                    rc_did_emsg = true;
+                                    g_st().rc_did_emsg = true;
                                     return ptr::null_mut();
                                 }
                                 while {
@@ -1476,7 +1476,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                             startc = coll_get_char();
                             if startc == c_int::MAX {
                                 emsg(tr(e_unicode_val_too_large.as_ptr()));
-                                rc_did_emsg = true;
+                                g_st().rc_did_emsg = true;
                                 return ptr::null_mut();
                             }
                             if startc == 0 {
@@ -1634,7 +1634,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                 re_st().prevchr_len = 1;
                 if *re_st().regparse != b']' as c_char {
                     emsg(tr((&raw const e_toomsbra).cast()));
-                    rc_did_emsg = true;
+                    g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
                 skipchr();
@@ -1649,7 +1649,7 @@ unsafe fn regatom(flagp: *mut c_int) -> *mut u8 {
                         c"\\".as_ptr()
                     },
                 );
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return ptr::null_mut();
             }
         }
@@ -1754,7 +1754,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
                         c"\\".as_ptr()
                     },
                 );
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return ptr::null_mut();
             }
             if lop == BEHIND || lop == NOBEHIND {
@@ -1793,7 +1793,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
                             c"\\".as_ptr()
                         },
                     );
-                    rc_did_emsg = true;
+                    g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
                 reginsert(BRACE_COMPLEX + re_st().num_complex_braces, ret);
@@ -1817,7 +1817,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
                         c"\\".as_ptr()
                     },
                 );
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return ptr::null_mut();
             }
             semsg!(
@@ -1829,7 +1829,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
                 },
                 no_Magic(peekchr()),
             );
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             return ptr::null_mut();
         }
 
@@ -1947,7 +1947,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
         if paren == REG_ZPAREN {
             if re_st().regnzpar >= NSUBEXP as c_int {
                 emsg(tr(c"E50: Too many \\z(".as_ptr()));
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return ptr::null_mut();
             }
             parno = re_st().regnzpar;
@@ -1963,7 +1963,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
                         c"\\".as_ptr()
                     },
                 );
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return ptr::null_mut();
             }
             parno = re_st().regnpar;
@@ -1977,7 +1977,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
 
         if re_st().bt_reg_parse_depth >= REG_MAX_PAREN_DEPTH {
             emsg(tr((&raw const e_command_too_complex).cast()));
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             return ptr::null_mut();
         }
         re_st().bt_reg_parse_depth += 1;
@@ -2049,7 +2049,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
                     },
                 );
             }
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             re_st().bt_reg_parse_depth -= 1;
             return ptr::null_mut();
         } else if paren == REG_NOPAREN && peekchr() != NUL as c_int {
@@ -2065,7 +2065,7 @@ unsafe fn reg(paren: c_int, flagp: *mut c_int) -> *mut u8 {
             } else {
                 emsg(tr((&raw const e_trailing).cast()));
             }
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             re_st().bt_reg_parse_depth -= 1;
             return ptr::null_mut();
         }
@@ -2085,7 +2085,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_reg
 
         if expr.is_null() {
             iemsg(tr((&raw const e_null).cast()));
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             return None;
         }
 
@@ -2114,7 +2114,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_reg
         if reg(REG_NOPAREN, &raw mut flags).is_null() || re_st().reg_toolong != 0 {
             if re_st().reg_toolong != 0 {
                 emsg(tr(c"E339: Pattern too long".as_ptr()));
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
             }
             return None;
         }
@@ -2283,7 +2283,7 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                     }
                     reg_nextline();
                     *scan = re_st().rex.input;
-                    if got_int {
+                    if g_st().got_int {
                         break;
                     }
                 } else {
@@ -2323,7 +2323,7 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                 count += 1;
                 reg_nextline();
                 scan = re_st().rex.input;
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
             }
@@ -2346,7 +2346,7 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                     }
                     reg_nextline();
                     scan = re_st().rex.input;
-                    if got_int {
+                    if g_st().got_int {
                         break;
                     }
                 } else if re_st().rex.reg_line_lbr && *scan == b'\n' && WITH_NL(op) {
@@ -2375,7 +2375,7 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                     }
                     reg_nextline();
                     scan = re_st().rex.input;
-                    if got_int {
+                    if g_st().got_int {
                         break;
                     }
                 } else if re_st().rex.reg_line_lbr && *scan == b'\n' && WITH_NL(op) {
@@ -2404,7 +2404,7 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                     }
                     reg_nextline();
                     scan = re_st().rex.input;
-                    if got_int {
+                    if g_st().got_int {
                         break;
                     }
                 } else if re_st().rex.reg_line_lbr && *scan == b'\n' && WITH_NL(op) {
@@ -2429,7 +2429,7 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                     }
                     reg_nextline();
                     scan = re_st().rex.input;
-                    if got_int {
+                    if g_st().got_int {
                         break;
                     }
                 } else if vim_isprintc(utf_ptr2char(scan.cast()))
@@ -2530,7 +2530,7 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                     }
                     reg_nextline();
                     scan = re_st().rex.input;
-                    if got_int {
+                    if g_st().got_int {
                         break;
                     }
                 } else if re_st().rex.reg_line_lbr && *scan == b'\n' && WITH_NL(op) {
@@ -2566,7 +2566,7 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                     reg_nextline();
                 }
                 scan = re_st().rex.input;
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
             }
@@ -2664,7 +2664,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
             reg_breakcheck();
 
             loop {
-                if got_int || scan.is_null() {
+                if g_st().got_int || scan.is_null() {
                     status = RA_FAIL;
                     break;
                 }
@@ -2742,7 +2742,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                 0
                             };
                             let fm =
-                                mark_get(re_st().rex.reg_buf, curwin, ptr::null_mut(), kMarkBufLocal, mark);
+                                mark_get(re_st().rex.reg_buf, *curwin.as_ptr(), ptr::null_mut(), kMarkBufLocal, mark);
                             if REG_MULTI() {
                                 re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                                 re_st().rex.input = re_st().rex.line.add(col);
@@ -2796,7 +2796,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                         }
                         RE_VCOL => {
                             let wp = if re_st().rex.reg_win.is_null() {
-                                curwin
+                                *curwin.as_ptr()
                             } else {
                                 re_st().rex.reg_win
                             };
@@ -3289,7 +3289,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                         x if (ZREF + 1..=ZREF + 9).contains(&x) => {
                             cleanup_zsubexpr();
                             let no = (op - ZREF) as usize;
-                            let ext_in = &raw const re_extmatch_in;
+                            let ext_in = &raw const g_st().re_extmatch_in;
                             if let Some(ref em) = *ext_in
                                 && let Some(ref m_cstr) = em.matches[no]
                             {
@@ -3390,7 +3390,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                             }
 
                             rst.count = i64::from(regrepeat(OPERAND(scan), rst.maxval));
-                            if got_int {
+                            if g_st().got_int {
                                 status = RA_FAIL;
                                 break;
                             }
@@ -3765,7 +3765,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                         }
                                         (*rst).count += 1;
                                     }
-                                    if got_int {
+                                    if g_st().got_int {
                                         break;
                                     }
                                 } else {
@@ -3852,7 +3852,7 @@ unsafe fn regtry(
             }
         }
 
-        re_extmatch_out = None;
+        g_st().re_extmatch_out = None;
 
         if (*prog).reghasz == REX_SET as u8 {
             cleanup_zsubexpr();
@@ -3876,7 +3876,7 @@ unsafe fn regtry(
                     }
                 }
             }
-            re_extmatch_out = Some(std::rc::Rc::new(extmatch));
+            g_st().re_extmatch_out = Some(std::rc::Rc::new(extmatch));
         }
         1 + re_st().rex.lnum
     }
@@ -3992,7 +3992,7 @@ unsafe fn bt_regexec_both(
             }
         } else {
             let mut tm_count: c_int = 0;
-            while !got_int {
+            while !g_st().got_int {
                 if (*prog).regstart != NUL as c_int {
                     let s = cstrchr(re_st().rex.line.add(col as usize).cast(), (*prog).regstart);
                     if s.is_null() {
@@ -4085,7 +4085,7 @@ pub(super) unsafe fn bt_regexec_nl(
         re_st().rex.reg_mmatch = ptr::null_mut();
         re_st().rex.reg_maxline = 0;
         re_st().rex.reg_line_lbr = line_lbr;
-        re_st().rex.reg_buf = curbuf;
+        re_st().rex.reg_buf = g_st().curbuf;
         re_st().rex.reg_win = ptr::null_mut();
         re_st().rex.reg_ic = (*rmp).rm_ic;
         re_st().rex.reg_icombine = false;

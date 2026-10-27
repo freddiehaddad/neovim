@@ -55,8 +55,8 @@ pub unsafe extern "C" fn nvim_tabpage_list_wins(
             return rv;
         }
 
-        let first = if tab == curtab {
-            firstwin
+        let first = if tab == g_st().curtab {
+            g_st().firstwin
         } else {
             (*tab).tp_firstwin
         };
@@ -173,7 +173,7 @@ pub unsafe extern "C" fn nvim_tabpage_get_win(tabpage: Tabpage, err: *mut Error)
         if tab.is_null() || !valid_tabpage(tab) {
             return 0;
         }
-        if tab == curtab {
+        if tab == g_st().curtab {
             return nvim_get_current_win();
         }
         let mut wp = (*tab).tp_firstwin;
@@ -213,7 +213,7 @@ pub unsafe extern "C" fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err
             );
             return;
         }
-        if tp == curtab {
+        if tp == g_st().curtab {
             let mut tstate = TryState::new();
             try_enter(&mut tstate);
             win_goto(wp);
@@ -318,15 +318,15 @@ pub unsafe extern "C" fn nvim_open_tabpage(
         }
 
         if tabpage_win_valid(tp, wp) && (*wp).w_buffer != b {
-            let au_no_enter_leave = curwin != wp;
+            let au_no_enter_leave = *curwin.as_ptr() != wp;
             if au_no_enter_leave {
-                autocmd_no_enter += 1;
-                autocmd_no_leave += 1;
+                g_st().autocmd_no_enter += 1;
+                g_st().autocmd_no_leave += 1;
             }
             win_set_buf(wp, b, err);
             if au_no_enter_leave {
-                autocmd_no_enter -= 1;
-                autocmd_no_leave -= 1;
+                g_st().autocmd_no_enter -= 1;
+                g_st().autocmd_no_leave -= 1;
             }
             if !valid_tabpage(tp) {
                 api_clear_error(err);

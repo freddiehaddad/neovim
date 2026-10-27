@@ -171,7 +171,7 @@ pub struct KeyDict_ns_opts {
 #[inline]
 pub unsafe fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
     unsafe {
-        let local_ptr = &raw const namespace_localscope;
+        let local_ptr = &raw const g_st().namespace_localscope;
         if !(*local_ptr).contains(&ns_id) {
             return true;
         }
@@ -182,9 +182,9 @@ pub unsafe fn ns_in_win(ns_id: u32, wp: *mut win_T) -> bool {
 // DLLEXPORT void api_extmark_free_all_mem(void);
 pub unsafe fn api_extmark_free_all_mem() {
     unsafe {
-        let ns_ptr = &raw mut namespace_ids;
+        let ns_ptr = &raw mut g_st().namespace_ids;
         *ns_ptr = Vec::new();
-        let local_ptr = &raw mut namespace_localscope;
+        let local_ptr = &raw mut g_st().namespace_localscope;
         *local_ptr = std::collections::BTreeSet::new();
     }
 }
@@ -210,14 +210,14 @@ pub unsafe extern "C" fn nvim_create_namespace(name: NvimString) -> Integer {
         } else {
             std::slice::from_raw_parts(name.data.cast::<u8>(), name.size)
         };
-        let ns_ptr = &raw mut namespace_ids;
+        let ns_ptr = &raw mut g_st().namespace_ids;
         if !name_bytes.is_empty()
             && let Some((_, id)) = (*ns_ptr).iter().find(|(k, _)| k.as_bytes() == name_bytes)
         {
             return i64::from(*id);
         }
-        let id = next_namespace_id;
-        next_namespace_id += 1;
+        let id = g_st().next_namespace_id;
+        g_st().next_namespace_id += 1;
         if !name_bytes.is_empty() {
             (*ns_ptr).push((
                 std::ffi::CString::from_vec_unchecked(name_bytes.to_vec()),
@@ -236,7 +236,7 @@ pub unsafe extern "C" fn nvim_create_namespace(name: NvimString) -> Integer {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_namespaces(arena: *mut Arena) -> Dict {
     unsafe {
-        let ns_ptr = &raw const namespace_ids;
+        let ns_ptr = &raw const g_st().namespace_ids;
         let mut retval = arena_dict(arena, (*ns_ptr).len());
         for (name, id) in &*ns_ptr {
             *retval.items.add(retval.size) = KeyValuePair {
@@ -252,7 +252,7 @@ pub unsafe extern "C" fn nvim_get_namespaces(arena: *mut Arena) -> Dict {
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
 pub unsafe fn describe_ns(ns_id: NS, unknown: *const c_char) -> *const c_char {
     unsafe {
-        let ns_ptr = &raw const namespace_ids;
+        let ns_ptr = &raw const g_st().namespace_ids;
         for (name, id) in &*ns_ptr {
             if *id == ns_id && !name.as_bytes().is_empty() {
                 return name.as_ptr();
@@ -267,7 +267,7 @@ pub unsafe fn ns_initialized(ns: u32) -> bool {
     if ns < 1 {
         return false;
     }
-    ns < unsafe { next_namespace_id as u32 }
+    ns < unsafe { g_st().next_namespace_id as u32 }
 }
 
 // DLLEXPORT Array virt_text_to_array(VirtText vt, bool hl_name, Arena *arena);
@@ -1171,7 +1171,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 col2 = 0;
             }
 
-            if (*opts).ephemeral && !decor_state.win.is_null() && (*decor_state.win).w_buffer == b {
+            if (*opts).ephemeral && !g_st().decor_state.win.is_null() && (*g_st().decor_state.win).w_buffer == b {
                 let r = line as c_int;
                 let c = col as c_int;
                 if line2 == -1 {
@@ -1190,7 +1190,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
 
                 if !virt_text.data.virt_text().is_empty() {
                     decor_range_add_virt(
-                        &raw mut decor_state,
+                        &raw mut g_st().decor_state,
                         r,
                         c,
                         line2,
@@ -1201,7 +1201,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                 }
                 if !virt_lines.data.virt_lines().is_empty() {
                     decor_range_add_virt(
-                        &raw mut decor_state,
+                        &raw mut g_st().decor_state,
                         r,
                         c,
                         line2,
@@ -1214,7 +1214,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                     let mut sh = decor_sh_from_inline(hl);
                     sh.url = url.take();
                     decor_range_add_sh(
-                        &raw mut decor_state,
+                        &raw mut g_st().decor_state,
                         r,
                         c,
                         line2,
@@ -1745,10 +1745,10 @@ pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts
                 windows.insert(wp);
             }
 
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut wp = if tp == curtab {
-                    firstwin
+                let mut wp = if tp == g_st().curtab {
+                    g_st().firstwin
                 } else {
                     (*tp).tp_firstwin
                 };
@@ -1772,14 +1772,14 @@ pub unsafe extern "C" fn nvim__ns_set(ns_id: Integer, opts: *mut KeyDict_ns_opts
             }
         }
 
-        let local_ptr = &raw mut namespace_localscope;
+        let local_ptr = &raw mut g_st().namespace_localscope;
         if (set_scoped && (*local_ptr).insert(ns_id as u32))
             || (!set_scoped && (*local_ptr).remove(&(ns_id as u32)))
         {
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut wp = if tp == curtab {
-                    firstwin
+                let mut wp = if tp == g_st().curtab {
+                    g_st().firstwin
                 } else {
                     (*tp).tp_firstwin
                 };
@@ -1817,16 +1817,16 @@ pub unsafe extern "C" fn nvim__ns_get(
             return opts;
         }
 
-        let local_ptr = &raw const namespace_localscope;
+        let local_ptr = &raw const g_st().namespace_localscope;
         if !(*local_ptr).contains(&(ns_id as u32)) {
             return opts;
         }
 
         let mut count = 0usize;
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
@@ -1841,10 +1841,10 @@ pub unsafe extern "C" fn nvim__ns_get(
 
         let mut windows = arena_array(arena, count);
 
-        tp = first_tabpage;
+        tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };

@@ -357,10 +357,10 @@ pub unsafe extern "C" fn nvim_open_win(
 
         'cleanup: {
             let mut wp: *mut win_T = ptr::null_mut();
-            let mut tp = curtab;
-            assert!(!curwin.is_null());
+            let mut tp = g_st().curtab;
+            assert!(!(*curwin.as_ptr()).is_null());
             let mut parent = if (*config).win == 0 {
-                curwin
+                *curwin.as_ptr()
             } else {
                 ptr::null_mut()
             };
@@ -379,7 +379,7 @@ pub unsafe extern "C" fn nvim_open_win(
                 tp = win_find_tabpage(parent);
             }
             if is_split {
-                if !check_split_disallowed_err(if !parent.is_null() { parent } else { curwin }, err)
+                if !check_split_disallowed_err(if !parent.is_null() { parent } else { *curwin.as_ptr() }, err)
                 {
                     break 'cleanup;
                 }
@@ -409,7 +409,7 @@ pub unsafe extern "C" fn nvim_open_win(
                 };
 
                 try_wrap(err, || {
-                    if parent.is_null() || parent == curwin {
+                    if parent.is_null() || parent == *curwin.as_ptr() {
                         wp = win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut());
                     } else {
                         let mut switchwin: CtxSwitch = CtxSwitch::new();
@@ -436,7 +436,7 @@ pub unsafe extern "C" fn nvim_open_win(
                     }
                 }
             } else {
-                if (*(*curwin).w_buffer).b_locked_split != 0 {
+                if (*(**curwin.as_ptr()).w_buffer).b_locked_split != 0 {
                     api_set_error!(
                         err,
                         ErrorType::kErrorTypeException,
@@ -458,7 +458,7 @@ pub unsafe extern "C" fn nvim_open_win(
             }
 
             if fconfig._cmdline_offset < c_int::MAX {
-                cmdline_win = wp;
+                g_st().cmdline_win = wp;
             }
 
             let mut bufref = bufref_T {
@@ -476,7 +476,7 @@ pub unsafe extern "C" fn nvim_open_win(
                     ptr::null_mut(),
                     ptr::null_mut(),
                     false,
-                    curbuf,
+                    g_st().curbuf,
                     wp,
                 ) {
                     tp = win_find_tabpage(wp);
@@ -488,18 +488,18 @@ pub unsafe extern "C" fn nvim_open_win(
                 tp = win_find_tabpage(wp);
             }
             if !tp.is_null() && bufref_valid(&mut bufref) && b != (*wp).w_buffer {
-                let au_no_enter_leave = curwin != wp && !fconfig.noautocmd;
+                let au_no_enter_leave = *curwin.as_ptr() != wp && !fconfig.noautocmd;
                 if au_no_enter_leave {
-                    autocmd_no_enter += 1;
-                    autocmd_no_leave += 1;
+                    g_st().autocmd_no_enter += 1;
+                    g_st().autocmd_no_leave += 1;
                 }
                 win_set_buf(wp, b, err);
                 if !fconfig.noautocmd {
                     tp = win_find_tabpage(wp);
                 }
                 if au_no_enter_leave {
-                    autocmd_no_enter -= 1;
-                    autocmd_no_leave -= 1;
+                    g_st().autocmd_no_enter -= 1;
+                    g_st().autocmd_no_leave -= 1;
                 }
             }
             if tp.is_null() {
@@ -565,7 +565,7 @@ const fn win_split_flags(split: WinSplit, toplevel: bool) -> c_int {
 
 unsafe fn win_can_move_tp(wp: *mut win_T, tp: *mut tabpage_T, err: *mut Error) -> bool {
     unsafe {
-        if one_window(wp, if tp == curtab { ptr::null_mut() } else { tp }) {
+        if one_window(wp, if tp == g_st().curtab { ptr::null_mut() } else { tp }) {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -584,7 +584,7 @@ unsafe fn win_can_move_tp(wp: *mut win_T, tp: *mut tabpage_T, err: *mut Error) -
         if window_layout_locked_err(crate::cmdexpand::cmdidx_T::CMD_SIZE, err) {
             return false;
         }
-        if textlock != 0 || expr_map_locked() {
+        if g_st().textlock != 0 || expr_map_locked() {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -607,7 +607,7 @@ unsafe fn win_can_move_tp(wp: *mut win_T, tp: *mut tabpage_T, err: *mut Error) -
 
 unsafe fn win_find_altwin(win: *mut win_T, tp: *mut tabpage_T) -> *mut win_T {
     unsafe {
-        let tp_arg = if tp == curtab { ptr::null_mut() } else { tp };
+        let tp_arg = if tp == g_st().curtab { ptr::null_mut() } else { tp };
         if (*win).w_floating {
             win_float_find_altwin(win, tp_arg)
         } else {
@@ -657,8 +657,8 @@ unsafe fn win_config_split(
             let mut parent: *mut win_T = ptr::null_mut();
             let mut parent_tp: *mut tabpage_T = ptr::null_mut();
             if (*config).win == 0 {
-                parent = curwin;
-                parent_tp = curtab;
+                parent = *curwin.as_ptr();
+                parent_tp = g_st().curtab;
             } else if (*config).win > 0 {
                 parent = find_window_by_handle((*fconfig).window, err);
                 if parent.is_null() {
@@ -687,7 +687,7 @@ unsafe fn win_config_split(
             }
 
             let mut to_split_ok = false;
-            let curwin_moving_tp = win == curwin && !parent.is_null() && win_tp != parent_tp;
+            let curwin_moving_tp = win == *curwin.as_ptr() && !parent.is_null() && win_tp != parent_tp;
 
             'restore_curwin: {
                 if curwin_moving_tp {
@@ -695,7 +695,7 @@ unsafe fn win_config_split(
                     assert!(!altwin.is_null());
                     win_goto(altwin);
 
-                    if curwin == win {
+                    if *curwin.as_ptr() == win {
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
@@ -759,7 +759,7 @@ unsafe fn win_config_split(
                             altwin = winframe_remove(
                                 win,
                                 &mut dir,
-                                if win_tp == curtab {
+                                if win_tp == g_st().curtab {
                                     ptr::null_mut()
                                 } else {
                                     win_tp
@@ -770,7 +770,7 @@ unsafe fn win_config_split(
                             altwin = winframe_remove(
                                 win,
                                 &mut dir,
-                                if win_tp == curtab {
+                                if win_tp == g_st().curtab {
                                     ptr::null_mut()
                                 } else {
                                     win_tp
@@ -791,7 +791,7 @@ unsafe fn win_config_split(
                         altwin = winframe_remove(
                             win,
                             &mut dir,
-                            if win_tp == curtab {
+                            if win_tp == g_st().curtab {
                                 ptr::null_mut()
                             } else {
                                 win_tp
@@ -802,7 +802,7 @@ unsafe fn win_config_split(
                 } else {
                     altwin = win_float_find_altwin(
                         win,
-                        if win_tp == curtab {
+                        if win_tp == g_st().curtab {
                             ptr::null_mut()
                         } else {
                             win_tp
@@ -812,13 +812,13 @@ unsafe fn win_config_split(
 
                 win_remove(
                     win,
-                    if win_tp == curtab {
+                    if win_tp == g_st().curtab {
                         ptr::null_mut()
                     } else {
                         win_tp
                     },
                 );
-                if win_tp == curtab {
+                if win_tp == g_st().curtab {
                     last_status(false);
                     win_comp_pos();
                 }
@@ -827,11 +827,11 @@ unsafe fn win_config_split(
                 parent_tp = if !parent.is_null() {
                     win_find_tabpage(parent)
                 } else {
-                    curtab
+                    g_st().curtab
                 };
 
                 try_wrap(err, || {
-                    let need_switch = !parent.is_null() && parent != curwin;
+                    let need_switch = !parent.is_null() && parent != *curwin.as_ptr();
                     let mut switchwin: CtxSwitch = CtxSwitch::new();
                     if need_switch {
                         let result = ctx_switch(
@@ -848,7 +848,7 @@ unsafe fn win_config_split(
                         win_append(
                             (*win).w_prev,
                             win,
-                            if win_tp == curtab {
+                            if win_tp == g_st().curtab {
                                 ptr::null_mut()
                             } else {
                                 win_tp
@@ -930,11 +930,11 @@ unsafe fn win_config_float_tp(
                 altwin = win_find_altwin(win, win_tp);
                 assert!(!altwin.is_null());
 
-                if curwin == win {
+                if *curwin.as_ptr() == win {
                     curwin_moving_tp = true;
                     win_goto(altwin);
 
-                    if curwin == win {
+                    if *curwin.as_ptr() == win {
                         api_set_error!(
                             err,
                             ErrorType::kErrorTypeException,
@@ -972,20 +972,20 @@ unsafe fn win_config_float_tp(
             if win_tp != parent_tp {
                 win_remove(
                     win,
-                    if win_tp == curtab {
+                    if win_tp == g_st().curtab {
                         ptr::null_mut()
                     } else {
                         win_tp
                     },
                 );
-                let append_tp = if parent_tp == curtab {
+                let append_tp = if parent_tp == g_st().curtab {
                     ptr::null_mut()
                 } else {
                     parent_tp
                 };
                 win_append(lastwin_nofloating(append_tp), win, append_tp);
 
-                if win_tp != curtab && (*win_tp).tp_curwin == win {
+                if win_tp != g_st().curtab && (*win_tp).tp_curwin == win {
                     (*win_tp).tp_curwin = altwin;
                 }
 
@@ -1077,9 +1077,9 @@ pub unsafe extern "C" fn nvim_win_set_config(
             changed_window_setting(w);
         }
         if fconfig._cmdline_offset < c_int::MAX {
-            cmdline_win = w;
-        } else if w == cmdline_win && fconfig._cmdline_offset == c_int::MAX {
-            cmdline_win = ptr::null_mut();
+            g_st().cmdline_win = w;
+        } else if w == g_st().cmdline_win && fconfig._cmdline_offset == c_int::MAX {
+            g_st().cmdline_win = ptr::null_mut();
         }
     }
 }
@@ -1853,7 +1853,7 @@ unsafe fn parse_win_config(
                     (*fconfig).window = (*config).win;
                 }
                 if (*fconfig).window == 0 {
-                    (*fconfig).window = (*curwin).handle;
+                    (*fconfig).window = (**curwin.as_ptr()).handle;
                 }
             }
 

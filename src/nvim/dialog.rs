@@ -223,8 +223,8 @@ unsafe fn msg_show_console_dialog(
 /// Ask for a `'y'` or `'n'` reply from the user (`ask_yesno`).
 pub unsafe fn ask_yesno(str_ptr: *const c_char) -> c_int {
     unsafe {
-        let save_state = State;
-        no_wait_return += 1;
+        let save_state = g_st().State;
+        g_st().no_wait_return += 1;
 
         let s_bytes = CStr::from_ptr(str_ptr).to_bytes();
         let suffix = b" (y/n)?\0";
@@ -248,9 +248,9 @@ pub unsafe fn ask_yesno(str_ptr: *const c_char) -> c_int {
             }
         }
 
-        need_wait_return = msg_scrolled != 0;
-        no_wait_return -= 1;
-        State = save_state;
+        g_st().need_wait_return = g_st().msg_scrolled != 0;
+        g_st().no_wait_return -= 1;
+        g_st().State = save_state;
         setmouse();
         r
     }
@@ -265,7 +265,7 @@ pub unsafe fn prompt_for_input(
 ) -> c_int {
     unsafe {
         let mut ret = if one_key { ESC } else { 0 };
-        let kmsg = (&raw const keep_msg).as_ref().unwrap().clone();
+        let kmsg = (&raw const g_st().keep_msg).as_ref().unwrap().clone();
 
         let prompt_ptr: *const c_char = if prompt.is_null() {
             if !mouse_used.is_null() && ui_mouse_has(K_MOUSE_COMMAND) {
@@ -277,12 +277,12 @@ pub unsafe fn prompt_for_input(
             prompt
         };
 
-        cmdline_row = msg_row;
+        g_st().cmdline_row = g_st().msg_row;
         ui_call_busy_stop();
         ui_flush();
 
-        no_mapping += 1;
-        allow_keys += 1;
+        g_st().no_mapping += 1;
+        g_st().allow_keys += 1;
         let resp = getcmdline_prompt(
             -1,
             prompt_ptr,
@@ -293,8 +293,8 @@ pub unsafe fn prompt_for_input(
             one_key,
             mouse_used,
         );
-        allow_keys -= 1;
-        no_mapping -= 1;
+        g_st().allow_keys -= 1;
+        g_st().no_mapping -= 1;
 
         if let Some(ref resp_cstr) = resp {
             if one_key {
@@ -324,7 +324,7 @@ pub unsafe fn prompt_for_input(
         }
 
         if let Some(ref kmsg_cstr) = kmsg {
-            set_keep_msg(kmsg_cstr.as_ptr(), keep_msg_hl_id);
+            set_keep_msg(kmsg_cstr.as_ptr(), g_st().keep_msg_hl_id);
         }
 
         ret
@@ -342,14 +342,14 @@ pub unsafe fn do_dialog(
     ex_cmd: c_int,
 ) -> c_int {
     unsafe {
-        if silent_mode {
+        if g_st().silent_mode {
             return dfltbutton;
         }
 
-        let save_msg_silent = msg_silent;
-        let old_state = State;
-        msg_silent = 0;
-        no_wait_return += 1;
+        let save_msg_silent = g_st().msg_silent;
+        let old_state = g_st().State;
+        g_st().msg_silent = 0;
+        g_st().no_wait_return += 1;
 
         let hotkeys_vec = msg_show_console_dialog(message, buttons, dfltbutton);
         let hotkeys = hotkeys_vec.as_ptr();
@@ -378,8 +378,8 @@ pub unsafe fn do_dialog(
                 }
                 _ => {
                     if c < 0 {
-                        msg_didout = false;
-                        msg_didany = false;
+                        g_st().msg_didout = false;
+                        g_st().msg_didany = false;
                         continue;
                     }
                     if c == (b':' as c_int) && ex_cmd != 0 {
@@ -402,8 +402,8 @@ pub unsafe fn do_dialog(
                         retval = candidate;
                         break;
                     }
-                    msg_didout = false;
-                    msg_didany = false;
+                    g_st().msg_didout = false;
+                    g_st().msg_didany = false;
                 }
             }
         }
@@ -411,10 +411,10 @@ pub unsafe fn do_dialog(
         drop(hotkeys_vec);
         dlg_st().confirm_msg = None;
 
-        msg_silent = save_msg_silent;
-        State = old_state;
+        g_st().msg_silent = save_msg_silent;
+        g_st().State = old_state;
         setmouse();
-        no_wait_return -= 1;
+        g_st().no_wait_return -= 1;
         msg_end_prompt();
 
         retval
@@ -518,7 +518,7 @@ mod tests {
     #[test]
     fn vim_dialog_yesno_uses_default_in_test_mode() {
         unsafe {
-            silent_mode = true;
+            g_st().silent_mode = true;
             assert_eq!(
                 vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?".as_ptr().cast_mut(), 1),
                 VIM_YES

@@ -495,12 +495,12 @@ pub unsafe fn loop_queues(loop_: *mut Loop) -> *mut Loop {
 
 #[inline]
 pub unsafe fn main_loop_ptr() -> *mut Loop {
-    &raw mut crate::globals::main_loop
+    unsafe { &raw mut crate::globals::g_st().main_loop }
 }
 
 #[inline]
 pub unsafe fn main_loop_events() -> *mut MultiQueue {
-    unsafe { crate::globals::main_loop.events }
+    unsafe { crate::globals::g_st().main_loop.events }
 }
 
 #[inline]

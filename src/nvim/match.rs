@@ -468,9 +468,9 @@ unsafe fn next_search_hl(
     unsafe {
         let mut matchcol: colnr_T;
         let mut nmatched: c_int = 0;
-        let called_emsg_before = called_emsg;
+        let called_emsg_before = g_st().called_emsg;
 
-        if (lnum < Search.first_line || lnum > Search.last_line) && cur.is_null() {
+        if (lnum < g_st().Search.first_line || lnum > g_st().Search.last_line) && cur.is_null() {
             (*shl).lnum = 0;
             return;
         }
@@ -526,14 +526,14 @@ unsafe fn next_search_hl(
                 if regprog_is_copy {
                     (*cur).mit_match.regprog = (*cur).mit_hl.rm.regprog;
                 }
-                if called_emsg > called_emsg_before || got_int || timed_out != 0 {
+                if g_st().called_emsg > called_emsg_before || g_st().got_int || timed_out != 0 {
                     if shl == search_hl {
                         vim_regfree((*shl).rm.regprog);
                         set_no_hlsearch(true);
                     }
                     (*shl).rm.regprog = ptr::null_mut();
                     (*shl).lnum = 0;
-                    got_int = false;
+                    g_st().got_int = false;
                     break;
                 }
             } else if !cur.is_null() {
@@ -776,7 +776,7 @@ pub unsafe fn update_search_hl(
                     if shl == search_hl && (*shl).has_cursor {
                         (*shl).attr_cur = win_hl_attr(wp, HLF_LC as c_int);
                         if (*shl).attr_cur != (*shl).attr {
-                            search_hl_has_cursor_lnum = lnum;
+                            g_st().search_hl_has_cursor_lnum = lnum;
                         }
                     } else {
                         (*shl).attr_cur = (*shl).attr;
@@ -1155,7 +1155,7 @@ pub unsafe fn f_matchadd(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         let mut id: c_int = -1;
         let mut error = false;
         let mut conceal_char: *const c_char = ptr::null();
-        let mut win = curwin;
+        let mut win = *curwin.as_ptr();
 
         (*rettv).vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -1217,7 +1217,7 @@ pub unsafe fn f_matchaddpos(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         let mut prio: c_int = 10;
         let mut id: c_int = -1;
         let mut conceal_char: *const c_char = ptr::null();
-        let mut win = curwin;
+        let mut win = *curwin.as_ptr();
 
         if (*argvars.add(2)).v_type != VarType::VAR_UNKNOWN {
             prio = tv_get_number_chk(argvars.add(2), &raw mut error) as c_int;
@@ -1255,7 +1255,7 @@ pub unsafe fn f_matcharg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         tv_list_alloc_ret(rettv, if (1..=3).contains(&id) { 2 } else { 0 });
 
         if (1..=3).contains(&id) {
-            let m = get_match(curwin, id);
+            let m = get_match(*curwin.as_ptr(), id);
             if !m.is_null() {
                 tv_list_append_string((*rettv).vval.v_list(), syn_id2name((*m).mit_hlg_id), -1);
                 tv_list_append_string(
@@ -1299,7 +1299,7 @@ pub unsafe fn ex_match(eap: *mut exarg_T) {
         };
 
         if (*eap).skip == 0 {
-            match_delete(curwin, id, false);
+            match_delete(*curwin.as_ptr(), id, false);
         }
 
         let arg = (*eap).arg;
@@ -1342,7 +1342,7 @@ pub unsafe fn ex_match(eap: *mut exarg_T) {
                     let c = *end;
                     *end = NUL;
                     match_add(
-                        curwin,
+                        *curwin.as_ptr(),
                         g.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                         p.add(1),
                         10,

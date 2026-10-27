@@ -323,7 +323,7 @@ unsafe fn extmark_setraw(buf: *mut buf_T, mark: u64, row: c_int, col: colnr_T, r
             buf_signcols_count_range(
                 buf,
                 row1,
-                ((*curbuf).b_ml.ml_line_count - 1).min(row2),
+                ((*g_st().curbuf).b_ml.ml_line_count - 1).min(row2),
                 0,
                 kTrue,
             );
@@ -347,7 +347,7 @@ unsafe fn extmark_setraw(buf: *mut buf_T, mark: u64, row: c_int, col: colnr_T, r
             buf_signcols_count_range(
                 buf,
                 row1,
-                ((*curbuf).b_ml.ml_line_count - 1).min(row2),
+                ((*g_st().curbuf).b_ml.ml_line_count - 1).min(row2),
                 0,
                 kNone,
             );
@@ -728,7 +728,7 @@ pub unsafe fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
             ExtmarkUndoObject::Splice(splice) => {
                 if undo {
                     extmark_splice_impl(
-                        curbuf,
+                        g_st().curbuf,
                         splice.start_row,
                         splice.start_col,
                         splice.start_byte,
@@ -742,7 +742,7 @@ pub unsafe fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
                     );
                 } else {
                     extmark_splice_impl(
-                        curbuf,
+                        g_st().curbuf,
                         splice.start_row,
                         splice.start_col,
                         splice.start_byte,
@@ -759,20 +759,20 @@ pub unsafe fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
             ExtmarkUndoObject::SavePos(pos) => {
                 if undo && pos.undo_row >= 0 {
                     extmark_setraw(
-                        curbuf,
+                        g_st().curbuf,
                         pos.mark,
                         pos.undo_row,
                         pos.undo_col,
                         pos.invalidated,
                     );
                 } else if !undo && pos.redo_row >= 0 {
-                    extmark_setraw(curbuf, pos.mark, pos.redo_row, pos.redo_col, true);
+                    extmark_setraw(g_st().curbuf, pos.mark, pos.redo_row, pos.redo_col, true);
                 }
             }
             ExtmarkUndoObject::Move(move_) => {
                 if undo {
                     extmark_move_region(
-                        curbuf,
+                        g_st().curbuf,
                         move_.new_row,
                         move_.new_col,
                         move_.new_byte,
@@ -786,7 +786,7 @@ pub unsafe fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
                     );
                 } else {
                     extmark_move_region(
-                        curbuf,
+                        g_st().curbuf,
                         move_.start_row,
                         move_.start_col,
                         move_.start_byte,
@@ -814,7 +814,7 @@ pub unsafe fn extmark_adjust(
     undo: ExtmarkOp,
 ) {
     unsafe {
-        if curbuf_splice_pending != 0 {
+        if g_st().curbuf_splice_pending != 0 {
             return;
         }
         let start_byte = ml_find_line_or_offset(buf, line1, ptr::null_mut(), true) as bcount_t;

@@ -364,7 +364,7 @@ pub unsafe extern "C" fn nvim_parse_cmd(
             let u = &raw mut (*ucmds_mut());
             Some(&(&*u)[ea.useridx as usize])
         } else if ea.cmdidx == CMD_USER_BUF {
-            Some(&(&(*curbuf).b_ucmds)[ea.useridx as usize])
+            Some(&(&(*g_st().curbuf).b_ucmds)[ea.useridx as usize])
         } else {
             None
         };
@@ -1203,20 +1203,20 @@ pub unsafe extern "C" fn nvim_cmd(
             }
 
             let mut capture_local: Vec<c_char> = Vec::new();
-            let save_msg_silent = msg_silent;
-            let save_redir_off = redir_off;
-            let save_capture_ga = capture_ga;
-            let save_msg_col = msg_col;
+            let save_msg_silent = g_st().msg_silent;
+            let save_redir_off = g_st().redir_off;
+            let save_capture_ga = g_st().capture_ga;
+            let save_msg_col = g_st().msg_col;
 
             if (*opts).output {
-                capture_ga = &raw mut capture_local;
+                g_st().capture_ga = &raw mut capture_local;
             }
 
             try_wrap(err, || {
                 if (*opts).output {
-                    msg_silent += 1;
-                    redir_off = false;
-                    msg_col = 0;
+                    g_st().msg_silent += 1;
+                    g_st().redir_off = false;
+                    g_st().msg_col = 0;
                 }
 
                 with_script_context(channel_id, || {
@@ -1224,10 +1224,10 @@ pub unsafe extern "C" fn nvim_cmd(
                 });
 
                 if (*opts).output {
-                    capture_ga = save_capture_ga;
-                    msg_silent = save_msg_silent;
-                    redir_off = save_redir_off;
-                    msg_col = save_msg_col;
+                    g_st().capture_ga = save_capture_ga;
+                    g_st().msg_silent = save_msg_silent;
+                    g_st().redir_off = save_redir_off;
+                    g_st().msg_col = save_msg_col;
                 }
             });
 
@@ -1394,10 +1394,10 @@ pub unsafe extern "C" fn nvim_buf_create_user_command(
             return;
         }
 
-        let save_curbuf = curbuf;
-        curbuf = target_buf;
+        let save_curbuf = g_st().curbuf;
+        g_st().curbuf = target_buf;
         create_user_command(channel_id, name, cmd, opts, UC_BUFFER, err);
-        curbuf = save_curbuf;
+        g_st().curbuf = save_curbuf;
     }
 }
 

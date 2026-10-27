@@ -233,13 +233,13 @@ macro_rules! smsg {
         let fmt_ptr: *const std::ffi::c_char = $fmt;
         {
             $crate::strings::vim_snprintf!(
-                (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                (&raw mut $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
                 1025,
                 fmt_ptr
                 $(, $arg)*
             );
             $crate::message::msg(
-                (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                (&raw const $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
                 hl,
             )
         }
@@ -254,13 +254,13 @@ macro_rules! smsg_keep {
         let fmt_ptr: *const std::ffi::c_char = $fmt;
         {
             $crate::strings::vim_snprintf!(
-                (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                (&raw mut $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
                 1025,
                 fmt_ptr
                 $(, $arg)*
             );
             $crate::message::msg_keep(
-                (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                (&raw const $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
                 hl,
                 true,
                 false,
@@ -335,13 +335,13 @@ macro_rules! msg_schedule_semsg {
         let fmt_ptr: *const std::ffi::c_char = $fmt;
         {
             $crate::strings::vim_snprintf!(
-                (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                (&raw mut $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
                 1025,
                 fmt_ptr
                 $(, $arg)*
             );
             $crate::message::msg_schedule_semsg_cstr(
-                (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                (&raw const $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
             );
         }
     }};
@@ -354,13 +354,13 @@ macro_rules! msg_schedule_semsg_multiline {
         let fmt_ptr: *const std::ffi::c_char = $fmt;
         {
             $crate::strings::vim_snprintf!(
-                (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                (&raw mut $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
                 1025,
                 fmt_ptr
                 $(, $arg)*
             );
             $crate::message::msg_schedule_semsg_multiline_cstr(
-                (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                (&raw const $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
             );
         }
     }};
@@ -374,13 +374,13 @@ macro_rules! swmsg {
         let fmt_ptr: *const std::ffi::c_char = $fmt;
         {
             $crate::strings::vim_snprintf!(
-                (&raw mut $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                (&raw mut $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
                 1025,
                 fmt_ptr
                 $(, $arg)*
             );
             $crate::message::give_warning(
-                (&raw const $crate::globals::IObuff).cast::<std::ffi::c_char>(),
+                (&raw const $crate::globals::g_st().IObuff).cast::<std::ffi::c_char>(),
                 hl_val,
                 true,
             );
@@ -418,106 +418,106 @@ pub unsafe fn msg_id_exists(id: i64) -> bool {
 unsafe fn ui_ext_msg_set_pos(row: c_int, scrolled: bool) {
     unsafe {
         let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
-        let size = schar_get(buf.as_mut_ptr(), (*curwin).w_p_fcs_chars.msgsep);
+        let size = schar_get(buf.as_mut_ptr(), (**curwin.as_ptr()).w_p_fcs_chars.msgsep);
         ui_call_msg_set_pos(
-            msg_grid.handle as Integer,
+            g_st().msg_grid.handle as Integer,
             row as Integer,
             scrolled,
             NvimString {
                 data: buf.as_mut_ptr(),
                 size,
             },
-            msg_grid.zindex as Integer,
-            msg_grid.comp_index as Integer,
+            g_st().msg_grid.zindex as Integer,
+            g_st().msg_grid.comp_index as Integer,
         );
-        msg_grid.pending_comp_index_update = false;
+        g_st().msg_grid.pending_comp_index_update = false;
     }
 }
 
 pub unsafe fn msg_grid_set_pos(row: c_int, scrolled: bool) {
     unsafe {
-        if !msg_grid.throttled {
+        if !g_st().msg_grid.throttled {
             ui_ext_msg_set_pos(row, scrolled);
             msg_st().msg_grid_pos_at_flush = row;
         }
-        msg_grid_pos = row;
-        if crate::grid::grid_allocated(&raw const msg_grid) {
-            msg_grid_adj.row_offset = -row;
+        g_st().msg_grid_pos = row;
+        if crate::grid::grid_allocated(&raw const g_st().msg_grid) {
+            g_st().msg_grid_adj.row_offset = -row;
         }
     }
 }
 
 pub unsafe fn msg_use_grid() -> bool {
-    unsafe { crate::grid::grid_allocated(&raw const default_grid) && !ui_has(kUIMessages) }
+    unsafe { crate::grid::grid_allocated(&raw const g_st().default_grid) && !ui_has(kUIMessages) }
 }
 
 pub unsafe fn msg_grid_validate() {
     unsafe {
-        grid_assign_handle(&raw mut msg_grid);
+        grid_assign_handle(&raw mut g_st().msg_grid);
         let should_alloc = msg_use_grid();
-        let max_rows = Rows - opt_vars().p_ch as c_int;
-        let msg_grid_empty = !crate::grid::grid_allocated(&raw const msg_grid);
-        if should_alloc && (msg_grid.rows != Rows || msg_grid.cols != Columns || msg_grid_empty) {
-            grid_alloc(&raw mut msg_grid, Rows, Columns, false, true);
-            msg_grid.zindex = kZIndexMessages;
+        let max_rows = g_st().Rows - opt_vars().p_ch as c_int;
+        let msg_grid_empty = !crate::grid::grid_allocated(&raw const g_st().msg_grid);
+        if should_alloc && (g_st().msg_grid.rows != g_st().Rows || g_st().msg_grid.cols != g_st().Columns || msg_grid_empty) {
+            grid_alloc(&raw mut g_st().msg_grid, g_st().Rows, g_st().Columns, false, true);
+            g_st().msg_grid.zindex = kZIndexMessages;
 
-            msg_grid.dirty_col = vec![0; Rows as usize];
+            g_st().msg_grid.dirty_col = vec![0; g_st().Rows as usize];
 
             // Tricky: allow resize while pager or ex mode is active
-            let pos = if (State & MODE_ASKMORE) != 0 {
+            let pos = if (g_st().State & MODE_ASKMORE) != 0 {
                 0
             } else {
-                (max_rows - msg_scrolled).max(0)
+                (max_rows - g_st().msg_scrolled).max(0)
             };
-            msg_grid.throttled = false; // don't throttle in 'cmdheight' area
-            msg_grid_set_pos(pos, msg_scrolled != 0);
+            g_st().msg_grid.throttled = false; // don't throttle in 'cmdheight' area
+            msg_grid_set_pos(pos, g_st().msg_scrolled != 0);
             ui_comp_put_grid(
-                &raw mut msg_grid,
+                &raw mut g_st().msg_grid,
                 pos,
                 0,
-                msg_grid.rows,
-                msg_grid.cols,
+                g_st().msg_grid.rows,
+                g_st().msg_grid.cols,
                 false,
                 true,
             );
             ui_call_grid_resize(
-                msg_grid.handle as Integer,
-                msg_grid.cols as Integer,
-                msg_grid.rows as Integer,
+                g_st().msg_grid.handle as Integer,
+                g_st().msg_grid.cols as Integer,
+                g_st().msg_grid.rows as Integer,
             );
 
-            msg_scrolled_at_flush = msg_scrolled;
-            msg_grid.mouse_enabled = false;
-            msg_grid_adj.target = &raw mut msg_grid;
+            g_st().msg_scrolled_at_flush = g_st().msg_scrolled;
+            g_st().msg_grid.mouse_enabled = false;
+            g_st().msg_grid_adj.target = &raw mut g_st().msg_grid;
         } else if !should_alloc && !msg_grid_empty {
-            ui_comp_remove_grid(&raw mut msg_grid);
-            grid_free(&raw mut msg_grid);
-            msg_grid.dirty_col = Vec::new();
-            ui_call_grid_destroy(msg_grid.handle as Integer);
-            msg_grid.throttled = false;
-            msg_grid_adj.row_offset = 0;
-            msg_grid_adj.target = &raw mut default_grid;
-            redraw_cmdline = true;
-        } else if !msg_grid_empty && msg_scrolled == 0 && msg_grid_pos != max_rows {
-            let diff = msg_grid_pos - max_rows;
+            ui_comp_remove_grid(&raw mut g_st().msg_grid);
+            grid_free(&raw mut g_st().msg_grid);
+            g_st().msg_grid.dirty_col = Vec::new();
+            ui_call_grid_destroy(g_st().msg_grid.handle as Integer);
+            g_st().msg_grid.throttled = false;
+            g_st().msg_grid_adj.row_offset = 0;
+            g_st().msg_grid_adj.target = &raw mut g_st().default_grid;
+            g_st().redraw_cmdline = true;
+        } else if !msg_grid_empty && g_st().msg_scrolled == 0 && g_st().msg_grid_pos != max_rows {
+            let diff = g_st().msg_grid_pos - max_rows;
             msg_grid_set_pos(max_rows, false);
             if diff > 0 {
                 grid_clear(
-                    &raw mut msg_grid_adj,
-                    Rows - diff,
-                    Rows,
+                    &raw mut g_st().msg_grid_adj,
+                    g_st().Rows - diff,
+                    g_st().Rows,
                     0,
-                    Columns,
+                    g_st().Columns,
                     hl_attr(HLF_MSG),
                 );
             }
         }
 
-        if crate::grid::grid_allocated(&raw const msg_grid)
-            && msg_scrolled == 0
-            && cmdline_row < msg_grid_pos
+        if crate::grid::grid_allocated(&raw const g_st().msg_grid)
+            && g_st().msg_scrolled == 0
+            && g_st().cmdline_row < g_st().msg_grid_pos
         {
-            cmdline_row = msg_grid_pos;
+            g_st().cmdline_row = g_st().msg_grid_pos;
         }
     }
 }
@@ -552,7 +552,7 @@ pub unsafe fn msg_multiline(
         let mut s = str_.data.cast_const();
         let mut chunk = s;
         while (s.offset_from(str_.data) as usize) < str_.size {
-            if check_int && got_int {
+            if check_int && g_st().got_int {
                 return;
             }
             if *s == NL as c_char
@@ -692,7 +692,7 @@ pub unsafe fn msg_multihl(
 
         let active_msg: &HlMessage = if hl_msg_updated { &updated_msg } else { hl_msg };
 
-        no_wait_return += 1;
+        g_st().no_wait_return += 1;
         msg_start();
         msg_clr_eos();
         let mut need_clear = false;
@@ -710,7 +710,7 @@ pub unsafe fn msg_multihl(
             );
         }
 
-        msg_ext_skip_flush = true;
+        g_st().msg_ext_skip_flush = true;
         msg_st().msg_ext_id = id;
 
         for chunk in active_msg {
@@ -732,9 +732,9 @@ pub unsafe fn msg_multihl(
             }
         }
 
-        msg_ext_skip_flush = false;
+        g_st().msg_ext_skip_flush = false;
         msg_st().is_multihl = 0;
-        no_wait_return -= 1;
+        g_st().no_wait_return -= 1;
         msg_end();
 
         // Release the id: it belongs to this message, and a String id only borrows the caller's storage
@@ -756,7 +756,7 @@ pub unsafe fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline
 
         // Skip messages not match ":filter pattern".
         // Don't filter when there is an error.
-        if !emsg_on_display && message_filtered(s) {
+        if !g_st().emsg_on_display && message_filtered(s) {
             return true;
         }
 
@@ -774,7 +774,7 @@ pub unsafe fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline
 
         // Add message to history unless it's a multihl, repeated kept or truncated message.
         let hist = &raw const msg_st().msg_hist;
-        let keep_msg_ptr = (&raw const keep_msg)
+        let keep_msg_ptr = (&raw const g_st().keep_msg)
             .as_ref()
             .unwrap()
             .as_ref()
@@ -812,11 +812,11 @@ pub unsafe fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline
             retval = msg_end();
         }
 
-        if keep && retval && vim_strsize(s) < (Rows - cmdline_row - 1) * Columns + sc_col {
+        if keep && retval && vim_strsize(s) < (g_st().Rows - g_st().cmdline_row - 1) * g_st().Columns + g_st().sc_col {
             set_keep_msg(s, 0);
         }
 
-        need_fileinfo = false;
+        g_st().need_fileinfo = false;
 
         drop(buf);
         msg_st().MSG_KEEP_ENTERED -= 1;
@@ -830,25 +830,25 @@ pub unsafe fn msg_keep(mut s: *const c_char, hl_id: c_int, keep: bool, multiline
 pub unsafe fn msg_strtrunc(s: *const c_char, force: c_int) -> Option<std::ffi::CString> {
     unsafe {
         // May truncate message to avoid a hit-return prompt
-        if (msg_scroll == 0
-            && !need_wait_return
+        if (g_st().msg_scroll == 0
+            && !g_st().need_wait_return
             && shortmess(kShmTruncall)
-            && msg_silent == 0
+            && g_st().msg_silent == 0
             && !ui_has(kUIMessages))
             || force != 0
         {
             let len = vim_strsize(s);
-            let room = if msg_scrolled != 0 {
+            let room = if g_st().msg_scrolled != 0 {
                 // Use all the columns.
-                (Rows - msg_row) * Columns - 1
+                (g_st().Rows - g_st().msg_row) * g_st().Columns - 1
             } else {
                 // Use up to 'showcmd' column.
                 let last_row = if ui_has(kUIMessages) {
-                    Columns
+                    g_st().Columns
                 } else {
-                    sc_col - 1
+                    g_st().sc_col - 1
                 };
-                (Rows - msg_row - 1) * Columns + last_row
+                (g_st().Rows - g_st().msg_row - 1) * g_st().Columns + last_row
             };
             if len > room && room > 0 {
                 // may have up to 18 bytes per cell (6 per char, up to two
@@ -1024,9 +1024,9 @@ pub unsafe fn msg_source(hl_id: c_int) {
         }
         msg_st().MSG_SOURCE_RECURSIVE = true;
 
-        no_wait_return += 1;
+        g_st().no_wait_return += 1;
         if let Some(p) = get_emsg_source() {
-            msg_scroll = 1;
+            g_st().msg_scroll = 1;
             msg(p.as_ptr(), hl_id);
         }
         if let Some(p) = get_emsg_lnum() {
@@ -1044,7 +1044,7 @@ pub unsafe fn msg_source(hl_id: c_int) {
                 }
             }
         }
-        no_wait_return -= 1;
+        g_st().no_wait_return -= 1;
 
         msg_st().MSG_SOURCE_RECURSIVE = false;
     }
@@ -1056,10 +1056,10 @@ pub unsafe fn msg_source(hl_id: c_int) {
 ///            If "emsg_skip" is set: never do error messages.
 pub unsafe fn emsg_not_now() -> bool {
     unsafe {
-        (emsg_off > 0
+        (g_st().emsg_off > 0
             && vim_strchr(opt_vars().p_debug, b'm' as c_int).is_null()
             && vim_strchr(opt_vars().p_debug, b't' as c_int).is_null())
-            || emsg_skip > 0
+            || g_st().emsg_skip > 0
     }
 }
 
@@ -1077,31 +1077,31 @@ pub unsafe fn emsg_multiline(
             return true;
         }
 
-        called_emsg += 1;
+        g_st().called_emsg += 1;
 
         // If "emsg_severe" is true: When an error exception is to be thrown,
         // prefer this message over previous messages for the same command.
-        let severe = emsg_severe;
-        emsg_severe = false;
+        let severe = g_st().emsg_severe;
+        g_st().emsg_severe = false;
 
-        if emsg_off == 0 || !vim_strchr(opt_vars().p_debug, b't' as c_int).is_null() {
+        if g_st().emsg_off == 0 || !vim_strchr(opt_vars().p_debug, b't' as c_int).is_null() {
             if cause_errthrow(s, multiline, msg_st().is_multihl > 1, severe, &raw mut ignore) {
                 if !ignore {
-                    did_emsg += 1;
+                    g_st().did_emsg += 1;
                 }
                 return true;
             }
 
-            if in_assert_fails
-                && (&raw const emsg_assert_fails_msg)
+            if g_st().in_assert_fails
+                && (&raw const g_st().emsg_assert_fails_msg)
                     .as_ref()
                     .unwrap()
                     .is_none()
             {
-                emsg_assert_fails_msg = Some(CStr::from_ptr(s).to_owned());
-                emsg_assert_fails_lnum = sourcing_lnum() as c_long;
+                g_st().emsg_assert_fails_msg = Some(CStr::from_ptr(s).to_owned());
+                g_st().emsg_assert_fails_lnum = sourcing_lnum() as c_long;
                 let sname = sourcing_name();
-                emsg_assert_fails_context = Some(if sname.is_null() {
+                g_st().emsg_assert_fails_context = Some(if sname.is_null() {
                     std::ffi::CString::default()
                 } else {
                     CStr::from_ptr(sname).to_owned()
@@ -1116,8 +1116,8 @@ pub unsafe fn emsg_multiline(
 
             // When using ":silent! cmd" ignore error messages.
             // But do write it to the redirection file.
-            if emsg_silent != 0 {
-                if !emsg_noredir {
+            if g_st().emsg_silent != 0 {
+                if !g_st().emsg_noredir {
                     msg_start();
                     if let Some(p) = get_emsg_source() {
                         let p_len = p.as_bytes().len();
@@ -1185,15 +1185,15 @@ pub unsafe fn emsg_multiline(
                 );
             }
 
-            ex_exitval = 1;
+            g_st().ex_exitval = 1;
 
             // Reset msg_silent, an error causes messages to be switched back on.
-            msg_silent = 0;
-            cmd_silent = false;
+            g_st().msg_silent = 0;
+            g_st().cmd_silent = false;
 
-            if global_busy != 0 {
+            if g_st().global_busy != 0 {
                 // break :global command
-                global_busy += 1;
+                g_st().global_busy += 1;
             }
 
             if opt_vars().p_eb != 0 {
@@ -1201,25 +1201,25 @@ pub unsafe fn emsg_multiline(
             } else {
                 flush_buffers(FLUSH_MINIMAL); // flush internal buffers
             }
-            did_emsg += 1; // flag for DoOneCmd()
+            g_st().did_emsg += 1; // flag for DoOneCmd()
         }
 
-        emsg_on_display = true; // remember there is an error message
-        if msg_scrolled != 0 {
-            need_wait_return = true;
+        g_st().emsg_on_display = true; // remember there is an error message
+        if g_st().msg_scrolled != 0 {
+            g_st().need_wait_return = true;
         }
         msg_ext_set_kind(kind);
 
         // Display name and line number for the source of the error.
-        msg_scroll = 1;
-        let save_msg_skip_flush = msg_ext_skip_flush;
-        msg_ext_skip_flush = true;
+        g_st().msg_scroll = 1;
+        let save_msg_skip_flush = g_st().msg_ext_skip_flush;
+        g_st().msg_ext_skip_flush = true;
         msg_source(hl_id);
 
         // Display the error message itself.
-        msg_nowait = false; // Wait for this msg.
+        g_st().msg_nowait = false; // Wait for this msg.
         let rv = msg_keep(s, hl_id, false, multiline);
-        msg_ext_skip_flush = save_msg_skip_flush;
+        g_st().msg_ext_skip_flush = save_msg_skip_flush;
         rv
     }
 }
@@ -1266,7 +1266,7 @@ pub unsafe fn msg_semsg_event(s: std::ffi::CString) {
 pub unsafe fn msg_schedule_semsg_cstr(s: *const c_char) {
     unsafe {
         let dup = CStr::from_ptr(s).to_owned();
-        loop_schedule_deferred((&raw mut main_loop).cast(), Event::MsgSemsg(dup));
+        loop_schedule_deferred((&raw mut g_st().main_loop).cast(), Event::MsgSemsg(dup));
     }
 }
 
@@ -1279,7 +1279,7 @@ pub unsafe fn msg_semsg_multiline_event(s: std::ffi::CString) {
 pub unsafe fn msg_schedule_semsg_multiline_cstr(s: *const c_char) {
     unsafe {
         let dup = CStr::from_ptr(s).to_owned();
-        loop_schedule_deferred((&raw mut main_loop).cast(), Event::MsgSemsgMultiline(dup));
+        loop_schedule_deferred((&raw mut g_st().main_loop).cast(), Event::MsgSemsgMultiline(dup));
     }
 }
 
@@ -1295,9 +1295,9 @@ pub unsafe fn msg_trunc(s: *mut c_char, force: bool, hl_id: c_int) -> *mut c_cha
 
         let ts = msg_may_trunc(force, s);
 
-        msg_hist_off = true;
+        g_st().msg_hist_off = true;
         let n = msg(ts, hl_id);
-        msg_hist_off = false;
+        g_st().msg_hist_off = false;
 
         if n { ts } else { ptr::null_mut() }
     }
@@ -1314,7 +1314,7 @@ pub unsafe fn msg_may_trunc(force: bool, mut s: *mut c_char) -> *mut c_char {
             return s;
         }
 
-        let room = (Rows - cmdline_row - 1) * Columns + sc_col - 1;
+        let room = (g_st().Rows - g_st().cmdline_row - 1) * g_st().Columns + g_st().sc_col - 1;
         if room > 0
             && (force || shortmess(kShmTrunc))
             && (CStr::from_ptr(s).to_bytes().len() as c_int) - room > 0
@@ -1555,7 +1555,7 @@ pub unsafe fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, msg_data: *mut
             true,
             AUGROUP_ALL,
             ptr::null_mut(),
-            curwin,
+            *curwin.as_ptr(),
             ptr::null_mut(),
             &raw mut dict_obj,
             false,
@@ -1570,7 +1570,7 @@ unsafe fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
             msg_st().do_clear_hist_temp = false;
         }
 
-        if msg_hist_off || msg_silent != 0 {
+        if g_st().msg_hist_off || g_st().msg_silent != 0 {
             return;
         }
 
@@ -1710,7 +1710,7 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
             if ((*p).temp && (*eap).skip == 0) || prev_skip > 0 {
                 continue;
             }
-            if ui_has(kUIMessages) && msg_silent == 0 {
+            if ui_has(kUIMessages) && g_st().msg_silent == 0 {
                 let mut entry = Array::new();
                 entry.push(Object {
                     obj_type: ObjectType::kObjectTypeString,
@@ -1756,7 +1756,7 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
                 });
             }
             if redirecting() != 0 || !ui_has(kUIMessages) {
-                msg_silent += c_int::from(ui_has(kUIMessages));
+                g_st().msg_silent += c_int::from(ui_has(kUIMessages));
                 let mut needs_clear = false;
                 msg_multihl(
                     NIL_OBJ,
@@ -1768,7 +1768,7 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
                     &raw mut needs_clear,
                     false,
                 );
-                msg_silent -= c_int::from(ui_has(kUIMessages));
+                g_st().msg_silent -= c_int::from(ui_has(kUIMessages));
             }
         }
         if entries.size > 0 {
@@ -1782,12 +1782,12 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
 /// and a delay.
 pub unsafe fn msg_end_prompt() {
     unsafe {
-        need_wait_return = false;
-        emsg_on_display = false;
-        cmdline_row = msg_row;
-        msg_col = 0;
+        g_st().need_wait_return = false;
+        g_st().emsg_on_display = false;
+        g_st().cmdline_row = g_st().msg_row;
+        g_st().msg_col = 0;
         msg_clr_eos();
-        lines_left = -1;
+        g_st().lines_left = -1;
     }
 }
 
@@ -1817,70 +1817,70 @@ pub unsafe fn wait_return(redraw: c_int) {
 
         // If using ":silent cmd", don't wait for a return.  Also don't set
         // need_wait_return to do it later.
-        if msg_silent != 0 {
+        if g_st().msg_silent != 0 {
             return;
         }
 
-        if (headless_mode && ui_active() == 0) || input_unanswerable() {
+        if (g_st().headless_mode && ui_active() == 0) || input_unanswerable() {
             return;
         }
 
         // When inside vgetc(), we can't wait for a typed character at all.
-        if vgetc_busy > 0 {
+        if g_st().vgetc_busy > 0 {
             return;
         }
-        need_wait_return = true;
-        if no_wait_return != 0 {
-            cmdline_row = msg_row;
+        g_st().need_wait_return = true;
+        if g_st().no_wait_return != 0 {
+            g_st().cmdline_row = g_st().msg_row;
             return;
         }
 
-        redir_off = true; // don't redirect this message
-        let oldState = State;
-        if quit_more {
+        g_st().redir_off = true; // don't redirect this message
+        let oldState = g_st().State;
+        if g_st().quit_more {
             c = CAR; // just pretend CR was hit
-            quit_more = false;
-            got_int = false;
+            g_st().quit_more = false;
+            g_st().got_int = false;
         } else if !stuff_empty() {
             c = CAR;
         } else {
-            State = MODE_HITRETURN;
+            g_st().State = MODE_HITRETURN;
             setmouse();
-            cmdline_row = msg_row;
-            if need_check_timestamps {
+            g_st().cmdline_row = g_st().msg_row;
+            if g_st().need_check_timestamps {
                 check_timestamps(0);
             }
 
             // if cmdheight=0, we need to scroll in the first line of msg_grid upon the screen
-            if opt_vars().p_ch == 0 && !ui_has(kUIMessages) && msg_scrolled == 0 {
+            if opt_vars().p_ch == 0 && !ui_has(kUIMessages) && g_st().msg_scrolled == 0 {
                 msg_grid_validate();
                 msg_scroll_up(false, true);
-                msg_scrolled += 1;
-                cmdline_row = Rows - 1;
+                g_st().msg_scrolled += 1;
+                g_st().cmdline_row = g_st().Rows - 1;
             }
 
             if msg_st().msg_hit_enter {
                 hit_return_msg(true);
 
                 loop {
-                    had_got_int = got_int;
+                    had_got_int = g_st().got_int;
 
-                    no_mapping += 1;
-                    allow_keys += 1;
+                    g_st().no_mapping += 1;
+                    g_st().allow_keys += 1;
 
-                    let save_reg_recording = reg_recording;
-                    let save_scriptout = (&raw mut scriptout).as_mut().unwrap().take();
-                    reg_recording = 0;
+                    let save_reg_recording = g_st().reg_recording;
+                    let save_scriptout = (&raw mut g_st().scriptout).as_mut().unwrap().take();
+                    g_st().reg_recording = 0;
                     c = safe_vgetc();
-                    if had_got_int && global_busy == 0 {
-                        got_int = false;
+                    if had_got_int && g_st().global_busy == 0 {
+                        g_st().got_int = false;
                     }
-                    no_mapping -= 1;
-                    allow_keys -= 1;
-                    reg_recording = save_reg_recording;
-                    scriptout = save_scriptout;
+                    g_st().no_mapping -= 1;
+                    g_st().allow_keys -= 1;
+                    g_st().reg_recording = save_reg_recording;
+                    g_st().scriptout = save_scriptout;
 
-                    if KeyTyped && opt_vars().p_more != 0 {
+                    if g_st().KeyTyped && opt_vars().p_more != 0 {
                         if c == b'b' as c_int
                             || c == Ctrl_B
                             || c == b'k' as c_int
@@ -1889,22 +1889,22 @@ pub unsafe fn wait_return(redraw: c_int) {
                             || c == K_UP
                             || c == K_PAGEUP
                         {
-                            if msg_scrolled > Rows {
+                            if g_st().msg_scrolled > g_st().Rows {
                                 do_more_prompt(c);
                             } else {
-                                msg_didout = false;
+                                g_st().msg_didout = false;
                                 c = K_IGNORE;
-                                msg_col = 0;
+                                g_st().msg_col = 0;
                             }
-                            if quit_more {
+                            if g_st().quit_more {
                                 c = CAR;
-                                quit_more = false;
-                                got_int = false;
+                                g_st().quit_more = false;
+                                g_st().got_int = false;
                             } else if c != K_IGNORE {
                                 c = K_IGNORE;
                                 hit_return_msg(false);
                             }
-                        } else if msg_scrolled > Rows - 2
+                        } else if g_st().msg_scrolled > g_st().Rows - 2
                             && (c == b'j' as c_int
                                 || c == b'd' as c_int
                                 || c == b'f' as c_int
@@ -1943,46 +1943,46 @@ pub unsafe fn wait_return(redraw: c_int) {
                     || c == K_X2MOUSE
                 {
                     jump_to_mouse(MOUSE_SETPOS, ptr::null_mut(), 0);
-                } else if !KeyTyped
+                } else if !g_st().KeyTyped
                     || (vim_strchr(c"\r\n ".as_ptr(), c).is_null()
                         && c != Ctrl_C
                         && c != b'q' as c_int)
                 {
-                    requeue_key(vgetc_char, vgetc_mod_mask, 0, false);
-                    do_redraw = true;
+                    requeue_key(g_st().vgetc_char, g_st().vgetc_mod_mask, 0, false);
+                    g_st().do_redraw = true;
                 }
             } else {
                 c = CAR;
                 do_sleep(i64::from(msg_st().msg_wait), true);
             }
         }
-        redir_off = false;
+        g_st().redir_off = false;
 
         if c == b':' as c_int || c == b'?' as c_int || c == b'/' as c_int {
-            cmdline_row = msg_row;
-            skip_redraw = true;
-            do_redraw = false;
+            g_st().cmdline_row = g_st().msg_row;
+            g_st().skip_redraw = true;
+            g_st().do_redraw = false;
         }
 
-        let tmpState = State;
-        State = oldState;
+        let tmpState = g_st().State;
+        g_st().State = oldState;
         setmouse();
         msg_check();
-        need_wait_return = false;
-        did_wait_return = true;
-        emsg_on_display = false;
-        lines_left = -1;
+        g_st().need_wait_return = false;
+        g_st().did_wait_return = true;
+        g_st().emsg_on_display = false;
+        g_st().lines_left = -1;
         reset_last_sourcing();
-        if (&raw const keep_msg).as_ref().unwrap().as_ref().is_some_and(
-            |km| vim_strsize(km.as_ptr()) >= (Rows - cmdline_row - 1) * Columns + sc_col,
+        if (&raw const g_st().keep_msg).as_ref().unwrap().as_ref().is_some_and(
+            |km| vim_strsize(km.as_ptr()) >= (g_st().Rows - g_st().cmdline_row - 1) * g_st().Columns + g_st().sc_col,
         ) {
-            keep_msg = None;
+            g_st().keep_msg = None;
         }
 
         if tmpState == MODE_SETWSIZE {
             ui_refresh();
-        } else if !skip_redraw && (redraw == 1 || (msg_scrolled != 0 && redraw != -1)) {
-            redraw_later(curwin, UPD_VALID);
+        } else if !g_st().skip_redraw && (redraw == 1 || (g_st().msg_scrolled != 0 && redraw != -1)) {
+            redraw_later(*curwin.as_ptr(), UPD_VALID);
         }
     }
 }
@@ -1995,11 +1995,11 @@ unsafe fn hit_return_msg(newline_sb: bool) {
         if !newline_sb {
             opt_vars().p_more = 0;
         }
-        if msg_didout {
+        if g_st().msg_didout {
             msg_putchar(NL);
         }
         opt_vars().p_more = 0;
-        if got_int {
+        if g_st().got_int {
             msg_puts(gettext(c"Interrupt: ".as_ptr()));
         }
 
@@ -2022,35 +2022,35 @@ pub unsafe fn set_keep_msg(s: *const c_char, hl_id: c_int) {
             return;
         }
 
-        if !s.is_null() && msg_silent == 0 {
-            keep_msg = Some(CStr::from_ptr(s).to_owned());
+        if !s.is_null() && g_st().msg_silent == 0 {
+            g_st().keep_msg = Some(CStr::from_ptr(s).to_owned());
         } else {
-            keep_msg = None;
+            g_st().keep_msg = None;
         }
         msg_st().keep_msg_more = false;
-        keep_msg_hl_id = hl_id;
+        g_st().keep_msg_hl_id = hl_id;
     }
 }
 
 /// Return true if printing messages should currently be done.
 pub unsafe fn messaging() -> bool {
-    unsafe { !(opt_vars().p_lz != 0 && char_avail() && !KeyTyped) && (opt_vars().p_ch > 0 || ui_has(kUIMessages)) }
+    unsafe { !(opt_vars().p_lz != 0 && char_avail() && !g_st().KeyTyped) && (opt_vars().p_ch > 0 || ui_has(kUIMessages)) }
 }
 
 pub unsafe fn msgmore(n: c_int) {
     unsafe {
-        if global_busy != 0 || !messaging() {
+        if g_st().global_busy != 0 || !messaging() {
             return;
         }
 
-        if (&raw const keep_msg).as_ref().unwrap().is_some() && !msg_st().keep_msg_more {
+        if (&raw const g_st().keep_msg).as_ref().unwrap().is_some() && !msg_st().keep_msg_more {
             return;
         }
 
         let pn = n.abs();
 
         if i64::from(pn) > opt_vars().p_report {
-            let msg_ptr = (&raw mut msg_buf).cast::<c_char>();
+            let msg_ptr = (&raw mut g_st().msg_buf).cast::<c_char>();
             if n > 0 {
                 vim_snprintf!(
                     msg_ptr,
@@ -2074,7 +2074,7 @@ pub unsafe fn msgmore(n: c_int) {
                     pn,
                 );
             }
-            if got_int {
+            if g_st().got_int {
                 xstrlcat(msg_ptr, gettext(c" (Interrupted)".as_ptr()), MSG_BUF_LEN);
             }
             if msg(msg_ptr, 0) {
@@ -2115,7 +2115,7 @@ pub unsafe fn msg_ext_set_trigger(trigger: *const c_char) {
 pub unsafe fn msg_ext_no_fast() {
     unsafe {
         msg_ext_ui_flush();
-        msg_ext_fast = false;
+        g_st().msg_ext_fast = false;
     }
 }
 
@@ -2124,35 +2124,35 @@ pub unsafe fn msg_start() {
     unsafe {
         let mut did_return = false;
 
-        msg_row = msg_row.max(cmdline_row);
+        g_st().msg_row = g_st().msg_row.max(g_st().cmdline_row);
 
-        if msg_silent == 0 {
-            keep_msg = None;
-            need_fileinfo = false;
+        if g_st().msg_silent == 0 {
+            g_st().keep_msg = None;
+            g_st().need_fileinfo = false;
         }
 
-        if need_highlight_changed {
+        if g_st().need_highlight_changed {
             highlight_changed();
         }
 
-        if need_clr_eos || (opt_vars().p_ch == 0 && redrawing_cmdline) {
-            need_clr_eos = false;
+        if g_st().need_clr_eos || (opt_vars().p_ch == 0 && g_st().redrawing_cmdline) {
+            g_st().need_clr_eos = false;
             msg_clr_eos();
         }
 
         // if cmdheight=0, we need to scroll in the first line of msg_grid upon the screen
-        if opt_vars().p_ch == 0 && !ui_has(kUIMessages) && msg_scrolled == 0 {
+        if opt_vars().p_ch == 0 && !ui_has(kUIMessages) && g_st().msg_scrolled == 0 {
             msg_grid_validate();
             msg_scroll_up(false, true);
-            msg_scrolled += 1;
-            cmdline_row = Rows - 1;
+            g_st().msg_scrolled += 1;
+            g_st().cmdline_row = g_st().Rows - 1;
         }
 
-        if msg_scroll == 0 && full_screen {
-            msg_row = cmdline_row;
-            msg_col = 0;
-        } else if (msg_didout || opt_vars().p_ch == 0) && !ui_has(kUIMessages) {
-            if ((opt_vars().p_ch == 0 && !msg_didout) || msg_st().msg_special_case_for_lua_print)
+        if g_st().msg_scroll == 0 && g_st().full_screen {
+            g_st().msg_row = g_st().cmdline_row;
+            g_st().msg_col = 0;
+        } else if (g_st().msg_didout || opt_vars().p_ch == 0) && !ui_has(kUIMessages) {
+            if ((opt_vars().p_ch == 0 && !g_st().msg_didout) || msg_st().msg_special_case_for_lua_print)
                 && msg_use_printf() != 0
             {
                 msg_puts_display(c"\n".as_ptr(), 1, 0, 0);
@@ -2160,14 +2160,14 @@ pub unsafe fn msg_start() {
                 msg_putchar(NL);
             }
             did_return = true;
-            cmdline_row = msg_row;
+            g_st().cmdline_row = g_st().msg_row;
         }
         msg_st().msg_special_case_for_lua_print = false;
-        if !msg_didany || lines_left < 0 {
+        if !g_st().msg_didany || g_st().lines_left < 0 {
             msg_starthere();
         }
-        if msg_silent == 0 {
-            msg_didout = false;
+        if g_st().msg_silent == 0 {
+            g_st().msg_didout = false;
         }
 
         if ui_has(kUIMessages) {
@@ -2183,8 +2183,8 @@ pub unsafe fn msg_start() {
 /// Note that the current msg position is where messages start.
 pub unsafe fn msg_starthere() {
     unsafe {
-        lines_left = cmdline_row;
-        msg_didany = false;
+        g_st().lines_left = g_st().cmdline_row;
+        g_st().msg_didany = false;
     }
 }
 
@@ -2257,10 +2257,10 @@ pub unsafe fn msg_outtrans_len(
         let mut retval = 0;
         let mut str_ = msgstr;
         let mut plain_start = msgstr;
-        let save_got_int = got_int;
+        let save_got_int = g_st().got_int;
 
         // Only quit when got_int was set in here.
-        got_int = false;
+        g_st().got_int = false;
 
         if hist {
             msg_hist_add(str_, len, hl_id);
@@ -2268,16 +2268,16 @@ pub unsafe fn msg_outtrans_len(
 
         // When drawing over the command line no need to clear it later or remove
         // the mode message.
-        if msg_silent == 0 && len > 0 && msg_row >= cmdline_row && msg_col == 0 {
-            clear_cmdline = false;
-            mode_displayed = false;
+        if g_st().msg_silent == 0 && len > 0 && g_st().msg_row >= g_st().cmdline_row && g_st().msg_col == 0 {
+            g_st().clear_cmdline = false;
+            g_st().mode_displayed = false;
         }
 
         // Go over the string.  Special characters are translated and printed.
         // Normal characters are printed several at a time.
         while {
             len -= 1;
-            len >= 0 && !got_int
+            len >= 0 && !g_st().got_int
         } {
             // Don't include composing chars after the end.
             let mb_l = utfc_ptr2len_len(str_, len + 1);
@@ -2318,11 +2318,11 @@ pub unsafe fn msg_outtrans_len(
             }
         }
 
-        if (str_ > plain_start || plain_start == msgstr) && !got_int {
+        if (str_ > plain_start || plain_start == msgstr) && !g_st().got_int {
             msg_puts_len(plain_start, str_.offset_from(plain_start), hl_id, hist);
         }
 
-        got_int |= save_got_int;
+        g_st().got_int |= save_got_int;
 
         retval
     }
@@ -2551,22 +2551,22 @@ pub unsafe fn msg_prt_line(mut s: *const c_char, mut list: bool) {
         let mut multispace_pos = 0usize;
         let mut trail: *const c_char = ptr::null();
 
-        if (*curwin).w_onebuf_opt.wo_list != 0 {
+        if (**curwin.as_ptr()).w_onebuf_opt.wo_list != 0 {
             list = true;
         }
 
         if list {
             // find start of trailing whitespace
-            if (*curwin).w_p_lcs_chars.trail != 0 {
+            if (**curwin.as_ptr()).w_p_lcs_chars.trail != 0 {
                 trail = s.add(CStr::from_ptr(s).to_bytes().len());
                 while trail > s && ascii_iswhite(*trail.sub(1) as c_int) {
                     trail = trail.sub(1);
                 }
             }
             // find end of leading whitespace
-            if (*curwin).w_p_lcs_chars.lead != 0
-                || !(*curwin).w_p_lcs_chars.leadmultispace.is_empty()
-                || (*curwin).w_p_lcs_chars.leadtab1 != 0
+            if (**curwin.as_ptr()).w_p_lcs_chars.lead != 0
+                || !(**curwin.as_ptr()).w_p_lcs_chars.leadmultispace.is_empty()
+                || (**curwin.as_ptr()).w_p_lcs_chars.leadtab1 != 0
             {
                 lead = s;
                 while ascii_iswhite(*lead as c_int) {
@@ -2579,11 +2579,11 @@ pub unsafe fn msg_prt_line(mut s: *const c_char, mut list: bool) {
         }
 
         // output a space for an empty line, otherwise the line will be overwritten
-        if *s == NUL && !(list && (*curwin).w_p_lcs_chars.eol != 0) {
+        if *s == NUL && !(list && (**curwin.as_ptr()).w_p_lcs_chars.eol != 0) {
             msg_putchar(b' ' as c_int);
         }
 
-        while !got_int {
+        while !g_st().got_int {
             if n_extra > 0 {
                 n_extra -= 1;
                 if n_extra == 0 && sc_final != 0 {
@@ -2602,11 +2602,11 @@ pub unsafe fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                     let mut buf = [0 as c_char; MB_MAXBYTES + 1];
                     if l as usize >= MB_MAXBYTES {
                         xstrlcpy(buf.as_mut_ptr(), c"?".as_ptr(), buf.len());
-                    } else if (*curwin).w_p_lcs_chars.nbsp != 0
+                    } else if (**curwin.as_ptr()).w_p_lcs_chars.nbsp != 0
                         && list
                         && (utf_ptr2char(s) == 160 || utf_ptr2char(s) == 0x202f)
                     {
-                        schar_get(buf.as_mut_ptr(), (*curwin).w_p_lcs_chars.nbsp);
+                        schar_get(buf.as_mut_ptr(), (**curwin.as_ptr()).w_p_lcs_chars.nbsp);
                     } else {
                         ptr::copy(s, buf.as_mut_ptr(), l as usize);
                         buf[l as usize] = NUL;
@@ -2634,21 +2634,21 @@ pub unsafe fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                     } else {
                         in_multispace = false;
                     }
-                    if c == TAB && (!list || (*curwin).w_p_lcs_chars.tab1 != 0) {
+                    if c == TAB && (!list || (**curwin.as_ptr()).w_p_lcs_chars.tab1 != 0) {
                         n_extra =
-                            tabstop_padding(col, (*curbuf).b_p_ts, &(*curbuf).b_p_vts_array) - 1;
+                            tabstop_padding(col, (*g_st().curbuf).b_p_ts, &(*g_st().curbuf).b_p_vts_array) - 1;
                         if !list {
                             sc = schar_from_ascii(b' ');
                             sc_extra = schar_from_ascii(b' ');
                         } else {
-                            let mut lcs_tab1 = (*curwin).w_p_lcs_chars.tab1;
-                            let mut lcs_tab2 = (*curwin).w_p_lcs_chars.tab2;
-                            let mut lcs_tab3 = (*curwin).w_p_lcs_chars.tab3;
-                            if !lead.is_null() && s <= lead && (*curwin).w_p_lcs_chars.leadtab1 != 0
+                            let mut lcs_tab1 = (**curwin.as_ptr()).w_p_lcs_chars.tab1;
+                            let mut lcs_tab2 = (**curwin.as_ptr()).w_p_lcs_chars.tab2;
+                            let mut lcs_tab3 = (**curwin.as_ptr()).w_p_lcs_chars.tab3;
+                            if !lead.is_null() && s <= lead && (**curwin.as_ptr()).w_p_lcs_chars.leadtab1 != 0
                             {
-                                lcs_tab1 = (*curwin).w_p_lcs_chars.leadtab1;
-                                lcs_tab2 = (*curwin).w_p_lcs_chars.leadtab2;
-                                lcs_tab3 = (*curwin).w_p_lcs_chars.leadtab3;
+                                lcs_tab1 = (**curwin.as_ptr()).w_p_lcs_chars.leadtab1;
+                                lcs_tab2 = (**curwin.as_ptr()).w_p_lcs_chars.leadtab2;
+                                lcs_tab3 = (**curwin.as_ptr()).w_p_lcs_chars.leadtab3;
                             }
                             sc = if n_extra == 0 && lcs_tab3 != 0 {
                                 lcs_tab3
@@ -2659,10 +2659,10 @@ pub unsafe fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                             sc_final = lcs_tab3;
                             hl_id = HLF_0;
                         }
-                    } else if c == NUL as c_int && list && (*curwin).w_p_lcs_chars.eol != 0 {
+                    } else if c == NUL as c_int && list && (**curwin.as_ptr()).w_p_lcs_chars.eol != 0 {
                         p_extra = c"".as_ptr();
                         n_extra = 1;
-                        sc = (*curwin).w_p_lcs_chars.eol;
+                        sc = (**curwin.as_ptr()).w_p_lcs_chars.eol;
                         hl_id = HLF_AT;
                         s = s.sub(1);
                     } else if c != NUL as c_int && {
@@ -2684,30 +2684,30 @@ pub unsafe fn msg_prt_line(mut s: *const c_char, mut list: bool) {
                         if !lead.is_null()
                             && s <= lead
                             && in_multispace
-                            && !(*curwin).w_p_lcs_chars.leadmultispace.is_empty()
+                            && !(**curwin.as_ptr()).w_p_lcs_chars.leadmultispace.is_empty()
                         {
-                            sc = (*curwin).w_p_lcs_chars.leadmultispace.as_slice()[multispace_pos];
+                            sc = (**curwin.as_ptr()).w_p_lcs_chars.leadmultispace.as_slice()[multispace_pos];
                             multispace_pos += 1;
-                            if multispace_pos >= (*curwin).w_p_lcs_chars.leadmultispace.len() {
+                            if multispace_pos >= (**curwin.as_ptr()).w_p_lcs_chars.leadmultispace.len() {
                                 multispace_pos = 0;
                             }
                             hl_id = HLF_0;
-                        } else if !lead.is_null() && s <= lead && (*curwin).w_p_lcs_chars.lead != 0
+                        } else if !lead.is_null() && s <= lead && (**curwin.as_ptr()).w_p_lcs_chars.lead != 0
                         {
-                            sc = (*curwin).w_p_lcs_chars.lead;
+                            sc = (**curwin.as_ptr()).w_p_lcs_chars.lead;
                             hl_id = HLF_0;
                         } else if !trail.is_null() && s > trail {
-                            sc = (*curwin).w_p_lcs_chars.trail;
+                            sc = (**curwin.as_ptr()).w_p_lcs_chars.trail;
                             hl_id = HLF_0;
-                        } else if in_multispace && !(*curwin).w_p_lcs_chars.multispace.is_empty() {
-                            sc = (*curwin).w_p_lcs_chars.multispace.as_slice()[multispace_pos];
+                        } else if in_multispace && !(**curwin.as_ptr()).w_p_lcs_chars.multispace.is_empty() {
+                            sc = (**curwin.as_ptr()).w_p_lcs_chars.multispace.as_slice()[multispace_pos];
                             multispace_pos += 1;
-                            if multispace_pos >= (*curwin).w_p_lcs_chars.multispace.len() {
+                            if multispace_pos >= (**curwin.as_ptr()).w_p_lcs_chars.multispace.len() {
                                 multispace_pos = 0;
                             }
                             hl_id = HLF_0;
-                        } else if list && (*curwin).w_p_lcs_chars.space != 0 {
-                            sc = (*curwin).w_p_lcs_chars.space;
+                        } else if list && (**curwin.as_ptr()).w_p_lcs_chars.space != 0 {
+                            sc = (**curwin.as_ptr()).w_p_lcs_chars.space;
                             hl_id = HLF_0;
                         } else {
                             sc = schar_from_ascii(b' ');
@@ -2755,7 +2755,7 @@ pub unsafe fn msg_outtrans_long(longstr: *const c_char, hl_id: c_int) {
     unsafe {
         let len = CStr::from_ptr(longstr).to_bytes().len() as c_int;
         let mut slen = len;
-        let room = Columns - msg_col;
+        let room = g_st().Columns - g_st().msg_col;
         if !ui_has(kUIMessages) && len > room && room >= 20 {
             slen = (room - 3) / 2;
             msg_outtrans_len(longstr, slen, hl_id, false);
@@ -2782,7 +2782,7 @@ pub unsafe fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: 
         redir_write(str_, len);
 
         // Don't print anything when using ":silent cmd" or empty message.
-        if msg_silent != 0 || *str_ == NUL {
+        if g_st().msg_silent != 0 || *str_ == NUL {
             if *str_ == NUL && ui_has(kUIMessages) {
                 msg_ext_no_fast();
                 ui_call_msg_show(
@@ -2800,7 +2800,7 @@ pub unsafe fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: 
                         size: 0,
                     },
                 );
-                cmdline_was_last_drawn = false;
+                g_st().cmdline_was_last_drawn = false;
             }
             return;
         }
@@ -2809,27 +2809,27 @@ pub unsafe fn msg_puts_len(str_: *const c_char, len: isize, hl_id: c_int, hist: 
             msg_hist_add(str_, len as c_int, hl_id);
         }
 
-        let overflow = !ui_has(kUIMessages) && msg_scrolled > if opt_vars().p_ch == 0 { 1 } else { 0 };
+        let overflow = !ui_has(kUIMessages) && g_st().msg_scrolled > if opt_vars().p_ch == 0 { 1 } else { 0 };
 
-        if overflow && !msg_scrolled_ign && CStr::from_ptr(str_) != c"\r" {
-            need_wait_return = true;
+        if overflow && !g_st().msg_scrolled_ign && CStr::from_ptr(str_) != c"\r" {
+            g_st().need_wait_return = true;
         }
-        msg_didany = true;
+        g_st().msg_didany = true;
 
         if msg_use_printf() != 0 && !msg_st().msg_special_case_for_lua_print {
-            let saved_msg_col = msg_col;
+            let saved_msg_col = g_st().msg_col;
             msg_puts_printf(str_, len);
-            if headless_mode {
-                msg_col = saved_msg_col;
+            if g_st().headless_mode {
+                g_st().msg_col = saved_msg_col;
             }
         }
         if msg_use_printf() == 0
-            || (headless_mode && crate::grid::grid_allocated(&raw const default_grid))
+            || (g_st().headless_mode && crate::grid::grid_allocated(&raw const g_st().default_grid))
         {
             msg_puts_display(str_, len as c_int, hl_id, 0);
         }
 
-        need_fileinfo = false;
+        g_st().need_fileinfo = false;
     }
 }
 
@@ -2872,10 +2872,10 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
     unsafe {
         let mut s = str_;
         let mut sb_str = str_;
-        let mut sb_col = msg_col;
+        let mut sb_col = g_st().msg_col;
         let attr = if hl_id != 0 { syn_id2attr(hl_id) } else { 0 };
 
-        did_wait_return = false;
+        g_st().did_wait_return = false;
 
         if ui_has(kUIMessages) {
             if attr != msg_st().msg_ext_last_attr {
@@ -2900,7 +2900,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
                 str_
             };
             let col = mb_string2cells_len(p, len - (p.offset_from(str_) as usize)) as c_int;
-            msg_col = (if !lastline.is_null() { 0 } else { msg_col }) + col;
+            g_st().msg_col = (if !lastline.is_null() { 0 } else { g_st().msg_col }) + col;
 
             return;
         }
@@ -2908,28 +2908,28 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
         let print_attr = hl_combine_attr(hl_attr(HLF_MSG), attr);
         msg_grid_validate();
 
-        cmdline_was_last_drawn = redrawing_cmdline;
+        g_st().cmdline_was_last_drawn = g_st().redrawing_cmdline;
 
         let mut msg_row_pending = -1;
 
         loop {
-            if msg_col >= Columns {
+            if g_st().msg_col >= g_st().Columns {
                 if opt_vars().p_more != 0 && recurse == 0 {
                     store_sb_text(&raw mut sb_str, s, hl_id, &raw mut sb_col, 1);
                 }
-                if msg_no_more && lines_left == 0 {
+                if g_st().msg_no_more && g_st().lines_left == 0 {
                     break;
                 }
 
-                msg_col = 0;
-                msg_row += 1;
-                msg_didout = false;
+                g_st().msg_col = 0;
+                g_st().msg_row += 1;
+                g_st().msg_didout = false;
             }
 
-            if msg_row >= Rows {
-                msg_row = Rows - 1;
+            if g_st().msg_row >= g_st().Rows {
+                g_st().msg_row = g_st().Rows - 1;
 
-                if msg_no_more && lines_left == 0 {
+                if g_st().msg_no_more && g_st().lines_left == 0 {
                     break;
                 }
 
@@ -2942,21 +2942,21 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
                     msg_scroll_up(true, false);
 
                     inc_msg_scrolled();
-                    need_wait_return = true;
-                    redraw_cmdline = true;
-                    if cmdline_row > 0 {
-                        cmdline_row -= 1;
+                    g_st().need_wait_return = true;
+                    g_st().redraw_cmdline = true;
+                    if g_st().cmdline_row > 0 {
+                        g_st().cmdline_row -= 1;
                     }
 
-                    if lines_left > 0 {
-                        lines_left -= 1;
+                    if g_st().lines_left > 0 {
+                        g_st().lines_left -= 1;
                     }
 
-                    if opt_vars().p_more != 0 && lines_left == 0 && State != MODE_HITRETURN && !msg_no_more {
+                    if opt_vars().p_more != 0 && g_st().lines_left == 0 && g_st().State != MODE_HITRETURN && !g_st().msg_no_more {
                         if do_more_prompt(NUL as c_int) {
                             s = (&raw const dlg_st().confirm_buttons).as_ref().unwrap().as_ptr();
                         }
-                        if quit_more {
+                        if g_st().quit_more {
                             return;
                         }
                     }
@@ -2967,12 +2967,12 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
                 break;
             }
 
-            if msg_row != msg_row_pending && (*s as u8 >= 0x20 || *s == TAB as c_char) {
+            if g_st().msg_row != msg_row_pending && (*s as u8 >= 0x20 || *s == TAB as c_char) {
                 if msg_row_pending >= 0 {
                     msg_line_flush();
                 }
-                grid_line_start(&raw mut msg_grid_adj, msg_row);
-                msg_row_pending = msg_row;
+                grid_line_start(&raw mut g_st().msg_grid_adj, g_st().msg_row);
+                msg_row_pending = g_st().msg_row;
             }
 
             if *s as u8 >= 0x20 {
@@ -2983,37 +2983,37 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
                     utfc_ptr2len(s)
                 };
 
-                if cw > 1 && msg_col == Columns - 1 {
-                    grid_line_puts(msg_col, c">".as_ptr(), 1, hl_attr(HLF_AT));
+                if cw > 1 && g_st().msg_col == g_st().Columns - 1 {
+                    grid_line_puts(g_st().msg_col, c">".as_ptr(), 1, hl_attr(HLF_AT));
                     cw = 1;
                 } else {
-                    grid_line_puts(msg_col, s, l, print_attr);
+                    grid_line_puts(g_st().msg_col, s, l, print_attr);
                     s = s.add(l as usize);
                 }
-                msg_didout = true;
-                msg_col += cw;
+                g_st().msg_didout = true;
+                g_st().msg_col += cw;
             } else {
                 let c = *s;
                 s = s.add(1);
                 if c == NL as c_char {
-                    msg_didout = false;
-                    msg_col = 0;
-                    msg_row += 1;
+                    g_st().msg_didout = false;
+                    g_st().msg_col = 0;
+                    g_st().msg_row += 1;
                     if opt_vars().p_more != 0 && recurse == 0 {
                         store_sb_text(&raw mut sb_str, s, hl_id, &raw mut sb_col, 1);
                     }
                 } else if c == CAR as c_char {
-                    msg_col = 0;
+                    g_st().msg_col = 0;
                 } else if c == BS as c_char {
-                    if msg_col != 0 {
-                        msg_col -= 1;
+                    if g_st().msg_col != 0 {
+                        g_st().msg_col -= 1;
                     }
                 } else if c == TAB as c_char {
                     loop {
-                        grid_line_puts(msg_col, c" ".as_ptr(), 1, print_attr);
-                        msg_col += 1;
+                        grid_line_puts(g_st().msg_col, c" ".as_ptr(), 1, print_attr);
+                        g_st().msg_col += 1;
 
-                        if msg_col == Columns || (msg_col & 7) == 0 {
+                        if g_st().msg_col == g_st().Columns || (g_st().msg_col & 7) == 0 {
                             break;
                         }
                     }
@@ -3026,7 +3026,7 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
         if msg_row_pending >= 0 {
             msg_line_flush();
         }
-        msg_cursor_goto(msg_row, msg_col);
+        msg_cursor_goto(g_st().msg_row, g_st().msg_col);
 
         if opt_vars().p_more != 0 && recurse == 0 {
             store_sb_text(&raw mut sb_str, s, hl_id, &raw mut sb_col, 0);
@@ -3038,8 +3038,8 @@ unsafe fn msg_puts_display(str_: *const c_char, maxlen: c_int, hl_id: c_int, rec
 
 pub unsafe fn msg_line_flush() {
     unsafe {
-        if cmdmsg_rl {
-            grid_line_mirror(msg_grid.cols);
+        if g_st().cmdmsg_rl {
+            grid_line_mirror(g_st().msg_grid.cols);
         }
         grid_line_flush_if_valid_row();
     }
@@ -3047,10 +3047,10 @@ pub unsafe fn msg_line_flush() {
 
 pub unsafe fn msg_cursor_goto(mut row: c_int, mut col: c_int) {
     unsafe {
-        if cmdmsg_rl {
-            col = Columns - 1 - col;
+        if g_st().cmdmsg_rl {
+            col = g_st().Columns - 1 - col;
         }
-        let grid = grid_adjust(&raw mut msg_grid_adj, &raw mut row, &raw mut col);
+        let grid = grid_adjust(&raw mut g_st().msg_grid_adj, &raw mut row, &raw mut col);
         ui_grid_cursor_goto((*grid).handle, row, col);
     }
 }
@@ -3059,12 +3059,12 @@ pub unsafe fn msg_cursor_goto(mut row: c_int, mut col: c_int) {
 ///          "pattern".
 pub unsafe fn message_filtered(msg: *const c_char) -> bool {
     unsafe {
-        if cmdmod.cmod_filter_regmatch.regprog.is_null() {
+        if g_st().cmdmod.cmod_filter_regmatch.regprog.is_null() {
             return false;
         }
 
-        let match_ = vim_regexec((&raw mut cmdmod.cmod_filter_regmatch).cast(), msg, 0);
-        if cmdmod.cmod_filter_force {
+        let match_ = vim_regexec((&raw mut g_st().cmdmod.cmod_filter_regmatch).cast(), msg, 0);
+        if g_st().cmdmod.cmod_filter_force {
             match_
         } else {
             !match_
@@ -3074,7 +3074,7 @@ pub unsafe fn message_filtered(msg: *const c_char) -> bool {
 
 /// including horizontal separator
 pub unsafe fn msg_scrollsize() -> c_int {
-    unsafe { msg_scrolled + opt_vars().p_ch as c_int + c_int::from(opt_vars().p_ch > 0 || msg_scrolled > 1) }
+    unsafe { g_st().msg_scrolled + opt_vars().p_ch as c_int + c_int::from(opt_vars().p_ch > 0 || g_st().msg_scrolled > 1) }
 }
 
 pub unsafe fn msg_do_throttle() -> bool {
@@ -3085,34 +3085,34 @@ pub unsafe fn msg_do_throttle() -> bool {
 pub unsafe fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
     unsafe {
         if may_throttle && msg_do_throttle() {
-            msg_grid.throttled = true;
+            g_st().msg_grid.throttled = true;
         }
-        msg_did_scroll = true;
-        if msg_grid_pos > 0 {
-            msg_grid_set_pos(msg_grid_pos - 1, !zerocmd);
+        g_st().msg_did_scroll = true;
+        if g_st().msg_grid_pos > 0 {
+            msg_grid_set_pos(g_st().msg_grid_pos - 1, !zerocmd);
 
-            if zerocmd && crate::grid::grid_allocated(&raw const msg_grid) {
+            if zerocmd && crate::grid::grid_allocated(&raw const g_st().msg_grid) {
                 grid_clear_line(
-                    &raw mut msg_grid,
-                    msg_grid.line_offset[0],
-                    msg_grid.cols,
+                    &raw mut g_st().msg_grid,
+                    g_st().msg_grid.line_offset[0],
+                    g_st().msg_grid.cols,
                     false,
                 );
             }
         } else {
-            grid_del_lines(&raw mut msg_grid, 0, 1, msg_grid.rows, 0, msg_grid.cols);
-            for i in 0..(msg_grid.rows - 1) as usize {
-                msg_grid.dirty_col[i] = msg_grid.dirty_col[i + 1];
+            grid_del_lines(&raw mut g_st().msg_grid, 0, 1, g_st().msg_grid.rows, 0, g_st().msg_grid.cols);
+            for i in 0..(g_st().msg_grid.rows - 1) as usize {
+                g_st().msg_grid.dirty_col[i] = g_st().msg_grid.dirty_col[i + 1];
             }
-            msg_grid.dirty_col[(msg_grid.rows - 1) as usize] = 0;
+            g_st().msg_grid.dirty_col[(g_st().msg_grid.rows - 1) as usize] = 0;
         }
 
         grid_clear(
-            &raw mut msg_grid_adj,
-            Rows - 1,
-            Rows,
+            &raw mut g_st().msg_grid_adj,
+            g_st().Rows - 1,
+            g_st().Rows,
             0,
-            Columns,
+            g_st().Columns,
             hl_attr(HLF_MSG),
         );
     }
@@ -3121,50 +3121,50 @@ pub unsafe fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
 /// Send throttled message output to UI clients
 pub unsafe fn msg_scroll_flush() {
     unsafe {
-        if msg_grid.throttled {
-            msg_grid.throttled = false;
-            let pos_delta = msg_st().msg_grid_pos_at_flush - msg_grid_pos;
+        if g_st().msg_grid.throttled {
+            g_st().msg_grid.throttled = false;
+            let pos_delta = msg_st().msg_grid_pos_at_flush - g_st().msg_grid_pos;
             assert!(pos_delta >= 0);
-            let delta = (msg_scrolled - msg_scrolled_at_flush).min(msg_grid.rows);
+            let delta = (g_st().msg_scrolled - g_st().msg_scrolled_at_flush).min(g_st().msg_grid.rows);
 
             if pos_delta > 0 {
-                ui_ext_msg_set_pos(msg_grid_pos, true);
+                ui_ext_msg_set_pos(g_st().msg_grid_pos, true);
             }
 
-            let to_scroll = delta - pos_delta - msg_grid_scroll_discount;
+            let to_scroll = delta - pos_delta - g_st().msg_grid_scroll_discount;
             assert!(to_scroll >= 0);
 
-            if to_scroll > 0 && msg_grid_pos == 0 {
+            if to_scroll > 0 && g_st().msg_grid_pos == 0 {
                 ui_call_grid_scroll(
-                    msg_grid.handle as Integer,
+                    g_st().msg_grid.handle as Integer,
                     0,
-                    Rows as Integer,
+                    g_st().Rows as Integer,
                     0,
-                    Columns as Integer,
+                    g_st().Columns as Integer,
                     to_scroll as Integer,
                     0,
                 );
             }
 
-            for i in (Rows - delta.max(1)).max(0)..Rows {
-                let row = i - msg_grid_pos;
+            for i in (g_st().Rows - delta.max(1)).max(0)..g_st().Rows {
+                let row = i - g_st().msg_grid_pos;
                 assert!(row >= 0);
                 ui_line(
-                    &raw mut msg_grid,
+                    &raw mut g_st().msg_grid,
                     row,
                     false,
                     0,
-                    msg_grid.dirty_col[row as usize],
-                    msg_grid.cols,
+                    g_st().msg_grid.dirty_col[row as usize],
+                    g_st().msg_grid.cols,
                     hl_attr(HLF_MSG),
                     false,
                 );
-                msg_grid.dirty_col[row as usize] = 0;
+                g_st().msg_grid.dirty_col[row as usize] = 0;
             }
         }
-        msg_scrolled_at_flush = msg_scrolled;
-        msg_grid_scroll_discount = 0;
-        msg_st().msg_grid_pos_at_flush = msg_grid_pos;
+        g_st().msg_scrolled_at_flush = g_st().msg_scrolled;
+        g_st().msg_grid_scroll_discount = 0;
+        msg_st().msg_grid_pos_at_flush = g_st().msg_grid_pos;
     }
 }
 
@@ -3173,35 +3173,35 @@ pub unsafe fn msg_reset_scroll() {
         if ui_has(kUIMessages) {
             return;
         }
-        msg_grid.throttled = false;
-        msg_grid_set_pos(Rows - opt_vars().p_ch as c_int, false);
-        clear_cmdline = true;
-        if crate::grid::grid_allocated(&raw const msg_grid) {
-            let limit = msg_scrollsize().min(msg_grid.rows);
+        g_st().msg_grid.throttled = false;
+        msg_grid_set_pos(g_st().Rows - opt_vars().p_ch as c_int, false);
+        g_st().clear_cmdline = true;
+        if crate::grid::grid_allocated(&raw const g_st().msg_grid) {
+            let limit = msg_scrollsize().min(g_st().msg_grid.rows);
             for i in 0..limit {
                 grid_clear_line(
-                    &raw mut msg_grid,
-                    msg_grid.line_offset[i as usize],
-                    msg_grid.cols,
+                    &raw mut g_st().msg_grid,
+                    g_st().msg_grid.line_offset[i as usize],
+                    g_st().msg_grid.cols,
                     false,
                 );
             }
         }
-        msg_scrolled = 0;
-        msg_scrolled_at_flush = 0;
-        msg_grid_scroll_discount = 0;
+        g_st().msg_scrolled = 0;
+        g_st().msg_scrolled_at_flush = 0;
+        g_st().msg_grid_scroll_discount = 0;
     }
 }
 
 pub unsafe fn msg_ui_refresh() {
     unsafe {
-        if ui_has(kUIMultigrid) && crate::grid::grid_allocated(&raw const msg_grid) {
+        if ui_has(kUIMultigrid) && crate::grid::grid_allocated(&raw const g_st().msg_grid) {
             ui_call_grid_resize(
-                msg_grid.handle as Integer,
-                msg_grid.cols as Integer,
-                msg_grid.rows as Integer,
+                g_st().msg_grid.handle as Integer,
+                g_st().msg_grid.cols as Integer,
+                g_st().msg_grid.rows as Integer,
             );
-            ui_ext_msg_set_pos(msg_grid_pos, msg_scrolled != 0);
+            ui_ext_msg_set_pos(g_st().msg_grid_pos, g_st().msg_scrolled != 0);
         }
     }
 }
@@ -3209,10 +3209,10 @@ pub unsafe fn msg_ui_refresh() {
 pub unsafe fn msg_ui_flush() {
     unsafe {
         if ui_has(kUIMultigrid)
-            && crate::grid::grid_allocated(&raw const msg_grid)
-            && msg_grid.pending_comp_index_update
+            && crate::grid::grid_allocated(&raw const g_st().msg_grid)
+            && g_st().msg_grid.pending_comp_index_update
         {
-            ui_ext_msg_set_pos(msg_grid_pos, msg_scrolled != 0);
+            ui_ext_msg_set_pos(g_st().msg_grid_pos, g_st().msg_scrolled != 0);
         }
     }
 }
@@ -3241,7 +3241,7 @@ unsafe fn inc_msg_scrolled() {
             };
             set_vim_var_string(VV_SCROLLSTART, p.data, p.size as isize);
         }
-        msg_scrolled += 1;
+        g_st().msg_scrolled += 1;
         set_must_redraw(UPD_VALID);
     }
 }
@@ -3402,9 +3402,9 @@ unsafe fn disp_sb_line(row: c_int, smp: usize) -> Option<usize> {
         let chunks = &raw mut msg_st().msgchunks;
         let mut idx = smp;
         loop {
-            msg_row = row;
+            g_st().msg_row = row;
             let chunk = &mut (*chunks).as_mut_slice()[idx];
-            msg_col = chunk.sb_msg_col;
+            g_st().msg_col = chunk.sb_msg_col;
             let p = chunk.sb_text.as_mut_ptr();
             let hl_id = chunk.sb_hl_id;
             let eol = chunk.sb_eol;
@@ -3424,7 +3424,7 @@ unsafe fn disp_sb_line(row: c_int, smp: usize) -> Option<usize> {
 
 /// @return  true when messages should be printed to stdout/stderr
 pub unsafe fn msg_use_printf() -> c_int {
-    unsafe { c_int::from(!embedded_mode && ui_active() == 0 && !ui_has(kUIMessages)) }
+    unsafe { c_int::from(!g_st().embedded_mode && ui_active() == 0 && !ui_has(kUIMessages)) }
 }
 
 /// Print a message when there is no valid screen.
@@ -3433,7 +3433,7 @@ unsafe fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
         let mut s = str_;
         let mut buf = [0 as c_char; 7];
 
-        if crate::eval::typval::Callback::raw_cb_type(&raw const on_print) != kCallbackNone {
+        if crate::eval::typval::Callback::raw_cb_type(&raw const g_st().on_print) != kCallbackNone {
             let mut argv = [typval_T {
                 v_type: VarType::VAR_STRING,
                 v_lock: VAR_UNLOCKED,
@@ -3444,22 +3444,22 @@ unsafe fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             };
-            callback_call(&raw mut on_print, 1, argv.as_mut_ptr(), &raw mut rettv);
+            callback_call(&raw mut g_st().on_print, 1, argv.as_mut_ptr(), &raw mut rettv);
             tv_clear(&raw mut rettv);
             return;
         }
 
         while (maxlen < 0 || s.offset_from(str_) < maxlen) && *s != NUL {
             let len = utf_ptr2len(s) as usize;
-            if !(silent_mode && opt_vars().p_verbose == 0) {
+            if !(g_st().silent_mode && opt_vars().p_verbose == 0) {
                 let mut p = buf.as_mut_ptr();
-                if *s == NL as c_char && !info_message && !silent_mode && !headless_mode {
+                if *s == NL as c_char && !g_st().info_message && !g_st().silent_mode && !g_st().headless_mode {
                     *p = CAR as c_char;
                     p = p.add(1);
                 }
                 ptr::copy_nonoverlapping(s, p, len);
                 *p.add(len) = NUL;
-                if info_message {
+                if g_st().info_message {
                     printf!(c"%s".as_ptr(), buf.as_ptr());
                 } else {
                     fprintf!(log_get_stderr(), c"%s".as_ptr(), buf.as_ptr());
@@ -3468,11 +3468,11 @@ unsafe fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
 
             let cw = utf_char2cells(utf_ptr2char(s));
             if *s == CAR as c_char || *s == NL as c_char {
-                msg_col = 0;
-                msg_didout = false;
+                g_st().msg_col = 0;
+                g_st().msg_didout = false;
             } else {
-                msg_col += cw;
-                msg_didout = true;
+                g_st().msg_col += cw;
+                g_st().msg_didout = true;
             }
             s = s.add(len);
         }
@@ -3483,15 +3483,15 @@ unsafe fn msg_puts_printf(str_: *const c_char, maxlen: isize) {
 unsafe fn do_more_prompt(typed_char: c_int) -> bool {
     unsafe {
         let mut used_typed_char = typed_char;
-        let oldState = State;
+        let oldState = g_st().State;
         let mut retval = false;
         let mut to_redraw = false;
         let mut mp_last: Option<usize> = None;
 
         let no_need_more =
-            (headless_mode && !embedded_mode && ui_active() == 0) || input_unanswerable();
+            (g_st().headless_mode && !g_st().embedded_mode && ui_active() == 0) || input_unanswerable();
 
-        if no_need_more || msg_st().DO_MORE_PROMPT_ENTERED || (State == MODE_HITRETURN && typed_char == 0) {
+        if no_need_more || msg_st().DO_MORE_PROMPT_ENTERED || (g_st().State == MODE_HITRETURN && typed_char == 0) {
             return false;
         }
         msg_st().DO_MORE_PROMPT_ENTERED = true;
@@ -3500,7 +3500,7 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
         if typed_char == b'G' as c_int {
             mp_last = msg_sb_start((*chunks).len().checked_sub(1));
             let mut i = 0;
-            while i < Rows - 2
+            while i < g_st().Rows - 2
                 && let Some(idx) = mp_last
                 && idx > 0
             {
@@ -3509,7 +3509,7 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
             }
         }
 
-        State = MODE_ASKMORE;
+        g_st().State = MODE_ASKMORE;
         setmouse();
         if typed_char == NUL as c_int {
             msg_moremsg(false);
@@ -3520,7 +3520,7 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
                 used_typed_char = NUL as c_int;
                 ch
             } else {
-                get_keystroke(resize_events)
+                get_keystroke(g_st().resize_events)
             };
 
             let mut toscroll = 0;
@@ -3532,50 +3532,50 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
                     toscroll = 1;
                 }
                 0x75 /* 'u' */ => {
-                    toscroll = -(Rows / 2);
+                    toscroll = -(g_st().Rows / 2);
                 }
                 0x64 /* 'd' */ => {
-                    toscroll = Rows / 2;
+                    toscroll = g_st().Rows / 2;
                 }
                 0x62 /* 'b' */ | Ctrl_B | K_PAGEUP => {
-                    toscroll = -(Rows - 1);
+                    toscroll = -(g_st().Rows - 1);
                 }
                 0x20 /* ' ' */ | 0x66 /* 'f' */ | Ctrl_F | K_PAGEDOWN | K_LEFTMOUSE => {
-                    toscroll = Rows - 1;
+                    toscroll = g_st().Rows - 1;
                 }
                 0x67 /* 'g' */ => {
                     toscroll = -999999;
                 }
                 0x47 /* 'G' */ => {
                     toscroll = 999999;
-                    lines_left = 999999;
+                    g_st().lines_left = 999999;
                 }
                 0x3a /* ':' */ => {
                     if msg_st().confirm_msg_used == 0 {
                         typeahead_noflush(b':' as c_int);
-                        cmdline_row = Rows - 1;
-                        skip_redraw = true;
-                        need_wait_return = false;
+                        g_st().cmdline_row = g_st().Rows - 1;
+                        g_st().skip_redraw = true;
+                        g_st().need_wait_return = false;
                     }
                     if msg_st().confirm_msg_used != 0 {
                         retval = true;
                     } else {
-                        got_int = true;
-                        quit_more = true;
+                        g_st().got_int = true;
+                        g_st().quit_more = true;
                     }
-                    lines_left = Rows - 1;
+                    g_st().lines_left = g_st().Rows - 1;
                 }
                 0x71 /* 'q' */ | Ctrl_C | ESC => {
                     if msg_st().confirm_msg_used != 0 {
                         retval = true;
                     } else {
-                        got_int = true;
-                        quit_more = true;
+                        g_st().got_int = true;
+                        g_st().quit_more = true;
                     }
-                    lines_left = Rows - 1;
+                    g_st().lines_left = g_st().Rows - 1;
                 }
                 K_EVENT => {
-                    multiqueue_process_events(resize_events);
+                    multiqueue_process_events(g_st().resize_events);
                     to_redraw = true;
                 }
                 _ => {
@@ -3599,7 +3599,7 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
                     };
 
                     let mut i = 0;
-                    while i < Rows - 2
+                    while i < g_st().Rows - 2
                         && let Some(idx) = mp
                         && idx > 0
                     {
@@ -3628,26 +3628,26 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
                         }
 
                         if toscroll == -1 && !to_redraw {
-                            grid_ins_lines(&raw mut msg_grid, 0, 1, Rows, 0, Columns);
-                            grid_clear(&raw mut msg_grid_adj, 0, 1, 0, Columns, hl_attr(HLF_MSG));
+                            grid_ins_lines(&raw mut g_st().msg_grid, 0, 1, g_st().Rows, 0, g_st().Columns);
+                            grid_clear(&raw mut g_st().msg_grid_adj, 0, 1, 0, g_st().Columns, hl_attr(HLF_MSG));
                             if let Some(cur_idx) = mp {
                                 disp_sb_line(0, cur_idx);
                             }
                         } else {
                             grid_clear(
-                                &raw mut msg_grid_adj,
+                                &raw mut g_st().msg_grid_adj,
                                 0,
-                                Rows,
+                                g_st().Rows,
                                 0,
-                                Columns,
+                                g_st().Columns,
                                 hl_attr(HLF_MSG),
                             );
                             let mut i = 0;
                             while let Some(cur_idx) = mp
-                                && i < Rows - 1
+                                && i < g_st().Rows - 1
                             {
                                 mp = disp_sb_line(i, cur_idx);
-                                msg_scrolled += 1;
+                                g_st().msg_scrolled += 1;
                                 i += 1;
                             }
                             to_redraw = false;
@@ -3655,46 +3655,46 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
                         toscroll = 0;
                     }
                 } else {
-                    if cmdline_row >= Rows && !ui_has(kUIMessages) {
+                    if g_st().cmdline_row >= g_st().Rows && !ui_has(kUIMessages) {
                         msg_scroll_up(true, false);
-                        msg_scrolled += 1;
+                        g_st().msg_scrolled += 1;
                     }
                     while toscroll > 0
                         && let Some(last_idx) = mp_last
                     {
-                        if msg_do_throttle() && !msg_grid.throttled {
-                            msg_scrolled_at_flush -= 1;
-                            msg_grid_scroll_discount += 1;
+                        if msg_do_throttle() && !g_st().msg_grid.throttled {
+                            g_st().msg_scrolled_at_flush -= 1;
+                            g_st().msg_grid_scroll_discount += 1;
                         }
                         msg_scroll_up(true, false);
                         inc_msg_scrolled();
                         grid_clear(
-                            &raw mut msg_grid_adj,
-                            Rows - 2,
-                            Rows - 1,
+                            &raw mut g_st().msg_grid_adj,
+                            g_st().Rows - 2,
+                            g_st().Rows - 1,
                             0,
-                            Columns,
+                            g_st().Columns,
                             hl_attr(HLF_MSG),
                         );
-                        mp_last = disp_sb_line(Rows - 2, last_idx);
+                        mp_last = disp_sb_line(g_st().Rows - 2, last_idx);
                         toscroll -= 1;
                     }
                 }
 
                 if toscroll <= 0 {
                     grid_clear(
-                        &raw mut msg_grid_adj,
-                        Rows - 1,
-                        Rows,
+                        &raw mut g_st().msg_grid_adj,
+                        g_st().Rows - 1,
+                        g_st().Rows,
                         0,
-                        Columns,
+                        g_st().Columns,
                         hl_attr(HLF_MSG),
                     );
                     msg_moremsg(false);
                     continue;
                 }
 
-                lines_left = toscroll;
+                g_st().lines_left = toscroll;
             }
 
             break;
@@ -3702,22 +3702,22 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
 
         // clear the --more-- message
         grid_clear(
-            &raw mut msg_grid_adj,
-            Rows - 1,
-            Rows,
+            &raw mut g_st().msg_grid_adj,
+            g_st().Rows - 1,
+            g_st().Rows,
             0,
-            Columns,
+            g_st().Columns,
             hl_attr(HLF_MSG),
         );
-        redraw_cmdline = true;
-        clear_cmdline = false;
-        mode_displayed = false;
+        g_st().redraw_cmdline = true;
+        g_st().clear_cmdline = false;
+        g_st().mode_displayed = false;
 
-        State = oldState;
+        g_st().State = oldState;
         setmouse();
-        if quit_more {
-            msg_row = Rows - 1;
-            msg_col = 0;
+        if g_st().quit_more {
+            g_st().msg_row = g_st().Rows - 1;
+            g_st().msg_col = 0;
         }
 
         msg_st().DO_MORE_PROMPT_ENTERED = false;
@@ -3728,7 +3728,7 @@ unsafe fn do_more_prompt(typed_char: c_int) -> bool {
 unsafe fn msg_moremsg(full: bool) {
     unsafe {
         let attr = hl_combine_attr(hl_attr(HLF_MSG), hl_attr(HLF_M));
-        grid_line_start(&raw mut msg_grid_adj, Rows - 1);
+        grid_line_start(&raw mut g_st().msg_grid_adj, g_st().Rows - 1);
         let mut len = grid_line_puts(0, gettext(c"-- More --".as_ptr()), -1, attr);
         if full {
             len += grid_line_puts(
@@ -3751,24 +3751,24 @@ pub unsafe fn repeat_message() {
             return;
         }
 
-        if State == MODE_ASKMORE {
+        if g_st().State == MODE_ASKMORE {
             msg_moremsg(true);
-            msg_row = Rows - 1;
-        } else if (State & MODE_CMDLINE) != 0
+            g_st().msg_row = g_st().Rows - 1;
+        } else if (g_st().State & MODE_CMDLINE) != 0
             && (&raw const dlg_st().confirm_msg).as_ref().unwrap().is_some()
         {
             display_confirm_msg();
-            msg_row = Rows - 1;
-        } else if State == MODE_EXTERNCMD {
-            ui_cursor_goto(msg_row, msg_col);
-        } else if State == MODE_HITRETURN || State == MODE_SETWSIZE {
-            if msg_row == Rows - 1 {
-                msg_didout = false;
-                msg_col = 0;
+            g_st().msg_row = g_st().Rows - 1;
+        } else if g_st().State == MODE_EXTERNCMD {
+            ui_cursor_goto(g_st().msg_row, g_st().msg_col);
+        } else if g_st().State == MODE_HITRETURN || g_st().State == MODE_SETWSIZE {
+            if g_st().msg_row == g_st().Rows - 1 {
+                g_st().msg_didout = false;
+                g_st().msg_col = 0;
                 msg_clr_eos();
             }
             hit_return_msg(false);
-            msg_row = Rows - 1;
+            g_st().msg_row = g_st().Rows - 1;
         }
     }
 }
@@ -3777,7 +3777,7 @@ pub unsafe fn repeat_message() {
 /// Skip this when ":silent" was used, no need to clear for redirection.
 pub unsafe fn msg_clr_eos() {
     unsafe {
-        if msg_silent == 0 {
+        if g_st().msg_silent == 0 {
             msg_clr_eos_force();
         }
     }
@@ -3789,42 +3789,42 @@ pub unsafe fn msg_clr_eos_force() {
         if ui_has(kUIMessages) {
             return;
         }
-        let msg_startcol = if cmdmsg_rl { 0 } else { msg_col };
-        let msg_endcol = if cmdmsg_rl {
-            Columns - msg_col
+        let msg_startcol = if g_st().cmdmsg_rl { 0 } else { g_st().msg_col };
+        let msg_endcol = if g_st().cmdmsg_rl {
+            g_st().Columns - g_st().msg_col
         } else {
-            Columns
+            g_st().Columns
         };
 
-        if crate::grid::grid_allocated(&raw const msg_grid) && msg_row < msg_grid_pos {
+        if crate::grid::grid_allocated(&raw const g_st().msg_grid) && g_st().msg_row < g_st().msg_grid_pos {
             msg_grid_validate();
-            if msg_row < msg_grid_pos {
-                msg_row = msg_grid_pos;
+            if g_st().msg_row < g_st().msg_grid_pos {
+                g_st().msg_row = g_st().msg_grid_pos;
             }
         }
 
         grid_clear(
-            &raw mut msg_grid_adj,
-            msg_row,
-            msg_row + 1,
+            &raw mut g_st().msg_grid_adj,
+            g_st().msg_row,
+            g_st().msg_row + 1,
             msg_startcol,
             msg_endcol,
             hl_attr(HLF_MSG),
         );
         grid_clear(
-            &raw mut msg_grid_adj,
-            msg_row + 1,
-            Rows,
+            &raw mut g_st().msg_grid_adj,
+            g_st().msg_row + 1,
+            g_st().Rows,
             0,
-            Columns,
+            g_st().Columns,
             hl_attr(HLF_MSG),
         );
 
-        redraw_cmdline = true;
-        if msg_row < Rows - 1 || msg_col == 0 {
-            clear_cmdline = false;
-            mode_displayed = false;
-            cmdline_was_last_drawn = false;
+        g_st().redraw_cmdline = true;
+        if g_st().msg_row < g_st().Rows - 1 || g_st().msg_col == 0 {
+            g_st().clear_cmdline = false;
+            g_st().mode_displayed = false;
+            g_st().cmdline_was_last_drawn = false;
         }
     }
 }
@@ -3832,8 +3832,8 @@ pub unsafe fn msg_clr_eos_force() {
 /// Clear the command line.
 pub unsafe fn msg_clr_cmdline() {
     unsafe {
-        msg_row = cmdline_row;
-        msg_col = 0;
+        g_st().msg_row = g_st().cmdline_row;
+        g_st().msg_col = 0;
         msg_clr_eos_force();
     }
 }
@@ -3844,7 +3844,7 @@ pub unsafe fn msg_clr_cmdline() {
 /// @return  true if wait_return() not called.
 pub unsafe fn msg_end() -> bool {
     unsafe {
-        if !exiting && need_wait_return && (State & MODE_CMDLINE) == 0 {
+        if !g_st().exiting && g_st().need_wait_return && (g_st().State & MODE_CMDLINE) == 0 {
             wait_return(0);
             return false;
         }
@@ -3860,7 +3860,7 @@ unsafe fn msg_ext_init_chunks() -> Array {
     unsafe {
         let chunks = &raw mut msg_st().msg_ext_chunks;
         let tofree = std::mem::take(&mut *chunks);
-        msg_col = 0;
+        g_st().msg_col = 0;
         tofree
     }
 }
@@ -3870,7 +3870,7 @@ pub unsafe fn msg_ext_ui_flush() {
         if !ui_has(kUIMessages) {
             msg_st().msg_ext_kind = ptr::null();
             return;
-        } else if msg_ext_skip_flush {
+        } else if g_st().msg_ext_skip_flush {
             return;
         }
 
@@ -3882,7 +3882,7 @@ pub unsafe fn msg_ext_ui_flush() {
             ui_call_msg_show(
                 cstr_as_string(msg_st().msg_ext_kind),
                 tofree,
-                msg_ext_overwrite,
+                g_st().msg_ext_overwrite,
                 msg_st().msg_ext_history,
                 msg_st().msg_ext_append,
                 msg_st().msg_ext_id,
@@ -3910,10 +3910,10 @@ pub unsafe fn msg_ext_ui_flush() {
                 api_free_array(tofree);
                 msg_hist_add_multihl(msg, true);
             }
-            msg_ext_overwrite = false;
+            g_st().msg_ext_overwrite = false;
             msg_st().msg_ext_history = false;
             msg_st().msg_ext_append = false;
-            msg_ext_fast = true;
+            g_st().msg_ext_fast = true;
             msg_st().msg_ext_kind = ptr::null();
             if msg_st().msg_ext_id.obj_type == ObjectType::kObjectTypeInteger
                 && msg_st().msg_ext_id.data.integer() == msg_st().msg_id_next
@@ -3947,9 +3947,9 @@ pub unsafe fn msg_check() {
         if ui_has(kUIMessages) {
             return;
         }
-        if msg_row == Rows - 1 && msg_col >= sc_col {
-            need_wait_return = true;
-            redraw_cmdline = true;
+        if g_st().msg_row == g_st().Rows - 1 && g_st().msg_col >= g_st().sc_col {
+            g_st().need_wait_return = true;
+            g_st().redraw_cmdline = true;
         }
     }
 }
@@ -3963,7 +3963,7 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
             return;
         }
 
-        if redir_off {
+        if g_st().redir_off {
             return;
         }
 
@@ -3973,15 +3973,15 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
 
         if redirecting() != 0 {
             if *s != NL as c_char && *s != CAR as c_char {
-                while msg_st().redir_col < msg_col {
-                    if !capture_ga.is_null() {
-                        (*capture_ga).push(b' ' as c_char);
+                while msg_st().redir_col < g_st().msg_col {
+                    if !g_st().capture_ga.is_null() {
+                        (*g_st().capture_ga).push(b' ' as c_char);
                     }
-                    if redir_reg != 0 {
-                        write_reg_contents(redir_reg, c" ".as_ptr(), 1, 1);
-                    } else if redir_vname {
+                    if g_st().redir_reg != 0 {
+                        write_reg_contents(g_st().redir_reg, c" ".as_ptr(), 1, 1);
+                    } else if g_st().redir_vname {
                         var_redir_str(c" ".as_ptr(), -1);
-                    } else if let Some(ref rf) = *(&raw const redir_fd) {
+                    } else if let Some(ref rf) = *(&raw const g_st().redir_fd) {
                         fputs(c" ".as_ptr(), rf.as_ptr());
                     }
                     if let Some(ref vf) = *(&raw const msg_st().verbose_fd) {
@@ -3996,21 +3996,21 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
             } else {
                 maxlen as usize
             };
-            if !capture_ga.is_null() && len > 0 {
-                (*capture_ga).extend_from_slice(std::slice::from_raw_parts(str_, len));
+            if !g_st().capture_ga.is_null() && len > 0 {
+                (*g_st().capture_ga).extend_from_slice(std::slice::from_raw_parts(str_, len));
             }
-            if redir_reg != 0 {
-                write_reg_contents(redir_reg, s, len as isize, 1);
+            if g_st().redir_reg != 0 {
+                write_reg_contents(g_st().redir_reg, s, len as isize, 1);
             }
-            if redir_vname {
+            if g_st().redir_vname {
                 var_redir_str(s, maxlen as c_int);
             }
 
             while (maxlen < 0 || (s.offset_from(str_) as c_int) < maxlen as c_int) && *s != NUL {
-                if redir_reg == 0
-                    && !redir_vname
-                    && capture_ga.is_null()
-                    && let Some(ref rf) = *(&raw const redir_fd)
+                if g_st().redir_reg == 0
+                    && !g_st().redir_vname
+                    && g_st().capture_ga.is_null()
+                    && let Some(ref rf) = *(&raw const g_st().redir_fd)
                 {
                     fputc(c_int::from(*s), rf.as_ptr());
                 }
@@ -4027,8 +4027,8 @@ unsafe fn redir_write(str_: *const c_char, maxlen: isize) {
                 s = s.add(1);
             }
 
-            if msg_silent != 0 {
-                msg_col = msg_st().redir_col;
+            if g_st().msg_silent != 0 {
+                g_st().msg_col = msg_st().redir_col;
             }
         }
     }
@@ -4039,9 +4039,9 @@ pub unsafe fn redirecting() -> c_int {
         c_int::from(
             has_redir_fd()
                 || *opt_vars().p_vfile != NUL
-                || redir_reg != 0
-                || redir_vname
-                || !capture_ga.is_null(),
+                || g_st().redir_reg != 0
+                || g_st().redir_vname
+                || !g_st().capture_ga.is_null(),
         )
     }
 }
@@ -4051,15 +4051,15 @@ pub unsafe fn redirecting() -> c_int {
 pub unsafe fn verbose_enter() {
     unsafe {
         if *opt_vars().p_vfile != NUL {
-            msg_silent += 1;
+            g_st().msg_silent += 1;
         }
-        if !msg_ext_skip_verbose {
+        if !g_st().msg_ext_skip_verbose {
             if msg_st().msg_ext_kind != VERBOSE_KIND.as_ptr() {
                 msg_st().pre_verbose_kind = msg_st().msg_ext_kind;
             }
             msg_ext_set_kind(VERBOSE_KIND.as_ptr());
         }
-        msg_ext_skip_verbose = false;
+        g_st().msg_ext_skip_verbose = false;
     }
 }
 
@@ -4068,9 +4068,9 @@ pub unsafe fn verbose_enter() {
 pub unsafe fn verbose_leave() {
     unsafe {
         if *opt_vars().p_vfile != NUL {
-            msg_silent -= 1;
-            if msg_silent < 0 {
-                msg_silent = 0;
+            g_st().msg_silent -= 1;
+            if g_st().msg_silent < 0 {
+                g_st().msg_silent = 0;
             }
         }
         if !msg_st().pre_verbose_kind.is_null() {
@@ -4085,7 +4085,7 @@ pub unsafe fn verbose_enter_scroll() {
     unsafe {
         verbose_enter();
         if *opt_vars().p_vfile == NUL {
-            msg_scroll = 1;
+            g_st().msg_scroll = 1;
         }
     }
 }
@@ -4095,7 +4095,7 @@ pub unsafe fn verbose_leave_scroll() {
     unsafe {
         verbose_leave();
         if *opt_vars().p_vfile == NUL {
-            cmdline_row = msg_row;
+            g_st().cmdline_row = g_st().msg_row;
         }
     }
 }
@@ -4130,48 +4130,48 @@ pub unsafe fn verbose_open() -> c_int {
 /// Use 'w' highlighting and may repeat the message after redrawing
 pub unsafe fn give_warning(message: *const c_char, hl: bool, hist: bool) {
     unsafe {
-        if msg_silent != 0 {
+        if g_st().msg_silent != 0 {
             return;
         }
 
-        let save_msg_hist_off = msg_hist_off;
-        msg_hist_off = !hist;
+        let save_msg_hist_off = g_st().msg_hist_off;
+        g_st().msg_hist_off = !hist;
 
-        no_wait_return += 1;
+        g_st().no_wait_return += 1;
 
         set_vim_var_string(VV_WARNINGMSG, message, -1);
-        keep_msg = None;
+        g_st().keep_msg = None;
         if hl {
-            keep_msg_hl_id = HLF_W;
+            g_st().keep_msg_hl_id = HLF_W;
         } else {
-            keep_msg_hl_id = 0;
+            g_st().keep_msg_hl_id = 0;
         }
 
         if msg_st().msg_ext_kind.is_null() {
             msg_ext_set_kind(c"wmsg".as_ptr());
         }
 
-        if msg(message, keep_msg_hl_id) && msg_scrolled == 0 {
-            set_keep_msg(message, keep_msg_hl_id);
+        if msg(message, g_st().keep_msg_hl_id) && g_st().msg_scrolled == 0 {
+            set_keep_msg(message, g_st().keep_msg_hl_id);
         }
-        msg_didout = false;
-        msg_nowait = true;
-        msg_col = 0;
+        g_st().msg_didout = false;
+        g_st().msg_nowait = true;
+        g_st().msg_col = 0;
 
-        no_wait_return -= 1;
-        msg_hist_off = save_msg_hist_off;
+        g_st().no_wait_return -= 1;
+        g_st().msg_hist_off = save_msg_hist_off;
     }
 }
 
 /// Advance msg cursor to column "col".
 pub unsafe fn msg_advance(mut col: c_int) {
     unsafe {
-        if msg_silent != 0 {
-            msg_col = col;
+        if g_st().msg_silent != 0 {
+            g_st().msg_col = col;
             return;
         }
-        col = col.min(Columns - 1);
-        while msg_col < col {
+        col = col.min(g_st().Columns - 1);
+        while g_st().msg_col < col {
             msg_putchar(b' ' as c_int);
         }
     }
@@ -4196,7 +4196,7 @@ pub unsafe fn msg_delay(mut ms: u64, ignoreinput: bool) {
             return;
         }
 
-        if nvim_testing {
+        if g_st().nvim_testing {
             ms = 100;
         }
 
@@ -4208,7 +4208,7 @@ pub unsafe fn msg_delay(mut ms: u64, ignoreinput: bool) {
             true,
             c"%llu ms%s".as_ptr(),
             ms,
-            if nvim_testing {
+            if g_st().nvim_testing {
                 c" (skipped by NVIM_TEST)".as_ptr()
             } else {
                 c"".as_ptr()
@@ -4222,16 +4222,16 @@ pub unsafe fn msg_delay(mut ms: u64, ignoreinput: bool) {
 /// Check if there should be a delay to allow the user to see a message.
 pub unsafe fn msg_check_for_delay(check_msg_scroll: bool) {
     unsafe {
-        if (emsg_on_display || (check_msg_scroll && msg_scroll != 0))
-            && !did_wait_return
-            && emsg_silent == 0
-            && !in_assert_fails
+        if (g_st().emsg_on_display || (check_msg_scroll && g_st().msg_scroll != 0))
+            && !g_st().did_wait_return
+            && g_st().emsg_silent == 0
+            && !g_st().in_assert_fails
             && !ui_has(kUIMessages)
         {
             msg_delay(1006, true);
-            emsg_on_display = false;
+            g_st().emsg_on_display = false;
             if check_msg_scroll {
-                msg_scroll = 0;
+                g_st().msg_scroll = 0;
             }
         }
     }

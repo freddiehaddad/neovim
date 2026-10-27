@@ -2042,7 +2042,7 @@ pub(super) unsafe fn read_limits(minval: *mut c_int, maxval: *mut c_int) -> c_in
                     c"\\".as_ptr()
                 },
             );
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             return FAIL;
         }
         if (!reverse && *minval > *maxval) || (reverse && *minval < *maxval) {
@@ -2139,35 +2139,35 @@ pub(super) unsafe fn reg_prev_class() -> c_int {
 pub(super) unsafe fn reg_match_visual() -> bool {
     unsafe {
         let wp = if re_st().rex.reg_win.is_null() {
-            curwin
+            *curwin.as_ptr()
         } else {
             re_st().rex.reg_win
         };
-        if re_st().rex.reg_buf != curbuf || Visual.start.lnum == 0 || !REG_MULTI() {
+        if re_st().rex.reg_buf != g_st().curbuf || g_st().Visual.start.lnum == 0 || !REG_MULTI() {
             return false;
         }
 
-        let (top, bot, mode, curswant) = if Visual.active {
-            let (t, b) = if lt(Visual.start, (*wp).w_cursor) {
-                (Visual.start, (*wp).w_cursor)
+        let (top, bot, mode, curswant) = if g_st().Visual.active {
+            let (t, b) = if lt(g_st().Visual.start, (*wp).w_cursor) {
+                (g_st().Visual.start, (*wp).w_cursor)
             } else {
-                ((*wp).w_cursor, Visual.start)
+                ((*wp).w_cursor, g_st().Visual.start)
             };
-            (t, b, Visual.mode, (*wp).w_curswant)
+            (t, b, g_st().Visual.mode, (*wp).w_curswant)
         } else {
-            let (t, mut b) = if lt((*curbuf).b_visual.vi_start, (*curbuf).b_visual.vi_end) {
-                ((*curbuf).b_visual.vi_start, (*curbuf).b_visual.vi_end)
+            let (t, mut b) = if lt((*g_st().curbuf).b_visual.vi_start, (*g_st().curbuf).b_visual.vi_end) {
+                ((*g_st().curbuf).b_visual.vi_start, (*g_st().curbuf).b_visual.vi_end)
             } else {
-                ((*curbuf).b_visual.vi_end, (*curbuf).b_visual.vi_start)
+                ((*g_st().curbuf).b_visual.vi_end, (*g_st().curbuf).b_visual.vi_start)
             };
-            if b.lnum > (*curbuf).b_ml.ml_line_count {
-                b.lnum = (*curbuf).b_ml.ml_line_count;
+            if b.lnum > (*g_st().curbuf).b_ml.ml_line_count {
+                b.lnum = (*g_st().curbuf).b_ml.ml_line_count;
             }
             (
                 t,
                 b,
-                (*curbuf).b_visual.vi_mode,
-                (*curbuf).b_visual.vi_curswant,
+                (*g_st().curbuf).b_visual.vi_mode,
+                (*g_st().curbuf).b_visual.vi_curswant,
             )
         };
 
@@ -2347,7 +2347,7 @@ pub(super) unsafe fn match_with_backref(
             }
             clnum += 1;
             ccol = 0;
-            if got_int {
+            if g_st().got_int {
                 return RA_FAIL;
             }
         }
@@ -2359,7 +2359,7 @@ pub(super) unsafe fn re_mult_next(what: *const c_char) -> bool {
     unsafe {
         if re_multi_type(peekchr()) == MULTI_MULT {
             semsg!(tr(c"E888: (NFA regexp) cannot repeat %s".as_ptr()), what);
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             return false;
         }
         true
@@ -2614,7 +2614,7 @@ pub unsafe fn vim_regsub(
         re_st().rex.reg_match = rmp;
         re_st().rex.reg_mmatch = ptr::null_mut();
         re_st().rex.reg_maxline = 0;
-        re_st().rex.reg_buf = curbuf;
+        re_st().rex.reg_buf = g_st().curbuf;
         re_st().rex.reg_line_lbr = true;
         let result = vim_regsub_both(source, expr, dest, destlen, flags);
 
@@ -2646,9 +2646,9 @@ pub unsafe fn vim_regsub_multi(
 
         re_st().rex.reg_match = ptr::null_mut();
         re_st().rex.reg_mmatch = rmp;
-        re_st().rex.reg_buf = curbuf;
+        re_st().rex.reg_buf = g_st().curbuf;
         re_st().rex.reg_firstlnum = lnum;
-        re_st().rex.reg_maxline = (*curbuf).b_ml.ml_line_count - lnum;
+        re_st().rex.reg_maxline = (*g_st().curbuf).b_ml.ml_line_count - lnum;
         re_st().rex.reg_line_lbr = false;
         let result = vim_regsub_both(source, ptr::null_mut(), dest, destlen, flags);
 
@@ -3343,7 +3343,7 @@ pub(super) unsafe fn seen_endbrace(refnum: c_int) -> bool {
             }
             if *p == NUL {
                 emsg(tr(c"E65: Illegal back reference".as_ptr()));
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return false;
             }
         }
@@ -3403,9 +3403,9 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
             }
         }
 
-        re_st().rex.reg_buf = curbuf;
+        re_st().rex.reg_buf = g_st().curbuf;
 
-        let called_emsg_before = called_emsg;
+        let called_emsg_before = g_st().called_emsg;
         let mut prog_opt = if re_st().regexp_engine != BACKTRACKING_ENGINE {
             nfa_regcomp(
                 expr.cast_mut().cast(),
@@ -3438,7 +3438,7 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
 
         if prog_opt.is_none()
             && re_st().regexp_engine == AUTOMATIC_ENGINE
-            && called_emsg == called_emsg_before
+            && g_st().called_emsg == called_emsg_before
         {
             re_st().regexp_engine = BACKTRACKING_ENGINE;
             report_re_switch(expr);
@@ -3643,9 +3643,9 @@ pub unsafe fn vim_regexec_multi(
             opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
 
             report_re_switch(pat);
-            reg_do_extmatch = REX_ALL;
+            g_st().reg_do_extmatch = REX_ALL;
             let new_prog = vim_regcomp(pat, re_flags);
-            reg_do_extmatch = 0;
+            g_st().reg_do_extmatch = 0;
 
             if !new_prog.is_null() {
                 *prev_prog = *Box::from_raw(new_prog);

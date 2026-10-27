@@ -145,7 +145,7 @@ unsafe fn find_ns_by_name(group: *const c_char) -> c_int {
     }
     unsafe {
         let group_cstr = CStr::from_ptr(group);
-        let ns_ptr = &raw const namespace_ids;
+        let ns_ptr = &raw const g_st().namespace_ids;
         (*ns_ptr)
             .iter()
             .find_map(|(k, v)| (k.as_c_str() == group_cstr).then_some(*v))
@@ -369,12 +369,12 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
         let mut lbuf = [0 as c_char; MSG_BUF_LEN];
         let mut namebuf = [0 as c_char; MSG_BUF_LEN];
         let mut groupbuf = [0 as c_char; MSG_BUF_LEN];
-        let mut buf = if !rbuf.is_null() { rbuf } else { firstbuf };
+        let mut buf = if !rbuf.is_null() { rbuf } else { g_st().firstbuf };
         let ns = group_get_ns(group);
 
         msg_puts_title(gettext(c"\n--- Signs ---".as_ptr()));
 
-        while !buf.is_null() && !got_int {
+        while !buf.is_null() && !g_st().got_int {
             if buf_has_signs(buf) {
                 msg_putchar(b'\n' as c_int);
                 let fname = if !(*buf).b_fname.is_null() {
@@ -603,7 +603,7 @@ unsafe fn sign_define_by_name(
 
         if !new_sign {
             let mut did_redraw = false;
-            let items = &raw mut decor_items;
+            let items = &raw mut g_st().decor_items;
             for sh in (*items).iter_mut() {
                 if sh
                     .sign_name
@@ -616,7 +616,7 @@ unsafe fn sign_define_by_name(
                     sh.number_hl_id = (*sp).sn_num_hl;
                     sh.cursorline_hl_id = (*sp).sn_cul_hl;
                     if !did_redraw {
-                        let mut wp = firstwin;
+                        let mut wp = g_st().firstwin;
                         while !wp.is_null() {
                             if buf_has_signs((*wp).w_buffer) {
                                 redraw_buf_later((*wp).w_buffer, UPD_NOT_VALID);
@@ -780,7 +780,7 @@ unsafe fn sign_unplace(buf: *mut buf_T, id: c_int, group: *mut c_char, atlnum: l
             sign_unplace_inner(buf, id, group, atlnum)
         } else {
             let mut retval = OK;
-            let mut cbuf = firstbuf;
+            let mut cbuf = g_st().firstbuf;
             while !cbuf.is_null() {
                 if sign_unplace_inner(cbuf, id, group, atlnum) == 0 {
                     retval = FAIL;
@@ -801,8 +801,8 @@ unsafe fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T 
         }
 
         if !buf_jump_open_win(buf).is_null() {
-            (*curwin).w_cursor.lnum = lnum;
-            check_cursor_lnum(curwin);
+            (**curwin.as_ptr()).w_cursor.lnum = lnum;
+            check_cursor_lnum(*curwin.as_ptr());
             beginline(BL_WHITE);
         } else {
             if (*buf).b_fname.is_null() {
@@ -818,8 +818,8 @@ unsafe fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T 
                 ptr::null_mut(),
                 ptr::null_mut(),
                 lnum,
-                if buf_hide(curbuf) { ECMD_HIDE } else { 0 },
-                curwin,
+                if buf_hide(g_st().curbuf) { ECMD_HIDE } else { 0 },
+                *curwin.as_ptr(),
             ) == FAIL
             {
                 return -1;
@@ -916,8 +916,8 @@ unsafe fn sign_unplace_cmd(
         }
 
         if id == -1 {
-            lnum = (*curwin).w_cursor.lnum;
-            buf = (*curwin).w_buffer;
+            lnum = (**curwin.as_ptr()).w_cursor.lnum;
+            buf = (**curwin.as_ptr()).w_buffer;
         }
 
         if sign_unplace(buf, id.max(0), group, lnum) == 0 && lnum > 0 {
@@ -1036,7 +1036,7 @@ unsafe fn parse_sign_cmd_args(
         }
 
         if filename.is_null() && ((cmd == SIGNCMD_PLACE && lnum_arg) || cmd == SIGNCMD_JUMP) {
-            *buf = (*curwin).w_buffer;
+            *buf = (**curwin.as_ptr()).w_buffer;
         }
         OK
     }
@@ -1252,7 +1252,7 @@ unsafe fn sign_get_placed(
         if !buf.is_null() {
             sign_get_placed_in_buf(buf, lnum, id, group, retlist);
         } else {
-            let mut cbuf = firstbuf;
+            let mut cbuf = g_st().firstbuf;
             while !cbuf.is_null() {
                 if buf_has_signs(cbuf) {
                     sign_get_placed_in_buf(cbuf, 0, id, group, retlist);

@@ -479,7 +479,7 @@ pub unsafe fn eval_to_bool(
         fill_evalarg_from_eap(&raw mut evalarg, eap, skip);
 
         if skip {
-            emsg_skip += 1;
+            g_st().emsg_skip += 1;
         }
         let r = if use_simple_function {
             eval0_simple_funccal(arg, &raw mut tv, eap, &raw mut evalarg)
@@ -496,7 +496,7 @@ pub unsafe fn eval_to_bool(
             }
         }
         if skip {
-            emsg_skip -= 1;
+            g_st().emsg_skip -= 1;
         }
         clear_evalarg(&raw mut evalarg, eap);
 
@@ -508,8 +508,8 @@ pub unsafe fn eval_to_bool(
 unsafe fn eval1_emsg(arg: *mut *mut c_char, rettv: *mut typval_T, eap: *mut exarg_T) -> c_int {
     unsafe {
         let start = *arg;
-        let did_emsg_before = did_emsg;
-        let called_emsg_before = called_emsg;
+        let did_emsg_before = g_st().did_emsg;
+        let called_emsg_before = g_st().called_emsg;
         let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
@@ -517,8 +517,8 @@ unsafe fn eval1_emsg(arg: *mut *mut c_char, rettv: *mut typval_T, eap: *mut exar
         let ret = eval1(arg, rettv, &raw mut evalarg);
         if ret == FAIL
             && !aborting()
-            && did_emsg == did_emsg_before
-            && called_emsg == called_emsg_before
+            && g_st().did_emsg == did_emsg_before
+            && g_st().called_emsg == called_emsg_before
         {
             semsg!(gettext((&raw const e_invexpr2).cast()), start);
         }
@@ -684,7 +684,7 @@ pub unsafe fn eval_to_string_skip(
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, skip);
         if skip {
-            emsg_skip += 1;
+            g_st().emsg_skip += 1;
         }
         if eval0(arg, &raw mut tv, eap, &raw mut evalarg) == FAIL || skip {
             retval = None;
@@ -693,7 +693,7 @@ pub unsafe fn eval_to_string_skip(
             tv_clear(&raw mut tv);
         }
         if skip {
-            emsg_skip -= 1;
+            g_st().emsg_skip -= 1;
         }
         clear_evalarg(&raw mut evalarg, eap);
 
@@ -793,16 +793,16 @@ pub unsafe fn eval_to_string_safe(
         save_funccal();
         {
             if use_sandbox {
-                sandbox += 1;
+                g_st().sandbox += 1;
             }
-            textlock += 1;
+            g_st().textlock += 1;
         }
         let retval = eval_to_string(arg, false, use_simple_function);
         {
             if use_sandbox {
-                sandbox -= 1;
+                g_st().sandbox -= 1;
             }
-            textlock -= 1;
+            g_st().textlock -= 1;
         }
         restore_funccal();
         retval
@@ -818,14 +818,14 @@ pub unsafe fn eval_to_number(expr: *mut c_char, use_simple_function: bool) -> va
         let mut r = NOTDONE;
 
         {
-            emsg_off += 1;
+            g_st().emsg_off += 1;
         }
 
         if use_simple_function {
             r = may_call_simple_func(expr, &raw mut rettv);
         }
         if r == NOTDONE {
-            let evalarg_ptr = &raw mut EVALARG_EVALUATE;
+            let evalarg_ptr = &raw mut g_st().EVALARG_EVALUATE;
             r = eval1(&raw mut p, &raw mut rettv, evalarg_ptr);
         }
         if r == FAIL {
@@ -835,7 +835,7 @@ pub unsafe fn eval_to_number(expr: *mut c_char, use_simple_function: bool) -> va
             tv_clear(&raw mut rettv);
         }
         {
-            emsg_off -= 1;
+            g_st().emsg_off -= 1;
         }
 
         retval
@@ -894,7 +894,7 @@ pub unsafe fn call_vim_function(
         }
 
         (*rettv).v_type = VarType::VAR_UNKNOWN;
-        let lnum = (*curwin).w_cursor.lnum;
+        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,
@@ -962,9 +962,9 @@ pub unsafe fn eval_expr_option_number(cb: *mut Callback, use_sandbox: bool) -> c
         let mut copy = Callback::NONE;
         callback_copy(&raw mut copy, cb);
         if use_sandbox {
-            sandbox += 1;
+            g_st().sandbox += 1;
         }
-        emsg_off += 1;
+        g_st().emsg_off += 1;
         let mut tv = tv_initial_value();
         let mut argv = [tv_initial_value()];
         let mut retval = -1;
@@ -972,9 +972,9 @@ pub unsafe fn eval_expr_option_number(cb: *mut Callback, use_sandbox: bool) -> c
             retval = tv_get_number_chk(&raw const tv, ptr::null_mut()) as c_int;
             tv_clear(&raw mut tv);
         }
-        emsg_off -= 1;
+        g_st().emsg_off -= 1;
         if use_sandbox {
-            sandbox -= 1;
+            g_st().sandbox -= 1;
         }
         callback_free(&raw mut copy);
         retval
@@ -992,16 +992,16 @@ pub unsafe fn eval_expr_option_tv(
         save_funccal();
         {
             if use_sandbox {
-                sandbox += 1;
+                g_st().sandbox += 1;
             }
-            textlock += 1;
+            g_st().textlock += 1;
         }
         let mut argv = [tv_initial_value()];
         let ok = callback_call(cb, 0, argv.as_mut_ptr(), ret_tv);
         {
-            textlock -= 1;
+            g_st().textlock -= 1;
             if use_sandbox {
-                sandbox -= 1;
+                g_st().sandbox -= 1;
             }
         }
         restore_funccal();
@@ -1013,16 +1013,16 @@ pub unsafe fn eval_expr_option_tv(
 /// it in "*cp". Doesn't give error messages.
 pub unsafe fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int {
     unsafe {
-        let saved_sctx = current_sctx;
+        let saved_sctx = g_st().current_sctx;
         let use_sandbox = was_set_insecurely(wp, kOptFoldexpr, OPT_LOCAL) != 0;
 
-        current_sctx = (*wp).w_onebuf_opt.wo_script_ctx[kWinOptFoldexpr];
+        g_st().current_sctx = (*wp).w_onebuf_opt.wo_script_ctx[kWinOptFoldexpr];
 
-        emsg_off += 1;
+        g_st().emsg_off += 1;
         if use_sandbox {
-            sandbox += 1;
+            g_st().sandbox += 1;
         }
-        textlock += 1;
+        g_st().textlock += 1;
         *cp = NUL as c_int;
 
         let mut tv = tv_initial_value();
@@ -1051,12 +1051,12 @@ pub unsafe fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int {
             tv_clear(&raw mut tv);
         }
 
-        emsg_off -= 1;
+        g_st().emsg_off -= 1;
         if use_sandbox {
-            sandbox -= 1;
+            g_st().sandbox -= 1;
         }
-        textlock -= 1;
-        current_sctx = saved_sctx;
+        g_st().textlock -= 1;
+        g_st().current_sctx = saved_sctx;
 
         retval as c_int
     }
@@ -1378,7 +1378,7 @@ unsafe fn get_lval_subscript(
                     empty1 = true;
                 } else {
                     empty1 = false;
-                    let evalarg_ptr = &raw mut EVALARG_EVALUATE;
+                    let evalarg_ptr = &raw mut g_st().EVALARG_EVALUATE;
                     if eval1(&raw mut p, &raw mut var1, evalarg_ptr) == FAIL {
                         tv_clear(&raw mut var1);
                         tv_clear(&raw mut var2);
@@ -1419,7 +1419,7 @@ unsafe fn get_lval_subscript(
                         (*lp).ll_empty2 = true;
                     } else {
                         (*lp).ll_empty2 = false;
-                        let evalarg_ptr = &raw mut EVALARG_EVALUATE;
+                        let evalarg_ptr = &raw mut g_st().EVALARG_EVALUATE;
                         if eval1(&raw mut p, &raw mut var2, evalarg_ptr) == FAIL
                             || !tv_check_str(&raw const var2)
                         {
@@ -1543,7 +1543,7 @@ pub unsafe fn get_lval(
                 (*lp).ll_name = ptr::null();
                 if !aborting() && !quiet {
                     {
-                        emsg_severe = true;
+                        g_st().emsg_severe = true;
                         semsg!(gettext((&raw const e_invarg2).cast()), name);
                     }
                     return ptr::null_mut();
@@ -1811,7 +1811,7 @@ pub unsafe fn eval_for_line(
         }
 
         if skip {
-            emsg_skip += 1;
+            g_st().emsg_skip += 1;
         }
         expr = skipwhite(expr.add(2));
         if eval0(expr.cast_mut(), &raw mut tv, eap, evalarg) == OK {
@@ -1851,7 +1851,7 @@ pub unsafe fn eval_for_line(
             }
         }
         if skip {
-            emsg_skip -= 1;
+            g_st().emsg_skip -= 1;
         }
 
         fi
@@ -2121,7 +2121,7 @@ unsafe fn eval_func(
             .collect();
         s = s_vec.as_mut_ptr();
 
-        let lnum = (*curwin).w_cursor.lnum;
+        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,
@@ -2163,8 +2163,8 @@ pub unsafe fn eval0(
     evalarg: *mut evalarg_T,
 ) -> c_int {
     unsafe {
-        let did_emsg_before = did_emsg;
-        let called_emsg_before = called_emsg;
+        let did_emsg_before = g_st().did_emsg;
+        let called_emsg_before = g_st().called_emsg;
         let mut end_error = false;
 
         let mut p = skipwhite(arg);
@@ -2177,7 +2177,7 @@ pub unsafe fn eval0(
             if ret != FAIL {
                 tv_clear(rettv);
             }
-            if !aborting() && did_emsg == did_emsg_before && called_emsg == called_emsg_before {
+            if !aborting() && g_st().did_emsg == did_emsg_before && g_st().called_emsg == called_emsg_before {
                 if end_error {
                     semsg!(gettext((&raw const e_trailing_arg).cast()), p);
                 } else {
@@ -3135,7 +3135,7 @@ unsafe fn call_func_rettv(
             funcname = c"".as_ptr();
         }
 
-        let lnum = (*curwin).w_cursor.lnum;
+        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,
@@ -4329,9 +4329,9 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         let mut abort = false;
 
         if !testing {
-            want_garbage_collect = false;
-            may_garbage_collect = false;
-            garbage_collect_at_exit = false;
+            g_st().want_garbage_collect = false;
+            g_st().may_garbage_collect = false;
+            g_st().garbage_collect_at_exit = false;
         }
 
         let es = &raw mut rt_st().exestack;
@@ -4346,7 +4346,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         abort = abort || garbage_collect_scriptvars(copyID);
 
         {
-            let mut buf = firstbuf;
+            let mut buf = g_st().firstbuf;
             while !buf.is_null() {
                 abort = abort
                     || set_ref_in_item(
@@ -4419,10 +4419,10 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         }
 
         {
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
-                let mut wp = if tp == curtab {
-                    firstwin
+                let mut wp = if tp == g_st().curtab {
+                    g_st().firstwin
                 } else {
                     (*tp).tp_firstwin
                 };
@@ -4439,7 +4439,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
                 tp = (*tp).tp_next;
             }
 
-            let vec = &raw const ctx_win_vec;
+            let vec = &raw const g_st().ctx_win_vec;
             for cw in &*vec {
                 let cw_win = cw.cw_win;
                 if !cw_win.is_null() {
@@ -4455,7 +4455,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         }
 
         {
-            let mut tp = first_tabpage;
+            let mut tp = g_st().first_tabpage;
             while !tp.is_null() {
                 abort = abort
                     || set_ref_in_item(
@@ -4473,7 +4473,7 @@ pub unsafe fn garbage_collect(testing: bool) -> bool {
         abort = abort || set_ref_in_functions(copyID);
 
         {
-            let chans_ptr = &raw const channels;
+            let chans_ptr = &raw const g_st().channels;
             for &data in (*chans_ptr).values() {
                 let ct = data;
                 set_ref_in_callback_reader(
@@ -5099,7 +5099,7 @@ unsafe fn string_to_list(str_: *const c_char, mut len: usize, keepempty: bool) -
 unsafe fn get_system_output_as_rettv(argvars: *mut typval_T, rettv: *mut typval_T, retlist: bool) {
     unsafe {
         let mut wait_time: proftime_T = 0;
-        let profiling = do_profiling == PROF_YES;
+        let profiling = g_st().do_profiling == PROF_YES;
 
         (*rettv).v_type = VarType::VAR_STRING;
         (*rettv).vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -5344,7 +5344,7 @@ pub unsafe fn callback_call(
             }
             kCallbackExpr => {
                 eval_st().callback_depth += 1;
-                let evalarg_ptr = &raw mut EVALARG_EVALUATE;
+                let evalarg_ptr = &raw mut g_st().EVALARG_EVALUATE;
                 let r = eval0_simple_funccal(
                     skipwhite((*callback).data.as_funcref()),
                     rettv,
@@ -5359,7 +5359,7 @@ pub unsafe fn callback_call(
             }
         }
 
-        let lnum = (*curwin).w_cursor.lnum;
+        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,
@@ -5485,8 +5485,8 @@ pub unsafe fn add_timer_info_all(rettv: *mut typval_T) {
 /// Invoked on the main loop.
 pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, timer: *mut timer_T) {
     unsafe {
-        let save_did_emsg = did_emsg;
-        let called_emsg_before = called_emsg;
+        let save_did_emsg = g_st().did_emsg;
+        let called_emsg_before = g_st().called_emsg;
 
         if (*timer).stopped || (*timer).paused {
             return;
@@ -5513,13 +5513,13 @@ pub unsafe fn timer_due_cb(_tw: *mut TimeWatcher, timer: *mut timer_T) {
         );
 
         {
-            if called_emsg > called_emsg_before && did_emsg != 0 {
+            if g_st().called_emsg > called_emsg_before && g_st().did_emsg != 0 {
                 (*timer).emsg_count += 1;
-                if did_throw {
+                if g_st().did_throw {
                     discard_current_exception();
                 }
             }
-            did_emsg = save_did_emsg;
+            g_st().did_emsg = save_did_emsg;
         }
 
         if (*timer).emsg_count >= 3 {
@@ -5552,7 +5552,7 @@ pub unsafe fn timer_start(timeout: i64, repeat_count: c_int, callback: Callback)
         }));
 
         {
-            let main_loop_ptr = (&raw mut main_loop).cast();
+            let main_loop_ptr = (&raw mut g_st().main_loop).cast();
             time_watcher_init(
                 main_loop_ptr,
                 &raw mut (*timer).watcher,
@@ -5845,11 +5845,11 @@ pub unsafe fn var2fpos(
                 coladd: (*wp).w_cursor.coladd,
             };
         } else if *name == b'v' as c_char && *name.add(1) == NUL {
-            if Visual.active && wp == curwin {
+            if g_st().Visual.active && wp == *curwin.as_ptr() {
                 eval_st().VAR2FPOS_POS = pos_T {
-                    lnum: Visual.start.lnum,
-                    col: Visual.start.col,
-                    coladd: Visual.start.coladd,
+                    lnum: g_st().Visual.start.lnum,
+                    col: g_st().Visual.start.col,
+                    coladd: g_st().Visual.start.coladd,
                 };
             } else {
                 eval_st().VAR2FPOS_POS = pos_T {
@@ -5947,7 +5947,7 @@ pub unsafe fn list2fpos(
             }
             if n == 0 {
                 {
-                    n = (*curbuf).b_fnum;
+                    n = (*g_st().curbuf).b_fnum;
                 }
             }
             *fnump = n;
@@ -5967,14 +5967,14 @@ pub unsafe fn list2fpos(
         }
         if charcol {
             let buf = buflist_findnr(if fnump.is_null() {
-                (*curbuf).b_fnum
+                (*g_st().curbuf).b_fnum
             } else {
                 *fnump
             });
             if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
                 return FAIL;
             }
-            let cur_lnum = (*curwin).w_cursor.lnum;
+            let cur_lnum = (**curwin.as_ptr()).w_cursor.lnum;
             n = buf_charidx_to_byteidx(
                 buf,
                 if (*posp).lnum == 0 {
@@ -6618,31 +6618,31 @@ pub unsafe fn ex_echo(eap: *mut exarg_T) {
         let mut rettv = tv_initial_value();
         let mut atstart = true;
         let mut need_clear = true;
-        let did_emsg_before = did_emsg;
-        let called_emsg_before = called_emsg;
+        let did_emsg_before = g_st().did_emsg;
+        let called_emsg_before = g_st().called_emsg;
         let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&raw mut evalarg, eap, (*eap).skip != 0);
 
         if (*eap).skip != 0 {
-            emsg_skip += 1;
+            g_st().emsg_skip += 1;
         }
-        while *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char && !got_int {
-            need_clr_eos = true;
+        while *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char && !g_st().got_int {
+            g_st().need_clr_eos = true;
 
             {
                 let p = arg;
                 if eval1(&raw mut arg, &raw mut rettv, &raw mut evalarg) == FAIL {
                     if !aborting()
-                        && did_emsg == did_emsg_before
-                        && called_emsg == called_emsg_before
+                        && g_st().did_emsg == did_emsg_before
+                        && g_st().called_emsg == called_emsg_before
                     {
                         semsg!(gettext((&raw const e_invexpr2).cast()), p);
                     }
-                    need_clr_eos = false;
+                    g_st().need_clr_eos = false;
                     break;
                 }
-                need_clr_eos = false;
+                g_st().need_clr_eos = false;
             }
 
             if (*eap).skip == 0 {
@@ -6652,7 +6652,7 @@ pub unsafe fn ex_echo(eap: *mut exarg_T) {
                     msg_ext_no_fast();
                     msg_ext_set_kind(c"echo".as_ptr());
                     if (*eap).cmdidx == cmdidx_T::CMD_echo as c_int {
-                        if !msg_didout {
+                        if !g_st().msg_didout {
                             msg_sb_eol();
                         }
                         msg_start();
@@ -6677,7 +6677,7 @@ pub unsafe fn ex_echo(eap: *mut exarg_T) {
         msg_ext_set_append(false);
 
         if (*eap).skip != 0 {
-            emsg_skip -= 1;
+            g_st().emsg_skip -= 1;
         } else {
             if ui_has(kUIMessages)
                 && (*(*eap).arg == NUL
@@ -6717,7 +6717,7 @@ pub unsafe fn ex_execute(eap: *mut exarg_T) {
         let mut has_arg = false;
 
         if (*eap).skip != 0 {
-            emsg_skip += 1;
+            g_st().emsg_skip += 1;
         }
         while *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
             ret = eval1_emsg(&raw mut arg, &raw mut rettv, eap);
@@ -6759,11 +6759,11 @@ pub unsafe fn ex_execute(eap: *mut exarg_T) {
                 msg_ext_set_kind(c"echomsg".as_ptr());
                 msg(buf.as_ptr(), eval_st().echo_hl_id);
             } else if (*eap).cmdidx == cmdidx_T::CMD_echoerr as c_int {
-                let save_did_emsg = did_emsg;
+                let save_did_emsg = g_st().did_emsg;
                 msg_ext_no_fast();
                 emsg_multiline(buf.as_ptr(), c"echoerr".as_ptr(), HLF_E, true);
-                if !force_abort {
-                    did_emsg = save_did_emsg;
+                if !g_st().force_abort {
+                    g_st().did_emsg = save_did_emsg;
                 }
             } else if (*eap).cmdidx == cmdidx_T::CMD_execute as c_int {
                 do_cmdline(
@@ -6775,7 +6775,7 @@ pub unsafe fn ex_execute(eap: *mut exarg_T) {
         }
 
         if (*eap).skip != 0 {
-            emsg_skip -= 1;
+            g_st().emsg_skip -= 1;
         }
 
         (*eap).nextcmd = check_nextcmd(arg);
@@ -6842,7 +6842,7 @@ pub unsafe fn last_set_msg(script_ctx: sctx_T) {
         }
 
         let p = get_scriptname(script_ctx, true);
-        msg_ext_skip_verbose = true;
+        g_st().msg_ext_skip_verbose = true;
 
         verbose_enter();
         msg_puts(gettext(c"\n\tLast set from ".as_ptr()));
@@ -7063,19 +7063,19 @@ pub unsafe fn eval_call_provider(
 
         let es = &raw const rt_st().exestack;
         let new_scope = caller_scope {
-            script_ctx: current_sctx,
+            script_ctx: g_st().current_sctx,
             es_entry: (*es).last().unwrap().clone(),
-            autocmd_fname: (&raw const autocmd_fname).as_ref().unwrap().clone(),
-            autocmd_match: (&raw const autocmd_match).as_ref().unwrap().clone(),
-            autocmd_fname_full,
-            autocmd_bufnr,
+            autocmd_fname: (&raw const g_st().autocmd_fname).as_ref().unwrap().clone(),
+            autocmd_match: (&raw const g_st().autocmd_match).as_ref().unwrap().clone(),
+            autocmd_fname_full: g_st().autocmd_fname_full,
+            autocmd_bufnr: g_st().autocmd_bufnr,
             funccalp: get_current_funccal().cast(),
         };
-        let pcs = &raw mut provider_caller_scope;
+        let pcs = &raw mut g_st().provider_caller_scope;
         let saved_provider_caller_scope = std::mem::replace(&mut *pcs, new_scope);
         save_funccal();
         {
-            provider_call_nesting += 1;
+            g_st().provider_call_nesting += 1;
         }
 
         let mut argvars = [
@@ -7094,7 +7094,7 @@ pub unsafe fn eval_call_provider(
         let mut rettv = tv_initial_value();
         tv_list_ref(arguments);
 
-        let lnum = (*curwin).w_cursor.lnum;
+        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,
@@ -7118,9 +7118,9 @@ pub unsafe fn eval_call_provider(
         tv_list_unref(arguments);
         restore_funccal();
         {
-            provider_caller_scope = saved_provider_caller_scope;
-            provider_call_nesting -= 1;
-            debug_assert!(provider_call_nesting >= 0);
+            g_st().provider_caller_scope = saved_provider_caller_scope;
+            g_st().provider_call_nesting -= 1;
+            debug_assert!(g_st().provider_call_nesting >= 0);
         }
 
         if discard {

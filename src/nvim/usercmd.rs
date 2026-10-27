@@ -625,7 +625,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 }
                 found = true;
                 msg_putchar(b'\n' as c_int);
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
 
@@ -666,34 +666,34 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
 
                 match a & (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) {
                     0 => {
-                        IObuff[len] = b'0' as c_char;
+                        g_st().IObuff[len] = b'0' as c_char;
                         len += 1;
                     }
                     EX_EXTRA => {
-                        IObuff[len] = b'*' as c_char;
+                        g_st().IObuff[len] = b'*' as c_char;
                         len += 1;
                     }
                     x if x == (EX_EXTRA | EX_NOSPC) => {
-                        IObuff[len] = b'?' as c_char;
+                        g_st().IObuff[len] = b'?' as c_char;
                         len += 1;
                     }
                     x if x == (EX_EXTRA | EX_NEEDARG) => {
-                        IObuff[len] = b'+' as c_char;
+                        g_st().IObuff[len] = b'+' as c_char;
                         len += 1;
                     }
                     x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG) => {
-                        IObuff[len] = b'1' as c_char;
+                        g_st().IObuff[len] = b'1' as c_char;
                         len += 1;
                     }
                     x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) => {
-                        IObuff[len] = b'_' as c_char;
+                        g_st().IObuff[len] = b'_' as c_char;
                         len += 1;
                     }
                     _ => {}
                 }
 
                 loop {
-                    IObuff[len] = b' ' as c_char;
+                    g_st().IObuff[len] = b' ' as c_char;
                     len += 1;
                     if (len as i64) >= 5 - over {
                         break;
@@ -707,12 +707,12 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
                         ptr::copy_nonoverlapping(
                             bytes.as_ptr().cast::<c_char>(),
-                            (&raw mut IObuff[0]).add(len),
+                            (&raw mut g_st().IObuff[0]).add(len),
                             copy_len,
                         );
                         len += copy_len;
                     } else if (a & EX_DFLALL) != 0 {
-                        IObuff[len] = b'%' as c_char;
+                        g_st().IObuff[len] = b'%' as c_char;
                         len += 1;
                     } else if cmd.uc_def >= 0 {
                         let s = format!("{}", cmd.uc_def);
@@ -720,18 +720,18 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                         let copy_len = bytes.len().min(IOSIZE - 1 - len);
                         ptr::copy_nonoverlapping(
                             bytes.as_ptr().cast::<c_char>(),
-                            (&raw mut IObuff[0]).add(len),
+                            (&raw mut g_st().IObuff[0]).add(len),
                             copy_len,
                         );
                         len += copy_len;
                     } else {
-                        IObuff[len] = b'.' as c_char;
+                        g_st().IObuff[len] = b'.' as c_char;
                         len += 1;
                     }
                 }
 
                 loop {
-                    IObuff[len] = b' ' as c_char;
+                    g_st().IObuff[len] = b' ' as c_char;
                     len += 1;
                     if (len as i64) >= 8 - over {
                         break;
@@ -748,7 +748,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                             let copy_len = bytes.len().min(IOSIZE - 1 - len);
                             ptr::copy_nonoverlapping(
                                 bytes.as_ptr().cast::<c_char>(),
-                                (&raw mut IObuff[0]).add(len),
+                                (&raw mut g_st().IObuff[0]).add(len),
                                 copy_len,
                             );
                             len += copy_len;
@@ -758,7 +758,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 }
 
                 loop {
-                    IObuff[len] = b' ' as c_char;
+                    g_st().IObuff[len] = b' ' as c_char;
                     len += 1;
                     if (len as i64) >= 13 - over {
                         break;
@@ -771,22 +771,22 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                     let copy_len = bytes.len().min(IOSIZE - 1 - len);
                     ptr::copy_nonoverlapping(
                         bytes.as_ptr().cast::<c_char>(),
-                        (&raw mut IObuff[0]).add(len),
+                        (&raw mut g_st().IObuff[0]).add(len),
                         copy_len,
                     );
                     len += copy_len;
                 }
 
                 loop {
-                    IObuff[len] = b' ' as c_char;
+                    g_st().IObuff[len] = b' ' as c_char;
                     len += 1;
                     if (len as i64) >= 25 - over {
                         break;
                     }
                 }
 
-                IObuff[len] = NUL;
-                msg_outtrans(&raw const IObuff[0], 0, false);
+                g_st().IObuff[len] = NUL;
+                msg_outtrans(&raw const g_st().IObuff[0], 0, false);
 
                 if cmd.uc_luaref != LUA_NOREF {
                     let fn_str = nlua_funcref_str(cmd.uc_luaref, true);
@@ -799,13 +799,13 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 msg_outtrans_special(
                     cmd.uc_rep.as_ptr(),
                     false,
-                    if name_len == 0 { Columns - 47 } else { 0 },
+                    if name_len == 0 { g_st().Columns - 47 } else { 0 },
                 );
                 if opt_vars().p_verbose > 0 {
                     last_set_msg(cmd.uc_script_ctx);
                 }
                 line_breakcheck();
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
                 i += 1;
@@ -1122,7 +1122,7 @@ pub unsafe fn uc_add_command(
 
         let u = &raw mut (*ucmds_mut());
         let gap: &mut Vec<ucmd_T> = if (flags & UC_BUFFER) != 0 {
-            &mut (*curbuf).b_ucmds
+            &mut (*g_st().curbuf).b_ucmds
         } else {
             &mut *u
         };
@@ -1142,8 +1142,8 @@ pub unsafe fn uc_add_command(
 
             if cmp == 0 {
                 if !force
-                    && ((*cmd).uc_script_ctx.sc_sid != current_sctx.sc_sid
-                        || (*cmd).uc_script_ctx.sc_seq == current_sctx.sc_seq)
+                    && ((*cmd).uc_script_ctx.sc_sid != g_st().current_sctx.sc_sid
+                        || (*cmd).uc_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
                 {
                     semsg!(
                         gettext(c"E174: Command already exists: add ! to replace it: %s".as_ptr()),
@@ -1187,7 +1187,7 @@ pub unsafe fn uc_add_command(
         (*cmd).uc_argt = argt;
         (*cmd).uc_def = def;
         (*cmd).uc_compl = context;
-        (*cmd).uc_script_ctx = current_sctx;
+        (*cmd).uc_script_ctx = g_st().current_sctx;
         (*cmd).uc_script_ctx.sc_lnum += sourcing_lnum();
         nlua_set_sctx(&raw mut (*cmd).uc_script_ctx);
         (*cmd).uc_compl_arg = compl_arg;
@@ -1279,8 +1279,8 @@ pub unsafe fn ex_comclear(_eap: *mut exarg_T) {
     unsafe {
         let u = &raw mut (*ucmds_mut());
         (*u).clear();
-        if !curbuf.is_null() {
-            (*curbuf).b_ucmds.clear();
+        if !g_st().curbuf.is_null() {
+            (*g_st().curbuf).b_ucmds.clear();
         }
     }
 }
@@ -1298,7 +1298,7 @@ pub unsafe fn ex_delcommand(eap: *mut exarg_T) {
         }
 
         let mut is_global = false;
-        let mut gap: &mut Vec<ucmd_T> = &mut (*curbuf).b_ucmds;
+        let mut gap: &mut Vec<ucmd_T> = &mut (*g_st().curbuf).b_ucmds;
         loop {
             i = 0;
             while (i as usize) < gap.len() {
@@ -1564,7 +1564,7 @@ pub unsafe fn add_win_cmd_modifiers(
 
         if (*cmod).cmod_tab > 0 {
             let tabnr = (*cmod).cmod_tab - 1;
-            if tabnr == tabpage_index(curtab) {
+            if tabnr == tabpage_index(g_st().curtab) {
                 result += add_cmd_modifier(buf, c"tab".as_ptr(), multi_mods);
             } else {
                 let s = format!("{tabnr}tab\0");
@@ -1836,7 +1836,7 @@ unsafe fn uc_check_code(
                 }
             }
             CodeType::Mods => {
-                result = uc_mods(buf, &raw const cmdmod, quote != 0);
+                result = uc_mods(buf, &raw const g_st().cmdmod, quote != 0);
             }
             CodeType::Register => {
                 result = if (*eap).regname != 0 { 1 } else { 0 };
@@ -1977,12 +1977,12 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
             buf = buf_vec.as_mut_ptr();
         }
 
-        let mut save_current_sctx = current_sctx;
+        let mut save_current_sctx = g_st().current_sctx;
         let mut restore_current_sctx = false;
         if ((*cmd).uc_argt & EX_KEEPSCRIPT) == 0 {
             restore_current_sctx = true;
-            save_current_sctx = current_sctx;
-            current_sctx.sc_sid = (*cmd).uc_script_ctx.sc_sid;
+            save_current_sctx = g_st().current_sctx;
+            g_st().current_sctx.sc_sid = (*cmd).uc_script_ctx.sc_sid;
         }
         do_cmdline(
             buf,
@@ -1991,7 +1991,7 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
         );
 
         if restore_current_sctx {
-            current_sctx = save_current_sctx;
+            g_st().current_sctx = save_current_sctx;
         }
 
         0

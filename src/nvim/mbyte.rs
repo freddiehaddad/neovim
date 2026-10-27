@@ -1077,8 +1077,8 @@ pub unsafe fn enc_canon_props(name: *const c_char) -> c_int {
 pub unsafe fn bomb_size() -> c_int {
     unsafe {
         let mut n = 0;
-        if (*curbuf).b_p_bomb != 0 && (*curbuf).b_p_bin == 0 {
-            let fenc = CStr::from_ptr((*curbuf).b_p_fenc).to_bytes();
+        if (*g_st().curbuf).b_p_bomb != 0 && (*g_st().curbuf).b_p_bin == 0 {
+            let fenc = CStr::from_ptr((*g_st().curbuf).b_p_fenc).to_bytes();
             if fenc.is_empty() || fenc == b"utf-8" {
                 n = 3;
             } else if fenc.starts_with(b"ucs-2") || fenc.starts_with(b"utf-16") {
@@ -1106,7 +1106,7 @@ pub unsafe fn remove_bom(s: *mut c_char) {
 }
 
 pub unsafe fn mb_get_class(p: *const c_char) -> c_int {
-    unsafe { mb_get_class_tab(p, (*curbuf).b_chartab.as_ptr()) }
+    unsafe { mb_get_class_tab(p, (*g_st().curbuf).b_chartab.as_ptr()) }
 }
 
 pub unsafe fn mb_get_class_tab(p: *const c_char, chartab: *const u64) -> c_int {
@@ -1677,7 +1677,7 @@ pub unsafe fn utf_printable(c: c_int) -> bool {
 }
 
 pub unsafe fn utf_class(c: c_int) -> c_int {
-    unsafe { utf_class_tab(c, (*curbuf).b_chartab.as_ptr()) }
+    unsafe { utf_class_tab(c, (*g_st().curbuf).b_chartab.as_ptr()) }
 }
 
 pub unsafe fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
@@ -2376,7 +2376,7 @@ pub unsafe fn show_utf8() {
         }
 
         let copy_len = out.len().min(IOSIZE - 1);
-        let io_ptr = (&raw mut IObuff).cast::<c_char>();
+        let io_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
         ptr::copy_nonoverlapping(out.as_ptr().cast::<c_char>(), io_ptr, copy_len);
         *io_ptr.add(copy_len) = NUL;
         msg(io_ptr, 0);
@@ -2725,7 +2725,7 @@ pub unsafe fn utf_cp_bounds(base: *const c_char, p_in: *const c_char) -> CharBou
 
 pub unsafe fn utf_find_illegal() {
     unsafe {
-        let pos: pos_T = (*curwin).w_cursor;
+        let pos: pos_T = (**curwin.as_ptr()).w_cursor;
         let mut vimconv = vimconv_T {
             vc_type: CONV_NONE,
             vc_factor: 1,
@@ -2734,11 +2734,11 @@ pub unsafe fn utf_find_illegal() {
         };
         let mut tofree: Option<Vec<u8>> = None;
 
-        if (enc_canon_props((*curbuf).b_p_fenc) & ENC_8BIT) != 0 {
-            convert_setup(&mut vimconv, opt_vars().p_enc, (*curbuf).b_p_fenc);
+        if (enc_canon_props((*g_st().curbuf).b_p_fenc) & ENC_8BIT) != 0 {
+            convert_setup(&mut vimconv, opt_vars().p_enc, (*g_st().curbuf).b_p_fenc);
         }
 
-        (*curwin).w_cursor.coladd = 0;
+        (**curwin.as_ptr()).w_cursor.coladd = 0;
         'search: loop {
             let mut p = get_cursor_pos_ptr();
             if vimconv.vc_type != CONV_NONE {
@@ -2753,7 +2753,7 @@ pub unsafe fn utf_find_illegal() {
                 let mut len = utf_ptr2len(p);
                 if *p.cast::<u8>() >= 0x80 && (len == 1 || utf_char2len(utf_ptr2char(p)) != len) {
                     if vimconv.vc_type == CONV_NONE {
-                        (*curwin).w_cursor.col += p.offset_from(get_cursor_pos_ptr()) as colnr_T;
+                        (**curwin.as_ptr()).w_cursor.col += p.offset_from(get_cursor_pos_ptr()) as colnr_T;
                     } else {
                         len = p.offset_from(
                             tofree.as_ref().unwrap().as_ptr().cast::<c_char>(),
@@ -2762,26 +2762,26 @@ pub unsafe fn utf_find_illegal() {
                         while *cur_p != NUL && len > 0 {
                             len -= 1;
                             let l = utf_ptr2len(cur_p);
-                            (*curwin).w_cursor.col += l;
+                            (**curwin.as_ptr()).w_cursor.col += l;
                             cur_p = cur_p.add(l as usize);
                         }
                     }
-                    (*curwin).w_set_curswant = true;
+                    (**curwin.as_ptr()).w_set_curswant = true;
                     break 'search;
                 }
                 p = p.add(len as usize);
             }
-            if (*curwin).w_cursor.lnum == (*curbuf).b_ml.ml_line_count {
-                (*curwin).w_cursor = pos;
+            if (**curwin.as_ptr()).w_cursor.lnum == (*g_st().curbuf).b_ml.ml_line_count {
+                (**curwin.as_ptr()).w_cursor = pos;
                 beep_flush();
                 break;
             }
-            (*curwin).w_cursor.lnum += 1;
-            (*curwin).w_cursor.col = 0;
+            (**curwin.as_ptr()).w_cursor.lnum += 1;
+            (**curwin.as_ptr()).w_cursor.col = 0;
         }
 
         if vimconv.vc_type != CONV_NONE && tofree.is_none() {
-            (*curwin).w_cursor = pos;
+            (**curwin.as_ptr()).w_cursor = pos;
             beep_flush();
         }
     }
@@ -2820,7 +2820,7 @@ pub unsafe fn utf_valid_string(s: *const c_char, end: *const c_char) -> bool {
 
 pub unsafe fn mb_adjust_cursor() {
     unsafe {
-        mark_mb_adjustpos(curbuf.cast(), (&raw mut (*curwin).w_cursor).cast());
+        mark_mb_adjustpos(g_st().curbuf.cast(), (&raw mut (**curwin.as_ptr()).w_cursor).cast());
     }
 }
 
@@ -2954,7 +2954,7 @@ pub unsafe fn enc_canonize(enc: *const c_char) -> std::ffi::CString {
     unsafe {
         let enc_bytes = CStr::from_ptr(enc).to_bytes();
         if enc_bytes == b"default" {
-            return (&raw const fenc_default)
+            return (&raw const g_st().fenc_default)
                 .as_ref()
                 .unwrap()
                 .clone()

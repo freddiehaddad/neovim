@@ -155,8 +155,8 @@ pub unsafe fn file_open_fd(ret_fp: *mut FileDescriptor, fd: c_int, flags: c_int)
 /// # Safety
 /// `fp` must be a valid writable pointer.
 pub unsafe fn file_open_stdin(fp: *mut FileDescriptor) -> c_int {
-    let stdin_fd = unsafe { os_open_stdin_fd() };
-    unsafe { file_open_fd(fp, stdin_fd, K_FILE_READ_ONLY | K_FILE_NON_BLOCKING) }
+    let fd = unsafe { os_open_stdin_fd() };
+    unsafe { file_open_fd(fp, fd, K_FILE_READ_ONLY | K_FILE_NON_BLOCKING) }
 }
 
 /// Open an in-memory buffer `data[..len]` for reading (`file_open_buffer`).

@@ -83,7 +83,7 @@ pub fn os_realtime() -> i64 {
 
 /// Millisecond-resolution monotonic loop time (`os_now`).
 pub fn os_now() -> u64 {
-    unsafe { uv_now((&raw const main_loop).cast()) }
+    unsafe { uv_now((&raw const g_st().main_loop).cast()) }
 }
 
 /// Sleep for `ms` milliseconds while polling the main event loop (`os_delay`).
@@ -95,14 +95,14 @@ pub fn os_delay(ms: u64, ignoreinput: bool) {
 
         loop {
             let cond = if ignoreinput {
-                got_int
+                g_st().got_int
             } else {
                 os_input_ready(std::ptr::null_mut())
             };
             if cond {
                 break;
             }
-            loop_poll_events((&raw mut main_loop).cast(), remaining);
+            loop_poll_events((&raw mut g_st().main_loop).cast(), remaining);
             if remaining == 0 {
                 break;
             } else if remaining > 0 {

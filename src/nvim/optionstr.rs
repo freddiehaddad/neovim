@@ -1263,7 +1263,7 @@ pub unsafe fn check_stl_option(mut s: *mut c_char, errbuf: Option<CharBuf>) -> *
 /// Check for a "normal" directory or file name in some options.
 pub unsafe fn check_illegal_path_names(val: *mut c_char, flags: u32) -> bool {
     unsafe {
-        let nfname_illegal = if secure != 0 {
+        let nfname_illegal = if g_st().secure != 0 {
             c"/\\*?[|;&<>\r\n".as_ptr()
         } else {
             c"/\\*?[<>\r\n".as_ptr()
@@ -1530,7 +1530,7 @@ pub unsafe fn did_set_background(args: *mut optset_T) -> *const c_char {
             init_highlight(false, false);
         }
 
-        let mut buf = firstbuf;
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             if !(*buf).terminal.is_null() {
                 terminal_notify_theme((*buf).terminal.cast(), dark);
@@ -1787,10 +1787,10 @@ unsafe fn did_set_global_chars_option(
             clear_string_option(local_ptr);
         }
 
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
@@ -1855,7 +1855,7 @@ pub unsafe fn expand_set_chars_option(
     unsafe {
         let varp = (*args).oe_varp.cast::<*mut c_char>();
         let is_lcs =
-            ptr::eq(varp, &raw mut opt_vars().p_lcs) || ptr::eq(varp, &raw mut (*curwin).w_onebuf_opt.wo_lcs);
+            ptr::eq(varp, &raw mut opt_vars().p_lcs) || ptr::eq(varp, &raw mut (**curwin.as_ptr()).w_onebuf_opt.wo_lcs);
         expand_set_opt_generic(
             args,
             Some(if is_lcs {
@@ -2319,7 +2319,7 @@ unsafe fn get_eventignore_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             return ptr::null_mut();
         }
 
-        let io_buff = (&raw mut IObuff).cast::<c_char>();
+        let io_buff = (&raw mut g_st().IObuff).cast::<c_char>();
         vim_snprintf!(
             io_buff,
             IOSIZE,
@@ -2487,8 +2487,8 @@ pub unsafe fn did_set_guicursor(_args: *mut optset_T) -> *const c_char {
         if !errmsg.is_null() {
             return errmsg;
         }
-        if Visual.active {
-            redrawWinline(curwin, (*curwin).w_cursor.lnum);
+        if g_st().Visual.active {
+            redrawWinline(*curwin.as_ptr(), (**curwin.as_ptr()).w_cursor.lnum);
         }
         ptr::null()
     }
@@ -2497,10 +2497,10 @@ pub unsafe fn did_set_guicursor(_args: *mut optset_T) -> *const c_char {
 /// The 'helpfile' option is changed.
 pub unsafe fn did_set_helpfile(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        if didset_vim {
+        if g_st().didset_vim {
             vim_unsetenv_ext(c"VIM".as_ptr());
         }
-        if didset_vimruntime {
+        if g_st().didset_vimruntime {
             vim_unsetenv_ext(c"VIMRUNTIME".as_ptr());
         }
         ptr::null()
@@ -2544,7 +2544,7 @@ pub unsafe fn did_set_iconstring(args: *mut optset_T) -> *const c_char {
 /// The 'inccommand' option is changed.
 pub unsafe fn did_set_inccommand(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        if cmdpreview {
+        if g_st().cmdpreview {
             return e_invarg.as_ptr();
         }
         ptr::null()
@@ -2598,12 +2598,12 @@ pub unsafe fn did_set_keymap(args: *mut optset_T) -> *const c_char {
         let buf = (*args).os_buf;
         let opt_flags = (*args).os_flags;
 
-        let secure_save = secure;
-        secure = 0;
+        let secure_save = g_st().secure;
+        g_st().secure = 0;
 
         let errmsg = keymap_init();
 
-        secure = secure_save;
+        g_st().secure = secure_save;
 
         (*args).os_value_checked = true;
 
@@ -2635,8 +2635,8 @@ pub unsafe fn did_set_keymap(args: *mut optset_T) -> *const c_char {
 /// The 'keymodel' option is changed.
 pub unsafe fn did_set_keymodel(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        km_stopsel = !vim_strchr(opt_vars().p_km, b'o' as c_int).is_null();
-        km_startsel = !vim_strchr(opt_vars().p_km, b'a' as c_int).is_null();
+        g_st().km_stopsel = !vim_strchr(opt_vars().p_km, b'o' as c_int).is_null();
+        g_st().km_startsel = !vim_strchr(opt_vars().p_km, b'a' as c_int).is_null();
         ptr::null()
     }
 }
@@ -2759,7 +2759,7 @@ pub unsafe fn did_set_rulerformat(args: *mut optset_T) -> *const c_char {
 /// The 'selection' option is changed.
 pub unsafe fn did_set_selection(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        if Visual.active {
+        if g_st().Visual.active {
             redraw_curbuf_later(UPD_INVERTED);
         }
         ptr::null()
@@ -2971,18 +2971,18 @@ pub unsafe fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
     unsafe {
         let mut prog: Option<Box<regprog_T>> = None;
         let mut err = Error::new();
-        let save_emsg_silent = emsg_silent;
-        let save_suppress_errthrow = suppress_errthrow;
-        emsg_silent = 0;
-        suppress_errthrow = false;
+        let save_emsg_silent = g_st().emsg_silent;
+        let save_suppress_errthrow = g_st().suppress_errthrow;
+        g_st().emsg_silent = 0;
+        g_st().suppress_errthrow = false;
 
         let mut tstate = TryState::new();
         try_enter(&raw mut tstate);
         let mut errmsg = compile_cap_prog((*args).os_newval.data.string().data, &mut prog);
         try_leave(&raw const tstate, &raw mut err);
 
-        emsg_silent = save_emsg_silent;
-        suppress_errthrow = save_suppress_errthrow;
+        g_st().emsg_silent = save_emsg_silent;
+        g_st().suppress_errthrow = save_suppress_errthrow;
         (*args).os_prep = OptSetPrep::SpellcapProg(prog);
         if err.err_type != ErrorType::kErrorTypeNone {
             let msg = if strncmp(err.msg_ptr(), c"Vim:".as_ptr(), 4) == 0 {
@@ -3108,10 +3108,10 @@ pub unsafe fn did_set_spellsuggest(args: *mut optset_T) -> *const c_char {
 
 pub unsafe fn did_set_splitkeep(_args: *mut optset_T) -> *const c_char {
     unsafe {
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };
@@ -3157,7 +3157,7 @@ unsafe fn did_set_statustabline_rulerformat(
         let win = (*args).os_win;
         let varp = (*args).os_varp.cast::<*mut c_char>();
         if rulerformat {
-            ru_wid = 0;
+            g_st().ru_wid = 0;
         } else if statuscolumn {
             (*win).w_nrwidth_line_count = 0;
         }
@@ -3186,7 +3186,7 @@ unsafe fn did_set_statustabline_rulerformat(
             }
             let wid = getdigits_int(&raw mut s, true, 0);
             if wid != 0 && *s == b'(' as c_char {
-                ru_wid = wid;
+                g_st().ru_wid = wid;
             }
         }
         if rulerformat {
@@ -3239,9 +3239,9 @@ unsafe fn did_set_titleiconstring(args: *mut optset_T, flagval: c_int) -> *const
         if !vim_strchr(*varp, b'%' as c_int).is_null()
             && check_stl_option(*varp, None).is_null()
         {
-            stl_syntax |= flagval;
+            g_st().stl_syntax |= flagval;
         } else {
-            stl_syntax &= !flagval;
+            g_st().stl_syntax &= !flagval;
         }
         did_set_title();
 
@@ -3383,7 +3383,7 @@ pub unsafe fn validate_wildmode(args: *mut optset_T) -> *const c_char {
 pub unsafe fn did_set_wildmode(args: *mut optset_T) -> *const c_char {
     unsafe {
         if let OptSetPrep::Wildmode(flags) = (*args).os_prep {
-            wim_flags = flags;
+            g_st().wim_flags = flags;
         }
         ptr::null()
     }
@@ -4339,16 +4339,16 @@ pub unsafe fn get_listchars_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char 
 /// Check all global and local values of 'listchars' and 'fillchars'.
 pub unsafe fn check_chars_options() -> *const c_char {
     unsafe {
-        if !set_chars_option(curwin, opt_vars().p_lcs, CharsOption::kListchars, false, None).is_null() {
+        if !set_chars_option(*curwin.as_ptr(), opt_vars().p_lcs, CharsOption::kListchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
         }
-        if !set_chars_option(curwin, opt_vars().p_fcs, CharsOption::kFillchars, false, None).is_null() {
+        if !set_chars_option(*curwin.as_ptr(), opt_vars().p_fcs, CharsOption::kFillchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
         }
-        let mut tp = first_tabpage;
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut wp = if tp == curtab {
-                firstwin
+            let mut wp = if tp == g_st().curtab {
+                g_st().firstwin
             } else {
                 (*tp).tp_firstwin
             };

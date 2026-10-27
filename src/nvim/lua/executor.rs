@@ -699,7 +699,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
 
             let mut len: usize = 0;
             let error = nlua_get_error(lstate, &raw mut len);
-            let queues = loop_queues((&raw mut main_loop).cast());
+            let queues = loop_queues((&raw mut g_st().main_loop).cast());
             put_event(
                 (*queues).events,
                 Event::NluaLuvError {
@@ -793,7 +793,7 @@ unsafe fn nlua_luv_thread_common_cfpcall(
                     kThread
                 },
             };
-            loop_schedule_deferred((&raw mut main_loop).cast(), ev);
+            loop_schedule_deferred((&raw mut g_st().main_loop).cast(), ev);
             lua_pop(lstate, 1);
             -status
         } else {
@@ -875,18 +875,18 @@ pub unsafe fn nlua_schedule_event(cb: LuaRef, ns_id: u32) {
         nlua_pushref(lstate, cb);
         nlua_unref_global(lstate, cb);
 
-        let save_expr_map_lock = expr_map_lock;
-        let save_textlock = textlock;
+        let save_expr_map_lock = g_st().expr_map_lock;
+        let save_textlock = g_st().textlock;
         if ns_id > 0 {
-            expr_map_lock = 0;
-            textlock = 0;
+            g_st().expr_map_lock = 0;
+            g_st().textlock = 0;
         }
         if nlua_pcall(lstate, 0, 0) != 0 {
             nlua_error(lstate, gettext(c"vim.schedule callback: %.*s".as_ptr()));
             ui_remove_cb(ns_id, true);
         }
-        expr_map_lock = save_expr_map_lock;
-        textlock = save_textlock;
+        g_st().expr_map_lock = save_expr_map_lock;
+        g_st().textlock = save_textlock;
     }
 }
 
@@ -898,18 +898,18 @@ unsafe extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> c_int {
         }
 
         lua_pushnil(lstate);
-        if *loop_closing_ptr((&raw mut main_loop).cast()) {
+        if *loop_closing_ptr((&raw mut g_st().main_loop).cast()) {
             lua_pushlstring(lstate, c"main loop is closing".as_ptr(), 20);
             return 2;
         }
 
         let cb = nlua_ref_global(lstate, 1);
-        let queues = loop_queues((&raw mut main_loop).cast());
+        let queues = loop_queues((&raw mut g_st().main_loop).cast());
         put_event(
             (*queues).events,
             Event::NluaSchedule {
                 cb,
-                ns_id: ui_event_ns_id,
+                ns_id: g_st().ui_event_ns_id,
             },
         );
         lua_pushnil(lstate);
@@ -922,7 +922,7 @@ unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> c_int {
         let timeout = luaL_checkinteger(lstate, 1) as i64;
         let fast_only = lua_toboolean(lstate, 2) != 0;
 
-        let queues = loop_queues((&raw mut main_loop).cast());
+        let queues = loop_queues((&raw mut g_st().main_loop).cast());
         let loop_events = if fast_only {
             (*queues).fast_events
         } else {
@@ -931,7 +931,7 @@ unsafe extern "C-unwind" fn nlua_loop_poll(lstate: *mut lua_State) -> c_int {
         if !loop_events.is_null() && !multiqueue_empty(loop_events) {
             multiqueue_process_events(loop_events);
         } else {
-            loop_poll_events((&raw mut main_loop).cast(), timeout);
+            loop_poll_events((&raw mut g_st().main_loop).cast(), timeout);
         }
 
         0
@@ -947,9 +947,9 @@ unsafe extern "C-unwind" fn nlua_ui_flush(_lstate: *mut lua_State) -> c_int {
 
 unsafe extern "C-unwind" fn nlua_check_interrupt(lstate: *mut lua_State) -> c_int {
     unsafe {
-        let interrupted = got_int;
-        if got_int {
-            got_int = false;
+        let interrupted = g_st().got_int;
+        if g_st().got_int {
+            g_st().got_int = false;
             vgetc();
         }
         lua_pushboolean(lstate, c_int::from(interrupted));
@@ -991,15 +991,15 @@ unsafe extern "C-unwind" fn nlua_ex_docmd(lstate: *mut lua_State) -> c_int {
             getline: nlua_ref_global(lstate, 1),
             got_line: false,
         };
-        msg_scroll = 1;
-        need_wait_return = false;
-        no_wait_return += 1;
+        g_st().msg_scroll = 1;
+        g_st().need_wait_return = false;
+        g_st().no_wait_return += 1;
         do_cmdline(
             ptr::null_mut(),
             crate::cmdexpand::LineGetter::LuaEx(&raw mut cookie),
             0,
         );
-        no_wait_return -= 1;
+        g_st().no_wait_return -= 1;
         nlua_unref_global(lstate, cookie.getline);
         lua_pushboolean(lstate, c_int::from(cookie.got_line));
         1
@@ -1038,7 +1038,7 @@ unsafe fn nlua_new_ref_state(lstate: *mut lua_State, is_thread: bool) -> *mut nl
             ref_count: 0,
         };
         if !is_thread {
-            nlua_global_refs = ref_state;
+            g_st().nlua_global_refs = ref_state;
         }
         ref_state
     }
@@ -1062,7 +1062,7 @@ pub unsafe fn nlua_get_empty_dict_ref(lstate: *mut lua_State) -> LuaRef {
 }
 
 pub unsafe fn nlua_get_global_ref_count() -> c_int {
-    unsafe { (*nlua_global_refs).ref_count }
+    unsafe { (*g_st().nlua_global_refs).ref_count }
 }
 
 unsafe fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
@@ -1105,7 +1105,7 @@ unsafe fn nlua_common_vim_init(lstate: *mut lua_State, is_thread: bool) {
             luv_set_thread(lstate, Some(nlua_luv_thread_cfpcall));
             luv_set_cthread(lstate, Some(nlua_luv_thread_cfcpcall));
         } else {
-            luv_set_loop(lstate, (&raw mut main_loop).cast());
+            luv_set_loop(lstate, (&raw mut g_st().main_loop).cast());
             luv_set_callback(lstate, Some(nlua_fast_cfpcall));
         }
         luaopen_luv(lstate);
@@ -1150,7 +1150,7 @@ unsafe fn nlua_init_packages(lstate: *mut lua_State) -> bool {
             lua_pushcclosure(lstate, Some(nlua_module_preloader), 1);
             lua_setfield(lstate, -2, def.name.as_ptr());
 
-            if nlua_disable_preload && def.name == c"vim.inspect" {
+            if g_st().nlua_disable_preload && def.name == c"vim.inspect" {
                 break;
             }
         }
@@ -1194,7 +1194,7 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> c_int {
 
             let mut matched = false;
             if strequal(s, c"set_cmdheight".as_ptr()) {
-                ui_refresh_cmdheight = val;
+                g_st().ui_refresh_cmdheight = val;
                 matched = true;
             } else {
                 for (i, slot) in ext_widgets.iter_mut().enumerate() {
@@ -1224,7 +1224,7 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> c_int {
 
         let ui_event_cb = nlua_ref_global(lstate, 3);
         ui_add_cb(ns_id, ui_event_cb, ext_widgets.as_mut_ptr());
-        ui_refresh_cmdheight = true;
+        g_st().ui_refresh_cmdheight = true;
         0
     }
 }
@@ -1421,7 +1421,7 @@ pub unsafe fn nlua_print_event(text: NvimString) {
         let raw =
             msg_use_printf() != 0
                 && redirecting() == 0
-                && crate::eval::typval::Callback::raw_cb_type(&raw const on_print) == kCallbackNone;
+                && crate::eval::typval::Callback::raw_cb_type(&raw const g_st().on_print) == kCallbackNone;
 
         let mut msg: HlMessage = vec![HlMessageChunk { text, hl_id: 0 }];
         let mut needs_clear = false;
@@ -1486,11 +1486,11 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
 
         if is_thread {
             loop_schedule_deferred(
-                (&raw mut main_loop).cast(),
+                (&raw mut g_st().main_loop).cast(),
                 Event::NluaPrint(msg_str),
             );
         } else if nlua_st().IN_FAST_CALLBACK != 0 {
-            let queues = loop_queues((&raw mut main_loop).cast());
+            let queues = loop_queues((&raw mut g_st().main_loop).cast());
             put_event((*queues).events, Event::NluaPrint(msg_str));
         } else {
             nlua_print_event(msg_str);
@@ -1538,12 +1538,12 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> c_int {
         let status = lua_pcall(lstate, 1, 1, 0);
         if status == 0 {
             vim_snprintf!(
-                (&raw mut IObuff).cast(),
+                (&raw mut g_st().IObuff).cast(),
                 IOSIZE,
                 c"require('%s')".as_ptr(),
                 name,
             );
-            time_msg((&raw const IObuff).cast(), &raw const start_time);
+            time_msg((&raw const g_st().IObuff).cast(), &raw const start_time);
         }
         time_pop(rel_time);
 
@@ -1572,12 +1572,12 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> c_int {
 
             if ui_has(kUICmdline) {
                 vim_snprintf!(
-                    (&raw mut IObuff).cast(),
+                    (&raw mut g_st().IObuff).cast(),
                     IOSIZE,
                     c"lua_debug> %s".as_ptr(),
                     input.vval.v_string(),
                 );
-                ui_ext_cmdline_block_append(0, (&raw const IObuff).cast());
+                ui_ext_cmdline_block_append(0, (&raw const g_st().IObuff).cast());
             } else {
                 msg_putchar(b'\n' as c_int);
             }
@@ -1639,7 +1639,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
         if !nlua_is_deferred_safe() && !viml_func_is_fast(name) {
             let length = name_len.min(100) + 22;
             vim_snprintf!(
-                (&raw mut IObuff).cast(),
+                (&raw mut g_st().IObuff).cast(),
                 length,
                 c"Vimscript function \"%s\"".as_ptr(),
                 name,
@@ -1647,7 +1647,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
             return luaL_error(
                 lstate,
                 (&raw const e_fast_api_disabled).cast(),
-                (&raw const IObuff).cast::<c_char>(),
+                (&raw const g_st().IObuff).cast::<c_char>(),
             );
         }
 
@@ -1694,15 +1694,15 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
         }
 
         if !conv_failed {
-            force_abort = false;
-            suppress_errthrow = false;
-            did_throw = false;
-            did_emsg = 0;
+            g_st().force_abort = false;
+            g_st().suppress_errthrow = false;
+            g_st().did_throw = false;
+            g_st().did_emsg = 0;
 
             let mut rettv: typval_T = typval_T::new();
             let mut funcexe: funcexe_T = funcexe_T::new();
-            funcexe.fe_firstline = (*curwin).w_cursor.lnum;
-            funcexe.fe_lastline = (*curwin).w_cursor.lnum;
+            funcexe.fe_firstline = (**curwin.as_ptr()).w_cursor.lnum;
+            funcexe.fe_lastline = (**curwin.as_ptr()).w_cursor.lnum;
             funcexe.fe_evaluate = true;
             let save_current_sctx = api_set_sctx(LUA_INTERNAL_CALL);
 
@@ -1717,7 +1717,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> c_int {
                 &raw mut funcexe,
             );
             try_leave(&raw const tstate, &raw mut err);
-            current_sctx = save_current_sctx;
+            g_st().current_sctx = save_current_sctx;
 
             if !error_set(&raw const err) {
                 nlua_push_typval(lstate, &raw mut rettv, 0);
@@ -1855,7 +1855,7 @@ pub unsafe fn nlua_ref(
 }
 
 pub unsafe fn nlua_ref_global(lstate: *mut lua_State, index: c_int) -> LuaRef {
-    unsafe { nlua_ref(lstate, nlua_global_refs, index) }
+    unsafe { nlua_ref(lstate, g_st().nlua_global_refs, index) }
 }
 
 pub unsafe fn nlua_unref(lstate: *mut lua_State, ref_state: *mut nlua_ref_state_t, ref_: LuaRef) {
@@ -1869,7 +1869,7 @@ pub unsafe fn nlua_unref(lstate: *mut lua_State, ref_state: *mut nlua_ref_state_
 
 pub unsafe fn nlua_unref_global(lstate: *mut lua_State, ref_: LuaRef) {
     unsafe {
-        nlua_unref(lstate, nlua_global_refs, ref_);
+        nlua_unref(lstate, g_st().nlua_global_refs, ref_);
     }
 }
 
@@ -2410,15 +2410,15 @@ pub unsafe fn ex_luado(eap: *mut exarg_T) {
             return;
         }
 
-        let was_curbuf = curbuf;
+        let was_curbuf = g_st().curbuf;
         for l in (*eap).line1..=(*eap).line2 {
-            if l > (*curbuf).b_ml.ml_line_count {
+            if l > (*g_st().curbuf).b_ml.ml_line_count {
                 break;
             }
 
             lua_pushvalue(lstate, -1);
-            let old_line = ml_get_buf(curbuf, l);
-            let old_line_len: colnr_T = ml_get_buf_len(curbuf, l);
+            let old_line = ml_get_buf(g_st().curbuf, l);
+            let old_line_len: colnr_T = ml_get_buf_len(g_st().curbuf, l);
             lua_pushstring(lstate, old_line);
             lua_pushnumber(lstate, f64::from(l));
             if nlua_pcall(lstate, 2, 1) != 0 {
@@ -2426,7 +2426,7 @@ pub unsafe fn ex_luado(eap: *mut exarg_T) {
                 break;
             }
 
-            if !ptr::eq(curbuf, was_curbuf) || l > (*curbuf).b_ml.ml_line_count {
+            if !ptr::eq(g_st().curbuf, was_curbuf) || l > (*g_st().curbuf).b_ml.ml_line_count {
                 break;
             }
 
@@ -2454,7 +2454,7 @@ pub unsafe fn ex_luado(eap: *mut exarg_T) {
         }
 
         lua_pop(lstate, 1);
-        check_cursor(curwin);
+        check_cursor(*curwin.as_ptr());
         redraw_curbuf_later(UPD_NOT_VALID);
     }
 }
@@ -2479,18 +2479,18 @@ pub unsafe fn nlua_exec_file(path: *const c_char) -> bool {
 
             let mut sb: Vec<u8> = Vec::with_capacity(64);
             loop {
-                if got_int {
+                if g_st().got_int {
                     file_close(&raw mut stdin_dup, false);
                     return false;
                 }
-                let read_size = file_read(&raw mut stdin_dup, (&raw mut IObuff).cast(), 64);
+                let read_size = file_read(&raw mut stdin_dup, (&raw mut g_st().IObuff).cast(), 64);
                 if read_size < 0 {
                     file_close(&raw mut stdin_dup, false);
                     return false;
                 }
                 if read_size > 0 {
                     let slice = std::slice::from_raw_parts(
-                        (&raw const IObuff).cast::<u8>(),
+                        (&raw const g_st().IObuff).cast::<u8>(),
                         read_size as usize,
                     );
                     sb.extend_from_slice(slice);
@@ -2667,7 +2667,7 @@ pub unsafe fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
         }
 
         let mut buf = [0 as c_char; MB_MAXBYTES * 3 + 4];
-        let buf_len = special_to_buf(c, mod_mask, false, buf.as_mut_ptr());
+        let buf_len = special_to_buf(c, g_st().mod_mask, false, buf.as_mut_ptr());
         vim_unescape_ks(typed_buf);
 
         let lstate = nlua_st().GLOBAL_LSTATE;
@@ -2680,8 +2680,8 @@ pub unsafe fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
         lua_pushlstring(lstate, buf.as_ptr(), buf_len as usize);
         lua_pushstring(lstate, typed_buf);
 
-        let save_got_int = got_int;
-        got_int = false;
+        let save_got_int = g_st().got_int;
+        g_st().got_int = false;
         let mut discard = false;
         if lua_pcall(lstate, 2, 1, 0) != 0 {
             nlua_error(lstate, gettext(c"vim.on_key() callbacks: %.*s".as_ptr()));
@@ -2691,7 +2691,7 @@ pub unsafe fn nlua_exec_on_key(c: c_int, typed_buf: *mut c_char) -> bool {
             }
             lua_pop(lstate, 1);
         }
-        got_int |= save_got_int;
+        g_st().got_int |= save_got_int;
 
         lua_pop(lstate, 1);
         debug_assert_eq!(top, lua_gettop(lstate));
@@ -2757,7 +2757,7 @@ pub unsafe fn nlua_do_ucmd(cmd: *mut ucmd_T, eap: *mut exarg_T, preview: bool) -
         );
 
         lua_newtable(lstate);
-        nlua_push_eap(lstate, eap, &raw const cmdmod);
+        nlua_push_eap(lstate, eap, &raw const g_st().cmdmod);
 
         lua_pushstring(lstate, (*cmd).uc_name.as_ptr());
         lua_setfield(lstate, -2, c"name".as_ptr());

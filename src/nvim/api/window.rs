@@ -192,8 +192,8 @@ pub unsafe extern "C" fn nvim_win_set_cursor(win: Window, pos: Array, err: *mut 
             ptr::null_mut(),
             kCtxNoEvents | kCtxNoDisplay,
         ) {
-            update_topline(curwin);
-            validate_cursor(curwin);
+            update_topline(*curwin.as_ptr());
+            validate_cursor(*curwin.as_ptr());
         }
         ctx_restore(&mut switchwin);
 
@@ -415,7 +415,7 @@ pub unsafe extern "C" fn nvim_win_hide(win: Window, err: *mut Error) {
         try_wrap(err, || {
             if is_ctx_win(w) {
                 emsg(gettext(e_autocmd_close.as_ptr()));
-            } else if tabpage == curtab {
+            } else if tabpage == g_st().curtab {
                 win_close(w, false, false);
             } else {
                 win_close_othertab(w, 0, tabpage, false);
@@ -447,7 +447,7 @@ pub unsafe extern "C" fn nvim_win_close(win: Window, force: Boolean, err: *mut E
             ex_win_close(
                 c_int::from(force),
                 w,
-                if tabpage == curtab {
+                if tabpage == g_st().curtab {
                     ptr::null_mut()
                 } else {
                     tabpage

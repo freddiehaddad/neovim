@@ -7,7 +7,7 @@ use crate::event::signal::{
     signal_watcher_stop,
 };
 use crate::ex_cmds2::autowrite_all;
-use crate::globals::{IOSIZE, main_loop, *};
+use crate::globals::{IOSIZE, g_st};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::main_init::preserve_exit;
 #[cfg(unix)]
@@ -118,7 +118,7 @@ pub unsafe fn signal_init() {
             }
         }
 
-        let loop_ptr = &raw mut main_loop;
+        let loop_ptr = &raw mut g_st().main_loop;
         signal_watcher_init(loop_ptr, &raw mut sig_st().spipe, ptr::null_mut());
         signal_watcher_init(loop_ptr, &raw mut sig_st().shup, ptr::null_mut());
         signal_watcher_init(loop_ptr, &raw mut sig_st().sint, ptr::null_mut());
@@ -242,9 +242,9 @@ unsafe fn deadly_signal(signum: c_int) -> ! {
     unsafe {
         // Set the v:dying variable.
         set_vim_var_nr(VV_DYING, 1);
-        v_dying = 1;
+        g_st().v_dying = 1;
 
-        let io_buf = (&raw mut IObuff).cast::<c_char>();
+        let io_buf = (&raw mut g_st().IObuff).cast::<c_char>();
         vim_snprintf!(
             io_buf,
             IOSIZE,
@@ -285,9 +285,9 @@ pub(crate) unsafe fn on_signal(signum: c_int) {
             apply_autocmds(
                 EVENT_SIGNAL,
                 c"SIGUSR1".as_ptr().cast_mut(),
-                (*curbuf).b_fname,
+                (*g_st().curbuf).b_fname,
                 true,
-                curbuf,
+                g_st().curbuf,
             );
             return;
         }
@@ -308,9 +308,9 @@ pub(crate) unsafe fn on_signal(signum: c_int) {
                 apply_autocmds(
                     EVENT_SIGNAL,
                     c"SIGWINCH".as_ptr().cast_mut(),
-                    (*curbuf).b_fname,
+                    (*g_st().curbuf).b_fname,
                     true,
-                    curbuf,
+                    g_st().curbuf,
                 );
             }
             _ => {

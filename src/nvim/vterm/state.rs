@@ -111,17 +111,18 @@ pub(crate) const CSI_ARG_MISSING: c_int = ((1u32 << 31) - 1) as c_int;
 
 /// Primary Device Attributes (DA1) response.
 #[unsafe(no_mangle)]
-pub static mut vterm_primary_device_attr: [c_char; 9] = [
-    b'6' as c_char,
-    b'1' as c_char,
-    b';' as c_char,
-    b'2' as c_char,
-    b'2' as c_char,
-    b';' as c_char,
-    b'5' as c_char,
-    b'2' as c_char,
-    0,
-];
+pub static vterm_primary_device_attr: crate::globals::GlobalState<[c_char; 9]> =
+    crate::globals::GlobalState::new([
+        b'6' as c_char,
+        b'1' as c_char,
+        b';' as c_char,
+        b'2' as c_char,
+        b'2' as c_char,
+        b';' as c_char,
+        b'5' as c_char,
+        b'2' as c_char,
+        0,
+    ]);
 
 #[repr(C)]
 pub struct VTermStateFallbacks {
@@ -1649,7 +1650,7 @@ unsafe fn on_csi(
                 let val = csi_arg_or(*args, 0);
                 if val == 0 {
                     let attr =
-                        CStr::from_ptr((&raw const vterm_primary_device_attr).cast::<c_char>())
+                        CStr::from_ptr(vterm_primary_device_attr.as_ptr().cast::<c_char>())
                             .to_bytes();
                     let mut buf = Vec::with_capacity(attr.len() + 2);
                     buf.push(b'?');

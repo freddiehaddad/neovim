@@ -315,7 +315,7 @@ unsafe fn tinput_flush(input: *mut TermInput) {
                 size: 3,
                 capacity: 3,
             };
-            rpc_send_event(ui_client_channel_id, c"nvim_paste".as_ptr(), args);
+            rpc_send_event(g_st().ui_client_channel_id, c"nvim_paste".as_ptr(), args);
             if (*input).paste == 1 {
                 (*input).paste = 2;
             }
@@ -326,7 +326,7 @@ unsafe fn tinput_flush(input: *mut TermInput) {
                 size: 1,
                 capacity: 1,
             };
-            rpc_send_event(ui_client_channel_id, c"nvim_input".as_ptr(), args);
+            rpc_send_event(g_st().ui_client_channel_id, c"nvim_input".as_ptr(), args);
         }
         (*input).key_buffer_len = 0;
     }
@@ -651,7 +651,7 @@ unsafe fn handle_focus_event(_input: *mut TermInput, ptr: *const c_char, size: u
                     size: 1,
                     capacity: 1,
                 };
-                rpc_send_event(ui_client_channel_id, c"nvim_ui_set_focus".as_ptr(), args);
+                rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_focus".as_ptr(), args);
                 return 3;
             }
         }
@@ -712,7 +712,7 @@ unsafe fn send_termresponse(response: &[u8]) {
         capacity: 2,
     };
     unsafe {
-        rpc_send_event(ui_client_channel_id, c"nvim_ui_term_event".as_ptr(), args);
+        rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_term_event".as_ptr(), args);
     }
 }
 
@@ -1035,7 +1035,7 @@ pub(crate) unsafe fn tinput_read_cb(
         tinput_flush(input);
 
         if eof {
-            loop_schedule_fast((&raw mut main_loop).cast(), Event::TInputDone);
+            loop_schedule_fast((&raw mut g_st().main_loop).cast(), Event::TInputDone);
             return consumed;
         }
 

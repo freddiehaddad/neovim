@@ -351,7 +351,7 @@ unsafe fn wipe_ft_buf(buf: *mut buf_T) {
         set_bufref(&mut bufref, buf);
 
         close_windows(buf, false);
-        if bufref_valid(&mut bufref) && buf != curbuf && (*buf).b_nwindows == 0 {
+        if bufref_valid(&mut bufref) && buf != g_st().curbuf && (*buf).b_nwindows == 0 {
             wipe_buffer(buf, false);
         }
         if bufref_valid(&mut bufref) {
@@ -627,12 +627,12 @@ pub unsafe extern "C" fn nvim_set_option_value(
         let buf = if let (kOptScopeBuf, OptTarget::Buf(b)) = (scope, to) {
             b
         } else {
-            curbuf
+            g_st().curbuf
         };
         let win = if let (kOptScopeWin, OptTarget::Win(w)) = (scope, to) {
             w
         } else {
-            curwin
+            *curwin.as_ptr()
         };
         let varp = get_varp_from(option, buf, win);
 
@@ -870,12 +870,12 @@ pub unsafe extern "C" fn nvim_get_option_info2(
         let buf = if let (kOptScopeBuf, OptTarget::Buf(b)) = (scope, from) {
             b
         } else {
-            curbuf
+            g_st().curbuf
         };
         let win = if let (kOptScopeWin, OptTarget::Win(w)) = (scope, from) {
             w
         } else {
-            curwin
+            *curwin.as_ptr()
         };
 
         get_option_info(name, opt_flags, buf, win, arena, err)

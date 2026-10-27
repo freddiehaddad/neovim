@@ -1651,11 +1651,11 @@ pub unsafe fn get_digraph_for_char(val: c_int) -> *mut c_char {
 /// Get a digraph (`get_digraph`).
 pub unsafe fn get_digraph(cmdline: bool) -> c_int {
     unsafe {
-        no_mapping += 1;
-        allow_keys += 1;
+        g_st().no_mapping += 1;
+        g_st().allow_keys += 1;
         let c = plain_vgetc();
-        no_mapping -= 1;
-        allow_keys -= 1;
+        g_st().no_mapping -= 1;
+        g_st().allow_keys -= 1;
 
         if c == ESC {
             return c_int::from(NUL);
@@ -1666,17 +1666,17 @@ pub unsafe fn get_digraph(cmdline: bool) -> c_int {
         }
 
         if cmdline {
-            if char2cells(c) == 1 && c < 128 && cmdline_star == 0 {
+            if char2cells(c) == 1 && c < 128 && g_st().cmdline_star == 0 {
                 putcmdline(c as c_char, true);
             }
         } else {
             add_to_showcmd(c);
         }
-        no_mapping += 1;
-        allow_keys += 1;
+        g_st().no_mapping += 1;
+        g_st().allow_keys += 1;
         let cc = plain_vgetc();
-        no_mapping -= 1;
-        allow_keys -= 1;
+        g_st().no_mapping -= 1;
+        g_st().allow_keys -= 1;
 
         if cc != ESC {
             return digraph_get(c, cc, true);
@@ -1795,7 +1795,7 @@ pub unsafe fn putdigraph(mut str: *mut c_char) {
 
 unsafe fn digraph_header(msg: *const c_char) {
     unsafe {
-        if msg_col > 0 {
+        if g_st().msg_col > 0 {
             msg_putchar(b'\n' as c_int);
         }
         msg_outtrans(msg, HLF_CM, false);
@@ -1811,7 +1811,7 @@ pub unsafe fn listdigraphs(use_headers: bool) {
         msg_putchar(b'\n' as c_int);
 
         for dp in DIGRAPHDEFAULT {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             let tmp = digr_T {
@@ -1835,7 +1835,7 @@ pub unsafe fn listdigraphs(use_headers: bool) {
 
         let user_ptr = &raw const digr_st().USER_DIGRAPHS;
         for dp in (*user_ptr).as_slice() {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             if previous >= 0 && use_headers {
@@ -1874,7 +1874,7 @@ pub unsafe fn digraph_getlist_common(list_all: bool, rettv: *mut typval_T) {
 
         if list_all {
             for dp in DIGRAPHDEFAULT {
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
                 let tmp = digr_T {
@@ -1889,7 +1889,7 @@ pub unsafe fn digraph_getlist_common(list_all: bool, rettv: *mut typval_T) {
         }
 
         for dp in user_slice {
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             digraph_getlist_appendpair(dp, (*rettv).vval.v_list());
@@ -1921,12 +1921,12 @@ unsafe fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
             }
             *previous = (*dp).result;
         }
-        if msg_col > Columns - list_width {
+        if g_st().msg_col > g_st().Columns - list_width {
             msg_putchar(b'\n' as c_int);
         }
 
-        if msg_col % list_width != 0 {
-            msg_advance((msg_col / list_width + 1) * list_width);
+        if g_st().msg_col % list_width != 0 {
+            msg_advance((g_st().msg_col / list_width + 1) * list_width);
         }
 
         buf[0] = (*dp).char1 as c_char;
@@ -2127,13 +2127,13 @@ pub unsafe fn f_digraph_setlist(argvars: *mut typval_T, rettv: *mut typval_T, _f
 /// Set up key mapping tables for the `'keymap'` option (`keymap_init`).
 pub unsafe fn keymap_init() -> *mut c_char {
     unsafe {
-        (*curbuf).b_kmap_state &= !KEYMAP_INIT;
+        (*g_st().curbuf).b_kmap_state &= !KEYMAP_INIT;
 
-        if *(*curbuf).b_p_keymap == NUL {
+        if *(*g_st().curbuf).b_p_keymap == NUL {
             keymap_unload();
             do_cmdline_cmd(c"unlet! b:keymap_name".as_ptr());
         } else {
-            let kmap = CStr::from_ptr((*curbuf).b_p_keymap).to_string_lossy();
+            let kmap = CStr::from_ptr((*g_st().curbuf).b_p_keymap).to_string_lossy();
             let enc = CStr::from_ptr(opt_vars().p_enc).to_string_lossy();
             let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
             if source_runtime(primary.as_ptr().cast_mut(), 0) == FAIL {
@@ -2169,8 +2169,8 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
 
         keymap_unload();
 
-        (*curbuf).b_kmap_state = 0;
-        (*curbuf).b_kmap_ga.clear();
+        (*g_st().curbuf).b_kmap_state = 0;
+        (*g_st().curbuf).b_kmap_ga.clear();
 
         opt_vars().p_cpo = c"C".as_ptr().cast_mut();
 
@@ -2194,12 +2194,12 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
                     std::ffi::CString::new(from_slice),
                     std::ffi::CString::new(to_slice),
                 ) {
-                    (*curbuf).b_kmap_ga.push(kmap_T { from, to });
+                    (*g_st().curbuf).b_kmap_ga.push(kmap_T { from, to });
                 }
             }
         }
 
-        for kp in &(*curbuf).b_kmap_ga {
+        for kp in &(*g_st().curbuf).b_kmap_ga {
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
@@ -2212,7 +2212,7 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
 
         opt_vars().p_cpo = save_cpo;
 
-        (*curbuf).b_kmap_state |= KEYMAP_LOADED;
+        (*g_st().curbuf).b_kmap_state |= KEYMAP_LOADED;
         status_redraw_curbuf();
     }
 }
@@ -2223,13 +2223,13 @@ unsafe fn keymap_unload() {
         let mut buf = [0 as c_char; KMAP_MAXLEN + 10];
         let save_cpo = opt_vars().p_cpo;
 
-        if ((*curbuf).b_kmap_state & KEYMAP_LOADED) == 0 {
+        if ((*g_st().curbuf).b_kmap_state & KEYMAP_LOADED) == 0 {
             return;
         }
 
         opt_vars().p_cpo = c"C".as_ptr().cast_mut();
 
-        for entry in &(*curbuf).b_kmap_ga {
+        for entry in &(*g_st().curbuf).b_kmap_ga {
             vim_snprintf!(
                 buf.as_mut_ptr(),
                 buf.len(),
@@ -2238,11 +2238,11 @@ unsafe fn keymap_unload() {
             );
             do_map(MAPTYPE_UNMAP, buf.as_mut_ptr(), MODE_LANGMAP, false);
         }
-        (*curbuf).b_kmap_ga.clear();
+        (*g_st().curbuf).b_kmap_ga.clear();
 
         opt_vars().p_cpo = save_cpo;
 
-        (*curbuf).b_kmap_state &= !KEYMAP_LOADED;
+        (*g_st().curbuf).b_kmap_state &= !KEYMAP_LOADED;
         status_redraw_curbuf();
     }
 }
@@ -2259,21 +2259,21 @@ pub unsafe fn get_keymap_str(
             return 0;
         }
 
-        let old_curbuf = curbuf;
-        let old_curwin = curwin;
+        let old_curbuf = g_st().curbuf;
+        let old_curwin = *curwin.as_ptr();
 
-        curbuf = (*wp).w_buffer;
-        curwin = wp;
-        emsg_skip += 1;
+        g_st().curbuf = (*wp).w_buffer;
+        *curwin.as_ptr() = wp;
+        g_st().emsg_skip += 1;
         let s = eval_to_string(
             c"b:keymap_name".as_ptr().cast_mut(),
             false,
             false,
         );
         let mut p: *const c_char = s.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
-        emsg_skip -= 1;
-        curbuf = old_curbuf;
-        curwin = old_curwin;
+        g_st().emsg_skip -= 1;
+        g_st().curbuf = old_curbuf;
+        *curwin.as_ptr() = old_curwin;
         if p.is_null() || *p == NUL {
             if ((*(*wp).w_buffer).b_kmap_state & KEYMAP_LOADED) != 0 {
                 p = (*(*wp).w_buffer).b_p_keymap;

@@ -836,7 +836,7 @@ unsafe fn nfa_regatom() -> c_int {
 
         if c == NUL as c_int {
             emsg(tr(e_nul_found.as_ptr()));
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             return FAIL;
         } else if c == Magic(b'^' as c_int) {
             EMIT(NFA_BOL);
@@ -855,7 +855,7 @@ unsafe fn nfa_regatom() -> c_int {
             c = no_Magic(getchr());
             if c == NUL as c_int {
                 emsg(tr(e_nul_found.as_ptr()));
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return FAIL;
             }
             if c == b'^' as c_int {
@@ -875,7 +875,7 @@ unsafe fn nfa_regatom() -> c_int {
                 if p.is_null() {
                     if extra == NFA_ADD_NL {
                         semsg!(tr(e_ill_char_class.as_ptr()), i64::from(c));
-                        rc_did_emsg = true;
+                        g_st().rc_did_emsg = true;
                         return FAIL;
                     }
                     siemsg!(c"INTERNAL: Unknown character class char: %d".as_ptr(), c);
@@ -933,7 +933,7 @@ unsafe fn nfa_regatom() -> c_int {
                 if p.is_null() {
                     if extra == NFA_ADD_NL {
                         semsg!(tr(e_ill_char_class.as_ptr()), i64::from(c));
-                        rc_did_emsg = true;
+                        g_st().rc_did_emsg = true;
                         return FAIL;
                     }
                     siemsg!(c"INTERNAL: Unknown character class char: %d".as_ptr(), c);
@@ -1020,9 +1020,9 @@ unsafe fn nfa_regatom() -> c_int {
                         return OK;
                     }
                     b'1'..=b'9' => {
-                        if (reg_do_extmatch & REX_USE) == 0 {
+                        if (g_st().reg_do_extmatch & REX_USE) == 0 {
                             emsg(tr(e_z1_not_allowed.as_ptr()));
-                            rc_did_emsg = true;
+                            g_st().rc_did_emsg = true;
                             return FAIL;
                         }
                         EMIT(NFA_ZREF1 + (no_Magic(c) - b'1' as c_int));
@@ -1030,9 +1030,9 @@ unsafe fn nfa_regatom() -> c_int {
                         return OK;
                     }
                     b'(' => {
-                        if reg_do_extmatch != REX_SET {
+                        if g_st().reg_do_extmatch != REX_SET {
                             emsg(tr(e_z_not_allowed.as_ptr()));
-                            rc_did_emsg = true;
+                            g_st().rc_did_emsg = true;
                             return FAIL;
                         }
                         if nfa_reg(REG_ZPAREN) == FAIL {
@@ -1124,7 +1124,7 @@ unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int 
                             c"\\".as_ptr()
                         },
                     );
-                    rc_did_emsg = true;
+                    g_st().rc_did_emsg = true;
                     return FAIL;
                 }
                 EMIT(if nr == 0 { 0x0a } else { nr as c_int });
@@ -1176,7 +1176,7 @@ unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int 
                                 c"\\".as_ptr()
                             },
                         );
-                        rc_did_emsg = true;
+                        g_st().rc_did_emsg = true;
                         return FAIL;
                     }
                     if nfa_regatom() == FAIL {
@@ -1194,7 +1194,7 @@ unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int 
                             c"\\".as_ptr()
                         },
                     );
-                    rc_did_emsg = true;
+                    g_st().rc_did_emsg = true;
                     return FAIL;
                 }
                 EMIT(NFA_OPT_CHARS);
@@ -1239,7 +1239,7 @@ unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int 
                     }
                     if c == b'l' as c_int {
                         if cur {
-                            n = i64::from((*curwin).w_cursor.lnum);
+                            n = i64::from((**curwin.as_ptr()).w_cursor.lnum);
                         }
                         EMIT(if cmp == b'<' as c_int {
                             NFA_LNUM_LT
@@ -1253,7 +1253,7 @@ unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int 
                         }
                     } else if c == b'c' as c_int {
                         if cur {
-                            n = i64::from((*curwin).w_cursor.col) + 1;
+                            n = i64::from((**curwin.as_ptr()).w_cursor.col) + 1;
                         }
                         EMIT(if cmp == b'<' as c_int {
                             NFA_COL_LT
@@ -1266,8 +1266,8 @@ unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int 
                         if cur {
                             let mut vcol: colnr_T = 0;
                             getvvcol(
-                                curwin,
-                                &raw mut (*curwin).w_cursor,
+                                *curwin.as_ptr(),
+                                &raw mut (**curwin.as_ptr()).w_cursor,
                                 ptr::null_mut(),
                                 ptr::null_mut(),
                                 &raw mut vcol,
@@ -1447,7 +1447,7 @@ unsafe fn nfa_regatom_collection(
                         *startc = coll_get_char();
                         if *startc == c_int::MAX {
                             emsg(tr(e_unicode_val_too_large.as_ptr()));
-                            rc_did_emsg = true;
+                            g_st().rc_did_emsg = true;
                             return FAIL;
                         }
                         got_coll_char = true;
@@ -1467,7 +1467,7 @@ unsafe fn nfa_regatom_collection(
                     *startc = oldstartc;
                     if *startc > endc {
                         emsg(tr(e_reverse_range.as_ptr()));
-                        rc_did_emsg = true;
+                        g_st().rc_did_emsg = true;
                         return FAIL;
                     }
                     if endc > *startc + 2 {
@@ -1550,7 +1550,7 @@ unsafe fn nfa_regatom_collection(
 
         if re_st().reg_strict != 0 {
             emsg(tr(e_missingbracket.as_ptr()));
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             return FAIL;
         }
         -2
@@ -1641,7 +1641,7 @@ unsafe fn nfa_regpiece_multi(
                 emsg(tr(
                     c"E870: (NFA regexp) Error reading repetition limits".as_ptr()
                 ));
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return FAIL;
             }
             if minval == 0 && maxval == MAX_LIMIT {
@@ -1703,7 +1703,7 @@ unsafe fn nfa_regpiece_multi(
             emsg(tr(
                 c"E871: (NFA regexp) Can't have a multi follow a multi".as_ptr()
             ));
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             return FAIL;
         }
 
@@ -1802,7 +1802,7 @@ unsafe fn nfa_reg(paren: c_int) -> c_int {
         if paren == REG_PAREN {
             if re_st().regnpar >= NSUBEXP as c_int {
                 emsg(tr(c"E872: (NFA regexp) Too many '('".as_ptr()));
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return FAIL;
             }
             parno = re_st().regnpar;
@@ -1810,7 +1810,7 @@ unsafe fn nfa_reg(paren: c_int) -> c_int {
         } else if paren == REG_ZPAREN {
             if re_st().regnzpar >= NSUBEXP as c_int {
                 emsg(tr(c"E879: (NFA regexp) Too many \\z(".as_ptr()));
-                rc_did_emsg = true;
+                g_st().rc_did_emsg = true;
                 return FAIL;
             }
             parno = re_st().regnzpar;
@@ -1819,7 +1819,7 @@ unsafe fn nfa_reg(paren: c_int) -> c_int {
 
         if re_st().nfa_reg_parse_depth >= REG_MAX_PAREN_DEPTH {
             emsg(tr((&raw const e_command_too_complex).cast()));
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             return FAIL;
         }
         re_st().nfa_reg_parse_depth += 1;
@@ -1857,7 +1857,7 @@ unsafe fn nfa_reg(paren: c_int) -> c_int {
                     },
                 );
             }
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             re_st().nfa_reg_parse_depth -= 1;
             return FAIL;
         } else if paren == REG_NOPAREN && peekchr() != NUL as c_int {
@@ -1873,7 +1873,7 @@ unsafe fn nfa_reg(paren: c_int) -> c_int {
             } else {
                 emsg(tr(c"E873: (NFA regexp) proper termination error".as_ptr()));
             }
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             re_st().nfa_reg_parse_depth -= 1;
             return FAIL;
         }
@@ -2335,7 +2335,7 @@ unsafe fn post2nfa(
                 c"E875: (NFA regexp) (While converting from postfix to NFA),too many states left on stack"
                     .as_ptr(),
             ));
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             return None;
         }
 
@@ -2343,7 +2343,7 @@ unsafe fn post2nfa(
             emsg(tr(
                 c"E876: (NFA regexp) Not enough space to store the whole NFA ".as_ptr(),
             ));
-            rc_did_emsg = true;
+            g_st().rc_did_emsg = true;
             return None;
         }
 
@@ -3146,7 +3146,7 @@ unsafe fn match_zref(subidx: c_int, bytelen: *mut c_int) -> bool {
     unsafe {
         cleanup_zsubexpr();
         let idx = subidx as usize;
-        let ext_in = &raw const re_extmatch_in;
+        let ext_in = &raw const g_st().re_extmatch_in;
         let Some(ref em) = *ext_in else {
             *bytelen = 0;
             return true;
@@ -3515,7 +3515,7 @@ unsafe fn nfa_regmatch(
         let toplevel = (&(*prog).state)[start_idx].c == NFA_MOPEN;
 
         reg_breakcheck();
-        if got_int || nfa_did_time_out() {
+        if g_st().got_int || nfa_did_time_out() {
             return 0;
         }
 
@@ -3633,7 +3633,7 @@ unsafe fn nfa_regmatch(
             let mut listidx: c_int = 0;
             while listidx < (*thislist).n {
                 reg_breakcheck();
-                if got_int {
+                if g_st().got_int {
                     break;
                 }
                 if { nfa_st().nfa_time_limit }.is_some() {
@@ -4247,7 +4247,7 @@ unsafe fn nfa_regmatch(
                         if !(op != 1 && col > t_st.val * MB_MAXBYTES) {
                             let mut matched = false;
                             let wp = if re_st().rex.reg_win.is_null() {
-                                curwin
+                                *curwin.as_ptr()
                             } else {
                                 re_st().rex.reg_win
                             };
@@ -4290,7 +4290,7 @@ unsafe fn nfa_regmatch(
                         };
                         let fm = mark_get(
                             re_st().rex.reg_buf,
-                            curwin,
+                            *curwin.as_ptr(),
                             ptr::null_mut(),
                             kMarkBufLocal,
                             t_st.val,
@@ -4565,7 +4565,7 @@ unsafe fn nfa_regmatch(
             }
 
             reg_breakcheck();
-            if got_int {
+            if g_st().got_int {
                 break;
             }
             if { nfa_st().nfa_time_limit }.is_some() {
@@ -4657,7 +4657,7 @@ unsafe fn nfa_regtry(
             }
         }
 
-        re_extmatch_out = None;
+        g_st().re_extmatch_out = None;
 
         if (*prog).reghasz == REX_SET {
             cleanup_zsubexpr();
@@ -4684,7 +4684,7 @@ unsafe fn nfa_regtry(
                     }
                 }
             }
-            re_extmatch_out = Some(std::rc::Rc::new(extmatch));
+            g_st().re_extmatch_out = Some(std::rc::Rc::new(extmatch));
         }
 
         1 + re_st().rex.lnum
@@ -4885,7 +4885,7 @@ pub(super) unsafe fn nfa_regexec_nl(
         re_st().rex.reg_mmatch = ptr::null_mut();
         re_st().rex.reg_maxline = 0;
         re_st().rex.reg_line_lbr = line_lbr;
-        re_st().rex.reg_buf = curbuf;
+        re_st().rex.reg_buf = g_st().curbuf;
         re_st().rex.reg_win = ptr::null_mut();
         re_st().rex.reg_ic = (*rmp).rm_ic;
         re_st().rex.reg_icombine = false;

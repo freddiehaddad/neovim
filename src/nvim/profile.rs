@@ -392,28 +392,28 @@ pub unsafe fn ex_profile(eap: *mut exarg_T) {
         let arg_bytes = CStr::from_ptr(arg).to_bytes();
         if len == 5 && &arg_bytes[..5] == b"start" && *e != 0 {
             prof_st().PROFILE_FNAME = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
-            do_profiling = PROF_YES;
+            g_st().do_profiling = PROF_YES;
             profile_set_wait(profile_zero());
             set_vim_var_nr(VV_PROFILING, 1);
-        } else if do_profiling == PROF_NONE {
+        } else if g_st().do_profiling == PROF_NONE {
             emsg(c"E750: First use \":profile start {fname}\"".as_ptr());
         } else if arg_bytes == b"stop" {
             profile_dump();
-            do_profiling = PROF_NONE;
+            g_st().do_profiling = PROF_NONE;
             set_vim_var_nr(VV_PROFILING, 0);
             profile_reset();
         } else if arg_bytes == b"pause" {
-            if do_profiling == PROF_YES {
+            if g_st().do_profiling == PROF_YES {
                 prof_st().PAUSE_TIME = profile_start();
             }
-            do_profiling = PROF_PAUSED;
+            g_st().do_profiling = PROF_PAUSED;
         } else if arg_bytes == b"continue" {
-            if do_profiling == PROF_PAUSED {
+            if g_st().do_profiling == PROF_PAUSED {
                 let elapsed = profile_end(prof_st().PAUSE_TIME);
                 prof_st().PAUSE_TIME = elapsed;
                 profile_set_wait(profile_add(profile_get_wait(), elapsed));
             }
-            do_profiling = PROF_YES;
+            g_st().do_profiling = PROF_YES;
         } else if arg_bytes == b"dump" {
             profile_dump();
         } else {
@@ -477,8 +477,8 @@ pub fn prof_input_end() {
 /// Returns `true` when a function defined in the current script should be profiled (`prof_def_func`).
 pub unsafe fn prof_def_func() -> bool {
     unsafe {
-        if current_sctx.sc_sid > 0 {
-            (*script_item(current_sctx.sc_sid)).sn_pr_force
+        if g_st().current_sctx.sc_sid > 0 {
+            (*script_item(g_st().current_sctx.sc_sid)).sn_pr_force
         } else {
             false
         }
@@ -746,8 +746,8 @@ pub unsafe fn profile_init(si: *mut scriptitem_T) {
 /// Save time when starting to invoke another script or function (`script_prof_save`).
 pub unsafe fn script_prof_save(tm: *mut proftime_T) {
     unsafe {
-        if script_id_valid(current_sctx.sc_sid) {
-            let si = &mut *script_item(current_sctx.sc_sid);
+        if script_id_valid(g_st().current_sctx.sc_sid) {
+            let si = &mut *script_item(g_st().current_sctx.sc_sid);
             if si.sn_prof_on {
                 let prev_nest = si.sn_pr_nest;
                 si.sn_pr_nest += 1;
@@ -765,11 +765,11 @@ pub unsafe fn script_prof_save(tm: *mut proftime_T) {
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
 pub unsafe fn script_prof_restore(tm: *const proftime_T) {
     unsafe {
-        if !script_id_valid(current_sctx.sc_sid) {
+        if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
 
-        let si = &mut *script_item(current_sctx.sc_sid);
+        let si = &mut *script_item(g_st().current_sctx.sc_sid);
         if si.sn_prof_on {
             si.sn_pr_nest -= 1;
             if si.sn_pr_nest == 0 {
@@ -872,10 +872,10 @@ pub unsafe fn profile_dump() {
 /// Called when starting to read a script line (`script_line_start`).
 pub unsafe fn script_line_start() {
     unsafe {
-        if !script_id_valid(current_sctx.sc_sid) {
+        if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
-        let si = script_item(current_sctx.sc_sid);
+        let si = script_item(g_st().current_sctx.sc_sid);
         let slnum = sourcing_lnum();
         if (*si).sn_prof_on && slnum >= 1 {
             (*si).sn_prl_idx = slnum - 1;
@@ -900,10 +900,10 @@ pub unsafe fn script_line_start() {
 /// Called when actually executing a script line (`script_line_exec`).
 pub unsafe fn script_line_exec() {
     unsafe {
-        if !script_id_valid(current_sctx.sc_sid) {
+        if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
-        let si = &mut *script_item(current_sctx.sc_sid);
+        let si = &mut *script_item(g_st().current_sctx.sc_sid);
         if si.sn_prof_on && si.sn_prl_idx >= 0 {
             si.sn_prl_execed = 1;
         }
@@ -913,10 +913,10 @@ pub unsafe fn script_line_exec() {
 /// Called when done with a script line (`script_line_end`).
 pub unsafe fn script_line_end() {
     unsafe {
-        if !script_id_valid(current_sctx.sc_sid) {
+        if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
         }
-        let si = script_item(current_sctx.sc_sid);
+        let si = script_item(g_st().current_sctx.sc_sid);
         if (*si).sn_prof_on
             && (*si).sn_prl_idx >= 0
             && ((*si).sn_prl_idx as usize) < (*si).sn_prl_ga.len()
@@ -958,7 +958,7 @@ unsafe fn time_diff(then: proftime_T, now: proftime_T) {
     let diff = profile_sub(now, then);
     let s = format!("{:07.3}\0", (diff as f64) / 1.0e6);
     unsafe {
-        if let Some(ref tf) = *(&raw const time_fd) {
+        if let Some(ref tf) = *(&raw const g_st().time_fd) {
             fprintf!(tf.as_ptr(), c"%s".as_ptr(), s.as_ptr().cast::<c_char>());
         }
     }
@@ -967,7 +967,7 @@ unsafe fn time_diff(then: proftime_T, now: proftime_T) {
 /// Initializes the startuptime code (`time_start`).
 pub unsafe fn time_start(message: *const c_char) {
     unsafe {
-        let Some(ref tf) = *(&raw const time_fd) else {
+        let Some(ref tf) = *(&raw const g_st().time_fd) else {
             return;
         };
         let fp = tf.as_ptr();
@@ -993,7 +993,7 @@ pub unsafe fn time_start(message: *const c_char) {
 /// Prints out timing info (`time_msg`).
 pub unsafe fn time_msg(mesg: *const c_char, start: *const proftime_T) {
     unsafe {
-        let Some(ref tf) = *(&raw const time_fd) else {
+        let Some(ref tf) = *(&raw const g_st().time_fd) else {
             return;
         };
         let fp = tf.as_ptr();
@@ -1019,8 +1019,8 @@ pub unsafe fn time_msg(mesg: *const c_char, start: *const proftime_T) {
 pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
     unsafe {
         const BUFSIZE: usize = 8192;
-        time_fd = crate::os::fs::CFile::from_raw(fopen(fname, c"a".as_ptr()));
-        let Some(ref tf) = *(&raw const time_fd) else {
+        g_st().time_fd = crate::os::fs::CFile::from_raw(fopen(fname, c"a".as_ptr()));
+        let Some(ref tf) = *(&raw const g_st().time_fd) else {
             let fname_str = CStr::from_ptr(fname).to_string_lossy();
             eprint!("E484: Can't open file {fname_str}");
             return;
@@ -1035,7 +1035,7 @@ pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
         );
         if r != 0 {
             prof_st().STARTUPTIME_BUF = Vec::new();
-            time_fd = None;
+            g_st().time_fd = None;
             let err_str = CStr::from_ptr(uv_err_name(r)).to_string_lossy();
             eprint!("time_init: setvbuf failed: {r} {err_str}");
             return;
@@ -1057,7 +1057,7 @@ pub unsafe fn time_finish() {
         assert!(!(&raw const prof_st().STARTUPTIME_BUF).as_ref().unwrap().is_empty());
         time_msg(c"--- NVIM STARTED ---\n".as_ptr(), std::ptr::null());
 
-        time_fd = None;
+        g_st().time_fd = None;
 
         prof_st().STARTUPTIME_BUF = Vec::new();
     }

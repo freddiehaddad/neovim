@@ -129,32 +129,32 @@ pub unsafe fn exec_impl(
     err: *mut Error,
 ) -> NvimString {
     unsafe {
-        let save_msg_silent = msg_silent;
-        let save_redir_off = redir_off;
-        let save_capture_ga = capture_ga;
-        let save_msg_col = msg_col;
+        let save_msg_silent = g_st().msg_silent;
+        let save_redir_off = g_st().redir_off;
+        let save_capture_ga = g_st().capture_ga;
+        let save_msg_col = g_st().msg_col;
         let mut capture_local: Vec<c_char> = Vec::new();
         if (*opts).output {
-            capture_ga = &raw mut capture_local;
+            g_st().capture_ga = &raw mut capture_local;
         }
 
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         if (*opts).output {
-            msg_silent += 1;
-            redir_off = false;
-            msg_col = 0;
+            g_st().msg_silent += 1;
+            g_st().redir_off = false;
+            g_st().msg_col = 0;
         }
 
         let save_current_sctx = api_set_sctx(channel_id);
         do_source_str(src.data, c"nvim_exec2()".as_ptr());
         if (*opts).output {
-            capture_ga = save_capture_ga;
-            msg_silent = save_msg_silent;
-            redir_off = save_redir_off;
-            msg_col = save_msg_col;
+            g_st().capture_ga = save_capture_ga;
+            g_st().msg_silent = save_msg_silent;
+            g_st().redir_off = save_redir_off;
+            g_st().msg_col = save_msg_col;
         }
-        current_sctx = save_current_sctx;
+        g_st().current_sctx = save_current_sctx;
         try_leave(&tstate, err);
 
         if !error_set(err) && (*opts).output && capture_local.len() > 1 {
@@ -207,10 +207,10 @@ pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: *mu
         let mut rv = nil_obj();
 
         if api_vims_st().EVAL_RECURSIVE == 0 {
-            force_abort = false;
-            suppress_errthrow = false;
-            did_throw = false;
-            did_emsg = 0;
+            g_st().force_abort = false;
+            g_st().suppress_errthrow = false;
+            g_st().did_throw = false;
+            g_st().did_emsg = 0;
         }
         api_vims_st().EVAL_RECURSIVE += 1;
 
@@ -221,10 +221,10 @@ pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: *mu
             expr.data,
             &mut rettv,
             std::ptr::null_mut(),
-            std::ptr::addr_of_mut!(EVALARG_EVALUATE),
+            std::ptr::addr_of_mut!(g_st().EVALARG_EVALUATE),
         );
         clear_evalarg(
-            std::ptr::addr_of_mut!(EVALARG_EVALUATE),
+            std::ptr::addr_of_mut!(g_st().EVALARG_EVALUATE),
             std::ptr::null_mut(),
         );
         try_leave(&tstate, err);
@@ -278,15 +278,15 @@ unsafe fn call_function_impl(
         }
 
         if api_vims_st().CALL_FUNC_RECURSIVE == 0 {
-            force_abort = false;
-            suppress_errthrow = false;
-            did_throw = false;
-            did_emsg = 0;
+            g_st().force_abort = false;
+            g_st().suppress_errthrow = false;
+            g_st().did_throw = false;
+            g_st().did_emsg = 0;
         }
         api_vims_st().CALL_FUNC_RECURSIVE += 1;
 
         let mut rettv: typval_T = typval_T::new();
-        let lnum = (*curwin).w_cursor.lnum;
+        let lnum = (**curwin.as_ptr()).w_cursor.lnum;
         let mut funcexe = funcexe_T {
             fe_fill_submatch: false,
             fe_firstline: lnum,
@@ -310,7 +310,7 @@ unsafe fn call_function_impl(
             vim_args.as_mut_ptr(),
             &mut funcexe,
         );
-        current_sctx = save_current_sctx;
+        g_st().current_sctx = save_current_sctx;
         try_leave(&tstate, err);
 
         if !error_set(err) {
@@ -383,10 +383,10 @@ pub unsafe extern "C" fn nvim_call_dict_function(
                     dict.data.string().data,
                     &mut rettv,
                     std::ptr::null_mut(),
-                    std::ptr::addr_of_mut!(EVALARG_EVALUATE),
+                    std::ptr::addr_of_mut!(g_st().EVALARG_EVALUATE),
                 );
                 clear_evalarg(
-                    std::ptr::addr_of_mut!(EVALARG_EVALUATE),
+                    std::ptr::addr_of_mut!(g_st().EVALARG_EVALUATE),
                     std::ptr::null_mut(),
                 );
                 try_leave(&tstate, err);

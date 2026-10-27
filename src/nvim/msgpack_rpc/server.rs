@@ -101,7 +101,7 @@ pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {
                 c"?".as_ptr()
             };
             vim_snprintf!(
-                ptr::addr_of_mut!(IObuff).cast(),
+                ptr::addr_of_mut!(g_st().IObuff).cast(),
                 IOSIZE,
                 fmt,
                 reason,
@@ -150,7 +150,7 @@ pub unsafe fn server_address_new(name: *const c_char) -> std::ffi::CString {
             let app = if !name.is_null() {
                 name
             } else {
-                ptr::addr_of!(NameBuff).cast()
+                ptr::addr_of!(g_st().NameBuff).cast()
             };
             vim_snprintf!(
                 fmt.as_mut_ptr(),
@@ -169,7 +169,7 @@ pub unsafe fn server_address_new(name: *const c_char) -> std::ffi::CString {
             let app = if !name.is_null() {
                 name
             } else {
-                ptr::addr_of!(NameBuff).cast()
+                ptr::addr_of!(g_st().NameBuff).cast()
             };
             vim_snprintf!(
                 fmt.as_mut_ptr(),
@@ -235,7 +235,7 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
         let watcher = Box::into_raw(Box::new(SocketWatcher::new()));
         let endpoint = addr_gen.as_ref().map_or(addr, |s| s.as_ptr());
         let mut result =
-            socket_watcher_init(ptr::addr_of_mut!(main_loop).cast(), watcher, endpoint);
+            socket_watcher_init(ptr::addr_of_mut!(g_st().main_loop).cast(), watcher, endpoint);
         drop(addr_gen);
         if result < 0 {
             let _ = Box::from_raw(watcher);
