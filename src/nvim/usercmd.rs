@@ -1994,7 +1994,7 @@ pub fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
 }
 
 #[inline]
-fn arena_str_obj(arena: *mut Arena, bytes: &[u8]) -> Object {
+fn arena_str_obj(arena: &mut Arena, bytes: &[u8]) -> Object {
     let data = arena_memdupz(arena, bytes.as_ptr().cast(), bytes.len());
         string_obj(NvimString {
             data,
@@ -2004,7 +2004,7 @@ fn arena_str_obj(arena: *mut Arena, bytes: &[u8]) -> Object {
 
 /// Gets a map of maps describing user-commands defined for buffer `buf` or
 /// defined globally if `buf` is NULL (`commands_array`).
-pub fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
+pub fn commands_array(buf: *mut buf_T, arena: &mut Arena) -> Dict {
     unsafe {
         let u = &raw const (*ucmds_mut());
         let gap: &[ucmd_T] = if buf.is_null() { &*u } else { &(*buf).b_ucmds };

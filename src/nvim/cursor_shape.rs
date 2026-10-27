@@ -139,7 +139,7 @@ fn clear_shape_table() {
 }
 
 /// Converts `(*shape_table_mut())` into an `Array` of `Dict`s (`mode_style_array`).
-pub fn mode_style_array(arena: *mut Arena) -> Array {
+pub fn mode_style_array(arena: &mut Arena) -> Array {
     unsafe {
         let mut all = arena_array(arena, SHAPE_IDX_COUNT);
         let tbl = &*std::ptr::addr_of!((*shape_table_mut()));

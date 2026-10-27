@@ -4053,7 +4053,7 @@ pub fn list_lua_version() {
             ptr::null(),
             args,
             kRetObject,
-            ptr::null_mut(),
+            None,
             &mut err,
         );
         debug_assert!(err.err_type == ErrorType::kErrorTypeNone);

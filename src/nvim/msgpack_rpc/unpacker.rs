@@ -298,53 +298,51 @@ fn parse_nop(_parser: *mut mpack_parser_t, _node: *mut mpack_node_t) {}
 pub fn unpack(
     mut data: *const c_char,
     mut size: usize,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe {
-        let mut unpacker = Unpacker::new();
-        mpack_parser_init(&mut unpacker.parser, 0);
-        unpacker.parser.data = crate::mpack::object::mpack_data_t::Unpacker(&mut unpacker);
-        unpacker.arena = *arena;
+    let mut unpacker = Unpacker::new();
+    mpack_parser_init(&mut unpacker.parser, 0);
+    unpacker.parser.data = crate::mpack::object::mpack_data_t::Unpacker(&mut unpacker);
+    unpacker.arena = *arena;
 
-        let result = mpack_parse(
-            &mut unpacker.parser,
-            &mut data,
-            &mut size,
-            Some(api_parse_enter),
-            Some(api_parse_exit),
+    let result = mpack_parse(
+        &mut unpacker.parser,
+        &mut data,
+        &mut size,
+        Some(api_parse_enter),
+        Some(api_parse_exit),
+    );
+
+    *arena = std::mem::replace(&mut unpacker.arena, empty_arena());
+
+    if result == MPACK_NOMEM {
+        api_set_error!(
+            err,
+            ErrorType::kErrorTypeException,
+            c"object was too deep to unpack".as_ptr(),
         );
-
-        *arena = std::mem::replace(&mut unpacker.arena, empty_arena());
-
-        if result == MPACK_NOMEM {
-            api_set_error!(
-                err,
-                ErrorType::kErrorTypeException,
-                c"object was too deep to unpack".as_ptr(),
-            );
-        } else if result == MPACK_EOF {
-            api_set_error!(
-                err,
-                ErrorType::kErrorTypeException,
-                c"incomplete msgpack string".as_ptr(),
-            );
-        } else if result == MPACK_ERROR {
-            api_set_error!(
-                err,
-                ErrorType::kErrorTypeException,
-                c"invalid msgpack string".as_ptr(),
-            );
-        } else if result == MPACK_OK && size != 0 {
-            api_set_error!(
-                err,
-                ErrorType::kErrorTypeException,
-                c"trailing data in msgpack string".as_ptr(),
-            );
-        }
-
-        unpacker.result
+    } else if result == MPACK_EOF {
+        api_set_error!(
+            err,
+            ErrorType::kErrorTypeException,
+            c"incomplete msgpack string".as_ptr(),
+        );
+    } else if result == MPACK_ERROR {
+        api_set_error!(
+            err,
+            ErrorType::kErrorTypeException,
+            c"invalid msgpack string".as_ptr(),
+        );
+    } else if result == MPACK_OK && size != 0 {
+        api_set_error!(
+            err,
+            ErrorType::kErrorTypeException,
+            c"trailing data in msgpack string".as_ptr(),
+        );
     }
+
+    unpacker.result
 }
 
 /// Initialize an `Unpacker` (`unpacker_init`).
@@ -701,7 +699,7 @@ pub fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
                 return false;
             }
 
-            p.ui_handler = ui_client_get_redraw_handler(data, str_len, std::ptr::null_mut());
+            p.ui_handler = ui_client_get_redraw_handler(data, str_len);
             data = data.add(str_len);
             size -= str_len;
 

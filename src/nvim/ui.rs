@@ -640,10 +640,10 @@ pub fn ui_flush() {
                 pos: 0,
                 size: 0,
             };
-            let style = mode_style_array(&raw mut arena);
+            let style = mode_style_array(&mut arena);
             let enabled = *opt_vars().p_guicursor != NUL;
             ui_call_mode_info_set(enabled, style);
-            arena_mem_free(arena_finish(&raw mut arena));
+            arena_mem_free(arena_finish(&mut arena));
             ui_state().pending_mode_info_update = false;
         }
 
@@ -770,7 +770,7 @@ pub fn ui_has(ext: UIExtension) -> bool {
     ui_state().ui_ext[ext as usize]
 }
 
-pub fn ui_array(arena: *mut Arena) -> Array {
+pub fn ui_array(arena: &mut Arena) -> Array {
     unsafe {
         let uis_ptr = &raw const ui_state().uis;
         let mut all_uis = arena_array(arena, (*uis_ptr).len());
@@ -910,8 +910,8 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
                 name.as_ptr(),
                 args,
                 kRetNilBool,
-                ptr::null_mut(),
-                &mut err,
+                None,
+                Some(&mut err),
             );
             g_st().ui_event_ns_id = 0;
             if res.obj_type == ObjectType::kObjectTypeBoolean && res.data.boolean() {

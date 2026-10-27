@@ -268,8 +268,7 @@ pub fn remote_ui_wait_for_attach() {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_ui_attach(uint64_t channel_id, Integer width, Integer height, Dict options,
 //                               Error *err) FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_attach(
+pub fn nvim_ui_attach(
     channel_id: u64,
     width: Integer,
     height: Integer,
@@ -401,7 +400,7 @@ pub fn ui_attach(
     enable_rgb: Boolean,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         let mut opts_items: [KeyValuePair; 1] = [KeyValuePair {
             key: cstr_as_string(c"rgb".as_ptr()),
             value: boolean_obj(enable_rgb),
@@ -418,8 +417,7 @@ pub fn ui_attach(
 /// Tells the nvim server if focus was gained or lost by the GUI
 // DLLEXPORT void nvim_ui_set_focus(uint64_t channel_id, Boolean gained, Error *error)
 //   FUNC_API_SINCE(11) FUNC_API_REMOTE_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, error: &mut Error) {
+pub fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, error: &mut Error) {
     if get_ui_or_err(channel_id, error).is_none() {
             return;
         }
@@ -438,8 +436,7 @@ pub unsafe extern "C" fn nvim_ui_set_focus(channel_id: u64, gained: Boolean, err
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_ui_detach(uint64_t channel_id, Error *err)
 //   FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_detach(channel_id: u64, err: &mut Error) {
+pub fn nvim_ui_detach(channel_id: u64, err: &mut Error) {
     remote_ui_disconnect(channel_id, err, false);
 }
 
@@ -487,8 +484,7 @@ pub fn remote_ui_restart(listen_addr: NvimString) {
 
 // DLLEXPORT void nvim_ui_try_resize(uint64_t channel_id, Integer width, Integer height, Error *err)
 //   FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_try_resize(
+pub fn nvim_ui_try_resize(
     channel_id: u64,
     width: Integer,
     height: Integer,
@@ -512,8 +508,7 @@ pub unsafe extern "C" fn nvim_ui_try_resize(
 
 // DLLEXPORT void nvim_ui_set_option(uint64_t channel_id, String name, Object value, Error *error)
 //   FUNC_API_SINCE(1) FUNC_API_REMOTE_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_set_option(
+pub fn nvim_ui_set_option(
     channel_id: u64,
     name: NvimString,
     value: Object,
@@ -717,15 +712,14 @@ fn ui_set_option(
 // DLLEXPORT void nvim_ui_try_resize_grid(uint64_t channel_id, Integer grid, Integer width,
 //                                        Integer height, Error *err)
 //   FUNC_API_SINCE(6) FUNC_API_REMOTE_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_try_resize_grid(
+pub fn nvim_ui_try_resize_grid(
     channel_id: u64,
     grid: Integer,
     width: Integer,
     height: Integer,
     err: &mut Error,
 ) {
-    unsafe {
+    {
         if get_ui_or_err(channel_id, err).is_none() {
             return;
         }
@@ -745,8 +739,7 @@ pub unsafe extern "C" fn nvim_ui_try_resize_grid(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_ui_pum_set_height(uint64_t channel_id, Integer height, Error *err)
 //   FUNC_API_SINCE(6) FUNC_API_REMOTE_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: &mut Error) {
+pub fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: &mut Error) {
     let Some(ui) = get_ui_or_err(channel_id, err) else {
             return;
         };
@@ -788,8 +781,7 @@ pub unsafe extern "C" fn nvim_ui_pum_set_height(channel_id: u64, height: Integer
 // DLLEXPORT void nvim_ui_pum_set_bounds(uint64_t channel_id, Float width, Float height, Float row,
 //                                       Float col, Error *err)
 //   FUNC_API_SINCE(7) FUNC_API_REMOTE_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_pum_set_bounds(
+pub fn nvim_ui_pum_set_bounds(
     channel_id: u64,
     width: Float,
     height: Float,
@@ -1438,7 +1430,7 @@ pub fn remote_ui_flush_pending_data(ui: &mut RemoteUI) {
     ui_flush_buf(ui, false);
 }
 
-fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: *mut Arena) -> Array {
+fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: &mut Arena) -> Array {
     unsafe {
         let mut new_contents = arena_array(arena, contents.size);
         for i in 0..contents.size {
@@ -1467,7 +1459,7 @@ fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: *mut Arena) -> 
     }
 }
 
-fn translate_firstarg(ui: &mut RemoteUI, args: Array, arena: *mut Arena) -> Array {
+fn translate_firstarg(ui: &mut RemoteUI, args: Array, arena: &mut Arena) -> Array {
     unsafe {
         let mut new_args = arena_array(arena, args.size);
         let contents = (*args.items).data.array();
@@ -1490,18 +1482,18 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
         };
         if !ui.ui_ext[kUILinegrid] {
             if name == c"cmdline_show" {
-                let new_args = translate_firstarg(ui, args, &raw mut arena);
+                let new_args = translate_firstarg(ui, args, &mut arena);
                 push_call(ui, name, new_args);
-                arena_mem_free(arena_finish(&raw mut arena));
+                arena_mem_free(arena_finish(&mut arena));
                 return;
             } else if name == c"cmdline_block_show" {
                 let block = (*args.items).data.array();
-                let mut new_block = arena_array(&raw mut arena, block.size);
+                let mut new_block = arena_array(&mut arena, block.size);
                 for i in 0..block.size {
                     *new_block.items.add(i) = array_obj(translate_contents(
                         ui,
                         block[i].data.array(),
-                        &raw mut arena,
+                        &mut arena,
                     ));
                 }
                 new_block.size = block.size;
@@ -1512,12 +1504,12 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                     capacity: 1,
                 };
                 push_call(ui, name, new_args);
-                arena_mem_free(arena_finish(&raw mut arena));
+                arena_mem_free(arena_finish(&mut arena));
                 return;
             } else if name == c"cmdline_block_append" {
-                let new_args = translate_firstarg(ui, args, &raw mut arena);
+                let new_args = translate_firstarg(ui, args, &mut arena);
                 push_call(ui, name, new_args);
-                arena_mem_free(arena_finish(&raw mut arena));
+                arena_mem_free(arena_finish(&mut arena));
                 return;
             }
         }
@@ -1528,7 +1520,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                     args[4].data.integer() == -1 || !ui.ui_ext[kUIPopupmenu];
                 if ui.wildmenu_active {
                     let items = (*args.items).data.array();
-                    let mut new_items = arena_array(&raw mut arena, items.size);
+                    let mut new_items = arena_array(&mut arena, items.size);
                     for i in 0..items.size {
                         *new_items.items.add(i) = *items[i].data.array().items;
                     }
@@ -1555,7 +1547,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                             },
                         );
                     }
-                    arena_mem_free(arena_finish(&raw mut arena));
+                    arena_mem_free(arena_finish(&mut arena));
                     return;
                 }
             } else if name == c"popupmenu_select" {
@@ -1581,8 +1573,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
 /// @param content Content to write to the TTY
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_ui_send(uint64_t channel_id, String content, Error *err) FUNC_API_SINCE(14);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_send(_channel_id: u64, content: NvimString, _err: &mut Error) {
+pub fn nvim_ui_send(_channel_id: u64, content: NvimString, _err: &mut Error) {
     ui_call_ui_send(content);
 }
 

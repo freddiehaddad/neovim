@@ -158,7 +158,7 @@ fn api_err_req(err: &mut Error, name: *const c_char) {
 }
 
 #[inline]
-fn format_buflocal_arena(arena: *mut Arena, handle: c_int) -> NvimString {
+fn format_buflocal_arena(arena: &mut Arena, handle: c_int) -> NvimString {
     let s = format!("<buffer={handle}>");
     let data = arena_memdupz(arena, s.as_ptr().cast(), s.len());
         NvimString {
@@ -171,7 +171,7 @@ fn unpack_string_or_array(
     v: Object,
     k: *const c_char,
     required: bool,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
     if v.obj_type == ObjectType::kObjectTypeString {
@@ -245,7 +245,7 @@ fn get_patterns_from_pattern_or_buf(
     has_buf: bool,
     buf: Buffer,
     fallback: *const c_char,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
     unsafe {
@@ -387,10 +387,9 @@ fn clear_autocmd(
 // DLLEXPORT ArrayOf(DictAs(get_autocmds__ret)) nvim_get_autocmds(Dict(get_autocmds) *opts,
 //                                                                Arena *arena,
 //                                                                Error *err) FUNC_API_SINCE(9);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_get_autocmds(
+pub fn nvim_get_autocmds(
     opts: *mut KeyDict_get_autocmds,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
     unsafe {
@@ -820,12 +819,11 @@ pub unsafe extern "C" fn nvim_get_autocmds(
 // DLLEXPORT Integer nvim_create_autocmd(uint64_t channel_id, Object event,
 //                                       Dict(create_autocmd) *opts, Arena *arena,
 //                                       Error *err) FUNC_API_SINCE(9) FUNC_API_FAST;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_create_autocmd(
+pub fn nvim_create_autocmd(
     channel_id: u64,
     event: Object,
     opts: *mut KeyDict_create_autocmd,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Integer {
     unsafe {
@@ -993,8 +991,7 @@ pub unsafe extern "C" fn nvim_create_autocmd(
 ///
 /// @param id Autocommand id returned by |nvim_create_autocmd()|
 // DLLEXPORT void nvim_del_autocmd(Integer id, Error *err) FUNC_API_SINCE(9);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_del_autocmd(id: Integer, err: &mut Error) {
+pub fn nvim_del_autocmd(id: Integer, err: &mut Error) {
     if id <= 0 {
             api_err_int(err, c"autocmd id".as_ptr(), id);
             return;
@@ -1025,10 +1022,9 @@ pub unsafe extern "C" fn nvim_del_autocmd(id: Integer, err: &mut Error) {
 ///
 // DLLEXPORT void nvim_clear_autocmds(Dict(clear_autocmds) *opts, Arena *arena,
 //                                    Error *err) FUNC_API_SINCE(9);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_clear_autocmds(
+pub fn nvim_clear_autocmds(
     opts: *mut KeyDict_clear_autocmds,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) {
     unsafe {
@@ -1120,8 +1116,7 @@ pub unsafe extern "C" fn nvim_clear_autocmds(
 /// @see |autocmd-groups|
 // DLLEXPORT Integer nvim_create_augroup(uint64_t channel_id, String name,
 //                                       Dict(create_augroup) *opts, Error *err) FUNC_API_SINCE(9);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_create_augroup(
+pub fn nvim_create_augroup(
     channel_id: u64,
     name: NvimString,
     opts: *mut KeyDict_create_augroup,
@@ -1171,8 +1166,7 @@ pub unsafe extern "C" fn nvim_create_augroup(
 /// @see |nvim_del_augroup_by_name()|
 /// @see |nvim_create_augroup()|
 // DLLEXPORT void nvim_del_augroup_by_id(Integer id, Error *err) FUNC_API_SINCE(9);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
+pub fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
     let mut tstate = TryState::new();
         try_enter(&mut tstate);
         augroup_del_by_id(id as c_int);
@@ -1186,8 +1180,7 @@ pub unsafe extern "C" fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
 /// @param name Group name.
 /// @see |autocmd-groups|
 // DLLEXPORT void nvim_del_augroup_by_name(String name, Error *err) FUNC_API_SINCE(9);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_del_augroup_by_name(name: NvimString, err: &mut Error) {
+pub fn nvim_del_augroup_by_name(name: NvimString, err: &mut Error) {
     let mut tstate = TryState::new();
         try_enter(&mut tstate);
         augroup_del(name.data, -1, false);
@@ -1207,11 +1200,10 @@ pub unsafe extern "C" fn nvim_del_augroup_by_name(name: NvimString, err: &mut Er
 /// @see |:doautocmd|
 // DLLEXPORT void nvim_exec_autocmds(Object event, Dict(exec_autocmds) *opts, Arena *arena,
 //                                   Error *err) FUNC_API_SINCE(9);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_exec_autocmds(
+pub fn nvim_exec_autocmds(
     event: Object,
     opts: *mut KeyDict_exec_autocmds,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) {
     unsafe {

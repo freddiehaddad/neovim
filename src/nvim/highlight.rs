@@ -376,9 +376,9 @@ fn get_attr_entry(mut entry: HlEntry) -> c_int {
                 pos: 0,
                 size: 0,
             };
-            let inspect = hl_inspect(id, &raw mut arena);
+            let inspect = hl_inspect(id, &mut arena);
             ui_call_hl_attr_define(Integer::from(id), entry.attr, entry.attr, inspect);
-            arena_mem_free(arena_finish(&raw mut arena));
+            arena_mem_free(arena_finish(&mut arena));
             return id;
         }
     }
@@ -394,10 +394,10 @@ pub fn ui_send_all_hls(ui: &mut RemoteUI) {
                 pos: 0,
                 size: 0,
             };
-            let inspect = hl_inspect(i as c_int, &raw mut arena);
+            let inspect = hl_inspect(i as c_int, &mut arena);
             let attr = (*entries_ptr).as_slice()[i].attr;
             remote_ui_hl_attr_define(ui, i as Integer, attr, attr, inspect);
-            arena_mem_free(arena_finish(&raw mut arena));
+            arena_mem_free(arena_finish(&mut arena));
         }
         for hlf in 0..HLF_COUNT {
             remote_ui_hl_group_set(
@@ -521,8 +521,8 @@ pub fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c
                 c"hl_def".as_ptr(),
                 args,
                 kRetObject,
-                ptr::null_mut(),
-                &mut err,
+                None,
+                Some(&mut err),
             );
             hl_st().ns_get_hl_recursive -= 1;
 
@@ -1247,7 +1247,7 @@ pub fn syn_attr2entry(attr: c_int) -> HlAttrs {
 pub fn hl_get_attr_by_id(
     attr_id: Integer,
     rgb: Boolean,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
     unsafe {
@@ -1818,7 +1818,7 @@ pub fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: &mut Error
         }
 }
 
-pub fn hl_inspect(attr: c_int, arena: *mut Arena) -> Array {
+pub fn hl_inspect(attr: c_int, arena: &mut Arena) -> Array {
     if !hl_st().hlstate_active {
             return Array {
                 size: 0,
@@ -1846,7 +1846,7 @@ fn hl_inspect_size(attr: c_int) -> usize {
     }
 }
 
-fn hl_inspect_impl(arr: *mut Array, attr: c_int, arena: *mut Arena) {
+fn hl_inspect_impl(arr: *mut Array, attr: c_int, arena: &mut Arena) {
     unsafe {
         let entries_ptr = &raw const hl_st().attr_entries;
         if attr <= 0 || (attr as usize) >= (*entries_ptr).len() {

@@ -698,7 +698,7 @@ fn apply_termdefs(tui: &mut TUIData) {
             ptr::null(),
             empty_args,
             kRetObject,
-            ptr::null_mut(),
+            None,
             &mut lua_err,
         );
         if rv.obj_type != ObjectType::kObjectTypeDict {

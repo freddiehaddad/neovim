@@ -180,8 +180,8 @@ pub fn buf_updates_unload(buf: &mut buf_T, can_reload: bool) {
                         },
                         args,
                         0,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
+                        None,
+                        None,
                     );
                 });
             }
@@ -304,8 +304,8 @@ pub fn buf_updates_send_changes(
                         c"lines".as_ptr(),
                         args,
                         kRetNilBool,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
+                        None,
+                        None,
                     );
                 });
 
@@ -371,8 +371,8 @@ pub fn buf_updates_send_splice(
                         c"bytes".as_ptr(),
                         args,
                         kRetNilBool,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
+                        None,
+                        None,
                     );
                 });
 
@@ -417,8 +417,8 @@ pub fn buf_updates_changedtick(buf: &mut buf_T) {
                         c"changedtick".as_ptr(),
                         args,
                         kRetNilBool,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
+                        None,
+                        None,
                     );
                 });
 

@@ -860,10 +860,10 @@ fn ui_ext_tabline_update() {
             tp = (*tp).tp_next;
         }
 
-        let mut tabs = arena_array(&raw mut arena, n_tabs);
+        let mut tabs = arena_array(&mut arena, n_tabs);
         tp = g_st().first_tabpage;
         while !tp.is_null() {
-            let mut tab_info = arena_dict(&raw mut arena, 2);
+            let mut tab_info = arena_dict(&mut arena, 2);
             put_c(
                 &mut tab_info,
                 c"tab".as_ptr(),
@@ -884,7 +884,7 @@ fn ui_ext_tabline_update() {
                 c"name".as_ptr(),
                 Object {
                     obj_type: ObjectType::kObjectTypeString,
-                    data: ObjectData::String(arena_string(&raw mut arena, cstr_as_string(name_buff))),
+                    data: ObjectData::String(arena_string(&mut arena, cstr_as_string(name_buff))),
                 },
             );
 
@@ -907,11 +907,11 @@ fn ui_ext_tabline_update() {
             buf = (*buf).b_next;
         }
 
-        let mut buffers = arena_array(&raw mut arena, n_buffers);
+        let mut buffers = arena_array(&mut arena, n_buffers);
         buf = g_st().firstbuf;
         while !buf.is_null() {
             if (*buf).b_p_bl != 0 {
-                let mut buffer_info = arena_dict(&raw mut arena, 2);
+                let mut buffer_info = arena_dict(&mut arena, 2);
                 put_c(
                     &mut buffer_info,
                     c"buffer".as_ptr(),
@@ -927,7 +927,7 @@ fn ui_ext_tabline_update() {
                     c"name".as_ptr(),
                     Object {
                         obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData::String(arena_string(&raw mut arena, cstr_as_string(name_buff))),
+                        data: ObjectData::String(arena_string(&mut arena, cstr_as_string(name_buff))),
                     },
                 );
 
@@ -943,7 +943,7 @@ fn ui_ext_tabline_update() {
         }
 
         ui_call_tabline_update((*g_st().curtab).handle, tabs, (*g_st().curbuf).b_fnum, buffers);
-        arena_mem_free(arena_finish(&raw mut arena));
+        arena_mem_free(arena_finish(&mut arena));
     }
 }
 

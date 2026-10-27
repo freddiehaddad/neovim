@@ -240,7 +240,7 @@ pub fn vim_findfile_init(
                     data: expand_ptr,
                     size: expand_len,
                 },
-                ptr::null_mut(),
+                None,
             );
         }
 
@@ -328,14 +328,14 @@ pub fn vim_findfile_init(
                     data: expand_ptr,
                     size: expand_size,
                 },
-                ptr::null_mut(),
+                None,
             );
         } else {
             search_ctx.ffsc_fix_path = cstr_to_string(path);
         }
 
         if search_ctx.ffsc_start_dir.data.is_null() {
-            search_ctx.ffsc_start_dir = copy_string(search_ctx.ffsc_fix_path, ptr::null_mut());
+            search_ctx.ffsc_start_dir = copy_string(search_ctx.ffsc_fix_path, None);
             *search_ctx.ffsc_fix_path.data = NUL;
             search_ctx.ffsc_fix_path.size = 0;
         }

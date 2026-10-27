@@ -4045,24 +4045,24 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
         };
         let mut content: Array;
         if g_st().cmdline_star != 0 {
-            content = arena_array(&raw mut arena, 1);
+            content = arena_array(&mut arena, 1);
             let mut len: usize = 0;
             let mut p = getln_st().ccline.cmdbuff;
             while *p != NUL {
                 p = p.add(utfc_ptr2len(p) as usize);
                 len += 1;
             }
-            let buf = arena_alloc(&raw mut arena, len, false).cast::<c_char>();
+            let buf = arena_alloc(&mut arena, len, false).cast::<c_char>();
             ptr::write_bytes(buf.cast::<u8>(), b'*', len);
-            let mut item = arena_array(&raw mut arena, 3);
+            let mut item = arena_array(&mut arena, 3);
             add_c(&mut item, integer_obj(0));
             add_c(&mut item, string_obj(cbuf_as_string(buf, len)));
             add_c(&mut item, integer_obj(0));
             add_c(&mut content, array_obj(item));
         } else if !line.last_colors.colors.is_empty() {
-            content = arena_array(&raw mut arena, line.last_colors.colors.len());
+            content = arena_array(&mut arena, line.last_colors.colors.len());
             for &chunk in &line.last_colors.colors {
-                let mut item = arena_array(&raw mut arena, 3);
+                let mut item = arena_array(&mut arena, 3);
                 add_c(
                     &mut item,
                     integer_obj(if chunk.hl_id == 0 {
@@ -4084,11 +4084,11 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
                 add_c(&mut content, array_obj(item));
             }
         } else {
-            let mut item = arena_array(&raw mut arena, 3);
+            let mut item = arena_array(&mut arena, 3);
             add_c(&mut item, integer_obj(0));
             add_c(&mut item, cstr_as_obj(line.cmdbuff));
             add_c(&mut item, integer_obj(0));
-            content = arena_array(&raw mut arena, 1);
+            content = arena_array(&mut arena, 1);
             add_c(&mut content, array_obj(item));
         }
         let mut charbuf: [c_char; 2] = [line.cmdfirstc as c_char, 0];
@@ -4118,7 +4118,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
                 line.level as Integer,
             );
         }
-        arena_mem_free(arena_finish(&raw mut arena));
+        arena_mem_free(arena_finish(&mut arena));
     }
 }
 

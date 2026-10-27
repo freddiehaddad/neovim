@@ -1712,8 +1712,8 @@ pub fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
                 ptr::null(),
                 args,
                 kRetObject,
-                ptr::null_mut(),
-                &mut err,
+                None,
+                Some(&mut err),
             );
             if ret.obj_type == ObjectType::kObjectTypeString {
                 p = Some(string_to_cstr(ret.data.string()));
@@ -2110,7 +2110,7 @@ fn mapblock_fill_dict(
     buffer_value: c_int,
     abbr: bool,
     compatible: bool,
-    arena: *mut Arena,
+    arena: &mut Arena,
 ) -> Dict {
     let mut dict = arena_dict(arena, 20);
         let lhs = str2special_arena(
@@ -3030,7 +3030,7 @@ pub fn modify_keymap(
 
 /// Get an array containing dictionaries describing mappings
 /// based on mode and buffer id.
-pub fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena) -> Array {
+pub fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: &mut Arena) -> Array {
     unsafe {
         let mut mappings = ArrayBuilder::new();
 

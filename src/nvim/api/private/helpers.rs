@@ -26,8 +26,8 @@ use crate::lua::executor::{api_free_luaref, api_new_luaref};
 use crate::mark::setmark_pos;
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
-    Arena, ArenaMem, alloc_cstring, alloc_cstring_len, arena_alloc, arena_finish, arena_memdupz,
-    free_cstring, free_items, xstrnlen,
+    Arena, ArenaMem, alloc_cstring, alloc_cstring_len, arena_alloc, arena_alloc_opt, arena_finish,
+    arena_memdupz, arena_memdupz_opt, free_cstring, free_items, xstrnlen,
 };
 use crate::msgpack_rpc::packer::{Integer, handle_T};
 use crate::msgpack_rpc::unpacker::unpack;
@@ -254,7 +254,7 @@ pub fn cstr_to_obj(s: *const c_char) -> Object {
 }
 
 #[inline]
-pub fn cstr_to_arena_obj(arena: *mut Arena, s: *const c_char) -> Object {
+pub fn cstr_to_arena_obj(arena: &mut Arena, s: *const c_char) -> Object {
     string_obj(arena_string(arena, cstr_as_string(s)))
 }
 
@@ -338,12 +338,25 @@ pub fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
 }
 
 #[inline]
-pub fn cbuf_to_arena_str(arena: *mut Arena, buf: *const c_char, len: usize) -> NvimString {
+pub fn cbuf_to_arena_str(arena: &mut Arena, buf: *const c_char, len: usize) -> NvimString {
     let ptr = if buf.is_null() { c"".as_ptr() } else { buf };
     NvimString {
-            data: arena_memdupz(arena, ptr, len),
-            size: len,
-        }
+        data: arena_memdupz(arena, ptr, len),
+        size: len,
+    }
+}
+
+#[inline]
+pub fn cbuf_to_arena_str_opt(
+    arena: Option<&mut Arena>,
+    buf: *const c_char,
+    len: usize,
+) -> NvimString {
+    let ptr = if buf.is_null() { c"".as_ptr() } else { buf };
+    NvimString {
+        data: arena_memdupz_opt(arena, ptr, len),
+        size: len,
+    }
 }
 
 #[inline]
@@ -456,7 +469,7 @@ pub fn try_leave(tstate: &TryState, err: &mut Error) {
 pub fn dict_get_value(
     dict: *mut dict_T,
     key: NvimString,
-    arena: *mut Arena,
+    arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
     unsafe {
@@ -535,7 +548,7 @@ pub fn dict_set_var(
     value: Object,
     del: bool,
     retval: bool,
-    arena: *mut Arena,
+    arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
     unsafe {
@@ -635,8 +648,7 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut buf_T {
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut win_T {
+pub fn find_window_by_handle(window: Window, err: &mut Error) -> *mut win_T {
     unsafe {
         if window == 0 {
             return *curwin.as_ptr();
@@ -738,7 +750,7 @@ pub fn cstr_as_string(str_: *const c_char) -> NvimString {
     }
 }
 
-pub fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) -> Array {
+pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Array {
     unsafe {
         let mut ret = ArrayBuilder::new();
 
@@ -865,41 +877,75 @@ pub fn api_free_string(value: NvimString) {
     free_cstring(value.data);
 }
 
-pub fn arena_array(arena: *mut Arena, max_size: usize) -> Array {
+pub fn arena_array(arena: &mut Arena, max_size: usize) -> Array {
     Array {
-            size: 0,
-            capacity: max_size,
-            items: arena_alloc(arena, size_of::<Object>() * max_size, true).cast(),
-        }
+        size: 0,
+        capacity: max_size,
+        items: arena_alloc(arena, size_of::<Object>() * max_size, true).cast(),
+    }
 }
 
-pub fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict {
+#[inline]
+pub fn arena_array_opt(arena: Option<&mut Arena>, max_size: usize) -> Array {
+    Array {
+        size: 0,
+        capacity: max_size,
+        items: arena_alloc_opt(arena, size_of::<Object>() * max_size, true).cast(),
+    }
+}
+
+pub fn arena_dict(arena: &mut Arena, max_size: usize) -> Dict {
     Dict {
-            size: 0,
-            capacity: max_size,
-            items: arena_alloc(arena, size_of::<KeyValuePair>() * max_size, true).cast(),
-        }
+        size: 0,
+        capacity: max_size,
+        items: arena_alloc(arena, size_of::<KeyValuePair>() * max_size, true).cast(),
+    }
 }
 
-pub fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
+#[inline]
+pub fn arena_dict_opt(arena: Option<&mut Arena>, max_size: usize) -> Dict {
+    Dict {
+        size: 0,
+        capacity: max_size,
+        items: arena_alloc_opt(arena, size_of::<KeyValuePair>() * max_size, true).cast(),
+    }
+}
+
+pub fn arena_string(arena: &mut Arena, str_: NvimString) -> NvimString {
     if str_.size != 0 {
-            NvimString {
-                data: arena_memdupz(arena, str_.data, str_.size),
-                size: str_.size,
-            }
-        } else {
-            NvimString {
-                data: if !arena.is_null() {
-                    c"".as_ptr().cast_mut()
-                } else {
-                    alloc_cstring(c"".as_ptr())
-                },
-                size: 0,
-            }
+        NvimString {
+            data: arena_memdupz(arena, str_.data, str_.size),
+            size: str_.size,
         }
+    } else {
+        NvimString {
+            data: c"".as_ptr().cast_mut(),
+            size: 0,
+        }
+    }
 }
 
-pub fn arena_take_arraybuilder(arena: *mut Arena, arr: &mut ArrayBuilder) -> Array {
+#[inline]
+pub fn arena_string_opt(arena: Option<&mut Arena>, str_: NvimString) -> NvimString {
+    match arena {
+        Some(a) => arena_string(a, str_),
+        None => {
+            if str_.size != 0 {
+                NvimString {
+                    data: arena_memdupz_opt(None, str_.data, str_.size),
+                    size: str_.size,
+                }
+            } else {
+                NvimString {
+                    data: alloc_cstring(c"".as_ptr()),
+                    size: 0,
+                }
+            }
+        }
+    }
+}
+
+pub fn arena_take_arraybuilder(arena: &mut Arena, arr: &mut ArrayBuilder) -> Array {
     unsafe {
         let len = arr.len();
         let mut ret = arena_array(arena, len);
@@ -914,34 +960,34 @@ pub fn arena_take_arraybuilder(arena: *mut Arena, arr: &mut ArrayBuilder) -> Arr
 
 pub fn api_free_object(value: Object) {
     match value.obj_type {
-            ObjectType::kObjectTypeUnset
-            | ObjectType::kObjectTypeNil
-            | ObjectType::kObjectTypeBoolean
-            | ObjectType::kObjectTypeInteger
-            | ObjectType::kObjectTypeFloat
-            | ObjectType::kObjectTypeBuffer
-            | ObjectType::kObjectTypeWindow
-            | ObjectType::kObjectTypeTabpage => {}
-            ObjectType::kObjectTypeString => api_free_string(value.data.string()),
-            ObjectType::kObjectTypeArray => api_free_array(value.data.array()),
-            ObjectType::kObjectTypeDict => api_free_dict(value.data.dict()),
-            ObjectType::kObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
-        }
+        ObjectType::kObjectTypeUnset
+        | ObjectType::kObjectTypeNil
+        | ObjectType::kObjectTypeBoolean
+        | ObjectType::kObjectTypeInteger
+        | ObjectType::kObjectTypeFloat
+        | ObjectType::kObjectTypeBuffer
+        | ObjectType::kObjectTypeWindow
+        | ObjectType::kObjectTypeTabpage => {}
+        ObjectType::kObjectTypeString => api_free_string(value.data.string()),
+        ObjectType::kObjectTypeArray => api_free_array(value.data.array()),
+        ObjectType::kObjectTypeDict => api_free_dict(value.data.dict()),
+        ObjectType::kObjectTypeLuaRef => api_free_luaref(value.data.luaref()),
+    }
 }
 
 pub fn api_free_array(value: Array) {
     for &item in value.as_slice() {
-            api_free_object(item);
-        }
-        free_items(value.items);
+        api_free_object(item);
+    }
+    free_items(value.items);
 }
 
 pub fn api_free_dict(value: Dict) {
     for &item in value.as_slice() {
-            api_free_string(item.key);
-            api_free_object(item.value);
-        }
-        free_items(value.items);
+        api_free_string(item.key);
+        api_free_object(item.value);
+    }
+    free_items(value.items);
 }
 
 pub fn api_clear_error(value: &mut Error) {
@@ -952,40 +998,40 @@ pub fn api_clear_error(value: &mut Error) {
     value.err_type = ErrorType::kErrorTypeNone;
 }
 
-pub fn copy_string(str_: NvimString, arena: *mut Arena) -> NvimString {
+pub fn copy_string(str_: NvimString, arena: Option<&mut Arena>) -> NvimString {
     if !str_.data.is_null() {
-            NvimString {
-                data: arena_memdupz(arena, str_.data, str_.size),
-                size: str_.size,
-            }
-        } else {
-            NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            }
+        NvimString {
+            data: arena_memdupz_opt(arena, str_.data, str_.size),
+            size: str_.size,
         }
+    } else {
+        NvimString {
+            data: ptr::null_mut(),
+            size: 0,
+        }
+    }
 }
 
-pub fn copy_array(array: Array, arena: *mut Arena) -> Array {
+pub fn copy_array(array: Array, mut arena: Option<&mut Arena>) -> Array {
     unsafe {
-        let mut rv = arena_array(arena, array.size);
+        let mut rv = arena_array_opt(arena.as_deref_mut(), array.size);
         for i in 0..array.size {
-            *rv.items.add(i) = copy_object(array[i], arena);
+            *rv.items.add(i) = copy_object(array[i], arena.as_deref_mut());
         }
         rv.size = array.size;
         rv
     }
 }
 
-pub fn copy_dict(dict: Dict, arena: *mut Arena) -> Dict {
+pub fn copy_dict(dict: Dict, mut arena: Option<&mut Arena>) -> Dict {
     unsafe {
-        let mut rv = arena_dict(arena, dict.size);
+        let mut rv = arena_dict_opt(arena.as_deref_mut(), dict.size);
         for i in 0..dict.size {
             let item = dict[i];
-            let k_copy = copy_string(item.key, arena);
+            let k_copy = copy_string(item.key, arena.as_deref_mut());
             *rv.items.add(i) = KeyValuePair {
                 key: cstr_as_string(k_copy.data),
-                value: copy_object(item.value, arena),
+                value: copy_object(item.value, arena.as_deref_mut()),
             };
         }
         rv.size = dict.size;
@@ -993,33 +1039,33 @@ pub fn copy_dict(dict: Dict, arena: *mut Arena) -> Dict {
     }
 }
 
-pub fn copy_object(obj: Object, arena: *mut Arena) -> Object {
+pub fn copy_object(obj: Object, arena: Option<&mut Arena>) -> Object {
     match obj.obj_type {
-            ObjectType::kObjectTypeUnset
-            | ObjectType::kObjectTypeBuffer
-            | ObjectType::kObjectTypeTabpage
-            | ObjectType::kObjectTypeWindow
-            | ObjectType::kObjectTypeNil
-            | ObjectType::kObjectTypeBoolean
-            | ObjectType::kObjectTypeInteger
-            | ObjectType::kObjectTypeFloat => obj,
-            ObjectType::kObjectTypeString => Object {
-                obj_type: ObjectType::kObjectTypeString,
-                data: ObjectData::String(copy_string(obj.data.string(), arena)),
-            },
-            ObjectType::kObjectTypeArray => Object {
-                obj_type: ObjectType::kObjectTypeArray,
-                data: ObjectData::Array(copy_array(obj.data.array(), arena)),
-            },
-            ObjectType::kObjectTypeDict => Object {
-                obj_type: ObjectType::kObjectTypeDict,
-                data: ObjectData::Dict(copy_dict(obj.data.dict(), arena)),
-            },
-            ObjectType::kObjectTypeLuaRef => Object {
-                obj_type: ObjectType::kObjectTypeLuaRef,
-                data: ObjectData::LuaRef(api_new_luaref(obj.data.luaref())),
-            },
-        }
+        ObjectType::kObjectTypeUnset
+        | ObjectType::kObjectTypeBuffer
+        | ObjectType::kObjectTypeTabpage
+        | ObjectType::kObjectTypeWindow
+        | ObjectType::kObjectTypeNil
+        | ObjectType::kObjectTypeBoolean
+        | ObjectType::kObjectTypeInteger
+        | ObjectType::kObjectTypeFloat => obj,
+        ObjectType::kObjectTypeString => Object {
+            obj_type: ObjectType::kObjectTypeString,
+            data: ObjectData::String(copy_string(obj.data.string(), arena)),
+        },
+        ObjectType::kObjectTypeArray => Object {
+            obj_type: ObjectType::kObjectTypeArray,
+            data: ObjectData::Array(copy_array(obj.data.array(), arena)),
+        },
+        ObjectType::kObjectTypeDict => Object {
+            obj_type: ObjectType::kObjectTypeDict,
+            data: ObjectData::Dict(copy_dict(obj.data.dict(), arena)),
+        },
+        ObjectType::kObjectTypeLuaRef => Object {
+            obj_type: ObjectType::kObjectTypeLuaRef,
+            data: ObjectData::LuaRef(api_new_luaref(obj.data.luaref())),
+        },
+    }
 }
 
 pub fn api_object_to_bool(
@@ -1116,7 +1162,7 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
                 return HlMessage::new();
             }
 
-            let str_ = copy_string((*chunk.items).data.string(), ptr::null_mut());
+            let str_ = copy_string((*chunk.items).data.string(), None);
             let hl_id = if chunk.size == 2 {
                 object_to_hl_id(chunk[1], c"text highlight".as_ptr(), err)
             } else if is_err {
@@ -1297,7 +1343,7 @@ pub fn api_keydict_to_dict(
     value: *mut OptKeySet,
     table: *mut KeySetLink,
     max_size: usize,
-    arena: *mut Arena,
+    arena: &mut Arena,
 ) -> Dict {
     unsafe {
         let mut rv = arena_dict(arena, max_size);

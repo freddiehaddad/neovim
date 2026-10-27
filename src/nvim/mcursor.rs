@@ -214,7 +214,7 @@ pub fn mc_init() {
 }
 
 fn mc_ns() -> u32 {
-    unsafe {
+    {
         if mc_st().ns_mc == 0 {
             mc_st().ns_mc = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor")) as u32;
         }
@@ -223,7 +223,7 @@ fn mc_ns() -> u32 {
 }
 
 fn mc_vcur_ns() -> u32 {
-    unsafe {
+    {
         if mc_st().ns_vcur == 0 {
             mc_st().ns_vcur =
                 nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.cursor")) as u32;
@@ -233,7 +233,7 @@ fn mc_vcur_ns() -> u32 {
 }
 
 fn mc_vsel_ns() -> u32 {
-    unsafe {
+    {
         if mc_st().ns_vsel == 0 {
             mc_st().ns_vsel =
                 nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.visual")) as u32;
@@ -243,7 +243,7 @@ fn mc_vsel_ns() -> u32 {
 }
 
 fn mc_last_ns() -> u32 {
-    unsafe {
+    {
         if mc_st().ns_last == 0 {
             mc_st().ns_last = nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor.last")) as u32;
         }
@@ -252,7 +252,7 @@ fn mc_last_ns() -> u32 {
 }
 
 fn mc_session_ns() -> u32 {
-    unsafe {
+    {
         if mc_st().ns_session == 0 {
             mc_st().ns_session =
                 nvim_create_namespace(static_cstr_as_string(c"nvim.multicursor._session")) as u32;
@@ -741,7 +741,6 @@ fn mc_region_mark_set(mark: *mut u32, pos: pos_T) {
             true,
             true,
             false,
-            ptr::null_mut(),
         );
     }
 }
@@ -1194,7 +1193,6 @@ fn mc_vsel_mark(
             false,
             true,
             false,
-            ptr::null_mut(),
         );
         mc_st().mc_vsel_buf = (*g_st().curbuf).b_fnum;
     }

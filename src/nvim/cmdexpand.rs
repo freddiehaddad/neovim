@@ -4497,7 +4497,7 @@ fn get_healthcheck_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
                 ptr::null(),
                 a,
                 kRetObject,
-                ptr::null_mut(),
+                None,
                 &mut err,
             );
             api_clear_error(&mut err);
@@ -4551,7 +4551,7 @@ fn get_arg1_from_lua(lua: *const c_char, xp: &mut expand_T, idx: c_int) -> *mut 
                 ptr::null(),
                 args,
                 kRetObject,
-                ptr::null_mut(),
+                None,
                 &mut err,
             );
             api_clear_error(&mut err);

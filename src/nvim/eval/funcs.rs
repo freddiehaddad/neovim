@@ -1322,7 +1322,7 @@ pub fn api_wrapper(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFun
 
         let mut tv = argvars.as_mut_ptr();
         while (*tv).v_type != VarType::VAR_UNKNOWN {
-            *args.items.add(args.size) = vim_to_object(tv, &raw mut arena, false);
+            *args.items.add(args.size) = vim_to_object(tv, Some(&mut arena), false);
             args.size += 1;
             tv = tv.add(1);
         }
@@ -1340,7 +1340,7 @@ pub fn api_wrapper(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFun
         if handler.ret_alloc {
             api_free_object(result);
         }
-        arena_mem_free(arena_finish(&raw mut arena));
+        arena_mem_free(arena_finish(&mut arena));
         api_clear_error(&mut err);
     }
 }
@@ -1365,7 +1365,7 @@ pub fn lua_wrapper(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFun
 
         let mut tv = argvars.as_mut_ptr();
         while (*tv).v_type != VarType::VAR_UNKNOWN {
-            *args.items.add(args.size) = vim_to_object(tv, &raw mut arena, false);
+            *args.items.add(args.size) = vim_to_object(tv, Some(&mut arena), false);
             args.size += 1;
             tv = tv.add(1);
         }
@@ -1387,7 +1387,7 @@ pub fn lua_wrapper(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFun
             ptr::null(),
             args,
             kRetObject,
-            &raw mut arena,
+            Some(&mut arena),
             &mut err,
         );
 
@@ -1397,7 +1397,7 @@ pub fn lua_wrapper(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFun
             object_to_vim_take_luaref(&raw mut result, rettv, true, &mut err);
         }
 
-        arena_mem_free(arena_finish(&raw mut arena));
+        arena_mem_free(arena_finish(&mut arena));
         api_clear_error(&mut err);
     }
 }
@@ -4082,7 +4082,7 @@ fn has_wsl() -> bool {
                     capacity: 0,
                 },
                 kRetNilBool,
-                ptr::null_mut(),
+                None,
                 &mut err,
             );
             debug_assert!(err.err_type == ErrorType::kErrorTypeNone);
@@ -4974,7 +4974,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                     },
                     false,
                     false,
-                    ptr::null_mut(),
+                    None,
                     &mut err,
                 );
                 api_clear_error(&mut err);
@@ -4987,7 +4987,7 @@ pub fn f_jobstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
                     },
                     false,
                     false,
-                    ptr::null_mut(),
+                    None,
                     &mut err,
                 );
                 api_clear_error(&mut err);
@@ -7207,7 +7207,7 @@ pub fn f_rpcnotify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
 
         let mut tv = argvars.add(2);
         while (*tv).v_type != VarType::VAR_UNKNOWN {
-            *args.items.add(args.size) = vim_to_object(tv, &raw mut arena, true);
+            *args.items.add(args.size) = vim_to_object(tv, Some(&mut arena), true);
             args.size += 1;
             tv = tv.add(1);
         }
@@ -7218,7 +7218,7 @@ pub fn f_rpcnotify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
             args,
         );
 
-        arena_mem_free(arena_finish(&raw mut arena));
+        arena_mem_free(arena_finish(&mut arena));
 
         if !ok {
             semsg!(
@@ -7275,7 +7275,7 @@ pub fn f_rpcrequest(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
 
         let mut tv = argvars.add(2);
         while (*tv).v_type != VarType::VAR_UNKNOWN {
-            *args.items.add(args.size) = vim_to_object(tv, &raw mut arena, true);
+            *args.items.add(args.size) = vim_to_object(tv, Some(&mut arena), true);
             args.size += 1;
             tv = tv.add(1);
         }
@@ -7320,8 +7320,8 @@ pub fn f_rpcrequest(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
         let method = tv_get_string(argvars.add(1));
 
         let mut res_mem: ArenaMem = ptr::null_mut();
-        let result = rpc_send_call(chan_id, method, args, &raw mut res_mem, &mut err);
-        arena_mem_free(arena_finish(&raw mut arena));
+        let result = rpc_send_call(chan_id, method, args, &mut res_mem, &mut err);
+        arena_mem_free(arena_finish(&mut arena));
 
         if l_provider_call_nesting != 0 {
             g_st().current_sctx = save_current_sctx;

@@ -250,7 +250,7 @@ pub fn handle_get_window(h: handle_T) -> *mut win_T {
 }
 
 fn ctx_marks_ns() -> u32 {
-    unsafe {
+    {
         if ctx_st().CTX_MARKS_NS_ID == 0 {
             ctx_st().CTX_MARKS_NS_ID = nvim_create_namespace(static_cstr_as_string(c"nvim.context")) as u32;
         }
@@ -510,7 +510,7 @@ fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
     }
 }
 
-pub fn ctx_to_dict(ctx: *mut Context, arena: *mut Arena) -> Dict {
+pub fn ctx_to_dict(ctx: *mut Context, arena: &mut Arena) -> Dict {
     unsafe {
         assert!(!ctx.is_null());
         let as_str = |v: &[u8]| NvimString {
@@ -541,7 +541,7 @@ pub fn ctx_to_dict(ctx: *mut Context, arena: *mut Arena) -> Dict {
         put_c(
             &mut rv,
             c"funcs",
-            array_obj(copy_array((*ctx).funcs, arena)),
+            array_obj(copy_array((*ctx).funcs, Some(arena))),
         );
         rv
     }
@@ -572,7 +572,7 @@ pub fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: &mut Error) -> CtxState
                 (*ctx).gvars = array_to_string(item.value.data.array(), err);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"funcs") {
                 types |= kCtxFuncs;
-                (*ctx).funcs = copy_object(item.value, ptr::null_mut()).data.array();
+                (*ctx).funcs = copy_object(item.value, None).data.array();
             }
         }
         types

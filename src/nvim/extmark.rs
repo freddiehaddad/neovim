@@ -1,6 +1,5 @@
 //! Extended marks for plugins (`src/nvim/extmark.c`).
 
-use crate::api::private::validate::Error;
 use crate::buffer::{MAXLNUM, buf_T, kExtmarkNoUndo};
 use crate::buffer_updates::buf_updates_send_splice;
 use crate::cursor::{colnr_T, linenr_T, pos_T};
@@ -166,7 +165,6 @@ pub fn extmark_set(
     end_right_gravity: bool,
     no_undo: bool,
     invalidate: bool,
-    _err: *mut Error,
 ) {
     unsafe {
         let ns = buf.b_extmark_ns.entry(ns_id).or_insert(0);
@@ -587,7 +585,6 @@ pub fn extmark_set_pos(
             false,
             no_undo,
             false,
-            ptr::null_mut(),
         );
     }
 }

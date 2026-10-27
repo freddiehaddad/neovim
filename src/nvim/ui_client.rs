@@ -521,13 +521,13 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
 
 pub fn ui_client_event_restart(args: Array) {
     api_free_array(uic_st().restart_args);
-        uic_st().restart_args = copy_array(args, ptr::null_mut());
+        uic_st().restart_args = copy_array(args, None);
         uic_st().restart_pending = true;
 }
 
 pub fn ui_client_event__set_restart_on_crash_exit(args: Array) {
     api_free_array(uic_st().restart_args_after_crash_exit);
-        uic_st().restart_args_after_crash_exit = copy_array(args, ptr::null_mut());
+        uic_st().restart_args_after_crash_exit = copy_array(args, None);
 }
 
 pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
@@ -1128,7 +1128,6 @@ pub fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int {
 pub fn ui_client_get_redraw_handler(
     name: *const c_char,
     name_len: usize,
-    _error: *mut Error,
 ) -> UIClientHandler {
     let hash = ui_client_handler_hash(name, name_len);
         if hash < 0 {

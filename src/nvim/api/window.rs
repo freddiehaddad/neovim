@@ -71,8 +71,7 @@ pub struct KeyDict_win_resize {
 /// @return Buffer id
 // DLLEXPORT Buffer nvim_win_get_buf(Window win, Error *err)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_get_buf(win: Window, err: &mut Error) -> Buffer {
+pub fn nvim_win_get_buf(win: Window, err: &mut Error) -> Buffer {
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
@@ -91,8 +90,7 @@ pub unsafe extern "C" fn nvim_win_get_buf(win: Window, err: &mut Error) -> Buffe
 // DLLEXPORT void nvim_win_set_buf(Window win, Buffer buf, Error *err)
 //   FUNC_API_SINCE(5)
 //   FUNC_API_TEXTLOCK;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Error) {
+pub fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Error) {
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
@@ -117,10 +115,9 @@ pub unsafe extern "C" fn nvim_win_set_buf(win: Window, buf: Buffer, err: &mut Er
 /// @return (row, col) tuple
 // DLLEXPORT ArrayOf(Integer, 2) nvim_win_get_cursor(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_get_cursor(
+pub fn nvim_win_get_cursor(
     win: Window,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
     unsafe {
@@ -143,8 +140,7 @@ pub unsafe extern "C" fn nvim_win_get_cursor(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_win_set_cursor(Window win, ArrayOf(Integer, 2) pos, Error *err)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
+pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
@@ -209,8 +205,7 @@ pub unsafe extern "C" fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut 
 /// @return Height as a count of rows
 // DLLEXPORT Integer nvim_win_get_height(Window win, Error *err)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_get_height(win: Window, err: &mut Error) -> Integer {
+pub fn nvim_win_get_height(win: Window, err: &mut Error) -> Integer {
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
@@ -227,8 +222,7 @@ pub unsafe extern "C" fn nvim_win_get_height(win: Window, err: &mut Error) -> In
 /// @return Width as a count of columns
 // DLLEXPORT Integer nvim_win_get_width(Window win, Error *err)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_get_width(win: Window, err: &mut Error) -> Integer {
+pub fn nvim_win_get_width(win: Window, err: &mut Error) -> Integer {
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
@@ -246,11 +240,10 @@ pub unsafe extern "C" fn nvim_win_get_width(win: Window, err: &mut Error) -> Int
 /// @return Variable value
 // DLLEXPORT Object nvim_win_get_var(Window win, String name, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_get_var(
+pub fn nvim_win_get_var(
     win: Window,
     name: NvimString,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
     unsafe {
@@ -258,7 +251,7 @@ pub unsafe extern "C" fn nvim_win_get_var(
         if w.is_null() {
             return OBJECT_NIL;
         }
-        dict_get_value((*w).w_vars(), name, arena, err)
+        dict_get_value((*w).w_vars(), name, Some(arena), err)
     }
 }
 
@@ -270,8 +263,7 @@ pub unsafe extern "C" fn nvim_win_get_var(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_win_set_var(Window win, String name, Object value, Error *err)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_set_var(
+pub fn nvim_win_set_var(
     win: Window,
     name: NvimString,
     value: Object,
@@ -282,7 +274,7 @@ pub unsafe extern "C" fn nvim_win_set_var(
         if w.is_null() {
             return;
         }
-        dict_set_var(&mut *(*w).w_vars(), name, value, false, false, ptr::null_mut(), err);
+        dict_set_var(&mut *(*w).w_vars(), name, value, false, false, None, err);
     }
 }
 
@@ -293,8 +285,7 @@ pub unsafe extern "C" fn nvim_win_set_var(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_win_del_var(Window win, String name, Error *err)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_del_var(win: Window, name: NvimString, err: &mut Error) {
+pub fn nvim_win_del_var(win: Window, name: NvimString, err: &mut Error) {
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
@@ -306,7 +297,7 @@ pub unsafe extern "C" fn nvim_win_del_var(win: Window, name: NvimString, err: &m
             OBJECT_NIL,
             true,
             false,
-            ptr::null_mut(),
+            None,
             err,
         );
     }
@@ -319,10 +310,9 @@ pub unsafe extern "C" fn nvim_win_del_var(win: Window, name: NvimString, err: &m
 /// @return (row, col) tuple with the window position
 // DLLEXPORT ArrayOf(Integer, 2) nvim_win_get_position(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_get_position(
+pub fn nvim_win_get_position(
     win: Window,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
     unsafe {
@@ -344,8 +334,7 @@ pub unsafe extern "C" fn nvim_win_get_position(
 /// @return Tabpage that contains the window
 // DLLEXPORT Tabpage nvim_win_get_tabpage(Window win, Error *err)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> Tabpage {
+pub fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> Tabpage {
     unsafe {
         let mut rv: Tabpage = 0;
         let w = find_window_by_handle(win, err);
@@ -363,8 +352,7 @@ pub unsafe extern "C" fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> T
 /// @return Window number
 // DLLEXPORT Integer nvim_win_get_number(Window win, Error *err)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_get_number(win: Window, err: &mut Error) -> Integer {
+pub fn nvim_win_get_number(win: Window, err: &mut Error) -> Integer {
     unsafe {
         let mut rv: c_int = 0;
         let w = find_window_by_handle(win, err);
@@ -383,9 +371,8 @@ pub unsafe extern "C" fn nvim_win_get_number(win: Window, err: &mut Error) -> In
 /// @return true if the window is valid, false otherwise
 // DLLEXPORT Boolean nvim_win_is_valid(Window win)
 //   FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_is_valid(win: Window) -> Boolean {
-    unsafe {
+pub fn nvim_win_is_valid(win: Window) -> Boolean {
+    {
         let mut stub = Error::new();
         let ret = !find_window_by_handle(win, &mut stub).is_null();
         api_clear_error(&mut stub);
@@ -403,9 +390,8 @@ pub unsafe extern "C" fn nvim_win_is_valid(win: Window) -> Boolean {
 // DLLEXPORT void nvim_win_hide(Window win, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_TEXTLOCK;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_hide(win: Window, err: &mut Error) {
-    unsafe {
+pub fn nvim_win_hide(win: Window, err: &mut Error) {
+    {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
             return;
@@ -434,8 +420,7 @@ pub unsafe extern "C" fn nvim_win_hide(win: Window, err: &mut Error) {
 // DLLEXPORT void nvim_win_close(Window win, Boolean force, Error *err)
 //   FUNC_API_SINCE(6)
 //   FUNC_API_TEXTLOCK;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
+pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
@@ -470,14 +455,13 @@ pub unsafe extern "C" fn nvim_win_close(win: Window, force: Boolean, err: &mut E
 // DLLEXPORT Object nvim_win_call(Window win, LuaRef fn, lua_State *lstate, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_LUA_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_call(
+pub fn nvim_win_call(
     win: Window,
     fn_ref: LuaRef,
     _lstate: *mut lua_State,
     err: &mut Error,
 ) -> Object {
-    unsafe {
+    {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
             return OBJECT_NIL;
@@ -499,8 +483,8 @@ pub unsafe extern "C" fn nvim_win_call(
                     ptr::null(),
                     args,
                     kRetMultiStack,
-                    ptr::null_mut(),
-                    err,
+                    None,
+                    Some(err),
                 );
             }
             ctx_restore(&mut cs);
@@ -520,8 +504,7 @@ pub unsafe extern "C" fn nvim_win_call(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_win_set_hl_ns(Window win, Integer ns_id, Error *err)
 //   FUNC_API_SINCE(10);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
+pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
     unsafe {
         let w = find_window_by_handle(win, err);
         if w.is_null() {
@@ -581,11 +564,10 @@ pub unsafe extern "C" fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &m
 // DLLEXPORT DictAs(win_text_height_ret) nvim_win_text_height(Window win, Dict(win_text_height) *opts,
 //                                                            Arena *arena, Error *err)
 //   FUNC_API_SINCE(12);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_text_height(
+pub fn nvim_win_text_height(
     win: Window,
     opts: *mut KeyDict_win_text_height,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
     unsafe {
@@ -729,8 +711,7 @@ pub unsafe extern "C" fn nvim_win_text_height(
 // DLLEXPORT void nvim_win_resize(Window win, Integer width, Integer height, Dict(win_resize) *opts,
 //                                Error *err)
 //   FUNC_API_SINCE(15);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_resize(
+pub fn nvim_win_resize(
     win: Window,
     width: Integer,
     height: Integer,

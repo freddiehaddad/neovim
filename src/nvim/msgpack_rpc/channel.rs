@@ -300,7 +300,7 @@ pub fn rpc_send_call(
     id: u64,
     method_name: *const c_char,
     args: Array,
-    result_mem: *mut ArenaMem,
+    result_mem: &mut ArenaMem,
     err: &mut Error,
 ) -> Object {
     unsafe {
@@ -478,7 +478,7 @@ fn parse_msgpack(channel: &mut Channel) {
                         ui_fn((*p).result.data.array());
                     }
                 }
-                arena_mem_free(arena_finish(&raw mut (*p).arena));
+                arena_mem_free(arena_finish(&mut (*p).arena));
             } else if (*p).msg_type == MessageType::kMessageTypeResponse {
                 let frame_opt = if (*ct).rpc.client_type == kClientTypeMsgpackRpc {
                     find_call_frame(&(*ct).rpc, (*p).request_id)
@@ -516,7 +516,7 @@ fn parse_msgpack(channel: &mut Channel) {
                 } else {
                     frame.result.set((*p).result);
                 }
-                frame.result_mem.set(arena_finish(&raw mut (*p).arena));
+                frame.result_mem.set(arena_finish(&mut (*p).arena));
             } else {
                 let res = (*p).result;
                 if (*p).result.obj_type != ObjectType::kObjectTypeArray {
@@ -554,7 +554,7 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
                 p.unpack_error.msg_ptr(),
             );
             api_clear_error(&mut p.unpack_error);
-            arena_mem_free(arena_finish(&raw mut p.arena));
+            arena_mem_free(arena_finish(&mut p.arena));
             return;
         }
 
@@ -843,12 +843,12 @@ fn chan_close_on_err(channel: &mut Channel, msg: *const c_char, loglevel: c_int)
             }
             frame.returned.set(true);
             frame.errored.set(true);
-            let s = arena_string(&raw mut (*p).arena, cstr_as_string(msg));
+            let s = arena_string(&mut (*p).arena, cstr_as_string(msg));
             frame.result.set(Object {
                 obj_type: ObjectType::kObjectTypeString,
                 data: ObjectData::String(s),
             });
-            frame.result_mem.set(arena_finish(&raw mut (*p).arena));
+            frame.result_mem.set(arena_finish(&mut (*p).arena));
         }
 
         {

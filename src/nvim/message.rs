@@ -605,7 +605,7 @@ fn format_progress_message(
                 hl_id = syn_check_group(c"WarningMsg".as_ptr(), 10);
             }
             updated_msg.push(HlMessageChunk {
-                text: copy_string((*msg_data).title, ptr::null_mut()),
+                text: copy_string((*msg_data).title, None),
                 hl_id,
             });
             updated_msg.push(HlMessageChunk {
@@ -632,7 +632,7 @@ fn format_progress_message(
         if !updated_msg.is_empty() {
             for chunk in hl_msg {
                 updated_msg.push(HlMessageChunk {
-                    text: copy_string(chunk.text, ptr::null_mut()),
+                    text: copy_string(chunk.text, None),
                     hl_id: chunk.hl_id,
                 });
             }
@@ -1699,7 +1699,7 @@ pub fn ex_messages(eap: &mut exarg_T) {
                     });
                     content_entry.push(Object {
                         obj_type: ObjectType::kObjectTypeString,
-                        data: ObjectData::String(copy_string(chunk.text, ptr::null_mut())),
+                        data: ObjectData::String(copy_string(chunk.text, None)),
                     });
                     content_entry.push(Object {
                         obj_type: ObjectType::kObjectTypeInteger,
@@ -2360,7 +2360,7 @@ pub fn str2special_arena(
     str_: *const c_char,
     replace_spaces: bool,
     replace_others: TriState,
-    arena: *mut Arena,
+    arena: &mut Arena,
 ) -> *mut c_char {
     unsafe {
         let mut p = str_;

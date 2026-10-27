@@ -2575,7 +2575,7 @@ pub fn aucmd_defer(
             fname_io: (!fname_io.is_null()).then(|| CStr::from_ptr(fname_io).to_owned()),
             group,
             buf: buf.b_fnum,
-            data: (!data.is_null()).then(|| copy_object(*data, ptr::null_mut())),
+            data: (!data.is_null()).then(|| copy_object(*data, None)),
         });
 
         multiqueue_put_event(g_st().deferred_events, Event::AutoCmdDeferred(evdata));
@@ -3404,8 +3404,8 @@ fn au_callback(
                 ptr::null(),
                 args,
                 kRetNilBool,
-                ptr::null_mut(),
-                ptr::null_mut(),
+                None,
+                None,
             );
             result.obj_type == ObjectType::kObjectTypeBoolean && result.data.boolean()
         } else {

@@ -149,8 +149,8 @@ fn decor_provider_invoke(
             } else {
                 kRetNilBool
             },
-            ptr::null_mut(),
-            &mut err,
+            None,
+            Some(&mut err),
         );
         g_st().textlock -= 1;
 

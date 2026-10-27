@@ -234,7 +234,6 @@ fn buf_set_sign(
             false,
             true,
             true,
-            ptr::null_mut(),
         );
     }
 }

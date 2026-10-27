@@ -1001,7 +1001,7 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: c_int) -> Object {
             }
         }
         if optval_is_owned(opt_idx) {
-            copy_object(def_val, ptr::null_mut())
+            copy_object(def_val, None)
         } else {
             def_val
         }
@@ -1013,7 +1013,7 @@ fn alloc_options_default() {
     unsafe {
         for opt_idx in 0..kOptCount {
             let opt = get_option(opt_idx);
-            (*opt).def_val = copy_object((*opt).def_val, ptr::null_mut());
+            (*opt).def_val = copy_object((*opt).def_val, None);
         }
     }
 }
@@ -1184,7 +1184,7 @@ fn change_option_and_default_if_unset(idx: OptIndex, val: Option<&'static CStr>)
         }
         let optval = cstr_as_obj(val.as_ptr());
         set_option_direct(idx, optval, 0, SID_NONE);
-        change_option_default(idx, copy_object(optval, ptr::null_mut()));
+        change_option_default(idx, copy_object(optval, None));
     }
 }
 
@@ -5179,7 +5179,7 @@ pub fn optval_own(opt_idx: OptIndex, value: Object) -> Object {
     if optval_is_owned(opt_idx) {
             value
         } else {
-            copy_object(value, ptr::null_mut())
+            copy_object(value, None)
         }
 }
 
@@ -5188,7 +5188,7 @@ fn optval_snapshot(value: Object) -> Object {
             let s = nlua_funcref_str(value.data.luaref(), true);
             return cstr_to_obj(s.as_ptr());
         }
-        copy_object(value, ptr::null_mut())
+        copy_object(value, None)
 }
 
 fn optval_snapshot_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
@@ -5930,7 +5930,7 @@ fn set_option(
         if !direct {
             saved_old_global_value = optval_snapshot_varp(opt_idx, varp_global);
             saved_old_local_value = if is_opt_local_unset {
-                copy_object(saved_old_global_value, ptr::null_mut())
+                copy_object(saved_old_global_value, None)
             } else {
                 optval_snapshot_varp(opt_idx, varp_local)
             };
@@ -6013,7 +6013,7 @@ pub fn set_option_direct(
 
         let errmsg = set_option(
             opt_idx,
-            copy_object(value, ptr::null_mut()),
+            copy_object(value, None),
             opt_flags,
             set_sid,
             true,
@@ -6072,7 +6072,7 @@ pub fn set_option_value(
 
         set_option(
             opt_idx,
-            copy_object(value, ptr::null_mut()),
+            copy_object(value, None),
             opt_flags,
             0,
             false,
@@ -8640,7 +8640,7 @@ pub fn get_option_info(
     opt_flags: c_int,
     buf: *mut buf_T,
     win: *mut win_T,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
     unsafe {
@@ -8660,7 +8660,7 @@ pub fn get_option_info(
 }
 
 /// Metadata Dict for every option, keyed by full name.
-pub fn get_all_options_info(arena: *mut Arena) -> Dict {
+pub fn get_all_options_info(arena: &mut Arena) -> Dict {
     unsafe {
         let mut retval = arena_dict(arena, kOptCount as usize);
         for opt_idx in 0..kOptCount {
@@ -8677,7 +8677,7 @@ fn option_info_dict(
     opt_flags: c_int,
     buf: *mut buf_T,
     win: *mut win_T,
-    arena: *mut Arena,
+    arena: &mut Arena,
 ) -> Dict {
     unsafe {
         let opt_idx = get_opt_idx(&raw mut *opt);

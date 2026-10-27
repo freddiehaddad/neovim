@@ -3254,8 +3254,8 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
             ptr::null(),
             args,
             kRetNilBool,
-            ptr::null_mut(),
-            &mut err,
+            None,
+            Some(&mut err),
         );
         if err.err_type != ErrorType::kErrorTypeNone {
             semsg_multiline!(c"emsg".as_ptr(), c"E5108: %s".as_ptr(), err.msg_ptr());
@@ -3348,7 +3348,7 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
 
 /// Gets a paste stored by `paste_store()` from typeahead and repeats it.
 pub fn paste_repeat(count: c_int) {
-    unsafe {
+    {
         let mut buf: Vec<u8> = Vec::new();
         let mut aborted = false;
 
@@ -3395,14 +3395,14 @@ pub fn paste_repeat(count: c_int) {
                 str_,
                 false,
                 -1,
-                &raw mut arena,
+                &mut arena,
                 &mut err,
             );
             aborted = err.err_type != ErrorType::kErrorTypeNone;
             i += 1;
         }
         api_clear_error(&mut err);
-        arena_mem_free(arena_finish(&raw mut arena));
+        arena_mem_free(arena_finish(&mut arena));
     }
 }
 

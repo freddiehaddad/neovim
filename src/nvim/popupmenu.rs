@@ -519,10 +519,10 @@ pub fn pum_display(
                         pos: 0,
                         size: 0,
                     };
-                    let mut arr = arena_array(&raw mut arena, size as usize);
+                    let mut arr = arena_array(&mut arena, size as usize);
                     for i in 0..(size as usize) {
                         let elem = &*array.add(i);
-                        let mut item = arena_array(&raw mut arena, 4);
+                        let mut item = arena_array(&mut arena, 4);
                         add_c(&mut item, cstr_as_obj(elem.text_ptr()));
                         add_c(&mut item, cstr_as_obj(elem.kind_ptr()));
                         add_c(&mut item, cstr_as_obj(elem.extra_ptr()));
@@ -536,7 +536,7 @@ pub fn pum_display(
                         i64::from(cursor_col - pum().win_col_offset),
                         i64::from(pum().anchor_grid),
                     );
-                    arena_mem_free(arena_finish(&raw mut arena));
+                    arena_mem_free(arena_finish(&mut arena));
                 } else {
                     ui_call_popupmenu_select(i64::from(selected));
                     return;
@@ -1235,7 +1235,7 @@ fn pum_preview_set_text(
             -1,
             false,
             replacement,
-            &raw mut arena,
+            &mut arena,
             &mut err,
         );
         g_st().textlock = original_textlock;
@@ -1243,7 +1243,7 @@ fn pum_preview_set_text(
             emsg(err.msg_ptr());
             api_clear_error(&mut err);
         }
-        arena_mem_free(arena_finish(&raw mut arena));
+        arena_mem_free(arena_finish(&mut arena));
         api_free_array(replacement);
         (*buf).b_p_ma = 0;
     }

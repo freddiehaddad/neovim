@@ -3773,7 +3773,7 @@ fn shada_read_next_item(
                             );
                             break 'parse_item false;
                         }
-                        (*it).pat = copy_string((*it).pat, ptr::null_mut());
+                        (*it).pat = copy_string((*it).pat, None);
                     }
                     ShadaEntryType::kSDItemChange
                     | ShadaEntryType::kSDItemJump
@@ -3902,7 +3902,7 @@ fn shada_read_next_item(
                             break 'parse_item false;
                         }
                         for s in &mut it.rc {
-                            *s = copy_string(*s, ptr::null_mut());
+                            *s = copy_string(*s, None);
                         }
                         let reg = (*entry).data.reg_mut();
                         reg.contents = it.rc;

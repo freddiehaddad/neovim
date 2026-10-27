@@ -1873,7 +1873,7 @@ fn buf_set_term_title(buf: *mut buf_T, title: *const c_char, len: usize) {
             }),
             false,
             false,
-            ptr::null_mut(),
+            None,
             &mut err,
         );
         (*buf).b_locked -= 1;
@@ -2741,10 +2741,10 @@ fn get_config_string(buf: &mut buf_T, key: *mut c_char) -> *mut c_char {
             data: key,
             size: CStr::from_ptr(key).to_bytes().len(),
         };
-        let mut obj = dict_get_value(buf.b_vars(), key_str, ptr::null_mut(), &mut err);
+        let mut obj = dict_get_value(buf.b_vars(), key_str, None, &mut err);
         api_clear_error(&mut err);
         if obj.obj_type == ObjectType::kObjectTypeNil {
-            obj = dict_get_value(get_globvar_dict(), key_str, ptr::null_mut(), &mut err);
+            obj = dict_get_value(get_globvar_dict(), key_str, None, &mut err);
             api_clear_error(&mut err);
         }
         if obj.obj_type == ObjectType::kObjectTypeString {

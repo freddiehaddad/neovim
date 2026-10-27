@@ -1773,7 +1773,7 @@ fn highlight_list_one(id: c_int) {
     }
 }
 
-fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: *mut Arena) -> bool {
+fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: &mut Arena) -> bool {
     unsafe {
         let sgp = &*hl_table().add((hl_id - 1) as usize);
         let mut ns = ns_id;
@@ -1820,7 +1820,7 @@ fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: *mut Arena) -> bo
 pub fn ns_get_hl_defs(
     ns_id: NS,
     opts: &mut KeyDict_get_highlight,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
     unsafe {

@@ -194,7 +194,7 @@ pub fn os_proc_children(ppid: c_int) -> Result<Vec<c_int>, c_int> {
 ///
 /// # Safety
 /// `arena` must be a valid pointer to an initialized `Arena`.
-pub fn os_proc_info(pid: c_int, arena: *mut Arena) -> Dict {
+pub fn os_proc_info(pid: c_int, arena: &mut Arena) -> Dict {
     let mut pinfo = Dict {
         size: 0,
         capacity: 0,

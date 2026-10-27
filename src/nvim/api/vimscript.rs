@@ -65,7 +65,7 @@ fn api_vims_st() -> &'static mut ApiVimscriptState {
 use crate::api::private::helpers::cstr_to_string;
 
 #[inline]
-fn cbuf_to_arena_obj(arena: *mut Arena, s: *const c_char, len: usize) -> Object {
+fn cbuf_to_arena_obj(arena: &mut Arena, s: *const c_char, len: usize) -> Object {
     string_obj(arena_string(
             arena,
             NvimString {
@@ -96,8 +96,7 @@ fn cbuf_to_arena_obj(arena: *mut Arena, s: *const c_char, len: usize) -> Object 
 ///       - output: (string|nil) Output if `opts.output` is true.
 // DLLEXPORT Dict nvim_exec2(uint64_t channel_id, String src, Dict(exec_opts) *opts,
 //                           Error *err) FUNC_API_SINCE(11) FUNC_API_RET_ALLOC;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_exec2(
+pub fn nvim_exec2(
     channel_id: u64,
     src: NvimString,
     opts: *mut KeyDict_exec_opts,
@@ -179,8 +178,7 @@ pub fn exec_impl(
 /// @param cmd  Ex command string
 /// @param[out] err Error details (Vim error), if any
 // DLLEXPORT void nvim_command(String cmd, Error *err) FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_command(cmd: NvimString, err: &mut Error) {
+pub fn nvim_command(cmd: NvimString, err: &mut Error) {
     let mut tstate = TryState::new();
         try_enter(&mut tstate);
         do_cmdline_cmd(cmd.data);
@@ -195,8 +193,7 @@ pub unsafe extern "C" fn nvim_command(cmd: NvimString, err: &mut Error) {
 /// @param[out] err Error details, if any
 /// @return         Evaluation result or expanded object
 // DLLEXPORT Object nvim_eval(String expr, Arena *arena, Error *err) FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: &mut Error) -> Object {
+pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
     unsafe {
         let mut rv = nil_obj();
 
@@ -233,7 +230,7 @@ pub unsafe extern "C" fn nvim_eval(expr: NvimString, arena: *mut Arena, err: &mu
                     expr.data,
                 );
             } else {
-                rv = vim_to_object(&mut rettv, arena, false);
+                rv = vim_to_object(&mut rettv, Some(arena), false);
             }
         }
 
@@ -249,7 +246,7 @@ fn call_function_impl(
     fn_name: NvimString,
     args: Array,
     self_dict: *mut dict_T,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
     unsafe {
@@ -308,7 +305,7 @@ fn call_function_impl(
         try_leave(&tstate, err);
 
         if !error_set(err) {
-            rv = vim_to_object(&mut rettv, arena, false);
+            rv = vim_to_object(&mut rettv, Some(arena), false);
         }
 
         tv_clear(&mut rettv);
@@ -333,12 +330,11 @@ fn call_function_impl(
 /// @return Result of the function call
 // DLLEXPORT Object nvim_call_function(uint64_t channel_id, String fn, Array args, Arena *arena,
 //                                     Error *err) FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_call_function(
+pub fn nvim_call_function(
     channel_id: u64,
     fn_name: NvimString,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
     call_function_impl(channel_id, fn_name, args, std::ptr::null_mut(), arena, err)
@@ -355,13 +351,12 @@ pub unsafe extern "C" fn nvim_call_function(
 /// @return Result of the function call
 // DLLEXPORT Object nvim_call_dict_function(uint64_t channel_id, Object dict, String fn, Array args,
 //                                          Arena *arena, Error *err) FUNC_API_SINCE(4);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_call_dict_function(
+pub fn nvim_call_dict_function(
     channel_id: u64,
     dict: Object,
     mut fn_name: NvimString,
     args: Array,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
     unsafe {
@@ -552,12 +547,11 @@ pub unsafe extern "C" fn nvim_call_dict_function(
 /// @param[out] err Error details, if any
 // DLLEXPORT Dict nvim_parse_expression(String expr, String flags, Boolean hl, Arena *arena,
 //                                      Error *err) FUNC_API_SINCE(4) FUNC_API_FAST;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_parse_expression(
+pub fn nvim_parse_expression(
     expr: NvimString,
     flags: NvimString,
     hl: Boolean,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
     unsafe {
@@ -654,7 +648,7 @@ pub unsafe extern "C" fn nvim_parse_expression(
     }
 }
 
-fn expr_ast_node_to_obj(node: &ExprASTNode, arena: *mut Arena) -> Object {
+fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
     let nt = node.r#type;
         let items_size = 3
             + usize::from(node.children.is_some())

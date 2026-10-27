@@ -343,10 +343,9 @@ pub fn cstr_from_bytes(bytes: &[u8]) -> CString {
 }
 
 /// Finish allocations in `arena` and return an `ArenaMem` handle (`arena_finish`).
-pub fn arena_finish(arena: *mut Arena) -> ArenaMem {
-    let a = unsafe { &mut *arena };
-    let res = a.cur_blk.cast::<ConsumedBlk>();
-    *a = Arena {
+pub fn arena_finish(arena: &mut Arena) -> ArenaMem {
+    let res = arena.cur_blk.cast::<ConsumedBlk>();
+    *arena = Arena {
         cur_blk: std::ptr::null_mut(),
         pos: 0,
         size: 0,
@@ -370,12 +369,11 @@ pub fn alloc_block() -> *mut c_char {
 }
 
 /// Allocate a fresh block on `arena` (`arena_alloc_block`).
-pub fn arena_alloc_block(arena: *mut Arena) {
-    let a = unsafe { &mut *arena };
-    let prev_blk = a.cur_blk.cast::<ConsumedBlk>();
-    a.cur_blk = alloc_block();
-    a.pos = 0;
-    a.size = ARENA_BLOCK_SIZE;
+pub fn arena_alloc_block(arena: &mut Arena) {
+    let prev_blk = arena.cur_blk.cast::<ConsumedBlk>();
+    arena.cur_blk = alloc_block();
+    arena.pos = 0;
+    arena.size = ARENA_BLOCK_SIZE;
     let blk = arena_alloc(arena, std::mem::size_of::<ConsumedBlk>(), true).cast::<ConsumedBlk>();
     unsafe {
         (*blk).prev = prev_blk;
@@ -392,21 +390,17 @@ const fn arena_align_offset(off: usize) -> usize {
     (off + (align - 1)) & !(align - 1)
 }
 
-/// Allocate `size` bytes from `arena` (or via `raw_alloc` if `arena` is null) (`arena_alloc`).
-pub fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c_void {
-    if arena.is_null() {
-        return raw_alloc(size);
-    }
-    let a = unsafe { &mut *arena };
-    if a.cur_blk.is_null() {
+/// Allocate `size` bytes from `arena` (`arena_alloc`).
+pub fn arena_alloc(arena: &mut Arena, size: usize, align: bool) -> *mut c_void {
+    if arena.cur_blk.is_null() {
         arena_alloc_block(arena);
     }
     let mut alloc_pos = if align {
-        arena_align_offset(a.pos)
+        arena_align_offset(arena.pos)
     } else {
-        a.pos
+        arena.pos
     };
-    if alloc_pos + size > a.size {
+    if alloc_pos + size > arena.size {
         if size > (ARENA_BLOCK_SIZE - std::mem::size_of::<ConsumedBlk>()) >> 1 {
             g_st().arena_alloc_count += 1;
             let hdr_size = std::mem::size_of::<ConsumedBlk>();
@@ -417,7 +411,7 @@ pub fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c_void {
             };
             let alloc = raw_alloc(size + aligned_hdr_size).cast::<u8>();
             unsafe {
-                let cur_blk = a.cur_blk.cast::<ConsumedBlk>();
+                let cur_blk = arena.cur_blk.cast::<ConsumedBlk>();
                 let fix_blk = alloc.cast::<ConsumedBlk>();
                 (*fix_blk).prev = (*cur_blk).prev;
                 (*cur_blk).prev = fix_blk;
@@ -426,16 +420,25 @@ pub fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c_void {
         } else {
             arena_alloc_block(arena);
             alloc_pos = if align {
-                arena_align_offset(a.pos)
+                arena_align_offset(arena.pos)
             } else {
-                a.pos
+                arena.pos
             };
         }
     }
 
-    let mem = unsafe { a.cur_blk.add(alloc_pos).cast::<c_void>() };
-    a.pos = alloc_pos + size;
+    let mem = unsafe { arena.cur_blk.add(alloc_pos).cast::<c_void>() };
+    arena.pos = alloc_pos + size;
     mem
+}
+
+/// Allocate `size` bytes from `arena` (or via `raw_alloc` if `arena` is `None`).
+#[inline]
+pub fn arena_alloc_opt(arena: Option<&mut Arena>, size: usize, align: bool) -> *mut c_void {
+    match arena {
+        Some(a) => arena_alloc(a, size, align),
+        None => raw_alloc(size),
+    }
 }
 
 /// Release a `ARENA_BLOCK_SIZE` block back to the reuse pool or free it (`free_block`).
@@ -471,7 +474,7 @@ pub fn arena_mem_free(mem: ArenaMem) {
 }
 
 /// Allocate `size + 1` bytes on `arena` and NUL-terminate (`arena_allocz`).
-pub fn arena_allocz(arena: *mut Arena, size: usize) -> *mut c_char {
+pub fn arena_allocz(arena: &mut Arena, size: usize) -> *mut c_char {
     let mem = arena_alloc(arena, size + 1, false).cast::<u8>();
     unsafe {
         *mem.add(size) = 0;
@@ -479,8 +482,18 @@ pub fn arena_allocz(arena: *mut Arena, size: usize) -> *mut c_char {
     mem.cast::<c_char>()
 }
 
+/// Allocate `size + 1` bytes on `arena` (or heap if `None`) and NUL-terminate.
+#[inline]
+pub fn arena_allocz_opt(arena: Option<&mut Arena>, size: usize) -> *mut c_char {
+    let mem = arena_alloc_opt(arena, size + 1, false).cast::<u8>();
+    unsafe {
+        *mem.add(size) = 0;
+    }
+    mem.cast::<c_char>()
+}
+
 /// Copy `buf[..size]` into a NUL-terminated buffer on `arena` (`arena_memdupz`).
-pub fn arena_memdupz(arena: *mut Arena, buf: *const c_char, size: usize) -> *mut c_char {
+pub fn arena_memdupz(arena: &mut Arena, buf: *const c_char, size: usize) -> *mut c_char {
     let mem = arena_allocz(arena, size).cast::<u8>();
     if size > 0 {
         unsafe {
@@ -490,8 +503,20 @@ pub fn arena_memdupz(arena: *mut Arena, buf: *const c_char, size: usize) -> *mut
     mem.cast::<c_char>()
 }
 
+/// Copy `buf[..size]` into a NUL-terminated buffer on `arena` (or heap if `None`).
+#[inline]
+pub fn arena_memdupz_opt(arena: Option<&mut Arena>, buf: *const c_char, size: usize) -> *mut c_char {
+    let mem = arena_allocz_opt(arena, size).cast::<u8>();
+    if size > 0 {
+        unsafe {
+            std::ptr::copy_nonoverlapping(buf.cast::<u8>(), mem, size);
+        }
+    }
+    mem.cast::<c_char>()
+}
+
 /// Duplicate C string `str_ptr` onto `arena` (`arena_strdup`).
-pub fn arena_strdup(arena: *mut Arena, str_ptr: *const c_char) -> *mut c_char {
+pub fn arena_strdup(arena: &mut Arena, str_ptr: *const c_char) -> *mut c_char {
     let len = unsafe { CStr::from_ptr(str_ptr).to_bytes().len() };
     arena_memdupz(arena, str_ptr, len)
 }

@@ -13,8 +13,7 @@ use std::ffi::CStr;
 /// @param type Error type id as defined by `api_info().error_types`.
 /// @param msg Error message.
 // DLLEXPORT void nvim_error_event(uint64_t channel_id, Integer type, String msg) FUNC_API_REMOTE_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
+pub fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
     let msg_ptr = if msg.size != 0 {
             msg.data
         } else {
@@ -46,8 +45,7 @@ pub unsafe extern "C" fn nvim_error_event(channel_id: u64, _type: i64, msg: Nvim
 /// @param[out] err Error details, if any.
 // DLLEXPORT void nvim_ui_term_event(uint64_t channel_id, String event, Object value,
 //                                   Error *err) FUNC_API_SINCE(12) FUNC_API_REMOTE_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_ui_term_event(
+pub fn nvim_ui_term_event(
     channel_id: u64,
     event: NvimString,
     value: Object,
@@ -86,8 +84,6 @@ mod tests {
             data: std::ptr::null_mut(),
             size: 0,
         };
-        unsafe {
-            nvim_error_event(1, 0, msg);
-        }
+        nvim_error_event(1, 0, msg);
     }
 }

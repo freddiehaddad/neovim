@@ -500,7 +500,6 @@ pub fn bufhl_add_hl_pos_offset(
                 false,
                 true,
                 false,
-                ptr::null_mut(),
             );
         }
     }
@@ -1794,7 +1793,7 @@ pub fn decor_to_dict_legacy(
     dict: *mut Dict,
     decor: DecorInline,
     hl_name: bool,
-    arena: *mut Arena,
+    arena: &mut Arena,
 ) {
     unsafe {
         let inline_sh;

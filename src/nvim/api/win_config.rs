@@ -329,8 +329,7 @@ pub const WIN_CONFIG_INIT: WinConfig = WinConfig {
 /// @return |window-ID|, or 0 on error
 // DLLEXPORT Window nvim_open_win(Buffer buf, Boolean enter, Dict(win_config) *config, Error *err)
 //   FUNC_API_SINCE(6) FUNC_API_TEXTLOCK;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_open_win(
+pub fn nvim_open_win(
     buf: Buffer,
     enter: Boolean,
     config: *mut KeyDict_win_config,
@@ -1027,8 +1026,7 @@ fn win_config_float_tp(
 /// @param[out] err     Error details, if any
 // DLLEXPORT void nvim_win_set_config(Window win, Dict(win_config) *config, Error *err)
 //   FUNC_API_SINCE(6);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_set_config(
+pub fn nvim_win_set_config(
     win: Window,
     config: *mut KeyDict_win_config,
     err: &mut Error,
@@ -1088,7 +1086,7 @@ fn config_put_bordertext(
     config: &mut KeyDict_win_config,
     fconfig: &WinConfig,
     bordertext_type: BorderTextType,
-    arena: *mut Arena,
+    arena: &mut Arena,
 ) {
     let (vt, align) = match bordertext_type {
             kBorderTextTitle => (&fconfig.title_chunks, fconfig.title_pos),
@@ -1131,10 +1129,9 @@ fn config_put_bordertext(
 /// @return     Map defining the window configuration, see |nvim_open_win()|
 // DLLEXPORT Dict(win_config) nvim_win_get_config(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(6);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_win_get_config(
+pub fn nvim_win_get_config(
     win: Window,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> KeyDict_win_config {
     unsafe {

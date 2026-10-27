@@ -1258,7 +1258,7 @@ fn remote_request(
             data: c"return vim._cs_remote(...)".as_ptr().cast_mut(),
             size: 26,
         };
-        let o = nlua_exec(s, ptr::null(), a, kRetObject, ptr::null_mut(), &mut err);
+        let o = nlua_exec(s, ptr::null(), a, kRetObject, None, &mut err);
         drop(args_vec);
         if err.err_type != ErrorType::kErrorTypeNone {
             fprintf!(stderr, c"%s\n".as_ptr(), err.msg_ptr());

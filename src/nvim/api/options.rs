@@ -383,8 +383,7 @@ fn wipe_ft_buf(buf: &mut buf_T) {
 /// @return          Option value
 // DLLEXPORT Object nvim_get_option_value(String name, Dict(option) *opts, Error *err)
 //   FUNC_API_SINCE(9) FUNC_API_RET_ALLOC;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_get_option_value(
+pub fn nvim_get_option_value(
     name: NvimString,
     opts: *mut KeyDict_option,
     err: &mut Error,
@@ -448,11 +447,10 @@ pub unsafe extern "C" fn nvim_get_option_value(
 /// @nodoc
 // DLLEXPORT Object nvim__option_to_object(String name, Object value, Arena *arena, Error *err)
 //   FUNC_API_LUA_ONLY;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim__option_to_object(
+pub fn nvim__option_to_object(
     name: NvimString,
     value: Object,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
     unsafe {
@@ -468,7 +466,7 @@ pub unsafe extern "C" fn nvim__option_to_object(
         }
 
         if value.obj_type != ObjectType::kObjectTypeString {
-            return copy_object(value, arena);
+            return copy_object(value, Some(arena));
         }
 
         let option = get_option(opt_idx);
@@ -579,13 +577,12 @@ pub unsafe extern "C" fn nvim__option_to_object(
 // DLLEXPORT Object nvim_set_option_value(uint64_t channel_id, String name, Object value,
 //                                        Dict(option) *opts, Arena *arena, Error *err)
 //   FUNC_API_SINCE(9);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_set_option_value(
+pub fn nvim_set_option_value(
     channel_id: u64,
     name: NvimString,
     value: Object,
     opts: *mut KeyDict_option,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
     unsafe {
@@ -701,7 +698,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
                     merged_val = optval_right;
                 }
                 ObjectType::kObjectTypeLuaRef => {
-                    merged_val = copy_object(optval_right, ptr::null_mut());
+                    merged_val = copy_object(optval_right, None);
                 }
                 _ => {
                     std::process::abort();
@@ -795,8 +792,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
 /// @return dict of all options
 // DLLEXPORT Dict nvim_get_all_options_info(Arena *arena, Error *err)
 //   FUNC_API_SINCE(7);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_get_all_options_info(arena: *mut Arena, _err: &mut Error) -> Dict {
+pub fn nvim_get_all_options_info(arena: &mut Arena, _err: &mut Error) -> Dict {
     get_all_options_info(arena)
 }
 
@@ -836,11 +832,10 @@ pub unsafe extern "C" fn nvim_get_all_options_info(arena: *mut Arena, _err: &mut
 // DLLEXPORT DictAs(get_option_info) nvim_get_option_info2(String name, Dict(option) *opts,
 //                                                         Arena *arena, Error *err)
 //   FUNC_API_SINCE(11);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_get_option_info2(
+pub fn nvim_get_option_info2(
     name: NvimString,
     opts: *mut KeyDict_option,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
     unsafe {

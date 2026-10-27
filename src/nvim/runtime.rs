@@ -1,9 +1,9 @@
 //! Management of runtime files (including packages) (`src/nvim/runtime.c`).
 
 use crate::api::private::helpers::{
-    SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_dict, arena_string,
-    boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, put_c, static_cstr_as_string,
-    string_obj,
+    SID_API_CLIENT, SID_LUA, add_c, api_clear_error, arena_array, arena_array_opt, arena_dict,
+    arena_string_opt, boolean_obj, cstr_as_obj, cstr_as_string, dict_obj, integer_obj, put_c,
+    static_cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
 use crate::autocmd::{
@@ -974,7 +974,7 @@ fn do_in_cached_path(
     }
 }
 
-pub fn runtime_inspect(arena: *mut Arena) -> Array {
+pub fn runtime_inspect(arena: &mut Arena) -> Array {
     unsafe {
         let rsp_ptr = &raw const rt_st().runtime_search_path;
         let rsp = &*rsp_ptr;
@@ -1004,7 +1004,7 @@ pub fn runtime_inspect(arena: *mut Arena) -> Array {
     }
 }
 
-pub fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: *mut Arena) -> Array {
+pub fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: &mut Arena) -> Array {
     unsafe {
         let path = &mut *runtime_search_path_get_cached();
         let rv = runtime_get_named_common(
@@ -1014,7 +1014,7 @@ pub fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: *mut Arena) ->
             path,
             (&raw mut rt_st().get_named_buf).cast::<c_char>(),
             MAXPATHL,
-            arena,
+            Some(arena),
         );
         runtime_search_path_unref();
         rv
@@ -1035,7 +1035,7 @@ pub fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array {
             path,
             (&raw mut rt_st().get_named_thread_buf).cast::<c_char>(),
             MAXPATHL,
-            ptr::null_mut(),
+            None,
         )
     }
 }
@@ -1047,43 +1047,43 @@ fn runtime_get_named_common(
     path: &mut [SearchPathItem],
     buf: *mut c_char,
     buf_len: usize,
-    arena: *mut Arena,
+    mut arena: Option<&mut Arena>,
 ) -> Array {
-    let mut rv = arena_array(arena, path.len() * pat.size);
-        for item in path.iter_mut() {
-            if lua {
-                if item.has_lua == kNone {
-                    let size = vim_snprintf!(buf, buf_len, c"%s/lua/".as_ptr(), item.path.as_ptr())
-                        as usize;
-                    item.has_lua = TriState::from(size < buf_len && os_isdir(buf));
-                }
-                if item.has_lua == kFalse {
-                    continue;
-                }
+    let mut rv = arena_array_opt(arena.as_deref_mut(), path.len() * pat.size);
+    for item in path.iter_mut() {
+        if lua {
+            if item.has_lua == kNone {
+                let size = vim_snprintf!(buf, buf_len, c"%s/lua/".as_ptr(), item.path.as_ptr())
+                    as usize;
+                item.has_lua = TriState::from(size < buf_len && os_isdir(buf));
             }
+            if item.has_lua == kFalse {
+                continue;
+            }
+        }
 
-            for j in 0..pat.size {
-                let pat_item = pat[j];
-                if pat_item.obj_type == ObjectType::kObjectTypeString {
-                    let size = vim_snprintf!(
-                        buf,
-                        buf_len,
-                        c"%s/%s".as_ptr(),
-                        item.path.as_ptr(),
-                        pat_item.data.string().data,
-                    ) as usize;
-                    if size < buf_len && os_file_is_readable(buf) {
-                        to_slash(buf);
-                        let astr = arena_string(arena, cstr_as_string(buf));
-                        add_c(&mut rv, string_obj(astr));
-                        if !all {
-                            return rv;
-                        }
+        for j in 0..pat.size {
+            let pat_item = pat[j];
+            if pat_item.obj_type == ObjectType::kObjectTypeString {
+                let size = vim_snprintf!(
+                    buf,
+                    buf_len,
+                    c"%s/%s".as_ptr(),
+                    item.path.as_ptr(),
+                    pat_item.data.string().data,
+                ) as usize;
+                if size < buf_len && os_file_is_readable(buf) {
+                    to_slash(buf);
+                    let astr = arena_string_opt(arena.as_deref_mut(), cstr_as_string(buf));
+                    add_c(&mut rv, string_obj(astr));
+                    if !all {
+                        return rv;
                     }
                 }
             }
         }
-        rv
+    }
+    rv
 }
 
 /// Find "name" in "path".
@@ -2970,7 +2970,7 @@ fn do_source_ext(
                     ptr::null(),
                     args,
                     kRetNilBool,
-                    ptr::null_mut(),
+                    None,
                     &mut err,
                 );
                 if err.err_type == ErrorType::kErrorTypeNone

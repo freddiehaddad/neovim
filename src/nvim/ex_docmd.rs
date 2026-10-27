@@ -9285,7 +9285,7 @@ fn ex_restart(eap: &mut exarg_T) {
                         capacity: 0,
                     },
                     kRetObject,
-                    ptr::null_mut(),
+                    None,
                     &mut lua_err,
                 );
                 if !error_set(&lua_err)
@@ -9386,7 +9386,7 @@ fn ex_restart(eap: &mut exarg_T) {
                 chan_id,
                 c"nvim_chan_set".as_ptr(),
                 detach_args,
-                &raw mut result_mem,
+                &mut result_mem,
                 &mut err,
             );
             if error_set(&err) {
@@ -9431,7 +9431,7 @@ fn ex_restart(eap: &mut exarg_T) {
                     chan_id,
                     c"nvim_create_autocmd".as_ptr(),
                     autocmd_args,
-                    &raw mut result_mem,
+                    &mut result_mem,
                     &mut err,
                 );
                 if error_set(&err) {
@@ -9451,7 +9451,7 @@ fn ex_restart(eap: &mut exarg_T) {
                 chan_id,
                 c"nvim_get_vvar".as_ptr(),
                 servername_args,
-                &raw mut result_mem,
+                &mut result_mem,
                 &mut err,
             );
             if error_set(&err) {
@@ -9496,7 +9496,7 @@ fn ex_restart(eap: &mut exarg_T) {
                     chan_id,
                     c"nvim_exec_lua".as_ptr(),
                     lua_args,
-                    &raw mut result_mem,
+                    &mut result_mem,
                     &mut err,
                 );
                 if error_set(&err) {
@@ -9551,7 +9551,7 @@ fn ex_restart(eap: &mut exarg_T) {
                 chan_id,
                 c"nvim_eval".as_ptr(),
                 chanclose_args,
-                &raw mut result_mem,
+                &mut result_mem,
                 &mut err,
             );
             api_clear_error(&mut err);

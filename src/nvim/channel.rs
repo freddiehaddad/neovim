@@ -1099,8 +1099,8 @@ pub fn channel_term_write(buf: *const c_char, size: usize, chan: &mut Channel) {
                 c"input".as_ptr(),
                 args,
                 crate::lua::executor::kRetNilBool,
-                ptr::null_mut(),
-                ptr::null_mut(),
+                None,
+                None,
             );
             g_st().textlock -= 1;
             return;
@@ -1185,7 +1185,7 @@ pub fn set_info_event(chan: &mut Channel, event: event_T) {
             pos: 0,
             size: 0,
         };
-        let info = channel_info(chan.id, &raw mut arena);
+        let info = channel_info(chan.id, &mut arena);
         let mut retval: typval_T = typval_T::new();
         object_to_vim(
             Object {
@@ -1202,7 +1202,7 @@ pub fn set_info_event(chan: &mut Channel, event: event_T) {
         let _ = apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), true, g_st().curbuf);
 
         restore_v_event(&mut *dict, &mut save_v_event);
-        arena_mem_free(arena_finish(&raw mut arena));
+        arena_mem_free(arena_finish(&mut arena));
         channel_decref(&raw mut *chan);
     }
 }
@@ -1221,7 +1221,7 @@ pub fn channel_job_running(id: u64) -> bool {
     }
 }
 
-pub fn channel_info(id: u64, arena: *mut Arena) -> Dict {
+pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
     unsafe {
         let chan = find_channel(id);
         if chan.is_null() {
@@ -1390,7 +1390,7 @@ pub fn channel_info(id: u64, arena: *mut Arena) -> Dict {
     }
 }
 
-pub fn channel_all_info(arena: *mut Arena) -> Array {
+pub fn channel_all_info(arena: &mut Arena) -> Array {
     unsafe {
         let chans_ptr = &raw const g_st().channels;
         let mut ret = arena_array(arena, (*chans_ptr).len());

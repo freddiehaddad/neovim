@@ -1487,7 +1487,7 @@ pub fn ins_compl_lnum_in_range(lnum: linenr_T) -> bool {
 fn ins_compl_longest_match(match_: &mut compl_T) {
     unsafe {
         if insexp().compl_leader.data.is_null() {
-            insexp().compl_leader = copy_string(match_.cp_str, ptr::null_mut());
+            insexp().compl_leader = copy_string(match_.cp_str, None);
 
             let had_match = (**curwin.as_ptr()).w_cursor.col > insexp().compl_col;
             ins_compl_longest_insert(insexp().compl_leader.data);
@@ -6160,7 +6160,7 @@ fn set_compl_globals(mut startcol: c_int, curs_col: colnr_T, is_cpt_compl: bool)
                     startcol,
                 );
             } else {
-                insexp().cpt_compl_pattern = copy_string(insexp().compl_orig_text, ptr::null_mut());
+                insexp().cpt_compl_pattern = copy_string(insexp().compl_orig_text, None);
             }
         } else {
             if startcol < 0 || startcol > curs_col {

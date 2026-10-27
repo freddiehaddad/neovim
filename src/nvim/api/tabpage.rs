@@ -37,10 +37,9 @@ pub struct KeyDict_tabpage_config {
 /// @return List of windows in `tabpage`
 // DLLEXPORT ArrayOf(Window) nvim_tabpage_list_wins(Tabpage tabpage, Arena *arena,
 //                                                  Error *err) FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_tabpage_list_wins(
+pub fn nvim_tabpage_list_wins(
     tabpage: Tabpage,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
     unsafe {
@@ -87,11 +86,10 @@ pub unsafe extern "C" fn nvim_tabpage_list_wins(
 /// @return Variable value
 // DLLEXPORT Object nvim_tabpage_get_var(Tabpage tabpage, String name, Arena *arena,
 //                                       Error *err) FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_tabpage_get_var(
+pub fn nvim_tabpage_get_var(
     tabpage: Tabpage,
     name: NvimString,
-    arena: *mut Arena,
+    arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
     unsafe {
@@ -99,7 +97,7 @@ pub unsafe extern "C" fn nvim_tabpage_get_var(
         if tab.is_null() {
             return nil_obj();
         }
-        dict_get_value((*tab).tp_vars(), name, arena, err)
+        dict_get_value((*tab).tp_vars(), name, Some(arena), err)
     }
 }
 
@@ -111,8 +109,7 @@ pub unsafe extern "C" fn nvim_tabpage_get_var(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_tabpage_set_var(Tabpage tabpage, String name, Object value,
 //                                     Error *err) FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_tabpage_set_var(
+pub fn nvim_tabpage_set_var(
     tabpage: Tabpage,
     name: NvimString,
     value: Object,
@@ -129,7 +126,7 @@ pub unsafe extern "C" fn nvim_tabpage_set_var(
             value,
             false,
             false,
-            std::ptr::null_mut(),
+            None,
             err,
         );
     }
@@ -141,8 +138,7 @@ pub unsafe extern "C" fn nvim_tabpage_set_var(
 /// @param name     Variable name
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_tabpage_del_var(Tabpage tabpage, String name, Error *err) FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString, err: &mut Error) {
+pub fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString, err: &mut Error) {
     unsafe {
         let tab = find_tab_by_handle(tabpage, err);
         if tab.is_null() {
@@ -154,7 +150,7 @@ pub unsafe extern "C" fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString
             nil_obj(),
             true,
             false,
-            std::ptr::null_mut(),
+            None,
             err,
         );
     }
@@ -166,8 +162,7 @@ pub unsafe extern "C" fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString
 /// @param[out] err Error details, if any
 /// @return |window-ID|
 // DLLEXPORT Window nvim_tabpage_get_win(Tabpage tabpage, Error *err) FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
+pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
     unsafe {
         let tab = find_tab_by_handle(tabpage, err);
         if tab.is_null() || !valid_tabpage(tab) {
@@ -193,8 +188,7 @@ pub unsafe extern "C" fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error)
 /// @param win |window-ID|, must already belong to {tabpage}
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_tabpage_set_win(Tabpage tabpage, Window win, Error *err) FUNC_API_SINCE(12);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
+pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
     unsafe {
         let tp = find_tab_by_handle(tabpage, err);
         if tp.is_null() {
@@ -231,8 +225,7 @@ pub unsafe extern "C" fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err
 /// @param[out] err Error details, if any
 /// @return Tabpage number
 // DLLEXPORT Integer nvim_tabpage_get_number(Tabpage tabpage, Error *err) FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_tabpage_get_number(tabpage: Tabpage, err: &mut Error) -> Integer {
+pub fn nvim_tabpage_get_number(tabpage: Tabpage, err: &mut Error) -> Integer {
     let tab = find_tab_by_handle(tabpage, err);
         if tab.is_null() {
             return 0;
@@ -245,8 +238,7 @@ pub unsafe extern "C" fn nvim_tabpage_get_number(tabpage: Tabpage, err: &mut Err
 /// @param tabpage  |tab-ID|, or 0 for current tabpage
 /// @return true if the tabpage is valid, false otherwise
 // DLLEXPORT Boolean nvim_tabpage_is_valid(Tabpage tabpage) FUNC_API_SINCE(1);
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
+pub fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
     let mut stub = Error::new();
         let ret = !find_tab_by_handle(tabpage, &mut stub).is_null();
         api_clear_error(&mut stub);
@@ -265,8 +257,7 @@ pub unsafe extern "C" fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
 /// @return |tab-ID| of the new tabpage
 // DLLEXPORT Tabpage nvim_open_tabpage(Buffer buf, Boolean enter, Dict(tabpage_config) *config,
 //                                     Error *err) FUNC_API_SINCE(14) FUNC_API_TEXTLOCK;
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvim_open_tabpage(
+pub fn nvim_open_tabpage(
     buf: Buffer,
     enter: Boolean,
     config: *mut KeyDict_tabpage_config,

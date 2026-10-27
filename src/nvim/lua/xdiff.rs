@@ -7,7 +7,7 @@ use crate::lua::converter::{
     LUA_TFUNCTION, LUA_TTABLE, lua_State, lua_concat, lua_createtable, lua_error, lua_gettop,
     lua_isnumber, lua_objlen, lua_pcall, lua_pushinteger, lua_pushlstring, lua_pushstring,
     lua_pushvalue, lua_rawseti, lua_settop, lua_tolstring, lua_tonumber, lua_type, luaL_argerror,
-    luaL_error, luaL_where, nlua_pop_keydict,
+    luaL_error, luaL_where, nlua_pop_keydict_opt,
 };
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
 use crate::xdiff::xdiffi::xdl_diff;
@@ -88,7 +88,7 @@ impl KeyDict_xdl_diff {
 
 pub(crate) struct HunkPriv {
     lstate: *mut lua_State,
-    err: *mut Error,
+    err: Error,
     ma: *mut mmfile_t,
     mb: *mut mmfile_t,
     linematch: i64,
@@ -246,7 +246,7 @@ pub(crate) fn call_on_hunk_cb(
 
     let priv_ref = unsafe { &mut *cb_data };
     let lstate = priv_ref.lstate;
-    let err = priv_ref.err;
+    let err = &mut priv_ref.err;
 
     unsafe {
         let fidx = lua_gettop(lstate);
@@ -304,12 +304,12 @@ fn process_xdl_diff_opts(
     let mut err_param: *mut c_char = std::ptr::null_mut();
 
     unsafe {
-        nlua_pop_keydict(
+        nlua_pop_keydict_opt(
             lstate,
             (&raw mut opts).cast(),
             Some(KeyDict_xdl_diff_get_field),
             &mut err_param,
-            std::ptr::null_mut(),
+            None,
             err,
         );
         if err.err_type != ErrorType::kErrorTypeNone {
@@ -450,14 +450,14 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
         let mut unified_buf: Vec<u8> = Vec::new();
         let mut priv_state = HunkPriv {
             lstate,
-            err: &mut err,
+            err,
             ma: &mut ma,
             mb: &mut mb,
             linematch,
             iwhite: (params.flags & XDF_IGNORE_WHITESPACE) != 0,
         };
 
-        if err.err_type == ErrorType::kErrorTypeNone {
+        if priv_state.err.err_type == ErrorType::kErrorTypeNone {
             let mut ecb = match mode {
                 NluaXdiffMode::Unified => xdemitcb_t::Unified(&raw mut unified_buf),
                 NluaXdiffMode::OnHunkCb => xdemitcb_t::OnHunk(&raw mut priv_state),
@@ -468,20 +468,20 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> c_int {
             };
 
             if xdl_diff(&mut ma, &mut mb, &params, &cfg, &mut ecb) == -1
-                && err.err_type == ErrorType::kErrorTypeNone
+                && priv_state.err.err_type == ErrorType::kErrorTypeNone
             {
                 api_set_error!(
-                    &mut err,
+                    &mut priv_state.err,
                     ErrorType::kErrorTypeException,
                     c"diff operation failed".as_ptr(),
                 );
             }
         }
 
-        if err.err_type != ErrorType::kErrorTypeNone {
+        if priv_state.err.err_type != ErrorType::kErrorTypeNone {
             luaL_where(lstate, 1);
-            lua_pushstring(lstate, err.msg_ptr());
-            api_clear_error(&mut err);
+            lua_pushstring(lstate, priv_state.err.msg_ptr());
+            api_clear_error(&mut priv_state.err);
             lua_concat(lstate, 2);
             return lua_error(lstate);
         } else if mode == NluaXdiffMode::Unified {

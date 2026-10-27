@@ -1050,7 +1050,7 @@ pub fn eval_foldtext(wp: *mut win_T) -> Object {
             };
         } else {
             if tv.v_type == VarType::VAR_LIST {
-                retval = vim_to_object(&raw mut tv, ptr::null_mut(), false);
+                retval = vim_to_object(&raw mut tv, None, false);
             } else {
                 retval = Object {
                     obj_type: ObjectType::kObjectTypeString,
@@ -5276,10 +5276,10 @@ pub fn callback_call(
                     pos: 0,
                     size: 0,
                 };
-                let mut luaargs = arena_array(&raw mut arena, argcount_in as usize);
+                let mut luaargs = arena_array(&mut arena, argcount_in as usize);
                 for i in 0..(argcount_in as usize) {
                     *luaargs.items.add(luaargs.size) =
-                        vim_to_object(argvars_in.add(i), &raw mut arena, false);
+                        vim_to_object(argvars_in.add(i), Some(&mut arena), false);
                     luaargs.size += 1;
                 }
                 let mut err = Error::new();
@@ -5290,8 +5290,8 @@ pub fn callback_call(
                     ptr::null(),
                     luaargs,
                     kRetObject,
-                    &raw mut arena,
-                    &mut err,
+                    Some(&mut arena),
+                    Some(&mut err),
                 );
                 eval_st().callback_depth -= 1;
                 let ok = err.err_type == ErrorType::kErrorTypeNone;
@@ -5301,7 +5301,7 @@ pub fn callback_call(
                 } else {
                     object_to_vim(result, rettv, &mut crate::api::private::validate::Error::new());
                 }
-                arena_mem_free(arena_finish(&raw mut arena));
+                arena_mem_free(arena_finish(&mut arena));
                 return ok;
             }
             kCallbackExpr => {
