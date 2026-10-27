@@ -393,19 +393,23 @@ struct efm_T {
     conthere: c_int,
 }
 
-#[repr(C)]
+enum QfInputSource {
+    None,
+    File(*mut FILE),
+    Str(*mut c_char),
+    List(*mut listitem_T),
+    Buf {
+        buf: *mut buf_T,
+        buflnum: linenr_T,
+        lnumlast: linenr_T,
+    },
+}
+
 struct qfstate_T {
     linebuf: *mut c_char,
     linelen: usize,
     growbuf: Vec<c_char>,
-    fd: *mut FILE,
-    tv: *mut typval_T,
-    p_str: *mut c_char,
-    p_list: *mut list_T,
-    p_li: *mut listitem_T,
-    buf: *mut buf_T,
-    buflnum: linenr_T,
-    lnumlast: linenr_T,
+    source: QfInputSource,
     vc: vimconv_T,
 }
 
@@ -415,14 +419,7 @@ impl Default for qfstate_T {
             linebuf: ptr::null_mut(),
             linelen: 0,
             growbuf: Vec::new(),
-            fd: ptr::null_mut(),
-            tv: ptr::null_mut(),
-            p_str: ptr::null_mut(),
-            p_list: ptr::null_mut(),
-            p_li: ptr::null_mut(),
-            buf: ptr::null_mut(),
-            buflnum: 0,
-            lnumlast: 0,
+            source: QfInputSource::None,
             vc: vimconv_T::new(),
         }
     }
@@ -431,9 +428,10 @@ impl Default for qfstate_T {
 impl Drop for qfstate_T {
     fn drop(&mut self) {
         unsafe {
-            if !self.fd.is_null() {
-                fclose(self.fd);
-                self.fd = ptr::null_mut();
+            if let QfInputSource::File(fd) = self.source
+                && !fd.is_null()
+            {
+                fclose(fd);
             }
         }
     }
@@ -453,7 +451,6 @@ struct qffields_T {
     pattern: Vec<c_char>,
     enr: c_int,
     type_: c_char,
-    user_data: *mut typval_T,
     valid: bool,
 }
 
@@ -472,7 +469,6 @@ impl Default for qffields_T {
             pattern: vec![0; CMDBUFFSIZE + 1],
             enr: 0,
             type_: 0,
-            user_data: ptr::null_mut(),
             valid: false,
         }
     }
@@ -717,7 +713,7 @@ unsafe fn qfga_concat_len(gap: &mut Vec<c_char>, s: *const c_char, len: usize) {
 
 unsafe fn qf_init_process_nextline(
     qfl: *mut qf_list_T,
-    fmt_first: *mut [efm_T],
+    fmt_first: &[efm_T],
     state: *mut qfstate_T,
     fields: *mut qffields_T,
 ) -> c_int {
@@ -755,7 +751,7 @@ unsafe fn qf_init_process_nextline(
             (*fields).pattern.as_mut_ptr(),
             (*fields).enr,
             (*fields).type_,
-            (*fields).user_data,
+            ptr::null_mut(),
             c_char::from((*fields).valid),
         )
     }
@@ -1100,9 +1096,8 @@ unsafe fn qf_grow_linebuf(state: *mut qfstate_T, newsz: usize) -> *mut c_char {
     }
 }
 
-unsafe fn qf_get_next_str_line(state: *mut qfstate_T) -> c_int {
+unsafe fn qf_get_next_str_line(state: *mut qfstate_T, mut p_str: *mut c_char) -> c_int {
     unsafe {
-        let mut p_str = (*state).p_str;
         if *p_str == NUL {
             return QF_END_OF_INPUT;
         }
@@ -1124,15 +1119,14 @@ unsafe fn qf_get_next_str_line(state: *mut qfstate_T) -> c_int {
         *(*state).linebuf.add((*state).linelen) = NUL;
 
         p_str = p_str.add(len);
-        (*state).p_str = p_str;
+        (*state).source = QfInputSource::Str(p_str);
 
         QF_OK
     }
 }
 
-unsafe fn qf_get_next_list_line(state: *mut qfstate_T) -> c_int {
+unsafe fn qf_get_next_list_line(state: *mut qfstate_T, mut p_li: *mut listitem_T) -> c_int {
     unsafe {
-        let mut p_li = (*state).p_li;
         while !p_li.is_null()
             && ((*p_li).li_tv.v_type != VarType::VAR_STRING
                 || (*p_li).li_tv.vval.v_string().is_null())
@@ -1141,7 +1135,7 @@ unsafe fn qf_get_next_list_line(state: *mut qfstate_T) -> c_int {
         }
 
         if p_li.is_null() {
-            (*state).p_li = ptr::null_mut();
+            (*state).source = QfInputSource::List(ptr::null_mut());
             return QF_END_OF_INPUT;
         }
 
@@ -1155,19 +1149,28 @@ unsafe fn qf_get_next_list_line(state: *mut qfstate_T) -> c_int {
         }
 
         xstrlcpy((*state).linebuf, s, (*state).linelen + 1);
-        (*state).p_li = (*p_li).li_next;
+        (*state).source = QfInputSource::List((*p_li).li_next);
         QF_OK
     }
 }
 
-unsafe fn qf_get_next_buf_line(state: *mut qfstate_T) -> c_int {
+unsafe fn qf_get_next_buf_line(
+    state: *mut qfstate_T,
+    buf: *mut buf_T,
+    buflnum: linenr_T,
+    lnumlast: linenr_T,
+) -> c_int {
     unsafe {
-        if (*state).buflnum > (*state).lnumlast {
+        if buflnum > lnumlast {
             return QF_END_OF_INPUT;
         }
-        let p_buf = ml_get_buf((*state).buf, (*state).buflnum);
-        let len = ml_get_buf_len((*state).buf, (*state).buflnum) as usize;
-        (*state).buflnum += 1;
+        let p_buf = ml_get_buf(buf, buflnum);
+        let len = ml_get_buf_len(buf, buflnum) as usize;
+        (*state).source = QfInputSource::Buf {
+            buf,
+            buflnum: buflnum + 1,
+            lnumlast,
+        };
 
         if len > IOSIZE - 2 {
             (*state).linebuf = qf_grow_linebuf(state, len);
@@ -1180,12 +1183,12 @@ unsafe fn qf_get_next_buf_line(state: *mut qfstate_T) -> c_int {
     }
 }
 
-unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
+unsafe fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
     unsafe {
         let iobuff_ptr = (&raw mut IObuff).cast::<c_char>();
         loop {
             os_set_errno(0);
-            if fgets(iobuff_ptr, IOSIZE as c_int, (*state).fd).is_null() {
+            if fgets(iobuff_ptr, IOSIZE as c_int, fd).is_null() {
                 if os_errno() == EINTR {
                     continue;
                 }
@@ -1211,7 +1214,7 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
                 if fgets(
                     (*state).growbuf.as_mut_ptr().add(growbuflen),
                     (growbufsiz - growbuflen) as c_int,
-                    (*state).fd,
+                    fd,
                 )
                 .is_null()
                 {
@@ -1237,7 +1240,7 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
             if discard {
                 loop {
                     os_set_errno(0);
-                    if fgets(iobuff_ptr, IOSIZE as c_int, (*state).fd).is_null() {
+                    if fgets(iobuff_ptr, IOSIZE as c_int, fd).is_null() {
                         if os_errno() == EINTR {
                             continue;
                         }
@@ -1280,21 +1283,17 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T) -> c_int {
 
 unsafe fn qf_get_nextline(state: *mut qfstate_T) -> c_int {
     unsafe {
-        let mut status = QF_FAIL;
-
-        if (*state).fd.is_null() {
-            if !(*state).tv.is_null() {
-                if (*(*state).tv).v_type == VarType::VAR_STRING {
-                    status = qf_get_next_str_line(state);
-                } else if (*(*state).tv).v_type == VarType::VAR_LIST {
-                    status = qf_get_next_list_line(state);
-                }
-            } else {
-                status = qf_get_next_buf_line(state);
-            }
-        } else {
-            status = qf_get_next_file_line(state);
-        }
+        let status = match (*state).source {
+            QfInputSource::None => QF_FAIL,
+            QfInputSource::File(fd) => qf_get_next_file_line(state, fd),
+            QfInputSource::Str(p_str) => qf_get_next_str_line(state, p_str),
+            QfInputSource::List(p_li) => qf_get_next_list_line(state, p_li),
+            QfInputSource::Buf {
+                buf,
+                buflnum,
+                lnumlast,
+            } => qf_get_next_buf_line(state, buf, buflnum, lnumlast),
+        };
 
         if status != QF_OK {
             return status;
@@ -1338,17 +1337,16 @@ unsafe fn qf_parse_line(
     qfl: *mut qf_list_T,
     mut linebuf: *mut c_char,
     mut linelen: usize,
-    fmt_first: *mut [efm_T],
+    fmt_first: &[efm_T],
     fields: *mut qffields_T,
 ) -> c_int {
     unsafe {
         let fmt_len = fmt_first.len();
-        let fmt_base = fmt_first.cast::<efm_T>();
         loop {
             let start_idx = fmt_start_idx;
             fmt_start_idx = None;
             let mut fmt_idx = start_idx.unwrap_or(0);
-            let mut fmt_ptr: *mut efm_T = ptr::null_mut();
+            let mut fmt_opt: Option<&efm_T> = None;
 
             let mut idx: c_int = 0;
             let mut tail: *mut c_char = ptr::null_mut();
@@ -1356,8 +1354,8 @@ unsafe fn qf_parse_line(
 
             (*fields).valid = true;
             while fmt_idx < fmt_len {
-                let cur_fmt = fmt_base.add(fmt_idx);
-                idx = c_int::from((*cur_fmt).prefix as u8);
+                let cur_fmt = &fmt_first[fmt_idx];
+                idx = c_int::from(cur_fmt.prefix as u8);
                 status = qf_parse_get_fields(
                     linebuf,
                     linelen,
@@ -1371,15 +1369,15 @@ unsafe fn qf_parse_line(
                     return status;
                 }
                 if status == QF_OK {
-                    fmt_ptr = cur_fmt;
+                    fmt_opt = Some(cur_fmt);
                     break;
                 }
                 fmt_idx += 1;
             }
             (*qfl).qf_multiscan = false;
 
-            if fmt_ptr.is_null() || idx == c_int::from(b'D') || idx == c_int::from(b'X') {
-                if !fmt_ptr.is_null() {
+            if fmt_opt.is_none() || idx == c_int::from(b'D') || idx == c_int::from(b'X') {
+                if fmt_opt.is_some() {
                     status = qf_parse_dir_pfx(idx, fields, qfl);
                     if status != QF_OK {
                         return status;
@@ -1390,12 +1388,12 @@ unsafe fn qf_parse_line(
                     return status;
                 }
 
-                if fmt_ptr.is_null() {
+                if fmt_opt.is_none() {
                     (*qfl).qf_multiline = false;
                     (*qfl).qf_multiignore = false;
                 }
-            } else {
-                if (*fmt_ptr).conthere != 0 {
+            } else if let Some(fmt_ptr) = fmt_opt {
+                if fmt_ptr.conthere != 0 {
                     fmt_start_idx = Some(fmt_idx);
                 }
 
@@ -1420,7 +1418,7 @@ unsafe fn qf_parse_line(
                         continue;
                     }
                 }
-                if (*fmt_ptr).flags == b'-' as c_char {
+                if fmt_ptr.flags == b'-' as c_char {
                     if (*qfl).qf_multiline {
                         (*qfl).qf_multiignore = true;
                     }
@@ -1449,28 +1447,29 @@ unsafe fn qf_setup_state(
         }
 
         if !efile.is_null() {
-            (*pstate).fd = if strequal(efile, c"-".as_ptr()) {
+            let fd = if strequal(efile, c"-".as_ptr()) {
                 fdopen(os_open_stdin_fd(), c"r".as_ptr())
             } else {
                 os_fopen(efile, c"r".as_ptr()).cast::<FILE>()
             };
-            if (*pstate).fd.is_null() {
+            if fd.is_null() {
                 semsg!(gettext((&raw const e_openerrf).cast()), efile);
                 return FAIL;
             }
-        }
-
-        if !tv.is_null() {
+            (*pstate).source = QfInputSource::File(fd);
+        } else if !tv.is_null() {
             if (*tv).v_type == VarType::VAR_STRING {
-                (*pstate).p_str = (*tv).vval.v_string();
+                (*pstate).source = QfInputSource::Str((*tv).vval.v_string());
             } else if (*tv).v_type == VarType::VAR_LIST {
-                (*pstate).p_li = tv_list_first((*tv).vval.v_list());
+                (*pstate).source = QfInputSource::List(tv_list_first((*tv).vval.v_list()));
             }
-            (*pstate).tv = tv;
+        } else {
+            (*pstate).source = QfInputSource::Buf {
+                buf,
+                buflnum: lnumfirst,
+                lnumlast,
+            };
         }
-        (*pstate).buf = buf;
-        (*pstate).buflnum = lnumfirst;
-        (*pstate).lnumlast = lnumlast;
 
         OK
     }
@@ -1548,7 +1547,7 @@ unsafe fn qf_init_ext(
             while !got_int {
                 let status = qf_init_process_nextline(
                     qfl,
-                    (*cache_ptr).as_mut_slice(),
+                    (*cache_ptr).as_slice(),
                     &raw mut state,
                     &raw mut fields,
                 );
@@ -1564,7 +1563,11 @@ unsafe fn qf_init_ext(
         }
 
         if ok {
-            if state.fd.is_null() || ferror(state.fd) == 0 {
+            let file_ok = match state.source {
+                QfInputSource::File(fd) => fd.is_null() || ferror(fd) == 0,
+                _ => true,
+            };
+            if file_ok {
                 if (*qfl).qf_index == 0 {
                     (*qfl).qf_index = 1;
                     (*qfl).qf_nonevalid = true;
@@ -1867,7 +1870,7 @@ unsafe fn qf_parse_fmt_o(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
 unsafe fn qf_parse_match(
     linebuf: *mut c_char,
     linelen: usize,
-    fmt_ptr: *mut efm_T,
+    fmt_ptr: &efm_T,
     regmatch: *mut regmatch_T,
     fields: *mut qffields_T,
     qf_multiline: c_int,
@@ -1875,7 +1878,7 @@ unsafe fn qf_parse_match(
     tail: *mut *mut c_char,
 ) -> c_int {
     unsafe {
-        let idx = (*fmt_ptr).prefix;
+        let idx = fmt_ptr.prefix;
 
         if (idx == b'C' as c_char || idx == b'Z' as c_char) && qf_multiline == 0 {
             return QF_FAIL;
@@ -1888,11 +1891,11 @@ unsafe fn qf_parse_match(
 
         for i in 0..FMT_PATTERNS {
             let mut status = QF_OK;
-            let midx = (*fmt_ptr).addr[i] as isize;
+            let midx = fmt_ptr.addr[i] as isize;
             if i == 0 && midx > 0 {
                 status = qf_parse_fmt_f(regmatch, midx as usize, fields, c_int::from(idx as u8));
             } else if i == FMT_PATTERN_M {
-                if (*fmt_ptr).flags == b'+' as c_char && qf_multiscan == 0 {
+                if fmt_ptr.flags == b'+' as c_char && qf_multiscan == 0 {
                     status = copy_nonerror_line(linebuf, linelen, fields);
                 } else if midx > 0 {
                     status = qf_parse_fmt_m(regmatch, midx as usize, fields);
@@ -1930,7 +1933,7 @@ unsafe fn qf_parse_match(
 unsafe fn qf_parse_get_fields(
     linebuf: *mut c_char,
     linelen: usize,
-    fmt_ptr: *mut efm_T,
+    fmt_ptr: &efm_T,
     fields: *mut qffields_T,
     qf_multiline: c_int,
     qf_multiscan: c_int,
@@ -1938,7 +1941,7 @@ unsafe fn qf_parse_get_fields(
 ) -> c_int {
     unsafe {
         if qf_multiscan != 0
-            && vim_strchr(c"OPQ".as_ptr(), c_int::from((*fmt_ptr).prefix as u8)).is_null()
+            && vim_strchr(c"OPQ".as_ptr(), c_int::from(fmt_ptr.prefix as u8)).is_null()
         {
             return QF_FAIL;
         }
@@ -1961,7 +1964,7 @@ unsafe fn qf_parse_get_fields(
 
         let mut regmatch: regmatch_T = regmatch_T::new();
         regmatch.rm_ic = true;
-        regmatch.regprog = crate::regexp::regprog_as_ptr(&(*fmt_ptr).prog);
+        regmatch.regprog = crate::regexp::regprog_as_ptr(&fmt_ptr.prog);
         let r = vim_regexec(&raw mut regmatch, linebuf, 0);
         let mut status = QF_FAIL;
         if r {
