@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -452,6 +453,418 @@ fn run_lua_tests(
     }
 }
 
+fn extract_errcodes(line: &str) -> Vec<String> {
+    let code_part = line.split_once("//").map_or(line, |(before, _)| before);
+    let bytes = code_part.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'E' {
+            let prev_is_word =
+                i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_');
+            let mut d = i + 1;
+            while d < bytes.len() && d < i + 5 && bytes[d].is_ascii_digit() {
+                d += 1;
+            }
+            let num_digits = d - (i + 1);
+            let next_is_digit = d < bytes.len() && bytes[d].is_ascii_digit();
+            if !prev_is_word && (num_digits == 3 || num_digits == 4) && !next_is_digit {
+                out.push(code_part[i..d].to_string());
+                i = d;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+fn run_linterrcodes(root: &Path) {
+    let dup_allowed: HashMap<&str, usize> = HashMap::from([
+        ("E109", 2),
+        ("E110", 2),
+        ("E112", 3),
+        ("E114", 2),
+        ("E115", 2),
+        ("E1159", 2),
+        ("E116", 2),
+        ("E121", 2),
+        ("E1239", 2),
+        ("E136", 5),
+        ("E1502", 4),
+        ("E1510", 2),
+        ("E151", 2),
+        ("E155", 3),
+        ("E170", 2),
+        ("E173", 2),
+        ("E176", 2),
+        ("E177", 2),
+        ("E178", 2),
+        ("E180", 2),
+        ("E212", 2),
+        ("E216", 2),
+        ("E298", 3),
+        ("E303", 3),
+        ("E312", 2),
+        ("E317", 4),
+        ("E319", 2),
+        ("E367", 3),
+        ("E423", 3),
+        ("E474", 60),
+        ("E475", 6),
+        ("E482", 3),
+        ("E484", 3),
+        ("E488", 2),
+        ("E5009", 3),
+        ("E502", 2),
+        ("E503", 3),
+        ("E504", 2),
+        ("E505", 2),
+        ("E509", 2),
+        ("E5101", 2),
+        ("E5102", 2),
+        ("E5108", 6),
+        ("E5111", 2),
+        ("E513", 2),
+        ("E521", 2),
+        ("E5210", 2),
+        ("E546", 2),
+        ("E575", 27),
+        ("E576", 9),
+        ("E588", 2),
+        ("E678", 2),
+        ("E684", 2),
+        ("E685", 5),
+        ("E697", 2),
+        ("E703", 2),
+        ("E716", 2),
+        ("E723", 2),
+        ("E724", 3),
+        ("E728", 2),
+        ("E741", 2),
+        ("E742", 2),
+        ("E745", 2),
+        ("E798", 2),
+        ("E805", 2),
+        ("E856", 3),
+        ("E867", 2),
+        ("E886", 10),
+        ("E900", 3),
+        ("E903", 2),
+        ("E905", 2),
+        ("E906", 2),
+        ("E948", 2),
+        ("E970", 2),
+        ("E974", 2),
+        ("E979", 2),
+        ("E996", 5),
+    ]);
+
+    let help_out = Command::new("git")
+        .current_dir(root)
+        .args(["grep", "-hE", r"\*E[0-9]{3,4}\*", "--", "runtime/doc/*.txt"])
+        .output()
+        .expect("failed to run git grep on runtime/doc/*.txt");
+    assert!(
+        help_out.status.success(),
+        "git grep runtime/doc/*.txt failed"
+    );
+    let mut help_codes = BTreeSet::new();
+    for line in String::from_utf8_lossy(&help_out.stdout).lines() {
+        let bytes = line.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] == b'E' {
+                let mut d = i + 1;
+                while d < bytes.len() && d < i + 5 && bytes[d].is_ascii_digit() {
+                    d += 1;
+                }
+                let num_digits = d - (i + 1);
+                let next_is_digit = d < bytes.len() && bytes[d].is_ascii_digit();
+                if (num_digits == 3 || num_digits == 4) && !next_is_digit {
+                    help_codes.insert(line[i..d].to_string());
+                    i = d;
+                    continue;
+                }
+            }
+            i += 1;
+        }
+    }
+
+    let src_out = Command::new("git")
+        .current_dir(root)
+        .args(["grep", "-nE", "E[0-9]{3,4}", "--", "src/nvim/*.rs"])
+        .output()
+        .expect("failed to run git grep on src/nvim/*.rs");
+    assert!(src_out.status.success(), "git grep src/nvim/*.rs failed");
+    let mut src_codes: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for line in String::from_utf8_lossy(&src_out.stdout).lines() {
+        let content = line.splitn(3, ':').nth(2).unwrap_or(line);
+        for code in extract_errcodes(content) {
+            src_codes.entry(code).or_default().push(line.to_string());
+        }
+    }
+
+    let code_num = |c: &str| c[1..].parse::<u32>().unwrap_or(0);
+    let mut missing: Vec<String> = src_codes
+        .keys()
+        .filter(|c| !help_codes.contains(*c))
+        .cloned()
+        .collect();
+    missing.sort_by_key(|c| code_num(c));
+
+    let mut dup_codes: Vec<String> = src_codes
+        .iter()
+        .filter_map(|(code, locs)| {
+            if let Some(&allowed) = dup_allowed.get(code.as_str()) {
+                (locs.len() != allowed).then(|| code.clone())
+            } else {
+                (locs.len() > 1).then(|| code.clone())
+            }
+        })
+        .collect();
+    dup_codes.sort_by_key(|c| code_num(c));
+
+    if !missing.is_empty() {
+        println!("Error codes missing from help docs:");
+        for code in &missing {
+            println!("  {code}");
+        }
+        println!();
+    }
+
+    if !dup_codes.is_empty() {
+        println!("Error codes used in more than one place:");
+        for code in &dup_codes {
+            let locs = &src_codes[code];
+            println!("  {code} ({} occurrences):", locs.len());
+            for loc in locs {
+                println!("    {loc}");
+            }
+        }
+        println!();
+    }
+
+    let max_code = src_codes.keys().map(|c| code_num(c)).max().unwrap_or(0);
+    println!(
+        "errcodes={} dup-codes={} missing-help={} highest=E{max_code}",
+        src_codes.len(),
+        dup_codes.len(),
+        missing.len()
+    );
+    if !missing.is_empty() || !dup_codes.is_empty() {
+        std::process::exit(1);
+    }
+}
+
+fn validate_commit_msg(commit_message: &str) -> Option<String> {
+    let commit_split: Vec<&str> = commit_message.split(':').collect();
+    if commit_split.first() == Some(&"vim-patch") {
+        return None;
+    }
+    if let Some(rest) = commit_message.strip_prefix("NVIM v") {
+        let mut parts = rest.split('.');
+        if parts
+            .next()
+            .is_some_and(|s| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
+            && parts
+                .next()
+                .is_some_and(|s| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
+            && parts
+                .next()
+                .is_some_and(|s| s.bytes().take_while(|b| b.is_ascii_digit()).count() > 0)
+        {
+            return None;
+        }
+    }
+
+    if commit_message.len() > 80 {
+        return Some(
+            "Commit message is too long, a maximum of 80 characters is allowed.".to_string(),
+        );
+    }
+
+    let mut before_colon = commit_split[0];
+    let mut after_idx = 1usize;
+    if before_colon.contains('(') && !before_colon.contains(')') {
+        while after_idx < commit_split.len() {
+            after_idx += 1;
+            if commit_split[after_idx - 1].contains(')') {
+                break;
+            }
+        }
+    }
+    if after_idx >= commit_split.len() {
+        return Some("Commit message does not include colons.".to_string());
+    }
+    let after_colon = commit_split[after_idx..].join(":");
+
+    if let Some(stripped) = before_colon.strip_suffix('!') {
+        before_colon = stripped;
+    }
+
+    let allowed_types = [
+        "build",
+        "ci",
+        "docs",
+        "feat",
+        "fix",
+        "perf",
+        "refactor",
+        "revert",
+        "test",
+        "vim-patch",
+    ];
+    let commit_type = before_colon.split('(').next().unwrap_or("");
+    if !allowed_types.contains(&commit_type) {
+        return Some(format!(
+            "Invalid commit type \"{commit_type}\". Allowed types are: {allowed_types:?}."
+        ));
+    }
+
+    if let Some(open_idx) = commit_message.find('(')
+        && before_colon.contains('(')
+    {
+        let close_idx = commit_message[open_idx + 1..]
+            .find(')')
+            .map(|i| open_idx + 1 + i)
+            .unwrap_or(commit_message.len());
+        let scope = commit_message[open_idx + 1..close_idx].trim();
+        if scope.is_empty() {
+            return Some("Scope can't be empty".to_string());
+        }
+        if scope.starts_with("nvim_") {
+            return Some("Scope should be \"api\" instead of \"nvim_...\"".to_string());
+        }
+        let alt = match scope {
+            "filetype.vim" | "filetype.lua" => Some("filetype"),
+            "tree-sitter" | "ts" => Some("treesitter"),
+            "hl" => Some("highlight"),
+            _ => None,
+        };
+        if let Some(replacement) = alt {
+            return Some(format!(
+                "Scope should be \"{replacement}\" instead of \"{scope}\""
+            ));
+        }
+    }
+
+    if after_colon.ends_with('.') {
+        return Some("Description ends with a period (\".\").".to_string());
+    }
+    if !after_colon.starts_with(' ') {
+        return Some("There should be a whitespace after the colon.".to_string());
+    }
+    if after_colon.starts_with("  ") {
+        return Some("There should only be one whitespace after the colon.".to_string());
+    }
+    let trimmed_start = after_colon.trim_start_matches(' ');
+    let bytes = trimmed_start.as_bytes();
+    if bytes.len() >= 2 && bytes[0].is_ascii_uppercase() && bytes[1].is_ascii_lowercase() {
+        return Some("Description first word should not be Capitalized.".to_string());
+    }
+    if after_colon.trim().is_empty() {
+        return Some("Description shouldn't be empty.".to_string());
+    }
+    None
+}
+
+fn run_lintcommit(root: &Path) {
+    let test_cases = [
+        ("ci: normal message", true),
+        ("build: normal message", true),
+        ("build: version bump", true),
+        ("docs: normal message", true),
+        ("feat: normal message", true),
+        ("fix: normal message", true),
+        ("perf: normal message", true),
+        ("refactor: normal message", true),
+        ("revert: normal message", true),
+        ("test: normal message", true),
+        ("ci(window): message with scope", true),
+        ("ci!: message with breaking change", true),
+        ("ci(tui)!: message with scope and breaking change", true),
+        ("NVIM v0.12.0", true),
+        (
+            "revert: \"ci: use continue-on-error instead of \"|| true\"\"",
+            true,
+        ),
+        ("fixup", false),
+        ("fixup: commit message", false),
+        ("fixup! commit message", false),
+        (":no type before colon 1", false),
+        (" :no type before colon 2", false),
+        ("  :no type before colon 3", false),
+        ("ci(empty description):", false),
+        ("ci(only whitespace as description): ", false),
+        ("docs(multiple whitespaces as description):   ", false),
+        ("ci no colon after type", false),
+        ("test:  extra space after colon", false),
+        ("ci:\ttab after colon", false),
+        ("ci:no space after colon", false),
+        ("ci :extra space before colon", false),
+        ("refactor(): empty scope", false),
+        ("ci( ): whitespace as scope", false),
+        ("ci: period at end of sentence.", false),
+        ("ci: period: at end of sentence.", false),
+        ("ci: Capitalized first word", false),
+        ("ci: UPPER_CASE First Word", true),
+        ("unknown: using unknown type", false),
+        ("feat: foo:bar", true),
+        ("feat(something): foo:bar", true),
+        ("feat(:grep): read from pipe", true),
+        ("feat(:grep/:make): read from pipe", true),
+        ("feat(:grep)", false),
+        ("feat(:grep", false),
+        (
+            "ci: you're saying this commit message just goes on and on and on and on and on and on for way too long?",
+            false,
+        ),
+    ];
+    for (msg, expected) in test_cases {
+        let actual = validate_commit_msg(msg).is_none();
+        assert_eq!(
+            actual, expected,
+            "lintcommit self-test failed for {msg:?}: expected {expected}, got {actual}"
+        );
+    }
+
+    let git_out = |args: &[&str]| -> Option<String> {
+        let out = Command::new("git")
+            .current_dir(root)
+            .args(args)
+            .output()
+            .ok()?;
+        out.status
+            .success()
+            .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+    };
+
+    let branch = git_out(&["rev-parse", "--abbrev-ref", "HEAD"])
+        .expect("git rev-parse --abbrev-ref HEAD failed");
+    let ancestor = git_out(&["merge-base", "origin/master", &branch])
+        .or_else(|| git_out(&["merge-base", "upstream/master", &branch]))
+        .expect("git merge-base failed");
+    let commits_str =
+        git_out(&["rev-list", &format!("{ancestor}..{branch}")]).expect("git rev-list failed");
+
+    let mut failed = 0usize;
+    for commit_id in commits_str.split_whitespace() {
+        if let Some(msg) = git_out(&["show", "-s", "--format=%s", commit_id])
+            && let Some(err) = validate_commit_msg(&msg)
+        {
+            failed += 1;
+            eprintln!("Invalid commit message: \"{msg}\"\n    Commit: {commit_id}\n    {err}\n");
+        }
+    }
+    if failed > 0 {
+        eprintln!(
+            "See also:\n    https://github.com/freddiehaddad/neovim/blob/master/CONTRIBUTING.md#commit-messages\n"
+        );
+        std::process::exit(1);
+    }
+}
+
 fn default_install_prefix(target_dir: &Path) -> PathBuf {
     if cfg!(target_os = "windows") {
         if let Ok(profile) = env::var("USERPROFILE") {
@@ -647,7 +1060,7 @@ fn main() -> ExitCode {
                     .args(["-u", "NONE", "-l"])
                     .arg(&preload)
                     .arg(&root)
-                    .arg(root.join("scripts").join("lintdoc.lua"));
+                    .arg(root.join("src").join("gen").join("gen_help_html.lua"));
                 if subcmd == "lintdocurls" {
                     cmd.arg("true");
                 }
@@ -695,7 +1108,7 @@ fn main() -> ExitCode {
             if check {
                 cmd1.args(["--color=always", "--check"]);
             }
-            cmd1.args(["runtime", "scripts", "src", "test", "contrib"]);
+            cmd1.args(["runtime", "src", "test", "contrib"]);
             run_status(&mut cmd1, "stylua");
 
             let mut cmd2 = Command::new("stylua");
@@ -711,21 +1124,11 @@ fn main() -> ExitCode {
             ]);
             run_status(&mut cmd2, "stylua (.stylua2.toml)");
         }
-        "linterrcodes" | "lintcommit" => {
-            let profile_dir = build_cargo_bins(&root, release, prefer_lua);
-            let nvim_bin = stage_build_dir(&root, &profile_dir, &build_dir);
-            let mut cmd = Command::new(&nvim_bin);
-            cmd.current_dir(&root)
-                .env("VIMRUNTIME", root.join("runtime"))
-                .arg("--clean")
-                .arg("-l");
-            if subcmd == "linterrcodes" {
-                cmd.arg(root.join("scripts").join("linterrcodes.lua"));
-            } else {
-                cmd.arg(root.join("scripts").join("lintcommit.lua"))
-                    .arg("main");
-            }
-            run_status(&mut cmd, subcmd);
+        "linterrcodes" => {
+            run_linterrcodes(&root);
+        }
+        "lintcommit" => {
+            run_lintcommit(&root);
         }
         "lint" => {
             let exe = env::current_exe().unwrap();

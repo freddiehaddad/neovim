@@ -1046,8 +1046,8 @@ end
 
 --- Use the vimdoc parser defined in the build, not whatever happens to be installed on the system.
 local function ensure_runtimepath()
-  if not vim.o.runtimepath:find('build/lib/nvim/') then
-    vim.cmd [[set runtimepath^=./build/lib/nvim/]]
+  if not vim.o.runtimepath:find('target/nvim%-build/lib/nvim/') then
+    vim.cmd [[set runtimepath^=./target/nvim-build/lib/nvim/]]
   end
 end
 
@@ -1627,6 +1627,15 @@ function M.test_gen(help_dir)
   eq(#input, #rv.helpfiles)
   eq(0, rv.err_count, 'parse errors in :help docs')
   eq({}, rv.invalid_links, 'invalid tags in :help docs')
+end
+
+if _G.arg and _G.arg[0] and _G.arg[0]:find('gen_help_html%.lua$') then
+  print('Running lintdoc ...')
+  vim.cmd [[ packadd netrw ]]
+  vim.cmd [[ helptags ALL ]]
+  M.run_validate(nil, _G.arg[1] ~= nil)
+  M.test_gen()
+  print('lintdoc PASSED.')
 end
 
 return M
