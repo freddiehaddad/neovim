@@ -1101,10 +1101,8 @@ mod tests {
         }
     }
 
-    unsafe fn wantparser(vt: &mut VTerm) {
-        unsafe {
-            vterm_parser_set_callbacks(vt, Some(&PARSER_CBS), ptr::null_mut());
-        }
+    fn wantparser(vt: &mut VTerm) {
+        vterm_parser_set_callbacks(vt, Some(&PARSER_CBS), ptr::null_mut());
     }
 
     unsafe fn wantstate(vt: &mut VTerm, opts: StateOpts) -> *mut VTermStateFull {

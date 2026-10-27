@@ -848,14 +848,14 @@ unsafe fn report_discard_pending(pending: c_int, value: PendingVal) {
     }
 }
 
-pub unsafe fn ex_eval(eap: *mut exarg_T) {
+pub unsafe fn ex_eval(eap: &mut exarg_T) {
     unsafe {
         let mut tv: typval_T = typval_T::new();
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&mut evalarg, eap, (*eap).skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap, eap.skip != 0);
 
-        if eval0((*eap).arg, &mut tv, eap, &mut evalarg) == OK {
+        if eval0(eap.arg, &mut tv, eap, &mut evalarg) == OK {
             tv_clear(&mut tv);
         }
 
@@ -863,12 +863,12 @@ pub unsafe fn ex_eval(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_if(eap: *mut exarg_T) {
+pub unsafe fn ex_if(eap: &mut exarg_T) {
     unsafe {
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_idx == (CSTACK_LEN - 1) as c_int {
-            (*eap).errmsg = gettext(c"E579: :if nesting too deep".as_ptr());
+            eap.errmsg = gettext(c"E579: :if nesting too deep".as_ptr());
         } else {
             (*cstack).cs_idx += 1;
             let idx = (*cstack).cs_idx as usize;
@@ -876,7 +876,7 @@ pub unsafe fn ex_if(eap: *mut exarg_T) {
 
             let skip = check_skip(cstack);
             let mut error = false;
-            let result = eval_to_bool((*eap).arg, &mut error, eap, skip, false);
+            let result = eval_to_bool(eap.arg, &mut error, eap, skip, false);
 
             if !skip && !error {
                 if result {
@@ -889,18 +889,18 @@ pub unsafe fn ex_if(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_endif(eap: *mut exarg_T) {
+pub unsafe fn ex_endif(eap: &mut exarg_T) {
     unsafe {
         g_st().did_endif = true;
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
         if (*cstack).cs_idx < 0
             || ((*cstack).cs_flags[(*cstack).cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY))
                 != 0
         {
-            (*eap).errmsg = gettext(c"E580: :endif without :if".as_ptr());
+            eap.errmsg = gettext(c"E580: :endif without :if".as_ptr());
         } else {
             if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRUE) == 0
-                && dbg_check_skipped(eap.cast())
+                && dbg_check_skipped(eap)
             {
                 do_intthrow(cstack);
             }
@@ -909,33 +909,33 @@ pub unsafe fn ex_endif(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_else(eap: *mut exarg_T) {
+pub unsafe fn ex_else(eap: &mut exarg_T) {
     unsafe {
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
         let mut skip = check_skip(cstack);
 
         if (*cstack).cs_idx < 0
             || ((*cstack).cs_flags[(*cstack).cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY))
                 != 0
         {
-            if (*eap).cmdidx == CMD_else {
-                (*eap).errmsg = gettext(c"E581: :else without :if".as_ptr());
+            if eap.cmdidx == CMD_else {
+                eap.errmsg = gettext(c"E581: :else without :if".as_ptr());
                 return;
             }
-            (*eap).errmsg = gettext(c"E582: :elseif without :if".as_ptr());
+            eap.errmsg = gettext(c"E582: :elseif without :if".as_ptr());
             skip = true;
         } else if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_ELSE) != 0 {
-            if (*eap).cmdidx == CMD_else {
-                (*eap).errmsg = gettext(E_MULTIPLE_ELSE.as_ptr());
+            if eap.cmdidx == CMD_else {
+                eap.errmsg = gettext(E_MULTIPLE_ELSE.as_ptr());
                 return;
             }
-            (*eap).errmsg = gettext(c"E584: :elseif after :else".as_ptr());
+            eap.errmsg = gettext(c"E584: :elseif after :else".as_ptr());
             skip = true;
         }
 
         let idx = (*cstack).cs_idx as usize;
         if skip || ((*cstack).cs_flags[idx] & CSF_TRUE) != 0 {
-            if (*eap).errmsg.is_null() {
+            if eap.errmsg.is_null() {
                 (*cstack).cs_flags[idx] = CSF_TRUE;
             }
             skip = true;
@@ -943,21 +943,21 @@ pub unsafe fn ex_else(eap: *mut exarg_T) {
             (*cstack).cs_flags[idx] = CSF_ACTIVE;
         }
 
-        if !skip && dbg_check_skipped(eap.cast()) && g_st().got_int {
+        if !skip && dbg_check_skipped(eap) && g_st().got_int {
             do_intthrow(cstack);
             skip = true;
         }
 
-        if (*eap).cmdidx == CMD_elseif {
+        if eap.cmdidx == CMD_elseif {
             let mut result = false;
             let mut error = false;
             if skip
-                && *(*eap).arg != b'"' as c_char
-                && ends_excmd(c_int::from(*(*eap).arg as u8)) != 0
+                && *eap.arg != b'"' as c_char
+                && ends_excmd(c_int::from(*eap.arg as u8)) != 0
             {
-                semsg!(gettext(e_invexpr2.as_ptr()), (*eap).arg);
+                semsg!(gettext(e_invexpr2.as_ptr()), eap.arg);
             } else {
-                result = eval_to_bool((*eap).arg, &mut error, eap, skip, false);
+                result = eval_to_bool(eap.arg, &mut error, eap, skip, false);
             }
 
             if !skip && !error {
@@ -966,7 +966,7 @@ pub unsafe fn ex_else(eap: *mut exarg_T) {
                 } else {
                     (*cstack).cs_flags[idx] = 0;
                 }
-            } else if (*eap).errmsg.is_null() {
+            } else if eap.errmsg.is_null() {
                 (*cstack).cs_flags[idx] = CSF_TRUE;
             }
         } else {
@@ -975,13 +975,13 @@ pub unsafe fn ex_else(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_while(eap: *mut exarg_T) {
+pub unsafe fn ex_while(eap: &mut exarg_T) {
     unsafe {
         let mut error = false;
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_idx == (CSTACK_LEN - 1) as c_int {
-            (*eap).errmsg = gettext(c"E585: :while/:for nesting too deep".as_ptr());
+            eap.errmsg = gettext(c"E585: :while/:for nesting too deep".as_ptr());
         } else {
             if ((*cstack).cs_lflags & CSL_HAD_LOOP) == 0 {
                 (*cstack).cs_idx += 1;
@@ -989,28 +989,28 @@ pub unsafe fn ex_while(eap: *mut exarg_T) {
                 (*cstack).cs_line[(*cstack).cs_idx as usize] = -1;
             }
             let idx = (*cstack).cs_idx as usize;
-            (*cstack).cs_flags[idx] = if (*eap).cmdidx == CMD_while {
+            (*cstack).cs_flags[idx] = if eap.cmdidx == CMD_while {
                 CSF_WHILE
             } else {
                 CSF_FOR
             };
 
             let skip = check_skip(cstack);
-            let result = if (*eap).cmdidx == CMD_while {
-                eval_to_bool((*eap).arg, &mut error, eap, skip, false)
+            let result = if eap.cmdidx == CMD_while {
+                eval_to_bool(eap.arg, &mut error, eap, skip, false)
             } else {
                 let mut evalarg = evalarg_T::new();
                 fill_evalarg_from_eap(&mut evalarg, eap, skip);
                 if ((*cstack).cs_lflags & CSL_HAD_LOOP) != 0 {
                     error = false;
                 } else {
-                    let fi = eval_for_line((*eap).arg, &mut error, eap, &mut evalarg);
+                    let fi = eval_for_line(eap.arg, &mut error, eap, &mut evalarg);
                     (&mut (*cstack).cs_forinfo)[idx] = Some(fi);
                 }
 
                 let res = if !error && !skip {
                     if let Some(fi) = (&mut (*cstack).cs_forinfo)[idx].as_deref_mut() {
-                        next_for_item(fi, (*eap).arg)
+                        next_for_item(fi, eap.arg)
                     } else {
                         false
                     }
@@ -1038,12 +1038,12 @@ pub unsafe fn ex_while(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_continue(eap: *mut exarg_T) {
+pub unsafe fn ex_continue(eap: &mut exarg_T) {
     unsafe {
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_looplevel <= 0 || (*cstack).cs_idx < 0 {
-            (*eap).errmsg = gettext(c"E586: :continue without :while or :for".as_ptr());
+            eap.errmsg = gettext(c"E586: :continue without :while or :for".as_ptr());
         } else {
             let idx = cleanup_conditionals(cstack, CSF_WHILE | CSF_FOR, 0);
             assert!(idx >= 0);
@@ -1058,12 +1058,12 @@ pub unsafe fn ex_continue(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_break(eap: *mut exarg_T) {
+pub unsafe fn ex_break(eap: &mut exarg_T) {
     unsafe {
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_looplevel <= 0 || (*cstack).cs_idx < 0 {
-            (*eap).errmsg = gettext(c"E587: :break without :while or :for".as_ptr());
+            eap.errmsg = gettext(c"E587: :break without :while or :for".as_ptr());
         } else {
             let idx = cleanup_conditionals(cstack, CSF_WHILE | CSF_FOR, 1);
             if idx >= 0 && ((*cstack).cs_flags[idx as usize] & (CSF_WHILE | CSF_FOR)) == 0 {
@@ -1074,37 +1074,37 @@ pub unsafe fn ex_break(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_endwhile(eap: *mut exarg_T) {
+pub unsafe fn ex_endwhile(eap: &mut exarg_T) {
     unsafe {
-        let cstack = (*eap).cstack.cast::<cstack_T>();
-        let (err, csf) = if (*eap).cmdidx == CMD_endwhile {
+        let cstack = eap.cstack.cast::<cstack_T>();
+        let (err, csf) = if eap.cmdidx == CMD_endwhile {
             (e_while.as_ptr(), CSF_WHILE)
         } else {
             (e_for.as_ptr(), CSF_FOR)
         };
 
         if (*cstack).cs_looplevel <= 0 || (*cstack).cs_idx < 0 {
-            (*eap).errmsg = gettext(err);
+            eap.errmsg = gettext(err);
         } else {
             let mut fl = (*cstack).cs_flags[(*cstack).cs_idx as usize];
             if (fl & csf) == 0 {
                 if (fl & CSF_WHILE) != 0 {
-                    (*eap).errmsg = gettext(c"E732: Using :endfor with :while".as_ptr());
+                    eap.errmsg = gettext(c"E732: Using :endfor with :while".as_ptr());
                 } else if (fl & CSF_FOR) != 0 {
-                    (*eap).errmsg = gettext(c"E733: Using :endwhile with :for".as_ptr());
+                    eap.errmsg = gettext(c"E733: Using :endwhile with :for".as_ptr());
                 }
             }
             if (fl & (CSF_WHILE | CSF_FOR)) == 0 {
                 if (fl & CSF_TRY) == 0 {
-                    (*eap).errmsg = gettext(e_endif.as_ptr());
+                    eap.errmsg = gettext(e_endif.as_ptr());
                 } else if (fl & CSF_FINALLY) != 0 {
-                    (*eap).errmsg = gettext(e_endtry.as_ptr());
+                    eap.errmsg = gettext(e_endtry.as_ptr());
                 }
                 let mut idx = (*cstack).cs_idx;
                 while idx > 0 {
                     fl = (*cstack).cs_flags[idx as usize];
                     if (fl & CSF_TRY) != 0 && (fl & CSF_FINALLY) == 0 {
-                        (*eap).errmsg = gettext(err);
+                        eap.errmsg = gettext(err);
                         return;
                     }
                     if (fl & csf) != 0 {
@@ -1116,7 +1116,7 @@ pub unsafe fn ex_endwhile(eap: *mut exarg_T) {
                 rewind_conditionals(cstack, idx, CSF_TRY, &mut (*cstack).cs_trylevel);
             } else if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRUE) != 0
                 && ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_ACTIVE) == 0
-                && dbg_check_skipped(eap.cast())
+                && dbg_check_skipped(eap)
             {
                 do_intthrow(cstack);
             }
@@ -1126,21 +1126,21 @@ pub unsafe fn ex_endwhile(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_throw(eap: *mut exarg_T) {
+pub unsafe fn ex_throw(eap: &mut exarg_T) {
     unsafe {
-        let arg = (*eap).arg;
+        let arg = eap.arg;
         let value = if *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
-            eval_to_string_skip(arg, eap, (*eap).skip != 0)
+            eval_to_string_skip(arg, eap, eap.skip != 0)
         } else {
             emsg(gettext(e_argreq.as_ptr()));
             None
         };
 
         if let Some(val_cstr) = value
-            && (*eap).skip == 0
+            && eap.skip == 0
             && throw_exception(ExceptionValue::User(val_cstr), ptr::null_mut()) != FAIL
         {
-            do_throw((*eap).cstack.cast());
+            do_throw(eap.cstack.cast());
         }
     }
 }
@@ -1166,12 +1166,12 @@ pub unsafe fn do_throw(cstack: *mut cstack_T) {
     }
 }
 
-pub unsafe fn ex_try(eap: *mut exarg_T) {
+pub unsafe fn ex_try(eap: &mut exarg_T) {
     unsafe {
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_idx == (CSTACK_LEN - 1) as c_int {
-            (*eap).errmsg = gettext(c"E601: :try nesting too deep".as_ptr());
+            eap.errmsg = gettext(c"E601: :try nesting too deep".as_ptr());
         } else {
             (*cstack).cs_idx += 1;
             (*cstack).cs_trylevel += 1;
@@ -1193,19 +1193,19 @@ pub unsafe fn ex_try(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_catch(eap: *mut exarg_T) {
+pub unsafe fn ex_catch(eap: &mut exarg_T) {
     unsafe {
         let mut idx: c_int = 0;
         let mut give_up = false;
         let mut skip = false;
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
 
         if (*cstack).cs_trylevel <= 0 || (*cstack).cs_idx < 0 {
-            (*eap).errmsg = gettext(c"E603: :catch without :try".as_ptr());
+            eap.errmsg = gettext(c"E603: :catch without :try".as_ptr());
             give_up = true;
         } else {
             if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRY) == 0 {
-                (*eap).errmsg = get_end_emsg(cstack);
+                eap.errmsg = get_end_emsg(cstack);
                 skip = true;
             }
             idx = (*cstack).cs_idx;
@@ -1216,7 +1216,7 @@ pub unsafe fn ex_catch(eap: *mut exarg_T) {
                 idx -= 1;
             }
             if ((*cstack).cs_flags[idx as usize] & CSF_FINALLY) != 0 {
-                (*eap).errmsg = gettext(c"E604: :catch after :finally".as_ptr());
+                eap.errmsg = gettext(c"E604: :catch after :finally".as_ptr());
                 give_up = true;
             } else {
                 rewind_conditionals(
@@ -1229,12 +1229,12 @@ pub unsafe fn ex_catch(eap: *mut exarg_T) {
         }
 
         let (pat, end): (*const c_char, *mut c_char) =
-            if ends_excmd(c_int::from(*(*eap).arg as u8)) != 0 {
-                (*eap).nextcmd = find_nextcmd((*eap).arg);
+            if ends_excmd(c_int::from(*eap.arg as u8)) != 0 {
+                eap.nextcmd = find_nextcmd(eap.arg);
                 (c".*".as_ptr(), ptr::null_mut())
             } else {
-                let pat = (*eap).arg.add(1);
-                let end = skip_regexp_err(pat, c_int::from(*(*eap).arg as u8), 1);
+                let pat = eap.arg.add(1);
+                let end = skip_regexp_err(pat, c_int::from(*eap.arg as u8), 1);
                 if end.is_null() {
                     give_up = true;
                 }
@@ -1260,7 +1260,7 @@ pub unsafe fn ex_catch(eap: *mut exarg_T) {
                     return;
                 }
 
-                if !dbg_check_skipped(eap.cast()) || !do_intthrow(cstack) {
+                if !dbg_check_skipped(eap) || !do_intthrow(cstack) {
                     let mut save_char: c_char = 0;
                     if !end.is_null() {
                         save_char = *end;
@@ -1318,15 +1318,15 @@ pub unsafe fn ex_catch(eap: *mut exarg_T) {
         }
 
         if !end.is_null() {
-            (*eap).nextcmd = find_nextcmd(end);
+            eap.nextcmd = find_nextcmd(end);
         }
     }
 }
 
-pub unsafe fn ex_finally(eap: *mut exarg_T) {
+pub unsafe fn ex_finally(eap: &mut exarg_T) {
     unsafe {
         let mut pending = CSTP_NONE;
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
 
         let mut idx = (*cstack).cs_idx;
         while idx >= 0 {
@@ -1336,17 +1336,17 @@ pub unsafe fn ex_finally(eap: *mut exarg_T) {
             idx -= 1;
         }
         if (*cstack).cs_trylevel <= 0 || idx < 0 {
-            (*eap).errmsg = gettext(c"E606: :finally without :try".as_ptr());
+            eap.errmsg = gettext(c"E606: :finally without :try".as_ptr());
             return;
         }
 
         if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRY) == 0 {
-            (*eap).errmsg = get_end_emsg(cstack);
+            eap.errmsg = get_end_emsg(cstack);
             pending = CSTP_ERROR;
         }
 
         if ((*cstack).cs_flags[idx as usize] & CSF_FINALLY) != 0 {
-            (*eap).errmsg = gettext(E_MULTIPLE_FINALLY.as_ptr());
+            eap.errmsg = gettext(E_MULTIPLE_FINALLY.as_ptr());
             return;
         }
         rewind_conditionals(
@@ -1360,7 +1360,7 @@ pub unsafe fn ex_finally(eap: *mut exarg_T) {
         let skip = ((*cstack).cs_flags[cur_idx] & CSF_TRUE) == 0;
 
         if !skip {
-            if dbg_check_skipped(eap.cast()) {
+            if dbg_check_skipped(eap) {
                 do_intthrow(cstack);
             }
 
@@ -1403,12 +1403,12 @@ pub unsafe fn ex_finally(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_endtry(eap: *mut exarg_T) {
+pub unsafe fn ex_endtry(eap: &mut exarg_T) {
     unsafe {
         let mut rethrow = false;
         let mut pending: c_int = CSTP_NONE;
         let mut rettv: Option<typval_T> = None;
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
 
         let mut idx = (*cstack).cs_idx;
         while idx >= 0 {
@@ -1418,7 +1418,7 @@ pub unsafe fn ex_endtry(eap: *mut exarg_T) {
             idx -= 1;
         }
         if (*cstack).cs_trylevel <= 0 || idx < 0 {
-            (*eap).errmsg = gettext(c"E602: :endtry without :try".as_ptr());
+            eap.errmsg = gettext(c"E602: :endtry without :try".as_ptr());
             return;
         }
 
@@ -1428,7 +1428,7 @@ pub unsafe fn ex_endtry(eap: *mut exarg_T) {
             || ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRUE) == 0;
 
         if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_TRY) == 0 {
-            (*eap).errmsg = get_end_emsg(cstack);
+            eap.errmsg = get_end_emsg(cstack);
             rewind_conditionals(
                 cstack,
                 idx,
@@ -1457,7 +1457,7 @@ pub unsafe fn ex_endtry(eap: *mut exarg_T) {
             || (!skip
                 && ((*cstack).cs_flags[u_idx] & CSF_FINALLY) == 0
                 && (*cstack).cs_pending[u_idx] == 0))
-            && dbg_check_skipped(eap.cast())
+            && dbg_check_skipped(eap)
             && g_st().got_int
         {
             skip = true;
@@ -1728,7 +1728,7 @@ pub unsafe fn rewind_conditionals(
     }
 }
 
-pub unsafe fn ex_endfunction(_eap: *mut exarg_T) {
+pub unsafe fn ex_endfunction(_eap: &mut exarg_T) {
     unsafe {
         semsg!(
             gettext(e_str_not_inside_function.as_ptr()),

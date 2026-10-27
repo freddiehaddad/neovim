@@ -2320,11 +2320,11 @@ pub unsafe fn nlua_is_deferred_safe() -> bool {
     unsafe { nlua_st().IN_FAST_CALLBACK == 0 }
 }
 
-pub unsafe fn ex_lua(eap: *mut exarg_T) {
+pub unsafe fn ex_lua(eap: &mut exarg_T) {
     unsafe {
-        if *(*eap).arg == NUL {
-            if (*eap).addr_count > 0 {
-                cmd_source_buffer(eap.cast(), true);
+        if *eap.arg == NUL {
+            if eap.addr_count > 0 {
+                cmd_source_buffer(eap, true);
             } else {
                 emsg(gettext((&raw const e_argreq).cast()));
             }
@@ -2336,12 +2336,12 @@ pub unsafe fn ex_lua(eap: *mut exarg_T) {
         let Some(raw_cstr) = raw_code else {
             return;
         };
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             return;
         }
 
-        let code_cstr = if (*eap).cmdidx == CMD_equal || *raw_cstr.as_ptr() == b'=' as c_char {
-            let off: usize = if (*eap).cmdidx == CMD_equal { 0 } else { 1 };
+        let code_cstr = if eap.cmdidx == CMD_equal || *raw_cstr.as_ptr() == b'=' as c_char {
+            let off: usize = if eap.cmdidx == CMD_equal { 0 } else { 1 };
             let body =
                 std::slice::from_raw_parts(raw_cstr.as_ptr().add(off).cast::<u8>(), len - off);
             let mut buf = Vec::with_capacity(18 + body.len());
@@ -2366,13 +2366,13 @@ pub unsafe fn ex_lua(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_luado(eap: *mut exarg_T) {
+pub unsafe fn ex_luado(eap: &mut exarg_T) {
     unsafe {
-        if u_save((*eap).line1 - 1, (*eap).line2 + 1) == FAIL {
+        if u_save(eap.line1 - 1, eap.line2 + 1) == FAIL {
             emsg(gettext(c"cannot save undo information".as_ptr()));
             return;
         }
-        let cmd = (*eap).arg;
+        let cmd = eap.arg;
         let cmd_len = CStr::from_ptr(cmd).to_bytes().len();
         let lstate = nlua_st().GLOBAL_LSTATE;
 
@@ -2411,7 +2411,7 @@ pub unsafe fn ex_luado(eap: *mut exarg_T) {
         }
 
         let was_curbuf = g_st().curbuf;
-        for l in (*eap).line1..=(*eap).line2 {
+        for l in eap.line1..=eap.line2 {
             if l > (*g_st().curbuf).b_ml.ml_line_count {
                 break;
             }
@@ -2459,9 +2459,9 @@ pub unsafe fn ex_luado(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_luafile(eap: *mut exarg_T) {
+pub unsafe fn ex_luafile(eap: &mut exarg_T) {
     unsafe {
-        let _ = nlua_exec_file((*eap).arg);
+        let _ = nlua_exec_file(eap.arg);
     }
 }
 

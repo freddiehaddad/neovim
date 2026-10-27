@@ -647,10 +647,10 @@ unsafe fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_i
 }
 
 /// ":runtime [where] {name}"
-pub unsafe fn ex_runtime(eap: *mut exarg_T) {
+pub unsafe fn ex_runtime(eap: &mut exarg_T) {
     unsafe {
-        let mut arg = (*eap).arg;
-        let mut flags = if (*eap).forceit != 0 { DIP_ALL } else { 0 };
+        let mut arg = eap.arg;
+        let mut flags = if eap.forceit != 0 { DIP_ALL } else { 0 };
         let p = skiptowhite(arg);
         flags += get_runtime_cmd_flags(&mut arg, (p as usize) - (arg as usize));
         debug_assert!(!arg.is_null());
@@ -1831,9 +1831,9 @@ pub unsafe fn load_start_packages() {
 }
 
 /// ":packloadall"
-pub unsafe fn ex_packloadall(eap: *mut exarg_T) {
+pub unsafe fn ex_packloadall(eap: &mut exarg_T) {
     unsafe {
-        if !g_st().did_source_packages || (*eap).forceit != 0 {
+        if !g_st().did_source_packages || eap.forceit != 0 {
             add_pack_start_dirs();
             load_start_packages();
         }
@@ -1877,13 +1877,13 @@ pub unsafe fn load_plugins() {
 }
 
 /// ":packadd[!] {name}"
-pub unsafe fn ex_packadd(eap: *mut exarg_T) {
+pub unsafe fn ex_packadd(eap: &mut exarg_T) {
     unsafe {
         let mut res = OK;
-        let len = 11 + CStr::from_ptr((*eap).arg).to_bytes().len() + 5;
+        let len = 11 + CStr::from_ptr(eap.arg).to_bytes().len() + 5;
         let mut pat_vec = vec![0 as c_char; len];
         let pat = pat_vec.as_mut_ptr();
-        let action = if (*eap).forceit != 0 {
+        let action = if eap.forceit != 0 {
             PackAddAction::AddDir
         } else {
             PackAddAction::Both
@@ -1895,7 +1895,7 @@ pub unsafe fn ex_packadd(eap: *mut exarg_T) {
                 len,
                 c"pack/*/%s/%s".as_ptr(),
                 c"start".as_ptr(),
-                (*eap).arg,
+                eap.arg,
             );
             res = do_in_path(
                 opt_vars().p_pp,
@@ -1911,7 +1911,7 @@ pub unsafe fn ex_packadd(eap: *mut exarg_T) {
             len,
             c"pack/*/%s/%s".as_ptr(),
             c"opt".as_ptr(),
-            (*eap).arg,
+            eap.arg,
         );
         do_in_path(
             opt_vars().p_pp,
@@ -2560,14 +2560,14 @@ unsafe fn cmd_source(fname: *mut c_char, eap: *mut exarg_T) {
 }
 
 /// ":source [{fname}]"
-pub unsafe fn ex_source(eap: *mut exarg_T) {
+pub unsafe fn ex_source(eap: &mut exarg_T) {
     unsafe {
-        cmd_source((*eap).arg, eap);
+        cmd_source(eap.arg, eap);
     }
 }
 
 /// ":options"
-pub unsafe fn ex_options(_eap: *mut exarg_T) {
+pub unsafe fn ex_options(_eap: &mut exarg_T) {
     unsafe {
         let mut buf = [0 as c_char; 500];
         let mut multi_mods = false;
@@ -3162,20 +3162,20 @@ pub unsafe fn find_script_by_name(name: *mut c_char) -> c_int {
 }
 
 /// ":scriptnames"
-pub unsafe fn ex_scriptnames(eap: *mut exarg_T) {
+pub unsafe fn ex_scriptnames(eap: &mut exarg_T) {
     unsafe {
         let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
         let iobuff = (&raw mut g_st().IObuff).cast::<c_char>();
-        if (*eap).addr_count > 0 || *(*eap).arg != NUL {
-            if (*eap).addr_count > 0 && !script_id_valid((*eap).line2) {
+        if eap.addr_count > 0 || *eap.arg != NUL {
+            if eap.addr_count > 0 && !script_id_valid(eap.line2) {
                 emsg(gettext(e_invarg.as_ptr()));
             } else {
-                if (*eap).addr_count > 0 {
-                    (*eap).arg = (*script_item((*eap).line2)).name_ptr();
+                if eap.addr_count > 0 {
+                    eap.arg = (*script_item(eap.line2)).name_ptr();
                 } else {
-                    expand_env((*eap).arg, namebuff, MAXPATHL as c_int);
-                    (*eap).arg = namebuff;
-                    to_slash((*eap).arg);
+                    expand_env(eap.arg, namebuff, MAXPATHL as c_int);
+                    eap.arg = namebuff;
+                    to_slash(eap.arg);
                 }
                 do_exedit(eap, ptr::null_mut());
             }
@@ -3595,9 +3595,9 @@ pub unsafe fn sourcing_a_script(eap: *mut exarg_T) -> c_int {
 }
 
 /// ":scriptencoding": Set encoding conversion for a sourced script.
-pub unsafe fn ex_scriptencoding(eap: *mut exarg_T) {
+pub unsafe fn ex_scriptencoding(eap: &mut exarg_T) {
     unsafe {
-        let Some(sp) = (*eap).ea_getline.as_source() else {
+        let Some(sp) = eap.ea_getline.as_source() else {
             emsg(gettext(
                 c"E167: :scriptencoding used outside of a sourced file".as_ptr(),
             ));
@@ -3605,11 +3605,11 @@ pub unsafe fn ex_scriptencoding(eap: *mut exarg_T) {
         };
 
         let name_owned: Option<std::ffi::CString>;
-        let name = if *(*eap).arg != NUL {
-            name_owned = Some(enc_canonize((*eap).arg));
+        let name = if *eap.arg != NUL {
+            name_owned = Some(enc_canonize(eap.arg));
             name_owned.as_ref().unwrap().as_ptr().cast_mut()
         } else {
-            (*eap).arg
+            eap.arg
         };
 
         convert_setup(&mut (*sp).conv, name, opt_vars().p_enc);
@@ -3617,7 +3617,7 @@ pub unsafe fn ex_scriptencoding(eap: *mut exarg_T) {
 }
 
 /// ":finish": Mark a sourced file as finished.
-pub unsafe fn ex_finish(eap: *mut exarg_T) {
+pub unsafe fn ex_finish(eap: &mut exarg_T) {
     unsafe {
         if sourcing_a_script(eap) != 0 {
             do_finish(eap, false);

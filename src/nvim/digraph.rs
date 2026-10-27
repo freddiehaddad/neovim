@@ -2149,11 +2149,11 @@ pub unsafe fn keymap_init() -> *mut c_char {
 }
 
 /// `:loadkeymap` command: load the following lines as the keymap (`ex_loadkeymap`).
-pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
+pub unsafe fn ex_loadkeymap(eap: &mut exarg_T) {
     unsafe {
         let mut buf = [0 as c_char; KMAP_LLEN + 11];
         let save_cpo = opt_vars().p_cpo;
-        let fgetline: LineGetter = (*eap).ea_getline;
+        let fgetline: LineGetter = eap.ea_getline;
 
         if !fgetline.is_source() {
             emsg(gettext(
@@ -2162,7 +2162,7 @@ pub unsafe fn ex_loadkeymap(eap: *mut exarg_T) {
             return;
         }
 
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             while fgetline.call(0, 0, true).is_some() {}
             return;
         }

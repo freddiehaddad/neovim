@@ -47,7 +47,7 @@ use crate::ex_cmds::{
 use crate::ex_cmds2::autowrite;
 use crate::ex_docmd::{
     ACTION_GOTO, ACTION_SHOW, ACTION_SHOW_ALL, DOCMD_KEEPLINE, DT_POP, FIND_ANY, FIND_DEFINE,
-    SEARCH_MSG, do_cmdline, do_cmdline_cmd, do_sleep, exarg_T, update_topline_cursor,
+    SEARCH_MSG, do_cmdline, do_cmdline_cmd, do_sleep, update_topline_cursor,
 };
 use crate::ex_eval::discard_current_exception;
 use crate::ex_getln::{
@@ -2500,7 +2500,7 @@ unsafe fn normal_check(s: *mut NormalState) -> c_int {
             normal_check_safe_state(s);
 
             if (*g_st().curtab).tp_diff_update != 0 || (*g_st().curtab).tp_diff_invalid != 0 {
-                ex_diffupdate(ptr::null_mut());
+                ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
                 (*g_st().curtab).tp_diff_update = 0;
             }
 
@@ -3277,7 +3277,7 @@ unsafe fn nv_error(cap: &mut cmdarg_T) {
 unsafe fn nv_help(cap: &mut cmdarg_T) {
     unsafe {
         if !checkclearopq(cap.oap) {
-            ex_help(ptr::null_mut());
+            ex_help(&mut crate::ex_docmd::exarg_T::new());
         }
     }
 }
@@ -6764,7 +6764,7 @@ unsafe fn nv_g_cmd(cap: &mut cmdarg_T) {
                 do_sleep(i64::from(cap.count1) * 1000, false);
             }
             c if c == b'a' as c_int => {
-                do_ascii(ptr::null_mut::<exarg_T>());
+                do_ascii(&mut crate::ex_docmd::exarg_T::new());
             }
             c if c == b'8' as c_int => {
                 if cap.count0 == 8 {

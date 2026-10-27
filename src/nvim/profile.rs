@@ -382,9 +382,9 @@ pub unsafe fn profile_reset() {
 }
 
 /// `":profile cmd args"` (`ex_profile`).
-pub unsafe fn ex_profile(eap: *mut exarg_T) {
+pub unsafe fn ex_profile(eap: &mut exarg_T) {
     unsafe {
-        let arg = (*eap).arg;
+        let arg = eap.arg;
         let mut e = skiptowhite(arg);
         let len = (e as usize) - (arg as usize);
         e = skipwhite(e);
@@ -417,7 +417,7 @@ pub unsafe fn ex_profile(eap: *mut exarg_T) {
         } else if arg_bytes == b"dump" {
             profile_dump();
         } else {
-            ex_breakadd(eap.cast::<exarg_T>());
+            ex_breakadd(eap);
         }
     }
 }

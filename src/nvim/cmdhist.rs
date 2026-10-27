@@ -621,13 +621,13 @@ pub unsafe fn f_histnr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
 }
 
 /// `:history` command (`ex_history`).
-pub unsafe fn ex_history(eap: *mut exarg_T) {
+pub unsafe fn ex_history(eap: &mut exarg_T) {
     unsafe {
         let mut histype1 = HIST_CMD;
         let mut histype2 = HIST_CMD;
         let mut hisidx1: c_int = 1;
         let mut hisidx2: c_int = -1;
-        let arg = (*eap).arg;
+        let arg = eap.arg;
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
         let hislen = hist_st().HISLEN;

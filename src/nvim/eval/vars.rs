@@ -1217,10 +1217,10 @@ pub unsafe fn heredoc_get(
 }
 
 /// ":let" and ":const" commands.
-pub unsafe fn ex_let(eap: *mut exarg_T) {
+pub unsafe fn ex_let(eap: &mut exarg_T) {
     unsafe {
-        let is_const = (*eap).cmdidx == cmdidx_T::CMD_const as c_int;
-        let mut arg = (*eap).arg;
+        let is_const = eap.cmdidx == cmdidx_T::CMD_const as c_int;
+        let mut arg = eap.arg;
         let mut rettv: typval_T = typval_T::new();
         let mut var_count: c_int = 0;
         let mut semicolon: c_int = 0;
@@ -1241,7 +1241,7 @@ pub unsafe fn ex_let(eap: *mut exarg_T) {
                 emsg(gettext(e_invarg.as_ptr()));
             } else if ends_excmd(*arg as c_int) == 0 {
                 arg = list_arg_vars(eap, arg, &raw mut first).cast_mut();
-            } else if (*eap).skip == 0 {
+            } else if eap.skip == 0 {
                 list_glob_vars(&raw mut first);
                 list_buf_vars(&raw mut first);
                 list_win_vars(&raw mut first);
@@ -1250,7 +1250,7 @@ pub unsafe fn ex_let(eap: *mut exarg_T) {
                 list_func_vars(&raw mut first);
                 list_vim_vars(&raw mut first);
             }
-            (*eap).nextcmd = check_nextcmd(arg);
+            eap.nextcmd = check_nextcmd(arg);
             return;
         }
 
@@ -1261,11 +1261,11 @@ pub unsafe fn ex_let(eap: *mut exarg_T) {
             let l = heredoc_get(eap, expr.add(3), false);
             if !l.is_null() {
                 tv_list_set_ret(&raw mut rettv, l);
-                if (*eap).skip == 0 {
+                if eap.skip == 0 {
                     op[0] = b'=' as c_char;
                     op[1] = NUL;
                     ex_let_vars(
-                        (*eap).arg,
+                        eap.arg,
                         &raw mut rettv,
                         0,
                         semicolon,
@@ -1297,20 +1297,20 @@ pub unsafe fn ex_let(eap: *mut exarg_T) {
 
         expr = skipwhite(expr);
 
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             g_st().emsg_skip += 1;
         }
         let mut evalarg = evalarg_T::new();
-        fill_evalarg_from_eap(&raw mut evalarg, eap, (*eap).skip != 0);
+        fill_evalarg_from_eap(&raw mut evalarg, eap, eap.skip != 0);
         let eval_res = eval0(expr, &raw mut rettv, eap, &raw mut evalarg);
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             g_st().emsg_skip -= 1;
         }
         clear_evalarg(&raw mut evalarg, eap);
 
-        if (*eap).skip == 0 && eval_res != FAIL {
+        if eap.skip == 0 && eval_res != FAIL {
             ex_let_vars(
-                (*eap).arg,
+                eap.arg,
                 &raw mut rettv,
                 0,
                 semicolon,
@@ -1944,25 +1944,25 @@ unsafe fn ex_let_one(
 }
 
 /// ":unlet[!] var1 ... " command.
-pub unsafe fn ex_unlet(eap: *mut exarg_T) {
+pub unsafe fn ex_unlet(eap: &mut exarg_T) {
     unsafe {
         ex_unletlock(
             eap,
-            (*eap).arg,
+            eap.arg,
             0,
-            if (*eap).forceit != 0 { GLV_QUIET } else { 0 },
+            if eap.forceit != 0 { GLV_QUIET } else { 0 },
             do_unlet_var,
         );
     }
 }
 
 /// ":lockvar" and ":unlockvar" commands.
-pub unsafe fn ex_lockvar(eap: *mut exarg_T) {
+pub unsafe fn ex_lockvar(eap: &mut exarg_T) {
     unsafe {
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
         let mut deep: c_int = 2;
 
-        if (*eap).forceit != 0 {
+        if eap.forceit != 0 {
             deep = -1;
         } else if ascii_isdigit(*arg as c_int) {
             deep = getdigits_int(&raw mut arg, false, -1);

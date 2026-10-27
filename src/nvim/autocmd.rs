@@ -2526,11 +2526,11 @@ pub unsafe fn do_doautocmd(
     }
 }
 
-pub unsafe fn ex_doautoall(eap: *mut exarg_T) {
+pub unsafe fn ex_doautoall(eap: &mut exarg_T) {
     unsafe {
         let mut retval = OK;
         let mut aco: CtxSwitch = CtxSwitch::new();
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
         let call_do_modelines = check_nomodeline(&raw mut arg);
         let mut bufref: bufref_T = bufref_T::new();
         let mut did_aucmd = false;

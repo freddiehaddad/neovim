@@ -2927,7 +2927,7 @@ unsafe fn get_function_body(
 }
 
 /// `:function`
-pub unsafe fn ex_function(eap: *mut exarg_T) {
+pub unsafe fn ex_function(eap: &mut exarg_T) {
     unsafe {
         let mut line_arg: *mut c_char = ptr::null_mut();
         let mut newargs: Vec<std::ffi::CString> = Vec::new();
@@ -2942,35 +2942,35 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
         let mut ht: *mut hashtab_T = ptr::null_mut();
         let mut show_block = false;
 
-        if ends_excmd(*(*eap).arg as c_int) != 0 {
-            if (*eap).skip == 0 {
+        if ends_excmd(*eap.arg as c_int) != 0 {
+            if eap.skip == 0 {
                 list_functions(ptr::null_mut());
             }
-            (*eap).nextcmd = check_nextcmd((*eap).arg);
+            eap.nextcmd = check_nextcmd(eap.arg);
             return;
         }
 
-        if *(*eap).arg == b'/' as c_char {
+        if *eap.arg == b'/' as c_char {
             let p = list_functions_matching_pat(eap);
-            (*eap).nextcmd = check_nextcmd(p);
+            eap.nextcmd = check_nextcmd(p);
             return;
         }
 
-        let mut p = (*eap).arg;
+        let mut p = eap.arg;
         let mut name_owned =
-            save_function_name(&raw mut p, (*eap).skip != 0, TFN_NO_AUTOLOAD, &raw mut fudi);
+            save_function_name(&raw mut p, eap.skip != 0, TFN_NO_AUTOLOAD, &raw mut fudi);
         let mut name = name_owned
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         let paren = !vim_strchr(p, b'(' as c_int).is_null();
-        if name.is_null() && (fudi.fd_dict.is_null() || !paren) && (*eap).skip == 0 {
+        if name.is_null() && (fudi.fd_dict.is_null() || !paren) && eap.skip == 0 {
             if !aborting() {
                 if let Some(ref newkey) = fudi.fd_newkey {
                     semsg!(gettext(e_dictkey.as_ptr()), newkey.as_ptr());
                 }
                 return;
             }
-            (*eap).skip = 1;
+            eap.skip = 1;
         }
 
         let saved_did_emsg = g_st().did_emsg;
@@ -3017,8 +3017,8 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         p = skipwhite(p);
         if *p != b'(' as c_char {
-            if (*eap).skip == 0 {
-                semsg!(gettext(c"E124: Missing '(': %s".as_ptr()), (*eap).arg);
+            if eap.skip == 0 {
+                semsg!(gettext(c"E124: Missing '(': %s".as_ptr()), eap.arg);
                 ret_free!();
             }
             let open_paren = vim_strchr(p, b'(' as c_int);
@@ -3028,7 +3028,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
         }
         p = skipwhite(p.add(1));
 
-        if (*eap).skip == 0 {
+        if eap.skip == 0 {
             let fudi_newkey_ptr = fudi
                 .fd_newkey
                 .as_ref()
@@ -3077,7 +3077,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
             Some(&mut newargs),
             &raw mut varargs,
             Some(&mut default_args),
-            (*eap).skip != 0,
+            eap.skip != 0,
         ) == FAIL
         {
             errret_2!();
@@ -3085,7 +3085,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         if g_st().KeyTyped && ui_has(kUICmdline) {
             show_block = true;
-            ui_ext_cmdline_block_append(0, (*eap).cmd);
+            ui_ext_cmdline_block_append(0, eap.cmd);
         }
 
         loop {
@@ -3116,12 +3116,12 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         if *p == b'\n' as c_char {
             line_arg = p.add(1);
-        } else if *p != NUL && *p != b'"' as c_char && (*eap).skip == 0 && g_st().did_emsg == 0 {
+        } else if *p != NUL && *p != b'"' as c_char && eap.skip == 0 && g_st().did_emsg == 0 {
             semsg!(gettext(e_trailing_arg.as_ptr()), p);
         }
 
         if g_st().KeyTyped {
-            if (*eap).skip == 0 && (*eap).forceit == 0 {
+            if eap.skip == 0 && eap.forceit == 0 {
                 if !fudi.fd_dict.is_null() && fudi.fd_newkey.is_none() {
                     emsg(gettext(E_FUNCDICT.as_ptr()));
                 } else if !name.is_null() && !find_func(name).is_null() {
@@ -3129,7 +3129,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                 }
             }
 
-            if (*eap).skip == 0 && g_st().did_emsg != 0 {
+            if eap.skip == 0 && g_st().did_emsg != 0 {
                 erret!();
             }
 
@@ -3142,7 +3142,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
         let sourcing_lnum_top = sourcing_lnum();
 
         if get_function_body(eap, &mut newlines, line_arg, show_block) == FAIL
-            || (*eap).skip != 0
+            || eap.skip != 0
         {
             erret!();
         }
@@ -3160,7 +3160,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
             fp = find_func(name);
             if !fp.is_null() {
-                if (*eap).forceit == 0
+                if eap.forceit == 0
                     && ((*fp).uf_script_ctx.sc_sid != g_st().current_sctx.sc_sid
                         || (*fp).uf_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
                 {
@@ -3193,15 +3193,15 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
             let mut numbuf = [0 as c_char; NUMBUFLEN];
 
             fp = ptr::null_mut();
-            if fudi.fd_newkey.is_none() && (*eap).forceit == 0 {
+            if fudi.fd_newkey.is_none() && eap.forceit == 0 {
                 emsg(gettext(E_FUNCDICT.as_ptr()));
                 erret!();
             }
             if fudi.fd_di.is_null() {
-                if value_check_lock((*fudi.fd_dict).dv_lock, (*eap).arg, TV_CSTRING) {
+                if value_check_lock((*fudi.fd_dict).dv_lock, eap.arg, TV_CSTRING) {
                     erret!();
                 }
-            } else if value_check_lock((*fudi.fd_di).di_tv.v_lock, (*eap).arg, TV_CSTRING) {
+            } else if value_check_lock((*fudi.fd_di).di_tv.v_lock, eap.arg, TV_CSTRING) {
                 erret!();
             }
 
@@ -3398,21 +3398,21 @@ pub unsafe fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// `:delfunction {name}`
-pub unsafe fn ex_delfunction(eap: *mut exarg_T) {
+pub unsafe fn ex_delfunction(eap: &mut exarg_T) {
     unsafe {
         let mut fp: *mut ufunc_T = ptr::null_mut();
         let mut fudi = funcdict_T::new();
 
-        let mut p = (*eap).arg;
+        let mut p = eap.arg;
         let name_owned = trans_function_name(
             &raw mut p,
-            (*eap).skip != 0,
+            eap.skip != 0,
             0,
             &raw mut fudi,
             ptr::null_mut(),
         );
         let Some(ref name_cstr) = name_owned else {
-            if !fudi.fd_dict.is_null() && (*eap).skip == 0 {
+            if !fudi.fd_dict.is_null() && eap.skip == 0 {
                 emsg(gettext(E_FUNCREF.as_ptr()));
             }
             return;
@@ -3422,40 +3422,40 @@ pub unsafe fn ex_delfunction(eap: *mut exarg_T) {
             semsg!(gettext(e_trailing_arg.as_ptr()), p);
             return;
         }
-        (*eap).nextcmd = check_nextcmd(p);
-        if !(*eap).nextcmd.is_null() {
+        eap.nextcmd = check_nextcmd(p);
+        if !eap.nextcmd.is_null() {
             *p = NUL;
         }
 
         if (*name as u8).is_ascii_digit() && fudi.fd_dict.is_null() {
-            if (*eap).skip == 0 {
-                semsg!(gettext(e_invarg2.as_ptr()), (*eap).arg);
+            if eap.skip == 0 {
+                semsg!(gettext(e_invarg2.as_ptr()), eap.arg);
             }
             return;
         }
-        if (*eap).skip == 0 {
+        if eap.skip == 0 {
             fp = find_func(name);
         }
         drop(name_owned);
 
-        if (*eap).skip == 0 {
+        if eap.skip == 0 {
             if fp.is_null() {
-                if (*eap).forceit == 0 {
-                    semsg!(gettext(E_NOFUNC.as_ptr()), (*eap).arg);
+                if eap.forceit == 0 {
+                    semsg!(gettext(E_NOFUNC.as_ptr()), eap.arg);
                 }
                 return;
             }
             if (*fp).uf_calls > 0 {
                 semsg!(
                     gettext(c"E131: Cannot delete function %s: It is in use".as_ptr()),
-                    (*eap).arg,
+                    eap.arg,
                 );
                 return;
             }
             if (*fp).uf_refcount > 2 {
                 semsg!(
                     gettext(c"Cannot delete function %s: It is being used internally".as_ptr()),
-                    (*eap).arg,
+                    eap.arg,
                 );
                 return;
             }
@@ -3551,9 +3551,9 @@ unsafe fn can_free_funccal(fc: *const funccall_T, copyID: c_int) -> bool {
 }
 
 /// `:return [expr]`
-pub unsafe fn ex_return(eap: *mut exarg_T) {
+pub unsafe fn ex_return(eap: &mut exarg_T) {
     unsafe {
-        let arg = (*eap).arg;
+        let arg = eap.arg;
         let mut rettv: typval_T = typval_T::new();
         let mut returning = false;
 
@@ -3563,23 +3563,23 @@ pub unsafe fn ex_return(eap: *mut exarg_T) {
         }
 
         let mut evalarg = evalarg_T {
-            eval_flags: if (*eap).skip != 0 { 0 } else { EVAL_EVALUATE },
+            eval_flags: if eap.skip != 0 { 0 } else { EVAL_EVALUATE },
         };
 
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             g_st().emsg_skip += 1;
         }
 
-        (*eap).nextcmd = ptr::null_mut();
+        eap.nextcmd = ptr::null_mut();
         if (*arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char)
             && eval0(arg, &raw mut rettv, eap, &raw mut evalarg) != FAIL
         {
-            if (*eap).skip == 0 {
+            if eap.skip == 0 {
                 returning = do_return(eap, false, true, Some(rettv));
             } else {
                 tv_clear(&raw mut rettv);
             }
-        } else if (*eap).skip == 0 {
+        } else if eap.skip == 0 {
             update_force_abort();
 
             if !aborting() {
@@ -3588,12 +3588,12 @@ pub unsafe fn ex_return(eap: *mut exarg_T) {
         }
 
         if returning {
-            (*eap).nextcmd = ptr::null_mut();
-        } else if (*eap).nextcmd.is_null() {
-            (*eap).nextcmd = check_nextcmd(arg);
+            eap.nextcmd = ptr::null_mut();
+        } else if eap.nextcmd.is_null() {
+            eap.nextcmd = check_nextcmd(arg);
         }
 
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             g_st().emsg_skip -= 1;
         }
         clear_evalarg(&raw mut evalarg, eap);
@@ -3601,7 +3601,7 @@ pub unsafe fn ex_return(eap: *mut exarg_T) {
 }
 
 unsafe fn ex_call_inner(
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     name: *mut c_char,
     arg: *mut *mut c_char,
     startarg: *mut c_char,
@@ -3611,8 +3611,8 @@ unsafe fn ex_call_inner(
     unsafe {
         let mut failed = false;
 
-        for lnum in (*eap).line1..=(*eap).line2 {
-            if (*eap).addr_count > 0 {
+        for lnum in eap.line1..=eap.line2 {
+            if eap.addr_count > 0 {
                 if lnum > (*g_st().curbuf).b_ml.ml_line_count {
                     emsg(gettext(e_invrange.as_ptr()));
                     break;
@@ -3831,18 +3831,18 @@ pub unsafe fn invoke_all_defer() {
 }
 
 /// `:1,25call func(arg1, arg2)` or `:defer func(arg1, arg2)`.
-pub unsafe fn ex_call(eap: *mut exarg_T) {
+pub unsafe fn ex_call(eap: &mut exarg_T) {
     unsafe {
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
         let mut fudi = funcdict_T::new();
         let mut partial: *mut partial_T = ptr::null_mut();
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&raw mut evalarg, eap, (*eap).skip != 0);
-        if (*eap).skip != 0 {
+        fill_evalarg_from_eap(&raw mut evalarg, eap, eap.skip != 0);
+        if eap.skip != 0 {
             let mut rettv: typval_T = typval_T::new();
             g_st().emsg_skip += 1;
-            if eval0((*eap).arg, &raw mut rettv, eap, &raw mut evalarg) != FAIL {
+            if eval0(eap.arg, &raw mut rettv, eap, &raw mut evalarg) != FAIL {
                 tv_clear(&raw mut rettv);
             }
             g_st().emsg_skip -= 1;
@@ -3886,20 +3886,20 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
         let startarg = skipwhite(arg);
 
         if *startarg != b'(' as c_char {
-            semsg!(gettext(e_missingparen.as_ptr()), (*eap).arg);
+            semsg!(gettext(e_missingparen.as_ptr()), eap.arg);
             tv_dict_unref(fudi.fd_dict);
             return;
         }
 
-        let failed = if (*eap).cmdidx == cmdidx_T::CMD_defer as c_int {
+        let failed = if eap.cmdidx == cmdidx_T::CMD_defer as c_int {
             arg = startarg;
             ex_defer_inner(name, &raw mut arg, partial, &raw mut evalarg) == FAIL
         } else {
             let mut funcexe = funcexe_T::new();
             funcexe.fe_partial = partial;
             funcexe.fe_selfdict = fudi.fd_dict;
-            funcexe.fe_firstline = (*eap).line1;
-            funcexe.fe_lastline = (*eap).line2;
+            funcexe.fe_firstline = eap.line1;
+            funcexe.fe_lastline = eap.line2;
             funcexe.fe_found_var = found_var;
             funcexe.fe_evaluate = true;
             ex_call_inner(
@@ -3913,7 +3913,7 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
         };
 
         if (!aborting() || g_st().did_throw)
-            && (!failed || (*(*eap).cstack.cast::<cstack_T>()).cs_trylevel > 0)
+            && (!failed || (*eap.cstack.cast::<cstack_T>()).cs_trylevel > 0)
         {
             if ends_excmd(*arg as c_int) == 0 {
                 if !failed && !aborting() {
@@ -3921,7 +3921,7 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
                     semsg!(gettext(e_trailing_arg.as_ptr()), arg);
                 }
             } else {
-                (*eap).nextcmd = check_nextcmd(arg);
+                eap.nextcmd = check_nextcmd(arg);
             }
         }
         clear_evalarg(&raw mut evalarg, eap);
@@ -3933,13 +3933,13 @@ pub unsafe fn ex_call(eap: *mut exarg_T) {
 
 /// Return from a function. Possibly makes the return pending.
 pub unsafe fn do_return(
-    eap: *mut exarg_T,
+    eap: &mut exarg_T,
     reanimate: bool,
     _is_cmd: bool,
     mut rettv: Option<typval_T>,
 ) -> bool {
     unsafe {
-        let cstack = (*eap).cstack.cast::<cstack_T>();
+        let cstack = eap.cstack.cast::<cstack_T>();
 
         if reanimate {
             (*uf_st().current_funccal).fc_returned = 0;

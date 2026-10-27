@@ -6610,9 +6610,9 @@ pub unsafe fn var_item_copy(
 }
 
 /// ":echo expr1 ..." and ":echon expr1 ..."
-pub unsafe fn ex_echo(eap: *mut exarg_T) {
+pub unsafe fn ex_echo(eap: &mut exarg_T) {
     unsafe {
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
         let mut rettv = tv_initial_value();
         let mut atstart = true;
         let mut need_clear = true;
@@ -6620,9 +6620,9 @@ pub unsafe fn ex_echo(eap: *mut exarg_T) {
         let called_emsg_before = g_st().called_emsg;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&raw mut evalarg, eap, (*eap).skip != 0);
+        fill_evalarg_from_eap(&raw mut evalarg, eap, eap.skip != 0);
 
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             g_st().emsg_skip += 1;
         }
         while *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char && !g_st().got_int {
@@ -6643,19 +6643,19 @@ pub unsafe fn ex_echo(eap: *mut exarg_T) {
                 g_st().need_clr_eos = false;
             }
 
-            if (*eap).skip == 0 {
+            if eap.skip == 0 {
                 if atstart {
                     atstart = false;
-                    msg_ext_set_append((*eap).cmdidx == cmdidx_T::CMD_echon as c_int);
+                    msg_ext_set_append(eap.cmdidx == cmdidx_T::CMD_echon as c_int);
                     msg_ext_no_fast();
                     msg_ext_set_kind(c"echo".as_ptr());
-                    if (*eap).cmdidx == cmdidx_T::CMD_echo as c_int {
+                    if eap.cmdidx == cmdidx_T::CMD_echo as c_int {
                         if !g_st().msg_didout {
                             msg_sb_eol();
                         }
                         msg_start();
                     }
-                } else if (*eap).cmdidx == cmdidx_T::CMD_echo as c_int {
+                } else if eap.cmdidx == cmdidx_T::CMD_echo as c_int {
                     msg_puts_hl(c" ".as_ptr(), eval_st().echo_hl_id, false);
                 }
                 let tofree = encode_tv2echo(&raw mut rettv, ptr::null_mut());
@@ -6670,23 +6670,23 @@ pub unsafe fn ex_echo(eap: *mut exarg_T) {
             tv_clear(&raw mut rettv);
             arg = skipwhite(arg);
         }
-        (*eap).nextcmd = check_nextcmd(arg);
+        eap.nextcmd = check_nextcmd(arg);
         clear_evalarg(&raw mut evalarg, eap);
         msg_ext_set_append(false);
 
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             g_st().emsg_skip -= 1;
         } else {
             if ui_has(kUIMessages)
-                && (*(*eap).arg == NUL
-                    || *(*eap).arg == b'|' as c_char
-                    || *(*eap).arg == b'\n' as c_char)
+                && (*eap.arg == NUL
+                    || *eap.arg == b'|' as c_char
+                    || *eap.arg == b'\n' as c_char)
             {
                 msg_puts_len(c"".as_ptr(), 0, 0, false);
             } else if need_clear {
                 msg_clr_eos();
             }
-            if (*eap).cmdidx == cmdidx_T::CMD_echo as c_int {
+            if eap.cmdidx == cmdidx_T::CMD_echo as c_int {
                 msg_end();
             }
         }
@@ -6694,9 +6694,9 @@ pub unsafe fn ex_echo(eap: *mut exarg_T) {
 }
 
 /// ":echohl {name}".
-pub unsafe fn ex_echohl(eap: *mut exarg_T) {
+pub unsafe fn ex_echohl(eap: &mut exarg_T) {
     unsafe {
-        eval_st().echo_hl_id = syn_name2id((*eap).arg);
+        eval_st().echo_hl_id = syn_name2id(eap.arg);
     }
 }
 
@@ -6706,15 +6706,15 @@ pub unsafe fn get_echo_hl_id() -> c_int {
 }
 
 /// ":execute", ":echomsg", ":echoerr"
-pub unsafe fn ex_execute(eap: *mut exarg_T) {
+pub unsafe fn ex_execute(eap: &mut exarg_T) {
     unsafe {
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
         let mut rettv = tv_initial_value();
         let mut ret = OK;
         let mut buf: Vec<c_char> = Vec::with_capacity(80);
         let mut has_arg = false;
 
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             g_st().emsg_skip += 1;
         }
         while *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
@@ -6723,9 +6723,9 @@ pub unsafe fn ex_execute(eap: *mut exarg_T) {
                 break;
             }
 
-            if (*eap).skip == 0 {
+            if eap.skip == 0 {
                 let mut argstr_owned: Option<std::ffi::CString> = None;
-                let argstr = if (*eap).cmdidx == cmdidx_T::CMD_execute as c_int {
+                let argstr = if eap.cmdidx == cmdidx_T::CMD_execute as c_int {
                     tv_get_string(&raw const rettv)
                 } else {
                     argstr_owned = Some(if rettv.v_type == VarType::VAR_STRING {
@@ -6752,31 +6752,31 @@ pub unsafe fn ex_execute(eap: *mut exarg_T) {
 
         if ret != FAIL && has_arg {
             buf.push(NUL);
-            if (*eap).cmdidx == cmdidx_T::CMD_echomsg as c_int {
+            if eap.cmdidx == cmdidx_T::CMD_echomsg as c_int {
                 msg_ext_no_fast();
                 msg_ext_set_kind(c"echomsg".as_ptr());
                 msg(buf.as_ptr(), eval_st().echo_hl_id);
-            } else if (*eap).cmdidx == cmdidx_T::CMD_echoerr as c_int {
+            } else if eap.cmdidx == cmdidx_T::CMD_echoerr as c_int {
                 let save_did_emsg = g_st().did_emsg;
                 msg_ext_no_fast();
                 emsg_multiline(buf.as_ptr(), c"echoerr".as_ptr(), HLF_E, true);
                 if !g_st().force_abort {
                     g_st().did_emsg = save_did_emsg;
                 }
-            } else if (*eap).cmdidx == cmdidx_T::CMD_execute as c_int {
+            } else if eap.cmdidx == cmdidx_T::CMD_execute as c_int {
                 do_cmdline(
                     buf.as_mut_ptr(),
-                    (*eap).ea_getline,
+                    eap.ea_getline,
                     DOCMD_NOWAIT | DOCMD_VERBOSE,
                 );
             }
         }
 
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             g_st().emsg_skip -= 1;
         }
 
-        (*eap).nextcmd = check_nextcmd(arg);
+        eap.nextcmd = check_nextcmd(arg);
     }
 }
 

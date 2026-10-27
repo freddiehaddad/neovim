@@ -2272,7 +2272,7 @@ pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bo
         need_cap
     }
 }
-pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
+pub unsafe fn ex_spellrepall(_eap: &mut exarg_T) {
     unsafe {
         let pos = (**curwin.as_ptr()).w_cursor;
         let save_ws = opt_vars().p_ws;
@@ -2778,7 +2778,7 @@ unsafe fn spell_soundfold_wsal(slang: *mut slang_T, inword: *const c_char, res: 
         *res.add(l) = NUL;
     }
 }
-pub unsafe fn ex_spellinfo(_eap: *mut exarg_T) {
+pub unsafe fn ex_spellinfo(_eap: &mut exarg_T) {
     unsafe {
         if no_spell_checking(*curwin.as_ptr()) {
             return;
@@ -2815,7 +2815,7 @@ pub unsafe fn ex_spellinfo(_eap: *mut exarg_T) {
         msg_end();
     }
 }
-pub unsafe fn ex_spelldump(eap: *mut exarg_T) {
+pub unsafe fn ex_spelldump(eap: &mut exarg_T) {
     unsafe {
         if no_spell_checking(*curwin.as_ptr()) {
             return;
@@ -2832,7 +2832,7 @@ pub unsafe fn ex_spelldump(eap: *mut exarg_T) {
             ptr::null_mut(),
             0,
             ptr::null_mut(),
-            if (*eap).forceit != 0 {
+            if eap.forceit != 0 {
                 DUMPFLAG_COUNT
             } else {
                 0

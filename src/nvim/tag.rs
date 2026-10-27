@@ -1119,7 +1119,7 @@ pub unsafe fn tag_freematch() {
 }
 
 /// Print the tag stack.
-pub unsafe fn do_tags(_eap: *mut exarg_T) {
+pub unsafe fn do_tags(_eap: &mut exarg_T) {
     unsafe {
         let tagstack: *mut taggy_T = (&raw mut (**curwin.as_ptr()).w_tagstack).cast::<taggy_T>();
         let tagstackidx = (**curwin.as_ptr()).w_tagstackidx;

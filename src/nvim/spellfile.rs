@@ -4641,10 +4641,10 @@ unsafe fn put_node(
 
 /// ":mkspell [-ascii] outfile  infile ..."
 /// ":mkspell [-ascii] addfile"
-pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
+pub unsafe fn ex_mkspell(eap: &mut exarg_T) {
     unsafe {
         let mut fnames: Vec<std::ffi::CString> = Vec::new();
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
         let mut ascii = false;
 
         if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"-ascii"[..6] } {
@@ -4656,7 +4656,7 @@ pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
             return;
         }
 
-        mkspell(&fnames, ascii, (*eap).forceit != 0, false);
+        mkspell(&fnames, ascii, eap.forceit != 0, false);
     }
 }
 
@@ -5211,25 +5211,25 @@ unsafe fn spell_message(spin: *const spellinfo_T, str_: *const c_char) {
 /// ":[count]spellwrong {word}"
 /// ":[count]spellundo  {word}"
 /// ":[count]spellrare  {word}"
-pub unsafe fn ex_spell(eap: *mut exarg_T) {
+pub unsafe fn ex_spell(eap: &mut exarg_T) {
     unsafe {
-        let what = if (*eap).cmdidx == CMD_spellwrong {
+        let what = if eap.cmdidx == CMD_spellwrong {
             SPELL_ADD_BAD
-        } else if (*eap).cmdidx == CMD_spellrare {
+        } else if eap.cmdidx == CMD_spellrare {
             SPELL_ADD_RARE
         } else {
             SPELL_ADD_GOOD
         };
         spell_add_word(
-            (*eap).arg,
-            std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len() as c_int,
+            eap.arg,
+            std::ffi::CStr::from_ptr(eap.arg).to_bytes().len() as c_int,
             what,
-            if (*eap).forceit != 0 {
+            if eap.forceit != 0 {
                 0
             } else {
-                (*eap).line2 as c_int
+                eap.line2 as c_int
             },
-            (*eap).cmdidx == CMD_spellundo,
+            eap.cmdidx == CMD_spellundo,
         );
     }
 }

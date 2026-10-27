@@ -2806,18 +2806,18 @@ unsafe fn do_exmap(eap: *mut exarg_T, isabbrev: bool) {
 }
 
 /// ":abbreviate" and friends.
-pub unsafe fn ex_abbreviate(eap: *mut exarg_T) {
+pub unsafe fn ex_abbreviate(eap: &mut exarg_T) {
     unsafe {
         do_exmap(eap, true);
     }
 }
 
 /// ":map" and friends.
-pub unsafe fn ex_map(eap: *mut exarg_T) {
+pub unsafe fn ex_map(eap: &mut exarg_T) {
     unsafe {
         if g_st().secure != 0 {
             g_st().secure = 2;
-            msg_outtrans((*eap).cmd, 0, false);
+            msg_outtrans(eap.cmd, 0, false);
             msg_putchar(b'\n' as c_int);
         }
         do_exmap(eap, false);
@@ -2825,23 +2825,23 @@ pub unsafe fn ex_map(eap: *mut exarg_T) {
 }
 
 /// ":unmap" and friends.
-pub unsafe fn ex_unmap(eap: *mut exarg_T) {
+pub unsafe fn ex_unmap(eap: &mut exarg_T) {
     unsafe {
         do_exmap(eap, false);
     }
 }
 
 /// ":mapclear" and friends.
-pub unsafe fn ex_mapclear(eap: *mut exarg_T) {
+pub unsafe fn ex_mapclear(eap: &mut exarg_T) {
     unsafe {
-        do_mapclear((*eap).cmd, (*eap).arg, (*eap).forceit, 0);
+        do_mapclear(eap.cmd, eap.arg, eap.forceit, 0);
     }
 }
 
 /// ":abclear" and friends.
-pub unsafe fn ex_abclear(eap: *mut exarg_T) {
+pub unsafe fn ex_abclear(eap: &mut exarg_T) {
     unsafe {
-        do_mapclear((*eap).cmd, (*eap).arg, 1, 1);
+        do_mapclear(eap.cmd, eap.arg, 1, 1);
     }
 }
 

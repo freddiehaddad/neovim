@@ -893,7 +893,7 @@ unsafe fn diff_try_update(dio: *mut diffio_T, idx_orig: usize, eap: *mut exarg_T
                     break 'theend;
                 }
             }
-            if !eap.is_null() && (*eap).forceit != 0 {
+            if (*eap).forceit != 0 {
                 for idx_new in idx_orig..DB_COUNT {
                     let buf = (*g_st().curtab).tp_diffbuf[idx_new];
                     if buf_valid(buf) {
@@ -1008,7 +1008,7 @@ pub unsafe fn diff_internal() -> c_int {
         )
     }
 }
-pub unsafe fn ex_diffupdate(eap: *mut exarg_T) {
+pub unsafe fn ex_diffupdate(eap: &mut exarg_T) {
     unsafe {
         if diff_st().diff_busy {
             diff_st().diff_need_update = true;
@@ -1277,7 +1277,7 @@ unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
         OK
     }
 }
-pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
+pub unsafe fn ex_diffpatch(eap: &mut exarg_T) {
     unsafe {
         let mut buf_vec: Vec<c_char>;
         let old_curwin = *curwin.as_ptr();
@@ -1311,18 +1311,18 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
             }
             #[cfg(unix)]
             {
-                fullname = crate::path::FullName_save((*eap).arg, false);
+                fullname = crate::path::FullName_save(eap.arg, false);
                 esc_name = Some(vim_strsave_shellescape(
                     fullname
                         .as_ref()
-                        .map_or((*eap).arg, |s| s.as_ptr().cast_mut()),
+                        .map_or(eap.arg, |s| s.as_ptr().cast_mut()),
                     true,
                     true,
                 ));
             }
             #[cfg(not(unix))]
             {
-                esc_name = Some(vim_strsave_shellescape((*eap).arg, true, true));
+                esc_name = Some(vim_strsave_shellescape(eap.arg, true, true));
             }
             let esc_ptr = esc_name
                 .as_ref()
@@ -1353,11 +1353,11 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
                     tmp_orig,
                     fullname
                         .as_ref()
-                        .map_or((*eap).arg, |s| s.as_ptr().cast_mut()),
+                        .map_or(eap.arg, |s| s.as_ptr().cast_mut()),
                     tmp_new,
                 );
                 #[cfg(not(unix))]
-                eval_patch(tmp_orig, (*eap).arg, tmp_new);
+                eval_patch(tmp_orig, eap.arg, tmp_new);
             } else {
                 vim_snprintf!(
                     buf,
@@ -1408,14 +1408,14 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
                     },
                 ) != FAIL
                 {
-                    (*eap).cmdidx = CMD_split;
-                    (*eap).arg = tmp_new;
+                    eap.cmdidx = CMD_split;
+                    eap.arg = tmp_new;
                     do_exedit(eap, old_curwin);
                     if *curwin.as_ptr() != old_curwin && win_valid(old_curwin) {
                         diff_win_options(*curwin.as_ptr(), true);
                         diff_win_options(old_curwin, true);
                         if !newname.is_null() {
-                            (*eap).arg = newname;
+                            eap.arg = newname;
                             ex_file(eap);
                             if crate::autocmd::augroup_exists(c"filetypedetect".as_ptr()) {
                                 do_cmdline_cmd(c":doau filetypedetect BufRead".as_ptr());
@@ -1433,7 +1433,7 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
         }
     }
 }
-pub unsafe fn ex_diffsplit(eap: *mut exarg_T) {
+pub unsafe fn ex_diffsplit(eap: &mut exarg_T) {
     unsafe {
         let old_curwin = *curwin.as_ptr();
         let mut old_curbuf = bufref_T {
@@ -1456,7 +1456,7 @@ pub unsafe fn ex_diffsplit(eap: *mut exarg_T) {
         {
             return;
         }
-        (*eap).cmdidx = CMD_split;
+        eap.cmdidx = CMD_split;
         (**curwin.as_ptr()).w_onebuf_opt.wo_diff = 1;
         do_exedit(eap, old_curwin);
         if *curwin.as_ptr() == old_curwin {
@@ -1475,7 +1475,7 @@ pub unsafe fn ex_diffsplit(eap: *mut exarg_T) {
         scroll_to_fraction(*curwin.as_ptr(), (**curwin.as_ptr()).w_height);
     }
 }
-pub unsafe fn ex_diffthis(_eap: *mut exarg_T) {
+pub unsafe fn ex_diffthis(_eap: &mut exarg_T) {
     unsafe {
         diff_win_options(*curwin.as_ptr(), true);
     }
@@ -1553,12 +1553,12 @@ pub unsafe fn diff_win_options(wp: *mut win_T, addbuf: bool) {
         redraw_later(wp, UPD_NOT_VALID);
     }
 }
-pub unsafe fn ex_diffoff(eap: *mut exarg_T) {
+pub unsafe fn ex_diffoff(eap: &mut exarg_T) {
     unsafe {
         let mut diffwin = false;
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
-            let cond = if (*eap).forceit != 0 {
+            let cond = if eap.forceit != 0 {
                 (*wp).w_onebuf_opt.wo_diff != 0
             } else {
                 wp == *curwin.as_ptr()
@@ -1612,7 +1612,7 @@ pub unsafe fn ex_diffoff(eap: *mut exarg_T) {
             diffwin |= (*wp).w_onebuf_opt.wo_diff != 0;
             wp = (*wp).w_next;
         }
-        if (*eap).forceit != 0 {
+        if eap.forceit != 0 {
             diff_buf_clear();
         }
         if !diffwin {
@@ -2075,7 +2075,7 @@ pub unsafe fn diff_check_with_linestatus(
             *linestatus = 0;
         }
         if (*g_st().curtab).tp_diff_invalid != 0 {
-            ex_diffupdate(ptr::null_mut());
+            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
         if (*g_st().curtab).tp_diffs.is_empty() || (*wp).w_onebuf_opt.wo_diff == 0 {
             return 0;
@@ -2290,7 +2290,7 @@ pub unsafe fn diff_set_topline(fromwin: *mut win_T, towin: *mut win_T) {
         }
         let u_fromidx = fromidx as usize;
         if (*g_st().curtab).tp_diff_invalid != 0 {
-            ex_diffupdate(ptr::null_mut());
+            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
         let lnum = (*fromwin).w_topline;
         (*towin).w_topfill = 0;
@@ -3211,7 +3211,7 @@ pub unsafe fn diff_infold(wp: *mut win_T, lnum: linenr_T) -> bool {
         }
         let u_idx = idx as usize;
         if (*g_st().curtab).tp_diff_invalid != 0 {
-            ex_diffupdate(ptr::null_mut());
+            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
         if (*g_st().curtab).tp_diffs.is_empty() {
             return true;
@@ -3255,7 +3255,7 @@ pub unsafe fn nv_diffgetput(put: bool, count: usize) {
         ea.addr_count = 0;
         ea.line1 = (**curwin.as_ptr()).w_cursor.lnum;
         ea.line2 = (**curwin.as_ptr()).w_cursor.lnum;
-        ex_diffgetput(&raw mut ea);
+        ex_diffgetput(&mut ea);
     }
 }
 unsafe fn valid_diff(df_id: Option<u64>) -> Option<usize> {
@@ -3264,7 +3264,7 @@ unsafe fn valid_diff(df_id: Option<u64>) -> Option<usize> {
         (*g_st().curtab).tp_diffs.iter().position(|dp| dp.df_id == id)
     }
 }
-pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
+pub unsafe fn ex_diffgetput(eap: &mut exarg_T) {
     unsafe {
         let idx_other: usize;
         let idx_cur_i = diff_buf_idx(g_st().curbuf, g_st().curtab);
@@ -3273,12 +3273,12 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
             return;
         }
         let idx_cur = idx_cur_i as usize;
-        if *(*eap).arg == NUL {
+        if *eap.arg == NUL {
             let mut found_not_ma = false;
             let mut idx = 0;
             while idx < DB_COUNT {
                 if (*g_st().curtab).tp_diffbuf[idx] != g_st().curbuf && !(*g_st().curtab).tp_diffbuf[idx].is_null() {
-                    if (*eap).cmdidx != CMD_diffput || modifiable((*g_st().curtab).tp_diffbuf[idx]) {
+                    if eap.cmdidx != CMD_diffput || modifiable((*g_st().curtab).tp_diffbuf[idx]) {
                         break;
                     }
                     found_not_ma = true;
@@ -3299,7 +3299,7 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
             for i in (idx_other + 1)..DB_COUNT {
                 if (*g_st().curtab).tp_diffbuf[i] != g_st().curbuf
                     && !(*g_st().curtab).tp_diffbuf[i].is_null()
-                    && ((*eap).cmdidx != CMD_diffput || modifiable((*g_st().curtab).tp_diffbuf[i]))
+                    && (eap.cmdidx != CMD_diffput || modifiable((*g_st().curtab).tp_diffbuf[i]))
                 {
                     emsg(gettext(
                         c"E101: More than two buffers in diff mode, don't know which one to use"
@@ -3309,18 +3309,18 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
                 }
             }
         } else {
-            let mut p = (*eap).arg.add(std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len());
-            while p > (*eap).arg && ascii_iswhite(*p.sub(1)) {
+            let mut p = eap.arg.add(std::ffi::CStr::from_ptr(eap.arg).to_bytes().len());
+            while p > eap.arg && ascii_iswhite(*p.sub(1)) {
                 p = p.sub(1);
             }
             let mut i: usize = 0;
-            while ascii_isdigit(*(*eap).arg.add(i)) && (*eap).arg.add(i) < p {
+            while ascii_isdigit(*eap.arg.add(i)) && eap.arg.add(i) < p {
                 i += 1;
             }
-            let bufnr = if (*eap).arg.add(i) == p {
-                crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*eap).arg).to_bytes()) as std::ffi::c_long as c_int
+            let bufnr = if eap.arg.add(i) == p {
+                crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(eap.arg).to_bytes()) as std::ffi::c_long as c_int
             } else {
-                let nr = buflist_findpat((*eap).arg, p, false, true, false);
+                let nr = buflist_findpat(eap.arg, p, false, true, false);
                 if nr < 0 {
                     return;
                 }
@@ -3330,7 +3330,7 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
             if buf.is_null() {
                 semsg!(
                     gettext(c"E102: Can't find buffer \"%s\"".as_ptr()),
-                    (*eap).arg,
+                    eap.arg,
                 );
                 return;
             }
@@ -3341,30 +3341,30 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
             if idx_o == DB_COUNT as c_int {
                 semsg!(
                     gettext(c"E103: Buffer \"%s\" is not in diff mode".as_ptr()),
-                    (*eap).arg,
+                    eap.arg,
                 );
                 return;
             }
             idx_other = idx_o as usize;
         }
         diff_st().diff_busy = true;
-        if (*eap).addr_count == 0 {
+        if eap.addr_count == 0 {
             let mut linestatus: c_int = 0;
-            if (*eap).line1 == (*g_st().curbuf).b_ml.ml_line_count
-                && diff_check_with_linestatus(*curwin.as_ptr(), (*eap).line1, &raw mut linestatus) == 0
+            if eap.line1 == (*g_st().curbuf).b_ml.ml_line_count
+                && diff_check_with_linestatus(*curwin.as_ptr(), eap.line1, &raw mut linestatus) == 0
                 && linestatus == 0
-                && ((*eap).line1 == 1
-                    || (diff_check_with_linestatus(*curwin.as_ptr(), (*eap).line1 - 1, &raw mut linestatus)
+                && (eap.line1 == 1
+                    || (diff_check_with_linestatus(*curwin.as_ptr(), eap.line1 - 1, &raw mut linestatus)
                         >= 0
                         && linestatus == 0))
             {
-                (*eap).line2 += 1;
-            } else if (*eap).line1 > 0 {
-                (*eap).line1 -= 1;
+                eap.line2 += 1;
+            } else if eap.line1 > 0 {
+                eap.line1 -= 1;
             }
         }
         let mut aco = CtxSwitch::new();
-        if (*eap).cmdidx != CMD_diffget {
+        if eap.cmdidx != CMD_diffget {
             ctx_switch(
                 &raw mut aco,
                 ptr::null_mut(),
@@ -3373,12 +3373,12 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
                 0,
             );
         }
-        let idx_from = if (*eap).cmdidx == CMD_diffget {
+        let idx_from = if eap.cmdidx == CMD_diffget {
             idx_other
         } else {
             idx_cur
         };
-        let idx_to = if (*eap).cmdidx == CMD_diffget {
+        let idx_to = if eap.cmdidx == CMD_diffget {
             idx_cur
         } else {
             idx_other
@@ -3393,14 +3393,14 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
                 }
             }
             diffgetput(
-                (*eap).addr_count,
+                eap.addr_count,
                 idx_cur,
                 idx_from,
                 idx_to,
-                (*eap).line1,
-                (*eap).line2,
+                eap.line1,
+                eap.line2,
             );
-            if (*eap).cmdidx != CMD_diffget {
+            if eap.cmdidx != CMD_diffget {
                 if g_st().KeyTyped {
                     u_sync(false);
                 }
@@ -3409,7 +3409,7 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
         }
         diff_st().diff_busy = false;
         if diff_st().diff_need_update {
-            ex_diffupdate(ptr::null_mut());
+            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
         check_cursor(*curwin.as_ptr());
         changed_line_abv_curs();
@@ -3641,7 +3641,7 @@ pub unsafe fn diff_move_to(dir: c_int, mut count: c_int) -> c_int {
         }
         let u_idx = idx as usize;
         if (*g_st().curtab).tp_diff_invalid != 0 {
-            ex_diffupdate(ptr::null_mut());
+            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
         if (*g_st().curtab).tp_diffs.is_empty() {
             return FAIL;
@@ -3683,7 +3683,7 @@ unsafe fn diff_get_corresponding_line_int(buf1: *mut buf_T, lnum1: linenr_T) -> 
             return lnum1;
         }
         if (*g_st().curtab).tp_diff_invalid != 0 {
-            ex_diffupdate(ptr::null_mut());
+            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
         if (*g_st().curtab).tp_diffs.is_empty() {
             return lnum1;
@@ -3726,7 +3726,7 @@ pub unsafe fn diff_lnum_win(lnum: linenr_T, wp: *mut win_T) -> linenr_T {
         }
         let u_idx = idx as usize;
         if (*g_st().curtab).tp_diff_invalid != 0 {
-            ex_diffupdate(ptr::null_mut());
+            ex_diffupdate(&mut crate::ex_docmd::exarg_T::new());
         }
         let Some(dp) = (*g_st().curtab)
             .tp_diffs

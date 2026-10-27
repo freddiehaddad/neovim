@@ -64,9 +64,9 @@ unsafe fn nlua_trust(action: *const c_char, path: *const c_char) -> bool {
 }
 
 /// `:trust` command implementation (`ex_trust`).
-pub unsafe fn ex_trust(eap: *mut exarg_T) {
+pub unsafe fn ex_trust(eap: &mut exarg_T) {
     unsafe {
-        let arg = (*eap).arg;
+        let arg = eap.arg;
         let p = skiptowhite(arg);
         let arg1_len = (p as usize) - (arg as usize);
         let arg1 = CString::new(std::slice::from_raw_parts(arg.cast::<u8>(), arg1_len)).unwrap();

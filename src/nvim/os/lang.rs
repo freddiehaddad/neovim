@@ -696,28 +696,28 @@ pub unsafe fn init_locale() {
 }
 
 /// `":language"`: Set the language (locale).
-pub unsafe fn ex_language(eap: *mut exarg_T) {
+pub unsafe fn ex_language(eap: &mut exarg_T) {
     unsafe {
         let mut what = LC_ALL;
         let mut whatstr: *const c_char = c"".as_ptr();
-        let mut name = (*eap).arg;
+        let mut name = eap.arg;
 
-        let p = skiptowhite((*eap).arg);
-        let arg_len = (p as usize) - ((*eap).arg as usize);
+        let p = skiptowhite(eap.arg);
+        let arg_len = (p as usize) - (eap.arg as usize);
         if (*p == NUL || matches!(*p as u8, b' ' | b'\t')) && arg_len >= 3 {
-            if mb_strnicmp((*eap).arg, c"messages".as_ptr(), arg_len) == 0 {
+            if mb_strnicmp(eap.arg, c"messages".as_ptr(), arg_len) == 0 {
                 what = VIM_LC_MESSAGES;
                 name = skipwhite(p);
                 whatstr = c"messages ".as_ptr();
-            } else if mb_strnicmp((*eap).arg, c"ctype".as_ptr(), arg_len) == 0 {
+            } else if mb_strnicmp(eap.arg, c"ctype".as_ptr(), arg_len) == 0 {
                 what = LC_CTYPE;
                 name = skipwhite(p);
                 whatstr = c"ctype ".as_ptr();
-            } else if mb_strnicmp((*eap).arg, c"time".as_ptr(), arg_len) == 0 {
+            } else if mb_strnicmp(eap.arg, c"time".as_ptr(), arg_len) == 0 {
                 what = LC_TIME;
                 name = skipwhite(p);
                 whatstr = c"time ".as_ptr();
-            } else if mb_strnicmp((*eap).arg, c"collate".as_ptr(), arg_len) == 0 {
+            } else if mb_strnicmp(eap.arg, c"collate".as_ptr(), arg_len) == 0 {
                 what = LC_COLLATE;
                 name = skipwhite(p);
                 whatstr = c"collate ".as_ptr();

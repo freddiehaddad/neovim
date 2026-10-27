@@ -46,7 +46,7 @@ pub(crate) const kOptIskeyword: OptIndex = 155;
 use crate::eval::funcs::kSpecialVarNull;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
-pub unsafe fn ex_help(eap: *mut exarg_T) {
+pub unsafe fn ex_help(eap: &mut exarg_T) {
     unsafe {
         let mut arg: *mut c_char;
         let mut wp: *mut win_T;
@@ -54,8 +54,8 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
         let mut alt_fnum: c_int = 0;
         let old_KeyTyped = g_st().KeyTyped;
 
-        if !eap.is_null() {
-            arg = (*eap).arg;
+        if !eap.arg.is_null() {
+            arg = eap.arg;
             while *arg != NUL {
                 if *arg == b'\n' as c_char
                     || *arg == b'\r' as c_char
@@ -65,14 +65,14 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
                 {
                     *arg = NUL;
                     arg = arg.add(1);
-                    (*eap).nextcmd = arg;
+                    eap.nextcmd = arg;
                     break;
                 }
                 arg = arg.add(1);
             }
-            arg = (*eap).arg;
+            arg = eap.arg;
 
-            if (*eap).skip != 0 {
+            if eap.skip != 0 {
                 return;
             }
         } else {
@@ -93,7 +93,7 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
         let lang = check_help_lang(arg);
 
         // ":help!" (bang, no args).
-        let helpbang = !eap.is_null() && (*eap).forceit != 0 && *arg == NUL;
+        let helpbang = eap.forceit != 0 && *arg == NUL;
 
         // When no argument given go to the index.
         if *arg == NUL && !helpbang {
@@ -134,7 +134,7 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
 
         // Check if there is a match for the argument.
         let mut matches: Vec<std::ffi::CString> = Vec::new();
-        let mut n = find_help_tags(arg, &mut matches, !eap.is_null() && (*eap).forceit != 0);
+        let mut n = find_help_tags(arg, &mut matches, eap.forceit != 0);
 
         let mut i: usize = 0;
         if n != FAIL && !lang.is_null() {
@@ -259,12 +259,12 @@ pub unsafe fn ex_help(eap: *mut exarg_T) {
 }
 
 /// `:helpclose`: Close one help window (`ex_helpclose`).
-pub unsafe fn ex_helpclose(eap: *mut exarg_T) {
+pub unsafe fn ex_helpclose(eap: &mut exarg_T) {
     unsafe {
         let mut win = g_st().firstwin;
         while !win.is_null() {
             if bt_help((*win).w_buffer) {
-                win_close(win, false, (*eap).forceit != 0);
+                win_close(win, false, eap.forceit != 0);
                 return;
             }
             win = (*win).w_next;
@@ -506,32 +506,32 @@ pub unsafe fn get_local_additions() {
 }
 
 /// `:exusage` (`ex_exusage`).
-pub unsafe fn ex_exusage(_eap: *mut exarg_T) {
+pub unsafe fn ex_exusage(_eap: &mut exarg_T) {
     unsafe {
         do_cmdline_cmd(c"help ex-cmd-index".as_ptr());
     }
 }
 
 /// `:viusage` (`ex_viusage`).
-pub unsafe fn ex_viusage(_eap: *mut exarg_T) {
+pub unsafe fn ex_viusage(_eap: &mut exarg_T) {
     unsafe {
         do_cmdline_cmd(c"help normal-index".as_ptr());
     }
 }
 
 /// `:helptags` (`ex_helptags`).
-pub unsafe fn ex_helptags(eap: *mut exarg_T) {
+pub unsafe fn ex_helptags(eap: &mut exarg_T) {
     unsafe {
         let mut add_help_tags = false;
 
-        let arg_bytes = CStr::from_ptr((*eap).arg).to_bytes();
-        if arg_bytes.len() > 3 && &arg_bytes[..3] == b"++t" && ascii_iswhite(*(*eap).arg.add(3)) {
+        let arg_bytes = CStr::from_ptr(eap.arg).to_bytes();
+        if arg_bytes.len() > 3 && &arg_bytes[..3] == b"++t" && ascii_iswhite(*eap.arg.add(3)) {
             add_help_tags = true;
-            (*eap).arg = skipwhite((*eap).arg.add(3));
+            eap.arg = skipwhite(eap.arg.add(3));
         }
 
         let mut tv_args = [
-            if CStr::from_ptr((*eap).arg).to_bytes() == b"ALL" {
+            if CStr::from_ptr(eap.arg).to_bytes() == b"ALL" {
                 typval_T {
                     v_type: VarType::VAR_SPECIAL,
                     v_lock: 0,
@@ -541,7 +541,7 @@ pub unsafe fn ex_helptags(eap: *mut exarg_T) {
                 typval_T {
                     v_type: VarType::VAR_STRING,
                     v_lock: 0,
-                    vval: TypvalVval::String((*eap).arg),
+                    vval: TypvalVval::String(eap.arg),
                 }
             },
             typval_T {

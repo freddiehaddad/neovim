@@ -2484,7 +2484,7 @@ pub unsafe fn u_sync(force: bool) {
 }
 
 /// `":undolist"`: List the leafs of the undo tree.
-pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
+pub unsafe fn ex_undolist(_eap: &mut exarg_T) {
     unsafe {
         let mut changes: c_int = 1;
 
@@ -2583,7 +2583,7 @@ pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
 }
 
 /// `":undojoin"`: continue adding to the last entry list.
-pub unsafe fn ex_undojoin(_eap: *mut exarg_T) {
+pub unsafe fn ex_undojoin(_eap: &mut exarg_T) {
     unsafe {
         if (*g_st().curbuf).b_u_newhead.is_none() {
             return;

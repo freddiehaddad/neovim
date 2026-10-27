@@ -1042,9 +1042,9 @@ unsafe fn parse_sign_cmd_args(
     }
 }
 
-pub unsafe fn ex_sign(eap: *mut exarg_T) {
+pub unsafe fn ex_sign(eap: &mut exarg_T) {
     unsafe {
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
 
         let mut p = skiptowhite(arg);
         let idx = sign_cmd_idx(arg, p);

@@ -538,20 +538,20 @@ pub unsafe fn check_arg_idx(win: *mut win_T) {
 }
 
 /// `:args`, `:arglocal` and `:argglobal` (`ex_args`).
-pub unsafe fn ex_args(eap: *mut exarg_T) {
+pub unsafe fn ex_args(eap: &mut exarg_T) {
     unsafe {
-        if (*eap).cmdidx != CMD_args {
+        if eap.cmdidx != CMD_args {
             if check_arglist_locked() == FAIL {
                 return;
             }
-            if (*eap).cmdidx == CMD_argglobal {
+            if eap.cmdidx == CMD_argglobal {
                 (**curwin.as_ptr()).w_alist = None;
             } else {
                 alist_new();
             }
         }
 
-        if *(*eap).arg != NUL {
+        if *eap.arg != NUL {
             if check_arglist_locked() == FAIL {
                 return;
             }
@@ -559,7 +559,7 @@ pub unsafe fn ex_args(eap: *mut exarg_T) {
             return;
         }
 
-        if (*eap).cmdidx == CMD_args {
+        if eap.cmdidx == CMD_args {
             let count = argcount();
             if count <= 0 {
                 return;
@@ -575,7 +575,7 @@ pub unsafe fn ex_args(eap: *mut exarg_T) {
             return;
         }
 
-        if (*eap).cmdidx == CMD_arglocal {
+        if eap.cmdidx == CMD_arglocal {
             let al = win_alist(*curwin.as_ptr());
             let gcount = gargcount() as usize;
             (*al).al_ga.reserve(gcount);
@@ -594,37 +594,37 @@ pub unsafe fn ex_args(eap: *mut exarg_T) {
 }
 
 /// `:previous`, `:sprevious`, `:Next` and `:sNext` (`ex_previous`).
-pub unsafe fn ex_previous(eap: *mut exarg_T) {
+pub unsafe fn ex_previous(eap: &mut exarg_T) {
     unsafe {
         let count = argcount();
-        let target = if (**curwin.as_ptr()).w_arg_idx - (*eap).line2 >= count {
+        let target = if (**curwin.as_ptr()).w_arg_idx - eap.line2 >= count {
             count - 1
         } else {
-            (**curwin.as_ptr()).w_arg_idx - (*eap).line2
+            (**curwin.as_ptr()).w_arg_idx - eap.line2
         };
         do_argfile(eap, target);
     }
 }
 
 /// `:rewind`, `:first`, `:sfirst` and `:srewind` (`ex_rewind`).
-pub unsafe fn ex_rewind(eap: *mut exarg_T) {
+pub unsafe fn ex_rewind(eap: &mut exarg_T) {
     unsafe {
         do_argfile(eap, 0);
     }
 }
 
 /// `:last` and `:slast` (`ex_last`).
-pub unsafe fn ex_last(eap: *mut exarg_T) {
+pub unsafe fn ex_last(eap: &mut exarg_T) {
     unsafe {
         do_argfile(eap, argcount() - 1);
     }
 }
 
 /// `:argument` and `:sargument` (`ex_argument`).
-pub unsafe fn ex_argument(eap: *mut exarg_T) {
+pub unsafe fn ex_argument(eap: &mut exarg_T) {
     unsafe {
-        let i = if (*eap).addr_count > 0 {
-            (*eap).line2 - 1
+        let i = if eap.addr_count > 0 {
+            eap.line2 - 1
         } else {
             (**curwin.as_ptr()).w_arg_idx
         };
@@ -714,22 +714,22 @@ pub unsafe fn do_argfile(eap: *mut exarg_T, argn: c_int) {
 }
 
 /// `:next`, and commands that behave like it (`ex_next`).
-pub unsafe fn ex_next(eap: *mut exarg_T) {
+pub unsafe fn ex_next(eap: &mut exarg_T) {
     unsafe {
         if buf_hide(g_st().curbuf)
-            || (*eap).cmdidx == CMD_snext
+            || eap.cmdidx == CMD_snext
             || !check_changed(
                 g_st().curbuf,
-                CCGD_AW | (if (*eap).forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
+                CCGD_AW | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
             )
         {
-            let i = if *(*eap).arg != NUL {
-                if do_arglist((*eap).arg, AL_SET, 0, true) == FAIL {
+            let i = if *eap.arg != NUL {
+                if do_arglist(eap.arg, AL_SET, 0, true) == FAIL {
                     return;
                 }
                 0
             } else {
-                (**curwin.as_ptr()).w_arg_idx + (*eap).line2
+                (**curwin.as_ptr()).w_arg_idx + eap.line2
             };
             do_argfile(eap, i);
         }
@@ -737,7 +737,7 @@ pub unsafe fn ex_next(eap: *mut exarg_T) {
 }
 
 /// `:argdedupe` (`ex_argdedupe`).
-pub unsafe fn ex_argdedupe(_eap: *mut exarg_T) {
+pub unsafe fn ex_argdedupe(_eap: &mut exarg_T) {
     unsafe {
         let mut i: c_int = 0;
         while i < argcount() {
@@ -775,16 +775,16 @@ pub unsafe fn ex_argdedupe(_eap: *mut exarg_T) {
 }
 
 /// `:argedit` (`ex_argedit`).
-pub unsafe fn ex_argedit(eap: *mut exarg_T) {
+pub unsafe fn ex_argedit(eap: &mut exarg_T) {
     unsafe {
-        let mut i = if (*eap).addr_count != 0 {
-            (*eap).line2
+        let mut i = if eap.addr_count != 0 {
+            eap.line2
         } else {
             (**curwin.as_ptr()).w_arg_idx + 1
         };
         let curbuf_is_reusable = curbuf_reusable();
 
-        if do_arglist((*eap).arg, AL_ADD, i, true) == FAIL {
+        if do_arglist(eap.arg, AL_ADD, i, true) == FAIL {
             return;
         }
         maketitle();
@@ -802,13 +802,13 @@ pub unsafe fn ex_argedit(eap: *mut exarg_T) {
 }
 
 /// `:argadd` (`ex_argadd`).
-pub unsafe fn ex_argadd(eap: *mut exarg_T) {
+pub unsafe fn ex_argadd(eap: &mut exarg_T) {
     unsafe {
         do_arglist(
-            (*eap).arg,
+            eap.arg,
             AL_ADD,
-            if (*eap).addr_count > 0 {
-                (*eap).line2
+            if eap.addr_count > 0 {
+                eap.line2
             } else {
                 (**curwin.as_ptr()).w_arg_idx + 1
             },
@@ -819,30 +819,30 @@ pub unsafe fn ex_argadd(eap: *mut exarg_T) {
 }
 
 /// `:argdelete` (`ex_argdelete`).
-pub unsafe fn ex_argdelete(eap: *mut exarg_T) {
+pub unsafe fn ex_argdelete(eap: &mut exarg_T) {
     unsafe {
         if check_arglist_locked() == FAIL {
             return;
         }
 
-        if (*eap).addr_count > 0 || *(*eap).arg == NUL {
-            if (*eap).addr_count == 0 {
+        if eap.addr_count > 0 || *eap.arg == NUL {
+            if eap.addr_count == 0 {
                 if (**curwin.as_ptr()).w_arg_idx >= argcount() {
                     emsg(gettext(c"E610: No argument to delete".as_ptr()));
                     return;
                 }
-                (*eap).line1 = (**curwin.as_ptr()).w_arg_idx + 1;
-                (*eap).line2 = (*eap).line1;
-            } else if (*eap).line2 > argcount() {
-                (*eap).line2 = argcount();
+                eap.line1 = (**curwin.as_ptr()).w_arg_idx + 1;
+                eap.line2 = eap.line1;
+            } else if eap.line2 > argcount() {
+                eap.line2 = argcount();
             }
-            let n = (*eap).line2 - (*eap).line1 + 1;
-            if *(*eap).arg != NUL {
+            let n = eap.line2 - eap.line1 + 1;
+            if *eap.arg != NUL {
                 emsg(gettext((&raw const e_invarg).cast()));
                 return;
             }
             if n <= 0 {
-                if (*eap).line1 != 1 || (*eap).line2 != 0 {
+                if eap.line1 != 1 || eap.line2 != 0 {
                     emsg(gettext((&raw const e_invrange).cast()));
                 }
                 return;
@@ -850,14 +850,14 @@ pub unsafe fn ex_argdelete(eap: *mut exarg_T) {
 
             (*win_alist(*curwin.as_ptr()))
                 .al_ga
-                .drain(((*eap).line1 as usize - 1)..((*eap).line2 as usize));
-            if (**curwin.as_ptr()).w_arg_idx >= (*eap).line2 {
+                .drain((eap.line1 as usize - 1)..(eap.line2 as usize));
+            if (**curwin.as_ptr()).w_arg_idx >= eap.line2 {
                 (**curwin.as_ptr()).w_arg_idx -= n;
-            } else if (**curwin.as_ptr()).w_arg_idx > (*eap).line1 {
-                (**curwin.as_ptr()).w_arg_idx = (*eap).line1;
+            } else if (**curwin.as_ptr()).w_arg_idx > eap.line1 {
+                (**curwin.as_ptr()).w_arg_idx = eap.line1;
             }
         } else {
-            do_arglist((*eap).arg, AL_DEL, 0, false);
+            do_arglist(eap.arg, AL_DEL, 0, false);
         }
 
         let new_len = argcount();
@@ -1201,12 +1201,12 @@ unsafe fn do_arg_all(mut count: c_int, forceit: c_int, keep_tabs: bool) {
 }
 
 /// `:all` and `:sall` (`ex_all`).
-pub unsafe fn ex_all(eap: *mut exarg_T) {
+pub unsafe fn ex_all(eap: &mut exarg_T) {
     unsafe {
-        if (*eap).addr_count == 0 {
-            (*eap).line2 = 9999;
+        if eap.addr_count == 0 {
+            eap.line2 = 9999;
         }
-        do_arg_all((*eap).line2, (*eap).forceit, (*eap).cmdidx == CMD_drop);
+        do_arg_all(eap.line2, eap.forceit, eap.cmdidx == CMD_drop);
     }
 }
 

@@ -1399,7 +1399,7 @@ unsafe fn emsg_text_too_long() {
 }
 
 /// `:retab` (`ex_retab`).
-pub unsafe fn ex_retab(eap: *mut exarg_T) {
+pub unsafe fn ex_retab(eap: &mut exarg_T) {
     unsafe {
         let mut got_tab = false;
         let mut num_spaces: c_int = 0;
@@ -1412,7 +1412,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
         let mut last_line: linenr_T = 0;
         let mut is_indent_only = false;
 
-        let mut ptr = (*eap).arg;
+        let mut ptr = eap.arg;
         if { let _p = ptr; crate::memory::xstrnlen(_p, 11) == 11 && std::slice::from_raw_parts(_p.cast::<u8>(), 11) == &b"-indentonly"[..11] } && ascii_iswhite_or_nul(*ptr.add(11)) {
             is_indent_only = true;
             ptr = skipwhite(ptr.add(11));
@@ -1449,8 +1449,8 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
         let save_list = (**curwin.as_ptr()).w_onebuf_opt.wo_list;
         (**curwin.as_ptr()).w_onebuf_opt.wo_list = 0;
 
-        let mut lnum = (*eap).line1;
-        while !g_st().got_int && lnum <= (*eap).line2 {
+        let mut lnum = eap.line1;
+        while !g_st().got_int && lnum <= eap.line2 {
             ptr = ml_get(lnum);
             let mut old_len = ml_get_len(lnum);
             let mut col: c_int = 0;
@@ -1468,7 +1468,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
                         got_tab = true;
                     }
                 } else {
-                    if got_tab || ((*eap).forceit != 0 && num_spaces > 1) {
+                    if got_tab || (eap.forceit != 0 && num_spaces > 1) {
                         num_spaces = (vcol - start_vcol) as c_int;
                         let mut len = num_spaces;
                         let mut num_tabs: c_int = 0;

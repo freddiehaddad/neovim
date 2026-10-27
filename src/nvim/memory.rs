@@ -577,7 +577,7 @@ pub unsafe fn free_all_mem() {
         }
 
         spell_free_all();
-        ex_comclear(std::ptr::null_mut::<exarg_T>());
+        ex_comclear(&mut exarg_T::new());
 
         if !g_st().curbuf.is_null() {
             do_cmdline_cmd(c"aunmenu *".as_ptr());

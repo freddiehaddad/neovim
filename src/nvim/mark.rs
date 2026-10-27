@@ -1067,7 +1067,7 @@ unsafe fn mark_line(mp: *mut pos_T, lead_len: c_int) -> std::ffi::CString {
 }
 
 /// `:marks {arg}` (`ex_marks`).
-pub unsafe fn ex_marks(eap: *mut exarg_T) {
+pub unsafe fn ex_marks(eap: &mut exarg_T) {
     unsafe {
         nlua_call_excmd(
             c"vim._core.marks".as_ptr(),
@@ -1080,7 +1080,7 @@ pub unsafe fn ex_marks(eap: *mut exarg_T) {
 }
 
 /// `:delmarks[!] [marks]` (`ex_delmarks`).
-pub unsafe fn ex_delmarks(eap: *mut exarg_T) {
+pub unsafe fn ex_delmarks(eap: &mut exarg_T) {
     unsafe {
         let pos = pos_T {
             lnum: 0,
@@ -1088,7 +1088,7 @@ pub unsafe fn ex_delmarks(eap: *mut exarg_T) {
             coladd: 0,
         };
 
-        if *(*eap).arg == NUL && (*eap).forceit != 0 {
+        if *eap.arg == NUL && eap.forceit != 0 {
             for i in 0..NMARKS {
                 if (*g_st().curbuf).b_namedm[i].mark.lnum != 0 {
                     do_markset_autocmd((i as u8 + b'a') as c_char, &raw const pos, g_st().curbuf);
@@ -1110,13 +1110,13 @@ pub unsafe fn ex_delmarks(eap: *mut exarg_T) {
                 do_markset_autocmd(b']' as c_char, &raw const pos, g_st().curbuf);
             }
             clrallmarks(g_st().curbuf, os_time());
-        } else if (*eap).forceit != 0 {
+        } else if eap.forceit != 0 {
             emsg(gettext(e_invarg.as_ptr()));
-        } else if *(*eap).arg == NUL {
+        } else if *eap.arg == NUL {
             emsg(gettext(e_argreq.as_ptr()));
         } else {
             let timestamp = os_time();
-            let mut p = (*eap).arg;
+            let mut p = eap.arg;
             while *p != NUL {
                 let ch = c_int::from(*p as u8);
                 let lower = ascii_islower(ch);
@@ -1230,7 +1230,7 @@ pub unsafe fn ex_delmarks(eap: *mut exarg_T) {
 }
 
 /// Print the jumplist (`ex_jumps`).
-pub unsafe fn ex_jumps(_eap: *mut exarg_T) {
+pub unsafe fn ex_jumps(_eap: &mut exarg_T) {
     unsafe {
         cleanup_jumplist(*curwin.as_ptr(), true);
         msg_ext_set_kind(c"list_cmd".as_ptr());
@@ -1295,7 +1295,7 @@ pub unsafe fn ex_jumps(_eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_clearjumps(_eap: *mut exarg_T) {
+pub unsafe fn ex_clearjumps(_eap: &mut exarg_T) {
     unsafe {
         free_jumplist(*curwin.as_ptr());
         (**curwin.as_ptr()).w_jumplistlen = 0;
@@ -1304,7 +1304,7 @@ pub unsafe fn ex_clearjumps(_eap: *mut exarg_T) {
 }
 
 /// Print the changelist (`ex_changes`).
-pub unsafe fn ex_changes(_eap: *mut exarg_T) {
+pub unsafe fn ex_changes(_eap: &mut exarg_T) {
     unsafe {
         msg_ext_set_kind(c"list_cmd".as_ptr());
         msg_puts_title(gettext(c"\nchange line  col text".as_ptr()));

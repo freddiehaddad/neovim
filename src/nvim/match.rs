@@ -1286,23 +1286,23 @@ pub unsafe fn f_matchdelete(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 }
 
 /// `:[N]match {group} {pattern}` (`ex_match`).
-pub unsafe fn ex_match(eap: *mut exarg_T) {
+pub unsafe fn ex_match(eap: &mut exarg_T) {
     unsafe {
         let mut g = None;
         let end: *mut c_char;
 
-        let id: c_int = if (*eap).line2 <= 3 {
-            (*eap).line2 as c_int
+        let id: c_int = if eap.line2 <= 3 {
+            eap.line2 as c_int
         } else {
             emsg((&raw const e_invcmd).cast());
             return;
         };
 
-        if (*eap).skip == 0 {
+        if eap.skip == 0 {
             match_delete(*curwin.as_ptr(), id, false);
         }
 
-        let arg = (*eap).arg;
+        let arg = eap.arg;
         if ends_excmd(c_int::from(*arg)) != 0 {
             end = arg;
         } else {
@@ -1314,7 +1314,7 @@ pub unsafe fn ex_match(eap: *mut exarg_T) {
                 end = arg.add(4);
             } else {
                 let mut p = skiptowhite(arg);
-                if (*eap).skip == 0 {
+                if eap.skip == 0 {
                     g = Some(
                         std::ffi::CString::new(std::slice::from_raw_parts(
                             arg.cast::<u8>(),
@@ -1329,9 +1329,9 @@ pub unsafe fn ex_match(eap: *mut exarg_T) {
                     return;
                 }
                 end = skip_regexp(p.add(1), c_int::from(*p as u8), 1);
-                if (*eap).skip == 0 {
+                if eap.skip == 0 {
                     if *end != NUL && ends_excmd(c_int::from(*skipwhite(end.add(1)))) == 0 {
-                        (*eap).errmsg = ex_errmsg((&raw const e_trailing_arg).cast(), end);
+                        eap.errmsg = ex_errmsg((&raw const e_trailing_arg).cast(), end);
                         return;
                     }
                     if *end != *p {
@@ -1354,6 +1354,6 @@ pub unsafe fn ex_match(eap: *mut exarg_T) {
                 }
             }
         }
-        (*eap).nextcmd = find_nextcmd(end);
+        eap.nextcmd = find_nextcmd(end);
     }
 }

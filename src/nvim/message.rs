@@ -1673,31 +1673,31 @@ pub unsafe fn did_set_messagesopt(_args: &mut optset_T) -> *const c_char {
 }
 
 /// :messages command implementation
-pub unsafe fn ex_messages(eap: *mut exarg_T) {
+pub unsafe fn ex_messages(eap: &mut exarg_T) {
     unsafe {
-        if CStr::from_ptr((*eap).arg) == c"clear" {
-            msg_hist_clear(if (*eap).addr_count != 0 {
-                (*eap).line2 as c_int
+        if CStr::from_ptr(eap.arg) == c"clear" {
+            msg_hist_clear(if eap.addr_count != 0 {
+                eap.line2 as c_int
             } else {
                 0
             });
             return;
         }
 
-        if *(*eap).arg != NUL {
+        if *eap.arg != NUL {
             emsg(gettext(e_invarg.as_ptr()));
             return;
         }
 
         let mut entries = Array::new();
         let hist = &raw mut msg_st().msg_hist;
-        let mut idx = if (*eap).skip != 0 {
+        let mut idx = if eap.skip != 0 {
             msg_st().msg_hist_temp_idx.unwrap_or((*hist).len())
         } else {
             0
         };
-        let mut skip = if (*eap).addr_count != 0 {
-            msg_st().msg_hist_len - (*eap).line2 as c_int
+        let mut skip = if eap.addr_count != 0 {
+            msg_st().msg_hist_len - eap.line2 as c_int
         } else {
             0
         };
@@ -1707,7 +1707,7 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
             // Skip over count or temporary "g<" messages.
             let prev_skip = skip;
             skip -= 1;
-            if ((*p).temp && (*eap).skip == 0) || prev_skip > 0 {
+            if ((*p).temp && eap.skip == 0) || prev_skip > 0 {
                 continue;
             }
             if ui_has(kUIMessages) && g_st().msg_silent == 0 {
@@ -1772,7 +1772,7 @@ pub unsafe fn ex_messages(eap: *mut exarg_T) {
             }
         }
         if entries.size > 0 {
-            ui_call_msg_history_show(entries, (*eap).skip != 0);
+            ui_call_msg_history_show(entries, eap.skip != 0);
             api_free_array(entries);
         }
     }
@@ -3360,7 +3360,7 @@ pub unsafe fn show_sb_text() {
             let mut ea: exarg_T = exarg_T::new();
             ea.arg = c"".as_ptr().cast_mut();
             ea.skip = 1;
-            ex_messages(&raw mut ea);
+            ex_messages(&mut ea);
             return;
         }
         let chunks = &raw const msg_st().msgchunks;

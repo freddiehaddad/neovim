@@ -5090,9 +5090,9 @@ const SUBCOMMANDS: [(*const c_char, SubcmdFn); 19] = [
 ];
 
 /// ":syntax".
-pub unsafe fn ex_syntax(eap: *mut exarg_T) {
+pub unsafe fn ex_syntax(eap: &mut exarg_T) {
     unsafe {
-        let arg = (*eap).arg;
+        let arg = eap.arg;
 
         let mut subcmd_end = arg;
         while ascii_isalpha(*subcmd_end) {
@@ -5101,13 +5101,13 @@ pub unsafe fn ex_syntax(eap: *mut exarg_T) {
         let subcmd_slice =
             std::slice::from_raw_parts(arg.cast::<u8>(), subcmd_end.offset_from(arg) as usize);
         let subcmd_name = std::ffi::CString::new(subcmd_slice).unwrap();
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             g_st().emsg_skip += 1;
         }
         let mut found = false;
         for &(name, func) in &SUBCOMMANDS {
             if std::ffi::CStr::from_ptr(subcmd_name.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(name).to_bytes() {
-                (*eap).arg = skipwhite(subcmd_end);
+                eap.arg = skipwhite(subcmd_end);
                 func(eap, 0);
                 found = true;
                 break;
@@ -5121,14 +5121,14 @@ pub unsafe fn ex_syntax(eap: *mut exarg_T) {
             );
         }
 
-        if (*eap).skip != 0 {
+        if eap.skip != 0 {
             g_st().emsg_skip -= 1;
         }
     }
 }
 
 /// @deprecated
-pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
+pub unsafe fn ex_ownsyntax(eap: &mut exarg_T) {
     unsafe {
         if (**curwin.as_ptr()).w_s_owned.is_none() {
             let mut new_s = Box::new(synblock_T::new());
@@ -5149,7 +5149,7 @@ pub unsafe fn ex_ownsyntax(eap: *mut exarg_T) {
             Some(std::ffi::CStr::from_ptr(raw_old).to_owned())
         };
 
-        apply_autocmds(EVENT_SYNTAX, (*eap).arg, (*g_st().curbuf).b_fname, true, g_st().curbuf);
+        apply_autocmds(EVENT_SYNTAX, eap.arg, (*g_st().curbuf).b_fname, true, g_st().curbuf);
 
         let new_value = get_var_value(c"b:current_syntax".as_ptr());
         if !new_value.is_null() {
@@ -5411,18 +5411,18 @@ pub unsafe fn syn_get_foldlevel(wp: *mut win_T, lnum: linenr_T) -> c_int {
 }
 
 /// ":syntime".
-pub unsafe fn ex_syntime(eap: *mut exarg_T) {
+pub unsafe fn ex_syntime(eap: &mut exarg_T) {
     unsafe {
-        if std::ffi::CStr::from_ptr((*eap).arg).to_bytes() == b"on" {
+        if std::ffi::CStr::from_ptr(eap.arg).to_bytes() == b"on" {
             syn_st().syn_time_on = true;
-        } else if std::ffi::CStr::from_ptr((*eap).arg).to_bytes() == b"off" {
+        } else if std::ffi::CStr::from_ptr(eap.arg).to_bytes() == b"off" {
             syn_st().syn_time_on = false;
-        } else if std::ffi::CStr::from_ptr((*eap).arg).to_bytes() == b"clear" {
+        } else if std::ffi::CStr::from_ptr(eap.arg).to_bytes() == b"clear" {
             syntime_clear();
-        } else if std::ffi::CStr::from_ptr((*eap).arg).to_bytes() == b"report" {
+        } else if std::ffi::CStr::from_ptr(eap.arg).to_bytes() == b"report" {
             syntime_report();
         } else {
-            semsg!(gettext((&raw const e_invarg2).cast()), (*eap).arg);
+            semsg!(gettext((&raw const e_invarg2).cast()), eap.arg);
         }
     }
 }

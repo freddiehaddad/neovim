@@ -3665,7 +3665,7 @@ pub unsafe fn buflist_findlnum(buf: *mut buf_T) -> linenr_T {
 }
 
 /// List all known file names (for `:files` and `:buffers` command).
-pub unsafe fn buflist_list(eap: *mut exarg_T) {
+pub unsafe fn buflist_list(eap: &mut exarg_T) {
     unsafe {
         let mut buf = g_st().firstbuf;
         let mut buflist: Vec<*mut buf_T> = Vec::new();
@@ -3673,7 +3673,7 @@ pub unsafe fn buflist_list(eap: *mut exarg_T) {
         let mut buflist_idx = 0usize;
 
         msg_ext_set_kind(c"list_cmd".as_ptr());
-        if !vim_strchr((*eap).arg, b't' as c_int).is_null() {
+        if !vim_strchr(eap.arg, b't' as c_int).is_null() {
             use_buflist = true;
             while !buf.is_null() {
                 buflist.push(buf);
@@ -3701,25 +3701,25 @@ pub unsafe fn buflist_list(eap: *mut exarg_T) {
             };
 
             if ((*buf).b_p_bl == 0
-                && (*eap).forceit == 0
-                && vim_strchr((*eap).arg, b'u' as c_int).is_null())
-                || (!vim_strchr((*eap).arg, b'u' as c_int).is_null() && (*buf).b_p_bl != 0)
-                || (!vim_strchr((*eap).arg, b'+' as c_int).is_null()
+                && eap.forceit == 0
+                && vim_strchr(eap.arg, b'u' as c_int).is_null())
+                || (!vim_strchr(eap.arg, b'u' as c_int).is_null() && (*buf).b_p_bl != 0)
+                || (!vim_strchr(eap.arg, b'+' as c_int).is_null()
                     && (((*buf).b_flags & BF_READERR) != 0 || !buf_is_changed(buf)))
-                || (!vim_strchr((*eap).arg, b'a' as c_int).is_null()
+                || (!vim_strchr(eap.arg, b'a' as c_int).is_null()
                     && ((*buf).b_ml.ml_mfp.is_none() || (*buf).b_nwindows == 0))
-                || (!vim_strchr((*eap).arg, b'h' as c_int).is_null()
+                || (!vim_strchr(eap.arg, b'h' as c_int).is_null()
                     && ((*buf).b_ml.ml_mfp.is_none() || (*buf).b_nwindows != 0))
-                || (!vim_strchr((*eap).arg, b'R' as c_int).is_null()
+                || (!vim_strchr(eap.arg, b'R' as c_int).is_null()
                     && (!is_terminal || !job_running))
-                || (!vim_strchr((*eap).arg, b'F' as c_int).is_null()
+                || (!vim_strchr(eap.arg, b'F' as c_int).is_null()
                     && (!is_terminal || job_running))
-                || (!vim_strchr((*eap).arg, b'-' as c_int).is_null() && (*buf).b_p_ma != 0)
-                || (!vim_strchr((*eap).arg, b'=' as c_int).is_null() && (*buf).b_p_ro == 0)
-                || (!vim_strchr((*eap).arg, b'x' as c_int).is_null()
+                || (!vim_strchr(eap.arg, b'-' as c_int).is_null() && (*buf).b_p_ma != 0)
+                || (!vim_strchr(eap.arg, b'=' as c_int).is_null() && (*buf).b_p_ro == 0)
+                || (!vim_strchr(eap.arg, b'x' as c_int).is_null()
                     && ((*buf).b_flags & BF_READERR) == 0)
-                || (!vim_strchr((*eap).arg, b'%' as c_int).is_null() && buf != g_st().curbuf)
-                || (!vim_strchr((*eap).arg, b'#' as c_int).is_null()
+                || (!vim_strchr(eap.arg, b'%' as c_int).is_null() && buf != g_st().curbuf)
+                || (!vim_strchr(eap.arg, b'#' as c_int).is_null()
                     && (buf == g_st().curbuf || (**curwin.as_ptr()).w_alt_fnum != (*buf).b_fnum))
             {
                 buf = next_buf();
@@ -3804,7 +3804,7 @@ pub unsafe fn buflist_list(eap: *mut exarg_T) {
                     break;
                 }
             }
-            if !vim_strchr((*eap).arg, b't' as c_int).is_null() && (*buf).b_last_used != 0 {
+            if !vim_strchr(eap.arg, b't' as c_int).is_null() && (*buf).b_last_used != 0 {
                 undo_fmt_time(iobuff_ptr.add(len), IOSIZE - len, (*buf).b_last_used);
             } else {
                 vim_snprintf!(
@@ -4521,21 +4521,21 @@ pub unsafe fn bt_cmdwin(buf: *const buf_T) -> bool {
 }
 
 /// Open a window for a number of buffers.
-pub unsafe fn ex_buffer_all(eap: *mut exarg_T) {
+pub unsafe fn ex_buffer_all(eap: &mut exarg_T) {
     unsafe {
         let mut wpnext: *mut win_T;
         let mut split_ret = OK;
         let mut open_wins = 0;
         let had_tab = g_st().cmdmod.cmod_tab;
 
-        let count = if (*eap).addr_count == 0 {
+        let count = if eap.addr_count == 0 {
             9999
         } else {
-            (*eap).line2
+            eap.line2
         };
 
-        let all = (*eap).cmdidx != cmdidx_T::CMD_unhide as c_int
-            && (*eap).cmdidx != cmdidx_T::CMD_sunhide as c_int;
+        let all = eap.cmdidx != cmdidx_T::CMD_unhide as c_int
+            && eap.cmdidx != cmdidx_T::CMD_sunhide as c_int;
 
         reset_VIsual_and_resel();
         setpcmark();

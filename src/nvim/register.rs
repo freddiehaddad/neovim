@@ -2530,9 +2530,9 @@ unsafe fn dis_msg(mut p: *const c_char, skip_esc: bool) {
     }
 }
 
-pub unsafe fn ex_display(eap: *mut exarg_T) {
+pub unsafe fn ex_display(eap: &mut exarg_T) {
     unsafe {
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
         if !arg.is_null() && *arg == NUL {
             arg = ptr::null_mut();
         }

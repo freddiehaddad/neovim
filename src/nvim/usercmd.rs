@@ -1200,7 +1200,7 @@ pub unsafe fn uc_add_command(
 }
 
 /// `:command ...` (`ex_command`).
-pub unsafe fn ex_command(eap: *mut exarg_T) {
+pub unsafe fn ex_command(eap: &mut exarg_T) {
     unsafe {
         let mut argt: u32 = 0;
         let mut def: c_int = -1;
@@ -1208,9 +1208,9 @@ pub unsafe fn ex_command(eap: *mut exarg_T) {
         let mut context: c_int = EXPAND_NOTHING;
         let mut compl_arg: Option<CString> = None;
         let mut addr_type_arg: cmd_addr_T = ADDR_NONE;
-        let has_attr = *(*eap).arg == b'-' as c_char;
+        let has_attr = *eap.arg == b'-' as c_char;
 
-        let mut p = (*eap).arg;
+        let mut p = eap.arg;
 
         while *p == b'-' as c_char {
             p = p.add(1);
@@ -1267,14 +1267,14 @@ pub unsafe fn ex_command(eap: *mut exarg_T) {
                 addr_type_arg,
                 LUA_NOREF,
                 ptr::null(),
-                (*eap).forceit != 0,
+                eap.forceit != 0,
             );
         }
     }
 }
 
 /// `:comclear` (`ex_comclear`).
-pub unsafe fn ex_comclear(_eap: *mut exarg_T) {
+pub unsafe fn ex_comclear(_eap: &mut exarg_T) {
     unsafe {
         let u = &raw mut (*ucmds_mut());
         (*u).clear();
@@ -1284,11 +1284,11 @@ pub unsafe fn ex_comclear(_eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_delcommand(eap: *mut exarg_T) {
+pub unsafe fn ex_delcommand(eap: &mut exarg_T) {
     unsafe {
         let mut i: c_int;
         let mut res: c_int = -1;
-        let mut arg: *const c_char = (*eap).arg;
+        let mut arg: *const c_char = eap.arg;
         let mut buffer_only = false;
 
         if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"-buffer"[..7] } && ascii_iswhite(*arg.add(7)) {

@@ -1280,19 +1280,19 @@ pub unsafe fn set_title_defaults() {
     }
 }
 
-pub unsafe fn ex_set(eap: *mut exarg_T) {
+pub unsafe fn ex_set(eap: &mut exarg_T) {
     unsafe {
         let mut flags: c_int = 0;
 
-        if (*eap).cmdidx == cmdidx_T::CMD_setlocal as c_int {
+        if eap.cmdidx == cmdidx_T::CMD_setlocal as c_int {
             flags = OPT_LOCAL;
-        } else if (*eap).cmdidx == cmdidx_T::CMD_setglobal as c_int {
+        } else if eap.cmdidx == cmdidx_T::CMD_setglobal as c_int {
             flags = OPT_GLOBAL;
         }
-        if (*eap).forceit != 0 {
+        if eap.forceit != 0 {
             flags |= OPT_ONECOLUMN;
         }
-        do_set((*eap).arg, flags);
+        do_set(eap.arg, flags);
     }
 }
 

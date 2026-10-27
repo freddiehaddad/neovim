@@ -3945,9 +3945,9 @@ pub fn has_vim_patch(n: c_int, major_minor_version: c_int) -> bool {
     false
 }
 
-pub unsafe fn ex_version(eap: *mut exarg_T) {
+pub unsafe fn ex_version(eap: &mut exarg_T) {
     unsafe {
-        if *(*eap).arg == NUL {
+        if *eap.arg == NUL {
             if !ui_has(kUIMessages) {
                 msg_putchar(b'\n' as c_int);
             }
@@ -4292,7 +4292,7 @@ unsafe fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: b
     }
 }
 
-pub unsafe fn ex_intro(_eap: *mut exarg_T) {
+pub unsafe fn ex_intro(_eap: &mut exarg_T) {
     unsafe {
         screenclear();
         intro_message(true);

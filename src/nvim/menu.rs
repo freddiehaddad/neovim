@@ -221,7 +221,7 @@ unsafe fn is_menus_locked() -> bool {
 }
 
 /// Do the `:menu` command and relatives (`ex_menu`).
-pub unsafe fn ex_menu(eap: *mut exarg_T) {
+pub unsafe fn ex_menu(eap: &mut exarg_T) {
     unsafe {
         let mut noremap: c_int = 0;
         let mut silent = false;
@@ -230,12 +230,12 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
         let mut enable: c_int = kNone;
 
         let modes = get_menu_cmd_modes(
-            (*eap).cmd,
-            (*eap).forceit != 0,
+            eap.cmd,
+            eap.forceit != 0,
             &raw mut noremap,
             &raw mut unmenu,
         );
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
 
         loop {
             if { let _p = arg; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"<script>"[..8] } {
@@ -290,8 +290,8 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
                 i += 1;
             }
             arg = skipwhite(arg);
-        } else if (*eap).addr_count != 0 && (*eap).line2 != 0 {
-            pri_tab[0] = (*eap).line2;
+        } else if eap.addr_count != 0 && eap.line2 != 0 {
+            pri_tab[0] = eap.line2;
             i = 1;
         } else {
             i = 0;
@@ -1706,9 +1706,9 @@ unsafe fn menu_getbyname(name_arg: *mut c_char) -> *mut vimmenu_T {
 }
 
 /// `:emenu` (`ex_emenu`).
-pub unsafe fn ex_emenu(eap: *mut exarg_T) {
+pub unsafe fn ex_emenu(eap: &mut exarg_T) {
     unsafe {
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
         let mut mode_idx = MENU_INDEX_INVALID;
 
         if *arg != NUL && ascii_iswhite(*arg.add(1)) {
@@ -1785,9 +1785,9 @@ pub unsafe fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
 }
 
 /// `:menutrans` (`ex_menutranslate`).
-pub unsafe fn ex_menutranslate(eap: *mut exarg_T) {
+pub unsafe fn ex_menutranslate(eap: &mut exarg_T) {
     unsafe {
-        let mut arg = (*eap).arg;
+        let mut arg = eap.arg;
         let mt_ptr = &raw mut menu_st().MENUTRANS_GA;
         let menutrans = &mut *mt_ptr;
 
