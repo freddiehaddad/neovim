@@ -12,6 +12,51 @@ General guidelines
 * Use automation (`cargo xtask` and GitHub Actions) to solve problems
 * Never break the RPC/plugin API
 
+Syncing with Upstream (`neovim/neovim`)
+---------------------------------------
+
+This repository tracks upstream [`neovim/neovim`](https://github.com/neovim/neovim) to stay 100% feature-, runtime-, and bugfix-compatible.
+
+* **Last synced upstream commit**: `8bf18972c5` (`master`)
+
+### 1. Inspecting new upstream commits
+
+Ensure the `upstream` remote points to `https://github.com/neovim/neovim.git`:
+
+```bash
+git remote add upstream https://github.com/neovim/neovim.git 2>/dev/null || true
+git fetch upstream master
+git log --oneline 8bf18972c5..upstream/master
+```
+
+### 2. Mapping upstream files to this repository
+
+Because the codebase was ported module-for-module and function-for-function, upstream changes map 1:1:
+
+| Upstream path (`neovim/neovim`) | Path in this repository | How to port |
+|---|---|---|
+| `src/nvim/<path>.c`, `src/nvim/<path>.h`, `src/nvim/<path>_defs.h` | `src/nvim/<path>.rs` | Locate the matching function/struct by name in `src/nvim/<path>.rs` and port the logic to idiomatic Rust. |
+| `src/nvim/version.c` (`patches_*` arrays) | `src/nvim/version.rs` (`PATCHES_*` slices & `NUM_PATCHES`) | Add newly merged Vim patch numbers to the matching `PATCHES_*` slice and increment `NUM_PATCHES`. |
+| `cmake.deps/deps.txt` | `deps.txt` | Update the corresponding `*_URL` and `*_SHA256` entries in `deps.txt`. |
+| `runtime/**` | `runtime/**` | Apply changes directly (`git show <sha> -- runtime/`). |
+| `test/functional/**`, `test/old/testdir/**` | `test/functional/**`, `test/old/testdir/**` | Apply test additions/updates directly. |
+| `test/unit/**` (LuaJIT FFI C unit tests) | `#[cfg(test)] mod tests` in `src/nvim/<module>.rs` | Port unit test assertions to the module's Rust `#[cfg(test)]` block. |
+| `CMakeLists.txt`, `cmake/**`, `build.zig*` | `Cargo.toml`, `build.rs`, `src/xtask/main.rs` | Skip CMake/Zig-only changes unless they alter build definitions, version metadata, or generated runtime steps. |
+
+### 3. Validation & recording the sync
+
+After porting upstream commits:
+
+1. Run `cargo xtask lintrust` (`cargo clippy --workspace --all-targets -- -D warnings`).
+2. Run `cargo test` to verify all Rust unit tests pass.
+3. Run the affected functional and legacy tests:
+   ```bash
+   cargo xtask functionaltest <path/to/spec.lua>
+   cargo xtask oldtest <test_name>
+   ```
+4. If `:help` documentation was modified, run `cargo xtask lintdoc`.
+5. Update the **Last synced upstream commit** SHA in this section of `MAINTAIN.md` and commit.
+
 Versioning and Releases
 -----------------------
 
