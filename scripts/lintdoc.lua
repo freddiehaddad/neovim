@@ -2,11 +2,11 @@
 
 -- Validate vimdoc files on $VIMRUNTIME/doc, and test generating HTML docs.
 -- Checks for duplicate/missing tags, parse errors, and invalid links/urls/spellings.
--- See also `make lintdoc`.
+-- See also `cargo xtask lintdoc`.
 --
 -- Usage:
 --   $ nvim -l scripts/lintdoc.lua
---   $ make lintdoc
+--   $ cargo xtask lintdoc
 
 print('Running lintdoc ...')
 

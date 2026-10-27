@@ -204,7 +204,7 @@ Invalid commit message: "%s"
   if failed > 0 then
     p([[
 See also:
-    https://github.com/neovim/neovim/blob/master/CONTRIBUTING.md#commit-messages
+    https://github.com/freddiehaddad/neovim/blob/master/CONTRIBUTING.md#commit-messages
 
 ]])
     os.exit(1)
