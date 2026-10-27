@@ -412,7 +412,7 @@ pub struct SignItem<'a> {
 }
 
 static mut decor_freelist: u32 = u32::MAX;
-static mut to_free_virt: Vec<Box<DecorVirtText>> = Vec::new();
+static mut to_free_virt: Vec<DecorVirtText> = Vec::new();
 static mut to_free_sh: u32 = u32::MAX;
 static mut sign_add_id: c_int = 0;
 
@@ -704,7 +704,7 @@ pub unsafe fn decor_free(decor: DecorInline) {
         if decor_state.running_decor_provider {
             if !vt.is_null() {
                 let list = &raw mut to_free_virt;
-                (*list).push(Box::from_raw(vt));
+                (*list).push(*Box::from_raw(vt));
             }
             let items = &raw mut decor_items;
             while idx != DECOR_ID_INVALID {

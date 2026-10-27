@@ -356,8 +356,10 @@ pub unsafe fn error_set(e: *const Error) -> bool {
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
 pub unsafe fn try_enter(tstate: *mut TryState) {
     unsafe {
-        let saved_msg_list = std::mem::replace(&mut *(&raw mut msg_list), Some(Vec::new()));
-        let saved_excp = (*(&raw mut current_exception)).take();
+        let ml = &raw mut msg_list;
+        let saved_msg_list = (*ml).replace(Vec::new());
+        let ce = &raw mut current_exception;
+        let saved_excp = (*ce).take();
         ptr::write(
             tstate,
             TryState {
@@ -386,6 +388,8 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
         did_emsg = 0;
         force_abort = false;
 
+        let ml = &raw const msg_list;
+        let ce = &raw const current_exception;
         if got_int {
             if did_throw {
                 discard_current_exception();
@@ -396,7 +400,7 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
                 c"Keyboard interrupt".as_ptr(),
             );
             got_int = false;
-        } else if let Some(ref msgs) = *(&raw const msg_list)
+        } else if let Some(ref msgs) = *ml
             && !msgs.is_empty()
         {
             let throw_ptr = msgs[msgs[0].throw_idx].msg.as_ptr().add(msgs[0].throw_off);
@@ -409,7 +413,7 @@ pub unsafe fn try_leave(tstate: *const TryState, err: *mut Error) {
             );
             free_global_msglist();
         } else if did_throw || need_rethrow {
-            if let Some(ref excp) = *(&raw const current_exception) {
+            if let Some(ref excp) = *ce {
                 if !excp.throw_name.as_bytes().is_empty() {
                     if excp.throw_lnum != 0 {
                         api_set_error!(

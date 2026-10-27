@@ -238,7 +238,9 @@ static mut func_hashtab: std::collections::BTreeMap<Vec<u8>, *mut ufunc_T> =
 static mut func_hashtab_changed: c_int = 0;
 static mut funcargs: Vec<*mut typval_T> = Vec::new();
 static mut current_funccal: *mut funccall_T = ptr::null_mut();
-static mut previous_funccal: Vec<Box<funccall_T>> = Vec::new();
+struct RetainedFunccall(Box<funccall_T>);
+
+static mut previous_funccal: Vec<RetainedFunccall> = Vec::new();
 static mut funccal_stack: Vec<*mut funccall_T> = Vec::new();
 static mut lambda_name: [c_char; 8 + NUMBUFLEN] = [0; 8 + NUMBUFLEN];
 static mut lambda_no: c_int = 0;
@@ -1050,7 +1052,7 @@ unsafe fn cleanup_function_call(fc: *mut funccall_T) {
         } else {
             (*fc).fc_caller = ptr::null_mut();
             let pfc = &raw mut previous_funccal;
-            (*pfc).push(Box::from_raw(fc));
+            (*pfc).push(RetainedFunccall(Box::from_raw(fc)));
 
             if want_garbage_collect {
                 made_copy = 0;
@@ -1080,7 +1082,10 @@ unsafe fn funccal_unref(fc: *mut funccall_T, fp: *mut ufunc_T, force: bool) {
             !fc_referenced(fc)
         } {
             let pfc = &raw mut previous_funccal;
-            if let Some(pos) = (*pfc).iter().position(|item| ptr::eq(&raw const **item, fc)) {
+            if let Some(pos) = (*pfc)
+                .iter()
+                .position(|item| ptr::eq(&raw const *item.0, fc))
+            {
                 (*pfc).remove(pos);
                 return;
             }
@@ -4135,7 +4140,7 @@ pub unsafe fn free_unref_funccal(copyID: c_int, testing: c_int) -> bool {
         let pfc = &raw mut previous_funccal;
         let mut i = 0usize;
         while i < (*pfc).len() {
-            let fc: *const funccall_T = &raw const *(*pfc).as_slice()[i];
+            let fc: *const funccall_T = &raw const *(*pfc).as_slice()[i].0;
             if can_free_funccal(fc, copyID) {
                 (*pfc).remove(i);
                 did_free = true;
@@ -4349,7 +4354,7 @@ pub unsafe fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
     unsafe {
         let pfc = &raw mut previous_funccal;
         for item in (*pfc).as_mut_slice() {
-            let fc: *mut funccall_T = &raw mut **item;
+            let fc: *mut funccall_T = &raw mut *item.0;
             (*fc).fc_copyID = copyID + 1;
             if set_ref_in_ht(
                 &raw mut (*fc).fc_l_vars.dv_hashtab,

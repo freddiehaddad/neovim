@@ -279,12 +279,18 @@ static mut SHOWCMD_STATE: gotchars_state_T = gotchars_state_T::new();
 
 #[inline]
 unsafe fn tb_buf_ptr() -> *mut u8 {
-    unsafe { (*(&raw mut typebuf.tb_buf)).as_mut_ptr() }
+    unsafe {
+        let p = &raw mut typebuf.tb_buf;
+        (*p).as_mut_ptr()
+    }
 }
 
 #[inline]
 unsafe fn tb_noremap_ptr() -> *mut u8 {
-    unsafe { (*(&raw mut typebuf.tb_noremap)).as_mut_ptr() }
+    unsafe {
+        let p = &raw mut typebuf.tb_noremap;
+        (*p).as_mut_ptr()
+    }
 }
 static mut LAST_VGETC_RECORDED_LEN: usize = 0;
 static mut VGETORPEEK_TC: c_int = 0;
@@ -995,7 +1001,8 @@ pub unsafe fn stop_redo_ins() {
 
 unsafe fn init_typebuf() {
     unsafe {
-        if !(*(&raw const typebuf.tb_buf)).is_empty() {
+        let p = &raw const typebuf.tb_buf;
+        if !(*p).is_empty() {
             return;
         }
 

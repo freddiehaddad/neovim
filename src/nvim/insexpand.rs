@@ -5231,9 +5231,8 @@ unsafe fn ins_compl_get_exp(ini: *mut pos_T) -> c_int {
         cpt_sources_index = -1;
         compl_started = true;
 
-        if (ctrl_x_mode_normal() || ctrl_x_mode_line_or_eval())
-            && (*(&raw const st)).e_cpt_char() == NUL
-        {
+        let st_ptr = &raw const st;
+        if (ctrl_x_mode_normal() || ctrl_x_mode_line_or_eval()) && (*st_ptr).e_cpt_char() == NUL {
             found_new_match = FAIL;
         }
 

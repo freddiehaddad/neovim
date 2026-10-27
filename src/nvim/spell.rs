@@ -169,7 +169,22 @@ pub struct syl_item_T {
     sy_chars: [c_char; SY_MAXLEN],
     sy_len: c_int,
 }
-pub static mut first_lang: Vec<Box<slang_T>> = Vec::new();
+pub struct OwnedSlang(pub Box<slang_T>);
+
+impl std::ops::Deref for OwnedSlang {
+    type Target = slang_T;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for OwnedSlang {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+pub static mut first_lang: Vec<OwnedSlang> = Vec::new();
 pub static mut int_wordlist: Option<std::ffi::CString> = None;
 pub static mut spelltab: spelltab_T = spelltab_T {
     st_isw: [false; 256],

@@ -7058,8 +7058,8 @@ pub unsafe fn eval_call_provider(
             autocmd_bufnr,
             funccalp: get_current_funccal().cast(),
         };
-        let saved_provider_caller_scope =
-            std::mem::replace(&mut *(&raw mut provider_caller_scope), new_scope);
+        let pcs = &raw mut provider_caller_scope;
+        let saved_provider_caller_scope = std::mem::replace(&mut *pcs, new_scope);
         save_funccal();
         {
             provider_call_nesting += 1;

@@ -697,7 +697,7 @@ pub unsafe fn spell_load_file(
                 && !lang.is_null()
             {
                 let langs = &raw mut first_lang;
-                (*langs).push(boxed_lp);
+                (*langs).push(crate::spell::OwnedSlang(boxed_lp));
                 lp = &raw mut **(*langs).last_mut().unwrap();
             }
         } else {
@@ -2569,35 +2569,39 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
             (*spin).si_syllable = Some(syl);
         }
 
-        if sofofrom.is_some() || sofoto.is_some() {
-            if sofofrom.is_none() || sofoto.is_none() {
+        match (sofofrom, sofoto) {
+            (None, None) => {}
+            (Some(_), None) => {
                 smsg!(
                     0,
-                    gettext(c"Missing SOFO%s line in %s".as_ptr()),
-                    if sofofrom.is_none() {
-                        c"FROM".as_ptr()
-                    } else {
-                        c"TO".as_ptr()
-                    },
+                    gettext(c"Missing SOFOTO line in %s".as_ptr()),
                     fname,
                 );
-            } else if !(*spin).si_sal.is_empty() {
-                smsg!(0, gettext(c"Both SAL and SOFO lines in %s".as_ptr()), fname);
-            } else {
-                let sf_from = sofofrom.unwrap();
-                let sf_to = sofoto.unwrap();
-                aff_check_string(
-                    (*spin).si_sofofr.as_deref(),
-                    sf_from.as_c_str(),
-                    c"SOFOFROM".as_ptr(),
+            }
+            (None, Some(_)) => {
+                smsg!(
+                    0,
+                    gettext(c"Missing SOFOFROM line in %s".as_ptr()),
+                    fname,
                 );
-                aff_check_string(
-                    (*spin).si_sofoto.as_deref(),
-                    sf_to.as_c_str(),
-                    c"SOFOTO".as_ptr(),
-                );
-                (*spin).si_sofofr = Some(sf_from);
-                (*spin).si_sofoto = Some(sf_to);
+            }
+            (Some(sf_from), Some(sf_to)) => {
+                if !(*spin).si_sal.is_empty() {
+                    smsg!(0, gettext(c"Both SAL and SOFO lines in %s".as_ptr()), fname);
+                } else {
+                    aff_check_string(
+                        (*spin).si_sofofr.as_deref(),
+                        sf_from.as_c_str(),
+                        c"SOFOFROM".as_ptr(),
+                    );
+                    aff_check_string(
+                        (*spin).si_sofoto.as_deref(),
+                        sf_to.as_c_str(),
+                        c"SOFOTO".as_ptr(),
+                    );
+                    (*spin).si_sofofr = Some(sf_from);
+                    (*spin).si_sofoto = Some(sf_to);
+                }
             }
         }
 

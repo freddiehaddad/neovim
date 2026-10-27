@@ -270,7 +270,8 @@ pub unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
 #[inline]
 pub unsafe fn hl_attr(n: c_int) -> c_int {
     unsafe {
-        if let Some(ref tbl) = *(&raw const hl_attr_active) {
+        let ha = &raw const hl_attr_active;
+        if let Some(ref tbl) = *ha {
             tbl[n as usize].get()
         } else {
             highlight_attr[n as usize]

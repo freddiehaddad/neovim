@@ -626,7 +626,7 @@ struct BuiltinTerminfoEntry {
 }
 
 impl BuiltinTerminfoEntry {
-    fn to_entry(&self) -> TerminfoEntry {
+    fn to_entry(self) -> TerminfoEntry {
         TerminfoEntry {
             back_color_erase: self.back_color_erase,
             Tc: self.Tc,

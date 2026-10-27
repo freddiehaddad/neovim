@@ -4855,7 +4855,8 @@ unsafe fn save_dbg_stuff(dsp: *mut dbg_stuff) {
         need_rethrow = false;
         (*dsp).check_cstack = c_int::from(check_cstack);
         check_cstack = false;
-        (*dsp).current_exception = (*(&raw mut current_exception)).take();
+        let ce = &raw mut current_exception;
+        (*dsp).current_exception = (*ce).take();
     }
 }
 
@@ -4980,7 +4981,8 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
         let mut cmd_getline: LineGetter;
         let mut cmd_loop_cookie = loop_cookie::new();
 
-        let saved_msg_list = std::mem::replace(&mut *(&raw mut msg_list), Some(Vec::new()));
+        let ml = &raw mut msg_list;
+        let saved_msg_list = (*ml).replace(Vec::new());
 
         if do_cmdline_start() == FAIL {
             let _ = emsg(gettext(e_command_too_recursive.as_ptr()));
@@ -5269,11 +5271,12 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 
             if (cstack.cs_lflags & CSL_HAD_FINA) != 0 {
                 cstack.cs_lflags &= !CSL_HAD_FINA;
+                let ce = &raw const current_exception;
                 report_make_pending(
                     c_int::from(cstack.cs_pending[cstack.cs_idx as usize])
                         & (CSTP_ERROR | CSTP_INTERRUPT | CSTP_THROW),
                     if did_throw {
-                        PendingVal::Throw((*(&raw const current_exception)).clone())
+                        PendingVal::Throw((*ce).clone())
                     } else {
                         PendingVal::None
                     },
@@ -5427,7 +5430,8 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 /// Handle when "did_throw" is set after executing commands.
 pub unsafe fn handle_did_throw() {
     unsafe {
-        let cur_excp = (*(&raw const current_exception)).clone();
+        let ce = &raw const current_exception;
+        let cur_excp = (*ce).clone();
         debug_assert!(cur_excp.is_some());
         let excp = cur_excp.as_ref().unwrap();
         let mut p: Option<std::ffi::CString> = None;

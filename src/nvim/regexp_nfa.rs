@@ -1107,15 +1107,15 @@ unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int 
                     return FAIL;
                 }
                 EMIT(if nr == 0 { 0x0a } else { nr as c_int });
-                return OK;
+                OK
             }
             b'^' => {
                 EMIT(NFA_BOF);
-                return OK;
+                OK
             }
             b'$' => {
                 EMIT(NFA_EOF);
-                return OK;
+                OK
             }
             b'#' => {
                 if *regparse == b'=' as c_char
@@ -1129,15 +1129,15 @@ unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int 
                     return FAIL;
                 }
                 EMIT(NFA_CURSOR);
-                return OK;
+                OK
             }
             b'V' => {
                 EMIT(NFA_VISUAL);
-                return OK;
+                OK
             }
             b'C' => {
                 EMIT(NFA_ANY_COMPOSING);
-                return OK;
+                OK
             }
             b'[' => {
                 let mut n: c_int = 0;
@@ -1179,7 +1179,7 @@ unsafe fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> c_int 
                 EMIT(NFA_OPT_CHARS);
                 EMIT(n);
                 EMIT(NFA_NOPEN);
-                return OK;
+                OK
             }
             _ => {
                 let mut n: i64 = 0;

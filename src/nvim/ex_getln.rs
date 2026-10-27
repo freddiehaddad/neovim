@@ -4534,7 +4534,8 @@ unsafe fn redrawcmdprompt() {
         if ccline.cmdfirstc != NUL as c_int {
             msg_putchar(ccline.cmdfirstc);
         }
-        if let Some(ref prompt) = *(&raw const ccline.cmdprompt) {
+        let cp = &raw const ccline.cmdprompt;
+        if let Some(ref prompt) = *cp {
             msg_puts_hl(prompt.as_ptr(), ccline.hl_id, false);
             ccline.cmdindent = msg_col + (msg_row - cmdline_row) * Columns;
             if ccline.cmdfirstc != NUL as c_int {
@@ -4749,11 +4750,12 @@ pub unsafe fn get_cmdline_last_prompt_id() -> c_uint {
 /// Get pointer to the command line info to use.
 unsafe fn get_ccline_ptr() -> *mut CmdlineInfo {
     unsafe {
+        let prev_ptr = &raw mut ccline.prev_ccline;
         if (State & MODE_CMDLINE) == 0 {
             ptr::null_mut()
         } else if !ccline.cmdbuff.is_null() {
             &raw mut ccline
-        } else if let Some(ref mut prev) = *(&raw mut ccline.prev_ccline)
+        } else if let Some(ref mut prev) = *prev_ptr
             && !prev.cmdbuff.is_null()
         {
             &raw mut **prev

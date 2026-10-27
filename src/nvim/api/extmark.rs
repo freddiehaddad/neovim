@@ -1219,7 +1219,7 @@ pub unsafe extern "C" fn nvim_buf_set_extmark(
                         c,
                         line2,
                         col2,
-                        &mut sh,
+                        &sh,
                         true,
                         ns_id as u32,
                         id,
