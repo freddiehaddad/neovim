@@ -47,7 +47,7 @@ use crate::spell::{
 };
 use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
-    atoi, gettext, has_non_ascii, strcmp, strcpy, strerror, strlen, strncmp,
+    atoi, gettext, has_non_ascii, strcmp, strerror, strlen, strncmp,
     vim_snprintf, vim_strchr,
 };
 use crate::syntax::win_s;
@@ -2166,7 +2166,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                             ah_follows: 0,
                             ah_entries: Vec::new(),
                         };
-                        strcpy(new_ah.ah_key.as_mut_ptr(), items[1]);
+                        { let s = items[1]; std::ptr::copy_nonoverlapping(s, new_ah.ah_key.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                         cur_aff = &raw mut *tp.entry(key_bytes.to_vec()).or_insert(new_ah);
                     }
 
@@ -2799,7 +2799,7 @@ unsafe fn process_compflags(spin: *mut spellinfo_T, aff: &mut afffile_T, compfla
                             ci_flag: flag,
                             ci_newID: 0,
                         };
-                        strcpy(ci.ci_key.as_mut_ptr(), key.as_ptr());
+                        { let s = key.as_ptr(); std::ptr::copy_nonoverlapping(s, ci.ci_key.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                         let mut new_id: c_int;
                         loop {
                             check_renumber(spin);
@@ -3717,7 +3717,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                             );
                         } else {
                             (*spin).si_region_count = (strlen(line) / 2) as c_int;
-                            strcpy((&raw mut (*spin).si_region_name).cast(), line);
+                            { let s = line; std::ptr::copy_nonoverlapping(s, (&raw mut (*spin).si_region_name).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                             (*spin).si_region = (1 << (*spin).si_region_count) - 1;
                         }
                     }

@@ -135,7 +135,7 @@ use crate::state::{
     save_v_event_T, state_enter, state_handle_k_event,
 };
 use crate::strings::{
-    gettext, strcmp, strcpy, strlen, strncmp, vim_strchr, vim_strnicmp,
+    gettext, strcmp, strlen, strncmp, vim_strchr, vim_strnicmp,
     vim_strsave_escaped,
 };
 use crate::ui::{
@@ -1437,7 +1437,7 @@ unsafe fn command_line_handle_ctrl_bsl(s: *mut CommandLineState) -> c_int {
                     let len = p.as_bytes().len() as c_int;
                     realloc_cmdbuff(len + 1);
                     getln_st().ccline.cmdlen = len;
-                    strcpy(getln_st().ccline.cmdbuff, p.as_ptr());
+                    { let s = p.as_ptr(); std::ptr::copy_nonoverlapping(s, getln_st().ccline.cmdbuff, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
 
                     getln_st().ccline.cmdpos = getln_st().ccline.cmdlen.min(getln_st().new_cmdpos);
 
@@ -2444,7 +2444,7 @@ unsafe fn command_line_browse_history(s: *mut CommandLineState) -> c_int {
                 getln_st().ccline.cmdpos = len;
             } else {
                 alloc_cmdbuff(plen);
-                strcpy(getln_st().ccline.cmdbuff, p);
+                { let s = p; std::ptr::copy_nonoverlapping(s, getln_st().ccline.cmdbuff, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 getln_st().ccline.cmdlen = plen;
                 getln_st().ccline.cmdpos = plen;
             }
@@ -4972,7 +4972,7 @@ unsafe fn set_cmdline_str(str: *const c_char, pos: c_int) -> c_int {
         let len = strlen(str) as c_int;
         realloc_cmdbuff(len + 1);
         (*p).cmdlen = len;
-        strcpy((*p).cmdbuff, str);
+        { let s = str; std::ptr::copy_nonoverlapping(s, (*p).cmdbuff, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
 
         (*p).cmdpos = if pos < 0 || pos > (*p).cmdlen {
             (*p).cmdlen

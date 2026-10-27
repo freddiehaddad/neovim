@@ -219,7 +219,7 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
-    atoi, atol, del_trailing_spaces, gettext, ngettext, strcmp, strcpy, strlen, strncmp,
+    atoi, atol, del_trailing_spaces, gettext, ngettext, strcmp, strlen, strncmp,
     strrep, vim_snprintf, vim_strchr, vim_stricmp, vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
@@ -7378,14 +7378,14 @@ unsafe fn append_command(cmd: *const c_char) {
         if len > IOSIZE - 100 {
             d = iobuf_ptr.add(IOSIZE - 100);
             d = d.sub(utf_head_off(iobuf_ptr, d) as usize);
-            strcpy(d, c"...".as_ptr());
+            { let s = c"...".as_ptr(); std::ptr::copy_nonoverlapping(s, d, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         }
         xstrlcat(iobuf_ptr, c": ".as_ptr(), IOSIZE);
         d = iobuf_ptr.add(strlen(iobuf_ptr));
         while *s != NUL && ((d as usize) - (iobuf_ptr as usize) + 5 < IOSIZE) {
             if (*s as u8) == 0xc2 && (*s.add(1) as u8) == 0xa0 {
                 s = s.add(2);
-                strcpy(d, c"<a0>".as_ptr());
+                { let s = c"<a0>".as_ptr(); std::ptr::copy_nonoverlapping(s, d, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 d = d.add(4);
             } else if (d as usize) - (iobuf_ptr as usize) + (utfc_ptr2len(s) as usize) + 1 >= IOSIZE
             {
@@ -8404,12 +8404,12 @@ unsafe fn repl_cmdline(
         ptr::copy_nonoverlapping(*cmdlinep, new_cmdline, i);
         ptr::copy_nonoverlapping(repl, new_cmdline.add(i), len);
         i += len;
-        strcpy(new_cmdline.add(i), src.add(srclen));
+        { let s = src.add(srclen); std::ptr::copy_nonoverlapping(s, new_cmdline.add(i), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         src = new_cmdline.add(i);
 
         if !(*eap).nextcmd.is_null() {
             i = strlen(new_cmdline) + 1;
-            strcpy(new_cmdline.add(i), (*eap).nextcmd);
+            { let s = (*eap).nextcmd; std::ptr::copy_nonoverlapping(s, new_cmdline.add(i), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             (*eap).nextcmd = new_cmdline.add(i);
         }
         (*eap).cmd =

@@ -113,7 +113,7 @@ use crate::strings::vim_strnicmp;
 #[cfg(windows)]
 use crate::strings::vim_strnicmp;
 use crate::strings::{
-    atoi, gettext, strcat, strcmp, strcpy, strlen, strncmp, tolower, vim_snprintf, vim_strchr, vim_strsave_escaped,
+    atoi, gettext, strcmp, strlen, strncmp, tolower, vim_snprintf, vim_strchr, vim_strsave_escaped,
 };
 use crate::tag::find_tags;
 use crate::textformat::auto_format;
@@ -6064,7 +6064,7 @@ unsafe fn get_normal_compl_info(
                 as usize
                 + prefixlen;
             let mut pat_vec: Vec<c_char> = vec![0; n];
-            strcpy(pat_vec.as_mut_ptr(), prefix);
+            { let s = prefix; std::ptr::copy_nonoverlapping(s, pat_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             quote_meta(
                 pat_vec.as_mut_ptr().add(prefixlen),
                 line.add(insexp().compl_col as usize),
@@ -6097,16 +6097,16 @@ unsafe fn get_normal_compl_info(
                 insexp().compl_length = curs_col - startcol;
                 if insexp().compl_length == 1 {
                     let mut pat_vec = [0 as c_char; 7];
-                    strcpy(pat_vec.as_mut_ptr(), c"\\<".as_ptr());
+                    { let s = c"\\<".as_ptr(); std::ptr::copy_nonoverlapping(s, pat_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     quote_meta(pat_vec.as_mut_ptr().add(2), line.add(insexp().compl_col as usize), 1);
-                    strcat(pat_vec.as_mut_ptr(), c"\\k".as_ptr());
+                    { let d = pat_vec.as_mut_ptr(); let s = c"\\k".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     set_compl_pattern_bytes(pat_vec.as_ptr(), strlen(pat_vec.as_ptr()));
                 } else {
                     let n = quote_meta(ptr::null_mut(), line.add(insexp().compl_col as usize), insexp().compl_length)
                         as usize
                         + 2;
                     let mut pat_vec: Vec<c_char> = vec![0; n];
-                    strcpy(pat_vec.as_mut_ptr(), c"\\<".as_ptr());
+                    { let s = c"\\<".as_ptr(); std::ptr::copy_nonoverlapping(s, pat_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     quote_meta(
                         pat_vec.as_mut_ptr().add(2),
                         line.add(insexp().compl_col as usize),

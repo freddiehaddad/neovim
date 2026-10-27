@@ -48,7 +48,7 @@ use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
 use crate::spellfile::{MAXREGIONS, spell_load_file};
 use crate::spellsuggest::{idx_T, langp_T, slang_T, spell_suggest_list, spelltab_T};
 use crate::strings::{
-    concat_str, gettext, strcat, strcmp, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
+    concat_str, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::syntax::{syn_get_id, syntax_present};
 use crate::undo::u_save_cursor;
@@ -1169,7 +1169,7 @@ pub unsafe fn spell_move_to(
                     line = ml_get_buf((*wp).w_buffer, lnum);
                 }
                 let empty_line = *skipwhite(line) == NUL;
-                strcpy(buf, line);
+                { let s = line; std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 if lnum < (*(*wp).w_buffer).b_ml.ml_line_count {
                     spell_cat_line(
                         buf.add(strlen(buf)),
@@ -1326,7 +1326,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
             sl_loaded: false,
             sl_nobreak: 0,
         };
-        strcpy((&raw mut sl.sl_lang).cast(), lang);
+        { let s = lang; std::ptr::copy_nonoverlapping(s, (&raw mut sl.sl_lang).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         (*g_st().curbuf).b_locked += 1;
         for round in 1..=2 {
             vim_snprintf!(
@@ -1395,7 +1395,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
             }
         } else if sl.sl_loaded {
             let fn_ptr = (&raw mut fname_enc).cast::<c_char>();
-            strcpy(fn_ptr.add(strlen(fn_ptr) - 3), c"add.spl".as_ptr());
+            { let s = c"add.spl".as_ptr(); std::ptr::copy_nonoverlapping(s, fn_ptr.add(strlen(fn_ptr) - 3), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             do_in_runtimepath(fn_ptr, DIP_ALL, &mut RuntimeCallback::SpellLoad(&mut sl));
         }
         (*g_st().curbuf).b_locked -= 1;
@@ -1833,7 +1833,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     int_wordlist_spl(spf_ptr);
                 } else {
                     let len = copy_option_part(&raw mut spf, spf_ptr, MAXPATHL - 4, c",".as_ptr());
-                    strcpy(spf_ptr.add(len), c".spl".as_ptr());
+                    { let s = c".spl".as_ptr(); std::ptr::copy_nonoverlapping(s, spf_ptr.add(len), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     let mut c = 0;
                     while c < ga.len() {
                         if (*ga[c].lp_slang).sl_fname.as_ref().is_some_and(|p| {
@@ -1860,7 +1860,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                 if slang.is_null() {
                     let lang_ptr = (&raw mut lang).cast::<c_char>();
                     if cur_round == 0 {
-                        strcpy(lang_ptr, c"internal wordlist".as_ptr());
+                        { let s = c"internal wordlist".as_ptr(); std::ptr::copy_nonoverlapping(s, lang_ptr, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     } else {
                         xstrlcpy(lang_ptr, path_tail(spf_ptr), MAXWLEN + 1);
                         let p = vim_strchr(lang_ptr, b'.' as c_int);
@@ -2334,8 +2334,8 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
                     vec![0; (get_cursor_line_len() as i64 + addlen + 1) as usize];
                 let p = p_vec.as_mut_ptr();
                 ptr::copy(line, p, (**curwin.as_ptr()).w_cursor.col as usize);
-                strcpy(p.add((**curwin.as_ptr()).w_cursor.col as usize), repl_to_ptr);
-                strcat(p, line.add((**curwin.as_ptr()).w_cursor.col as usize + repl_from_len));
+                { let s = repl_to_ptr; std::ptr::copy_nonoverlapping(s, p.add((**curwin.as_ptr()).w_cursor.col as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = p; let s = line.add((**curwin.as_ptr()).w_cursor.col as usize + repl_from_len); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 let _ = ml_replace((**curwin.as_ptr()).w_cursor.lnum, p, true);
                 inserted_bytes(
                     (**curwin.as_ptr()).w_cursor.lnum,
@@ -2421,7 +2421,7 @@ pub unsafe fn make_case_word(fword: *mut c_char, cword: *mut c_char, flags: c_in
         } else if (flags & WF_ONECAP) != 0 {
             onecap_copy(fword, cword, true);
         } else {
-            strcpy(cword, fword);
+            { let s = fword; std::ptr::copy_nonoverlapping(s, cword, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         }
     }
 }
@@ -3054,15 +3054,15 @@ unsafe fn dump_word(
         if pat.is_null() {
             if (flags & (WF_BANNED | WF_RARE | WF_REGION)) != 0 || keepcap {
                 let bw_ptr = (&raw mut badword).cast::<c_char>();
-                strcpy(bw_ptr, p);
-                strcat(bw_ptr, c"/".as_ptr());
+                { let s = p; std::ptr::copy_nonoverlapping(s, bw_ptr, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = bw_ptr; let s = c"/".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 if keepcap {
-                    strcat(bw_ptr, c"=".as_ptr());
+                    { let d = bw_ptr; let s = c"=".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 }
                 if (flags & WF_BANNED) != 0 {
-                    strcat(bw_ptr, c"!".as_ptr());
+                    { let d = bw_ptr; let s = c"!".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 } else if (flags & WF_RARE) != 0 {
-                    strcat(bw_ptr, c"?".as_ptr());
+                    { let d = bw_ptr; let s = c"?".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 }
                 if (flags & WF_REGION) != 0 {
                     for i in 0..7 {

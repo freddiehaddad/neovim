@@ -39,7 +39,7 @@ use crate::spell::{
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
 use crate::strings::{
-    atoi, gettext, strcat, strcmp, strcpy, strlen, strncmp, vim_snprintf,
+    atoi, gettext, strcmp, strlen, strncmp, vim_snprintf,
     vim_strchr,
 };
 use crate::ui::vim_beep;
@@ -826,8 +826,8 @@ pub unsafe fn spell_suggest(count: c_int) {
                 let p = p_vec.as_mut_ptr();
                 let c = sug.su_badptr.offset_from(line) as c_int;
                 ptr::copy(line, p, c as usize);
-                strcpy(p.add(c as usize), stp.st_word.as_ptr());
-                strcat(p, sug.su_badptr.add(stp.st_orglen as usize));
+                { let s = stp.st_word.as_ptr(); std::ptr::copy_nonoverlapping(s, p.add(c as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = p; let s = sug.su_badptr.add(stp.st_orglen as usize); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 prep_redo(
                     false,
                     false,
@@ -1154,10 +1154,7 @@ unsafe fn suggest_try_special(su: *mut suginfo_T) {
 unsafe fn suggest_try_change(su: *mut suginfo_T) {
     unsafe {
         let mut fword: [c_char; MAXWLEN] = [0; MAXWLEN];
-        strcpy(
-            (&raw mut fword).cast(),
-            (&raw const (*su).su_fbadword).cast(),
-        );
+        { let s = (&raw const (*su).su_fbadword).cast(); std::ptr::copy_nonoverlapping(s, (&raw mut fword).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         let mut n = strlen((&raw const fword).cast()) as c_int;
         let p = (*su).su_badptr.add((*su).su_badlen as usize);
         spell_casefold(
@@ -1446,14 +1443,11 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                         }
                     }
                     if soundfold {
-                        strcpy(
-                            (&raw mut preword)
+                        { let s = (&raw const tword)
                                 .cast::<c_char>()
-                                .add(stack[udepth].ts_prewordlen as usize),
-                            (&raw const tword)
+                                .add(stack[udepth].ts_splitoff as usize); std::ptr::copy_nonoverlapping(s, (&raw mut preword)
                                 .cast::<c_char>()
-                                .add(stack[udepth].ts_splitoff as usize),
-                        );
+                                .add(stack[udepth].ts_prewordlen as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     } else if (flags & WF_KEEPCAP) != 0 {
                         find_keepcap_word(
                             slang,
@@ -1694,7 +1688,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                                 depth += 1;
                                 udepth = depth as usize;
                                 if !try_compound && !fword_ends {
-                                    strcat((&raw mut preword).cast(), c" ".as_ptr());
+                                    { let d = (&raw mut preword).cast::<c_char>(); let s = c" ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                                 }
                                 stack[udepth].ts_prewordlen =
                                     strlen((&raw const preword).cast()) as u8;
@@ -2491,7 +2485,7 @@ unsafe fn stp_sal_score(
             (&raw mut badsound2).cast()
         };
         let pgood = if lendiff > 0 && (stp.st_wordlen + lendiff) < MAXWLEN as c_int {
-            strcpy((&raw mut goodword).cast(), stp.st_word.as_ptr());
+            { let s = stp.st_word.as_ptr(); std::ptr::copy_nonoverlapping(s, (&raw mut goodword).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             xmemcpyz(
                 (&raw mut goodword)
                     .cast::<c_char>()
@@ -2596,10 +2590,7 @@ unsafe fn add_sound_suggest(su: *mut suginfo_T, goodword: *mut c_char, score: c_
                     }
                     while *byts.add((n + i) as usize) == 0 {
                         if i > *byts.add(n as usize) as c_int {
-                            strcpy(
-                                (&raw mut theword).cast::<c_char>().add(wlen),
-                                c"BAD".as_ptr(),
-                            );
+                            { let s = c"BAD".as_ptr(); std::ptr::copy_nonoverlapping(s, (&raw mut theword).cast::<c_char>().add(wlen), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                             wlen += 3;
                             break 'badword;
                         }

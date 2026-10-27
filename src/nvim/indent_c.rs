@@ -23,7 +23,7 @@ use crate::plines::getvcol;
 use crate::regexp::MAXCOL;
 use crate::search::{findmatchlimit, linewhite};
 use crate::state::MODE_INSERT;
-use crate::strings::{atoi, strcpy, strlen, strncmp, tolower, vim_strchr};
+use crate::strings::{atoi, strlen, strncmp, tolower, vim_strchr};
 use std::ffi::{c_char, c_int};
 use std::ptr;
 pub(crate) const FM_BACKWARD: c_int = 0x01;
@@ -1784,12 +1784,12 @@ pub unsafe fn get_c_indent() -> c_int {
                             c",".as_ptr(),
                         ) as c_int;
                         if what == COM_START as u8 as c_int {
-                            strcpy((&raw mut lead_start).cast(), (&raw const lead_end).cast());
+                            { let s = (&raw const lead_end).cast(); std::ptr::copy_nonoverlapping(s, (&raw mut lead_start).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                             lead_start_len = lead_end_len;
                             start_off = off;
                             start_align = align;
                         } else if what == COM_MIDDLE as u8 as c_int {
-                            strcpy((&raw mut lead_middle).cast(), (&raw const lead_end).cast());
+                            { let s = (&raw const lead_end).cast(); std::ptr::copy_nonoverlapping(s, (&raw mut lead_middle).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                             lead_middle_len = lead_end_len;
                         } else if what == COM_END as u8 as c_int {
                             if strncmp(

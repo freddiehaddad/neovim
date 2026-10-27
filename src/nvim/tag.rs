@@ -66,7 +66,7 @@ use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{do_search, ignorecase, ignorecase_opt};
 use crate::state::MODE_INSERT;
 use crate::strings::{
-    atoi, gettext, strcmp, strcpy, strlen, strncmp, vim_snprintf,
+    atoi, gettext, strcmp, strlen, strncmp, vim_snprintf,
     vim_snprintf_safelen, vim_strchr,
 };
 use crate::window::{
@@ -1068,12 +1068,12 @@ unsafe fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> c_int {
                 *cmd = NUL;
 
                 if *cmd_start == b'^' as c_char {
-                    strcpy(cmd, c"^".as_ptr());
+                    { let s = c"^".as_ptr(); std::ptr::copy_nonoverlapping(s, cmd, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     cmd_start = cmd_start.add(1);
                     len += 1;
                 }
 
-                strcpy(cmd.add(len as usize), c"\\V".as_ptr());
+                { let s = c"\\V".as_ptr(); std::ptr::copy_nonoverlapping(s, cmd.add(len as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 len += 2;
 
                 let cmd_len = ((cmd_end.offset_from(cmd_start) as c_int) + 1)
@@ -1449,17 +1449,17 @@ unsafe fn find_tagfunc_tags(
                 *p = TAG_SEP;
                 p = p.add(1);
 
-                strcpy(p, res_name);
+                { let s = res_name; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 p = p.add(strlen(p));
 
                 *p = TAB;
                 p = p.add(1);
-                strcpy(p, res_fname);
+                { let s = res_fname; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 p = p.add(strlen(p));
 
                 *p = TAB;
                 p = p.add(1);
-                strcpy(p, res_cmd);
+                { let s = res_cmd; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 p = p.add(strlen(p));
 
                 if cmdkind == tagcmd_T::TAGCMD_GENERIC {
@@ -1467,13 +1467,13 @@ unsafe fn find_tagfunc_tags(
                     p = p.add(1);
                 }
                 if cmdkind == tagcmd_T::TAGCMD_GENERIC || has_extra {
-                    strcpy(p, c";\"".as_ptr());
+                    { let s = c";\"".as_ptr(); std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     p = p.add(strlen(p));
 
                     if !res_kind.is_null() {
                         *p = TAB;
                         p = p.add(1);
-                        strcpy(p, res_kind);
+                        { let s = res_kind; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                         p = p.add(strlen(p));
                     }
 
@@ -1496,11 +1496,11 @@ unsafe fn find_tagfunc_tags(
                                 {
                                     *p = TAB;
                                     p = p.add(1);
-                                    strcpy(p, dict_key);
+                                    { let s = dict_key; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                                     p = p.add(strlen(p));
-                                    strcpy(p, c":".as_ptr());
+                                    { let s = c":".as_ptr(); std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                                     p = p.add(strlen(p));
-                                    strcpy(p, (*tv).vval.v_string());
+                                    { let s = (*tv).vval.v_string(); std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                                     p = p.add(strlen(p));
                                 }
                             }
@@ -1588,7 +1588,7 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
         let st = &mut *st;
         let tag_fname = st.tag_fname.as_ptr();
         if st.is_txt {
-            strcpy(st.help_lang.as_mut_ptr(), c"en".as_ptr());
+            { let s = c"en".as_ptr(); std::ptr::copy_nonoverlapping(s, st.help_lang.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         } else {
             let i = strlen(tag_fname) as c_int;
             if i > 3 && *tag_fname.add((i - 3) as usize) == b'-' as c_char {
@@ -1598,7 +1598,7 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
                     2,
                 );
             } else {
-                strcpy(st.help_lang.as_mut_ptr(), c"en".as_ptr());
+                { let s = c"en".as_ptr(); std::ptr::copy_nonoverlapping(s, st.help_lang.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
         }
 
@@ -2021,7 +2021,7 @@ unsafe fn findtags_string_convert(st: *mut findtags_state_T) {
         if len > st.lbuf.len() {
             st.lbuf.resize(len, 0);
         }
-        strcpy(st.lbuf.as_mut_ptr(), conv_line.as_ptr().cast());
+        { let s = conv_line.as_ptr().cast(); std::ptr::copy_nonoverlapping(s, st.lbuf.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
     }
 }
 
@@ -2063,9 +2063,9 @@ unsafe fn findtags_add_match(
             let mfp_size = 1 + len + 10 + ML_EXTRA + 1;
             let mut v = vec![0 as c_char; mfp_size];
             let p = v.as_mut_ptr();
-            strcpy(p, tagpp.tagname);
+            { let s = tagpp.tagname; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             *p.add(len) = b'@' as c_char;
-            strcpy(p.add(len + 1), (*st).help_lang.as_ptr());
+            { let s = (*st).help_lang.as_ptr(); std::ptr::copy_nonoverlapping(s, p.add(len + 1), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             let heur = help_heuristic(
                 tagpp.tagname,
                 if margs.match_re { margs.matchoff } else { 0 },
@@ -2116,10 +2116,10 @@ unsafe fn findtags_add_match(
             let mut v = vec![0 as c_char; 1 + len + 1];
             let p = v.as_mut_ptr();
             *p = (mtt + 1) as c_char;
-            strcpy(p.add(1), tag_fname_ptr);
+            { let s = tag_fname_ptr; std::ptr::copy_nonoverlapping(s, p.add(1), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             *p.add(tag_fname_len + 1) = TAG_SEP;
             let s = p.add(1 + tag_fname_len + 1);
-            strcpy(s, lbuf_ptr);
+            { let _src_p = lbuf_ptr; std::ptr::copy_nonoverlapping(_src_p, s, std::ffi::CStr::from_ptr(_src_p).to_bytes_with_nul().len()); };
             mfp_vec = Some(v);
         }
 
@@ -2504,7 +2504,7 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
                 }
                 (*tnp).tn_hf_idx += 1;
                 xstrlcpy(buf, opt_vars().p_hf, MAXPATHL - 4);
-                strcpy(path_tail(buf), c"tags".as_ptr());
+                { let s = c"tags".as_ptr(); std::ptr::copy_nonoverlapping(s, path_tail(buf), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 simplify_filename(buf);
 
                 let buf_bytes = CStr::from_ptr(buf).to_bytes();
@@ -2576,7 +2576,7 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
             }
         }
 
-        strcpy(buf, fname.as_ref().unwrap().as_ptr());
+        { let s = fname.as_ref().unwrap().as_ptr(); std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         OK
     }
 }
@@ -3062,7 +3062,7 @@ unsafe fn expand_tag_fname(
             let p = path_tail(tag_fname);
             if p != tag_fname {
                 let mut retval = [0 as c_char; MAXPATHL];
-                strcpy(retval.as_mut_ptr(), tag_fname);
+                { let s = tag_fname; std::ptr::copy_nonoverlapping(s, retval.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 let off = p.offset_from(tag_fname) as usize;
                 xstrlcpy(retval.as_mut_ptr().add(off), fname.as_ptr(), MAXPATHL - off);
                 simplify_filename(retval.as_mut_ptr());

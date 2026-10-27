@@ -129,7 +129,7 @@ use crate::runtime::{
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    gettext, strcmp, strcpy, strlen, strncmp, tr, vim_snprintf,
+    gettext, strcmp, strlen, strncmp, tr, vim_snprintf,
     vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
 };
 use crate::tag::free_tagfunc_option;
@@ -1367,7 +1367,7 @@ unsafe fn stropt_expand_envvar(
             newlen += (strlen(origval) as u32) + 1;
         }
         *newval = vec![0; newlen as usize];
-        strcpy(newval.as_mut_ptr(), s);
+        { let s = s; std::ptr::copy_nonoverlapping(s, newval.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
     }
 }
 
@@ -1412,7 +1412,7 @@ unsafe fn stropt_remove_val(
     mut len: c_int,
 ) {
     unsafe {
-        strcpy(newval, origval);
+        { let s = origval; std::ptr::copy_nonoverlapping(s, newval, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         if *strval != NUL {
             if (flags & kOptFlagComma) != 0 {
                 if strval == origval {
@@ -1549,7 +1549,7 @@ unsafe fn stropt_handle_keymatch(
         }
 
         let newval_copy = crate::memory::cstr_to_cstring(newval);
-        strcpy(newval, origval);
+        { let s = origval; std::ptr::copy_nonoverlapping(s, newval, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
 
         let mut item_start = newval_copy.as_ptr().cast_mut();
         loop {
@@ -1686,7 +1686,7 @@ unsafe fn stropt_get_newval(
 
                 if (op == OP_ADDING || op == OP_PREPENDING) && !s.is_null() {
                     op = OP_NONE;
-                    strcpy(newval, origval);
+                    { let s = origval; std::ptr::copy_nonoverlapping(s, newval, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 }
 
                 if s.is_null() {

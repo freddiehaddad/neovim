@@ -23,7 +23,7 @@ use crate::regexp::{
 };
 use crate::runtime::{ESTACK_NONE, do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
 use crate::strings::{
-    concat_str, gettext, strcat, strcpy, strlen, vim_snprintf, vim_snprintf_safelen,
+    concat_str, gettext, vim_snprintf, vim_snprintf_safelen,
 };
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
@@ -402,21 +402,14 @@ enum ExceptionValue {
 
 pub unsafe fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> CString {
     unsafe {
-        let mut ret_vec: Vec<c_char>;
-        let val = if !cmdname.is_null() && *cmdname != NUL {
-            let cmdlen = strlen(cmdname);
-            ret_vec = vec![0; 4 + cmdlen + 2 + strlen(mesg) + 1];
-            let ret = ret_vec.as_mut_ptr();
-            strcpy(ret, c"Vim(".as_ptr());
-            strcpy(ret.add(4), cmdname);
-            strcpy(ret.add(4 + cmdlen), c"):".as_ptr());
-            ret.add(4 + cmdlen + 2)
+        let mut out: Vec<u8> = Vec::new();
+        if !cmdname.is_null() && *cmdname != NUL {
+            out.extend_from_slice(b"Vim(");
+            out.extend_from_slice(CStr::from_ptr(cmdname).to_bytes());
+            out.extend_from_slice(b"):");
         } else {
-            ret_vec = vec![0; 4 + strlen(mesg) + 1];
-            let ret = ret_vec.as_mut_ptr();
-            strcpy(ret, c"Vim:".as_ptr());
-            ret.add(4)
-        };
+            out.extend_from_slice(b"Vim:");
+        }
 
         let mut p = mesg;
         loop {
@@ -429,7 +422,7 @@ pub unsafe fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_ch
                                 || (ascii_isdigit(*p.add(3)) && *p.add(4) == b':' as c_char)))))
             {
                 if *p == NUL || ptr::eq(p, mesg) {
-                    strcat(val, mesg);
+                    out.extend_from_slice(CStr::from_ptr(mesg).to_bytes());
                 } else {
                     if *mesg != b'"' as c_char
                         || (p as usize) < (mesg.add(3) as usize)
@@ -440,21 +433,20 @@ pub unsafe fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_ch
                         continue;
                     }
 
-                    strcat(val, p);
-                    *p.cast_mut().sub(2) = NUL;
-                    vim_snprintf!(
-                        val.add(strlen(p)),
-                        strlen(c" (%s)".as_ptr()),
-                        c" (%s)".as_ptr(),
-                        mesg.add(1),
-                    );
-                    *p.cast_mut().sub(2) = b'"' as c_char;
+                    out.extend_from_slice(CStr::from_ptr(p).to_bytes());
+                    let quoted_len = (p.sub(2) as usize) - (mesg.add(1) as usize);
+                    out.extend_from_slice(b" (");
+                    out.extend_from_slice(std::slice::from_raw_parts(
+                        mesg.add(1).cast::<u8>(),
+                        quoted_len,
+                    ));
+                    out.push(b')');
                 }
                 break;
             }
             p = p.add(1);
         }
-        CStr::from_ptr(ret_vec.as_ptr()).to_owned()
+        crate::memory::cstr_from_bytes(&out)
     }
 }
 

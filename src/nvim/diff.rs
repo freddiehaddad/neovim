@@ -53,7 +53,7 @@ use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{FileInfo, os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
 use crate::strings::{
-    atol, gettext, strcat, strcmp, strcpy, strlen, strncmp, tolower, vim_snprintf, vim_strchr,
+    atol, gettext, strcmp, strlen, strncmp, tolower, vim_snprintf, vim_strchr,
     vim_strsave_shellescape,
 };
 use crate::ui::vim_beep;
@@ -1380,11 +1380,11 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
                 }
                 shorten_fnames(1);
             }
-            strcpy(buf, tmp_new);
-            strcat(buf, c".orig".as_ptr());
+            { let s = tmp_new; std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            { let d = buf; let s = c".orig".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             let _ = os_remove(buf);
-            strcpy(buf, tmp_new);
-            strcat(buf, c".rej".as_ptr());
+            { let s = tmp_new; std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            { let d = buf; let s = c".rej".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             let _ = os_remove(buf);
             let mut file_info = FileInfo::new();
             let info_ok = os_fileinfo(tmp_new, &raw mut file_info);
@@ -1396,8 +1396,8 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
                 if !(*g_st().curbuf).b_fname.is_null() {
                     let fname_len = strlen((*g_st().curbuf).b_fname);
                     newname_vec = vec![0; fname_len + 5];
-                    strcpy(newname_vec.as_mut_ptr(), (*g_st().curbuf).b_fname);
-                    strcat(newname_vec.as_mut_ptr(), c".new".as_ptr());
+                    { let s = (*g_st().curbuf).b_fname; std::ptr::copy_nonoverlapping(s, newname_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                    { let d = newname_vec.as_mut_ptr(); let s = c".new".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     newname = newname_vec.as_mut_ptr();
                 }
                 g_st().cmdmod.cmod_tab = 0;

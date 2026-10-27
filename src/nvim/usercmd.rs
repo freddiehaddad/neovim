@@ -55,7 +55,7 @@ use crate::os::env::expand_T;
 use crate::os::input::line_breakcheck;
 use crate::runtime::sourcing_lnum;
 use crate::strings::{
-    gettext, strcat, strcmp, strcpy, strncmp, vim_strchr, vim_strnicmp_asc,
+    gettext, strcmp, strncmp, vim_strchr, vim_strnicmp_asc,
 };
 use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, prevwin_curwin, tabpage_index,
@@ -1533,9 +1533,9 @@ unsafe fn add_cmd_modifier(
 
         if !buf.is_null() {
             if *multi_mods {
-                strcat(buf, c" ".as_ptr());
+                { let d = buf; let s = c" ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
-            strcat(buf, mod_str);
+            { let d = buf; let s = mod_str; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         }
 
         *multi_mods = true;
@@ -1723,7 +1723,7 @@ unsafe fn uc_check_code(
                     if quote == 1 {
                         result = 2;
                         if !buf.is_null() {
-                            strcpy(buf, c"''".as_ptr());
+                            { let s = c"''".as_ptr(); std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                         }
                     } else {
                         result = 0;
@@ -1737,7 +1737,7 @@ unsafe fn uc_check_code(
                         0 => {
                             result = CStr::from_ptr((*eap).arg).to_bytes().len();
                             if !buf.is_null() {
-                                strcpy(buf, (*eap).arg);
+                                { let s = (*eap).arg; std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                             }
                         }
                         1 => {
@@ -1778,7 +1778,7 @@ unsafe fn uc_check_code(
 
                             result = *split_len;
                             if !buf.is_null() && result != 0 {
-                                strcpy(buf, split_buf.as_ref().unwrap().as_ptr());
+                                { let s = split_buf.as_ref().unwrap().as_ptr(); std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                             }
                         }
                         _ => {}
@@ -1828,7 +1828,7 @@ unsafe fn uc_check_code(
                         *buf = b'"' as c_char;
                         buf = buf.add(1);
                     }
-                    strcpy(buf, num_str.as_ptr().cast::<c_char>());
+                    { let s = num_str.as_ptr().cast::<c_char>(); std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     buf = buf.add(num_len);
                     if quote != 0 {
                         *buf = b'"' as c_char;
@@ -1968,7 +1968,7 @@ pub unsafe fn do_ucmd(eap: *mut exarg_T, preview: bool) -> c_int {
                 }
             }
             if !buf.is_null() {
-                strcpy(q, p);
+                { let s = p; std::ptr::copy_nonoverlapping(s, q, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 break;
             }
 

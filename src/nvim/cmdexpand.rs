@@ -103,7 +103,7 @@ use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
 use crate::strings::{
-    gettext, sort_strings, strcase_save, strcmp, strcpy, strlen, strncmp,
+    gettext, sort_strings, strcase_save, strcmp, strlen, strncmp,
     vim_snprintf, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::{
@@ -2282,7 +2282,7 @@ unsafe fn redraw_wildmenu(
             *buf = NUL;
             len = 0;
         } else {
-            strcpy(buf, c"< ".as_ptr());
+            { let s = c"< ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             len = 2;
         }
         clen = len as c_int;
@@ -2298,7 +2298,7 @@ unsafe fn redraw_wildmenu(
             let mut s = show_match(matches, i as usize, showtail);
             let emenu = (*xp).xp_context == EXPAND_MENUS || (*xp).xp_context == EXPAND_MENUNAMES;
             if emenu && menu_is_separator(s) {
-                strcpy(buf.add(len), transchar(b'|' as c_int));
+                { let s = transchar(b'|' as c_int); std::ptr::copy_nonoverlapping(s, buf.add(len), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 let l = strlen(buf.add(len));
                 len += l;
                 clen += l as c_int;
@@ -2312,7 +2312,7 @@ unsafe fn redraw_wildmenu(
                         s = s.add((l - 1) as usize);
                         len += l as usize;
                     } else {
-                        strcpy(buf.add(len), transchar_byte(c_int::from(*s as u8)));
+                        { let s = transchar_byte(c_int::from(*s as u8)); std::ptr::copy_nonoverlapping(s, buf.add(len), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                         len += strlen(buf.add(len));
                     }
                     s = s.add(1);

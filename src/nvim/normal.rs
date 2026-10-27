@@ -167,7 +167,7 @@ use crate::state::{
 };
 use crate::statusline::{draw_tabline, win_redr_status};
 use crate::strings::{
-    strcat, strcpy, strlen, tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
+    strlen, tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
 };
 use crate::syntax::syn_stack_free_all;
 use crate::tag::do_tag;
@@ -2992,7 +2992,7 @@ pub unsafe fn add_to_showcmd(c: c_int) -> bool {
         let p: *mut c_char = if c <= 0x7f || !vim_isprintc(c) {
             let tc = transchar(c);
             if *tc == b' ' as c_char {
-                strcpy(tc, c"<20>".as_ptr());
+                { let s = c"<20>".as_ptr(); std::ptr::copy_nonoverlapping(s, tc, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
             tc
         } else {
@@ -3012,7 +3012,7 @@ pub unsafe fn add_to_showcmd(c: c_int) -> bool {
             let overflow = old_len + extra_len - limit;
             ptr::copy(sc_buf.add(overflow), sc_buf, old_len - overflow + 1);
         }
-        strcat(sc_buf, p);
+        { let d = sc_buf; let s = p; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
 
         if char_avail() {
             return false;
@@ -3049,10 +3049,7 @@ unsafe fn del_from_showcmd(mut len: c_int) {
 pub unsafe fn push_showcmd() {
     unsafe {
         if opt_vars().p_sc != 0 {
-            strcpy(
-                (&raw mut norm_st().old_showcmd_buf).cast::<c_char>(),
-                (&raw const g_st().showcmd_buf).cast::<c_char>(),
-            );
+            { let s = (&raw const g_st().showcmd_buf).cast::<c_char>(); std::ptr::copy_nonoverlapping(s, (&raw mut norm_st().old_showcmd_buf).cast::<c_char>(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         }
     }
 }
@@ -3062,10 +3059,7 @@ pub unsafe fn pop_showcmd() {
         if opt_vars().p_sc == 0 {
             return;
         }
-        strcpy(
-            (&raw mut g_st().showcmd_buf).cast::<c_char>(),
-            (&raw const norm_st().old_showcmd_buf).cast::<c_char>(),
-        );
+        { let s = (&raw const norm_st().old_showcmd_buf).cast::<c_char>(); std::ptr::copy_nonoverlapping(s, (&raw mut g_st().showcmd_buf).cast::<c_char>(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         display_showcmd();
     }
 }
@@ -3111,7 +3105,7 @@ pub unsafe fn display_showcmd() {
             let mut content_items: [Object; 1] = [NIL_OBJ];
             let mut chunk_items: [Object; 3] = [NIL_OBJ; 3];
             let mut ext_buf: [c_char; 16 + SHOWCMD_BUFLEN] = [0; 16 + SHOWCMD_BUFLEN];
-            strcpy(ext_buf.as_mut_ptr(), mc_buf.as_ptr());
+            { let s = mc_buf.as_ptr(); std::ptr::copy_nonoverlapping(s, ext_buf.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             xstrlcpy(
                 ext_buf.as_mut_ptr().add(mc_len),
                 if norm_st().showcmd_is_clear {
@@ -4371,7 +4365,7 @@ unsafe fn nv_K_getcmd(
 ) -> usize {
     unsafe {
         if kp_help {
-            strcpy(buf, c"help! ".as_ptr());
+            { let s = c"help! ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             *buflen = 6;
             return n;
         }
@@ -4509,7 +4503,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
                 (**curwin.as_ptr()).w_cursor.col = ptr.offset_from(get_cursor_line_ptr()) as colnr_T;
 
                 if !g_cmd && vim_iswordp(ptr) {
-                    strcpy(buf_vec.as_mut_ptr(), c"\\<".as_ptr());
+                    { let s = c"\\<".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     buflen = 2;
                 }
                 g_st().Search.no_smartcase = true;
@@ -4532,19 +4526,19 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
             }
             c if c == b']' as c_int => {
                 tag_cmd = true;
-                strcpy(buf_vec.as_mut_ptr(), c"tselect ".as_ptr());
+                { let s = c"tselect ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 buflen = 8;
             }
             _ => {
                 tag_cmd = true;
                 if (*g_st().curbuf).b_help {
-                    strcpy(buf_vec.as_mut_ptr(), c"help! ".as_ptr());
+                    { let s = c"help! ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     buflen = 6;
                 } else if g_cmd {
-                    strcpy(buf_vec.as_mut_ptr(), c"tjump ".as_ptr());
+                    { let s = c"tjump ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     buflen = 6;
                 } else if (*cap).count0 == 0 {
-                    strcpy(buf_vec.as_mut_ptr(), c"tag ".as_ptr());
+                    { let s = c"tag ".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     buflen = 4;
                 } else {
                     buflen = vim_snprintf!(
@@ -4558,7 +4552,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
         }
 
         if cmdchar == b'K' as c_int && kp_helpbang && !visual_sel {
-            strcpy(buf_vec.as_mut_ptr(), c"help!".as_ptr());
+            { let s = c"help!".as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             buflen = 5;
         } else if cmdchar == b'K' as c_int && !kp_help {
             let ptr_cstr = std::ffi::CString::new(std::slice::from_raw_parts(ptr.cast::<u8>(), n))
@@ -4570,7 +4564,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
             };
             let plen = p.to_bytes().len();
             buf_vec.resize(buflen + plen + 1, 0);
-            strcpy(buf_vec.as_mut_ptr().add(buflen), p.as_ptr());
+            { let s = p.as_ptr(); std::ptr::copy_nonoverlapping(s, buf_vec.as_mut_ptr().add(buflen), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             buflen += plen;
         } else {
             let aux_ptr = if cmdchar == b'*' as c_int {
@@ -4623,7 +4617,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
         let buf = buf_vec.as_mut_ptr();
         if cmdchar == b'*' as c_int || cmdchar == b'#' as c_int {
             if !g_cmd && vim_iswordp(mb_prevptr(get_cursor_line_ptr(), ptr)) {
-                strcpy(buf.add(buflen), c"\\>".as_ptr());
+                { let s = c"\\>".as_ptr(); std::ptr::copy_nonoverlapping(s, buf.add(buflen), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 buflen += 2;
             }
 

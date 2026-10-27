@@ -130,8 +130,8 @@ use crate::shada::SubReplacementString;
 use crate::spell::parse_spelllang;
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP};
 use crate::strings::{
-    atoi, atol, concat_str, gettext, isalpha, ngettext, strcat, strcmp,
-    strcoll, strcpy, strlen, strncmp, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
+    atoi, atol, concat_str, gettext, isalpha, ngettext, strcmp,
+    strcoll, strlen, strncmp, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
     vim_strchr, vim_stricmp, vim_strsave_escaped,
 };
 use crate::terminal::{Terminal, terminal_check_size, terminal_running};
@@ -887,7 +887,7 @@ pub unsafe fn ex_sort(eap: *mut exarg_T) {
                 let bytelen: colnr_T = ml_get_len(get_lnum) + 1;
                 old_count += bytelen as bcount_t;
                 if !unique || i == 0 || string_compare(s, sortbuf1) != 0 {
-                    strcpy(sortbuf1, s);
+                    { let s = s; std::ptr::copy_nonoverlapping(s, sortbuf1, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     if ml_append(lnum, sortbuf1, 0, false) == FAIL {
                         break;
                     }
@@ -1082,7 +1082,7 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
                     if is_match {
                         delete_lnum = get_lnum;
                     } else {
-                        strcpy(sortbuf1, s.add(start_col as usize));
+                        { let s = s.add(start_col as usize); std::ptr::copy_nonoverlapping(s, sortbuf1, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     }
                 } else if keep_only_not_unique {
                     if is_match {
@@ -1097,7 +1097,7 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
                             delete_lnum = get_lnum;
                         }
                         match_continue = false;
-                        strcpy(sortbuf1, s.add(start_col as usize));
+                        { let s = s.add(start_col as usize); std::ptr::copy_nonoverlapping(s, sortbuf1, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     }
                 } else if is_match {
                     if !match_continue {
@@ -1111,7 +1111,7 @@ pub unsafe fn ex_uniq(eap: *mut exarg_T) {
                         delete_lnum = get_lnum;
                     }
                     match_continue = false;
-                    strcpy(sortbuf1, s.add(start_col as usize));
+                    { let s = s.add(start_col as usize); std::ptr::copy_nonoverlapping(s, sortbuf1, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 }
 
                 if end_col > 0 {
@@ -1453,21 +1453,18 @@ pub unsafe fn do_bang(
             }
             let mut t = vec![0 as c_char; len];
             if !newcmd.is_empty() {
-                strcat(t.as_mut_ptr(), newcmd.as_ptr());
+                { let d = t.as_mut_ptr(); let s = newcmd.as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
             if ins_prevcmd {
-                strcat(
-                    t.as_mut_ptr(),
-                    (&raw const excmds_st().prevcmd)
+                { let d = t.as_mut_ptr(); let s = (&raw const excmds_st().prevcmd)
                         .as_ref()
                         .unwrap()
                         .as_ref()
                         .unwrap()
-                        .as_ptr(),
-                );
+                        .as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
             let mut p_idx = strlen(t.as_ptr());
-            strcat(t.as_mut_ptr(), trailarg);
+            { let d = t.as_mut_ptr(); let s = trailarg; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             newcmd = t;
 
             let mut next_trail_off: Option<usize> = None;
@@ -1528,9 +1525,9 @@ pub unsafe fn do_bang(
                     .map_or(c"".as_ptr(), |s| s.as_ptr());
                 let qlen = strlen(prev_ptr) + 2 * strlen(opt_vars().p_shq) + 1;
                 newcmd = vec![0 as c_char; qlen];
-                strcpy(newcmd.as_mut_ptr(), opt_vars().p_shq);
-                strcat(newcmd.as_mut_ptr(), prev_ptr);
-                strcat(newcmd.as_mut_ptr(), opt_vars().p_shq);
+                { let s = opt_vars().p_shq; std::ptr::copy_nonoverlapping(s, newcmd.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = newcmd.as_mut_ptr(); let s = prev_ptr; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+                { let d = newcmd.as_mut_ptr(); let s = opt_vars().p_shq; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
             if addr_count == 0 {
                 msg_start();
@@ -4629,10 +4626,7 @@ unsafe fn do_sub(
                         || regmatch.startpos[0].lnum > 0
                     {
                         if !new_start.is_null() {
-                            strcpy(
-                                new_start.data().add(new_start.size),
-                                sub_firstline.data().add(copycol as usize),
-                            );
+                            { let s = sub_firstline.data().add(copycol as usize); std::ptr::copy_nonoverlapping(s, new_start.data().add(new_start.size), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                             new_start.size += sub_firstline.size - copycol as usize;
                             matchcol = sub_firstline.size as colnr_T - matchcol;
                             prev_matchcol = sub_firstline.size as colnr_T - prev_matchcol;
@@ -4841,7 +4835,7 @@ pub unsafe fn do_sub_msg(count_only: bool) -> bool {
         {
             let msg_buf_ptr = (&raw mut g_st().msg_buf).cast::<c_char>();
             if g_st().got_int {
-                strcpy(msg_buf_ptr, gettext(c"(Interrupted) ".as_ptr()));
+                { let s = gettext(c"(Interrupted) ".as_ptr()); std::ptr::copy_nonoverlapping(s, msg_buf_ptr, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             } else {
                 *msg_buf_ptr = NUL;
             }

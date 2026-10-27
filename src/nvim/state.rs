@@ -17,7 +17,7 @@ use crate::keycodes::get_special_key_name;
 use crate::log::{LOGLVL_DBG, log_st, logmsg};
 use crate::option::get_ve_flags;
 use crate::os::input::{input_available, input_get, os_breakcheck};
-use crate::strings::{strcmp, strcpy, vim_snprintf};
+use crate::strings::{strcmp, vim_snprintf};
 use crate::ui::ui_flush;
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint};
@@ -357,7 +357,7 @@ pub unsafe fn may_trigger_modechanged() {
             false,
             g_st().curbuf,
         );
-        strcpy(ptr::addr_of_mut!(g_st().last_mode).cast(), curr_mode.as_ptr());
+        { let s = curr_mode.as_ptr(); std::ptr::copy_nonoverlapping(s, ptr::addr_of_mut!(g_st().last_mode).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
 
         restore_v_event(v_event, &mut save_v_event);
     }

@@ -36,7 +36,7 @@ use crate::path::{
     to_slash_save, vim_ispathsep,
 };
 use crate::runtime::sctx_T;
-use crate::strings::{striequal, strlen, vim_strchr, vim_strsave_escaped};
+use crate::strings::{strlen, vim_strchr, vim_strsave_escaped};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -341,10 +341,10 @@ pub unsafe fn os_setenv(name: *const c_char, value: *const c_char, overwrite: c_
         }
         {
             #[cfg(windows)]
-            if striequal(name, c"LC_ALL".as_ptr())
-                || striequal(name, c"LANGUAGE".as_ptr())
-                || striequal(name, c"LANG".as_ptr())
-                || striequal(name, c"LC_MESSAGES".as_ptr())
+            if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"LC_ALL")
+                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"LANGUAGE")
+                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"LANG")
+                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"LC_MESSAGES")
             {
                 let r = _putenv_s(name, value);
                 assert_eq!(r, 0);
@@ -925,14 +925,14 @@ pub unsafe fn vim_getenv(name: *const c_char) -> Option<std::ffi::CString> {
         let kos_env_path = os_getenv_cstr(name);
         #[cfg(windows)]
         if let Some(ref c) = kos_env_path
-            && (striequal(name, c"VIMRUNTIME".as_ptr())
-                || striequal(name, c"PATH".as_ptr())
-                || striequal(name, c"CDPATH".as_ptr())
-                || striequal(name, c"TMPDIR".as_ptr())
-                || striequal(name, c"TMP".as_ptr())
-                || striequal(name, c"TEMP".as_ptr())
-                || striequal(name, c"VIM".as_ptr())
-                || striequal(name, c"MYVIMRC".as_ptr()))
+            && (std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"VIMRUNTIME")
+                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"PATH")
+                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"CDPATH")
+                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"TMPDIR")
+                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"TMP")
+                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"TEMP")
+                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"VIM")
+                || std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"MYVIMRC"))
         {
             to_slash(c.as_ptr().cast_mut());
         }
@@ -1235,15 +1235,15 @@ pub unsafe fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
         if *sh == NUL {
             return false;
         }
-        if striequal(sh, c"$COMSPEC".as_ptr()) {
+        if std::ffi::CStr::from_ptr(sh).to_bytes().eq_ignore_ascii_case(b"$COMSPEC") {
             let mut buf = [0 as c_char; MAXPATHL];
             let comspec = os_getenv_buf(c"COMSPEC".as_ptr(), buf.as_mut_ptr(), buf.len());
-            return !comspec.is_null() && striequal(c"cmd.exe".as_ptr(), path_tail(comspec));
+            return !comspec.is_null() && std::ffi::CStr::from_ptr(path_tail(comspec)).to_bytes().eq_ignore_ascii_case(b"cmd.exe");
         }
-        if striequal(sh, c"cmd.exe".as_ptr()) || striequal(sh, c"cmd".as_ptr()) {
+        if std::ffi::CStr::from_ptr(sh).to_bytes().eq_ignore_ascii_case(b"cmd.exe") || std::ffi::CStr::from_ptr(sh).to_bytes().eq_ignore_ascii_case(b"cmd") {
             return true;
         }
-        striequal(c"cmd.exe".as_ptr(), path_tail(sh))
+        std::ffi::CStr::from_ptr(path_tail(sh)).to_bytes().eq_ignore_ascii_case(b"cmd.exe")
     }
 }
 
@@ -1251,9 +1251,9 @@ pub unsafe fn os_shell_is_cmdexe(sh: *const c_char) -> bool {
 pub unsafe fn vim_unsetenv_ext(var: *const c_char) {
     unsafe {
         let _ = os_unsetenv(var);
-        if striequal(var, c"VIM".as_ptr()) {
+        if std::ffi::CStr::from_ptr(var).to_bytes().eq_ignore_ascii_case(b"VIM") {
             g_st().didset_vim = false;
-        } else if striequal(var, c"VIMRUNTIME".as_ptr()) {
+        } else if std::ffi::CStr::from_ptr(var).to_bytes().eq_ignore_ascii_case(b"VIMRUNTIME") {
             g_st().didset_vimruntime = false;
         }
     }
@@ -1263,12 +1263,12 @@ pub unsafe fn vim_unsetenv_ext(var: *const c_char) {
 pub unsafe fn vim_setenv_ext(name: *const c_char, val: *const c_char) {
     unsafe {
         let _ = os_setenv(name, val, 1);
-        if striequal(name, c"HOME".as_ptr()) {
+        if std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"HOME") {
             init_homedir();
         } else {
-            if g_st().didset_vim && striequal(name, c"VIM".as_ptr()) {
+            if g_st().didset_vim && std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"VIM") {
                 g_st().didset_vim = false;
-            } else if g_st().didset_vimruntime && striequal(name, c"VIMRUNTIME".as_ptr()) {
+            } else if g_st().didset_vimruntime && std::ffi::CStr::from_ptr(name).to_bytes().eq_ignore_ascii_case(b"VIMRUNTIME") {
                 g_st().didset_vimruntime = false;
             }
         }

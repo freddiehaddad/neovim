@@ -81,7 +81,7 @@ use crate::register::{
     is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg, yankreg_T,
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG, virtual_active};
-use crate::strings::{ngettext, strcpy, tr, vim_snprintf, vim_strchr};
+use crate::strings::{ngettext, tr, vim_snprintf, vim_strchr};
 use crate::textformat::{auto_format, has_format_option, op_format, op_formatexpr, oparg_T};
 use crate::ui::vim_beep;
 use crate::undo::{u_clearline, u_save, u_save_cursor};
@@ -585,10 +585,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
                 b' ',
                 spaces as usize,
             );
-            strcpy(
-                newp.add((bd.textcol + tabs + spaces) as usize),
-                bd.textstart,
-            );
+            { let s = bd.textstart; std::ptr::copy_nonoverlapping(s, newp.add((bd.textcol + tabs + spaces) as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
         } else {
             let mut non_white = bd.textstart;
@@ -666,7 +663,7 @@ unsafe fn shift_block(oap: *mut oparg_T, amount: c_int) {
             newlen = fill;
             ptr::copy(oldp, newp, fixedlen as usize);
             ptr::write_bytes(newp.add(fixedlen as usize), b' ', fill as usize);
-            strcpy(newp.add((fixedlen + fill) as usize), non_white);
+            { let s = non_white; std::ptr::copy_nonoverlapping(s, newp.add((fixedlen + fill) as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
         }
         ml_replace((**curwin.as_ptr()).w_cursor.lnum, newp, true);
@@ -786,7 +783,7 @@ unsafe fn block_insert(
             if spaces > 0 {
                 offset += count;
             }
-            strcpy(newp.add(offset as usize), oldp);
+            { let s = oldp; std::ptr::copy_nonoverlapping(s, newp.add(offset as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
 
             ml_replace(lnum, newp, true);
             drop(newp_vec);
@@ -947,10 +944,7 @@ pub unsafe fn op_delete(oap: *mut oparg_T) -> c_int {
                         b' ',
                         (bd.startspaces + bd.endspaces) as usize,
                     );
-                    strcpy(
-                        newp.add((bd.textcol + bd.startspaces + bd.endspaces) as usize),
-                        oldp.add((bd.textcol + bd.textlen) as usize),
-                    );
+                    { let s = oldp.add((bd.textcol + bd.textlen) as usize); std::ptr::copy_nonoverlapping(s, newp.add((bd.textcol + bd.startspaces + bd.endspaces) as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     ml_replace(lnum, newp, true);
                     drop(newp_vec);
 
@@ -1852,7 +1846,7 @@ pub unsafe fn op_change(oap: *mut oparg_T) -> c_int {
                             ins_len as usize,
                         );
                         newlen += ins_len;
-                        strcpy(newp.add(newlen as usize), oldp.add(bd.textcol as usize));
+                        { let s = oldp.add(bd.textcol as usize); std::ptr::copy_nonoverlapping(s, newp.add(newlen as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                         ml_replace(linenr, newp, true);
                         drop(newp_vec);
                         extmark_splice_cols(
@@ -3022,7 +3016,7 @@ pub unsafe fn do_addsub(
             *ptr_line = NUL;
             let mut buf1len = ptr_line.offset_from(buf1) as c_int;
 
-            strcpy(buf1.add(buf1len as usize), buf2_ptr);
+            { let s = buf2_ptr; std::ptr::copy_nonoverlapping(s, buf1.add(buf1len as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             buf1len += buf2len;
 
             ins_str(buf1, buf1len as usize);

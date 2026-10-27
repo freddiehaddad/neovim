@@ -49,7 +49,7 @@ use crate::regexp::{
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
-    gettext, strcat, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
+    gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
     vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up,
 };
 use crate::window::win_T;
@@ -4797,7 +4797,7 @@ unsafe fn get_id_list(
                     id = syn_check_group(name.add(1), end.offset_from(p) as usize);
                 } else {
                     *name = b'^' as c_char;
-                    strcat(name.add(1), c"$".as_ptr());
+                    { let d = name.add(1); let s = c"$".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     regmatch.regprog = vim_regcomp(name, RE_MAGIC);
                     if regmatch.regprog.is_null() {
                         failed = true;

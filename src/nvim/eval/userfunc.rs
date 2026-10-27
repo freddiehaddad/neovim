@@ -76,7 +76,7 @@ use crate::runtime::{
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::strings::{
-    gettext, strcmp, strcpy, strlen, strncmp, vim_snprintf, vim_strchr,
+    gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int};
@@ -889,7 +889,7 @@ unsafe fn fname_trans_sid(
         }
         let fnamelen = fname_buflen + strlen(script_name);
         if fnamelen < FLEN_FIXED {
-            strcpy(fname_buf.add(fname_buflen), script_name);
+            { let s = script_name; std::ptr::copy_nonoverlapping(s, fname_buf.add(fname_buflen), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             fname_buf
         } else {
             let mut fname_vec = vec![0 as c_char; fnamelen + 1];
@@ -3989,7 +3989,7 @@ pub unsafe fn get_return_cmd(rettv: Option<typval_T>) -> std::ffi::CString {
         xstrlcpy(iobuff_ptr.add(8), s, IOSIZE - 8);
         let mut iobuff_len = 8 + slen;
         if iobuff_len >= IOSIZE {
-            strcpy(iobuff_ptr.add(IOSIZE - 4), c"...".as_ptr());
+            { let s = c"...".as_ptr(); std::ptr::copy_nonoverlapping(s, iobuff_ptr.add(IOSIZE - 4), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             iobuff_len = IOSIZE - 1;
         }
         drop(tofree);

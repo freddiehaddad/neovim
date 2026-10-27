@@ -110,7 +110,7 @@ use crate::path::{
 };
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, last_search_pat};
 use crate::strings::{
-    atoi, atol, gettext, has_non_ascii, strcmp, strcpy, strlen, vim_snprintf, vim_snprintf_safelen,
+    atoi, atol, gettext, has_non_ascii, strcmp, strlen, vim_snprintf, vim_snprintf_safelen,
     vim_strchr,
 };
 use crate::ui::ui_flush;
@@ -869,15 +869,15 @@ unsafe fn efmpat_to_regpat(
         regpat = regpat.add(1);
         #[cfg(windows)]
         if *efmpat == b'f' as c_char {
-            strcpy(regpat, c"\\%(\\a:\\)\\=".as_ptr());
+            { let s = c"\\%(\\a:\\)\\=".as_ptr(); std::ptr::copy_nonoverlapping(s, regpat, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             regpat = regpat.add(10);
         }
         if *efmpat == b'f' as c_char && *efmpat.add(1) != NUL {
             if *efmpat.add(1) != b'\\' as c_char && *efmpat.add(1) != b'%' as c_char {
-                strcpy(regpat, c".\\{-1,}".as_ptr());
+                { let s = c".\\{-1,}".as_ptr(); std::ptr::copy_nonoverlapping(s, regpat, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 regpat = regpat.add(7);
             } else {
-                strcpy(regpat, c"\\f\\+".as_ptr());
+                { let s = c"\\f\\+".as_ptr(); std::ptr::copy_nonoverlapping(s, regpat, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 regpat = regpat.add(4);
             }
         } else {
@@ -1893,7 +1893,7 @@ unsafe fn qf_parse_fmt_s(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         let mut len = (*rmp).endp[midx].offset_from((*rmp).startp[midx]) as usize;
         len = len.min(CMDBUFFSIZE - 5);
         let pat_ptr = (*fields).pattern.as_mut_ptr();
-        strcpy(pat_ptr, c"^\\V".as_ptr());
+        { let s = c"^\\V".as_ptr(); std::ptr::copy_nonoverlapping(s, pat_ptr, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         xstrlcat(pat_ptr, (*rmp).startp[midx], len + 4);
         *pat_ptr.add(len + 3) = b'\\' as c_char;
         *pat_ptr.add(len + 4) = b'$' as c_char;
@@ -4917,7 +4917,7 @@ unsafe fn get_mef_name() -> Option<std::ffi::CString> {
             let mef_len = strlen(opt_vars().p_mef);
             let mut name_vec: Vec<c_char> = vec![0; mef_len + 30];
             let name = name_vec.as_mut_ptr();
-            strcpy(name, opt_vars().p_mef);
+            { let s = opt_vars().p_mef; std::ptr::copy_nonoverlapping(s, name, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             let off_idx = p.offset_from(opt_vars().p_mef) as usize;
             vim_snprintf!(
                 name.add(off_idx),

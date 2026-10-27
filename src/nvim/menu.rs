@@ -32,7 +32,7 @@ use crate::state::{
     MODE_TERMINAL, MODE_VISUAL, get_real_state,
 };
 use crate::strings::{
-    gettext, strcat, strcmp, strncmp, vim_strchr, vim_stricmp, vim_strnicmp_asc,
+    gettext, strcmp, strncmp, vim_strchr, vim_stricmp, vim_strnicmp_asc,
 };
 use crate::ui::ui_call_update_menu;
 use std::ffi::{CStr, c_char, c_int};
@@ -1219,7 +1219,7 @@ pub unsafe fn get_menu_names(_xp: *mut expand_T, idx: c_int) -> *mut c_char {
                         menu_st().GET_MENU_NAMES_ADVANCE = true;
                     }
                 }
-                strcat(&raw mut menu_st().GET_MENU_NAMES_TBUFFER[0], c"\x01".as_ptr());
+                { let d = &raw mut menu_st().GET_MENU_NAMES_TBUFFER[0]; let s = c"\x01".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 &raw mut menu_st().GET_MENU_NAMES_TBUFFER[0]
             } else if menu_st().GET_MENU_NAMES_ADVANCE {
                 menu.en_dname

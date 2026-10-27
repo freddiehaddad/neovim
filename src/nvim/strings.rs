@@ -207,25 +207,6 @@ pub unsafe fn strncmp(mut s1: *const c_char, mut s2: *const c_char, mut n: usize
 }
 
 #[inline]
-pub unsafe fn strcpy(dst: *mut c_char, src: *const c_char) -> *mut c_char {
-    unsafe {
-        let len = CStr::from_ptr(src).to_bytes_with_nul().len();
-        ptr::copy_nonoverlapping(src, dst, len);
-        dst
-    }
-}
-
-#[inline]
-pub unsafe fn strcat(dst: *mut c_char, src: *const c_char) -> *mut c_char {
-    unsafe {
-        let dst_len = CStr::from_ptr(dst).to_bytes().len();
-        let src_len = CStr::from_ptr(src).to_bytes_with_nul().len();
-        ptr::copy_nonoverlapping(src, dst.add(dst_len), src_len);
-        dst
-    }
-}
-
-#[inline]
 pub unsafe fn atol(mut s: *const c_char) -> c_long {
     unsafe {
         while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
@@ -804,12 +785,6 @@ pub unsafe fn vim_strnicmp(mut s1: *const c_char, mut s2: *const c_char, mut len
             len -= 1;
         }
         0
-    }
-}
-
-pub unsafe fn striequal(a: *const c_char, b: *const c_char) -> bool {
-    unsafe {
-        (a.is_null() && b.is_null()) || (!a.is_null() && !b.is_null() && vim_stricmp(a, b) == 0)
     }
 }
 

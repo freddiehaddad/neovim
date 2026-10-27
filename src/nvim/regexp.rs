@@ -28,7 +28,7 @@ use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{profile_passed_limit, proftime_T};
-pub(super) use crate::strings::{strcpy, strlen, strncmp};
+pub(super) use crate::strings::{strlen, strncmp};
 use crate::strings::tr;
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint};
@@ -2311,7 +2311,7 @@ pub(super) unsafe fn match_with_backref(
                 if (*tf).len() < len {
                     (*tf).resize(len, 0);
                 }
-                strcpy((*tf).as_mut_ptr().cast(), re_st().rex.line.cast());
+                { let s = re_st().rex.line.cast(); std::ptr::copy_nonoverlapping(s, (*tf).as_mut_ptr().cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 re_st().rex.line = (*tf).as_mut_ptr();
                 re_st().rex.input = re_st().rex.line.add(off);
             }
@@ -2529,7 +2529,7 @@ pub unsafe fn regtilde(
                         tmpsub.add(prefixlen),
                         reg_prev_sublen,
                     );
-                    strcpy(tmpsub.add(prefixlen + reg_prev_sublen), postfix);
+                    { let s = postfix; std::ptr::copy_nonoverlapping(s, tmpsub.add(prefixlen + reg_prev_sublen), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
 
                     newsub_vec = Some(tmpsub_vec);
                     newsub = newsub_vec.as_mut().unwrap().as_mut_ptr();
@@ -2697,7 +2697,7 @@ unsafe fn vim_regsub_both(
                 if let Some(ref eval_cstr) = *eval_slot {
                     let eval_len = eval_cstr.to_bytes().len();
                     if eval_len < destlen as usize {
-                        strcpy(dest, eval_cstr.as_ptr());
+                        { let s = eval_cstr.as_ptr(); std::ptr::copy_nonoverlapping(s, dest, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                         dst = dst.add(eval_len);
                         *eval_slot = None;
                     }
@@ -3116,7 +3116,7 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     len = (reg_getline_submatch_len(lnum) - (*re_st().rsm.sm_mmatch).startpos[no].col)
                         as isize;
                     if round == 2 {
-                        strcpy(retval, s);
+                        { let s = s; std::ptr::copy_nonoverlapping(s, retval, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                         *retval.add(len as usize) = b'\n' as c_char;
                     }
                     len += 1;
@@ -3124,7 +3124,7 @@ pub unsafe fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     while lnum < (*re_st().rsm.sm_mmatch).endpos[no].lnum {
                         s = reg_getline_submatch(lnum);
                         if round == 2 {
-                            strcpy(retval.add(len as usize), s);
+                            { let s = s; std::ptr::copy_nonoverlapping(s, retval.add(len as usize), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                         }
                         len += reg_getline_submatch_len(lnum) as isize;
                         if round == 2 {

@@ -102,7 +102,7 @@ use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
 use crate::strings::{
-    gettext, ngettext, strcmp, strcpy, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
+    gettext, ngettext, strcmp, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
     vim_strchr,
 };
 use crate::syntax::{reset_synblock, synblock_T, syntax_clear};
@@ -4339,7 +4339,7 @@ pub unsafe fn maketitle() {
                     namelen += c_int::from(utf_cp_bounds(name, name.add(namelen as usize)).end_off);
                     name = name.add(namelen as usize);
                 }
-                strcpy(buf.as_mut_ptr(), name);
+                { let s = name; std::ptr::copy_nonoverlapping(s, buf.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 trans_characters(buf.as_mut_ptr(), IOSIZE as c_int);
             }
         }

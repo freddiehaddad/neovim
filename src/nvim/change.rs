@@ -58,7 +58,7 @@ use crate::plines::{getvcol, linetabsize_eol, win_chartabsize};
 use crate::search::{BACKWARD, FORWARD, findmatch, linewhite, showmatch};
 use crate::spell::spell_check_window;
 use crate::state::{MODE_INSERT, REPLACE_FLAG, VREPLACE_FLAG, virtual_active};
-use crate::strings::{concat_str, strcat, tr, vim_strchr};
+use crate::strings::{concat_str, tr, vim_strchr};
 use crate::textformat::{comp_textwidth, has_format_option};
 use crate::ui::{ui_active, ui_has};
 use crate::undo::{curbufIsChanged, u_clearline, u_save_cursor, u_savedel};
@@ -1601,12 +1601,12 @@ pub unsafe fn open_line(
                 let padding = second_line_indent
                     - (newindent + CStr::from_ptr(leader).to_bytes().len() as c_int);
                 for _ in 0..padding {
-                    strcat(leader, c" ".as_ptr());
+                    { let d = leader; let s = c" ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     less_cols -= 1;
                     newcol += 1;
                 }
             }
-            strcat(leader, p_extra);
+            { let d = leader; let s = p_extra; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             p_extra = leader;
             g_st().Ins.did_ai = true;
             less_cols -= lead_len;
