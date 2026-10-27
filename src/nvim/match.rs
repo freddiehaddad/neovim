@@ -108,9 +108,7 @@ pub struct matchitem_T {
 
 impl Drop for matchitem_T {
     fn drop(&mut self) {
-        unsafe {
-            vim_regfree(self.mit_match.regprog);
-        }
+        vim_regfree(self.mit_match.regprog);
     }
 }
 
@@ -129,7 +127,7 @@ pub struct SearchState {
 use crate::highlight::win_hl_attr;
 
 /// Add match to the match list of window `wp` (`match_add`).
-unsafe fn match_add(
+fn match_add(
     wp: &mut win_T,
     grp: *const c_char,
     pat: *const c_char,
@@ -326,8 +324,7 @@ unsafe fn match_add(
 
 /// Delete match with ID `id` in the match list of window `wp` (`match_delete`).
 fn match_delete(wp: &mut win_T, id: c_int, perr: bool) -> c_int {
-    unsafe {
-        let mut rtype = UPD_SOME_VALID;
+    let mut rtype = UPD_SOME_VALID;
 
         if id < 1 {
             if perr {
@@ -353,15 +350,12 @@ fn match_delete(wp: &mut win_T, id: c_int, perr: bool) -> c_int {
         }
         redraw_later(&raw mut *wp, rtype);
         0
-    }
 }
 
 /// Delete all matches in the match list of window `wp` (`clear_matches`).
 pub fn clear_matches(wp: &mut win_T) {
-    unsafe {
-        wp.w_match_head.clear();
+    wp.w_match_head.clear();
         redraw_later(wp, UPD_SOME_VALID);
-    }
 }
 
 /// Get match from ID `id` in window `wp` (`get_match`).
@@ -375,8 +369,7 @@ fn get_match(wp: &mut win_T, id: c_int) -> *mut matchitem_T {
 
 /// Init for calling `prepare_search_hl()` (`init_search_hl`).
 pub fn init_search_hl(wp: &mut win_T, search_hl: &mut match_T) {
-    unsafe {
-        let buf = wp.w_buffer;
+    let buf = wp.w_buffer;
         for cur in &mut wp.w_match_head {
             cur.mit_hl.rm = cur.mit_match;
             cur.mit_hl.attr = if cur.mit_hlg_id == 0 {
@@ -393,10 +386,9 @@ pub fn init_search_hl(wp: &mut win_T, search_hl: &mut match_T) {
         search_hl.lnum = 0;
         search_hl.first_lnum = 0;
         search_hl.attr = win_hl_attr(&raw mut *wp, HLF_L as c_int);
-    }
 }
 
-unsafe fn next_search_hl_pos(
+fn next_search_hl_pos(
     shl: &mut match_T,
     lnum: linenr_T,
     match_item: *mut matchitem_T,
@@ -455,7 +447,7 @@ unsafe fn next_search_hl_pos(
 }
 
 /// Search for a next `'hlsearch'` or match (`next_search_hl`).
-unsafe fn next_search_hl(
+fn next_search_hl(
     win: *mut win_T,
     search_hl: &mut match_T,
     shl: &mut match_T,
@@ -637,7 +629,7 @@ fn check_cur_search_hl(wp: &mut win_T, shl: &mut match_T) {
 }
 
 /// Prepare for `'hlsearch'` and match highlighting in one window line (`prepare_search_hl_line`).
-pub unsafe fn prepare_search_hl_line(
+pub fn prepare_search_hl_line(
     wp: &mut win_T,
     lnum: linenr_T,
     mincol: colnr_T,
@@ -731,7 +723,7 @@ pub unsafe fn prepare_search_hl_line(
 }
 
 /// For a position in a line: Check for start/end of `'hlsearch'` and other matches (`update_search_hl`).
-pub unsafe fn update_search_hl(
+pub fn update_search_hl(
     wp: &mut win_T,
     lnum: linenr_T,
     col: colnr_T,
@@ -938,7 +930,7 @@ pub fn get_search_match_hl(
     }
 }
 
-unsafe fn matchadd_dict_arg(
+fn matchadd_dict_arg(
     tv: &mut typval_T,
     conceal_char: *mut *const c_char,
     win: *mut *mut win_T,

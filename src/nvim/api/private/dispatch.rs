@@ -138,7 +138,7 @@ pub struct MsgpackRpcRequestHandler {
 #[inline]
 fn dlog_internal_call(channel_id: u64, func_name: *const c_char, msg: *const c_char) {
     #[cfg(debug_assertions)]
-    unsafe {
+    {
         if (channel_id & (1u64 << 63)) != 0 {
             let _ = crate::log::logmsg_str(
                 crate::log::LOGLVL_DBG,

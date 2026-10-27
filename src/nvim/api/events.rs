@@ -15,8 +15,7 @@ use std::ffi::CStr;
 // DLLEXPORT void nvim_error_event(uint64_t channel_id, Integer type, String msg) FUNC_API_REMOTE_ONLY;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
-    unsafe {
-        let msg_ptr = if msg.size != 0 {
+    let msg_ptr = if msg.size != 0 {
             msg.data
         } else {
             c"".as_ptr()
@@ -31,7 +30,6 @@ pub unsafe extern "C" fn nvim_error_event(channel_id: u64, _type: i64, msg: Nvim
             channel_id as i64,
             msg_ptr,
         );
-    }
 }
 
 /// Emitted by the TUI client to signal when a host-terminal event occurred.

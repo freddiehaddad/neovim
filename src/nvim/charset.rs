@@ -190,7 +190,7 @@ fn charset_st() -> &'static mut CharsetModuleState {
 }
 
 #[inline]
-unsafe fn set_chartab(chartab: *mut u64, c: c_int) {
+fn set_chartab(chartab: *mut u64, c: c_int) {
     unsafe {
         let idx = ((c as u32) >> 6) as usize;
         *chartab.add(idx) |= 1u64 << (c & 0x3f);
@@ -198,7 +198,7 @@ unsafe fn set_chartab(chartab: *mut u64, c: c_int) {
 }
 
 #[inline]
-unsafe fn reset_chartab(chartab: *mut u64, c: c_int) {
+fn reset_chartab(chartab: *mut u64, c: c_int) {
     unsafe {
         let idx = ((c as u32) >> 6) as usize;
         *chartab.add(idx) &= !(1u64 << (c & 0x3f));
@@ -206,7 +206,7 @@ unsafe fn reset_chartab(chartab: *mut u64, c: c_int) {
 }
 
 #[inline]
-unsafe fn get_chartab(chartab: *const u64, c: c_int) -> u64 {
+fn get_chartab(chartab: *const u64, c: c_int) -> u64 {
     unsafe {
         let idx = ((c as u32) >> 6) as usize;
         *chartab.add(idx) & (1u64 << (c & 0x3f))
@@ -241,8 +241,7 @@ const fn nr2hex(n: u32) -> u8 {
 use crate::keycodes::k_second;
 
 pub fn buf_init_isk_chartab(buf: &mut buf_T) -> c_int {
-    unsafe {
-        let save_chartab = buf.b_chartab;
+    let save_chartab = buf.b_chartab;
         buf.b_chartab = [0; 4];
         if buf.b_p_lisp != 0 {
             set_chartab(buf.b_chartab.as_mut_ptr(), b'-' as c_int);
@@ -252,38 +251,33 @@ pub fn buf_init_isk_chartab(buf: &mut buf_T) -> c_int {
             return FAIL;
         }
         OK
-    }
 }
 
 pub fn init_isf_chartab() -> c_int {
-    unsafe {
-        let save_chartab = charset_st().isf_chartab;
+    let save_chartab = charset_st().isf_chartab;
         charset_st().isf_chartab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
         if parse_isopt(opt_vars().p_isf, (&raw mut charset_st().isf_chartab).cast::<u64>()) == FAIL {
             charset_st().isf_chartab = save_chartab;
             return FAIL;
         }
         OK
-    }
 }
 
 pub fn init_isi_chartab() -> c_int {
-    unsafe {
-        let save_chartab = charset_st().isi_chartab;
+    let save_chartab = charset_st().isi_chartab;
         charset_st().isi_chartab = [0; 4];
         if parse_isopt(opt_vars().p_isi, (&raw mut charset_st().isi_chartab).cast::<u64>()) == FAIL {
             charset_st().isi_chartab = save_chartab;
             return FAIL;
         }
         OK
-    }
 }
 
-pub unsafe fn check_isopt(var: *mut c_char) -> c_int {
-    unsafe { parse_isopt(var, ptr::null_mut()) }
+pub fn check_isopt(var: *mut c_char) -> c_int {
+    parse_isopt(var, ptr::null_mut())
 }
 
-pub unsafe fn parse_isopt(var: *const c_char, chartab: *mut u64) -> c_int {
+pub fn parse_isopt(var: *const c_char, chartab: *mut u64) -> c_int {
     unsafe {
         let mut p = var;
 
@@ -357,7 +351,7 @@ pub unsafe fn parse_isopt(var: *const c_char, chartab: *mut u64) -> c_int {
     }
 }
 
-pub unsafe fn trans_characters(mut buf: *mut c_char, bufsize: c_int) {
+pub fn trans_characters(mut buf: *mut c_char, bufsize: c_int) {
     unsafe {
         let mut len = CStr::from_ptr(buf).to_bytes().len() as c_int;
         let mut room = bufsize - len;
@@ -385,7 +379,7 @@ pub unsafe fn trans_characters(mut buf: *mut c_char, bufsize: c_int) {
     }
 }
 
-pub unsafe fn transstr_len(s: *const c_char, untab: bool) -> usize {
+pub fn transstr_len(s: *const c_char, untab: bool) -> usize {
     unsafe {
         let mut p = s;
         let mut len: usize = 0;
@@ -422,7 +416,7 @@ pub unsafe fn transstr_len(s: *const c_char, untab: bool) -> usize {
     }
 }
 
-pub unsafe fn transstr_buf(
+pub fn transstr_buf(
     s: *const c_char,
     slen: isize,
     buf: *mut c_char,
@@ -481,7 +475,7 @@ pub unsafe fn transstr_buf(
     }
 }
 
-pub unsafe fn transstr(s: *const c_char, untab: bool) -> CString {
+pub fn transstr(s: *const c_char, untab: bool) -> CString {
     unsafe {
         let len = transstr_len(s, untab) + 1;
         let mut buf = vec![0 as c_char; len];
@@ -490,7 +484,7 @@ pub unsafe fn transstr(s: *const c_char, untab: bool) -> CString {
     }
 }
 
-pub unsafe fn kv_transstr(str_: &mut Vec<u8>, s: *const c_char, untab: bool) -> usize {
+pub fn kv_transstr(str_: &mut Vec<u8>, s: *const c_char, untab: bool) -> usize {
     unsafe {
         if s.is_null() {
             return 0;
@@ -510,7 +504,7 @@ pub unsafe fn kv_transstr(str_: &mut Vec<u8>, s: *const c_char, untab: bool) -> 
     }
 }
 
-pub unsafe fn str_foldcase(
+pub fn str_foldcase(
     str_: *mut c_char,
     orglen: c_int,
     buf: *mut c_char,
@@ -593,10 +587,10 @@ pub unsafe fn str_foldcase(
 }
 
 pub fn transchar(c: c_int) -> *mut c_char {
-    unsafe { transchar_buf(g_st().curbuf, c) }
+    transchar_buf(g_st().curbuf, c)
 }
 
-pub unsafe fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut c_char {
+pub fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut c_char {
     unsafe {
         let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<u8>();
         let mut i: usize = 0;
@@ -620,21 +614,19 @@ pub unsafe fn transchar_buf(buf: *const buf_T, mut c: c_int) -> *mut c_char {
 }
 
 pub fn transchar_byte(c: c_int) -> *mut c_char {
-    unsafe { transchar_byte_buf(g_st().curbuf, c) }
+    transchar_byte_buf(g_st().curbuf, c)
 }
 
-pub unsafe fn transchar_byte_buf(buf: *const buf_T, c: c_int) -> *mut c_char {
-    unsafe {
-        if c >= 0x80 {
+pub fn transchar_byte_buf(buf: *const buf_T, c: c_int) -> *mut c_char {
+    if c >= 0x80 {
             let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<c_char>();
             transchar_nonprint(buf, charbuf_ptr, c);
             return charbuf_ptr;
         }
         transchar_buf(buf, c)
-    }
 }
 
-pub unsafe fn transchar_nonprint(buf: *const buf_T, charbuf: *mut c_char, mut c: c_int) {
+pub fn transchar_nonprint(buf: *const buf_T, charbuf: *mut c_char, mut c: c_int) {
     unsafe {
         if c == c_int::from(NL) {
             c = 0;
@@ -653,7 +645,7 @@ pub unsafe fn transchar_nonprint(buf: *const buf_T, charbuf: *mut c_char, mut c:
     }
 }
 
-pub unsafe fn transchar_hex(buf: *mut c_char, c: c_int) -> usize {
+pub fn transchar_hex(buf: *mut c_char, c: c_int) -> usize {
     unsafe {
         let mut i: usize = 0;
         let uc = c as u32;
@@ -683,7 +675,7 @@ pub unsafe fn transchar_hex(buf: *mut c_char, c: c_int) -> usize {
     }
 }
 
-pub unsafe fn rl_mirror_ascii(str_: *mut c_char, end: *mut c_char) {
+pub fn rl_mirror_ascii(str_: *mut c_char, end: *mut c_char) {
     unsafe {
         let mut p1 = str_;
         let mut p2 = if !end.is_null() {
@@ -707,11 +699,11 @@ pub fn char2cells(c: c_int) -> c_int {
         ascii2cells(c)
 }
 
-pub unsafe fn vim_strsize(s: *const c_char) -> c_int {
-    unsafe { vim_strnsize(s, MAXCOL) }
+pub fn vim_strsize(s: *const c_char) -> c_int {
+    vim_strnsize(s, MAXCOL)
 }
 
-pub unsafe fn vim_strnsize(s: *const c_char, mut len: c_int) -> c_int {
+pub fn vim_strnsize(s: *const c_char, mut len: c_int) -> c_int {
     unsafe {
         assert!(!s.is_null());
         let mut size: c_int = 0;
@@ -727,32 +719,30 @@ pub unsafe fn vim_strnsize(s: *const c_char, mut len: c_int) -> c_int {
 }
 
 pub fn vim_isIDc(c: c_int) -> bool {
-    unsafe { c > 0 && c < 0x100 && get_chartab((&raw const charset_st().isi_chartab).cast::<u64>(), c) != 0 }
+    c > 0 && c < 0x100 && get_chartab((&raw const charset_st().isi_chartab).cast::<u64>(), c) != 0
 }
 
 pub fn vim_iswordc(c: c_int) -> bool {
     unsafe { vim_iswordc_buf(c, &mut *g_st().curbuf) }
 }
 
-pub unsafe fn vim_iswordc_tab(c: c_int, chartab: *const u64) -> bool {
-    unsafe {
-        if c >= 0x100 {
+pub fn vim_iswordc_tab(c: c_int, chartab: *const u64) -> bool {
+    if c >= 0x100 {
             utf_class_tab(c, chartab) >= 2
         } else {
             c > 0 && get_chartab(chartab, c) != 0
         }
-    }
 }
 
 pub fn vim_iswordc_buf(c: c_int, buf: &mut buf_T) -> bool {
-    unsafe { vim_iswordc_tab(c, buf.b_chartab.as_ptr()) }
+    vim_iswordc_tab(c, buf.b_chartab.as_ptr())
 }
 
-pub unsafe fn vim_iswordp(p: *const c_char) -> bool {
-    unsafe { vim_iswordp_buf(p, g_st().curbuf) }
+pub fn vim_iswordp(p: *const c_char) -> bool {
+    vim_iswordp_buf(p, g_st().curbuf)
 }
 
-pub unsafe fn vim_iswordp_buf(p: *const c_char, buf: *mut buf_T) -> bool {
+pub fn vim_iswordp_buf(p: *const c_char, buf: *mut buf_T) -> bool {
     unsafe {
         let mut c = c_int::from(*p as u8);
         if utf8len_tab[c as usize] > 1 {
@@ -763,7 +753,7 @@ pub unsafe fn vim_iswordp_buf(p: *const c_char, buf: *mut buf_T) -> bool {
 }
 
 pub fn vim_isfilec(c: c_int) -> bool {
-    unsafe { c >= 0x100 || (c > 0 && get_chartab((&raw const charset_st().isf_chartab).cast::<u64>(), c) != 0) }
+    c >= 0x100 || (c > 0 && get_chartab((&raw const charset_st().isf_chartab).cast::<u64>(), c) != 0)
 }
 
 pub fn vim_is_fname_char(c: c_int) -> bool {
@@ -775,10 +765,8 @@ pub fn vim_is_fname_char(c: c_int) -> bool {
 }
 
 pub fn vim_isfilec_or_wc(c: c_int) -> bool {
-    unsafe {
-        let buf: [c_char; 2] = [c as c_char, NUL];
+    let buf: [c_char; 2] = [c as c_char, NUL];
         vim_isfilec(c) || c == b']' as c_int || path_has_wildcard(buf.as_ptr(), true)
-    }
 }
 
 pub fn vim_isprintc(c: c_int) -> bool {
@@ -788,7 +776,7 @@ pub fn vim_isprintc(c: c_int) -> bool {
         c > 0 && (c & 0x60) != 0 && c != 0x7f
 }
 
-pub unsafe fn skipwhite(mut p: *const c_char) -> *mut c_char {
+pub fn skipwhite(mut p: *const c_char) -> *mut c_char {
     unsafe {
         while ascii_iswhite(*p as c_int) {
             p = p.add(1);
@@ -797,7 +785,7 @@ pub unsafe fn skipwhite(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-pub unsafe fn skipwhite_len(mut p: *const c_char, mut len: usize) -> *mut c_char {
+pub fn skipwhite_len(mut p: *const c_char, mut len: usize) -> *mut c_char {
     unsafe {
         while len > 0 && ascii_iswhite(*p as c_int) {
             p = p.add(1);
@@ -808,14 +796,14 @@ pub unsafe fn skipwhite_len(mut p: *const c_char, mut len: usize) -> *mut c_char
 }
 
 pub fn getwhitecols_curline() -> isize {
-    unsafe { getwhitecols(get_cursor_line_ptr()) }
+    getwhitecols(get_cursor_line_ptr())
 }
 
-pub unsafe fn getwhitecols(p: *const c_char) -> isize {
+pub fn getwhitecols(p: *const c_char) -> isize {
     unsafe { skipwhite(p).offset_from(p) }
 }
 
-pub unsafe fn skipdigits(q: *const c_char) -> *mut c_char {
+pub fn skipdigits(q: *const c_char) -> *mut c_char {
     unsafe {
         let mut p = q;
         while ascii_isdigit(*p as c_int) {
@@ -825,7 +813,7 @@ pub unsafe fn skipdigits(q: *const c_char) -> *mut c_char {
     }
 }
 
-pub unsafe fn skipbin(q: *const c_char) -> *const c_char {
+pub fn skipbin(q: *const c_char) -> *const c_char {
     unsafe {
         let mut p = q;
         while ascii_isbdigit(*p as c_int) {
@@ -835,7 +823,7 @@ pub unsafe fn skipbin(q: *const c_char) -> *const c_char {
     }
 }
 
-pub unsafe fn skiphex(q: *mut c_char) -> *mut c_char {
+pub fn skiphex(q: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = q;
         while ascii_isxdigit(*p as c_int) {
@@ -845,7 +833,7 @@ pub unsafe fn skiphex(q: *mut c_char) -> *mut c_char {
     }
 }
 
-pub unsafe fn skiptodigit(q: *mut c_char) -> *mut c_char {
+pub fn skiptodigit(q: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = q;
         while *p != NUL && !ascii_isdigit(*p as c_int) {
@@ -855,7 +843,7 @@ pub unsafe fn skiptodigit(q: *mut c_char) -> *mut c_char {
     }
 }
 
-pub unsafe fn skiptobin(q: *const c_char) -> *const c_char {
+pub fn skiptobin(q: *const c_char) -> *const c_char {
     unsafe {
         let mut p = q;
         while *p != NUL && !ascii_isbdigit(*p as c_int) {
@@ -865,7 +853,7 @@ pub unsafe fn skiptobin(q: *const c_char) -> *const c_char {
     }
 }
 
-pub unsafe fn skiptohex(q: *mut c_char) -> *mut c_char {
+pub fn skiptohex(q: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = q;
         while *p != NUL && !ascii_isxdigit(*p as c_int) {
@@ -875,7 +863,7 @@ pub unsafe fn skiptohex(q: *mut c_char) -> *mut c_char {
     }
 }
 
-pub unsafe fn skiptowhite(mut p: *const c_char) -> *mut c_char {
+pub fn skiptowhite(mut p: *const c_char) -> *mut c_char {
     unsafe {
         while *p != b' ' as c_char && *p != b'\t' as c_char && *p != NUL {
             p = p.add(1);
@@ -884,7 +872,7 @@ pub unsafe fn skiptowhite(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-pub unsafe fn skiptowhite_esc(mut p: *const c_char) -> *mut c_char {
+pub fn skiptowhite_esc(mut p: *const c_char) -> *mut c_char {
     unsafe {
         while *p != b' ' as c_char && *p != b'\t' as c_char && *p != NUL {
             if (*p == b'\\' as c_char || *p == Ctrl_V) && *p.add(1) != NUL {
@@ -896,11 +884,11 @@ pub unsafe fn skiptowhite_esc(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-pub unsafe fn skip_to_newline(p: *const c_char) -> *mut c_char {
+pub fn skip_to_newline(p: *const c_char) -> *mut c_char {
     unsafe { { let _s = p; let _b = std::ffi::CStr::from_ptr(_s).to_bytes(); let _off = _b.iter().position(|&_x| _x == (NL) as u8).unwrap_or(_b.len()); _s.add(_off).cast_mut() } }
 }
 
-pub unsafe fn try_getdigits(pp: *mut *mut c_char, nr: *mut i64) -> bool {
+pub fn try_getdigits(pp: *mut *mut c_char, nr: *mut i64) -> bool {
     unsafe {
         let orig = *pp;
         let mut p = orig.cast::<u8>();
@@ -989,19 +977,17 @@ pub fn parse_i64_prefix(bytes: &[u8]) -> i64 {
     if neg { acc.wrapping_neg() } else { acc }
 }
 
-pub unsafe fn getdigits(pp: *mut *mut c_char, strict: bool, def: i64) -> i64 {
-    unsafe {
-        let mut number: i64 = 0;
+pub fn getdigits(pp: *mut *mut c_char, strict: bool, def: i64) -> i64 {
+    let mut number: i64 = 0;
         let ok = try_getdigits(pp, &raw mut number);
         if strict && !ok {
             std::process::abort();
         }
         if ok { number } else { def }
-    }
 }
 
-pub unsafe fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: c_int) -> c_int {
-    let number = unsafe { getdigits(pp, strict, i64::from(def)) };
+pub fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: c_int) -> c_int {
+    let number = getdigits(pp, strict, i64::from(def));
     match c_int::try_from(number) {
         Ok(v) => v,
         Err(_) => {
@@ -1011,8 +997,8 @@ pub unsafe fn getdigits_int(pp: *mut *mut c_char, strict: bool, def: c_int) -> c
     }
 }
 
-pub unsafe fn getdigits_long(pp: *mut *mut c_char, strict: bool, def: c_long) -> c_long {
-    let number = unsafe { getdigits(pp, strict, def as _) };
+pub fn getdigits_long(pp: *mut *mut c_char, strict: bool, def: c_long) -> c_long {
+    let number = getdigits(pp, strict, def as _);
     match c_long::try_from(number) {
         Ok(v) => v,
         Err(_) => {
@@ -1022,8 +1008,8 @@ pub unsafe fn getdigits_long(pp: *mut *mut c_char, strict: bool, def: c_long) ->
     }
 }
 
-pub unsafe fn getdigits_int32(pp: *mut *mut c_char, strict: bool, def: i32) -> i32 {
-    let number = unsafe { getdigits(pp, strict, i64::from(def)) };
+pub fn getdigits_int32(pp: *mut *mut c_char, strict: bool, def: i32) -> i32 {
+    let number = getdigits(pp, strict, i64::from(def));
     match i32::try_from(number) {
         Ok(v) => v,
         Err(_) => {
@@ -1033,14 +1019,14 @@ pub unsafe fn getdigits_int32(pp: *mut *mut c_char, strict: bool, def: i32) -> i
     }
 }
 
-pub unsafe fn vim_isblankline(lbuf: *mut c_char) -> bool {
+pub fn vim_isblankline(lbuf: *mut c_char) -> bool {
     unsafe {
         let p = skipwhite(lbuf);
         *p == NUL || *p == b'\r' as c_char || *p == b'\n' as c_char
     }
 }
 
-pub unsafe fn vim_str2nr(
+pub fn vim_str2nr(
     start: *const c_char,
     prep: *mut c_int,
     len: *mut c_int,
@@ -1249,7 +1235,7 @@ pub const fn hex2nr(c: c_int) -> c_int {
     }
 }
 
-pub unsafe fn hexhex2nr(p: *const c_char) -> c_int {
+pub fn hexhex2nr(p: *const c_char) -> c_int {
     unsafe {
         if !ascii_isxdigit(*p as c_int) || !ascii_isxdigit(*p.add(1) as c_int) {
             return -1;
@@ -1258,7 +1244,7 @@ pub unsafe fn hexhex2nr(p: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn rem_backslash(str_: *const c_char) -> bool {
+pub fn rem_backslash(str_: *const c_char) -> bool {
     unsafe {
         #[cfg(windows)]
         {
@@ -1276,7 +1262,7 @@ pub unsafe fn rem_backslash(str_: *const c_char) -> bool {
     }
 }
 
-pub unsafe fn backslash_halve(mut p: *mut c_char) {
+pub fn backslash_halve(mut p: *mut c_char) {
     unsafe {
         while *p != NUL && !rem_backslash(p) {
             p = p.add(1);
@@ -1302,7 +1288,7 @@ pub unsafe fn backslash_halve(mut p: *mut c_char) {
     }
 }
 
-pub unsafe fn backslash_halve_save(mut p: *const c_char) -> CString {
+pub fn backslash_halve_save(mut p: *const c_char) -> CString {
     unsafe {
         let mut res = Vec::with_capacity(CStr::from_ptr(p).to_bytes().len());
         while *p != NUL {
@@ -1333,8 +1319,7 @@ mod tests {
 
     #[test]
     fn vim_str2nr_parses_dec_bin_oct_hex_and_quotes() {
-        unsafe {
-            let check = |s: &CStr,
+        let check = |s: &CStr,
                          what: c_int,
                          maxlen: c_int,
                          strict: bool,
@@ -1482,6 +1467,5 @@ mod tests {
                 Some(171),
                 Some(b'x' as c_int),
             );
-        }
     }
 }

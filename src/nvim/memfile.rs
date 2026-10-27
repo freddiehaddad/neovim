@@ -81,7 +81,7 @@ pub struct memfile_T {
 }
 
 #[inline]
-unsafe fn perror_msg(msg: *const c_char) {
+fn perror_msg(msg: *const c_char) {
     unsafe {
         let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
         let _ = semsg!(c"%s: %s".as_ptr(), gettext(msg), strerror(err));
@@ -268,7 +268,7 @@ pub fn mf_get(mfp: &mut memfile_T, nr: blocknr_T, page_count: c_uint) -> *mut bh
 }
 
 /// Release the block `*hp`.
-pub unsafe fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: bool) {
+pub fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: bool) {
     unsafe {
         let mut flags = (*hp).bh_flags;
 
@@ -435,7 +435,7 @@ fn mf_alloc_bhdr(
     })
 }
 
-unsafe fn mf_read(mfp: &mut memfile_T, hp: *mut bhdr_T) -> c_int {
+fn mf_read(mfp: &mut memfile_T, hp: *mut bhdr_T) -> c_int {
     unsafe {
         if mfp.mf_fd < 0 {
             return FAIL;
@@ -459,7 +459,7 @@ unsafe fn mf_read(mfp: &mut memfile_T, hp: *mut bhdr_T) -> c_int {
     }
 }
 
-unsafe fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> c_int {
+fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> c_int {
     unsafe {
         if mfp.mf_fd < 0 && !mfp.mf_reopen {
             return FAIL;
@@ -546,7 +546,7 @@ unsafe fn mf_write(mfp: &mut memfile_T, hp: *mut bhdr_T) -> c_int {
     }
 }
 
-unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
+fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
     unsafe {
         if (*hp).bh_bnum >= 0 {
             return OK;
@@ -601,14 +601,12 @@ pub fn mf_free_fnames(mfp: &mut memfile_T) {
 
 /// Set the simple file name and the full file name of memfile's swapfile.
 pub fn mf_set_fnames(mfp: &mut memfile_T, fname: std::ffi::CString) {
-    unsafe {
-        mfp.mf_ffname = FullName_save(fname.as_ptr(), false);
+    mfp.mf_ffname = FullName_save(fname.as_ptr(), false);
         mfp.mf_fname = Some(fname);
-    }
 }
 
 /// Make name of memfile's swapfile a full path.
-pub unsafe fn mf_fullname(mfp: *mut memfile_T) {
+pub fn mf_fullname(mfp: *mut memfile_T) {
     if mfp.is_null() {
         return;
     }
@@ -627,8 +625,7 @@ pub fn mf_need_trans(mfp: &mut memfile_T) -> bool {
 }
 
 fn mf_do_open(mfp: &mut memfile_T, fname: std::ffi::CString, mut flags: c_int) -> bool {
-    unsafe {
-        mf_set_fnames(mfp, fname);
+    mf_set_fnames(mfp, fname);
         let fname_ptr = mfp.mf_fname.as_ref().unwrap().as_ptr();
 
         {
@@ -653,7 +650,6 @@ fn mf_do_open(mfp: &mut memfile_T, fname: std::ffi::CString, mut flags: c_int) -
         os_set_cloexec(mfp.mf_fd);
 
         true
-    }
 }
 
 #[cfg(test)]

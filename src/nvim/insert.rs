@@ -331,14 +331,14 @@ const fn is_special_ins(c: c_int) -> bool {
 }
 
 #[inline]
-pub unsafe fn linetabsize_str(s: *mut c_char) -> c_int {
-    unsafe { linetabsize_col(0, s) }
+pub fn linetabsize_str(s: *mut c_char) -> c_int {
+    linetabsize_col(0, s)
 }
 
 use crate::mbyte::utf_byte2len;
 
 #[inline]
-unsafe fn trigger_autocomplete(s: *mut InsertState) -> bool {
+fn trigger_autocomplete(s: *mut InsertState) -> bool {
     unsafe {
         mc_ins_cascade();
         redraw_later(*curwin.as_ptr(), UPD_VALID);
@@ -1323,7 +1323,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
     }
 }
 
-unsafe fn insert_do_complete(s: *mut InsertState) {
+fn insert_do_complete(s: *mut InsertState) {
     unsafe {
         ins_compl_clear_autocomplete_delay();
         ins_st().compl_busy = true;
@@ -1481,8 +1481,7 @@ pub fn ins_redraw(ready: bool) {
 }
 
 fn ins_ctrl_v() {
-    unsafe {
-        let mut did_putchar = false;
+    let mut did_putchar = false;
 
         ins_redraw(false);
 
@@ -1502,7 +1501,6 @@ fn ins_ctrl_v() {
         insert_special(c, 1, 1);
         g_st().Ins.revins_chars += 1;
         g_st().Ins.revins_legal += 1;
-    }
 }
 
 pub fn edit_putchar(c: c_int, highlight: bool) {
@@ -1699,7 +1697,7 @@ pub fn undisplay_dollar() {
 }
 
 /// Truncate the space at the end of a line.
-pub unsafe fn truncate_spaces(line: *mut c_char, len: usize) {
+pub fn truncate_spaces(line: *mut c_char, len: usize) {
     unsafe {
         let mut i = len as isize - 1;
         while i >= 0 && ascii_iswhite(*line.offset(i) as u8 as c_int) {
@@ -2025,8 +2023,7 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
 }
 
 fn redo_literal(c: c_int) {
-    unsafe {
-        if ascii_isdigit(c) {
+    if ascii_isdigit(c) {
             let mut buf = [0 as c_char; 10];
             vim_snprintf!(
                 (&raw mut buf).cast(),
@@ -2038,13 +2035,11 @@ fn redo_literal(c: c_int) {
         } else {
             redo_append_char(c);
         }
-    }
 }
 
 /// Called when the cursor moves in insert-mode without editing text.
-pub unsafe fn start_arrow(end_insert_pos: *mut pos_T, end_change: bool, move_key: c_int) {
-    unsafe {
-        if g_st().Ins.moved == kInsNone && end_change {
+pub fn start_arrow(end_insert_pos: *mut pos_T, end_change: bool, move_key: c_int) {
+    if g_st().Ins.moved == kInsNone && end_change {
             stop_insert(end_insert_pos, 0, 0);
         }
         if g_st().Ins.moved != kInsJump {
@@ -2062,17 +2057,14 @@ pub unsafe fn start_arrow(end_insert_pos: *mut pos_T, end_change: bool, move_key
             }
         }
         check_spell_redraw();
-    }
 }
 
 fn start_arrow_with_change(end_insert_pos: &mut pos_T, end_change: bool, move_key: c_int) {
-    unsafe {
-        if !end_change && g_st().Ins.moved != kInsJump {
+    if !end_change && g_st().Ins.moved != kInsJump {
             redo_append_char(Ctrl_G);
             redo_append_char(b'U' as c_int);
         }
         start_arrow(&raw mut *end_insert_pos, end_change, move_key);
-    }
 }
 
 fn check_spell_redraw() {
@@ -2138,7 +2130,7 @@ pub fn stop_arrow() -> c_int {
     }
 }
 
-unsafe fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
+fn stop_insert(end_insert_pos: *mut pos_T, esc: c_int, nomove: c_int) {
     unsafe {
         stop_redo_ins();
         ins_st().replace_stack = Vec::new();
@@ -2372,8 +2364,7 @@ pub fn oneleft() -> c_int {
 
 /// Move the cursor up `n` lines in window `wp`.
 pub fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: bool) {
-    unsafe {
-        let mut lnum = wp.w_cursor.lnum;
+    let mut lnum = wp.w_cursor.lnum;
 
         if n >= lnum {
             lnum = 1;
@@ -2398,7 +2389,6 @@ pub fn cursor_up_inner(wp: &mut win_T, mut n: linenr_T, skip_conceal: bool) {
         }
 
         wp.w_cursor.lnum = lnum;
-    }
 }
 
 pub fn cursor_up(n: linenr_T, upd_topline: bool) -> c_int {
@@ -2588,7 +2578,7 @@ fn echeck_abbr(c: c_int) -> bool {
 }
 
 /// Push character that is replaced onto the replace stack.
-pub unsafe fn replace_push(str_: *mut c_char, len: usize) {
+pub fn replace_push(str_: *mut c_char, len: usize) {
     unsafe {
         let stack = replace_stack_mut();
         let off = g_st().replace_offset as usize;
@@ -2602,9 +2592,7 @@ pub unsafe fn replace_push(str_: *mut c_char, len: usize) {
 }
 
 pub fn replace_push_nul() {
-    unsafe {
-        replace_push(c"".as_ptr().cast_mut(), 1);
-    }
+    replace_push(c"".as_ptr().cast_mut(), 1);
 }
 
 fn replace_pop_if_nul() -> c_int {
@@ -2958,8 +2946,7 @@ fn ins_ctrl_() {
 }
 
 fn ins_start_select(c: c_int) -> bool {
-    unsafe {
-        if !g_st().km_startsel {
+    if !g_st().km_startsel {
             return false;
         }
         match c {
@@ -2986,7 +2973,6 @@ fn ins_start_select(c: c_int) -> bool {
             }
             _ => false,
         }
-    }
 }
 
 fn ins_insert(replace_state: c_int) {
@@ -3094,7 +3080,7 @@ fn ins_del() {
     }
 }
 
-unsafe fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> bool {
+fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: *mut c_int) -> bool {
     unsafe {
         let mut cc: c_int;
         let mut temp: c_int = 0;
@@ -3893,8 +3879,7 @@ pub fn ins_eol(c: c_int) -> bool {
 }
 
 fn ins_digraph() -> c_int {
-    unsafe {
-        let mut did_putchar = false;
+    let mut did_putchar = false;
 
         ins_st().pc_status = PC_STATUS_UNSET;
         if redrawing() && !char_avail() {
@@ -3946,7 +3931,6 @@ fn ins_digraph() -> c_int {
         }
         clear_showcmd();
         NUL as c_int
-    }
 }
 
 /// Handle CTRL-E and CTRL-Y in Insert mode: copy char from other line.

@@ -665,8 +665,7 @@ pub fn f_tabpagewinnr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eva
 pub fn f_win_execute(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        rettv.v_type = VarType::VAR_STRING;
+    rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
         let id = tv_get_number(argvars) as c_int;
@@ -687,7 +686,6 @@ pub fn f_win_execute(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             execute_common(argvars, rettv, 1);
         }
         ctx_restore(&mut cs);
-    }
 }
 
 /// `win_findbuf()` function (`f_win_findbuf`).

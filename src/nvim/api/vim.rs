@@ -354,13 +354,11 @@ pub const fn is_internal_call(channel_id: u64) -> bool {
 // DLLEXPORT Integer nvim_get_hl_id_by_name(String name, Error *err) FUNC_API_SINCE(7);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_hl_id_by_name(name: NvimString, err: &mut Error) -> Integer {
-    unsafe {
-        let mut tstate = TryState::new();
+    let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let ret = syn_check_group(name.data, name.size);
         try_leave(&tstate, err);
         Integer::from(ret)
-    }
 }
 
 /// Gets all or specific highlight groups in a namespace.
@@ -818,8 +816,7 @@ pub unsafe extern "C" fn nvim_replace_termcodes(
         flags |= REPTERM_NO_SPECIAL;
     }
 
-    unsafe {
-        let out = replace_termcodes(
+    let out = replace_termcodes(
             str_.data,
             str_.size,
             false,
@@ -830,7 +827,6 @@ pub unsafe extern "C" fn nvim_replace_termcodes(
         )
         .unwrap_or_default();
         cbuf_to_string(out.as_ptr(), out.as_bytes().len())
-    }
 }
 
 /// Executes Lua code. Arguments are available as `...` inside the chunk. The chunk can return
@@ -904,8 +900,7 @@ pub unsafe extern "C" fn nvim__exec_lua_fast(
 // DLLEXPORT Integer nvim_strwidth(String text, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_strwidth(text: NvimString, err: &mut Error) -> Integer {
-    unsafe {
-        if !validate_s(
+    if !validate_s(
             text.size <= (c_int::MAX as usize),
             c"text length".as_ptr(),
             c"(too long)".as_ptr(),
@@ -914,7 +909,6 @@ pub unsafe extern "C" fn nvim_strwidth(text: NvimString, err: &mut Error) -> Int
             return 0;
         }
         mb_string2cells(text.data) as Integer
-    }
 }
 
 /// Gets the paths contained in |runtime-search-path|.
@@ -940,7 +934,7 @@ pub unsafe extern "C" fn nvim_list_runtime_paths(arena: *mut Arena, err: &mut Er
 // DLLEXPORT Array nvim__runtime_inspect(Arena *arena);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__runtime_inspect(arena: *mut Arena) -> Array {
-    unsafe { runtime_inspect(arena) }
+    runtime_inspect(arena)
 }
 
 /// Finds files in runtime directories, in 'runtimepath' order.
@@ -964,8 +958,7 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
     arena: *mut Arena,
     err: &mut Error,
 ) -> Array {
-    unsafe {
-        let mut files: Vec<std::ffi::CString> = Vec::new();
+    let mut files: Vec<std::ffi::CString> = Vec::new();
 
         let flags = DIP_DIRFILE | if all { DIP_ALL } else { 0 };
         let mut tstate = TryState::new();
@@ -986,7 +979,6 @@ pub unsafe extern "C" fn nvim_get_runtime_file(
             rv.push(cstr_to_arena_obj(arena, fname.as_ptr()));
         }
         arena_take_arraybuilder(arena, &mut rv)
-    }
 }
 
 /// @nodoc
@@ -1050,8 +1042,7 @@ pub unsafe extern "C" fn nvim__get_runtime(
 // DLLEXPORT void nvim_set_current_dir(String dir, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
-    unsafe {
-        if !validate_s(
+    if !validate_s(
             dir.size < MAXPATHL,
             c"directory name".as_ptr(),
             c"(too long)".as_ptr(),
@@ -1063,7 +1054,6 @@ pub unsafe extern "C" fn nvim_set_current_dir(dir: NvimString, err: &mut Error) 
         try_enter(&mut tstate);
         do_chdir(dir.data, kCdScopeGlobal);
         try_leave(&tstate, err);
-    }
 }
 
 /// Gets the current line.
@@ -1834,8 +1824,7 @@ pub unsafe extern "C" fn nvim_get_current_tabpage() -> Tabpage {
 //                                         Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_set_current_tabpage(tabpage: Tabpage, err: &mut Error) {
-    unsafe {
-        let tp = find_tab_by_handle(tabpage, err);
+    let tp = find_tab_by_handle(tabpage, err);
         if tp.is_null() {
             return;
         }
@@ -1843,7 +1832,6 @@ pub unsafe extern "C" fn nvim_set_current_tabpage(tabpage: Tabpage, err: &mut Er
         try_enter(&mut tstate);
         goto_tabpage_tp(tp, true, true);
         try_leave(&tstate, err);
-    }
 }
 
 /// Pastes at cursor (in any mode), and sets "redo" so dot (|.|) will repeat the input. UIs call
@@ -2042,10 +2030,8 @@ pub unsafe extern "C" fn nvim_put(
 // DLLEXPORT Integer nvim_get_color_by_name(String name) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_color_by_name(name: NvimString) -> Integer {
-    unsafe {
-        let mut dummy: c_int = 0;
+    let mut dummy: c_int = 0;
         Integer::from(name_to_color(name.data, &mut dummy))
-    }
 }
 
 /// Returns a map of color names and RGB values.
@@ -2136,8 +2122,7 @@ pub unsafe extern "C" fn nvim_get_context(
 // DLLEXPORT Object nvim_load_context(Dict dict, Error *err) FUNC_API_SINCE(6);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_load_context(dict: Dict, err: &mut Error) -> Object {
-    unsafe {
-        let mut ctx = CONTEXT_INIT;
+    let mut ctx = CONTEXT_INIT;
         let save_did_emsg = g_st().did_emsg;
         g_st().did_emsg = 0;
 
@@ -2149,7 +2134,6 @@ pub unsafe extern "C" fn nvim_load_context(dict: Dict, err: &mut Error) -> Objec
         ctx_free(&mut ctx);
         g_st().did_emsg = save_did_emsg;
         nil_obj()
-    }
 }
 
 /// Gets the current mode. |mode()|
@@ -2159,8 +2143,7 @@ pub unsafe extern "C" fn nvim_load_context(dict: Dict, err: &mut Error) -> Objec
 // DLLEXPORT DictAs(get_mode) nvim_get_mode(Arena *arena) FUNC_API_SINCE(2) FUNC_API_FAST;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_mode(arena: *mut Arena) -> Dict {
-    unsafe {
-        let mut rv = arena_dict(arena, 2);
+    let mut rv = arena_dict(arena, 2);
         let modestr = arena_alloc(arena, MODE_MAX_LENGTH, false).cast::<c_char>();
         get_mode(modestr);
         let blocked = input_blocking();
@@ -2168,7 +2151,6 @@ pub unsafe extern "C" fn nvim_get_mode(arena: *mut Arena) -> Dict {
         put_c(&mut rv, c"mode".as_ptr(), cstr_as_obj(modestr));
         put_c(&mut rv, c"blocking".as_ptr(), boolean_obj(blocked));
         rv
-    }
 }
 
 /// Gets a list of global (non-buffer-local) |mapping| definitions.
@@ -2179,7 +2161,7 @@ pub unsafe extern "C" fn nvim_get_mode(arena: *mut Arena) -> Dict {
 // DLLEXPORT ArrayOf(DictAs(get_keymap)) nvim_get_keymap(String mode, Arena *arena) FUNC_API_SINCE(3);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_keymap(mode: NvimString, arena: *mut Arena) -> Array {
-    unsafe { keymap_array(mode, ptr::null_mut(), arena) }
+    keymap_array(mode, ptr::null_mut(), arena)
 }
 
 /// Sets a global |mapping| for the given mode.
@@ -2227,9 +2209,7 @@ pub unsafe extern "C" fn nvim_set_keymap(
     opts: *mut KeyDict_keymap,
     err: &mut Error,
 ) {
-    unsafe {
-        modify_keymap(channel_id, -1, MAPTYPE_MAP, mode, lhs, rhs, opts, err);
-    }
+    modify_keymap(channel_id, -1, MAPTYPE_MAP, mode, lhs, rhs, opts, err);
 }
 
 /// Unmaps a global |mapping| for the given mode.
@@ -2465,13 +2445,11 @@ pub unsafe extern "C" fn nvim_get_chan_info(
     if chan < 0 {
         return Dict::new();
     }
-    unsafe {
-        if chan == 0 && !is_internal_call(channel_id) {
+    if chan == 0 && !is_internal_call(channel_id) {
             assert!(channel_id <= (i64::MAX as u64));
             chan = channel_id as Integer;
         }
         channel_info(chan as u64, arena)
-    }
 }
 
 /// Get information about all open channels.
@@ -2481,7 +2459,7 @@ pub unsafe extern "C" fn nvim_get_chan_info(
 // DLLEXPORT ArrayOf(Dict) nvim_list_chans(Arena *arena) FUNC_API_SINCE(4);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_list_chans(arena: *mut Arena) -> Array {
-    unsafe { channel_all_info(arena) }
+    channel_all_info(arena)
 }
 
 /// Returns object given as argument.
@@ -2591,7 +2569,7 @@ pub unsafe extern "C" fn nvim__stats(arena: *mut Arena) -> Dict {
 // DLLEXPORT ArrayOf(Dict) nvim_list_uis(Arena *arena) FUNC_API_SINCE(4);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_list_uis(arena: *mut Arena) -> Array {
-    unsafe { ui_array(arena) }
+    ui_array(arena)
 }
 
 /// Gets the immediate children of process `pid`.

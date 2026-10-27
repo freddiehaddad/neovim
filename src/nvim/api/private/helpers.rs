@@ -340,12 +340,10 @@ pub fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
 #[inline]
 pub fn cbuf_to_arena_str(arena: *mut Arena, buf: *const c_char, len: usize) -> NvimString {
     let ptr = if buf.is_null() { c"".as_ptr() } else { buf };
-    unsafe {
-        NvimString {
+    NvimString {
             data: arena_memdupz(arena, ptr, len),
             size: len,
         }
-    }
 }
 
 #[inline]
@@ -706,17 +704,14 @@ pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
 }
 
 pub fn cbuf_to_string(buf: *const c_char, size: usize) -> NvimString {
-    unsafe {
-        NvimString {
+    NvimString {
             data: alloc_cstring_len(buf, size),
             size,
         }
-    }
 }
 
 pub fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString {
-    unsafe {
-        if str_.is_null() {
+    if str_.is_null() {
             return NvimString {
                 data: ptr::null_mut(),
                 size: 0,
@@ -726,7 +721,6 @@ pub fn cstrn_as_string(str_: *const c_char, maxsize: usize) -> NvimString {
             data: str_.cast_mut(),
             size: xstrnlen(str_, maxsize),
         }
-    }
 }
 
 pub fn cstr_as_string(str_: *const c_char) -> NvimString {
@@ -868,34 +862,27 @@ pub fn buf_get_text(
 }
 
 pub fn api_free_string(value: NvimString) {
-    unsafe {
-        free_cstring(value.data);
-    }
+    free_cstring(value.data);
 }
 
 pub fn arena_array(arena: *mut Arena, max_size: usize) -> Array {
-    unsafe {
-        Array {
+    Array {
             size: 0,
             capacity: max_size,
             items: arena_alloc(arena, size_of::<Object>() * max_size, true).cast(),
         }
-    }
 }
 
 pub fn arena_dict(arena: *mut Arena, max_size: usize) -> Dict {
-    unsafe {
-        Dict {
+    Dict {
             size: 0,
             capacity: max_size,
             items: arena_alloc(arena, size_of::<KeyValuePair>() * max_size, true).cast(),
         }
-    }
 }
 
 pub fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
-    unsafe {
-        if str_.size != 0 {
+    if str_.size != 0 {
             NvimString {
                 data: arena_memdupz(arena, str_.data, str_.size),
                 size: str_.size,
@@ -910,7 +897,6 @@ pub fn arena_string(arena: *mut Arena, str_: NvimString) -> NvimString {
                 size: 0,
             }
         }
-    }
 }
 
 pub fn arena_take_arraybuilder(arena: *mut Arena, arr: &mut ArrayBuilder) -> Array {
@@ -944,22 +930,18 @@ pub fn api_free_object(value: Object) {
 }
 
 pub fn api_free_array(value: Array) {
-    unsafe {
-        for &item in value.as_slice() {
+    for &item in value.as_slice() {
             api_free_object(item);
         }
         free_items(value.items);
-    }
 }
 
 pub fn api_free_dict(value: Dict) {
-    unsafe {
-        for &item in value.as_slice() {
+    for &item in value.as_slice() {
             api_free_string(item.key);
             api_free_object(item.value);
         }
         free_items(value.items);
-    }
 }
 
 pub fn api_clear_error(value: &mut Error) {
@@ -971,8 +953,7 @@ pub fn api_clear_error(value: &mut Error) {
 }
 
 pub fn copy_string(str_: NvimString, arena: *mut Arena) -> NvimString {
-    unsafe {
-        if !str_.data.is_null() {
+    if !str_.data.is_null() {
             NvimString {
                 data: arena_memdupz(arena, str_.data, str_.size),
                 size: str_.size,
@@ -983,7 +964,6 @@ pub fn copy_string(str_: NvimString, arena: *mut Arena) -> NvimString {
                 size: 0,
             }
         }
-    }
 }
 
 pub fn copy_array(array: Array, arena: *mut Arena) -> Array {
@@ -4310,8 +4290,7 @@ pub fn api_get_packed_metadata(len: *mut usize) -> *const u8 {
 }
 
 pub fn api_metadata() -> Object {
-    unsafe {
-        if api_meta_st().METADATA_OBJ.obj_type == ObjectType::kObjectTypeNil {
+    if api_meta_st().METADATA_OBJ.obj_type == ObjectType::kObjectTypeNil {
             let mut arena = Arena {
                 cur_blk: ptr::null_mut(),
                 pos: 0,
@@ -4327,7 +4306,6 @@ pub fn api_metadata() -> Object {
             api_meta_st().MEM_FOR_METADATA = arena_finish(&mut arena);
         }
         api_meta_st().METADATA_OBJ
-    }
 }
 
 pub fn api_metadata_raw() -> NvimString {

@@ -229,8 +229,7 @@ fn signal_name(signum: c_int) -> &'static CStr {
 
 /// This function handles deadly signals.
 fn deadly_signal(signum: c_int) -> ! {
-    unsafe {
-        // Set the v:dying variable.
+    // Set the v:dying variable.
         set_vim_var_nr(VV_DYING, 1);
         g_st().v_dying = 1;
 
@@ -248,7 +247,6 @@ fn deadly_signal(signum: c_int) -> ! {
 
         // Preserve files and exit.
         preserve_exit(io_buf);
-    }
 }
 
 pub(crate) fn on_signal(signum: c_int) {

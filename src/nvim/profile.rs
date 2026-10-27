@@ -430,12 +430,12 @@ pub fn get_profile_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
-pub unsafe fn set_context_in_profile_cmd(xp: &mut expand_T, arg: *const c_char) {
+pub fn set_context_in_profile_cmd(xp: &mut expand_T, arg: *const c_char) {
     xp.xp_context = EXPAND_PROFILE;
     prof_st().PEXPAND_WHAT = PEXP_SUBCMD;
     xp.xp_pattern = arg.cast_mut();
 
-    let end_subcmd = unsafe { skiptowhite(arg) };
+    let end_subcmd = skiptowhite(arg);
     if unsafe { *end_subcmd } == 0 {
         return;
     }
@@ -444,10 +444,10 @@ pub unsafe fn set_context_in_profile_cmd(xp: &mut expand_T, arg: *const c_char) 
     let sub_bytes = unsafe { std::slice::from_raw_parts(arg.cast::<u8>(), len) };
     if sub_bytes == b"start" || sub_bytes == b"file" {
         xp.xp_context = EXPAND_FILES;
-        xp.xp_pattern = unsafe { skipwhite(end_subcmd) };
+        xp.xp_pattern = skipwhite(end_subcmd);
     } else if sub_bytes == b"func" {
         xp.xp_context = EXPAND_USER_FUNC;
-        xp.xp_pattern = unsafe { skipwhite(end_subcmd) };
+        xp.xp_pattern = skipwhite(end_subcmd);
     } else {
         xp.xp_context = EXPAND_NOTHING;
     }
@@ -476,15 +476,14 @@ pub fn prof_def_func() -> bool {
     }
 }
 
-unsafe fn prof_func_line(
+fn prof_func_line(
     fd: *mut FILE,
     count: c_int,
     total: &proftime_T,
     self_time: &proftime_T,
     prefer_self: bool,
 ) {
-    unsafe {
-        if count > 0 {
+    if count > 0 {
             fprintf!(fd, c"%5d ".as_ptr(), count);
             if prefer_self && profile_equal(*total, *self_time) {
                 fprintf!(fd, c"           ".as_ptr());
@@ -499,10 +498,9 @@ unsafe fn prof_func_line(
         } else {
             fprintf!(fd, c"                            ".as_ptr());
         }
-    }
 }
 
-unsafe fn prof_sort_list(
+fn prof_sort_list(
     fd: *mut FILE,
     sorttab: *mut *mut ufunc_T,
     st_len: c_int,
@@ -542,7 +540,7 @@ fn prof_self_cmp(&s1: &*mut ufunc_T, &s2: &*mut ufunc_T) -> std::cmp::Ordering {
 }
 
 /// Start profiling function `fp` (`func_do_profile`).
-pub unsafe fn func_do_profile(fp: *mut ufunc_T) {
+pub fn func_do_profile(fp: *mut ufunc_T) {
     let fp = unsafe { &mut *fp };
     let mut len = fp.uf_lines.len() as c_int;
 
@@ -573,20 +571,18 @@ pub unsafe fn func_do_profile(fp: *mut ufunc_T) {
 }
 
 /// Prepare profiling for entering a child (`prof_child_enter`).
-pub unsafe fn prof_child_enter(tm: *mut proftime_T) {
+pub fn prof_child_enter(tm: *mut proftime_T) {
     unsafe {
         let fc = get_current_funccal();
         if !fc.is_null() && (*(*fc).fc_func).uf_profiling != 0 {
             (*fc).fc_prof_child = profile_start();
         }
     }
-    unsafe {
-        script_prof_save(tm);
-    }
+    script_prof_save(tm);
 }
 
 /// Take care of time spent in a child (`prof_child_exit`).
-pub unsafe fn prof_child_exit(tm: *mut proftime_T) {
+pub fn prof_child_exit(tm: *mut proftime_T) {
     unsafe {
         let fc = get_current_funccal();
         if !fc.is_null() && (*(*fc).fc_func).uf_profiling != 0 {
@@ -597,9 +593,7 @@ pub unsafe fn prof_child_exit(tm: *mut proftime_T) {
             func.uf_tml_children = profile_add(func.uf_tml_children, child_elapsed);
         }
     }
-    unsafe {
-        script_prof_restore(tm);
-    }
+    script_prof_restore(tm);
 }
 
 /// Called when starting to read a function line (`func_line_start`).
@@ -646,7 +640,7 @@ pub fn func_line_end(fcp: &mut funccall_T) {
     }
 }
 
-unsafe fn func_dump_profile(fd: *mut FILE) {
+fn func_dump_profile(fd: *mut FILE) {
     unsafe {
         let functbl = func_tbl_get();
         let todo = functbl.len();
@@ -722,7 +716,7 @@ unsafe fn func_dump_profile(fd: *mut FILE) {
 }
 
 /// Start profiling a script (`profile_init`).
-pub unsafe fn profile_init(si: *mut scriptitem_T) {
+pub fn profile_init(si: *mut scriptitem_T) {
     let si = unsafe { &mut *si };
     si.sn_pr_count = 0;
     si.sn_pr_total = profile_zero();
@@ -735,7 +729,7 @@ pub unsafe fn profile_init(si: *mut scriptitem_T) {
 }
 
 /// Save time when starting to invoke another script or function (`script_prof_save`).
-pub unsafe fn script_prof_save(tm: *mut proftime_T) {
+pub fn script_prof_save(tm: *mut proftime_T) {
     unsafe {
         if script_id_valid(g_st().current_sctx.sc_sid) {
             let si = &mut *script_item(g_st().current_sctx.sc_sid);
@@ -754,7 +748,7 @@ pub unsafe fn script_prof_save(tm: *mut proftime_T) {
 }
 
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
-pub unsafe fn script_prof_restore(tm: *const proftime_T) {
+pub fn script_prof_restore(tm: *const proftime_T) {
     unsafe {
         if !script_id_valid(g_st().current_sctx.sc_sid) {
             return;
@@ -773,7 +767,7 @@ pub unsafe fn script_prof_restore(tm: *const proftime_T) {
     }
 }
 
-unsafe fn script_dump_profile(fd: *mut FILE) {
+fn script_dump_profile(fd: *mut FILE) {
     unsafe {
         let mut iobuf = [0 as c_char; IOSIZE];
         for id in 1..=crate::runtime::script_items_len() {
@@ -928,7 +922,7 @@ pub fn script_line_end() {
 }
 
 /// Saves the previous time before doing something that could nest (`time_push`).
-pub unsafe fn time_push(rel: *mut proftime_T, start: *mut proftime_T) {
+pub fn time_push(rel: *mut proftime_T, start: *mut proftime_T) {
     let now = profile_start();
     unsafe {
         let prev = prof_st().G_PREV_TIME;
@@ -946,17 +940,14 @@ pub fn time_pop(tp: proftime_T) {
 fn time_diff(then: proftime_T, now: proftime_T) {
     let diff = profile_sub(now, then);
     let s = format!("{:07.3}\0", (diff as f64) / 1.0e6);
-    unsafe {
-        if let Some(ref tf) = g_st().time_fd {
+    if let Some(ref tf) = g_st().time_fd {
             fprintf!(tf.as_ptr(), c"%s".as_ptr(), s.as_ptr().cast::<c_char>());
         }
-    }
 }
 
 /// Initializes the startuptime code (`time_start`).
-pub unsafe fn time_start(message: *const c_char) {
-    unsafe {
-        let Some(ref tf) = g_st().time_fd else {
+pub fn time_start(message: *const c_char) {
+    let Some(ref tf) = g_st().time_fd else {
             return;
         };
         let fp = tf.as_ptr();
@@ -976,11 +967,10 @@ pub unsafe fn time_start(message: *const c_char) {
         );
 
         time_msg(message, std::ptr::null());
-    }
 }
 
 /// Prints out timing info (`time_msg`).
-pub unsafe fn time_msg(mesg: *const c_char, start: *const proftime_T) {
+pub fn time_msg(mesg: *const c_char, start: *const proftime_T) {
     unsafe {
         let Some(ref tf) = g_st().time_fd else {
             return;
@@ -1005,7 +995,7 @@ pub unsafe fn time_msg(mesg: *const c_char, start: *const proftime_T) {
 }
 
 /// Initializes the `time_fd` stream for `--startuptime` (`time_init`).
-pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
+pub fn time_init(fname: *const c_char, proc_name: *const c_char) {
     unsafe {
         const BUFSIZE: usize = 8192;
         g_st().time_fd = crate::os::fs::CFile::from_raw(fopen(fname, c"a".as_ptr()));
@@ -1039,8 +1029,7 @@ pub unsafe fn time_init(fname: *const c_char, proc_name: *const c_char) {
 
 /// Flushes the startuptimes to disk for the current process (`time_finish`).
 pub fn time_finish() {
-    unsafe {
-        if !has_time_fd() {
+    if !has_time_fd() {
             return;
         }
         assert!(!prof_st().STARTUPTIME_BUF.is_empty());
@@ -1049,7 +1038,6 @@ pub fn time_finish() {
         g_st().time_fd = None;
 
         prof_st().STARTUPTIME_BUF = Vec::new();
-    }
 }
 
 #[cfg(test)]

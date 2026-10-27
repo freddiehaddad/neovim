@@ -208,7 +208,7 @@ pub fn w_endrow(wp: &win_T) -> c_int {
 }
 
 #[inline]
-unsafe fn w_lines_at(wp: *mut win_T, idx: usize) -> &'static mut wline_T {
+fn w_lines_at(wp: *mut win_T, idx: usize) -> &'static mut wline_T {
     unsafe { &mut (&mut *wp).w_lines[idx] }
 }
 
@@ -789,14 +789,12 @@ pub fn start_search_hl() {
 }
 
 pub fn end_search_hl() {
-    unsafe {
-        if g_st().screen_search_hl.rm.regprog.is_null() {
+    if g_st().screen_search_hl.rm.regprog.is_null() {
             return;
         }
 
         vim_regfree(g_st().screen_search_hl.rm.regprog);
         g_st().screen_search_hl.rm.regprog = ptr::null_mut();
-    }
 }
 
 pub fn setcursor() {
@@ -1098,8 +1096,7 @@ pub fn clearmode() {
 }
 
 fn recording_mode(hl_id: c_int) {
-    unsafe {
-        if shortmess(kShmRecording) {
+    if shortmess(kShmRecording) {
             return;
         }
 
@@ -1111,7 +1108,6 @@ fn recording_mode(hl_id: c_int) {
             0,
         ];
         msg_puts_hl(s.as_ptr(), hl_id, false);
-    }
 }
 
 pub fn comp_col() {
@@ -1263,8 +1259,7 @@ fn vsep_connected(wp: &mut win_T, corner: WindowCorner) -> bool {
 }
 
 fn draw_vsep_win(wp: &mut win_T) {
-    unsafe {
-        if wp.w_vsep_width == 0 {
+    if wp.w_vsep_width == 0 {
             return;
         }
 
@@ -1277,12 +1272,10 @@ fn draw_vsep_win(wp: &mut win_T) {
             );
             grid_line_flush();
         }
-    }
 }
 
 fn draw_hsep_win(wp: &mut win_T) {
-    unsafe {
-        if wp.w_hsep_height == 0 {
+    if wp.w_hsep_height == 0 {
             return;
         }
 
@@ -1294,7 +1287,6 @@ fn draw_hsep_win(wp: &mut win_T) {
             win_hl_attr(&raw mut *wp, HLF_C),
         );
         grid_line_flush();
-    }
 }
 
 fn get_corner_sep_connector(wp: &mut win_T, corner: WindowCorner) -> schar_T {
@@ -2447,7 +2439,7 @@ fn win_update(wp: &mut win_T) {
     }
 }
 
-pub unsafe fn win_scroll_lines(wp: *mut win_T, row: c_int, line_count: c_int) {
+pub fn win_scroll_lines(wp: *mut win_T, row: c_int, line_count: c_int) {
     unsafe {
         if !redrawing() || line_count == 0 {
             return;
@@ -2494,8 +2486,7 @@ pub fn win_draw_end(
     endrow: c_int,
     hl: hlf_T,
 ) {
-    unsafe {
-        assert!((0..HLF_COUNT).contains(&hl));
+    assert!((0..HLF_COUNT).contains(&hl));
         let view_width = wp.w_view_width;
         let fdc = compute_foldcolumn(&raw mut *wp, 0);
         let scwidth = wp.w_scwidth;
@@ -2550,10 +2541,9 @@ pub fn win_draw_end(
             }
             grid_line_flush();
         }
-    }
 }
 
-pub unsafe fn compute_foldcolumn(wp: *mut win_T, col: c_int) -> c_int {
+pub fn compute_foldcolumn(wp: *mut win_T, col: c_int) -> c_int {
     unsafe {
         let fdc = win_fdccol_count(&mut *wp);
         let wmw = if ptr::eq(wp, *curwin.as_ptr()) && opt_vars().p_wmw == 0 {
@@ -2566,7 +2556,7 @@ pub unsafe fn compute_foldcolumn(wp: *mut win_T, col: c_int) -> c_int {
     }
 }
 
-pub unsafe fn number_width(wp: *mut win_T) -> c_int {
+pub fn number_width(wp: *mut win_T) -> c_int {
     unsafe {
         let mut lnum = if (*wp).w_onebuf_opt.wo_rnu != 0 && (*wp).w_onebuf_opt.wo_nu == 0 {
             (*wp).w_view_height
@@ -2610,7 +2600,7 @@ pub unsafe fn number_width(wp: *mut win_T) -> c_int {
     }
 }
 
-pub unsafe fn redraw_later(wp: *mut win_T, type_: c_int) {
+pub fn redraw_later(wp: *mut win_T, type_: c_int) {
     unsafe {
         assert!(!wp.is_null() || g_st().exiting);
         if !g_st().exiting && !g_st().redraw_not_allowed && (*wp).w_redr_type < type_ {
@@ -2652,12 +2642,10 @@ pub fn screen_invalidate_highlights() {
 }
 
 pub fn redraw_curbuf_later(type_: c_int) {
-    unsafe {
-        redraw_buf_later(g_st().curbuf, type_);
-    }
+    redraw_buf_later(g_st().curbuf, type_);
 }
 
-pub unsafe fn redraw_buf_later(buf: *mut buf_T, type_: c_int) {
+pub fn redraw_buf_later(buf: *mut buf_T, type_: c_int) {
     unsafe {
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
@@ -2669,7 +2657,7 @@ pub unsafe fn redraw_buf_later(buf: *mut buf_T, type_: c_int) {
     }
 }
 
-pub unsafe fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool) {
+pub fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool) {
     unsafe {
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
@@ -2684,7 +2672,7 @@ pub unsafe fn redraw_buf_line_later(buf: *mut buf_T, line: linenr_T, force: bool
     }
 }
 
-pub unsafe fn redraw_win_range_later(wp: *mut win_T, first: linenr_T, last: linenr_T) {
+pub fn redraw_win_range_later(wp: *mut win_T, first: linenr_T, last: linenr_T) {
     unsafe {
         if last >= (*wp).w_topline && first < (*wp).w_botline {
             if (*wp).w_redraw_top == 0 || (*wp).w_redraw_top > first {
@@ -2698,13 +2686,11 @@ pub unsafe fn redraw_win_range_later(wp: *mut win_T, first: linenr_T, last: line
     }
 }
 
-pub unsafe fn redrawWinline(wp: *mut win_T, lnum: linenr_T) {
-    unsafe {
-        redraw_win_range_later(wp, lnum, lnum);
-    }
+pub fn redrawWinline(wp: *mut win_T, lnum: linenr_T) {
+    redraw_win_range_later(wp, lnum, lnum);
 }
 
-pub unsafe fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: linenr_T) {
+pub fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: linenr_T) {
     unsafe {
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
@@ -2716,7 +2702,7 @@ pub unsafe fn redraw_buf_range_later(buf: *mut buf_T, first: linenr_T, last: lin
     }
 }
 
-pub unsafe fn redraw_buf_status_later(buf: *mut buf_T) {
+pub fn redraw_buf_status_later(buf: *mut buf_T) {
     unsafe {
         let mut wp = g_st().firstwin;
         while !wp.is_null() {
@@ -2759,12 +2745,10 @@ pub fn status_redraw_all() {
 }
 
 pub fn status_redraw_curbuf() {
-    unsafe {
-        status_redraw_buf(g_st().curbuf);
-    }
+    status_redraw_buf(g_st().curbuf);
 }
 
-pub unsafe fn status_redraw_buf(buf: *mut buf_T) {
+pub fn status_redraw_buf(buf: *mut buf_T) {
     unsafe {
         let is_stl_global = global_stl_height() != 0;
 
@@ -2810,7 +2794,7 @@ pub fn redraw_statuslines() {
     }
 }
 
-pub unsafe fn win_redraw_last_status(mut frp: *const frame_T) {
+pub fn win_redraw_last_status(mut frp: *const frame_T) {
     unsafe {
         if (*frp).fr_layout == FR_LEAF {
             (*(*frp).fr_win).w_redr_status = true;
@@ -2831,7 +2815,7 @@ pub unsafe fn win_redraw_last_status(mut frp: *const frame_T) {
     }
 }
 
-pub unsafe fn conceal_cursor_line(wp: *const win_T) -> bool {
+pub fn conceal_cursor_line(wp: *const win_T) -> bool {
     unsafe {
         if *(*wp).w_onebuf_opt.wo_cocu == NUL {
             return false;
@@ -2859,8 +2843,7 @@ pub fn win_cursorline_standout(wp: &win_T) -> bool {
 }
 
 pub fn win_update_cursorline(wp: &mut win_T, foldinfo: &mut foldinfo_T) {
-    unsafe {
-        wp.w_cursorline = if win_cursorline_standout(&*wp) {
+    wp.w_cursorline = if win_cursorline_standout(&*wp) {
             wp.w_cursor.lnum
         } else {
             0
@@ -2871,7 +2854,6 @@ pub fn win_update_cursorline(wp: &mut win_T, foldinfo: &mut foldinfo_T) {
                 wp.w_cursorline = foldinfo.fi_lnum;
             }
         }
-    }
 }
 
 #[cfg(test)]

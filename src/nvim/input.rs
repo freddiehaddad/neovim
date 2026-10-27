@@ -382,7 +382,7 @@ pub fn get_recorded() -> std::ffi::CString {
     }
 }
 
-unsafe fn redo_prefix(spec: *const CmdSpec, buf: &mut Vec<c_char>, replay: bool) {
+fn redo_prefix(spec: *const CmdSpec, buf: &mut Vec<c_char>, replay: bool) {
     unsafe {
         if (*spec).regname != 0 {
             sb_add_char(buf, b'"' as c_int);
@@ -406,7 +406,7 @@ unsafe fn redo_prefix(spec: *const CmdSpec, buf: &mut Vec<c_char>, replay: bool)
     }
 }
 
-unsafe fn redo_chars(spec: *const CmdSpec, buf: &mut Vec<c_char>, arg_meta: bool) {
+fn redo_chars(spec: *const CmdSpec, buf: &mut Vec<c_char>, arg_meta: bool) {
     unsafe {
         if (*spec).op != NUL {
             sb_add_char(buf, (*spec).op);
@@ -430,7 +430,7 @@ unsafe fn redo_chars(spec: *const CmdSpec, buf: &mut Vec<c_char>, arg_meta: bool
 }
 
 /// Gets `spec` (or current pending change, if `spec` is NULL), composed into a "redo" keyseq.
-pub unsafe fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
+pub fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
     unsafe {
         let spec = if !spec.is_null() {
             spec
@@ -462,7 +462,7 @@ pub fn redo_spec() -> CmdSpec {
     }
 }
 
-unsafe fn add_buff(buf: *mut StuffBuf, s: *const c_char, mut slen: isize) {
+fn add_buff(buf: *mut StuffBuf, s: *const c_char, mut slen: isize) {
     unsafe {
         if slen < 0 {
             slen = std::ffi::CStr::from_ptr(s).to_bytes().len() as isize;
@@ -478,12 +478,10 @@ unsafe fn add_buff(buf: *mut StuffBuf, s: *const c_char, mut slen: isize) {
     }
 }
 
-unsafe fn add_num_buff(buf: *mut StuffBuf, n: c_int) {
-    unsafe {
-        let mut number = [0 as c_char; 32];
+fn add_num_buff(buf: *mut StuffBuf, n: c_int) {
+    let mut number = [0 as c_char; 32];
         let numberlen = vim_snprintf!(number.as_mut_ptr(), number.len(), c"%d".as_ptr(), n);
         add_buff(buf, number.as_ptr(), numberlen as isize);
-    }
 }
 
 fn key_byte_encode(c: c_int, temp: &mut [c_char; 4]) -> isize {
@@ -500,7 +498,7 @@ fn key_byte_encode(c: c_int, temp: &mut [c_char; 4]) -> isize {
     }
 }
 
-unsafe fn key_char_encode(c: c_int, buf: *mut c_char) -> usize {
+fn key_char_encode(c: c_int, buf: *mut c_char) -> usize {
     unsafe {
         let mut bytes = [0u8; MB_MAXBYTES + 1];
         let len = if is_special(c) {
@@ -519,12 +517,10 @@ unsafe fn key_char_encode(c: c_int, buf: *mut c_char) -> usize {
     }
 }
 
-unsafe fn add_char_buff(buf: *mut StuffBuf, c: c_int) {
-    unsafe {
-        let mut temp = [0 as c_char; MB_MAXBYTES * 3 + 1];
+fn add_char_buff(buf: *mut StuffBuf, c: c_int) {
+    let mut temp = [0 as c_char; MB_MAXBYTES * 3 + 1];
         let len = key_char_encode(c, temp.as_mut_ptr());
         add_buff(buf, temp.as_ptr(), len as isize);
-    }
 }
 
 fn sb_add_byte(sb: &mut Vec<c_char>, c: c_int) {
@@ -535,11 +531,9 @@ fn sb_add_byte(sb: &mut Vec<c_char>, c: c_int) {
 
 /// Dual of `add_char_buff()`, for a byte buffer.
 pub fn sb_add_char(sb: &mut Vec<c_char>, c: c_int) {
-    unsafe {
-        let mut temp = [0 as c_char; MB_MAXBYTES * 3 + 1];
+    let mut temp = [0 as c_char; MB_MAXBYTES * 3 + 1];
         let len = key_char_encode(c, temp.as_mut_ptr());
         sb.extend_from_slice(&temp[..len]);
-    }
 }
 
 fn read_readbuffers(advance: bool) -> c_int {
@@ -698,7 +692,7 @@ pub fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
 }
 
 /// Prepare for redo of a Visual-mode command.
-pub unsafe fn prep_redo_visual(keys: *const c_char, len: usize, spec: CmdSpec) {
+pub fn prep_redo_visual(keys: *const c_char, len: usize, spec: CmdSpec) {
     unsafe {
         let mut stored = spec.without_body();
         stored.regname = 0;
@@ -742,7 +736,7 @@ pub fn save_redobuff(save_redo: &mut RedoState) {
 }
 
 /// Restores the redo state from `save_redo`.
-pub unsafe fn restore_redobuff(save_redo: *mut RedoState) {
+pub fn restore_redobuff(save_redo: *mut RedoState) {
     unsafe {
         let rb = &raw mut inp_st().redobuff;
         *rb = std::mem::take(&mut *save_redo);
@@ -750,7 +744,7 @@ pub unsafe fn restore_redobuff(save_redo: *mut RedoState) {
 }
 
 /// Append `len` bytes of `s` (-1: up to the NUL) to the redo buffer.
-pub unsafe fn redo_append_str(s: *const c_char, len: isize) {
+pub fn redo_append_str(s: *const c_char, len: isize) {
     unsafe {
         if !inp_st().block_redo {
             let slen = if len < 0 { std::ffi::CStr::from_ptr(s).to_bytes().len() } else { len as usize };
@@ -763,7 +757,7 @@ pub unsafe fn redo_append_str(s: *const c_char, len: isize) {
 }
 
 /// Appends `str` to `buf` literally, escaping special characters with CTRL-V.
-pub unsafe fn sb_add_lit(buf: &mut Vec<c_char>, str_: *const c_char, len: c_int) {
+pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: *const c_char, len: c_int) {
     unsafe {
         let mut s = str_;
         while if len < 0 {
@@ -809,7 +803,7 @@ pub unsafe fn sb_add_lit(buf: &mut Vec<c_char>, str_: *const c_char, len: c_int)
 }
 
 /// Append to redo literally; no-op if `inp_st().block_redo` is set.
-pub unsafe fn redo_append_lit(str_: *const c_char, len: c_int) {
+pub fn redo_append_lit(str_: *const c_char, len: c_int) {
     unsafe {
         if inp_st().block_redo {
             return;
@@ -820,7 +814,7 @@ pub unsafe fn redo_append_lit(str_: *const c_char, len: c_int) {
 }
 
 /// Appends `s` to `buf`, leaving 3-byte special key codes unmodified and escaping other K_SPECIAL bytes.
-pub unsafe fn sb_add_spec(buf: &mut Vec<c_char>, mut s: *const c_char) {
+pub fn sb_add_spec(buf: &mut Vec<c_char>, mut s: *const c_char) {
     unsafe {
         while *s != NUL as c_char {
             if *s as u8 == K_SPECIAL && *s.add(1) != NUL as c_char && *s.add(2) != NUL as c_char {
@@ -835,7 +829,7 @@ pub unsafe fn sb_add_spec(buf: &mut Vec<c_char>, mut s: *const c_char) {
 }
 
 /// Append `s` to the redo buffer.
-pub unsafe fn redo_append_spec(s: *const c_char) {
+pub fn redo_append_spec(s: *const c_char) {
     unsafe {
         if inp_st().block_redo {
             return;
@@ -856,20 +850,16 @@ pub fn redo_append_char(c: c_int) {
 }
 
 /// Appends string `s` (must be typeahead encoding) to the stuff buffer.
-pub unsafe fn stuffReadbuff(s: *const c_char) {
-    unsafe {
-        add_buff(&raw mut inp_st().readbuf1, s, -1);
-    }
+pub fn stuffReadbuff(s: *const c_char) {
+    add_buff(&raw mut inp_st().readbuf1, s, -1);
 }
 
 /// Appends string `s` (must be typeahead encoding) to the redo stuff buffer.
-pub unsafe fn stuffRedoReadbuff(s: *const c_char) {
-    unsafe {
-        add_buff(&raw mut inp_st().readbuf2, s, -1);
-    }
+pub fn stuffRedoReadbuff(s: *const c_char) {
+    add_buff(&raw mut inp_st().readbuf2, s, -1);
 }
 
-pub unsafe fn stuffReadbuffLen(s: *const c_char, len: isize) {
+pub fn stuffReadbuffLen(s: *const c_char, len: isize) {
     unsafe {
         if g_st().add_last_insert == 1 && len > 0 {
             let last_ins = &raw mut g_st().last_insert_ga;
@@ -880,7 +870,7 @@ pub unsafe fn stuffReadbuffLen(s: *const c_char, len: isize) {
 }
 
 /// Stuff `s` into the stuff buffer, leaving special key codes unmodified.
-pub unsafe fn stuffReadbuffSpecial(mut s: *const c_char) {
+pub fn stuffReadbuffSpecial(mut s: *const c_char) {
     unsafe {
         while *s != NUL as c_char {
             if *s as u8 == K_SPECIAL && *s.add(1) != NUL as c_char && *s.add(2) != NUL as c_char {
@@ -899,20 +889,16 @@ pub unsafe fn stuffReadbuffSpecial(mut s: *const c_char) {
 
 /// Appends character `c` to the stuff buffer, translated to typeahead encoding.
 pub fn stuffcharReadbuff(c: c_int) {
-    unsafe {
-        add_char_buff(&raw mut inp_st().readbuf1, c);
-    }
+    add_char_buff(&raw mut inp_st().readbuf1, c);
 }
 
 /// Append a number to the stuff buffer.
 pub fn stuffnumReadbuff(n: c_int) {
-    unsafe {
-        add_num_buff(&raw mut inp_st().readbuf1, n);
-    }
+    add_num_buff(&raw mut inp_st().readbuf1, n);
 }
 
 /// Stuff a string into the typeahead buffer.
-pub unsafe fn stuffescaped(mut arg: *const c_char, literally: bool) {
+pub fn stuffescaped(mut arg: *const c_char, literally: bool) {
     unsafe {
         while *arg != NUL as c_char {
             let start = arg;
@@ -1030,7 +1016,7 @@ pub fn noremap_keys() -> bool {
 }
 
 /// Insert a string in position `offset` in the typeahead buffer.
-pub unsafe fn ins_typebuf(
+pub fn ins_typebuf(
     str_: *mut c_char,
     noremap: c_int,
     offset: c_int,
@@ -1151,14 +1137,12 @@ pub unsafe fn ins_typebuf(
 
 /// Re-queues key `c`: puts a key obtained by `vgetc()` back into typeahead.
 pub fn requeue_key(c: c_int, modifiers: c_int, extra_consumed: c_int, recorded: bool) {
-    unsafe {
-        let mut buf = [0 as c_char; MB_MAXBYTES * 3 + 4];
+    let mut buf = [0 as c_char; MB_MAXBYTES * 3 + 4];
         let len = special_to_buf(c, modifiers, true, buf.as_mut_ptr()) as usize;
         assert!(len < buf.len());
         buf[len] = NUL as c_char;
         ins_typebuf(buf.as_mut_ptr(), inp_st().KeyNoremap, 0, !g_st().KeyTyped, g_st().cmd_silent);
         ungetchars(len as c_int + extra_consumed, recorded);
-    }
 }
 
 /// Return true if the typeahead buffer was changed.
@@ -1291,7 +1275,7 @@ fn gotchars_add_byte(state: &mut gotchars_state_T, byte: u8) -> bool {
         retval
 }
 
-unsafe fn gotchars(chars: *const u8, len: usize) {
+fn gotchars(chars: *const u8, len: usize) {
     unsafe {
         let mut s = chars;
         let mut todo = len;
@@ -1345,11 +1329,9 @@ unsafe fn gotchars(chars: *const u8, len: usize) {
 
 /// Record an `<Ignore>` key.
 pub fn gotchars_ignore() {
-    unsafe {
-        let nop_buf: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_IGNORE];
+    let nop_buf: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_IGNORE];
         inp_st().on_key_ignore_len += 3;
         gotchars(nop_buf.as_ptr(), 3);
-    }
 }
 
 fn ungetchars(len: c_int, recorded: bool) {
@@ -1446,7 +1428,7 @@ pub fn restore_typeahead(tp: &mut tasave_T) {
 }
 
 /// Open a new script file for the `":source!"` command.
-pub unsafe fn openscript(name: *mut c_char, directly: bool) {
+pub fn openscript(name: *mut c_char, directly: bool) {
     unsafe {
         if inp_st().curscript + 1 == NSCRIPT as c_int {
             emsg(gettext((&raw const e_nesting).cast()));
@@ -1532,7 +1514,7 @@ pub fn close_all_scripts() {
         }
 }
 
-pub unsafe fn open_scriptin(scriptin_name: *mut c_char) -> bool {
+pub fn open_scriptin(scriptin_name: *mut c_char) -> bool {
     unsafe {
         assert!(inp_st().curscript == -1);
         inp_st().curscript += 1;
@@ -1854,13 +1836,11 @@ pub fn vgetc() -> c_int {
 
 /// Like `vgetc()`, but never return a NUL when called recursively.
 pub fn safe_vgetc() -> c_int {
-    unsafe {
-        let mut c = vgetc();
+    let mut c = vgetc();
         if c == NUL {
             c = get_keystroke(ptr::null_mut());
         }
         c
-    }
 }
 
 /// Like `safe_vgetc()`, but loop to handle `K_IGNORE`.
@@ -1903,7 +1883,7 @@ pub fn char_avail() -> bool {
     }
 }
 
-unsafe fn getchar_common(argvars: *mut typval_T, rettv: &mut typval_T, mut allow_number: bool) {
+fn getchar_common(argvars: *mut typval_T, rettv: &mut typval_T, mut allow_number: bool) {
     unsafe {
         let mut n: varnumber_T;
         let called_emsg_start = g_st().called_emsg;
@@ -2070,18 +2050,14 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: &mut typval_T, mut allow
 pub fn f_getchar(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        getchar_common(argvars, rettv, true);
-    }
+    getchar_common(argvars, rettv, true);
 }
 
 /// `"getcharstr()"` function.
 pub fn f_getcharstr(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        getchar_common(argvars, rettv, false);
-    }
+    getchar_common(argvars, rettv, false);
 }
 
 /// `"getcharmod()"` function.
@@ -2089,7 +2065,7 @@ pub fn f_getcharmod(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
     rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(g_st().mod_mask));
 }
 
-unsafe fn put_string_in_typebuf(
+fn put_string_in_typebuf(
     offset: c_int,
     slen: c_int,
     string: *mut u8,
@@ -2188,7 +2164,7 @@ fn check_simplify_modifier(max_offset: c_int) -> c_int {
     }
 }
 
-unsafe fn char_iter(itp: *mut *const u8, nomap: c_int) -> c_int {
+fn char_iter(itp: *mut *const u8, nomap: c_int) -> c_int {
     unsafe {
         let mut it = *itp;
         let mut c = *it as c_int;
@@ -2243,7 +2219,7 @@ unsafe fn char_iter(itp: *mut *const u8, nomap: c_int) -> c_int {
     }
 }
 
-unsafe fn handle_mapping(
+fn handle_mapping(
     keylenp: *mut c_int,
     timedout: *const bool,
     mapdepth: *mut c_int,
@@ -2981,7 +2957,7 @@ fn vgetorpeek(advance: bool) -> c_int {
     }
 }
 
-unsafe fn inchar(buf: *mut u8, maxlen: c_int, wait_time: c_long) -> c_int {
+fn inchar(buf: *mut u8, maxlen: c_int, wait_time: c_long) -> c_int {
     unsafe {
         let mut len: c_int = 0;
         let mut retesc: c_int = 0;
@@ -3059,7 +3035,7 @@ unsafe fn inchar(buf: *mut u8, maxlen: c_int, wait_time: c_long) -> c_int {
 }
 
 /// Fix typed characters for use by `vgetc()`.
-pub unsafe fn fix_input_buffer(buf: *mut u8, mut len: c_int) -> c_int {
+pub fn fix_input_buffer(buf: *mut u8, mut len: c_int) -> c_int {
     unsafe {
         if using_script() == 0 {
             *buf.add(len as usize) = NUL as u8;
@@ -3088,7 +3064,7 @@ pub unsafe fn fix_input_buffer(buf: *mut u8, mut len: c_int) -> c_int {
 }
 
 /// Get a key stroke directly from the user.
-pub unsafe fn get_keystroke(events: *mut MultiQueue) -> c_int {
+pub fn get_keystroke(events: *mut MultiQueue) -> c_int {
     unsafe {
         let mut buf: Vec<u8> = vec![0; 150];
         let mut buflen: c_int = 150;
@@ -3161,8 +3137,7 @@ pub fn getcmdkeycmd(
     _indent: c_int,
     _do_concat: bool,
 ) -> Option<std::ffi::CString> {
-    unsafe {
-        let mut line: Vec<u8> = Vec::new();
+    let mut line: Vec<u8> = Vec::new();
         let mut c1: c_int = -1;
         let mut cmod: c_int = 0;
         let mut aborted = false;
@@ -3227,7 +3202,6 @@ pub fn getcmdkeycmd(
             }
             Some(out)
         }
-    }
 }
 
 /// Handle a Lua mapping: get its id from typeahead and execute its callback.

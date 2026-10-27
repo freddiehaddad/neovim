@@ -180,7 +180,7 @@ pub fn uhp_mut<'a>(buf: &mut buf_T, uh: usize) -> &'a mut u_header_T {
     unsafe { &mut *buf.b_u_headers.as_mut_ptr().add(uh) }
 }
 
-unsafe fn u_alloc_header(buf: *mut buf_T) -> usize {
+fn u_alloc_header(buf: *mut buf_T) -> usize {
     unsafe {
         if let Some(idx) = (*buf).b_u_free_headers.pop() {
             uhp_mut(&mut *buf, idx).clone_from_slice_or_reset();
@@ -287,8 +287,7 @@ pub fn u_save(top: linenr_T, bot: linenr_T) -> c_int {
 }
 
 pub fn u_save_buf(buf: &mut buf_T, top: linenr_T, bot: linenr_T) -> c_int {
-    unsafe {
-        if top >= bot || bot > buf.b_ml.ml_line_count + 1 {
+    if top >= bot || bot > buf.b_ml.ml_line_count + 1 {
             return FAIL;
         }
 
@@ -297,17 +296,16 @@ pub fn u_save_buf(buf: &mut buf_T, top: linenr_T, bot: linenr_T) -> c_int {
         }
 
         u_savecommon(&raw mut *buf, top, bot, 0, false)
-    }
 }
 
 /// Save the line `lnum` (used by `":s"` and `"~"` command).
 pub fn u_savesub(lnum: linenr_T) -> c_int {
-    unsafe { u_savecommon(g_st().curbuf, lnum - 1, lnum + 1, lnum + 1, false) }
+    u_savecommon(g_st().curbuf, lnum - 1, lnum + 1, lnum + 1, false)
 }
 
 /// A new line is inserted before line `lnum` (used by `:s` command).
 pub fn u_inssub(lnum: linenr_T) -> c_int {
-    unsafe { u_savecommon(g_st().curbuf, lnum - 1, lnum, lnum + 1, false) }
+    u_savecommon(g_st().curbuf, lnum - 1, lnum, lnum + 1, false)
 }
 
 /// Save the lines `lnum` - `lnum + nlines` (used by delete command).
@@ -328,7 +326,7 @@ pub fn u_savedel(lnum: linenr_T, nlines: linenr_T) -> c_int {
 }
 
 /// Return true when undo is allowed. Otherwise print an error message and return false.
-pub unsafe fn undo_allowed(buf: *mut buf_T) -> bool {
+pub fn undo_allowed(buf: *mut buf_T) -> bool {
     unsafe {
         if (*buf).b_p_ma == 0 {
             emsg(gettext((&raw const e_modifiable).cast()));
@@ -349,7 +347,7 @@ pub unsafe fn undo_allowed(buf: *mut buf_T) -> bool {
     }
 }
 
-unsafe fn get_undolevel(buf: *mut buf_T) -> OptInt {
+fn get_undolevel(buf: *mut buf_T) -> OptInt {
     unsafe {
         if (*buf).b_p_ul == NO_LOCAL_UNDOLEVEL {
             opt_vars().p_ul
@@ -360,7 +358,7 @@ unsafe fn get_undolevel(buf: *mut buf_T) -> OptInt {
 }
 
 #[inline]
-unsafe fn zero_fmark_additional_data(fmarks: *mut fmark_T) {
+fn zero_fmark_additional_data(fmarks: *mut fmark_T) {
     unsafe {
         for i in 0..NMARKS {
             (*fmarks.add(i)).additional_data = None;
@@ -369,7 +367,7 @@ unsafe fn zero_fmark_additional_data(fmarks: *mut fmark_T) {
 }
 
 /// Common code for various ways to save text before a change.
-pub unsafe fn u_savecommon(
+pub fn u_savecommon(
     buf: *mut buf_T,
     top: linenr_T,
     bot: linenr_T,
@@ -595,7 +593,7 @@ fn u_entry_resized(buf: &mut buf_T, uep: &u_entry_T) -> bool {
 }
 
 /// Compute the hash for a buffer text into `hash[UNDO_HASH_SIZE]`.
-pub unsafe fn u_compute_hash(buf: &mut buf_T, hash: *mut u8) {
+pub fn u_compute_hash(buf: &mut buf_T, hash: *mut u8) {
     unsafe {
         let mut ctx = context_sha256_T::new();
         for lnum in 1..=buf.b_ml.ml_line_count {
@@ -607,7 +605,7 @@ pub unsafe fn u_compute_hash(buf: &mut buf_T, hash: *mut u8) {
 }
 
 /// Return an allocated string of the full path of the target undofile.
-pub unsafe fn u_get_undo_file_name(
+pub fn u_get_undo_file_name(
     buf_ffname: *const c_char,
     reading: bool,
 ) -> Option<std::ffi::CString> {
@@ -713,17 +711,15 @@ pub unsafe fn u_get_undo_file_name(
     }
 }
 
-unsafe fn corruption_error(mesg: *const c_char, file_name: *const c_char) {
-    unsafe {
-        semsg!(
+fn corruption_error(mesg: *const c_char, file_name: *const c_char) {
+    semsg!(
             gettext(c"E825: Corrupted undo file (%s): %s".as_ptr()),
             mesg,
             file_name,
         );
-    }
 }
 
-unsafe fn serialize_header(bi: &mut bufinfo_T, hash: *mut u8) -> bool {
+fn serialize_header(bi: &mut bufinfo_T, hash: *mut u8) -> bool {
     unsafe {
         let buf = bi.bi_buf;
         let fp = bi.bi_fp.as_ptr();
@@ -833,12 +829,11 @@ fn serialize_uhp(bi: &mut bufinfo_T, uhp: usize) -> bool {
     }
 }
 
-unsafe fn unserialize_uhp(
+fn unserialize_uhp(
     bi: &mut bufinfo_T,
     file_name: *const c_char,
 ) -> Option<(u_header_T, [c_int; 4])> {
-    unsafe {
-        let mut uhp = u_header_T::new();
+    let mut uhp = u_header_T::new();
         let seqs = [
             undo_read_4c(bi),
             undo_read_4c(bi),
@@ -914,12 +909,10 @@ unsafe fn unserialize_uhp(
         }
 
         Some((uhp, seqs))
-    }
 }
 
 fn serialize_extmark(bi: &mut bufinfo_T, extup: ExtmarkUndoObject) -> bool {
-    unsafe {
-        match extup {
+    match extup {
             ExtmarkUndoObject::Splice(splice) => {
                 undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
                 undo_write_bytes(bi, kExtmarkSplice as u64, 4);
@@ -945,15 +938,13 @@ fn serialize_extmark(bi: &mut bufinfo_T, extup: ExtmarkUndoObject) -> bool {
             ExtmarkUndoObject::SavePos(_) => {}
         }
         true
-    }
 }
 
-unsafe fn unserialize_extmark(
+fn unserialize_extmark(
     bi: &mut bufinfo_T,
     _filename: *const c_char,
 ) -> Option<ExtmarkUndoObject> {
-    unsafe {
-        let type_ = undo_read_4c(bi) as UndoObjectType;
+    let type_ = undo_read_4c(bi) as UndoObjectType;
         if type_ == kExtmarkSplice {
             let mut splice = ExtmarkSplice::new();
             if !undo_read(
@@ -973,12 +964,10 @@ unsafe fn unserialize_extmark(
         } else {
             None
         }
-    }
 }
 
 fn serialize_uep(bi: &mut bufinfo_T, uep: &u_entry_T) -> bool {
-    unsafe {
-        undo_write_bytes(bi, uep.ue_top as u64, 4);
+    undo_write_bytes(bi, uep.ue_top as u64, 4);
         undo_write_bytes(bi, uep.ue_bot as u64, 4);
         undo_write_bytes(bi, uep.ue_lcount as u64, 4);
         undo_write_bytes(bi, uep.ue_size() as u64, 4);
@@ -993,16 +982,14 @@ fn serialize_uep(bi: &mut bufinfo_T, uep: &u_entry_T) -> bool {
             }
         }
         true
-    }
 }
 
-unsafe fn unserialize_uep(
+fn unserialize_uep(
     bi: &mut bufinfo_T,
     error: &mut bool,
     file_name: *const c_char,
 ) -> u_entry_T {
-    unsafe {
-        let mut uep = u_entry_T {
+    let mut uep = u_entry_T {
             ue_top: undo_read_4c(bi),
             ue_bot: undo_read_4c(bi),
             ue_lcount: undo_read_4c(bi),
@@ -1036,7 +1023,6 @@ unsafe fn unserialize_uep(
             uep.ue_array.push(line);
         }
         uep
-    }
 }
 
 fn serialize_pos(bi: &mut bufinfo_T, pos: pos_T) {
@@ -1066,7 +1052,7 @@ fn unserialize_visualinfo(bi: &mut bufinfo_T, info: &mut visualinfo_T) {
 }
 
 /// Write the undo tree in an undo file.
-pub unsafe fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *mut u8) {
+pub fn u_write_undo(name: *const c_char, forceit: bool, buf: *mut buf_T, hash: *mut u8) {
     unsafe {
         let f_owned: Option<std::ffi::CString>;
         let file_name = if name.is_null() {
@@ -1290,7 +1276,7 @@ fn uhp_table_find(uhp_table: &[(u_header_T, [c_int; 4])], seq: c_int) -> c_int {
 }
 
 /// Loads the undo tree from an undo file.
-pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char) {
+pub fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const c_char) {
     unsafe {
         #[cfg(not(unix))]
         let _ = orig_name;
@@ -1567,13 +1553,12 @@ pub unsafe fn u_read_undo(name: *mut c_char, hash: *const u8, orig_name: *const 
     }
 }
 
-unsafe fn undo_write(bi: &mut bufinfo_T, ptr: *mut u8, len: usize) -> bool {
+fn undo_write(bi: &mut bufinfo_T, ptr: *mut u8, len: usize) -> bool {
     unsafe { fwrite(ptr.cast(), len, 1, bi.bi_fp.as_ptr()) == 1 }
 }
 
 fn undo_write_bytes(bi: &mut bufinfo_T, nr: u64, len: usize) -> bool {
-    unsafe {
-        assert!(len > 0);
+    assert!(len > 0);
         let mut buf = [0u8; 8];
         let mut i = len - 1;
         for slot in buf.iter_mut().take(len) {
@@ -1581,7 +1566,6 @@ fn undo_write_bytes(bi: &mut bufinfo_T, nr: u64, len: usize) -> bool {
             i = i.wrapping_sub(1);
         }
         undo_write(bi, buf.as_mut_ptr(), len)
-    }
 }
 
 fn put_header_ptr(bi: &mut bufinfo_T, uhp: Option<usize>) {
@@ -1598,10 +1582,10 @@ fn put_header_ptr(bi: &mut bufinfo_T, uhp: Option<usize>) {
 }
 
 fn undo_read_4c(bi: &mut bufinfo_T) -> c_int {
-    unsafe { get4c(bi.bi_fp.as_ptr()) }
+    get4c(bi.bi_fp.as_ptr())
 }
 
-unsafe fn undo_read_len(
+fn undo_read_len(
     bi: &mut bufinfo_T,
     what: *const c_char,
     file_name: *const c_char,
@@ -1626,7 +1610,7 @@ unsafe fn undo_read_len(
 }
 
 fn undo_read_2c(bi: &mut bufinfo_T) -> c_int {
-    unsafe { get2c(bi.bi_fp.as_ptr()) }
+    get2c(bi.bi_fp.as_ptr())
 }
 
 fn undo_read_byte(bi: &mut bufinfo_T) -> c_int {
@@ -1634,10 +1618,10 @@ fn undo_read_byte(bi: &mut bufinfo_T) -> c_int {
 }
 
 fn undo_read_time(bi: &mut bufinfo_T) -> time_t {
-    unsafe { get8ctime(bi.bi_fp.as_ptr()) }
+    get8ctime(bi.bi_fp.as_ptr())
 }
 
-unsafe fn undo_read(bi: &mut bufinfo_T, buffer: *mut u8, size: usize) -> bool {
+fn undo_read(bi: &mut bufinfo_T, buffer: *mut u8, size: usize) -> bool {
     unsafe {
         let retval = fread(buffer.cast(), size, 1, bi.bi_fp.as_ptr()) == 1;
         if !retval {
@@ -1648,8 +1632,7 @@ unsafe fn undo_read(bi: &mut bufinfo_T, buffer: *mut u8, size: usize) -> bool {
 }
 
 fn undo_read_string(bi: &mut bufinfo_T, len: usize) -> Option<std::ffi::CString> {
-    unsafe {
-        if len == 0 {
+    if len == 0 {
             return Some(std::ffi::CString::default());
         }
         let mut buf = vec![0u8; len];
@@ -1659,7 +1642,6 @@ fn undo_read_string(bi: &mut bufinfo_T, len: usize) -> Option<std::ffi::CString>
         let end = buf.iter().position(|&b| b == 0).unwrap_or(len);
         buf.truncate(end);
         std::ffi::CString::new(buf).ok()
-    }
 }
 
 /// Undo `count` times.
@@ -1681,13 +1663,11 @@ pub fn u_undo(mut count: c_int) {
 
 /// Redo `count` times.
 pub fn u_redo(count: c_int) {
-    unsafe {
-        if vim_strchr(opt_vars().p_cpo, kCpoUndo).is_null() {
+    if vim_strchr(opt_vars().p_cpo, kCpoUndo).is_null() {
             undo_st().undo_undoes = false;
         }
 
         u_doit(count, false, true);
-    }
 }
 
 /// Undo and remove the branch from the undo tree.
@@ -2421,7 +2401,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
 }
 
 /// Put the timestamp of an undo header in `buf[buflen]` in a nice format.
-pub unsafe fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time_t) {
+pub fn undo_fmt_time(buf: *mut c_char, buflen: usize, tt: time_t) {
     unsafe {
         let now = os_time() as time_t;
         if now - tt >= 100 {
@@ -2595,10 +2575,8 @@ pub fn ex_undojoin(_eap: &mut exarg_T) {
 
 /// Called after writing or reloading the file and setting `b_changed` to false.
 pub fn u_unchanged(buf: &mut buf_T) {
-    unsafe {
-        u_unch_branch(buf, buf.b_u_oldhead);
+    u_unch_branch(buf, buf.b_u_oldhead);
         buf.b_did_warn = false;
-    }
 }
 
 /// After reloading a buffer which was saved for `'undoreload'`: Find the first
@@ -2650,7 +2628,7 @@ pub fn u_update_save_nr(buf: &mut buf_T) {
         }
 }
 
-unsafe fn u_unch_branch(buf: *mut buf_T, uhp: Option<usize>) {
+fn u_unch_branch(buf: *mut buf_T, uhp: Option<usize>) {
     unsafe {
         let mut uh = uhp;
         while let Some(u) = uh {
@@ -2666,8 +2644,7 @@ unsafe fn u_unch_branch(buf: *mut buf_T, uhp: Option<usize>) {
 }
 
 fn u_get_headentry(buf: &mut buf_T) -> *mut u_entry_T {
-    unsafe {
-        let Some(newhead) = buf.b_u_newhead else {
+    let Some(newhead) = buf.b_u_newhead else {
             iemsg(gettext(E_UNDO_LIST_CORRUPT.as_ptr()));
             return ptr::null_mut();
         };
@@ -2676,10 +2653,9 @@ fn u_get_headentry(buf: &mut buf_T) -> *mut u_entry_T {
             return ptr::null_mut();
         }
         &raw mut uhp_mut(buf, newhead).uh_entries.as_mut_slice()[0]
-    }
 }
 
-unsafe fn u_getbot(buf: *mut buf_T) {
+fn u_getbot(buf: *mut buf_T) {
     unsafe {
         let uep = u_get_headentry(&mut *buf);
         if uep.is_null() {
@@ -2702,7 +2678,7 @@ unsafe fn u_getbot(buf: *mut buf_T) {
     }
 }
 
-unsafe fn u_freeheader(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
+fn u_freeheader(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
     unsafe {
         if let Some(alt_next) = uhp_ref(&*buf, uhp).uh_alt_next {
             u_freebranch(buf, alt_next, uhpp);
@@ -2734,7 +2710,7 @@ unsafe fn u_freeheader(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
     }
 }
 
-unsafe fn u_freebranch(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
+fn u_freebranch(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
     unsafe {
         if Some(uhp) == (*buf).b_u_oldhead {
             while let Some(oh) = (*buf).b_u_oldhead {
@@ -2759,8 +2735,7 @@ unsafe fn u_freebranch(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
 }
 
 fn u_forget_header(buf: &mut buf_T, uhp: usize) {
-    unsafe {
-        let parent = uhp_ref(&*buf, uhp).uh_next;
+    let parent = uhp_ref(&*buf, uhp).uh_next;
         let alt = uhp_ref(&*buf, uhp).uh_alt_next;
         let alt_prev = uhp_ref(&*buf, uhp).uh_alt_prev;
         if let Some(a) = alt {
@@ -2786,10 +2761,9 @@ fn u_forget_header(buf: &mut buf_T, uhp: usize) {
         buf.b_u_synced = true;
         let mut dummy = None;
         u_freebranch(&raw mut *buf, uhp, &mut dummy);
-    }
 }
 
-unsafe fn u_freeentries(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
+fn u_freeentries(buf: *mut buf_T, uhp: usize, uhpp: &mut Option<usize>) {
     unsafe {
         if (*buf).b_u_curhead == Some(uhp) {
             (*buf).b_u_curhead = None;
@@ -2847,7 +2821,7 @@ pub fn u_clearall(buf: &mut buf_T) {
 }
 
 /// Free all allocated memory blocks for the buffer `buf`.
-pub unsafe fn u_blockfree(buf: *mut buf_T) {
+pub fn u_blockfree(buf: *mut buf_T) {
     unsafe {
         while let Some(previous_oldhead) = (*buf).b_u_oldhead {
             let mut dummy = None;
@@ -2860,12 +2834,10 @@ pub unsafe fn u_blockfree(buf: *mut buf_T) {
 
 /// Free all allocated memory blocks for the buffer `buf` and invalidate the undo buffer.
 pub fn u_clearallandblockfree(buf: &mut buf_T) {
-    unsafe {
-        u_blockfree(buf);
+    u_blockfree(buf);
         u_clearall(buf);
         buf.b_u_headers.clear();
         buf.b_u_free_headers.clear();
-    }
 }
 
 fn u_saveline(buf: &mut buf_T, lnum: linenr_T) {
@@ -2945,22 +2917,20 @@ pub fn u_undoline() {
 }
 
 fn u_save_line(lnum: linenr_T) -> std::ffi::CString {
-    unsafe { u_save_line_buf(g_st().curbuf, lnum) }
+    u_save_line_buf(g_st().curbuf, lnum)
 }
 
-unsafe fn u_save_line_buf(buf: *mut buf_T, lnum: linenr_T) -> std::ffi::CString {
+fn u_save_line_buf(buf: *mut buf_T, lnum: linenr_T) -> std::ffi::CString {
     unsafe { CStr::from_ptr(ml_get_buf(buf, lnum)).to_owned() }
 }
 
 /// Check if the `'modified'` flag is set, or `'ff'` has changed.
 pub fn bufIsChanged(buf: &mut buf_T) -> bool {
-    unsafe {
-        if bt_prompt(&raw mut *buf) {
+    if bt_prompt(&raw mut *buf) {
             buf.b_modified_was_set
         } else {
             !bt_dontwrite(&raw mut *buf) && (buf.b_changed != 0 || file_ff_differs(&raw mut *buf, true))
         }
-    }
 }
 
 /// Return true if any buffer has changes. Also buffers that are not written.
@@ -3122,8 +3092,7 @@ pub fn u_update_named_mark(buf: &mut buf_T, idx: c_int) {
 
 /// Given the buffer, return the undo header index. If none is set, set one first.
 pub fn u_force_get_undo_header(buf: &mut buf_T) -> Option<usize> {
-    unsafe {
-        let mut uhp = buf.b_u_curhead.or(buf.b_u_newhead);
+    let mut uhp = buf.b_u_curhead.or(buf.b_u_newhead);
 
         if uhp.is_none() {
             u_savecommon(buf, 0, 1, 1, true);
@@ -3136,7 +3105,6 @@ pub fn u_force_get_undo_header(buf: &mut buf_T) -> Option<usize> {
             }
         }
         uhp
-    }
 }
 
 /// Checkpoints the undo state of `buf` and detaches its undotree.

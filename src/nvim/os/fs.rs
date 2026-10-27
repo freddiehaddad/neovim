@@ -593,45 +593,39 @@ pub fn os_can_exe(
     abspath: Option<&mut Option<std::ffi::CString>>,
     use_path: bool,
 ) -> bool {
-    unsafe {
-        if !use_path || gettail_dir(name) != name {
+    if !use_path || gettail_dir(name) != name {
             #[cfg(windows)]
             return is_executable_ext(name, abspath);
             #[cfg(not(windows))]
             return (use_path || gettail_dir(name) != name) && is_executable(name, abspath);
         }
         is_executable_in_path(name, abspath)
-    }
 }
 
 fn is_executable(
     name: *const c_char,
     abspath: Option<&mut Option<std::ffi::CString>>,
 ) -> bool {
-    unsafe {
-        let mode = os_getperm(name);
-        if mode < 0 {
-            return false;
-        }
-
-        #[cfg(windows)]
-        let ok = s_isreg(mode as u64);
-
-        #[cfg(not(windows))]
-        let ok = s_isreg(mode as u64) && {
-            {
-                let mut req: uv_fs_buf_t = [0; 80];
-                let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, X_OK, ptr::null());
-                uv_fs_req_cleanup((&raw mut req).cast());
-                r == 0
-            }
-        };
-
-        if ok && let Some(out) = abspath {
-            *out = save_abs_path(name);
-        }
-        ok
+    let mode = os_getperm(name);
+    if mode < 0 {
+        return false;
     }
+
+    #[cfg(windows)]
+    let ok = s_isreg(mode as u64);
+
+    #[cfg(not(windows))]
+    let ok = s_isreg(mode as u64) && unsafe {
+        let mut req: uv_fs_buf_t = [0; 80];
+        let r = uv_fs_access(ptr::null_mut(), &raw mut req, name, X_OK, ptr::null());
+        uv_fs_req_cleanup((&raw mut req).cast());
+        r == 0
+    };
+
+    if ok && let Some(out) = abspath {
+        *out = save_abs_path(name);
+    }
+    ok
 }
 
 #[cfg(windows)]
@@ -1549,77 +1543,73 @@ pub fn os_fileinfo(path: *const c_char, file_info: &mut FileInfo) -> bool {
 
 /// Parses `path` into a `FileInfo` structure.
 pub fn os_fileinfo2(path: *const c_char, info: &mut FileInfo) -> bool {
+    *info = FileInfo::new();
+    if path_with_url(path) != 0 {
+        return true;
+    }
+    #[cfg(windows)]
+    let mut p: *const c_char = path_skip_sep(path, false);
+    #[cfg(not(windows))]
+    let p: *const c_char = path_skip_sep(path, false);
+    let leading_slashes = (p as usize) - (path as usize);
+
+    #[cfg(windows)]
     unsafe {
-        *info = FileInfo::new();
-        {
-            if path_with_url(path) != 0 {
+        let p0 = *p as u8;
+        let p1 = *p.add(1) as u8;
+        if leading_slashes == 0 && p0.is_ascii_alphabetic() && p1 == b':' {
+            info.r#type = kPathDrive;
+            p = path_skip_sep(p.add(2), false);
+            info.rest_off = (p as usize) - (path as usize);
+            return true;
+        }
+        if leading_slashes >= 2 && (p0 == b'?' || p0 == b'.') {
+            if !vim_ispathsep_nocolon(c_int::from(p1)) {
                 return true;
             }
-            #[cfg(windows)]
-            let mut p: *const c_char = path_skip_sep(path, false);
-            #[cfg(not(windows))]
-            let p: *const c_char = path_skip_sep(path, false);
-            let leading_slashes = (p as usize) - (path as usize);
-
-            #[cfg(windows)]
-            {
-                let p0 = *p as u8;
-                let p1 = *p.add(1) as u8;
-                if leading_slashes == 0 && p0.is_ascii_alphabetic() && p1 == b':' {
-                    info.r#type = kPathDrive;
-                    p = path_skip_sep(p.add(2), false);
-                    info.rest_off = (p as usize) - (path as usize);
-                    return true;
-                }
-                if leading_slashes >= 2 && (p0 == b'?' || p0 == b'.') {
-                    if !vim_ispathsep_nocolon(c_int::from(p1)) {
-                        return true;
-                    }
-                    info.r#type = kPathDevice;
-                    info.prefix_off = leading_slashes - 2;
-                    p = path_skip_sep(p.add(2), false);
-                    let p_bytes = [
-                        (*p as u8).to_ascii_lowercase(),
-                        (*p.add(1) as u8).to_ascii_lowercase(),
-                        (*p.add(2) as u8).to_ascii_lowercase(),
-                    ];
-                    if &p_bytes == b"unc" && vim_ispathsep_nocolon(c_int::from(*p.add(3) as u8)) {
-                        info.r#type = kPathDeviceUNC;
-                        p = path_skip_sep(p.add(4), false);
-                        info.root_off = (p as usize) - (path as usize);
-                        p = path_skip_sep(path_next_component(p), false);
-                        p = path_skip_sep(path_next_component(p), false);
-                        info.rest_off = (p as usize) - (path as usize);
-                        return true;
-                    }
-                    info.root_off = (p as usize) - (path as usize);
-                    if (*p as u8).is_ascii_alphabetic() && (*p.add(1) as u8) == b':' {
-                        p = p.add(2);
-                    }
-                    p = path_skip_sep(path_next_component(p), false);
-                    info.rest_off = (p as usize) - (path as usize);
-                    return true;
-                }
-                if leading_slashes == 2 {
-                    info.r#type = kPathUNC;
-                    p = path_skip_sep(path_next_component(p), false);
-                    p = path_skip_sep(path_next_component(p), false);
-                    info.rest_off = (p as usize) - (path as usize);
-                    return true;
-                }
+            info.r#type = kPathDevice;
+            info.prefix_off = leading_slashes - 2;
+            p = path_skip_sep(p.add(2), false);
+            let p_bytes = [
+                (*p as u8).to_ascii_lowercase(),
+                (*p.add(1) as u8).to_ascii_lowercase(),
+                (*p.add(2) as u8).to_ascii_lowercase(),
+            ];
+            if &p_bytes == b"unc" && vim_ispathsep_nocolon(c_int::from(*p.add(3) as u8)) {
+                info.r#type = kPathDeviceUNC;
+                p = path_skip_sep(p.add(4), false);
+                info.root_off = (p as usize) - (path as usize);
+                p = path_skip_sep(path_next_component(p), false);
+                p = path_skip_sep(path_next_component(p), false);
+                info.rest_off = (p as usize) - (path as usize);
+                return true;
             }
-
-            info.r#type = kPathGeneric;
-            info.rest_off = leading_slashes;
-            info.root_off = if leading_slashes > 2 {
-                leading_slashes - 1
-            } else {
-                0
-            };
-            info.prefix_off = info.root_off;
+            info.root_off = (p as usize) - (path as usize);
+            if (*p as u8).is_ascii_alphabetic() && (*p.add(1) as u8) == b':' {
+                p = p.add(2);
+            }
+            p = path_skip_sep(path_next_component(p), false);
+            info.rest_off = (p as usize) - (path as usize);
+            return true;
         }
-        true
+        if leading_slashes == 2 {
+            info.r#type = kPathUNC;
+            p = path_skip_sep(path_next_component(p), false);
+            p = path_skip_sep(path_next_component(p), false);
+            info.rest_off = (p as usize) - (path as usize);
+            return true;
+        }
     }
+
+    info.r#type = kPathGeneric;
+    info.rest_off = leading_slashes;
+    info.root_off = if leading_slashes > 2 {
+        leading_slashes - 1
+    } else {
+        0
+    };
+    info.prefix_off = info.root_off;
+    true
 }
 
 /// Get the file information for a given path without following links.
@@ -1732,14 +1722,12 @@ pub fn os_realpath(name: *const c_char, buf: *mut c_char, len: usize) -> *mut c_
 
 #[cfg(any(windows, target_os = "macos"))]
 pub fn os_realpath_cstr(name: *const c_char, len: usize) -> Option<std::ffi::CString> {
-    unsafe {
-        let mut buf = vec![0 as c_char; len];
+    let mut buf = vec![0 as c_char; len];
         if os_realpath(name, buf.as_mut_ptr(), len).is_null() {
             None
         } else {
             Some(cstr_to_cstring(buf.as_ptr()))
         }
-    }
 }
 
 #[cfg(windows)]

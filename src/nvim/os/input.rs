@@ -159,15 +159,13 @@ fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> {
 use crate::event::stream::UV_TTY;
 
 pub fn cursorhold_event() {
-    unsafe {
-        let event = if (g_st().State & MODE_INSERT) != 0 {
+    let event = if (g_st().State & MODE_INSERT) != 0 {
             EVENT_CURSORHOLDI
         } else {
             EVENT_CURSORHOLD
         };
         apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), false, g_st().curbuf);
         g_st().did_cursorhold = true;
-    }
 }
 
 fn create_cursorhold_event(events_enabled: bool) {

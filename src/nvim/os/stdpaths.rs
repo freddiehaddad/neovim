@@ -98,7 +98,7 @@ pub fn get_appname(namelike: bool) -> *const c_char {
 /// Return true if `$NVIM_APPNAME` is a valid name or relative path (`appname_is_valid`).
 pub fn appname_is_valid() -> bool {
     let appname_ptr = get_appname(false);
-    if unsafe { path_is_absolute(appname_ptr) } {
+    if path_is_absolute(appname_ptr) {
         return false;
     }
     let bytes = unsafe { CStr::from_ptr(appname_ptr).to_bytes() };
@@ -122,9 +122,7 @@ fn xdg_remove_duplicate(ret: CString, sep: u8) -> Option<CString> {
         let Ok(cand) = CString::new(part) else {
             continue;
         };
-        let is_dup = token_cstrs.iter().any(|existing| unsafe {
-            path_equal(existing.as_ptr(), cand.as_ptr(), kPathCmpLiteral)
-        });
+        let is_dup = token_cstrs.iter().any(|existing| path_equal(existing.as_ptr(), cand.as_ptr(), kPathCmpLiteral));
         if !is_dup {
             token_cstrs.push(cand);
         }
@@ -220,7 +218,7 @@ pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
     }
     let suffix_cstr = cstr_from_bytes(&suffix);
 
-    Some(unsafe { concat_fnames_cstr(dir.as_ptr(), suffix_cstr.as_ptr(), true) })
+    Some(concat_fnames_cstr(dir.as_ptr(), suffix_cstr.as_ptr(), true))
 }
 
 /// Return `$XDG_CONFIG_HOME/$NVIM_APPNAME/{fname}` (`stdpaths_user_conf_subpath`).
@@ -229,7 +227,7 @@ pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
 /// `fname` must be a valid C string.
 pub fn stdpaths_user_conf_subpath(fname: *const c_char) -> CString {
     let home = get_xdg_home(XDGVarType::kXDGConfigHome).unwrap_or_default();
-    unsafe { concat_fnames_cstr(home.as_ptr(), fname, true) }
+    concat_fnames_cstr(home.as_ptr(), fname, true)
 }
 
 /// Return `$XDG_STATE_HOME/$NVIM_APPNAME/{fname}` with optional trailing path separators and
@@ -243,7 +241,7 @@ pub fn stdpaths_user_state_subpath(
     escape_commas: bool,
 ) -> CString {
     let home = get_xdg_home(XDGVarType::kXDGStateHome).unwrap_or_default();
-    let ret = unsafe { concat_fnames_cstr(home.as_ptr(), fname, true) };
+    let ret = concat_fnames_cstr(home.as_ptr(), fname, true);
     let bytes = ret.as_bytes();
     let numcommas = if escape_commas {
         bytes.iter().filter(|&&b| b == b',').count()

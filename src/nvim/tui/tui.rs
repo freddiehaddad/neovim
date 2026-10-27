@@ -412,8 +412,7 @@ fn tui_set_term_mode(tui: &mut TUIData, mode: TermMode, set: bool) {
 }
 
 pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeState) {
-    unsafe {
-        let mut is_set = false;
+    let mut is_set = false;
         match state {
             kTermModeNotRecognized | kTermModePermanentlyReset => {
                 if !g_st().nvim_testing && log_st().g_min_log_level <= LOGLVL_WRN {
@@ -477,7 +476,6 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
             }
             _ => {}
         }
-    }
 }
 
 fn tui_query_extended_underline(tui: &mut TUIData) {
@@ -1654,8 +1652,7 @@ fn print_cell_at_pos(
     cell: UCell,
     is_doublewidth: bool,
 ) {
-    unsafe {
-        if tui.grid.row == -1 && cell.data == 0 {
+    if tui.grid.row == -1 && cell.data == 0 {
             return;
         }
 
@@ -1677,7 +1674,6 @@ fn print_cell_at_pos(
         if is_ambiwidth {
             tui.grid.row = -1;
         }
-    }
 }
 
 fn clear_region(
@@ -1775,8 +1771,7 @@ pub fn tui_grid_cursor_goto(tui: &mut TUIData, _grid: Integer, row: Integer, col
 }
 
 fn tui_cursor_decode_shape(shape_str: *const c_char) -> CursorShape {
-    unsafe {
-        if crate::memory::cstr_as_opt_bytes(shape_str) == Some(b"block") {
+    if crate::memory::cstr_as_opt_bytes(shape_str) == Some(b"block") {
             CursorShape::SHAPE_BLOCK
         } else if crate::memory::cstr_as_opt_bytes(shape_str) == Some(b"vertical") {
             CursorShape::SHAPE_VER
@@ -1796,7 +1791,6 @@ fn tui_cursor_decode_shape(shape_str: *const c_char) -> CursorShape {
             }
             CursorShape::SHAPE_BLOCK
         }
-    }
 }
 
 fn tui_cursor_reset_style(tui: &mut TUIData) {
@@ -1804,8 +1798,7 @@ fn tui_cursor_reset_style(tui: &mut TUIData) {
 }
 
 fn decode_cursor_entry(args: Dict) -> cursorentry_T {
-    unsafe {
-        let mut r = (*shape_table_mut())[0];
+    let mut r = (*shape_table_mut())[0];
         for i in 0..args.size {
             let item = args[i];
             let key = item.key.data;
@@ -1821,7 +1814,6 @@ fn decode_cursor_entry(args: Dict) -> cursorentry_T {
             }
         }
         r
-    }
 }
 
 pub fn tui_mode_info_set(tui: &mut TUIData, guicursor_enabled: bool, args: Array) {
@@ -2289,8 +2281,7 @@ fn tui_suspend_cb(tui: &mut TUIData) {
 }
 
 pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
-    unsafe {
-        if !tui.can_set_title {
+    if !tui.can_set_title {
             return;
         }
 
@@ -2323,7 +2314,6 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
             out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
             tui.title_enabled = false;
         }
-    }
 }
 
 pub fn tui_set_icon(_tui: &mut TUIData, _icon: NvimString) {}
@@ -2361,8 +2351,7 @@ pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
 }
 
 pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
-    unsafe {
-        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"mousemoveevent") {
+    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"mousemoveevent") {
             if tui.mouse_move_enabled != value.data.boolean() {
                 if tui.mouse_enabled {
                     tui_mouse_off(tui);
@@ -2398,7 +2387,6 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
         } else if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"termsync") {
             tui.sync_output = value.data.boolean();
         }
-    }
 }
 
 pub fn tui_chdir(_tui: &mut TUIData, path: NvimString) {
@@ -2715,8 +2703,7 @@ fn terminfo_set_str(tui: &mut TUIData, str_: TerminfoDef, val: &'static CStr) {
 }
 
 fn term_has_truecolor(tui: &mut TUIData, colorterm: *const c_char) -> bool {
-    unsafe {
-        if (crate::memory::cstr_as_opt_bytes(colorterm) == Some(b"truecolor")) || (crate::memory::cstr_as_opt_bytes(colorterm) == Some(b"24bit")) {
+    if (crate::memory::cstr_as_opt_bytes(colorterm) == Some(b"truecolor")) || (crate::memory::cstr_as_opt_bytes(colorterm) == Some(b"24bit")) {
             return true;
         }
 
@@ -2726,7 +2713,6 @@ fn term_has_truecolor(tui: &mut TUIData, colorterm: *const c_char) -> bool {
 
         tui.ti.defs[kTerm_set_rgb_foreground].is_some()
             && tui.ti.defs[kTerm_set_rgb_background].is_some()
-    }
 }
 
 fn patch_terminfo_bugs(

@@ -261,7 +261,7 @@ fn hl_st() -> &'static mut HighlightModuleState {
 }
 
 #[inline]
-unsafe fn is_none_str(s: *const c_char) -> bool {
+fn is_none_str(s: *const c_char) -> bool {
     !s.is_null() && unsafe { CStr::from_ptr(s).to_bytes().eq_ignore_ascii_case(b"NONE") }
 }
 
@@ -276,7 +276,7 @@ use crate::eval::funcs::{
 use crate::lua::converter::LUA_NOREF;
 
 #[inline]
-pub unsafe fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
+pub fn win_hl_attr(wp: *mut win_T, hlf: c_int) -> c_int {
     unsafe {
         if let Some(ref tbl) = (*wp).w_ns_hl_attr
             && g_st().ns_hl_fast < 0
@@ -431,7 +431,7 @@ pub fn hl_get_syn_attr(ns_id: c_int, idx: c_int, at_en: HlAttrs) -> c_int {
         0
 }
 
-pub unsafe fn ns_hl_def(
+pub fn ns_hl_def(
     ns_id: NS,
     hl_id: c_int,
     attrs: HlAttrs,
@@ -471,7 +471,7 @@ pub unsafe fn ns_hl_def(
     }
 }
 
-pub unsafe fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c_int {
+pub fn ns_get_hl(ns_hl: *mut NS, hl_id: c_int, link: bool, nodefault: bool) -> c_int {
     unsafe {
         if *ns_hl == 0 {
             return -1;
@@ -614,14 +614,14 @@ pub fn hl_check_ns() -> bool {
     }
 }
 
-pub unsafe fn win_check_ns_hl(wp: *mut win_T) -> bool {
+pub fn win_check_ns_hl(wp: *mut win_T) -> bool {
     unsafe {
         g_st().ns_hl_win = if !wp.is_null() { (*wp).w_ns_hl } else { -1 };
         hl_check_ns()
     }
 }
 
-pub unsafe fn hl_ns_get_attrs(
+pub fn hl_ns_get_attrs(
     ns_id: c_int,
     hl_id: c_int,
     optional: *mut bool,
@@ -647,8 +647,7 @@ pub fn hl_get_ui_attr(
     final_id: c_int,
     mut optional: bool,
 ) -> c_int {
-    unsafe {
-        let mut attrs = HLATTRS_INIT;
+    let mut attrs = HLATTRS_INIT;
         let mut available = false;
 
         if final_id > 0 {
@@ -674,7 +673,6 @@ pub fn hl_get_ui_attr(
             id2: final_id,
             winid: 0,
         })
-    }
 }
 
 pub fn hl_apply_winblend(winbl: c_int, mut attr: c_int) -> c_int {
@@ -838,7 +836,7 @@ pub fn hl_get_underline() -> c_int {
         })
 }
 
-pub unsafe fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
+pub fn hl_add_url(attr: c_int, url: *const c_char) -> c_int {
     unsafe {
         let mut attrs = HLATTRS_INIT;
         let url_cstr = CStr::from_ptr(url);
@@ -870,7 +868,7 @@ pub fn hl_get_url(index: u32) -> *const c_char {
     }
 }
 
-pub unsafe fn hl_add_font_idx(font_name: *const c_char) -> i32 {
+pub fn hl_add_font_idx(font_name: *const c_char) -> i32 {
     unsafe {
         if font_name.is_null() || *font_name == 0 {
             return -1;
@@ -896,7 +894,7 @@ pub fn hl_get_font(index: i32) -> *const c_char {
     }
 }
 
-pub unsafe fn hl_get_term_attr(aep: *mut HlAttrs) -> c_int {
+pub fn hl_get_term_attr(aep: *mut HlAttrs) -> c_int {
     unsafe {
         get_attr_entry(HlEntry {
             attr: *aep,
@@ -1077,7 +1075,7 @@ fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
     }
 }
 
-pub unsafe fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: *mut bool) -> c_int {
+pub fn hl_blend_attrs(back_attr: c_int, front_attr: c_int, through: *mut bool) -> c_int {
     unsafe {
         if front_attr < 0 || back_attr < 0 {
             return front_attr;
@@ -1246,7 +1244,7 @@ pub fn syn_attr2entry(attr: c_int) -> HlAttrs {
     }
 }
 
-pub unsafe fn hl_get_attr_by_id(
+pub fn hl_get_attr_by_id(
     attr_id: Integer,
     rgb: Boolean,
     arena: *mut Arena,
@@ -1285,7 +1283,7 @@ pub unsafe fn hl_get_attr_by_id(
     }
 }
 
-pub unsafe fn hlattrs2dict(
+pub fn hlattrs2dict(
     hl: *mut Dict,
     mut hl_attrs: *mut Dict,
     ae: HlAttrs,
@@ -1439,7 +1437,7 @@ const fn apply_cterm_flag(val: bool, mut m: i32, flag: i32) -> i32 {
     m
 }
 
-pub unsafe fn dict2hlattrs(
+pub fn dict2hlattrs(
     dict: *mut KeyDict_highlight,
     use_rgb: bool,
     link_id: *mut c_int,
@@ -1795,9 +1793,8 @@ pub unsafe fn dict2hlattrs(
     }
 }
 
-pub unsafe fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: &mut Error) -> c_int {
-    unsafe {
-        if val.obj_type == ObjectType::kObjectTypeInteger {
+pub fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: &mut Error) -> c_int {
+    if val.obj_type == ObjectType::kObjectTypeInteger {
             val.data.integer() as c_int
         } else if val.obj_type == ObjectType::kObjectTypeString {
             let str_ = val.data.string();
@@ -1819,12 +1816,10 @@ pub unsafe fn object_to_color(val: Object, key: *mut c_char, rgb: bool, err: &mu
             api_err_exp(err, key, c"String or Integer".as_ptr(), ptr::null());
             0
         }
-    }
 }
 
-pub unsafe fn hl_inspect(attr: c_int, arena: *mut Arena) -> Array {
-    unsafe {
-        if !hl_st().hlstate_active {
+pub fn hl_inspect(attr: c_int, arena: *mut Arena) -> Array {
+    if !hl_st().hlstate_active {
             return Array {
                 size: 0,
                 capacity: 0,
@@ -1834,7 +1829,6 @@ pub unsafe fn hl_inspect(attr: c_int, arena: *mut Arena) -> Array {
         let mut ret = arena_array(arena, hl_inspect_size(attr));
         hl_inspect_impl(&raw mut ret, attr, arena);
         ret
-    }
 }
 
 fn hl_inspect_size(attr: c_int) -> usize {
@@ -1852,7 +1846,7 @@ fn hl_inspect_size(attr: c_int) -> usize {
     }
 }
 
-unsafe fn hl_inspect_impl(arr: *mut Array, attr: c_int, arena: *mut Arena) {
+fn hl_inspect_impl(arr: *mut Array, attr: c_int, arena: *mut Arena) {
     unsafe {
         let entries_ptr = &raw const hl_st().attr_entries;
         if attr <= 0 || (attr as usize) >= (*entries_ptr).len() {

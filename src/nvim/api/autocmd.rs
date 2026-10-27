@@ -160,13 +160,11 @@ fn api_err_req(err: &mut Error, name: *const c_char) {
 #[inline]
 fn format_buflocal_arena(arena: *mut Arena, handle: c_int) -> NvimString {
     let s = format!("<buffer={handle}>");
-    unsafe {
-        let data = arena_memdupz(arena, s.as_ptr().cast(), s.len());
+    let data = arena_memdupz(arena, s.as_ptr().cast(), s.len());
         NvimString {
             data,
             size: s.len(),
         }
-    }
 }
 
 fn unpack_string_or_array(
@@ -207,8 +205,7 @@ fn unpack_string_or_array(
 }
 
 fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
-    unsafe {
-        match group.obj_type {
+    match group.obj_type {
             ObjectType::kObjectTypeNil => AUGROUP_DEFAULT,
             ObjectType::kObjectTypeString => {
                 let au_group = augroup_find(group.data.string().data);
@@ -241,7 +238,6 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> c_int {
                 AUGROUP_ERROR
             }
         }
-    }
 }
 
 fn get_patterns_from_pattern_or_buf(
@@ -337,8 +333,7 @@ fn clear_autocmd(
     au_group: c_int,
     err: &mut Error,
 ) -> bool {
-    unsafe {
-        if do_autocmd_event(event, pat, false, 0, c"".as_ptr(), true, au_group) == FAIL {
+    if do_autocmd_event(event, pat, false, 0, c"".as_ptr(), true, au_group) == FAIL {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -347,7 +342,6 @@ fn clear_autocmd(
             return false;
         }
         true
-    }
 }
 
 /// Gets all autocommands matching ALL criteria in the {opts} query.
@@ -1194,12 +1188,10 @@ pub unsafe extern "C" fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
 // DLLEXPORT void nvim_del_augroup_by_name(String name, Error *err) FUNC_API_SINCE(9);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_del_augroup_by_name(name: NvimString, err: &mut Error) {
-    unsafe {
-        let mut tstate = TryState::new();
+    let mut tstate = TryState::new();
         try_enter(&mut tstate);
         augroup_del(name.data, -1, false);
         try_leave(&tstate, err);
-    }
 }
 
 /// Executes {event} handlers matching the {opts} query, in the context of {buf} (if given). |autocmd-execute|

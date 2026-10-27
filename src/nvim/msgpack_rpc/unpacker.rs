@@ -392,10 +392,8 @@ impl Unpacker {
 
 impl Drop for Unpacker {
     fn drop(&mut self) {
-        unsafe {
-            let mem = arena_finish(&mut self.arena);
+        let mem = arena_finish(&mut self.arena);
             arena_mem_free(mem);
-        }
     }
 }
 

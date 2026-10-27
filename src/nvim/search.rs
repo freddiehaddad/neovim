@@ -333,7 +333,7 @@ const fn getfile_success(x: c_int) -> bool {
     x <= 0
 }
 
-unsafe fn find_substr(haystack: *const c_char, needle: &[u8]) -> bool {
+fn find_substr(haystack: *const c_char, needle: &[u8]) -> bool {
     unsafe {
         let bytes = CStr::from_ptr(haystack).to_bytes();
         bytes.windows(needle.len()).any(|w| w == needle)
@@ -341,7 +341,7 @@ unsafe fn find_substr(haystack: *const c_char, needle: &[u8]) -> bool {
 }
 
 /// Translate search pattern for `vim_regcomp()`.
-pub unsafe fn search_regcomp(
+pub fn search_regcomp(
     mut pat: *mut c_char,
     mut patlen: usize,
     used_pat: *mut *mut c_char,
@@ -422,7 +422,7 @@ pub fn get_search_pat() -> *mut c_char {
     }
 }
 
-pub unsafe fn save_re_pat(idx: c_int, pat: *mut c_char, patlen: usize, magic: c_int) {
+pub fn save_re_pat(idx: c_int, pat: *mut c_char, patlen: usize, magic: c_int) {
     unsafe {
         let i = idx as usize;
         if srch().spats[i].pat_ptr() == pat {
@@ -501,8 +501,7 @@ pub fn save_last_search_pattern() {
 }
 
 pub fn restore_last_search_pattern() {
-    unsafe {
-        srch().did_save_last_search_spat -= 1;
+    srch().did_save_last_search_spat -= 1;
         if srch().did_save_last_search_spat > 0 {
             return;
         }
@@ -521,7 +520,6 @@ pub fn restore_last_search_pattern() {
         set_vv_searchforward();
         srch().last_idx = srch().saved_last_idx;
         set_no_hlsearch(srch().saved_no_hlsearch);
-    }
 }
 
 fn save_incsearch_state() {
@@ -534,11 +532,11 @@ fn restore_incsearch_state() {
         g_st().Search.match_lines = srch().saved_search_match_lines;
 }
 
-pub unsafe fn ignorecase(pat: *mut c_char) -> c_int {
-    unsafe { ignorecase_opt(pat, opt_vars().p_ic, opt_vars().p_scs) }
+pub fn ignorecase(pat: *mut c_char) -> c_int {
+    ignorecase_opt(pat, opt_vars().p_ic, opt_vars().p_scs)
 }
 
-pub unsafe fn ignorecase_opt(pat: *mut c_char, ic_in: c_int, scs: c_int) -> c_int {
+pub fn ignorecase_opt(pat: *mut c_char, ic_in: c_int, scs: c_int) -> c_int {
     unsafe {
         let mut ic = ic_in;
         if ic != 0
@@ -553,7 +551,7 @@ pub unsafe fn ignorecase_opt(pat: *mut c_char, ic_in: c_int, scs: c_int) -> c_in
     }
 }
 
-pub unsafe fn pat_has_uppercase(pat: *mut c_char) -> bool {
+pub fn pat_has_uppercase(pat: *mut c_char) -> bool {
     unsafe {
         let mut p = pat;
         let mut magic_val: magic_T = MAGIC_ON;
@@ -613,7 +611,7 @@ pub fn last_csearch_until() -> c_int {
     c_int::from(srch().last_t_cmd)
 }
 
-pub unsafe fn set_last_csearch(c: c_int, s: *mut c_char, len: c_int) {
+pub fn set_last_csearch(c: c_int, s: *mut c_char, len: c_int) {
     unsafe {
         srch().lastc[0] = c as u8;
         srch().lastc_bytelen = len;
@@ -642,7 +640,7 @@ pub fn reset_search_dir() {
         set_vv_searchforward();
 }
 
-pub unsafe fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, setlast: bool) {
+pub fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, setlast: bool) {
     unsafe {
         let i = idx as usize;
         free_spat(&mut srch().spats[i]);
@@ -676,8 +674,7 @@ pub unsafe fn set_last_search_pat(s: *const c_char, idx: c_int, magic: c_int, se
 }
 
 pub fn last_pat_prog(regmatch: &mut regmmatch_T) {
-    unsafe {
-        if srch().spats[srch().last_idx as usize].pat.is_none() {
+    if srch().spats[srch().last_idx as usize].pat.is_none() {
             regmatch.regprog = ptr::null_mut();
             return;
         }
@@ -693,10 +690,9 @@ pub fn last_pat_prog(regmatch: &mut regmmatch_T) {
             regmatch,
         );
         g_st().emsg_off -= 1;
-    }
 }
 
-pub unsafe fn searchit(
+pub fn searchit(
     win: *mut win_T,
     buf: *mut buf_T,
     pos: *mut pos_T,
@@ -1152,7 +1148,7 @@ fn first_submatch(rp: &regmmatch_T) -> c_int {
     0
 }
 
-pub unsafe fn parse_search_pattern_offset(
+pub fn parse_search_pattern_offset(
     pat: *mut *mut c_char,
     patlen: *mut usize,
     search_delim: c_int,
@@ -1238,7 +1234,7 @@ pub unsafe fn parse_search_pattern_offset(
     }
 }
 
-pub unsafe fn do_search(
+pub fn do_search(
     oap: *mut oparg_T,
     mut dirc: c_int,
     mut search_delim: c_int,
@@ -1649,7 +1645,7 @@ pub unsafe fn do_search(
     }
 }
 
-pub unsafe fn search_for_exact_line(
+pub fn search_for_exact_line(
     buf: &mut buf_T,
     pos: &mut pos_T,
     dir: Direction,
@@ -1798,11 +1794,11 @@ pub fn searchc(cap: &mut cmdarg_T, mut t_cmd: bool) -> c_int {
     }
 }
 
-pub unsafe fn findmatch(oap: *mut oparg_T, initc: c_int) -> *mut pos_T {
-    unsafe { findmatchlimit(oap, initc, 0, 0) }
+pub fn findmatch(oap: *mut oparg_T, initc: c_int) -> *mut pos_T {
+    findmatchlimit(oap, initc, 0, 0)
 }
 
-unsafe fn check_prevcol(
+fn check_prevcol(
     linep: *mut c_char,
     mut col: c_int,
     ch: c_int,
@@ -1820,7 +1816,7 @@ unsafe fn check_prevcol(
     }
 }
 
-unsafe fn find_rawstring_end(
+fn find_rawstring_end(
     linep: *mut c_char,
     startpos: &pos_T,
     endpos: &pos_T,
@@ -1909,7 +1905,7 @@ fn find_mps_values(
     }
 }
 
-pub unsafe fn findmatchlimit(
+pub fn findmatchlimit(
     oap: *mut oparg_T,
     mut initc: c_int,
     flags: c_int,
@@ -2684,7 +2680,7 @@ pub fn current_search(count: c_int, forward: bool) -> c_int {
     }
 }
 
-unsafe fn is_zero_width(
+fn is_zero_width(
     mut pattern: *mut c_char,
     mut patternlen: usize,
     move_to_start: bool,
@@ -2791,7 +2787,7 @@ pub fn linewhite(lnum: linenr_T) -> bool {
     }
 }
 
-unsafe fn cmdline_search_stat(
+fn cmdline_search_stat(
     dirc: c_int,
     pos: &mut pos_T,
     cursor_pos: &mut pos_T,
@@ -3174,15 +3170,13 @@ pub fn f_searchcount(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
     }
 }
 
-unsafe fn get_line_and_copy(lnum: linenr_T, buf: *mut c_char) -> *mut c_char {
-    unsafe {
-        let line = ml_get(lnum);
+fn get_line_and_copy(lnum: linenr_T, buf: *mut c_char) -> *mut c_char {
+    let line = ml_get(lnum);
         xstrlcpy(buf, line, LSIZE);
         buf
-    }
 }
 
-pub unsafe fn find_pattern_in_path(
+pub fn find_pattern_in_path(
     ptr_pat: *mut c_char,
     mut dir: Direction,
     len: usize,
@@ -3898,7 +3892,7 @@ pub unsafe fn find_pattern_in_path(
     }
 }
 
-unsafe fn show_pat_in_path(
+fn show_pat_in_path(
     mut line: *mut c_char,
     type_: c_int,
     did_show: bool,
@@ -4064,8 +4058,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
-            let save_magic = opt_vars().p_magic;
+        let save_magic = opt_vars().p_magic;
             let save_cmp = opt_vars().cmp_flags;
             opt_vars().p_magic = 1;
             opt_vars().cmp_flags = crate::mbyte::kOptCmpFlagInternal | crate::mbyte::kOptCmpFlagKeepascii;
@@ -4087,6 +4080,5 @@ mod tests {
             }
             opt_vars().p_magic = save_magic;
             opt_vars().cmp_flags = save_cmp;
-        }
     }
 }

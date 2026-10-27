@@ -201,23 +201,21 @@ fn menu_st() -> &'static mut MenuModuleState {
 use crate::eval::typval::tv_dict_len;
 
 /// Return true if `name` is a window toolbar menu name (`menu_is_winbar`).
-unsafe fn menu_is_winbar(name: *const c_char) -> bool {
-    unsafe { crate::memory::cstr_prefix_bytes(name, 6) == &b"WinBar"[..6] }
+fn menu_is_winbar(name: *const c_char) -> bool {
+    crate::memory::cstr_prefix_bytes(name, 6) == &b"WinBar"[..6]
 }
 
-unsafe fn get_root_menu(_name: *const c_char) -> *mut Vec<vimmenu_T> {
+fn get_root_menu(_name: *const c_char) -> *mut Vec<vimmenu_T> {
     &raw mut g_st().root_menu
 }
 
 /// If `menus_locked` is set then give an error and return true (`is_menus_locked`).
 fn is_menus_locked() -> bool {
-    unsafe {
-        if menu_st().MENUS_LOCKED > 0 {
+    if menu_st().MENUS_LOCKED > 0 {
             emsg(gettext(e_cannot_change_menus_while_listing.as_ptr()));
             return true;
         }
         false
-    }
 }
 
 /// Do the `:menu` command and relatives (`ex_menu`).
@@ -420,7 +418,7 @@ pub fn ex_menu(eap: &mut exarg_T) {
 }
 
 /// Add the menu with the given name to the menu hierarchy (`add_menu_path`).
-unsafe fn add_menu_path(
+fn add_menu_path(
     menu_path: *const c_char,
     menuarg: &mut vimmenu_T,
     pri_tab: *const c_int,
@@ -605,7 +603,7 @@ unsafe fn add_menu_path(
 }
 
 /// Set the (sub)menu with the given name to enabled or disabled (`menu_enable_recurse`).
-unsafe fn menu_enable_recurse(
+fn menu_enable_recurse(
     menus: &mut [vimmenu_T],
     name: *mut c_char,
     modes: c_int,
@@ -650,7 +648,7 @@ unsafe fn menu_enable_recurse(
 }
 
 /// Remove the (sub)menu with the given name from the menu hierarchy (`remove_menu`).
-unsafe fn remove_menu(
+fn remove_menu(
     menup: &mut Vec<vimmenu_T>,
     name: *mut c_char,
     modes: c_int,
@@ -728,7 +726,7 @@ unsafe fn remove_menu(
 }
 
 /// Export menus recursively (`menu_get_recursive`).
-unsafe fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
+fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_T {
     unsafe {
         if menu.is_null() || ((*menu).modes & modes) == 0 {
             return ptr::null_mut();
@@ -835,7 +833,7 @@ unsafe fn menu_get_recursive(menu: *const vimmenu_T, modes: c_int) -> *mut dict_
 }
 
 /// Export menus matching path `path_name` (`menu_get`).
-pub unsafe fn menu_get(path_name: *mut c_char, modes: c_int, list: *mut list_T) -> bool {
+pub fn menu_get(path_name: *mut c_char, modes: c_int, list: *mut list_T) -> bool {
     unsafe {
         let root = get_root_menu(path_name);
         if *path_name != NUL {
@@ -860,7 +858,7 @@ pub unsafe fn menu_get(path_name: *mut c_char, modes: c_int, list: *mut list_T) 
 }
 
 /// Find menu matching `path_name` and `modes` (`find_menu`).
-unsafe fn find_menu(
+fn find_menu(
     mut menus: &mut [vimmenu_T],
     path_name: *const c_char,
     modes: c_int,
@@ -908,7 +906,7 @@ unsafe fn find_menu(
 }
 
 /// Show the mapping associated with a menu item or hierarchy in a sub-menu (`show_menus`).
-unsafe fn show_menus(path_name: *mut c_char, modes: c_int) -> c_int {
+fn show_menus(path_name: *mut c_char, modes: c_int) -> c_int {
     unsafe {
         let mut menu: *mut vimmenu_T = ptr::null_mut();
         if *path_name != NUL {
@@ -927,7 +925,7 @@ unsafe fn show_menus(path_name: *mut c_char, modes: c_int) -> c_int {
 }
 
 /// Recursively show the mappings associated with the menus under the given one (`show_menus_recursive`).
-unsafe fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
+fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_int) {
     unsafe {
         if !menu.is_null() && ((*menu).modes & modes) == 0 {
             return;
@@ -1012,7 +1010,7 @@ unsafe fn show_menus_recursive(menu: *mut vimmenu_T, modes: c_int, mut depth: c_
 }
 
 /// Work out what to complete when doing command line completion of menu names (`set_context_in_menu_cmd`).
-pub unsafe fn set_context_in_menu_cmd(
+pub fn set_context_in_menu_cmd(
     xp: &mut expand_T,
     cmd: *const c_char,
     mut arg: *mut c_char,
@@ -1245,7 +1243,7 @@ pub fn get_menu_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Skip over this element of the menu path and return the start of the next element (`menu_name_skip`).
-unsafe fn menu_name_skip(name: *mut c_char) -> *mut c_char {
+fn menu_name_skip(name: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = name;
         while *p != NUL && *p != b'.' as c_char {
@@ -1266,9 +1264,8 @@ unsafe fn menu_name_skip(name: *mut c_char) -> *mut c_char {
 }
 
 /// Return true when `name` matches with menu `menu` (`menu_name_equal`).
-unsafe fn menu_name_equal(name: *const c_char, menu: &vimmenu_T) -> bool {
-    unsafe {
-        if let Some(ref en_name) = menu.en_name
+fn menu_name_equal(name: *const c_char, menu: &vimmenu_T) -> bool {
+    if let Some(ref en_name) = menu.en_name
             && (menu_namecmp(name, en_name.as_ptr())
                 || menu
                     .en_dname
@@ -1278,10 +1275,9 @@ unsafe fn menu_name_equal(name: *const c_char, menu: &vimmenu_T) -> bool {
             return true;
         }
         menu_namecmp(name, menu.name.as_ptr()) || menu_namecmp(name, menu.dname.as_ptr())
-    }
 }
 
-unsafe fn menu_namecmp(name: *const c_char, mname: *const c_char) -> bool {
+fn menu_namecmp(name: *const c_char, mname: *const c_char) -> bool {
     unsafe {
         let mut i: usize = 0;
         while *name.add(i) != NUL && *name.add(i) != TAB {
@@ -1296,7 +1292,7 @@ unsafe fn menu_namecmp(name: *const c_char, mname: *const c_char) -> bool {
 }
 
 /// Return the `MENU_MODES` specified by menu command `cmd` (`get_menu_cmd_modes`).
-pub unsafe fn get_menu_cmd_modes(
+pub fn get_menu_cmd_modes(
     mut cmd: *const c_char,
     forceit: bool,
     noremap: *mut c_int,
@@ -1396,7 +1392,7 @@ const fn get_menu_mode_str(modes: c_int) -> *const c_char {
 }
 
 /// Modify a menu name starting with `"PopUp"` to include the mode character (`popup_mode_name`).
-unsafe fn popup_mode_name(name: *mut c_char, idx: usize) -> std::ffi::CString {
+fn popup_mode_name(name: *mut c_char, idx: usize) -> std::ffi::CString {
     unsafe {
         let name_bytes = CStr::from_ptr(name).to_bytes();
         debug_assert!(name_bytes.len() >= 4);
@@ -1412,7 +1408,7 @@ unsafe fn popup_mode_name(name: *mut c_char, idx: usize) -> std::ffi::CString {
 }
 
 /// Duplicate the menu item text and then process mnemonic key and accelerator text (`menu_text`).
-unsafe fn menu_text(
+fn menu_text(
     str: *const c_char,
     mnemonic: *mut c_int,
     actext: Option<&mut Option<std::ffi::CString>>,
@@ -1456,7 +1452,7 @@ unsafe fn menu_text(
 }
 
 /// Return true if `name` can be a menu in the MenuBar (`menu_is_menubar`).
-pub unsafe fn menu_is_menubar(name: *const c_char) -> bool {
+pub fn menu_is_menubar(name: *const c_char) -> bool {
     unsafe {
         !menu_is_popup(name)
             && !menu_is_toolbar(name)
@@ -1466,17 +1462,17 @@ pub unsafe fn menu_is_menubar(name: *const c_char) -> bool {
 }
 
 /// Return true if `name` is a popup menu name (`menu_is_popup`).
-pub unsafe fn menu_is_popup(name: *const c_char) -> bool {
-    unsafe { crate::memory::cstr_prefix_bytes(name, 5) == &b"PopUp"[..5] }
+pub fn menu_is_popup(name: *const c_char) -> bool {
+    crate::memory::cstr_prefix_bytes(name, 5) == &b"PopUp"[..5]
 }
 
 /// Return true if `name` is a toolbar menu name (`menu_is_toolbar`).
-pub unsafe fn menu_is_toolbar(name: *const c_char) -> bool {
-    unsafe { crate::memory::cstr_prefix_bytes(name, 7) == &b"ToolBar"[..7] }
+pub fn menu_is_toolbar(name: *const c_char) -> bool {
+    crate::memory::cstr_prefix_bytes(name, 7) == &b"ToolBar"[..7]
 }
 
 /// Return true if the name is a menu separator identifier (`menu_is_separator`).
-pub unsafe fn menu_is_separator(name: *mut c_char) -> bool {
+pub fn menu_is_separator(name: *mut c_char) -> bool {
     unsafe {
         let len = CStr::from_ptr(name).to_bytes().len();
         len > 0 && *name == b'-' as c_char && *name.add(len - 1) == b'-' as c_char
@@ -1484,7 +1480,7 @@ pub unsafe fn menu_is_separator(name: *mut c_char) -> bool {
 }
 
 /// True if a popup menu or starts with `MNU_HIDDEN_CHAR` (`menu_is_hidden`).
-unsafe fn menu_is_hidden(name: *mut c_char) -> bool {
+fn menu_is_hidden(name: *mut c_char) -> bool {
     unsafe { *name == MNU_HIDDEN_CHAR || (menu_is_popup(name) && *name.add(5) != NUL) }
 }
 
@@ -1558,7 +1554,7 @@ pub fn show_popupmenu() {
 }
 
 /// Execute `menu` (`execute_menu`).
-pub unsafe fn execute_menu(eap: *const exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
+pub fn execute_menu(eap: *const exarg_T, menu: &mut vimmenu_T, mode_idx: c_int) {
     unsafe {
         let mut idx = mode_idx;
 
@@ -1652,7 +1648,7 @@ pub unsafe fn execute_menu(eap: *const exarg_T, menu: &mut vimmenu_T, mode_idx: 
 }
 
 /// Lookup a menu by the descriptor name e.g. `"File.New"` (`menu_getbyname`).
-unsafe fn menu_getbyname(name_arg: *mut c_char) -> *mut vimmenu_T {
+fn menu_getbyname(name_arg: *mut c_char) -> *mut vimmenu_T {
     unsafe {
         let mut saved_name_vec: Vec<c_char> = CStr::from_ptr(name_arg)
             .to_bytes_with_nul()
@@ -1734,7 +1730,7 @@ pub fn ex_emenu(eap: &mut exarg_T) {
 }
 
 /// Given a menu descriptor, e.g. `"File.New"`, find it in the menu hierarchy (`menu_find`).
-pub unsafe fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
+pub fn menu_find(path_name: *const c_char) -> *mut vimmenu_T {
     unsafe {
         let mut menus = (&mut *get_root_menu(path_name)).as_mut_slice();
         let mut saved_name_vec: Vec<c_char> = CStr::from_ptr(path_name)
@@ -1830,7 +1826,7 @@ pub fn ex_menutranslate(eap: &mut exarg_T) {
 }
 
 /// Find the character just after one part of a menu name (`menu_skip_part`).
-unsafe fn menu_skip_part(mut p: *mut c_char) -> *mut c_char {
+fn menu_skip_part(mut p: *mut c_char) -> *mut c_char {
     unsafe {
         while *p != NUL && *p != b'.' as c_char && !ascii_iswhite(*p) {
             if (*p == b'\\' as c_char || *p == Ctrl_V) && *p.add(1) != NUL {
@@ -1843,7 +1839,7 @@ unsafe fn menu_skip_part(mut p: *mut c_char) -> *mut c_char {
 }
 
 /// Lookup part of a menu name in the translations (`menutrans_lookup`).
-unsafe fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
+fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
     unsafe {
         let mt_ptr = &raw const menu_st().MENUTRANS_GA;
         let menutrans = &*mt_ptr;
@@ -1871,7 +1867,7 @@ unsafe fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
 }
 
 /// Unescape the name in the translate dictionary table (`menu_unescape_name`).
-unsafe fn menu_unescape_name(name: *mut c_char) {
+fn menu_unescape_name(name: *mut c_char) {
     unsafe {
         let mut p = name;
         while *p != NUL && *p != b'.' as c_char {
@@ -1884,7 +1880,7 @@ unsafe fn menu_unescape_name(name: *mut c_char) {
 }
 
 /// Isolate the menu name (`menu_translate_tab_and_shift`).
-unsafe fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
+fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
     unsafe {
         let mut arg = arg_start;
 
@@ -1906,7 +1902,7 @@ unsafe fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
 }
 
 /// Get the information about a menu item in mode `modes` (`menuitem_getinfo`).
-unsafe fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
+fn menuitem_getinfo(menu: &vimmenu_T, modes: c_int, dict: *mut dict_T) {
     unsafe {
         tv_dict_add_str(dict, c"name".as_ptr(), 4, menu.name.as_ptr());
         tv_dict_add_str(dict, c"display".as_ptr(), 7, menu.dname.as_ptr());

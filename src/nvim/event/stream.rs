@@ -252,33 +252,31 @@ pub fn stream_init(
 }
 
 pub fn stream_may_close(stream: &mut Stream) {
+    if stream.closed {
+        return;
+    }
+    if log_st().g_min_log_level <= LOGLVL_DBG {
+        logmsg!(
+            LOGLVL_DBG,
+            ptr::null(),
+            c"stream_may_close".as_ptr(),
+            94,
+            true,
+            c"closing Stream: %p".as_ptr(),
+            &raw const *stream,
+        );
+    }
+    stream.closed = true;
+
+    #[cfg(windows)]
     unsafe {
-        if stream.closed {
-            return;
+        if uv_guess_handle(stream.fd) == UV_TTY {
+            uv_tty_set_mode((&raw mut stream.uv).cast(), UV_TTY_MODE_NORMAL);
         }
-        if log_st().g_min_log_level <= LOGLVL_DBG {
-            logmsg!(
-                LOGLVL_DBG,
-                ptr::null(),
-                c"stream_may_close".as_ptr(),
-                94,
-                true,
-                c"closing Stream: %p".as_ptr(),
-                &raw const *stream,
-            );
-        }
-        stream.closed = true;
+    }
 
-        #[cfg(windows)]
-        {
-            if uv_guess_handle(stream.fd) == UV_TTY {
-                uv_tty_set_mode((&raw mut stream.uv).cast(), UV_TTY_MODE_NORMAL);
-            }
-        }
-
-        if stream.pending_reqs == 0 {
-            stream_close_handle(stream);
-        }
+    if stream.pending_reqs == 0 {
+        stream_close_handle(stream);
     }
 }
 

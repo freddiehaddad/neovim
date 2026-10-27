@@ -85,7 +85,7 @@ fn tui_ptr() -> &'static mut TUIData {
 
 use crate::event::r#loop::uv_os_getpid;
 
-pub unsafe fn ui_client_start_server(
+pub fn ui_client_start_server(
     exepath: *const c_char,
     argc: usize,
     argv: *mut *mut c_char,
@@ -360,8 +360,7 @@ pub fn handle_ui_client_redraw(
 }
 
 pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
-    unsafe {
-        let mut err = Error::new();
+    let mut err = Error::new();
         let mut dict = KeyDict_highlight::default();
         if !api_dict_to_keydict(
             (&raw mut dict).cast(),
@@ -383,7 +382,6 @@ pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
             attrs.url = tui_add_url(tui_ptr(), dict.url.data);
         }
         attrs
-    }
 }
 
 pub fn ui_client_event_grid_resize(args: Array) {
@@ -479,8 +477,7 @@ pub fn ui_client_event_connect(args: Array) {
 }
 
 pub fn channel_connect_event(server_addr: std::ffi::CString) {
-    unsafe {
-        let mut err: *const c_char = c"".as_ptr();
+    let mut err: *const c_char = c"".as_ptr();
         let addr_ptr = server_addr.as_ptr();
         let is_tcp = !socket_address_tcp_host_end(addr_ptr).is_null();
         let on_data = CallbackReader::none();
@@ -520,7 +517,6 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
             addr_ptr,
             chan as i64,
         );
-    }
 }
 
 pub fn ui_client_event_restart(args: Array) {
@@ -681,12 +677,11 @@ pub fn ui_client_free_all_mem() {
 #[derive(Copy, Clone)]
 pub struct UIClientHandler {
     pub name: &'static CStr,
-    pub r#fn: Option<unsafe fn(args: Array)>,
+    pub r#fn: Option<fn(args: Array)>,
 }
 
-unsafe fn log_ui_event_err(func_name: *const c_char, ev_name: *const c_char) {
-    unsafe {
-        logmsg!(
+fn log_ui_event_err(func_name: *const c_char, ev_name: *const c_char) {
+    logmsg!(
             LOGLVL_ERR,
             ptr::null(),
             func_name,
@@ -695,7 +690,6 @@ unsafe fn log_ui_event_err(func_name: *const c_char, ev_name: *const c_char) {
             c"Error handling ui event '%s'".as_ptr(),
             ev_name,
         );
-    }
 }
 
 pub fn ui_client_event_mode_info_set(args: Array) {
@@ -1068,7 +1062,7 @@ const EVENT_HANDLERS: [UIClientHandler; 28] = [
     },
 ];
 
-pub unsafe fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int {
+pub fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int {
     if str_in.is_null() {
         return -1;
     }
@@ -1131,13 +1125,12 @@ pub unsafe fn ui_client_handler_hash(str_in: *const c_char, len: usize) -> c_int
     low as c_int
 }
 
-pub unsafe fn ui_client_get_redraw_handler(
+pub fn ui_client_get_redraw_handler(
     name: *const c_char,
     name_len: usize,
     _error: *mut Error,
 ) -> UIClientHandler {
-    unsafe {
-        let hash = ui_client_handler_hash(name, name_len);
+    let hash = ui_client_handler_hash(name, name_len);
         if hash < 0 {
             return UIClientHandler {
                 name: c"",
@@ -1145,5 +1138,4 @@ pub unsafe fn ui_client_get_redraw_handler(
             };
         }
         EVENT_HANDLERS[hash as usize]
-    }
 }

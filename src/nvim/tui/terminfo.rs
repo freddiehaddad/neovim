@@ -2670,8 +2670,7 @@ pub fn terminfo_from_builtin(
     term: *const c_char,
     termname: &mut Option<std::ffi::CString>,
 ) -> TerminfoEntry {
-    unsafe {
-        if (crate::memory::cstr_as_opt_bytes(term) == Some(b"ghostty")) || (crate::memory::cstr_as_opt_bytes(term) == Some(b"xterm-ghostty")) {
+    if (crate::memory::cstr_as_opt_bytes(term) == Some(b"ghostty")) || (crate::memory::cstr_as_opt_bytes(term) == Some(b"xterm-ghostty")) {
             *termname = Some(c"ghostty".to_owned());
             GHOSTTY_TERMINFO.to_entry()
         } else if terminfo_is_term_family(term, c"xterm".as_ptr()) {
@@ -2726,7 +2725,6 @@ pub fn terminfo_from_builtin(
             *termname = Some(c"ansi".to_owned());
             ANSI_TERMINFO.to_entry()
         }
-    }
 }
 
 pub fn terminfo_from_database(ti: *mut TerminfoEntry, termname: *const c_char) -> bool {
@@ -2821,8 +2819,7 @@ pub fn terminfo_info_msg(
     termname: Option<&CStr>,
     from_db: bool,
 ) -> Vec<u8> {
-    unsafe {
-        let mut data: Vec<u8> = Vec::new();
+    let mut data: Vec<u8> = Vec::new();
         let termname_bytes = termname.map_or(&b""[..], CStr::to_bytes);
 
         data.extend_from_slice(b"&term: ");
@@ -2879,7 +2876,6 @@ pub fn terminfo_info_msg(
         }
 
         data
-    }
 }
 
 fn push(num: c_long, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> c_int {

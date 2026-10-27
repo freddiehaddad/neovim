@@ -889,9 +889,7 @@ const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
 
 #[inline]
 fn buf_is_changed(buf: &buf_T) -> bool {
-    unsafe {
-        !bt_dontwrite(&raw const *buf) && (buf.b_changed != 0 || file_ff_differs((&raw const *buf).cast_mut(), true))
-    }
+    !bt_dontwrite(&raw const *buf) && (buf.b_changed != 0 || file_ff_differs((&raw const *buf).cast_mut(), true))
 }
 
 #[inline]
@@ -910,7 +908,7 @@ pub fn buf_meta_total(b: &buf_T, m: usize) -> u32 {
 }
 
 #[inline]
-pub unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
+pub fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
     unsafe {
         if tp == g_st().curtab {
             g_st().firstwin
@@ -926,15 +924,13 @@ pub fn modifiable(buf: &buf_T) -> bool {
 }
 
 fn trigger_undo_ftplugin(buf: &mut buf_T, win: &mut win_T) {
-    unsafe {
-        window_layout_lock();
+    window_layout_lock();
         buf.b_locked += 1;
         win.w_locked += 1;
         do_cmdline_cmd(c"if exists('b:undo_ftplugin') | exe b:undo_ftplugin | endif".as_ptr());
         buf.b_locked -= 1;
         win.w_locked -= 1;
         window_layout_unlock();
-    }
 }
 
 /// Calculate the percentage that `part` is of the `whole`.
@@ -952,7 +948,7 @@ pub fn get_highest_fnum() -> c_int {
 }
 
 /// Read data from buffer for retrying.
-unsafe fn read_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_int {
+fn read_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_int {
     unsafe {
         let silent = shortmess(kShmFileinfo);
 
@@ -1010,8 +1006,7 @@ unsafe fn read_buffer(read_stdin: bool, eap: *mut exarg_T, flags: c_int) -> c_in
 
 /// Ensure buffer `buf` is loaded.
 pub fn buf_ensure_loaded(buf: &mut buf_T) -> bool {
-    unsafe {
-        if buf.b_ml.ml_mfp.is_some() {
+    if buf.b_ml.ml_mfp.is_some() {
             return true;
         }
 
@@ -1022,12 +1017,11 @@ pub fn buf_ensure_loaded(buf: &mut buf_T) -> bool {
         let status = open_buffer(false, ptr::null_mut(), 0);
         ctx_restore(&mut aco);
         status != FAIL && bufref_valid(&raw mut bufref) && buf.b_ml.ml_mfp.is_some()
-    }
 }
 
 /// Open current buffer, that is: open the memfile and read the file into
 /// memory.
-pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int) -> c_int {
+pub fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int) -> c_int {
     unsafe {
         let mut flags = flags_arg;
         let mut retval = OK;
@@ -1271,7 +1265,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
 }
 
 /// Store `buf` in `bufref` and set the free count.
-pub unsafe fn set_bufref(bufref: &mut bufref_T, buf: *mut buf_T) {
+pub fn set_bufref(bufref: &mut bufref_T, buf: *mut buf_T) {
     unsafe {
         bufref.br_buf = buf;
         bufref.br_fnum = if buf.is_null() { 0 } else { (*buf).b_fnum };
@@ -1281,7 +1275,7 @@ pub unsafe fn set_bufref(bufref: &mut bufref_T, buf: *mut buf_T) {
 
 /// Return true if `bufref->br_buf` points to the same buffer as when
 /// `set_bufref()` was called and it is a valid buffer.
-pub unsafe fn bufref_valid(bufref: *mut bufref_T) -> bool {
+pub fn bufref_valid(bufref: *mut bufref_T) -> bool {
     unsafe {
         if (*bufref).br_buf_free_count == buf_st().buf_free_count {
             true
@@ -1292,7 +1286,7 @@ pub unsafe fn bufref_valid(bufref: *mut bufref_T) -> bool {
 }
 
 /// Check that `buf` points to a valid buffer in the buffer list.
-pub unsafe fn buf_valid(buf: *mut buf_T) -> bool {
+pub fn buf_valid(buf: *mut buf_T) -> bool {
     if buf.is_null() {
         return false;
     }
@@ -1353,7 +1347,7 @@ pub fn buf_close_terminal(buf: &mut buf_T) {
 }
 
 /// Close the link to a buffer.
-pub unsafe fn close_buffer(
+pub fn close_buffer(
     win: *mut win_T,
     buf: *mut buf_T,
     action: c_int,
@@ -1555,8 +1549,7 @@ pub unsafe fn close_buffer(
 
 /// Make buffer not contain a file.
 pub fn buf_clear_file(buf: &mut buf_T) {
-    unsafe {
-        buf.b_ml.ml_line_count = 1;
+    buf.b_ml.ml_line_count = 1;
         unchanged(buf, true, true);
         buf.b_p_eof = 0;
         buf.b_start_eof = 0;
@@ -1566,7 +1559,6 @@ pub fn buf_clear_file(buf: &mut buf_T) {
         buf.b_start_bomb = 0;
         buf.b_ml.ml_mfp = None;
         buf.b_ml.ml_flags = ML_EMPTY;
-    }
 }
 
 /// Clears the current buffer contents.
@@ -1583,7 +1575,7 @@ pub fn buf_clear() {
 }
 
 /// Free all things allocated for a buffer that are related to the file.
-pub unsafe fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
+pub fn buf_freeall(buf: *mut buf_T, flags: c_int) -> bool {
     unsafe {
         let is_curbuf = buf == g_st().curbuf;
         let is_curwin = !(*curwin.as_ptr()).is_null() && (**curwin.as_ptr()).w_buffer == buf;
@@ -1749,8 +1741,7 @@ impl buf_T {
 
 impl Drop for buf_T {
     fn drop(&mut self) {
-        unsafe {
-            self.clear_fnames();
+        self.clear_fnames();
             free_buf_options(self, true);
             self.b_start_fenc = None;
             self.b_localdir = None;
@@ -1764,11 +1755,10 @@ impl Drop for buf_T {
             clear_fmark(&mut self.b_last_change, 0);
             clear_fmark(&mut self.b_prompt_start, 0);
             self.b_changelistlen = 0;
-        }
     }
 }
 
-unsafe fn free_buffer(buf: *mut buf_T) {
+fn free_buffer(buf: *mut buf_T) {
     unsafe {
         let map_ptr = &raw mut g_st().buffer_handles;
         (*map_ptr).remove(&(*buf).b_fnum);
@@ -1809,7 +1799,7 @@ fn clear_wininfo(buf: &mut buf_T) {
     buf.b_wininfo.clear();
 }
 
-unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
+fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
     unsafe {
         if (free_flags & kBffClearWinInfo) != 0 {
             clear_wininfo(&mut *buf);
@@ -1891,7 +1881,7 @@ pub fn goto_buffer(eap: &mut exarg_T, start: c_int, dir: c_int, count: c_int) {
 }
 
 /// Handle the situation of `swap_exists_action` being set.
-pub unsafe fn handle_swap_exists(old_curbuf: *mut bufref_T) {
+pub fn handle_swap_exists(old_curbuf: *mut bufref_T) {
     unsafe {
         let mut cs: cleanup_T = cleanup_T::new();
         let old_tw = (*g_st().curbuf).b_p_tw;
@@ -1937,7 +1927,7 @@ pub unsafe fn handle_swap_exists(old_curbuf: *mut bufref_T) {
 }
 
 /// Delete or unload buffer(s).
-pub unsafe fn do_bufdel(
+pub fn do_bufdel(
     command: c_int,
     mut arg: *mut c_char,
     addr_count: c_int,
@@ -2524,7 +2514,7 @@ pub fn do_buffer(
 }
 
 /// Set current buffer to `buf`. Executes autocommands and closes current buffer.
-pub unsafe fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) {
+pub fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) {
     unsafe {
         let unload = action == DOBUF_UNLOAD || action == DOBUF_DEL || action == DOBUF_WIPE;
         let old_tw = (*g_st().curbuf).b_p_tw;
@@ -2601,7 +2591,7 @@ pub unsafe fn set_curbuf(buf: *mut buf_T, action: c_int, update_jumplist: bool) 
 }
 
 /// Enter a new current buffer.
-unsafe fn enter_buffer(buf: *mut buf_T) {
+fn enter_buffer(buf: *mut buf_T) {
     unsafe {
         if g_st().Visual.active && !mem_st().entered_free_all_mem {
             end_visual_mode();
@@ -2713,8 +2703,7 @@ pub fn do_autochdir() {
 }
 
 pub fn no_write_message_buf(buf: &mut buf_T) {
-    unsafe {
-        if !buf.terminal.is_null() && channel_job_running(buf.b_p_channel as u64) {
+    if !buf.terminal.is_null() && channel_job_running(buf.b_p_channel as u64) {
             emsg(gettext(
                 e_job_still_running_add_bang_to_end_the_job.as_ptr(),
             ));
@@ -2724,7 +2713,6 @@ pub fn no_write_message_buf(buf: &mut buf_T) {
                 buf.b_fnum,
             );
         }
-    }
 }
 
 pub fn no_write_message() {
@@ -2742,13 +2730,11 @@ pub fn no_write_message() {
 }
 
 pub fn no_write_message_nobang(buf: &buf_T) {
-    unsafe {
-        if !buf.terminal.is_null() && channel_job_running(buf.b_p_channel as u64) {
+    if !buf.terminal.is_null() && channel_job_running(buf.b_p_channel as u64) {
             emsg(gettext(e_job_still_running.as_ptr()));
         } else {
             emsg(gettext(e_no_write_since_last_change.as_ptr()));
         }
-    }
 }
 
 #[inline]
@@ -2763,7 +2749,7 @@ fn buf_init_changedtick(buf: &mut buf_T) {
 }
 
 /// Add a file name to the buffer list.
-pub unsafe fn buflist_new(
+pub fn buflist_new(
     ffname_arg: *mut c_char,
     sfname_arg: *mut c_char,
     lnum: linenr_T,
@@ -2955,7 +2941,7 @@ pub fn curbuf_reusable() -> bool {
 }
 
 /// Free the memory for the options of a buffer.
-pub unsafe fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
+pub fn free_buf_options(buf: *mut buf_T, free_p_ff: bool) {
     unsafe {
         if free_p_ff {
             clear_string_option(&raw mut (*buf).b_p_fenc);
@@ -3146,18 +3132,16 @@ fn buflist_getfpos() {
 }
 
 /// Find file in buffer list by name (it has to be for the current window).
-pub unsafe fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T {
-    unsafe {
-        let mut buf: *mut buf_T = ptr::null_mut();
+pub fn buflist_findname_exp(fname: *mut c_char) -> *mut buf_T {
+    let mut buf: *mut buf_T = ptr::null_mut();
         if let Some(ffname) = FullName_save(fname, cfg!(unix)) {
             buf = buflist_findname(ffname.as_ptr().cast_mut());
         }
         buf
-    }
 }
 
 /// Find file in buffer list by name.
-pub unsafe fn buflist_findname(ffname: *mut c_char) -> *mut buf_T {
+pub fn buflist_findname(ffname: *mut c_char) -> *mut buf_T {
     unsafe {
         let mut file_id: FileID = FileID::new();
         let file_id_valid = os_fileid(ffname, &mut *(&raw mut file_id).cast());
@@ -3165,7 +3149,7 @@ pub unsafe fn buflist_findname(ffname: *mut c_char) -> *mut buf_T {
     }
 }
 
-unsafe fn buflist_findname_file_id(
+fn buflist_findname_file_id(
     ffname: *mut c_char,
     file_id: *mut FileID,
     file_id_valid: bool,
@@ -3185,7 +3169,7 @@ unsafe fn buflist_findname_file_id(
 }
 
 /// Find file in buffer list by a regexp pattern.
-pub unsafe fn buflist_findpat(
+pub fn buflist_findpat(
     pattern: *const c_char,
     pattern_end: *const c_char,
     unlisted: bool,
@@ -3298,7 +3282,7 @@ fn buf_time_compare(buf1: &buf_T, buf2: &buf_T) -> std::cmp::Ordering {
 }
 
 /// Find all buffer names that match.
-pub unsafe fn ExpandBufnames(
+pub fn ExpandBufnames(
     pat: *mut c_char,
     file: &mut Vec<std::ffi::CString>,
     options: c_int,
@@ -3429,18 +3413,15 @@ pub unsafe fn ExpandBufnames(
 }
 
 fn buflist_match(rmp: &mut regmatch_T, buf: &mut buf_T, ignore_case: bool) -> *mut c_char {
-    unsafe {
-        let mut match_ = fname_match(rmp, buf.b_sfname, ignore_case);
+    let mut match_ = fname_match(rmp, buf.b_sfname, ignore_case);
         if match_.is_null() && !rmp.regprog.is_null() {
             match_ = fname_match(rmp, buf.b_ffname, ignore_case);
         }
         match_
-    }
 }
 
-unsafe fn fname_match(rmp: &mut regmatch_T, name: *mut c_char, ignore_case: bool) -> *mut c_char {
-    unsafe {
-        let mut match_: *mut c_char = ptr::null_mut();
+fn fname_match(rmp: &mut regmatch_T, name: *mut c_char, ignore_case: bool) -> *mut c_char {
+    let mut match_: *mut c_char = ptr::null_mut();
 
         if name.is_null() || rmp.regprog.is_null() {
             return ptr::null_mut();
@@ -3457,7 +3438,6 @@ unsafe fn fname_match(rmp: &mut regmatch_T, name: *mut c_char, ignore_case: bool
         }
 
         match_
-    }
 }
 
 /// Find a file in the buffer list by buffer number.
@@ -3493,7 +3473,7 @@ pub fn buflist_nr2name(
 }
 
 /// Set the line and column numbers for the given buffer and window.
-pub unsafe fn buflist_setfpos(
+pub fn buflist_setfpos(
     buf: *mut buf_T,
     win: *mut win_T,
     mut lnum: linenr_T,
@@ -3589,7 +3569,7 @@ fn find_wininfo(
 }
 
 /// Reset the local window options to the values last used in this window.
-pub unsafe fn get_winopts(buf: *mut buf_T) {
+pub fn get_winopts(buf: *mut buf_T) {
     unsafe {
         clear_winopt(&mut (**curwin.as_ptr()).w_onebuf_opt);
         clearFolding(&mut **curwin.as_ptr());
@@ -3639,7 +3619,7 @@ pub unsafe fn get_winopts(buf: *mut buf_T) {
 }
 
 /// Find the mark for the buffer `buf` for the current window.
-pub unsafe fn buflist_findfmark(buf: *mut buf_T) -> *mut fmark_T {
+pub fn buflist_findfmark(buf: *mut buf_T) -> *mut fmark_T {
     unsafe {
         let wip = find_wininfo(&mut *buf, false, false);
         if wip.is_null() {
@@ -3651,7 +3631,7 @@ pub unsafe fn buflist_findfmark(buf: *mut buf_T) -> *mut fmark_T {
 }
 
 /// Find the lnum for the buffer `buf` for the current window.
-pub unsafe fn buflist_findlnum(buf: *mut buf_T) -> linenr_T {
+pub fn buflist_findlnum(buf: *mut buf_T) -> linenr_T {
     unsafe { (*buflist_findfmark(buf)).mark.lnum }
 }
 
@@ -3818,7 +3798,7 @@ pub fn buflist_list(eap: &mut exarg_T) {
 }
 
 /// Get file name and line number for file `fnum`.
-pub unsafe fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: *mut linenr_T) -> c_int {
+pub fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: *mut linenr_T) -> c_int {
     unsafe {
         let buf = buflist_findnr(fnum);
         if buf.is_null() || (*buf).b_fname.is_null() {
@@ -3833,7 +3813,7 @@ pub unsafe fn buflist_name_nr(fnum: c_int, fname: *mut *mut c_char, lnum: *mut l
 }
 
 /// Set the file name for `buf` to `ffname_arg`, short file name to `sfname_arg`.
-pub unsafe fn setfname(
+pub fn setfname(
     buf: *mut buf_T,
     ffname_arg: *mut c_char,
     sfname_arg: *mut c_char,
@@ -3912,7 +3892,7 @@ pub unsafe fn setfname(
 }
 
 /// Crude way of changing the name of a buffer.
-pub unsafe fn buf_set_name(fnum: c_int, name: *mut c_char) {
+pub fn buf_set_name(fnum: c_int, name: *mut c_char) {
     unsafe {
         let buf = buflist_findnr(fnum);
         if buf.is_null() {
@@ -3938,7 +3918,7 @@ pub unsafe fn buf_set_name(fnum: c_int, name: *mut c_char) {
 }
 
 /// Take care of what needs to be done when the name of buffer `buf` has changed.
-pub unsafe fn buf_name_changed(buf: *mut buf_T) {
+pub fn buf_name_changed(buf: *mut buf_T) {
     unsafe {
         if (*buf).b_ml.ml_mfp.is_some() {
             ml_setname(&mut *buf);
@@ -3955,7 +3935,7 @@ pub unsafe fn buf_name_changed(buf: *mut buf_T) {
 }
 
 /// Set alternate file name for current window.
-pub unsafe fn setaltfname(ffname: *mut c_char, sfname: *mut c_char, lnum: linenr_T) -> *mut buf_T {
+pub fn setaltfname(ffname: *mut c_char, sfname: *mut c_char, lnum: linenr_T) -> *mut buf_T {
     unsafe {
         let buf = buflist_new(ffname, sfname, lnum, 0);
         if !buf.is_null() && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
@@ -3967,8 +3947,7 @@ pub unsafe fn setaltfname(ffname: *mut c_char, sfname: *mut c_char, lnum: linenr
 
 /// Get alternate file name for current window.
 pub fn getaltfname(errmsg: bool) -> *mut c_char {
-    unsafe {
-        let mut fname: *mut c_char = ptr::null_mut();
+    let mut fname: *mut c_char = ptr::null_mut();
         let mut dummy: linenr_T = 0;
 
         if buflist_name_nr(0, &raw mut fname, &raw mut dummy) == FAIL {
@@ -3978,11 +3957,10 @@ pub fn getaltfname(errmsg: bool) -> *mut c_char {
             return ptr::null_mut();
         }
         fname
-    }
 }
 
 /// Add a file name to the buflist and return its number.
-pub unsafe fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int {
+pub fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int {
     unsafe {
         let buf = buflist_new(fname, ptr::null_mut(), 0, flags);
         if !buf.is_null() { (*buf).b_fnum } else { 0 }
@@ -3991,17 +3969,15 @@ pub unsafe fn buflist_add(fname: *mut c_char, flags: c_int) -> c_int {
 
 /// Set alternate cursor position for the current buffer and window `win`.
 pub fn buflist_altfpos(win: &mut win_T) {
-    unsafe {
-        buflist_setfpos(g_st().curbuf, win, win.w_cursor.lnum, win.w_cursor.col, true);
-    }
+    buflist_setfpos(g_st().curbuf, win, win.w_cursor.lnum, win.w_cursor.col, true);
 }
 
 /// Check that `ffname` is not the same file as current file.
-pub unsafe fn otherfile(ffname: *mut c_char) -> bool {
+pub fn otherfile(ffname: *mut c_char) -> bool {
     unsafe { otherfile_buf(&mut *g_st().curbuf, ffname, ptr::null_mut(), false) }
 }
 
-unsafe fn otherfile_buf(
+fn otherfile_buf(
     buf: &mut buf_T,
     ffname: *mut c_char,
     mut file_id_p: *mut FileID,
@@ -4035,7 +4011,7 @@ unsafe fn otherfile_buf(
 }
 
 /// Set `file_id` for a buffer.
-pub unsafe fn buf_set_file_id(buf: *mut buf_T) {
+pub fn buf_set_file_id(buf: *mut buf_T) {
     unsafe {
         let mut file_id: FileID = FileID::new();
         if !(*buf).b_fname.is_null() && os_fileid((*buf).b_fname, &mut *(&raw mut file_id).cast()) {
@@ -4048,7 +4024,7 @@ pub unsafe fn buf_set_file_id(buf: *mut buf_T) {
 }
 
 #[inline]
-unsafe fn buf_same_file_id(buf: &mut buf_T, file_id: *mut FileID) -> bool {
+fn buf_same_file_id(buf: &mut buf_T, file_id: *mut FileID) -> bool {
     unsafe {
         buf.file_id_valid && os_fileid_equal(&*(&raw const buf.file_id).cast(), &*file_id.cast())
     }
@@ -4206,14 +4182,12 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
     }
 }
 
-pub unsafe fn col_print(buf: *mut c_char, buflen: usize, col: c_int, vcol: c_int) -> c_int {
-    unsafe {
-        if col == vcol {
+pub fn col_print(buf: *mut c_char, buflen: usize, col: c_int, vcol: c_int) -> c_int {
+    if col == vcol {
             vim_snprintf_safelen!(buf, buflen, c"%d".as_ptr(), col) as c_int
         } else {
             vim_snprintf_safelen!(buf, buflen, c"%d-%d".as_ptr(), col, vcol) as c_int
         }
-    }
 }
 
 /// Put the title name in the title bar and icon of the window.
@@ -4343,7 +4317,7 @@ pub fn maketitle() {
     }
 }
 
-unsafe fn value_change(str_: *mut c_char, last: &mut Option<std::ffi::CString>) -> bool {
+fn value_change(str_: *mut c_char, last: &mut Option<std::ffi::CString>) -> bool {
     unsafe {
         let last_ptr = last.as_ref().map_or(ptr::null(), |s| s.as_ptr());
         if str_.is_null() != last_ptr.is_null()
@@ -4385,7 +4359,7 @@ pub fn free_titles() {
 }
 
 /// Get relative cursor position in window into `buf[]`.
-pub unsafe fn get_rel_pos(wp: &mut win_T, buf: *mut c_char, buflen: c_int) -> c_int {
+pub fn get_rel_pos(wp: &mut win_T, buf: *mut c_char, buflen: c_int) -> c_int {
     unsafe {
         if buflen < 3 {
             return 0;
@@ -4427,9 +4401,8 @@ pub unsafe fn get_rel_pos(wp: &mut win_T, buf: *mut c_char, buflen: c_int) -> c_
 }
 
 /// Append `(2 of 8)` to `buf[]`, if editing more than one file.
-pub unsafe fn append_arg_number(wp: &mut win_T, buf: *mut c_char, buflen: usize) -> c_int {
-    unsafe {
-        let argcount = crate::arglist::argcount();
+pub fn append_arg_number(wp: &mut win_T, buf: *mut c_char, buflen: usize) -> c_int {
+    let argcount = crate::arglist::argcount();
         if argcount <= 1 {
             return 0;
         }
@@ -4441,11 +4414,10 @@ pub unsafe fn append_arg_number(wp: &mut win_T, buf: *mut c_char, buflen: usize)
         };
 
         vim_snprintf_safelen!(buf, buflen, msg, wp.w_arg_idx + 1, argcount) as c_int
-    }
 }
 
 /// Make `*ffname` a full file name, set `*sfname` to `*ffname` if not NULL.
-pub unsafe fn fname_expand(
+pub fn fname_expand(
     buf: *mut buf_T,
     ffname: *mut *mut c_char,
     sfname: *mut *mut c_char,
@@ -4500,12 +4472,12 @@ pub unsafe fn fname_expand(
 }
 
 /// Return true if `buf` is a prompt buffer.
-pub unsafe fn bt_prompt(buf: *mut buf_T) -> bool {
+pub fn bt_prompt(buf: *mut buf_T) -> bool {
     unsafe { !buf.is_null() && *(*buf).b_p_bt == b'p' as c_char }
 }
 
 /// Return true if `buf` is the `|cmdwin|` scratch buffer.
-pub unsafe fn bt_cmdwin(buf: *const buf_T) -> bool {
+pub fn bt_cmdwin(buf: *const buf_T) -> bool {
     !buf.is_null() && buf == g_st().cmdwin_buf.cast_const()
 }
 
@@ -4855,27 +4827,27 @@ fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
 }
 
 /// Return true if `buf` is a help buffer.
-pub unsafe fn bt_help(buf: *const buf_T) -> bool {
+pub fn bt_help(buf: *const buf_T) -> bool {
     unsafe { !buf.is_null() && (*buf).b_help }
 }
 
 /// Return true if `buf` is a normal buffer, `'buftype'` is empty.
-pub unsafe fn bt_normal(buf: *const buf_T) -> bool {
+pub fn bt_normal(buf: *const buf_T) -> bool {
     unsafe { !buf.is_null() && *(*buf).b_p_bt == NUL }
 }
 
 /// Return true if `buf` is the quickfix buffer.
-pub unsafe fn bt_quickfix(buf: *const buf_T) -> bool {
+pub fn bt_quickfix(buf: *const buf_T) -> bool {
     unsafe { !buf.is_null() && *(*buf).b_p_bt == b'q' as c_char }
 }
 
 /// Return true if `buf` is a terminal buffer.
-pub unsafe fn bt_terminal(buf: *const buf_T) -> bool {
+pub fn bt_terminal(buf: *const buf_T) -> bool {
     unsafe { !buf.is_null() && *(*buf).b_p_bt == b't' as c_char }
 }
 
 /// Return true if `buf` is a `"nofile"`, `"acwrite"`, `"terminal"` or `"prompt"` buffer.
-pub unsafe fn bt_nofilename(buf: *const buf_T) -> bool {
+pub fn bt_nofilename(buf: *const buf_T) -> bool {
     unsafe {
         !buf.is_null()
             && ((*(*buf).b_p_bt == b'n' as c_char && *(*buf).b_p_bt.add(2) == b'f' as c_char)
@@ -4885,7 +4857,7 @@ pub unsafe fn bt_nofilename(buf: *const buf_T) -> bool {
     }
 }
 
-unsafe fn bt_nofileread(buf: *const buf_T) -> bool {
+fn bt_nofileread(buf: *const buf_T) -> bool {
     unsafe {
         !buf.is_null()
             && ((*(*buf).b_p_bt == b'n' as c_char && *(*buf).b_p_bt.add(2) == b'f' as c_char)
@@ -4896,7 +4868,7 @@ unsafe fn bt_nofileread(buf: *const buf_T) -> bool {
 }
 
 /// Return true if `buf` has `'buftype'` set to `"nofile"`.
-pub unsafe fn bt_nofile(buf: *const buf_T) -> bool {
+pub fn bt_nofile(buf: *const buf_T) -> bool {
     unsafe {
         !buf.is_null()
             && *(*buf).b_p_bt == b'n' as c_char
@@ -4905,7 +4877,7 @@ pub unsafe fn bt_nofile(buf: *const buf_T) -> bool {
 }
 
 /// Return true if `buf` is a `"nowrite"`, `"nofile"`, `"terminal"` or `"prompt"` buffer.
-pub unsafe fn bt_dontwrite(buf: *const buf_T) -> bool {
+pub fn bt_dontwrite(buf: *const buf_T) -> bool {
     unsafe {
         !buf.is_null()
             && (*(*buf).b_p_bt == b'n' as c_char
@@ -4914,16 +4886,14 @@ pub unsafe fn bt_dontwrite(buf: *const buf_T) -> bool {
     }
 }
 
-pub unsafe fn bt_dontwrite_msg(buf: *const buf_T) -> bool {
-    unsafe {
-        if bt_dontwrite(buf) {
+pub fn bt_dontwrite_msg(buf: *const buf_T) -> bool {
+    if bt_dontwrite(buf) {
             emsg(gettext(
                 c"E382: Cannot write, 'buftype' option is set".as_ptr(),
             ));
             return true;
         }
         false
-    }
 }
 
 /// Return true if the buffer should be hidden, according to `'hidden'`, `":hide"` and `'bufhidden'`.
@@ -4938,7 +4908,7 @@ pub fn buf_hide(buf: &buf_T) -> bool {
 }
 
 /// Return special buffer name or NULL when the buffer has a normal file name.
-pub unsafe fn buf_spname(buf: *mut buf_T) -> *mut c_char {
+pub fn buf_spname(buf: *mut buf_T) -> *mut c_char {
     unsafe {
         if bt_quickfix(buf) {
             if (*buf).b_fnum == qf_stack_get_bufnr() {
@@ -4966,7 +4936,7 @@ pub unsafe fn buf_spname(buf: *mut buf_T) -> *mut c_char {
 }
 
 /// Get `buf->b_fname`, use `"[No Name]"` if it is NULL.
-pub unsafe fn buf_get_fname(buf: *const buf_T) -> *mut c_char {
+pub fn buf_get_fname(buf: *const buf_T) -> *mut c_char {
     unsafe {
         if (*buf).b_fname.is_null() {
             gettext(c"[No Name]".as_ptr())
@@ -5005,7 +4975,7 @@ pub fn set_buflisted(on: c_int) {
 }
 
 /// Read the file for `buf` again and check if the contents changed.
-pub unsafe fn buf_contents_changed(buf: *mut buf_T) -> bool {
+pub fn buf_contents_changed(buf: *mut buf_T) -> bool {
     unsafe {
         let mut differ = true;
 
@@ -5058,7 +5028,7 @@ pub unsafe fn buf_contents_changed(buf: *mut buf_T) -> bool {
 }
 
 /// Wipe out a (typically temporary) buffer.
-pub unsafe fn wipe_buffer(buf: *mut buf_T, aucmd: bool) {
+pub fn wipe_buffer(buf: *mut buf_T, aucmd: bool) {
     unsafe {
         if !aucmd {
             block_autocmds();
@@ -5075,7 +5045,7 @@ pub fn buf_is_empty(buf: &mut buf_T) -> bool {
 }
 
 /// Increment `b:changedtick` value.
-pub unsafe fn buf_inc_changedtick(buf: *mut buf_T) {
+pub fn buf_inc_changedtick(buf: *mut buf_T) {
     unsafe {
         buf_set_changedtick(&mut *buf, buf_get_changedtick(&*buf) + 1);
     }
@@ -5110,7 +5080,7 @@ pub fn buf_set_changedtick(buf: &mut buf_T, changedtick: varnumber_T) {
 }
 
 /// Read the given buffer contents into a string.
-pub unsafe fn read_buffer_into(
+pub fn read_buffer_into(
     buf: *mut buf_T,
     start: linenr_T,
     end: linenr_T,
@@ -5175,8 +5145,7 @@ mod tests {
 
     #[test]
     fn calc_percentage_and_bt_predicates_work() {
-        unsafe {
-            assert_eq!(calc_percentage(50, 200), 25);
+        assert_eq!(calc_percentage(50, 200), 25);
             assert_eq!(calc_percentage(2_000_000, 4_000_000), 50);
             assert!(!bt_help(ptr::null()));
             assert!(!bt_normal(ptr::null()));
@@ -5184,7 +5153,6 @@ mod tests {
             assert!(!bt_terminal(ptr::null()));
             assert!(!bt_nofile(ptr::null()));
             assert!(!bt_dontwrite(ptr::null()));
-        }
     }
 
     #[test]

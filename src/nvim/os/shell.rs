@@ -641,8 +641,7 @@ pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
 
 /// Calls the user-configured 'shell' (opt_vars().p_sh) for running a command or wildcard expansion.
 pub fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> c_int {
-    unsafe {
-        let mut input: Vec<c_char> = Vec::new();
+    let mut input: Vec<c_char> = Vec::new();
         let mut output: Vec<c_char> = Vec::new();
         let mut want_output = false;
         let current_state = g_st().State;
@@ -700,7 +699,6 @@ pub fn os_call_shell(cmd: *mut c_char, opts: c_int, extra_args: *mut c_char) -> 
         signal_accept_deadly();
 
         exitcode
-    }
 }
 
 /// os_call_shell() wrapper. Handles 'verbose', :profile, and v:shell_error.
@@ -970,8 +968,7 @@ pub(crate) fn system_data_cb(
 }
 
 fn out_data_decide_throttle(size: usize) -> bool {
-    unsafe {
-        if size == 0 {
+    if size == 0 {
             let previous_decision = sh_st().throttle_visit > 0;
             sh_st().throttle_started = 0;
             sh_st().throttle_received = 0;
@@ -1023,7 +1020,6 @@ fn out_data_decide_throttle(size: usize) -> bool {
         msg_putchar(b'\r' as c_int);
         ui_flush();
         true
-    }
 }
 
 fn out_data_ring(output: *const c_char, size: usize) {
@@ -1058,8 +1054,7 @@ fn out_data_ring(output: *const c_char, size: usize) {
 }
 
 pub fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
-    unsafe {
-        let mut need_clear = true;
+    let mut need_clear = true;
         let hl = if fd == STDERR_FILENO { HLF_SE } else { HLF_SO };
         msg_ext_set_kind(if fd == STDERR_FILENO {
             c"shell_err".as_ptr()
@@ -1075,7 +1070,6 @@ pub fn out_data_event(mut str_copy: Vec<c_char>, fd: c_int) {
         msg_multiline(str_arg, hl, false, false, &raw mut need_clear);
         drop(str_copy);
         ui_flush();
-    }
 }
 
 fn out_data_append_to_screen(

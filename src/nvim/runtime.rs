@@ -132,8 +132,7 @@ pub enum RuntimeCallback<'a> {
 
 impl RuntimeCallback<'_> {
     fn invoke(&mut self, fnames: &[std::ffi::CString], all: bool) {
-        unsafe {
-            match self {
+        match self {
                 Self::Source { skip_if_loaded } => {
                     let mut sid: c_int = 0;
                     let cookie = if *skip_if_loaded {
@@ -167,7 +166,6 @@ impl RuntimeCallback<'_> {
                     crate::tag::found_tagfile_cb(fnames, all);
                 }
             }
-        }
     }
 }
 
@@ -407,7 +405,7 @@ pub fn estack_init() {
 }
 
 /// Add an item to the execution stack.
-pub unsafe fn estack_push(type_: etype_T, name: *const c_char, lnum: linenr_T) -> *mut estack_T {
+pub fn estack_push(type_: etype_T, name: *const c_char, lnum: linenr_T) -> *mut estack_T {
     unsafe {
         let es = &raw mut rt_st().exestack;
         (*es).push(estack_T {
@@ -537,7 +535,7 @@ pub fn estack_sfile(which: estack_arg_T) -> Option<std::ffi::CString> {
     }
 }
 
-unsafe fn stacktrace_push_item(
+fn stacktrace_push_item(
     l: *mut list_T,
     fp: *mut ufunc_T,
     event: *const c_char,
@@ -617,7 +615,7 @@ pub fn f_getstacktrace(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
     }
 }
 
-unsafe fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_int {
+fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_int {
     unsafe {
         let arg = *argp;
         if where_len == 0 {
@@ -646,18 +644,16 @@ unsafe fn get_runtime_cmd_flags(argp: *mut *mut c_char, where_len: usize) -> c_i
 
 /// ":runtime [where] {name}"
 pub fn ex_runtime(eap: &mut exarg_T) {
-    unsafe {
-        let mut arg = eap.arg;
+    let mut arg = eap.arg;
         let mut flags = if eap.forceit != 0 { DIP_ALL } else { 0 };
         let p = skiptowhite(arg);
         flags += get_runtime_cmd_flags(&mut arg, (p as usize) - (arg as usize));
         debug_assert!(!arg.is_null());
         source_runtime(arg, flags);
-    }
 }
 
 /// Set the completion context for the :runtime command.
-pub unsafe fn set_context_in_runtime_cmd(xp: &mut expand_T, mut arg: *const c_char) {
+pub fn set_context_in_runtime_cmd(xp: &mut expand_T, mut arg: *const c_char) {
     unsafe {
         let mut p = skiptowhite(arg);
         let mut arg_mut = arg as *mut c_char;
@@ -682,13 +678,12 @@ pub unsafe fn set_context_in_runtime_cmd(xp: &mut expand_T, mut arg: *const c_ch
     }
 }
 
-unsafe fn source_callback_vim_lua(
+fn source_callback_vim_lua(
     fnames: &[std::ffi::CString],
     all: bool,
     cookie: *mut c_int,
 ) -> bool {
-    unsafe {
-        let mut did_one = false;
+    let mut did_one = false;
 
         for fname_cstr in fnames {
             let fname = fname_cstr.as_ptr().cast_mut();
@@ -713,12 +708,10 @@ unsafe fn source_callback_vim_lua(
         }
 
         did_one
-    }
 }
 
-unsafe fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut c_int) -> bool {
-    unsafe {
-        let mut did_one = source_callback_vim_lua(fnames, all, cookie);
+fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut c_int) -> bool {
+    let mut did_one = source_callback_vim_lua(fnames, all, cookie);
 
         if !all && did_one {
             return true;
@@ -738,11 +731,10 @@ unsafe fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut 
         }
 
         did_one
-    }
 }
 
 /// Find the patterns in "name" in all directories in "path" and invoke `callback`.
-pub unsafe fn do_in_path(
+pub fn do_in_path(
     path: *const c_char,
     prefix: *const c_char,
     name: *mut c_char,
@@ -885,7 +877,7 @@ fn runtime_search_path_unref() {
     }
 }
 
-unsafe fn do_in_cached_path(
+fn do_in_cached_path(
     name: *mut c_char,
     flags: c_int,
     callback: &mut RuntimeCallback<'_>,
@@ -982,7 +974,7 @@ unsafe fn do_in_cached_path(
     }
 }
 
-pub unsafe fn runtime_inspect(arena: *mut Arena) -> Array {
+pub fn runtime_inspect(arena: *mut Arena) -> Array {
     unsafe {
         let rsp_ptr = &raw const rt_st().runtime_search_path;
         let rsp = &*rsp_ptr;
@@ -1012,7 +1004,7 @@ pub unsafe fn runtime_inspect(arena: *mut Arena) -> Array {
     }
 }
 
-pub unsafe fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: *mut Arena) -> Array {
+pub fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: *mut Arena) -> Array {
     unsafe {
         let path = &mut *runtime_search_path_get_cached();
         let rv = runtime_get_named_common(
@@ -1048,7 +1040,7 @@ pub fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array {
     }
 }
 
-unsafe fn runtime_get_named_common(
+fn runtime_get_named_common(
     lua: bool,
     pat: Array,
     all: bool,
@@ -1057,8 +1049,7 @@ unsafe fn runtime_get_named_common(
     buf_len: usize,
     arena: *mut Arena,
 ) -> Array {
-    unsafe {
-        let mut rv = arena_array(arena, path.len() * pat.size);
+    let mut rv = arena_array(arena, path.len() * pat.size);
         for item in path.iter_mut() {
             if lua {
                 if item.has_lua == kNone {
@@ -1093,11 +1084,10 @@ unsafe fn runtime_get_named_common(
             }
         }
         rv
-    }
 }
 
 /// Find "name" in "path".
-pub unsafe fn do_in_path_and_pp(
+pub fn do_in_path_and_pp(
     path: *mut c_char,
     name: *mut c_char,
     flags: c_int,
@@ -1145,7 +1135,7 @@ pub unsafe fn do_in_path_and_pp(
     }
 }
 
-unsafe fn push_path(
+fn push_path(
     search_path: &mut RuntimeSearchPath,
     rtp_used: &mut std::collections::HashSet<Vec<u8>>,
     entry: *mut c_char,
@@ -1167,7 +1157,7 @@ unsafe fn push_path(
     }
 }
 
-unsafe fn expand_rtp_entry(
+fn expand_rtp_entry(
     search_path: &mut RuntimeSearchPath,
     rtp_used: &mut std::collections::HashSet<Vec<u8>>,
     entry: *mut c_char,
@@ -1193,7 +1183,7 @@ unsafe fn expand_rtp_entry(
     }
 }
 
-unsafe fn expand_pack_entry(
+fn expand_pack_entry(
     search_path: &mut RuntimeSearchPath,
     rtp_used: &mut std::collections::HashSet<Vec<u8>>,
     after_path: &mut Vec<std::ffi::CString>,
@@ -1223,7 +1213,7 @@ unsafe fn expand_pack_entry(
     }
 }
 
-unsafe fn path_is_after(buf: *const c_char, buflen: usize) -> bool {
+fn path_is_after(buf: *const c_char, buflen: usize) -> bool {
     unsafe {
         buflen >= 5
             && (buflen < 6 || vim_ispathsep(*buf.add(buflen - 6) as u8 as c_int))
@@ -1373,7 +1363,7 @@ pub fn update_runtime_search_path_thread(force: bool) {
 }
 
 /// Just like do_in_path_and_pp(), using 'runtimepath' for "path".
-pub unsafe fn do_in_runtimepath(
+pub fn do_in_runtimepath(
     name: *mut c_char,
     mut flags: c_int,
     callback: &mut RuntimeCallback<'_>,
@@ -1397,37 +1387,34 @@ pub unsafe fn do_in_runtimepath(
 }
 
 /// Source the file "name" from all directories in 'runtimepath'.
-pub unsafe fn source_runtime(name: *mut c_char, flags: c_int) -> c_int {
-    unsafe {
-        do_in_runtimepath(
+pub fn source_runtime(name: *mut c_char, flags: c_int) -> c_int {
+    do_in_runtimepath(
             name,
             flags,
             &mut RuntimeCallback::Source {
                 skip_if_loaded: false,
             },
         )
-    }
 }
 
 /// Just like source_runtime(), but only source vim and lua files.
-pub unsafe fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int {
-    unsafe { do_in_runtimepath(name, flags, &mut RuntimeCallback::SourceVimLua) }
+pub fn source_runtime_vim_lua(name: *mut c_char, flags: c_int) -> c_int {
+    do_in_runtimepath(name, flags, &mut RuntimeCallback::SourceVimLua)
 }
 
 /// Just like source_runtime(), but use "path" instead of 'runtimepath' and only source .vim and .lua files.
-pub unsafe fn source_in_path_vim_lua(path: *mut c_char, name: *mut c_char, flags: c_int) -> c_int {
-    unsafe { do_in_path_and_pp(path, name, flags, &mut RuntimeCallback::SourceVimLua) }
+pub fn source_in_path_vim_lua(path: *mut c_char, name: *mut c_char, flags: c_int) -> c_int {
+    do_in_path_and_pp(path, name, flags, &mut RuntimeCallback::SourceVimLua)
 }
 
-unsafe fn gen_expand_wildcards_and_cb(
+fn gen_expand_wildcards_and_cb(
     num_pat: c_int,
     pats: *mut *mut c_char,
     flags: c_int,
     all: bool,
     callback: &mut RuntimeCallback<'_>,
 ) -> c_int {
-    unsafe {
-        let mut files: Vec<std::ffi::CString> = Vec::new();
+    let mut files: Vec<std::ffi::CString> = Vec::new();
 
         if gen_expand_wildcards_vec(num_pat, pats, &mut files, flags) != OK {
             return FAIL;
@@ -1436,10 +1423,9 @@ unsafe fn gen_expand_wildcards_and_cb(
         callback.invoke(&files, all);
 
         OK
-    }
 }
 
-unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
+fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
     unsafe {
         let mut retval = FAIL;
 
@@ -1673,9 +1659,8 @@ unsafe fn add_pack_dir_to_rtp(fname: *mut c_char, is_pack: bool) -> c_int {
     }
 }
 
-unsafe fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
-    unsafe {
-        let ffname_cstr = fix_fname(fname).unwrap_or_default();
+fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
+    let ffname_cstr = fix_fname(fname).unwrap_or_default();
         let ffname = ffname_cstr.as_ptr();
         let len = ffname_cstr.as_bytes().len() + 14;
         let mut pat_vec = vec![0 as c_char; len + 1];
@@ -1700,7 +1685,6 @@ unsafe fn load_pack_plugin(opt: bool, fname: *mut c_char) -> c_int {
         }
 
         OK
-    }
 }
 
 fn add_pack_plugins(
@@ -1752,23 +1736,19 @@ fn add_pack_plugins(
 
 /// Add all packages in the "start" directory to 'runtimepath'.
 pub fn add_pack_start_dirs() {
-    unsafe {
-        do_in_path(
+    do_in_path(
             opt_vars().p_pp,
             c"".as_ptr(),
             ptr::null_mut(),
             DIP_ALL + DIP_DIR,
             &mut RuntimeCallback::AddPackStartDir,
         );
-    }
 }
 
-unsafe fn pack_has_entries(buf: *mut c_char) -> bool {
-    unsafe {
-        let mut files: Vec<std::ffi::CString> = Vec::new();
+fn pack_has_entries(buf: *mut c_char) -> bool {
+    let mut files: Vec<std::ffi::CString> = Vec::new();
         let mut pat = [buf];
         gen_expand_wildcards_vec(1, pat.as_mut_ptr(), &mut files, EW_DIR) == OK && !files.is_empty()
-    }
 }
 
 fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
@@ -1799,8 +1779,7 @@ fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
 
 /// Load plugins from all packages in the "start" directory.
 pub fn load_start_packages() {
-    unsafe {
-        g_st().did_source_packages = true;
+    g_st().did_source_packages = true;
         do_in_path(
             opt_vars().p_pp,
             c"".as_ptr(),
@@ -1823,7 +1802,6 @@ pub fn load_start_packages() {
         );
 
         update_runtime_search_path_thread(false);
-    }
 }
 
 /// ":packloadall"
@@ -1836,8 +1814,7 @@ pub fn ex_packloadall(eap: &mut exarg_T) {
 
 /// Read all the plugin files at startup.
 pub fn load_plugins() {
-    unsafe {
-        if opt_vars().p_lpl != 0 {
+    if opt_vars().p_lpl != 0 {
             let mut rtp_copy_owned: Option<std::ffi::CString> = None;
             let mut rtp_copy = opt_vars().p_rtp;
             let plugin_pattern = c"plugin/**/*".as_ptr() as *mut c_char;
@@ -1867,7 +1844,6 @@ pub fn load_plugins() {
                 time_msg(c"loading after plugins".as_ptr(), ptr::null());
             }
         }
-    }
 }
 
 /// ":packadd[!] {name}"
@@ -1919,7 +1895,7 @@ pub fn ex_packadd(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn ExpandRTDir_int(
+fn ExpandRTDir_int(
     pat: *mut c_char,
     pat_len: usize,
     flags: c_int,
@@ -2072,7 +2048,7 @@ unsafe fn ExpandRTDir_int(
 }
 
 /// Expand color scheme, compiler or filetype names.
-pub unsafe fn ExpandRTDir(
+pub fn ExpandRTDir(
     pat: *mut c_char,
     flags: c_int,
     file: &mut Vec<std::ffi::CString>,
@@ -2099,7 +2075,7 @@ pub unsafe fn ExpandRTDir(
 }
 
 /// Handle command line completion for :runtime command.
-pub unsafe fn expand_runtime_cmd(
+pub fn expand_runtime_cmd(
     pat: *mut c_char,
     matches: &mut Vec<std::ffi::CString>,
 ) -> c_int {
@@ -2136,7 +2112,7 @@ pub unsafe fn expand_runtime_cmd(
 }
 
 /// Expand loadplugin names: 'packpath'/pack/*/opt/{pat}
-pub unsafe fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> c_int {
+pub fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CString>) -> c_int {
     unsafe {
         file.clear();
         let pat_len = CStr::from_ptr(pat).to_bytes().len();
@@ -2164,7 +2140,7 @@ pub unsafe fn ExpandPackAddDir(pat: *mut c_char, file: &mut Vec<std::ffi::CStrin
     }
 }
 
-unsafe fn strcpy_comma_escaped(dest: *mut c_char, src: *const c_char, len: usize) -> *mut c_char {
+fn strcpy_comma_escaped(dest: *mut c_char, src: *const c_char, len: usize) -> *mut c_char {
     unsafe {
         let mut shift: usize = 0;
         for i in 0..len {
@@ -2178,7 +2154,7 @@ unsafe fn strcpy_comma_escaped(dest: *mut c_char, src: *const c_char, len: usize
     }
 }
 
-unsafe fn compute_double_env_sep_len(
+fn compute_double_env_sep_len(
     val: *const c_char,
     common_suf_len: usize,
     single_suf_len: usize,
@@ -2209,7 +2185,7 @@ unsafe fn compute_double_env_sep_len(
     }
 }
 
-unsafe fn add_env_sep_dirs(
+fn add_env_sep_dirs(
     mut dest: *mut c_char,
     val: *const c_char,
     suf1: *const c_char,
@@ -2264,7 +2240,7 @@ unsafe fn add_env_sep_dirs(
     }
 }
 
-unsafe fn add_dir(
+fn add_dir(
     mut dest: *mut c_char,
     dir: *const c_char,
     dir_len: usize,
@@ -2526,7 +2502,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
     }
 }
 
-unsafe fn cmd_source(fname: *mut c_char, eap: *mut exarg_T) {
+fn cmd_source(fname: *mut c_char, eap: *mut exarg_T) {
     unsafe {
         if *fname != NUL && !eap.is_null() && (*eap).addr_count > 0 {
             emsg(gettext(e_norange.as_ptr()));
@@ -2555,15 +2531,12 @@ unsafe fn cmd_source(fname: *mut c_char, eap: *mut exarg_T) {
 
 /// ":source [{fname}]"
 pub fn ex_source(eap: &mut exarg_T) {
-    unsafe {
-        cmd_source(eap.arg, eap);
-    }
+    cmd_source(eap.arg, eap);
 }
 
 /// ":options"
 pub fn ex_options(_eap: &mut exarg_T) {
-    unsafe {
-        let mut buf = [0 as c_char; 500];
+    let mut buf = [0 as c_char; 500];
         let mut multi_mods = false;
 
         add_win_cmd_modifiers(buf.as_mut_ptr(), &g_st().cmdmod, &mut multi_mods);
@@ -2573,7 +2546,6 @@ pub fn ex_options(_eap: &mut exarg_T) {
             c"$VIMRUNTIME/scripts/optwin.lua".as_ptr() as *mut c_char,
             ptr::null_mut(),
         );
-    }
 }
 
 pub fn source_breakpoint(sp: &mut source_cookie_T) -> *mut linenr_T {
@@ -2588,7 +2560,7 @@ pub fn source_level(sp: &mut source_cookie_T) -> c_int {
     sp.level
 }
 
-unsafe fn fopen_noinh_readbin(filename: *const c_char) -> *mut FILE {
+fn fopen_noinh_readbin(filename: *const c_char) -> *mut FILE {
     unsafe {
         #[cfg(windows)]
         let fd_tmp = os_open(filename, O_RDONLY | O_BINARY | O_NOINHERIT, 0);
@@ -2605,7 +2577,7 @@ unsafe fn fopen_noinh_readbin(filename: *const c_char) -> *mut FILE {
     }
 }
 
-unsafe fn concat_continued_line(ga: &mut Vec<c_char>, p: *const c_char, mut len: usize) -> bool {
+fn concat_continued_line(ga: &mut Vec<c_char>, p: *const c_char, mut len: usize) -> bool {
     unsafe {
         let line = skipwhite_len(p, len);
         len -= (line as usize) - (p as usize);
@@ -2624,7 +2596,7 @@ unsafe fn concat_continued_line(ga: &mut Vec<c_char>, p: *const c_char, mut len:
 }
 
 /// Create a new script item and allocate script-local vars.
-pub unsafe fn new_script_item(
+pub fn new_script_item(
     name: Option<std::ffi::CString>,
     sid_out: *mut scid_T,
 ) -> *mut scriptitem_T {
@@ -2663,7 +2635,7 @@ pub unsafe fn new_script_item(
     }
 }
 
-unsafe fn do_source_buffer_init(
+fn do_source_buffer_init(
     sp: *mut source_cookie_T,
     eap: *const exarg_T,
     ex_lua: bool,
@@ -2709,7 +2681,7 @@ unsafe fn do_source_buffer_init(
     }
 }
 
-unsafe fn do_source_str_init(sp: &mut source_cookie_T, mut str_ptr: *const c_char) {
+fn do_source_str_init(sp: &mut source_cookie_T, mut str_ptr: *const c_char) {
     unsafe {
         sp.buflines.clear();
         while *str_ptr != NUL {
@@ -2728,9 +2700,8 @@ unsafe fn do_source_str_init(sp: &mut source_cookie_T, mut str_ptr: *const c_cha
     }
 }
 
-pub unsafe fn cmd_source_buffer(eap: *const exarg_T, ex_lua: bool) {
-    unsafe {
-        do_source_ext(
+pub fn cmd_source_buffer(eap: *const exarg_T, ex_lua: bool) {
+    do_source_ext(
             ptr::null_mut(),
             false,
             DOSO_NONE,
@@ -2739,13 +2710,11 @@ pub unsafe fn cmd_source_buffer(eap: *const exarg_T, ex_lua: bool) {
             ex_lua,
             ptr::null(),
         );
-    }
 }
 
 /// Executes lines in `str` as Ex commands.
-pub unsafe fn do_source_str(str_ptr: *const c_char, mut traceback_name: *const c_char) -> c_int {
-    unsafe {
-        let sname = sourcing_name();
+pub fn do_source_str(str_ptr: *const c_char, mut traceback_name: *const c_char) -> c_int {
+    let sname = sourcing_name();
         let slnum = sourcing_lnum();
         let mut sname_buf = [0 as c_char; 256];
         if !sname.is_null() {
@@ -2768,10 +2737,9 @@ pub unsafe fn do_source_str(str_ptr: *const c_char, mut traceback_name: *const c
             false,
             str_ptr,
         )
-    }
 }
 
-unsafe fn do_source_ext(
+fn do_source_ext(
     fname: *mut c_char,
     check_other: bool,
     is_vimrc: c_int,
@@ -3106,14 +3074,13 @@ unsafe fn do_source_ext(
     }
 }
 
-pub unsafe fn do_source(
+pub fn do_source(
     fname: *mut c_char,
     check_other: bool,
     is_vimrc: c_int,
     ret_sid: *mut c_int,
 ) -> c_int {
-    unsafe {
-        do_source_ext(
+    do_source_ext(
             fname,
             check_other,
             is_vimrc,
@@ -3122,7 +3089,6 @@ pub unsafe fn do_source(
             false,
             ptr::null(),
         )
-    }
 }
 
 /// Checks if the script with the given script ID is a Lua script.
@@ -3139,7 +3105,7 @@ pub fn script_is_lua(sid: scid_T) -> bool {
 }
 
 /// Find an already loaded script "name".
-pub unsafe fn find_script_by_name(name: *mut c_char) -> c_int {
+pub fn find_script_by_name(name: *mut c_char) -> c_int {
     unsafe {
         let mut sid = script_items_len();
         while sid > 0 {
@@ -3612,15 +3578,13 @@ pub fn ex_scriptencoding(eap: &mut exarg_T) {
 
 /// ":finish": Mark a sourced file as finished.
 pub fn ex_finish(eap: &mut exarg_T) {
-    unsafe {
-        if sourcing_a_script(eap) != 0 {
+    if sourcing_a_script(eap) != 0 {
             do_finish(eap, false);
         } else {
             emsg(gettext(
                 c"E168: :finish used outside of a sourced file".as_ptr(),
             ));
         }
-    }
 }
 
 /// Mark a sourced file as finished.
@@ -3647,7 +3611,7 @@ pub fn source_finished(fgetline: LineGetter) -> bool {
 }
 
 /// Return the autoload script name for a function or variable name.
-pub unsafe fn autoload_name(name: *const c_char, name_len: usize) -> std::ffi::CString {
+pub fn autoload_name(name: *const c_char, name_len: usize) -> std::ffi::CString {
     unsafe {
         const PREFIX: &[u8] = b"autoload/";
         const SUFFIX: &[u8] = b".vim";
@@ -3671,7 +3635,7 @@ pub unsafe fn autoload_name(name: *const c_char, name_len: usize) -> std::ffi::C
 }
 
 /// If name has a package name try autoloading the script for it.
-pub unsafe fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bool {
+pub fn script_autoload(name: *const c_char, name_len: usize, reload: bool) -> bool {
     unsafe {
         let slice = std::slice::from_raw_parts(name.cast::<u8>(), name_len);
         let Some(pos) = slice.iter().position(|&b| b == AUTOLOAD_CHAR) else {

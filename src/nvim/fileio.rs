@@ -268,7 +268,7 @@ unsafe extern "C" {
 
     #[cfg(not(windows))]
     #[link_name = "iconv_open"]
-    pub fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void;
+    fn c_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void;
     #[cfg(not(windows))]
     pub fn iconv(
         cd: iconv_t,
@@ -279,7 +279,7 @@ unsafe extern "C" {
     ) -> usize;
     #[cfg(not(windows))]
     pub fn iconv_close(cd: iconv_t) -> c_int;
-    #[cfg_attr(windows, link_name = "close")]
+    #[cfg_attr(windows, link_name = "_close")]
     pub fn close(fd: c_int) -> c_int;
     #[cfg_attr(windows, link_name = "_dup")]
     pub fn dup(oldfd: c_int) -> c_int;
@@ -340,6 +340,12 @@ unsafe extern "C" {
     fn dirfd(dirp: *mut DIR) -> c_int;
     #[cfg(not(windows))]
     fn flock(fd: c_int, operation: c_int) -> c_int;
+}
+
+#[cfg(not(windows))]
+#[inline]
+pub fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void {
+    unsafe { c_iconv_open(tocode, fromcode) }
 }
 
 use crate::os::fs::{s_isdir, s_isfifo, s_isreg, s_issock};
@@ -720,7 +726,7 @@ mod win_iconv {
         }
     }
 
-    pub unsafe fn open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void {
+    pub fn open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void {
         if tocode.is_null() || fromcode.is_null() {
             unsafe { *errno_ptr() = EINVAL };
             return usize::MAX as *mut c_void;
@@ -745,7 +751,7 @@ mod win_iconv {
         Box::into_raw(boxed).cast()
     }
 
-    pub unsafe fn convert(
+    pub fn convert(
         cd: iconv_t,
         inbuf: *mut *const c_char,
         inbytesleft: *mut usize,
@@ -809,12 +815,12 @@ mod win_iconv {
 
 #[cfg(windows)]
 #[inline]
-pub unsafe fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void {
-    unsafe { win_iconv::open(tocode, fromcode) }
+pub fn call_iconv_open(tocode: *const c_char, fromcode: *const c_char) -> *mut c_void {
+    win_iconv::open(tocode, fromcode)
 }
 
 #[inline]
-pub unsafe fn call_iconv<T: IntoIconvT>(
+pub fn call_iconv<T: IntoIconvT>(
     cd: T,
     inbuf: *mut *const c_char,
     inbytesleft: *mut usize,
@@ -822,7 +828,7 @@ pub unsafe fn call_iconv<T: IntoIconvT>(
     outbytesleft: *mut usize,
 ) -> usize {
     #[cfg(windows)]
-    unsafe {
+    {
         win_iconv::convert(cd.into_iconv_t(), inbuf, inbytesleft, outbuf, outbytesleft)
     }
     #[cfg(not(windows))]
@@ -872,7 +878,7 @@ fn call_umask(mask: c_uint) -> c_uint {
 }
 
 /// Shows a message about file `name`, e.g. `"foo.txt" [New]`.
-unsafe fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id: *const c_char) {
+fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id: *const c_char) {
     unsafe {
         let prev_msg_col = g_st().msg_col;
 
@@ -919,10 +925,8 @@ unsafe fn filemess(buf: *mut buf_T, name: *mut c_char, s: *const c_char, msg_id:
 
 /// Shows file `name` before writing it, as a "bufwrite" message with `msg_id`, which buf_write()
 /// replaces when done (or with a progress-message, if slow).
-pub unsafe fn filemess_bufwrite(buf: *mut buf_T, name: *mut c_char, msg_id: *const c_char) {
-    unsafe {
-        filemess(buf, name, c"".as_ptr(), msg_id);
-    }
+pub fn filemess_bufwrite(buf: *mut buf_T, name: *mut c_char, msg_id: *const c_char) {
+    filemess(buf, name, c"".as_ptr(), msg_id);
 }
 
 /// If a file read/write is slower than this, emit a progress-message.
@@ -936,7 +940,7 @@ pub fn slow_io_ns() -> u64 {
 
 /// Shows the progress-message of a slow readfile(). Locks `curbuf` so Progress handlers cannot
 /// accidentally unload it while it is loading.
-unsafe fn readfile_progress(
+fn readfile_progress(
     s: *const c_char,
     msg_id: *const c_char,
     status: *const c_char,
@@ -962,7 +966,7 @@ unsafe fn readfile_progress(
 }
 
 /// Read lines from file "fname" into the buffer after line "from".
-pub unsafe fn readfile(
+pub fn readfile(
     fname: *mut c_char,
     mut sfname: *mut c_char,
     from: linenr_T,
@@ -2785,7 +2789,7 @@ pub unsafe fn readfile(
 
 /// Returns true if the file name argument is of the form "/dev/fd/\d\+".
 #[cfg(test)]
-pub unsafe fn is_dev_fd_file(fname: *mut c_char) -> bool {
+pub fn is_dev_fd_file(fname: *mut c_char) -> bool {
     unsafe {
         let bytes = CStr::from_ptr(fname).to_bytes();
         bytes.starts_with(b"/dev/fd/")
@@ -2800,7 +2804,7 @@ pub unsafe fn is_dev_fd_file(fname: *mut c_char) -> bool {
 }
 
 /// Estimate the line number where we are now.
-unsafe fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: *const c_char) -> linenr_T {
+fn readfile_linenr(linecnt: linenr_T, p: *mut c_char, endp: *const c_char) -> linenr_T {
     unsafe {
         let mut lnum = (*g_st().curbuf).b_ml.ml_line_count - linecnt + 1;
         let mut s: *const c_char = p;
@@ -2839,7 +2843,7 @@ pub fn prep_exarg(eap: &mut exarg_T, buf: &buf_T) -> std::ffi::CString {
 }
 
 /// Set default or forced 'fileformat' and 'binary'.
-pub unsafe fn set_file_options(set_options: bool, eap: *mut exarg_T) {
+pub fn set_file_options(set_options: bool, eap: *mut exarg_T) {
     unsafe {
         if set_options {
             if !eap.is_null() && (*eap).force_ff != 0 {
@@ -2858,7 +2862,7 @@ pub unsafe fn set_file_options(set_options: bool, eap: *mut exarg_T) {
 }
 
 /// Set forced 'fileencoding'.
-pub unsafe fn set_forced_fenc(eap: *mut exarg_T) {
+pub fn set_forced_fenc(eap: *mut exarg_T) {
     unsafe {
         if (*eap).force_enc == 0 {
             return;
@@ -2870,7 +2874,7 @@ pub unsafe fn set_forced_fenc(eap: *mut exarg_T) {
 }
 
 /// Find next fileencoding to use from 'fileencodings'.
-unsafe fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
+fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
     unsafe {
         if **pp == NUL {
             *pp = ptr::null_mut();
@@ -2892,7 +2896,7 @@ unsafe fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
 }
 
 /// Convert a file with the 'charconvert' expression.
-unsafe fn readfile_charconvert(
+fn readfile_charconvert(
     fname: *mut c_char,
     fenc: *mut c_char,
     fdp: &mut c_int,
@@ -2937,7 +2941,7 @@ unsafe fn readfile_charconvert(
 }
 
 /// Set the name of the current buffer.
-pub unsafe fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int {
+pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int {
     unsafe {
         let buf = g_st().curbuf;
 
@@ -3005,7 +3009,7 @@ pub unsafe fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> c_int {
 }
 
 /// Put file name into the specified buffer with quotes.
-pub unsafe fn add_quoted_fname(
+pub fn add_quoted_fname(
     ret_buf: *mut c_char,
     bufsize: usize,
     buf: *const buf_T,
@@ -3024,7 +3028,7 @@ pub unsafe fn add_quoted_fname(
 }
 
 /// Sets progress-message id of reading/writing file `fname`, e.g. `nvim.bufread "foo.txt"`.
-pub unsafe fn fname_msg_id(
+pub fn fname_msg_id(
     msg_id: *mut c_char,
     size: usize,
     prefix: *const c_char,
@@ -3128,7 +3132,7 @@ pub fn time_differs(file_info: &FileInfo, mtime: i64, mtime_ns: i64) -> bool {
 }
 
 /// Return true if file encoding "fenc" requires conversion from or to 'encoding'.
-pub unsafe fn need_conversion(fenc: *const c_char) -> bool {
+pub fn need_conversion(fenc: *const c_char) -> bool {
     unsafe {
         let same_encoding: bool;
         let fenc_flags: c_int;
@@ -3151,7 +3155,7 @@ pub unsafe fn need_conversion(fenc: *const c_char) -> bool {
 
 /// Return the FIO_ flags needed for the internal conversion if 'name' was
 /// unicode or latin1, otherwise 0.
-pub unsafe fn get_fio_flags(mut name: *const c_char) -> c_int {
+pub fn get_fio_flags(mut name: *const c_char) -> c_int {
     unsafe {
         if name.is_null() || *name == NUL {
             name = if opt_vars().p_enc.is_null() {
@@ -3190,7 +3194,7 @@ pub unsafe fn get_fio_flags(mut name: *const c_char) -> c_int {
 }
 
 /// Check for a Unicode BOM (Byte Order Mark) at the start of p[size].
-unsafe fn check_for_bom(
+fn check_for_bom(
     p_in: *const c_char,
     size: c_int,
     lenp: &mut c_int,
@@ -3248,7 +3252,7 @@ unsafe fn check_for_bom(
 }
 
 /// Shorten filename of a buffer.
-pub unsafe fn shorten_buf_fname(buf: &mut buf_T, dirname: *mut c_char, force: c_int) -> bool {
+pub fn shorten_buf_fname(buf: &mut buf_T, dirname: *mut c_char, force: c_int) -> bool {
     unsafe {
         if buf.b_fname.is_null()
             || bt_nofilename(&raw mut *buf)
@@ -3302,7 +3306,7 @@ pub fn shorten_fnames(force: c_int) {
 }
 
 /// Get new filename ended by given extension.
-pub unsafe fn modname(
+pub fn modname(
     fname: *const c_char,
     ext: *const c_char,
     mut prepend_dot: bool,
@@ -3376,7 +3380,7 @@ pub unsafe fn modname(
 
 /// Like fgets(), but if the file line is too long, it is truncated and the
 /// rest of the line is thrown away.
-pub unsafe fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool {
+pub fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool {
     unsafe {
         if size < 2 {
             if size == 1 {
@@ -3419,7 +3423,7 @@ pub unsafe fn vim_fgets(buf: *mut c_char, size: c_int, fp: *mut FILE) -> bool {
 }
 
 /// Read 2 bytes from "fd" and turn them into an int, MSB first.
-pub unsafe fn get2c(fd: *mut FILE) -> c_int {
+pub fn get2c(fd: *mut FILE) -> c_int {
     unsafe {
         let n = fgetc(fd);
         if n == EOF {
@@ -3434,7 +3438,7 @@ pub unsafe fn get2c(fd: *mut FILE) -> c_int {
 }
 
 /// Read 3 bytes from "fd" and turn them into an int, MSB first.
-pub unsafe fn get3c(fd: *mut FILE) -> c_int {
+pub fn get3c(fd: *mut FILE) -> c_int {
     unsafe {
         let mut n = fgetc(fd);
         if n == EOF {
@@ -3454,7 +3458,7 @@ pub unsafe fn get3c(fd: *mut FILE) -> c_int {
 }
 
 /// Read 4 bytes from "fd" and turn them into an int, MSB first.
-pub unsafe fn get4c(fd: *mut FILE) -> c_int {
+pub fn get4c(fd: *mut FILE) -> c_int {
     unsafe {
         let mut c = fgetc(fd);
         if c == EOF {
@@ -3481,7 +3485,7 @@ pub unsafe fn get4c(fd: *mut FILE) -> c_int {
 }
 
 /// Read 8 bytes from `fd` and turn them into a time_t, MSB first.
-pub unsafe fn get8ctime(fd: *mut FILE) -> time_t {
+pub fn get8ctime(fd: *mut FILE) -> time_t {
     unsafe {
         let mut n: time_t = 0;
 
@@ -3497,7 +3501,7 @@ pub unsafe fn get8ctime(fd: *mut FILE) -> time_t {
 }
 
 /// Reads a string of length "cnt" from "fd" into allocated memory.
-pub unsafe fn read_string(fd: *mut FILE, cnt: usize) -> Option<Vec<c_char>> {
+pub fn read_string(fd: *mut FILE, cnt: usize) -> Option<Vec<c_char>> {
     unsafe {
         let mut buf: Vec<c_char> = Vec::with_capacity(cnt + 1);
         for _ in 0..cnt {
@@ -3513,7 +3517,7 @@ pub unsafe fn read_string(fd: *mut FILE, cnt: usize) -> Option<Vec<c_char>> {
 }
 
 /// Writes a number to file "fd", most significant bit first, in "len" bytes.
-pub unsafe fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
+pub fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
     unsafe {
         debug_assert!(len > 0);
         for i in (0..len).rev() {
@@ -3526,7 +3530,7 @@ pub unsafe fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
 }
 
 /// Writes time_t to file "fd" in 8 bytes.
-pub unsafe fn put_time(fd: *mut FILE, time_: time_t) -> c_int {
+pub fn put_time(fd: *mut FILE, time_: time_t) -> c_int {
     unsafe {
         let buf: [u8; 8] = (time_ as u64).to_be_bytes();
         if fwrite(buf.as_ptr().cast(), size_of::<u8>(), buf.len(), fd) == 1 {
@@ -3537,7 +3541,7 @@ pub unsafe fn put_time(fd: *mut FILE, time_: time_t) -> c_int {
     }
 }
 
-unsafe fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
+fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
         if std::ffi::CStr::from_ptr(from).to_bytes().len() >= MAXPATHL - 5 {
             return -1;
@@ -3577,7 +3581,7 @@ unsafe fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
 }
 
 /// Rename a file, falling back to copying across filesystems if needed.
-pub unsafe fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
+pub fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
         let mut use_tmp_file = false;
 
@@ -3627,7 +3631,7 @@ pub unsafe fn vim_rename(from: *const c_char, to: *const c_char) -> c_int {
 }
 
 /// Create the new file with same permissions as the original.
-pub unsafe fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int {
+pub fn vim_copyfile(from: *const c_char, to: *const c_char) -> c_int {
     #[cfg(not(windows))]
     unsafe {
         let mut from_info: FileInfo = FileInfo::new();
@@ -3708,7 +3712,7 @@ pub fn check_timestamps(focus: c_int) -> c_int {
 }
 
 /// Move all the lines from buffer "frombuf" to buffer "tobuf".
-unsafe fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> c_int {
+fn move_lines(frombuf: *mut buf_T, tobuf: *mut buf_T) -> c_int {
     unsafe {
         let tbuf = g_st().curbuf;
         let mut retval = OK;
@@ -3978,7 +3982,7 @@ pub fn buf_check_timestamp(buf: &mut buf_T) -> c_int {
 }
 
 /// Reload a buffer that is already loaded.
-pub unsafe fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
+pub fn buf_reload(buf: *mut buf_T, orig_mode: c_int, reload_options: bool) {
     unsafe {
         let mut ea: exarg_T = exarg_T::new();
         let old_ro = (*buf).b_p_ro;
@@ -4283,7 +4287,7 @@ fn vim_mktempdir() {
 }
 
 /// Core part of "readdir()" function.
-pub unsafe fn readdir_core(
+pub fn readdir_core(
     entries: &mut Vec<std::ffi::CString>,
     path: *const c_char,
     context: *mut crate::eval::typval::typval_T,
@@ -4329,7 +4333,7 @@ pub unsafe fn readdir_core(
 }
 
 /// Delete "name" and everything in it, recursively.
-pub unsafe fn delete_recursive(name: *const c_char) -> c_int {
+pub fn delete_recursive(name: *const c_char) -> c_int {
     unsafe {
         let mut result: c_int = 0;
 
@@ -4459,7 +4463,7 @@ pub fn vim_gettempdir() -> *mut c_char {
 }
 
 /// Sets Nvim's own temporary directory name to `tempdir`.
-unsafe fn vim_settempdir(tempdir: *mut c_char) -> bool {
+fn vim_settempdir(tempdir: *mut c_char) -> bool {
     unsafe {
         let mut buf_vec: Vec<c_char> = vec![0; MAXPATHL + 2];
         let buf = buf_vec.as_mut_ptr();
@@ -4488,8 +4492,7 @@ unsafe fn vim_settempdir(tempdir: *mut c_char) -> bool {
 
 /// Return a unique name that can be used for a temp file.
 pub fn vim_tempname() -> Option<std::ffi::CString> {
-    unsafe {
-        static TEMP_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    static TEMP_COUNT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
         let tempdir = vim_gettempdir();
         if tempdir.is_null() {
@@ -4506,12 +4509,11 @@ pub fn vim_tempname() -> Option<std::ffi::CString> {
             count,
         );
         Some(crate::memory::cstr_to_cstring(templ.as_ptr()))
-    }
 }
 
 /// Tries matching a filename with a "pattern" ("prog" is None), or use the
 /// precompiled regprog "prog" ("pattern" is NULL).
-pub unsafe fn match_file_pat(
+pub fn match_file_pat(
     pattern: *mut c_char,
     prog: Option<&regprog_T>,
     fname: *mut c_char,
@@ -4519,8 +4521,7 @@ pub unsafe fn match_file_pat(
     tail: *mut c_char,
     allow_dirs: c_int,
 ) -> bool {
-    unsafe {
-        let mut regmatch: regmatch_T = regmatch_T::new();
+    let mut regmatch: regmatch_T = regmatch_T::new();
         let mut result = false;
 
         regmatch.rm_ic = opt_vars().p_fic != 0;
@@ -4543,11 +4544,10 @@ pub unsafe fn match_file_pat(
             vim_regfree(regmatch.regprog);
         }
         result
-    }
 }
 
 /// Check if a file matches with a pattern in "list".
-pub unsafe fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_char) -> bool {
+pub fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_char) -> bool {
     unsafe {
         let tail = path_tail(sfname);
 
@@ -4579,7 +4579,7 @@ pub unsafe fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *m
 
 /// Convert the given pattern "pat" which has shell style wildcards in it, into
 /// a regular expression, and return the result in allocated memory.
-pub unsafe fn file_pat_to_reg_pat(
+pub fn file_pat_to_reg_pat(
     mut pat: *const c_char,
     mut pat_end: *const c_char,
     allow_dirs: *mut c_char,
@@ -4784,7 +4784,7 @@ pub unsafe fn file_pat_to_reg_pat(
 }
 
 /// Version of read() that retries when interrupted by EINTR.
-pub unsafe fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize) -> isize {
+pub fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize) -> isize {
     unsafe {
         loop {
             #[cfg(windows)]
@@ -4799,7 +4799,7 @@ pub unsafe fn read_eintr(fd: c_int, buf: *mut c_void, bufsize: usize) -> isize {
 }
 
 /// Version of write() that retries when interrupted by EINTR.
-pub unsafe fn write_eintr(fd: c_int, buf: *const c_void, bufsize: usize) -> isize {
+pub fn write_eintr(fd: c_int, buf: *const c_void, bufsize: usize) -> isize {
     unsafe {
         let mut ret: isize = 0;
 
@@ -4821,7 +4821,7 @@ pub unsafe fn write_eintr(fd: c_int, buf: *const c_void, bufsize: usize) -> isiz
     }
 }
 
-pub unsafe fn vim_fprintf_fmt(
+pub fn vim_fprintf_fmt(
     stream: *mut FILE,
     fmt: *const c_char,
     args: &[crate::strings::FmtVal],
@@ -4868,8 +4868,8 @@ pub unsafe fn vim_fprintf_fmt(
     }
 }
 
-pub unsafe fn vim_printf_fmt(fmt: *const c_char, args: &[crate::strings::FmtVal]) -> c_int {
-    unsafe { vim_fprintf_fmt(crate::log::log_get_stdout(), fmt, args) }
+pub fn vim_printf_fmt(fmt: *const c_char, args: &[crate::strings::FmtVal]) -> c_int {
+    vim_fprintf_fmt(crate::log::log_get_stdout(), fmt, args)
 }
 
 #[macro_export]
@@ -4901,15 +4901,13 @@ mod tests {
 
     #[test]
     fn test_is_dev_fd_file() {
-        unsafe {
-            assert!(!is_dev_fd_file(c"/dev/fd/0".as_ptr().cast_mut()));
+        assert!(!is_dev_fd_file(c"/dev/fd/0".as_ptr().cast_mut()));
             assert!(!is_dev_fd_file(c"/dev/fd/1".as_ptr().cast_mut()));
             assert!(!is_dev_fd_file(c"/dev/fd/2".as_ptr().cast_mut()));
             assert!(is_dev_fd_file(c"/dev/fd/3".as_ptr().cast_mut()));
             assert!(is_dev_fd_file(c"/dev/fd/10".as_ptr().cast_mut()));
             assert!(!is_dev_fd_file(c"/dev/fd/10a".as_ptr().cast_mut()));
             assert!(!is_dev_fd_file(c"/tmp/foo".as_ptr().cast_mut()));
-        }
     }
 
     #[test]
@@ -4938,8 +4936,7 @@ mod tests {
 
     #[test]
     fn test_file_pat_to_reg_pat() {
-        unsafe {
-            let check = |pat: &CStr, expected: &CStr| {
+        let check = |pat: &CStr, expected: &CStr| {
                 let res = file_pat_to_reg_pat(pat.as_ptr(), ptr::null(), ptr::null_mut(), 1);
                 assert_eq!(res.as_deref(), Some(expected));
             };
@@ -4962,7 +4959,6 @@ mod tests {
             check(c"foo^bar", c"^foo^bar$");
             check(c"blah$", c"^blah$$");
             check(c"foo$bar", c"^foo$bar$");
-        }
     }
 
     #[test]

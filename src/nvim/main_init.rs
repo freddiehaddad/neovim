@@ -275,18 +275,16 @@ use crate::os::fs::MAXPATHL;
 use crate::os::os_win_console::{GetVersionExA, OsVersionInfoA};
 
 #[inline]
-unsafe fn time_msg_if_enabled(s: *const c_char) {
-    unsafe {
-        if has_time_fd() {
+fn time_msg_if_enabled(s: *const c_char) {
+    if has_time_fd() {
             time_msg(s, ptr::null());
         }
-    }
 }
 
 #[inline]
-unsafe fn to_slash_if_needed(p: *mut c_char) {
+fn to_slash_if_needed(p: *mut c_char) {
     #[cfg(windows)]
-    unsafe {
+    {
         if !p.is_null() {
             path_to_slash(p);
         }
@@ -298,7 +296,7 @@ unsafe fn to_slash_if_needed(p: *mut c_char) {
 }
 
 #[inline]
-unsafe fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
+fn strnicmp_ascii(a: *const c_char, b: &[u8]) -> bool {
     unsafe {
         if a.is_null() {
             return false;
@@ -344,7 +342,7 @@ fn event_teardown() -> bool {
     }
 }
 
-unsafe fn early_init(paramp: *mut mparm_T) {
+fn early_init(paramp: *mut mparm_T) {
     unsafe {
         os_hint_priority();
         estack_init();
@@ -400,7 +398,7 @@ unsafe fn early_init(paramp: *mut mparm_T) {
     }
 }
 
-pub unsafe fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
+pub fn nvim_main(argc: c_int, argv: *mut *mut c_char) -> c_int {
     unsafe {
         main_init_st().ARGV0 = *argv;
         to_slash_if_needed(main_init_st().ARGV0);
@@ -847,8 +845,7 @@ pub fn input_unanswerable() -> bool {
 }
 
 pub fn os_exit(mut r: c_int) -> ! {
-    unsafe {
-        g_st().exiting = true;
+    g_st().exiting = true;
         signal_reject_deadly();
 
         if g_st().ui_client_channel_id != 0 {
@@ -865,7 +862,7 @@ pub fn os_exit(mut r: c_int) -> ! {
         }
         if g_st().ui_client_channel_id != 0 {
             #[cfg(unix)]
-            {
+            unsafe {
                 if g_st().stdout_isatty {
                     tcdrain(STDOUT_FILENO);
                 }
@@ -893,7 +890,6 @@ pub fn os_exit(mut r: c_int) -> ! {
         }
 
         std::process::exit(r);
-    }
 }
 
 pub fn getout(mut exitval: c_int) -> ! {
@@ -1041,7 +1037,7 @@ pub fn getout(mut exitval: c_int) -> ! {
     }
 }
 
-pub unsafe fn preserve_exit(errmsg: *const c_char) -> ! {
+pub fn preserve_exit(errmsg: *const c_char) -> ! {
     unsafe {
         if main_init_st().REALLY_EXITING {
             std::process::exit(2);
@@ -1104,7 +1100,7 @@ pub fn __asan_default_options() -> *const c_char {
     c"handle_abort=1,handle_sigill=1".as_ptr()
 }
 
-unsafe fn get_number_arg(p: *const c_char, idx: &mut c_int, mut def: c_int) -> c_int {
+fn get_number_arg(p: *const c_char, idx: &mut c_int, mut def: c_int) -> c_int {
     unsafe {
         let mut i = *idx as usize;
         if ascii_isdigit(*p.add(i) as c_int) {
@@ -1121,7 +1117,7 @@ unsafe fn get_number_arg(p: *const c_char, idx: &mut c_int, mut def: c_int) -> c
     }
 }
 
-unsafe fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char) -> u64 {
+fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char) -> u64 {
     unsafe {
         if server_addr.is_null() {
             *errmsg = c"no address specified".as_ptr();
@@ -1139,7 +1135,7 @@ unsafe fn server_connect(server_addr: *const c_char, errmsg: *mut *const c_char)
     }
 }
 
-unsafe fn remote_request(
+fn remote_request(
     params: &mut mparm_T,
     remote_args: c_int,
     server_addr: *const c_char,
@@ -1827,7 +1823,7 @@ fn set_argf_var() {
     }
 }
 
-unsafe fn init_params(paramp: &mut mparm_T, argc: c_int, argv: *mut *mut c_char) {
+fn init_params(paramp: &mut mparm_T, argc: c_int, argv: *mut *mut c_char) {
     *paramp = mparm_T::new();
         paramp.argc = argc;
         paramp.argv = argv;
@@ -1867,17 +1863,14 @@ fn init_startuptime(paramp: &mut mparm_T) {
 }
 
 fn check_and_set_isatty(_paramp: &mut mparm_T) {
-    unsafe {
-        g_st().stdin_isatty = os_isatty(STDIN_FILENO);
+    g_st().stdin_isatty = os_isatty(STDIN_FILENO);
         g_st().stdout_isatty = os_isatty(STDOUT_FILENO);
         g_st().stderr_isatty = os_isatty(STDERR_FILENO);
         time_msg_if_enabled(c"window checked".as_ptr());
-    }
 }
 
-unsafe fn init_path(exename: *const c_char) {
-    unsafe {
-        let mut exepath = [0 as c_char; MAXPATHL];
+fn init_path(exename: *const c_char) {
+    let mut exepath = [0 as c_char; MAXPATHL];
         let mut exepathlen: usize = MAXPATHL;
         if os_exepath(exepath.as_mut_ptr(), &raw mut exepathlen) != 0 {
             path_guess_exepath(exename, exepath.as_mut_ptr(), exepath.len());
@@ -1889,7 +1882,6 @@ unsafe fn init_path(exename: *const c_char) {
         {
             os_setenv_append_path(exepath.as_ptr());
         }
-    }
 }
 
 fn get_fname(_parmp: &mut mparm_T) -> *mut c_char {
@@ -1907,8 +1899,7 @@ fn set_window_layout(paramp: &mut mparm_T) {
 }
 
 fn handle_quickfix(paramp: &mut mparm_T) {
-    unsafe {
-        if paramp.edit_type == EDIT_QF {
+    if paramp.edit_type == EDIT_QF {
             if let Some(ref use_ef) = paramp.use_ef {
                 set_option_direct(kOptErrorfile, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
             }
@@ -1927,12 +1918,10 @@ fn handle_quickfix(paramp: &mut mparm_T) {
             }
             time_msg_if_enabled(c"reading errorfile".as_ptr());
         }
-    }
 }
 
 fn handle_tag(tagname: Option<&CStr>) {
-    unsafe {
-        if let Some(tagname) = tagname {
+    if let Some(tagname) = tagname {
             g_st().swap_exists_did_quit = false;
             vim_snprintf!(
                 (&raw mut g_st().IObuff).cast(),
@@ -1948,7 +1937,6 @@ fn handle_tag(tagname: Option<&CStr>) {
                 getout(1);
             }
         }
-    }
 }
 
 fn read_stdin() {
@@ -2466,8 +2454,7 @@ fn do_exrc_initialization() {
 }
 
 fn source_startup_scripts(parmp: &mparm_T) {
-    unsafe {
-        if let Some(ref use_vimrc) = parmp.use_vimrc {
+    if let Some(ref use_vimrc) = parmp.use_vimrc {
             if use_vimrc.as_c_str() == c"NONE" || use_vimrc.as_c_str() == c"NORC" {
                 // Do nothing.
             } else if do_source(
@@ -2489,12 +2476,10 @@ fn source_startup_scripts(parmp: &mparm_T) {
             }
         }
         time_msg_if_enabled(c"sourcing vimrc file(s)".as_ptr());
-    }
 }
 
-unsafe fn execute_env(env: *mut c_char) -> c_int {
-    unsafe {
-        let Some(initstr) = os_getenv_cstr(env) else {
+fn execute_env(env: *mut c_char) -> c_int {
+    let Some(initstr) = os_getenv_cstr(env) else {
             return FAIL;
         };
 
@@ -2509,19 +2494,15 @@ unsafe fn execute_env(env: *mut c_char) -> c_int {
         g_st().current_sctx = save_current_sctx;
 
         OK
-    }
 }
 
-unsafe fn mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) -> ! {
-    unsafe {
-        print_mainerr(msg1, msg2, msg3);
+fn mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) -> ! {
+    print_mainerr(msg1, msg2, msg3);
         os_exit(1);
-    }
 }
 
-unsafe fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) {
-    unsafe {
-        let prgname = path_tail(main_init_st().ARGV0);
+fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c_char) {
+    let prgname = path_tail(main_init_st().ARGV0);
         signal_stop();
 
         let stderr = log_get_stderr();
@@ -2534,7 +2515,6 @@ unsafe fn print_mainerr(msg1: *const c_char, msg2: *const c_char, msg3: *const c
         }
         fprintf!(stderr, gettext(c"\nMore info with \"".as_ptr()));
         fprintf!(stderr, c"%s -h\"\n".as_ptr(), prgname);
-    }
 }
 
 fn version() {
@@ -2546,8 +2526,7 @@ fn version() {
 }
 
 fn usage() {
-    unsafe {
-        signal_stop();
+    signal_stop();
 
         printf!(gettext(c"Usage:\n".as_ptr()));
         printf!(gettext(c"  nvim [options] [file ...]\n".as_ptr()));
@@ -2634,23 +2613,20 @@ fn usage() {
         printf!(gettext(
             c"\nSee \":help startup-options\" for all options.\n".as_ptr(),
         ));
-    }
 }
 
 fn check_swap_exists_action() {
-    unsafe {
-        if g_st().swap_exists_action == SEA_QUIT {
+    if g_st().swap_exists_action == SEA_QUIT {
             ui_call_error_exit(1);
             getout(1);
         }
         handle_swap_exists(ptr::null_mut());
-    }
 }
 
 #[cfg(test)]
 pub(crate) fn ensure_test_editor_init() {
     static INIT: std::sync::Once = std::sync::Once::new();
-    INIT.call_once(|| unsafe {
+    INIT.call_once(|| {
         g_st().headless_mode = true;
         g_st().silent_mode = true;
         event_init();
@@ -2680,8 +2656,7 @@ mod tests {
 
     #[test]
     fn get_number_arg_and_init_params_work() {
-        unsafe {
-            let mut idx: c_int = 1;
+        let mut idx: c_int = 1;
             let val = get_number_arg(c"o25x".as_ptr(), &mut idx, 0);
             assert_eq!(val, 25);
             assert_eq!(idx, 3);
@@ -2692,6 +2667,5 @@ mod tests {
             assert_eq!(params.window_count, -1);
             assert_eq!(params.use_debug_break_level, -1);
             assert_eq!(params.lua_arg0, -1);
-        }
     }
 }

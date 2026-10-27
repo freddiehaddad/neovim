@@ -114,8 +114,7 @@ pub fn f_rpcstart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 
 /// `"rpcstop()"` function (`f_rpcstop`).
 pub fn f_rpcstop(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncData){
-    unsafe {
-        rettv.v_type = VarType::VAR_NUMBER;
+    rettv.v_type = VarType::VAR_NUMBER;
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
         if check_secure() {
@@ -139,7 +138,6 @@ pub fn f_rpcstop(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncD
                 emsg(error);
             }
         }
-    }
 }
 
 /// `"last_buffer_nr()"` function (`f_last_buffer_nr`).
@@ -159,8 +157,7 @@ pub fn f_last_buffer_nr(_argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 
 /// `"termopen(cmd[, cwd])"` function (`f_termopen`).
 pub fn f_termopen(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFuncData){
-    unsafe {
-        if check_secure() {
+    if check_secure() {
             return;
         }
 
@@ -183,7 +180,6 @@ pub fn f_termopen(argvars: &mut [typval_T], rettv: &mut typval_T, fptr: EvalFunc
         if must_free {
             tv_dict_free(dict);
         }
-    }
 }
 
 #[cfg(test)]

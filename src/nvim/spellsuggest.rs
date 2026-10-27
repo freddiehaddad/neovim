@@ -401,7 +401,7 @@ fn sug_max_count(su: &suginfo_T) -> c_int {
 }
 
 #[inline]
-unsafe fn mb_cptr_back(s: *const c_char, p: &mut *const c_char) {
+fn mb_cptr_back(s: *const c_char, p: &mut *const c_char) {
     unsafe {
         let off = utf_head_off(s, (*p).sub(1)) + 1;
         *p = (*p).sub(off as usize);
@@ -409,7 +409,7 @@ unsafe fn mb_cptr_back(s: *const c_char, p: &mut *const c_char) {
 }
 
 #[inline]
-unsafe fn was_banned(su: &mut suginfo_T, word: *const c_char) -> bool {
+fn was_banned(su: &mut suginfo_T, word: *const c_char) -> bool {
     unsafe {
         su
             .su_banned
@@ -417,7 +417,7 @@ unsafe fn was_banned(su: &mut suginfo_T, word: *const c_char) -> bool {
     }
 }
 
-unsafe fn can_be_compound(
+fn can_be_compound(
     sp: &trystate_T,
     slang: &mut slang_T,
     compflags: *mut u8,
@@ -448,7 +448,7 @@ unsafe fn can_be_compound(
         true
     }
 }
-unsafe fn score_wordcount_adj(
+fn score_wordcount_adj(
     slang: &mut slang_T,
     score: c_int,
     word: *const c_char,
@@ -476,9 +476,8 @@ unsafe fn score_wordcount_adj(
         newscore.max(0)
     }
 }
-unsafe fn badword_captype(word: *mut c_char, end: *mut c_char) -> c_int {
-    unsafe {
-        let mut flags = captype(word, end);
+fn badword_captype(word: *mut c_char, end: *mut c_char) -> c_int {
+    let mut flags = captype(word, end);
         if (flags & WF_KEEPCAP) == 0 {
             return flags;
         }
@@ -507,9 +506,8 @@ unsafe fn badword_captype(word: *mut c_char, end: *mut c_char) -> c_int {
             flags |= WF_MIXCAP;
         }
         flags
-    }
 }
-unsafe fn bytes2offset(pp: *mut *mut c_char) -> c_int {
+fn bytes2offset(pp: *mut *mut c_char) -> c_int {
     unsafe {
         let mut p = (*pp).cast::<u8>();
         let c = *p as c_int;
@@ -543,7 +541,7 @@ unsafe fn bytes2offset(pp: *mut *mut c_char) -> c_int {
     }
 }
 /// Parse 'spellsuggest' without changing suggestion state.
-pub unsafe fn spell_check_sps(
+pub fn spell_check_sps(
     value: *const c_char,
     ret_flags: *mut c_int,
     ret_limit: *mut c_int,
@@ -848,7 +846,7 @@ pub fn spell_suggest(count: c_int) {
     }
 }
 /// Find spell suggestions for "word".
-pub unsafe fn spell_suggest_list(
+pub fn spell_suggest_list(
     word: *mut c_char,
     maxcount: c_int,
     need_cap: bool,
@@ -880,7 +878,7 @@ pub unsafe fn spell_suggest_list(
         res
     }
 }
-unsafe fn spell_find_suggest(
+fn spell_find_suggest(
     badptr: *mut c_char,
     badlen: c_int,
     su: &mut suginfo_T,
@@ -994,7 +992,7 @@ unsafe fn spell_find_suggest(
         }
     }
 }
-unsafe fn spell_suggest_expr(su: &mut suginfo_T, expr: *mut c_char) {
+fn spell_suggest_expr(su: &mut suginfo_T, expr: *mut c_char) {
     unsafe {
         let mut p: *const c_char = ptr::null();
         let list = eval_spell_expr((&raw mut su.su_badword).cast(), expr);
@@ -1025,7 +1023,7 @@ unsafe fn spell_suggest_expr(su: &mut suginfo_T, expr: *mut c_char) {
         cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
     }
 }
-unsafe fn spell_suggest_file(su: &mut suginfo_T, fname: *mut c_char) {
+fn spell_suggest_file(su: &mut suginfo_T, fname: *mut c_char) {
     unsafe {
         let mut line: [c_char; MAXWLEN * 2] = [0; MAXWLEN * 2];
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -1174,7 +1172,7 @@ fn try_deeper(
 ) -> bool {
     depth < MAXWLEN - 1 && stack[depth].ts_score + add < su.su_maxscore
 }
-unsafe fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, soundfold: bool) {
+fn suggest_trie_walk(su: &mut suginfo_T, lp: &langp_T, fword: *mut c_char, soundfold: bool) {
     unsafe {
         let mut tword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut stack: [trystate_T; MAXWLEN] = [trystate_T::default(); MAXWLEN];
@@ -2213,7 +2211,7 @@ fn go_deeper(stack: &mut [trystate_T; MAXWLEN], depth: usize, score_add: c_int) 
     stack[depth + 1].ts_curi = 1;
     stack[depth + 1].ts_flags = 0;
 }
-unsafe fn find_keepcap_word(slang: &mut slang_T, fword: *mut c_char, kword: *mut c_char) {
+fn find_keepcap_word(slang: &mut slang_T, fword: *mut c_char, kword: *mut c_char) {
     unsafe {
         let mut uword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let mut arridx: [idx_T; MAXWLEN] = [0; MAXWLEN];
@@ -2424,7 +2422,7 @@ fn score_combine(su: &mut suginfo_T) {
         su.su_ga = ga;
     }
 }
-unsafe fn stp_sal_score(
+fn stp_sal_score(
     stp: &suggest_T,
     su: &suginfo_T,
     slang: &mut slang_T,
@@ -2523,7 +2521,7 @@ fn suggest_try_soundalike_finish() {
         }
     }
 }
-unsafe fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp: &langp_T) {
+fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_int, lp: &langp_T) {
     unsafe {
         let slang = &mut *lp.lp_slang;
         let mut theword: [c_char; MAXWLEN] = [0; MAXWLEN];
@@ -2671,7 +2669,7 @@ unsafe fn add_sound_suggest(su: &mut suginfo_T, goodword: *mut c_char, score: c_
         }
     }
 }
-unsafe fn soundfold_find(slang: &mut slang_T, word: *mut c_char) -> c_int {
+fn soundfold_find(slang: &mut slang_T, word: *mut c_char) -> c_int {
     unsafe {
         let mut arridx: idx_T = 0;
         let mut wlen: usize = 0;
@@ -2744,7 +2742,7 @@ fn similar_chars(slang: &mut slang_T, c1: c_int, c2: c_int) -> bool {
         };
         m1 == m2
 }
-unsafe fn add_suggestion(
+fn add_suggestion(
     su: &mut suginfo_T,
     use_sga: bool,
     goodword: *const c_char,
@@ -2876,7 +2874,7 @@ fn check_suggestions(su: &mut suginfo_T, use_sga: bool) {
         }
     }
 }
-unsafe fn add_banned(su: &mut suginfo_T, word: *const c_char) {
+fn add_banned(su: &mut suginfo_T, word: *const c_char) {
     unsafe {
         let word_bytes = std::ffi::CStr::from_ptr(word).to_bytes();
         if !su.su_banned.contains(word_bytes) {
@@ -2919,12 +2917,10 @@ fn rescore_one(su: &mut suginfo_T, stp: &mut suggest_T) {
     }
 }
 fn sug_compare(p1: &suggest_T, p2: &suggest_T) -> std::cmp::Ordering {
-    unsafe {
-        p1.st_score
+    p1.st_score
             .cmp(&p2.st_score)
             .then_with(|| p1.st_altscore.cmp(&p2.st_altscore))
             .then_with(|| mb_stricmp(p1.st_word.as_ptr(), p2.st_word.as_ptr()).cmp(&0))
-    }
 }
 fn cleanup_suggestions(gap: &mut Vec<suggest_T>, maxscore: c_int, keep: c_int) -> c_int {
     if gap.is_empty() {
@@ -2940,7 +2936,7 @@ fn cleanup_suggestions(gap: &mut Vec<suggest_T>, maxscore: c_int, keep: c_int) -
         }
         maxscore
 }
-unsafe fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
+fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_int {
     unsafe {
         let mut goodsound = goodstart;
         let mut badsound = badstart;
@@ -3095,7 +3091,7 @@ unsafe fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_i
         SCORE_MAXMAX
     }
 }
-unsafe fn spell_edit_score(
+fn spell_edit_score(
     slang: *mut slang_T,
     badword: *const c_char,
     goodword: *const c_char,
@@ -3163,15 +3159,15 @@ unsafe fn spell_edit_score(
         cnt[(badlen - 1) + (goodlen - 1) * stride]
     }
 }
-unsafe fn spell_edit_score_limit(
+fn spell_edit_score_limit(
     slang: *mut slang_T,
     badword: *mut c_char,
     goodword: *mut c_char,
     limit: c_int,
 ) -> c_int {
-    unsafe { spell_edit_score_limit_w(slang, badword, goodword, limit) }
+    spell_edit_score_limit_w(slang, badword, goodword, limit)
 }
-unsafe fn spell_edit_score_limit_w(
+fn spell_edit_score_limit_w(
     slang: *mut slang_T,
     badword: *const c_char,
     goodword: *const c_char,
@@ -3319,8 +3315,7 @@ mod tests {
     use super::*;
     #[test]
     fn bytes2offset_and_soundalike_score_work() {
-        unsafe {
-            let mut raw = [5u8, 0u8];
+        let mut raw = [5u8, 0u8];
             let mut p = raw.as_mut_ptr().cast::<c_char>();
             assert_eq!(bytes2offset(&raw mut p), 4);
             let mut s1 = *b"tht\0";
@@ -3334,6 +3329,5 @@ mod tests {
                 soundalike_score(s1.as_mut_ptr().cast(), s3.as_mut_ptr().cast()),
                 SCORE_DEL
             );
-        }
     }
 }

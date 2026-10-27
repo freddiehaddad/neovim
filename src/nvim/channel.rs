@@ -224,7 +224,7 @@ pub fn channel_free_all_mem() {
 }
 
 /// Closes a channel.
-pub unsafe fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) -> bool {
+pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) -> bool {
     unsafe {
         let mut dummy: *const c_char = ptr::null();
         if error.is_null() {
@@ -399,17 +399,15 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
     }
 }
 
-pub unsafe fn channel_create_event(chan: &mut Channel, _ext_source: *const c_char) {
-    unsafe {
-        channel_event(&raw mut *chan, EVENT_CHANOPEN);
-    }
+pub fn channel_create_event(chan: &mut Channel, _ext_source: *const c_char) {
+    channel_event(&raw mut *chan, EVENT_CHANOPEN);
 }
 
 pub fn channel_incref(chan: &mut Channel) {
     chan.refcount += 1;
 }
 
-pub unsafe fn channel_decref(chan: *mut Channel) {
+pub fn channel_decref(chan: *mut Channel) {
     unsafe {
         if (*chan).refcount == 1 && !(*chan).did_close_event {
             (*chan).did_close_event = true;
@@ -458,7 +456,7 @@ fn channel_destroy_early(chan: &mut Channel) {
 }
 
 /// Starts a job and returns the associated channel.
-pub unsafe fn channel_job_start(
+pub fn channel_job_start(
     argv: Vec<std::ffi::CString>,
     exepath: *const c_char,
     on_stdout: CallbackReader,
@@ -618,7 +616,7 @@ pub unsafe fn channel_job_start(
     }
 }
 
-pub unsafe fn channel_connect(
+pub fn channel_connect(
     tcp: bool,
     address: *const c_char,
     rpc: bool,
@@ -669,7 +667,7 @@ pub unsafe fn channel_connect(
 }
 
 /// Creates an RPC channel from a tcp/pipe socket connection.
-pub unsafe fn channel_from_connection(watcher: *mut SocketWatcher) {
+pub fn channel_from_connection(watcher: *mut SocketWatcher) {
     unsafe {
         let channel = channel_alloc(kChannelStreamSocket);
         let socket_stream = &raw mut (*channel).socket;
@@ -687,7 +685,7 @@ pub unsafe fn channel_from_connection(watcher: *mut SocketWatcher) {
 }
 
 /// Creates an API channel from stdin/stdout. Used when embedding Nvim.
-pub unsafe fn channel_from_stdio(
+pub fn channel_from_stdio(
     rpc: bool,
     on_output: CallbackReader,
     error: *mut *const c_char,
@@ -744,7 +742,7 @@ pub unsafe fn channel_from_stdio(
     }
 }
 
-pub unsafe fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> usize {
+pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> usize {
     unsafe {
         let chan = find_channel(id);
         let len = data.len();
@@ -801,7 +799,7 @@ pub unsafe fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char
 }
 
 #[inline]
-unsafe fn buffer_to_tv_list(buf: *const c_char, len: usize) -> *mut list_T {
+fn buffer_to_tv_list(buf: *const c_char, len: usize) -> *mut list_T {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
         tv_list_append_string(l, c"".as_ptr(), 0);
@@ -812,7 +810,7 @@ unsafe fn buffer_to_tv_list(buf: *const c_char, len: usize) -> *mut list_T {
     }
 }
 
-pub unsafe fn on_channel_data(
+pub fn on_channel_data(
     stream: &mut RStream,
     buf: *const c_char,
     count: usize,
@@ -825,7 +823,7 @@ pub unsafe fn on_channel_data(
     }
 }
 
-pub unsafe fn on_job_stderr(
+pub fn on_job_stderr(
     stream: &mut RStream,
     buf: *const c_char,
     count: usize,
@@ -838,7 +836,7 @@ pub unsafe fn on_job_stderr(
     }
 }
 
-unsafe fn on_channel_output(
+fn on_channel_output(
     _stream: &mut RStream,
     chan: &mut Channel,
     buf: *const c_char,
@@ -916,8 +914,7 @@ pub fn on_channel_event(chan: &mut Channel) {
 }
 
 pub fn channel_reader_callbacks(chan: &mut Channel, reader: &mut CallbackReader) {
-    unsafe {
-        if reader.buffered {
+    if reader.buffered {
             if reader.eof {
                 if !reader.self_dict.is_null() {
                     let reader_type = reader.reader_type.unwrap();
@@ -953,7 +950,6 @@ pub fn channel_reader_callbacks(chan: &mut Channel, reader: &mut CallbackReader)
                 reader.eof = false;
             }
         }
-    }
 }
 
 pub(crate) fn channel_proc_exit_cb(proc_: &mut Proc, status: c_int, chan: &mut Channel) {
@@ -994,7 +990,7 @@ pub(crate) fn channel_proc_state_cb(_proc: &mut Proc, suspended: bool, chan: &mu
     }
 }
 
-unsafe fn channel_callback_call(chan: &mut Channel, reader: *mut CallbackReader) {
+fn channel_callback_call(chan: &mut Channel, reader: *mut CallbackReader) {
     unsafe {
         let cp = &raw mut *chan;
         let ct = &raw mut *chan;
@@ -1074,7 +1070,7 @@ pub fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
     }
 }
 
-pub unsafe fn channel_term_write(buf: *const c_char, size: usize, chan: &mut Channel) {
+pub fn channel_term_write(buf: *const c_char, size: usize, chan: &mut Channel) {
     unsafe {
         if chan.streamtype == kChannelStreamInternal {
             let internal = &raw mut chan.internal;
@@ -1170,7 +1166,7 @@ pub fn channel_term_close(chan: &mut Channel) {
     }
 }
 
-pub unsafe fn channel_event(chan: *mut Channel, event: event_T) {
+pub fn channel_event(chan: *mut Channel, event: event_T) {
     unsafe {
         if has_event(event) {
             channel_incref(&mut *chan);
@@ -1225,7 +1221,7 @@ pub fn channel_job_running(id: u64) -> bool {
     }
 }
 
-pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
+pub fn channel_info(id: u64, arena: *mut Arena) -> Dict {
     unsafe {
         let chan = find_channel(id);
         if chan.is_null() {
@@ -1394,7 +1390,7 @@ pub unsafe fn channel_info(id: u64, arena: *mut Arena) -> Dict {
     }
 }
 
-pub unsafe fn channel_all_info(arena: *mut Arena) -> Array {
+pub fn channel_all_info(arena: *mut Arena) -> Array {
     unsafe {
         let chans_ptr = &raw const g_st().channels;
         let mut ret = arena_array(arena, (*chans_ptr).len());

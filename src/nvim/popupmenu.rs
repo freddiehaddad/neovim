@@ -253,7 +253,7 @@ fn pum_compute_size() {
 }
 
 /// Calculate vertical placement for popup menu (`pum_compute_vertical_placement`).
-unsafe fn pum_compute_vertical_placement(
+fn pum_compute_vertical_placement(
     size: c_int,
     target_win: *mut win_T,
     pum_win_row: c_int,
@@ -352,7 +352,7 @@ fn set_pum_width_aligned_with_cursor(mut width: c_int, available_width: c_int) -
 }
 
 /// Calculate horizontal placement for popup menu (`pum_compute_horizontal_placement`).
-unsafe fn pum_compute_horizontal_placement(
+fn pum_compute_horizontal_placement(
     target_win: *mut win_T,
     cursor_col: c_int,
     border_width: c_int,
@@ -419,7 +419,7 @@ fn pum_border_width() -> c_int {
 }
 
 /// Show the popup menu with items `array[size]` (`pum_display`).
-pub unsafe fn pum_display(
+pub fn pum_display(
     array: *mut pumitem_T,
     size: c_int,
     selected: c_int,
@@ -605,7 +605,7 @@ pub unsafe fn pum_display(
 }
 
 /// Computes attributes of text on the popup menu (`pum_compute_text_attrs`).
-unsafe fn pum_compute_text_attrs(
+fn pum_compute_text_attrs(
     text: *mut c_char,
     hlf: hlf_T,
     user_hlattr: c_int,
@@ -691,7 +691,7 @@ unsafe fn pum_compute_text_attrs(
 }
 
 /// Displays text on the popup menu with specific attributes (`pum_grid_puts_with_attrs`).
-unsafe fn pum_grid_puts_with_attrs(
+fn pum_grid_puts_with_attrs(
     mut col: c_int,
     cells: c_int,
     text: *const c_char,
@@ -1180,7 +1180,7 @@ pub fn pum_redraw() {
 }
 
 /// Set the informational text in the preview buffer (`pum_preview_set_text`).
-unsafe fn pum_preview_set_text(
+fn pum_preview_set_text(
     win: &mut win_T,
     info: *mut c_char,
     lnum: &mut linenr_T,
@@ -1291,7 +1291,7 @@ fn pum_adjust_info_position(wp: &mut win_T, width: c_int) -> bool {
 }
 
 /// Used for `nvim__complete_set` (`pum_set_info`).
-pub unsafe fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
+pub fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut win_T {
     unsafe {
         if !pum().is_visible || !compl_match_curr_select(selected) {
             return ptr::null_mut();
@@ -1612,9 +1612,8 @@ pub fn pum_get_height() -> c_int {
 }
 
 /// Add size information about the pum to `dict` (`pum_set_event_info`).
-pub unsafe fn pum_set_event_info(dict: *mut dict_T) {
-    unsafe {
-        if !pum_visible() {
+pub fn pum_set_event_info(dict: *mut dict_T) {
+    if !pum_visible() {
             return;
         }
         let mut w: f64 = 0.0;
@@ -1642,7 +1641,6 @@ pub unsafe fn pum_set_event_info(dict: *mut dict_T) {
                 kBoolVarFalse
             },
         );
-    }
 }
 
 fn pum_position_at_mouse(min_width: c_int) {
@@ -1769,8 +1767,7 @@ fn pum_select_mouse_pos() {
 
 /// Execute the currently selected popup menu item (`pum_execute_menu`).
 fn pum_execute_menu(menu: &mut vimmenu_T, mode: c_int) {
-    unsafe {
-        let mut idx: c_int = 0;
+    let mut idx: c_int = 0;
         for mp in &mut menu.children {
             if (mp.modes & mp.enabled & mode) != 0 {
                 let cur_idx = idx;
@@ -1782,7 +1779,6 @@ fn pum_execute_menu(menu: &mut vimmenu_T, mode: c_int) {
                 }
             }
         }
-    }
 }
 
 /// Open the terminal version of the popup menu (`pum_show_popupmenu`).
@@ -1907,7 +1903,7 @@ pub fn pum_show_popupmenu(menu: &mut vimmenu_T) {
     }
 }
 
-pub unsafe fn pum_make_popup(path_name: *const c_char, use_mouse_pos: c_int) {
+pub fn pum_make_popup(path_name: *const c_char, use_mouse_pos: c_int) {
     unsafe {
         if use_mouse_pos == 0 {
             g_st().mouse_row = (**curwin.as_ptr()).w_grid.row_offset + (**curwin.as_ptr()).w_wrow;

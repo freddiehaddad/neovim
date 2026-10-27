@@ -382,7 +382,7 @@ pub(crate) fn atom_st() -> &'static mut CmdAtomModuleState {
 }
 
 #[inline]
-pub unsafe fn sb_concat(sb: &mut Vec<c_char>, s: *const c_char) {
+pub fn sb_concat(sb: &mut Vec<c_char>, s: *const c_char) {
     unsafe {
         if !s.is_null() {
             let len = std::ffi::CStr::from_ptr(s).to_bytes().len();
@@ -513,7 +513,7 @@ fn atom_origin_undoseq(origin: CmdOrigin) -> c_int {
     }
 }
 
-pub unsafe fn atom_origin_pos(buf: *mut buf_T) -> pos_T {
+pub fn atom_origin_pos(buf: *mut buf_T) -> pos_T {
     unsafe {
         let o = atom_st().composite.origin;
         if atom_st().composite.open
@@ -528,21 +528,17 @@ pub unsafe fn atom_origin_pos(buf: *mut buf_T) -> pos_T {
 }
 
 fn atom_redo_keys(spec: &CmdSpec) -> std::ffi::CString {
-    unsafe {
-        assert!(!mc_replaying());
+    assert!(!mc_replaying());
         redo_keys(spec).expect("atom_redo_keys must be non-empty")
-    }
 }
 
 fn atom_from_redo(r#type: CmdAtomType) -> CmdAtom {
-    unsafe {
-        let keys_cstr = redo_keys(ptr::null());
+    let keys_cstr = redo_keys(ptr::null());
         let mut atom = CmdAtom::new();
         atom.r#type = r#type;
         atom.spec = redo_spec();
         atom.keys = keys_cstr;
         atom
-    }
 }
 
 fn atom_from_spec(r#type: CmdAtomType, spec: CmdSpec) -> CmdAtom {
@@ -554,7 +550,7 @@ fn atom_from_spec(r#type: CmdAtomType, spec: CmdSpec) -> CmdAtom {
         atom
 }
 
-unsafe fn atom_from_cmdline(
+fn atom_from_cmdline(
     r#type: CmdAtomType,
     ca: &mut cmdarg_T,
     cmdline: *const c_char,
@@ -598,7 +594,7 @@ unsafe fn atom_from_cmdline(
     }
 }
 
-unsafe fn atom_from_frame(ca: &mut cmdarg_T, frame: *mut CmdFrame) -> CmdAtom {
+fn atom_from_frame(ca: &mut cmdarg_T, frame: *mut CmdFrame) -> CmdAtom {
     unsafe {
         let root = root_frame();
         let mut atom = CmdAtom::default();
@@ -635,8 +631,7 @@ fn atoms_concat_keys(atoms: &[CmdAtom], from: usize) -> std::ffi::CString {
 }
 
 fn atom_key_name(c: c_int) -> std::ffi::CString {
-    unsafe {
-        if c == NUL || c == K_LUA {
+    if c == NUL || c == K_LUA {
             return std::ffi::CString::default();
         }
         if is_special(c) || c < b' ' as c_int {
@@ -649,10 +644,9 @@ fn atom_key_name(c: c_int) -> std::ffi::CString {
         let n = utf_char2bytes(c, buf.as_mut_ptr()) as usize;
         buf[n] = 0;
         cstr_to_cstring(buf.as_ptr())
-    }
 }
 
-unsafe fn atom_dict(atom: *const CmdAtom) -> Dict {
+fn atom_dict(atom: *const CmdAtom) -> Dict {
     unsafe {
         let spec = &(*atom).spec;
         let regname: [c_char; 2] = [spec.regname as c_char, 0];
@@ -735,7 +729,7 @@ unsafe fn atom_dict(atom: *const CmdAtom) -> Dict {
     }
 }
 
-unsafe fn atom_emit(atom: *const CmdAtom) {
+fn atom_emit(atom: *const CmdAtom) {
     unsafe {
         if !has_event(EVENT_CMDATOM) {
             return;
@@ -770,7 +764,7 @@ unsafe fn atom_emit(atom: *const CmdAtom) {
     }
 }
 
-pub unsafe fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
+pub fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
     unsafe {
         assert!((*atom).keys.is_some());
         if !(*atom).origin.buf.br_buf.is_null() {
@@ -837,7 +831,7 @@ pub unsafe fn atom_push_raw(cascade: bool, atom: *mut CmdAtom) {
     }
 }
 
-unsafe fn atom_push(cascade: bool, atom: *mut CmdAtom) {
+fn atom_push(cascade: bool, atom: *mut CmdAtom) {
     unsafe {
         if atom_blocked() {
             *atom = CmdAtom::new();
@@ -847,7 +841,7 @@ unsafe fn atom_push(cascade: bool, atom: *mut CmdAtom) {
     }
 }
 
-unsafe fn atom_stage_set(atom: *mut CmdAtom) {
+fn atom_stage_set(atom: *mut CmdAtom) {
     unsafe {
         let cur_frame = cur_frame_ptr();
         assert!(!cur_frame.is_null());
@@ -871,8 +865,7 @@ fn atom_staged() -> bool {
 }
 
 fn atom_stage_flush(frame: &mut CmdFrame) {
-    unsafe {
-        let Some(ref keys) = frame.staged.keys else {
+    let Some(ref keys) = frame.staged.keys else {
             return;
         };
         let cascade = !keys.as_bytes().is_empty()
@@ -880,7 +873,6 @@ fn atom_stage_flush(frame: &mut CmdFrame) {
             && atom_st().global_ops == frame.global_ops;
         atom_push(cascade, &mut frame.staged);
         frame.staged = CmdAtom::default();
-    }
 }
 
 fn atom_composite_lhs() -> std::ffi::CString {
@@ -918,7 +910,7 @@ pub fn atom_composite_active() -> bool {
     atom_st().composite.active
 }
 
-unsafe fn atom_composite_label(lhs: *const c_char, len: usize) {
+fn atom_composite_label(lhs: *const c_char, len: usize) {
     unsafe {
         let copy_len = len.min(MAXMAPLEN + 3);
         ptr::copy_nonoverlapping(lhs, ptr::addr_of_mut!(atom_st().composite.lhs).cast(), copy_len);
@@ -926,16 +918,14 @@ unsafe fn atom_composite_label(lhs: *const c_char, len: usize) {
     }
 }
 
-unsafe fn atom_composite_start(lhs: *const c_char, len: usize) {
-    unsafe {
-        if !lhs.is_null() {
+fn atom_composite_start(lhs: *const c_char, len: usize) {
+    if !lhs.is_null() {
             atom_composite_label(lhs, len);
         }
         atom_st().composite.active = true;
         atom_st().composite.queued = false;
         atom_st().composite.lossy = false;
         atom_st().composite.frame = 0;
-    }
 }
 
 fn atom_composite_end() {
@@ -1114,7 +1104,7 @@ pub fn atom_key_class(cmd: c_int, arg: c_int, arg2: c_int) -> c_uint {
         0
 }
 
-pub unsafe fn atom_cmdline_set(firstc: c_int, line: *const c_char, len: usize) {
+pub fn atom_cmdline_set(firstc: c_int, line: *const c_char, len: usize) {
     unsafe {
         let cur_frame = cur_frame_ptr();
         if cur_frame.is_null()
@@ -1170,7 +1160,7 @@ pub fn atom_payload_end() {
     }
 }
 
-unsafe fn atom_payload_append(atom: *mut CmdAtom, frame: *mut CmdFrame) {
+fn atom_payload_append(atom: *mut CmdAtom, frame: *mut CmdFrame) {
     unsafe {
         let plen = if (*frame).payload_start == usize::MAX {
             0
@@ -1191,7 +1181,7 @@ unsafe fn atom_payload_append(atom: *mut CmdAtom, frame: *mut CmdFrame) {
     }
 }
 
-pub unsafe fn atom_typed_add(chars: *const u8, len: usize) {
+pub fn atom_typed_add(chars: *const u8, len: usize) {
     unsafe {
         if mc_replaying() || !atom_typed_collecting() || g_st().cmdline_star > 0 {
             return;
@@ -1264,28 +1254,24 @@ pub fn atom_redo_cancel() {
 }
 
 pub fn atom_macro_start(regname: c_int) {
-    unsafe {
-        if atom_is_user_input() {
+    if atom_is_user_input() {
             atom_st().composite.r#macro = true;
             if !atom_composite_active() {
                 let lhs: [c_char; 3] = [b'@' as c_char, regname as c_char, 0];
                 atom_composite_start(lhs.as_ptr(), 2);
             }
         }
-    }
 }
 
 pub fn atom_stuff_start(cap: &cmdarg_T) {
-    unsafe {
-        if mc_replaying() || atom_composite_active() || !atom_is_user_input() {
+    if mc_replaying() || atom_composite_active() || !atom_is_user_input() {
             return;
         }
         let lhs = atom_redo_keys(&atom_cmd_spec(cap));
         atom_composite_start(lhs.as_ptr(), lhs.as_bytes().len());
-    }
 }
 
-pub unsafe fn atom_map_start(lhs: *const c_char, len: usize, peeked: bool) {
+pub fn atom_map_start(lhs: *const c_char, len: usize, peeked: bool) {
     unsafe {
         if mc_replaying() || g_st().reg_executing != 0 || g_st().ex_normal_busy != 0 {
             return;
@@ -1407,7 +1393,7 @@ fn atom_visual_span_flush() {
     }
 }
 
-unsafe fn atom_visual_end_suffix(
+fn atom_visual_end_suffix(
     suffix: Option<std::ffi::CString>,
     spec: *const CmdSpec,
     redoable: bool,
@@ -1515,13 +1501,11 @@ unsafe fn atom_visual_end_suffix(
 }
 
 pub fn atom_visual_end(spec: CmdSpec, redoable: bool) -> bool {
-    unsafe {
-        if mc_replaying() {
+    if mc_replaying() {
             return false;
         }
         let suffix = atom_redo_keys(&spec);
         atom_visual_end_suffix(Some(suffix), &spec, redoable)
-    }
 }
 
 pub fn atom_capture_op(oap: &mut oparg_T, cap: &mut cmdarg_T, redo_yank: bool) {
@@ -1752,8 +1736,7 @@ pub fn atom_ins_end(session: &mut InsSession, busy: bool) {
 }
 
 fn atom_ins_push(session: &InsSession, cascade: bool) {
-    unsafe {
-        let mut atom = atom_from_redo(if session.vis != kVInsNone {
+    let mut atom = atom_from_redo(if session.vis != kVInsNone {
             kAVisual
         } else {
             kAInsert
@@ -1778,7 +1761,6 @@ fn atom_ins_push(session: &InsSession, cascade: bool) {
         atom.text = get_last_insert_save();
         atom.origin = session.origin;
         atom_push_raw(cascade, &mut atom);
-    }
 }
 
 pub fn atom_cmd_start(cmdchar: c_int) {
@@ -1830,7 +1812,7 @@ pub fn atom_cmd_start(cmdchar: c_int) {
     }
 }
 
-unsafe fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> bool {
+fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> bool {
     unsafe {
         if mc_replaying() || atom_st().atom_suppressed {
             return false;

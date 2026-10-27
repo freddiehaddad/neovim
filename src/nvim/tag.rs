@@ -388,11 +388,11 @@ pub fn free_tagfunc_option() {
 /// Mark the global `'tagfunc'` callback with `copyID` so that it is not garbage
 /// collected.
 pub fn set_ref_in_tagfunc(copyID: c_int) -> bool {
-    unsafe { set_ref_in_callback(&mut opt_vars().p_tfu, copyID, ptr::null_mut(), ptr::null_mut()) }
+    set_ref_in_callback(&mut opt_vars().p_tfu, copyID, ptr::null_mut(), ptr::null_mut())
 }
 
 /// Jump to tag; handling of tag commands and tag stack.
-pub unsafe fn do_tag(
+pub fn do_tag(
     eap: *mut exarg_T,
     tag: *mut c_char,
     mut type_: c_int,
@@ -913,7 +913,7 @@ pub unsafe fn do_tag(
 }
 
 /// Let the user pick from `matches`. Delegates to (async) `vim.ui.select()`.
-unsafe fn select_tag_match(
+fn select_tag_match(
     eap: *mut exarg_T,
     new_tag: bool,
     use_tagstack: bool,
@@ -1006,7 +1006,7 @@ unsafe fn select_tag_match(
 }
 
 /// Add the matching tags to the location list for the current window.
-unsafe fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> c_int {
+fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> c_int {
     unsafe {
         let mut tag_name = [0 as c_char; 128 + 1];
         let mut tagp = tagptrs_T::default();
@@ -1159,7 +1159,7 @@ pub fn do_tags(_eap: &mut exarg_T) {
     }
 }
 
-unsafe fn tag_strnicmp(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> c_int {
+fn tag_strnicmp(mut s1: *const c_char, mut s2: *const c_char, mut len: usize) -> c_int {
     unsafe {
         while len > 0 {
             let i = toupper_asc(c_int::from(*s1 as u8)) - toupper_asc(c_int::from(*s2 as u8));
@@ -1222,7 +1222,7 @@ fn prepare_pats(pats: &mut pat_T, has_re: bool) {
     }
 }
 
-unsafe fn tagfunc_cmd_kind(cmd: *mut c_char) -> tagcmd_T {
+fn tagfunc_cmd_kind(cmd: *mut c_char) -> tagcmd_T {
     unsafe {
         if ascii_isdigit(*cmd) {
             return if *skipdigits(cmd) == NUL {
@@ -1246,7 +1246,7 @@ unsafe fn tagfunc_cmd_kind(cmd: *mut c_char) -> tagcmd_T {
     }
 }
 
-unsafe fn find_tagfunc_tags(
+fn find_tagfunc_tags(
     pat: *mut c_char,
     ga: &mut Vec<Vec<c_char>>,
     match_count: *mut c_int,
@@ -1517,7 +1517,7 @@ impl findtags_state_T {
     }
 }
 
-unsafe fn findtags_state_init(
+fn findtags_state_init(
     st: *mut findtags_state_T,
     pat: *mut c_char,
     flags: c_int,
@@ -1563,13 +1563,11 @@ unsafe fn findtags_state_init(
 
 impl Drop for findtags_state_T {
     fn drop(&mut self) {
-        unsafe {
-            vim_regfree(self.orgpat.regmatch.regprog);
-        }
+        vim_regfree(self.orgpat.regmatch.regprog);
     }
 }
 
-unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
+fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
     unsafe {
         let st = &mut *st;
         let tag_fname = st.tag_fname.as_ptr();
@@ -1638,7 +1636,7 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
     }
 }
 
-unsafe fn findtags_apply_tfu(
+fn findtags_apply_tfu(
     st: &mut findtags_state_T,
     pat: *mut c_char,
     buf_ffname: *mut c_char,
@@ -1755,7 +1753,7 @@ fn findtags_hdr_parse(st: &mut findtags_state_T) -> bool {
     }
 }
 
-unsafe fn findtags_start_state_handler(
+fn findtags_start_state_handler(
     st: &mut findtags_state_T,
     sortic: *mut bool,
     sinfo_p: *mut tagsearch_info_T,
@@ -1808,7 +1806,7 @@ unsafe fn findtags_start_state_handler(
     }
 }
 
-unsafe fn findtags_parse_line(
+fn findtags_parse_line(
     st: &mut findtags_state_T,
     tagpp: &mut tagptrs_T,
     margs: &mut findtags_match_args_T,
@@ -1988,7 +1986,7 @@ fn findtags_match_tag(
     }
 }
 
-unsafe fn findtags_string_convert(st: *mut findtags_state_T) {
+fn findtags_string_convert(st: *mut findtags_state_T) {
     unsafe {
         let st = &mut *st;
         let Some(conv_line) = string_convert(
@@ -2007,7 +2005,7 @@ unsafe fn findtags_string_convert(st: *mut findtags_state_T) {
     }
 }
 
-unsafe fn findtags_add_match(
+fn findtags_add_match(
     st: &mut findtags_state_T,
     tagpp: &mut tagptrs_T,
     margs: &findtags_match_args_T,
@@ -2115,7 +2113,7 @@ unsafe fn findtags_add_match(
     }
 }
 
-unsafe fn findtags_get_all_tags(
+fn findtags_get_all_tags(
     st: &mut findtags_state_T,
     margs: &mut findtags_match_args_T,
     buf_ffname: *mut c_char,
@@ -2204,7 +2202,7 @@ unsafe fn findtags_get_all_tags(
     }
 }
 
-unsafe fn findtags_in_file(st: &mut findtags_state_T, _flags: c_int, buf_ffname: *mut c_char) {
+fn findtags_in_file(st: &mut findtags_state_T, _flags: c_int, buf_ffname: *mut c_char) {
     unsafe {
         let mut margs = findtags_match_args_T::default();
 
@@ -2291,7 +2289,7 @@ fn findtags_copy_matches(st: &mut findtags_state_T, matches: &mut Vec<Vec<c_char
 }
 
 /// `find_tags()` - search for tags in tags files into owned `Vec<c_char>` items.
-pub unsafe fn find_tags(
+pub fn find_tags(
     pat: *mut c_char,
     matches: &mut Vec<Vec<c_char>>,
     flags: c_int,
@@ -2460,7 +2458,7 @@ pub fn free_tag_stuff() {
 }
 
 /// Get the next name of a tag file from the tag file list.
-pub unsafe fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> c_int {
+pub fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) -> c_int {
     unsafe {
         let mut fname: Option<std::ffi::CString>;
 
@@ -2563,7 +2561,7 @@ pub unsafe fn get_tagfname(tnp: &mut tagname_T, first: c_int, buf: *mut c_char) 
     }
 }
 
-unsafe fn parse_tag_line(lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
+fn parse_tag_line(lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
     unsafe {
         tagp.tagname = lbuf;
         let mut p = vim_strchr(lbuf, TAB as c_int);
@@ -2611,7 +2609,7 @@ fn test_for_static(tagp: &tagptrs_T) -> bool {
     }
 }
 
-unsafe fn matching_line_len(lbuf: *const c_char) -> usize {
+fn matching_line_len(lbuf: *const c_char) -> usize {
     unsafe {
         let mut p = lbuf.add(1);
         p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len() + 1);
@@ -2619,7 +2617,7 @@ unsafe fn matching_line_len(lbuf: *const c_char) -> usize {
     }
 }
 
-unsafe fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
+fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
     unsafe {
         tagp.tag_fname = lbuf.add(1);
         lbuf = lbuf.add(std::ffi::CStr::from_ptr(tagp.tag_fname).to_bytes().len() + 2);
@@ -2705,7 +2703,7 @@ fn tag_full_fname(tagp: &mut tagptrs_T) -> std::ffi::CString {
     }
 }
 
-unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int {
+fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -> c_int {
     unsafe {
         if g_st().postponed_split == 0 && !check_can_set_curbuf_forceit(forceit) {
             return FAIL;
@@ -3014,7 +3012,7 @@ unsafe fn jumpto_tag(lbuf_arg: *const c_char, forceit: c_int, keep_help: bool) -
     }
 }
 
-unsafe fn expand_tag_fname(
+fn expand_tag_fname(
     fname_arg: *mut c_char,
     tag_fname: *mut c_char,
     expand: bool,
@@ -3056,7 +3054,7 @@ unsafe fn expand_tag_fname(
     }
 }
 
-unsafe fn test_for_current(
+fn test_for_current(
     fname: *mut c_char,
     fname_end: *mut c_char,
     tag_fname: *mut c_char,
@@ -3079,7 +3077,7 @@ unsafe fn test_for_current(
     }
 }
 
-unsafe fn find_extra(pp: *mut *mut c_char) -> c_int {
+fn find_extra(pp: *mut *mut c_char) -> c_int {
     unsafe {
         let mut str_ = *pp;
         let mut first_char = **pp;
@@ -3137,7 +3135,7 @@ pub fn tag_listfiles_extra(idx: usize) -> Option<(*const c_char, *const c_char)>
     }
 }
 
-pub unsafe fn expand_tags(
+pub fn expand_tags(
     tagnames: bool,
     pat: *mut c_char,
     file: &mut Vec<std::ffi::CString>,
@@ -3199,7 +3197,7 @@ pub unsafe fn expand_tags(
     }
 }
 
-unsafe fn add_tag_field(
+fn add_tag_field(
     dict: *mut dict_T,
     field_name: *const c_char,
     start: *const c_char,
@@ -3236,7 +3234,7 @@ unsafe fn add_tag_field(
 
 /// Add the tags matching the specified pattern `pat` to the list `list`
 /// as a dictionary. Use `buf_fname` for priority, unless NULL.
-pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> c_int {
+pub fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_char) -> c_int {
     unsafe {
         let mut matches: Vec<Vec<c_char>> = Vec::new();
         let mut tp = tagptrs_T::default();
@@ -3333,7 +3331,7 @@ pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_ch
     }
 }
 
-unsafe fn get_tag_details(tag: &mut taggy_T, retdict: *mut dict_T) {
+fn get_tag_details(tag: &mut taggy_T, retdict: *mut dict_T) {
     unsafe {
         tv_dict_add_str(
             retdict,
@@ -3383,7 +3381,7 @@ unsafe fn get_tag_details(tag: &mut taggy_T, retdict: *mut dict_T) {
 }
 
 /// Return the tag stack entries of the specified window `wp` in dictionary `retdict`.
-pub unsafe fn get_tagstack(wp: &mut win_T, retdict: *mut dict_T) {
+pub fn get_tagstack(wp: &mut win_T, retdict: *mut dict_T) {
     unsafe {
         tv_dict_add_nr(
             retdict,
@@ -3460,7 +3458,7 @@ fn tagstack_push_item(
     }
 }
 
-unsafe fn tagstack_push_items(wp: *mut win_T, l: *mut list_T) {
+fn tagstack_push_items(wp: *mut win_T, l: *mut list_T) {
     unsafe {
         let mut li = if l.is_null() {
             ptr::null_mut()
@@ -3515,7 +3513,7 @@ fn tagstack_set_curidx(wp: &mut win_T, curidx: c_int) {
 }
 
 /// Set the tag stack entries of the specified window.
-pub unsafe fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> c_int {
+pub fn set_tagstack(wp: &mut win_T, d: *const dict_T, action: c_int) -> c_int {
     unsafe {
         if tag_st().tfu_in_use {
             emsg(gettext(E_CANNOT_MODIFY_TAG_STACK_WITHIN_TAGFUNC.as_ptr()));
@@ -3572,9 +3570,7 @@ mod tests {
 
     #[test]
     fn tag_strnicmp_compares_ascii_case_folded_to_uppercase() {
-        unsafe {
-            assert_eq!(tag_strnicmp(c"abc".as_ptr(), c"ABC".as_ptr(), 3), 0);
+        assert_eq!(tag_strnicmp(c"abc".as_ptr(), c"ABC".as_ptr(), 3), 0);
             assert!(tag_strnicmp(c"abc".as_ptr(), c"_bc".as_ptr(), 3) < 0);
-        }
     }
 }

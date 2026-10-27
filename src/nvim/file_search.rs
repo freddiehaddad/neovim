@@ -159,7 +159,7 @@ impl Drop for ff_search_ctx_T {
 }
 
 /// Initialization routine for `vim_findfile()`.
-pub unsafe fn vim_findfile_init(
+pub fn vim_findfile_init(
     mut path: *mut c_char,
     filename: *mut c_char,
     filenamelen: usize,
@@ -466,7 +466,7 @@ pub unsafe fn vim_findfile_init(
 }
 
 /// Return the stopdir string. Check that `;` is not escaped.
-pub unsafe fn vim_findfile_stopdir(mut buf: *mut c_char) -> *mut c_char {
+pub fn vim_findfile_stopdir(mut buf: *mut c_char) -> *mut c_char {
     unsafe {
         while *buf != NUL
             && *buf != b';' as c_char
@@ -915,7 +915,7 @@ fn vim_findfile_free_visited(search_ctx: Option<&mut ff_search_ctx_T>) {
     search_ctx.ffsc_dir_visited_lists_list.clear();
 }
 
-unsafe fn ff_get_visited_list(
+fn ff_get_visited_list(
     filename: *const c_char,
     filenamelen: usize,
     list_headp: &mut Vec<ff_visited_list_hdr_T>,
@@ -942,7 +942,7 @@ unsafe fn ff_get_visited_list(
 }
 
 /// Check if two wildcard paths are equal.
-unsafe fn ff_wc_equal(s1: *const c_char, s2: *const c_char) -> bool {
+fn ff_wc_equal(s1: *const c_char, s2: *const c_char) -> bool {
     unsafe {
         if s1 == s2 {
             return true;
@@ -979,7 +979,7 @@ unsafe fn ff_wc_equal(s1: *const c_char, s2: *const c_char) -> bool {
 }
 
 /// Maintain the list of already visited files and dirs.
-unsafe fn ff_check_visited(
+fn ff_check_visited(
     visited_list: &mut Vec<ff_visited_T>,
     fname: *const c_char,
     fnamelen: usize,
@@ -1047,7 +1047,7 @@ unsafe fn ff_check_visited(
     }
 }
 
-unsafe fn ff_create_stack_element(
+fn ff_create_stack_element(
     mut fix_part: *const c_char,
     mut fix_partlen: usize,
     mut wc_part: *const c_char,
@@ -1097,7 +1097,7 @@ fn ff_clear(search_ctx: &mut ff_search_ctx_T) {
         search_ctx.ffsc_level = 0;
 }
 
-unsafe fn ff_path_in_stoplist(
+fn ff_path_in_stoplist(
     path: *const c_char,
     mut path_len: usize,
     stopdirs_v: &[std::ffi::CString],
@@ -1125,7 +1125,7 @@ unsafe fn ff_path_in_stoplist(
 }
 
 /// Find the file name `ptr[len]` in the path. Also finds directory names.
-pub unsafe fn find_file_in_path(
+pub fn find_file_in_path(
     ptr: *mut c_char,
     len: usize,
     options: c_int,
@@ -1157,7 +1157,7 @@ pub unsafe fn find_file_in_path(
 pub fn free_findfile() {}
 
 /// Find the directory name `ptr[len]` in the path.
-pub unsafe fn find_directory_in_path(
+pub fn find_directory_in_path(
     ptr: *mut c_char,
     len: usize,
     options: c_int,
@@ -1165,8 +1165,7 @@ pub unsafe fn find_directory_in_path(
     file_to_find: &mut Option<std::ffi::CString>,
     search_ctx: &mut Option<ff_search_ctx_T>,
 ) -> Option<std::ffi::CString> {
-    unsafe {
-        find_file_in_path_option(
+    find_file_in_path_option(
             ptr,
             len,
             options,
@@ -1178,10 +1177,9 @@ pub unsafe fn find_directory_in_path(
             file_to_find,
             search_ctx,
         )
-    }
 }
 
-pub unsafe fn find_file_in_path_option(
+pub fn find_file_in_path_option(
     ptr: *mut c_char,
     len: usize,
     options: c_int,
@@ -1386,7 +1384,7 @@ pub unsafe fn find_file_in_path_option(
 }
 
 /// Get the file name at the cursor.
-pub unsafe fn grab_file_name(count: c_int, file_lnum: *mut linenr_T) -> Option<std::ffi::CString> {
+pub fn grab_file_name(count: c_int, file_lnum: *mut linenr_T) -> Option<std::ffi::CString> {
     unsafe {
         let options = FNAME_MESS | FNAME_EXP | FNAME_REL | FNAME_UNESC;
         let fname = if g_st().Visual.active {
@@ -1421,7 +1419,7 @@ pub unsafe fn grab_file_name(count: c_int, file_lnum: *mut linenr_T) -> Option<s
 }
 
 /// Return the file name under or after the cursor.
-pub unsafe fn file_name_at_cursor(
+pub fn file_name_at_cursor(
     options: c_int,
     count: c_int,
     file_lnum: *mut linenr_T,
@@ -1439,7 +1437,7 @@ pub unsafe fn file_name_at_cursor(
 }
 
 /// Return the name of the file under or after `line[col]`.
-pub unsafe fn file_name_in_line(
+pub fn file_name_in_line(
     line: *mut c_char,
     col: c_int,
     options: c_int,
@@ -1536,7 +1534,7 @@ pub unsafe fn file_name_in_line(
     }
 }
 
-unsafe fn eval_includeexpr(ptr: *const c_char, len: usize) -> Option<std::ffi::CString> {
+fn eval_includeexpr(ptr: *const c_char, len: usize) -> Option<std::ffi::CString> {
     unsafe {
         let save_sctx = g_st().current_sctx;
         set_vim_var_string(VV_FNAME, ptr, len as isize);
@@ -1558,7 +1556,7 @@ unsafe fn eval_includeexpr(ptr: *const c_char, len: usize) -> Option<std::ffi::C
 }
 
 /// Return the name of the file `ptr[len]` in `'path'`.
-pub unsafe fn find_file_name_in_path(
+pub fn find_file_name_in_path(
     mut ptr: *mut c_char,
     mut len: usize,
     options: c_int,
@@ -1661,7 +1659,7 @@ pub unsafe fn find_file_name_in_path(
     }
 }
 
-pub unsafe fn do_autocmd_dirchanged(
+pub fn do_autocmd_dirchanged(
     new_dir: *mut c_char,
     scope: CdScope,
     cause: CdCause,
@@ -1726,7 +1724,7 @@ pub unsafe fn do_autocmd_dirchanged(
 }
 
 /// Change to a file's directory.
-pub unsafe fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> c_int {
+pub fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> c_int {
     unsafe {
         let mut dir: [c_char; MAXPATHL] = [0; MAXPATHL];
         let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
@@ -1759,7 +1757,7 @@ pub unsafe fn vim_chdirfile(fname: *mut c_char, cause: CdCause) -> c_int {
 }
 
 /// Change directory to `new_dir`. Search `'cdpath'` for relative directory names.
-pub unsafe fn vim_chdir(new_dir: *mut c_char) -> c_int {
+pub fn vim_chdir(new_dir: *mut c_char) -> c_int {
     unsafe {
         let mut file_to_find: Option<std::ffi::CString> = None;
         let mut search_ctx: Option<ff_search_ctx_T> = None;
@@ -1785,7 +1783,7 @@ mod tests {
     #[test]
     fn vim_findfile_stopdir_splits_and_unescapes_semicolons() {
         let mut buf = *b"/a/b;/c/d\0";
-        let stop = unsafe { vim_findfile_stopdir(buf.as_mut_ptr().cast()) };
+        let stop = vim_findfile_stopdir(buf.as_mut_ptr().cast());
         assert!(!stop.is_null());
         let first = unsafe { CStr::from_ptr(buf.as_ptr().cast()).to_bytes() };
         let rest = unsafe { CStr::from_ptr(stop).to_bytes() };
@@ -1793,7 +1791,7 @@ mod tests {
         assert_eq!(rest, b"/c/d");
 
         let mut escaped = *b"/a\\;b;/c\0";
-        let stop2 = unsafe { vim_findfile_stopdir(escaped.as_mut_ptr().cast()) };
+        let stop2 = vim_findfile_stopdir(escaped.as_mut_ptr().cast());
         assert!(!stop2.is_null());
         let first2 = unsafe { CStr::from_ptr(escaped.as_ptr().cast()).to_bytes() };
         let rest2 = unsafe { CStr::from_ptr(stop2).to_bytes() };
@@ -1801,7 +1799,7 @@ mod tests {
         assert_eq!(rest2, b"/c");
 
         let mut none = *b"/a/b\0";
-        let stop3 = unsafe { vim_findfile_stopdir(none.as_mut_ptr().cast()) };
+        let stop3 = vim_findfile_stopdir(none.as_mut_ptr().cast());
         assert!(stop3.is_null());
     }
 }

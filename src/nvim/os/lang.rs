@@ -338,23 +338,19 @@ fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<u8> {
     }
     if let Ok(cs_cstr) = CString::new(cs) {
         let mut vc = vimconv_T::new();
-        if unsafe {
-            convert_setup(
+        if convert_setup(
                 &mut vc,
                 cs_cstr.as_ptr().cast_mut(),
                 c"utf-8".as_ptr().cast_mut(),
-            )
-        } == crate::math::OK
+            ) == crate::math::OK
             && vc.vc_type != 0
         {
             let mut len = bytes.len();
-            if let Some(mut slice) = unsafe {
-                string_convert(
+            if let Some(mut slice) = string_convert(
                     &vc,
                     bytes.as_ptr().cast::<c_char>().cast_mut(),
                     &raw mut len,
-                )
-            } {
+                ) {
                 slice.truncate(len);
                 return slice;
             }

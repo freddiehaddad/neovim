@@ -1329,8 +1329,7 @@ pub fn parse_bordertext(
     fconfig: &mut WinConfig,
     err: &mut Error,
 ) {
-    unsafe {
-        if bordertext.obj_type != ObjectType::kObjectTypeString
+    if bordertext.obj_type != ObjectType::kObjectTypeString
             && bordertext.obj_type != ObjectType::kObjectTypeArray
         {
             api_err_exp(
@@ -1389,7 +1388,6 @@ pub fn parse_bordertext(
         }
 
         *is_present = true;
-    }
 }
 
 fn parse_bordertext_pos(
@@ -1399,8 +1397,7 @@ fn parse_bordertext_pos(
     fconfig: &mut WinConfig,
     err: &mut Error,
 ) -> bool {
-    unsafe {
-        let align = if bordertext_type == kBorderTextTitle {
+    let align = if bordertext_type == kBorderTextTitle {
             &mut fconfig.title_pos
         } else {
             &mut fconfig.footer_pos
@@ -1435,7 +1432,6 @@ fn parse_bordertext_pos(
             return false;
         }
         true
-    }
 }
 
 // DLLEXPORT void parse_border_style(Object style, WinConfig *fconfig, Error *err);

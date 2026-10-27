@@ -328,7 +328,7 @@ pub fn ui_pum_get_height() -> c_int {
     }
 }
 
-pub unsafe fn ui_pum_get_pos(
+pub fn ui_pum_get_pos(
     pwidth: *mut f64,
     pheight: *mut f64,
     prow: *mut f64,
@@ -397,8 +397,7 @@ pub fn ui_busy_stop() {
 }
 
 pub fn vim_beep(val: c_uint) {
-    unsafe {
-        if g_st().emsg_silent != 0 || g_st().in_assert_fails {
+    if g_st().emsg_silent != 0 || g_st().in_assert_fails {
             g_st().did_beep_silent += 1;
             return;
         }
@@ -424,7 +423,6 @@ pub fn vim_beep(val: c_uint) {
             msg_source(HLF_W);
             msg(gettext(c"Beep!".as_ptr()), HLF_W);
         }
-    }
 }
 
 pub fn do_autocmd_uienter_all() {
@@ -525,7 +523,7 @@ pub fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
     }
 }
 
-pub unsafe fn ui_line(
+pub fn ui_line(
     grid: *mut ScreenGrid,
     row: c_int,
     invalid_row: bool,
@@ -772,7 +770,7 @@ pub fn ui_has(ext: UIExtension) -> bool {
     ui_state().ui_ext[ext as usize]
 }
 
-pub unsafe fn ui_array(arena: *mut Arena) -> Array {
+pub fn ui_array(arena: *mut Arena) -> Array {
     unsafe {
         let uis_ptr = &raw const ui_state().uis;
         let mut all_uis = arena_array(arena, (*uis_ptr).len());
@@ -868,9 +866,8 @@ pub fn ui_grid_resize(grid_handle: handle_T, width: c_int, height: c_int, err: &
     }
 }
 
-unsafe fn ui_attach_error(ns_id: u32, name: *const c_char, msg: *const c_char) {
-    unsafe {
-        let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)".as_ptr());
+fn ui_attach_error(ns_id: u32, name: *const c_char, msg: *const c_char) {
+    let ns = describe_ns(ns_id as c_int, c"(UNKNOWN PLUGIN)".as_ptr());
         logmsg!(
             LOGLVL_ERR,
             ptr::null(),
@@ -888,7 +885,6 @@ unsafe fn ui_attach_error(ns_id: u32, name: *const c_char, msg: *const c_char) {
             ns,
             msg,
         );
-    }
 }
 
 pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
@@ -956,7 +952,7 @@ fn ui_cb_update_ext() {
     }
 }
 
-pub unsafe fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
+pub fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: *mut bool) {
     unsafe {
         let mut event_cb = UIEventCallback {
             cb,
@@ -1013,7 +1009,7 @@ pub fn ui_log(funname: &'static std::ffi::CStr) {
     #[cfg(not(debug_assertions))]
     let _ = funname;
     #[cfg(debug_assertions)]
-    unsafe {
+    {
         if crate::memory::mem_st().entered_free_all_mem {
             return;
         }
@@ -1281,7 +1277,7 @@ pub fn ui_call_grid_destroy(grid: Integer) {
     ui_call_event_guarded!(c"grid_destroy", [integer_obj(grid)]);
 }
 
-pub unsafe fn ui_call_raw_line(
+pub fn ui_call_raw_line(
     grid: Integer,
     row: Integer,
     startcol: Integer,
@@ -1292,11 +1288,9 @@ pub unsafe fn ui_call_raw_line(
     chunk: *const schar_T,
     attrs: *const sattr_T,
 ) {
-    unsafe {
-        ui_comp_raw_line(
+    ui_comp_raw_line(
             grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
         );
-    }
     ui_call_loop!(!ui.composed, c"raw_line", |ui| {
         remote_ui_raw_line(
             ui, grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
@@ -1304,7 +1298,7 @@ pub unsafe fn ui_call_raw_line(
     });
 }
 
-pub unsafe fn ui_composed_call_raw_line(
+pub fn ui_composed_call_raw_line(
     grid: Integer,
     row: Integer,
     startcol: Integer,

@@ -80,7 +80,7 @@ fn indc_st() -> &'static mut IndentCState {
 use crate::keycodes::ctrl_chr;
 /// Check if line[] contains a "//" comment, ignoring matches inside strings.
 /// Return MAXCOL if not, otherwise return the column.
-pub unsafe fn check_linecomment(line: *const c_char) -> c_int {
+pub fn check_linecomment(line: *const c_char) -> c_int {
     unsafe {
         let mut p = line;
         if (*g_st().curbuf).b_p_lisp != 0 {
@@ -162,7 +162,7 @@ pub fn find_start_comment(ind_maxcomment: c_int) -> *mut pos_T {
         pos
     }
 }
-unsafe fn ind_find_start_CORS(is_raw: *mut linenr_T) -> *mut pos_T {
+fn ind_find_start_CORS(is_raw: *mut linenr_T) -> *mut pos_T {
     unsafe {
         let mut comment_pos = find_start_comment((*g_st().curbuf).b_ind_maxcomment);
         if !comment_pos.is_null() {
@@ -205,7 +205,7 @@ fn find_start_rawstring(ind_maxcomment: c_int) -> *mut pos_T {
         pos
     }
 }
-unsafe fn skip_string(mut p: *const c_char) -> *const c_char {
+fn skip_string(mut p: *const c_char) -> *const c_char {
     unsafe {
         loop {
             if *p == b'\'' as c_char {
@@ -267,7 +267,7 @@ unsafe fn skip_string(mut p: *const c_char) -> *const c_char {
         p
     }
 }
-pub unsafe fn is_pos_in_string(line: *const c_char, col: colnr_T) -> c_int {
+pub fn is_pos_in_string(line: *const c_char, col: colnr_T) -> c_int {
     unsafe {
         let mut p = line;
         while *p != NUL && (p.offset_from(line) as colnr_T) < col {
@@ -277,7 +277,7 @@ pub unsafe fn is_pos_in_string(line: *const c_char, col: colnr_T) -> c_int {
         c_int::from(!((p.offset_from(line) as colnr_T) <= col))
     }
 }
-pub unsafe fn cin_is_cinword(mut line: *const c_char) -> bool {
+pub fn cin_is_cinword(mut line: *const c_char) -> bool {
     unsafe {
         let mut retval = false;
         let cinw_len = std::ffi::CStr::from_ptr((*g_st().curbuf).b_p_cinw).to_bytes().len() + 1;
@@ -307,7 +307,7 @@ pub fn cindent_on() -> bool {
         opt_vars().p_paste == 0 && ((*g_st().curbuf).b_p_cin != 0 || (*g_st().curbuf).b_p_inde.cb_type() != kCallbackNone)
     }
 }
-unsafe fn cin_skipcomment(mut s: *const c_char) -> *const c_char {
+fn cin_skipcomment(mut s: *const c_char) -> *const c_char {
     unsafe {
         while *s != NUL {
             let prev_s = s;
@@ -339,7 +339,7 @@ unsafe fn cin_skipcomment(mut s: *const c_char) -> *const c_char {
         s
     }
 }
-unsafe fn cin_nocode(s: *const c_char) -> bool {
+fn cin_nocode(s: *const c_char) -> bool {
     unsafe { *cin_skipcomment(s) == NUL }
 }
 fn find_line_comment() -> *mut pos_T {
@@ -363,7 +363,7 @@ fn find_line_comment() -> *mut pos_T {
         ptr::null_mut()
     }
 }
-unsafe fn cin_has_js_key(text: *const c_char) -> bool {
+fn cin_has_js_key(text: *const c_char) -> bool {
     unsafe {
         let mut s: *const c_char = skipwhite(text);
         let mut quote: c_char = 0;
@@ -384,7 +384,7 @@ unsafe fn cin_has_js_key(text: *const c_char) -> bool {
         *s == b':' as c_char && *s.add(1) != b':' as c_char
     }
 }
-unsafe fn cin_islabel_skip(s: *mut *const c_char) -> bool {
+fn cin_islabel_skip(s: *mut *const c_char) -> bool {
     unsafe {
         if !vim_isIDc(*(*s) as u8 as c_int) {
             return false;
@@ -446,7 +446,7 @@ fn cin_islabel() -> bool {
         true
     }
 }
-unsafe fn cin_skip_comment_and_string(s: *const c_char) -> *const c_char {
+fn cin_skip_comment_and_string(s: *const c_char) -> *const c_char {
     unsafe {
         let mut r: *const c_char;
         let mut p = s;
@@ -463,7 +463,7 @@ unsafe fn cin_skip_comment_and_string(s: *const c_char) -> *const c_char {
         p
     }
 }
-unsafe fn cin_is_compound_init(s: *const c_char) -> bool {
+fn cin_is_compound_init(s: *const c_char) -> bool {
     unsafe {
         let mut p = s;
         let mut r: *const c_char = std::ptr::null();
@@ -545,7 +545,7 @@ fn cin_isinit() -> bool {
         cin_is_compound_init(s)
     }
 }
-unsafe fn cin_iscase(mut s: *const c_char, strict: bool) -> bool {
+fn cin_iscase(mut s: *const c_char, strict: bool) -> bool {
     unsafe {
         s = cin_skipcomment(s);
         if cin_starts_with(s, c"case".as_ptr()) {
@@ -584,7 +584,7 @@ unsafe fn cin_iscase(mut s: *const c_char, strict: bool) -> bool {
         false
     }
 }
-unsafe fn cin_isdefault(mut s: *const c_char) -> bool {
+fn cin_isdefault(mut s: *const c_char) -> bool {
     unsafe {
         if !(crate::memory::cstr_prefix_bytes(s, 7) == &b"default"[..7]) {
             return false;
@@ -593,7 +593,7 @@ unsafe fn cin_isdefault(mut s: *const c_char) -> bool {
         *s == b':' as c_char && *s.add(1) != b':' as c_char
     }
 }
-unsafe fn cin_isscopedecl(p: *const c_char) -> bool {
+fn cin_isscopedecl(p: *const c_char) -> bool {
     unsafe {
         let s = cin_skipcomment(p);
         let cinsd_len = std::ffi::CStr::from_ptr((*g_st().curbuf).b_p_cinsd).to_bytes().len() + 1;
@@ -618,7 +618,7 @@ unsafe fn cin_isscopedecl(p: *const c_char) -> bool {
         found
     }
 }
-unsafe fn cin_is_cpp_namespace(mut s: *const c_char) -> bool {
+fn cin_is_cpp_namespace(mut s: *const c_char) -> bool {
     unsafe {
         let mut has_name = false;
         let mut has_name_start = false;
@@ -661,7 +661,7 @@ unsafe fn cin_is_cpp_namespace(mut s: *const c_char) -> bool {
         false
     }
 }
-unsafe fn after_label(mut l: *const c_char) -> *const c_char {
+fn after_label(mut l: *const c_char) -> *const c_char {
     unsafe {
         while *l != NUL {
             if *l == b':' as c_char {
@@ -709,7 +709,7 @@ fn get_indent_nolabel(lnum: linenr_T) -> c_int {
         col
     }
 }
-unsafe fn skip_label(lnum: linenr_T, pp: *mut *const c_char) -> c_int {
+fn skip_label(lnum: linenr_T, pp: *mut *const c_char) -> c_int {
     unsafe {
         let cursor_save = (**curwin.as_ptr()).w_cursor;
         (**curwin.as_ptr()).w_cursor.lnum = lnum;
@@ -825,10 +825,10 @@ fn cin_get_equal_amount(lnum: linenr_T) -> c_int {
         col
     }
 }
-unsafe fn cin_ispreproc(s: *const c_char) -> bool {
+fn cin_ispreproc(s: *const c_char) -> bool {
     unsafe { *skipwhite(s) == b'#' as c_char }
 }
-unsafe fn cin_ispreproc_cont(
+fn cin_ispreproc_cont(
     pp: *mut *const c_char,
     lnump: &mut linenr_T,
     amount: &mut c_int,
@@ -866,14 +866,14 @@ unsafe fn cin_ispreproc_cont(
     }
 }
 #[inline]
-unsafe fn cin_iscomment(p: *const c_char) -> bool {
+fn cin_iscomment(p: *const c_char) -> bool {
     unsafe { *p == b'/' as c_char && (*p.add(1) == b'*' as c_char || *p.add(1) == b'/' as c_char) }
 }
 #[inline]
-unsafe fn cin_islinecomment(p: *const c_char) -> bool {
+fn cin_islinecomment(p: *const c_char) -> bool {
     unsafe { *p == b'/' as c_char && *p.add(1) == b'/' as c_char }
 }
-unsafe fn cin_isterminated(mut s: *const c_char, incl_open: bool, incl_comma: bool) -> c_char {
+fn cin_isterminated(mut s: *const c_char, incl_open: bool, incl_comma: bool) -> c_char {
     unsafe {
         let mut found_start: c_char = 0;
         let mut n_open: u32 = 0;
@@ -911,7 +911,7 @@ unsafe fn cin_isterminated(mut s: *const c_char, incl_open: bool, incl_comma: bo
         found_start
     }
 }
-unsafe fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: linenr_T, min_lnum: linenr_T) -> bool {
+fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: linenr_T, min_lnum: linenr_T) -> bool {
     unsafe {
         let mut s: *const c_char = if sp.is_null() {
             ml_get(first_lnum)
@@ -1007,10 +1007,10 @@ unsafe fn cin_isfuncdecl(sp: *mut *const c_char, first_lnum: linenr_T, min_lnum:
         retval
     }
 }
-unsafe fn cin_isif(p: *const c_char) -> bool {
-    unsafe { cin_starts_with(p, c"if".as_ptr()) }
+fn cin_isif(p: *const c_char) -> bool {
+    cin_starts_with(p, c"if".as_ptr())
 }
-unsafe fn cin_iselse(mut p: *const c_char) -> bool {
+fn cin_iselse(mut p: *const c_char) -> bool {
     unsafe {
         if *p == b'}' as c_char {
             p = cin_skipcomment(p.add(1));
@@ -1018,10 +1018,10 @@ unsafe fn cin_iselse(mut p: *const c_char) -> bool {
         cin_starts_with(p, c"else".as_ptr())
     }
 }
-unsafe fn cin_isdo(p: *const c_char) -> bool {
-    unsafe { cin_starts_with(p, c"do".as_ptr()) }
+fn cin_isdo(p: *const c_char) -> bool {
+    cin_starts_with(p, c"do".as_ptr())
 }
-unsafe fn cin_iswhileofdo(mut p: *const c_char, lnum: linenr_T) -> bool {
+fn cin_iswhileofdo(mut p: *const c_char, lnum: linenr_T) -> bool {
     unsafe {
         let mut retval = false;
         p = cin_skipcomment(p);
@@ -1051,7 +1051,7 @@ unsafe fn cin_iswhileofdo(mut p: *const c_char, lnum: linenr_T) -> bool {
         retval
     }
 }
-unsafe fn cin_is_if_for_while_before_offset(line: *const c_char, poffset: &mut colnr_T) -> c_int {
+fn cin_is_if_for_while_before_offset(line: *const c_char, poffset: &mut colnr_T) -> c_int {
     unsafe {
         let mut offset = *poffset;
         let prev_offset = offset;
@@ -1123,8 +1123,8 @@ fn cin_iswhileofdo_end(terminated: c_int) -> bool {
         false
     }
 }
-unsafe fn cin_isbreak(p: *const c_char) -> bool {
-    unsafe { cin_starts_with(p, c"break".as_ptr()) }
+fn cin_isbreak(p: *const c_char) -> bool {
+    cin_starts_with(p, c"break".as_ptr())
 }
 fn cin_is_cpp_baseclass(cached: &mut cpp_baseclass_cache_T) -> bool {
     unsafe {
@@ -1281,7 +1281,7 @@ fn get_baseclass_amount(col: colnr_T) -> c_int {
         amount
     }
 }
-unsafe fn cin_ends_in(s: *const c_char, find: *const c_char) -> bool {
+fn cin_ends_in(s: *const c_char, find: *const c_char) -> bool {
     unsafe {
         let mut p = s;
         let len = std::ffi::CStr::from_ptr(find).to_bytes().len();
@@ -1300,7 +1300,7 @@ unsafe fn cin_ends_in(s: *const c_char, find: *const c_char) -> bool {
         false
     }
 }
-unsafe fn cin_starts_with(s: *const c_char, word: *const c_char) -> bool {
+fn cin_starts_with(s: *const c_char, word: *const c_char) -> bool {
     unsafe {
         let wb = std::ffi::CStr::from_ptr(word).to_bytes();
         let l = wb.len();
@@ -1309,7 +1309,7 @@ unsafe fn cin_starts_with(s: *const c_char, word: *const c_char) -> bool {
             && !vim_isIDc(*s.add(l) as u8 as c_int)
     }
 }
-unsafe fn cin_is_cpp_extern_c(mut s: *const c_char) -> bool {
+fn cin_is_cpp_extern_c(mut s: *const c_char) -> bool {
     unsafe {
         let mut has_string_literal = false;
         s = cin_skipcomment(s);
@@ -1475,7 +1475,7 @@ fn corr_ind_maxparen(startpos: &pos_T) -> c_int {
         (*g_st().curbuf).b_ind_maxparen
     }
 }
-unsafe fn find_last_paren(l: *const c_char, start: c_char, end: c_char) -> bool {
+fn find_last_paren(l: *const c_char, start: c_char, end: c_char) -> bool {
     unsafe {
         let mut retval = false;
         let mut open_count: c_int = 0;

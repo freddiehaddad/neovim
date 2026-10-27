@@ -49,8 +49,7 @@ pub fn buf_updates_register(
     cb: BufUpdateCallbacks,
     send_buffer: bool,
 ) -> bool {
-    unsafe {
-        if buf.b_ml.ml_mfp.is_none() {
+    if buf.b_ml.ml_mfp.is_none() {
             return false;
         }
 
@@ -108,7 +107,6 @@ pub fn buf_updates_register(
         }
 
         true
-    }
 }
 
 pub fn buf_updates_active(buf: &mut buf_T) -> bool {
@@ -199,7 +197,7 @@ pub fn buf_updates_unload(buf: &mut buf_T, can_reload: bool) {
         }
 }
 
-pub unsafe fn buf_updates_send_changes(
+pub fn buf_updates_send_changes(
     buf: *mut buf_T,
     firstline: linenr_T,
     num_added: i64,
@@ -324,7 +322,7 @@ pub unsafe fn buf_updates_send_changes(
     }
 }
 
-pub unsafe fn buf_updates_send_splice(
+pub fn buf_updates_send_splice(
     buf: *mut buf_T,
     start_row: c_int,
     start_col: colnr_T,

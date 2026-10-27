@@ -71,7 +71,7 @@ struct MatchStruct {
     match_bonus: [f64; MATCH_MAX_LEN],
 }
 
-unsafe fn has_match(needle: *const c_char, haystack: *const c_char) -> c_int {
+fn has_match(needle: *const c_char, haystack: *const c_char) -> c_int {
     unsafe {
         if needle.is_null() || haystack.is_null() || *needle == 0 {
             return FAIL;
@@ -124,7 +124,7 @@ fn compute_bonus_codepoint(last_c: c_int, c: c_int) -> f64 {
         0.0
 }
 
-unsafe fn setup_match_struct(
+fn setup_match_struct(
     match_st: &mut MatchStruct,
     needle: *const c_char,
     haystack: *const c_char,
@@ -156,7 +156,7 @@ unsafe fn setup_match_struct(
 }
 
 #[inline]
-unsafe fn match_row(
+fn match_row(
     match_st: &MatchStruct,
     row: usize,
     curr_d: *mut f64,
@@ -204,7 +204,7 @@ unsafe fn match_row(
     }
 }
 
-unsafe fn match_positions(
+fn match_positions(
     needle: *const c_char,
     haystack: *const c_char,
     positions: *mut u32,
@@ -296,7 +296,7 @@ unsafe fn match_positions(
 }
 
 /// Fuzzy match `pat_arg` in `str` (`fuzzy_match`).
-pub unsafe fn fuzzy_match(
+pub fn fuzzy_match(
     str_ptr: *mut c_char,
     pat_arg: *const c_char,
     matchseq: bool,
@@ -414,7 +414,7 @@ fn fuzzy_match_item_compare(
     }
 }
 
-unsafe fn fuzzy_match_in_list(
+fn fuzzy_match_in_list(
     l: *mut list_T,
     str_ptr: *mut c_char,
     matchseq: bool,
@@ -568,7 +568,7 @@ unsafe fn fuzzy_match_in_list(
     }
 }
 
-unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: &mut typval_T, retmatchpos: bool) {
+fn do_fuzzymatch(argvars: *const typval_T, rettv: &mut typval_T, retmatchpos: bool) {
     unsafe {
         let arg0 = &*argvars;
         let arg1 = &*argvars.add(1);
@@ -662,18 +662,14 @@ unsafe fn do_fuzzymatch(argvars: *const typval_T, rettv: &mut typval_T, retmatch
 pub fn f_matchfuzzy(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        do_fuzzymatch(argvars, rettv, false);
-    }
+    do_fuzzymatch(argvars, rettv, false);
 }
 
 /// `"matchfuzzypos()"` function (`f_matchfuzzypos`).
 pub fn f_matchfuzzypos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        do_fuzzymatch(argvars, rettv, true);
-    }
+    do_fuzzymatch(argvars, rettv, true);
 }
 
 fn fuzzy_match_str_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> std::cmp::Ordering {
@@ -697,15 +693,14 @@ fn fuzzy_match_func_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> c_int {
 }
 
 /// Fuzzy match `pat` in `str` (`fuzzy_match_str`).
-pub unsafe fn fuzzy_match_str(str_ptr: *mut c_char, pat: *const c_char) -> c_int {
+pub fn fuzzy_match_str(str_ptr: *mut c_char, pat: *const c_char) -> c_int {
     if str_ptr.is_null() || pat.is_null() {
         return 0;
     }
 
     let mut score = FUZZY_SCORE_NONE;
     let mut matchpos = [0u32; FUZZY_MATCH_MAX_LEN];
-    unsafe {
-        fuzzy_match(
+    fuzzy_match(
             str_ptr,
             pat,
             true,
@@ -713,12 +708,11 @@ pub unsafe fn fuzzy_match_str(str_ptr: *mut c_char, pat: *const c_char) -> c_int
             matchpos.as_mut_ptr(),
             FUZZY_MATCH_MAX_LEN as c_int,
         );
-    }
     score
 }
 
 /// Fuzzy match positions of `pat` in `str` (`fuzzy_match_str_with_pos`).
-pub unsafe fn fuzzy_match_str_with_pos(
+pub fn fuzzy_match_str_with_pos(
     str_ptr: *mut c_char,
     pat: *const c_char,
 ) -> Option<Vec<u32>> {
@@ -757,7 +751,7 @@ pub unsafe fn fuzzy_match_str_with_pos(
 }
 
 /// Fuzzy match a word in line `*ptr` (`fuzzy_match_str_in_line`).
-pub unsafe fn fuzzy_match_str_in_line(
+pub fn fuzzy_match_str_in_line(
     ptr: *mut *mut c_char,
     pat: *mut c_char,
     len: *mut c_int,
@@ -811,7 +805,7 @@ pub unsafe fn fuzzy_match_str_in_line(
 }
 
 /// Search for the next fuzzy match in `buf` (`search_for_fuzzy_match`).
-pub unsafe fn search_for_fuzzy_match(
+pub fn search_for_fuzzy_match(
     buf: &mut buf_T,
     pos: &mut pos_T,
     pattern: *mut c_char,

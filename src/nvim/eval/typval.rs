@@ -2532,8 +2532,7 @@ pub fn tv_dict_watcher_add(
 
 /// Check whether two callbacks are equal.
 pub fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
-    unsafe {
-        if cb1.cb_type() != cb2.cb_type() {
+    if cb1.cb_type() != cb2.cb_type() {
             return false;
         }
         match cb1.cb_type() {
@@ -2545,13 +2544,11 @@ pub fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
             kCallbackNone => true,
             _ => std::process::abort(),
         }
-    }
 }
 
 /// Unref/free callback.
 pub fn callback_free(callback: &mut Callback) {
-    unsafe {
-        match callback.cb_type() {
+    match callback.cb_type() {
             kCallbackFuncref => {
                 func_unref(callback.data.as_funcref());
             }
@@ -2565,7 +2562,6 @@ pub fn callback_free(callback: &mut Callback) {
             _ => {}
         }
         *callback = Callback::NONE;
-    }
 }
 
 /// Copy a callback into a typval_T.
@@ -3015,15 +3011,13 @@ pub fn tv_dict_get_cstring(
     d: *const dict_T,
     key: *const c_char,
 ) -> Option<std::ffi::CString> {
-    unsafe {
-        let mut numbuf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
+    let mut numbuf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
         let s = tv_dict_get_string_buf(d, key, numbuf.as_mut_ptr());
         if s.is_null() {
             None
         } else {
             Some(cstr_to_cstring(s))
         }
-    }
 }
 
 /// Get a string item from a dictionary.
@@ -3654,15 +3648,13 @@ pub fn tv_blob_slice_or_index(
 
 /// Check if "n1" is a valid index for a blob with length "bloblen".
 pub fn tv_blob_check_index(bloblen: c_int, n1: varnumber_T, quiet: bool) -> c_int {
-    unsafe {
-        if n1 < 0 || n1 > i64::from(bloblen) {
+    if n1 < 0 || n1 > i64::from(bloblen) {
             if !quiet {
                 semsg!(tr(e_blobidx.as_ptr()), n1);
             }
             return FAIL;
         }
         OK
-    }
 }
 
 /// Check if "n1"-"n2" is a valid range for a blob with length "bloblen".
@@ -3672,15 +3664,13 @@ pub fn tv_blob_check_range(
     n2: varnumber_T,
     quiet: bool,
 ) -> c_int {
-    unsafe {
-        if n2 < 0 || n2 >= i64::from(bloblen) || n2 < n1 {
+    if n2 < 0 || n2 >= i64::from(bloblen) || n2 < n1 {
             if !quiet {
                 semsg!(tr(e_blobidx.as_ptr()), n2);
             }
             return FAIL;
         }
         OK
-    }
 }
 
 /// Set bytes "n1" to "n2" (inclusive) in "dest" to the value of "src".
@@ -5275,8 +5265,7 @@ pub fn tv2bool(tv: *const typval_T) -> bool {
 
 /// Check that repeating "slen" items "n" times does not overflow int.
 pub fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -> c_int {
-    unsafe {
-        if n <= i64::from(c_int::MAX) / slen {
+    if n <= i64::from(c_int::MAX) / slen {
             return OK;
         }
 
@@ -5284,7 +5273,6 @@ pub fn check_repeat_count(slen: varnumber_T, n: varnumber_T) -> c_int {
         vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%lld".as_ptr(), n);
         semsg!(tr(e_val_too_large.as_ptr()), buf.as_ptr());
         FAIL
-    }
 }
 
 #[cfg(test)]

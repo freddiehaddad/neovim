@@ -139,12 +139,12 @@ fn aarglist(al: &mut alist_T) -> *mut aentry_T {
 }
 
 #[inline]
-unsafe fn warglist(wp: *const win_T) -> *mut aentry_T {
+fn warglist(wp: *const win_T) -> *mut aentry_T {
     unsafe { aarglist(&mut *win_alist(&*wp)) }
 }
 
 #[inline]
-unsafe fn wargcount(wp: *const win_T) -> c_int {
+fn wargcount(wp: *const win_T) -> c_int {
     unsafe { (*win_alist(&*wp)).al_ga.len() as c_int }
 }
 
@@ -172,19 +172,17 @@ pub fn gargcount() -> c_int {
 }
 
 fn check_arglist_locked() -> c_int {
-    unsafe {
-        if arglist_st().arglist_locked {
+    if arglist_st().arglist_locked {
             emsg(gettext(
                 (&raw const e_cannot_change_arglist_recursively).cast(),
             ));
             return FAIL;
         }
         OK
-    }
 }
 
 /// Clear an argument list: free all file names and reset it to zero entries (`alist_clear`).
-pub unsafe fn alist_clear(al: *mut alist_T) {
+pub fn alist_clear(al: *mut alist_T) {
     unsafe {
         if check_arglist_locked() == FAIL {
             return;
@@ -205,7 +203,7 @@ pub fn alist_new() {
 }
 
 /// Set the argument list for the current window (`alist_set`).
-unsafe fn alist_set(al: *mut alist_T, files: Vec<CString>, use_curbuf: c_int) {
+fn alist_set(al: *mut alist_T, files: Vec<CString>, use_curbuf: c_int) {
     unsafe {
         if check_arglist_locked() == FAIL {
             return;
@@ -231,7 +229,7 @@ unsafe fn alist_set(al: *mut alist_T, files: Vec<CString>, use_curbuf: c_int) {
 }
 
 /// Add file `fname` to argument list `al` (`alist_add`).
-pub unsafe fn alist_add(al: *mut alist_T, ae_fname: CString, set_fnum: c_int) {
+pub fn alist_add(al: *mut alist_T, ae_fname: CString, set_fnum: c_int) {
     unsafe {
         let wp = *curwin.as_ptr();
         if check_arglist_locked() == FAIL {
@@ -259,7 +257,7 @@ pub unsafe fn alist_add(al: *mut alist_T, ae_fname: CString, set_fnum: c_int) {
 }
 
 /// Isolate one argument, taking backticks (`do_one_arg`).
-unsafe fn do_one_arg(mut str_: *mut c_char) -> *mut c_char {
+fn do_one_arg(mut str_: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = str_;
         let mut inbacktick = false;
@@ -289,7 +287,7 @@ unsafe fn do_one_arg(mut str_: *mut c_char) -> *mut c_char {
 }
 
 /// Separate the arguments in `str` and return a list of pointers in `gap` (`get_arglist`).
-unsafe fn get_arglist(gap: &mut Vec<*mut c_char>, mut str_: *mut c_char, escaped: bool) {
+fn get_arglist(gap: &mut Vec<*mut c_char>, mut str_: *mut c_char, escaped: bool) {
     unsafe {
         gap.clear();
         gap.reserve(20);
@@ -305,13 +303,12 @@ unsafe fn get_arglist(gap: &mut Vec<*mut c_char>, mut str_: *mut c_char, escaped
 }
 
 /// Parse a list of arguments (file names), expand them and return in `fnames` (`get_arglist_exp`).
-pub unsafe fn get_arglist_exp(
+pub fn get_arglist_exp(
     str_: *mut c_char,
     fnames: &mut Vec<CString>,
     wig: bool,
 ) -> c_int {
-    unsafe {
-        let mut ga: Vec<*mut c_char> = Vec::new();
+    let mut ga: Vec<*mut c_char> = Vec::new();
         get_arglist(&mut ga, str_, true);
 
         if wig {
@@ -329,7 +326,6 @@ pub unsafe fn get_arglist_exp(
                 EW_FILE | EW_NOTFOUND | EW_NOTWILD,
             )
         }
-    }
 }
 
 /// Check the validity of the `arg_idx` for each other window (`alist_check_arg_idx`).
@@ -429,7 +425,7 @@ fn arglist_del_files(alist_ga: &[*mut c_char]) {
     }
 }
 
-unsafe fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool) -> c_int {
+fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool) -> c_int {
     unsafe {
         let mut new_ga: Vec<*mut c_char> = Vec::new();
         let mut exp_files: Vec<CString> = Vec::new();
@@ -478,10 +474,8 @@ unsafe fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit
 }
 
 /// Redefine the argument list (`set_arglist`).
-pub unsafe fn set_arglist(str_: *mut c_char) {
-    unsafe {
-        do_arglist(str_, AL_SET, 0, true);
-    }
+pub fn set_arglist(str_: *mut c_char) {
+    do_arglist(str_, AL_SET, 0, true);
 }
 
 /// Return true if window `win` is editing the file at the current argument index (`editing_arg_idx`).
@@ -1269,7 +1263,7 @@ pub fn f_arglistid(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
     }
 }
 
-unsafe fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: &mut typval_T) {
+fn get_arglist_as_rettv(arglist_ptr: *mut aentry_T, count: c_int, rettv: &mut typval_T) {
     unsafe {
         tv_list_alloc_ret(&mut *rettv, count as isize);
         if !arglist_ptr.is_null() {
@@ -1325,11 +1319,9 @@ mod tests {
 
     #[test]
     fn alist_init_and_clear_work() {
-        unsafe {
-            let mut al = alist_T::new();
+        let mut al = alist_T::new();
             assert!(al.al_ga.is_empty());
             alist_clear(&raw mut al);
             assert!(al.al_ga.is_empty());
-        }
     }
 }

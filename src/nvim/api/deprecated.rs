@@ -388,15 +388,13 @@ pub unsafe extern "C" fn nvim_get_hl_by_id(
     arena: *mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
-        let dic = Dict::new();
+    let dic = Dict::new();
         if syn_get_final_id(hl_id as c_int) == 0 {
             api_err_invalid(err, c"highlight id".as_ptr(), ptr::null(), hl_id, false);
             return dic;
         }
         let attrcode = syn_id2attr(hl_id as c_int);
         crate::highlight::hl_get_attr_by_id(i64::from(attrcode), rgb, arena, err)
-    }
 }
 
 /// Gets a highlight definition by name.
@@ -980,8 +978,7 @@ fn get_option_from(
     name: NvimString,
     err: &mut Error,
 ) -> Object {
-    unsafe {
-        if name.size == 0 {
+    if name.size == 0 {
             api_err_invalid(err, c"option name".as_ptr(), c"<empty>".as_ptr(), 0, true);
             return OBJECT_NIL;
         }
@@ -1013,7 +1010,6 @@ fn get_option_from(
         }
 
         value
-    }
 }
 
 fn set_option_to(
@@ -1024,8 +1020,7 @@ fn set_option_to(
     value: Object,
     err: &mut Error,
 ) {
-    unsafe {
-        if name.size == 0 {
+    if name.size == 0 {
             api_err_invalid(err, c"option name".as_ptr(), c"<empty>".as_ptr(), 0, true);
             return;
         }
@@ -1064,7 +1059,6 @@ fn set_option_to(
         with_script_context(channel_id, || {
             set_option_value_for(opt_idx, value, opt_flags, scope, to, true, err);
         });
-    }
 }
 
 /// @deprecated Use nvim_exec_lua() instead.
@@ -1197,8 +1191,7 @@ pub unsafe extern "C" fn nvim_subscribe(_channel_id: u64, _event: NvimString) {}
 pub unsafe extern "C" fn nvim_unsubscribe(_channel_id: u64, _event: NvimString) {}
 
 fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
-    unsafe {
-        if line_buf.capacity() == 0 {
+    if line_buf.capacity() == 0 {
             line_buf.reserve(LINE_BUFFER_MIN_SIZE);
         }
         if c == NL {
@@ -1218,7 +1211,6 @@ fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
         } else {
             line_buf.push(c);
         }
-    }
 }
 
 fn write_msg(message: NvimString, to_err: bool, writeln: bool) {

@@ -92,11 +92,11 @@ impl IntoCCharPtr for &CStr {
 
 #[inline]
 pub fn tr<S: IntoCCharPtr>(s: S) -> *mut c_char {
-    unsafe { gettext(s.into_c_char_ptr()) }
+    gettext(s.into_c_char_ptr())
 }
 
 #[inline]
-pub unsafe fn gettext(msgid: *const c_char) -> *mut c_char {
+pub fn gettext(msgid: *const c_char) -> *mut c_char {
     if crate::os::lang::HAVE_LIBINTL {
         crate::os::lang::c_gettext(msgid)
     } else {
@@ -151,7 +151,7 @@ impl IntoNgettextCount for isize {
 }
 
 #[inline]
-pub unsafe fn ngettext<N: IntoNgettextCount>(
+pub fn ngettext<N: IntoNgettextCount>(
     msgid1: *const c_char,
     msgid2: *const c_char,
     n: N,
@@ -166,7 +166,7 @@ pub unsafe fn ngettext<N: IntoNgettextCount>(
     }
 }
 
-pub unsafe fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
+pub fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
     unsafe {
         let mut s = nptr;
         while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
@@ -531,7 +531,7 @@ pub fn vim_strsave_shellescape(
 }
 
 #[cfg(windows)]
-pub unsafe fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
+pub fn mb_strup_buf(src: *const c_char, dst: *mut c_char) -> usize {
     unsafe {
         let mut i: usize = 0;
         let mut p = src;
@@ -577,7 +577,7 @@ pub fn strcase_save(orig: &CStr, upper: bool) -> std::ffi::CString {
     }
 }
 
-pub unsafe fn del_trailing_spaces(ptr: *mut c_char) {
+pub fn del_trailing_spaces(ptr: *mut c_char) {
     unsafe {
         let len = CStr::from_ptr(ptr).to_bytes().len();
         let mut q = ptr.add(len);
@@ -595,7 +595,7 @@ pub unsafe fn del_trailing_spaces(ptr: *mut c_char) {
     }
 }
 
-pub unsafe fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
+pub fn vim_strchr(string: *const c_char, c: c_int) -> *mut c_char {
     unsafe {
         if string.is_null() || c <= 0 {
             ptr::null_mut()
@@ -637,7 +637,7 @@ pub fn concat_str(str1: &CStr, str2: &CStr) -> std::ffi::CString {
     crate::memory::cstr_from_bytes(&dest)
 }
 
-pub unsafe fn tv_nr(tvs: *mut typval_T, idxp: &mut c_int) -> varnumber_T {
+pub fn tv_nr(tvs: *mut typval_T, idxp: &mut c_int) -> varnumber_T {
     unsafe {
         let idx = (*idxp - 1) as usize;
         let mut n: varnumber_T = 0;
@@ -655,7 +655,7 @@ pub unsafe fn tv_nr(tvs: *mut typval_T, idxp: &mut c_int) -> varnumber_T {
     }
 }
 
-pub unsafe fn tv_str(
+pub fn tv_str(
     tvs: *mut typval_T,
     idxp: &mut c_int,
     tofree: &mut Option<std::ffi::CString>,
@@ -681,7 +681,7 @@ pub unsafe fn tv_str(
     }
 }
 
-pub unsafe fn tv_ptr(tvs: *const typval_T, idxp: &mut c_int) -> *const c_void {
+pub fn tv_ptr(tvs: *const typval_T, idxp: &mut c_int) -> *const c_void {
     unsafe {
         let idx = (*idxp - 1) as usize;
         if (*tvs.add(idx)).v_type == VarType::VAR_UNKNOWN {
@@ -693,7 +693,7 @@ pub unsafe fn tv_ptr(tvs: *const typval_T, idxp: &mut c_int) -> *const c_void {
     }
 }
 
-pub unsafe fn tv_float(tvs: *mut typval_T, idxp: &mut c_int) -> float_T {
+pub fn tv_float(tvs: *mut typval_T, idxp: &mut c_int) -> float_T {
     unsafe {
         let idx = (*idxp - 1) as usize;
         let mut f: float_T = 0.0;
@@ -736,7 +736,7 @@ pub fn infinity_str(
     TABLE[idx].as_ptr()
 }
 
-pub unsafe fn format_typeof(mut type_: *const c_char) -> c_int {
+pub fn format_typeof(mut type_: *const c_char) -> c_int {
     unsafe {
         let mut length_modifier: u8 = 0;
         let first = *type_ as u8;
@@ -796,9 +796,8 @@ pub unsafe fn format_typeof(mut type_: *const c_char) -> c_int {
     }
 }
 
-unsafe fn format_typename(type_: *const c_char) -> *const c_char {
-    unsafe {
-        match format_typeof(type_) {
+fn format_typename(type_: *const c_char) -> *const c_char {
+    match format_typeof(type_) {
             TYPE_INT => c"int".as_ptr(),
             TYPE_LONGINT => c"long int".as_ptr(),
             TYPE_LONGLONGINT => c"long long int".as_ptr(),
@@ -814,10 +813,9 @@ unsafe fn format_typename(type_: *const c_char) -> *const c_char {
             TYPE_FLOAT => c"float".as_ptr(),
             _ => gettext(c"unknown".as_ptr()),
         }
-    }
 }
 
-unsafe fn adjust_types(
+fn adjust_types(
     ap_types: &mut Vec<*const c_char>,
     arg: c_int,
     type_: *const c_char,
@@ -864,7 +862,7 @@ unsafe fn adjust_types(
     }
 }
 
-pub unsafe fn format_overflow_error(pstart: *const c_char) {
+pub fn format_overflow_error(pstart: *const c_char) {
     unsafe {
         let mut p = pstart;
         while ascii_isdigit(*p) {
@@ -878,7 +876,7 @@ pub unsafe fn format_overflow_error(pstart: *const c_char) {
     }
 }
 
-pub unsafe fn get_unsigned_int(
+pub fn get_unsigned_int(
     pstart: *const c_char,
     p: *mut *const c_char,
     uj: &mut c_uint,
@@ -905,7 +903,7 @@ pub unsafe fn get_unsigned_int(
     }
 }
 
-pub unsafe fn parse_fmt_types(
+pub fn parse_fmt_types(
     num_posarg: *mut c_int,
     fmt: *const c_char,
     tvs: *mut typval_T,
@@ -1297,7 +1295,7 @@ fn fmt_arg_val(args: &[FmtVal], arg_idx: &mut c_int) -> FmtVal {
     args.get(idx).copied().unwrap_or(FmtVal::Signed(0))
 }
 
-unsafe fn vim_vsnprintf_typval_inner(
+fn vim_vsnprintf_typval_inner(
     str_out: *mut c_char,
     str_m: usize,
     fmt: *const c_char,
@@ -2115,16 +2113,16 @@ unsafe fn vim_vsnprintf_typval_inner(
     }
 }
 
-pub unsafe fn vim_snprintf_fmt(
+pub fn vim_snprintf_fmt(
     str_out: *mut c_char,
     str_m: usize,
     fmt: *const c_char,
     args: &[FmtVal],
 ) -> c_int {
-    unsafe { vim_vsnprintf_typval_inner(str_out, str_m, fmt, ptr::null_mut(), args) }
+    vim_vsnprintf_typval_inner(str_out, str_m, fmt, ptr::null_mut(), args)
 }
 
-pub unsafe fn vim_snprintf_add_fmt(
+pub fn vim_snprintf_add_fmt(
     str_out: *mut c_char,
     str_m: usize,
     fmt: *const c_char,
@@ -2137,7 +2135,7 @@ pub unsafe fn vim_snprintf_add_fmt(
     }
 }
 
-pub unsafe fn vim_snprintf_safelen_fmt(
+pub fn vim_snprintf_safelen_fmt(
     str_out: *mut c_char,
     str_m: usize,
     fmt: *const c_char,
@@ -2200,13 +2198,13 @@ use crate::eval::kListLenUnknown;
 use crate::regexp::NUMBUFLEN;
 pub use vim_snprintf_safelen;
 
-pub unsafe fn vim_snprintf_typval_only(
+pub fn vim_snprintf_typval_only(
     str_out: *mut c_char,
     str_m: usize,
     fmt: *const c_char,
     tvs: *mut typval_T,
 ) -> c_int {
-    unsafe { vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[]) }
+    vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[])
 }
 
 pub fn reverse_text(s: &CStr) -> std::ffi::CString {
@@ -2277,7 +2275,7 @@ pub fn strrep(
     Some(crate::memory::cstr_from_bytes(&ret))
 }
 
-unsafe fn byteidx_common(argvars: *mut typval_T, rettv: &mut typval_T, comp: bool) {
+fn byteidx_common(argvars: *mut typval_T, rettv: &mut typval_T, comp: bool) {
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
@@ -2303,7 +2301,7 @@ unsafe fn byteidx_common(argvars: *mut typval_T, rettv: &mut typval_T, comp: boo
             }
         }
 
-        let ptr2len: unsafe fn(*const c_char) -> c_int =
+        let ptr2len: fn(*const c_char) -> c_int =
             if comp { utf_ptr2len } else { utfc_ptr2len };
 
         let mut t = str_;
@@ -2336,17 +2334,13 @@ unsafe fn byteidx_common(argvars: *mut typval_T, rettv: &mut typval_T, comp: boo
 pub fn f_byteidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        byteidx_common(argvars, rettv, false);
-    }
+    byteidx_common(argvars, rettv, false);
 }
 
 pub fn f_byteidxcomp(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        byteidx_common(argvars, rettv, true);
-    }
+    byteidx_common(argvars, rettv, true);
 }
 
 pub fn f_charidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
@@ -2379,7 +2373,7 @@ pub fn f_charidx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
             }
         }
 
-        let ptr2len: unsafe fn(*const c_char) -> c_int = if countcc != 0 {
+        let ptr2len: fn(*const c_char) -> c_int = if countcc != 0 {
             utf_ptr2len
         } else {
             utfc_ptr2len
@@ -2570,11 +2564,11 @@ pub fn f_strlen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
     }
 }
 
-unsafe fn strchar_common(argvars: *mut typval_T, rettv: &mut typval_T, skipcc: bool) {
+fn strchar_common(argvars: *mut typval_T, rettv: &mut typval_T, skipcc: bool) {
     unsafe {
         let mut s = tv_get_string(argvars);
         let mut len: varnumber_T = 0;
-        let func_mb_ptr2char_adv: unsafe fn(*mut *const c_char) -> c_int = if skipcc {
+        let func_mb_ptr2char_adv: fn(*mut *const c_char) -> c_int = if skipcc {
             mb_ptr2char_adv
         } else {
             mb_cptr2char_adv
@@ -2590,9 +2584,7 @@ unsafe fn strchar_common(argvars: *mut typval_T, rettv: &mut typval_T, skipcc: b
 pub fn f_strcharlen(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        strchar_common(argvars, rettv, true);
-    }
+    strchar_common(argvars, rettv, true);
 }
 
 pub fn f_strchars(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
@@ -2637,7 +2629,7 @@ pub fn f_strutf16len(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
         let mut s = tv_get_string(argvars);
         let mut len: varnumber_T = 0;
-        let func_mb_ptr2char_adv: unsafe fn(*mut *const c_char) -> c_int = if countcc != 0 {
+        let func_mb_ptr2char_adv: fn(*mut *const c_char) -> c_int = if countcc != 0 {
             mb_cptr2char_adv
         } else {
             mb_ptr2char_adv
@@ -2669,10 +2661,8 @@ pub fn f_strdisplaywidth(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: 
 pub fn f_strwidth(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        let s = tv_get_string(argvars);
+    let s = tv_get_string(argvars);
         rettv.vval = crate::eval::typval::TypvalVval::Number(mb_string2cells(s) as varnumber_T);
-    }
 }
 
 pub fn f_strcharpart(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
@@ -2853,12 +2843,10 @@ pub fn f_strridx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 pub fn f_strtrans(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        crate::eval::typval::tv_set_string(
+    crate::eval::typval::tv_set_string(
             rettv,
             transstr(tv_get_string(argvars), true).as_ptr(),
         );
-    }
 }
 
 pub fn f_utf16idx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
@@ -2891,7 +2879,7 @@ pub fn f_utf16idx(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
             }
         }
 
-        let ptr2len: unsafe fn(*const c_char) -> c_int = if countcc != 0 {
+        let ptr2len: fn(*const c_char) -> c_int = if countcc != 0 {
             utf_ptr2len
         } else {
             utfc_ptr2len

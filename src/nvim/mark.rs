@@ -247,7 +247,7 @@ pub fn reset_fmark(fmarkp: &mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_
 }
 
 #[inline]
-unsafe fn set_xfmark(
+fn set_xfmark(
     xfmarkp: *mut xfmark_T,
     mark: pos_T,
     fnum: c_int,
@@ -261,7 +261,7 @@ unsafe fn set_xfmark(
 }
 
 #[inline]
-unsafe fn reset_xfmark(
+fn reset_xfmark(
     xfmarkp: *mut xfmark_T,
     mark: pos_T,
     fnum: c_int,
@@ -300,7 +300,7 @@ pub fn clear_fmark(fm: &mut fmark_T, timestamp: Timestamp) {
 }
 
 /// Schedules `"MarkSet"` event (`do_markset_autocmd`).
-unsafe fn do_markset_autocmd(c: c_char, pos: &pos_T, buf: *mut buf_T) {
+fn do_markset_autocmd(c: c_char, pos: &pos_T, buf: *mut buf_T) {
     unsafe {
         if !has_event(EVENT_MARKSET) {
             return;
@@ -363,7 +363,7 @@ unsafe fn do_markset_autocmd(c: c_char, pos: &pos_T, buf: *mut buf_T) {
 }
 
 /// Set named mark `c` to position `pos` (`setmark_pos`).
-pub unsafe fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int, view_pt: *mut fmarkv_T) -> c_int {
+pub fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int, view_pt: *mut fmarkv_T) -> c_int {
     unsafe {
         let view = if !view_pt.is_null() {
             *view_pt
@@ -604,7 +604,7 @@ pub fn get_changelist(buf: &mut buf_T, win: &mut win_T, count: c_int) -> *mut fm
 }
 
 /// Get a named mark (`mark_get`).
-pub unsafe fn mark_get(
+pub fn mark_get(
     buf: &mut buf_T,
     win: *mut win_T,
     fmp: *mut fmark_T,
@@ -657,7 +657,7 @@ pub fn mark_get_global(resolve: bool, mut name: c_int) -> *mut xfmark_T {
 }
 
 /// Get a local mark (`mark_get_local`).
-pub unsafe fn mark_get_local(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fmark_T {
+pub fn mark_get_local(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *mut fmark_T {
     unsafe {
         let mark = if ascii_islower(name) {
             &raw mut buf.b_namedm[(name - b'a' as c_int) as usize]
@@ -690,7 +690,7 @@ pub unsafe fn mark_get_local(buf: &mut buf_T, win: *mut win_T, name: c_int) -> *
 }
 
 /// Get marks that are actually motions (`mark_get_motion`).
-pub unsafe fn mark_get_motion(buf: *mut buf_T, win: *mut win_T, name: c_int) -> *mut fmark_T {
+pub fn mark_get_motion(buf: *mut buf_T, win: *mut win_T, name: c_int) -> *mut fmark_T {
     unsafe {
         let mut mark: *mut fmark_T = ptr::null_mut();
         let pos = (**curwin.as_ptr()).w_cursor;
@@ -754,7 +754,7 @@ pub fn mark_get_visual(buf: &mut buf_T, name: c_int) -> *mut fmark_T {
 }
 
 /// Wrap a `pos_T` into an `fmark_T` (`pos_to_mark`).
-pub unsafe fn pos_to_mark(buf: *mut buf_T, fmp: *mut fmark_T, pos: pos_T) -> *mut fmark_T {
+pub fn pos_to_mark(buf: *mut buf_T, fmp: *mut fmark_T, pos: pos_T) -> *mut fmark_T {
     unsafe {
         let fm = if fmp.is_null() {
             &raw mut mark_st().POS_TO_MARK_FMS
@@ -767,7 +767,7 @@ pub unsafe fn pos_to_mark(buf: *mut buf_T, fmp: *mut fmark_T, pos: pos_T) -> *mu
     }
 }
 
-unsafe fn switch_to_mark_buf(fm: *mut fmark_T, pcmark_on_switch: bool) -> MarkMoveRes {
+fn switch_to_mark_buf(fm: *mut fmark_T, pcmark_on_switch: bool) -> MarkMoveRes {
     unsafe {
         if (*fm).fnum != (*g_st().curbuf).b_fnum {
             let getfile_flag = if pcmark_on_switch { GETF_SETMARK } else { 0 };
@@ -783,7 +783,7 @@ unsafe fn switch_to_mark_buf(fm: *mut fmark_T, pcmark_on_switch: bool) -> MarkMo
 }
 
 /// Move to the given file mark, changing the buffer and cursor position (`mark_move_to`).
-pub unsafe fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes {
+pub fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes {
     unsafe {
         let mut res: MarkMoveRes = kMarkMoveSuccess;
         let mut errormsg: *const c_char = ptr::null();
@@ -836,7 +836,7 @@ pub unsafe fn mark_move_to(mut fm: *mut fmark_T, flags: MarkMove) -> MarkMoveRes
 }
 
 /// Restore the mark view (`mark_view_restore`).
-pub unsafe fn mark_view_restore(fm: *mut fmark_T) {
+pub fn mark_view_restore(fm: *mut fmark_T) {
     unsafe {
         if !fm.is_null() && (*fm).view.topline_offset >= 0 {
             let topline = (*fm).mark.lnum - (*fm).view.topline_offset;
@@ -946,7 +946,7 @@ pub fn fmarks_check_names(buf: &mut buf_T) {
     }
 }
 
-unsafe fn fmarks_check_one(fm: &mut xfmark_T, name: *mut c_char, buf: *mut buf_T) {
+fn fmarks_check_one(fm: &mut xfmark_T, name: *mut c_char, buf: *mut buf_T) {
     unsafe {
         if fm.fmark.fnum == 0
             && fm
@@ -961,7 +961,7 @@ unsafe fn fmarks_check_one(fm: &mut xfmark_T, name: *mut c_char, buf: *mut buf_T
 }
 
 /// Check the position in `fm` is valid (`mark_check`).
-pub unsafe fn mark_check(fm: *mut fmark_T, errormsg: *mut *const c_char) -> bool {
+pub fn mark_check(fm: *mut fmark_T, errormsg: *mut *const c_char) -> bool {
     unsafe {
         if fm.is_null() {
             *errormsg = gettext(e_umark.as_ptr());
@@ -980,7 +980,7 @@ pub unsafe fn mark_check(fm: *mut fmark_T, errormsg: *mut *const c_char) -> bool
 }
 
 /// Check if a mark line number is greater than the buffer line count (`mark_check_line_bounds`).
-pub unsafe fn mark_check_line_bounds(
+pub fn mark_check_line_bounds(
     buf: *mut buf_T,
     fm: *mut fmark_T,
     errormsg: *mut *const c_char,
@@ -2135,7 +2135,7 @@ pub fn free_jumplist(wp: &mut win_T) {
         wp.w_jumplistlen = 0;
 }
 
-pub unsafe fn set_last_cursor(win: *mut win_T) {
+pub fn set_last_cursor(win: *mut win_T) {
     unsafe {
         if !(*win).w_buffer.is_null() {
             reset_fmark(
@@ -2162,7 +2162,7 @@ pub fn free_all_marks() {
 }
 
 /// Adjust position to point to the first byte of a multi-byte character (`mark_mb_adjustpos`).
-pub unsafe fn mark_mb_adjustpos(buf: *mut buf_T, lp: &mut pos_T) {
+pub fn mark_mb_adjustpos(buf: *mut buf_T, lp: &mut pos_T) {
     unsafe {
         if lp.col > 0 || lp.coladd > 1 {
             let p = ml_get_buf(buf, lp.lnum);
@@ -2184,7 +2184,7 @@ pub unsafe fn mark_mb_adjustpos(buf: *mut buf_T, lp: &mut pos_T) {
 }
 
 /// Add information about mark `mname` to list `l` (`add_mark`).
-unsafe fn add_mark(
+fn add_mark(
     l: *mut list_T,
     mname: *const c_char,
     mnamelen: usize,
@@ -2225,7 +2225,7 @@ unsafe fn add_mark(
 }
 
 /// Get information about marks local to a buffer (`get_buf_local_marks`).
-pub unsafe fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
+pub fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
     unsafe {
         let mut mname: [c_char; 3] = [b'\'' as c_char, b' ' as c_char, 0];
 
@@ -2325,7 +2325,7 @@ pub fn get_raw_global_mark(name: c_char) -> xfmark_T {
 }
 
 /// Get information about global marks (`get_global_marks`).
-pub unsafe fn get_global_marks(l: *mut list_T) {
+pub fn get_global_marks(l: *mut list_T) {
     unsafe {
         let mut mname: [c_char; 3] = [b'\'' as c_char, b' ' as c_char, 0];
 

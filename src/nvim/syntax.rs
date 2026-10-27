@@ -662,7 +662,7 @@ pub fn syn_set_timeout(tm: Option<proftime_T>) {
 }
 
 /// Start the syntax recognition for a line.
-pub unsafe fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
+pub fn syntax_start(wp: *mut win_T, lnum: linenr_T) {
     unsafe {
         let mut last_valid: Option<usize> = None;
         let mut last_min_valid: Option<usize> = None;
@@ -804,7 +804,7 @@ fn clear_current_state() {
     }
 }
 
-unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const synstate_T) {
+fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const synstate_T) {
     unsafe {
         let mut found_flags: c_int = 0;
         let mut found_match_idx: c_int = 0;
@@ -995,7 +995,7 @@ unsafe fn syn_sync(wp: *mut win_T, mut start_lnum: linenr_T, last_valid: *const 
     }
 }
 
-unsafe fn save_chartab(chartab: *mut c_char) {
+fn save_chartab(chartab: *mut c_char) {
     unsafe {
         if (*syn_st().syn_block).b_syn_isk.is_none() {
             return;
@@ -1014,7 +1014,7 @@ unsafe fn save_chartab(chartab: *mut c_char) {
     }
 }
 
-unsafe fn restore_chartab(chartab: *const c_char) {
+fn restore_chartab(chartab: *const c_char) {
     unsafe {
         if (*win_s(&mut *syn_st().syn_win)).b_syn_isk.is_some() {
             ptr::copy(
@@ -1118,7 +1118,7 @@ fn syn_update_ends(startofline: bool) {
     }
 }
 
-unsafe fn syn_stack_free_block(block: *mut synblock_T) {
+fn syn_stack_free_block(block: *mut synblock_T) {
     unsafe {
         idl_cache_clear(block);
         (&mut *block).b_sst_array = Vec::new();
@@ -1128,7 +1128,7 @@ unsafe fn syn_stack_free_block(block: *mut synblock_T) {
 }
 
 /// Free b_sst_array[] for buffer "buf".
-pub unsafe fn syn_stack_free_all(block: *mut synblock_T) {
+pub fn syn_stack_free_all(block: *mut synblock_T) {
     unsafe {
         syn_stack_free_block(block);
 
@@ -1371,7 +1371,7 @@ fn store_current_state() -> Option<usize> {
     }
 }
 
-unsafe fn load_current_state(from: *const synstate_T) {
+fn load_current_state(from: *const synstate_T) {
     unsafe {
         clear_current_state();
         validate_current_state();
@@ -1468,7 +1468,7 @@ fn syn_stack_equal(sp: &synstate_T) -> bool {
 }
 
 /// We stop parsing syntax above line "lnum".
-pub unsafe fn syntax_end_parsing(wp: *mut win_T, lnum: linenr_T) {
+pub fn syntax_end_parsing(wp: *mut win_T, lnum: linenr_T) {
     unsafe {
         if syn_st().syn_block != win_s(&mut *wp) {
             return;
@@ -1551,7 +1551,7 @@ fn syn_finish_line(syncing: bool) -> bool {
 }
 
 /// Gets highlight attributes for next character.
-pub unsafe fn get_syntax_attr(col: colnr_T, can_spell: *mut bool, keep_state: bool) -> c_int {
+pub fn get_syntax_attr(col: colnr_T, can_spell: *mut bool, keep_state: bool) -> c_int {
     unsafe {
         let mut attr: c_int = 0;
 
@@ -1598,7 +1598,7 @@ pub unsafe fn get_syntax_attr(col: colnr_T, can_spell: *mut bool, keep_state: bo
     }
 }
 
-unsafe fn syn_current_attr(
+fn syn_current_attr(
     syncing: bool,
     displaying: bool,
     can_spell: *mut bool,
@@ -2364,7 +2364,7 @@ fn pop_current_state() {
     }
 }
 
-unsafe fn find_endpos(
+fn find_endpos(
     mut idx: c_int,
     startpos: &mut lpos_T,
     m_endpos: &mut lpos_T,
@@ -2642,15 +2642,15 @@ fn syn_add_start_off(
 
 #[inline]
 fn syn_getcurline() -> *mut c_char {
-    unsafe { ml_get_buf(syn_st().syn_buf, syn_st().current_lnum) }
+    ml_get_buf(syn_st().syn_buf, syn_st().current_lnum)
 }
 
 #[inline]
 fn syn_getcurline_len() -> colnr_T {
-    unsafe { ml_get_buf_len(syn_st().syn_buf, syn_st().current_lnum) }
+    ml_get_buf_len(syn_st().syn_buf, syn_st().current_lnum)
 }
 
-unsafe fn syn_regexec(
+fn syn_regexec(
     rmp: &mut regmmatch_T,
     lnum: linenr_T,
     col: colnr_T,
@@ -2700,7 +2700,7 @@ unsafe fn syn_regexec(
     }
 }
 
-unsafe fn check_keyword_id(
+fn check_keyword_id(
     line: *mut c_char,
     startcol: c_int,
     endcolp: *mut c_int,
@@ -2749,7 +2749,7 @@ unsafe fn check_keyword_id(
     }
 }
 
-unsafe fn match_keyword(
+fn match_keyword(
     keyword: *mut c_char,
     ht: &std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
     cur_si: *mut stateitem_T,
@@ -2934,8 +2934,7 @@ fn syn_cmd_iskeyword(eap: &mut exarg_T, _syncing: c_int) {
 
 /// Clear all syntax info for one buffer.
 pub fn syntax_clear(block: &mut synblock_T) {
-    unsafe {
-        block.b_syn_error = false;
+    block.b_syn_error = false;
         block.b_syn_slow = false;
         block.b_syn_ic = 0;
         block.b_syn_foldlevel = SYNFLD_START;
@@ -2966,7 +2965,6 @@ pub fn syntax_clear(block: &mut synblock_T) {
         invalidate_current_state();
 
         syn_st().running_syn_inc_tag = 0;
-    }
 }
 
 impl Drop for synblock_T {
@@ -3083,33 +3081,25 @@ fn syn_clear_one(id: c_int, syncing: bool) {
 }
 
 fn syn_cmd_on(eap: &mut exarg_T, _syncing: c_int) {
-    unsafe {
-        syn_cmd_onoff(eap, c"syntax".as_ptr());
-    }
+    syn_cmd_onoff(eap, c"syntax".as_ptr());
 }
 
 fn syn_cmd_reset(eap: &mut exarg_T, _syncing: c_int) {
-    unsafe {
-        eap.nextcmd = check_nextcmd(eap.arg);
+    eap.nextcmd = check_nextcmd(eap.arg);
         if eap.skip == 0 {
             init_highlight(true, true);
         }
-    }
 }
 
 fn syn_cmd_manual(eap: &mut exarg_T, _syncing: c_int) {
-    unsafe {
-        syn_cmd_onoff(eap, c"manual".as_ptr());
-    }
+    syn_cmd_onoff(eap, c"manual".as_ptr());
 }
 
 fn syn_cmd_off(eap: &mut exarg_T, _syncing: c_int) {
-    unsafe {
-        syn_cmd_onoff(eap, c"nosyntax".as_ptr());
-    }
+    syn_cmd_onoff(eap, c"nosyntax".as_ptr());
 }
 
-unsafe fn syn_cmd_onoff(eap: &mut exarg_T, name: *const c_char) {
+fn syn_cmd_onoff(eap: &mut exarg_T, name: *const c_char) {
     unsafe {
         eap.nextcmd = check_nextcmd(eap.arg);
         if eap.skip == 0 {
@@ -3374,14 +3364,12 @@ fn syn_list_one(id: c_int, syncing: bool, link_only: bool) {
 }
 
 fn syn_list_flags(nlist: &[(c_int, *const c_char)], flags: c_int, hl_id: c_int) {
-    unsafe {
-        for &(key, value) in nlist {
+    for &(key, value) in nlist {
             if (flags & key) != 0 {
                 msg_puts_hl(value, hl_id, false);
                 msg_putchar(b' ' as c_int);
             }
         }
-    }
 }
 
 fn syn_list_cluster(id: c_int) {
@@ -3409,7 +3397,7 @@ fn syn_list_cluster(id: c_int) {
     }
 }
 
-unsafe fn put_id_list(name: *const c_char, list: *const i16, hl_id: c_int) {
+fn put_id_list(name: *const c_char, list: *const i16, hl_id: c_int) {
     unsafe {
         msg_puts_hl(name, hl_id, false);
         msg_putchar(b'=' as c_int);
@@ -3445,9 +3433,8 @@ unsafe fn put_id_list(name: *const c_char, list: *const i16, hl_id: c_int) {
     }
 }
 
-unsafe fn put_pattern(s: *const c_char, c: c_int, spp: &synpat_T, hl_id: c_int) {
-    unsafe {
-        const SEPCHARS: &[u8] = b"/+=-#@\"|'^&\0";
+fn put_pattern(s: *const c_char, c: c_int, spp: &synpat_T, hl_id: c_int) {
+    const SEPCHARS: &[u8] = b"/+=-#@\"|'^&\0";
 
         if syn_st().last_matchgroup != spp.sp_syn_match_id as c_int {
             syn_st().last_matchgroup = spp.sp_syn_match_id as c_int;
@@ -3507,7 +3494,6 @@ unsafe fn put_pattern(s: *const c_char, c: c_int, spp: &synpat_T, hl_id: c_int) 
             first = false;
         }
         msg_putchar(b' ' as c_int);
-    }
 }
 
 fn syn_list_keywords(
@@ -3612,7 +3598,7 @@ fn clear_keywtab(ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>) 
     ht.clear();
 }
 
-unsafe fn add_keyword(
+fn add_keyword(
     name: *mut c_char,
     namelen: usize,
     id: c_int,
@@ -3663,7 +3649,7 @@ unsafe fn add_keyword(
     }
 }
 
-unsafe fn get_group_name(arg: *mut c_char, name_end: *mut *mut c_char) -> *mut c_char {
+fn get_group_name(arg: *mut c_char, name_end: *mut *mut c_char) -> *mut c_char {
     unsafe {
         *name_end = skiptowhite(arg);
         let rest = skipwhite(*name_end);
@@ -3674,7 +3660,7 @@ unsafe fn get_group_name(arg: *mut c_char, name_end: *mut *mut c_char) -> *mut c
     }
 }
 
-unsafe fn get_syn_options(
+fn get_syn_options(
     mut arg: *mut c_char,
     opt: *mut syn_opt_arg_T,
     conceal_char: *mut c_int,
@@ -4347,7 +4333,7 @@ fn syn_combine_list(clstr1: &mut SynIdList, clstr2: &mut SynIdList, list_op: c_i
     }
 }
 
-unsafe fn syn_scl_name2id(name: *const c_char) -> c_int {
+fn syn_scl_name2id(name: *const c_char) -> c_int {
     unsafe {
         let name_u = crate::memory::cstr_from_bytes(
             &std::ffi::CStr::from_ptr(name).to_bytes().to_ascii_uppercase(),
@@ -4364,7 +4350,7 @@ unsafe fn syn_scl_name2id(name: *const c_char) -> c_int {
     }
 }
 
-unsafe fn syn_scl_namen2id(linep: *const c_char, len: c_int) -> c_int {
+fn syn_scl_namen2id(linep: *const c_char, len: c_int) -> c_int {
     unsafe {
         let bytes = std::slice::from_raw_parts(linep.cast::<u8>(), len as usize);
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
@@ -4373,7 +4359,7 @@ unsafe fn syn_scl_namen2id(linep: *const c_char, len: c_int) -> c_int {
     }
 }
 
-unsafe fn syn_check_cluster(pp: *const c_char, len: c_int) -> c_int {
+fn syn_check_cluster(pp: *const c_char, len: c_int) -> c_int {
     unsafe {
         let bytes = std::slice::from_raw_parts(pp.cast::<u8>(), len as usize);
         let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
@@ -4489,7 +4475,7 @@ fn syn_cmd_cluster(eap: &mut exarg_T, _syncing: c_int) {
     }
 }
 
-unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
+fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
     unsafe {
         if arg.is_null() || *arg == NUL || *arg.add(1) == NUL || *arg.add(2) == NUL {
             return ptr::null_mut();
@@ -4714,7 +4700,7 @@ fn syn_cmd_sync(eap: &mut exarg_T, _syncing: c_int) {
     }
 }
 
-unsafe fn get_id_list(
+fn get_id_list(
     arg: *mut *mut c_char,
     keylen: c_int,
     list: &mut SynIdList,
@@ -4943,13 +4929,13 @@ fn idl_contains(e: &idl_entry_T, id: i16) -> bool {
     e.idl_ids.binary_search(&id).is_ok()
 }
 
-unsafe fn idl_cache_clear(block: *mut synblock_T) {
+fn idl_cache_clear(block: *mut synblock_T) {
     unsafe {
         (*block).b_idlist_cache = None;
     }
 }
 
-unsafe fn in_id_list(
+fn in_id_list(
     mut cur_si: *mut stateitem_T,
     list: &SynIdList,
     ssp: *mut sp_syn,
@@ -5154,7 +5140,7 @@ pub fn ex_ownsyntax(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn syntax_present(win: *mut win_T) -> bool {
+pub fn syntax_present(win: *mut win_T) -> bool {
     unsafe {
         !(*win_s(&mut *win)).b_syn_patterns.is_empty()
             || !(*win_s(&mut *win)).b_syn_clusters.is_empty()
@@ -5169,13 +5155,13 @@ pub fn reset_expand_highlight() {
         g_st().include_link = 0;
 }
 
-pub unsafe fn set_context_in_echohl_cmd(xp: &mut expand_T, arg: *const c_char) {
+pub fn set_context_in_echohl_cmd(xp: &mut expand_T, arg: *const c_char) {
     xp.xp_context = EXPAND_HIGHLIGHT;
         xp.xp_pattern = arg.cast_mut();
         g_st().include_none = 1;
 }
 
-pub unsafe fn set_context_in_syntax_cmd(xp: &mut expand_T, arg: *const c_char) {
+pub fn set_context_in_syntax_cmd(xp: &mut expand_T, arg: *const c_char) {
     unsafe {
         xp.xp_context = EXPAND_SYNTAX;
         syn_st().expand_what = EXP_SUBCMD;
@@ -5300,7 +5286,7 @@ pub fn get_syntax_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function called for expression evaluation: get syntax ID at file position.
-pub unsafe fn syn_get_id(
+pub fn syn_get_id(
     wp: *mut win_T,
     lnum: linenr_T,
     col: colnr_T,

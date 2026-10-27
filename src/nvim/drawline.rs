@@ -278,7 +278,7 @@ fn advance_color_col(wlv: &mut winlinevars_T<'_>, vcol: c_int) {
 
 /// Used when 'cursorlineopt' contains "screenline": compute the margins between
 /// which the highlighting is used.
-unsafe fn margin_columns_win(wp: *mut win_T, left_col: &mut c_int, right_col: &mut c_int) {
+fn margin_columns_win(wp: *mut win_T, left_col: &mut c_int, right_col: &mut c_int) {
     unsafe {
         let cur_col_off = win_col_off(wp);
         let width1 = (*wp).w_view_width - cur_col_off;
@@ -319,7 +319,7 @@ unsafe fn margin_columns_win(wp: *mut win_T, left_col: &mut c_int, right_col: &m
 /// and don't advance `*pp`.
 ///
 /// Handles composing chars.
-unsafe fn line_putchar(
+fn line_putchar(
     buf: *mut buf_T,
     pp: *mut *const c_char,
     dest: *mut schar_T,
@@ -363,7 +363,7 @@ unsafe fn line_putchar(
     }
 }
 
-unsafe fn draw_virt_text(
+fn draw_virt_text(
     wp: &mut win_T,
     buf: *mut buf_T,
     col_off: c_int,
@@ -484,7 +484,7 @@ unsafe fn draw_virt_text(
     }
 }
 
-unsafe fn draw_virt_text_item(
+fn draw_virt_text_item(
     buf: *mut buf_T,
     mut col: c_int,
     vt: &[VirtTextChunk],
@@ -574,7 +574,7 @@ unsafe fn draw_virt_text_item(
     }
 }
 
-unsafe fn draw_col_buf(
+fn draw_col_buf(
     wp: *mut win_T,
     wlv: &mut winlinevars_T,
     text: *const c_char,
@@ -635,7 +635,7 @@ pub fn use_cursor_line_highlight(wp: &mut win_T, lnum: linenr_T) -> bool {
 }
 
 /// Setup for drawing the 'foldcolumn', if there is one.
-unsafe fn draw_foldcolumn(wp: *mut win_T, wlv: &mut winlinevars_T) {
+fn draw_foldcolumn(wp: *mut win_T, wlv: &mut winlinevars_T) {
     unsafe {
         let fdc = compute_foldcolumn(wp, 0);
         if fdc > 0 {
@@ -664,7 +664,7 @@ unsafe fn draw_foldcolumn(wp: *mut win_T, wlv: &mut winlinevars_T) {
 }
 
 #[inline]
-unsafe fn foldcolumn_sep_char(first_level: c_int, i: c_int, wp: *mut win_T) -> schar_T {
+fn foldcolumn_sep_char(first_level: c_int, i: c_int, wp: *mut win_T) -> schar_T {
     unsafe {
         if first_level == 1 {
             (*wp).w_p_fcs_chars.foldsep
@@ -679,7 +679,7 @@ unsafe fn foldcolumn_sep_char(first_level: c_int, i: c_int, wp: *mut win_T) -> s
 }
 
 /// Draw the foldcolumn or fill "out_buffer". Assume monocell characters.
-pub unsafe fn fill_foldcolumn(
+pub fn fill_foldcolumn(
     wp: *mut win_T,
     foldinfo: foldinfo_T,
     lnum: linenr_T,
@@ -740,7 +740,7 @@ pub unsafe fn fill_foldcolumn(
     }
 }
 
-unsafe fn draw_sign(nrcol: bool, wp: *mut win_T, wlv: &mut winlinevars_T, sign_idx: c_int) {
+fn draw_sign(nrcol: bool, wp: *mut win_T, wlv: &mut winlinevars_T, sign_idx: c_int) {
     unsafe {
         let sattr = wlv.sattrs[sign_idx as usize];
         let scl_attr = win_hl_attr(
@@ -780,9 +780,8 @@ unsafe fn draw_sign(nrcol: bool, wp: *mut win_T, wlv: &mut winlinevars_T, sign_i
 }
 
 #[inline]
-unsafe fn get_line_number_str(wp: &mut win_T, lnum: linenr_T, buf: *mut c_char, buf_len: usize) {
-    unsafe {
-        let mut num: linenr_T;
+fn get_line_number_str(wp: &mut win_T, lnum: linenr_T, buf: *mut c_char, buf_len: usize) {
+    let mut num: linenr_T;
         let mut fmt: *const c_char = c"%*d ".as_ptr();
 
         if wp.w_onebuf_opt.wo_nu != 0 && wp.w_onebuf_opt.wo_rnu == 0 {
@@ -796,7 +795,6 @@ unsafe fn get_line_number_str(wp: &mut win_T, lnum: linenr_T, buf: *mut c_char, 
         }
 
         vim_snprintf!(buf, buf_len, fmt, number_width(&raw mut *wp), num);
-    }
 }
 
 fn use_cursor_line_nr(wp: &mut win_T, wlv: &winlinevars_T) -> bool {
@@ -808,7 +806,7 @@ fn use_cursor_line_nr(wp: &mut win_T, wlv: &winlinevars_T) -> bool {
                     && (wp.w_p_culopt_flags & kOptCuloptFlagLine) != 0))
 }
 
-unsafe fn get_line_number_attr(wp: *mut win_T, wlv: &mut winlinevars_T) -> c_int {
+fn get_line_number_attr(wp: *mut win_T, wlv: &mut winlinevars_T) -> c_int {
     unsafe {
         let mut numhl_attr = wlv.sign_num_attr;
 
@@ -894,7 +892,7 @@ fn draw_lnum_col(wp: &mut win_T, wlv: &mut winlinevars_T) {
     }
 }
 
-unsafe fn draw_statuscol(
+fn draw_statuscol(
     wp: *mut win_T,
     wlv: &mut winlinevars_T,
     col_rows: c_int,
@@ -1057,8 +1055,7 @@ fn attr_has_line_deco(attr: c_int) -> bool {
 }
 
 fn handle_breakindent(wp: &mut win_T, wlv: &mut winlinevars_T, gap_decor_attr: c_int) {
-    unsafe {
-        if wp.w_onebuf_opt.wo_bri != 0
+    if wp.w_onebuf_opt.wo_bri != 0
             && (wlv.row > wlv.startrow + wlv.filler_lines || wlv.need_showbreak)
         {
             let mut attr = gap_decor_attr;
@@ -1105,7 +1102,6 @@ fn handle_breakindent(wp: &mut win_T, wlv: &mut winlinevars_T, gap_decor_attr: c
         {
             wlv.need_showbreak = false;
         }
-    }
 }
 
 fn handle_showbreak_and_filler(
@@ -1158,8 +1154,7 @@ fn handle_showbreak_and_filler(
 }
 
 fn apply_cursorline_highlight(wp: &mut win_T, wlv: &mut winlinevars_T) {
-    unsafe {
-        wlv.cul_attr = win_hl_attr(&raw mut *wp, HLF_CUL);
+    wlv.cul_attr = win_hl_attr(&raw mut *wp, HLF_CUL);
         let ae = syn_attr2entry(wlv.cul_attr);
         if ae.rgb_fg_color == -1 && ae.cterm_fg_color == 0 {
             wlv.line_attr_lowprio = wlv.cul_attr;
@@ -1171,12 +1166,10 @@ fn apply_cursorline_highlight(wp: &mut win_T, wlv: &mut winlinevars_T) {
         } else {
             wlv.line_attr = wlv.cul_attr;
         }
-    }
 }
 
-unsafe fn set_line_attr_for_diff(wp: *mut win_T, wlv: &mut winlinevars_T) {
-    unsafe {
-        wlv.line_attr = win_hl_attr(wp, wlv.diff_hlf);
+fn set_line_attr_for_diff(wp: *mut win_T, wlv: &mut winlinevars_T) {
+    wlv.line_attr = win_hl_attr(wp, wlv.diff_hlf);
         if wlv.cul_attr != 0 {
             wlv.line_attr = if wlv.line_attr_lowprio != 0 {
                 hl_combine_attr(
@@ -1187,7 +1180,6 @@ unsafe fn set_line_attr_for_diff(wp: *mut win_T, wlv: &mut winlinevars_T) {
                 hl_combine_attr(wlv.line_attr, wlv.cul_attr)
             };
         }
-    }
 }
 
 fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
@@ -1224,7 +1216,7 @@ fn has_more_inline_virt(wlv: &winlinevars_T, v: isize) -> bool {
     }
 }
 
-unsafe fn handle_inline_virtual_text(
+fn handle_inline_virtual_text(
     _wp: *mut win_T,
     wlv: &mut winlinevars_T,
     v: isize,

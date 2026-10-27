@@ -905,7 +905,7 @@ pub fn basechar_cells_impl(c: CharInfo) -> c_int {
 }
 
 #[inline]
-pub unsafe fn mb_ptr_back<T, U>(s: *const T, p: *mut *mut U) {
+pub fn mb_ptr_back<T, U>(s: *const T, p: *mut *mut U) {
     unsafe {
         let prev = (*p).cast::<c_char>().sub(1);
         let step = 1 + utf_head_off(s.cast(), prev) as usize;
@@ -914,7 +914,7 @@ pub unsafe fn mb_ptr_back<T, U>(s: *const T, p: *mut *mut U) {
 }
 
 #[inline]
-pub unsafe fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
+pub fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
     unsafe {
         let p = p_in.cast::<u8>();
         let first = *p;
@@ -938,17 +938,15 @@ pub unsafe fn utf_ptr2CharInfo(p_in: *const c_char) -> CharInfo {
 }
 
 #[inline]
-pub unsafe fn utf_ptr2StrCharInfo(ptr: *const c_char) -> StrCharInfo {
-    unsafe {
-        StrCharInfo {
+pub fn utf_ptr2StrCharInfo(ptr: *const c_char) -> StrCharInfo {
+    StrCharInfo {
             ptr,
             chr: utf_ptr2CharInfo(ptr),
         }
-    }
 }
 
 #[inline]
-pub unsafe fn utf_ptr2CharInfo_len(p_in: *const c_char, size: c_int) -> CharInfo {
+pub fn utf_ptr2CharInfo_len(p_in: *const c_char, size: c_int) -> CharInfo {
     unsafe {
         let p = p_in.cast::<u8>();
         assert!(size >= 0);
@@ -979,13 +977,11 @@ pub unsafe fn utf_ptr2CharInfo_len(p_in: *const c_char, size: c_int) -> CharInfo
 }
 
 #[inline]
-pub unsafe fn utf_ptr2StrCharInfo_len(ptr: *const c_char, size: c_int) -> StrCharInfo {
-    unsafe {
-        StrCharInfo {
+pub fn utf_ptr2StrCharInfo_len(ptr: *const c_char, size: c_int) -> StrCharInfo {
+    StrCharInfo {
             ptr,
             chr: utf_ptr2CharInfo_len(ptr, size),
         }
-    }
 }
 
 #[inline]
@@ -1045,7 +1041,7 @@ pub fn utf_ClusterInfo_len(cur: StrCharInfo, size: &mut c_int) -> ClusterInfo {
     }
 }
 
-unsafe fn enc_canon_search(name: *const c_char) -> c_int {
+fn enc_canon_search(name: *const c_char) -> c_int {
     let bytes = unsafe { CStr::from_ptr(name).to_bytes() };
     for (i, entry) in ENC_CANON_TABLE.iter().enumerate() {
         if bytes == entry.name.to_bytes() {
@@ -1055,7 +1051,7 @@ unsafe fn enc_canon_search(name: *const c_char) -> c_int {
     -1
 }
 
-pub unsafe fn enc_canon_props(name: *const c_char) -> c_int {
+pub fn enc_canon_props(name: *const c_char) -> c_int {
     unsafe {
         let i = enc_canon_search(name);
         if i >= 0 {
@@ -1089,7 +1085,7 @@ pub fn bomb_size() -> c_int {
     }
 }
 
-pub unsafe fn remove_bom(s: *mut c_char) {
+pub fn remove_bom(s: *mut c_char) {
     unsafe {
         let mut p = s.cast::<u8>();
         while *p != 0 {
@@ -1103,11 +1099,11 @@ pub unsafe fn remove_bom(s: *mut c_char) {
     }
 }
 
-pub unsafe fn mb_get_class(p: *const c_char) -> c_int {
+pub fn mb_get_class(p: *const c_char) -> c_int {
     unsafe { mb_get_class_tab(p, (*g_st().curbuf).b_chartab.as_ptr()) }
 }
 
-pub unsafe fn mb_get_class_tab(p: *const c_char, chartab: *const u64) -> c_int {
+pub fn mb_get_class_tab(p: *const c_char, chartab: *const u64) -> c_int {
     unsafe {
         let b0 = *p.cast::<u8>();
         if utf8len_tab[b0 as usize] == 1 {
@@ -1161,11 +1157,11 @@ pub fn utf_char2cells(c: c_int) -> c_int {
     }
 }
 
-pub unsafe fn ptr2cells(p_in: *const c_char) -> c_int {
-    unsafe { utf_ClusterInfo(utf_ptr2StrCharInfo(p_in)).cells }
+pub fn ptr2cells(p_in: *const c_char) -> c_int {
+    utf_ClusterInfo(utf_ptr2StrCharInfo(p_in)).cells
 }
 
-pub unsafe fn utf_ptr2cells(p_in: *const c_char) -> c_int {
+pub fn utf_ptr2cells(p_in: *const c_char) -> c_int {
     unsafe {
         if *p_in.cast::<u8>() < 0x80 {
             return 1;
@@ -1174,7 +1170,7 @@ pub unsafe fn utf_ptr2cells(p_in: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32 {
+pub fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32 {
     unsafe {
         const CORRECTIONS: [u32; 7] = [
             1u32 << 31,
@@ -1237,7 +1233,7 @@ pub unsafe fn utf_ptr2CharInfo_impl(p: *const u8, len: usize) -> i32 {
     }
 }
 
-pub unsafe fn mb_string2cells(str_: *const c_char) -> usize {
+pub fn mb_string2cells(str_: *const c_char) -> usize {
     unsafe {
         let mut clen = 0usize;
         let mut ci = utf_ptr2StrCharInfo(str_);
@@ -1254,9 +1250,8 @@ pub unsafe fn mb_string2cells(str_: *const c_char) -> usize {
     }
 }
 
-pub unsafe fn mb_string2cells_len(str_: *const c_char, size: usize) -> usize {
-    unsafe {
-        let mut clen = 0usize;
+pub fn mb_string2cells_len(str_: *const c_char, size: usize) -> usize {
+    let mut clen = 0usize;
         let mut len = size as c_int;
         let mut ci = utf_ptr2StrCharInfo_len(str_, len);
         while len > 0 {
@@ -1265,10 +1260,9 @@ pub unsafe fn mb_string2cells_len(str_: *const c_char, size: usize) -> usize {
             ci = cli.next;
         }
         clen
-    }
 }
 
-pub unsafe fn utf_ptr2char(p_in: *const c_char) -> c_int {
+pub fn utf_ptr2char(p_in: *const c_char) -> c_int {
     unsafe {
         let p = p_in.cast::<u8>();
         let v0 = u32::from(*p);
@@ -1358,7 +1352,7 @@ fn utf_safe_read_char_adv(s: &mut *const c_char, n: &mut usize) -> c_int {
     }
 }
 
-pub unsafe fn mb_ptr2char_adv(pp: *mut *const c_char) -> c_int {
+pub fn mb_ptr2char_adv(pp: *mut *const c_char) -> c_int {
     unsafe {
         let c = utf_ptr2char(*pp);
         *pp = (*pp).add(utfc_ptr2len(*pp) as usize);
@@ -1366,7 +1360,7 @@ pub unsafe fn mb_ptr2char_adv(pp: *mut *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int {
+pub fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int {
     unsafe {
         let c = utf_ptr2char(*pp);
         *pp = (*pp).add(utf_ptr2len(*pp) as usize);
@@ -1378,7 +1372,7 @@ pub fn utf_iscomposing_first(c: c_int) -> bool {
     c >= 128 && !utf8proc_grapheme_break(b' ' as i32, c)
 }
 
-pub unsafe fn utf_composinglike(
+pub fn utf_composinglike(
     p1: *const c_char,
     p2: *const c_char,
     state: *mut GraphemeState,
@@ -1396,11 +1390,11 @@ pub unsafe fn utf_composinglike(
     }
 }
 
-pub unsafe fn utf_iscomposing(c1: c_int, c2: c_int, state: *mut GraphemeState) -> bool {
+pub fn utf_iscomposing(c1: c_int, c2: c_int, state: *mut GraphemeState) -> bool {
     unsafe { !utf8proc_grapheme_break_stateful(c1, c2, state.as_mut()) || arabic_combine(c1, c2) }
 }
 
-unsafe fn schar_from_buf_first(buf: *const c_char, len: usize, first_compose: bool) -> schar_T {
+fn schar_from_buf_first(buf: *const c_char, len: usize, first_compose: bool) -> schar_T {
     unsafe {
         if first_compose {
             let mut cbuf = [0 as c_char; MAX_SCHAR_SIZE];
@@ -1413,7 +1407,7 @@ unsafe fn schar_from_buf_first(buf: *const c_char, len: usize, first_compose: bo
     }
 }
 
-pub unsafe fn utfc_ptr2schar(p: *const c_char, firstc: &mut c_int) -> schar_T {
+pub fn utfc_ptr2schar(p: *const c_char, firstc: &mut c_int) -> schar_T {
     unsafe {
         let c = utf_ptr2char(p);
         *firstc = c;
@@ -1427,7 +1421,7 @@ pub unsafe fn utfc_ptr2schar(p: *const c_char, firstc: &mut c_int) -> schar_T {
     }
 }
 
-pub unsafe fn utfc_ptrlen2schar(p: *const c_char, mut len: c_int, firstc: &mut c_int) -> schar_T {
+pub fn utfc_ptrlen2schar(p: *const c_char, mut len: c_int, firstc: &mut c_int) -> schar_T {
     unsafe {
         if (len == 1 && *p.cast::<u8>() >= 0x80) || len == 0 {
             *firstc = c_int::from(*p.cast::<u8>());
@@ -1444,7 +1438,7 @@ pub unsafe fn utfc_ptrlen2schar(p: *const c_char, mut len: c_int, firstc: &mut c
     }
 }
 
-pub unsafe fn utf_ptr2len(p_in: *const c_char) -> c_int {
+pub fn utf_ptr2len(p_in: *const c_char) -> c_int {
     unsafe {
         let p = p_in.cast::<u8>();
         if *p == 0 {
@@ -1464,7 +1458,7 @@ pub fn utf_byte2len(b: c_int) -> c_int {
     c_int::from(utf8len_tab[b as usize])
 }
 
-pub unsafe fn utf_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
+pub fn utf_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
     unsafe {
         let bytes = p.cast::<u8>();
         let len = c_int::from(utf8len_tab[*bytes as usize]);
@@ -1481,7 +1475,7 @@ pub unsafe fn utf_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
     }
 }
 
-pub unsafe fn utfc_ptr2len(p: *const c_char) -> c_int {
+pub fn utfc_ptr2len(p: *const c_char) -> c_int {
     unsafe {
         let b0 = *p.cast::<u8>();
         if b0 == 0 {
@@ -1511,7 +1505,7 @@ pub unsafe fn utfc_ptr2len(p: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
+pub fn utfc_ptr2len_len(p: *const c_char, size: c_int) -> c_int {
     unsafe {
         if size < 1 || *p == NUL {
             return 0;
@@ -1563,7 +1557,7 @@ pub const fn utf_char2len(c: c_int) -> c_int {
     }
 }
 
-pub unsafe fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int {
+pub fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int {
     unsafe {
         let u = c as u32;
         if c < 0x80 {
@@ -1678,7 +1672,7 @@ pub fn utf_class(c: c_int) -> c_int {
     unsafe { utf_class_tab(c, (*g_st().curbuf).b_chartab.as_ptr()) }
 }
 
-pub unsafe fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
+pub fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
     const CLASSES: &[ClInterval] = &[
         ClInterval {
             first: 0x037e,
@@ -2037,8 +2031,7 @@ pub unsafe fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
         },
     ];
 
-    unsafe {
-        if c < 0x100 {
+    if c < 0x100 {
             if c == b' ' as c_int || c == b'\t' as c_int || c == 0 || c == 0xa0 {
                 return 0;
             }
@@ -2068,10 +2061,9 @@ pub unsafe fn utf_class_tab(c: c_int, chartab: *const u64) -> c_int {
         }
 
         2
-    }
 }
 
-pub unsafe fn utf_ambiguous_width(p: *const c_char) -> bool {
+pub fn utf_ambiguous_width(p: *const c_char) -> bool {
     unsafe {
         if *p == NUL || *p.add(1) == NUL {
             return false;
@@ -2147,7 +2139,7 @@ pub fn mb_isalpha(a: c_int) -> bool {
     mb_islower(a) || mb_isupper(a)
 }
 
-pub unsafe fn utf_strnicmp(
+pub fn utf_strnicmp(
     mut s1: *const c_char,
     mut s2: *const c_char,
     mut n1: usize,
@@ -2213,7 +2205,7 @@ pub unsafe fn utf_strnicmp(
 }
 
 #[cfg(windows)]
-pub unsafe fn utf8_to_utf16(utf8: *const c_char, utf8len: c_int, utf16: &mut Vec<u16>) -> c_int {
+pub fn utf8_to_utf16(utf8: *const c_char, utf8len: c_int, utf16: &mut Vec<u16>) -> c_int {
     unsafe {
         utf16.clear();
         let mut bufsize = MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, ptr::null_mut(), 0);
@@ -2234,7 +2226,7 @@ pub unsafe fn utf8_to_utf16(utf8: *const c_char, utf8len: c_int, utf16: &mut Vec
 }
 
 #[cfg(windows)]
-pub unsafe fn utf16_to_utf8(
+pub fn utf16_to_utf8(
     utf16: *const u16,
     utf16len: c_int,
     utf8: &mut Option<std::ffi::CString>,
@@ -2277,7 +2269,7 @@ pub unsafe fn utf16_to_utf8(
     }
 }
 
-pub unsafe fn mb_utflen(
+pub fn mb_utflen(
     s: *const c_char,
     len: usize,
     codepoints: &mut usize,
@@ -2305,7 +2297,7 @@ pub unsafe fn mb_utflen(
     }
 }
 
-pub unsafe fn mb_utf_index_to_bytes(
+pub fn mb_utf_index_to_bytes(
     s: *const c_char,
     len: usize,
     index: usize,
@@ -2337,12 +2329,12 @@ pub unsafe fn mb_utf_index_to_bytes(
     }
 }
 
-pub unsafe fn mb_strnicmp(s1: *const c_char, s2: *const c_char, nn: usize) -> c_int {
-    unsafe { utf_strnicmp(s1, s2, nn, nn) }
+pub fn mb_strnicmp(s1: *const c_char, s2: *const c_char, nn: usize) -> c_int {
+    utf_strnicmp(s1, s2, nn, nn)
 }
 
-pub unsafe fn mb_stricmp(s1: *const c_char, s2: *const c_char) -> c_int {
-    unsafe { mb_strnicmp(s1, s2, MAXCOL) }
+pub fn mb_stricmp(s1: *const c_char, s2: *const c_char) -> c_int {
+    mb_strnicmp(s1, s2, MAXCOL)
 }
 
 pub fn show_utf8() {
@@ -2395,7 +2387,7 @@ const fn always_break_two(bc1: u32, bc2: u32) -> bool {
                 || bc1 == UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC))
 }
 
-pub unsafe fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int {
+pub fn utf_head_off(base_in: *const c_char, p_in: *const c_char) -> c_int {
     unsafe {
         if *p_in.cast::<u8>() < 0x80 {
             return 0;
@@ -2643,7 +2635,7 @@ pub fn utf_allow_break(cc: c_int, ncc: c_int) -> bool {
         utf_allow_break_after(cc) && utf_allow_break_before(ncc)
 }
 
-pub unsafe fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_char) {
+pub fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_char) {
     unsafe {
         let l = utfc_ptr2len(*fp) as usize;
         ptr::copy(*fp, *tp, l);
@@ -2652,7 +2644,7 @@ pub unsafe fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_char) {
     }
 }
 
-pub unsafe fn mb_off_next(base: *const c_char, p: *const c_char) -> c_int {
+pub fn mb_off_next(base: *const c_char, p: *const c_char) -> c_int {
     unsafe {
         let head_off = utf_head_off(base, p);
         if head_off == 0 {
@@ -2662,7 +2654,7 @@ pub unsafe fn mb_off_next(base: *const c_char, p: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn utf_cp_bounds_len(
+pub fn utf_cp_bounds_len(
     base: *const c_char,
     p_in: *const c_char,
     p_len: c_int,
@@ -2715,8 +2707,8 @@ pub unsafe fn utf_cp_bounds_len(
     }
 }
 
-pub unsafe fn utf_cp_bounds(base: *const c_char, p_in: *const c_char) -> CharBoundsOff {
-    unsafe { utf_cp_bounds_len(base, p_in, c_int::MAX) }
+pub fn utf_cp_bounds(base: *const c_char, p_in: *const c_char) -> CharBoundsOff {
+    utf_cp_bounds_len(base, p_in, c_int::MAX)
 }
 
 pub fn utf_find_illegal() {
@@ -2783,7 +2775,7 @@ pub fn utf_find_illegal() {
     }
 }
 
-pub unsafe fn utf_valid_string(s: *const c_char, end: *const c_char) -> bool {
+pub fn utf_valid_string(s: *const c_char, end: *const c_char) -> bool {
     unsafe {
         let mut p = s.cast::<u8>();
         let end_u8 = end.cast::<u8>();
@@ -2849,7 +2841,7 @@ pub fn mb_check_adjust_col(win: &mut win_T) {
     }
 }
 
-pub unsafe fn mb_prevptr(line: *mut c_char, mut p: *mut c_char) -> *mut c_char {
+pub fn mb_prevptr(line: *mut c_char, mut p: *mut c_char) -> *mut c_char {
     unsafe {
         if p > line {
             let off = utf_head_off(line, p.sub(1)) + 1;
@@ -2859,7 +2851,7 @@ pub unsafe fn mb_prevptr(line: *mut c_char, mut p: *mut c_char) -> *mut c_char {
     }
 }
 
-pub unsafe fn mb_charlen(str_: *const c_char) -> c_int {
+pub fn mb_charlen(str_: *const c_char) -> c_int {
     unsafe {
         if str_.is_null() {
             return 0;
@@ -2874,7 +2866,7 @@ pub unsafe fn mb_charlen(str_: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn mb_charlen_len(str_: *const c_char, len: c_int) -> c_int {
+pub fn mb_charlen_len(str_: *const c_char, len: c_int) -> c_int {
     unsafe {
         let mut p = str_;
         let end = str_.add(len.max(0) as usize);
@@ -2887,7 +2879,7 @@ pub unsafe fn mb_charlen_len(str_: *const c_char, len: c_int) -> c_int {
     }
 }
 
-pub unsafe fn mb_unescape(pp: *mut *const c_char) -> *const c_char {
+pub fn mb_unescape(pp: *mut *const c_char) -> *const c_char {
     unsafe {
         let mut buf_idx = 0usize;
         let str_ = (*pp).cast::<u8>();
@@ -2923,7 +2915,7 @@ pub unsafe fn mb_unescape(pp: *mut *const c_char) -> *const c_char {
     }
 }
 
-pub unsafe fn enc_skip(p: *mut c_char) -> *mut c_char {
+pub fn enc_skip(p: *mut c_char) -> *mut c_char {
     unsafe {
         let bytes = CStr::from_ptr(p).to_bytes();
         if bytes.starts_with(b"2byte-") {
@@ -2936,7 +2928,7 @@ pub unsafe fn enc_skip(p: *mut c_char) -> *mut c_char {
     }
 }
 
-unsafe fn enc_alias_search(name: *const c_char) -> c_int {
+fn enc_alias_search(name: *const c_char) -> c_int {
     let bytes = unsafe { CStr::from_ptr(name).to_bytes() };
     for entry in ENC_ALIAS_TABLE {
         if bytes == entry.name.to_bytes() {
@@ -2946,7 +2938,7 @@ unsafe fn enc_alias_search(name: *const c_char) -> c_int {
     -1
 }
 
-pub unsafe fn enc_canonize(enc: *const c_char) -> std::ffi::CString {
+pub fn enc_canonize(enc: *const c_char) -> std::ffi::CString {
     unsafe {
         let enc_bytes = CStr::from_ptr(enc).to_bytes();
         if enc_bytes == b"default" {
@@ -3079,9 +3071,8 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     }
 }
 
-pub unsafe fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> Option<usize> {
-    unsafe {
-        const ICONV_TESTLEN: usize = 400;
+pub fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> Option<usize> {
+    const ICONV_TESTLEN: usize = 400;
         if mbyte_st().iconv_working == WorkingStatus::kBroken {
             return None;
         }
@@ -3106,10 +3097,9 @@ pub unsafe fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> Option<usize>
             }
         }
         (fd != usize::MAX as *mut c_void).then_some(fd as usize)
-    }
 }
 
-unsafe fn iconv_string(
+fn iconv_string(
     vcp: &vimconv_T,
     str_: *const c_char,
     slen: usize,
@@ -3215,11 +3205,11 @@ pub fn f_iconv(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncDa
     }
 }
 
-pub unsafe fn convert_setup(vcp: &mut vimconv_T, from: *mut c_char, to: *mut c_char) -> c_int {
-    unsafe { convert_setup_ext(vcp, from, true, to, true) }
+pub fn convert_setup(vcp: &mut vimconv_T, from: *mut c_char, to: *mut c_char) -> c_int {
+    convert_setup_ext(vcp, from, true, to, true)
 }
 
-pub unsafe fn convert_setup_ext(
+pub fn convert_setup_ext(
     vcp: &mut vimconv_T,
     from: *mut c_char,
     from_unicode_is_utf8: bool,
@@ -3288,15 +3278,15 @@ pub unsafe fn convert_setup_ext(
     }
 }
 
-pub unsafe fn string_convert(
+pub fn string_convert(
     vcp: &vimconv_T,
     ptr: *mut c_char,
     lenp: *mut usize,
 ) -> Option<Vec<u8>> {
-    unsafe { string_convert_ext(vcp, ptr, lenp, ptr::null_mut()) }
+    string_convert_ext(vcp, ptr, lenp, ptr::null_mut())
 }
 
-pub unsafe fn string_convert_ext(
+pub fn string_convert_ext(
     vcp: &vimconv_T,
     ptr: *mut c_char,
     lenp: *mut usize,
@@ -3435,7 +3425,7 @@ fn cw_value(c: c_int) -> c_int {
         .map_or(0, |idx| c_int::from(table[idx].width))
 }
 
-unsafe fn first_list_number(l: *const list_T) -> varnumber_T {
+fn first_list_number(l: *const list_T) -> varnumber_T {
     unsafe {
         let li = tv_list_first(l);
         (*li).li_tv.vval.v_number()
@@ -3568,7 +3558,7 @@ pub fn get_encoding_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     ENC_CANON_TABLE[idx as usize].name.as_ptr().cast_mut()
 }
 
-pub unsafe fn mb_strcmp_ic(ic: bool, s1: *const c_char, s2: *const c_char) -> c_int {
+pub fn mb_strcmp_ic(ic: bool, s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe {
         if ic {
             mb_stricmp(s1, s2)

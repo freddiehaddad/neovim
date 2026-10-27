@@ -320,7 +320,7 @@ fn coladvance2(
 }
 
 /// Return in `pos` the position of the cursor advanced to screen column `wcol` (`getvpos`).
-pub unsafe fn getvpos(wp: *mut win_T, pos: &mut pos_T, wcol: colnr_T) -> c_int {
+pub fn getvpos(wp: *mut win_T, pos: &mut pos_T, wcol: colnr_T) -> c_int {
     unsafe { coladvance2(&mut *wp, pos, false, virtual_active(wp), wcol) }
 }
 
@@ -336,8 +336,7 @@ pub fn dec_cursor() -> c_int {
 
 /// Get the line number relative to the current cursor position (`get_cursor_rel_lnum`).
 pub fn get_cursor_rel_lnum(wp: &mut win_T, lnum: linenr_T) -> linenr_T {
-    unsafe {
-        let cursor = wp.w_cursor.lnum;
+    let cursor = wp.w_cursor.lnum;
         if lnum == cursor || hasAnyFolding(wp) == 0 {
             return lnum - cursor;
         }
@@ -357,17 +356,14 @@ pub fn get_cursor_rel_lnum(wp: &mut win_T, lnum: linenr_T) -> linenr_T {
         }
 
         if lnum < cursor { -retval } else { retval }
-    }
 }
 
 /// Make sure `pos.lnum` and `pos.col` are valid in `buf` (`check_pos`).
 pub fn check_pos(buf: &mut buf_T, pos: &mut pos_T) {
-    unsafe {
-        pos.lnum = pos.lnum.min(buf.b_ml.ml_line_count);
+    pos.lnum = pos.lnum.min(buf.b_ml.ml_line_count);
         if pos.col > 0 {
             pos.col = pos.col.min(ml_get_buf_len(&raw mut *buf, pos.lnum));
         }
-    }
 }
 
 /// Make sure `win->w_cursor.lnum` is valid (`check_cursor_lnum`).
@@ -447,7 +443,7 @@ pub fn check_cursor_col(win: &mut win_T) {
 }
 
 /// Make sure `curwin->w_cursor` is on a valid character (`check_cursor`).
-pub unsafe fn check_cursor(wp: *mut win_T) {
+pub fn check_cursor(wp: *mut win_T) {
     unsafe {
         check_cursor_lnum(&mut *wp);
         check_cursor_col(&mut *wp);
@@ -537,7 +533,7 @@ pub fn set_leftcol(leftcol: colnr_T) -> bool {
 }
 
 pub fn gchar_cursor() -> c_int {
-    unsafe { utf_ptr2char(get_cursor_pos_ptr()) }
+    utf_ptr2char(get_cursor_pos_ptr())
 }
 
 /// Return the character immediately before the cursor (`char_before_cursor`).

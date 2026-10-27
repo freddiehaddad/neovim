@@ -1654,7 +1654,7 @@ fn find_command(mut cmdchar: c_int) -> c_int {
     }
 }
 
-unsafe fn check_text_locked(oap: *mut oparg_T) -> bool {
+fn check_text_locked(oap: *mut oparg_T) -> bool {
     unsafe {
         if !text_locked() {
             return false;
@@ -1667,7 +1667,7 @@ unsafe fn check_text_locked(oap: *mut oparg_T) -> bool {
     }
 }
 
-pub unsafe fn check_text_or_curbuf_locked(oap: *mut oparg_T) -> bool {
+pub fn check_text_or_curbuf_locked(oap: *mut oparg_T) -> bool {
     unsafe {
         if check_text_locked(oap) {
             return true;
@@ -1801,8 +1801,7 @@ fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
 }
 
 fn normal_redraw_mode_message(_s: &mut NormalState) {
-    unsafe {
-        let save_State = g_st().State;
+    let save_State = g_st().State;
 
         if g_st().restart_edit != 0 {
             g_st().State = MODE_INSERT;
@@ -1832,7 +1831,6 @@ fn normal_redraw_mode_message(_s: &mut NormalState) {
 
         g_st().msg_scroll = 0;
         g_st().emsg_on_display = false;
-    }
 }
 
 fn normal_get_additional_char(s: &mut NormalState) {
@@ -2569,7 +2567,7 @@ pub fn restore_visual_mode() {
     }
 }
 
-unsafe fn find_is_eval_item(
+fn find_is_eval_item(
     ptr: *const c_char,
     colp: *mut c_int,
     bnp: *mut c_int,
@@ -2603,7 +2601,7 @@ unsafe fn find_is_eval_item(
     }
 }
 
-pub unsafe fn find_ident_under_cursor(
+pub fn find_ident_under_cursor(
     text: *mut *mut c_char,
     find_type: c_int,
     offset: *mut c_int,
@@ -2629,7 +2627,7 @@ pub unsafe fn find_ident_under_cursor(
     }
 }
 
-pub unsafe fn find_ident_at_pos(
+pub fn find_ident_at_pos(
     wp: &mut win_T,
     lnum: linenr_T,
     mut startcol: colnr_T,
@@ -2728,13 +2726,11 @@ pub unsafe fn find_ident_at_pos(
 }
 
 fn prep_redo_cmd(cap: &mut cmdarg_T) {
-    unsafe {
-        let composing = cap.nchar_len > 0;
+    let composing = cap.nchar_len > 0;
         prep_redo(true, composing, atom_cmd_spec(cap));
         if composing {
             redo_append_str(cap.nchar_composing.as_ptr(), -1);
         }
-    }
 }
 
 fn checkclearop(oap: &mut oparg_T) -> bool {
@@ -3119,7 +3115,7 @@ pub fn display_showcmd() {
 }
 
 pub fn get_vtopline(wp: &mut win_T) -> c_int {
-    unsafe { plines_m_win_fill(&raw mut *wp, 1, wp.w_topline) - wp.w_topfill }
+    plines_m_win_fill(&raw mut *wp, 1, wp.w_topline) - wp.w_topfill
 }
 
 pub fn do_check_scrollbind(check: bool) {
@@ -3276,8 +3272,7 @@ fn nv_page(cap: &mut cmdarg_T) {
 }
 
 fn nv_gd(oap: &mut oparg_T, nchar: c_int, thisblock: c_int) {
-    unsafe {
-        let mut ptr: *mut c_char = ptr::null_mut();
+    let mut ptr: *mut c_char = ptr::null_mut();
         let len = find_ident_under_cursor(&raw mut ptr, FIND_IDENT, ptr::null_mut());
         if len == 0
             || !find_decl(
@@ -3298,10 +3293,9 @@ fn nv_gd(oap: &mut oparg_T, nchar: c_int, thisblock: c_int) {
         if messaging() && g_st().msg_silent == 0 && !shortmess(kShmSearchcount) {
             g_st().clear_cmdline = true;
         }
-    }
 }
 
-unsafe fn is_ident(line: *const c_char, offset: c_int) -> bool {
+fn is_ident(line: *const c_char, offset: c_int) -> bool {
     unsafe {
         let mut incomment = false;
         let mut instring: c_int = 0;
@@ -3334,7 +3328,7 @@ unsafe fn is_ident(line: *const c_char, offset: c_int) -> bool {
     }
 }
 
-pub unsafe fn find_decl(
+pub fn find_decl(
     ptr: *mut c_char,
     len: usize,
     locally: bool,
@@ -4297,7 +4291,7 @@ pub fn do_nv_ident(c1: c_int, c2: c_int) {
         nv_ident(&mut ca);
 }
 
-unsafe fn nv_K_getcmd(
+fn nv_K_getcmd(
     cap: &mut cmdarg_T,
     kp: *mut c_char,
     kp_help: bool,
@@ -5042,7 +5036,7 @@ fn nv_next(cap: &mut cmdarg_T) {
     }
 }
 
-unsafe fn normal_search(
+fn normal_search(
     cap: &mut cmdarg_T,
     dir: c_int,
     pat: *mut c_char,
@@ -6279,10 +6273,8 @@ pub fn start_selection() {
 }
 
 pub fn may_start_select(c: c_int) {
-    unsafe {
-        g_st().Visual.select = (c == b'o' as c_int || (stuff_empty() && typebuf_typed() != 0))
+    g_st().Visual.select = (c == b'o' as c_int || (stuff_empty() && typebuf_typed() != 0))
             && !vim_strchr(opt_vars().p_slm, c).is_null();
-    }
 }
 
 fn n_start_visual_mode(c: c_int) {
@@ -7795,11 +7787,9 @@ mod tests {
 
     #[test]
     fn test_is_ident() {
-        unsafe {
-            let line = c"int foo = 1; /* bar */ // baz";
+        let line = c"int foo = 1; /* bar */ // baz";
             assert!(is_ident(line.as_ptr(), 4));
             assert!(!is_ident(line.as_ptr(), 16));
             assert!(!is_ident(line.as_ptr(), 26));
-        }
     }
 }

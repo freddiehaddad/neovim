@@ -379,7 +379,7 @@ pub fn win_redr_status(wp: &mut win_T) {
     }
 }
 
-pub unsafe fn get_trans_bufname(buf: *mut buf_T) {
+pub fn get_trans_bufname(buf: *mut buf_T) {
     unsafe {
         let name_buff = (&raw mut g_st().NameBuff).cast::<c_char>();
         let sp = buf_spname(buf);
@@ -428,7 +428,7 @@ pub fn stl_alloc_click_defs(
 }
 
 /// Fill the click definitions array if needed.
-pub unsafe fn stl_fill_click_defs(
+pub fn stl_fill_click_defs(
     click_defs: *mut StlClickDefinition,
     click_recs: *mut StlClickRecord,
     mut buf: *const c_char,
@@ -481,7 +481,7 @@ pub unsafe fn stl_fill_click_defs(
 }
 
 /// Redraws the statusline, winbar, ruler or tabline.
-unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_event: bool) {
+fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool, ui_event: bool) {
     unsafe {
         let mut col: c_int = 0;
         let attr: c_int;
@@ -832,7 +832,7 @@ pub fn redraw_ruler() {
 }
 
 /// Get the character to use in a status line. Get its attributes in `*group`.
-pub unsafe fn fillchar_status(group: *mut hlf_T, wp: *mut win_T) -> schar_T {
+pub fn fillchar_status(group: *mut hlf_T, wp: *mut win_T) -> schar_T {
     unsafe {
         if wp == *curwin.as_ptr() {
             *group = HLF_S;
@@ -1132,7 +1132,7 @@ pub fn draw_tabline() {
 }
 
 /// Build the `'statuscolumn'` string for line `lnum`.
-pub unsafe fn build_statuscol_str(
+pub fn build_statuscol_str(
     wp: *mut win_T,
     lnum: linenr_T,
     relnum: c_int,
@@ -1188,7 +1188,7 @@ pub unsafe fn build_statuscol_str(
 }
 
 /// Truncates the statusline at the first truncation marker (`%<`) if present.
-unsafe fn stl_truncate(
+fn stl_truncate(
     width: &mut c_int,
     mut minwid: c_int,
     maxwid: c_int,
@@ -1283,7 +1283,7 @@ unsafe fn stl_truncate(
 
 /// Expands the statusline at separation markers (`%=`) if present,
 /// or otherwise according to padding choice.
-unsafe fn stl_expand(
+fn stl_expand(
     width: &mut c_int,
     target_width: c_int,
     padding: StlPadding,

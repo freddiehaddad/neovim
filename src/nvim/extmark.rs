@@ -126,7 +126,7 @@ pub enum ExtmarkUndoObject {
 }
 
 /// Records a raw mark's position in the open undo block, for `extmark_apply_undo()` to replay.
-unsafe fn extmark_push_savepos(
+fn extmark_push_savepos(
     buf: *mut buf_T,
     mark: u64,
     undo_row: c_int,
@@ -152,7 +152,7 @@ unsafe fn extmark_push_savepos(
 }
 
 /// Create or update an extmark (`extmark_set`).
-pub unsafe fn extmark_set(
+pub fn extmark_set(
     buf: &mut buf_T,
     ns_id: u32,
     idp: *mut u32,
@@ -367,8 +367,7 @@ pub fn extmark_del_id(buf: &mut buf_T, ns_id: u32, id: u32) -> bool {
 
 /// Remove a (paired) extmark `key` pointed to by `itr` (`extmark_del`).
 pub fn extmark_del(buf: &mut buf_T, itr: &mut MarkTreeIter, mut key: MTKey, restore: bool) {
-    unsafe {
-        debug_assert!(key.pos.row >= 0);
+    debug_assert!(key.pos.row >= 0);
 
         let mut key2 = key;
         let other = marktree_del_itr(&mut buf.b_marktree, itr, false);
@@ -400,11 +399,10 @@ pub fn extmark_del(buf: &mut buf_T, itr: &mut MarkTreeIter, mut key: MTKey, rest
         }
 
         decor_state_invalidate(buf);
-    }
 }
 
 /// Free extmarks in a ns between lines (`extmark_clear`).
-pub unsafe fn extmark_clear(
+pub fn extmark_clear(
     buf: *mut buf_T,
     ns_id: u32,
     l_row: c_int,
@@ -559,7 +557,7 @@ pub fn extmark_from_id(buf: &mut buf_T, ns_id: u32, id: u32) -> MTPair {
 }
 
 /// Creates or updates point extmark (`extmark_set_pos`).
-pub unsafe fn extmark_set_pos(
+pub fn extmark_set_pos(
     buf: *mut buf_T,
     ns_id: u32,
     mark: *mut u32,
@@ -595,7 +593,7 @@ pub unsafe fn extmark_set_pos(
 }
 
 /// Gets the position of an extmark, shifted by buffer edits since it was set (`extmark_get_pos`).
-pub unsafe fn extmark_get_pos(buf: *mut buf_T, ns_id: u32, id: u32, pos: &mut pos_T) -> bool {
+pub fn extmark_get_pos(buf: *mut buf_T, ns_id: u32, id: u32, pos: &mut pos_T) -> bool {
     unsafe {
         let mtp = extmark_from_id(&mut *buf, ns_id, id);
         if mtp.start.id == 0 {
@@ -633,7 +631,7 @@ pub fn extmark_free_all(buf: &mut buf_T) {
 }
 
 /// Invalidate extmarks between range and copy to undo header (`extmark_splice_delete`).
-pub unsafe fn extmark_splice_delete(
+pub fn extmark_splice_delete(
     buf: &mut buf_T,
     l_row: c_int,
     l_col: colnr_T,
@@ -795,7 +793,7 @@ pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
 }
 
 /// Adjust extmark row for inserted/deleted rows (`extmark_adjust`).
-pub unsafe fn extmark_adjust(
+pub fn extmark_adjust(
     buf: *mut buf_T,
     line1: linenr_T,
     line2: linenr_T,
@@ -843,7 +841,7 @@ pub unsafe fn extmark_adjust(
 }
 
 /// Adjusts extmarks after a text edit, and emits the `on_bytes` event (`extmark_splice`).
-pub unsafe fn extmark_splice(
+pub fn extmark_splice(
     buf: *mut buf_T,
     start_row: c_int,
     start_col: colnr_T,
@@ -889,8 +887,7 @@ pub fn extmark_splice_impl(
     new_byte: bcount_t,
     undo: ExtmarkOp,
 ) {
-    unsafe {
-        buf.deleted_bytes2 = 0;
+    buf.deleted_bytes2 = 0;
         buf_updates_send_splice(
             buf, start_row, start_col, start_byte, old_row, old_col, old_byte, new_row, new_col,
             new_byte,
@@ -992,10 +989,9 @@ pub fn extmark_splice_impl(
                     .push(ExtmarkUndoObject::Splice(splice));
             }
         }
-    }
 }
 
-pub unsafe fn extmark_splice_cols(
+pub fn extmark_splice_cols(
     buf: *mut buf_T,
     start_row: c_int,
     start_col: colnr_T,
@@ -1003,8 +999,7 @@ pub unsafe fn extmark_splice_cols(
     new_col: colnr_T,
     undo: ExtmarkOp,
 ) {
-    unsafe {
-        extmark_splice(
+    extmark_splice(
             buf,
             start_row,
             start_col,
@@ -1016,7 +1011,6 @@ pub unsafe fn extmark_splice_cols(
             new_col as bcount_t,
             undo,
         );
-    }
 }
 
 pub fn extmark_move_region(
@@ -1032,8 +1026,7 @@ pub fn extmark_move_region(
     new_byte: bcount_t,
     undo: ExtmarkOp,
 ) {
-    unsafe {
-        buf.deleted_bytes2 = 0;
+    buf.deleted_bytes2 = 0;
         buf_updates_send_splice(
             &raw mut *buf,
             start_row,
@@ -1096,7 +1089,6 @@ pub fn extmark_move_region(
                 .uh_extmark
                 .push(ExtmarkUndoObject::Move(move_));
         }
-    }
 }
 
 #[cfg(test)]

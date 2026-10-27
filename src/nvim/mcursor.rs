@@ -261,7 +261,7 @@ fn mc_session_ns() -> u32 {
     }
 }
 
-pub unsafe fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
+pub fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
     unsafe {
         let count = cursors().len();
         if count == 0 {
@@ -281,16 +281,12 @@ pub fn mc_replaying() -> bool {
     unsafe { (*get_vim_var_tv(VV_CASCADING)).vval.v_bool() == kBoolVarTrue }
 }
 
-unsafe fn mc_mark_upd(buf: *mut buf_T, mark: *mut u32, pos: pos_T) {
-    unsafe {
-        extmark_set_pos(buf, mc_ns(), mark, pos, true, false, true);
-    }
+fn mc_mark_upd(buf: *mut buf_T, mark: *mut u32, pos: pos_T) {
+    extmark_set_pos(buf, mc_ns(), mark, pos, true, false, true);
 }
 
-unsafe fn mc_track_upd(buf: *mut buf_T, mark: *mut u32, pos: pos_T) {
-    unsafe {
-        extmark_set_pos(buf, mc_session_ns(), mark, pos, true, true, false);
-    }
+fn mc_track_upd(buf: *mut buf_T, mark: *mut u32, pos: pos_T) {
+    extmark_set_pos(buf, mc_session_ns(), mark, pos, true, true, false);
 }
 
 fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
@@ -585,7 +581,7 @@ pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
     }
 }
 
-unsafe fn mc_cleanup(dedupe: bool, primary: *const pos_T, keep_mark: u32) {
+fn mc_cleanup(dedupe: bool, primary: *const pos_T, keep_mark: u32) {
     unsafe {
         let had_cursors = !cursors().is_empty();
         let mut n = 0;
@@ -724,14 +720,12 @@ fn mc_ins_regions_clear() {
 
 #[inline]
 fn mc_ctx_resolve(ctx: &Context, pos: &mut pos_T) -> bool {
-    unsafe {
-        handle_get_buffer(ctx.buf) == g_st().curbuf
+    handle_get_buffer(ctx.buf) == g_st().curbuf
             && ctx.mark != 0
             && extmark_get_pos(g_st().curbuf, mc_ns(), ctx.mark, pos)
-    }
 }
 
-unsafe fn mc_region_mark_set(mark: *mut u32, pos: pos_T) {
+fn mc_region_mark_set(mark: *mut u32, pos: pos_T) {
     unsafe {
         extmark_set(
             &mut *g_st().curbuf,
@@ -781,7 +775,7 @@ fn mc_ins_region_first() -> MTPair {
 }
 
 #[inline]
-unsafe fn mc_region_range(p: MTPair, start: *mut pos_T, end: *mut pos_T) {
+fn mc_region_range(p: MTPair, start: *mut pos_T, end: *mut pos_T) {
     unsafe {
         *start = pos_T {
             lnum: p.start.pos.row + 1,
@@ -807,7 +801,7 @@ fn mc_region_mark_range(mark: u32, start: &mut pos_T, end: &mut pos_T) -> bool {
     }
 }
 
-unsafe fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: *const NvimString) {
+fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: *const NvimString) {
     unsafe {
         let mut arena = Arena {
             cur_blk: ptr::null_mut(),
@@ -853,7 +847,7 @@ unsafe fn mc_ins_preview_replace(start: pos_T, end: pos_T, text: *const NvimStri
     }
 }
 
-unsafe fn mc_ins_preview_set(new_text: *const NvimString) {
+fn mc_ins_preview_set(new_text: *const NvimString) {
     unsafe {
         let saved = mc_ins_save_state();
         let mut primary: u32 = 0;
@@ -880,7 +874,7 @@ unsafe fn mc_ins_preview_set(new_text: *const NvimString) {
     }
 }
 
-unsafe fn mc_ins_keys_nonliteral(keys: *const c_char, len: usize) -> bool {
+fn mc_ins_keys_nonliteral(keys: *const c_char, len: usize) -> bool {
     unsafe {
         let mut i = 0;
         while i < len {
@@ -1017,7 +1011,7 @@ pub fn mc_ins_cascade() {
     }
 }
 
-unsafe fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
+fn mc_ins_span_flush(ins: *const NvimString, commit: bool) {
     unsafe {
         let empty = NvimString {
             data: ptr::null_mut(),
@@ -1168,14 +1162,12 @@ fn mc_reg_gather() {
 }
 
 pub fn mc_vsel_clear() {
-    unsafe {
-        let buf = handle_get_buffer(mc_st().mc_vsel_buf);
+    let buf = handle_get_buffer(mc_st().mc_vsel_buf);
         if !buf.is_null() {
             extmark_clear(buf, mc_vsel_ns(), 0, 0, MAXLNUM, MAXCOL);
             extmark_clear(buf, mc_vcur_ns(), 0, 0, MAXLNUM, MAXCOL);
         }
         mc_st().mc_vsel_buf = 0;
-    }
 }
 
 fn mc_vsel_mark(
@@ -1305,10 +1297,8 @@ pub fn mc_vsel_refresh() {
 }
 
 pub fn mc_undo_time() {
-    unsafe {
-        atom_did_global_op();
+    atom_did_global_op();
         extmark_clear(g_st().curbuf, mc_ns(), 0, 0, MAXLNUM, MAXCOL);
-    }
 }
 
 pub fn mc_ins_commit() -> bool {
@@ -1396,7 +1386,7 @@ fn mc_lua_enable(enable: bool) {
         );
 }
 
-pub unsafe fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
+pub fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
     unsafe {
         if cursors().is_empty() {
             return 0;
@@ -1419,7 +1409,7 @@ pub unsafe fn mc_mark_at(buf: *mut buf_T, pos: pos_T, skip: u32) -> u32 {
     }
 }
 
-unsafe fn mc_zq_step(keys: *const c_char, pos: pos_T) -> pos_T {
+fn mc_zq_step(keys: *const c_char, pos: pos_T) -> pos_T {
     unsafe {
         (**curwin.as_ptr()).w_cursor = pos;
         (**curwin.as_ptr()).w_set_curswant = false;
@@ -1446,7 +1436,7 @@ unsafe fn mc_zq_step(keys: *const c_char, pos: pos_T) -> pos_T {
     }
 }
 
-unsafe fn mc_zq_target(
+fn mc_zq_target(
     step: pos_T,
     search: bool,
     motion_type: c_int,
@@ -1486,7 +1476,7 @@ unsafe fn mc_zq_target(
     }
 }
 
-unsafe fn mc_zq_first(
+fn mc_zq_first(
     keys: *const c_char,
     search: bool,
     motion_type: c_int,
@@ -1548,7 +1538,7 @@ unsafe fn mc_zq_first(
     }
 }
 
-unsafe fn mc_zq_run(
+fn mc_zq_run(
     keys: *const c_char,
     search: bool,
     motion_type: c_int,
@@ -1785,7 +1775,7 @@ pub fn mc_follow_set(on: TriState) {
     }
 }
 
-pub unsafe fn mc_toggle(buf: *mut buf_T, pos: pos_T, end_follow: bool, on: TriState) {
+pub fn mc_toggle(buf: *mut buf_T, pos: pos_T, end_follow: bool, on: TriState) {
     unsafe {
         if mc_replaying() {
             return;
@@ -1803,7 +1793,7 @@ pub unsafe fn mc_toggle(buf: *mut buf_T, pos: pos_T, end_follow: bool, on: TriSt
     }
 }
 
-pub unsafe fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
+pub fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
     unsafe {
         let existing = mc_mark_at(buf, pos, 0);
         if existing != 0 {
@@ -1826,7 +1816,7 @@ pub unsafe fn mc_add(buf: *mut buf_T, pos: pos_T) -> *mut Context {
     }
 }
 
-pub unsafe fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
+pub fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: u32, pos: pos_T) {
     unsafe {
         if ns_id != mc_ns() {
             return;
@@ -1854,17 +1844,15 @@ pub unsafe fn mc_on_extmark_set(buf: *mut buf_T, ns_id: u32, mut id: u32, pos: p
     }
 }
 
-pub unsafe fn mc_buf_clear(buf: *mut buf_T) {
-    unsafe {
-        if mc_replaying() {
+pub fn mc_buf_clear(buf: *mut buf_T) {
+    if mc_replaying() {
             return;
         }
         extmark_clear(buf, mc_ns(), 0, 0, MAXLNUM, MAXCOL);
         extmark_clear(buf, mc_last_ns(), 0, 0, MAXLNUM, MAXCOL);
-    }
 }
 
-pub unsafe fn mc_buf_free(buf: *mut buf_T) {
+pub fn mc_buf_free(buf: *mut buf_T) {
     unsafe {
         if mc_replaying() {
             return;
@@ -1876,7 +1864,7 @@ pub unsafe fn mc_buf_free(buf: *mut buf_T) {
     }
 }
 
-pub unsafe fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
+pub fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
     unsafe {
         if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() {
             return;
@@ -1894,7 +1882,7 @@ pub unsafe fn mc_ns_clearing(buf: *mut buf_T, ns_id: u32) {
     }
 }
 
-pub unsafe fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
+pub fn mc_ns_cleared(buf: *mut buf_T, ns_id: u32) {
     unsafe {
         if (ns_id != mc_ns() && ns_id != 0) || mc_replaying() || !mc_buf_has_cursors(&mut *buf) {
             return;

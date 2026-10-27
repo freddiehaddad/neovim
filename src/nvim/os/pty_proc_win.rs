@@ -489,8 +489,7 @@ mod win_impl {
     }
 
     fn build_env_block(denv: *mut dict_T, env_block: &mut Vec<u16>) -> c_int {
-        unsafe {
-            env_block.clear();
+        env_block.clear();
             let mut rc: c_int = 0;
             let env = tv_dict_to_env(denv);
             let mut str_utf16: Vec<u16> = Vec::new();
@@ -509,7 +508,6 @@ mod win_impl {
             }
 
             rc
-        }
     }
 }
 

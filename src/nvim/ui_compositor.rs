@@ -106,12 +106,10 @@ pub fn ui_comp_free_all_mem() {
 }
 
 pub fn ui_comp_syn_init() {
-    unsafe {
-        comp().dbghl_normal = syn_check_group(c"RedrawDebugNormal".as_ptr(), 17);
+    comp().dbghl_normal = syn_check_group(c"RedrawDebugNormal".as_ptr(), 17);
         comp().dbghl_clear = syn_check_group(c"RedrawDebugClear".as_ptr(), 16);
         comp().dbghl_composed = syn_check_group(c"RedrawDebugComposed".as_ptr(), 19);
         comp().dbghl_recompose = syn_check_group(c"RedrawDebugRecompose".as_ptr(), 20);
-    }
 }
 
 pub fn ui_comp_attach(ui: &mut RemoteUI) {
@@ -579,8 +577,7 @@ fn compose_debug(
     syn_id: c_int,
     delay: bool,
 ) {
-    unsafe {
-        if (opt_vars().rdb_flags & kOptRdbFlagCompositor) == 0 || startcol >= endcol {
+    if (opt_vars().rdb_flags & kOptRdbFlagCompositor) == 0 || startcol >= endcol {
             return;
         }
 
@@ -611,7 +608,6 @@ fn compose_debug(
         if delay {
             debug_delay(endrow - startrow);
         }
-    }
 }
 
 fn debug_delay(lines: Integer) {
@@ -650,7 +646,7 @@ pub fn ui_comp_compose_grid(grid: &mut ScreenGrid) {
         }
 }
 
-pub unsafe fn ui_comp_raw_line(
+pub fn ui_comp_raw_line(
     grid: Integer,
     mut row: Integer,
     mut startcol: Integer,
@@ -734,8 +730,7 @@ pub fn ui_comp_msg_set_pos(
     _zindex: Integer,
     _compindex: Integer,
 ) {
-    unsafe {
-        g_st().msg_grid.pending_comp_index_update = true;
+    g_st().msg_grid.pending_comp_index_update = true;
         g_st().msg_grid.comp_row = row as c_int;
         if scrolled && row > 0 {
             comp().msg_sep_row = (row as c_int) - 1;
@@ -785,7 +780,6 @@ pub fn ui_comp_msg_set_pos(
 
         comp().msg_current_row = row as c_int;
         comp().msg_was_scrolled = scrolled;
-    }
 }
 
 /// Check if `comp().curgrid` is covered by any other grid within the rectangle (`curgrid_covered_above`).

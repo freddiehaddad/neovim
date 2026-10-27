@@ -2098,7 +2098,7 @@ pub fn simplify_key(key: c_int, modifiers: &mut c_int) -> c_int {
 }
 
 /// Inverse of `simplify_key()` (`unsimplify_key`).
-pub unsafe fn unsimplify_key(c: c_int, modifiers: *mut c_int) -> c_int {
+pub fn unsimplify_key(c: c_int, modifiers: *mut c_int) -> c_int {
     if !is_special(c) {
         return c;
     }
@@ -2149,7 +2149,7 @@ static SPECIAL_KEY_STRING: crate::globals::GlobalState<[c_char; MAX_KEY_NAME_LEN
 
 /// Gets a key "chord" (key + modifiers) as a string, and optionally as structured `data`
 /// (`get_special_key`).
-pub unsafe fn get_special_key(
+pub fn get_special_key(
     mut c: c_int,
     mut modifiers: c_int,
     data: *mut keychord,
@@ -2333,11 +2333,11 @@ pub unsafe fn get_special_key(
 
 /// Return string representing the key "chord" (key + modifiers) (`get_special_key_name`).
 pub fn get_special_key_name(c: c_int, modifiers: c_int) -> *mut c_char {
-    unsafe { get_special_key(c, modifiers, std::ptr::null_mut()) }
+    get_special_key(c, modifiers, std::ptr::null_mut())
 }
 
 /// Try translating a `<>` name ("keycode") (`trans_special`).
-pub unsafe fn trans_special(
+pub fn trans_special(
     srcp: *mut *const c_char,
     src_len: usize,
     dst: *mut c_char,
@@ -2346,17 +2346,17 @@ pub unsafe fn trans_special(
     did_simplify: *mut bool,
 ) -> c_uint {
     let mut modifiers: c_int = 0;
-    let key = unsafe { find_special_key(srcp, src_len, &mut modifiers, flags, did_simplify) };
+    let key = find_special_key(srcp, src_len, &mut modifiers, flags, did_simplify);
     if key == 0 {
         return 0;
     }
 
-    unsafe { special_to_buf(key, modifiers, escape_ks, dst) }
+    special_to_buf(key, modifiers, escape_ks, dst)
 }
 
 /// Put the character sequence for `key` with `modifiers` into `dst` and return
 /// the resulting length (`special_to_buf`).
-pub unsafe fn special_to_buf(
+pub fn special_to_buf(
     key: c_int,
     modifiers: c_int,
     escape_ks: bool,
@@ -2439,7 +2439,7 @@ fn extract_modifiers(
 }
 
 /// Try translating a `<>` name (`find_special_key`).
-pub unsafe fn find_special_key(
+pub fn find_special_key(
     srcp: *mut *const c_char,
     src_len: usize,
     modp: *mut c_int,
@@ -2630,7 +2630,7 @@ pub fn find_special_key_in_table(c: c_int) -> c_int {
 }
 
 /// Find the special key with the given name (`get_special_key_code`).
-pub unsafe fn get_special_key_code(name: *const c_char) -> c_int {
+pub fn get_special_key_code(name: *const c_char) -> c_int {
     unsafe {
         if *name == b't' as c_char
             && *name.add(1) == b'_' as c_char
@@ -2671,7 +2671,7 @@ pub fn get_mouse_button(code: c_int, is_click: &mut bool, is_drag: &mut bool) ->
 }
 
 /// Encode `<key>` notation into Nvim's internal key representation (`replace_termcodes`).
-pub unsafe fn replace_termcodes(
+pub fn replace_termcodes(
     from: *const c_char,
     from_len: usize,
     buf_limit: bool,
@@ -2837,7 +2837,7 @@ pub unsafe fn replace_termcodes(
 }
 
 /// Add character `c` to buffer `s`, escaping `K_SPECIAL` (`add_char2buf`).
-pub unsafe fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
+pub fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
     unsafe {
         let mut s = s;
         let mut temp = [0 as c_char; MB_MAXBYTES + 1];
@@ -2861,7 +2861,7 @@ pub unsafe fn add_char2buf(c: c_int, s: *mut c_char) -> *mut c_char {
 }
 
 /// Copy `p` to an owned `CString`, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).
-pub unsafe fn vim_strsave_escape_ks(p: *const c_char) -> std::ffi::CString {
+pub fn vim_strsave_escape_ks(p: *const c_char) -> std::ffi::CString {
     unsafe {
         let mut res = vec![0 as c_char; CStr::from_ptr(p).to_bytes().len() * 4 + 1];
         let mut d = res.as_mut_ptr();
@@ -2891,7 +2891,7 @@ pub unsafe fn vim_strsave_escape_ks(p: *const c_char) -> std::ffi::CString {
 }
 
 /// Remove escaping from `K_SPECIAL` characters in-place (`vim_unescape_ks`).
-pub unsafe fn vim_unescape_ks(p: *mut c_char) -> usize {
+pub fn vim_unescape_ks(p: *mut c_char) -> usize {
     unsafe {
         let mut s = p.cast::<u8>();
         let mut d = p.cast::<u8>();
@@ -2934,7 +2934,7 @@ mod tests {
         assert_eq!(simplified, K_S_F1);
         assert_eq!(mods, 0);
 
-        let unsimplified = unsafe { unsimplify_key(simplified, &mut mods) };
+        let unsimplified = unsimplify_key(simplified, &mut mods);
         assert_eq!(unsimplified, K_F1);
         assert_eq!(mods, MOD_MASK_SHIFT as c_int);
     }
@@ -2942,18 +2942,18 @@ mod tests {
     #[test]
     fn key_names_table_hash_resolves_all_entries() {
         for entry in KEY_NAMES_TABLE {
-            let code = unsafe { get_special_key_code(entry.name.as_ptr()) };
+            let code = get_special_key_code(entry.name.as_ptr());
             assert_ne!(code, 0);
         }
-        assert_eq!(unsafe { get_special_key_code(c"CR".as_ptr()) }, CAR);
-        assert_eq!(unsafe { get_special_key_code(c"Esc".as_ptr()) }, ESC);
-        assert_eq!(unsafe { get_special_key_code(c"NotAKey".as_ptr()) }, 0);
+        assert_eq!(get_special_key_code(c"CR".as_ptr()), CAR);
+        assert_eq!(get_special_key_code(c"Esc".as_ptr()), ESC);
+        assert_eq!(get_special_key_code(c"NotAKey".as_ptr()), 0);
     }
 
     #[test]
     fn vim_unescape_ks_unescapes_in_place() {
         let mut buf = [K_SPECIAL, KS_SPECIAL, KE_FILLER, b'a', 0];
-        let len = unsafe { vim_unescape_ks(buf.as_mut_ptr().cast()) };
+        let len = vim_unescape_ks(buf.as_mut_ptr().cast());
         assert_eq!(len, 2);
         assert_eq!(buf[0], K_SPECIAL);
         assert_eq!(buf[1], b'a');
@@ -2962,8 +2962,7 @@ mod tests {
 
     #[test]
     fn find_special_key_handles_modifiers_case_and_quotes() {
-        unsafe {
-            let mut modp: c_int = 0;
+        let mut modp: c_int = 0;
             let mut p = c"abc".as_ptr();
             assert_eq!(
                 find_special_key(&mut p, 3, &mut modp, 0, std::ptr::null_mut()),
@@ -3009,6 +3008,5 @@ mod tests {
                 find_special_key(&mut p, 6, &mut modp, FSK_IN_STRING, std::ptr::null_mut()),
                 b'"' as c_int
             );
-        }
     }
 }

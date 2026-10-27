@@ -424,7 +424,7 @@ impl Default for spellinfo_T {
 use crate::fileio::ungetc;
 
 #[inline]
-unsafe fn spell_read_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> c_int {
+fn spell_read_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> c_int {
     unsafe {
         let read_bytes = fread(buf.cast(), 1, n, fd);
         if read_bytes != n {
@@ -440,7 +440,7 @@ unsafe fn spell_read_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> c_int {
 }
 
 #[inline]
-unsafe fn spell_read_nonnul_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> c_int {
+fn spell_read_nonnul_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> c_int {
     unsafe {
         let ret = spell_read_bytes(buf, n, fd);
         if ret != 0 {
@@ -454,7 +454,7 @@ unsafe fn spell_read_nonnul_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> 
 }
 
 #[inline]
-unsafe fn spell_check_magic_string(fd: *mut FILE) -> c_int {
+fn spell_check_magic_string(fd: *mut FILE) -> c_int {
     unsafe {
         let mut buf = [0 as c_char; VIMSPELLMAGICL];
         let ret = spell_read_bytes(buf.as_mut_ptr(), VIMSPELLMAGICL, fd);
@@ -471,7 +471,7 @@ unsafe fn spell_check_magic_string(fd: *mut FILE) -> c_int {
 }
 
 /// Load one spell file and store the info into a slang_T.
-pub unsafe fn spell_load_file(
+pub fn spell_load_file(
     fname: *mut c_char,
     lang: *mut c_char,
     old_lp: *mut slang_T,
@@ -734,7 +734,7 @@ pub unsafe fn spell_load_file(
     }
 }
 
-unsafe fn tree_count_words(byts: *const u8, byts_len: c_int, idxs: *mut idx_T) {
+fn tree_count_words(byts: *const u8, byts_len: c_int, idxs: *mut idx_T) {
     unsafe {
         let mut arridx = [0 as idx_T; MAXWLEN];
         let mut curi = [0 as c_int; MAXWLEN];
@@ -928,7 +928,7 @@ pub fn suggest_load_files() {
     }
 }
 
-unsafe fn read_cnt_string(
+fn read_cnt_string(
     fd: *mut FILE,
     cnt_bytes: c_int,
     cntp: &mut c_int,
@@ -955,7 +955,7 @@ unsafe fn read_cnt_string(
     }
 }
 
-unsafe fn read_region_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_int {
+fn read_region_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_int {
     unsafe {
         if len > (MAXREGIONS * 2) as c_int {
             return SP_FORMERROR;
@@ -970,9 +970,8 @@ unsafe fn read_region_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_
     }
 }
 
-unsafe fn read_charflags_section(fd: *mut FILE) -> c_int {
-    unsafe {
-        let mut flagslen: c_int = 0;
+fn read_charflags_section(fd: *mut FILE) -> c_int {
+    let mut flagslen: c_int = 0;
         let mut follen: c_int = 0;
 
         let flags = read_cnt_string(fd, 1, &mut flagslen);
@@ -993,10 +992,9 @@ unsafe fn read_charflags_section(fd: *mut FILE) -> c_int {
             return SP_FORMERROR;
         }
         0
-    }
 }
 
-unsafe fn read_prefcond_section(fd: *mut FILE, lp: &mut slang_T) -> c_int {
+fn read_prefcond_section(fd: *mut FILE, lp: &mut slang_T) -> c_int {
     unsafe {
         let cnt = get2c(fd);
         if cnt <= 0 {
@@ -1027,7 +1025,7 @@ unsafe fn read_prefcond_section(fd: *mut FILE, lp: &mut slang_T) -> c_int {
     }
 }
 
-unsafe fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i16) -> c_int {
+fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i16) -> c_int {
     unsafe {
         let cnt = get2c(fd);
         if cnt < 0 {
@@ -1072,7 +1070,7 @@ unsafe fn read_rep_section(fd: *mut FILE, gap: &mut Vec<fromto_T>, first: *mut i
     }
 }
 
-unsafe fn read_sal_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
+fn read_sal_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
     unsafe {
         slang.sl_sofo = false;
 
@@ -1199,7 +1197,7 @@ unsafe fn read_sal_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
     }
 }
 
-unsafe fn read_words_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_int {
+fn read_words_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_int {
     unsafe {
         let mut done: c_int = 0;
         let mut word = [0u8; MAXWLEN];
@@ -1228,9 +1226,8 @@ unsafe fn read_words_section(fd: *mut FILE, lp: &mut slang_T, len: c_int) -> c_i
     }
 }
 
-unsafe fn read_sofo_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
-    unsafe {
-        let mut cnt: c_int = 0;
+fn read_sofo_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
+    let mut cnt: c_int = 0;
         let from = read_cnt_string(fd, 2, &mut cnt);
         if cnt < 0 {
             return cnt;
@@ -1246,10 +1243,9 @@ unsafe fn read_sofo_section(fd: *mut FILE, slang: &mut slang_T) -> c_int {
             (None, None) => 0,
             _ => SP_FORMERROR,
         }
-    }
 }
 
-unsafe fn read_compound(fd: *mut FILE, slang: &mut slang_T, len: c_int) -> c_int {
+fn read_compound(fd: *mut FILE, slang: &mut slang_T, len: c_int) -> c_int {
     unsafe {
         let mut todo = len;
         let mut cnt: c_int = 0;
@@ -1404,7 +1400,7 @@ unsafe fn read_compound(fd: *mut FILE, slang: &mut slang_T, len: c_int) -> c_int
     }
 }
 
-unsafe fn set_sofo(lp: &mut slang_T, from: *const c_char, to: *const c_char) -> c_int {
+fn set_sofo(lp: &mut slang_T, from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
         lp.sl_sal = Vec::new();
         lp.sl_sofo_sal = Vec::new();
@@ -1461,7 +1457,7 @@ fn set_sal_first(lp: &mut slang_T) {
         }
 }
 
-unsafe fn mb_str2wide(s: *const c_char) -> Vec<c_int> {
+fn mb_str2wide(s: *const c_char) -> Vec<c_int> {
     unsafe {
         let mut res = Vec::with_capacity(mb_charlen(s) as usize + 1);
         let mut p = s;
@@ -1473,15 +1469,14 @@ unsafe fn mb_str2wide(s: *const c_char) -> Vec<c_int> {
     }
 }
 
-unsafe fn spell_read_tree(
+fn spell_read_tree(
     fd: *mut FILE,
     bytsp: &mut Vec<u8>,
     idxsp: &mut Vec<idx_T>,
     prefixtree: bool,
     prefixcnt: c_int,
 ) -> c_int {
-    unsafe {
-        let len = get4c(fd);
+    let len = get4c(fd);
         if len < 0 {
             return SP_TRUNCERROR;
         }
@@ -1514,10 +1509,9 @@ unsafe fn spell_read_tree(
             return SP_FORMERROR;
         }
         0
-    }
 }
 
-unsafe fn read_tree_node(
+fn read_tree_node(
     fd: *mut FILE,
     byts: *mut u8,
     idxs: *mut idx_T,
@@ -1648,7 +1642,7 @@ unsafe fn read_tree_node(
     }
 }
 
-unsafe fn spell_reload_one(fname: *mut c_char, added_word: bool) {
+fn spell_reload_one(fname: *mut c_char, added_word: bool) {
     unsafe {
         let mut didit = false;
 
@@ -1677,7 +1671,7 @@ unsafe fn spell_reload_one(fname: *mut c_char, added_word: bool) {
 }
 
 /// Check the 'mkspellmem' option. Return FAIL if it's wrong.
-pub unsafe fn spell_check_msm(value: *mut c_char, apply: bool) -> c_int {
+pub fn spell_check_msm(value: *mut c_char, apply: bool) -> c_int {
     unsafe {
         let mut p = value;
 
@@ -1718,7 +1712,7 @@ pub unsafe fn spell_check_msm(value: *mut c_char, apply: bool) -> c_int {
     }
 }
 
-unsafe fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_T> {
+fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<afffile_T> {
     unsafe {
         let mut rline = [0 as c_char; MAXLINELEN];
         let mut pc_vec: Vec<c_char>;
@@ -2635,7 +2629,7 @@ unsafe fn spell_read_aff(spin: &mut spellinfo_T, fname: *mut c_char) -> Option<a
     }
 }
 
-unsafe fn is_aff_rule(
+fn is_aff_rule(
     items: &[*mut c_char],
     itemcnt: c_int,
     rulename: *const c_char,
@@ -2684,7 +2678,7 @@ fn aff_process_flags(affile: &afffile_T, entry: &mut affentry_T) {
     }
 }
 
-unsafe fn spell_info_item(s: *const c_char) -> bool {
+fn spell_info_item(s: *const c_char) -> bool {
     unsafe {
         std::ffi::CStr::from_ptr(s).to_bytes() == b"NAME"
             || std::ffi::CStr::from_ptr(s).to_bytes() == b"HOME"
@@ -2695,7 +2689,7 @@ unsafe fn spell_info_item(s: *const c_char) -> bool {
     }
 }
 
-unsafe fn affitem2flag(
+fn affitem2flag(
     flagtype: c_int,
     item: *mut c_char,
     fname: *mut c_char,
@@ -2731,7 +2725,7 @@ unsafe fn affitem2flag(
     }
 }
 
-unsafe fn get_affitem(flagtype: c_int, pp: *mut *mut c_char) -> c_uint {
+fn get_affitem(flagtype: c_int, pp: *mut *mut c_char) -> c_uint {
     unsafe {
         let mut res: c_int;
         if flagtype == AFT_NUM {
@@ -2762,7 +2756,7 @@ unsafe fn get_affitem(flagtype: c_int, pp: *mut *mut c_char) -> c_uint {
     }
 }
 
-unsafe fn process_compflags(spin: &mut spellinfo_T, aff: &mut afffile_T, compflags: *mut c_char) {
+fn process_compflags(spin: &mut spellinfo_T, aff: &mut afffile_T, compflags: *mut c_char) {
     unsafe {
         let mut key = [0 as c_char; AH_KEY_LEN];
 
@@ -2826,7 +2820,7 @@ fn check_renumber(spin: &mut spellinfo_T) {
         }
 }
 
-unsafe fn store_afflist_add(store_afflist: *mut c_char, cntp: *mut c_int, id: c_int) -> c_int {
+fn store_afflist_add(store_afflist: *mut c_char, cntp: *mut c_int, id: c_int) -> c_int {
     unsafe {
         if *cntp >= (MAXWLEN - 1) as c_int {
             emsg(gettext(
@@ -2841,7 +2835,7 @@ unsafe fn store_afflist_add(store_afflist: *mut c_char, cntp: *mut c_int, id: c_
     }
 }
 
-unsafe fn flag_in_afflist(flagtype: c_int, afflist: *mut c_char, flag: c_uint) -> bool {
+fn flag_in_afflist(flagtype: c_int, afflist: *mut c_char, flag: c_uint) -> bool {
     unsafe {
         match flagtype {
             AFT_CHAR => !vim_strchr(afflist, flag as c_int).is_null(),
@@ -2883,25 +2877,22 @@ unsafe fn flag_in_afflist(flagtype: c_int, afflist: *mut c_char, flag: c_uint) -
     }
 }
 
-unsafe fn aff_check_number(spinval: c_int, affval: c_int, name: *const c_char) {
-    unsafe {
-        if spinval != 0 && spinval != affval {
+fn aff_check_number(spinval: c_int, affval: c_int, name: *const c_char) {
+    if spinval != 0 && spinval != affval {
             smsg!(
                 0,
                 gettext(c"%s value differs from what is used in another .aff file".as_ptr()),
                 name,
             );
         }
-    }
 }
 
-unsafe fn aff_check_string(
+fn aff_check_string(
     spinval: Option<&std::ffi::CStr>,
     affval: &std::ffi::CStr,
     name: *const c_char,
 ) {
-    unsafe {
-        if let Some(s) = spinval
+    if let Some(s) = spinval
             && s != affval
         {
             smsg!(
@@ -2910,10 +2901,9 @@ unsafe fn aff_check_string(
                 name,
             );
         }
-    }
 }
 
-unsafe fn add_fromto(
+fn add_fromto(
     gap: &mut Vec<fromto_T>,
     from: *mut c_char,
     to: *mut c_char,
@@ -2940,11 +2930,11 @@ unsafe fn add_fromto(
     }
 }
 
-unsafe fn sal_to_bool(s: *const c_char) -> bool {
+fn sal_to_bool(s: *const c_char) -> bool {
     unsafe { std::ffi::CStr::from_ptr(s).to_bytes() == b"1" || std::ffi::CStr::from_ptr(s).to_bytes() == b"true" }
 }
 
-unsafe fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T) -> c_int {
+fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &afffile_T) -> c_int {
     unsafe {
         let mut ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
         let mut line = [0 as c_char; MAXLINELEN];
@@ -3180,9 +3170,8 @@ unsafe fn spell_read_dic(spin: &mut spellinfo_T, fname: *mut c_char, affile: &af
     }
 }
 
-unsafe fn get_affix_flags(affile: &afffile_T, afflist: *mut c_char) -> c_int {
-    unsafe {
-        let mut flags: c_int = 0;
+fn get_affix_flags(affile: &afffile_T, afflist: *mut c_char) -> c_int {
+    let mut flags: c_int = 0;
 
         if affile.af_keepcase != 0
             && flag_in_afflist(affile.af_flagtype, afflist, affile.af_keepcase)
@@ -3211,10 +3200,9 @@ unsafe fn get_affix_flags(affile: &afffile_T, afflist: *mut c_char) -> c_int {
             flags |= WF_NOSUGGEST;
         }
         flags
-    }
 }
 
-unsafe fn get_pfxlist(
+fn get_pfxlist(
     affile: &afffile_T,
     afflist: *mut c_char,
     store_afflist: *mut c_char,
@@ -3244,7 +3232,7 @@ unsafe fn get_pfxlist(
     }
 }
 
-unsafe fn get_compflags(
+fn get_compflags(
     affile: &afffile_T,
     afflist: *mut c_char,
     store_afflist: *mut c_char,
@@ -3273,7 +3261,7 @@ unsafe fn get_compflags(
     }
 }
 
-unsafe fn store_aff_word(
+fn store_aff_word(
     spin: &mut spellinfo_T,
     word: *mut c_char,
     afflist: *mut c_char,
@@ -3571,7 +3559,7 @@ unsafe fn store_aff_word(
     }
 }
 
-unsafe fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> c_int {
+fn spell_read_wordfile(spin: &mut spellinfo_T, fname: *mut c_char) -> c_int {
     unsafe {
         let mut lnum: linenr_T = 0;
         let mut rline = [0 as c_char; MAXLINELEN];
@@ -3791,7 +3779,7 @@ fn wordtree_alloc(spin: &mut spellinfo_T) -> Option<usize> {
     Some(get_wordnode(spin))
 }
 
-unsafe fn valid_spell_word(word: *const c_char, end: *const c_char) -> bool {
+fn valid_spell_word(word: *const c_char, end: *const c_char) -> bool {
     unsafe {
         if !utf_valid_string(word, end) {
             return false;
@@ -3807,7 +3795,7 @@ unsafe fn valid_spell_word(word: *const c_char, end: *const c_char) -> bool {
     }
 }
 
-unsafe fn store_word(
+fn store_word(
     spin: &mut spellinfo_T,
     word: *mut c_char,
     flags: c_int,
@@ -3869,7 +3857,7 @@ unsafe fn store_word(
     }
 }
 
-unsafe fn tree_add_word(
+fn tree_add_word(
     spin: *mut spellinfo_T,
     word: *const c_char,
     root: Option<usize>,
@@ -4063,7 +4051,7 @@ fn free_wordnode(spin: &mut spellinfo_T, n: usize) {
     spin.si_free_count += 1;
 }
 
-unsafe fn wordtree_compress(spin: *mut spellinfo_T, root: Option<usize>, name: *const c_char) {
+fn wordtree_compress(spin: *mut spellinfo_T, root: Option<usize>, name: *const c_char) {
     unsafe {
         let spin = &mut *spin;
         let mut ht: std::collections::HashMap<[u8; 6], usize> = std::collections::HashMap::new();
@@ -4198,7 +4186,7 @@ fn node_equal(nodes: &[wordnode_T], n1: usize, n2: usize) -> bool {
     p1.is_none() && p2.is_none()
 }
 
-unsafe fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> c_int {
+fn write_vim_spell(spin: &mut spellinfo_T, fname: *mut c_char) -> c_int {
     unsafe {
         let mut retval = OK;
 
@@ -4526,7 +4514,7 @@ fn clear_node(nodes: &mut [wordnode_T], node: Option<usize>) {
     }
 }
 
-unsafe fn put_node(
+fn put_node(
     fd: *mut FILE,
     nodes: &mut [wordnode_T],
     node: Option<usize>,
@@ -4652,7 +4640,7 @@ pub fn ex_mkspell(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
+fn spell_make_sugfile(spin: &mut spellinfo_T, wfname: *mut c_char) {
     unsafe {
         let langs = &raw mut spell_priv_st().first_lang;
         let mut slang = (*langs)
@@ -4793,7 +4781,7 @@ fn sug_filltree(spin: &mut spellinfo_T, slang: &mut slang_T) -> c_int {
     }
 }
 
-unsafe fn sug_maketable(spin: *mut spellinfo_T) -> c_int {
+fn sug_maketable(spin: *mut spellinfo_T) -> c_int {
     unsafe {
         let spin = &mut *spin;
         let mut ga: Vec<c_char> = Vec::with_capacity(100);
@@ -4818,8 +4806,7 @@ fn sug_filltable(
     startwordnr: c_int,
     gap: &mut Vec<c_char>,
 ) -> c_int {
-    unsafe {
-        let mut wordnr = startwordnr;
+    let mut wordnr = startwordnr;
 
         let mut p = node;
         while let Some(p_idx) = p {
@@ -4875,10 +4862,9 @@ fn sug_filltable(
             p = spin.si_nodes[p_idx].wn_sibling;
         }
         wordnr
-    }
 }
 
-unsafe fn offset2bytes(nr: c_int, buf_in: *mut c_char) -> c_int {
+fn offset2bytes(nr: c_int, buf_in: *mut c_char) -> c_int {
     unsafe {
         let buf = buf_in.cast::<u8>();
 
@@ -4912,7 +4898,7 @@ unsafe fn offset2bytes(nr: c_int, buf_in: *mut c_char) -> c_int {
     }
 }
 
-unsafe fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
+fn sug_write(spin: &mut spellinfo_T, fname: *mut c_char) {
     unsafe {
         let fd = os_fopen(fname, c"w".as_ptr());
         if fd.is_null() {
@@ -5184,7 +5170,7 @@ fn mkspell(
     }
 }
 
-unsafe fn spell_message(spin: *const spellinfo_T, str_: *const c_char) {
+fn spell_message(spin: *const spellinfo_T, str_: *const c_char) {
     unsafe {
         if (*spin).si_verbose != 0 || opt_vars().p_verbose > 2 {
             if (*spin).si_verbose == 0 {
@@ -5227,7 +5213,7 @@ pub fn ex_spell(eap: &mut exarg_T) {
 }
 
 /// Add "word[len]" to 'spellfile' as a good or bad word.
-pub unsafe fn spell_add_word(
+pub fn spell_add_word(
     word: *mut c_char,
     len: c_int,
     what: SpellAddType,
@@ -5492,7 +5478,7 @@ fn init_spellfile() {
     }
 }
 
-unsafe fn set_spell_charflags(flags_in: *const c_char, cnt: c_int, fol: *const c_char) {
+fn set_spell_charflags(flags_in: *const c_char, cnt: c_int, fol: *const c_char) {
     unsafe {
         let flags = flags_in.cast::<u8>();
         let mut new_st = spelltab_T::new();
@@ -5520,8 +5506,7 @@ unsafe fn set_spell_charflags(flags_in: *const c_char, cnt: c_int, fol: *const c
 }
 
 fn set_spell_finish(new_st: &mut spelltab_T) -> c_int {
-    unsafe {
-        if spell_priv_st().did_set_spelltab {
+    if spell_priv_st().did_set_spelltab {
             for i in 0..256 {
                 if spell_priv_st().spelltab.st_isw[i] != new_st.st_isw[i]
                     || spell_priv_st().spelltab.st_isu[i] != new_st.st_isu[i]
@@ -5540,10 +5525,9 @@ fn set_spell_finish(new_st: &mut spelltab_T) -> c_int {
         }
 
         OK
-    }
 }
 
-unsafe fn write_spell_prefcond(
+fn write_spell_prefcond(
     fd: *mut FILE,
     gap: &[Option<std::ffi::CString>],
     fwv: &mut usize,
@@ -5570,7 +5554,7 @@ unsafe fn write_spell_prefcond(
     }
 }
 
-unsafe fn set_map_str(lp: &mut slang_T, map: *const c_char) {
+fn set_map_str(lp: &mut slang_T, map: *const c_char) {
     unsafe {
         let mut headc: c_int = 0;
 
@@ -5613,8 +5597,7 @@ mod tests {
 
     #[test]
     fn offset2bytes_and_spell_check_msm_work() {
-        unsafe {
-            let mut buf = [0 as c_char; 8];
+        let mut buf = [0 as c_char; 8];
             assert_eq!(offset2bytes(0, buf.as_mut_ptr()), 1);
             assert_eq!(buf[0] as u8, 1);
 
@@ -5630,6 +5613,5 @@ mod tests {
                 spell_check_msm(msm_invalid.as_mut_ptr().cast(), false),
                 FAIL
             );
-        }
     }
 }

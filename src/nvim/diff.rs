@@ -276,7 +276,7 @@ fn diff_scan_remember(
         diff_st().diff_finger_lnum = lnum;
         diff_st().diff_finger_dp_idx = Some(dp_idx.unwrap_or(0));
 }
-pub unsafe fn diff_buf_delete(buf: *mut buf_T) {
+pub fn diff_buf_delete(buf: *mut buf_T) {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -317,7 +317,7 @@ pub fn diff_buf_adjust(win: &mut win_T) {
         }
     }
 }
-pub unsafe fn diff_buf_add(buf: *mut buf_T) {
+pub fn diff_buf_add(buf: *mut buf_T) {
     unsafe {
         if diff_buf_idx(buf, &mut *g_st().curtab) != DB_COUNT as c_int {
             return;
@@ -347,7 +347,7 @@ fn diff_buf_clear() {
         }
     }
 }
-unsafe fn diff_buf_idx(buf: *mut buf_T, tp: &mut tabpage_T) -> c_int {
+fn diff_buf_idx(buf: *mut buf_T, tp: &mut tabpage_T) -> c_int {
     let mut idx: usize = 0;
         while idx < DB_COUNT {
             if tp.tp_diffbuf[idx] == buf {
@@ -357,7 +357,7 @@ unsafe fn diff_buf_idx(buf: *mut buf_T, tp: &mut tabpage_T) -> c_int {
         }
         idx as c_int
 }
-pub unsafe fn diff_invalidate(buf: *mut buf_T) {
+pub fn diff_invalidate(buf: *mut buf_T) {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -372,7 +372,7 @@ pub unsafe fn diff_invalidate(buf: *mut buf_T) {
         }
     }
 }
-pub unsafe fn diff_mark_adjust(
+pub fn diff_mark_adjust(
     buf: *mut buf_T,
     line1: linenr_T,
     line2: linenr_T,
@@ -819,8 +819,7 @@ fn diff_write(
     start: linenr_T,
     mut end: linenr_T,
 ) -> c_int {
-    unsafe {
-        let Some(ref din_fname) = din.din_fname else {
+    let Some(ref din_fname) = din.din_fname else {
             return diff_write_buffer(buf, &mut din.din_mmfile, &mut din.din_buf, start, end);
         };
         if frames_locked() {
@@ -855,7 +854,6 @@ fn diff_write(
         buf.b_p_ff = save_ff;
         buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
         r
-    }
 }
 fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T) {
     unsafe {
@@ -1134,8 +1132,7 @@ fn check_external_diff(diffio: &mut diffio_T) -> c_int {
     }
 }
 fn diff_file_internal(diffio: &mut diffio_T) -> c_int {
-    unsafe {
-        let mut param = xpparam_t {
+    let mut param = xpparam_t {
             flags: diff_st().diff_algorithm as c_ulong,
         };
         let emit_cfg = xdemitconf_t {
@@ -1178,7 +1175,6 @@ fn diff_file_internal(diffio: &mut diffio_T) -> c_int {
             return FAIL;
         }
         OK
-    }
 }
 fn diff_file(dio: &mut diffio_T) -> c_int {
     unsafe {
@@ -1462,7 +1458,7 @@ pub fn ex_diffthis(_eap: &mut exarg_T) {
         diff_win_options(*curwin.as_ptr(), true);
     }
 }
-unsafe fn set_diff_option(wp: *mut win_T, value: bool) {
+fn set_diff_option(wp: *mut win_T, value: bool) {
     unsafe {
         let old_curwin = *curwin.as_ptr();
         *curwin.as_ptr() = wp;
@@ -1474,7 +1470,7 @@ unsafe fn set_diff_option(wp: *mut win_T, value: bool) {
         g_st().curbuf = (**curwin.as_ptr()).w_buffer;
     }
 }
-pub unsafe fn diff_win_options(wp: *mut win_T, addbuf: bool) {
+pub fn diff_win_options(wp: *mut win_T, addbuf: bool) {
     unsafe {
         let old_curwin = *curwin.as_ptr();
         *curwin.as_ptr() = wp;
@@ -1608,7 +1604,7 @@ pub fn ex_diffoff(eap: &mut exarg_T) {
         }
     }
 }
-unsafe fn extract_hunk_internal(
+fn extract_hunk_internal(
     dout: *mut diffout_T,
     hunk: *mut diffhunk_T,
     line_idx: &mut c_int,
@@ -1622,7 +1618,7 @@ unsafe fn extract_hunk_internal(
         eof
     }
 }
-unsafe fn extract_hunk(fd: *mut FILE, hunk: *mut diffhunk_T, diffstyle: *mut diffstyle_T) -> bool {
+fn extract_hunk(fd: *mut FILE, hunk: *mut diffhunk_T, diffstyle: *mut diffstyle_T) -> bool {
     unsafe {
         loop {
             let mut line: [c_char; LBUFLEN] = [0; LBUFLEN];
@@ -1829,7 +1825,7 @@ pub fn diff_clear(tp: &mut tabpage_T) {
     diff_st().diff_finger_dp_idx = None;
         tp.tp_diffs.clear();
 }
-pub unsafe fn diff_linematch(dp: *const diff_T) -> bool {
+pub fn diff_linematch(dp: *const diff_T) -> bool {
     unsafe {
         if (diff_st().diff_flags & DIFF_LINEMATCH) == 0 {
             return false;
@@ -2044,7 +2040,7 @@ fn run_linematch_algorithm(dp_idx: usize) {
         apply_linematch_results(dp_idx, &decisions);
     }
 }
-pub unsafe fn diff_check_with_linestatus(
+pub fn diff_check_with_linestatus(
     wp: &mut win_T,
     lnum: linenr_T,
     linestatus: *mut c_int,
@@ -2164,7 +2160,7 @@ pub unsafe fn diff_check_with_linestatus(
         num_fill
     }
 }
-pub unsafe fn diff_check_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
+pub fn diff_check_fill(wp: *mut win_T, lnum: linenr_T) -> c_int {
     unsafe {
         if (diff_st().diff_flags & DIFF_FILLER) == 0 {
             return 0;
@@ -2198,7 +2194,7 @@ fn diff_equal_entry(dp: &diff_T, idx1: usize, idx2: usize) -> bool {
         true
     }
 }
-unsafe fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: *mut c_int) -> bool {
+fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: *mut c_int) -> bool {
     unsafe {
         let l = utfc_ptr2len(p1);
         if l != utfc_ptr2len(p2) {
@@ -2224,7 +2220,7 @@ unsafe fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: *mut c_int)
         true
     }
 }
-unsafe fn diff_cmp(s1: *const c_char, s2: *const c_char) -> c_int {
+fn diff_cmp(s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe {
         if (diff_st().diff_flags & DIFF_IBLANK) != 0 && (*skipwhite(s1) == NUL || *skipwhite(s2) == NUL) {
             return 0;
@@ -2319,7 +2315,7 @@ pub fn diff_set_topline(fromwin: &mut win_T, towin: &mut win_T) {
         );
     }
 }
-unsafe fn parse_diffanchors(
+fn parse_diffanchors(
     check_only: bool,
     buf: *mut buf_T,
     anchors: *mut linenr_T,
@@ -3080,7 +3076,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
         clear_diffout(&mut dio.dio_diff);
     }
 }
-pub unsafe fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: *mut diffline_T) -> bool {
+pub fn diff_find_change(wp: &mut win_T, lnum: linenr_T, diffline: *mut diffline_T) -> bool {
     unsafe {
         let idx = diff_buf_idx(wp.w_buffer, &mut *g_st().curtab);
         if idx == DB_COUNT as c_int {
@@ -3598,7 +3594,7 @@ fn diff_fold_update(
         }
     }
 }
-pub unsafe fn diff_mode_buf(buf: *mut buf_T) -> bool {
+pub fn diff_mode_buf(buf: *mut buf_T) -> bool {
     unsafe {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
@@ -3652,7 +3648,7 @@ pub fn diff_move_to(dir: c_int, mut count: c_int) -> c_int {
         OK
     }
 }
-unsafe fn diff_get_corresponding_line_int(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_T {
+fn diff_get_corresponding_line_int(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_T {
     unsafe {
         let mut baseline: linenr_T = 0;
         let idx1 = diff_buf_idx(buf1, &mut *g_st().curtab);
@@ -3690,7 +3686,7 @@ unsafe fn diff_get_corresponding_line_int(buf1: *mut buf_T, lnum1: linenr_T) -> 
         lnum1 - baseline
     }
 }
-pub unsafe fn diff_get_corresponding_line(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_T {
+pub fn diff_get_corresponding_line(buf1: *mut buf_T, lnum1: linenr_T) -> linenr_T {
     unsafe {
         let lnum = diff_get_corresponding_line_int(buf1, lnum1);
         lnum.min((*g_st().curbuf).b_ml.ml_line_count)
@@ -3722,7 +3718,7 @@ pub fn diff_lnum_win(lnum: linenr_T, wp: &mut win_T) -> linenr_T {
         n.min(dp.df_lnum[u_i] + dp.df_count[u_i])
     }
 }
-unsafe fn parse_diff_ed(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int {
+fn parse_diff_ed(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int {
     unsafe {
         let mut p = line;
         let f1 = getdigits_int32(&raw mut p, true, 0);
@@ -3764,7 +3760,7 @@ unsafe fn parse_diff_ed(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int {
         OK
     }
 }
-unsafe fn parse_diff_unified(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int {
+fn parse_diff_unified(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int {
     unsafe {
         let mut p = line;
         if *p == b'@' as c_char
@@ -3912,8 +3908,7 @@ mod tests {
     use super::*;
     #[test]
     fn parse_diff_ed_and_unified_work() {
-        unsafe {
-            let mut hunk = diffhunk_T {
+        let mut hunk = diffhunk_T {
                 lnum_orig: 0,
                 count_orig: 0,
                 lnum_new: 0,
@@ -3937,6 +3932,5 @@ mod tests {
             assert_eq!(hunk.count_orig, 3);
             assert_eq!(hunk.lnum_new, 12);
             assert_eq!(hunk.count_new, 4);
-        }
     }
 }

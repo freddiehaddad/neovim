@@ -295,7 +295,7 @@ pub fn get_buf_maphash_list(state: c_int, c: c_int) -> &'static [mapblock_T] {
 }
 
 #[inline]
-unsafe fn get_map_buckets(buf: *const buf_T, is_abbrev: bool) -> &'static [Vec<mapblock_T>] {
+fn get_map_buckets(buf: *const buf_T, is_abbrev: bool) -> &'static [Vec<mapblock_T>] {
     unsafe {
         if is_abbrev {
             if !buf.is_null() {
@@ -349,7 +349,7 @@ pub fn map_luaid_get(n: c_int) -> LuaRef {
 }
 
 /// Put characters to represent the map mode in a string buffer.
-pub unsafe fn map_mode_to_chars(mode: c_int, buf: *mut c_char) {
+pub fn map_mode_to_chars(mode: c_int, buf: *mut c_char) {
     unsafe {
         let mut p = buf;
         if (mode & (MODE_INSERT | MODE_CMDLINE)) == (MODE_INSERT | MODE_CMDLINE) {
@@ -475,7 +475,7 @@ fn showmap(mp: &mapblock_T, local: bool) {
     }
 }
 
-unsafe fn set_maparg_lhs_rhs(
+fn set_maparg_lhs_rhs(
     orig_lhs: *const c_char,
     orig_lhs_len: usize,
     orig_rhs: *const c_char,
@@ -484,8 +484,7 @@ unsafe fn set_maparg_lhs_rhs(
     cpo_val: *const c_char,
     mapargs: &mut MapArguments,
 ) -> bool {
-    unsafe {
-        mapargs.rhs_lua = rhs_lua;
+    mapargs.rhs_lua = rhs_lua;
 
         let mut did_simplify = false;
         let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
@@ -530,10 +529,9 @@ unsafe fn set_maparg_lhs_rhs(
 
         set_maparg_rhs(orig_rhs, orig_rhs_len, rhs_lua, 0, cpo_val, mapargs);
         true
-    }
 }
 
-unsafe fn set_maparg_rhs(
+fn set_maparg_rhs(
     orig_rhs: *const c_char,
     orig_rhs_len: usize,
     rhs_lua: LuaRef,
@@ -589,7 +587,7 @@ unsafe fn set_maparg_rhs(
     }
 }
 
-unsafe fn str_to_mapargs(
+fn str_to_mapargs(
     strargs: *const c_char,
     is_unmap: bool,
     mapargs: &mut MapArguments,
@@ -678,7 +676,7 @@ unsafe fn str_to_mapargs(
     }
 }
 
-unsafe fn map_add(
+fn map_add(
     buf: &mut buf_T,
     local: bool,
     keys: *const c_char,
@@ -1119,7 +1117,7 @@ fn buf_do_map(
 
 /// Set or remove a mapping or an abbreviation in the current buffer, OR
 /// display (matching) mappings/abbreviations.
-pub unsafe fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: bool) -> c_int {
+pub fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: bool) -> c_int {
     unsafe {
         let mut parsed_args = MapArguments::new();
         let mut result = str_to_mapargs(arg, maptype == MAPTYPE_UNMAP, &mut parsed_args);
@@ -1138,7 +1136,7 @@ pub unsafe fn do_map(maptype: c_int, arg: *mut c_char, mode: c_int, is_abbrev: b
 }
 
 /// Get the mapping mode from the command name.
-unsafe fn get_map_mode(cmdp: *mut *mut c_char, forceit: bool) -> c_int {
+fn get_map_mode(cmdp: *mut *mut c_char, forceit: bool) -> c_int {
     unsafe {
         let mut p = *cmdp;
         let modec = *p as u8;
@@ -1175,7 +1173,7 @@ unsafe fn get_map_mode(cmdp: *mut *mut c_char, forceit: bool) -> c_int {
     }
 }
 
-unsafe fn do_mapclear(mut cmdp: *mut c_char, arg: *mut c_char, forceit: c_int, abbr: c_int) {
+fn do_mapclear(mut cmdp: *mut c_char, arg: *mut c_char, forceit: c_int, abbr: c_int) {
     unsafe {
         let local = CStr::from_ptr(arg).to_bytes() == b"<buffer>";
         if !local && *arg != NUL {
@@ -1189,7 +1187,7 @@ unsafe fn do_mapclear(mut cmdp: *mut c_char, arg: *mut c_char, forceit: c_int, a
 }
 
 /// Clear all mappings in "mode".
-pub unsafe fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bool) {
+pub fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bool) {
     unsafe {
         for hash in 0..256 {
             let mpp: &mut Vec<mapblock_T> = if abbr {
@@ -1236,7 +1234,7 @@ pub unsafe fn map_clear_mode(buf: *mut buf_T, mode: c_int, local: bool, abbr: bo
 }
 
 /// Check if a map exists that has given string in the rhs.
-pub unsafe fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, abbr: bool) -> bool {
+pub fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, abbr: bool) -> bool {
     unsafe {
         let mut mode: c_int = 0;
         let rhs = replace_termcodes(
@@ -1281,7 +1279,7 @@ pub unsafe fn map_to_exists(str_ptr: *const c_char, modechars: *const c_char, ab
 }
 
 /// Check if a map exists that has given string in the rhs.
-pub unsafe fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool {
+pub fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) -> bool {
     unsafe {
         for exp_buffer in [false, true] {
             let b = if exp_buffer { g_st().curbuf } else { ptr::null() };
@@ -1299,7 +1297,7 @@ pub unsafe fn map_to_exists_mode(rhs: *const c_char, mode: c_int, abbr: bool) ->
     }
 }
 
-unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> CString {
+fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> CString {
     unsafe {
         let mut str_ptr = str_in.cast::<u8>();
         let mut buf: Vec<u8> = Vec::with_capacity(40);
@@ -1356,7 +1354,7 @@ unsafe fn translate_mapping(str_in: *const c_char, cpo_val: *const c_char) -> CS
 
 /// Work out what to complete when doing command line completion of mapping
 /// or abbreviation names.
-pub unsafe fn set_context_in_map_cmd(
+pub fn set_context_in_map_cmd(
     xp: &mut expand_T,
     mut cmd: *mut c_char,
     mut arg: *mut c_char,
@@ -1424,13 +1422,12 @@ pub unsafe fn set_context_in_map_cmd(
 }
 
 /// Find all mapping/abbreviation names that match regexp "regmatch".
-pub unsafe fn ExpandMappings(
+pub fn ExpandMappings(
     pat: *mut c_char,
     regmatch: &mut regmatch_T,
     matches: &mut Vec<CString>,
 ) -> c_int {
-    unsafe {
-        let fuzzy = cmdline_fuzzy_complete(pat);
+    let fuzzy = cmdline_fuzzy_complete(pat);
 
         matches.clear();
 
@@ -1535,11 +1532,10 @@ pub unsafe fn ExpandMappings(
         }
 
         if matches.is_empty() { FAIL } else { OK }
-    }
 }
 
 /// Check for an abbreviation.
-pub unsafe fn check_abbr(
+pub fn check_abbr(
     mut c: c_int,
     mut ptr_arg: *mut c_char,
     col: c_int,
@@ -1754,7 +1750,7 @@ pub fn eval_map_expr(mp: &mapblock_T, c: c_int) -> Option<CString> {
 }
 
 /// Write map commands for the current mappings to an .exrc file.
-pub unsafe fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
+pub fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
     unsafe {
         let mut did_cpo = false;
 
@@ -1939,7 +1935,7 @@ pub unsafe fn makemap(fd: *mut FILE, buf: *mut buf_T) -> c_int {
 }
 
 /// Write escape string to file.
-pub unsafe fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> c_int {
+pub fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) -> c_int {
     unsafe {
         let mut str_ptr = strstart.cast::<u8>();
 
@@ -2031,7 +2027,7 @@ pub unsafe fn put_escstr(fd: *mut FILE, strstart: *const c_char, what: c_int) ->
 }
 
 /// Check the string "keys" against the lhs of all mappings.
-pub unsafe fn check_map(
+pub fn check_map(
     keys: *mut c_char,
     mode: c_int,
     exact: c_int,
@@ -2108,7 +2104,7 @@ pub fn f_hasmapto(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
     }
 }
 
-unsafe fn mapblock_fill_dict(
+fn mapblock_fill_dict(
     mp: &mapblock_T,
     lhsrawalt: *const c_char,
     buffer_value: c_int,
@@ -2116,8 +2112,7 @@ unsafe fn mapblock_fill_dict(
     compatible: bool,
     arena: *mut Arena,
 ) -> Dict {
-    unsafe {
-        let mut dict = arena_dict(arena, 20);
+    let mut dict = arena_dict(arena, 20);
         let lhs = str2special_arena(
             mp.m_keys.as_ptr(),
             compatible,
@@ -2206,10 +2201,9 @@ unsafe fn mapblock_fill_dict(
         );
 
         dict
-    }
 }
 
-unsafe fn get_maparg(argvars: *mut typval_T, rettv: &mut typval_T, exact: c_int) {
+fn get_maparg(argvars: *mut typval_T, rettv: &mut typval_T, exact: c_int) {
     unsafe {
         rettv.v_type = VarType::VAR_STRING;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -2337,7 +2331,7 @@ unsafe fn get_maparg(argvars: *mut typval_T, rettv: &mut typval_T, exact: c_int)
     }
 }
 
-unsafe fn get_map_mode_string(mode_string: *const c_char, abbr: bool) -> c_int {
+fn get_map_mode_string(mode_string: *const c_char, abbr: bool) -> c_int {
     unsafe {
         let mut p = mode_string;
         const MASK_V: c_int = MODE_VISUAL | MODE_SELECT;
@@ -2594,22 +2588,18 @@ pub fn f_maplist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
 pub fn f_maparg(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        get_maparg(argvars, rettv, 1);
-    }
+    get_maparg(argvars, rettv, 1);
 }
 
 /// "mapcheck()" function
 pub fn f_mapcheck(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        get_maparg(argvars, rettv, 0);
-    }
+    get_maparg(argvars, rettv, 0);
 }
 
 /// Add a mapping.
-pub unsafe fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: bool) {
+pub fn add_map(lhs: *mut c_char, rhs: *mut c_char, mode: c_int, buffer: bool) {
     unsafe {
         let mut args = MapArguments::new();
         set_maparg_lhs_rhs(
@@ -2818,14 +2808,12 @@ pub fn ex_abbreviate(eap: &mut exarg_T) {
 
 /// ":map" and friends.
 pub fn ex_map(eap: &mut exarg_T) {
-    unsafe {
-        if g_st().secure != 0 {
+    if g_st().secure != 0 {
             g_st().secure = 2;
             msg_outtrans(eap.cmd, 0, false);
             msg_putchar(b'\n' as c_int);
         }
         do_exmap(eap, false);
-    }
 }
 
 /// ":unmap" and friends.
@@ -2835,20 +2823,16 @@ pub fn ex_unmap(eap: &mut exarg_T) {
 
 /// ":mapclear" and friends.
 pub fn ex_mapclear(eap: &mut exarg_T) {
-    unsafe {
-        do_mapclear(eap.cmd, eap.arg, eap.forceit, 0);
-    }
+    do_mapclear(eap.cmd, eap.arg, eap.forceit, 0);
 }
 
 /// ":abclear" and friends.
 pub fn ex_abclear(eap: &mut exarg_T) {
-    unsafe {
-        do_mapclear(eap.cmd, eap.arg, 1, 1);
-    }
+    do_mapclear(eap.cmd, eap.arg, 1, 1);
 }
 
 /// Set, tweak, or remove a mapping in a mode.
-pub unsafe fn modify_keymap(
+pub fn modify_keymap(
     channel_id: u64,
     mut buffer: Buffer,
     mut maptype: c_int,
@@ -3046,7 +3030,7 @@ pub unsafe fn modify_keymap(
 
 /// Get an array containing dictionaries describing mappings
 /// based on mode and buffer id.
-pub unsafe fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena) -> Array {
+pub fn keymap_array(mode: NvimString, buf: *mut buf_T, arena: *mut Arena) -> Array {
     unsafe {
         let mut mappings = ArrayBuilder::new();
 

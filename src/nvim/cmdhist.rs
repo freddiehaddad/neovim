@@ -107,17 +107,15 @@ impl Default for histentry_T {
 use crate::globals::IOSIZE;
 
 #[inline]
-unsafe fn clear_hist_entry(hisptr: *mut histentry_T) {
+fn clear_hist_entry(hisptr: *mut histentry_T) {
     unsafe {
         *hisptr = histentry_T::new();
     }
 }
 
 #[inline]
-unsafe fn hist_free_entry(hisptr: *mut histentry_T) {
-    unsafe {
-        clear_hist_entry(hisptr);
-    }
+fn hist_free_entry(hisptr: *mut histentry_T) {
+    clear_hist_entry(hisptr);
 }
 
 /// Return the length of the history tables (`get_hislen`).
@@ -163,8 +161,7 @@ pub fn get_history_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 
 /// Initialize or resize command-line history tables (`init_history`).
 pub fn init_history() {
-    unsafe {
-        assert!(opt_vars().p_hi >= 0 && opt_vars().p_hi <= (c_int::MAX as i64));
+    assert!(opt_vars().p_hi >= 0 && opt_vars().p_hi <= (c_int::MAX as i64));
         let newlen = opt_vars().p_hi as c_int;
         let oldlen = hist_st().HISLEN;
 
@@ -206,10 +203,9 @@ pub fn init_history() {
             hist_st().HISTORY[hist_type] = temp;
         }
         hist_st().HISLEN = newlen;
-    }
 }
 
-unsafe fn in_history(
+fn in_history(
     hist_type: usize,
     str_ptr: *const c_char,
     move_to_front: bool,
@@ -272,7 +268,7 @@ unsafe fn in_history(
     }
 }
 
-unsafe fn get_histtype(name: *const c_char, len: usize, return_default: bool) -> c_int {
+fn get_histtype(name: *const c_char, len: usize, return_default: bool) -> c_int {
     unsafe {
         if len == 0 {
             return if return_default {
@@ -298,7 +294,7 @@ unsafe fn get_histtype(name: *const c_char, len: usize, return_default: bool) ->
 }
 
 /// Add the given string to the given history (`add_to_history`).
-pub unsafe fn add_to_history(
+pub fn add_to_history(
     histype: c_int,
     new_entry: *const c_char,
     new_entrylen: usize,
@@ -311,8 +307,7 @@ pub unsafe fn add_to_history(
     }
     assert_ne!(histype, HIST_DEFAULT);
 
-    unsafe {
-        if (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 && histype == HIST_SEARCH {
+    if (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 && histype == HIST_SEARCH {
             return;
         }
 
@@ -328,7 +323,6 @@ pub unsafe fn add_to_history(
             }
             hist_st().LAST_MAPTICK = -1;
         }
-    }
 
     let htype = histype as usize;
     unsafe {
@@ -413,20 +407,18 @@ pub fn clr_history(histype: c_int) -> c_int {
     let hislen = hist_st().HISLEN;
     if hislen != 0 && histype >= 0 && (histype as usize) < HIST_COUNT {
         let htype = histype as usize;
-        unsafe {
-            for entry in hist_st().HISTORY[htype].iter_mut().take(hislen as usize) {
+        for entry in hist_st().HISTORY[htype].iter_mut().take(hislen as usize) {
                 hist_free_entry(entry);
             }
             hist_st().HISIDX[htype] = -1;
             hist_st().HISNUM[htype] = 0;
-        }
         OK
     } else {
         FAIL
     }
 }
 
-unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
+fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
     unsafe {
         let hislen = hist_st().HISLEN;
         if hislen == 0
@@ -491,8 +483,7 @@ unsafe fn del_history_entry(histype: c_int, str_ptr: *mut c_char) -> c_int {
 }
 
 fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
-    unsafe {
-        let mut i = calc_hist_idx(histype, idx_arg);
+    let mut i = calc_hist_idx(histype, idx_arg);
         if i < 0 {
             return 0;
         }
@@ -517,7 +508,6 @@ fn del_history_idx(histype: c_int, idx_arg: c_int) -> c_int {
         }
         hist_st().HISIDX[htype] = i;
         1
-    }
 }
 
 /// `"histadd()"` function (`f_histadd`).
@@ -753,8 +743,7 @@ pub fn hist_iter(
     zero: bool,
     hist: &mut histentry_T,
 ) -> Option<usize> {
-    unsafe {
-        *hist = histentry_T::new();
+    *hist = histentry_T::new();
         let htype = history_type as usize;
         let last = hist_st().HISIDX[htype];
         if last == -1 {
@@ -789,7 +778,6 @@ pub fn hist_iter(
         }
         let next = hiter + 1;
         if next >= hislen { Some(0) } else { Some(next) }
-    }
 }
 
 /// Get array of history items (`hist_get_array`).

@@ -97,7 +97,7 @@ pub fn log_get_stderr() -> *mut FILE {
     }
 }
 
-pub unsafe fn log_is_std_stream(fp: *mut FILE) -> bool {
+pub fn log_is_std_stream(fp: *mut FILE) -> bool {
     fp == log_get_stderr() || fp == log_get_stdout()
 }
 
@@ -148,7 +148,7 @@ use crate::charset::NUL;
 use crate::os::fs::MAXPATHL;
 pub use logmsg;
 
-unsafe fn log_try_create(fname: *const c_char) -> bool {
+fn log_try_create(fname: *const c_char) -> bool {
     unsafe {
         if fname.is_null() || *fname == NUL {
             return false;
@@ -271,7 +271,7 @@ pub fn log_should_log(log_level: c_int) -> bool {
         log_level >= log_st().g_min_log_level
 }
 
-pub unsafe fn logmsg_str(
+pub fn logmsg_str(
     log_level: c_int,
     context: *const c_char,
     func_name: *const c_char,
@@ -334,7 +334,7 @@ pub unsafe fn logmsg_str(
     }
 }
 
-pub unsafe fn log_uv_handles(loop_: *mut crate::event::r#loop::uv_loop_t) {
+pub fn log_uv_handles(loop_: *mut crate::event::r#loop::uv_loop_t) {
     unsafe {
         log_lock();
         let log_file = open_log_file();
@@ -384,7 +384,7 @@ pub fn open_log_file() -> *mut FILE {
     }
 }
 
-unsafe fn do_log_to_file_str(
+fn do_log_to_file_str(
     log_file: *mut FILE,
     log_level: c_int,
     context: *const c_char,
@@ -516,10 +516,8 @@ mod tests {
         assert_eq!(LOGLVL_INF, 2);
         assert_eq!(LOGLVL_WRN, 3);
         assert_eq!(LOGLVL_ERR, 4);
-        unsafe {
-            assert!(!log_should_log(LOGLVL_ERR));
+        assert!(!log_should_log(LOGLVL_ERR));
             assert!(!log_try_create(ptr::null()));
             assert!(!log_try_create(c"".as_ptr()));
-        }
     }
 }

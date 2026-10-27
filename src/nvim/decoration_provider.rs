@@ -101,13 +101,12 @@ fn clear_ref(r: &mut LuaRef) {
         }
 }
 
-unsafe fn decor_provider_error(
+fn decor_provider_error(
     provider: &mut DecorProvider,
     name: *const c_char,
     msg: *const c_char,
 ) {
-    unsafe {
-        let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)".as_ptr());
+    let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)".as_ptr());
         logmsg!(
             LOGLVL_ERR,
             ptr::null(),
@@ -125,12 +124,11 @@ unsafe fn decor_provider_error(
             ns,
             msg,
         );
-    }
 }
 
 /// Note we pass in a provider index as this function may cause `decor_prov_st().decor_providers` to be
 /// reallocated so we need to be careful with `DecorProvider` pointers (`decor_provider_invoke`).
-unsafe fn decor_provider_invoke(
+fn decor_provider_invoke(
     provider_idx: c_int,
     name: *const c_char,
     ref_: LuaRef,
@@ -188,7 +186,7 @@ unsafe fn decor_provider_invoke(
     }
 }
 
-pub unsafe fn decor_providers_invoke_spell(
+pub fn decor_providers_invoke_spell(
     wp: *mut win_T,
     start_row: c_int,
     start_col: c_int,
@@ -553,7 +551,7 @@ pub fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider {
         p_vec.last_mut().map_or(ptr::null_mut(), |p| &raw mut *p)
 }
 
-pub unsafe fn decor_provider_clear(p: *mut DecorProvider) {
+pub fn decor_provider_clear(p: *mut DecorProvider) {
     unsafe {
         if p.is_null() {
             return;
@@ -572,9 +570,7 @@ pub unsafe fn decor_provider_clear(p: *mut DecorProvider) {
 
 impl Drop for DecorProvider {
     fn drop(&mut self) {
-        unsafe {
-            decor_provider_clear(self);
-        }
+        decor_provider_clear(self);
     }
 }
 

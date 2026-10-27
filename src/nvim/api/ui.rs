@@ -1159,8 +1159,7 @@ pub fn remote_ui_hl_attr_define(
 
 // DLLEXPORT void remote_ui_highlight_set(RemoteUI *ui, int id);
 pub fn remote_ui_highlight_set(ui: &mut RemoteUI, id: c_int) {
-    unsafe {
-        if ui.hl_id == id {
+    if ui.hl_id == id {
             return;
         }
         ui.hl_id = id;
@@ -1184,7 +1183,6 @@ pub fn remote_ui_highlight_set(ui: &mut RemoteUI, id: c_int) {
             capacity: 1,
         };
         push_call(ui, c"highlight_set", args);
-    }
 }
 
 /// "true" cursor used only for input focus

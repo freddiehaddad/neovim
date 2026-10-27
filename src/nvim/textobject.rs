@@ -197,7 +197,7 @@ pub fn findsent(dir: Direction, mut count: c_int) -> c_int {
 }
 
 /// Find the next paragraph or section in direction `dir` (`findpar`).
-pub unsafe fn findpar(
+pub fn findpar(
     pincl: *mut bool,
     dir: c_int,
     mut count: c_int,
@@ -271,7 +271,7 @@ pub unsafe fn findpar(
 }
 
 /// Check if the string `s` is a nroff macro that is in option `opt` (`inmacro`).
-unsafe fn inmacro(opt: *mut c_char, s: *const c_char) -> bool {
+fn inmacro(opt: *mut c_char, s: *const c_char) -> bool {
     unsafe {
         let mut macro_p = opt;
         let s0 = *s;
@@ -1476,7 +1476,7 @@ pub fn current_par(oap: &mut oparg_T, count: c_int, include: bool, type_: c_int)
 }
 
 /// Search quote char from string `line[col]` (`find_next_quote`).
-unsafe fn find_next_quote(
+fn find_next_quote(
     line: *mut c_char,
     mut col: c_int,
     quotechar: c_int,
@@ -1502,7 +1502,7 @@ unsafe fn find_next_quote(
 }
 
 /// Search backwards in `line` from column `col_start` to find `quotechar` (`find_prev_quote`).
-unsafe fn find_prev_quote(
+fn find_prev_quote(
     line: *mut c_char,
     mut col_start: c_int,
     quotechar: c_int,

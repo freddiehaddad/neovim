@@ -52,8 +52,7 @@ pub fn adjust_clipboard_name(
     quiet: bool,
     writing: bool,
 ) -> *mut yankreg_T {
-    unsafe {
-        let reg_char = *name;
+    let reg_char = *name;
         let flags = opt_vars().cb_flags;
         let explicit_cb_reg = reg_char == b'*' as c_int || reg_char == b'+' as c_int;
         let implicit_cb_reg =
@@ -108,11 +107,10 @@ pub fn adjust_clipboard_name(
                 get_y_register(STAR_REGISTER)
             }
         }
-    }
 }
 
 /// Read clipboard contents into `*target` (`get_clipboard`).
-pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) -> bool {
+pub fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet: bool) -> bool {
     unsafe {
         let implicit = name == 0;
         let mut errmsg = true;
@@ -234,7 +232,7 @@ pub unsafe fn get_clipboard(mut name: c_int, target: *mut *mut yankreg_T, quiet:
 }
 
 /// Write `reg` to the clipboard provider (`set_clipboard`).
-pub unsafe fn set_clipboard(mut name: c_int, reg: *mut yankreg_T) {
+pub fn set_clipboard(mut name: c_int, reg: *mut yankreg_T) {
     unsafe {
         if mc_replaying() || adjust_clipboard_name(&mut name, false, true).is_null() {
             return;
@@ -287,8 +285,7 @@ pub fn start_batch_changes() {
 
 /// End batch operation and flush deferred clipboard update if needed (`end_batch_changes`).
 pub fn end_batch_changes() {
-    unsafe {
-        clip_st().BATCH_CHANGE_COUNT -= 1;
+    clip_st().BATCH_CHANGE_COUNT -= 1;
         if clip_st().BATCH_CHANGE_COUNT > 0 {
             return;
         }
@@ -297,7 +294,6 @@ pub fn end_batch_changes() {
             clip_st().CLIPBOARD_NEEDS_UPDATE = false;
             set_clipboard(0, get_y_previous());
         }
-    }
 }
 
 #[cfg(test)]

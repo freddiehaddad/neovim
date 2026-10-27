@@ -114,10 +114,8 @@ pub struct RequestEvent {
 
 impl Drop for RequestEvent {
     fn drop(&mut self) {
-        unsafe {
-            arena_mem_free(arena_finish(&mut self.used_mem));
+        arena_mem_free(arena_finish(&mut self.used_mem));
             channel_decref(self.channel);
-        }
     }
 }
 
@@ -899,8 +897,7 @@ pub fn serialize_response(
     err: &mut Error,
     arg: *mut Object,
 ) {
-    unsafe {
-        if err.err_type != ErrorType::kErrorTypeNone
+    if err.err_type != ErrorType::kErrorTypeNone
             && r#type == MessageType::kMessageTypeNotification
         {
             let is_paste = handler
@@ -953,7 +950,6 @@ pub fn serialize_response(
         }
 
         packer_buffer_finish_channels(&mut packer);
-    }
 }
 
 fn packer_buffer_init_channels(

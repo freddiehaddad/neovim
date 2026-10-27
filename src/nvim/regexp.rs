@@ -304,7 +304,7 @@ pub struct reg_extmatch_T {
 }
 
 #[inline]
-pub(super) unsafe fn cstring_from_bytes(
+pub(super) fn cstring_from_bytes(
     ptr: *const c_char,
     len: usize,
 ) -> Option<std::ffi::CString> {
@@ -1357,7 +1357,7 @@ use crate::eval::userfunc::call_func;
 use crate::strings::{vim_strchr, vim_strsave_escaped};
 
 #[inline]
-pub(super) unsafe fn tv_list_ref(l: *mut list_T) {
+pub(super) fn tv_list_ref(l: *mut list_T) {
     unsafe {
         if !l.is_null() {
             (*l).lv_refcount += 1;
@@ -1391,7 +1391,7 @@ pub(super) const fn toggle_Magic(x: c_int) -> c_int {
 }
 
 #[inline]
-pub(super) unsafe fn UCHARAT(p: *const u8) -> c_int {
+pub(super) fn UCHARAT(p: *const u8) -> c_int {
     unsafe { *p as c_int }
 }
 
@@ -1401,7 +1401,7 @@ pub(super) fn REG_MULTI() -> bool {
 }
 
 #[inline]
-pub(super) unsafe fn mb_ptr_adv<T>(p: *mut *mut T) {
+pub(super) fn mb_ptr_adv<T>(p: *mut *mut T) {
     unsafe {
         let step = utfc_ptr2len((*p).cast()) as usize;
         *p = (*p).cast::<u8>().add(step).cast();
@@ -1435,7 +1435,7 @@ pub(super) fn backslash_trans(c: c_int) -> c_int {
 }
 
 /// Check for a character class name `[:name:]`. `pp` points to the `[`.
-pub(super) unsafe fn get_char_class(pp: *mut *mut c_char) -> c_int {
+pub(super) fn get_char_class(pp: *mut *mut c_char) -> c_int {
     const CHAR_CLASS_TAB: &[(c_int, &[u8])] = &[
         (CLASS_ALNUM, b"alnum:]"),
         (CLASS_ALPHA, b"alpha:]"),
@@ -1558,7 +1558,7 @@ pub fn re_multiline(prog: &regprog_T) -> c_int {
 }
 
 /// Check for an equivalence class name `[=a=]`. `pp` points to the `[`.
-pub(super) unsafe fn get_equi_class(pp: *mut *mut c_char) -> c_int {
+pub(super) fn get_equi_class(pp: *mut *mut c_char) -> c_int {
     unsafe {
         let p = *pp;
         if *p.add(1) == b'=' as c_char && *p.add(2) != NUL as c_char {
@@ -1574,7 +1574,7 @@ pub(super) unsafe fn get_equi_class(pp: *mut *mut c_char) -> c_int {
 }
 
 /// Check for a collating element `[.a.]`. `pp` points to the `[`.
-pub(super) unsafe fn get_coll_element(pp: *mut *mut c_char) -> c_int {
+pub(super) fn get_coll_element(pp: *mut *mut c_char) -> c_int {
     unsafe {
         let p = *pp;
         if *p != NUL as c_char && *p.add(1) == b'.' as c_char && *p.add(2) != NUL as c_char {
@@ -1590,13 +1590,11 @@ pub(super) unsafe fn get_coll_element(pp: *mut *mut c_char) -> c_int {
 }
 
 pub(super) fn get_cpo_flags() {
-    unsafe {
-        re_st().reg_cpo_lit = (!vim_strchr(opt_vars().p_cpo, kCpoLiteral).is_null()) as c_int;
-    }
+    re_st().reg_cpo_lit = (!vim_strchr(opt_vars().p_cpo, kCpoLiteral).is_null()) as c_int;
 }
 
 /// Skip over a `[]` range.
-pub(super) unsafe fn skip_anyof(mut p: *mut c_char) -> *mut c_char {
+pub(super) fn skip_anyof(mut p: *mut c_char) -> *mut c_char {
     unsafe {
         if *p == b'^' as c_char {
             p = p.add(1);
@@ -1636,9 +1634,8 @@ pub(super) unsafe fn skip_anyof(mut p: *mut c_char) -> *mut c_char {
 }
 
 /// Skip past regular expression.
-pub unsafe fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char {
-    unsafe {
-        skip_regexp_ex(
+pub fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char {
+    skip_regexp_ex(
             startp,
             delim,
             magic,
@@ -1647,11 +1644,10 @@ pub unsafe fn skip_regexp(startp: *mut c_char, delim: c_int, magic: c_int) -> *m
             ptr::null_mut(),
             ptr::null_mut(),
         )
-    }
 }
 
 /// Call `skip_regexp()` and when the delimiter does not match give an error and return NULL.
-pub unsafe fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char {
+pub fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut c_char {
     unsafe {
         let p = skip_regexp(startp, delim, magic);
         if *p as u8 as c_int != delim {
@@ -1666,7 +1662,7 @@ pub unsafe fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -
 }
 
 /// `skip_regexp()` with extra arguments.
-pub unsafe fn skip_regexp_ex(
+pub fn skip_regexp_ex(
     mut startp: *mut c_char,
     dirc: c_int,
     magic: c_int,
@@ -1732,7 +1728,7 @@ pub unsafe fn skip_regexp_ex(
     }
 }
 
-pub(super) unsafe fn initchr(str_: *mut c_char) {
+pub(super) fn initchr(str_: *mut c_char) {
     re_st().regparse = str_;
         re_st().prevchr_len = 0;
         re_st().nextchr = -1;
@@ -2035,7 +2031,7 @@ pub(super) fn reg_iswordc(c: c_int) -> bool {
     unsafe { vim_iswordc_buf(c, &mut *re_st().rex.reg_buf) }
 }
 
-unsafe fn reg_getline_common(
+fn reg_getline_common(
     lnum: linenr_T,
     flags: reg_getline_flags_T,
     line: *mut *mut c_char,
@@ -2080,19 +2076,15 @@ unsafe fn reg_getline_common(
 }
 
 pub(super) fn reg_getline(lnum: linenr_T) -> *mut c_char {
-    unsafe {
-        let mut line: *mut c_char = ptr::null_mut();
+    let mut line: *mut c_char = ptr::null_mut();
         reg_getline_common(lnum, RGLF_LINE, &raw mut line, ptr::null_mut());
         line
-    }
 }
 
 pub(super) fn reg_getline_len(lnum: linenr_T) -> colnr_T {
-    unsafe {
-        let mut length: colnr_T = 0;
+    let mut length: colnr_T = 0;
         reg_getline_common(lnum, RGLF_LENGTH, ptr::null_mut(), &raw mut length);
         length
-    }
 }
 
 pub(super) fn reg_prev_class() -> c_int {
@@ -2255,7 +2247,7 @@ pub(super) fn reg_nextline() {
         reg_breakcheck();
 }
 
-pub(super) unsafe fn match_with_backref(
+pub(super) fn match_with_backref(
     start_lnum: linenr_T,
     start_col: colnr_T,
     end_lnum: linenr_T,
@@ -2321,15 +2313,13 @@ pub(super) unsafe fn match_with_backref(
     }
 }
 
-pub(super) unsafe fn re_mult_next(what: *const c_char) -> bool {
-    unsafe {
-        if re_multi_type(peekchr()) == MULTI_MULT {
+pub(super) fn re_mult_next(what: *const c_char) -> bool {
+    if re_multi_type(peekchr()) == MULTI_MULT {
             semsg!(tr(c"E888: (NFA regexp) cannot repeat %s".as_ptr()), what);
             g_st().rc_did_emsg = true;
             return false;
         }
         true
-    }
 }
 
 fn mb_decompose(c: c_int, c1: &mut c_int, c2: &mut c_int, c3: &mut c_int) {
@@ -2345,7 +2335,7 @@ fn mb_decompose(c: c_int, c1: &mut c_int, c2: &mut c_int, c3: &mut c_int) {
         }
 }
 
-pub(super) unsafe fn cstrncmp(s1: *const c_char, s2: *const c_char, n: &mut c_int) -> c_int {
+pub(super) fn cstrncmp(s1: *const c_char, s2: *const c_char, n: &mut c_int) -> c_int {
     unsafe {
         let mut result = if !re_st().rex.reg_ic {
             { let _p1 = s1; let _p2 = s2; let _n = *n as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).cmp(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) as c_int }
@@ -2406,7 +2396,7 @@ pub(super) unsafe fn cstrncmp(s1: *const c_char, s2: *const c_char, n: &mut c_in
 }
 
 #[inline]
-pub(super) unsafe fn cstrchr(s: *const c_char, c: c_int) -> *mut c_char {
+pub(super) fn cstrchr(s: *const c_char, c: c_int) -> *mut c_char {
     unsafe {
         if !re_st().rex.reg_ic {
             return vim_strchr(s, c);
@@ -2443,7 +2433,7 @@ pub(super) unsafe fn cstrchr(s: *const c_char, c: c_int) -> *mut c_char {
 
 /// Replace tildes in the pattern by the old pattern.
 /// Returns `Some(CString)` if a new string was allocated, or `None` if `source` was modified in place.
-pub unsafe fn regtilde(
+pub fn regtilde(
     source: *mut c_char,
     magic: c_int,
     preview: bool,
@@ -2529,7 +2519,7 @@ pub unsafe fn regtilde(
     }
 }
 
-pub(crate) unsafe fn fill_submatch_list(
+pub(crate) fn fill_submatch_list(
     _argc: c_int,
     argv: *mut typval_T,
     argskip: c_int,
@@ -2559,7 +2549,7 @@ pub(crate) unsafe fn fill_submatch_list(
     }
 }
 
-pub unsafe fn vim_regsub(
+pub fn vim_regsub(
     rmp: &mut regmatch_T,
     source: *mut c_char,
     expr: *mut typval_T,
@@ -2567,8 +2557,7 @@ pub unsafe fn vim_regsub(
     destlen: c_int,
     flags: c_int,
 ) -> c_int {
-    unsafe {
-        let mut rex_save = regexec_T::new();
+    let mut rex_save = regexec_T::new();
         let rex_in_use_save = re_st().rex_in_use;
 
         if re_st().rex_in_use {
@@ -2589,10 +2578,9 @@ pub unsafe fn vim_regsub(
         }
 
         result
-    }
 }
 
-pub unsafe fn vim_regsub_multi(
+pub fn vim_regsub_multi(
     rmp: &mut regmmatch_T,
     lnum: linenr_T,
     source: *mut c_char,
@@ -2626,7 +2614,7 @@ pub unsafe fn vim_regsub_multi(
     }
 }
 
-unsafe fn vim_regsub_both(
+fn vim_regsub_both(
     source: *mut c_char,
     expr: *mut typval_T,
     dest: *mut c_char,
@@ -3023,8 +3011,7 @@ unsafe fn vim_regsub_both(
 }
 
 fn reg_getline_submatch(lnum: linenr_T) -> *mut c_char {
-    unsafe {
-        let mut line: *mut c_char = ptr::null_mut();
+    let mut line: *mut c_char = ptr::null_mut();
         reg_getline_common(
             lnum,
             RGLF_LINE | RGLF_SUBMATCH,
@@ -3032,12 +3019,10 @@ fn reg_getline_submatch(lnum: linenr_T) -> *mut c_char {
             ptr::null_mut(),
         );
         line
-    }
 }
 
 fn reg_getline_submatch_len(lnum: linenr_T) -> colnr_T {
-    unsafe {
-        let mut length: colnr_T = 0;
+    let mut length: colnr_T = 0;
         reg_getline_common(
             lnum,
             RGLF_LENGTH | RGLF_SUBMATCH,
@@ -3045,7 +3030,6 @@ fn reg_getline_submatch_len(lnum: linenr_T) -> colnr_T {
             &raw mut length,
         );
         length
-    }
 }
 
 pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
@@ -3179,7 +3163,7 @@ pub fn reg_submatch_list(no: c_int) -> *mut list_T {
     }
 }
 
-pub(super) unsafe fn init_regexec_multi(
+pub(super) fn init_regexec_multi(
     rmp: &mut regmmatch_T,
     win: *mut win_T,
     buf: *mut buf_T,
@@ -3200,7 +3184,7 @@ pub(super) unsafe fn init_regexec_multi(
     }
 }
 
-pub(super) unsafe fn get_char_class_bits(
+pub(super) fn get_char_class_bits(
     start: *const u8,
     end: *const u8,
     newl: &mut bool,
@@ -3274,9 +3258,8 @@ pub(super) unsafe fn get_char_class_bits(
     }
 }
 
-pub(super) unsafe fn regcomp_start(expr: *mut u8, re_flags: c_int) {
-    unsafe {
-        initchr(expr.cast());
+pub(super) fn regcomp_start(expr: *mut u8, re_flags: c_int) {
+    initchr(expr.cast());
         if (re_flags & RE_MAGIC) != 0 {
             re_st().reg_magic = MAGIC_ON;
         } else {
@@ -3296,7 +3279,6 @@ pub(super) unsafe fn regcomp_start(expr: *mut u8, re_flags: c_int) {
         re_st().bt_reg_parse_depth = 0;
         re_st().regflags = 0;
         re_st().had_eol = 0;
-    }
 }
 
 pub(super) fn seen_endbrace(refnum: c_int) -> bool {
@@ -3348,7 +3330,7 @@ pub fn vim_regcomp_had_eol() -> c_int {
 }
 
 /// Compile a regular expression into internal code.
-pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T {
+pub fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regprog_T {
     unsafe {
         let mut expr = expr_arg;
 
@@ -3428,7 +3410,7 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
 }
 
 #[inline]
-pub unsafe fn vim_regcomp_box(expr_arg: *const c_char, re_flags: c_int) -> Option<Box<regprog_T>> {
+pub fn vim_regcomp_box(expr_arg: *const c_char, re_flags: c_int) -> Option<Box<regprog_T>> {
     unsafe {
         let p = vim_regcomp(expr_arg, re_flags);
         if p.is_null() {
@@ -3446,7 +3428,7 @@ pub fn regprog_as_ptr(prog: &Option<Box<regprog_T>>) -> *mut regprog_T {
 }
 
 /// Free a compiled regexp program, returned by `vim_regcomp()`.
-pub unsafe fn vim_regfree(prog: *mut regprog_T) {
+pub fn vim_regfree(prog: *mut regprog_T) {
     unsafe {
         if !prog.is_null() {
             drop(Box::from_raw(prog));
@@ -3468,9 +3450,8 @@ pub fn free_regexp_stuff() {
     }
 }
 
-unsafe fn report_re_switch(pat: *const c_char) {
-    unsafe {
-        if opt_vars().p_verbose > 0 {
+fn report_re_switch(pat: *const c_char) {
+    if opt_vars().p_verbose > 0 {
             verbose_enter();
             msg_puts(tr(
                 c"Switching to backtracking RE engine for pattern: ".as_ptr()
@@ -3478,10 +3459,9 @@ unsafe fn report_re_switch(pat: *const c_char) {
             msg_puts(pat);
             verbose_leave();
         }
-    }
 }
 
-unsafe fn vim_regexec_string(
+fn vim_regexec_string(
     rmp: &mut regmatch_T,
     line: *const c_char,
     col: colnr_T,
@@ -3545,14 +3525,13 @@ unsafe fn vim_regexec_string(
     }
 }
 
-pub unsafe fn vim_regexec_prog(
+pub fn vim_regexec_prog(
     prog: Option<&regprog_T>,
     ignore_case: bool,
     line: *const c_char,
     col: colnr_T,
 ) -> bool {
-    unsafe {
-        let mut regmatch = regmatch_T {
+    let mut regmatch = regmatch_T {
             regprog: prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut()),
             startp: [ptr::null_mut(); NSUBEXP],
             endp: [ptr::null_mut(); NSUBEXP],
@@ -3560,18 +3539,17 @@ pub unsafe fn vim_regexec_prog(
             rm_ic: ignore_case,
         };
         vim_regexec_string(&mut regmatch, line, col, false)
-    }
 }
 
-pub unsafe fn vim_regexec(rmp: &mut regmatch_T, line: *const c_char, col: colnr_T) -> bool {
-    unsafe { vim_regexec_string(rmp, line, col, false) }
+pub fn vim_regexec(rmp: &mut regmatch_T, line: *const c_char, col: colnr_T) -> bool {
+    vim_regexec_string(rmp, line, col, false)
 }
 
-pub unsafe fn vim_regexec_nl(rmp: &mut regmatch_T, line: *const c_char, col: colnr_T) -> bool {
-    unsafe { vim_regexec_string(rmp, line, col, true) }
+pub fn vim_regexec_nl(rmp: &mut regmatch_T, line: *const c_char, col: colnr_T) -> bool {
+    vim_regexec_string(rmp, line, col, true)
 }
 
-pub unsafe fn vim_regexec_multi(
+pub fn vim_regexec_multi(
     rmp: &mut regmmatch_T,
     win: *mut win_T,
     buf: *mut buf_T,

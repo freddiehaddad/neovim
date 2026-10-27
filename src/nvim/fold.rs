@@ -159,17 +159,17 @@ pub fn hasAnyFolding(win: &mut win_T) -> c_int {
 }
 
 /// Return true if line "lnum" in window "win" is part of a closed fold.
-pub unsafe fn hasFolding(
+pub fn hasFolding(
     win: *mut win_T,
     lnum: linenr_T,
     firstp: *mut linenr_T,
     lastp: *mut linenr_T,
 ) -> bool {
-    unsafe { hasFoldingWin(win, lnum, firstp, lastp, true, ptr::null_mut()) }
+    hasFoldingWin(win, lnum, firstp, lastp, true, ptr::null_mut())
 }
 
 /// Search folds starting at lnum.
-pub unsafe fn hasFoldingWin(
+pub fn hasFoldingWin(
     win: *mut win_T,
     lnum: linenr_T,
     firstp: *mut linenr_T,
@@ -281,14 +281,13 @@ fn foldLevel(lnum: linenr_T) -> c_int {
 }
 
 /// Low level function to check if a line is folded.
-pub unsafe fn lineFolded(win: *mut win_T, lnum: linenr_T) -> bool {
-    unsafe { fold_info(win, lnum).fi_lines != 0 }
+pub fn lineFolded(win: *mut win_T, lnum: linenr_T) -> bool {
+    fold_info(win, lnum).fi_lines != 0
 }
 
 /// Count the number of lines that are folded at line number "lnum".
-pub unsafe fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T {
-    unsafe {
-        let mut info = foldinfo_T {
+pub fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T {
+    let mut info = foldinfo_T {
             fi_lnum: 0,
             fi_level: 0,
             fi_low_level: 0,
@@ -303,7 +302,6 @@ pub unsafe fn fold_info(win: *mut win_T, lnum: linenr_T) -> foldinfo_T {
         }
 
         info
-    }
 }
 
 /// Return true if 'foldmethod' is "manual".
@@ -352,9 +350,7 @@ pub fn closeFold(pos: pos_T, count: c_int) {
 
 /// Close fold for current window at position `pos` recursively.
 pub fn closeFoldRecurse(pos: pos_T) {
-    unsafe {
-        setManualFold(pos, false, true, ptr::null_mut());
-    }
+    setManualFold(pos, false, true, ptr::null_mut());
 }
 
 /// Open or Close folds for current window in lines "first" to "last".
@@ -403,9 +399,7 @@ pub fn openFold(pos: pos_T, count: c_int) {
 
 /// Open fold for current window at position `pos` recursively.
 pub fn openFoldRecurse(pos: pos_T) {
-    unsafe {
-        setManualFold(pos, true, true, ptr::null_mut());
-    }
+    setManualFold(pos, true, true, ptr::null_mut());
 }
 
 /// Open folds until the cursor line is not in a closed fold.
@@ -443,8 +437,7 @@ pub fn newFoldLevel() {
 }
 
 fn newFoldLevelWin(wp: &mut win_T) {
-    unsafe {
-        checkupdate(&raw mut *wp);
+    checkupdate(&raw mut *wp);
         if wp.w_fold_manual {
             for entry in &mut wp.w_folds {
                 entry.fd_flags = FD_LEVEL;
@@ -452,7 +445,6 @@ fn newFoldLevelWin(wp: &mut win_T) {
             wp.w_fold_manual = false;
         }
         changed_window_setting(&mut *wp);
-    }
 }
 
 /// Apply 'foldlevel' to all folds that don't contain the cursor.
@@ -509,8 +501,7 @@ pub fn foldManualAllowed(create: bool) -> c_int {
 /// Create a fold from line "start" to line "end" (inclusive) in the current
 /// window.
 pub fn foldCreate(wp: &mut win_T, mut start: pos_T, mut end: pos_T) {
-    unsafe {
-        let mut use_level = false;
+    let mut use_level = false;
         let mut closed = false;
         let mut level: c_int = 0;
         let mut start_rel = start;
@@ -599,7 +590,6 @@ pub fn foldCreate(wp: &mut win_T, mut start: pos_T, mut end: pos_T) {
 
             changed_window_setting(&mut *wp);
         }
-    }
 }
 
 pub fn deleteFold(
@@ -686,7 +676,7 @@ pub fn clearFolding(win: &mut win_T) {
 }
 
 /// Update folds for changes in the buffer of a window.
-pub unsafe fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T) {
+pub fn foldUpdate(wp: *mut win_T, top: linenr_T, bot: linenr_T) {
     unsafe {
         if g_st().disable_fold_update != 0 || ((g_st().State & MODE_INSERT) != 0 && !foldmethodIsIndent(&mut *wp)) {
             return;
@@ -736,10 +726,8 @@ pub fn foldUpdateAfterInsert() {
 
 /// Update all lines in a window for folding.
 pub fn foldUpdateAll(win: &mut win_T) {
-    unsafe {
-        win.w_foldinvalid = true;
+    win.w_foldinvalid = true;
         redraw_later(win, UPD_NOT_VALID);
-    }
 }
 
 pub fn foldMoveTo(updown: bool, dir: c_int, count: c_int) -> c_int {
@@ -912,14 +900,12 @@ pub fn foldAdjustVisual() {
 
 /// Move the cursor to the first line of a closed fold.
 pub fn foldAdjustCursor(wp: &mut win_T) {
-    unsafe {
-        hasFolding(
+    hasFolding(
             &raw mut *wp,
             wp.w_cursor.lnum,
             &raw mut wp.w_cursor.lnum,
             ptr::null_mut(),
         );
-    }
 }
 
 fn foldFind(gap: &[fold_T], lnum: linenr_T) -> (bool, usize) {
@@ -953,7 +939,7 @@ fn foldLevelWin(wp: &mut win_T, lnum: linenr_T) -> c_int {
         level
 }
 
-unsafe fn checkupdate(wp: *mut win_T) {
+fn checkupdate(wp: *mut win_T) {
     unsafe {
         if !(*wp).w_foldinvalid {
             return;
@@ -965,8 +951,7 @@ unsafe fn checkupdate(wp: *mut win_T) {
 }
 
 fn setFoldRepeat(pos: pos_T, count: c_int, do_open: bool) {
-    unsafe {
-        for n in 0..count {
+    for n in 0..count {
             let mut done = DONE_NOTHING;
             setManualFold(pos, do_open, false, &mut done);
             if (done & DONE_ACTION) == 0 {
@@ -976,10 +961,9 @@ fn setFoldRepeat(pos: pos_T, count: c_int, do_open: bool) {
                 break;
             }
         }
-    }
 }
 
-unsafe fn setManualFold(pos: pos_T, opening: bool, recurse: bool, donep: *mut c_int) -> linenr_T {
+fn setManualFold(pos: pos_T, opening: bool, recurse: bool, donep: *mut c_int) -> linenr_T {
     unsafe {
         if foldmethodIsDiff(&mut **curwin.as_ptr()) && (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
             let mut wp = g_st().firstwin;
@@ -998,7 +982,7 @@ unsafe fn setManualFold(pos: pos_T, opening: bool, recurse: bool, donep: *mut c_
     }
 }
 
-unsafe fn setManualFoldWin(
+fn setManualFoldWin(
     wp: &mut win_T,
     mut lnum: linenr_T,
     opening: bool,
@@ -1224,10 +1208,8 @@ fn foldMarkAdjustRecurse(
 /// Get the lowest 'foldlevel' value that makes the deepest nested fold in
 /// window `wp`.
 pub fn getDeepestNesting(wp: &mut win_T) -> c_int {
-    unsafe {
-        checkupdate(wp);
+    checkupdate(wp);
         getDeepestNestingRecurse(&wp.w_folds)
-    }
 }
 
 fn getDeepestNestingRecurse(gap: &[fold_T]) -> c_int {
@@ -1239,7 +1221,7 @@ fn getDeepestNestingRecurse(gap: &[fold_T]) -> c_int {
         maxlevel
 }
 
-unsafe fn check_closed(
+fn check_closed(
     wp: *mut win_T,
     fp: &mut fold_T,
     use_levelp: &mut bool,
@@ -1275,7 +1257,7 @@ unsafe fn check_closed(
     }
 }
 
-unsafe fn checkSmall(wp: *mut win_T, fp: &mut fold_T, lnum_off: linenr_T) {
+fn checkSmall(wp: *mut win_T, fp: &mut fold_T, lnum_off: linenr_T) {
     unsafe {
         if fp.fd_small != kNone {
             return;
@@ -1324,7 +1306,7 @@ fn foldCreateMarkers(wp: &mut win_T, start: pos_T, end: pos_T) {
     }
 }
 
-unsafe fn foldAddMarker(buf: &mut buf_T, pos: pos_T, marker: *const c_char, markerlen: usize) {
+fn foldAddMarker(buf: &mut buf_T, pos: pos_T, marker: *const c_char, markerlen: usize) {
     unsafe {
         let cms = buf.b_p_cms;
         let p = CStr::from_ptr(cms).to_bytes().windows(2).position(|w| w == b"%s").map_or(ptr::null_mut(), |i| cms.add(i));
@@ -1394,7 +1376,7 @@ fn deleteFoldMarkers(wp: &mut win_T, fp: &mut fold_T, recursive: bool, lnum_off:
     }
 }
 
-unsafe fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerlen: usize) {
+fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, markerlen: usize) {
     unsafe {
         if lnum > buf.b_ml.ml_line_count {
             return;
@@ -1459,7 +1441,7 @@ unsafe fn foldDelMarker(buf: &mut buf_T, lnum: linenr_T, marker: *const c_char, 
 }
 
 /// Generates text to display.
-pub unsafe fn get_foldtext(
+pub fn get_foldtext(
     wp: *mut win_T,
     lnum: linenr_T,
     lnume: linenr_T,
@@ -1575,7 +1557,7 @@ pub unsafe fn get_foldtext(
     }
 }
 
-unsafe fn foldtext_cleanup(str_ptr: *mut c_char) {
+fn foldtext_cleanup(str_ptr: *mut c_char) {
     unsafe {
         let cms_start = skipwhite((*g_st().curbuf).b_p_cms);
         let mut cms_slen = CStr::from_ptr(cms_start).to_bytes().len();
@@ -1674,7 +1656,7 @@ fn call_getlevel(kind: LevelGetterKind, flp: &mut fline_T) {
         }
 }
 
-unsafe fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
+fn foldUpdateIEMS(wp: *mut win_T, mut top: linenr_T, mut bot: linenr_T) {
     unsafe {
         if fold_st().invalid_top != 0 {
             return;
@@ -2600,7 +2582,7 @@ fn foldlevelSyntax(flp: &mut fline_T) {
 }
 
 /// Write commands to "fd" to restore the manual folds in window "wp".
-pub unsafe fn put_folds(fd: *mut FILE, wp: *mut win_T) -> c_int {
+pub fn put_folds(fd: *mut FILE, wp: *mut win_T) -> c_int {
     unsafe {
         if foldmethodIsManual(&mut *wp)
             && (put_line(fd, c"silent! normal! zE".as_ptr() as *mut c_char) == FAIL
@@ -2618,7 +2600,7 @@ pub unsafe fn put_folds(fd: *mut FILE, wp: *mut win_T) -> c_int {
     }
 }
 
-unsafe fn put_folds_recurse(fd: *mut FILE, gap: &[fold_T], off: linenr_T) -> c_int {
+fn put_folds_recurse(fd: *mut FILE, gap: &[fold_T], off: linenr_T) -> c_int {
     unsafe {
         for fp in gap {
             if put_folds_recurse(fd, &fp.fd_nested, off + fp.fd_top) == FAIL {
@@ -2640,7 +2622,7 @@ unsafe fn put_folds_recurse(fd: *mut FILE, gap: &[fold_T], off: linenr_T) -> c_i
     }
 }
 
-unsafe fn put_foldopen_recurse(
+fn put_foldopen_recurse(
     fd: *mut FILE,
     wp: *mut win_T,
     gap: &[fold_T],
@@ -2685,7 +2667,7 @@ unsafe fn put_foldopen_recurse(
     }
 }
 
-unsafe fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> c_int {
+fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> c_int {
     unsafe {
         let mut buf = [0 as c_char; 32];
         vim_snprintf!(
@@ -2709,7 +2691,7 @@ unsafe fn put_fold_open_close(fd: *mut FILE, fp: &fold_T, off: linenr_T) -> c_in
     }
 }
 
-unsafe fn foldclosed_both(argvars: *mut typval_T, rettv: &mut typval_T, end: bool) {
+fn foldclosed_both(argvars: *mut typval_T, rettv: &mut typval_T, end: bool) {
     unsafe {
         let lnum = tv_get_lnum(&*argvars);
         if lnum >= 1 && lnum <= (*g_st().curbuf).b_ml.ml_line_count {
@@ -2728,18 +2710,14 @@ unsafe fn foldclosed_both(argvars: *mut typval_T, rettv: &mut typval_T, end: boo
 pub fn f_foldclosed(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        foldclosed_both(argvars, rettv, false);
-    }
+    foldclosed_both(argvars, rettv, false);
 }
 
 /// "foldclosedend()" function
 pub fn f_foldclosedend(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        foldclosed_both(argvars, rettv, true);
-    }
+    foldclosed_both(argvars, rettv, true);
 }
 
 /// "foldlevel()" function

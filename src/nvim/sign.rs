@@ -123,7 +123,7 @@ const CMDS: [*const c_char; 7] = [
 ];
 
 #[inline]
-unsafe fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
+fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
     if name.is_null() {
         return ptr::null_mut();
     }
@@ -139,7 +139,7 @@ unsafe fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
 }
 
 #[inline]
-unsafe fn find_ns_by_name(group: *const c_char) -> c_int {
+fn find_ns_by_name(group: *const c_char) -> c_int {
     if group.is_null() {
         return 0;
     }
@@ -153,7 +153,7 @@ unsafe fn find_ns_by_name(group: *const c_char) -> c_int {
     }
 }
 
-unsafe fn group_get_ns(group: *const c_char) -> i64 {
+fn group_get_ns(group: *const c_char) -> i64 {
     unsafe {
         if group.is_null() {
             return 0;
@@ -166,8 +166,7 @@ unsafe fn group_get_ns(group: *const c_char) -> i64 {
 }
 
 fn sign_get_name(sh: &DecorSignHighlight) -> *const c_char {
-    unsafe {
-        let Some(ref name) = sh.sign_name else {
+    let Some(ref name) = sh.sign_name else {
             return c"".as_ptr();
         };
         if !pmap_get_sign(name.as_ptr()).is_null() {
@@ -175,10 +174,9 @@ fn sign_get_name(sh: &DecorSignHighlight) -> *const c_char {
         } else {
             c"[Deleted]".as_ptr()
         }
-    }
 }
 
-unsafe fn buf_set_sign(
+fn buf_set_sign(
     buf: *mut buf_T,
     id: *mut u32,
     group: *mut c_char,
@@ -241,7 +239,7 @@ unsafe fn buf_set_sign(
     }
 }
 
-unsafe fn buf_mod_sign(
+fn buf_mod_sign(
     buf: *mut buf_T,
     id: *mut u32,
     group: *mut c_char,
@@ -262,7 +260,7 @@ unsafe fn buf_mod_sign(
     }
 }
 
-unsafe fn buf_findsign(buf: *mut buf_T, id: c_int, group: *mut c_char) -> c_int {
+fn buf_findsign(buf: *mut buf_T, id: c_int, group: *mut c_char) -> c_int {
     unsafe {
         let ns = group_get_ns(group);
         if ns < 0 || (!group.is_null() && ns == 0) {
@@ -292,7 +290,7 @@ fn sign_row_cmp_slice(s1: &MTKey, s2: &MTKey) -> Ordering {
         sign_item_cmp(&si1, &si2)
 }
 
-unsafe fn buf_delete_signs(
+fn buf_delete_signs(
     buf: *mut buf_T,
     group: *mut c_char,
     id: c_int,
@@ -358,11 +356,11 @@ unsafe fn buf_delete_signs(
     }
 }
 
-pub unsafe fn buf_has_signs(buf: *const buf_T) -> bool {
+pub fn buf_has_signs(buf: *const buf_T) -> bool {
     unsafe { buf_meta_total(&*buf, kMTMetaSignHL) + buf_meta_total(&*buf, kMTMetaSignText) != 0 }
 }
 
-unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
+fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
     unsafe {
         let mut lbuf = [0 as c_char; MSG_BUF_LEN];
         let mut namebuf = [0 as c_char; MSG_BUF_LEN];
@@ -457,7 +455,7 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
     }
 }
 
-unsafe fn sign_cmd_idx(begin_cmd: *mut c_char, end_cmd: *mut c_char) -> c_int {
+fn sign_cmd_idx(begin_cmd: *mut c_char, end_cmd: *mut c_char) -> c_int {
     unsafe {
         let save = *end_cmd;
         *end_cmd = NUL;
@@ -474,7 +472,7 @@ unsafe fn sign_cmd_idx(begin_cmd: *mut c_char, end_cmd: *mut c_char) -> c_int {
     }
 }
 
-pub unsafe fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize {
+pub fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> usize {
     unsafe {
         let mut p: usize = 0;
         for i in 0..SIGN_WIDTH {
@@ -489,7 +487,7 @@ pub unsafe fn describe_sign_text(buf: *mut c_char, sign_text: *mut schar_T) -> u
     }
 }
 
-pub unsafe fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_char) -> c_int {
+pub fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mut c_char) -> c_int {
     unsafe {
         let mut endp = text.add(CStr::from_ptr(text).to_bytes().len());
         let mut s = if !sp.is_null() { text } else { endp };
@@ -535,7 +533,7 @@ pub unsafe fn init_sign_text(sp: *mut sign_T, sign_text: *mut schar_T, text: *mu
     }
 }
 
-unsafe fn sign_define_by_name(
+fn sign_define_by_name(
     name: *mut c_char,
     icon: *mut c_char,
     text: *mut c_char,
@@ -630,7 +628,7 @@ unsafe fn sign_define_by_name(
     }
 }
 
-unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
+fn sign_undefine_by_name(name: *const c_char) -> c_int {
     unsafe {
         let sm_ptr = &raw mut sign_st().sign_map;
         let Some(pos) = (*sm_ptr)
@@ -646,8 +644,7 @@ unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
 }
 
 fn sign_list_defined(sp: &mut sign_T) {
-    unsafe {
-        smsg!(0, c"sign %s".as_ptr(), sp.sn_name.as_ptr());
+    smsg!(0, c"sign %s".as_ptr(), sp.sn_name.as_ptr());
         if let Some(ref icon) = sp.sn_icon {
             msg_puts(c" icon=".as_ptr());
             msg_outtrans(icon.as_ptr(), 0, false);
@@ -688,10 +685,9 @@ fn sign_list_defined(sp: &mut sign_T) {
                 msg_puts(if !p.is_null() { p } else { c"NONE".as_ptr() });
             }
         }
-    }
 }
 
-unsafe fn sign_list_by_name(name: *mut c_char) {
+fn sign_list_by_name(name: *mut c_char) {
     unsafe {
         let sp = pmap_get_sign(name);
         if !sp.is_null() {
@@ -702,7 +698,7 @@ unsafe fn sign_list_by_name(name: *mut c_char) {
     }
 }
 
-unsafe fn sign_place(
+fn sign_place(
     id: *mut u32,
     group: *mut c_char,
     name: *mut c_char,
@@ -746,7 +742,7 @@ unsafe fn sign_place(
     }
 }
 
-unsafe fn sign_unplace_inner(
+fn sign_unplace_inner(
     buf: *mut buf_T,
     id: c_int,
     group: *mut c_char,
@@ -772,7 +768,7 @@ unsafe fn sign_unplace_inner(
     }
 }
 
-unsafe fn sign_unplace(buf: *mut buf_T, id: c_int, group: *mut c_char, atlnum: linenr_T) -> c_int {
+fn sign_unplace(buf: *mut buf_T, id: c_int, group: *mut c_char, atlnum: linenr_T) -> c_int {
     unsafe {
         if !buf.is_null() {
             sign_unplace_inner(buf, id, group, atlnum)
@@ -790,7 +786,7 @@ unsafe fn sign_unplace(buf: *mut buf_T, id: c_int, group: *mut c_char, atlnum: l
     }
 }
 
-unsafe fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
+fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T {
     unsafe {
         let lnum = buf_findsign(buf, id, group);
         if lnum <= 0 {
@@ -829,7 +825,7 @@ unsafe fn sign_jump(id: c_int, group: *mut c_char, buf: *mut buf_T) -> linenr_T 
     }
 }
 
-unsafe fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
+fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
     unsafe {
         let mut icon: *mut c_char = ptr::null_mut();
         let mut text: *mut c_char = ptr::null_mut();
@@ -874,7 +870,7 @@ unsafe fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
     }
 }
 
-unsafe fn sign_place_cmd(
+fn sign_place_cmd(
     buf: *mut buf_T,
     lnum: linenr_T,
     name: *mut c_char,
@@ -900,7 +896,7 @@ unsafe fn sign_place_cmd(
     }
 }
 
-unsafe fn sign_unplace_cmd(
+fn sign_unplace_cmd(
     mut buf: *mut buf_T,
     mut lnum: linenr_T,
     name: *const c_char,
@@ -924,7 +920,7 @@ unsafe fn sign_unplace_cmd(
     }
 }
 
-unsafe fn sign_jump_cmd(
+fn sign_jump_cmd(
     buf: *mut buf_T,
     lnum: linenr_T,
     name: *const c_char,
@@ -946,7 +942,7 @@ unsafe fn sign_jump_cmd(
     }
 }
 
-unsafe fn parse_sign_cmd_args(
+fn parse_sign_cmd_args(
     cmd: c_int,
     mut arg: *mut c_char,
     name: *mut *mut c_char,
@@ -1112,8 +1108,7 @@ pub fn ex_sign(eap: &mut exarg_T) {
 }
 
 fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
-    unsafe {
-        let d = tv_dict_alloc();
+    let d = tv_dict_alloc();
 
         tv_dict_add_str(d, c"name".as_ptr(), 4, sp.sn_name.as_ptr());
 
@@ -1145,7 +1140,6 @@ fn sign_get_info_dict(sp: &mut sign_T) -> *mut dict_T {
             }
         }
         d
-    }
 }
 
 fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
@@ -1184,7 +1178,7 @@ pub fn get_buffer_signs(buf: &mut buf_T) -> *mut list_T {
     }
 }
 
-unsafe fn sign_get_placed_in_buf(
+fn sign_get_placed_in_buf(
     buf: *mut buf_T,
     lnum: linenr_T,
     sign_id: c_int,
@@ -1237,7 +1231,7 @@ unsafe fn sign_get_placed_in_buf(
     }
 }
 
-unsafe fn sign_get_placed(
+fn sign_get_placed(
     buf: *mut buf_T,
     lnum: linenr_T,
     id: c_int,
@@ -1331,7 +1325,7 @@ pub fn get_sign_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
         }
 }
 
-pub unsafe fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
+pub fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
     unsafe {
         xp.xp_context = EXPAND_SIGN;
         sign_st().expand_what = EXP_SUBCMD;
@@ -1414,7 +1408,7 @@ pub unsafe fn set_context_in_sign_cmd(xp: &mut expand_T, arg: *mut c_char) {
     }
 }
 
-unsafe fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_int {
+fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_int {
     unsafe {
         if name.is_null() {
             name = tv_dict_get_string(dict, c"name".as_ptr());
@@ -1445,7 +1439,7 @@ unsafe fn sign_define_from_dict(mut name: *mut c_char, dict: *mut dict_T) -> c_i
     }
 }
 
-unsafe fn sign_define_multiple(l: *const list_T, retlist: *mut list_T) {
+fn sign_define_multiple(l: *const list_T, retlist: *mut list_T) {
     unsafe {
         if l.is_null() {
             return;
@@ -1607,7 +1601,7 @@ pub fn f_sign_jump(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFu
     }
 }
 
-unsafe fn sign_place_from_dict(
+fn sign_place_from_dict(
     mut id_tv: *mut typval_T,
     mut group_tv: *mut typval_T,
     mut name_tv: *mut typval_T,
@@ -1766,7 +1760,7 @@ pub fn f_sign_placelist(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: E
     }
 }
 
-unsafe fn sign_undefine_multiple(l: *const list_T, retlist: *mut list_T) {
+fn sign_undefine_multiple(l: *const list_T, retlist: *mut list_T) {
     unsafe {
         if l.is_null() {
             return;
@@ -1813,7 +1807,7 @@ pub fn f_sign_undefine(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
     }
 }
 
-unsafe fn sign_unplace_from_dict(group_tv: *mut typval_T, dict: *mut dict_T) -> c_int {
+fn sign_unplace_from_dict(group_tv: *mut typval_T, dict: *mut dict_T) -> c_int {
     unsafe {
         let mut id: c_int = 0;
         let mut buf: *mut buf_T = ptr::null_mut();

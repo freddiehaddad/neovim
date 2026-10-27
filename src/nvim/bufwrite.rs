@@ -117,7 +117,7 @@ struct bw_info {
 }
 
 /// Convert a Unicode character to bytes.
-unsafe fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: c_int) -> bool {
+fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: c_int) -> bool {
     unsafe {
         let mut p = (*pp).cast::<u8>();
         let mut error = false;
@@ -178,7 +178,7 @@ unsafe fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: c_int) -> bool {
     }
 }
 
-unsafe fn buf_write_convert_with_iconv(
+fn buf_write_convert_with_iconv(
     ip: &mut bw_info,
     bufp: *mut *mut c_char,
     lenp: &mut c_int,
@@ -227,7 +227,7 @@ unsafe fn buf_write_convert_with_iconv(
     }
 }
 
-unsafe fn buf_write_convert(ip: &mut bw_info, bufp: *mut *mut c_char, lenp: &mut c_int) -> c_int {
+fn buf_write_convert(ip: &mut bw_info, bufp: *mut *mut c_char, lenp: &mut c_int) -> c_int {
     unsafe {
         let flags = ip.bw_flags;
         let mut wlen = *lenp;
@@ -288,8 +288,7 @@ unsafe fn buf_write_convert(ip: &mut bw_info, bufp: *mut *mut c_char, lenp: &mut
 }
 
 fn buf_write_bytes(ip: &mut bw_info) -> c_int {
-    unsafe {
-        let mut buf = ip.bw_buf.as_mut_ptr();
+    let mut buf = ip.bw_buf.as_mut_ptr();
         let mut len = ip.bw_len;
         let flags = ip.bw_flags;
 
@@ -324,10 +323,9 @@ fn buf_write_bytes(ip: &mut bw_info) -> c_int {
         }
 
         OK
-    }
 }
 
-unsafe fn check_mtime(buf: *mut buf_T, file_info: &FileInfo) -> c_int {
+fn check_mtime(buf: *mut buf_T, file_info: &FileInfo) -> c_int {
     unsafe {
         if (*buf).b_mtime_read != 0
             && time_differs(file_info, (*buf).b_mtime_read, (*buf).b_mtime_read_ns)
@@ -347,7 +345,7 @@ unsafe fn check_mtime(buf: *mut buf_T, file_info: &FileInfo) -> c_int {
     OK
 }
 
-unsafe fn make_bom(buf_in: *mut c_char, name: *mut c_char) -> c_int {
+fn make_bom(buf_in: *mut c_char, name: *mut c_char) -> c_int {
     unsafe {
         let buf = buf_in.cast::<u8>();
         let flags = get_fio_flags(name);
@@ -367,7 +365,7 @@ unsafe fn make_bom(buf_in: *mut c_char, name: *mut c_char) -> c_int {
     }
 }
 
-unsafe fn buf_write_do_autocmds(
+fn buf_write_do_autocmds(
     mut buf: *mut buf_T,
     fnamep: *mut *mut c_char,
     sfnamep: *mut *mut c_char,
@@ -553,7 +551,7 @@ unsafe fn buf_write_do_autocmds(
     NOTDONE
 }
 
-unsafe fn buf_write_do_post_autocmds(
+fn buf_write_do_post_autocmds(
     buf: *mut buf_T,
     fname: *mut c_char,
     eap: *mut exarg_T,
@@ -590,7 +588,7 @@ unsafe fn buf_write_do_post_autocmds(
 }
 
 #[inline]
-unsafe fn set_err_num(num: &'static CStr, msg: *const c_char) -> Error_T {
+fn set_err_num(num: &'static CStr, msg: *const c_char) -> Error_T {
     unsafe {
         Error_T {
             num: Some(num),
@@ -605,7 +603,7 @@ unsafe fn set_err_num(num: &'static CStr, msg: *const c_char) -> Error_T {
 }
 
 #[inline]
-unsafe fn set_err(msg: *const c_char) -> Error_T {
+fn set_err(msg: *const c_char) -> Error_T {
     unsafe {
         Error_T {
             num: None,
@@ -620,7 +618,7 @@ unsafe fn set_err(msg: *const c_char) -> Error_T {
 }
 
 #[inline]
-unsafe fn set_err_arg(msg: *const c_char, arg: c_int) -> Error_T {
+fn set_err_arg(msg: *const c_char, arg: c_int) -> Error_T {
     unsafe {
         Error_T {
             num: None,
@@ -634,7 +632,7 @@ unsafe fn set_err_arg(msg: *const c_char, arg: c_int) -> Error_T {
     }
 }
 
-unsafe fn emit_err(e: &mut Error_T, msg_id: *const c_char) {
+fn emit_err(e: &mut Error_T, msg_id: *const c_char) {
     unsafe {
         let mut errmsg = [0 as c_char; IOSIZE];
         let msg_ptr = e.msg.as_ref().map_or(c"".as_ptr(), |m| m.as_ptr());
@@ -684,7 +682,7 @@ unsafe fn emit_err(e: &mut Error_T, msg_id: *const c_char) {
 }
 
 #[cfg(not(windows))]
-unsafe fn get_fileinfo_os(
+fn get_fileinfo_os(
     fname: *mut c_char,
     file_info_old: &mut FileInfo,
     _overwriting: bool,
@@ -725,7 +723,7 @@ unsafe fn get_fileinfo_os(
 }
 
 #[cfg(windows)]
-unsafe fn get_fileinfo_os(
+fn get_fileinfo_os(
     fname: *mut c_char,
     file_info_old: &mut FileInfo,
     overwriting: bool,
@@ -771,7 +769,7 @@ unsafe fn get_fileinfo_os(
     }
 }
 
-unsafe fn get_fileinfo(
+fn get_fileinfo(
     buf: *mut buf_T,
     fname: *mut c_char,
     overwriting: bool,
@@ -825,7 +823,7 @@ unsafe fn get_fileinfo(
     }
 }
 
-pub unsafe fn buf_get_backup_name(
+pub fn buf_get_backup_name(
     fname: *mut c_char,
     dirp: *mut *mut c_char,
     no_prepend_dot: bool,
@@ -865,7 +863,7 @@ pub unsafe fn buf_get_backup_name(
     }
 }
 
-unsafe fn buf_write_make_backup(
+fn buf_write_make_backup(
     fname: *mut c_char,
     append: bool,
     file_info_old: &mut FileInfo,
@@ -1111,7 +1109,7 @@ unsafe fn buf_write_make_backup(
 }
 
 /// Write to file `fname` lines `start` through `end`.
-pub unsafe fn buf_write(
+pub fn buf_write(
     mut buf: *mut buf_T,
     mut fname: *mut c_char,
     mut sfname: *mut c_char,
@@ -2102,8 +2100,7 @@ mod tests {
 
     #[test]
     fn ucs2bytes_and_make_bom_encode_utf8_and_utf16() {
-        unsafe {
-            let mut buf = [0 as c_char; 8];
+        let mut buf = [0 as c_char; 8];
             assert_eq!(make_bom(buf.as_mut_ptr(), c"utf-8".as_ptr().cast_mut()), 3);
             assert_eq!(
                 [buf[0] as u8, buf[1] as u8, buf[2] as u8],
@@ -2113,6 +2110,5 @@ mod tests {
             let mut p = buf.as_mut_ptr();
             assert!(!ucs2bytes(0xfeff, &raw mut p, FIO_UCS2 | FIO_ENDIAN_L));
             assert_eq!([buf[0] as u8, buf[1] as u8], [0xff, 0xfe]);
-        }
     }
 }

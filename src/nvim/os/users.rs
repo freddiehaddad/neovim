@@ -219,9 +219,7 @@ pub fn os_get_uname(uid: uv_uid_t, s: *mut c_char, len: usize) -> c_int {
         }
     }
 
-    unsafe {
-        vim_snprintf!(s, len, c"%d".as_ptr(), uid as c_int);
-    }
+    vim_snprintf!(s, len, c"%d".as_ptr(), uid as c_int);
     FAIL
 }
 

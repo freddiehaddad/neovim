@@ -320,7 +320,7 @@ const E_MISSING_EQUAL_SIGN_STR_2: &CStr = c"E416: Missing equal sign: %s";
 const E_MISSING_ARGUMENT_STR: &CStr = c"E417: Missing argument: %s";
 
 #[inline]
-unsafe fn write_hex6(buf: *mut c_char, val: c_int) {
+fn write_hex6(buf: *mut c_char, val: c_int) {
     use std::io::Write;
     let slice = unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), 8) };
     let mut cursor = std::io::Cursor::new(&mut slice[..7]);
@@ -329,7 +329,7 @@ unsafe fn write_hex6(buf: *mut c_char, val: c_int) {
 }
 
 #[inline]
-unsafe fn write_dec(buf: *mut c_char, cap: usize, val: c_int) {
+fn write_dec(buf: *mut c_char, cap: usize, val: c_int) {
     let slice = unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), cap) };
     let mut cursor = std::io::Cursor::new(&mut slice[..cap - 1]);
     let _ = write!(cursor, "{val}");
@@ -859,11 +859,9 @@ pub fn highlight_link_id(id: c_int) -> c_int {
 }
 
 pub fn syn_init_cmdline_highlight(reset: bool, init: bool) {
-    unsafe {
-        for &cmd in &highlight_init_cmdline {
+    for &cmd in &highlight_init_cmdline {
             do_highlight(cmd.as_ptr(), reset, init);
         }
-    }
 }
 
 pub fn init_highlight(both: bool, reset: bool) {
@@ -899,7 +897,7 @@ pub fn init_highlight(both: bool, reset: bool) {
     }
 }
 
-pub unsafe fn load_colors(name: *mut c_char) -> c_int {
+pub fn load_colors(name: *mut c_char) -> c_int {
     unsafe {
         if hlg_st().load_colors_recursive {
             return OK;
@@ -923,7 +921,7 @@ pub unsafe fn load_colors(name: *mut c_char) -> c_int {
     }
 }
 
-unsafe fn lookup_color(idx: c_int, foreground: bool, boldp: *mut TriState) -> c_int {
+fn lookup_color(idx: c_int, foreground: bool, boldp: *mut TriState) -> c_int {
     unsafe {
         let mut color = COLOR_NUMBERS_16[idx as usize];
 
@@ -952,7 +950,7 @@ unsafe fn lookup_color(idx: c_int, foreground: bool, boldp: *mut TriState) -> c_
     }
 }
 
-pub unsafe fn set_hl_group(
+pub fn set_hl_group(
     id: c_int,
     attrs: HlAttrs,
     dict: *mut KeyDict_highlight,
@@ -1101,7 +1099,7 @@ pub unsafe fn set_hl_group(
     }
 }
 
-unsafe fn set_gui_color(
+fn set_gui_color(
     idx: c_int,
     init: bool,
     arg: *const c_char,
@@ -1127,7 +1125,7 @@ unsafe fn set_gui_color(
     }
 }
 
-pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
+pub fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
     unsafe {
         if !init && ends_excmd(c_int::from(*line as u8)) != 0 {
             msg_ext_set_kind(c"list_cmd".as_ptr());
@@ -1775,7 +1773,7 @@ fn highlight_list_one(id: c_int) {
     }
 }
 
-unsafe fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: *mut Arena) -> bool {
+fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: *mut Arena) -> bool {
     unsafe {
         let sgp = &*hl_table().add((hl_id - 1) as usize);
         let mut ns = ns_id;
@@ -1819,7 +1817,7 @@ unsafe fn hlgroup2dict(hl: *mut Dict, ns_id: NS, hl_id: c_int, arena: *mut Arena
     }
 }
 
-pub unsafe fn ns_get_hl_defs(
+pub fn ns_get_hl_defs(
     ns_id: NS,
     opts: &mut KeyDict_get_highlight,
     arena: *mut Arena,
@@ -1902,7 +1900,7 @@ pub unsafe fn ns_get_hl_defs(
     }
 }
 
-unsafe fn highlight_list_arg(
+fn highlight_list_arg(
     id: c_int,
     mut didh: bool,
     type_: c_int,
@@ -1994,7 +1992,7 @@ pub fn highlight_has_attr(id: c_int, flag: c_int, modec: c_int) -> *const c_char
     }
 }
 
-pub unsafe fn highlight_color(id: c_int, what: *const c_char, modec: c_int) -> *const c_char {
+pub fn highlight_color(id: c_int, what: *const c_char, modec: c_int) -> *const c_char {
     unsafe {
         let mut fg = false;
         let mut sp = false;
@@ -2163,7 +2161,7 @@ fn set_hl_attr(idx: c_int) {
     }
 }
 
-pub unsafe fn syn_name2id(name: *const c_char) -> c_int {
+pub fn syn_name2id(name: *const c_char) -> c_int {
     unsafe {
         if *name == b'@' as c_char {
             return syn_check_group(name, CStr::from_ptr(name).to_bytes().len());
@@ -2172,7 +2170,7 @@ pub unsafe fn syn_name2id(name: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
+pub fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
     unsafe {
         if len == 0 || len > MAX_SYN_NAME {
             return 0;
@@ -2192,18 +2190,16 @@ pub unsafe fn syn_name2id_len(name: *const c_char, len: usize) -> c_int {
     }
 }
 
-pub unsafe fn syn_name2attr(name: *const c_char) -> c_int {
-    unsafe {
-        let id = syn_name2id(name);
+pub fn syn_name2attr(name: *const c_char) -> c_int {
+    let id = syn_name2id(name);
         if id != 0 {
             return syn_id2attr(id);
         }
         0
-    }
 }
 
-pub unsafe fn highlight_exists(name: *const c_char) -> c_int {
-    unsafe { c_int::from(syn_name2id(name) > 0) }
+pub fn highlight_exists(name: *const c_char) -> c_int {
+    c_int::from(syn_name2id(name) > 0)
 }
 
 pub fn syn_id2name(id: c_int) -> *mut c_char {
@@ -2218,9 +2214,8 @@ pub fn syn_id2name(id: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn syn_check_group(name: *const c_char, len: usize) -> c_int {
-    unsafe {
-        if len > MAX_SYN_NAME {
+pub fn syn_check_group(name: *const c_char, len: usize) -> c_int {
+    if len > MAX_SYN_NAME {
             emsg(gettext(e_highlight_group_name_too_long.as_ptr()));
             return 0;
         }
@@ -2229,10 +2224,9 @@ pub unsafe fn syn_check_group(name: *const c_char, len: usize) -> c_int {
             return syn_add_group(name, len);
         }
         id
-    }
 }
 
-unsafe fn syn_add_group(name: *const c_char, len: usize) -> c_int {
+fn syn_add_group(name: *const c_char, len: usize) -> c_int {
     unsafe {
         for i in 0..len {
             let c = *name.add(i) as u8;
@@ -2321,7 +2315,7 @@ pub fn syn_get_final_id(mut hl_id: c_int) -> c_int {
     }
 }
 
-pub unsafe fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_int) -> bool {
+pub fn syn_ns_get_final_id(ns_id: *mut c_int, hl_idp: *mut c_int) -> bool {
     unsafe {
         let mut hl_id = *hl_idp;
         let mut used = false;
@@ -2384,7 +2378,7 @@ pub fn highlight_attr_set_all() {
     }
 }
 
-unsafe fn combine_stl_hlt(
+fn combine_stl_hlt(
     id: c_int,
     id_S: c_int,
     id_alt: c_int,
@@ -2509,7 +2503,7 @@ pub fn highlight_changed() {
     }
 }
 
-pub unsafe fn set_context_in_highlight_cmd(xp: &mut expand_T, mut arg: *const c_char) {
+pub fn set_context_in_highlight_cmd(xp: &mut expand_T, mut arg: *const c_char) {
     unsafe {
         xp.xp_context = EXPAND_HIGHLIGHT;
         xp.xp_pattern = arg.cast_mut();
@@ -2611,7 +2605,7 @@ pub fn get_highlight_name_ext(
     }
 }
 
-pub unsafe fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
+pub fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
     unsafe {
         if *name == b'#' as c_char
             && (*name.add(1) as u8).is_ascii_hexdigit()
@@ -2657,9 +2651,8 @@ pub unsafe fn name_to_color(name: *const c_char, idx: *mut c_int) -> RgbValue {
     }
 }
 
-pub unsafe fn coloridx_to_name(idx: c_int, val: c_int, hexbuf: *mut c_char) -> *const c_char {
-    unsafe {
-        if idx >= 0 {
+pub fn coloridx_to_name(idx: c_int, val: c_int, hexbuf: *mut c_char) -> *const c_char {
+    if idx >= 0 {
             return color_name_table[idx as usize].name.as_ptr();
         }
         match idx {
@@ -2672,10 +2665,9 @@ pub unsafe fn coloridx_to_name(idx: c_int, val: c_int, hexbuf: *mut c_char) -> *
             }
             _ => std::process::abort(),
         }
-    }
 }
 
-pub unsafe fn name_to_ctermcolor(name: *const c_char) -> c_int {
+pub fn name_to_ctermcolor(name: *const c_char) -> c_int {
     unsafe {
         let off = (*name as u8).to_ascii_uppercase() as c_char;
         let mut i = COLOR_NAMES.len() as isize - 1;

@@ -500,8 +500,7 @@ fn register_closure(fp: &mut ufunc_T) {
 
 /// Return a name for a lambda in static memory.
 fn get_lambda_name() -> NvimString {
-    unsafe {
-        uf_st().lambda_no += 1;
+    uf_st().lambda_no += 1;
         let buf_ptr = (&raw mut uf_st().lambda_name).cast::<c_char>();
         let buf_size = std::mem::size_of::<[c_char; 8 + NUMBUFLEN]>();
         let n = vim_snprintf!(buf_ptr, buf_size, c"<lambda>%d".as_ptr(), uf_st().lambda_no);
@@ -514,7 +513,6 @@ fn get_lambda_name() -> NvimString {
             data: buf_ptr,
             size,
         }
-    }
 }
 
 /// Allocate a `ufunc_T` for a function called `name`.
@@ -1797,8 +1795,7 @@ pub fn callback_call_retnr(
     argcount: c_int,
     argvars: *mut typval_T,
 ) -> varnumber_T {
-    unsafe {
-        let mut rettv: typval_T = typval_T::new();
+    let mut rettv: typval_T = typval_T::new();
         if !callback_call(callback, argcount, argvars, &raw mut rettv) {
             return -2;
         }
@@ -1806,12 +1803,10 @@ pub fn callback_call_retnr(
         let retval = tv_get_number_chk(&raw const rettv, ptr::null_mut());
         tv_clear(&raw mut rettv);
         retval
-    }
 }
 
 fn user_func_error(error: c_int, name: *const c_char, found_var: bool) {
-    unsafe {
-        match error {
+    match error {
             FCERR_UNKNOWN => {
                 if found_var {
                     semsg!(gettext(e_not_callable_type_str.as_ptr()), name);
@@ -1845,7 +1840,6 @@ fn user_func_error(error: c_int, name: *const c_char, found_var: bool) {
             }
             _ => {}
         }
-    }
 }
 
 fn argv_add_base(
@@ -2108,18 +2102,15 @@ pub fn printable_func_name(fp: &mut ufunc_T) -> *mut c_char {
 }
 
 fn function_list_modified(prev_ht_changed: c_int) -> bool {
-    unsafe {
-        if prev_ht_changed != uf_st().func_hashtab_changed {
+    if prev_ht_changed != uf_st().func_hashtab_changed {
             emsg(gettext(E_FUNCTION_LIST_WAS_MODIFIED.as_ptr()));
             return true;
         }
         false
-    }
 }
 
 fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> c_int {
-    unsafe {
-        let prev_ht_changed = uf_st().func_hashtab_changed;
+    let prev_ht_changed = uf_st().func_hashtab_changed;
 
         msg_start();
 
@@ -2182,7 +2173,6 @@ fn list_func_head(fp: &mut ufunc_T, indent: bool, force: bool) -> c_int {
         }
 
         OK
-    }
 }
 
 /// Get a function name, translating `<SID>` and `<SNR>`.
@@ -3717,8 +3707,7 @@ fn ex_defer_inner(
 }
 
 pub fn can_add_defer() -> bool {
-    unsafe {
-        if get_current_funccal().is_null() {
+    if get_current_funccal().is_null() {
             semsg!(
                 gettext(e_str_not_inside_function.as_ptr()),
                 c"defer".as_ptr(),
@@ -3726,7 +3715,6 @@ pub fn can_add_defer() -> bool {
             return false;
         }
         true
-    }
 }
 
 pub fn add_defer(name: *mut c_char, argcount_arg: c_int, argvars: *mut typval_T) {
@@ -4382,8 +4370,7 @@ pub fn set_ref_in_previous_funccal(copyID: c_int) -> bool {
 }
 
 fn set_ref_in_funccal(fc: &mut funccall_T, copyID: c_int) -> bool {
-    unsafe {
-        if fc.fc_copyID != copyID {
+    if fc.fc_copyID != copyID {
             fc.fc_copyID = copyID;
             if set_ref_in_ht(&raw mut fc.fc_l_vars.dv_hashtab, copyID, ptr::null_mut())
                 || set_ref_in_ht(
@@ -4398,7 +4385,6 @@ fn set_ref_in_funccal(fc: &mut funccall_T, copyID: c_int) -> bool {
             }
         }
         false
-    }
 }
 
 pub fn set_ref_in_call_stack(copyID: c_int) -> bool {

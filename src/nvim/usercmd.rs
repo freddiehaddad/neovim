@@ -236,7 +236,7 @@ const ADDR_TYPE_COMPLETE: [AddrTypeComplete; 9] = [
 ];
 
 /// Search for a user command that matches `eap->cmd` (`find_ucmd`).
-pub unsafe fn find_ucmd(
+pub fn find_ucmd(
     eap: &mut exarg_T,
     p: *mut c_char,
     full: *mut c_int,
@@ -340,7 +340,7 @@ pub unsafe fn find_ucmd(
 }
 
 /// Set completion context for `:command` (`set_context_in_user_cmd`).
-pub unsafe fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: *const c_char) -> *const c_char {
+pub fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: *const c_char) -> *const c_char {
     unsafe {
         let mut arg = arg_in;
         let mut p: *const c_char;
@@ -387,7 +387,7 @@ pub unsafe fn set_context_in_user_cmd(xp: &mut expand_T, arg_in: *const c_char) 
 }
 
 /// Set the completion context for the argument of a user defined command (`set_context_in_user_cmdarg`).
-pub unsafe fn set_context_in_user_cmdarg(
+pub fn set_context_in_user_cmdarg(
     cmd: *const c_char,
     mut arg: *const c_char,
     argt: u32,
@@ -551,7 +551,7 @@ pub fn get_user_cmd_complete(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Get the name of completion type `expand` as an allocated string (`cmdcomplete_type_to_str`).
-pub unsafe fn cmdcomplete_type_to_str(expand: c_int, compl_arg: *const c_char) -> Option<CString> {
+pub fn cmdcomplete_type_to_str(expand: c_int, compl_arg: *const c_char) -> Option<CString> {
     unsafe {
         let cmd_compl = get_command_complete(expand);
         if cmd_compl.is_null() || expand == EXPAND_USER_LUA {
@@ -572,7 +572,7 @@ pub unsafe fn cmdcomplete_type_to_str(expand: c_int, compl_arg: *const c_char) -
     }
 }
 
-pub unsafe fn cmdcomplete_str_to_type(complete_str: *const c_char) -> c_int {
+pub fn cmdcomplete_str_to_type(complete_str: *const c_char) -> c_int {
     unsafe {
         if crate::memory::cstr_prefix_bytes(complete_str, 7) == &b"custom,"[..7] {
             return EXPAND_USER_DEFINED;
@@ -595,7 +595,7 @@ pub unsafe fn cmdcomplete_str_to_type(complete_str: *const c_char) -> c_int {
     }
 }
 
-unsafe fn uc_list(name: *mut c_char, name_len: usize) {
+fn uc_list(name: *mut c_char, name_len: usize) {
     unsafe {
         let mut found = false;
 
@@ -822,7 +822,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
 }
 
 /// Parse address type argument (`parse_addr_type_arg`).
-pub unsafe fn parse_addr_type_arg(
+pub fn parse_addr_type_arg(
     value: *mut c_char,
     vallen: c_int,
     addr_type_arg: *mut cmd_addr_T,
@@ -857,7 +857,7 @@ pub unsafe fn parse_addr_type_arg(
 }
 
 /// Parse a completion argument `value[vallen]` (`parse_compl_arg`).
-pub unsafe fn parse_compl_arg(
+pub fn parse_compl_arg(
     value: *const c_char,
     vallen: c_int,
     complp: *mut c_int,
@@ -927,7 +927,7 @@ pub unsafe fn parse_compl_arg(
     }
 }
 
-unsafe fn uc_scan_attr(
+fn uc_scan_attr(
     attr: *mut c_char,
     len: usize,
     argt: *mut u32,
@@ -1072,7 +1072,7 @@ unsafe fn uc_scan_attr(
 }
 
 /// Check for a valid user command name (`uc_validate_name`).
-pub unsafe fn uc_validate_name(mut name: *mut c_char) -> *mut c_char {
+pub fn uc_validate_name(mut name: *mut c_char) -> *mut c_char {
     unsafe {
         if ascii_isalpha(*name) {
             while ascii_isalnum(*name) {
@@ -1087,7 +1087,7 @@ pub unsafe fn uc_validate_name(mut name: *mut c_char) -> *mut c_char {
 }
 
 /// Create a new user command `name`, if one doesn't already exist (`uc_add_command`).
-pub unsafe fn uc_add_command(
+pub fn uc_add_command(
     name: *mut c_char,
     name_len: usize,
     rep: *const c_char,
@@ -1331,7 +1331,7 @@ pub fn ex_delcommand(eap: &mut exarg_T) {
 }
 
 /// Split a string by unescaped whitespace (space & tab) (`uc_split_args_iter`).
-pub unsafe fn uc_split_args_iter(
+pub fn uc_split_args_iter(
     arg: *const c_char,
     arglen: usize,
     end: *mut usize,
@@ -1378,7 +1378,7 @@ pub unsafe fn uc_split_args_iter(
     }
 }
 
-pub unsafe fn uc_nargs_upper_bound(arg: *const c_char, arglen: usize) -> usize {
+pub fn uc_nargs_upper_bound(arg: *const c_char, arglen: usize) -> usize {
     unsafe {
         let mut was_white = true;
         let mut nargs: usize = 0;
@@ -1394,7 +1394,7 @@ pub unsafe fn uc_nargs_upper_bound(arg: *const c_char, arglen: usize) -> usize {
 }
 
 /// Split and quote args for `<f-args>` (`uc_split_args`).
-unsafe fn uc_split_args(
+fn uc_split_args(
     arg: *const c_char,
     args: &[*mut c_char],
     arglens: &[usize],
@@ -1517,7 +1517,7 @@ unsafe fn uc_split_args(
     }
 }
 
-unsafe fn add_cmd_modifier(
+fn add_cmd_modifier(
     buf: *mut c_char,
     mod_str: *const c_char,
     multi_mods: *mut bool,
@@ -1541,13 +1541,12 @@ unsafe fn add_cmd_modifier(
 }
 
 /// Add modifiers from `cmod->cmod_split` to `buf` (`add_win_cmd_modifiers`).
-pub unsafe fn add_win_cmd_modifiers(
+pub fn add_win_cmd_modifiers(
     buf: *mut c_char,
     cmod: &cmdmod_T,
     multi_mods: *mut bool,
 ) -> usize {
-    unsafe {
-        let mut result: usize = 0;
+    let mut result: usize = 0;
 
         if (cmod.cmod_split & WSP_ABOVE) != 0 {
             result += add_cmd_modifier(buf, c"aboveleft".as_ptr(), multi_mods);
@@ -1579,11 +1578,10 @@ pub unsafe fn add_win_cmd_modifiers(
             result += add_cmd_modifier(buf, c"horizontal".as_ptr(), multi_mods);
         }
         result
-    }
 }
 
 /// Generate text for the `cmod` command modifiers (`uc_mods`).
-pub unsafe fn uc_mods(mut buf: *mut c_char, cmod: &cmdmod_T, quote: bool) -> usize {
+pub fn uc_mods(mut buf: *mut c_char, cmod: &cmdmod_T, quote: bool) -> usize {
     unsafe {
         let mut multi_mods = false;
 
@@ -1661,7 +1659,7 @@ enum CodeType {
 }
 
 /// Check for a `<>` code in a user command (`uc_check_code`).
-unsafe fn uc_check_code(
+fn uc_check_code(
     code: *mut c_char,
     len: usize,
     mut buf: *mut c_char,
@@ -1996,19 +1994,17 @@ pub fn do_ucmd(eap: &mut exarg_T, preview: bool) -> c_int {
 }
 
 #[inline]
-unsafe fn arena_str_obj(arena: *mut Arena, bytes: &[u8]) -> Object {
-    unsafe {
-        let data = arena_memdupz(arena, bytes.as_ptr().cast(), bytes.len());
+fn arena_str_obj(arena: *mut Arena, bytes: &[u8]) -> Object {
+    let data = arena_memdupz(arena, bytes.as_ptr().cast(), bytes.len());
         string_obj(NvimString {
             data,
             size: bytes.len(),
         })
-    }
 }
 
 /// Gets a map of maps describing user-commands defined for buffer `buf` or
 /// defined globally if `buf` is NULL (`commands_array`).
-pub unsafe fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
+pub fn commands_array(buf: *mut buf_T, arena: *mut Arena) -> Dict {
     unsafe {
         let u = &raw const (*ucmds_mut());
         let gap: &[ucmd_T] = if buf.is_null() { &*u } else { &(*buf).b_ucmds };

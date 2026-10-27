@@ -233,13 +233,11 @@ pub unsafe extern "C" fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err
 // DLLEXPORT Integer nvim_tabpage_get_number(Tabpage tabpage, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_tabpage_get_number(tabpage: Tabpage, err: &mut Error) -> Integer {
-    unsafe {
-        let tab = find_tab_by_handle(tabpage, err);
+    let tab = find_tab_by_handle(tabpage, err);
         if tab.is_null() {
             return 0;
         }
         i64::from(tabpage_index(tab))
-    }
 }
 
 /// Checks if a tabpage is valid

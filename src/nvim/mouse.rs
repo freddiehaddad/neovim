@@ -209,7 +209,7 @@ fn mouse_st() -> &'static mut MouseModuleState {
 /// 1: punctuation groups
 /// 2: normal word character
 /// >2: multi-byte word character.
-unsafe fn get_mouse_class(p: *const c_char) -> c_int {
+fn get_mouse_class(p: *const c_char) -> c_int {
     unsafe {
         if utf8len_tab[*p as u8 as usize] > 1 {
             return mb_get_class(p);
@@ -302,7 +302,7 @@ fn mouse_tab_close(c1: c_int) {
 
 /// Call click definition function for column "col" in the "click_defs" array for button
 /// "which_button".
-unsafe fn call_click_def_func(
+fn call_click_def_func(
     click_defs: *mut StlClickDefinition,
     col: c_int,
     which_button: c_int,
@@ -396,7 +396,7 @@ unsafe fn call_click_def_func(
 
 /// Translate window coordinates to buffer position without any side effects.
 /// Returns IN_BUFFER and sets `mpos` (0-based column) when in buffer text.
-unsafe fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
+fn get_fpos_of_mouse(mpos: &mut pos_T, wpp: *mut *mut win_T) -> c_int {
     unsafe {
         let mut grid = g_st().mouse_grid;
         let mut row = g_st().mouse_row;
@@ -527,7 +527,7 @@ fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: pos_T) -> c_int {
 }
 
 /// Do the appropriate action for the current mouse click in the current mode.
-pub unsafe fn do_mouse(
+pub fn do_mouse(
     oap: *mut oparg_T,
     c: c_int,
     mut dir: c_int,
@@ -1427,7 +1427,7 @@ fn jump_to_mouse_retnomove(
 /// Move the cursor to the specified row and column on the screen.
 /// Change current window if necessary. Returns an integer with the
 /// CURSOR_MOVED bit set if the cursor has moved or unset otherwise.
-pub unsafe fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int) -> c_int {
+pub fn jump_to_mouse(mut flags: c_int, inclusive: *mut bool, which_button: c_int) -> c_int {
     unsafe {
 
         let mut row = g_st().mouse_row;
@@ -1793,9 +1793,7 @@ pub fn nv_mousescroll(cap: &mut cmdarg_T) {
 
 /// Mouse clicks and drags.
 pub fn nv_mouse(cap: &mut cmdarg_T) {
-    unsafe {
-        do_mouse(cap.oap, cap.cmdchar, BACKWARD, cap.count1, false);
-    }
+    do_mouse(cap.oap, cap.cmdchar, BACKWARD, cap.count1, false);
 }
 
 /// Compute the buffer line position from the screen position "rowp" / "colp" in
@@ -1927,7 +1925,7 @@ pub fn mouse_comp_pos(
 
 /// Find the window at "grid" position "*rowp" and "*colp". The positions are
 /// updated to become relative to the top-left of the window inner area.
-pub unsafe fn mouse_find_win_inner(
+pub fn mouse_find_win_inner(
     gridp: *mut c_int,
     rowp: *mut c_int,
     colp: *mut c_int,
@@ -1981,7 +1979,7 @@ pub unsafe fn mouse_find_win_inner(
 
 /// Find the window at "grid" position "*rowp" and "*colp". The positions are
 /// updated to become relative to the top-left of the window.
-pub unsafe fn mouse_find_win_outer(
+pub fn mouse_find_win_outer(
     gridp: *mut c_int,
     rowp: *mut c_int,
     colp: *mut c_int,
@@ -1996,7 +1994,7 @@ pub unsafe fn mouse_find_win_outer(
     }
 }
 
-unsafe fn mouse_find_grid_win(gridp: *mut c_int, rowp: *mut c_int, colp: *mut c_int) -> *mut win_T {
+fn mouse_find_grid_win(gridp: *mut c_int, rowp: *mut c_int, colp: *mut c_int) -> *mut win_T {
     unsafe {
         if *gridp == g_st().msg_grid.handle {
             *rowp += g_st().msg_grid_pos;
@@ -2040,7 +2038,7 @@ unsafe fn mouse_find_grid_win(gridp: *mut c_int, rowp: *mut c_int, colp: *mut c_
 
 /// Convert a virtual (screen) column to a character column.
 /// The first column is zero.
-pub unsafe fn vcol2col(
+pub fn vcol2col(
     wp: &mut win_T,
     lnum: linenr_T,
     vcol: colnr_T,
@@ -2140,7 +2138,7 @@ fn find_longest_lnum() -> linenr_T {
 }
 
 /// Check clicked cell on its grid
-unsafe fn mouse_check_grid(vcolp: *mut colnr_T, flagsp: *mut c_int) {
+fn mouse_check_grid(vcolp: *mut colnr_T, flagsp: *mut c_int) {
     unsafe {
         let mut click_grid = g_st().mouse_grid;
         let mut click_row = g_st().mouse_row;

@@ -3956,7 +3956,7 @@ pub fn ex_version(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn version_msg_wrap(s: *const c_char, wrap: bool) {
+fn version_msg_wrap(s: *const c_char, wrap: bool) {
     unsafe {
         let len = vim_strsize(s) + if wrap { 2 } else { 0 };
         if !g_st().got_int && len < g_st().Columns && g_st().msg_col + len >= g_st().Columns && *s != b'\n' as c_char {
@@ -3974,16 +3974,13 @@ unsafe fn version_msg_wrap(s: *const c_char, wrap: bool) {
     }
 }
 
-unsafe fn version_msg(s: *const c_char) {
-    unsafe {
-        version_msg_wrap(s, false);
-    }
+fn version_msg(s: *const c_char) {
+    version_msg_wrap(s, false);
 }
 
 /// List string items nicely aligned in columns (`list_in_columns`).
 pub fn list_in_columns(items: &[*mut c_char], current: c_int) {
-    unsafe {
-        let item_count = items.len() as c_int;
+    let item_count = items.len() as c_int;
         let mut width: c_int = 0;
 
         for (i, &item) in items.iter().enumerate() {
@@ -4038,12 +4035,10 @@ pub fn list_in_columns(items: &[*mut c_char], current: c_int) {
             }
             idx_i += 1;
         }
-    }
 }
 
 pub fn list_lua_version() {
-    unsafe {
-        const CODE: &[u8] = b"return ((jit and jit.version) and jit.version or _VERSION)\0";
+    const CODE: &[u8] = b"return ((jit and jit.version) and jit.version or _VERSION)\0";
         let mut err = Error::new();
         let args = Array {
             items: ptr::null_mut(),
@@ -4065,7 +4060,6 @@ pub fn list_lua_version() {
         debug_assert!(ret.obj_type == ObjectType::kObjectTypeString);
         msg_puts(ret.data.string().data);
         api_free_object(ret);
-    }
 }
 
 pub fn list_version() {
@@ -4203,7 +4197,7 @@ pub fn intro_message(colon: bool) {
     }
 }
 
-unsafe fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
+fn do_intro_line(row: c_int, mesg: *const c_char, colon: bool, is_logo: bool) {
     unsafe {
         let mut col = (g_st().Columns - vim_strsize(mesg)) / 2;
         if col < 0 {

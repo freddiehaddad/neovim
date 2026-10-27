@@ -463,13 +463,11 @@ pub fn os_get_hostname(hostname: *mut c_char, size: usize) {
 /// Gets the "real", resolved user home directory as determined by `init_homedir`.
 #[cfg(windows)]
 pub fn os_homedir() -> *const c_char {
-    unsafe {
-        let Some(ref hd) = env_st().HOMEDIR else {
+    let Some(ref hd) = env_st().HOMEDIR else {
             emsg(c"os_homedir failed: homedir not initialized".as_ptr());
             return ptr::null();
         };
         hd.as_ptr()
-    }
 }
 
 fn os_uv_homedir() -> *mut c_char {
@@ -580,8 +578,7 @@ pub fn expand_env_save_opt(
     one: bool,
     esc_chars: *mut c_char,
 ) -> std::ffi::CString {
-    unsafe {
-        let mut p = [0 as c_char; MAXPATHL];
+    let mut p = [0 as c_char; MAXPATHL];
         let _ = expand_env_esc(
             src,
             p.as_mut_ptr(),
@@ -591,7 +588,6 @@ pub fn expand_env_save_opt(
             ptr::null_mut(),
         );
         cstr_to_cstring(p.as_ptr())
-    }
 }
 
 /// Expand environment variable with path name.
@@ -1177,13 +1173,11 @@ pub fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> std::ffi::CStri
 /// Function given to `ExpandGeneric()` to obtain an environment variable name.
 pub fn get_env_name(xp: &mut expand_T, idx: c_int) -> *mut c_char {
     assert!(idx >= 0);
-    unsafe {
-        if let Some(envname) = os_getenvname_at_index(idx as usize) {
+    if let Some(envname) = os_getenvname_at_index(idx as usize) {
             xstrlcpy(xp.xp_buf.as_mut_ptr(), envname.as_ptr(), EXPAND_BUF_LEN);
             return xp.xp_buf.as_mut_ptr();
         }
         ptr::null_mut()
-    }
 }
 
 /// Appends the head of `fname` to `$PATH` and sets it in the environment.

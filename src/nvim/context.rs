@@ -258,7 +258,7 @@ fn ctx_marks_ns() -> u32 {
     }
 }
 
-unsafe fn ctx_positions(ctx: *mut Context, flags: CtxStateFlags) -> [*mut pos_T; 6] {
+fn ctx_positions(ctx: *mut Context, flags: CtxStateFlags) -> [*mut pos_T; 6] {
     unsafe {
         let visual = (flags & kCtxVisual) != 0;
         let marks = (flags & kCtxMarks) != 0;
@@ -510,7 +510,7 @@ fn array_to_string(array: Array, err: &mut Error) -> Vec<u8> {
     }
 }
 
-pub unsafe fn ctx_to_dict(ctx: *mut Context, arena: *mut Arena) -> Dict {
+pub fn ctx_to_dict(ctx: *mut Context, arena: *mut Arena) -> Dict {
     unsafe {
         assert!(!ctx.is_null());
         let as_str = |v: &[u8]| NvimString {
@@ -547,7 +547,7 @@ pub unsafe fn ctx_to_dict(ctx: *mut Context, arena: *mut Arena) -> Dict {
     }
 }
 
-pub unsafe fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: &mut Error) -> CtxStateFlags {
+pub fn ctx_from_dict(dict: Dict, ctx: *mut Context, err: &mut Error) -> CtxStateFlags {
     unsafe {
         assert!(!ctx.is_null());
         let mut types: CtxStateFlags = 0;
@@ -588,7 +588,7 @@ fn ctx_win_dirs_save(cs: &mut CtxSwitch, cw_win: &mut win_T, buf: &mut buf_T) {
     }
 }
 
-unsafe fn ctx_localdirs_restore(
+fn ctx_localdirs_restore(
     cs: *mut CtxSwitch,
     cwp: *mut win_T,
     tp: *mut tabpage_T,
@@ -635,7 +635,7 @@ unsafe fn ctx_localdirs_restore(
     }
 }
 
-unsafe fn ctx_dirs_save(cs: *mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, buf: *mut buf_T) {
+fn ctx_dirs_save(cs: *mut CtxSwitch, wp: *mut win_T, tp: *mut tabpage_T, buf: *mut buf_T) {
     unsafe {
         if ((*cs).cs_flags & (kCtxKeepCwd | kCtxKeepDirs)) == 0 {
             return;
@@ -710,14 +710,14 @@ pub fn ctx_did_chdir() {
     ctx_st().CTX_DID_CHDIR = true;
 }
 
-pub unsafe fn is_ctx_win(win: *mut win_T) -> bool {
+pub fn is_ctx_win(win: *mut win_T) -> bool {
     unsafe {
         let vec = &raw const g_st().ctx_win_vec;
         (*vec).iter().any(|item| item.cw_used && item.cw_win == win)
     }
 }
 
-unsafe fn ctx_win_prep(cs: &mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
+fn ctx_win_prep(cs: &mut CtxSwitch, buf: *mut buf_T) -> *mut win_T {
     unsafe {
         let mut need_append = true;
         let vec = &raw mut g_st().ctx_win_vec;
@@ -812,7 +812,7 @@ pub fn ctx_saved_curwin() -> *mut win_T {
         }
 }
 
-pub unsafe fn ctx_switch(
+pub fn ctx_switch(
     cs: *mut CtxSwitch,
     mut wp: *mut win_T,
     tp: *mut tabpage_T,
@@ -919,7 +919,7 @@ pub unsafe fn ctx_switch(
     }
 }
 
-unsafe fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: *mut win_T) {
+fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: *mut win_T) {
     unsafe {
         let mut save_curwin = if cs.cs_curwin_xtab {
             handle_get_window(cs.cs_curwin)

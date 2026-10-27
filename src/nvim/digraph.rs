@@ -1738,8 +1738,7 @@ fn registerdigraph(char1: c_int, char2: c_int, n: c_int) {
 
 /// Check the characters are valid for a digraph (`check_digraph_chars_valid`).
 pub fn check_digraph_chars_valid(char1: c_int, char2: c_int) -> bool {
-    unsafe {
-        if char2 == 0 {
+    if char2 == 0 {
             let mut msg = [0 as c_char; MB_MAXCHAR + 1];
             let len = utf_char2bytes(char1, msg.as_mut_ptr()) as usize;
             msg[len] = NUL;
@@ -1754,11 +1753,10 @@ pub fn check_digraph_chars_valid(char1: c_int, char2: c_int) -> bool {
             return false;
         }
         true
-    }
 }
 
 /// Add the digraphs in the argument to the digraph table (`putdigraph`).
-pub unsafe fn putdigraph(mut str: *mut c_char) {
+pub fn putdigraph(mut str: *mut c_char) {
     unsafe {
         while *str != NUL {
             str = skipwhite(str);
@@ -1787,14 +1785,12 @@ pub unsafe fn putdigraph(mut str: *mut c_char) {
     }
 }
 
-unsafe fn digraph_header(msg: *const c_char) {
-    unsafe {
-        if g_st().msg_col > 0 {
+fn digraph_header(msg: *const c_char) {
+    if g_st().msg_col > 0 {
             msg_putchar(b'\n' as c_int);
         }
         msg_outtrans(msg, HLF_CM, false);
         msg_putchar(b'\n' as c_int);
-    }
 }
 
 pub fn listdigraphs(use_headers: bool) {
@@ -1842,7 +1838,7 @@ pub fn listdigraphs(use_headers: bool) {
     }
 }
 
-unsafe fn digraph_getlist_appendpair(dp: &digr_T, l: *mut list_T) {
+fn digraph_getlist_appendpair(dp: &digr_T, l: *mut list_T) {
     unsafe {
         let l2 = tv_list_alloc(2);
         tv_list_append_list(l, l2);
@@ -1891,7 +1887,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut typval_T) {
     }
 }
 
-unsafe fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
+fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
     unsafe {
         let mut buf = [0 as c_char; 30];
         let list_width: c_int = 13;
@@ -1950,7 +1946,7 @@ unsafe fn printdigraph(dp: *const digr_T, previous: *mut result_T) {
 }
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
-unsafe fn get_digraph_chars(arg: *const typval_T, char1: &mut c_int, char2: &mut c_int) -> c_int {
+fn get_digraph_chars(arg: *const typval_T, char1: &mut c_int, char2: &mut c_int) -> c_int {
     unsafe {
         let mut buf_chars = [0 as c_char; NUMBUFLEN];
         let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr());
@@ -1976,7 +1972,7 @@ unsafe fn get_digraph_chars(arg: *const typval_T, char1: &mut c_int, char2: &mut
     }
 }
 
-unsafe fn digraph_set_common(argchars: *const typval_T, argdigraph: *const typval_T) -> bool {
+fn digraph_set_common(argchars: *const typval_T, argdigraph: *const typval_T) -> bool {
     unsafe {
         let mut char1: c_int = 0;
         let mut char2: c_int = 0;
@@ -2250,7 +2246,7 @@ fn keymap_unload() {
 }
 
 /// Get the value to show for the language mappings, active `'keymap'` (`get_keymap_str`).
-pub unsafe fn get_keymap_str(
+pub fn get_keymap_str(
     wp: *mut win_T,
     fmt: *mut c_char,
     buf: *mut c_char,

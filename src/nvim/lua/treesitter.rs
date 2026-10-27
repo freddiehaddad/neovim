@@ -2472,11 +2472,11 @@ unsafe extern "C" fn ts_calloc(count: usize, size: usize) -> *mut c_void {
 }
 
 unsafe extern "C" fn ts_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
-    unsafe { raw_realloc(ptr, size) }
+    raw_realloc(ptr, size)
 }
 
 unsafe extern "C" fn ts_free(ptr: *mut c_void) {
-    unsafe { raw_dealloc(ptr) }
+    raw_dealloc(ptr)
 }
 
 fn tslua_init(L: *mut lua_State) {

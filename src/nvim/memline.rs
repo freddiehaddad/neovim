@@ -389,7 +389,7 @@ fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> *mut c_uint {
 
 
 #[inline]
-unsafe fn sb_push_cstr(sb: &mut Vec<u8>, s: *const c_char) {
+fn sb_push_cstr(sb: &mut Vec<u8>, s: *const c_char) {
     if !s.is_null() {
         unsafe {
             sb.extend_from_slice(CStr::from_ptr(s).to_bytes());
@@ -492,16 +492,14 @@ pub fn ml_open(buf: &mut buf_T) -> c_int {
     }
 }
 
-unsafe fn ml_open_error(buf: &mut buf_T, mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
-    unsafe {
-        if !mfp.is_null() {
+fn ml_open_error(buf: &mut buf_T, mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
+    if !mfp.is_null() {
             if !hp.is_null() {
                 mf_put(mfp, hp, false, false);
             }
             mf_close(buf.b_ml.ml_mfp.take(), true);
         }
         FAIL
-    }
 }
 
 /// Called when the file name of `buf` has been changed.
@@ -671,7 +669,7 @@ pub fn check_need_swap(newfile: bool) {
 }
 
 /// Close memline for buffer `buf`.
-pub unsafe fn ml_close(buf: *mut buf_T, del_file: c_int) {
+pub fn ml_close(buf: *mut buf_T, del_file: c_int) {
     unsafe {
         if (*buf).b_ml.ml_mfp.is_none() {
             return;
@@ -712,7 +710,7 @@ pub fn ml_close_notmod() {
 }
 
 /// Update the timestamp in the `.swp` file.
-pub unsafe fn ml_timestamp(buf: *mut buf_T) {
+pub fn ml_timestamp(buf: *mut buf_T) {
     unsafe {
         ml_upd_block0(&mut *buf, upd_block0_T::UB_FNAME);
     }
@@ -724,7 +722,7 @@ fn ml_check_b0_id(b0p: &ZeroBlock) -> bool {
 }
 
 #[inline]
-unsafe fn ml_check_b0_strings(b0p: *const ZeroBlock) -> bool {
+fn ml_check_b0_strings(b0p: *const ZeroBlock) -> bool {
     unsafe {
         let b0 = &*b0p;
         b0.b0_version.contains(&NUL)
@@ -756,7 +754,7 @@ fn ml_upd_block0(buf: &mut buf_T, what: upd_block0_T) {
     }
 }
 
-unsafe fn set_b0_fname(b0p: &mut ZeroBlock, buf: *mut buf_T) {
+fn set_b0_fname(b0p: &mut ZeroBlock, buf: *mut buf_T) {
     unsafe {
         if (*buf).b_ffname.is_null() {
             b0p.b0_fname[0] = NUL;
@@ -839,7 +837,7 @@ fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut buf_T) {
     }
 }
 
-unsafe fn swapfile_proc_running(b0p: *const ZeroBlock, swap_fname: *const c_char) -> c_int {
+fn swapfile_proc_running(b0p: *const ZeroBlock, swap_fname: *const c_char) -> c_int {
     unsafe {
         let mut st = FileInfo::new();
         let mut uptime: f64 = 0.0;
@@ -1468,7 +1466,7 @@ pub fn ml_recover(checkext: bool) {
     }
 }
 
-unsafe fn ml_recover_theend(
+fn ml_recover_theend(
     mfp: *mut memfile_T,
     hp: *mut bhdr_T,
     mut buf: Option<Box<buf_T>>,
@@ -1507,7 +1505,7 @@ unsafe fn ml_recover_theend(
 }
 
 /// Enumerate swapfiles for `fname`, appending each found path to `ret_list`.
-pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mut list_T) {
+pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mut list_T) {
     unsafe {
         #[cfg(unix)]
         let mut fname_buf = [0 as c_char; MAXPATHL];
@@ -1613,7 +1611,7 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
 }
 
 /// Append the full path to `name` with path separators made into percent signs to `dir`.
-pub unsafe fn make_percent_swname(
+pub fn make_percent_swname(
     dir: *mut c_char,
     dir_end: *mut c_char,
     name: *const c_char,
@@ -1663,7 +1661,7 @@ pub unsafe fn make_percent_swname(
 }
 
 /// For Vimscript `swapinfo()`.
-pub unsafe fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
+pub fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
     unsafe {
         let mut b0 = ZeroBlock::new();
         let fd = os_open(fname, O_RDONLY, 0);
@@ -1741,7 +1739,7 @@ pub unsafe fn swapfile_dict(fname: *const c_char, d: *mut dict_T) {
     }
 }
 
-unsafe fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
+fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
     unsafe {
         assert!(!fname.is_null());
         let mut b0 = ZeroBlock::new();
@@ -1860,7 +1858,7 @@ unsafe fn swapfile_info(fname: *mut c_char, msg: &mut Vec<u8>) -> time_t {
     }
 }
 
-unsafe fn swapfile_unchanged(fname: *mut c_char) -> bool {
+fn swapfile_unchanged(fname: *mut c_char) -> bool {
     unsafe {
         if !os_path_exists(fname) {
             return false;
@@ -1906,13 +1904,12 @@ unsafe fn swapfile_unchanged(fname: *mut c_char) -> bool {
     }
 }
 
-unsafe fn recov_file_names(
+fn recov_file_names(
     names: &mut Vec<std::ffi::CString>,
     path: *mut c_char,
     prepend_dot: bool,
 ) {
-    unsafe {
-        if prepend_dot {
+    if prepend_dot {
             let Some(m) = modname(path, c".sw?".as_ptr(), true) else {
                 return;
             };
@@ -1941,7 +1938,6 @@ unsafe fn recov_file_names(
         } else {
             names.push(cur);
         }
-    }
 }
 
 /// Sync all memlines.
@@ -2045,17 +2041,17 @@ pub fn ml_preserve(buf: &mut buf_T, message: bool, do_fsync: bool) {
 
 /// Return a pointer to a (read-only copy of a) line in `curbuf`.
 pub fn ml_get(lnum: linenr_T) -> *mut c_char {
-    unsafe { ml_get_buf_impl(g_st().curbuf, lnum, false) }
+    ml_get_buf_impl(g_st().curbuf, lnum, false)
 }
 
 /// Return a pointer to a (read-only copy of a) line in `buf`.
-pub unsafe fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
-    unsafe { ml_get_buf_impl(buf, lnum, false) }
+pub fn ml_get_buf(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
+    ml_get_buf_impl(buf, lnum, false)
 }
 
 /// Like `ml_get_buf`, but allow the line to be mutated in place.
-pub unsafe fn ml_get_buf_mut(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
-    unsafe { ml_get_buf_impl(buf, lnum, true) }
+pub fn ml_get_buf_mut(buf: *mut buf_T, lnum: linenr_T) -> *mut c_char {
+    ml_get_buf_impl(buf, lnum, true)
 }
 
 /// Return pointer to position `pos`.
@@ -2065,16 +2061,16 @@ pub fn ml_get_pos(pos: &pos_T) -> *mut c_char {
 
 /// Return length (excluding NUL) of the given line.
 pub fn ml_get_len(lnum: linenr_T) -> colnr_T {
-    unsafe { ml_get_buf_len(g_st().curbuf, lnum) }
+    ml_get_buf_len(g_st().curbuf, lnum)
 }
 
 /// Return length (excluding NUL) of the text after position `pos`.
 pub fn ml_get_pos_len(pos: &mut pos_T) -> colnr_T {
-    unsafe { ml_get_buf_len(g_st().curbuf, pos.lnum) - pos.col }
+    ml_get_buf_len(g_st().curbuf, pos.lnum) - pos.col
 }
 
 /// Return length (excluding NUL) of the given line in `buf`.
-pub unsafe fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T {
+pub fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T {
     unsafe {
         let line = ml_get_buf(buf, lnum);
         if *line == NUL {
@@ -2086,7 +2082,7 @@ pub unsafe fn ml_get_buf_len(buf: *mut buf_T, lnum: linenr_T) -> colnr_T {
 }
 
 /// Gets the charwise NL-joined text of range `[start, end)` as a `Vec<u8>`.
-pub unsafe fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> Vec<u8> {
+pub fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> Vec<u8> {
     unsafe {
         let mut sb = Vec::<u8>::new();
         for lnum in start.lnum..=end.lnum {
@@ -2117,15 +2113,13 @@ pub unsafe fn ml_region_text(buf: *mut buf_T, start: pos_T, end: pos_T) -> Vec<u
 
 /// Return codepoint at `pos`.
 pub fn gchar_pos(pos: &mut pos_T) -> c_int {
-    unsafe {
-        if pos.col == MAXCOL || pos.col > ml_get_len(pos.lnum) {
+    if pos.col == MAXCOL || pos.col > ml_get_len(pos.lnum) {
             return c_int::from(NUL);
         }
         utf_ptr2char(ml_get_pos(pos))
-    }
 }
 
-unsafe fn ml_get_buf_impl(buf: *mut buf_T, mut lnum: linenr_T, will_change: bool) -> *mut c_char {
+fn ml_get_buf_impl(buf: *mut buf_T, mut lnum: linenr_T, will_change: bool) -> *mut c_char {
     unsafe {
         if (*buf).b_ml.ml_mfp.is_none() {
             (*buf).b_ml.ml_line_textlen = 1;
@@ -2205,7 +2199,7 @@ pub fn ml_line_alloced() -> c_int {
     unsafe { (*g_st().curbuf).b_ml.ml_flags & ML_LINE_DIRTY }
 }
 
-unsafe fn ml_append_int(
+fn ml_append_int(
     buf: *mut buf_T,
     lnum: linenr_T,
     line_arg: *mut c_char,
@@ -2595,7 +2589,7 @@ unsafe fn ml_append_int(
     }
 }
 
-unsafe fn ml_append_flush(
+fn ml_append_flush(
     buf: *mut buf_T,
     lnum: linenr_T,
     line: *mut c_char,
@@ -2614,12 +2608,12 @@ unsafe fn ml_append_flush(
 }
 
 /// Append a line after `lnum` (may be 0 to insert in front of the file).
-pub unsafe fn ml_append(lnum: linenr_T, line: *mut c_char, len: colnr_T, newfile: bool) -> c_int {
-    unsafe { ml_append_flags(lnum, line, len, if newfile { ML_APPEND_NEW } else { 0 }) }
+pub fn ml_append(lnum: linenr_T, line: *mut c_char, len: colnr_T, newfile: bool) -> c_int {
+    ml_append_flags(lnum, line, len, if newfile { ML_APPEND_NEW } else { 0 })
 }
 
 /// Append a line after `lnum` using `ML_APPEND_` flags.
-pub unsafe fn ml_append_flags(
+pub fn ml_append_flags(
     lnum: linenr_T,
     line: *mut c_char,
     len: colnr_T,
@@ -2634,7 +2628,7 @@ pub unsafe fn ml_append_flags(
 }
 
 /// Like `ml_append()` but for an arbitrary buffer.
-pub unsafe fn ml_append_buf(
+pub fn ml_append_buf(
     buf: *mut buf_T,
     lnum: linenr_T,
     line: *mut c_char,
@@ -2655,13 +2649,11 @@ pub unsafe fn ml_append_buf(
     }
 }
 
-pub unsafe fn ml_add_deleted_len(ptr: *mut c_char, len: isize) {
-    unsafe {
-        ml_add_deleted_len_buf(g_st().curbuf, ptr, len);
-    }
+pub fn ml_add_deleted_len(ptr: *mut c_char, len: isize) {
+    ml_add_deleted_len_buf(g_st().curbuf, ptr, len);
 }
 
-pub unsafe fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_char, mut len: isize) {
+pub fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_char, mut len: isize) {
     unsafe {
         if g_st().inhibit_delete_count != 0 {
             return;
@@ -2686,16 +2678,16 @@ pub unsafe fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_char, mut len:
 }
 
 /// Replace line `lnum`, with buffering, in current buffer.
-pub unsafe fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int {
-    unsafe { ml_replace_buf(g_st().curbuf, lnum, line, copy, false) }
+pub fn ml_replace(lnum: linenr_T, line: *mut c_char, copy: bool) -> c_int {
+    ml_replace_buf(g_st().curbuf, lnum, line, copy, false)
 }
 
 /// Replace a line for the current buffer with explicit `len` (excluding NUL).
-pub unsafe fn ml_replace_len(lnum: linenr_T, line: *mut c_char, len: usize, copy: bool) -> c_int {
-    unsafe { ml_replace_buf_len(g_st().curbuf, lnum, line, len, copy, false) }
+pub fn ml_replace_len(lnum: linenr_T, line: *mut c_char, len: usize, copy: bool) -> c_int {
+    ml_replace_buf_len(g_st().curbuf, lnum, line, len, copy, false)
 }
 
-pub unsafe fn ml_replace_buf(
+pub fn ml_replace_buf(
     buf: *mut buf_T,
     lnum: linenr_T,
     line: *mut c_char,
@@ -2713,7 +2705,7 @@ pub unsafe fn ml_replace_buf(
 }
 
 /// Replace line `lnum`, with buffering.
-pub unsafe fn ml_replace_buf_len(
+pub fn ml_replace_buf_len(
     buf: *mut buf_T,
     lnum: linenr_T,
     line_arg: *mut c_char,
@@ -2787,14 +2779,12 @@ pub fn ml_replace_dirty_line(buf: &mut buf_T, bytes: &[c_char], clear_empty: boo
 }
 
 /// Delete line `lnum` in `buf`.
-pub unsafe fn ml_delete_buf(buf: *mut buf_T, lnum: linenr_T, message: bool) -> c_int {
-    unsafe {
-        ml_flush_line(buf, false);
+pub fn ml_delete_buf(buf: *mut buf_T, lnum: linenr_T, message: bool) -> c_int {
+    ml_flush_line(buf, false);
         ml_delete_int(buf, lnum, if message { ML_DEL_MESSAGE } else { 0 })
-    }
 }
 
-unsafe fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int {
+fn ml_delete_int(buf: *mut buf_T, lnum: linenr_T, flags: c_int) -> c_int {
     unsafe {
         if ml_st().lowest_marked != 0 && ml_st().lowest_marked > lnum {
             ml_st().lowest_marked -= 1;
@@ -3027,7 +3017,7 @@ pub fn ml_flush_deleted_bytes(
         ret
 }
 
-unsafe fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
+fn ml_flush_line(buf: *mut buf_T, noalloc: bool) {
     unsafe {
         if (*buf).b_ml.ml_line_lnum == 0 || (*buf).b_ml.ml_mfp.is_none() {
             return;
@@ -3288,7 +3278,7 @@ fn ml_find_line(buf: &mut buf_T, lnum: linenr_T, action: c_int) -> *mut bhdr_T {
     }
 }
 
-unsafe fn ml_find_line_error_noblock(buf: *mut buf_T, action: c_int) -> *mut bhdr_T {
+fn ml_find_line_error_noblock(buf: *mut buf_T, action: c_int) -> *mut bhdr_T {
     unsafe {
         if action == ML_DELETE {
             ml_lineadd(&mut *buf, 1);
@@ -3338,7 +3328,7 @@ fn ml_lineadd(buf: &mut buf_T, count: c_int) {
 
 /// Resolve a symlink in the last component of a file name.
 #[cfg(unix)]
-pub unsafe fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int {
+pub fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int {
     unsafe {
         let mut tmp = [0 as c_char; MAXPATHL];
         let mut depth: c_int = 0;
@@ -3387,7 +3377,7 @@ pub unsafe fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int {
 }
 
 /// Make swapfile name out of the file name and a directory name.
-pub unsafe fn makeswapname(
+pub fn makeswapname(
     fname: *mut c_char,
     _ffname: *mut c_char,
     _buf: *mut buf_T,
@@ -3426,7 +3416,7 @@ pub unsafe fn makeswapname(
 }
 
 /// Get file name to use for swapfile or backup file.
-pub unsafe fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ffi::CString> {
+pub fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ffi::CString> {
     unsafe {
         let tail = cstr_as_string(path_tail(fname));
 
@@ -3481,14 +3471,13 @@ pub unsafe fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<
     }
 }
 
-unsafe fn attention_message(
+fn attention_message(
     buf: &mut buf_T,
     fname: *mut c_char,
     fhname: *mut c_char,
     msg: &mut Vec<u8>,
 ) {
-    unsafe {
-        assert!(!buf.b_fname.is_null());
+    assert!(!buf.b_fname.is_null());
 
         emsg(tr(c"E325: ATTENTION"));
         sb_push_cstr(msg, tr(c"Found a swap file by the name \""));
@@ -3538,10 +3527,9 @@ unsafe fn attention_message(
         );
         sb_push_cstr(msg, fname);
         sb_push_cstr(msg, tr(c"\"\n    to avoid this message.\n"));
-    }
 }
 
-unsafe fn do_swapexists(buf: &mut buf_T, fname: *mut c_char) -> sea_choice_T {
+fn do_swapexists(buf: &mut buf_T, fname: *mut c_char) -> sea_choice_T {
     unsafe {
         set_vim_var_string(VV_SWAPNAME, fname, -1);
         set_vim_var_string(VV_SWAPCHOICE, ptr::null(), -1);
@@ -3570,7 +3558,7 @@ unsafe fn do_swapexists(buf: &mut buf_T, fname: *mut c_char) -> sea_choice_T {
     }
 }
 
-unsafe fn findswapname(
+fn findswapname(
     buf: &mut buf_T,
     dirp: *mut *mut c_char,
     old_fname: *mut c_char,
@@ -3810,7 +3798,7 @@ fn b0_magic_wrong(b0p: &ZeroBlock) -> bool {
             || b0p.b0_magic_char != B0_MAGIC_CHAR
 }
 
-unsafe fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c_long) -> bool {
+fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c_long) -> bool {
     unsafe {
         let mut ino_c: u64 = 0;
         let mut buf_c = [0 as c_char; MAXPATHL];
@@ -3847,7 +3835,7 @@ unsafe fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c
 }
 
 #[inline]
-unsafe fn long_to_char(n: c_long, s_in: *mut c_char) {
+fn long_to_char(n: c_long, s_in: *mut c_char) {
     unsafe {
         let mut u = n as c_uint;
         let s = s_in.cast::<u8>();
@@ -3862,7 +3850,7 @@ unsafe fn long_to_char(n: c_long, s_in: *mut c_char) {
 }
 
 #[inline]
-unsafe fn char_to_long(s_in: *const c_char) -> c_long {
+fn char_to_long(s_in: *const c_char) -> c_long {
     unsafe {
         let s = s_in.cast::<u8>();
         let mut retval = c_long::from(*s.add(3));
@@ -3877,7 +3865,7 @@ unsafe fn char_to_long(s_in: *const c_char) -> c_long {
 }
 
 /// Set the flags in the first block of the swapfile.
-pub unsafe fn ml_setflags(buf: *mut buf_T) {
+pub fn ml_setflags(buf: *mut buf_T) {
     unsafe {
         if (*buf).b_ml.ml_mfp.is_none() {
             return;
@@ -3896,7 +3884,7 @@ pub unsafe fn ml_setflags(buf: *mut buf_T) {
     }
 }
 
-unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtype: c_int) {
+fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtype: c_int) {
     unsafe {
         let mut curline = ml_st().ml_upd_lastcurline;
         let mut curix = ml_st().ml_upd_lastcurix;
@@ -4065,7 +4053,7 @@ unsafe fn ml_updatechunk(buf: *mut buf_T, line: linenr_T, mut len: c_int, updtyp
 }
 
 /// Find offset for line or line with offset.
-pub unsafe fn ml_find_line_or_offset(
+pub fn ml_find_line_or_offset(
     buf: &mut buf_T,
     lnum: linenr_T,
     offp: *mut c_int,

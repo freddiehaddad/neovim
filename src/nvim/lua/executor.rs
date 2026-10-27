@@ -600,13 +600,11 @@ fn nlua_get_error(lstate: *mut lua_State, len: *mut usize) -> *const c_char {
 }
 
 pub fn nlua_error(lstate: *mut lua_State, msg: *const c_char) {
-    unsafe {
-        let mut len: usize = 0;
+    let mut len: usize = 0;
         let str_ = nlua_get_error(lstate, &raw mut len);
         msg_ext_no_fast();
         semsg_multiline!(c"lua_error".as_ptr(), msg, len as c_int, str_);
         lua_pop(lstate, 1);
-    }
 }
 
 unsafe extern "C-unwind" fn nlua_no_traceback(_lstate: *mut lua_State) -> c_int {
@@ -649,8 +647,7 @@ pub fn nlua_pcall(lstate: *mut lua_State, nargs: c_int, mut nresults: c_int) -> 
 }
 
 pub fn nlua_luv_error_event(error: Option<std::ffi::CString>, err_type: isize) {
-    unsafe {
-        let error_ptr = error.as_ref().map_or(ptr::null(), |c| c.as_ptr());
+    let error_ptr = error.as_ref().map_or(ptr::null(), |c| c.as_ptr());
         match err_type {
             kCallback => {
                 msg_ext_no_fast();
@@ -676,7 +673,6 @@ pub fn nlua_luv_error_event(error: Option<std::ffi::CString>, err_type: isize) {
             }
             _ => {}
         }
-    }
 }
 
 unsafe extern "C-unwind" fn nlua_fast_cfpcall(
@@ -867,8 +863,7 @@ fn nlua_init_argv(
 }
 
 pub fn nlua_schedule_event(cb: LuaRef, ns_id: u32) {
-    unsafe {
-        let lstate = nlua_st().GLOBAL_LSTATE;
+    let lstate = nlua_st().GLOBAL_LSTATE;
 
         nlua_pushref(lstate, cb);
         nlua_unref_global(lstate, cb);
@@ -885,7 +880,6 @@ pub fn nlua_schedule_event(cb: LuaRef, ns_id: u32) {
         }
         g_st().expr_map_lock = save_expr_map_lock;
         g_st().textlock = save_textlock;
-    }
 }
 
 unsafe extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> c_int {
@@ -1412,8 +1406,7 @@ unsafe extern "C-unwind" fn nlua_common_free_all_mem(lstate: *mut lua_State) {
 }
 
 pub fn nlua_print_event(text: NvimString) {
-    unsafe {
-        msg_ext_no_fast();
+    msg_ext_no_fast();
         let raw =
             msg_use_printf() != 0
                 && redirecting() == 0
@@ -1431,7 +1424,6 @@ pub fn nlua_print_event(text: NvimString) {
             &mut needs_clear,
             raw,
         );
-    }
 }
 
 unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> c_int {
@@ -1900,8 +1892,7 @@ fn nlua_exec_typval_fmt(
     special: bool,
     ret_tv: *mut typval_T,
 ) {
-    unsafe {
-        let mut lcmd_buf: [c_char; IOSIZE] = [0; IOSIZE];
+    let mut lcmd_buf: [c_char; IOSIZE] = [0; IOSIZE];
         let buf_ptr = lcmd_buf.as_mut_ptr();
         let mut lcmd = buf_ptr;
         let mut lcmd_vec: Vec<c_char> = Vec::new();
@@ -1921,7 +1912,6 @@ fn nlua_exec_typval_fmt(
             special,
             ret_tv,
         );
-    }
 }
 
 pub fn nlua_call_luaeval(str_: NvimString, arg: *mut typval_T, ret_tv: *mut typval_T) {

@@ -170,7 +170,7 @@ impl Array {
             } else {
                 8
             };
-            self.items = unsafe { realloc_items(self.items, self.capacity) };
+            self.items = realloc_items(self.items, self.capacity);
         }
         unsafe {
             std::ptr::write(self.items.add(self.size), value);
@@ -246,7 +246,7 @@ impl Dict {
             } else {
                 8
             };
-            self.items = unsafe { realloc_items(self.items, self.capacity) };
+            self.items = realloc_items(self.items, self.capacity);
         }
         unsafe {
             std::ptr::write(self.items.add(self.size), value);

@@ -210,8 +210,7 @@ const fn rot13(c: c_int, a: c_int) -> c_int {
 
 /// Translate a command name into an operator type.
 pub fn get_op_type(char1: c_int, char2: c_int) -> c_int {
-    unsafe {
-        if char1 == b'r' as c_int {
+    if char1 == b'r' as c_int {
             return OP_REPLACE;
         }
         if char1 == b'~' as c_int {
@@ -238,7 +237,6 @@ pub fn get_op_type(char1: c_int, char2: c_int) -> c_int {
             i += 1;
         }
         i as c_int
-    }
 }
 
 /// Return non-zero if operator `op` always works on whole lines.
@@ -676,7 +674,7 @@ fn shift_block(oap: &mut oparg_T, amount: c_int) {
     }
 }
 
-unsafe fn block_insert(
+fn block_insert(
     oap: &mut oparg_T,
     s: *const c_char,
     slen: usize,
@@ -1495,8 +1493,7 @@ pub fn op_tilde(oap: &mut oparg_T) {
 }
 
 fn swapchars(op_type: c_int, pos: &mut pos_T, length: c_int) -> c_int {
-    unsafe {
-        let mut did_change: c_int = 0;
+    let mut did_change: c_int = 0;
         let mut todo = length;
         while todo > 0 {
             let len = utfc_ptr2len(ml_get_pos(pos));
@@ -1511,7 +1508,6 @@ fn swapchars(op_type: c_int, pos: &mut pos_T, length: c_int) -> c_int {
             todo -= 1;
         }
         did_change
-    }
 }
 
 pub fn swapchar(op_type: c_int, pos: &mut pos_T) -> bool {
@@ -1897,7 +1893,7 @@ pub fn adjust_cursor_eol() {
     }
 }
 
-pub unsafe fn skip_comment(
+pub fn skip_comment(
     mut line: *mut c_char,
     process: bool,
     include_space: bool,
@@ -2306,7 +2302,7 @@ pub fn block_prep(oap: &mut oparg_T, bdp: &mut block_def, lnum: linenr_T, is_del
     }
 }
 
-pub unsafe fn getregionpos_prep(
+pub fn getregionpos_prep(
     p1: &mut pos_T,
     p2: &mut pos_T,
     region_type: c_int,
@@ -3035,7 +3031,7 @@ pub fn do_addsub(
     }
 }
 
-unsafe fn line_count_info(
+fn line_count_info(
     line: *const c_char,
     wc: *mut varnumber_T,
     cc: *mut varnumber_T,
@@ -3076,7 +3072,7 @@ unsafe fn line_count_info(
     }
 }
 
-pub unsafe fn cursor_pos_info(dict: *mut dict_T) {
+pub fn cursor_pos_info(dict: *mut dict_T) {
     unsafe {
         let mut buf1 = [0 as c_char; 50];
         let buf1_ptr = (&raw mut buf1).cast::<c_char>();
@@ -3475,7 +3471,7 @@ pub fn free_operatorfunc_option() {
 }
 
 pub fn set_ref_in_opfunc(copyID: c_int) -> bool {
-    unsafe { set_ref_in_callback(&mut opt_vars().p_opfunc, copyID, ptr::null_mut(), ptr::null_mut()) }
+    set_ref_in_callback(&mut opt_vars().p_opfunc, copyID, ptr::null_mut(), ptr::null_mut())
 }
 
 fn op_function(oap: &oparg_T) {
@@ -4142,8 +4138,7 @@ pub fn get_region_bytecount(
     start_col: colnr_T,
     end_col: colnr_T,
 ) -> bcount_t {
-    unsafe {
-        let max_lnum = buf.b_ml.ml_line_count;
+    let max_lnum = buf.b_ml.ml_line_count;
         if start_lnum > max_lnum {
             return 0;
         }
@@ -4162,7 +4157,6 @@ pub fn get_region_bytecount(
             return deleted_bytes;
         }
         deleted_bytes + (end_col as bcount_t)
-    }
 }
 
 #[cfg(test)]

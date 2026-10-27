@@ -637,7 +637,7 @@ const SHELL_RULES: [ShellRule; 2] = [
 
 use crate::os::lang::bind_textdomain_codeset;
 
-pub unsafe fn opt_error(
+pub fn opt_error(
     errbuf: Option<CharBuf>,
     fmt: *const c_char,
     arg: *const c_char,
@@ -645,13 +645,11 @@ pub unsafe fn opt_error(
     let Some(errbuf) = errbuf else {
         return c"".as_ptr();
     };
-    unsafe {
-        vim_snprintf!(errbuf.data, errbuf.size, gettext(fmt), arg);
+    vim_snprintf!(errbuf.data, errbuf.size, gettext(fmt), arg);
         errbuf.data.cast_const()
-    }
 }
 
-pub unsafe fn opt_error_int(
+pub fn opt_error_int(
     errbuf: Option<CharBuf>,
     fmt: *const c_char,
     arg: c_int,
@@ -659,14 +657,12 @@ pub unsafe fn opt_error_int(
     let Some(errbuf) = errbuf else {
         return c"".as_ptr();
     };
-    unsafe {
-        vim_snprintf!(errbuf.data, errbuf.size, gettext(fmt), arg);
+    vim_snprintf!(errbuf.data, errbuf.size, gettext(fmt), arg);
         errbuf.data.cast_const()
-    }
 }
 
 #[inline]
-unsafe fn c_str_contains(haystack: *const c_char, needle: &[u8]) -> bool {
+fn c_str_contains(haystack: *const c_char, needle: &[u8]) -> bool {
     unsafe {
         needle.is_empty()
             || CStr::from_ptr(haystack)
@@ -716,12 +712,12 @@ fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> std::ffi::CString {
 }
 
 #[inline]
-unsafe fn get_opt_idx(opt: *mut vimoption_T) -> OptIndex {
+fn get_opt_idx(opt: *mut vimoption_T) -> OptIndex {
     unsafe { opt.offset_from(get_option(0)) as OptIndex }
 }
 
 #[inline]
-unsafe fn get_varp(p: *mut vimoption_T) -> *mut c_void {
+fn get_varp(p: *mut vimoption_T) -> *mut c_void {
     unsafe { get_varp_from(p, g_st().curbuf, *curwin.as_ptr()) }
 }
 
@@ -734,8 +730,7 @@ pub fn set_init_tablocal() {
 
 /// Initialize the 'shell' option to a default value.
 fn set_init_default_shell() {
-    unsafe {
-        if let Some(shell) = os_getenv_cstr(c"SHELL".as_ptr()) {
+    if let Some(shell) = os_getenv_cstr(c"SHELL".as_ptr()) {
             let shell_ptr = shell.as_ptr();
             if !vim_strchr(shell_ptr, b' ' as c_int).is_null() {
                 let len = shell.as_bytes().len() + 3;
@@ -746,7 +741,6 @@ fn set_init_default_shell() {
                 set_string_default(kOptShell, shell_ptr);
             }
         }
-    }
 }
 
 /// Set the default for 'backupskip' to include environment variables for temp files.
@@ -1082,13 +1076,13 @@ fn set_options_default(opt_flags: c_int) {
 }
 
 /// Set the Vi-default value of a string option.
-unsafe fn set_string_default(opt_idx: OptIndex, val: *const c_char) {
+fn set_string_default(opt_idx: OptIndex, val: *const c_char) {
     assert!(opt_idx != kOptInvalid);
         change_option_default(opt_idx, cstr_to_obj(val));
 }
 
 /// For an option value that contains comma separated items, find "newval" in "origval".
-unsafe fn find_dup_item(
+fn find_dup_item(
     origval: *const c_char,
     newval: *const c_char,
     newvallen: usize,
@@ -1229,7 +1223,7 @@ pub fn set_init_3() {
 }
 
 /// When 'helplang' is still at its default value, set it to "lang".
-pub unsafe fn set_helplang_default(lang: *const c_char) {
+pub fn set_helplang_default(lang: *const c_char) {
     unsafe {
         if lang.is_null() {
             return;
@@ -1277,8 +1271,7 @@ pub fn set_title_defaults() {
 }
 
 pub fn ex_set(eap: &mut exarg_T) {
-    unsafe {
-        let mut flags: c_int = 0;
+    let mut flags: c_int = 0;
 
         if eap.cmdidx == cmdidx_T::CMD_setlocal as c_int {
             flags = OPT_LOCAL;
@@ -1289,11 +1282,10 @@ pub fn ex_set(eap: &mut exarg_T) {
             flags |= OPT_ONECOLUMN;
         }
         do_set(eap.arg, flags);
-    }
 }
 
 /// Copy the new string value into allocated memory for the option.
-unsafe fn stropt_copy_value(
+fn stropt_copy_value(
     origval: *const c_char,
     argp: *mut *mut c_char,
     op: set_op_T,
@@ -1346,7 +1338,7 @@ unsafe fn stropt_copy_value(
 }
 
 /// Expand environment variables and ~ in string option value 'newval'.
-unsafe fn stropt_expand_envvar(
+fn stropt_expand_envvar(
     opt_idx: OptIndex,
     origval: *const c_char,
     newval: &mut Vec<c_char>,
@@ -1368,7 +1360,7 @@ unsafe fn stropt_expand_envvar(
 }
 
 /// Concatenate the original and new values of a string option, adding a "," if needed.
-unsafe fn stropt_concat_with_comma(
+fn stropt_concat_with_comma(
     origval: *const c_char,
     newval: *mut c_char,
     op: set_op_T,
@@ -1400,7 +1392,7 @@ unsafe fn stropt_concat_with_comma(
 }
 
 /// Remove a value from a string option.
-unsafe fn stropt_remove_val(
+fn stropt_remove_val(
     origval: *const c_char,
     newval: *mut c_char,
     flags: u32,
@@ -1428,7 +1420,7 @@ unsafe fn stropt_remove_val(
 }
 
 /// Find a comma-separated item in "src" that matches the key part of "key".
-unsafe fn find_key_item(
+fn find_key_item(
     src: *mut c_char,
     key: *mut c_char,
     keylen: isize,
@@ -1455,7 +1447,7 @@ unsafe fn find_key_item(
 }
 
 /// Remove one item of length "itemlen" at position "item" from comma-separated string "str" in-place.
-unsafe fn remove_comma_item(str_arg: *const c_char, item: *mut c_char, itemlen: isize) {
+fn remove_comma_item(str_arg: *const c_char, item: *mut c_char, itemlen: isize) {
     unsafe {
         if *item.offset(itemlen) == b',' as c_char {
             let src = item.offset(itemlen + 1);
@@ -1470,7 +1462,7 @@ unsafe fn remove_comma_item(str_arg: *const c_char, item: *mut c_char, itemlen: 
 }
 
 /// Remove all items matching "key" (with ':') from comma-separated string "str" in-place.
-unsafe fn remove_key_item(
+fn remove_key_item(
     str_arg: *mut c_char,
     key: *mut c_char,
     keylen: isize,
@@ -1500,7 +1492,7 @@ unsafe fn remove_key_item(
 }
 
 /// Append a comma-separated item to the end of "str" in-place.
-unsafe fn append_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
+fn append_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
     unsafe {
         let mut len = std::ffi::CStr::from_ptr(str_arg).to_bytes().len() as isize;
         if len > 0 {
@@ -1513,7 +1505,7 @@ unsafe fn append_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) 
 }
 
 /// Prepend a comma-separated item to the beginning of "str" in-place.
-unsafe fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
+fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
     unsafe {
         let len = std::ffi::CStr::from_ptr(str_arg).to_bytes().len() as isize;
         let comma: isize = if len > 0 { 1 } else { 0 };
@@ -1531,7 +1523,7 @@ unsafe fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize)
 }
 
 /// For a P_COMMA option: process "key:value" items in "newval" individually.
-unsafe fn stropt_handle_keymatch(
+fn stropt_handle_keymatch(
     origval: *const c_char,
     newval: *mut c_char,
     op: set_op_T,
@@ -1614,7 +1606,7 @@ unsafe fn stropt_handle_keymatch(
 }
 
 /// Remove flags that appear twice in the string option value 'newval'.
-unsafe fn stropt_remove_dupflags(newval: *mut c_char, flags: u32) {
+fn stropt_remove_dupflags(newval: *mut c_char, flags: u32) {
     unsafe {
         let mut s = newval;
         while *s != NUL {
@@ -1640,7 +1632,7 @@ unsafe fn stropt_remove_dupflags(newval: *mut c_char, flags: u32) {
 }
 
 /// Get the string value specified for a ":set" command.
-unsafe fn stropt_get_newval(
+fn stropt_get_newval(
     opt_idx: OptIndex,
     argp: *mut *mut c_char,
     varp: *mut c_void,
@@ -1711,7 +1703,7 @@ unsafe fn stropt_get_newval(
     }
 }
 
-unsafe fn get_op(arg: *const c_char) -> set_op_T {
+fn get_op(arg: *const c_char) -> set_op_T {
     unsafe {
         let mut op = OP_NONE;
         if *arg != NUL && *arg.add(1) == b'=' as c_char {
@@ -1727,7 +1719,7 @@ unsafe fn get_op(arg: *const c_char) -> set_op_T {
     }
 }
 
-unsafe fn get_option_prefix(argp: *mut *mut c_char) -> set_prefix_T {
+fn get_option_prefix(argp: *mut *mut c_char) -> set_prefix_T {
     unsafe {
         if crate::memory::cstr_prefix_bytes(*argp, 2) == &b"no"[..2] {
             *argp = (*argp).add(2);
@@ -1741,7 +1733,7 @@ unsafe fn get_option_prefix(argp: *mut *mut c_char) -> set_prefix_T {
     }
 }
 
-unsafe fn validate_opt_idx(
+fn validate_opt_idx(
     win: &mut win_T,
     opt_idx: OptIndex,
     opt_flags: c_int,
@@ -1789,7 +1781,7 @@ unsafe fn validate_opt_idx(
 }
 
 /// Skip over the name of a TTY option or keycode option.
-unsafe fn find_tty_option_end(arg: *const c_char) -> *const c_char {
+fn find_tty_option_end(arg: *const c_char) -> *const c_char {
     unsafe {
         if crate::memory::cstr_as_opt_bytes(arg) == Some(b"term") {
             return arg.add("term".len());
@@ -1827,7 +1819,7 @@ unsafe fn find_tty_option_end(arg: *const c_char) -> *const c_char {
 }
 
 /// Skip over the name of an option.
-pub unsafe fn find_option_end(arg: *const c_char, opt_idxp: *mut OptIndex) -> *const c_char {
+pub fn find_option_end(arg: *const c_char, opt_idxp: *mut OptIndex) -> *const c_char {
     unsafe {
         let mut p = find_tty_option_end(arg);
         if !p.is_null() {
@@ -1850,7 +1842,7 @@ pub unsafe fn find_option_end(arg: *const c_char, opt_idxp: *mut OptIndex) -> *c
 }
 
 /// Get new option value from argp. Allocated Object must be freed by caller.
-pub unsafe fn get_option_newval(
+pub fn get_option_newval(
     opt_idx: OptIndex,
     opt_flags: c_int,
     prefix: set_prefix_T,
@@ -1997,7 +1989,7 @@ pub unsafe fn get_option_newval(
     }
 }
 
-unsafe fn do_one_set_option(
+fn do_one_set_option(
     opt_flags: c_int,
     argp: *mut *mut c_char,
     did_show: *mut bool,
@@ -2132,7 +2124,7 @@ unsafe fn do_one_set_option(
 }
 
 /// Parse 'arg' for option settings.
-pub unsafe fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
+pub fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
     unsafe {
         let mut did_show = false;
 
@@ -2221,7 +2213,7 @@ pub unsafe fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
     }
 }
 
-unsafe fn find_key_len(arg_arg: *const c_char, len: usize, has_lt: bool) -> c_int {
+fn find_key_len(arg_arg: *const c_char, len: usize, has_lt: bool) -> c_int {
     unsafe {
         let mut key: c_int = 0;
         let mut arg = arg_arg;
@@ -2249,7 +2241,7 @@ unsafe fn find_key_len(arg_arg: *const c_char, len: usize, has_lt: bool) -> c_in
 }
 
 /// Convert a key name or string into a key value.
-pub unsafe fn string_to_key(arg: *mut c_char) -> c_int {
+pub fn string_to_key(arg: *mut c_char) -> c_int {
     unsafe {
         if *arg == b'<' as c_char && *arg.add(1) != NUL {
             return find_key_len(arg.add(1), std::ffi::CStr::from_ptr(arg).to_bytes().len(), true);
@@ -2325,7 +2317,7 @@ pub fn set_options_bin(oldval: c_int, newval: c_int, opt_flags: c_int) {
 }
 
 /// Expand environment variables for some string options.
-unsafe fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_char {
+fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_char {
     unsafe {
         let opt = get_option(opt_idx);
         if ((*opt).flags & kOptFlagExpand) == 0 || is_option_hidden(opt_idx) {
@@ -2446,7 +2438,7 @@ pub fn check_options() {
 }
 
 /// Check if option was set insecurely.
-pub unsafe fn was_set_insecurely(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int {
+pub fn was_set_insecurely(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int) -> c_int {
     unsafe {
         assert!(opt_idx != kOptInvalid);
         let flagp = insecure_flag(wp, opt_idx, opt_flags);
@@ -2455,7 +2447,7 @@ pub unsafe fn was_set_insecurely(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c
 }
 
 /// Get a pointer to the flags used for the kOptFlagInsecure flag of option "opt_idx".
-pub unsafe fn insecure_flag(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int) -> *mut u32 {
+pub fn insecure_flag(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int) -> *mut u32 {
     unsafe {
         if (opt_flags & OPT_LOCAL) != 0 {
             assert!(!wp.is_null());
@@ -2490,7 +2482,7 @@ pub fn redraw_titles() {
 }
 
 /// Return true if "val" is a valid name.
-pub unsafe fn valid_name(val: *const c_char, allowed: *const c_char) -> bool {
+pub fn valid_name(val: *const c_char, allowed: *const c_char) -> bool {
     unsafe {
         let mut s = val;
         while *s != NUL {
@@ -2509,7 +2501,7 @@ pub fn check_blending(wp: &mut win_T) {
 }
 
 /// Handle setting 'winhighlight' in window "wp".
-pub unsafe fn parse_winhl_opt(winhl: *const c_char, wp: *mut win_T) -> bool {
+pub fn parse_winhl_opt(winhl: *const c_char, wp: *mut win_T) -> bool {
     unsafe {
         let mut p: *const c_char = empty_string_option.as_ptr().cast();
         if !winhl.is_null() {
@@ -2866,12 +2858,10 @@ pub fn did_set_eof_eol_fixeol_bomb(_args: &mut optset_T) -> *const c_char {
 
 /// Process the updated 'equalalways' option value.
 pub fn did_set_equalalways(args: &mut optset_T) -> *const c_char {
-    unsafe {
-        if opt_vars().p_ea != 0 && !args.os_oldval.data.boolean() {
+    if opt_vars().p_ea != 0 && !args.os_oldval.data.boolean() {
             win_equal(args.os_win, false, 0);
         }
         ptr::null()
-    }
 }
 
 /// Process the new 'foldenable' option value.
@@ -3012,8 +3002,7 @@ pub fn did_set_laststatus(args: &mut optset_T) -> *const c_char {
 
 /// Process the updated 'lines' or 'columns' option value.
 pub fn did_set_lines_or_columns(args: &mut optset_T) -> *const c_char {
-    unsafe {
-        if opt_vars().p_lines != OptInt::from(g_st().Rows) || opt_vars().p_columns != OptInt::from(g_st().Columns) {
+    if opt_vars().p_lines != OptInt::from(g_st().Rows) || opt_vars().p_columns != OptInt::from(g_st().Columns) {
             if g_st().updating_screen {
                 let oldval = integer_obj(args.os_oldval.data.integer());
                 set_option_varp(args.os_idx, args.os_varp, oldval);
@@ -3038,7 +3027,6 @@ pub fn did_set_lines_or_columns(args: &mut optset_T) -> *const c_char {
         }
 
         ptr::null()
-    }
 }
 
 /// Process the updated 'lisp' option value.
@@ -3556,8 +3544,7 @@ pub fn did_set_xhistory(args: &mut optset_T) -> *const c_char {
 }
 
 fn do_syntax_autocmd(buf: &mut buf_T, value_changed: bool) {
-    unsafe {
-        opt_st().SYN_RECURSIVE += 1;
+    opt_st().SYN_RECURSIVE += 1;
         buf.b_flags |= BF_SYN_SET;
         apply_autocmds(
             EVENT_SYNTAX,
@@ -3567,7 +3554,6 @@ fn do_syntax_autocmd(buf: &mut buf_T, value_changed: bool) {
             &raw mut *buf,
         );
         opt_st().SYN_RECURSIVE -= 1;
-    }
 }
 
 fn do_spelllang_source(win: &mut win_T) {
@@ -3601,7 +3587,7 @@ fn do_spelllang_source(win: &mut win_T) {
 }
 
 /// Check the bounds of numeric options.
-unsafe fn check_num_option_bounds(
+fn check_num_option_bounds(
     opt_idx: OptIndex,
     newval: *mut OptInt,
     win: *mut win_T,
@@ -3658,7 +3644,7 @@ unsafe fn check_num_option_bounds(
 }
 
 /// Validate and bound check option value.
-unsafe fn validate_num_option(
+fn validate_num_option(
     opt_idx: OptIndex,
     newval: *mut OptInt,
     win: *mut win_T,
@@ -3817,7 +3803,7 @@ unsafe fn validate_num_option(
 }
 
 /// Called after an option changed: check if something needs to be redrawn.
-pub unsafe fn check_redraw_for(buf: *mut buf_T, win: *mut win_T, flags: u32) {
+pub fn check_redraw_for(buf: *mut buf_T, win: *mut win_T, flags: u32) {
     unsafe {
         let all = (flags & kOptFlagRedrAll) == kOptFlagRedrAll;
 
@@ -3851,12 +3837,12 @@ pub fn check_redraw(flags: u32) {
     }
 }
 
-pub unsafe fn is_tty_option(name: *const c_char) -> bool {
-    unsafe { !find_tty_option_end(name).is_null() }
+pub fn is_tty_option(name: *const c_char) -> bool {
+    !find_tty_option_end(name).is_null()
 }
 
 /// Get value of TTY option.
-pub unsafe fn get_tty_option(name: *const c_char) -> Object {
+pub fn get_tty_option(name: *const c_char) -> Object {
     unsafe {
         if crate::memory::cstr_as_opt_bytes(name) == Some(b"t_Co") {
             if g_st().t_colors <= 1 {
@@ -3888,9 +3874,8 @@ pub unsafe fn get_tty_option(name: *const c_char) -> Object {
     }
 }
 
-pub unsafe fn set_tty_option(name: *const c_char, value: Option<std::ffi::CString>) -> bool {
-    unsafe {
-        if crate::memory::cstr_as_opt_bytes(name) == Some(b"term") {
+pub fn set_tty_option(name: *const c_char, value: Option<std::ffi::CString>) -> bool {
+    if crate::memory::cstr_as_opt_bytes(name) == Some(b"term") {
             opt_st().P_TERM = value;
             return true;
         }
@@ -3901,7 +3886,6 @@ pub unsafe fn set_tty_option(name: *const c_char, value: Option<std::ffi::CStrin
         }
 
         false
-    }
 }
 
 const CPO_VIM_CSTR: &CStr = c"aABceFs_";
@@ -5096,7 +5080,7 @@ const OPTION_NAME_MAP: &[(&[u8], OptIndex)] = &[
 ];
 
 /// Find index for an option. Don't go beyond `len` length (`find_option_len`).
-pub unsafe fn find_option_len(name: *const c_char, len: usize) -> OptIndex {
+pub fn find_option_len(name: *const c_char, len: usize) -> OptIndex {
     if name.is_null() {
         return kOptInvalid;
     }
@@ -5108,7 +5092,7 @@ pub unsafe fn find_option_len(name: *const c_char, len: usize) -> OptIndex {
 }
 
 /// Find index for an option.
-pub unsafe fn find_option(name: *const c_char) -> OptIndex {
+pub fn find_option(name: *const c_char) -> OptIndex {
     unsafe { find_option_len(name, std::ffi::CStr::from_ptr(name).to_bytes().len()) }
 }
 
@@ -5207,13 +5191,11 @@ fn optval_snapshot(value: Object) -> Object {
         copy_object(value, ptr::null_mut())
 }
 
-unsafe fn optval_snapshot_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
-    unsafe {
-        let value = opt_from_varp(opt_idx, varp);
+fn optval_snapshot_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
+    let value = opt_from_varp(opt_idx, varp);
         let snapshot = optval_snapshot(value);
         optval_free_read(opt_idx, value);
         snapshot
-    }
 }
 
 fn opt_from_callback(cb: &mut Callback) -> Object {
@@ -5265,7 +5247,7 @@ fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
 }
 
 /// Creates Object from var pointer.
-pub unsafe fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
+pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
     unsafe {
         let opt = get_option(opt_idx);
         if (*opt).immutable {
@@ -5298,7 +5280,7 @@ pub unsafe fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
 }
 
 /// Stores an option value at its "varp", freeing the previously-stored value.
-unsafe fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
+fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
     unsafe {
         let opt = get_option(opt_idx);
         if (*opt).immutable {
@@ -5391,7 +5373,7 @@ fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
 }
 
 /// Converts a structured option (non-scalar Object) to the internal scalar (:set-style) form.
-pub unsafe fn optval_from_obj(
+pub fn optval_from_obj(
     opt_idx: OptIndex,
     o: Object,
     op: set_op_T,
@@ -5567,8 +5549,7 @@ pub fn option_scope_idx(opt_idx: OptIndex, scope: OptScope) -> isize {
 
 /// Gets the value for an option.
 pub fn get_option_value(opt_idx: OptIndex, opt_flags: c_int) -> Object {
-    unsafe {
-        if opt_idx == kOptInvalid {
+    if opt_idx == kOptInvalid {
             return nil_obj();
         }
         let opt = get_option(opt_idx);
@@ -5576,7 +5557,6 @@ pub fn get_option_value(opt_idx: OptIndex, opt_flags: c_int) -> Object {
             opt_idx,
             opt_from_varp(opt_idx, get_varp_scope(opt, opt_flags)),
         )
-    }
 }
 
 fn optval_is_unset_local(opt_idx: OptIndex, value: Object) -> bool {
@@ -5602,8 +5582,7 @@ fn optval_is_unset_local(opt_idx: OptIndex, value: Object) -> bool {
 }
 
 fn is_option_local_value_unset(opt_idx: OptIndex) -> bool {
-    unsafe {
-        if !option_is_global_local(opt_idx) {
+    if !option_is_global_local(opt_idx) {
             return false;
         }
         let opt = get_option(opt_idx);
@@ -5611,7 +5590,6 @@ fn is_option_local_value_unset(opt_idx: OptIndex) -> bool {
         let is_unset = optval_is_unset_local(opt_idx, local_value);
         optval_free_read(opt_idx, local_value);
         is_unset
-    }
 }
 
 /// Handle side-effects of setting an option.
@@ -6112,8 +6090,7 @@ fn unset_option_local_value(opt_idx: OptIndex) -> *const c_char {
 
 /// Call set_option_value() and when an error is returned, report it.
 pub fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_int) {
-    unsafe {
-        let mut errbuf_storage = [0 as c_char; IOSIZE];
+    let mut errbuf_storage = [0 as c_char; IOSIZE];
         let errbuf = CharBuf {
             data: errbuf_storage.as_mut_ptr(),
             size: IOSIZE,
@@ -6123,7 +6100,6 @@ pub fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_flags: c_
         if !errmsg.is_null() {
             emsg(tr(errmsg));
         }
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -6380,7 +6356,7 @@ fn showoptions(all: bool, opt_flags: c_int) {
     }
 }
 
-unsafe fn optval_default(opt_idx: OptIndex, varp: *mut c_void) -> c_int {
+fn optval_default(opt_idx: OptIndex, varp: *mut c_void) -> c_int {
     unsafe {
         if is_option_hidden(opt_idx) {
             return 1;
@@ -6457,7 +6433,7 @@ fn showoneopt(opt: &mut vimoption_T, opt_flags: c_int) {
 }
 
 /// Write modified options as ":set" commands to a file.
-pub unsafe fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> c_int {
+pub fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> c_int {
     unsafe {
         for pri in (0..=1).rev() {
             for opt_idx in 0..kOptCount {
@@ -6544,7 +6520,7 @@ pub unsafe fn makeset(fd: *mut FILE, opt_flags: c_int, local_only: c_int) -> c_i
 }
 
 /// Generate set commands for the local fold options only.
-pub unsafe fn makefoldset(fd: *mut FILE) -> c_int {
+pub fn makefoldset(fd: *mut FILE) -> c_int {
     unsafe {
         let cmd = c"setlocal".as_ptr().cast_mut();
         if put_set(
@@ -6602,7 +6578,7 @@ pub unsafe fn makefoldset(fd: *mut FILE) -> c_int {
     }
 }
 
-unsafe fn put_set_value(
+fn put_set_value(
     fd: *mut FILE,
     cmd: *mut c_char,
     opt_idx: OptIndex,
@@ -6706,9 +6682,8 @@ unsafe fn put_set_value(
     }
 }
 
-unsafe fn put_set(fd: *mut FILE, cmd: *mut c_char, opt_idx: OptIndex, varp: *mut c_void) -> c_int {
-    unsafe {
-        let value = opt_from_varp(opt_idx, varp);
+fn put_set(fd: *mut FILE, cmd: *mut c_char, opt_idx: OptIndex, varp: *mut c_void) -> c_int {
+    let value = opt_from_varp(opt_idx, varp);
         let ret = if value.obj_type == ObjectType::kObjectTypeLuaRef {
             OK
         } else {
@@ -6716,10 +6691,9 @@ unsafe fn put_set(fd: *mut FILE, cmd: *mut c_char, opt_idx: OptIndex, varp: *mut
         };
         optval_free_read(opt_idx, value);
         ret
-    }
 }
 
-pub unsafe fn get_varp_scope_from(
+pub fn get_varp_scope_from(
     p: *mut vimoption_T,
     opt_flags: c_int,
     buf: *mut buf_T,
@@ -6785,21 +6759,21 @@ pub unsafe fn get_varp_scope_from(
 }
 
 /// Get pointer to option variable, depending on local or global scope.
-pub unsafe fn get_varp_scope(p: *mut vimoption_T, opt_flags: c_int) -> *mut c_void {
+pub fn get_varp_scope(p: *mut vimoption_T, opt_flags: c_int) -> *mut c_void {
     unsafe { get_varp_scope_from(p, opt_flags, g_st().curbuf, *curwin.as_ptr()) }
 }
 
 /// Get pointer to option variable at 'opt_idx', depending on local or global scope.
-pub unsafe fn get_option_varp_scope_from(
+pub fn get_option_varp_scope_from(
     opt_idx: OptIndex,
     opt_flags: c_int,
     buf: *mut buf_T,
     win: *mut win_T,
 ) -> *mut c_void {
-    unsafe { get_varp_scope_from(get_option(opt_idx), opt_flags, buf, win) }
+    get_varp_scope_from(get_option(opt_idx), opt_flags, buf, win)
 }
 
-pub unsafe fn get_varp_from(p: *mut vimoption_T, buf: *mut buf_T, win: *mut win_T) -> *mut c_void {
+pub fn get_varp_from(p: *mut vimoption_T, buf: *mut buf_T, win: *mut win_T) -> *mut c_void {
     unsafe {
         let opt_idx = get_opt_idx(p);
 
@@ -7205,8 +7179,7 @@ pub fn get_findfunc() -> *mut Callback {
 
 /// Copy options from one window to another.
 pub fn win_copy_options(wp_from: &mut win_T, wp_to: &mut win_T) {
-    unsafe {
-        copy_winopt(
+    copy_winopt(
             &mut wp_from.w_onebuf_opt,
             &mut wp_to.w_onebuf_opt,
         );
@@ -7215,24 +7188,20 @@ pub fn win_copy_options(wp_from: &mut win_T, wp_to: &mut win_T) {
             &mut wp_to.w_allbuf_opt,
         );
         didset_window_options(wp_to, true);
-    }
 }
 
-unsafe fn copy_option_val(val: *const c_char) -> *mut c_char {
-    unsafe {
-        let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
+fn copy_option_val(val: *const c_char) -> *mut c_char {
+    let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         if ptr::eq(val, empty_opt) {
             empty_opt
         } else {
             alloc_string_option(val)
         }
-    }
 }
 
 /// Copy the options from one winopt_T to another.
 pub fn copy_winopt(from: &mut winopt_T, to: &mut winopt_T) {
-    unsafe {
-        let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
+    let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
         to.wo_arab = from.wo_arab;
         to.wo_list = from.wo_list;
         to.wo_lcs = copy_option_val(from.wo_lcs);
@@ -7312,7 +7281,6 @@ pub fn copy_winopt(from: &mut winopt_T, to: &mut winopt_T) {
 
         to.wo_script_ctx = from.wo_script_ctx;
         check_winopt(to);
-    }
 }
 
 fn check_win_options(win: &mut win_T) {
@@ -7321,8 +7289,7 @@ fn check_win_options(win: &mut win_T) {
 }
 
 fn check_winopt(wop: &mut winopt_T) {
-    unsafe {
-        check_string_option(&raw mut wop.wo_fdc);
+    check_string_option(&raw mut wop.wo_fdc);
         check_string_option(&raw mut wop.wo_fdc_save);
         check_string_option(&raw mut wop.wo_fdi);
         check_string_option(&raw mut wop.wo_fdm);
@@ -7343,13 +7310,11 @@ fn check_winopt(wop: &mut winopt_T) {
         check_string_option(&raw mut wop.wo_ve);
         check_string_option(&raw mut wop.wo_wbr);
         check_string_option(&raw mut wop.wo_stc);
-    }
 }
 
 /// Free the allocated memory inside a winopt_T.
 pub fn clear_winopt(wop: &mut winopt_T) {
-    unsafe {
-        clear_string_option(&raw mut wop.wo_fdc);
+    clear_string_option(&raw mut wop.wo_fdc);
         clear_string_option(&raw mut wop.wo_fdc_save);
         clear_string_option(&raw mut wop.wo_fdi);
         clear_string_option(&raw mut wop.wo_fdm);
@@ -7372,10 +7337,9 @@ pub fn clear_winopt(wop: &mut winopt_T) {
         clear_string_option(&raw mut wop.wo_ve);
         clear_string_option(&raw mut wop.wo_wbr);
         clear_string_option(&raw mut wop.wo_stc);
-    }
 }
 
-pub unsafe fn didset_window_options(wp: *mut win_T, valid_cursor: bool) {
+pub fn didset_window_options(wp: *mut win_T, valid_cursor: bool) {
     unsafe {
         if (*wp).w_onebuf_opt.wo_wrap != 0 {
             (*wp).w_leftcol = 0;
@@ -7423,7 +7387,7 @@ fn copy_opt_insecure(bv: usize) -> u32 {
 }
 
 /// Copy global option values to local options for one buffer.
-pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
+pub fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
     unsafe {
         let mut should_copy = true;
         let mut save_p_isk: *mut c_char = ptr::null_mut();
@@ -7695,7 +7659,7 @@ pub fn set_imsearch_global(buf: &mut buf_T) {
     opt_vars().p_imsearch = buf.b_p_imsearch;
 }
 
-pub unsafe fn set_context_in_set_cmd(xp: &mut expand_T, mut arg: *mut c_char, opt_flags: c_int) {
+pub fn set_context_in_set_cmd(xp: &mut expand_T, mut arg: *mut c_char, opt_flags: c_int) {
     unsafe {
         opt_st().EXPAND_OPTION_FLAGS = opt_flags;
 
@@ -7931,7 +7895,7 @@ pub unsafe fn set_context_in_set_cmd(xp: &mut expand_T, mut arg: *mut c_char, op
     }
 }
 
-unsafe fn match_str(
+fn match_str(
     str_arg: *mut c_char,
     regmatch: &mut regmatch_T,
     matches: &mut Vec<std::ffi::CString>,
@@ -7961,7 +7925,7 @@ unsafe fn match_str(
     }
 }
 
-pub unsafe fn ExpandSettings(
+pub fn ExpandSettings(
     xp: &mut expand_T,
     regmatch: &mut regmatch_T,
     fuzzystr: *mut c_char,
@@ -8013,7 +7977,7 @@ pub unsafe fn ExpandSettings(
 }
 
 /// Escape an option value that can be used on the command-line with :set.
-pub unsafe fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CString {
+pub fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CString {
     unsafe {
         let buf_cstr = vim_strsave_escaped(std::ffi::CStr::from_ptr(var_arg), escape_chars);
 
@@ -8048,8 +8012,7 @@ pub unsafe fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CStri
 
 /// Expansion handler for :set= when we just want to fill in with the existing value.
 pub fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> c_int {
-    unsafe {
-        matches.clear();
+    matches.clear();
 
         if opt_st().EXPAND_OPTION_IDX == kOptInvalid {
             opt_st().EXPAND_OPTION_IDX = find_option((&raw const opt_st().EXPAND_OPTION_NAME).cast());
@@ -8073,7 +8036,6 @@ pub fn ExpandOldSetting(matches: &mut Vec<std::ffi::CString>) -> c_int {
 
         matches.push(escape_option_str_cmdline(var));
         OK
-    }
 }
 
 /// Expansion handler for :set=/:set+= when the option has a custom expansion handler.
@@ -8235,7 +8197,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: c_int) {
     }
 }
 
-unsafe fn wc_use_keyname(p: *const OptInt, wcp: *mut OptInt) -> c_int {
+fn wc_use_keyname(p: *const OptInt, wcp: *mut OptInt) -> c_int {
     unsafe {
         if p == &raw const opt_vars().p_wc || p == &raw const opt_vars().p_wcm {
             *wcp = *p;
@@ -8248,24 +8210,20 @@ unsafe fn wc_use_keyname(p: *const OptInt, wcp: *mut OptInt) -> c_int {
 }
 
 pub fn shortmess(x: c_int) -> bool {
-    unsafe {
-        !opt_vars().p_shm.is_null()
+    !opt_vars().p_shm.is_null()
             && (!vim_strchr(opt_vars().p_shm, x).is_null()
                 || (!vim_strchr(opt_vars().p_shm, b'a' as c_int).is_null()
                     && !vim_strchr(SHM_ALL_ABBREVIATIONS, x).is_null()))
-    }
 }
 
-pub unsafe fn vimrc_found(fname: *mut c_char, envname: *mut c_char) {
-    unsafe {
-        if !fname.is_null()
+pub fn vimrc_found(fname: *mut c_char, envname: *mut c_char) {
+    if !fname.is_null()
             && !envname.is_null()
             && vim_getenv(envname).is_none()
             && let Some(p) = FullName_save(fname, false)
         {
             os_setenv(envname, p.as_ptr(), 1);
         }
-    }
 }
 
 /// Check whether global option has been set.
@@ -8285,7 +8243,7 @@ pub fn reset_option_was_set(opt_idx: OptIndex) {
 }
 
 /// Parse 'cursorlineopt', writing flags only when the value is valid.
-pub unsafe fn fill_culopt_flags(val: *mut c_char, flags: *mut c_uint) -> c_int {
+pub fn fill_culopt_flags(val: *mut c_char, flags: *mut c_uint) -> c_int {
     unsafe {
         let mut p = val;
         let mut culopt_flags_new: u8 = 0;
@@ -8325,7 +8283,7 @@ pub unsafe fn fill_culopt_flags(val: *mut c_char, flags: *mut c_uint) -> c_int {
 }
 
 /// Set the callback function value for an option that accepts a function name, lambda, et al.
-pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback) -> c_int {
+pub fn option_set_callback_func(optval: *mut c_char, optcb: &mut Callback) -> c_int {
     unsafe {
         if optval.is_null() || *optval == NUL {
             callback_free(optcb);
@@ -8385,7 +8343,7 @@ pub fn can_bs(what: c_int) -> bool {
 }
 
 /// Get the local or global value of 'backupcopy' flags.
-pub unsafe fn get_bkc_flags(buf: *mut buf_T) -> c_uint {
+pub fn get_bkc_flags(buf: *mut buf_T) -> c_uint {
     unsafe {
         if (*buf).b_bkc_flags != 0 {
             (*buf).b_bkc_flags
@@ -8407,7 +8365,7 @@ pub fn get_flp_value(buf: &mut buf_T) -> *mut c_char {
 }
 
 /// Get the local or global value of 'virtualedit' flags.
-pub unsafe fn get_ve_flags(wp: *mut win_T) -> c_uint {
+pub fn get_ve_flags(wp: *mut win_T) -> c_uint {
     unsafe {
         let f = if (*wp).w_onebuf_opt.wo_ve_flags != 0 {
             (*wp).w_onebuf_opt.wo_ve_flags
@@ -8447,7 +8405,7 @@ pub fn get_fileformat(buf: &buf_T) -> c_int {
 }
 
 /// Like get_fileformat(), but override 'fileformat' with "p" for "++opt=val" argument.
-pub unsafe fn get_fileformat_force(buf: *const buf_T, eap: *const exarg_T) -> c_int {
+pub fn get_fileformat_force(buf: *const buf_T, eap: *const exarg_T) -> c_int {
     unsafe {
         let c = if !eap.is_null() && (*eap).force_ff != 0 {
             (*eap).force_ff as u8
@@ -8485,8 +8443,7 @@ pub fn default_fileformat() -> c_int {
 
 /// Set the current end-of-line type to EOL_UNIX, EOL_MAC, or EOL_DOS.
 pub fn set_fileformat(eol_style: c_int, opt_flags: c_int) {
-    unsafe {
-        let p: *const c_char = match eol_style {
+    let p: *const c_char = match eol_style {
             EOL_UNIX => c"unix".as_ptr(),
             EOL_MAC => c"mac".as_ptr(),
             EOL_DOS => c"dos".as_ptr(),
@@ -8500,11 +8457,10 @@ pub fn set_fileformat(eol_style: c_int, opt_flags: c_int) {
         redraw_buf_status_later(g_st().curbuf);
         g_st().redraw_tabline = true;
         g_st().need_maketitle = true;
-    }
 }
 
 /// Skip to next part of an option argument: skip space and comma.
-pub unsafe fn skip_to_option_part(mut p: *const c_char) -> *mut c_char {
+pub fn skip_to_option_part(mut p: *const c_char) -> *mut c_char {
     unsafe {
         if *p == b',' as c_char {
             p = p.add(1);
@@ -8517,7 +8473,7 @@ pub unsafe fn skip_to_option_part(mut p: *const c_char) -> *mut c_char {
 }
 
 /// Isolate one part of a string option separated by `sep_chars`.
-pub unsafe fn copy_option_part(
+pub fn copy_option_part(
     option: *mut *mut c_char,
     buf: *mut c_char,
     maxlen: usize,
@@ -8555,7 +8511,7 @@ pub unsafe fn copy_option_part(
 }
 
 /// Iterates comma-separated parts of option, splitting each part at its first ':' into key/value.
-pub unsafe fn option_next_keyval(
+pub fn option_next_keyval(
     p: *mut *const c_char,
     key: *mut *const c_char,
     keylen: *mut usize,
@@ -8597,18 +8553,18 @@ pub unsafe fn option_next_keyval(
 }
 
 /// Compare a (non-NUL-terminated) slice from option_next_keyval() against a name.
-pub unsafe fn option_slice_eq(slice: *const c_char, slicelen: usize, name: *const c_char) -> bool {
+pub fn option_slice_eq(slice: *const c_char, slicelen: usize, name: *const c_char) -> bool {
     unsafe { !slice.is_null() && std::ffi::CStr::from_ptr(name).to_bytes().len() == slicelen && (crate::memory::cstr_prefix_bytes(slice, slicelen) == crate::memory::cstr_prefix_bytes(name, slicelen)) }
 }
 
 /// Return true when 'shell' has "csh" in the tail.
 pub fn csh_like_shell() -> c_int {
-    unsafe { c_int::from(c_str_contains(path_tail(opt_vars().p_sh), b"csh")) }
+    c_int::from(c_str_contains(path_tail(opt_vars().p_sh), b"csh"))
 }
 
 /// Return true when 'shell' has "fish" in the tail.
 pub fn fish_like_shell() -> bool {
-    unsafe { c_str_contains(path_tail(opt_vars().p_sh), b"fish") }
+    c_str_contains(path_tail(opt_vars().p_sh), b"fish")
 }
 
 /// Get window or buffer local options.
@@ -8643,7 +8599,7 @@ pub fn get_winbuf_options(bufopt: c_int) -> *mut dict_T {
 }
 
 /// Return the effective 'scrolloff' value for the current window.
-pub unsafe fn get_scrolloff_value(wp: *mut win_T) -> i64 {
+pub fn get_scrolloff_value(wp: *mut win_T) -> i64 {
     unsafe {
         if (g_st().State & MODE_TERMINAL) != 0 && !(*(*wp).w_buffer).terminal.is_null() {
             return 0;
@@ -8657,7 +8613,7 @@ pub unsafe fn get_scrolloff_value(wp: *mut win_T) -> i64 {
 }
 
 /// Return the effective 'scrolloffpad' value for the current window.
-pub unsafe fn get_scrolloffpad_value(wp: *mut win_T) -> i64 {
+pub fn get_scrolloffpad_value(wp: *mut win_T) -> i64 {
     unsafe {
         if (*wp).w_onebuf_opt.wo_sop == -1 {
             opt_vars().p_sop
@@ -8668,7 +8624,7 @@ pub unsafe fn get_scrolloffpad_value(wp: *mut win_T) -> i64 {
 }
 
 /// Return the effective 'sidescrolloff' value for the current window.
-pub unsafe fn get_sidescrolloff_value(wp: *mut win_T) -> i64 {
+pub fn get_sidescrolloff_value(wp: *mut win_T) -> i64 {
     unsafe {
         if (*wp).w_onebuf_opt.wo_siso < 0 {
             opt_vars().p_siso
@@ -8679,7 +8635,7 @@ pub unsafe fn get_sidescrolloff_value(wp: *mut win_T) -> i64 {
 }
 
 /// Metadata Dict for option `name`; errors if `name` is unknown.
-pub unsafe fn get_option_info(
+pub fn get_option_info(
     name: NvimString,
     opt_flags: c_int,
     buf: *mut buf_T,
@@ -8704,7 +8660,7 @@ pub unsafe fn get_option_info(
 }
 
 /// Metadata Dict for every option, keyed by full name.
-pub unsafe fn get_all_options_info(arena: *mut Arena) -> Dict {
+pub fn get_all_options_info(arena: *mut Arena) -> Dict {
     unsafe {
         let mut retval = arena_dict(arena, kOptCount as usize);
         for opt_idx in 0..kOptCount {
@@ -8716,7 +8672,7 @@ pub unsafe fn get_all_options_info(arena: *mut Arena) -> Dict {
     }
 }
 
-unsafe fn option_info_dict(
+fn option_info_dict(
     opt: &mut vimoption_T,
     opt_flags: c_int,
     buf: *mut buf_T,
@@ -8835,8 +8791,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
-            assert_eq!(find_option(c"number".as_ptr()), kOptNumber);
+        assert_eq!(find_option(c"number".as_ptr()), kOptNumber);
             assert_eq!(find_option(c"nu".as_ptr()), kOptNumber);
             assert_eq!(find_option_len(c"tabstop=4".as_ptr(), 7), kOptTabstop);
             assert_eq!(find_option(c"nonexistent_option".as_ptr()), kOptInvalid);
@@ -8847,6 +8802,5 @@ mod tests {
             assert!(option_has_scope(kOptTabstop, kOptScopeBuf));
             assert!(!is_option_hidden(kOptNumber));
             assert!(is_option_hidden(0));
-        }
     }
 }

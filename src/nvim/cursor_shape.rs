@@ -139,7 +139,7 @@ fn clear_shape_table() {
 }
 
 /// Converts `(*shape_table_mut())` into an `Array` of `Dict`s (`mode_style_array`).
-pub unsafe fn mode_style_array(arena: *mut Arena) -> Array {
+pub fn mode_style_array(arena: *mut Arena) -> Array {
     unsafe {
         let mut all = arena_array(arena, SHAPE_IDX_COUNT);
         let tbl = &*std::ptr::addr_of!((*shape_table_mut()));
@@ -438,7 +438,7 @@ pub fn parse_shape_opt(what: c_int) -> *const c_char {
 
 /// Map cursor mode from string to integer (`cursor_mode_str2int`).
 #[cfg(test)]
-pub unsafe fn cursor_mode_str2int(mode: *const c_char) -> c_int {
+pub fn cursor_mode_str2int(mode: *const c_char) -> c_int {
     let mode_bytes = unsafe { std::ffi::CStr::from_ptr(mode).to_bytes() };
     let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
     for (mode_idx, entry) in tbl.iter().enumerate() {
@@ -446,8 +446,7 @@ pub unsafe fn cursor_mode_str2int(mode: *const c_char) -> c_int {
             return mode_idx as c_int;
         }
     }
-    unsafe {
-        logmsg!(
+    logmsg!(
             LOGLVL_WRN,
             std::ptr::null(),
             c"cursor_mode_str2int".as_ptr(),
@@ -456,7 +455,6 @@ pub unsafe fn cursor_mode_str2int(mode: *const c_char) -> c_int {
             c"Unknown mode %s".as_ptr(),
             mode,
         );
-    }
     -1
 }
 
@@ -515,8 +513,7 @@ mod tests {
 
     #[test]
     fn cursor_mode_str2int_finds_modes() {
-        unsafe {
-            assert_eq!(
+        assert_eq!(
                 cursor_mode_str2int(c"normal".as_ptr()),
                 SHAPE_IDX_N as c_int
             );
@@ -525,6 +522,5 @@ mod tests {
                 SHAPE_IDX_TERM as c_int
             );
             assert_eq!(cursor_mode_str2int(c"nonexistent".as_ptr()), -1);
-        }
     }
 }

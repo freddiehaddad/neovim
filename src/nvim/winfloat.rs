@@ -48,7 +48,7 @@ use crate::ex_cmds::kWinPreview;
 use crate::math::FAIL;
 
 /// Creates a new float, or transforms an existing window to a float (`win_new_float`).
-pub unsafe fn win_new_float(
+pub fn win_new_float(
     mut wp: *mut win_T,
     last: bool,
     fconfig: WinConfig,
@@ -361,7 +361,7 @@ pub fn win_float_remove(bang: bool, mut count: c_int) {
     }
 }
 
-pub unsafe fn win_check_anchored_floats(win: *mut win_T) {
+pub fn win_check_anchored_floats(win: *mut win_T) {
     unsafe {
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
@@ -426,7 +426,7 @@ pub fn win_float_find(kind: WinKind) -> *mut win_T {
 }
 
 /// Select an alternative window to `win` (assumed floating) in tabpage `tp` (`win_float_find_altwin`).
-pub unsafe fn win_float_find_altwin(win: *const win_T, tp: *const tabpage_T) -> *mut win_T {
+pub fn win_float_find_altwin(win: *const win_T, tp: *const tabpage_T) -> *mut win_T {
     unsafe {
         let mut wp = g_st().prevwin;
         if tp.is_null() {
@@ -457,7 +457,7 @@ pub unsafe fn win_float_find_altwin(win: *const win_T, tp: *const tabpage_T) -> 
 
 /// Abort `win_float_special()`: emit any error, tear down the half-built window, unblock autocmds.
 #[inline]
-unsafe fn win_float_special_fail(wp: *mut win_T, err: &mut Error) -> *mut win_T {
+fn win_float_special_fail(wp: *mut win_T, err: &mut Error) -> *mut win_T {
     unsafe {
         if error_set(err) {
             emsg(err.msg_ptr());
@@ -550,12 +550,10 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut win_
 
 /// Closes a specified floating window used for previews or popups (`win_float_close`).
 pub fn win_float_close(kind: WinKind) {
-    unsafe {
-        let wp = win_float_find(kind);
+    let wp = win_float_find(kind);
         if !wp.is_null() {
             win_close(wp, false, false);
         }
-    }
 }
 
 /// Re-layout a 'previewpopup' window for its current content (`win_float_update_preview`).
@@ -640,7 +638,7 @@ pub fn win_float_update_preview(wp: &mut win_T) {
 }
 
 /// Applies a 'previewpopup' value ("height:N,width:N,border:style") to `config` (`win_previewpopup_config`).
-pub unsafe fn win_previewpopup_config(value: *const c_char, config: &mut WinConfig) -> bool {
+pub fn win_previewpopup_config(value: *const c_char, config: &mut WinConfig) -> bool {
     unsafe {
         let v = opt_keyset(value, kOptPreviewpopup, ptr::null_mut()).cast::<OptKeyDict_pvp>();
 

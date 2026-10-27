@@ -547,7 +547,7 @@ pub fn internal_format(
     }
 }
 
-unsafe fn fmt_check_par(
+fn fmt_check_par(
     lnum: linenr_T,
     leader_len: &mut c_int,
     leader_flags: *mut *mut c_char,
@@ -586,7 +586,7 @@ fn ends_in_white(lnum: linenr_T) -> bool {
     }
 }
 
-unsafe fn same_leader(
+fn same_leader(
     lnum: linenr_T,
     leader1_len: c_int,
     leader1_flags: *mut c_char,

@@ -55,8 +55,8 @@ use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
 
 use crate::msgpack_rpc::packer::handle_T;
-pub type IndentGetter = unsafe fn() -> c_int;
-pub type Indenter = unsafe fn() -> c_int;
+pub type IndentGetter = fn() -> c_int;
+pub type Indenter = fn() -> c_int;
 
 use crate::ex_cmds::{BL_FIX, BL_SOL, BL_WHITE};
 use crate::globals::IOSIZE;
@@ -130,7 +130,7 @@ const fn has_briopt_key(v: &OptKeyDict_briopt, bit: u64) -> bool {
 }
 
 /// Set the integer values corresponding to the string setting of `'vartabstop'` (`tabstop_set`).
-pub unsafe fn tabstop_set(
+pub fn tabstop_set(
     mut var: *mut c_char,
     array: &mut Vec<colnr_T>,
     errbuf: Option<CharBuf>,
@@ -345,11 +345,11 @@ pub fn tabstop_first(ts: &[colnr_T]) -> c_int {
 }
 
 /// Return the effective shiftwidth value for current buffer (`get_sw_value`).
-pub unsafe fn get_sw_value(buf: *mut buf_T) -> c_int {
-    unsafe { get_sw_value_col(buf, 0, false) }
+pub fn get_sw_value(buf: *mut buf_T) -> c_int {
+    get_sw_value_col(buf, 0, false)
 }
 
-unsafe fn get_sw_value_pos(buf: *mut buf_T, pos: &pos_T, left: bool) -> c_int {
+fn get_sw_value_pos(buf: *mut buf_T, pos: &pos_T, left: bool) -> c_int {
     unsafe {
         let save_cursor = (**curwin.as_ptr()).w_cursor;
         (**curwin.as_ptr()).w_cursor = *pos;
@@ -360,7 +360,7 @@ unsafe fn get_sw_value_pos(buf: *mut buf_T, pos: &pos_T, left: bool) -> c_int {
 }
 
 /// Return the effective shiftwidth value using the first non-blank in the current line (`get_sw_value_indent`).
-pub unsafe fn get_sw_value_indent(buf: *mut buf_T, left: bool) -> c_int {
+pub fn get_sw_value_indent(buf: *mut buf_T, left: bool) -> c_int {
     unsafe {
         let mut pos = (**curwin.as_ptr()).w_cursor;
         pos.col = getwhitecols_curline() as colnr_T;
@@ -369,7 +369,7 @@ pub unsafe fn get_sw_value_indent(buf: *mut buf_T, left: bool) -> c_int {
 }
 
 /// Return the effective shiftwidth value using virtual column `col` (`get_sw_value_col`).
-pub unsafe fn get_sw_value_col(buf: *mut buf_T, col: colnr_T, left: bool) -> c_int {
+pub fn get_sw_value_col(buf: *mut buf_T, col: colnr_T, left: bool) -> c_int {
     unsafe {
         if (*buf).b_p_sw != 0 {
             (*buf).b_p_sw as c_int
@@ -408,11 +408,11 @@ pub fn get_indent_lnum(lnum: linenr_T) -> c_int {
 
 /// Count the size (in window cells) of the indent in line `lnum` of buffer `buf` (`get_indent_buf`).
 pub fn get_indent_buf(buf: &mut buf_T, lnum: linenr_T) -> c_int {
-    unsafe { indent_size_ts(ml_get_buf(&raw mut *buf, lnum), buf.b_p_ts, &buf.b_p_vts_array) }
+    indent_size_ts(ml_get_buf(&raw mut *buf, lnum), buf.b_p_ts, &buf.b_p_vts_array)
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).
-pub unsafe fn indent_size_no_ts(mut ptr: *const c_char) -> c_int {
+pub fn indent_size_no_ts(mut ptr: *const c_char) -> c_int {
     unsafe {
         let tab_size = opt_vars().dy_escape_width;
         let mut vcol: c_int = 0;
@@ -431,7 +431,7 @@ pub unsafe fn indent_size_no_ts(mut ptr: *const c_char) -> c_int {
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, using tabstops (`indent_size_ts`).
-pub unsafe fn indent_size_ts(mut ptr: *const c_char, ts: OptInt, vts: &[colnr_T]) -> c_int {
+pub fn indent_size_ts(mut ptr: *const c_char, ts: OptInt, vts: &[colnr_T]) -> c_int {
     unsafe {
         debug_assert!(char2cells(b' ' as c_int) == 1);
 
@@ -757,7 +757,7 @@ pub fn get_number_indent(lnum: linenr_T) -> c_int {
 }
 
 /// Check `briopt` as `'breakindentopt'` and update the members of `wp` (`briopt_check`).
-pub unsafe fn briopt_check(wp: *mut win_T) {
+pub fn briopt_check(wp: *mut win_T) {
     unsafe {
         if wp.is_null() {
             return;
@@ -794,7 +794,7 @@ pub unsafe fn briopt_check(wp: *mut win_T) {
 }
 
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
-pub unsafe fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
+pub fn get_breakindent_win(wp: &mut win_T, line: *mut c_char) -> c_int {
     unsafe {
         let eff_wwidth = wp.w_view_width - win_col_off(&raw mut *wp) + win_col_off2(&raw mut *wp);
         let no_ts = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.tab1 == 0;
@@ -1292,7 +1292,7 @@ pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_byt
 }
 
 /// Copy the indent from `src` to the current line (and fill to `size`) (`copy_indent`).
-pub unsafe fn copy_indent(size: c_int, src: *mut c_char) -> bool {
+pub fn copy_indent(size: c_int, src: *mut c_char) -> bool {
     unsafe {
         let mut p: *mut c_char = ptr::null_mut();
         let mut line_vec: Vec<c_char> = Vec::new();
@@ -1390,12 +1390,10 @@ pub unsafe fn copy_indent(size: c_int, src: *mut c_char) -> bool {
 }
 
 fn emsg_text_too_long() {
-    unsafe {
-        emsg(gettext(e_resulting_text_too_long.as_ptr()));
+    emsg(gettext(e_resulting_text_too_long.as_ptr()));
         if g_st().trylevel == 0 {
             g_st().got_int = true;
         }
-    }
 }
 
 /// `:retab` (`ex_retab`).
@@ -1870,7 +1868,7 @@ pub fn get_lisp_indent() -> c_int {
     }
 }
 
-unsafe fn lisp_match(p: *const c_char) -> bool {
+fn lisp_match(p: *const c_char) -> bool {
     unsafe {
         let mut buf = [0 as c_char; 512];
         let mut word = if *(*g_st().curbuf).b_p_lw != NUL {
@@ -1968,8 +1966,7 @@ mod tests {
 
     #[test]
     fn tabstop_set_padding_and_at_work() {
-        unsafe {
-            let mut vts: Vec<colnr_T> = Vec::new();
+        let mut vts: Vec<colnr_T> = Vec::new();
             assert!(tabstop_set(c"4,8".as_ptr().cast_mut(), &mut vts, None).is_null());
             assert!(!vts.is_empty());
             assert_eq!(tabstop_count(&vts), 2);
@@ -1989,6 +1986,5 @@ mod tests {
                 indent_size_ts(c"      \t  \t \t\t   a ".as_ptr(), 4, &custom_vts),
                 18
             );
-        }
     }
 }

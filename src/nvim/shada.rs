@@ -518,11 +518,9 @@ impl FileMarks {
 
 impl Drop for FileMarks {
     fn drop(&mut self) {
-        unsafe {
-            for mut add_entry in self.additional_marks.drain(..) {
+        for mut add_entry in self.additional_marks.drain(..) {
                 shada_free_shada_entry(&mut add_entry);
             }
-        }
     }
 }
 
@@ -765,7 +763,7 @@ use crate::os::fs::MAXPATHL;
 use crate::version::longVersion;
 
 #[inline]
-unsafe fn file_eof(fp: *const FileDescriptor) -> bool {
+fn file_eof(fp: *const FileDescriptor) -> bool {
     unsafe { (*fp).eof && (*fp).read_pos == (*fp).write_pos }
 }
 
@@ -804,7 +802,7 @@ impl PartialEq for PathKey {
         if self.0.is_null() || other.0.is_null() {
             return false;
         }
-        unsafe { path_cmp(CASE_INSENSITIVE_FILENAME, self.0, other.0, MAXPATHL) == 0 }
+        path_cmp(CASE_INSENSITIVE_FILENAME, self.0, other.0, MAXPATHL) == 0
     }
 }
 
@@ -833,7 +831,7 @@ impl std::hash::Hash for PathKey {
             {
                 break;
             }
-            let c = unsafe { path_fold_char(ic, p, &mut len) };
+            let c = path_fold_char(ic, p, &mut len);
             h = (h << 5).wrapping_sub(h).wrapping_add(c as u32);
             p = unsafe { p.add(len as usize) };
         }
@@ -842,7 +840,7 @@ impl std::hash::Hash for PathKey {
 }
 
 #[inline]
-unsafe fn hmll_init(hmll: *mut HMLList, size: usize) {
+fn hmll_init(hmll: *mut HMLList, size: usize) {
     unsafe {
         ptr::write(
             hmll,
@@ -869,8 +867,7 @@ unsafe fn hmll_init(hmll: *mut HMLList, size: usize) {
 
 #[inline]
 fn hmll_remove(hmll: &mut HMLList, entry_idx: usize) {
-    unsafe {
-        if entry_idx + 1 == hmll.last_free_entry {
+    if entry_idx + 1 == hmll.last_free_entry {
             hmll.last_free_entry -= 1;
         } else {
             assert!(hmll.free_entry.is_none());
@@ -899,7 +896,6 @@ fn hmll_remove(hmll: &mut HMLList, entry_idx: usize) {
         }
         hmll.num_entries -= 1;
         shada_free_shada_entry(&mut hmll.entries[entry_idx].data);
-    }
 }
 
 #[inline]
@@ -954,7 +950,7 @@ fn hmll_dealloc(hmll: &mut HMLList) {
         hmll.entries = Vec::new();
 }
 
-unsafe fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDaReadResult {
+fn sd_reader_skip(sd_reader: *mut FileDescriptor, offset: usize) -> ShaDaReadResult {
     unsafe {
         let skip_bytes = file_skip(sd_reader, offset);
         if skip_bytes < 0 {
@@ -997,7 +993,7 @@ fn close_file(cookie: &mut FileDescriptor) {
     }
 }
 
-unsafe fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
+fn shada_read_file(file: *const c_char, flags: c_int) -> c_int {
     unsafe {
         let Some(fname_cstr) = shada_filename(file) else {
             return FAIL;
@@ -1091,8 +1087,7 @@ fn shada_hist_iter(
 }
 
 fn hms_insert(hms_p: &mut HistoryMergerState, entry: ShadaEntry, do_iter: bool) {
-    unsafe {
-        if do_iter {
+    if do_iter {
             while hms_p.last_hist_entry.entry_type != ShadaEntryType::kSDItemMissing
                 && hms_p.last_hist_entry.timestamp < entry.timestamp
             {
@@ -1137,7 +1132,6 @@ fn hms_insert(hms_p: &mut HistoryMergerState, entry: ShadaEntry, do_iter: bool) 
             insert_after = hmll.entries[idx].prev;
         }
         hmll_insert(hmll, insert_after, entry);
-    }
 }
 
 #[inline]
@@ -1148,8 +1142,7 @@ fn hms_init(
     do_merge: bool,
     reading: bool,
 ) {
-    unsafe {
-        hmll_init(&mut hms_p.hmll, num_elements);
+    hmll_init(&mut hms_p.hmll, num_elements);
         hms_p.do_merge = do_merge;
         hms_p.reading = reading;
         hms_p.iter = shada_hist_iter(
@@ -1159,7 +1152,6 @@ fn hms_init(
             &mut hms_p.last_hist_entry,
         );
         hms_p.history_type = history_type;
-    }
 }
 
 #[inline]
@@ -1253,7 +1245,7 @@ fn var_shada_iter(
     }
 }
 
-unsafe fn find_buffer(
+fn find_buffer(
     fname_bufs: &mut std::collections::HashMap<Vec<u8>, *mut buf_T>,
     fname: *const c_char,
 ) -> *mut buf_T {
@@ -1727,7 +1719,7 @@ fn shada_get_default_file() -> *const c_char {
     }
 }
 
-unsafe fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
+fn shada_filename(mut file: *const c_char) -> Option<std::ffi::CString> {
     unsafe {
         if file.is_null() || *file == NUL {
             if !opt_vars().p_shadafile.is_null() && *opt_vars().p_shadafile != NUL {
@@ -2062,11 +2054,9 @@ fn shada_pack_pfreed_entry(
     mut entry: ShadaEntry,
     max_kbyte: usize,
 ) -> ShaDaWriteResult {
-    unsafe {
-        let ret = shada_pack_entry(packer, &entry, max_kbyte);
+    let ret = shada_pack_entry(packer, &entry, max_kbyte);
         shada_free_shada_entry(&mut entry);
         ret
-    }
 }
 
 fn shada_check_status(
@@ -2074,8 +2064,7 @@ fn shada_check_status(
     status: c_int,
     remaining: usize,
 ) -> ShaDaReadResult {
-    unsafe {
-        match status {
+    match status {
             MPACK_OK => {
                 if remaining != 0 {
                     semsg!(
@@ -2110,10 +2099,9 @@ fn shada_check_status(
                 ShaDaReadResult::kSDReadStatusNotShaDa
             }
         }
-    }
 }
 
-unsafe fn shada_read_when_writing(
+fn shada_read_when_writing(
     sd_reader: *mut FileDescriptor,
     srni_flags: c_uint,
     max_kbyte: usize,
@@ -2423,7 +2411,7 @@ unsafe fn shada_read_when_writing(
 }
 
 #[inline]
-unsafe fn ignore_buf(
+fn ignore_buf(
     buf: *const buf_T,
     removable_bufs: &std::collections::HashSet<*mut buf_T>,
 ) -> bool {
@@ -2468,7 +2456,7 @@ fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut buf_T>) -> 
 }
 
 #[inline]
-unsafe fn add_search_pattern(
+fn add_search_pattern(
     ret_pse: *mut ShadaEntry,
     get_pattern: fn(&mut SearchPattern),
     is_substitute_pattern: bool,
@@ -2569,7 +2557,7 @@ fn shada_initialize_registers(
 }
 
 #[inline]
-unsafe fn replace_numbered_mark(wms: *mut WriteMergerState, idx: usize, entry: ShadaEntry) {
+fn replace_numbered_mark(wms: *mut WriteMergerState, idx: usize, entry: ShadaEntry) {
     unsafe {
         shada_free_shada_entry(&mut (*wms).numbered_marks[EXTRA_MARKS - 1]);
         for i in idx..(EXTRA_MARKS - 1) {
@@ -2636,7 +2624,7 @@ fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
     }
 }
 
-unsafe fn shada_write(
+fn shada_write(
     sd_writer: *mut FileDescriptor,
     sd_reader: *mut FileDescriptor,
 ) -> ShaDaWriteResult {
@@ -3185,7 +3173,7 @@ unsafe fn shada_write(
 }
 
 /// Write ShaDa file to a given location (`shada_write_file`).
-pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int {
+pub fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int {
     unsafe {
         let Some(fname_cstr) = shada_filename(file) else {
             return FAIL;
@@ -3445,17 +3433,16 @@ pub unsafe fn shada_write_file(file: *const c_char, mut nomerge: bool) -> c_int 
 
 /// Read marks information from ShaDa file (`shada_read_marks`).
 pub fn shada_read_marks() -> c_int {
-    unsafe { shada_read_file(ptr::null(), kShaDaWantMarks) }
+    shada_read_file(ptr::null(), kShaDaWantMarks)
 }
 
 /// Read all information from ShaDa file (`shada_read_everything`).
-pub unsafe fn shada_read_everything(
+pub fn shada_read_everything(
     fname: *const c_char,
     forceit: bool,
     missing_ok: bool,
 ) -> c_int {
-    unsafe {
-        shada_read_file(
+    shada_read_file(
             fname,
             kShaDaWantInfo
                 | kShaDaWantMarks
@@ -3463,10 +3450,9 @@ pub unsafe fn shada_read_everything(
                 | if forceit { kShaDaForceit } else { 0 }
                 | if missing_ok { 0 } else { kShaDaMissingError },
         )
-    }
 }
 
-unsafe fn shada_free_shada_entry(entry: *mut ShadaEntry) {
+fn shada_free_shada_entry(entry: *mut ShadaEntry) {
     if entry.is_null() {
         return;
     }
@@ -3512,7 +3498,7 @@ unsafe fn shada_free_shada_entry(entry: *mut ShadaEntry) {
     }
 }
 
-unsafe fn fread_len(
+fn fread_len(
     sd_reader: *mut FileDescriptor,
     buffer: *mut c_char,
     length: usize,
@@ -3540,7 +3526,7 @@ unsafe fn fread_len(
     }
 }
 
-unsafe fn msgpack_read_uint64(
+fn msgpack_read_uint64(
     sd_reader: *mut FileDescriptor,
     allow_eof: bool,
     result: *mut u64,
@@ -3603,7 +3589,7 @@ unsafe fn msgpack_read_uint64(
     }
 }
 
-unsafe fn shada_read_next_item(
+fn shada_read_next_item(
     sd_reader: *mut FileDescriptor,
     entry: *mut ShadaEntry,
     flags: c_uint,
@@ -4284,7 +4270,7 @@ unsafe fn shada_read_next_item(
     }
 }
 
-unsafe fn shada_removable(name: *const c_char) -> bool {
+fn shada_removable(name: *const c_char) -> bool {
     unsafe {
         let mut part = [0 as c_char; MAXPATHL + 1];
         let mut retval = false;

@@ -105,7 +105,7 @@ fn sys_malloc(size: usize) -> *mut u8 {
 }
 
 #[inline]
-pub unsafe fn raw_dealloc(ptr: *mut c_void) {
+pub fn raw_dealloc(ptr: *mut c_void) {
     if ptr.is_null() {
         return;
     }
@@ -136,7 +136,7 @@ fn sys_calloc(count: usize, size: usize) -> *mut u8 {
 }
 
 #[inline]
-unsafe fn sys_realloc(ptr: *mut c_void, size: usize) -> *mut u8 {
+fn sys_realloc(ptr: *mut c_void, size: usize) -> *mut u8 {
     if ptr.is_null() {
         return sys_malloc(size);
     }
@@ -170,7 +170,7 @@ fn try_to_free_memory() {
 }
 
 fn out_of_memory_exit() -> ! {
-    unsafe { preserve_exit(e_outofmem.as_ptr()) }
+    preserve_exit(e_outofmem.as_ptr())
 }
 
 /// Free all cached reusable arena blocks (`arena_free_reuse_blks`).
@@ -224,39 +224,33 @@ pub fn raw_calloc(count: usize, size: usize) -> *mut c_void {
 }
 
 /// Resize an allocation created by `raw_alloc`/`raw_calloc` (never returns null).
-pub unsafe fn raw_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
+pub fn raw_realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
     let allocated_size = size.max(1);
-    let mut ret = unsafe { sys_realloc(ptr, allocated_size) };
+    let mut ret = sys_realloc(ptr, allocated_size);
     if ret.is_null() {
-        unsafe {
-            try_to_free_memory();
+        try_to_free_memory();
             ret = sys_realloc(ptr, allocated_size);
             if ret.is_null() {
                 out_of_memory_exit();
             }
-        }
     }
     ret.cast::<c_void>()
 }
 
 #[inline]
-pub unsafe fn realloc_items<T>(items: *mut T, new_cap: usize) -> *mut T {
-    unsafe { raw_realloc(items.cast::<c_void>(), std::mem::size_of::<T>() * new_cap).cast::<T>() }
+pub fn realloc_items<T>(items: *mut T, new_cap: usize) -> *mut T {
+    raw_realloc(items.cast::<c_void>(), std::mem::size_of::<T>() * new_cap).cast::<T>()
 }
 
 #[inline]
-pub unsafe fn free_items<T>(items: *mut T) {
-    unsafe {
-        raw_dealloc(items.cast::<c_void>());
-    }
+pub fn free_items<T>(items: *mut T) {
+    raw_dealloc(items.cast::<c_void>());
 }
 
 /// Allocate `len + 1` bytes, copy `data[..len]`, and NUL-terminate.
-pub unsafe fn alloc_cstring_len(data: *const c_char, len: usize) -> *mut c_char {
+pub fn alloc_cstring_len(data: *const c_char, len: usize) -> *mut c_char {
     let Some(total_size) = len.checked_add(1) else {
-        unsafe {
-            preserve_exit(c"Nvim: Data too large to fit into virtual memory space\n".as_ptr());
-        }
+        preserve_exit(c"Nvim: Data too large to fit into virtual memory space\n".as_ptr());
     };
     let ret = raw_alloc(total_size).cast::<u8>();
     if len > 0 {
@@ -272,21 +266,19 @@ pub unsafe fn alloc_cstring_len(data: *const c_char, len: usize) -> *mut c_char 
 
 /// Duplicate a NUL-terminated C string.
 #[inline]
-pub unsafe fn alloc_cstring(str_ptr: *const c_char) -> *mut c_char {
+pub fn alloc_cstring(str_ptr: *const c_char) -> *mut c_char {
     let len = unsafe { CStr::from_ptr(str_ptr).to_bytes().len() };
-    unsafe { alloc_cstring_len(str_ptr, len) }
+    alloc_cstring_len(str_ptr, len)
 }
 
 /// Free a C string allocated by `alloc_cstring` / `alloc_cstring_len`.
 #[inline]
-pub unsafe fn free_cstring(p: *mut c_char) {
-    unsafe {
-        raw_dealloc(p.cast::<c_void>());
-    }
+pub fn free_cstring(p: *mut c_char) {
+    raw_dealloc(p.cast::<c_void>());
 }
 
 /// Portable `strnlen` (`xstrnlen`).
-pub unsafe fn xstrnlen(s: *const c_char, n: usize) -> usize {
+pub fn xstrnlen(s: *const c_char, n: usize) -> usize {
     let mut len = 0;
     while len < n && unsafe { *s.add(len) } != 0 {
         len += 1;
@@ -296,14 +288,14 @@ pub unsafe fn xstrnlen(s: *const c_char, n: usize) -> usize {
 
 /// View up to `n` bytes of a NUL-terminated C string as a byte slice.
 #[inline]
-pub unsafe fn cstr_prefix_bytes<'a>(s: *const c_char, n: usize) -> &'a [u8] {
-    let len = unsafe { xstrnlen(s, n) };
+pub fn cstr_prefix_bytes<'a>(s: *const c_char, n: usize) -> &'a [u8] {
+    let len = xstrnlen(s, n);
     unsafe { std::slice::from_raw_parts(s.cast::<u8>(), len) }
 }
 
 /// View a NUL-terminated C string as a byte slice, returning `b""` if null.
 #[inline]
-pub unsafe fn cstr_as_bytes<'a>(s: *const c_char) -> &'a [u8] {
+pub fn cstr_as_bytes<'a>(s: *const c_char) -> &'a [u8] {
     if s.is_null() {
         b""
     } else {
@@ -313,12 +305,12 @@ pub unsafe fn cstr_as_bytes<'a>(s: *const c_char) -> &'a [u8] {
 
 /// View a nullable NUL-terminated C string as `Option<&[u8]>`.
 #[inline]
-pub unsafe fn cstr_as_opt_bytes<'a>(s: *const c_char) -> Option<&'a [u8]> {
+pub fn cstr_as_opt_bytes<'a>(s: *const c_char) -> Option<&'a [u8]> {
     (!s.is_null()).then(|| unsafe { CStr::from_ptr(s).to_bytes() })
 }
 
 /// Copy `src` into sized buffer `dst[..dsize]` (`xstrlcpy`).
-pub unsafe fn xstrlcpy(dst: *mut c_char, src: *const c_char, dsize: usize) -> usize {
+pub fn xstrlcpy(dst: *mut c_char, src: *const c_char, dsize: usize) -> usize {
     let slen = unsafe { CStr::from_ptr(src).to_bytes().len() };
     if dsize != 0 {
         let len = slen.min(dsize - 1);
@@ -333,7 +325,7 @@ pub unsafe fn xstrlcpy(dst: *mut c_char, src: *const c_char, dsize: usize) -> us
 }
 
 /// Copy a NUL-terminated C string (or NULL) into an owned `CString`.
-pub unsafe fn cstr_to_cstring(ptr: *const c_char) -> CString {
+pub fn cstr_to_cstring(ptr: *const c_char) -> CString {
     if ptr.is_null() {
         CString::default()
     } else {
@@ -351,7 +343,7 @@ pub fn cstr_from_bytes(bytes: &[u8]) -> CString {
 }
 
 /// Finish allocations in `arena` and return an `ArenaMem` handle (`arena_finish`).
-pub unsafe fn arena_finish(arena: *mut Arena) -> ArenaMem {
+pub fn arena_finish(arena: *mut Arena) -> ArenaMem {
     let a = unsafe { &mut *arena };
     let res = a.cur_blk.cast::<ConsumedBlk>();
     *a = Arena {
@@ -378,15 +370,13 @@ pub fn alloc_block() -> *mut c_char {
 }
 
 /// Allocate a fresh block on `arena` (`arena_alloc_block`).
-pub unsafe fn arena_alloc_block(arena: *mut Arena) {
+pub fn arena_alloc_block(arena: *mut Arena) {
     let a = unsafe { &mut *arena };
     let prev_blk = a.cur_blk.cast::<ConsumedBlk>();
     a.cur_blk = alloc_block();
     a.pos = 0;
     a.size = ARENA_BLOCK_SIZE;
-    let blk = unsafe {
-        arena_alloc(arena, std::mem::size_of::<ConsumedBlk>(), true).cast::<ConsumedBlk>()
-    };
+    let blk = arena_alloc(arena, std::mem::size_of::<ConsumedBlk>(), true).cast::<ConsumedBlk>();
     unsafe {
         (*blk).prev = prev_blk;
     }
@@ -403,15 +393,13 @@ const fn arena_align_offset(off: usize) -> usize {
 }
 
 /// Allocate `size` bytes from `arena` (or via `raw_alloc` if `arena` is null) (`arena_alloc`).
-pub unsafe fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c_void {
+pub fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c_void {
     if arena.is_null() {
         return raw_alloc(size);
     }
     let a = unsafe { &mut *arena };
     if a.cur_blk.is_null() {
-        unsafe {
-            arena_alloc_block(arena);
-        }
+        arena_alloc_block(arena);
     }
     let mut alloc_pos = if align {
         arena_align_offset(a.pos)
@@ -436,9 +424,7 @@ pub unsafe fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c
                 return alloc.add(aligned_hdr_size).cast::<c_void>();
             }
         } else {
-            unsafe {
-                arena_alloc_block(arena);
-            }
+            arena_alloc_block(arena);
             alloc_pos = if align {
                 arena_align_offset(a.pos)
             } else {
@@ -453,7 +439,7 @@ pub unsafe fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c
 }
 
 /// Release a `ARENA_BLOCK_SIZE` block back to the reuse pool or free it (`free_block`).
-pub unsafe fn free_block(block: *mut c_char) {
+pub fn free_block(block: *mut c_char) {
     if block.is_null() {
         return;
     }
@@ -475,22 +461,18 @@ pub fn arena_mem_free(mem: ArenaMem) {
     if !b.is_null() {
         let reuse_blk = b;
         b = unsafe { (*b).prev };
-        unsafe {
-            free_block(reuse_blk.cast::<c_char>());
-        }
+        free_block(reuse_blk.cast::<c_char>());
     }
     while !b.is_null() {
         let prev = unsafe { (*b).prev };
-        unsafe {
-            raw_dealloc(b.cast::<c_void>());
-        }
+        raw_dealloc(b.cast::<c_void>());
         b = prev;
     }
 }
 
 /// Allocate `size + 1` bytes on `arena` and NUL-terminate (`arena_allocz`).
-pub unsafe fn arena_allocz(arena: *mut Arena, size: usize) -> *mut c_char {
-    let mem = unsafe { arena_alloc(arena, size + 1, false).cast::<u8>() };
+pub fn arena_allocz(arena: *mut Arena, size: usize) -> *mut c_char {
+    let mem = arena_alloc(arena, size + 1, false).cast::<u8>();
     unsafe {
         *mem.add(size) = 0;
     }
@@ -498,8 +480,8 @@ pub unsafe fn arena_allocz(arena: *mut Arena, size: usize) -> *mut c_char {
 }
 
 /// Copy `buf[..size]` into a NUL-terminated buffer on `arena` (`arena_memdupz`).
-pub unsafe fn arena_memdupz(arena: *mut Arena, buf: *const c_char, size: usize) -> *mut c_char {
-    let mem = unsafe { arena_allocz(arena, size).cast::<u8>() };
+pub fn arena_memdupz(arena: *mut Arena, buf: *const c_char, size: usize) -> *mut c_char {
+    let mem = arena_allocz(arena, size).cast::<u8>();
     if size > 0 {
         unsafe {
             std::ptr::copy_nonoverlapping(buf.cast::<u8>(), mem, size);
@@ -509,9 +491,9 @@ pub unsafe fn arena_memdupz(arena: *mut Arena, buf: *const c_char, size: usize) 
 }
 
 /// Duplicate C string `str_ptr` onto `arena` (`arena_strdup`).
-pub unsafe fn arena_strdup(arena: *mut Arena, str_ptr: *const c_char) -> *mut c_char {
+pub fn arena_strdup(arena: *mut Arena, str_ptr: *const c_char) -> *mut c_char {
     let len = unsafe { CStr::from_ptr(str_ptr).to_bytes().len() };
-    unsafe { arena_memdupz(arena, str_ptr, len) }
+    arena_memdupz(arena, str_ptr, len)
 }
 
 /// Free everything that we allocated (`free_all_mem`).

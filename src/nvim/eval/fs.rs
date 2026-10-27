@@ -584,7 +584,7 @@ pub fn f_exepath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
     rettv.v_type = VarType::VAR_STRING;
     if let Some(p) = path {
         #[cfg(windows)]
-        unsafe {
+        {
             let mut v = p.into_bytes_with_nul();
             slash_adjust(v.as_mut_ptr().cast::<c_char>());
             crate::eval::typval::tv_set_string(rettv, v.as_ptr().cast::<c_char>());
@@ -1220,8 +1220,7 @@ pub fn f_globpath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFun
 pub fn f_glob2regpat(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        let pat = tv_get_string_chk(argvars); // NULL on type error
+    let pat = tv_get_string_chk(argvars); // NULL on type error
         let regpat = if pat.is_null() {
             None
         } else {
@@ -1231,7 +1230,6 @@ pub fn f_glob2regpat(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
             rettv,
             regpat.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
         );
-    }
 }
 
 /// `haslocaldir([{win}[, {tab}[, {buf}]]])` function
@@ -1281,9 +1279,7 @@ pub fn f_haslocaldir(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 pub fn f_isabsolutepath(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(path_is_absolute(tv_get_string(argvars))));
-    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(path_is_absolute(tv_get_string(argvars))));
 }
 
 /// "isdirectory()" function
@@ -1408,8 +1404,7 @@ pub fn f_pathshorten(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// Evaluate "expr" (= "context") for readdir().
 pub(crate) fn readdir_checkitem(expr: &mut typval_T, name: *const c_char) -> varnumber_T {
-    unsafe {
-        let tv_init = typval_T {
+    let tv_init = typval_T {
             v_type: VarType::VAR_UNKNOWN,
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Number(0),
@@ -1441,7 +1436,6 @@ pub(crate) fn readdir_checkitem(expr: &mut typval_T, name: *const c_char) -> var
         set_vim_var_string(VV_VAL, ptr::null(), 0);
         restore_vimvar(VV_VAL, &raw mut save_val);
         retval
-    }
 }
 
 /// "readdir()" function
@@ -1737,23 +1731,22 @@ pub fn f_rename(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
 pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        rettv.v_type = VarType::VAR_STRING;
-        let fname = tv_get_string(argvars);
-        #[cfg(windows)]
-        {
-            let mut v = os_resolve_shortcut(fname);
-            if v.is_none() && os_is_reparse_point_include(fname) {
-                v = os_realpath_cstr(fname, MAXPATHL + 1);
-            }
-            if let Some(resolved) = v {
-                crate::eval::typval::tv_set_string(rettv, resolved.as_ptr());
-            } else {
-                crate::eval::typval::tv_set_string(rettv, fname);
-            }
+    rettv.v_type = VarType::VAR_STRING;
+    let fname = tv_get_string(argvars);
+    #[cfg(windows)]
+    {
+        let mut v = os_resolve_shortcut(fname);
+        if v.is_none() && os_is_reparse_point_include(fname) {
+            v = os_realpath_cstr(fname, MAXPATHL + 1);
         }
-        #[cfg(not(windows))]
-        {
+        if let Some(resolved) = v {
+            crate::eval::typval::tv_set_string(rettv, resolved.as_ptr());
+        } else {
+            crate::eval::typval::tv_set_string(rettv, fname);
+        }
+    }
+    #[cfg(not(windows))]
+    unsafe {
             let mut is_relative_to_current = false;
             let mut has_trailing_pathsep = false;
             let mut limit: c_int = 100;
@@ -1926,19 +1919,16 @@ pub fn f_resolve(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFunc
         }
 
         simplify_filename(rettv.vval.v_string());
-    }
 }
 
 /// "simplify()" function
 pub fn f_simplify(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    unsafe {
-        let p = tv_get_string(argvars);
+    let p = tv_get_string(argvars);
         let mut v = cstr_into_char_vec(cstr_to_cstring(p));
         simplify_filename(v.as_mut_ptr()); // Simplify in place.
         crate::eval::typval::tv_set_string(rettv, v.as_ptr());
-    }
 }
 
 /// "tempname()" function

@@ -317,8 +317,7 @@ fn extmark_to_array(
     hl_name: bool,
     arena: *mut Arena,
 ) -> Array {
-    unsafe {
-        let start = extmark.start;
+    let start = extmark.start;
         let mut rv = arena_array(arena, 4);
         if id {
             add_c(&mut rv, integer_obj(i64::from(start.id)));
@@ -365,7 +364,6 @@ fn extmark_to_array(
         }
 
         rv
-    }
 }
 
 /// Gets the position (0-indexed) of an |extmark|.
@@ -1396,8 +1394,7 @@ pub unsafe extern "C" fn nvim_buf_clear_namespace(
     mut line_end: Integer,
     err: &mut Error,
 ) {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
+    let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
             return;
         }
@@ -1418,7 +1415,6 @@ pub unsafe extern "C" fn nvim_buf_clear_namespace(
             (line_end as c_int) - 1,
             MAXCOL as colnr_T,
         );
-    }
 }
 
 /// Set or change decoration provider for a |namespace|

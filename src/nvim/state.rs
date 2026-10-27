@@ -100,8 +100,7 @@ fn state_mod_st() -> &'static mut StateModuleState {
 }
 
 pub fn state_enter<S: EditorState>(s: &mut S) {
-    unsafe {
-        loop {
+    loop {
             let check_result = s.check();
 
             if check_result == 0 {
@@ -162,7 +161,6 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                 break 'getkey;
             }
         }
-    }
 }
 
 pub fn state_handle_k_event() {
@@ -183,9 +181,8 @@ pub fn state_handle_k_event() {
     }
 }
 
-pub unsafe fn virtual_active(wp: *mut win_T) -> bool {
-    unsafe {
-        if (g_st().State & MODE_TERMINAL) != 0 {
+pub fn virtual_active(wp: *mut win_T) -> bool {
+    if (g_st().State & MODE_TERMINAL) != 0 {
             return true;
         }
 
@@ -201,7 +198,6 @@ pub unsafe fn virtual_active(wp: *mut win_T) -> bool {
             return g_st().virtual_op != 0;
         }
         (cur_ve_flags & kOptVeFlagBlock) != 0 && g_st().Visual.active && g_st().Visual.mode == Ctrl_V
-    }
 }
 
 pub fn get_real_state() -> c_int {
@@ -218,7 +214,7 @@ pub fn get_real_state() -> c_int {
         g_st().State
 }
 
-pub unsafe fn get_mode(buf: *mut c_char) {
+pub fn get_mode(buf: *mut c_char) {
     unsafe {
         let mut i: usize = 0;
 
@@ -371,8 +367,7 @@ fn is_safe_now() -> bool {
 }
 
 pub fn may_trigger_safestate(safe: bool) {
-    unsafe {
-        let is_safe = safe && is_safe_now();
+    let is_safe = safe && is_safe_now();
 
         if state_mod_st().was_safe != is_safe && log_st().g_min_log_level <= LOGLVL_DBG {
             let msg: &CStr = if is_safe {
@@ -400,12 +395,10 @@ pub fn may_trigger_safestate(safe: bool) {
             );
         }
         state_mod_st().was_safe = is_safe;
-    }
 }
 
-pub unsafe fn state_no_longer_safe(reason: *const c_char) {
-    unsafe {
-        if state_mod_st().was_safe && !reason.is_null() && log_st().g_min_log_level <= LOGLVL_DBG {
+pub fn state_no_longer_safe(reason: *const c_char) {
+    if state_mod_st().was_safe && !reason.is_null() && log_st().g_min_log_level <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
                 ptr::null(),
@@ -417,7 +410,6 @@ pub unsafe fn state_no_longer_safe(reason: *const c_char) {
             );
         }
         state_mod_st().was_safe = false;
-    }
 }
 
 pub fn get_was_safe_state() -> bool {
@@ -430,9 +422,7 @@ mod tests {
 
     #[test]
     fn safe_state_reset_clears_was_safe() {
-        unsafe {
-            state_no_longer_safe(ptr::null());
+        state_no_longer_safe(ptr::null());
             assert!(!get_was_safe_state());
-        }
     }
 }

@@ -91,7 +91,7 @@ pub fn hashitem_empty(hi: &hashitem_T) -> bool {
 }
 
 #[inline]
-unsafe fn key_matches(hi_key: *const c_char, key: *const c_char, key_len: usize) -> bool {
+fn key_matches(hi_key: *const c_char, key: *const c_char, key_len: usize) -> bool {
     for i in 0..key_len {
         let a = unsafe { *hi_key.add(i) as u8 };
         let b = unsafe { *key.add(i) as u8 };
@@ -114,30 +114,30 @@ pub fn hash_clear(ht: &mut hashtab_T) {
 ///
 /// # Safety
 /// `ht` and `key` must be valid pointers.
-pub unsafe fn hash_find(ht: *const hashtab_T, key: *const c_char) -> *mut hashitem_T {
+pub fn hash_find(ht: *const hashtab_T, key: *const c_char) -> *mut hashitem_T {
     let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
-    let hash = unsafe { hash_hash(key) };
-    unsafe { hash_lookup(ht, key, len, hash) }
+    let hash = hash_hash(key);
+    hash_lookup(ht, key, len, hash)
 }
 
 /// Find item for `key[..len]` in `ht` (`hash_find_len`).
 ///
 /// # Safety
 /// `ht` and `key` must be valid pointers.
-pub unsafe fn hash_find_len(
+pub fn hash_find_len(
     ht: *const hashtab_T,
     key: *const c_char,
     len: usize,
 ) -> *mut hashitem_T {
-    let hash = unsafe { hash_hash_len(key, len) };
-    unsafe { hash_lookup(ht, key, len, hash) }
+    let hash = hash_hash_len(key, len);
+    hash_lookup(ht, key, len, hash)
 }
 
 /// Find item for `key[..key_len]` with precomputed `hash` in `ht` (`hash_lookup`).
 ///
 /// # Safety
 /// `ht` and `key` must be valid pointers.
-pub unsafe fn hash_lookup(
+pub fn hash_lookup(
     ht: *const hashtab_T,
     key: *const c_char,
     key_len: usize,
@@ -157,7 +157,7 @@ pub unsafe fn hash_lookup(
     let mut freeitem: *mut hashitem_T = std::ptr::null_mut();
     if hi_ref.hi_removed {
         freeitem = hi;
-    } else if hi_ref.hi_hash == hash && unsafe { key_matches(hi_ref.key_ptr(), key, key_len) } {
+    } else if hi_ref.hi_hash == hash && key_matches(hi_ref.key_ptr(), key, key_len) {
         return hi;
     }
 
@@ -173,7 +173,7 @@ pub unsafe fn hash_lookup(
 
         if item.hi_hash == hash
             && !item.hi_removed
-            && unsafe { key_matches(item.key_ptr(), key, key_len) }
+            && key_matches(item.key_ptr(), key, key_len)
         {
             return hi;
         }
@@ -193,20 +193,16 @@ pub unsafe fn hash_lookup(
 pub fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) -> c_int {
     let key = di.di_key.as_mut_ptr();
     let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
-    let hash = unsafe { hash_hash(key) };
-    let hi = unsafe { hash_lookup(&raw mut *ht, key, len, hash) };
+    let hash = hash_hash(key);
+    let hi = hash_lookup(&raw mut *ht, key, len, hash);
     if unsafe { !hashitem_empty(&*hi) } {
-        unsafe {
-            siemsg!(
+        siemsg!(
                 c"E685: Internal error: hash_add(): duplicate key \"%s\"".as_ptr(),
                 key,
             );
-        }
         return FAIL;
     }
-    unsafe {
-        hash_add_item(ht, hi, key, &raw mut *di, hash);
-    }
+    hash_add_item(ht, hi, key, &raw mut *di, hash);
     OK
 }
 
@@ -214,7 +210,7 @@ pub fn hash_add(ht: &mut hashtab_T, di: &mut crate::eval::typval::dictitem_T) ->
 ///
 /// # Safety
 /// `ht`, `hi`, `key`, and `di` must be valid pointers, with `hi` obtained from `hash_lookup(ht, ...)`.
-pub unsafe fn hash_add_item(
+pub fn hash_add_item(
     ht: &mut hashtab_T,
     mut hi: *mut hashitem_T,
     _key: *mut c_char,
@@ -244,7 +240,7 @@ pub unsafe fn hash_add_item(
 ///
 /// # Safety
 /// `ht` and `hi` must be valid pointers, with `hi` pointing to an active item in `ht`.
-pub unsafe fn hash_remove(ht: &mut hashtab_T, hi: *mut hashitem_T) {
+pub fn hash_remove(ht: &mut hashtab_T, hi: *mut hashitem_T) {
     let ht_ref = &mut *ht;
     let hi_ref = unsafe { &mut *hi };
     ht_ref.ht_used -= 1;
@@ -353,7 +349,7 @@ fn hash_may_resize(ht: &mut hashtab_T, mut minitems: usize) {
 ///
 /// # Safety
 /// `key` must be a valid NUL-terminated C string.
-pub unsafe fn hash_hash(key: *const c_char) -> hash_T {
+pub fn hash_hash(key: *const c_char) -> hash_T {
     let first = unsafe { *key.cast::<u8>() };
     if first == 0 {
         return 0;
@@ -375,7 +371,7 @@ pub unsafe fn hash_hash(key: *const c_char) -> hash_T {
 ///
 /// # Safety
 /// `key` must be valid for `len` bytes when `len > 0`.
-pub unsafe fn hash_hash_len(key: *const c_char, len: usize) -> hash_T {
+pub fn hash_hash_len(key: *const c_char, len: usize) -> hash_T {
     if len == 0 {
         return 0;
     }

@@ -1700,7 +1700,7 @@ fn cmdexp() -> &'static mut CmdexpandState {
 }
 
 #[inline]
-unsafe fn c_strchr(mut s: *const c_char, c: c_char) -> *mut c_char {
+fn c_strchr(mut s: *const c_char, c: c_char) -> *mut c_char {
     unsafe {
         loop {
             if *s == c {
@@ -1719,14 +1719,12 @@ use crate::path::vim_ispathsep;
 
 #[inline]
 fn show_match(matches: &[CString], m: usize, showtail: bool) -> *mut c_char {
-    unsafe {
-        let item = matches[m].as_ptr().cast_mut();
+    let item = matches[m].as_ptr().cast_mut();
         if showtail {
             showmatches_gettail(item, false)
         } else {
             item
         }
-    }
 }
 
 /// Returns true if fuzzy completion is supported for a given cmdline completion context.
@@ -1763,7 +1761,7 @@ fn cmdline_fuzzy_completion_supported(xp: &expand_T) -> bool {
 
 /// Returns true if fuzzy completion for cmdline completion is enabled and
 /// "fuzzystr" is not empty.
-pub unsafe fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool {
+pub fn cmdline_fuzzy_complete(fuzzystr: *const c_char) -> bool {
     unsafe { (opt_vars().wop_flags & kOptWopFlagFuzzy) != 0 && *fuzzystr != NUL }
 }
 
@@ -1782,7 +1780,7 @@ fn sort_func_compare(p1: &CString, p2: &CString) -> c_int {
 }
 
 /// Escape special characters in the cmdline completion matches.
-unsafe fn wildescape(xp: &mut expand_T, str_arg: *const c_char, files: &mut [CString]) {
+fn wildescape(xp: &mut expand_T, str_arg: *const c_char, files: &mut [CString]) {
     unsafe {
         let vse_what = if xp.xp_context == EXPAND_BUFFERS {
             VSE_BUFFER
@@ -1850,21 +1848,19 @@ unsafe fn wildescape(xp: &mut expand_T, str_arg: *const c_char, files: &mut [CSt
 }
 
 /// Escape special characters in the cmdline completion matches.
-unsafe fn ExpandEscape(
+fn ExpandEscape(
     xp: &mut expand_T,
     str_arg: *mut c_char,
     files: &mut [CString],
     options: c_int,
 ) {
-    unsafe {
-        if (options & WILD_HOME_REPLACE) != 0 && !files.is_empty() {
+    if (options & WILD_HOME_REPLACE) != 0 && !files.is_empty() {
             tilde_replace(str_arg, files);
         }
 
         if (options & WILD_ESCAPE) != 0 {
             wildescape(xp, str_arg, files);
         }
-    }
 }
 
 /// Return FAIL if this is not an appropriate context in which to do
@@ -2153,7 +2149,7 @@ fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
 }
 
 /// Return the number of characters that should be skipped in the wildmenu.
-unsafe fn skip_wildmenu_char(xp: &expand_T, s: *mut c_char) -> c_int {
+fn skip_wildmenu_char(xp: &expand_T, s: *mut c_char) -> c_int {
     unsafe {
         if (rem_backslash(s)
             && xp.xp_context != EXPAND_HELP
@@ -2176,7 +2172,7 @@ unsafe fn skip_wildmenu_char(xp: &expand_T, s: *mut c_char) -> c_int {
 }
 
 /// Get the length of an item as it will be shown in the status line.
-unsafe fn wildmenu_match_len(xp: &expand_T, mut s: *mut c_char) -> c_int {
+fn wildmenu_match_len(xp: &expand_T, mut s: *mut c_char) -> c_int {
     unsafe {
         let mut len: c_int = 0;
         let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
@@ -2466,14 +2462,13 @@ fn get_next_or_prev_match(mode: c_int, xp: &mut expand_T) -> Option<CString> {
 }
 
 /// Start the command-line expansion and get the matches.
-unsafe fn ExpandOne_start(
+fn ExpandOne_start(
     mode: c_int,
     xp: &mut expand_T,
     str_arg: *mut c_char,
     options: c_int,
 ) -> Option<CString> {
-    unsafe {
-        let mut ss: Option<CString> = None;
+    let mut ss: Option<CString> = None;
 
         let mut xp_files = std::mem::take(&mut xp.xp_files);
         let expand_res = ExpandFromContext(xp, str_arg, &mut xp_files, options);
@@ -2532,7 +2527,6 @@ unsafe fn ExpandOne_start(
         }
 
         ss
-    }
 }
 
 /// Return the longest common part in the list of cmdline completion matches.
@@ -2584,7 +2578,7 @@ pub fn free_xp_files_extra(xp: &mut expand_T) {
 }
 
 /// Do wildcard expansion on the string "str".
-pub unsafe fn ExpandOne(
+pub fn ExpandOne(
     xp: &mut expand_T,
     str_arg: *mut c_char,
     orig: Option<CString>,
@@ -2714,8 +2708,7 @@ fn showmatches_oneline(
     maxlen: c_int,
     showtail: bool,
 ) {
-    unsafe {
-        let numMatches = matches.len() as c_int;
+    let numMatches = matches.len() as c_int;
         let mut lastlen: c_int = 999;
         let mut j = linenr;
         while j < numMatches {
@@ -2769,7 +2762,6 @@ fn showmatches_oneline(
             msg_clr_eos();
             msg_putchar(b'\n' as c_int);
         }
-    }
 }
 
 #[inline]
@@ -2907,7 +2899,7 @@ pub fn showmatches(
 }
 
 /// path_tail() version for showmatches() and redraw_wildmenu().
-unsafe fn showmatches_gettail(s: *mut c_char, eager: bool) -> *mut c_char {
+fn showmatches_gettail(s: *mut c_char, eager: bool) -> *mut c_char {
     unsafe {
         let mut t = s;
         let mut had_sep = false;
@@ -2964,7 +2956,7 @@ fn expand_showtail(xp: &mut expand_T) -> bool {
 }
 
 /// Prepare a string for expansion.
-pub unsafe fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CString {
+pub fn addstar(fname: *mut c_char, mut len: usize, context: c_int) -> CString {
     unsafe {
         if context != EXPAND_FILES
             && context != EXPAND_FILES_IN_PATH
@@ -3131,7 +3123,7 @@ pub fn set_expand_context(xp: &mut expand_T) {
 }
 
 /// Sets the index of a built-in or user defined command "cmd" in eap->cmdidx.
-unsafe fn set_cmd_index(
+fn set_cmd_index(
     cmd: *const c_char,
     eap: &mut exarg_T,
     xp: &mut expand_T,
@@ -3213,7 +3205,7 @@ unsafe fn set_cmd_index(
 }
 
 /// Set the completion context for a command argument with wild card characters.
-unsafe fn set_context_for_wildcard_arg(
+fn set_context_for_wildcard_arg(
     eap: *mut exarg_T,
     arg: *const c_char,
     usefilter: bool,
@@ -3311,7 +3303,7 @@ unsafe fn set_context_for_wildcard_arg(
 }
 
 /// Set the completion context for the "++opt=arg" argument. Always returns NULL.
-unsafe fn set_context_in_argopt(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
+fn set_context_in_argopt(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
     unsafe {
         let p = vim_strchr(arg, b'=' as c_int);
         if p.is_null() {
@@ -3326,7 +3318,7 @@ unsafe fn set_context_in_argopt(xp: &mut expand_T, arg: *const c_char) -> *const
 }
 
 /// Set the completion context for the :filter command.
-unsafe fn set_context_in_filter_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
+fn set_context_in_filter_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
     unsafe {
         if *arg != NUL {
             arg = skip_vimgrep_pat(arg.cast_mut(), ptr::null_mut(), ptr::null_mut());
@@ -3340,7 +3332,7 @@ unsafe fn set_context_in_filter_cmd(xp: &mut expand_T, mut arg: *const c_char) -
 }
 
 /// Set the completion context for the :match command.
-unsafe fn set_context_in_match_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
+fn set_context_in_match_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
     unsafe {
         if *arg == NUL || ends_excmd(*arg as c_int) == 0 {
             set_context_in_echohl_cmd(xp, arg);
@@ -3355,7 +3347,7 @@ unsafe fn set_context_in_match_cmd(xp: &mut expand_T, mut arg: *const c_char) ->
 }
 
 /// Returns a pointer to the next command after a :global or a :v command.
-unsafe fn find_cmd_after_global_cmd(mut arg: *const c_char) -> *const c_char {
+fn find_cmd_after_global_cmd(mut arg: *const c_char) -> *const c_char {
     unsafe {
         let delim = *arg as u8 as c_int;
         if delim != 0 {
@@ -3377,7 +3369,7 @@ unsafe fn find_cmd_after_global_cmd(mut arg: *const c_char) -> *const c_char {
 }
 
 /// Returns a pointer to the next command after a :substitute or a :& command.
-unsafe fn find_cmd_after_substitute_cmd(mut arg: *const c_char) -> *const c_char {
+fn find_cmd_after_substitute_cmd(mut arg: *const c_char) -> *const c_char {
     unsafe {
         let delim = *arg as u8 as c_int;
         if delim != 0 {
@@ -3409,7 +3401,7 @@ unsafe fn find_cmd_after_substitute_cmd(mut arg: *const c_char) -> *const c_char
 }
 
 /// Returns a pointer to the next command after an :isearch/:dsearch/etc. command.
-unsafe fn find_cmd_after_isearch_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
+fn find_cmd_after_isearch_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
     unsafe {
         arg = skipwhite(skipdigits(arg));
         if *arg != b'/' as c_char {
@@ -3438,7 +3430,7 @@ unsafe fn find_cmd_after_isearch_cmd(xp: &mut expand_T, mut arg: *const c_char) 
 }
 
 /// Set the completion context for the :unlet command. Always returns NULL.
-unsafe fn set_context_in_unlet_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
+fn set_context_in_unlet_cmd(xp: &mut expand_T, mut arg: *const c_char) -> *const c_char {
     unsafe {
         while {
             xp.xp_pattern = c_strchr(arg, b' ' as c_char);
@@ -3460,7 +3452,7 @@ unsafe fn set_context_in_unlet_cmd(xp: &mut expand_T, mut arg: *const c_char) ->
 }
 
 /// Set the completion context for the :language command. Always returns NULL.
-unsafe fn set_context_in_lang_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
+fn set_context_in_lang_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
     unsafe {
         let p = skiptowhite(arg);
         if *p == NUL {
@@ -3485,7 +3477,7 @@ unsafe fn set_context_in_lang_cmd(xp: &mut expand_T, arg: *const c_char) -> *con
 }
 
 /// Set the completion context for the :breakadd command. Always returns NULL.
-unsafe fn set_context_in_breakadd_cmd(
+fn set_context_in_breakadd_cmd(
     xp: &mut expand_T,
     arg: *const c_char,
     cmdidx: cmdidx_T,
@@ -3535,7 +3527,7 @@ unsafe fn set_context_in_breakadd_cmd(
     }
 }
 
-unsafe fn set_context_in_scriptnames_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
+fn set_context_in_scriptnames_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
     unsafe {
         xp.xp_context = EXPAND_NOTHING;
         xp.xp_pattern = ptr::null_mut();
@@ -3553,7 +3545,7 @@ unsafe fn set_context_in_scriptnames_cmd(xp: &mut expand_T, arg: *const c_char) 
 }
 
 /// Set the completion context for the :filetype command. Always returns NULL.
-unsafe fn set_context_in_filetype_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
+fn set_context_in_filetype_cmd(xp: &mut expand_T, arg: *const c_char) -> *const c_char {
     unsafe {
         xp.xp_context = EXPAND_FILETYPECMD;
         xp.xp_pattern = arg.cast_mut();
@@ -3625,7 +3617,7 @@ fn set_context_with_pattern(xp: &mut expand_T) {
 }
 
 /// Set the completion context in "xp" for command "cmd" with index "cmdidx".
-unsafe fn set_context_by_cmdname(
+fn set_context_by_cmdname(
     cmd: *const c_char,
     cmdidx: cmdidx_T,
     xp: &mut expand_T,
@@ -4044,7 +4036,7 @@ unsafe fn set_context_by_cmdname(
 }
 
 /// Parse one command from `buff` and set completion context in `xp`.
-unsafe fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char {
+fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const c_char {
     unsafe {
         let mut ea: exarg_T = exarg_T::new();
         let mut context: c_int = EXPAND_NOTHING;
@@ -4221,7 +4213,7 @@ unsafe fn set_one_cmd_context(xp: &mut expand_T, buff: *const c_char) -> *const 
 }
 
 /// Set the completion context in "xp" for command "str".
-pub unsafe fn set_cmd_context(
+pub fn set_cmd_context(
     xp: &mut expand_T,
     str_arg: *mut c_char,
     len: c_int,
@@ -4276,7 +4268,7 @@ pub unsafe fn set_cmd_context(
 }
 
 /// Expand the command line "str" from context "xp".
-pub unsafe fn expand_cmdline(
+pub fn expand_cmdline(
     xp: &mut expand_T,
     str_arg: *const c_char,
     col: c_int,
@@ -4314,7 +4306,7 @@ pub unsafe fn expand_cmdline(
 }
 
 /// Expand file or directory names.
-unsafe fn expand_files_and_dirs(
+fn expand_files_and_dirs(
     xp: &mut expand_T,
     mut pat: *mut c_char,
     matches: &mut Vec<CString>,
@@ -4528,7 +4520,7 @@ fn get_healthcheck_names(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Completes arg1 via Lua.
-unsafe fn get_arg1_from_lua(lua: *const c_char, xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_arg1_from_lua(lua: *const c_char, xp: &mut expand_T, idx: c_int) -> *mut c_char {
     unsafe {
         let prompt_id = get_cmdline_last_prompt_id();
         let last_line_ptr = &raw const cmdexp().ARG1_LUA_LAST_XP_LINE;
@@ -4582,57 +4574,47 @@ unsafe fn get_arg1_from_lua(lua: *const c_char, xp: &mut expand_T, idx: c_int) -
 }
 
 fn get_marks_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        get_arg1_from_lua(
+    get_arg1_from_lua(
             c"return require'vim._core.marks'.complete(...)".as_ptr(),
             xp,
             idx,
         )
-    }
 }
 
 fn get_log_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        get_arg1_from_lua(
+    get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.log_complete(...)".as_ptr(),
             xp,
             idx,
         )
-    }
 }
 
 fn get_lsp_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        get_arg1_from_lua(
+    get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.lsp_complete(...)".as_ptr(),
             xp,
             idx,
         )
-    }
 }
 
 fn get_packdel_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        get_arg1_from_lua(
+    get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.packdel_complete(...)".as_ptr(),
             xp,
             idx,
         )
-    }
 }
 
 fn get_packupdate_arg(xp: &mut expand_T, idx: c_int) -> *mut c_char {
-    unsafe {
-        get_arg1_from_lua(
+    get_arg1_from_lua(
             c"return require'vim._core.ex_cmd'.packupdate_complete(...)".as_ptr(),
             xp,
             idx,
         )
-    }
 }
 
 /// Do the expansion based on xp->xp_context and "rmp".
-unsafe fn ExpandOther(
+fn ExpandOther(
     pat: *mut c_char,
     xp: &mut expand_T,
     rmp: &mut regmatch_T,
@@ -4870,8 +4852,7 @@ unsafe fn ExpandOther(
         },
     ];
 
-    unsafe {
-        for entry in &tab {
+    for entry in &tab {
             if xp.xp_context == entry.context {
                 if entry.ic {
                     rmp.rm_ic = true;
@@ -4881,7 +4862,6 @@ unsafe fn ExpandOther(
             }
         }
         FAIL
-    }
 }
 
 /// Map wild expand options to flags for expand_wildcards().
@@ -4909,7 +4889,7 @@ fn map_wildopts_to_ewflags(options: c_int) -> c_int {
 }
 
 /// Do the expansion based on xp->xp_context and "pat".
-unsafe fn ExpandFromContext(
+fn ExpandFromContext(
     xp: &mut expand_T,
     mut pat: *mut c_char,
     matches: &mut Vec<CString>,
@@ -5052,7 +5032,7 @@ unsafe fn ExpandFromContext(
 }
 
 /// Expand a list of names.
-pub unsafe fn ExpandGeneric(
+pub fn ExpandGeneric(
     pat: *const c_char,
     xp: &mut expand_T,
     regmatch: &mut regmatch_T,
@@ -5162,15 +5142,14 @@ pub unsafe fn ExpandGeneric(
 }
 
 /// Expand shell command matches in one directory of $PATH.
-unsafe fn expand_shellcmd_onedir(
+fn expand_shellcmd_onedir(
     mut pathed_pattern: *mut c_char,
     pathlen: usize,
     flags: c_int,
     found_ht: &mut std::collections::HashSet<Vec<u8>>,
     gap: &mut Vec<CString>,
 ) {
-    unsafe {
-        let mut dir_matches: Vec<std::ffi::CString> = Vec::new();
+    let mut dir_matches: Vec<std::ffi::CString> = Vec::new();
         if expand_wildcards_vec(1, &raw mut pathed_pattern, &mut dir_matches, flags) != OK {
             return;
         }
@@ -5188,11 +5167,10 @@ unsafe fn expand_shellcmd_onedir(
                 }
             }
         }
-    }
 }
 
 /// Complete a shell command.
-unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flagsarg: c_int) {
+fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flagsarg: c_int) {
     unsafe {
         matches.clear();
         let mut buf_vec = vec![0 as c_char; MAXPATHL];
@@ -5296,7 +5274,7 @@ unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flag
 
 /// Call "user_expand_func()" to invoke a user defined Vim script function.
 fn call_user_expand_func<R>(
-    user_expand_func: unsafe fn(*const c_char, c_int, *mut typval_T) -> R,
+    user_expand_func: fn(*const c_char, c_int, *mut typval_T) -> R,
     xp: *mut expand_T,
     default: R,
 ) -> R {
@@ -5341,7 +5319,7 @@ fn call_user_expand_func<R>(
 }
 
 /// Expand names with a function defined by the user (EXPAND_USER_DEFINED).
-unsafe fn ExpandUserDefined(
+fn ExpandUserDefined(
     pat: *const c_char,
     xp: &mut expand_T,
     regmatch: &mut regmatch_T,
@@ -5420,7 +5398,7 @@ unsafe fn ExpandUserDefined(
     }
 }
 
-pub unsafe fn expand_process_user_list(
+pub fn expand_process_user_list(
     retlist: *mut list_T,
     matches: &mut Vec<CString>,
     xp: &mut expand_T,
@@ -5490,8 +5468,7 @@ pub unsafe fn expand_process_user_list(
 
 /// Expand names with a list returned by a function defined by the user.
 fn ExpandUserList(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
-    unsafe {
-        matches.clear();
+    matches.clear();
         let retlist = call_user_expand_func(call_func_retlist, xp, ptr::null_mut());
         if retlist.is_null() {
             return FAIL;
@@ -5500,12 +5477,10 @@ fn ExpandUserList(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
         expand_process_user_list(retlist, matches, xp);
         tv_list_unref(retlist);
         OK
-    }
 }
 
 fn ExpandUserLua(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
-    unsafe {
-        let mut rettv: typval_T = typval_T::new();
+    let mut rettv: typval_T = typval_T::new();
         nlua_call_user_expand_func(xp, &raw mut rettv);
         if rettv.v_type != VarType::VAR_LIST {
             tv_clear(&raw mut rettv);
@@ -5516,11 +5491,10 @@ fn ExpandUserLua(xp: &mut expand_T, matches: &mut Vec<CString>) -> c_int {
         expand_process_user_list(retlist, matches, xp);
         tv_list_unref(retlist);
         OK
-    }
 }
 
 /// Expand `file` for all comma-separated directories in `path`.
-pub unsafe fn globpath(
+pub fn globpath(
     mut path: *mut c_char,
     file: *mut c_char,
     ga: &mut Vec<CString>,
@@ -5784,8 +5758,7 @@ pub fn wildmenu_process_key(cclp: &mut CmdlineInfo, key: c_int, xp: &mut expand_
 
 /// Free expanded names when finished walking through the matches.
 pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
-    unsafe {
-        if opt_vars().p_wmnu == 0 || g_st().wild_menu_showing == 0 {
+    if opt_vars().p_wmnu == 0 || g_st().wild_menu_showing == 0 {
             return;
         }
 
@@ -5819,7 +5792,6 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
         if cclp.input_fn != 0 {
             g_st().RedrawingDisabled = old_RedrawingDisabled;
         }
-    }
 }
 
 /// "getcompletion()" function.
@@ -6122,7 +6094,7 @@ fn copy_substring_from_pos(
 }
 
 /// Returns true if the given string `str` matches the regex pattern `pat`.
-unsafe fn is_regex_match(pat: *const c_char, str_arg: *const c_char) -> bool {
+fn is_regex_match(pat: *const c_char, str_arg: *const c_char) -> bool {
     unsafe {
         if std::ffi::CStr::from_ptr(pat).to_bytes() == std::ffi::CStr::from_ptr(str_arg).to_bytes() {
             return true;
@@ -6156,7 +6128,7 @@ unsafe fn is_regex_match(pat: *const c_char, str_arg: *const c_char) -> bool {
 }
 
 /// Constructs a new match string by appending text from the buffer to `pat`.
-unsafe fn concat_pattern_with_buffer_match(
+fn concat_pattern_with_buffer_match(
     pat: *mut c_char,
     pat_len: c_int,
     end_match_pos: &mut pos_T,
@@ -6190,7 +6162,7 @@ unsafe fn concat_pattern_with_buffer_match(
 }
 
 /// Search for strings matching "pat" in the specified range and return them.
-unsafe fn expand_pattern_in_buf(
+fn expand_pattern_in_buf(
     pat: *mut c_char,
     dir: Direction,
     matches: &mut Vec<CString>,

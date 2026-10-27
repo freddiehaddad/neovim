@@ -39,7 +39,7 @@ fn cbuf_to_string_obj(
             size: len,
         }
     } else {
-        let mem = unsafe { arena_memdupz(arena, ptr, len) };
+        let mem = arena_memdupz(arena, ptr, len);
         NvimString {
             data: mem,
             size: len,
@@ -133,7 +133,7 @@ fn convert_one_value(
             let fun = if pt.is_null() {
                 std::ptr::null()
             } else {
-                unsafe { partial_name(pt) }
+                partial_name(pt)
             };
             let obj = unsafe {
                 if !fun.is_null() {

@@ -1079,9 +1079,7 @@ impl EncodeBackend<'_> {
             }
         ) && !encode_check_json_key(key)
         {
-            unsafe {
-                emsg(c"E474: Invalid key in special dictionary".as_ptr());
-            }
+            emsg(c"E474: Invalid key in special dictionary".as_ptr());
             return false;
         }
         true
@@ -1095,8 +1093,7 @@ impl EncodeBackend<'_> {
         copy_id: c_int,
         objname: *const c_char,
     ) -> c_int {
-        unsafe {
-            if *val_copy_id != copy_id {
+        if *val_copy_id != copy_id {
                 *val_copy_id = copy_id;
                 return NOTDONE;
             }
@@ -1168,7 +1165,6 @@ impl EncodeBackend<'_> {
                     objname,
                 ),
             }
-        }
     }
 }
 

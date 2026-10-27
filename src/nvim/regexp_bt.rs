@@ -159,22 +159,22 @@ fn just_calc_size() -> *mut u8 {
 }
 
 #[inline]
-unsafe fn OP(p: *const u8) -> c_int {
+fn OP(p: *const u8) -> c_int {
     unsafe { *p as c_int }
 }
 
 #[inline]
-unsafe fn NEXT(p: *const u8) -> c_int {
+fn NEXT(p: *const u8) -> c_int {
     unsafe { ((*p.add(1) as c_int & 0o377) << 8) + (*p.add(2) as c_int & 0o377) }
 }
 
 #[inline]
-unsafe fn OPERAND(p: *mut u8) -> *mut u8 {
+fn OPERAND(p: *mut u8) -> *mut u8 {
     unsafe { p.add(3) }
 }
 
 #[inline]
-unsafe fn OPERAND_MIN(p: *const u8) -> i64 {
+fn OPERAND_MIN(p: *const u8) -> i64 {
     unsafe {
         ((*p.add(3) as i64) << 24)
             + ((*p.add(4) as i64) << 16)
@@ -184,25 +184,22 @@ unsafe fn OPERAND_MIN(p: *const u8) -> i64 {
 }
 
 #[inline]
-unsafe fn OPERAND_MAX(p: *const u8) -> i64 {
+fn OPERAND_MAX(p: *const u8) -> i64 {
     unsafe { OPERAND_MIN(p.add(4)) }
 }
 
 #[inline]
-unsafe fn OPERAND_CMP(p: *const u8) -> u8 {
+fn OPERAND_CMP(p: *const u8) -> u8 {
     unsafe { *p.add(7) }
 }
 
 #[inline]
 fn ADVANCE_REGINPUT() {
-    unsafe {
-        mb_ptr_adv(&raw mut re_st().rex.input);
-    }
+    mb_ptr_adv(&raw mut re_st().rex.input);
 }
 
-unsafe fn bt_recognize_char_class(start: *const u8, end: *const u8) -> c_int {
-    unsafe {
-        let mut newl = false;
+fn bt_recognize_char_class(start: *const u8, end: *const u8) -> c_int {
+    let mut newl = false;
         let config = get_char_class_bits(start, end, &mut newl);
         if config < 0 || newl {
             return 0;
@@ -234,7 +231,6 @@ unsafe fn bt_recognize_char_class(start: *const u8, end: *const u8) -> c_int {
         } else {
             0
         }
-    }
 }
 
 fn use_multibytecode(c: c_int) -> bool {
@@ -722,7 +718,7 @@ fn regnode(op: c_int) -> *mut u8 {
     }
 }
 
-unsafe fn re_put_uint32(p: *mut u8, val: u32) -> *mut u8 {
+fn re_put_uint32(p: *mut u8, val: u32) -> *mut u8 {
     unsafe {
         *p = ((val >> 24) & 0o377) as u8;
         *p.add(1) = ((val >> 16) & 0o377) as u8;
@@ -732,7 +728,7 @@ unsafe fn re_put_uint32(p: *mut u8, val: u32) -> *mut u8 {
     }
 }
 
-unsafe fn regnext(p: *mut u8) -> *mut u8 {
+fn regnext(p: *mut u8) -> *mut u8 {
     unsafe {
         if p == just_calc_size() || re_st().reg_toolong != 0 {
             return ptr::null_mut();
@@ -749,7 +745,7 @@ unsafe fn regnext(p: *mut u8) -> *mut u8 {
     }
 }
 
-unsafe fn regtail(p: *mut u8, val: *const u8) {
+fn regtail(p: *mut u8, val: *const u8) {
     unsafe {
         if p == just_calc_size() {
             return;
@@ -776,19 +772,17 @@ unsafe fn regtail(p: *mut u8, val: *const u8) {
     }
 }
 
-unsafe fn regoptail(p: *mut u8, val: *mut u8) {
-    unsafe {
-        if p.is_null()
+fn regoptail(p: *mut u8, val: *mut u8) {
+    if p.is_null()
             || p == just_calc_size()
             || (OP(p) != BRANCH && (OP(p) < BRACE_COMPLEX || OP(p) > BRACE_COMPLEX + 9))
         {
             return;
         }
         regtail(OPERAND(p), val);
-    }
 }
 
-unsafe fn reginsert(op: c_int, opnd: *mut u8) {
+fn reginsert(op: c_int, opnd: *mut u8) {
     unsafe {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += 3;
@@ -808,7 +802,7 @@ unsafe fn reginsert(op: c_int, opnd: *mut u8) {
     }
 }
 
-unsafe fn reginsert_nr(op: c_int, val: i64, opnd: *mut u8) {
+fn reginsert_nr(op: c_int, val: i64, opnd: *mut u8) {
     unsafe {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += 7;
@@ -829,7 +823,7 @@ unsafe fn reginsert_nr(op: c_int, val: i64, opnd: *mut u8) {
     }
 }
 
-unsafe fn reginsert_limits(op: c_int, minval: i64, maxval: i64, opnd: *mut u8) {
+fn reginsert_limits(op: c_int, minval: i64, maxval: i64, opnd: *mut u8) {
     unsafe {
         if re_st().regcode == just_calc_size() {
             re_st().regsize += 11;
@@ -1687,7 +1681,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
     }
 }
 
-unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
+fn regpiece(flagp: *mut c_int) -> *mut u8 {
     unsafe {
         let mut flags: c_int = 0;
         let mut minval: c_int = 0;
@@ -1834,8 +1828,7 @@ unsafe fn regpiece(flagp: *mut c_int) -> *mut u8 {
 }
 
 fn regconcat(flagp: &mut c_int) -> *mut u8 {
-    unsafe {
-        let mut first: *mut u8 = ptr::null_mut();
+    let mut first: *mut u8 = ptr::null_mut();
         let mut chain: *mut u8 = ptr::null_mut();
         let mut flags: c_int = 0;
         let mut cont = true;
@@ -1896,12 +1889,10 @@ fn regconcat(flagp: &mut c_int) -> *mut u8 {
             first = regnode(NOTHING);
         }
         first
-    }
 }
 
 fn regbranch(flagp: &mut c_int) -> *mut u8 {
-    unsafe {
-        let mut chain: *mut u8 = ptr::null_mut();
+    let mut chain: *mut u8 = ptr::null_mut();
         let mut flags: c_int = 0;
 
         *flagp = WORST | HASNL;
@@ -1929,7 +1920,6 @@ fn regbranch(flagp: &mut c_int) -> *mut u8 {
             chain = latest;
         }
         ret
-    }
 }
 
 fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
@@ -2075,7 +2065,7 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
     }
 }
 
-pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_regprog_T> {
+pub(super) fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_regprog_T> {
     unsafe {
         let mut flags: c_int = 0;
 
@@ -2222,7 +2212,7 @@ fn reg_save_equal(save: &regsave_T) -> bool {
     }
 }
 
-unsafe fn save_se_multi(savep: *mut save_se_T, posp: *mut lpos_T) {
+fn save_se_multi(savep: *mut save_se_T, posp: *mut lpos_T) {
     unsafe {
         (*savep).se_u = crate::regexp::RegPos::Pos(*posp);
         (*posp).lnum = re_st().rex.lnum;
@@ -2230,7 +2220,7 @@ unsafe fn save_se_multi(savep: *mut save_se_T, posp: *mut lpos_T) {
     }
 }
 
-unsafe fn save_se_one(savep: *mut save_se_T, pp: *mut *mut u8) {
+fn save_se_one(savep: *mut save_se_T, pp: *mut *mut u8) {
     unsafe {
         (*savep).se_u = crate::regexp::RegPos::Ptr(*pp);
         *pp = re_st().rex.input;
@@ -2238,18 +2228,16 @@ unsafe fn save_se_one(savep: *mut save_se_T, pp: *mut *mut u8) {
 }
 
 #[inline]
-unsafe fn save_se(savep: *mut save_se_T, posp: *mut lpos_T, pp: *mut *mut u8) {
-    unsafe {
-        if REG_MULTI() {
+fn save_se(savep: *mut save_se_T, posp: *mut lpos_T, pp: *mut *mut u8) {
+    if REG_MULTI() {
             save_se_multi(savep, posp);
         } else {
             save_se_one(savep, pp);
         }
-    }
 }
 
 #[inline]
-unsafe fn restore_se(savep: *const save_se_T, posp: *mut lpos_T, pp: *mut *mut u8) {
+fn restore_se(savep: *const save_se_T, posp: *mut lpos_T, pp: *mut *mut u8) {
     unsafe {
         if REG_MULTI() {
             *posp = (*savep).se_u.pos();
@@ -2259,7 +2247,7 @@ unsafe fn restore_se(savep: *const save_se_T, posp: *mut lpos_T, pp: *mut *mut u
     }
 }
 
-unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
+fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
     unsafe {
         let mut count: i64 = 0;
         let mut testval: i16 = 0;
@@ -2575,7 +2563,7 @@ unsafe fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
     }
 }
 
-unsafe fn regstack_push(state: regstate_T, scan: *mut u8) -> *mut regitem_T {
+fn regstack_push(state: regstate_T, scan: *mut u8) -> *mut regitem_T {
     const {
         assert!(size_of::<regitem_T>().is_multiple_of(8));
         assert!(size_of::<regstar_T>().is_multiple_of(8));
@@ -2597,7 +2585,7 @@ unsafe fn regstack_push(state: regstate_T, scan: *mut u8) -> *mut regitem_T {
     }
 }
 
-unsafe fn regstack_pop(scan: *mut *mut u8) {
+fn regstack_pop(scan: *mut *mut u8) {
     unsafe {
         let rs = &raw mut re_st().regstack;
         let rp = (*rs)
@@ -2646,7 +2634,7 @@ fn restore_subexpr(bp: &mut regbehind_T) {
     }
 }
 
-unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_int) -> bool {
+fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_int) -> bool {
     unsafe {
         let mut status: c_int;
         let mut tm_count: c_int = 0;
@@ -3812,7 +3800,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
     }
 }
 
-unsafe fn regtry(
+fn regtry(
     prog: &mut bt_regprog_T,
     col: colnr_T,
     tm: Option<proftime_T>,
@@ -3878,7 +3866,7 @@ unsafe fn regtry(
     }
 }
 
-unsafe fn bt_regexec_both(
+fn bt_regexec_both(
     mut line: *mut u8,
     startcol: colnr_T,
     tm: Option<proftime_T>,
@@ -4070,7 +4058,7 @@ fn finish_bt_regexec(retval: c_int, col: colnr_T) -> c_int {
     }
 }
 
-pub(super) unsafe fn bt_regexec_nl(
+pub(super) fn bt_regexec_nl(
     rmp: &mut regmatch_T,
     line: *mut u8,
     col: colnr_T,
@@ -4092,7 +4080,7 @@ pub(super) unsafe fn bt_regexec_nl(
     }
 }
 
-pub(super) unsafe fn bt_regexec_multi(
+pub(super) fn bt_regexec_multi(
     rmp: &mut regmmatch_T,
     win: *mut win_T,
     buf: *mut buf_T,
@@ -4101,15 +4089,12 @@ pub(super) unsafe fn bt_regexec_multi(
     tm: Option<proftime_T>,
     timed_out: *mut c_int,
 ) -> c_int {
-    unsafe {
-        init_regexec_multi(rmp, win, buf, lnum);
+    init_regexec_multi(rmp, win, buf, lnum);
         bt_regexec_both(ptr::null_mut(), col, tm, timed_out)
-    }
 }
 
-unsafe fn re_num_cmp(val: u32, scan: *const u8) -> bool {
-    unsafe {
-        let n = OPERAND_MIN(scan) as u32;
+fn re_num_cmp(val: u32, scan: *const u8) -> bool {
+    let n = OPERAND_MIN(scan) as u32;
         let cmp = OPERAND_CMP(scan);
         if cmp == b'>' {
             val > n
@@ -4118,5 +4103,4 @@ unsafe fn re_num_cmp(val: u32, scan: *const u8) -> bool {
         } else {
             val == n
         }
-    }
 }

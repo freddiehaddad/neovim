@@ -252,7 +252,7 @@ pub fn aborted_in_try() -> bool {
     g_st().force_abort
 }
 
-pub unsafe fn cause_errthrow(
+pub fn cause_errthrow(
     mesg: *const c_char,
     multiline: bool,
     concat: bool,
@@ -335,7 +335,7 @@ pub fn free_global_msglist() {
     }
 }
 
-pub unsafe fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char) {
+pub fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char) {
     unsafe {
         if exeval_st().cause_abort {
             exeval_st().cause_abort = false;
@@ -361,7 +361,7 @@ pub unsafe fn do_errthrow(cstack: *mut cstack_T, cmdname: *mut c_char) {
     }
 }
 
-pub unsafe fn do_intthrow(cstack: *mut cstack_T) -> bool {
+pub fn do_intthrow(cstack: *mut cstack_T) -> bool {
     unsafe {
         if !g_st().got_int || (g_st().trylevel == 0 && !g_st().did_throw) {
             return false;
@@ -392,7 +392,7 @@ enum ExceptionValue {
     User(CString),
 }
 
-pub unsafe fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> CString {
+pub fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_char) -> CString {
     unsafe {
         let mut out: Vec<u8> = Vec::new();
         if !cmdname.is_null() && *cmdname != NUL {
@@ -442,7 +442,7 @@ pub unsafe fn get_error_exception_string(mesg: *const c_char, cmdname: *mut c_ch
     }
 }
 
-unsafe fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int {
+fn throw_exception(value: ExceptionValue, cmdname: *mut c_char) -> c_int {
     unsafe {
         let (r#type, mut messages, excp_value) = match value {
             ExceptionValue::User(val_str) => {
@@ -831,8 +831,7 @@ fn report_discard_pending(pending: c_int, value: PendingVal) {
 }
 
 pub fn ex_eval(eap: &mut exarg_T) {
-    unsafe {
-        let mut tv: typval_T = typval_T::new();
+    let mut tv: typval_T = typval_T::new();
         let mut evalarg = evalarg_T::new();
 
         fill_evalarg_from_eap(&mut evalarg, eap, eap.skip != 0);
@@ -842,7 +841,6 @@ pub fn ex_eval(eap: &mut exarg_T) {
         }
 
         clear_evalarg(&mut evalarg, eap);
-    }
 }
 
 pub fn ex_if(eap: &mut exarg_T) {
@@ -1127,7 +1125,7 @@ pub fn ex_throw(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn do_throw(cstack: *mut cstack_T) {
+pub fn do_throw(cstack: *mut cstack_T) {
     unsafe {
         let idx = cleanup_conditionals(&mut *cstack, 0, 0);
         if idx >= 0 {
@@ -1676,8 +1674,7 @@ pub fn cleanup_conditionals(
 }
 
 fn get_end_emsg(cstack: &cstack_T) -> *mut c_char {
-    unsafe {
-        let fl = cstack.cs_flags[cstack.cs_idx as usize];
+    let fl = cstack.cs_flags[cstack.cs_idx as usize];
         if (fl & CSF_WHILE) != 0 {
             return gettext(e_endwhile.as_ptr());
         }
@@ -1685,7 +1682,6 @@ fn get_end_emsg(cstack: &cstack_T) -> *mut c_char {
             return gettext(e_endfor.as_ptr());
         }
         gettext(e_endif.as_ptr())
-    }
 }
 
 pub fn rewind_conditionals(
@@ -1707,15 +1703,13 @@ pub fn rewind_conditionals(
 }
 
 pub fn ex_endfunction(_eap: &mut exarg_T) {
-    unsafe {
-        semsg!(
+    semsg!(
             gettext(e_str_not_inside_function.as_ptr()),
             c":endfunction".as_ptr(),
         );
-    }
 }
 
-pub unsafe fn has_loop_cmd(mut p: *mut c_char) -> bool {
+pub fn has_loop_cmd(mut p: *mut c_char) -> bool {
     unsafe {
         loop {
             while *p == b' ' as c_char || *p == b'\t' as c_char || *p == b':' as c_char {

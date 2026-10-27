@@ -126,8 +126,7 @@ pub fn exec_impl(
     opts: &mut KeyDict_exec_opts,
     err: &mut Error,
 ) -> NvimString {
-    unsafe {
-        let save_msg_silent = g_st().msg_silent;
+    let save_msg_silent = g_st().msg_silent;
         let save_redir_off = g_st().redir_off;
         let save_capture_ga = g_st().capture_ga;
         let save_msg_col = g_st().msg_col;
@@ -168,7 +167,6 @@ pub fn exec_impl(
             data: std::ptr::null_mut(),
             size: 0,
         }
-    }
 }
 
 /// Executes an Ex command.
@@ -183,12 +181,10 @@ pub fn exec_impl(
 // DLLEXPORT void nvim_command(String cmd, Error *err) FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_command(cmd: NvimString, err: &mut Error) {
-    unsafe {
-        let mut tstate = TryState::new();
+    let mut tstate = TryState::new();
         try_enter(&mut tstate);
         do_cmdline_cmd(cmd.data);
         try_leave(&tstate, err);
-    }
 }
 
 /// Evaluates a Vimscript |expression|. Dicts and Lists are recursively expanded.

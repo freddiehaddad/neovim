@@ -114,7 +114,7 @@ use crate::keycodes::{K_SPECIAL, KE_SNR, KS_EXTRA};
 use crate::os::fs::MAXPATHL;
 use crate::state::MODE_NORMAL;
 
-unsafe fn get_maxbacktrace_level(sname: *const c_char) -> c_int {
+fn get_maxbacktrace_level(sname: *const c_char) -> c_int {
     if sname.is_null() {
         return 0;
     }
@@ -133,8 +133,7 @@ unsafe fn get_maxbacktrace_level(sname: *const c_char) -> c_int {
 }
 
 fn do_checkbacktracelevel() {
-    unsafe {
-        if g_st().debug_backtrace_level < 0 {
+    if g_st().debug_backtrace_level < 0 {
             g_st().debug_backtrace_level = 0;
             msg(c"frame is zero".as_ptr(), 0);
         } else {
@@ -146,10 +145,9 @@ fn do_checkbacktracelevel() {
                 smsg!(0, c"frame at highest level: %d".as_ptr(), max);
             }
         }
-    }
 }
 
-unsafe fn do_setdebugtracelevel(arg: *mut c_char) {
+fn do_setdebugtracelevel(arg: *mut c_char) {
     unsafe {
         let level = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg).to_bytes()) as c_int;
         if *arg as u8 == b'+' || level < 0 {
@@ -161,7 +159,7 @@ unsafe fn do_setdebugtracelevel(arg: *mut c_char) {
     }
 }
 
-unsafe fn do_showbacktrace(cmd: *const c_char) {
+fn do_showbacktrace(cmd: *const c_char) {
     unsafe {
         let sname_cstr = estack_sfile(ESTACK_NONE);
         let max =
@@ -206,7 +204,7 @@ unsafe fn do_showbacktrace(cmd: *const c_char) {
 }
 
 /// Interactive debug mode loop (`do_debug`).
-pub unsafe fn do_debug(cmd: *mut c_char) {
+pub fn do_debug(cmd: *mut c_char) {
     unsafe {
         let save_msg_scroll = g_st().msg_scroll;
         let save_state = g_st().State;
@@ -422,16 +420,14 @@ pub unsafe fn do_debug(cmd: *mut c_char) {
 
 /// `:debug` command (`ex_debug`).
 pub fn ex_debug(eap: &mut exarg_T) {
-    unsafe {
-        let save = g_st().debug_break_level;
+    let save = g_st().debug_break_level;
         g_st().debug_break_level = 9999;
         do_cmdline_cmd(eap.arg);
         g_st().debug_break_level = save;
-    }
 }
 
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
-pub unsafe fn dbg_check_breakpoint(eap: *mut exarg_T) {
+pub fn dbg_check_breakpoint(eap: *mut exarg_T) {
     unsafe {
         dbg_st().DEBUG_SKIPPED = false;
         let eap = &mut *eap;
@@ -469,8 +465,7 @@ pub unsafe fn dbg_check_breakpoint(eap: *mut exarg_T) {
 
 /// Enter debug mode if previously skipped by `dbg_check_breakpoint()` (`dbg_check_skipped`).
 pub fn dbg_check_skipped(eap: &mut exarg_T) -> bool {
-    unsafe {
-        if !dbg_st().DEBUG_SKIPPED {
+    if !dbg_st().DEBUG_SKIPPED {
             return false;
         }
         let prev_got_int = g_st().got_int;
@@ -481,19 +476,16 @@ pub fn dbg_check_skipped(eap: &mut exarg_T) -> bool {
         eap.skip = 1;
         g_st().got_int |= prev_got_int;
         true
-    }
 }
 
-unsafe fn eval_expr_no_emsg(name: *mut c_char) -> Option<typval_T> {
-    unsafe {
-        g_st().emsg_off += 1;
+fn eval_expr_no_emsg(name: *mut c_char) -> Option<typval_T> {
+    g_st().emsg_off += 1;
         let tv = eval_expr(name, std::ptr::null_mut());
         g_st().emsg_off -= 1;
         tv
-    }
 }
 
-unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
+fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
     unsafe {
         let mut p = arg;
         let mut here = false;
@@ -578,8 +570,7 @@ unsafe fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<debuggy> {
 
 /// `:breakadd` (and `:profile` file/func) command (`ex_breakadd`).
 pub fn ex_breakadd(eap: &mut exarg_T) {
-    unsafe {
-        let eap = &*eap;
+    let eap = &*eap;
         let is_prof = eap.cmdidx == CMD_PROFILE;
         let gap = dbg_vec_mut(is_prof);
 
@@ -619,7 +610,6 @@ pub fn ex_breakadd(eap: &mut exarg_T) {
                 dbg_st().HAS_EXPR_BREAKPOINT = true;
             }
         }
-    }
 }
 
 /// `:debuggreedy` command (`ex_debuggreedy`).
@@ -693,8 +683,7 @@ pub fn ex_breakdel(eap: &mut exarg_T) {
 
 /// `:breaklist` command (`ex_breaklist`).
 pub fn ex_breaklist(_eap: &mut exarg_T) {
-    unsafe {
-        let gap = dbg_vec_mut(false);
+    let gap = dbg_vec_mut(false);
         if gap.is_empty() {
             msg(c"No breakpoints defined".as_ptr(), 0);
             return;
@@ -729,10 +718,9 @@ pub fn ex_breaklist(_eap: &mut exarg_T) {
                 smsg!(0, c"%3d  expr %s".as_ptr(), bp.dbg_nr, bp.dbg_name.as_ptr());
             }
         }
-    }
 }
 
-unsafe fn debuggy_find(
+fn debuggy_find(
     file: bool,
     fname: *mut c_char,
     after: i32,
@@ -813,23 +801,19 @@ unsafe fn debuggy_find(
 }
 
 /// Find a breakpoint for a function or sourced file (`dbg_find_breakpoint`).
-pub unsafe fn dbg_find_breakpoint(file: bool, fname: *mut c_char, after: i32) -> i32 {
-    unsafe {
-        let gap = dbg_vec_mut(false);
+pub fn dbg_find_breakpoint(file: bool, fname: *mut c_char, after: i32) -> i32 {
+    let gap = dbg_vec_mut(false);
         debuggy_find(file, fname, after, gap, false, std::ptr::null_mut())
-    }
 }
 
 /// Check if profiling is enabled for a function or sourced file (`has_profiling`).
-pub unsafe fn has_profiling(file: bool, fname: *mut c_char, fp: *mut bool) -> bool {
-    unsafe {
-        let gap = dbg_vec_mut(true);
+pub fn has_profiling(file: bool, fname: *mut c_char, fp: *mut bool) -> bool {
+    let gap = dbg_vec_mut(true);
         debuggy_find(file, fname, 0, gap, true, fp) != 0
-    }
 }
 
 /// Record that a breakpoint was encountered (`dbg_breakpoint`).
-pub unsafe fn dbg_breakpoint(name: *mut c_char, lnum: i32) {
+pub fn dbg_breakpoint(name: *mut c_char, lnum: i32) {
     dbg_st().DEBUG_BREAKPOINT_NAME = name;
     dbg_st().DEBUG_BREAKPOINT_LNUM = lnum;
 }
@@ -840,13 +824,11 @@ mod tests {
 
     #[test]
     fn get_maxbacktrace_level_counts_dot_dot_separators() {
-        unsafe {
-            assert_eq!(get_maxbacktrace_level(std::ptr::null()), 0);
+        assert_eq!(get_maxbacktrace_level(std::ptr::null()), 0);
             assert_eq!(get_maxbacktrace_level(c"script.vim".as_ptr()), 0);
             assert_eq!(
                 get_maxbacktrace_level(c"script.vim..FuncA..FuncB".as_ptr()),
                 2
             );
-        }
     }
 }

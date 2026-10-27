@@ -46,7 +46,7 @@ mod lua_c_api {
     use super::*;
 
     #[inline]
-    unsafe fn barg(L: *mut lua_State, idx: c_int) -> UBits {
+    fn barg(L: *mut lua_State, idx: c_int) -> UBits {
         unsafe {
             let n = lua_tonumber(L, idx);
             let b = f64_to_ubits(n);
@@ -58,22 +58,22 @@ mod lua_c_api {
     }
 
     #[inline]
-    unsafe fn bret(L: *mut lua_State, b: UBits) -> c_int {
+    fn bret(L: *mut lua_State, b: UBits) -> c_int {
         unsafe {
             lua_pushnumber(L, f64::from(b as SBits));
             1
         }
     }
 
-    unsafe fn bit_tobit(L: *mut lua_State) -> c_int {
+    fn bit_tobit(L: *mut lua_State) -> c_int {
         unsafe { bret(L, barg(L, 1)) }
     }
 
-    unsafe fn bit_bnot(L: *mut lua_State) -> c_int {
+    fn bit_bnot(L: *mut lua_State) -> c_int {
         unsafe { bret(L, !barg(L, 1)) }
     }
 
-    unsafe fn bit_band(L: *mut lua_State) -> c_int {
+    fn bit_band(L: *mut lua_State) -> c_int {
         unsafe {
             let mut b = barg(L, 1);
             let mut i = lua_gettop(L);
@@ -85,7 +85,7 @@ mod lua_c_api {
         }
     }
 
-    unsafe fn bit_bor(L: *mut lua_State) -> c_int {
+    fn bit_bor(L: *mut lua_State) -> c_int {
         unsafe {
             let mut b = barg(L, 1);
             let mut i = lua_gettop(L);
@@ -97,7 +97,7 @@ mod lua_c_api {
         }
     }
 
-    unsafe fn bit_bxor(L: *mut lua_State) -> c_int {
+    fn bit_bxor(L: *mut lua_State) -> c_int {
         unsafe {
             let mut b = barg(L, 1);
             let mut i = lua_gettop(L);
@@ -109,7 +109,7 @@ mod lua_c_api {
         }
     }
 
-    unsafe fn bit_lshift(L: *mut lua_State) -> c_int {
+    fn bit_lshift(L: *mut lua_State) -> c_int {
         unsafe {
             let b = barg(L, 1);
             let n = barg(L, 2) & 31;
@@ -117,7 +117,7 @@ mod lua_c_api {
         }
     }
 
-    unsafe fn bit_rshift(L: *mut lua_State) -> c_int {
+    fn bit_rshift(L: *mut lua_State) -> c_int {
         unsafe {
             let b = barg(L, 1);
             let n = barg(L, 2) & 31;
@@ -125,7 +125,7 @@ mod lua_c_api {
         }
     }
 
-    unsafe fn bit_arshift(L: *mut lua_State) -> c_int {
+    fn bit_arshift(L: *mut lua_State) -> c_int {
         unsafe {
             let b = barg(L, 1);
             let n = barg(L, 2) & 31;
@@ -133,7 +133,7 @@ mod lua_c_api {
         }
     }
 
-    unsafe fn bit_rol(L: *mut lua_State) -> c_int {
+    fn bit_rol(L: *mut lua_State) -> c_int {
         unsafe {
             let b = barg(L, 1);
             let n = barg(L, 2) & 31;
@@ -141,7 +141,7 @@ mod lua_c_api {
         }
     }
 
-    unsafe fn bit_ror(L: *mut lua_State) -> c_int {
+    fn bit_ror(L: *mut lua_State) -> c_int {
         unsafe {
             let b = barg(L, 1);
             let n = barg(L, 2) & 31;
@@ -149,14 +149,14 @@ mod lua_c_api {
         }
     }
 
-    unsafe fn bit_bswap(L: *mut lua_State) -> c_int {
+    fn bit_bswap(L: *mut lua_State) -> c_int {
         unsafe {
             let b = barg(L, 1);
             bret(L, b.swap_bytes())
         }
     }
 
-    unsafe fn bit_tohex(L: *mut lua_State) -> c_int {
+    fn bit_tohex(L: *mut lua_State) -> c_int {
         unsafe {
             let b = barg(L, 1);
             let n = if lua_type(L, 2) == LUA_TNONE {
@@ -225,7 +225,7 @@ mod lua_c_api {
         },
     ];
 
-    pub unsafe fn nvim_luaopen_bit(L: *mut lua_State) -> c_int {
+    pub fn nvim_luaopen_bit(L: *mut lua_State) -> c_int {
         unsafe {
             lua_pushnumber(L, 1_437_217_655.0);
             let b = barg(L, -1);

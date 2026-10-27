@@ -77,12 +77,12 @@ fn exses_st() -> &'static mut ExSessionState {
 }
 
 #[inline]
-unsafe fn cstr_to_str<'a>(p: *const c_char) -> &'a str {
+fn cstr_to_str<'a>(p: *const c_char) -> &'a str {
     unsafe { std::str::from_utf8_unchecked(CStr::from_ptr(p).to_bytes()) }
 }
 
 #[inline]
-unsafe fn write_bytes(fd: *mut FILE, bytes: &[u8]) -> bool {
+fn write_bytes(fd: *mut FILE, bytes: &[u8]) -> bool {
     if bytes.is_empty() {
         return true;
     }
@@ -90,11 +90,11 @@ unsafe fn write_bytes(fd: *mut FILE, bytes: &[u8]) -> bool {
 }
 
 #[inline]
-unsafe fn write_fmt(fd: *mut FILE, s: String) -> bool {
-    unsafe { write_bytes(fd, s.as_bytes()) }
+fn write_fmt(fd: *mut FILE, s: String) -> bool {
+    write_bytes(fd, s.as_bytes())
 }
 
-unsafe fn put_view_curpos(fd: *mut FILE, wp: *const win_T, spaces: &str) -> c_int {
+fn put_view_curpos(fd: *mut FILE, wp: *const win_T, spaces: &str) -> c_int {
     unsafe {
         let s = if (*wp).w_curswant == MAXCOL {
             format!("{spaces}normal! $\n")
@@ -105,7 +105,7 @@ unsafe fn put_view_curpos(fd: *mut FILE, wp: *const win_T, spaces: &str) -> c_in
     }
 }
 
-unsafe fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut win_T) -> c_int {
+fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut win_T) -> c_int {
     unsafe {
         if restore_size && (opt_vars().ssop_flags & kOptSsopFlagWinsize) != 0 {
             let mut n: c_int = 0;
@@ -154,7 +154,7 @@ unsafe fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut win
     }
 }
 
-unsafe fn ses_win_rec(fd: *mut FILE, fr: &mut frame_T) -> c_int {
+fn ses_win_rec(fd: *mut FILE, fr: &mut frame_T) -> c_int {
     unsafe {
         let mut count: c_int = 0;
 
@@ -205,7 +205,7 @@ unsafe fn ses_win_rec(fd: *mut FILE, fr: &mut frame_T) -> c_int {
     }
 }
 
-unsafe fn ses_skipframe(fr: *mut frame_T) -> *mut frame_T {
+fn ses_skipframe(fr: *mut frame_T) -> *mut frame_T {
     unsafe {
         let mut frc = fr;
         while !frc.is_null() {
@@ -253,15 +253,14 @@ fn ses_do_win(wp: &mut win_T) -> c_int {
     }
 }
 
-unsafe fn ses_arglist(
+fn ses_arglist(
     fd: *mut FILE,
     cmd: *const c_char,
     gap: &[aentry_T],
     fullname: bool,
     flagp: *mut c_uint,
 ) -> c_int {
-    unsafe {
-        if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd))) {
+    if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd))) {
             return FAIL;
         }
         let mut buf: Vec<c_char> = if fullname {
@@ -283,10 +282,9 @@ unsafe fn ses_arglist(
             }
         }
         OK
-    }
 }
 
-unsafe fn ses_get_fname(buf: *mut buf_T, flagp: *const c_uint) -> *mut c_char {
+fn ses_get_fname(buf: *mut buf_T, flagp: *const c_uint) -> *mut c_char {
     unsafe {
         if !(*buf).b_sfname.is_null()
             && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
@@ -300,17 +298,15 @@ unsafe fn ses_get_fname(buf: *mut buf_T, flagp: *const c_uint) -> *mut c_char {
     }
 }
 
-unsafe fn ses_fname(fd: *mut FILE, buf: *mut buf_T, flagp: *mut c_uint, add_eol: bool) -> c_int {
-    unsafe {
-        let name = ses_get_fname(buf, flagp);
+fn ses_fname(fd: *mut FILE, buf: *mut buf_T, flagp: *mut c_uint, add_eol: bool) -> c_int {
+    let name = ses_get_fname(buf, flagp);
         if ses_put_fname(fd, name, flagp) == FAIL || (add_eol && !write_bytes(fd, b"\n")) {
             return FAIL;
         }
         OK
-    }
 }
 
-unsafe fn ses_escape_fname(name: *mut c_char, _flagp: *mut c_uint) -> CString {
+fn ses_escape_fname(name: *mut c_char, _flagp: *mut c_uint) -> CString {
     unsafe {
         let mut sname_vec: Vec<c_char> = home_replace_save(ptr::null_mut(), name)
             .into_bytes_with_nul()
@@ -330,14 +326,14 @@ unsafe fn ses_escape_fname(name: *mut c_char, _flagp: *mut c_uint) -> CString {
     }
 }
 
-unsafe fn ses_put_fname(fd: *mut FILE, name: *mut c_char, flagp: *mut c_uint) -> c_int {
+fn ses_put_fname(fd: *mut FILE, name: *mut c_char, flagp: *mut c_uint) -> c_int {
     unsafe {
         let p = ses_escape_fname(name, flagp);
         if fputs(p.as_ptr(), fd) < 0 { FAIL } else { OK }
     }
 }
 
-unsafe fn put_view(
+fn put_view(
     fd: *mut FILE,
     wp: *mut win_T,
     tp: &mut tabpage_T,
@@ -540,7 +536,7 @@ unsafe fn put_view(
     }
 }
 
-unsafe fn store_session_globals(fd: *mut FILE) -> c_int {
+fn store_session_globals(fd: *mut FILE) -> c_int {
     unsafe {
         let d = get_globvar_dict();
         let ht = &raw mut (*d).dv_hashtab;
@@ -612,7 +608,7 @@ unsafe fn store_session_globals(fd: *mut FILE) -> c_int {
     }
 }
 
-unsafe fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
+fn makeopens(fd: *mut FILE, dirnow: *mut c_char) -> c_int {
     unsafe {
         let mut only_save_windows = true;
         let mut edited_win: *mut win_T = ptr::null_mut();
@@ -1277,7 +1273,7 @@ fn get_view_file(c: c_char) -> Option<CString> {
     }
 }
 
-pub unsafe fn put_eol(fd: *mut FILE) -> c_int {
+pub fn put_eol(fd: *mut FILE) -> c_int {
     unsafe {
         if fputc(b'\n' as c_int, fd) < 0 {
             return FAIL;
@@ -1286,7 +1282,7 @@ pub unsafe fn put_eol(fd: *mut FILE) -> c_int {
     }
 }
 
-pub unsafe fn put_line(fd: *mut FILE, s: *mut c_char) -> c_int {
+pub fn put_line(fd: *mut FILE, s: *mut c_char) -> c_int {
     unsafe {
         if fputs(s, fd) < 0 || fputc(b'\n' as c_int, fd) < 0 {
             return FAIL;

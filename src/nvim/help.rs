@@ -273,7 +273,7 @@ pub fn ex_helpclose(eap: &mut exarg_T) {
 }
 
 /// Search for a language specifier in the form `@xx` (`check_help_lang`).
-pub unsafe fn check_help_lang(arg: *mut c_char) -> *mut c_char {
+pub fn check_help_lang(arg: *mut c_char) -> *mut c_char {
     unsafe {
         let len = CStr::from_ptr(arg).to_bytes().len();
         if len >= 3
@@ -289,7 +289,7 @@ pub unsafe fn check_help_lang(arg: *mut c_char) -> *mut c_char {
 }
 
 /// Return a heuristic indicating how well the given string matches (`help_heuristic`).
-pub unsafe fn help_heuristic(
+pub fn help_heuristic(
     matched_string: *mut c_char,
     mut offset: c_int,
     wrong_case: bool,
@@ -337,7 +337,7 @@ fn help_compare(str1: &[c_char], str2: &[c_char]) -> std::cmp::Ordering {
 }
 
 /// Find all help tags matching `arg`, sort them and return in `matches` (`find_help_tags`).
-pub unsafe fn find_help_tags(
+pub fn find_help_tags(
     arg: *const c_char,
     matches: &mut Vec<std::ffi::CString>,
     keep_lang: bool,
@@ -505,16 +505,12 @@ pub fn get_local_additions() {
 
 /// `:exusage` (`ex_exusage`).
 pub fn ex_exusage(_eap: &mut exarg_T) {
-    unsafe {
-        do_cmdline_cmd(c"help ex-cmd-index".as_ptr());
-    }
+    do_cmdline_cmd(c"help ex-cmd-index".as_ptr());
 }
 
 /// `:viusage` (`ex_viusage`).
 pub fn ex_viusage(_eap: &mut exarg_T) {
-    unsafe {
-        do_cmdline_cmd(c"help normal-index".as_ptr());
-    }
+    do_cmdline_cmd(c"help normal-index".as_ptr());
 }
 
 /// `:helptags` (`ex_helptags`).

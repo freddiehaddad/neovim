@@ -717,29 +717,25 @@ pub fn evalvars_clear() {
 }
 
 pub fn garbage_collect_globvars(copyID: c_int) -> c_int {
-    unsafe {
-        c_int::from(set_ref_in_ht(
+    c_int::from(set_ref_in_ht(
             &raw mut vars_st().globvardict.dv_hashtab,
             copyID,
             ptr::null_mut(),
         ))
-    }
 }
 
 pub fn garbage_collect_vimvars(copyID: c_int) -> bool {
-    unsafe { set_ref_in_ht(&raw mut vars_st().vimvardict.dv_hashtab, copyID, ptr::null_mut()) }
+    set_ref_in_ht(&raw mut vars_st().vimvardict.dv_hashtab, copyID, ptr::null_mut())
 }
 
 pub fn garbage_collect_scriptvars(copyID: c_int) -> bool {
-    unsafe {
-        let mut abort = false;
+    let mut abort = false;
 
         for i in 1..=crate::runtime::script_items_len() {
             abort = abort || set_ref_in_ht(script_vars_ht(i), copyID, ptr::null_mut());
         }
 
         abort
-    }
 }
 
 /// Set an internal variable to a string value.
@@ -2452,12 +2448,10 @@ pub fn set_vim_var_special(idx: VimVarIndex, val: SpecialVarValue) {
 }
 
 pub fn set_vim_var_char(c: c_int) {
-    unsafe {
-        let mut buf = [0 as c_char; MB_MAXCHAR + 1];
+    let mut buf = [0 as c_char; MB_MAXCHAR + 1];
         let buflen = utf_char2bytes(c, buf.as_mut_ptr());
         buf[buflen as usize] = NUL;
         set_vim_var_string(VV_CHAR, buf.as_ptr(), buflen as isize);
-    }
 }
 
 pub fn set_vim_var_string(idx: VimVarIndex, val: *const c_char, len: isize) {
@@ -2922,11 +2916,9 @@ pub fn vars_clear_ext(ht: &mut hashtab_T, free_val: bool) {
 
 /// Delete a variable from hashtab "ht" at item "hi".
 fn delete_var(ht: &mut hashtab_T, hi: *mut hashitem_T) {
-    unsafe {
-        let di = tv_dict_hi2di(hi);
+    let di = tv_dict_hi2di(hi);
         hash_remove(ht, hi);
         crate::eval::typval::tv_dict_item_free(di);
-    }
 }
 
 /// List the value of one internal variable.
@@ -3545,8 +3537,7 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> typval_T {
 
 /// Set option "varname" to the value of "varp" for the current buffer/window.
 fn set_option_from_tv(varname: *const c_char, varp: *mut typval_T) {
-    unsafe {
-        let opt_idx = find_option(varname);
+    let opt_idx = find_option(varname);
         if opt_idx == kOptInvalid {
             semsg!(gettext(e_unknown_option2.as_ptr()), varname);
             return;
@@ -3567,7 +3558,6 @@ fn set_option_from_tv(varname: *const c_char, varp: *mut typval_T) {
             }
         }
         optval_free(value);
-    }
 }
 
 /// "setwinvar()" and "settabwinvar()" functions.

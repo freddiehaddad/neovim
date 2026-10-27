@@ -555,7 +555,7 @@ pub fn ex_align(eap: &mut exarg_T) {
 }
 
 /// @return the length of the current line, excluding trailing white space.
-unsafe fn linelen(has_tab: *mut c_int) -> c_int {
+fn linelen(has_tab: *mut c_int) -> c_int {
     unsafe {
         let line = get_cursor_line_ptr();
         if *line == NUL {
@@ -579,7 +579,7 @@ unsafe fn linelen(has_tab: *mut c_int) -> c_int {
     }
 }
 
-unsafe fn string_compare(s1: *const c_char, s2: *const c_char) -> c_int {
+fn string_compare(s1: *const c_char, s2: *const c_char) -> c_int {
     unsafe {
         if excmds_st().sort_lc {
             return strcoll(s1, s2);
@@ -592,7 +592,7 @@ unsafe fn string_compare(s1: *const c_char, s2: *const c_char) -> c_int {
     }
 }
 
-unsafe fn sort_compare(
+fn sort_compare(
     l1: &sorti_T,
     l2: &sorti_T,
     sortbuf1: *mut c_char,
@@ -1394,13 +1394,11 @@ pub fn free_prev_shellcmd() {
 
 /// Check that `excmds_st().prevcmd` is not NULL.
 fn prevcmd_is_set() -> bool {
-    unsafe {
-        if excmds_st().prevcmd.is_none() {
+    if excmds_st().prevcmd.is_none() {
             emsg(gettext(e_noprev.as_ptr()));
             return false;
         }
         true
-    }
 }
 
 /// Handle the `":!cmd"` command.
@@ -1552,7 +1550,7 @@ pub fn do_bang(
 }
 
 /// `do_filter`: filter lines through a command given by the user.
-unsafe fn do_filter(
+fn do_filter(
     line1: linenr_T,
     line2: linenr_T,
     eap: &mut exarg_T,
@@ -1809,7 +1807,7 @@ unsafe fn do_filter(
 }
 
 /// Call a shell to execute a command.
-pub unsafe fn do_shell(cmd: *mut c_char, flags: c_int) {
+pub fn do_shell(cmd: *mut c_char, flags: c_int) {
     unsafe {
         if check_secure() {
             msg_end();
@@ -1852,7 +1850,7 @@ pub unsafe fn do_shell(cmd: *mut c_char, flags: c_int) {
 }
 
 #[cfg(not(unix))]
-unsafe fn find_pipe(cmd: *const c_char) -> *mut c_char {
+fn find_pipe(cmd: *const c_char) -> *mut c_char {
     unsafe {
         let mut inquote = false;
         let mut p = cmd;
@@ -1873,7 +1871,7 @@ unsafe fn find_pipe(cmd: *const c_char) -> *mut c_char {
 
 /// Create a shell command from a command string, input redirection file and
 /// output redirection file.
-pub unsafe fn make_filter_cmd(
+pub fn make_filter_cmd(
     cmd: *mut c_char,
     itmp: *mut c_char,
     otmp: *mut c_char,
@@ -1982,7 +1980,7 @@ pub unsafe fn make_filter_cmd(
 }
 
 /// Append output redirection for the given file to the end of the buffer.
-pub unsafe fn append_redir(
+pub fn append_redir(
     buf: *mut c_char,
     buflen: usize,
     opt: *const c_char,
@@ -2043,8 +2041,7 @@ pub fn print_line_no_prefix(lnum: linenr_T, use_number: bool, list: bool) {
 
 /// Print a text line. Also in silent mode (`"ex -s"`).
 pub fn print_line(lnum: linenr_T, use_number: bool, list: bool, first: bool) {
-    unsafe {
-        let save_silent = g_st().silent_mode;
+    let save_silent = g_st().silent_mode;
 
         if message_filtered(ml_get(lnum)) {
             return;
@@ -2065,10 +2062,9 @@ pub fn print_line(lnum: linenr_T, use_number: bool, list: bool, first: bool) {
             g_st().silent_mode = save_silent;
         }
         g_st().info_message = false;
-    }
 }
 
-pub unsafe fn rename_buffer(new_fname: *mut c_char) -> c_int {
+pub fn rename_buffer(new_fname: *mut c_char) -> c_int {
     unsafe {
         let mut buf = g_st().curbuf;
         apply_autocmds(
@@ -2167,20 +2163,18 @@ pub fn ex_write(eap: &mut exarg_T) {
 }
 
 #[cfg(unix)]
-unsafe fn check_writable(fname: *const c_char) -> c_int {
-    unsafe {
-        if os_nodetype(fname) == NODE_OTHER {
-            semsg!(
-                gettext(c"E503: \"%s\" is not a file or writable device".as_ptr()),
-                fname,
-            );
-            return FAIL;
-        }
-        OK
+fn check_writable(fname: *const c_char) -> c_int {
+    if os_nodetype(fname) == NODE_OTHER {
+        semsg!(
+            gettext(c"E503: \"%s\" is not a file or writable device".as_ptr()),
+            fname,
+        );
+        return FAIL;
     }
+    OK
 }
 
-unsafe fn handle_mkdir_p_arg(eap: &mut exarg_T, fname: *mut c_char) -> c_int {
+fn handle_mkdir_p_arg(eap: &mut exarg_T, fname: *mut c_char) -> c_int {
     if eap.mkdir_p != 0 && os_file_mkdir(fname, 0o755) < 0 {
             return FAIL;
         }
@@ -2375,7 +2369,7 @@ pub fn do_write(eap: &mut exarg_T) -> c_int {
 }
 
 /// Check if it is allowed to overwrite a file.
-pub unsafe fn check_overwrite(
+pub fn check_overwrite(
     eap: &mut exarg_T,
     buf: &mut buf_T,
     fname: *mut c_char,
@@ -2550,21 +2544,18 @@ pub fn do_wqall(eap: &mut exarg_T) {
 
 /// Check the `'write'` option.
 fn not_writing() -> bool {
-    unsafe {
-        if opt_vars().p_write != 0 {
+    if opt_vars().p_write != 0 {
             return false;
         }
         emsg(gettext(
             c"E142: File not written: Writing is disabled by 'write' option".as_ptr(),
         ));
         true
-    }
 }
 
 /// Check if a buffer is read-only.
 fn check_readonly(forceit: &mut c_int, buf: &mut buf_T) -> bool {
-    unsafe {
-        if *forceit == 0
+    if *forceit == 0
             && (buf.b_p_ro != 0
                 || (os_path_exists(buf.b_ffname) && os_file_is_writable(buf.b_ffname) == 0))
         {
@@ -2617,11 +2608,10 @@ fn check_readonly(forceit: &mut c_int, buf: &mut buf_T) -> bool {
         }
 
         false
-    }
 }
 
 /// Try to abandon the current file and edit a new or existing file.
-pub unsafe fn getfile(
+pub fn getfile(
     fnum: c_int,
     ffname_arg: *mut c_char,
     sfname_arg: *mut c_char,
@@ -2711,7 +2701,7 @@ pub unsafe fn getfile(
 }
 
 /// Set `v:swapcommand` for the `SwapExists` autocommands.
-pub unsafe fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
+pub fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
     unsafe {
         if (command.is_null() && newlnum <= 0) || *get_vim_var_str(VV_SWAPCOMMAND) != NUL {
             return false;
@@ -2734,7 +2724,7 @@ pub unsafe fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
 }
 
 /// Start editing a new file.
-pub unsafe fn do_ecmd(
+pub fn do_ecmd(
     fnum: c_int,
     mut ffname: *mut c_char,
     mut sfname: *mut c_char,
@@ -3288,14 +3278,12 @@ pub unsafe fn do_ecmd(
 }
 
 fn delbuf_msg(name: Option<std::ffi::CString>) {
-    unsafe {
-        semsg!(
+    semsg!(
             gettext(c"E143: Autocommands unexpectedly deleted new buffer %s".as_ptr()),
             name.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
         );
         g_st().au_new_curbuf.br_buf = ptr::null_mut();
         g_st().au_new_curbuf.br_buf_free_count = 0;
-    }
 }
 
 /// Get the next line of text for `":append"`, `":insert"` and `":change"`.
@@ -3646,8 +3634,7 @@ pub fn ex_z(eap: &mut exarg_T) {
 
 /// @return true if the secure flag is set and also give an error message.
 pub fn check_secure() -> bool {
-    unsafe {
-        if g_st().secure != 0 {
+    if g_st().secure != 0 {
             g_st().secure = 2;
             emsg(gettext(e_curdir.as_ptr()));
             return true;
@@ -3658,11 +3645,10 @@ pub fn check_secure() -> bool {
             return true;
         }
         false
-    }
 }
 
 /// Get old substitute replacement string.
-pub unsafe fn sub_get_replacement(ret_sub: *mut SubReplacementString) {
+pub fn sub_get_replacement(ret_sub: *mut SubReplacementString) {
     unsafe {
         *ret_sub = excmds_st().old_sub.clone();
     }
@@ -3674,7 +3660,7 @@ pub fn sub_set_replacement(sub: SubReplacementString) {
 }
 
 /// Recognize `":%s/\n//"` and turn it into a join command.
-unsafe fn sub_joining_lines(
+fn sub_joining_lines(
     eap: &mut exarg_T,
     pat: NvimString,
     sub: *const c_char,
@@ -3767,7 +3753,7 @@ impl SubBuf {
     }
 
     #[inline]
-    unsafe fn from_cbuf(p: *const c_char, len: usize) -> Self {
+    fn from_cbuf(p: *const c_char, len: usize) -> Self {
         let mut v = vec![0 as c_char; len + 1];
         if len > 0 {
             unsafe {
@@ -3805,7 +3791,7 @@ fn sub_grow_buf(new_start: &mut SubBuf, new_start_size: &mut usize, mut needed_s
 }
 
 /// Parse `cmd` string for `:substitute`'s `{flags}` and update `subflags_arg` accordingly.
-unsafe fn sub_parse_flags(
+fn sub_parse_flags(
     mut cmd: *mut c_char,
     subflags_arg: &mut subflags_T,
     which_pat: &mut c_int,
@@ -3861,7 +3847,7 @@ unsafe fn sub_parse_flags(
 
 /// Skip over the `"sub"` part in `:s/pat/sub/` where `"delimiter"` is the separating
 /// character.
-unsafe fn skip_substitute(start: *mut c_char, delimiter: c_int) -> *mut c_char {
+fn skip_substitute(start: *mut c_char, delimiter: c_int) -> *mut c_char {
     unsafe {
         let mut p = start;
         while *p != NUL {
@@ -3880,15 +3866,13 @@ unsafe fn skip_substitute(start: *mut c_char, delimiter: c_int) -> *mut c_char {
 }
 
 fn check_regexp_delim(c: c_int) -> c_int {
-    unsafe {
-        if ascii_isalpha(c) {
+    if ascii_isalpha(c) {
             emsg(gettext(
                 c"E146: Regular expressions can't be delimited by letters".as_ptr(),
             ));
             return FAIL;
         }
         OK
-    }
 }
 
 fn push_preview_lines(
@@ -4872,7 +4856,7 @@ pub fn do_sub_msg(count_only: bool) -> bool {
     }
 }
 
-unsafe fn global_exe_one(cmd: *mut c_char, lnum: linenr_T) {
+fn global_exe_one(cmd: *mut c_char, lnum: linenr_T) {
     unsafe {
         (**curwin.as_ptr()).w_cursor.lnum = lnum;
         (**curwin.as_ptr()).w_cursor.col = 0;
@@ -5034,7 +5018,7 @@ pub fn ex_global(eap: &mut exarg_T) {
 }
 
 /// Execute `cmd` on lines marked with `ml_setmarked()`.
-pub unsafe fn global_exe(cmd: *mut c_char) {
+pub fn global_exe(cmd: *mut c_char) {
     unsafe {
         let old_buf = g_st().curbuf;
 
@@ -5300,7 +5284,7 @@ pub fn ex_substitute_preview(
 }
 
 /// Skip over the pattern argument of `":vimgrep /pat/[g][j]"`.
-pub unsafe fn skip_vimgrep_pat(
+pub fn skip_vimgrep_pat(
     mut p: *mut c_char,
     s: *mut *mut c_char,
     flags: *mut c_int,

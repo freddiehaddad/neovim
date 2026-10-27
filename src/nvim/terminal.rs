@@ -2136,8 +2136,7 @@ fn convert_key(
     mut modifiers: c_int,
     statep: *mut VTermModifier,
 ) -> VTermKey {
-    unsafe {
-        *key = unsimplify_key(*key, &mut modifiers);
+    *key = unsimplify_key(*key, &mut modifiers);
         convert_modifiers(key, modifiers, statep);
 
         match *key {
@@ -2236,7 +2235,6 @@ fn convert_key(
             K_F63 => vterm_key_function(63),
             _ => VTERM_KEY_NONE,
         }
-    }
 }
 
 fn mouse_action(
@@ -2547,8 +2545,7 @@ pub fn on_scrollback_option_changed(term: &mut Terminal) {
 }
 
 fn adjust_scrollback(term: &mut Terminal, buf: &mut buf_T) {
-    unsafe {
-        if buf.b_p_scbk < 1 {
+    if buf.b_p_scbk < 1 {
             buf.b_p_scbk = SB_MAX;
         }
         let scbk = buf.b_p_scbk as usize;
@@ -2577,7 +2574,6 @@ fn adjust_scrollback(term: &mut Terminal, buf: &mut buf_T) {
         }
 
         term.sb_size = scbk;
-    }
 }
 
 fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
@@ -2635,8 +2631,7 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut buf_T) {
 }
 
 fn refresh_screen(term: &mut Terminal, buf: &mut buf_T) {
-    unsafe {
-        let mut changed: c_int = 0;
+    let mut changed: c_int = 0;
         let mut added: c_int = 0;
         let mut height: c_int = 0;
         let mut width: c_int = 0;
@@ -2672,7 +2667,6 @@ fn refresh_screen(term: &mut Terminal, buf: &mut buf_T) {
         term.invalid_start = c_int::MAX;
         term.invalid_end = -1;
         changed_lines(&raw mut *buf, change_start, 0, change_end, added, true);
-    }
 }
 
 fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_int) {

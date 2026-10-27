@@ -397,7 +397,7 @@ impl exarg_T {
         }
     }
 
-    pub unsafe fn set_cmdline_vec(&mut self, cmdlinep: *mut *mut c_char, new_buf: Vec<c_char>) {
+    pub fn set_cmdline_vec(&mut self, cmdlinep: *mut *mut c_char, new_buf: Vec<c_char>) {
         unsafe {
             debug_assert!(!self.cmdline_buf.is_null());
             *self.cmdline_buf = new_buf;
@@ -4903,7 +4903,7 @@ fn restore_dbg_stuff(dsp: &mut dbg_stuff) {
 }
 
 /// Check if ffname differs from fnum.
-unsafe fn is_other_file(fnum: c_int, ffname: *mut c_char) -> bool {
+fn is_other_file(fnum: c_int, ffname: *mut c_char) -> bool {
     unsafe {
         if fnum != 0 {
             if fnum == (*g_st().curbuf).b_fnum {
@@ -4929,9 +4929,8 @@ unsafe fn is_other_file(fnum: c_int, ffname: *mut c_char) -> bool {
 }
 
 /// Print the executed command for when 'verbose' is set.
-unsafe fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
-    unsafe {
-        g_st().no_wait_return += 1;
+fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
+    g_st().no_wait_return += 1;
         verbose_enter_scroll();
 
         if lnum == 0 {
@@ -4945,7 +4944,6 @@ unsafe fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
 
         verbose_leave_scroll();
         g_st().no_wait_return -= 1;
-    }
 }
 
 /// Start executing an Ex command line.
@@ -4967,18 +4965,16 @@ fn do_cmdline_end() {
 }
 
 /// Execute a simple command line.  Used for translated commands like "*".
-pub unsafe fn do_cmdline_cmd(cmd: *const c_char) -> c_int {
-    unsafe {
-        do_cmdline(
+pub fn do_cmdline_cmd(cmd: *const c_char) -> c_int {
+    do_cmdline(
             cmd.cast_mut(),
             LineGetter::None,
             DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_KEYTYPED,
         )
-    }
 }
 
 /// do_cmdline(): execute one Ex command line
-pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_int) -> c_int {
+pub fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_int) -> c_int {
     static RECURSIVE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
     unsafe {
@@ -5547,7 +5543,7 @@ pub fn get_loop_line(
 }
 
 /// Store a line in "gap" so that a ":while" loop can execute it again.
-unsafe fn store_loop_line(lines: &mut Vec<wcmd_T>, line: *const c_char) {
+fn store_loop_line(lines: &mut Vec<wcmd_T>, line: *const c_char) {
     unsafe {
         lines.push(wcmd_T {
             line: CStr::from_ptr(line).to_owned(),
@@ -5609,7 +5605,7 @@ fn compute_buffer_local_count(
     }
 }
 
-unsafe fn current_win_nr(win: *const win_T, cmdarg: *mut exarg_T) -> c_int {
+fn current_win_nr(win: *const win_T, cmdarg: *mut exarg_T) -> c_int {
     unsafe {
         let nonnr = !cmdarg.is_null() && (*cmdarg).cmdidx != cmdidx_T::CMD_quit as c_int;
         let mut nr = 0;
@@ -5630,7 +5626,7 @@ unsafe fn current_win_nr(win: *const win_T, cmdarg: *mut exarg_T) -> c_int {
     }
 }
 
-unsafe fn current_tab_nr(tab: *mut tabpage_T) -> c_int {
+fn current_tab_nr(tab: *mut tabpage_T) -> c_int {
     unsafe {
         let mut nr = 0;
         let mut tp = g_st().first_tabpage;
@@ -5645,7 +5641,7 @@ unsafe fn current_tab_nr(tab: *mut tabpage_T) -> c_int {
     }
 }
 
-unsafe fn get_wincmd_addr_type(arg: *const c_char, eap: *mut exarg_T) {
+fn get_wincmd_addr_type(arg: *const c_char, eap: *mut exarg_T) {
     unsafe {
         let ch = *arg;
         match ch {
@@ -5730,7 +5726,7 @@ unsafe fn get_wincmd_addr_type(arg: *const c_char, eap: *mut exarg_T) {
     }
 }
 
-unsafe fn skip_colon_white(mut p: *const c_char, skipleadingwhite: bool) -> *mut c_char {
+fn skip_colon_white(mut p: *const c_char, skipleadingwhite: bool) -> *mut c_char {
     unsafe {
         if skipleadingwhite {
             p = skipwhite(p);
@@ -5742,7 +5738,7 @@ unsafe fn skip_colon_white(mut p: *const c_char, skipleadingwhite: bool) -> *mut
     }
 }
 
-pub unsafe fn set_cmd_addr_type(eap: *mut exarg_T, p: *mut c_char) {
+pub fn set_cmd_addr_type(eap: *mut exarg_T, p: *mut c_char) {
     unsafe {
         if is_user_cmdidx(cmdidx_T::from_raw((*eap).cmdidx)) {
             return;
@@ -5764,7 +5760,7 @@ pub unsafe fn set_cmd_addr_type(eap: *mut exarg_T, p: *mut c_char) {
     }
 }
 
-pub unsafe fn get_cmd_default_range(eap: *mut exarg_T) -> linenr_T {
+pub fn get_cmd_default_range(eap: *mut exarg_T) -> linenr_T {
     unsafe {
         match (*eap).addr_type {
             ADDR_LINES | ADDR_OTHER => (**curwin.as_ptr()).w_cursor.lnum.min((*g_st().curbuf).b_ml.ml_line_count),
@@ -5864,7 +5860,7 @@ fn parse_register(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn set_cmd_count(eap: *mut exarg_T, count: linenr_T, validate: bool) {
+pub fn set_cmd_count(eap: *mut exarg_T, count: linenr_T, validate: bool) {
     unsafe {
         if (*eap).addr_type != ADDR_LINES {
             (*eap).line2 = count;
@@ -5886,7 +5882,7 @@ pub unsafe fn set_cmd_count(eap: *mut exarg_T, count: linenr_T, validate: bool) 
     }
 }
 
-unsafe fn parse_count(eap: *mut exarg_T, errormsg: *mut *const c_char, validate: bool) -> c_int {
+fn parse_count(eap: *mut exarg_T, errormsg: *mut *const c_char, validate: bool) -> c_int {
     unsafe {
         if ((*eap).argt & EX_COUNT) != 0 && ascii_isdigit(*(*eap).arg) {
             let p = skipdigits((*eap).arg.add(1));
@@ -5928,16 +5924,14 @@ pub fn is_cmd_ni(cmdidx: cmdidx_T) -> bool {
 }
 
 fn find_excmd_after_range(eap: &mut exarg_T) -> *mut c_char {
-    unsafe {
-        let cmd = eap.cmd;
+    let cmd = eap.cmd;
         eap.cmd = skip_range(eap.cmd, ptr::null_mut());
         let p = find_ex_command(eap, ptr::null_mut());
         eap.cmd = cmd;
         p
-    }
 }
 
-unsafe fn parse_bang(eap: *const exarg_T, p: *mut *mut c_char) -> bool {
+fn parse_bang(eap: *const exarg_T, p: *mut *mut c_char) -> bool {
     unsafe {
         if **p == b'!' as c_char
             && (*eap).cmdidx != cmdidx_T::CMD_substitute as c_int
@@ -5962,7 +5956,7 @@ pub fn cmd_has_expr_args(cmdidx: cmdidx_T) -> bool {
     )
 }
 
-pub unsafe fn parse_cmdline(
+pub fn parse_cmdline(
     cmdline: *mut *mut c_char,
     cmdline_buf: *mut Vec<c_char>,
     eap: &mut exarg_T,
@@ -6137,7 +6131,7 @@ fn shift_cmd_args(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn execute_cmd0(
+fn execute_cmd0(
     retv: *mut c_int,
     eap: &mut exarg_T,
     errormsg: *mut *const c_char,
@@ -6290,7 +6284,7 @@ pub fn execute_cmd(eap: &mut exarg_T, cmod: &mut cmdmod_T, preview: bool) -> c_i
     }
 }
 
-unsafe fn profile_cmd(eap: &exarg_T, cstack: *mut cstack_T, fgetline: LineGetter) {
+fn profile_cmd(eap: &exarg_T, cstack: *mut cstack_T, fgetline: LineGetter) {
     unsafe {
         if g_st().do_profiling == PROF_YES
             && (eap.skip == 0
@@ -6429,7 +6423,7 @@ fn skip_cmd(eap: &exarg_T) -> bool {
     false
 }
 
-unsafe fn do_one_cmd(
+fn do_one_cmd(
     cmdlinep: *mut *mut c_char,
     cmdline_buf: *mut Vec<c_char>,
     flags: c_int,
@@ -6854,7 +6848,7 @@ fn ex_range_without_command(eap: &mut exarg_T) -> *mut c_char {
     }
 }
 
-pub unsafe fn parse_command_modifiers(
+pub fn parse_command_modifiers(
     eap: &mut exarg_T,
     errormsg: *mut *const c_char,
     cmod: &mut cmdmod_T,
@@ -7123,8 +7117,7 @@ pub unsafe fn parse_command_modifiers(
 }
 
 pub fn apply_cmdmod(cmod: &mut cmdmod_T) {
-    unsafe {
-        if (cmod.cmod_flags & CMOD_SANDBOX) != 0 && cmod.cmod_did_sandbox == 0 {
+    if (cmod.cmod_flags & CMOD_SANDBOX) != 0 && cmod.cmod_did_sandbox == 0 {
             g_st().sandbox += 1;
             cmod.cmod_did_sandbox = 1;
         }
@@ -7157,12 +7150,10 @@ pub fn apply_cmdmod(cmod: &mut cmdmod_T) {
             cmod.cmod_save_ei = Some(cstr_to_cstring(opt_vars().p_ei));
             set_option_direct(kOptEventignore, cstr_as_obj(c"all".as_ptr()), 0, SID_NONE);
         }
-    }
 }
 
 pub fn undo_cmdmod(cmod: &mut cmdmod_T) {
-    unsafe {
-        if cmod.cmod_verbose_save > 0 {
+    if cmod.cmod_verbose_save > 0 {
             opt_vars().p_verbose = cmod.cmod_verbose_save - 1;
             cmod.cmod_verbose_save = 0;
         }
@@ -7196,10 +7187,9 @@ pub fn undo_cmdmod(cmod: &mut cmdmod_T) {
             cmod.cmod_save_msg_silent = 0;
             cmod.cmod_did_esilent = 0;
         }
-    }
 }
 
-pub unsafe fn parse_cmd_address(
+pub fn parse_cmd_address(
     eap: &mut exarg_T,
     errormsg: *mut *const c_char,
     silent: bool,
@@ -7349,7 +7339,7 @@ pub unsafe fn parse_cmd_address(
     }
 }
 
-pub unsafe fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, len: c_int) -> bool {
+pub fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, len: c_int) -> bool {
     unsafe {
         let mut i: usize = 0;
         while *cmd.add(i) != NUL {
@@ -7366,7 +7356,7 @@ pub unsafe fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, len: c_int) 
     }
 }
 
-unsafe fn append_command(cmd: *const c_char) {
+fn append_command(cmd: *const c_char) {
     unsafe {
         let iobuf_ptr: *mut c_char = (&raw mut g_st().IObuff).cast();
         let len = std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len();
@@ -7396,7 +7386,7 @@ unsafe fn append_command(cmd: *const c_char) {
     }
 }
 
-unsafe fn one_letter_cmd(p: *const c_char, idx: *mut cmdidx_T) -> c_int {
+fn one_letter_cmd(p: *const c_char, idx: *mut cmdidx_T) -> c_int {
     unsafe {
         if *p == b'k' as c_char
             && (*p.add(1) != b'e' as c_char
@@ -7427,7 +7417,7 @@ unsafe fn one_letter_cmd(p: *const c_char, idx: *mut cmdidx_T) -> c_int {
     }
 }
 
-pub unsafe fn find_ex_command(eap: &mut exarg_T, full: *mut c_int) -> *mut c_char {
+pub fn find_ex_command(eap: &mut exarg_T, full: *mut c_int) -> *mut c_char {
     unsafe {
         let mut p = eap.cmd;
         let mut cmdidx_out = cmdidx_T::CMD_append;
@@ -7539,7 +7529,7 @@ pub unsafe fn find_ex_command(eap: &mut exarg_T, full: *mut c_int) -> *mut c_cha
     }
 }
 
-pub unsafe fn modifier_len(cmd: *mut c_char) -> c_int {
+pub fn modifier_len(cmd: *mut c_char) -> c_int {
     unsafe {
         let mut p = cmd;
         if ascii_isdigit(*cmd) {
@@ -7564,7 +7554,7 @@ pub unsafe fn modifier_len(cmd: *mut c_char) -> c_int {
     }
 }
 
-pub unsafe fn cmd_exists(name: *const c_char) -> c_int {
+pub fn cmd_exists(name: *const c_char) -> c_int {
     unsafe {
         for info in &CMDMODS {
             let mut j = 0usize;
@@ -7646,9 +7636,8 @@ pub fn f_fullcommand(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
     }
 }
 
-pub unsafe fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
-    unsafe {
-        if len == 3 && (crate::memory::cstr_prefix_bytes(c"def".as_ptr(), 3) == crate::memory::cstr_prefix_bytes(cmd, 3)) {
+pub fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
+    if len == 3 && (crate::memory::cstr_prefix_bytes(c"def".as_ptr(), 3) == crate::memory::cstr_prefix_bytes(cmd, 3)) {
             return cmdidx_T::CMD_SIZE;
         }
 
@@ -7664,14 +7653,13 @@ pub unsafe fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
             idx = cmdidx_T::from_raw(i);
         }
         idx
-    }
 }
 
 pub fn excmd_get_argt(idx: cmdidx_T) -> u32 {
     CMDNAMES[idx as usize].cmd_argt
 }
 
-pub unsafe fn skip_range(mut cmd: *const c_char, ctx: *mut c_int) -> *mut c_char {
+pub fn skip_range(mut cmd: *const c_char, ctx: *mut c_int) -> *mut c_char {
     unsafe {
         while !vim_strchr(
             c" \t0123456789.$%'/?-+,;\\".as_ptr(),
@@ -7713,16 +7701,14 @@ pub unsafe fn skip_range(mut cmd: *const c_char, ctx: *mut c_int) -> *mut c_char
 }
 
 fn addr_error(addr_type: cmd_addr_T) -> *const c_char {
-    unsafe {
-        if addr_type == ADDR_NONE {
+    if addr_type == ADDR_NONE {
             gettext(e_norange.as_ptr())
         } else {
             gettext(e_invrange.as_ptr())
         }
-    }
 }
 
-pub unsafe fn get_address(
+pub fn get_address(
     eap: *mut exarg_T,
     ptr: *mut *mut c_char,
     addr_type: cmd_addr_T,
@@ -8041,11 +8027,9 @@ fn get_flags(eap: &mut exarg_T) {
 }
 
 pub fn ex_ni(eap: &mut exarg_T) {
-    unsafe {
-        if eap.skip == 0 {
+    if eap.skip == 0 {
             eap.errmsg = gettext(c"E319: The command is not available in this version".as_ptr());
         }
-    }
 }
 
 fn ex_script_ni(eap: &mut exarg_T) {
@@ -8170,7 +8154,7 @@ fn skip_grep_pat(eap: &mut exarg_T) -> *mut c_char {
     }
 }
 
-pub unsafe fn replace_makeprg(
+pub fn replace_makeprg(
     eap: &mut exarg_T,
     mut arg: *mut c_char,
     cmdlinep: *mut *mut c_char,
@@ -8225,7 +8209,7 @@ pub unsafe fn replace_makeprg(
     }
 }
 
-pub unsafe fn expand_filename(
+pub fn expand_filename(
     eap: &mut exarg_T,
     cmdlinep: *mut *mut c_char,
     errormsgp: *mut *const c_char,
@@ -8377,7 +8361,7 @@ pub unsafe fn expand_filename(
     }
 }
 
-unsafe fn repl_cmdline(
+fn repl_cmdline(
     eap: &mut exarg_T,
     mut src: *mut c_char,
     srclen: usize,
@@ -8435,7 +8419,7 @@ unsafe fn repl_cmdline(
     }
 }
 
-pub unsafe fn separate_nextcmd(eap: *mut exarg_T) {
+pub fn separate_nextcmd(eap: *mut exarg_T) {
     unsafe {
         let mut p = skip_grep_pat(&mut *eap);
 
@@ -8490,7 +8474,7 @@ pub unsafe fn separate_nextcmd(eap: *mut exarg_T) {
     }
 }
 
-pub unsafe fn getargcmd(argp: *mut *mut c_char) -> *mut c_char {
+pub fn getargcmd(argp: *mut *mut c_char) -> *mut c_char {
     unsafe {
         let mut arg = *argp;
         let mut command: *mut c_char = ptr::null_mut();
@@ -8514,7 +8498,7 @@ pub unsafe fn getargcmd(argp: *mut *mut c_char) -> *mut c_char {
     }
 }
 
-pub unsafe fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
+pub fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
     unsafe {
         while *p != NUL && !ascii_isspace(*p) {
             if *p == b'\\' as c_char && *p.add(1) != NUL {
@@ -8530,7 +8514,7 @@ pub unsafe fn skip_cmd_arg(mut p: *mut c_char, rembs: bool) -> *mut c_char {
     }
 }
 
-pub unsafe fn get_bad_opt(p: *const c_char, eap: &mut exarg_T) -> c_int {
+pub fn get_bad_opt(p: *const c_char, eap: &mut exarg_T) -> c_int {
     unsafe {
         if std::ffi::CStr::from_ptr(p).to_bytes().eq_ignore_ascii_case(b"keep") {
             eap.bad_char = BAD_KEEP;
@@ -8650,7 +8634,7 @@ fn get_argopt_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-pub unsafe fn expand_argopt(
+pub fn expand_argopt(
     pat: *mut c_char,
     xp: &mut expand_T,
     rmp: &mut regmatch_T,
@@ -8790,8 +8774,7 @@ fn get_tabpage_arg(eap: &mut exarg_T) -> c_int {
 }
 
 fn ex_autocmd(eap: &mut exarg_T) {
-    unsafe {
-        if g_st().secure != 0 {
+    if g_st().secure != 0 {
             g_st().secure = 2;
             eap.errmsg = gettext(e_curdir.as_ptr());
         } else if eap.cmdidx == cmdidx_T::CMD_autocmd as c_int {
@@ -8799,12 +8782,10 @@ fn ex_autocmd(eap: &mut exarg_T) {
         } else {
             do_augroup(eap.arg, eap.forceit != 0);
         }
-    }
 }
 
 fn ex_doautocmd(eap: &mut exarg_T) {
-    unsafe {
-        let mut arg = eap.arg;
+    let mut arg = eap.arg;
         let call_do_modelines = check_nomodeline(&raw mut arg);
         let mut did_aucmd = false;
 
@@ -8812,12 +8793,10 @@ fn ex_doautocmd(eap: &mut exarg_T) {
         if call_do_modelines && did_aucmd {
             do_modelines(0);
         }
-    }
 }
 
 fn ex_bunload(eap: &mut exarg_T) {
-    unsafe {
-        let cmd = if eap.cmdidx == cmdidx_T::CMD_bdelete as c_int {
+    let cmd = if eap.cmdidx == cmdidx_T::CMD_bdelete as c_int {
             DOBUF_DEL
         } else if eap.cmdidx == cmdidx_T::CMD_bwipeout as c_int {
             DOBUF_WIPE
@@ -8832,7 +8811,6 @@ fn ex_bunload(eap: &mut exarg_T) {
             eap.line2,
             eap.forceit,
         );
-    }
 }
 
 fn ex_buffer(eap: &mut exarg_T) {
@@ -8857,48 +8835,38 @@ fn do_exbuffer(eap: &mut exarg_T) {
 }
 
 fn ex_bmodified(eap: &mut exarg_T) {
-    unsafe {
-        goto_buffer(eap, DOBUF_MOD, FORWARD, eap.line2);
+    goto_buffer(eap, DOBUF_MOD, FORWARD, eap.line2);
         if !eap.do_ecmd_cmd.is_null() {
             do_cmdline_cmd(eap.do_ecmd_cmd);
         }
-    }
 }
 
 fn ex_bnext(eap: &mut exarg_T) {
-    unsafe {
-        goto_buffer(eap, DOBUF_CURRENT, FORWARD, eap.line2);
+    goto_buffer(eap, DOBUF_CURRENT, FORWARD, eap.line2);
         if !eap.do_ecmd_cmd.is_null() {
             do_cmdline_cmd(eap.do_ecmd_cmd);
         }
-    }
 }
 
 fn ex_bprevious(eap: &mut exarg_T) {
-    unsafe {
-        goto_buffer(eap, DOBUF_CURRENT, BACKWARD, eap.line2);
+    goto_buffer(eap, DOBUF_CURRENT, BACKWARD, eap.line2);
         if !eap.do_ecmd_cmd.is_null() {
             do_cmdline_cmd(eap.do_ecmd_cmd);
         }
-    }
 }
 
 fn ex_brewind(eap: &mut exarg_T) {
-    unsafe {
-        goto_buffer(eap, DOBUF_FIRST, FORWARD, 0);
+    goto_buffer(eap, DOBUF_FIRST, FORWARD, 0);
         if !eap.do_ecmd_cmd.is_null() {
             do_cmdline_cmd(eap.do_ecmd_cmd);
         }
-    }
 }
 
 fn ex_blast(eap: &mut exarg_T) {
-    unsafe {
-        goto_buffer(eap, DOBUF_LAST, BACKWARD, 0);
+    goto_buffer(eap, DOBUF_LAST, BACKWARD, 0);
         if !eap.do_ecmd_cmd.is_null() {
             do_cmdline_cmd(eap.do_ecmd_cmd);
         }
-    }
 }
 
 pub fn ends_excmd(c: c_int) -> c_int {
@@ -8907,7 +8875,7 @@ pub fn ends_excmd(c: c_int) -> c_int {
     )
 }
 
-pub unsafe fn find_nextcmd(mut p: *const c_char) -> *mut c_char {
+pub fn find_nextcmd(mut p: *const c_char) -> *mut c_char {
     unsafe {
         while *p != b'|' as c_char && *p != b'\n' as c_char {
             if *p == NUL {
@@ -8919,7 +8887,7 @@ pub unsafe fn find_nextcmd(mut p: *const c_char) -> *mut c_char {
     }
 }
 
-pub unsafe fn check_nextcmd(p: *mut c_char) -> *mut c_char {
+pub fn check_nextcmd(p: *mut c_char) -> *mut c_char {
     unsafe {
         let s = skipwhite(p);
         if *s == b'|' as c_char || *s == b'\n' as c_char {
@@ -9017,7 +8985,7 @@ pub fn not_exiting(save_exiting: bool) {
         set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
 }
 
-pub unsafe fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool) -> bool {
+pub fn before_quit_autocmds(wp: *mut win_T, quit_all: bool, forceit: bool) -> bool {
     unsafe {
         if *get_vim_var_str(VV_EXITREASON) == NUL {
             set_vim_var_string(VV_EXITREASON, c"quit".as_ptr(), 4);
@@ -9631,7 +9599,7 @@ fn ex_pclose(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_win_close(forceit: c_int, win: &mut win_T, tp: *mut tabpage_T) {
+pub fn ex_win_close(forceit: c_int, win: &mut win_T, tp: *mut tabpage_T) {
     unsafe {
         debug_assert!(tp.is_null() || tp != g_st().curtab);
 
@@ -9960,12 +9928,10 @@ fn ex_recover(eap: &mut exarg_T) {
 }
 
 fn ex_wrongmodifier(eap: &mut exarg_T) {
-    unsafe {
-        eap.errmsg = gettext(e_invcmd.as_ptr());
-    }
+    eap.errmsg = gettext(e_invcmd.as_ptr());
 }
 
-unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut list_T {
+fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut list_T {
     unsafe {
         let saved_sctx = g_st().current_sctx;
 
@@ -10015,7 +9981,7 @@ unsafe fn call_findfunc(pat: *mut c_char, cmdcomplete: BoolVarValue) -> *mut lis
     }
 }
 
-pub unsafe fn expand_findfunc(
+pub fn expand_findfunc(
     xp: &mut expand_T,
     pat: *mut c_char,
     files: &mut Vec<std::ffi::CString>,
@@ -10041,7 +10007,7 @@ pub unsafe fn expand_findfunc(
     }
 }
 
-unsafe fn findfunc_find_file(
+fn findfunc_find_file(
     findarg: *mut c_char,
     findarg_len: usize,
     count: c_int,
@@ -10092,7 +10058,7 @@ pub fn free_findfunc_option() {
 }
 
 pub fn set_ref_in_findfunc(copyID: c_int) -> bool {
-    unsafe { set_ref_in_callback(&mut opt_vars().p_ffu, copyID, ptr::null_mut(), ptr::null_mut()) }
+    set_ref_in_callback(&mut opt_vars().p_ffu, copyID, ptr::null_mut(), ptr::null_mut())
 }
 
 fn set_browse_edit_arg(eap: &mut exarg_T) {
@@ -10428,8 +10394,7 @@ fn ex_detach(eap: &mut exarg_T) {
 }
 
 fn ex_connect(eap: &mut exarg_T) {
-    unsafe {
-        let stop_server = if eap.forceit != 0 {
+    let stop_server = if eap.forceit != 0 {
             ui_active() == 1
         } else {
             false
@@ -10449,7 +10414,6 @@ fn ex_connect(eap: &mut exarg_T) {
             g_st().exiting = true;
             getout(0);
         }
-    }
 }
 
 fn ex_mode(eap: &mut exarg_T) {
@@ -10580,7 +10544,7 @@ fn ex_edit(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
+pub fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
     unsafe {
         if (eap.cmdidx == cmdidx_T::CMD_new as c_int
             || eap.cmdidx == cmdidx_T::CMD_tabnew as c_int
@@ -10694,15 +10658,11 @@ pub unsafe fn do_exedit(eap: &mut exarg_T, old_curwin: *mut win_T) {
 }
 
 fn ex_nogui(eap: &mut exarg_T) {
-    unsafe {
-        eap.errmsg = gettext(c"E25: Nvim does not have a built-in GUI".as_ptr());
-    }
+    eap.errmsg = gettext(c"E25: Nvim does not have a built-in GUI".as_ptr());
 }
 
 fn ex_popup(eap: &mut exarg_T) {
-    unsafe {
-        pum_make_popup(eap.arg, eap.forceit);
-    }
+    pum_make_popup(eap.arg, eap.forceit);
 }
 
 fn ex_swapname(_eap: &mut exarg_T) {
@@ -10886,7 +10846,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     }
 }
 
-pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
+pub fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
     unsafe {
         if new_dir.is_null() || allbuf_locked() {
             return false;
@@ -11635,7 +11595,7 @@ fn close_redir() {
         }
 }
 
-pub unsafe fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_int {
+pub fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_int {
     unsafe {
         let ret = os_mkdir(name, prot);
         if ret != 0 {
@@ -11646,7 +11606,7 @@ pub unsafe fn vim_mkdir_emsg(name: *const c_char, prot: c_int) -> c_int {
     }
 }
 
-pub unsafe fn open_exfile(fname: *mut c_char, forceit: c_int, mode: *mut c_char) -> *mut FILE {
+pub fn open_exfile(fname: *mut c_char, forceit: c_int, mode: *mut c_char) -> *mut FILE {
     unsafe {
         #[cfg(unix)]
         if os_isdir(fname) {
@@ -11892,11 +11852,9 @@ fn ex_stopinsert(_eap: &mut exarg_T) {
         clearmode();
 }
 
-pub unsafe fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool) {
-    unsafe {
-        let _ = ins_typebuf(cmd, remap, 0, true, silent);
+pub fn exec_normal_cmd(cmd: *mut c_char, remap: c_int, silent: bool) {
+    let _ = ins_typebuf(cmd, remap, 0, true, silent);
         exec_normal(false, false);
-    }
 }
 
 pub fn exec_normal(was_typed: bool, use_vpeekc: bool) {
@@ -11916,8 +11874,7 @@ pub fn exec_normal(was_typed: bool, use_vpeekc: bool) {
 }
 
 fn ex_checkpath(eap: &mut exarg_T) {
-    unsafe {
-        find_pattern_in_path(
+    find_pattern_in_path(
             ptr::null_mut(),
             0,
             0,
@@ -11935,7 +11892,6 @@ fn ex_checkpath(eap: &mut exarg_T) {
             eap.forceit != 0,
             false,
         );
-    }
 }
 
 fn ex_psearch(eap: &mut exarg_T) {
@@ -12036,7 +11992,7 @@ fn prepare_preview_window() {
     }
 }
 
-unsafe fn back_to_current_window(curwin_save: *mut win_T) {
+fn back_to_current_window(curwin_save: *mut win_T) {
     unsafe {
         if *curwin.as_ptr() != curwin_save && win_valid(curwin_save) {
             validate_cursor(*curwin.as_ptr());
@@ -12059,12 +12015,10 @@ fn ex_stag(eap: &mut exarg_T) {
 }
 
 fn ex_tag(eap: &mut exarg_T) {
-    unsafe {
-        ex_tag_cmd(eap, CMDNAMES[eap.cmdidx as usize].cmd_name.as_ptr());
-    }
+    ex_tag_cmd(eap, CMDNAMES[eap.cmdidx as usize].cmd_name.as_ptr());
 }
 
-unsafe fn ex_tag_cmd(eap: &mut exarg_T, name: *const c_char) {
+fn ex_tag_cmd(eap: &mut exarg_T, name: *const c_char) {
     unsafe {
         let mut cmd = match *name.add(1) as u8 {
             b'j' => DT_JUMP,
@@ -12112,7 +12066,7 @@ const SPEC_AMATCH: isize = 12;
 const SPEC_SFLNUM: isize = 13;
 const SPEC_SID: isize = 14;
 
-pub unsafe fn find_cmdline_var(src: *const c_char, usedlen: &mut usize) -> isize {
+pub fn find_cmdline_var(src: *const c_char, usedlen: &mut usize) -> isize {
     const SPEC_STR: [&CStr; 15] = [
         c"%",
         c"#",
@@ -12131,8 +12085,7 @@ pub unsafe fn find_cmdline_var(src: *const c_char, usedlen: &mut usize) -> isize
         c"<SID>",
     ];
 
-    unsafe {
-        for (i, s) in SPEC_STR.iter().enumerate() {
+    for (i, s) in SPEC_STR.iter().enumerate() {
             let len = s.to_bytes().len();
             if crate::memory::cstr_prefix_bytes(src, len) == crate::memory::cstr_prefix_bytes(s.as_ptr(), len) {
                 *usedlen = len;
@@ -12140,10 +12093,9 @@ pub unsafe fn find_cmdline_var(src: *const c_char, usedlen: &mut usize) -> isize
             }
         }
         -1
-    }
 }
 
-pub unsafe fn eval_vars(
+pub fn eval_vars(
     src: *mut c_char,
     srcstart: *const c_char,
     usedlen: *mut usize,
@@ -12446,7 +12398,7 @@ pub unsafe fn eval_vars(
     }
 }
 
-pub unsafe fn expand_sfile(arg: *mut c_char) -> Option<std::ffi::CString> {
+pub fn expand_sfile(arg: *mut c_char) -> Option<std::ffi::CString> {
     unsafe {
         let mut result_vec: Vec<c_char> = cstr_to_cstring(arg)
             .into_bytes_with_nul()
@@ -12606,17 +12558,14 @@ fn ex_filetype(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *mut c_char {
-    unsafe {
-        let buf = (&raw mut docmd_st().EX_ERROR_BUF).cast::<c_char>();
+pub fn ex_errmsg(msg: *const c_char, arg: *const c_char) -> *mut c_char {
+    let buf = (&raw mut docmd_st().EX_ERROR_BUF).cast::<c_char>();
         let _ = vim_snprintf!(buf, MSG_BUF_LEN, gettext(msg), arg);
         buf
-    }
 }
 
 pub fn filetype_plugin_enable() {
-    unsafe {
-        if docmd_st().filetype_plugin == kNone {
+    if docmd_st().filetype_plugin == kNone {
             source_runtime(FTPLUGIN_FILE.as_ptr().cast_mut(), DIP_ALL);
             docmd_st().filetype_plugin = kTrue;
         }
@@ -12624,16 +12573,13 @@ pub fn filetype_plugin_enable() {
             source_runtime(INDENT_FILE.as_ptr().cast_mut(), DIP_ALL);
             docmd_st().filetype_indent = kTrue;
         }
-    }
 }
 
 pub fn filetype_maybe_enable() {
-    unsafe {
-        if docmd_st().filetype_detect == kNone {
+    if docmd_st().filetype_detect == kNone {
             source_runtime(FILETYPE_FILE.as_ptr().cast_mut(), DIP_ALL);
             docmd_st().filetype_detect = kTrue;
         }
-    }
 }
 
 fn ex_setfiletype(eap: &mut exarg_T) {
@@ -12867,7 +12813,7 @@ fn ex_fclose(eap: &mut exarg_T) {
     win_float_remove(eap.forceit != 0, eap.line1);
 }
 
-pub unsafe fn verify_command(cmd: *mut c_char) {
+pub fn verify_command(cmd: *mut c_char) {
     const SMILE_LINES: [&CStr; 105] = [
         c" #xxn`          #xnxx`        ,+x@##@Mz;`        .xxxxxxxxxnz+,      znnnnnnnnnnnnnnnn.",
         c" n###z          x####`      :x##########W+`      ,#############M;    W################.",
@@ -13071,8 +13017,7 @@ mod tests {
 
     #[test]
     fn find_cmdline_var_matches_special_variables() {
-        unsafe {
-            let mut usedlen = 0usize;
+        let mut usedlen = 0usize;
             assert_eq!(
                 find_cmdline_var(c"<cword>".as_ptr(), &mut usedlen),
                 SPEC_CWORD
@@ -13084,6 +13029,5 @@ mod tests {
             );
             assert_eq!(usedlen, 1);
             assert_eq!(find_cmdline_var(c"foo".as_ptr(), &mut usedlen), -1);
-        }
     }
 }

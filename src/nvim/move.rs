@@ -61,7 +61,7 @@ struct lineoff_T {
 }
 
 /// Get the number of screen lines skipped with `wp->w_skipcol`.
-unsafe fn adjust_plines_for_skipcol(wp: *mut win_T) -> c_int {
+fn adjust_plines_for_skipcol(wp: *mut win_T) -> c_int {
     unsafe {
         if (*wp).w_skipcol == 0 {
             return 0;
@@ -80,7 +80,7 @@ unsafe fn adjust_plines_for_skipcol(wp: *mut win_T) -> c_int {
 /// Return how many lines `lnum` will take on the screen, taking into account
 /// whether it is the first line, whether `w_skipcol` is non-zero and limiting
 /// to the window height.
-pub unsafe fn plines_correct_topline(
+pub fn plines_correct_topline(
     wp: *mut win_T,
     lnum: linenr_T,
     nextp: *mut linenr_T,
@@ -175,7 +175,7 @@ fn comp_botline(wp: &mut win_T) {
 }
 
 /// Redraw when `w_cline_row` changes and `'relativenumber'` or `'cursorline'` is set.
-unsafe fn redraw_for_cursorline(wp: *mut win_T) {
+fn redraw_for_cursorline(wp: *mut win_T) {
     unsafe {
         if ((*wp).w_valid & VALID_CROW) != 0 {
             return;
@@ -188,7 +188,7 @@ unsafe fn redraw_for_cursorline(wp: *mut win_T) {
 }
 
 /// Redraw when `'concealcursor'` is active, or when `w_virtcol` changes.
-unsafe fn redraw_for_cursorcolumn(wp: *mut win_T) {
+fn redraw_for_cursorcolumn(wp: *mut win_T) {
     unsafe {
         if wp == *curwin.as_ptr() && (*wp).w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(wp) {
             redrawWinline(wp, (*wp).w_cursor.lnum);
@@ -214,16 +214,14 @@ unsafe fn redraw_for_cursorcolumn(wp: *mut win_T) {
 
 /// Set `wp->w_virtcol` to a value (`vcol`) that is already valid.
 pub fn set_valid_virtcol(wp: &mut win_T, vcol: colnr_T) {
-    unsafe {
-        wp.w_virtcol = vcol;
+    wp.w_virtcol = vcol;
         redraw_for_cursorcolumn(&raw mut *wp);
         wp.w_valid |= VALID_VIRTCOL;
-    }
 }
 
 /// Calculates how much the `'listchars'` `"precedes"` or `'smoothscroll'` `"<<<"`
 /// marker overlaps with buffer text for window `wp`.
-pub unsafe fn sms_marker_overlap(wp: *mut win_T, mut extra2: c_int) -> c_int {
+pub fn sms_marker_overlap(wp: *mut win_T, mut extra2: c_int) -> c_int {
     unsafe {
         if extra2 == -1 {
             extra2 = win_col_off(wp) - win_col_off2(wp);
@@ -258,7 +256,7 @@ fn skipcol_from_plines(wp: &mut win_T, plines_off: c_int) -> c_int {
 }
 
 /// Set `wp->w_skipcol` to zero and redraw later if needed.
-unsafe fn reset_skipcol(wp: *mut win_T) {
+fn reset_skipcol(wp: *mut win_T) {
     unsafe {
         if (*wp).w_skipcol == 0 {
             return;
@@ -270,13 +268,13 @@ unsafe fn reset_skipcol(wp: *mut win_T) {
 }
 
 /// Return true when `'scrolloffpad'` may augment `'scrolloff'`.
-unsafe fn use_scrolloffpad(wp: *mut win_T) -> bool {
-    unsafe { get_scrolloff_value(wp) > 0 && get_scrolloffpad_value(wp) > 0 }
+fn use_scrolloffpad(wp: *mut win_T) -> bool {
+    get_scrolloff_value(wp) > 0 && get_scrolloffpad_value(wp) > 0
 }
 
 /// Return true when there are not enough real buffer lines below `lnum` to
 /// satisfy the requested `so` context.
-unsafe fn scrolloffpad_eof_pressure(wp: *mut win_T, lnum: linenr_T, so: OptInt) -> bool {
+fn scrolloffpad_eof_pressure(wp: *mut win_T, lnum: linenr_T, so: OptInt) -> bool {
     unsafe {
         if !use_scrolloffpad(wp) || so <= 0 {
             return false;
@@ -287,7 +285,7 @@ unsafe fn scrolloffpad_eof_pressure(wp: *mut win_T, lnum: linenr_T, so: OptInt) 
 }
 
 /// Update `wp->w_topline` to move the cursor onto the screen.
-pub unsafe fn update_topline(wp: *mut win_T) {
+pub fn update_topline(wp: *mut win_T) {
     unsafe {
         let mut check_botline = false;
         let so_ptr: *mut OptInt = if (*wp).w_onebuf_opt.wo_so >= 0 {
@@ -492,7 +490,7 @@ pub unsafe fn update_topline(wp: *mut win_T) {
 }
 
 /// Return the scrolljump value to use for the window `wp`.
-unsafe fn scrolljump_value(wp: *mut win_T) -> c_int {
+fn scrolljump_value(wp: *mut win_T) -> c_int {
     unsafe {
         if opt_vars().p_sj >= 0 {
             opt_vars().p_sj as c_int
@@ -503,7 +501,7 @@ unsafe fn scrolljump_value(wp: *mut win_T) -> c_int {
 }
 
 /// Return true when there are not `'scrolloff'` lines above the cursor for window `wp`.
-unsafe fn check_top_offset(wp: *mut win_T) -> bool {
+fn check_top_offset(wp: *mut win_T) -> bool {
     unsafe {
         let so = get_scrolloff_value(wp);
         if i64::from((*wp).w_cursor.lnum) < i64::from((*wp).w_topline) + so
@@ -549,7 +547,7 @@ pub fn update_curswant() {
 }
 
 /// Check if the cursor has moved. Set the `w_valid` flag accordingly.
-pub unsafe fn check_cursor_moved(wp: *mut win_T) {
+pub fn check_cursor_moved(wp: *mut win_T) {
     unsafe {
         if (*wp).w_cursor.lnum != (*wp).w_valid_cursor.lnum {
             (*wp).w_valid &= !(VALID_WROW
@@ -598,12 +596,10 @@ pub unsafe fn check_cursor_moved(wp: *mut win_T) {
 
 /// Call this function when some window settings have changed.
 pub fn changed_window_setting(wp: &mut win_T) {
-    unsafe {
-        wp.w_lines_valid = 0;
+    wp.w_lines_valid = 0;
         changed_line_abv_curs_win(wp);
         wp.w_valid &= !(VALID_BOTLINE | VALID_BOTLINE_AP | VALID_TOPLINE);
         redraw_later(wp, UPD_NOT_VALID);
-    }
 }
 
 /// Call `changed_window_setting()` for every window.
@@ -690,7 +686,7 @@ pub fn changed_line_abv_curs_win(wp: &mut win_T) {
 }
 
 /// Make sure the value of `wp->w_botline` is valid.
-pub unsafe fn validate_botline_win(wp: *mut win_T) {
+pub fn validate_botline_win(wp: *mut win_T) {
     unsafe {
         if ((*wp).w_valid & VALID_BOTLINE) == 0 {
             comp_botline(&mut *wp);
@@ -709,14 +705,12 @@ pub fn approximate_botline_win(wp: &mut win_T) {
 
 /// Return true if `wp->w_wrow` and `wp->w_wcol` are valid.
 pub fn cursor_valid(wp: &mut win_T) -> c_int {
-    unsafe {
-        check_cursor_moved(&raw mut *wp);
+    check_cursor_moved(&raw mut *wp);
         c_int::from((wp.w_valid & (VALID_WROW | VALID_WCOL)) == (VALID_WROW | VALID_WCOL))
-    }
 }
 
 /// Validate cursor position. Makes sure `w_wrow` and `w_wcol` are valid.
-pub unsafe fn validate_cursor(wp: *mut win_T) {
+pub fn validate_cursor(wp: *mut win_T) {
     unsafe {
         check_cursor_lnum(&mut *wp);
         check_cursor_moved(wp);
@@ -810,7 +804,7 @@ fn curs_rows(wp: &mut win_T) {
 }
 
 /// Validate `wp->w_virtcol` only.
-pub unsafe fn validate_virtcol(wp: *mut win_T) {
+pub fn validate_virtcol(wp: *mut win_T) {
     unsafe {
         check_cursor_moved(wp);
 
@@ -832,7 +826,7 @@ pub unsafe fn validate_virtcol(wp: *mut win_T) {
 }
 
 /// Validate `wp->w_cline_height` only.
-pub unsafe fn validate_cheight(wp: *mut win_T) {
+pub fn validate_cheight(wp: *mut win_T) {
     unsafe {
         check_cursor_moved(wp);
 
@@ -899,7 +893,7 @@ pub unsafe extern "C" fn win_col_off(wp: *mut win_T) -> c_int {
 
 /// Return the difference in column offset for the second screen line of a
 /// wrapped line.
-pub unsafe fn win_col_off2(wp: *mut win_T) -> c_int {
+pub fn win_col_off2(wp: *mut win_T) -> c_int {
     unsafe {
         if ((*wp).w_onebuf_opt.wo_nu != 0
             || (*wp).w_onebuf_opt.wo_rnu != 0
@@ -914,7 +908,7 @@ pub unsafe fn win_col_off2(wp: *mut win_T) -> c_int {
 
 /// Compute `wp->w_wcol` and `wp->w_virtcol`, and update `wp->w_wrow`,
 /// `wp->w_cline_row`, and `wp->w_leftcol`.
-pub unsafe fn curs_columns(wp: *mut win_T, may_scroll: c_int) {
+pub fn curs_columns(wp: *mut win_T, may_scroll: c_int) {
     unsafe {
         let mut startcol: colnr_T = 0;
         let mut endcol: colnr_T = 0;
@@ -1329,7 +1323,7 @@ pub fn f_virtcol2col(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Eval
 
 /// Make sure the cursor is in the visible part of the topline after scrolling
 /// the screen with `'smoothscroll'`.
-unsafe fn cursor_correct_sms(wp: *mut win_T) {
+fn cursor_correct_sms(wp: *mut win_T) {
     unsafe {
         if (*wp).w_onebuf_opt.wo_sms == 0
             || (*wp).w_onebuf_opt.wo_wrap == 0
@@ -1771,7 +1765,7 @@ pub fn adjust_skipcol() {
 }
 
 /// Don't end up with too many filler lines in the window.
-pub unsafe fn check_topfill(wp: *mut win_T, down: bool) {
+pub fn check_topfill(wp: *mut win_T, down: bool) {
     unsafe {
         if (*wp).w_topfill > 0 {
             let n = plines_win_nofill(wp, (*wp).w_topline, true);
@@ -1864,7 +1858,7 @@ pub fn scrollup_clamp() {
     }
 }
 
-unsafe fn topline_back_winheight(wp: *mut win_T, lp: *mut lineoff_T, winheight: bool) {
+fn topline_back_winheight(wp: *mut win_T, lp: *mut lineoff_T, winheight: bool) {
     unsafe {
         if (*lp).fill < win_get_fill(wp, (*lp).lnum) {
             (*lp).fill += 1;
@@ -1883,13 +1877,11 @@ unsafe fn topline_back_winheight(wp: *mut win_T, lp: *mut lineoff_T, winheight: 
     }
 }
 
-unsafe fn topline_back(wp: *mut win_T, lp: *mut lineoff_T) {
-    unsafe {
-        topline_back_winheight(wp, lp, true);
-    }
+fn topline_back(wp: *mut win_T, lp: *mut lineoff_T) {
+    topline_back_winheight(wp, lp, true);
 }
 
-unsafe fn botline_forw(wp: *mut win_T, lp: &mut lineoff_T) {
+fn botline_forw(wp: *mut win_T, lp: &mut lineoff_T) {
     unsafe {
         if lp.fill < win_get_fill(wp, lp.lnum + 1) {
             lp.fill += 1;

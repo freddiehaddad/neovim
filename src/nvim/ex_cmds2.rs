@@ -86,63 +86,44 @@ fn curwin_arglist() -> *mut aentry_T {
 }
 
 pub fn ex_ruby(eap: &mut exarg_T) {
-    unsafe {
-        script_host_execute(c"ruby".as_ptr(), eap);
-    }
+    script_host_execute(c"ruby".as_ptr(), eap);
 }
 
 pub fn ex_rubyfile(eap: &mut exarg_T) {
-    unsafe {
-        script_host_execute_file(c"ruby".as_ptr(), eap);
-    }
+    script_host_execute_file(c"ruby".as_ptr(), eap);
 }
 
 pub fn ex_rubydo(eap: &mut exarg_T) {
-    unsafe {
-        script_host_do_range(c"ruby".as_ptr(), eap);
-    }
+    script_host_do_range(c"ruby".as_ptr(), eap);
 }
 
 pub fn ex_python3(eap: &mut exarg_T) {
-    unsafe {
-        script_host_execute(c"python3".as_ptr(), eap);
-    }
+    script_host_execute(c"python3".as_ptr(), eap);
 }
 
 pub fn ex_py3file(eap: &mut exarg_T) {
-    unsafe {
-        script_host_execute_file(c"python3".as_ptr(), eap);
-    }
+    script_host_execute_file(c"python3".as_ptr(), eap);
 }
 
 pub fn ex_pydo3(eap: &mut exarg_T) {
-    unsafe {
-        script_host_do_range(c"python3".as_ptr(), eap);
-    }
+    script_host_do_range(c"python3".as_ptr(), eap);
 }
 
 pub fn ex_perl(eap: &mut exarg_T) {
-    unsafe {
-        script_host_execute(c"perl".as_ptr(), eap);
-    }
+    script_host_execute(c"perl".as_ptr(), eap);
 }
 
 pub fn ex_perlfile(eap: &mut exarg_T) {
-    unsafe {
-        script_host_execute_file(c"perl".as_ptr(), eap);
-    }
+    script_host_execute_file(c"perl".as_ptr(), eap);
 }
 
 pub fn ex_perldo(eap: &mut exarg_T) {
-    unsafe {
-        script_host_do_range(c"perl".as_ptr(), eap);
-    }
+    script_host_do_range(c"perl".as_ptr(), eap);
 }
 
 /// If `'autowrite'` option set, try to write the file (`autowrite`).
 pub fn autowrite(buf: &mut buf_T, forceit: bool) -> c_int {
-    unsafe {
-        if (opt_vars().p_aw == 0 && opt_vars().p_awa == 0)
+    if (opt_vars().p_aw == 0 && opt_vars().p_awa == 0)
             || opt_vars().p_write == 0
             || bt_dontwrite(&raw mut *buf)
             || (!forceit && buf.b_p_ro != 0)
@@ -158,7 +139,6 @@ pub fn autowrite(buf: &mut buf_T, forceit: bool) -> c_int {
             r = FAIL;
         }
         r
-    }
 }
 
 /// Flush all buffers, except the ones that are readonly or are never written (`autowrite_all`).
@@ -306,8 +286,7 @@ pub fn dialog_changed(buf: &mut buf_T, checkall: bool) {
 
 /// Ask the user whether to close the terminal buffer or not (`dialog_close_terminal`).
 pub fn dialog_close_terminal(buf: &mut buf_T) -> bool {
-    unsafe {
-        let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
+    let mut buff = [0 as c_char; DIALOG_MSG_SIZE];
         let fname = if !buf.b_fname.is_null() {
             buf.b_fname.cast_const()
         } else {
@@ -320,7 +299,6 @@ pub fn dialog_close_terminal(buf: &mut buf_T) -> bool {
             fname,
         );
         vim_dialog_yesnocancel(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr(), 1) == VIM_YES
-    }
 }
 
 /// Return true if the buffer `buf` can be abandoned (`can_abandon`).
@@ -479,8 +457,7 @@ pub fn check_fname() -> c_int {
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
 pub fn buf_write_all(buf: &mut buf_T, forceit: bool) -> c_int {
-    unsafe {
-        let old_curbuf = g_st().curbuf;
+    let old_curbuf = g_st().curbuf;
         let retval = buf_write(
             &raw mut *buf,
             buf.b_ffname,
@@ -503,7 +480,6 @@ pub fn buf_write_all(buf: &mut buf_T, forceit: bool) -> c_int {
             );
         }
         retval
-    }
 }
 
 /// `:argdo`, `:windo`, `:bufdo`, `:tabdo`, `:cdo`, `:ldo`, `:cfdo` and `:lfdo` (`ex_listdo`).
@@ -831,7 +807,7 @@ pub fn ex_checktime(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn script_host_execute(name: *const c_char, eap: &mut exarg_T) {
+fn script_host_execute(name: *const c_char, eap: &mut exarg_T) {
     unsafe {
         let mut len: usize = 0;
         if let Some(script) = script_get(eap, &mut len) {
@@ -845,7 +821,7 @@ unsafe fn script_host_execute(name: *const c_char, eap: &mut exarg_T) {
     }
 }
 
-unsafe fn script_host_execute_file(name: *const c_char, eap: &mut exarg_T) {
+fn script_host_execute_file(name: *const c_char, eap: &mut exarg_T) {
     unsafe {
         if eap.skip == 0 {
             let mut buffer = [0 as c_char; MAXPATHL];
@@ -865,7 +841,7 @@ unsafe fn script_host_execute_file(name: *const c_char, eap: &mut exarg_T) {
     }
 }
 
-unsafe fn script_host_do_range(name: *const c_char, eap: &mut exarg_T) {
+fn script_host_do_range(name: *const c_char, eap: &mut exarg_T) {
     unsafe {
         if eap.skip == 0 {
             let args = tv_list_alloc(3);

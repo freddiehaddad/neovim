@@ -1245,13 +1245,11 @@ pub unsafe extern "C" fn nvim_buf_get_keymap(
     arena: *mut Arena,
     err: &mut Error,
 ) -> Array {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
+    let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
             return Array::new();
         }
         keymap_array(mode, b, arena)
-    }
 }
 
 /// Sets a buffer-local |mapping| for the given mode.
@@ -1272,9 +1270,7 @@ pub unsafe extern "C" fn nvim_buf_set_keymap(
     opts: *mut KeyDict_keymap,
     err: &mut Error,
 ) {
-    unsafe {
-        modify_keymap(channel_id, buf, MAPTYPE_MAP, mode, lhs, rhs, opts, err);
-    }
+    modify_keymap(channel_id, buf, MAPTYPE_MAP, mode, lhs, rhs, opts, err);
 }
 
 /// Unmaps a buffer-local |mapping| for the given mode.
@@ -1404,8 +1400,7 @@ pub unsafe extern "C" fn nvim_buf_get_name(buf: Buffer, err: &mut Error) -> Nvim
 //   FUNC_API_SINCE(1);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
+    let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
             return;
         }
@@ -1441,7 +1436,6 @@ pub unsafe extern "C" fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &
                 c"Failed to rename buffer".as_ptr(),
             );
         }
-    }
 }
 
 /// Checks if a buffer is valid and loaded. See |api-buffer| for more info
@@ -1714,8 +1708,7 @@ pub unsafe extern "C" fn nvim_buf_call(
     _lstate: *mut lua_State,
     err: &mut Error,
 ) -> Object {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
+    let b = find_buffer_by_handle(buf, err);
         if b.is_null() {
             return OBJECT_NIL;
         }
@@ -1738,7 +1731,6 @@ pub unsafe extern "C" fn nvim_buf_call(
         });
 
         OBJECT_NIL
-    }
 }
 
 /// @nodoc
@@ -1797,8 +1789,7 @@ pub unsafe extern "C" fn nvim__buf_stats(buf: Buffer, arena: *mut Arena, err: &m
 }
 
 fn fix_cursor(win: &mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_T) {
-    unsafe {
-        if win.w_cursor.lnum >= lo {
+    if win.w_cursor.lnum >= lo {
             if win.w_cursor.lnum >= hi {
                 win.w_cursor.lnum += extra;
             } else if extra < 0 {
@@ -1811,7 +1802,6 @@ fn fix_cursor(win: &mut win_T, lo: linenr_T, hi: linenr_T, extra: linenr_T) {
         } else {
             invalidate_botline_win(&mut *win);
         }
-    }
 }
 
 fn fix_pos_col(
@@ -1825,8 +1815,7 @@ fn fix_pos_col(
     new_cols_at_end_row: colnr_T,
     mode_col_adj: colnr_T,
 ) {
-    unsafe {
-        if pos.lnum < start_row {
+    if pos.lnum < start_row {
             return;
         }
 
@@ -1867,7 +1856,6 @@ fn fix_pos_col(
                 pos.col -= mode_col_adj;
             }
         }
-    }
 }
 
 fn fix_cursor_cols(
@@ -1974,8 +1962,7 @@ pub fn buf_collect_lines(
     lstate: *mut lua_State,
     arena: *mut Arena,
 ) {
-    unsafe {
-        for i in 0..n {
+    for i in 0..n {
             let lnum = start + (i as linenr_T);
             let bufstr = ml_get_buf(buf, lnum);
             let bufstrlen = ml_get_buf_len(buf, lnum) as usize;
@@ -1989,7 +1976,6 @@ pub fn buf_collect_lines(
                 arena,
             );
         }
-    }
 }
 
 #[cfg(test)]

@@ -55,7 +55,7 @@ pub(crate) fn dlg_st() -> &'static mut DialogModuleState {
     unsafe { &mut *DLG_STATE.as_ptr() }
 }
 
-unsafe fn copy_char(from: *const c_char, to: *mut c_char, lowercase: bool) -> usize {
+fn copy_char(from: *const c_char, to: *mut c_char, lowercase: bool) -> usize {
     unsafe {
         if lowercase {
             let c = mb_tolower(utf_ptr2char(from));
@@ -68,7 +68,7 @@ unsafe fn copy_char(from: *const c_char, to: *mut c_char, lowercase: bool) -> us
     }
 }
 
-unsafe fn console_dialog_alloc(
+fn console_dialog_alloc(
     message: *const c_char,
     buttons: *const c_char,
     has_hotkey: &mut [bool; HAS_HOTKEY_LEN],
@@ -126,7 +126,7 @@ unsafe fn console_dialog_alloc(
     }
 }
 
-unsafe fn copy_confirm_hotkeys(
+fn copy_confirm_hotkeys(
     buttons: *const c_char,
     mut default_button_idx: c_int,
     has_hotkey: &[bool; HAS_HOTKEY_LEN],
@@ -206,22 +206,20 @@ unsafe fn copy_confirm_hotkeys(
     }
 }
 
-unsafe fn msg_show_console_dialog(
+fn msg_show_console_dialog(
     message: *const c_char,
     buttons: *const c_char,
     dfltbutton: c_int,
 ) -> Vec<c_char> {
-    unsafe {
-        let mut has_hotkey = [false; HAS_HOTKEY_LEN];
+    let mut has_hotkey = [false; HAS_HOTKEY_LEN];
         let mut hotk = console_dialog_alloc(message, buttons, &mut has_hotkey);
         copy_confirm_hotkeys(buttons, dfltbutton, &has_hotkey, hotk.as_mut_ptr());
         display_confirm_msg();
         hotk
-    }
 }
 
 /// Ask for a `'y'` or `'n'` reply from the user (`ask_yesno`).
-pub unsafe fn ask_yesno(str_ptr: *const c_char) -> c_int {
+pub fn ask_yesno(str_ptr: *const c_char) -> c_int {
     unsafe {
         let save_state = g_st().State;
         g_st().no_wait_return += 1;
@@ -257,7 +255,7 @@ pub unsafe fn ask_yesno(str_ptr: *const c_char) -> c_int {
 }
 
 /// Ask the user for input through a cmdline prompt (`prompt_for_input`).
-pub unsafe fn prompt_for_input(
+pub fn prompt_for_input(
     prompt: *mut c_char,
     hl_id: c_int,
     one_key: bool,
@@ -332,7 +330,7 @@ pub unsafe fn prompt_for_input(
 }
 
 /// Generic console dialog handler (`do_dialog`).
-pub unsafe fn do_dialog(
+pub fn do_dialog(
     _dlg_type: c_int,
     _title: *const c_char,
     message: *const c_char,
@@ -422,7 +420,7 @@ pub unsafe fn do_dialog(
 }
 
 /// Yes/No dialog (`vim_dialog_yesno`).
-pub unsafe fn vim_dialog_yesno(
+pub fn vim_dialog_yesno(
     dlg_type: c_int,
     title: *mut c_char,
     message: *mut c_char,
@@ -433,8 +431,7 @@ pub unsafe fn vim_dialog_yesno(
     } else {
         title.cast_const()
     };
-    if unsafe {
-        do_dialog(
+    if do_dialog(
             dlg_type,
             t,
             message,
@@ -442,8 +439,7 @@ pub unsafe fn vim_dialog_yesno(
             dflt,
             std::ptr::null(),
             0,
-        )
-    } == 1
+        ) == 1
     {
         VIM_YES
     } else {
@@ -452,7 +448,7 @@ pub unsafe fn vim_dialog_yesno(
 }
 
 /// Yes/No/Cancel dialog (`vim_dialog_yesnocancel`).
-pub unsafe fn vim_dialog_yesnocancel(
+pub fn vim_dialog_yesnocancel(
     dlg_type: c_int,
     title: *mut c_char,
     message: *mut c_char,
@@ -463,8 +459,7 @@ pub unsafe fn vim_dialog_yesnocancel(
     } else {
         title.cast_const()
     };
-    match unsafe {
-        do_dialog(
+    match do_dialog(
             dlg_type,
             t,
             message,
@@ -472,8 +467,7 @@ pub unsafe fn vim_dialog_yesnocancel(
             dflt,
             std::ptr::null(),
             0,
-        )
-    } {
+        ) {
         1 => VIM_YES,
         2 => VIM_NO,
         _ => VIM_CANCEL,
@@ -481,7 +475,7 @@ pub unsafe fn vim_dialog_yesnocancel(
 }
 
 /// Yes/No/Save All/Discard All/Cancel dialog (`vim_dialog_yesnoallcancel`).
-pub unsafe fn vim_dialog_yesnoallcancel(
+pub fn vim_dialog_yesnoallcancel(
     dlg_type: c_int,
     title: *mut c_char,
     message: *mut c_char,
@@ -492,8 +486,7 @@ pub unsafe fn vim_dialog_yesnoallcancel(
     } else {
         title.cast_const()
     };
-    match unsafe {
-        do_dialog(
+    match do_dialog(
             dlg_type,
             t,
             message,
@@ -501,8 +494,7 @@ pub unsafe fn vim_dialog_yesnoallcancel(
             dflt,
             std::ptr::null(),
             0,
-        )
-    } {
+        ) {
         1 => VIM_YES,
         2 => VIM_NO,
         3 => VIM_ALL,
@@ -517,8 +509,7 @@ mod tests {
 
     #[test]
     fn vim_dialog_yesno_uses_default_in_test_mode() {
-        unsafe {
-            g_st().silent_mode = true;
+        g_st().silent_mode = true;
             assert_eq!(
                 vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?".as_ptr().cast_mut(), 1),
                 VIM_YES
@@ -527,6 +518,5 @@ mod tests {
                 vim_dialog_yesno(0, std::ptr::null_mut(), c"Save?".as_ptr().cast_mut(), 2),
                 VIM_NO
             );
-        }
     }
 }

@@ -214,7 +214,7 @@ fn EMIT2(c: c_int) {
         EMIT(NFA_CONCAT);
 }
 
-unsafe fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
+fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
     unsafe {
         re_st().nstate = 0;
         re_st().istate = 0;
@@ -333,9 +333,8 @@ fn nfa_get_match_text(
     }
 }
 
-unsafe fn nfa_recognize_char_class(start: *mut u8, end: *const u8, mut extra_newl: c_int) -> c_int {
-    unsafe {
-        let mut newl = false;
+fn nfa_recognize_char_class(start: *mut u8, end: *const u8, mut extra_newl: c_int) -> c_int {
+    let mut newl = false;
         let config = get_char_class_bits(start, end, &mut newl);
         if config < 0 {
             return FAIL;
@@ -381,7 +380,6 @@ unsafe fn nfa_recognize_char_class(start: *mut u8, end: *const u8, mut extra_new
         } else {
             FAIL
         }
-    }
 }
 
 #[rustfmt::skip]
@@ -1934,10 +1932,8 @@ fn append(mut l1: Vec<NfaOutSlot>, l2: Vec<NfaOutSlot>) -> Vec<NfaOutSlot> {
     l1
 }
 
-unsafe fn st_error(_postfix: *mut c_int, _end: *mut c_int, _p: *mut c_int) {
-    unsafe {
-        emsg(tr(c"E874: (NFA) Could not pop the stack!".as_ptr()));
-    }
+fn st_error(_postfix: *mut c_int, _end: *mut c_int, _p: *mut c_int) {
+    emsg(tr(c"E874: (NFA) Could not pop the stack!".as_ptr()));
 }
 
 fn nfa_max_width(states: &[nfa_state_T], startstate: Option<usize>, depth: c_int) -> c_int {
@@ -2038,7 +2034,7 @@ fn nfa_max_width(states: &[nfa_state_T], startstate: Option<usize>, depth: c_int
         -1
 }
 
-unsafe fn post2nfa(
+fn post2nfa(
     states: &mut [nfa_state_T],
     postfix: *mut c_int,
     end: *mut c_int,
@@ -2378,7 +2374,7 @@ fn nfa_postprocess(prog: &mut nfa_regprog_T) {
     }
 }
 
-unsafe fn copy_pim(to: *mut nfa_pim_T, from: *mut nfa_pim_T) {
+fn copy_pim(to: *mut nfa_pim_T, from: *mut nfa_pim_T) {
     unsafe {
         (*to).result = (*from).result;
         (*to).state = (*from).state;
@@ -2390,7 +2386,7 @@ unsafe fn copy_pim(to: *mut nfa_pim_T, from: *mut nfa_pim_T) {
     }
 }
 
-unsafe fn clear_sub(sub: *mut regsub_T) {
+fn clear_sub(sub: *mut regsub_T) {
     unsafe {
         let sub = &mut *sub;
         let n = re_st().rex.nfa_nsubexpr as usize;
@@ -2534,7 +2530,7 @@ fn sub_equal(sub1: &mut regsub_T, sub2: &mut regsub_T) -> bool {
         true
 }
 
-unsafe fn has_state_with_pos(
+fn has_state_with_pos(
     l: *mut nfa_list_T,
     state: usize,
     subs: *mut regsubs_T,
@@ -2557,7 +2553,7 @@ unsafe fn has_state_with_pos(
     }
 }
 
-unsafe fn pim_equal(one: *const nfa_pim_T, two: *const nfa_pim_T) -> bool {
+fn pim_equal(one: *const nfa_pim_T, two: *const nfa_pim_T) -> bool {
     unsafe {
         let one_unused = one.is_null() || (*one).result == NFA_PIM_UNUSED;
         let two_unused = two.is_null() || (*two).result == NFA_PIM_UNUSED;
@@ -2627,7 +2623,7 @@ fn match_follows(states: &[nfa_state_T], startstate: Option<usize>, depth: c_int
     false
 }
 
-unsafe fn state_in_list(
+fn state_in_list(
     states: &[nfa_state_T],
     l: *mut nfa_list_T,
     state: Option<usize>,
@@ -2647,7 +2643,7 @@ unsafe fn state_in_list(
     }
 }
 
-unsafe fn addstate(
+fn addstate(
     states: &mut [nfa_state_T],
     l: *mut nfa_list_T,
     state: Option<usize>,
@@ -2903,7 +2899,7 @@ unsafe fn addstate(
     }
 }
 
-unsafe fn addstate_here(
+fn addstate_here(
     states: &mut [nfa_state_T],
     l: *mut nfa_list_T,
     state: Option<usize>,
@@ -2966,8 +2962,7 @@ unsafe fn addstate_here(
 }
 
 fn check_char_class(cls: c_int, c: c_int) -> c_int {
-    unsafe {
-        match cls {
+    match cls {
             NFA_CLASS_ALNUM => {
                 if (1..128).contains(&c) && (c as u8).is_ascii_alphanumeric() {
                     return OK;
@@ -3069,7 +3064,6 @@ fn check_char_class(cls: c_int, c: c_int) -> c_int {
             }
         }
         FAIL
-    }
 }
 
 fn match_backref(sub: &mut regsub_T, subidx: c_int, bytelen: &mut c_int) -> bool {
@@ -3145,7 +3139,7 @@ fn match_zref(subidx: c_int, bytelen: &mut c_int) -> bool {
     }
 }
 
-unsafe fn nfa_save_listids(prog: &mut nfa_regprog_T, list: *mut c_int) {
+fn nfa_save_listids(prog: &mut nfa_regprog_T, list: *mut c_int) {
     unsafe {
         let mut p = prog.state.as_mut_ptr();
         let mut i = prog.nstate;
@@ -3160,7 +3154,7 @@ unsafe fn nfa_save_listids(prog: &mut nfa_regprog_T, list: *mut c_int) {
     }
 }
 
-unsafe fn nfa_restore_listids(prog: &mut nfa_regprog_T, list: *const c_int) {
+fn nfa_restore_listids(prog: &mut nfa_regprog_T, list: *const c_int) {
     unsafe {
         let mut p = prog.state.as_mut_ptr();
         let mut i = prog.nstate;
@@ -3185,7 +3179,7 @@ fn nfa_re_num_cmp(val: u64, op: c_int, pos: u64) -> bool {
     }
 }
 
-unsafe fn recursive_regmatch(
+fn recursive_regmatch(
     state: usize,
     pim: *mut nfa_pim_T,
     prog: *mut nfa_regprog_T,
@@ -3363,7 +3357,7 @@ fn skip_to_start(c: c_int, colp: &mut colnr_T) -> c_int {
     }
 }
 
-unsafe fn find_match_text(startcol: &mut colnr_T, regstart: c_int, match_text: *const u8) -> c_int {
+fn find_match_text(startcol: &mut colnr_T, regstart: c_int, match_text: *const u8) -> c_int {
     unsafe {
         let mut col = *startcol;
         loop {
@@ -3479,7 +3473,7 @@ fn nfa_did_time_out() -> bool {
     }
 }
 
-unsafe fn nfa_regmatch(
+fn nfa_regmatch(
     prog: *mut nfa_regprog_T,
     start: Option<usize>,
     submatch: *mut regsubs_T,
@@ -4563,7 +4557,7 @@ unsafe fn nfa_regmatch(
     }
 }
 
-unsafe fn finish_nfa_regmatch(prog: *mut nfa_regprog_T, list: &mut [nfa_list_T; 2]) -> c_int {
+fn finish_nfa_regmatch(prog: *mut nfa_regprog_T, list: &mut [nfa_list_T; 2]) -> c_int {
     unsafe {
         if (*prog).listbuf[0].is_empty() && !list[0].t.is_empty() && !list[1].t.is_empty() {
             (*prog).listbuf[0] = std::mem::take(&mut list[0].t);
@@ -4573,7 +4567,7 @@ unsafe fn finish_nfa_regmatch(prog: *mut nfa_regprog_T, list: &mut [nfa_list_T; 
     }
 }
 
-unsafe fn nfa_regtry(
+fn nfa_regtry(
     prog: &mut nfa_regprog_T,
     col: colnr_T,
     tm: Option<proftime_T>,
@@ -4671,7 +4665,7 @@ unsafe fn nfa_regtry(
     }
 }
 
-unsafe fn nfa_regexec_both(
+fn nfa_regexec_both(
     mut line: *mut u8,
     startcol: colnr_T,
     tm: Option<proftime_T>,
@@ -4784,7 +4778,7 @@ fn finish_nfa_regexec(retval: c_int, col: colnr_T) -> c_int {
     }
 }
 
-pub(super) unsafe fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_regprog_T> {
+pub(super) fn nfa_regcomp(expr: *mut u8, re_flags: c_int) -> Option<nfa_regprog_T> {
     unsafe {
         if expr.is_null() {
             return None;
@@ -4854,7 +4848,7 @@ fn cleanup_nfa_regcomp(prog: Option<nfa_regprog_T>) -> Option<nfa_regprog_T> {
     }
 }
 
-pub(super) unsafe fn nfa_regexec_nl(
+pub(super) fn nfa_regexec_nl(
     rmp: &mut regmatch_T,
     line: *mut u8,
     col: colnr_T,
@@ -4875,7 +4869,7 @@ pub(super) unsafe fn nfa_regexec_nl(
     }
 }
 
-pub(super) unsafe fn nfa_regexec_multi(
+pub(super) fn nfa_regexec_multi(
     rmp: &mut regmmatch_T,
     win: *mut win_T,
     buf: *mut buf_T,
@@ -4884,8 +4878,6 @@ pub(super) unsafe fn nfa_regexec_multi(
     tm: Option<proftime_T>,
     timed_out: *mut c_int,
 ) -> c_int {
-    unsafe {
-        init_regexec_multi(rmp, win, buf, lnum);
+    init_regexec_multi(rmp, win, buf, lnum);
         nfa_regexec_both(ptr::null_mut(), col, tm, timed_out)
-    }
 }

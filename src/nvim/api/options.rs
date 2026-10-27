@@ -797,7 +797,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
 //   FUNC_API_SINCE(7);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_get_all_options_info(arena: *mut Arena, _err: &mut Error) -> Dict {
-    unsafe { get_all_options_info(arena) }
+    get_all_options_info(arena)
 }
 
 /// Gets the option information for one option from arbitrary buffer or window
