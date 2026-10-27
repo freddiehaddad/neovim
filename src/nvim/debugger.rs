@@ -17,7 +17,6 @@ use crate::os::env::{expand_env_save, home_replace};
 use crate::path::fix_fname;
 use crate::regexp::{RE_MAGIC, RE_STRING, vim_regcomp_box, vim_regexec_prog};
 use crate::runtime::{ESTACK_NONE, estack_sfile, sourcing_lnum};
-use crate::strings::atoi;
 use std::ffi::{CStr, CString, c_char, c_int};
 
 const DBG_FUNC: c_int = 1;
@@ -156,7 +155,7 @@ unsafe fn do_checkbacktracelevel() {
 
 unsafe fn do_setdebugtracelevel(arg: *mut c_char) {
     unsafe {
-        let level = atoi(arg);
+        let level = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg).to_bytes()) as c_int;
         if *arg as u8 == b'+' || level < 0 {
             g_st().debug_backtrace_level += level;
         } else {
@@ -653,7 +652,7 @@ pub unsafe fn ex_breakdel(eap: *mut exarg_T) {
 
         let first_byte = *eap.arg as u8;
         if first_byte.is_ascii_digit() {
-            let nr = atoi(eap.arg);
+            let nr = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(eap.arg).to_bytes()) as c_int;
             if let Some(idx) = gap.iter().position(|bp| bp.dbg_nr == nr) {
                 todel = idx as isize;
             }

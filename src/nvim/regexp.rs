@@ -28,8 +28,7 @@ use crate::option_vars::*;
 use crate::os::input::fast_breakcheck;
 use crate::plines::{getvvcol, win_linetabsize};
 use crate::profile::{profile_passed_limit, proftime_T};
-pub(super) use crate::strings::{strlen, strncmp};
-use crate::strings::tr;
+pub(super) use crate::strings::tr;
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
@@ -1471,7 +1470,9 @@ pub(super) unsafe fn get_char_class(pp: *mut *mut c_char) -> c_int {
         {
             let target = p.add(2);
             for &(key, pat) in CHAR_CLASS_TAB {
-                if strncmp(target.cast(), pat.as_ptr().cast(), pat.len()) == 0 {
+                if crate::memory::xstrnlen(target.cast::<c_char>(), pat.len()) == pat.len()
+                    && std::slice::from_raw_parts(target, pat.len()) == pat
+                {
                     *pp = (*pp).add(pat.len() + 2);
                     return key;
                 }
@@ -1714,7 +1715,7 @@ pub unsafe fn skip_regexp_ex(
             } else if *p == b'\\' as c_char && *p.add(1) != NUL as c_char {
                 if dirc == b'?' as c_int && in_place && *p.add(1) == b'?' as c_char {
                     if startplen == 0 {
-                        startplen = strlen(startp);
+                        startplen = std::ffi::CStr::from_ptr(startp).to_bytes().len();
                     }
                     if let Some(buf) = copy_buf.as_deref_mut()
                         && buf.is_empty()
@@ -2306,7 +2307,7 @@ pub(super) unsafe fn match_with_backref(
         loop {
             let tf = &raw mut re_st().reg_tofree;
             if (*tf).is_empty() || re_st().rex.line != (*tf).as_mut_ptr() {
-                let len = strlen(re_st().rex.line.cast()) + 51;
+                let len = std::ffi::CStr::from_ptr(re_st().rex.line.cast()).to_bytes().len() + 51;
                 let off = re_st().rex.input.offset_from(re_st().rex.line) as usize;
                 if (*tf).len() < len {
                     (*tf).resize(len, 0);
@@ -2384,7 +2385,7 @@ unsafe fn mb_decompose(c: c_int, c1: *mut c_int, c2: *mut c_int, c3: *mut c_int)
 pub(super) unsafe fn cstrncmp(s1: *const c_char, s2: *const c_char, n: *mut c_int) -> c_int {
     unsafe {
         let mut result = if !re_st().rex.reg_ic {
-            strncmp(s1, s2, *n as usize)
+            { let _p1 = s1; let _p2 = s2; let _n = *n as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).cmp(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) as c_int }
         } else {
             let mut p = s1.cast_mut();
             let mut n2: c_int = 0;
@@ -2500,11 +2501,11 @@ pub unsafe fn regtilde(
 
         let mut p = newsub;
         while *p != NUL as c_char {
-            if strncmp(p, tilde.as_ptr(), tildelen) == 0 {
+            if { let _p1 = p; let _p2 = tilde.as_ptr(); let _n = tildelen; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                 let prefixlen = p.offset_from(newsub) as usize;
                 let postfix = p.add(tildelen);
                 if newsublen == 0 {
-                    newsublen = strlen(newsub);
+                    newsublen = std::ffi::CStr::from_ptr(newsub).to_bytes().len();
                 }
                 newsublen -= tildelen;
                 let postfixlen = newsublen - prefixlen;
@@ -3389,7 +3390,7 @@ pub unsafe fn vim_regcomp(expr_arg: *const c_char, re_flags: c_int) -> *mut regp
 
         re_st().regexp_engine = opt_vars().p_re as c_int;
 
-        if strncmp(expr, c"\\%#=".as_ptr(), 4) == 0 {
+        if { let _p = expr; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"\\%#="[..4] } {
             let newengine = (*expr.add(4) as u8).wrapping_sub(b'0') as c_int;
             if newengine == AUTOMATIC_ENGINE
                 || newengine == BACKTRACKING_ENGINE

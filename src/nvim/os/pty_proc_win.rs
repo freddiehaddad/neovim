@@ -14,8 +14,6 @@ use crate::memory::{xstrlcat, xstrlcpy};
 use crate::os::env::os_shell_is_cmdexe;
 #[cfg(windows)]
 use crate::os::fs::os_can_exe;
-#[cfg(windows)]
-use crate::strings::{strlen};
 #[cfg(any(test, windows))]
 use std::ffi::{CStr, c_char};
 #[cfg(windows)]
@@ -474,13 +472,13 @@ mod win_impl {
                     } else {
                         arg_str
                     };
-                    let src_len = strlen(src);
+                    let src_len = std::ffi::CStr::from_ptr(src).to_bytes().len();
                     utf8_cmd_line.extend_from_slice(std::slice::from_raw_parts(src, src_len));
                 } else {
                     let buf_len = arg_cstr.as_bytes().len() * 2 + 3;
                     arg_buf.resize(buf_len, 0);
                     quote_cmd_arg(arg_buf.as_mut_ptr(), buf_len, arg_str);
-                    let quoted_len = strlen(arg_buf.as_ptr());
+                    let quoted_len = std::ffi::CStr::from_ptr(arg_buf.as_ptr()).to_bytes().len();
                     utf8_cmd_line.extend_from_slice(&arg_buf[..quoted_len]);
                 }
             }

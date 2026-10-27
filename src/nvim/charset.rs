@@ -963,6 +963,38 @@ pub unsafe fn try_getdigits(pp: *mut *mut c_char, nr: *mut i64) -> bool {
     }
 }
 
+
+#[inline]
+pub fn parse_i64_prefix(bytes: &[u8]) -> i64 {
+    let mut s = bytes;
+    while let Some((&b, rest)) = s.split_first() {
+        if matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
+            s = rest;
+        } else {
+            break;
+        }
+    }
+    let neg = if let Some((&b'-', rest)) = s.split_first() {
+        s = rest;
+        true
+    } else {
+        if let Some((&b'+', rest)) = s.split_first() {
+            s = rest;
+        }
+        false
+    };
+    let mut acc: i64 = 0;
+    while let Some((&b, rest)) = s.split_first() {
+        if b.is_ascii_digit() {
+            acc = acc.wrapping_mul(10).wrapping_add(i64::from(b - b'0'));
+            s = rest;
+        } else {
+            break;
+        }
+    }
+    if neg { acc.wrapping_neg() } else { acc }
+}
+
 pub unsafe fn getdigits(pp: *mut *mut c_char, strict: bool, def: i64) -> i64 {
     unsafe {
         let mut number: i64 = 0;

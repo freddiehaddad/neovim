@@ -103,8 +103,7 @@ use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
 use crate::strings::{
-    gettext, sort_strings, strcase_save, strlen, strncmp,
-    vim_snprintf, vim_strchr, vim_strsave_escaped,
+    gettext, sort_strings, strcase_save, vim_snprintf, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::{
     get_syntax_name, get_syntime_arg, reset_expand_highlight, set_context_in_echohl_cmd,
@@ -2299,7 +2298,7 @@ unsafe fn redraw_wildmenu(
             let emenu = (*xp).xp_context == EXPAND_MENUS || (*xp).xp_context == EXPAND_MENUNAMES;
             if emenu && menu_is_separator(s) {
                 { let s = transchar(b'|' as c_int); std::ptr::copy_nonoverlapping(s, buf.add(len), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                let l = strlen(buf.add(len));
+                let l = std::ffi::CStr::from_ptr(buf.add(len)).to_bytes().len();
                 len += l;
                 clen += l as c_int;
             } else {
@@ -2313,7 +2312,7 @@ unsafe fn redraw_wildmenu(
                         len += l as usize;
                     } else {
                         { let s = transchar_byte(c_int::from(*s as u8)); std::ptr::copy_nonoverlapping(s, buf.add(len), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                        len += strlen(buf.add(len));
+                        len += std::ffi::CStr::from_ptr(buf.add(len)).to_bytes().len();
                     }
                     s = s.add(1);
                 }
@@ -3482,10 +3481,10 @@ unsafe fn set_context_in_lang_cmd(xp: *mut expand_T, arg: *const c_char) -> *con
             (*xp).xp_pattern = arg.cast_mut();
         } else {
             let n = p.offset_from(arg) as usize;
-            if strncmp(arg, c"messages".as_ptr(), n) == 0
-                || strncmp(arg, c"ctype".as_ptr(), n) == 0
-                || strncmp(arg, c"time".as_ptr(), n) == 0
-                || strncmp(arg, c"collate".as_ptr(), n) == 0
+            if { let _p1 = arg; let _p2 = c"messages".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                || { let _p1 = arg; let _p2 = c"ctype".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                || { let _p1 = arg; let _p2 = c"time".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                || { let _p1 = arg; let _p2 = c"collate".as_ptr(); let _n = n; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             {
                 (*xp).xp_context = EXPAND_LOCALES;
                 (*xp).xp_pattern = skipwhite(p);
@@ -3522,7 +3521,7 @@ unsafe fn set_context_in_breakadd_cmd(
         }
         let subcmd_start = p;
 
-        if strncmp(c"file ".as_ptr(), p, 5) == 0 || strncmp(c"func ".as_ptr(), p, 5) == 0 {
+        if { let _p1 = c"file ".as_ptr(); let _p2 = p; let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } || { let _p1 = c"func ".as_ptr(); let _p2 = p; let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             p = p.add(4);
             p = skipwhite(p);
 
@@ -3534,13 +3533,13 @@ unsafe fn set_context_in_breakadd_cmd(
                 }
                 p = skipwhite(p);
             }
-            if strncmp(c"file".as_ptr(), subcmd_start, 4) == 0 {
+            if { let _p1 = c"file".as_ptr(); let _p2 = subcmd_start; let _n = 4; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                 (*xp).xp_context = EXPAND_FILES;
             } else {
                 (*xp).xp_context = EXPAND_USER_FUNC;
             }
             (*xp).xp_pattern = p.cast_mut();
-        } else if strncmp(c"expr ".as_ptr(), p, 5) == 0 {
+        } else if { let _p1 = c"expr ".as_ptr(); let _p2 = p; let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             (*xp).xp_context = EXPAND_EXPRESSION;
             (*xp).xp_pattern = skipwhite(p.add(5));
         }
@@ -3581,12 +3580,12 @@ unsafe fn set_context_in_filetype_cmd(xp: *mut expand_T, arg: *const c_char) -> 
         let mut val: c_int = 0;
 
         loop {
-            if strncmp(p, c"plugin".as_ptr(), 6) == 0 && ascii_iswhite(*p.add(6) as c_int) {
+            if { let _p = p; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"plugin"[..6] } && ascii_iswhite(*p.add(6) as c_int) {
                 val |= EXPAND_FILETYPECMD_PLUGIN;
                 p = skipwhite(p.add(6));
                 continue;
             }
-            if strncmp(p, c"indent".as_ptr(), 6) == 0 && ascii_iswhite(*p.add(6) as c_int) {
+            if { let _p = p; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"indent"[..6] } && ascii_iswhite(*p.add(6) as c_int) {
                 val |= EXPAND_FILETYPECMD_INDENT;
                 p = skipwhite(p.add(6));
                 continue;
@@ -4118,7 +4117,7 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
         let mut arg: *const c_char = skipwhite(p);
 
         if (ea.argt & EX_ARGOPT) != 0 {
-            while *arg != NUL && strncmp(arg, c"++".as_ptr(), 2) == 0 {
+            while *arg != NUL && { let _p = arg; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"++"[..2] } {
                 p = arg.add(2);
                 while *p != NUL && !ascii_isspace(*p as c_int) {
                     p = p.add(utfc_ptr2len(p) as usize);
@@ -4205,7 +4204,7 @@ unsafe fn set_one_cmd_context(xp: *mut expand_T, buff: *const c_char) -> *const 
 
         p = buff;
         (*xp).xp_pattern = p.cast_mut();
-        let len = strlen(buff);
+        let len = std::ffi::CStr::from_ptr(buff).to_bytes().len();
         while *p != NUL && (p as usize) < (buff.add(len) as usize) {
             if *p == b' ' as c_char || *p == TAB {
                 p = p.add(1);
@@ -4339,7 +4338,7 @@ unsafe fn expand_files_and_dirs(
         let mut pat_owned: Option<Vec<c_char>> = None;
 
         if (*xp).xp_backslash != XP_BS_NONE {
-            let pat_len = strlen(pat);
+            let pat_len = std::ffi::CStr::from_ptr(pat).to_bytes().len();
             let mut pat_vec = vec![0 as c_char; pat_len + 1];
             xmemcpyz(pat_vec.as_mut_ptr().cast(), pat.cast(), pat_len);
             pat = pat_vec.as_mut_ptr();
@@ -5023,8 +5022,8 @@ unsafe fn ExpandFromContext(
         }
 
         let mut tofree: Option<Vec<c_char>> = None;
-        if (*xp).xp_context == EXPAND_USER_FUNC && strncmp(pat, c"^s:".as_ptr(), 3) == 0 {
-            let len = strlen(pat) + 20;
+        if (*xp).xp_context == EXPAND_USER_FUNC && { let _p = pat; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"^s:"[..3] } {
+            let len = std::ffi::CStr::from_ptr(pat).to_bytes().len() + 20;
             let mut buf = vec![0 as c_char; len];
             vim_snprintf!(buf.as_mut_ptr(), len, c"^<SNR>\\d\\+_%s".as_ptr(), pat.add(3));
             pat = buf.as_mut_ptr();
@@ -5218,7 +5217,7 @@ unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flag
         let mut flags = flagsarg;
         let mut did_curdir = false;
 
-        let mut patlen = strlen(filepat);
+        let mut patlen = std::ffi::CStr::from_ptr(filepat).to_bytes().len();
         let mut pat_vec = vec![0 as c_char; patlen + 1];
         xmemcpyz(pat_vec.as_mut_ptr().cast(), filepat.cast(), patlen);
         let pat = pat_vec.as_mut_ptr();
@@ -5273,11 +5272,11 @@ unsafe fn expand_shellcmd(filepat: *mut c_char, matches: &mut Vec<CString>, flag
             } else {
                 e = vim_strchr(s, ENV_SEPCHAR);
                 if e.is_null() {
-                    e = s.add(strlen(s));
+                    e = s.add(std::ffi::CStr::from_ptr(s).to_bytes().len());
                 }
 
                 pathlen = e.offset_from(s) as usize;
-                if strncmp(s, c".".as_ptr(), pathlen) == 0 {
+                if { let _p1 = s; let _p2 = c".".as_ptr(); let _n = pathlen; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     did_curdir = true;
                     flags |= EW_DIR;
                 } else {
@@ -5382,7 +5381,7 @@ unsafe fn ExpandUserDefined(
         while *s != NUL {
             let mut e = vim_strchr(s, b'\n' as c_int);
             if e.is_null() {
-                e = s.add(strlen(s));
+                e = s.add(std::ffi::CStr::from_ptr(s).to_bytes().len());
             }
             let keep = *e;
             *e = NUL;
@@ -5556,7 +5555,7 @@ pub unsafe fn globpath(
             EXPAND_FILES
         };
 
-        let filelen = strlen(file);
+        let filelen = std::ffi::CStr::from_ptr(file).to_bytes().len();
 
         while *path != NUL {
             let mut pathlen = copy_option_part(&raw mut path, buf, MAXPATHL, c",".as_ptr());
@@ -5704,7 +5703,7 @@ unsafe fn wildmenu_process_key_filenames(
         {
             key = opt_vars().p_wc as c_int;
             g_st().KeyTyped = true;
-        } else if strncmp((*xp).xp_pattern, upseg.as_ptr().add(1), 3) == 0 && key == K_DOWN {
+        } else if { let _p1 = (*xp).xp_pattern; let _p2 = upseg.as_ptr().add(1); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } && key == K_DOWN {
             let mut found = false;
 
             let mut j = (*cclp).cmdpos;
@@ -5760,9 +5759,9 @@ unsafe fn wildmenu_process_key_filenames(
 
             if !found {
                 j = i;
-            } else if strncmp((*cclp).cmdbuff.add(j as usize), upseg.as_ptr(), 4) == 0 {
+            } else if { let _p1 = (*cclp).cmdbuff.add(j as usize); let _p2 = upseg.as_ptr(); let _n = 4; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                 j += 4;
-            } else if strncmp((*cclp).cmdbuff.add(j as usize), upseg.as_ptr().add(1), 3) == 0
+            } else if { let _p1 = (*cclp).cmdbuff.add(j as usize); let _p2 = upseg.as_ptr().add(1); let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                 && j == i
             {
                 j += 3;
@@ -5877,7 +5876,7 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         let mut pattern_start = pattern;
 
         if std::ffi::CStr::from_ptr(type_str).to_bytes() == b"cmdline" {
-            let cmdline_len = strlen(pattern) as c_int;
+            let cmdline_len = std::ffi::CStr::from_ptr(pattern).to_bytes().len() as c_int;
             set_cmd_context(
                 &raw mut xpc,
                 pattern.cast_mut(),
@@ -5886,11 +5885,11 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                 false as c_int,
             );
             pattern_start = xpc.xp_pattern;
-            xpc.xp_pattern_len = strlen(xpc.xp_pattern);
+            xpc.xp_pattern_len = std::ffi::CStr::from_ptr(xpc.xp_pattern).to_bytes().len();
             xpc.xp_col = cmdline_len;
         } else {
             xpc.xp_pattern = pattern.cast_mut();
-            xpc.xp_pattern_len = strlen(xpc.xp_pattern);
+            xpc.xp_pattern_len = std::ffi::CStr::from_ptr(xpc.xp_pattern).to_bytes().len();
             xpc.xp_line = pattern.cast_mut();
 
             xpc.xp_context = cmdcomplete_str_to_type(type_str);
@@ -5900,14 +5899,14 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
                     return;
                 }
                 EXPAND_USER_DEFINED => {
-                    if strncmp(type_str, c"custom,".as_ptr(), 7) != 0 {
+                    if !({ let _p = type_str; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"custom,"[..7] }) {
                         semsg!(gettext(e_invarg2.as_ptr()), type_str);
                         return;
                     }
                     xpc.xp_arg = type_str.add(7).cast_mut();
                 }
                 EXPAND_USER_LIST => {
-                    if strncmp(type_str, c"customlist,".as_ptr(), 11) != 0 {
+                    if !({ let _p = type_str; crate::memory::xstrnlen(_p, 11) == 11 && std::slice::from_raw_parts(_p.cast::<u8>(), 11) == &b"customlist,"[..11] }) {
                         semsg!(gettext(e_invarg2.as_ptr()), type_str);
                         return;
                     }
@@ -5947,7 +5946,7 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         }
 
         if xpc.xp_context == EXPAND_LUA {
-            xpc.xp_col = strlen(xpc.xp_line) as c_int;
+            xpc.xp_col = std::ffi::CStr::from_ptr(xpc.xp_line).to_bytes().len() as c_int;
             nlua_expand_pat(&raw mut xpc);
             xpc.xp_pattern_len -= xpc.xp_pattern.offset_from(pattern_start) as usize;
         }
@@ -5992,7 +5991,7 @@ pub unsafe fn f_getcompletiontype(
         let pat = tv_get_string(argvars);
         let mut xpc: expand_T = expand_T::new();
 
-        let cmdline_len = strlen(pat) as c_int;
+        let cmdline_len = std::ffi::CStr::from_ptr(pat).to_bytes().len() as c_int;
         set_cmd_context(
             &raw mut xpc,
             pat.cast_mut(),
@@ -6223,7 +6222,7 @@ unsafe fn expand_pattern_in_buf(
             return FAIL;
         }
 
-        let pat_len = strlen(pat) as c_int;
+        let pat_len = std::ffi::CStr::from_ptr(pat).to_bytes().len() as c_int;
         let mut cur_match_pos = pos_T {
             lnum: 0,
             col: 0,

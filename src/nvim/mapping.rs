@@ -58,7 +58,7 @@ use crate::optionstr::optset_T;
 use crate::os::env::expand_T;
 use crate::regexp::{Ctrl_V, NUMBUFLEN, regmatch_T, vim_regexec};
 use crate::runtime::{sctx_T, sourcing_lnum};
-use crate::strings::{atoi, gettext, sort_strings, vim_snprintf, vim_strchr};
+use crate::strings::{gettext, sort_strings, vim_snprintf, vim_strchr};
 use crate::viml::parser::expressions::Ctrl_H;
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
@@ -322,7 +322,7 @@ unsafe fn map_luaid_scan(mappings: &[Vec<mapblock_T>], id: c_int) -> Option<&map
     unsafe {
         for bucket in mappings {
             for mp in bucket {
-                if mp.m_luaref != LUA_NOREF && atoi(mp.m_str.as_ptr().add(3)) == id {
+                if mp.m_luaref != LUA_NOREF && crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(mp.m_str.as_ptr().add(3)).to_bytes()) as c_int == id {
                     return Some(mp);
                 }
             }

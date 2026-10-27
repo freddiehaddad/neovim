@@ -198,7 +198,7 @@ use crate::state::{MODE_CMDLINE, MODE_MAX_LENGTH, get_mode, get_was_safe_state, 
 #[cfg(windows)]
 use crate::strings::mb_strup_buf;
 use crate::strings::{
-    atoi, gettext, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
+    gettext, vim_snprintf, vim_snprintf_safelen,
     vim_snprintf_typval_only, vim_strchr, vim_stricmp, vim_strnicmp, vim_strsave_escaped,
     vim_strsave_shellescape,
 };
@@ -462,7 +462,7 @@ pub unsafe fn get_function_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             if !name.is_null() {
                 if *name != NUL
                     && *name != b'<' as c_char
-                    && strncmp(c"g:".as_ptr(), (*xp).xp_pattern, 2) == 0
+                    && { let _p1 = c"g:".as_ptr(); let _p2 = (*xp).xp_pattern; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                 {
                     return cat_prefix_varname(b'g' as c_int, name);
                 }
@@ -1168,7 +1168,7 @@ pub unsafe fn find_internal_func_hash(str_: *const c_char, len: usize) -> c_int 
 /// Gets a builtin (aka "vimfn", "eval") function from the generated hash table.
 pub unsafe fn find_internal_func(name: *const c_char) -> *const EvalFuncDef {
     unsafe {
-        let len = strlen(name);
+        let len = std::ffi::CStr::from_ptr(name).to_bytes().len();
         let index = find_internal_func_hash(name, len);
         if index >= 0 {
             eval_func_def_at(index)
@@ -1494,7 +1494,7 @@ pub unsafe fn tv_get_buf(tv: *mut typval_T, curtab_only: c_int) -> *mut buf_T {
 
         let buf = buflist_findnr(buflist_findpat(
             name,
-            name.add(strlen(name)),
+            name.add(std::ffi::CStr::from_ptr(name).to_bytes().len()),
             true,
             false,
             curtab_only != 0,
@@ -2017,7 +2017,7 @@ pub unsafe fn f_dictwatcheradd(argvars: *mut typval_T, _rettv: *mut typval_T, _f
             return;
         } else if (*argvars).vval.v_dict().is_null() {
             let arg_errmsg = gettext(c"dictwatcheradd() argument".as_ptr());
-            let arg_errmsg_len = strlen(arg_errmsg);
+            let arg_errmsg_len = std::ffi::CStr::from_ptr(arg_errmsg).to_bytes().len();
             semsg!(
                 gettext(e_cannot_change_readonly_variable_str.as_ptr()),
                 arg_errmsg_len as c_int,
@@ -2037,7 +2037,7 @@ pub unsafe fn f_dictwatcheradd(argvars: *mut typval_T, _rettv: *mut typval_T, _f
         if key_pattern.is_null() {
             return;
         }
-        let key_pattern_len = strlen(key_pattern);
+        let key_pattern_len = std::ffi::CStr::from_ptr(key_pattern).to_bytes().len();
 
         let mut callback = Callback::NONE;
         if !callback_from_typval(&raw mut callback, argvars.add(2)) {
@@ -2084,7 +2084,7 @@ pub unsafe fn f_dictwatcherdel(argvars: *mut typval_T, _rettv: *mut typval_T, _f
         if !tv_dict_watcher_remove(
             (*argvars).vval.v_dict().cast(),
             key_pattern,
-            strlen(key_pattern),
+            std::ffi::CStr::from_ptr(key_pattern).to_bytes().len(),
             &callback,
         ) {
             emsg(c"Couldn't find a watcher matching key and callback".as_ptr());
@@ -2243,7 +2243,7 @@ pub unsafe fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_o
             if *s == NUL {
                 echo_output = true;
             }
-            if strncmp(s, c"silent".as_ptr(), 6) == 0 {
+            if { let _p = s; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"silent"[..6] } {
                 g_st().msg_silent += 1;
             }
             if std::ffi::CStr::from_ptr(s).to_bytes() == b"silent!" {
@@ -2695,8 +2695,8 @@ unsafe fn common_function(argvars: *mut typval_T, rettv: *mut typval_T, is_funcr
                 let mut dict_idx: usize = 0;
                 let mut arg_idx: usize = 0;
                 let mut list: *mut list_T = ptr::null_mut();
-                let name_cstr = if strncmp(s, c"s:".as_ptr(), 2) == 0
-                    || strncmp(s, c"<SID>".as_ptr(), 5) == 0
+                let name_cstr = if { let _p = s; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"s:"[..2] }
+                    || { let _p = s; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"<SID>"[..5] }
                 {
                     get_scriptlocal_funcname(s).unwrap_or_default()
                 } else {
@@ -3821,7 +3821,7 @@ pub unsafe fn f_has(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
         if vim_strnicmp(name, c"patch".as_ptr(), 5) == 0 {
             x = true;
             if *name.add(5) == b'-' as c_char
-                && strlen(name) >= 11
+                && std::ffi::CStr::from_ptr(name).to_bytes().len() >= 11
                 && (*name.add(6) >= b'1' as c_char && *name.add(6) <= b'9' as c_char)
             {
                 let s6 = name.add(6);
@@ -3833,11 +3833,11 @@ pub unsafe fn f_has(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
                     && *end.add(2) == b'.' as c_char
                     && ascii_isdigit(*end.add(3))
                 {
-                    let minor = atoi(end.add(1));
-                    n = has_vim_patch(atoi(end.add(3)), major * 100 + minor);
+                    let minor = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(end.add(1)).to_bytes()) as c_int;
+                    n = has_vim_patch(crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(end.add(3)).to_bytes()) as c_int, major * 100 + minor);
                 }
             } else if ascii_isdigit(*name.add(5)) {
-                n = has_vim_patch(atoi(name.add(5)), 0);
+                n = has_vim_patch(crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(name.add(5)).to_bytes()) as c_int, 0);
             }
         } else if vim_strnicmp(name, c"nvim-".as_ptr(), 5) == 0 {
             x = true;
@@ -4551,9 +4551,9 @@ pub unsafe fn create_environment(
                     #[cfg(not(windows))]
                     let name: *const c_char = (*envitems.add(i)).name;
                     #[cfg(windows)]
-                    let mut namelen = strlen(name);
+                    let mut namelen = std::ffi::CStr::from_ptr(name).to_bytes().len();
                     #[cfg(not(windows))]
-                    let namelen = strlen(name);
+                    let namelen = std::ffi::CStr::from_ptr(name).to_bytes().len();
                     #[cfg(windows)]
                     {
                         if namelen < MAXPATHL / MB_MAXBYTES {
@@ -4612,7 +4612,7 @@ pub unsafe fn create_environment(
                             todo -= 1;
                             let var = tv_dict_hi2di(hi);
                             let mut name = (*var).di_key.as_ptr();
-                            let mut namelen = strlen(name);
+                            let mut namelen = std::ffi::CStr::from_ptr(name).to_bytes().len();
                             if namelen < MAXPATHL / MB_MAXBYTES {
                                 let namebuff = (&raw mut g_st().NameBuff).cast::<c_char>();
                                 namelen = mb_strup_buf(name, namebuff);
@@ -4706,9 +4706,9 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
 
             let s = tv_dict_get_string(job_opts, c"stdin".as_ptr());
             if !s.is_null() {
-                if strncmp(s, c"null".as_ptr(), NUMBUFLEN) == 0 {
+                if { let _p1 = s; let _p2 = c"null".as_ptr(); let _n = NUMBUFLEN; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     stdin_mode = kChannelStdinNull;
-                } else if strncmp(s, c"pipe".as_ptr(), NUMBUFLEN) == 0 {
+                } else if { let _p1 = s; let _p2 = c"pipe".as_ptr(); let _n = NUMBUFLEN; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     // default
                 } else {
                     semsg!(gettext(e_invargNval.as_ptr()), c"stdin".as_ptr(), s);
@@ -5115,7 +5115,7 @@ pub unsafe fn f_json_decode(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         } else {
             s = tv_get_string_buf_chk(argvars, numbuf.as_mut_ptr());
             if !s.is_null() {
-                len = strlen(s);
+                len = std::ffi::CStr::from_ptr(s).to_bytes().len();
             } else {
                 return;
             }
@@ -5164,7 +5164,7 @@ pub unsafe fn f_len(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
     unsafe {
         match (*argvars).v_type {
             VarType::VAR_STRING | VarType::VAR_NUMBER => {
-                (*rettv).vval = crate::eval::typval::TypvalVval::Number(strlen(tv_get_string(argvars)) as varnumber_T);
+                (*rettv).vval = crate::eval::typval::TypvalVval::Number(std::ffi::CStr::from_ptr(tv_get_string(argvars)).to_bytes().len() as varnumber_T);
             }
             VarType::VAR_BLOB => {
                 (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(tv_blob_len((*argvars).vval.v_blob().cast())));
@@ -5367,7 +5367,7 @@ unsafe fn find_some_match(argvars: *mut typval_T, rettv: *mut typval_T, type_: S
             } else {
                 str_ = tv_get_string(argvars).cast_mut();
                 expr = str_;
-                len = strlen(str_) as i64;
+                len = std::ffi::CStr::from_ptr(str_).to_bytes().len() as i64;
             }
 
             let mut patbuf = [0 as c_char; NUMBUFLEN];
@@ -5547,7 +5547,7 @@ unsafe fn get_matches_in_str(
     matchbuf: bool,
 ) {
     unsafe {
-        let len = strlen(str_);
+        let len = std::ffi::CStr::from_ptr(str_).to_bytes().len();
         let mut startidx: colnr_T = 0;
 
         loop {
@@ -6677,7 +6677,7 @@ unsafe fn repeat_string(str_tv: *mut typval_T, n: varnumber_T, rettv: *mut typva
             return;
         }
         let p = tv_get_string(str_tv);
-        let slen = strlen(p);
+        let slen = std::ffi::CStr::from_ptr(p).to_bytes().len();
         if slen == 0 || n <= 0 {
             return;
         }
@@ -7002,7 +7002,7 @@ unsafe fn search_cmn(argvars: *mut typval_T, match_pos: *mut pos_T, flagsp: *mut
                 sa_wrapped: 0,
             };
 
-            let patlen = strlen(pat);
+            let patlen = std::ffi::CStr::from_ptr(pat).to_bytes().len();
             let mut subpatnum: c_int;
 
             loop {
@@ -7426,7 +7426,7 @@ pub unsafe fn f_searchdecl(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         if !error && !name.is_null() {
             (*rettv).vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(!find_decl(
                 name.cast_mut(),
-                strlen(name),
+                std::ffi::CStr::from_ptr(name).to_bytes().len(),
                 locally != 0,
                 thisblock != 0,
                 SEARCH_KEEP,
@@ -7553,12 +7553,12 @@ pub unsafe fn do_searchpair(
 
         let tm = profile_setlimit(time_limit);
 
-        let spatlen = strlen(spat);
-        let epatlen = strlen(epat);
+        let spatlen = std::ffi::CStr::from_ptr(spat).to_bytes().len();
+        let epatlen = std::ffi::CStr::from_ptr(epat).to_bytes().len();
         let pat2size = spatlen + epatlen + 17;
         let mut pat2_vec = vec![0 as c_char; pat2size];
         let pat2 = pat2_vec.as_mut_ptr();
-        let pat3size = spatlen + strlen(mpat) + epatlen + 25;
+        let pat3size = spatlen + std::ffi::CStr::from_ptr(mpat).to_bytes().len() + epatlen + 25;
         let mut pat3_vec = vec![0 as c_char; pat3size];
         let pat3 = pat3_vec.as_mut_ptr();
         let pat2len = vim_snprintf!(
@@ -7985,7 +7985,7 @@ pub unsafe fn f_setfperm(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Ev
         if mode_str.is_null() {
             return;
         }
-        if strlen(mode_str) != 9 {
+        if std::ffi::CStr::from_ptr(mode_str).to_bytes().len() != 9 {
             semsg!(gettext(e_invarg2.as_ptr()), mode_str);
             return;
         }
@@ -8166,7 +8166,7 @@ pub unsafe fn f_setreg(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             write_reg_contents_ex(
                 c_int::from(regname as u8),
                 strval,
-                strlen(strval) as isize,
+                std::ffi::CStr::from_ptr(strval).to_bytes().len() as isize,
                 append,
                 yank_type,
                 block_len as colnr_T,
@@ -8239,7 +8239,7 @@ pub unsafe fn f_sha256(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eval
             crate::eval::typval::tv_set_string_len(rettv, hex.as_ptr().cast(), hex.len());
         } else {
             let p = tv_get_string(argvars);
-            let len = strlen(p);
+            let len = std::ffi::CStr::from_ptr(p).to_bytes().len();
             let slice = if len > 0 {
                 std::slice::from_raw_parts(p.cast::<u8>(), len)
             } else {
@@ -8554,7 +8554,7 @@ pub unsafe fn f_split(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalF
                     let end: *const c_char = if match_found {
                         regmatch.startp[0]
                     } else {
-                        str_.add(strlen(str_))
+                        str_.add(std::ffi::CStr::from_ptr(str_).to_bytes().len())
                     };
                     if keepempty
                         || end > str_
@@ -8823,7 +8823,7 @@ pub unsafe fn f_substitute(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: 
         } else {
             let sub_res = do_string_sub(
                 str_.cast_mut(),
-                strlen(str_),
+                std::ffi::CStr::from_ptr(str_).to_bytes().len(),
                 pat.cast_mut(),
                 sub.cast_mut(),
                 expr,
@@ -8953,7 +8953,7 @@ pub unsafe fn f_synIDattr(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
                 }
             }
             b'u' => {
-                if strlen(what) >= 9 {
+                if std::ffi::CStr::from_ptr(what).to_bytes().len() >= 9 {
                     if w(5) == b'l' {
                         p = highlight_has_attr(id, HL_UNDERLINE, modec);
                     } else if w(5) != b'd' {

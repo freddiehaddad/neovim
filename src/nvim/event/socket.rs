@@ -15,7 +15,7 @@ use crate::memory::xstrlcpy;
 use crate::os::fs::{UV_EINVAL, UV_ENOENT, os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
 use crate::path::path_tail;
-use crate::strings::{gettext, strlen, vim_snprintf};
+use crate::strings::{gettext, vim_snprintf};
 
 use std::ffi::{c_char, c_int, c_uint, c_void};
 use std::ptr;
@@ -306,7 +306,7 @@ pub unsafe fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) 
                     let mut sas_len = size_of::<SockaddrStorage>() as c_int;
                     uv_tcp_getsockname(uv_ptr.cast(), (&raw mut sas).cast(), &raw mut sas_len);
                     let port = u16::from_be_bytes([sas.bytes[2], sas.bytes[3]]);
-                    let len = strlen(addr);
+                    let len = std::ffi::CStr::from_ptr(addr).to_bytes().len();
                     vim_snprintf!(
                         addr.add(len),
                         ADDRESS_MAX_SIZE - len,
@@ -319,7 +319,7 @@ pub unsafe fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) 
             }
             uv_freeaddrinfo((*watcher).tcp_addrinfo.cast());
         } else {
-            result = uv_pipe_bind2(uv_ptr.cast(), addr, strlen(addr), UV_PIPE_NO_TRUNCATE);
+            result = uv_pipe_bind2(uv_ptr.cast(), addr, std::ffi::CStr::from_ptr(addr).to_bytes().len(), UV_PIPE_NO_TRUNCATE);
 
             // If bind failed with EACCES/EADDRINUSE, check if socket is stale
             if result == UV_EACCES || result == UV_EADDRINUSE {
@@ -354,7 +354,7 @@ pub unsafe fn socket_watcher_start(watcher: *mut SocketWatcher, backlog: c_int) 
 
                         // Retry bind with fresh handle
                         result =
-                            uv_pipe_bind2(uv_ptr.cast(), addr, strlen(addr), UV_PIPE_NO_TRUNCATE);
+                            uv_pipe_bind2(uv_ptr.cast(), addr, std::ffi::CStr::from_ptr(addr).to_bytes().len(), UV_PIPE_NO_TRUNCATE);
                     }
                 } else {
                     logmsg!(
@@ -490,7 +490,7 @@ pub unsafe fn socket_connect(
 
         'cleanup: {
             if is_tcp {
-                let addr_slice = std::slice::from_raw_parts(address, strlen(address) + 1);
+                let addr_slice = std::slice::from_raw_parts(address, std::ffi::CStr::from_ptr(address).to_bytes().len() + 1);
                 addr_buf.extend_from_slice(addr_slice);
                 let addr = addr_buf.as_mut_ptr();
                 let host_end = std::ffi::CStr::from_ptr(addr).to_bytes().iter().rposition(|&b| b == b':').map_or(ptr::null_mut(), |i| addr.add(i));

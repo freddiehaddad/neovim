@@ -55,7 +55,7 @@ use crate::os::env::expand_T;
 use crate::os::input::line_breakcheck;
 use crate::runtime::sourcing_lnum;
 use crate::strings::{
-    gettext, strncmp, vim_strchr, };
+    gettext, vim_strchr, };
 use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, prevwin_curwin, tabpage_index,
 };
@@ -576,10 +576,10 @@ pub unsafe fn cmdcomplete_type_to_str(expand: c_int, compl_arg: *const c_char) -
 
 pub unsafe fn cmdcomplete_str_to_type(complete_str: *const c_char) -> c_int {
     unsafe {
-        if strncmp(complete_str, c"custom,".as_ptr(), 7) == 0 {
+        if { let _p = complete_str; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"custom,"[..7] } {
             return EXPAND_USER_DEFINED;
         }
-        if strncmp(complete_str, c"customlist,".as_ptr(), 11) == 0 {
+        if { let _p = complete_str; crate::memory::xstrnlen(_p, 11) == 11 && std::slice::from_raw_parts(_p.cast::<u8>(), 11) == &b"customlist,"[..11] } {
             return EXPAND_USER_LIST;
         }
 
@@ -610,7 +610,7 @@ unsafe fn uc_list(name: *mut c_char, name_len: usize) {
                 let cmd = &gap[i as usize];
                 let a = cmd.uc_argt;
 
-                if strncmp(name, cmd.uc_name.as_ptr(), name_len) != 0
+                if { let _p1 = name; let _p2 = cmd.uc_name.as_ptr(); let _n = name_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                     || message_filtered(cmd.uc_name.as_ptr())
                 {
                     i += 1;
@@ -836,7 +836,7 @@ pub unsafe fn parse_addr_type_arg(
             }
             if let Some(name) = entry.name {
                 let a = name.to_bytes().len() as c_int == vallen;
-                let b = strncmp(value, name.as_ptr(), vallen as usize) == 0;
+                let b = { let _p1 = value; let _p2 = name.as_ptr(); let _n = vallen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) };
                 if a && b {
                     *addr_type_arg = entry.expand;
                     return OK;
@@ -887,7 +887,7 @@ pub unsafe fn parse_compl_arg(
                 continue;
             }
             if CStr::from_ptr(cmd_compl).to_bytes().len() as c_int == valend
-                && strncmp(value, cmd_compl, valend as usize) == 0
+                && { let _p1 = value; let _p2 = cmd_compl; let _n = valend as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             {
                 *complp = i;
                 if i == EXPAND_BUFFERS {
@@ -1130,7 +1130,7 @@ pub unsafe fn uc_add_command(
         while (i as usize) < gap.len() {
             cmd = &raw mut gap[i as usize];
             let len = (*cmd).uc_name.as_bytes().len();
-            cmp = strncmp(name, (*cmd).uc_name.as_ptr(), name_len);
+            cmp = { let _p1 = name; let _p2 = (*cmd).uc_name.as_ptr(); let _n = name_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).cmp(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) as c_int };
             if cmp == 0 {
                 if name_len < len {
                     cmp = -1;
@@ -1246,7 +1246,7 @@ pub unsafe fn ex_command(eap: *mut exarg_T) {
             emsg(gettext(
                 c"E183: User defined commands must start with an uppercase letter".as_ptr(),
             ));
-        } else if name_len <= 4 && strncmp(name, c"Next".as_ptr(), name_len) == 0 {
+        } else if name_len <= 4 && { let _p1 = name; let _p2 = c"Next".as_ptr(); let _n = name_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             emsg(gettext(
                 c"E841: Reserved name, cannot be used for user defined command".as_ptr(),
             ));
@@ -1291,7 +1291,7 @@ pub unsafe fn ex_delcommand(eap: *mut exarg_T) {
         let mut arg: *const c_char = (*eap).arg;
         let mut buffer_only = false;
 
-        if strncmp(arg, c"-buffer".as_ptr(), 7) == 0 && ascii_iswhite(*arg.add(7)) {
+        if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"-buffer"[..7] } && ascii_iswhite(*arg.add(7)) {
             buffer_only = true;
             arg = skipwhite(arg.add(7));
         }

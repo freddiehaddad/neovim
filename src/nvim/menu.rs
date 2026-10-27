@@ -32,7 +32,7 @@ use crate::state::{
     MODE_TERMINAL, MODE_VISUAL, get_real_state,
 };
 use crate::strings::{
-    gettext, strncmp, vim_strchr, vim_stricmp, };
+    gettext, vim_strchr, vim_stricmp, };
 use crate::ui::ui_call_update_menu;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -202,7 +202,7 @@ use crate::eval::typval::tv_dict_len;
 
 /// Return true if `name` is a window toolbar menu name (`menu_is_winbar`).
 unsafe fn menu_is_winbar(name: *const c_char) -> bool {
-    unsafe { strncmp(name, c"WinBar".as_ptr(), 6) == 0 }
+    unsafe { { let _p = name; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"WinBar"[..6] } }
 }
 
 unsafe fn get_root_menu(_name: *const c_char) -> *mut Vec<vimmenu_T> {
@@ -238,24 +238,24 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
         let mut arg = (*eap).arg;
 
         loop {
-            if strncmp(arg, c"<script>".as_ptr(), 8) == 0 {
+            if { let _p = arg; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"<script>"[..8] } {
                 noremap = REMAP_SCRIPT;
                 arg = skipwhite(arg.add(8));
                 continue;
             }
-            if strncmp(arg, c"<silent>".as_ptr(), 8) == 0 {
+            if { let _p = arg; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"<silent>"[..8] } {
                 silent = true;
                 arg = skipwhite(arg.add(8));
                 continue;
             }
-            if strncmp(arg, c"<special>".as_ptr(), 9) == 0 {
+            if { let _p = arg; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"<special>"[..9] } {
                 arg = skipwhite(arg.add(9));
                 continue;
             }
             break;
         }
 
-        if strncmp(arg, c"icon=".as_ptr(), 5) == 0 {
+        if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"icon="[..5] } {
             arg = arg.add(5);
             while *arg != NUL && *arg != b' ' as c_char {
                 if *arg == b'\\' as c_char {
@@ -302,10 +302,10 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
         }
         pri_tab[MENUDEPTH] = -1;
 
-        if strncmp(arg, c"enable".as_ptr(), 6) == 0 && ascii_iswhite(*arg.add(6)) {
+        if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"enable"[..6] } && ascii_iswhite(*arg.add(6)) {
             enable = kTrue;
             arg = skipwhite(arg.add(6));
-        } else if strncmp(arg, c"disable".as_ptr(), 7) == 0 && ascii_iswhite(*arg.add(7)) {
+        } else if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"disable"[..7] } && ascii_iswhite(*arg.add(7)) {
             enable = kFalse;
             arg = skipwhite(arg.add(7));
         }
@@ -1033,11 +1033,11 @@ pub unsafe fn set_context_in_menu_cmd(
         }
 
         if !ascii_iswhite(*p) {
-            if strncmp(arg, c"enable".as_ptr(), 6) == 0
+            if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"enable"[..6] }
                 && (*arg.add(6) == NUL || ascii_iswhite(*arg.add(6)))
             {
                 p = arg.add(6);
-            } else if strncmp(arg, c"disable".as_ptr(), 7) == 0
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"disable"[..7] }
                 && (*arg.add(7) == NUL || ascii_iswhite(*arg.add(7)))
             {
                 p = arg.add(7);
@@ -1467,12 +1467,12 @@ pub unsafe fn menu_is_menubar(name: *const c_char) -> bool {
 
 /// Return true if `name` is a popup menu name (`menu_is_popup`).
 pub unsafe fn menu_is_popup(name: *const c_char) -> bool {
-    unsafe { strncmp(name, c"PopUp".as_ptr(), 5) == 0 }
+    unsafe { { let _p = name; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"PopUp"[..5] } }
 }
 
 /// Return true if `name` is a toolbar menu name (`menu_is_toolbar`).
 pub unsafe fn menu_is_toolbar(name: *const c_char) -> bool {
-    unsafe { strncmp(name, c"ToolBar".as_ptr(), 7) == 0 }
+    unsafe { { let _p = name; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"ToolBar"[..7] } }
 }
 
 /// Return true if the name is a menu separator identifier (`menu_is_separator`).
@@ -1545,8 +1545,8 @@ pub unsafe fn show_popupmenu() {
         let mut menu: *mut vimmenu_T = ptr::null_mut();
         let root_ptr = &raw mut g_st().root_menu;
         for m in &mut *root_ptr {
-            if strncmp(c"PopUp".as_ptr(), m.name.as_ptr(), 5) == 0
-                && strncmp(m.name.as_ptr().add(5), mode, mode_len) == 0
+            if { let _p1 = c"PopUp".as_ptr(); let _p2 = m.name.as_ptr(); let _n = 5; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+                && { let _p1 = m.name.as_ptr().add(5); let _p2 = mode; let _n = mode_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             {
                 menu = m;
                 break;
@@ -1791,7 +1791,7 @@ pub unsafe fn ex_menutranslate(eap: *mut exarg_T) {
         let mt_ptr = &raw mut menu_st().MENUTRANS_GA;
         let menutrans = &mut *mt_ptr;
 
-        if strncmp(arg, c"clear".as_ptr(), 5) == 0
+        if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"clear"[..5] }
             && ends_excmd(c_int::from(*skipwhite(arg.add(5)) as u8)) != 0
         {
             menutrans.clear();

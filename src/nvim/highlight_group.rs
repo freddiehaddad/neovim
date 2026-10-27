@@ -54,7 +54,7 @@ use crate::os::time::os_delay;
 use crate::runtime::{
     DIP_OPT, DIP_START, sctx_T, source_runtime_vim_lua, sourcing_lnum, sourcing_name,
 };
-use crate::strings::{atoi, gettext, strncmp, vim_memcpy_up};
+use crate::strings::{gettext, vim_memcpy_up};
 use crate::ui::{
     ui_call_hl_group_set, ui_default_colors_set, ui_flush, ui_has, ui_mode_info_set, ui_refresh,
     ui_rgb_attached,
@@ -1144,7 +1144,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
         let mut name_end: *const c_char = skiptowhite(line);
         let mut linep: *const c_char = skipwhite(name_end);
 
-        if strncmp(line, c"default".as_ptr(), name_end as usize - line as usize) == 0 {
+        if { let _p1 = line; let _p2 = c"default".as_ptr(); let _n = name_end as usize - line as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             dodefault = true;
             line = linep;
             name_end = skiptowhite(line);
@@ -1155,9 +1155,9 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
         let mut dolink = false;
 
         let word_len = name_end as usize - line as usize;
-        if strncmp(line, c"clear".as_ptr(), word_len) == 0 {
+        if { let _p1 = line; let _p2 = c"clear".as_ptr(); let _n = word_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             doclear = true;
-        } else if strncmp(line, c"link".as_ptr(), word_len) == 0 {
+        } else if { let _p1 = line; let _p2 = c"link".as_ptr(); let _n = word_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             dolink = true;
         }
 
@@ -1197,7 +1197,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
             }
 
             let from_id = syn_check_group(from_start, from_end as usize - from_start as usize);
-            let to_id = if strncmp(to_start, c"NONE".as_ptr(), 4) == 0 {
+            let to_id = if { let _p = to_start; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"NONE"[..4] } {
                 0
             } else {
                 syn_check_group(to_start, to_end as usize - to_start as usize)
@@ -1430,7 +1430,7 @@ pub unsafe fn do_highlight(mut line: *const c_char, forceit: bool, init: bool) {
 
                         let color: c_int;
                         if (arg[0] as u8).is_ascii_digit() {
-                            color = atoi(arg.as_ptr());
+                            color = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg.as_ptr()).to_bytes()) as c_int;
                         } else if mb_stricmp(arg.as_ptr(), c"fg".as_ptr()) == 0 {
                             if g_st().cterm_normal_fg_color != 0 {
                                 color = g_st().cterm_normal_fg_color - 1;
@@ -2526,7 +2526,7 @@ pub unsafe fn set_context_in_highlight_cmd(xp: *mut expand_T, mut arg: *const c_
         }
 
         g_st().include_default = 0;
-        if strncmp(c"default".as_ptr(), arg, p as usize - arg as usize) == 0 {
+        if { let _p1 = c"default".as_ptr(); let _p2 = arg; let _n = p as usize - arg as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             arg = skipwhite(p);
             (*xp).xp_pattern = arg.cast_mut();
             p = skiptowhite(arg);
@@ -2540,7 +2540,7 @@ pub unsafe fn set_context_in_highlight_cmd(xp: *mut expand_T, mut arg: *const c_
             highlight_list();
         }
         let len = p as usize - arg as usize;
-        if strncmp(c"link".as_ptr(), arg, len) == 0 || strncmp(c"clear".as_ptr(), arg, len) == 0 {
+        if { let _p1 = c"link".as_ptr(); let _p2 = arg; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } || { let _p1 = c"clear".as_ptr(); let _p2 = arg; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             (*xp).xp_pattern = skipwhite(p);
             p = skiptowhite((*xp).xp_pattern);
             if *p != NUL {

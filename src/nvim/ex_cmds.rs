@@ -130,7 +130,7 @@ use crate::shada::SubReplacementString;
 use crate::spell::parse_spelllang;
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP};
 use crate::strings::{
-    atoi, atol, concat_str, gettext, isalpha, ngettext, strcoll, strlen, strncmp, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
+    concat_str, gettext, isalpha, ngettext, strcoll, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
     vim_strchr, vim_stricmp, vim_strsave_escaped,
 };
 use crate::terminal::{Terminal, terminal_check_size, terminal_running};
@@ -481,7 +481,7 @@ pub unsafe fn ex_align(eap: *mut exarg_T) {
             }
         }
 
-        let mut width = atoi((*eap).arg);
+        let mut width = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*eap).arg).to_bytes()) as c_int;
         let save_curpos = (**curwin.as_ptr()).w_cursor;
         if (*eap).cmdidx == cmdidx_T::CMD_left as c_int {
             if width >= 0 {
@@ -563,7 +563,7 @@ unsafe fn linelen(has_tab: *mut c_int) -> c_int {
         }
         let first = skipwhite(line);
 
-        let mut last = first.add(strlen(first));
+        let mut last = first.add(std::ffi::CStr::from_ptr(first).to_bytes().len());
         while last > first && ascii_iswhite(*last.sub(1) as c_int) {
             last = last.sub(1);
         }
@@ -1434,9 +1434,9 @@ pub unsafe fn do_bang(
 
         let mut trailarg = skipwhite(arg);
         loop {
-            let mut len = strlen(trailarg) + 1;
+            let mut len = std::ffi::CStr::from_ptr(trailarg).to_bytes().len() + 1;
             if !newcmd.is_empty() {
-                len += strlen(newcmd.as_ptr());
+                len += std::ffi::CStr::from_ptr(newcmd.as_ptr()).to_bytes().len();
             }
             if ins_prevcmd {
                 if !prevcmd_is_set() {
@@ -1462,7 +1462,7 @@ pub unsafe fn do_bang(
                         .unwrap()
                         .as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
-            let mut p_idx = strlen(t.as_ptr());
+            let mut p_idx = std::ffi::CStr::from_ptr(t.as_ptr()).to_bytes().len();
             { let d = t.as_mut_ptr(); let s = trailarg; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             newcmd = t;
 
@@ -1470,7 +1470,7 @@ pub unsafe fn do_bang(
             while newcmd[p_idx] != NUL {
                 if newcmd[p_idx] == b'!' as c_char {
                     if p_idx > 0 && newcmd[p_idx - 1] == b'\\' as c_char {
-                        let rest_len = strlen(newcmd.as_ptr().add(p_idx)) + 1;
+                        let rest_len = std::ffi::CStr::from_ptr(newcmd.as_ptr().add(p_idx)).to_bytes().len() + 1;
                         newcmd.copy_within(p_idx..(p_idx + rest_len), p_idx - 1);
                     } else {
                         newcmd[p_idx] = NUL;
@@ -1495,7 +1495,7 @@ pub unsafe fn do_bang(
             trailarg = newcmd.as_mut_ptr().add(start);
         }
 
-        if strlen(newcmd.as_ptr()) > 0 {
+        if std::ffi::CStr::from_ptr(newcmd.as_ptr()).to_bytes().len() > 0 {
             excmds_st().prevcmd = Some(CStr::from_ptr(newcmd.as_ptr()).to_owned());
         }
 
@@ -1522,7 +1522,7 @@ pub unsafe fn do_bang(
                     .unwrap()
                     .as_ref()
                     .map_or(c"".as_ptr(), |s| s.as_ptr());
-                let qlen = strlen(prev_ptr) + 2 * strlen(opt_vars().p_shq) + 1;
+                let qlen = std::ffi::CStr::from_ptr(prev_ptr).to_bytes().len() + 2 * std::ffi::CStr::from_ptr(opt_vars().p_shq).to_bytes().len() + 1;
                 newcmd = vec![0 as c_char; qlen];
                 { let s = opt_vars().p_shq; std::ptr::copy_nonoverlapping(s, newcmd.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 { let d = newcmd.as_mut_ptr(); let s = prev_ptr; std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
@@ -1883,26 +1883,14 @@ pub unsafe fn make_filter_cmd(
 ) -> std::ffi::CString {
     unsafe {
         #[cfg(unix)]
-        let is_fish_shell = strncmp(
-            invocation_path_tail(opt_vars().p_sh, ptr::null_mut()),
-            c"fish".as_ptr(),
-            4,
-        ) == 0;
+        let is_fish_shell = { let _p = invocation_path_tail(opt_vars().p_sh, ptr::null_mut()); crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"fish"[..4] };
         #[cfg(not(unix))]
         let is_fish_shell = false;
 
-        let is_pwsh = strncmp(
-            invocation_path_tail(opt_vars().p_sh, ptr::null_mut()),
-            c"pwsh".as_ptr(),
-            4,
-        ) == 0
-            || strncmp(
-                invocation_path_tail(opt_vars().p_sh, ptr::null_mut()),
-                c"powershell".as_ptr(),
-                10,
-            ) == 0;
+        let is_pwsh = { let _p = invocation_path_tail(opt_vars().p_sh, ptr::null_mut()); crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"pwsh"[..4] }
+            || { let _p = invocation_path_tail(opt_vars().p_sh, ptr::null_mut()); crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"powershell"[..10] };
 
-        let mut len = strlen(cmd) + 1;
+        let mut len = std::ffi::CStr::from_ptr(cmd).to_bytes().len() + 1;
 
         len += if is_fish_shell {
             b"begin; ; end".len()
@@ -1914,9 +1902,9 @@ pub unsafe fn make_filter_cmd(
 
         if !itmp.is_null() {
             len += if is_pwsh {
-                strlen(itmp) + b"& { Get-Content  | &  }".len() + 6
+                std::ffi::CStr::from_ptr(itmp).to_bytes().len() + b"& { Get-Content  | &  }".len() + 6
             } else {
-                strlen(itmp) + b" {  <  } ".len()
+                std::ffi::CStr::from_ptr(itmp).to_bytes().len() + b" {  <  } ".len()
             };
         }
 
@@ -1925,7 +1913,7 @@ pub unsafe fn make_filter_cmd(
         }
 
         if !otmp.is_null() {
-            len += strlen(otmp) + strlen(opt_vars().p_srr) + 2;
+            len += std::ffi::CStr::from_ptr(otmp).to_bytes().len() + std::ffi::CStr::from_ptr(opt_vars().p_srr).to_bytes().len() + 2;
         }
 
         let mut buf_vec = vec![0 as c_char; len];
@@ -2000,7 +1988,7 @@ pub unsafe fn append_redir(
     fname: *const c_char,
 ) {
     unsafe {
-        let end = buf.add(strlen(buf));
+        let end = buf.add(std::ffi::CStr::from_ptr(buf).to_bytes().len());
         let mut p = opt;
         loop {
             p = CStr::from_ptr(p).to_bytes().iter().position(|&b| b == b'%').map_or(ptr::null(), |i| p.add(i));
@@ -2730,7 +2718,7 @@ pub unsafe fn set_swapcommand(command: *mut c_char, newlnum: linenr_T) -> bool {
             return false;
         }
         let valsize = if !command.is_null() {
-            strlen(command) + 3
+            std::ffi::CStr::from_ptr(command).to_bytes().len() + 3
         } else {
             30
         };
@@ -2878,7 +2866,7 @@ pub unsafe fn do_ecmd(
                         let mut tlnum: linenr_T = 0;
 
                         if !command.is_null() {
-                            tlnum = atol(command) as linenr_T;
+                            tlnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(command).to_bytes()) as std::ffi::c_long as linenr_T;
                             if tlnum <= 0 {
                                 tlnum = 1;
                             }
@@ -3328,7 +3316,7 @@ unsafe fn get_append_line(eap: *mut exarg_T, indent: c_int) -> Option<Vec<c_char
             }
             let mut p = vim_strchr((*eap).nextcmd, NL);
             if p.is_null() {
-                p = (*eap).nextcmd.add(strlen((*eap).nextcmd));
+                p = (*eap).nextcmd.add(std::ffi::CStr::from_ptr((*eap).nextcmd).to_bytes().len());
             }
             let len = p.offset_from((*eap).nextcmd) as usize;
             let mut theline = vec![0 as c_char; len + 1];
@@ -3566,7 +3554,7 @@ pub unsafe fn ex_z(eap: *mut exarg_T) {
                 emsg(gettext(E_NON_NUMERIC_ARGUMENT_TO_Z.as_ptr()));
                 return;
             }
-            bigness = atol(x) as i64;
+            bigness = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(x).to_bytes()) as std::ffi::c_long as i64;
 
             if bigness > 2 * ((*g_st().curbuf).b_ml.ml_line_count as i64) || bigness < 0 {
                 bigness = 2 * ((*g_st().curbuf).b_ml.ml_line_count as i64);
@@ -4525,7 +4513,7 @@ unsafe fn do_sub(
                             let start = regmatch.startpos[0];
                             let end = regmatch.endpos[0];
                             for j in 0..(nmatch - 1) {
-                                replaced_bytes += strlen(ml_get(lnum_start + j)) as bcount_t + 1;
+                                replaced_bytes += std::ffi::CStr::from_ptr(ml_get(lnum_start + j)).to_bytes().len() as bcount_t + 1;
                             }
                             replaced_bytes += (end.col - start.col) as bcount_t;
 
@@ -4964,7 +4952,7 @@ pub unsafe fn ex_global(eap: *mut exarg_T) {
                 *cmd = NUL;
                 cmd = cmd.add(1);
             }
-            patlen = strlen(pat);
+            patlen = std::ffi::CStr::from_ptr(pat).to_bytes().len();
         }
 
         let mut used_pat: *mut c_char = ptr::null_mut();

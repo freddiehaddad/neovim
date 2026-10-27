@@ -113,7 +113,7 @@ use crate::strings::vim_strnicmp;
 #[cfg(windows)]
 use crate::strings::vim_strnicmp;
 use crate::strings::{
-    atoi, gettext, strlen, strncmp, tolower, vim_snprintf, vim_strchr, vim_strsave_escaped,
+    gettext, tolower, vim_snprintf, vim_strchr, vim_strsave_escaped,
 };
 use crate::tag::find_tags;
 use crate::textformat::auto_format;
@@ -1236,7 +1236,7 @@ unsafe fn ins_compl_add(
             return FAIL;
         }
         if len < 0 {
-            len = strlen(str_ptr) as c_int;
+            len = std::ffi::CStr::from_ptr(str_ptr).to_bytes().len() as c_int;
         }
 
         // If the same match is already present, don't add it.
@@ -1249,7 +1249,7 @@ unsafe fn ins_compl_add(
                 if is_nearest_active() && score > 0 {
                     for match_ in &mut *list {
                         if !match_at_original_text(match_)
-                            && strncmp(match_.cp_str.data, str_ptr, len as usize) == 0
+                            && { let _p1 = match_.cp_str.data; let _p2 = str_ptr; let _n = len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                             && (match_.cp_str.size as c_int <= len
                                 || *match_.cp_str.data.add(len as usize) == NUL)
                         {
@@ -1380,7 +1380,7 @@ unsafe fn ins_compl_equal(match_: *mut compl_T, str_ptr: *const c_char, len: usi
         if ((*match_).cp_flags & CP_ICASE) != 0 {
             return vim_strnicmp((*match_).cp_str.data, str_ptr, len) == 0;
         }
-        strncmp((*match_).cp_str.data, str_ptr, len) == 0
+        { let _p1 = (*match_).cp_str.data; let _p2 = str_ptr; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
     }
 }
 
@@ -1422,7 +1422,7 @@ unsafe fn ins_compl_equal_sc(match_: *mut compl_T, str_ptr: *const c_char, len: 
 unsafe fn ins_compl_insert_bytes(p: *const c_char, mut len: c_int) {
     unsafe {
         if len == -1 {
-            len = strlen(p) as c_int;
+            len = std::ffi::CStr::from_ptr(p).to_bytes().len() as c_int;
         }
         debug_assert!(len >= 0);
         ins_bytes_len(p.cast_mut(), len as usize);
@@ -2438,7 +2438,7 @@ pub unsafe fn find_word_end(mut ptr: *mut c_char) -> *mut c_char {
 
 pub unsafe fn find_line_end(ptr: *mut c_char) -> *mut c_char {
     unsafe {
-        let mut s = ptr.add(strlen(ptr));
+        let mut s = ptr.add(std::ffi::CStr::from_ptr(ptr).to_bytes().len());
         while s > ptr && (*s.sub(1) == CAR as c_char || *s.sub(1) == NL as c_char) {
             s = s.sub(1);
         }
@@ -3433,7 +3433,7 @@ unsafe fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callb
 unsafe fn get_user_highlight_id(hlname: *const c_char) -> c_int {
     unsafe {
         if !hlname.is_null() && *hlname != NUL {
-            return syn_check_group(hlname, strlen(hlname));
+            return syn_check_group(hlname, std::ffi::CStr::from_ptr(hlname).to_bytes().len());
         }
         0
     }
@@ -4361,7 +4361,7 @@ unsafe fn fuzzy_longest_match() {
             let mut j: c_int = 0;
 
             while j < prefix_len && *match_ptr != NUL && *prefix_ptr != NUL {
-                if strncmp(prefix_ptr, match_ptr, utfc_ptr2len(prefix_ptr) as usize) != 0 {
+                if { let _p1 = prefix_ptr; let _p2 = match_ptr; let _n = utfc_ptr2len(prefix_ptr) as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     break;
                 }
 
@@ -4378,7 +4378,7 @@ unsafe fn fuzzy_longest_match() {
         let leader = ins_compl_leader();
         let leader_len = ins_compl_leader_len();
 
-        if leader_len == 0 || strncmp(prefix, leader, leader_len) == 0 {
+        if leader_len == 0 || { let _p1 = prefix; let _p2 = leader; let _n = leader_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             let mut dup_vec: Vec<c_char> = vec![0; prefix_len as usize + 1];
             ptr::copy_nonoverlapping(prefix, dup_vec.as_mut_ptr(), prefix_len as usize);
             ins_compl_longest_insert(dup_vec.as_mut_ptr());
@@ -4846,7 +4846,7 @@ unsafe fn get_register_completion() {
                 }
 
                 if adding_mode {
-                    let str_len = strlen(str_ptr) as c_int;
+                    let str_len = std::ffi::CStr::from_ptr(str_ptr).to_bytes().len() as c_int;
                     if str_len == 0 {
                         continue;
                     }
@@ -4855,7 +4855,7 @@ unsafe fn get_register_completion() {
                         || if opt_vars().p_ic != 0 {
                             vim_strnicmp(str_ptr, insexp().compl_orig_text.data, insexp().compl_orig_text.size) == 0
                         } else {
-                            strncmp(str_ptr, insexp().compl_orig_text.data, insexp().compl_orig_text.size) == 0
+                            { let _p1 = str_ptr; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                         };
                     if matches
                         && ins_compl_add_infercase(
@@ -4871,7 +4871,7 @@ unsafe fn get_register_completion() {
                         dir = FORWARD;
                     }
                 } else {
-                    let str_end = str_ptr.add(strlen(str_ptr));
+                    let str_end = str_ptr.add(std::ffi::CStr::from_ptr(str_ptr).to_bytes().len());
                     let mut p = str_ptr;
 
                     while p < str_end && *p != NUL {
@@ -4894,7 +4894,7 @@ unsafe fn get_register_completion() {
                             || if opt_vars().p_ic != 0 {
                                 vim_strnicmp(p, insexp().compl_orig_text.data, insexp().compl_orig_text.size) == 0
                             } else {
-                                strncmp(p, insexp().compl_orig_text.data, insexp().compl_orig_text.size) == 0
+                                { let _p1 = p; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                             };
                         if len > 0
                             && matches
@@ -5019,10 +5019,10 @@ unsafe fn get_next_bufname_token() {
         while !b.is_null() {
             if (*b).b_p_bl != 0 && !(*b).b_sfname.is_null() {
                 let tail = path_tail((*b).b_sfname);
-                if strncmp(tail, insexp().compl_orig_text.data, insexp().compl_orig_text.size) == 0 {
+                if { let _p1 = tail; let _p2 = insexp().compl_orig_text.data; let _n = insexp().compl_orig_text.size; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     ins_compl_add(
                         tail,
-                        strlen(tail) as c_int,
+                        std::ffi::CStr::from_ptr(tail).to_bytes().len() as c_int,
                         ptr::null_mut(),
                         [const { None }; CPT_COUNT],
                         ptr::null_mut(),
@@ -5514,14 +5514,10 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                             && insexp().cpt_sources_array[cur_source as usize].cs_flag == b'.' as c_char))
                 {
                     if first.is_null()
-                        && strncmp(
-                            ins_compl_leader(),
-                            compl.cp_str.data,
-                            ins_compl_leader_len(),
-                        ) == 0
+                        && { let _p1 = ins_compl_leader(); let _p2 = compl.cp_str.data; let _n = ins_compl_leader_len(); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                     {
                         first = compl.cp_str.data;
-                        len = strlen(first) as c_int;
+                        len = std::ffi::CStr::from_ptr(first).to_bytes().len() as c_int;
                     } else if !first.is_null() {
                         let mut j: c_int = 0;
                         let mut s1 = first;
@@ -5550,7 +5546,7 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
 
         if len > ins_compl_leader_len() as c_int {
             debug_assert!(!first.is_null());
-            if len == strlen(first) as c_int {
+            if len == std::ffi::CStr::from_ptr(first).to_bytes().len() as c_int {
                 let line = get_cursor_line_ptr();
                 let p = line.add((**curwin.as_ptr()).w_cursor.col as usize);
                 if !p.is_null() && !ascii_iswhite_or_nul(*p) {
@@ -5558,7 +5554,7 @@ unsafe fn find_common_prefix(prefix_len: *mut usize, curbuf_only: bool) -> *mut 
                     let text_len = end.offset_from(p) as c_int;
                     if text_len > 0
                         && text_len < len - ins_compl_leader_len() as c_int
-                        && strncmp(first.add((len - text_len) as usize), p, text_len as usize) == 0
+                        && { let _p1 = first.add((len - text_len) as usize); let _p2 = p; let _n = text_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                     {
                         len -= text_len;
                     }
@@ -6100,7 +6096,7 @@ unsafe fn get_normal_compl_info(
                     { let s = c"\\<".as_ptr(); std::ptr::copy_nonoverlapping(s, pat_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     quote_meta(pat_vec.as_mut_ptr().add(2), line.add(insexp().compl_col as usize), 1);
                     { let d = pat_vec.as_mut_ptr(); let s = c"\\k".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                    set_compl_pattern_bytes(pat_vec.as_ptr(), strlen(pat_vec.as_ptr()));
+                    set_compl_pattern_bytes(pat_vec.as_ptr(), std::ffi::CStr::from_ptr(pat_vec.as_ptr()).to_bytes().len());
                 } else {
                     let n = quote_meta(ptr::null_mut(), line.add(insexp().compl_col as usize), insexp().compl_length)
                         as usize
@@ -6901,7 +6897,7 @@ unsafe fn setup_cpt_sources() {
                 if slen > 0 {
                     let caret = vim_strchr(buf.as_mut_ptr(), b'^' as c_int);
                     if !caret.is_null() {
-                        sources[idx].cs_max_matches = atoi(caret.add(1));
+                        sources[idx].cs_max_matches = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(caret.add(1)).to_bytes()) as c_int;
                     }
                 }
                 idx += 1;

@@ -60,7 +60,7 @@ use crate::spell::{
 use crate::spellfile::spell_check_msm;
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    atoi, gettext, strlen, strncmp, vim_snprintf, vim_strchr,
+    gettext, vim_snprintf, vim_strchr,
 };
 use crate::terminal::terminal_notify_theme;
 use crate::ui::ui_has;
@@ -1094,22 +1094,22 @@ pub unsafe fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
             if wp.is_null() {
                 return OK;
             }
-            if strncmp(val, c"no".as_ptr(), 2) == 0 {
+            if { let _p = val; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"no"[..2] } {
                 (*wp).w_minscwidth = SCL_NO;
                 (*wp).w_maxscwidth = SCL_NO;
-            } else if strncmp(val, c"nu".as_ptr(), 2) == 0
+            } else if { let _p = val; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"nu"[..2] }
                 && ((*wp).w_onebuf_opt.wo_nu != 0 || (*wp).w_onebuf_opt.wo_rnu != 0)
             {
                 (*wp).w_minscwidth = SCL_NUM;
                 (*wp).w_maxscwidth = SCL_NUM;
-            } else if strncmp(val, c"yes:".as_ptr(), 4) == 0 {
+            } else if { let _p = val; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"yes:"[..4] } {
                 let n = (*val.add(4) as c_int) - (b'0' as c_int);
                 (*wp).w_minscwidth = n;
                 (*wp).w_maxscwidth = n;
             } else if *val == b'y' as c_char {
                 (*wp).w_minscwidth = 1;
                 (*wp).w_maxscwidth = 1;
-            } else if strncmp(val, c"auto:".as_ptr(), 5) == 0 {
+            } else if { let _p = val; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"auto:"[..5] } {
                 (*wp).w_minscwidth = 0;
                 (*wp).w_maxscwidth = (*val.add(5) as c_int) - (b'0' as c_int);
             } else {
@@ -1117,8 +1117,8 @@ pub unsafe fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
                 (*wp).w_maxscwidth = 1;
             }
         } else {
-            if strncmp(val, c"auto:".as_ptr(), 5) != 0
-                || strlen(val) != 8
+            if !({ let _p = val; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"auto:"[..5] })
+                || std::ffi::CStr::from_ptr(val).to_bytes().len() != 8
                 || !ascii_isdigit(*val.add(5) as c_int)
                 || *val.add(6) != b'-' as c_char
                 || !ascii_isdigit(*val.add(7) as c_int)
@@ -1483,10 +1483,10 @@ unsafe fn expand_set_opt_listflag(
 unsafe fn completing_value_for_subopt(args: *mut optexpand_T, name_suffix: *const c_char) -> bool {
     unsafe {
         let colon = (*(*args).oe_xp).xp_pattern.sub(1);
-        let len = strlen(name_suffix);
+        let len = std::ffi::CStr::from_ptr(name_suffix).to_bytes().len();
 
         colon.offset_from((*args).oe_set_arg) >= (len as isize)
-            && strncmp(colon.sub(len), name_suffix, len) == 0
+            && { let _p1 = colon.sub(len); let _p2 = name_suffix; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
     }
 }
 
@@ -2851,7 +2851,7 @@ pub unsafe fn validate_shada(args: *mut optset_T) -> *const c_char {
                 }
             }
         }
-        if *value != NUL && (marks.is_null() || atoi(marks) < 0) {
+        if *value != NUL && (marks.is_null() || (crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(marks).to_bytes()) as c_int) < 0) {
             return c"E528: Must specify a ' value".as_ptr();
         }
         ptr::null()
@@ -2985,7 +2985,7 @@ pub unsafe fn validate_spellcapcheck(args: *mut optset_T) -> *const c_char {
         g_st().suppress_errthrow = save_suppress_errthrow;
         (*args).os_prep = OptSetPrep::SpellcapProg(prog);
         if err.err_type != ErrorType::kErrorTypeNone {
-            let msg = if strncmp(err.msg_ptr(), c"Vim:".as_ptr(), 4) == 0 {
+            let msg = if { let _p = err.msg_ptr(); crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"Vim:"[..4] } {
                 err.msg_ptr().add(4)
             } else {
                 err.msg_ptr()
@@ -3495,7 +3495,7 @@ unsafe fn opt_strings_flags(
             let mut matched = false;
             for (i, &v) in values.iter().enumerate() {
                 let len = v.to_bytes().len();
-                if strncmp(v.as_ptr(), val, len) == 0
+                if { let _p1 = v.as_ptr(); let _p2 = val; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                     && ((list && *val.add(len) == b',' as c_char) || *val.add(len) == NUL)
                 {
                     val = val.add(len + usize::from(*val.add(len) == b',' as c_char));
@@ -4137,7 +4137,7 @@ pub unsafe fn set_chars_option(
                 while i < entries {
                     let name_ptr = tab[i].name.as_ptr();
                     let name_len = tab[i].name.to_bytes().len();
-                    if !(strncmp(p, name_ptr, name_len) == 0 && *p.add(name_len) == b':' as c_char)
+                    if !({ let _p1 = p; let _p2 = name_ptr; let _n = name_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } && *p.add(name_len) == b':' as c_char)
                     {
                         i += 1;
                         continue;

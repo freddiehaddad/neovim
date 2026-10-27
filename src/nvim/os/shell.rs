@@ -57,7 +57,7 @@ use crate::path::{
 use crate::profile::{prof_child_enter, prof_child_exit, proftime_T};
 use crate::strings::{gettext, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 #[cfg(unix)]
-use crate::strings::{strlen, vim_strchr};
+use crate::strings::{vim_strchr};
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
 use std::ffi::{CStr, c_char, c_int};
@@ -235,13 +235,13 @@ pub unsafe fn os_expand_wildcards(
         let tempname = tempname_cstr.as_ptr();
 
         if num_pat == 1 && **pat == b'`' as c_char {
-            let pat0_len = strlen(*pat);
+            let pat0_len = std::ffi::CStr::from_ptr(*pat).to_bytes().len();
             if pat0_len > 2 && *(*pat).add(pat0_len - 1) == b'`' as c_char {
                 shell_style = STYLE_BT;
             }
         }
         if shell_style != STYLE_BT {
-            let sh_len = strlen(opt_vars().p_sh);
+            let sh_len = std::ffi::CStr::from_ptr(opt_vars().p_sh).to_bytes().len();
             if sh_len >= 3 {
                 let tail3 = CStr::from_ptr(opt_vars().p_sh.add(sh_len - 3)).to_bytes();
                 if tail3 == b"csh" {
@@ -260,7 +260,7 @@ pub unsafe fn os_expand_wildcards(
             }
         }
 
-        let mut len = strlen(tempname) + 29;
+        let mut len = std::ffi::CStr::from_ptr(tempname).to_bytes().len() + 29;
         if shell_style == STYLE_VIMGLOB {
             len += SH_VIMGLOB_FUNC.to_bytes().len();
         } else if shell_style == STYLE_GLOBSTAR {
@@ -294,7 +294,7 @@ pub unsafe fn os_expand_wildcards(
                 { let s = c"(".as_ptr(); std::ptr::copy_nonoverlapping(s, command, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             }
             { let d = command; let s = (*pat).add(1); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-            let mut p = command.add(strlen(command) - 1);
+            let mut p = command.add(std::ffi::CStr::from_ptr(command).to_bytes().len() - 1);
             if is_fish_shell {
                 *p = b';' as c_char;
                 p = p.sub(1);
@@ -341,7 +341,7 @@ pub unsafe fn os_expand_wildcards(
                 let mut intick = false;
                 let p_i = *pat.add(i);
 
-                let mut p = command.add(strlen(command));
+                let mut p = command.add(std::ffi::CStr::from_ptr(command).to_bytes().len());
                 *p = b' ' as c_char;
                 p = p.add(1);
                 let mut j = 0;
@@ -482,7 +482,7 @@ pub unsafe fn os_expand_wildcards(
             let mut check_spaces = false;
             if shell_style == STYLE_PRINT && !sh_st().did_find_nul {
                 *buffer.add(len) = NUL;
-                if len != 0 && (strlen(buffer) as c_int) < (len as c_int) {
+                if len != 0 && (std::ffi::CStr::from_ptr(buffer).to_bytes().len() as c_int) < (len as c_int) {
                     sh_st().did_find_nul = true;
                 } else {
                     check_spaces = true;
@@ -562,7 +562,7 @@ pub unsafe fn os_expand_wildcards(
                 continue;
             }
 
-            let entry_len = strlen(entry);
+            let entry_len = std::ffi::CStr::from_ptr(entry).to_bytes().len();
             let mut new_vec = vec![0 as c_char; entry_len + 1 + usize::from(dir)];
             { let s = entry; std::ptr::copy_nonoverlapping(s, new_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             if dir {

@@ -49,7 +49,7 @@ use crate::regexp::{
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
-    gettext, strlen, strncmp, vim_snprintf, vim_strchr,
+    gettext, vim_snprintf, vim_strchr,
     vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up,
 };
 use crate::window::win_T;
@@ -3565,7 +3565,7 @@ unsafe fn syn_list_keywords(
                     {
                         force_newline = true;
                     } else {
-                        outlen = strlen(ke2hikey(kp)) as c_int;
+                        outlen = std::ffi::CStr::from_ptr(ke2hikey(kp)).to_bytes().len() as c_int;
                     }
                     if syn_list_header(did_header, outlen, id, force_newline) {
                         prev_contained = 0;
@@ -3651,7 +3651,7 @@ unsafe fn add_keyword(
                 name_folded.as_mut_ptr(),
                 (MAXKEYWLEN + 1) as c_int,
             );
-            (name_folded.as_ptr(), strlen(name_folded.as_ptr()))
+            (name_folded.as_ptr(), std::ffi::CStr::from_ptr(name_folded.as_ptr()).to_bytes().len())
         } else {
             (name, namelen)
         };
@@ -3948,7 +3948,7 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
                 syn_check_group(arg, group_name_end.offset_from(arg) as usize)
             };
             if syn_id != 0 {
-                let mut keyword_buf = vec![0 as c_char; strlen(rest) + 1];
+                let mut keyword_buf = vec![0 as c_char; std::ffi::CStr::from_ptr(rest).to_bytes().len() + 1];
                 let keyword_copy = keyword_buf.as_mut_ptr();
                 let mut syn_opt_arg = syn_opt_arg_T {
                     flags: 0,
@@ -3996,7 +3996,7 @@ unsafe fn syn_cmd_keyword(eap: *mut exarg_T, _syncing: c_int) {
                         p = vim_strchr(kw, b'[' as c_int);
                         loop {
                             if p.is_null() {
-                                kwlen = strlen(kw);
+                                kwlen = std::ffi::CStr::from_ptr(kw).to_bytes().len();
                             } else {
                                 *p = NUL;
                                 kwlen = p.offset_from(kw) as usize;
@@ -4203,7 +4203,7 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
 
             if item == ITEM_MATCHGROUP {
                 let p = skiptowhite(rest);
-                if (p.offset_from(rest) == 4 && strncmp(rest, c"NONE".as_ptr(), 4) == 0)
+                if (p.offset_from(rest) == 4 && { let _p = rest; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"NONE"[..4] })
                     || (*eap).skip != 0
                 {
                     matchgroup_id = 0;
@@ -4537,7 +4537,7 @@ unsafe fn get_syn_pattern(arg: *mut c_char, ci: *mut synpat_T) -> *mut c_char {
         loop {
             let mut idx: isize = SPO_COUNT as isize - 1;
             while idx >= 0 {
-                if strncmp(end, spo_name_tab[idx as usize], 3) == 0 {
+                if { let _p1 = end; let _p2 = spo_name_tab[idx as usize]; let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     break;
                 }
                 idx -= 1;
@@ -4626,10 +4626,10 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
                 } else if (*eap).skip == 0 {
                     (*win_s(*curwin.as_ptr())).b_syn_sync_id = syn_name2id(c"Comment".as_ptr()) as i16;
                 }
-            } else if strncmp(key, c"LINES".as_ptr(), 5) == 0
-                || strncmp(key, c"MINLINES".as_ptr(), 8) == 0
-                || strncmp(key, c"MAXLINES".as_ptr(), 8) == 0
-                || strncmp(key, c"LINEBREAKS".as_ptr(), 10) == 0
+            } else if { let _p = key; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"LINES"[..5] }
+                || { let _p = key; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"MINLINES"[..8] }
+                || { let _p = key; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"MAXLINES"[..8] }
+                || { let _p = key; crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"LINEBREAKS"[..10] }
             {
                 arg_end = (if *key.add(4) == b'S' as c_char {
                     key.add(6)

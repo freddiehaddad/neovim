@@ -85,7 +85,7 @@ use crate::regexp::{RE_MAGIC, regmatch_T, regprog_T, vim_regcomp, vim_regexec, v
 use crate::sha256::context_sha256_T;
 use crate::shada::check_marks_read;
 use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
-use crate::strings::{ngettext, strlen, tr, vim_snprintf, vim_strchr};
+use crate::strings::{ngettext, tr, vim_snprintf, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::{
     bufIsChanged, u_clearallandblockfree, u_clearline, u_compute_hash, u_find_first_changed,
@@ -1129,7 +1129,7 @@ pub unsafe fn readfile(
             }
 
             if !fname.is_null() && *fname != NUL {
-                let fnamelen = strlen(fname);
+                let fnamelen = std::ffi::CStr::from_ptr(fname).to_bytes().len();
 
                 if fnamelen >= MAXPATHL {
                     filemess(
@@ -2487,7 +2487,7 @@ pub unsafe fn readfile(
                     add_quoted_fname(iobuf_ptr, IOSIZE, g_st().curbuf, sfname);
                     let mut c = false;
 
-                    let mut buflen = strlen(iobuf_ptr) as c_int;
+                    let mut buflen = std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len() as c_int;
                     #[cfg(unix)]
                     {
                         if s_isfifo(perm as u64) {
@@ -2881,7 +2881,7 @@ unsafe fn next_fenc(pp: *mut *mut c_char) -> std::ffi::CString {
         let p = vim_strchr(*pp, b',' as c_int);
         if p.is_null() {
             let res = enc_canonize(*pp);
-            *pp = (*pp).add(strlen(*pp));
+            *pp = (*pp).add(std::ffi::CStr::from_ptr(*pp).to_bytes().len());
             res
         } else {
             let len = p.offset_from(*pp) as usize;
@@ -3041,7 +3041,7 @@ pub unsafe fn fname_msg_id(
         if len < size {
             add_quoted_fname(msg_id.add(len), size - len, buf, fname);
         }
-        let total = strlen(msg_id);
+        let total = std::ffi::CStr::from_ptr(msg_id).to_bytes().len();
         if total > 0 {
             *msg_id.add(total - 1) = NUL;
         }
@@ -3074,7 +3074,7 @@ pub unsafe fn msg_add_fileformat(eol_type: c_int) -> bool {
 pub unsafe fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) {
     unsafe {
         let iobuf_ptr = (&raw mut g_st().IObuff).cast::<c_char>();
-        let mut len = strlen(iobuf_ptr);
+        let mut len = std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len();
         let space = if insert_space != 0 {
             c" ".as_ptr()
         } else {
@@ -3315,19 +3315,19 @@ pub unsafe fn modname(
         let mut retval_vec: Vec<c_char>;
         let retval: *mut c_char;
         let fnamelen: usize;
-        let extlen = strlen(ext);
+        let extlen = std::ffi::CStr::from_ptr(ext).to_bytes().len();
 
         if fname.is_null() || *fname == NUL {
             retval_vec = vec![0; MAXPATHL + extlen + 3];
             retval = retval_vec.as_mut_ptr();
-            if os_dirname(retval, MAXPATHL) == FAIL || strlen(retval) == 0 {
+            if os_dirname(retval, MAXPATHL) == FAIL || std::ffi::CStr::from_ptr(retval).to_bytes().len() == 0 {
                 return None;
             }
             add_pathsep(retval);
-            fnamelen = strlen(retval);
+            fnamelen = std::ffi::CStr::from_ptr(retval).to_bytes().len();
             prepend_dot = false;
         } else {
-            fnamelen = strlen(fname);
+            fnamelen = std::ffi::CStr::from_ptr(fname).to_bytes().len();
             retval_vec = vec![0; fnamelen + extlen + 3];
             retval = retval_vec.as_mut_ptr();
             ptr::copy_nonoverlapping(fname, retval, fnamelen + 1);
@@ -3544,7 +3544,7 @@ pub unsafe fn put_time(fd: *mut FILE, time_: time_t) -> c_int {
 
 unsafe fn rename_with_tmp(from: *const c_char, to: *const c_char) -> c_int {
     unsafe {
-        if strlen(from) >= MAXPATHL - 5 {
+        if std::ffi::CStr::from_ptr(from).to_bytes().len() >= MAXPATHL - 5 {
             return -1;
         }
 
@@ -3902,7 +3902,7 @@ pub unsafe fn buf_check_timestamp(buf: *mut buf_T) -> c_int {
             if !helpmesg {
                 mesg2 = c"".as_ptr().cast_mut();
             }
-            let tbufsize = path.as_bytes().len() + strlen(mesg) + strlen(mesg2) + 3;
+            let tbufsize = path.as_bytes().len() + std::ffi::CStr::from_ptr(mesg).to_bytes().len() + std::ffi::CStr::from_ptr(mesg2).to_bytes().len() + 3;
             let mut tbuf_vec = vec![0 as c_char; tbufsize];
             let tbuf = tbuf_vec.as_mut_ptr();
             let tbuflen = vim_snprintf!(tbuf, tbufsize, mesg, path.as_ptr());
@@ -4265,7 +4265,7 @@ unsafe fn vim_mktempdir() {
                         tmp.as_ptr(),
                     );
                 }
-                tmplen -= strlen(user.as_ptr());
+                tmplen -= std::ffi::CStr::from_ptr(user.as_ptr()).to_bytes().len();
                 tmp[tmplen] = NUL;
             }
 
@@ -4484,7 +4484,7 @@ unsafe fn vim_settempdir(tempdir: *mut c_char) -> bool {
 
         vim_FullName(tempdir, buf, MAXPATHL, cfg!(windows));
 
-        let mut buflen = strlen(buf);
+        let mut buflen = std::ffi::CStr::from_ptr(buf).to_bytes().len();
         if after_pathsep(buf, buf.add(buflen)) == 0 {
             let sep_bytes = PATHSEPSTR.to_bytes_with_nul();
             ptr::copy_nonoverlapping(
@@ -4609,7 +4609,7 @@ pub unsafe fn file_pat_to_reg_pat(
         }
 
         if pat_end.is_null() {
-            pat_end = pat.add(strlen(pat));
+            pat_end = pat.add(std::ffi::CStr::from_ptr(pat).to_bytes().len());
         }
 
         if pat_end == pat {

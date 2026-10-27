@@ -41,7 +41,7 @@ use crate::os::input::line_breakcheck;
 use crate::plines::plines_win_nofold;
 use crate::search::{FORWARD, linewhite};
 use crate::statusline::foldinfo_T;
-use crate::strings::{atoi, gettext, vim_snprintf, vim_strchr};
+use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::syntax::syn_get_foldlevel;
 use crate::undo::u_save;
 use crate::window::win_T;
@@ -2587,7 +2587,7 @@ unsafe fn foldlevelMarker(flp: &mut fline_T) {
             if *s == cstart && rem_bytes.starts_with(start_rest) {
                 s = s.add(fold_st().foldstartmarkerlen);
                 if ascii_isdigit(*s as u8 as c_int) {
-                    let n = atoi(s);
+                    let n = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(s).to_bytes()) as c_int;
                     if n > 0 {
                         flp.lvl = n;
                         flp.lvl_next = n;
@@ -2601,7 +2601,7 @@ unsafe fn foldlevelMarker(flp: &mut fline_T) {
             } else if *s == cend && rem_bytes.starts_with(end_rest) {
                 s = s.add(fold_st().foldendmarkerlen);
                 if ascii_isdigit(*s as u8 as c_int) {
-                    let n = atoi(s);
+                    let n = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(s).to_bytes()) as c_int;
                     if n > 0 {
                         flp.lvl = n;
                         flp.lvl_next = (n - 1).min(start_lvl);

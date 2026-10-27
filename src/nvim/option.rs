@@ -129,7 +129,7 @@ use crate::runtime::{
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    gettext, strlen, strncmp, tr, vim_snprintf,
+    gettext, tr, vim_snprintf,
     vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
 };
 use crate::tag::free_tagfunc_option;
@@ -794,7 +794,7 @@ unsafe fn set_init_default_backupskip() {
                 let mut has_trailing_path_sep = false;
 
                 if plen == 0 {
-                    plen = strlen(p);
+                    plen = std::ffi::CStr::from_ptr(p).to_bytes().len();
                     if after_pathsep(p, p.add(plen)) != 0 {
                         has_trailing_path_sep = true;
                     }
@@ -1109,7 +1109,7 @@ unsafe fn find_dup_item(
             if ((flags & kOptFlagComma) == 0
                 || s == origval
                 || (*s.offset(-1) == b',' as c_char && (bs & 1) == 0))
-                && strncmp(s, newval, newvallen) == 0
+                && { let _p1 = s; let _p2 = newval; let _n = newvallen; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                 && ((flags & kOptFlagComma) == 0
                     || *s.add(newvallen) == b',' as c_char
                     || *s.add(newvallen) == NUL)
@@ -1239,7 +1239,7 @@ pub unsafe fn set_helplang_default(lang: *const c_char) {
             return;
         }
 
-        let lang_len = strlen(lang);
+        let lang_len = std::ffi::CStr::from_ptr(lang).to_bytes().len();
         if lang_len < 2 {
             return;
         }
@@ -1306,9 +1306,9 @@ unsafe fn stropt_copy_value(
     unsafe {
         let mut arg = *argp;
 
-        let mut newlen = strlen(arg) + 1;
+        let mut newlen = std::ffi::CStr::from_ptr(arg).to_bytes().len() + 1;
         if op != OP_NONE {
-            newlen += strlen(origval) + 1;
+            newlen += std::ffi::CStr::from_ptr(origval).to_bytes().len() + 1;
         }
         let mut newval_vec: Vec<c_char> = vec![0; newlen];
         let newval = newval_vec.as_mut_ptr();
@@ -1362,9 +1362,9 @@ unsafe fn stropt_expand_envvar(
             return;
         }
 
-        let mut newlen = (strlen(s) as u32) + 1;
+        let mut newlen = (std::ffi::CStr::from_ptr(s).to_bytes().len() as u32) + 1;
         if op != OP_NONE {
-            newlen += (strlen(origval) as u32) + 1;
+            newlen += (std::ffi::CStr::from_ptr(origval).to_bytes().len() as u32) + 1;
         }
         *newval = vec![0; newlen as usize];
         { let s = s; std::ptr::copy_nonoverlapping(s, newval.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
@@ -1382,7 +1382,7 @@ unsafe fn stropt_concat_with_comma(
         let mut len: usize;
         let comma = usize::from((flags & kOptFlagComma) != 0 && *origval != NUL && *newval != NUL);
         if op == OP_ADDING {
-            len = strlen(origval);
+            len = std::ffi::CStr::from_ptr(origval).to_bytes().len();
             if comma != 0
                 && len > 1
                 && (flags & kOptFlagOneComma) == kOptFlagOneComma
@@ -1391,11 +1391,11 @@ unsafe fn stropt_concat_with_comma(
             {
                 len -= 1;
             }
-            ptr::copy(newval, newval.add(len + comma), strlen(newval) + 1);
+            ptr::copy(newval, newval.add(len + comma), std::ffi::CStr::from_ptr(newval).to_bytes().len() + 1);
             ptr::copy(origval, newval, len);
         } else {
-            len = strlen(newval);
-            ptr::copy(origval, newval.add(len + comma), strlen(origval) + 1);
+            len = std::ffi::CStr::from_ptr(newval).to_bytes().len();
+            ptr::copy(origval, newval.add(len + comma), std::ffi::CStr::from_ptr(origval).to_bytes().len() + 1);
         }
         if comma != 0 {
             *newval.add(len) = b',' as c_char;
@@ -1426,7 +1426,7 @@ unsafe fn stropt_remove_val(
             }
             let src = strval.add(len as usize);
             let dst_off = strval.offset_from(origval) as usize;
-            ptr::copy(src, newval.add(dst_off), strlen(src) + 1);
+            ptr::copy(src, newval.add(dst_off), std::ffi::CStr::from_ptr(src).to_bytes().len() + 1);
         }
     }
 }
@@ -1443,11 +1443,11 @@ unsafe fn find_key_item(
 
         while *p != NUL {
             if (p == src || *p.offset(-1) == b',' as c_char)
-                && strncmp(p, key, keylen as usize) == 0
+                && { let _p1 = p; let _p2 = key; let _n = keylen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             {
                 let mut end = vim_strchr(p, b',' as c_int);
                 if end.is_null() {
-                    end = p.add(strlen(p));
+                    end = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
                 }
                 *itemlenp = end.offset_from(p);
                 return p;
@@ -1463,10 +1463,10 @@ unsafe fn remove_comma_item(str_arg: *const c_char, item: *mut c_char, itemlen: 
     unsafe {
         if *item.offset(itemlen) == b',' as c_char {
             let src = item.offset(itemlen + 1);
-            ptr::copy(src, item, strlen(src) + 1);
+            ptr::copy(src, item, std::ffi::CStr::from_ptr(src).to_bytes().len() + 1);
         } else if (item as *const c_char) > str_arg && *item.offset(-1) == b',' as c_char {
             let src = item.offset(itemlen);
-            ptr::copy(src, item.offset(-1), strlen(src) + 1);
+            ptr::copy(src, item.offset(-1), std::ffi::CStr::from_ptr(src).to_bytes().len() + 1);
         } else {
             *item = NUL;
         }
@@ -1506,7 +1506,7 @@ unsafe fn remove_key_item(
 /// Append a comma-separated item to the end of "str" in-place.
 unsafe fn append_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
     unsafe {
-        let mut len = strlen(str_arg) as isize;
+        let mut len = std::ffi::CStr::from_ptr(str_arg).to_bytes().len() as isize;
         if len > 0 {
             *str_arg.offset(len) = b',' as c_char;
             len += 1;
@@ -1519,7 +1519,7 @@ unsafe fn append_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) 
 /// Prepend a comma-separated item to the beginning of "str" in-place.
 unsafe fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
     unsafe {
-        let len = strlen(str_arg) as isize;
+        let len = std::ffi::CStr::from_ptr(str_arg).to_bytes().len() as isize;
         let comma: isize = if len > 0 { 1 } else { 0 };
 
         ptr::copy(
@@ -1555,7 +1555,7 @@ unsafe fn stropt_handle_keymatch(
         loop {
             let p = vim_strchr(item_start, b',' as c_int);
             let item_len = if p.is_null() {
-                strlen(item_start) as isize
+                std::ffi::CStr::from_ptr(item_start).to_bytes().len() as isize
             } else {
                 p.offset_from(item_start)
             };
@@ -1570,7 +1570,7 @@ unsafe fn stropt_handle_keymatch(
                         let found = find_key_item(newval, item_start, keylen, &raw mut old_itemlen);
                         if !found.is_null() {
                             if old_itemlen == item_len
-                                && strncmp(found, item_start, item_len as usize) == 0
+                                && { let _p1 = found; let _p2 = item_start; let _n = item_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                             {
                                 remove_key_item(newval, item_start, keylen, found);
                             } else {
@@ -1628,14 +1628,14 @@ unsafe fn stropt_remove_dupflags(newval: *mut c_char, flags: u32) {
                     && !vim_strchr(s.add(2), *s as u8 as c_int).is_null()
                 {
                     let src = s.add(2);
-                    ptr::copy(src, s, strlen(src) + 1);
+                    ptr::copy(src, s, std::ffi::CStr::from_ptr(src).to_bytes().len() + 1);
                     continue;
                 }
             } else if ((flags & kOptFlagComma) == 0 || *s != b',' as c_char)
                 && !vim_strchr(s.add(1), *s as u8 as c_int).is_null()
             {
                 let src = s.add(1);
-                ptr::copy(src, s, strlen(src) + 1);
+                ptr::copy(src, s, std::ffi::CStr::from_ptr(src).to_bytes().len() + 1);
                 continue;
             }
             s = s.add(1);
@@ -1681,7 +1681,7 @@ unsafe fn stropt_get_newval(
         } else {
             let mut len: c_int = 0;
             if op == OP_REMOVING || (flags & kOptFlagNoDup) != 0 {
-                len = strlen(newval) as c_int;
+                len = std::ffi::CStr::from_ptr(newval).to_bytes().len() as c_int;
                 s = find_dup_item(origval, newval, len as usize, flags);
 
                 if (op == OP_ADDING || op == OP_PREPENDING) && !s.is_null() {
@@ -1690,7 +1690,7 @@ unsafe fn stropt_get_newval(
                 }
 
                 if s.is_null() {
-                    s = origval.add(strlen(origval));
+                    s = origval.add(std::ffi::CStr::from_ptr(origval).to_bytes().len());
                 }
             }
 
@@ -1733,10 +1733,10 @@ unsafe fn get_op(arg: *const c_char) -> set_op_T {
 
 unsafe fn get_option_prefix(argp: *mut *mut c_char) -> set_prefix_T {
     unsafe {
-        if strncmp(*argp, c"no".as_ptr(), 2) == 0 {
+        if { let _p = *argp; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"no"[..2] } {
             *argp = (*argp).add(2);
             PREFIX_NO
-        } else if strncmp(*argp, c"inv".as_ptr(), 3) == 0 {
+        } else if { let _p = *argp; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"inv"[..3] } {
             *argp = (*argp).add(3);
             PREFIX_INV
         } else {
@@ -2145,7 +2145,7 @@ pub unsafe fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
             did_show = true;
         } else {
             while *arg != NUL {
-                if strncmp(arg, c"all".as_ptr(), 3) == 0
+                if { let _p = arg; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"all"[..3] }
                     && !ascii_isalpha(*arg.add(3))
                     && (opt_flags & OPT_MODELINE) == 0
                 {
@@ -2256,7 +2256,7 @@ unsafe fn find_key_len(arg_arg: *const c_char, len: usize, has_lt: bool) -> c_in
 pub unsafe fn string_to_key(arg: *mut c_char) -> c_int {
     unsafe {
         if *arg == b'<' as c_char && *arg.add(1) != NUL {
-            return find_key_len(arg.add(1), strlen(arg), true);
+            return find_key_len(arg.add(1), std::ffi::CStr::from_ptr(arg).to_bytes().len(), true);
         }
         if *arg == b'^' as c_char && *arg.add(1) != NUL {
             let mut key = ctrl_chr(c_int::from(*arg.add(1) as u8));
@@ -2340,7 +2340,7 @@ unsafe fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_cha
             val = *((*opt).var.cast::<*const c_char>());
         }
 
-        if val.is_null() || strlen(val) > MAXPATHL {
+        if val.is_null() || std::ffi::CStr::from_ptr(val).to_bytes().len() > MAXPATHL {
             return ptr::null_mut();
         }
 
@@ -3621,7 +3621,7 @@ unsafe fn do_spelllang_source(win: *mut win_T) {
         let ws = (*win).w_s_ptr();
         let mut q = (*ws).b_p_spl;
 
-        if strncmp(q, c"cjk,".as_ptr(), 4) == 0 {
+        if { let _p = q; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"cjk,"[..4] } {
             q = q.add(4);
         }
 
@@ -5154,7 +5154,7 @@ pub unsafe fn find_option_len(name: *const c_char, len: usize) -> OptIndex {
 
 /// Find index for an option.
 pub unsafe fn find_option(name: *const c_char) -> OptIndex {
-    unsafe { find_option_len(name, strlen(name)) }
+    unsafe { find_option_len(name, std::ffi::CStr::from_ptr(name).to_bytes().len()) }
 }
 
 /// True if `opt_idx` is a dict option (`schema.dict` in options.lua, e.g. 'diffopt').
@@ -6725,7 +6725,7 @@ unsafe fn put_set_value(
                 let value_str = value.data.string().data;
                 if !value_str.is_null() {
                     if (flags & kOptFlagExpand) != 0 {
-                        let size = strlen(value_str) + 1;
+                        let size = std::ffi::CStr::from_ptr(value_str).to_bytes().len() + 1;
                         let mut buf_vec = vec![0 as c_char; size];
                         let buf = buf_vec.as_mut_ptr();
                         home_replace(ptr::null_mut(), value_str, buf, size, false);
@@ -7775,7 +7775,7 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
             (*xp).xp_pattern = arg;
             return;
         }
-        let argend = arg.add(strlen(arg));
+        let argend = arg.add(std::ffi::CStr::from_ptr(arg).to_bytes().len());
         let mut p = argend.offset(-1);
         if *p == b' ' as c_char && *p.offset(-1) != b'\\' as c_char {
             (*xp).xp_pattern = p.add(1);
@@ -7794,11 +7794,11 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
             }
             p = p.offset(-1);
         }
-        if strncmp(p, c"no".as_ptr(), 2) == 0 {
+        if { let _p = p; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"no"[..2] } {
             (*xp).xp_context = EXPAND_BOOL_SETTINGS;
             (*xp).xp_prefix = XP_PREFIX_NO;
             p = p.add(2);
-        } else if strncmp(p, c"inv".as_ptr(), 3) == 0 {
+        } else if { let _p = p; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"inv"[..3] } {
             (*xp).xp_context = EXPAND_BOOL_SETTINGS;
             (*xp).xp_prefix = XP_PREFIX_INV;
             p = p.add(3);
@@ -7993,7 +7993,7 @@ pub unsafe fn set_context_in_set_cmd(xp: *mut expand_T, mut arg: *mut c_char, op
         }
 
         if (*get_option(opt_idx)).var == (&raw mut opt_vars().p_sps).cast() {
-            if strncmp((*xp).xp_pattern, c"file:".as_ptr(), 5) == 0 {
+            if { let _p = (*xp).xp_pattern; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"file:"[..5] } {
                 (*xp).xp_pattern = (*xp).xp_pattern.add(5);
             } else if (*get_option(opt_st().EXPAND_OPTION_IDX)).opt_expand_cb.is_some() {
                 (*xp).xp_context = EXPAND_STRING_SETTING;
@@ -8103,7 +8103,7 @@ pub unsafe fn escape_option_str_cmdline(var_arg: *mut c_char) -> std::ffi::CStri
                         || (var == buf && *var.add(4) != b'\\' as c_char))
                 {
                     let src = var.add(1);
-                    ptr::copy(src, var, strlen(src) + 1);
+                    ptr::copy(src, var, std::ffi::CStr::from_ptr(src).to_bytes().len() + 1);
                 }
                 var = var.add(utfc_ptr2len(var) as usize);
             }
@@ -8242,7 +8242,7 @@ pub unsafe fn ExpandSettingSubtract(
                 return FAIL;
             }
 
-            let num_flags = strlen(option_val);
+            let num_flags = std::ffi::CStr::from_ptr(option_val).to_bytes().len();
             if num_flags == 0 {
                 return FAIL;
             }
@@ -8362,16 +8362,16 @@ pub unsafe fn fill_culopt_flags(val: *mut c_char, flags: *mut c_uint) -> c_int {
         let mut culopt_flags_new: u8 = 0;
 
         while *p != NUL {
-            if strncmp(p, c"line".as_ptr(), 4) == 0 {
+            if { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"line"[..4] } {
                 p = p.add(4);
                 culopt_flags_new |= kOptCuloptFlagLine;
-            } else if strncmp(p, c"both".as_ptr(), 4) == 0 {
+            } else if { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"both"[..4] } {
                 p = p.add(4);
                 culopt_flags_new |= kOptCuloptFlagLine | kOptCuloptFlagNumber;
-            } else if strncmp(p, c"number".as_ptr(), 6) == 0 {
+            } else if { let _p = p; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"number"[..6] } {
                 p = p.add(6);
                 culopt_flags_new |= kOptCuloptFlagNumber;
-            } else if strncmp(p, c"screenline".as_ptr(), 10) == 0 {
+            } else if { let _p = p; crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"screenline"[..10] } {
                 p = p.add(10);
                 culopt_flags_new |= kOptCuloptFlagScreenline;
             }
@@ -8404,8 +8404,8 @@ pub unsafe fn option_set_callback_func(optval: *mut c_char, optcb: *mut Callback
         }
 
         let mut tv: typval_T = if *optval == b'{' as c_char
-            || strncmp(optval, c"function(".as_ptr(), 9) == 0
-            || strncmp(optval, c"funcref(".as_ptr(), 8) == 0
+            || { let _p = optval; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"function("[..9] }
+            || { let _p = optval; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"funcref("[..8] }
         {
             let Some(evaluated) = eval_expr(optval, ptr::null_mut()) else {
                 return FAIL;
@@ -8645,7 +8645,7 @@ pub unsafe fn option_next_keyval(
         let end = if !comma.is_null() {
             comma as *const c_char
         } else {
-            s.add(strlen(s))
+            s.add(std::ffi::CStr::from_ptr(s).to_bytes().len())
         };
         let colon = vim_strchr(s, b':' as c_int) as *const c_char;
 
@@ -8671,7 +8671,7 @@ pub unsafe fn option_next_keyval(
 
 /// Compare a (non-NUL-terminated) slice from option_next_keyval() against a name.
 pub unsafe fn option_slice_eq(slice: *const c_char, slicelen: usize, name: *const c_char) -> bool {
-    unsafe { !slice.is_null() && strlen(name) == slicelen && strncmp(slice, name, slicelen) == 0 }
+    unsafe { !slice.is_null() && std::ffi::CStr::from_ptr(name).to_bytes().len() == slicelen && { let _p1 = slice; let _p2 = name; let _n = slicelen; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } }
 }
 
 /// Return true when 'shell' has "csh" in the tail.

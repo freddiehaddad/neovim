@@ -51,7 +51,7 @@ use crate::optionstr::{
 use crate::os::env::home_replace;
 use crate::path::{path_tail, shorten_dir};
 use crate::sign::describe_sign_text;
-use crate::strings::{atoi, toupper, tr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
+use crate::strings::{toupper, tr, vim_snprintf, vim_snprintf_safelen, vim_strchr};
 use crate::ui::{ui_call_msg_ruler, ui_call_tabline_update, ui_has};
 use crate::undo::bufIsChanged;
 use crate::window::{global_stl_height, lastwin_nofloating, tabline_height, win_T};
@@ -581,7 +581,7 @@ unsafe fn win_redr_stl_expr(wp: *mut win_T, draw_winbar: bool, draw_ruler: bool,
                 if *stl == b'-' as c_char {
                     stl = stl.add(1);
                 }
-                if atoi(stl) != 0 {
+                if crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(stl).to_bytes()) as c_int != 0 {
                     while ascii_isdigit(*stl) {
                         stl = stl.add(1);
                     }
@@ -1933,7 +1933,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                         do_unlet(c"g:actual_curwin".as_ptr(), "g:actual_curwin".len(), true);
 
                         if !zeropad && !str.is_null() && *str != NUL && *skipdigits(str) == NUL {
-                            num = atoi(str);
+                            num = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(str).to_bytes()) as c_int;
                             owned_str = None;
                             str = ptr::null_mut();
                             itemisflag = false;

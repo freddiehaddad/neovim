@@ -36,7 +36,7 @@ use crate::memory::{cstr_from_bytes, cstr_to_cstring, strequal, xstrlcpy};
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::strings::{
-    strcoll, strlen, strncmp, strtod, tr, vim_snprintf, vim_stricmp,
+    strcoll, strtod, tr, vim_snprintf, vim_stricmp,
 };
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -1766,7 +1766,7 @@ unsafe fn list_join_inner(
             item = (*item).li_next;
         }
 
-        let seplen = strlen(sep);
+        let seplen = std::ffi::CStr::from_ptr(sep).to_bytes().len();
         if join_vec.len() >= 2 {
             sumlen += seplen * (join_vec.len() - 1);
         }
@@ -2742,7 +2742,7 @@ unsafe fn tv_dict_watcher_matches(watcher: *const DictWatcher, key: *const c_cha
         let len = (*watcher).key_pattern_len;
         let pat_ptr = (*watcher).key_pattern.as_ptr();
         if len > 0 && *pat_ptr.add(len - 1) == b'*' as c_char {
-            strncmp(key, pat_ptr, len - 1) == 0
+            { let _p1 = key; let _p2 = pat_ptr; let _n = len - 1; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
         } else {
             std::ffi::CStr::from_ptr(key).to_bytes() == std::ffi::CStr::from_ptr(pat_ptr).to_bytes()
         }
@@ -2837,7 +2837,7 @@ pub unsafe fn tv_dict_item_alloc_len(key: *const c_char, key_len: usize) -> *mut
 
 /// Allocate a dictionary item.
 pub unsafe fn tv_dict_item_alloc(key: *const c_char) -> *mut dictitem_T {
-    unsafe { tv_dict_item_alloc_len(key, strlen(key)) }
+    unsafe { tv_dict_item_alloc_len(key, std::ffi::CStr::from_ptr(key).to_bytes().len()) }
 }
 
 /// Free a dictionary item, also clearing the value.
@@ -3354,7 +3354,7 @@ pub unsafe fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_
     unsafe {
         let watched = tv_dict_is_watched_inline(d1);
         let arg_errmsg = tr(c"extend() argument".as_ptr());
-        let arg_errmsg_len = strlen(arg_errmsg);
+        let arg_errmsg_len = std::ffi::CStr::from_ptr(arg_errmsg).to_bytes().len();
 
         if *action == b'm' as c_char {
             hash_lock(&raw mut (*d2).dv_hashtab);
@@ -3502,7 +3502,7 @@ pub unsafe fn tv_dict_copy(
                 let di = tv_dict_hi2di(hi);
                 let key_ptr = (*di).di_key.as_mut_ptr();
                 let new_di = if let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) {
-                    let mut len = strlen(key_ptr);
+                    let mut len = std::ffi::CStr::from_ptr(key_ptr).to_bytes().len();
                     if let Some(key) = string_convert(conv, key_ptr, &raw mut len) {
                         tv_dict_item_alloc_len(key.as_ptr().cast(), len)
                     } else {
@@ -4601,9 +4601,9 @@ pub unsafe fn value_check_lock(
                 } else {
                     if name_len == TV_TRANSLATE {
                         name = tr(name);
-                        name_len = strlen(name);
+                        name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
                     } else if name_len == TV_CSTRING {
-                        name_len = strlen(name);
+                        name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
                     }
                     semsg!(tr(error_message), name_len as c_int, name);
                 }
@@ -4619,9 +4619,9 @@ pub unsafe fn value_check_lock(
                 } else {
                     if name_len == TV_TRANSLATE {
                         name = tr(name);
-                        name_len = strlen(name);
+                        name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
                     } else if name_len == TV_CSTRING {
-                        name_len = strlen(name);
+                        name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
                     }
                     semsg!(tr(error_message), name_len as c_int, name);
                 }

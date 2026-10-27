@@ -39,7 +39,7 @@ use crate::ops::do_join;
 use crate::option::{OPT_LOCAL, kBufOptFormatexpr, kOptFormatexpr, was_set_insecurely};
 use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
-use crate::strings::{strncmp, vim_strchr};
+use crate::strings::{vim_strchr};
 use crate::textobject::startPS;
 use crate::ui::ui_cursor_shape;
 use crate::undo::{u_save, u_save_cursor};
@@ -1045,7 +1045,7 @@ pub unsafe fn format_lines(line_count: linenr_T, avoid_fex: bool) {
                         next_leader_flags,
                     ))
                     && (next_leader_flags.is_null()
-                        || strncmp(next_leader_flags, c"://".as_ptr(), 3) != 0
+                        || !({ let _p = next_leader_flags; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"://"[..3] })
                         || check_linecomment(get_cursor_line_ptr()) == MAXCOL)
                 {
                     is_end_par = true;

@@ -220,7 +220,7 @@ unsafe fn nfa_regcomp_start(expr: *mut u8, re_flags: c_int) {
     unsafe {
         re_st().nstate = 0;
         re_st().istate = 0;
-        let nstate_max = (strlen(expr.cast()) + 1) * 25 + 1000;
+        let nstate_max = (std::ffi::CStr::from_ptr(expr.cast()).to_bytes().len() + 1) * 25 + 1000;
         let pv = &raw mut re_st().post_vec;
         (*pv).clear();
         (*pv).reserve(nstate_max);

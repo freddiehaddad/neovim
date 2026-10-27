@@ -102,7 +102,7 @@ use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
 use crate::strings::{
-    gettext, ngettext, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
+    gettext, ngettext, vim_snprintf, vim_snprintf_safelen,
     vim_strchr,
 };
 use crate::syntax::{reset_synblock, synblock_T, syntax_clear};
@@ -1206,7 +1206,7 @@ pub unsafe fn open_buffer(read_stdin: bool, eap: *mut exarg_T, flags_arg: c_int)
             && !(*g_st().curbuf).b_ffname.is_null()
             && after_pathsep(
                 (*g_st().curbuf).b_ffname,
-                (*g_st().curbuf).b_ffname.add(strlen((*g_st().curbuf).b_ffname)),
+                (*g_st().curbuf).b_ffname.add(std::ffi::CStr::from_ptr((*g_st().curbuf).b_ffname).to_bytes().len()),
             ) != 0
             && augroup_exists(c"filetypedetect".as_ptr())
         {
@@ -3228,7 +3228,7 @@ pub unsafe fn buflist_findpat(
                 .map(|b| b as c_char)
                 .collect();
             let pat = pat_vec.as_mut_ptr();
-            let patend = pat.add(strlen(pat).saturating_sub(1));
+            let patend = pat.add(std::ffi::CStr::from_ptr(pat).to_bytes().len().saturating_sub(1));
             let toggledollar = patend > pat && *patend == b'$' as c_char;
 
             let mut find_listed = 1;
@@ -4333,7 +4333,7 @@ pub unsafe fn maketitle() {
                 if name.is_null() {
                     name = path_tail((*g_st().curbuf).b_ffname);
                 }
-                let mut namelen = strlen(name) as c_int;
+                let mut namelen = std::ffi::CStr::from_ptr(name).to_bytes().len() as c_int;
                 if namelen > 100 {
                     namelen -= 100;
                     namelen += c_int::from(utf_cp_bounds(name, name.add(namelen as usize)).end_off);
@@ -4748,8 +4748,8 @@ unsafe fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
         let mut line_end = s.add(ml_get_len(lnum) as usize);
         while *s != NUL {
             if prev == -1 || ascii_isspace(prev) {
-                if (prev != -1 && strncmp(s, c"ex:".as_ptr(), 3) == 0)
-                    || strncmp(s, c"vi:".as_ptr(), 3) == 0
+                if (prev != -1 && { let _p = s; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"ex:"[..3] })
+                    || { let _p = s; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"vi:"[..3] }
                 {
                     break;
                 }
@@ -4773,7 +4773,7 @@ unsafe fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
                     let vim_version = i64::from(min_vim_version());
                     if *e == b':' as c_char
                         && (*s != b'V' as c_char
-                            || strncmp(skipwhite(e.add(1)), c"set".as_ptr(), 3) == 0)
+                            || { let _p = skipwhite(e.add(1)); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"set"[..3] })
                         && (s3 == b':' as c_char
                             || (vim_version >= vers && (s3 as u8).is_ascii_digit())
                             || (vim_version < vers && s3 == b'<' as c_char)
@@ -4830,7 +4830,7 @@ unsafe fn chk_modeline(lnum: linenr_T, flags: c_int) -> c_int {
                 end = true;
             }
 
-            if strncmp(s, c"set ".as_ptr(), 4) == 0 || strncmp(s, c"se ".as_ptr(), 3) == 0 {
+            if { let _p = s; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"set "[..4] } || { let _p = s; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"se "[..3] } {
                 if *e != b':' as c_char {
                     break;
                 }

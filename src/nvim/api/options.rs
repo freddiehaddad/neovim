@@ -32,7 +32,6 @@ use crate::option::{
     option_has_type, optval_free, optval_from_obj, optval_own, set_op_T, set_option_direct,
     set_option_value_for, validate_and_prepare_option_value,
 };
-use crate::strings::{strlen};
 use crate::window::close_windows;
 use std::ffi::{c_char, c_int};
 use std::ptr;
@@ -485,7 +484,7 @@ pub unsafe extern "C" fn nvim__option_to_object(
         if (flags & (kOptFlagComma | kOptFlagFlagList)) == 0 {
             string_obj(arena_string(arena, cstr_as_string(str_ptr)))
         } else if (flags & kOptFlagFlagList) != 0 && (flags & kOptFlagComma) == 0 {
-            let n = strlen(str_ptr);
+            let n = std::ffi::CStr::from_ptr(str_ptr).to_bytes().len();
             let mut d = arena_dict(arena, n);
             for i in 0..n {
                 put_c(
@@ -517,7 +516,7 @@ pub unsafe extern "C" fn nvim__option_to_object(
             } else {
                 arena_array(arena, nparts)
             };
-            let str_len = strlen(str_ptr);
+            let str_len = std::ffi::CStr::from_ptr(str_ptr).to_bytes().len();
             let mut item_buf = vec![0 as c_char; str_len + 1];
             let item = item_buf.as_mut_ptr();
             p = str_ptr;

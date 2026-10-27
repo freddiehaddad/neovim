@@ -44,7 +44,7 @@ use crate::message::{
     emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg, smsg,
 };
 use crate::msgpack_rpc::packer::Integer;
-use crate::strings::{atoi, gettext, strncmp, vim_snprintf, vim_strchr};
+use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::window::buf_jump_open_win;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
@@ -847,20 +847,20 @@ unsafe fn sign_define_cmd(name: *mut c_char, mut cmdline: *mut c_char) {
                 break;
             }
             cmdline = skiptowhite_esc(arg);
-            if strncmp(arg, c"icon=".as_ptr(), 5) == 0 {
+            if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"icon="[..5] } {
                 icon = arg.add(5);
-            } else if strncmp(arg, c"text=".as_ptr(), 5) == 0 {
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"text="[..5] } {
                 text = arg.add(5);
-            } else if strncmp(arg, c"linehl=".as_ptr(), 7) == 0 {
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"linehl="[..7] } {
                 linehl = arg.add(7);
-            } else if strncmp(arg, c"texthl=".as_ptr(), 7) == 0 {
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"texthl="[..7] } {
                 texthl = arg.add(7);
-            } else if strncmp(arg, c"culhl=".as_ptr(), 6) == 0 {
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"culhl="[..6] } {
                 culhl = arg.add(6);
-            } else if strncmp(arg, c"numhl=".as_ptr(), 6) == 0 {
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"numhl="[..6] } {
                 numhl = arg.add(6);
-            } else if strncmp(arg, c"priority=".as_ptr(), 9) == 0 {
-                prio = atoi(arg.add(9));
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"priority="[..9] } {
+                prio = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg.add(9)).to_bytes()) as c_int;
             } else {
                 semsg!(gettext(e_invarg2.as_ptr()), arg);
                 return;
@@ -974,19 +974,19 @@ unsafe fn parse_sign_cmd_args(
         }
 
         while *arg != NUL {
-            if strncmp(arg, c"line=".as_ptr(), 5) == 0 {
+            if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"line="[..5] } {
                 arg = arg.add(5);
-                *lnum = atoi(arg);
+                *lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg).to_bytes()) as c_int;
                 arg = skiptowhite(arg);
                 lnum_arg = true;
-            } else if strncmp(arg, c"*".as_ptr(), 1) == 0 && cmd == SIGNCMD_UNPLACE {
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 1) == 1 && std::slice::from_raw_parts(_p.cast::<u8>(), 1) == &b"*"[..1] } && cmd == SIGNCMD_UNPLACE {
                 if *id != -1 {
                     emsg(gettext(e_invarg.as_ptr()));
                     return FAIL;
                 }
                 *id = -2;
                 arg = skiptowhite(arg.add(1));
-            } else if strncmp(arg, c"name=".as_ptr(), 5) == 0 {
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"name="[..5] } {
                 arg = arg.add(5);
                 let mut namep = arg;
                 arg = skiptowhite(arg);
@@ -998,7 +998,7 @@ unsafe fn parse_sign_cmd_args(
                     namep = namep.add(1);
                 }
                 *name = namep;
-            } else if strncmp(arg, c"group=".as_ptr(), 6) == 0 {
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"group="[..6] } {
                 arg = arg.add(6);
                 *group = arg;
                 arg = skiptowhite(arg);
@@ -1006,16 +1006,16 @@ unsafe fn parse_sign_cmd_args(
                     *arg = NUL;
                     arg = arg.add(1);
                 }
-            } else if strncmp(arg, c"priority=".as_ptr(), 9) == 0 {
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"priority="[..9] } {
                 arg = arg.add(9);
-                *prio = atoi(arg);
+                *prio = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(arg).to_bytes()) as c_int;
                 arg = skiptowhite(arg);
-            } else if strncmp(arg, c"file=".as_ptr(), 5) == 0 {
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"file="[..5] } {
                 arg = arg.add(5);
                 filename = arg;
                 *buf = buflist_findname_exp(arg);
                 break;
-            } else if strncmp(arg, c"buffer=".as_ptr(), 7) == 0 {
+            } else if { let _p = arg; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"buffer="[..7] } {
                 arg = arg.add(7);
                 filename = arg;
                 *buf = buflist_findnr(getdigits_int(&raw mut arg, true, 0));
@@ -1384,33 +1384,33 @@ pub unsafe fn set_context_in_sign_cmd(xp: *mut expand_T, arg: *mut c_char) {
             (*xp).xp_pattern = p.add(1);
             match cmd_idx {
                 SIGNCMD_DEFINE => {
-                    if strncmp(last, c"texthl".as_ptr(), 6) == 0
-                        || strncmp(last, c"linehl".as_ptr(), 6) == 0
-                        || strncmp(last, c"culhl".as_ptr(), 5) == 0
-                        || strncmp(last, c"numhl".as_ptr(), 5) == 0
+                    if { let _p = last; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"texthl"[..6] }
+                        || { let _p = last; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"linehl"[..6] }
+                        || { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"culhl"[..5] }
+                        || { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"numhl"[..5] }
                     {
                         (*xp).xp_context = EXPAND_HIGHLIGHT;
-                    } else if strncmp(last, c"icon".as_ptr(), 4) == 0 {
+                    } else if { let _p = last; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"icon"[..4] } {
                         (*xp).xp_context = EXPAND_FILES;
                     } else {
                         (*xp).xp_context = EXPAND_NOTHING;
                     }
                 }
                 SIGNCMD_PLACE => {
-                    if strncmp(last, c"name".as_ptr(), 4) == 0 {
+                    if { let _p = last; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"name"[..4] } {
                         sign_st().expand_what = EXP_SIGN_NAMES;
-                    } else if strncmp(last, c"group".as_ptr(), 5) == 0 {
+                    } else if { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"group"[..5] } {
                         sign_st().expand_what = EXP_SIGN_GROUPS;
-                    } else if strncmp(last, c"file".as_ptr(), 4) == 0 {
+                    } else if { let _p = last; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"file"[..4] } {
                         (*xp).xp_context = EXPAND_BUFFERS;
                     } else {
                         (*xp).xp_context = EXPAND_NOTHING;
                     }
                 }
                 SIGNCMD_UNPLACE | SIGNCMD_JUMP => {
-                    if strncmp(last, c"group".as_ptr(), 5) == 0 {
+                    if { let _p = last; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"group"[..5] } {
                         sign_st().expand_what = EXP_SIGN_GROUPS;
-                    } else if strncmp(last, c"file".as_ptr(), 4) == 0 {
+                    } else if { let _p = last; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"file"[..4] } {
                         (*xp).xp_context = EXPAND_BUFFERS;
                     } else {
                         (*xp).xp_context = EXPAND_NOTHING;

@@ -2164,7 +2164,7 @@ pub(super) unsafe fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<bt_reg
                 let mut len: c_int = 0;
                 while !scan.is_null() {
                     if OP(scan) == EXACTLY {
-                        let scanlen = strlen(OPERAND(scan).cast());
+                        let scanlen = std::ffi::CStr::from_ptr(OPERAND(scan).cast()).to_bytes().len();
                         if scanlen >= len as usize {
                             longest = OPERAND(scan);
                             len = scanlen as c_int;
@@ -3048,7 +3048,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                 let len = if *opnd.add(1) == NUL && !re_st().rex.reg_ic {
                                     1
                                 } else {
-                                    let mut l = strlen(opnd.cast()) as c_int;
+                                    let mut l = std::ffi::CStr::from_ptr(opnd.cast()).to_bytes().len() as c_int;
                                     if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &raw mut l) != 0 {
                                         status = RA_NOMATCH;
                                     }
@@ -3668,7 +3668,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                 if limit > 0
                                     && i64::from(
                                         (if rp_pos.lnum < bpos.lnum {
-                                            strlen(re_st().rex.line.cast()) as colnr_T
+                                            std::ffi::CStr::from_ptr(re_st().rex.line.cast()).to_bytes().len() as colnr_T
                                         } else {
                                             bpos.col
                                         }) - rp_pos.col,
@@ -3683,7 +3683,7 @@ unsafe fn regmatch(mut scan: *mut u8, tm: Option<proftime_T>, timed_out: *mut c_
                                     } else {
                                         reg_restore((*rp).rs_un.regsave_mut());
                                         (*rp).rs_un.regsave_mut().rs_u.pos_mut().col =
-                                            strlen(re_st().rex.line.cast()) as colnr_T;
+                                            std::ffi::CStr::from_ptr(re_st().rex.line.cast()).to_bytes().len() as colnr_T;
                                     }
                                 } else {
                                     let line = reg_getline(rp_pos.lnum);

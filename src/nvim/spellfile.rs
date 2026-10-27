@@ -47,8 +47,7 @@ use crate::spell::{
 };
 use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
-    atoi, gettext, has_non_ascii, strerror, strlen, strncmp,
-    vim_snprintf, vim_strchr,
+    gettext, has_non_ascii, strerror, vim_snprintf, vim_strchr,
 };
 use crate::syntax::win_s;
 use crate::ui::ui_flush;
@@ -812,7 +811,9 @@ pub unsafe fn suggest_load_files() {
                     for slot in buf.iter_mut().take(VIMSUGMAGICL) {
                         *slot = fgetc(fd) as c_char;
                     }
-                    if strncmp(buf.as_ptr(), VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL) != 0 {
+                    if std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), VIMSUGMAGICL)
+                        != &VIMSUGMAGIC[..VIMSUGMAGICL]
+                    {
                         semsg!(
                             gettext(c"E778: This does not look like a .sug file: %s".as_ptr()),
                             sug_ptr,
@@ -1986,7 +1987,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                     bytes.push(b'+');
                     compflags = Some(std::ffi::CString::new(bytes).unwrap());
                 } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULES".as_ptr(), 2) {
-                    if atoi(items[1]) == 0 {
+                    if crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(items[1]).to_bytes()) as c_int == 0 {
                         smsg!(
                             0,
                             gettext(c"Wrong COMPOUNDRULES value in %s line %d: %s".as_ptr()),
@@ -2009,7 +2010,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                 } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDWORDMAX".as_ptr(), 2)
                     && compmax == 0
                 {
-                    compmax = atoi(items[1]);
+                    compmax = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(items[1]).to_bytes()) as c_int;
                     if compmax == 0 {
                         smsg!(
                             0,
@@ -2022,7 +2023,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                 } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDMIN".as_ptr(), 2)
                     && compminlen == 0
                 {
-                    compminlen = atoi(items[1]);
+                    compminlen = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(items[1]).to_bytes()) as c_int;
                     if compminlen == 0 {
                         smsg!(
                             0,
@@ -2035,7 +2036,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                 } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDSYLMAX".as_ptr(), 2)
                     && compsylmax == 0
                 {
-                    compsylmax = atoi(items[1]);
+                    compsylmax = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(items[1]).to_bytes()) as c_int;
                     if compsylmax == 0 {
                         smsg!(
                             0,
@@ -2054,7 +2055,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                 } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDTRIPLE".as_ptr(), 1) {
                     compoptions |= COMP_CHECKTRIPLE;
                 } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDPATTERN".as_ptr(), 2) {
-                    if atoi(items[1]) == 0 {
+                    if crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(items[1]).to_bytes()) as c_int == 0 {
                         smsg!(
                             0,
                             gettext(c"Wrong CHECKCOMPOUNDPATTERN value in %s line %d: %s".as_ptr()),
@@ -2135,7 +2136,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                         }
                     } else {
                         let ah_flag = affitem2flag(aff.af_flagtype, items[1], fname, lnum);
-                        if ah_flag == 0 || strlen(items[1]) >= AH_KEY_LEN {
+                        if ah_flag == 0 || std::ffi::CStr::from_ptr(items[1]).to_bytes().len() >= AH_KEY_LEN {
                             break;
                         }
                         if ah_flag == aff.af_bad
@@ -2203,7 +2204,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                         }
                     }
 
-                    aff_todo = atoi(items[3]);
+                    aff_todo = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(items[3]).to_bytes()) as c_int;
                 } else if (std::ffi::CStr::from_ptr(items[0]).to_bytes() == b"PFX"
                     || std::ffi::CStr::from_ptr(items[0]).to_bytes() == b"SFX")
                     && aff_todo > 0
@@ -2303,7 +2304,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                                         || utf_ptr2char((*aff_entry).cond_ptr()) == c)
                                 {
                                     let add_ptr = (*aff_entry).add_ptr();
-                                    let mut p_end = add_ptr.add(strlen(add_ptr));
+                                    let mut p_end = add_ptr.add(std::ffi::CStr::from_ptr(add_ptr).to_bytes().len());
                                     mb_ptr_back(add_ptr, &mut p_end);
                                     if utf_ptr2char(p_end) == c_up {
                                         upper = true;
@@ -2474,7 +2475,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                             }
                         }
                         if !items[1].is_null() {
-                            let s_len = strlen(items[1]);
+                            let s_len = std::ffi::CStr::from_ptr(items[1]).to_bytes().len();
                             si_map.extend_from_slice(std::slice::from_raw_parts(items[1], s_len));
                         }
                         si_map.push(b'/' as c_char);
@@ -2665,7 +2666,7 @@ unsafe fn aff_process_flags(affile: &afffile_T, entry: &mut affentry_T) {
                 let prevp = p;
                 let flag = get_affitem(affile.af_flagtype, &raw mut p);
                 if flag == affile.af_comppermit || flag == affile.af_compforbid {
-                    ptr::copy(p, prevp, strlen(p) + 1);
+                    ptr::copy(p, prevp, std::ffi::CStr::from_ptr(p).to_bytes().len() + 1);
                     p = prevp;
                     if flag == affile.af_comppermit {
                         entry.ae_comppermit = 1;
@@ -2932,7 +2933,7 @@ unsafe fn add_fromto(
         spell_casefold(
             *curwin.as_ptr(),
             from,
-            strlen(from) as c_int,
+            std::ffi::CStr::from_ptr(from).to_bytes().len() as c_int,
             word.as_mut_ptr(),
             MAXWLEN as c_int,
         );
@@ -2940,7 +2941,7 @@ unsafe fn add_fromto(
         spell_casefold(
             *curwin.as_ptr(),
             to,
-            strlen(to) as c_int,
+            std::ffi::CStr::from_ptr(to).to_bytes().len() as c_int,
             word.as_mut_ptr(),
             MAXWLEN as c_int,
         );
@@ -2993,7 +2994,7 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
             if line[0] == b'#' as c_char || line[0] == b'/' as c_char {
                 continue;
             }
-            let mut l = strlen(line.as_ptr());
+            let mut l = std::ffi::CStr::from_ptr(line.as_ptr()).to_bytes().len();
             while l > 0 && (line[l - 1] as u8) <= b' ' {
                 l -= 1;
             }
@@ -3030,7 +3031,7 @@ unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &af
                 if *p == b'\\' as c_char
                     && (*p.add(1) == b'\\' as c_char || *p.add(1) == b'/' as c_char)
                 {
-                    ptr::copy(p.add(1), p, strlen(p.add(1)) + 1);
+                    ptr::copy(p.add(1), p, std::ffi::CStr::from_ptr(p.add(1)).to_bytes().len() + 1);
                 } else if *p == b'/' as c_char {
                     *p = NUL;
                     afflist = p.add(1);
@@ -3307,7 +3308,7 @@ unsafe fn store_aff_word(
         let mut retval = OK;
         let mut store_afflist = [0 as c_char; MAXWLEN];
         let mut pfx_pfxlist = [0 as c_char; MAXWLEN];
-        let wordlen = strlen(word);
+        let wordlen = std::ffi::CStr::from_ptr(word).to_bytes().len();
 
         for ah in ht.values() {
             if retval != OK {
@@ -3326,7 +3327,7 @@ unsafe fn store_aff_word(
                             || affile.af_pfxpostpone == 0
                             || !ae_chop.is_null()
                             || !ae_flags.is_null())
-                            && (ae_chop.is_null() || strlen(ae_chop) < wordlen)
+                            && (ae_chop.is_null() || std::ffi::CStr::from_ptr(ae_chop).to_bytes().len() < wordlen)
                             && ((*ae).ae_prog.is_none()
                                 || vim_regexec_prog((*ae).ae_prog.as_deref(), false, word, 0))
                             && (((condit & CONDIT_CFIX) == 0)
@@ -3356,7 +3357,7 @@ unsafe fn store_aff_word(
                             } else {
                                 xstrlcpy(newword.as_mut_ptr(), word, MAXWLEN);
                                 if !ae_chop.is_null() {
-                                    let mut p = newword.as_mut_ptr().add(strlen(newword.as_ptr()));
+                                    let mut p = newword.as_mut_ptr().add(std::ffi::CStr::from_ptr(newword.as_ptr()).to_bytes().len());
                                     let mut i = mb_charlen(ae_chop);
                                     while i > 0 {
                                         mb_ptr_back(newword.as_ptr(), &mut p);
@@ -3623,7 +3624,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                 continue;
             }
 
-            let mut l = strlen(rline.as_ptr());
+            let mut l = std::ffi::CStr::from_ptr(rline.as_ptr()).to_bytes().len();
             while l > 0 && (rline[l - 1] as u8) <= b' ' {
                 l -= 1;
             }
@@ -3655,7 +3656,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
 
             if *line == b'/' as c_char {
                 line = line.add(1);
-                if strncmp(line, c"encoding=".as_ptr(), 9) == 0 {
+                if { let _p = line; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"encoding="[..9] } {
                     if (*spin).si_conv.vc_type != CONV_NONE {
                         smsg!(
                             0,
@@ -3696,7 +3697,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                     continue;
                 }
 
-                if strncmp(line, c"regions=".as_ptr(), 8) == 0 {
+                if { let _p = line; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"regions="[..8] } {
                     if (*spin).si_region_count > 1 {
                         smsg!(
                             0,
@@ -3707,7 +3708,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                         );
                     } else {
                         line = line.add(8);
-                        if strlen(line) > MAXREGIONS * 2 {
+                        if std::ffi::CStr::from_ptr(line).to_bytes().len() > MAXREGIONS * 2 {
                             smsg!(
                                 0,
                                 gettext(c"Too many regions in %s line %d: %s".as_ptr()),
@@ -3716,7 +3717,7 @@ unsafe fn spell_read_wordfile(spin: *mut spellinfo_T, fname: *mut c_char) -> c_i
                                 line,
                             );
                         } else {
-                            (*spin).si_region_count = (strlen(line) / 2) as c_int;
+                            (*spin).si_region_count = (std::ffi::CStr::from_ptr(line).to_bytes().len() / 2) as c_int;
                             { let s = line; std::ptr::copy_nonoverlapping(s, (&raw mut (*spin).si_region_name).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                             (*spin).si_region = (1 << (*spin).si_region_count) - 1;
                         }
@@ -3837,7 +3838,7 @@ unsafe fn store_word(
     need_affix: bool,
 ) -> c_int {
     unsafe {
-        let len = strlen(word) as c_int;
+        let len = std::ffi::CStr::from_ptr(word).to_bytes().len() as c_int;
         let ct = captype(word, word.offset(len as isize));
         let mut foldword = [0 as c_char; MAXWLEN];
         let mut res = OK;
@@ -4372,7 +4373,7 @@ unsafe fn write_vim_spell(spin: *mut spellinfo_T, fname: *mut c_char) -> c_int {
                     } else {
                         ftp.ft_to.as_ptr()
                     };
-                    let slen = strlen(p);
+                    let slen = std::ffi::CStr::from_ptr(p).to_bytes().len();
                     fputc(slen as c_int, fd);
                     if slen > 0 {
                         fwv &= fwrite(p.cast(), slen, 1, fd);
@@ -4662,7 +4663,7 @@ pub unsafe fn ex_mkspell(eap: *mut exarg_T) {
         let mut arg = (*eap).arg;
         let mut ascii = false;
 
-        if strncmp(arg, c"-ascii".as_ptr(), 6) == 0 {
+        if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"-ascii"[..6] } {
             ascii = true;
             arg = skipwhite(arg.add(6));
         }
@@ -4722,7 +4723,7 @@ unsafe fn spell_make_sugfile(spin: *mut spellinfo_T, wfname: *mut c_char) {
             let mut fname_buf = [0 as c_char; MAXPATHL];
             let fname = fname_buf.as_mut_ptr();
             xstrlcpy(fname, wfname, MAXPATHL);
-            let len = strlen(fname);
+            let len = std::ffi::CStr::from_ptr(fname).to_bytes().len();
             *fname.add(len - 2) = b'u' as c_char;
             *fname.add(len - 1) = b'g' as c_char;
             sug_write(spin, fname);
@@ -5105,7 +5106,7 @@ unsafe fn mkspell(
                 if incount > 1 {
                     let in_i = innames[i].as_ptr();
                     let len = innames[i].as_bytes().len();
-                    if strlen(path_tail(in_i)) < 5 || *in_i.add(len - 3) != b'_' as c_char {
+                    if std::ffi::CStr::from_ptr(path_tail(in_i)).to_bytes().len() < 5 || *in_i.add(len - 3) != b'_' as c_char {
                         semsg!(gettext(c"E755: Invalid region in %s".as_ptr()), in_i);
                         region_ok = false;
                         break;
@@ -5237,7 +5238,7 @@ pub unsafe fn ex_spell(eap: *mut exarg_T) {
         };
         spell_add_word(
             (*eap).arg,
-            strlen((*eap).arg) as c_int,
+            std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len() as c_int,
             what,
             if (*eap).forceit != 0 {
                 0
@@ -5334,10 +5335,10 @@ pub unsafe fn spell_add_word(
                     if fpos_next < 0 {
                         break;
                     }
-                    let linelen = strlen(line.as_ptr());
+                    let linelen = std::ffi::CStr::from_ptr(line.as_ptr()).to_bytes().len();
                     let ulen = len as usize;
                     if linelen >= ulen
-                        && strncmp(word, line.as_ptr(), ulen) == 0
+                        && { let _p1 = word; let _p2 = line.as_ptr(); let _n = ulen; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                         && (line[ulen] == b'/' as c_char || (line[ulen] as u8) < b' ')
                     {
                         fclose(fd);
@@ -5484,7 +5485,7 @@ unsafe fn init_spellfile() {
             xmemcpyz(buf.cast(), (*g_st().curbuf).b_s.b_p_spl.cast(), plen);
         }
 
-        let cur_len = strlen(buf);
+        let cur_len = std::ffi::CStr::from_ptr(buf).to_bytes().len();
         vim_snprintf!(
             buf.add(cur_len),
             buf_len - cur_len,
@@ -5503,7 +5504,7 @@ unsafe fn init_spellfile() {
             } else {
                 spell_enc()
             };
-        let cur_len2 = strlen(buf);
+        let cur_len2 = std::ffi::CStr::from_ptr(buf).to_bytes().len();
         vim_snprintf!(
             buf.add(cur_len2),
             buf_len - cur_len2,

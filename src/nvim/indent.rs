@@ -47,7 +47,7 @@ use crate::regexp::{
     vim_regfree,
 };
 use crate::search::{findmatch, linewhite};
-use crate::strings::{atoi, gettext, ngettext, strncmp, vim_strchr};
+use crate::strings::{gettext, ngettext, vim_strchr};
 use crate::textformat::{has_format_option, oparg_T};
 use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
 use crate::window::win_T;
@@ -175,7 +175,7 @@ pub unsafe fn tabstop_set(
         let mut out = Vec::with_capacity(valcount);
         cp = var;
         while *cp != NUL {
-            let n = atoi(cp);
+            let n = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(cp).to_bytes()) as c_int;
             if n <= 0 || n > TABSTOP_MAX {
                 array.clear();
                 var = cp;
@@ -1413,7 +1413,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
         let mut is_indent_only = false;
 
         let mut ptr = (*eap).arg;
-        if strncmp(ptr, c"-indentonly".as_ptr(), 11) == 0 && ascii_iswhite_or_nul(*ptr.add(11)) {
+        if { let _p = ptr; crate::memory::xstrnlen(_p, 11) == 11 && std::slice::from_raw_parts(_p.cast::<u8>(), 11) == &b"-indentonly"[..11] } && ascii_iswhite_or_nul(*ptr.add(11)) {
             is_indent_only = true;
             ptr = skipwhite(ptr.add(11));
         }
@@ -1881,7 +1881,7 @@ unsafe fn lisp_match(p: *const c_char) -> bool {
 
         while *word != NUL {
             let len = copy_option_part(&raw mut word, buf.as_mut_ptr(), buf.len(), c",".as_ptr());
-            if strncmp(buf.as_ptr(), p, len) == 0 && ascii_iswhite_or_nul(*p.add(len)) {
+            if { let _p1 = buf.as_ptr(); let _p2 = p; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } && ascii_iswhite_or_nul(*p.add(len)) {
                 return true;
             }
         }

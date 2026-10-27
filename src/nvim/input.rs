@@ -75,7 +75,7 @@ use crate::state::{
     MODE_SELECT, MODE_TERMINAL, MODE_VISUAL, get_real_state, state_handle_k_event,
     state_no_longer_safe,
 };
-use crate::strings::{atoi, gettext, strlen, strncmp, vim_snprintf, vim_strchr};
+use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::textformat::oparg_T;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
 use crate::undo::u_sync;
@@ -465,7 +465,7 @@ pub unsafe fn redo_spec() -> CmdSpec {
 unsafe fn add_buff(buf: *mut StuffBuf, s: *const c_char, mut slen: isize) {
     unsafe {
         if slen < 0 {
-            slen = strlen(s) as isize;
+            slen = std::ffi::CStr::from_ptr(s).to_bytes().len() as isize;
         }
         if slen == 0 {
             return;
@@ -767,7 +767,7 @@ pub unsafe fn restore_redobuff(save_redo: *mut RedoState) {
 pub unsafe fn redo_append_str(s: *const c_char, len: isize) {
     unsafe {
         if !inp_st().block_redo {
-            let slen = if len < 0 { strlen(s) } else { len as usize };
+            let slen = if len < 0 { std::ffi::CStr::from_ptr(s).to_bytes().len() } else { len as usize };
             if !s.is_null() && slen > 0 {
                 let body = &raw mut inp_st().redobuff.cur.body;
                 (*body).extend_from_slice(std::slice::from_raw_parts(s, slen));
@@ -1061,7 +1061,7 @@ pub unsafe fn ins_typebuf(
         }
         state_no_longer_safe(c"ins_typebuf()".as_ptr());
 
-        let addlen = strlen(str_) as c_int;
+        let addlen = std::ffi::CStr::from_ptr(str_).to_bytes().len() as c_int;
 
         if offset == 0 && addlen <= g_st().typebuf.tb_off {
             g_st().typebuf.tb_off -= addlen;
@@ -2570,14 +2570,14 @@ unsafe fn handle_mapping(
                 FAIL
             } else {
                 if keylen > g_st().typebuf.tb_maplen && (save_m_mode & MODE_LANGMAP) != 0 {
-                    gotchars(map_str.cast::<u8>(), strlen(map_str));
+                    gotchars(map_str.cast::<u8>(), std::ffi::CStr::from_ptr(map_str).to_bytes().len());
                 }
 
                 let noremap = if save_m_noremap != REMAP_YES {
                     save_m_noremap
-                } else if strncmp(map_str, save_m_keys.as_ptr(), keylen as usize) == 0
+                } else if { let _p1 = map_str; let _p2 = save_m_keys.as_ptr(); let _n = keylen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                     || save_alt_m_keys.as_ref().is_some_and(|alt| {
-                        strncmp(map_str, alt.as_ptr(), save_alt_m_keylen as usize) == 0
+                        { let _p1 = map_str; let _p2 = alt.as_ptr(); let _n = save_alt_m_keylen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                     })
                 {
                     REMAP_SKIP
@@ -3298,7 +3298,7 @@ pub unsafe fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
         }
 
         line.push(NUL as c_char);
-        let id = atoi(line.as_ptr());
+        let id = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(line.as_ptr()).to_bytes()) as c_int;
         drop(line);
         let ref_ = map_luaid_get(id);
         if ref_ == LUA_NOREF {

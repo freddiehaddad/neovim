@@ -145,7 +145,7 @@ use crate::state::{
     EditorState, REPLACE_FLAG, VREPLACE_FLAG, may_trigger_modechanged, may_trigger_safestate,
     state_enter, state_handle_k_event, virtual_active,
 };
-use crate::strings::{gettext, strlen, vim_snprintf, vim_strchr};
+use crate::strings::{gettext, vim_snprintf, vim_strchr};
 use crate::syntax::syntax_present;
 use crate::terminal::terminal_enter;
 use crate::textformat::{
@@ -1569,7 +1569,7 @@ pub unsafe fn prompt_text() -> *mut c_char {
 unsafe fn init_prompt(cmdchar_todo: c_int) {
     unsafe {
         let prompt = prompt_text();
-        let prompt_len = strlen(prompt) as colnr_T;
+        let prompt_len = std::ffi::CStr::from_ptr(prompt).to_bytes().len() as colnr_T;
 
         if (*g_st().curbuf).b_prompt_start.mark.lnum < 1
             || (*g_st().curbuf).b_prompt_start.mark.lnum > (*g_st().curbuf).b_ml.ml_line_count
@@ -1856,7 +1856,7 @@ unsafe fn insert_special(mut c: c_int, mut allow_modmask: c_int, mut ctrlv: c_in
         }
         if IS_SPECIAL(c) || (g_st().mod_mask != 0 && allow_modmask != 0) {
             let p = get_special_key_name(c, g_st().mod_mask);
-            let len = strlen(p);
+            let len = std::ffi::CStr::from_ptr(p).to_bytes().len();
             c = *p.add(len - 1) as u8 as c_int;
             if len > 2 {
                 if stop_arrow() == FAIL {
@@ -3842,7 +3842,7 @@ unsafe fn ins_tab() -> bool {
                             fpos.col - change_col,
                         );
                     } else {
-                        let rem = strlen(ptr.offset(i as isize)) + 1;
+                        let rem = std::ffi::CStr::from_ptr(ptr.offset(i as isize)).to_bytes().len() + 1;
                         ptr::copy(ptr.offset(i as isize), ptr, rem);
                     }
                     if (g_st().State & REPLACE_FLAG) != 0 && (g_st().State & VREPLACE_FLAG) == 0 {

@@ -219,8 +219,7 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
-    atoi, atol, del_trailing_spaces, gettext, ngettext, strlen, strncmp,
-    strrep, vim_snprintf, vim_strchr, vim_stricmp, vim_strsave_escaped,
+    del_trailing_spaces, gettext, ngettext, strrep, vim_snprintf, vim_strchr, vim_stricmp, vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
 use crate::tag::{do_tag, do_tags};
@@ -5857,7 +5856,7 @@ unsafe fn parse_register(eap: *mut exarg_T) {
                 if (*eap).skip == 0 {
                     set_expr_line(Some(CStr::from_ptr((*eap).arg).to_owned()));
                 }
-                (*eap).arg = (*eap).arg.add(strlen((*eap).arg));
+                (*eap).arg = (*eap).arg.add(std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len());
             }
             (*eap).arg = skipwhite((*eap).arg);
         }
@@ -6162,7 +6161,7 @@ unsafe fn execute_cmd0(
                 {
                     p = skiptowhite_esc((*eap).arg);
                 } else {
-                    p = (*eap).arg.add(strlen((*eap).arg));
+                    p = (*eap).arg.add(std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len());
                     while p > (*eap).arg && ascii_iswhite(*p.sub(1)) {
                         p = p.sub(1);
                     }
@@ -6868,7 +6867,7 @@ pub unsafe fn parse_command_modifiers(
         let mut has_visual_range = false;
         *cmod = cmdmod_T::new();
 
-        if strncmp((*eap).cmd, c"'<,'>".as_ptr(), 5) == 0 {
+        if { let _p = (*eap).cmd; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"'<,'>"[..5] } {
             let p = skipwhite((*eap).cmd.add(5));
             if *p != NUL && *p != b'|' as c_char {
                 (*eap).cmd = (*eap).cmd.add(5);
@@ -7094,7 +7093,7 @@ pub unsafe fn parse_command_modifiers(
                         break;
                     }
                     if ascii_isdigit(*(*eap).cmd) {
-                        (*cmod).cmod_verbose = atoi((*eap).cmd) + 1;
+                        (*cmod).cmod_verbose = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*eap).cmd).to_bytes()) as c_int + 1;
                     } else {
                         (*cmod).cmod_verbose = 2;
                     }
@@ -7371,7 +7370,7 @@ pub unsafe fn checkforcmd(pp: *mut *mut c_char, cmd: *const c_char, len: c_int) 
 unsafe fn append_command(cmd: *const c_char) {
     unsafe {
         let iobuf_ptr: *mut c_char = (&raw mut g_st().IObuff).cast();
-        let len = strlen(iobuf_ptr);
+        let len = std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len();
         let mut s = cmd;
         let mut d: *mut c_char;
 
@@ -7381,7 +7380,7 @@ unsafe fn append_command(cmd: *const c_char) {
             { let s = c"...".as_ptr(); std::ptr::copy_nonoverlapping(s, d, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         }
         xstrlcat(iobuf_ptr, c": ".as_ptr(), IOSIZE);
-        d = iobuf_ptr.add(strlen(iobuf_ptr));
+        d = iobuf_ptr.add(std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len());
         while *s != NUL && ((d as usize) - (iobuf_ptr as usize) + 5 < IOSIZE) {
             if (*s as u8) == 0xc2 && (*s.add(1) as u8) == 0xa0 {
                 s = s.add(2);
@@ -7502,13 +7501,13 @@ pub unsafe fn find_ex_command(eap: *mut exarg_T, full: *mut c_int) -> *mut c_cha
                 (*eap).cmdidx = cmdidx_T::CMD_bang as c_int;
             }
 
-            if len == 3 && strncmp(c"def".as_ptr(), (*eap).cmd, 3) == 0 {
+            if len == 3 && { let _p1 = c"def".as_ptr(); let _p2 = (*eap).cmd; let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                 (*eap).cmdidx = CMD_SIZE_I32;
             }
 
             while (*eap).cmdidx < CMD_SIZE_I32 {
                 let cname = CMDNAMES[(*eap).cmdidx as usize].cmd_name.as_ptr();
-                if strncmp(cname, (*eap).cmd, len as usize) == 0 {
+                if { let _p1 = cname; let _p2 = (*eap).cmd; let _n = len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     if !full.is_null() && *cname.add(len as usize) == NUL {
                         *full = c_int::from(true);
                     }
@@ -7648,7 +7647,7 @@ pub unsafe fn f_fullcommand(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 
 pub unsafe fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
     unsafe {
-        if len == 3 && strncmp(c"def".as_ptr(), cmd, 3) == 0 {
+        if len == 3 && { let _p1 = c"def".as_ptr(); let _p2 = cmd; let _n = 3; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             return cmdidx_T::CMD_SIZE;
         }
 
@@ -7656,7 +7655,7 @@ pub unsafe fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
         if one_letter_cmd(cmd, &raw mut idx) == 0 {
             let mut i: c_int = 0;
             while i < CMD_SIZE_I32 {
-                if strncmp(CMDNAMES[i as usize].cmd_name.as_ptr(), cmd, len) == 0 {
+                if { let _p1 = CMDNAMES[i as usize].cmd_name.as_ptr(); let _p2 = cmd; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     break;
                 }
                 i += 1;
@@ -7869,7 +7868,7 @@ pub unsafe fn get_address(
                                 c,
                                 c,
                                 cmd,
-                                strlen(cmd),
+                                std::ffi::CStr::from_ptr(cmd).to_bytes().len(),
                                 1,
                                 search_flags,
                                 opt_vars().p_magic != 0,
@@ -8337,7 +8336,7 @@ pub unsafe fn expand_filename(
                     p = ptr::null_mut();
                 }
                 if !p.is_null() {
-                    repl_cmdline(eap, (*eap).arg, strlen((*eap).arg), p, cmdlinep);
+                    repl_cmdline(eap, (*eap).arg, std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len(), p, cmdlinep);
                 }
             }
 
@@ -8368,7 +8367,7 @@ pub unsafe fn expand_filename(
                 repl_cmdline(
                     eap,
                     (*eap).arg,
-                    strlen((*eap).arg),
+                    std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len(),
                     expanded.as_ptr().cast_mut(),
                     cmdlinep,
                 );
@@ -8388,11 +8387,11 @@ unsafe fn repl_cmdline(
     cmdlinep: *mut *mut c_char,
 ) -> *mut c_char {
     unsafe {
-        let len = strlen(repl);
+        let len = std::ffi::CStr::from_ptr(repl).to_bytes().len();
         let offset = (src as usize) - ((*cmdlinep) as usize);
-        let tail_len = strlen(src.add(srclen));
+        let tail_len = std::ffi::CStr::from_ptr(src.add(srclen)).to_bytes().len();
         let nextcmd_len = if !(*eap).nextcmd.is_null() {
-            strlen((*eap).nextcmd)
+            std::ffi::CStr::from_ptr((*eap).nextcmd).to_bytes().len()
         } else {
             0
         };
@@ -8408,7 +8407,7 @@ unsafe fn repl_cmdline(
         src = new_cmdline.add(i);
 
         if !(*eap).nextcmd.is_null() {
-            i = strlen(new_cmdline) + 1;
+            i = std::ffi::CStr::from_ptr(new_cmdline).to_bytes().len() + 1;
             { let s = (*eap).nextcmd; std::ptr::copy_nonoverlapping(s, new_cmdline.add(i), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             (*eap).nextcmd = new_cmdline.add(i);
         }
@@ -8563,7 +8562,7 @@ pub unsafe fn getargopt(eap: *mut exarg_T) -> c_int {
         let mut pp: *mut c_int = ptr::null_mut();
         let mut bad_char_idx: c_int = 0;
 
-        if strncmp(arg, c"bin".as_ptr(), 3) == 0 || strncmp(arg, c"nobin".as_ptr(), 5) == 0 {
+        if { let _p = arg; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"bin"[..3] } || { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"nobin"[..5] } {
             if *arg == b'n' as c_char {
                 arg = arg.add(2);
                 (*eap).force_bin = FORCE_NOBIN;
@@ -8577,7 +8576,7 @@ pub unsafe fn getargopt(eap: *mut exarg_T) -> c_int {
             return OK;
         }
 
-        if strncmp(arg, c"edit".as_ptr(), 4) == 0 && !ascii_isalpha(*arg.add(4)) {
+        if { let _p = arg; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"edit"[..4] } && !ascii_isalpha(*arg.add(4)) {
             (*eap).read_edit = c_int::from(true);
             (*eap).arg = skipwhite(arg.add(4));
             return OK;
@@ -8589,20 +8588,20 @@ pub unsafe fn getargopt(eap: *mut exarg_T) -> c_int {
             return OK;
         }
 
-        if strncmp(arg, c"ff".as_ptr(), 2) == 0 {
+        if { let _p = arg; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"ff"[..2] } {
             arg = arg.add(2);
             pp = &raw mut (*eap).force_ff;
-        } else if strncmp(arg, c"fileformat".as_ptr(), 10) == 0 {
+        } else if { let _p = arg; crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"fileformat"[..10] } {
             arg = arg.add(10);
             pp = &raw mut (*eap).force_ff;
-        } else if strncmp(arg, c"enc".as_ptr(), 3) == 0 {
-            if strncmp(arg, c"encoding".as_ptr(), 8) == 0 {
+        } else if { let _p = arg; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"enc"[..3] } {
+            if { let _p = arg; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"encoding"[..8] } {
                 arg = arg.add(8);
             } else {
                 arg = arg.add(3);
             }
             pp = &raw mut (*eap).force_enc;
-        } else if strncmp(arg, c"bad".as_ptr(), 3) == 0 {
+        } else if { let _p = arg; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"bad"[..3] } {
             arg = arg.add(3);
             pp = &raw mut bad_char_idx;
         }
@@ -8664,15 +8663,15 @@ pub unsafe fn expand_argopt(
             let mut cb: CompleteListItemGetter = None;
             let name_end = (*xp).xp_pattern.sub(1);
             let diff = (name_end as usize) - ((*xp).xp_line as usize);
-            if (diff >= 2 && strncmp(name_end.sub(2), c"ff".as_ptr(), 2) == 0)
-                || (diff >= 10 && strncmp(name_end.sub(10), c"fileformat".as_ptr(), 10) == 0)
+            if (diff >= 2 && { let _p = name_end.sub(2); crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"ff"[..2] })
+                || (diff >= 10 && { let _p = name_end.sub(10); crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"fileformat"[..10] })
             {
                 cb = Some(get_fileformat_name);
-            } else if (diff >= 3 && strncmp(name_end.sub(3), c"enc".as_ptr(), 3) == 0)
-                || (diff >= 8 && strncmp(name_end.sub(8), c"encoding".as_ptr(), 8) == 0)
+            } else if (diff >= 3 && { let _p = name_end.sub(3); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"enc"[..3] })
+                || (diff >= 8 && { let _p = name_end.sub(8); crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"encoding"[..8] })
             {
                 cb = Some(get_encoding_name);
-            } else if diff >= 3 && strncmp(name_end.sub(3), c"bad".as_ptr(), 3) == 0 {
+            } else if diff >= 3 && { let _p = name_end.sub(3); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"bad"[..3] } {
                 cb = Some(get_bad_name);
             }
 
@@ -8684,7 +8683,7 @@ pub unsafe fn expand_argopt(
         }
 
         if (*xp).xp_pattern_len == 2
-            && strncmp((*xp).xp_pattern, c"ff".as_ptr(), (*xp).xp_pattern_len) == 0
+            && { let _p1 = (*xp).xp_pattern; let _p2 = c"ff".as_ptr(); let _n = (*xp).xp_pattern_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
         {
             *matches = vec![c"fileformat=".to_owned()];
             return OK;
@@ -10156,7 +10155,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                 if (*get_findfunc()).cb_type() != kCallbackNone {
                     fname = findfunc_find_file(
                         (*eap).arg,
-                        strlen((*eap).arg),
+                        std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len(),
                         if (*eap).addr_count > 0 {
                             (*eap).line2
                         } else {
@@ -10168,7 +10167,7 @@ pub unsafe fn ex_splitview(eap: *mut exarg_T) {
                     let mut search_ctx: Option<ff_search_ctx_T> = None;
                     fname = find_file_in_path(
                         (*eap).arg,
-                        strlen((*eap).arg),
+                        std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len(),
                         FNAME_MESS,
                         c_int::from(true),
                         (*g_st().curbuf).b_ffname,
@@ -10503,7 +10502,7 @@ unsafe fn ex_resize(eap: *mut exarg_T) {
             }
         }
 
-        let mut n = atol((*eap).arg) as c_int;
+        let mut n = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*eap).arg).to_bytes()) as std::ffi::c_long as c_int;
         if (g_st().cmdmod.cmod_split & WSP_VERT) != 0 {
             if *(*eap).arg == b'-' as c_char || *(*eap).arg == b'+' as c_char {
                 n += (*wp).w_width;
@@ -10532,7 +10531,7 @@ unsafe fn ex_find(eap: *mut exarg_T) {
         if (*get_findfunc()).cb_type() != kCallbackNone {
                 fname = findfunc_find_file(
                     (*eap).arg,
-                    strlen((*eap).arg),
+                    std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len(),
                     if (*eap).addr_count > 0 {
                         (*eap).line2
                     } else {
@@ -10544,7 +10543,7 @@ unsafe fn ex_find(eap: *mut exarg_T) {
                 let mut search_ctx: Option<ff_search_ctx_T> = None;
                 fname = find_file_in_path(
                     (*eap).arg,
-                    strlen((*eap).arg),
+                    std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len(),
                     FNAME_MESS,
                     c_int::from(true),
                     (*g_st().curbuf).b_ffname,
@@ -11820,7 +11819,7 @@ unsafe fn ex_normal(eap: *mut exarg_T) {
         }
         let mut arg_vec: Option<Vec<c_char>> = None;
         if len > 0 {
-            let mut v = vec![0 as c_char; strlen((*eap).arg) + len + 1];
+            let mut v = vec![0 as c_char; std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len() + len + 1];
             let arg = v.as_mut_ptr();
             len = 0;
             p = (*eap).arg;
@@ -12028,7 +12027,7 @@ unsafe fn ex_findpat(eap: *mut exarg_T) {
             find_pattern_in_path(
                 (*eap).arg,
                 0,
-                strlen((*eap).arg),
+                std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len(),
                 whole,
                 (*eap).forceit == 0,
                 if *(*eap).cmd == b'd' as c_char {
@@ -12177,7 +12176,7 @@ pub unsafe fn find_cmdline_var(src: *const c_char, usedlen: *mut usize) -> isize
     unsafe {
         for (i, s) in SPEC_STR.iter().enumerate() {
             let len = s.to_bytes().len();
-            if strncmp(src, s.as_ptr(), len) == 0 {
+            if { let _p1 = src; let _p2 = s.as_ptr(); let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                 *usedlen = len;
                 return i as isize;
             }
@@ -12443,7 +12442,7 @@ pub unsafe fn eval_vars(
                 }
             }
 
-            resultlen = strlen(result);
+            resultlen = std::ffi::CStr::from_ptr(result).to_bytes().len();
             if *src.add(*usedlen) == b'<' as c_char {
                 *usedlen += 1;
                 let s = CStr::from_ptr(result).to_bytes().iter().rposition(|&b| b == b'.').map_or(ptr::null_mut(), |i| result.add(i));
@@ -12500,7 +12499,7 @@ pub unsafe fn expand_sfile(arg: *mut c_char) -> Option<std::ffi::CString> {
 
         while result_vec[idx] != NUL {
             let p = result_vec.as_mut_ptr().add(idx);
-            if strncmp(p, c"<sfile>".as_ptr(), 7) != 0 {
+            if !({ let _p = p; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"<sfile>"[..7] }) {
                 idx += 1;
             } else {
                 let mut srclen: usize = 0;
@@ -12595,12 +12594,12 @@ unsafe fn ex_filetype(eap: *mut exarg_T) {
         let mut indent = false;
 
         loop {
-            if strncmp(arg, c"plugin".as_ptr(), 6) == 0 {
+            if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"plugin"[..6] } {
                 plugin = true;
                 arg = skipwhite(arg.add(6));
                 continue;
             }
-            if strncmp(arg, c"indent".as_ptr(), 6) == 0 {
+            if { let _p = arg; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"indent"[..6] } {
                 indent = true;
                 arg = skipwhite(arg.add(6));
                 continue;
@@ -12686,7 +12685,7 @@ unsafe fn ex_setfiletype(eap: *mut exarg_T) {
         }
 
         let mut arg = (*eap).arg;
-        if strncmp(arg, c"FALLBACK ".as_ptr(), 9) == 0 {
+        if { let _p = arg; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"FALLBACK "[..9] } {
             arg = arg.add(9);
         }
 

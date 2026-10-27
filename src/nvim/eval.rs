@@ -40,7 +40,7 @@ use crate::ex_docmd::{
     CAR, check_nextcmd, cmd_has_expr_args, do_cmdline, ends_excmd, exarg_T, set_ref_in_findfunc,
 };
 use crate::strings::{
-    atol, concat_str, gettext, strlen, strncmp, strtod, vim_snprintf,
+    concat_str, gettext, strtod, vim_snprintf,
     vim_strchr,
 };
 pub mod buffer;
@@ -879,7 +879,7 @@ pub unsafe fn call_vim_function(
     rettv: *mut typval_T,
 ) -> c_int {
     unsafe {
-        let mut len = strlen(func) as c_int;
+        let mut len = std::ffi::CStr::from_ptr(func).to_bytes().len() as c_int;
         let mut pt: *mut partial_T = ptr::null_mut();
 
         if len >= 6 && std::slice::from_raw_parts(func.cast::<u8>(), 6) == b"v:lua." {
@@ -1045,7 +1045,7 @@ pub unsafe fn eval_foldexpr(wp: *mut win_T, cp: *mut c_int) -> c_int {
                     *cp = c_int::from(*s as u8);
                     s = s.add(1);
                 }
-                retval = varnumber_T::from(atol(s));
+                retval = varnumber_T::from(crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(s).to_bytes()) as std::ffi::c_long);
             }
             tv_clear(&raw mut tv);
         }
@@ -1952,7 +1952,7 @@ pub unsafe fn set_context_for_expression(
         if cmdidx == cmdidx_T::CMD_let || cmdidx == cmdidx_T::CMD_const {
             (*xp).xp_context = EXPAND_USER_VARS;
             if !CStr::from_ptr(arg).to_bytes().iter().any(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b)) {
-                let mut p = arg.add(strlen(arg));
+                let mut p = arg.add(std::ffi::CStr::from_ptr(arg).to_bytes().len());
                 while (p as usize) >= (arg as usize) {
                     (*xp).xp_pattern = p;
                     p = p.offset(-((utf_head_off(arg, p.sub(1)) + 1) as isize));
@@ -2215,7 +2215,7 @@ pub unsafe fn may_call_simple_func(arg: *const c_char, rettv: *mut typval_T) -> 
                     r = call_simple_luafunc(p, (parens as usize).wrapping_sub(p as usize), rettv);
                 }
             } else {
-                let p = if strncmp(arg, c"<SNR>".as_ptr(), 5) == 0 {
+                let p = if { let _p = arg; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"<SNR>"[..5] } {
                     skipdigits(arg.add(5))
                 } else {
                     arg
@@ -3569,7 +3569,7 @@ unsafe fn eval_index_inner(
             | VarType::VAR_UNKNOWN => {}
             VarType::VAR_NUMBER | VarType::VAR_STRING => {
                 let s = tv_get_string(rettv);
-                let len = strlen(s) as varnumber_T;
+                let len = std::ffi::CStr::from_ptr(s).to_bytes().len() as varnumber_T;
                 let v: Option<std::ffi::CString> = if exclusive {
                     if is_range {
                         string_slice(s, n1, n2, exclusive)
@@ -3828,7 +3828,7 @@ unsafe fn eval_string(
     interpolate: bool,
 ) -> c_int {
     unsafe {
-        let arg_end = (*arg).add(strlen(*arg));
+        let arg_end = (*arg).add(std::ffi::CStr::from_ptr(*arg).to_bytes().len());
         let mut extra: isize = if interpolate { 1 } else { 0 };
         let off: usize = if interpolate { 0 } else { 1 };
 
@@ -4124,7 +4124,7 @@ pub unsafe fn eval_interp_string(
             }
             if evaluate {
                 if !tv.vval.v_string().is_null() {
-                    let len = strlen(tv.vval.v_string());
+                    let len = std::ffi::CStr::from_ptr(tv.vval.v_string()).to_bytes().len();
                     if len > 0 {
                         buf.extend_from_slice(std::slice::from_raw_parts(tv.vval.v_string(), len));
                     }
@@ -5292,7 +5292,7 @@ pub unsafe fn callback_call(
         match (*callback).cb_type() {
             kCallbackFuncref => {
                 name = (*callback).data.as_funcref();
-                let len = strlen(name) as c_int;
+                let len = std::ffi::CStr::from_ptr(name).to_bytes().len() as c_int;
                 if len >= 6 && std::slice::from_raw_parts(name.cast::<u8>(), 6) == b"v:lua." {
                     name = name.add(6);
                     if check_luafunc_name(name, false) == 0 {
@@ -5624,7 +5624,7 @@ pub unsafe fn save_tv_as_string(tv: *mut typval_T, endnl: bool, crlf: bool) -> O
         if (*tv).v_type != VarType::VAR_LIST && (*tv).v_type != VarType::VAR_NUMBER {
             let ret = tv_get_string_chk(tv);
             if !ret.is_null() {
-                let len = strlen(ret);
+                let len = std::ffi::CStr::from_ptr(ret).to_bytes().len();
                 let mut vec = Vec::with_capacity(len);
                 if len > 0 {
                     vec.extend_from_slice(std::slice::from_raw_parts(ret, len));
@@ -5678,7 +5678,7 @@ pub unsafe fn save_tv_as_string(tv: *mut typval_T, endnl: bool, crlf: bool) -> O
             (*list).lv_first
         };
         while !li.is_null() {
-            total_len += strlen(tv_get_string(tv_list_item_tv(li))) + sep_len;
+            total_len += std::ffi::CStr::from_ptr(tv_get_string(tv_list_item_tv(li))).to_bytes().len() + sep_len;
             li = (*li).li_next;
         }
 
@@ -6327,7 +6327,7 @@ pub unsafe fn char_from_string(
         if str_.is_null() {
             return None;
         }
-        let slen = strlen(str_);
+        let slen = std::ffi::CStr::from_ptr(str_).to_bytes().len();
 
         if index < 0 {
             let mut clen: varnumber_T = 0;
@@ -6393,7 +6393,7 @@ pub unsafe fn string_slice(
         if str_.is_null() {
             return None;
         }
-        let slen = strlen(str_);
+        let slen = std::ffi::CStr::from_ptr(str_).to_bytes().len();
         let mut start_byte = char_idx2byte(str_, slen, first);
         if start_byte < 0 {
             start_byte = 0;
@@ -6740,7 +6740,7 @@ pub unsafe fn ex_execute(eap: *mut exarg_T) {
                     buf.push(b' ' as c_char);
                 }
                 has_arg = true;
-                let len = strlen(argstr);
+                let len = std::ffi::CStr::from_ptr(argstr).to_bytes().len();
                 if len > 0 {
                     buf.extend_from_slice(std::slice::from_raw_parts(argstr, len));
                 }
@@ -6828,7 +6828,7 @@ pub unsafe fn var_flavour(varname: *mut c_char) -> var_flavour_T {
 pub unsafe fn var_set_global(name: *const c_char, mut vartv: typval_T) {
     unsafe {
         save_funccal();
-        set_var(name, strlen(name), &raw mut vartv, false);
+        set_var(name, std::ffi::CStr::from_ptr(name).to_bytes().len(), &raw mut vartv, false);
         restore_funccal();
     }
 }
@@ -7231,7 +7231,7 @@ pub unsafe fn prompt_get_input(buf: *mut buf_T) -> Option<std::ffi::CString> {
         let lnum_last = (*buf).b_ml.ml_line_count;
 
         let mut text = ml_get_buf(buf, lnum_start);
-        if (strlen(text) as c_int) >= (*buf).b_prompt_start.mark.col {
+        if (std::ffi::CStr::from_ptr(text).to_bytes().len() as c_int) >= (*buf).b_prompt_start.mark.col {
             text = text.add((*buf).b_prompt_start.mark.col as usize);
         }
 

@@ -76,7 +76,7 @@ use crate::register::{
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::shada::shada_encode_regs;
 use crate::state::{MODE_INSERT, virtual_active};
-use crate::strings::{strncmp, vim_snprintf};
+use crate::strings::{vim_snprintf};
 use crate::textformat::{InsState, oparg_T};
 use crate::undo::{u_forget_unchanged, u_save, uhp_mut};
 use std::ffi::{c_char, c_int, c_long};
@@ -383,7 +383,7 @@ unsafe fn mc_execute(cursoridx: usize, atomidx: usize) {
         if ctx.mark != 0 && !extmark_get_pos(g_st().curbuf, mc_ns(), ctx.mark, &mut ctx.pos) {
             return;
         }
-        if ctx.visual.vi_start.lnum == 0 && strncmp(atom_keys, c"gv".as_ptr(), 2) == 0 {
+        if ctx.visual.vi_start.lnum == 0 && { let _p = atom_keys; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"gv"[..2] } {
             return;
         }
 
@@ -959,7 +959,7 @@ pub unsafe fn mc_ins_cascade() {
                 let mut keys: Vec<u8> = Vec::new();
                 let mut skip = 0;
                 if let Some(vsel) = mc_st().mc_ins_span.vsel.take() {
-                    assert!(ins.size >= 2 && strncmp(ins.data, c"1v".as_ptr(), 2) == 0);
+                    assert!(ins.size >= 2 && { let _p = ins.data; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"1v"[..2] });
                     keys.extend_from_slice(vsel.to_bytes());
                     skip = 2;
                 }

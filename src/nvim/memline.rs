@@ -60,7 +60,7 @@ use crate::path::{
 };
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
-use crate::strings::{gettext, strlen, tr, vim_strchr};
+use crate::strings::{gettext, tr, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::bufIsChanged;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
@@ -773,7 +773,7 @@ unsafe fn set_b0_fname(b0p: *mut ZeroBlock, buf: *mut buf_T) {
             );
             if (*b0p).b0_fname[0] == b'~' as c_char {
                 let retval = os_get_username((&raw mut uname).cast(), B0_UNAME_SIZE);
-                let ulen = strlen((&raw const uname).cast());
+                let ulen = std::ffi::CStr::from_ptr((&raw const uname).cast()).to_bytes().len();
                 if retval == FAIL || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
                     xstrlcpy(fname_ptr, (*buf).b_ffname, B0_FNAME_SIZE_CRYPT);
                 } else {
@@ -828,9 +828,9 @@ unsafe fn set_b0_dir_flag(b0p: *mut ZeroBlock, buf: *mut buf_T) {
 unsafe fn add_b0_fenc(b0p: *mut ZeroBlock, buf: *mut buf_T) {
     unsafe {
         let size = B0_FNAME_SIZE_NOCRYPT;
-        let n = strlen((*buf).b_p_fenc);
+        let n = std::ffi::CStr::from_ptr((*buf).b_p_fenc).to_bytes().len();
         let fname_ptr = (&raw mut (*b0p).b0_fname).cast::<c_char>();
-        if strlen(fname_ptr) + n + 1 > size {
+        if std::ffi::CStr::from_ptr(fname_ptr).to_bytes().len() + n + 1 > size {
             (*b0p).set_flags((*b0p).flags() & !B0_HAS_FENC);
         } else {
             ptr::copy((*buf).b_p_fenc, fname_ptr.add(size - n), n);
@@ -874,7 +874,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         if fname.is_null() {
             fname = c"".as_ptr().cast_mut();
         }
-        let len = strlen(fname);
+        let len = std::ffi::CStr::from_ptr(fname).to_bytes().len();
         if checkext
             && len >= 4
             && vim_strnicmp(fname.add(len - 4), c".s".as_ptr(), 2) == 0
@@ -1530,7 +1530,7 @@ pub unsafe fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: *mu
             }
         }
 
-        let mut dir_name_vec: Vec<c_char> = vec![0; strlen(opt_vars().p_dir) + 1];
+        let mut dir_name_vec: Vec<c_char> = vec![0; std::ffi::CStr::from_ptr(opt_vars().p_dir).to_bytes().len() + 1];
         let mut dir_name = NvimString {
             data: dir_name_vec.as_mut_ptr(),
             size: 0,
@@ -2229,7 +2229,7 @@ unsafe fn ml_append_int(
         }
 
         if len == 0 {
-            len = strlen(line) as colnr_T + 1;
+            len = std::ffi::CStr::from_ptr(line).to_bytes().len() as colnr_T + 1;
         }
         let mut space_needed = i64::from(len) + INDEX_SIZE as i64;
 
@@ -2670,7 +2670,7 @@ pub unsafe fn ml_add_deleted_len_buf(buf: *mut buf_T, ptr: *mut c_char, mut len:
         if g_st().inhibit_delete_count != 0 {
             return;
         }
-        let maxlen = strlen(ptr) as isize;
+        let maxlen = std::ffi::CStr::from_ptr(ptr).to_bytes().len() as isize;
         if len == -1 || len > maxlen {
             len = maxlen;
         }
@@ -2708,7 +2708,7 @@ pub unsafe fn ml_replace_buf(
 ) -> c_int {
     unsafe {
         let len = if !line.is_null() {
-            strlen(line)
+            std::ffi::CStr::from_ptr(line).to_bytes().len()
         } else {
             usize::MAX
         };
@@ -3384,7 +3384,7 @@ pub unsafe fn resolve_symlink(fname: *const c_char, buf: *mut c_char) -> c_int {
                 xstrlcpy(tmp_ptr, buf, MAXPATHL);
             } else {
                 let tail = path_tail(tmp_ptr);
-                if strlen(tail) + strlen(buf) >= MAXPATHL {
+                if std::ffi::CStr::from_ptr(tail).to_bytes().len() + std::ffi::CStr::from_ptr(buf).to_bytes().len() >= MAXPATHL {
                     return FAIL;
                 }
                 let rem = MAXPATHL - tail.offset_from(tmp_ptr) as usize;
@@ -3418,7 +3418,7 @@ pub unsafe fn makeswapname(
             }
         }
 
-        let len = strlen(dir_name);
+        let len = std::ffi::CStr::from_ptr(dir_name).to_bytes().len();
         let s = dir_name.add(len);
         if after_pathsep(dir_name, s) != 0 && len > 1 && *s.offset(-1) == *s.offset(-2) {
             let sw = make_percent_swname(dir_name, s, fname_res)?;
@@ -3448,7 +3448,7 @@ pub unsafe fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<
             );
         }
 
-        let dname_len = strlen(dname);
+        let dname_len = std::ffi::CStr::from_ptr(dname).to_bytes().len();
         let retval = if *dname == b'.' as c_char && vim_ispathsep(*dname.add(1) as u8 as c_int) {
             if tail.data == fname {
                 concat_fnames(
@@ -3588,7 +3588,7 @@ unsafe fn findswapname(
 ) -> Option<std::ffi::CString> {
     unsafe {
         let buf_fname = (*buf).b_fname;
-        let dir_len = strlen(*dirp) + 1;
+        let dir_len = std::ffi::CStr::from_ptr(*dirp).to_bytes().len() + 1;
         let mut dir_name_vec: Vec<c_char> = vec![0; dir_len];
         let dir_name = dir_name_vec.as_mut_ptr();
         copy_option_part(dirp, dir_name, dir_len, c",".as_ptr());
@@ -3598,7 +3598,7 @@ unsafe fn findswapname(
 
         while let Some(ref mut fvec) = fname_vec {
             let fname = fvec.as_mut_ptr();
-            let n = strlen(fname);
+            let n = std::ffi::CStr::from_ptr(fname).to_bytes().len();
             if n == 0 {
                 fname_vec = None;
                 break;

@@ -66,7 +66,7 @@ use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{do_search, ignorecase, ignorecase_opt};
 use crate::state::MODE_INSERT;
 use crate::strings::{
-    atoi, gettext, strlen, strncmp, vim_snprintf,
+    gettext, vim_snprintf,
     vim_snprintf_safelen, vim_strchr,
 };
 use crate::window::{
@@ -1042,7 +1042,7 @@ unsafe fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> c_int {
 
             let mut lnum: linenr_T = 0;
             if ascii_isdigit(*tagp.command) {
-                lnum = atoi(tagp.command);
+                lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(tagp.command).to_bytes()) as c_int;
             } else {
                 let mut cmd_start = tagp.command;
                 let mut cmd_end = tagp.command_end;
@@ -1393,7 +1393,7 @@ unsafe fn find_tagfunc_tags(
                         let tv = &raw mut (*di).di_tv;
 
                         if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string().is_null() {
-                            len += strlen((*tv).vval.v_string()) + 1;
+                            len += std::ffi::CStr::from_ptr((*tv).vval.v_string()).to_bytes().len() + 1;
                             if std::ffi::CStr::from_ptr(dict_key).to_bytes() == b"name" {
                                 res_name = (*tv).vval.v_string();
                             } else if std::ffi::CStr::from_ptr(dict_key).to_bytes() == b"filename" {
@@ -1405,7 +1405,7 @@ unsafe fn find_tagfunc_tags(
                                 if std::ffi::CStr::from_ptr(dict_key).to_bytes() == b"kind" {
                                     res_kind = (*tv).vval.v_string();
                                 } else {
-                                    len += strlen(dict_key) + 1;
+                                    len += std::ffi::CStr::from_ptr(dict_key).to_bytes().len() + 1;
                                 }
                             }
                         }
@@ -1450,17 +1450,17 @@ unsafe fn find_tagfunc_tags(
                 p = p.add(1);
 
                 { let s = res_name; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                p = p.add(strlen(p));
+                p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
 
                 *p = TAB;
                 p = p.add(1);
                 { let s = res_fname; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                p = p.add(strlen(p));
+                p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
 
                 *p = TAB;
                 p = p.add(1);
                 { let s = res_cmd; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                p = p.add(strlen(p));
+                p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
 
                 if cmdkind == tagcmd_T::TAGCMD_GENERIC {
                     *p = b'|' as c_char;
@@ -1468,13 +1468,13 @@ unsafe fn find_tagfunc_tags(
                 }
                 if cmdkind == tagcmd_T::TAGCMD_GENERIC || has_extra {
                     { let s = c";\"".as_ptr(); std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                    p = p.add(strlen(p));
+                    p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
 
                     if !res_kind.is_null() {
                         *p = TAB;
                         p = p.add(1);
                         { let s = res_kind; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                        p = p.add(strlen(p));
+                        p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
                     }
 
                     if !item_dict.is_null() {
@@ -1497,11 +1497,11 @@ unsafe fn find_tagfunc_tags(
                                     *p = TAB;
                                     p = p.add(1);
                                     { let s = dict_key; std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                                    p = p.add(strlen(p));
+                                    p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
                                     { let s = c":".as_ptr(); std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                                    p = p.add(strlen(p));
+                                    p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
                                     { let s = (*tv).vval.v_string(); std::ptr::copy_nonoverlapping(s, p, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-                                    p = p.add(strlen(p));
+                                    p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
                                 }
                             }
                             hi = hi.add(1);
@@ -1543,7 +1543,7 @@ unsafe fn findtags_state_init(
         st.fp = None;
         st.orgpat = pat_T {
             pat,
-            len: strlen(pat) as c_int,
+            len: std::ffi::CStr::from_ptr(pat).to_bytes().len() as c_int,
             head: ptr::null_mut(),
             headlen: 0,
             regmatch: regmatch_T {
@@ -1590,7 +1590,7 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
         if st.is_txt {
             { let s = c"en".as_ptr(); std::ptr::copy_nonoverlapping(s, st.help_lang.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
         } else {
-            let i = strlen(tag_fname) as c_int;
+            let i = std::ffi::CStr::from_ptr(tag_fname).to_bytes().len() as c_int;
             if i > 3 && *tag_fname.add((i - 3) as usize) == b'-' as c_char {
                 xmemcpyz(
                     st.help_lang.as_mut_ptr().cast(),
@@ -1613,7 +1613,7 @@ unsafe fn findtags_in_help_init(st: *mut findtags_state_T) -> bool {
         }
 
         let fname_len = if !(*g_st().curbuf).b_fname.is_null() {
-            strlen((*g_st().curbuf).b_fname) as c_int
+            std::ffi::CStr::from_ptr((*g_st().curbuf).b_fname).to_bytes().len() as c_int
         } else {
             0
         };
@@ -1753,14 +1753,14 @@ unsafe fn findtags_get_next_line(
 unsafe fn findtags_hdr_parse(st: *mut findtags_state_T) -> bool {
     unsafe {
         let lbuf = (&mut *st).lbuf.as_mut_ptr();
-        if strncmp(lbuf, c"!_TAG_".as_ptr(), 6) != 0 {
+        if !({ let _p = lbuf; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"!_TAG_"[..6] }) {
             return true;
         }
 
-        if strncmp(lbuf, c"!_TAG_FILE_SORTED\t".as_ptr(), 18) == 0 {
+        if { let _p = lbuf; crate::memory::xstrnlen(_p, 18) == 18 && std::slice::from_raw_parts(_p.cast::<u8>(), 18) == &b"!_TAG_FILE_SORTED\t"[..18] } {
             (*st).tag_file_sorted = *lbuf.add(18) as u8 as c_int;
         }
-        if strncmp(lbuf, c"!_TAG_FILE_ENCODING\t".as_ptr(), 20) == 0 {
+        if { let _p = lbuf; crate::memory::xstrnlen(_p, 20) == 20 && std::slice::from_raw_parts(_p.cast::<u8>(), 20) == &b"!_TAG_FILE_ENCODING\t"[..20] } {
             let mut p = lbuf.add(20);
             while (*p as u8) > b' ' && (*p as u8) < 127 {
                 p = p.add(1);
@@ -1782,7 +1782,7 @@ unsafe fn findtags_start_state_handler(
         let noic = ((*st).flags & TAG_NOIC) != 0;
         let lbuf = (&*st).lbuf.as_ptr();
 
-        if strncmp(lbuf, c"!_TAG_".as_ptr(), 6) <= 0
+        if { let _p1 = lbuf; let _p2 = c"!_TAG_".as_ptr(); let _n = 6; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) <= std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             || (*lbuf == b'!' as c_char && ascii_islower(*lbuf.add(1)))
         {
             return findtags_hdr_parse(st);
@@ -1867,7 +1867,7 @@ unsafe fn findtags_parse_line(
                 let mut tagcmp = if margs.sortic {
                     tag_strnicmp(tagpp.tagname, (*st).orgpat.head, cmplen as usize)
                 } else {
-                    strncmp(tagpp.tagname, (*st).orgpat.head, cmplen as usize)
+                    { let _p1 = tagpp.tagname; let _p2 = (*st).orgpat.head; let _n = cmplen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)).cmp(std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n))) as c_int }
                 };
 
                 if tagcmp == 0 {
@@ -1977,10 +1977,10 @@ unsafe fn findtags_match_tag(
             assert!(cmplen >= 0);
             match_ = mb_strnicmp(tagpp.tagname, (*st).orgpat.pat, cmplen as usize) == 0;
             if match_ {
-                margs.match_no_ic = strncmp(tagpp.tagname, (*st).orgpat.pat, cmplen as usize) == 0;
+                margs.match_no_ic = { let _p1 = tagpp.tagname; let _p2 = (*st).orgpat.pat; let _n = cmplen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) };
             }
         } else {
-            match_ = strncmp(tagpp.tagname, (*st).orgpat.pat, cmplen as usize) == 0;
+            match_ = { let _p1 = tagpp.tagname; let _p2 = (*st).orgpat.pat; let _n = cmplen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) };
         }
 
         margs.match_re = false;
@@ -2111,8 +2111,8 @@ unsafe fn findtags_add_match(
                 }
             }
         } else {
-            let tag_fname_len = strlen(tag_fname_ptr);
-            let len = tag_fname_len + strlen(lbuf_ptr) + 3;
+            let tag_fname_len = std::ffi::CStr::from_ptr(tag_fname_ptr).to_bytes().len();
+            let len = tag_fname_len + std::ffi::CStr::from_ptr(lbuf_ptr).to_bytes().len() + 3;
             let mut v = vec![0 as c_char; 1 + len + 1];
             let p = v.as_mut_ptr();
             *p = (mtt + 1) as c_char;
@@ -2385,7 +2385,7 @@ pub unsafe fn find_tags(
                     && st.help_lang_find.is_none()
                     && !(*g_st().curbuf).b_fname.is_null()
                 {
-                    let i = strlen((*g_st().curbuf).b_fname) as c_int;
+                    let i = std::ffi::CStr::from_ptr((*g_st().curbuf).b_fname).to_bytes().len() as c_int;
                     if i > 4
                         && mb_strnicmp(
                             (*g_st().curbuf).b_fname.add((i - 4) as usize),
@@ -2551,17 +2551,17 @@ pub unsafe fn get_tagfname(tnp: *mut tagname_T, first: c_int, buf: *mut c_char) 
                 let mut r_ptr = vim_findfile_stopdir(buf);
                 let mut filename = path_tail(buf);
                 if !r_ptr.is_null() {
-                    ptr::copy(r_ptr, r_ptr.add(1), strlen(r_ptr) + 1);
+                    ptr::copy(r_ptr, r_ptr.add(1), std::ffi::CStr::from_ptr(r_ptr).to_bytes().len() + 1);
                     r_ptr = r_ptr.add(1);
                 }
-                ptr::copy(filename, filename.add(1), strlen(filename) + 1);
+                ptr::copy(filename, filename.add(1), std::ffi::CStr::from_ptr(filename).to_bytes().len() + 1);
                 *filename = NUL;
                 filename = filename.add(1);
 
                 (*tnp).tn_search_ctx = vim_findfile_init(
                     buf,
                     filename,
-                    strlen(filename),
+                    std::ffi::CStr::from_ptr(filename).to_bytes().len(),
                     r_ptr,
                     100,
                     0,
@@ -2621,7 +2621,7 @@ unsafe fn test_for_static(tagp: &tagptrs_T) -> bool {
                 break;
             }
             p = p.add(1);
-            if strncmp(p, c"file:".as_ptr(), 5) == 0 {
+            if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"file:"[..5] } {
                 return true;
             }
         }
@@ -2632,15 +2632,15 @@ unsafe fn test_for_static(tagp: &tagptrs_T) -> bool {
 unsafe fn matching_line_len(lbuf: *const c_char) -> usize {
     unsafe {
         let mut p = lbuf.add(1);
-        p = p.add(strlen(p) + 1);
-        p.offset_from(lbuf) as usize + strlen(p)
+        p = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len() + 1);
+        p.offset_from(lbuf) as usize + std::ffi::CStr::from_ptr(p).to_bytes().len()
     }
 }
 
 unsafe fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
     unsafe {
         tagp.tag_fname = lbuf.add(1);
-        lbuf = lbuf.add(strlen(tagp.tag_fname) + 2);
+        lbuf = lbuf.add(std::ffi::CStr::from_ptr(tagp.tag_fname).to_bytes().len() + 2);
 
         let retval = parse_tag_line(lbuf, tagp);
 
@@ -2663,12 +2663,12 @@ unsafe fn parse_match(mut lbuf: *mut c_char, tagp: &mut tagptrs_T) -> c_int {
             if *p == TAB {
                 p = p.add(1);
                 while ascii_isalpha(*p) || utfc_ptr2len(p) > 1 {
-                    if strncmp(p, c"kind:".as_ptr(), 5) == 0 {
+                    if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"kind:"[..5] } {
                         tagp.tagkind = p.add(5);
-                    } else if strncmp(p, c"user_data:".as_ptr(), 10) == 0 {
+                    } else if { let _p = p; crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"user_data:"[..10] } {
                         tagp.user_data = p.add(10);
-                    } else if strncmp(p, c"line:".as_ptr(), 5) == 0 {
-                        tagp.tagline = atoi(p.add(5));
+                    } else if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"line:"[..5] } {
+                        tagp.tagline = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(p.add(5)).to_bytes()) as c_int;
                     }
                     if !tagp.tagkind.is_null() && !tagp.user_data.is_null() {
                         break;
@@ -3131,7 +3131,7 @@ unsafe fn find_extra(pp: *mut *mut c_char) -> c_int {
             first_char = *str_;
         }
 
-        if !str_.is_null() && strncmp(str_, c";\"".as_ptr(), 2) == 0 {
+        if !str_.is_null() && { let _p = str_; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b";\""[..2] } {
             *pp = str_;
             return OK;
         }
@@ -3239,7 +3239,7 @@ unsafe fn add_tag_field(
         let buf = buf_vec.as_mut_ptr();
         if !start.is_null() {
             if end.is_null() {
-                end = start.add(strlen(start));
+                end = start.add(std::ffi::CStr::from_ptr(start).to_bytes().len());
                 while end > start
                     && (*end.sub(1) == b'\r' as c_char || *end.sub(1) == b'\n' as c_char)
                 {
@@ -3250,7 +3250,7 @@ unsafe fn add_tag_field(
             xmemcpyz(buf.cast(), start.cast(), len as usize);
         }
         *buf.add(len as usize) = NUL;
-        tv_dict_add_str(dict, field_name, strlen(field_name), buf)
+        tv_dict_add_str(dict, field_name, std::ffi::CStr::from_ptr(field_name).to_bytes().len(), buf)
     }
 }
 
@@ -3274,7 +3274,7 @@ pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_ch
 
             let is_static = test_for_static(&tp);
 
-            if strncmp(tp.tagname, c"!_TAG_".as_ptr(), 6) == 0 {
+            if { let _p = tp.tagname; crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"!_TAG_"[..6] } {
                 continue;
             }
 
@@ -3310,10 +3310,10 @@ pub unsafe fn get_tags(list: *mut list_T, pat: *mut c_char, buf_fname: *mut c_ch
                 let mut p = tp.command_end.add(3);
                 while *p != NUL && *p != b'\n' as c_char && *p != b'\r' as c_char {
                     if p == tp.tagkind
-                        || (p.add(5) == tp.tagkind && strncmp(p, c"kind:".as_ptr(), 5) == 0)
+                        || (p.add(5) == tp.tagkind && { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"kind:"[..5] })
                     {
                         p = tp.tagkind_end.sub(1);
-                    } else if strncmp(p, c"file:".as_ptr(), 5) == 0 {
+                    } else if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"file:"[..5] } {
                         p = p.add(4);
                     } else if !ascii_iswhite(*p) {
                         let n = p;

@@ -8,7 +8,6 @@ use crate::xdiff::{
     XDL_EMIT_NO_HUNK_HDR, xdchange_t, xdemitcb_t, xdemitconf_t, xdfenv_t, xdfile_t,
 };
 
-use crate::strings::strlen;
 
 unsafe fn xdl_get_rec(xdf: *mut xdfile_t, ri: c_long, rec: *mut *const c_char) -> c_long {
     unsafe {
@@ -25,7 +24,7 @@ unsafe fn xdl_emit_record(
     ecb: *mut xdemitcb_t,
 ) -> c_int {
     unsafe {
-        let psize = strlen(pre) as c_long;
+        let psize = std::ffi::CStr::from_ptr(pre).to_bytes().len() as c_long;
         let mut rec: *const c_char = ptr::null();
         let size = xdl_get_rec(xdf, ri, &mut rec);
         if xdl_emit_diffrec(rec, size, pre, psize, ecb) < 0 {

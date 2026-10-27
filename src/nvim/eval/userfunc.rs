@@ -76,7 +76,7 @@ use crate::runtime::{
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::strings::{
-    gettext, strlen, strncmp, vim_snprintf, vim_strchr,
+    gettext, vim_snprintf, vim_strchr,
 };
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int};
@@ -349,8 +349,8 @@ unsafe fn one_function_arg(
         let len = p.offset_from(arg);
         if arg == p
             || (*arg as u8).is_ascii_digit()
-            || (len == 9 && strncmp(arg, c"firstline".as_ptr(), 9) == 0)
-            || (len == 8 && strncmp(arg, c"lastline".as_ptr(), 8) == 0)
+            || (len == 9 && { let _p = arg; crate::memory::xstrnlen(_p, 9) == 9 && std::slice::from_raw_parts(_p.cast::<u8>(), 9) == &b"firstline"[..9] })
+            || (len == 8 && { let _p = arg; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"lastline"[..8] })
         {
             if !skip {
                 semsg!(gettext(c"E125: Illegal argument: %s".as_ptr()), arg);
@@ -708,7 +708,7 @@ pub unsafe fn deref_func_name(
                 *lenp = 0;
                 return c"".as_ptr().cast_mut();
             }
-            *lenp = strlen((*tv).vval.v_string()) as c_int;
+            *lenp = std::ffi::CStr::from_ptr((*tv).vval.v_string()).to_bytes().len() as c_int;
             return (*tv).vval.v_string();
         }
 
@@ -722,7 +722,7 @@ pub unsafe fn deref_func_name(
                 *partialp = pt;
             }
             let s = partial_name(pt);
-            *lenp = strlen(s) as c_int;
+            *lenp = std::ffi::CStr::from_ptr(s).to_bytes().len() as c_int;
             return s;
         }
 
@@ -887,7 +887,7 @@ unsafe fn fname_trans_sid(
                 ) as usize;
             }
         }
-        let fnamelen = fname_buflen + strlen(script_name);
+        let fnamelen = fname_buflen + std::ffi::CStr::from_ptr(script_name).to_bytes().len();
         if fnamelen < FLEN_FIXED {
             { let s = script_name; std::ptr::copy_nonoverlapping(s, fname_buf.add(fname_buflen), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             fname_buf
@@ -1250,7 +1250,7 @@ pub unsafe fn call_user_func(
         (*fc).fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(fp), 0);
         (*fc).fc_dbg_tick = g_st().debug_tick;
 
-        if strncmp(uf2hikey(fp), c"<lambda>".as_ptr(), 8) == 0 {
+        if { let _p = uf2hikey(fp); crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"<lambda>"[..8] } {
             islambda = true;
         }
 
@@ -1346,7 +1346,7 @@ pub unsafe fn call_user_func(
                     }
                 }
 
-                namelen = strlen(name);
+                namelen = std::ffi::CStr::from_ptr(name).to_bytes().len();
             } else {
                 if ((*fp).uf_flags & FC_NOARGS) != 0 {
                     break;
@@ -1904,7 +1904,7 @@ pub unsafe fn call_func(
         (*rettv).v_type = VarType::VAR_UNKNOWN;
 
         if len <= 0 {
-            len = strlen(funcname) as c_int;
+            len = std::ffi::CStr::from_ptr(funcname).to_bytes().len() as c_int;
         }
         if !partial.is_null() {
             fp = (*partial).pt_func;
@@ -1989,7 +1989,7 @@ pub unsafe fn call_func(
                 {
                     fp = find_func(rfname);
                 }
-                if fp.is_null() && script_autoload(rfname, strlen(rfname), true) && !aborting() {
+                if fp.is_null() && script_autoload(rfname, std::ffi::CStr::from_ptr(rfname).to_bytes().len(), true) && !aborting() {
                     fp = find_func(rfname);
                 }
 
@@ -2338,7 +2338,7 @@ pub unsafe fn trans_function_name(
         }
         if !name.is_null() {
             *pp = end.cast_mut();
-            if strncmp(name, c"<SNR>".as_ptr(), 5) == 0 {
+            if { let _p = name; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"<SNR>"[..5] } {
                 let tail = CStr::from_ptr(name.add(5)).to_bytes();
                 let mut bytes = Vec::with_capacity(3 + tail.len());
                 bytes.extend_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR]);
@@ -2353,7 +2353,7 @@ pub unsafe fn trans_function_name(
             if lead <= 2
                 && lv.ll_name == exp_name.as_ptr()
                 && lv.ll_name_len >= 2
-                && strncmp(lv.ll_name, c"s:".as_ptr(), 2) == 0
+                && { let _p = lv.ll_name; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"s:"[..2] }
             {
                 lv.ll_name = lv.ll_name.add(2);
                 lv.ll_name_len -= 2;
@@ -2439,7 +2439,7 @@ pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi
             return None;
         }
 
-        if strncmp(funcname, c"s:".as_ptr(), 2) != 0 && strncmp(funcname, c"<SID>".as_ptr(), 5) != 0
+        if !({ let _p = funcname; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"s:"[..2] }) && !({ let _p = funcname; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"<SID>"[..5] })
         {
             return None;
         }
@@ -2457,7 +2457,7 @@ pub unsafe fn get_scriptlocal_funcname(funcname: *mut c_char) -> Option<std::ffi
             g_st().current_sctx.sc_sid,
         ) as usize;
         let off = if *funcname == b's' as c_char { 2 } else { 5 };
-        let newnamesize = sid_buflen + strlen(funcname.add(off)) + 1;
+        let newnamesize = sid_buflen + std::ffi::CStr::from_ptr(funcname.add(off)).to_bytes().len() + 1;
         let mut newname = vec![0 as c_char; newnamesize];
         vim_snprintf!(
             newname.as_mut_ptr(),
@@ -2482,7 +2482,7 @@ pub unsafe fn save_function_name(
         let mut p = *name;
         let saved: Option<std::ffi::CString>;
 
-        if strncmp(p, c"<lambda>".as_ptr(), 8) == 0 {
+        if { let _p = p; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"<lambda>"[..8] } {
             p = p.add(8);
             getdigits(&raw mut p, false, 0);
             saved = Some(cstr_from_bytes(std::slice::from_raw_parts(
@@ -2656,7 +2656,7 @@ unsafe fn get_function_body(
                 theline = line_arg;
                 p = vim_strchr(theline, b'\n' as c_int);
                 if p.is_null() {
-                    line_arg = line_arg.add(strlen(line_arg));
+                    line_arg = line_arg.add(std::ffi::CStr::from_ptr(line_arg).to_bytes().len());
                 } else {
                     *p = NUL;
                     line_arg = p.add(1);
@@ -2704,7 +2704,7 @@ unsafe fn get_function_body(
                     || (is_heredoc && skipwhite(theline) == theline)
                     || heredoc_trimmed
                         .as_ref()
-                        .is_some_and(|ht| strncmp(theline, ht.as_ptr(), heredoc_trimmedlen) == 0)
+                        .is_some_and(|ht| { let _p1 = theline; let _p2 = ht.as_ptr(); let _n = heredoc_trimmedlen; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) })
                 {
                     p = if heredoc_trimmed.is_none() {
                         theline
@@ -2768,12 +2768,12 @@ unsafe fn get_function_body(
                     }
                 }
 
-                if indent > 2 && strncmp(p, c"end".as_ptr(), 3) == 0 {
+                if indent > 2 && { let _p = p; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"end"[..3] } {
                     indent -= 2;
-                } else if strncmp(p, c"if".as_ptr(), 2) == 0
-                    || strncmp(p, c"wh".as_ptr(), 2) == 0
-                    || strncmp(p, c"for".as_ptr(), 3) == 0
-                    || strncmp(p, c"try".as_ptr(), 3) == 0
+                } else if { let _p = p; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"if"[..2] }
+                    || { let _p = p; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"wh"[..2] }
+                    || { let _p = p; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"for"[..3] }
+                    || { let _p = p; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"try"[..3] }
                 {
                     indent += 2;
                 }
@@ -2831,7 +2831,7 @@ unsafe fn get_function_body(
                         || (p0 == b'm' && p1 == b'z' && (!p2.is_ascii_alphabetic() || p2 == b's')));
                 if is_script_heredoc {
                     p = skipwhite(arg.add(2));
-                    if strncmp(p, c"trim".as_ptr(), 4) == 0
+                    if { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"trim"[..4] }
                         && (*p.add(4) == NUL || ascii_iswhite(*p.add(4) as c_int))
                     {
                         p = skipwhite(p.add(4));
@@ -2865,18 +2865,18 @@ unsafe fn get_function_body(
                         if !arg.is_null() {
                             arg = skipwhite(arg);
                         }
-                        if !arg.is_null() && strncmp(arg, c"=<<".as_ptr(), 3) == 0 {
+                        if !arg.is_null() && { let _p = arg; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"=<<"[..3] } {
                             p = skipwhite(arg.add(3));
                             let mut has_trim = false;
                             loop {
-                                if strncmp(p, c"trim".as_ptr(), 4) == 0
+                                if { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"trim"[..4] }
                                     && (*p.add(4) == NUL || ascii_iswhite(*p.add(4) as c_int))
                                 {
                                     p = skipwhite(p.add(4));
                                     has_trim = true;
                                     continue;
                                 }
-                                if strncmp(p, c"eval".as_ptr(), 4) == 0
+                                if { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"eval"[..4] }
                                     && (*p.add(4) == NUL || ascii_iswhite(*p.add(4) as c_int))
                                 {
                                     p = skipwhite(p.add(4));
@@ -3090,16 +3090,16 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         loop {
             p = skipwhite(p);
-            if strncmp(p, c"range".as_ptr(), 5) == 0 {
+            if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"range"[..5] } {
                 flags |= FC_RANGE;
                 p = p.add(5);
-            } else if strncmp(p, c"dict".as_ptr(), 4) == 0 {
+            } else if { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"dict"[..4] } {
                 flags |= FC_DICT;
                 p = p.add(4);
-            } else if strncmp(p, c"abort".as_ptr(), 5) == 0 {
+            } else if { let _p = p; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"abort"[..5] } {
                 flags |= FC_ABORT;
                 p = p.add(5);
-            } else if strncmp(p, c"closure".as_ptr(), 7) == 0 {
+            } else if { let _p = p; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"closure"[..7] } {
                 flags |= FC_CLOSURE;
                 p = p.add(7);
                 if uf_st().current_funccal.is_null() {
@@ -3149,7 +3149,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
 
         let mut namelen = 0usize;
         if fudi.fd_dict.is_null() {
-            let v = find_var(name, strlen(name), &raw mut ht, 0);
+            let v = find_var(name, std::ffi::CStr::from_ptr(name).to_bytes().len(), &raw mut ht, 0);
             if !v.is_null() && (*v).di_tv.v_type == VarType::VAR_FUNC {
                 emsg_funcname(
                     c"E707: Function name conflicts with variable: %s".as_ptr(),
@@ -3221,10 +3221,10 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
                 let mut j = FAIL;
                 let sname = sourcing_name();
                 if !sname.is_null() {
-                    let sn = autoload_name(name, strlen(name));
+                    let sn = autoload_name(name, std::ffi::CStr::from_ptr(name).to_bytes().len());
                     p = vim_strchr(sn.as_ptr(), b'/' as c_int);
-                    let plen = strlen(p) as c_int;
-                    let slen = strlen(sname) as c_int;
+                    let plen = std::ffi::CStr::from_ptr(p).to_bytes().len() as c_int;
+                    let slen = std::ffi::CStr::from_ptr(sname).to_bytes().len() as c_int;
                     if slen > plen
                         && path_equal(p, sname.add((slen - plen) as usize), kPathCmpLiteral)
                     {
@@ -3243,7 +3243,7 @@ pub unsafe fn ex_function(eap: *mut exarg_T) {
             }
 
             if namelen == 0 {
-                namelen = strlen(name);
+                namelen = std::ffi::CStr::from_ptr(name).to_bytes().len();
             }
             fp = alloc_ufunc(name, namelen);
 
@@ -3365,7 +3365,7 @@ pub unsafe fn get_user_func_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
             uf_st().get_uf_done += 1;
 
             if ((*fp).uf_flags & FC_DICT) != 0
-                || strncmp(uf2hikey(fp), c"<lambda>".as_ptr(), 8) == 0
+                || { let _p = uf2hikey(fp); crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"<lambda>"[..8] }
             {
                 return c"".as_ptr().cast_mut();
             }
@@ -4314,7 +4314,7 @@ pub unsafe fn find_hi_in_scoped_ht(
 
         let old_current_funccal = uf_st().current_funccal;
         let mut hi: *mut hashitem_T = ptr::null_mut();
-        let namelen = strlen(name);
+        let namelen = std::ffi::CStr::from_ptr(name).to_bytes().len();
         let mut varname: *const c_char = ptr::null();
 
         uf_st().current_funccal = (*(*uf_st().current_funccal).fc_func).uf_scoped;

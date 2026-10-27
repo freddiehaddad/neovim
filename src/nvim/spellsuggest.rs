@@ -39,7 +39,7 @@ use crate::spell::{
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
 use crate::strings::{
-    atoi, gettext, strlen, strncmp, vim_snprintf,
+    gettext, vim_snprintf,
     vim_strchr,
 };
 use crate::ui::vim_beep;
@@ -822,7 +822,7 @@ pub unsafe fn spell_suggest(count: c_int) {
                     spell_priv_st().repl_to = Some(CStr::from_ptr(stp.st_word.as_ptr()).to_owned());
                 }
                 let mut p_vec: Vec<c_char> =
-                    vec![0; strlen(line) - stp.st_orglen as usize + stp.st_wordlen as usize + 1];
+                    vec![0; std::ffi::CStr::from_ptr(line).to_bytes().len() - stp.st_orglen as usize + stp.st_wordlen as usize + 1];
                 let p = p_vec.as_mut_ptr();
                 let c = sug.su_badptr.offset_from(line) as c_int;
                 ptr::copy(line, p, c as usize);
@@ -981,16 +981,16 @@ unsafe fn spell_find_suggest(
         while *p != NUL {
             copy_option_part(&raw mut p, (&raw mut buf).cast(), MAXPATHL, c",".as_ptr());
             let buf_ptr = (&raw mut buf).cast::<c_char>();
-            if strncmp(buf_ptr, c"expr:".as_ptr(), 5) == 0 {
+            if { let _p = buf_ptr; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"expr:"[..5] } {
                 if !sps_st().expr_busy {
                     sps_st().expr_busy = true;
                     spell_suggest_expr(su, buf_ptr.add(5));
                     sps_st().expr_busy = false;
                 }
-            } else if strncmp(buf_ptr, c"file:".as_ptr(), 5) == 0 {
+            } else if { let _p = buf_ptr; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"file:"[..5] } {
                 spell_suggest_file(su, buf_ptr.add(5));
-            } else if strncmp(buf_ptr, c"timeout:".as_ptr(), 8) == 0 {
-                sps_st().spell_suggest_timeout = atoi(buf_ptr.add(8)) as i64;
+            } else if { let _p = buf_ptr; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"timeout:"[..8] } {
+                sps_st().spell_suggest_timeout = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(buf_ptr.add(8)).to_bytes()) as c_int as i64;
             } else if !did_intern {
                 spell_suggest_intern(su, interactive);
                 if (sps_st().sps_flags & SPS_DOUBLE) != 0 {
@@ -1132,7 +1132,7 @@ unsafe fn suggest_try_special(su: *mut suginfo_T) {
         let mut p = skiptowhite(fbadword_ptr);
         let len = p.offset_from(fbadword_ptr) as usize;
         p = skipwhite(p);
-        if strlen(p) == len && strncmp(fbadword_ptr, p, len) == 0 {
+        if std::ffi::CStr::from_ptr(p).to_bytes().len() == len && { let _p1 = fbadword_ptr; let _p2 = p; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
             let c = (*su).su_fbadword[len];
             (*su).su_fbadword[len] = NUL;
             make_case_word(fbadword_ptr, (&raw mut word).cast(), (*su).su_badflags);
@@ -1155,16 +1155,16 @@ unsafe fn suggest_try_change(su: *mut suginfo_T) {
     unsafe {
         let mut fword: [c_char; MAXWLEN] = [0; MAXWLEN];
         { let s = (&raw const (*su).su_fbadword).cast(); std::ptr::copy_nonoverlapping(s, (&raw mut fword).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
-        let mut n = strlen((&raw const fword).cast()) as c_int;
+        let mut n = std::ffi::CStr::from_ptr((&raw const fword).cast()).to_bytes().len() as c_int;
         let p = (*su).su_badptr.add((*su).su_badlen as usize);
         spell_casefold(
             *curwin.as_ptr(),
             p,
-            strlen(p) as c_int,
+            std::ffi::CStr::from_ptr(p).to_bytes().len() as c_int,
             (&raw mut fword).cast::<c_char>().add(n as usize),
             MAXWLEN as c_int - n,
         );
-        n = strlen((*su).su_badptr) as c_int;
+        n = std::ffi::CStr::from_ptr((*su).su_badptr).to_bytes().len() as c_int;
         if (n as usize) < MAXWLEN {
             fword[n as usize] = NUL;
         }
@@ -1287,7 +1287,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                                     .add(stack[udepth].ts_prewordlen as usize),
                                 flags,
                             );
-                            stack[udepth].ts_prewordlen = strlen((&raw const preword).cast()) as u8;
+                            stack[udepth].ts_prewordlen = std::ffi::CStr::from_ptr((&raw const preword).cast()).to_bytes().len() as u8;
                             stack[udepth].ts_splitoff = stack[udepth].ts_twordlen;
                         }
                         continue;
@@ -1349,13 +1349,9 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                         if (*slang).sl_nobreak {
                             if stack[udepth].ts_fidx - stack[udepth].ts_splitfidx
                                 == stack[udepth].ts_twordlen - stack[udepth].ts_splitoff
-                                && strncmp(
-                                    fword.add(stack[udepth].ts_splitfidx as usize),
-                                    (&raw const tword)
+                                && { let _p1 = fword.add(stack[udepth].ts_splitfidx as usize); let _p2 = (&raw const tword)
                                         .cast::<c_char>()
-                                        .add(stack[udepth].ts_splitoff as usize),
-                                    (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize,
-                                ) == 0
+                                        .add(stack[udepth].ts_splitoff as usize); let _n = (stack[udepth].ts_fidx - stack[udepth].ts_splitfidx) as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                             {
                                 preword[stack[udepth].ts_prewordlen as usize] = NUL;
                                 let newscore = score_wordcount_adj(
@@ -1543,7 +1539,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                             if !spell_iswordp(p, *curwin.as_ptr()) && preword[0] != NUL {
                                 p = (&raw mut preword)
                                     .cast::<c_char>()
-                                    .add(strlen((&raw const preword).cast()));
+                                    .add(std::ffi::CStr::from_ptr((&raw const preword).cast()).to_bytes().len());
                                 mb_ptr_back(&raw const preword, &mut p);
                                 if spell_iswordp(p, *curwin.as_ptr()) {
                                     newscore += SCORE_NONWORD;
@@ -1691,7 +1687,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                                     { let d = (&raw mut preword).cast::<c_char>(); let s = c" ".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                                 }
                                 stack[udepth].ts_prewordlen =
-                                    strlen((&raw const preword).cast()) as u8;
+                                    std::ffi::CStr::from_ptr((&raw const preword).cast()).to_bytes().len() as u8;
                                 stack[udepth].ts_splitoff = stack[udepth].ts_twordlen;
                                 stack[udepth].ts_splitfidx = stack[udepth].ts_fidx;
                                 if ((!try_compound
@@ -2162,7 +2158,7 @@ unsafe fn suggest_trie_walk(su: *mut suginfo_T, lp: &langp_T, fword: *mut c_char
                                 stack[udepth].ts_curi = gap.len() as i16;
                                 break;
                             }
-                            if strncmp(ftp.ft_from.as_ptr(), p, ftp.ft_from.as_bytes().len()) == 0
+                            if { let _p1 = ftp.ft_from.as_ptr(); let _p2 = p; let _n = ftp.ft_from.as_bytes().len(); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                                 && try_deeper(su, &stack, udepth, SCORE_REP)
                             {
                                 go_deeper(&mut stack, udepth, SCORE_REP);
@@ -2782,7 +2778,7 @@ unsafe fn add_suggestion(
     unsafe {
         let mut goodlen: c_int;
         let mut badlen: c_int;
-        let mut pgood = goodword.add(strlen(goodword));
+        let mut pgood = goodword.add(std::ffi::CStr::from_ptr(goodword).to_bytes().len());
         let mut pbad: *mut c_char = (*su).su_badptr.add(badlenarg as usize);
         loop {
             goodlen = pgood.offset_from(goodword) as c_int;
@@ -2803,7 +2799,7 @@ unsafe fn add_suggestion(
         for stp in gap.iter_mut() {
             if stp.st_wordlen == goodlen
                 && stp.st_orglen == badlen
-                && strncmp(stp.st_word.as_ptr(), goodword, goodlen as usize) == 0
+                && { let _p1 = stp.st_word.as_ptr(); let _p2 = goodword; let _n = goodlen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             {
                 if stp.st_slang.is_null() {
                     stp.st_slang = slang;
@@ -2991,8 +2987,8 @@ unsafe fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_i
                 }
             }
         }
-        let goodlen = strlen(goodsound) as c_int;
-        let badlen = strlen(badsound) as c_int;
+        let goodlen = std::ffi::CStr::from_ptr(goodsound).to_bytes().len() as c_int;
+        let badlen = std::ffi::CStr::from_ptr(badsound).to_bytes().len() as c_int;
         let n = goodlen - badlen;
         if !(-2..=2).contains(&n) {
             return SCORE_MAXMAX;

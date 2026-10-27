@@ -54,7 +54,7 @@ use crate::os::input::os_breakcheck;
 use crate::os::time::os_hrtime;
 use crate::path::{after_pathsep, kPathCmpLiteral, path_equal, path_tail};
 use crate::sha256::context_sha256_T;
-use crate::strings::{gettext, strlen, vim_snprintf, vim_snprintf_add, vim_strchr};
+use crate::strings::{gettext, vim_snprintf, vim_snprintf_add, vim_strchr};
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
 use crate::undo::{curbufIsChanged, u_unchanged, u_update_save_nr, u_write_undo};
 use std::ffi::{CStr, c_char, c_int, c_uint};
@@ -985,8 +985,8 @@ unsafe fn buf_write_make_backup(
                         if os_fileinfo_id_equal(&raw const file_info_new, file_info_old) {
                             keep_bk = false;
                         } else if opt_vars().p_bk == 0 {
-                            let blen = strlen(bk_ptr);
-                            let extlen = strlen(backup_ext);
+                            let blen = std::ffi::CStr::from_ptr(bk_ptr).to_bytes().len();
+                            let extlen = std::ffi::CStr::from_ptr(backup_ext).to_bytes().len();
                             let mut wp = if blen > extlen + 1 {
                                 bk_ptr.add(blen - 1 - extlen)
                             } else {
@@ -1075,8 +1075,8 @@ unsafe fn buf_write_make_backup(
                     let bk_ptr = bk_vec.as_mut_ptr();
                     let mut keep_bk = true;
                     if opt_vars().p_bk == 0 && os_path_exists(bk_ptr) {
-                        let blen = strlen(bk_ptr);
-                        let extlen = strlen(backup_ext);
+                        let blen = std::ffi::CStr::from_ptr(bk_ptr).to_bytes().len();
+                        let extlen = std::ffi::CStr::from_ptr(backup_ext).to_bytes().len();
                         let mut p = if blen > extlen + 1 {
                             bk_ptr.add(blen - 1 - extlen)
                         } else {
@@ -1142,7 +1142,7 @@ pub unsafe fn buf_write(
         if check_secure() {
             return FAIL;
         }
-        if strlen(fname) >= MAXPATHL {
+        if std::ffi::CStr::from_ptr(fname).to_bytes().len() >= MAXPATHL {
             emsg(gettext(e_longname.as_ptr()));
             return FAIL;
         }
@@ -1579,7 +1579,7 @@ pub unsafe fn buf_write(
                                 let line_ptr = ptr.add(1);
                                 sha_ctx.update(std::slice::from_raw_parts(
                                     line_ptr.cast::<u8>(),
-                                    strlen(line_ptr) + 1,
+                                    std::ffi::CStr::from_ptr(line_ptr).to_bytes().len() + 1,
                                 ));
                             }
                             loop {

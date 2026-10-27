@@ -74,7 +74,7 @@ use crate::regexp::{
     vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree,
 };
 use crate::state::MODE_SHOWMATCH;
-use crate::strings::{atol, reverse_text, strncmp, tr, vim_snprintf, vim_strchr};
+use crate::strings::{reverse_text, tr, vim_snprintf, vim_strchr};
 use crate::textformat::oparg_T;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_shape, ui_flush, ui_has, vim_beep};
 use crate::window::{reset_binding, win_T, win_enter, win_split, win_valid};
@@ -1240,7 +1240,7 @@ pub unsafe fn parse_search_pattern_offset(
         if ascii_isdigit(*p) || *p == b'+' as c_char || *p == b'-' as c_char {
             if ascii_isdigit(*p) || ascii_isdigit(*p.add(1)) {
                 {
-                    (*offset).off = atol(p) as _;
+                    (*offset).off = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(p).to_bytes()) as std::ffi::c_long as _;
                 }
             } else if *p == b'-' as c_char {
                 (*offset).off = -1;
@@ -1728,7 +1728,7 @@ pub unsafe fn search_for_exact_line(
                 let eq = if opt_vars().p_ic != 0 {
                     mb_strnicmp(p, pat, compl_len as usize) == 0
                 } else {
-                    strncmp(p, pat, compl_len as usize) == 0
+                    { let _p1 = p; let _p2 = pat; let _n = compl_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                 };
                 if eq {
                     return OK;
@@ -1799,11 +1799,7 @@ pub unsafe fn searchc(cap: *mut cmdarg_T, mut t_cmd: bool) -> c_int {
                     if c_int::from(*p.add(col as usize) as u8) == c && stop {
                         break;
                     }
-                } else if strncmp(
-                    p.add(col as usize),
-                    (&raw const srch().lastc_bytes).cast::<c_char>(),
-                    srch().lastc_bytelen as usize,
-                ) == 0
+                } else if { let _p1 = p.add(col as usize); let _p2 = (&raw const srch().lastc_bytes).cast::<c_char>(); let _n = srch().lastc_bytelen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                     && stop
                 {
                     break;
@@ -1879,7 +1875,7 @@ unsafe fn find_rawstring_end(
                     break;
                 }
                 if *p == b')' as c_char
-                    && strncmp(delim_copy.as_ptr(), p.add(1), delim_len) == 0
+                    && { let _p1 = delim_copy.as_ptr(); let _p2 = p.add(1); let _n = delim_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                     && *p.add(delim_len + 1) == b'"' as c_char
                 {
                     found = true;
@@ -2002,9 +1998,9 @@ pub unsafe fn findmatchlimit(
                         && srch().findmatch_pos.col <= (ptr_line.offset_from(linep) as colnr_T)
                     {
                         ptr_line = skipwhite(ptr_line.add(1));
-                        if strncmp(ptr_line, c"if".as_ptr(), 2) == 0
-                            || strncmp(ptr_line, c"endif".as_ptr(), 5) == 0
-                            || strncmp(ptr_line, c"el".as_ptr(), 2) == 0
+                        if { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"if"[..2] }
+                            || { let _p = ptr_line; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"endif"[..5] }
+                            || { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"el"[..2] }
                         {
                             hash_dir = 1;
                         }
@@ -2071,11 +2067,11 @@ pub unsafe fn findmatchlimit(
                 }
                 if initc != b'#' as c_int {
                     ptr_line = skipwhite(skipwhite(linep).add(1));
-                    if strncmp(ptr_line, c"if".as_ptr(), 2) == 0
-                        || strncmp(ptr_line, c"el".as_ptr(), 2) == 0
+                    if { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"if"[..2] }
+                        || { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"el"[..2] }
                     {
                         hash_dir = 1;
-                    } else if strncmp(ptr_line, c"endif".as_ptr(), 5) == 0 {
+                    } else if { let _p = ptr_line; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"endif"[..5] } {
                         hash_dir = -1;
                     } else {
                         return ptr::null_mut();
@@ -2100,28 +2096,28 @@ pub unsafe fn findmatchlimit(
                     srch().findmatch_pos.col = ptr_line.offset_from(linep) as colnr_T;
                     ptr_line = skipwhite(ptr_line.add(1));
                     if hash_dir > 0 {
-                        if strncmp(ptr_line, c"if".as_ptr(), 2) == 0 {
+                        if { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"if"[..2] } {
                             count += 1;
-                        } else if strncmp(ptr_line, c"el".as_ptr(), 2) == 0 {
+                        } else if { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"el"[..2] } {
                             if count == 0 {
                                 return &raw mut srch().findmatch_pos;
                             }
-                        } else if strncmp(ptr_line, c"endif".as_ptr(), 5) == 0 {
+                        } else if { let _p = ptr_line; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"endif"[..5] } {
                             if count == 0 {
                                 return &raw mut srch().findmatch_pos;
                             }
                             count -= 1;
                         }
-                    } else if strncmp(ptr_line, c"if".as_ptr(), 2) == 0 {
+                    } else if { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"if"[..2] } {
                         if count == 0 {
                             return &raw mut srch().findmatch_pos;
                         }
                         count -= 1;
-                    } else if initc == b'#' as c_int && strncmp(ptr_line, c"el".as_ptr(), 2) == 0 {
+                    } else if initc == b'#' as c_int && { let _p = ptr_line; crate::memory::xstrnlen(_p, 2) == 2 && std::slice::from_raw_parts(_p.cast::<u8>(), 2) == &b"el"[..2] } {
                         if count == 0 {
                             return &raw mut srch().findmatch_pos;
                         }
-                    } else if strncmp(ptr_line, c"endif".as_ptr(), 5) == 0 {
+                    } else if { let _p = ptr_line; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"endif"[..5] } {
                         count += 1;
                     }
                 }
@@ -3518,7 +3514,7 @@ pub unsafe fn find_pattern_in_path(
                             if opt_vars().p_ic != 0 {
                                 matched = mb_strnicmp(startp, ptr_pat, len) == 0;
                             } else {
-                                matched = strncmp(startp, ptr_pat, len) == 0;
+                                matched = { let _p1 = startp; let _p2 = ptr_pat; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) };
                             }
                             if matched
                                 && define_matched
@@ -3534,7 +3530,7 @@ pub unsafe fn find_pattern_in_path(
                             startp = regmatch.startp[0];
                             if skip_comments {
                                 if (*line != b'#' as c_char
-                                    || strncmp(skipwhite(line.add(1)), c"define".as_ptr(), 6) != 0)
+                                    || !({ let _p = skipwhite(line.add(1)); crate::memory::xstrnlen(_p, 6) == 6 && std::slice::from_raw_parts(_p.cast::<u8>(), 6) == &b"define"[..6] }))
                                     && get_leader_len(line, ptr::null_mut(), false, true) != 0
                                 {
                                     matched = false;

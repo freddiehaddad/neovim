@@ -169,59 +169,6 @@ pub unsafe fn ngettext<N: IntoNgettextCount>(
     }
 }
 
-#[inline]
-pub unsafe fn strlen(s: *const c_char) -> usize {
-    unsafe { CStr::from_ptr(s).to_bytes().len() }
-}
-
-#[inline]
-pub unsafe fn strncmp(mut s1: *const c_char, mut s2: *const c_char, mut n: usize) -> c_int {
-    unsafe {
-        while n > 0 {
-            let b1 = *s1 as u8;
-            let b2 = *s2 as u8;
-            if b1 != b2 || b1 == 0 {
-                return c_int::from(b1) - c_int::from(b2);
-            }
-            s1 = s1.add(1);
-            s2 = s2.add(1);
-            n -= 1;
-        }
-        0
-    }
-}
-
-#[inline]
-pub unsafe fn atol(mut s: *const c_char) -> c_long {
-    unsafe {
-        while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
-            s = s.add(1);
-        }
-        let neg = if *s == b'-' as c_char {
-            s = s.add(1);
-            true
-        } else {
-            if *s == b'+' as c_char {
-                s = s.add(1);
-            }
-            false
-        };
-        let mut acc: c_long = 0;
-        while (*s as u8).is_ascii_digit() {
-            acc = acc
-                .wrapping_mul(10)
-                .wrapping_add(c_long::from((*s as u8) - b'0'));
-            s = s.add(1);
-        }
-        if neg { acc.wrapping_neg() } else { acc }
-    }
-}
-
-#[inline]
-pub unsafe fn atoi(s: *const c_char) -> c_int {
-    unsafe { atol(s) as c_int }
-}
-
 pub unsafe fn strtod(nptr: *const c_char, endptr: *mut *mut c_char) -> c_double {
     unsafe {
         let mut s = nptr;
@@ -3301,10 +3248,8 @@ mod tests {
             assert_eq!(format_typeof(c"lld".as_ptr()), TYPE_LONGLONGINT);
             assert_eq!(format_typeof(c"zu".as_ptr()), TYPE_SIZET);
 
-            assert_eq!(strlen(c"hello".as_ptr()), 5);
-            assert_eq!(strncmp(c"abcdef".as_ptr(), c"abcxyz".as_ptr(), 3), 0);
-            assert_eq!(atoi(c"  -1234px".as_ptr()), -1234);
-            assert_eq!(atol(c" +56789".as_ptr()), 56789);
+            assert_eq!(crate::charset::parse_i64_prefix(b"  -1234px"), -1234);
+            assert_eq!(crate::charset::parse_i64_prefix(b" +56789"), 56789);
             let mut end: *mut c_char = ptr::null_mut();
             assert_eq!(strtod(c"  -12.5e2px".as_ptr(), &raw mut end), -1250.0);
             assert_eq!(*end as u8, b'p');

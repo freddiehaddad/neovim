@@ -48,7 +48,7 @@ use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
 use crate::spellfile::{MAXREGIONS, spell_load_file};
 use crate::spellsuggest::{idx_T, langp_T, slang_T, spell_suggest_list, spelltab_T};
 use crate::strings::{
-    concat_str, gettext, strlen, strncmp, vim_snprintf, vim_strchr,
+    concat_str, gettext, vim_snprintf, vim_strchr,
 };
 use crate::syntax::{syn_get_id, syntax_present};
 use crate::undo::u_save_cursor;
@@ -338,7 +338,7 @@ pub unsafe fn spell_check(
             (&raw mut mi.mi_fword).cast(),
             (MAXWLEN + 1) as c_int,
         );
-        mi.mi_fwordlen = strlen((&raw const mi.mi_fword).cast()) as c_int;
+        mi.mi_fwordlen = std::ffi::CStr::from_ptr((&raw const mi.mi_fword).cast()).to_bytes().len() as c_int;
         if is_camel_case && mi.mi_fwordlen > 0 {
             mi.mi_fword[mi.mi_fwordlen as usize - 1] = b' ' as c_char;
         }
@@ -591,7 +591,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
             let mut prefix_found = false;
             if mode != FIND_KEEPWORD {
                 let mut p = (*mip).mi_word;
-                if strncmp(ptr, p, wlen as usize) != 0 {
+                if { let _p1 = ptr; let _p2 = p; let _n = wlen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     let mut s = ptr;
                     let s_end = ptr.add(wlen as usize);
                     while s < s_end {
@@ -682,7 +682,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                     }
                     if mode == FIND_COMPOUND {
                         let mut p: *mut c_char;
-                        if strncmp(ptr, (*mip).mi_word, (*mip).mi_compoff as usize) != 0 {
+                        if { let _p1 = ptr; let _p2 = (*mip).mi_word; let _n = (*mip).mi_compoff as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                             p = (*mip).mi_word;
                             let mut s = ptr;
                             let s_end = ptr.add((*mip).mi_compoff as usize);
@@ -757,7 +757,7 @@ unsafe fn find_word(mip: *mut matchinf_T, mode: c_int) {
                     (*mip).mi_compoff = endlen[endidxcnt];
                     if mode == FIND_KEEPWORD {
                         let mut p = (&raw mut (*mip).mi_fword).cast::<c_char>();
-                        if strncmp(ptr, p, wlen as usize) != 0 {
+                        if { let _p1 = ptr; let _p2 = p; let _n = wlen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                             let mut s = ptr;
                             let s_end = ptr.add(wlen as usize);
                             while s < s_end {
@@ -854,10 +854,10 @@ pub unsafe fn match_checkcompoundpattern(
         let mut i: usize = 0;
         while i + 1 < gap.len() {
             let p2 = gap[i + 1].as_ptr();
-            if strncmp(ptr.add(wlen as usize), p2, gap[i + 1].as_bytes().len()) == 0 {
+            if { let _p1 = ptr.add(wlen as usize); let _p2 = p2; let _n = gap[i + 1].as_bytes().len(); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                 let p1 = gap[i].as_ptr();
                 let len = gap[i].as_bytes().len() as c_int;
-                if len <= wlen && strncmp(ptr.add((wlen - len) as usize), p1, len as usize) == 0 {
+                if len <= wlen && { let _p1 = ptr.add((wlen - len) as usize); let _p2 = p1; let _n = len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     return true;
                 }
             }
@@ -886,7 +886,7 @@ pub unsafe fn can_compound(slang: *mut slang_T, word: *const c_char, flags: *con
         if (*slang).sl_compsylmax < MAXWLEN as c_int
             && count_syllables(slang, word) > (*slang).sl_compsylmax
         {
-            return (strlen(flags.cast()) as c_int) < (*slang).sl_compmax;
+            return (std::ffi::CStr::from_ptr(flags.cast()).to_bytes().len() as c_int) < (*slang).sl_compmax;
         }
         true
     }
@@ -1062,7 +1062,7 @@ unsafe fn fold_more(mip: *mut matchinf_T) -> c_int {
             dst,
             MAXWLEN as c_int - (*mip).mi_fwordlen,
         );
-        let flen = strlen(dst) as c_int;
+        let flen = std::ffi::CStr::from_ptr(dst).to_bytes().len() as c_int;
         (*mip).mi_fwordlen += flen;
         flen
     }
@@ -1172,7 +1172,7 @@ pub unsafe fn spell_move_to(
                 { let s = line; std::ptr::copy_nonoverlapping(s, buf, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                 if lnum < (*(*wp).w_buffer).b_ml.ml_line_count {
                     spell_cat_line(
-                        buf.add(strlen(buf)),
+                        buf.add(std::ffi::CStr::from_ptr(buf).to_bytes().len()),
                         ml_get_buf((*wp).w_buffer, lnum + 1),
                         MAXWLEN as c_int,
                     );
@@ -1395,7 +1395,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
             }
         } else if sl.sl_loaded {
             let fn_ptr = (&raw mut fname_enc).cast::<c_char>();
-            { let s = c"add.spl".as_ptr(); std::ptr::copy_nonoverlapping(s, fn_ptr.add(strlen(fn_ptr) - 3), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
+            { let s = c"add.spl".as_ptr(); std::ptr::copy_nonoverlapping(s, fn_ptr.add(std::ffi::CStr::from_ptr(fn_ptr).to_bytes().len() - 3), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
             do_in_runtimepath(fn_ptr, DIP_ALL, &mut RuntimeCallback::SpellLoad(&mut sl));
         }
         (*g_st().curbuf).b_locked -= 1;
@@ -1403,7 +1403,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
 }
 pub unsafe fn spell_enc() -> *mut c_char {
     unsafe {
-        if strlen(opt_vars().p_enc) < 60 && (std::ffi::CStr::from_ptr(opt_vars().p_enc).to_bytes() != b"iso-8859-15") {
+        if std::ffi::CStr::from_ptr(opt_vars().p_enc).to_bytes().len() < 60 && (std::ffi::CStr::from_ptr(opt_vars().p_enc).to_bytes() != b"iso-8859-15") {
             return opt_vars().p_enc;
         }
         c"latin1".as_ptr().cast_mut()
@@ -1636,7 +1636,7 @@ unsafe fn count_syllables(slang: *mut slang_T, word: *const c_char) -> c_int {
             }
             let mut len: c_int = 0;
             for syl in &(*slang).sl_syl_items {
-                if syl.sy_len > len && strncmp(p, syl.sy_chars.as_ptr(), syl.sy_len as usize) == 0 {
+                if syl.sy_len > len && { let _p1 = p; let _p2 = syl.sy_chars.as_ptr(); let _n = syl.sy_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                     len = syl.sy_len;
                 }
             }
@@ -1908,7 +1908,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                             .sl_name
                             .as_ref()
                             .map_or(c"".as_ptr(), |s| s.as_ptr());
-                        if (*lp2.lp_slang).has_sal() && strncmp(lp_name, lp2_name, 2) == 0 {
+                        if (*lp2.lp_slang).has_sal() && { let _p1 = lp_name; let _p2 = lp2_name; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                             ga[i].lp_sallang = lp2.lp_slang;
                             break;
                         }
@@ -1922,7 +1922,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                             .sl_name
                             .as_ref()
                             .map_or(c"".as_ptr(), |s| s.as_ptr());
-                        if !(*lp2.lp_slang).sl_rep.is_empty() && strncmp(lp_name, lp2_name, 2) == 0
+                        if !(*lp2.lp_slang).sl_rep.is_empty() && { let _p1 = lp_name; let _p2 = lp2_name; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                         {
                             ga[i].lp_replang = lp2.lp_slang;
                             break;
@@ -2252,7 +2252,7 @@ pub unsafe fn check_need_cap(wp: *mut win_T, lnum: linenr_T, col: colnr_T) -> bo
                     line = line_copy
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    endcol = strlen(line) as colnr_T;
+                    endcol = std::ffi::CStr::from_ptr(line).to_bytes().len() as colnr_T;
                 }
             }
         } else {
@@ -2324,11 +2324,7 @@ pub unsafe fn ex_spellrepall(_eap: *mut exarg_T) {
             }
             let line = get_cursor_line_ptr();
             if addlen <= 0
-                || strncmp(
-                    line.add((**curwin.as_ptr()).w_cursor.col as usize),
-                    repl_to_ptr,
-                    repl_to_len,
-                ) != 0
+                || { let _p1 = line.add((**curwin.as_ptr()).w_cursor.col as usize); let _p2 = repl_to_ptr; let _n = repl_to_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             {
                 let mut p_vec: Vec<c_char> =
                     vec![0; (get_cursor_line_len() as i64 + addlen + 1) as usize];
@@ -2457,7 +2453,7 @@ pub unsafe fn spell_soundfold(
                 spell_casefold(
                     *curwin.as_ptr(),
                     inword,
-                    strlen(inword) as c_int,
+                    std::ffi::CStr::from_ptr(inword).to_bytes().len() as c_int,
                     (&raw mut fword).cast(),
                     MAXWLEN as c_int,
                 );
@@ -2877,7 +2873,7 @@ pub unsafe fn spell_dump_compl(
                 let n = captype(pat, std::ptr::null());
                 if n == WF_ONECAP {
                     dumpflags |= DUMPFLAG_ONECAP;
-                } else if n == WF_ALLCAP && (strlen(pat) as c_int) > utfc_ptr2len(pat) {
+                } else if n == WF_ALLCAP && (std::ffi::CStr::from_ptr(pat).to_bytes().len() as c_int) > utfc_ptr2len(pat) {
                     dumpflags |= DUMPFLAG_ALLCAP;
                 }
             }
@@ -2925,7 +2921,7 @@ pub unsafe fn spell_dump_compl(
                 lnum += 1;
             }
             let patlen: isize = if !pat.is_null() && (*slang).sl_pbyts.is_empty() {
-                strlen(pat) as isize
+                std::ffi::CStr::from_ptr(pat).to_bytes().len() as isize
             } else {
                 -1
             };
@@ -3067,7 +3063,7 @@ unsafe fn dump_word(
                 if (flags & WF_REGION) != 0 {
                     for i in 0..7 {
                         if (flags & (0x10000 << i)) != 0 {
-                            let badword_len = strlen(bw_ptr);
+                            let badword_len = std::ffi::CStr::from_ptr(bw_ptr).to_bytes().len();
                             vim_snprintf!(
                                 bw_ptr.add(badword_len),
                                 badword.len() - badword_len,
@@ -3094,12 +3090,12 @@ unsafe fn dump_word(
             }
             let _ = ml_append(lnum, p, 0, false);
         } else if (if (dumpflags & DUMPFLAG_ICASE) != 0 {
-            mb_strnicmp(p, pat, strlen(pat)) == 0
+            mb_strnicmp(p, pat, std::ffi::CStr::from_ptr(pat).to_bytes().len()) == 0
         } else {
-            strncmp(p, pat, strlen(pat)) == 0
+            { let _p1 = p; let _p2 = pat; let _n = std::ffi::CStr::from_ptr(pat).to_bytes().len(); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
         }) && ins_compl_add_infercase(
             p,
-            strlen(p) as c_int,
+            std::ffi::CStr::from_ptr(p).to_bytes().len() as c_int,
             opt_vars().p_ic != 0,
             ptr::null_mut(),
             *dir,

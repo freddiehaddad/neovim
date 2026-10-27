@@ -73,7 +73,7 @@ use crate::regexp::{Ctrl_V, MAXCOL, NUMBUFLEN};
 use crate::search::{BACKWARD, Direction, FORWARD, last_search_pat, set_last_search_pat};
 use crate::state::{REPLACE_FLAG, save_v_event_T};
 use crate::strings::{
-    atoi, gettext, ngettext, strncmp, vim_snprintf, vim_snprintf_safelen, vim_strchr,
+    gettext, ngettext, vim_snprintf, vim_snprintf_safelen, vim_strchr,
     vim_strsave_escaped_ext,
 };
 use crate::terminal::terminal_paste;
@@ -793,7 +793,7 @@ pub unsafe fn do_execreg(mut regname: c_int, colon: c_int, addcr: c_int, silent:
                 false,
             );
             let p_ptr = p.as_ptr().cast_mut();
-            if g_st().Visual.active && strncmp(p_ptr, c"'<,'>".as_ptr(), 5) == 0 {
+            if g_st().Visual.active && { let _p = p_ptr; crate::memory::xstrnlen(_p, 5) == 5 && std::slice::from_raw_parts(_p.cast::<u8>(), 5) == &b"'<,'>"[..5] } {
                 retval = put_in_typebuf(p_ptr.add(5), true, true, silent);
             } else {
                 retval = put_in_typebuf(p_ptr, true, true, silent);
@@ -3058,7 +3058,7 @@ pub unsafe fn write_reg_contents_ex(
             }
 
             let buf = if (*str_ as u8).is_ascii_digit() {
-                let num = atoi(str_);
+                let num = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr(str_).to_bytes()) as c_int;
                 let b = buflist_findnr(num);
                 if b.is_null() {
                     semsg!(gettext(e_nobufnr.as_ptr()), i64::from(num));

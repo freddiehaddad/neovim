@@ -71,7 +71,7 @@ use crate::os::env::{
 use crate::register::{get_reg_contents_str, kGRegExprSrc, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, scriptvar_T};
 use crate::search::set_search_direction;
-use crate::strings::{concat_str, gettext, strlen, strncmp, vim_strchr};
+use crate::strings::{concat_str, gettext, vim_strchr};
 use crate::version::{highest_patch, min_vim_version};
 use crate::window::{
     find_tabpage, goto_tabpage_tp, prevwin_curwin, tabpage_T, valid_tabpage, win_T,
@@ -751,7 +751,7 @@ pub unsafe fn set_internal_string_var(name: *const c_char, value: *const c_char)
             vval: TypvalVval::String(value.cast_mut()),
         };
 
-        set_var(name, strlen(name), &raw mut tv, true);
+        set_var(name, std::ffi::CStr::from_ptr(name).to_bytes().len(), &raw mut tv, true);
     }
 }
 
@@ -1078,7 +1078,7 @@ pub unsafe fn heredoc_get(
         let mut evalstr = false;
         let mut eval_failed = false;
         loop {
-            if strncmp(cmd, c"trim".as_ptr(), 4) == 0
+            if { let _p = cmd; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"trim"[..4] }
                 && (*cmd.add(4) == NUL || ascii_iswhite(*cmd.add(4) as c_int))
             {
                 cmd = skipwhite(cmd.add(4));
@@ -1091,7 +1091,7 @@ pub unsafe fn heredoc_get(
                 text_indent_len = -1;
                 continue;
             }
-            if strncmp(cmd, c"eval".as_ptr(), 4) == 0
+            if { let _p = cmd; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"eval"[..4] }
                 && (*cmd.add(4) == NUL || ascii_iswhite(*cmd.add(4) as c_int))
             {
                 cmd = skipwhite(cmd.add(4));
@@ -1141,7 +1141,7 @@ pub unsafe fn heredoc_get(
                 let cur_line = line_arg;
                 let next_line = vim_strchr(cur_line, b'\n' as c_int);
                 if next_line.is_null() {
-                    line_arg = line_arg.add(strlen(line_arg));
+                    line_arg = line_arg.add(std::ffi::CStr::from_ptr(line_arg).to_bytes().len());
                 } else {
                     *next_line = NUL;
                     line_arg = next_line.add(1);
@@ -1159,7 +1159,7 @@ pub unsafe fn heredoc_get(
             };
 
             if marker_indent_len > 0
-                && strncmp(theline, *(*eap).cmdlinep, marker_indent_len as usize) == 0
+                && { let _p1 = theline; let _p2 = *(*eap).cmdlinep; let _n = marker_indent_len as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             {
                 mi = marker_indent_len;
             }
@@ -1232,7 +1232,7 @@ pub unsafe fn ex_let(eap: *mut exarg_T) {
             return;
         }
         let mut expr = skipwhite(argend);
-        let concat = strncmp(expr, c"..=".as_ptr(), 3) == 0;
+        let concat = { let _p = expr; crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"..="[..3] };
         let has_assign = *expr == b'=' as c_char
             || (!vim_strchr(c"+-*/%.".as_ptr(), *expr as u8 as c_int).is_null()
                 && *expr.add(1) == b'=' as c_char);
@@ -1636,7 +1636,7 @@ unsafe fn list_arg_vars(
                                     .as_ref()
                                     .is_some_and(|tf| ptr::eq(used_name, tf.as_ptr()))
                                 {
-                                    strlen(used_name) as isize
+                                    std::ffi::CStr::from_ptr(used_name).to_bytes().len() as isize
                                 } else {
                                     arg.offset_from(used_name)
                                 };
@@ -1895,7 +1895,7 @@ unsafe fn ex_let_register(
                 } else {
                     *arg as u8 as c_int
                 };
-                write_reg_contents(reg_c, p, strlen(p) as isize, false as c_int);
+                write_reg_contents(reg_c, p, std::ffi::CStr::from_ptr(p).to_bytes().len() as isize, false as c_int);
                 arg_end = arg.add(1);
             }
             drop(ptofree);
@@ -2260,7 +2260,7 @@ pub unsafe fn del_menutrans_vars() {
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
-                if strncmp((&*hi).key_ptr(), c"menutrans_".as_ptr(), 10) == 0 {
+                if { let _p = (&*hi).key_ptr(); crate::memory::xstrnlen(_p, 10) == 10 && std::slice::from_raw_parts(_p.cast::<u8>(), 10) == &b"menutrans_"[..10] } {
                     delete_var(ht, hi);
                 }
             }
@@ -2330,7 +2330,7 @@ pub unsafe fn get_vim_var_partial(idx: VimVarIndex) -> *mut partial_T {
 /// Function to concatenate a prefix and a variable name.
 pub unsafe fn cat_prefix_varname(prefix: c_int, name: *const c_char) -> *mut c_char {
     unsafe {
-        let name_len = strlen(name);
+        let name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
         let buf = &raw mut vars_st().varnamebuf;
         (*buf).clear();
         (*buf).reserve(name_len + 3);
@@ -2364,7 +2364,7 @@ pub unsafe fn get_user_var_name(xp: *mut expand_T, idx: c_int) -> *mut c_char {
                 vars_st().HI = vars_st().HI.add(1);
             }
             let hi_key = (&*vars_st().HI).key_ptr();
-            if strncmp(c"g:".as_ptr(), (*xp).xp_pattern, 2) == 0 {
+            if { let _p1 = c"g:".as_ptr(); let _p2 = (*xp).xp_pattern; let _n = 2; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) } {
                 return cat_prefix_varname(b'g' as c_int, hi_key);
             }
             return hi_key;
@@ -2861,7 +2861,7 @@ pub unsafe fn find_var_ht(
 /// Return the string value of a (global/local) variable or NULL when it doesn't exist.
 pub unsafe fn get_var_value(name: *const c_char) -> *mut c_char {
     unsafe {
-        let v = find_var(name, strlen(name), ptr::null_mut(), 0);
+        let v = find_var(name, std::ffi::CStr::from_ptr(name).to_bytes().len(), ptr::null_mut(), 0);
         if v.is_null() {
             return ptr::null_mut();
         }
@@ -2952,7 +2952,7 @@ unsafe fn list_one_var(v: *mut dictitem_T, prefix: *const c_char, first: *mut c_
         list_one_var_a(
             prefix,
             (*v).di_key.as_ptr(),
-            strlen((*v).di_key.as_ptr()) as isize,
+            std::ffi::CStr::from_ptr((*v).di_key.as_ptr()).to_bytes().len() as isize,
             (*v).di_tv.v_type,
             s.as_ptr(),
             first,
@@ -3210,9 +3210,9 @@ pub unsafe fn var_check_ro(flags: c_int, mut name: *const c_char, mut name_len: 
         }
         if name_len == TV_TRANSLATE {
             name = gettext(name);
-            name_len = strlen(name);
+            name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
         } else if name_len == TV_CSTRING {
-            name_len = strlen(name);
+            name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
         }
 
         semsg!(gettext(error_message), name_len as c_int, name);
@@ -3229,9 +3229,9 @@ pub unsafe fn var_check_lock(flags: c_int, mut name: *const c_char, mut name_len
 
         if name_len == TV_TRANSLATE {
             name = gettext(name);
-            name_len = strlen(name);
+            name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
         } else if name_len == TV_CSTRING {
-            name_len = strlen(name);
+            name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
         }
 
         semsg!(
@@ -3249,9 +3249,9 @@ pub unsafe fn var_check_fixed(flags: c_int, mut name: *const c_char, mut name_le
         if (flags as u8 & DI_FLAGS_FIX) != 0 {
             if name_len == TV_TRANSLATE {
                 name = gettext(name);
-                name_len = strlen(name);
+                name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
             } else if name_len == TV_CSTRING {
-                name_len = strlen(name);
+                name_len = std::ffi::CStr::from_ptr(name).to_bytes().len();
             }
             semsg!(
                 gettext(e_cannot_delete_variable_str.as_ptr()),
@@ -3384,7 +3384,7 @@ unsafe fn get_var_from(
                         &raw mut (*(*tp).tp_vars()).dv_hashtab
                     };
 
-                    let v = find_var_in_ht(ht, htname, varname, strlen(varname), 0);
+                    let v = find_var_in_ht(ht, htname, varname, std::ffi::CStr::from_ptr(varname).to_bytes().len(), 0);
                     if !v.is_null() {
                         tv_copy(&raw const (*v).di_tv, rettv);
                         done = true;
@@ -3624,7 +3624,7 @@ unsafe fn setwinvar(argvars: *mut typval_T, off: usize) {
             if *varname == b'&' as c_char {
                 set_option_from_tv(varname.add(1), varp);
             } else {
-                let varname_len = strlen(varname);
+                let varname_len = std::ffi::CStr::from_ptr(varname).to_bytes().len();
                 let mut winvarname = Vec::with_capacity(varname_len + 3);
                 winvarname.push(b'w' as c_char);
                 winvarname.push(b':' as c_char);
@@ -3780,7 +3780,7 @@ pub unsafe fn var_redir_str(value: *const c_char, value_len: c_int) {
         }
 
         let len = if value_len == -1 {
-            strlen(value)
+            std::ffi::CStr::from_ptr(value).to_bytes().len()
         } else {
             value_len.max(0) as usize
         };
@@ -3918,7 +3918,7 @@ pub unsafe fn f_settabvar(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: 
         let save_lu_tp = g_st().lastused_tabpage;
         goto_tabpage_tp(tp, false, false);
 
-        let varname_len = strlen(varname);
+        let varname_len = std::ffi::CStr::from_ptr(varname).to_bytes().len();
         let mut tabvarname = Vec::with_capacity(varname_len + 3);
         tabvarname.push(b't' as c_char);
         tabvarname.push(b':' as c_char);
@@ -3968,7 +3968,7 @@ pub unsafe fn f_setbufvar(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: 
             set_option_from_tv(varname.add(1), varp);
             ctx_restore(&raw mut aco);
         } else {
-            let varname_len = strlen(varname);
+            let varname_len = std::ffi::CStr::from_ptr(varname).to_bytes().len();
             let mut bufvarname = Vec::with_capacity(varname_len + 3);
             let save_curbuf = g_st().curbuf;
             g_st().curbuf = buf;

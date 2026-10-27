@@ -29,7 +29,7 @@ use crate::path::{
 use crate::path::{path_next_component, path_tail, vim_ispathsep_nocolon};
 #[cfg(unix)]
 use crate::strings::strerror;
-use crate::strings::{gettext, strlen};
+use crate::strings::{gettext};
 use crate::ui::ui_call_chdir;
 #[cfg(windows)]
 use std::ffi::c_uint;
@@ -739,7 +739,7 @@ unsafe fn is_executable_in_path(
         #[cfg(not(windows))]
         let path = path_env.as_ptr();
 
-        let bufsize = strlen(name) + strlen(path) + 2;
+        let bufsize = std::ffi::CStr::from_ptr(name).to_bytes().len() + std::ffi::CStr::from_ptr(path).to_bytes().len() + 2;
         let mut buf_vec = vec![0 as c_char; bufsize];
         let buf = buf_vec.as_mut_ptr();
 
@@ -810,7 +810,7 @@ impl Drop for CFile {
 pub unsafe fn os_fopen(path: *const c_char, flags: *const c_char) -> *mut crate::fileio::FILE {
     unsafe {
         assert!(!flags.is_null());
-        let flen = strlen(flags);
+        let flen = std::ffi::CStr::from_ptr(flags).to_bytes().len();
         assert!((1..=2).contains(&flen));
 
         let f0 = *flags as u8;
@@ -1257,7 +1257,7 @@ pub unsafe fn os_copy_xattr(from_file: *const c_char, to_file: *const c_char) {
                     max_vallen = vallen;
                 }
 
-                let keylen = (strlen(key) + 1) as isize;
+                let keylen = (std::ffi::CStr::from_ptr(key).to_bytes().len() + 1) as isize;
                 size -= keylen;
                 key = key.add(keylen as usize);
             }
@@ -1405,7 +1405,7 @@ pub unsafe fn os_mkdir_recurse(
     mut created: Option<&mut Option<std::ffi::CString>>,
 ) -> c_int {
     unsafe {
-        let dirlen = strlen(dir);
+        let dirlen = std::ffi::CStr::from_ptr(dir).to_bytes().len();
         let mut curdir_vec: Vec<c_char> = std::slice::from_raw_parts(dir, dirlen + 1).to_vec();
         let curdir = curdir_vec.as_mut_ptr();
         let past_head = get_past_head(curdir);
@@ -1427,7 +1427,7 @@ pub unsafe fn os_mkdir_recurse(
             } else {
                 *past_head = past_head_save;
             }
-            let component_len = strlen(e);
+            let component_len = std::ffi::CStr::from_ptr(e).to_bytes().len();
             e = e.add(component_len);
             if ptr::eq(e, real_end)
                 && memcnt(e.sub(component_len).cast(), PATHSEP, component_len) == component_len
@@ -1453,7 +1453,7 @@ pub unsafe fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
     unsafe {
         if !dir_of_file_exists(fname) {
             let tail = path_tail_with_sep(fname);
-            let last_char = tail.add(strlen(tail)).sub(1);
+            let last_char = tail.add(std::ffi::CStr::from_ptr(tail).to_bytes().len()).sub(1);
             if vim_ispathsep(c_int::from(*last_char as u8)) {
                 emsg(gettext(e_noname.as_ptr()));
                 return -1;

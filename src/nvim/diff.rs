@@ -53,7 +53,7 @@ use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{FileInfo, os_fileinfo, os_fileinfo_size, os_fopen, os_remove};
 use crate::os::shell::call_shell;
 use crate::strings::{
-    atol, gettext, strlen, strncmp, tolower, vim_snprintf, vim_strchr,
+    gettext, tolower, vim_snprintf, vim_strchr,
     vim_strsave_shellescape,
 };
 use crate::ui::vim_beep;
@@ -819,7 +819,7 @@ unsafe fn diff_write_buffer(
                     len += orig_len as usize;
                 }
             } else {
-                let slen = strlen(s);
+                let slen = std::ffi::CStr::from_ptr(s).to_bytes().len();
                 ptr::copy(s, ptr.add(len), slen);
                 memchrsub(ptr.add(len).cast(), NL, NUL, slen);
                 len += slen;
@@ -1117,9 +1117,8 @@ unsafe fn check_external_diff(diffio: *mut diffio_T) -> c_int {
                             if vim_fgets((&raw mut linebuf).cast(), LBUFLEN as c_int, fd) {
                                 break;
                             }
-                            if strncmp((&raw const linebuf).cast(), c"1c1".as_ptr(), 3) == 0
-                                || strncmp((&raw const linebuf).cast(), c"@@ -1 +1 @@".as_ptr(), 11)
-                                    == 0
+                            if { let _p = (&raw const linebuf).cast(); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"1c1"[..3] }
+                                || { let _p = (&raw const linebuf).cast(); crate::memory::xstrnlen(_p, 11) == 11 && std::slice::from_raw_parts(_p.cast::<u8>(), 11) == &b"@@ -1 +1 @@"[..11] }
                             {
                                 ok = kTrue;
                             }
@@ -1224,7 +1223,7 @@ unsafe fn diff_file(dio: *mut diffio_T) -> c_int {
         if (*dio).dio_internal != 0 {
             return diff_file_internal(dio);
         }
-        let len = strlen(tmp_orig) + strlen(tmp_new) + strlen(tmp_diff) + strlen(opt_vars().p_srr) + 27;
+        let len = std::ffi::CStr::from_ptr(tmp_orig).to_bytes().len() + std::ffi::CStr::from_ptr(tmp_new).to_bytes().len() + std::ffi::CStr::from_ptr(tmp_diff).to_bytes().len() + std::ffi::CStr::from_ptr(opt_vars().p_srr).to_bytes().len() + 27;
         let mut cmd_vec: Vec<c_char> = vec![0; len];
         let cmd = cmd_vec.as_mut_ptr();
         if os_env_exists(c"DIFF_OPTIONS".as_ptr(), true) {
@@ -1329,7 +1328,7 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
             let esc_ptr = esc_name
                 .as_ref()
                 .map_or(c"".as_ptr(), |s| s.as_ptr());
-            let buflen = strlen(tmp_orig) + strlen(esc_ptr) + strlen(tmp_new) + 16;
+            let buflen = std::ffi::CStr::from_ptr(tmp_orig).to_bytes().len() + std::ffi::CStr::from_ptr(esc_ptr).to_bytes().len() + std::ffi::CStr::from_ptr(tmp_new).to_bytes().len() + 16;
             buf_vec = vec![0; buflen];
             let buf = buf_vec.as_mut_ptr();
             #[cfg(unix)]
@@ -1394,7 +1393,7 @@ pub unsafe fn ex_diffpatch(eap: *mut exarg_T) {
             } else {
                 let mut newname: *mut c_char = ptr::null_mut();
                 if !(*g_st().curbuf).b_fname.is_null() {
-                    let fname_len = strlen((*g_st().curbuf).b_fname);
+                    let fname_len = std::ffi::CStr::from_ptr((*g_st().curbuf).b_fname).to_bytes().len();
                     newname_vec = vec![0; fname_len + 5];
                     { let s = (*g_st().curbuf).b_fname; std::ptr::copy_nonoverlapping(s, newname_vec.as_mut_ptr(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
                     { let d = newname_vec.as_mut_ptr(); let s = c".new".as_ptr(); std::ptr::copy_nonoverlapping(s, d.add(std::ffi::CStr::from_ptr(d).to_bytes().len()), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
@@ -1652,12 +1651,12 @@ unsafe fn extract_hunk(fd: *mut FILE, hunk: *mut diffhunk_T, diffstyle: *mut dif
             if *diffstyle == diffstyle_T::DIFF_NONE {
                 if ascii_isdigit(line[0]) {
                     *diffstyle = diffstyle_T::DIFF_ED;
-                } else if strncmp((&raw const line).cast(), c"@@ ".as_ptr(), 3) == 0
-                    || (strncmp((&raw const line).cast(), c"--- ".as_ptr(), 4) == 0
+                } else if { let _p = (&raw const line).cast(); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"@@ "[..3] }
+                    || ({ let _p = (&raw const line).cast(); crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"--- "[..4] }
                         && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
-                        && strncmp((&raw const line).cast(), c"+++ ".as_ptr(), 4) == 0
+                        && { let _p = (&raw const line).cast(); crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"+++ "[..4] }
                         && !vim_fgets((&raw mut line).cast(), LBUFLEN as c_int, fd)
-                        && strncmp((&raw const line).cast(), c"@@ ".as_ptr(), 3) == 0)
+                        && { let _p = (&raw const line).cast(); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"@@ "[..3] })
                 {
                     *diffstyle = diffstyle_T::DIFF_UNIFIED;
                 } else {
@@ -1673,7 +1672,7 @@ unsafe fn extract_hunk(fd: *mut FILE, hunk: *mut diffhunk_T, diffstyle: *mut dif
                 }
             } else {
                 debug_assert!(*diffstyle == diffstyle_T::DIFF_UNIFIED);
-                if strncmp((&raw const line).cast(), c"@@ ".as_ptr(), 3) != 0 {
+                if !({ let _p = (&raw const line).cast(); crate::memory::xstrnlen(_p, 3) == 3 && std::slice::from_raw_parts(_p.cast::<u8>(), 3) == &b"@@ "[..3] }) {
                     continue;
                 }
                 if parse_diff_unified((&raw mut line).cast(), hunk) == FAIL {
@@ -2227,7 +2226,7 @@ unsafe fn diff_equal_char(p1: *const c_char, p2: *const c_char, len: *mut c_int)
             return false;
         }
         if l > 1 {
-            if strncmp(p1, p2, l as usize) != 0
+            if { let _p1 = p1; let _p2 = p2; let _n = l as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) != std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                 && ((diff_st().diff_flags & DIFF_ICASE) == 0
                     || utf_fold(utf_ptr2char(p1)) != utf_fold(utf_ptr2char(p2)))
             {
@@ -2658,8 +2657,8 @@ unsafe fn diff_find_change_simple(
                 si_new -= utf_head_off(line_new, line_new.add(si_new as usize));
                 *startp = (*startp).min(si_org);
                 if *line_org.add(si_org as usize) != NUL || *line_new.add(si_new as usize) != NUL {
-                    let mut ei_org = strlen(line_org) as c_int;
-                    let mut ei_new = strlen(line_new) as c_int;
+                    let mut ei_org = std::ffi::CStr::from_ptr(line_org).to_bytes().len() as c_int;
+                    let mut ei_new = std::ffi::CStr::from_ptr(line_new).to_bytes().len() as c_int;
                     while ei_org >= *startp && ei_new >= si_new && ei_org >= 0 && ei_new >= 0 {
                         if ((diff_st().diff_flags & DIFF_IWHITE) != 0
                             && ascii_iswhite(*line_org.add(ei_org as usize))
@@ -3311,7 +3310,7 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
                 }
             }
         } else {
-            let mut p = (*eap).arg.add(strlen((*eap).arg));
+            let mut p = (*eap).arg.add(std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len());
             while p > (*eap).arg && ascii_iswhite(*p.sub(1)) {
                 p = p.sub(1);
             }
@@ -3320,7 +3319,7 @@ pub unsafe fn ex_diffgetput(eap: *mut exarg_T) {
                 i += 1;
             }
             let bufnr = if (*eap).arg.add(i) == p {
-                atol((*eap).arg) as c_int
+                crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*eap).arg).to_bytes()) as std::ffi::c_long as c_int
             } else {
                 let nr = buflist_findpat((*eap).arg, p, false, true, false);
                 if nr < 0 {

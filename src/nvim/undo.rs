@@ -69,7 +69,7 @@ use crate::sha256::context_sha256_T;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
 use crate::strings::{
-    gettext, ngettext, strlen, vim_snprintf, vim_snprintf_add, vim_strchr,
+    gettext, ngettext, vim_snprintf, vim_snprintf_add, vim_strchr,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
@@ -603,7 +603,7 @@ pub unsafe fn u_compute_hash(buf: *mut buf_T, hash: *mut u8) {
         let mut ctx = context_sha256_T::new();
         for lnum in 1..=(*buf).b_ml.ml_line_count {
             let p = ml_get_buf(buf, lnum);
-            ctx.update(std::slice::from_raw_parts(p.cast::<u8>(), strlen(p) + 1));
+            ctx.update(std::slice::from_raw_parts(p.cast::<u8>(), std::ffi::CStr::from_ptr(p).to_bytes().len() + 1));
         }
         ctx.finish_into(&mut *(hash as *mut [u8; UNDO_HASH_SIZE]));
     }
@@ -636,7 +636,7 @@ pub unsafe fn u_get_undo_file_name(
         let mut munged_vec: Vec<c_char> = Vec::new();
         let mut undo_file_name: Option<std::ffi::CString> = None;
 
-        let ffname_len = strlen(ffname);
+        let ffname_len = std::ffi::CStr::from_ptr(ffname).to_bytes().len();
         let mut dirp = opt_vars().p_udir;
         while *dirp != NUL {
             let mut dir_len = copy_option_part(
@@ -2512,10 +2512,10 @@ pub unsafe fn ex_undolist(_eap: *mut exarg_T) {
                     uh_seq,
                     changes,
                 );
-                let cur_len = strlen(iobuf_ptr);
+                let cur_len = std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len();
                 undo_fmt_time(iobuf_ptr.add(cur_len), IOSIZE - cur_len, uh_time);
                 if uh_save_nr > 0 {
-                    while strlen(iobuf_ptr) < 33 {
+                    while std::ffi::CStr::from_ptr(iobuf_ptr).to_bytes().len() < 33 {
                         xstrlcat(iobuf_ptr, c" ".as_ptr(), IOSIZE);
                     }
                     vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d".as_ptr(), uh_save_nr);

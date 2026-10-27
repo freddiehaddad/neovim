@@ -135,7 +135,7 @@ use crate::state::{
     save_v_event_T, state_enter, state_handle_k_event,
 };
 use crate::strings::{
-    gettext, strlen, strncmp, vim_strchr, vim_strnicmp,
+    gettext, vim_strchr, vim_strnicmp,
     vim_strsave_escaped,
 };
 use crate::ui::{
@@ -542,18 +542,18 @@ pub unsafe fn parse_pattern_and_range(
         }
 
         let cmd_len = p.offset_from(cmd) as usize;
-        if strncmp(cmd, c"substitute".as_ptr(), cmd_len) == 0
-            || strncmp(cmd, c"smagic".as_ptr(), cmd_len) == 0
-            || strncmp(cmd, c"snomagic".as_ptr(), cmd_len.max(3)) == 0
-            || strncmp(cmd, c"vglobal".as_ptr(), cmd_len) == 0
+        if { let _p1 = cmd; let _p2 = c"substitute".as_ptr(); let _n = cmd_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            || { let _p1 = cmd; let _p2 = c"smagic".as_ptr(); let _n = cmd_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            || { let _p1 = cmd; let _p2 = c"snomagic".as_ptr(); let _n = cmd_len.max(3); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            || { let _p1 = cmd; let _p2 = c"vglobal".as_ptr(); let _n = cmd_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
         {
             if *cmd == b's' as c_char && *cmd.add(1) == b'm' as c_char {
                 *is_magic = true;
             } else if *cmd == b's' as c_char && *cmd.add(1) == b'n' as c_char {
                 *is_magic = false;
             }
-        } else if strncmp(cmd, c"sort".as_ptr(), cmd_len.max(3)) == 0
-            || strncmp(cmd, c"uniq".as_ptr(), cmd_len.max(3)) == 0
+        } else if { let _p1 = cmd; let _p2 = c"sort".as_ptr(); let _n = cmd_len.max(3); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            || { let _p1 = cmd; let _p2 = c"uniq".as_ptr(); let _n = cmd_len.max(3); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
         {
             // skip over ! and flags
             if *p == b'!' as c_char {
@@ -569,11 +569,11 @@ pub unsafe fn parse_pattern_and_range(
             if *p == NUL {
                 return false;
             }
-        } else if strncmp(cmd, c"vimgrep".as_ptr(), cmd_len.max(3)) == 0
-            || strncmp(cmd, c"vimgrepadd".as_ptr(), cmd_len.max(8)) == 0
-            || strncmp(cmd, c"lvimgrep".as_ptr(), cmd_len.max(2)) == 0
-            || strncmp(cmd, c"lvimgrepadd".as_ptr(), cmd_len.max(9)) == 0
-            || strncmp(cmd, c"global".as_ptr(), cmd_len) == 0
+        } else if { let _p1 = cmd; let _p2 = c"vimgrep".as_ptr(); let _n = cmd_len.max(3); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            || { let _p1 = cmd; let _p2 = c"vimgrepadd".as_ptr(); let _n = cmd_len.max(8); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            || { let _p1 = cmd; let _p2 = c"lvimgrep".as_ptr(); let _n = cmd_len.max(2); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            || { let _p1 = cmd; let _p2 = c"lvimgrepadd".as_ptr(); let _n = cmd_len.max(9); std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
+            || { let _p1 = cmd; let _p2 = c"global".as_ptr(); let _n = cmd_len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
         {
             // skip optional "!"
             if *p == b'!' as c_char {
@@ -2343,11 +2343,7 @@ unsafe fn command_line_next_histidx(s: *mut CommandLineState, next_match: bool) 
                 .map_or(c"".as_ptr(), |s| s.as_ptr());
             if ((*s).c != K_UP && (*s).c != K_DOWN)
                 || (*s).hiscnt == (*s).save_hiscnt
-                || strncmp(
-                    hist[(*s).hiscnt as usize].hisstr_ptr(),
-                    lookfor_ptr,
-                    (*s).lookforlen as usize,
-                ) == 0
+                || { let _p1 = hist[(*s).hiscnt as usize].hisstr_ptr(); let _p2 = lookfor_ptr; let _n = (*s).lookforlen as usize; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
             {
                 break;
             }
@@ -3445,17 +3441,17 @@ pub unsafe fn check_opt_wim(value: *const c_char, flags: *mut u8) -> c_int {
             if *p.add(i) != NUL && *p.add(i) != b',' as c_char && *p.add(i) != b':' as c_char {
                 return FAIL;
             }
-            if i == 7 && strncmp(p, c"longest".as_ptr(), 7) == 0 {
+            if i == 7 && { let _p = p; crate::memory::xstrnlen(_p, 7) == 7 && std::slice::from_raw_parts(_p.cast::<u8>(), 7) == &b"longest"[..7] } {
                 new_wim_flags[idx] |= kOptWimFlagLongest;
-            } else if i == 4 && strncmp(p, c"full".as_ptr(), 4) == 0 {
+            } else if i == 4 && { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"full"[..4] } {
                 new_wim_flags[idx] |= kOptWimFlagFull;
-            } else if i == 4 && strncmp(p, c"list".as_ptr(), 4) == 0 {
+            } else if i == 4 && { let _p = p; crate::memory::xstrnlen(_p, 4) == 4 && std::slice::from_raw_parts(_p.cast::<u8>(), 4) == &b"list"[..4] } {
                 new_wim_flags[idx] |= kOptWimFlagList;
-            } else if i == 8 && strncmp(p, c"lastused".as_ptr(), 8) == 0 {
+            } else if i == 8 && { let _p = p; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"lastused"[..8] } {
                 new_wim_flags[idx] |= kOptWimFlagLastused;
-            } else if i == 8 && strncmp(p, c"noselect".as_ptr(), 8) == 0 {
+            } else if i == 8 && { let _p = p; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"noselect"[..8] } {
                 new_wim_flags[idx] |= kOptWimFlagNoselect;
-            } else if i == 8 && strncmp(p, c"noinsert".as_ptr(), 8) == 0 {
+            } else if i == 8 && { let _p = p; crate::memory::xstrnlen(_p, 8) == 8 && std::slice::from_raw_parts(_p.cast::<u8>(), 8) == &b"noinsert"[..8] } {
                 new_wim_flags[idx] |= kOptWimFlagNoinsert;
             } else {
                 return FAIL;
@@ -3699,7 +3695,7 @@ unsafe fn color_expr_cmdline(
         let parser_lines = [
             ParserLine {
                 data: (*colored_ccline).cmdbuff,
-                size: strlen((*colored_ccline).cmdbuff),
+                size: std::ffi::CStr::from_ptr((*colored_ccline).cmdbuff).to_bytes().len(),
             },
             ParserLine {
                 data: ptr::null(),
@@ -4161,7 +4157,7 @@ unsafe fn ui_ext_cmdline_show(line: *mut CmdlineInfo) {
 
 pub unsafe fn ui_ext_cmdline_block_append(indent: usize, line: *const c_char) {
     unsafe {
-        let line_len = strlen(line);
+        let line_len = std::ffi::CStr::from_ptr(line).to_bytes().len();
         let mut buf: Vec<c_char> = Vec::with_capacity(indent + line_len);
         buf.resize(indent, b' ' as c_char);
         buf.extend_from_slice(std::slice::from_raw_parts(line, line_len));
@@ -4321,7 +4317,7 @@ pub unsafe fn unputcmdline() {
 pub unsafe fn put_on_cmdline(str: *const c_char, mut len: c_int, redraw: bool) {
     unsafe {
         if len < 0 {
-            len = strlen(str) as c_int;
+            len = std::ffi::CStr::from_ptr(str).to_bytes().len() as c_int;
         }
 
         realloc_cmdbuff(getln_st().ccline.cmdlen + len + 1);
@@ -4474,7 +4470,7 @@ unsafe fn cmdline_paste(regname: c_int, literally: bool, remcr: bool) -> bool {
                 let matches = if opt_vars().p_ic != 0 {
                     vim_strnicmp(w, arg, len) == 0
                 } else {
-                    strncmp(w, arg, len) == 0
+                    { let _p1 = w; let _p2 = arg; let _n = len; std::slice::from_raw_parts(_p1.cast::<u8>(), crate::memory::xstrnlen(_p1, _n)) == std::slice::from_raw_parts(_p2.cast::<u8>(), crate::memory::xstrnlen(_p2, _n)) }
                 };
                 if matches {
                     p = p.add(len);
@@ -4969,7 +4965,7 @@ unsafe fn set_cmdline_str(str: *const c_char, pos: c_int) -> c_int {
             return 1;
         }
 
-        let len = strlen(str) as c_int;
+        let len = std::ffi::CStr::from_ptr(str).to_bytes().len() as c_int;
         realloc_cmdbuff(len + 1);
         (*p).cmdlen = len;
         { let s = str; std::ptr::copy_nonoverlapping(s, (*p).cmdbuff, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
@@ -5250,7 +5246,7 @@ pub unsafe fn script_get(eap: *mut exarg_T, lenp: *mut usize) -> Option<std::ffi
         let mut cmd = (*eap).arg;
 
         if *cmd != b'<' as c_char || *cmd.add(1) != b'<' as c_char || (*eap).ea_getline.is_none() {
-            *lenp = strlen((*eap).arg);
+            *lenp = std::ffi::CStr::from_ptr((*eap).arg).to_bytes().len();
             return if (*eap).skip != 0 {
                 None
             } else {
@@ -5397,7 +5393,7 @@ pub unsafe fn get_user_input(
         let mut xp_type: c_int = EXPAND_NOTHING;
         let mut xp_arg: Option<std::ffi::CString> = None;
         if !xp_name.is_null() {
-            let xp_namelen = strlen(xp_name) as c_int;
+            let xp_namelen = std::ffi::CStr::from_ptr(xp_name).to_bytes().len() as c_int;
             let mut argt: u32 = 0;
             if parse_compl_arg(
                 xp_name,

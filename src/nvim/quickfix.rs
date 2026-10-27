@@ -110,7 +110,7 @@ use crate::path::{
 };
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, last_search_pat};
 use crate::strings::{
-    atoi, atol, gettext, has_non_ascii, strlen, vim_snprintf, vim_snprintf_safelen,
+    gettext, has_non_ascii, vim_snprintf, vim_snprintf_safelen,
     vim_strchr,
 };
 use crate::ui::ui_flush;
@@ -653,8 +653,8 @@ fn ql_info_ptr() -> *mut qf_info_T {
 #[inline]
 unsafe fn c_strcat(dst: *mut c_char, src: *const c_char) {
     unsafe {
-        let dlen = strlen(dst);
-        let slen = strlen(src);
+        let dlen = std::ffi::CStr::from_ptr(dst).to_bytes().len();
+        let slen = std::ffi::CStr::from_ptr(src).to_bytes().len();
         ptr::copy_nonoverlapping(src, dst.add(dlen), slen + 1);
     }
 }
@@ -732,7 +732,7 @@ unsafe fn qfga_clear() {
 unsafe fn qfga_concat(gap: &mut Vec<c_char>, s: *const c_char) {
     unsafe {
         if !s.is_null() {
-            let len = strlen(s);
+            let len = std::ffi::CStr::from_ptr(s).to_bytes().len();
             if len > 0 {
                 gap.extend_from_slice(std::slice::from_raw_parts(s, len));
             }
@@ -1054,7 +1054,7 @@ unsafe fn efm_to_regpat(
 
 unsafe fn efm_regpat_bufsz(efm: *const c_char) -> usize {
     unsafe {
-        let mut sz = (FMT_PATTERNS * 3) + (strlen(efm) << 2);
+        let mut sz = (FMT_PATTERNS * 3) + (std::ffi::CStr::from_ptr(efm).to_bytes().len() << 2);
         for item in &FMT_PAT {
             sz += item.pattern.to_bytes().len();
         }
@@ -1151,7 +1151,7 @@ unsafe fn qf_get_next_str_line(state: *mut qfstate_T, mut p_str: *mut c_char) ->
         let len = if !p.is_null() {
             p.offset_from(p_str) as usize + 1
         } else {
-            strlen(p_str)
+            std::ffi::CStr::from_ptr(p_str).to_bytes().len()
         };
 
         let linebuf = if len > IOSIZE - 2 {
@@ -1186,7 +1186,7 @@ unsafe fn qf_get_next_list_line(state: *mut qfstate_T, mut p_li: *mut listitem_T
         }
 
         let s = (*p_li).li_tv.vval.v_string();
-        let len = strlen(s);
+        let len = std::ffi::CStr::from_ptr(s).to_bytes().len();
         let linebuf = if len > IOSIZE - 2 {
             qf_grow_linebuf(state, len)
         } else {
@@ -1246,7 +1246,7 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
         }
 
         let mut discard = false;
-        (*state).linelen = strlen(iobuff_ptr);
+        (*state).linelen = std::ffi::CStr::from_ptr(iobuff_ptr).to_bytes().len();
         if (*state).linelen == IOSIZE - 1 && *iobuff_ptr.add((*state).linelen - 1) != NL {
             if (*state).growbuf.len() < 2 * (IOSIZE - 1) {
                 (*state).growbuf.resize(2 * (IOSIZE - 1), 0);
@@ -1271,7 +1271,7 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
                     }
                     break;
                 }
-                (*state).linelen = strlen((*state).growbuf.as_ptr().add(growbuflen));
+                (*state).linelen = std::ffi::CStr::from_ptr((*state).growbuf.as_ptr().add(growbuflen)).to_bytes().len();
                 growbuflen += (*state).linelen;
                 if *(*state).growbuf.as_ptr().add(growbuflen - 1) == NL {
                     break;
@@ -1294,7 +1294,7 @@ unsafe fn qf_get_next_file_line(state: *mut qfstate_T, fd: *mut FILE) -> c_int {
                         }
                         break;
                     }
-                    if strlen(iobuff_ptr) < IOSIZE - 1 || *iobuff_ptr.add(IOSIZE - 2) == NL {
+                    if std::ffi::CStr::from_ptr(iobuff_ptr).to_bytes().len() < IOSIZE - 1 || *iobuff_ptr.add(IOSIZE - 2) == NL {
                         break;
                     }
                 }
@@ -1456,7 +1456,7 @@ unsafe fn qf_parse_line(
                     status = qf_parse_file_pfx(idx, fields, qfl, tail);
                     if status == QF_MULTISCAN {
                         let s = skipwhite(tail);
-                        let new_linelen = strlen(s);
+                        let new_linelen = std::ffi::CStr::from_ptr(s).to_bytes().len();
                         if new_linelen >= linelen {
                             return QF_IGNORE_LINE;
                         }
@@ -1745,7 +1745,7 @@ unsafe fn qf_parse_fmt_b(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         if (*rmp).startp[midx].is_null() {
             return QF_FAIL;
         }
-        let bnr = atol((*rmp).startp[midx]) as c_int;
+        let bnr = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
         if buflist_findnr(bnr).is_null() {
             return QF_FAIL;
         }
@@ -1759,7 +1759,7 @@ unsafe fn qf_parse_fmt_n(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         if (*rmp).startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).enr = atol((*rmp).startp[midx]) as c_int;
+        (*fields).enr = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
         QF_OK
     }
 }
@@ -1769,7 +1769,7 @@ unsafe fn qf_parse_fmt_l(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         if (*rmp).startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).lnum = atol((*rmp).startp[midx]) as linenr_T;
+        (*fields).lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as linenr_T;
         QF_OK
     }
 }
@@ -1779,7 +1779,7 @@ unsafe fn qf_parse_fmt_e(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         if (*rmp).startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).end_lnum = atol((*rmp).startp[midx]) as linenr_T;
+        (*fields).end_lnum = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as linenr_T;
         QF_OK
     }
 }
@@ -1789,7 +1789,7 @@ unsafe fn qf_parse_fmt_c(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         if (*rmp).startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).col = atol((*rmp).startp[midx]) as c_int;
+        (*fields).col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
         QF_OK
     }
 }
@@ -1799,7 +1799,7 @@ unsafe fn qf_parse_fmt_k(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         if (*rmp).startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).end_col = atol((*rmp).startp[midx]) as c_int;
+        (*fields).end_col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
         QF_OK
     }
 }
@@ -1878,7 +1878,7 @@ unsafe fn qf_parse_fmt_v(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         if (*rmp).startp[midx].is_null() {
             return QF_FAIL;
         }
-        (*fields).col = atol((*rmp).startp[midx]) as c_int;
+        (*fields).col = crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*rmp).startp[midx]).to_bytes()) as std::ffi::c_long as c_int;
         (*fields).use_viscol = true;
         QF_OK
     }
@@ -1908,7 +1908,7 @@ unsafe fn qf_parse_fmt_o(rmp: *mut regmatch_T, midx: usize, fields: *mut qffield
         }
         let len = (*rmp).endp[midx].offset_from((*rmp).startp[midx]) as usize;
         let mod_ptr = (*fields).module.as_mut_ptr();
-        let dsize = (strlen(mod_ptr) + len + 1).min(CMDBUFFSIZE);
+        let dsize = (std::ffi::CStr::from_ptr(mod_ptr).to_bytes().len() + len + 1).min(CMDBUFFSIZE);
         xstrlcat(mod_ptr, (*rmp).startp[midx], dsize);
         QF_OK
     }
@@ -2666,7 +2666,7 @@ unsafe fn qf_push_dir(
             return;
         }
 
-        let dirbuf_len = strlen(dirbuf);
+        let dirbuf_len = std::ffi::CStr::from_ptr(dirbuf).to_bytes().len();
         let mut found_idx: Option<usize> = None;
         let mut new_dirname: Option<std::ffi::CString> = None;
         for i in (0..stack.len()).rev() {
@@ -3290,7 +3290,7 @@ unsafe fn qf_jump_goto_line(
                 b'/' as c_int,
                 b'/' as c_int,
                 qf_pattern,
-                strlen(qf_pattern),
+                std::ffi::CStr::from_ptr(qf_pattern).to_bytes().len(),
                 1,
                 SEARCH_KEEP,
                 opt_vars().p_magic != 0,
@@ -3784,7 +3784,7 @@ unsafe fn qf_msg(qi: *mut qf_info_T, which: c_int, lead: *const c_char) {
         );
 
         if let Some(title) = title {
-            let len = strlen(buf.as_ptr());
+            let len = std::ffi::CStr::from_ptr(buf.as_ptr()).to_bytes().len();
             if len < 34 {
                 ptr::write_bytes(buf.as_mut_ptr().add(len), b' ', 34 - len);
                 buf[34] = NUL;
@@ -4767,9 +4767,9 @@ unsafe fn make_get_auname(cmdidx: c_int) -> *const c_char {
 
 unsafe fn make_get_fullcmd(makecmd: *const c_char, fname: *const c_char) -> std::ffi::CString {
     unsafe {
-        let mut len = strlen(opt_vars().p_shq) * 2 + strlen(makecmd) + 1;
+        let mut len = std::ffi::CStr::from_ptr(opt_vars().p_shq).to_bytes().len() * 2 + std::ffi::CStr::from_ptr(makecmd).to_bytes().len() + 1;
         if *opt_vars().p_sp != NUL {
-            len += strlen(opt_vars().p_sp) + strlen(fname) + 3;
+            len += std::ffi::CStr::from_ptr(opt_vars().p_sp).to_bytes().len() + std::ffi::CStr::from_ptr(fname).to_bytes().len() + 3;
         }
         let mut cmd_vec: Vec<c_char> = vec![0; len];
         let cmd = cmd_vec.as_mut_ptr();
@@ -4913,7 +4913,7 @@ unsafe fn get_mef_name() -> Option<std::ffi::CString> {
             } else {
                 qf_st().mef_off += 19;
             }
-            let mef_len = strlen(opt_vars().p_mef);
+            let mef_len = std::ffi::CStr::from_ptr(opt_vars().p_mef).to_bytes().len();
             let mut name_vec: Vec<c_char> = vec![0; mef_len + 30];
             let name = name_vec.as_mut_ptr();
             { let s = opt_vars().p_mef; std::ptr::copy_nonoverlapping(s, name, std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
@@ -5624,7 +5624,7 @@ unsafe fn vgr_match_buflines(
 ) -> bool {
     unsafe {
         let mut found_match = false;
-        let pat_len = strlen(spat).min(FUZZY_MATCH_MAX_LEN);
+        let pat_len = std::ffi::CStr::from_ptr(spat).to_bytes().len().min(FUZZY_MATCH_MAX_LEN);
 
         let mut lnum: linenr_T = 1;
         while lnum <= (*buf).b_ml.ml_line_count && *tomatch > 0 {
@@ -7440,7 +7440,7 @@ unsafe fn cbuffer_process_args(
         if *(*eap).arg == NUL {
             buf = g_st().curbuf;
         } else if *skipwhite(skipdigits((*eap).arg)) == NUL {
-            buf = buflist_findnr(atoi((*eap).arg));
+            buf = buflist_findnr(crate::charset::parse_i64_prefix(std::ffi::CStr::from_ptr((*eap).arg).to_bytes()) as c_int);
         }
 
         if buf.is_null() {
@@ -7697,7 +7697,7 @@ unsafe fn hgr_search_file(qfl: *mut qf_list_T, fname: *mut c_char, p_regmatch: *
             let line = iobuff_ptr;
 
             if vim_regexec(p_regmatch, line, 0) {
-                let mut l = strlen(line);
+                let mut l = std::ffi::CStr::from_ptr(line).to_bytes().len();
                 while l > 0 && (*line.add(l - 1) as u8) <= b' ' {
                     l -= 1;
                     *line.add(l) = NUL;

@@ -57,7 +57,7 @@ use crate::path::{
 #[cfg(windows)]
 use crate::path::{path_to_slash_save, slash_adjust};
 use crate::runtime::script_is_lua;
-use crate::strings::{gettext, strlen, vim_strchr, vim_strsave_shellescape};
+use crate::strings::{gettext, vim_strchr, vim_strsave_shellescape};
 use crate::window::{find_tabpage, tabpage_T, win_T};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -182,7 +182,7 @@ pub unsafe fn modify_fname(
                 // Append a path separator to a directory.
                 if os_isdir(*fnamep) {
                     // Make room for one or two extra characters.
-                    let cur_len = strlen(*fnamep);
+                    let cur_len = std::ffi::CStr::from_ptr(*fnamep).to_bytes().len();
                     let mut v = vec![0 as c_char; cur_len + 3];
                     ptr::copy_nonoverlapping(*fnamep, v.as_mut_ptr(), cur_len + 1);
                     set_fname_buf(fnamep, bufp, v);
@@ -240,7 +240,7 @@ pub unsafe fn modify_fname(
                         }
 
                         if dirnamelen == 0 {
-                            dirnamelen = strlen(dirname.as_ptr());
+                            dirnamelen = std::ffi::CStr::from_ptr(dirname.as_ptr()).to_bytes().len();
                         }
 
                         // Do not call shorten_fname() here since it removes the prefix
@@ -280,7 +280,7 @@ pub unsafe fn modify_fname(
             }
 
             let mut tail = path_tail(*fnamep);
-            *fnamelen = strlen(*fnamep);
+            *fnamelen = std::ffi::CStr::from_ptr(*fnamep).to_bytes().len();
 
             // ":h" - head, remove "/file_name", can be repeated
             // Don't remove the logical root, see `FileInfo`.
@@ -685,7 +685,7 @@ unsafe fn findfilendir(argvars: *mut typval_T, rettv: *mut typval_T, find_what: 
                     } else {
                         ptr::null_mut()
                     },
-                    if first { strlen(fname) } else { 0 },
+                    if first { std::ffi::CStr::from_ptr(fname).to_bytes().len() } else { 0 },
                     0,
                     c_int::from(first),
                     path,
@@ -1736,7 +1736,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                 is_relative_to_current = true;
             }
 
-            let mut len = strlen(p) as isize;
+            let mut len = std::ffi::CStr::from_ptr(p).to_bytes().len() as isize;
             if len > 1 && after_pathsep(p, p.offset(len)) != 0 {
                 has_trailing_pathsep = true;
                 *p.offset(len - 1) = NUL; // The trailing slash breaks readlink().
@@ -1788,12 +1788,12 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                         let head_bytes = CStr::from_ptr(q.sub(1)).to_bytes();
                         let mut new_rem = Vec::with_capacity(
                             head_bytes.len()
-                                + remain_vec.as_ref().map_or(0, |r| strlen(r.as_ptr()))
+                                + remain_vec.as_ref().map_or(0, |r| std::ffi::CStr::from_ptr(r.as_ptr()).to_bytes().len())
                                 + 1,
                         );
                         new_rem.extend(head_bytes.iter().map(|&b| b as c_char));
                         if let Some(ref rem) = remain_vec {
-                            let rem_len = strlen(rem.as_ptr());
+                            let rem_len = std::ffi::CStr::from_ptr(rem.as_ptr()).to_bytes().len();
                             new_rem.extend_from_slice(&rem[..rem_len]);
                         }
                         new_rem.push(NUL);
@@ -1811,7 +1811,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                         // Symlink is relative to directory of argument. Replace the
                         // symlink with the resolved name in the same directory.
                         let prefix_len = (q as usize) - (p as usize);
-                        let buf_len = strlen(buf);
+                        let buf_len = std::ffi::CStr::from_ptr(buf).to_bytes().len();
                         let mut new_p = vec![0 as c_char; prefix_len + buf_len + 1];
                         ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), prefix_len);
                         ptr::copy_nonoverlapping(buf, new_p.as_mut_ptr().add(prefix_len), buf_len);
@@ -1831,7 +1831,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                 // Append the first path component of "remain" to "p".
                 q = path_next_component(remain.add(1)).cast_mut();
                 len = (q as usize).wrapping_sub(remain as usize) as isize - isize::from(*q != NUL);
-                let p_len = strlen(p);
+                let p_len = std::ffi::CStr::from_ptr(p).to_bytes().len();
                 let mut new_p = vec![0 as c_char; p_len + len as usize + 1];
                 ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), p_len);
                 ptr::copy_nonoverlapping(remain, new_p.as_mut_ptr().add(p_len), len as usize);
@@ -1841,7 +1841,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                 // Shorten "remain".
                 if *q != NUL {
                     let rem_tail = q.sub(1);
-                    let rem_len = strlen(rem_tail) + 1;
+                    let rem_len = std::ffi::CStr::from_ptr(rem_tail).to_bytes().len() + 1;
                     ptr::copy(rem_tail, remain, rem_len);
                 } else {
                     remain_vec = None;
@@ -1860,7 +1860,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                                 && (*p.add(2) == NUL || vim_ispathsep(*p.add(2) as u8 as c_int)))))
                 {
                     // Prepend "./".
-                    let p_len = strlen(p);
+                    let p_len = std::ffi::CStr::from_ptr(p).to_bytes().len();
                     let mut new_p = vec![0 as c_char; p_len + 3];
                     new_p[0] = b'.' as c_char;
                     new_p[1] = b'/' as c_char;
@@ -1875,7 +1875,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
                     }
                     if (q as usize) > (p as usize) {
                         let src_ptr = p.add(2);
-                        let move_len = strlen(src_ptr) + 1;
+                        let move_len = std::ffi::CStr::from_ptr(src_ptr).to_bytes().len() + 1;
                         ptr::copy(src_ptr, p, move_len);
                     }
                 }
@@ -1884,7 +1884,7 @@ pub unsafe fn f_resolve(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
             // Ensure that the result will have no trailing path separator
             // if the argument had none.  But keep "/" or "//".
             if !has_trailing_pathsep {
-                q = p.add(strlen(p));
+                q = p.add(std::ffi::CStr::from_ptr(p).to_bytes().len());
                 if after_pathsep(p, q) != 0 {
                     *path_tail_with_sep(p) = NUL;
                 }
@@ -2019,7 +2019,7 @@ unsafe fn write_blob(fp: *mut FileDescriptor, blob: *const blob_T) -> bool {
 }
 
 unsafe fn write_string(fp: *mut FileDescriptor, data: *const c_char) -> bool {
-    unsafe { write_data(fp, data, strlen(data)) }
+    unsafe { write_data(fp, data, std::ffi::CStr::from_ptr(data).to_bytes().len()) }
 }
 
 /// "writefile()" function

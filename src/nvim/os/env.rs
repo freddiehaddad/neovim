@@ -36,7 +36,7 @@ use crate::path::{
     to_slash_save, vim_ispathsep,
 };
 use crate::runtime::sctx_T;
-use crate::strings::{strlen, vim_strchr, vim_strsave_escaped};
+use crate::strings::{vim_strchr, vim_strsave_escaped};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -511,7 +511,7 @@ pub unsafe fn init_homedir() {
                     .as_ref()
                     .map_or(PATHSEPSTR.as_ptr(), |c| c.as_ptr());
                 if let Some(ref hd) = homedrive
-                    && hd.as_bytes().len() + strlen(homepath_ptr) < MAXPATHL
+                    && hd.as_bytes().len() + std::ffi::CStr::from_ptr(homepath_ptr).to_bytes().len() < MAXPATHL
                 {
                     let buf = (&raw mut g_st().os_buf).cast::<c_char>();
                     xstrlcpy(buf, hd.as_ptr(), MAXPATHL);
@@ -534,7 +534,7 @@ pub unsafe fn init_homedir() {
                     var = ptr::null_mut();
                     if let Some(exp) = os_getenv_cstr(buf)
                         && !exp.as_bytes().is_empty()
-                        && exp.as_bytes().len() + strlen(p) < MAXPATHL
+                        && exp.as_bytes().len() + std::ffi::CStr::from_ptr(p).to_bytes().len() < MAXPATHL
                     {
                         xstrlcpy(buf, exp.as_ptr(), MAXPATHL);
                         xstrlcat(buf, p.add(1), MAXPATHL);
@@ -619,7 +619,7 @@ pub unsafe fn expand_env_esc(
     unsafe {
         let mut at_start = true;
         let dst_start = dst;
-        let prefix_len: usize = if prefix.is_null() { 0 } else { strlen(prefix) };
+        let prefix_len: usize = if prefix.is_null() { 0 } else { std::ffi::CStr::from_ptr(prefix).to_bytes().len() };
 
         let mut src = skipwhite(srcp);
         dstlen -= 1;
@@ -762,8 +762,8 @@ pub unsafe fn expand_env_esc(
                 }
 
                 if !var.is_null() && *var != NUL {
-                    let c = strlen(var);
-                    if c + strlen(tail) + 1 < (dstlen as usize) {
+                    let c = std::ffi::CStr::from_ptr(var).to_bytes().len();
+                    if c + std::ffi::CStr::from_ptr(tail).to_bytes().len() + 1 < (dstlen as usize) {
                         ptr::copy_nonoverlapping(var, dst, c + 1);
                         dstlen -= c as c_int;
                         let ends_with_sep = after_pathsep(dst, dst.add(c)) != 0;
@@ -822,7 +822,7 @@ unsafe fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
         if *vimdir == NUL {
             return None;
         }
-        let vimdir_len = strlen(vimdir);
+        let vimdir_len = std::ffi::CStr::from_ptr(vimdir).to_bytes().len();
         let p_cstr = concat_fnames(
             NvimString {
                 data: vimdir.cast_mut(),
@@ -840,7 +840,7 @@ unsafe fn vim_runtime_dir(vimdir: *const c_char) -> Option<std::ffi::CString> {
 
 unsafe fn remove_tail(path: *mut c_char, pend: *mut c_char, dirname: *const c_char) -> *mut c_char {
     unsafe {
-        let len = strlen(dirname);
+        let len = std::ffi::CStr::from_ptr(dirname).to_bytes().len();
         if (pend as usize) > (path as usize) + len {
             let new_tail = pend.sub(len + 1);
             if path_cmp(opt_vars().p_fic != 0, new_tail, dirname, len) == 0
@@ -885,7 +885,7 @@ pub unsafe fn vim_env_iter_rev(
 ) -> *const c_char {
     unsafe {
         let varend = if iter.is_null() {
-            val.add(strlen(val)).sub(1)
+            val.add(std::ffi::CStr::from_ptr(val).to_bytes().len()).sub(1)
         } else {
             iter
         };
@@ -1056,7 +1056,7 @@ pub unsafe fn home_replace(
         let dirlen = if homedir_ptr.is_null() {
             0
         } else {
-            strlen(homedir_ptr)
+            std::ffi::CStr::from_ptr(homedir_ptr).to_bytes().len()
         };
 
         #[cfg(windows)]
@@ -1078,7 +1078,7 @@ pub unsafe fn home_replace(
 
         if !homedir_env_mod.is_null() && *homedir_env_mod == b'~' as c_char {
             let mut usedlen: usize = 0;
-            let mut flen = strlen(homedir_env_mod);
+            let mut flen = std::ffi::CStr::from_ptr(homedir_env_mod).to_bytes().len();
             let mut fbuf: Option<Vec<c_char>> = None;
             let _ = modify_fname(
                 c":p".as_ptr().cast_mut(),
@@ -1089,7 +1089,7 @@ pub unsafe fn home_replace(
                 &raw mut flen,
                 false,
             );
-            flen = strlen(homedir_env_mod);
+            flen = std::ffi::CStr::from_ptr(homedir_env_mod).to_bytes().len();
             assert_ne!(homedir_env_mod, homedir_env);
             if let Some(mod_vec) = fbuf {
                 homedir_env_mod_vec = mod_vec;
@@ -1103,7 +1103,7 @@ pub unsafe fn home_replace(
         let envlen = if homedir_env_mod.is_null() {
             0
         } else {
-            strlen(homedir_env_mod)
+            std::ffi::CStr::from_ptr(homedir_env_mod).to_bytes().len()
         };
 
         if !one {
@@ -1174,7 +1174,7 @@ pub unsafe fn home_replace_save(buf: *mut buf_T, src: *const c_char) -> std::ffi
     unsafe {
         let mut len: usize = 3;
         if !src.is_null() {
-            len += strlen(src);
+            len += std::ffi::CStr::from_ptr(src).to_bytes().len();
         }
         let mut dst = vec![0 as c_char; len];
         let _ = home_replace(buf, src, dst.as_mut_ptr(), len, true);

@@ -167,7 +167,7 @@ use crate::state::{
 };
 use crate::statusline::{draw_tabline, win_redr_status};
 use crate::strings::{
-    strlen, tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
+    tr, vim_snprintf, vim_strchr, vim_strsave_shellescape,
 };
 use crate::syntax::syn_stack_free_all;
 use crate::tag::do_tag;
@@ -3001,8 +3001,8 @@ pub unsafe fn add_to_showcmd(c: c_int) -> bool {
             mbyte_buf.as_mut_ptr()
         };
 
-        let old_len = strlen(sc_buf);
-        let extra_len = strlen(p);
+        let old_len = std::ffi::CStr::from_ptr(sc_buf).to_bytes().len();
+        let extra_len = std::ffi::CStr::from_ptr(p).to_bytes().len();
         let limit = if ui_has(kUIMessages) {
             SHOWCMD_BUFLEN - 1
         } else {
@@ -3036,7 +3036,7 @@ unsafe fn del_from_showcmd(mut len: c_int) {
             return;
         }
         let sc_buf = (&raw mut g_st().showcmd_buf).cast::<c_char>();
-        let old_len = strlen(sc_buf) as c_int;
+        let old_len = std::ffi::CStr::from_ptr(sc_buf).to_bytes().len() as c_int;
         len = len.min(old_len);
         *sc_buf.add((old_len - len) as usize) = NUL;
 
@@ -4493,7 +4493,7 @@ unsafe fn nv_ident(cap: *mut cmdarg_T) {
             return;
         }
         let kp_ex = *kp == b':' as c_char;
-        let bufsize = n * 2 + 30 + strlen(kp);
+        let bufsize = n * 2 + 30 + std::ffi::CStr::from_ptr(kp).to_bytes().len();
         let mut buf_vec = vec![0 as c_char; bufsize];
         let mut buflen: usize = 0;
 
@@ -7308,7 +7308,7 @@ pub unsafe fn set_cursor_for_append_to_line() {
             coladvance(*curwin.as_ptr(), MAXCOL);
             g_st().State = save_State;
         } else {
-            (**curwin.as_ptr()).w_cursor.col += strlen(get_cursor_pos_ptr()) as colnr_T;
+            (**curwin.as_ptr()).w_cursor.col += std::ffi::CStr::from_ptr(get_cursor_pos_ptr()).to_bytes().len() as colnr_T;
         }
     }
 }

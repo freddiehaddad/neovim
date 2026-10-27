@@ -40,7 +40,7 @@ use crate::ops::{
 use crate::option_vars::*;
 use crate::register::reg_max_ts;
 use crate::state::{MODE_NORMAL, MODE_OP_PENDING, get_real_state};
-use crate::strings::{strlen, vim_snprintf, vim_strchr};
+use crate::strings::{vim_snprintf, vim_strchr};
 use crate::textformat::oparg_T;
 use crate::viml::parser::expressions::ESC;
 use crate::window::{win_T, win_valid};
@@ -385,7 +385,7 @@ pub(crate) unsafe fn atom_st() -> &'static mut CmdAtomModuleState {
 pub unsafe fn sb_concat(sb: &mut Vec<c_char>, s: *const c_char) {
     unsafe {
         if !s.is_null() {
-            let len = strlen(s);
+            let len = std::ffi::CStr::from_ptr(s).to_bytes().len();
             if len > 0 {
                 sb.extend_from_slice(std::slice::from_raw_parts(s, len));
             }
