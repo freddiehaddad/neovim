@@ -71,7 +71,7 @@ use crate::os::env::{
 use crate::register::{get_reg_contents_str, kGRegExprSrc, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, scriptvar_T};
 use crate::search::set_search_direction;
-use crate::strings::{concat_str, gettext, strcmp, strlen, strncmp, vim_strchr};
+use crate::strings::{concat_str, gettext, strlen, strncmp, vim_strchr};
 use crate::version::{highest_patch, min_vim_version};
 use crate::window::{
     find_tabpage, goto_tabpage_tp, prevwin_curwin, tabpage_T, valid_tabpage, win_T,
@@ -1163,7 +1163,7 @@ pub unsafe fn heredoc_get(
             {
                 mi = marker_indent_len;
             }
-            if strcmp(marker, theline.add(mi as usize)) == 0 {
+            if std::ffi::CStr::from_ptr(marker).to_bytes() == std::ffi::CStr::from_ptr(theline.add(mi as usize)).to_bytes() {
                 break;
             }
 
@@ -3053,13 +3053,13 @@ pub unsafe fn before_set_vvar(
                 tv_copy(&raw const (*di).di_tv, &raw mut oldtv);
             }
             (*di).di_tv.vval = crate::eval::typval::TypvalVval::Number(tv_get_number(tv));
-            if strcmp(varname, c"searchforward".as_ptr()) == 0 {
+            if std::ffi::CStr::from_ptr(varname).to_bytes() == b"searchforward" {
                 set_search_direction(if (*di).di_tv.vval.v_number() != 0 {
                     b'/' as c_int
                 } else {
                     b'?' as c_int
                 });
-            } else if strcmp(varname, c"hlsearch".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(varname).to_bytes() == b"hlsearch" {
                 g_st().Search.no_hlsearch = (*di).di_tv.vval.v_number() == 0;
                 redraw_all_later(UPD_SOME_VALID);
             }

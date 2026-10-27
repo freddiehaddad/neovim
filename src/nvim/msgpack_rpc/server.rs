@@ -14,7 +14,7 @@ use crate::memory::{cstr_to_cstring, strequal, xstrlcpy};
 use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
-use crate::strings::{strcmp, strlen, vim_snprintf};
+use crate::strings::{strlen, vim_snprintf};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
@@ -245,7 +245,7 @@ pub unsafe fn server_start(addr: *const c_char) -> c_int {
 
         let w = watchers_mut();
         for &existing in w.iter() {
-            if strcmp((*watcher).addr.as_ptr(), (*existing).addr.as_ptr()) == 0 {
+            if std::ffi::CStr::from_ptr((*watcher).addr.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr((*existing).addr.as_ptr()).to_bytes() {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
@@ -299,7 +299,7 @@ pub unsafe fn server_stop(endpoint: *const c_char, keep_vservername: bool) -> bo
         let w = watchers_mut();
         let Some(idx) = w
             .iter()
-            .position(|&watcher| strcmp(addr.as_ptr(), (*watcher).addr.as_ptr()) == 0)
+            .position(|&watcher| std::ffi::CStr::from_ptr(addr.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr((*watcher).addr.as_ptr()).to_bytes())
         else {
             logmsg!(
                 LOGLVL_WRN,

@@ -60,7 +60,7 @@ use crate::spell::{
 use crate::spellfile::spell_check_msm;
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    atoi, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
+    atoi, gettext, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::terminal::terminal_notify_theme;
 use crate::ui::ui_has;
@@ -1376,7 +1376,7 @@ unsafe fn expand_set_opt_string(
 
         for &val in values {
             if val.to_bytes().is_empty()
-                || (include_orig_val && *option_val != NUL && strcmp(val.as_ptr(), option_val) == 0)
+                || (include_orig_val && *option_val != NUL && (std::ffi::CStr::from_ptr(val.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(option_val).to_bytes()))
             {
                 continue;
             }
@@ -1634,7 +1634,7 @@ pub unsafe fn validate_backupext_or_patchmode(args: *mut optset_T) -> *const c_c
             bex
         };
         let pm_s = if *pm == b'.' as c_char { pm.add(1) } else { pm };
-        if strcmp(bex_s, pm_s) == 0 {
+        if std::ffi::CStr::from_ptr(bex_s).to_bytes() == std::ffi::CStr::from_ptr(pm_s).to_bytes() {
             return E_BACKUPEXT_AND_PATCHMODE_ARE_EQUAL.as_ptr();
         }
 
@@ -2038,11 +2038,11 @@ pub unsafe fn validate_completeitemalign(args: *mut optset_T) -> *const c_char {
         let mut buf = [0 as c_char; 10];
         while *p != NUL {
             copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",".as_ptr());
-            let item = if strcmp(buf.as_ptr(), c"abbr".as_ptr()) == 0 {
+            let item = if std::ffi::CStr::from_ptr(buf.as_ptr()).to_bytes() == b"abbr" {
                 CPT_ABBR
-            } else if strcmp(buf.as_ptr(), c"kind".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(buf.as_ptr()).to_bytes() == b"kind" {
                 CPT_KIND
-            } else if strcmp(buf.as_ptr(), c"menu".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(buf.as_ptr()).to_bytes() == b"menu" {
                 CPT_MENU
             } else {
                 return e_invarg.as_ptr();
@@ -2395,7 +2395,7 @@ pub unsafe fn validate_filetype(args: *mut optset_T) -> *const c_char {
 pub unsafe fn did_set_filetype_or_syntax(args: *mut optset_T) -> *const c_char {
     unsafe {
         let varp = (*args).os_varp.cast::<*mut c_char>();
-        (*args).os_value_changed = strcmp((*args).os_oldval.data.string().data, *varp) != 0;
+        (*args).os_value_changed = std::ffi::CStr::from_ptr((*args).os_oldval.data.string().data).to_bytes() != std::ffi::CStr::from_ptr(*varp).to_bytes();
         (*args).os_value_checked = true;
         ptr::null()
     }
@@ -2529,7 +2529,7 @@ pub unsafe fn validate_helplang(args: *mut optset_T) -> *const c_char {
 /// Validate the 'highlight' option.
 pub unsafe fn validate_highlight(args: *mut optset_T) -> *const c_char {
     unsafe {
-        if strcmp((*args).os_newval.data.string().data, HIGHLIGHT_INIT.as_ptr()) != 0 {
+        if std::ffi::CStr::from_ptr((*args).os_newval.data.string().data).to_bytes() != std::ffi::CStr::from_ptr(HIGHLIGHT_INIT.as_ptr()).to_bytes() {
             return e_unsupportedoption.as_ptr();
         }
         ptr::null()
@@ -2646,8 +2646,8 @@ pub unsafe fn validate_lispoptions(args: *mut optset_T) -> *const c_char {
     unsafe {
         let value = (*args).os_newval.data.string().data;
         if *value == NUL
-            || strcmp(value, c"expr:0".as_ptr()) == 0
-            || strcmp(value, c"expr:1".as_ptr()) == 0
+            || std::ffi::CStr::from_ptr(value).to_bytes() == b"expr:0"
+            || std::ffi::CStr::from_ptr(value).to_bytes() == b"expr:1"
         {
             ptr::null()
         } else {
@@ -3341,7 +3341,7 @@ pub unsafe fn did_set_virtualedit(args: *mut optset_T) -> *const c_char {
             );
             if !errmsg.is_null() {
                 return errmsg;
-            } else if strcmp(ve, (*args).os_oldval.data.string().data) != 0 {
+            } else if std::ffi::CStr::from_ptr(ve).to_bytes() != std::ffi::CStr::from_ptr((*args).os_oldval.data.string().data).to_bytes() {
                 validate_virtcol(win);
                 coladvance(win, (*win).w_virtcol);
             }

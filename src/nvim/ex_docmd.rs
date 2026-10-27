@@ -219,7 +219,7 @@ use crate::spellfile::{ex_mkspell, ex_spell};
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_TERMINAL};
 use crate::statusline::draw_tabline;
 use crate::strings::{
-    atoi, atol, del_trailing_spaces, gettext, ngettext, strcmp, strlen, strncmp,
+    atoi, atol, del_trailing_spaces, gettext, ngettext, strlen, strncmp,
     strrep, vim_snprintf, vim_strchr, vim_stricmp, vim_strsave_escaped,
 };
 use crate::syntax::{ex_ownsyntax, ex_syntax, ex_syntime};
@@ -8718,9 +8718,9 @@ unsafe fn get_tabpage_arg(eap: *mut exarg_T) -> c_int {
                 tab_number = getdigits(&raw mut p, false, i64::from(tab_number)) as c_int;
 
                 if relative == 0 {
-                    if strcmp(p, c"$".as_ptr()) == 0 {
+                    if std::ffi::CStr::from_ptr(p).to_bytes() == b"$" {
                         tab_number = last_tab;
-                    } else if strcmp(p, c"#".as_ptr()) == 0 {
+                    } else if std::ffi::CStr::from_ptr(p).to_bytes() == b"#" {
                         if valid_tabpage(g_st().lastused_tabpage) {
                             tab_number = tabpage_index(g_st().lastused_tabpage);
                         } else {
@@ -10919,7 +10919,7 @@ pub unsafe fn do_chdir(mut new_dir: *mut c_char, scope: CdScope) -> bool {
             return false;
         }
 
-        if strcmp(new_dir, c"-".as_ptr()) == 0 {
+        if std::ffi::CStr::from_ptr(new_dir).to_bytes() == b"-" {
             let Some(ref prev) = *get_prevdir(scope) else {
                 let _ = emsg(gettext(c"E186: No previous directory".as_ptr()));
                 return false;
@@ -12244,7 +12244,7 @@ pub unsafe fn eval_vars(
                         valid = 0;
                     } else {
                         result = (*g_st().curbuf).b_fname;
-                        tilde_file = strcmp(result, c"~".as_ptr()) == 0;
+                        tilde_file = std::ffi::CStr::from_ptr(result).to_bytes() == b"~";
                     }
                     use_shellslash = true;
                 }
@@ -12299,7 +12299,7 @@ pub unsafe fn eval_vars(
                                 valid = 0;
                             } else {
                                 result = (*buf).b_fname;
-                                tilde_file = strcmp(result, c"~".as_ptr()) == 0;
+                                tilde_file = std::ffi::CStr::from_ptr(result).to_bytes() == b"~";
                             }
                         }
                     }
@@ -12608,7 +12608,7 @@ unsafe fn ex_filetype(eap: *mut exarg_T) {
             break;
         }
 
-        if strcmp(arg, c"on".as_ptr()) == 0 || strcmp(arg, c"detect".as_ptr()) == 0 {
+        if std::ffi::CStr::from_ptr(arg).to_bytes() == b"on" || std::ffi::CStr::from_ptr(arg).to_bytes() == b"detect" {
             if *arg == b'o' as c_char || docmd_st().filetype_detect != kTrue {
                 source_runtime(FILETYPE_FILE.as_ptr().cast_mut(), DIP_ALL);
                 docmd_st().filetype_detect = kTrue;
@@ -12629,7 +12629,7 @@ unsafe fn ex_filetype(eap: *mut exarg_T) {
                 );
                 do_modelines(0);
             }
-        } else if strcmp(arg, c"off".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr(arg).to_bytes() == b"off" {
             if plugin || indent {
                 if plugin {
                     source_runtime(FTPLUGOF_FILE.as_ptr().cast_mut(), DIP_ALL);
@@ -13079,7 +13079,7 @@ pub unsafe fn verify_command(cmd: *mut c_char) {
     ];
 
     unsafe {
-        if strcmp(c"smile".as_ptr(), cmd) != 0 {
+        if b"smile" != std::ffi::CStr::from_ptr(cmd).to_bytes() {
             return;
         }
         for line in &SMILE_LINES {

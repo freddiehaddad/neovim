@@ -1326,7 +1326,7 @@ unsafe fn au_st() -> &'static mut AutocmdState {
     unsafe { &mut *AU_STATE.as_ptr() }
 }
 
-use crate::strings::{vim_strchr, vim_stricmp, vim_strnicmp, vim_strnicmp_asc};
+use crate::strings::{vim_strchr, vim_stricmp, vim_strnicmp};
 
 unsafe fn map_put_name_to_id(name: *const c_char, val: c_int) {
     unsafe {
@@ -1495,7 +1495,7 @@ fn event_name2nr_hash(str_: *const c_char, len: usize) -> isize {
 
     for (i, &ev_raw) in EVENT_HASH.iter().enumerate().take(high).skip(low) {
         let ev = ev_raw as usize;
-        if unsafe { vim_strnicmp_asc(str_, EVENT_NAMES[ev].name.as_ptr(), len) == 0 } {
+        if unsafe { { let _p1 = str_; let _p2 = EVENT_NAMES[ev].name.as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } } {
             return i as isize;
         }
     }

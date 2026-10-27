@@ -17,7 +17,7 @@ use crate::keycodes::get_special_key_name;
 use crate::log::{LOGLVL_DBG, log_st, logmsg};
 use crate::option::get_ve_flags;
 use crate::os::input::{input_available, input_get, os_breakcheck};
-use crate::strings::{strcmp, vim_snprintf};
+use crate::strings::{vim_snprintf};
 use crate::ui::ui_flush;
 use crate::window::win_T;
 use std::ffi::{CStr, c_char, c_int, c_uint};
@@ -327,7 +327,7 @@ pub unsafe fn may_trigger_modechanged() {
         let mut pattern_buf: [c_char; 2 * MODE_MAX_LENGTH] = [0; 2 * MODE_MAX_LENGTH];
 
         get_mode(curr_mode.as_mut_ptr());
-        if strcmp(curr_mode.as_ptr(), ptr::addr_of!(g_st().last_mode).cast()) == 0 {
+        if std::ffi::CStr::from_ptr(curr_mode.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(ptr::addr_of!(g_st().last_mode).cast()).to_bytes() {
             return;
         }
 

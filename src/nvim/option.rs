@@ -129,7 +129,7 @@ use crate::runtime::{
 use crate::spell::{compile_cap_prog, did_set_spell_option, init_spell_chartab, parse_spelllang};
 use crate::spellsuggest::{spell_apply_sps, spell_check_sps};
 use crate::strings::{
-    gettext, strcmp, strlen, strncmp, tr, vim_snprintf,
+    gettext, strlen, strncmp, tr, vim_snprintf,
     vim_snprintf_safelen, vim_strchr, vim_strsave_escaped,
 };
 use crate::tag::free_tagfunc_option;
@@ -2363,7 +2363,7 @@ unsafe fn option_expand(opt_idx: OptIndex, mut val: *const c_char) -> *mut c_cha
                 ptr::null_mut()
             },
         );
-        if strcmp(namebuf_ptr, val) == 0 {
+        if std::ffi::CStr::from_ptr(namebuf_ptr).to_bytes() == std::ffi::CStr::from_ptr(val).to_bytes() {
             return ptr::null_mut();
         }
 
@@ -2761,7 +2761,7 @@ pub unsafe fn did_set_arabic(args: *mut optset_T) -> *const c_char {
                 }
             }
 
-            if strcmp(opt_vars().p_enc, c"utf-8".as_ptr()) != 0 {
+            if std::ffi::CStr::from_ptr(opt_vars().p_enc).to_bytes() != b"utf-8" {
                 msg_source(HLF_W);
                 msg(tr(W_ARABIC), HLF_W);
                 set_vim_var_string(VV_WARNINGMSG, tr(W_ARABIC), -1);
@@ -8498,7 +8498,7 @@ pub unsafe fn get_showbreak_value(win: *mut win_T) -> *mut c_char {
         if sbr.is_null() || *sbr == NUL {
             return opt_vars().p_sbr;
         }
-        if strcmp(sbr, c"NONE".as_ptr()) == 0 {
+        if std::ffi::CStr::from_ptr(sbr).to_bytes() == b"NONE" {
             return empty_string_option.as_ptr().cast::<c_char>();
         }
         sbr

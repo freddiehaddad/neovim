@@ -175,21 +175,6 @@ pub unsafe fn strlen(s: *const c_char) -> usize {
 }
 
 #[inline]
-pub unsafe fn strcmp(mut s1: *const c_char, mut s2: *const c_char) -> c_int {
-    unsafe {
-        loop {
-            let b1 = *s1 as u8;
-            let b2 = *s2 as u8;
-            if b1 != b2 || b1 == 0 {
-                return c_int::from(b1) - c_int::from(b2);
-            }
-            s1 = s1.add(1);
-            s2 = s2.add(1);
-        }
-    }
-}
-
-#[inline]
 pub unsafe fn strncmp(mut s1: *const c_char, mut s2: *const c_char, mut n: usize) -> c_int {
     unsafe {
         while n > 0 {
@@ -404,7 +389,6 @@ fn write_fmt_to_c_buf(dst: &mut [c_char], args: std::fmt::Arguments<'_>) -> usiz
     written
 }
 
-use crate::charset::tolower_asc;
 
 pub unsafe fn vim_strsave_escaped(
     string: *const c_char,
@@ -785,26 +769,6 @@ pub unsafe fn vim_strnicmp(mut s1: *const c_char, mut s2: *const c_char, mut len
             len -= 1;
         }
         0
-    }
-}
-
-pub unsafe fn vim_strnicmp_asc(
-    mut s1: *const c_char,
-    mut s2: *const c_char,
-    mut len: usize,
-) -> c_int {
-    unsafe {
-        let mut i: c_int = 0;
-        while len > 0 {
-            i = tolower_asc(c_int::from(*s1 as u8)) - tolower_asc(c_int::from(*s2 as u8));
-            if i != 0 || *s1 == NUL {
-                break;
-            }
-            s1 = s1.add(1);
-            s2 = s2.add(1);
-            len -= 1;
-        }
-        i
     }
 }
 
@@ -3333,14 +3297,11 @@ mod tests {
             let cat = concat_str(c"hello ".as_ptr(), c"world".as_ptr());
             assert_eq!(cat.to_str().unwrap(), "hello world");
 
-            assert_eq!(vim_strnicmp_asc(c"AbC".as_ptr(), c"aBc".as_ptr(), 3), 0);
             assert!(!has_non_ascii(c"ascii".as_ptr()));
             assert_eq!(format_typeof(c"lld".as_ptr()), TYPE_LONGLONGINT);
             assert_eq!(format_typeof(c"zu".as_ptr()), TYPE_SIZET);
 
             assert_eq!(strlen(c"hello".as_ptr()), 5);
-            assert_eq!(strcmp(c"abc".as_ptr(), c"abc".as_ptr()), 0);
-            assert!(strcmp(c"abc".as_ptr(), c"abd".as_ptr()) < 0);
             assert_eq!(strncmp(c"abcdef".as_ptr(), c"abcxyz".as_ptr(), 3), 0);
             assert_eq!(atoi(c"  -1234px".as_ptr()), -1234);
             assert_eq!(atol(c" +56789".as_ptr()), 56789);

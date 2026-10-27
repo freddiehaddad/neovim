@@ -44,7 +44,7 @@ use crate::message::{
     emsg, msg_outtrans, msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg, smsg,
 };
 use crate::msgpack_rpc::packer::Integer;
-use crate::strings::{atoi, gettext, strcmp, strncmp, vim_snprintf, vim_strchr};
+use crate::strings::{atoi, gettext, strncmp, vim_snprintf, vim_strchr};
 use crate::window::buf_jump_open_win;
 use std::cmp::Ordering;
 use std::ffi::{CStr, c_char, c_int};
@@ -130,7 +130,7 @@ unsafe fn pmap_get_sign(name: *const c_char) -> *mut sign_T {
     unsafe {
         let sm_ptr = &raw mut sign_st().sign_map;
         for sp in &mut *sm_ptr {
-            if strcmp(sp.sn_name.as_ptr(), name) == 0 {
+            if std::ffi::CStr::from_ptr(sp.sn_name.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(name).to_bytes() {
                 return sp;
             }
         }
@@ -157,7 +157,7 @@ unsafe fn group_get_ns(group: *const c_char) -> i64 {
     unsafe {
         if group.is_null() {
             return 0;
-        } else if strcmp(group, c"*".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr(group).to_bytes() == b"*" {
             return i64::from(u32::MAX);
         }
         let ns = find_ns_by_name(group);
@@ -466,7 +466,7 @@ unsafe fn sign_cmd_idx(begin_cmd: *mut c_char, end_cmd: *mut c_char) -> c_int {
         let mut idx: usize = 0;
         loop {
             let cmd = CMDS[idx];
-            if cmd.is_null() || strcmp(begin_cmd, cmd) == 0 {
+            if cmd.is_null() || std::ffi::CStr::from_ptr(begin_cmd).to_bytes() == std::ffi::CStr::from_ptr(cmd).to_bytes() {
                 break;
             }
             idx += 1;
@@ -608,7 +608,7 @@ unsafe fn sign_define_by_name(
                 if sh
                     .sign_name
                     .as_ref()
-                    .is_some_and(|sn| strcmp(sn.as_ptr(), name) == 0)
+                    .is_some_and(|sn| std::ffi::CStr::from_ptr(sn.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(name).to_bytes())
                 {
                     sh.text = (*sp).sn_text;
                     sh.hl_id = (*sp).sn_text_hl;
@@ -637,7 +637,7 @@ unsafe fn sign_undefine_by_name(name: *const c_char) -> c_int {
         let sm_ptr = &raw mut sign_st().sign_map;
         let Some(pos) = (*sm_ptr)
             .iter()
-            .position(|sp| strcmp(sp.sn_name.as_ptr(), name) == 0)
+            .position(|sp| std::ffi::CStr::from_ptr(sp.sn_name.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(name).to_bytes())
         else {
             semsg!(gettext(c"E155: Unknown sign: %s".as_ptr()), name);
             return FAIL;

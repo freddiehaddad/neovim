@@ -135,7 +135,7 @@ use crate::state::{
     save_v_event_T, state_enter, state_handle_k_event,
 };
 use crate::strings::{
-    gettext, strcmp, strlen, strncmp, vim_strchr, vim_strnicmp,
+    gettext, strlen, strncmp, vim_strchr, vim_strnicmp,
     vim_strsave_escaped,
 };
 use crate::ui::{
@@ -3321,7 +3321,7 @@ unsafe fn command_line_changed(s: *mut CommandLineState) -> c_int {
                 || (*s)
                     .prev_cmdbuff
                     .as_ref()
-                    .is_some_and(|prev| strcmp(prev.as_ptr(), getln_st().ccline.cmdbuff) != 0))
+                    .is_some_and(|prev| std::ffi::CStr::from_ptr(prev.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(getln_st().ccline.cmdbuff).to_bytes()))
         {
             do_autocmd_cmdlinechanged(if (*s).firstc > 0 {
                 (*s).firstc
@@ -3756,7 +3756,7 @@ unsafe fn color_cmdline(colored_ccline: *mut CmdlineInfo) -> bool {
             && (*ccline_colors)
                 .cmdbuff
                 .as_ref()
-                .is_some_and(|cb| strcmp(cb.as_ptr(), (*colored_ccline).cmdbuff) == 0)
+                .is_some_and(|cb| std::ffi::CStr::from_ptr(cb.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr((*colored_ccline).cmdbuff).to_bytes())
         {
             return ret;
         }

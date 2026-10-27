@@ -69,7 +69,7 @@ use crate::sha256::context_sha256_T;
 use crate::spell::spell_check_window;
 use crate::state::virtual_active;
 use crate::strings::{
-    gettext, ngettext, strcmp, strlen, vim_snprintf, vim_snprintf_add, vim_strchr,
+    gettext, ngettext, strlen, vim_snprintf, vim_snprintf_add, vim_strchr,
 };
 use std::ffi::{CStr, c_char, c_int, c_uint, c_ulong};
 use std::ptr;
@@ -2150,10 +2150,7 @@ unsafe fn u_undoredo(undo: bool, do_buf_event: bool) {
                 } else if top < newlnum {
                     let mut i: linenr_T = 0;
                     while i < newsize && i < oldsize {
-                        if strcmp(
-                            (*uep).ue_array.as_slice()[i as usize].as_ptr(),
-                            ml_get(top + 1 + i),
-                        ) != 0
+                        if std::ffi::CStr::from_ptr((*uep).ue_array.as_slice()[i as usize].as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(ml_get(top + 1 + i)).to_bytes()
                         {
                             break;
                         }
@@ -2637,10 +2634,7 @@ pub unsafe fn u_find_first_changed() {
 
         let mut lnum: linenr_T = 1;
         while lnum < (*g_st().curbuf).b_ml.ml_line_count && lnum <= (*uep).ue_size() {
-            if strcmp(
-                ml_get_buf(g_st().curbuf, lnum),
-                (*uep).ue_array.as_slice()[(lnum - 1) as usize].as_ptr(),
-            ) != 0
+            if std::ffi::CStr::from_ptr(ml_get_buf(g_st().curbuf, lnum)).to_bytes() != std::ffi::CStr::from_ptr((*uep).ue_array.as_slice()[(lnum - 1) as usize].as_ptr()).to_bytes()
             {
                 clearpos(&mut uhp_mut(g_st().curbuf, nh).uh_cursor);
                 uhp_mut(g_st().curbuf, nh).uh_cursor.lnum = lnum;
@@ -2842,10 +2836,7 @@ pub unsafe fn u_forget_unchanged(buf: *mut buf_T) {
             return;
         }
         for i in 0..(*uep).ue_size() {
-            if strcmp(
-                (*uep).ue_array.as_slice()[i as usize].as_ptr(),
-                ml_get_buf(buf, (*uep).ue_top + 1 + i),
-            ) != 0
+            if std::ffi::CStr::from_ptr((*uep).ue_array.as_slice()[i as usize].as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(ml_get_buf(buf, (*uep).ue_top + 1 + i)).to_bytes()
             {
                 return;
             }

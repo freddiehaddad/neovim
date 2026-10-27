@@ -110,7 +110,7 @@ use crate::path::{
 };
 use crate::search::{BACKWARD, Direction, FORWARD, do_search, last_search_pat};
 use crate::strings::{
-    atoi, atol, gettext, has_non_ascii, strcmp, strlen, vim_snprintf, vim_snprintf_safelen,
+    atoi, atol, gettext, has_non_ascii, strlen, vim_snprintf, vim_snprintf_safelen,
     vim_strchr,
 };
 use crate::ui::ui_flush;
@@ -649,7 +649,6 @@ fn ql_info_ptr() -> *mut qf_info_T {
     unsafe { &raw mut (*QF_STATE.as_ptr()).ql_info_actual }
 }
 
-use crate::strings::vim_strnicmp_asc;
 
 #[inline]
 unsafe fn c_strcat(dst: *mut c_char, src: *const c_char) {
@@ -1577,7 +1576,7 @@ unsafe fn qf_init_ext(
             .as_ref()
             .unwrap()
             .as_ref()
-            .is_none_or(|c| strcmp(c.as_ptr(), efm) != 0);
+            .is_none_or(|c| std::ffi::CStr::from_ptr(c.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(efm).to_bytes());
         if efm_changed {
             qf_st().last_efm_cache = None;
             (*cache_ptr).clear();
@@ -2633,7 +2632,7 @@ unsafe fn qf_get_fnum(
             .as_ref()
             .unwrap()
             .as_ref()
-            .is_some_and(|last| strcmp(bufname_ptr, last.as_ptr()) == 0);
+            .is_some_and(|last| std::ffi::CStr::from_ptr(bufname_ptr).to_bytes() == std::ffi::CStr::from_ptr(last.as_ptr()).to_bytes());
         let buf = if same_as_last && bufref_valid(&raw mut qf_st().qf_last_bufref) {
             drop(ptr_cstr);
             qf_st().qf_last_bufref.br_buf
@@ -4749,7 +4748,7 @@ pub unsafe fn grep_internal(cmdidx: c_int) -> c_int {
                 || cmdidx == CMD_lgrep
                 || cmdidx == CMD_grepadd
                 || cmdidx == CMD_lgrepadd)
-                && strcmp(c"internal".as_ptr(), gp) == 0,
+                && b"internal" == std::ffi::CStr::from_ptr(gp).to_bytes(),
         )
     }
 }
@@ -5929,7 +5928,7 @@ unsafe fn vgr_process_files(
 
                         if buf == *first_match_buf
                             && target_dir.is_none()
-                            && strcmp(dirname_start.as_ptr(), dirname_now.as_ptr()) != 0
+                            && (std::ffi::CStr::from_ptr(dirname_start.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(dirname_now.as_ptr()).to_bytes())
                         {
                             *target_dir = Some(CStr::from_ptr(dirname_now.as_ptr()).to_owned());
                         }
@@ -6063,7 +6062,7 @@ unsafe fn restore_start_dir(dirname_start: *mut c_char) {
         let mut dirname_now = vec![0 as c_char; MAXPATHL];
 
         os_dirname(dirname_now.as_mut_ptr(), MAXPATHL);
-        if strcmp(dirname_start, dirname_now.as_ptr()) != 0 {
+        if std::ffi::CStr::from_ptr(dirname_start).to_bytes() != std::ffi::CStr::from_ptr(dirname_now.as_ptr()).to_bytes() {
             let mut ea: exarg_T = exarg_T::new();
             ea.arg = dirname_start;
             ea.cmdidx = if (**curwin.as_ptr()).w_localdir.is_none() {
@@ -7162,7 +7161,7 @@ unsafe fn qf_setprop_curidx(
 
         if (*di).di_tv.v_type == VarType::VAR_STRING
             && !(*di).di_tv.vval.v_string().is_null()
-            && strcmp((*di).di_tv.vval.v_string(), c"$".as_ptr()) == 0
+            && (std::ffi::CStr::from_ptr((*di).di_tv.vval.v_string()).to_bytes() == b"$")
         {
             newidx = (*qfl).count();
         } else {
@@ -7756,9 +7755,9 @@ unsafe fn hgr_search_files_in_dir(
                 let flen = f_cstr.as_bytes().len();
                 if !lang.is_null()
                     && flen >= 3
-                    && vim_strnicmp_asc(lang, f.add(flen - 3), 2) != 0
-                    && !(vim_strnicmp_asc(lang, c"en".as_ptr(), 2) == 0
-                        && vim_strnicmp_asc(c"txt".as_ptr(), f.add(flen - 3), 3) == 0)
+                    && !({ let _p1 = lang; let _p2 = f.add(flen - 3); let _n = 2; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) })
+                    && !({ let _p1 = lang; let _p2 = c"en".as_ptr(); let _n = 2; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) }
+                        && { let _p1 = c"txt".as_ptr(); let _p2 = f.add(flen - 3); let _n = 3; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) })
                 {
                     continue;
                 }

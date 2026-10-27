@@ -32,8 +32,7 @@ use crate::state::{
     MODE_TERMINAL, MODE_VISUAL, get_real_state,
 };
 use crate::strings::{
-    gettext, strcmp, strncmp, vim_strchr, vim_stricmp, vim_strnicmp_asc,
-};
+    gettext, strncmp, vim_strchr, vim_stricmp, };
 use crate::ui::ui_call_update_menu;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -335,7 +334,7 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
         let root_menu_ptr = get_root_menu(menu_path);
 
         if enable != kNone {
-            if strcmp(menu_path, c"*".as_ptr()) == 0 {
+            if std::ffi::CStr::from_ptr(menu_path).to_bytes() == b"*" {
                 menu_path = c"".as_ptr().cast_mut();
             }
 
@@ -358,7 +357,7 @@ pub unsafe fn ex_menu(eap: *mut exarg_T) {
                 return;
             }
 
-            if strcmp(menu_path, c"*".as_ptr()) == 0 {
+            if std::ffi::CStr::from_ptr(menu_path).to_bytes() == b"*" {
                 menu_path = c"".as_ptr().cast_mut();
             }
 
@@ -1856,7 +1855,7 @@ unsafe fn menutrans_lookup(name: *mut c_char, len: c_int) -> *mut c_char {
 
         for entry in menutrans {
             let from_ptr = entry.from.as_ptr();
-            if vim_strnicmp_asc(name, from_ptr, u_len) == 0 && *from_ptr.add(u_len) == NUL {
+            if { let _p1 = name; let _p2 = from_ptr; let _n = u_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } && *from_ptr.add(u_len) == NUL {
                 return entry.to.as_ptr().cast_mut();
             }
         }
@@ -1896,7 +1895,7 @@ unsafe fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
         while *arg != NUL && !ascii_iswhite(*arg) {
             if (*arg == b'\\' as c_char || *arg == Ctrl_V) && *arg.add(1) != NUL {
                 arg = arg.add(1);
-            } else if vim_strnicmp_asc(arg, c"<TAB>".as_ptr(), 5) == 0 {
+            } else if { let _p1 = arg; let _p2 = c"<TAB>".as_ptr(); let _n = 5; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                 *arg = TAB;
                 ptr::copy(arg.add(5), arg.add(1), std::ffi::CStr::from_ptr(arg.add(5)).to_bytes_with_nul().len());
             }

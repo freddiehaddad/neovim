@@ -55,8 +55,7 @@ use crate::os::env::expand_T;
 use crate::os::input::line_breakcheck;
 use crate::runtime::sourcing_lnum;
 use crate::strings::{
-    gettext, strcmp, strncmp, vim_strchr, vim_strnicmp_asc,
-};
+    gettext, strncmp, vim_strchr, };
 use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, prevwin_curwin, tabpage_index,
 };
@@ -360,15 +359,15 @@ pub unsafe fn set_context_in_user_cmd(xp: *mut expand_T, arg_in: *const c_char) 
                 }
 
                 let attr_len = p.offset_from(arg) as usize;
-                if vim_strnicmp_asc(arg, c"complete".as_ptr(), attr_len) == 0 {
+                if { let _p1 = arg; let _p2 = c"complete".as_ptr(); let _n = attr_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                     (*xp).xp_context = EXPAND_USER_COMPLETE;
                     (*xp).xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
-                } else if vim_strnicmp_asc(arg, c"nargs".as_ptr(), attr_len) == 0 {
+                } else if { let _p1 = arg; let _p2 = c"nargs".as_ptr(); let _n = attr_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                     (*xp).xp_context = EXPAND_USER_NARGS;
                     (*xp).xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
-                } else if vim_strnicmp_asc(arg, c"addr".as_ptr(), attr_len) == 0 {
+                } else if { let _p1 = arg; let _p2 = c"addr".as_ptr(); let _n = attr_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                     (*xp).xp_context = EXPAND_USER_ADDR_TYPE;
                     (*xp).xp_pattern = p.add(1).cast_mut();
                     return ptr::null();
@@ -463,7 +462,7 @@ pub unsafe fn get_user_commands(_xp: *mut expand_T, mut idx: c_int) -> *mut c_ch
             let name = (&*u)[idx as usize].uc_name.as_ptr().cast_mut();
 
             for cmd in &(*buf).b_ucmds {
-                if strcmp(name, cmd.uc_name.as_ptr()) == 0 {
+                if std::ffi::CStr::from_ptr(name).to_bytes() == std::ffi::CStr::from_ptr(cmd.uc_name.as_ptr()).to_bytes() {
                     return c"".as_ptr().cast_mut();
                 }
             }
@@ -589,7 +588,7 @@ pub unsafe fn cmdcomplete_str_to_type(complete_str: *const c_char) -> c_int {
             if cmd_compl.is_null() {
                 continue;
             }
-            if strcmp(complete_str, cmd_compl) == 0 {
+            if std::ffi::CStr::from_ptr(complete_str).to_bytes() == std::ffi::CStr::from_ptr(cmd_compl).to_bytes() {
                 return i;
             }
         }
@@ -946,15 +945,15 @@ unsafe fn uc_scan_attr(
             return FAIL;
         }
 
-        if vim_strnicmp_asc(attr, c"bang".as_ptr(), len) == 0 {
+        if { let _p1 = attr; let _p2 = c"bang".as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             *argt |= EX_BANG;
-        } else if vim_strnicmp_asc(attr, c"buffer".as_ptr(), len) == 0 {
+        } else if { let _p1 = attr; let _p2 = c"buffer".as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             *flags |= UC_BUFFER;
-        } else if vim_strnicmp_asc(attr, c"register".as_ptr(), len) == 0 {
+        } else if { let _p1 = attr; let _p2 = c"register".as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             *argt |= EX_REGSTR;
-        } else if vim_strnicmp_asc(attr, c"keepscript".as_ptr(), len) == 0 {
+        } else if { let _p1 = attr; let _p2 = c"keepscript".as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             *argt |= EX_KEEPSCRIPT;
-        } else if vim_strnicmp_asc(attr, c"bar".as_ptr(), len) == 0 {
+        } else if { let _p1 = attr; let _p2 = c"bar".as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             *argt |= EX_TRLBAR;
         } else {
             let mut val: *mut c_char = ptr::null_mut();
@@ -970,7 +969,7 @@ unsafe fn uc_scan_attr(
                 }
             }
 
-            if vim_strnicmp_asc(attr, c"nargs".as_ptr(), attrlen) == 0 {
+            if { let _p1 = attr; let _p2 = c"nargs".as_ptr(); let _n = attrlen; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                 if vallen == 1 {
                     match *val as u8 {
                         b'0' => {}
@@ -988,7 +987,7 @@ unsafe fn uc_scan_attr(
                     emsg(gettext(c"E176: Invalid number of arguments".as_ptr()));
                     return FAIL;
                 }
-            } else if vim_strnicmp_asc(attr, c"range".as_ptr(), attrlen) == 0 {
+            } else if { let _p1 = attr; let _p2 = c"range".as_ptr(); let _n = attrlen; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                 *argt |= EX_RANGE;
                 if vallen == 1 && *val == b'%' as c_char {
                     *argt |= EX_DFLALL;
@@ -1010,7 +1009,7 @@ unsafe fn uc_scan_attr(
                 if *addr_type_arg == ADDR_NONE {
                     *addr_type_arg = ADDR_LINES;
                 }
-            } else if vim_strnicmp_asc(attr, c"count".as_ptr(), attrlen) == 0 {
+            } else if { let _p1 = attr; let _p2 = c"count".as_ptr(); let _n = attrlen; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                 *argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                 if *addr_type_arg == ADDR_NONE {
                     *addr_type_arg = ADDR_OTHER;
@@ -1034,7 +1033,7 @@ unsafe fn uc_scan_attr(
                 if *def < 0 {
                     *def = 0;
                 }
-            } else if vim_strnicmp_asc(attr, c"complete".as_ptr(), attrlen) == 0 {
+            } else if { let _p1 = attr; let _p2 = c"complete".as_ptr(); let _n = attrlen; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                 if val.is_null() {
                     semsg!(
                         gettext(E_ARGUMENT_REQUIRED_FOR_STR.as_ptr()),
@@ -1046,7 +1045,7 @@ unsafe fn uc_scan_attr(
                 if parse_compl_arg(val, vallen as c_int, complp, argt, compl_arg) == FAIL {
                     return FAIL;
                 }
-            } else if vim_strnicmp_asc(attr, c"addr".as_ptr(), attrlen) == 0 {
+            } else if { let _p1 = attr; let _p2 = c"addr".as_ptr(); let _n = attrlen; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                 *argt |= EX_RANGE;
                 if val.is_null() {
                     semsg!(
@@ -1302,7 +1301,7 @@ pub unsafe fn ex_delcommand(eap: *mut exarg_T) {
         loop {
             i = 0;
             while (i as usize) < gap.len() {
-                res = strcmp(arg, gap[i as usize].uc_name.as_ptr());
+                res = std::ffi::CStr::from_ptr(arg).to_bytes().cmp(std::ffi::CStr::from_ptr(gap[i as usize].uc_name.as_ptr()).to_bytes()) as c_int;
                 if res <= 0 {
                     break;
                 }
@@ -1695,25 +1694,25 @@ unsafe fn uc_check_code(
         l += 1;
         if l <= 1 {
             // type_ = CodeType::None
-        } else if vim_strnicmp_asc(p, c"args>".as_ptr(), l) == 0 {
+        } else if { let _p1 = p; let _p2 = c"args>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             type_ = CodeType::Args;
-        } else if vim_strnicmp_asc(p, c"bang>".as_ptr(), l) == 0 {
+        } else if { let _p1 = p; let _p2 = c"bang>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             type_ = CodeType::Bang;
-        } else if vim_strnicmp_asc(p, c"count>".as_ptr(), l) == 0 {
+        } else if { let _p1 = p; let _p2 = c"count>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             type_ = CodeType::Count;
-        } else if vim_strnicmp_asc(p, c"line1>".as_ptr(), l) == 0 {
+        } else if { let _p1 = p; let _p2 = c"line1>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             type_ = CodeType::Line1;
-        } else if vim_strnicmp_asc(p, c"line2>".as_ptr(), l) == 0 {
+        } else if { let _p1 = p; let _p2 = c"line2>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             type_ = CodeType::Line2;
-        } else if vim_strnicmp_asc(p, c"range>".as_ptr(), l) == 0 {
+        } else if { let _p1 = p; let _p2 = c"range>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             type_ = CodeType::Range;
-        } else if vim_strnicmp_asc(p, c"lt>".as_ptr(), l) == 0 {
+        } else if { let _p1 = p; let _p2 = c"lt>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             type_ = CodeType::Lt;
-        } else if vim_strnicmp_asc(p, c"reg>".as_ptr(), l) == 0
-            || vim_strnicmp_asc(p, c"register>".as_ptr(), l) == 0
+        } else if { let _p1 = p; let _p2 = c"reg>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) }
+            || { let _p1 = p; let _p2 = c"register>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) }
         {
             type_ = CodeType::Register;
-        } else if vim_strnicmp_asc(p, c"mods>".as_ptr(), l) == 0 {
+        } else if { let _p1 = p; let _p2 = c"mods>".as_ptr(); let _n = l; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
             type_ = CodeType::Mods;
         }
 

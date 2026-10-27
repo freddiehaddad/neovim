@@ -102,7 +102,7 @@ use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
 use crate::statusline::build_stl_str_hl;
 use crate::strings::{
-    gettext, ngettext, strcmp, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
+    gettext, ngettext, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
     vim_strchr,
 };
 use crate::syntax::{reset_synblock, synblock_T, syntax_clear};
@@ -4356,7 +4356,7 @@ unsafe fn value_change(str_: *mut c_char, last: &mut Option<std::ffi::CString>) 
     unsafe {
         let last_ptr = last.as_ref().map_or(ptr::null(), |s| s.as_ptr());
         if str_.is_null() != last_ptr.is_null()
-            || (!str_.is_null() && !last_ptr.is_null() && strcmp(str_, last_ptr) != 0)
+            || (!str_.is_null() && !last_ptr.is_null() && std::ffi::CStr::from_ptr(str_).to_bytes() != std::ffi::CStr::from_ptr(last_ptr).to_bytes())
         {
             if str_.is_null() {
                 *last = None;
@@ -5048,7 +5048,7 @@ pub unsafe fn buf_contents_changed(buf: *mut buf_T) -> bool {
         {
             differ = false;
             for lnum in 1..=(*g_st().curbuf).b_ml.ml_line_count {
-                if strcmp(ml_get_buf(buf, lnum), ml_get(lnum)) != 0 {
+                if std::ffi::CStr::from_ptr(ml_get_buf(buf, lnum)).to_bytes() != std::ffi::CStr::from_ptr(ml_get(lnum)).to_bytes() {
                     differ = true;
                     break;
                 }

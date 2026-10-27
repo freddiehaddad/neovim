@@ -49,7 +49,7 @@ use crate::regexp::{
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{
-    gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
+    gettext, strlen, strncmp, vim_snprintf, vim_strchr,
     vim_stricmp, vim_strnicmp, vim_strnsave_up, vim_strsave_up,
 };
 use crate::window::win_T;
@@ -4174,13 +4174,13 @@ unsafe fn syn_cmd_region(eap: *mut exarg_T, syncing: c_int) {
             }
             key = Some(vim_strnsave_up(rest, key_end.offset_from(rest) as usize));
             let key_ptr = key.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
-            let item = if strcmp(key_ptr, c"MATCHGROUP".as_ptr()) == 0 {
+            let item = if std::ffi::CStr::from_ptr(key_ptr).to_bytes() == b"MATCHGROUP" {
                 ITEM_MATCHGROUP
-            } else if strcmp(key_ptr, c"START".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(key_ptr).to_bytes() == b"START" {
                 ITEM_START
-            } else if strcmp(key_ptr, c"END".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(key_ptr).to_bytes() == b"END" {
                 ITEM_END
-            } else if strcmp(key_ptr, c"SKIP".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(key_ptr).to_bytes() == b"SKIP" {
                 if !pat_ptrs[ITEM_SKIP].is_empty() {
                     illegal = true;
                     break;
@@ -4371,7 +4371,7 @@ unsafe fn syn_scl_name2id(name: *const c_char) -> c_int {
         let mut i = (*win_s(*curwin.as_ptr())).b_syn_clusters.len() as c_int - 1;
         while i >= 0 {
             let clp = syn_clstr(win_s(*curwin.as_ptr())).offset(i as isize);
-            if strcmp(name_u.as_ptr(), (*clp).scl_name_u.as_ptr()) == 0 {
+            if std::ffi::CStr::from_ptr(name_u.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr((*clp).scl_name_u.as_ptr()).to_bytes() {
                 break;
             }
             i -= 1;
@@ -4611,7 +4611,7 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
                 arg_end.offset_from(arg_start) as usize,
             ));
             let key = key_owned.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
-            if strcmp(key, c"CCOMMENT".as_ptr()) == 0 {
+            if std::ffi::CStr::from_ptr(key).to_bytes() == b"CCOMMENT" {
                 if (*eap).skip == 0 {
                     (*win_s(*curwin.as_ptr())).b_syn_sync_flags |= SF_CCOMMENT;
                 }
@@ -4653,12 +4653,12 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
                         (*win_s(*curwin.as_ptr())).b_syn_sync_minlines = n;
                     }
                 }
-            } else if strcmp(key, c"FROMSTART".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"FROMSTART" {
                 if (*eap).skip == 0 {
                     (*win_s(*curwin.as_ptr())).b_syn_sync_minlines = MAXLNUM;
                     (*win_s(*curwin.as_ptr())).b_syn_sync_maxlines = 0;
                 }
-            } else if strcmp(key, c"LINECONT".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"LINECONT" {
                 if *next_arg == NUL {
                     illegal = true;
                     break;
@@ -4701,11 +4701,11 @@ unsafe fn syn_cmd_sync(eap: *mut exarg_T, _syncing: c_int) {
                 next_arg = skipwhite(arg_end.add(1));
             } else {
                 (*eap).arg = next_arg;
-                if strcmp(key, c"MATCH".as_ptr()) == 0 {
+                if std::ffi::CStr::from_ptr(key).to_bytes() == b"MATCH" {
                     syn_cmd_match(eap, 1);
-                } else if strcmp(key, c"REGION".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"REGION" {
                     syn_cmd_region(eap, 1);
-                } else if strcmp(key, c"CLEAR".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(key).to_bytes() == b"CLEAR" {
                     syn_cmd_clear(eap, 1);
                 } else {
                     illegal = true;
@@ -4761,10 +4761,10 @@ unsafe fn get_id_list(
                 let name = name_buf.as_mut_ptr();
                 xmemcpyz(name.add(1).cast(), p.cast(), end.offset_from(p) as usize);
                 let mut id: c_int;
-                if strcmp(name.add(1), c"ALLBUT".as_ptr()) == 0
-                    || strcmp(name.add(1), c"ALL".as_ptr()) == 0
-                    || strcmp(name.add(1), c"TOP".as_ptr()) == 0
-                    || strcmp(name.add(1), c"CONTAINED".as_ptr()) == 0
+                if (std::ffi::CStr::from_ptr(name.add(1)).to_bytes() == b"ALLBUT")
+                    || (std::ffi::CStr::from_ptr(name.add(1)).to_bytes() == b"ALL")
+                    || (std::ffi::CStr::from_ptr(name.add(1)).to_bytes() == b"TOP")
+                    || (std::ffi::CStr::from_ptr(name.add(1)).to_bytes() == b"CONTAINED")
                 {
                     if !(**arg as u8).eq_ignore_ascii_case(&b'C') {
                         semsg!(gettext(c"E407: %s not allowed here".as_ptr()), name.add(1));
@@ -5107,7 +5107,7 @@ pub unsafe fn ex_syntax(eap: *mut exarg_T) {
         }
         let mut found = false;
         for &(name, func) in &SUBCOMMANDS {
-            if strcmp(subcmd_name.as_ptr(), name) == 0 {
+            if std::ffi::CStr::from_ptr(subcmd_name.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(name).to_bytes() {
                 (*eap).arg = skipwhite(subcmd_end);
                 func(eap, 0);
                 found = true;
@@ -5414,13 +5414,13 @@ pub unsafe fn syn_get_foldlevel(wp: *mut win_T, lnum: linenr_T) -> c_int {
 /// ":syntime".
 pub unsafe fn ex_syntime(eap: *mut exarg_T) {
     unsafe {
-        if strcmp((*eap).arg, c"on".as_ptr()) == 0 {
+        if std::ffi::CStr::from_ptr((*eap).arg).to_bytes() == b"on" {
             syn_st().syn_time_on = true;
-        } else if strcmp((*eap).arg, c"off".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr((*eap).arg).to_bytes() == b"off" {
             syn_st().syn_time_on = false;
-        } else if strcmp((*eap).arg, c"clear".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr((*eap).arg).to_bytes() == b"clear" {
             syntime_clear();
-        } else if strcmp((*eap).arg, c"report".as_ptr()) == 0 {
+        } else if std::ffi::CStr::from_ptr((*eap).arg).to_bytes() == b"report" {
             syntime_report();
         } else {
             semsg!(gettext((&raw const e_invarg2).cast()), (*eap).arg);

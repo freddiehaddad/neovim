@@ -60,7 +60,7 @@ use crate::path::{
 };
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
-use crate::strings::{gettext, strcmp, strlen, tr, vim_strchr};
+use crate::strings::{gettext, strlen, tr, vim_strchr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::bufIsChanged;
 use std::ffi::{CStr, c_char, c_int, c_long, c_uint};
@@ -1404,7 +1404,7 @@ pub unsafe fn ml_recover(checkext: bool) {
         } else {
             for i_lnum in 1..=lnum {
                 let p_line = CStr::from_ptr(ml_get(i_lnum)).to_owned();
-                let cmp = strcmp(p_line.as_ptr(), ml_get(i_lnum + lnum));
+                let cmp = std::ffi::CStr::from_ptr(p_line.as_ptr()).to_bytes().cmp(std::ffi::CStr::from_ptr(ml_get(i_lnum + lnum)).to_bytes()) as c_int;
                 if cmp != 0 {
                     changed_internal(g_st().curbuf);
                     buf_inc_changedtick(g_st().curbuf);
@@ -3848,11 +3848,11 @@ unsafe fn fnamecmp_ino(fname_c: *mut c_char, fname_s: *mut c_char, ino_block0: c
         let retval_c = vim_FullName(fname_c, buf_c_ptr, MAXPATHL, true);
         let retval_s = vim_FullName(fname_s, buf_s_ptr, MAXPATHL, true);
         if retval_c == OK && retval_s == OK {
-            return strcmp(buf_c_ptr, buf_s_ptr) != 0;
+            return std::ffi::CStr::from_ptr(buf_c_ptr).to_bytes() != std::ffi::CStr::from_ptr(buf_s_ptr).to_bytes();
         }
 
         if ino_s == 0 && ino_c == 0 && retval_c == FAIL && retval_s == FAIL {
-            return strcmp(fname_c, fname_s) != 0;
+            return std::ffi::CStr::from_ptr(fname_c).to_bytes() != std::ffi::CStr::from_ptr(fname_s).to_bytes();
         }
         true
     }

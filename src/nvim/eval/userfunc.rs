@@ -76,7 +76,7 @@ use crate::runtime::{
 };
 use crate::search::{restore_search_patterns, save_search_patterns};
 use crate::strings::{
-    gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
+    gettext, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::ui::ui_has;
 use std::ffi::{CStr, c_char, c_int};
@@ -2717,7 +2717,7 @@ unsafe fn get_function_body(
                     } else {
                         theline.add(heredoc_trimmedlen)
                     };
-                    if strcmp(p, marker.as_ptr()) == 0 {
+                    if std::ffi::CStr::from_ptr(p).to_bytes() == std::ffi::CStr::from_ptr(marker.as_ptr()).to_bytes() {
                         skip_until = None;
                         heredoc_trimmed = None;
                         heredoc_trimmedlen = 0;

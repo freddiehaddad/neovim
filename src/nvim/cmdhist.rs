@@ -105,7 +105,6 @@ impl Default for histentry_T {
 }
 
 use crate::globals::IOSIZE;
-use crate::strings::vim_strnicmp_asc;
 
 #[inline]
 unsafe fn clear_hist_entry(hisptr: *mut histentry_T) {
@@ -284,7 +283,7 @@ unsafe fn get_histtype(name: *const c_char, len: usize, return_default: bool) ->
         }
 
         for (i, &hname) in HISTORY_NAMES.iter().enumerate() {
-            if vim_strnicmp_asc(name, hname.as_ptr(), len) == 0 {
+            if { let _p1 = name; let _p2 = hname.as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                 return i as c_int;
             }
         }
@@ -648,7 +647,7 @@ pub unsafe fn ex_history(eap: *mut exarg_T) {
             let name_len = (end as usize) - (arg as usize);
             histype1 = get_histtype(arg, name_len, false);
             if histype1 == HIST_INVALID {
-                if vim_strnicmp_asc(arg, c"all".as_ptr(), name_len) == 0 {
+                if { let _p1 = arg; let _p2 = c"all".as_ptr(); let _n = name_len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                     histype1 = 0;
                     histype2 = (HIST_COUNT as c_int) - 1;
                 } else {

@@ -40,7 +40,7 @@ use crate::ex_docmd::{
     CAR, check_nextcmd, cmd_has_expr_args, do_cmdline, ends_excmd, exarg_T, set_ref_in_findfunc,
 };
 use crate::strings::{
-    atol, concat_str, gettext, strcmp, strlen, strncmp, strtod, vim_snprintf,
+    atol, concat_str, gettext, strlen, strncmp, strtod, vim_snprintf,
     vim_strchr,
 };
 pub mod buffer;
@@ -4266,7 +4266,7 @@ pub unsafe fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bo
             if s1 != s2 {
                 return false;
             }
-        } else if strcmp(s1, s2) != 0 {
+        } else if std::ffi::CStr::from_ptr(s1).to_bytes() != std::ffi::CStr::from_ptr(s2).to_bytes() {
             return false;
         }
 
@@ -5813,7 +5813,7 @@ pub unsafe fn var2fpos(
             if !li.is_null()
                 && (*tv_list_item_tv(li)).v_type == VarType::VAR_STRING
                 && !(*tv_list_item_tv(li)).vval.v_string().is_null()
-                && strcmp((*tv_list_item_tv(li)).vval.v_string(), c"$".as_ptr()) == 0
+                && (std::ffi::CStr::from_ptr((*tv_list_item_tv(li)).vval.v_string()).to_bytes() == b"$")
             {
                 eval_st().VAR2FPOS_POS.col = len + 1;
             }

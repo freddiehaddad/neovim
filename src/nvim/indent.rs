@@ -47,7 +47,7 @@ use crate::regexp::{
     vim_regfree,
 };
 use crate::search::{findmatch, linewhite};
-use crate::strings::{atoi, gettext, ngettext, strcmp, strncmp, vim_strchr};
+use crate::strings::{atoi, gettext, ngettext, strncmp, vim_strchr};
 use crate::textformat::{has_format_option, oparg_T};
 use crate::undo::{u_clearline, u_save, u_savecommon, u_savesub};
 use crate::window::win_T;
@@ -1909,7 +1909,7 @@ pub unsafe fn use_indentexpr_for_lisp() -> bool {
     unsafe {
         (*g_st().curbuf).b_p_lisp != 0
             && (*g_st().curbuf).b_p_inde.cb_type() != kCallbackNone
-            && strcmp((*g_st().curbuf).b_p_lop, c"expr:1".as_ptr()) == 0
+            && (std::ffi::CStr::from_ptr((*g_st().curbuf).b_p_lop).to_bytes() == b"expr:1")
     }
 }
 

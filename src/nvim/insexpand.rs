@@ -113,7 +113,7 @@ use crate::strings::vim_strnicmp;
 #[cfg(windows)]
 use crate::strings::vim_strnicmp;
 use crate::strings::{
-    atoi, gettext, strcmp, strlen, strncmp, tolower, vim_snprintf, vim_strchr, vim_strsave_escaped,
+    atoi, gettext, strlen, strncmp, tolower, vim_snprintf, vim_strchr, vim_strsave_escaped,
 };
 use crate::tag::find_tags;
 use crate::textformat::auto_format;
@@ -2181,7 +2181,7 @@ unsafe fn ins_compl_dictionaries(
                 count = 1;
             } else {
                 copy_option_part(&raw mut dict, buf, LSIZE, c",".as_ptr());
-                if !thesaurus && strcmp(buf, c"spell".as_ptr()) == 0 {
+                if !thesaurus && std::ffi::CStr::from_ptr(buf).to_bytes() == b"spell" {
                     count = -1;
                 } else if !vim_strchr(buf, b'`' as c_int).is_null()
                     || expand_wildcards_vec(1, &raw mut buf, &mut files, EW_FILE | EW_SILENT) != OK
@@ -3533,7 +3533,7 @@ unsafe fn ins_compl_add_dict(dict: *mut dict_T) {
         let di_refresh = tv_dict_find(dict, c"refresh".as_ptr(), 7);
         if !di_refresh.is_null() && (*di_refresh).di_tv.v_type == VAR_STRING {
             let v = (*di_refresh).di_tv.vval.v_string();
-            if !v.is_null() && strcmp(v, c"always".as_ptr()) == 0 {
+            if !v.is_null() && std::ffi::CStr::from_ptr(v).to_bytes() == b"always" {
                 insexp().compl_opt_refresh_always = true;
             }
         }
@@ -3865,21 +3865,21 @@ unsafe fn get_complete_info(what_list: *mut list_T, retdict: *mut dict_T) {
             let mut item: *mut listitem_T = (*what_list).lv_first;
             while !item.is_null() {
                 let what = tv_get_string(&raw const (*item).li_tv);
-                if strcmp(what, c"mode".as_ptr()) == 0 {
+                if std::ffi::CStr::from_ptr(what).to_bytes() == b"mode" {
                     what_flag |= CI_WHAT_MODE;
-                } else if strcmp(what, c"pum_visible".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"pum_visible" {
                     what_flag |= CI_WHAT_PUM_VISIBLE;
-                } else if strcmp(what, c"items".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"items" {
                     what_flag |= CI_WHAT_ITEMS;
-                } else if strcmp(what, c"selected".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"selected" {
                     what_flag |= CI_WHAT_SELECTED;
-                } else if strcmp(what, c"completed".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"completed" {
                     what_flag |= CI_WHAT_COMPLETED;
-                } else if strcmp(what, c"preinserted_text".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"preinserted_text" {
                     what_flag |= CI_WHAT_PREINSERTED_TEXT;
-                } else if strcmp(what, c"matches".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"matches" {
                     what_flag |= CI_WHAT_MATCHES;
-                } else if strcmp(what, c"auto".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"auto" {
                     what_flag |= CI_WHAT_AUTO;
                 }
                 item = (*item).li_next;
@@ -4782,7 +4782,7 @@ unsafe fn get_next_default_completion(
                     &raw mut cont_s_ipos,
                 );
             }
-            if ptr.is_null() || (ins_compl_has_preinsert() && strcmp(ptr, ins_compl_leader()) == 0)
+            if ptr.is_null() || (ins_compl_has_preinsert() && (std::ffi::CStr::from_ptr(ptr).to_bytes() == std::ffi::CStr::from_ptr(ins_compl_leader()).to_bytes()))
             {
                 continue;
             }

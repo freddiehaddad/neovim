@@ -30,7 +30,7 @@ use crate::os::fs::os_errno;
 use crate::os::lang::nl_langinfo;
 use crate::os::lang::{LC_CTYPE, setlocale};
 use crate::plines::{CharInfo, ClusterInfo, StrCharInfo};
-use crate::strings::{tolower, toupper, vim_strchr, vim_strnicmp_asc};
+use crate::strings::{tolower, toupper, vim_strchr};
 use crate::utf8proc::{
     UTF8PROC_BOUNDCLASS_CONTROL, UTF8PROC_BOUNDCLASS_CR, UTF8PROC_BOUNDCLASS_EXTENDED_PICTOGRAPHIC,
     UTF8PROC_BOUNDCLASS_OTHER, UTF8PROC_BOUNDCLASS_PREPEND, UTF8PROC_BOUNDCLASS_REGIONAL_INDICATOR,
@@ -3041,7 +3041,7 @@ pub unsafe fn enc_locale() -> Option<std::ffi::CString> {
         let p = vim_strchr(s, b'.' as c_int);
         if !p.is_null() {
             if p.cast_const() > s.add(2)
-                && vim_strnicmp_asc(p.add(1), c"EUC".as_ptr(), 3) == 0
+                && { let _p1 = p.add(1); let _p2 = c"EUC".as_ptr(); let _n = 3; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) }
                 && !(*p.add(4) as u8).is_ascii_alphanumeric()
                 && *p.add(4) != b'-' as c_char
                 && *p.sub(3) == b'_' as c_char

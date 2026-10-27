@@ -125,7 +125,6 @@ unsafe fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     dic.size += 1;
 }
 
-use crate::strings::{vim_strnicmp_asc};
 
 unsafe fn clear_shape_table() {
     let tbl = unsafe { &mut *std::ptr::addr_of_mut!((*shape_table_mut())) };
@@ -316,7 +315,7 @@ pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
                         } else {
                             idx = SHAPE_IDX_COUNT;
                             for (i, entry) in tbl.iter().enumerate() {
-                                if vim_strnicmp_asc(modep, entry.name.as_ptr(), len) == 0 {
+                                if { let _p1 = modep; let _p2 = entry.name.as_ptr(); let _n = len; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                                     idx = i;
                                     break;
                                 }
@@ -339,15 +338,15 @@ pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
                     p = colonp.add(1);
                     while *p != 0 && *p as u8 != b',' {
                         let first_byte = *p as u8;
-                        let len = if vim_strnicmp_asc(p, c"ver".as_ptr(), 3) == 0
-                            || vim_strnicmp_asc(p, c"hor".as_ptr(), 3) == 0
+                        let len = if { let _p1 = p; let _p2 = c"ver".as_ptr(); let _n = 3; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) }
+                            || { let _p1 = p; let _p2 = c"hor".as_ptr(); let _n = 3; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) }
                         {
                             3usize
-                        } else if vim_strnicmp_asc(p, c"blinkwait".as_ptr(), 9) == 0 {
+                        } else if { let _p1 = p; let _p2 = c"blinkwait".as_ptr(); let _n = 9; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                             9usize
-                        } else if vim_strnicmp_asc(p, c"blinkon".as_ptr(), 7) == 0 {
+                        } else if { let _p1 = p; let _p2 = c"blinkon".as_ptr(); let _n = 7; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                             7usize
-                        } else if vim_strnicmp_asc(p, c"blinkoff".as_ptr(), 8) == 0 {
+                        } else if { let _p1 = p; let _p2 = c"blinkoff".as_ptr(); let _n = 8; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                             8usize
                         } else {
                             0usize
@@ -380,7 +379,7 @@ pub unsafe fn parse_shape_opt(what: c_int) -> *const c_char {
                                     tbl[idx].blinkoff = n;
                                 }
                             }
-                        } else if vim_strnicmp_asc(p, c"block".as_ptr(), 5) == 0 {
+                        } else if { let _p1 = p; let _p2 = c"block".as_ptr(); let _n = 5; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                             if round == 2 {
                                 tbl[idx].shape = CursorShape::SHAPE_BLOCK;
                             }

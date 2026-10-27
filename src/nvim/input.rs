@@ -75,7 +75,7 @@ use crate::state::{
     MODE_SELECT, MODE_TERMINAL, MODE_VISUAL, get_real_state, state_handle_k_event,
     state_no_longer_safe,
 };
-use crate::strings::{atoi, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr};
+use crate::strings::{atoi, gettext, strlen, strncmp, vim_snprintf, vim_strchr};
 use crate::textformat::oparg_T;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_cursor_goto, ui_flush, vim_beep};
 use crate::undo::u_sync;
@@ -1566,7 +1566,7 @@ pub unsafe fn open_scriptin(scriptin_name: *mut c_char) -> bool {
         inp_st().curscript += 1;
 
         let scriptin0 = (&raw mut inp_st().scriptin).cast::<FileDescriptor>();
-        let error = if strcmp(scriptin_name, c"-".as_ptr()) == 0 {
+        let error = if std::ffi::CStr::from_ptr(scriptin_name).to_bytes() == b"-" {
             file_open_stdin(scriptin0)
         } else {
             file_open(
@@ -1969,9 +1969,9 @@ unsafe fn getchar_common(argvars: *mut typval_T, rettv: *mut typval_T, mut allow
 
             let cursor_str = tv_dict_get_string(d, c"cursor".as_ptr());
             if !cursor_str.is_null() {
-                if strcmp(cursor_str, c"hide".as_ptr()) != 0
-                    && strcmp(cursor_str, c"keep".as_ptr()) != 0
-                    && strcmp(cursor_str, c"msg".as_ptr()) != 0
+                if std::ffi::CStr::from_ptr(cursor_str).to_bytes() != b"hide"
+                    && std::ffi::CStr::from_ptr(cursor_str).to_bytes() != b"keep"
+                    && std::ffi::CStr::from_ptr(cursor_str).to_bytes() != b"msg"
                 {
                     semsg!(
                         gettext((&raw const e_invargNval).cast()),

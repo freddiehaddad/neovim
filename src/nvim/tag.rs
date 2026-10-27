@@ -66,7 +66,7 @@ use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{do_search, ignorecase, ignorecase_opt};
 use crate::state::MODE_INSERT;
 use crate::strings::{
-    atoi, gettext, strcmp, strlen, strncmp, vim_snprintf,
+    atoi, gettext, strlen, strncmp, vim_snprintf,
     vim_snprintf_safelen, vim_strchr,
 };
 use crate::window::{
@@ -484,7 +484,7 @@ pub unsafe fn do_tag(
                             .as_ref()
                             .unwrap()
                             .as_ref()
-                            .is_some_and(|t| strcmp(t.as_ptr(), tag) == 0)
+                            .is_some_and(|t| std::ffi::CStr::from_ptr(t.as_ptr()).to_bytes() == std::ffi::CStr::from_ptr(tag).to_bytes())
                         {
                             cur_match = tag_st().ptag_entry.cur_match;
                             cur_fnum = tag_st().ptag_entry.cur_fnum;
@@ -673,7 +673,7 @@ pub unsafe fn do_tag(
                     .as_ref()
                     .unwrap()
                     .as_ref()
-                    .is_none_or(|m| strcmp(m.as_ptr(), name) != 0);
+                    .is_none_or(|m| std::ffi::CStr::from_ptr(m.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr(name).to_bytes());
                 if new_tag
                     || (cur_match >= (*do_tag_matches).len() as c_int
                         && tag_st().DO_TAG_MAX_NUM_MATCHES != MAXCOL)
@@ -735,7 +735,7 @@ pub unsafe fn do_tag(
                             parse_match(old_match.as_ptr().cast_mut(), &mut tagp);
                             for i in idx..new_matches.len() {
                                 parse_match(new_matches[i].as_mut_ptr(), &mut tagp2);
-                                if strcmp(tagp.tagname, tagp2.tagname) == 0 {
+                                if std::ffi::CStr::from_ptr(tagp.tagname).to_bytes() == std::ffi::CStr::from_ptr(tagp2.tagname).to_bytes() {
                                     let p = new_matches.remove(i);
                                     new_matches.insert(idx, p);
                                     idx += 1;
@@ -1394,15 +1394,15 @@ unsafe fn find_tagfunc_tags(
 
                         if (*tv).v_type == VarType::VAR_STRING && !(*tv).vval.v_string().is_null() {
                             len += strlen((*tv).vval.v_string()) + 1;
-                            if strcmp(dict_key, c"name".as_ptr()) == 0 {
+                            if std::ffi::CStr::from_ptr(dict_key).to_bytes() == b"name" {
                                 res_name = (*tv).vval.v_string();
-                            } else if strcmp(dict_key, c"filename".as_ptr()) == 0 {
+                            } else if std::ffi::CStr::from_ptr(dict_key).to_bytes() == b"filename" {
                                 res_fname = (*tv).vval.v_string();
-                            } else if strcmp(dict_key, c"cmd".as_ptr()) == 0 {
+                            } else if std::ffi::CStr::from_ptr(dict_key).to_bytes() == b"cmd" {
                                 res_cmd = (*tv).vval.v_string();
                             } else {
                                 has_extra = true;
-                                if strcmp(dict_key, c"kind".as_ptr()) == 0 {
+                                if std::ffi::CStr::from_ptr(dict_key).to_bytes() == b"kind" {
                                     res_kind = (*tv).vval.v_string();
                                 } else {
                                     len += strlen(dict_key) + 1;
@@ -1489,10 +1489,10 @@ unsafe fn find_tagfunc_tags(
 
                                 if (*tv).v_type == VarType::VAR_STRING
                                     && !(*tv).vval.v_string().is_null()
-                                    && strcmp(dict_key, c"name".as_ptr()) != 0
-                                    && strcmp(dict_key, c"filename".as_ptr()) != 0
-                                    && strcmp(dict_key, c"cmd".as_ptr()) != 0
-                                    && strcmp(dict_key, c"kind".as_ptr()) != 0
+                                    && std::ffi::CStr::from_ptr(dict_key).to_bytes() != b"name"
+                                    && std::ffi::CStr::from_ptr(dict_key).to_bytes() != b"filename"
+                                    && std::ffi::CStr::from_ptr(dict_key).to_bytes() != b"cmd"
+                                    && std::ffi::CStr::from_ptr(dict_key).to_bytes() != b"kind"
                                 {
                                     *p = TAB;
                                     p = p.add(1);

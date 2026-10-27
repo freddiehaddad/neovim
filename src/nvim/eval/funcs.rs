@@ -198,7 +198,7 @@ use crate::state::{MODE_CMDLINE, MODE_MAX_LENGTH, get_mode, get_was_safe_state, 
 #[cfg(windows)]
 use crate::strings::mb_strup_buf;
 use crate::strings::{
-    atoi, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
+    atoi, gettext, strlen, strncmp, vim_snprintf, vim_snprintf_safelen,
     vim_snprintf_typval_only, vim_strchr, vim_stricmp, vim_strnicmp, vim_strsave_escaped,
     vim_strsave_shellescape,
 };
@@ -1644,13 +1644,13 @@ pub unsafe fn f_chanclose(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: E
         let mut part = kChannelPartAll;
         if (*argvars.add(1)).v_type == VarType::VAR_STRING {
             let stream = tv_get_string(argvars.add(1));
-            if strcmp(stream, c"stdin".as_ptr()) == 0 {
+            if std::ffi::CStr::from_ptr(stream).to_bytes() == b"stdin" {
                 part = kChannelPartStdin;
-            } else if strcmp(stream, c"stdout".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(stream).to_bytes() == b"stdout" {
                 part = kChannelPartStdout;
-            } else if strcmp(stream, c"stderr".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(stream).to_bytes() == b"stderr" {
                 part = kChannelPartStderr;
-            } else if strcmp(stream, c"rpc".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(stream).to_bytes() == b"rpc" {
                 part = kChannelPartRpc;
             } else {
                 semsg!(gettext(c"Invalid channel stream \"%s\"".as_ptr()), stream);
@@ -2246,7 +2246,7 @@ pub unsafe fn execute_common(argvars: *mut typval_T, rettv: *mut typval_T, arg_o
             if strncmp(s, c"silent".as_ptr(), 6) == 0 {
                 g_st().msg_silent += 1;
             }
-            if strcmp(s, c"silent!".as_ptr()) == 0 {
+            if std::ffi::CStr::from_ptr(s).to_bytes() == b"silent!" {
                 g_st().emsg_silent = 1;
                 g_st().emsg_noredir = true;
             }
@@ -2880,7 +2880,7 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
 
             if !pt.is_null() {
                 let what = tv_get_string(argvars.add(1));
-                if strcmp(what, c"func".as_ptr()) == 0 || strcmp(what, c"name".as_ptr()) == 0 {
+                if std::ffi::CStr::from_ptr(what).to_bytes() == b"func" || std::ffi::CStr::from_ptr(what).to_bytes() == b"name" {
                     let mut name = partial_name(pt);
                     debug_assert!(!name.is_null());
                     if *what == b'f' as c_char {
@@ -2898,18 +2898,18 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: EvalFun
                     } else {
                         VarType::VAR_STRING
                     };
-                } else if strcmp(what, c"dict".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"dict" {
                     what_is_dict = true;
                     if !(*pt).pt_dict.is_null() {
                         tv_dict_set_ret(rettv, (*pt).pt_dict);
                     }
-                } else if strcmp(what, c"args".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"args" {
                     (*rettv).v_type = VarType::VAR_LIST;
                     tv_list_alloc_ret(rettv, (*pt).pt_argv.len() as isize);
                     for arg in &mut (*pt).pt_argv {
                         tv_list_append_tv((*rettv).vval.v_list(), arg);
                     }
-                } else if strcmp(what, c"arity".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(what).to_bytes() == b"arity" {
                     let mut required: c_int = 0;
                     let mut optional: c_int = 0;
                     let mut varargs = false;
@@ -8299,9 +8299,9 @@ pub unsafe fn f_sockconnect(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
         let address = to_slash_save(tv_get_string(argvars.add(1))).unwrap_or_default();
 
         'cleanup: {
-            let tcp = if strcmp(mode, c"tcp".as_ptr()) == 0 {
+            let tcp = if std::ffi::CStr::from_ptr(mode).to_bytes() == b"tcp" {
                 true
-            } else if strcmp(mode, c"pipe".as_ptr()) == 0 {
+            } else if std::ffi::CStr::from_ptr(mode).to_bytes() == b"pipe" {
                 false
             } else {
                 semsg!(gettext(e_invarg2.as_ptr()), c"invalid mode".as_ptr());

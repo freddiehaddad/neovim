@@ -103,7 +103,7 @@ use crate::search::{Direction, ignorecase, pat_has_uppercase, searchit};
 use crate::sign::{get_sign_name, set_context_in_sign_cmd};
 use crate::statusline::fillchar_status;
 use crate::strings::{
-    gettext, sort_strings, strcase_save, strcmp, strlen, strncmp,
+    gettext, sort_strings, strcase_save, strlen, strncmp,
     vim_snprintf, vim_strchr, vim_strsave_escaped,
 };
 use crate::syntax::{
@@ -1781,7 +1781,7 @@ unsafe fn sort_func_compare(p1: &CString, p2: &CString) -> c_int {
     if b1 == b'<' && b2 != b'<' {
         return 1;
     }
-    unsafe { strcmp(p1.as_ptr(), p2.as_ptr()) }
+    unsafe { std::ffi::CStr::from_ptr(p1.as_ptr()).to_bytes().cmp(std::ffi::CStr::from_ptr(p2.as_ptr()).to_bytes()) as c_int }
 }
 
 /// Escape special characters in the cmdline completion matches.
@@ -4552,7 +4552,7 @@ unsafe fn get_arg1_from_lua(lua: *const c_char, xp: *mut expand_T, idx: c_int) -
         let last_line_ptr = &raw const cmdexp().ARG1_LUA_LAST_XP_LINE;
         if (*last_line_ptr)
             .as_ref()
-            .is_none_or(|s| strcmp(s.as_ptr(), (*xp).xp_line) != 0)
+            .is_none_or(|s| std::ffi::CStr::from_ptr(s.as_ptr()).to_bytes() != std::ffi::CStr::from_ptr((*xp).xp_line).to_bytes())
             || cmdexp().ARG1_LUA_LAST_GEN != prompt_id
         {
             cmdexp().ARG1_LUA_LAST_XP_LINE = Some(cstr_to_cstring((*xp).xp_line));
@@ -5876,7 +5876,7 @@ pub unsafe fn f_getcompletion(argvars: *mut typval_T, rettv: *mut typval_T, _fpt
         let pattern = tv_get_string(argvars);
         let mut pattern_start = pattern;
 
-        if strcmp(type_str, c"cmdline".as_ptr()) == 0 {
+        if std::ffi::CStr::from_ptr(type_str).to_bytes() == b"cmdline" {
             let cmdline_len = strlen(pattern) as c_int;
             set_cmd_context(
                 &raw mut xpc,
@@ -6142,7 +6142,7 @@ unsafe fn copy_substring_from_pos(
 /// Returns true if the given string `str` matches the regex pattern `pat`.
 unsafe fn is_regex_match(pat: *const c_char, str_arg: *const c_char) -> bool {
     unsafe {
-        if strcmp(pat, str_arg) == 0 {
+        if std::ffi::CStr::from_ptr(pat).to_bytes() == std::ffi::CStr::from_ptr(str_arg).to_bytes() {
             return true;
         }
 

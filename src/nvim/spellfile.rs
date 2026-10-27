@@ -47,7 +47,7 @@ use crate::spell::{
 };
 use crate::spellsuggest::{fromto_T, idx_T, salitem_T, slang_T, spelltab_T};
 use crate::strings::{
-    atoi, gettext, has_non_ascii, strcmp, strerror, strlen, strncmp,
+    atoi, gettext, has_non_ascii, strerror, strlen, strncmp,
     vim_snprintf, vim_strchr,
 };
 use crate::syntax::win_s;
@@ -1860,11 +1860,11 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                 } else if is_aff_rule(&items, itemcnt_i, c"FLAG".as_ptr(), 2)
                     && aff.af_flagtype == AFT_CHAR
                 {
-                    if strcmp(items[1], c"long".as_ptr()) == 0 {
+                    if std::ffi::CStr::from_ptr(items[1]).to_bytes() == b"long" {
                         aff.af_flagtype = AFT_LONG;
-                    } else if strcmp(items[1], c"num".as_ptr()) == 0 {
+                    } else if std::ffi::CStr::from_ptr(items[1]).to_bytes() == b"num" {
                         aff.af_flagtype = AFT_NUM;
-                    } else if strcmp(items[1], c"caplong".as_ptr()) == 0 {
+                    } else if std::ffi::CStr::from_ptr(items[1]).to_bytes() == b"caplong" {
                         aff.af_flagtype = AFT_CAPLONG;
                     } else {
                         smsg!(
@@ -2094,8 +2094,8 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                     aff.af_pfxpostpone = 1;
                 } else if is_aff_rule(&items, itemcnt_i, c"IGNOREEXTRA".as_ptr(), 1) {
                     aff.af_ignoreextra = true;
-                } else if (strcmp(items[0], c"PFX".as_ptr()) == 0
-                    || strcmp(items[0], c"SFX".as_ptr()) == 0)
+                } else if (std::ffi::CStr::from_ptr(items[0]).to_bytes() == b"PFX"
+                    || std::ffi::CStr::from_ptr(items[0]).to_bytes() == b"SFX")
                     && aff_todo == 0
                     && itemcnt >= 4
                 {
@@ -2170,7 +2170,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                         cur_aff = &raw mut *tp.entry(key_bytes.to_vec()).or_insert(new_ah);
                     }
 
-                    if itemcnt > lasti && strcmp(items[lasti], c"S".as_ptr()) == 0 {
+                    if itemcnt > lasti && std::ffi::CStr::from_ptr(items[lasti]).to_bytes() == b"S" {
                         lasti += 1;
                         (*cur_aff).ah_follows = 1;
                     } else {
@@ -2181,7 +2181,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                         smsg!(0, gettext(e_afftrailing), fname, lnum, items[lasti]);
                     }
 
-                    if strcmp(items[2], c"Y".as_ptr()) != 0 && strcmp(items[2], c"N".as_ptr()) != 0
+                    if std::ffi::CStr::from_ptr(items[2]).to_bytes() != b"Y" && std::ffi::CStr::from_ptr(items[2]).to_bytes() != b"N"
                     {
                         smsg!(
                             0,
@@ -2204,16 +2204,16 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                     }
 
                     aff_todo = atoi(items[3]);
-                } else if (strcmp(items[0], c"PFX".as_ptr()) == 0
-                    || strcmp(items[0], c"SFX".as_ptr()) == 0)
+                } else if (std::ffi::CStr::from_ptr(items[0]).to_bytes() == b"PFX"
+                    || std::ffi::CStr::from_ptr(items[0]).to_bytes() == b"SFX")
                     && aff_todo > 0
-                    && strcmp((&raw const (*cur_aff).ah_key).cast(), items[1]) == 0
+                    && (std::ffi::CStr::from_ptr((&raw const (*cur_aff).ah_key).cast()).to_bytes() == std::ffi::CStr::from_ptr(items[1]).to_bytes())
                     && itemcnt >= 5
                 {
                     let lasti: usize = 5;
                     if itemcnt > lasti
                         && *items[lasti] != b'#' as c_char
-                        && (strcmp(items[lasti], c"-".as_ptr()) != 0 || itemcnt != lasti + 1)
+                        && (std::ffi::CStr::from_ptr(items[lasti]).to_bytes() != b"-" || itemcnt != lasti + 1)
                     {
                         smsg!(0, gettext(e_afftrailing), fname, lnum, items[lasti]);
                     }
@@ -2230,10 +2230,10 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                     };
                     let aff_entry: *mut affentry_T = &raw mut aff_entry_val;
 
-                    if strcmp(items[2], c"0".as_ptr()) != 0 {
+                    if std::ffi::CStr::from_ptr(items[2]).to_bytes() != b"0" {
                         (*aff_entry).ae_chop = Some(std::ffi::CStr::from_ptr(items[2]).to_owned());
                     }
-                    if strcmp(items[3], c"0".as_ptr()) != 0 {
+                    if std::ffi::CStr::from_ptr(items[3]).to_bytes() != b"0" {
                         let item3_bytes = std::ffi::CStr::from_ptr(items[3]).to_bytes();
                         if let Some(slash_pos) = item3_bytes.iter().position(|&b| b == b'/') {
                             (*aff_entry).ae_add =
@@ -2255,7 +2255,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                         (*cur_aff).ah_entries.insert(0, aff_entry_val);
                         let aff_entry: *mut affentry_T = (*cur_aff).ah_entries.as_mut_ptr();
 
-                        if strcmp(items[4], c".".as_ptr()) != 0 {
+                        if std::ffi::CStr::from_ptr(items[4]).to_bytes() != b"." {
                             let mut buf = [0 as c_char; MAXLINELEN];
                             (*aff_entry).ae_cond =
                                 Some(std::ffi::CStr::from_ptr(items[4]).to_owned());
@@ -2406,8 +2406,8 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                             lnum,
                         );
                     }
-                } else if (strcmp(items[0], c"REP".as_ptr()) == 0
-                    || strcmp(items[0], c"REPSAL".as_ptr()) == 0)
+                } else if (std::ffi::CStr::from_ptr(items[0]).to_bytes() == b"REP"
+                    || std::ffi::CStr::from_ptr(items[0]).to_bytes() == b"REPSAL")
                     && itemcnt >= 3
                 {
                     if itemcnt > 3 && *items[3] != b'#' as c_char {
@@ -2481,14 +2481,14 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                     }
                 } else if is_aff_rule(&items, itemcnt_i, c"SAL".as_ptr(), 3) {
                     if do_sal {
-                        if strcmp(items[1], c"followup".as_ptr()) == 0 {
+                        if std::ffi::CStr::from_ptr(items[1]).to_bytes() == b"followup" {
                             (*spin).si_followup = c_int::from(sal_to_bool(items[2]));
-                        } else if strcmp(items[1], c"collapse_result".as_ptr()) == 0 {
+                        } else if std::ffi::CStr::from_ptr(items[1]).to_bytes() == b"collapse_result" {
                             (*spin).si_collapse = c_int::from(sal_to_bool(items[2]));
-                        } else if strcmp(items[1], c"remove_accents".as_ptr()) == 0 {
+                        } else if std::ffi::CStr::from_ptr(items[1]).to_bytes() == b"remove_accents" {
                             (*spin).si_rem_accents = c_int::from(sal_to_bool(items[2]));
                         } else {
-                            let to_s = if strcmp(items[2], c"_".as_ptr()) == 0 {
+                            let to_s = if std::ffi::CStr::from_ptr(items[2]).to_bytes() == b"_" {
                                 c"".as_ptr().cast_mut()
                             } else {
                                 items[2]
@@ -2503,7 +2503,7 @@ unsafe fn spell_read_aff(spin: *mut spellinfo_T, fname: *mut c_char) -> Option<a
                 } else if is_aff_rule(&items, itemcnt_i, c"SOFOTO".as_ptr(), 2) && sofoto.is_none()
                 {
                     sofoto = Some(std::ffi::CStr::from_ptr(items[1]).to_owned());
-                } else if strcmp(items[0], c"COMMON".as_ptr()) == 0 {
+                } else if std::ffi::CStr::from_ptr(items[0]).to_bytes() == b"COMMON" {
                     for &item in items.iter().take(itemcnt).skip(1) {
                         (*spin)
                             .si_commonwords
@@ -2644,7 +2644,7 @@ unsafe fn is_aff_rule(
     mincount: c_int,
 ) -> bool {
     unsafe {
-        strcmp(items[0], rulename) == 0
+        std::ffi::CStr::from_ptr(items[0]).to_bytes() == std::ffi::CStr::from_ptr(rulename).to_bytes()
             && (itemcnt == mincount
                 || (itemcnt > mincount && *items[mincount as usize] == b'#' as c_char))
     }
@@ -2688,12 +2688,12 @@ unsafe fn aff_process_flags(affile: &afffile_T, entry: &mut affentry_T) {
 
 unsafe fn spell_info_item(s: *const c_char) -> bool {
     unsafe {
-        strcmp(s, c"NAME".as_ptr()) == 0
-            || strcmp(s, c"HOME".as_ptr()) == 0
-            || strcmp(s, c"VERSION".as_ptr()) == 0
-            || strcmp(s, c"AUTHOR".as_ptr()) == 0
-            || strcmp(s, c"EMAIL".as_ptr()) == 0
-            || strcmp(s, c"COPYRIGHT".as_ptr()) == 0
+        std::ffi::CStr::from_ptr(s).to_bytes() == b"NAME"
+            || std::ffi::CStr::from_ptr(s).to_bytes() == b"HOME"
+            || std::ffi::CStr::from_ptr(s).to_bytes() == b"VERSION"
+            || std::ffi::CStr::from_ptr(s).to_bytes() == b"AUTHOR"
+            || std::ffi::CStr::from_ptr(s).to_bytes() == b"EMAIL"
+            || std::ffi::CStr::from_ptr(s).to_bytes() == b"COPYRIGHT"
     }
 }
 
@@ -2950,7 +2950,7 @@ unsafe fn add_fromto(
 }
 
 unsafe fn sal_to_bool(s: *const c_char) -> bool {
-    unsafe { strcmp(s, c"1".as_ptr()) == 0 || strcmp(s, c"true".as_ptr()) == 0 }
+    unsafe { std::ffi::CStr::from_ptr(s).to_bytes() == b"1" || std::ffi::CStr::from_ptr(s).to_bytes() == b"true" }
 }
 
 unsafe fn spell_read_dic(spin: *mut spellinfo_T, fname: *mut c_char, affile: &afffile_T) -> c_int {
@@ -5038,7 +5038,7 @@ unsafe fn mkspell(
         if let Some(f0_cstr) = fnames.first() {
             let f0 = f0_cstr.as_ptr();
             let len = f0_cstr.as_bytes().len();
-            if fcount == 1 && len > 4 && strcmp(f0.add(len - 4), c".add".as_ptr()) == 0 {
+            if fcount == 1 && len > 4 && (std::ffi::CStr::from_ptr(f0.add(len - 4)).to_bytes() == b".add") {
                 incount = 1;
                 vim_snprintf!(wfname, MAXPATHL, c"%s.spl".as_ptr(), f0);
             } else if fcount == 1 {
@@ -5054,7 +5054,7 @@ unsafe fn mkspell(
                         spell_enc()
                     },
                 );
-            } else if len > 4 && strcmp(f0.add(len - 4), c".spl".as_ptr()) == 0 {
+            } else if len > 4 && (std::ffi::CStr::from_ptr(f0.add(len - 4)).to_bytes() == b".spl") {
                 xstrlcpy(wfname, f0, MAXPATHL);
             } else {
                 vim_snprintf!(

@@ -48,7 +48,7 @@ use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
 use crate::spellfile::{MAXREGIONS, spell_load_file};
 use crate::spellsuggest::{idx_T, langp_T, slang_T, spell_suggest_list, spelltab_T};
 use crate::strings::{
-    concat_str, gettext, strcmp, strlen, strncmp, vim_snprintf, vim_strchr,
+    concat_str, gettext, strlen, strncmp, vim_snprintf, vim_strchr,
 };
 use crate::syntax::{syn_get_id, syntax_present};
 use crate::undo::u_save_cursor;
@@ -1403,7 +1403,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
 }
 pub unsafe fn spell_enc() -> *mut c_char {
     unsafe {
-        if strlen(opt_vars().p_enc) < 60 && strcmp(opt_vars().p_enc, c"iso-8859-15".as_ptr()) != 0 {
+        if strlen(opt_vars().p_enc) < 60 && (std::ffi::CStr::from_ptr(opt_vars().p_enc).to_bytes() != b"iso-8859-15") {
             return opt_vars().p_enc;
         }
         c"latin1".as_ptr().cast_mut()
@@ -1696,7 +1696,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                 if !valid_spelllang(lang_ptr) {
                     continue;
                 }
-                if strcmp(lang_ptr, c"cjk".as_ptr()) == 0 {
+                if std::ffi::CStr::from_ptr(lang_ptr).to_bytes() == b"cjk" {
                     (*w_s).b_cjk = 1;
                     continue;
                 }
@@ -1753,7 +1753,7 @@ pub unsafe fn parse_spelllang(wp: *mut win_T) -> *mut c_char {
                     (false, slang)
                 };
                 if !region.is_null() {
-                    if !use_region.is_null() && strcmp(region, use_region) != 0 {
+                    if !use_region.is_null() && std::ffi::CStr::from_ptr(region).to_bytes() != std::ffi::CStr::from_ptr(use_region).to_bytes() {
                         dont_use_region = true;
                     }
                     use_region = region;
@@ -2888,7 +2888,7 @@ pub unsafe fn spell_dump_compl(
             if *p != 0 {
                 if region_names.is_null() {
                     region_names = p;
-                } else if strcmp(region_names, p) != 0 {
+                } else if std::ffi::CStr::from_ptr(region_names).to_bytes() != std::ffi::CStr::from_ptr(p).to_bytes() {
                     do_region = false;
                     break;
                 }
@@ -3291,7 +3291,7 @@ pub unsafe fn valid_spellfile(val: *const c_char) -> bool {
             );
             let spf_ptr = (&raw mut spf_name).cast::<c_char>();
             if !(4..(MAXPATHL - 4)).contains(&l)
-                || strcmp(spf_ptr.add(l - 4), c".add".as_ptr()) != 0
+                || (std::ffi::CStr::from_ptr(spf_ptr.add(l - 4)).to_bytes() != b".add")
             {
                 return false;
             }

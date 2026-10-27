@@ -39,7 +39,7 @@ use crate::spell::{
 };
 use crate::spellfile::{MAXREGIONS, WF_NOSUGGEST, suggest_load_files};
 use crate::strings::{
-    atoi, gettext, strcmp, strlen, strncmp, vim_snprintf,
+    atoi, gettext, strlen, strncmp, vim_snprintf,
     vim_strchr,
 };
 use crate::ui::vim_beep;
@@ -3010,7 +3010,7 @@ unsafe fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_i
                     pl = pl.add(1);
                     ps = ps.add(1);
                 }
-                if strcmp(pl.add(1), ps) == 0 {
+                if std::ffi::CStr::from_ptr(pl.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps).to_bytes() {
                     return score + SCORE_DEL * 2;
                 }
             }
@@ -3024,11 +3024,11 @@ unsafe fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_i
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if *pl2 == *ps2.add(1) && *pl2.add(1) == *ps2 && strcmp(pl2.add(2), ps2.add(2)) == 0
+                if *pl2 == *ps2.add(1) && *pl2.add(1) == *ps2 && (std::ffi::CStr::from_ptr(pl2.add(2)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(2)).to_bytes())
                 {
                     return score + SCORE_DEL + SCORE_SWAP;
                 }
-                if strcmp(pl2.add(1), ps2.add(1)) == 0 {
+                if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(1)).to_bytes() {
                     return score + SCORE_DEL + SCORE_SUBST;
                 }
                 if *pl == *ps.add(1) && *pl.add(1) == *ps {
@@ -3038,7 +3038,7 @@ unsafe fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_i
                         pl2 = pl2.add(1);
                         ps2 = ps2.add(1);
                     }
-                    if strcmp(pl2.add(1), ps2) == 0 {
+                    if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2).to_bytes() {
                         return score + SCORE_SWAP + SCORE_DEL;
                     }
                 }
@@ -3048,7 +3048,7 @@ unsafe fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_i
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if strcmp(pl2.add(1), ps2) == 0 {
+                if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2).to_bytes() {
                     return score + SCORE_SUBST + SCORE_DEL;
                 }
             }
@@ -3068,11 +3068,11 @@ unsafe fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_i
                     }
                     if *pl2 == *ps2.add(1)
                         && *pl2.add(1) == *ps2
-                        && strcmp(pl2.add(2), ps2.add(2)) == 0
+                        && (std::ffi::CStr::from_ptr(pl2.add(2)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(2)).to_bytes())
                     {
                         return score + SCORE_SWAP + SCORE_SWAP;
                     }
-                    if strcmp(pl2.add(1), ps2.add(1)) == 0 {
+                    if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(1)).to_bytes() {
                         return score + SCORE_SWAP + SCORE_SUBST;
                     }
                 }
@@ -3085,11 +3085,11 @@ unsafe fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_i
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if *pl2 == *ps2.add(1) && *pl2.add(1) == *ps2 && strcmp(pl2.add(2), ps2.add(2)) == 0
+                if *pl2 == *ps2.add(1) && *pl2.add(1) == *ps2 && (std::ffi::CStr::from_ptr(pl2.add(2)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(2)).to_bytes())
                 {
                     return score + SCORE_SUBST + SCORE_SWAP;
                 }
-                if strcmp(pl2.add(1), ps2.add(1)) == 0 {
+                if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(1)).to_bytes() {
                     return score + SCORE_SUBST + SCORE_SUBST;
                 }
                 pl2 = pl;
@@ -3098,7 +3098,7 @@ unsafe fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_i
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if strcmp(pl2.add(1), ps2) == 0 {
+                if std::ffi::CStr::from_ptr(pl2.add(1)).to_bytes() == std::ffi::CStr::from_ptr(ps2).to_bytes() {
                     return score + SCORE_INS + SCORE_DEL;
                 }
                 pl2 = pl.add(1);
@@ -3107,7 +3107,7 @@ unsafe fn soundalike_score(goodstart: *mut c_char, badstart: *mut c_char) -> c_i
                     pl2 = pl2.add(1);
                     ps2 = ps2.add(1);
                 }
-                if strcmp(pl2, ps2.add(1)) == 0 {
+                if std::ffi::CStr::from_ptr(pl2).to_bytes() == std::ffi::CStr::from_ptr(ps2.add(1)).to_bytes() {
                     return score + SCORE_INS + SCORE_DEL;
                 }
             }

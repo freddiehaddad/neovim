@@ -130,8 +130,7 @@ use crate::shada::SubReplacementString;
 use crate::spell::parse_spelllang;
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP};
 use crate::strings::{
-    atoi, atol, concat_str, gettext, isalpha, ngettext, strcmp,
-    strcoll, strlen, strncmp, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
+    atoi, atol, concat_str, gettext, isalpha, ngettext, strcoll, strlen, strncmp, strtod, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
     vim_strchr, vim_stricmp, vim_strsave_escaped,
 };
 use crate::terminal::{Terminal, terminal_check_size, terminal_running};
@@ -588,7 +587,7 @@ unsafe fn string_compare(s1: *const c_char, s2: *const c_char) -> c_int {
         if excmds_st().sort_ic {
             vim_stricmp(s1, s2)
         } else {
-            strcmp(s1, s2)
+            std::ffi::CStr::from_ptr(s1).to_bytes().cmp(std::ffi::CStr::from_ptr(s2).to_bytes()) as c_int
         }
     }
 }
@@ -3700,7 +3699,7 @@ unsafe fn sub_joining_lines(
 ) -> bool {
     unsafe {
         if !pat.data.is_null()
-            && strcmp(pat.data, c"\\n".as_ptr()) == 0
+            && std::ffi::CStr::from_ptr(pat.data).to_bytes() == b"\\n"
             && *sub == NUL
             && (*cmd == NUL
                 || (*cmd.add(1) == NUL

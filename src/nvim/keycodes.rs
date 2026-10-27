@@ -1908,7 +1908,6 @@ const KEY_NAMES_TABLE: &[KeyNameEntry; 187] = &[
 ];
 
 use crate::charset::{ascii_isident, toupper_asc};
-use crate::strings::vim_strnicmp_asc;
 
 fn get_special_key_code_hash(name: &[u8]) -> isize {
     let (low, high): (usize, usize) = match name.len() {
@@ -2495,7 +2494,7 @@ pub unsafe fn find_special_key(
                 let end_minus_bp = end as usize - bp as usize;
                 if end_minus_bp > 3 && *bp == b't' as c_char && *bp.add(1) == b'_' as c_char {
                     bp = bp.add(3); // skip t_xx, xx may be '-' or '>'
-                } else if end_minus_bp > 4 && vim_strnicmp_asc(bp, c"char-".as_ptr(), 5) == 0 {
+                } else if end_minus_bp > 4 && { let _p1 = bp; let _p2 = c"char-".as_ptr(); let _n = 5; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                     let mut l: c_int = 0;
                     vim_str2nr(
                         bp.add(5),
@@ -2540,7 +2539,7 @@ pub unsafe fn find_special_key(
             // Legal modifier name.
             if (bp as usize) >= (last_dash as usize) {
                 let mut key: c_int;
-                if vim_strnicmp_asc(last_dash.add(1), c"char-".as_ptr(), 5) == 0
+                if { let _p1 = last_dash.add(1); let _p2 = c"char-".as_ptr(); let _n = 5; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) }
                     && ascii_isdigit(*last_dash.add(6))
                 {
                     // <Char-123> or <Char-033> or <Char-0x33>
@@ -2717,7 +2716,7 @@ pub unsafe fn replace_termcodes(
             {
                 // Change <SID>Func to K_SNR <script-nr> _Func. This name is used
                 // for script-local user functions.
-                if rem >= 5 && vim_strnicmp_asc(src, c"<SID>".as_ptr(), 5) == 0 {
+                if rem >= 5 && { let _p1 = src; let _p2 = c"<SID>".as_ptr(); let _n = 5; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                     if sid_arg < 0 || (sid_arg == 0 && g_st().current_sctx.sc_sid <= 0) {
                         emsg(e_usingsid.as_ptr());
                     } else {
@@ -2771,10 +2770,10 @@ pub unsafe fn replace_termcodes(
                 // Replace <LocalLeader> by the value of "maplocalleader".
                 // If "mapleader" or "maplocalleader" isn't set use a backslash.
                 let (len, p): (usize, *mut c_char) = if rem >= 8
-                    && vim_strnicmp_asc(src, c"<Leader>".as_ptr(), 8) == 0
+                    && { let _p1 = src; let _p2 = c"<Leader>".as_ptr(); let _n = 8; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) }
                 {
                     (8, get_var_value(c"g:mapleader".as_ptr()))
-                } else if rem >= 13 && vim_strnicmp_asc(src, c"<LocalLeader>".as_ptr(), 13) == 0 {
+                } else if rem >= 13 && { let _p1 = src; let _p2 = c"<LocalLeader>".as_ptr(); let _n = 13; let _n1 = crate::memory::xstrnlen(_p1, _n); let _n2 = crate::memory::xstrnlen(_p2, _n); _n1 == _n2 && std::slice::from_raw_parts(_p1.cast::<u8>(), _n1).eq_ignore_ascii_case(std::slice::from_raw_parts(_p2.cast::<u8>(), _n2)) } {
                     (13, get_var_value(c"g:maplocalleader".as_ptr()))
                 } else {
                     (0, std::ptr::null_mut())

@@ -36,7 +36,7 @@ use crate::memory::{cstr_from_bytes, cstr_to_cstring, strequal, xstrlcpy};
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::strings::{
-    strcmp, strcoll, strlen, strncmp, strtod, tr, vim_snprintf, vim_stricmp,
+    strcoll, strlen, strncmp, strtod, tr, vim_snprintf, vim_stricmp,
 };
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
@@ -2040,7 +2040,7 @@ unsafe fn item_compare(
             } else if info.item_compare_ic != 0 {
                 res = vim_stricmp(p1, p2);
             } else {
-                res = strcmp(p1, p2);
+                res = std::ffi::CStr::from_ptr(p1).to_bytes().cmp(std::ffi::CStr::from_ptr(p2).to_bytes()) as c_int;
             }
         } else {
             let n1 = strtod(p1, &raw mut p1);
@@ -2744,7 +2744,7 @@ unsafe fn tv_dict_watcher_matches(watcher: *const DictWatcher, key: *const c_cha
         if len > 0 && *pat_ptr.add(len - 1) == b'*' as c_char {
             strncmp(key, pat_ptr, len - 1) == 0
         } else {
-            strcmp(key, pat_ptr) == 0
+            std::ffi::CStr::from_ptr(key).to_bytes() == std::ffi::CStr::from_ptr(pat_ptr).to_bytes()
         }
     }
 }
