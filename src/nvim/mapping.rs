@@ -679,7 +679,6 @@ unsafe fn map_add(
     lnum: linenr_T,
     simplified: bool,
     alt: Option<std::rc::Rc<MapAltLink>>,
-    keyround_idx: usize,
 ) {
     unsafe {
         if *keys == Ctrl_C {
@@ -692,7 +691,7 @@ unsafe fn map_add(
 
         let m_keys = CStr::from_ptr(keys).to_owned();
         if let Some(ref alt_rc) = alt {
-            alt_rc.keys[keyround_idx].set(Some(m_keys.clone()));
+            alt_rc.keys[usize::from(simplified)].set(Some(m_keys.clone()));
         }
         let m_keylen = m_keys.as_bytes().len() as c_int;
         let m_script_ctx = if sid != 0 {
@@ -1013,7 +1012,7 @@ unsafe fn buf_do_map(
                                             mp.m_script_ctx.sc_lnum += sourcing_lnum();
                                             nlua_set_sctx(&mut mp.m_script_ctx);
                                             mp.m_desc = args.desc.clone();
-                                            alt_link.keys[keyround - 1]
+                                            alt_link.keys[usize::from(keyround1_simplified)]
                                                 .set(Some(mp.m_keys.clone()));
                                             mp.m_alt = Some(alt_link.clone());
                                             created_any = true;
@@ -1085,7 +1084,6 @@ unsafe fn buf_do_map(
                     0,
                     keyround1_simplified,
                     Some(alt_link.clone()),
-                    keyround - 1,
                 );
                 created_any = true;
             }
@@ -2486,7 +2484,6 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
             lnum,
             false,
             alt.clone(),
-            0,
         );
         if !lhsrawalt.is_null() {
             map_add(
@@ -2501,7 +2498,6 @@ pub unsafe fn f_mapset(argvars: *mut typval_T, _rettv: *mut typval_T, _fptr: Eva
                 lnum,
                 true,
                 alt,
-                1,
             );
         }
     }
