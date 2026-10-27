@@ -104,8 +104,8 @@ pub struct ClusterInfo {
 }
 
 #[inline]
-pub unsafe fn vim_isbreak(c: c_int) -> bool {
-    unsafe { opt_vars().breakat_flags[(c as u8) as usize] != 0 }
+pub fn vim_isbreak(c: c_int) -> bool {
+    opt_vars().breakat_flags[(c as u8) as usize] != 0
 }
 
 #[inline]

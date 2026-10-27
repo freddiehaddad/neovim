@@ -122,7 +122,7 @@ static VT_TEST_STATE: crate::globals::GlobalState<VTermTestState> =
     crate::globals::GlobalState::new(VTermTestState::new());
 
 #[inline]
-unsafe fn vtt_st() -> &'static mut VTermTestState {
+fn vtt_st() -> &'static mut VTermTestState {
     unsafe { &mut *VT_TEST_STATE.as_ptr() }
 }
 
@@ -405,15 +405,13 @@ pub unsafe fn state_movecursor<T>(
     _visible: c_int,
     _user: *mut T,
 ) -> c_int {
-    unsafe {
-        vtt_st().state_pos = pos;
+    vtt_st().state_pos = pos;
         let mut out = Vec::new();
         if vtt_st().want_state_movecursor {
             let _ = writeln!(out, "movecursor {},{}", pos.row, pos.col);
         }
         append_test_output(&out);
         1
-    }
 }
 
 pub unsafe fn state_scrollrect(
@@ -422,8 +420,7 @@ pub unsafe fn state_scrollrect(
     rightward: c_int,
     _user: *mut VTermScreen,
 ) -> c_int {
-    unsafe {
-        if !vtt_st().want_state_scrollrect {
+    if !vtt_st().want_state_scrollrect {
             return 0;
         }
         let mut out = Vec::new();
@@ -434,12 +431,10 @@ pub unsafe fn state_scrollrect(
         );
         append_test_output(&out);
         1
-    }
 }
 
 pub unsafe fn state_moverect<T>(dest: VTermRect, src: VTermRect, _user: *mut T) -> c_int {
-    unsafe {
-        if !vtt_st().want_state_moverect {
+    if !vtt_st().want_state_moverect {
             return 0;
         }
         let mut out = Vec::new();
@@ -457,7 +452,6 @@ pub unsafe fn state_moverect<T>(dest: VTermRect, src: VTermRect, _user: *mut T) 
         );
         append_test_output(&out);
         1
-    }
 }
 
 fn format_color_bytes(out: &mut Vec<u8>, col: &VTermColor) {
@@ -548,8 +542,7 @@ pub unsafe fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user:
 }
 
 pub unsafe fn state_erase(rect: VTermRect, selective: c_int, _user: *mut VTermScreen) -> c_int {
-    unsafe {
-        if !vtt_st().want_state_erase {
+    if !vtt_st().want_state_erase {
             return 1;
         }
         let mut out = Vec::new();
@@ -561,7 +554,6 @@ pub unsafe fn state_erase(rect: VTermRect, selective: c_int, _user: *mut VTermSc
         );
         append_test_output(&out);
         1
-    }
 }
 
 pub unsafe fn state_setpenattr(
@@ -569,8 +561,7 @@ pub unsafe fn state_setpenattr(
     val: &mut VTermValue,
     _user: *mut VTermScreen,
 ) -> c_int {
-    unsafe {
-        match attr {
+    match attr {
             VTERM_ATTR_BOLD => vtt_st().STATE_PEN.bold = val.boolean(),
             VTERM_ATTR_UNDERLINE => vtt_st().STATE_PEN.underline = val.number(),
             VTERM_ATTR_ITALIC => vtt_st().STATE_PEN.italic = val.boolean(),
@@ -589,17 +580,14 @@ pub unsafe fn state_setpenattr(
             _ => {}
         }
         1
-    }
 }
 
 pub unsafe fn state_sb_clear(_user: *mut VTermScreen) -> c_int {
-    unsafe {
-        if !vtt_st().want_state_scrollback {
+    if !vtt_st().want_state_scrollback {
             return 1;
         }
         append_test_output(b"sb_clear\n");
         0
-    }
 }
 
 pub unsafe fn screen_sb_pushline(
@@ -653,13 +641,11 @@ pub unsafe fn screen_sb_popline(
 }
 
 pub unsafe fn screen_sb_clear(_user: *mut Terminal) -> c_int {
-    unsafe {
-        if !vtt_st().want_screen_scrollback {
+    if !vtt_st().want_screen_scrollback {
             return 1;
         }
         append_test_output(b"sb_clear\n");
         0
-    }
 }
 
 pub unsafe fn term_output(s: *const c_char, len: usize, _user: *mut Terminal) {
@@ -747,7 +733,7 @@ pub unsafe fn vterm_state_get_penattr(
     }
 }
 
-pub unsafe fn vterm_color_is_equal(a: &VTermColor, b: &VTermColor) -> c_int {
+pub fn vterm_color_is_equal(a: &VTermColor, b: &VTermColor) -> c_int {
     let ca = a;
         let cb = b;
         if ca.type_byte() != cb.type_byte() {
@@ -923,7 +909,7 @@ pub unsafe fn vterm_state_get_cursorpos(state: &VTermStateFull, cursorpos: *mut 
     }
 }
 
-pub unsafe fn vterm_state_set_bold_highbright(
+pub fn vterm_state_set_bold_highbright(
     state: &mut VTermStateFull,
     bold_is_highbright: c_int,
 ) {
@@ -1091,10 +1077,8 @@ mod tests {
         }
     }
 
-    unsafe fn vterm_free(_vt: &mut VTerm) {
-        unsafe {
-            vtt_st().TEST_VT = None;
-        }
+    fn vterm_free(_vt: &mut VTerm) {
+        vtt_st().TEST_VT = None;
     }
 
     fn wantparser(vt: &mut VTerm) {
@@ -1194,7 +1178,7 @@ mod tests {
         }
     }
 
-    unsafe fn lineinfo(
+    fn lineinfo(
         row: c_int,
         exp_dwl: bool,
         exp_dhl: bool,
@@ -1394,14 +1378,14 @@ mod tests {
         }
     }
 
-    unsafe fn wantencoding() -> VTermEncodingInstance {
+    fn wantencoding() -> VTermEncodingInstance {
         let enc = vterm_lookup_encoding(VTermEncodingType::ENC_UTF8, b'u' as c_char).unwrap();
         let mut inst = VTermEncodingInstance::default();
         inst.init(enc);
         inst
     }
 
-    unsafe fn encin(input: &[u8], encoding: &mut VTermEncodingInstance) {
+    fn encin(input: &[u8], encoding: &mut VTermEncodingInstance) {
         let len = input.len();
         let mut cp = vec![0u32; len.max(1)];
         let mut cpi: c_int = 0;
@@ -1462,15 +1446,13 @@ mod tests {
 
     #[test]
     fn vterm_color_is_equal_compares_rgb_and_indexed_colors() {
-        unsafe {
-            let mut c1 = VTermColor { bytes: [0; 4] };
+        let mut c1 = VTermColor { bytes: [0; 4] };
             let mut c2 = VTermColor { bytes: [0; 4] };
             c1.set_rgb(10, 20, 30);
             c2.set_rgb(10, 20, 30);
             assert_eq!(vterm_color_is_equal(&c1, &c2), 1);
             c2.set_rgb(10, 20, 31);
             assert_eq!(vterm_color_is_equal(&c1, &c2), 0);
-        }
     }
 
     #[test]
@@ -1624,8 +1606,7 @@ mod tests {
     fn spec_03encoding_utf8() {
         let _guard = VTERM_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         clear_test_output();
-        unsafe {
-            let mut encoding = wantencoding();
+        let mut encoding = wantencoding();
             encin(b"123", &mut encoding);
             expect(b"encout 31,32,33");
             encin(b"\xc2\x80\xdf\xbf", &mut encoding);
@@ -1675,7 +1656,6 @@ mod tests {
             encin(b"\xf0\x90\x80", &mut encoding);
             encin(b"\x80", &mut encoding);
             expect(b"encout 10000");
-        }
     }
 
     #[test]

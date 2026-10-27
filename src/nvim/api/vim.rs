@@ -283,7 +283,7 @@ impl ApiVimState {
 static API_VIM_STATE: crate::globals::GlobalState<ApiVimState> = crate::globals::GlobalState::new(ApiVimState::new());
 
 #[inline]
-unsafe fn api_vim_st() -> &'static mut ApiVimState {
+fn api_vim_st() -> &'static mut ApiVimState {
     unsafe { &mut *API_VIM_STATE.as_ptr() }
 }
 
@@ -2767,9 +2767,7 @@ pub unsafe extern "C" fn nvim_select_popupmenu_item(
     if finish {
         insert = true;
     }
-    unsafe {
-        pum_ext_select_item(item as c_int, insert, finish);
-    }
+    pum_ext_select_item(item as c_int, insert, finish);
 }
 
 /// NB: if your UI doesn't use hlstate, this will not return hlstate first time.
@@ -2826,9 +2824,7 @@ pub unsafe extern "C" fn nvim__inspect_cell(
 // DLLEXPORT void nvim__screenshot(String path) FUNC_API_FAST;
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__screenshot(path: NvimString) {
-    unsafe {
-        ui_call_screenshot(path);
-    }
+    ui_call_screenshot(path);
 }
 
 /// For testing. The condition in schar_cache_clear_if_full is hard to
@@ -3519,9 +3515,7 @@ pub unsafe extern "C" fn nvim__redraw(opts: *mut KeyDict_redraw, err: &mut Error
 // DLLEXPORT void nvim__set_restart_on_crash(String progpath, Array argv);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim__set_restart_on_crash(progpath: NvimString, argv: Array) {
-    unsafe {
-        ui_call__set_restart_on_crash_exit(progpath, argv);
-    }
+    ui_call__set_restart_on_crash_exit(progpath, argv);
 }
 
 #[cfg(test)]

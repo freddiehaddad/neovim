@@ -87,7 +87,7 @@ impl ApiUiState {
 static API_UI_STATE: crate::globals::GlobalState<ApiUiState> = crate::globals::GlobalState::new(ApiUiState::new());
 
 #[inline]
-unsafe fn api_ui_st() -> &'static mut ApiUiState {
+fn api_ui_st() -> &'static mut ApiUiState {
     unsafe { &mut *API_UI_STATE.as_ptr() }
 }
 
@@ -1621,9 +1621,7 @@ pub unsafe fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: 
 // DLLEXPORT void nvim_ui_send(uint64_t channel_id, String content, Error *err) FUNC_API_SINCE(14);
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvim_ui_send(_channel_id: u64, content: NvimString, _err: &mut Error) {
-    unsafe {
-        ui_call_ui_send(content);
-    }
+    ui_call_ui_send(content);
 }
 
 pub unsafe fn remote_ui_mode_info_set(ui: &mut RemoteUI, enabled: Boolean, cursor_styles: Array) {

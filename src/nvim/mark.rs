@@ -218,7 +218,7 @@ impl MarkModuleState {
 static MARK_STATE: crate::globals::GlobalState<MarkModuleState> = crate::globals::GlobalState::new(MarkModuleState::new());
 
 #[inline]
-unsafe fn mark_st() -> &'static mut MarkModuleState {
+fn mark_st() -> &'static mut MarkModuleState {
     unsafe { &mut *MARK_STATE.as_ptr() }
 }
 
@@ -235,7 +235,7 @@ pub const fn mark_global_index(name: c_char) -> c_int {
 }
 
 #[inline]
-unsafe fn set_fmark(fmarkp: &mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
+fn set_fmark(fmarkp: &mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
     fmarkp.mark = mark;
         fmarkp.fnum = fnum;
         fmarkp.timestamp = os_time();
@@ -244,10 +244,8 @@ unsafe fn set_fmark(fmarkp: &mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv
 }
 
 #[inline]
-pub unsafe fn reset_fmark(fmarkp: &mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
-    unsafe {
-        set_fmark(fmarkp, mark, fnum, view);
-    }
+pub fn reset_fmark(fmarkp: &mut fmark_T, mark: pos_T, fnum: c_int, view: fmarkv_T) {
+    set_fmark(fmarkp, mark, fnum, view);
 }
 
 #[inline]
@@ -292,13 +290,13 @@ pub unsafe fn setmark(c: c_int) -> c_int {
 }
 
 /// Free `xfmark_T` item (`free_xfmark`).
-pub unsafe fn free_xfmark(fm: &mut xfmark_T) {
+pub fn free_xfmark(fm: &mut xfmark_T) {
     fm.fname = None;
     fm.fmark.additional_data = None;
 }
 
 /// Free and clear `fmark_T` item (`clear_fmark`).
-pub unsafe fn clear_fmark(fm: &mut fmark_T, timestamp: Timestamp) {
+pub fn clear_fmark(fm: &mut fmark_T, timestamp: Timestamp) {
     *fm = INIT_FMARK;
         fm.timestamp = timestamp;
 }
@@ -451,9 +449,8 @@ pub unsafe fn setmark_pos(c: c_int, pos: &mut pos_T, fnum: c_int, view_pt: *mut 
 }
 
 /// Remove every jump list entry referring to a given buffer (`mark_jumplist_forget_file`).
-pub unsafe fn mark_jumplist_forget_file(wp: &mut win_T, fnum: c_int) {
-    unsafe {
-        let mut i = wp.w_jumplistlen - 1;
+pub fn mark_jumplist_forget_file(wp: &mut win_T, fnum: c_int) {
+    let mut i = wp.w_jumplistlen - 1;
         while i >= 0 {
             let idx = i as usize;
             if wp.w_jumplist[idx].fmark.fnum == fnum {
@@ -468,13 +465,11 @@ pub unsafe fn mark_jumplist_forget_file(wp: &mut win_T, fnum: c_int) {
             }
             i -= 1;
         }
-    }
 }
 
 /// Delete every entry referring to file `fnum` from both the jumplist and the tag stack (`mark_forget_file`).
-pub unsafe fn mark_forget_file(wp: &mut win_T, fnum: c_int) {
-    unsafe {
-        mark_jumplist_forget_file(wp, fnum);
+pub fn mark_forget_file(wp: &mut win_T, fnum: c_int) {
+    mark_jumplist_forget_file(wp, fnum);
 
         let mut i = wp.w_tagstacklen - 1;
         while i >= 0 {
@@ -490,7 +485,6 @@ pub unsafe fn mark_forget_file(wp: &mut win_T, fnum: c_int) {
             }
             i -= 1;
         }
-    }
 }
 
 /// Set the previous context mark to the current position and add it to the jump list (`setpcmark`).
@@ -1005,9 +999,8 @@ pub unsafe fn mark_check_line_bounds(
 }
 
 /// Clear all marks and change list in the given buffer (`clrallmarks`).
-pub unsafe fn clrallmarks(buf: &mut buf_T, timestamp: Timestamp) {
-    unsafe {
-        for i in 0..NMARKS {
+pub fn clrallmarks(buf: &mut buf_T, timestamp: Timestamp) {
+    for i in 0..NMARKS {
             clear_fmark(&mut buf.b_namedm[i], timestamp);
         }
         clear_fmark(&mut buf.b_last_cursor, timestamp);
@@ -1020,7 +1013,6 @@ pub unsafe fn clrallmarks(buf: &mut buf_T, timestamp: Timestamp) {
             clear_fmark(&mut buf.b_changelist[i], timestamp);
         }
         buf.b_changelistlen = 0;
-    }
 }
 
 /// Get name of file from a filemark (`fm_getname`).
@@ -1345,7 +1337,7 @@ pub unsafe fn ex_changes(_eap: &mut exarg_T) {
 }
 
 #[inline]
-unsafe fn one_adjust(
+fn one_adjust(
     lp: &mut linenr_T,
     line1: linenr_T,
     line2: linenr_T,
@@ -1364,7 +1356,7 @@ unsafe fn one_adjust(
 }
 
 #[inline]
-unsafe fn one_adjust_nodel(
+fn one_adjust_nodel(
     lp: &mut linenr_T,
     line1: linenr_T,
     line2: linenr_T,
@@ -2021,13 +2013,12 @@ pub fn mark_jumplist_iter(iter: Option<usize>, win: &win_T, fm: &mut xfmark_T) -
 }
 
 /// Iterate over global marks (`mark_global_iter`).
-pub unsafe fn mark_global_iter(
+pub fn mark_global_iter(
     iter: Option<usize>,
     name: &mut c_char,
     fm: &mut xfmark_T,
 ) -> Option<usize> {
-    unsafe {
-        *name = NUL;
+    *name = NUL;
         let marks = &g_st().namedfm;
         let mut idx = iter.unwrap_or(0);
         while idx < NGLOBALMARKS && marks[idx].fmark.mark.lnum == 0 {
@@ -2050,7 +2041,6 @@ pub unsafe fn mark_global_iter(
             idx += 1;
         }
         None
-    }
 }
 
 #[inline]
@@ -2340,8 +2330,8 @@ pub unsafe fn get_buf_local_marks(buf: &buf_T, l: *mut list_T) {
 
 /// Get a global mark (`get_raw_global_mark`).
 #[cfg(test)]
-pub unsafe fn get_raw_global_mark(name: c_char) -> xfmark_T {
-    unsafe { g_st().namedfm[mark_global_index(name) as usize].clone() }
+pub fn get_raw_global_mark(name: c_char) -> xfmark_T {
+    g_st().namedfm[mark_global_index(name) as usize].clone()
 }
 
 /// Get information about global marks (`get_global_marks`).

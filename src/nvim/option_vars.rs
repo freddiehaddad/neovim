@@ -704,7 +704,7 @@ impl OptionVars {
 pub static OPT_VARS: GlobalState<OptionVars> = GlobalState::new(OptionVars::new());
 
 #[inline]
-pub unsafe fn opt_vars() -> &'static mut OptionVars {
+pub fn opt_vars() -> &'static mut OptionVars {
     unsafe { &mut *OPT_VARS.as_ptr() }
 }
 

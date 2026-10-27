@@ -36,7 +36,7 @@ enum FilterMap {
 }
 
 #[inline]
-unsafe fn tv_blob_set(b: &mut blob_T, idx: c_int, c: u8) {
+fn tv_blob_set(b: &mut blob_T, idx: c_int, c: u8) {
     (&mut b.bv_ga)[idx as usize] = c;
 }
 

@@ -317,7 +317,7 @@ impl ExCmdsState {
 static EXCMDS_STATE: GlobalState<ExCmdsState> = GlobalState::new(ExCmdsState::new());
 
 #[inline]
-unsafe fn excmds_st() -> &'static mut ExCmdsState {
+fn excmds_st() -> &'static mut ExCmdsState {
     unsafe { &mut *EXCMDS_STATE.as_ptr() }
 }
 
@@ -1388,10 +1388,8 @@ pub unsafe fn ex_copy(mut line1: linenr_T, mut line2: linenr_T, n: linenr_T) {
     }
 }
 
-pub unsafe fn free_prev_shellcmd() {
-    unsafe {
-        excmds_st().prevcmd = None;
-    }
+pub fn free_prev_shellcmd() {
+    excmds_st().prevcmd = None;
 }
 
 /// Check that `excmds_st().prevcmd` is not NULL.
@@ -3673,10 +3671,8 @@ pub unsafe fn sub_get_replacement(ret_sub: *mut SubReplacementString) {
 }
 
 /// Set substitute string and timestamp.
-pub unsafe fn sub_set_replacement(sub: SubReplacementString) {
-    unsafe {
-        excmds_st().old_sub = sub;
-    }
+pub fn sub_set_replacement(sub: SubReplacementString) {
+    excmds_st().old_sub = sub;
 }
 
 /// Recognize `":%s/\n//"` and turn it into a join command.
@@ -3897,7 +3893,7 @@ unsafe fn check_regexp_delim(c: c_int) -> c_int {
     }
 }
 
-unsafe fn push_preview_lines(
+fn push_preview_lines(
     cmdpreview_ns: c_int,
     preview_lines: &mut PreviewLines,
     current_match: SubResult,
@@ -5083,14 +5079,12 @@ pub unsafe fn global_exe(cmd: *mut c_char) {
     }
 }
 
-pub unsafe fn free_old_sub() {
-    unsafe {
-        sub_set_replacement(SubReplacementString {
+pub fn free_old_sub() {
+    sub_set_replacement(SubReplacementString {
             sub: None,
             timestamp: 0,
             additional_data: None,
         });
-    }
 }
 
 /// Set up for a tagpreview.

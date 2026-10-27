@@ -189,7 +189,7 @@ impl OpsModuleState {
 static OPS_STATE: crate::globals::GlobalState<OpsModuleState> = crate::globals::GlobalState::new(OpsModuleState::new());
 
 #[inline]
-unsafe fn ops_st() -> &'static mut OpsModuleState {
+fn ops_st() -> &'static mut OpsModuleState {
     unsafe { &mut *OPS_STATE.as_ptr() }
 }
 
@@ -242,34 +242,32 @@ pub unsafe fn get_op_type(char1: c_int, char2: c_int) -> c_int {
 }
 
 /// Return non-zero if operator `op` always works on whole lines.
-pub unsafe fn op_on_lines(op: c_int) -> c_int {
+pub fn op_on_lines(op: c_int) -> c_int {
     c_int::from(OPCHARS[op as usize][2] & OPF_LINES)
 }
 
 /// Return non-zero if operator `op` changes text.
-pub unsafe fn op_is_change(op: c_int) -> c_int {
+pub fn op_is_change(op: c_int) -> c_int {
     c_int::from(OPCHARS[op as usize][2] & OPF_CHANGE)
 }
 
 /// Whether operator `op` builds a redo: text-changing operators do, ":" and the fold operators do
 /// not. Yank with the 'y' flag in 'cpoptions'.
-pub unsafe fn op_redoable(op: c_int, redo_yank: bool) -> bool {
-    unsafe {
-        if op == OP_YANK {
+pub fn op_redoable(op: c_int, redo_yank: bool) -> bool {
+    if op == OP_YANK {
             redo_yank
         } else {
             op_is_change(op) != 0
         }
-    }
 }
 
 /// Get first operator command character.
-pub unsafe fn get_op_char(optype: c_int) -> c_int {
+pub fn get_op_char(optype: c_int) -> c_int {
     c_int::from(OPCHARS[optype as usize][0])
 }
 
 /// Get second operator command character.
-pub unsafe fn get_extra_op_char(optype: c_int) -> c_int {
+pub fn get_extra_op_char(optype: c_int) -> c_int {
     c_int::from(OPCHARS[optype as usize][1])
 }
 
@@ -4183,15 +4181,13 @@ mod tests {
 
     #[test]
     fn op_char_and_rot13_helpers() {
-        unsafe {
-            assert_eq!(get_op_char(OP_UPPER), b'g' as c_int);
+        assert_eq!(get_op_char(OP_UPPER), b'g' as c_int);
             assert_eq!(get_extra_op_char(OP_UPPER), b'U' as c_int);
             assert_ne!(op_on_lines(OP_INDENT), 0);
             assert_eq!(op_on_lines(OP_DELETE), 0);
             assert!(op_redoable(OP_DELETE, false));
             assert!(!op_redoable(OP_YANK, false));
             assert!(op_redoable(OP_YANK, true));
-        }
         assert_eq!(rot13(b'a' as c_int, b'a' as c_int), b'n' as c_int);
         assert_eq!(rot13(b'n' as c_int, b'a' as c_int), b'a' as c_int);
         assert_eq!(char_ord(b'C' as c_int), 2);

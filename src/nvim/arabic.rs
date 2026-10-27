@@ -5,7 +5,7 @@ use std::ffi::c_int;
 
 #[inline]
 fn arshape_enabled() -> bool {
-    unsafe { opt_vars().p_arshape != 0 && opt_vars().p_tbidi == 0 }
+    opt_vars().p_arshape != 0 && opt_vars().p_tbidi == 0
 }
 
 const A_HAMZA: u32 = 0x0621;
@@ -600,10 +600,8 @@ mod tests {
 
     #[test]
     fn combine_and_shape_lam_alef_and_contextual_forms() {
-        unsafe {
-            opt_vars().p_arshape = 1;
+        opt_vars().p_arshape = 1;
             opt_vars().p_tbidi = 0;
-        }
 
         assert!(arabic_maycombine(A_ALEF as c_int));
         assert!(arabic_combine(A_LAM as c_int, A_ALEF as c_int));

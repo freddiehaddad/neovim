@@ -256,7 +256,7 @@ impl HighlightModuleState {
 static HL_STATE: GlobalState<HighlightModuleState> = GlobalState::new(HighlightModuleState::new());
 
 #[inline]
-unsafe fn hl_st() -> &'static mut HighlightModuleState {
+fn hl_st() -> &'static mut HighlightModuleState {
     unsafe { &mut *HL_STATE.as_ptr() }
 }
 

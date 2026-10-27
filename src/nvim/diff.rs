@@ -247,16 +247,15 @@ impl DiffState {
 static DIFF_STATE: GlobalState<DiffState> = GlobalState::new(DiffState::new());
 
 #[inline]
-unsafe fn diff_st() -> &'static mut DiffState {
+fn diff_st() -> &'static mut DiffState {
     unsafe { &mut *DIFF_STATE.as_ptr() }
 }
 #[inline]
 const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {
     (v.is_set__dip_ & (1u64 << idx)) != 0
 }
-unsafe fn diff_scan_start(tp: &mut tabpage_T, idx: c_int, lnum: linenr_T) -> usize {
-    unsafe {
-        if let Some(dp_idx) = diff_st().diff_finger_dp_idx
+fn diff_scan_start(tp: &mut tabpage_T, idx: c_int, lnum: linenr_T) -> usize {
+    if let Some(dp_idx) = diff_st().diff_finger_dp_idx
             && diff_st().diff_finger_tp == tp
             && diff_st().diff_finger_idx == idx
             && lnum >= diff_st().diff_finger_lnum
@@ -265,20 +264,17 @@ unsafe fn diff_scan_start(tp: &mut tabpage_T, idx: c_int, lnum: linenr_T) -> usi
             return dp_idx;
         }
         0
-    }
 }
-unsafe fn diff_scan_remember(
+fn diff_scan_remember(
     tp: &mut tabpage_T,
     idx: c_int,
     lnum: linenr_T,
     dp_idx: Option<usize>,
 ) {
-    unsafe {
-        diff_st().diff_finger_tp = tp;
+    diff_st().diff_finger_tp = tp;
         diff_st().diff_finger_idx = idx;
         diff_st().diff_finger_lnum = lnum;
         diff_st().diff_finger_dp_idx = Some(dp_idx.unwrap_or(0));
-    }
 }
 pub unsafe fn diff_buf_delete(buf: *mut buf_T) {
     unsafe {
@@ -586,9 +582,8 @@ unsafe fn diff_mark_adjust_tp(
         }
     }
 }
-unsafe fn diff_alloc_new(tp: &mut tabpage_T, idx: usize) -> usize {
-    unsafe {
-        let df_id = diff_st().next_diff_id;
+fn diff_alloc_new(tp: &mut tabpage_T, idx: usize) -> usize {
+    let df_id = diff_st().next_diff_id;
         diff_st().next_diff_id += 1;
         diff_st().diff_finger_dp_idx = None;
         tp.tp_diffs.insert(
@@ -603,13 +598,10 @@ unsafe fn diff_alloc_new(tp: &mut tabpage_T, idx: usize) -> usize {
             },
         );
         idx
-    }
 }
-unsafe fn diff_free(tp: &mut tabpage_T, idx: usize) {
-    unsafe {
-        diff_st().diff_finger_dp_idx = None;
+fn diff_free(tp: &mut tabpage_T, idx: usize) {
+    diff_st().diff_finger_dp_idx = None;
         tp.tp_diffs.remove(idx);
-    }
 }
 unsafe fn diff_check_unchanged(tp: &mut tabpage_T, dp_idx: usize) {
     unsafe {
@@ -999,12 +991,10 @@ unsafe fn diff_try_update(dio: &mut diffio_T, idx_orig: usize, eap: &mut exarg_T
         }
     }
 }
-pub unsafe fn diff_internal() -> c_int {
-    unsafe {
-        c_int::from(
+pub fn diff_internal() -> c_int {
+    c_int::from(
             (diff_st().diff_flags & DIFF_INTERNAL) != 0 && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) == kCallbackNone,
         )
-    }
 }
 pub unsafe fn ex_diffupdate(eap: &mut exarg_T) {
     unsafe {
@@ -1841,11 +1831,9 @@ unsafe fn diff_copy_entry(dp_idx: usize, idx_orig: usize, idx_new: usize) {
         dp.df_count[idx_new] = dp.df_count[idx_orig];
     }
 }
-pub unsafe fn diff_clear(tp: &mut tabpage_T) {
-    unsafe {
-        diff_st().diff_finger_dp_idx = None;
+pub fn diff_clear(tp: &mut tabpage_T) {
+    diff_st().diff_finger_dp_idx = None;
         tp.tp_diffs.clear();
-    }
 }
 pub unsafe fn diff_linematch(dp: *const diff_T) -> bool {
     unsafe {
@@ -2528,17 +2516,17 @@ pub unsafe fn diffopt_changed() -> c_int {
         ret
     }
 }
-pub unsafe fn diffopt_horizontal() -> bool {
-    unsafe { (diff_st().diff_flags & DIFF_HORIZONTAL) != 0 }
+pub fn diffopt_horizontal() -> bool {
+    (diff_st().diff_flags & DIFF_HORIZONTAL) != 0
 }
-pub unsafe fn diffopt_hiddenoff() -> bool {
-    unsafe { (diff_st().diff_flags & DIFF_HIDDEN_OFF) != 0 }
+pub fn diffopt_hiddenoff() -> bool {
+    (diff_st().diff_flags & DIFF_HIDDEN_OFF) != 0
 }
-pub unsafe fn diffopt_closeoff() -> bool {
-    unsafe { (diff_st().diff_flags & DIFF_CLOSE_OFF) != 0 }
+pub fn diffopt_closeoff() -> bool {
+    (diff_st().diff_flags & DIFF_CLOSE_OFF) != 0
 }
-pub unsafe fn diffopt_filler() -> bool {
-    unsafe { (diff_st().diff_flags & DIFF_FILLER) != 0 }
+pub fn diffopt_filler() -> bool {
+    (diff_st().diff_flags & DIFF_FILLER) != 0
 }
 pub unsafe fn diff_update_line(lnum: linenr_T) {
     unsafe {
@@ -2560,7 +2548,7 @@ pub unsafe fn diff_update_line(lnum: linenr_T) {
         }
     }
 }
-pub unsafe fn diff_change_parse(
+pub fn diff_change_parse(
     diffline: &diffline_T,
     change: &diffline_change_T,
     change_start: &mut c_int,
@@ -3827,7 +3815,7 @@ unsafe fn parse_diff_unified(line: *mut c_char, hunk: *mut diffhunk_T) -> c_int 
         FAIL
     }
 }
-pub(crate) unsafe fn xdiff_out(
+pub(crate) fn xdiff_out(
     start_a: c_int,
     count_a: c_int,
     start_b: c_int,

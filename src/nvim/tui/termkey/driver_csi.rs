@@ -224,7 +224,7 @@ pub unsafe fn termkey_key_get_linecol(key: &TermKeyKey, line: *mut c_int, col: *
 }
 
 #[inline]
-pub unsafe fn termkey_key_set_linecol(key: &mut TermKeyKey, mut line: c_int, mut col: c_int) {
+pub fn termkey_key_set_linecol(key: &mut TermKeyKey, mut line: c_int, mut col: c_int) {
     if line > 0xfff {
         line = 0xfff;
     }

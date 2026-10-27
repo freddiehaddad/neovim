@@ -229,7 +229,7 @@ impl ContextModuleState {
 static CTX_STATE: GlobalState<ContextModuleState> = GlobalState::new(ContextModuleState::new());
 
 #[inline]
-unsafe fn ctx_st() -> &'static mut ContextModuleState {
+fn ctx_st() -> &'static mut ContextModuleState {
     unsafe { &mut *CTX_STATE.as_ptr() }
 }
 
@@ -706,10 +706,8 @@ unsafe fn ctx_dirs_restore(cs: &mut CtxSwitch) {
     }
 }
 
-pub unsafe fn ctx_did_chdir() {
-    unsafe {
-        ctx_st().CTX_DID_CHDIR = true;
-    }
+pub fn ctx_did_chdir() {
+    ctx_st().CTX_DID_CHDIR = true;
 }
 
 pub unsafe fn is_ctx_win(win: *mut win_T) -> bool {

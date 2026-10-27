@@ -593,7 +593,7 @@ impl SyntaxState {
 static SYN_STATE: GlobalState<SyntaxState> = GlobalState::new(SyntaxState::new());
 
 #[inline]
-unsafe fn syn_st() -> &'static mut SyntaxState {
+fn syn_st() -> &'static mut SyntaxState {
     unsafe { &mut *SYN_STATE.as_ptr() }
 }
 
@@ -603,12 +603,12 @@ pub unsafe fn win_s(wp: *mut win_T) -> *mut synblock_T {
 }
 
 #[inline]
-unsafe fn syn_items(block: &mut synblock_T) -> *mut synpat_T {
+fn syn_items(block: &mut synblock_T) -> *mut synpat_T {
     block.b_syn_patterns.as_mut_ptr()
 }
 
 #[inline]
-unsafe fn syn_clstr(block: &mut synblock_T) -> *mut syn_cluster_T {
+fn syn_clstr(block: &mut synblock_T) -> *mut syn_cluster_T {
     block.b_syn_clusters.as_mut_ptr()
 }
 
@@ -637,7 +637,7 @@ unsafe fn cur_state_at(idx: c_int) -> *mut stateitem_T {
 }
 
 #[inline]
-unsafe fn ke2hikey(kp: &keyentry_T) -> *const c_char {
+fn ke2hikey(kp: &keyentry_T) -> *const c_char {
     kp.keyword.as_ptr()
 }
 
@@ -647,20 +647,18 @@ fn id_list_all() -> SynIdList {
 }
 
 #[inline]
-unsafe fn invalid_state() -> bool {
-    unsafe { !syn_st().current_state_valid }
+fn invalid_state() -> bool {
+    !syn_st().current_state_valid
 }
 
 #[inline]
-unsafe fn valid_state() -> bool {
-    unsafe { syn_st().current_state_valid }
+fn valid_state() -> bool {
+    syn_st().current_state_valid
 }
 
 /// Set the timeout used for syntax highlighting.
-pub unsafe fn syn_set_timeout(tm: Option<proftime_T>) {
-    unsafe {
-        syn_st().syn_tm = tm;
-    }
+pub fn syn_set_timeout(tm: Option<proftime_T>) {
+    syn_st().syn_tm = tm;
 }
 
 /// Start the syntax recognition for a line.
@@ -1187,7 +1185,7 @@ pub unsafe fn syn_stack_apply_changes(buf: &mut buf_T) {
     }
 }
 
-unsafe fn syn_stack_apply_changes_block(block: &mut synblock_T, buf: &mut buf_T) {
+fn syn_stack_apply_changes_block(block: &mut synblock_T, buf: &mut buf_T) {
     let mut idx = 0;
         while idx < block.b_sst_array.len() {
             let p = &mut block.b_sst_array.as_mut_slice()[idx];
@@ -1500,10 +1498,8 @@ unsafe fn invalidate_current_state() {
     }
 }
 
-unsafe fn validate_current_state() {
-    unsafe {
-        syn_st().current_state_valid = true;
-    }
+fn validate_current_state() {
+    syn_st().current_state_valid = true;
 }
 
 /// Check if the syntax at start of lnum changed since last time.
@@ -2545,7 +2541,7 @@ unsafe fn find_endpos(
     }
 }
 
-unsafe fn limit_pos(pos: &mut lpos_T, limit: &mut lpos_T) {
+fn limit_pos(pos: &mut lpos_T, limit: &mut lpos_T) {
     if pos.lnum > limit.lnum {
             *pos = *limit;
         } else if pos.lnum == limit.lnum && pos.col > limit.col {
@@ -2553,14 +2549,12 @@ unsafe fn limit_pos(pos: &mut lpos_T, limit: &mut lpos_T) {
         }
 }
 
-unsafe fn limit_pos_zero(pos: &mut lpos_T, limit: &mut lpos_T) {
-    unsafe {
-        if pos.lnum == 0 {
+fn limit_pos_zero(pos: &mut lpos_T, limit: &mut lpos_T) {
+    if pos.lnum == 0 {
             *pos = *limit;
         } else {
             limit_pos(pos, limit);
         }
-    }
 }
 
 unsafe fn syn_add_end_off(
@@ -3614,7 +3608,7 @@ unsafe fn syn_list_keywords(
     }
 }
 
-unsafe fn syn_clear_keyword(
+fn syn_clear_keyword(
     id: c_int,
     ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>,
 ) {
@@ -3624,7 +3618,7 @@ unsafe fn syn_clear_keyword(
     });
 }
 
-unsafe fn clear_keywtab(ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>) {
+fn clear_keywtab(ht: &mut std::collections::BTreeMap<Vec<u8>, Vec<keyentry_T>>) {
     ht.clear();
 }
 
@@ -4955,7 +4949,7 @@ unsafe fn idl_get_entry(list: &SynIdList) -> *mut idl_entry_T {
     }
 }
 
-unsafe fn idl_contains(e: &idl_entry_T, id: i16) -> bool {
+fn idl_contains(e: &idl_entry_T, id: i16) -> bool {
     e.idl_ids.binary_search(&id).is_ok()
 }
 
@@ -5179,20 +5173,16 @@ pub unsafe fn syntax_present(win: *mut win_T) -> bool {
     }
 }
 
-pub unsafe fn reset_expand_highlight() {
-    unsafe {
-        g_st().include_none = 0;
+pub fn reset_expand_highlight() {
+    g_st().include_none = 0;
         g_st().include_default = 0;
         g_st().include_link = 0;
-    }
 }
 
 pub unsafe fn set_context_in_echohl_cmd(xp: &mut expand_T, arg: *const c_char) {
-    unsafe {
-        xp.xp_context = EXPAND_HIGHLIGHT;
+    xp.xp_context = EXPAND_HIGHLIGHT;
         xp.xp_pattern = arg.cast_mut();
         g_st().include_none = 1;
-    }
 }
 
 pub unsafe fn set_context_in_syntax_cmd(xp: &mut expand_T, arg: *const c_char) {
@@ -5345,15 +5335,13 @@ pub unsafe fn syn_get_id(
     }
 }
 
-pub unsafe fn get_syntax_info(seqnrp: &mut c_int) -> c_int {
-    unsafe {
-        *seqnrp = syn_st().current_seqnr;
+pub fn get_syntax_info(seqnrp: &mut c_int) -> c_int {
+    *seqnrp = syn_st().current_seqnr;
         syn_st().current_flags
-    }
 }
 
-pub unsafe fn syn_get_sub_char() -> c_int {
-    unsafe { syn_st().current_sub_char }
+pub fn syn_get_sub_char() -> c_int {
+    syn_st().current_sub_char
 }
 
 pub unsafe fn syn_get_stack_item(i: c_int) -> c_int {
@@ -5433,7 +5421,7 @@ pub unsafe fn ex_syntime(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn syn_clear_time(st: &mut syn_time_T) {
+fn syn_clear_time(st: &mut syn_time_T) {
     st.total = profile_zero();
         st.slowest = profile_zero();
         st.count = 0;
@@ -5452,7 +5440,7 @@ unsafe fn syntime_clear() {
     }
 }
 
-pub unsafe fn get_syntime_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_syntime_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     match idx {
         0 => c"on".as_ptr().cast_mut(),
         1 => c"off".as_ptr().cast_mut(),

@@ -355,7 +355,7 @@ impl TerminalModuleState {
 static TERM_MOD_STATE: crate::globals::GlobalState<TerminalModuleState> = crate::globals::GlobalState::new(TerminalModuleState::new());
 
 #[inline]
-unsafe fn term_st() -> &'static mut TerminalModuleState {
+fn term_st() -> &'static mut TerminalModuleState {
     unsafe { &mut *TERM_MOD_STATE.as_ptr() }
 }
 
@@ -404,8 +404,8 @@ const fn vterm_key_function(n: c_int) -> VTermKey {
 }
 
 #[inline]
-unsafe fn refresh_timer_ptr() -> *mut TimeWatcher {
-    unsafe { &raw mut term_st().REFRESH_TIMER }
+fn refresh_timer_ptr() -> *mut TimeWatcher {
+    &raw mut term_st().REFRESH_TIMER
 }
 
 #[inline]
@@ -1508,7 +1508,7 @@ unsafe fn terminal_send(term: &mut Terminal, data: *const c_char, size: usize) {
     }
 }
 
-unsafe fn is_filter_char(c: c_int) -> bool {
+fn is_filter_char(c: c_int) -> bool {
     let flag = match c {
         0x08 => kOptTpfFlagBS,
         0x09 => kOptTpfFlagHT,
@@ -1526,7 +1526,7 @@ unsafe fn is_filter_char(c: c_int) -> bool {
             }
         }
     };
-    unsafe { (opt_vars().tpf_flags & flag) != 0 }
+    (opt_vars().tpf_flags & flag) != 0
 }
 
 pub unsafe fn terminal_set_streamed_paste(term: &mut Terminal, streamed: bool) {
@@ -1651,14 +1651,12 @@ pub unsafe fn terminal_receive(term: &mut Terminal, data: *const c_char, len: us
     }
 }
 
-unsafe fn get_rgb(state: &VTermStateFull, mut color: VTermColor) -> c_int {
-    unsafe {
-        vterm_state_convert_color_to_rgb(state, &mut color);
+fn get_rgb(state: &VTermStateFull, mut color: VTermColor) -> c_int {
+    vterm_state_convert_color_to_rgb(state, &mut color);
         let r = c_int::from(color.bytes[1]);
         let g = c_int::from(color.bytes[2]);
         let b = c_int::from(color.bytes[3]);
         (r << 16) | (g << 8) | b
-    }
 }
 
 const fn get_underline_hl_flag(attrs: VTermScreenCellAttrs) -> c_int {
@@ -1793,15 +1791,15 @@ pub unsafe fn terminal_get_line_attributes(
     }
 }
 
-pub unsafe fn terminal_buf(term: &Terminal) -> Buffer {
+pub fn terminal_buf(term: &Terminal) -> Buffer {
     term.buf_handle
 }
 
-pub unsafe fn terminal_running(term: &Terminal) -> bool {
+pub fn terminal_running(term: &Terminal) -> bool {
     !term.closed
 }
 
-pub unsafe fn terminal_suspended(term: &Terminal) -> bool {
+pub fn terminal_suspended(term: &Terminal) -> bool {
     term.suspended
 }
 
@@ -2737,7 +2735,7 @@ unsafe fn adjust_topline_cursor(term: &mut Terminal, buf: &mut buf_T, added: c_i
 }
 
 #[inline]
-unsafe fn row_to_linenr(term: &mut Terminal, row: c_int) -> c_int {
+fn row_to_linenr(term: &mut Terminal, row: c_int) -> c_int {
     if row != c_int::MAX {
         row + term.sb_buffer.len() as c_int + 1
     } else {
@@ -2746,7 +2744,7 @@ unsafe fn row_to_linenr(term: &mut Terminal, row: c_int) -> c_int {
 }
 
 #[inline]
-unsafe fn linenr_to_row(term: &mut Terminal, linenr: c_int) -> c_int {
+fn linenr_to_row(term: &mut Terminal, linenr: c_int) -> c_int {
     linenr - term.sb_buffer.len() as c_int - 1
 }
 

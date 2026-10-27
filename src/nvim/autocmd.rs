@@ -1322,7 +1322,7 @@ impl AutocmdState {
 static AU_STATE: GlobalState<AutocmdState> = GlobalState::new(AutocmdState::new());
 
 #[inline]
-unsafe fn au_st() -> &'static mut AutocmdState {
+fn au_st() -> &'static mut AutocmdState {
     unsafe { &mut *AU_STATE.as_ptr() }
 }
 
@@ -1688,11 +1688,9 @@ unsafe fn au_show_for_event(group: c_int, event: event_T, mut pat: *const c_char
     }
 }
 
-unsafe fn aucmd_del(ac: &mut AutoCmd) {
-    unsafe {
-        *ac = AutoCmd::new();
+fn aucmd_del(ac: &mut AutoCmd) {
+    *ac = AutoCmd::new();
         au_st().au_need_clean = true;
-    }
 }
 
 pub unsafe fn aucmd_del_for_event_and_group(event: event_T, group: c_int) {
@@ -1725,8 +1723,8 @@ unsafe fn au_cleanup() {
     }
 }
 
-pub unsafe fn au_get_autocmds_for_event(event: event_T) -> &'static mut AutoCmdVec {
-    unsafe { &mut au_st().autocmds[event as usize] }
+pub fn au_get_autocmds_for_event(event: event_T) -> &'static mut AutoCmdVec {
+    &mut au_st().autocmds[event as usize]
 }
 
 pub unsafe fn aubuflocal_remove(buf: *mut buf_T) {
@@ -1977,7 +1975,7 @@ pub unsafe fn event_name2nr(start: *const c_char, end: *mut *mut c_char) -> even
     }
 }
 
-pub unsafe fn event_name2nr_str(str_: NvimString) -> event_T {
+pub fn event_name2nr_str(str_: NvimString) -> event_T {
     let hash_idx = event_name2nr_hash(str_.data, str_.size);
     if hash_idx < 0 {
         return NUM_EVENTS as event_T;
@@ -1986,7 +1984,7 @@ pub unsafe fn event_name2nr_str(str_: NvimString) -> event_T {
     EVENT_NAMES[ev].event.abs() as event_T
 }
 
-pub unsafe fn event_nr2name(event: event_T) -> *const c_char {
+pub fn event_nr2name(event: event_T) -> *const c_char {
     if event >= 0 && (event as usize) < NUM_EVENTS {
         EVENT_NAMES[event as usize].name.as_ptr()
     } else {
@@ -3231,13 +3229,11 @@ pub unsafe fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn block_autocmds() {
-    unsafe {
-        if !is_autocmd_blocked() {
+    if !is_autocmd_blocked() {
             au_st().termresponse_changed = false;
             au_st().termresponse_chan_id = 0;
         }
         au_st().autocmd_blocked += 1;
-    }
 }
 
 #[unsafe(no_mangle)]
@@ -3253,8 +3249,8 @@ pub unsafe extern "C" fn unblock_autocmds() {
     }
 }
 
-pub unsafe fn is_autocmd_blocked() -> bool {
-    unsafe { au_st().autocmd_blocked != 0 }
+pub fn is_autocmd_blocked() -> bool {
+    au_st().autocmd_blocked != 0
 }
 
 unsafe fn aucmd_next(apc: &mut AutoPatCmd) {
@@ -3665,7 +3661,7 @@ pub unsafe fn expand_get_event_name(_xp: &mut expand_T, idx: c_int) -> *mut c_ch
     }
 }
 
-pub unsafe fn get_event_name_no_group(_xp: &mut expand_T, idx: c_int, win: bool) -> *mut c_char {
+pub fn get_event_name_no_group(_xp: &mut expand_T, idx: c_int, win: bool) -> *mut c_char {
     if idx < 0 || (idx as usize) >= NUM_EVENTS {
         return ptr::null_mut();
     }

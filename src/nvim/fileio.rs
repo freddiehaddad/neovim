@@ -221,7 +221,7 @@ impl FileioModuleState {
 static FIO_STATE: GlobalState<FileioModuleState> = GlobalState::new(FileioModuleState::new());
 
 #[inline]
-unsafe fn fio_st() -> &'static mut FileioModuleState {
+fn fio_st() -> &'static mut FileioModuleState {
     unsafe { &mut *FIO_STATE.as_ptr() }
 }
 
@@ -3116,7 +3116,7 @@ pub unsafe fn msg_add_lines(insert_space: c_int, lnum: linenr_T, nchars: off_T) 
     }
 }
 
-pub unsafe fn time_differs(file_info: &FileInfo, mtime: i64, mtime_ns: i64) -> bool {
+pub fn time_differs(file_info: &FileInfo, mtime: i64, mtime_ns: i64) -> bool {
     let sec: i64 = file_info.stat.st_mtim.tv_sec as _;
         let nsec: i64 = file_info.stat.st_mtim.tv_nsec as _;
         #[cfg(any(target_os = "linux", windows))]

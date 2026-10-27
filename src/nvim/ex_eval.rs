@@ -216,19 +216,17 @@ impl ExEvalModuleState {
 static EXEVAL_STATE: crate::globals::GlobalState<ExEvalModuleState> = crate::globals::GlobalState::new(ExEvalModuleState::new());
 
 #[inline]
-unsafe fn exeval_st() -> &'static mut ExEvalModuleState {
+fn exeval_st() -> &'static mut ExEvalModuleState {
     unsafe { &mut *EXEVAL_STATE.as_ptr() }
 }
 
 #[inline]
-unsafe fn check_skip(cstack: &cstack_T) -> bool {
-    unsafe {
-        g_st().did_emsg != 0
+fn check_skip(cstack: &cstack_T) -> bool {
+    g_st().did_emsg != 0
             || g_st().got_int
             || g_st().did_throw
             || (cstack.cs_idx > 0
                 && (cstack.cs_flags[(cstack.cs_idx - 1) as usize] & CSF_ACTIVE) == 0)
-    }
 }
 
 #[inline]
@@ -240,24 +238,22 @@ unsafe fn discard_pending_return(p: &mut Option<typval_T>) {
     }
 }
 
-pub unsafe fn aborting() -> bool {
-    unsafe { (g_st().did_emsg != 0 && g_st().force_abort) || g_st().got_int || g_st().did_throw }
+pub fn aborting() -> bool {
+    (g_st().did_emsg != 0 && g_st().force_abort) || g_st().got_int || g_st().did_throw
 }
 
-pub unsafe fn update_force_abort() {
-    unsafe {
-        if exeval_st().cause_abort {
+pub fn update_force_abort() {
+    if exeval_st().cause_abort {
             g_st().force_abort = true;
         }
-    }
 }
 
-pub unsafe fn should_abort(retcode: c_int) -> bool {
-    unsafe { (retcode == FAIL && g_st().trylevel != 0 && g_st().emsg_silent == 0) || aborting() }
+pub fn should_abort(retcode: c_int) -> bool {
+    (retcode == FAIL && g_st().trylevel != 0 && g_st().emsg_silent == 0) || aborting()
 }
 
-pub unsafe fn aborted_in_try() -> bool {
-    unsafe { g_st().force_abort }
+pub fn aborted_in_try() -> bool {
+    g_st().force_abort
 }
 
 pub unsafe fn cause_errthrow(
@@ -728,14 +724,12 @@ pub unsafe fn exception_state_restore(estate: &mut exception_state_T) {
     }
 }
 
-pub unsafe fn exception_state_clear() {
-    unsafe {
-        g_st().current_exception = None;
+pub fn exception_state_clear() {
+    g_st().current_exception = None;
         g_st().did_throw = false;
         g_st().need_rethrow = false;
         g_st().trylevel = 0;
         g_st().did_emsg = 0;
-    }
 }
 
 unsafe fn report_pending(action: c_int, pending: c_int, value: PendingVal) {
@@ -1708,7 +1702,7 @@ unsafe fn get_end_emsg(cstack: &cstack_T) -> *mut c_char {
     }
 }
 
-pub unsafe fn rewind_conditionals(
+pub fn rewind_conditionals(
     cstack: &mut cstack_T,
     idx: c_int,
     cond_type: c_int,

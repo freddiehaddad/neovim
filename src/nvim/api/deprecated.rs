@@ -67,7 +67,7 @@ impl ApiDeprecatedState {
 static API_DEP_STATE: crate::globals::GlobalState<ApiDeprecatedState> = crate::globals::GlobalState::new(ApiDeprecatedState::new());
 
 #[inline]
-unsafe fn api_dep_st() -> &'static mut ApiDeprecatedState {
+fn api_dep_st() -> &'static mut ApiDeprecatedState {
     unsafe { &mut *API_DEP_STATE.as_ptr() }
 }
 

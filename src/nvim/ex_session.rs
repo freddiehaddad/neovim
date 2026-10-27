@@ -72,7 +72,7 @@ impl ExSessionState {
 static EXSES_STATE: crate::globals::GlobalState<ExSessionState> = crate::globals::GlobalState::new(ExSessionState::new());
 
 #[inline]
-unsafe fn exses_st() -> &'static mut ExSessionState {
+fn exses_st() -> &'static mut ExSessionState {
     unsafe { &mut *EXSES_STATE.as_ptr() }
 }
 
@@ -162,10 +162,10 @@ unsafe fn ses_win_rec(fd: *mut FILE, fr: &mut frame_T) -> c_int {
             return OK;
         }
 
-        let mut frc = ses_skipframe(&mut *fr.fr_child);
+        let mut frc = ses_skipframe(fr.fr_child);
         if !frc.is_null() {
             loop {
-                frc = ses_skipframe(&mut *(*frc).fr_next);
+                frc = ses_skipframe((*frc).fr_next);
                 if frc.is_null() {
                     break;
                 }
@@ -192,10 +192,10 @@ unsafe fn ses_win_rec(fd: *mut FILE, fr: &mut frame_T) -> c_int {
             }
         }
 
-        frc = ses_skipframe(&mut *fr.fr_child);
+        frc = ses_skipframe(fr.fr_child);
         while !frc.is_null() {
             ses_win_rec(fd, &mut *frc);
-            frc = ses_skipframe(&mut *(*frc).fr_next);
+            frc = ses_skipframe((*frc).fr_next);
             if !frc.is_null() && put_line(fd, c"wincmd w".as_ptr().cast_mut()) == FAIL {
                 return FAIL;
             }
@@ -205,9 +205,9 @@ unsafe fn ses_win_rec(fd: *mut FILE, fr: &mut frame_T) -> c_int {
     }
 }
 
-unsafe fn ses_skipframe(fr: &mut frame_T) -> *mut frame_T {
+unsafe fn ses_skipframe(fr: *mut frame_T) -> *mut frame_T {
     unsafe {
-        let mut frc = &raw mut *fr;
+        let mut frc = fr;
         while !frc.is_null() {
             if ses_do_frame(&*frc) {
                 break;

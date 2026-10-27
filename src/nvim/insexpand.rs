@@ -592,7 +592,7 @@ impl InsexpandState {
 static INSEXPAND: GlobalState<InsexpandState> = GlobalState::new(InsexpandState::new());
 
 #[inline]
-unsafe fn insexp() -> &'static mut InsexpandState {
+fn insexp() -> &'static mut InsexpandState {
     unsafe { &mut *INSEXPAND.as_ptr() }
 }
 
@@ -670,12 +670,10 @@ unsafe fn set_compl_pattern_bytes(ptr: *const c_char, len: usize) {
 }
 
 #[inline]
-unsafe fn decay_compl_timeout() {
-    unsafe {
-        if insexp().compl_timeout_ms > COMPL_MIN_TIMEOUT_MS {
+fn decay_compl_timeout() {
+    if insexp().compl_timeout_ms > COMPL_MIN_TIMEOUT_MS {
             insexp().compl_timeout_ms /= 2;
         }
-    }
 }
 
 /// Count the string of a new match in the duplicate-check hashtab.
@@ -709,113 +707,111 @@ pub unsafe fn ins_ctrl_x() {
     }
 }
 
-pub unsafe fn ctrl_x_mode_none() -> bool {
-    unsafe { insexp().ctrl_x_mode == 0 }
+pub fn ctrl_x_mode_none() -> bool {
+    insexp().ctrl_x_mode == 0
 }
 
-pub unsafe fn ctrl_x_mode_normal() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_NORMAL }
+pub fn ctrl_x_mode_normal() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_NORMAL
 }
 
-pub unsafe fn ctrl_x_mode_scroll() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_SCROLL }
+pub fn ctrl_x_mode_scroll() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_SCROLL
 }
 
-pub unsafe fn ctrl_x_mode_whole_line() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_WHOLE_LINE }
+pub fn ctrl_x_mode_whole_line() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_WHOLE_LINE
 }
 
-pub unsafe fn ctrl_x_mode_files() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_FILES }
+pub fn ctrl_x_mode_files() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_FILES
 }
 
-pub unsafe fn ctrl_x_mode_tags() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_TAGS }
+pub fn ctrl_x_mode_tags() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_TAGS
 }
 
-pub unsafe fn ctrl_x_mode_path_patterns() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_PATH_PATTERNS }
+pub fn ctrl_x_mode_path_patterns() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_PATH_PATTERNS
 }
 
-pub unsafe fn ctrl_x_mode_path_defines() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_PATH_DEFINES }
+pub fn ctrl_x_mode_path_defines() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_PATH_DEFINES
 }
 
-pub unsafe fn ctrl_x_mode_dictionary() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_DICTIONARY }
+pub fn ctrl_x_mode_dictionary() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_DICTIONARY
 }
 
-pub unsafe fn ctrl_x_mode_thesaurus() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_THESAURUS }
+pub fn ctrl_x_mode_thesaurus() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_THESAURUS
 }
 
-pub unsafe fn ctrl_x_mode_cmdline() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_CMDLINE || insexp().ctrl_x_mode == CTRL_X_CMDLINE_CTRL_X }
+pub fn ctrl_x_mode_cmdline() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_CMDLINE || insexp().ctrl_x_mode == CTRL_X_CMDLINE_CTRL_X
 }
 
-pub unsafe fn ctrl_x_mode_function() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_FUNCTION }
+pub fn ctrl_x_mode_function() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_FUNCTION
 }
 
-pub unsafe fn ctrl_x_mode_omni() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_OMNI }
+pub fn ctrl_x_mode_omni() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_OMNI
 }
 
-pub unsafe fn ctrl_x_mode_spell() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_SPELL }
+pub fn ctrl_x_mode_spell() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_SPELL
 }
 
-pub unsafe fn ctrl_x_mode_eval() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_EVAL }
+pub fn ctrl_x_mode_eval() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_EVAL
 }
 
-pub unsafe fn ctrl_x_mode_line_or_eval() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_WHOLE_LINE || insexp().ctrl_x_mode == CTRL_X_EVAL }
+pub fn ctrl_x_mode_line_or_eval() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_WHOLE_LINE || insexp().ctrl_x_mode == CTRL_X_EVAL
 }
 
-pub unsafe fn ctrl_x_mode_register() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_REGISTER }
+pub fn ctrl_x_mode_register() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_REGISTER
 }
 
-pub unsafe fn ctrl_x_mode_not_default() -> bool {
-    unsafe { insexp().ctrl_x_mode != CTRL_X_NORMAL }
+pub fn ctrl_x_mode_not_default() -> bool {
+    insexp().ctrl_x_mode != CTRL_X_NORMAL
 }
 
-pub unsafe fn ctrl_x_mode_not_defined_yet() -> bool {
-    unsafe { insexp().ctrl_x_mode == CTRL_X_NOT_DEFINED_YET }
+pub fn ctrl_x_mode_not_defined_yet() -> bool {
+    insexp().ctrl_x_mode == CTRL_X_NOT_DEFINED_YET
 }
 
-pub unsafe fn compl_status_adding() -> bool {
-    unsafe { (insexp().compl_cont_status & CONT_ADDING) != 0 }
+pub fn compl_status_adding() -> bool {
+    (insexp().compl_cont_status & CONT_ADDING) != 0
 }
 
-pub unsafe fn compl_status_sol() -> bool {
-    unsafe { (insexp().compl_cont_status & CONT_SOL) != 0 }
+pub fn compl_status_sol() -> bool {
+    (insexp().compl_cont_status & CONT_SOL) != 0
 }
 
-pub unsafe fn compl_status_local() -> bool {
-    unsafe { (insexp().compl_cont_status & CONT_LOCAL) != 0 }
+pub fn compl_status_local() -> bool {
+    (insexp().compl_cont_status & CONT_LOCAL) != 0
 }
 
-pub unsafe fn compl_status_clear() {
-    unsafe {
-        insexp().compl_cont_status = 0;
-    }
-}
-
-#[inline]
-unsafe fn compl_dir_forward() -> bool {
-    unsafe { insexp().compl_direction == FORWARD }
+pub fn compl_status_clear() {
+    insexp().compl_cont_status = 0;
 }
 
 #[inline]
-unsafe fn compl_shows_dir_forward() -> bool {
-    unsafe { insexp().compl_shows_dir == FORWARD }
+fn compl_dir_forward() -> bool {
+    insexp().compl_direction == FORWARD
 }
 
 #[inline]
-unsafe fn compl_shows_dir_backward() -> bool {
-    unsafe { insexp().compl_shows_dir == BACKWARD }
+fn compl_shows_dir_forward() -> bool {
+    insexp().compl_shows_dir == FORWARD
+}
+
+#[inline]
+fn compl_shows_dir_backward() -> bool {
+    insexp().compl_shows_dir == BACKWARD
 }
 
 /// Check that the 'dictionary' or 'thesaurus' option can be used.
@@ -905,7 +901,7 @@ pub unsafe fn vim_is_ctrl_x_key(c: c_int) -> bool {
 }
 
 #[inline]
-unsafe fn match_at_original_text(match_: &compl_T) -> bool {
+fn match_at_original_text(match_: &compl_T) -> bool {
     (match_.cp_flags & CP_ORIGINAL_TEXT) != 0
 }
 
@@ -1187,8 +1183,8 @@ unsafe fn is_nearest_active() -> bool {
 }
 
 /// True if a match is selected (even if it is not inserted).
-pub unsafe fn ins_compl_is_match_selected() -> bool {
-    unsafe { !matches!(insexp().compl_shown_idx, None | Some(0)) }
+pub fn ins_compl_is_match_selected() -> bool {
+    !matches!(insexp().compl_shown_idx, None | Some(0))
 }
 
 /// Returns true if autocomplete is active and the pre-insert effect targets the longest prefix.
@@ -1427,25 +1423,21 @@ unsafe fn ins_compl_insert_bytes(p: *const c_char, mut len: c_int) {
 }
 
 /// Get current completion leader.
-pub unsafe fn ins_compl_leader() -> *mut c_char {
-    unsafe {
-        if !insexp().compl_leader.data.is_null() {
+pub fn ins_compl_leader() -> *mut c_char {
+    if !insexp().compl_leader.data.is_null() {
             insexp().compl_leader.data
         } else {
             insexp().compl_orig_text.data
         }
-    }
 }
 
 #[inline]
-unsafe fn ins_compl_leader_len() -> usize {
-    unsafe {
-        if !insexp().compl_leader.data.is_null() {
+fn ins_compl_leader_len() -> usize {
+    if !insexp().compl_leader.data.is_null() {
             insexp().compl_leader.size
         } else {
             insexp().compl_orig_text.size
         }
-    }
 }
 
 /// Checks if the column is within the currently inserted completion text column range.
@@ -2493,40 +2485,36 @@ pub unsafe fn ins_compl_clear() {
     }
 }
 
-pub unsafe fn ins_compl_active() -> bool {
-    unsafe { insexp().compl_started }
+pub fn ins_compl_active() -> bool {
+    insexp().compl_started
 }
 
-pub unsafe fn ins_compl_win_active(wp: &mut win_T) -> bool {
-    unsafe {
-        ins_compl_active() && ptr::eq(wp, insexp().compl_curr_win) && ptr::eq(wp.w_buffer, insexp().compl_curr_buf)
-    }
+pub fn ins_compl_win_active(wp: &mut win_T) -> bool {
+    ins_compl_active() && ptr::eq(wp, insexp().compl_curr_win) && ptr::eq(wp.w_buffer, insexp().compl_curr_buf)
 }
 
-pub unsafe fn ins_compl_used_match() -> bool {
-    unsafe { insexp().compl_used_match }
+pub fn ins_compl_used_match() -> bool {
+    insexp().compl_used_match
 }
 
-pub unsafe fn ins_compl_init_get_longest() {
-    unsafe {
-        insexp().compl_get_longest = false;
-    }
+pub fn ins_compl_init_get_longest() {
+    insexp().compl_get_longest = false;
 }
 
-pub unsafe fn ins_compl_interrupted() -> bool {
-    unsafe { insexp().compl_interrupted || insexp().compl_time_slice_expired }
+pub fn ins_compl_interrupted() -> bool {
+    insexp().compl_interrupted || insexp().compl_time_slice_expired
 }
 
-pub unsafe fn ins_compl_enter_selects() -> bool {
-    unsafe { insexp().compl_enter_selects }
+pub fn ins_compl_enter_selects() -> bool {
+    insexp().compl_enter_selects
 }
 
-pub unsafe fn ins_compl_col() -> colnr_T {
-    unsafe { insexp().compl_col }
+pub fn ins_compl_col() -> colnr_T {
+    insexp().compl_col
 }
 
-pub unsafe fn ins_compl_len() -> c_int {
-    unsafe { insexp().compl_length }
+pub fn ins_compl_len() -> c_int {
+    insexp().compl_length
 }
 
 pub unsafe fn ins_compl_has_preinsert() -> bool {
@@ -2600,13 +2588,13 @@ pub unsafe fn ins_compl_bs() -> c_int {
 }
 
 #[inline]
-unsafe fn ins_compl_refresh_always() -> bool {
-    unsafe { (ctrl_x_mode_function() || ctrl_x_mode_omni()) && insexp().compl_opt_refresh_always }
+fn ins_compl_refresh_always() -> bool {
+    (ctrl_x_mode_function() || ctrl_x_mode_omni()) && insexp().compl_opt_refresh_always
 }
 
 #[inline]
-unsafe fn ins_compl_need_restart() -> bool {
-    unsafe { insexp().compl_was_interrupted || ins_compl_refresh_always() }
+fn ins_compl_need_restart() -> bool {
+    insexp().compl_was_interrupted || ins_compl_refresh_always()
 }
 
 pub unsafe fn ins_compl_has_autocomplete() -> bool {
@@ -3689,16 +3677,14 @@ pub unsafe fn f_complete_check(_argvars: *mut typval_T, rettv: &mut typval_T, _f
     }
 }
 
-unsafe fn ins_compl_mode() -> NvimString {
-    unsafe {
-        if ctrl_x_mode_not_defined_yet() || ctrl_x_mode_scroll() || insexp().compl_started {
+fn ins_compl_mode() -> NvimString {
+    if ctrl_x_mode_not_defined_yet() || ctrl_x_mode_scroll() || insexp().compl_started {
             let idx = (insexp().ctrl_x_mode & !CTRL_X_WANT_IDENT) as usize;
             if let Some(mode_cstr) = CTRL_X_MODE_NAMES.get(idx).copied().flatten() {
                 return cbuf_as_string(mode_cstr.as_ptr().cast_mut(), mode_cstr.to_bytes().len());
             }
         }
         cbuf_as_string(c"".as_ptr().cast_mut(), 0)
-    }
 }
 
 unsafe fn ins_compl_update_sequence_numbers() {
@@ -5115,13 +5101,11 @@ unsafe fn prepare_cpt_compl_funcs() {
     }
 }
 
-unsafe fn compl_source_start_timer(source_idx: c_int) {
-    unsafe {
-        if insexp().compl_autocomplete || opt_vars().p_cto > 0 {
+fn compl_source_start_timer(source_idx: c_int) {
+    if insexp().compl_autocomplete || opt_vars().p_cto > 0 {
             insexp().cpt_sources_array[source_idx as usize].compl_start_tv = os_hrtime();
             insexp().compl_time_slice_expired = false;
         }
-    }
 }
 
 unsafe fn advance_cpt_sources_index_safe() -> c_int {
@@ -5890,16 +5874,14 @@ unsafe fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: 
     }
 }
 
-unsafe fn check_elapsed_time() {
-    unsafe {
-        let start_tv = insexp().cpt_sources_array[insexp().cpt_sources_index as usize].compl_start_tv;
+fn check_elapsed_time() {
+    let start_tv = insexp().cpt_sources_array[insexp().cpt_sources_index as usize].compl_start_tv;
         let elapsed_ms = (os_hrtime() - start_tv) / 1_000_000;
 
         if elapsed_ms > insexp().compl_timeout_ms {
             insexp().compl_time_slice_expired = true;
             decay_compl_timeout();
         }
-    }
 }
 
 pub unsafe fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool) {
@@ -5955,9 +5937,8 @@ pub unsafe fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool) {
     }
 }
 
-unsafe fn ins_compl_key2dir(c: c_int) -> Direction {
-    unsafe {
-        if c == K_EVENT || c == K_COMMAND || c == K_LUA {
+fn ins_compl_key2dir(c: c_int) -> Direction {
+    if c == K_EVENT || c == K_COMMAND || c == K_LUA {
             return if g_st().pum_want.item < insexp().compl_selected_item {
                 BACKWARD
             } else {
@@ -5969,12 +5950,10 @@ unsafe fn ins_compl_key2dir(c: c_int) -> Direction {
             return BACKWARD;
         }
         FORWARD
-    }
 }
 
-unsafe fn ins_compl_pum_key(c: c_int) -> bool {
-    unsafe {
-        pum_visible()
+fn ins_compl_pum_key(c: c_int) -> bool {
+    pum_visible()
             && (c == K_PAGEUP
                 || c == K_KPAGEUP
                 || c == K_S_UP
@@ -5983,7 +5962,6 @@ unsafe fn ins_compl_pum_key(c: c_int) -> bool {
                 || c == K_S_DOWN
                 || c == K_UP
                 || c == K_DOWN)
-    }
 }
 
 unsafe fn ins_compl_key2count(c: c_int) -> c_int {
@@ -6003,16 +5981,14 @@ unsafe fn ins_compl_key2count(c: c_int) -> c_int {
     }
 }
 
-unsafe fn ins_compl_use_match(c: c_int) -> bool {
-    unsafe {
-        match c {
+fn ins_compl_use_match(c: c_int) -> bool {
+    match c {
             K_UP | K_DOWN | K_PAGEDOWN | K_KPAGEDOWN | K_S_DOWN | K_PAGEUP | K_KPAGEUP | K_S_UP => {
                 false
             }
             K_EVENT | K_COMMAND | K_LUA => g_st().pum_want.active && g_st().pum_want.insert,
             _ => true,
         }
-    }
 }
 
 unsafe fn get_normal_compl_info(
@@ -6709,54 +6685,42 @@ pub unsafe fn ins_complete(c: c_int, enable_pum: bool) -> c_int {
     }
 }
 
-pub unsafe fn ins_compl_enable_autocomplete() {
-    unsafe {
-        insexp().compl_autocomplete = true;
+pub fn ins_compl_enable_autocomplete() {
+    insexp().compl_autocomplete = true;
         insexp().compl_get_longest = false;
-    }
 }
 
-pub unsafe fn ins_compl_disable_autocomplete() {
-    unsafe {
-        insexp().compl_autocomplete = false;
-    }
+pub fn ins_compl_disable_autocomplete() {
+    insexp().compl_autocomplete = false;
 }
 
-pub unsafe fn ins_compl_arm_autostart() {
-    unsafe {
-        insexp().compl_autostart_pending = true;
-    }
+pub fn ins_compl_arm_autostart() {
+    insexp().compl_autostart_pending = true;
 }
 
-pub unsafe fn ins_compl_disarm_autostart() {
-    unsafe {
-        insexp().compl_autostart_pending = false;
-    }
+pub fn ins_compl_disarm_autostart() {
+    insexp().compl_autostart_pending = false;
 }
 
-pub unsafe fn ins_compl_arm_autocomplete_delay() -> bool {
-    unsafe {
-        if opt_vars().p_acl > 0 {
+pub fn ins_compl_arm_autocomplete_delay() -> bool {
+    if opt_vars().p_acl > 0 {
             insexp().compl_autocomplete_start_tv = os_hrtime();
             insexp().compl_autocomplete_pending = true;
             return true;
         }
         false
-    }
 }
 
-pub unsafe fn ins_compl_clear_autocomplete_delay() {
-    unsafe {
-        insexp().compl_autocomplete_pending = false;
-    }
+pub fn ins_compl_clear_autocomplete_delay() {
+    insexp().compl_autocomplete_pending = false;
 }
 
-pub unsafe fn ins_compl_autocomplete_pending() -> bool {
-    unsafe { insexp().compl_autocomplete_pending }
+pub fn ins_compl_autocomplete_pending() -> bool {
+    insexp().compl_autocomplete_pending
 }
 
-pub unsafe fn ins_compl_autocomplete_elapsed() -> i64 {
-    unsafe { ((os_hrtime() - insexp().compl_autocomplete_start_tv) / 1_000_000) as i64 }
+pub fn ins_compl_autocomplete_elapsed() -> i64 {
+    ((os_hrtime() - insexp().compl_autocomplete_start_tv) / 1_000_000) as i64
 }
 
 unsafe fn show_pum(prev_w_wrow: c_int, prev_w_leftcol: c_int) {
@@ -6852,11 +6816,9 @@ unsafe fn spell_back_to_badword() {
     }
 }
 
-unsafe fn cpt_sources_clear() {
-    unsafe {
-        insexp().cpt_sources_array = Vec::new();
+fn cpt_sources_clear() {
+    insexp().cpt_sources_array = Vec::new();
         insexp().cpt_sources_index = -1;
-    }
 }
 
 unsafe fn setup_cpt_sources() {
@@ -6911,10 +6873,8 @@ unsafe fn is_cpt_func_refresh_always() -> bool {
     }
 }
 
-unsafe fn ins_compl_make_linear() {
-    unsafe {
-        insexp().compl_is_cyclic = false;
-    }
+fn ins_compl_make_linear() {
+    insexp().compl_is_cyclic = false;
 }
 
 unsafe fn remove_old_matches() {

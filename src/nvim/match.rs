@@ -365,7 +365,7 @@ pub unsafe fn clear_matches(wp: *mut win_T) {
 }
 
 /// Get match from ID `id` in window `wp` (`get_match`).
-unsafe fn get_match(wp: &mut win_T, id: c_int) -> *mut matchitem_T {
+fn get_match(wp: &mut win_T, id: c_int) -> *mut matchitem_T {
     wp
             .w_match_head
             .iter_mut()
@@ -626,7 +626,7 @@ pub unsafe fn prepare_search_hl(wp: &mut win_T, search_hl: &mut match_T, lnum: l
 }
 
 /// Update `shl->has_cursor` based on the match in `shl` and the cursor position (`check_cur_search_hl`).
-unsafe fn check_cur_search_hl(wp: &mut win_T, shl: &mut match_T) {
+fn check_cur_search_hl(wp: &mut win_T, shl: &mut match_T) {
     let linecount = shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
         shl.has_cursor = wp.w_cursor.lnum >= shl.lnum
             && wp.w_cursor.lnum <= shl.lnum + linecount
@@ -870,7 +870,7 @@ pub unsafe fn update_search_hl(
     }
 }
 
-pub unsafe fn get_prevcol_hl_flag(
+pub fn get_prevcol_hl_flag(
     wp: &mut win_T,
     search_hl: &mut match_T,
     curcol: colnr_T,

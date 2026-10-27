@@ -115,7 +115,7 @@ impl DigraphModuleState {
 static DIGR_STATE: GlobalState<DigraphModuleState> = GlobalState::new(DigraphModuleState::new());
 
 #[inline]
-unsafe fn digr_st() -> &'static mut DigraphModuleState {
+fn digr_st() -> &'static mut DigraphModuleState {
     unsafe { &mut *DIGR_STATE.as_ptr() }
 }
 
@@ -1613,9 +1613,8 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 ];
 
 /// Handle digraphs after typing a character (`do_digraph`).
-pub unsafe fn do_digraph(mut c: c_int) -> c_int {
-    unsafe {
-        if c == -1 {
+pub fn do_digraph(mut c: c_int) -> c_int {
+    if c == -1 {
             digr_st().BACKSPACED = -1;
         } else if opt_vars().p_dg != 0 {
             if digr_st().BACKSPACED >= 0 {
@@ -1629,7 +1628,6 @@ pub unsafe fn do_digraph(mut c: c_int) -> c_int {
         }
         digr_st().LASTCHAR = c;
         c
-    }
 }
 
 /// Find a digraph for `val` (`get_digraph_for_char`).
@@ -1686,12 +1684,12 @@ pub unsafe fn get_digraph(cmdline: bool) -> c_int {
 }
 
 /// Lookup the pair `char1`, `char2` in the digraph tables (`getexactdigraph`).
-unsafe fn getexactdigraph(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
+fn getexactdigraph(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
     if is_special(char1) || is_special(char2) {
         return char2;
     }
 
-    let user_slice = unsafe { digr_st().USER_DIGRAPHS.as_slice() };
+    let user_slice = digr_st().USER_DIGRAPHS.as_slice();
     for dp in user_slice.iter().chain(DIGRAPHDEFAULT.iter()) {
         if c_int::from(dp.char1) == char1 && c_int::from(dp.char2) == char2 {
             if dp.result != 0 {
@@ -1709,9 +1707,8 @@ unsafe fn getexactdigraph(char1: c_int, char2: c_int, meta_char: bool) -> c_int 
 }
 
 /// Get digraph (`digraph_get`).
-pub unsafe fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
-    unsafe {
-        let mut retval = getexactdigraph(char1, char2, meta_char);
+pub fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int {
+    let mut retval = getexactdigraph(char1, char2, meta_char);
         if retval == char2 && char1 != char2 {
             retval = getexactdigraph(char2, char1, meta_char);
             if retval == char1 {
@@ -1719,7 +1716,6 @@ pub unsafe fn digraph_get(char1: c_int, char2: c_int, meta_char: bool) -> c_int 
             }
         }
         retval
-    }
 }
 
 /// Add a digraph to the digraph table (`registerdigraph`).

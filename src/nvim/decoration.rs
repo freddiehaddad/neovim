@@ -432,7 +432,7 @@ impl DecorationModuleState {
 static DECOR_MOD_STATE: GlobalState<DecorationModuleState> = GlobalState::new(DecorationModuleState::new());
 
 #[inline]
-unsafe fn decor_st() -> &'static mut DecorationModuleState {
+fn decor_st() -> &'static mut DecorationModuleState {
     unsafe { &mut *DECOR_MOD_STATE.as_ptr() }
 }
 
@@ -591,7 +591,7 @@ pub unsafe fn decor_put_vt(mut vt: DecorVirtText, next: *mut DecorVirtText) -> *
     Box::into_raw(Box::new(vt))
 }
 
-pub unsafe fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
+pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
     assert!((item.flags & kSHIsSign) == 0);
     DecorSignHighlight {
         flags: item.flags,
@@ -868,7 +868,7 @@ pub unsafe fn decor_redraw_reset(wp: *mut win_T, state: &mut DecorState) -> bool
     }
 }
 
-pub unsafe fn decor_virt_pos(decor: &DecorRange) -> bool {
+pub fn decor_virt_pos(decor: &DecorRange) -> bool {
     decor.data.is_vt() || decor.data.is_ui()
 }
 
@@ -916,7 +916,7 @@ pub unsafe fn decor_redraw_start(wp: *mut win_T, top_row: c_int, state: &mut Dec
     }
 }
 
-unsafe fn decor_state_pack(state: &mut DecorState) {
+fn decor_state_pack(state: &mut DecorState) {
     let mut count = state.ranges_i.len() as c_int;
         let cur_end = state.current_end;
         let mut fut_beg = state.future_begin;
@@ -1010,7 +1010,7 @@ unsafe fn decor_range_add_from_inline(
     }
 }
 
-unsafe fn decor_range_insert(state: &mut DecorState, mut range: DecorRange) {
+fn decor_range_insert(state: &mut DecorState, mut range: DecorRange) {
     let row = range.start_row;
         let col = range.start_col;
         range.ordering = state.new_range_ordering;

@@ -74,7 +74,7 @@ impl IndentCState {
 static INDC_STATE: GlobalState<IndentCState> = GlobalState::new(IndentCState::new());
 
 #[inline]
-unsafe fn indc_st() -> &'static mut IndentCState {
+fn indc_st() -> &'static mut IndentCState {
     unsafe { &mut *INDC_STATE.as_ptr() }
 }
 use crate::keycodes::ctrl_chr;

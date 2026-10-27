@@ -398,7 +398,7 @@ fn lookup_default_colour_ansi(idx: isize, col: &mut VTermColor) {
     }
 }
 
-unsafe fn lookup_colour_ansi(
+fn lookup_colour_ansi(
     state: &VTermStateFull,
     index: isize,
     col: &mut VTermColor,
@@ -410,13 +410,13 @@ unsafe fn lookup_colour_ansi(
     false
 }
 
-unsafe fn lookup_colour_palette(
+fn lookup_colour_palette(
     state: &VTermStateFull,
     mut index: isize,
     col: &mut VTermColor,
 ) -> bool {
     if (0..16).contains(&index) {
-        unsafe { lookup_colour_ansi(state, index, col) }
+        lookup_colour_ansi(state, index, col)
     } else if (16..232).contains(&index) {
         index -= 16;
         let idx = index as usize;
@@ -632,7 +632,7 @@ pub unsafe fn vterm_state_set_default_colors(
     }
 }
 
-pub unsafe fn vterm_state_set_palette_color(
+pub fn vterm_state_set_palette_color(
     state: &mut VTermStateFull,
     index: c_int,
     col: &VTermColor,
@@ -642,14 +642,12 @@ pub unsafe fn vterm_state_set_palette_color(
     }
 }
 
-pub unsafe fn vterm_state_convert_color_to_rgb(state: &VTermStateFull, col: &mut VTermColor) {
-    unsafe {
-        if col.is_indexed() {
+pub fn vterm_state_convert_color_to_rgb(state: &VTermStateFull, col: &mut VTermColor) {
+    if col.is_indexed() {
             lookup_colour_palette(state, col.idx() as isize, col);
         }
         let t = col.type_byte() & VTERM_COLOR_TYPE_MASK;
         col.set_type_byte(t);
-    }
 }
 
 pub unsafe fn vterm_state_setpen(state: &mut VTermStateFull, args: *const c_long, argcount: c_int) {

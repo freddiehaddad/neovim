@@ -194,7 +194,7 @@ impl MenuModuleState {
 static MENU_STATE: GlobalState<MenuModuleState> = GlobalState::new(MenuModuleState::new());
 
 #[inline]
-unsafe fn menu_st() -> &'static mut MenuModuleState {
+fn menu_st() -> &'static mut MenuModuleState {
     unsafe { &mut *MENU_STATE.as_ptr() }
 }
 
@@ -206,7 +206,7 @@ unsafe fn menu_is_winbar(name: *const c_char) -> bool {
 }
 
 unsafe fn get_root_menu(_name: *const c_char) -> *mut Vec<vimmenu_T> {
-    unsafe { &raw mut g_st().root_menu }
+    &raw mut g_st().root_menu
 }
 
 /// If `menus_locked` is set then give an error and return true (`is_menus_locked`).
@@ -1488,9 +1488,8 @@ unsafe fn menu_is_hidden(name: *mut c_char) -> bool {
     unsafe { *name == MNU_HIDDEN_CHAR || (menu_is_popup(name) && *name.add(5) != NUL) }
 }
 
-unsafe fn get_menu_mode() -> c_int {
-    unsafe {
-        if (g_st().State & MODE_TERMINAL) != 0 {
+fn get_menu_mode() -> c_int {
+    if (g_st().State & MODE_TERMINAL) != 0 {
             return MENU_INDEX_TERMINAL;
         }
         if g_st().Visual.active {
@@ -1515,18 +1514,15 @@ unsafe fn get_menu_mode() -> c_int {
             return MENU_INDEX_INSERT;
         }
         MENU_INDEX_INVALID
-    }
 }
 
-pub unsafe fn get_menu_mode_flag() -> c_int {
-    unsafe {
-        let mode = get_menu_mode();
+pub fn get_menu_mode_flag() -> c_int {
+    let mode = get_menu_mode();
         if mode == MENU_INDEX_INVALID {
             0
         } else {
             1 << mode
         }
-    }
 }
 
 /// Display the Special `"PopUp"` menu as a pop-up at the current mouse position (`show_popupmenu`).

@@ -670,7 +670,7 @@ fn marktree_putp_aux(b: &mut MarkTree, x: usize, mut k: MTKey, meta_inc: &[u32; 
     }
 }
 
-pub unsafe fn marktree_put(
+pub fn marktree_put(
     b: &mut MarkTree,
     mut key: MTKey,
     end_row: c_int,
@@ -685,8 +685,7 @@ pub unsafe fn marktree_put(
         key.flags |= MT_FLAG_PAIRED;
     }
 
-    unsafe {
-        marktree_put_key(b, key);
+    marktree_put_key(b, key);
 
         if end_row >= 0 {
             let mut end_key = key;
@@ -705,7 +704,6 @@ pub unsafe fn marktree_put(
 
             marktree_intersect_pair(b, mt_lookup_key(key), &mut itr, &end_itr, false);
         }
-    }
 }
 
 fn intersection_has(x: &Intersection, id: u64) -> bool {
@@ -732,15 +730,14 @@ fn unintersect_node(b: &mut MarkTree, x: usize, id: u64, strict: bool) {
     }
 }
 
-pub unsafe fn marktree_intersect_pair(
+pub fn marktree_intersect_pair(
     b: &mut MarkTree,
     id: u64,
     itr: &mut MarkTreeIter,
     end_itr: &MarkTreeIter,
     delete: bool,
 ) {
-    unsafe {
-        let maxlvl = itr.lvl.min(end_itr.lvl);
+    let maxlvl = itr.lvl.min(end_itr.lvl);
         let iat = |it: &MarkTreeIter, l: c_int, q: c_int| -> c_int {
             if l == it.lvl {
                 it.i + q
@@ -787,7 +784,6 @@ pub unsafe fn marktree_intersect_pair(
             }
             marktree_itr_next_skip(b, itr, skip, true, None, None);
         }
-    }
 }
 
 fn marktree_alloc_node(b: &mut MarkTree, internal: bool) -> usize {
@@ -861,7 +857,7 @@ fn meta_has(meta_count: &[u32; kMTMetaCount], meta_filter: &MetaFilter) -> bool 
     count > 0
 }
 
-pub unsafe fn marktree_put_key(b: &mut MarkTree, mut k: MTKey) {
+pub fn marktree_put_key(b: &mut MarkTree, mut k: MTKey) {
     k.flags |= MT_FLAG_REAL;
     if b.root.is_none() {
         b.root = Some(marktree_alloc_node(b, true));
@@ -892,9 +888,8 @@ pub unsafe fn marktree_put_key(b: &mut MarkTree, mut k: MTKey) {
     b.n_keys += 1;
 }
 
-pub unsafe fn marktree_del_itr(b: &mut MarkTree, itr: &mut MarkTreeIter, rev: bool) -> u64 {
-    unsafe {
-        let mut adjustment = 0;
+pub fn marktree_del_itr(b: &mut MarkTree, itr: &mut MarkTreeIter, rev: bool) -> u64 {
+    let mut adjustment = 0;
 
         let cur = itr.x.unwrap();
         let curi = itr.i;
@@ -1134,10 +1129,9 @@ pub unsafe fn marktree_del_itr(b: &mut MarkTree, itr: &mut MarkTreeIter, rev: bo
         }
 
         other
-    }
 }
 
-pub unsafe fn marktree_revise_meta(b: &mut MarkTree, itr: &MarkTreeIter, old_key: MTKey) {
+pub fn marktree_revise_meta(b: &mut MarkTree, itr: &MarkTreeIter, old_key: MTKey) {
     let meta_old = meta_describe_key(old_key);
     let meta_new = meta_describe_key(*rawkey(b, itr));
 
@@ -1378,7 +1372,7 @@ fn bubble_up(b: &mut MarkTree, x: usize) {
     }
 }
 
-unsafe fn merge_node(b: &mut MarkTree, p: usize, i: c_int) -> usize {
+fn merge_node(b: &mut MarkTree, p: usize, i: c_int) -> usize {
     let i_usize = i as usize;
     let x = node_ptr(b, p)[i_usize].unwrap();
     let y = node_ptr(b, p)[i_usize + 1].unwrap();
@@ -1465,7 +1459,7 @@ unsafe fn merge_node(b: &mut MarkTree, p: usize, i: c_int) -> usize {
     x
 }
 
-unsafe fn pivot_right(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
+fn pivot_right(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
     let i_usize = i as usize;
     let x = node_ptr(b, p)[i_usize].unwrap();
     let y = node_ptr(b, p)[i_usize + 1].unwrap();
@@ -1568,7 +1562,7 @@ unsafe fn pivot_right(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
     }
 }
 
-unsafe fn pivot_left(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
+fn pivot_left(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
     let i_usize = i as usize;
     let x = node_ptr(b, p)[i_usize].unwrap();
     let y = node_ptr(b, p)[i_usize + 1].unwrap();
@@ -1671,7 +1665,7 @@ unsafe fn pivot_left(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
     }
 }
 
-pub unsafe fn marktree_clear(b: &mut MarkTree) {
+pub fn marktree_clear(b: &mut MarkTree) {
     b.root = None;
     b.id2node.clear();
     b.nodes.clear();
@@ -1689,9 +1683,8 @@ fn marktree_free_node(b: &mut MarkTree, x: usize) {
     b.n_nodes -= 1;
 }
 
-pub unsafe fn marktree_move(b: &mut MarkTree, itr: &mut MarkTreeIter, row: c_int, col: c_int) {
-    unsafe {
-        let mut key = *rawkey(b, itr);
+pub fn marktree_move(b: &mut MarkTree, itr: &mut MarkTreeIter, row: c_int, col: c_int) {
+    let mut key = *rawkey(b, itr);
         let x = itr.x.unwrap();
         if b.nodes[x].level == 0 {
             let mut internal = false;
@@ -1742,12 +1735,10 @@ pub unsafe fn marktree_move(b: &mut MarkTree, itr: &mut MarkTreeIter, row: c_int
             marktree_restore_pair(b, key);
         }
         itr.x = None;
-    }
 }
 
-pub unsafe fn marktree_restore_pair(b: &mut MarkTree, key: MTKey) {
-    unsafe {
-        let mut itr = MarkTreeIter::new();
+pub fn marktree_restore_pair(b: &mut MarkTree, key: MTKey) {
+    let mut itr = MarkTreeIter::new();
         let mut end_itr = MarkTreeIter::new();
         marktree_lookup(b, mt_lookup_key_side(key, false), Some(&mut itr));
         marktree_lookup(b, mt_lookup_key_side(key, true), Some(&mut end_itr));
@@ -1758,14 +1749,13 @@ pub unsafe fn marktree_restore_pair(b: &mut MarkTree, key: MTKey) {
         rawkey_mut(b, &end_itr).flags &= !MT_FLAG_ORPHANED;
 
         marktree_intersect_pair(b, mt_lookup_key_side(key, false), &mut itr, &end_itr, false);
-    }
 }
 
-pub unsafe fn marktree_itr_get(b: &MarkTree, row: i32, col: c_int, itr: &mut MarkTreeIter) -> bool {
-    unsafe { marktree_itr_get_ext(b, MTPos { row, col }, itr, false, false, None, None) }
+pub fn marktree_itr_get(b: &MarkTree, row: i32, col: c_int, itr: &mut MarkTreeIter) -> bool {
+    marktree_itr_get_ext(b, MTPos { row, col }, itr, false, false, None, None)
 }
 
-pub unsafe fn marktree_itr_get_ext(
+pub fn marktree_itr_get_ext(
     b: &MarkTree,
     p: MTPos,
     itr: &mut MarkTreeIter,
@@ -1774,8 +1764,7 @@ pub unsafe fn marktree_itr_get_ext(
     mut oldbase: Option<&mut [MTPos; MT_MAX_DEPTH]>,
     meta_filter: Option<&MetaFilter>,
 ) -> bool {
-    unsafe {
-        if b.n_keys == 0 {
+    if b.n_keys == 0 {
             itr.x = None;
             return false;
         }
@@ -1835,11 +1824,10 @@ pub unsafe fn marktree_itr_get_ext(
         } else {
             true
         }
-    }
 }
 
 #[cfg(test)]
-pub unsafe fn marktree_itr_first(b: &MarkTree, itr: &mut MarkTreeIter) -> bool {
+pub fn marktree_itr_first(b: &MarkTree, itr: &mut MarkTreeIter) -> bool {
     if b.n_keys == 0 {
         itr.x = None;
         return false;
@@ -1859,11 +1847,11 @@ pub unsafe fn marktree_itr_first(b: &MarkTree, itr: &mut MarkTreeIter) -> bool {
     true
 }
 
-pub unsafe fn marktree_itr_next(b: &MarkTree, itr: &mut MarkTreeIter) -> bool {
-    unsafe { marktree_itr_next_skip(b, itr, false, false, None, None) }
+pub fn marktree_itr_next(b: &MarkTree, itr: &mut MarkTreeIter) -> bool {
+    marktree_itr_next_skip(b, itr, false, false, None, None)
 }
 
-unsafe fn marktree_itr_next_skip(
+fn marktree_itr_next_skip(
     b: &MarkTree,
     itr: &mut MarkTreeIter,
     mut skip: bool,
@@ -1936,7 +1924,7 @@ unsafe fn marktree_itr_next_skip(
     true
 }
 
-pub unsafe fn marktree_itr_get_filter(
+pub fn marktree_itr_get_filter(
     b: &MarkTree,
     row: i32,
     col: c_int,
@@ -1945,8 +1933,7 @@ pub unsafe fn marktree_itr_get_filter(
     meta_filter: &MetaFilter,
     itr: &mut MarkTreeIter,
 ) -> bool {
-    unsafe {
-        if !meta_has(&b.meta_root, meta_filter) {
+    if !meta_has(&b.meta_root, meta_filter) {
             return false;
         }
         if !marktree_itr_get_ext(
@@ -1961,16 +1948,14 @@ pub unsafe fn marktree_itr_get_filter(
             return false;
         }
         marktree_itr_check_filter(b, itr, stop_row, stop_col, meta_filter)
-    }
 }
 
-pub unsafe fn marktree_itr_step_out_filter(
+pub fn marktree_itr_step_out_filter(
     b: &MarkTree,
     itr: &mut MarkTreeIter,
     meta_filter: &MetaFilter,
 ) -> bool {
-    unsafe {
-        if !meta_has(&b.meta_root, meta_filter) {
+    if !meta_has(&b.meta_root, meta_filter) {
             itr.x = None;
             return false;
         }
@@ -1988,33 +1973,29 @@ pub unsafe fn marktree_itr_step_out_filter(
         }
 
         itr.x.is_some()
-    }
 }
 
-pub unsafe fn marktree_itr_next_filter(
+pub fn marktree_itr_next_filter(
     b: &MarkTree,
     itr: &mut MarkTreeIter,
     stop_row: c_int,
     stop_col: c_int,
     meta_filter: &MetaFilter,
 ) -> bool {
-    unsafe {
-        if !marktree_itr_next_skip(b, itr, false, false, None, Some(meta_filter)) {
+    if !marktree_itr_next_skip(b, itr, false, false, None, Some(meta_filter)) {
             return false;
         }
         marktree_itr_check_filter(b, itr, stop_row, stop_col, meta_filter)
-    }
 }
 
-unsafe fn marktree_itr_check_filter(
+fn marktree_itr_check_filter(
     b: &MarkTree,
     itr: &mut MarkTreeIter,
     stop_row: c_int,
     stop_col: c_int,
     meta_filter: &MetaFilter,
 ) -> bool {
-    unsafe {
-        let stop_pos = MTPos {
+    let stop_pos = MTPos {
             row: stop_row,
             col: stop_col,
         };
@@ -2039,10 +2020,9 @@ unsafe fn marktree_itr_check_filter(
                 return false;
             }
         }
-    }
 }
 
-pub unsafe fn marktree_itr_prev(b: &MarkTree, itr: &mut MarkTreeIter) -> bool {
+pub fn marktree_itr_prev(b: &MarkTree, itr: &mut MarkTreeIter) -> bool {
     let Some(mut itr_x) = itr.x else {
         return false;
     };
@@ -2086,22 +2066,20 @@ pub unsafe fn marktree_itr_prev(b: &MarkTree, itr: &mut MarkTreeIter) -> bool {
     true
 }
 
-pub unsafe fn marktree_itr_pos(b: &MarkTree, itr: &MarkTreeIter) -> MTPos {
+pub fn marktree_itr_pos(b: &MarkTree, itr: &MarkTreeIter) -> MTPos {
     let mut pos = rawkey(b, itr).pos;
     unrelative(itr.pos, &mut pos);
     pos
 }
 
-pub unsafe fn marktree_itr_current(b: &MarkTree, itr: &MarkTreeIter) -> MTKey {
-    unsafe {
-        if itr.x.is_some() {
+pub fn marktree_itr_current(b: &MarkTree, itr: &MarkTreeIter) -> MTKey {
+    if itr.x.is_some() {
             let mut key = *rawkey(b, itr);
             key.pos = marktree_itr_pos(b, itr);
             key
         } else {
             MT_INVALID_KEY
         }
-    }
 }
 
 #[inline]
@@ -2109,7 +2087,7 @@ fn itr_eq(itr1: &MarkTreeIter, itr2: &MarkTreeIter) -> bool {
     itr1.x == itr2.x && itr1.i == itr2.i
 }
 
-pub unsafe fn marktree_itr_get_overlap(
+pub fn marktree_itr_get_overlap(
     b: &MarkTree,
     row: c_int,
     col: c_int,
@@ -2130,13 +2108,12 @@ pub unsafe fn marktree_itr_get_overlap(
     true
 }
 
-pub unsafe fn marktree_itr_step_overlap(
+pub fn marktree_itr_step_overlap(
     b: &MarkTree,
     itr: &mut MarkTreeIter,
     pair: &mut MTPair,
 ) -> bool {
-    unsafe {
-        while itr.i == -1 {
+    while itr.i == -1 {
             let itr_x = itr.x.unwrap();
             if itr.intersect_idx < b.nodes[itr_x].intersect.len() {
                 let id = b.nodes[itr_x].intersect.as_slice()[itr.intersect_idx];
@@ -2220,7 +2197,6 @@ pub unsafe fn marktree_itr_step_overlap(
         }
 
         false
-    }
 }
 
 fn check_damage(
@@ -2246,7 +2222,7 @@ fn check_damage(
     };
 }
 
-unsafe fn swap_keys(
+fn swap_keys(
     b: &mut MarkTree,
     itr1: &mut MarkTreeIter,
     itr2: &mut MarkTreeIter,
@@ -2307,7 +2283,7 @@ unsafe fn swap_keys(
     refkey(b, x2_idx, itr2.i);
 }
 
-pub unsafe fn marktree_splice(
+pub fn marktree_splice(
     b: &mut MarkTree,
     start_line: i32,
     start_col: c_int,
@@ -2316,8 +2292,7 @@ pub unsafe fn marktree_splice(
     new_extent_line: c_int,
     new_extent_col: c_int,
 ) -> bool {
-    unsafe {
-        let start = MTPos {
+    let start = MTPos {
             row: start_line,
             col: start_col,
         };
@@ -2508,10 +2483,9 @@ pub unsafe fn marktree_splice(
         }
 
         moved
-    }
 }
 
-pub unsafe fn marktree_move_region(
+pub fn marktree_move_region(
     b: &mut MarkTree,
     start_row: c_int,
     start_col: colnr_T,
@@ -2520,8 +2494,7 @@ pub unsafe fn marktree_move_region(
     new_row: c_int,
     new_col: colnr_T,
 ) {
-    unsafe {
-        let start = MTPos {
+    let start = MTPos {
             row: start_row,
             col: start_col,
         };
@@ -2559,17 +2532,16 @@ pub unsafe fn marktree_move_region(
                 marktree_restore_pair(b, item);
             }
         }
-    }
 }
 
-pub unsafe fn marktree_lookup_ns(
+pub fn marktree_lookup_ns(
     b: &MarkTree,
     ns: u32,
     id: u32,
     end: bool,
     itr: Option<&mut MarkTreeIter>,
 ) -> MTKey {
-    unsafe { marktree_lookup(b, mt_lookup_id(ns, id, end), itr) }
+    marktree_lookup(b, mt_lookup_id(ns, id, end), itr)
 }
 
 fn pseudo_index(b: &MarkTree, x: usize, mut i: c_int) -> u64 {
@@ -2609,9 +2581,8 @@ fn pseudo_index_for_id(b: &MarkTree, id: u64, sloppy: bool) -> u64 {
     pseudo_index(b, n, i)
 }
 
-pub unsafe fn marktree_lookup(b: &MarkTree, id: u64, itr: Option<&mut MarkTreeIter>) -> MTKey {
-    unsafe {
-        let Some(n) = id2node(b, id) else {
+pub fn marktree_lookup(b: &MarkTree, id: u64, itr: Option<&mut MarkTreeIter>) -> MTKey {
+    let Some(n) = id2node(b, id) else {
             if let Some(itr) = itr {
                 itr.x = None;
             }
@@ -2624,17 +2595,15 @@ pub unsafe fn marktree_lookup(b: &MarkTree, id: u64, itr: Option<&mut MarkTreeIt
         }
 
         std::process::abort();
-    }
 }
 
-pub unsafe fn marktree_itr_set_node(
+pub fn marktree_itr_set_node(
     b: &MarkTree,
     mut itr: Option<&mut MarkTreeIter>,
     mut n: usize,
     mut i: c_int,
 ) -> MTKey {
-    unsafe {
-        let root_level = b.nodes[b.root.unwrap()].level;
+    let root_level = b.nodes[b.root.unwrap()].level;
         let mut key = b.nodes[n].key[i as usize];
         if let Some(ref mut itr) = itr {
             itr.i = i;
@@ -2657,7 +2626,6 @@ pub unsafe fn marktree_itr_set_node(
             marktree_itr_fix_pos(b, itr);
         }
         key
-    }
 }
 
 pub unsafe fn marktree_get_altpos(
@@ -2665,18 +2633,18 @@ pub unsafe fn marktree_get_altpos(
     mark: MTKey,
     itr: Option<&mut MarkTreeIter>,
 ) -> MTPos {
-    unsafe { marktree_get_alt(b, mark, itr).pos }
+    marktree_get_alt(b, mark, itr).pos
 }
 
-pub unsafe fn marktree_get_alt(b: &MarkTree, mark: MTKey, itr: Option<&mut MarkTreeIter>) -> MTKey {
+pub fn marktree_get_alt(b: &MarkTree, mark: MTKey, itr: Option<&mut MarkTreeIter>) -> MTKey {
     if mt_paired(mark) {
-        unsafe { marktree_lookup_ns(b, mark.ns, mark.id, !mt_end(mark), itr) }
+        marktree_lookup_ns(b, mark.ns, mark.id, !mt_end(mark), itr)
     } else {
         mark
     }
 }
 
-unsafe fn marktree_itr_fix_pos(b: &MarkTree, itr: &mut MarkTreeIter) {
+fn marktree_itr_fix_pos(b: &MarkTree, itr: &mut MarkTreeIter) {
     itr.pos = MTPos { row: 0, col: 0 };
     let mut x = b.root.unwrap();
     for lvl in 0..itr.lvl as usize {
@@ -2692,7 +2660,7 @@ unsafe fn marktree_itr_fix_pos(b: &MarkTree, itr: &mut MarkTreeIter) {
 }
 
 #[cfg(test)]
-pub unsafe fn marktree_put_test(
+pub fn marktree_put_test(
     b: &mut MarkTree,
     ns: u32,
     id: u32,
@@ -2715,22 +2683,18 @@ pub unsafe fn marktree_put_test(
         flags,
         decor_data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
     };
-    unsafe {
-        marktree_put(b, key, end_row, end_col, end_right);
-    }
+    marktree_put(b, key, end_row, end_col, end_right);
 }
 
 #[cfg(test)]
-pub unsafe fn marktree_del_pair_test(b: &mut MarkTree, ns: u32, id: u32) {
-    unsafe {
-        let mut itr = MarkTreeIter::new();
+pub fn marktree_del_pair_test(b: &mut MarkTree, ns: u32, id: u32) {
+    let mut itr = MarkTreeIter::new();
         marktree_lookup_ns(b, ns, id, false, Some(&mut itr));
 
         let other = marktree_del_itr(b, &mut itr, false);
         assert!(other != 0);
         marktree_lookup(b, other, Some(&mut itr));
         marktree_del_itr(b, &mut itr, false);
-    }
 }
 
 #[cfg(test)]

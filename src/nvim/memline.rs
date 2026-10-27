@@ -329,7 +329,7 @@ impl MemlineModuleState {
 static ML_STATE: GlobalState<MemlineModuleState> = GlobalState::new(MemlineModuleState::new());
 
 #[inline]
-unsafe fn ml_st() -> &'static mut MemlineModuleState {
+fn ml_st() -> &'static mut MemlineModuleState {
     unsafe { &mut *ML_STATE.as_ptr() }
 }
 
@@ -372,7 +372,7 @@ const fn ml_simple(x: c_int) -> bool {
 }
 
 #[inline]
-unsafe fn pb_count_max(mfp: &memfile_T) -> u16 {
+fn pb_count_max(mfp: &memfile_T) -> u16 {
     ((mfp.mf_page_size as usize - std::mem::offset_of!(PointerBlock, pb_pointer))
             / size_of::<PointerEntry>()) as u16
 }
@@ -719,7 +719,7 @@ pub unsafe fn ml_timestamp(buf: *mut buf_T) {
 }
 
 #[inline]
-unsafe fn ml_check_b0_id(b0p: &ZeroBlock) -> bool {
+fn ml_check_b0_id(b0p: &ZeroBlock) -> bool {
     b0p.b0_id[0] == BLOCK0_ID0 && b0p.b0_id[1] == BLOCK0_ID1
 }
 
@@ -2773,7 +2773,7 @@ pub unsafe fn ml_replace_buf_len(
 }
 
 /// Replace the in-memory dirty line buffer in `buf` with `bytes` (without trailing NUL).
-pub unsafe fn ml_replace_dirty_line(buf: &mut buf_T, bytes: &[c_char], clear_empty: bool) {
+pub fn ml_replace_dirty_line(buf: &mut buf_T, bytes: &[c_char], clear_empty: bool) {
     let mut new_buf = Vec::with_capacity(bytes.len() + 1);
         new_buf.extend_from_slice(bytes);
         new_buf.push(NUL);
@@ -3807,7 +3807,7 @@ unsafe fn findswapname(
 }
 
 #[inline]
-unsafe fn b0_magic_wrong(b0p: &ZeroBlock) -> bool {
+fn b0_magic_wrong(b0p: &ZeroBlock) -> bool {
     b0p.b0_magic_long != B0_MAGIC_LONG
             || b0p.b0_magic_int != B0_MAGIC_INT
             || b0p.b0_magic_short != B0_MAGIC_SHORT

@@ -267,7 +267,7 @@ impl UndoModuleState {
 static UNDO_STATE: GlobalState<UndoModuleState> = GlobalState::new(UndoModuleState::new());
 
 #[inline]
-unsafe fn undo_st() -> &'static mut UndoModuleState {
+fn undo_st() -> &'static mut UndoModuleState {
     unsafe { &mut *UNDO_STATE.as_ptr() }
 }
 
@@ -2902,7 +2902,7 @@ unsafe fn u_saveline(buf: &mut buf_T, lnum: linenr_T) {
 }
 
 /// Clear the line saved for the `"U"` command.
-pub unsafe fn u_clearline(buf: &mut buf_T) {
+pub fn u_clearline(buf: &mut buf_T) {
     if buf.b_u_line_ptr.is_none() {
             return;
         }

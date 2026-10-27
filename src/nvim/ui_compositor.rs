@@ -75,7 +75,7 @@ impl UiCompositorState {
 static COMP_STATE: GlobalState<UiCompositorState> = GlobalState::new(UiCompositorState::new());
 
 #[inline]
-unsafe fn comp() -> &'static mut UiCompositorState {
+fn comp() -> &'static mut UiCompositorState {
     unsafe { &mut *COMP_STATE.as_ptr() }
 }
 
@@ -101,12 +101,10 @@ pub unsafe fn ui_comp_init() {
     }
 }
 
-pub unsafe fn ui_comp_free_all_mem() {
-    unsafe {
-        comp().layers = Vec::new();
+pub fn ui_comp_free_all_mem() {
+    comp().layers = Vec::new();
         comp().linebuf = Vec::new();
         comp().attrbuf = Vec::new();
-    }
 }
 
 pub unsafe fn ui_comp_syn_init() {
@@ -118,26 +116,22 @@ pub unsafe fn ui_comp_syn_init() {
     }
 }
 
-pub unsafe fn ui_comp_attach(ui: &mut RemoteUI) {
-    unsafe {
-        comp().composed_uis += 1;
+pub fn ui_comp_attach(ui: &mut RemoteUI) {
+    comp().composed_uis += 1;
         ui.composed = true;
-    }
 }
 
-pub unsafe fn ui_comp_detach(ui: &mut RemoteUI) {
-    unsafe {
-        comp().composed_uis -= 1;
+pub fn ui_comp_detach(ui: &mut RemoteUI) {
+    comp().composed_uis -= 1;
         if comp().composed_uis == 0 {
             comp().linebuf = Vec::new();
             comp().attrbuf = Vec::new();
         }
         ui.composed = false;
-    }
 }
 
-pub unsafe fn ui_comp_should_draw() -> bool {
-    unsafe { comp().composed_uis != 0 && comp().valid_screen }
+pub fn ui_comp_should_draw() -> bool {
+    comp().composed_uis != 0 && comp().valid_screen
 }
 
 /// Raises or lowers the layer, syncing `comp_index` with `zindex` (`ui_comp_layers_adjust`).
@@ -622,13 +616,11 @@ unsafe fn compose_debug(
     }
 }
 
-unsafe fn debug_delay(lines: Integer) {
-    unsafe {
-        ui_call_flush();
+fn debug_delay(lines: Integer) {
+    ui_call_flush();
         let wd = opt_vars().p_wd.unsigned_abs();
         let factor = lines.clamp(1, 5) as u64;
         os_sleep(factor * wd);
-    }
 }
 
 unsafe fn compose_area(
@@ -731,15 +723,13 @@ pub unsafe fn ui_comp_raw_line(
 }
 
 /// The screen is invalid and will soon be cleared (`ui_comp_set_screen_valid`).
-pub unsafe fn ui_comp_set_screen_valid(valid: bool) -> bool {
-    unsafe {
-        let old_val = comp().valid_screen;
+pub fn ui_comp_set_screen_valid(valid: bool) -> bool {
+    let old_val = comp().valid_screen;
         comp().valid_screen = valid;
         if !valid {
             comp().msg_sep_row = -1;
         }
         old_val
-    }
 }
 
 pub unsafe fn ui_comp_msg_set_pos(

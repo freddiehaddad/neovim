@@ -193,12 +193,12 @@ impl DrawscreenState {
 static DS_STATE: GlobalState<DrawscreenState> = GlobalState::new(DrawscreenState::new());
 
 #[inline]
-unsafe fn ds_st() -> &'static mut DrawscreenState {
+fn ds_st() -> &'static mut DrawscreenState {
     unsafe { &mut *DS_STATE.as_ptr() }
 }
 
 #[inline]
-pub unsafe fn w_endcol(wp: &win_T) -> c_int {
+pub fn w_endcol(wp: &win_T) -> c_int {
     wp.w_wincol + wp.w_width
 }
 
@@ -831,16 +831,14 @@ pub unsafe fn setcursor_mayforce(wp: &mut win_T, force: bool) {
     }
 }
 
-pub unsafe fn redraw_custom_title_later() -> bool {
-    unsafe {
-        if (opt_vars().p_icon != 0 && (g_st().stl_syntax & STL_IN_ICON) != 0)
+pub fn redraw_custom_title_later() -> bool {
+    if (opt_vars().p_icon != 0 && (g_st().stl_syntax & STL_IN_ICON) != 0)
             || (opt_vars().p_title != 0 && (g_st().stl_syntax & STL_IN_TITLE) != 0)
         {
             g_st().need_maketitle = true;
             return true;
         }
         false
-    }
 }
 
 pub unsafe fn show_cursor_info_later(force: bool) {
@@ -1076,11 +1074,9 @@ pub unsafe fn showmode() -> c_int {
     }
 }
 
-unsafe fn msg_pos_mode() {
-    unsafe {
-        g_st().msg_col = 0;
+fn msg_pos_mode() {
+    g_st().msg_col = 0;
         g_st().msg_row = g_st().Rows - 1;
-    }
 }
 
 pub unsafe fn unshowmode(force: bool) {
@@ -2650,12 +2646,10 @@ pub unsafe fn redraw_all_later(type_: c_int) {
     }
 }
 
-pub unsafe fn set_must_redraw(type_: c_int) {
-    unsafe {
-        if !g_st().redraw_not_allowed {
+pub fn set_must_redraw(type_: c_int) {
+    if !g_st().redraw_not_allowed {
             g_st().must_redraw = g_st().must_redraw.max(type_);
         }
-    }
 }
 
 pub unsafe fn screen_invalidate_highlights() {

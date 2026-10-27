@@ -378,7 +378,7 @@ impl SpellSuggestState {
 static SPS_STATE: GlobalState<SpellSuggestState> = GlobalState::new(SpellSuggestState::new());
 
 #[inline]
-unsafe fn sps_st() -> &'static mut SpellSuggestState {
+fn sps_st() -> &'static mut SpellSuggestState {
     unsafe { &mut *SPS_STATE.as_ptr() }
 }
 #[inline]
@@ -390,7 +390,7 @@ const fn maxscore(word_score: c_int, sound_score: c_int) -> c_int {
     (4 * word_score - sound_score) / 3
 }
 #[inline]
-unsafe fn sug_clean_count(su: &suginfo_T) -> c_int {
+fn sug_clean_count(su: &suginfo_T) -> c_int {
     if su.su_maxcount < 130 {
             150
         } else {
@@ -398,8 +398,8 @@ unsafe fn sug_clean_count(su: &suginfo_T) -> c_int {
         }
 }
 #[inline]
-unsafe fn sug_max_count(su: &suginfo_T) -> c_int {
-    unsafe { sug_clean_count(su) + 50 }
+fn sug_max_count(su: &suginfo_T) -> c_int {
+    sug_clean_count(su) + 50
 }
 
 #[inline]
@@ -615,11 +615,9 @@ pub unsafe fn spell_check_sps(
     }
 }
 /// Apply validated 'spellsuggest' flags and suggestion limit.
-pub unsafe fn spell_apply_sps(flags: c_int, limit: c_int) {
-    unsafe {
-        sps_st().sps_flags = flags;
+pub fn spell_apply_sps(flags: c_int, limit: c_int) {
+    sps_st().sps_flags = flags;
         sps_st().sps_limit = limit;
-    }
 }
 unsafe fn select_spell_suggestion(sug: &mut suginfo_T) {
     unsafe {
@@ -1172,7 +1170,7 @@ unsafe fn suggest_try_change(su: &mut suginfo_T) {
     }
 }
 #[inline]
-unsafe fn try_deeper(
+fn try_deeper(
     su: &suginfo_T,
     stack: &[trystate_T; MAXWLEN],
     depth: usize,
@@ -2730,7 +2728,7 @@ unsafe fn soundfold_find(slang: &mut slang_T, word: *mut c_char) -> c_int {
         wordnr
     }
 }
-unsafe fn similar_chars(slang: &mut slang_T, c1: c_int, c2: c_int) -> bool {
+fn similar_chars(slang: &mut slang_T, c1: c_int, c2: c_int) -> bool {
     let m1 = if c1 >= 256 {
             slang.sl_map_hash.get(&c1).copied().unwrap_or(0)
         } else if c1 >= 0 {

@@ -419,7 +419,7 @@ impl qfstate_T {
         if self.use_growbuf {
             self.growbuf.as_mut_ptr()
         } else {
-            unsafe { (&raw mut g_st().IObuff).cast::<c_char>() }
+            (&raw mut g_st().IObuff).cast::<c_char>()
         }
     }
 }
@@ -640,7 +640,7 @@ impl QuickfixState {
 static QF_STATE: GlobalState<QuickfixState> = GlobalState::new(QuickfixState::new());
 
 #[inline]
-unsafe fn qf_st() -> &'static mut QuickfixState {
+fn qf_st() -> &'static mut QuickfixState {
     unsafe { &mut *QF_STATE.as_ptr() }
 }
 
@@ -680,7 +680,7 @@ unsafe fn is_ll_stack(qi: *const qf_info_T) -> bool {
 }
 
 #[inline]
-unsafe fn is_qf_list(qfl: &qf_list_T) -> bool {
+fn is_qf_list(qfl: &qf_list_T) -> bool {
     qfl.qfl_type == QFLT_QUICKFIX
 }
 
@@ -696,14 +696,12 @@ unsafe fn get_loc_list(wp: *const win_T) -> *mut qf_info_T {
 }
 
 #[inline]
-unsafe fn tab_firstwin(tp: &tabpage_T) -> *mut win_T {
-    unsafe {
-        if ptr::eq(tp, g_st().curtab) {
+fn tab_firstwin(tp: &tabpage_T) -> *mut win_T {
+    if ptr::eq(tp, g_st().curtab) {
             g_st().firstwin
         } else {
             tp.tp_firstwin
         }
-    }
 }
 
 unsafe fn qfga_get() -> &'static mut Vec<c_char> {
@@ -1667,7 +1665,7 @@ unsafe fn qf_get_curlist(qi: *mut qf_info_T) -> &'static mut qf_list_T {
     unsafe { qf_get_list(qi, (*qi).qf_curlist) }
 }
 
-unsafe fn qf_pop_stack(qi: &mut qf_info_T, adjust: bool) {
+fn qf_pop_stack(qi: &mut qf_info_T, adjust: bool) {
     let cnt = qi.qf_listcount as usize;
         let lists = &mut qi.qf_lists.as_mut_slice()[..cnt];
         lists.rotate_left(1);
@@ -2228,10 +2226,8 @@ pub unsafe fn qf_free_all(wp: *mut win_T) {
     }
 }
 
-unsafe fn incr_quickfix_busy() {
-    unsafe {
-        qf_st().quickfix_busy += 1;
-    }
+fn incr_quickfix_busy() {
+    qf_st().quickfix_busy += 1;
 }
 
 unsafe fn decr_quickfix_busy() {
@@ -2744,11 +2740,11 @@ unsafe fn qflist_valid(wp: *mut win_T, qf_id: c_uint) -> bool {
     }
 }
 
-unsafe fn is_qf_entry_present(qfl: &qf_list_T, qf_index: c_int) -> bool {
-    unsafe { !g_st().got_int && qf_index >= 1 && (qf_index as usize) <= qfl.qf_items.len() }
+fn is_qf_entry_present(qfl: &qf_list_T, qf_index: c_int) -> bool {
+    !g_st().got_int && qf_index >= 1 && (qf_index as usize) <= qfl.qf_items.len()
 }
 
-unsafe fn get_next_valid_entry(
+fn get_next_valid_entry(
     qfl: &mut qf_list_T,
     qf_index: &mut c_int,
     dir: c_int,
@@ -2776,7 +2772,7 @@ unsafe fn get_next_valid_entry(
         &raw mut (&mut qfl.qf_items)[(idx - 1) as usize]
 }
 
-unsafe fn get_prev_valid_entry(
+fn get_prev_valid_entry(
     qfl: &mut qf_list_T,
     qf_index: &mut c_int,
     dir: c_int,
@@ -2844,7 +2840,7 @@ unsafe fn get_nth_valid_entry(
     }
 }
 
-unsafe fn get_nth_entry(
+fn get_nth_entry(
     qfl: &mut qf_list_T,
     errornr: c_int,
     new_qfidx: &mut c_int,
@@ -3856,7 +3852,7 @@ pub unsafe fn qf_history(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn qf_free_items(qfl: &mut qf_list_T) {
+fn qf_free_items(qfl: &mut qf_list_T) {
     qfl.qf_items.clear();
         qfl.qf_index = 0;
         qfl.qf_nonevalid = true;
@@ -4678,11 +4674,11 @@ unsafe fn qf_fill_buffer(qfl: *mut qf_list_T, buf: &mut buf_T, old_count: usize,
 }
 
 #[inline]
-unsafe fn qf_list_changed(qfl: &mut qf_list_T) {
+fn qf_list_changed(qfl: &mut qf_list_T) {
     qfl.qf_changedtick += 1;
 }
 
-unsafe fn qf_id2nr(qi: &qf_info_T, qfid: c_uint) -> c_int {
+fn qf_id2nr(qi: &qf_info_T, qfid: c_uint) -> c_int {
     for qf_idx in 0..qi.qf_listcount {
             if (&qi.qf_lists)[qf_idx as usize].qf_id == qfid {
                 return qf_idx;
@@ -4739,7 +4735,7 @@ pub unsafe fn grep_internal(cmdidx: c_int) -> c_int {
     }
 }
 
-unsafe fn make_get_auname(cmdidx: c_int) -> *const c_char {
+fn make_get_auname(cmdidx: c_int) -> *const c_char {
     match cmdidx {
         CMD_make => c"make".as_ptr(),
         CMD_lmake => c"lmake".as_ptr(),
@@ -5106,9 +5102,8 @@ pub unsafe fn ex_cnext(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn qf_find_first_entry_in_buf(items: &[qfline_T], bnr: c_int) -> Option<usize> {
-    unsafe {
-        for (idx, qfp) in items.iter().enumerate() {
+fn qf_find_first_entry_in_buf(items: &[qfline_T], bnr: c_int) -> Option<usize> {
+    for (idx, qfp) in items.iter().enumerate() {
             if g_st().got_int {
                 break;
             }
@@ -5117,12 +5112,10 @@ unsafe fn qf_find_first_entry_in_buf(items: &[qfline_T], bnr: c_int) -> Option<u
             }
         }
         None
-    }
 }
 
-unsafe fn qf_find_first_entry_on_line(items: &[qfline_T], mut idx: usize) -> usize {
-    unsafe {
-        while !g_st().got_int
+fn qf_find_first_entry_on_line(items: &[qfline_T], mut idx: usize) -> usize {
+    while !g_st().got_int
             && idx > 0
             && items[idx].qf_fnum == items[idx - 1].qf_fnum
             && items[idx].qf_lnum == items[idx - 1].qf_lnum
@@ -5130,12 +5123,10 @@ unsafe fn qf_find_first_entry_on_line(items: &[qfline_T], mut idx: usize) -> usi
             idx -= 1;
         }
         idx
-    }
 }
 
-unsafe fn qf_find_last_entry_on_line(items: &[qfline_T], mut idx: usize) -> usize {
-    unsafe {
-        while !g_st().got_int
+fn qf_find_last_entry_on_line(items: &[qfline_T], mut idx: usize) -> usize {
+    while !g_st().got_int
             && idx + 1 < items.len()
             && items[idx].qf_fnum == items[idx + 1].qf_fnum
             && items[idx].qf_lnum == items[idx + 1].qf_lnum
@@ -5143,11 +5134,10 @@ unsafe fn qf_find_last_entry_on_line(items: &[qfline_T], mut idx: usize) -> usiz
             idx += 1;
         }
         idx
-    }
 }
 
 #[inline]
-unsafe fn qf_entry_after_pos(qfp: &qfline_T, pos: &pos_T, linewise: bool) -> bool {
+fn qf_entry_after_pos(qfp: &qfline_T, pos: &pos_T, linewise: bool) -> bool {
     if linewise {
             qfp.qf_lnum > pos.lnum
         } else {
@@ -5157,7 +5147,7 @@ unsafe fn qf_entry_after_pos(qfp: &qfline_T, pos: &pos_T, linewise: bool) -> boo
 }
 
 #[inline]
-unsafe fn qf_entry_before_pos(qfp: &qfline_T, pos: &pos_T, linewise: bool) -> bool {
+fn qf_entry_before_pos(qfp: &qfline_T, pos: &pos_T, linewise: bool) -> bool {
     if linewise {
             qfp.qf_lnum < pos.lnum
         } else {
@@ -5167,7 +5157,7 @@ unsafe fn qf_entry_before_pos(qfp: &qfline_T, pos: &pos_T, linewise: bool) -> bo
 }
 
 #[inline]
-unsafe fn qf_entry_on_or_after_pos(
+fn qf_entry_on_or_after_pos(
     qfp: &qfline_T,
     pos: &pos_T,
     linewise: bool,
@@ -5181,7 +5171,7 @@ unsafe fn qf_entry_on_or_after_pos(
 }
 
 #[inline]
-unsafe fn qf_entry_on_or_before_pos(
+fn qf_entry_on_or_before_pos(
     qfp: &qfline_T,
     pos: &pos_T,
     linewise: bool,
@@ -5194,15 +5184,14 @@ unsafe fn qf_entry_on_or_before_pos(
         }
 }
 
-unsafe fn qf_find_entry_after_pos(
+fn qf_find_entry_after_pos(
     items: &[qfline_T],
     bnr: c_int,
     pos: &pos_T,
     linewise: bool,
     mut idx: usize,
 ) -> Option<usize> {
-    unsafe {
-        if qf_entry_after_pos(&items[idx], pos, linewise) {
+    if qf_entry_after_pos(&items[idx], pos, linewise) {
             return Some(idx);
         }
 
@@ -5218,18 +5207,16 @@ unsafe fn qf_find_entry_after_pos(
         }
 
         Some(idx + 1)
-    }
 }
 
-unsafe fn qf_find_entry_before_pos(
+fn qf_find_entry_before_pos(
     items: &[qfline_T],
     bnr: c_int,
     pos: &pos_T,
     linewise: bool,
     mut idx: usize,
 ) -> Option<usize> {
-    unsafe {
-        while idx + 1 < items.len()
+    while idx + 1 < items.len()
             && items[idx + 1].qf_fnum == bnr
             && qf_entry_before_pos(&items[idx + 1], pos, linewise)
         {
@@ -5245,35 +5232,31 @@ unsafe fn qf_find_entry_before_pos(
         }
 
         Some(idx)
-    }
 }
 
-unsafe fn qf_find_closest_entry(
+fn qf_find_closest_entry(
     items: &[qfline_T],
     bnr: c_int,
     pos: &pos_T,
     dir: Direction,
     linewise: bool,
 ) -> Option<usize> {
-    unsafe {
-        let idx = qf_find_first_entry_in_buf(items, bnr)?;
+    let idx = qf_find_first_entry_in_buf(items, bnr)?;
 
         if dir == FORWARD {
             qf_find_entry_after_pos(items, bnr, pos, linewise, idx)
         } else {
             qf_find_entry_before_pos(items, bnr, pos, linewise, idx)
         }
-    }
 }
 
-unsafe fn qf_get_nth_below_entry(
+fn qf_get_nth_below_entry(
     items: &[qfline_T],
     mut idx: usize,
     mut n: linenr_T,
     linewise: bool,
 ) -> usize {
-    unsafe {
-        while n > 0 && !g_st().got_int {
+    while n > 0 && !g_st().got_int {
             n -= 1;
             let first_idx = idx;
 
@@ -5291,17 +5274,15 @@ unsafe fn qf_get_nth_below_entry(
             idx += 1;
         }
         idx
-    }
 }
 
-unsafe fn qf_get_nth_above_entry(
+fn qf_get_nth_above_entry(
     items: &[qfline_T],
     mut idx: usize,
     mut n: linenr_T,
     linewise: bool,
 ) -> usize {
-    unsafe {
-        while n > 0 && !g_st().got_int {
+    while n > 0 && !g_st().got_int {
             n -= 1;
             if idx == 0 || items[idx - 1].qf_fnum != items[idx].qf_fnum {
                 break;
@@ -5314,10 +5295,9 @@ unsafe fn qf_get_nth_above_entry(
             }
         }
         idx
-    }
 }
 
-unsafe fn qf_find_nth_adj_entry(
+fn qf_find_nth_adj_entry(
     qfl: &mut qf_list_T,
     bnr: c_int,
     pos: &mut pos_T,
@@ -5325,8 +5305,7 @@ unsafe fn qf_find_nth_adj_entry(
     dir: Direction,
     linewise: bool,
 ) -> c_int {
-    unsafe {
-        let items = &qfl.qf_items;
+    let items = &qfl.qf_items;
         let Some(mut idx) = qf_find_closest_entry(items, bnr, pos, dir, linewise) else {
             return 0;
         };
@@ -5341,7 +5320,6 @@ unsafe fn qf_find_nth_adj_entry(
         }
 
         (idx + 1) as c_int
-    }
 }
 
 pub unsafe fn ex_cbelow(eap: &mut exarg_T) {
@@ -5413,7 +5391,7 @@ pub unsafe fn ex_cbelow(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn cfile_get_auname(cmdidx: c_int) -> *const c_char {
+fn cfile_get_auname(cmdidx: c_int) -> *const c_char {
     match cmdidx {
         CMD_cfile => c"cfile".as_ptr(),
         CMD_cgetfile => c"cgetfile".as_ptr(),
@@ -5499,7 +5477,7 @@ pub unsafe fn ex_cfile(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn vgr_get_auname(cmdidx: c_int) -> *const c_char {
+fn vgr_get_auname(cmdidx: c_int) -> *const c_char {
     match cmdidx {
         CMD_vimgrep => c"vimgrep".as_ptr(),
         CMD_lvimgrep => c"lvimgrep".as_ptr(),
@@ -5746,7 +5724,7 @@ unsafe fn vgr_jump_to_match(
     }
 }
 
-unsafe fn existing_swapfile(buf: &buf_T) -> bool {
+fn existing_swapfile(buf: &buf_T) -> bool {
     if let Some(ref mfp) = buf.b_ml.ml_mfp
             && let Some(ref mf_fname) = mfp.mf_fname
         {
@@ -6796,7 +6774,7 @@ unsafe fn qf_add_entry_from_dict(
     }
 }
 
-unsafe fn entry_is_closer_to_target(
+fn entry_is_closer_to_target(
     entry: &qfline_T,
     other_entry: &qfline_T,
     target_fnum: c_int,
@@ -7391,7 +7369,7 @@ pub unsafe fn set_ref_in_quickfix(copyID: c_int) -> bool {
     }
 }
 
-unsafe fn cbuffer_get_auname(cmdidx: c_int) -> *const c_char {
+fn cbuffer_get_auname(cmdidx: c_int) -> *const c_char {
     match cmdidx {
         CMD_cbuffer => c"cbuffer".as_ptr(),
         CMD_cgetbuffer => c"cgetbuffer".as_ptr(),
@@ -7536,7 +7514,7 @@ pub unsafe fn ex_cbuffer(eap: &mut exarg_T) {
     }
 }
 
-unsafe fn cexpr_get_auname(cmdidx: c_int) -> *const c_char {
+fn cexpr_get_auname(cmdidx: c_int) -> *const c_char {
     match cmdidx {
         CMD_cexpr => c"cexpr".as_ptr(),
         CMD_cgetexpr => c"cgetexpr".as_ptr(),
@@ -8014,8 +7992,7 @@ mod tests {
 
     #[test]
     fn qf_entry_pos_comparisons_respect_linewise_mode() {
-        unsafe {
-            let mut qfp = qfline_T::new();
+        let mut qfp = qfline_T::new();
             qfp.qf_lnum = 10;
             qfp.qf_col = 5;
             let pos = pos_T {
@@ -8045,13 +8022,11 @@ mod tests {
                 &pos,
                 false
             ));
-        }
     }
 
     #[test]
     fn entry_is_closer_to_target_compares_file_line_and_column() {
-        unsafe {
-            let mut e1 = qfline_T::new();
+        let mut e1 = qfline_T::new();
             let mut e2 = qfline_T::new();
             e1.qf_fnum = 1;
             e1.qf_lnum = 12;
@@ -8083,6 +8058,5 @@ mod tests {
                 12,
                 1
             ));
-        }
     }
 }

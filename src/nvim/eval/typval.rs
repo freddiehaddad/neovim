@@ -202,7 +202,7 @@ impl Callback {
     }
 
     #[inline]
-    pub unsafe fn raw_cb_type(cb: &Self) -> c_int {
+    pub fn raw_cb_type(cb: &Self) -> c_int {
         cb.cb_type()
     }
 }
@@ -674,7 +674,7 @@ static TV_STATE: crate::globals::GlobalState<TypvalModuleState> =
     crate::globals::GlobalState::new(TypvalModuleState::new());
 
 #[inline]
-pub(crate) unsafe fn tv_st() -> &'static mut TypvalModuleState {
+pub(crate) fn tv_st() -> &'static mut TypvalModuleState {
     unsafe { &mut *TV_STATE.as_ptr() }
 }
 
@@ -960,7 +960,7 @@ unsafe fn tv_blob_get_inline(b: *const blob_T, idx: c_int) -> u8 {
 }
 
 #[inline]
-unsafe fn tv_blob_set_inline(blob: &mut blob_T, idx: c_int, c: u8) {
+fn tv_blob_set_inline(blob: &mut blob_T, idx: c_int, c: u8) {
     (&mut blob.bv_ga)[idx as usize] = c;
 }
 
@@ -979,7 +979,7 @@ pub const fn tv_initial_value() -> typval_T {
 }
 
 /// Allocate a list item.
-unsafe fn tv_list_item_alloc() -> *mut listitem_T {
+fn tv_list_item_alloc() -> *mut listitem_T {
     Box::into_raw(Box::new(listitem_T {
         li_next: ptr::null_mut(),
         li_prev: ptr::null_mut(),
@@ -1002,12 +1002,12 @@ pub unsafe fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut
 }
 
 /// Add a watcher to a list.
-pub unsafe fn tv_list_watch_add(l: &mut list_T, lw: std::rc::Rc<listwatch_T>) {
+pub fn tv_list_watch_add(l: &mut list_T, lw: std::rc::Rc<listwatch_T>) {
     l.lv_watch.push(lw);
 }
 
 /// Remove a watcher from a list.
-pub unsafe fn tv_list_watch_remove(l: &mut list_T, lwrem: &std::rc::Rc<listwatch_T>) {
+pub fn tv_list_watch_remove(l: &mut list_T, lwrem: &std::rc::Rc<listwatch_T>) {
     if let Some(pos) = l
             .lv_watch
             .iter()
@@ -1018,7 +1018,7 @@ pub unsafe fn tv_list_watch_remove(l: &mut list_T, lwrem: &std::rc::Rc<listwatch
 }
 
 /// Advance watchers to the next item.
-unsafe fn tv_list_watch_fix(l: &mut list_T, item: &listitem_T) {
+fn tv_list_watch_fix(l: &mut list_T, item: &listitem_T) {
     for lw in &l.lv_watch {
             if ptr::eq(lw.lw_item.get(), item) {
                 lw.lw_item.set(item.li_next);
@@ -1078,7 +1078,7 @@ pub unsafe fn tv_list_init_static10(sl: &mut staticList10_T) {
 }
 
 /// Initialize static list with undefined number of elements.
-pub unsafe fn tv_list_init_static(l: &mut list_T) {
+pub fn tv_list_init_static(l: &mut list_T) {
     *l = list_T::new();
         l.lv_refcount = DO_NOT_FREE_CNT;
 }
@@ -3550,7 +3550,7 @@ pub unsafe fn tv_dict_set_keys_readonly(dict: *mut dict_T) {
 }
 
 /// Allocate an empty blob.
-pub unsafe fn tv_blob_alloc() -> *mut blob_T {
+pub fn tv_blob_alloc() -> *mut blob_T {
     Box::into_raw(Box::new(blob_T {
         bv_ga: Vec::new(),
         bv_refcount: 0,
@@ -3730,7 +3730,7 @@ pub unsafe fn tv_blob_set_range(
 }
 
 /// Store one byte "byte" in blob "blob" at "idx".
-pub unsafe fn tv_blob_set_append(blob: &mut blob_T, idx: c_int, byte: u8) {
+pub fn tv_blob_set_append(blob: &mut blob_T, idx: c_int, byte: u8) {
     let bv = &mut blob.bv_ga;
         let len = bv.len() as c_int;
         if idx < len {

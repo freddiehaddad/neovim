@@ -106,7 +106,7 @@ unsafe fn key_matches(hi_key: *const c_char, key: *const c_char, key_len: usize)
 ///
 /// # Safety
 /// `ht` must be a valid writable pointer to an initialized `hashtab_T`.
-pub unsafe fn hash_clear(ht: &mut hashtab_T) {
+pub fn hash_clear(ht: &mut hashtab_T) {
     *ht = hashtab_T::new();
 }
 
@@ -237,9 +237,7 @@ pub unsafe fn hash_add_item(
     hi_ref.hi_di = di;
     hi_ref.hi_hash = hash;
 
-    unsafe {
-        hash_may_resize(ht_ref, 0);
-    }
+    hash_may_resize(ht_ref, 0);
 }
 
 /// Remove item `hi` from `ht` (`hash_remove`).
@@ -253,16 +251,14 @@ pub unsafe fn hash_remove(ht: &mut hashtab_T, hi: *mut hashitem_T) {
     ht_ref.ht_changed += 1;
     hi_ref.hi_removed = true;
     hi_ref.hi_di = std::ptr::null_mut();
-    unsafe {
-        hash_may_resize(ht_ref, 0);
-    }
+    hash_may_resize(ht_ref, 0);
 }
 
 /// Lock hashtable to prevent `ht_array` reallocation (`hash_lock`).
 ///
 /// # Safety
 /// `ht` must be a valid writable pointer to a `hashtab_T`.
-pub unsafe fn hash_lock(ht: &mut hashtab_T) {
+pub fn hash_lock(ht: &mut hashtab_T) {
     ht.ht_locked += 1;
 }
 
@@ -270,15 +266,13 @@ pub unsafe fn hash_lock(ht: &mut hashtab_T) {
 ///
 /// # Safety
 /// `ht` must be a valid writable pointer to a `hashtab_T`.
-pub unsafe fn hash_unlock(ht: &mut hashtab_T) {
+pub fn hash_unlock(ht: &mut hashtab_T) {
     let ht_ref = &mut *ht;
     ht_ref.ht_locked -= 1;
-    unsafe {
-        hash_may_resize(ht_ref, 0);
-    }
+    hash_may_resize(ht_ref, 0);
 }
 
-unsafe fn hash_may_resize(ht: &mut hashtab_T, mut minitems: usize) {
+fn hash_may_resize(ht: &mut hashtab_T, mut minitems: usize) {
     if ht.ht_locked > 0 {
         return;
     }

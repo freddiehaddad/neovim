@@ -87,7 +87,7 @@ static SIG_STATE: crate::globals::GlobalState<SignalModuleState> =
     crate::globals::GlobalState::new(SignalModuleState::new());
 
 #[inline]
-unsafe fn sig_st() -> &'static mut SignalModuleState {
+fn sig_st() -> &'static mut SignalModuleState {
     unsafe { &mut *SIG_STATE.as_ptr() }
 }
 
@@ -198,16 +198,12 @@ pub unsafe fn signal_stop() {
     }
 }
 
-pub unsafe fn signal_reject_deadly() {
-    unsafe {
-        sig_st().rejecting_deadly = true;
-    }
+pub fn signal_reject_deadly() {
+    sig_st().rejecting_deadly = true;
 }
 
-pub unsafe fn signal_accept_deadly() {
-    unsafe {
-        sig_st().rejecting_deadly = false;
-    }
+pub fn signal_accept_deadly() {
+    sig_st().rejecting_deadly = false;
 }
 
 fn signal_name(signum: c_int) -> &'static CStr {
@@ -337,11 +333,9 @@ mod tests {
         assert_eq!(signal_name(SIGINT).to_bytes(), b"SIGINT");
         assert_eq!(signal_name(SIGTERM).to_bytes(), b"SIGTERM");
         assert_eq!(signal_name(999).to_bytes(), b"Unknown");
-        unsafe {
-            signal_reject_deadly();
+        signal_reject_deadly();
             assert!(sig_st().rejecting_deadly);
             signal_accept_deadly();
             assert!(!sig_st().rejecting_deadly);
-        }
     }
 }

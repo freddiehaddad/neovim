@@ -219,7 +219,7 @@ impl RegisterModuleState {
 static REG_STATE: GlobalState<RegisterModuleState> = GlobalState::new(RegisterModuleState::new());
 
 #[inline]
-unsafe fn reg_st() -> &'static mut RegisterModuleState {
+fn reg_st() -> &'static mut RegisterModuleState {
     unsafe { &mut *REG_STATE.as_ptr() }
 }
 
@@ -311,8 +311,8 @@ pub unsafe fn get_y_register(reg: c_int) -> *mut yankreg_T {
     unsafe { (&raw mut reg_st().y_regs).cast::<yankreg_T>().add(reg as usize) }
 }
 
-pub unsafe fn get_y_previous() -> *mut yankreg_T {
-    unsafe { reg_st().y_previous }
+pub fn get_y_previous() -> *mut yankreg_T {
+    reg_st().y_previous
 }
 
 pub unsafe fn get_expr_register() -> c_int {
@@ -327,10 +327,8 @@ pub unsafe fn get_expr_register() -> c_int {
     }
 }
 
-pub unsafe fn set_expr_line(new_line: Option<std::ffi::CString>) {
-    unsafe {
-        reg_st().expr_line = new_line;
-    }
+pub fn set_expr_line(new_line: Option<std::ffi::CString>) {
+    reg_st().expr_line = new_line;
 }
 
 pub unsafe fn get_expr_line() -> Option<std::ffi::CString> {
@@ -347,8 +345,8 @@ pub unsafe fn get_expr_line() -> Option<std::ffi::CString> {
     }
 }
 
-pub unsafe fn get_expr_line_src() -> Option<std::ffi::CString> {
-    unsafe { reg_st().expr_line.clone() }
+pub fn get_expr_line_src() -> Option<std::ffi::CString> {
+    reg_st().expr_line.clone()
 }
 
 pub unsafe fn valid_yank_reg(regname: c_int, writing: bool) -> bool {

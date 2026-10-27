@@ -300,7 +300,7 @@ impl InputModuleState {
 static INP_STATE: GlobalState<InputModuleState> = GlobalState::new(InputModuleState::new());
 
 #[inline]
-unsafe fn inp_st() -> &'static mut InputModuleState {
+fn inp_st() -> &'static mut InputModuleState {
     unsafe { &mut *INP_STATE.as_ptr() }
 }
 
@@ -328,11 +328,11 @@ use crate::math::{FAIL, OK};
 use crate::regexp::Ctrl_V;
 
 #[inline]
-pub unsafe fn mb_byte2len_check(b: c_int) -> c_int {
+pub fn mb_byte2len_check(b: c_int) -> c_int {
     if !(0..=255).contains(&b) {
         1
     } else {
-        unsafe { utf_byte2len(b) }
+        utf_byte2len(b)
     }
 }
 
@@ -542,17 +542,15 @@ pub unsafe fn sb_add_char(sb: &mut Vec<c_char>, c: c_int) {
     }
 }
 
-unsafe fn read_readbuffers(advance: bool) -> c_int {
-    unsafe {
-        let mut c = read_readbuf(&mut inp_st().readbuf1, advance);
+fn read_readbuffers(advance: bool) -> c_int {
+    let mut c = read_readbuf(&mut inp_st().readbuf1, advance);
         if c == NUL {
             c = read_readbuf(&mut inp_st().readbuf2, advance);
         }
         c
-    }
 }
 
-unsafe fn read_readbuf(buf: &mut StuffBuf, advance: bool) -> c_int {
+fn read_readbuf(buf: &mut StuffBuf, advance: bool) -> c_int {
     if buf.read == buf.keys.len() {
             return NUL;
         }
@@ -572,11 +570,9 @@ unsafe fn read_readbuf(buf: &mut StuffBuf, advance: bool) -> c_int {
         c
 }
 
-unsafe fn start_stuff() {
-    unsafe {
-        inp_st().readbuf1.insert = inp_st().readbuf1.read;
+fn start_stuff() {
+    inp_st().readbuf1.insert = inp_st().readbuf1.read;
         inp_st().readbuf2.insert = inp_st().readbuf2.read;
-    }
 }
 
 /// Returns true if the readahead ("stuff") buffer is empty.
@@ -597,10 +593,8 @@ pub unsafe fn readbuf1_empty() -> bool {
 }
 
 /// Set a typeahead character that won't be flushed.
-pub unsafe fn typeahead_noflush(c: c_int) {
-    unsafe {
-        inp_st().typeahead_char = c;
-    }
+pub fn typeahead_noflush(c: c_int) {
+    inp_st().typeahead_char = c;
 }
 
 /// Remove the contents of the stuff buffer and the mapped characters in the typeahead buffer.
@@ -651,16 +645,12 @@ pub unsafe fn flush_buffers(flush_typeahead: flush_buffers_T) {
 }
 
 /// Hides keys from `vim.on_key()` callbacks.
-pub unsafe fn block_on_key() {
-    unsafe {
-        inp_st().on_key_blocked += 1;
-    }
+pub fn block_on_key() {
+    inp_st().on_key_blocked += 1;
 }
 
-pub unsafe fn unblock_on_key() {
-    unsafe {
-        inp_st().on_key_blocked -= 1;
-    }
+pub fn unblock_on_key() {
+    inp_st().on_key_blocked -= 1;
 }
 
 /// Flush map and typeahead buffers and give a warning for an error.
@@ -1016,10 +1006,8 @@ pub unsafe fn start_redo_ins() -> c_int {
     }
 }
 
-pub unsafe fn stop_redo_ins() {
-    unsafe {
-        inp_st().block_redo = false;
-    }
+pub fn stop_redo_ins() {
+    inp_st().block_redo = false;
 }
 
 unsafe fn init_typebuf() {
@@ -1039,8 +1027,8 @@ unsafe fn init_typebuf() {
 }
 
 /// Returns true when keys cannot be remapped.
-pub unsafe fn noremap_keys() -> bool {
-    unsafe { (inp_st().KeyNoremap & ((RM_NONE | RM_SCRIPT) as c_int)) != 0 }
+pub fn noremap_keys() -> bool {
+    (inp_st().KeyNoremap & ((RM_NONE | RM_SCRIPT) as c_int)) != 0
 }
 
 /// Insert a string in position `offset` in the typeahead buffer.
@@ -1176,18 +1164,18 @@ pub unsafe fn requeue_key(c: c_int, modifiers: c_int, extra_consumed: c_int, rec
 }
 
 /// Return true if the typeahead buffer was changed.
-pub unsafe fn typebuf_changed(tb_change_cnt: c_int) -> bool {
-    unsafe { tb_change_cnt != 0 && (g_st().typebuf.tb_change_cnt != tb_change_cnt || g_st().typebuf_was_filled) }
+pub fn typebuf_changed(tb_change_cnt: c_int) -> bool {
+    tb_change_cnt != 0 && (g_st().typebuf.tb_change_cnt != tb_change_cnt || g_st().typebuf_was_filled)
 }
 
 /// Return true if there are no characters in the typeahead buffer that have not been typed.
-pub unsafe fn typebuf_typed() -> c_int {
-    unsafe { c_int::from(g_st().typebuf.tb_maplen == 0) }
+pub fn typebuf_typed() -> c_int {
+    c_int::from(g_st().typebuf.tb_maplen == 0)
 }
 
 /// Get the number of characters that are mapped (or not typed).
-pub unsafe fn typebuf_maplen() -> c_int {
-    unsafe { g_st().typebuf.tb_maplen }
+pub fn typebuf_maplen() -> c_int {
+    g_st().typebuf.tb_maplen
 }
 
 /// Remove `len` characters from `typebuf.tb_buf[typebuf.tb_off + offset]`.
@@ -1261,9 +1249,8 @@ pub unsafe fn del_typebuf(len: c_int, offset: c_int) {
     }
 }
 
-unsafe fn gotchars_add_byte(state: &mut gotchars_state_T, byte: u8) -> bool {
-    unsafe {
-        state.buf[state.buflen] = byte;
+fn gotchars_add_byte(state: &mut gotchars_state_T, byte: u8) -> bool {
+    state.buf[state.buflen] = byte;
         state.buflen += 1;
         let mut c = byte as c_int;
         let mut retval = false;
@@ -1304,7 +1291,6 @@ unsafe fn gotchars_add_byte(state: &mut gotchars_state_T, byte: u8) -> bool {
         }
         state.prev_c = c;
         retval
-    }
 }
 
 unsafe fn gotchars(chars: *const u8, len: usize) {
@@ -1396,9 +1382,8 @@ pub unsafe fn may_sync_undo() {
     }
 }
 
-unsafe fn alloc_typebuf() {
-    unsafe {
-        g_st().typebuf.tb_buf = vec![0u8; TYPELEN_INIT];
+fn alloc_typebuf() {
+    g_st().typebuf.tb_buf = vec![0u8; TYPELEN_INIT];
         g_st().typebuf.tb_noremap = vec![0u8; TYPELEN_INIT];
         g_st().typebuf.tb_buflen = TYPELEN_INIT as c_int;
         g_st().typebuf.tb_off = (MAXMAPLEN + 4) as c_int;
@@ -1411,14 +1396,11 @@ unsafe fn alloc_typebuf() {
             g_st().typebuf.tb_change_cnt = 1;
         }
         g_st().typebuf_was_filled = false;
-    }
 }
 
-unsafe fn free_typebuf() {
-    unsafe {
-        g_st().typebuf.tb_buf = Vec::new();
+fn free_typebuf() {
+    g_st().typebuf.tb_buf = Vec::new();
         g_st().typebuf.tb_noremap = Vec::new();
-    }
 }
 
 unsafe fn save_typebuf() {
@@ -1600,8 +1582,8 @@ pub unsafe fn open_scriptin(scriptin_name: *mut c_char) -> bool {
 }
 
 /// Return true when reading keys from a script file.
-pub unsafe fn using_script() -> c_int {
-    unsafe { c_int::from(inp_st().curscript >= 0) }
+pub fn using_script() -> c_int {
+    c_int::from(inp_st().curscript >= 0)
 }
 
 /// Called just before doing a blocking wait.
@@ -1635,7 +1617,7 @@ unsafe fn updatescript(c: c_int) {
 }
 
 /// Merge `modifiers` into `c_arg`.
-pub unsafe fn merge_modifiers(c_arg: c_int, modifiers: &mut c_int) -> c_int {
+pub fn merge_modifiers(c_arg: c_int, modifiers: &mut c_int) -> c_int {
     let mut c = c_arg;
 
         if (*modifiers & (MOD_MASK_CTRL as c_int)) != 0 {
@@ -2116,9 +2098,7 @@ pub unsafe fn f_getcharstr(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: 
 
 /// `"getcharmod()"` function.
 pub unsafe fn f_getcharmod(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(g_st().mod_mask));
-    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(g_st().mod_mask));
 }
 
 unsafe fn put_string_in_typebuf(
@@ -2599,9 +2579,8 @@ unsafe fn handle_mapping(
 }
 
 /// Unget one character (can only be done once!).
-pub unsafe fn vungetc(c: c_int) {
-    unsafe {
-        inp_st().ungot = UngotKey {
+pub fn vungetc(c: c_int) {
+    inp_st().ungot = UngotKey {
             c,
             mod_mask: g_st().mod_mask,
             mouse_grid: g_st().mouse_grid,
@@ -2609,13 +2588,11 @@ pub unsafe fn vungetc(c: c_int) {
             mouse_col: g_st().mouse_col,
             stuffed: g_st().KeyStuffed != 0,
         };
-    }
 }
 
 /// When peeking and not getting a character, `reg_executing` cannot be cleared yet.
-pub unsafe fn check_end_reg_executing(advance: bool) {
-    unsafe {
-        if g_st().reg_executing != 0 && (g_st().typebuf.tb_maplen == 0 || g_st().pending_end_reg_executing) {
+pub fn check_end_reg_executing(advance: bool) {
+    if g_st().reg_executing != 0 && (g_st().typebuf.tb_maplen == 0 || g_st().pending_end_reg_executing) {
             if advance {
                 g_st().reg_executing = 0;
                 g_st().pending_end_reg_executing = false;
@@ -2623,7 +2600,6 @@ pub unsafe fn check_end_reg_executing(advance: bool) {
                 g_st().pending_end_reg_executing = true;
             }
         }
-    }
 }
 
 unsafe fn vgetorpeek(advance: bool) -> c_int {
@@ -3481,7 +3457,7 @@ mod tests {
         assert_eq!(tmp[0] as u8, K_SPECIAL);
 
         let mut mods = MOD_MASK_CTRL as c_int;
-        let merged = unsafe { merge_modifiers(b'c' as c_int, &mut mods) };
+        let merged = merge_modifiers(b'c' as c_int, &mut mods);
         assert_eq!(merged, Ctrl_C);
         assert_eq!(mods, 0);
     }

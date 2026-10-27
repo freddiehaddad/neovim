@@ -147,7 +147,7 @@ impl ChannelModuleState {
 static CHAN_STATE: crate::globals::GlobalState<ChannelModuleState> = crate::globals::GlobalState::new(ChannelModuleState::new());
 
 #[inline]
-unsafe fn chan_st() -> &'static mut ChannelModuleState {
+fn chan_st() -> &'static mut ChannelModuleState {
     unsafe { &mut *CHAN_STATE.as_ptr() }
 }
 
@@ -430,7 +430,7 @@ pub unsafe fn channel_decref(chan: *mut Channel) {
     }
 }
 
-pub unsafe fn callback_reader_start(reader: &mut CallbackReader, r#type: &'static CStr) {
+pub fn callback_reader_start(reader: &mut CallbackReader, r#type: &'static CStr) {
     reader.reader_type = Some(r#type);
 }
 
@@ -1138,13 +1138,11 @@ pub unsafe fn channel_term_resize(width: u16, height: u16, chan: &mut Channel) {
     }
 }
 
-pub unsafe fn channel_term_resume(chan: &mut Channel) {
-    unsafe {
-        if chan.streamtype == kChannelStreamInternal {
+pub fn channel_term_resume(chan: &mut Channel) {
+    if chan.streamtype == kChannelStreamInternal {
             return;
         }
         pty_proc_resume(&mut chan.uv.proc_);
-    }
 }
 
 pub unsafe fn term_delayed_free(chan: &mut Channel) {

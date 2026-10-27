@@ -79,7 +79,7 @@ impl MemoryModuleState {
 static MEM_STATE: crate::globals::GlobalState<MemoryModuleState> = crate::globals::GlobalState::new(MemoryModuleState::new());
 
 #[inline]
-pub(crate) unsafe fn mem_st() -> &'static mut MemoryModuleState {
+pub(crate) fn mem_st() -> &'static mut MemoryModuleState {
     unsafe { &mut *MEM_STATE.as_ptr() }
 }
 
@@ -426,9 +426,7 @@ pub unsafe fn arena_alloc(arena: *mut Arena, size: usize, align: bool) -> *mut c
     };
     if alloc_pos + size > a.size {
         if size > (ARENA_BLOCK_SIZE - std::mem::size_of::<ConsumedBlk>()) >> 1 {
-            unsafe {
-                g_st().arena_alloc_count += 1;
-            }
+            g_st().arena_alloc_count += 1;
             let hdr_size = std::mem::size_of::<ConsumedBlk>();
             let aligned_hdr_size = if align {
                 arena_align_offset(hdr_size)

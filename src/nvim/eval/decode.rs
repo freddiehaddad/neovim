@@ -1176,7 +1176,7 @@ unsafe fn typval_parse_enter(parser: *mut mpack_parser_t, node: *mut mpack_node_
 }
 
 /// Free un-exited nodes on `parser` after a parse error (`typval_parser_error_free`).
-pub unsafe fn typval_parser_error_free(p: &mut mpack_parser_t) {
+pub fn typval_parser_error_free(p: &mut mpack_parser_t) {
     for i in 1..=(p.size as usize) {
         let node = &mut p.items[i];
         match node.tok.r#type {

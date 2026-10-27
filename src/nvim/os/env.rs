@@ -148,7 +148,7 @@ impl EnvModuleState {
 static ENV_STATE: crate::globals::GlobalState<EnvModuleState> = crate::globals::GlobalState::new(EnvModuleState::new());
 
 #[inline]
-unsafe fn env_st() -> &'static mut EnvModuleState {
+fn env_st() -> &'static mut EnvModuleState {
     unsafe { &mut *ENV_STATE.as_ptr() }
 }
 
@@ -426,7 +426,7 @@ pub fn os_get_pid() -> i64 {
 }
 
 /// Signals to the OS that Nvim is an application for "interactive work".
-pub unsafe fn os_hint_priority() {}
+pub fn os_hint_priority() {}
 
 /// Gets the hostname of the current machine.
 pub unsafe fn os_get_hostname(hostname: *mut c_char, size: usize) {
@@ -567,10 +567,8 @@ pub unsafe fn init_homedir() {
     }
 }
 
-pub unsafe fn free_homedir() {
-    unsafe {
-        env_st().HOMEDIR = None;
-    }
+pub fn free_homedir() {
+    env_st().HOMEDIR = None;
 }
 
 /// Call `expand_env()` and store the result in an allocated string.

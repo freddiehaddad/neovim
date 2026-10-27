@@ -256,7 +256,7 @@ impl MainInitState {
 static MAIN_INIT_STATE: crate::globals::GlobalState<MainInitState> = crate::globals::GlobalState::new(MainInitState::new());
 
 #[inline]
-unsafe fn main_init_st() -> &'static mut MainInitState {
+fn main_init_st() -> &'static mut MainInitState {
     unsafe { &mut *MAIN_INIT_STATE.as_ptr() }
 }
 
@@ -1315,16 +1315,14 @@ unsafe fn remote_request(
     }
 }
 
-unsafe fn edit_stdin(parmp: &mut mparm_T) -> bool {
-    unsafe {
-        let implicit = !g_st().headless_mode
+fn edit_stdin(parmp: &mut mparm_T) -> bool {
+    let implicit = !g_st().headless_mode
             && !(g_st().embedded_mode && g_st().stdin_fd <= 0)
             && (!parmp.exmode || parmp.input_istext)
             && !g_st().stdin_isatty
             && parmp.edit_type <= EDIT_STDIN
             && parmp.scriptin.is_none();
         parmp.had_stdin_file || implicit
-    }
 }
 
 unsafe fn command_line_scan(parmp: &mut mparm_T) {
@@ -1898,16 +1896,14 @@ unsafe fn get_fname(_parmp: &mut mparm_T) -> *mut c_char {
     unsafe { alist_name(&*garglist()) }
 }
 
-unsafe fn set_window_layout(paramp: &mut mparm_T) {
-    unsafe {
-        if paramp.diff_mode != 0 && paramp.window_layout == 0 {
+fn set_window_layout(paramp: &mut mparm_T) {
+    if paramp.diff_mode != 0 && paramp.window_layout == 0 {
             paramp.window_layout = if diffopt_horizontal() {
                 WIN_HOR
             } else {
                 WIN_VER
             };
         }
-    }
 }
 
 unsafe fn handle_quickfix(paramp: &mut mparm_T) {

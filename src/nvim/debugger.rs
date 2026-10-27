@@ -75,19 +75,17 @@ impl DebuggerState {
 static DBG_STATE: GlobalState<DebuggerState> = GlobalState::new(DebuggerState::new());
 
 #[inline]
-unsafe fn dbg_st() -> &'static mut DebuggerState {
+fn dbg_st() -> &'static mut DebuggerState {
     unsafe { &mut *DBG_STATE.as_ptr() }
 }
 
 #[inline]
-unsafe fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<debuggy> {
-    unsafe {
-        if is_prof {
+fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<debuggy> {
+    if is_prof {
             &mut dbg_st().PROF_GA
         } else {
             &mut dbg_st().DBG_BREAKP
         }
-    }
 }
 
 #[repr(C)]
@@ -627,17 +625,15 @@ pub unsafe fn ex_breakadd(eap: &mut exarg_T) {
 }
 
 /// `:debuggreedy` command (`ex_debuggreedy`).
-pub unsafe fn ex_debuggreedy(eap: &mut exarg_T) {
+pub fn ex_debuggreedy(eap: &mut exarg_T) {
     let eap = &*eap;
     let greedy = eap.addr_count == 0 || eap.line2 != 0;
-    unsafe { dbg_st().DEBUG_GREEDY = greedy };
+    dbg_st().DEBUG_GREEDY = greedy;
 }
 
-unsafe fn update_has_expr_breakpoint() {
-    unsafe {
-        let bps = dbg_vec_mut(false);
+fn update_has_expr_breakpoint() {
+    let bps = dbg_vec_mut(false);
         dbg_st().HAS_EXPR_BREAKPOINT = bps.iter().any(|bp| bp.dbg_type == DBG_EXPR);
-    }
 }
 
 /// `:breakdel` and `:profdel` command (`ex_breakdel`).
@@ -836,10 +832,8 @@ pub unsafe fn has_profiling(file: bool, fname: *mut c_char, fp: *mut bool) -> bo
 
 /// Record that a breakpoint was encountered (`dbg_breakpoint`).
 pub unsafe fn dbg_breakpoint(name: *mut c_char, lnum: i32) {
-    unsafe {
-        dbg_st().DEBUG_BREAKPOINT_NAME = name;
-    }
-    unsafe { dbg_st().DEBUG_BREAKPOINT_LNUM = lnum };
+    dbg_st().DEBUG_BREAKPOINT_NAME = name;
+    dbg_st().DEBUG_BREAKPOINT_LNUM = lnum;
 }
 
 #[cfg(test)]

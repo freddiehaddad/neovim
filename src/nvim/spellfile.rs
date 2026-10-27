@@ -186,7 +186,7 @@ impl SpellfileModuleState {
 static SPELLFILE_STATE: crate::globals::GlobalState<SpellfileModuleState> = crate::globals::GlobalState::new(SpellfileModuleState::new());
 
 #[inline]
-unsafe fn spellfile_st() -> &'static mut SpellfileModuleState {
+fn spellfile_st() -> &'static mut SpellfileModuleState {
     unsafe { &mut *SPELLFILE_STATE.as_ptr() }
 }
 
@@ -1433,7 +1433,7 @@ unsafe fn set_sofo(lp: &mut slang_T, from: *const c_char, to: *const c_char) -> 
     }
 }
 
-unsafe fn set_sal_first(lp: &mut slang_T) {
+fn set_sal_first(lp: &mut slang_T) {
     let gap = &mut lp.sl_sal;
         lp.sl_sal_first.fill(-1);
         let len = gap.len() as c_int;
@@ -2819,7 +2819,7 @@ unsafe fn process_compflags(spin: &mut spellinfo_T, aff: &mut afffile_T, compfla
     }
 }
 
-unsafe fn check_renumber(spin: &mut spellinfo_T) {
+fn check_renumber(spin: &mut spellinfo_T) {
     if spin.si_newprefID == spin.si_newcompID && spin.si_newcompID < 128 {
             spin.si_newprefID = 127;
             spin.si_newcompID = 255;

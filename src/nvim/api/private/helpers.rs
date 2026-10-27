@@ -806,7 +806,7 @@ pub unsafe fn string_to_array(input: NvimString, crlf: bool, arena: *mut Arena) 
     }
 }
 
-pub unsafe fn normalize_index(
+pub fn normalize_index(
     buf: &mut buf_T,
     mut index: i64,
     end_exclusive: bool,
@@ -1569,7 +1569,7 @@ impl ApiMetadataState {
 static API_META_STATE: crate::globals::GlobalState<ApiMetadataState> = crate::globals::GlobalState::new(ApiMetadataState::new());
 
 #[inline]
-unsafe fn api_meta_st() -> &'static mut ApiMetadataState {
+fn api_meta_st() -> &'static mut ApiMetadataState {
     unsafe { &mut *API_META_STATE.as_ptr() }
 }
 

@@ -153,7 +153,7 @@ impl PathModuleState {
 static PATH_STATE: crate::globals::GlobalState<PathModuleState> = crate::globals::GlobalState::new(PathModuleState::new());
 
 #[inline]
-unsafe fn path_st() -> &'static mut PathModuleState {
+fn path_st() -> &'static mut PathModuleState {
     unsafe { &mut *PATH_STATE.as_ptr() }
 }
 

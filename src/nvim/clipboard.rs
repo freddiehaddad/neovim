@@ -40,7 +40,7 @@ impl ClipboardModuleState {
 static CLIP_STATE: crate::globals::GlobalState<ClipboardModuleState> = crate::globals::GlobalState::new(ClipboardModuleState::new());
 
 #[inline]
-unsafe fn clip_st() -> &'static mut ClipboardModuleState {
+fn clip_st() -> &'static mut ClipboardModuleState {
     unsafe { &mut *CLIP_STATE.as_ptr() }
 }
 
@@ -278,13 +278,11 @@ pub unsafe fn set_clipboard(mut name: c_int, reg: *mut yankreg_T) {
 
 /// Defer clipboard updates during batch operations (`start_batch_changes`).
 pub fn start_batch_changes() {
-    unsafe {
-        clip_st().BATCH_CHANGE_COUNT += 1;
+    clip_st().BATCH_CHANGE_COUNT += 1;
         if clip_st().BATCH_CHANGE_COUNT > 1 {
             return;
         }
         clip_st().CLIPBOARD_DELAY_UPDATE = true;
-    }
 }
 
 /// End batch operation and flush deferred clipboard update if needed (`end_batch_changes`).
@@ -308,14 +306,12 @@ mod tests {
 
     #[test]
     fn batch_changes_nesting_toggles_delay_flag() {
-        unsafe {
-            start_batch_changes();
+        start_batch_changes();
             assert!(clip_st().CLIPBOARD_DELAY_UPDATE);
             start_batch_changes();
             end_batch_changes();
             assert!(clip_st().CLIPBOARD_DELAY_UPDATE);
             end_batch_changes();
             assert!(!clip_st().CLIPBOARD_DELAY_UPDATE);
-        }
     }
 }

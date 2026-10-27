@@ -263,11 +263,11 @@ pub unsafe fn describe_ns(ns_id: NS, unknown: *const c_char) -> *const c_char {
 }
 
 // DLLEXPORT bool ns_initialized(uint32_t ns);
-pub unsafe fn ns_initialized(ns: u32) -> bool {
+pub fn ns_initialized(ns: u32) -> bool {
     if ns < 1 {
         return false;
     }
-    ns < unsafe { g_st().next_namespace_id as u32 }
+    ns < g_st().next_namespace_id as u32
 }
 
 // DLLEXPORT Array virt_text_to_array(VirtText vt, bool hl_name, Arena *arena);

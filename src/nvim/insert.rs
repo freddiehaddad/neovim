@@ -316,7 +316,7 @@ impl InsertModuleState {
 static INS_MOD_STATE: GlobalState<InsertModuleState> = GlobalState::new(InsertModuleState::new());
 
 #[inline]
-unsafe fn ins_st() -> &'static mut InsertModuleState {
+fn ins_st() -> &'static mut InsertModuleState {
     unsafe { &mut *INS_MOD_STATE.as_ptr() }
 }
 
@@ -1552,7 +1552,7 @@ pub unsafe fn edit_putchar(c: c_int, highlight: bool) {
 }
 
 /// Return the effective prompt for the specified buffer.
-pub unsafe fn buf_prompt_text(buf: &buf_T) -> *mut c_char {
+pub fn buf_prompt_text(buf: &buf_T) -> *mut c_char {
     buf
             .b_prompt_text
             .as_ref()
@@ -1643,15 +1643,13 @@ pub unsafe fn prompt_curpos_editable() -> bool {
     }
 }
 
-unsafe fn set_insstart(lnum: linenr_T, col: colnr_T) {
-    unsafe {
-        g_st().Ins.start.lnum = lnum;
+fn set_insstart(lnum: linenr_T, col: colnr_T) {
+    g_st().Ins.start.lnum = lnum;
         g_st().Ins.start.col = col;
         g_st().Ins.start_orig = g_st().Ins.start;
         g_st().Ins.start_textlen = g_st().Ins.start.col;
         g_st().Ins.start_blank_vcol = MAXCOL;
         g_st().Ins.moved = kInsNone;
-    }
 }
 
 pub unsafe fn edit_unputchar() {
@@ -2271,10 +2269,8 @@ pub unsafe fn set_last_insert(c: c_int) {
     }
 }
 
-pub unsafe fn free_last_insert() {
-    unsafe {
-        ins_st().last_insert = None;
-    }
+pub fn free_last_insert() {
+    ins_st().last_insert = None;
 }
 
 pub unsafe fn beginline(flags: c_int) {
@@ -4086,14 +4082,12 @@ unsafe fn do_insert_char_pre(c: c_int) -> Option<std::ffi::CString> {
     }
 }
 
-pub unsafe fn get_can_cindent() -> bool {
-    unsafe { g_st().Ins.can_cindent }
+pub fn get_can_cindent() -> bool {
+    g_st().Ins.can_cindent
 }
 
-pub unsafe fn set_can_cindent(val: bool) {
-    unsafe {
-        g_st().Ins.can_cindent = val;
-    }
+pub fn set_can_cindent(val: bool) {
+    g_st().Ins.can_cindent = val;
 }
 
 /// Trigger `event` and take care of fixing undo.

@@ -739,7 +739,7 @@ impl buf_T {
         }
     }
 
-    pub unsafe fn alloc() -> *mut Self {
+    pub fn alloc() -> *mut Self {
         Box::into_raw(Box::new(Self::new()))
     }
 
@@ -882,7 +882,7 @@ impl BufferModuleState {
 static BUF_STATE: GlobalState<BufferModuleState> = GlobalState::new(BufferModuleState::new());
 
 #[inline]
-unsafe fn buf_st() -> &'static mut BufferModuleState {
+fn buf_st() -> &'static mut BufferModuleState {
     unsafe { &mut *BUF_STATE.as_ptr() }
 }
 
@@ -923,7 +923,7 @@ pub unsafe fn first_win_in_tab(tp: *mut tabpage_T) -> *mut win_T {
 }
 
 #[inline]
-pub unsafe fn modifiable(buf: &buf_T) -> bool {
+pub fn modifiable(buf: &buf_T) -> bool {
     buf.b_p_ma != 0 && buf.b_ro_locked == 0
 }
 
@@ -940,7 +940,7 @@ unsafe fn trigger_undo_ftplugin(buf: &mut buf_T, win: &mut win_T) {
 }
 
 /// Calculate the percentage that `part` is of the `whole`.
-pub unsafe fn calc_percentage(part: i64, whole: i64) -> c_int {
+pub fn calc_percentage(part: i64, whole: i64) -> c_int {
     if part > 1_000_000 {
         (part / (whole / 100)) as c_int
     } else {
@@ -949,8 +949,8 @@ pub unsafe fn calc_percentage(part: i64, whole: i64) -> c_int {
 }
 
 /// Return the highest possible buffer number.
-pub unsafe fn get_highest_fnum() -> c_int {
-    unsafe { buf_st().top_file_num - 1 }
+pub fn get_highest_fnum() -> c_int {
+    buf_st().top_file_num - 1
 }
 
 /// Read data from buffer for retrying.
@@ -3303,7 +3303,7 @@ pub unsafe fn buflist_findpat(
     }
 }
 
-unsafe fn buf_time_compare(buf1: &buf_T, buf2: &buf_T) -> std::cmp::Ordering {
+fn buf_time_compare(buf1: &buf_T, buf2: &buf_T) -> std::cmp::Ordering {
     buf2.b_last_used.cmp(&buf1.b_last_used)
 }
 
@@ -4388,11 +4388,9 @@ pub unsafe fn resettitle() {
     }
 }
 
-pub unsafe fn free_titles() {
-    unsafe {
-        buf_st().lasttitle = None;
+pub fn free_titles() {
+    buf_st().lasttitle = None;
         buf_st().lasticon = None;
-    }
 }
 
 /// Get relative cursor position in window into `buf[]`.
@@ -4517,7 +4515,7 @@ pub unsafe fn bt_prompt(buf: *mut buf_T) -> bool {
 
 /// Return true if `buf` is the `|cmdwin|` scratch buffer.
 pub unsafe fn bt_cmdwin(buf: *const buf_T) -> bool {
-    unsafe { !buf.is_null() && buf == g_st().cmdwin_buf.cast_const() }
+    !buf.is_null() && buf == g_st().cmdwin_buf.cast_const()
 }
 
 /// Open a window for a number of buffers.

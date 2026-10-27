@@ -200,7 +200,7 @@ impl MouseModuleState {
 static MOUSE_STATE: GlobalState<MouseModuleState> = GlobalState::new(MouseModuleState::new());
 
 #[inline]
-unsafe fn mouse_st() -> &'static mut MouseModuleState {
+fn mouse_st() -> &'static mut MouseModuleState {
     unsafe { &mut *MOUSE_STATE.as_ptr() }
 }
 
@@ -1393,10 +1393,8 @@ unsafe fn mouse_model_popup() -> bool {
 }
 
 /// Reset the window being dragged. To be called when switching tab page.
-pub unsafe fn reset_dragwin() {
-    unsafe {
-        mouse_st().dragwin = ptr::null_mut();
-    }
+pub fn reset_dragwin() {
+    mouse_st().dragwin = ptr::null_mut();
 }
 
 #[inline]
@@ -2090,11 +2088,9 @@ pub unsafe fn setmouse() {
     }
 }
 
-unsafe fn set_mouse_topline(wp: &mut win_T) {
-    unsafe {
-        mouse_st().orig_topline = wp.w_topline;
+fn set_mouse_topline(wp: &mut win_T) {
+    mouse_st().orig_topline = wp.w_topline;
         mouse_st().orig_topfill = wp.w_topfill;
-    }
 }
 
 /// Return length of line "lnum" for horizontal scrolling.

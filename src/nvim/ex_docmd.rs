@@ -616,7 +616,7 @@ impl ExDocmdState {
 static DOCMD_STATE: GlobalState<ExDocmdState> = GlobalState::new(ExDocmdState::new());
 
 #[inline]
-unsafe fn docmd_st() -> &'static mut ExDocmdState {
+fn docmd_st() -> &'static mut ExDocmdState {
     unsafe { &mut *DOCMD_STATE.as_ptr() }
 }
 
@@ -4949,25 +4949,21 @@ unsafe fn msg_verbose_cmd(lnum: linenr_T, cmd: *mut c_char) {
 }
 
 /// Start executing an Ex command line.
-unsafe fn do_cmdline_start() -> c_int {
-    unsafe {
-        debug_assert!(docmd_st().cmdline_call_depth >= 0);
+fn do_cmdline_start() -> c_int {
+    debug_assert!(docmd_st().cmdline_call_depth >= 0);
         if docmd_st().cmdline_call_depth >= 200 && OptInt::from(docmd_st().cmdline_call_depth) >= opt_vars().p_mfd {
             return FAIL;
         }
         docmd_st().cmdline_call_depth += 1;
         start_batch_changes();
         OK
-    }
 }
 
 /// End executing an Ex command line.
-unsafe fn do_cmdline_end() {
-    unsafe {
-        docmd_st().cmdline_call_depth -= 1;
+fn do_cmdline_end() {
+    docmd_st().cmdline_call_depth -= 1;
         debug_assert!(docmd_st().cmdline_call_depth >= 0);
         end_batch_changes();
-    }
 }
 
 /// Execute a simple command line.  Used for translated commands like "*".
@@ -5923,7 +5919,7 @@ unsafe fn parse_count(eap: *mut exarg_T, errormsg: *mut *const c_char, validate:
     }
 }
 
-pub unsafe fn is_cmd_ni(cmdidx: cmdidx_T) -> bool {
+pub fn is_cmd_ni(cmdidx: cmdidx_T) -> bool {
     if is_user_cmdidx(cmdidx) {
         return false;
     }
@@ -7669,7 +7665,7 @@ pub unsafe fn excmd_get_cmdidx(cmd: *const c_char, len: usize) -> cmdidx_T {
     }
 }
 
-pub unsafe fn excmd_get_argt(idx: cmdidx_T) -> u32 {
+pub fn excmd_get_argt(idx: cmdidx_T) -> u32 {
     CMDNAMES[idx as usize].cmd_argt
 }
 
@@ -8549,7 +8545,7 @@ pub unsafe fn get_bad_opt(p: *const c_char, eap: &mut exarg_T) -> c_int {
     }
 }
 
-unsafe fn get_bad_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_bad_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     const P_BAD_VALUES: [&CStr; 3] = [c"?", c"keep", c"drop"];
     if idx >= 0 && (idx as usize) < P_BAD_VALUES.len() {
         P_BAD_VALUES[idx as usize].as_ptr().cast_mut()
@@ -8637,7 +8633,7 @@ pub unsafe fn getargopt(eap: &mut exarg_T) -> c_int {
     }
 }
 
-unsafe fn get_argopt_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_argopt_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     const P_OPT_VALUES: [&CStr; 7] = [
         c"fileformat=",
         c"encoding=",
@@ -10843,11 +10839,9 @@ unsafe fn ex_read(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn free_cd_dir() {
-    unsafe {
-        docmd_st().prev_dir = None;
+pub fn free_cd_dir() {
+    docmd_st().prev_dir = None;
         g_st().globaldir = None;
-    }
 }
 
 unsafe fn get_prevdir(scope: CdScope) -> *mut Option<std::ffi::CString> {
@@ -12782,7 +12776,7 @@ unsafe fn ex_folddo(eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn is_loclist_cmd(cmdidx: c_int) -> bool {
+pub fn is_loclist_cmd(cmdidx: c_int) -> bool {
     if !(0..CMD_SIZE_I32).contains(&cmdidx) {
         return false;
     }
@@ -13095,7 +13089,7 @@ pub unsafe fn verify_command(cmd: *mut c_char) {
     }
 }
 
-pub unsafe fn is_map_cmd(cmdidx: cmdidx_T) -> bool {
+pub fn is_map_cmd(cmdidx: cmdidx_T) -> bool {
     if is_user_cmdidx(cmdidx) {
         return false;
     }

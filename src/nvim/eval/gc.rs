@@ -19,7 +19,7 @@ impl GcModuleState {
 static GC_STATE: crate::globals::GlobalState<GcModuleState> = crate::globals::GlobalState::new(GcModuleState::new());
 
 #[inline]
-unsafe fn gc_st() -> &'static mut GcModuleState {
+fn gc_st() -> &'static mut GcModuleState {
     unsafe { &mut *GC_STATE.as_ptr() }
 }
 

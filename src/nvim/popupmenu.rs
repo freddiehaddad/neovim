@@ -217,7 +217,7 @@ impl PopupmenuState {
 static PUM: GlobalState<PopupmenuState> = GlobalState::new(PopupmenuState::new());
 
 #[inline]
-unsafe fn pum() -> &'static mut PopupmenuState {
+fn pum() -> &'static mut PopupmenuState {
     unsafe { &mut *PUM.as_ptr() }
 }
 
@@ -330,9 +330,8 @@ unsafe fn pum_compute_vertical_placement(
 }
 
 /// Try to set `pum_width` so that it fits within `available_width` (`set_pum_width_aligned_with_cursor`).
-unsafe fn set_pum_width_aligned_with_cursor(mut width: c_int, available_width: c_int) -> bool {
-    unsafe {
-        let mut end_padding = true;
+fn set_pum_width_aligned_with_cursor(mut width: c_int, available_width: c_int) -> bool {
+    let mut end_padding = true;
 
         if i64::from(width) < opt_vars().p_pw {
             width = opt_vars().p_pw as c_int;
@@ -350,7 +349,6 @@ unsafe fn set_pum_width_aligned_with_cursor(mut width: c_int, available_width: c
                 0
             };
         available_width >= pum().width
-    }
 }
 
 /// Calculate horizontal placement for popup menu (`pum_compute_horizontal_placement`).
@@ -720,9 +718,8 @@ unsafe fn pum_grid_puts_with_attrs(
 }
 
 #[inline]
-unsafe fn pum_align_order(order: &mut [c_int; 3]) {
-    unsafe {
-        let is_default = opt_vars().cia_flags == 0;
+fn pum_align_order(order: &mut [c_int; 3]) {
+    let is_default = opt_vars().cia_flags == 0;
         order[0] = if is_default {
             CPT_ABBR
         } else {
@@ -738,7 +735,6 @@ unsafe fn pum_align_order(order: &mut [c_int; 3]) {
         } else {
             (opt_vars().cia_flags % 10) as c_int
         };
-    }
 }
 
 #[inline]
@@ -1578,39 +1574,33 @@ pub unsafe fn pum_check_clear() {
 }
 
 /// Clear the popup menu (`pum_clear`).
-pub unsafe fn pum_clear() {
-    unsafe {
-        pum().first = 0;
-    }
+pub fn pum_clear() {
+    pum().first = 0;
 }
 
 /// Return true if the popup menu is displayed (`pum_visible`).
-pub unsafe fn pum_visible() -> bool {
-    unsafe { pum().is_visible }
+pub fn pum_visible() -> bool {
+    pum().is_visible
 }
 
 /// Return true if the popup menu is displayed and drawn on the grid (`pum_drawn`).
-pub unsafe fn pum_drawn() -> bool {
-    unsafe { pum_visible() && !pum().external }
+pub fn pum_drawn() -> bool {
+    pum_visible() && !pum().external
 }
 
 /// Screen was cleared, need to redraw next time (`pum_invalidate`).
-pub unsafe fn pum_invalidate() {
-    unsafe {
-        pum().invalid = true;
-    }
+pub fn pum_invalidate() {
+    pum().invalid = true;
 }
 
-pub unsafe fn pum_ext_select_item(item: c_int, insert: bool, finish: bool) {
-    unsafe {
-        if !pum_visible() || item < -1 || item >= pum().size {
+pub fn pum_ext_select_item(item: c_int, insert: bool, finish: bool) {
+    if !pum_visible() || item < -1 || item >= pum().size {
             return;
         }
         g_st().pum_want.active = true;
         g_st().pum_want.item = item;
         g_st().pum_want.insert = insert;
         g_st().pum_want.finish = finish;
-    }
 }
 
 /// Gets the height of the menu (`pum_get_height`).

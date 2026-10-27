@@ -276,7 +276,7 @@ impl UserfuncState {
 static UF_STATE: GlobalState<UserfuncState> = GlobalState::new(UserfuncState::new());
 
 #[inline]
-unsafe fn uf_st() -> &'static mut UserfuncState {
+fn uf_st() -> &'static mut UserfuncState {
     unsafe { &mut *UF_STATE.as_ptr() }
 }
 
@@ -300,7 +300,7 @@ pub const fn ascii_iswhite_nl_or_nul(c: c_int) -> bool {
 use crate::charset::toupper_asc;
 
 #[inline]
-unsafe fn uf2hikey(fp: &ufunc_T) -> *mut c_char {
+fn uf2hikey(fp: &ufunc_T) -> *mut c_char {
     fp.uf_name.as_ptr().cast_mut()
 }
 
@@ -320,7 +320,7 @@ unsafe fn func_hashtab_add(fp: &mut ufunc_T) -> c_int {
 }
 
 #[inline]
-unsafe fn funcarg(fp: &ufunc_T, j: c_int) -> *mut c_char {
+fn funcarg(fp: &ufunc_T, j: c_int) -> *mut c_char {
     (&fp.uf_args)[j as usize].as_ptr().cast_mut()
 }
 
@@ -971,7 +971,7 @@ pub unsafe fn find_func(name: *const c_char) -> *mut ufunc_T {
 }
 
 #[inline]
-unsafe fn func_is_global(ufunc: &ufunc_T) -> bool {
+fn func_is_global(ufunc: &ufunc_T) -> bool {
     ufunc.uf_name.as_slice()[0] as u8 != K_SPECIAL
 }
 
@@ -1591,7 +1591,7 @@ unsafe fn func_name_refcount(name: *const c_char) -> bool {
     }
 }
 
-unsafe fn check_user_func_argcount(fp: &mut ufunc_T, argcount: c_int) -> c_int {
+fn check_user_func_argcount(fp: &mut ufunc_T, argcount: c_int) -> c_int {
     let regular_args = fp.uf_args.len() as c_int;
         if argcount < regular_args - fp.uf_def_args.len() as c_int {
             FCERR_TOOFEW
@@ -1664,14 +1664,12 @@ pub unsafe fn restore_funccal() {
     }
 }
 
-pub unsafe fn get_current_funccal() -> *mut funccall_T {
-    unsafe { uf_st().current_funccal }
+pub fn get_current_funccal() -> *mut funccall_T {
+    uf_st().current_funccal
 }
 
 pub unsafe fn set_current_funccal(fc: *mut funccall_T) {
-    unsafe {
-        uf_st().current_funccal = fc;
-    }
+    uf_st().current_funccal = fc;
 }
 
 pub unsafe fn free_all_functions() {
@@ -2109,14 +2107,12 @@ pub unsafe fn call_simple_func(funcname: *const c_char, len: usize, rettv: *mut 
     }
 }
 
-pub unsafe fn printable_func_name(fp: &mut ufunc_T) -> *mut c_char {
-    unsafe {
-        if let Some(ref exp) = fp.uf_name_exp {
+pub fn printable_func_name(fp: &mut ufunc_T) -> *mut c_char {
+    if let Some(ref exp) = fp.uf_name_exp {
             exp.as_ptr().cast_mut()
         } else {
             uf2hikey(fp)
         }
-    }
 }
 
 unsafe fn function_list_modified(prev_ht_changed: c_int) -> bool {
@@ -3539,7 +3535,7 @@ unsafe fn fc_referenced(fc: *const funccall_T) -> bool {
     }
 }
 
-unsafe fn can_free_funccal(fc: &funccall_T, copyID: c_int) -> bool {
+fn can_free_funccal(fc: &funccall_T, copyID: c_int) -> bool {
     fc.fc_l_varlist.lv_copyID != copyID
             && fc.fc_l_vars.dv_copyID != copyID
             && fc.fc_l_avars.dv_copyID != copyID
@@ -4140,15 +4136,15 @@ pub unsafe fn func_name(fcp: &mut funccall_T) -> *mut c_char {
     unsafe { uf2hikey(&*fcp.fc_func) }
 }
 
-pub unsafe fn func_breakpoint(fcp: &mut funccall_T) -> *mut linenr_T {
+pub fn func_breakpoint(fcp: &mut funccall_T) -> *mut linenr_T {
     &raw mut fcp.fc_breakpoint
 }
 
-pub unsafe fn func_dbg_tick(fcp: &mut funccall_T) -> *mut c_int {
+pub fn func_dbg_tick(fcp: &mut funccall_T) -> *mut c_int {
     &raw mut fcp.fc_dbg_tick
 }
 
-pub unsafe fn func_level(fcp: &mut funccall_T) -> c_int {
+pub fn func_level(fcp: &mut funccall_T) -> c_int {
     fcp.fc_level
 }
 

@@ -434,7 +434,7 @@ impl NormalModuleState {
 static NORM_STATE: GlobalState<NormalModuleState> = GlobalState::new(NormalModuleState::new());
 
 #[inline]
-unsafe fn norm_st() -> &'static mut NormalModuleState {
+fn norm_st() -> &'static mut NormalModuleState {
     unsafe { &mut *NORM_STATE.as_ptr() }
 }
 
@@ -447,7 +447,7 @@ use crate::buffer::{bt_cmdwin, bt_prompt, bt_quickfix};
 use crate::highlight::{hl_attr, win_hl_attr};
 
 #[inline]
-unsafe fn normal_state_init(s: &mut NormalState) {
+fn normal_state_init(s: &mut NormalState) {
     *s = NormalState::new();
 }
 
@@ -1769,9 +1769,8 @@ unsafe fn normal_handle_special_visual_command(s: &mut NormalState) -> bool {
     }
 }
 
-unsafe fn normal_need_additional_char(s: &mut NormalState) -> bool {
-    unsafe {
-        let flags = nv_cmds[s.idx as usize].cmd_flags;
+fn normal_need_additional_char(s: &mut NormalState) -> bool {
+    let flags = nv_cmds[s.idx as usize].cmd_flags;
         let pending_op = s.oa.op_type != OP_NOP;
         let cmdchar = s.ca.cmdchar;
         (flags & NV_NCH) != 0
@@ -1783,7 +1782,6 @@ unsafe fn normal_need_additional_char(s: &mut NormalState) -> bool {
                     && g_st().reg_executing == 0)
                 || ((cmdchar == b'a' as c_int || cmdchar == b'i' as c_int)
                     && (pending_op || g_st().Visual.active)))
-    }
 }
 
 unsafe fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
@@ -2785,15 +2783,13 @@ unsafe fn checkclearopq(oap: &mut oparg_T) -> bool {
     }
 }
 
-pub unsafe fn clearop(oap: &mut oparg_T) {
-    unsafe {
-        oap.op_type = OP_NOP;
+pub fn clearop(oap: &mut oparg_T) {
+    oap.op_type = OP_NOP;
         oap.regname = 0;
         oap.motion_force = NUL as c_int;
         oap.use_reg_one = false;
         oap.restore_cursor = false;
         g_st().motion_force = NUL as c_int;
-    }
 }
 
 pub unsafe fn clearopbeep(oap: &mut oparg_T) {
@@ -2806,9 +2802,8 @@ pub unsafe fn clearopbeep(oap: &mut oparg_T) {
     }
 }
 
-unsafe fn unshift_special(cap: &mut cmdarg_T) {
-    unsafe {
-        cap.cmdchar = match cap.cmdchar {
+fn unshift_special(cap: &mut cmdarg_T) {
+    cap.cmdchar = match cap.cmdchar {
             K_S_RIGHT => K_RIGHT,
             K_S_LEFT => K_LEFT,
             K_S_UP => K_UP,
@@ -2818,7 +2813,6 @@ unsafe fn unshift_special(cap: &mut cmdarg_T) {
             c => c,
         };
         cap.cmdchar = simplify_key(cap.cmdchar, &mut g_st().mod_mask);
-    }
 }
 
 pub unsafe fn may_clear_cmdline() {
@@ -3061,10 +3055,8 @@ pub unsafe fn pop_showcmd() {
     }
 }
 
-pub unsafe fn showcmd_update_clear_state() {
-    unsafe {
-        norm_st().showcmd_is_clear = g_st().showcmd_buf[0] == NUL;
-    }
+pub fn showcmd_update_clear_state() {
+    norm_st().showcmd_is_clear = g_st().showcmd_buf[0] == NUL;
 }
 
 pub unsafe fn display_showcmd() {
@@ -3260,11 +3252,11 @@ pub unsafe fn check_scrollbind(vtopline_diff: linenr_T, leftcol_diff: c_int) {
     }
 }
 
-unsafe fn nv_ignore(cap: &mut cmdarg_T) {
+fn nv_ignore(cap: &mut cmdarg_T) {
     cap.retval |= CA_COMMAND_BUSY;
 }
 
-unsafe fn nv_nop(_cap: &mut cmdarg_T) {}
+fn nv_nop(_cap: &mut cmdarg_T) {}
 
 unsafe fn nv_error(cap: &mut cmdarg_T) {
     unsafe {

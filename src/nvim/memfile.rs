@@ -205,14 +205,13 @@ pub unsafe fn mf_close_file(buf: *mut buf_T, getlines: bool) {
 }
 
 /// Set new size for a memfile.
-pub unsafe fn mf_new_page_size(mfp: &mut memfile_T, new_size: c_uint) {
+pub fn mf_new_page_size(mfp: &mut memfile_T, new_size: c_uint) {
     mfp.mf_page_size = new_size;
 }
 
 /// Get a new block.
-pub unsafe fn mf_new(mfp: &mut memfile_T, negative: bool, page_count: c_uint) -> *mut bhdr_T {
-    unsafe {
-        let bnum: blocknr_T = if !negative
+pub fn mf_new(mfp: &mut memfile_T, negative: bool, page_count: c_uint) -> *mut bhdr_T {
+    let bnum: blocknr_T = if !negative
             && let Some(freep) = mfp.mf_free_list.last_mut()
             && freep.bh_page_count >= page_count
         {
@@ -241,7 +240,6 @@ pub unsafe fn mf_new(mfp: &mut memfile_T, negative: bool, page_count: c_uint) ->
         mfp.mf_dirty = MF_DIRTY_YES;
         mfp.mf_hash.insert(bnum, boxed);
         hp
-    }
 }
 
 /// Get existing block `nr` with `page_count` pages.
@@ -294,7 +292,7 @@ pub unsafe fn mf_put(mfp: *mut memfile_T, hp: *mut bhdr_T, dirty: bool, infile: 
 }
 
 /// Signal block as no longer used (may put it in the free list).
-pub unsafe fn mf_free(mfp: &mut memfile_T, hp: &mut bhdr_T) {
+pub fn mf_free(mfp: &mut memfile_T, hp: &mut bhdr_T) {
     let bnum = hp.bh_bnum;
         let page_count = hp.bh_page_count;
         let _ = mfp.mf_hash.remove(&bnum);
@@ -381,7 +379,7 @@ pub unsafe fn mf_sync(mfp: &mut memfile_T, flags: c_int) -> c_int {
 }
 
 /// Set dirty flag for all blocks in memory file with a positive block number.
-pub unsafe fn mf_set_dirty(mfp: &mut memfile_T) {
+pub fn mf_set_dirty(mfp: &mut memfile_T) {
     for hp in mfp.mf_hash.values_mut() {
             if hp.bh_bnum > 0 {
                 hp.bh_flags |= BH_DIRTY;
@@ -424,7 +422,7 @@ pub unsafe fn mf_release_all() -> bool {
     retval
 }
 
-unsafe fn mf_alloc_bhdr(
+fn mf_alloc_bhdr(
     mfp: &mut memfile_T,
     bnum: blocknr_T,
     page_count: c_uint,
@@ -587,7 +585,7 @@ unsafe fn mf_trans_add(mfp: *mut memfile_T, hp: *mut bhdr_T) -> c_int {
 }
 
 /// Lookup translation from trans list and delete the entry.
-pub unsafe fn mf_trans_del(mfp: &mut memfile_T, old_nr: blocknr_T) -> blocknr_T {
+pub fn mf_trans_del(mfp: &mut memfile_T, old_nr: blocknr_T) -> blocknr_T {
     let Some(new_bnum) = mfp.mf_trans.remove(&old_nr) else {
             return old_nr;
         };
@@ -598,7 +596,7 @@ pub unsafe fn mf_trans_del(mfp: &mut memfile_T, old_nr: blocknr_T) -> blocknr_T 
 }
 
 /// Frees `mf_fname` and `mf_ffname`.
-pub unsafe fn mf_free_fnames(mfp: &mut memfile_T) {
+pub fn mf_free_fnames(mfp: &mut memfile_T) {
     mfp.mf_fname = None;
         mfp.mf_ffname = None;
 }
@@ -626,7 +624,7 @@ pub unsafe fn mf_fullname(mfp: *mut memfile_T) {
 }
 
 /// Return true if there are any translations pending for memfile.
-pub unsafe fn mf_need_trans(mfp: &mut memfile_T) -> bool {
+pub fn mf_need_trans(mfp: &mut memfile_T) -> bool {
     mfp.mf_fname.is_some() && mfp.mf_neg_count > 0
 }
 

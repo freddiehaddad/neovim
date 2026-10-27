@@ -330,7 +330,7 @@ impl StatuslineState {
 static STL_STATE: GlobalState<StatuslineState> = GlobalState::new(StatuslineState::new());
 
 #[inline]
-unsafe fn stl_st() -> &'static mut StatuslineState {
+fn stl_st() -> &'static mut StatuslineState {
     unsafe { &mut *STL_STATE.as_ptr() }
 }
 
@@ -412,7 +412,7 @@ pub unsafe fn stl_connected(wp: &mut win_T) -> bool {
 }
 
 /// Clear status line, window bar or tab page line click definition table.
-pub unsafe fn stl_clear_click_defs(defs: &mut [StlClickDefinition]) {
+pub fn stl_clear_click_defs(defs: &mut [StlClickDefinition]) {
     defs.fill(StlClickDefinition::default());
 }
 
@@ -2565,8 +2565,7 @@ mod tests {
 
     #[test]
     fn stl_alloc_and_clear_click_defs_manage_buffer() {
-        unsafe {
-            let mut defs: Vec<StlClickDefinition> = Vec::new();
+        let mut defs: Vec<StlClickDefinition> = Vec::new();
             let cdp = stl_alloc_click_defs(&mut defs, 4);
             assert!(!cdp.is_null());
             assert_eq!(defs.len(), 4);
@@ -2574,7 +2573,6 @@ mod tests {
             defs[1].func = Some(c"MyClick".to_owned());
             stl_clear_click_defs(&mut defs);
             assert!(defs[0].func.is_none());
-        }
     }
 
     #[test]

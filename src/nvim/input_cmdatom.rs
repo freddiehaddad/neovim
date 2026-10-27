@@ -377,7 +377,7 @@ impl CmdAtomModuleState {
 static ATOM_STATE: GlobalState<CmdAtomModuleState> = GlobalState::new(CmdAtomModuleState::new());
 
 #[inline]
-pub(crate) unsafe fn atom_st() -> &'static mut CmdAtomModuleState {
+pub(crate) fn atom_st() -> &'static mut CmdAtomModuleState {
     unsafe { &mut *ATOM_STATE.as_ptr() }
 }
 
@@ -914,12 +914,12 @@ pub unsafe fn atom_lhs_replay_queue() {
     }
 }
 
-pub unsafe fn atom_composite_queued() -> bool {
-    unsafe { atom_st().composite.queued }
+pub fn atom_composite_queued() -> bool {
+    atom_st().composite.queued
 }
 
-pub unsafe fn atom_composite_active() -> bool {
-    unsafe { atom_st().composite.active }
+pub fn atom_composite_active() -> bool {
+    atom_st().composite.active
 }
 
 unsafe fn atom_composite_label(lhs: *const c_char, len: usize) {
@@ -975,14 +975,12 @@ unsafe fn atom_composite_end() {
     }
 }
 
-pub unsafe fn atom_composite_abort() {
-    unsafe {
-        atom_st().composite.r#macro = false;
+pub fn atom_composite_abort() {
+    atom_st().composite.r#macro = false;
         atom_st().composite.lhs[0] = 0;
         atom_st().composite.active = false;
         atom_st().composite.atoms = Vec::new();
         atom_st().composite.open = false;
-    }
 }
 
 pub unsafe fn atom_term_enter() {
@@ -1007,10 +1005,8 @@ unsafe fn atom_is_user_input() -> bool {
     unsafe { g_st().KeyTyped || (atom_is_user_cmd() && atom_composite_active()) }
 }
 
-pub unsafe fn atom_suppress(suppress: bool) {
-    unsafe {
-        atom_st().atom_suppressed = suppress;
-    }
+pub fn atom_suppress(suppress: bool) {
+    atom_st().atom_suppressed = suppress;
 }
 
 #[inline]
@@ -1349,20 +1345,18 @@ pub unsafe fn atom_visual_reset() {
 }
 
 #[inline]
-unsafe fn atom_visual_pending() -> bool {
-    unsafe { atom_st().vatom.state != kVatomNone }
+fn atom_visual_pending() -> bool {
+    atom_st().vatom.state != kVatomNone
 }
 
 #[inline]
-unsafe fn atom_visual_typed() -> bool {
-    unsafe {
-        atom_visual_pending()
+fn atom_visual_typed() -> bool {
+    atom_visual_pending()
             && ((atom_st().vatom.state & kVatomTyped) != 0 || g_st().maptick != atom_st().vatom.origin.maptick)
-    }
 }
 
-pub unsafe fn atom_visual_replayable() -> bool {
-    unsafe { atom_visual_pending() && (atom_st().vatom.state & kVatomVoid) == 0 }
+pub fn atom_visual_replayable() -> bool {
+    atom_visual_pending() && (atom_st().vatom.state & kVatomVoid) == 0
 }
 
 pub unsafe fn atom_visual_redoable() -> bool {

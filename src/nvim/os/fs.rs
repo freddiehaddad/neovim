@@ -1675,7 +1675,7 @@ pub unsafe fn os_fileinfo_fd(file_descriptor: c_int, file_info: &mut FileInfo) -
 }
 
 /// Compare the inodes of two `FileInfo`s.
-pub unsafe fn os_fileinfo_id_equal(
+pub fn os_fileinfo_id_equal(
     file_info_1: &FileInfo,
     file_info_2: &FileInfo,
 ) -> bool {
@@ -1685,28 +1685,28 @@ pub unsafe fn os_fileinfo_id_equal(
 
 /// Get the `FileID` of a `FileInfo`.
 #[cfg(test)]
-pub unsafe fn os_fileinfo_id(file_info: &FileInfo, file_id: &mut FileID) {
+pub fn os_fileinfo_id(file_info: &FileInfo, file_id: &mut FileID) {
     file_id.inode = file_info.stat.st_ino;
         file_id.device_id = file_info.stat.st_dev;
 }
 
 /// Get the inode of a `FileInfo`.
-pub unsafe fn os_fileinfo_inode(file_info: &FileInfo) -> u64 {
+pub fn os_fileinfo_inode(file_info: &FileInfo) -> u64 {
     file_info.stat.st_ino
 }
 
 /// Get the size of a file from a `FileInfo`.
-pub unsafe fn os_fileinfo_size(file_info: &FileInfo) -> u64 {
+pub fn os_fileinfo_size(file_info: &FileInfo) -> u64 {
     file_info.stat.st_size
 }
 
 /// Get the number of hardlinks from a `FileInfo`.
-pub unsafe fn os_fileinfo_hardlinks(file_info: &FileInfo) -> u64 {
+pub fn os_fileinfo_hardlinks(file_info: &FileInfo) -> u64 {
     file_info.stat.st_nlink
 }
 
 /// Get the blocksize from a `FileInfo`.
-pub unsafe fn os_fileinfo_blocksize(file_info: &FileInfo) -> u64 {
+pub fn os_fileinfo_blocksize(file_info: &FileInfo) -> u64 {
     file_info.stat.st_blksize
 }
 
@@ -1725,7 +1725,7 @@ pub unsafe fn os_fileid(path: *const c_char, file_id: &mut FileID) -> bool {
 }
 
 /// Check if two `FileID`s are equal.
-pub unsafe fn os_fileid_equal(file_id_1: &FileID, file_id_2: &FileID) -> bool {
+pub fn os_fileid_equal(file_id_1: &FileID, file_id_2: &FileID) -> bool {
     file_id_1.inode == file_id_2.inode && file_id_1.device_id == file_id_2.device_id
 }
 
@@ -1899,8 +1899,7 @@ mod tests {
 
     #[test]
     fn fileinfo_and_fileid_accessors_work() {
-        unsafe {
-            let mut fi1 = FileInfo::new();
+        let mut fi1 = FileInfo::new();
             fi1.stat.st_ino = 42;
             fi1.stat.st_dev = 7;
             fi1.stat.st_size = 1234;
@@ -1921,7 +1920,6 @@ mod tests {
                 device_id: 7,
             };
             assert!(os_fileid_equal(&id1, &id2));
-        }
     }
 
     #[test]

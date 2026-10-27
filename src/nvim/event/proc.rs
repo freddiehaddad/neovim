@@ -132,7 +132,7 @@ impl ProcModuleState {
 static PROC_STATE: crate::globals::GlobalState<ProcModuleState> = crate::globals::GlobalState::new(ProcModuleState::new());
 
 #[inline]
-unsafe fn proc_st() -> &'static mut ProcModuleState {
+fn proc_st() -> &'static mut ProcModuleState {
     unsafe { &mut *PROC_STATE.as_ptr() }
 }
 

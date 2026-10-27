@@ -123,14 +123,14 @@ pub unsafe fn file_open(
     if fd < 0 {
         return fd;
     }
-    unsafe { file_open_fd(ret_fp, fd, flags) }
+    file_open_fd(ret_fp, fd, flags)
 }
 
 /// Wrap `fd` in a `FileDescriptor` (`file_open_fd`).
 ///
 /// # Safety
 /// `ret_fp` must be a valid writable pointer.
-pub unsafe fn file_open_fd(ret_fp: &mut FileDescriptor, fd: c_int, flags: c_int) -> c_int {
+pub fn file_open_fd(ret_fp: &mut FileDescriptor, fd: c_int, flags: c_int) -> c_int {
     let fp = &mut *ret_fp;
     fp.wr = (flags
         & (K_FILE_CREATE
@@ -156,7 +156,7 @@ pub unsafe fn file_open_fd(ret_fp: &mut FileDescriptor, fd: c_int, flags: c_int)
 /// `fp` must be a valid writable pointer.
 pub unsafe fn file_open_stdin(fp: &mut FileDescriptor) -> c_int {
     let fd = unsafe { os_open_stdin_fd() };
-    unsafe { file_open_fd(fp, fd, K_FILE_READ_ONLY | K_FILE_NON_BLOCKING) }
+    file_open_fd(fp, fd, K_FILE_READ_ONLY | K_FILE_NON_BLOCKING)
 }
 
 /// Open an in-memory buffer `data[..len]` for reading (`file_open_buffer`).

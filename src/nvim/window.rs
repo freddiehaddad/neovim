@@ -971,7 +971,7 @@ impl WindowModuleState {
 static WIN_STATE: GlobalState<WindowModuleState> = GlobalState::new(WindowModuleState::new());
 
 #[inline]
-unsafe fn win_st() -> &'static mut WindowModuleState {
+fn win_st() -> &'static mut WindowModuleState {
     unsafe { &mut *WIN_STATE.as_ptr() }
 }
 
@@ -993,34 +993,30 @@ unsafe fn rows_avail() -> OptInt {
 }
 
 #[inline]
-unsafe fn one_window_macro() -> bool {
-    unsafe { ptr::eq(g_st().firstwin, g_st().lastwin) }
+fn one_window_macro() -> bool {
+    ptr::eq(g_st().firstwin, g_st().lastwin)
 }
 
 #[inline]
-pub unsafe fn reset_binding(wp: &mut win_T) {
+pub fn reset_binding(wp: &mut win_T) {
     wp.w_onebuf_opt.wo_scb = 0;
         wp.w_onebuf_opt.wo_crb = 0;
 }
 
 /// Disallow changing the window layout (split window, close window, move
 /// window). Resizing is still allowed.
-pub unsafe fn window_layout_lock() {
-    unsafe {
-        win_st().split_disallowed += 1;
+pub fn window_layout_lock() {
+    win_st().split_disallowed += 1;
         win_st().close_disallowed += 1;
-    }
 }
 
-pub unsafe fn window_layout_unlock() {
-    unsafe {
-        win_st().split_disallowed -= 1;
+pub fn window_layout_unlock() {
+    win_st().split_disallowed -= 1;
         win_st().close_disallowed -= 1;
-    }
 }
 
-pub unsafe fn frames_locked() -> bool {
-    unsafe { win_st().frame_locked != 0 }
+pub fn frames_locked() -> bool {
+    win_st().frame_locked != 0
 }
 
 /// When the window layout cannot be changed give an error and return true.
@@ -1682,14 +1678,13 @@ pub unsafe fn win_fdccol_count(wp: *mut win_T) -> c_int {
 }
 
 /// Merges two window configs, freeing replaced fields if necessary.
-pub unsafe fn merge_win_config(dst: &mut WinConfig, src: WinConfig) {
+pub fn merge_win_config(dst: &mut WinConfig, src: WinConfig) {
     *dst = src;
 }
 
 /// Clear fields in `fconfig` that are only used for floating windows.
-pub unsafe fn clear_float_config(fconfig: &mut WinConfig, free_fields: bool) {
-    unsafe {
-        let saved_style = fconfig.style;
+pub fn clear_float_config(fconfig: &mut WinConfig, free_fields: bool) {
+    let saved_style = fconfig.style;
         let saved_cmdline_offset = fconfig._cmdline_offset;
         if free_fields {
             merge_win_config(fconfig, WIN_CONFIG_INIT);
@@ -1698,7 +1693,6 @@ pub unsafe fn clear_float_config(fconfig: &mut WinConfig, free_fields: bool) {
         }
         fconfig.style = saved_style;
         fconfig._cmdline_offset = saved_cmdline_offset;
-    }
 }
 
 pub unsafe fn ui_ext_win_position(wp: &mut win_T, validate: bool) {
@@ -5096,7 +5090,7 @@ unsafe fn win_alloc_firstwin(oldwin: *mut win_T) -> c_int {
     }
 }
 
-unsafe fn new_frame(wp: &mut win_T) {
+fn new_frame(wp: &mut win_T) {
     wp.w_frame = Box::into_raw(Box::new(frame_T {
             fr_layout: FR_LEAF,
             fr_win: wp,
@@ -8068,8 +8062,8 @@ pub unsafe fn global_winbar_height() -> c_int {
     unsafe { c_int::from(*opt_vars().p_wbr != NUL) }
 }
 
-pub unsafe fn global_stl_height() -> c_int {
-    unsafe { if opt_vars().p_ls == 3 { STATUS_HEIGHT } else { 0 } }
+pub fn global_stl_height() -> c_int {
+    if opt_vars().p_ls == 3 { STATUS_HEIGHT } else { 0 }
 }
 
 pub unsafe fn last_stl_height(morewin: bool) -> c_int {
@@ -8258,7 +8252,7 @@ unsafe fn make_snapshot_rec(fr: &mut frame_T) -> Box<SnapshotFrame> {
     }
 }
 
-unsafe fn clear_snapshot(tp: &mut tabpage_T, idx: c_int) {
+fn clear_snapshot(tp: &mut tabpage_T, idx: c_int) {
     tp.tp_snapshot[idx as usize] = None;
 }
 
@@ -8575,15 +8569,13 @@ mod tests {
 
     #[test]
     fn test_window_layout_lock_unlock_and_frames_locked() {
-        unsafe {
-            assert!(!frames_locked());
+        assert!(!frames_locked());
             window_layout_lock();
             assert!(win_st().split_disallowed > 0);
             assert!(win_st().close_disallowed > 0);
             window_layout_unlock();
             assert!(win_st().split_disallowed == 0);
             assert!(win_st().close_disallowed == 0);
-        }
     }
 
     #[test]

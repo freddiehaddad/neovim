@@ -40,7 +40,7 @@ impl Default for TimeWatcher {
 }
 
 #[inline]
-pub unsafe fn loop_fast_events(loop_: &mut Loop) -> *mut MultiQueue {
+pub fn loop_fast_events(loop_: &mut Loop) -> *mut MultiQueue {
     loop_.fast_events
 }
 

@@ -2065,7 +2065,7 @@ pub fn name_to_mod_mask(c: c_int) -> c_int {
 }
 
 /// Check if there is a special key code for `key` with specified modifiers (`simplify_key`).
-pub unsafe fn simplify_key(key: c_int, modifiers: &mut c_int) -> c_int {
+pub fn simplify_key(key: c_int, modifiers: &mut c_int) -> c_int {
     let mut mods = *modifiers;
     if (mods & c_int::from(MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0 {
         return key;
@@ -2659,7 +2659,7 @@ pub unsafe fn get_special_key_code(name: *const c_char) -> c_int {
 }
 
 /// Look up the given mouse code to return the relevant information (`get_mouse_button`).
-pub unsafe fn get_mouse_button(code: c_int, is_click: &mut bool, is_drag: &mut bool) -> c_int {
+pub fn get_mouse_button(code: c_int, is_click: &mut bool, is_drag: &mut bool) -> c_int {
     for entry in MOUSE_TABLE {
         if code == entry.pseudo_code {
             *is_click = entry.is_click;
@@ -2930,7 +2930,7 @@ mod tests {
     #[test]
     fn simplify_and_unsimplify_key_roundtrip() {
         let mut mods = MOD_MASK_SHIFT as c_int;
-        let simplified = unsafe { simplify_key(K_F1, &mut mods) };
+        let simplified = simplify_key(K_F1, &mut mods);
         assert_eq!(simplified, K_S_F1);
         assert_eq!(mods, 0);
 

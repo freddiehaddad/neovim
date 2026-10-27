@@ -94,7 +94,7 @@ static WINCON_STATE: crate::globals::GlobalState<WinConsoleState> = crate::globa
 
 #[cfg(windows)]
 #[inline]
-unsafe fn wincon_st() -> &'static mut WinConsoleState {
+fn wincon_st() -> &'static mut WinConsoleState {
     unsafe { &mut *WINCON_STATE.as_ptr() }
 }
 
@@ -213,10 +213,8 @@ pub unsafe fn os_open_conin_fd() -> c_int {
 }
 
 #[cfg(windows)]
-pub unsafe fn os_clear_hwnd() {
-    unsafe {
-        wincon_st().H_WND = std::ptr::null_mut();
-    }
+pub fn os_clear_hwnd() {
+    wincon_st().H_WND = std::ptr::null_mut();
 }
 
 #[cfg(windows)]

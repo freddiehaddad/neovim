@@ -568,7 +568,7 @@ pub fn packer_string_buffer() -> PackerBuffer {
 ///
 /// # Safety
 /// `buffer` must be a valid pointer to a `PackerBuffer` created by `packer_string_buffer`.
-pub unsafe fn packer_take_string(buffer: &mut PackerBuffer) -> Vec<u8> {
+pub fn packer_take_string(buffer: &mut PackerBuffer) -> Vec<u8> {
     let b = &mut *buffer;
     let len = (b.ptr as usize) - (b.startptr as usize);
     let vec = std::mem::take(&mut b.owned_buf);

@@ -747,7 +747,7 @@ impl ShadaModuleState {
 static SHADA_STATE: crate::globals::GlobalState<ShadaModuleState> = crate::globals::GlobalState::new(ShadaModuleState::new());
 
 #[inline]
-unsafe fn shada_st() -> &'static mut ShadaModuleState {
+fn shada_st() -> &'static mut ShadaModuleState {
     unsafe { &mut *SHADA_STATE.as_ptr() }
 }
 
@@ -951,7 +951,7 @@ unsafe fn hmll_insert(hmll: &mut HMLList, mut after_idx: Option<usize>, data: Sh
 }
 
 #[inline]
-unsafe fn hmll_dealloc(hmll: &mut HMLList) {
+fn hmll_dealloc(hmll: &mut HMLList) {
     hmll.contained_entries = std::collections::HashMap::new();
         hmll.entries = Vec::new();
 }
@@ -1213,10 +1213,8 @@ fn hms_to_he_array(
 }
 
 #[inline]
-unsafe fn hms_dealloc(hms_p: &mut HistoryMergerState) {
-    unsafe {
-        hmll_dealloc(&mut hms_p.hmll);
-    }
+fn hms_dealloc(hms_p: &mut HistoryMergerState) {
+    hmll_dealloc(&mut hms_p.hmll);
 }
 
 unsafe fn var_shada_iter(

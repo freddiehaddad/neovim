@@ -108,7 +108,7 @@ impl SignModuleState {
 static SIGN_STATE: crate::globals::GlobalState<SignModuleState> = crate::globals::GlobalState::new(SignModuleState::new());
 
 #[inline]
-unsafe fn sign_st() -> &'static mut SignModuleState {
+fn sign_st() -> &'static mut SignModuleState {
     unsafe { &mut *SIGN_STATE.as_ptr() }
 }
 
@@ -1263,10 +1263,8 @@ unsafe fn sign_get_placed(
     }
 }
 
-pub unsafe fn free_signs() {
-    unsafe {
-        sign_st().sign_map = Vec::new();
-    }
+pub fn free_signs() {
+    sign_st().sign_map = Vec::new();
 }
 
 unsafe fn get_nth_sign_name(idx: c_int) -> *mut c_char {

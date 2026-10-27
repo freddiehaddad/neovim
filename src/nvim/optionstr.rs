@@ -411,7 +411,7 @@ impl OptionStrState {
 static OPTSTR_STATE: GlobalState<OptionStrState> = GlobalState::new(OptionStrState::new());
 
 #[inline]
-unsafe fn optstr_st() -> &'static mut OptionStrState {
+fn optstr_st() -> &'static mut OptionStrState {
     unsafe { &mut *OPTSTR_STATE.as_ptr() }
 }
 
@@ -2087,11 +2087,9 @@ pub unsafe fn validate_completeitemalign(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'completeitemalign' option is changed.
-pub unsafe fn did_set_completeitemalign(args: &mut optset_T) -> *const c_char {
-    unsafe {
-        opt_vars().cia_flags = args.os_prep.as_flags();
+pub fn did_set_completeitemalign(args: &mut optset_T) -> *const c_char {
+    opt_vars().cia_flags = args.os_prep.as_flags();
         ptr::null()
-    }
 }
 
 /// The 'completeopt' option is changed.
@@ -2395,7 +2393,7 @@ pub unsafe fn did_set_fileformat(args: &mut optset_T) -> *const c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of fileformat options.
-pub unsafe fn get_fileformat_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_fileformat_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
@@ -2566,13 +2564,11 @@ pub unsafe fn did_set_iconstring(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'inccommand' option is changed.
-pub unsafe fn did_set_inccommand(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        if g_st().cmdpreview {
+pub fn did_set_inccommand(_args: &mut optset_T) -> *const c_char {
+    if g_st().cmdpreview {
             return e_invarg.as_ptr();
         }
         ptr::null()
-    }
 }
 
 /// Validate the 'isident', 'iskeyword' or 'isfname' option.
@@ -3121,13 +3117,11 @@ pub unsafe fn validate_spellsuggest(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'spellsuggest' option is changed.
-pub unsafe fn did_set_spellsuggest(args: &mut optset_T) -> *const c_char {
-    unsafe {
-        if let OptSetPrep::Spellsuggest(sps) = args.os_prep {
+pub fn did_set_spellsuggest(args: &mut optset_T) -> *const c_char {
+    if let OptSetPrep::Spellsuggest(sps) = args.os_prep {
             spell_apply_sps(sps[0], sps[1]);
         }
         ptr::null()
-    }
 }
 
 pub unsafe fn did_set_splitkeep(_args: &mut optset_T) -> *const c_char {
@@ -3404,13 +3398,11 @@ pub unsafe fn validate_wildmode(args: &mut optset_T) -> *const c_char {
 }
 
 /// The 'wildmode' option is changed.
-pub unsafe fn did_set_wildmode(args: &mut optset_T) -> *const c_char {
-    unsafe {
-        if let OptSetPrep::Wildmode(flags) = args.os_prep {
+pub fn did_set_wildmode(args: &mut optset_T) -> *const c_char {
+    if let OptSetPrep::Wildmode(flags) = args.os_prep {
             g_st().wim_flags = flags;
         }
         ptr::null()
-    }
 }
 
 /// The 'winbar' option is changed.
@@ -4337,7 +4329,7 @@ pub unsafe fn set_chars_option(
 }
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'fillchars' option.
-pub unsafe fn get_fillchars_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_fillchars_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= FCS_TAB.len() {
         return ptr::null_mut();
     }
@@ -4345,7 +4337,7 @@ pub unsafe fn get_fillchars_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char 
 }
 
 /// Function given to ExpandGeneric() to obtain possible arguments of the 'listchars' option.
-pub unsafe fn get_listchars_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_listchars_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= LCS_TAB.len() {
         return ptr::null_mut();
     }

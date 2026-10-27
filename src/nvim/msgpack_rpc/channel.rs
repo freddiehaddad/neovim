@@ -203,7 +203,7 @@ use crate::autocmd::EVENT_CHANINFO;
 use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 
 #[inline]
-pub unsafe fn channel_instream(chan: &mut Channel) -> *mut Stream {
+pub fn channel_instream(chan: &mut Channel) -> *mut Stream {
     match chan.streamtype {
             kChannelStreamProc => &raw mut chan.uv.proc_.r#in,
             kChannelStreamSocket => &raw mut chan.socket.s,
@@ -213,7 +213,7 @@ pub unsafe fn channel_instream(chan: &mut Channel) -> *mut Stream {
 }
 
 #[inline]
-pub unsafe fn channel_outstream(chan: &mut Channel) -> *mut RStream {
+pub fn channel_outstream(chan: &mut Channel) -> *mut RStream {
     match chan.streamtype {
             kChannelStreamProc => &raw mut chan.uv.proc_.out,
             kChannelStreamSocket => &raw mut chan.socket,

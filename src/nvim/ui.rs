@@ -160,7 +160,7 @@ impl UiState {
 static UI_STATE: GlobalState<UiState> = GlobalState::new(UiState::new());
 
 #[inline]
-unsafe fn ui_state() -> &'static mut UiState {
+fn ui_state() -> &'static mut UiState {
     unsafe { &mut *UI_STATE.as_ptr() }
 }
 
@@ -376,9 +376,8 @@ pub unsafe fn ui_default_colors_set() {
     }
 }
 
-unsafe fn ui_may_set_default_colors() {
-    unsafe {
-        if ui_state().pending_default_colors {
+fn ui_may_set_default_colors() {
+    if ui_state().pending_default_colors {
             ui_state().pending_default_colors = false;
             ui_call_default_colors_set(
                 Integer::from(g_st().normal_fg),
@@ -388,26 +387,21 @@ unsafe fn ui_may_set_default_colors() {
                 Integer::from(g_st().cterm_normal_bg_color),
             );
         }
-    }
 }
 
-pub unsafe fn ui_busy_start() {
-    unsafe {
-        let prev = ui_state().busy;
+pub fn ui_busy_start() {
+    let prev = ui_state().busy;
         ui_state().busy += 1;
         if prev == 0 {
             ui_call_busy_start();
         }
-    }
 }
 
-pub unsafe fn ui_busy_stop() {
-    unsafe {
-        ui_state().busy -= 1;
+pub fn ui_busy_stop() {
+    ui_state().busy -= 1;
         if ui_state().busy == 0 {
             ui_call_busy_stop();
         }
-    }
 }
 
 pub unsafe fn vim_beep(val: c_uint) {
@@ -585,44 +579,36 @@ pub unsafe fn ui_line(
     }
 }
 
-pub unsafe fn ui_cursor_goto(new_row: c_int, new_col: c_int) {
-    unsafe {
-        ui_grid_cursor_goto(DEFAULT_GRID_HANDLE, new_row, new_col);
-    }
+pub fn ui_cursor_goto(new_row: c_int, new_col: c_int) {
+    ui_grid_cursor_goto(DEFAULT_GRID_HANDLE, new_row, new_col);
 }
 
-pub unsafe fn ui_grid_cursor_goto(grid_handle: handle_T, new_row: c_int, new_col: c_int) {
-    unsafe {
-        if new_row == ui_state().cursor_row && new_col == ui_state().cursor_col && grid_handle == ui_state().cursor_grid_handle {
+pub fn ui_grid_cursor_goto(grid_handle: handle_T, new_row: c_int, new_col: c_int) {
+    if new_row == ui_state().cursor_row && new_col == ui_state().cursor_col && grid_handle == ui_state().cursor_grid_handle {
             return;
         }
         ui_state().cursor_row = new_row;
         ui_state().cursor_col = new_col;
         ui_state().cursor_grid_handle = grid_handle;
         ui_state().pending_cursor_update = true;
-    }
 }
 
-pub unsafe fn ui_check_cursor_grid(grid_handle: handle_T) {
-    unsafe {
-        if ui_state().cursor_grid_handle == grid_handle {
+pub fn ui_check_cursor_grid(grid_handle: handle_T) {
+    if ui_state().cursor_grid_handle == grid_handle {
             ui_state().pending_cursor_update = true;
         }
-    }
 }
 
-pub unsafe fn ui_mode_info_set() {
-    unsafe {
-        ui_state().pending_mode_info_update = true;
-    }
+pub fn ui_mode_info_set() {
+    ui_state().pending_mode_info_update = true;
 }
 
-pub unsafe fn ui_current_row() -> c_int {
-    unsafe { ui_state().cursor_row }
+pub fn ui_current_row() -> c_int {
+    ui_state().cursor_row
 }
 
-pub unsafe fn ui_current_col() -> c_int {
-    unsafe { ui_state().cursor_col }
+pub fn ui_current_col() -> c_int {
+    ui_state().cursor_col
 }
 
 pub unsafe fn ui_flush() {
@@ -794,8 +780,8 @@ unsafe fn ui_cursor_is_behind_floatwin() -> bool {
     }
 }
 
-pub unsafe fn ui_has(ext: UIExtension) -> bool {
-    unsafe { ui_state().ui_ext[ext as usize] }
+pub fn ui_has(ext: UIExtension) -> bool {
+    ui_state().ui_ext[ext as usize]
 }
 
 pub unsafe fn ui_array(arena: *mut Arena) -> Array {
@@ -1143,51 +1129,51 @@ macro_rules! ui_call_event_guarded {
     }};
 }
 
-pub unsafe fn ui_call_mode_info_set(enabled: bool, cursor_styles: Array) {
+pub fn ui_call_mode_info_set(enabled: bool, cursor_styles: Array) {
     ui_call_loop!(true, c"mode_info_set", |ui| {
         remote_ui_mode_info_set(ui, enabled, cursor_styles)
     });
 }
 
-pub unsafe fn ui_call_update_menu() {
+pub fn ui_call_update_menu() {
     ui_call_loop!(true, c"update_menu", |ui| remote_ui_update_menu(ui));
 }
 
-pub unsafe fn ui_call_busy_start() {
+pub fn ui_call_busy_start() {
     ui_call_loop!(true, c"busy_start", |ui| remote_ui_busy_start(ui));
 }
 
-pub unsafe fn ui_call_busy_stop() {
+pub fn ui_call_busy_stop() {
     ui_call_loop!(true, c"busy_stop", |ui| remote_ui_busy_stop(ui));
 }
 
-pub unsafe fn ui_call_mouse_on() {
+pub fn ui_call_mouse_on() {
     ui_call_loop!(true, c"mouse_on", |ui| remote_ui_mouse_on(ui));
 }
 
-pub unsafe fn ui_call_mouse_off() {
+pub fn ui_call_mouse_off() {
     ui_call_loop!(true, c"mouse_off", |ui| remote_ui_mouse_off(ui));
 }
 
-pub unsafe fn ui_call_mode_change(mode: NvimString, mode_idx: Integer) {
+pub fn ui_call_mode_change(mode: NvimString, mode_idx: Integer) {
     ui_call_loop!(true, c"mode_change", |ui| {
         remote_ui_mode_change(ui, mode, mode_idx)
     });
 }
 
-pub unsafe fn ui_call_bell() {
+pub fn ui_call_bell() {
     ui_call_loop!(true, c"bell", |ui| remote_ui_bell(ui));
 }
 
-pub unsafe fn ui_call_visual_bell() {
+pub fn ui_call_visual_bell() {
     ui_call_loop!(true, c"visual_bell", |ui| remote_ui_visual_bell(ui));
 }
 
-pub unsafe fn ui_call_flush() {
+pub fn ui_call_flush() {
     ui_call_loop!(true, c"flush", |ui| remote_ui_flush(ui));
 }
 
-pub unsafe fn ui_call_suspend() {
+pub fn ui_call_suspend() {
     ui_call_loop!(true, c"suspend", |ui| remote_ui_suspend(ui));
 }
 
@@ -1196,15 +1182,15 @@ pub unsafe extern "C" fn ui_call_set_title(title: NvimString) {
     ui_call_loop!(true, c"set_title", |ui| remote_ui_set_title(ui, title));
 }
 
-pub unsafe fn ui_call_set_icon(icon: NvimString) {
+pub fn ui_call_set_icon(icon: NvimString) {
     ui_call_loop!(true, c"set_icon", |ui| remote_ui_set_icon(ui, icon));
 }
 
-pub unsafe fn ui_call_screenshot(path: NvimString) {
+pub fn ui_call_screenshot(path: NvimString) {
     ui_call_loop!(true, c"screenshot", |ui| remote_ui_screenshot(ui, path));
 }
 
-pub unsafe fn ui_call_option_set(name: NvimString, value: Object) {
+pub fn ui_call_option_set(name: NvimString, value: Object) {
     ui_call_loop!(true, c"option_set", |ui| {
         remote_ui_option_set(ui, name, value)
     });
@@ -1215,11 +1201,11 @@ pub unsafe extern "C" fn ui_call_chdir(path: NvimString) {
     ui_call_loop!(true, c"chdir", |ui| remote_ui_chdir(ui, path));
 }
 
-pub unsafe fn ui_call_ui_send(content: NvimString) {
+pub fn ui_call_ui_send(content: NvimString) {
     ui_call_loop!(true, c"ui_send", |ui| remote_ui_ui_send(ui, content));
 }
 
-pub unsafe fn ui_call_default_colors_set(
+pub fn ui_call_default_colors_set(
     rgb_fg: Integer,
     rgb_bg: Integer,
     rgb_sp: Integer,
@@ -1231,7 +1217,7 @@ pub unsafe fn ui_call_default_colors_set(
     });
 }
 
-pub unsafe fn ui_call_hl_attr_define(
+pub fn ui_call_hl_attr_define(
     id: Integer,
     rgb_attrs: crate::highlight::HlAttrs,
     cterm_attrs: crate::highlight::HlAttrs,
@@ -1242,7 +1228,7 @@ pub unsafe fn ui_call_hl_attr_define(
     });
 }
 
-pub unsafe fn ui_call_hl_group_set(name: NvimString, id: Integer) {
+pub fn ui_call_hl_group_set(name: NvimString, id: Integer) {
     ui_call_loop!(true, c"hl_group_set", |ui| {
         remote_ui_hl_group_set(ui, name, id)
     });
@@ -1257,13 +1243,13 @@ pub unsafe fn ui_call_grid_resize(grid: Integer, width: Integer, height: Integer
     });
 }
 
-pub unsafe fn ui_composed_call_grid_resize(grid: Integer, width: Integer, height: Integer) {
+pub fn ui_composed_call_grid_resize(grid: Integer, width: Integer, height: Integer) {
     ui_call_loop!(ui.composed, c"grid_resize", |ui| {
         remote_ui_grid_resize(ui, grid, width, height)
     });
 }
 
-pub unsafe fn ui_call_grid_clear(grid: Integer) {
+pub fn ui_call_grid_clear(grid: Integer) {
     ui_call_loop!(true, c"grid_clear", |ui| remote_ui_grid_clear(ui, grid));
 }
 
@@ -1276,7 +1262,7 @@ pub unsafe fn ui_call_grid_cursor_goto(grid: Integer, row: Integer, col: Integer
     });
 }
 
-pub unsafe fn ui_composed_call_grid_cursor_goto(grid: Integer, row: Integer, col: Integer) {
+pub fn ui_composed_call_grid_cursor_goto(grid: Integer, row: Integer, col: Integer) {
     ui_call_loop!(ui.composed, c"grid_cursor_goto", |ui| {
         remote_ui_grid_cursor_goto(ui, grid, row, col)
     });
@@ -1299,7 +1285,7 @@ pub unsafe fn ui_call_grid_scroll(
     });
 }
 
-pub unsafe fn ui_composed_call_grid_scroll(
+pub fn ui_composed_call_grid_scroll(
     grid: Integer,
     top: Integer,
     bot: Integer,
@@ -1313,7 +1299,7 @@ pub unsafe fn ui_composed_call_grid_scroll(
     });
 }
 
-pub unsafe fn ui_call_grid_destroy(grid: Integer) {
+pub fn ui_call_grid_destroy(grid: Integer) {
     ui_call_event_guarded!(c"grid_destroy", [integer_obj(grid)]);
 }
 
@@ -1358,7 +1344,7 @@ pub unsafe fn ui_composed_call_raw_line(
     });
 }
 
-pub unsafe fn ui_call_win_pos(
+pub fn ui_call_win_pos(
     grid: Integer,
     win: handle_T,
     startrow: Integer,
@@ -1379,7 +1365,7 @@ pub unsafe fn ui_call_win_pos(
     );
 }
 
-pub unsafe fn ui_call_win_float_pos(
+pub fn ui_call_win_float_pos(
     grid: Integer,
     win: handle_T,
     anchor: NvimString,
@@ -1410,15 +1396,15 @@ pub unsafe fn ui_call_win_float_pos(
     );
 }
 
-pub unsafe fn ui_call_win_external_pos(grid: Integer, win: handle_T) {
+pub fn ui_call_win_external_pos(grid: Integer, win: handle_T) {
     ui_call_event_guarded!(c"win_external_pos", [integer_obj(grid), window_obj(win)]);
 }
 
-pub unsafe fn ui_call_win_hide(grid: Integer) {
+pub fn ui_call_win_hide(grid: Integer) {
     ui_call_event_guarded!(c"win_hide", [integer_obj(grid)]);
 }
 
-pub unsafe fn ui_call_win_close(grid: Integer) {
+pub fn ui_call_win_close(grid: Integer) {
     ui_call_event_guarded!(c"win_close", [integer_obj(grid)]);
 }
 
@@ -1438,7 +1424,7 @@ pub unsafe fn ui_call_msg_set_pos(
     });
 }
 
-pub unsafe fn ui_call_win_viewport(
+pub fn ui_call_win_viewport(
     grid: Integer,
     win: handle_T,
     topline: Integer,
@@ -1463,7 +1449,7 @@ pub unsafe fn ui_call_win_viewport(
     });
 }
 
-pub unsafe fn ui_call_win_viewport_margins(
+pub fn ui_call_win_viewport_margins(
     grid: Integer,
     win: handle_T,
     top: Integer,
@@ -1476,7 +1462,7 @@ pub unsafe fn ui_call_win_viewport_margins(
     });
 }
 
-pub unsafe fn ui_call_win_extmark(
+pub fn ui_call_win_extmark(
     grid: Integer,
     win: handle_T,
     ns_id: Integer,
@@ -1497,7 +1483,7 @@ pub unsafe fn ui_call_win_extmark(
     );
 }
 
-pub unsafe fn ui_call_popupmenu_show(
+pub fn ui_call_popupmenu_show(
     items_arr: Array,
     selected: Integer,
     row: Integer,
@@ -1516,15 +1502,15 @@ pub unsafe fn ui_call_popupmenu_show(
     );
 }
 
-pub unsafe fn ui_call_popupmenu_hide() {
+pub fn ui_call_popupmenu_hide() {
     ui_call_event_guarded!(c"popupmenu_hide");
 }
 
-pub unsafe fn ui_call_popupmenu_select(selected: Integer) {
+pub fn ui_call_popupmenu_select(selected: Integer) {
     ui_call_event_guarded!(c"popupmenu_select", [integer_obj(selected)]);
 }
 
-pub unsafe fn ui_call_tabline_update(
+pub fn ui_call_tabline_update(
     current: handle_T,
     tabs: Array,
     current_buffer: handle_T,
@@ -1541,7 +1527,7 @@ pub unsafe fn ui_call_tabline_update(
     );
 }
 
-pub unsafe fn ui_call_cmdline_show(
+pub fn ui_call_cmdline_show(
     content: Array,
     pos: Integer,
     firstc: NvimString,
@@ -1564,34 +1550,34 @@ pub unsafe fn ui_call_cmdline_show(
     );
 }
 
-pub unsafe fn ui_call_cmdline_pos(pos: Integer, level: Integer) {
+pub fn ui_call_cmdline_pos(pos: Integer, level: Integer) {
     ui_call_event_guarded!(c"cmdline_pos", [integer_obj(pos), integer_obj(level)]);
 }
 
-pub unsafe fn ui_call_cmdline_special_char(c: NvimString, shift: bool, level: Integer) {
+pub fn ui_call_cmdline_special_char(c: NvimString, shift: bool, level: Integer) {
     ui_call_event_guarded!(
         c"cmdline_special_char",
         [string_obj(c), boolean_obj(shift), integer_obj(level)]
     );
 }
 
-pub unsafe fn ui_call_cmdline_hide(level: Integer, abort: bool) {
+pub fn ui_call_cmdline_hide(level: Integer, abort: bool) {
     ui_call_event_guarded!(c"cmdline_hide", [integer_obj(level), boolean_obj(abort)]);
 }
 
-pub unsafe fn ui_call_cmdline_block_show(lines: Array) {
+pub fn ui_call_cmdline_block_show(lines: Array) {
     ui_call_event_guarded!(c"cmdline_block_show", [array_obj(lines)]);
 }
 
-pub unsafe fn ui_call_cmdline_block_append(lines: Array) {
+pub fn ui_call_cmdline_block_append(lines: Array) {
     ui_call_event_guarded!(c"cmdline_block_append", [array_obj(lines)]);
 }
 
-pub unsafe fn ui_call_cmdline_block_hide() {
+pub fn ui_call_cmdline_block_hide() {
     ui_call_event_guarded!(c"cmdline_block_hide");
 }
 
-pub unsafe fn ui_call_msg_show(
+pub fn ui_call_msg_show(
     kind: NvimString,
     content: Array,
     replace_last: bool,
@@ -1614,34 +1600,34 @@ pub unsafe fn ui_call_msg_show(
     );
 }
 
-pub unsafe fn ui_call_msg_clear() {
+pub fn ui_call_msg_clear() {
     ui_call_event_guarded!(c"msg_clear");
 }
 
-pub unsafe fn ui_call_msg_showcmd(content: Array) {
+pub fn ui_call_msg_showcmd(content: Array) {
     ui_call_event_guarded!(c"msg_showcmd", [array_obj(content)]);
 }
 
-pub unsafe fn ui_call_msg_showmode(content: Array) {
+pub fn ui_call_msg_showmode(content: Array) {
     ui_call_event_guarded!(c"msg_showmode", [array_obj(content)]);
 }
 
-pub unsafe fn ui_call_msg_ruler(content: Array) {
+pub fn ui_call_msg_ruler(content: Array) {
     ui_call_event_guarded!(c"msg_ruler", [array_obj(content)]);
 }
 
-pub unsafe fn ui_call_msg_history_show(entries: Array, prev_cmd: bool) {
+pub fn ui_call_msg_history_show(entries: Array, prev_cmd: bool) {
     ui_call_event_guarded!(
         c"msg_history_show",
         [array_obj(entries), boolean_obj(prev_cmd)]
     );
 }
 
-pub unsafe fn ui_call_error_exit(status: Integer) {
+pub fn ui_call_error_exit(status: Integer) {
     ui_call_loop!(true, c"error_exit", |ui| remote_ui_error_exit(ui, status));
 }
 
-pub unsafe fn ui_call__set_restart_on_crash_exit(progpath: NvimString, argv: Array) {
+pub fn ui_call__set_restart_on_crash_exit(progpath: NvimString, argv: Array) {
     ui_call_loop!(true, c"_set_restart_on_crash_exit", |ui| {
         remote_ui__set_restart_on_crash_exit(ui, progpath, argv)
     });

@@ -491,7 +491,7 @@ pub unsafe fn get_user_command_name(idx: c_int, cmdidx: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user address type names (`get_user_cmd_addr_type`).
-pub unsafe fn get_user_cmd_addr_type(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_addr_type(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= ADDR_TYPE_COMPLETE.len() {
         return ptr::null_mut();
     }
@@ -502,7 +502,7 @@ pub unsafe fn get_user_cmd_addr_type(_xp: &mut expand_T, idx: c_int) -> *mut c_c
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of user command attributes (`get_user_cmd_flags`).
-pub unsafe fn get_user_cmd_flags(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_flags(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     const USER_CMD_FLAGS: [&CStr; 10] = [
         c"addr",
         c"bang",
@@ -522,7 +522,7 @@ pub unsafe fn get_user_cmd_flags(_xp: &mut expand_T, idx: c_int) -> *mut c_char 
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of values for `-nargs` (`get_user_cmd_nargs`).
-pub unsafe fn get_user_cmd_nargs(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_nargs(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     const USER_CMD_NARGS: [&CStr; 6] = [c"0", c"1", c"_", c"*", c"?", c"+"];
     if idx < 0 || (idx as usize) >= USER_CMD_NARGS.len() {
         return ptr::null_mut();
@@ -541,7 +541,7 @@ fn get_command_complete(arg: c_int) -> *mut c_char {
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of values for `-complete` (`get_user_cmd_complete`).
-pub unsafe fn get_user_cmd_complete(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_user_cmd_complete(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= COMMAND_COMPLETE_LEN {
         return ptr::null_mut();
     }

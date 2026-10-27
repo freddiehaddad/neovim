@@ -58,7 +58,7 @@ impl ApiVimscriptState {
 static API_VIMS_STATE: crate::globals::GlobalState<ApiVimscriptState> = crate::globals::GlobalState::new(ApiVimscriptState::new());
 
 #[inline]
-unsafe fn api_vims_st() -> &'static mut ApiVimscriptState {
+fn api_vims_st() -> &'static mut ApiVimscriptState {
     unsafe { &mut *API_VIMS_STATE.as_ptr() }
 }
 

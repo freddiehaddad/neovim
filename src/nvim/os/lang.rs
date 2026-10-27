@@ -117,7 +117,7 @@ static LANG_STATE: crate::globals::GlobalState<LangModuleState> =
     crate::globals::GlobalState::new(LangModuleState::new());
 
 #[inline]
-unsafe fn lang_st() -> &'static mut LangModuleState {
+fn lang_st() -> &'static mut LangModuleState {
     unsafe { &mut *LANG_STATE.as_ptr() }
 }
 
@@ -817,10 +817,8 @@ unsafe fn init_locales() {
     }
 }
 
-pub unsafe fn free_locales() {
-    unsafe {
-        lang_st().LOCALES = Vec::new();
-    }
+pub fn free_locales() {
+    lang_st().LOCALES = Vec::new();
 }
 
 /// Function given to `ExpandGeneric()` to obtain the possible arguments of `":language"`.

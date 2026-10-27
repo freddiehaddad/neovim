@@ -339,7 +339,7 @@ impl LuaExecutorState {
 static NLUA_STATE: GlobalState<LuaExecutorState> = GlobalState::new(LuaExecutorState::new());
 
 #[inline]
-pub(crate) unsafe fn nlua_st() -> &'static mut LuaExecutorState {
+pub(crate) fn nlua_st() -> &'static mut LuaExecutorState {
     unsafe { &mut *NLUA_STATE.as_ptr() }
 }
 
@@ -582,8 +582,8 @@ unsafe fn nlua_push_eap(lstate: *mut lua_State, eap: *mut exarg_T, cmod: &cmdmod
     }
 }
 
-pub unsafe fn get_global_lstate() -> *mut lua_State {
-    unsafe { nlua_st().GLOBAL_LSTATE }
+pub fn get_global_lstate() -> *mut lua_State {
+    nlua_st().GLOBAL_LSTATE
 }
 
 unsafe fn nlua_get_error(lstate: *mut lua_State, len: *mut usize) -> *const c_char {
@@ -2316,8 +2316,8 @@ unsafe fn nlua_call_pop_retval(
     }
 }
 
-pub unsafe fn nlua_is_deferred_safe() -> bool {
-    unsafe { nlua_st().IN_FAST_CALLBACK == 0 }
+pub fn nlua_is_deferred_safe() -> bool {
+    nlua_st().IN_FAST_CALLBACK == 0
 }
 
 pub unsafe fn ex_lua(eap: &mut exarg_T) {

@@ -62,13 +62,13 @@ impl DecorProviderState {
 static DECOR_PROV_STATE: crate::globals::GlobalState<DecorProviderState> = crate::globals::GlobalState::new(DecorProviderState::new());
 
 #[inline]
-unsafe fn decor_prov_st() -> &'static mut DecorProviderState {
+fn decor_prov_st() -> &'static mut DecorProviderState {
     unsafe { &mut *DECOR_PROV_STATE.as_ptr() }
 }
 
 #[inline]
-unsafe fn providers_mut() -> &'static mut Vec<DecorProvider> {
-    unsafe { &mut decor_prov_st().decor_providers }
+fn providers_mut() -> &'static mut Vec<DecorProvider> {
+    &mut decor_prov_st().decor_providers
 }
 
 #[inline]
@@ -540,9 +540,8 @@ pub unsafe fn decor_provider_invalidate_hl() {
     }
 }
 
-pub unsafe fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider {
-    unsafe {
-        debug_assert!(ns_id > 0);
+pub fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider {
+    debug_assert!(ns_id > 0);
         let p_vec = providers_mut();
         for p in p_vec.iter_mut() {
             if p.ns_id == ns_id {
@@ -556,7 +555,6 @@ pub unsafe fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider {
 
         p_vec.push(decor_provider_init(ns_id));
         p_vec.last_mut().map_or(ptr::null_mut(), |p| &raw mut *p)
-    }
 }
 
 pub unsafe fn decor_provider_clear(p: *mut DecorProvider) {
@@ -584,8 +582,6 @@ impl Drop for DecorProvider {
     }
 }
 
-pub unsafe fn decor_free_all_mem() {
-    unsafe {
-        decor_prov_st().decor_providers = Vec::new();
-    }
+pub fn decor_free_all_mem() {
+    decor_prov_st().decor_providers = Vec::new();
 }

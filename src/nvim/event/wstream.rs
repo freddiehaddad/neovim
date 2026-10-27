@@ -87,11 +87,11 @@ pub unsafe fn wstream_init_fd(loop_: &mut Loop, stream: &mut Stream, fd: c_int, 
     }
 }
 
-pub unsafe fn wstream_init(stream: &mut Stream, maxmem: usize) {
+pub fn wstream_init(stream: &mut Stream, maxmem: usize) {
     stream.maxmem = if maxmem != 0 { maxmem } else { DEFAULT_MAXMEM };
 }
 
-pub unsafe fn wstream_set_write_cb(stream: &mut Stream) {
+pub fn wstream_set_write_cb(stream: &mut Stream) {
     stream.notify_write = true;
 }
 

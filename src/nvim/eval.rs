@@ -264,7 +264,7 @@ impl EvalModuleState {
 static EVAL_STATE: GlobalState<EvalModuleState> = GlobalState::new(EvalModuleState::new());
 
 #[inline]
-pub(crate) unsafe fn eval_st() -> &'static mut EvalModuleState {
+pub(crate) fn eval_st() -> &'static mut EvalModuleState {
     unsafe { &mut *EVAL_STATE.as_ptr() }
 }
 
@@ -365,22 +365,22 @@ pub unsafe fn tv_dict_set_ret(tv: *mut typval_T, d: *mut dict_T) {
 }
 
 #[inline]
-unsafe fn tv_list_copyid(l: &list_T) -> c_int {
+fn tv_list_copyid(l: &list_T) -> c_int {
     l.lv_copyID
 }
 
 #[inline]
-unsafe fn tv_list_latest_copy(l: &list_T) -> *mut list_T {
+fn tv_list_latest_copy(l: &list_T) -> *mut list_T {
     l.lv_copylist
 }
 
 #[inline]
-unsafe fn tv_list_has_watchers(l: &list_T) -> bool {
+fn tv_list_has_watchers(l: &list_T) -> bool {
     !l.lv_watch.is_empty()
 }
 
 #[inline]
-unsafe fn tv_list_item_tv(li: &mut listitem_T) -> *mut typval_T {
+fn tv_list_item_tv(li: &mut listitem_T) -> *mut typval_T {
     &raw mut li.li_tv
 }
 
@@ -4312,11 +4312,9 @@ pub unsafe fn func_equal(tv1: *mut typval_T, tv2: *mut typval_T, ic: bool) -> bo
 }
 
 /// Get next (unique) copy ID.
-pub unsafe fn get_copyID() -> c_int {
-    unsafe {
-        eval_st().CURRENT_COPY_ID = eval_st().CURRENT_COPY_ID.wrapping_add(COPYID_INC);
+pub fn get_copyID() -> c_int {
+    eval_st().CURRENT_COPY_ID = eval_st().CURRENT_COPY_ID.wrapping_add(COPYID_INC);
         eval_st().CURRENT_COPY_ID
-    }
 }
 
 /// Do garbage collection for lists and dicts.
@@ -5267,8 +5265,8 @@ pub unsafe fn callback_from_typval(callback: &mut Callback, arg: &typval_T) -> b
     }
 }
 
-pub unsafe fn get_callback_depth() -> c_int {
-    unsafe { eval_st().callback_depth }
+pub fn get_callback_depth() -> c_int {
+    eval_st().callback_depth
 }
 
 /// @return  whether the callback could be called.
@@ -6699,8 +6697,8 @@ pub unsafe fn ex_echohl(eap: &mut exarg_T) {
 }
 
 /// Returns the :echo highlight id.
-pub unsafe fn get_echo_hl_id() -> c_int {
-    unsafe { eval_st().echo_hl_id }
+pub fn get_echo_hl_id() -> c_int {
+    eval_st().echo_hl_id
 }
 
 /// ":execute", ":echomsg", ":echoerr"

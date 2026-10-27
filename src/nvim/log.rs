@@ -54,7 +54,7 @@ impl LogModuleState {
 static LOG_STATE: crate::globals::GlobalState<LogModuleState> = crate::globals::GlobalState::new(LogModuleState::new());
 
 #[inline]
-pub(crate) unsafe fn log_st() -> &'static mut LogModuleState {
+pub(crate) fn log_st() -> &'static mut LogModuleState {
     unsafe { &mut *LOG_STATE.as_ptr() }
 }
 
@@ -263,14 +263,12 @@ pub unsafe fn log_unlock() {
     }
 }
 
-pub unsafe fn log_should_log(log_level: c_int) -> bool {
-    unsafe {
-        if !log_st().DID_LOG_INIT {
+pub fn log_should_log(log_level: c_int) -> bool {
+    if !log_st().DID_LOG_INIT {
             g_st().g_stats.log_skip += 1;
             return false;
         }
         log_level >= log_st().g_min_log_level
-    }
 }
 
 pub unsafe fn logmsg_str(

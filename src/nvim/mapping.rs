@@ -260,7 +260,7 @@ impl MappingModuleState {
 static MAP_STATE: GlobalState<MappingModuleState> = GlobalState::new(MappingModuleState::new());
 
 #[inline]
-unsafe fn map_st() -> &'static mut MappingModuleState {
+fn map_st() -> &'static mut MappingModuleState {
     unsafe { &mut *MAP_STATE.as_ptr() }
 }
 
@@ -2635,8 +2635,8 @@ unsafe fn langmap_set_entry(from: c_int, to: c_int) {
 }
 
 /// Apply 'langmap' to multi-byte character "c" and return the result.
-pub unsafe fn langmap_adjust_mb(c: c_int) -> c_int {
-    let entries = unsafe { map_st().langmap_mapga.as_slice() };
+pub fn langmap_adjust_mb(c: c_int) -> c_int {
+    let entries = map_st().langmap_mapga.as_slice();
     entries
         .binary_search_by_key(&c, |e| e.from)
         .map_or(c, |idx| entries[idx].to)

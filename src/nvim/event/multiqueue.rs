@@ -361,7 +361,7 @@ pub unsafe fn multiqueue_replace_parent(this: &mut MultiQueue, new_parent: &mut 
 ///
 /// # Safety
 /// `this` must be a valid pointer to a `MultiQueue`.
-pub unsafe fn multiqueue_size(this: &mut MultiQueue) -> usize {
+pub fn multiqueue_size(this: &mut MultiQueue) -> usize {
     this.size
 }
 

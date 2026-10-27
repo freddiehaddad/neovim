@@ -345,7 +345,7 @@ impl EvalFuncsState {
 static FUNCS_STATE: GlobalState<EvalFuncsState> = GlobalState::new(EvalFuncsState::new());
 
 #[inline]
-unsafe fn funcs_st() -> &'static mut EvalFuncsState {
+fn funcs_st() -> &'static mut EvalFuncsState {
     unsafe { &mut *FUNCS_STATE.as_ptr() }
 }
 
@@ -445,7 +445,7 @@ unsafe fn tv_get_float_chk(tv: &typval_T, ret_f: *mut float_T) -> bool {
 }
 
 #[inline]
-unsafe fn proc_is_stopped(proc_: &mut Proc) -> bool {
+fn proc_is_stopped(proc_: &mut Proc) -> bool {
     proc_.status >= 0 || proc_.stopped_time != 0
 }
 
@@ -2191,9 +2191,7 @@ pub unsafe fn f_eval(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFu
 
 /// "eventhandler()" function
 pub unsafe fn f_eventhandler(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(g_st().vgetc_busy));
-    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(g_st().vgetc_busy));
 }
 
 pub unsafe fn get_list_line(
@@ -3383,7 +3381,7 @@ unsafe fn getregionpos(
 
 impl pos_T {
     #[inline]
-    unsafe fn cast(&mut self) -> *mut crate::cursor::pos_T {
+    fn cast(&mut self) -> *mut crate::cursor::pos_T {
         (self as *mut pos_T).cast()
     }
 }
@@ -4376,9 +4374,7 @@ pub unsafe fn f_inputsecret(argvars: *mut typval_T, rettv: &mut typval_T, fptr: 
 
 /// "interrupt()" function
 pub unsafe fn f_interrupt(_argvars: *mut typval_T, _rettv: &mut typval_T, _fptr: EvalFuncData) {
-    unsafe {
-        g_st().got_int = true;
-    }
+    g_st().got_int = true;
 }
 
 /// "invert(expr)" function
@@ -6228,11 +6224,9 @@ pub unsafe fn f_pum_getpos(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 
 /// "pumvisible()" function
 pub unsafe fn f_pumvisible(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
-    unsafe {
-        if pum_visible() {
+    if pum_visible() {
             rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         }
-    }
 }
 
 /// "py3eval()" and "pyxeval()" functions
@@ -6262,7 +6256,7 @@ unsafe fn init_srand(x: &mut u32) {
 }
 
 #[inline(always)]
-unsafe fn splitmix32(x: &mut u32) -> u32 {
+fn splitmix32(x: &mut u32) -> u32 {
     *x = (*x).wrapping_add(0x9e3779b9);
         let mut z = *x;
         z = (z ^ (z >> 16)).wrapping_mul(0x85ebca6b);
@@ -6271,7 +6265,7 @@ unsafe fn splitmix32(x: &mut u32) -> u32 {
 }
 
 #[inline(always)]
-unsafe fn shuffle_xoshiro128starstar(x: &mut u32, y: &mut u32, z: &mut u32, w: &mut u32) -> u32 {
+fn shuffle_xoshiro128starstar(x: &mut u32, y: &mut u32, z: &mut u32, w: &mut u32) -> u32 {
     let result = ((*y).wrapping_mul(5)).rotate_left(7).wrapping_mul(9);
         let t = *y << 9;
         *z ^= *x;
@@ -7352,16 +7346,12 @@ pub unsafe fn f_screenchars(argvars: *mut typval_T, rettv: &mut typval_T, _fptr:
 
 /// "screencol()" function
 pub unsafe fn f_screencol(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ui_current_col() + 1));
-    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ui_current_col() + 1));
 }
 
 /// "screenrow()" function
 pub unsafe fn f_screenrow(_argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFuncData) {
-    unsafe {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ui_current_row() + 1));
-    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(ui_current_row() + 1));
 }
 
 /// "screenstring()" function
@@ -15216,7 +15206,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
     },
 ];
 
-pub unsafe fn eval_func_def_at(idx: c_int) -> *const EvalFuncDef {
+pub fn eval_func_def_at(idx: c_int) -> *const EvalFuncDef {
     &raw const FUNCTIONS[idx as usize]
 }
 
@@ -15226,15 +15216,13 @@ mod tests {
 
     #[test]
     fn splitmix32_and_xoshiro_are_deterministic() {
-        unsafe {
-            let mut seed: u32 = 42;
+        let mut seed: u32 = 42;
             let mut x = splitmix32(&mut seed);
             let mut y = splitmix32(&mut seed);
             let mut z = splitmix32(&mut seed);
             let mut w = splitmix32(&mut seed);
             let r1 = shuffle_xoshiro128starstar(&mut x, &mut y, &mut z, &mut w);
             assert_ne!(r1, 0);
-        }
     }
 
     #[test]

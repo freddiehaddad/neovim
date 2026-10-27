@@ -16369,7 +16369,7 @@ pub unsafe fn msgpack_rpc_get_handler_for_hash(str_in: *const c_char, len: usize
     }
 }
 
-pub unsafe fn msgpack_rpc_get_handler_at(hash: c_int) -> MsgpackRpcRequestHandler {
+pub fn msgpack_rpc_get_handler_at(hash: c_int) -> MsgpackRpcRequestHandler {
     method_handlers[hash as usize]
 }
 

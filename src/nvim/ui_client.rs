@@ -74,13 +74,13 @@ impl UiClientState {
 static UIC_STATE: GlobalState<UiClientState> = GlobalState::new(UiClientState::new());
 
 #[inline]
-unsafe fn uic_st() -> &'static mut UiClientState {
+fn uic_st() -> &'static mut UiClientState {
     unsafe { &mut *UIC_STATE.as_ptr() }
 }
 
 #[inline]
-unsafe fn tui_ptr() -> &'static mut TUIData {
-    unsafe { uic_st().tui.as_deref_mut().unwrap() }
+fn tui_ptr() -> &'static mut TUIData {
+    uic_st().tui.as_deref_mut().unwrap()
 }
 
 use crate::event::r#loop::uv_os_getpid;
@@ -426,7 +426,7 @@ pub unsafe fn ui_client_event_grid_resize(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_grid_line(_args: Array) {
+pub fn ui_client_event_grid_line(_args: Array) {
     std::process::abort()
 }
 
@@ -730,22 +730,16 @@ pub unsafe fn ui_client_event_mode_info_set(args: Array) {
     }
 }
 
-pub unsafe fn ui_client_event_update_menu(_args: Array) {
-    unsafe {
-        tui_update_menu(tui_ptr());
-    }
+pub fn ui_client_event_update_menu(_args: Array) {
+    tui_update_menu(tui_ptr());
 }
 
-pub unsafe fn ui_client_event_busy_start(_args: Array) {
-    unsafe {
-        tui_busy_start(tui_ptr());
-    }
+pub fn ui_client_event_busy_start(_args: Array) {
+    tui_busy_start(tui_ptr());
 }
 
-pub unsafe fn ui_client_event_busy_stop(_args: Array) {
-    unsafe {
-        tui_busy_stop(tui_ptr());
-    }
+pub fn ui_client_event_busy_stop(_args: Array) {
+    tui_busy_stop(tui_ptr());
 }
 
 pub unsafe fn ui_client_event_mouse_on(_args: Array) {

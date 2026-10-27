@@ -193,7 +193,7 @@ impl HighlightGroupState {
 static HLG_STATE: GlobalState<HighlightGroupState> = GlobalState::new(HighlightGroupState::new());
 
 #[inline]
-unsafe fn hlg_st() -> &'static mut HighlightGroupState {
+fn hlg_st() -> &'static mut HighlightGroupState {
     unsafe { &mut *HLG_STATE.as_ptr() }
 }
 
@@ -1618,14 +1618,12 @@ pub unsafe fn free_highlight() {
     }
 }
 
-pub unsafe fn restore_cterm_colors() {
-    unsafe {
-        g_st().normal_fg = -1;
+pub fn restore_cterm_colors() {
+    g_st().normal_fg = -1;
         g_st().normal_bg = -1;
         g_st().normal_sp = -1;
         g_st().cterm_normal_fg_color = 0;
         g_st().cterm_normal_bg_color = 0;
-    }
 }
 
 unsafe fn hl_has_settings(idx: c_int, check_link: bool) -> bool {

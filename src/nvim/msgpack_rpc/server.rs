@@ -46,13 +46,13 @@ impl RpcServerState {
 static SERVER_STATE: crate::globals::GlobalState<RpcServerState> = crate::globals::GlobalState::new(RpcServerState::new());
 
 #[inline]
-unsafe fn srv_st() -> &'static mut RpcServerState {
+fn srv_st() -> &'static mut RpcServerState {
     unsafe { &mut *SERVER_STATE.as_ptr() }
 }
 
 #[inline]
-unsafe fn watchers_mut() -> &'static mut Vec<*mut SocketWatcher> {
-    unsafe { &mut srv_st().watchers }
+fn watchers_mut() -> &'static mut Vec<*mut SocketWatcher> {
+    &mut srv_st().watchers
 }
 
 pub unsafe fn server_init(mut listen_addr: *const c_char) -> bool {

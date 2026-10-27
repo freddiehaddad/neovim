@@ -45,7 +45,7 @@ impl TextobjectState {
 static TOBJ_STATE: crate::globals::GlobalState<TextobjectState> = crate::globals::GlobalState::new(TextobjectState::new());
 
 #[inline]
-unsafe fn tobj_st() -> &'static mut TextobjectState {
+fn tobj_st() -> &'static mut TextobjectState {
     unsafe { &mut *TOBJ_STATE.as_ptr() }
 }
 

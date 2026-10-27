@@ -336,7 +336,7 @@ impl RuntimeModuleState {
 static RT_STATE: GlobalState<RuntimeModuleState> = GlobalState::new(RuntimeModuleState::new());
 
 #[inline]
-pub(crate) unsafe fn rt_st() -> &'static mut RuntimeModuleState {
+pub(crate) fn rt_st() -> &'static mut RuntimeModuleState {
     unsafe { &mut *RT_STATE.as_ptr() }
 }
 
@@ -1331,11 +1331,9 @@ unsafe fn runtime_search_path_build() -> RuntimeSearchPath {
     }
 }
 
-pub unsafe fn did_set_runtimepackpath(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        rt_st().runtime_search_path_valid = false;
+pub fn did_set_runtimepackpath(_args: &mut optset_T) -> *const c_char {
+    rt_st().runtime_search_path_valid = false;
         ptr::null()
-    }
 }
 
 pub unsafe fn runtime_search_path_validate() {
@@ -2582,15 +2580,15 @@ pub unsafe fn ex_options(_eap: &mut exarg_T) {
     }
 }
 
-pub unsafe fn source_breakpoint(sp: &mut source_cookie_T) -> *mut linenr_T {
+pub fn source_breakpoint(sp: &mut source_cookie_T) -> *mut linenr_T {
     &raw mut sp.breakpoint
 }
 
-pub unsafe fn source_dbg_tick(sp: &mut source_cookie_T) -> *mut c_int {
+pub fn source_dbg_tick(sp: &mut source_cookie_T) -> *mut c_int {
     &raw mut sp.dbg_tick
 }
 
-pub unsafe fn source_level(sp: &mut source_cookie_T) -> c_int {
+pub fn source_level(sp: &mut source_cookie_T) -> c_int {
     sp.level
 }
 

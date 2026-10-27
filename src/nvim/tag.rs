@@ -167,9 +167,7 @@ impl Default for tagname_T {
 
 impl Drop for tagname_T {
     fn drop(&mut self) {
-        unsafe {
-            tag_st().tag_fnames.clear();
-        }
+        tag_st().tag_fnames.clear();
     }
 }
 
@@ -307,7 +305,7 @@ struct findtags_state_T {
 }
 
 impl findtags_state_T {
-    unsafe fn new() -> Self {
+    fn new() -> Self {
         Self {
             state: tagsearch_state_T::TS_START,
             stop_searching: false,
@@ -377,7 +375,7 @@ impl TagModuleState {
 static TAG_STATE: GlobalState<TagModuleState> = GlobalState::new(TagModuleState::new());
 
 #[inline]
-unsafe fn tag_st() -> &'static mut TagModuleState {
+fn tag_st() -> &'static mut TagModuleState {
     unsafe { &mut *TAG_STATE.as_ptr() }
 }
 
@@ -1108,10 +1106,8 @@ unsafe fn add_llist_tags(tag: *mut c_char, matches: &[Vec<c_char>]) -> c_int {
 }
 
 /// Free cached tags.
-pub unsafe fn tag_freematch() {
-    unsafe {
-        tag_st().tagmatchname = None;
-    }
+pub fn tag_freematch() {
+    tag_st().tagmatchname = None;
 }
 
 /// Print the tag stack.
@@ -3128,7 +3124,7 @@ unsafe fn find_extra(pp: *mut *mut c_char) -> c_int {
 }
 
 /// Free a single entry in a tag stack.
-pub unsafe fn tagstack_clear_entry(item: &mut taggy_T) {
+pub fn tagstack_clear_entry(item: &mut taggy_T) {
     item.tagname = None;
         item.user_data = None;
 }
@@ -3518,7 +3514,7 @@ unsafe fn tagstack_push_items(wp: *mut win_T, l: *mut list_T) {
     }
 }
 
-unsafe fn tagstack_set_curidx(wp: &mut win_T, curidx: c_int) {
+fn tagstack_set_curidx(wp: &mut win_T, curidx: c_int) {
     wp.w_tagstackidx = curidx.max(0).min(wp.w_tagstacklen);
 }
 

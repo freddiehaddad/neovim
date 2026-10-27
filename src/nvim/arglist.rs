@@ -121,7 +121,7 @@ impl ArglistModuleState {
 static ARGLIST_STATE: crate::globals::GlobalState<ArglistModuleState> = crate::globals::GlobalState::new(ArglistModuleState::new());
 
 #[inline]
-unsafe fn arglist_st() -> &'static mut ArglistModuleState {
+fn arglist_st() -> &'static mut ArglistModuleState {
     unsafe { &mut *ARGLIST_STATE.as_ptr() }
 }
 
@@ -136,7 +136,7 @@ pub unsafe fn win_alist(wp: *const win_T) -> *mut alist_T {
 }
 
 #[inline]
-unsafe fn aarglist(al: &mut alist_T) -> *mut aentry_T {
+fn aarglist(al: &mut alist_T) -> *mut aentry_T {
     al.al_ga.as_mut_ptr()
 }
 
@@ -161,8 +161,8 @@ pub unsafe fn argcount() -> c_int {
 }
 
 #[inline]
-pub unsafe fn garglist() -> *mut aentry_T {
-    unsafe { aarglist(&mut g_st().global_alist) }
+pub fn garglist() -> *mut aentry_T {
+    aarglist(&mut g_st().global_alist)
 }
 
 #[inline]

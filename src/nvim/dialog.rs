@@ -51,7 +51,7 @@ impl DialogModuleState {
 static DLG_STATE: GlobalState<DialogModuleState> = GlobalState::new(DialogModuleState::new());
 
 #[inline]
-pub(crate) unsafe fn dlg_st() -> &'static mut DialogModuleState {
+pub(crate) fn dlg_st() -> &'static mut DialogModuleState {
     unsafe { &mut *DLG_STATE.as_ptr() }
 }
 

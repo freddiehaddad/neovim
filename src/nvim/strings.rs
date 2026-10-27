@@ -716,7 +716,7 @@ pub unsafe fn tv_float(tvs: *mut typval_T, idxp: &mut c_int) -> float_T {
     }
 }
 
-pub unsafe fn infinity_str(
+pub fn infinity_str(
     positive: bool,
     fmt_spec: c_char,
     force_sign: c_int,

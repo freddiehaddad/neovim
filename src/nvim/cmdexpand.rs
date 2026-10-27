@@ -1695,7 +1695,7 @@ impl CmdexpandState {
 static CMDEXP_STATE: GlobalState<CmdexpandState> = GlobalState::new(CmdexpandState::new());
 
 #[inline]
-unsafe fn cmdexp() -> &'static mut CmdexpandState {
+fn cmdexp() -> &'static mut CmdexpandState {
     unsafe { &mut *CMDEXP_STATE.as_ptr() }
 }
 
@@ -1730,9 +1730,8 @@ unsafe fn show_match(matches: &[CString], m: usize, showtail: bool) -> *mut c_ch
 }
 
 /// Returns true if fuzzy completion is supported for a given cmdline completion context.
-unsafe fn cmdline_fuzzy_completion_supported(xp: &expand_T) -> bool {
-    unsafe {
-        match xp.xp_context {
+fn cmdline_fuzzy_completion_supported(xp: &expand_T) -> bool {
+    match xp.xp_context {
             EXPAND_BOOL_SETTINGS
             | EXPAND_COLORS
             | EXPAND_COMPILER
@@ -1760,7 +1759,6 @@ unsafe fn cmdline_fuzzy_completion_supported(xp: &expand_T) -> bool {
             | EXPAND_USER_LUA => false,
             _ => (opt_vars().wop_flags & kOptWopFlagFuzzy) != 0,
         }
-    }
 }
 
 /// Returns true if fuzzy completion for cmdline completion is enabled and
@@ -2150,14 +2148,12 @@ pub unsafe fn cmdline_compl_is_fuzzy() -> bool {
 }
 
 /// Checks whether popup menu should be used for cmdline completion wildmenu.
-unsafe fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
-    unsafe {
-        (need_wildmenu
+fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
+    (need_wildmenu
             && (opt_vars().wop_flags & kOptWopFlagPum) != 0
             && !(ui_has(kUICmdline) && g_st().cmdline_win.is_null()))
             || ui_has(kUIWildmenu)
             || (ui_has(kUICmdline) && ui_has(kUIPopupmenu))
-    }
 }
 
 /// Return the number of characters that should be skipped in the wildmenu.
@@ -2709,10 +2705,8 @@ pub fn ExpandCleanup(xp: &mut expand_T) {
     xp.xp_orig = None;
 }
 
-pub unsafe fn clear_cmdline_orig() {
-    unsafe {
-        cmdexp().cmdline_orig = None;
-    }
+pub fn clear_cmdline_orig() {
+    cmdexp().cmdline_orig = None;
 }
 
 /// Display one line of completion matches.
@@ -4417,14 +4411,13 @@ unsafe fn expand_files_and_dirs(
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":filetype".
-unsafe fn get_filetypecmd_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_filetypecmd_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 {
         return ptr::null_mut();
     }
 
     let i = idx as usize;
-    unsafe {
-        if cmdexp().filetype_expand_what == FiletypeExpandWhat::All && i < 5 {
+    if cmdexp().filetype_expand_what == FiletypeExpandWhat::All && i < 5 {
             const OPTS_ALL: [&CStr; 5] = [c"detect", c"indent", c"plugin", c"on", c"off"];
             return OPTS_ALL[i].as_ptr().cast_mut();
         }
@@ -4440,18 +4433,16 @@ unsafe fn get_filetypecmd_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
             const OPTS_ONOFF: [&CStr; 2] = [c"on", c"off"];
             return OPTS_ONOFF[i].as_ptr().cast_mut();
         }
-    }
     ptr::null_mut()
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":breakadd" / ":breakdel" / ":profdel".
-unsafe fn get_breakadd_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_breakadd_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if (0..=3).contains(&idx) {
         const OPTS: [&CStr; 4] = [c"expr", c"file", c"func", c"here"];
         let i = idx as usize;
 
-        unsafe {
-            if cmdexp().breakpt_expand_what == BreakptExpandWhat::Add {
+        if cmdexp().breakpt_expand_what == BreakptExpandWhat::Add {
                 return OPTS[i].as_ptr().cast_mut();
             } else if cmdexp().breakpt_expand_what == BreakptExpandWhat::Del {
                 if idx <= 2 {
@@ -4460,7 +4451,6 @@ unsafe fn get_breakadd_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
             } else if idx <= 1 {
                 return OPTS[i + 1].as_ptr().cast_mut();
             }
-        }
     }
     ptr::null_mut()
 }
@@ -4480,7 +4470,7 @@ unsafe fn get_scriptnames_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":retab".
-unsafe fn get_retab_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_retab_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx == 0 {
         c"-indentonly".as_ptr().cast_mut()
     } else {
@@ -4489,7 +4479,7 @@ unsafe fn get_retab_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of ":messages".
-unsafe fn get_messages_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_messages_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx == 0 {
         c"clear".as_ptr().cast_mut()
     } else {
@@ -4497,7 +4487,7 @@ unsafe fn get_messages_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn get_mapclear_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+fn get_mapclear_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx == 0 {
         c"<buffer>".as_ptr().cast_mut()
     } else {

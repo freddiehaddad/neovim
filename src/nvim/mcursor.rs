@@ -108,7 +108,7 @@ struct McSandbox {
 }
 
 impl McSandbox {
-    unsafe fn new() -> Self {
+    fn new() -> Self {
         Self {
             primary: CONTEXT_INIT,
             cursor_mark: 0,
@@ -177,18 +177,18 @@ impl McursorState {
 static MC_STATE: GlobalState<McursorState> = GlobalState::new(McursorState::new());
 
 #[inline]
-unsafe fn mc_st() -> &'static mut McursorState {
+fn mc_st() -> &'static mut McursorState {
     unsafe { &mut *MC_STATE.as_ptr() }
 }
 
 #[inline]
-unsafe fn cursors() -> &'static [Context] {
-    unsafe { &mc_st().mc_cursors }
+fn cursors() -> &'static [Context] {
+    &mc_st().mc_cursors
 }
 
 #[inline]
-unsafe fn cursors_mut() -> &'static mut Vec<Context> {
-    unsafe { &mut mc_st().mc_cursors }
+fn cursors_mut() -> &'static mut Vec<Context> {
+    &mut mc_st().mc_cursors
 }
 
 #[inline]
@@ -926,12 +926,12 @@ pub unsafe fn mc_ins_replaying() -> bool {
     unsafe { mc_replaying() && mc_ins_cascading() }
 }
 
-pub unsafe fn mc_ins_cascading() -> bool {
-    unsafe { mc_st().mc_ins_span.active }
+pub fn mc_ins_cascading() -> bool {
+    mc_st().mc_ins_span.active
 }
 
-pub unsafe fn mc_ins_cascaded(root_frame: u64) -> bool {
-    unsafe { !mc_st().mc_ins_span.first && mc_st().mc_ins_span.frame == root_frame }
+pub fn mc_ins_cascaded(root_frame: u64) -> bool {
+    !mc_st().mc_ins_span.first && mc_st().mc_ins_span.frame == root_frame
 }
 
 pub unsafe fn mc_ins_cascade() {

@@ -146,7 +146,7 @@ mod win_impl {
     }
 
     #[inline]
-    unsafe fn pty_proc_win_tail(ptyproc: &mut PtyProc) -> *mut PtyProc {
+    fn pty_proc_win_tail(ptyproc: &mut PtyProc) -> *mut PtyProc {
         ptyproc
     }
 
@@ -384,7 +384,7 @@ mod win_impl {
         }
     }
 
-    pub unsafe fn pty_proc_tty_name(_ptyproc: &mut PtyProc) -> *const c_char {
+    pub fn pty_proc_tty_name(_ptyproc: &mut PtyProc) -> *const c_char {
         c"?".as_ptr()
     }
 
@@ -397,9 +397,9 @@ mod win_impl {
         }
     }
 
-    pub unsafe fn pty_proc_resume(_ptyproc: &mut PtyProc) {}
+    pub fn pty_proc_resume(_ptyproc: &mut PtyProc) {}
 
-    pub unsafe fn pty_proc_flush_master(_ptyproc: &mut PtyProc) {}
+    pub fn pty_proc_flush_master(_ptyproc: &mut PtyProc) {}
 
     pub unsafe fn pty_proc_close(ptyproc: &mut PtyProc) {
         unsafe {
@@ -423,9 +423,9 @@ mod win_impl {
         }
     }
 
-    pub unsafe fn pty_proc_close_master(_ptyproc: &mut PtyProc) {}
+    pub fn pty_proc_close_master(_ptyproc: &mut PtyProc) {}
 
-    pub unsafe fn pty_proc_teardown(_loop_: &mut Loop) {}
+    pub fn pty_proc_teardown(_loop_: &mut Loop) {}
 
     unsafe extern "C" fn pty_proc_connect_cb(req: *mut uv_connect_t, status: c_int) {
         debug_assert_eq!(status, 0);

@@ -1344,7 +1344,7 @@ impl RegexpState {
 pub(super) static RE_STATE: GlobalState<RegexpState> = GlobalState::new(RegexpState::new());
 
 #[inline]
-pub(super) unsafe fn re_st() -> &'static mut RegexpState {
+pub(super) fn re_st() -> &'static mut RegexpState {
     unsafe { &mut *RE_STATE.as_ptr() }
 }
 
@@ -1398,8 +1398,8 @@ pub(super) unsafe fn UCHARAT(p: *const u8) -> c_int {
 }
 
 #[inline]
-pub(super) unsafe fn REG_MULTI() -> bool {
-    unsafe { re_st().rex.reg_match.is_null() }
+pub(super) fn REG_MULTI() -> bool {
+    re_st().rex.reg_match.is_null()
 }
 
 #[inline]
@@ -1514,64 +1514,48 @@ pub(super) unsafe fn init_class_tab() {
 }
 
 #[inline]
-pub(super) unsafe fn ri_digit(c: c_int) -> bool {
-    unsafe {
-        (0..0x100).contains(&c)
+pub(super) fn ri_digit(c: c_int) -> bool {
+    (0..0x100).contains(&c)
             && (re_st().class_tab[c as usize] & RI_DIGIT) != 0
-    }
 }
 #[inline]
-pub(super) unsafe fn ri_hex(c: c_int) -> bool {
-    unsafe {
-        (0..0x100).contains(&c)
+pub(super) fn ri_hex(c: c_int) -> bool {
+    (0..0x100).contains(&c)
             && (re_st().class_tab[c as usize] & RI_HEX) != 0
-    }
 }
 #[inline]
-pub(super) unsafe fn ri_octal(c: c_int) -> bool {
-    unsafe {
-        (0..0x100).contains(&c)
+pub(super) fn ri_octal(c: c_int) -> bool {
+    (0..0x100).contains(&c)
             && (re_st().class_tab[c as usize] & RI_OCTAL) != 0
-    }
 }
 #[inline]
-pub(super) unsafe fn ri_word(c: c_int) -> bool {
-    unsafe {
-        (0..0x100).contains(&c)
+pub(super) fn ri_word(c: c_int) -> bool {
+    (0..0x100).contains(&c)
             && (re_st().class_tab[c as usize] & RI_WORD) != 0
-    }
 }
 #[inline]
-pub(super) unsafe fn ri_head(c: c_int) -> bool {
-    unsafe {
-        (0..0x100).contains(&c)
+pub(super) fn ri_head(c: c_int) -> bool {
+    (0..0x100).contains(&c)
             && (re_st().class_tab[c as usize] & RI_HEAD) != 0
-    }
 }
 #[inline]
-pub(super) unsafe fn ri_alpha(c: c_int) -> bool {
-    unsafe {
-        (0..0x100).contains(&c)
+pub(super) fn ri_alpha(c: c_int) -> bool {
+    (0..0x100).contains(&c)
             && (re_st().class_tab[c as usize] & RI_ALPHA) != 0
-    }
 }
 #[inline]
-pub(super) unsafe fn ri_lower(c: c_int) -> bool {
-    unsafe {
-        (0..0x100).contains(&c)
+pub(super) fn ri_lower(c: c_int) -> bool {
+    (0..0x100).contains(&c)
             && (re_st().class_tab[c as usize] & RI_LOWER) != 0
-    }
 }
 #[inline]
-pub(super) unsafe fn ri_upper(c: c_int) -> bool {
-    unsafe {
-        (0..0x100).contains(&c)
+pub(super) fn ri_upper(c: c_int) -> bool {
+    (0..0x100).contains(&c)
             && (re_st().class_tab[c as usize] & RI_UPPER) != 0
-    }
 }
 
 /// Return true if compiled regular expression `prog` can match a line break.
-pub unsafe fn re_multiline(prog: &regprog_T) -> c_int {
+pub fn re_multiline(prog: &regprog_T) -> c_int {
     (prog.regflags & RF_HASNL) as c_int
 }
 
@@ -1751,8 +1735,7 @@ pub unsafe fn skip_regexp_ex(
 }
 
 pub(super) unsafe fn initchr(str_: *mut c_char) {
-    unsafe {
-        re_st().regparse = str_;
+    re_st().regparse = str_;
         re_st().prevchr_len = 0;
         re_st().nextchr = -1;
         re_st().prevchr = -1;
@@ -1760,12 +1743,10 @@ pub(super) unsafe fn initchr(str_: *mut c_char) {
         re_st().curchr = -1;
         re_st().at_start = 1;
         re_st().prev_at_start = 0;
-    }
 }
 
-pub(super) unsafe fn save_parse_state(ps: &mut parse_state_T) {
-    unsafe {
-        ps.regparse = re_st().regparse;
+pub(super) fn save_parse_state(ps: &mut parse_state_T) {
+    ps.regparse = re_st().regparse;
         ps.prevchr_len = re_st().prevchr_len;
         ps.curchr = re_st().curchr;
         ps.prevchr = re_st().prevchr;
@@ -1774,12 +1755,10 @@ pub(super) unsafe fn save_parse_state(ps: &mut parse_state_T) {
         ps.at_start = re_st().at_start;
         ps.prev_at_start = re_st().prev_at_start;
         ps.regnpar = re_st().regnpar;
-    }
 }
 
-pub(super) unsafe fn restore_parse_state(ps: &mut parse_state_T) {
-    unsafe {
-        re_st().regparse = ps.regparse;
+pub(super) fn restore_parse_state(ps: &mut parse_state_T) {
+    re_st().regparse = ps.regparse;
         re_st().prevchr_len = ps.prevchr_len;
         re_st().curchr = ps.curchr;
         re_st().prevchr = ps.prevchr;
@@ -1788,7 +1767,6 @@ pub(super) unsafe fn restore_parse_state(ps: &mut parse_state_T) {
         re_st().at_start = ps.at_start;
         re_st().prev_at_start = ps.prev_at_start;
         re_st().regnpar = ps.regnpar;
-    }
 }
 
 pub(super) unsafe fn peekchr() -> c_int {
@@ -2263,9 +2241,8 @@ pub(super) unsafe fn cleanup_subexpr() {
     }
 }
 
-pub(super) unsafe fn cleanup_zsubexpr() {
-    unsafe {
-        if re_st().rex.need_clear_zsubexpr == 0 {
+pub(super) fn cleanup_zsubexpr() {
+    if re_st().rex.need_clear_zsubexpr == 0 {
             return;
         }
         if REG_MULTI() {
@@ -2277,7 +2254,6 @@ pub(super) unsafe fn cleanup_zsubexpr() {
             re_st().reg_endzp = [ptr::null_mut(); NSUBEXP];
         }
         re_st().rex.need_clear_zsubexpr = 0;
-    }
 }
 
 pub(super) unsafe fn reg_nextline() {
@@ -2366,7 +2342,7 @@ pub(super) unsafe fn re_mult_next(what: *const c_char) -> bool {
     }
 }
 
-unsafe fn mb_decompose(c: c_int, c1: &mut c_int, c2: &mut c_int, c3: &mut c_int) {
+fn mb_decompose(c: c_int, c1: &mut c_int, c2: &mut c_int, c3: &mut c_int) {
     if (0xfb20..=0xfb4f).contains(&c) {
             let d = DECOMP_TABLE[(c - 0xfb20) as usize];
             *c1 = d.a;
@@ -3377,8 +3353,8 @@ pub(super) unsafe fn coll_get_char() -> c_int {
     }
 }
 
-pub unsafe fn vim_regcomp_had_eol() -> c_int {
-    unsafe { re_st().had_eol }
+pub fn vim_regcomp_had_eol() -> c_int {
+    re_st().had_eol
 }
 
 /// Compile a regular expression into internal code.

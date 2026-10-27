@@ -271,7 +271,7 @@ mod unix_impl {
     }
 
     #[inline]
-    unsafe fn pty_proc_unix_tail(ptyproc: &mut PtyProc) -> *mut PtyProc {
+    fn pty_proc_unix_tail(ptyproc: &mut PtyProc) -> *mut PtyProc {
         ptyproc
     }
 
@@ -435,7 +435,7 @@ mod unix_impl {
         }
     }
 
-    pub unsafe fn pty_proc_resume(ptyproc: &mut PtyProc) {
+    pub fn pty_proc_resume(ptyproc: &mut PtyProc) {
         unsafe {
             killpg(ptyproc.pid, SIGCONT);
         }

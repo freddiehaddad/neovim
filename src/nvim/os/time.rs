@@ -41,7 +41,7 @@ static OSTIME_STATE: crate::globals::GlobalState<OsTimeState> = crate::globals::
 
 #[cfg(unix)]
 #[inline]
-unsafe fn ostime_st() -> &'static mut OsTimeState {
+fn ostime_st() -> &'static mut OsTimeState {
     unsafe { &mut *OSTIME_STATE.as_ptr() }
 }
 

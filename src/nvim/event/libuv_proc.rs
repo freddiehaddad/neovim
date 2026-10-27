@@ -112,7 +112,7 @@ impl LibuvProc {
 use crate::event::r#loop::{uv_pipe, uv_process_get_pid, uv_spawn};
 
 #[inline]
-pub unsafe fn proc_get_exepath(proc_: &mut Proc) -> *const c_char {
+pub fn proc_get_exepath(proc_: &mut Proc) -> *const c_char {
     proc_
             .exepath
             .as_ref()

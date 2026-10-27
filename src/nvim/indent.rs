@@ -120,7 +120,7 @@ impl IndentModuleState {
 static INDENT_STATE: GlobalState<IndentModuleState> = GlobalState::new(IndentModuleState::new());
 
 #[inline]
-unsafe fn ind_st() -> &'static mut IndentModuleState {
+fn ind_st() -> &'static mut IndentModuleState {
     unsafe { &mut *INDENT_STATE.as_ptr() }
 }
 

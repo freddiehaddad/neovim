@@ -433,7 +433,7 @@ fn vterm_rect_move(rect: &mut VTermRect, row_delta: c_int, col_delta: c_int) {
     rect.end_col += col_delta;
 }
 
-pub unsafe fn getcell(screen: &VTermScreen, row: c_int, col: c_int) -> *mut ScreenCell {
+pub fn getcell(screen: &VTermScreen, row: c_int, col: c_int) -> *mut ScreenCell {
     if row < 0 || row >= screen.rows || col < 0 || col >= screen.cols {
             return ptr::null_mut();
         }
@@ -441,7 +441,7 @@ pub unsafe fn getcell(screen: &VTermScreen, row: c_int, col: c_int) -> *mut Scre
         (&raw const screen.buffers[screen.bufidx][idx]).cast_mut()
 }
 
-unsafe fn alloc_buffer(screen: &mut VTermScreen, rows: c_int, cols: c_int) -> Vec<ScreenCell> {
+fn alloc_buffer(screen: &mut VTermScreen, rows: c_int, cols: c_int) -> Vec<ScreenCell> {
     let count = (rows as usize) * (cols as usize);
         let mut new_buffer = vec![ScreenCell::default(); count];
 
@@ -1459,7 +1459,7 @@ pub unsafe fn vterm_obtain_screen(vt: &mut VTerm) -> &'static mut VTermScreen {
     }
 }
 
-pub unsafe fn vterm_screen_enable_reflow(screen: &mut VTermScreen, reflow: bool) {
+pub fn vterm_screen_enable_reflow(screen: &mut VTermScreen, reflow: bool) {
     screen.set_reflow(reflow);
 }
 
@@ -1539,7 +1539,7 @@ pub unsafe fn vterm_screen_convert_color_to_rgb(screen: &VTermScreen, col: &mut 
     }
 }
 
-pub unsafe fn rect_expand(dst: &mut VTermRect, src: &VTermRect) {
+pub fn rect_expand(dst: &mut VTermRect, src: &VTermRect) {
     if dst.start_row > src.start_row {
             dst.start_row = src.start_row;
         }
@@ -1554,7 +1554,7 @@ pub unsafe fn rect_expand(dst: &mut VTermRect, src: &VTermRect) {
         }
 }
 
-pub unsafe fn rect_clip(dst: &mut VTermRect, bounds: &mut VTermRect) {
+pub fn rect_clip(dst: &mut VTermRect, bounds: &mut VTermRect) {
     if dst.start_row < bounds.start_row {
             dst.start_row = bounds.start_row;
         }
@@ -1575,7 +1575,7 @@ pub unsafe fn rect_clip(dst: &mut VTermRect, bounds: &mut VTermRect) {
         }
 }
 
-pub unsafe fn rect_equal(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
+pub fn rect_equal(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
     c_int::from(
             a.start_row == b.start_row
                 && a.start_col == b.start_col
@@ -1584,7 +1584,7 @@ pub unsafe fn rect_equal(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
         )
 }
 
-pub unsafe fn rect_contains(big: &mut VTermRect, small: &mut VTermRect) -> c_int {
+pub fn rect_contains(big: &mut VTermRect, small: &mut VTermRect) -> c_int {
     if small.start_row < big.start_row
             || small.start_col < big.start_col
             || small.end_row > big.end_row
@@ -1596,7 +1596,7 @@ pub unsafe fn rect_contains(big: &mut VTermRect, small: &mut VTermRect) -> c_int
         }
 }
 
-pub unsafe fn rect_intersects(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
+pub fn rect_intersects(a: &mut VTermRect, b: &mut VTermRect) -> c_int {
     if a.start_row > b.end_row
             || b.start_row > a.end_row
             || a.start_col > b.end_col
@@ -1626,8 +1626,7 @@ mod tests {
             start_col: 6,
             end_col: 10,
         };
-        unsafe {
-            assert_eq!(rect_intersects(&mut r1, &mut r2), 1);
+        assert_eq!(rect_intersects(&mut r1, &mut r2), 1);
             assert_eq!(rect_equal(&mut r1, &mut r2), 0);
             rect_expand(&mut r1, &r2);
             assert_eq!(
@@ -1635,6 +1634,5 @@ mod tests {
                 (1, 5, 3, 10)
             );
             assert_eq!(rect_contains(&mut r1, &mut r2), 1);
-        }
     }
 }

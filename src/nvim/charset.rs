@@ -185,7 +185,7 @@ impl CharsetModuleState {
 static CHARSET_STATE: crate::globals::GlobalState<CharsetModuleState> = crate::globals::GlobalState::new(CharsetModuleState::new());
 
 #[inline]
-unsafe fn charset_st() -> &'static mut CharsetModuleState {
+fn charset_st() -> &'static mut CharsetModuleState {
     unsafe { &mut *CHARSET_STATE.as_ptr() }
 }
 
@@ -224,11 +224,11 @@ const fn ascii_isodigit(c: c_int) -> bool {
 }
 
 #[inline]
-pub unsafe fn ascii2cells(b: c_int) -> c_int {
+pub fn ascii2cells(b: c_int) -> c_int {
     if (b' ' as c_int..=b'~' as c_int).contains(&b) {
         1
     } else {
-        unsafe { opt_vars().dy_escape_width }
+        opt_vars().dy_escape_width
     }
 }
 
@@ -785,13 +785,11 @@ pub unsafe fn vim_isfilec_or_wc(c: c_int) -> bool {
     }
 }
 
-pub unsafe fn vim_isprintc(c: c_int) -> bool {
-    unsafe {
-        if c >= 0x100 {
+pub fn vim_isprintc(c: c_int) -> bool {
+    if c >= 0x100 {
             return utf_printable(c);
         }
         c > 0 && (c & 0x60) != 0 && c != 0x7f
-    }
 }
 
 pub unsafe fn skipwhite(mut p: *const c_char) -> *mut c_char {

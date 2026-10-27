@@ -57,7 +57,7 @@ impl ProfileModuleState {
 static PROF_STATE: GlobalState<ProfileModuleState> = GlobalState::new(ProfileModuleState::new());
 
 #[inline]
-unsafe fn prof_st() -> &'static mut ProfileModuleState {
+fn prof_st() -> &'static mut ProfileModuleState {
     unsafe { &mut *PROF_STATE.as_ptr() }
 }
 
@@ -289,14 +289,12 @@ pub const fn profile_self(
 
 #[inline]
 fn profile_get_wait() -> proftime_T {
-    unsafe { prof_st().PROF_WAIT_TIME }
+    prof_st().PROF_WAIT_TIME
 }
 
 /// Sets the current waittime (`profile_set_wait`).
 pub fn profile_set_wait(wait: proftime_T) {
-    unsafe {
-        prof_st().PROF_WAIT_TIME = wait;
-    }
+    prof_st().PROF_WAIT_TIME = wait;
 }
 
 /// Subtracts the passed waittime since `tm` (`profile_sub_wait`).
@@ -423,8 +421,8 @@ pub unsafe fn ex_profile(eap: &mut exarg_T) {
 }
 
 /// Command-line completion item getter for `:profile` (`get_profile_name`).
-pub unsafe fn get_profile_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
-    if unsafe { prof_st().PEXPAND_WHAT } == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
+pub fn get_profile_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+    if prof_st().PEXPAND_WHAT == PEXP_SUBCMD && idx >= 0 && (idx as usize) < PEXPAND_CMDS.len() {
         PEXPAND_CMDS[idx as usize].as_ptr().cast_mut()
     } else {
         std::ptr::null_mut()
@@ -434,9 +432,7 @@ pub unsafe fn get_profile_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
 pub unsafe fn set_context_in_profile_cmd(xp: &mut expand_T, arg: *const c_char) {
     xp.xp_context = EXPAND_PROFILE;
-    unsafe {
-        prof_st().PEXPAND_WHAT = PEXP_SUBCMD;
-    }
+    prof_st().PEXPAND_WHAT = PEXP_SUBCMD;
     xp.xp_pattern = arg.cast_mut();
 
     let end_subcmd = unsafe { skiptowhite(arg) };
@@ -459,17 +455,13 @@ pub unsafe fn set_context_in_profile_cmd(xp: &mut expand_T, arg: *const c_char) 
 
 /// Called when starting to wait for user input (`prof_input_start`).
 pub fn prof_input_start() {
-    unsafe {
-        prof_st().WAIT_TIME = profile_start();
-    }
+    prof_st().WAIT_TIME = profile_start();
 }
 
 /// Called when finished waiting for user input (`prof_input_end`).
 pub fn prof_input_end() {
-    let elapsed = profile_end(unsafe { prof_st().WAIT_TIME });
-    unsafe {
-        prof_st().WAIT_TIME = elapsed;
-    }
+    let elapsed = profile_end(prof_st().WAIT_TIME);
+    prof_st().WAIT_TIME = elapsed;
     profile_set_wait(profile_add(profile_get_wait(), elapsed));
 }
 
@@ -948,9 +940,7 @@ pub unsafe fn time_push(rel: *mut proftime_T, start: *mut proftime_T) {
 
 /// Computes the prev time after doing something that could nest (`time_pop`).
 pub fn time_pop(tp: proftime_T) {
-    unsafe {
-        prof_st().G_PREV_TIME = prof_st().G_PREV_TIME.wrapping_sub(tp);
-    }
+    prof_st().G_PREV_TIME = prof_st().G_PREV_TIME.wrapping_sub(tp);
 }
 
 unsafe fn time_diff(then: proftime_T, now: proftime_T) {

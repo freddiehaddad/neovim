@@ -510,7 +510,7 @@ const KEYCODES_KP_CSIU: [KeycodeEntry; 18] = [
 ];
 
 #[inline]
-unsafe fn vterm_state_get_key_encoding_disambiguate(state: &VTermStateFull) -> bool {
+fn vterm_state_get_key_encoding_disambiguate(state: &VTermStateFull) -> bool {
     let screen = if (state.mode & MODE_ALT_SCREEN_BIT) != 0 {
             BUFIDX_ALTSCREEN
         } else {

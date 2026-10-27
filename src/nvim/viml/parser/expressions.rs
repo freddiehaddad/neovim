@@ -1275,7 +1275,7 @@ fn scale_number(
 }
 
 #[inline]
-unsafe fn get_ccs(ret: &mut LexExprToken, bytes: &[u8]) {
+fn get_ccs(ret: &mut LexExprToken, bytes: &[u8]) {
     if ret.len < bytes.len() && (bytes[ret.len] == b'?' || bytes[ret.len] == b'#') {
         if ret.r#type == kExprLexComparison {
             ret.data.cmp_mut().ccs = c_int::from(bytes[ret.len]);
@@ -4215,7 +4215,7 @@ mod tests {
     use super::*;
     use crate::viml::parser::parser::{ParserHighlight, ParserInputReader};
 
-    unsafe fn with_pstate<R>(input: &[u8], f: impl FnOnce(&mut ParserState<'_>) -> R) -> R {
+    fn with_pstate<R>(input: &[u8], f: impl FnOnce(&mut ParserState<'_>) -> R) -> R {
         let lines = [
             ParserLine {
                 data: input.as_ptr().cast::<c_char>(),

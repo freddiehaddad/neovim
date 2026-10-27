@@ -213,7 +213,7 @@ pub struct TUIData {
 impl TUIData {
     pub fn new() -> Self {
         Self {
-            loop_: unsafe { (&raw mut g_st().main_loop).cast::<Loop>() },
+            loop_: (&raw mut g_st().main_loop).cast::<Loop>(),
             buf: [0; OUTBUF_SIZE],
             bufpos: 0,
             input: TermInput::new(),
@@ -312,7 +312,7 @@ impl TuiModuleState {
 static TUI_MOD_STATE: GlobalState<TuiModuleState> = GlobalState::new(TuiModuleState::new());
 
 #[inline]
-unsafe fn tui_st() -> &'static mut TuiModuleState {
+fn tui_st() -> &'static mut TuiModuleState {
     unsafe { &mut *TUI_MOD_STATE.as_ptr() }
 }
 
@@ -2380,7 +2380,7 @@ pub unsafe fn tui_set_title(tui: &mut TUIData, title: NvimString) {
     }
 }
 
-pub unsafe fn tui_set_icon(_tui: &mut TUIData, _icon: NvimString) {}
+pub fn tui_set_icon(_tui: &mut TUIData, _icon: NvimString) {}
 
 pub unsafe fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
     unsafe {

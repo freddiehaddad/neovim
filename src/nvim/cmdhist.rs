@@ -56,7 +56,7 @@ impl CmdhistState {
 static HIST_STATE: crate::globals::GlobalState<CmdhistState> = crate::globals::GlobalState::new(CmdhistState::new());
 
 #[inline]
-unsafe fn hist_st() -> &'static mut CmdhistState {
+fn hist_st() -> &'static mut CmdhistState {
     unsafe { &mut *HIST_STATE.as_ptr() }
 }
 
@@ -122,7 +122,7 @@ unsafe fn hist_free_entry(hisptr: *mut histentry_T) {
 
 /// Return the length of the history tables (`get_hislen`).
 pub fn get_hislen() -> c_int {
-    unsafe { hist_st().HISLEN }
+    hist_st().HISLEN
 }
 
 /// Return a slice of a specified history table (`get_histentry`).
@@ -136,8 +136,8 @@ pub unsafe fn get_histentry(hist_type: c_int) -> &'static [histentry_T] {
 }
 
 /// Return the current index for `hist_type` (`get_hisidx`).
-pub unsafe fn get_hisidx(hist_type: c_int) -> c_int {
-    unsafe { hist_st().HISIDX[hist_type as usize] }
+pub fn get_hisidx(hist_type: c_int) -> c_int {
+    hist_st().HISIDX[hist_type as usize]
 }
 
 /// Translate a history character to the associated `HistoryType` (`hist_char2type`).
@@ -153,7 +153,7 @@ pub const fn hist_char2type(c: c_int) -> c_int {
 }
 
 /// Obtain possible first arguments of `:history` for completion (`get_history_arg`).
-pub unsafe fn get_history_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_history_arg(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx >= 0 && (idx as usize) < HISTORY_EXPAND_ARGS.len() {
         HISTORY_EXPAND_ARGS[idx as usize].as_ptr().cast_mut()
     } else {
@@ -305,7 +305,7 @@ pub unsafe fn add_to_history(
     in_map: bool,
     sep: c_int,
 ) {
-    let hislen = unsafe { hist_st().HISLEN };
+    let hislen = hist_st().HISLEN;
     if hislen == 0 || histype == HIST_INVALID {
         return;
     }
@@ -358,29 +358,29 @@ pub unsafe fn add_to_history(
     }
 }
 
-unsafe fn get_history_idx(histype: c_int) -> c_int {
-    let hislen = unsafe { hist_st().HISLEN };
+fn get_history_idx(histype: c_int) -> c_int {
+    let hislen = hist_st().HISLEN;
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT {
         return -1;
     }
-    let idx = unsafe { hist_st().HISIDX[histype as usize] };
+    let idx = hist_st().HISIDX[histype as usize];
     if idx < 0 {
         return -1;
     }
-    unsafe { hist_st().HISTORY[histype as usize][idx as usize].hisnum }
+    hist_st().HISTORY[histype as usize][idx as usize].hisnum
 }
 
-unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
-    let hislen = unsafe { hist_st().HISLEN };
+fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
+    let hislen = hist_st().HISLEN;
     if hislen == 0 || histype < 0 || (histype as usize) >= HIST_COUNT || num == 0 {
         return -1;
     }
-    let mut i = unsafe { hist_st().HISIDX[histype as usize] };
+    let mut i = hist_st().HISIDX[histype as usize];
     if i < 0 {
         return -1;
     }
 
-    let hist = unsafe { hist_st().HISTORY[histype as usize].as_slice() };
+    let hist = hist_st().HISTORY[histype as usize].as_slice();
     if num > 0 {
         let mut wrapped = false;
         while hist[i as usize].hisnum > num {
@@ -410,7 +410,7 @@ unsafe fn calc_hist_idx(histype: c_int, num: c_int) -> c_int {
 
 /// Clear all entries in a history (`clr_history`).
 pub unsafe fn clr_history(histype: c_int) -> c_int {
-    let hislen = unsafe { hist_st().HISLEN };
+    let hislen = hist_st().HISLEN;
     if hislen != 0 && histype >= 0 && (histype as usize) < HIST_COUNT {
         let htype = histype as usize;
         unsafe {

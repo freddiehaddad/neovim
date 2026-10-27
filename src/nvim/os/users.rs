@@ -33,7 +33,7 @@ impl OsUsersState {
 static USERS_STATE: crate::globals::GlobalState<OsUsersState> = crate::globals::GlobalState::new(OsUsersState::new());
 
 #[inline]
-unsafe fn users_st() -> &'static mut OsUsersState {
+fn users_st() -> &'static mut OsUsersState {
     unsafe { &mut *USERS_STATE.as_ptr() }
 }
 
@@ -251,10 +251,8 @@ pub unsafe fn os_get_userdir(name: *const c_char) -> Option<CString> {
 ///
 /// # Safety
 /// Must only be called during exit cleanup.
-pub unsafe fn free_users() {
-    unsafe {
-        users_st().USERS = Vec::new();
-    }
+pub fn free_users() {
+    users_st().USERS = Vec::new();
 }
 
 unsafe fn init_users() {

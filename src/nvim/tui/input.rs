@@ -133,7 +133,7 @@ impl TuiInputModuleState {
 static TUI_INP_STATE: crate::globals::GlobalState<TuiInputModuleState> = crate::globals::GlobalState::new(TuiInputModuleState::new());
 
 #[inline]
-unsafe fn tui_inp_st() -> &'static mut TuiInputModuleState {
+fn tui_inp_st() -> &'static mut TuiInputModuleState {
     unsafe { &mut *TUI_INP_STATE.as_ptr() }
 }
 

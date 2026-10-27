@@ -646,7 +646,7 @@ pub unsafe fn set_topline(wp: *mut win_T, mut lnum: linenr_T) {
 }
 
 /// Saves the view of `wp`, for `restore_viewstate()`.
-pub unsafe fn save_viewstate(wp: &mut win_T, vs: &mut viewstate_T) {
+pub fn save_viewstate(wp: &mut win_T, vs: &mut viewstate_T) {
     vs.vs_curswant = wp.w_curswant;
         vs.vs_set_curswant = wp.w_set_curswant;
         vs.vs_leftcol = wp.w_leftcol;
@@ -658,7 +658,7 @@ pub unsafe fn save_viewstate(wp: &mut win_T, vs: &mut viewstate_T) {
 }
 
 /// Restores the view saved by `save_viewstate()`. No validation.
-pub unsafe fn restore_viewstate(wp: &mut win_T, vs: &viewstate_T) {
+pub fn restore_viewstate(wp: &mut win_T, vs: &viewstate_T) {
     wp.w_curswant = vs.vs_curswant;
         wp.w_set_curswant = vs.vs_set_curswant;
         wp.w_leftcol = vs.vs_leftcol;
@@ -671,7 +671,7 @@ pub unsafe fn restore_viewstate(wp: &mut win_T, vs: &viewstate_T) {
 
 /// Call this function when the length of the cursor line (in screen
 /// characters) has changed, and the change is before the cursor.
-pub unsafe fn changed_cline_bef_curs(wp: &mut win_T) {
+pub fn changed_cline_bef_curs(wp: &mut win_T) {
     wp.w_valid &=
             !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL | VALID_CROW | VALID_CHEIGHT | VALID_TOPLINE);
 }
@@ -707,7 +707,7 @@ pub unsafe fn invalidate_botline_win(wp: *mut win_T) {
     }
 }
 
-pub unsafe fn approximate_botline_win(wp: &mut win_T) {
+pub fn approximate_botline_win(wp: &mut win_T) {
     wp.w_valid &= !VALID_BOTLINE;
 }
 
@@ -2670,7 +2670,7 @@ impl MoveCursorbindState {
 static MOVE_CB_STATE: GlobalState<MoveCursorbindState> = GlobalState::new(MoveCursorbindState::new());
 
 #[inline]
-unsafe fn move_cb_st() -> &'static mut MoveCursorbindState {
+fn move_cb_st() -> &'static mut MoveCursorbindState {
     unsafe { &mut *MOVE_CB_STATE.as_ptr() }
 }
 

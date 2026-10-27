@@ -91,23 +91,21 @@ impl OsInputState {
 static OSI_STATE: GlobalState<OsInputState> = GlobalState::new(OsInputState::new());
 
 #[inline]
-unsafe fn osi_st() -> &'static mut OsInputState {
+fn osi_st() -> &'static mut OsInputState {
     unsafe { &mut *OSI_STATE.as_ptr() }
 }
 
 #[inline]
-unsafe fn input_buf_ptr() -> *mut c_char {
-    unsafe { (&raw mut osi_st().input_buffer).cast::<c_char>() }
+fn input_buf_ptr() -> *mut c_char {
+    (&raw mut osi_st().input_buffer).cast::<c_char>()
 }
 
 #[inline]
-unsafe fn ensure_input_ptrs_init() {
-    unsafe {
-        if osi_st().input_read_pos.is_null() {
+fn ensure_input_ptrs_init() {
+    if osi_st().input_read_pos.is_null() {
             osi_st().input_read_pos = input_buf_ptr();
             osi_st().input_write_pos = input_buf_ptr();
         }
-    }
 }
 
 unsafe fn parse_mouse_coords(s: *const c_char) -> Option<(c_int, c_int, usize)> {
@@ -180,11 +178,9 @@ unsafe fn create_cursorhold_event(events_enabled: bool) {
     }
 }
 
-unsafe fn reset_cursorhold_wait(tb_change_cnt: c_int) {
-    unsafe {
-        osi_st().cursorhold_time = 0;
+fn reset_cursorhold_wait(tb_change_cnt: c_int) {
+    osi_st().cursorhold_time = 0;
         osi_st().cursorhold_tb_change_cnt = tb_change_cnt;
-    }
 }
 
 /// Reads OS input into `buf`, and consumes pending events while waiting (if `ms != 0`).
@@ -345,11 +341,9 @@ pub unsafe fn os_isatty(fd: c_int) -> bool {
     unsafe { uv_guess_handle(fd) == UV_TTY }
 }
 
-pub unsafe fn input_available() -> usize {
-    unsafe {
-        ensure_input_ptrs_init();
+pub fn input_available() -> usize {
+    ensure_input_ptrs_init();
         (osi_st().input_write_pos as usize).wrapping_sub(osi_st().input_read_pos as usize)
-    }
 }
 
 unsafe fn input_space() -> usize {
@@ -617,8 +611,8 @@ pub unsafe fn input_enqueue_mouse(
 }
 
 /// @return true if the main loop is blocked and waiting for input.
-pub unsafe fn input_blocking() -> bool {
-    unsafe { osi_st().blocking }
+pub fn input_blocking() -> bool {
+    osi_st().blocking
 }
 
 /// Checks for (but does not read) available input, and consumes `main_loop.events` while waiting.

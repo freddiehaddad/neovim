@@ -489,57 +489,57 @@ unsafe extern "C" {
 }
 
 #[inline]
-pub unsafe fn loop_queues(loop_: &mut Loop) -> *mut Loop {
+pub fn loop_queues(loop_: &mut Loop) -> *mut Loop {
     loop_
 }
 
 #[inline]
-pub unsafe fn main_loop_ptr() -> *mut Loop {
-    unsafe { &raw mut crate::globals::g_st().main_loop }
+pub fn main_loop_ptr() -> *mut Loop {
+    &raw mut crate::globals::g_st().main_loop
 }
 
 #[inline]
-pub unsafe fn main_loop_events() -> *mut MultiQueue {
-    unsafe { crate::globals::g_st().main_loop.events }
+pub fn main_loop_events() -> *mut MultiQueue {
+    crate::globals::g_st().main_loop.events
 }
 
 #[inline]
-pub unsafe fn loop_children_watcher(loop_: &mut Loop) -> *mut uv_signal_t {
+pub fn loop_children_watcher(loop_: &mut Loop) -> *mut uv_signal_t {
     (&raw mut loop_.children_watcher).cast()
 }
 
 #[inline]
-pub unsafe fn loop_children_kill_timer(loop_: &mut Loop) -> *mut uv_timer_t {
+pub fn loop_children_kill_timer(loop_: &mut Loop) -> *mut uv_timer_t {
     (&raw mut loop_.children_kill_timer).cast()
 }
 
 #[inline]
-pub unsafe fn loop_poll_timer(loop_: &mut Loop) -> *mut uv_timer_t {
+pub fn loop_poll_timer(loop_: &mut Loop) -> *mut uv_timer_t {
     (&raw mut loop_.poll_timer).cast()
 }
 
 #[inline]
-pub unsafe fn loop_exit_delay_timer(loop_: &mut Loop) -> *mut uv_timer_t {
+pub fn loop_exit_delay_timer(loop_: &mut Loop) -> *mut uv_timer_t {
     (&raw mut loop_.exit_delay_timer).cast()
 }
 
 #[inline]
-pub unsafe fn loop_async(loop_: &mut Loop) -> *mut uv_async_t {
+pub fn loop_async(loop_: &mut Loop) -> *mut uv_async_t {
     (&raw mut loop_.async_).cast()
 }
 
 #[inline]
-pub unsafe fn loop_mutex(loop_: &mut Loop) -> *mut uv_mutex_t {
+pub fn loop_mutex(loop_: &mut Loop) -> *mut uv_mutex_t {
     (&raw mut loop_.mutex).cast()
 }
 
 #[inline]
-pub unsafe fn loop_recursive_ptr(loop_: &mut Loop) -> *mut c_int {
+pub fn loop_recursive_ptr(loop_: &mut Loop) -> *mut c_int {
     &raw mut loop_.recursive
 }
 
 #[inline]
-pub unsafe fn loop_closing_ptr(loop_: &mut Loop) -> *mut bool {
+pub fn loop_closing_ptr(loop_: &mut Loop) -> *mut bool {
     &raw mut loop_.closing
 }
 

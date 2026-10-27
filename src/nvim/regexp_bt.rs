@@ -144,7 +144,7 @@ impl RegexpBtState {
 static BT_STATE: GlobalState<RegexpBtState> = GlobalState::new(RegexpBtState::new());
 
 #[inline]
-unsafe fn bt_st() -> &'static mut RegexpBtState {
+fn bt_st() -> &'static mut RegexpBtState {
     unsafe { &mut *BT_STATE.as_ptr() }
 }
 

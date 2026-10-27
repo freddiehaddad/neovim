@@ -220,7 +220,7 @@ impl SpellPrivateState {
 static SPELL_PRIV_STATE: crate::globals::GlobalState<SpellPrivateState> = crate::globals::GlobalState::new(SpellPrivateState::new());
 
 #[inline]
-pub(crate) unsafe fn spell_priv_st() -> &'static mut SpellPrivateState {
+pub(crate) fn spell_priv_st() -> &'static mut SpellPrivateState {
     unsafe { &mut *SPELL_PRIV_STATE.as_ptr() }
 }
 #[inline]
@@ -236,16 +236,14 @@ pub unsafe fn spell_isupper(c: c_int) -> bool {
     }
 }
 #[inline]
-pub unsafe fn spell_tofold(c: c_int) -> c_int {
-    unsafe {
-        if c >= 128 {
+pub fn spell_tofold(c: c_int) -> c_int {
+    if c >= 128 {
             utf_fold(c)
         } else if c >= 0 {
             spell_priv_st().spelltab.st_fold[c as usize] as c_int
         } else {
             c
         }
-    }
 }
 #[inline]
 pub unsafe fn spell_toupper(c: c_int) -> c_int {
@@ -1063,7 +1061,7 @@ unsafe fn fold_more(mip: &mut matchinf_T) -> c_int {
         flen
     }
 }
-pub unsafe fn spell_valid_case(wordflags: c_int, treeflags: c_int) -> bool {
+pub fn spell_valid_case(wordflags: c_int, treeflags: c_int) -> bool {
     (wordflags == WF_ALLCAP && (treeflags & WF_FIXCAP) == 0)
         || ((treeflags & (WF_ALLCAP | WF_KEEPCAP)) == 0
             && ((treeflags & WF_ONECAP) == 0 || (wordflags & WF_ONECAP) != 0))
@@ -2079,7 +2077,7 @@ pub unsafe fn close_spellbuf(buf: &mut Option<Box<buf_T>>) {
         }
     }
 }
-pub unsafe fn clear_spell_chartab(sp: &mut spelltab_T) {
+pub fn clear_spell_chartab(sp: &mut spelltab_T) {
     sp.st_isw = [false; 256];
         sp.st_isu = [false; 256];
         for i in 0..256 {

@@ -64,7 +64,7 @@ impl RStream {
 use crate::event::r#loop::{uv_fs_read, uv_idle_start, uv_idle_stop, uv_read_start, uv_read_stop};
 
 #[inline]
-unsafe fn rstream_space(stream: &mut RStream) -> usize {
+fn rstream_space(stream: &mut RStream) -> usize {
     stream.buffer.len().saturating_sub(stream.write_pos)
 }
 
@@ -75,7 +75,7 @@ pub unsafe fn rstream_init_fd(loop_: *mut Loop, stream: *mut RStream, fd: c_int)
     }
 }
 
-pub unsafe fn rstream_init(stream: &mut RStream) {
+pub fn rstream_init(stream: &mut RStream) {
     stream.num_bytes = 0;
         stream.buffer = vec![0; ARENA_BLOCK_SIZE];
         stream.read_pos = 0;
@@ -220,7 +220,7 @@ pub unsafe fn read_event(stream: &mut RStream) {
     }
 }
 
-pub unsafe fn rstream_available(stream: &mut RStream) -> usize {
+pub fn rstream_available(stream: &mut RStream) -> usize {
     stream.write_pos.saturating_sub(stream.read_pos)
 }
 

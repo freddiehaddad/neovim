@@ -447,7 +447,7 @@ impl ExGetlnState {
 static GETLN_STATE: GlobalState<ExGetlnState> = GlobalState::new(ExGetlnState::new());
 
 #[inline]
-unsafe fn getln_st() -> &'static mut ExGetlnState {
+fn getln_st() -> &'static mut ExGetlnState {
     unsafe { &mut *GETLN_STATE.as_ptr() }
 }
 
@@ -1013,14 +1013,12 @@ unsafe fn init_ccline(firstc: c_int, indent: c_int) {
     }
 }
 
-unsafe fn ui_ext_cmdline_hide(abort: bool) {
-    unsafe {
-        if ui_has(kUICmdline) {
+fn ui_ext_cmdline_hide(abort: bool) {
+    if ui_has(kUICmdline) {
             g_st().cmdline_was_last_drawn = false;
             getln_st().ccline.redraw_state = kCmdRedrawNone;
             ui_call_cmdline_hide(getln_st().ccline.level as Integer, abort);
         }
-    }
 }
 
 /// Internal entry point for cmdline mode.
@@ -2931,12 +2929,12 @@ unsafe fn empty_pattern_magic(p: *mut c_char, mut len: usize, magic_val: magic_T
     }
 }
 
-pub unsafe fn cmdpreview_get_bufnr() -> handle_T {
-    unsafe { getln_st().cmdpreview_bufnr }
+pub fn cmdpreview_get_bufnr() -> handle_T {
+    getln_st().cmdpreview_bufnr
 }
 
-pub unsafe fn cmdpreview_get_ns() -> c_int {
-    unsafe { getln_st().cmdpreview_ns }
+pub fn cmdpreview_get_ns() -> c_int {
+    getln_st().cmdpreview_ns
 }
 
 /// Sets up command preview buffer.
@@ -3497,7 +3495,7 @@ pub unsafe fn text_locked_msg() {
     }
 }
 
-pub unsafe fn get_text_locked_msg() -> *const c_char {
+pub fn get_text_locked_msg() -> *const c_char {
     e_textlock.as_ptr()
 }
 
@@ -3546,15 +3544,13 @@ unsafe fn cmdline_charsize(idx: c_int) -> c_int {
 
 /// Compute the offset of the cursor on the command line for the prompt and
 /// indent.
-unsafe fn cmd_startcol() -> c_int {
-    unsafe {
-        getln_st().ccline.cmdindent
+fn cmd_startcol() -> c_int {
+    getln_st().ccline.cmdindent
             + if getln_st().ccline.cmdfirstc != NUL as c_int {
                 1
             } else {
                 0
             }
-    }
 }
 
 /// Compute the column position for a byte position on the command line.
@@ -3615,13 +3611,13 @@ pub unsafe fn getexline(c: c_int, indent: c_int, do_concat: bool) -> Option<std:
     }
 }
 
-pub unsafe fn cmdline_overstrike() -> bool {
-    unsafe { getln_st().ccline.overstrike != 0 }
+pub fn cmdline_overstrike() -> bool {
+    getln_st().ccline.overstrike != 0
 }
 
 /// Return true if the cursor is at the end of the cmdline.
-pub unsafe fn cmdline_at_end() -> bool {
-    unsafe { getln_st().ccline.cmdpos >= getln_st().ccline.cmdlen }
+pub fn cmdline_at_end() -> bool {
+    getln_st().ccline.cmdpos >= getln_st().ccline.cmdlen
 }
 
 /// Deallocate a command line buffer, updating the buffer size and length.
@@ -4742,12 +4738,12 @@ pub unsafe fn tilde_replace(orig_pat: *mut c_char, files: &mut [std::ffi::CStrin
 }
 
 /// Get a pointer to the current command line info.
-pub unsafe fn get_cmdline_info() -> *mut CmdlineInfo {
-    unsafe { &raw mut getln_st().ccline }
+pub fn get_cmdline_info() -> *mut CmdlineInfo {
+    &raw mut getln_st().ccline
 }
 
-pub unsafe fn get_cmdline_last_prompt_id() -> c_uint {
-    unsafe { getln_st().last_prompt_id }
+pub fn get_cmdline_last_prompt_id() -> c_uint {
+    getln_st().last_prompt_id
 }
 
 /// Get pointer to the command line info to use.
@@ -5039,8 +5035,8 @@ pub unsafe fn f_setcmdpos(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 }
 
 /// Return the first character of the current command line.
-pub unsafe fn get_cmdline_firstc() -> c_int {
-    unsafe { getln_st().ccline.cmdfirstc }
+pub fn get_cmdline_firstc() -> c_int {
+    getln_st().ccline.cmdfirstc
 }
 
 /// Get indices that specify a range within a list from a string.

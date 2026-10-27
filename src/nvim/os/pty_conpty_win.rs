@@ -176,7 +176,7 @@ static CONPTY_STATE: crate::globals::GlobalState<ConptyModuleState> = crate::glo
 
 #[cfg(windows)]
 #[inline]
-unsafe fn conpty_st() -> &'static mut ConptyModuleState {
+fn conpty_st() -> &'static mut ConptyModuleState {
     unsafe { &mut *CONPTY_STATE.as_ptr() }
 }
 

@@ -56,7 +56,7 @@ impl EvalEncodeState {
 static ENCODE_STATE: crate::globals::GlobalState<EvalEncodeState> = crate::globals::GlobalState::new(EvalEncodeState::new());
 
 #[inline]
-unsafe fn encode_st() -> &'static mut EvalEncodeState {
+fn encode_st() -> &'static mut EvalEncodeState {
     unsafe { &mut *ENCODE_STATE.as_ptr() }
 }
 
@@ -970,7 +970,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_func_before_args(&mut self, len: c_int) {
+    fn conv_func_before_args(&mut self, len: c_int) {
         if let Self::Text { gap, .. } = self
             && len != 0
         {
@@ -979,7 +979,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_func_before_self(&mut self, len: isize) {
+    fn conv_func_before_self(&mut self, len: isize) {
         if let Self::Text { gap, .. } = self
             && len != -1
         {
@@ -988,7 +988,7 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_func_end(&mut self) {
+    fn conv_func_end(&mut self) {
         if let Self::Text { gap, .. } = self {
             gap.push(b')');
         }
@@ -1015,14 +1015,14 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_list_between_items(&mut self) {
+    fn conv_list_between_items(&mut self) {
         if let Self::Text { gap, .. } = self {
             ga_concat_literal(gap, b", ");
         }
     }
 
     #[inline]
-    unsafe fn conv_list_end(&mut self) {
+    fn conv_list_end(&mut self) {
         if let Self::Text { gap, .. } = self {
             gap.push(b']');
         }
@@ -1049,21 +1049,21 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    unsafe fn conv_dict_after_key(&mut self) {
+    fn conv_dict_after_key(&mut self) {
         if let Self::Text { gap, .. } = self {
             ga_concat_literal(gap, b": ");
         }
     }
 
     #[inline]
-    unsafe fn conv_dict_between_items(&mut self) {
+    fn conv_dict_between_items(&mut self) {
         if let Self::Text { gap, .. } = self {
             ga_concat_literal(gap, b", ");
         }
     }
 
     #[inline]
-    unsafe fn conv_dict_end(&mut self) {
+    fn conv_dict_end(&mut self) {
         if let Self::Text { gap, .. } = self {
             gap.push(b'}');
         }

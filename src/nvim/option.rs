@@ -553,7 +553,7 @@ impl OptionModuleState {
 static OPT_STATE: GlobalState<OptionModuleState> = GlobalState::new(OptionModuleState::new());
 
 #[inline]
-unsafe fn opt_st() -> &'static mut OptionModuleState {
+fn opt_st() -> &'static mut OptionModuleState {
     unsafe { &mut *OPT_STATE.as_ptr() }
 }
 
@@ -687,7 +687,7 @@ const fn unset_obj() -> Object {
 use crate::keycodes::{ctrl_chr, key2termcap0, key2termcap1};
 
 #[inline]
-unsafe fn optval_type_name(t: ObjectType) -> *const c_char {
+fn optval_type_name(t: ObjectType) -> *const c_char {
     match t {
         ObjectType::kObjectTypeBoolean => c"boolean".as_ptr(),
         ObjectType::kObjectTypeInteger => c"number".as_ptr(),
@@ -697,7 +697,7 @@ unsafe fn optval_type_name(t: ObjectType) -> *const c_char {
 }
 
 #[inline]
-unsafe fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> std::ffi::CString {
+fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> std::ffi::CString {
     if items.is_empty() {
         return std::ffi::CString::default();
     }
@@ -2490,11 +2490,9 @@ pub unsafe fn insecure_flag(wp: *mut win_T, opt_idx: OptIndex, opt_flags: c_int)
 }
 
 /// Redraw the window title and/or tab page text later.
-pub unsafe fn redraw_titles() {
-    unsafe {
-        g_st().need_maketitle = true;
+pub fn redraw_titles() {
+    g_st().need_maketitle = true;
         g_st().redraw_tabline = true;
-    }
 }
 
 /// Return true if "val" is a valid name.
@@ -2871,11 +2869,9 @@ pub unsafe fn did_set_diff(args: &mut optset_T) -> *const c_char {
 }
 
 /// Process the updated 'endoffile' or 'endofline' or 'fixendofline' or 'bomb' option value.
-pub unsafe fn did_set_eof_eol_fixeol_bomb(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        redraw_titles();
+pub fn did_set_eof_eol_fixeol_bomb(_args: &mut optset_T) -> *const c_char {
+    redraw_titles();
         ptr::null()
-    }
 }
 
 /// Process the updated 'equalalways' option value.
@@ -2988,19 +2984,15 @@ pub unsafe fn did_set_iminsert(_args: &mut optset_T) -> *const c_char {
 }
 
 /// Process the updated 'langnoremap' option value.
-pub unsafe fn did_set_langnoremap(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        opt_vars().p_lrm = c_int::from(opt_vars().p_lnr == 0);
+pub fn did_set_langnoremap(_args: &mut optset_T) -> *const c_char {
+    opt_vars().p_lrm = c_int::from(opt_vars().p_lnr == 0);
         ptr::null()
-    }
 }
 
 /// Process the updated 'langremap' option value.
-pub unsafe fn did_set_langremap(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        opt_vars().p_lnr = c_int::from(opt_vars().p_lrm == 0);
+pub fn did_set_langremap(_args: &mut optset_T) -> *const c_char {
+    opt_vars().p_lnr = c_int::from(opt_vars().p_lrm == 0);
         ptr::null()
-    }
 }
 
 /// Process the new 'laststatus' option value.
@@ -3078,11 +3070,9 @@ pub unsafe fn did_set_lisp(args: &mut optset_T) -> *const c_char {
 }
 
 /// Process the updated 'modifiable' option value.
-pub unsafe fn did_set_modifiable(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        redraw_titles();
+pub fn did_set_modifiable(_args: &mut optset_T) -> *const c_char {
+    redraw_titles();
         ptr::null()
-    }
 }
 
 /// Process the updated 'modified' option value.
@@ -3508,7 +3498,7 @@ pub unsafe fn did_set_updatecount(args: &mut optset_T) -> *const c_char {
 }
 
 /// Validate the 'wildchar' or 'wildcharm' option.
-pub unsafe fn validate_wildchar(args: &mut optset_T) -> *const c_char {
+pub fn validate_wildchar(args: &mut optset_T) -> *const c_char {
     let c = args.os_newval.data.integer();
     if c == Ctrl_C
         || c == OptInt::from(b'\n')
@@ -3537,13 +3527,11 @@ pub unsafe fn did_set_winblend(args: &mut optset_T) -> *const c_char {
 }
 
 /// Process the new 'window' option value.
-pub unsafe fn did_set_window(_args: &mut optset_T) -> *const c_char {
-    unsafe {
-        if opt_vars().p_window < 1 || opt_vars().p_window >= OptInt::from(g_st().Rows) {
+pub fn did_set_window(_args: &mut optset_T) -> *const c_char {
+    if opt_vars().p_window < 1 || opt_vars().p_window >= OptInt::from(g_st().Rows) {
             opt_vars().p_window = OptInt::from(g_st().Rows - 1);
         }
         ptr::null()
-    }
 }
 
 /// Process the new 'winheight' value.
@@ -5157,7 +5145,7 @@ pub unsafe fn find_option(name: *const c_char) -> OptIndex {
 }
 
 /// True if `opt_idx` is a dict option (`schema.dict` in options.lua, e.g. 'diffopt').
-pub unsafe fn is_dict_option(opt_idx: OptIndex) -> bool {
+pub fn is_dict_option(opt_idx: OptIndex) -> bool {
     opt_dict_schema(opt_idx).is_some()
 }
 
@@ -5212,7 +5200,7 @@ pub unsafe fn option_equal(o1: Object, o2: Object) -> bool {
 }
 
 /// Convert a tri-state boolean option to Object.
-pub unsafe fn opt_from_tristate(t: TriState) -> Object {
+pub fn opt_from_tristate(t: TriState) -> Object {
     if t == kNone {
         unset_obj()
     } else {
@@ -5220,7 +5208,7 @@ pub unsafe fn opt_from_tristate(t: TriState) -> Object {
     }
 }
 
-unsafe fn optval_type(o: Object) -> ObjectType {
+fn optval_type(o: Object) -> ObjectType {
     match o.obj_type {
         ObjectType::kObjectTypeNil => ObjectType::kObjectTypeNil,
         ObjectType::kObjectTypeUnset | ObjectType::kObjectTypeBoolean => {
@@ -7752,17 +7740,13 @@ pub unsafe fn reset_modifiable() {
 }
 
 /// Set the global value for 'iminsert' to the local value.
-pub unsafe fn set_iminsert_global(buf: &mut buf_T) {
-    unsafe {
-        opt_vars().p_iminsert = buf.b_p_iminsert;
-    }
+pub fn set_iminsert_global(buf: &mut buf_T) {
+    opt_vars().p_iminsert = buf.b_p_iminsert;
 }
 
 /// Set the global value for 'imsearch' to the local value.
-pub unsafe fn set_imsearch_global(buf: &mut buf_T) {
-    unsafe {
-        opt_vars().p_imsearch = buf.b_p_imsearch;
-    }
+pub fn set_imsearch_global(buf: &mut buf_T) {
+    opt_vars().p_imsearch = buf.b_p_imsearch;
 }
 
 pub unsafe fn set_context_in_set_cmd(xp: &mut expand_T, mut arg: *mut c_char, opt_flags: c_int) {

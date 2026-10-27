@@ -29,7 +29,7 @@ use crate::cursor::{colnr_T, linenr_T};
 const LOG_ERROR: c_int = 3;
 
 #[inline]
-pub unsafe fn luaret_truthy(res: Object) -> bool {
+pub fn luaret_truthy(res: Object) -> bool {
     res.obj_type == ObjectType::kObjectTypeBoolean && res.data.boolean()
 }
 
@@ -468,9 +468,9 @@ mod tests {
 
     #[test]
     fn luaret_truthy_checks_boolean_true() {
-        assert!(unsafe { luaret_truthy(boolean_obj(true)) });
-        assert!(!unsafe { luaret_truthy(boolean_obj(false)) });
-        assert!(!unsafe { luaret_truthy(OBJECT_NIL) });
-        assert!(!unsafe { luaret_truthy(integer_obj(1)) });
+        assert!(luaret_truthy(boolean_obj(true)));
+        assert!(!luaret_truthy(boolean_obj(false)));
+        assert!(!luaret_truthy(OBJECT_NIL));
+        assert!(!luaret_truthy(integer_obj(1)));
     }
 }

@@ -179,7 +179,7 @@ const fn csi_arg_count(a: c_long) -> c_int {
 }
 
 #[inline]
-unsafe fn scrollregion_bottom(state: &VTermStateFull) -> c_int {
+fn scrollregion_bottom(state: &VTermStateFull) -> c_int {
     if state.scrollregion_bottom > -1 {
             state.scrollregion_bottom
         } else {
@@ -188,7 +188,7 @@ unsafe fn scrollregion_bottom(state: &VTermStateFull) -> c_int {
 }
 
 #[inline]
-unsafe fn scrollregion_left(state: &VTermStateFull) -> c_int {
+fn scrollregion_left(state: &VTermStateFull) -> c_int {
     if (state.mode & MODE_LEFTRIGHTMARGIN) != 0 {
             state.scrollregion_left
         } else {
@@ -197,7 +197,7 @@ unsafe fn scrollregion_left(state: &VTermStateFull) -> c_int {
 }
 
 #[inline]
-unsafe fn scrollregion_right(state: &VTermStateFull) -> c_int {
+fn scrollregion_right(state: &VTermStateFull) -> c_int {
     if (state.mode & MODE_LEFTRIGHTMARGIN) != 0 && state.scrollregion_right > -1 {
             state.scrollregion_right
         } else {
@@ -206,7 +206,7 @@ unsafe fn scrollregion_right(state: &VTermStateFull) -> c_int {
 }
 
 #[inline]
-unsafe fn rowwidth(state: &VTermStateFull, row: c_int) -> c_int {
+fn rowwidth(state: &VTermStateFull, row: c_int) -> c_int {
     if state.lineinfo()[row as usize].doublewidth() != 0 {
             state.cols / 2
         } else {
@@ -215,8 +215,8 @@ unsafe fn rowwidth(state: &VTermStateFull, row: c_int) -> c_int {
 }
 
 #[inline]
-unsafe fn thisrowwidth(state: &VTermStateFull) -> c_int {
-    unsafe { rowwidth(state, state.pos.row) }
+fn thisrowwidth(state: &VTermStateFull) -> c_int {
+    rowwidth(state, state.pos.row)
 }
 
 #[inline]
@@ -239,32 +239,32 @@ fn set_cursor_shape(mode: &mut u32, shape: u32) {
 }
 
 #[inline]
-unsafe fn tmp_selection_mask(state: &VTermStateFull) -> u16 {
+fn tmp_selection_mask(state: &VTermStateFull) -> u16 {
     (state.tmp.words[0] & 0xffff) as u16
 }
 
 #[inline]
-unsafe fn set_tmp_selection_mask(state: &mut VTermStateFull, mask: u16) {
+fn set_tmp_selection_mask(state: &mut VTermStateFull, mask: u16) {
     state.tmp.words[0] = (state.tmp.words[0] & !0xffff) | u32::from(mask);
 }
 
 #[inline]
-unsafe fn tmp_selection_state(state: &VTermStateFull) -> u8 {
+fn tmp_selection_state(state: &VTermStateFull) -> u8 {
     ((state.tmp.words[0] >> 16) & 0xff) as u8
 }
 
 #[inline]
-unsafe fn set_tmp_selection_state(state: &mut VTermStateFull, st: u8) {
+fn set_tmp_selection_state(state: &mut VTermStateFull, st: u8) {
     state.tmp.words[0] = (state.tmp.words[0] & !(0xff << 16)) | (u32::from(st) << 16);
 }
 
 #[inline]
-unsafe fn tmp_selection_recvpartial(state: &VTermStateFull) -> u32 {
+fn tmp_selection_recvpartial(state: &VTermStateFull) -> u32 {
     state.tmp.words[1]
 }
 
 #[inline]
-unsafe fn set_tmp_selection_recvpartial(state: &mut VTermStateFull, val: u32) {
+fn set_tmp_selection_recvpartial(state: &mut VTermStateFull, val: u32) {
     state.tmp.words[1] = val;
 }
 
@@ -485,27 +485,26 @@ unsafe fn linefeed(state: &mut VTermStateFull) {
 }
 
 #[inline]
-unsafe fn set_col_tabstop(state: &mut VTermStateFull, col: c_int) {
+fn set_col_tabstop(state: &mut VTermStateFull, col: c_int) {
     let mask = 1u8 << (col & 7);
         state.tabstops[(col >> 3) as usize] |= mask;
 }
 
 #[inline]
-unsafe fn clear_col_tabstop(state: &mut VTermStateFull, col: c_int) {
+fn clear_col_tabstop(state: &mut VTermStateFull, col: c_int) {
     let mask = 1u8 << (col & 7);
         state.tabstops[(col >> 3) as usize] &= !mask;
 }
 
 #[inline]
-unsafe fn is_col_tabstop(state: &VTermStateFull, col: c_int) -> bool {
+fn is_col_tabstop(state: &VTermStateFull, col: c_int) -> bool {
     let mask = 1u8 << (col & 7);
         (state.tabstops[(col >> 3) as usize] & mask) != 0
 }
 
 #[inline]
-unsafe fn is_cursor_in_scrollregion(state: &VTermStateFull) -> bool {
-    unsafe {
-        if state.pos.row < state.scrollregion_top
+fn is_cursor_in_scrollregion(state: &VTermStateFull) -> bool {
+    if state.pos.row < state.scrollregion_top
             || state.pos.row >= scrollregion_bottom(state)
         {
             return false;
@@ -517,12 +516,10 @@ unsafe fn is_cursor_in_scrollregion(state: &VTermStateFull) -> bool {
         }
 
         true
-    }
 }
 
-unsafe fn tab(state: &mut VTermStateFull, mut count: c_int, direction: c_int) {
-    unsafe {
-        while count > 0 {
+fn tab(state: &mut VTermStateFull, mut count: c_int, direction: c_int) {
+    while count > 0 {
             if direction > 0 {
                 if state.pos.col >= thisrowwidth(state) - 1 {
                     return;
@@ -539,7 +536,6 @@ unsafe fn tab(state: &mut VTermStateFull, mut count: c_int, direction: c_int) {
                 count -= 1;
             }
         }
-    }
 }
 
 unsafe fn set_lineinfo(
@@ -1012,7 +1008,7 @@ unsafe fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull
     }
 }
 
-unsafe fn set_mode(state: &mut VTermStateFull, num: c_int, val: c_int) {
+fn set_mode(state: &mut VTermStateFull, num: c_int, val: c_int) {
     match num {
             4 => {
                 // IRM - ECMA-48 7.2.10
@@ -1189,7 +1185,7 @@ unsafe fn request_key_encoding_flags(state: &mut VTermStateFull) {
     }
 }
 
-unsafe fn set_key_encoding_flags(state: &mut VTermStateFull, arg: c_int, mode: c_int) {
+fn set_key_encoding_flags(state: &mut VTermStateFull, arg: c_int, mode: c_int) {
     let set = mode != 3;
         let reset_unset = mode == 1;
         let _ = reset_unset;
@@ -1221,9 +1217,8 @@ unsafe fn set_key_encoding_flags(state: &mut VTermStateFull, arg: c_int, mode: c
         stack.items[(stack.size - 1) as usize] = flags;
 }
 
-unsafe fn push_key_encoding_flags(state: &mut VTermStateFull, arg: c_int) {
-    unsafe {
-        let screen = if (state.mode & MODE_ALT_SCREEN) != 0 {
+fn push_key_encoding_flags(state: &mut VTermStateFull, arg: c_int) {
+    let screen = if (state.mode & MODE_ALT_SCREEN) != 0 {
             BUFIDX_ALTSCREEN
         } else {
             BUFIDX_PRIMARY
@@ -1240,10 +1235,9 @@ unsafe fn push_key_encoding_flags(state: &mut VTermStateFull, arg: c_int) {
         }
 
         set_key_encoding_flags(state, arg, 1);
-    }
 }
 
-unsafe fn pop_key_encoding_flags(state: &mut VTermStateFull, arg: c_int) {
+fn pop_key_encoding_flags(state: &mut VTermStateFull, arg: c_int) {
     let screen = if (state.mode & MODE_ALT_SCREEN) != 0 {
             BUFIDX_ALTSCREEN
         } else {

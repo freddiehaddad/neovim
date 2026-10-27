@@ -162,7 +162,7 @@ impl LuaConverterState {
 static LUACONV_STATE: crate::globals::GlobalState<LuaConverterState> = crate::globals::GlobalState::new(LuaConverterState::new());
 
 #[inline]
-unsafe fn luaconv_st() -> &'static mut LuaConverterState {
+fn luaconv_st() -> &'static mut LuaConverterState {
     unsafe { &mut *LUACONV_STATE.as_ptr() }
 }
 

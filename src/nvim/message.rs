@@ -222,7 +222,7 @@ impl MessageState {
 static MSG_STATE: GlobalState<MessageState> = GlobalState::new(MessageState::new());
 
 #[inline]
-unsafe fn msg_st() -> &'static mut MessageState {
+fn msg_st() -> &'static mut MessageState {
     unsafe { &mut *MSG_STATE.as_ptr() }
 }
 
@@ -411,8 +411,8 @@ unsafe fn have_sourcing_info() -> bool {
 }
 
 /// Returns true if the given integer message-id was previously generated.
-pub unsafe fn msg_id_exists(id: i64) -> bool {
-    unsafe { id > 0 && id < msg_st().msg_id_next }
+pub fn msg_id_exists(id: i64) -> bool {
+    id > 0 && id < msg_st().msg_id_next
 }
 
 unsafe fn ui_ext_msg_set_pos(row: c_int, scrolled: bool) {
@@ -447,8 +447,8 @@ pub unsafe fn msg_grid_set_pos(row: c_int, scrolled: bool) {
     }
 }
 
-pub unsafe fn msg_use_grid() -> bool {
-    unsafe { crate::grid::grid_allocated(&g_st().default_grid) && !ui_has(kUIMessages) }
+pub fn msg_use_grid() -> bool {
+    crate::grid::grid_allocated(&g_st().default_grid) && !ui_has(kUIMessages)
 }
 
 pub unsafe fn msg_grid_validate() {
@@ -955,11 +955,9 @@ pub unsafe fn trunc_string(s: *const c_char, buf: *mut c_char, room_in: c_int, b
 
 /// Reset the last used sourcing name/lnum.  Makes sure it is displayed again
 /// for the next error message;
-pub unsafe fn reset_last_sourcing() {
-    unsafe {
-        msg_st().last_sourcing_name = None;
+pub fn reset_last_sourcing() {
+    msg_st().last_sourcing_name = None;
         msg_st().last_sourcing_lnum = 0;
-    }
 }
 
 /// @return  true if "SOURCING_NAME" differs from "last_sourcing_name".
@@ -2181,11 +2179,9 @@ pub unsafe fn msg_start() {
 }
 
 /// Note that the current msg position is where messages start.
-pub unsafe fn msg_starthere() {
-    unsafe {
-        g_st().lines_left = g_st().cmdline_row;
+pub fn msg_starthere() {
+    g_st().lines_left = g_st().cmdline_row;
         g_st().msg_didany = false;
-    }
 }
 
 pub unsafe fn msg_putchar(c: c_int) {
@@ -3073,12 +3069,12 @@ pub unsafe fn message_filtered(msg: *const c_char) -> bool {
 }
 
 /// including horizontal separator
-pub unsafe fn msg_scrollsize() -> c_int {
-    unsafe { g_st().msg_scrolled + opt_vars().p_ch as c_int + c_int::from(opt_vars().p_ch > 0 || g_st().msg_scrolled > 1) }
+pub fn msg_scrollsize() -> c_int {
+    g_st().msg_scrolled + opt_vars().p_ch as c_int + c_int::from(opt_vars().p_ch > 0 || g_st().msg_scrolled > 1)
 }
 
-pub unsafe fn msg_do_throttle() -> bool {
-    unsafe { msg_use_grid() && (opt_vars().rdb_flags & kOptRdbFlagNothrottle) == 0 }
+pub fn msg_do_throttle() -> bool {
+    msg_use_grid() && (opt_vars().rdb_flags & kOptRdbFlagNothrottle) == 0
 }
 
 /// Scroll the screen up one line for displaying the next message line.
@@ -3333,10 +3329,8 @@ pub unsafe fn sb_text_restart_cmdline() {
 }
 
 /// Ending to edit the command line: clear old lines but the last one later.
-pub unsafe fn sb_text_end_cmdline() {
-    unsafe {
-        msg_st().do_clear_sb_text = sb_clear_T::SB_CLEAR_CMDLINE_DONE;
-    }
+pub fn sb_text_end_cmdline() {
+    msg_st().do_clear_sb_text = sb_clear_T::SB_CLEAR_CMDLINE_DONE;
 }
 
 /// Clear any text remembered for scrolling back.
@@ -3942,16 +3936,14 @@ pub unsafe fn msg_ext_flush_showmode() {
 
 /// If the written message runs into the shown command or ruler, we have to
 /// wait for hit-return and redraw the window later.
-pub unsafe fn msg_check() {
-    unsafe {
-        if ui_has(kUIMessages) {
+pub fn msg_check() {
+    if ui_has(kUIMessages) {
             return;
         }
         if g_st().msg_row == g_st().Rows - 1 && g_st().msg_col >= g_st().sc_col {
             g_st().need_wait_return = true;
             g_st().redraw_cmdline = true;
         }
-    }
 }
 
 /// May write a string to the redirection file.
@@ -4101,11 +4093,9 @@ pub unsafe fn verbose_leave_scroll() {
 }
 
 /// Called when 'verbosefile' is set: stop writing to the file.
-pub unsafe fn verbose_stop() {
-    unsafe {
-        msg_st().verbose_fd = None;
+pub fn verbose_stop() {
+    msg_st().verbose_fd = None;
         msg_st().verbose_did_open = false;
-    }
 }
 
 /// Open the file 'verbosefile'.

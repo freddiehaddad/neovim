@@ -196,7 +196,7 @@ impl RegexpNfaState {
 static NFA_STATE: GlobalState<RegexpNfaState> = GlobalState::new(RegexpNfaState::new());
 
 #[inline]
-unsafe fn nfa_st() -> &'static mut RegexpNfaState {
+fn nfa_st() -> &'static mut RegexpNfaState {
     unsafe { &mut *NFA_STATE.as_ptr() }
 }
 
@@ -1900,14 +1900,13 @@ unsafe fn re2post() -> bool {
     }
 }
 
-unsafe fn alloc_state(
+fn alloc_state(
     states: &mut [nfa_state_T],
     c: c_int,
     out: Option<usize>,
     out1: Option<usize>,
 ) -> Option<usize> {
-    unsafe {
-        if re_st().istate >= re_st().nstate {
+    if re_st().istate >= re_st().nstate {
             return None;
         }
         let idx = re_st().istate as usize;
@@ -1920,7 +1919,6 @@ unsafe fn alloc_state(
             lastlist: [0; 2],
         };
         Some(idx)
-    }
 }
 
 #[inline]
@@ -2421,9 +2419,8 @@ unsafe fn clear_sub(sub: *mut regsub_T) {
 }
 
 #[inline]
-unsafe fn copy_sub(to: &mut regsub_T, from: &mut regsub_T) {
-    unsafe {
-        to.in_use = from.in_use;
+fn copy_sub(to: &mut regsub_T, from: &mut regsub_T) {
+    to.in_use = from.in_use;
         if from.in_use <= 0 {
             return;
         }
@@ -2434,12 +2431,10 @@ unsafe fn copy_sub(to: &mut regsub_T, from: &mut regsub_T) {
         } else {
             to.list.line_mut()[..n].copy_from_slice(&from.list.line()[..n]);
         }
-    }
 }
 
-unsafe fn copy_sub_off(to: &mut regsub_T, from: &mut regsub_T) {
-    unsafe {
-        if to.in_use < from.in_use {
+fn copy_sub_off(to: &mut regsub_T, from: &mut regsub_T) {
+    if to.in_use < from.in_use {
             to.in_use = from.in_use;
         }
         if from.in_use <= 1 {
@@ -2451,12 +2446,10 @@ unsafe fn copy_sub_off(to: &mut regsub_T, from: &mut regsub_T) {
         } else {
             to.list.line_mut()[1..n].copy_from_slice(&from.list.line()[1..n]);
         }
-    }
 }
 
-unsafe fn copy_ze_off(to: &mut regsub_T, from: &mut regsub_T) {
-    unsafe {
-        if re_st().rex.nfa_has_zend == 0 {
+fn copy_ze_off(to: &mut regsub_T, from: &mut regsub_T) {
+    if re_st().rex.nfa_has_zend == 0 {
             return;
         }
         if REG_MULTI() {
@@ -2471,12 +2464,10 @@ unsafe fn copy_ze_off(to: &mut regsub_T, from: &mut regsub_T) {
                 to.list.line_mut()[0].end = from_end;
             }
         }
-    }
 }
 
-unsafe fn sub_equal(sub1: &mut regsub_T, sub2: &mut regsub_T) -> bool {
-    unsafe {
-        let todo = sub1.in_use.max(sub2.in_use) as usize;
+fn sub_equal(sub1: &mut regsub_T, sub2: &mut regsub_T) -> bool {
+    let todo = sub1.in_use.max(sub2.in_use) as usize;
         if REG_MULTI() {
             let m1 = sub1.list.multi();
             let m2 = sub2.list.multi();
@@ -2551,7 +2542,6 @@ unsafe fn sub_equal(sub1: &mut regsub_T, sub2: &mut regsub_T) -> bool {
             }
         }
         true
-    }
 }
 
 unsafe fn has_state_with_pos(

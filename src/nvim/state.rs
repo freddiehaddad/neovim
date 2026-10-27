@@ -95,7 +95,7 @@ impl StateModuleState {
 static STATE_MOD_STATE: crate::globals::GlobalState<StateModuleState> = crate::globals::GlobalState::new(StateModuleState::new());
 
 #[inline]
-unsafe fn state_mod_st() -> &'static mut StateModuleState {
+fn state_mod_st() -> &'static mut StateModuleState {
     unsafe { &mut *STATE_MOD_STATE.as_ptr() }
 }
 
@@ -204,9 +204,8 @@ pub unsafe fn virtual_active(wp: *mut win_T) -> bool {
     }
 }
 
-pub unsafe fn get_real_state() -> c_int {
-    unsafe {
-        if (g_st().State & MODE_NORMAL) != 0 {
+pub fn get_real_state() -> c_int {
+    if (g_st().State & MODE_NORMAL) != 0 {
             if g_st().Visual.active {
                 if g_st().Visual.select {
                     return MODE_SELECT;
@@ -217,7 +216,6 @@ pub unsafe fn get_real_state() -> c_int {
             }
         }
         g_st().State
-    }
 }
 
 pub unsafe fn get_mode(buf: *mut c_char) {
@@ -424,8 +422,8 @@ pub unsafe fn state_no_longer_safe(reason: *const c_char) {
     }
 }
 
-pub unsafe fn get_was_safe_state() -> bool {
-    unsafe { state_mod_st().was_safe }
+pub fn get_was_safe_state() -> bool {
+    state_mod_st().was_safe
 }
 
 #[cfg(test)]

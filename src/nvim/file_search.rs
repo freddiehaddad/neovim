@@ -1162,7 +1162,7 @@ pub unsafe fn find_file_in_path(
     }
 }
 
-pub unsafe fn free_findfile() {}
+pub fn free_findfile() {}
 
 /// Find the directory name `ptr[len]` in the path.
 pub unsafe fn find_directory_in_path(

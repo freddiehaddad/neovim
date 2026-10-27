@@ -125,7 +125,7 @@ static SH_STATE: crate::globals::GlobalState<ShellModuleState> =
     crate::globals::GlobalState::new(ShellModuleState::new());
 
 #[inline]
-unsafe fn sh_st() -> &'static mut ShellModuleState {
+fn sh_st() -> &'static mut ShellModuleState {
     unsafe { &mut *SH_STATE.as_ptr() }
 }
 

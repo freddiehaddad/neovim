@@ -1311,7 +1311,7 @@ unsafe fn parse_config_split(split: NvimString, out: *mut WinSplit) -> bool {
     }
 }
 
-unsafe fn parse_float_bufpos(bufpos: Array, out: &mut lpos_T) -> bool {
+fn parse_float_bufpos(bufpos: Array, out: &mut lpos_T) -> bool {
     if bufpos.size != 2
             || bufpos[0].obj_type != ObjectType::kObjectTypeInteger
             || bufpos[1].obj_type != ObjectType::kObjectTypeInteger

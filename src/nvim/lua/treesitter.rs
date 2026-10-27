@@ -243,7 +243,7 @@ impl TreesitterModuleState {
 static TS_STATE: crate::globals::GlobalState<TreesitterModuleState> = crate::globals::GlobalState::new(TreesitterModuleState::new());
 
 #[inline]
-unsafe fn ts_st() -> &'static mut TreesitterModuleState {
+fn ts_st() -> &'static mut TreesitterModuleState {
     unsafe { &mut *TS_STATE.as_ptr() }
 }
 

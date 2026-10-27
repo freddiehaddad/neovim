@@ -678,7 +678,7 @@ fn fuzzy_match_str_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> std::cmp
     f2.score.cmp(&f1.score).then_with(|| f1.idx.cmp(&f2.idx))
 }
 
-unsafe fn fuzzy_match_func_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> c_int {
+fn fuzzy_match_func_compare(f1: &fuzmatch_str_T, f2: &fuzmatch_str_T) -> c_int {
     let b1 = f1.str_cstr.as_bytes().first().copied().unwrap_or(0);
     let b2 = f2.str_cstr.as_bytes().first().copied().unwrap_or(0);
 
@@ -910,13 +910,12 @@ pub unsafe fn search_for_fuzzy_match(
 }
 
 /// Sort `fuzmatch` by score and move strings into `matches`.
-pub unsafe fn fuzzymatches_slice_to_strmatches(
+pub fn fuzzymatches_slice_to_strmatches(
     fuzmatch: &mut [fuzmatch_str_T],
     matches: &mut Vec<CString>,
     funcsort: bool,
 ) {
-    unsafe {
-        matches.clear();
+    matches.clear();
         if !fuzmatch.is_empty() {
             if funcsort {
                 fuzmatch.sort_by(|a, b| fuzzy_match_func_compare(a, b).cmp(&0));
@@ -926,7 +925,6 @@ pub unsafe fn fuzzymatches_slice_to_strmatches(
 
             matches.extend(fuzmatch.iter_mut().map(|item| std::mem::take(&mut item.str_cstr)));
         }
-    }
 }
 
 #[cfg(test)]
@@ -935,8 +933,7 @@ mod tests {
 
     #[test]
     fn fuzzymatches_to_strmatches_sorts_snr_functions_last() {
-        unsafe {
-            let mut fm = [
+        let mut fm = [
                 fuzmatch_str_T {
                     idx: 0,
                     str_cstr: c"<SNR>1_foo".to_owned(),
@@ -952,6 +949,5 @@ mod tests {
             fuzzymatches_slice_to_strmatches(&mut fm, &mut matches, true);
             assert_eq!(matches[0].as_bytes(), b"Bar");
             assert_eq!(matches[1].as_bytes(), b"<SNR>1_foo");
-        }
     }
 }

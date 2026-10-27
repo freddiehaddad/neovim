@@ -131,7 +131,7 @@ impl GridModuleState {
 static GRID_STATE: GlobalState<GridModuleState> = GlobalState::new(GridModuleState::new());
 
 #[inline]
-unsafe fn grid_st() -> &'static mut GridModuleState {
+fn grid_st() -> &'static mut GridModuleState {
     unsafe { &mut *GRID_STATE.as_ptr() }
 }
 
@@ -460,7 +460,7 @@ pub unsafe fn line_do_arabic_shape(buf: *mut schar_T, cols: c_int) {
 }
 
 #[inline]
-pub unsafe fn grid_allocated(grid: &ScreenGrid) -> bool {
+pub fn grid_allocated(grid: &ScreenGrid) -> bool {
     !grid.chars.is_empty()
 }
 
@@ -565,9 +565,8 @@ pub unsafe fn grid_line_getchar(mut col: c_int, attr: *mut c_int) -> schar_T {
     }
 }
 
-pub unsafe fn grid_line_put_schar(col: c_int, schar: schar_T, attr: c_int) {
-    unsafe {
-        assert!(!grid_st().grid_line_grid.is_null());
+pub fn grid_line_put_schar(col: c_int, schar: schar_T, attr: c_int) {
+    assert!(!grid_st().grid_line_grid.is_null());
         if col >= grid_st().grid_line_maxcol {
             return;
         }
@@ -578,7 +577,6 @@ pub unsafe fn grid_line_put_schar(col: c_int, schar: schar_T, attr: c_int) {
         grid_st().grid_line_first = grid_st().grid_line_first.min(col);
         grid_st().grid_line_last = grid_st().grid_line_last.max(col + 1);
         g_st().linebuf_vcol[col as usize] = -1;
-    }
 }
 
 pub unsafe fn grid_line_puts(
@@ -643,14 +641,13 @@ pub unsafe fn grid_line_puts(
     }
 }
 
-pub unsafe fn grid_line_fill(
+pub fn grid_line_fill(
     start_col: c_int,
     mut end_col: c_int,
     sc: schar_T,
     attr: c_int,
 ) -> c_int {
-    unsafe {
-        end_col = end_col.min(grid_st().grid_line_maxcol);
+    end_col = end_col.min(grid_st().grid_line_maxcol);
         if start_col >= end_col {
             return end_col;
         }
@@ -664,24 +661,21 @@ pub unsafe fn grid_line_fill(
         grid_st().grid_line_first = grid_st().grid_line_first.min(start_col);
         grid_st().grid_line_last = grid_st().grid_line_last.max(end_col);
         end_col
-    }
 }
 
-pub unsafe fn grid_line_clear_end(
+pub fn grid_line_clear_end(
     start_col: c_int,
     end_col: c_int,
     bg_attr: c_int,
     clear_attr: c_int,
 ) {
-    unsafe {
-        if grid_st().grid_line_first > start_col {
+    if grid_st().grid_line_first > start_col {
             grid_st().grid_line_first = start_col;
             grid_st().grid_line_last = start_col;
         }
         grid_st().grid_line_clear_to = end_col;
         grid_st().grid_line_bg_attr = bg_attr;
         grid_st().grid_line_clear_attr = clear_attr;
-    }
 }
 
 pub unsafe fn grid_line_cursor_goto(col: c_int) {
@@ -1108,7 +1102,7 @@ pub unsafe fn grid_alloc(
     }
 }
 
-pub unsafe fn grid_free(grid: &mut ScreenGrid) {
+pub fn grid_free(grid: &mut ScreenGrid) {
     grid.chars = Vec::new();
         grid.attrs = Vec::new();
         grid.vcols = Vec::new();
@@ -1198,13 +1192,11 @@ pub unsafe fn win_grid_alloc(wp: *mut win_T) {
     }
 }
 
-pub unsafe fn grid_assign_handle(grid: &mut ScreenGrid) {
-    unsafe {
-        if grid.handle == 0 {
+pub fn grid_assign_handle(grid: &mut ScreenGrid) {
+    if grid.handle == 0 {
             grid_st().last_grid_handle += 1;
             grid.handle = grid_st().last_grid_handle;
         }
-    }
 }
 
 pub unsafe fn grid_ins_lines(

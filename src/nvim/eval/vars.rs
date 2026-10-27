@@ -501,7 +501,7 @@ impl VarsModuleState {
 static VARS_STATE: GlobalState<VarsModuleState> = GlobalState::new(VarsModuleState::new());
 
 #[inline]
-unsafe fn vars_st() -> &'static mut VarsModuleState {
+fn vars_st() -> &'static mut VarsModuleState {
     unsafe { &mut *VARS_STATE.as_ptr() }
 }
 
@@ -2272,16 +2272,16 @@ pub unsafe fn del_menutrans_vars() {
     }
 }
 
-pub unsafe fn get_globvar_dict() -> *mut dict_T {
-    unsafe { &raw mut vars_st().globvardict }
+pub fn get_globvar_dict() -> *mut dict_T {
+    &raw mut vars_st().globvardict
 }
 
-pub unsafe fn get_globvar_ht() -> *mut hashtab_T {
-    unsafe { &raw mut vars_st().globvardict.dv_hashtab }
+pub fn get_globvar_ht() -> *mut hashtab_T {
+    &raw mut vars_st().globvardict.dv_hashtab
 }
 
-pub unsafe fn get_vimvar_dict() -> *mut dict_T {
-    unsafe { &raw mut vars_st().vimvardict }
+pub fn get_vimvar_dict() -> *mut dict_T {
+    &raw mut vars_st().vimvardict
 }
 
 pub unsafe fn set_vim_var_tv(idx: VimVarIndex, tv: *mut typval_T) {
@@ -2292,13 +2292,11 @@ pub unsafe fn set_vim_var_tv(idx: VimVarIndex, tv: *mut typval_T) {
     }
 }
 
-pub unsafe fn get_vim_var_name(idx: VimVarIndex) -> *mut c_char {
-    unsafe {
-        vars_st().vimvars[idx as usize]
+pub fn get_vim_var_name(idx: VimVarIndex) -> *mut c_char {
+    vars_st().vimvars[idx as usize]
             .vv_name
             .as_ptr()
             .cast_mut()
-    }
 }
 
 pub unsafe fn get_vim_var_tv(idx: VimVarIndex) -> *mut typval_T {
@@ -2872,18 +2870,15 @@ pub unsafe fn get_var_value(name: *const c_char) -> *mut c_char {
 }
 
 /// Allocate a new hashtab for a sourced script.
-pub unsafe fn new_script_vars() -> Box<scriptvar_T> {
-    unsafe {
-        let mut sv = Box::new(scriptvar_T::new());
+pub fn new_script_vars() -> Box<scriptvar_T> {
+    let mut sv = Box::new(scriptvar_T::new());
         init_var_dict(&mut sv.sv_dict, &mut sv.sv_var, VAR_SCOPE);
         sv
-    }
 }
 
 /// Initialize dictionary "dict" as a scope and set variable "dict_var" to point to it.
-pub unsafe fn init_var_dict(dict: &mut dict_T, dict_var: &mut ScopeDictDictItem, scope: ScopeType) {
-    unsafe {
-        hash_clear(&mut dict.dv_hashtab);
+pub fn init_var_dict(dict: &mut dict_T, dict_var: &mut ScopeDictDictItem, scope: ScopeType) {
+    hash_clear(&mut dict.dv_hashtab);
         dict.dv_lock = VAR_UNLOCKED;
         dict.dv_scope = scope;
         dict.dv_refcount = DO_NOT_FREE_CNT;
@@ -2894,7 +2889,6 @@ pub unsafe fn init_var_dict(dict: &mut dict_T, dict_var: &mut ScopeDictDictItem,
         dict_var.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
         dict_var.di_key.clear();
         dict.watchers.clear();
-    }
 }
 
 /// Unreference a dictionary initialized by init_var_dict().

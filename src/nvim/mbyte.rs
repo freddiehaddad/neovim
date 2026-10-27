@@ -838,7 +838,7 @@ impl MbyteModuleState {
 static MBYTE_STATE: crate::globals::GlobalState<MbyteModuleState> = crate::globals::GlobalState::new(MbyteModuleState::new());
 
 #[inline]
-unsafe fn mbyte_st() -> &'static mut MbyteModuleState {
+fn mbyte_st() -> &'static mut MbyteModuleState {
     unsafe { &mut *MBYTE_STATE.as_ptr() }
 }
 
@@ -900,7 +900,7 @@ pub unsafe fn basechar_cells_impl(c: CharInfo) -> c_int {
     if c.value < 0 {
         4
     } else if c.value < 0x80 {
-        unsafe { ascii2cells(c.value) }
+        ascii2cells(c.value)
     } else {
         unsafe { utf_char2cells(c.value) }
     }
@@ -1376,7 +1376,7 @@ pub unsafe fn mb_cptr2char_adv(pp: *mut *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn utf_iscomposing_first(c: c_int) -> bool {
+pub fn utf_iscomposing_first(c: c_int) -> bool {
     c >= 128 && !utf8proc_grapheme_break(b' ' as i32, c)
 }
 
@@ -1462,7 +1462,7 @@ pub unsafe fn utf_ptr2len(p_in: *const c_char) -> c_int {
     }
 }
 
-pub unsafe fn utf_byte2len(b: c_int) -> c_int {
+pub fn utf_byte2len(b: c_int) -> c_int {
     c_int::from(utf8len_tab[b as usize])
 }
 
@@ -1605,12 +1605,12 @@ pub unsafe fn utf_char2bytes(c: c_int, buf: *mut c_char) -> c_int {
     }
 }
 
-pub unsafe fn utf_iscomposing_legacy(c: c_int) -> bool {
+pub fn utf_iscomposing_legacy(c: c_int) -> bool {
     let prop = utf8proc_get_property(c);
     prop.category == UTF8PROC_CATEGORY_MN || prop.category == UTF8PROC_CATEGORY_ME
 }
 
-pub unsafe fn utf_isalnum(c: c_int) -> bool {
+pub fn utf_isalnum(c: c_int) -> bool {
     let prop = utf8proc_get_property(c);
     prop.category >= UTF8PROC_CATEGORY_LU && prop.category <= UTF8PROC_CATEGORY_NO
 }
@@ -1634,7 +1634,7 @@ fn intable(table: &[Interval], c: c_int) -> bool {
     false
 }
 
-pub unsafe fn utf_printable(c: c_int) -> bool {
+pub fn utf_printable(c: c_int) -> bool {
     const NONPRINT: &[Interval] = &[
         Interval {
             first: 0x070f,
@@ -2090,7 +2090,7 @@ pub unsafe fn utf_ambiguous_width(p: *const c_char) -> bool {
     }
 }
 
-pub unsafe fn utf_fold(a: c_int) -> c_int {
+pub fn utf_fold(a: c_int) -> c_int {
     if a < 0x80 {
         return if (0x41..=0x5a).contains(&a) {
             a + 32
@@ -2554,7 +2554,7 @@ pub unsafe fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> Cl
     }
 }
 
-pub unsafe fn utf_eat_space(cc: c_int) -> bool {
+pub fn utf_eat_space(cc: c_int) -> bool {
     (0x2000..=0x206F).contains(&cc)
         || (0x2e00..=0x2e7f).contains(&cc)
         || (0x3000..=0x303f).contains(&cc)
@@ -2564,7 +2564,7 @@ pub unsafe fn utf_eat_space(cc: c_int) -> bool {
         || (0xff5b..=0xff65).contains(&cc)
 }
 
-pub unsafe fn utf_allow_break_before(cc: c_int) -> bool {
+pub fn utf_allow_break_before(cc: c_int) -> bool {
     const BOL_PROHIBITION_PUNCT: &[c_int] = &[
         b'!' as c_int,
         b'%' as c_int,
@@ -2613,7 +2613,7 @@ pub unsafe fn utf_allow_break_before(cc: c_int) -> bool {
     BOL_PROHIBITION_PUNCT.binary_search(&cc).is_err()
 }
 
-pub unsafe fn utf_allow_break_after(cc: c_int) -> bool {
+pub fn utf_allow_break_after(cc: c_int) -> bool {
     const EOL_PROHIBITION_PUNCT: &[c_int] = &[
         b'(' as c_int,
         b'<' as c_int,
@@ -2638,13 +2638,11 @@ pub unsafe fn utf_allow_break_after(cc: c_int) -> bool {
     EOL_PROHIBITION_PUNCT.binary_search(&cc).is_err()
 }
 
-pub unsafe fn utf_allow_break(cc: c_int, ncc: c_int) -> bool {
-    unsafe {
-        if cc == ncc && (cc == 0x2014 || cc == 0x2026) {
+pub fn utf_allow_break(cc: c_int, ncc: c_int) -> bool {
+    if cc == ncc && (cc == 0x2014 || cc == 0x2026) {
             return false;
         }
         utf_allow_break_after(cc) && utf_allow_break_before(ncc)
-    }
 }
 
 pub unsafe fn mb_copy_char(fp: *mut *const c_char, tp: *mut *mut c_char) {
@@ -3421,8 +3419,8 @@ pub unsafe fn string_convert_ext(
     }
 }
 
-unsafe fn cw_value(c: c_int) -> c_int {
-    let table = unsafe { mbyte_st().CW_TABLE.as_slice() };
+fn cw_value(c: c_int) -> c_int {
+    let table = mbyte_st().CW_TABLE.as_slice();
     let c64 = i64::from(c);
     table
         .binary_search_by(|entry| {
@@ -3559,7 +3557,7 @@ pub unsafe fn f_charclass(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
     }
 }
 
-pub unsafe fn get_encoding_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
+pub fn get_encoding_name(_xp: &mut expand_T, idx: c_int) -> *mut c_char {
     if idx < 0 || (idx as usize) >= ENC_CANON_TABLE.len() {
         return ptr::null_mut();
     }

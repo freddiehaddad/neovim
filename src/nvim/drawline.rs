@@ -212,7 +212,7 @@ impl DrawlineState {
 static DL_STATE: GlobalState<DrawlineState> = GlobalState::new(DrawlineState::new());
 
 #[inline]
-unsafe fn dl_st() -> &'static mut DrawlineState {
+fn dl_st() -> &'static mut DrawlineState {
     unsafe { &mut *DL_STATE.as_ptr() }
 }
 
@@ -232,26 +232,22 @@ const fn vcol_hlc(wlv: &winlinevars_T) -> c_int {
     wlv.vcol - wlv.vcol_off_co
 }
 
-unsafe fn get_extra_buf(mut size: usize) -> *mut c_char {
-    unsafe {
-        size = size.max(64);
+fn get_extra_buf(mut size: usize) -> *mut c_char {
+    size = size.max(64);
         let buf = &mut dl_st().extra_buf;
         if buf.len() < size {
             buf.resize(size, 0);
         }
         buf.as_mut_ptr()
-    }
 }
 
-pub unsafe fn drawline_free_all_mem() {
-    unsafe {
-        dl_st().extra_buf = Vec::new();
-    }
+pub fn drawline_free_all_mem() {
+    dl_st().extra_buf = Vec::new();
 }
 
 /// Get the 'listchars' "extends" characters to use for "wp", or NUL if it
 /// shouldn't be used.
-unsafe fn get_lcs_ext(wp: &mut win_T) -> schar_T {
+fn get_lcs_ext(wp: &mut win_T) -> schar_T {
     if wp.w_onebuf_opt.wo_wrap != 0 {
             return 0;
         }
@@ -624,14 +620,12 @@ unsafe fn draw_col_buf(
     }
 }
 
-unsafe fn draw_col_fill(wlv: &mut winlinevars_T, fillchar: schar_T, width: c_int, attr: c_int) {
-    unsafe {
-        for _ in 0..width {
+fn draw_col_fill(wlv: &mut winlinevars_T, fillchar: schar_T, width: c_int, attr: c_int) {
+    for _ in 0..width {
             g_st().linebuf_char[wlv.off as usize] = fillchar;
             g_st().linebuf_attr[wlv.off as usize] = attr;
             wlv.off += 1;
         }
-    }
 }
 
 /// Return true if CursorLineSign / CursorLineFold highlight is to be used.
@@ -1324,9 +1318,8 @@ unsafe fn handle_inline_virtual_text(
     }
 }
 
-unsafe fn win_line_start(wp: &mut win_T, wlv: &mut winlinevars_T) {
-    unsafe {
-        wlv.col = 0;
+fn win_line_start(wp: &mut win_T, wlv: &mut winlinevars_T) {
+    wlv.col = 0;
         wlv.off = 0;
         wlv.need_lbr = false;
         for i in 0..wp.w_view_width as usize {
@@ -1334,7 +1327,6 @@ unsafe fn win_line_start(wp: &mut win_T, wlv: &mut winlinevars_T) {
             g_st().linebuf_attr[i] = 0;
             g_st().linebuf_vcol[i] = -1;
         }
-    }
 }
 
 fn fix_for_boguscols(wlv: &mut winlinevars_T) {
@@ -1346,7 +1338,7 @@ fn fix_for_boguscols(wlv: &mut winlinevars_T) {
     wlv.boguscols = 0;
 }
 
-unsafe fn get_rightmost_vcol(wp: &mut win_T, color_cols: &[c_int]) -> c_int {
+fn get_rightmost_vcol(wp: &mut win_T, color_cols: &[c_int]) -> c_int {
     let mut ret: c_int = 0;
 
         if wp.w_onebuf_opt.wo_cuc != 0 {

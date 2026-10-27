@@ -130,7 +130,7 @@ impl FoldModuleState {
 static FOLD_STATE: GlobalState<FoldModuleState> = GlobalState::new(FoldModuleState::new());
 
 #[inline]
-unsafe fn fold_st() -> &'static mut FoldModuleState {
+fn fold_st() -> &'static mut FoldModuleState {
     unsafe { &mut *FOLD_STATE.as_ptr() }
 }
 
@@ -1319,7 +1319,7 @@ unsafe fn checkSmall(wp: *mut win_T, fp: &mut fold_T, lnum_off: linenr_T) {
     }
 }
 
-unsafe fn setSmallMaybe(gap: &mut [fold_T]) {
+fn setSmallMaybe(gap: &mut [fold_T]) {
     for entry in gap {
         entry.fd_small = kNone;
     }
@@ -2231,9 +2231,8 @@ fn foldInsert(gap: &mut Vec<fold_T>, i: c_int) {
     );
 }
 
-unsafe fn foldSplit(gap: &mut Vec<fold_T>, i: c_int, top: linenr_T, bot: linenr_T) {
-    unsafe {
-        foldInsert(gap, i + 1);
+fn foldSplit(gap: &mut Vec<fold_T>, i: c_int, top: linenr_T, bot: linenr_T) {
+    foldInsert(gap, i + 1);
 
         let gap_slice = gap.as_mut_slice();
         let (left, right) = gap_slice.split_at_mut((i + 1) as usize);
@@ -2256,7 +2255,6 @@ unsafe fn foldSplit(gap: &mut Vec<fold_T>, i: c_int, top: linenr_T, bot: linenr_
         }
         fp.fd_len = top - fp.fd_top;
         fold_st().fold_changed = true;
-    }
 }
 
 unsafe fn foldRemove(gap: &mut Vec<fold_T>, top: linenr_T, bot: linenr_T) {
