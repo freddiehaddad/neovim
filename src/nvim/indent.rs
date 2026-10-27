@@ -106,7 +106,7 @@ const fn has_briopt_key(v: &OptKeyDict_briopt, bit: u64) -> bool {
 pub unsafe fn tabstop_set(
     mut var: *mut c_char,
     array: &mut Vec<colnr_T>,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         let mut valcount: usize = 1;
@@ -1397,7 +1397,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
             data: errbuf_storage.as_mut_ptr(),
             size: IOSIZE,
         };
-        let errmsg = tabstop_set(ptr, &mut new_vts_array, &raw const errbuf);
+        let errmsg = tabstop_set(ptr, &mut new_vts_array, Some(errbuf));
         if !errmsg.is_null() {
             emsg(gettext(errmsg));
             return;
@@ -1562,7 +1562,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
                     cstr_as_obj(ts_cstr.as_ptr()),
                     OPT_LOCAL,
                     true,
-                    ptr::null(),
+                    None,
                 );
             } else {
                 set_option_value(
@@ -1570,7 +1570,7 @@ pub unsafe fn ex_retab(eap: *mut exarg_T) {
                     integer_obj(i64::from(tabstop_first(&new_vts_array))),
                     OPT_LOCAL,
                     true,
-                    ptr::null(),
+                    None,
                 );
             }
             if (*curwin).handle != win_handle || (*curbuf).b_fnum != buf_handle {
@@ -1939,7 +1939,7 @@ mod tests {
     fn tabstop_set_padding_and_at_work() {
         unsafe {
             let mut vts: Vec<colnr_T> = Vec::new();
-            assert!(tabstop_set(c"4,8".as_ptr().cast_mut(), &mut vts, ptr::null()).is_null());
+            assert!(tabstop_set(c"4,8".as_ptr().cast_mut(), &mut vts, None).is_null());
             assert!(!vts.is_empty());
             assert_eq!(tabstop_count(&vts), 2);
             assert_eq!(tabstop_first(&vts), 4);

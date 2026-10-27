@@ -235,7 +235,7 @@ pub unsafe fn ui_refresh() {
                     integer_obj(Integer::from(had_message)),
                     0,
                     true,
-                    ptr::null_mut(),
+                    None,
                 );
                 let mut tp = first_tabpage;
                 while !tp.is_null() {

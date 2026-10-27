@@ -611,30 +611,30 @@ const SHELL_RULES: [ShellRule; 2] = [
 use crate::os::lang::bind_textdomain_codeset;
 
 pub unsafe fn opt_error(
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
     fmt: *const c_char,
     arg: *const c_char,
 ) -> *const c_char {
-    if errbuf.is_null() {
+    let Some(errbuf) = errbuf else {
         return c"".as_ptr();
-    }
+    };
     unsafe {
-        vim_snprintf!((*errbuf).data, (*errbuf).size, gettext(fmt), arg);
-        (*errbuf).data.cast_const()
+        vim_snprintf!(errbuf.data, errbuf.size, gettext(fmt), arg);
+        errbuf.data.cast_const()
     }
 }
 
 pub unsafe fn opt_error_int(
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
     fmt: *const c_char,
     arg: c_int,
 ) -> *const c_char {
-    if errbuf.is_null() {
+    let Some(errbuf) = errbuf else {
         return c"".as_ptr();
-    }
+    };
     unsafe {
-        vim_snprintf!((*errbuf).data, (*errbuf).size, gettext(fmt), arg);
-        (*errbuf).data.cast_const()
+        vim_snprintf!(errbuf.data, errbuf.size, gettext(fmt), arg);
+        errbuf.data.cast_const()
     }
 }
 
@@ -1972,7 +1972,7 @@ unsafe fn do_one_set_option(
     opt_flags: c_int,
     argp: *mut *mut c_char,
     did_show: *mut bool,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         let prefix = get_option_prefix(argp);
@@ -2140,7 +2140,7 @@ pub unsafe fn do_set(mut arg: *mut c_char, opt_flags: c_int) -> c_int {
                         opt_flags,
                         &raw mut arg,
                         &raw mut did_show,
-                        &raw const errbuf,
+                        Some(errbuf),
                     );
 
                     for _ in 0..2 {
@@ -2370,23 +2370,23 @@ unsafe fn didset_options2() {
             (*curwin).w_onebuf_opt.wo_fcs,
             CharsOption::kFillchars,
             true,
-            ptr::null(),
+            None,
         );
         set_chars_option(
             curwin,
             (*curwin).w_onebuf_opt.wo_lcs,
             CharsOption::kListchars,
             true,
-            ptr::null(),
+            None,
         );
 
         check_opt_wim(p_wim, (&raw mut wim_flags).cast::<u8>());
         tabstop_set(
             (*curbuf).b_p_vsts,
             &mut (*curbuf).b_p_vsts_array,
-            ptr::null(),
+            None,
         );
-        tabstop_set((*curbuf).b_p_vts, &mut (*curbuf).b_p_vts_array, ptr::null());
+        tabstop_set((*curbuf).b_p_vts, &mut (*curbuf).b_p_vts_array, None);
     }
 }
 
@@ -3169,7 +3169,7 @@ pub unsafe fn did_set_paste(_args: *mut optset_T) -> *const c_char {
                     .as_ref()
                     .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
                 if !(*buf).b_p_vsts.is_null() && (*buf).b_p_vsts != empty_opt {
-                    tabstop_set((*buf).b_p_vsts, &mut (*buf).b_p_vsts_array, ptr::null());
+                    tabstop_set((*buf).b_p_vsts, &mut (*buf).b_p_vsts_array, None);
                 } else {
                     (*buf).b_p_vsts_array.clear();
                 }
@@ -3620,7 +3620,7 @@ unsafe fn check_num_option_bounds(
     opt_idx: OptIndex,
     newval: *mut OptInt,
     win: *mut win_T,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         let mut errmsg: *const c_char = ptr::null();
@@ -3677,7 +3677,7 @@ unsafe fn validate_num_option(
     opt_idx: OptIndex,
     newval: *mut OptInt,
     win: *mut win_T,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         let value = *newval;
@@ -5817,19 +5817,19 @@ pub unsafe fn validate_and_prepare_option_value(args: *mut optset_T) -> *const c
         } else if !option_has_type(opt_idx, optval_type(*newval)) {
             let rep = optval_to_cstr(*newval, true);
             let type_str = optval_type_name((*opt).opt_type);
-            errmsg = if errbuf.is_null() {
-                c"".as_ptr()
-            } else {
+            errmsg = if let Some(errbuf) = errbuf {
                 vim_snprintf!(
-                    (*errbuf).data,
-                    (*errbuf).size,
+                    errbuf.data,
+                    errbuf.size,
                     gettext(c"Invalid value for option '%s': expected %s, got %s %s".as_ptr()),
                     (*opt).fullname.as_ptr(),
                     type_str,
                     optval_type_name(optval_type(*newval)),
                     rep.as_ptr(),
                 );
-                (*errbuf).data.cast_const()
+                errbuf.data.cast_const()
+            } else {
+                c"".as_ptr()
             };
         } else if (*newval).obj_type == ObjectType::kObjectTypeInteger {
             errmsg = validate_num_option(opt_idx, (*newval).data.integer_mut(), win, errbuf);
@@ -5880,7 +5880,7 @@ unsafe fn set_option(
     set_sid: scid_T,
     direct: bool,
     value_replaced: bool,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         assert!(opt_idx != kOptInvalid);
@@ -6076,7 +6076,7 @@ pub unsafe fn set_option_direct(
             set_sid,
             true,
             true,
-            ptr::null(),
+            None,
         );
         assert!(errmsg.is_null());
     }
@@ -6119,7 +6119,7 @@ pub unsafe fn set_option_value(
     value: Object,
     opt_flags: c_int,
     value_replaced: bool,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         assert!(opt_idx != kOptInvalid);
@@ -6145,7 +6145,7 @@ pub unsafe fn set_option_value(
 unsafe fn unset_option_local_value(opt_idx: OptIndex) -> *const c_char {
     unsafe {
         assert!(option_is_global_local(opt_idx));
-        set_option_value(opt_idx, unset_obj(), OPT_LOCAL, true, ptr::null())
+        set_option_value(opt_idx, unset_obj(), OPT_LOCAL, true, None)
     }
 }
 
@@ -6157,7 +6157,7 @@ pub unsafe fn set_option_value_give_err(opt_idx: OptIndex, value: Object, opt_fl
             data: errbuf_storage.as_mut_ptr(),
             size: IOSIZE,
         };
-        let errmsg = set_option_value(opt_idx, value, opt_flags, true, &raw const errbuf);
+        let errmsg = set_option_value(opt_idx, value, opt_flags, true, Some(errbuf));
 
         if !errmsg.is_null() {
             emsg(tr(errmsg));
@@ -6327,7 +6327,7 @@ pub unsafe fn set_option_value_for(
             data: errbuf_storage.as_mut_ptr(),
             size: IOSIZE,
         };
-        let errmsg = set_option_value(opt_idx, value, opt_flags, value_replaced, &raw const errbuf);
+        let errmsg = set_option_value(opt_idx, value, opt_flags, value_replaced, Some(errbuf));
         if !errmsg.is_null() {
             api_set_error!(err, ErrorType::kErrorTypeException, c"%s".as_ptr(), errmsg);
         }
@@ -7436,14 +7436,14 @@ pub unsafe fn didset_window_options(wp: *mut win_T, valid_cursor: bool) {
             (*wp).w_onebuf_opt.wo_fcs,
             CharsOption::kFillchars,
             true,
-            ptr::null(),
+            None,
         );
         set_chars_option(
             wp,
             (*wp).w_onebuf_opt.wo_lcs,
             CharsOption::kListchars,
             true,
-            ptr::null(),
+            None,
         );
         parse_winhl_opt(ptr::null(), wp);
         check_blending(wp);
@@ -7569,7 +7569,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 (*buf).b_p_vsts = alloc_string_option(p_vsts);
                 copy_opt_sctx(buf, kBufOptVarsofttabstop);
                 if !p_vsts.is_null() && p_vsts != empty_opt {
-                    tabstop_set(p_vsts, &mut (*buf).b_p_vsts_array, ptr::null());
+                    tabstop_set(p_vsts, &mut (*buf).b_p_vsts_array, None);
                 } else {
                     (*buf).b_p_vsts_array.clear();
                 }
@@ -7681,7 +7681,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                 if dont_do_help {
                     (*buf).b_p_isk = save_p_isk;
                     if !p_vts.is_null() && *p_vts != NUL && (*buf).b_p_vts_array.is_empty() {
-                        tabstop_set(p_vts, &mut (*buf).b_p_vts_array, ptr::null());
+                        tabstop_set(p_vts, &mut (*buf).b_p_vts_array, None);
                     } else {
                         (*buf).b_p_vts_array.clear();
                     }
@@ -7694,7 +7694,7 @@ pub unsafe fn buf_copy_options(buf: *mut buf_T, flags: c_int) {
                     (*buf).b_p_vts = alloc_string_option(p_vts);
                     copy_opt_sctx(buf, kBufOptVartabstop);
                     if !p_vts.is_null() && *p_vts != NUL && (*buf).b_p_vts_array.is_empty() {
-                        tabstop_set(p_vts, &mut (*buf).b_p_vts_array, ptr::null());
+                        tabstop_set(p_vts, &mut (*buf).b_p_vts_array, None);
                     } else {
                         (*buf).b_p_vts_array.clear();
                     }

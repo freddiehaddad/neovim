@@ -840,7 +840,7 @@ pub unsafe fn terminal_open(termpp: *mut *mut Terminal, buf: *mut buf_T) {
             string_obj(cstr_slice_as_string(b"terminal\0")),
             OPT_LOCAL,
             true,
-            ptr::null(),
+            None,
         );
         (*buf).b_locked -= 1;
 

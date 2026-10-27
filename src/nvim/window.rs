@@ -4518,7 +4518,7 @@ pub unsafe fn frame_new_height(
             let new_ch = min_set_ch.max(p_ch + OptInt::from((*topfrp).fr_height - height));
             if new_ch != p_ch {
                 let save_ch = min_set_ch;
-                set_option_value(kOptCmdheight, integer_obj(new_ch), 0, true, ptr::null());
+                set_option_value(kOptCmdheight, integer_obj(new_ch), 0, true, None);
                 min_set_ch = save_ch;
             }
             height = (rows_avail() as c_int).min(height);
@@ -5486,7 +5486,7 @@ unsafe fn enter_tabpage(
             let new_ch = p_ch;
             p_ch = prev_p_ch;
             command_frame_height = false;
-            set_option_value(kOptCmdheight, integer_obj(new_ch), 0, true, ptr::null());
+            set_option_value(kOptCmdheight, integer_obj(new_ch), 0, true, None);
             command_frame_height = true;
         } else if !ptr::eq(old_curtab, curtab) {
             tabpage_check_windows(old_curtab);

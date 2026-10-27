@@ -755,7 +755,7 @@ pub unsafe extern "C" fn nvim_set_option_value(
                 os_value_checked: false,
                 os_value_changed: false,
                 os_restore_chartab: false,
-                os_errbuf: &errbuf,
+                os_errbuf: Some(errbuf),
                 os_win: win,
                 os_buf: buf,
             };

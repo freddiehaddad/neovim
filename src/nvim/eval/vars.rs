@@ -3545,7 +3545,7 @@ unsafe fn set_option_from_tv(varname: *const c_char, varp: *mut typval_T) {
                 data: errbuf_storage.as_mut_ptr(),
                 size: IOSIZE,
             };
-            let errmsg = set_option_value(opt_idx, value, OPT_LOCAL, true, &raw const errbuf);
+            let errmsg = set_option_value(opt_idx, value, OPT_LOCAL, true, Some(errbuf));
             if !errmsg.is_null() {
                 emsg(errmsg);
             }

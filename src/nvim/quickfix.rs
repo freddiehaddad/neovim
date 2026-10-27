@@ -578,10 +578,14 @@ static mut ql_info_actual: qf_info_T = qf_info_T {
     qf_maxcount: 0,
     qf_lists: Vec::new(),
     qfl_type: QFLT_QUICKFIX,
-    qf_bufnr: 0,
+    qf_bufnr: INVALID_QFBUFNR,
 };
-static mut ql_info: *mut qf_info_T = ptr::null_mut();
 static mut last_qf_id: c_uint = 0;
+
+#[inline]
+const fn ql_info_ptr() -> *mut qf_info_T {
+    &raw mut ql_info_actual
+}
 
 static mut qf_last_bufname: Option<std::ffi::CString> = None;
 static mut qf_last_bufref: bufref_T = bufref_T {
@@ -650,9 +654,9 @@ unsafe fn is_qf_list(qfl: *const qf_list_T) -> bool {
 unsafe fn get_loc_list(wp: *const win_T) -> *mut qf_info_T {
     unsafe {
         if is_ll_window(wp) {
-            (*wp).w_llist_ref.cast::<qf_info_T>()
+            (*wp).w_llist_ref
         } else {
-            (*wp).w_llist.cast::<qf_info_T>()
+            (*wp).w_llist
         }
     }
 }
@@ -767,7 +771,7 @@ pub unsafe fn qf_init(
 ) -> c_int {
     unsafe {
         let qi = if wp.is_null() {
-            ql_info
+            ql_info_ptr()
         } else {
             ll_get_or_alloc_list(wp)
         };
@@ -2108,8 +2112,7 @@ unsafe fn locstack_queue_delreq(qi: *mut qf_info_T) {
 
 pub unsafe fn qf_stack_get_bufnr() -> c_int {
     unsafe {
-        assert!(!ql_info.is_null());
-        (*ql_info).qf_bufnr
+        (*ql_info_ptr()).qf_bufnr
     }
 }
 
@@ -2167,10 +2170,10 @@ unsafe fn ll_free_all(pqi: *mut *mut qf_info_T) {
 
 pub unsafe fn qf_free_all(wp: *mut win_T) {
     unsafe {
-        let qi = ql_info;
+        let qi = ql_info_ptr();
         if !wp.is_null() {
-            ll_free_all((&raw mut (*wp).w_llist).cast::<*mut qf_info_T>());
-            ll_free_all((&raw mut (*wp).w_llist_ref).cast::<*mut qf_info_T>());
+            ll_free_all(&raw mut (*wp).w_llist);
+            ll_free_all(&raw mut (*wp).w_llist_ref);
         } else if !qi.is_null() {
             qf_free_list_stack_items(qi);
         }
@@ -2303,8 +2306,7 @@ unsafe fn qf_add_entry(
 
 pub unsafe fn qf_resize_stack(n: c_int) {
     unsafe {
-        assert!(!ql_info.is_null());
-        qf_resize_stack_base(ql_info, n);
+        qf_resize_stack_base(ql_info_ptr(), n);
     }
 }
 
@@ -2341,13 +2343,13 @@ unsafe fn qf_resize_stack_base(qi: *mut qf_info_T, n: c_int) {
 
 pub unsafe fn qf_init_stack() {
     unsafe {
-        ql_info = qf_alloc_stack(QFLT_QUICKFIX, p_chi as c_int);
+        let _ = qf_alloc_stack(QFLT_QUICKFIX, p_chi as c_int);
     }
 }
 
 unsafe fn qf_sync_llw_to_win(llw: *mut win_T) {
     unsafe {
-        let wp = qf_find_win_with_loclist((*llw).w_llist_ref.cast::<qf_info_T>());
+        let wp = qf_find_win_with_loclist((*llw).w_llist_ref);
         if !wp.is_null() {
             (*wp).w_onebuf_opt.wo_lhi = (*llw).w_onebuf_opt.wo_lhi;
         }
@@ -2356,11 +2358,11 @@ unsafe fn qf_sync_llw_to_win(llw: *mut win_T) {
 
 unsafe fn qf_sync_win_to_llw(pwp: *mut win_T) {
     unsafe {
-        let llw = (*pwp).w_llist.cast::<qf_info_T>();
+        let llw = (*pwp).w_llist;
         if !llw.is_null() {
             let mut wp = tab_firstwin(curtab);
             while !wp.is_null() {
-                if (*wp).w_llist_ref.cast::<qf_info_T>() == llw && bt_quickfix((*wp).w_buffer) {
+                if (*wp).w_llist_ref == llw && bt_quickfix((*wp).w_buffer) {
                     (*wp).w_onebuf_opt.wo_lhi = (*pwp).w_onebuf_opt.wo_lhi;
                     return;
                 }
@@ -2413,7 +2415,7 @@ unsafe fn ll_get_or_alloc_list(wp: *mut win_T) -> *mut qf_info_T {
 
 unsafe fn qf_cmd_get_stack(eap: *mut exarg_T, print_emsg: bool) -> *mut qf_info_T {
     unsafe {
-        let mut qi = ql_info;
+        let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
 
         if is_loclist_cmd((*eap).cmdidx) {
@@ -2432,7 +2434,7 @@ unsafe fn qf_cmd_get_stack(eap: *mut exarg_T, print_emsg: bool) -> *mut qf_info_
 
 unsafe fn qf_cmd_get_or_alloc_stack(eap: *const exarg_T, pwinp: *mut *mut win_T) -> *mut qf_info_T {
     unsafe {
-        let mut qi = ql_info;
+        let mut qi = ql_info_ptr();
         if is_loclist_cmd((*eap).cmdidx) {
             qi = ll_get_or_alloc_list(curwin);
             *pwinp = curwin;
@@ -2674,7 +2676,7 @@ unsafe fn qf_guess_filepath(qfl: *mut qf_list_T, filename: *mut c_char) -> *mut 
 
 unsafe fn qflist_valid(wp: *mut win_T, qf_id: c_uint) -> bool {
     unsafe {
-        let mut qi = ql_info;
+        let mut qi = ql_info_ptr();
         if !wp.is_null() {
             if !win_valid(wp) {
                 return false;
@@ -2900,7 +2902,7 @@ unsafe fn qf_find_win_with_loclist(ll: *const qf_info_T) -> *mut win_T {
     unsafe {
         let mut wp = tab_firstwin(curtab);
         while !wp.is_null() {
-            if (*wp).w_llist.cast::<qf_info_T>().cast_const() == ll && !bt_quickfix((*wp).w_buffer)
+            if (*wp).w_llist.cast_const() == ll && !bt_quickfix((*wp).w_buffer)
             {
                 return wp;
             }
@@ -3053,7 +3055,7 @@ unsafe fn qf_jump_to_usable_window(
         let ll_ref = if newwin {
             ptr::null_mut()
         } else {
-            (*curwin).w_llist_ref.cast::<qf_info_T>()
+            (*curwin).w_llist_ref
         };
         if !ll_ref.is_null() {
             usable_wp = qf_find_win_with_loclist(ll_ref);
@@ -3156,7 +3158,7 @@ unsafe fn qf_jump_edit_buffer(
 
         if qfl_type == QFLT_LOCATION {
             let wp = win_id2wp(prev_winid);
-            if wp.is_null() && (*curwin).w_llist.cast::<qf_info_T>() != qi {
+            if wp.is_null() && (*curwin).w_llist != qi {
                 emsg(gettext(c"E924: Current window was closed".as_ptr()));
                 *opened_window = false;
                 return QF_ABORT;
@@ -3425,8 +3427,7 @@ unsafe fn qf_jump_newwin(
         let old_KeyTyped = KeyTyped;
 
         if qi.is_null() {
-            assert!(!ql_info.is_null());
-            qi = ql_info;
+                qi = ql_info_ptr();
         }
 
         if qf_stack_empty(qi) || qf_list_empty(qf_get_curlist(qi)) {
@@ -3851,7 +3852,7 @@ pub unsafe fn qf_mark_adjust(
     amount_after: linenr_T,
 ) -> bool {
     unsafe {
-        let mut qi = ql_info;
+        let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
         let buf_has_flag = if wp.is_null() {
             BUF_HAS_QF_ENTRY
@@ -3866,7 +3867,7 @@ pub unsafe fn qf_mark_adjust(
             if (*wp).w_llist.is_null() {
                 return false;
             }
-            qi = (*wp).w_llist.cast::<qf_info_T>();
+            qi = (*wp).w_llist;
         }
 
         let mut found_one = false;
@@ -3929,7 +3930,7 @@ unsafe fn qf_types(c: c_int, nr: c_int) -> *const c_char {
 
 pub unsafe fn qf_view_result(split: bool) {
     unsafe {
-        let mut qi = ql_info;
+        let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
 
         if is_ll_window(curwin) {
@@ -4190,11 +4191,11 @@ pub unsafe fn ex_cbottom(eap: *mut exarg_T) {
 
 pub unsafe fn qf_current_entry(wp: *mut win_T) -> linenr_T {
     unsafe {
-        let mut qi = ql_info;
+        let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
 
         if is_ll_window(wp) {
-            qi = (*wp).w_llist_ref.cast::<qf_info_T>();
+            qi = (*wp).w_llist_ref;
         }
 
         (*qf_get_curlist(qi)).qf_index
@@ -4223,7 +4224,7 @@ unsafe fn is_qf_win(win: *const win_T, qi: *const qf_info_T) -> bool {
         if buf_valid((*win).w_buffer)
             && bt_quickfix((*win).w_buffer)
             && ((is_qf_stack(qi) && (*win).w_llist_ref.is_null())
-                || (is_ll_stack(qi) && (*win).w_llist_ref.cast::<qf_info_T>().cast_const() == qi))
+                || (is_ll_stack(qi) && (*win).w_llist_ref.cast_const() == qi))
         {
             return true;
         }
@@ -4305,7 +4306,7 @@ unsafe fn qf_update_buffer(qi: *mut qf_info_T, old_count: usize) {
 
         let mut win: *mut win_T;
         if is_ll_stack(qi) {
-            if (*curwin).w_llist.cast::<qf_info_T>() == qi {
+            if (*curwin).w_llist == qi {
                 win = curwin;
             } else {
                 win = qf_find_win_with_loclist(qi);
@@ -4805,7 +4806,7 @@ pub unsafe fn ex_make(eap: *mut exarg_T) {
             enc,
         );
 
-        let mut qi = ql_info;
+        let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
         if !wp.is_null() {
             qi = get_loc_list(wp);
@@ -5399,7 +5400,7 @@ unsafe fn cfile_get_auname(cmdidx: c_int) -> *const c_char {
 pub unsafe fn ex_cfile(eap: *mut exarg_T) {
     unsafe {
         let mut wp: *mut win_T = ptr::null_mut();
-        let mut qi = ql_info;
+        let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
 
         let au_name = cfile_get_auname((*eap).cmdidx);
@@ -6223,7 +6224,7 @@ unsafe fn get_errorlist(
     unsafe {
         let mut qi = qi_arg;
         if qi.is_null() {
-            qi = ql_info;
+            qi = ql_info_ptr();
             if !wp.is_null() {
                 qi = get_loc_list(wp);
             }
@@ -6576,7 +6577,7 @@ unsafe fn qf_getprop_qftf(qfl: *mut qf_list_T, retdict: *mut dict_T) -> c_int {
 
 unsafe fn qf_get_properties(wp: *mut win_T, what: *mut dict_T, retdict: *mut dict_T) -> c_int {
     unsafe {
-        let mut qi = ql_info;
+        let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
         let mut status = OK;
         let mut qf_idx = INVALID_QFIDX;
@@ -7241,7 +7242,7 @@ pub unsafe fn set_errorlist(
         let qi = if !wp.is_null() {
             ll_get_or_alloc_list(wp)
         } else {
-            ql_info
+            ql_info_ptr()
         };
         assert!(!qi.is_null());
 
@@ -7327,9 +7328,8 @@ unsafe fn mark_quickfix_ctx(qi: *mut qf_info_T, copyID: c_int) -> bool {
 
 pub unsafe fn set_ref_in_quickfix(copyID: c_int) -> bool {
     unsafe {
-        assert!(!ql_info.is_null());
-        if mark_quickfix_ctx(ql_info, copyID)
-            || mark_quickfix_user_data(ql_info, copyID)
+        if mark_quickfix_ctx(ql_info_ptr(), copyID)
+            || mark_quickfix_user_data(ql_info_ptr(), copyID)
             || set_ref_in_callback(&raw mut p_qftf, copyID, ptr::null_mut(), ptr::null_mut())
         {
             return true;
@@ -7340,14 +7340,14 @@ pub unsafe fn set_ref_in_quickfix(copyID: c_int) -> bool {
             let mut win = tab_firstwin(tp);
             while !win.is_null() {
                 if !(*win).w_llist.is_null() {
-                    let ll = (*win).w_llist.cast::<qf_info_T>();
+                    let ll = (*win).w_llist;
                     if mark_quickfix_ctx(ll, copyID) || mark_quickfix_user_data(ll, copyID) {
                         return true;
                     }
                 }
 
                 if is_ll_window(win) {
-                    let ll_ref = (*win).w_llist_ref.cast::<qf_info_T>();
+                    let ll_ref = (*win).w_llist_ref;
                     if (*ll_ref).qf_refcount == 1
                         && (mark_quickfix_ctx(ll_ref, copyID)
                             || mark_quickfix_user_data(ll_ref, copyID))
@@ -7621,7 +7621,7 @@ unsafe fn hgr_get_ll(new_ll: *mut bool) -> *mut qf_info_T {
         let mut qi = if wp.is_null() {
             ptr::null_mut()
         } else {
-            (*wp).w_llist.cast::<qf_info_T>()
+            (*wp).w_llist
         };
         if qi.is_null() {
             qi = qf_alloc_stack(QFLT_LOCATION, 1);
@@ -7729,7 +7729,7 @@ unsafe fn hgr_search_in_rtp(qfl: *mut qf_list_T, p_regmatch: *mut regmatch_T, la
 
 pub unsafe fn ex_helpgrep(eap: *mut exarg_T) {
     unsafe {
-        let mut qi = ql_info;
+        let mut qi = ql_info_ptr();
         assert!(!qi.is_null());
         let au_name: *const c_char = match (*eap).cmdidx {
             CMD_helpgrep => c"helpgrep".as_ptr(),

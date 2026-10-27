@@ -4116,7 +4116,7 @@ unsafe fn nv_zet(cap: *mut cmdarg_T) {
                 boolean_obj(foldenable != 0),
                 OPT_LOCAL,
                 true,
-                ptr::null(),
+                None,
             );
             if (*curwin).handle != win_handle || (*curbuf).b_fnum != buf_handle {
                 clearop((*cap).oap);
@@ -4133,7 +4133,7 @@ unsafe fn nv_zet(cap: *mut cmdarg_T) {
                 integer_obj(foldlevel),
                 OPT_LOCAL,
                 true,
-                ptr::null(),
+                None,
             );
         }
         if nchar == b'x' as c_int

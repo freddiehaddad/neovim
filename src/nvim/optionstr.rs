@@ -175,7 +175,7 @@ pub struct optset_T {
     pub os_value_checked: bool,
     pub os_value_changed: bool,
     pub os_restore_chartab: bool,
-    pub os_errbuf: *const CharBuf,
+    pub os_errbuf: Option<CharBuf>,
     pub os_win: *mut win_T,
     pub os_buf: *mut buf_T,
 }
@@ -972,28 +972,28 @@ pub(crate) fn opt_dict_schema(opt_idx: OptIndex) -> Option<&'static OptDictSchem
 /// After setting various option values: recompute variables that depend on option values.
 pub unsafe fn didset_string_options() {
     unsafe {
-        check_str_opt(kOptCasemap, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptBackupcopy, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptBelloff, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptCompleteopt, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptSessionoptions, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptViewoptions, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptFoldopen, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptDisplay, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptJumpoptions, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptRedrawdebug, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptTagcase, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptTermpastefilter, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptVirtualedit, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptSwitchbuf, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptTabclose, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptWildoptions, ptr::null_mut(), ptr::null());
-        check_str_opt(kOptClipboard, ptr::null_mut(), ptr::null());
+        check_str_opt(kOptCasemap, ptr::null_mut(), None);
+        check_str_opt(kOptBackupcopy, ptr::null_mut(), None);
+        check_str_opt(kOptBelloff, ptr::null_mut(), None);
+        check_str_opt(kOptCompleteopt, ptr::null_mut(), None);
+        check_str_opt(kOptSessionoptions, ptr::null_mut(), None);
+        check_str_opt(kOptViewoptions, ptr::null_mut(), None);
+        check_str_opt(kOptFoldopen, ptr::null_mut(), None);
+        check_str_opt(kOptDisplay, ptr::null_mut(), None);
+        check_str_opt(kOptJumpoptions, ptr::null_mut(), None);
+        check_str_opt(kOptRedrawdebug, ptr::null_mut(), None);
+        check_str_opt(kOptTagcase, ptr::null_mut(), None);
+        check_str_opt(kOptTermpastefilter, ptr::null_mut(), None);
+        check_str_opt(kOptVirtualedit, ptr::null_mut(), None);
+        check_str_opt(kOptSwitchbuf, ptr::null_mut(), None);
+        check_str_opt(kOptTabclose, ptr::null_mut(), None);
+        check_str_opt(kOptWildoptions, ptr::null_mut(), None);
+        check_str_opt(kOptClipboard, ptr::null_mut(), None);
     }
 }
 
-unsafe fn illegal_char(errbuf: *const CharBuf, c: c_int) -> *const c_char {
-    if errbuf.is_null() {
+unsafe fn illegal_char(errbuf: Option<CharBuf>, c: c_int) -> *const c_char {
+    if errbuf.is_none() {
         return c"".as_ptr();
     }
     unsafe {
@@ -1120,7 +1120,7 @@ pub unsafe fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
             &opt_scl_values,
             ptr::null_mut(),
             false,
-            ptr::null(),
+            None,
         )
         .is_null()
         {
@@ -1183,7 +1183,7 @@ pub unsafe fn check_signcolumn(scl: *mut c_char, wp: *mut win_T) -> c_int {
 /// Check validity of string with the 'statusline' format until the end of the current scope.
 unsafe fn check_stl_str_adv_scope(
     s: *mut *mut c_char,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
     scope_type: StlScopeType,
 ) -> *const c_char {
     unsafe {
@@ -1289,7 +1289,7 @@ unsafe fn check_stl_str_adv_scope(
 }
 
 /// Check validity of options with the 'statusline' format.
-pub unsafe fn check_stl_option(mut s: *mut c_char, errbuf: *const CharBuf) -> *const c_char {
+pub unsafe fn check_stl_option(mut s: *mut c_char, errbuf: Option<CharBuf>) -> *const c_char {
     unsafe { check_stl_str_adv_scope(&raw mut s, errbuf, StlScopeType::kTopLevel) }
 }
 
@@ -1323,7 +1323,7 @@ unsafe fn opt_values(idx: OptIndex) -> &'static [&'static CStr] {
 unsafe fn check_str_opt(
     idx: OptIndex,
     mut varp: *mut *mut c_char,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         let opt = get_option(idx);
@@ -1376,7 +1376,7 @@ pub unsafe fn validate_str_generic(args: *mut optset_T) -> *const c_char {
 unsafe fn check_option_listflag(
     val: *const c_char,
     flags: *const c_char,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         let mut s = val;
@@ -1796,7 +1796,7 @@ unsafe fn did_set_global_chars_option(
     val: *const c_char,
     what: CharsOption,
     opt_flags: c_int,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         let local_ptr = if what == CharsOption::kListchars {
@@ -2863,7 +2863,7 @@ pub unsafe fn validate_shada(args: *mut optset_T) -> *const c_char {
                 }
 
                 if !ascii_isdigit(*s.sub(1) as c_int) {
-                    if !errbuf.is_null() {
+                    if errbuf.is_some() {
                         return opt_error(
                             errbuf,
                             c"E526: Missing number after <%s>".as_ptr(),
@@ -2877,7 +2877,7 @@ pub unsafe fn validate_shada(args: *mut optset_T) -> *const c_char {
             if *s == b',' as c_char {
                 s = s.add(1);
             } else if *s != NUL {
-                if !errbuf.is_null() {
+                if errbuf.is_some() {
                     return c"E527: Missing comma".as_ptr();
                 } else {
                     return c"".as_ptr();
@@ -3270,7 +3270,7 @@ unsafe fn did_set_titleiconstring(args: *mut optset_T, flagval: c_int) -> *const
         let varp = (*args).os_varp.cast::<*mut c_char>();
 
         if !vim_strchr(*varp, b'%' as c_int).is_null()
-            && check_stl_option(*varp, ptr::null()).is_null()
+            && check_stl_option(*varp, None).is_null()
         {
             stl_syntax |= flagval;
         } else {
@@ -3308,7 +3308,7 @@ pub unsafe fn validate_vartabstop(args: *mut optset_T) -> *const c_char {
         }
 
         let mut array: Vec<colnr_T> = Vec::new();
-        let errmsg = tabstop_set(value, &mut array, (*args).os_errbuf.cast());
+        let errmsg = tabstop_set(value, &mut array, (*args).os_errbuf);
         (*args).os_prep = OptSetPrep::Tabstop(array);
         errmsg
     }
@@ -3470,16 +3470,16 @@ pub unsafe fn expand_set_winhighlight(
 
 /// Format an error naming an item (at most 63 bytes) and listing its valid values.
 unsafe fn opt_values_err(
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
     fmt: *const c_char,
     item: *const c_char,
     itemlen: usize,
     values: &[&CStr],
 ) -> *const c_char {
     unsafe {
-        if errbuf.is_null() {
+        let Some(errbuf) = errbuf else {
             return e_invarg.as_ptr();
-        }
+        };
         let mut itembuf = [0 as c_char; 64];
         xmemcpyz(
             itembuf.as_mut_ptr().cast(),
@@ -3487,18 +3487,18 @@ unsafe fn opt_values_err(
             itemlen.min(itembuf.len() - 1),
         );
         let mut n = vim_snprintf!(
-            (*errbuf).data,
-            (*errbuf).size,
+            errbuf.data,
+            errbuf.size,
             gettext(fmt),
             itembuf.as_ptr(),
         );
         for (j, &v) in values.iter().enumerate() {
-            if n <= 0 || (n as usize) >= (*errbuf).size {
+            if n <= 0 || (n as usize) >= errbuf.size {
                 break;
             }
             n += vim_snprintf!(
-                (*errbuf).data.add(n as usize),
-                (*errbuf).size - (n as usize),
+                errbuf.data.add(n as usize),
+                errbuf.size - (n as usize),
                 c"%s%s".as_ptr(),
                 if j == 0 {
                     c" ".as_ptr()
@@ -3508,7 +3508,7 @@ unsafe fn opt_values_err(
                 v.as_ptr(),
             );
         }
-        (*errbuf).data
+        errbuf.data
     }
 }
 
@@ -3518,7 +3518,7 @@ unsafe fn opt_strings_flags(
     values: &[&CStr],
     flagp: *mut c_uint,
     list: bool,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         let mut new_flags: c_uint = 0;
@@ -3561,13 +3561,13 @@ unsafe fn opt_strings_flags(
 
 /// Format a schema-validation error naming the offending key.
 unsafe fn opt_schema_err(
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
     fmt: *const c_char,
     key: *const c_char,
     keylen: usize,
 ) -> *const c_char {
     unsafe {
-        if errbuf.is_null() {
+        if errbuf.is_none() {
             return e_invarg.as_ptr();
         }
         let mut keybuf = [0 as c_char; 64];
@@ -3584,7 +3584,7 @@ unsafe fn opt_schema_err(
 pub unsafe fn opt_strings_check(
     val: *const c_char,
     schema: &[OptSchemaItem],
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         let mut key: *const c_char = ptr::null();
@@ -3760,7 +3760,7 @@ pub unsafe fn check_ff_value(p: *mut c_char) -> c_int {
             &opt_ff_values,
             ptr::null_mut(),
             false,
-            ptr::null(),
+            None,
         )
         .is_null()
         {
@@ -4043,7 +4043,7 @@ pub unsafe fn set_chars_option(
     mut value: *const c_char,
     what: CharsOption,
     apply: bool,
-    errbuf: *const CharBuf,
+    errbuf: Option<CharBuf>,
 ) -> *const c_char {
     unsafe {
         let mut last_multispace: *const c_char = ptr::null();
@@ -4313,10 +4313,10 @@ pub unsafe fn get_listchars_name(_xp: *mut expand_T, idx: c_int) -> *mut c_char 
 /// Check all global and local values of 'listchars' and 'fillchars'.
 pub unsafe fn check_chars_options() -> *const c_char {
     unsafe {
-        if !set_chars_option(curwin, p_lcs, CharsOption::kListchars, false, ptr::null()).is_null() {
+        if !set_chars_option(curwin, p_lcs, CharsOption::kListchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
         }
-        if !set_chars_option(curwin, p_fcs, CharsOption::kFillchars, false, ptr::null()).is_null() {
+        if !set_chars_option(curwin, p_fcs, CharsOption::kFillchars, false, None).is_null() {
             return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
         }
         let mut tp = first_tabpage;
@@ -4332,7 +4332,7 @@ pub unsafe fn check_chars_options() -> *const c_char {
                     (*wp).w_onebuf_opt.wo_lcs,
                     CharsOption::kListchars,
                     true,
-                    ptr::null(),
+                    None,
                 )
                 .is_null()
                 {
@@ -4343,7 +4343,7 @@ pub unsafe fn check_chars_options() -> *const c_char {
                     (*wp).w_onebuf_opt.wo_fcs,
                     CharsOption::kFillchars,
                     true,
-                    ptr::null(),
+                    None,
                 )
                 .is_null()
                 {

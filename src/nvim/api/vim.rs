@@ -3023,7 +3023,7 @@ pub unsafe extern "C" fn nvim_eval_statusline(
                 data: raw_errbuf.as_mut_ptr(),
                 size: ERR_BUFLEN,
             };
-            let errmsg = check_stl_option(str_.data, &errbuf);
+            let errmsg = check_stl_option(str_.data, Some(errbuf));
             if !errmsg.is_null() {
                 api_set_error!(err, ErrorType::kErrorTypeValidation, c"%s".as_ptr(), errmsg);
                 return result;
