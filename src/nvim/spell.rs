@@ -161,7 +161,7 @@ impl Default for matchinf_T {
 #[repr(C)]
 pub struct spelload_T {
     sl_lang: [c_char; MAXWLEN + 1],
-    sl_slang: *mut slang_T,
+    sl_loaded: bool,
     sl_nobreak: c_int,
 }
 #[repr(C)]
@@ -170,7 +170,7 @@ pub struct syl_item_T {
     sy_chars: [c_char; SY_MAXLEN],
     sy_len: c_int,
 }
-pub static mut first_lang: Vec<std::pin::Pin<Box<slang_T>>> = Vec::new();
+pub static mut first_lang: Vec<Box<slang_T>> = Vec::new();
 pub static mut int_wordlist: Option<std::ffi::CString> = None;
 pub static mut spelltab: spelltab_T = spelltab_T {
     st_isw: [false; 256],
@@ -1284,7 +1284,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
         let mut r: c_int = FAIL;
         let mut sl = spelload_T {
             sl_lang: [0; MAXWLEN + 1],
-            sl_slang: ptr::null_mut(),
+            sl_loaded: false,
             sl_nobreak: 0,
         };
         strcpy((&raw mut sl.sl_lang).cast(), lang);
@@ -1354,7 +1354,7 @@ unsafe fn spell_load_lang(lang: *mut c_char) {
                     lang,
                 );
             }
-        } else if !sl.sl_slang.is_null() {
+        } else if sl.sl_loaded {
             let fn_ptr = (&raw mut fname_enc).cast::<c_char>();
             strcpy(fn_ptr.add(strlen(fn_ptr) - 3), c"add.spl".as_ptr());
             do_in_runtimepath(fn_ptr, DIP_ALL, RuntimeCallback::SpellLoad(&raw mut sl));
@@ -1504,7 +1504,7 @@ pub unsafe fn spell_load_cb(
             } else if (*slang).sl_nobreak {
                 (*slp).sl_nobreak = 1;
             }
-            (*slp).sl_slang = slang;
+            (*slp).sl_loaded = true;
             if !all {
                 break;
             }

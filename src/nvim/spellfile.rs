@@ -700,7 +700,7 @@ pub unsafe fn spell_load_file(
                 && !lang.is_null()
             {
                 let langs = &raw mut first_lang;
-                (*langs).push(std::pin::Pin::new(boxed_lp));
+                (*langs).push(boxed_lp);
                 lp = &raw mut **(*langs).last_mut().unwrap();
             }
         } else {
