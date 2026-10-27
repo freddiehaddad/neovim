@@ -148,9 +148,9 @@ unsafe fn group_get_ns(group: *const c_char) -> i64 {
     }
 }
 
-unsafe fn sign_get_name(sh: *mut DecorSignHighlight) -> *const c_char {
+unsafe fn sign_get_name(sh: &DecorSignHighlight) -> *const c_char {
     unsafe {
-        let Some(ref name) = (*sh).sign_name else {
+        let Some(ref name) = sh.sign_name else {
             return c"".as_ptr();
         };
         if !pmap_get_sign(name.as_ptr()).is_null() {
@@ -268,9 +268,8 @@ unsafe fn sign_row_cmp_slice(s1: &MTKey, s2: &MTKey) -> Ordering {
             };
         }
 
-        let sh1 = decor_find_sign(mt_decor(*s1));
-        let sh2 = decor_find_sign(mt_decor(*s2));
-        assert!(!sh1.is_null() && !sh2.is_null());
+        let sh1 = decor_find_sign(mt_decor(*s1)).unwrap();
+        let sh2 = decor_find_sign(mt_decor(*s2)).unwrap();
         let si1 = SignItem { sh: sh1, id: s1.id };
         let si2 = SignItem { sh: sh2, id: s2.id };
 
@@ -400,8 +399,8 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                         namebuf[0] = NUL;
                         groupbuf[0] = NUL;
 
-                        let sh = decor_find_sign(mt_decor(mark));
-                        if (*sh).sign_name.is_some() {
+                        let sh = decor_find_sign(mt_decor(mark)).unwrap();
+                        if sh.sign_name.is_some() {
                             vim_snprintf!(
                                 namebuf.as_mut_ptr(),
                                 MSG_BUF_LEN,
@@ -425,7 +424,7 @@ unsafe fn sign_list_placed(rbuf: *mut buf_T, group: *mut c_char) {
                             mark.id,
                             groupbuf.as_ptr(),
                             namebuf.as_ptr(),
-                            c_int::from((*sh).priority),
+                            c_int::from(sh.priority),
                         );
                         msg_puts(lbuf.as_ptr());
                         if i < signs.len() - 1 {
@@ -1137,7 +1136,7 @@ unsafe fn sign_get_info_dict(sp: *mut sign_T) -> *mut dict_T {
 unsafe fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
     unsafe {
         let d = tv_dict_alloc();
-        let sh = decor_find_sign(mt_decor(mark));
+        let sh = decor_find_sign(mt_decor(mark)).unwrap();
 
         tv_dict_add_str(d, c"name".as_ptr(), 4, sign_get_name(sh));
         tv_dict_add_nr(d, c"id".as_ptr(), 2, i64::from(mark.id as c_int));
@@ -1148,7 +1147,7 @@ unsafe fn sign_get_placed_info_dict(mark: MTKey) -> *mut dict_T {
             describe_ns(mark.ns as c_int, c"".as_ptr()),
         );
         tv_dict_add_nr(d, c"lnum".as_ptr(), 4, i64::from(mark.pos.row + 1));
-        tv_dict_add_nr(d, c"priority".as_ptr(), 8, i64::from((*sh).priority));
+        tv_dict_add_nr(d, c"priority".as_ptr(), 8, i64::from(sh.priority));
         d
     }
 }

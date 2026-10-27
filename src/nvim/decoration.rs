@@ -405,15 +405,14 @@ pub struct SignTextAttrs {
     pub hl_id: c_int,
 }
 
-#[repr(C)]
 #[derive(Clone, Copy)]
-pub struct SignItem {
-    pub sh: *mut DecorSignHighlight,
+pub struct SignItem<'a> {
+    pub sh: &'a DecorSignHighlight,
     pub id: u32,
 }
 
 static mut decor_freelist: u32 = u32::MAX;
-static mut to_free_virt: Vec<std::pin::Pin<Box<DecorVirtText>>> = Vec::new();
+static mut to_free_virt: Vec<Box<DecorVirtText>> = Vec::new();
 static mut to_free_sh: u32 = u32::MAX;
 static mut sign_add_id: c_int = 0;
 
@@ -596,9 +595,10 @@ pub unsafe fn buf_put_decor(buf: *mut buf_T, decor: DecorInline, row: c_int, mut
             let mut idx = decor.data.ext().sh_idx;
             row2 = row2.min((*buf).b_ml.ml_line_count - 1);
             while idx != DECOR_ID_INVALID {
-                let sh = &raw mut (&mut *items)[idx as usize];
+                let sh = &mut (&mut *items)[idx as usize];
+                let next = sh.next;
                 buf_put_decor_sh(buf, sh, row, row2);
-                idx = (*sh).next;
+                idx = next;
             }
         }
     }
@@ -630,15 +630,15 @@ unsafe fn may_force_numberwidth_recompute(buf: *mut buf_T, unplace: bool) {
 
 pub unsafe fn buf_put_decor_sh(
     buf: *mut buf_T,
-    sh: *mut DecorSignHighlight,
+    sh: &mut DecorSignHighlight,
     row1: c_int,
     row2: c_int,
 ) {
     unsafe {
-        if ((*sh).flags & kSHIsSign) != 0 {
-            (*sh).sign_add_id = sign_add_id;
+        if (sh.flags & kSHIsSign) != 0 {
+            sh.sign_add_id = sign_add_id;
             sign_add_id += 1;
-            if (*sh).text[0] != 0 {
+            if sh.text[0] != 0 {
                 buf_signcols_count_range(buf, row1, row2, 1, kFalse);
                 may_force_numberwidth_recompute(buf, false);
             }
@@ -657,13 +657,14 @@ pub unsafe fn buf_decor_remove(
     unsafe {
         decor_redraw(buf, row1, row2, col1, decor);
         if decor.is_ext() && row1 < (*buf).b_ml.ml_line_count {
-            let items = &raw mut decor_items;
+            let items = &raw const decor_items;
             let mut idx = decor.data.ext().sh_idx;
             row2 = row2.min((*buf).b_ml.ml_line_count - 1);
             while idx != DECOR_ID_INVALID {
-                let sh = &raw mut (&mut *items)[idx as usize];
+                let sh = &(&*items)[idx as usize];
+                let next = sh.next;
                 buf_remove_decor_sh(buf, row1, row2, sh);
-                idx = (*sh).next;
+                idx = next;
             }
         }
         if free {
@@ -676,10 +677,10 @@ pub unsafe fn buf_remove_decor_sh(
     buf: *mut buf_T,
     row1: c_int,
     row2: c_int,
-    sh: *mut DecorSignHighlight,
+    sh: &DecorSignHighlight,
 ) {
     unsafe {
-        if ((*sh).flags & kSHIsSign) != 0 && (*sh).text[0] != 0 {
+        if (sh.flags & kSHIsSign) != 0 && sh.text[0] != 0 {
             if buf_meta_total(buf, kMTMetaSignText) != 0 {
                 buf_signcols_count_range(buf, row1, row2, -1, kFalse);
             } else {
@@ -703,7 +704,7 @@ pub unsafe fn decor_free(decor: DecorInline) {
         if decor_state.running_decor_provider {
             if !vt.is_null() {
                 let list = &raw mut to_free_virt;
-                (*list).push(std::pin::Pin::from(Box::from_raw(vt)));
+                (*list).push(Box::from_raw(vt));
             }
             let items = &raw mut decor_items;
             while idx != DECOR_ID_INVALID {
@@ -963,24 +964,25 @@ unsafe fn decor_range_add_from_inline(
                 decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt, owned);
                 vt = (*vt).next_ptr();
             }
-            let items = &raw mut decor_items;
+            let items = &raw const decor_items;
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
-                let sh = &raw mut (&mut *items)[idx as usize];
+                let sh = &(&*items)[idx as usize];
+                let next = sh.next;
                 decor_range_add_sh(
                     state, start_row, start_col, end_row, end_col, sh, owned, ns, mark_id, 0,
                 );
-                idx = (*sh).next;
+                idx = next;
             }
         } else {
-            let mut sh = decor_sh_from_inline(decor.data.hl());
+            let sh = decor_sh_from_inline(decor.data.hl());
             decor_range_add_sh(
                 state,
                 start_row,
                 start_col,
                 end_row,
                 end_col,
-                &raw mut sh,
+                &sh,
                 owned,
                 ns,
                 mark_id,
@@ -1070,26 +1072,26 @@ pub unsafe fn decor_range_add_sh(
     start_col: c_int,
     end_row: c_int,
     end_col: c_int,
-    sh: *mut DecorSignHighlight,
+    sh: &DecorSignHighlight,
     owned: bool,
     ns: u32,
     mark_id: u32,
     subpriority: DecorPriority,
 ) {
     unsafe {
-        if ((*sh).flags & kSHIsSign) != 0 {
+        if (sh.flags & kSHIsSign) != 0 {
             return;
         }
 
-        let priority_internal = (DecorPriorityInternal::from((*sh).priority) << 16)
+        let priority_internal = (DecorPriorityInternal::from(sh.priority) << 16)
             + DecorPriorityInternal::from(subpriority);
 
-        if (*sh).hl_id != 0
-            || (*sh).url.is_some()
-            || ((*sh).flags & (kSHConcealOff | kSHConceal | kSHSpellOn | kSHSpellOff)) != 0
+        if sh.hl_id != 0
+            || sh.url.is_some()
+            || (sh.flags & (kSHConcealOff | kSHConceal | kSHSpellOn | kSHSpellOff)) != 0
         {
-            let attr_id = if (*sh).hl_id != 0 {
-                syn_id2attr((*sh).hl_id)
+            let attr_id = if sh.hl_id != 0 {
+                syn_id2attr(sh.hl_id)
             } else {
                 0
             };
@@ -1103,14 +1105,14 @@ pub unsafe fn decor_range_add_sh(
                     ordering: 0,
                     priority_internal,
                     owned,
-                    data: DecorRangeData::Sh((*sh).clone()),
+                    data: DecorRangeData::Sh(sh.clone()),
                     attr_id,
                     draw_col: -10,
                 },
             );
         }
 
-        if ((*sh).flags & kSHUIWatched) != 0 {
+        if (sh.flags & kSHUIWatched) != 0 {
             decor_range_insert(
                 state,
                 DecorRange {
@@ -1124,7 +1126,7 @@ pub unsafe fn decor_range_add_sh(
                     data: DecorRangeData::Ui(DecorRangeUI {
                         ns_id: ns,
                         mark_id,
-                        pos: if ((*sh).flags & kSHUIWatchedOverlay) != 0 {
+                        pos: if (sh.flags & kSHUIWatchedOverlay) != 0 {
                             kVPosOverlay
                         } else {
                             kVPosEndOfLine
@@ -1401,35 +1403,33 @@ pub unsafe fn win_lines_concealed(wp: *mut win_T) -> bool {
     unsafe { hasAnyFolding(wp) != 0 || (*wp).w_onebuf_opt.wo_cole >= 2 }
 }
 
-pub unsafe fn sign_item_cmp(s1: &SignItem, s2: &SignItem) -> Ordering {
-    unsafe {
-        let p1 = (*s1.sh).priority;
-        let p2 = (*s2.sh).priority;
-        if p1 != p2 {
-            return if p1 < p2 {
-                Ordering::Greater
-            } else {
-                Ordering::Less
-            };
-        }
-        if s1.id != s2.id {
-            return if s1.id < s2.id {
-                Ordering::Greater
-            } else {
-                Ordering::Less
-            };
-        }
-        let a1 = (*s1.sh).sign_add_id;
-        let a2 = (*s2.sh).sign_add_id;
-        if a1 != a2 {
-            return if a1 < a2 {
-                Ordering::Greater
-            } else {
-                Ordering::Less
-            };
-        }
-        Ordering::Equal
+pub fn sign_item_cmp(s1: &SignItem<'_>, s2: &SignItem<'_>) -> Ordering {
+    let p1 = s1.sh.priority;
+    let p2 = s2.sh.priority;
+    if p1 != p2 {
+        return if p1 < p2 {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        };
     }
+    if s1.id != s2.id {
+        return if s1.id < s2.id {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        };
+    }
+    let a1 = s1.sh.sign_add_id;
+    let a2 = s2.sh.sign_add_id;
+    if a1 != a2 {
+        return if a1 < a2 {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        };
+    }
+    Ordering::Equal
 }
 
 pub unsafe fn decor_redraw_signs(
@@ -1449,15 +1449,15 @@ pub unsafe fn decor_redraw_signs(
         let mut pair: MTPair = MTPair::new();
         let mut num_text: c_int = 0;
         let mut itr = MarkTreeIter::new();
-        let mut signs: Vec<SignItem> = Vec::new();
+        let mut signs: Vec<SignItem<'_>> = Vec::new();
         let b = &(*buf).b_marktree;
 
         marktree_itr_get_overlap(b, row, 0, &mut itr);
         while marktree_itr_step_overlap(b, &mut itr, &mut pair) {
             if !mt_invalid(pair.start) && mt_decor_sign(pair.start) && ns_in_win(pair.start.ns, wp)
             {
-                let sh = decor_find_sign(mt_decor(pair.start));
-                num_text += c_int::from((*sh).text[0] != 0);
+                let sh = decor_find_sign(mt_decor(pair.start)).unwrap();
+                num_text += c_int::from(sh.text[0] != 0);
                 signs.push(SignItem {
                     sh,
                     id: pair.start.id,
@@ -1473,8 +1473,8 @@ pub unsafe fn decor_redraw_signs(
                 break;
             }
             if !mt_invalid(mark) && !mt_end(mark) && mt_decor_sign(mark) && ns_in_win(mark.ns, wp) {
-                let sh = decor_find_sign(mt_decor(mark));
-                num_text += c_int::from((*sh).text[0] != 0);
+                let sh = decor_find_sign(mt_decor(mark)).unwrap();
+                num_text += c_int::from(sh.text[0] != 0);
                 signs.push(SignItem { sh, id: mark.id });
             }
 
@@ -1493,41 +1493,41 @@ pub unsafe fn decor_redraw_signs(
 
             for item in &signs {
                 let sh = item.sh;
-                if !sattrs.is_null() && (idx as c_int) < len && (*sh).text[0] != 0 {
-                    (*sattrs.add(idx)).text = (*sh).text;
-                    (*sattrs.add(idx)).hl_id = (*sh).hl_id;
+                if !sattrs.is_null() && (idx as c_int) < len && sh.text[0] != 0 {
+                    (*sattrs.add(idx)).text = sh.text;
+                    (*sattrs.add(idx)).hl_id = sh.hl_id;
                     idx += 1;
                 }
                 if !num_id.is_null() && *num_id <= 0 {
-                    *num_id = (*sh).number_hl_id;
+                    *num_id = sh.number_hl_id;
                 }
                 if !line_id.is_null() && *line_id <= 0 {
-                    *line_id = (*sh).line_hl_id;
+                    *line_id = sh.line_hl_id;
                 }
                 if !cul_id.is_null() && *cul_id <= 0 {
-                    *cul_id = (*sh).cursorline_hl_id;
+                    *cul_id = sh.cursorline_hl_id;
                 }
             }
         }
     }
 }
 
-pub unsafe fn decor_find_sign(decor: DecorInline) -> *mut DecorSignHighlight {
+pub unsafe fn decor_find_sign(decor: DecorInline) -> Option<&'static DecorSignHighlight> {
     unsafe {
         if !decor.is_ext() {
-            return ptr::null_mut();
+            return None;
         }
-        let items = &raw mut decor_items;
+        let items = &raw const decor_items;
         let mut decor_id = decor.data.ext().sh_idx;
         loop {
             if decor_id == DECOR_ID_INVALID {
-                return ptr::null_mut();
+                return None;
             }
-            let sh = &raw mut (&mut *items)[decor_id as usize];
-            if ((*sh).flags & kSHIsSign) != 0 {
-                return sh;
+            let sh = &(&*items)[decor_id as usize];
+            if (sh.flags & kSHIsSign) != 0 {
+                return Some(sh);
             }
-            decor_id = (*sh).next;
+            decor_id = sh.next;
         }
     }
 }

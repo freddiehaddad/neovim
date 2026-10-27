@@ -209,7 +209,7 @@ const fn kitty_key_name(key: c_int) -> Option<&'static str> {
     }
 }
 
-pub unsafe fn tinput_init(input: *mut TermInput, loop_: *mut Loop, ti: *mut TerminfoEntry) {
+pub unsafe fn tinput_init(input: *mut TermInput, loop_: *mut Loop, ti: &TerminfoEntry) {
     unsafe {
         assert!((*input).loop_.is_null());
         (*input).loop_ = loop_;
@@ -224,14 +224,14 @@ pub unsafe fn tinput_init(input: *mut TermInput, loop_: *mut Loop, ti: *mut Term
         rstream_init_fd(loop_, &raw mut (*input).read_stream, (*input).in_fd);
 
         (*input).tk = termkey_new_abstract(
-            ti,
+            Some(ti),
             TERMKEY_FLAG_UTF8 | TERMKEY_FLAG_NOSTART | TERMKEY_FLAG_KEEPC0,
         );
         let tk_hook = (*input).tk_ti_hook_fn;
         let tk = (*input).tk_mut();
         termkey_set_buffer_size(tk, INPUT_BUFFER_SIZE);
         termkey_hook_terminfo_getstr(tk, tk_hook, input);
-        termkey_start(tk);
+        termkey_start(tk, Some(ti));
 
         let curflags = termkey_get_canonflags(tk);
         termkey_set_canonflags(tk, curflags | TERMKEY_CANON_DELBS);

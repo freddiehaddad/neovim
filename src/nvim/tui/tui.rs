@@ -1119,7 +1119,7 @@ unsafe fn tui_terminal_start(tui: *mut TUIData) {
             tinput_init(
                 input,
                 (&raw mut main_loop).cast::<Loop>(),
-                &raw mut (*tui).ti,
+                &(*tui).ti,
             );
         }
         tui_guess_size(tui);

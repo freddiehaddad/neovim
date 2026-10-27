@@ -360,7 +360,7 @@ unsafe fn strpncmp_camel(
     }
 }
 
-pub unsafe fn termkey_new_abstract(term: *mut TerminfoEntry, flags: c_int) -> Option<TermKey> {
+pub unsafe fn termkey_new_abstract(term: Option<&TerminfoEntry>, flags: c_int) -> Option<TermKey> {
     unsafe {
         let mut tk = TermKey {
             flags: 0,
@@ -380,7 +380,7 @@ pub unsafe fn termkey_new_abstract(term: *mut TerminfoEntry, flags: c_int) -> Op
                 modifier_mask: 0,
                 modifier_set: 0,
             }; 32],
-            ti: TermKeyTI::new(term),
+            ti: TermKeyTI::new(),
             csi: TermKeyCsi::default(),
         };
 
@@ -394,7 +394,7 @@ pub unsafe fn termkey_new_abstract(term: *mut TerminfoEntry, flags: c_int) -> Op
         register_c0(&mut tk, TERMKEY_SYM_ENTER, 0x0d, None);
         register_c0(&mut tk, TERMKEY_SYM_ESCAPE, 0x1b, None);
 
-        if (flags & TERMKEY_FLAG_NOSTART) == 0 && termkey_start(&mut tk) == 0 {
+        if (flags & TERMKEY_FLAG_NOSTART) == 0 && termkey_start(&mut tk, term) == 0 {
             return None;
         }
 
@@ -411,13 +411,13 @@ pub fn termkey_hook_terminfo_getstr(
     tk.ti_getstr_hook_data = data;
 }
 
-pub unsafe fn termkey_start(tk: &mut TermKey) -> c_int {
+pub unsafe fn termkey_start(tk: &mut TermKey, term: Option<&TerminfoEntry>) -> c_int {
     unsafe {
         if tk.is_started != 0 {
             return 1;
         }
 
-        if start_driver_ti(tk) == 0 {
+        if start_driver_ti(tk, term) == 0 {
             return 0;
         }
 
@@ -1212,14 +1212,14 @@ mod tests {
     #[test]
     fn base_getkey_flags_and_buffer_resize() {
         unsafe {
-            let mut tk = termkey_new_abstract(std::ptr::null_mut(), 0).unwrap();
+            let mut tk = termkey_new_abstract(None, 0).unwrap();
             let tk = &mut tk;
             assert_eq!(termkey_get_buffer_size(tk), 256);
             assert_eq!(tk.is_started, 1);
 
             termkey_stop(tk);
             assert_eq!(tk.is_started, 0);
-            termkey_start(tk);
+            termkey_start(tk, None);
             assert_eq!(tk.is_started, 1);
 
             let mut key = TermKeyKey::new();
@@ -1282,7 +1282,7 @@ mod tests {
     #[test]
     fn utf8_decoding_invalid_continuations_and_partials() {
         unsafe {
-            let mut tk = termkey_new_abstract(std::ptr::null_mut(), TERMKEY_FLAG_UTF8).unwrap();
+            let mut tk = termkey_new_abstract(None, TERMKEY_FLAG_UTF8).unwrap();
             let tk = &mut tk;
             let mut key = TermKeyKey::new();
 
@@ -1333,7 +1333,7 @@ mod tests {
     #[test]
     fn keyname_strfkey_and_canonicalise() {
         unsafe {
-            let mut tk = termkey_new_abstract(std::ptr::null_mut(), 0).unwrap();
+            let mut tk = termkey_new_abstract(None, 0).unwrap();
             let tk = &mut tk;
             let mut sym: TermKeySym = TERMKEY_SYM_UNKNOWN;
 
@@ -1430,7 +1430,7 @@ mod tests {
     #[test]
     fn mouse_position_modereport_csi_and_dcs_osc() {
         unsafe {
-            let mut tk = termkey_new_abstract(std::ptr::null_mut(), 0).unwrap();
+            let mut tk = termkey_new_abstract(None, 0).unwrap();
             let tk = &mut tk;
             let mut key = TermKeyKey::new();
             let mut ev: TermKeyMouseEvent = TERMKEY_MOUSE_UNKNOWN;

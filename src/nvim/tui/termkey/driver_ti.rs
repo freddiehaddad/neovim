@@ -265,8 +265,8 @@ impl TrieNode {
     }
 }
 
+#[derive(Default)]
 pub struct TermKeyTI {
-    pub ti: *mut TerminfoEntry,
     root: Option<Box<TrieNode>>,
 }
 
@@ -419,6 +419,7 @@ fn insert_seq(root: &mut TrieNode, seq: &[u8], info: keyinfo) {
 
 unsafe fn try_load_terminfo_key(
     tk: &TermKey,
+    ti: Option<&TerminfoEntry>,
     root: &mut TrieNode,
     fn_nr: bool,
     key: usize,
@@ -428,16 +429,15 @@ unsafe fn try_load_terminfo_key(
 ) -> bool {
     unsafe {
         let mut value: *const c_char = std::ptr::null();
-        let ti_ptr = tk.ti.ti;
 
-        if !ti_ptr.is_null() {
+        if let Some(ti_ref) = ti {
             if !fn_nr {
-                value = (*ti_ptr).keys[key][usize::from(shift)]
+                value = ti_ref.keys[key][usize::from(shift)]
                     .as_deref()
                     .map_or(std::ptr::null(), CStr::as_ptr);
             } else {
                 debug_assert!(!shift);
-                value = (*ti_ptr).f_keys[key]
+                value = ti_ref.f_keys[key]
                     .as_deref()
                     .map_or(std::ptr::null(), CStr::as_ptr);
             }
@@ -458,7 +458,7 @@ unsafe fn try_load_terminfo_key(
     }
 }
 
-unsafe fn load_terminfo(tk: &mut TermKey) {
+unsafe fn load_terminfo(tk: &mut TermKey, ti: Option<&TerminfoEntry>) {
     unsafe {
         let mut root = TrieNode::new_arr(0, 0xff);
 
@@ -476,6 +476,7 @@ unsafe fn load_terminfo(tk: &mut TermKey) {
             };
             if !try_load_terminfo_key(
                 tk,
+                ti,
                 &mut root,
                 false,
                 entry.ti_key as usize,
@@ -502,6 +503,7 @@ unsafe fn load_terminfo(tk: &mut TermKey) {
             };
             try_load_terminfo_key(
                 tk,
+                ti,
                 &mut root,
                 false,
                 entry.ti_key as usize,
@@ -525,6 +527,7 @@ unsafe fn load_terminfo(tk: &mut TermKey) {
             };
             if !try_load_terminfo_key(
                 tk,
+                ti,
                 &mut root,
                 true,
                 i - 1,
@@ -541,18 +544,15 @@ unsafe fn load_terminfo(tk: &mut TermKey) {
 }
 
 impl TermKeyTI {
-    pub fn new(term: *mut TerminfoEntry) -> Self {
-        Self {
-            ti: term,
-            root: None,
-        }
+    pub const fn new() -> Self {
+        Self { root: None }
     }
 }
 
-pub unsafe fn start_driver_ti(tk: &mut TermKey) -> c_int {
+pub unsafe fn start_driver_ti(tk: &mut TermKey, ti: Option<&TerminfoEntry>) -> c_int {
     unsafe {
         if tk.ti.root.is_none() {
-            load_terminfo(tk);
+            load_terminfo(tk, ti);
         }
         1
     }
@@ -648,8 +648,8 @@ mod tests {
         assert!(n2.lookup_next(b'Q').is_none());
 
         unsafe {
-            let mut tk = termkey_new_abstract(std::ptr::null_mut(), 0).unwrap();
-            assert_eq!(start_driver_ti(&mut tk), 1);
+            let mut tk = termkey_new_abstract(None, 0).unwrap();
+            assert_eq!(start_driver_ti(&mut tk, None), 1);
         }
     }
 }
