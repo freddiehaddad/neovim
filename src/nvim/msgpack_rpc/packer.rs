@@ -10,19 +10,17 @@ pub(crate) const EXT_OBJECT_TYPE_SHIFT: c_int = ObjectType::kObjectTypeBuffer as
 
 pub type handle_T = c_int;
 pub type Integer = i64;
-pub type PackerBufferFlush = Option<unsafe fn(buffer: *mut PackerBuffer)>;
 
 #[derive(Clone, Copy, Debug)]
 pub enum PackerData {
     None,
+    StringBuffer,
     Ui(*mut crate::msgpack_rpc::channel::RemoteUI),
     File(*mut crate::os::fileio::FileDescriptor),
     Chans(*mut *mut crate::msgpack_rpc::channel::Channel),
 }
 
 impl PackerData {
-    pub const NONE: Self = Self::None;
-
     #[inline]
     pub const fn as_ui(self) -> *mut crate::msgpack_rpc::channel::RemoteUI {
         match self {
@@ -56,7 +54,6 @@ pub struct PackerBuffer {
     pub endptr: *mut c_char,
     pub anydata: PackerData,
     pub anyint: i64,
-    pub packer_flush: PackerBufferFlush,
     pub owned_buf: Vec<c_char>,
 }
 
@@ -68,8 +65,19 @@ impl PackerBuffer {
             endptr: std::ptr::null_mut(),
             anydata: PackerData::None,
             anyint: 0,
-            packer_flush: None,
             owned_buf: Vec::new(),
+        }
+    }
+}
+
+pub unsafe fn packer_flush_buffer(packer: *mut PackerBuffer) {
+    unsafe {
+        match (*packer).anydata {
+            PackerData::None => {}
+            PackerData::StringBuffer => flush_string_buffer(packer),
+            PackerData::Ui(_) => crate::api::ui::ui_flush_callback(packer),
+            PackerData::File(_) => crate::shada::flush_file_buffer(packer),
+            PackerData::Chans(_) => crate::msgpack_rpc::channel::channel_flush_callback(packer),
         }
     }
 }
@@ -195,11 +203,9 @@ fn mpack_remaining(packer: &PackerBuffer) -> usize {
 /// `packer` must be a valid writable pointer to a `PackerBuffer`.
 pub unsafe fn mpack_check_buffer(packer: *mut PackerBuffer) {
     let p = unsafe { &mut *packer };
-    if mpack_remaining(p) < 2 * MPACK_ITEM_SIZE
-        && let Some(flush) = p.packer_flush
-    {
+    if mpack_remaining(p) < 2 * MPACK_ITEM_SIZE {
         unsafe {
-            flush(packer);
+            packer_flush_buffer(packer);
         }
     }
 }
@@ -327,11 +333,9 @@ pub unsafe fn mpack_raw(data: *const c_char, len: usize, packer: *mut PackerBuff
             }
             pos += to_copy;
         }
-        if pos < len
-            && let Some(flush) = p.packer_flush
-        {
+        if pos < len {
             unsafe {
-                flush(packer);
+                packer_flush_buffer(packer);
             }
         }
     }
@@ -554,9 +558,8 @@ pub fn packer_string_buffer() -> PackerBuffer {
         startptr: alloc,
         ptr: alloc,
         endptr: unsafe { alloc.add(INITIAL_SIZE) },
-        anydata: PackerData::NONE,
+        anydata: PackerData::StringBuffer,
         anyint: 0,
-        packer_flush: Some(flush_string_buffer),
         owned_buf,
     }
 }

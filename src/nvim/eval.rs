@@ -539,7 +539,7 @@ unsafe fn eval_expr_partial(
         }
 
         let mut funcexe = funcexe_T {
-            fe_argv_func: None,
+            fe_fill_submatch: false,
             fe_firstline: 0,
             fe_lastline: 0,
             fe_doesrange: false,
@@ -576,7 +576,7 @@ unsafe fn eval_expr_func(
         }
 
         let mut funcexe = funcexe_T {
-            fe_argv_func: None,
+            fe_fill_submatch: false,
             fe_firstline: 0,
             fe_lastline: 0,
             fe_doesrange: false,
@@ -879,7 +879,7 @@ pub unsafe fn call_vim_function(
         (*rettv).v_type = VarType::VAR_UNKNOWN;
         let lnum = (*curwin).w_cursor.lnum;
         let mut funcexe = funcexe_T {
-            fe_argv_func: None,
+            fe_fill_submatch: false,
             fe_firstline: lnum,
             fe_lastline: lnum,
             fe_doesrange: false,
@@ -2106,7 +2106,7 @@ unsafe fn eval_func(
 
         let lnum = (*curwin).w_cursor.lnum;
         let mut funcexe = funcexe_T {
-            fe_argv_func: None,
+            fe_fill_submatch: false,
             fe_firstline: lnum,
             fe_lastline: lnum,
             fe_doesrange: false,
@@ -3120,7 +3120,7 @@ unsafe fn call_func_rettv(
 
         let lnum = (*curwin).w_cursor.lnum;
         let mut funcexe = funcexe_T {
-            fe_argv_func: None,
+            fe_fill_submatch: false,
             fe_firstline: lnum,
             fe_lastline: lnum,
             fe_doesrange: false,
@@ -5348,7 +5348,7 @@ pub unsafe fn callback_call(
 
         let lnum = (*curwin).w_cursor.lnum;
         let mut funcexe = funcexe_T {
-            fe_argv_func: None,
+            fe_fill_submatch: false,
             fe_firstline: lnum,
             fe_lastline: lnum,
             fe_doesrange: false,
@@ -7083,7 +7083,7 @@ pub unsafe fn eval_call_provider(
 
         let lnum = (*curwin).w_cursor.lnum;
         let mut funcexe = funcexe_T {
-            fe_argv_func: None,
+            fe_fill_submatch: false,
             fe_firstline: lnum,
             fe_lastline: lnum,
             fe_doesrange: false,

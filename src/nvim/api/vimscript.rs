@@ -270,7 +270,7 @@ unsafe fn call_function_impl(
         let mut rettv: typval_T = typval_T::new();
         let lnum = (*curwin).w_cursor.lnum;
         let mut funcexe = funcexe_T {
-            fe_argv_func: None,
+            fe_fill_submatch: false,
             fe_firstline: lnum,
             fe_lastline: lnum,
             fe_doesrange: false,

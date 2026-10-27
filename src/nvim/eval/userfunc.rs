@@ -83,7 +83,6 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub type VimLFunc = Option<unsafe fn(*mut typval_T, *mut typval_T, EvalFuncData)>;
-pub type ArgvFunc = Option<unsafe fn(c_int, *mut typval_T, c_int, *mut ufunc_T) -> c_int>;
 
 #[repr(C)]
 pub struct ufunc_T {
@@ -173,7 +172,7 @@ impl Default for funcdict_T {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct funcexe_T {
-    pub fe_argv_func: ArgvFunc,
+    pub fe_fill_submatch: bool,
     pub fe_firstline: linenr_T,
     pub fe_lastline: linenr_T,
     pub fe_doesrange: bool,
@@ -187,7 +186,7 @@ pub struct funcexe_T {
 impl funcexe_T {
     pub const fn new() -> Self {
         Self {
-            fe_argv_func: None,
+            fe_fill_submatch: false,
             fe_firstline: 0,
             fe_lastline: 0,
             fe_doesrange: false,
@@ -1964,8 +1963,9 @@ pub unsafe fn call_func(
                 if !fp.is_null() && ((*fp).uf_flags & FC_DELETED) != 0 {
                     error = FCERR_DELETED;
                 } else if !fp.is_null() {
-                    if let Some(argv_fn) = (*funcexe).fe_argv_func {
-                        argcount = argv_fn(argcount, argvars, argv_clear, fp);
+                    if (*funcexe).fe_fill_submatch {
+                        argcount =
+                            crate::regexp::fill_submatch_list(argcount, argvars, argv_clear, fp);
                     }
 
                     argv_add_base(

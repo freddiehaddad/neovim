@@ -66,8 +66,6 @@ use crate::api::vim::kCdScopeGlobal;
 use crate::charset::{NL, NUL};
 use crate::regexp::NUMBUFLEN;
 
-pub type CheckItem = Option<unsafe fn(expr: *mut typval_T, name: *const c_char) -> varnumber_T>;
-
 pub(crate) const K_LIST_LEN_UNKNOWN: isize = -1;
 
 pub(crate) const VALID_PATH: c_int = 1;
@@ -1383,7 +1381,7 @@ pub unsafe fn f_pathshorten(argvars: *mut typval_T, rettv: *mut typval_T, _fptr:
 }
 
 /// Evaluate "expr" (= "context") for readdir().
-unsafe fn readdir_checkitem(expr: *mut typval_T, name: *const c_char) -> varnumber_T {
+pub(crate) unsafe fn readdir_checkitem(expr: *mut typval_T, name: *const c_char) -> varnumber_T {
     unsafe {
         let tv_init = typval_T {
             v_type: VarType::VAR_UNKNOWN,
@@ -1431,7 +1429,7 @@ pub unsafe fn f_readdir(argvars: *mut typval_T, rettv: *mut typval_T, _fptr: Eva
         let path = tv_get_string(argvars);
         let expr = argvars.add(1);
         let mut entries: Vec<std::ffi::CString> = Vec::new();
-        let ret = readdir_core(&mut entries, path, expr, Some(readdir_checkitem));
+        let ret = readdir_core(&mut entries, path, expr);
         if ret == OK {
             for entry in &entries {
                 tv_list_append_string((*rettv).vval.v_list(), entry.as_ptr(), -1);

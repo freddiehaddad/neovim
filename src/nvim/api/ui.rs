@@ -360,7 +360,6 @@ pub unsafe extern "C" fn nvim_ui_attach(
             startptr: ptr::null_mut(),
             ptr: ptr::null_mut(),
             endptr: ptr::null_mut(),
-            packer_flush: Some(ui_flush_callback),
             anydata: crate::msgpack_rpc::packer::PackerData::Ui(ui),
             anyint: 0,
             owned_buf: Vec::new(),
@@ -899,7 +898,7 @@ pub unsafe fn push_call(ui: *mut RemoteUI, name: &'static CStr, args: Array) {
     }
 }
 
-unsafe fn ui_flush_callback(packer: *mut PackerBuffer) {
+pub(crate) unsafe fn ui_flush_callback(packer: *mut PackerBuffer) {
     unsafe {
         let ui = (*packer).anydata.as_ui();
         ui_flush_buf(ui, true);

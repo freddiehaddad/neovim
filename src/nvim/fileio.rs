@@ -27,7 +27,7 @@ use crate::dialog::do_dialog;
 use crate::diff::diff_invalidate;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later, status_redraw_all};
 use crate::errors::*;
-use crate::eval::fs::CheckItem;
+
 use crate::eval::vars::{
     BAD_DROP, BAD_KEEP, FORCE_BIN, FORCE_NOBIN, VV_FCS_CHOICE, VV_FCS_REASON, VV_TESTING,
     VV_WARNINGMSG, eval_charconvert, get_vim_var_nr, get_vim_var_str, set_vim_var_string,
@@ -4282,7 +4282,6 @@ pub unsafe fn readdir_core(
     entries: &mut Vec<std::ffi::CString>,
     path: *const c_char,
     context: *mut crate::eval::typval::typval_T,
-    checkitem: CheckItem,
 ) -> c_int {
     unsafe {
         entries.clear();
@@ -4301,8 +4300,8 @@ pub unsafe fn readdir_core(
 
             let mut ignore = *p == b'.' as c_char
                 && (*p.add(1) == NUL || (*p.add(1) == b'.' as c_char && *p.add(2) == NUL));
-            if !ignore && let Some(cb) = checkitem {
-                let r = cb(context, p);
+            if !ignore && !context.is_null() {
+                let r = crate::eval::fs::readdir_checkitem(context, p);
                 if r < 0 {
                     break;
                 }
@@ -4332,7 +4331,7 @@ pub unsafe fn delete_recursive(name: *const c_char) -> c_int {
         if os_isrealdir(name) {
             let exp = CStr::from_ptr(name).to_owned();
             let mut entries: Vec<std::ffi::CString> = Vec::new();
-            if readdir_core(&mut entries, exp.as_ptr(), ptr::null_mut(), None) == OK {
+            if readdir_core(&mut entries, exp.as_ptr(), ptr::null_mut()) == OK {
                 let namebuff_ptr = (&raw mut NameBuff).cast::<c_char>();
                 let len = vim_snprintf!(namebuff_ptr, MAXPATHL, c"%s/".as_ptr(), exp.as_ptr());
 

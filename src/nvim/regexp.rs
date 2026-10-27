@@ -786,7 +786,23 @@ pub(super) struct nfa_list_T {
     pub has_pim: c_int,
 }
 
-pub(super) type fptr_T = Option<unsafe fn(*mut c_int, c_int)>;
+#[derive(Clone, Copy)]
+enum CaseConv {
+    Upper,
+    Lower,
+}
+
+impl CaseConv {
+    #[inline]
+    unsafe fn apply(self, c: c_int) -> c_int {
+        unsafe {
+            match self {
+                Self::Upper => mb_toupper(c),
+                Self::Lower => mb_tolower(c),
+            }
+        }
+    }
+}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -2403,18 +2419,6 @@ pub(super) unsafe fn cstrchr(s: *const c_char, c: c_int) -> *mut c_char {
     }
 }
 
-unsafe fn do_upper(d: *mut c_int, c: c_int) {
-    unsafe {
-        *d = mb_toupper(c);
-    }
-}
-
-unsafe fn do_lower(d: *mut c_int, c: c_int) {
-    unsafe {
-        *d = mb_tolower(c);
-    }
-}
-
 /// Replace tildes in the pattern by the old pattern.
 /// Returns `Some(CString)` if a new string was allocated, or `None` if `source` was modified in place.
 pub unsafe fn regtilde(
@@ -2503,7 +2507,7 @@ pub unsafe fn regtilde(
     }
 }
 
-unsafe fn fill_submatch_list(
+pub(crate) unsafe fn fill_submatch_list(
     _argc: c_int,
     argv: *mut typval_T,
     argskip: c_int,
@@ -2609,8 +2613,8 @@ unsafe fn vim_regsub_both(
 ) -> c_int {
     unsafe {
         let mut no: c_int = -1;
-        let mut func_all: fptr_T = None;
-        let mut func_one: fptr_T = None;
+        let mut func_all: Option<CaseConv> = None;
+        let mut func_one: Option<CaseConv> = None;
         let mut clnum: linenr_T = 0;
         let mut len: c_int = 0;
         let copy = (flags & REGSUB_COPY) != 0;
@@ -2668,7 +2672,7 @@ unsafe fn vim_regsub_both(
                     argv[0].v_type = VarType::VAR_LIST;
                     argv[0].vval = crate::eval::typval::TypvalVval::List(&raw mut matchList.sl_list);
                     let mut funcexe = funcexe_T {
-                        fe_argv_func: Some(fill_submatch_list),
+                        fe_fill_submatch: true,
                         fe_firstline: 0,
                         fe_lastline: 0,
                         fe_doesrange: false,
@@ -2769,19 +2773,19 @@ unsafe fn vim_regsub_both(
                         src = src.add(1);
                         match ch {
                             b'u' => {
-                                func_one = Some(do_upper);
+                                func_one = Some(CaseConv::Upper);
                                 continue;
                             }
                             b'U' => {
-                                func_all = Some(do_upper);
+                                func_all = Some(CaseConv::Upper);
                                 continue;
                             }
                             b'l' => {
-                                func_one = Some(do_lower);
+                                func_one = Some(CaseConv::Lower);
                                 continue;
                             }
                             b'L' => {
-                                func_all = Some(do_lower);
+                                func_all = Some(CaseConv::Lower);
                                 continue;
                             }
                             b'e' | b'E' => {
@@ -2855,15 +2859,13 @@ unsafe fn vim_regsub_both(
                         c = utf_ptr2char(src.sub(1));
                     }
 
-                    let mut cc: c_int = 0;
-                    if let Some(f) = func_one {
-                        f(&raw mut cc, c);
-                        func_one = None;
+                    let cc = if let Some(f) = func_one.take() {
+                        f.apply(c)
                     } else if let Some(f) = func_all {
-                        f(&raw mut cc, c);
+                        f.apply(c)
                     } else {
-                        cc = c;
-                    }
+                        c
+                    };
 
                     let totlen = utfc_ptr2len(src.sub(1)) as usize;
                     let charlen = utf_char2len(cc) as usize;
@@ -2960,15 +2962,13 @@ unsafe fn vim_regsub_both(
                                     dst = dst.add(2);
                                 } else {
                                     c = utf_ptr2char(s);
-                                    let mut cc: c_int = 0;
-                                    if let Some(f) = func_one {
-                                        f(&raw mut cc, c);
-                                        func_one = None;
+                                    let cc = if let Some(f) = func_one.take() {
+                                        f.apply(c)
                                     } else if let Some(f) = func_all {
-                                        f(&raw mut cc, c);
+                                        f.apply(c)
                                     } else {
-                                        cc = c;
-                                    }
+                                        c
+                                    };
 
                                     let l = utf_ptr2len(s) - 1;
                                     s = s.add(l as usize);

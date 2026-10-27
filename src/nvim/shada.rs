@@ -1751,10 +1751,8 @@ unsafe fn shada_check_buffer(packer: *mut PackerBuffer) {
     unsafe {
         let p = &mut *packer;
         let remaining = (p.endptr as usize).saturating_sub(p.ptr as usize);
-        if remaining < SHADA_MPACK_FREE_SPACE
-            && let Some(flush) = p.packer_flush
-        {
-            flush(packer);
+        if remaining < SHADA_MPACK_FREE_SPACE {
+            crate::msgpack_rpc::packer::packer_flush_buffer(packer);
         }
     }
 }
@@ -2605,7 +2603,7 @@ const fn hist_type2char(hist_type: c_int) -> c_int {
     }
 }
 
-unsafe fn flush_file_buffer(buffer: *mut PackerBuffer) {
+pub(crate) unsafe fn flush_file_buffer(buffer: *mut PackerBuffer) {
     unsafe {
         let fd = (*buffer).anydata.as_file();
         (*fd).write_pos = (*buffer).ptr;
@@ -2625,7 +2623,6 @@ unsafe fn packer_buffer_for_file(file: *mut FileDescriptor) -> PackerBuffer {
             endptr: (*file).buffer.add(ARENA_BLOCK_SIZE),
             anydata: crate::msgpack_rpc::packer::PackerData::File(file),
             anyint: 0,
-            packer_flush: Some(flush_file_buffer),
             owned_buf: Vec::new(),
         }
     }
@@ -3174,9 +3171,7 @@ unsafe fn shada_write(
             }
         }
         (*wms).file_marks.clear();
-        if let Some(flush) = packer.packer_flush {
-            flush(&mut packer);
-        }
+        crate::msgpack_rpc::packer::packer_flush_buffer(&raw mut packer);
         ret
     }
 }
