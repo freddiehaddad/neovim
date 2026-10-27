@@ -106,10 +106,8 @@ unsafe fn key_matches(hi_key: *const c_char, key: *const c_char, key_len: usize)
 ///
 /// # Safety
 /// `ht` must be a valid writable pointer to an initialized `hashtab_T`.
-pub unsafe fn hash_clear(ht: *mut hashtab_T) {
-    unsafe {
-        *ht = hashtab_T::new();
-    }
+pub unsafe fn hash_clear(ht: &mut hashtab_T) {
+    *ht = hashtab_T::new();
 }
 
 /// Find item for NUL-terminated `key` in `ht` (`hash_find`).
@@ -192,11 +190,11 @@ pub unsafe fn hash_lookup(
 ///
 /// # Safety
 /// `ht` and `di` must be valid pointers, and `di` must outlive the entry in `ht`.
-pub unsafe fn hash_add(ht: *mut hashtab_T, di: *mut crate::eval::typval::dictitem_T) -> c_int {
+pub unsafe fn hash_add(ht: &mut hashtab_T, di: *mut crate::eval::typval::dictitem_T) -> c_int {
     let key = unsafe { (*di).di_key.as_mut_ptr() };
     let len = unsafe { CStr::from_ptr(key).to_bytes().len() };
     let hash = unsafe { hash_hash(key) };
-    let hi = unsafe { hash_lookup(ht, key, len, hash) };
+    let hi = unsafe { hash_lookup(&raw mut *ht, key, len, hash) };
     if unsafe { !hashitem_empty(&*hi) } {
         unsafe {
             siemsg!(
@@ -217,13 +215,13 @@ pub unsafe fn hash_add(ht: *mut hashtab_T, di: *mut crate::eval::typval::dictite
 /// # Safety
 /// `ht`, `hi`, `key`, and `di` must be valid pointers, with `hi` obtained from `hash_lookup(ht, ...)`.
 pub unsafe fn hash_add_item(
-    ht: *mut hashtab_T,
+    ht: &mut hashtab_T,
     mut hi: *mut hashitem_T,
     _key: *mut c_char,
     di: *mut crate::eval::typval::dictitem_T,
     hash: hash_T,
 ) {
-    let ht_ref = unsafe { &mut *ht };
+    let ht_ref = &mut *ht;
     if ht_ref.ht_array.is_empty() {
         let offset = unsafe { hi.offset_from(empty_hasharray_ptr()) as usize };
         ht_ref.ht_array = vec![hashitem_T::default(); HT_INIT_SIZE];
@@ -248,8 +246,8 @@ pub unsafe fn hash_add_item(
 ///
 /// # Safety
 /// `ht` and `hi` must be valid pointers, with `hi` pointing to an active item in `ht`.
-pub unsafe fn hash_remove(ht: *mut hashtab_T, hi: *mut hashitem_T) {
-    let ht_ref = unsafe { &mut *ht };
+pub unsafe fn hash_remove(ht: &mut hashtab_T, hi: *mut hashitem_T) {
+    let ht_ref = &mut *ht;
     let hi_ref = unsafe { &mut *hi };
     ht_ref.ht_used -= 1;
     ht_ref.ht_changed += 1;
@@ -264,18 +262,16 @@ pub unsafe fn hash_remove(ht: *mut hashtab_T, hi: *mut hashitem_T) {
 ///
 /// # Safety
 /// `ht` must be a valid writable pointer to a `hashtab_T`.
-pub unsafe fn hash_lock(ht: *mut hashtab_T) {
-    unsafe {
-        (*ht).ht_locked += 1;
-    }
+pub unsafe fn hash_lock(ht: &mut hashtab_T) {
+    ht.ht_locked += 1;
 }
 
 /// Unlock hashtable and resize if needed (`hash_unlock`).
 ///
 /// # Safety
 /// `ht` must be a valid writable pointer to a `hashtab_T`.
-pub unsafe fn hash_unlock(ht: *mut hashtab_T) {
-    let ht_ref = unsafe { &mut *ht };
+pub unsafe fn hash_unlock(ht: &mut hashtab_T) {
+    let ht_ref = &mut *ht;
     ht_ref.ht_locked -= 1;
     unsafe {
         hash_may_resize(ht_ref, 0);
@@ -419,12 +415,12 @@ mod tests {
                 .collect();
 
             for &di in &items {
-                assert_eq!(hash_add(ht, di), OK);
+                assert_eq!(hash_add(&mut *ht, di), OK);
             }
             assert_eq!((*ht).ht_used, 50);
             // Duplicate key returns FAIL
             crate::globals::g_st().emsg_skip += 1;
-            assert_eq!(hash_add(ht, items[0]), FAIL);
+            assert_eq!(hash_add(&mut *ht, items[0]), FAIL);
             crate::globals::g_st().emsg_skip -= 1;
 
             for (k, &di) in keys.iter().zip(&items) {
@@ -437,11 +433,11 @@ mod tests {
             // Remove all keys and verify table shrinks back to HT_INIT_SIZE
             for k in &keys {
                 let hi = hash_find(ht, k.as_ptr());
-                hash_remove(ht, hi);
+                hash_remove(&mut *ht, hi);
             }
             assert_eq!((*ht).ht_used, 0);
             assert_eq!((*ht).ht_mask, HT_INIT_SIZE - 1);
-            hash_clear(ht);
+            hash_clear(&mut *ht);
             assert!(std::ptr::eq((*ht).array_ptr(), empty_hasharray_ptr()));
 
             for di in items {

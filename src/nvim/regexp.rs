@@ -2568,11 +2568,11 @@ pub(crate) unsafe fn fill_submatch_list(
     _argc: c_int,
     argv: *mut typval_T,
     argskip: c_int,
-    fp: *mut ufunc_T,
+    fp: &mut ufunc_T,
 ) -> c_int {
     unsafe {
         let listarg = argv.add(argskip as usize);
-        if (*fp).uf_varargs == 0 && ((*fp).uf_args.len() as c_int) <= argskip {
+        if fp.uf_varargs == 0 && (fp.uf_args.len() as c_int) <= argskip {
             return argskip;
         }
 

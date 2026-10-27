@@ -913,7 +913,7 @@ pub unsafe fn op_delete(oap: &mut oparg_T) -> c_int {
                         std::process::abort();
                     }
                     set_clipboard(oap.regname, reg);
-                    do_autocmd_textyankpost(oap, reg);
+                    do_autocmd_textyankpost(oap, &mut *reg);
                 }
             }
 

@@ -6704,7 +6704,7 @@ unsafe fn qf_get_properties(wp: *mut win_T, what: *mut dict_T, retdict: *mut dic
     }
 }
 
-unsafe fn qf_setprop_qftf(qfl: &mut qf_list_T, di: *mut dictitem_T) -> c_int {
+unsafe fn qf_setprop_qftf(qfl: &mut qf_list_T, di: &mut dictitem_T) -> c_int {
     unsafe {
         if check_secure() {
             return FAIL;
@@ -6712,7 +6712,7 @@ unsafe fn qf_setprop_qftf(qfl: &mut qf_list_T, di: *mut dictitem_T) -> c_int {
 
         let mut cb: Callback = Callback::new();
         callback_free(&mut qfl.qf_qftf_cb);
-        if callback_from_typval(&mut cb, &raw mut (*di).di_tv) {
+        if callback_from_typval(&mut cb, &raw mut di.di_tv) {
             qfl.qf_qftf_cb = cb;
         }
         OK
@@ -7046,11 +7046,11 @@ unsafe fn qf_setprop_title(
 unsafe fn qf_setprop_items(
     qi: &mut qf_info_T,
     qf_idx: c_int,
-    di: *mut dictitem_T,
+    di: &mut dictitem_T,
     action: c_int,
 ) -> c_int {
     unsafe {
-        if (*di).di_tv.v_type != VarType::VAR_LIST {
+        if di.di_tv.v_type != VarType::VAR_LIST {
             return FAIL;
         }
 
@@ -7058,7 +7058,7 @@ unsafe fn qf_setprop_items(
         qf_add_entries(
             qi,
             qf_idx,
-            (*di).di_tv.vval.v_list(),
+            di.di_tv.vval.v_list(),
             title_save
                 .as_ref()
                 .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
@@ -7120,13 +7120,13 @@ unsafe fn qf_setprop_items_from_lines(
     }
 }
 
-unsafe fn qf_setprop_context(qfl: &mut qf_list_T, di: *mut dictitem_T) -> c_int {
+unsafe fn qf_setprop_context(qfl: &mut qf_list_T, di: &mut dictitem_T) -> c_int {
     unsafe {
         if let Some(ref mut ctx) = qfl.qf_ctx {
             tv_clear(ctx);
         }
         let mut ctx = tv_initial_value();
-        tv_copy(&raw const (*di).di_tv, &raw mut ctx);
+        tv_copy(&raw const di.di_tv, &raw mut ctx);
         qfl.qf_ctx = Some(ctx);
 
         OK
@@ -7136,19 +7136,19 @@ unsafe fn qf_setprop_context(qfl: &mut qf_list_T, di: *mut dictitem_T) -> c_int 
 unsafe fn qf_setprop_curidx(
     qi: &mut qf_info_T,
     qfl: &mut qf_list_T,
-    di: *const dictitem_T,
+    di: &dictitem_T,
 ) -> c_int {
     unsafe {
         let mut newidx: c_int;
 
-        if (*di).di_tv.v_type == VarType::VAR_STRING
-            && !(*di).di_tv.vval.v_string().is_null()
-            && (std::ffi::CStr::from_ptr((*di).di_tv.vval.v_string()).to_bytes() == b"$")
+        if di.di_tv.v_type == VarType::VAR_STRING
+            && !di.di_tv.vval.v_string().is_null()
+            && (std::ffi::CStr::from_ptr(di.di_tv.vval.v_string()).to_bytes() == b"$")
         {
             newidx = qfl.count();
         } else {
             let mut denote = false;
-            newidx = tv_get_number_chk(&raw const (*di).di_tv, &raw mut denote) as c_int;
+            newidx = tv_get_number_chk(&raw const di.di_tv, &raw mut denote) as c_int;
             if denote {
                 return FAIL;
             }
@@ -7199,7 +7199,7 @@ unsafe fn qf_set_properties(
         }
         di = tv_dict_find(what, c"items".as_ptr(), 5);
         if !di.is_null() {
-            retval = qf_setprop_items(qi, qf_idx, di, action);
+            retval = qf_setprop_items(qi, qf_idx, &mut *di, action);
         }
         di = tv_dict_find(what, c"lines".as_ptr(), 5);
         if !di.is_null() {
@@ -7207,15 +7207,15 @@ unsafe fn qf_set_properties(
         }
         di = tv_dict_find(what, c"context".as_ptr(), 7);
         if !di.is_null() {
-            retval = qf_setprop_context(qfl, di);
+            retval = qf_setprop_context(qfl, &mut *di);
         }
         di = tv_dict_find(what, c"idx".as_ptr(), 3);
         if !di.is_null() {
-            retval = qf_setprop_curidx(qi, qfl, di);
+            retval = qf_setprop_curidx(qi, qfl, &*di);
         }
         di = tv_dict_find(what, c"quickfixtextfunc".as_ptr(), 16);
         if !di.is_null() {
-            retval = qf_setprop_qftf(qfl, di);
+            retval = qf_setprop_qftf(qfl, &mut *di);
         }
 
         if newlist || retval == OK {

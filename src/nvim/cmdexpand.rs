@@ -200,7 +200,7 @@ impl LineGetter {
                 Self::CmdKeyCmd => crate::input::getcmdkeycmd(c, indent, do_concat),
                 Self::AutoCmd(cookie) => crate::autocmd::getnextac(c, cookie, indent, do_concat),
                 Self::Func(cookie) => {
-                    crate::eval::userfunc::get_func_line(c, cookie, indent, do_concat)
+                    crate::eval::userfunc::get_func_line(c, &mut *cookie, indent, do_concat)
                 }
                 Self::Source(cookie) => crate::runtime::getsourceline(c, cookie, indent, do_concat),
                 Self::Loop(cookie) => crate::ex_docmd::get_loop_line(c, cookie, indent, do_concat),

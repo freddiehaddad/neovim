@@ -634,7 +634,7 @@ pub unsafe fn buffer_set_var(
         if buf.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*buf).b_vars(), name, value, false, true, arena, err)
+        dict_set_var(&mut *(*buf).b_vars(), name, value, false, true, arena, err)
     }
 }
 
@@ -659,7 +659,7 @@ pub unsafe fn buffer_del_var(
         if buf.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*buf).b_vars(), name, OBJECT_NIL, true, true, arena, err)
+        dict_set_var(&mut *(*buf).b_vars(), name, OBJECT_NIL, true, true, arena, err)
     }
 }
 
@@ -686,7 +686,7 @@ pub unsafe fn window_set_var(
         if win.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*win).w_vars(), name, value, false, true, arena, err)
+        dict_set_var(&mut *(*win).w_vars(), name, value, false, true, arena, err)
     }
 }
 
@@ -711,7 +711,7 @@ pub unsafe fn window_del_var(
         if win.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*win).w_vars(), name, OBJECT_NIL, true, true, arena, err)
+        dict_set_var(&mut *(*win).w_vars(), name, OBJECT_NIL, true, true, arena, err)
     }
 }
 
@@ -739,7 +739,7 @@ pub unsafe fn tabpage_set_var(
         if tab.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*tab).tp_vars(), name, value, false, true, arena, err)
+        dict_set_var(&mut *(*tab).tp_vars(), name, value, false, true, arena, err)
     }
 }
 
@@ -764,7 +764,7 @@ pub unsafe fn tabpage_del_var(
         if tab.is_null() {
             return OBJECT_NIL;
         }
-        dict_set_var((*tab).tp_vars(), name, OBJECT_NIL, true, true, arena, err)
+        dict_set_var(&mut *(*tab).tp_vars(), name, OBJECT_NIL, true, true, arena, err)
     }
 }
 
@@ -779,7 +779,7 @@ pub unsafe fn vim_set_var(
     arena: *mut Arena,
     err: &mut Error,
 ) -> Object {
-    unsafe { dict_set_var(get_globvar_dict(), name, value, false, true, arena, err) }
+    unsafe { dict_set_var(&mut *get_globvar_dict(), name, value, false, true, arena, err) }
 }
 
 /// @deprecated
@@ -787,7 +787,7 @@ pub unsafe fn vim_set_var(
 // DLLEXPORT Object vim_del_var(String name, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub unsafe fn vim_del_var(name: NvimString, arena: *mut Arena, err: &mut Error) -> Object {
-    unsafe { dict_set_var(get_globvar_dict(), name, OBJECT_NIL, true, true, arena, err) }
+    unsafe { dict_set_var(&mut *get_globvar_dict(), name, OBJECT_NIL, true, true, arena, err) }
 }
 
 #[inline]

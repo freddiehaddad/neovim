@@ -1145,7 +1145,7 @@ unsafe fn command_line_enter(
                     false,
                     g_st().curbuf,
                 );
-                restore_v_event(dict, &raw mut save_v_event);
+                restore_v_event(&mut *dict, &raw mut save_v_event);
                 try_leave(&raw const tstate, &mut err);
 
                 if error_set(&err) {
@@ -1241,7 +1241,7 @@ unsafe fn command_line_enter(
                 if tv_dict_get_number(dict, c"abort".as_ptr()) != 0 {
                     (*s).gotesc = true;
                 }
-                restore_v_event(dict, &raw mut save_v_event);
+                restore_v_event(&mut *dict, &raw mut save_v_event);
             }
 
             g_st().cmdmsg_rl = false;
@@ -3276,7 +3276,7 @@ unsafe fn do_autocmd_cmdlinechanged(firstc: c_int) {
                 false,
                 g_st().curbuf,
             );
-            restore_v_event(dict, &raw mut save_v_event);
+            restore_v_event(&mut *dict, &raw mut save_v_event);
             try_leave(&raw const tstate, &mut err);
             if error_set(&err) {
                 if !ui_has(kUIMessages) {

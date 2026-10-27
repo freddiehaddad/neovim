@@ -359,7 +359,7 @@ pub unsafe fn may_trigger_modechanged() {
         );
         { let s = curr_mode.as_ptr(); std::ptr::copy_nonoverlapping(s, ptr::addr_of_mut!(g_st().last_mode).cast(), std::ffi::CStr::from_ptr(s).to_bytes_with_nul().len()); };
 
-        restore_v_event(v_event, &mut save_v_event);
+        restore_v_event(&mut *v_event, &mut save_v_event);
     }
 }
 

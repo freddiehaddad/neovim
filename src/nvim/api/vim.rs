@@ -1190,7 +1190,7 @@ pub unsafe extern "C" fn nvim_get_var(
 pub unsafe extern "C" fn nvim_set_var(name: NvimString, value: Object, err: &mut Error) {
     unsafe {
         dict_set_var(
-            get_globvar_dict(),
+            &mut *get_globvar_dict(),
             name,
             value,
             false,
@@ -1210,7 +1210,7 @@ pub unsafe extern "C" fn nvim_set_var(name: NvimString, value: Object, err: &mut
 pub unsafe extern "C" fn nvim_del_var(name: NvimString, err: &mut Error) {
     unsafe {
         dict_set_var(
-            get_globvar_dict(),
+            &mut *get_globvar_dict(),
             name,
             nil_obj(),
             true,
@@ -1246,7 +1246,7 @@ pub unsafe extern "C" fn nvim_get_vvar(
 pub unsafe extern "C" fn nvim_set_vvar(name: NvimString, value: Object, err: &mut Error) {
     unsafe {
         dict_set_var(
-            get_vimvar_dict(),
+            &mut *get_vimvar_dict(),
             name,
             value,
             false,

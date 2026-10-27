@@ -1727,7 +1727,7 @@ pub unsafe fn do_autocmd_dirchanged(
 
         apply_autocmds(event, buf.as_mut_ptr(), new_dir, false, g_st().curbuf);
 
-        restore_v_event(dict, &raw mut save_v_event);
+        restore_v_event(&mut *dict, &raw mut save_v_event);
 
         RECURSIVE.store(false, std::sync::atomic::Ordering::Relaxed);
     }

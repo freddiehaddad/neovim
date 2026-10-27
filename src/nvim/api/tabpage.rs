@@ -124,7 +124,7 @@ pub unsafe extern "C" fn nvim_tabpage_set_var(
             return;
         }
         dict_set_var(
-            (*tab).tp_vars(),
+            &mut *(*tab).tp_vars(),
             name,
             value,
             false,
@@ -149,7 +149,7 @@ pub unsafe extern "C" fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString
             return;
         }
         dict_set_var(
-            (*tab).tp_vars(),
+            &mut *(*tab).tp_vars(),
             name,
             nil_obj(),
             true,

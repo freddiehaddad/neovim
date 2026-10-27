@@ -425,12 +425,12 @@ pub unsafe fn estack_push(type_: etype_T, name: *const c_char, lnum: linenr_T) -
 }
 
 /// Add a user function to the execution stack.
-pub unsafe fn estack_push_ufunc(ufunc: *mut ufunc_T, lnum: linenr_T) {
+pub unsafe fn estack_push_ufunc(ufunc: &mut ufunc_T, lnum: linenr_T) {
     unsafe {
-        let name = if let Some(ref exp) = (*ufunc).uf_name_exp {
+        let name = if let Some(ref exp) = ufunc.uf_name_exp {
             exp.as_ptr()
         } else {
-            (*ufunc).uf_name.as_ptr()
+            ufunc.uf_name.as_ptr()
         };
         let entry = estack_push(ETYPE_UFUNC, name, lnum);
         if !entry.is_null() {

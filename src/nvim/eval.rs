@@ -365,23 +365,23 @@ pub unsafe fn tv_dict_set_ret(tv: *mut typval_T, d: *mut dict_T) {
 }
 
 #[inline]
-unsafe fn tv_list_copyid(l: *const list_T) -> c_int {
-    unsafe { (*l).lv_copyID }
+unsafe fn tv_list_copyid(l: &list_T) -> c_int {
+    l.lv_copyID
 }
 
 #[inline]
-unsafe fn tv_list_latest_copy(l: *const list_T) -> *mut list_T {
-    unsafe { (*l).lv_copylist }
+unsafe fn tv_list_latest_copy(l: &list_T) -> *mut list_T {
+    l.lv_copylist
 }
 
 #[inline]
-unsafe fn tv_list_has_watchers(l: *const list_T) -> bool {
-    unsafe { !(*l).lv_watch.is_empty() }
+unsafe fn tv_list_has_watchers(l: &list_T) -> bool {
+    !l.lv_watch.is_empty()
 }
 
 #[inline]
-unsafe fn tv_list_item_tv(li: *mut listitem_T) -> *mut typval_T {
-    unsafe { &raw mut (*li).li_tv }
+unsafe fn tv_list_item_tv(li: &mut listitem_T) -> *mut typval_T {
+    &raw mut li.li_tv
 }
 
 #[inline]
@@ -403,11 +403,11 @@ pub unsafe fn get_v_event(sve: *mut save_v_event_T) -> *mut dict_T {
     }
 }
 
-pub unsafe fn restore_v_event(v_event: *mut dict_T, sve: *mut save_v_event_T) {
+pub unsafe fn restore_v_event(v_event: &mut dict_T, sve: *mut save_v_event_T) {
     unsafe {
-        tv_dict_free_contents(v_event);
+        tv_dict_free_contents(&raw mut *v_event);
         if (*sve).sve_did_save {
-            (*v_event).dv_hashtab = std::mem::take(&mut (*sve).sve_hashtab);
+            v_event.dv_hashtab = std::mem::take(&mut (*sve).sve_hashtab);
         }
     }
 }
@@ -452,12 +452,10 @@ pub unsafe fn eval_clear() {
     }
 }
 
-pub unsafe fn fill_evalarg_from_eap(evalarg: *mut evalarg_T, _eap: *mut exarg_T, skip: bool) {
-    unsafe {
-        *evalarg = evalarg_T {
+pub unsafe fn fill_evalarg_from_eap(evalarg: &mut evalarg_T, _eap: *mut exarg_T, skip: bool) {
+    *evalarg = evalarg_T {
             eval_flags: if skip { 0 } else { EVAL_EVALUATE },
         };
-    }
 }
 
 /// Top level evaluation function, returning a boolean.
@@ -474,7 +472,7 @@ pub unsafe fn eval_to_bool(
         let mut retval = false;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&raw mut evalarg, &raw mut *eap, skip);
+        fill_evalarg_from_eap(&mut evalarg, &raw mut *eap, skip);
 
         if skip {
             g_st().emsg_skip += 1;
@@ -510,7 +508,7 @@ unsafe fn eval1_emsg(arg: *mut *mut c_char, rettv: *mut typval_T, eap: *mut exar
         let called_emsg_before = g_st().called_emsg;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&raw mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
 
         let ret = eval1(arg, rettv, &raw mut evalarg);
         if ret == FAIL
@@ -680,7 +678,7 @@ pub unsafe fn eval_to_string_skip(
         let retval: Option<std::ffi::CString>;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&raw mut evalarg, &raw mut *eap, skip);
+        fill_evalarg_from_eap(&mut evalarg, &raw mut *eap, skip);
         if skip {
             g_st().emsg_skip += 1;
         }
@@ -756,7 +754,7 @@ pub unsafe fn eval_to_string_eap(
         let retval: Option<std::ffi::CString>;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&raw mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
         let r = if use_simple_function {
             eval0_simple_funccal(arg, &raw mut tv, ptr::null_mut(), &raw mut evalarg)
         } else {
@@ -854,7 +852,7 @@ pub unsafe fn eval_expr_ext(
         let mut tv = tv_initial_value();
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&raw mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap, !eap.is_null() && (*eap).skip != 0);
 
         let mut r = NOTDONE;
 
@@ -1117,7 +1115,7 @@ unsafe fn to_name_end(arg: *const c_char, use_namespace: bool) -> *const c_char 
 }
 
 unsafe fn get_lval_dict_item(
-    lp: *mut lval_T,
+    lp: &mut lval_T,
     name: *mut c_char,
     mut key: *mut c_char,
     len: c_int,
@@ -1134,17 +1132,17 @@ unsafe fn get_lval_dict_item(
         if len == -1 {
             key = tv_get_string(var1).cast_mut();
         }
-        (*lp).ll_list = ptr::null_mut();
+        lp.ll_list = ptr::null_mut();
 
-        if (*(*lp).ll_tv).vval.v_dict().is_null() {
-            (*(*lp).ll_tv).vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc());
-            (*(*(*lp).ll_tv).vval.v_dict()).dv_refcount += 1;
+        if (*lp.ll_tv).vval.v_dict().is_null() {
+            (*lp.ll_tv).vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc());
+            (*(*lp.ll_tv).vval.v_dict()).dv_refcount += 1;
         }
-        (*lp).ll_dict = (*(*lp).ll_tv).vval.v_dict();
+        lp.ll_dict = (*lp.ll_tv).vval.v_dict();
 
-        (*lp).ll_di = tv_dict_find((*lp).ll_dict, key, len as isize);
+        lp.ll_di = tv_dict_find(lp.ll_dict, key, len as isize);
 
-        if !rettv.is_null() && (*(*lp).ll_dict).dv_scope != 0 {
+        if !rettv.is_null() && (*lp.ll_dict).dv_scope != 0 {
             let prevval = if len != -1 {
                 let pv = *key.add(len as usize);
                 *key.add(len as usize) = NUL;
@@ -1152,9 +1150,9 @@ unsafe fn get_lval_dict_item(
             } else {
                 0
             };
-            let wrong = ((*(*lp).ll_dict).dv_scope == VAR_DEF_SCOPE
+            let wrong = ((*lp.ll_dict).dv_scope == VAR_DEF_SCOPE
                 && tv_is_func(*rettv)
-                && var_wrong_func_name(key, (*lp).ll_di.is_null()))
+                && var_wrong_func_name(key, lp.ll_di.is_null()))
                 || !valid_varname(key);
             if len != -1 {
                 *key.add(len as usize) = prevval;
@@ -1164,8 +1162,8 @@ unsafe fn get_lval_dict_item(
             }
         }
 
-        if !(*lp).ll_di.is_null()
-            && tv_is_luafunc(&raw mut (*(*lp).ll_di).di_tv)
+        if !lp.ll_di.is_null()
+            && tv_is_luafunc(&raw mut (*lp.ll_di).di_tv)
             && len == -1
             && rettv.is_null()
         {
@@ -1173,9 +1171,9 @@ unsafe fn get_lval_dict_item(
             return GLV_FAIL;
         }
 
-        if (*lp).ll_di.is_null() {
-            if (*lp).ll_dict == get_vimvar_dict()
-                || ptr::eq(&raw mut (*(*lp).ll_dict).dv_hashtab, get_funccal_args_ht())
+        if lp.ll_di.is_null() {
+            if lp.ll_dict == get_vimvar_dict()
+                || ptr::eq(&raw mut (*lp.ll_dict).dv_hashtab, get_funccal_args_ht())
             {
                 semsg!(gettext((&raw const e_illvar).cast()), name);
                 return GLV_FAIL;
@@ -1188,20 +1186,20 @@ unsafe fn get_lval_dict_item(
                 return GLV_FAIL;
             }
             if len == -1 {
-                (*lp).ll_newkey = Some(CStr::from_ptr(key).to_owned());
+                lp.ll_newkey = Some(CStr::from_ptr(key).to_owned());
             } else {
                 let slice = std::slice::from_raw_parts(key.cast::<u8>(), len as usize);
-                (*lp).ll_newkey = Some(std::ffi::CString::new(slice).unwrap());
+                lp.ll_newkey = Some(std::ffi::CString::new(slice).unwrap());
             }
             *key_end = p;
             return GLV_STOP;
         } else if (flags & GLV_READ_ONLY) == 0
             && (var_check_ro(
-                c_int::from((*(*lp).ll_di).di_flags),
+                c_int::from((*lp.ll_di).di_flags),
                 name,
                 (p as usize).wrapping_sub(name as usize),
             ) || var_check_lock(
-                c_int::from((*(*lp).ll_di).di_flags),
+                c_int::from((*lp.ll_di).di_flags),
                 name,
                 (p as usize).wrapping_sub(name as usize),
             ))
@@ -1209,37 +1207,37 @@ unsafe fn get_lval_dict_item(
             return GLV_FAIL;
         }
 
-        (*lp).ll_tv = &raw mut (*(*lp).ll_di).di_tv;
+        lp.ll_tv = &raw mut (*lp.ll_di).di_tv;
 
         GLV_OK
     }
 }
 
 unsafe fn get_lval_blob(
-    lp: *mut lval_T,
+    lp: &mut lval_T,
     var1: *mut typval_T,
     var2: *mut typval_T,
     empty1: bool,
     quiet: bool,
 ) -> c_int {
     unsafe {
-        let bloblen = tv_blob_len((*(*lp).ll_tv).vval.v_blob());
+        let bloblen = tv_blob_len((*lp.ll_tv).vval.v_blob());
 
         if empty1 {
-            (*lp).ll_n1 = 0;
+            lp.ll_n1 = 0;
         } else {
-            (*lp).ll_n1 = tv_get_number(var1) as c_int;
+            lp.ll_n1 = tv_get_number(var1) as c_int;
         }
 
-        if tv_blob_check_index(bloblen, varnumber_T::from((*lp).ll_n1), quiet) == FAIL {
+        if tv_blob_check_index(bloblen, varnumber_T::from(lp.ll_n1), quiet) == FAIL {
             return FAIL;
         }
-        if (*lp).ll_range && !(*lp).ll_empty2 {
-            (*lp).ll_n2 = tv_get_number(var2) as c_int;
+        if lp.ll_range && !lp.ll_empty2 {
+            lp.ll_n2 = tv_get_number(var2) as c_int;
             if tv_blob_check_range(
                 bloblen,
-                varnumber_T::from((*lp).ll_n1),
-                varnumber_T::from((*lp).ll_n2),
+                varnumber_T::from(lp.ll_n1),
+                varnumber_T::from(lp.ll_n2),
                 quiet,
             ) == FAIL
             {
@@ -1247,15 +1245,15 @@ unsafe fn get_lval_blob(
             }
         }
 
-        (*lp).ll_blob = (*(*lp).ll_tv).vval.v_blob();
-        (*lp).ll_tv = ptr::null_mut();
+        lp.ll_blob = (*lp.ll_tv).vval.v_blob();
+        lp.ll_tv = ptr::null_mut();
 
         OK
     }
 }
 
 unsafe fn get_lval_list(
-    lp: *mut lval_T,
+    lp: &mut lval_T,
     var1: *mut typval_T,
     var2: *mut typval_T,
     empty1: bool,
@@ -1264,25 +1262,25 @@ unsafe fn get_lval_list(
 ) -> c_int {
     unsafe {
         if empty1 {
-            (*lp).ll_n1 = 0;
+            lp.ll_n1 = 0;
         } else {
-            (*lp).ll_n1 = tv_get_number(var1) as c_int;
+            lp.ll_n1 = tv_get_number(var1) as c_int;
         }
 
-        (*lp).ll_dict = ptr::null_mut();
-        (*lp).ll_list = (*(*lp).ll_tv).vval.v_list();
-        (*lp).ll_li = tv_list_check_range_index_one((*lp).ll_list, &raw mut (*lp).ll_n1, quiet);
-        if (*lp).ll_li.is_null() {
+        lp.ll_dict = ptr::null_mut();
+        lp.ll_list = (*lp.ll_tv).vval.v_list();
+        lp.ll_li = tv_list_check_range_index_one(lp.ll_list, &raw mut lp.ll_n1, quiet);
+        if lp.ll_li.is_null() {
             return FAIL;
         }
 
-        if (*lp).ll_range && !(*lp).ll_empty2 {
-            (*lp).ll_n2 = tv_get_number(var2) as c_int;
+        if lp.ll_range && !lp.ll_empty2 {
+            lp.ll_n2 = tv_get_number(var2) as c_int;
             if tv_list_check_range_index_two(
-                (*lp).ll_list,
-                &raw mut (*lp).ll_n1,
-                (*lp).ll_li,
-                &raw mut (*lp).ll_n2,
+                lp.ll_list,
+                &raw mut lp.ll_n1,
+                lp.ll_li,
+                &raw mut lp.ll_n2,
                 quiet,
             ) == FAIL
             {
@@ -1290,7 +1288,7 @@ unsafe fn get_lval_list(
             }
         }
 
-        (*lp).ll_tv = tv_list_item_tv((*lp).ll_li);
+        lp.ll_tv = tv_list_item_tv(&mut *lp.ll_li);
 
         OK
     }
@@ -1445,7 +1443,7 @@ unsafe fn get_lval_subscript(
 
             if (*(*lp).ll_tv).v_type == VarType::VAR_DICT {
                 let glv_status = get_lval_dict_item(
-                    lp,
+                    &mut *lp,
                     name,
                     key,
                     len,
@@ -1464,13 +1462,13 @@ unsafe fn get_lval_subscript(
                     break;
                 }
             } else if (*(*lp).ll_tv).v_type == VarType::VAR_BLOB {
-                if get_lval_blob(lp, &raw mut var1, &raw mut var2, empty1, quiet) == FAIL {
+                if get_lval_blob(&mut *lp, &raw mut var1, &raw mut var2, empty1, quiet) == FAIL {
                     tv_clear(&raw mut var1);
                     tv_clear(&raw mut var2);
                     return ptr::null_mut();
                 }
                 break;
-            } else if get_lval_list(lp, &raw mut var1, &raw mut var2, empty1, flags, quiet) == FAIL
+            } else if get_lval_list(&mut *lp, &raw mut var1, &raw mut var2, empty1, flags, quiet) == FAIL
             {
                 tv_clear(&raw mut var1);
                 tv_clear(&raw mut var2);
@@ -1493,7 +1491,7 @@ unsafe fn get_lval_subscript(
 pub unsafe fn get_lval(
     name: *mut c_char,
     rettv: *mut typval_T,
-    lp: *mut lval_T,
+    lp: &mut lval_T,
     unlet: bool,
     skip: bool,
     flags: c_int,
@@ -1505,7 +1503,7 @@ pub unsafe fn get_lval(
         *lp = lval_T::new();
 
         if skip {
-            (*lp).ll_name = name;
+            lp.ll_name = name;
             return find_name_end(
                 name,
                 ptr::null_mut(),
@@ -1533,12 +1531,12 @@ pub unsafe fn get_lval(
             if let Some(cstr) =
                 make_expanded_name(name, expr_start.cast_mut(), expr_end.cast_mut(), p)
             {
-                (*lp).ll_name_len = cstr.as_bytes().len();
-                (*lp).ll_exp_name = Some(cstr);
-                (*lp).ll_name = (*lp).ll_exp_name.as_ref().unwrap().as_ptr();
+                lp.ll_name_len = cstr.as_bytes().len();
+                lp.ll_exp_name = Some(cstr);
+                lp.ll_name = lp.ll_exp_name.as_ref().unwrap().as_ptr();
             } else {
-                (*lp).ll_exp_name = None;
-                (*lp).ll_name = ptr::null();
+                lp.ll_exp_name = None;
+                lp.ll_name = ptr::null();
                 if !aborting() && !quiet {
                     {
                         g_st().emsg_severe = true;
@@ -1546,22 +1544,22 @@ pub unsafe fn get_lval(
                     }
                     return ptr::null_mut();
                 }
-                (*lp).ll_name_len = 0;
+                lp.ll_name_len = 0;
             }
         } else {
-            (*lp).ll_name = name;
-            (*lp).ll_name_len = (p as usize).wrapping_sub((*lp).ll_name as usize);
+            lp.ll_name = name;
+            lp.ll_name_len = (p as usize).wrapping_sub(lp.ll_name as usize);
         }
 
-        if (*p != b'[' as c_char && *p != b'.' as c_char) || (*lp).ll_name.is_null() {
+        if (*p != b'[' as c_char && *p != b'.' as c_char) || lp.ll_name.is_null() {
             return p;
         }
 
         let mut ht: *mut hashtab_T = ptr::null_mut();
 
         let v = find_var(
-            (*lp).ll_name,
-            (*lp).ll_name_len,
+            lp.ll_name,
+            lp.ll_name_len,
             if (flags & GLV_READ_ONLY) != 0 {
                 ptr::null_mut()
             } else {
@@ -1572,33 +1570,33 @@ pub unsafe fn get_lval(
         if v.is_null() && !quiet {
             semsg!(
                 gettext(c"E121: Undefined variable: %.*s".as_ptr()),
-                (*lp).ll_name_len as c_int,
-                (*lp).ll_name,
+                lp.ll_name_len as c_int,
+                lp.ll_name,
             );
         }
         if v.is_null() {
             return ptr::null_mut();
         }
 
-        (*lp).ll_tv = &raw mut (*v).di_tv;
+        lp.ll_tv = &raw mut (*v).di_tv;
 
-        if tv_is_luafunc((*lp).ll_tv) {
+        if tv_is_luafunc(lp.ll_tv) {
             return p;
         }
 
-        p = get_lval_subscript(lp, p, name, rettv, ht, v, unlet, flags);
+        p = get_lval_subscript(&raw mut *lp, p, name, rettv, ht, v, unlet, flags);
         if p.is_null() {
             return ptr::null_mut();
         }
 
-        (*lp).ll_name_len = (p as usize).wrapping_sub((*lp).ll_name as usize);
+        lp.ll_name_len = (p as usize).wrapping_sub(lp.ll_name as usize);
         p
     }
 }
 
 /// Set a variable that was parsed by get_lval() to "rettv".
 pub unsafe fn set_var_lval(
-    lp: *mut lval_T,
+    lp: &mut lval_T,
     endp: *mut c_char,
     rettv: *mut typval_T,
     copy: bool,
@@ -1606,29 +1604,29 @@ pub unsafe fn set_var_lval(
     op: *const c_char,
 ) {
     unsafe {
-        if (*lp).ll_tv.is_null() {
+        if lp.ll_tv.is_null() {
             let cc = *endp;
             *endp = NUL;
-            if !(*lp).ll_blob.is_null() {
+            if !lp.ll_blob.is_null() {
                 if !op.is_null() && *op != b'=' as c_char {
                     semsg!(gettext((&raw const e_letwrong).cast()), op);
                     *endp = cc;
                     return;
                 }
-                if value_check_lock((*(*lp).ll_blob).bv_lock, (*lp).ll_name, TV_CSTRING) {
+                if value_check_lock((*lp.ll_blob).bv_lock, lp.ll_name, TV_CSTRING) {
                     *endp = cc;
                     return;
                 }
 
-                if (*lp).ll_range && (*rettv).v_type == VarType::VAR_BLOB {
-                    if (*lp).ll_empty2 {
-                        (*lp).ll_n2 = tv_blob_len((*lp).ll_blob) - 1;
+                if lp.ll_range && (*rettv).v_type == VarType::VAR_BLOB {
+                    if lp.ll_empty2 {
+                        lp.ll_n2 = tv_blob_len(lp.ll_blob) - 1;
                     }
 
                     if tv_blob_set_range(
-                        (*lp).ll_blob,
-                        varnumber_T::from((*lp).ll_n1),
-                        varnumber_T::from((*lp).ll_n2),
+                        &mut *lp.ll_blob,
+                        varnumber_T::from(lp.ll_n1),
+                        varnumber_T::from(lp.ll_n2),
                         rettv,
                     ) == FAIL
                     {
@@ -1645,7 +1643,7 @@ pub unsafe fn set_var_lval(
                                 val,
                             );
                         } else {
-                            tv_blob_set_append((*lp).ll_blob, (*lp).ll_n1, val as u8);
+                            tv_blob_set_append(&mut *lp.ll_blob, lp.ll_n1, val as u8);
                         }
                     }
                 }
@@ -1660,8 +1658,8 @@ pub unsafe fn set_var_lval(
 
                 let mut di: *mut dictitem_T = ptr::null_mut();
                 if eval_variable(
-                    (*lp).ll_name,
-                    (*lp).ll_name_len as c_int,
+                    lp.ll_name,
+                    lp.ll_name_len as c_int,
                     &raw mut tv,
                     &raw mut di,
                     true,
@@ -1669,46 +1667,46 @@ pub unsafe fn set_var_lval(
                 ) == OK
                 {
                     if (di.is_null()
-                        || (!var_check_ro(c_int::from((*di).di_flags), (*lp).ll_name, TV_CSTRING)
-                            && !tv_check_lock(&raw const (*di).di_tv, (*lp).ll_name, TV_CSTRING)))
+                        || (!var_check_ro(c_int::from((*di).di_flags), lp.ll_name, TV_CSTRING)
+                            && !tv_check_lock(&raw const (*di).di_tv, lp.ll_name, TV_CSTRING)))
                         && eexe_mod_op(&raw mut tv, rettv, op) == OK
                     {
-                        set_var((*lp).ll_name, (*lp).ll_name_len, &raw mut tv, false);
+                        set_var(lp.ll_name, lp.ll_name_len, &raw mut tv, false);
                     }
                     tv_clear(&raw mut tv);
                 }
             } else {
-                set_var_const((*lp).ll_name, (*lp).ll_name_len, rettv, copy, is_const);
+                set_var_const(lp.ll_name, lp.ll_name_len, rettv, copy, is_const);
             }
             *endp = cc;
         } else if value_check_lock(
-            if (*lp).ll_newkey.is_none() {
-                (*(*lp).ll_tv).v_lock
+            if lp.ll_newkey.is_none() {
+                (*lp.ll_tv).v_lock
             } else {
-                (*(*(*lp).ll_tv).vval.v_dict()).dv_lock
+                (*(*lp.ll_tv).vval.v_dict()).dv_lock
             },
-            (*lp).ll_name,
+            lp.ll_name,
             TV_CSTRING,
         ) {
             // Skip
-        } else if (*lp).ll_range {
+        } else if lp.ll_range {
             if is_const {
                 emsg(gettext(c"E996: Cannot lock a range".as_ptr()));
                 return;
             }
 
             tv_list_assign_range(
-                (*lp).ll_list,
+                lp.ll_list,
                 (*rettv).vval.v_list(),
-                (*lp).ll_n1,
-                (*lp).ll_n2,
-                (*lp).ll_empty2,
+                lp.ll_n1,
+                lp.ll_n2,
+                lp.ll_empty2,
                 op,
-                (*lp).ll_name,
+                lp.ll_name,
             );
         } else {
             let mut oldtv = tv_initial_value();
-            let dict = (*lp).ll_dict;
+            let dict = lp.ll_dict;
             let watched = tv_dict_is_watched(dict);
 
             if is_const {
@@ -1717,53 +1715,53 @@ pub unsafe fn set_var_lval(
             }
 
             let mut skip_assign = false;
-            if let Some(ref newkey) = (*lp).ll_newkey {
+            if let Some(ref newkey) = lp.ll_newkey {
                 let newkey_ptr = newkey.as_ptr();
                 if !op.is_null() && *op != b'=' as c_char {
                     semsg!(gettext((&raw const e_dictkey).cast()), newkey_ptr);
                     return;
                 }
-                if tv_dict_wrong_func_name((*(*lp).ll_tv).vval.v_dict(), rettv, newkey_ptr) != 0 {
+                if tv_dict_wrong_func_name((*lp.ll_tv).vval.v_dict(), rettv, newkey_ptr) != 0 {
                     return;
                 }
 
                 let di = tv_dict_item_alloc(newkey_ptr);
-                if tv_dict_add((*(*lp).ll_tv).vval.v_dict(), di) == FAIL {
+                if tv_dict_add((*lp.ll_tv).vval.v_dict(), di) == FAIL {
                     tv_dict_item_free(di);
                     return;
                 }
-                (*lp).ll_tv = &raw mut (*di).di_tv;
+                lp.ll_tv = &raw mut (*di).di_tv;
             } else {
                 if watched {
-                    tv_copy((*lp).ll_tv, &raw mut oldtv);
+                    tv_copy(lp.ll_tv, &raw mut oldtv);
                 }
 
                 if !op.is_null() && *op != b'=' as c_char {
-                    eexe_mod_op((*lp).ll_tv, rettv, op);
+                    eexe_mod_op(lp.ll_tv, rettv, op);
                     skip_assign = true;
                 } else {
-                    tv_clear((*lp).ll_tv);
+                    tv_clear(lp.ll_tv);
                 }
             }
 
             if !skip_assign {
                 if copy {
-                    tv_copy(rettv, (*lp).ll_tv);
+                    tv_copy(rettv, lp.ll_tv);
                 } else {
-                    *(*lp).ll_tv = *rettv;
-                    (*(*lp).ll_tv).v_lock = VAR_UNLOCKED;
+                    *lp.ll_tv = *rettv;
+                    (*lp.ll_tv).v_lock = VAR_UNLOCKED;
                     tv_init(rettv);
                 }
             }
 
             if watched {
                 if oldtv.v_type == VarType::VAR_UNKNOWN {
-                    let newkey_ptr = (*lp).ll_newkey.as_ref().unwrap().as_ptr();
-                    tv_dict_watcher_notify(dict, newkey_ptr, (*lp).ll_tv, ptr::null_mut());
+                    let newkey_ptr = lp.ll_newkey.as_ref().unwrap().as_ptr();
+                    tv_dict_watcher_notify(&mut *dict, newkey_ptr, lp.ll_tv, ptr::null_mut());
                 } else {
-                    let di_ = (*lp).ll_di;
+                    let di_ = lp.ll_di;
                     let key_ptr = (*di_).di_key.as_ptr();
-                    tv_dict_watcher_notify(dict, key_ptr, (*lp).ll_tv, &raw mut oldtv);
+                    tv_dict_watcher_notify(&mut *dict, key_ptr, lp.ll_tv, &raw mut oldtv);
                     tv_clear(&raw mut oldtv);
                 }
             }
@@ -1823,7 +1821,7 @@ pub unsafe fn eval_for_line(
                         let lw = std::rc::Rc::new(listwatch_T {
                             lw_item: std::cell::Cell::new(tv_list_first(l)),
                         });
-                        tv_list_watch_add(l, lw.clone());
+                        tv_list_watch_add(&mut *l, lw.clone());
                         fi.fi_source = ForSource::List { list: l, lw };
                     }
                 } else if tv.v_type == VarType::VAR_BLOB {
@@ -1915,7 +1913,7 @@ pub unsafe fn next_for_item(fi: &mut forinfo_T, arg: *mut c_char) -> bool {
                 lw.lw_item.set(tv_list_item_next(*list, item));
                 ex_let_vars(
                     arg,
-                    tv_list_item_tv(item),
+                    tv_list_item_tv(&mut *item),
                     1,
                     fi.fi_semicolon,
                     fi.fi_varcount,
@@ -1933,7 +1931,7 @@ impl Drop for forinfo_T {
             if let ForSource::List { list, ref lw } = self.fi_source
                 && !list.is_null()
             {
-                tv_list_watch_remove(list, lw);
+                tv_list_watch_remove(&mut *list, lw);
                 tv_list_unref(list);
             }
         }
@@ -4541,8 +4539,8 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
         }
 
         for &ll in gc_lists_slice().iter().rev() {
-            if (tv_list_copyid(ll) & COPYID_MASK) != (copyID & COPYID_MASK)
-                && !tv_list_has_watchers(ll)
+            if (tv_list_copyid(&*ll) & COPYID_MASK) != (copyID & COPYID_MASK)
+                && !tv_list_has_watchers(&*ll)
             {
                 tv_list_free_contents(ll);
                 did_free = true;
@@ -4563,7 +4561,7 @@ unsafe fn free_unref_items(copyID: c_int) -> c_int {
             j -= 1;
             let ll_cur = gc_lists_slice()[j];
             if ((*ll_cur).lv_copyID & COPYID_MASK) != (copyID & COPYID_MASK)
-                && !tv_list_has_watchers(ll_cur)
+                && !tv_list_has_watchers(&*ll_cur)
             {
                 drop(Box::from_raw(ll_cur));
             }
@@ -4634,7 +4632,7 @@ pub unsafe fn set_ref_in_list_items(
                         break;
                     }
                     abort =
-                        set_ref_in_item(tv_list_item_tv(li), copyID, ht_stack, &raw mut list_stack);
+                        set_ref_in_item(tv_list_item_tv(&mut *li), copyID, ht_stack, &raw mut list_stack);
                     li = (*li).li_next;
                 }
             }
@@ -5033,7 +5031,7 @@ pub unsafe fn tv_to_argv(
             return Vec::new();
         }
 
-        let arg0 = tv_get_string_chk(tv_list_item_tv(tv_list_first(argl)));
+        let arg0 = tv_get_string_chk(tv_list_item_tv(&mut *tv_list_first(argl)));
         let mut exe_resolved: Option<std::ffi::CString> = None;
         if arg0.is_null() || !os_can_exe(arg0, Some(&mut exe_resolved), true) {
             if !arg0.is_null() && !executable.is_null() {
@@ -5063,7 +5061,7 @@ pub unsafe fn tv_to_argv(
             (*argl).lv_first
         };
         while !arg.is_null() {
-            let a = tv_get_string_chk(tv_list_item_tv(arg));
+            let a = tv_get_string_chk(tv_list_item_tv(&mut *arg));
             if a.is_null() {
                 return Vec::new();
             }
@@ -5677,7 +5675,7 @@ pub unsafe fn save_tv_as_string(tv: *mut typval_T, endnl: bool, crlf: bool) -> O
             (*list).lv_first
         };
         while !li.is_null() {
-            total_len += std::ffi::CStr::from_ptr(tv_get_string(tv_list_item_tv(li))).to_bytes().len() + sep_len;
+            total_len += std::ffi::CStr::from_ptr(tv_get_string(tv_list_item_tv(&mut *li))).to_bytes().len() + sep_len;
             li = (*li).li_next;
         }
 
@@ -5692,7 +5690,7 @@ pub unsafe fn save_tv_as_string(tv: *mut typval_T, endnl: bool, crlf: bool) -> O
             (*list).lv_first
         };
         while !li.is_null() {
-            let mut s = tv_get_string(tv_list_item_tv(li));
+            let mut s = tv_get_string(tv_list_item_tv(&mut *li));
             while *s != NUL {
                 ret.push(if *s == b'\n' as c_char { NUL } else { *s });
                 s = s.add(1);
@@ -5810,9 +5808,9 @@ pub unsafe fn var2fpos(
 
             let li = tv_list_find(l, 1);
             if !li.is_null()
-                && (*tv_list_item_tv(li)).v_type == VarType::VAR_STRING
-                && !(*tv_list_item_tv(li)).vval.v_string().is_null()
-                && (std::ffi::CStr::from_ptr((*tv_list_item_tv(li)).vval.v_string()).to_bytes() == b"$")
+                && (*tv_list_item_tv(&mut *li)).v_type == VarType::VAR_STRING
+                && !(*tv_list_item_tv(&mut *li)).vval.v_string().is_null()
+                && (std::ffi::CStr::from_ptr((*tv_list_item_tv(&mut *li)).vval.v_string()).to_bytes() == b"$")
             {
                 eval_st().VAR2FPOS_POS.col = len + 1;
             }
@@ -6273,7 +6271,7 @@ pub unsafe fn set_argv_var(argv: *mut *mut c_char, argc: c_int) {
         tv_list_set_lock(l, VAR_FIXED);
         for i in 0..(argc as usize) {
             tv_list_append_string(l, (*argv.add(i)).cast_const(), -1);
-            (*tv_list_item_tv(tv_list_last(l))).v_lock = VAR_FIXED;
+            (*tv_list_item_tv(&mut *tv_list_last(l))).v_lock = VAR_FIXED;
         }
         set_vim_var_list(VV_ARGV, l);
     }
@@ -6571,8 +6569,8 @@ pub unsafe fn var_item_copy(
                 (*to).v_lock = VAR_UNLOCKED;
                 if (*from).vval.v_list().is_null() {
                     (*to).vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
-                } else if copyID != 0 && tv_list_copyid((*from).vval.v_list()) == copyID {
-                    (*to).vval = crate::eval::typval::TypvalVval::List(tv_list_latest_copy((*from).vval.v_list()));
+                } else if copyID != 0 && tv_list_copyid(&*(*from).vval.v_list()) == copyID {
+                    (*to).vval = crate::eval::typval::TypvalVval::List(tv_list_latest_copy(&*(*from).vval.v_list()));
                     tv_list_ref((*to).vval.v_list());
                 } else {
                     (*to).vval = crate::eval::typval::TypvalVval::List(tv_list_copy(conv, (*from).vval.v_list(), deep, copyID));
@@ -6620,7 +6618,7 @@ pub unsafe fn ex_echo(eap: &mut exarg_T) {
         let called_emsg_before = g_st().called_emsg;
         let mut evalarg = evalarg_T::new();
 
-        fill_evalarg_from_eap(&raw mut evalarg, eap, eap.skip != 0);
+        fill_evalarg_from_eap(&mut evalarg, eap, eap.skip != 0);
 
         if eap.skip != 0 {
             g_st().emsg_skip += 1;

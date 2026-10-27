@@ -2889,7 +2889,7 @@ pub unsafe fn f_get(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: EvalFun
                         && (*pt).pt_name.is_none()
                         && !(*pt).pt_func.is_null()
                     {
-                        name = printable_func_name((*pt).pt_func);
+                        name = printable_func_name(&mut *(*pt).pt_func);
                     }
                     crate::eval::typval::tv_set_string(rettv, name);
                     rettv.v_type = if *what == b'f' as c_char {
@@ -4396,7 +4396,7 @@ pub unsafe fn f_islocked(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
         let end = get_lval(
             tv_get_string(argvars).cast_mut(),
             ptr::null_mut(),
-            &raw mut lv,
+            &mut lv,
             false,
             false,
             GLV_NO_AUTOLOAD | GLV_READ_ONLY,
@@ -4630,7 +4630,7 @@ pub unsafe fn create_environment(
             }
             #[cfg(not(windows))]
             {
-                tv_dict_extend(env, (*job_env).di_tv.vval.v_dict().cast(), c"force".as_ptr());
+                tv_dict_extend(&mut *env, &mut *(*job_env).di_tv.vval.v_dict(), c"force".as_ptr());
             }
         }
 
@@ -4909,7 +4909,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
                 (*buf).b_locked += 1;
                 let cp = chan;
                 dict_set_var(
-                    (*buf).b_vars(),
+                    &mut *(*buf).b_vars(),
                     cstr_as_string(c"terminal_job_id".as_ptr()),
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
@@ -4922,7 +4922,7 @@ pub unsafe fn f_jobstart(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Ev
                 );
                 api_clear_error(&mut err);
                 dict_set_var(
-                    (*buf).b_vars(),
+                    &mut *(*buf).b_vars(),
                     cstr_as_string(c"terminal_job_pid".as_ptr()),
                     Object {
                         obj_type: ObjectType::kObjectTypeInteger,
@@ -6653,7 +6653,7 @@ unsafe fn repeat_blob(blob_tv: *mut typval_T, n: varnumber_T, rettv: *mut typval
         }
         for idx in 0..(n as c_int) {
             tv_blob_set_range(
-                ret_blob,
+                &mut *ret_blob,
                 varnumber_T::from(idx * slen),
                 varnumber_T::from((idx + 1) * slen - 1),
                 blob_tv,

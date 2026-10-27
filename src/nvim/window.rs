@@ -5132,7 +5132,7 @@ unsafe fn alloc_tabpage() -> *mut tabpage_T {
         let map_ptr = &raw mut g_st().tabpage_handles;
         (*map_ptr).insert((*tp).handle, tp);
 
-        init_var_dict(tv_dict_alloc(), (&raw mut (*tp).tp_winvar).cast(), VAR_SCOPE);
+        init_var_dict(&mut *tv_dict_alloc(), (&raw mut (*tp).tp_winvar).cast(), VAR_SCOPE);
         (*tp).tp_ch_used = opt_vars().p_ch;
 
         tp
@@ -5149,8 +5149,8 @@ impl Drop for tabpage_T {
                 clear_snapshot(self, idx as c_int);
             }
             if !self.tp_vars().is_null() {
-                vars_clear(&raw mut (*self.tp_vars()).dv_hashtab);
-                unref_var_dict(self.tp_vars());
+                vars_clear(&mut (*self.tp_vars()).dv_hashtab);
+                unref_var_dict(&mut *self.tp_vars());
             }
             if ptr::eq(self, g_st().lastused_tabpage) {
                 g_st().lastused_tabpage = ptr::null_mut();
@@ -6248,7 +6248,7 @@ pub unsafe fn win_alloc(after: *mut win_T, hidden: bool) -> *mut win_T {
         grid_assign_handle(&mut (*new_wp).w_grid_alloc);
 
         init_var_dict(
-            tv_dict_alloc(),
+            &mut *tv_dict_alloc(),
             (&raw mut (*new_wp).w_winvar).cast(),
             VAR_SCOPE,
         );
@@ -6304,8 +6304,8 @@ pub unsafe fn win_free(wp: *mut win_T, tp: *mut tabpage_T) {
         (*wp).w_p_lcs_chars.multispace = Vec::new();
         (*wp).w_p_lcs_chars.leadmultispace = Vec::new();
 
-        vars_clear(&raw mut (*(*wp).w_vars()).dv_hashtab);
-        unref_var_dict((*wp).w_vars());
+        vars_clear(&mut (*(*wp).w_vars()).dv_hashtab);
+        unref_var_dict(&mut *(*wp).w_vars());
 
         if ptr::eq(g_st().prevwin, wp) {
             g_st().prevwin = ptr::null_mut();
@@ -6856,14 +6856,14 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
                     win,
                 );
             }
-            restore_v_event(v_event, &raw mut save_v_event);
+            restore_v_event(&mut *v_event, &raw mut save_v_event);
         }
 
         if trigger_scroll && !scroll_dict.is_null() {
             let mut save_v_event: save_v_event_T = save_v_event_T::new();
             let v_event = get_v_event(&raw mut save_v_event);
 
-            tv_dict_extend(v_event, scroll_dict, c"move".as_ptr());
+            tv_dict_extend(&mut *v_event, &mut *scroll_dict, c"move".as_ptr());
             tv_dict_set_keys_readonly(v_event);
             tv_dict_unref(scroll_dict);
 
@@ -6886,7 +6886,7 @@ pub unsafe fn may_trigger_win_scrolled_resized() {
                 win,
             );
 
-            restore_v_event(v_event, &raw mut save_v_event);
+            restore_v_event(&mut *v_event, &raw mut save_v_event);
         }
 
         win_st().win_scrolled_resized_recursive = false;

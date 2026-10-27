@@ -961,10 +961,8 @@ unsafe fn tv_blob_get_inline(b: *const blob_T, idx: c_int) -> u8 {
 }
 
 #[inline]
-unsafe fn tv_blob_set_inline(blob: *mut blob_T, idx: c_int, c: u8) {
-    unsafe {
-        (&mut (*blob).bv_ga)[idx as usize] = c;
-    }
+unsafe fn tv_blob_set_inline(blob: &mut blob_T, idx: c_int, c: u8) {
+    (&mut blob.bv_ga)[idx as usize] = c;
 }
 
 #[inline]
@@ -1005,34 +1003,28 @@ pub unsafe fn tv_list_item_remove(l: *mut list_T, item: *mut listitem_T) -> *mut
 }
 
 /// Add a watcher to a list.
-pub unsafe fn tv_list_watch_add(l: *mut list_T, lw: std::rc::Rc<listwatch_T>) {
-    unsafe {
-        (*l).lv_watch.push(lw);
-    }
+pub unsafe fn tv_list_watch_add(l: &mut list_T, lw: std::rc::Rc<listwatch_T>) {
+    l.lv_watch.push(lw);
 }
 
 /// Remove a watcher from a list.
-pub unsafe fn tv_list_watch_remove(l: *mut list_T, lwrem: &std::rc::Rc<listwatch_T>) {
-    unsafe {
-        if let Some(pos) = (*l)
+pub unsafe fn tv_list_watch_remove(l: &mut list_T, lwrem: &std::rc::Rc<listwatch_T>) {
+    if let Some(pos) = (*l)
             .lv_watch
             .iter()
             .position(|lw| std::rc::Rc::ptr_eq(lw, lwrem))
         {
-            (*l).lv_watch.remove(pos);
+            l.lv_watch.remove(pos);
         }
-    }
 }
 
 /// Advance watchers to the next item.
-unsafe fn tv_list_watch_fix(l: *mut list_T, item: *const listitem_T) {
-    unsafe {
-        for lw in &(*l).lv_watch {
+unsafe fn tv_list_watch_fix(l: &mut list_T, item: &listitem_T) {
+    for lw in &l.lv_watch {
             if ptr::eq(lw.lw_item.get(), item) {
-                lw.lw_item.set((*item).li_next);
+                lw.lw_item.set(item.li_next);
             }
         }
-    }
 }
 
 /// Allocate an empty list.
@@ -1054,7 +1046,7 @@ pub unsafe extern "C" fn tv_list_alloc(_len: isize) -> *mut list_T {
             lua_table_ref: LUA_NOREF,
         }));
 
-        gc_register_list(list);
+        gc_register_list(&mut *list);
         list
     }
 }
@@ -1087,11 +1079,9 @@ pub unsafe fn tv_list_init_static10(sl: *mut staticList10_T) {
 }
 
 /// Initialize static list with undefined number of elements.
-pub unsafe fn tv_list_init_static(l: *mut list_T) {
-    unsafe {
-        *l = list_T::new();
-        (*l).lv_refcount = DO_NOT_FREE_CNT;
-    }
+pub unsafe fn tv_list_init_static(l: &mut list_T) {
+    *l = list_T::new();
+        l.lv_refcount = DO_NOT_FREE_CNT;
 }
 
 /// Free items contained in a list.
@@ -1141,7 +1131,7 @@ pub unsafe fn tv_list_drop_items(l: *mut list_T, item: *mut listitem_T, item2: *
         let mut ip = item;
         while ip != (*item2).li_next {
             (*l).lv_len -= 1;
-            tv_list_watch_fix(l, ip);
+            tv_list_watch_fix(&mut *l, &*ip);
             ip = (*ip).li_next;
         }
 
@@ -1743,7 +1733,7 @@ pub unsafe fn tv_list_slice_or_index(
 
 unsafe fn list_join_inner(
     gap: &mut Vec<c_char>,
-    l: *mut list_T,
+    l: &mut list_T,
     sep: *const c_char,
     join_vec: &mut Vec<std::ffi::CString>,
 ) -> c_int {
@@ -1751,7 +1741,7 @@ unsafe fn list_join_inner(
         let mut sumlen: usize = 0;
         let mut first = true;
 
-        let mut item = (*l).lv_first;
+        let mut item = l.lv_first;
         while !item.is_null() {
             if g_st().got_int {
                 break;
@@ -1804,7 +1794,7 @@ pub unsafe fn tv_list_join(gap: &mut Vec<c_char>, l: *mut list_T, sep: *const c_
         }
 
         let mut join_vec: Vec<std::ffi::CString> = Vec::with_capacity(len as usize);
-        list_join_inner(gap, l, sep, &mut join_vec)
+        list_join_inner(gap, &mut *l, sep, &mut join_vec)
     }
 }
 
@@ -2751,7 +2741,7 @@ unsafe fn tv_dict_watcher_matches(watcher: *const DictWatcher, key: *const c_cha
 
 /// Send a change notification to all dictionary watchers that match given key.
 pub unsafe fn tv_dict_watcher_notify(
-    dict: *mut dict_T,
+    dict: &mut dict_T,
     key: *const c_char,
     newtv: *mut typval_T,
     oldtv: *mut typval_T,
@@ -2783,19 +2773,19 @@ pub unsafe fn tv_dict_watcher_notify(
         }
 
         let mut any_needs_free = false;
-        (*dict).dv_refcount += 1;
-        let len = (*dict).watchers.len();
+        dict.dv_refcount += 1;
+        let len = dict.watchers.len();
         for i in 0..len {
             let matches = {
-                let w = &(&(*dict).watchers)[i];
+                let w = &(&dict.watchers)[i];
                 !w.busy && tv_dict_watcher_matches(w, key)
             };
             if matches {
                 let mut rettv = tv_initial_value();
-                (&mut (*dict).watchers)[i].busy = true;
-                let mut cb = (&(*dict).watchers)[i].callback.clone();
+                (&mut dict.watchers)[i].busy = true;
+                let mut cb = (&dict.watchers)[i].callback.clone();
                 callback_call(&raw mut cb, 3, argv.as_mut_ptr(), &raw mut rettv);
-                let w = &mut (&mut (*dict).watchers)[i];
+                let w = &mut (&mut dict.watchers)[i];
                 w.callback = cb;
                 w.busy = false;
                 tv_clear(&raw mut rettv);
@@ -2805,9 +2795,9 @@ pub unsafe fn tv_dict_watcher_notify(
             }
         }
         if any_needs_free {
-            (*dict).watchers.retain(|watcher| !watcher.needs_free);
+            dict.watchers.retain(|watcher| !watcher.needs_free);
         }
-        tv_dict_unref(dict);
+        tv_dict_unref(&raw mut *dict);
 
         for item in argv.iter_mut().skip(1) {
             tv_clear(item);
@@ -2852,11 +2842,11 @@ pub unsafe fn tv_dict_item_free(item: *mut dictitem_T) {
 }
 
 /// Make a copy of a dictionary item.
-pub unsafe fn tv_dict_item_copy(di: *mut dictitem_T) -> *mut dictitem_T {
+pub unsafe fn tv_dict_item_copy(di: &mut dictitem_T) -> *mut dictitem_T {
     unsafe {
-        let key_ptr = (*di).di_key.as_ptr();
+        let key_ptr = di.di_key.as_ptr();
         let new_di = tv_dict_item_alloc(key_ptr);
-        tv_copy(&raw const (*di).di_tv, &raw mut (*new_di).di_tv);
+        tv_copy(&raw const di.di_tv, &raw mut (*new_di).di_tv);
         new_di
     }
 }
@@ -2869,7 +2859,7 @@ pub unsafe fn tv_dict_item_remove(dict: *mut dict_T, item: *mut dictitem_T) {
         if hashitem_empty(&*hi) {
             semsg!(tr(e_intern2.as_ptr()), c"tv_dict_item_remove()".as_ptr());
         } else {
-            hash_remove(&raw mut (*dict).dv_hashtab, hi);
+            hash_remove(&mut (*dict).dv_hashtab, hi);
         }
         tv_dict_item_free(item);
     }
@@ -2890,7 +2880,7 @@ pub unsafe fn tv_dict_alloc() -> *mut dict_T {
             lua_table_ref: LUA_NOREF,
         }));
 
-        gc_register_dict(d);
+        gc_register_dict(&mut *d);
 
         d
     }
@@ -2899,7 +2889,7 @@ pub unsafe fn tv_dict_alloc() -> *mut dict_T {
 /// Free items contained in a dictionary.
 pub unsafe fn tv_dict_free_contents(d: *mut dict_T) {
     unsafe {
-        hash_lock(&raw mut (*d).dv_hashtab);
+        hash_lock(&mut (*d).dv_hashtab);
         debug_assert!((*d).dv_hashtab.ht_locked > 0);
         let mut todo = (*d).dv_hashtab.ht_used;
         let mut hi = (*d).dv_hashtab.array_ptr();
@@ -2907,7 +2897,7 @@ pub unsafe fn tv_dict_free_contents(d: *mut dict_T) {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 let di = tv_dict_hi2di(hi);
-                hash_remove(&raw mut (*d).dv_hashtab, hi);
+                hash_remove(&mut (*d).dv_hashtab, hi);
                 tv_dict_item_free(di);
             }
             hi = hi.add(1);
@@ -2915,7 +2905,7 @@ pub unsafe fn tv_dict_free_contents(d: *mut dict_T) {
 
         (*d).watchers.clear();
 
-        hash_clear(&raw mut (*d).dv_hashtab);
+        hash_clear(&mut (*d).dv_hashtab);
     }
 }
 
@@ -3148,7 +3138,7 @@ pub unsafe fn tv_dict_add(d: *mut dict_T, item: *mut dictitem_T) -> c_int {
         if tv_dict_wrong_func_name(d, &raw mut (*item).di_tv, key_ptr) != 0 {
             return FAIL;
         }
-        hash_add(&raw mut (*d).dv_hashtab, item)
+        hash_add(&mut (*d).dv_hashtab, item)
     }
 }
 
@@ -3329,53 +3319,53 @@ pub unsafe fn tv_dict_add_func(
 
 /// Clear all the keys of a Dictionary.
 #[cfg(test)]
-pub unsafe fn tv_dict_clear(d: *mut dict_T) {
+pub unsafe fn tv_dict_clear(d: &mut dict_T) {
     unsafe {
-        hash_lock(&raw mut (*d).dv_hashtab);
-        debug_assert!((*d).dv_hashtab.ht_locked > 0);
+        hash_lock(&mut d.dv_hashtab);
+        debug_assert!(d.dv_hashtab.ht_locked > 0);
 
-        let mut todo = (*d).dv_hashtab.ht_used;
-        let mut hi = (*d).dv_hashtab.array_ptr();
+        let mut todo = d.dv_hashtab.ht_used;
+        let mut hi = d.dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi) {
                 todo -= 1;
                 tv_dict_item_free(tv_dict_hi2di(hi));
-                hash_remove(&raw mut (*d).dv_hashtab, hi);
+                hash_remove(&mut d.dv_hashtab, hi);
             }
             hi = hi.add(1);
         }
 
-        hash_unlock(&raw mut (*d).dv_hashtab);
+        hash_unlock(&mut d.dv_hashtab);
     }
 }
 
 /// Extend dictionary with items from another dictionary.
-pub unsafe fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_char) {
+pub unsafe fn tv_dict_extend(d1: &mut dict_T, d2: &mut dict_T, action: *const c_char) {
     unsafe {
-        let watched = tv_dict_is_watched_inline(d1);
+        let watched = tv_dict_is_watched_inline(&raw mut *d1);
         let arg_errmsg = tr(c"extend() argument".as_ptr());
         let arg_errmsg_len = std::ffi::CStr::from_ptr(arg_errmsg).to_bytes().len();
 
         if *action == b'm' as c_char {
-            hash_lock(&raw mut (*d2).dv_hashtab);
+            hash_lock(&mut d2.dv_hashtab);
         }
 
-        let mut todo = (*d2).dv_hashtab.ht_used;
-        let mut hi2 = (*d2).dv_hashtab.array_ptr();
+        let mut todo = d2.dv_hashtab.ht_used;
+        let mut hi2 = d2.dv_hashtab.array_ptr();
         while todo > 0 {
             if !hashitem_empty(&*hi2) {
                 todo -= 1;
                 let di2 = tv_dict_hi2di(hi2);
                 let key2 = (*di2).di_key.as_ptr();
-                let di1 = tv_dict_find(d1, key2, -1);
-                if (*d1).dv_scope != VAR_NO_SCOPE && !valid_varname(key2) {
+                let di1 = tv_dict_find(&raw mut *d1, key2, -1);
+                if d1.dv_scope != VAR_NO_SCOPE && !valid_varname(key2) {
                     break;
                 }
                 if di1.is_null() {
                     if *action == b'm' as c_char {
                         let new_di = di2;
-                        if tv_dict_add(d1, new_di) == OK {
-                            hash_remove(&raw mut (*d2).dv_hashtab, hi2);
+                        if tv_dict_add(&raw mut *d1, new_di) == OK {
+                            hash_remove(&mut d2.dv_hashtab, hi2);
                             tv_dict_watcher_notify(
                                 d1,
                                 (*new_di).di_key.as_ptr(),
@@ -3384,8 +3374,8 @@ pub unsafe fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_
                             );
                         }
                     } else {
-                        let new_di = tv_dict_item_copy(di2);
-                        if tv_dict_add(d1, new_di) == FAIL {
+                        let new_di = tv_dict_item_copy(&mut *di2);
+                        if tv_dict_add(&raw mut *d1, new_di) == FAIL {
                             tv_dict_item_free(new_di);
                         } else if watched {
                             tv_dict_watcher_notify(
@@ -3405,7 +3395,7 @@ pub unsafe fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_
                     {
                         break;
                     }
-                    if tv_dict_wrong_func_name(d1, &raw mut (*di2).di_tv, key2) != 0 {
+                    if tv_dict_wrong_func_name(&raw mut *d1, &raw mut (*di2).di_tv, key2) != 0 {
                         break;
                     }
 
@@ -3432,7 +3422,7 @@ pub unsafe fn tv_dict_extend(d1: *mut dict_T, d2: *mut dict_T, action: *const c_
         }
 
         if *action == b'm' as c_char {
-            hash_unlock(&raw mut (*d2).dv_hashtab);
+            hash_unlock(&mut d2.dv_hashtab);
         }
     }
 }
@@ -3590,7 +3580,7 @@ pub unsafe fn tv_blob_equal(b1: *const blob_T, b2: *const blob_T) -> bool {
         if len1 == 0 && len2 == 0 {
             return true;
         }
-        if ptr::eq(b1, b2) {
+        if b1 == b2 {
             return true;
         }
         if len1 != len2 {
@@ -3720,7 +3710,7 @@ pub unsafe fn tv_blob_check_range(
 
 /// Set bytes "n1" to "n2" (inclusive) in "dest" to the value of "src".
 pub unsafe fn tv_blob_set_range(
-    dest: *mut blob_T,
+    dest: &mut blob_T,
     n1: varnumber_T,
     n2: varnumber_T,
     src: *mut typval_T,
@@ -3741,16 +3731,14 @@ pub unsafe fn tv_blob_set_range(
 }
 
 /// Store one byte "byte" in blob "blob" at "idx".
-pub unsafe fn tv_blob_set_append(blob: *mut blob_T, idx: c_int, byte: u8) {
-    unsafe {
-        let bv = &mut (*blob).bv_ga;
+pub unsafe fn tv_blob_set_append(blob: &mut blob_T, idx: c_int, byte: u8) {
+    let bv = &mut blob.bv_ga;
         let len = bv.len() as c_int;
         if idx < len {
             bv[idx as usize] = byte;
         } else if idx == len {
             bv.push(byte);
         }
-    }
 }
 
 /// "remove({blob})" function.
@@ -4008,7 +3996,7 @@ pub unsafe fn tv_dict_remove(
                         (*di).di_tv = tv_initial_value();
                         tv_dict_item_remove(d, di);
                         if tv_dict_is_watched_inline(d) {
-                            tv_dict_watcher_notify(d, key, ptr::null_mut(), rettv);
+                            tv_dict_watcher_notify(&mut *d, key, ptr::null_mut(), rettv);
                         }
                     }
                 }
@@ -5371,8 +5359,8 @@ mod tests {
             let lw2 = std::rc::Rc::new(listwatch_T {
                 lw_item: std::cell::Cell::new((*l).lv_last),
             });
-            tv_list_watch_add(l, lw1.clone());
-            tv_list_watch_add(l, lw2.clone());
+            tv_list_watch_add(&mut *l, lw1.clone());
+            tv_list_watch_add(&mut *l, lw2.clone());
 
             let second = (*(*l).lv_first).li_next;
             let next_after_first = tv_list_item_remove(l, (*l).lv_first);
@@ -5380,8 +5368,8 @@ mod tests {
             assert_eq!(lw1.lw_item.get(), second);
             assert_eq!(tv_list_len_inline(l), 2);
 
-            tv_list_watch_remove(l, &lw1);
-            tv_list_watch_remove(l, &lw2);
+            tv_list_watch_remove(&mut *l, &lw1);
+            tv_list_watch_remove(&mut *l, &lw2);
             tv_list_unref(l);
 
             // insert, insert_tv, append_string, append_allocated_string, append_tv, append_owned_tv
@@ -5489,7 +5477,7 @@ mod tests {
             let d2 = tv_dict_alloc();
             (*d2).dv_refcount = 1;
             assert_eq!(tv_dict_add_nr(d2, c"extra".as_ptr(), 5, 7), OK);
-            tv_dict_extend(d, d2, c"force".as_ptr());
+            tv_dict_extend(&mut *d, &mut *d2, c"force".as_ptr());
             assert_eq!(tv_dict_get_number(d, c"extra".as_ptr()), 7);
             assert!(!tv_dict_equal(d, d_copy, false));
 
@@ -5497,7 +5485,7 @@ mod tests {
             let di_extra = tv_dict_find(d2, c"extra".as_ptr(), -1);
             assert_ne!((*di_extra).di_flags & (DI_FLAGS_RO | DI_FLAGS_FIX), 0);
 
-            tv_dict_clear(d_copy);
+            tv_dict_clear(&mut *d_copy);
             assert_eq!(tv_dict_len_inline(d_copy), 0);
 
             tv_dict_unref(d2);

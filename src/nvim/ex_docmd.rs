@@ -5019,12 +5019,12 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
         let source_cookie = fgetline.as_source();
 
         if let Some(fcp) = func_cookie {
-            if g_st().ex_nesting_level == func_level(fcp) {
+            if g_st().ex_nesting_level == func_level(&mut *fcp) {
                 g_st().ex_nesting_level += 1;
             }
-            fname = func_name(fcp);
-            breakpoint = func_breakpoint(fcp);
-            dbg_tick = func_dbg_tick(fcp);
+            fname = func_name(&mut *fcp);
+            breakpoint = func_breakpoint(&mut *fcp);
+            dbg_tick = func_dbg_tick(&mut *fcp);
         } else if let Some(sp) = source_cookie {
             fname = sourcing_name();
             breakpoint = source_breakpoint(sp);
@@ -5056,7 +5056,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             if next_cmdline.is_null()
                 && !g_st().force_abort
                 && cstack.cs_idx < 0
-                && !func_cookie.is_some_and(|fcp| func_has_abort(fcp) != 0)
+                && !func_cookie.is_some_and(|fcp| func_has_abort(&mut *fcp) != 0)
             {
                 g_st().did_emsg = 0;
             }
@@ -5067,9 +5067,9 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
 
                 if let Some(fcp) = func_cookie {
                     if g_st().do_profiling == PROF_YES {
-                        func_line_end(fcp);
+                        func_line_end(&mut *fcp);
                     }
-                    if func_has_ended(fcp) != 0 {
+                    if func_has_ended(&mut *fcp) != 0 {
                         retval = FAIL;
                         break;
                     }
@@ -5101,7 +5101,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 }
                 if g_st().do_profiling == PROF_YES {
                     if let Some(fcp) = func_cookie {
-                        func_line_start(fcp);
+                        func_line_start(&mut *fcp);
                     } else if fgetline.is_source() {
                         script_line_start();
                     }
@@ -5243,7 +5243,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 && !g_st().force_abort
                 && fgetline
                     .as_func()
-                    .is_some_and(|fcp| func_has_abort(fcp) == 0)
+                    .is_some_and(|fcp| func_has_abort(&mut *fcp) == 0)
             {
                 g_st().did_emsg = 0;
             }
@@ -5348,7 +5348,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
                 && ((fgetline.is_source() && !source_finished(fgetline))
                     || fgetline
                         .as_func()
-                        .is_some_and(|fcp| func_has_ended(fcp) == 0))
+                        .is_some_and(|fcp| func_has_ended(&mut *fcp) == 0))
             {
                 let top_flags = cstack.cs_flags[cstack.cs_idx as usize];
                 if (top_flags & CSF_TRY) != 0 {
@@ -5407,7 +5407,7 @@ pub unsafe fn do_cmdline(cmdline: *mut c_char, fgetline: LineGetter, flags: c_in
             .is_some_and(|sp| g_st().ex_nesting_level > source_level(sp))
             || fgetline
                 .as_func()
-                .is_some_and(|fcp| g_st().ex_nesting_level > func_level(fcp) + 1)
+                .is_some_and(|fcp| g_st().ex_nesting_level > func_level(&mut *fcp) + 1)
         {
             if !g_st().did_throw {
                 g_st().check_cstack = true;
@@ -6329,7 +6329,7 @@ unsafe fn profile_cmd(eap: &exarg_T, cstack: *mut cstack_T, fgetline: LineGetter
 
             if !skip {
                 if let Some(fcp) = fgetline.as_func() {
-                    func_line_exec(fcp);
+                    func_line_exec(&mut *fcp);
                 } else if fgetline.is_source() {
                     script_line_exec();
                 }

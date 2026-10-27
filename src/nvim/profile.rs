@@ -611,9 +611,9 @@ pub unsafe fn prof_child_exit(tm: *mut proftime_T) {
 }
 
 /// Called when starting to read a function line (`func_line_start`).
-pub unsafe fn func_line_start(fcp: *mut funccall_T) {
+pub unsafe fn func_line_start(fcp: &mut funccall_T) {
     unsafe {
-        let fp = &mut *(*fcp).fc_func;
+        let fp = &mut *fcp.fc_func;
         let slnum = sourcing_lnum();
 
         if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.len() as c_int {
@@ -630,16 +630,16 @@ pub unsafe fn func_line_start(fcp: *mut funccall_T) {
 }
 
 /// Called when actually executing a function line (`func_line_exec`).
-pub unsafe fn func_line_exec(fcp: *mut funccall_T) {
-    let fp = unsafe { &mut *(*fcp).fc_func };
+pub unsafe fn func_line_exec(fcp: &mut funccall_T) {
+    let fp = unsafe { &mut *fcp.fc_func };
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
         fp.uf_tml_execed = 1;
     }
 }
 
 /// Called when done with a function line (`func_line_end`).
-pub unsafe fn func_line_end(fcp: *mut funccall_T) {
-    let fp = unsafe { &mut *(*fcp).fc_func };
+pub unsafe fn func_line_end(fcp: &mut funccall_T) {
+    let fp = unsafe { &mut *fcp.fc_func };
 
     if fp.uf_profiling != 0 && fp.uf_tml_idx >= 0 {
         if fp.uf_tml_execed != 0 {

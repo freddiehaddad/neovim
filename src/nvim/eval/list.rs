@@ -36,10 +36,8 @@ enum FilterMap {
 }
 
 #[inline]
-unsafe fn tv_blob_set(b: *mut blob_T, idx: c_int, c: u8) {
-    unsafe {
-        (&mut (*b).bv_ga)[idx as usize] = c;
-    }
+unsafe fn tv_blob_set(b: &mut blob_T, idx: c_int, c: u8) {
+    (&mut b.bv_ga)[idx as usize] = c;
 }
 
 unsafe fn filter_map_one(
@@ -240,7 +238,7 @@ unsafe fn filter_map_blob(
                 }
                 if filtermap != FilterMap::Filter {
                     if newtv.vval.v_number() != val {
-                        tv_blob_set(b_ret, i, newtv.vval.v_number() as u8);
+                        tv_blob_set(&mut *b_ret, i, newtv.vval.v_number() as u8);
                     }
                 } else if rem {
                     let bv = &mut (*blob_arg).bv_ga;
@@ -684,7 +682,7 @@ unsafe fn extend_dict(
                     return;
                 }
             }
-            tv_dict_extend(d1, d2, action);
+            tv_dict_extend(&mut *d1, &mut *d2, action);
         }
 
         if is_new {
@@ -905,8 +903,8 @@ pub unsafe fn f_reverse(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: Eva
             let len = tv_blob_len(b);
             for i in 0..(len / 2) {
                 let tmp = tv_blob_get(b, i);
-                tv_blob_set(b, i, tv_blob_get(b, len - i - 1));
-                tv_blob_set(b, len - i - 1, tmp);
+                tv_blob_set(&mut *b, i, tv_blob_get(b, len - i - 1));
+                tv_blob_set(&mut *b, len - i - 1, tmp);
             }
             tv_blob_set_ret(rettv, b);
         } else if arg0.v_type == VarType::VAR_STRING {

@@ -487,13 +487,13 @@ pub unsafe fn dict_get_value(
 }
 
 pub unsafe fn dict_check_writable(
-    dict: *mut dict_T,
+    dict: &mut dict_T,
     key: NvimString,
     del: bool,
     err: &mut Error,
 ) -> *mut dictitem_T {
     unsafe {
-        let di = tv_dict_find(dict, key.data, key.size as isize);
+        let di = tv_dict_find(&raw mut *dict, key.data, key.size as isize);
         if !di.is_null() {
             if ((*di).di_flags & DI_FLAGS_RO) != 0 {
                 api_set_error!(
@@ -517,7 +517,7 @@ pub unsafe fn dict_check_writable(
                     key.data,
                 );
             }
-        } else if (*dict).dv_lock != 0 {
+        } else if dict.dv_lock != 0 {
             api_set_error!(
                 err,
                 ErrorType::kErrorTypeException,
@@ -542,7 +542,7 @@ pub unsafe fn dict_check_writable(
 
 /// Set a value in a scope dict (`dict_set_var`).
 pub unsafe fn dict_set_var(
-    dict: *mut dict_T,
+    dict: &mut dict_T,
     key: NvimString,
     value: Object,
     del: bool,
@@ -557,7 +557,7 @@ pub unsafe fn dict_set_var(
             return rv;
         }
 
-        let watched = tv_dict_is_watched(dict);
+        let watched = tv_dict_is_watched(&raw mut *dict);
         if del {
             if di.is_null() {
                 api_set_error!(
@@ -573,7 +573,7 @@ pub unsafe fn dict_set_var(
                 if retval {
                     rv = vim_to_object(&raw mut (*di).di_tv, arena, false);
                 }
-                tv_dict_item_remove(dict, di);
+                tv_dict_item_remove(&raw mut *dict, di);
             }
         } else {
             let mut tv: typval_T = typval_T::new();
@@ -582,16 +582,16 @@ pub unsafe fn dict_set_var(
 
             if di.is_null() {
                 di = tv_dict_item_alloc_len(key.data, key.size);
-                tv_dict_add(dict, di);
+                tv_dict_add(&raw mut *dict, di);
             } else {
                 if retval {
                     rv = vim_to_object(&raw mut (*di).di_tv, arena, false);
                 }
                 let mut type_error = false;
-                if dict == get_vimvar_dict()
+                if ptr::eq(dict, get_vimvar_dict())
                     && !before_set_vvar(
                         key.data,
-                        di,
+                        &mut *di,
                         &raw mut tv,
                         true,
                         watched,

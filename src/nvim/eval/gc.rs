@@ -24,12 +24,12 @@ unsafe fn gc_st() -> &'static mut GcModuleState {
 }
 
 #[inline]
-pub unsafe fn gc_register_dict(d: *mut dict_T) {
+pub unsafe fn gc_register_dict(d: &mut dict_T) {
     unsafe {
         let dicts = &raw mut gc_st().GC_DICTS;
         let idx = (*dicts).len();
         (*dicts).push(d);
-        (*d).dv_gc_idx = Some(idx);
+        d.dv_gc_idx = Some(idx);
     }
 }
 
@@ -46,12 +46,12 @@ pub unsafe fn gc_unregister_dict(idx: usize) {
 }
 
 #[inline]
-pub unsafe fn gc_register_list(l: *mut list_T) {
+pub unsafe fn gc_register_list(l: &mut list_T) {
     unsafe {
         let lists = &raw mut gc_st().GC_LISTS;
         let idx = (*lists).len();
         (*lists).push(l);
-        (*l).lv_gc_idx = Some(idx);
+        l.lv_gc_idx = Some(idx);
     }
 }
 

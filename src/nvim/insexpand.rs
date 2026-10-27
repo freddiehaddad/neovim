@@ -974,7 +974,7 @@ unsafe fn do_autocmd_completedone(c: c_int, mode: c_int, word: *mut NvimString) 
         tv_dict_set_keys_readonly(v_event);
 
         ins_apply_autocmds(EVENT_COMPLETEDONE);
-        restore_v_event(v_event, &raw mut save_v_event);
+        restore_v_event(&mut *v_event, &raw mut save_v_event);
     }
 }
 
@@ -1703,7 +1703,7 @@ unsafe fn trigger_complete_changed_event(cur: c_int) {
         g_st().textlock -= 1;
         RECURSIVE.store(false, std::sync::atomic::Ordering::Relaxed);
 
-        restore_v_event(v_event, &raw mut save_v_event);
+        restore_v_event(&mut *v_event, &raw mut save_v_event);
     }
 }
 

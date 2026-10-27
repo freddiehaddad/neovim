@@ -411,7 +411,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
         let del = lua_gettop(lstate) < 4 || lua_isnil(lstate, 4);
 
         let mut err = Error::new();
-        let mut di = dict_check_writable(dict, key, del, &mut err);
+        let mut di = dict_check_writable(&mut *dict, key, del, &mut err);
         if err.err_type != ErrorType::kErrorTypeNone {
             luaL_where(lstate, 1);
             lua_pushstring(lstate, err.msg_ptr());
@@ -428,7 +428,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
                 return 0;
             }
             if watched {
-                tv_dict_watcher_notify(dict, key.data, ptr::null_mut(), &raw mut (*di).di_tv);
+                tv_dict_watcher_notify(&mut *dict, key.data, ptr::null_mut(), &raw mut (*di).di_tv);
             }
             tv_dict_item_remove(dict, di);
         } else {
@@ -449,7 +449,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
                 if dict == get_vimvar_dict()
                     && !before_set_vvar(
                         key.data,
-                        di,
+                        &mut *di,
                         &raw mut tv,
                         true,
                         watched,
@@ -475,7 +475,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> c_int {
             tv_copy(&raw const tv, &raw mut (*di).di_tv);
 
             if watched {
-                tv_dict_watcher_notify(dict, key.data, &raw mut tv, &raw mut oldtv);
+                tv_dict_watcher_notify(&mut *dict, key.data, &raw mut tv, &raw mut oldtv);
                 tv_clear(&raw mut oldtv);
             }
 

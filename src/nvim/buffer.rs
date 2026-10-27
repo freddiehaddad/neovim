@@ -1781,10 +1781,10 @@ unsafe fn free_buffer(buf: *mut buf_T) {
         if (*(*buf).b_vars()).dv_refcount > DO_NOT_FREE_CNT {
             tv_dict_add(
                 (*buf).b_vars(),
-                tv_dict_item_copy((&raw mut (*buf).changedtick_di).cast()),
+                tv_dict_item_copy(&mut *(&raw mut (*buf).changedtick_di).cast()),
             );
         }
-        unref_var_dict((*buf).b_vars());
+        unref_var_dict(&mut *(*buf).b_vars());
         aubuflocal_remove(buf);
         if g_st().autocmd_busy {
             (*buf).additional_data = None;
@@ -1828,9 +1828,9 @@ unsafe fn free_buffer_stuff(buf: *mut buf_T, free_flags: c_int) {
                 c"changedtick".as_ptr(),
             );
             debug_assert!(!changedtick_hi.is_null());
-            hash_remove(&raw mut (*(*buf).b_vars()).dv_hashtab, changedtick_hi);
+            hash_remove(&mut (*(*buf).b_vars()).dv_hashtab, changedtick_hi);
         }
-        vars_clear(&raw mut (*(*buf).b_vars()).dv_hashtab);
+        vars_clear(&mut (*(*buf).b_vars()).dv_hashtab);
         if (free_flags & kBffInitChangedtick) != 0 {
             buf_init_changedtick(buf);
         }
@@ -2848,7 +2848,7 @@ pub unsafe fn buflist_new(
         }
         if buf != g_st().curbuf || g_st().curbuf.is_null() {
             buf = buf_T::alloc();
-            init_var_dict(tv_dict_alloc(), (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
+            init_var_dict(&mut *tv_dict_alloc(), (&raw mut (*buf).b_bufvar).cast(), VAR_SCOPE);
             (*buf).changedtick_di.di_key = b"changedtick\0".iter().map(|&b| b as c_char).collect();
             buf_init_changedtick(buf);
         }
@@ -5110,7 +5110,7 @@ pub unsafe fn buf_set_changedtick(buf: *mut buf_T, changedtick: varnumber_T) {
         if tv_dict_is_watched((*buf).b_vars()) {
             (*buf).b_locked += 1;
             tv_dict_watcher_notify(
-                (*buf).b_vars(),
+                &mut *(*buf).b_vars(),
                 (*buf).changedtick_di.di_key.as_ptr(),
                 &raw mut (*buf).changedtick_di.di_tv,
                 &raw const old_val as *mut _,

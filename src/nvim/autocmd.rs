@@ -2653,7 +2653,7 @@ pub unsafe fn deferred_event(mut e: AutoCmdEvent) {
             );
             ctx_restore(&mut aco);
 
-            restore_v_event(v_event, &raw mut save_v_event);
+            restore_v_event(&mut *v_event, &raw mut save_v_event);
         }
     }
 }
@@ -3969,7 +3969,7 @@ pub unsafe fn do_autocmd_uienter(chanid: u64, attached: bool) {
             false,
             g_st().curbuf,
         );
-        restore_v_event(dict, &raw mut save_v_event);
+        restore_v_event(&mut *dict, &raw mut save_v_event);
 
         au_st().uienter_recursive = false;
     }

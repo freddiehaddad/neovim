@@ -1217,7 +1217,7 @@ pub unsafe fn set_info_event(chan: &mut Channel, event: event_T) {
 
         let _ = apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), true, g_st().curbuf);
 
-        restore_v_event(dict, &raw mut save_v_event);
+        restore_v_event(&mut *dict, &raw mut save_v_event);
         arena_mem_free(arena_finish(&raw mut arena));
         channel_decref(&raw mut *chan);
     }

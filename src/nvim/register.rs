@@ -632,7 +632,7 @@ pub unsafe fn do_record(c: c_int) -> c_int {
                 false,
                 g_st().curbuf,
             );
-            restore_v_event(dict, &raw mut save_v_event);
+            restore_v_event(&mut *dict, &raw mut save_v_event);
             g_st().reg_recorded = g_st().reg_recording;
             g_st().reg_recording = 0;
             if opt_vars().p_ch == 0 || ui_has(kUIMessages) {
@@ -1390,7 +1390,7 @@ unsafe fn add_regtype_to_dict(
     }
 }
 
-pub unsafe fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: *mut yankreg_T) {
+pub unsafe fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: &mut yankreg_T) {
     unsafe {
         if reg_st().textyankpost_recursive || !has_event(EVENT_TEXTYANKPOST) {
             return;
@@ -1410,7 +1410,7 @@ pub unsafe fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: *mut yankreg_T) {
         tv_dict_add_list(dict, c"regcontents".as_ptr(), 11, list);
 
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
-        add_regtype_to_dict(reg, dict, buf.as_mut_ptr(), buf.len());
+        add_regtype_to_dict(&raw mut *reg, dict, buf.as_mut_ptr(), buf.len());
 
         buf[0] = oap.regname as u8 as c_char;
         buf[1] = NUL;
@@ -1452,7 +1452,7 @@ pub unsafe fn do_autocmd_textyankpost(oap: &mut oparg_T, reg: *mut yankreg_T) {
             g_st().curbuf,
         );
         g_st().textlock -= 1;
-        restore_v_event(dict, &raw mut save_v_event);
+        restore_v_event(&mut *dict, &raw mut save_v_event);
 
         reg_st().textyankpost_recursive = false;
     }
@@ -1546,7 +1546,7 @@ unsafe fn put_do_autocmd(
         g_st().textlock -= 1;
         reg_st().put_autocmd_recursive = false;
 
-        restore_v_event(v_event, &raw mut save_v_event);
+        restore_v_event(&mut *v_event, &raw mut save_v_event);
     }
 }
 
@@ -1563,7 +1563,7 @@ pub unsafe fn op_yank(oap: &mut oparg_T, message: bool) -> bool {
         let reg = get_yank_register(oap.regname, YREG_YANK);
         op_yank_reg(oap, message, reg, is_append_register(oap.regname));
         set_clipboard(oap.regname, reg);
-        do_autocmd_textyankpost(oap, reg);
+        do_autocmd_textyankpost(oap, &mut *reg);
         true
     }
 }
@@ -2849,7 +2849,7 @@ unsafe fn init_write_reg(
 }
 
 unsafe fn str_to_reg(
-    y_ptr: *mut yankreg_T,
+    y_ptr: &mut yankreg_T,
     mut yank_type: MotionType,
     str_: *const c_char,
     len: usize,
@@ -3027,7 +3027,7 @@ pub unsafe fn write_reg_contents_lst(
             return;
         }
 
-        str_to_reg(reg, yank_type, strings.cast::<c_char>(), 0, block_len, true);
+        str_to_reg(&mut *reg, yank_type, strings.cast::<c_char>(), 0, block_len, true);
         finish_write_reg(name, reg, old_y_previous);
     }
 }
@@ -3102,13 +3102,13 @@ pub unsafe fn write_reg_contents_ex(
         if reg.is_null() {
             return;
         }
-        str_to_reg(reg, yank_type, str_, len as usize, block_len, false);
+        str_to_reg(&mut *reg, yank_type, str_, len as usize, block_len, false);
         finish_write_reg(name, reg, old_y_previous);
     }
 }
 
 pub unsafe fn prepare_yankreg_from_object(
-    reg: *mut yankreg_T,
+    reg: &mut yankreg_T,
     regtype: NvimString,
     _lines: usize,
 ) -> bool {
@@ -3119,7 +3119,7 @@ pub unsafe fn prepare_yankreg_from_object(
             0
         };
 
-        (*reg).y_type = match type_ch {
+        reg.y_type = match type_ch {
             0 => MotionType::kMTUnknown,
             b'v' | b'c' => MotionType::kMTCharWise,
             b'V' | b'l' => MotionType::kMTLineWise,
@@ -3127,28 +3127,28 @@ pub unsafe fn prepare_yankreg_from_object(
             _ => return false,
         };
 
-        (*reg).y_width = 0;
+        reg.y_width = 0;
         if regtype.size > 1 {
-            if (*reg).y_type != MotionType::kMTBlockWise {
+            if reg.y_type != MotionType::kMTBlockWise {
                 return false;
             }
             if !(*regtype.data.add(1) as u8).is_ascii_digit() {
                 return false;
             }
             let mut p = regtype.data.add(1);
-            (*reg).y_width = getdigits_int(&raw mut p, false, 1) - 1;
+            reg.y_width = getdigits_int(&raw mut p, false, 1) - 1;
             if regtype.size > (p as usize) - (regtype.data as usize) {
                 return false;
             }
         }
 
-        (*reg).additional_data = None;
-        (*reg).timestamp = 0;
+        reg.additional_data = None;
+        reg.timestamp = 0;
         true
     }
 }
 
-pub unsafe fn finish_yankreg_from_object(reg: *mut yankreg_T, clipboard_adjust: bool) {
+pub unsafe fn finish_yankreg_from_object(reg: &mut yankreg_T, clipboard_adjust: bool) {
     unsafe {
         let reg_ref = &mut *reg;
         if reg_ref.y_array.last().is_some_and(|last| last.size == 0) {
@@ -3164,7 +3164,7 @@ pub unsafe fn finish_yankreg_from_object(reg: *mut yankreg_T, clipboard_adjust: 
             reg_ref.y_type = MotionType::kMTCharWise;
         }
 
-        update_yankreg_width(reg);
+        update_yankreg_width(&raw mut *reg);
     }
 }
 

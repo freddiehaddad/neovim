@@ -1028,7 +1028,7 @@ pub unsafe fn terminal_close(termpp: *mut *mut Terminal, status: c_int) {
                 false,
             );
 
-            restore_v_event(dict, (&raw const save_v_event).cast_mut());
+            restore_v_event(&mut *dict, (&raw const save_v_event).cast_mut());
         }
     }
 }
@@ -1874,7 +1874,7 @@ unsafe fn buf_set_term_title(buf: *mut buf_T, title: *const c_char, len: usize) 
         let mut err = Error::new();
         (*buf).b_locked += 1;
         dict_set_var(
-            (*buf).b_vars(),
+            &mut *(*buf).b_vars(),
             cstr_slice_as_string(b"term_title\0"),
             string_obj(NvimString {
                 data: title.cast_mut(),

@@ -2008,12 +2008,12 @@ unsafe fn write_data(fp: &mut FileDescriptor, data: *const c_char, len: usize) -
     }
 }
 
-unsafe fn write_blob(fp: &mut FileDescriptor, blob: *const blob_T) -> bool {
+unsafe fn write_blob(fp: &mut FileDescriptor, blob: &blob_T) -> bool {
     unsafe {
         write_data(
             fp,
-            (*blob).bv_ga.as_ptr().cast(),
-            tv_blob_len(blob) as usize,
+            blob.bv_ga.as_ptr().cast(),
+            tv_blob_len(&raw const *blob) as usize,
         )
     }
 }
@@ -2123,7 +2123,7 @@ pub unsafe fn f_writefile(argvars: *mut typval_T, rettv: &mut typval_T, _fptr: E
 
                 let write_ok = if (*argvars).v_type == VarType::VAR_BLOB {
                     (*argvars).vval.v_blob().is_null()
-                        || write_blob(&mut fp, (*argvars).vval.v_blob())
+                        || write_blob(&mut fp, &*(*argvars).vval.v_blob())
                 } else if (*argvars).v_type == VarType::VAR_STRING {
                     write_string(&mut fp, (*argvars).vval.v_string())
                 } else {
