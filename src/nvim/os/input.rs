@@ -300,30 +300,33 @@ pub fn os_breakcheck() {
 }
 
 /// Check for CTRL-C pressed, but only once in a while.
+#[inline]
 pub fn line_breakcheck() {
     osi_st().breakcheck_count += 1;
-        if osi_st().breakcheck_count >= BREAKCHECK_SKIP {
-            osi_st().breakcheck_count = 0;
-            os_breakcheck();
-        }
+    if osi_st().breakcheck_count >= BREAKCHECK_SKIP {
+        osi_st().breakcheck_count = 0;
+        os_breakcheck();
+    }
 }
 
 /// Like line_breakcheck() but check 10 times less often.
+#[inline]
 pub fn fast_breakcheck() {
     osi_st().breakcheck_count += 1;
-        if osi_st().breakcheck_count >= BREAKCHECK_SKIP * 10 {
-            osi_st().breakcheck_count = 0;
-            os_breakcheck();
-        }
+    if osi_st().breakcheck_count >= BREAKCHECK_SKIP * 10 {
+        osi_st().breakcheck_count = 0;
+        os_breakcheck();
+    }
 }
 
 /// Like line_breakcheck() but check 100 times less often.
+#[inline]
 pub fn veryfast_breakcheck() {
     osi_st().breakcheck_count += 1;
-        if osi_st().breakcheck_count >= BREAKCHECK_SKIP * 100 {
-            osi_st().breakcheck_count = 0;
-            os_breakcheck();
-        }
+    if osi_st().breakcheck_count >= BREAKCHECK_SKIP * 100 {
+        osi_st().breakcheck_count = 0;
+        os_breakcheck();
+    }
 }
 
 /// Test whether a file descriptor refers to a terminal.

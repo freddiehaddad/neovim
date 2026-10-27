@@ -82,9 +82,9 @@ Head-to-head comparison against upstream `neovim/neovim` Nightly (C) using the b
 | **`option_spec.lua` (suite total, 7×20k)** | `599.8 ms` | **`532.1 ms`** | **11% faster in Rust** |
 | — `nvim_set_option_value` (median) | `0.0024 ms` | **`0.0024 ms`** | **Identical** |
 | **`bench_regexp_spec.lua`** | | | |
-| — `regexpengine=1` (backtracking) | `5.89 ms` | **`3.64 ms`** | **38% faster in Rust** |
-| — `regexpengine=0` (auto) | `7.35 ms` | **`5.77 ms`** | **21% faster in Rust** |
-| — `regexpengine=2` (NFA `re.freeze.txt`) | **`3,413 ms`** | `4,770 ms` | **28% slower in Rust** |
+| — `regexpengine=1` (backtracking) | `5.89 ms` | **`3.57 ms`** | **39% faster in Rust** |
+| — `regexpengine=0` (auto) | `7.35 ms` | **`5.52 ms`** | **25% faster in Rust** |
+| — `regexpengine=2` (NFA `re.freeze.txt`) | **`3,413 ms`** | `3,886 ms` | **12% slower in Rust** |
 
 Project layout
 --------------

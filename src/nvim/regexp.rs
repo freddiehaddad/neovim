@@ -671,6 +671,23 @@ impl RegSubList {
     pub(super) fn line_mut(&mut self) -> &mut [linepos; NSUBEXP] {
         unsafe { &mut *(&raw mut self.raw).cast::<[linepos; NSUBEXP]>() }
     }
+
+    #[inline]
+    pub(super) fn copy_first(&mut self, other: &Self) {
+        self.raw[0] = other.raw[0];
+    }
+
+    #[inline]
+    pub(super) fn copy_n(&mut self, other: &Self, n: usize) {
+        let n = n.min(NSUBEXP);
+        self.raw[..n].copy_from_slice(&other.raw[..n]);
+    }
+
+    #[inline]
+    pub(super) fn copy_range_from_1(&mut self, other: &Self, n: usize) {
+        let n = n.min(NSUBEXP);
+        self.raw[1..n].copy_from_slice(&other.raw[1..n]);
+    }
 }
 
 impl Default for RegSubList {
@@ -2005,10 +2022,11 @@ pub(super) fn read_limits(minval: &mut c_int, maxval: &mut c_int) -> c_int {
     }
 }
 
+#[inline]
 pub(super) fn reg_breakcheck() {
     if !re_st().rex.reg_nobreak {
-            fast_breakcheck();
-        }
+        fast_breakcheck();
+    }
 }
 
 pub(super) fn reg_iswordc(c: c_int) -> bool {
