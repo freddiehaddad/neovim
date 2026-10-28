@@ -1,7 +1,7 @@
 //! Functions for command-line commands (`src/nvim/ex_cmds2.c`).
 
 use crate::arglist::{
-    CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CmdArgdo, ML_EMPTY, Aentry, do_argfile,
+    CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, CMD_ARGDO, ML_EMPTY, Aentry, do_argfile,
     editing_arg_idx, ex_all, ex_rewind, set_arglist,
 };
 use crate::autocmd::{
@@ -9,7 +9,7 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, bt_dontwrite, FileBuf, buf_hide, buf_set_name, buf_spname,
-    buflist_findnr, Bufref, bufref_valid, first_win_in_tab, goto_buffer, kUIMessages,
+    buflist_findnr, Bufref, bufref_valid, first_win_in_tab, goto_buffer, K_UIMESSAGES,
     no_write_message, no_write_message_nobang, set_bufref, set_curbuf,
 };
 use crate::bufwrite::buf_write;
@@ -60,15 +60,15 @@ const MAXLNUM: usize = 0x7fffffff;
 
 const CCGD_ALLBUF: c_int = 8;
 
-const CmdBufdo: c_int = 42;
-pub(crate) const CmdCdo: c_int = 64;
-pub(crate) const CmdCfdo: c_int = 68;
-const CmdFirst: c_int = 164;
-pub(crate) const CmdLdo: c_int = 231;
-pub(crate) const CmdLfdo: c_int = 237;
-const CmdSfirst: c_int = 410;
-const CmdTabdo: c_int = 461;
-const CmdWindo: c_int = 535;
+const CMD_BUFDO: c_int = 42;
+pub(crate) const CMD_CDO: c_int = 64;
+pub(crate) const CMD_CFDO: c_int = 68;
+const CMD_FIRST: c_int = 164;
+pub(crate) const CMD_LDO: c_int = 231;
+pub(crate) const CMD_LFDO: c_int = 237;
+const CMD_SFIRST: c_int = 410;
+const CMD_TABDO: c_int = 461;
+const CMD_WINDO: c_int = 535;
 
 pub(crate) const BF_SYN_SET: c_int = 0x200;
 
@@ -390,7 +390,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                 if shown && g_st().msg_didany {
                     let save = g_st().no_wait_return;
                     g_st().no_wait_return = 0;
-                    if !ui_has(kUIMessages) {
+                    if !ui_has(K_UIMESSAGES) {
                         wait_return(0);
                     }
                     g_st().no_wait_return = save;
@@ -431,7 +431,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 pub fn check_fname() -> bool {
      {
         if curbuf_mut().b_ffname.is_null() {
-            emsg(gettext(e_noname));
+            emsg(gettext(E_NONAME));
             return false;
         }
         true
@@ -469,11 +469,11 @@ pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> c_int {
 pub fn ex_listdo(eap: &mut Exarg) {
     unsafe {
         if curwin_mut().w_onebuf_opt.wo_wfb != 0
-            && eap.cmdidx != CmdWindo
-            && eap.cmdidx != CmdTabdo
+            && eap.cmdidx != CMD_WINDO
+            && eap.cmdidx != CMD_TABDO
         {
-            if (eap.cmdidx == CmdLdo || eap.cmdidx == CmdLfdo) && eap.forceit == 0 {
-                emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
+            if (eap.cmdidx == CMD_LDO || eap.cmdidx == CMD_LFDO) && eap.forceit == 0 {
+                emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
                 return;
             }
 
@@ -483,7 +483,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
                 win_split(0, 0);
                 if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
-                    emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
+                    emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
                     return;
                 }
             }
@@ -493,7 +493,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
         g_st().msg_listdo_overwrite += 1;
 
-        if eap.cmdidx != CmdWindo && eap.cmdidx != CmdTabdo {
+        if eap.cmdidx != CMD_WINDO && eap.cmdidx != CMD_TABDO {
             save_ei = Some(au_event_disable(c",Syntax"));
 
             for buf in for_all_buffers_mut() {
@@ -501,8 +501,8 @@ pub fn ex_listdo(eap: &mut Exarg) {
             }
         }
 
-        if eap.cmdidx == CmdWindo
-            || eap.cmdidx == CmdTabdo
+        if eap.cmdidx == CMD_WINDO
+            || eap.cmdidx == CMD_TABDO
             || buf_hide(curbuf_mut())
             || !check_changed(
                 curbuf_mut(),
@@ -514,19 +514,19 @@ pub fn ex_listdo(eap: &mut Exarg) {
             let mut wp = g_st().firstwin;
             let mut tp = g_st().first_tabpage;
             match eap.cmdidx {
-                CmdWindo => {
+                CMD_WINDO => {
                     while !wp.is_null() && i + 1 < eap.line1 {
                         i += 1;
                         wp = (*wp).w_next;
                     }
                 }
-                CmdTabdo => {
+                CMD_TABDO => {
                     while !tp.is_null() && i + 1 < eap.line1 {
                         i += 1;
                         tp = (*tp).tp_next;
                     }
                 }
-                CmdArgdo => {
+                CMD_ARGDO => {
                     i = eap.line1 - 1;
                 }
                 _ => {}
@@ -535,7 +535,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             let mut buf = g_st().curbuf;
             let mut qf_size: usize = 0;
 
-            if eap.cmdidx == CmdBufdo {
+            if eap.cmdidx == CMD_BUFDO {
                 buf = g_st().firstbuf;
                 while !buf.is_null() && ((*buf).b_fnum < eap.line1 || (*buf).b_p_bl == 0) {
                     if (*buf).b_fnum > eap.line2 {
@@ -547,10 +547,10 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 if !buf.is_null() {
                     goto_buffer(eap, DOBUF_FIRST, FORWARD, (*buf).b_fnum);
                 }
-            } else if eap.cmdidx == CmdCdo
-                || eap.cmdidx == CmdLdo
-                || eap.cmdidx == CmdCfdo
-                || eap.cmdidx == CmdLfdo
+            } else if eap.cmdidx == CMD_CDO
+                || eap.cmdidx == CMD_LDO
+                || eap.cmdidx == CMD_CFDO
+                || eap.cmdidx == CMD_LFDO
             {
                 qf_size = qf_get_valid_size(eap);
                 debug_assert!(eap.line1 >= 0);
@@ -573,7 +573,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
             while !g_st().got_int && !buf.is_null() {
                 let mut execute = true;
-                if eap.cmdidx == CmdArgdo {
+                if eap.cmdidx == CMD_ARGDO {
                     if i == curwin_argcount() {
                         break;
                     }
@@ -583,7 +583,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     if curwin_mut().w_arg_idx != i {
                         break;
                     }
-                } else if eap.cmdidx == CmdWindo {
+                } else if eap.cmdidx == CMD_WINDO {
                     if !win_valid(wp) {
                         break;
                     }
@@ -597,14 +597,14 @@ pub fn ex_listdo(eap: &mut Exarg) {
                         }
                     }
                     wp = (*wp).w_next;
-                } else if eap.cmdidx == CmdTabdo {
+                } else if eap.cmdidx == CMD_TABDO {
                     if !valid_tabpage(tp) {
                         break;
                     }
                     debug_assert!(!tp.is_null());
                     goto_tabpage_tp(tp, true, true);
                     tp = (*tp).tp_next;
-                } else if eap.cmdidx == CmdBufdo {
+                } else if eap.cmdidx == CMD_BUFDO {
                     next_fnum = -1;
                     for bp in buf_iter_mut(curbuf_mut().b_next) {
                         if bp.b_p_bl != 0 {
@@ -619,7 +619,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     do_cmdline(eap.arg, eap.ea_getline, DOCMD_VERBOSE + DOCMD_NOWAIT);
                 }
 
-                if eap.cmdidx == CmdBufdo {
+                if eap.cmdidx == CMD_BUFDO {
                     if next_fnum < 0 || next_fnum > eap.line2 {
                         break;
                     }
@@ -642,10 +642,10 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     }
                 }
 
-                if eap.cmdidx == CmdCdo
-                    || eap.cmdidx == CmdLdo
-                    || eap.cmdidx == CmdCfdo
-                    || eap.cmdidx == CmdLfdo
+                if eap.cmdidx == CMD_CDO
+                    || eap.cmdidx == CMD_LDO
+                    || eap.cmdidx == CMD_CFDO
+                    || eap.cmdidx == CMD_LFDO
                 {
                     debug_assert!(i >= 0);
                     if (i as usize) >= qf_size || i >= eap.line2 {
@@ -659,18 +659,18 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     }
                 }
 
-                if eap.cmdidx == CmdWindo && execute {
+                if eap.cmdidx == CMD_WINDO && execute {
                     validate_cursor(curwin_mut());
                     if curwin_mut().w_onebuf_opt.wo_scb != 0 {
                         do_check_scrollbind(true);
                     }
                 }
-                if (eap.cmdidx == CmdWindo || eap.cmdidx == CmdTabdo)
+                if (eap.cmdidx == CMD_WINDO || eap.cmdidx == CMD_TABDO)
                     && i + 1 > eap.line2
                 {
                     break;
                 }
-                if eap.cmdidx == CmdArgdo && i >= eap.line2 {
+                if eap.cmdidx == CMD_ARGDO && i >= eap.line2 {
                     break;
                 }
             }
@@ -888,10 +888,10 @@ pub fn ex_drop(eap: &mut Exarg) {
         }
 
         if split {
-            eap.cmdidx = CmdSfirst;
+            eap.cmdidx = CMD_SFIRST;
             *eap.cmd = b's' as c_char;
         } else {
-            eap.cmdidx = CmdFirst;
+            eap.cmdidx = CMD_FIRST;
         }
         ex_rewind(eap);
     }

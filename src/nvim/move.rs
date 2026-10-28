@@ -45,7 +45,7 @@ use std::ptr;
 
 use crate::charset::NUL;
 use crate::drawline::{
-    VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW, kCpoNumcol, kOptCuloptFlagScreenline,
+    VALID_CHEIGHT, VALID_CROW, VALID_WCOL, VALID_WROW, K_CPO_NUMCOL, K_OPT_CULOPT_FLAG_SCREENLINE,
 };
 use crate::ex_cmds::{BL_FIX, BL_SOL};
 use crate::regexp::MAXCOL;
@@ -198,7 +198,7 @@ fn redraw_for_cursorcolumn(wp: &mut WinInfoInfo) {
         if wp.w_onebuf_opt.wo_cuc != 0 {
             redraw_later(Some(&mut *wp), UPD_SOME_VALID);
         } else if wp.w_onebuf_opt.wo_cul != 0
-            && (wp.w_p_culopt_flags & kOptCuloptFlagScreenline) != 0
+            && (wp.w_p_culopt_flags & K_OPT_CULOPT_FLAG_SCREENLINE) != 0
         {
             redraw_later(Some(&mut *wp), UPD_VALID);
         }
@@ -888,7 +888,7 @@ pub fn win_col_off2(wp: &mut WinInfoInfo) -> c_int {
         if (wp.w_onebuf_opt.wo_nu != 0
             || wp.w_onebuf_opt.wo_rnu != 0
             || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc))
-            && !vim_strchr(opt_vars().p_cpo, kCpoNumcol).is_null()
+            && !vim_strchr(opt_vars().p_cpo, K_CPO_NUMCOL).is_null()
         {
             return number_width( wp) + c_int::from(crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc));
         }
@@ -1224,7 +1224,7 @@ pub fn f_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             coladd: 0,
         };
         if pos.lnum > (*wp).buf_mut().b_ml.ml_line_count {
-            semsg!(tr(e_invalid_line_number_nr), pos.lnum);
+            semsg!(tr(E_INVALID_LINE_NUMBER_NR), pos.lnum);
             return;
         }
         let mut row: c_int = 0;

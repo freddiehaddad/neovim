@@ -16,21 +16,21 @@ use crate::decoration::{
     DECOR_ID_INVALID, DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorVirtText,
     DecorVirtTextData, HLGroupID, NS, VirtLine, VirtText, VirtTextChunk, decor_free, decor_put_sh,
     decor_put_vt, decor_range_add_sh, decor_range_add_virt, decor_sh_from_inline,
-    decor_to_dict_legacy, hl_group_name, kHlModeUnknown, kSHConceal, kSHConcealLines,
-    kSHConcealOff, kSHHlEol, kSHIsSign, kSHSpellOff, kSHSpellOn, kSHUIWatched, kSHUIWatchedOverlay,
-    kVLLeftcol, kVLOverflowAuto, kVLOverflowScroll, kVLOverflowTrunc, kVLOverflowWrap,
-    kVPosEndOfLine, kVPosEndOfLineRightAlign, kVPosInline, kVPosOverlay, kVPosRightAlign,
-    kVPosWinCol, kVTHide, kVTIsLines, kVTLinesAbove, kVTRepeatLinebreak,
+    decor_to_dict_legacy, hl_group_name, K_HL_MODE_UNKNOWN, K_SHCONCEAL, K_SHCONCEAL_LINES,
+    K_SHCONCEAL_OFF, K_SHHL_EOL, K_SHIS_SIGN, K_SHSPELL_OFF, K_SHSPELL_ON, K_SHUIWATCHED, K_SHUIWATCHED_OVERLAY,
+    K_VLLEFTCOL, K_VLOVERFLOW_AUTO, K_VLOVERFLOW_SCROLL, K_VLOVERFLOW_TRUNC, K_VLOVERFLOW_WRAP,
+    K_VPOS_END_OF_LINE, K_VPOS_END_OF_LINE_RIGHT_ALIGN, K_VPOS_INLINE, K_VPOS_OVERLAY, K_VPOS_RIGHT_ALIGN,
+    K_VPOS_WIN_COL, K_VTHIDE, K_VTIS_LINES, K_VTLINES_ABOVE, K_VTREPEAT_LINEBREAK,
 };
-use crate::decoration_provider::{decor_provider_clear, get_decor_provider, kDecorProviderActive};
-use crate::drawline::kHlModeBlend;
-use crate::drawline::kHlModeCombine;
-use crate::drawline::kHlModeReplace;
+use crate::decoration_provider::{decor_provider_clear, get_decor_provider, K_DECOR_PROVIDER_ACTIVE};
+use crate::drawline::K_HL_MODE_BLEND;
+use crate::drawline::K_HL_MODE_COMBINE;
+use crate::drawline::K_HL_MODE_REPLACE;
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::eval::vars::MAXCOL;
 use crate::extmark::{
-    extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set, kExtmarkHighlight,
-    kExtmarkNone, kExtmarkSign, kExtmarkVirtLines, kExtmarkVirtText,
+    extmark_clear, extmark_del_id, extmark_from_id, extmark_get, extmark_set, K_EXTMARK_HIGHLIGHT,
+    K_EXTMARK_NONE, K_EXTMARK_SIGN, K_EXTMARK_VIRT_LINES, K_EXTMARK_VIRT_TEXT,
 };
 use crate::globals::*;
 use crate::grid::{schar_from_cluster, schar_high};
@@ -56,35 +56,35 @@ use crate::cursor::{Colnr, Linenr};
 
 const SET_EXTMARK_TABLE_SIZE: usize = 36;
 
-const KEYSET_OPTIDX_get_extmark__hl_name: u64 = 2;
-const KEYSET_OPTIDX_get_extmarks__type: u64 = 1;
-const KEYSET_OPTIDX_get_extmarks__limit: u64 = 2;
-const KEYSET_OPTIDX_get_extmarks__hl_name: u64 = 4;
+const KEYSET_OPTIDX_GET_EXTMARK_HL_NAME: u64 = 2;
+const KEYSET_OPTIDX_GET_EXTMARKS_TYPE: u64 = 1;
+const KEYSET_OPTIDX_GET_EXTMARKS_LIMIT: u64 = 2;
+const KEYSET_OPTIDX_GET_EXTMARKS_HL_NAME: u64 = 4;
 
-const KEYSET_OPTIDX_set_extmark__id: u64 = 1;
-const KEYSET_OPTIDX_set_extmark__url: u64 = 2;
-const KEYSET_OPTIDX_set_extmark__spell: u64 = 3;
-const KEYSET_OPTIDX_set_extmark__strict: u64 = 6;
-const KEYSET_OPTIDX_set_extmark__end_col: u64 = 7;
-const KEYSET_OPTIDX_set_extmark__conceal: u64 = 8;
-const KEYSET_OPTIDX_set_extmark__hl_mode: u64 = 9;
-const KEYSET_OPTIDX_set_extmark__end_row: u64 = 10;
-const KEYSET_OPTIDX_set_extmark__end_line: u64 = 11;
-const KEYSET_OPTIDX_set_extmark__hl_group: u64 = 12;
-const KEYSET_OPTIDX_set_extmark__priority: u64 = 13;
-const KEYSET_OPTIDX_set_extmark__sign_text: u64 = 15;
-const KEYSET_OPTIDX_set_extmark__virt_text: u64 = 16;
-const KEYSET_OPTIDX_set_extmark__virt_lines: u64 = 19;
-const KEYSET_OPTIDX_set_extmark___subpriority: u64 = 20;
-const KEYSET_OPTIDX_set_extmark__undo_restore: u64 = 21;
-const KEYSET_OPTIDX_set_extmark__conceal_lines: u64 = 22;
-const KEYSET_OPTIDX_set_extmark__right_gravity: u64 = 24;
-const KEYSET_OPTIDX_set_extmark__virt_text_pos: u64 = 26;
-const KEYSET_OPTIDX_set_extmark__end_right_gravity: u64 = 30;
-const KEYSET_OPTIDX_set_extmark__virt_text_win_col: u64 = 31;
-const KEYSET_OPTIDX_set_extmark__virt_lines_overflow: u64 = 34;
+const KEYSET_OPTIDX_SET_EXTMARK_ID: u64 = 1;
+const KEYSET_OPTIDX_SET_EXTMARK_URL: u64 = 2;
+const KEYSET_OPTIDX_SET_EXTMARK_SPELL: u64 = 3;
+const KEYSET_OPTIDX_SET_EXTMARK_STRICT: u64 = 6;
+const KEYSET_OPTIDX_SET_EXTMARK_END_COL: u64 = 7;
+const KEYSET_OPTIDX_SET_EXTMARK_CONCEAL: u64 = 8;
+const KEYSET_OPTIDX_SET_EXTMARK_HL_MODE: u64 = 9;
+const KEYSET_OPTIDX_SET_EXTMARK_END_ROW: u64 = 10;
+const KEYSET_OPTIDX_SET_EXTMARK_END_LINE: u64 = 11;
+const KEYSET_OPTIDX_SET_EXTMARK_HL_GROUP: u64 = 12;
+const KEYSET_OPTIDX_SET_EXTMARK_PRIORITY: u64 = 13;
+const KEYSET_OPTIDX_SET_EXTMARK_SIGN_TEXT: u64 = 15;
+const KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT: u64 = 16;
+const KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES: u64 = 19;
+const KEYSET_OPTIDX_SET_EXTMARK_SUBPRIORITY: u64 = 20;
+const KEYSET_OPTIDX_SET_EXTMARK_UNDO_RESTORE: u64 = 21;
+const KEYSET_OPTIDX_SET_EXTMARK_CONCEAL_LINES: u64 = 22;
+const KEYSET_OPTIDX_SET_EXTMARK_RIGHT_GRAVITY: u64 = 24;
+const KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT_POS: u64 = 26;
+const KEYSET_OPTIDX_SET_EXTMARK_END_RIGHT_GRAVITY: u64 = 30;
+const KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT_WIN_COL: u64 = 31;
+const KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES_OVERFLOW: u64 = 34;
 
-const KEYSET_OPTIDX_ns_opts__wins: u64 = 1;
+const KEYSET_OPTIDX_NS_OPTS_WINS: u64 = 1;
 
 #[repr(C)]
 #[derive(Default)]
@@ -400,7 +400,7 @@ pub fn nvim_buf_get_extmark_by_id(
         let details = opts.details;
         let hl_name = if has_key(
             opts.is_set__get_extmark_,
-            KEYSET_OPTIDX_get_extmark__hl_name,
+            KEYSET_OPTIDX_GET_EXTMARK_HL_NAME,
         ) {
             opts.hl_name
         } else {
@@ -499,22 +499,22 @@ pub fn nvim_buf_get_extmarks(
 
         let mask = opts.is_set__get_extmarks_;
         let details = opts.details;
-        let hl_name = if has_key(mask, KEYSET_OPTIDX_get_extmarks__hl_name) {
+        let hl_name = if has_key(mask, KEYSET_OPTIDX_GET_EXTMARKS_HL_NAME) {
             opts.hl_name
         } else {
             true
         };
 
-        let mut type_filter = kExtmarkNone;
-        if has_key(mask, KEYSET_OPTIDX_get_extmarks__type) {
+        let mut type_filter = K_EXTMARK_NONE;
+        if has_key(mask, KEYSET_OPTIDX_GET_EXTMARKS_TYPE) {
             if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"sign") {
-                type_filter = kExtmarkSign;
+                type_filter = K_EXTMARK_SIGN;
             } else if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"virt_text") {
-                type_filter = kExtmarkVirtText;
+                type_filter = K_EXTMARK_VIRT_TEXT;
             } else if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"virt_lines") {
-                type_filter = kExtmarkVirtLines;
+                type_filter = K_EXTMARK_VIRT_LINES;
             } else if crate::memory::cstr_as_opt_bytes(opts.type_.data) == Some(b"highlight") {
-                type_filter = kExtmarkHighlight;
+                type_filter = K_EXTMARK_HIGHLIGHT;
             } else {
                 api_err_exp(
                     err,
@@ -526,7 +526,7 @@ pub fn nvim_buf_get_extmarks(
             }
         }
 
-        let mut limit = if has_key(mask, KEYSET_OPTIDX_get_extmarks__limit) {
+        let mut limit = if has_key(mask, KEYSET_OPTIDX_GET_EXTMARKS_LIMIT) {
             opts.limit
         } else {
             -1
@@ -724,21 +724,21 @@ pub fn nvim_buf_set_extmark(
         let mut sign = DECOR_SIGN_HIGHLIGHT_INIT;
         let mut virt_text = DecorVirtText {
             flags: 0,
-            hl_mode: kHlModeUnknown,
+            hl_mode: K_HL_MODE_UNKNOWN,
             priority: DECOR_PRIORITY_BASE,
             width: 0,
             col: 0,
-            pos: kVPosEndOfLine,
+            pos: K_VPOS_END_OF_LINE,
             data: DecorVirtTextData::empty(),
             next: None,
         };
         let mut virt_lines = DecorVirtText {
-            flags: kVTIsLines,
-            hl_mode: kHlModeUnknown,
+            flags: K_VTIS_LINES,
+            hl_mode: K_HL_MODE_UNKNOWN,
             priority: DECOR_PRIORITY_BASE,
             width: 0,
             col: 0,
-            pos: kVPosEndOfLine,
+            pos: K_VPOS_END_OF_LINE,
             data: DecorVirtTextData::empty_lines(),
             next: None,
         };
@@ -758,7 +758,7 @@ pub fn nvim_buf_set_extmark(
 
             let mask = opts.is_set__set_extmark_;
             let mut id: u32 = 0;
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__id) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_ID) {
                 if opts.id <= 0 {
                     api_err_exp(
                         err,
@@ -774,8 +774,8 @@ pub fn nvim_buf_set_extmark(
             let mut line2: c_int = -1;
             let mut did_end_line = false;
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__end_line) {
-                if has_key(mask, KEYSET_OPTIDX_set_extmark__end_row) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_LINE) {
+                if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_ROW) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeValidation,
@@ -788,13 +788,13 @@ pub fn nvim_buf_set_extmark(
                 did_end_line = true;
             }
 
-            let strict = if has_key(mask, KEYSET_OPTIDX_set_extmark__strict) {
+            let strict = if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_STRICT) {
                 opts.strict
             } else {
                 true
             };
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__end_row) || did_end_line {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_ROW) || did_end_line {
                 let val = opts.end_row;
                 if val < 0 || (val > i64::from(b.b_ml.ml_line_count) && strict) {
                     api_err_range(err, c"end_row");
@@ -804,7 +804,7 @@ pub fn nvim_buf_set_extmark(
             }
 
             let mut col2: Colnr = -1;
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__end_col) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_COL) {
                 let mut val = opts.end_col;
                 if !(-1..=MAXCOL).contains(&val) {
                     api_err_range(err, c"end_col");
@@ -816,7 +816,7 @@ pub fn nvim_buf_set_extmark(
                 col2 = val as Colnr;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__hl_group) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_HL_GROUP) {
                 if opts.hl_group.obj_type == ObjectType::ObjectTypeArray {
                     let arr = opts.hl_group.data.array();
                     if arr.size >= 1 {
@@ -855,10 +855,10 @@ pub fn nvim_buf_set_extmark(
                 || sign.number_hl_id != 0
                 || sign.line_hl_id != 0
             {
-                sign.flags |= kSHIsSign;
+                sign.flags |= K_SHIS_SIGN;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__conceal) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_CONCEAL) {
                 if opts.conceal.obj_type != ObjectType::ObjectTypeBoolean
                     && opts.conceal.obj_type != ObjectType::ObjectTypeString
                 {
@@ -874,13 +874,13 @@ pub fn nvim_buf_set_extmark(
                 has_hl = true;
                 if opts.conceal.obj_type == ObjectType::ObjectTypeBoolean {
                     hl.flags |= if opts.conceal.data.boolean() {
-                        kSHConceal
+                        K_SHCONCEAL
                     } else {
-                        kSHConcealOff
+                        K_SHCONCEAL_OFF
                     };
                 } else {
                     let conceal_str = opts.conceal.data.string();
-                    hl.flags |= kSHConceal;
+                    hl.flags |= K_SHCONCEAL;
                     if conceal_str.size > 0 {
                         let ci = utf_ptr2StrCharInfo(conceal_str.data);
                         let cli = utf_ClusterInfo(ci);
@@ -898,8 +898,8 @@ pub fn nvim_buf_set_extmark(
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__conceal_lines) {
-                hl.flags |= kSHConcealLines;
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_CONCEAL_LINES) {
+                hl.flags |= K_SHCONCEAL_LINES;
                 has_hl = true;
                 if opts.conceal_lines.size > 0 && !crate::memory::cstr_is_empty(opts.conceal_lines.data) {
                     api_set_error!(
@@ -912,7 +912,7 @@ pub fn nvim_buf_set_extmark(
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_text) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT) {
                 virt_text.data = DecorVirtTextData::VirtText(parse_virt_text(
                     opts.virt_text,
                     err,
@@ -924,45 +924,45 @@ pub fn nvim_buf_set_extmark(
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_text_pos) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT_POS) {
                 let str_val = opts.virt_text_pos;
                 if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"eol") {
-                    virt_text.pos = kVPosEndOfLine;
+                    virt_text.pos = K_VPOS_END_OF_LINE;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"overlay") {
-                    virt_text.pos = kVPosOverlay;
+                    virt_text.pos = K_VPOS_OVERLAY;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"right_align") {
-                    virt_text.pos = kVPosRightAlign;
+                    virt_text.pos = K_VPOS_RIGHT_ALIGN;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"eol_right_align") {
-                    virt_text.pos = kVPosEndOfLineRightAlign;
+                    virt_text.pos = K_VPOS_END_OF_LINE_RIGHT_ALIGN;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"inline") {
-                    virt_text.pos = kVPosInline;
+                    virt_text.pos = K_VPOS_INLINE;
                 } else {
                     api_err_invalid(err, c"virt_text_pos", str_val.data, 0, true);
                     break 'error;
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_text_win_col) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_TEXT_WIN_COL) {
                 virt_text.col = opts.virt_text_win_col as c_int;
-                virt_text.pos = kVPosWinCol;
+                virt_text.pos = K_VPOS_WIN_COL;
             }
 
-            hl.flags |= if opts.hl_eol { kSHHlEol } else { 0 };
-            virt_text.flags |= (if opts.virt_text_hide { kVTHide } else { 0 })
+            hl.flags |= if opts.hl_eol { K_SHHL_EOL } else { 0 };
+            virt_text.flags |= (if opts.virt_text_hide { K_VTHIDE } else { 0 })
                 | (if opts.virt_text_repeat_linebreak {
-                    kVTRepeatLinebreak
+                    K_VTREPEAT_LINEBREAK
                 } else {
                     0
                 });
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__hl_mode) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_HL_MODE) {
                 let str_val = opts.hl_mode;
                 if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"replace") {
-                    virt_text.hl_mode = kHlModeReplace;
+                    virt_text.hl_mode = K_HL_MODE_REPLACE;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"combine") {
-                    virt_text.hl_mode = kHlModeCombine;
+                    virt_text.hl_mode = K_HL_MODE_COMBINE;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"blend") {
-                    if virt_text.pos == kVPosInline {
+                    if virt_text.pos == K_VPOS_INLINE {
                         api_set_error!(
                             err,
                             ErrorType::ErrorTypeValidation,
@@ -971,7 +971,7 @@ pub fn nvim_buf_set_extmark(
                         );
                         break 'error;
                     }
-                    virt_text.hl_mode = kHlModeBlend;
+                    virt_text.hl_mode = K_HL_MODE_BLEND;
                 } else {
                     api_err_invalid(err, c"hl_mode", str_val.data, 0, true);
                     break 'error;
@@ -979,26 +979,26 @@ pub fn nvim_buf_set_extmark(
             }
 
             let virt_lines_flags = if opts.virt_lines_leftcol {
-                kVLLeftcol
+                K_VLLEFTCOL
             } else {
                 0
             };
-            let mut virt_lines_overflow = kVLOverflowTrunc;
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_lines_overflow) {
+            let mut virt_lines_overflow = K_VLOVERFLOW_TRUNC;
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES_OVERFLOW) {
                 let str_val = opts.virt_lines_overflow;
                 if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"scroll") {
-                    virt_lines_overflow = kVLOverflowScroll;
+                    virt_lines_overflow = K_VLOVERFLOW_SCROLL;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"wrap") {
-                    virt_lines_overflow = kVLOverflowWrap;
+                    virt_lines_overflow = K_VLOVERFLOW_WRAP;
                 } else if crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"auto") {
-                    virt_lines_overflow = kVLOverflowAuto;
+                    virt_lines_overflow = K_VLOVERFLOW_AUTO;
                 } else if !(crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"trunc")) {
                     api_err_invalid(err, c"virt_lines_overflow", str_val.data, 0, true);
                     break 'error;
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__virt_lines) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_VIRT_LINES) {
                 let a = opts.virt_lines;
                 for j in 0..a.size {
                     let item = a[j];
@@ -1025,12 +1025,12 @@ pub fn nvim_buf_set_extmark(
             }
 
             virt_lines.flags |= if opts.virt_lines_above {
-                kVTLinesAbove
+                K_VTLINES_ABOVE
             } else {
                 0
             };
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__priority) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_PRIORITY) {
                 if !((0..=i64::from(u16::MAX)).contains(&opts.priority)) {
                     api_err_range(err, c"priority");
                     break 'error;
@@ -1042,7 +1042,7 @@ pub fn nvim_buf_set_extmark(
                 virt_lines.priority = prio;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__sign_text) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_SIGN_TEXT) {
                 sign.text[0] = 0;
                 if !init_sign_text(
                     None,
@@ -1053,10 +1053,10 @@ pub fn nvim_buf_set_extmark(
                     api_err_invalid(err, c"sign_text", c"", 0, true);
                     break 'error;
                 }
-                sign.flags |= kSHIsSign;
+                sign.flags |= K_SHIS_SIGN;
             }
 
-            let right_gravity = if has_key(mask, KEYSET_OPTIDX_set_extmark__right_gravity) {
+            let right_gravity = if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_RIGHT_GRAVITY) {
                 opts.right_gravity
             } else {
                 true
@@ -1064,7 +1064,7 @@ pub fn nvim_buf_set_extmark(
 
             if line2 == -1
                 && col2 == -1
-                && has_key(mask, KEYSET_OPTIDX_set_extmark__end_right_gravity)
+                && has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_END_RIGHT_GRAVITY)
             {
                 api_set_error!(
                     err,
@@ -1077,24 +1077,24 @@ pub fn nvim_buf_set_extmark(
 
             let mut len: Colnr = 0;
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__spell) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_SPELL) {
                 hl.flags |= if opts.spell {
-                    kSHSpellOn
+                    K_SHSPELL_ON
                 } else {
-                    kSHSpellOff
+                    K_SHSPELL_OFF
                 };
                 has_hl = true;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_set_extmark__url) {
+            if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_URL) {
                 url = Some(string_to_cstr(opts.url));
                 has_hl = true;
             }
 
             if opts.ui_watched {
-                hl.flags |= kSHUIWatched;
-                if virt_text.pos == kVPosOverlay {
-                    hl.flags |= kSHUIWatchedOverlay;
+                hl.flags |= K_SHUIWATCHED;
+                if virt_text.pos == K_VPOS_OVERLAY {
+                    hl.flags |= K_SHUIWATCHED_OVERLAY;
                 }
                 has_hl = true;
             }
@@ -1163,7 +1163,7 @@ pub fn nvim_buf_set_extmark(
                 }
 
                 let mut subpriority: DecorPriority = 0;
-                if has_key(mask, KEYSET_OPTIDX_set_extmark___subpriority) {
+                if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_SUBPRIORITY) {
                     if !((0..=i64::from(u16::MAX)).contains(&opts._subpriority)) {
                         api_err_range(err, c"_subpriority");
                         break 'error;
@@ -1222,7 +1222,7 @@ pub fn nvim_buf_set_extmark(
                 let mut decor_flags: u16 = 0;
                 let mut decor_alloc: *mut DecorVirtText = ptr::null_mut();
                 if !virt_text.data.virt_text().is_empty() {
-                    if virt_text.pos == kVPosInline {
+                    if virt_text.pos == K_VPOS_INLINE {
                         decor_flags |= MT_FLAG_DECOR_VIRT_TEXT_INLINE;
                     }
                     decor_alloc = decor_put_vt(virt_text, decor_alloc);
@@ -1234,7 +1234,7 @@ pub fn nvim_buf_set_extmark(
 
                 let mut decor_indexed: u32 = DECOR_ID_INVALID;
 
-                if (sign.flags & kSHIsSign) != 0 {
+                if (sign.flags & K_SHIS_SIGN) != 0 {
                     if sign.text[0] != 0 {
                         decor_flags |= MT_FLAG_DECOR_SIGNTEXT;
                     }
@@ -1255,7 +1255,7 @@ pub fn nvim_buf_set_extmark(
                         if hl_id > 0 {
                             let mut sh = DECOR_SIGN_HIGHLIGHT_INIT;
                             sh.hl_id = hl_id;
-                            sh.flags = if opts.hl_eol { kSHHlEol } else { 0 };
+                            sh.flags = if opts.hl_eol { K_SHHL_EOL } else { 0 };
                             sh.next = decor_indexed;
                             decor_indexed = decor_put_sh(sh);
                             decor_flags |= MT_FLAG_DECOR_HL;
@@ -1264,7 +1264,7 @@ pub fn nvim_buf_set_extmark(
                     }
                 }
 
-                if (hl.flags & kSHConcealLines) != 0 {
+                if (hl.flags & K_SHCONCEAL_LINES) != 0 {
                     decor_flags |= MT_FLAG_DECOR_CONCEAL_LINES;
                 }
 
@@ -1294,7 +1294,7 @@ pub fn nvim_buf_set_extmark(
                     decor_flags |= MT_FLAG_DECOR_HL;
                 }
 
-                let undo_restore = if has_key(mask, KEYSET_OPTIDX_set_extmark__undo_restore) {
+                let undo_restore = if has_key(mask, KEYSET_OPTIDX_SET_EXTMARK_UNDO_RESTORE) {
                     opts.undo_restore
                 } else {
                     true
@@ -1504,7 +1504,7 @@ pub fn nvim_set_decoration_provider(
             }
         }
 
-        (*p).state = kDecorProviderActive;
+        (*p).state = K_DECOR_PROVIDER_ACTIVE;
         (*p).hl_valid += 1;
         (*p).hl_cached = false;
     }
@@ -1701,7 +1701,7 @@ pub fn nvim__ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error)
 
         let mut set_scoped = true;
 
-        if has_key(opts.is_set__ns_opts_, KEYSET_OPTIDX_ns_opts__wins) {
+        if has_key(opts.is_set__ns_opts_, KEYSET_OPTIDX_NS_OPTS_WINS) {
             if opts.wins.size == 0 {
                 set_scoped = false;
             }
@@ -1762,7 +1762,7 @@ pub fn nvim__ns_get(
 ) -> KeyDict_ns_opts {
     unsafe {
         let mut opts = KeyDict_ns_opts {
-            is_set__ns_opts_: 1u64 << KEYSET_OPTIDX_ns_opts__wins,
+            is_set__ns_opts_: 1u64 << KEYSET_OPTIDX_NS_OPTS_WINS,
             wins: Array::new(),
         };
 

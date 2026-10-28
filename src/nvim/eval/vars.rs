@@ -13,7 +13,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
-use crate::eval::funcs::{SpecialVarValue, kSpecialVarNull, tv_get_buf, tv_get_buf_from_arg};
+use crate::eval::funcs::{SpecialVarValue, K_SPECIAL_VAR_NULL_CONST, tv_get_buf, tv_get_buf_from_arg};
 use crate::eval::typval::{
     BoolVarValue, DI_FLAGS_ALLOC, EvalFuncData, ScopeDictDictItem, TV_CSTRING, TV_TRANSLATE,
     TypvalVval, VAR_UNLOCKED, VarLockStatus, VarType, TvBlob, TvDict, Dictitem, TvList,
@@ -36,13 +36,13 @@ use crate::eval::{
     AUTOLOAD_CHAR, DICT_MAXNEST, FNE_CHECK_START, FNE_INCL_BR, GLV_QUIET, VAR_DEF_SCOPE,
     callback_call, eval_isnamec1, eval_st, eval_option, eval_to_string,
     eval0, eval1, fill_evalarg_from_eap, find_name_end, find_option_var_end, get_env_len, get_lval,
-    get_name_len, handle_subscript, kListLenUnknown, may_call_simple_func, num_divide, num_modulus,
+    get_name_len, handle_subscript, K_LIST_LEN_UNKNOWN_CONST, may_call_simple_func, num_divide, num_modulus,
     partial_unref, set_ref_in_ht, set_var_lval, skip_expr, tv_dict_set_ret,
 };
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{check_nextcmd, ends_excmd, Exarg};
 use crate::ex_eval::aborting;
-use crate::extmark::{TriState, kFalse, kNone, kTrue};
+use crate::extmark::{TriState, K_FALSE, K_NONE, K_TRUE};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::{
@@ -59,7 +59,7 @@ use crate::message::{
 };
 use crate::option::{
     OPT_LOCAL, OptInt, find_option, get_option, get_option_sctx, get_option_value, get_tty_option,
-    get_winbuf_options, is_option_hidden, is_tty_option, kOptInvalid, opt_from_tristate,
+    get_winbuf_options, is_option_hidden, is_tty_option, K_OPT_INVALID, opt_from_tristate,
     option_has_type, optval_free, set_option_value, set_option_value_give_err,
 };
 use crate::option_vars::*;
@@ -68,7 +68,7 @@ use crate::os::env::{
     ExpandCtx, os_env_exists, os_getenv_buf, os_unsetenv, vim_getenv, vim_setenv_ext,
     vim_unsetenv_ext,
 };
-use crate::register::{get_reg_contents_str, kGRegExprSrc, write_reg_contents};
+use crate::register::{get_reg_contents_str, K_GREG_EXPR_SRC, write_reg_contents};
 use crate::runtime::{new_script_item, script_autoload, script_item, Scriptvar};
 use crate::search::set_search_direction;
 use crate::strings::{concat_str, gettext, vim_strchr};
@@ -84,9 +84,9 @@ pub type ScopeType = c_int;
 pub type Scid = c_int;
 type ExUnletlockCallback = fn(&mut Lval, *mut c_char, &mut Exarg, c_int) -> bool;
 
-use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
+use crate::api::win_config::{K_CTX_NO_DISPLAY, K_CTX_NO_EVENTS};
 use crate::change::MB_MAXCHAR;
-use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
+use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 use crate::regexp::NUMBUFLEN;
 
 #[repr(C)]
@@ -179,11 +179,11 @@ pub(crate) const FORCE_NOBIN: c_int = 2;
 pub(crate) const BAD_KEEP: c_int = -1;
 pub(crate) const BAD_DROP: c_int = -2;
 
-const kOptCharconvert: OptIndex = 36;
-const kOptDiffexpr: OptIndex = 72;
-const kOptPatchexpr: OptIndex = 217;
-const kOptSpellsuggest: OptIndex = 292;
-pub(crate) const kOptFlagFunc: u32 = 1 << 24;
+const K_OPT_CHARCONVERT: OptIndex = 36;
+const K_OPT_DIFFEXPR: OptIndex = 72;
+const K_OPT_PATCHEXPR: OptIndex = 217;
+const K_OPT_SPELLSUGGEST: OptIndex = 292;
+pub(crate) const K_OPT_FLAG_FUNC: u32 = 1 << 24;
 
 pub const NUM_MSGPACK_TYPES: usize = 8;
 
@@ -558,11 +558,11 @@ fn script_vars_ht(id: Scid) -> *mut Hashtab {
 #[inline]
 pub fn tristate_from_int(val: OptInt) -> TriState {
     if val == 0 {
-        kFalse
+        K_FALSE
     } else if val >= 1 {
-        kTrue
+        K_TRUE
     } else {
-        kNone
+        K_NONE
     }
 }
 
@@ -630,13 +630,13 @@ pub fn evalvars_init() {
         set_vim_var_dict(VV_COMPLETED_ITEM, tv_dict_alloc_lock(VAR_FIXED));
 
         set_vim_var_dict(VV_EVENT, tv_dict_alloc_lock(VAR_FIXED));
-        set_vim_var_list(VV_ERRORS, tv_list_alloc(kListLenUnknown));
+        set_vim_var_list(VV_ERRORS, tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST));
         set_vim_var_nr(VV_STDERR, crate::channel::CHAN_STDERR as Varnumber);
         set_vim_var_nr(VV_SEARCHFORWARD, 1);
         set_vim_var_nr(VV_HLSEARCH, 1);
         set_vim_var_nr(VV_COUNT1, 1);
         set_vim_var_string(VV_STARTREASON, c"normal", 6);
-        set_vim_var_special(VV_EXITING, kSpecialVarNull);
+        set_vim_var_special(VV_EXITING, K_SPECIAL_VAR_NULL_CONST);
 
         set_vim_var_nr(VV_TYPE_NUMBER, VAR_TYPE_NUMBER);
         set_vim_var_nr(VV_TYPE_STRING, VAR_TYPE_STRING);
@@ -647,9 +647,9 @@ pub fn evalvars_init() {
         set_vim_var_nr(VV_TYPE_BOOL, VAR_TYPE_BOOL);
         set_vim_var_nr(VV_TYPE_BLOB, VAR_TYPE_BLOB);
 
-        set_vim_var_bool(VV_FALSE, kBoolVarFalse);
-        set_vim_var_bool(VV_TRUE, kBoolVarTrue);
-        set_vim_var_special(VV_NULL, kSpecialVarNull);
+        set_vim_var_bool(VV_FALSE, K_BOOL_VAR_FALSE_CONST);
+        set_vim_var_bool(VV_TRUE, K_BOOL_VAR_TRUE_CONST);
+        set_vim_var_special(VV_NULL, K_SPECIAL_VAR_NULL_CONST);
         set_vim_var_nr(VV_NUMBERMAX, Varnumber::MAX);
         set_vim_var_nr(VV_NUMBERMIN, Varnumber::MIN);
         set_vim_var_nr(
@@ -760,7 +760,7 @@ pub fn eval_charconvert(
         set_vim_var_string(VV_CC_TO, enc_to, -1);
         set_vim_var_string(VV_FNAME_IN, fname_from, -1);
         set_vim_var_string(VV_FNAME_OUT, fname_to, -1);
-        let ctx = get_option_sctx(kOptCharconvert);
+        let ctx = get_option_sctx(K_OPT_CHARCONVERT);
         if !ctx.is_null() {
             g_st().current_sctx = *ctx;
         }
@@ -794,7 +794,7 @@ pub fn eval_diff(origfile: impl crate::strings::IntoCCharPtr, newfile: impl crat
         set_vim_var_string(VV_FNAME_NEW, newfile, -1);
         set_vim_var_string(VV_FNAME_OUT, outfile, -1);
 
-        let ctx = get_option_sctx(kOptDiffexpr);
+        let ctx = get_option_sctx(K_OPT_DIFFEXPR);
         if !ctx.is_null() {
             g_st().current_sctx = *ctx;
         }
@@ -819,7 +819,7 @@ pub fn eval_patch(origfile: impl crate::strings::IntoCCharPtr, difffile: impl cr
         set_vim_var_string(VV_FNAME_DIFF, difffile, -1);
         set_vim_var_string(VV_FNAME_OUT, outfile, -1);
 
-        let ctx = get_option_sctx(kOptPatchexpr);
+        let ctx = get_option_sctx(K_OPT_PATCHEXPR);
         if !ctx.is_null() {
             g_st().current_sctx = *ctx;
         }
@@ -851,7 +851,7 @@ pub fn eval_spell_expr(badword: impl crate::strings::IntoCCharPtr, expr: impl cr
         if opt_vars().p_verbose == 0 {
             g_st().emsg_off += 1;
         }
-        let ctx = get_option_sctx(kOptSpellsuggest);
+        let ctx = get_option_sctx(K_OPT_SPELLSUGGEST);
         if !ctx.is_null() {
             g_st().current_sctx = *ctx;
         }
@@ -965,7 +965,7 @@ pub fn eval_one_expr_in_str(
         let mut block_end = block_start;
 
         if crate::memory::cstr_is_empty(block_start) {
-            semsg!(gettext(e_missing_close_curly_str), p);
+            semsg!(gettext(E_MISSING_CLOSE_CURLY_STR), p);
             return ptr::null_mut();
         }
         if !skip_expr(&raw mut block_end, None) {
@@ -973,7 +973,7 @@ pub fn eval_one_expr_in_str(
         }
         block_end = skipwhite(block_end);
         if crate::memory::cstr_first_byte(block_end) != b'}' {
-            semsg!(gettext(e_missing_close_curly_str), p);
+            semsg!(gettext(E_MISSING_CLOSE_CURLY_STR), p);
             return ptr::null_mut();
         }
         if evaluate {
@@ -1014,7 +1014,7 @@ fn eval_all_expr_in_str(str_arg: impl crate::strings::IntoCCharPtr) -> Option<st
                 p = p.add(1);
                 escaped_brace = true;
             } else if crate::memory::cstr_first_byte(p) == b'}' {
-                semsg!(gettext(e_stray_closing_curly_str), str_arg);
+                semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), str_arg);
                 return None;
             }
 
@@ -1100,7 +1100,7 @@ pub fn heredoc_get(
             marker = skipwhite(cmd);
             let p = skiptowhite(marker);
             if *skipwhite(p) != NUL && *skipwhite(p) != comment_char {
-                semsg!(gettext(e_trailing_arg), p);
+                semsg!(gettext(E_TRAILING_ARG), p);
                 return ptr::null_mut();
             }
             *p = NUL;
@@ -1231,7 +1231,7 @@ pub fn ex_let(eap: &mut Exarg) {
                 && crate::memory::cstr_byte_at(expr, 1) == b'=');
         if !has_assign && !concat {
             if crate::memory::cstr_first_byte(arg) == b'[' {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
             } else if ends_excmd(crate::memory::cstr_first_char(arg)) == 0 {
                 arg = list_arg_vars(eap, arg, &mut first).cast_mut();
             } else if eap.skip == 0 {
@@ -1339,7 +1339,7 @@ pub fn ex_let_vars(
         }
 
         if tv.v_type != VarType::VarList {
-            emsg(gettext(e_listreq));
+            emsg(gettext(E_LISTREQ));
             return false;
         }
         let l = tv.vval.v_list();
@@ -1422,7 +1422,7 @@ pub fn skip_var_list(
                 let s = skip_var_one(p);
                 if s == p {
                     if !silent {
-                        semsg!(gettext(e_invarg2), p);
+                        semsg!(gettext(E_INVARG2), p);
                     }
                     return ptr::null();
                 }
@@ -1441,7 +1441,7 @@ pub fn skip_var_list(
                     *semicolon = 1;
                 } else if crate::memory::cstr_first_byte(p) != b',' {
                     if !silent {
-                        semsg!(gettext(e_invarg2), p);
+                        semsg!(gettext(E_INVARG2), p);
                     }
                     return ptr::null();
                 }
@@ -1567,7 +1567,7 @@ fn list_arg_vars(
                 );
                 if !ascii_iswhite(crate::memory::cstr_first_char(arg)) && ends_excmd(crate::memory::cstr_first_char(arg)) == 0 {
                     g_st().emsg_severe = true;
-                    semsg!(gettext(e_trailing_arg), arg);
+                    semsg!(gettext(E_TRAILING_ARG), arg);
                     break;
                 }
             } else {
@@ -1578,7 +1578,7 @@ fn list_arg_vars(
                 if len <= 0 {
                     if len < 0 && !aborting() {
                         g_st().emsg_severe = true;
-                        semsg!(gettext(e_invarg2), arg);
+                        semsg!(gettext(E_INVARG2), arg);
                         break;
                     }
                     error = true;
@@ -1673,9 +1673,9 @@ fn ex_let_env(
         let len = get_env_len(&raw mut arg_const) as usize;
         arg = arg_const.cast_mut();
         if len == 0 {
-            semsg!(gettext(e_invarg2), name.sub(1));
+            semsg!(gettext(E_INVARG2), name.sub(1));
         } else if !op.is_null() && !vim_strchr(c"+-*/%", crate::memory::cstr_first_byte(op) as c_int).is_null() {
-            semsg!(gettext(e_letwrong), op);
+            semsg!(gettext(E_LETWRONG), op);
         } else if !endchars.is_null()
             && vim_strchr(endchars, *skipwhite(arg) as u8 as c_int).is_null()
         {
@@ -1749,7 +1749,7 @@ fn ex_let_option(
         let mut newval = nil_obj();
 
         if curval.obj_type == ObjectType::ObjectTypeNil {
-            semsg!(gettext(e_unknown_option2), arg_name);
+            semsg!(gettext(E_UNKNOWN_OPTION2), arg_name);
             *p = c1;
             optval_free(curval);
             optval_free(newval);
@@ -1760,7 +1760,7 @@ fn ex_let_option(
             && ((curval.obj_type != ObjectType::ObjectTypeString && crate::memory::cstr_first_byte(op) == b'.')
                 || (curval.obj_type == ObjectType::ObjectTypeString && crate::memory::cstr_first_byte(op) != b'.'))
         {
-            semsg!(gettext(e_letwrong), op);
+            semsg!(gettext(E_LETWRONG), op);
             *p = c1;
             optval_free(curval);
             optval_free(newval);
@@ -1851,7 +1851,7 @@ fn ex_let_register(
         let mut arg_end: *mut c_char = ptr::null_mut();
         arg = arg.add(1);
         if !op.is_null() && !vim_strchr(c"+-*/%", crate::memory::cstr_first_byte(op) as c_int).is_null() {
-            semsg!(gettext(e_letwrong), op);
+            semsg!(gettext(E_LETWRONG), op);
         } else if !endchars.is_null()
             && vim_strchr(endchars, *skipwhite(arg.add(1)) as u8 as c_int).is_null()
         {
@@ -1865,7 +1865,7 @@ fn ex_let_register(
                 } else {
                     crate::memory::cstr_first_byte(arg) as c_int
                 };
-                if let Some(s) = get_reg_contents_str(reg_c, kGRegExprSrc) {
+                if let Some(s) = get_reg_contents_str(reg_c, K_GREG_EXPR_SRC) {
                     let mut bytes = Vec::from(s.as_bytes());
                     bytes.extend_from_slice(crate::memory::cstr_as_bytes(p));
                     let joined = cstr_from_bytes(&bytes);
@@ -1920,7 +1920,7 @@ fn ex_let_one(
                 }
             }
         } else {
-            semsg!(gettext(e_invarg2), arg);
+            semsg!(gettext(E_INVARG2), arg);
         }
 
         arg_end
@@ -1978,7 +1978,7 @@ fn ex_unletlock(
                 arg = arg.add(1);
                 let mut arg_const: *const c_char = arg;
                 if get_env_len(&raw mut arg_const) == 0 {
-                    semsg!(gettext(e_invarg2), arg.sub(1));
+                    semsg!(gettext(E_INVARG2), arg.sub(1));
                     return;
                 }
                 arg = arg_const.cast_mut();
@@ -2004,7 +2004,7 @@ fn ex_unletlock(
                 {
                     if !name_end.is_null() {
                         g_st().emsg_severe = true;
-                        semsg!(gettext(e_trailing_arg), name_end);
+                        semsg!(gettext(E_TRAILING_ARG), name_end);
                     }
                     break;
                 }
@@ -3064,7 +3064,7 @@ pub fn set_var_const(
         let watched = tv_dict_is_watched(dict.as_ref());
 
         if ht.is_null() || crate::memory::cstr_is_empty(varname) {
-            semsg!(gettext(e_illvar), name);
+            semsg!(gettext(E_ILLVAR), name);
             return;
         }
         let varname_len = name_len - (varname.offset_from(name) as usize);
@@ -3081,7 +3081,7 @@ pub fn set_var_const(
         let mut oldtv: TypVal = TypVal::new();
         if !di.is_null() {
             if is_const {
-                emsg(gettext(e_cannot_mod));
+                emsg(gettext(E_CANNOT_MOD));
                 return;
             }
 
@@ -3111,7 +3111,7 @@ pub fn set_var_const(
             tv_clear(&mut (*di).di_tv);
         } else {
             if ptr::eq(ht, &raw mut vars_st().vimvardict.dv_hashtab) || ht == get_funccal_args_ht() {
-                semsg!(gettext(e_illvar), name);
+                semsg!(gettext(E_ILLVAR), name);
                 return;
             }
 
@@ -3159,9 +3159,9 @@ pub fn set_var_const(
 pub fn var_check_ro(flags: c_int, name: impl crate::strings::IntoCCharPtr, mut name_len: usize) -> bool { let mut name = name.into_c_char_ptr();
      {
         let error_message = if (flags as u8 & DI_FLAGS_RO) != 0 {
-            e_cannot_change_readonly_variable_str.as_ptr()
+            E_CANNOT_CHANGE_READONLY_VARIABLE_STR.as_ptr()
         } else if (flags as u8 & DI_FLAGS_RO_SBX) != 0 && g_st().sandbox != 0 {
-            e_cannot_set_variable_in_sandbox_str.as_ptr()
+            E_CANNOT_SET_VARIABLE_IN_SANDBOX_STR.as_ptr()
         } else {
             ptr::null()
         };
@@ -3215,7 +3215,7 @@ pub fn var_check_fixed(flags: c_int, name: impl crate::strings::IntoCCharPtr, mu
                 name_len = crate::memory::cstr_len(name);
             }
             semsg!(
-                gettext(e_cannot_delete_variable_str),
+                gettext(E_CANNOT_DELETE_VARIABLE_STR),
                 name_len as c_int,
                 name,
             );
@@ -3264,7 +3264,7 @@ pub fn valid_varname(varname: impl crate::strings::IntoCCharPtr) -> bool { let v
                 && (p == varname || !ascii_isdigit(crate::memory::cstr_first_char(p)))
                 && *p != AUTOLOAD_CHAR
             {
-                semsg!(gettext(e_illvar), varname);
+                semsg!(gettext(E_ILLVAR), varname);
                 return false;
             }
             p = p.add(1);
@@ -3303,7 +3303,7 @@ fn get_var_from(
                     win,
                     tp,
                     ptr::null_mut(),
-                    kCtxNoEvents | kCtxNoDisplay,
+                    K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
                 )
             {
                 if crate::memory::cstr_first_byte(varname) == b'&' && htname != b't' as c_int {
@@ -3404,7 +3404,7 @@ fn opt_from_tv(tv: &mut TypVal,
             !is_tty_opt && option_has_type(opt_idx, ObjectType::ObjectTypeInteger);
         let option_has_str = is_tty_opt || option_has_type(opt_idx, ObjectType::ObjectTypeString);
 
-        if !is_tty_opt && ((*get_option(opt_idx)).flags & kOptFlagFunc) != 0 && tv_is_func(tv) {
+        if !is_tty_opt && ((*get_option(opt_idx)).flags & K_OPT_FLAG_FUNC) != 0 && tv_is_func(tv) {
             let strval = encode_tv2string(tv, None);
             value = crate::api::private::helpers::cstr_to_obj(strval.as_ptr());
         } else if option_has_bool || option_has_num {
@@ -3445,7 +3445,7 @@ fn opt_from_tv(tv: &mut TypVal,
                 value = string_obj(cstr_to_string(strval));
             } else {
                 err = true;
-                emsg(gettext(e_string_required));
+                emsg(gettext(E_STRING_REQUIRED));
             }
         } else {
             std::process::abort();
@@ -3463,14 +3463,14 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> TypVal {
     let mut rettv = TypVal {
             v_type: VarType::VarSpecial,
             v_lock: 0,
-            vval: TypvalVval::Special(kSpecialVarNull),
+            vval: TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST),
         };
 
         match value.obj_type {
             ObjectType::ObjectTypeUnset => {
                 if numbool {
                     rettv.v_type = VarType::VarNumber;
-                    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(kNone));
+                    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(K_NONE));
                 }
             }
             ObjectType::ObjectTypeNil => {}
@@ -3481,9 +3481,9 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> TypVal {
                 } else {
                     rettv.v_type = VarType::VarBool;
                     rettv.vval = crate::eval::typval::TypvalVval::Bool(if value.data.boolean() {
-                        kBoolVarTrue
+                        K_BOOL_VAR_TRUE_CONST
                     } else {
-                        kBoolVarFalse
+                        K_BOOL_VAR_FALSE_CONST
                     });
                 }
             }
@@ -3522,8 +3522,8 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> TypVal {
 /// Set option "varname" to the value of "varp" for the current buffer/window.
 fn set_option_from_tv(varname: impl crate::strings::IntoCCharPtr,varp: &mut TypVal) { let varname = varname.into_c_char_ptr();
     let opt_idx = find_option(varname);
-        if opt_idx == kOptInvalid {
-            semsg!(gettext(e_unknown_option2), varname);
+        if opt_idx == K_OPT_INVALID {
+            semsg!(gettext(E_UNKNOWN_OPTION2), varname);
             return;
         }
 
@@ -3572,7 +3572,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
                 win,
                 tp,
                 ptr::null_mut(),
-                kCtxNoEvents | kCtxNoDisplay,
+                K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
             )
         {
             if crate::memory::cstr_first_byte(varname) == b'&' {
@@ -3651,7 +3651,7 @@ pub fn var_exists(var: impl crate::strings::IntoCCharPtr) -> bool { let mut var 
 pub fn var_redir_start(name: impl crate::strings::IntoCCharPtr, append: bool) -> bool { let name = name.into_c_char_ptr();
     unsafe {
         if !eval_isnamec1(crate::memory::cstr_first_byte(name) as c_int) {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return false;
         }
 
@@ -3674,9 +3674,9 @@ pub fn var_redir_start(name: impl crate::strings::IntoCCharPtr, append: bool) ->
         );
         if vars_st().redir_endp.is_null() || (*lval_ptr).ll_name.is_null() || !crate::memory::cstr_is_empty(vars_st().redir_endp) {
             if !vars_st().redir_endp.is_null() && !crate::memory::cstr_is_empty(vars_st().redir_endp) {
-                semsg!(gettext(e_trailing_arg), vars_st().redir_endp);
+                semsg!(gettext(E_TRAILING_ARG), vars_st().redir_endp);
             } else {
-                semsg!(gettext(e_invarg2), name);
+                semsg!(gettext(E_INVARG2), name);
             }
             vars_st().redir_endp = ptr::null_mut();
             var_redir_stop();

@@ -4193,8 +4193,8 @@ static API_TYPES: [(&str, u32, &str); 3] = [
 use crate::api::buffer::{LUA_INTERNAL_CALL, VIML_INTERNAL_CALL};
 use crate::charset::{NL, NUL};
 use crate::version::{
-    nvim_api_level, nvim_api_level_compat, nvim_api_prerelease, nvim_version_build,
-    nvim_version_major, nvim_version_minor, nvim_version_patch, nvim_version_prerelease,
+    NVIM_API_LEVEL_CONST, NVIM_API_LEVEL_COMPAT_CONST, NVIM_API_PRERELEASE_CONST, nvim_version_build,
+    NVIM_VERSION_MAJOR_CONST, NVIM_VERSION_MINOR_CONST, NVIM_VERSION_PATCH_CONST, NVIM_VERSION_PRERELEASE_CONST,
 };
 
 static PACKED_API_METADATA: std::sync::OnceLock<Box<[u8]>> = std::sync::OnceLock::new();
@@ -4254,19 +4254,19 @@ pub fn api_get_packed_metadata(len: &mut usize) -> *const u8 {
         mpack_push_str(&mut out, b"version");
         out.push(0x88); // fixmap(8)
         mpack_push_str(&mut out, b"major");
-        mpack_push_uint(&mut out, nvim_version_major as u32);
+        mpack_push_uint(&mut out, NVIM_VERSION_MAJOR_CONST as u32);
         mpack_push_str(&mut out, b"minor");
-        mpack_push_uint(&mut out, nvim_version_minor as u32);
+        mpack_push_uint(&mut out, NVIM_VERSION_MINOR_CONST as u32);
         mpack_push_str(&mut out, b"patch");
-        mpack_push_uint(&mut out, nvim_version_patch as u32);
+        mpack_push_uint(&mut out, NVIM_VERSION_PATCH_CONST as u32);
         mpack_push_str(&mut out, b"prerelease");
-        mpack_push_bool(&mut out, nvim_version_prerelease);
+        mpack_push_bool(&mut out, NVIM_VERSION_PRERELEASE_CONST);
         mpack_push_str(&mut out, b"api_level");
-        mpack_push_uint(&mut out, nvim_api_level as u32);
+        mpack_push_uint(&mut out, NVIM_API_LEVEL_CONST as u32);
         mpack_push_str(&mut out, b"api_compatible");
-        mpack_push_uint(&mut out, nvim_api_level_compat as u32);
+        mpack_push_uint(&mut out, NVIM_API_LEVEL_COMPAT_CONST as u32);
         mpack_push_str(&mut out, b"api_prerelease");
-        mpack_push_bool(&mut out, nvim_api_prerelease);
+        mpack_push_bool(&mut out, NVIM_API_PRERELEASE_CONST);
         mpack_push_str(&mut out, b"build");
         let build_ptr = nvim_version_build();
         if build_ptr.is_null() {

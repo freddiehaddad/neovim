@@ -7,7 +7,7 @@ use crate::autocmd::HLF_8;
 use crate::buffer::{bt_quickfix, FileBuf, buf_meta_total};
 use crate::change::TAB;
 use crate::charset::{
-    NUL, ascii_isdigit, ascii_iswhite, kOptDyFlagUhex, rl_mirror_ascii, skiptowhite, skipwhite,
+    NUL, ascii_isdigit, ascii_iswhite, K_OPT_DY_FLAG_UHEX, rl_mirror_ascii, skiptowhite, skipwhite,
     transchar_buf, transchar_hex, transstr_buf, vim_isprintc,
 };
 use crate::cursor::{VALID_VIRTCOL, Colnr, get_cursor_rel_lnum, Linenr, ltoreq, CursorPos};
@@ -15,9 +15,9 @@ use crate::decoration::{
     DecorRange, DecorVirtText, NS, SCL_NUM, SignTextAttrs, VirtLines, VirtText, VirtTextChunk,
     decor_has_more_decorations, decor_init_draw_col, decor_recheck_draw_col, decor_redraw_col,
     decor_redraw_eol, decor_redraw_line, decor_redraw_signs, decor_virt_line_rows,
-    decor_virt_lines, decor_virt_pos, decor_virt_pos_kind, kVLLeftcol, kVLOverflowAuto,
-    kVLOverflowScroll, kVPosEndOfLine, kVPosEndOfLineRightAlign, kVPosInline, kVPosRightAlign,
-    kVPosWinCol, kVTRepeatLinebreak, next_virt_text_chunk,
+    decor_virt_lines, decor_virt_pos, decor_virt_pos_kind, K_VLLEFTCOL, K_VLOVERFLOW_AUTO,
+    K_VLOVERFLOW_SCROLL, K_VPOS_END_OF_LINE, K_VPOS_END_OF_LINE_RIGHT_ALIGN, K_VPOS_INLINE, K_VPOS_RIGHT_ALIGN,
+    K_VPOS_WIN_COL, K_VTREPEAT_LINEBREAK, next_virt_text_chunk,
 };
 use crate::decoration_provider::{decor_providers_invoke_line, decor_providers_invoke_range};
 use crate::diff::{
@@ -28,9 +28,9 @@ use crate::drawscreen::{
     SIGN_WIDTH, WinExtmark, compute_foldcolumn, conceal_cursor_line, number_width, Spellvars,
     win_draw_end,
 };
-use crate::eval::typval::kCallbackNone;
+use crate::eval::typval::K_CALLBACK_NONE_CONST;
 use crate::ex_getln::{Disptick, Hlf};
-use crate::extmark::{TriState, kFalse, kTrue};
+use crate::extmark::{TriState, K_FALSE, K_TRUE};
 use crate::fold::get_foldtext;
 use crate::globals::*;
 use crate::grid::{
@@ -45,7 +45,7 @@ use crate::highlight::{
 use crate::highlight_group::syn_id2attr;
 use crate::indent::{get_breakindent_win, tabstop_padding};
 use crate::insexpand::{ins_compl_col_range_attr, ins_compl_lnum_in_range, ins_compl_win_active};
-use crate::marktree::kMTMetaInline;
+use crate::marktree::K_MTMETA_INLINE;
 use crate::r#match::{
     get_prevcol_hl_flag, get_search_match_hl, prepare_search_hl_line, update_search_hl,
 };
@@ -65,7 +65,7 @@ use crate::plines::{
     init_charsize_arg_skip_cur_text, vim_isbreak, win_charsize,
 };
 use crate::quickfix::qf_current_entry;
-use crate::regexp::{Ctrl_V, MAXCOL};
+use crate::regexp::{CTRL_V_CONST, MAXCOL};
 use crate::search::FORWARD;
 use crate::spell::{check_need_cap, spell_cat_line, spell_check, spell_move_to, spell_to_word_end};
 use crate::state::{MODE_INSERT, virtual_active};
@@ -99,16 +99,16 @@ pub(crate) const SLF_RIGHTLEFT: c_int = 1;
 pub(crate) const SLF_WRAP: c_int = 2;
 pub(crate) const SLF_INC_VCOL: c_int = 4;
 
-pub(crate) const kOptFlagInsecure: u32 = 1 << 18;
-pub(crate) const kOptCuloptFlagLine: u8 = 0x01;
-pub(crate) const kOptCuloptFlagScreenline: u8 = 0x02;
-pub(crate) const kOptCuloptFlagNumber: u8 = 0x04;
-pub(crate) const kOptSpoFlagNoplainbuffer: u32 = 0x02;
-pub(crate) const kCpoNumcol: c_int = b'n' as c_int;
+pub(crate) const K_OPT_FLAG_INSECURE: u32 = 1 << 18;
+pub(crate) const K_OPT_CULOPT_FLAG_LINE: u8 = 0x01;
+pub(crate) const K_OPT_CULOPT_FLAG_SCREENLINE: u8 = 0x02;
+pub(crate) const K_OPT_CULOPT_FLAG_NUMBER: u8 = 0x04;
+pub(crate) const K_OPT_SPO_FLAG_NOPLAINBUFFER: u32 = 0x02;
+pub(crate) const K_CPO_NUMCOL: c_int = b'n' as c_int;
 
-pub(crate) const kHlModeReplace: HlMode = 1;
-pub(crate) const kHlModeCombine: HlMode = 2;
-pub(crate) const kHlModeBlend: HlMode = 3;
+pub(crate) const K_HL_MODE_REPLACE: HlMode = 1;
+pub(crate) const K_HL_MODE_COMBINE: HlMode = 2;
+pub(crate) const K_HL_MODE_BLEND: HlMode = 3;
 
 pub(crate) const HL_UNDERLINE_MASK: i32 = 0x38;
 pub(crate) const HL_STRIKETHROUGH: i32 = 0x0080;
@@ -219,9 +219,9 @@ fn dl_st() -> &'static mut DrawlineState {
 
 #[inline]
 const fn tristate_to_bool(val: TriState, default: bool) -> bool {
-    if val == kTrue {
+    if val == K_TRUE {
         true
-    } else if val == kFalse {
+    } else if val == K_FALSE {
         false
     } else {
         default
@@ -252,7 +252,7 @@ fn get_lcs_ext(wp: &mut WinInfoInfo) -> Schar {
     if wp.w_onebuf_opt.wo_wrap != 0 {
             return 0;
         }
-        if (wp.w_onebuf_opt.wo_wrap_flags & kOptFlagInsecure) != 0 {
+        if (wp.w_onebuf_opt.wo_wrap_flags & K_OPT_FLAG_INSECURE) != 0 {
             return schar_from_ascii(b'>');
         }
         if wp.w_onebuf_opt.wo_list != 0 {
@@ -350,7 +350,7 @@ fn draw_virt_text(
                 let mut updated = true;
                 let pos = decor_virt_pos_kind(&*item);
 
-                if do_eol && pos == kVPosEndOfLineRightAlign {
+                if do_eol && pos == K_VPOS_END_OF_LINE_RIGHT_ALIGN {
                     let mut eolOffset: c_int = 0;
                     if totalWidthOfEolRightAlignedVirtText == 0 {
                         for j in i..end {
@@ -371,7 +371,7 @@ fn draw_virt_text(
                                 lookaheadVt = (*lookaheadItem).data.vt();
                             }
 
-                            if decor_virt_pos_kind(&*lookaheadItem) == kVPosEndOfLineRightAlign {
+                            if decor_virt_pos_kind(&*lookaheadItem) == K_VPOS_END_OF_LINE_RIGHT_ALIGN {
                                 totalWidthOfEolRightAlignedVirtText += (*lookaheadVt).width + 1;
                             }
                         }
@@ -385,12 +385,12 @@ fn draw_virt_text(
                     }
 
                     (*item).draw_col = g_st().decor_state.eol_col + eolOffset;
-                } else if pos == kVPosRightAlign {
+                } else if pos == K_VPOS_RIGHT_ALIGN {
                     right_pos -= (*vt).width;
                     (*item).draw_col = right_pos;
-                } else if pos == kVPosEndOfLine && do_eol {
+                } else if pos == K_VPOS_END_OF_LINE && do_eol {
                     (*item).draw_col = g_st().decor_state.eol_col;
-                } else if pos == kVPosWinCol {
+                } else if pos == K_VPOS_WIN_COL {
                     (*item).draw_col = (col_off + (*vt).col).max(0);
                 } else {
                     updated = false;
@@ -424,13 +424,13 @@ fn draw_virt_text(
                     0,
                     false,
                 );
-                if do_eol && ((*vt).pos == kVPosEndOfLine || (*vt).pos == kVPosEndOfLineRightAlign)
+                if do_eol && ((*vt).pos == K_VPOS_END_OF_LINE || (*vt).pos == K_VPOS_END_OF_LINE_RIGHT_ALIGN)
                 {
                     g_st().decor_state.eol_col = col + 1;
                 }
                 *end_col = (*end_col).max(col);
             }
-            if vt.is_null() || ((*vt).flags & kVTRepeatLinebreak) == 0 {
+            if vt.is_null() || ((*vt).flags & K_VTREPEAT_LINEBREAK) == 0 {
                 (*item).draw_col = c_int::MIN;
             }
         }
@@ -506,9 +506,9 @@ fn draw_virt_text_item(
             draw_cells = draw_cells.min(maxcells);
 
             let mut through = false;
-            let attr = if hl_mode == kHlModeCombine {
+            let attr = if hl_mode == K_HL_MODE_COMBINE {
                 hl_combine_attr(g_st().linebuf_attr[col as usize], virt_attr)
-            } else if hl_mode == kHlModeBlend {
+            } else if hl_mode == K_HL_MODE_BLEND {
                 through = schar_invisible(sc);
                 hl_blend_attrs(g_st().linebuf_attr[col as usize], virt_attr, &mut through)
             } else {
@@ -781,10 +781,10 @@ fn get_line_number_str(wp: &mut WinInfoInfo, lnum: Linenr, buf: *mut c_char, buf
 fn use_cursor_line_nr(wp: &mut WinInfoInfo, wlv: &Winlinevars) -> bool {
     wp.w_onebuf_opt.wo_cul != 0
             && wlv.lnum == wp.w_cursorline
-            && (wp.w_p_culopt_flags & kOptCuloptFlagNumber) != 0
+            && (wp.w_p_culopt_flags & K_OPT_CULOPT_FLAG_NUMBER) != 0
             && (wlv.row == wlv.startrow + wlv.filler_lines
                 || (wlv.row > wlv.startrow + wlv.filler_lines
-                    && (wp.w_p_culopt_flags & kOptCuloptFlagLine) != 0))
+                    && (wp.w_p_culopt_flags & K_OPT_CULOPT_FLAG_LINE) != 0))
 }
 
 fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> c_int {
@@ -828,7 +828,7 @@ fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> c_int {
 
 fn draw_lnum_col(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
     unsafe {
-        let has_cpo_n = !vim_strchr(opt_vars().p_cpo, kCpoNumcol).is_null();
+        let has_cpo_n = !vim_strchr(opt_vars().p_cpo, K_CPO_NUMCOL).is_null();
 
         if (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
             && (wlv.row == wlv.startrow + wlv.filler_lines || !has_cpo_n)
@@ -1179,7 +1179,7 @@ fn has_more_inline_virt(wlv: &Winlinevars, v: isize) -> bool {
                 let item = (&g_st().decor_state.slots)[slot_idx].range();
                 if item.start_row != g_st().decor_state.row
                     || !item.data.is_vt()
-                    || (*item.data.vt()).pos != kVPosInline
+                    || (*item.data.vt()).pos != K_VPOS_INLINE
                     || (*item.data.vt()).width == 0
                 {
                     continue;
@@ -1213,7 +1213,7 @@ fn handle_inline_virtual_text(
                     }
                     if (*item).start_row != g_st().decor_state.row
                         || !(*item).data.is_vt()
-                        || (*(*item).data.vt()).pos != kVPosInline
+                        || (*(*item).data.vt()).pos != K_VPOS_INLINE
                         || (*(*item).data.vt()).width == 0
                     {
                         continue;
@@ -1348,7 +1348,7 @@ pub fn win_line(
 
         let in_curline = ptr::eq(wp, curwin_ptr()) && lnum == curwin_mut().w_cursor.lnum;
         let has_fold = foldinfo.fi_level != 0 && foldinfo.fi_lines > 0;
-        let has_foldtext = has_fold && wp.w_onebuf_opt.wo_fdt.cb_type() != kCallbackNone;
+        let has_foldtext = has_fold && wp.w_onebuf_opt.wo_fdt.cb_type() != K_CALLBACK_NONE_CONST;
 
         let is_wrapped = wp.w_onebuf_opt.wo_wrap != 0 && !has_fold;
 
@@ -1513,7 +1513,7 @@ pub fn win_line(
                     (&raw mut g_st().Visual.start, &raw mut (*curwin_ptr()).w_cursor)
                 };
                 lnum_in_visual_area = lnum >= (*top).lnum && lnum <= (*bot).lnum;
-                if g_st().Visual.mode == Ctrl_V {
+                if g_st().Visual.mode == CTRL_V_CONST {
                     if lnum_in_visual_area {
                         wlv.fromcol = wp.w_old_cursor_fcol;
                         wlv.tocol = wp.w_old_cursor_lcol;
@@ -1672,11 +1672,11 @@ pub fn win_line(
         wlv.filler_todo = wlv.filler_lines;
 
         if wp.w_onebuf_opt.wo_cul != 0
-            && wp.w_p_culopt_flags != kOptCuloptFlagNumber
+            && wp.w_p_culopt_flags != K_OPT_CULOPT_FLAG_NUMBER
             && lnum == wp.w_cursorline
             && !(ptr::eq(wp, curwin_ptr()) && g_st().Visual.active)
         {
-            cul_screenline = is_wrapped && (wp.w_p_culopt_flags & kOptCuloptFlagScreenline) != 0;
+            cul_screenline = is_wrapped && (wp.w_p_culopt_flags & K_OPT_CULOPT_FLAG_SCREENLINE) != 0;
             if !cul_screenline {
                 apply_cursorline_highlight(wp, &mut wlv);
             } else {
@@ -2003,7 +2003,7 @@ pub fn win_line(
         }
 
         let may_have_inline_virt =
-            !has_foldtext && buf_meta_total(wp.buf_mut(), kMTMetaInline) > 0;
+            !has_foldtext && buf_meta_total(wp.buf_mut(), K_MTMETA_INLINE) > 0;
         let mut has_virt_line = false;
         let mut virt_line_flags: c_int = 0;
         let mut virt_line_index: c_int = 0;
@@ -2061,7 +2061,7 @@ pub fn win_line(
                     }
                 }
 
-                if has_virt_line && (virt_line_flags & kVLLeftcol) != 0 {
+                if has_virt_line && (virt_line_flags & K_VLLEFTCOL) != 0 {
                     // skip columns
                 } else if statuscol.draw {
                     let v = ptr.offset_from(line) as c_int;
@@ -2211,7 +2211,7 @@ pub fn win_line(
                                 ptr.offset_from(line),
                                 selected,
                             );
-                            if wlv.n_extra > 0 && wlv.virt_inline_hl_mode <= kHlModeReplace {
+                            if wlv.n_extra > 0 && wlv.virt_inline_hl_mode <= K_HL_MODE_REPLACE {
                                 saved_search_attr = search_attr;
                                 saved_area_attr = area_attr;
                                 saved_decor_attr = decor_attr;
@@ -2225,7 +2225,7 @@ pub fn win_line(
                     }
 
                     let area_attr_p =
-                        if wlv.extra_for_extmark && wlv.virt_inline_hl_mode <= kHlModeReplace {
+                        if wlv.extra_for_extmark && wlv.virt_inline_hl_mode <= K_HL_MODE_REPLACE {
                             &raw mut saved_area_attr
                         } else {
                             &raw mut area_attr
@@ -2533,7 +2533,7 @@ pub fn win_line(
                     if extra_check {
                         let w_s = wp.w_s_ptr();
                         let no_plain_buffer =
-                            ((*w_s).b_p_spo_flags & kOptSpoFlagNoplainbuffer) != 0;
+                            ((*w_s).b_p_spo_flags & K_OPT_SPO_FLAG_NOPLAINBUFFER) != 0;
                         let mut can_spell = !no_plain_buffer;
 
                         let v = ptr.offset_from(line) as c_int;
@@ -2935,7 +2935,7 @@ pub fn win_line(
                             && (wp.w_onebuf_opt.wo_list != 0
                                 || (wlv.fromcol >= 0
                                     && wlv.tocol > wlv.vcol
-                                    && g_st().Visual.mode != Ctrl_V
+                                    && g_st().Visual.mode != CTRL_V_CONST
                                     && wlv.col < view_width))
                             && lcs_eol_todo
                             && lcs_eol != 0
@@ -2972,7 +2972,7 @@ pub fn win_line(
                             if wlv.n_extra == 0 {
                                 wlv.n_extra = opt_vars().dy_escape_width - 1;
                             }
-                            if (opt_vars().dy_flags & kOptDyFlagUhex) != 0 && wp.w_onebuf_opt.wo_rl != 0 {
+                            if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0 && wp.w_onebuf_opt.wo_rl != 0 {
                                 rl_mirror_ascii(wlv.p_extra, ptr::null_mut());
                             }
                             wlv.sc_extra = 0;
@@ -2995,7 +2995,7 @@ pub fn win_line(
                             wlv.extra_attr = win_hl_attr(&mut *wp, HLF_8);
                             saved_attr2 = wlv.char_attr;
                         } else if g_st().Visual.active
-                            && (g_st().Visual.mode == Ctrl_V || g_st().Visual.mode == b'v' as c_int)
+                            && (g_st().Visual.mode == CTRL_V_CONST || g_st().Visual.mode == b'v' as c_int)
                             && virtual_active(wp)
                             && wlv.tocol != MAXCOL
                             && wlv.vcol < wlv.tocol
@@ -3148,7 +3148,7 @@ pub fn win_line(
                     if lcs_eol_todo
                         && ((area_attr != 0
                             && wlv.vcol == wlv.fromcol
-                            && (g_st().Visual.mode != Ctrl_V
+                            && (g_st().Visual.mode != CTRL_V_CONST
                                 || lnum == g_st().Visual.start.lnum
                                 || lnum == curwin_mut().w_cursor.lnum))
                             || prevcol_hl_flag)
@@ -3289,7 +3289,7 @@ pub fn win_line(
                              &mut *buf,
                             win_col_offset,
                             &fold_vt,
-                            kHlModeCombine,
+                            K_HL_MODE_COMBINE,
                             view_width,
                             0,
                             0,
@@ -3548,20 +3548,20 @@ pub fn win_line(
                 if has_virt_line {
                     let vl = &virt_lines[virt_line_index as usize];
                     let overflow = vl.overflow;
-                    let virt_row_scroll = overflow == kVLOverflowScroll
-                        || (overflow == kVLOverflowAuto && wp.w_onebuf_opt.wo_wrap == 0);
+                    let virt_row_scroll = overflow == K_VLOVERFLOW_SCROLL
+                        || (overflow == K_VLOVERFLOW_AUTO && wp.w_onebuf_opt.wo_wrap == 0);
                     if virt_row_scroll {
                         virt_line_skip_cells = wp.w_leftcol;
                     }
                     draw_virt_text_item(
                          &mut *buf,
-                        if (virt_line_flags & kVLLeftcol) != 0 {
+                        if (virt_line_flags & K_VLLEFTCOL) != 0 {
                             0
                         } else {
                             win_col_offset
                         },
                         &vl.line,
-                        kHlModeReplace,
+                        K_HL_MODE_REPLACE,
                         view_width,
                         0,
                         virt_line_skip_cells,
@@ -3623,7 +3623,7 @@ pub fn win_line(
                     wlv.need_showbreak = true;
                 }
                 if statuscol.draw
-                    && !vim_strchr(opt_vars().p_cpo, kCpoNumcol).is_null()
+                    && !vim_strchr(opt_vars().p_cpo, K_CPO_NUMCOL).is_null()
                     && wlv.row > startrow + wlv.filler_lines
                 {
                     statuscol.draw = false;
@@ -3774,8 +3774,8 @@ mod tests {
 
     #[test]
     fn tristate_and_ascii_helpers() {
-        assert!(tristate_to_bool(kTrue, false));
-        assert!(!tristate_to_bool(kFalse, true));
+        assert!(tristate_to_bool(K_TRUE, false));
+        assert!(!tristate_to_bool(K_FALSE, true));
         assert!(tristate_to_bool(-1, true));
         assert!(!tristate_to_bool(-1, false));
         assert!(ascii_iswhite(b' ' as c_char));

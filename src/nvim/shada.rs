@@ -25,7 +25,7 @@ use crate::eval::vars::{
     VAR_TYPE_BLOB, VV_OLDFILES, get_globvar_ht, get_vim_var_list, set_vim_var_list,
 };
 use crate::eval::{
-    VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SESSION, VAR_FLAVOUR_SHADA, get_copyID, kListLenUnknown,
+    VAR_FLAVOUR_DEFAULT, VAR_FLAVOUR_SESSION, VAR_FLAVOUR_SHADA, get_copyID, K_LIST_LEN_UNKNOWN_CONST,
     set_ref_in_ht, set_ref_in_list_items, var_flavour, VarFlavour, var_set_global,
 };
 use crate::ex_cmds::{sub_get_replacement, sub_set_replacement};
@@ -72,10 +72,10 @@ use crate::os::fs::{
 use crate::os::stdpaths::stdpaths_user_state_subpath;
 use crate::os::time::{Timestamp, os_time};
 use crate::path::{
-    concat_fnames_cstr, kPathCmpLiteral, path_cmp, path_equal, path_fold_char,
+    concat_fnames_cstr, K_PATH_CMP_LITERAL, path_cmp, path_equal, path_fold_char,
     path_tail_with_sep, path_try_shorten_fname, vim_ispathsep, vim_ispathsep_nocolon,
 };
-use crate::regexp::{kMarkBufLocal, regtilde};
+use crate::regexp::{K_MARK_BUF_LOCAL, regtilde};
 use crate::register::{
     MotionType, NUM_SAVED_REGISTERS, op_global_reg_iter, op_reg_get, op_reg_index, op_reg_set,
     reg_empty, Yankreg,
@@ -95,14 +95,14 @@ use crate::os::fs::os_fchown;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 
-pub const kShaDaWantInfo: c_int = 1;
-pub const kShaDaWantMarks: c_int = 2;
-pub const kShaDaForceit: c_int = 4;
-pub const kShaDaGetOldfiles: c_int = 8;
-pub const kShaDaMissingError: c_int = 16;
-pub const kShaDaNanos: c_int = 32;
-pub const kShaDaNoHistory: c_int = 64;
-pub const kShaDaNoOpt: c_int = 128;
+pub const K_SHA_DA_WANT_INFO: c_int = 1;
+pub const K_SHA_DA_WANT_MARKS: c_int = 2;
+pub const K_SHA_DA_FORCEIT: c_int = 4;
+pub const K_SHA_DA_GET_OLDFILES: c_int = 8;
+pub const K_SHA_DA_MISSING_ERROR: c_int = 16;
+pub const K_SHA_DA_NANOS: c_int = 32;
+pub const K_SHA_DA_NO_HISTORY: c_int = 64;
+pub const K_SHA_DA_NO_OPT: c_int = 128;
 
 const NLOCALMARKS: usize = NMARKS + 3;
 const SHADA_MPACK_FREE_SPACE: usize = 4 * MPACK_ITEM_SIZE;
@@ -124,21 +124,21 @@ const DEFAULT_POS: CursorPos = CursorPos {
     coladd: 0,
 };
 
-const KEYSET_OPTIDX__shada_buflist_item__c: u32 = 1;
-const KEYSET_OPTIDX__shada_buflist_item__f: u32 = 2;
-const KEYSET_OPTIDX__shada_buflist_item__l: u32 = 3;
+const KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_C: u32 = 1;
+const KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_F: u32 = 2;
+const KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_L: u32 = 3;
 
-const KEYSET_OPTIDX__shada_mark__c: u32 = 1;
-const KEYSET_OPTIDX__shada_mark__f: u32 = 2;
-const KEYSET_OPTIDX__shada_mark__l: u32 = 3;
-const KEYSET_OPTIDX__shada_mark__n: u32 = 4;
+const KEYSET_OPTIDX_SHADA_MARK_C: u32 = 1;
+const KEYSET_OPTIDX_SHADA_MARK_F: u32 = 2;
+const KEYSET_OPTIDX_SHADA_MARK_L: u32 = 3;
+const KEYSET_OPTIDX_SHADA_MARK_N: u32 = 4;
 
-const KEYSET_OPTIDX__shada_register__n: u32 = 1;
-const KEYSET_OPTIDX__shada_register__rt: u32 = 3;
-const KEYSET_OPTIDX__shada_register__ru: u32 = 4;
-const KEYSET_OPTIDX__shada_register__rw: u32 = 5;
+const KEYSET_OPTIDX_SHADA_REGISTER_N: u32 = 1;
+const KEYSET_OPTIDX_SHADA_REGISTER_RT: u32 = 3;
+const KEYSET_OPTIDX_SHADA_REGISTER_RU: u32 = 4;
+const KEYSET_OPTIDX_SHADA_REGISTER_RW: u32 = 5;
 
-const KEYSET_OPTIDX__shada_search_pat__sp: u32 = 8;
+const KEYSET_OPTIDX_SHADA_SEARCH_PAT_SP: u32 = 8;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -246,17 +246,17 @@ enum ShaDaWriteResult {
     SDWriteIgnError,
 }
 
-const kSDReadUndisableableData: c_uint = (1 << (ShadaEntryType::SDItemSearchPattern as u32))
+const K_SDREAD_UNDISABLEABLE_DATA: c_uint = (1 << (ShadaEntryType::SDItemSearchPattern as u32))
     | (1 << (ShadaEntryType::SDItemSubString as u32))
     | (1 << (ShadaEntryType::SDItemJump as u32));
-const kSDReadRegisters: c_uint = 1 << (ShadaEntryType::SDItemRegister as u32);
-const kSDReadHistory: c_uint = 1 << (ShadaEntryType::SDItemHistoryEntry as u32);
-const kSDReadVariables: c_uint = 1 << (ShadaEntryType::SDItemVariable as u32);
-const kSDReadBufferList: c_uint = 1 << (ShadaEntryType::SDItemBufferList as u32);
-const kSDReadUnknown: c_uint = 1 << ((SHADA_LAST_ENTRY as u32) + 1);
-const kSDReadGlobalMarks: c_uint = 1 << (ShadaEntryType::SDItemGlobalMark as u32);
-const kSDReadLocalMarks: c_uint = 1 << (ShadaEntryType::SDItemLocalMark as u32);
-const kSDReadChanges: c_uint = 1 << (ShadaEntryType::SDItemChange as u32);
+const K_SDREAD_REGISTERS: c_uint = 1 << (ShadaEntryType::SDItemRegister as u32);
+const K_SDREAD_HISTORY: c_uint = 1 << (ShadaEntryType::SDItemHistoryEntry as u32);
+const K_SDREAD_VARIABLES: c_uint = 1 << (ShadaEntryType::SDItemVariable as u32);
+const K_SDREAD_BUFFER_LIST: c_uint = 1 << (ShadaEntryType::SDItemBufferList as u32);
+const K_SDREAD_UNKNOWN: c_uint = 1 << ((SHADA_LAST_ENTRY as u32) + 1);
+const K_SDREAD_GLOBAL_MARKS: c_uint = 1 << (ShadaEntryType::SDItemGlobalMark as u32);
+const K_SDREAD_LOCAL_MARKS: c_uint = 1 << (ShadaEntryType::SDItemLocalMark as u32);
+const K_SDREAD_CHANGES: c_uint = 1 << (ShadaEntryType::SDItemChange as u32);
 
 #[derive(Clone)]
 struct ShadaFilemark {
@@ -652,7 +652,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
             timestamp: 0,
             data: ShadaEntryData::Reg(ShadaReg {
                 name: NUL,
-                reg_type: MotionType::MTCharWise as u8,
+                reg_type: MotionType::MtCharWise as u8,
                 contents: Vec::new(),
                 is_unnamed: false,
                 width: 0,
@@ -1008,17 +1008,17 @@ fn shada_read_file(file: impl crate::strings::IntoCCharPtr, flags: c_int) -> boo
                 0,
                 gettext(c"Reading ShaDa file \"%s\"%s%s%s%s"),
                 fname,
-                if (flags & kShaDaWantInfo) != 0 {
+                if (flags & K_SHA_DA_WANT_INFO) != 0 {
                     gettext(c" info").cast_const()
                 } else {
                     empty
                 },
-                if (flags & kShaDaWantMarks) != 0 {
+                if (flags & K_SHA_DA_WANT_MARKS) != 0 {
                     gettext(c" marks").cast_const()
                 } else {
                     empty
                 },
-                if (flags & kShaDaGetOldfiles) != 0 {
+                if (flags & K_SHA_DA_GET_OLDFILES) != 0 {
                     gettext(c" oldfiles").cast_const()
                 } else {
                     empty
@@ -1033,7 +1033,7 @@ fn shada_read_file(file: impl crate::strings::IntoCCharPtr, flags: c_int) -> boo
         }
 
         if of_ret != 0 {
-            if of_ret != UV_ENOENT || (flags & kShaDaMissingError) != 0 {
+            if of_ret != UV_ENOENT || (flags & K_SHA_DA_MISSING_ERROR) != 0 {
                 semsg!(
                     gettext(
                         c"E886: System error while opening ShaDa file %s for reading: %s",
@@ -1254,7 +1254,7 @@ fn find_buffer(
         }
 
         for buf in for_all_buffers_ptr() {
-            if !(*buf).b_ffname.is_null() && path_equal(fname, (*buf).b_ffname, kPathCmpLiteral) {
+            if !(*buf).b_ffname.is_null() && path_equal(fname, (*buf).b_ffname, K_PATH_CMP_LITERAL) {
                 fname_bufs.insert(key.to_vec(), buf);
                 return buf;
             }
@@ -1292,38 +1292,38 @@ fn marklist_insert<T>(jumps: &mut [T; JUMPLISTSIZE], jl_len: c_int, mut i: c_int
 fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
     unsafe {
         let mut oldfiles_list = get_vim_var_list(VV_OLDFILES);
-        let force = (flags & kShaDaForceit) != 0;
+        let force = (flags & K_SHA_DA_FORCEIT) != 0;
         let get_old_files =
-            (flags & kShaDaGetOldfiles) != 0 && (force || tv_list_len(oldfiles_list.as_ref()) == 0);
-        let want_marks = (flags & kShaDaWantMarks) != 0;
-        let no_opt = (flags & kShaDaNoOpt) != 0;
+            (flags & K_SHA_DA_GET_OLDFILES) != 0 && (force || tv_list_len(oldfiles_list.as_ref()) == 0);
+        let want_marks = (flags & K_SHA_DA_WANT_MARKS) != 0;
+        let no_opt = (flags & K_SHA_DA_NO_OPT) != 0;
         let argcount = crate::arglist::argcount();
-        let srni_flags: c_uint = (if (flags & kShaDaWantInfo) != 0 {
-            kSDReadUndisableableData
-                | kSDReadRegisters
-                | kSDReadGlobalMarks
-                | if opt_vars().p_hi != 0 && (flags & kShaDaNoHistory) == 0 {
-                    kSDReadHistory
+        let srni_flags: c_uint = (if (flags & K_SHA_DA_WANT_INFO) != 0 {
+            K_SDREAD_UNDISABLEABLE_DATA
+                | K_SDREAD_REGISTERS
+                | K_SDREAD_GLOBAL_MARKS
+                | if opt_vars().p_hi != 0 && (flags & K_SHA_DA_NO_HISTORY) == 0 {
+                    K_SDREAD_HISTORY
                 } else {
                     0
                 }
                 | if no_opt || !find_shada_parameter(b'!' as c_int).is_null() {
-                    kSDReadVariables
+                    K_SDREAD_VARIABLES
                 } else {
                     0
                 }
                 | if (no_opt || !find_shada_parameter(b'%' as c_int).is_null()) && argcount == 0 {
-                    kSDReadBufferList
+                    K_SDREAD_BUFFER_LIST
                 } else {
                     0
                 }
         } else {
             0
         }) | if want_marks && get_shada_parameter(b'\'' as c_int) > 0 {
-            kSDReadLocalMarks | kSDReadChanges
+            K_SDREAD_LOCAL_MARKS | K_SDREAD_CHANGES
         } else {
             0
-        } | if get_old_files { kSDReadLocalMarks } else { 0 };
+        } | if get_old_files { K_SDREAD_LOCAL_MARKS } else { 0 };
 
         if srni_flags == 0 {
             return;
@@ -1346,7 +1346,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                 last_hist_entry: MISSING_ENTRY,
                 history_type: 0,
             });
-        if (srni_flags & kSDReadHistory) != 0 {
+        if (srni_flags & K_SDREAD_HISTORY) != 0 {
             for (i, hm) in hms.iter_mut().enumerate().take(HIST_COUNT) {
                 hms_init(hm, i as u8, opt_vars().p_hi as usize, true, true);
             }
@@ -1357,7 +1357,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
             std::collections::HashMap::new();
         let mut oldfiles_set: std::collections::HashSet<PathKey> = std::collections::HashSet::new();
         if get_old_files && (oldfiles_list.is_null() || force) {
-            oldfiles_list = tv_list_alloc(kListLenUnknown);
+            oldfiles_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
             set_vim_var_list(VV_OLDFILES, oldfiles_list);
         }
 
@@ -1465,15 +1465,15 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
                     let r_width = cur_entry.data.reg().width;
                     let r_is_unnamed = cur_entry.data.reg().is_unnamed;
                     let y_type = match r_reg_type {
-                        0 => MotionType::MTCharWise,
-                        1 => MotionType::MTLineWise,
-                        2 => MotionType::MTBlockWise,
+                        0 => MotionType::MtCharWise,
+                        1 => MotionType::MtLineWise,
+                        2 => MotionType::MtBlockWise,
                         _ => {
                             shada_free_shada_entry(&mut cur_entry);
                             continue;
                         }
                     };
-                    let reg_ts = if (flags & kShaDaNanos) != 0 {
+                    let reg_ts = if (flags & K_SHA_DA_NANOS) != 0 {
                         cur_entry.timestamp
                     } else {
                         cur_entry.timestamp.wrapping_mul(NS_PER_SEC)
@@ -1666,7 +1666,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: c_int) {
             }
         }
 
-        if (srni_flags & kSDReadHistory) != 0 {
+        if (srni_flags & K_SDREAD_HISTORY) != 0 {
             for (i, hm) in hms.iter_mut().enumerate().take(HIST_COUNT) {
                 hms_insert_whole_neovim_history(hm);
                 clr_history(i as c_int);
@@ -2305,14 +2305,14 @@ fn shada_read_when_writing(
                             } else {
                                 for buf in for_all_buffers_mut() {
                                     if !buf.b_ffname.is_null()
-                                        && path_equal(fname_ptr, buf.b_ffname, kPathCmpLiteral)
+                                        && path_equal(fname_ptr, buf.b_ffname, K_PATH_CMP_LITERAL)
                                     {
                                         let mut fm = Fmark::new();
                                         mark_get(
                                             buf,
                                             curwin_mut(),
                                             Some(&mut fm),
-                                            kMarkBufLocal,
+                                            K_MARK_BUF_LOCAL,
                                             c_int::from(fm_name),
                                         );
                                         if fm.timestamp >= entry.timestamp {
@@ -2518,7 +2518,7 @@ fn shada_initialize_registers(
                 data: ShadaEntryData::Reg(ShadaReg {
                     contents: reg_ref.y_array.clone(),
                     reg_type: reg_ref.y_type as u8,
-                    width: if reg_ref.y_type == MotionType::MTBlockWise {
+                    width: if reg_ref.y_type == MotionType::MtBlockWise {
                         reg_ref.y_width as usize
                     } else {
                         0
@@ -2651,22 +2651,22 @@ fn shada_write(
             }
         }
 
-        let srni_flags: c_uint = kSDReadUndisableableData
-            | kSDReadUnknown
-            | if dump_history { kSDReadHistory } else { 0 }
-            | if dump_registers { kSDReadRegisters } else { 0 }
+        let srni_flags: c_uint = K_SDREAD_UNDISABLEABLE_DATA
+            | K_SDREAD_UNKNOWN
+            | if dump_history { K_SDREAD_HISTORY } else { 0 }
+            | if dump_registers { K_SDREAD_REGISTERS } else { 0 }
             | if dump_global_vars {
-                kSDReadVariables
+                K_SDREAD_VARIABLES
             } else {
                 0
             }
             | if dump_global_marks {
-                kSDReadGlobalMarks
+                K_SDREAD_GLOBAL_MARKS
             } else {
                 0
             }
             | if num_marked_files != 0 {
-                kSDReadLocalMarks | kSDReadChanges
+                K_SDREAD_LOCAL_MARKS | K_SDREAD_CHANGES
             } else {
                 0
             };
@@ -3393,7 +3393,7 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
 
 /// Read marks information from ShaDa file (`shada_read_marks`).
 pub fn shada_read_marks() -> bool {
-    shada_read_file(ptr::null(), kShaDaWantMarks)
+    shada_read_file(ptr::null(), K_SHA_DA_WANT_MARKS)
 }
 
 /// Read all information from ShaDa file (`shada_read_everything`).
@@ -3404,11 +3404,11 @@ pub fn shada_read_everything(
 ) -> bool { let fname = fname.into_c_char_ptr();
     shada_read_file(
             fname,
-            kShaDaWantInfo
-                | kShaDaWantMarks
-                | kShaDaGetOldfiles
-                | if forceit { kShaDaForceit } else { 0 }
-                | if missing_ok { 0 } else { kShaDaMissingError },
+            K_SHA_DA_WANT_INFO
+                | K_SHA_DA_WANT_MARKS
+                | K_SHA_DA_GET_OLDFILES
+                | if forceit { K_SHA_DA_FORCEIT } else { 0 }
+                | if missing_ok { 0 } else { K_SHA_DA_MISSING_ERROR },
         )
 }
 
@@ -3605,7 +3605,7 @@ fn shada_read_next_item(
             }
 
             let skip_by_flags = if type_u64 > SHADA_LAST_ENTRY {
-                (flags & kSDReadUnknown) == 0
+                (flags & K_SDREAD_UNKNOWN) == 0
             } else {
                 ((1u32 << (type_u64 as u32)) & flags) == 0
             };
@@ -3712,7 +3712,7 @@ fn shada_read_next_item(
                             break 'parse_item false;
                         }
                         if ((*it).is_set___shada_search_pat_
-                            & (1u64 << KEYSET_OPTIDX__shada_search_pat__sp))
+                            & (1u64 << KEYSET_OPTIDX_SHADA_SEARCH_PAT_SP))
                             == 0
                         {
                             semsg!(
@@ -3748,7 +3748,7 @@ fn shada_read_next_item(
                             break 'parse_item false;
                         }
                         let fm = entry.data.filemark_mut();
-                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX__shada_mark__n)) != 0 {
+                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX_SHADA_MARK_N)) != 0 {
                             if entry_type == ShadaEntryType::SDItemJump
                                 || entry_type == ShadaEntryType::SDItemChange
                             {
@@ -3762,13 +3762,13 @@ fn shada_read_next_item(
                             }
                             fm.name = it.n as c_char;
                         }
-                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX__shada_mark__l)) != 0 {
+                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX_SHADA_MARK_L)) != 0 {
                             fm.mark.lnum = it.l as Linenr;
                         }
-                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX__shada_mark__c)) != 0 {
+                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX_SHADA_MARK_C)) != 0 {
                             fm.mark.col = it.c as Colnr;
                         }
-                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX__shada_mark__f)) != 0 {
+                        if (it.is_set___shada_mark_ & (1u64 << KEYSET_OPTIDX_SHADA_MARK_F)) != 0 {
                             let mut bytes =
                                 crate::memory::cstr_slice(it.f.data, it.f.size)
                                     .to_vec();
@@ -3851,25 +3851,25 @@ fn shada_read_next_item(
                         reg.contents = it.rc;
 
                         if (it.is_set___shada_register_
-                            & (1u64 << KEYSET_OPTIDX__shada_register__ru))
+                            & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RU))
                             != 0
                         {
                             reg.is_unnamed = it.ru;
                         }
                         if (it.is_set___shada_register_
-                            & (1u64 << KEYSET_OPTIDX__shada_register__rt))
+                            & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RT))
                             != 0
                         {
                             reg.reg_type = it.rt as u8;
                         }
                         if (it.is_set___shada_register_
-                            & (1u64 << KEYSET_OPTIDX__shada_register__n))
+                            & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_N))
                             != 0
                         {
                             reg.name = it.n as c_char;
                         }
                         if (it.is_set___shada_register_
-                            & (1u64 << KEYSET_OPTIDX__shada_register__rw))
+                            & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RW))
                             != 0
                         {
                             reg.width = it.rw as usize;
@@ -4086,19 +4086,19 @@ fn shada_read_next_item(
                                     additional_data: additional_data_take(&mut it_ad),
                                 };
                                 if (it.is_set___shada_buflist_item_
-                                    & (1u64 << KEYSET_OPTIDX__shada_buflist_item__l))
+                                    & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_L))
                                     != 0
                                 {
                                     e.pos.lnum = it.l as Linenr;
                                 }
                                 if (it.is_set___shada_buflist_item_
-                                    & (1u64 << KEYSET_OPTIDX__shada_buflist_item__c))
+                                    & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_C))
                                     != 0
                                 {
                                     e.pos.col = it.c as Colnr;
                                 }
                                 if (it.is_set___shada_buflist_item_
-                                    & (1u64 << KEYSET_OPTIDX__shada_buflist_item__f))
+                                    & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_F))
                                     != 0
                                 {
                                     let mut bytes = std::slice::from_raw_parts(

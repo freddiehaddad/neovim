@@ -17,7 +17,7 @@ use crate::buffer::{
     bt_dontwrite, bt_nofilename, FileBuf, buf_clear_file, buf_ensure_loaded, buf_freeall, buf_hide,
     buf_name_changed, buflist_altfpos, buflist_findfmark, buflist_findname, buflist_findnr,
     buflist_new, Bufref, bufref_valid, close_buffer, do_autochdir, do_modelines, fileinfo,
-    fname_expand, get_winopts, handle_swap_exists, kCdCauseBuffer, kShmFileinfo, kUIMessages,
+    fname_expand, get_winopts, handle_swap_exists, K_CD_CAUSE_BUFFER, K_SHM_FILEINFO, K_UIMESSAGES,
     maketitle, modifiable, no_write_message, no_write_message_buf, open_buffer, otherfile,
     set_buflisted, set_bufref, setaltfname, setfname,
 };
@@ -41,7 +41,7 @@ use crate::cursor::{
 };
 use crate::decoration::bufhl_add_hl_pos_offset;
 use crate::dialog::{VIM_YES, prompt_for_input, vim_dialog_yesno};
-use crate::diff::{diff_buf_add, diff_invalidate, kShellOptDoOut, kShellOptFilter};
+use crate::diff::{diff_buf_add, diff_invalidate, K_SHELL_OPT_DO_OUT, K_SHELL_OPT_FILTER};
 use crate::digraph::{get_digraph_for_char, keymap_init};
 use crate::drawscreen::{
     UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, number_width, redraw_curbuf_later, redraw_later,
@@ -59,7 +59,7 @@ use crate::ex_docmd::{
 };
 use crate::ex_eval::{aborting, Cstack, should_abort};
 use crate::ex_getln::{curbuf_locked, gotocmdline, text_locked};
-use crate::extmark::{Bcount, extmark_move_region, extmark_splice, kExtmarkNOOP, kExtmarkUndo};
+use crate::extmark::{Bcount, extmark_move_region, extmark_splice, K_EXTMARK_NOOP, K_EXTMARK_UNDO};
 use crate::fileio::{
     READ_FILTER, READ_KEEP_UNDO, READ_NOWINENTER, buf_check_timestamp, readfile, set_file_options,
     set_forced_fenc, vim_tempname, write_lnum_adjust,
@@ -151,9 +151,9 @@ use crate::api::vim::HLF_N;
 use crate::eval::funcs::{RE_SEARCH, VIM_QUESTION};
 use crate::eval::userfunc::MSG_BUF_LEN;
 
-pub(crate) const Ctrl_C: c_int = 3;
-pub(crate) const Ctrl_E: c_int = 5;
-pub(crate) const Ctrl_Y: c_int = 25;
+pub(crate) const CTRL_C_CONST: c_int = 3;
+pub(crate) const CTRL_E: c_int = 5;
+pub(crate) const CTRL_Y: c_int = 25;
 
 pub(crate) const DIALOG_MSG_SIZE: usize = 1000;
 
@@ -169,25 +169,25 @@ pub(crate) const EXFLAG_LIST: c_int = 0x01;
 pub(crate) const EXFLAG_NR: c_int = 0x02;
 pub(crate) const EXFLAG_PRINT: c_int = 0x04;
 
-pub(crate) const kShellOptRead: c_int = 16;
-pub(crate) const kShellOptWrite: c_int = 32;
+pub(crate) const K_SHELL_OPT_READ: c_int = 16;
+pub(crate) const K_SHELL_OPT_WRITE: c_int = 32;
 
 pub(crate) const HLF_R: c_int = 18;
 
-pub(crate) const kShmOverall: c_int = b'O' as c_int;
+pub(crate) const K_SHM_OVERALL: c_int = b'O' as c_int;
 
-const kCpoAltwrite: c_int = b'A' as c_int;
-const kCpoOvernew: c_int = b'O' as c_int;
-const kCpoRemmark: c_int = b'R' as c_int;
-pub(crate) const kCpoUndo: c_int = b'u' as c_int;
+const K_CPO_ALTWRITE: c_int = b'A' as c_int;
+const K_CPO_OVERNEW: c_int = b'O' as c_int;
+const K_CPO_REMMARK: c_int = b'R' as c_int;
+pub(crate) const K_CPO_UNDO: c_int = b'u' as c_int;
 
 pub(crate) const OPT_WINONLY: c_int = 0x08;
 pub(crate) const B_IMODE_LMAP: OptInt = 1;
-pub(crate) const kWinPreview: c_int = 2;
+pub(crate) const K_WIN_PREVIEW: c_int = 2;
 
-pub(crate) const kOptFoldcolumn: OptIndex = 102;
-pub(crate) const kOptInccommand: OptIndex = 145;
-pub(crate) const kOptShortmess: OptIndex = 271;
+pub(crate) const K_OPT_FOLDCOLUMN: OptIndex = 102;
+pub(crate) const K_OPT_INCCOMMAND: OptIndex = 145;
+pub(crate) const K_OPT_SHORTMESS: OptIndex = 271;
 
 pub const ECMD_HIDE: c_int = 0x01;
 pub const ECMD_SET_HELP: c_int = 0x02;
@@ -741,7 +741,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                     *s = NUL;
                     if s == p.add(1) {
                         if last_search_pat().is_null() {
-                            emsg(gettext(e_noprevre));
+                            emsg(gettext(E_NOPREVRE));
                             break 'sortend;
                         }
                         regmatch.regprog = vim_regcomp(last_search_pat(), RE_MAGIC);
@@ -754,14 +754,14 @@ pub fn ex_sort(eap: &mut Exarg) {
                     p = s;
                     regmatch.rm_ic = opt_vars().p_ic != 0;
                 } else {
-                    semsg!(gettext(e_invarg2), p);
+                    semsg!(gettext(E_INVARG2), p);
                     break 'sortend;
                 }
                 p = p.add(1);
             }
 
             if format_found > 1 {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 break 'sortend;
             }
 
@@ -915,11 +915,11 @@ pub fn ex_sort(eap: &mut Exarg) {
                     eap.line2,
                     MAXLNUM,
                     -deleted,
-                    kExtmarkNOOP,
+                    K_EXTMARK_NOOP,
                 );
                 msgmore(-deleted);
             } else if deleted < 0 {
-                mark_adjust(eap.line2, MAXLNUM, -deleted, 0, kExtmarkNOOP);
+                mark_adjust(eap.line2, MAXLNUM, -deleted, 0, K_EXTMARK_NOOP);
             }
 
             if change_occurred || deleted != 0 {
@@ -933,7 +933,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                     lnum - eap.line2,
                     0,
                     new_count,
-                    kExtmarkUndo,
+                    K_EXTMARK_UNDO,
                 );
                 changed_lines(curbuf_mut(), eap.line1, 0, eap.line2 + 1, -deleted, true);
             }
@@ -945,7 +945,7 @@ pub fn ex_sort(eap: &mut Exarg) {
         // sortend:
         vim_regfree(regmatch.regprog);
         if g_st().got_int {
-            emsg(gettext(e_interr));
+            emsg(gettext(E_INTERR));
         }
     }
 }
@@ -1005,7 +1005,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
                     *s = NUL;
                     if s == p.add(1) {
                         if last_search_pat().is_null() {
-                            emsg(gettext(e_noprevre));
+                            emsg(gettext(E_NOPREVRE));
                             break 'uniqend;
                         }
                         regmatch.regprog = vim_regcomp(last_search_pat(), RE_MAGIC);
@@ -1018,7 +1018,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
                     p = s;
                     regmatch.rm_ic = opt_vars().p_ic != 0;
                 } else {
-                    semsg!(gettext(e_invarg2), p);
+                    semsg!(gettext(E_INVARG2), p);
                     break 'uniqend;
                 }
                 p = p.add(1);
@@ -1138,9 +1138,9 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 MAXLNUM,
                 -deleted,
                 if change_occurred {
-                    kExtmarkUndo
+                    K_EXTMARK_UNDO
                 } else {
-                    kExtmarkNOOP
+                    K_EXTMARK_NOOP
                 },
             );
             msgmore(-deleted);
@@ -1156,7 +1156,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
         // uniqend:
         vim_regfree(regmatch.regprog);
         if g_st().got_int {
-            emsg(gettext(e_interr));
+            emsg(gettext(E_INTERR));
         }
     }
 }
@@ -1204,7 +1204,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
         }
 
         let mut last_line = curbuf_mut().b_ml.ml_line_count;
-        mark_adjust_nofold(line1, line2, last_line - line2, 0, kExtmarkNOOP);
+        mark_adjust_nofold(line1, line2, last_line - line2, 0, K_EXTMARK_NOOP);
 
         g_st().disable_fold_update += 1;
         changed_lines(
@@ -1220,7 +1220,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
         let mut line_off: c_int = 0;
         let mut byte_off: Bcount = 0;
         if dest >= line2 {
-            mark_adjust_nofold(line2 + 1, dest, -num_lines, 0, kExtmarkNOOP);
+            mark_adjust_nofold(line2 + 1, dest, -num_lines, 0, K_EXTMARK_NOOP);
             for tab in for_all_tabpages_ptr() {
                 for win in for_all_windows_in_tab_mut( &*tab) {
                     if win.w_buffer == g_st().curbuf {
@@ -1235,7 +1235,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
             line_off = -num_lines;
             byte_off = -extent_byte;
         } else {
-            mark_adjust_nofold(dest + 1, line1 - 1, num_lines, 0, kExtmarkNOOP);
+            mark_adjust_nofold(dest + 1, line1 - 1, num_lines, 0, K_EXTMARK_NOOP);
             for tab in for_all_tabpages_ptr() {
                 for win in for_all_windows_in_tab_mut( &*tab) {
                     if win.w_buffer == g_st().curbuf {
@@ -1257,7 +1257,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
             last_line,
             -(last_line - dest - extra),
             0,
-            kExtmarkNOOP,
+            K_EXTMARK_NOOP,
         );
 
         g_st().disable_fold_update += 1;
@@ -1303,7 +1303,7 @@ pub fn do_move(line1: Linenr, line2: Linenr, mut dest: Linenr) -> bool {
             dest + line_off,
             0,
             dest_byte + byte_off,
-            kExtmarkUndo,
+            K_EXTMARK_UNDO,
         );
 
         if dest >= line1 {
@@ -1379,7 +1379,7 @@ pub fn free_prev_shellcmd() {
 /// Check that `excmds_st().prevcmd` is not NULL.
 fn prevcmd_is_set() -> bool {
     if excmds_st().prevcmd.is_none() {
-            emsg(gettext(e_noprev));
+            emsg(gettext(E_NOPREV));
             return false;
         }
         true
@@ -1566,19 +1566,19 @@ fn do_filter(
         invalidate_botline_win(curwin_mut());
 
         if do_out {
-            shell_flags |= kShellOptDoOut;
+            shell_flags |= K_SHELL_OPT_DO_OUT;
         }
 
         'filterend: {
             if !do_in && do_out && stmp == 0 {
-                shell_flags |= kShellOptRead;
+                shell_flags |= K_SHELL_OPT_READ;
                 curwin_mut().w_cursor.lnum = line2;
             } else if do_in && !do_out && stmp == 0 {
-                shell_flags |= kShellOptWrite;
+                shell_flags |= K_SHELL_OPT_WRITE;
                 curbuf_mut().b_op_start.lnum = line1;
                 curbuf_mut().b_op_end.lnum = line2;
             } else if do_in && do_out && stmp == 0 {
-                shell_flags |= kShellOptRead | kShellOptWrite;
+                shell_flags |= K_SHELL_OPT_READ | K_SHELL_OPT_WRITE;
                 curbuf_mut().b_op_start.lnum = line1;
                 curbuf_mut().b_op_end.lnum = line2;
                 curwin_mut().w_cursor.lnum = line2;
@@ -1586,14 +1586,14 @@ fn do_filter(
                 if do_in {
                     itmp_owned = vim_tempname();
                     if itmp_owned.is_none() {
-                        emsg(gettext(e_notmp));
+                        emsg(gettext(E_NOTMP));
                         break 'filterend;
                     }
                 }
                 if do_out {
                     otmp_owned = vim_tempname();
                     if otmp_owned.is_none() {
-                        emsg(gettext(e_notmp));
+                        emsg(gettext(E_NOTMP));
                         break 'filterend;
                     }
                 }
@@ -1621,7 +1621,7 @@ fn do_filter(
                     true,
                 ) == FAIL
             {
-                if !ui_has(kUIMessages) {
+                if !ui_has(K_UIMESSAGES) {
                     msg_putchar(b'\n' as c_int);
                 }
                 g_st().no_wait_return -= 1;
@@ -1634,7 +1634,7 @@ fn do_filter(
                 break 'filterend;
             }
 
-            if !do_out && !ui_has(kUIMessages) {
+            if !do_out && !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as c_int);
             }
 
@@ -1652,7 +1652,7 @@ fn do_filter(
 
                 call_shell(
                     cmd_buf.as_ptr().cast_mut(),
-                    kShellOptFilter | shell_flags,
+                    K_SHELL_OPT_FILTER | shell_flags,
                     ptr::null_mut(),
                 );
                 drop(cmd_buf);
@@ -1678,7 +1678,7 @@ fn do_filter(
                         {
                             if !aborting() {
                                 msg_putchar(b'\n' as c_int);
-                                semsg!(gettext(e_cant_read_file_str), otmp);
+                                semsg!(gettext(E_CANT_READ_FILE_STR), otmp);
                             }
                             break 'error;
                         }
@@ -1689,7 +1689,7 @@ fn do_filter(
 
                     read_linecount = curbuf_mut().b_ml.ml_line_count - read_linecount;
 
-                    if (shell_flags & kShellOptRead) != 0 {
+                    if (shell_flags & K_SHELL_OPT_READ) != 0 {
                         curbuf_mut().b_op_start.lnum = line2 + 1;
                         curbuf_mut().b_op_end.lnum = curwin_mut().w_cursor.lnum;
                         appended_lines_mark(line2, read_linecount);
@@ -1697,24 +1697,24 @@ fn do_filter(
 
                     if do_in {
                         if (g_st().cmdmod.cmod_flags & CMOD_KEEPMARKS) != 0
-                            || vim_strchr(opt_vars().p_cpo, kCpoRemmark).is_null()
+                            || vim_strchr(opt_vars().p_cpo, K_CPO_REMMARK).is_null()
                         {
                             if read_linecount >= linecount {
-                                mark_adjust(line1, line2, linecount, 0, kExtmarkNOOP);
+                                mark_adjust(line1, line2, linecount, 0, K_EXTMARK_NOOP);
                             } else {
                                 mark_adjust(
                                     line1,
                                     line1 + read_linecount - 1,
                                     linecount,
                                     0,
-                                    kExtmarkNOOP,
+                                    K_EXTMARK_NOOP,
                                 );
                                 mark_adjust(
                                     line1 + read_linecount,
                                     line2,
                                     MAXLNUM,
                                     0,
-                                    kExtmarkNOOP,
+                                    K_EXTMARK_NOOP,
                                 );
                             }
                         }
@@ -1764,7 +1764,7 @@ fn do_filter(
             // error:
             curwin_mut().w_cursor = cursor_save;
             g_st().no_wait_return -= 1;
-            if !ui_has(kUIMessages) {
+            if !ui_has(K_UIMESSAGES) {
                 wait_return(0);
             }
         }
@@ -2099,7 +2099,7 @@ pub fn ex_file(eap: &mut Exarg) {
         if eap.addr_count > 0
             && (!crate::memory::cstr_is_empty(eap.arg) || eap.line2 > 0 || eap.addr_count > 1)
         {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -2110,7 +2110,7 @@ pub fn ex_file(eap: &mut Exarg) {
             g_st().redraw_tabline = true;
         }
 
-        if crate::memory::cstr_is_empty(eap.arg) || !shortmess(kShmFileinfo) {
+        if crate::memory::cstr_is_empty(eap.arg) || !shortmess(K_SHM_FILEINFO) {
             fileinfo(0, 0, eap.forceit != 0);
         }
     }
@@ -2182,7 +2182,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
         'theend: {
             if crate::memory::cstr_is_empty(ffname) {
                 if eap.cmdidx == Cmdidx::CmdSaveas as c_int {
-                    emsg(gettext(e_argreq));
+                    emsg(gettext(E_ARGREQ));
                     break 'theend;
                 }
                 other = false;
@@ -2196,7 +2196,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             }
 
             if other {
-                if !vim_strchr(opt_vars().p_cpo, kCpoAltwrite).is_null()
+                if !vim_strchr(opt_vars().p_cpo, K_CPO_ALTWRITE).is_null()
                     || eap.cmdidx == Cmdidx::CmdSaveas as c_int
                 {
                     alt_buf = setaltfname(ffname, fname, 1);
@@ -2204,7 +2204,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                     alt_buf = buflist_findname(ffname);
                 }
                 if !alt_buf.is_null() && (*alt_buf).b_ml.ml_mfp.is_some() {
-                    emsg(gettext(e_bufloaded));
+                    emsg(gettext(E_BUFLOADED));
                     break 'theend;
                 }
             }
@@ -2364,14 +2364,14 @@ pub fn check_overwrite(
             || (!bt_nofilename(Some(&*buf))
                 && ((buf.b_flags & BF_NOTEDITED) != 0
                     || ((buf.b_flags & BF_NEW) != 0
-                        && vim_strchr(opt_vars().p_cpo, kCpoOvernew).is_null())
+                        && vim_strchr(opt_vars().p_cpo, K_CPO_OVERNEW).is_null())
                     || (buf.b_flags & BF_READERR) != 0)))
             && opt_vars().p_wa == 0
             && os_path_exists(ffname)
         {
             if eap.forceit == 0 && eap.append == 0 {
                 if os_isdir(ffname) {
-                    semsg!(gettext(e_isadir2), ffname);
+                    semsg!(gettext(E_ISADIR2), ffname);
                     return false;
                 }
                 if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
@@ -2389,7 +2389,7 @@ pub fn check_overwrite(
                     }
                     eap.forceit = 1;
                 } else {
-                    emsg(gettext(e_exists));
+                    emsg(gettext(E_EXISTS));
                     return false;
                 }
             }
@@ -2578,7 +2578,7 @@ fn check_readonly(forceit: &mut c_int, buf: &mut FileBuf) -> bool {
                 }
                 return true;
             } else if buf.b_p_ro != 0 {
-                emsg(gettext(e_readonly));
+                emsg(gettext(E_READONLY));
             } else {
                 semsg!(
                     gettext(c"E505: \"%s\" is read-only (add ! to override)"),
@@ -2866,7 +2866,7 @@ pub fn do_ecmd(
                     break 'theend;
                 }
                 if (*buf).b_locked_split > 0 {
-                    emsg(gettext(e_cannot_switch_to_a_closing_buffer));
+                    emsg(gettext(E_CANNOT_SWITCH_TO_A_CLOSING_BUFFER));
                     break 'theend;
                 }
                 if curwin_mut().w_alt_fnum == (*buf).b_fnum && prev_alt_fnum != 0 {
@@ -3185,7 +3185,7 @@ pub fn do_ecmd(
             if oldbuf && !auto_buf {
                 let msg_scroll_save = g_st().msg_scroll;
 
-                if shortmess(kShmOverall) && g_st().msg_listdo_overwrite == 0 && !g_st().exiting && opt_vars().p_verbose == 0
+                if shortmess(K_SHM_OVERALL) && g_st().msg_listdo_overwrite == 0 && !g_st().exiting && opt_vars().p_verbose == 0
                 {
                     g_st().msg_scroll = 0;
                 }
@@ -3196,7 +3196,7 @@ pub fn do_ecmd(
                 g_st().msg_scroll = msg_scroll_save;
                 g_st().msg_scrolled_ign = true;
 
-                if !shortmess(kShmFileinfo) {
+                if !shortmess(K_SHM_FILEINFO) {
                     fileinfo(0, 1, false);
                 }
 
@@ -3226,7 +3226,7 @@ pub fn do_ecmd(
                 redraw_curbuf_later(UPD_NOT_VALID);
             }
 
-            update_cwd(kCdCauseBuffer);
+            update_cwd(K_CD_CAUSE_BUFFER);
 
             do_autochdir();
         }
@@ -3612,12 +3612,12 @@ pub fn ex_z(eap: &mut Exarg) {
 pub fn check_secure() -> bool {
     if g_st().secure != 0 {
             g_st().secure = 2;
-            emsg(gettext(e_curdir));
+            emsg(gettext(E_CURDIR));
             return true;
         }
 
         if g_st().sandbox != 0 {
-            emsg(gettext(e_sandbox));
+            emsg(gettext(E_SANDBOX));
             return true;
         }
         false
@@ -3932,7 +3932,7 @@ fn do_sub(
             if crate::memory::cstr_first_byte(cmd) == b'\\' {
                 cmd = cmd.add(1);
                 if vim_strchr(c"/?&", (crate::memory::cstr_first_byte(cmd)) as c_int).is_null() {
-                    emsg(gettext(e_backslash));
+                    emsg(gettext(E_BACKSLASH));
                     return 0;
                 }
                 if crate::memory::cstr_first_byte(cmd) != b'&' {
@@ -3982,7 +3982,7 @@ fn do_sub(
             }
         } else if eap.skip == 0 {
             let Some(ref old_sub_cstr) = excmds_st().old_sub.sub else {
-                emsg(gettext(e_nopresub));
+                emsg(gettext(E_NOPRESUB));
                 return 0;
             };
             pat = NvimString {
@@ -4010,11 +4010,11 @@ fn do_sub(
             let count_arg = cmd;
             i = getdigits_int(&raw mut cmd, false, c_int::MAX);
             if i <= 0 && eap.skip == 0 && excmds_st().subflags.do_error {
-                emsg(gettext(e_zerocount));
+                emsg(gettext(E_ZEROCOUNT));
                 return 0;
             } else if i == c_int::MAX {
                 semsg!(
-                    gettext(e_val_too_large_len),
+                    gettext(E_VAL_TOO_LARGE_LEN),
                     cmd.offset_from(count_arg) as c_int,
                     count_arg,
                 );
@@ -4029,7 +4029,7 @@ fn do_sub(
         if !crate::memory::cstr_is_empty(cmd) && crate::memory::cstr_first_byte(cmd) != b'"' {
             eap.nextcmd = check_nextcmd(cmd);
             if eap.nextcmd.is_null() {
-                semsg!(gettext(e_trailing_arg), cmd);
+                semsg!(gettext(E_TRAILING_ARG), cmd);
                 return 0;
             }
         }
@@ -4039,7 +4039,7 @@ fn do_sub(
         }
 
         if !excmds_st().subflags.do_count && !modifiable(curbuf_mut()) {
-            emsg(gettext(e_modifiable));
+            emsg(gettext(E_MODIFIABLE));
             return 0;
         }
 
@@ -4062,7 +4062,7 @@ fn do_sub(
         )
         {
             if excmds_st().subflags.do_error {
-                emsg(gettext(e_invcmd));
+                emsg(gettext(E_INVCMD));
             }
             return 0;
         }
@@ -4198,7 +4198,7 @@ fn do_sub(
                                 do_check_cursorbind();
                             }
 
-                            if !vim_strchr(opt_vars().p_cpo, kCpoUndo).is_null() {
+                            if !vim_strchr(opt_vars().p_cpo, K_CPO_UNDO).is_null() {
                                 g_st().no_u_sync += 1;
                             }
 
@@ -4281,7 +4281,7 @@ fn do_sub(
                                 }
 
                                 g_st().need_wait_return = false;
-                                if typed == b'q' as c_int || typed == ESC || typed == Ctrl_C {
+                                if typed == b'q' as c_int || typed == ESC || typed == CTRL_C_CONST {
                                     got_quit = true;
                                     break;
                                 }
@@ -4300,15 +4300,15 @@ fn do_sub(
                                     excmds_st().subflags.do_ask = false;
                                     break;
                                 }
-                                if typed == Ctrl_E {
+                                if typed == CTRL_E {
                                     scrollup_clamp();
-                                } else if typed == Ctrl_Y {
+                                } else if typed == CTRL_Y {
                                     scrolldown_clamp();
                                 }
                             }
                             g_st().State = save_State;
                             setmouse();
-                            if !vim_strchr(opt_vars().p_cpo, kCpoUndo).is_null() {
+                            if !vim_strchr(opt_vars().p_cpo, K_CPO_UNDO).is_null() {
                                 g_st().no_u_sync -= 1;
                             }
 
@@ -4492,7 +4492,7 @@ fn do_sub(
                                             (p1.offset_from(new_start.data()) + 1) as Colnr;
                                         *p1 = NUL;
                                         ml_append(lnum - 1, new_start.data(), plen, false);
-                                        mark_adjust(lnum + 1, MAXLNUM, 1, 0, kExtmarkNOOP);
+                                        mark_adjust(lnum + 1, MAXLNUM, 1, 0, K_EXTMARK_NOOP);
 
                                         if excmds_st().subflags.do_ask {
                                             appended_lines(lnum - 1, 1);
@@ -4593,7 +4593,7 @@ fn do_sub(
                                     m.lnum_after - m.lnum_before,
                                     m.subcols,
                                     m.subbytes,
-                                    kExtmarkUndo,
+                                    K_EXTMARK_UNDO,
                                 );
                             }
 
@@ -4610,7 +4610,7 @@ fn do_sub(
                                     lnum + nmatch_tl - 1,
                                     MAXLNUM,
                                     -nmatch_tl,
-                                    kExtmarkNOOP,
+                                    K_EXTMARK_NOOP,
                                 );
                                 if excmds_st().subflags.do_ask {
                                     deleted_lines(lnum, nmatch_tl);
@@ -4728,13 +4728,13 @@ fn do_sub(
             }
         } else if g_st().global_busy == 0 {
             if g_st().got_int {
-                emsg(gettext(e_interr));
+                emsg(gettext(E_INTERR));
             } else if got_match {
-                if opt_vars().p_ch > 0 && !ui_has(kUIMessages) {
+                if opt_vars().p_ch > 0 && !ui_has(K_UIMESSAGES) {
                     msg(c"", 0);
                 }
             } else if excmds_st().subflags.do_error {
-                semsg!(gettext(e_patnotf2), get_search_pat());
+                semsg!(gettext(E_PATNOTF2), get_search_pat());
             }
         }
 
@@ -4752,7 +4752,7 @@ fn do_sub(
 
         if cmdpreview_ns > 0 && !aborting() {
             if got_quit || profile_passed_limit(tm) {
-                set_option_direct(kOptInccommand, cstr_as_obj(c""), 0, SID_NONE);
+                set_option_direct(K_OPT_INCCOMMAND, cstr_as_obj(c""), 0, SID_NONE);
             } else if !crate::memory::cstr_is_empty(opt_vars().p_icm) && !pat.data.is_null() {
                 if excmds_st().pre_hl_id == 0 {
                     excmds_st().pre_hl_id = syn_check_group(c"Substitute", 10);
@@ -4825,7 +4825,7 @@ pub fn do_sub_msg(count_only: bool) -> bool {
             return true;
         }
         if g_st().got_int {
-            emsg(gettext(e_interr));
+            emsg(gettext(E_INTERR));
             return true;
         }
         false
@@ -4876,7 +4876,7 @@ pub fn ex_global(eap: &mut Exarg) {
         if crate::memory::cstr_first_byte(cmd) == b'\\' {
             cmd = cmd.add(1);
             if vim_strchr(c"/?&", (crate::memory::cstr_first_byte(cmd)) as c_int).is_null() {
-                emsg(gettext(e_backslash));
+                emsg(gettext(E_BACKSLASH));
                 return;
             }
             if crate::memory::cstr_first_byte(cmd) == b'&' {
@@ -4926,7 +4926,7 @@ pub fn ex_global(eap: &mut Exarg) {
             &mut regmatch,
         )
         {
-            emsg(gettext(e_invcmd));
+            emsg(gettext(E_INVCMD));
             return;
         }
 
@@ -4973,7 +4973,7 @@ pub fn ex_global(eap: &mut Exarg) {
             }
 
             if g_st().got_int {
-                msg(gettext(e_interr), 0);
+                msg(gettext(E_INTERR), 0);
             } else if ndone == 0 {
                 if type_char == b'v' as c_int {
                     smsg!(
@@ -5055,7 +5055,7 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
         for wp in for_all_windows_ptr() {
             if (*wp).w_onebuf_opt.wo_pvw != 0 {
                 if use_previewpopup {
-                    if (*wp).w_kind != kWinPreview {
+                    if (*wp).w_kind != K_WIN_PREVIEW {
                         continue;
                     }
                 } else if (*wp).w_floating {
@@ -5070,7 +5070,7 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
         }
 
         if use_previewpopup {
-            let wp = win_float_special(false, true, kWinPreview);
+            let wp = win_float_special(false, true, K_WIN_PREVIEW);
             if wp.is_null() {
                 return false;
             }
@@ -5095,7 +5095,7 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
         curwin_mut().w_onebuf_opt.wo_crb = 0;
         curwin_mut().w_onebuf_opt.wo_diff = 0;
 
-        set_option_direct(kOptFoldcolumn, cstr_as_obj(c"0"), 0, SID_NONE);
+        set_option_direct(K_OPT_FOLDCOLUMN, cstr_as_obj(c"0"), 0, SID_NONE);
         true
     }
 }
@@ -5115,7 +5115,7 @@ fn show_sub(
         let orig_buf = g_st().curbuf;
         let mut cmdpreview_buf: *mut FileBuf = ptr::null_mut();
 
-        set_option_direct(kOptShortmess, cstr_as_obj(c"F"), 0, SID_NONE);
+        set_option_direct(K_OPT_SHORTMESS, cstr_as_obj(c"F"), 0, SID_NONE);
 
         for curres in subresults {
             if curres.start.lnum >= old_cusr.lnum {
@@ -5221,7 +5221,7 @@ fn show_sub(
             bufhl_add_hl_pos_offset( &mut *orig_buf, cmdpreview_ns, hl_id, m.start, m.end, 0);
         }
 
-        set_option_direct(kOptShortmess, cstr_as_obj(save_shm_p.as_ptr()), 0, SID_NONE);
+        set_option_direct(K_OPT_SHORTMESS, cstr_as_obj(save_shm_p.as_ptr()), 0, SID_NONE);
 
         if preview { 2 } else { 1 }
     }

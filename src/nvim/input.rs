@@ -17,13 +17,13 @@ use crate::eval::vars::{
 };
 use crate::event::r#loop::{main_loop_events, uv_strerror};
 use crate::event::multiqueue::{MultiQueue, multiqueue_empty};
-use crate::ex_cmds::{Ctrl_C, check_secure};
+use crate::ex_cmds::{CTRL_C_CONST, check_secure};
 use crate::ex_docmd::update_topline_cursor;
 use crate::ex_getln::{
-    Ctrl_O, K_LUA, get_cmdline_info, kOptBoFlagError, putcmdline, redrawcmd, redrawcmdline,
+    CTRL_O, K_LUA, get_cmdline_info, K_OPT_BO_FLAG_ERROR, putcmdline, redrawcmd, redrawcmdline,
     unputcmdline,
 };
-use crate::extmark::{TriState, kFalse, kNone};
+use crate::extmark::{TriState, K_FALSE, K_NONE};
 use crate::fileio::fputc;
 use crate::globals::*;
 use crate::input_cmdatom::{
@@ -43,7 +43,7 @@ use crate::keycodes::{
     KE_PLUG, KE_SNR, KS_EXTRA, KS_MODIFIER, MOD_MASK_ALT, MOD_MASK_CTRL, MOD_MASK_SHIFT, NL, TAB,
     special_to_buf, termcap2key,
 };
-use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_exec_on_key};
+use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref, nlua_exec_on_key};
 use crate::mapping::{
     MAXMAPLEN, REMAP_NONE, REMAP_YES, eval_map_expr, get_buf_maphash_list, get_maphash_list,
     langmap_adjust_mb, map_luaid_get, Mapblock, Typebuf,
@@ -118,7 +118,7 @@ const K_SELECT_STRING: &[u8; 4] = b"\x80\xf5X\0";
 const ESC_STR: &CStr = c"\x1b";
 const NL_STR: &CStr = c"\n";
 
-pub(crate) const kInsNone: c_int = 0;
+pub(crate) const K_INS_NONE: c_int = 0;
 
 const E_RECURSIVE_MAPPING: &CStr = c"E223: Recursive mapping";
 const E_CMD_MAPPING_MUST_END_WITH_CR: &CStr = c"E1255: <Cmd> mapping must end with <CR>";
@@ -319,10 +319,10 @@ fn tb_noremap_ptr() -> *mut u8 {
 }
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
-use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
+use crate::cmdexpand::{CTRL_N, CTRL_P, MB_MAXBYTES};
 use crate::keycodes::{k_second, k_third};
 use crate::lua::converter::LUA_NOREF;
-use crate::regexp::Ctrl_V;
+use crate::regexp::CTRL_V_CONST;
 
 #[inline]
 pub fn mb_byte2len_check(b: c_int) -> c_int {
@@ -370,7 +370,7 @@ pub fn get_recorded() -> std::ffi::CString {
             bytes.truncate(len);
         }
 
-        if len > 0 && g_st().restart_edit != 0 && bytes[len - 1] == Ctrl_O as u8 {
+        if len > 0 && g_st().restart_edit != 0 && bytes[len - 1] == CTRL_O as u8 {
             bytes.pop();
         }
 
@@ -644,7 +644,7 @@ pub fn beep_flush() {
     if g_st().emsg_silent == 0 && !mc_replaying() {
             flush_buffers(FLUSH_MINIMAL);
         }
-        vim_beep(kOptBoFlagError);
+        vim_beep(K_OPT_BO_FLAG_ERROR);
 }
 
 /// Starts capturing a new change.
@@ -775,7 +775,7 @@ pub fn sb_add_lit(buf: &mut Vec<c_char>, str_: impl crate::strings::IntoCCharPtr
                 || c == DEL
                 || (crate::memory::cstr_is_empty(s) && (c == b'0' as c_int || c == b'^' as c_int))
             {
-                sb_add_char(buf, Ctrl_V);
+                sb_add_char(buf, CTRL_V_CONST);
             }
 
             if crate::memory::cstr_is_empty(s) && c == b'0' as c_int {
@@ -897,7 +897,7 @@ pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) { l
             if !crate::memory::cstr_is_empty(arg) {
                 let c = mb_cptr2char_adv(&raw mut arg);
                 if literally && ((c < b' ' as c_int && c != TAB) || c == DEL) {
-                    stuffcharReadbuff(Ctrl_V);
+                    stuffcharReadbuff(CTRL_V_CONST);
                 }
                 stuffcharReadbuff(c);
             }
@@ -1035,7 +1035,7 @@ pub fn ins_typebuf(
             let newoff = (MAXMAPLEN + 4) as c_int;
             let extra = addlen + newoff + (4 * (MAXMAPLEN + 4)) as c_int;
             if g_st().typebuf.tb_len > c_int::MAX - extra {
-                emsg(gettext(e_command_too_complex));
+                emsg(gettext(E_COMMAND_TOO_COMPLEX));
                 setcursor();
                 return false;
             }
@@ -1333,7 +1333,7 @@ fn ungetchars(len: c_int, recorded: bool) {
 
 /// Sync undo when typed characters are obtained from the typeahead buffer.
 pub fn may_sync_undo() {
-    if ((g_st().State & (MODE_INSERT | MODE_CMDLINE)) == 0 || g_st().Ins.moved != kInsNone) && inp_st().curscript < 0 {
+    if ((g_st().State & (MODE_INSERT | MODE_CMDLINE)) == 0 || g_st().Ins.moved != K_INS_NONE) && inp_st().curscript < 0 {
             u_sync(false);
         }
 }
@@ -1405,7 +1405,7 @@ pub fn restore_typeahead(tp: &mut Tasave) {
 pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) { let name = name.into_c_char_ptr();
     unsafe {
         if inp_st().curscript + 1 == NSCRIPT as c_int {
-            emsg(gettext(e_nesting));
+            emsg(gettext(E_NESTING));
             return;
         }
 
@@ -1426,7 +1426,7 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) { let
         let error = file_open(&mut *scriptin_ptr, namebuff_ptr, K_FILE_READ_ONLY, 0);
         if error != 0 {
             semsg!(
-                gettext(e_notopen_2),
+                gettext(E_NOTOPEN_2),
                 name,
                 uv_strerror(error),
             );
@@ -1875,7 +1875,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
             if allow_number {
                 allow_number = tv_dict_get_bool(d.as_ref(), c"number", 1) != 0;
             } else if tv_dict_has_key(d.as_ref(), c"number") {
-                semsg!(gettext(e_invarg2), c"number");
+                semsg!(gettext(E_INVARG2), c"number");
             }
 
             simplify = tv_dict_get_bool(d.as_ref(), c"simplify", 1) != 0;
@@ -1887,7 +1887,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                     && crate::memory::cstr_as_bytes(cursor_str) != b"msg"
                 {
                     semsg!(
-                        gettext(e_invargNval),
+                        gettext(E_INVARG_NVAL),
                         c"cursor",
                         cursor_str,
                     );
@@ -2077,7 +2077,7 @@ fn at_ins_compl_key() -> bool {
         }
         !ctrl_x_mode_eval()
             && ((ctrl_x_mode_not_default() && vim_is_ctrl_x_key(c))
-                || (compl_status_local() && (c == Ctrl_N || c == Ctrl_P)))
+                || (compl_status_local() && (c == CTRL_N || c == CTRL_P)))
     }
 }
 
@@ -2589,7 +2589,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                         {
                             c = ESC;
                         } else {
-                            c = Ctrl_C;
+                            c = CTRL_C_CONST;
                         }
                         flush_buffers(FLUSH_INPUT);
 
@@ -2754,7 +2754,7 @@ fn vgetorpeek(advance: bool) -> c_int {
                         c = if (g_st().State & MODE_CMDLINE) != 0
                             || (g_st().cmdwin_type > 0 && inp_st().VGETORPEEK_TC == ESC)
                         {
-                            Ctrl_C
+                            CTRL_C_CONST
                         } else {
                             ESC
                         };
@@ -2965,7 +2965,7 @@ fn inchar(buf: *mut u8, maxlen: c_int, wait_time: c_long) -> c_int {
                 let mut dum = [0u8; DUM_LEN + 1];
                 loop {
                     len = input_get(dum.as_mut_ptr(), DUM_LEN as c_int, 0, 0, ptr::null_mut());
-                    if len == 0 || (len == 1 && dum[0] == Ctrl_C as u8) {
+                    if len == 0 || (len == 1 && dum[0] == CTRL_C_CONST as u8) {
                         break;
                     }
                 }
@@ -3219,7 +3219,7 @@ pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
             ref_,
             ptr::null(),
             args,
-            kRetNilBool,
+            K_RET_NIL_BOOL,
             None,
             Some(&mut err),
         );
@@ -3246,14 +3246,14 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
             return;
         }
 
-        if state != kNone {
-            let c = if state == kFalse {
+        if state != K_NONE {
+            let c = if state == K_FALSE {
                 K_PASTE_START
             } else {
                 K_PASTE_END
             };
             if need_redo {
-                if state == kFalse && (g_st().State & MODE_INSERT) == 0 {
+                if state == K_FALSE && (g_st().State & MODE_INSERT) == 0 {
                     redo_new(CmdSpec::default());
                 }
                 sb_add_char(&mut inp_st().redobuff.cur.body, c);
@@ -3383,7 +3383,7 @@ mod tests {
 
         let mut mods = MOD_MASK_CTRL as c_int;
         let merged = merge_modifiers(b'c' as c_int, &mut mods);
-        assert_eq!(merged, Ctrl_C);
+        assert_eq!(merged, CTRL_C_CONST);
         assert_eq!(mods, 0);
     }
 }

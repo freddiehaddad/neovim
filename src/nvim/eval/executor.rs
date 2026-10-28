@@ -181,7 +181,7 @@ pub fn eexe_mod_op(tv1: &mut TypVal,tv2: &TypVal, op: impl crate::strings::IntoC
         || tv2.v_type == VarType::VarDict
         || (matches!(tv2.v_type, VarType::VarBool | VarType::VarSpecial) && op_byte == b'.')
     {
-        semsg!(e_letwrong, op);
+        semsg!(E_LETWRONG, op);
         return false;
     }
 
@@ -199,7 +199,7 @@ pub fn eexe_mod_op(tv1: &mut TypVal,tv2: &TypVal, op: impl crate::strings::IntoC
     };
 
     if !retval {
-        semsg!(e_letwrong, op);
+        semsg!(E_LETWRONG, op);
     }
 
     retval

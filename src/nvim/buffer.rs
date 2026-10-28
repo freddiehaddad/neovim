@@ -1,7 +1,7 @@
 //! Functions for dealing with the buffer structure (`src/nvim/buffer.c`).
 
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO, cstr_as_string, tv_dict_is_watched};
-use crate::api::win_config::{UIExtension, kCtxNoDisplay, kWinStyleMinimal};
+use crate::api::win_config::{UIExtension, K_CTX_NO_DISPLAY, K_WIN_STYLE_MINIMAL};
 use crate::arglist::{ML_EMPTY, check_arg_idx};
 use crate::autocmd::{
     EVENT_BUFADD, EVENT_BUFDELETE, EVENT_BUFENTER, EVENT_BUFHIDDEN, EVENT_BUFLEAVE, EVENT_BUFNEW,
@@ -91,7 +91,7 @@ use crate::os::fs::{CASE_INSENSITIVE_FILENAME, FileID, os_fileid, os_fileid_equa
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::os::time::os_time;
 use crate::path::{
-    FullName_save, after_pathsep, concat_fnames_cstr, fix_fname, get_past_head, kPathCmpLiteral,
+    FullName_save, after_pathsep, concat_fnames_cstr, fix_fname, get_past_head, K_PATH_CMP_LITERAL,
     path_equal, path_fix_case, path_tail, path_tail_with_sep, to_slash,
 };
 use crate::plines::win_get_fill;
@@ -783,8 +783,8 @@ pub const BFA_WIPE: c_int = 2;
 pub const BFA_KEEP_UNDO: c_int = 4;
 pub const BFA_IGNORE_ABORT: c_int = 8;
 
-const kBffClearWinInfo: c_int = 1;
-const kBffInitChangedtick: c_int = 2;
+const K_BFF_CLEAR_WIN_INFO: c_int = 1;
+const K_BFF_INIT_CHANGEDTICK: c_int = 2;
 
 pub(crate) const NOTDONE: c_int = 2;
 pub(crate) const MAXLNUM: Linenr = 0x7fffffff;
@@ -803,28 +803,28 @@ pub(crate) const VALID_TOPLINE: c_int = 0x80;
 pub(crate) const MF_DIRTY_YES: c_int = 1;
 pub(crate) const MF_DIRTY_YES_NOSYNC: c_int = 2;
 
-pub(crate) const kShmRo: c_int = b'r' as c_int;
-const kShmMod: c_int = b'm' as c_int;
-pub(crate) const kShmFileinfo: c_int = b'F' as c_int;
-const kCpoIntmod: c_int = b'i' as c_int;
+pub(crate) const K_SHM_RO: c_int = b'r' as c_int;
+const K_SHM_MOD: c_int = b'm' as c_int;
+pub(crate) const K_SHM_FILEINFO: c_int = b'F' as c_int;
+const K_CPO_INTMOD: c_int = b'i' as c_int;
 
-pub(crate) const kMarkAdjustNormal: c_int = 0;
-pub(crate) const kExtmarkNoUndo: c_int = 2;
+pub(crate) const K_MARK_ADJUST_NORMAL: c_int = 0;
+pub(crate) const K_EXTMARK_NO_UNDO: c_int = 2;
 
 pub(crate) const SEA_NONE: c_int = 0;
 pub(crate) const SEA_DIALOG: c_int = 1;
 pub(crate) const SEA_QUIT: c_int = 2;
 pub(crate) const SEA_RECOVER: c_int = 3;
 
-pub(crate) const kOptJopFlagView: c_uint = 0x02;
-const kOptJopFlagClean: c_uint = 0x04;
+pub(crate) const K_OPT_JOP_FLAG_VIEW: c_uint = 0x02;
+const K_OPT_JOP_FLAG_CLEAN: c_uint = 0x04;
 
-const kOptSwbFlagSplit: c_uint = 0x04;
-pub(crate) const kOptSwbFlagNewtab: c_uint = 0x08;
-pub(crate) const kOptSwbFlagVsplit: c_uint = 0x10;
+const K_OPT_SWB_FLAG_SPLIT: c_uint = 0x04;
+pub(crate) const K_OPT_SWB_FLAG_NEWTAB: c_uint = 0x08;
+pub(crate) const K_OPT_SWB_FLAG_VSPLIT: c_uint = 0x10;
 
-pub(crate) const kCdCauseBuffer: c_int = 2;
-pub(crate) const kCdCauseAuto: c_int = 3;
+pub(crate) const K_CD_CAUSE_BUFFER: c_int = 2;
+pub(crate) const K_CD_CAUSE_AUTO: c_int = 3;
 
 pub(crate) const BCO_ALWAYS: c_int = 2;
 
@@ -835,12 +835,12 @@ pub(crate) const VAR_SCOPE: c_int = 1;
 
 pub(crate) const NO_LOCAL_UNDOLEVEL: OptInt = -123456;
 
-pub(crate) const kUIMessages: UIExtension = 4;
+pub(crate) const K_UIMESSAGES: UIExtension = 4;
 
 pub(crate) const STL_IN_ICON: c_int = 1;
 pub(crate) const STL_IN_TITLE: c_int = 2;
-const kOptIconstring: OptIndex = 139;
-const kOptTitlestring: OptIndex = 331;
+const K_OPT_ICONSTRING: OptIndex = 139;
+const K_OPT_TITLESTRING: OptIndex = 331;
 
 pub(crate) const SID_MODELINE: c_int = -1;
 pub(crate) const OPT_MODELINE: c_int = 0x04;
@@ -950,7 +950,7 @@ pub fn get_highest_fnum() -> c_int {
 /// Read data from buffer for retrying.
 fn read_buffer(read_stdin: bool,eap: Option<&Exarg>, flags: c_int) -> bool {
      {
-        let silent = shortmess(kShmFileinfo);
+        let silent = shortmess(K_SHM_FILEINFO);
 
         let mut line_count = curbuf_mut().b_ml.ml_line_count;
         let mut retval = readfile(
@@ -1031,7 +1031,7 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&Exarg>, flags_arg: c_int) -> c_
         let mut read_fifo = false;
         #[cfg(not(unix))]
         let read_fifo = false;
-        let silent = shortmess(kShmFileinfo);
+        let silent = shortmess(K_SHM_FILEINFO);
 
         if g_st().readonlymode
             && !curbuf_mut().b_ffname.is_null()
@@ -1172,9 +1172,9 @@ pub fn open_buffer(read_stdin: bool,eap: Option<&Exarg>, flags_arg: c_int) -> c_
             parse_cino(curbuf_mut());
         }
 
-        if (g_st().got_int && !vim_strchr(opt_vars().p_cpo, kCpoIntmod).is_null())
+        if (g_st().got_int && !vim_strchr(opt_vars().p_cpo, K_CPO_INTMOD).is_null())
             || curbuf_mut().b_modified_was_set
-            || (aborting() && !vim_strchr(opt_vars().p_cpo, kCpoIntmod).is_null())
+            || (aborting() && !vim_strchr(opt_vars().p_cpo, K_CPO_INTMOD).is_null())
         {
             changed(crate::globals::curbuf_mut());
         } else if retval != FAIL && !read_stdin && !read_fifo {
@@ -1412,13 +1412,13 @@ pub fn close_buffer(
                 win.as_ref(),
             ) && !bufref_valid(Some(&bufref))
             {
-                emsg(gettext(e_auabort));
+                emsg(gettext(E_AUABORT));
                 return false;
             }
             (*buf).b_locked -= 1;
             (*buf).b_locked_split -= 1;
             if abort_if_last && one_window( &mut *win, ptr::null_mut()) {
-                emsg(gettext(e_auabort));
+                emsg(gettext(E_AUABORT));
                 return false;
             }
 
@@ -1428,13 +1428,13 @@ pub fn close_buffer(
                 if apply_autocmds(EVENT_BUFHIDDEN, (*buf).b_fname, (*buf).b_fname, false, buf)
                     && !bufref_valid(Some(&bufref))
                 {
-                    emsg(gettext(e_auabort));
+                    emsg(gettext(E_AUABORT));
                     return false;
                 }
                 (*buf).b_locked -= 1;
                 (*buf).b_locked_split -= 1;
                 if abort_if_last && one_window( &mut *win, ptr::null_mut()) {
-                    emsg(gettext(e_auabort));
+                    emsg(gettext(E_AUABORT));
                     return false;
                 }
             }
@@ -1511,7 +1511,7 @@ pub fn close_buffer(
             free_buffer(buf);
         } else {
             if del_buf {
-                free_buffer_stuff( &mut *buf, kBffClearWinInfo | kBffInitChangedtick);
+                free_buffer_stuff( &mut *buf, K_BFF_CLEAR_WIN_INFO | K_BFF_INIT_CHANGEDTICK);
                 (*buf).b_flags = BF_CHECK_RO | BF_NEVERLOADED;
                 (*buf).b_p_initialized = false;
             }
@@ -1649,8 +1649,8 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: c_int) -> bool {
                 MAXLNUM,
                 -count,
                 false,
-                kMarkAdjustNormal,
-                kExtmarkNoUndo,
+                K_MARK_ADJUST_NORMAL,
+                K_EXTMARK_NO_UNDO,
             );
         }
 
@@ -1738,7 +1738,7 @@ fn free_buffer(buf: *mut FileBuf) {
     unsafe {
         g_st().buffer_handles.remove(&(*buf).b_fnum);
         buf_st().buf_free_count += 1;
-        free_buffer_stuff( &mut *buf, kBffClearWinInfo);
+        free_buffer_stuff( &mut *buf, K_BFF_CLEAR_WIN_INFO);
         if (*(*buf).b_vars()).dv_refcount > DO_NOT_FREE_CNT {
             tv_dict_add(
                 &mut *(*buf).b_vars(),
@@ -1775,7 +1775,7 @@ fn clear_wininfo(buf: &mut FileBuf) {
 
 fn free_buffer_stuff(buf: &mut FileBuf, free_flags: c_int) {
     unsafe {
-        if (free_flags & kBffClearWinInfo) != 0 {
+        if (free_flags & K_BFF_CLEAR_WIN_INFO) != 0 {
             clear_wininfo(buf);
             free_buf_options(buf, true);
             buf.b_s.b_langp = Vec::new();
@@ -1789,7 +1789,7 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: c_int) {
             hash_remove(&mut (*buf.b_vars()).dv_hashtab,  &mut *changedtick_hi);
         }
         vars_clear(&mut (*buf.b_vars()).dv_hashtab);
-        if (free_flags & kBffInitChangedtick) != 0 {
+        if (free_flags & K_BFF_INIT_CHANGEDTICK) != 0 {
             buf_init_changedtick(buf);
         }
         buf.b_ucmds.clear();
@@ -1920,7 +1920,7 @@ pub fn do_bufdel(
         } else {
             if addr_count == 2 {
                 if !crate::memory::cstr_is_empty(arg) {
-                    return ex_errmsg(e_trailing_arg, arg);
+                    return ex_errmsg(E_TRAILING_ARG, arg);
                 }
                 bnr = start_bnr;
             } else {
@@ -2070,7 +2070,7 @@ fn empty_curbuf(close_others: bool, forceit: c_int, action: c_int) -> bool {
 
         if !close_others {
             g_st().need_fileinfo = false;
-        } else if retval && !shortmess(kShmFileinfo) {
+        } else if retval && !shortmess(K_SHM_FILEINFO) {
             g_st().need_fileinfo = true;
         }
 
@@ -2164,7 +2164,7 @@ fn do_buffer_ext(
         if buf.is_null() {
             if start == DOBUF_FIRST {
                 if !unload {
-                    semsg!(gettext(e_nobufnr), i64::from(count));
+                    semsg!(gettext(E_NOBUFNR), i64::from(count));
                 }
             } else if dir == FORWARD {
                 emsg(gettext(c"E87: Cannot go beyond last buffer"));
@@ -2182,7 +2182,7 @@ fn do_buffer_ext(
         }
 
         if (action == DOBUF_GOTO || action == DOBUF_SPLIT) && ((*buf).b_flags & BF_DUMMY) != 0 {
-            semsg!(gettext(e_nobufnr), count);
+            semsg!(gettext(E_NOBUFNR), count);
             return false;
         }
 
@@ -2209,7 +2209,7 @@ fn do_buffer_ext(
                 } else {
                     semsg!(
                         gettext(
-                            e_no_write_since_last_change_for_buffer_nr_add_bang_to_override,
+                            E_NO_WRITE_SINCE_LAST_CHANGE_FOR_BUFFER_NR_ADD_BANG_TO_OVERRIDE,
                         ),
                         (*buf).b_fnum,
                     );
@@ -2261,7 +2261,7 @@ fn do_buffer_ext(
             }
 
             if buf != g_st().curbuf {
-                if (opt_vars().jop_flags & kOptJopFlagClean) != 0 {
+                if (opt_vars().jop_flags & K_OPT_JOP_FLAG_CLEAN) != 0 {
                     mark_jumplist_forget_file(curwin_mut(), buf_fnum);
                 }
 
@@ -2278,7 +2278,7 @@ fn do_buffer_ext(
                         g_st().firstwin,
                         g_st().curtab,
                         ptr::null_mut(),
-                        kCtxNoDisplay,
+                        K_CTX_NO_DISPLAY,
                     );
                     debug_assert!(rv);
                     do_buffer_ext(action, start, dir, count, flags);
@@ -2299,14 +2299,14 @@ fn do_buffer_ext(
             {
                 buf = g_st().au_new_curbuf.br_buf;
             } else if curwin_mut().w_jumplistlen > 0 {
-                if (opt_vars().jop_flags & kOptJopFlagClean) != 0 {
+                if (opt_vars().jop_flags & K_OPT_JOP_FLAG_CLEAN) != 0 {
                     mark_jumplist_forget_file(curwin_mut(), buf_fnum);
                 }
 
                 if curwin_mut().w_jumplistlen > 0 {
                     let mut jumpidx = curwin_mut().w_jumplistidx;
 
-                    if (opt_vars().jop_flags & kOptJopFlagClean) != 0 {
+                    if (opt_vars().jop_flags & K_OPT_JOP_FLAG_CLEAN) != 0 {
                         if jumpidx == curwin_mut().w_jumplistlen {
                             jumpidx = curwin_mut().w_jumplistlen - 1;
                             curwin_mut().w_jumplistidx = jumpidx;
@@ -2319,7 +2319,7 @@ fn do_buffer_ext(
                     }
 
                     let forward = jumpidx;
-                    while (opt_vars().jop_flags & kOptJopFlagClean) != 0 || jumpidx != curwin_mut().w_jumplistidx
+                    while (opt_vars().jop_flags & K_OPT_JOP_FLAG_CLEAN) != 0 || jumpidx != curwin_mut().w_jumplistidx
                     {
                         buf = buflist_findnr(curwin_mut().w_jumplist[jumpidx as usize].fmark.fnum);
 
@@ -2338,7 +2338,7 @@ fn do_buffer_ext(
                             }
                         }
                         if !buf.is_null() {
-                            if (opt_vars().jop_flags & kOptJopFlagClean) != 0 {
+                            if (opt_vars().jop_flags & K_OPT_JOP_FLAG_CLEAN) != 0 {
                                 curwin_mut().w_jumplistidx = jumpidx;
                                 update_jumplist = false;
                             }
@@ -2426,7 +2426,7 @@ fn do_buffer_ext(
             return true;
         }
         if buf != g_st().curbuf && (*buf).b_locked_split != 0 {
-            emsg(gettext(e_cannot_switch_to_a_closing_buffer));
+            emsg(gettext(E_CANNOT_SWITCH_TO_A_CLOSING_BUFFER));
             return false;
         }
         if action == DOBUF_SPLIT && !win_split(0, 0) {
@@ -2555,7 +2555,7 @@ pub fn set_curbuf(buf: *mut FileBuf, action: c_int, update_jumplist: bool) {
             terminal_check_size(&mut *(*prevbuf).terminal);
         }
 
-        update_cwd(kCdCauseBuffer);
+        update_cwd(K_CD_CAUSE_BUFFER);
     }
 }
 
@@ -2602,7 +2602,7 @@ fn enter_buffer(buf: *mut FileBuf) {
             }
             open_buffer(false, None, 0);
         } else {
-            if g_st().msg_silent == 0 && !shortmess(kShmFileinfo) {
+            if g_st().msg_silent == 0 && !shortmess(K_SHM_FILEINFO) {
                 g_st().need_fileinfo = true;
             }
             buf_check_timestamp(curbuf_mut());
@@ -2663,7 +2663,7 @@ pub fn do_autochdir() {
         if opt_vars().p_acd != 0
             && starting_val() == 0
             && !curbuf_mut().b_ffname.is_null()
-            && vim_chdirfile(curbuf_mut().b_ffname, kCdCauseAuto)
+            && vim_chdirfile(curbuf_mut().b_ffname, K_CD_CAUSE_AUTO)
         {
             g_st().last_chdir_reason = Some(c"autochdir");
             shorten_fnames(1);
@@ -2674,11 +2674,11 @@ pub fn do_autochdir() {
 pub fn no_write_message_buf(buf: &mut FileBuf) {
     if !buf.terminal.is_null() && channel_job_running(buf.b_p_channel as u64) {
             emsg(gettext(
-                e_job_still_running_add_bang_to_end_the_job,
+                E_JOB_STILL_RUNNING_ADD_BANG_TO_END_THE_JOB,
             ));
         } else {
             semsg!(
-                gettext(e_no_write_since_last_change_for_buffer_nr_add_bang_to_override),
+                gettext(E_NO_WRITE_SINCE_LAST_CHANGE_FOR_BUFFER_NR_ADD_BANG_TO_OVERRIDE),
                 buf.b_fnum,
             );
         }
@@ -2688,11 +2688,11 @@ pub fn no_write_message() {
      {
         if !curbuf_mut().terminal.is_null() && channel_job_running(curbuf_mut().b_p_channel as u64) {
             emsg(gettext(
-                e_job_still_running_add_bang_to_end_the_job,
+                E_JOB_STILL_RUNNING_ADD_BANG_TO_END_THE_JOB,
             ));
         } else {
             emsg(gettext(
-                e_no_write_since_last_change_add_bang_to_override,
+                E_NO_WRITE_SINCE_LAST_CHANGE_ADD_BANG_TO_OVERRIDE,
             ));
         }
     }
@@ -2700,9 +2700,9 @@ pub fn no_write_message() {
 
 pub fn no_write_message_nobang(buf: &FileBuf) {
     if !buf.terminal.is_null() && channel_job_running(buf.b_p_channel as u64) {
-            emsg(gettext(e_job_still_running));
+            emsg(gettext(E_JOB_STILL_RUNNING));
         } else {
-            emsg(gettext(e_no_write_since_last_change));
+            emsg(gettext(E_NO_WRITE_SINCE_LAST_CHANGE));
         }
 }
 
@@ -2810,7 +2810,7 @@ pub fn buflist_new(
         (*buf).b_wininfo.push(WinInfo::new());
 
         if buf == g_st().curbuf {
-            free_buffer_stuff( &mut *buf, kBffInitChangedtick);
+            free_buffer_stuff( &mut *buf, K_BFF_INIT_CHANGEDTICK);
             (*buf).b_p_initialized = false;
             buf_copy_options( &mut *buf, BCO_ENTER);
             curbuf_mut().b_kmap_state |= KEYMAP_INIT;
@@ -2998,9 +2998,9 @@ pub fn buflist_getfile(
         let buf = buflist_findnr(n);
         if buf.is_null() {
             if (options & GETF_ALT) != 0 && n == 0 {
-                emsg(gettext(e_noalt));
+                emsg(gettext(E_NOALT));
             } else {
-                semsg!(gettext(e_buffer_nr_not_found), n);
+                semsg!(gettext(E_BUFFER_NR_NOT_FOUND), n);
             }
             return false;
         }
@@ -3028,14 +3028,14 @@ pub fn buflist_getfile(
             let wp = swbuf_goto_win_with_buf(buf);
 
             if wp.is_null()
-                && (opt_vars().swb_flags & (kOptSwbFlagVsplit | kOptSwbFlagSplit | kOptSwbFlagNewtab)) != 0
+                && (opt_vars().swb_flags & (K_OPT_SWB_FLAG_VSPLIT | K_OPT_SWB_FLAG_SPLIT | K_OPT_SWB_FLAG_NEWTAB)) != 0
                 && !buf_is_empty(curbuf_mut())
             {
-                if (opt_vars().swb_flags & kOptSwbFlagNewtab) != 0 {
+                if (opt_vars().swb_flags & K_OPT_SWB_FLAG_NEWTAB) != 0 {
                     tabpage_new();
                 } else if !win_split(
                     0,
-                    if (opt_vars().swb_flags & kOptSwbFlagVsplit) != 0 {
+                    if (opt_vars().swb_flags & K_OPT_SWB_FLAG_VSPLIT) != 0 {
                         WSP_VERT
                     } else {
                         0
@@ -3066,7 +3066,7 @@ pub fn buflist_getfile(
                 curwin_mut().w_cursor.coladd = 0;
                 curwin_mut().w_set_curswant = true;
             }
-            if (opt_vars().jop_flags & kOptJopFlagView) != 0 && restore_view {
+            if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 && restore_view {
                 mark_view_restore(fm.as_ref());
             }
             return true;
@@ -3092,7 +3092,7 @@ fn buflist_getfpos() {
             curwin_mut().w_set_curswant = true;
         }
 
-        if (opt_vars().jop_flags & kOptJopFlagView) != 0 {
+        if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 {
             mark_view_restore(fm.as_ref());
         }
     }
@@ -3531,7 +3531,7 @@ pub fn get_winopts(buf: &mut FileBuf) {
             && (*wip).wi_win != curwin_ptr()
             && !(*wip).wi_win.is_null()
             && (*(*wip).wi_win).w_buffer == (&raw mut *buf)
-            && (*(*wip).wi_win).w_config.style != kWinStyleMinimal
+            && (*(*wip).wi_win).w_config.style != K_WIN_STYLE_MINIMAL
         {
             let wp = (*wip).wi_win;
             copy_winopt(&mut (*wp).w_onebuf_opt, &mut curwin_mut().w_onebuf_opt);
@@ -3542,7 +3542,7 @@ pub fn get_winopts(buf: &mut FileBuf) {
             && (*wip).wi_optset
             && ((*wip).wi_win.is_null()
                 || (*wip).wi_win == curwin_ptr()
-                || (*(*wip).wi_win).w_config.style != kWinStyleMinimal)
+                || (*(*wip).wi_win).w_config.style != K_WIN_STYLE_MINIMAL)
         {
             copy_winopt(&mut (*wip).wi_opt, &mut curwin_mut().w_onebuf_opt);
             curwin_mut().w_fold_manual = (*wip).wi_fold_manual;
@@ -3558,7 +3558,7 @@ pub fn get_winopts(buf: &mut FileBuf) {
             curwin_mut().w_changelistidx = (*wip).wi_changelistidx;
         }
 
-        if curwin_mut().w_config.style == kWinStyleMinimal {
+        if curwin_mut().w_config.style == K_WIN_STYLE_MINIMAL {
             didset_window_options(curwin_mut(), false);
             win_set_minimal_style(curwin_mut());
         }
@@ -3684,7 +3684,7 @@ pub fn buflist_list(eap: &mut Exarg) {
                 };
             }
 
-            if !ui_has(kUIMessages) || g_st().msg_col > 0 {
+            if !ui_has(K_UIMESSAGES) || g_st().msg_col > 0 {
                 msg_putchar(b'\n' as c_int);
             }
             let iobuff_ptr = g_st().IObuff.as_mut_ptr();
@@ -3894,7 +3894,7 @@ pub fn getaltfname(errmsg: bool) -> *mut c_char {
 
         if !buflist_name_nr(0, &raw mut fname, &mut dummy) {
             if errmsg {
-                emsg(gettext(e_noalt));
+                emsg(gettext(E_NOALT));
             }
             return ptr::null_mut();
         }
@@ -3929,7 +3929,7 @@ fn otherfile_buf(
         if crate::memory::cstr_is_empty(ffname) || buf.b_ffname.is_null() {
             return true;
         }
-        if path_equal(ffname, buf.b_ffname, kPathCmpLiteral) {
+        if path_equal(ffname, buf.b_ffname, K_PATH_CMP_LITERAL) {
             return false;
         }
         {
@@ -4017,7 +4017,7 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
         let dontwrite = bt_dontwrite(Some(crate::globals::curbuf_mut()));
         let is_changed = curbuf_is_changed();
         let mod_str = if is_changed {
-            if shortmess(kShmMod) {
+            if shortmess(K_SHM_MOD) {
                 c" [+]".as_ptr()
             } else {
                 gettext(c" [Modified]")
@@ -4041,7 +4041,7 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
             c"".as_ptr()
         };
         let ro_str = if curbuf_mut().b_p_ro != 0 {
-            if shortmess(kShmRo) {
+            if shortmess(K_SHM_RO) {
                 gettext(c"[RO]")
             } else {
                 gettext(c"[readonly]")
@@ -4075,7 +4075,7 @@ pub fn fileinfo(fullname: c_int, shorthelp: c_int, dont_truncate: bool) {
                 buffer.add(bufferlen),
                 IOSIZE - bufferlen,
                 c"%s",
-                gettext(no_lines_msg),
+                gettext(NO_LINES_MSG),
             );
         } else if opt_vars().p_ru != 0 {
             bufferlen += vim_snprintf_safelen!(
@@ -4170,7 +4170,7 @@ pub fn maketitle() {
                         curwin_ptr(),
                         outbuf,
                         opt_vars().p_titlestring,
-                        kOptTitlestring,
+                        K_OPT_TITLESTRING,
                         0,
                         0,
                         maxlen,
@@ -4197,7 +4197,7 @@ pub fn maketitle() {
                     curwin_ptr(),
                     outbuf,
                     default_titlestring,
-                    kOptTitlestring,
+                    K_OPT_TITLESTRING,
                     0,
                     0,
                     maxlen,
@@ -4223,7 +4223,7 @@ pub fn maketitle() {
                         curwin_ptr(),
                         outbuf,
                         opt_vars().p_iconstring,
-                        kOptIconstring,
+                        K_OPT_ICONSTRING,
                         0,
                         0,
                         0,
@@ -4550,7 +4550,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
                 }
 
                 g_st().swap_exists_action = SEA_DIALOG;
-                set_curbuf(buf, DOBUF_GOTO, (opt_vars().jop_flags & kOptJopFlagClean) == 0);
+                set_curbuf(buf, DOBUF_GOTO, (opt_vars().jop_flags & K_OPT_JOP_FLAG_CLEAN) == 0);
                 if !bufref_valid(Some(&bufref)) {
                     g_st().swap_exists_action = SEA_NONE;
                     break;
@@ -4856,9 +4856,9 @@ pub fn buf_spname(buf: *mut FileBuf) -> *mut c_char {
     unsafe {
         if bt_quickfix(buf.as_ref()) {
             if (*buf).b_fnum == qf_stack_get_bufnr() {
-                return gettext(msg_qflist);
+                return gettext(MSG_QFLIST);
             }
-            return gettext(msg_loclist);
+            return gettext(MSG_LOCLIST);
         }
         if bt_nofilename(buf.as_ref()) {
             if !(*buf).b_fname.is_null() {

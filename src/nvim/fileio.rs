@@ -11,8 +11,8 @@ use crate::autocmd::{
 use crate::buffer::{
     BF_CHECK_RO, BF_NEW, BF_NOTEDITED, BLN_DUMMY, MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC,
     NOTDONE, SEA_QUIT, bt_dontwrite, bt_nofilename, bt_normal, FileBuf, buf_contents_changed,
-    buf_is_empty, buflist_new, Bufref, bufref_valid, do_modelines, kShmFileinfo, kShmRo,
-    kUIMessages, set_bufref, setfname, wipe_buffer,
+    buf_is_empty, buflist_new, Bufref, bufref_valid, do_modelines, K_SHM_FILEINFO, K_SHM_RO,
+    K_UIMESSAGES, set_bufref, setfname, wipe_buffer,
 };
 use crate::buffer_updates::buf_updates_unload;
 use crate::change::{HLF_W, appended_lines_mark, save_file_ff, unchanged};
@@ -78,7 +78,7 @@ use crate::os::input::os_breakcheck;
 use crate::os::time::{os_hrtime, time_t};
 use crate::os::users::os_get_username;
 use crate::path::{
-    add_pathsep, after_pathsep, dir_of_file_exists, kPathCmpLiteral, path_equal, path_is_absolute,
+    add_pathsep, after_pathsep, dir_of_file_exists, K_PATH_CMP_LITERAL, path_equal, path_is_absolute,
     path_shorten_fname, path_tail, path_with_url, vim_FullName, vim_ispathsep,
 };
 use crate::regexp::{RE_MAGIC, Regmatch, Regprog, vim_regcomp, vim_regexec, vim_regfree};
@@ -138,7 +138,7 @@ pub(crate) const EOL_DOS: c_int = 1;
 
 const BAD_REPLACE: c_int = b'?' as c_int;
 
-pub(crate) const kOptFileencoding: c_int = 92;
+pub(crate) const K_OPT_FILEENCODING: c_int = 92;
 
 pub(crate) const ENC_UNICODE: c_int = 0x04;
 pub(crate) const ENC_ENDIAN_L: c_int = 0x20;
@@ -149,9 +149,9 @@ pub(crate) const ENC_LATIN1: c_int = 0x200;
 
 const BF_NEW_W: c_int = 0x20;
 
-const kCpoFnamer: c_int = b'f' as c_int;
-pub(crate) const kShmOver: c_int = b'o' as c_int;
-const kShmLines: c_int = b'l' as c_int;
+const K_CPO_FNAMER: c_int = b'f' as c_int;
+pub(crate) const K_SHM_OVER: c_int = b'o' as c_int;
+const K_SHM_LINES: c_int = b'l' as c_int;
 
 pub(crate) const O_RDONLY: c_int = 0;
 pub(crate) const EINTR: c_int = 4;
@@ -229,8 +229,8 @@ fn fio_st() -> &'static mut FileioModuleState {
 use crate::arglist::ML_EMPTY;
 use crate::charset::{NL, NUL};
 use crate::eval::funcs::VIM_WARNING;
-use crate::eval::typval::kCallbackNone;
-use crate::ex_cmds::{BL_FIX, BL_WHITE, kShmOverall};
+use crate::eval::typval::K_CALLBACK_NONE_CONST;
+use crate::ex_cmds::{BL_FIX, BL_WHITE, K_SHM_OVERALL};
 use crate::ex_docmd::UNDO_HASH_SIZE;
 use crate::math::{FAIL, OK};
 use crate::option::OPT_LOCAL;
@@ -900,7 +900,7 @@ fn filemess(buf: *mut FileBuf, name: impl crate::strings::IntoCCharPtr, s: impl 
         { let _dst: *mut c_char = iobuf_ptr; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), s, _dsize - _dlen); };
 
         let msg_scroll_save = g_st().msg_scroll;
-        if shortmess(kShmOverall) && g_st().msg_listdo_overwrite == 0 && !g_st().exiting && opt_vars().p_verbose == 0 {
+        if shortmess(K_SHM_OVERALL) && g_st().msg_listdo_overwrite == 0 && !g_st().exiting && opt_vars().p_verbose == 0 {
             g_st().msg_scroll = 0;
         }
         if g_st().msg_scroll == 0 {
@@ -1049,7 +1049,7 @@ pub fn readfile(
             if curbuf_mut().b_ffname.is_null()
                 && !filtering
                 && !fname.is_null()
-                && !vim_strchr(opt_vars().p_cpo, kCpoFnamer).is_null()
+                && !vim_strchr(opt_vars().p_cpo, K_CPO_FNAMER).is_null()
                 && (flags & READ_DUMMY) == 0
                 && !set_rw_fname(fname, sfname)
             {
@@ -1130,7 +1130,7 @@ pub fn readfile(
                 }
             }
 
-            if ((shortmess(kShmOver) && g_st().msg_listdo_overwrite == 0) || curbuf_mut().b_help)
+            if ((shortmess(K_SHM_OVER) && g_st().msg_listdo_overwrite == 0) || curbuf_mut().b_help)
                 && opt_vars().p_verbose == 0
             {
                 g_st().msg_scroll = 0;
@@ -1598,7 +1598,7 @@ pub fn readfile(
                     if fio_flags == 0
                         && !read_stdin
                         && !read_buffer
-                        && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone
+                        && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != K_CALLBACK_NONE_CONST
                         && !read_fifo
                         && iconv_fd == -1
                     {
@@ -1736,7 +1736,7 @@ pub fn readfile(
                                 } else if conv_restlen > 0 {
                                     if fio_flags != 0 || iconv_fd != -1 {
                                         if can_retry {
-                                            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
+                                            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != K_CALLBACK_NONE_CONST && iconv_fd != -1 {
                                                 did_iconv = true;
                                             } else {
                                                 advance_fenc = true;
@@ -1843,7 +1843,7 @@ pub fn readfile(
                                 || from_size > CONV_RESTLEN
                             {
                                 if can_retry {
-                                    if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
+                                    if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != K_CALLBACK_NONE_CONST && iconv_fd != -1 {
                                         did_iconv = true;
                                     } else {
                                         advance_fenc = true;
@@ -1955,7 +1955,7 @@ pub fn readfile(
                                     {
                                         if p == ptr.cast::<u8>() {
                                             if can_retry {
-                                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone
+                                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != K_CALLBACK_NONE_CONST
                                                     && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
@@ -1995,7 +1995,7 @@ pub fn readfile(
 
                                         if !(0xd800..=0xdbff).contains(&u16c) {
                                             if can_retry {
-                                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone
+                                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != K_CALLBACK_NONE_CONST
                                                     && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
@@ -2050,7 +2050,7 @@ pub fn readfile(
                                         u8c = utf_ptr2char(p.cast()) as c_uint;
                                         if len == 0 {
                                             if can_retry {
-                                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone
+                                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != K_CALLBACK_NONE_CONST
                                                     && iconv_fd != -1
                                                 {
                                                     did_iconv = true;
@@ -2150,7 +2150,7 @@ pub fn readfile(
                                 }
                             }
                             if p < ptr.cast::<u8>().offset(size) && !incomplete_tail {
-                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone && iconv_fd != -1 {
+                                if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != K_CALLBACK_NONE_CONST && iconv_fd != -1 {
                                     did_iconv = true;
                                 } else {
                                     advance_fenc = true;
@@ -2419,7 +2419,7 @@ pub fn readfile(
 
             if set_options {
                 save_file_ff(curbuf_mut());
-                set_option_direct(kOptFileencoding, cstr_as_obj(fenc), OPT_LOCAL, 0);
+                set_option_direct(K_OPT_FILEENCODING, cstr_as_obj(fenc), OPT_LOCAL, 0);
             }
             drop(fenc_owned);
             if iconv_fd != -1 {
@@ -2484,7 +2484,7 @@ pub fn readfile(
                         );
                     }
                     if (flags & READ_DUMMY) == 0 {
-                        filemess(g_st().curbuf, sfname, tr(e_interr), ptr::null());
+                        filemess(g_st().curbuf, sfname, tr(E_INTERR), ptr::null());
                         if newfile {
                             curbuf_mut().b_p_ro = 1;
                         }
@@ -2543,7 +2543,7 @@ pub fn readfile(
                             iobuf_ptr.offset(buflen as isize),
                             (IOSIZE as c_int - buflen) as usize,
                             c"%s",
-                            if shortmess(kShmRo) {
+                            if shortmess(K_SHM_RO) {
                                 tr(c"[RO]")
                             } else {
                                 tr(c"[readonly]")
@@ -2883,7 +2883,7 @@ pub fn set_forced_fenc(eap: &Exarg) {
         }
 
         let fenc = enc_canonize(eap.cmd.add(eap.force_enc as usize));
-        set_option_direct(kOptFileencoding, cstr_as_obj(fenc.as_ptr()), OPT_LOCAL, 0);
+        set_option_direct(K_OPT_FILEENCODING, cstr_as_obj(fenc.as_ptr()), OPT_LOCAL, 0);
     }
 }
 
@@ -3097,7 +3097,7 @@ pub fn msg_add_lines(insert_space: c_int, lnum: Linenr, nchars: Off) {
             c"".as_ptr()
         };
 
-        if shortmess(kShmLines) {
+        if shortmess(K_SHM_LINES) {
             vim_snprintf!(
                 iobuf_ptr.add(len),
                 IOSIZE - len,
@@ -3594,7 +3594,7 @@ pub fn vim_rename(from: impl crate::strings::IntoCCharPtr, to: impl crate::strin
     unsafe {
         let mut use_tmp_file = false;
 
-        if path_equal(from, to, kPathCmpLiteral) {
+        if path_equal(from, to, K_PATH_CMP_LITERAL) {
             if opt_vars().p_fic != 0 && CStr::from_ptr(path_tail(from)) != CStr::from_ptr(path_tail(to)) {
                 use_tmp_file = true;
             } else {
@@ -3951,7 +3951,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> c_int {
                     }
                     msg_clr_eos();
                     msg_end();
-                    if g_st().emsg_silent == 0 && !g_st().in_assert_fails && !ui_has(kUIMessages) {
+                    if g_st().emsg_silent == 0 && !g_st().in_assert_fails && !ui_has(K_UIMESSAGES) {
                         msg_delay(1004, true);
                         g_st().redraw_cmdline = false;
                     }
@@ -4051,7 +4051,7 @@ pub fn buf_reload(buf: *mut FileBuf, orig_mode: c_int, reload_options: bool) {
                 MAXLNUM,
                 Some(&ea),
                 flags,
-                shortmess(kShmFileinfo),
+                shortmess(K_SHM_FILEINFO),
             ) != OK
             {
                 if !aborting() {
@@ -4293,7 +4293,7 @@ pub fn readdir_core(
 
         let mut dir = Directory::new();
         if !os_scandir(&mut dir, path) {
-            smsg!(0, tr(e_notopen), path);
+            smsg!(0, tr(E_NOTOPEN), path);
             return false;
         }
 

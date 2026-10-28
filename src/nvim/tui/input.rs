@@ -50,9 +50,9 @@ const KEY_BUFFER_SIZE: usize = 0x1000;
 
 const TERMKEY_FORMAT_VIM: TermKeyFormat = TERMKEY_FORMAT_ALTISMETA | TERMKEY_FORMAT_WRAPBRACKET;
 
-pub(crate) const kKeyEncodingLegacy: KeyEncoding = 0;
-pub(crate) const kKeyEncodingKitty: KeyEncoding = 1;
-pub(crate) const kKeyEncodingXterm: KeyEncoding = 2;
+pub(crate) const K_KEY_ENCODING_LEGACY: KeyEncoding = 0;
+pub(crate) const K_KEY_ENCODING_KITTY: KeyEncoding = 1;
+pub(crate) const K_KEY_ENCODING_XTERM: KeyEncoding = 2;
 
 const KEYMOD_SUPER: c_int = 1 << 3;
 const KEYMOD_META: c_int = 1 << 5;
@@ -94,7 +94,7 @@ impl TermInput {
             paste: 0,
             ttimeout: false,
             primary_device_attr: None,
-            key_encoding: kKeyEncodingLegacy,
+            key_encoding: K_KEY_ENCODING_LEGACY,
             ttimeoutlen: 0,
             tk: None,
             timer_handle: [0; 32],
@@ -822,7 +822,7 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
             }
             b'u' => {
                 if initial == b'?' {
-                    input.key_encoding = kKeyEncodingKitty;
+                    input.key_encoding = K_KEY_ENCODING_KITTY;
                 }
             }
             b'c' => {

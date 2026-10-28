@@ -6,7 +6,7 @@ use crate::api::private::validate::{
 use crate::autocmd::{AUGROUP_ALL, EVENT_MARKSET, aucmd_defer, has_event};
 use crate::buffer::{
     GETF_SETMARK, MAXLNUM, NMARKS, bt_prompt, FileBuf, buflist_findnr, buflist_getfile, buflist_new,
-    buflist_nr2name, first_win_in_tab, kMarkAdjustNormal,
+    buflist_nr2name, first_win_in_tab, K_MARK_ADJUST_NORMAL,
 };
 use crate::charset::{NUL, ascii_isdigit, ascii_islower, ascii_isupper, skipwhite, vim_isprintc};
 use crate::context::{INIT_FMARK, INIT_FMARKV};
@@ -18,7 +18,7 @@ use crate::eval::typval::{
     tv_list_append_dict, tv_list_append_number,
 };
 use crate::ex_docmd::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS, Exarg};
-use crate::extmark::{ExtmarkOp, extmark_adjust, kExtmarkNOOP};
+use crate::extmark::{ExtmarkOp, extmark_adjust, K_EXTMARK_NOOP};
 use crate::fold::{FoldEntry, foldMarkAdjust, hasFolding};
 use crate::globals::*;
 use crate::insert::beginline;
@@ -37,7 +37,7 @@ use crate::os::env::expand_env;
 use crate::os::fs::{MAXPATHL, os_dirname};
 use crate::os::input::os_breakcheck;
 use crate::os::time::{Timestamp, os_time};
-use crate::path::{kPathCmpLiteral, path_equal, path_shorten_fname, vim_ispathsep_nocolon};
+use crate::path::{K_PATH_CMP_LITERAL, path_equal, path_shorten_fname, vim_ispathsep_nocolon};
 use crate::plines::linetabsize_eol;
 use crate::quickfix::qf_mark_adjust;
 use crate::strings::gettext;
@@ -53,8 +53,8 @@ pub type MarkMove = c_int;
 pub type MarkGet = c_int;
 pub type MarkAdjustMode = c_int;
 
-pub(crate) const kMarkAdjustApi: MarkAdjustMode = 1;
-pub(crate) const kMarkAllNoResolve: MarkGet = 2;
+pub(crate) const K_MARK_ADJUST_API: MarkAdjustMode = 1;
+pub(crate) const K_MARK_ALL_NO_RESOLVE: MarkGet = 2;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -130,10 +130,10 @@ impl Default for Xfmark {
 }
 use crate::change::TAB;
 use crate::cmdexpand::HLF_D;
-use crate::eval::kListLenMayKnow;
+use crate::eval::K_LIST_LEN_MAY_KNOW_CONST;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
 use crate::globals::IOSIZE;
-use crate::regexp::{MAXCOL, kMarkBufLocal};
+use crate::regexp::{MAXCOL, K_MARK_BUF_LOCAL};
 use crate::search::{BACKWARD, FORWARD};
 
 #[repr(C)]
@@ -174,21 +174,21 @@ const NGLOBALMARKS: usize = NMARKS + EXTRA_MARKS;
 const NMARK_LOCAL_MAX: c_int = 126;
 pub(crate) const JUMPLISTSIZE: c_int = 100;
 
-pub(crate) const kMarkMoveSuccess: MarkMoveRes = 1;
-pub(crate) const kMarkMoveFailed: MarkMoveRes = 2;
-pub(crate) const kMarkSwitchedBuf: MarkMoveRes = 4;
-const kMarkChangedCol: MarkMoveRes = 8;
-pub(crate) const kMarkChangedLine: MarkMoveRes = 16;
-pub(crate) const kMarkChangedCursor: MarkMoveRes = 32;
+pub(crate) const K_MARK_MOVE_SUCCESS: MarkMoveRes = 1;
+pub(crate) const K_MARK_MOVE_FAILED: MarkMoveRes = 2;
+pub(crate) const K_MARK_SWITCHED_BUF: MarkMoveRes = 4;
+const K_MARK_CHANGED_COL: MarkMoveRes = 8;
+pub(crate) const K_MARK_CHANGED_LINE: MarkMoveRes = 16;
+pub(crate) const K_MARK_CHANGED_CURSOR: MarkMoveRes = 32;
 
-pub(crate) const kMarkBeginLine: MarkMove = 1;
-pub(crate) const kMarkContext: MarkMove = 2;
-pub(crate) const kMarkSetView: MarkMove = 8;
-pub(crate) const kMarkJumpList: MarkMove = 16;
+pub(crate) const K_MARK_BEGIN_LINE: MarkMove = 1;
+pub(crate) const K_MARK_CONTEXT: MarkMove = 2;
+pub(crate) const K_MARK_SET_VIEW: MarkMove = 8;
+pub(crate) const K_MARK_JUMP_LIST: MarkMove = 16;
 
-pub(crate) const kMarkAdjustTerm: MarkAdjustMode = 2;
+pub(crate) const K_MARK_ADJUST_TERM: MarkAdjustMode = 2;
 
-const kOptJopFlagStack: c_uint = 0x01;
+const K_OPT_JOP_FLAG_STACK: c_uint = 0x01;
 
 pub(crate) const BUF_HAS_QF_ENTRY: c_int = 1;
 pub(crate) const BUF_HAS_LL_ENTRY: c_int = 2;
@@ -500,7 +500,7 @@ pub fn setpcmark() {
             curwin_mut().w_pcmark.lnum = 1;
         }
 
-        if (opt_vars().jop_flags & kOptJopFlagStack) != 0
+        if (opt_vars().jop_flags & K_OPT_JOP_FLAG_STACK) != 0
             && curwin_mut().w_jumplistidx < curwin_mut().w_jumplistlen - 1
         {
             curwin_mut().w_jumplistlen = curwin_mut().w_jumplistidx + 1;
@@ -609,9 +609,9 @@ pub fn mark_get(
     unsafe {
         let mut fm: *mut Fmark = ptr::null_mut();
         if ascii_isupper(name) || ascii_isdigit(name) {
-            let xfm = mark_get_global(flag != kMarkAllNoResolve, name);
+            let xfm = mark_get_global(flag != K_MARK_ALL_NO_RESOLVE, name);
             fm = &raw mut (*xfm).fmark;
-            if flag == kMarkBufLocal && (*xfm).fmark.fnum != buf.b_fnum {
+            if flag == K_MARK_BUF_LOCAL && (*xfm).fmark.fnum != buf.b_fnum {
                 return pos_to_mark(
                     &*buf,
                     None,
@@ -764,9 +764,9 @@ fn switch_to_mark_buf(fm: &mut Fmark, pcmark_on_switch: bool) -> MarkMoveRes {
             let getfile_flag = if pcmark_on_switch { GETF_SETMARK } else { 0 };
             let res = buflist_getfile(fm.fnum, fm.mark.lnum, getfile_flag, 0);
             return if res {
-                kMarkSwitchedBuf
+                K_MARK_SWITCHED_BUF
             } else {
-                kMarkMoveFailed
+                K_MARK_MOVE_FAILED
             };
         }
         0
@@ -776,50 +776,50 @@ fn switch_to_mark_buf(fm: &mut Fmark, pcmark_on_switch: bool) -> MarkMoveRes {
 /// Move to the given file mark, changing the buffer and cursor position (`mark_move_to`).
 pub fn mark_move_to(mut fm: *mut Fmark, flags: MarkMove) -> MarkMoveRes {
     unsafe {
-        let mut res: MarkMoveRes = kMarkMoveSuccess;
+        let mut res: MarkMoveRes = K_MARK_MOVE_SUCCESS;
         let mut errormsg: *const c_char = ptr::null();
         if !mark_check(fm.as_mut(), &mut errormsg) {
             if !errormsg.is_null() {
                 emsg(errormsg);
             }
-            return kMarkMoveFailed;
+            return K_MARK_MOVE_FAILED;
         }
 
         if (*fm).fnum != curbuf_mut().b_fnum {
             mark_st().MARK_MOVE_TO_FM_COPY = (*fm).clone();
             fm = &raw mut mark_st().MARK_MOVE_TO_FM_COPY;
-            res |= switch_to_mark_buf( &mut *fm, (flags & kMarkJumpList) == 0);
-            if (res & kMarkMoveFailed) != 0 {
+            res |= switch_to_mark_buf( &mut *fm, (flags & K_MARK_JUMP_LIST) == 0);
+            if (res & K_MARK_MOVE_FAILED) != 0 {
                 return res;
             }
             if !mark_check_line_bounds(Some(crate::globals::curbuf_mut()),  &mut *fm, &mut errormsg) {
                 if !errormsg.is_null() {
                     emsg(errormsg);
                 }
-                res |= kMarkMoveFailed;
+                res |= K_MARK_MOVE_FAILED;
                 return res;
             }
-        } else if (flags & kMarkContext) != 0 {
+        } else if (flags & K_MARK_CONTEXT) != 0 {
             setpcmark();
         }
 
         let prev_pos = curwin_mut().w_cursor;
         let pos = (*fm).mark;
         curwin_mut().w_cursor = (*fm).mark;
-        if (flags & kMarkBeginLine) != 0 {
+        if (flags & K_MARK_BEGIN_LINE) != 0 {
             beginline(BL_WHITE | BL_FIX);
         }
         if prev_pos.lnum != pos.lnum {
-            res |= kMarkChangedLine | kMarkChangedCursor;
+            res |= K_MARK_CHANGED_LINE | K_MARK_CHANGED_CURSOR;
         }
         if prev_pos.col != pos.col {
-            res |= kMarkChangedCol | kMarkChangedCursor;
+            res |= K_MARK_CHANGED_COL | K_MARK_CHANGED_CURSOR;
         }
-        if (flags & kMarkSetView) != 0 {
+        if (flags & K_MARK_SET_VIEW) != 0 {
             mark_view_restore(fm.as_ref());
         }
 
-        if (res & kMarkSwitchedBuf) != 0 || (res & kMarkChangedCursor) != 0 {
+        if (res & K_MARK_SWITCHED_BUF) != 0 || (res & K_MARK_CHANGED_CURSOR) != 0 {
             check_cursor(curwin_mut());
         }
         res
@@ -941,7 +941,7 @@ fn fmarks_check_one(fm: &mut Xfmark, name: impl crate::strings::IntoCCharPtr, bu
             && fm
                 .fname
                 .as_ref()
-                .is_some_and(|f| path_equal(name, f.as_ptr(), kPathCmpLiteral))
+                .is_some_and(|f| path_equal(name, f.as_ptr(), K_PATH_CMP_LITERAL))
         {
             fm.fmark.fnum = buf.b_fnum;
             fm.fname = None;
@@ -953,11 +953,11 @@ fn fmarks_check_one(fm: &mut Xfmark, name: impl crate::strings::IntoCCharPtr, bu
 pub fn mark_check(mut fm: Option<&mut Fmark>, errormsg: *mut *const c_char) -> bool {
     unsafe {
         if fm.is_none() {
-            *errormsg = gettext(e_umark);
+            *errormsg = gettext(E_UMARK);
             return false;
         } else if fm.as_deref_mut().unwrap().mark.lnum <= 0 {
             if fm.as_deref_mut().unwrap().mark.lnum == 0 {
-                *errormsg = gettext(e_marknotset);
+                *errormsg = gettext(E_MARKNOTSET);
             }
             return false;
         }
@@ -976,7 +976,7 @@ pub fn mark_check_line_bounds(
 ) -> bool {
     unsafe {
         if let Some(buf) = buf && fm.mark.lnum > buf.b_ml.ml_line_count {
-            *errormsg = gettext(e_markinval);
+            *errormsg = gettext(E_MARKINVAL);
             return false;
         }
         true
@@ -1080,9 +1080,9 @@ pub fn ex_delmarks(eap: &mut Exarg) {
             }
             clrallmarks(curbuf_mut(), os_time());
         } else if eap.forceit != 0 {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
         } else if crate::memory::cstr_is_empty(eap.arg) {
-            emsg(gettext(e_argreq));
+            emsg(gettext(E_ARGREQ));
         } else {
             let timestamp = os_time();
             let mut p = eap.arg;
@@ -1104,7 +1104,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
                             ascii_isupper(to)
                         };
                         if !valid_to || to < from {
-                            semsg!(gettext(e_invarg2), p);
+                            semsg!(gettext(E_INVARG2), p);
                             return;
                         }
                         p = p.add(2);
@@ -1187,7 +1187,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
                         }
                         b' ' => {}
                         _ => {
-                            semsg!(gettext(e_invarg2), p);
+                            semsg!(gettext(E_INVARG2), p);
                             return;
                         }
                     }
@@ -1391,7 +1391,7 @@ pub fn mark_adjust(
             amount,
             amount_after,
             true,
-            kMarkAdjustNormal,
+            K_MARK_ADJUST_NORMAL,
             op,
         );
     }
@@ -1413,7 +1413,7 @@ pub fn mark_adjust_nofold(
             amount,
             amount_after,
             false,
-            kMarkAdjustNormal,
+            K_MARK_ADJUST_NORMAL,
             op,
         );
     }
@@ -1441,8 +1441,8 @@ pub fn mark_adjust_buf(
             return;
         }
 
-        let by_api = mode == kMarkAdjustApi;
-        let by_term = mode == kMarkAdjustTerm;
+        let by_api = mode == K_MARK_ADJUST_API;
+        let by_term = mode == K_MARK_ADJUST_TERM;
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
             let fm_base = (&raw mut g_st().namedfm).cast::<Xfmark>();
@@ -1554,7 +1554,7 @@ pub fn mark_adjust_buf(
             }
         }
 
-        if op != kExtmarkNOOP {
+        if op != K_EXTMARK_NOOP {
             extmark_adjust( &mut *buf, line1, line2, amount, amount_after, op);
         }
 
@@ -1925,7 +1925,7 @@ pub fn cleanup_jumplist(wp: &mut WinInfoInfo, loadfiles: bool) {
             let mustfree = if i >= wp.w_jumplistlen {
                 false
             } else if i > from + 1 {
-                (opt_vars().jop_flags & kOptJopFlagStack) == 0
+                (opt_vars().jop_flags & K_OPT_JOP_FLAG_STACK) == 0
             } else {
                 true
             };
@@ -2177,7 +2177,7 @@ fn add_mark<S: crate::strings::IntoCCharPtr>(
         let d = tv_dict_alloc();
         tv_list_append_dict(l, d);
 
-        let lpos = tv_list_alloc(kListLenMayKnow);
+        let lpos = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         tv_list_append_number( &mut *lpos, i64::from(bufnr));
         tv_list_append_number( &mut *lpos, i64::from(pos.lnum));
         tv_list_append_number(

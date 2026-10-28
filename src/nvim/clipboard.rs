@@ -175,15 +175,15 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) ->
                 return fail_cleanup(reg, errmsg, target);
             }
             reg.y_type = match crate::memory::cstr_first_byte(regtype) {
-                0 => MotionType::MTUnknown,
-                b'v' | b'c' => MotionType::MTCharWise,
-                b'V' | b'l' => MotionType::MTLineWise,
-                b'b' | CTRL_V => MotionType::MTBlockWise,
+                0 => MotionType::MtUnknown,
+                b'v' | b'c' => MotionType::MtCharWise,
+                b'V' | b'l' => MotionType::MtLineWise,
+                b'b' | CTRL_V => MotionType::MtBlockWise,
                 _ => return fail_cleanup(reg, errmsg, target),
             };
         } else {
             lines = res;
-            reg.y_type = MotionType::MTUnknown;
+            reg.y_type = MotionType::MtUnknown;
         }
 
         let lines_len = if lines.is_null() {
@@ -211,16 +211,16 @@ pub fn get_clipboard(mut name: c_int, target: *mut *mut Yankreg, quiet: bool) ->
         }
 
         if reg.y_array.last().is_some_and(|last| last.size == 0) {
-            if reg.y_type != MotionType::MTCharWise {
+            if reg.y_type != MotionType::MtCharWise {
                 if let Some(mut popped) = reg.y_array.pop() {
                     api_clear_string(&mut popped);
                 }
-                if reg.y_type == MotionType::MTUnknown {
-                    reg.y_type = MotionType::MTLineWise;
+                if reg.y_type == MotionType::MtUnknown {
+                    reg.y_type = MotionType::MtLineWise;
                 }
             }
-        } else if reg.y_type == MotionType::MTUnknown {
-            reg.y_type = MotionType::MTCharWise;
+        } else if reg.y_type == MotionType::MtUnknown {
+            reg.y_type = MotionType::MtCharWise;
         }
 
         update_yankreg_width(&mut *reg_ptr);
@@ -236,7 +236,7 @@ pub fn set_clipboard(mut name: c_int, reg: &Yankreg) {
             return;
         }
 
-                let extra = usize::from(reg.y_type != MotionType::MTCharWise);
+                let extra = usize::from(reg.y_type != MotionType::MtCharWise);
         let lines = tv_list_alloc((reg.y_array.len() + extra) as isize);
 
         for &item in &reg.y_array {
@@ -244,16 +244,16 @@ pub fn set_clipboard(mut name: c_int, reg: &Yankreg) {
         }
 
         let regtype: c_char = match reg.y_type {
-            MotionType::MTLineWise => {
+            MotionType::MtLineWise => {
                 tv_list_append_string( &mut *lines, std::ptr::null(), 0);
                 b'V' as c_char
             }
-            MotionType::MTCharWise => b'v' as c_char,
-            MotionType::MTBlockWise => {
+            MotionType::MtCharWise => b'v' as c_char,
+            MotionType::MtBlockWise => {
                 tv_list_append_string( &mut *lines, std::ptr::null(), 0);
                 b'b' as c_char
             }
-            MotionType::MTUnknown => std::process::abort(),
+            MotionType::MtUnknown => std::process::abort(),
         };
 
         let args = tv_list_alloc(3);

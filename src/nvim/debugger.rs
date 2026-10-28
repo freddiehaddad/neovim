@@ -2,7 +2,7 @@
 
 use crate::charset::{getdigits_int32, skipwhite};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
-use crate::errors::{e_invarg2, e_noname};
+use crate::errors::{E_INVARG2, E_NONAME};
 use crate::eval::typval::{Callback, tv_clear, TypVal};
 use crate::eval::{EXPR_IS, eval_expr, typval_compare, typval_tostring};
 use crate::ex_docmd::{DOCMD_EXCRESET, do_cmdline, do_cmdline_cmd, Exarg};
@@ -195,8 +195,8 @@ fn do_showbacktrace(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into
 
         let slnum = sourcing_lnum();
         if slnum != 0 {
-            let line_msg = format!("line {slnum}: %s\0");
-            smsg!(0, line_msg.as_ptr().cast::<c_char>(), cmd);
+            let LINE_MSG = format!("line {slnum}: %s\0");
+            smsg!(0, LINE_MSG.as_ptr().cast::<c_char>(), cmd);
         } else {
             smsg!(0, c"cmd: %s", cmd);
         }
@@ -246,8 +246,8 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) { let cmd = cmd.into_c_c
         }
         let slnum = sourcing_lnum();
         if slnum != 0 {
-            let line_msg = format!("line {slnum}: %s\0");
-            smsg!(0, line_msg.as_ptr().cast::<c_char>(), cmd);
+            let LINE_MSG = format!("line {slnum}: %s\0");
+            smsg!(0, LINE_MSG.as_ptr().cast::<c_char>(), cmd);
         } else {
             smsg!(0, c"cmd: %s", cmd);
         }
@@ -506,7 +506,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<Debuggy> {
             bp.dbg_type = DBG_FILE;
         } else if !is_prof && p_bytes.starts_with(b"here") {
             if curbuf_mut().b_ffname.is_null() {
-                emsg(e_noname);
+                emsg(E_NONAME);
                 return None;
             }
             bp.dbg_type = DBG_FILE;
@@ -514,7 +514,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<Debuggy> {
         } else if !is_prof && p_bytes.starts_with(b"expr") {
             bp.dbg_type = DBG_EXPR;
         } else {
-            semsg!(e_invarg2, p);
+            semsg!(E_INVARG2, p);
             return None;
         }
         p = skipwhite(p.add(4));
@@ -533,7 +533,7 @@ fn dbg_parsearg(arg: *mut c_char, is_prof: bool) -> Option<Debuggy> {
             || (here && !rem_bytes.is_empty())
             || (bp.dbg_type == DBG_FUNC && rem_bytes.windows(2).any(|w| w == b"()"))
         {
-            semsg!(e_invarg2, arg);
+            semsg!(E_INVARG2, arg);
             return None;
         }
 

@@ -50,24 +50,24 @@ const BUFSIZE: usize = 256;
 const TREE_SITTER_LANGUAGE_VERSION: u32 = 15;
 const TREE_SITTER_MIN_COMPATIBLE_LANGUAGE_VERSION: u32 = 13;
 
-const TSInputEncodingUTF8: TSInputEncoding = 0;
+const TSINPUT_ENCODING_UTF8: TSInputEncoding = 0;
 
-const TSSymbolTypeAnonymous: TSSymbolType = 1;
-const TSSymbolTypeAuxiliary: TSSymbolType = 3;
+const TSSYMBOL_TYPE_ANONYMOUS: TSSymbolType = 1;
+const TSSYMBOL_TYPE_AUXILIARY: TSSymbolType = 3;
 
-const TSLogTypeParse: TSLogType = 0;
-const TSLogTypeLex: TSLogType = 1;
+const TSLOG_TYPE_PARSE: TSLogType = 0;
+const TSLOG_TYPE_LEX: TSLogType = 1;
 
-const TSQueryPredicateStepTypeDone: TSQueryPredicateStepType = 0;
-const TSQueryPredicateStepTypeCapture: TSQueryPredicateStepType = 1;
-const TSQueryPredicateStepTypeString: TSQueryPredicateStepType = 2;
+const TSQUERY_PREDICATE_STEP_TYPE_DONE: TSQueryPredicateStepType = 0;
+const TSQUERY_PREDICATE_STEP_TYPE_CAPTURE: TSQueryPredicateStepType = 1;
+const TSQUERY_PREDICATE_STEP_TYPE_STRING: TSQueryPredicateStepType = 2;
 
-const TSQueryErrorNone: TSQueryError = 0;
-const TSQueryErrorSyntax: TSQueryError = 1;
-const TSQueryErrorNodeType: TSQueryError = 2;
-const TSQueryErrorField: TSQueryError = 3;
-const TSQueryErrorCapture: TSQueryError = 4;
-const TSQueryErrorStructure: TSQueryError = 5;
+const TSQUERY_ERROR_NONE: TSQueryError = 0;
+const TSQUERY_ERROR_SYNTAX: TSQueryError = 1;
+const TSQUERY_ERROR_NODE_TYPE: TSQueryError = 2;
+const TSQUERY_ERROR_FIELD: TSQueryError = 3;
+const TSQUERY_ERROR_CAPTURE: TSQueryError = 4;
+const TSQUERY_ERROR_STRUCTURE: TSQueryError = 5;
 
 const TS_META_PARSER: *const c_char = c"treesitter_parser".as_ptr();
 const TS_META_TREE: *const c_char = c"treesitter_tree".as_ptr();
@@ -898,11 +898,11 @@ unsafe extern "C-unwind" fn tslua_inspect_lang(L: *mut lua_State) -> c_int {
             lua_createtable(L, (nsymbols.wrapping_sub(1)) as c_int, 1);
             for i in 0..nsymbols {
                 let t = ts_language_symbol_type(lang, i as TSSymbol);
-                if t == TSSymbolTypeAuxiliary {
+                if t == TSSYMBOL_TYPE_AUXILIARY {
                     continue;
                 }
                 let name = ts_language_symbol_name(lang, i as TSSymbol);
-                let named = t != TSSymbolTypeAnonymous;
+                let named = t != TSSYMBOL_TYPE_ANONYMOUS;
                 lua_pushboolean(L, c_int::from(named));
                 if !named {
                     let mut buf = [0 as c_char; 256];
@@ -1147,7 +1147,7 @@ pub unsafe extern "C-unwind" fn nts_parser_parse_buf(
         let input = TSInput {
             payload: buf.cast::<c_void>(),
             read: Some(input_cb),
-            encoding: TSInputEncodingUTF8,
+            encoding: TSINPUT_ENCODING_UTF8,
             decode: None,
         };
 
@@ -1374,8 +1374,8 @@ unsafe extern "C-unwind" fn parser_get_ranges(L: *mut lua_State) -> c_int {
 unsafe extern "C" fn logger_cb(payload: *mut c_void, logtype: TSLogType, s: *const c_char) {
     unsafe {
         let opts = payload.cast::<TSLuaLoggerOpts>();
-        if (!(*opts).lex && logtype == TSLogTypeLex)
-            || (!(*opts).parse && logtype == TSLogTypeParse)
+        if (!(*opts).lex && logtype == TSLOG_TYPE_LEX)
+            || (!(*opts).parse && logtype == TSLOG_TYPE_PARSE)
         {
             return;
         }
@@ -1384,7 +1384,7 @@ unsafe extern "C" fn logger_cb(payload: *mut c_void, logtype: TSLogType, s: *con
         lua_rawgeti(lstate, LUA_REGISTRYINDEX, (*opts).cb);
         lua_pushstring(
             lstate,
-            if logtype == TSLogTypeParse {
+            if logtype == TSLOG_TYPE_PARSE {
                 c"parse".as_ptr()
             } else {
                 c"lex".as_ptr()
@@ -2212,7 +2212,7 @@ unsafe extern "C-unwind" fn tslua_parse_query(L: *mut lua_State) -> c_int {
 
         g_st().tslua_query_parse_count += 1;
         let mut error_offset: u32 = 0;
-        let mut error_type: TSQueryError = TSQueryErrorNone;
+        let mut error_type: TSQueryError = TSQUERY_ERROR_NONE;
         let query = ts_query_new(lang, src, len as u32, &mut error_offset, &mut error_type);
 
         if query.is_null() {
@@ -2237,11 +2237,11 @@ unsafe extern "C-unwind" fn tslua_parse_query(L: *mut lua_State) -> c_int {
 
 fn query_err_to_string(error_type: TSQueryError) -> *const c_char {
     match error_type {
-        TSQueryErrorSyntax => c"Invalid syntax:\n".as_ptr(),
-        TSQueryErrorNodeType => c"Invalid node type ".as_ptr(),
-        TSQueryErrorField => c"Invalid field name ".as_ptr(),
-        TSQueryErrorCapture => c"Invalid capture name ".as_ptr(),
-        TSQueryErrorStructure => c"Impossible pattern:\n".as_ptr(),
+        TSQUERY_ERROR_SYNTAX => c"Invalid syntax:\n".as_ptr(),
+        TSQUERY_ERROR_NODE_TYPE => c"Invalid node type ".as_ptr(),
+        TSQUERY_ERROR_FIELD => c"Invalid field name ".as_ptr(),
+        TSQUERY_ERROR_CAPTURE => c"Invalid capture name ".as_ptr(),
+        TSQUERY_ERROR_STRUCTURE => c"Impossible pattern:\n".as_ptr(),
         _ => c"error".as_ptr(),
     }
 }
@@ -2291,12 +2291,12 @@ fn query_err_string(
         err_size = err_size.saturating_sub(offset);
         err_data = err_data.add(offset);
 
-        if error_type == TSQueryErrorNodeType
-            || error_type == TSQueryErrorField
-            || error_type == TSQueryErrorCapture
+        if error_type == TSQUERY_ERROR_NODE_TYPE
+            || error_type == TSQUERY_ERROR_FIELD
+            || error_type == TSQUERY_ERROR_CAPTURE
         {
             let suffix = src.offset(error_offset as isize);
-            let is_anonymous = error_type == TSQueryErrorNodeType
+            let is_anonymous = error_type == TSQUERY_ERROR_NODE_TYPE
                 && error_offset > 0
                 && *suffix.offset(-1) == b'"' as c_char;
             let mut suffix_len: usize = 0;
@@ -2390,7 +2390,7 @@ unsafe extern "C-unwind" fn query_inspect(L: *mut lua_State) -> c_int {
             let mut nextitem: c_int = 1;
             for k in 0..(len as usize) {
                 let s = *step.add(k);
-                if s.type_ == TSQueryPredicateStepTypeDone {
+                if s.type_ == TSQUERY_PREDICATE_STEP_TYPE_DONE {
                     lua_rawseti(L, -2, nextpred);
                     nextpred += 1;
                     lua_createtable(L, 3, 0);
@@ -2398,11 +2398,11 @@ unsafe extern "C-unwind" fn query_inspect(L: *mut lua_State) -> c_int {
                     continue;
                 }
 
-                if s.type_ == TSQueryPredicateStepTypeString {
+                if s.type_ == TSQUERY_PREDICATE_STEP_TYPE_STRING {
                     let mut strlen: u32 = 0;
                     let str_ptr = ts_query_string_value_for_id(query, s.value_id, &mut strlen);
                     lua_pushlstring(L, str_ptr, strlen as usize);
-                } else if s.type_ == TSQueryPredicateStepTypeCapture {
+                } else if s.type_ == TSQUERY_PREDICATE_STEP_TYPE_CAPTURE {
                     lua_pushinteger(L, (s.value_id + 1) as lua_Integer);
                 } else {
                     std::process::abort();

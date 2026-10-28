@@ -4,7 +4,7 @@ use crate::api::private::validate::NvimString;
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, is_special, transchar, vim_isprintc, vim_str2nr,
 };
-use crate::errors::{e_invarg, e_usingsid};
+use crate::errors::{E_INVARG, E_USINGSID};
 use crate::eval::vars::{get_var_value, Scid};
 use crate::globals::*;
 use crate::mbyte::{
@@ -19,7 +19,7 @@ pub const BS: c_int = 0x08;
 pub const TAB: c_int = 0x09;
 pub const NL: c_int = 0x0a;
 pub const CAR: c_int = 0x0d;
-pub const Ctrl_V: u8 = 22;
+pub const CTRL_V_CONST: u8 = 22;
 pub const ESC: c_int = 0x1b;
 pub const DEL: c_int = 0x7f;
 pub const CSI: c_int = 0x9b;
@@ -411,7 +411,7 @@ impl KeyChord {
     }
 }
 
-pub static mod_mask_table: [ModMaskTable; 10] = [
+pub static MOD_MASK_TABLE: [ModMaskTable; 10] = [
     ModMaskTable {
         mod_mask: MOD_MASK_ALT,
         mod_flag: MOD_MASK_ALT,
@@ -2055,9 +2055,9 @@ fn get_special_key_code_hash(name: &[u8]) -> isize {
 pub fn name_to_mod_mask(c: c_int) -> c_int {
     let c = toupper_asc(c);
     let mut i = 0;
-    while mod_mask_table[i].mod_mask != 0 {
-        if c == c_int::from(mod_mask_table[i].name as u8) {
-            return c_int::from(mod_mask_table[i].mod_flag);
+    while MOD_MASK_TABLE[i].mod_mask != 0 {
+        if c == c_int::from(MOD_MASK_TABLE[i].name as u8) {
+            return c_int::from(MOD_MASK_TABLE[i].mod_flag);
         }
         i += 1;
     }
@@ -2186,11 +2186,11 @@ pub fn get_special_key(
 
         // translate the modifier into a string
         let mut i = 0;
-        while mod_mask_table[i].name != b'A' as c_char {
-            let mask = c_int::from(mod_mask_table[i].mod_mask);
-            let flag = c_int::from(mod_mask_table[i].mod_flag);
+        while MOD_MASK_TABLE[i].name != b'A' as c_char {
+            let mask = c_int::from(MOD_MASK_TABLE[i].mod_mask);
+            let flag = c_int::from(MOD_MASK_TABLE[i].mod_flag);
             if (modifiers & mask) == flag {
-                *string.add(idx) = mod_mask_table[i].name;
+                *string.add(idx) = MOD_MASK_TABLE[i].name;
                 idx += 1;
                 *string.add(idx) = b'-' as c_char;
                 idx += 1;
@@ -2498,7 +2498,7 @@ pub fn find_special_key(
                         None,
                     );
                     if l == 0 {
-                        emsg(e_invarg);
+                        emsg(E_INVARG);
                         return 0;
                     }
                     bp = bp.add(l as usize + 5);
@@ -2547,7 +2547,7 @@ pub fn find_special_key(
                         None,
                     );
                     if l == 0 {
-                        emsg(e_invarg);
+                        emsg(E_INVARG);
                         return 0;
                     }
                     key = n as c_int;
@@ -2706,7 +2706,7 @@ pub fn replace_termcodes(
                 // for script-local user functions.
                 if rem >= 5 && crate::memory::cstr_prefix_bytes(src, 5).eq_ignore_ascii_case(b"<SID>") {
                     if sid_arg < 0 || (sid_arg == 0 && g_st().current_sctx.sc_sid <= 0) {
-                        emsg(e_usingsid);
+                        emsg(E_USINGSID);
                     } else {
                         let sid: Scid = if sid_arg != 0 {
                             sid_arg
@@ -2789,7 +2789,7 @@ pub fn replace_termcodes(
             // part it is removed.
             // If 'cpoptions' does not contain 'B', also accept a backslash.
             let key = *src;
-            if key as u8 == Ctrl_V || (do_backslash && key == b'\\' as c_char) {
+            if key as u8 == CTRL_V_CONST || (do_backslash && key == b'\\' as c_char) {
                 src = src.add(1); // skip CTRL-V or backslash
                 if (src as usize) >= (end_exclusive as usize) {
                     if (flags & REPTERM_FROM_PART) != 0 {

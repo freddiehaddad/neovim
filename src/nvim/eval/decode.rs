@@ -94,7 +94,7 @@ pub fn decode_create_map_special_dict(ret_tv: &mut TypVal, len: isize) -> *mut T
     }
 }
 
-/// Convert `s[..len]` into a `VarString` or `VarBlob` `TypVal` (`decode_string`).
+/// Convert `s[..len]` into a `VAR_STRING` or `VarBlob` `TypVal` (`decode_string`).
 pub fn decode_string(
     s: impl crate::strings::IntoCCharPtr,
     len: usize,

@@ -23,16 +23,16 @@ use crate::cursor::{
 };
 use crate::eval::vars::MAXCOL;
 use crate::ex_cmds::rename_buffer;
-use crate::extmark::{Bcount, extmark_splice, kExtmarkNOOP, kExtmarkUndo};
+use crate::extmark::{Bcount, extmark_splice, K_EXTMARK_NOOP, K_EXTMARK_UNDO};
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::{
     Boolean, LUA_NOREF, LuaRef, lua_State, lua_createtable, lua_pushlstring, lua_rawseti,
 };
-use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
+use crate::lua::executor::{K_RET_MULTI_STACK, nlua_call_ref};
 use crate::mapping::{MAPTYPE_MAP, MAPTYPE_UNMAP, MAPTYPE_UNMAP_LHS, keymap_array, modify_keymap};
-use crate::mark::{kMarkAdjustApi, kMarkAllNoResolve, mark_adjust_buf, mark_get};
-use crate::marktree::kMTMetaLines;
+use crate::mark::{K_MARK_ADJUST_API, K_MARK_ALL_NO_RESOLVE, mark_adjust_buf, mark_get};
+use crate::marktree::K_MTMETA_LINES;
 use crate::memline::{
     ML_LINE_DIRTY, ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf,
     ml_get_buf_len, ml_replace_buf,
@@ -54,11 +54,11 @@ pub(crate) const INTERNAL_CALL_MASK: u64 = 1u64 << 63;
 pub(crate) const VIML_INTERNAL_CALL: u64 = INTERNAL_CALL_MASK;
 pub(crate) const LUA_INTERNAL_CALL: u64 = VIML_INTERNAL_CALL + 1;
 
-const KEYSET_OPTIDX_buf_attach__on_bytes: u64 = 2;
-const KEYSET_OPTIDX_buf_attach__on_lines: u64 = 3;
-const KEYSET_OPTIDX_buf_attach__on_detach: u64 = 5;
-const KEYSET_OPTIDX_buf_attach__on_reload: u64 = 6;
-const KEYSET_OPTIDX_buf_attach__on_changedtick: u64 = 7;
+const KEYSET_OPTIDX_BUF_ATTACH_ON_BYTES: u64 = 2;
+const KEYSET_OPTIDX_BUF_ATTACH_ON_LINES: u64 = 3;
+const KEYSET_OPTIDX_BUF_ATTACH_ON_DETACH: u64 = 5;
+const KEYSET_OPTIDX_BUF_ATTACH_ON_RELOAD: u64 = 6;
+const KEYSET_OPTIDX_BUF_ATTACH_ON_CHANGEDTICK: u64 = 7;
 
 #[repr(C)]
 #[derive(Default)]
@@ -104,7 +104,7 @@ pub struct KeyDict_buf_delete {
 }
 
 use crate::math::{FAIL, OK};
-use crate::regexp::Ctrl_V;
+use crate::regexp::CTRL_V_CONST;
 use crate::state::MODE_INSERT;
 
 // @brief <pre>help
@@ -259,23 +259,23 @@ pub fn nvim_buf_attach(
 
         if channel_id == LUA_INTERNAL_CALL {
             let mask = opts.is_set__buf_attach_;
-            if has_key(mask, KEYSET_OPTIDX_buf_attach__on_lines) {
+            if has_key(mask, KEYSET_OPTIDX_BUF_ATTACH_ON_LINES) {
                 cb.on_lines = opts.on_lines;
                 opts.on_lines = LUA_NOREF;
             }
-            if has_key(mask, KEYSET_OPTIDX_buf_attach__on_bytes) {
+            if has_key(mask, KEYSET_OPTIDX_BUF_ATTACH_ON_BYTES) {
                 cb.on_bytes = opts.on_bytes;
                 opts.on_bytes = LUA_NOREF;
             }
-            if has_key(mask, KEYSET_OPTIDX_buf_attach__on_changedtick) {
+            if has_key(mask, KEYSET_OPTIDX_BUF_ATTACH_ON_CHANGEDTICK) {
                 cb.on_changedtick = opts.on_changedtick;
                 opts.on_changedtick = LUA_NOREF;
             }
-            if has_key(mask, KEYSET_OPTIDX_buf_attach__on_detach) {
+            if has_key(mask, KEYSET_OPTIDX_BUF_ATTACH_ON_DETACH) {
                 cb.on_detach = opts.on_detach;
                 opts.on_detach = LUA_NOREF;
             }
-            if has_key(mask, KEYSET_OPTIDX_buf_attach__on_reload) {
+            if has_key(mask, KEYSET_OPTIDX_BUF_ATTACH_ON_RELOAD) {
                 cb.on_reload = opts.on_reload;
                 opts.on_reload = LUA_NOREF;
             }
@@ -579,8 +579,8 @@ pub fn nvim_buf_set_lines(
                 adjust,
                 extra as Linenr,
                 true,
-                kMarkAdjustApi,
-                kExtmarkNOOP,
+                K_MARK_ADJUST_API,
+                K_EXTMARK_NOOP,
             );
 
             if g_st().Visual.active && b == g_st().curbuf && g_st().Visual.start.lnum >= (start as Linenr) {
@@ -600,7 +600,7 @@ pub fn nvim_buf_set_lines(
                 new_len as c_int,
                 0,
                 inserted_bytes,
-                kExtmarkUndo,
+                K_EXTMARK_UNDO,
             );
 
             changed_lines(
@@ -902,11 +902,11 @@ pub fn nvim_buf_set_text(
                 adjust,
                 extra as Linenr,
                 true,
-                kMarkAdjustApi,
-                kExtmarkNOOP,
+                K_MARK_ADJUST_API,
+                K_EXTMARK_NOOP,
             );
 
-            if g_st().Visual.active && b == g_st().curbuf && g_st().Visual.mode != Ctrl_V {
+            if g_st().Visual.active && b == g_st().curbuf && g_st().Visual.mode != CTRL_V_CONST {
                 fix_pos_col(
                     &mut *b,
                     &mut g_st().Visual.start,
@@ -931,7 +931,7 @@ pub fn nvim_buf_set_text(
                 (new_len as c_int) - 1,
                 last_item.size as Colnr,
                 new_byte,
-                kExtmarkUndo,
+                K_EXTMARK_UNDO,
             );
 
             changed_lines(
@@ -1508,7 +1508,7 @@ pub fn nvim_buf_del_mark(
             b,
             curwin_mut(),
             None,
-            kMarkAllNoResolve,
+            K_MARK_ALL_NO_RESOLVE,
             c_int::from(*name.data.cast::<u8>()),
         );
         if fm.is_null() {
@@ -1608,7 +1608,7 @@ pub fn nvim_buf_get_mark(
         }
 
         let mark = c_int::from(*name.data.cast::<u8>());
-        let fm = mark_get(b, curwin_mut(), None, kMarkAllNoResolve, mark);
+        let fm = mark_get(b, curwin_mut(), None, K_MARK_ALL_NO_RESOLVE, mark);
         if fm.is_null() {
             api_err_invalid(err, c"mark name", name.data, 0, true);
             return rv;
@@ -1667,7 +1667,7 @@ pub fn nvim_buf_call(
                 fn_ref,
                 ptr::null(),
                 args,
-                kRetMultiStack,
+                K_RET_MULTI_STACK,
                 None,
                 Some(err),
             );
@@ -1715,7 +1715,7 @@ pub fn nvim__buf_stats(buf: Buffer, arena: &mut Arena, err: &mut Error) -> Dict 
         put_c(
             &mut rv,
             c"virt_blocks",
-            integer_obj(b.b_marktree.meta_root[kMTMetaLines] as Integer),
+            integer_obj(b.b_marktree.meta_root[K_MTMETA_LINES] as Integer),
         );
 
         let uhp = b.b_u_curhead.or(b.b_u_newhead);

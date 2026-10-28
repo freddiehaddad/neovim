@@ -8,7 +8,7 @@ use crate::api::private::validate::{Dict, Error, ErrorType, NvimString, Object, 
 use crate::api::ui::HLATTRS_DICT_SIZE;
 use crate::api::win_config::UIExtension;
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
-use crate::buffer::kUIMessages;
+use crate::buffer::K_UIMESSAGES;
 use crate::change::HLF_W;
 use crate::charset::{
     NUL, ascii_iswhite, getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize,
@@ -27,12 +27,12 @@ use crate::eval::funcs::{
 use crate::eval::last_set_msg;
 use crate::eval::vars::{do_unlet, get_var_value};
 use crate::ex_docmd::ends_excmd;
-use crate::extmark::{TriState, kFalse, kNone, kTrue};
+use crate::extmark::{TriState, K_FALSE, K_NONE, K_TRUE};
 use crate::globals::*;
 use crate::highlight::{
     HL_ALTFONT, HL_DEFAULT, HLATTRS_INIT, HLF_COUNT, HLF_INACTIVE, HLF_NONE, HlAttrs,
-    KEYSET_OPTIDX_highlight__bg, KEYSET_OPTIDX_highlight__fg, KEYSET_OPTIDX_highlight__font,
-    KEYSET_OPTIDX_highlight__sp, KEYSET_OPTIDX_highlight__update, KeyDict_highlight, OptionalKeys,
+    KEYSET_OPTIDX_HIGHLIGHT_BG, KEYSET_OPTIDX_HIGHLIGHT_FG, KEYSET_OPTIDX_HIGHLIGHT_FONT,
+    KEYSET_OPTIDX_HIGHLIGHT_SP, KEYSET_OPTIDX_HIGHLIGHT_UPDATE, KeyDict_highlight, OptionalKeys,
     RgbValue, hl_add_font_idx, hl_get_font, hl_get_syn_attr, hl_get_ui_attr, hlattrs2dict,
     ns_get_hl, syn_attr2entry,
 };
@@ -69,10 +69,10 @@ const SG_CTERM: c_int = 2;
 const SG_GUI: c_int = 4;
 const SG_LINK: c_int = 8;
 
-const kColorIdxNone: c_int = -1;
-const kColorIdxHex: c_int = -2;
-const kColorIdxFg: c_int = -3;
-const kColorIdxBg: c_int = -4;
+const K_COLOR_IDX_NONE: c_int = -1;
+const K_COLOR_IDX_HEX: c_int = -2;
+const K_COLOR_IDX_FG: c_int = -3;
+const K_COLOR_IDX_BG: c_int = -4;
 
 const LIST_ATTR: c_int = 1;
 const LIST_STRING: c_int = 2;
@@ -81,14 +81,14 @@ const LIST_INT: c_int = 3;
 const HLF_S: usize = 19;
 const HLF_SNC: usize = 20;
 
-const kUILinegrid: UIExtension = 5;
+const K_UILINEGRID_CONST: UIExtension = 5;
 
-const kOptBackground: OptIndex = 13;
+const K_OPT_BACKGROUND: OptIndex = 13;
 
-const KEYSET_OPTIDX_get_highlight__id: u64 = 1;
-const KEYSET_OPTIDX_get_highlight__link: u64 = 2;
-const KEYSET_OPTIDX_get_highlight__name: u64 = 3;
-const KEYSET_OPTIDX_get_highlight__create: u64 = 4;
+const KEYSET_OPTIDX_GET_HIGHLIGHT_ID: u64 = 1;
+const KEYSET_OPTIDX_GET_HIGHLIGHT_LINK: u64 = 2;
+const KEYSET_OPTIDX_GET_HIGHLIGHT_NAME: u64 = 3;
+const KEYSET_OPTIDX_GET_HIGHLIGHT_CREATE: u64 = 4;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -700,7 +700,7 @@ const HIGHLIGHT_INIT_DARK: [&CStr; 70] = [
     c"@variable guifg=NvimLightGrey2",
 ];
 
-pub static highlight_init_cmdline: [&CStr; 140] = [
+pub static HIGHLIGHT_INIT_CMDLINE: [&CStr; 140] = [
     c"NvimInternalError ctermfg=Red ctermbg=Red guifg=Red guibg=Red",
     c"default link NvimAssignment Operator",
     c"default link NvimPlainAssignment NvimAssignment",
@@ -856,7 +856,7 @@ pub fn highlight_link_id(id: c_int) -> c_int {
 }
 
 pub fn syn_init_cmdline_highlight(reset: bool, init: bool) {
-    for &cmd in &highlight_init_cmdline {
+    for &cmd in &HIGHLIGHT_INIT_CMDLINE {
             do_highlight(cmd.as_ptr(), reset, init);
         }
 }
@@ -930,9 +930,9 @@ fn lookup_color(idx: c_int, foreground: bool, boldp: &mut TriState) -> c_int {
             color = COLOR_NUMBERS_8[idx as usize];
             if foreground {
                 if (color & 8) != 0 {
-                    *boldp = kTrue;
+                    *boldp = K_TRUE;
                 } else {
-                    *boldp = kFalse;
+                    *boldp = K_FALSE;
                 }
             }
             color &= 7;
@@ -982,7 +982,7 @@ pub fn set_hl_group(
         }
 
         let update =
-            has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__update) && dict.update;
+            has_key(dict.is_set__highlight_, KEYSET_OPTIDX_HIGHLIGHT_UPDATE) && dict.update;
         g.sg_gui = attrs.rgb_ae_attr & !HL_DEFAULT;
 
         g.sg_rgb_fg = attrs.rgb_fg_color;
@@ -993,7 +993,7 @@ pub fn set_hl_group(
             (
                 &raw mut g.sg_rgb_fg_idx,
                 g.sg_rgb_fg,
-                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__fg) {
+                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_HIGHLIGHT_FG) {
                     dict.fg
                 } else {
                     dict.foreground
@@ -1002,7 +1002,7 @@ pub fn set_hl_group(
             (
                 &raw mut g.sg_rgb_bg_idx,
                 g.sg_rgb_bg,
-                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__bg) {
+                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_HIGHLIGHT_BG) {
                     dict.bg
                 } else {
                     dict.background
@@ -1011,7 +1011,7 @@ pub fn set_hl_group(
             (
                 &raw mut g.sg_rgb_sp_idx,
                 g.sg_rgb_sp,
-                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__sp) {
+                if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_HIGHLIGHT_SP) {
                     dict.sp
                 } else {
                     dict.special
@@ -1022,16 +1022,16 @@ pub fn set_hl_group(
         for (j, &(dest, val, name)) in cattrs.iter().enumerate() {
             if name.obj_type != ObjectType::ObjectTypeNil {
                 if val < 0 {
-                    *dest = kColorIdxNone;
+                    *dest = K_COLOR_IDX_NONE;
                 } else if name.obj_type == ObjectType::ObjectTypeString
                     && name.data.string().size > 0
                 {
                     name_to_color(name.data.string().data, dest);
                 } else {
-                    *dest = kColorIdxHex;
+                    *dest = K_COLOR_IDX_HEX;
                 }
             } else if !update {
-                *dest = kColorIdxNone;
+                *dest = K_COLOR_IDX_NONE;
             } else if old_link > 0 && val >= 0 {
                 let linked = &*hl_table().add((old_link - 1) as usize);
                 let linked_idx = if j == 0 {
@@ -1041,10 +1041,10 @@ pub fn set_hl_group(
                 } else {
                     linked.sg_rgb_sp_idx
                 };
-                *dest = if linked_idx != kColorIdxNone {
+                *dest = if linked_idx != K_COLOR_IDX_NONE {
                     linked_idx
                 } else {
-                    kColorIdxHex
+                    K_COLOR_IDX_HEX
                 };
             }
         }
@@ -1062,7 +1062,7 @@ pub fn set_hl_group(
 
         if attrs.font >= 0 {
             g.sg_font = Some(crate::memory::cstr_to_cstring(hl_get_font(attrs.font)));
-        } else if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_highlight__font) || !update {
+        } else if has_key(dict.is_set__highlight_, KEYSET_OPTIDX_HIGHLIGHT_FONT) || !update {
             g.sg_font = None;
         }
 
@@ -1115,7 +1115,7 @@ fn set_gui_color(
             *color = name_to_color(arg, color_idx);
         } else {
             *color = -1;
-            *color_idx = kColorIdxNone;
+            *color_idx = K_COLOR_IDX_NONE;
         }
         *color != old_color || *color_idx != old_idx
     }
@@ -1330,7 +1330,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                     arg_start = linep;
                     linep = crate::memory::cstr_as_bytes(linep).iter().position(|&b| b == b'\'').map_or(ptr::null(), |i| linep.add(i));
                     if linep.is_null() {
-                        semsg!(gettext(e_invarg2), key_start);
+                        semsg!(gettext(E_INVARG2), key_start);
                         error = true;
                         break;
                     }
@@ -1466,13 +1466,13 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                                 break;
                             }
 
-                            let mut bold = kNone;
+                            let mut bold = K_NONE;
                             color = lookup_color(i as c_int, key_bytes[5] == b'F', &mut bold);
 
-                            if bold == kTrue {
+                            if bold == K_TRUE {
                                 (*hl_table().add(idx as usize)).sg_cterm |= HL_BOLD;
                                 (*hl_table().add(idx as usize)).sg_cterm_bold = true;
-                            } else if bold == kFalse {
+                            } else if bold == K_FALSE {
                                 (*hl_table().add(idx as usize)).sg_cterm &= !HL_BOLD;
                             }
                         }
@@ -1496,10 +1496,10 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                                     };
                                     if dark != -1
                                         && (dark != 0) != (crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd')
-                                        && !option_was_set(kOptBackground)
+                                        && !option_was_set(K_OPT_BACKGROUND)
                                     {
                                         set_option_value_give_err(
-                                            kOptBackground,
+                                            K_OPT_BACKGROUND,
                                             cstr_as_obj(if dark != 0 {
                                                 c"dark".as_ptr()
                                             } else {
@@ -1507,7 +1507,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                                             }),
                                             0,
                                         );
-                                        reset_option_was_set(kOptBackground);
+                                        reset_option_was_set(K_OPT_BACKGROUND);
                                     }
                                 }
                             }
@@ -1579,7 +1579,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
         if !error && is_normal_group {
             highlight_attr_set_all();
 
-            if !ui_has(kUILinegrid) && starting_val() == 0 {
+            if !ui_has(K_UILINEGRID_CONST) && starting_val() == 0 {
                 ui_refresh();
             } else {
                 ui_default_colors_set();
@@ -1625,9 +1625,9 @@ fn hl_has_settings(idx: c_int, check_link: bool) -> bool {
             && (g.sg_attr != 0
                 || g.sg_cterm_fg != 0
                 || g.sg_cterm_bg != 0
-                || g.sg_rgb_fg_idx != kColorIdxNone
-                || g.sg_rgb_bg_idx != kColorIdxNone
-                || g.sg_rgb_sp_idx != kColorIdxNone
+                || g.sg_rgb_fg_idx != K_COLOR_IDX_NONE
+                || g.sg_rgb_bg_idx != K_COLOR_IDX_NONE
+                || g.sg_rgb_sp_idx != K_COLOR_IDX_NONE
                 || (check_link && (g.sg_set & SG_LINK) != 0))
     }
 }
@@ -1645,9 +1645,9 @@ fn highlight_clear(idx: c_int) {
         g.sg_rgb_fg = -1;
         g.sg_rgb_bg = -1;
         g.sg_rgb_sp = -1;
-        g.sg_rgb_fg_idx = kColorIdxNone;
-        g.sg_rgb_bg_idx = kColorIdxNone;
-        g.sg_rgb_sp_idx = kColorIdxNone;
+        g.sg_rgb_fg_idx = K_COLOR_IDX_NONE;
+        g.sg_rgb_bg_idx = K_COLOR_IDX_NONE;
+        g.sg_rgb_sp_idx = K_COLOR_IDX_NONE;
         g.sg_blend = -1;
         g.sg_font = None;
         g.sg_link = g.sg_deflink;
@@ -1820,7 +1820,7 @@ pub fn ns_get_hl_defs(
     unsafe {
         let link = if has_key(
             opts.is_set__get_highlight_,
-            KEYSET_OPTIDX_get_highlight__link,
+            KEYSET_OPTIDX_GET_HIGHLIGHT_LINK,
         ) {
             opts.link
         } else {
@@ -1829,11 +1829,11 @@ pub fn ns_get_hl_defs(
         let mut id: c_int = -1;
         if has_key(
             opts.is_set__get_highlight_,
-            KEYSET_OPTIDX_get_highlight__name,
+            KEYSET_OPTIDX_GET_HIGHLIGHT_NAME,
         ) {
             let create = if has_key(
                 opts.is_set__get_highlight_,
-                KEYSET_OPTIDX_get_highlight__create,
+                KEYSET_OPTIDX_GET_HIGHLIGHT_CREATE,
             ) {
                 opts.create
             } else {
@@ -1849,7 +1849,7 @@ pub fn ns_get_hl_defs(
             }
         } else if has_key(
             opts.is_set__get_highlight_,
-            KEYSET_OPTIDX_get_highlight__id,
+            KEYSET_OPTIDX_GET_HIGHLIGHT_ID,
         ) {
             id = opts.id as c_int;
         }
@@ -2075,7 +2075,7 @@ pub fn syn_list_header(
         let mut adjust = true;
 
         if !did_header {
-            if !ui_has(kUIMessages) || g_st().msg_col > 0 {
+            if !ui_has(K_UIMESSAGES) || g_st().msg_col > 0 {
                 msg_putchar(c_int::from(b'\n'));
             }
             if g_st().got_int {
@@ -2088,7 +2088,7 @@ pub fn syn_list_header(
             );
             g_st().msg_col = name_col;
             endcol = 15;
-        } else if (ui_has(kUIMessages) || g_st().msg_silent != 0) && !force_newline {
+        } else if (ui_has(K_UIMESSAGES) || g_st().msg_silent != 0) && !force_newline {
             msg_putchar(c_int::from(b' '));
             adjust = false;
         } else if g_st().msg_col + outlen + 1 >= g_st().Columns || force_newline {
@@ -2128,17 +2128,17 @@ fn set_hl_attr(idx: c_int) {
         at_en.cterm_fg_color = sgp.sg_cterm_fg as i16;
         at_en.cterm_bg_color = sgp.sg_cterm_bg as i16;
         at_en.rgb_ae_attr = sgp.sg_gui;
-        at_en.rgb_fg_color = if sgp.sg_rgb_fg_idx != kColorIdxNone {
+        at_en.rgb_fg_color = if sgp.sg_rgb_fg_idx != K_COLOR_IDX_NONE {
             sgp.sg_rgb_fg
         } else {
             -1
         };
-        at_en.rgb_bg_color = if sgp.sg_rgb_bg_idx != kColorIdxNone {
+        at_en.rgb_bg_color = if sgp.sg_rgb_bg_idx != K_COLOR_IDX_NONE {
             sgp.sg_rgb_bg
         } else {
             -1
         };
-        at_en.rgb_sp_color = if sgp.sg_rgb_sp_idx != kColorIdxNone {
+        at_en.rgb_sp_color = if sgp.sg_rgb_sp_idx != K_COLOR_IDX_NONE {
             sgp.sg_rgb_sp
         } else {
             -1
@@ -2212,7 +2212,7 @@ pub fn syn_id2name(id: c_int) -> *mut c_char {
 pub fn syn_check_group<S: crate::strings::IntoCCharPtr>(name: S, len: usize) -> c_int {
     let name = name.into_c_char_ptr();
     if len > MAX_SYN_NAME {
-            emsg(gettext(e_highlight_group_name_too_long));
+            emsg(gettext(E_HIGHLIGHT_GROUP_NAME_TOO_LONG));
             return 0;
         }
         let id = syn_name2id_len(name, len);
@@ -2234,7 +2234,7 @@ fn syn_add_group(name: impl crate::strings::IntoCCharPtr, len: usize) -> c_int {
             } else if !c.is_ascii_alphanumeric() && c != b'_' && c != b'.' && c != b'@' && c != b'-'
             {
                 msg_source(HLF_W);
-                emsg(gettext(e_highlight_group_name_invalid_char));
+                emsg(gettext(E_HIGHLIGHT_GROUP_NAME_INVALID_CHAR));
                 return 0;
             }
         }
@@ -2265,9 +2265,9 @@ fn syn_add_group(name: impl crate::strings::IntoCCharPtr, len: usize) -> c_int {
         hlg.sg_rgb_bg = -1;
         hlg.sg_rgb_fg = -1;
         hlg.sg_rgb_sp = -1;
-        hlg.sg_rgb_bg_idx = kColorIdxNone;
-        hlg.sg_rgb_fg_idx = kColorIdxNone;
-        hlg.sg_rgb_sp_idx = kColorIdxNone;
+        hlg.sg_rgb_bg_idx = K_COLOR_IDX_NONE;
+        hlg.sg_rgb_fg_idx = K_COLOR_IDX_NONE;
+        hlg.sg_rgb_sp_idx = K_COLOR_IDX_NONE;
         hlg.sg_blend = -1;
         hlg.sg_parent = scoped_parent;
         hlg.sg_cleared = true;
@@ -2352,19 +2352,19 @@ pub fn highlight_attr_set_all() {
     unsafe {
         for idx in 0..hl_len() {
             let sgp = &mut *hl_table().add(idx as usize);
-            if sgp.sg_rgb_bg_idx == kColorIdxFg {
+            if sgp.sg_rgb_bg_idx == K_COLOR_IDX_FG {
                 sgp.sg_rgb_bg = g_st().normal_fg;
-            } else if sgp.sg_rgb_bg_idx == kColorIdxBg {
+            } else if sgp.sg_rgb_bg_idx == K_COLOR_IDX_BG {
                 sgp.sg_rgb_bg = g_st().normal_bg;
             }
-            if sgp.sg_rgb_fg_idx == kColorIdxFg {
+            if sgp.sg_rgb_fg_idx == K_COLOR_IDX_FG {
                 sgp.sg_rgb_fg = g_st().normal_fg;
-            } else if sgp.sg_rgb_fg_idx == kColorIdxBg {
+            } else if sgp.sg_rgb_fg_idx == K_COLOR_IDX_BG {
                 sgp.sg_rgb_fg = g_st().normal_bg;
             }
-            if sgp.sg_rgb_sp_idx == kColorIdxFg {
+            if sgp.sg_rgb_sp_idx == K_COLOR_IDX_FG {
                 sgp.sg_rgb_sp = g_st().normal_fg;
-            } else if sgp.sg_rgb_sp_idx == kColorIdxBg {
+            } else if sgp.sg_rgb_sp_idx == K_COLOR_IDX_BG {
                 sgp.sg_rgb_sp = g_st().normal_bg;
             }
             set_hl_attr(idx);
@@ -2428,7 +2428,7 @@ pub fn highlight_changed() {
 
         g_st().highlight_attr[HLF_NONE] = 0;
 
-        for (hlf, name_opt) in hlf_names.iter().enumerate().take(HLF_COUNT).skip(1) {
+        for (hlf, name_opt) in HLF_NAMES.iter().enumerate().take(HLF_COUNT).skip(1) {
             let name_cstr = name_opt.unwrap();
             let id = syn_check_group(name_cstr.as_ptr(), name_cstr.to_bytes().len());
             if id == 0 {
@@ -2609,50 +2609,50 @@ pub fn name_to_color(name: impl crate::strings::IntoCCharPtr, idx: *mut c_int) -
             && (crate::memory::cstr_byte_at(name, 6)).is_ascii_hexdigit()
             && crate::memory::cstr_byte_at(name, 7) == 0
         {
-            *idx = kColorIdxHex;
+            *idx = K_COLOR_IDX_HEX;
             let hex_str = std::str::from_utf8_unchecked(std::slice::from_raw_parts(name.add(1).cast::<u8>(), 6));
             return RgbValue::from_str_radix(hex_str, 16).unwrap_or(0);
         } else if mb_stricmp(name, c"bg") == 0
             || mb_stricmp(name, c"background") == 0
         {
-            *idx = kColorIdxBg;
+            *idx = K_COLOR_IDX_BG;
             return g_st().normal_bg;
         } else if mb_stricmp(name, c"fg") == 0
             || mb_stricmp(name, c"foreground") == 0
         {
-            *idx = kColorIdxFg;
+            *idx = K_COLOR_IDX_FG;
             return g_st().normal_fg;
         }
 
         let mut lo: usize = 0;
-        let mut hi: usize = color_name_table.len();
+        let mut hi: usize = COLOR_NAME_TABLE.len();
         while lo < hi {
             let m = (lo + hi) / 2;
-            let cmp = mb_stricmp(name, color_name_table[m].name.as_ptr());
+            let cmp = mb_stricmp(name, COLOR_NAME_TABLE[m].name.as_ptr());
             if cmp < 0 {
                 hi = m;
             } else if cmp > 0 {
                 lo = m + 1;
             } else {
                 *idx = m as c_int;
-                return color_name_table[m].color;
+                return COLOR_NAME_TABLE[m].color;
             }
         }
 
-        *idx = kColorIdxNone;
+        *idx = K_COLOR_IDX_NONE;
         -1
     }
 }
 
 pub fn coloridx_to_name(idx: c_int, val: c_int, hexbuf: *mut c_char) -> *const c_char {
     if idx >= 0 {
-            return color_name_table[idx as usize].name.as_ptr();
+            return COLOR_NAME_TABLE[idx as usize].name.as_ptr();
         }
         match idx {
-            kColorIdxNone => ptr::null(),
-            kColorIdxFg => c"fg".as_ptr(),
-            kColorIdxBg => c"bg".as_ptr(),
-            kColorIdxHex => {
+            K_COLOR_IDX_NONE => ptr::null(),
+            K_COLOR_IDX_FG => c"fg".as_ptr(),
+            K_COLOR_IDX_BG => c"bg".as_ptr(),
+            K_COLOR_IDX_HEX => {
                 write_hex6(hexbuf, val);
                 hexbuf
             }
@@ -2674,7 +2674,7 @@ pub fn name_to_ctermcolor(name: impl crate::strings::IntoCCharPtr) -> c_int { le
         if i < 0 {
             return -1;
         }
-        let mut bold = kNone;
+        let mut bold = K_NONE;
         lookup_color(i as c_int, false, &mut bold)
     }
 }
@@ -2688,7 +2688,7 @@ macro_rules! cname {
     };
 }
 
-pub static color_name_table: [ColorNameTable; 707] = [
+pub static COLOR_NAME_TABLE: [ColorNameTable; 707] = [
     cname!(c"AliceBlue", 0xf0, 0xf8, 0xff),
     cname!(c"AntiqueWhite", 0xfa, 0xeb, 0xd7),
     cname!(c"AntiqueWhite1", 0xff, 0xef, 0xdb),
@@ -3404,7 +3404,7 @@ mod tests {
 
     #[test]
     fn color_name_table_is_sorted_and_terminated() {
-        for (i, pair) in color_name_table.windows(2).enumerate() {
+        for (i, pair) in COLOR_NAME_TABLE.windows(2).enumerate() {
             let a = pair[0].name.to_bytes();
             let b = pair[1].name.to_bytes();
             assert!(
@@ -3420,18 +3420,18 @@ mod tests {
     fn coloridx_to_name_handles_special_indices() {
         let mut hexbuf = [0 as c_char; 8];
          {
-            assert!(coloridx_to_name(kColorIdxNone, 0, hexbuf.as_mut_ptr()).is_null());
+            assert!(coloridx_to_name(K_COLOR_IDX_NONE, 0, hexbuf.as_mut_ptr()).is_null());
             assert_eq!(
-                crate::memory::cstr_as_bytes(coloridx_to_name(kColorIdxFg, 0, hexbuf.as_mut_ptr())),
+                crate::memory::cstr_as_bytes(coloridx_to_name(K_COLOR_IDX_FG, 0, hexbuf.as_mut_ptr())),
                 b"fg"
             );
             assert_eq!(
-                crate::memory::cstr_as_bytes(coloridx_to_name(kColorIdxBg, 0, hexbuf.as_mut_ptr())),
+                crate::memory::cstr_as_bytes(coloridx_to_name(K_COLOR_IDX_BG, 0, hexbuf.as_mut_ptr())),
                 b"bg"
             );
             assert_eq!(
                 crate::memory::cstr_as_bytes(coloridx_to_name(
-                    kColorIdxHex,
+                    K_COLOR_IDX_HEX,
                     0x12abef,
                     hexbuf.as_mut_ptr()
                 )),
@@ -3535,7 +3535,7 @@ mod tests {
         .collect();
 
         let mut defined = HashSet::new();
-        for &cmd in &highlight_init_cmdline {
+        for &cmd in &HIGHLIGHT_INIT_CMDLINE {
             let s = cmd.to_str().unwrap();
             if let Some(rest) = s.strip_prefix("default link ") {
                 let mut parts = rest.split_whitespace();

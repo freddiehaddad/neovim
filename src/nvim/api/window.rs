@@ -19,7 +19,7 @@ use crate::ex_docmd::ex_win_close;
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::lua::converter::{Boolean, LuaRef, lua_State};
-use crate::lua::executor::{kRetMultiStack, nlua_call_ref};
+use crate::lua::executor::{K_RET_MULTI_STACK, nlua_call_ref};
 use crate::memory::Arena;
 use crate::message::emsg;
 use crate::r#move::{update_topline, validate_cursor};
@@ -33,18 +33,18 @@ use crate::window::{
 use std::ffi::c_int;
 use std::ptr;
 
-use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
+use crate::api::win_config::{K_CTX_NO_DISPLAY, K_CTX_NO_EVENTS};
 
-pub(crate) const kCtxKeepCwd: c_int = 1;
-pub(crate) const kCtxValidate: c_int = 16;
+pub(crate) const K_CTX_KEEP_CWD: c_int = 1;
+pub(crate) const K_CTX_VALIDATE: c_int = 16;
 
-const KEYSET_OPTIDX_win_text_height__end_row: u64 = 1;
-const KEYSET_OPTIDX_win_text_height__end_vcol: u64 = 2;
-const KEYSET_OPTIDX_win_text_height__start_row: u64 = 3;
-const KEYSET_OPTIDX_win_text_height__max_height: u64 = 4;
-const KEYSET_OPTIDX_win_text_height__start_vcol: u64 = 5;
+const KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW: u64 = 1;
+const KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_VCOL: u64 = 2;
+const KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_ROW: u64 = 3;
+const KEYSET_OPTIDX_WIN_TEXT_HEIGHT_MAX_HEIGHT: u64 = 4;
+const KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_VCOL: u64 = 5;
 
-const KEYSET_OPTIDX_win_resize__anchor: u64 = 1;
+const KEYSET_OPTIDX_WIN_RESIZE_ANCHOR: u64 = 1;
 
 #[repr(C)]
 #[derive(Default)]
@@ -182,7 +182,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
             (&raw mut *w),
             ptr::null_mut(),
             ptr::null_mut(),
-            kCtxNoEvents | kCtxNoDisplay,
+            K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
         ) {
             update_topline(curwin_mut());
             validate_cursor(curwin_mut());
@@ -390,7 +390,7 @@ pub fn nvim_win_hide(win: Window, err: &mut Error) {
         let tabpage = win_find_tabpage(w);
         try_wrap(err, || {
             if is_ctx_win(w) {
-                emsg(gettext(e_autocmd_close));
+                emsg(gettext(E_AUTOCMD_CLOSE));
             } else if tabpage == g_st().curtab {
                 win_close(w, false, false);
             } else {
@@ -464,14 +464,14 @@ pub fn nvim_win_call(
                 w,
                 tabpage,
                 ptr::null_mut(),
-                kCtxNoDisplay | kCtxKeepCwd | kCtxValidate,
+                K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD | K_CTX_VALIDATE,
             ) {
                 let args = Array::new();
                 nlua_call_ref(
                     fn_ref,
                     ptr::null(),
                     args,
-                    kRetMultiStack,
+                    K_RET_MULTI_STACK,
                     None,
                     Some(err),
                 );
@@ -575,11 +575,11 @@ pub fn nvim_win_text_height(
         let mut oob = false;
         let mask = opts.is_set__win_text_height_;
 
-        if has_key(mask, KEYSET_OPTIDX_win_text_height__start_row) {
+        if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_ROW) {
             start_lnum = normalize_index(&mut *buf, opts.start_row, false, &mut oob) as Linenr;
         }
 
-        if has_key(mask, KEYSET_OPTIDX_win_text_height__end_row) {
+        if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW) {
             end_lnum = normalize_index(&mut *buf, opts.end_row, false, &mut oob) as Linenr;
         }
 
@@ -602,8 +602,8 @@ pub fn nvim_win_text_height(
             return rv;
         }
 
-        if has_key(mask, KEYSET_OPTIDX_win_text_height__start_vcol) {
-            if !has_key(mask, KEYSET_OPTIDX_win_text_height__start_row) {
+        if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_VCOL) {
+            if !has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_START_ROW) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
@@ -619,8 +619,8 @@ pub fn nvim_win_text_height(
             }
         }
 
-        if has_key(mask, KEYSET_OPTIDX_win_text_height__end_vcol) {
-            if !has_key(mask, KEYSET_OPTIDX_win_text_height__end_row) {
+        if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_VCOL) {
+            if !has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
@@ -637,7 +637,7 @@ pub fn nvim_win_text_height(
         }
 
         let mut max: i64 = i64::MAX;
-        if has_key(mask, KEYSET_OPTIDX_win_text_height__max_height) {
+        if has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_MAX_HEIGHT) {
             if opts.max_height <= 0 {
                 api_err_range(err, c"max_height");
                 return rv;
@@ -665,7 +665,7 @@ pub fn nvim_win_text_height(
             Some(&mut fill),
             max,
         );
-        if !has_key(mask, KEYSET_OPTIDX_win_text_height__end_row) {
+        if !has_key(mask, KEYSET_OPTIDX_WIN_TEXT_HEIGHT_END_ROW) {
             let end_fill = i64::from(win_get_fill(&mut *w, line_count + 1));
             fill += end_fill;
             all += end_fill;
@@ -740,7 +740,7 @@ pub fn nvim_win_resize(
 
         if has_key(
             opts.is_set__win_resize_,
-            KEYSET_OPTIDX_win_resize__anchor,
+            KEYSET_OPTIDX_WIN_RESIZE_ANCHOR,
         ) {
             let anchor = opts.anchor.data;
             let anchor_bytes = opts.anchor.as_bytes();
@@ -795,8 +795,8 @@ mod tests {
         assert_eq!(obj.obj_type, ObjectType::ObjectTypeInteger);
         assert_eq!(obj.data.integer(), 42);
         assert!(has_key(
-            1u64 << KEYSET_OPTIDX_win_resize__anchor,
-            KEYSET_OPTIDX_win_resize__anchor
+            1u64 << KEYSET_OPTIDX_WIN_RESIZE_ANCHOR,
+            KEYSET_OPTIDX_WIN_RESIZE_ANCHOR
         ));
     }
 }

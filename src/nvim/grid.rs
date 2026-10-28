@@ -26,15 +26,15 @@ pub type Sattr = i32;
 pub type Sscratch = i32;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::win_config::{
-    AlignTextPos, BorderTextType, kAlignCenter, kAlignLeft, kAlignRight, kBorderTextFooter,
-    kBorderTextTitle, kUIMultigrid,
+    AlignTextPos, BorderTextType, K_ALIGN_CENTER, K_ALIGN_LEFT, K_ALIGN_RIGHT, K_BORDER_TEXT_FOOTER,
+    K_BORDER_TEXT_TITLE, K_UIMULTIGRID,
 };
 use crate::charset::NUL;
 use crate::drawline::{SLF_INC_VCOL, SLF_RIGHTLEFT, SLF_WRAP};
 use crate::drawscreen::DEFAULT_GRID_HANDLE;
 
-pub(crate) const kOptRdbFlagInvalid: c_uint = 0x04;
-const kOptRdbFlagNodelta: c_uint = 0x08;
+pub(crate) const K_OPT_RDB_FLAG_INVALID: c_uint = 0x04;
+const K_OPT_RDB_FLAG_NODELTA: c_uint = 0x08;
 
 const HLF_BTITLE: usize = 68;
 const HLF_BFOOTER: usize = 69;
@@ -503,7 +503,7 @@ pub fn screengrid_line_start(grid: &mut ScreenGrid, row: c_int, col: c_int) {
 
         assert!(grid_st().grid_line_maxcol as usize <= linebuf_size);
 
-        if g_st().full_screen && (opt_vars().rdb_flags & kOptRdbFlagInvalid) != 0 {
+        if g_st().full_screen && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_INVALID) != 0 {
             assert!(linebuf_size > 0);
             g_st().linebuf_char.fill(u32::MAX);
             g_st().linebuf_attr.fill(-1);
@@ -743,7 +743,7 @@ pub fn grid_line_flush() {
 pub fn grid_line_flush_if_valid_row() {
     unsafe {
         if grid_st().grid_line_row < 0 || grid_st().grid_line_row >= (*grid_st().grid_line_grid).rows {
-            if (opt_vars().rdb_flags & kOptRdbFlagInvalid) != 0 {
+            if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_INVALID) != 0 {
                 std::process::abort();
             } else {
                 grid_st().grid_line_grid = ptr::null_mut();
@@ -790,7 +790,7 @@ fn grid_char_needs_redraw(
                 || (cols > 1
                     && g_st().linebuf_char[(col + 1) as usize] == 0
                     && g_st().linebuf_char[(col + 1) as usize] != grid.chars[off_to + 1]))
-                || (opt_vars().rdb_flags & kOptRdbFlagNodelta) != 0)
+                || (opt_vars().rdb_flags & K_OPT_RDB_FLAG_NODELTA) != 0)
     }
 }
 
@@ -928,7 +928,7 @@ pub fn grid_put_linebuf(
             let off = off_to + c as usize;
             if grid.chars[off] != schar_from_ascii(b' ')
                 || grid.attrs[off] != clear_attr
-                || (opt_vars().rdb_flags & kOptRdbFlagNodelta) != 0
+                || (opt_vars().rdb_flags & K_OPT_RDB_FLAG_NODELTA) != 0
             {
                 grid.chars[off] = schar_from_ascii(b' ');
                 grid.attrs[off] = clear_attr;
@@ -1082,7 +1082,7 @@ pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
         let total_rows = wp.w_height_outer;
         let total_cols = wp.w_width_outer;
 
-        let want_allocation = ui_has(kUIMultigrid) || wp.w_floating;
+        let want_allocation = ui_has(K_UIMULTIGRID) || wp.w_floating;
         let has_allocation = !(*grid_allocated).chars.is_empty();
 
         if (wp.w_view_height as usize) + 1 > wp.w_lines.len() {
@@ -1264,7 +1264,7 @@ fn grid_draw_bordertext(
     mut overflow: c_int,
 ) {
     unsafe {
-        let hlf_idx = if bt == kBorderTextTitle {
+        let hlf_idx = if bt == K_BORDER_TEXT_TITLE {
             HLF_BTITLE
         } else {
             HLF_BFOOTER
@@ -1316,9 +1316,9 @@ fn grid_draw_bordertext(
 
 fn get_bordertext_col(total_col: c_int, text_width: c_int, align: AlignTextPos) -> c_int {
     match align {
-        kAlignLeft => 1,
-        kAlignCenter => ((total_col - text_width) / 2 + 1).max(1),
-        kAlignRight => (total_col - text_width + 1).max(1),
+        K_ALIGN_LEFT => 1,
+        K_ALIGN_CENTER => ((total_col - text_width) / 2 + 1).max(1),
+        K_ALIGN_RIGHT => (total_col - text_width + 1).max(1),
         _ => unreachable!(),
     }
 }
@@ -1372,7 +1372,7 @@ pub fn grid_draw_border(
                     winbl,
                     hl_attr,
                     win_hl_attr_normal,
-                    kBorderTextTitle,
+                    K_BORDER_TEXT_TITLE,
                     config.title_width - icol,
                 );
             }
@@ -1424,7 +1424,7 @@ pub fn grid_draw_border(
                     winbl,
                     hl_attr,
                     win_hl_attr_normal,
-                    kBorderTextFooter,
+                    K_BORDER_TEXT_FOOTER,
                     config.footer_width - icol,
                 );
             }
@@ -1470,13 +1470,13 @@ pub fn schar_from_char(mut c: c_int) -> Schar {
 }
 
 #[cfg(target_endian = "big")]
-pub const braille_space: Schar = 0xe2a0_8000;
+pub const BRAILLE_SPACE: Schar = 0xe2a0_8000;
 #[cfg(not(target_endian = "big"))]
-pub const braille_space: Schar = 0x0080_a0e2;
+pub const BRAILLE_SPACE: Schar = 0x0080_a0e2;
 
 #[inline]
 pub fn schar_invisible(sc: Schar) -> bool {
-    sc == schar_from_ascii(b' ') || sc == braille_space
+    sc == schar_from_ascii(b' ') || sc == BRAILLE_SPACE
 }
 
 pub fn schar_from_cluster_impl(

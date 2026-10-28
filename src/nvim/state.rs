@@ -1,7 +1,7 @@
 //! Core editor state loop and mode queries (`src/nvim/state.c`).
 
 use crate::autocmd::{EVENT_MODECHANGED, EVENT_SAFESTATE, apply_autocmds, has_event};
-use crate::drawscreen::{kOptVeFlagBlock, setcursor, update_screen};
+use crate::drawscreen::{K_OPT_VE_FLAG_BLOCK, setcursor, update_screen};
 use crate::eval::typval::{tv_dict_add_str, tv_dict_set_keys_readonly};
 use crate::eval::{get_v_event, restore_v_event};
 use crate::event::r#loop::main_loop_events;
@@ -46,16 +46,16 @@ pub const MODE_SETWSIZE: c_int = 0x4000;
 pub const MODE_EXTERNCMD: c_int = 0x5000;
 pub const MODE_SHOWMATCH: c_int = 0x6000 | MODE_INSERT;
 
-const kOptVeFlagInsert: c_uint = 0x06;
+const K_OPT_VE_FLAG_INSERT: c_uint = 0x06;
 
 pub trait EditorState {
     fn check(&mut self) -> c_int;
     fn execute(&mut self, key: c_int) -> c_int;
 }
 
-use crate::cursor::kOptVeFlagAll;
-use crate::extmark::kNone;
-use crate::regexp::Ctrl_V;
+use crate::cursor::K_OPT_VE_FLAG_ALL;
+use crate::extmark::K_NONE;
+use crate::regexp::CTRL_V_CONST;
 
 #[repr(C)]
 pub struct SaveVEvent {
@@ -188,16 +188,16 @@ pub fn virtual_active(wp: &mut WinInfoInfo) -> bool {
 
         let cur_ve_flags = get_ve_flags( wp);
 
-        if cur_ve_flags == kOptVeFlagAll
-            || ((cur_ve_flags & kOptVeFlagInsert) != 0 && (g_st().State & MODE_INSERT) != 0)
+        if cur_ve_flags == K_OPT_VE_FLAG_ALL
+            || ((cur_ve_flags & K_OPT_VE_FLAG_INSERT) != 0 && (g_st().State & MODE_INSERT) != 0)
         {
             return true;
         }
 
-        if g_st().virtual_op != kNone {
+        if g_st().virtual_op != K_NONE {
             return g_st().virtual_op != 0;
         }
-        (cur_ve_flags & kOptVeFlagBlock) != 0 && g_st().Visual.active && g_st().Visual.mode == Ctrl_V
+        (cur_ve_flags & K_OPT_VE_FLAG_BLOCK) != 0 && g_st().Visual.active && g_st().Visual.mode == CTRL_V_CONST
 }
 
 pub fn get_real_state() -> c_int {

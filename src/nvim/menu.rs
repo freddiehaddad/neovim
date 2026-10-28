@@ -1,7 +1,7 @@
 //! Code for menus, used for the GUI and `'wildmenu'` (`src/nvim/menu.c`).
 
 use crate::autocmd::{EVENT_MENUPOPUP, HLF_8, apply_autocmds};
-use crate::charset::{Ctrl_V, ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
+use crate::charset::{CTRL_V_CONST, ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
 use crate::cursor::{check_cursor, gchar_cursor, CursorPos};
 use crate::errors::*;
 use crate::eval::typval::{
@@ -12,7 +12,7 @@ use crate::eval::typval::{
 };
 use crate::eval::vars::del_menutrans_vars;
 use crate::ex_docmd::{
-    Ctrl_C, Ctrl_G, Ctrl_O, ends_excmd, Exarg, exec_normal_cmd, restore_current_state,
+    CTRL_C_CONST, CTRL_G, CTRL_O, ends_excmd, Exarg, exec_normal_cmd, restore_current_state,
     save_current_state,
 };
 use crate::globals::*;
@@ -37,7 +37,7 @@ use crate::ui::ui_call_update_menu;
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-const Ctrl_BSL: c_char = 28;
+const CTRL_BSL_CONST: c_char = 28;
 
 const MENUDEPTH: usize = 10;
 const TBUFFER_LEN: usize = 256;
@@ -123,10 +123,10 @@ use crate::charset::NUL;
 use crate::cmdexpand::{
     EXPAND_MENUNAMES, EXPAND_MENUS, EXPAND_NOTHING, EXPAND_UNSUCCESSFUL, HLF_D,
 };
-use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
+use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 use crate::eval::funcs::{MENU_ALL_MODES, MENU_INDEX_TIP};
-use crate::eval::kListLenMayKnow;
-use crate::extmark::{kFalse, kNone, kTrue};
+use crate::eval::K_LIST_LEN_MAY_KNOW_CONST;
+use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 use crate::mapping::{REMAP_NONE, REMAP_YES};
 use crate::regexp::{MAXCOL, NUMBUFLEN};
 
@@ -211,7 +211,7 @@ fn get_root_menu(_name: *const c_char) -> *mut Vec<Vimmenu> {
 /// If `menus_locked` is set then give an error and return true (`is_menus_locked`).
 fn is_menus_locked() -> bool {
     if menu_st().MENUS_LOCKED > 0 {
-            emsg(gettext(e_cannot_change_menus_while_listing));
+            emsg(gettext(E_CANNOT_CHANGE_MENUS_WHILE_LISTING));
             return true;
         }
         false
@@ -224,7 +224,7 @@ pub fn ex_menu(eap: &mut Exarg) {
         let mut silent = false;
         let mut unmenu = false;
         let mut pri_tab = [0 as c_int; MENUDEPTH + 1];
-        let mut enable: c_int = kNone;
+        let mut enable: c_int = K_NONE;
 
         let modes = get_menu_cmd_modes(
             eap.cmd,
@@ -300,10 +300,10 @@ pub fn ex_menu(eap: &mut Exarg) {
         pri_tab[MENUDEPTH] = -1;
 
         if (crate::memory::cstr_prefix_bytes(arg, 6) == &b"enable"[..6]) && ascii_iswhite(crate::memory::cstr_char_at(arg, 6)) {
-            enable = kTrue;
+            enable = K_TRUE;
             arg = skipwhite(arg.add(6));
         } else if (crate::memory::cstr_prefix_bytes(arg, 7) == &b"disable"[..7]) && ascii_iswhite(crate::memory::cstr_char_at(arg, 7)) {
-            enable = kFalse;
+            enable = K_FALSE;
             arg = skipwhite(arg.add(7));
         }
 
@@ -314,23 +314,23 @@ pub fn ex_menu(eap: &mut Exarg) {
 
         let mut menu_path = arg;
         if crate::memory::cstr_first_byte(menu_path) == b'.' {
-            semsg!(gettext(e_invarg2), menu_path);
+            semsg!(gettext(E_INVARG2), menu_path);
             return;
         }
 
         let mut map_to = menu_translate_tab_and_shift(arg);
 
-        if crate::memory::cstr_is_empty(map_to) && !unmenu && enable == kNone {
+        if crate::memory::cstr_is_empty(map_to) && !unmenu && enable == K_NONE {
             show_menus(menu_path, modes);
             return;
-        } else if !crate::memory::cstr_is_empty(map_to) && (unmenu || enable != kNone) {
-            semsg!(gettext(e_trailing_arg), map_to);
+        } else if !crate::memory::cstr_is_empty(map_to) && (unmenu || enable != K_NONE) {
+            semsg!(gettext(E_TRAILING_ARG), map_to);
             return;
         }
 
         let root_menu_ptr = get_root_menu(menu_path);
 
-        if enable != kNone {
+        if enable != K_NONE {
             if crate::memory::cstr_as_bytes(menu_path) == b"*" {
                 menu_path = c"".as_ptr().cast_mut();
             }
@@ -562,11 +562,11 @@ fn add_menu_path(
                         match 1 << i {
                             MENU_VISUAL_MODE | MENU_SELECT_MODE | MENU_OP_PENDING_MODE
                             | MENU_CMDLINE_MODE => {
-                                c = Ctrl_C;
+                                c = CTRL_C_CONST;
                             }
                             MENU_INSERT_MODE => {
-                                c = Ctrl_BSL;
-                                d = Ctrl_O;
+                                c = CTRL_BSL_CONST;
+                                d = CTRL_O;
                             }
                             _ => {}
                         }
@@ -580,9 +580,9 @@ fn add_menu_path(
                             bytes.push(d as u8);
                         }
                         bytes.extend_from_slice(call_bytes);
-                        if c == Ctrl_C {
-                            bytes.push(Ctrl_BSL as u8);
-                            bytes.push(Ctrl_G as u8);
+                        if c == CTRL_C_CONST {
+                            bytes.push(CTRL_BSL_CONST as u8);
+                            bytes.push(CTRL_G as u8);
                         }
                         (*menu).strings[i] = Some(std::ffi::CString::new(bytes).unwrap());
                     } else {
@@ -672,7 +672,7 @@ fn remove_menu(
                     }
                 } else if !crate::memory::cstr_is_empty(name) {
                     if !silent {
-                        emsg(gettext(e_menu_only_exists_in_another_mode));
+                        emsg(gettext(E_MENU_ONLY_EXISTS_IN_ANOTHER_MODE));
                     }
                     return false;
                 }
@@ -765,7 +765,7 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: c_int) -> *mut TvDict {
                     tv_dict_add_str(
                         &mut *impl_dict,
                         c"rhs",
-                        str2special_save(s_ptr, false, kFalse).as_ptr(),
+                        str2special_save(s_ptr, false, K_FALSE).as_ptr(),
                     );
                     tv_dict_add_nr(
                         &mut *impl_dict,
@@ -807,7 +807,7 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: c_int) -> *mut TvDict {
                 }
             }
         } else {
-            let children_list = tv_list_alloc(kListLenMayKnow);
+            let children_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
             for child in &menu.unwrap().children {
                 let d = menu_get_recursive(Some(child), modes);
                 if tv_dict_len(d.as_ref()) > 0 {
@@ -866,7 +866,7 @@ fn find_menu(
                         emsg(gettext(E_NOTSUBMENU));
                         return ptr::null_mut();
                     } else if (menu.modes & modes) == 0 {
-                        emsg(gettext(e_menu_only_exists_in_another_mode));
+                        emsg(gettext(E_MENU_ONLY_EXISTS_IN_ANOTHER_MODE));
                         return ptr::null_mut();
                     } else if crate::memory::cstr_is_empty(p) {
                         return menu;
@@ -1037,7 +1037,7 @@ pub fn set_context_in_menu_cmd(
         arg = p;
 
         while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(crate::memory::cstr_first_char(p)) {
-            if (crate::memory::cstr_first_byte(p) == b'\\' || *p == Ctrl_V) && crate::memory::cstr_byte_at(p, 1) != 0 {
+            if (crate::memory::cstr_first_byte(p) == b'\\' || *p == CTRL_V_CONST) && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.add(1);
             } else if crate::memory::cstr_first_byte(p) == b'.' {
                 after_dot = p.add(1);
@@ -1232,7 +1232,7 @@ fn menu_name_skip(name: *mut c_char) -> *mut c_char {
     unsafe {
         let mut p = name;
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'.' {
-            if crate::memory::cstr_first_byte(p) == b'\\' || *p == Ctrl_V {
+            if crate::memory::cstr_first_byte(p) == b'\\' || *p == CTRL_V_CONST {
                 crate::memory::cstr_move(p, p.add(1));
                 if crate::memory::cstr_is_empty(p) {
                     break;
@@ -1691,7 +1691,7 @@ pub fn ex_emenu(eap: &mut Exarg) {
                 b'i' => mode_idx = MENU_INDEX_INSERT,
                 b'c' => mode_idx = MENU_INDEX_CMDLINE,
                 _ => {
-                    semsg!(gettext(e_invarg2), arg);
+                    semsg!(gettext(E_INVARG2), arg);
                     return;
                 }
             }
@@ -1768,7 +1768,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
             *arg = NUL;
             arg = menu_skip_part(to_arg);
             if arg == to_arg {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
             } else {
                 let mut from_vec: Vec<c_char> = crate::memory::cstr_to_cchar_vec(from_arg);
                 let from = from_vec.as_mut_ptr();
@@ -1798,7 +1798,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
 fn menu_skip_part(mut p: *mut c_char) -> *mut c_char {
     unsafe {
         while !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'.' && !ascii_iswhite(crate::memory::cstr_first_char(p)) {
-            if (crate::memory::cstr_first_byte(p) == b'\\' || *p == Ctrl_V) && crate::memory::cstr_byte_at(p, 1) != 0 {
+            if (crate::memory::cstr_first_byte(p) == b'\\' || *p == CTRL_V_CONST) && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.add(1);
             }
             p = p.add(1);
@@ -1853,7 +1853,7 @@ fn menu_translate_tab_and_shift(arg_start: *mut c_char) -> *mut c_char {
         let mut arg = arg_start;
 
         while !crate::memory::cstr_is_empty(arg) && !ascii_iswhite(crate::memory::cstr_first_char(arg)) {
-            if (crate::memory::cstr_first_byte(arg) == b'\\' || *arg == Ctrl_V) && crate::memory::cstr_byte_at(arg, 1) != 0 {
+            if (crate::memory::cstr_first_byte(arg) == b'\\' || *arg == CTRL_V_CONST) && crate::memory::cstr_byte_at(arg, 1) != 0 {
                 arg = arg.add(1);
             } else if crate::memory::cstr_prefix_bytes(arg, 5).eq_ignore_ascii_case(b"<TAB>") {
                 *arg = TAB;
@@ -1899,7 +1899,7 @@ fn menuitem_getinfo(menu: &Vimmenu, modes: c_int, dict: &mut TvDict) {
                         tv_dict_add_str(
                             dict,
                             c"rhs",
-                            str2special_save(s.as_ptr(), false, kFalse).as_ptr(),
+                            str2special_save(s.as_ptr(), false, K_FALSE).as_ptr(),
                         );
                     }
                 }
@@ -1907,41 +1907,41 @@ fn menuitem_getinfo(menu: &Vimmenu, modes: c_int, dict: &mut TvDict) {
                     dict,
                     c"noremenu",
                     if menu.noremap[bit] == REMAP_NONE {
-                        kBoolVarTrue
+                        K_BOOL_VAR_TRUE_CONST
                     } else {
-                        kBoolVarFalse
+                        K_BOOL_VAR_FALSE_CONST
                     },
                 );
                 tv_dict_add_bool(
                     dict,
                     c"script",
                     if menu.noremap[bit] == REMAP_SCRIPT {
-                        kBoolVarTrue
+                        K_BOOL_VAR_TRUE_CONST
                     } else {
-                        kBoolVarFalse
+                        K_BOOL_VAR_FALSE_CONST
                     },
                 );
                 tv_dict_add_bool(
                     dict,
                     c"silent",
                     if menu.silent[bit] {
-                        kBoolVarTrue
+                        K_BOOL_VAR_TRUE_CONST
                     } else {
-                        kBoolVarFalse
+                        K_BOOL_VAR_FALSE_CONST
                     },
                 );
                 tv_dict_add_bool(
                     dict,
                     c"enabled",
                     if (menu.enabled & (1 << bit)) != 0 {
-                        kBoolVarTrue
+                        K_BOOL_VAR_TRUE_CONST
                     } else {
-                        kBoolVarFalse
+                        K_BOOL_VAR_FALSE_CONST
                     },
                 );
             }
         } else {
-            let l = tv_list_alloc(kListLenMayKnow);
+            let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
             tv_dict_add_list(dict, c"submenus", l);
             for child in &menu.children {
                 tv_list_append_string( &mut *l, child.dname.as_ptr(), -1);
@@ -1988,7 +1988,7 @@ pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             }
             if !menus.is_empty() && (menus[0].modes & modes) != 0 {
                 let _ = has_mode_match;
-                let l = tv_list_alloc(kListLenMayKnow);
+                let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
                 tv_dict_add_list(retdict, c"submenus", l);
                 for topmenu in menus {
                     if !menu_is_hidden(topmenu.dname.as_ptr().cast_mut()) {

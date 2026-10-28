@@ -1,6 +1,6 @@
 //! VT220/xterm-like terminal emulator (`src/nvim/terminal.c`).
 
-use crate::option::{OPT_LOCAL, OptInt, SB_MAX, kOptBuftype, set_option_value};
+use crate::option::{OPT_LOCAL, OptInt, SB_MAX, K_OPT_BUFTYPE, set_option_value};
 use crate::vterm::keyboard::VTERM_KEY_KP_0;
 use crate::vterm::state::VTERM_SELECTION_CLIPBOARD;
 use crate::vterm::state::VTERM_SELECTION_PRIMARY;
@@ -41,7 +41,7 @@ use crate::eval::typval::{
     tv_list_append_string,
 };
 use crate::eval::vars::{VV_TERMREQUEST, get_globvar_dict, set_vim_var_string};
-use crate::eval::{eval_call_provider, get_v_event, kListLenMayKnow, restore_v_event};
+use crate::eval::{eval_call_provider, get_v_event, K_LIST_LEN_MAY_KNOW_CONST, restore_v_event};
 use crate::event::r#loop::loop_queues;
 use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_free, multiqueue_move_events, multiqueue_new,
@@ -76,7 +76,7 @@ use crate::keycodes::{
     K_X1RELEASE, K_X2DRAG, K_X2MOUSE, K_X2RELEASE, K_ZERO, MOD_MASK_ALT, MOD_MASK_CTRL,
     MOD_MASK_SHIFT, TAB, unsimplify_key,
 };
-use crate::mark::{kMarkAdjustTerm, mark_adjust_buf};
+use crate::mark::{K_MARK_ADJUST_TERM, mark_adjust_buf};
 use crate::mbyte::{mb_check_adjust_col, utf_ptr2char, utf_ptr2len};
 use crate::memline::{ml_append_buf, ml_delete_buf, ml_replace_buf};
 use crate::mouse::{
@@ -134,30 +134,30 @@ use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::arglist::ML_EMPTY;
-use crate::cmdexpand::Ctrl_N;
-use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, kOptCuloptFlagNumber};
+use crate::cmdexpand::CTRL_N;
+use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, K_OPT_CULOPT_FLAG_NUMBER};
 use crate::eval::funcs::{
     HL_BLINK, HL_BOLD, HL_CONCEALED, HL_DIM, HL_INVERSE, HL_ITALIC, HL_UNDERCURL, HL_UNDERDOUBLE,
     HL_UNDERLINE,
 };
-use crate::ex_cmds::Ctrl_C;
-use crate::ex_getln::{Ctrl_BSL, Ctrl_O, K_EVENT, K_LUA};
-use crate::extmark::kExtmarkUndo;
+use crate::ex_cmds::CTRL_C_CONST;
+use crate::ex_getln::{CTRL_BSL, CTRL_O, K_EVENT, K_LUA};
+use crate::extmark::K_EXTMARK_UNDO;
 use crate::search::FORWARD;
 
 const REFRESH_DELAY: u64 = 10;
 const TEXTBUF_SIZE: usize = 0x1fff;
 const SELECTIONBUF_SIZE: usize = 0x0400;
 
-const kOptBoFlagTerm: c_uint = 0x40000;
+const K_OPT_BO_FLAG_TERM: c_uint = 0x40000;
 
-const kOptTpfFlagBS: c_uint = 0x01;
-const kOptTpfFlagHT: c_uint = 0x02;
-const kOptTpfFlagFF: c_uint = 0x04;
-const kOptTpfFlagESC: c_uint = 0x08;
-const kOptTpfFlagDEL: c_uint = 0x10;
-const kOptTpfFlagC0: c_uint = 0x20;
-const kOptTpfFlagC1: c_uint = 0x40;
+const K_OPT_TPF_FLAG_BS: c_uint = 0x01;
+const K_OPT_TPF_FLAG_HT: c_uint = 0x02;
+const K_OPT_TPF_FLAG_FF: c_uint = 0x04;
+const K_OPT_TPF_FLAG_ESC: c_uint = 0x08;
+const K_OPT_TPF_FLAG_DEL: c_uint = 0x10;
+const K_OPT_TPF_FLAG_C0: c_uint = 0x20;
+const K_OPT_TPF_FLAG_C1: c_uint = 0x40;
 
 const VTERM_UNDERLINE_OFF: u32 = 0;
 
@@ -188,8 +188,8 @@ const VTERM_KEY_KP_PERIOD: VTermKey = 526;
 const VTERM_KEY_KP_DIVIDE: VTermKey = 527;
 const VTERM_KEY_KP_ENTER: VTermKey = 528;
 
-const Ctrl_AT: c_int = 0;
-const Ctrl_M: c_int = 13;
+const CTRL_AT: c_int = 0;
+const CTRL_M: c_int = 13;
 
 const TERM_ATTRS_MAX: c_int = 1024;
 
@@ -863,7 +863,7 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
         refresh_screen(term, &mut *buf);
         buf.b_locked += 1;
         set_option_value(
-            kOptBuftype,
+            K_OPT_BUFTYPE,
             string_obj(cstr_slice_as_string(b"terminal\0")),
             OPT_LOCAL,
             true,
@@ -1100,7 +1100,7 @@ fn set_terminal_winopts(s: &mut TerminalState) {
         s.save_w_p_siso = curwin_mut().w_onebuf_opt.wo_siso;
 
         if curwin_mut().w_onebuf_opt.wo_cul != 0
-            && (curwin_mut().w_p_culopt_flags & kOptCuloptFlagNumber) != 0
+            && (curwin_mut().w_p_culopt_flags & K_OPT_CULOPT_FLAG_NUMBER) != 0
         {
             if !(crate::memory::cstr_as_opt_bytes(curwin_mut().w_onebuf_opt.wo_culopt) == Some(b"number")) {
                 s.save_w_p_culopt =
@@ -1108,7 +1108,7 @@ fn set_terminal_winopts(s: &mut TerminalState) {
                 free_string_option(curwin_mut().w_onebuf_opt.wo_culopt);
                 curwin_mut().w_onebuf_opt.wo_culopt = alloc_string_option(c"number");
             }
-            curwin_mut().w_p_culopt_flags = kOptCuloptFlagNumber;
+            curwin_mut().w_p_culopt_flags = K_OPT_CULOPT_FLAG_NUMBER;
         } else {
             curwin_mut().w_onebuf_opt.wo_cul = 0;
         }
@@ -1420,18 +1420,18 @@ fn terminal_execute(s: &mut TerminalState, key: c_int) -> c_int {
             }
             K_IGNORE | K_NOP => {}
             _ => {
-                if mod_key == Ctrl_N && s.got_bsl {
+                if mod_key == CTRL_N && s.got_bsl {
                     return 0;
                 }
-                if mod_key == Ctrl_O && s.got_bsl {
+                if mod_key == CTRL_O && s.got_bsl {
                     s.got_bsl_o = true;
                     g_st().restart_edit = b'I' as c_int;
                     return 0;
                 }
-                if mod_key == Ctrl_C {
+                if mod_key == CTRL_C_CONST {
                     g_st().got_int = false;
                 }
-                if mod_key == Ctrl_BSL && !s.got_bsl {
+                if mod_key == CTRL_BSL && !s.got_bsl {
                     s.got_bsl = true;
                     return 1;
                 }
@@ -1496,17 +1496,17 @@ fn terminal_send(term: &mut Terminal, data: impl crate::strings::IntoCCharPtr, s
 
 fn is_filter_char(c: c_int) -> bool {
     let flag = match c {
-        0x08 => kOptTpfFlagBS,
-        0x09 => kOptTpfFlagHT,
+        0x08 => K_OPT_TPF_FLAG_BS,
+        0x09 => K_OPT_TPF_FLAG_HT,
         0x0A | 0x0D => 0,
-        0x0C => kOptTpfFlagFF,
-        0x1b => kOptTpfFlagESC,
-        0x7F => kOptTpfFlagDEL,
+        0x0C => K_OPT_TPF_FLAG_FF,
+        0x1b => K_OPT_TPF_FLAG_ESC,
+        0x7F => K_OPT_TPF_FLAG_DEL,
         _ => {
             if c < b' ' as c_int {
-                kOptTpfFlagC0
+                K_OPT_TPF_FLAG_C0
             } else if (0x80..=0x9F).contains(&c) {
-                kOptTpfFlagC1
+                K_OPT_TPF_FLAG_C1
             } else {
                 0
             }
@@ -1574,7 +1574,7 @@ pub fn terminal_paste(count: c_int, y_array: *mut NvimString, y_size: usize) {
 fn terminal_send_key(term: &mut Terminal, mut c: c_int) {
     let mut mod_: VTermModifier = VTERM_MOD_NONE;
         if c == K_ZERO {
-            c = Ctrl_AT;
+            c = CTRL_AT;
         }
 
         let key = convert_key(&mut c, g_st().mod_mask, &mut mod_);
@@ -1935,7 +1935,7 @@ fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term: *mut Terminal) 
 }
 
 fn term_bell(_data: *mut Terminal) -> c_int {
-    vim_beep(kOptBoFlagTerm);
+    vim_beep(K_OPT_BO_FLAG_TERM);
     1
 }
 
@@ -2036,7 +2036,7 @@ pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
             _ => b'+' as c_char,
         };
 
-        let lines = tv_list_alloc(kListLenMayKnow);
+        let lines = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         let mut start = data.as_ptr();
         loop {
             let start_bytes = crate::memory::cstr_as_bytes(start);
@@ -2127,7 +2127,7 @@ fn convert_key(
         match *key {
             K_BS => VTERM_KEY_BACKSPACE,
             K_TAB | TAB => VTERM_KEY_TAB,
-            Ctrl_M => VTERM_KEY_ENTER,
+            CTRL_M => VTERM_KEY_ENTER,
             ESC => VTERM_KEY_ESCAPE,
             K_UP => VTERM_KEY_UP,
             K_DOWN => VTERM_KEY_DOWN,
@@ -2543,8 +2543,8 @@ fn adjust_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
                 MAXLNUM,
                 -(diff as Linenr),
                 true,
-                kMarkAdjustTerm,
-                kExtmarkUndo,
+                K_MARK_ADJUST_TERM,
+                K_EXTMARK_UNDO,
             );
             deleted_lines_buf(buf, 1, diff as Linenr);
         }
@@ -2565,8 +2565,8 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
             MAXLNUM,
             -deleted,
             true,
-            kMarkAdjustTerm,
-            kExtmarkUndo,
+            K_MARK_ADJUST_TERM,
+            K_EXTMARK_UNDO,
         );
         term.old_sb_deleted = term.sb_deleted;
 

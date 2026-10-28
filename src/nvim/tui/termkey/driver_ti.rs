@@ -96,27 +96,27 @@ pub const TERMKEY_KEYMOD_SHIFT: c_int = 1 << 0;
 pub const TERMKEY_KEYMOD_ALT: c_int = 1 << 1;
 pub const TERMKEY_KEYMOD_CTRL: c_int = 1 << 2;
 
-pub const kTermCount: usize = 49;
+pub const K_TERM_COUNT: usize = 49;
 
 pub type TerminfoKey = c_int;
-pub const kTermKey_backspace: TerminfoKey = 0;
-pub const kTermKey_beg: TerminfoKey = 1;
-pub const kTermKey_btab: TerminfoKey = 2;
-pub const kTermKey_clear: TerminfoKey = 3;
-pub const kTermKey_dc: TerminfoKey = 4;
-pub const kTermKey_end: TerminfoKey = 5;
-pub const kTermKey_find: TerminfoKey = 6;
-pub const kTermKey_home: TerminfoKey = 7;
-pub const kTermKey_ic: TerminfoKey = 8;
-pub const kTermKey_npage: TerminfoKey = 9;
-pub const kTermKey_ppage: TerminfoKey = 10;
-pub const kTermKey_select: TerminfoKey = 11;
-pub const kTermKey_suspend: TerminfoKey = 12;
-pub const kTermKey_undo: TerminfoKey = 13;
-pub const kTermKey_left: TerminfoKey = 14;
-pub const kTermKey_right: TerminfoKey = 15;
-pub const kTermKeyCount: usize = 16;
-pub const kTerminfoFuncKeyMax: usize = 63;
+pub const K_TERM_KEY_BACKSPACE: TerminfoKey = 0;
+pub const K_TERM_KEY_BEG: TerminfoKey = 1;
+pub const K_TERM_KEY_BTAB: TerminfoKey = 2;
+pub const K_TERM_KEY_CLEAR: TerminfoKey = 3;
+pub const K_TERM_KEY_DC: TerminfoKey = 4;
+pub const K_TERM_KEY_END: TerminfoKey = 5;
+pub const K_TERM_KEY_FIND: TerminfoKey = 6;
+pub const K_TERM_KEY_HOME: TerminfoKey = 7;
+pub const K_TERM_KEY_IC: TerminfoKey = 8;
+pub const K_TERM_KEY_NPAGE: TerminfoKey = 9;
+pub const K_TERM_KEY_PPAGE: TerminfoKey = 10;
+pub const K_TERM_KEY_SELECT: TerminfoKey = 11;
+pub const K_TERM_KEY_SUSPEND: TerminfoKey = 12;
+pub const K_TERM_KEY_UNDO: TerminfoKey = 13;
+pub const K_TERM_KEY_LEFT: TerminfoKey = 14;
+pub const K_TERM_KEY_RIGHT: TerminfoKey = 15;
+pub const K_TERM_KEY_COUNT: usize = 16;
+pub const K_TERMINFO_FUNC_KEY_MAX: usize = 63;
 
 #[repr(C)]
 #[derive(Clone)]
@@ -128,9 +128,9 @@ pub struct TerminfoEntry {
     pub max_colors: c_int,
     pub lines: c_int,
     pub columns: c_int,
-    pub defs: [Option<std::borrow::Cow<'static, CStr>>; kTermCount],
-    pub keys: [[Option<std::borrow::Cow<'static, CStr>>; 2]; kTermKeyCount],
-    pub f_keys: [Option<std::borrow::Cow<'static, CStr>>; kTerminfoFuncKeyMax],
+    pub defs: [Option<std::borrow::Cow<'static, CStr>>; K_TERM_COUNT],
+    pub keys: [[Option<std::borrow::Cow<'static, CStr>>; 2]; K_TERM_KEY_COUNT],
+    pub f_keys: [Option<std::borrow::Cow<'static, CStr>>; K_TERMINFO_FUNC_KEY_MAX],
 }
 
 #[repr(C)]
@@ -270,112 +270,112 @@ struct TiFuncEntry {
 
 const FUNCS: &[TiFuncEntry] = &[
     TiFuncEntry {
-        ti_key: kTermKey_backspace,
+        ti_key: K_TERM_KEY_BACKSPACE,
         funcname: "backspace",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_BACKSPACE,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_beg,
+        ti_key: K_TERM_KEY_BEG,
         funcname: "beg",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_BEGIN,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_btab,
+        ti_key: K_TERM_KEY_BTAB,
         funcname: "btab",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_TAB,
         mods: TERMKEY_KEYMOD_SHIFT,
     },
     TiFuncEntry {
-        ti_key: kTermKey_clear,
+        ti_key: K_TERM_KEY_CLEAR,
         funcname: "clear",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_CLEAR,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_dc,
+        ti_key: K_TERM_KEY_DC,
         funcname: "dc",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_DELETE,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_end,
+        ti_key: K_TERM_KEY_END,
         funcname: "end",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_END,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_find,
+        ti_key: K_TERM_KEY_FIND,
         funcname: "find",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_FIND,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_home,
+        ti_key: K_TERM_KEY_HOME,
         funcname: "home",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_HOME,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_ic,
+        ti_key: K_TERM_KEY_IC,
         funcname: "ic",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_INSERT,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_left,
+        ti_key: K_TERM_KEY_LEFT,
         funcname: "left",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_LEFT,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_npage,
+        ti_key: K_TERM_KEY_NPAGE,
         funcname: "npage",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_PAGEDOWN,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_ppage,
+        ti_key: K_TERM_KEY_PPAGE,
         funcname: "ppage",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_PAGEUP,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_right,
+        ti_key: K_TERM_KEY_RIGHT,
         funcname: "right",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_RIGHT,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_select,
+        ti_key: K_TERM_KEY_SELECT,
         funcname: "select",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_SELECT,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_suspend,
+        ti_key: K_TERM_KEY_SUSPEND,
         funcname: "suspend",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_SUSPEND,
         mods: 0,
     },
     TiFuncEntry {
-        ti_key: kTermKey_undo,
+        ti_key: K_TERM_KEY_UNDO,
         funcname: "undo",
         r#type: TERMKEY_TYPE_KEYSYM,
         sym: TERMKEY_SYM_UNDO,
@@ -507,7 +507,7 @@ fn load_terminfo(
             );
         }
 
-        for i in 1..=kTerminfoFuncKeyMax {
+        for i in 1..=K_TERMINFO_FUNC_KEY_MAX {
             let mut name_buf = [0 as c_char; 16];
             let s = format!("key_f{i}");
             std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len());

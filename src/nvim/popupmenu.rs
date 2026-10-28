@@ -6,12 +6,12 @@ use crate::api::private::helpers::{
     cstr_as_string, string_obj,
 };
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString};
-use crate::api::win_config::{WIN_CONFIG_INIT, kUIMultigrid, parse_winborder};
+use crate::api::win_config::{WIN_CONFIG_INIT, K_UIMULTIGRID, parse_winborder};
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::buffer::{bt_nofile, buf_clear, first_win_in_tab};
 use crate::charset::{NUL, transstr, vim_strsize};
 use crate::cmdexpand::{
-    cmdline_compl_is_fuzzy, cmdline_compl_pattern, kUICmdline, kUIPopupmenu, kUIWildmenu,
+    cmdline_compl_is_fuzzy, cmdline_compl_pattern, K_UICMDLINE, K_UIPOPUPMENU_CONST, K_UIWILDMENU_CONST,
 };
 use crate::cursor::Linenr;
 use crate::drawscreen::{
@@ -20,7 +20,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{TvDict, tv_dict_add_bool, tv_dict_add_float, tv_dict_add_nr};
-use crate::ex_cmds::{Ctrl_C, ECMD_ONE, do_ecmd, prepare_tagpreview};
+use crate::ex_cmds::{CTRL_C_CONST, ECMD_ONE, do_ecmd, prepare_tagpreview};
 use crate::ex_docmd::Exarg;
 use crate::fuzzy::fuzzy_match_str_with_pos;
 use crate::globals::*;
@@ -33,8 +33,8 @@ use crate::highlight::{HLF_PNI, HLF_PST, hl_combine_attr, hl_get_ui_attr, win_hl
 use crate::highlight_group::syn_check_group;
 use crate::input::{vgetc, vungetc};
 use crate::insexpand::{
-    compl_match_curr_select, get_cot_flags, ins_compl_active, ins_compl_leader, kOptCotFlagFuzzy,
-    kWinInfo,
+    compl_match_curr_select, get_cot_flags, ins_compl_active, ins_compl_leader, K_OPT_COT_FLAG_FUZZY,
+    K_WIN_INFO,
 };
 use crate::keycodes::{
     CAR, ESC, K_DOWN, K_LEFTDRAG, K_LEFTMOUSE, K_LEFTMOUSE_NM, K_MOUSEDOWN, K_MOUSEMOVE, K_MOUSEUP,
@@ -47,7 +47,7 @@ use crate::message::emsg;
 use crate::mouse::mouse_find_win_outer;
 use crate::r#move::{update_topline, validate_cheight, validate_cursor, validate_cursor_col};
 use crate::option::{
-    OPT_LOCAL, kOptBufhidden, kOptBuflisted, kOptBuftype, kOptSwapfile, set_option_value_give_err,
+    OPT_LOCAL, K_OPT_BUFHIDDEN, K_OPT_BUFLISTED, K_OPT_BUFTYPE, K_OPT_SWAPFILE, set_option_value_give_err,
 };
 use crate::option_vars::*;
 use crate::plines::{plines_m_win, win_linetabsize};
@@ -63,10 +63,10 @@ use crate::winfloat::{win_config_float, win_float_close, win_float_find, win_flo
 use std::ffi::{c_char, c_int, c_uint};
 use std::ptr;
 
-use crate::api::vim::kOptCotFlagPopup;
+use crate::api::vim::K_OPT_COT_FLAG_POPUP;
 use crate::change::TAB;
-use crate::diff::kOptDiff;
-use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
+use crate::diff::K_OPT_DIFF;
+use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 use crate::ex_getln::Hlf;
 use crate::math::OK;
 use crate::regexp::MAXCOL;
@@ -153,10 +153,10 @@ const HLF_PSX: Hlf = 48;
 const HLF_PSB: Hlf = 49;
 const HLF_PBR: Hlf = 51;
 
-const kZIndexPopupMenu: c_int = 100;
-const kZIndexCmdlinePopupMenu: c_int = 250;
+const K_ZINDEX_POPUP_MENU: c_int = 100;
+const K_ZINDEX_CMDLINE_POPUP_MENU: c_int = 250;
 
-const kOptCotFlagPreview: c_uint = 0x1000;
+const K_OPT_COT_FLAG_PREVIEW: c_uint = 0x1000;
 
 struct PopupmenuState {
     array: *mut Pumitem,
@@ -408,9 +408,9 @@ fn pum_compute_horizontal_placement(
 #[inline]
 fn pum_border_width() -> c_int {
      {
-        if crate::memory::cstr_is_empty(opt_vars().p_pumborder) || (crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(opt_winborder_values[7].as_ptr())) {
+        if crate::memory::cstr_is_empty(opt_vars().p_pumborder) || (crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[7].as_ptr())) {
             0
-        } else if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(opt_winborder_values[3].as_ptr()) {
+        } else if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[3].as_ptr()) {
             1
         } else {
             2
@@ -431,7 +431,7 @@ pub fn pum_display(
 
         if !pum().is_visible {
             pum().external =
-                ui_has(kUIPopupmenu) || ((g_st().State & MODE_CMDLINE) != 0 && ui_has(kUIWildmenu));
+                ui_has(K_UIPOPUPMENU_CONST) || ((g_st().State & MODE_CMDLINE) != 0 && ui_has(K_UIWILDMENU_CONST));
         }
 
         pum().rl = (g_st().State & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl != 0;
@@ -460,7 +460,7 @@ pub fn pum_display(
             if (g_st().State & MODE_CMDLINE) != 0 {
                 pum_win_row = if !g_st().cmdline_win.is_null() {
                     (*g_st().cmdline_win).w_wrow
-                } else if ui_has(kUICmdline) {
+                } else if ui_has(K_UICMDLINE) {
                     0
                 } else {
                     g_st().cmdline_row
@@ -475,7 +475,7 @@ pub fn pum_display(
                 } else {
                     g_st().Columns
                 };
-                pum().anchor_grid = if ui_has(kUICmdline) {
+                pum().anchor_grid = if ui_has(K_UICMDLINE) {
                     -1
                 } else {
                     DEFAULT_GRID_HANDLE
@@ -503,7 +503,7 @@ pub fn pum_display(
                 if !ptr::eq((*target_win).w_grid.target, &raw const g_st().default_grid) {
                     pum_win_row += (*target_win).w_winrow;
                     cursor_col += (*target_win).w_wincol;
-                    if !ui_has(kUIMultigrid) {
+                    if !ui_has(K_UIMULTIGRID) {
                         pum().anchor_grid = DEFAULT_GRID_HANDLE;
                     } else {
                         pum().win_row_offset = (*target_win).w_winrow;
@@ -594,9 +594,9 @@ pub fn pum_display(
         }
 
         g_st().pum_grid.zindex = if (g_st().State & MODE_CMDLINE) != 0 {
-            kZIndexCmdlinePopupMenu
+            K_ZINDEX_CMDLINE_POPUP_MENU
         } else {
-            kZIndexPopupMenu
+            K_ZINDEX_POPUP_MENU
         };
         pum_redraw();
     }
@@ -629,7 +629,7 @@ fn pum_compute_text_attrs(
         let in_fuzzy = if (g_st().State & MODE_CMDLINE) != 0 {
             cmdline_compl_is_fuzzy()
         } else {
-            (get_cot_flags() & kOptCotFlagFuzzy) != 0
+            (get_cot_flags() & K_OPT_COT_FLAG_FUZZY) != 0
         };
         let leader_len = crate::memory::cstr_len(leader);
 
@@ -816,7 +816,7 @@ pub fn pum_redraw() {
                 return;
             }
 
-            if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(opt_winborder_values[3].as_ptr()) {
+            if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder) == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[3].as_ptr()) {
                 fconfig.shadow = true;
                 let blend = syn_check_group(c"PmenuShadow", 11);
                 let through = syn_check_group(c"PmenuShadowThrough", 18);
@@ -884,7 +884,7 @@ pub fn pum_redraw() {
         } else if invalid_grid {
             grid_invalidate(&mut g_st().pum_grid);
         }
-        if ui_has(kUIMultigrid) {
+        if ui_has(K_UIMULTIGRID) {
             pum_pos_ui_flush(true);
         }
 
@@ -1297,9 +1297,9 @@ pub fn pum_set_info(selected: c_int, info: *mut c_char) -> *mut WinInfoInfo {
         block_autocmds();
         g_st().RedrawingDisabled += 1;
         g_st().no_u_sync += 1;
-        let mut wp = win_float_find(kWinInfo);
+        let mut wp = win_float_find(K_WIN_INFO);
         if wp.is_null() {
-            wp = win_float_special(false, true, kWinInfo);
+            wp = win_float_special(false, true, K_WIN_INFO);
             if wp.is_null() {
                 return ptr::null_mut();
             }
@@ -1331,12 +1331,12 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
         pum().selected = n;
         let scroll_offset = pum().selected - pum().height;
         let cur_cot_flags = get_cot_flags();
-        let use_float = (cur_cot_flags & kOptCotFlagPopup) != 0;
+        let use_float = (cur_cot_flags & K_OPT_COT_FLAG_POPUP) != 0;
 
         if use_float
             && (pum().selected < 0 || (*pum().array.add(pum().selected as usize)).pum_info.is_none())
         {
-            let wp = win_float_find(kWinInfo);
+            let wp = win_float_find(K_WIN_INFO);
             if !wp.is_null() {
                 (*wp).w_config.hide = true;
                 win_config_float(&mut *wp, (*wp).w_config.clone());
@@ -1377,8 +1377,8 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
             if (*pum().array.add(pum().selected as usize)).pum_info.is_some()
                 && g_st().Rows > 10
                 && repeat <= 1
-                && (cur_cot_flags & (kOptCotFlagPopup | kOptCotFlagPreview)) != 0
-                && !((cur_cot_flags & kOptCotFlagPreview) != 0 && !g_st().cmdwin_buf.is_null())
+                && (cur_cot_flags & (K_OPT_COT_FLAG_POPUP | K_OPT_COT_FLAG_PREVIEW)) != 0
+                && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0 && !g_st().cmdwin_buf.is_null())
             {
                 let curwin_save = curwin_ptr();
                 let curtab_save = g_st().curtab;
@@ -1397,11 +1397,11 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                 if !use_float {
                     resized = prepare_tagpreview(false, false);
                 } else {
-                    let mut wp = win_float_find(kWinInfo);
+                    let mut wp = win_float_find(K_WIN_INFO);
                     if !wp.is_null() {
                         win_enter(wp, false);
                     } else {
-                        wp = win_float_special(true, true, kWinInfo);
+                        wp = win_float_special(true, true, K_WIN_INFO);
                         if !wp.is_null() {
                             resized = true;
                         }
@@ -1412,7 +1412,7 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                 g_st().RedrawingDisabled -= 1;
                 g_st().g_do_tagpreview = 0;
 
-                if curwin_mut().w_onebuf_opt.wo_pvw != 0 || curwin_mut().w_kind == kWinInfo {
+                if curwin_mut().w_onebuf_opt.wo_pvw != 0 || curwin_mut().w_kind == K_WIN_INFO {
                     let mut res = OK;
                     if !resized
                         && curbuf_mut().b_nwindows == 1
@@ -1436,19 +1436,19 @@ fn pum_set_selected(n: c_int, repeat: c_int) -> bool {
                         g_st().no_u_sync -= 1;
 
                         if ok {
-                            set_option_value_give_err(kOptSwapfile, boolean_obj(false), OPT_LOCAL);
-                            set_option_value_give_err(kOptBuflisted, boolean_obj(false), OPT_LOCAL);
+                            set_option_value_give_err(K_OPT_SWAPFILE, boolean_obj(false), OPT_LOCAL);
+                            set_option_value_give_err(K_OPT_BUFLISTED, boolean_obj(false), OPT_LOCAL);
                             set_option_value_give_err(
-                                kOptBuftype,
+                                K_OPT_BUFTYPE,
                                 cstr_as_obj(c"nofile"),
                                 OPT_LOCAL,
                             );
                             set_option_value_give_err(
-                                kOptBufhidden,
+                                K_OPT_BUFHIDDEN,
                                 cstr_as_obj(c"wipe"),
                                 OPT_LOCAL,
                             );
-                            set_option_value_give_err(kOptDiff, boolean_obj(false), OPT_LOCAL);
+                            set_option_value_give_err(K_OPT_DIFF, boolean_obj(false), OPT_LOCAL);
                         }
                     }
 
@@ -1557,7 +1557,7 @@ pub fn pum_check_clear() {
                 ui_call_popupmenu_hide();
             } else {
                 ui_comp_remove_grid(&mut g_st().pum_grid);
-                if ui_has(kUIMultigrid) {
+                if ui_has(K_UIMULTIGRID) {
                     ui_call_win_close(i64::from(g_st().pum_grid.handle));
                     ui_call_grid_destroy(i64::from(g_st().pum_grid.handle));
                 }
@@ -1565,7 +1565,7 @@ pub fn pum_check_clear() {
             }
             pum().is_drawn = false;
             pum().external = false;
-            win_float_close(kWinInfo);
+            win_float_close(K_WIN_INFO);
         }
 }
 
@@ -1634,9 +1634,9 @@ pub fn pum_set_event_info(dict: &mut TvDict) {
         dict,
         c"scrollbar",
         if pum().scrollbar != 0 {
-            kBoolVarTrue
+            K_BOOL_VAR_TRUE_CONST
         } else {
-            kBoolVarFalse
+            K_BOOL_VAR_FALSE_CONST
         },
     );
 }
@@ -1653,7 +1653,7 @@ fn pum_position_at_mouse(min_width: c_int) {
         pum().win_row_offset = 0;
         pum().win_col_offset = 0;
 
-        if ui_has(kUIMultigrid) && grid == 0 {
+        if ui_has(K_UIMULTIGRID) && grid == 0 {
             mouse_find_win_outer(&mut grid, &mut row, &mut col);
         }
         if grid > 1 {
@@ -1795,7 +1795,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
         }
 
         if pum().size <= 0 {
-            emsg(gettext(e_menu_only_exists_in_another_mode));
+            emsg(gettext(E_MENU_ONLY_EXISTS_IN_ANOTHER_MODE));
             return;
         }
 
@@ -1838,13 +1838,13 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
         loop {
             pum().is_visible = true;
             pum().is_drawn = true;
-            g_st().pum_grid.zindex = kZIndexCmdlinePopupMenu;
+            g_st().pum_grid.zindex = K_ZINDEX_CMDLINE_POPUP_MENU;
             pum_redraw();
             setcursor_mayforce(curwin_mut(), true);
 
             let c = vgetc();
 
-            if c == ESC || c == Ctrl_C || pum().array.is_null() {
+            if c == ESC || c == CTRL_C_CONST || pum().array.is_null() {
                 break;
             } else if c == CAR || c == NL {
                 pum_execute_menu(menu, mode);
@@ -1911,7 +1911,7 @@ pub fn pum_make_popup(path_name: impl crate::strings::IntoCCharPtr, use_mouse_po
                 } else {
                     curwin_mut().w_wcol
                 };
-            if ui_has(kUIMultigrid) {
+            if ui_has(K_UIMULTIGRID) {
                 g_st().mouse_grid = (*curwin_mut().w_grid.target).handle;
             } else if !ptr::eq(curwin_mut().w_grid.target, &raw const g_st().default_grid) {
                 g_st().mouse_grid = 0;
@@ -1929,7 +1929,7 @@ pub fn pum_make_popup(path_name: impl crate::strings::IntoCCharPtr, use_mouse_po
 
 pub fn pum_pos_ui_flush(force: bool) {
     if force
-            || (ui_has(kUIMultigrid)
+            || (ui_has(K_UIMULTIGRID)
                 && pum().is_drawn
                 && !pum().external
                 && g_st().pum_grid.handle != 0

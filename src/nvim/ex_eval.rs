@@ -30,10 +30,10 @@ use std::ptr;
 
 const CSTACK_LEN: usize = 50;
 
-const CmdElse: c_int = 142;
-const CmdElseif: c_int = 143;
-const CmdEndwhile: c_int = 149;
-const CmdWhile: c_int = 532;
+const CMD_ELSE: c_int = 142;
+const CMD_ELSEIF: c_int = 143;
+const CMD_ENDWHILE: c_int = 149;
+const CMD_WHILE: c_int = 532;
 
 pub const CSF_TRUE: c_int = 0x0001;
 pub const CSF_ACTIVE: c_int = 0x0002;
@@ -71,8 +71,8 @@ const RP_RESUME: c_int = 1;
 const RP_DISCARD: c_int = 2;
 
 use crate::errors::{
-    e_argreq, e_endfor, e_endif, e_endtry, e_endwhile, e_for, e_invarg2, e_invexpr2,
-    e_str_not_inside_function, e_trailing_arg, e_while,
+    E_ARGREQ, E_ENDFOR, E_ENDIF, E_ENDTRY, E_ENDWHILE, E_FOR, E_INVARG2, E_INVEXPR2,
+    E_STR_NOT_INSIDE_FUNCTION, E_TRAILING_ARG, E_WHILE,
 };
 
 const E_MULTIPLE_ELSE: &CStr = c"E583: Multiple :else";
@@ -273,7 +273,7 @@ pub fn cause_errthrow(
             return false;
         }
 
-        if ptr::eq(mesg, gettext(e_interr).cast_const()) {
+        if ptr::eq(mesg, gettext(E_INTERR).cast_const()) {
             *ignore = true;
             return true;
         }
@@ -889,14 +889,14 @@ pub fn ex_else(eap: &mut Exarg) {
             || ((*cstack).cs_flags[(*cstack).cs_idx as usize] & (CSF_WHILE | CSF_FOR | CSF_TRY))
                 != 0
         {
-            if eap.cmdidx == CmdElse {
+            if eap.cmdidx == CMD_ELSE {
                 eap.errmsg = gettext(c"E581: :else without :if");
                 return;
             }
             eap.errmsg = gettext(c"E582: :elseif without :if");
             skip = true;
         } else if ((*cstack).cs_flags[(*cstack).cs_idx as usize] & CSF_ELSE) != 0 {
-            if eap.cmdidx == CmdElse {
+            if eap.cmdidx == CMD_ELSE {
                 eap.errmsg = gettext(E_MULTIPLE_ELSE);
                 return;
             }
@@ -919,14 +919,14 @@ pub fn ex_else(eap: &mut Exarg) {
             skip = true;
         }
 
-        if eap.cmdidx == CmdElseif {
+        if eap.cmdidx == CMD_ELSEIF {
             let mut result = false;
             let mut error = false;
             if skip
                 && crate::memory::cstr_first_byte(eap.arg) != b'"'
                 && ends_excmd(c_int::from(crate::memory::cstr_first_byte(eap.arg))) != 0
             {
-                semsg!(gettext(e_invexpr2), eap.arg);
+                semsg!(gettext(E_INVEXPR2), eap.arg);
             } else {
                 result = eval_to_bool(eap.arg, &mut error, eap, skip, false);
             }
@@ -960,14 +960,14 @@ pub fn ex_while(eap: &mut Exarg) {
                 (*cstack).cs_line[(*cstack).cs_idx as usize] = -1;
             }
             let idx = (*cstack).cs_idx as usize;
-            (*cstack).cs_flags[idx] = if eap.cmdidx == CmdWhile {
+            (*cstack).cs_flags[idx] = if eap.cmdidx == CMD_WHILE {
                 CSF_WHILE
             } else {
                 CSF_FOR
             };
 
             let skip = check_skip(&*cstack);
-            let result = if eap.cmdidx == CmdWhile {
+            let result = if eap.cmdidx == CMD_WHILE {
                 eval_to_bool(eap.arg, &mut error, eap, skip, false)
             } else {
                 let mut evalarg = Evalarg::new();
@@ -1047,10 +1047,10 @@ pub fn ex_break(eap: &mut Exarg) {
 pub fn ex_endwhile(eap: &mut Exarg) {
     unsafe {
         let cstack = eap.cstack.cast::<Cstack>();
-        let (err, csf) = if eap.cmdidx == CmdEndwhile {
-            (e_while.as_ptr(), CSF_WHILE)
+        let (err, csf) = if eap.cmdidx == CMD_ENDWHILE {
+            (E_WHILE.as_ptr(), CSF_WHILE)
         } else {
-            (e_for.as_ptr(), CSF_FOR)
+            (E_FOR.as_ptr(), CSF_FOR)
         };
 
         if (*cstack).cs_looplevel <= 0 || (*cstack).cs_idx < 0 {
@@ -1066,9 +1066,9 @@ pub fn ex_endwhile(eap: &mut Exarg) {
             }
             if (fl & (CSF_WHILE | CSF_FOR)) == 0 {
                 if (fl & CSF_TRY) == 0 {
-                    eap.errmsg = gettext(e_endif);
+                    eap.errmsg = gettext(E_ENDIF);
                 } else if (fl & CSF_FINALLY) != 0 {
-                    eap.errmsg = gettext(e_endtry);
+                    eap.errmsg = gettext(E_ENDTRY);
                 }
                 let mut idx = (*cstack).cs_idx;
                 while idx > 0 {
@@ -1102,7 +1102,7 @@ pub fn ex_throw(eap: &mut Exarg) {
         let value = if !crate::memory::cstr_is_empty(arg) && crate::memory::cstr_first_byte(arg) != b'|' && crate::memory::cstr_first_byte(arg) != b'\n' {
             eval_to_string_skip(arg, eap, eap.skip != 0)
         } else {
-            emsg(gettext(e_argreq));
+            emsg(gettext(E_ARGREQ));
             None
         };
 
@@ -1224,7 +1224,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                 if !crate::memory::cstr_is_empty(end)
                     && ends_excmd(c_int::from(*skipwhite(end.add(1)) as u8)) == 0
                 {
-                    semsg!(gettext(e_trailing_arg), end);
+                    semsg!(gettext(E_TRAILING_ARG), end);
                     return;
                 }
 
@@ -1235,7 +1235,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                         *end = NUL;
                     }
                     let save_cpo = opt_vars().p_cpo;
-                    opt_vars().p_cpo = empty_string_option.as_ptr().cast();
+                    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
                     g_st().emsg_off += 1;
                     let mut regmatch: Regmatch = Regmatch::new();
                     regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
@@ -1246,7 +1246,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                     }
                     opt_vars().p_cpo = save_cpo;
                     if regmatch.regprog.is_null() {
-                        semsg!(gettext(e_invarg2), pat);
+                        semsg!(gettext(E_INVARG2), pat);
                     } else {
                         let prev_got_int = g_st().got_int;
                         g_st().got_int = false;
@@ -1658,12 +1658,12 @@ pub fn cleanup_conditionals(
 fn get_end_emsg(cstack: &Cstack) -> *mut c_char {
     let fl = cstack.cs_flags[cstack.cs_idx as usize];
         if (fl & CSF_WHILE) != 0 {
-            return gettext(e_endwhile);
+            return gettext(E_ENDWHILE);
         }
         if (fl & CSF_FOR) != 0 {
-            return gettext(e_endfor);
+            return gettext(E_ENDFOR);
         }
-        gettext(e_endif)
+        gettext(E_ENDIF)
 }
 
 pub fn rewind_conditionals(
@@ -1686,7 +1686,7 @@ pub fn rewind_conditionals(
 
 pub fn ex_endfunction(_eap: &mut Exarg) {
     semsg!(
-            gettext(e_str_not_inside_function),
+            gettext(E_STR_NOT_INSIDE_FUNCTION),
             c":endfunction",
         );
 }

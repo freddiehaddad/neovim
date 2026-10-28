@@ -6,7 +6,7 @@ use crate::globals::*;
 use crate::mbyte::{
     mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, utf_ClusterInfo, utf_char2bytes,
     utf_char2cells, utf_char2len, utf_class_tab, utf_printable, utf_ptr2StrCharInfo, utf_ptr2char,
-    utf_ptr2len, utf8len_tab, utfc_ptr2len,
+    utf_ptr2len, UTF8LEN_TAB, utfc_ptr2len,
 };
 use crate::memory::{cstr_from_bytes};
 use crate::option::{get_fileformat, skip_to_option_part};
@@ -145,10 +145,10 @@ pub const fn to_special(a: c_int, b: c_int) -> c_int {
     }
 }
 
-pub(crate) const Ctrl_V: c_char = 22;
+pub(crate) const CTRL_V_CONST: c_char = 22;
 
 pub(crate) const EOL_MAC: c_int = 2;
-pub(crate) const kOptDyFlagUhex: c_uint = 0x04;
+pub(crate) const K_OPT_DY_FLAG_UHEX: c_uint = 0x04;
 
 const K_SPECIAL: c_int = 0x80;
 const KS_SPECIAL: c_int = 254;
@@ -634,7 +634,7 @@ pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: *mut c_char, mut c: c_
         }
         assert!(c <= 0xff);
 
-        if (opt_vars().dy_flags & kOptDyFlagUhex) != 0 || c > 0x7f {
+        if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0 || c > 0x7f {
             transchar_hex(charbuf, c);
         } else {
             *charbuf = b'^' as c_char;
@@ -744,7 +744,7 @@ pub fn vim_iswordp(p: impl crate::strings::IntoCCharPtr) -> bool { let p = p.int
 pub fn vim_iswordp_buf(p: impl crate::strings::IntoCCharPtr, buf: &mut FileBuf) -> bool { let p = p.into_c_char_ptr();
      {
         let mut c = c_int::from(crate::memory::cstr_first_byte(p));
-        if utf8len_tab[c as usize] > 1 {
+        if UTF8LEN_TAB[c as usize] > 1 {
             c = utf_ptr2char(p);
         }
         vim_iswordc_buf(c, buf)
@@ -874,7 +874,7 @@ pub fn skiptowhite(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let mu
 pub fn skiptowhite_esc(p: impl crate::strings::IntoCCharPtr) -> *mut c_char { let mut p = p.into_c_char_ptr();
     unsafe {
         while crate::memory::cstr_first_byte(p) != b' ' && crate::memory::cstr_first_byte(p) != b'\t' && !crate::memory::cstr_is_empty(p) {
-            if (crate::memory::cstr_first_byte(p) == b'\\' || *p == Ctrl_V) && crate::memory::cstr_byte_at(p, 1) != 0 {
+            if (crate::memory::cstr_first_byte(p) == b'\\' || *p == CTRL_V_CONST) && crate::memory::cstr_byte_at(p, 1) != 0 {
                 p = p.add(1);
             }
             p = p.add(1);

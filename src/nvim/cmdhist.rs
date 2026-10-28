@@ -1,7 +1,7 @@
 //! Command-line history (`src/nvim/cmdhist.c`).
 
 use crate::charset::vim_strsize;
-use crate::errors::{e_trailing_arg, e_val_too_large};
+use crate::errors::{E_TRAILING_ARG, E_VAL_TOO_LARGE};
 use crate::eval::typval::{
     EvalFuncData, VarType, tv_get_number, tv_get_number_chk, tv_get_string_buf, tv_get_string_chk,
     tv_set_string, TypVal,
@@ -644,7 +644,7 @@ pub fn ex_history(eap: &mut Exarg) {
                     histype1 = 0;
                     histype2 = (HIST_COUNT as c_int) - 1;
                 } else {
-                    semsg!(e_trailing_arg, arg);
+                    semsg!(E_TRAILING_ARG, arg);
                     return;
                 }
             } else {
@@ -654,9 +654,9 @@ pub fn ex_history(eap: &mut Exarg) {
 
         if !get_list_range(&mut end, &mut hisidx1, &mut hisidx2) || *end != 0 {
             if *end != 0 {
-                semsg!(e_trailing_arg, end);
+                semsg!(E_TRAILING_ARG, end);
             } else {
-                semsg!(e_val_too_large, arg);
+                semsg!(E_VAL_TOO_LARGE, arg);
             }
             return;
         }

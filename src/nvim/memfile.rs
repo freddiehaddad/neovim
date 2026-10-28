@@ -165,7 +165,7 @@ pub fn mf_close(mfp: Option<Box<Memfile>>, del_file: bool) {
     };
     unsafe {
         if mfp.mf_fd >= 0 && close(mfp.mf_fd) < 0 {
-            emsg(gettext(e_swapclose));
+            emsg(gettext(E_SWAPCLOSE));
         }
         if del_file && let Some(ref fname) = mfp.mf_fname {
             os_remove(fname.as_ptr());
@@ -190,7 +190,7 @@ pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
         }
 
         if close((*mfp).mf_fd) < 0 {
-            emsg(gettext(e_swapclose));
+            emsg(gettext(E_SWAPCLOSE));
         }
         (*mfp).mf_fd = -1;
 

@@ -10,15 +10,15 @@ use crate::charset::{
 };
 use crate::eval::typval::{
     Callback, EvalFuncData, TV_CSTRING, TypvalVval, VAR_UNLOCKED, VarType, TvBlob, callback_copy,
-    callback_free, callback_put, TvDict, Dictitem, TvFloat, kCallbackExpr, kCallbackFuncref,
-    kCallbackLua, kCallbackNone, kCallbackPartial, TvList, Listitem, Listwatch, TvPartial,
+    callback_free, callback_put, TvDict, Dictitem, TvFloat, K_CALLBACK_EXPR, K_CALLBACK_FUNCREF,
+    K_CALLBACK_LUA, K_CALLBACK_NONE_CONST, K_CALLBACK_PARTIAL, TvList, Listitem, Listwatch, TvPartial,
     tv_blob_alloc, tv_blob_alloc_ret, tv_blob_check_index, tv_blob_check_range, tv_blob_copy,
     tv_blob_equal, tv_blob_len, tv_blob_set_append, tv_blob_set_range,
     tv_blob_slice_or_index, tv_check_lock, tv_check_num, tv_check_str, tv_clear,
     tv_copy, tv_dict_add, tv_dict_add_nr, tv_dict_alloc, tv_dict_copy, tv_dict_equal, tv_dict_find,
     tv_dict_free, tv_dict_free_contents, tv_dict_get_callback, tv_dict_get_number, tv_dict_hi2di,
     tv_dict_item_alloc, tv_dict_item_free, tv_dict_unref, tv_dict_watcher_notify,
-    tv_dict_wrong_func_name, tv_empty_string, tv_equal, tv_get_float, tv_get_number,
+    tv_dict_wrong_func_name, TV_EMPTY_STRING, tv_equal, tv_get_float, tv_get_number,
     tv_get_number_chk, tv_get_string, tv_get_string_buf, tv_get_string_buf_chk, tv_get_string_chk,
     tv_st, tv_initial_value, tv_is_func, tv_list_alloc, tv_list_alloc_ret,
     tv_list_append_dict, tv_list_append_owned_tv, tv_list_append_string, tv_list_assign_range,
@@ -57,10 +57,10 @@ pub mod userfunc;
 pub mod vars;
 pub mod window;
 
-use crate::buffer::{NOTDONE, VAR_FIXED, bt_prompt, FileBuf, buflist_findnr, kUIMessages};
-use crate::channel::{CallbackReader, Channel, kChannelStreamProc};
+use crate::buffer::{NOTDONE, VAR_FIXED, bt_prompt, FileBuf, buflist_findnr, K_UIMESSAGES};
+use crate::channel::{CallbackReader, Channel, K_CHANNEL_STREAM_PROC};
 use crate::errors::*;
-use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, kOptCpoptions};
+use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, K_OPT_CPOPTIONS};
 use crate::eval::userfunc::{
     call_func, call_simple_func, call_simple_luafunc, deref_func_name, eval_fname_script,
     find_func, free_all_functions, free_unref_funccal, func_ref, Funcexe, get_current_funccal,
@@ -71,7 +71,7 @@ use crate::eval::userfunc::{
 use crate::ex_cmds::check_secure;
 use crate::globals::*;
 use crate::lua::executor::{
-    kRetObject, nlua_call_ref, nlua_is_deferred_safe, nlua_is_table_from_lua,
+    K_RET_OBJECT, nlua_call_ref, nlua_is_deferred_safe, nlua_is_table_from_lua,
     nlua_register_table_as_callable,
 };
 use crate::message::{
@@ -83,7 +83,7 @@ use crate::message::{
 use crate::r#move::{check_cursor_moved, update_topline, validate_botline_win};
 use crate::option::{
     OPT_GLOBAL, OPT_LOCAL, find_option_end, get_option_value, get_tty_option, is_option_hidden,
-    is_tty_option, kOptFoldexpr, kOptFoldtext, kOptInvalid, optval_free, set_option_value_give_err,
+    is_tty_option, K_OPT_FOLDEXPR, K_OPT_FOLDTEXT, K_OPT_INVALID, optval_free, set_option_value_give_err,
     was_set_insecurely,
 };
 use crate::option_vars::*;
@@ -92,7 +92,7 @@ use crate::regexp::{
     NUMBUFLEN, RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC, Regmatch, vim_regcomp,
     vim_regexec_nl, vim_regfree, vim_regsub,
 };
-use crate::register::{get_reg_contents_str, kGRegExprSrc};
+use crate::register::{get_reg_contents_str, K_GREG_EXPR_SRC};
 use crate::runtime::{
     rt_st, free_autoload_scriptnames, free_scriptnames, get_scriptname, script_autoload,
     script_is_lua, Sctx,
@@ -198,16 +198,16 @@ pub(crate) const VARNUMBER_MAX: Varnumber = i64::MAX;
 
 pub(crate) const VAR_DEF_SCOPE: c_int = 2;
 
-pub(crate) const kBoolVarFalse: Varnumber = 0;
-pub(crate) const kBoolVarTrue: Varnumber = 1;
+pub(crate) const K_BOOL_VAR_FALSE_CONST: Varnumber = 0;
+pub(crate) const K_BOOL_VAR_TRUE_CONST: Varnumber = 1;
 
-pub(crate) const kListLenUnknown: isize = -1;
-pub(crate) const kListLenShouldKnow: isize = -2;
-pub(crate) const kListLenMayKnow: isize = -3;
+pub(crate) const K_LIST_LEN_UNKNOWN_CONST: isize = -1;
+pub(crate) const K_LIST_LEN_SHOULD_KNOW: isize = -2;
+pub(crate) const K_LIST_LEN_MAY_KNOW_CONST: isize = -3;
 
-pub(crate) const kMarkAll: c_int = 1;
+pub(crate) const K_MARK_ALL: c_int = 1;
 
-const kWinOptFoldexpr: usize = 15;
+const K_WIN_OPT_FOLDEXPR: usize = 15;
 
 pub(crate) const STR2NR_ALL: c_int = 0x7f;
 
@@ -503,7 +503,7 @@ fn eval1_emsg(arg: *mut *mut c_char,rettv: &mut TypVal,eap: Option<&mut Exarg>) 
             && g_st().did_emsg == did_emsg_before
             && g_st().called_emsg == called_emsg_before
         {
-            semsg!(gettext(e_invexpr2), start);
+            semsg!(gettext(E_INVEXPR2), start);
         }
         ret
     }
@@ -605,7 +605,7 @@ fn eval_expr_string(expr: &TypVal,rettv: &mut TypVal) -> bool {
 
         if *skipwhite(s) != NUL {
             tv_clear(rettv);
-            semsg!(gettext(e_invexpr2), s);
+            semsg!(gettext(E_INVEXPR2), s);
             return false;
         }
 
@@ -970,9 +970,9 @@ pub fn eval_expr_option_tv(
 pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut c_int) -> c_int {
     unsafe {
         let saved_sctx = g_st().current_sctx;
-        let use_sandbox = was_set_insecurely(Some(&mut *wp), kOptFoldexpr, OPT_LOCAL) != 0;
+        let use_sandbox = was_set_insecurely(Some(&mut *wp), K_OPT_FOLDEXPR, OPT_LOCAL) != 0;
 
-        g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[kWinOptFoldexpr];
+        g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDEXPR];
 
         g_st().emsg_off += 1;
         if use_sandbox {
@@ -1021,7 +1021,7 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut c_int) -> c_int {
 /// Evaluate 'foldtext', returning an Array or a String (NULL_STRING on failure).
 pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
     unsafe {
-        let use_sandbox = was_set_insecurely(Some(&mut *wp), kOptFoldtext, OPT_LOCAL) != 0;
+        let use_sandbox = was_set_insecurely(Some(&mut *wp), K_OPT_FOLDTEXT, OPT_LOCAL) != 0;
         let mut tv = tv_initial_value();
         let retval: Object;
         if !eval_expr_option_tv(
@@ -1127,7 +1127,7 @@ fn get_lval_dict_item(
             && len == -1
             && rettv.is_none()
         {
-            semsg!(e_illvar, c"v:['lua']");
+            semsg!(E_ILLVAR, c"v:['lua']");
             return GLV_FAIL;
         }
 
@@ -1135,13 +1135,13 @@ fn get_lval_dict_item(
             if lp.ll_dict == get_vimvar_dict()
                 || ptr::eq(&raw mut (*lp.ll_dict).dv_hashtab, get_funccal_args_ht())
             {
-                semsg!(gettext(e_illvar), name);
+                semsg!(gettext(E_ILLVAR), name);
                 return GLV_FAIL;
             }
 
             if crate::memory::cstr_first_byte(p) == b'[' || crate::memory::cstr_first_byte(p) == b'.' || unlet {
                 if !quiet {
-                    semsg!(gettext(e_dictkey), key);
+                    semsg!(gettext(E_DICTKEY), key);
                 }
                 return GLV_FAIL;
             }
@@ -1291,7 +1291,7 @@ fn get_lval_subscript(lp: &mut Lval,
             }
 
             if (*lp.ll_tv).v_type == VarType::VarList && (*lp.ll_tv).vval.v_list().is_null() {
-                tv_list_alloc_ret(&mut *lp.ll_tv, kListLenUnknown);
+                tv_list_alloc_ret(&mut *lp.ll_tv, K_LIST_LEN_UNKNOWN_CONST);
             } else if (*lp.ll_tv).v_type == VarType::VarBlob
                 && (*lp.ll_tv).vval.v_blob().is_null()
             {
@@ -1479,7 +1479,7 @@ pub fn get_lval(
                 && crate::memory::cstr_first_byte(p) != b'['
                 && crate::memory::cstr_first_byte(p) != b'.'
             {
-                semsg!(gettext(e_trailing_arg), p);
+                semsg!(gettext(E_TRAILING_ARG), p);
                 return ptr::null_mut();
             }
 
@@ -1495,7 +1495,7 @@ pub fn get_lval(
                 if !aborting() && !quiet {
                     {
                         g_st().emsg_severe = true;
-                        semsg!(gettext(e_invarg2), name);
+                        semsg!(gettext(E_INVARG2), name);
                     }
                     return ptr::null_mut();
                 }
@@ -1564,7 +1564,7 @@ pub fn set_var_lval(
             *endp = NUL;
             if !lp.ll_blob.is_null() {
                 if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
-                    semsg!(gettext(e_letwrong), op);
+                    semsg!(gettext(E_LETWRONG), op);
                     *endp = cc;
                     return;
                 }
@@ -1594,7 +1594,7 @@ pub fn set_var_lval(
                     if !error {
                         if !(0..=255).contains(&val) {
                             semsg!(
-                                gettext(e_invalid_value_for_blob_nr),
+                                gettext(E_INVALID_VALUE_FOR_BLOB_NR),
                                 val,
                             );
                         } else {
@@ -1606,7 +1606,7 @@ pub fn set_var_lval(
                 let mut tv = tv_initial_value();
 
                 if is_const {
-                    emsg(gettext(e_cannot_mod));
+                    emsg(gettext(E_CANNOT_MOD));
                     *endp = cc;
                     return;
                 }
@@ -1673,7 +1673,7 @@ pub fn set_var_lval(
             if let Some(ref newkey) = lp.ll_newkey {
                 let newkey_ptr = newkey.as_ptr();
                 if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
-                    semsg!(gettext(e_dictkey), newkey_ptr);
+                    semsg!(gettext(E_DICTKEY), newkey_ptr);
                     return;
                 }
                 if tv_dict_wrong_func_name(&mut *(*lp.ll_tv).vval.v_dict(), rettv, newkey_ptr) != 0 {
@@ -2021,7 +2021,7 @@ pub fn pattern_match(pat: impl crate::strings::IntoCCharPtr, text: impl crate::s
         let mut regmatch: Regmatch = Regmatch::new();
 
         let save_cpo = opt_vars().p_cpo;
-        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
+        opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = ic;
@@ -2084,7 +2084,7 @@ fn eval_func(
         drop(s_vec);
 
         if rettv.v_type == VarType::VarUnknown && !evaluate && **arg == b'(' as c_char {
-            rettv.vval = crate::eval::typval::TypvalVval::String(tv_empty_string.cast_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::String(TV_EMPTY_STRING.cast_mut());
             rettv.v_type = VarType::VarFunc;
         }
 
@@ -2120,9 +2120,9 @@ pub fn eval0(
             }
             if !aborting() && g_st().did_emsg == did_emsg_before && g_st().called_emsg == called_emsg_before {
                 if end_error {
-                    semsg!(gettext(e_trailing_arg), p);
+                    semsg!(gettext(E_TRAILING_ARG), p);
                 } else {
-                    semsg!(gettext(e_invexpr2), arg);
+                    semsg!(gettext(E_INVEXPR2), arg);
                 }
             }
 
@@ -2872,7 +2872,7 @@ fn eval7(
             b'@' => {
                 *arg = (*arg).add(1);
                 if evaluate {
-                    let reg_str = get_reg_contents_str(c_int::from(**arg as u8), kGRegExprSrc);
+                    let reg_str = get_reg_contents_str(c_int::from(**arg as u8), K_GREG_EXPR_SRC);
                     crate::eval::typval::tv_set_string(
                         rettv,
                         reg_str.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
@@ -2989,9 +2989,9 @@ fn eval7_leader(rettv: &mut TypVal,
                     if rettv.v_type == VarType::VarFloat {
                         rettv.v_type = VarType::VarBool;
                         val = if f == 0.0 {
-                            kBoolVarTrue
+                            K_BOOL_VAR_TRUE_CONST
                         } else {
-                            kBoolVarFalse
+                            K_BOOL_VAR_FALSE_CONST
                         };
                     } else {
                         val = Varnumber::from(val == 0);
@@ -3109,7 +3109,7 @@ fn eval_lambda(
                     emsg(gettext(E_NOWHITESPACE));
                 } else {
                     semsg!(
-                        gettext(e_missingparen),
+                        gettext(E_MISSINGPAREN),
                         c"lambda",
                     );
                 }
@@ -3174,7 +3174,7 @@ fn eval_method(
                 if lua_funcname.is_null() {
                     emsg(gettext(c"E260: Missing name after ->"));
                 } else {
-                    semsg!(gettext(e_invexpr2), name);
+                    semsg!(gettext(E_INVEXPR2), name);
                 }
             }
             ret = false;
@@ -3194,7 +3194,7 @@ fn eval_method(
                     ret = false;
                 } else if *skipwhite(*arg) != NUL {
                     if verbose {
-                        semsg!(gettext(e_trailing_arg), *arg);
+                        semsg!(gettext(E_TRAILING_ARG), *arg);
                     }
                     ret = false;
                 } else if ref_tv.v_type == VarType::VarFunc && !ref_tv.vval.v_string().is_null() {
@@ -3220,7 +3220,7 @@ fn eval_method(
                     }
                 } else {
                     if verbose {
-                        semsg!(gettext(e_not_callable_type_str), name);
+                        semsg!(gettext(E_NOT_CALLABLE_TYPE_STR), name);
                     }
                     ret = false;
                 }
@@ -3231,7 +3231,7 @@ fn eval_method(
             if ret {
                 if **arg != b'(' as c_char {
                     if verbose {
-                        semsg!(gettext(e_missingparen), name);
+                        semsg!(gettext(E_MISSINGPAREN), name);
                     }
                     ret = false;
                 } else if ascii_iswhite(*(*arg).sub(1)) {
@@ -3394,7 +3394,7 @@ fn check_can_index(rettv: &mut TypVal, evaluate: bool, verbose: bool) -> bool {
             }
             VarType::VarFloat => {
                 if verbose {
-                    emsg(gettext(e_using_float_as_string));
+                    emsg(gettext(E_USING_FLOAT_AS_STRING));
                 }
                 return false;
             }
@@ -3566,9 +3566,9 @@ fn eval_index_inner(rettv: &mut TypVal,
 
                 if item.is_null() && verbose {
                     if keylen > 0 {
-                        semsg!(gettext(e_dictkey_len), keylen, key);
+                        semsg!(gettext(E_DICTKEY_LEN), keylen, key);
                     } else {
-                        semsg!(gettext(e_dictkey), key);
+                        semsg!(gettext(E_DICTKEY), key);
                     }
                 }
                 if item.is_null() || tv_is_luafunc(&mut (*item).di_tv) {
@@ -3613,7 +3613,7 @@ pub fn eval_option(arg: *mut *const c_char,rettv: Option<&mut TypVal>, evaluate:
         {
             let is_tty_opt = is_tty_option(*arg);
 
-            if opt_idx == kOptInvalid && !is_tty_opt {
+            if opt_idx == K_OPT_INVALID && !is_tty_opt {
                 if rettv.is_some() {
                     semsg!(gettext(c"E113: Unknown option: %s"), *arg);
                 }
@@ -3723,7 +3723,7 @@ fn eval_number(
             );
             if len == 0 {
                 if evaluate {
-                    semsg!(gettext(e_invexpr2), *arg);
+                    semsg!(gettext(E_INVEXPR2), *arg);
                 }
                 return false;
             }
@@ -3781,7 +3781,7 @@ fn eval_string(
                 }
                 p = p.add(1);
                 if *p.sub(1) == b'}' as c_char && crate::memory::cstr_first_byte(p) != b'}' {
-                    semsg!(gettext(e_stray_closing_curly_str), *arg);
+                    semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                     return false;
                 }
                 extra -= 1;
@@ -3961,7 +3961,7 @@ fn eval_lit_string(
                 } else if crate::memory::cstr_first_byte(p) == b'}' {
                     p = p.add(1);
                     if crate::memory::cstr_first_byte(p) != b'}' {
-                        semsg!(gettext(e_stray_closing_curly_str), *arg);
+                        semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), *arg);
                         return false;
                     }
                     reduce += 1;
@@ -4106,7 +4106,7 @@ fn eval_list(arg: *mut *mut c_char,rettv: &mut TypVal,mut evalarg: Option<&mut E
         let mut l: *mut TvList = ptr::null_mut();
 
         if evaluate {
-            l = tv_list_alloc(kListLenShouldKnow);
+            l = tv_list_alloc(K_LIST_LEN_SHOULD_KNOW);
         }
 
         *arg = skipwhite((*arg).add(1));
@@ -4908,7 +4908,7 @@ pub fn tv_to_argv(
 
         if cmd_tv.v_type != VarType::VarList {
             semsg!(
-                gettext(e_invarg2),
+                gettext(E_INVARG2),
                 c"expected String or List",
             );
             return Vec::new();
@@ -4917,7 +4917,7 @@ pub fn tv_to_argv(
         let argl = cmd_tv.vval.v_list();
         let argc = tv_list_len(argl.as_ref());
         if argc == 0 {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return Vec::new();
         }
 
@@ -4935,7 +4935,7 @@ pub fn tv_to_argv(
                     arg0,
                 );
                 semsg!(
-                    gettext(e_invargNval),
+                    gettext(E_INVARG_NVAL),
                     c"cmd",
                     buf.as_ptr(),
                 );
@@ -4976,7 +4976,7 @@ fn string_to_list(str_: impl crate::strings::IntoCCharPtr, mut len: usize, keepe
         if !keepempty && len > 0 && *str_.add(len - 1) == NL {
             len -= 1;
         }
-        let list = tv_list_alloc(kListLenMayKnow);
+        let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         encode_list_write(list.as_mut(), str_, len);
         list
     }
@@ -5165,14 +5165,14 @@ pub fn callback_call(
 ) -> bool {
     unsafe {
         if i64::from(eval_st().callback_depth) > opt_vars().p_mfd {
-            emsg(gettext(e_command_too_recursive));
+            emsg(gettext(E_COMMAND_TOO_RECURSIVE));
             return false;
         }
 
         let partial: *mut TvPartial;
         let mut name: *mut c_char;
         match callback.cb_type() {
-            kCallbackFuncref => {
+            K_CALLBACK_FUNCREF => {
                 name = callback.data.as_funcref();
                 let len = crate::memory::cstr_len(name) as c_int;
                 if len >= 6 && crate::memory::cstr_slice(name, 6) == b"v:lua." {
@@ -5185,11 +5185,11 @@ pub fn callback_call(
                     partial = ptr::null_mut();
                 }
             }
-            kCallbackPartial => {
+            K_CALLBACK_PARTIAL => {
                 partial = callback.data.as_partial();
                 name = partial_name(partial.as_ref());
             }
-            kCallbackLua => {
+            K_CALLBACK_LUA => {
                 let mut arena = Arena {
                     cur_blk: ptr::null_mut(),
                     pos: 0,
@@ -5208,7 +5208,7 @@ pub fn callback_call(
                     luaref,
                     ptr::null(),
                     luaargs,
-                    kRetObject,
+                    K_RET_OBJECT,
                     Some(&mut arena),
                     Some(&mut err),
                 );
@@ -5223,7 +5223,7 @@ pub fn callback_call(
                 arena_mem_free(arena_finish(&mut arena));
                 return ok;
             }
-            kCallbackExpr => {
+            K_CALLBACK_EXPR => {
                 eval_st().callback_depth += 1;
                 let r = eval0_simple_funccal(
                     skipwhite(callback.data.as_funcref()),
@@ -5265,7 +5265,7 @@ pub fn set_ref_in_callback(
     ht_stack: *mut HtStack,
     list_stack: *mut ListStack,
 ) -> bool {
-    if callback.cb_type() == kCallbackPartial {
+    if callback.cb_type() == K_CALLBACK_PARTIAL {
             let mut tv = TypVal {
                 v_type: VarType::VarPartial,
                 v_lock: VAR_UNLOCKED,
@@ -5512,7 +5512,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
                     total_len += 1;
                 }
             } else {
-                semsg!(gettext(e_nobufnr), tv.vval.v_number());
+                semsg!(gettext(E_NOBUFNR), tv.vval.v_number());
                 return None;
             }
 
@@ -5721,7 +5721,7 @@ pub fn var2fpos(
             }
         } else if crate::memory::cstr_first_byte(name) == b'\'' {
             let mname = c_int::from(crate::memory::cstr_byte_at(name, 1));
-            let fm = mark_get(&mut *bp, wp, None, kMarkAll, mname);
+            let fm = mark_get(&mut *bp, wp, None, K_MARK_ALL, mname);
             if fm.is_null() || (*fm).mark.lnum <= 0 {
                 return ptr::null_mut();
             }
@@ -5950,7 +5950,7 @@ pub fn get_name_len(
 
         len += get_id_len(arg);
         if len == 0 && verbose && **arg != NUL {
-            semsg!(gettext(e_invexpr2), *arg);
+            semsg!(gettext(E_INVEXPR2), *arg);
         }
 
         len
@@ -6495,7 +6495,7 @@ pub fn ex_echo(eap: &mut Exarg) {
                         && g_st().did_emsg == did_emsg_before
                         && g_st().called_emsg == called_emsg_before
                     {
-                        semsg!(gettext(e_invexpr2), p);
+                        semsg!(gettext(E_INVEXPR2), p);
                     }
                     g_st().need_clr_eos = false;
                     break;
@@ -6536,7 +6536,7 @@ pub fn ex_echo(eap: &mut Exarg) {
         if eap.skip != 0 {
             g_st().emsg_skip -= 1;
         } else {
-            if ui_has(kUIMessages)
+            if ui_has(K_UIMESSAGES)
                 && (crate::memory::cstr_is_empty(eap.arg)
                     || crate::memory::cstr_first_byte(eap.arg) == b'|'
                     || crate::memory::cstr_first_byte(eap.arg) == b'\n')
@@ -6702,7 +6702,7 @@ pub fn last_set_msg(script_ctx: Sctx) {
         msg_puts(gettext(c"\n\tLast set from "));
         msg_puts(p.as_ptr());
         if script_ctx.sc_lnum > 0 {
-            msg_puts(gettext(line_msg));
+            msg_puts(gettext(LINE_MSG));
             msg_outnum(script_ctx.sc_lnum);
         } else if script_is_lua(script_ctx.sc_sid) {
             msg_puts(gettext(c" (run Nvim with -V1 for more details)"));
@@ -6724,7 +6724,7 @@ pub fn do_string_sub(
         let mut out: Option<Vec<c_char>> = None;
 
         let save_cpo = opt_vars().p_cpo;
-        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
+        opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
         regmatch.rm_ic = opt_vars().p_ic != 0;
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
@@ -6798,7 +6798,7 @@ pub fn do_string_sub(
             cstr_from_bytes(crate::memory::cstr_slice(str_, len))
         };
         drop(out);
-        let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
+        let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
         if opt_vars().p_cpo == empty_opt {
             opt_vars().p_cpo = save_cpo;
         } else {
@@ -6807,7 +6807,7 @@ pub fn do_string_sub(
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cstr_as_string(save_cpo)),
                 };
-                set_option_value_give_err(kOptCpoptions, obj, 0);
+                set_option_value_give_err(K_OPT_CPOPTIONS, obj, 0);
             }
             free_string_option(save_cpo);
         }
@@ -6830,10 +6830,10 @@ pub fn common_job_callbacks(
         {
             on_stdout.buffered = tv_dict_get_number(Some(vopts), c"stdout_buffered") != 0;
             on_stderr.buffered = tv_dict_get_number(Some(vopts), c"stderr_buffered") != 0;
-            if on_stdout.buffered && on_stdout.cb.cb_type() == kCallbackNone {
+            if on_stdout.buffered && on_stdout.cb.cb_type() == K_CALLBACK_NONE_CONST {
                 on_stdout.self_dict = (&raw mut *vopts);
             }
-            if on_stderr.buffered && on_stderr.cb.cb_type() == kCallbackNone {
+            if on_stderr.buffered && on_stderr.cb.cb_type() == K_CALLBACK_NONE_CONST {
                 on_stderr.self_dict = (&raw mut *vopts);
             }
             vopts.dv_refcount += 1;
@@ -6850,18 +6850,18 @@ pub fn common_job_callbacks(
 pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
     unsafe {
         let data = find_channel(id);
-        let is_stopped = if !data.is_null() && (*data).streamtype == kChannelStreamProc {
+        let is_stopped = if !data.is_null() && (*data).streamtype == K_CHANNEL_STREAM_PROC {
             let hdr = &(*data).uv.proc_;
             hdr.status >= 0 || hdr.stopped_time != 0
         } else {
             true
         };
-        if data.is_null() || (*data).streamtype != kChannelStreamProc || is_stopped {
+        if data.is_null() || (*data).streamtype != K_CHANNEL_STREAM_PROC || is_stopped {
             if show_error {
-                if !data.is_null() && (*data).streamtype != kChannelStreamProc {
-                    emsg(gettext(e_invchanjob));
+                if !data.is_null() && (*data).streamtype != K_CHANNEL_STREAM_PROC {
+                    emsg(gettext(E_INVCHANJOB));
                 } else {
-                    emsg(gettext(e_invchan));
+                    emsg(gettext(E_INVCHAN));
                 }
             }
             return ptr::null_mut();
@@ -6877,7 +6877,7 @@ pub fn script_host_eval(name: &std::ffi::CStr,argvars: &mut [TypVal],rettv: &mut
         }
 
         if argvars[0].v_type != VarType::VarString {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -7000,7 +7000,7 @@ pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast:
 
         if throw_if_fast && !nlua_is_deferred_safe() {
             semsg!(
-                e_fast_api_disabled,
+                E_FAST_API_DISABLED,
                 c"Vimscript function",
             );
             return false;
@@ -7123,7 +7123,7 @@ pub fn typval_compare(typ1: &mut TypVal,typ2: &mut TypVal,
                 if typ1.v_type != typ2.v_type {
                     emsg(gettext(c"E977: Can only compare Blob with Blob"));
                 } else {
-                    emsg(gettext(e_invalblob));
+                    emsg(gettext(E_INVALBLOB));
                 }
                 tv_clear(typ1);
                 return false;

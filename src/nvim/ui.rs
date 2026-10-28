@@ -9,8 +9,8 @@ use crate::api::private::validate::{
     Array, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::api::ui::{
-    kLineFlagWrap, kUICmdline, kUIExtCount, kUIHlState, kUILinegrid, kUIMessages, kUIMultigrid,
-    kUITermColors, remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
+    K_LINE_FLAG_WRAP, K_UICMDLINE, K_UIEXT_COUNT, K_UIHL_STATE, K_UILINEGRID, K_UIMESSAGES, K_UIMULTIGRID,
+    K_UITERM_COLORS, remote_ui__set_restart_on_crash_exit, remote_ui_bell, remote_ui_busy_start,
     remote_ui_busy_stop, remote_ui_chdir, remote_ui_default_colors_set, remote_ui_error_exit,
     remote_ui_event, remote_ui_flush, remote_ui_grid_clear, remote_ui_grid_cursor_goto,
     remote_ui_grid_resize, remote_ui_grid_scroll, remote_ui_hl_attr_define, remote_ui_hl_group_set,
@@ -33,14 +33,14 @@ use crate::grid::{ScreenGrid, get_win_by_grid_handle, Sattr, Schar};
 use crate::highlight::{highlight_use_hlstate, ui_send_all_hls};
 use crate::log::{LOGLVL_ERR, logmsg};
 use crate::lua::converter::LuaRef;
-use crate::lua::executor::{api_free_luaref, kRetNilBool, nlua_call_ref_ctx};
+use crate::lua::executor::{api_free_luaref, K_RET_NIL_BOOL, nlua_call_ref_ctx};
 use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::{
     msg, msg_ext_ui_flush, msg_schedule_semsg, msg_schedule_semsg_multiline, msg_scroll_flush,
     msg_source, msg_ui_refresh,
 };
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
-use crate::option::{kOptCmdheight, set_option_value, ui_refresh_options};
+use crate::option::{K_OPT_CMDHEIGHT, set_option_value, ui_refresh_options};
 use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_sleep};
 use crate::strings::{gettext, vim_strchr};
@@ -58,27 +58,27 @@ const MAX_UI_COUNT: usize = 16;
 const SHAPE_IDX_N: c_int = 0;
 const SHAPE_IDX_R: c_int = 3;
 
-pub(crate) const kUIGlobalCount: usize = kUILinegrid;
-const kUIFloatDebug: usize = 9;
+pub(crate) const K_UIGLOBAL_COUNT: usize = K_UILINEGRID;
+const K_UIFLOAT_DEBUG: usize = 9;
 
-pub(crate) const kLineFlagInvalid: c_int = 2;
+pub(crate) const K_LINE_FLAG_INVALID: c_int = 2;
 
-const kOptBoFlagAll: c_uint = 0x01;
-const kOptRdbFlagLine: c_uint = 0x10;
-const kOptRdbFlagFlush: c_uint = 0x20;
+const K_OPT_BO_FLAG_ALL: c_uint = 0x01;
+const K_OPT_RDB_FLAG_LINE: c_uint = 0x10;
+const K_OPT_RDB_FLAG_FLUSH: c_uint = 0x20;
 
-const kMouseNormal: c_int = b'n' as c_int;
-const kMouseReturn: c_int = b'r' as c_int;
-const kMouseInsert: c_int = b'i' as c_int;
-const kMouseCommand: c_int = b'c' as c_int;
-const kMouseHelp: c_char = b'h' as c_char;
+const K_MOUSE_NORMAL: c_int = b'n' as c_int;
+const K_MOUSE_RETURN: c_int = b'r' as c_int;
+const K_MOUSE_INSERT: c_int = b'i' as c_int;
+const K_MOUSE_COMMAND_CONST: c_int = b'c' as c_int;
+const K_MOUSE_HELP: c_char = b'h' as c_char;
 const MOUSE_A: &CStr = c"nvich";
 
 use crate::change::HLF_W;
 use crate::decoration_provider::CB_MAX_ERROR;
 #[cfg(debug_assertions)]
 use crate::log::LOGLVL_DBG;
-use crate::mouse::kMouseVisual;
+use crate::mouse::K_MOUSE_VISUAL;
 use crate::msgpack_rpc::channel::RemoteUI;
 use crate::os::fs::MAXPATHL;
 use crate::state::{
@@ -89,7 +89,7 @@ use crate::state::{
 struct UIEventCallback {
     cb: LuaRef,
     errors: u8,
-    ext_widgets: [bool; kUIGlobalCount],
+    ext_widgets: [bool; K_UIGLOBAL_COUNT],
 }
 
 impl Drop for UIEventCallback {
@@ -100,7 +100,7 @@ impl Drop for UIEventCallback {
 
 struct UiState {
     uis: Vec<*mut RemoteUI>,
-    ui_ext: [bool; kUIExtCount],
+    ui_ext: [bool; K_UIEXT_COUNT],
     ui_mode_idx: c_int,
     cursor_row: c_int,
     cursor_col: c_int,
@@ -110,7 +110,7 @@ struct UiState {
     pending_mode_update: bool,
     cursor_grid_handle: ObjHandle,
     ui_event_cbs: std::collections::BTreeMap<u32, UIEventCallback>,
-    ui_cb_ext: [bool; kUIExtCount],
+    ui_cb_ext: [bool; K_UIEXT_COUNT],
     has_mouse: bool,
     pending_has_mouse: c_int,
     pending_default_colors: bool,
@@ -128,7 +128,7 @@ impl UiState {
     const fn new() -> Self {
         Self {
             uis: Vec::new(),
-            ui_ext: [false; kUIExtCount],
+            ui_ext: [false; K_UIEXT_COUNT],
             ui_mode_idx: SHAPE_IDX_N,
             cursor_row: 0,
             cursor_col: 0,
@@ -138,7 +138,7 @@ impl UiState {
             pending_mode_update: false,
             cursor_grid_handle: DEFAULT_GRID_HANDLE,
             ui_event_cbs: std::collections::BTreeMap::new(),
-            ui_cb_ext: [false; kUIExtCount],
+            ui_cb_ext: [false; K_UIEXT_COUNT],
             has_mouse: false,
             pending_has_mouse: -1,
             pending_default_colors: false,
@@ -237,14 +237,14 @@ pub fn ui_refresh() {
         let mut width = c_int::MAX;
         let mut height = c_int::MAX;
         let active = ui_active() != 0;
-        let mut ext_widgets = [active; kUIExtCount];
+        let mut ext_widgets = [active; K_UIEXT_COUNT];
         let inclusive = ui_override();
         let uis_ptr = &ui_state().uis;
         for &ui_ptr in uis_ptr {
             let ui = &mut *ui_ptr;
             width = width.min(ui.width);
             height = height.min(ui.height);
-            for (j, widget) in ext_widgets.iter_mut().enumerate().take(kUIExtCount) {
+            for (j, widget) in ext_widgets.iter_mut().enumerate().take(K_UIEXT_COUNT) {
                 *widget &= ui.ui_ext[j] || inclusive;
             }
         }
@@ -255,20 +255,20 @@ pub fn ui_refresh() {
 
         let ui_ext_ptr = (&raw mut ui_state().ui_ext).cast::<bool>();
         let ui_cb_ext_ptr = (&raw const ui_state().ui_cb_ext).cast::<bool>();
-        let had_message = *ui_ext_ptr.add(kUIMessages);
+        let had_message = *ui_ext_ptr.add(K_UIMESSAGES);
 
-        for (i, &widget) in ext_widgets.iter().enumerate().take(kUIExtCount) {
+        for (i, &widget) in ext_widgets.iter().enumerate().take(K_UIEXT_COUNT) {
             let val = widget | *ui_cb_ext_ptr.add(i);
             *ui_ext_ptr.add(i) = val;
-            if i < kUIGlobalCount {
-                ui_call_option_set(cstr_as_string(ui_ext_names[i].as_ptr()), boolean_obj(val));
+            if i < K_UIGLOBAL_COUNT {
+                ui_call_option_set(cstr_as_string(UI_EXT_NAMES[i].as_ptr()), boolean_obj(val));
             }
         }
 
-        if had_message != *ui_ext_ptr.add(kUIMessages) {
+        if had_message != *ui_ext_ptr.add(K_UIMESSAGES) {
             if g_st().ui_refresh_cmdheight {
                 set_option_value(
-                    kOptCmdheight,
+                    K_OPT_CMDHEIGHT,
                     integer_obj(Integer::from(had_message)),
                     0,
                     true,
@@ -399,7 +399,7 @@ pub fn vim_beep(val: c_uint) {
         }
         g_st().did_beep += 1;
 
-        if (opt_vars().bo_flags & val) == 0 && (opt_vars().bo_flags & kOptBoFlagAll) == 0 {
+        if (opt_vars().bo_flags & val) == 0 && (opt_vars().bo_flags & K_OPT_BO_FLAG_ALL) == 0 {
             let now = os_hrtime();
             if ui_state().beep_start_time == 0 || now.wrapping_sub(ui_state().beep_start_time) > 500_000_000 {
                 ui_state().beep_count = 0;
@@ -444,7 +444,7 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
         if uis_ptr.len() >= MAX_UI_COUNT {
             std::process::abort();
         }
-        if !ui.ui_ext[kUIMultigrid] && !ui.ui_ext[kUIFloatDebug] && g_st().ui_client_channel_id == 0
+        if !ui.ui_ext[K_UIMULTIGRID] && !ui.ui_ext[K_UIFLOAT_DEBUG] && g_st().ui_client_channel_id == 0
         {
             ui_comp_attach(ui);
         }
@@ -462,12 +462,12 @@ pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
             });
         }
 
-        for i in kUIGlobalCount..kUIExtCount {
+        for i in K_UIGLOBAL_COUNT..K_UIEXT_COUNT {
             ui_set_ext_option(ui, i as UIExtension, ui.ui_ext[i]);
         }
 
         let mut sent = false;
-        if ui.ui_ext[kUIHlState] {
+        if ui.ui_ext[K_UIHL_STATE] {
             sent = highlight_use_hlstate();
         }
         if !sent {
@@ -494,7 +494,7 @@ pub fn ui_detach_impl(ui: &mut RemoteUI, chanid: u64) {
             ui_schedule_refresh();
         }
 
-        if !ui.ui_ext[kUIMultigrid] && !ui.ui_ext[kUIFloatDebug] {
+        if !ui.ui_ext[K_UIMULTIGRID] && !ui.ui_ext[K_UIFLOAT_DEBUG] {
             ui_comp_detach(ui);
         }
 
@@ -505,15 +505,15 @@ pub fn ui_detach_impl(ui: &mut RemoteUI, chanid: u64) {
 pub fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
      {
         let idx = ext as usize;
-        if idx < kUIGlobalCount {
+        if idx < K_UIGLOBAL_COUNT {
             ui_refresh();
             return;
         }
-        let name = ui_ext_names[idx].as_ptr();
+        let name = UI_EXT_NAMES[idx].as_ptr();
         if crate::memory::cstr_first_byte(name) != b'_' || active {
             remote_ui_option_set(ui, cstr_as_string(name), boolean_obj(active));
         }
-        if idx == kUITermColors {
+        if idx == K_UITERM_COLORS {
             ui_default_colors_set();
         }
     }
@@ -531,9 +531,9 @@ pub fn ui_line(
 ) {
     unsafe {
         debug_assert!(0 <= row && row < grid.rows);
-        let mut flags = if wrap { kLineFlagWrap } else { 0 };
+        let mut flags = if wrap { K_LINE_FLAG_WRAP } else { 0 };
         if startcol == 0 && invalid_row {
-            flags |= kLineFlagInvalid;
+            flags |= K_LINE_FLAG_INVALID;
         }
 
         ui_may_set_default_colors();
@@ -551,7 +551,7 @@ pub fn ui_line(
             grid.attrs.as_mut_ptr().add(off),
         );
 
-        if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & kOptRdbFlagLine) != 0 {
+        if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_LINE) != 0 {
             ui_call_grid_cursor_goto(
                 Integer::from(grid.handle),
                 Integer::from(row),
@@ -669,7 +669,7 @@ pub fn ui_flush() {
         }
         ui_call_flush();
 
-        if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & kOptRdbFlagFlush) != 0 {
+        if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_FLUSH) != 0 {
             os_sleep(opt_vars().p_wd.unsigned_abs());
         }
     }
@@ -683,17 +683,17 @@ pub fn ui_check_mouse() {
         }
 
         let checkfor = if g_st().Visual.active {
-            kMouseVisual
+            K_MOUSE_VISUAL
         } else if g_st().State == MODE_HITRETURN || g_st().State == MODE_ASKMORE || g_st().State == MODE_SETWSIZE {
-            kMouseReturn
+            K_MOUSE_RETURN
         } else if (g_st().State & MODE_INSERT) != 0 {
-            kMouseInsert
+            K_MOUSE_INSERT
         } else if (g_st().State & MODE_CMDLINE) != 0 {
-            kMouseCommand
+            K_MOUSE_COMMAND_CONST
         } else if g_st().State == MODE_EXTERNCMD {
             b' ' as c_int
         } else {
-            kMouseNormal
+            K_MOUSE_NORMAL
         };
 
         if ui_mouse_has(checkfor) {
@@ -710,8 +710,8 @@ pub fn ui_mouse_has(mode: c_int) -> bool {
                 if !vim_strchr(MOUSE_A, mode).is_null() {
                     return true;
                 }
-            } else if (p_byte as c_char) == kMouseHelp {
-                if mode != kMouseReturn && curbuf_mut().b_help {
+            } else if (p_byte as c_char) == K_MOUSE_HELP {
+                if mode != K_MOUSE_RETURN && curbuf_mut().b_help {
                     return true;
                 }
             } else if mode == (p_byte as c_char) as c_int {
@@ -771,7 +771,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
 
         for &ui_ptr in uis_ptr {
             let ui = &mut *ui_ptr;
-            let mut info = arena_dict(arena, 10 + kUIExtCount);
+            let mut info = arena_dict(arena, 10 + K_UIEXT_COUNT);
             let mut put_info = |k: &std::ffi::CStr, v: Object| {
                 *info.items.add(info.size) = KeyValuePair {
                     key: cstr_as_string(k),
@@ -810,7 +810,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
             put_info(c"stdin_tty", boolean_obj(ui.stdin_tty));
             put_info(c"stdout_tty", boolean_obj(ui.stdout_tty));
 
-            for (j, ext_name) in ui_ext_names.iter().enumerate().take(kUIExtCount) {
+            for (j, ext_name) in UI_EXT_NAMES.iter().enumerate().take(K_UIEXT_COUNT) {
                 if ext_name.to_bytes().first() != Some(&b'_') || ui.ui_ext[j] {
                     put_info(ext_name, boolean_obj(ui.ui_ext[j]));
                 }
@@ -902,7 +902,7 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
                 cb_ref,
                 name.as_ptr(),
                 args,
-                kRetNilBool,
+                K_RET_NIL_BOOL,
                 None,
                 Some(&mut err),
             );
@@ -930,11 +930,11 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
 
 fn ui_cb_update_ext() {
     unsafe {
-        ui_state().ui_cb_ext = [false; kUIExtCount];
+        ui_state().ui_cb_ext = [false; K_UIEXT_COUNT];
         let ui_cb_ext_ptr = (&raw mut ui_state().ui_cb_ext).cast::<bool>();
 
         let cbs_ptr = &ui_state().ui_event_cbs;
-        for i in 0..kUIGlobalCount {
+        for i in 0..K_UIGLOBAL_COUNT {
             for event_cb in cbs_ptr.values() {
                 if event_cb.ext_widgets[i] {
                     *ui_cb_ext_ptr.add(i) = true;
@@ -945,15 +945,15 @@ fn ui_cb_update_ext() {
     }
 }
 
-pub fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: &[bool; kUIGlobalCount]) {
+pub fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: &[bool; K_UIGLOBAL_COUNT]) {
     unsafe {
         let mut event_cb = UIEventCallback {
             cb,
             errors: 0,
             ext_widgets: *ext_widgets,
         };
-        if event_cb.ext_widgets[kUIMessages] {
-            event_cb.ext_widgets[kUICmdline] = true;
+        if event_cb.ext_widgets[K_UIMESSAGES] {
+            event_cb.ext_widgets[K_UICMDLINE] = true;
         }
 
         let cbs_ptr = &raw mut ui_state().ui_event_cbs;

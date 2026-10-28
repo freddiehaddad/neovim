@@ -7,9 +7,9 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Error, ErrorType};
 use crate::api::vim::nvim_create_buf;
 use crate::api::win_config::{
-    WIN_CONFIG_INIT, kAlignCenter, kBorderTextTitle, kFloatAnchorEast, kFloatAnchorSouth,
-    kFloatRelativeCursor, kFloatRelativeEditor, kFloatRelativeLaststatus, kFloatRelativeMouse,
-    kFloatRelativeWindow, kUIMultigrid, kWinStyleMinimal, parse_bordertext, parse_winborder,
+    WIN_CONFIG_INIT, K_ALIGN_CENTER, K_BORDER_TEXT_TITLE, K_FLOAT_ANCHOR_EAST, K_FLOAT_ANCHOR_SOUTH,
+    K_FLOAT_RELATIVE_CURSOR, K_FLOAT_RELATIVE_EDITOR, K_FLOAT_RELATIVE_LASTSTATUS, K_FLOAT_RELATIVE_MOUSE,
+    K_FLOAT_RELATIVE_WINDOW, K_UIMULTIGRID, K_WIN_STYLE_MINIMAL, parse_bordertext, parse_winborder,
 };
 use crate::autocmd::{block_autocmds, unblock_autocmds};
 use crate::cursor::{Linenr, CursorPos};
@@ -18,13 +18,13 @@ use crate::errors::*;
 use crate::fileio::shorten_buf_fname;
 use crate::globals::*;
 use crate::grid::grid_adjust;
-use crate::message::{emsg, kZIndexMessages};
+use crate::message::{emsg, K_ZINDEX_MESSAGES};
 use crate::mouse::mouse_find_win_inner;
 use crate::r#move::{textpos2screenpos, validate_cursor};
-use crate::option::{OPT_LOCAL, OptTarget, kOptBufhidden, parse_winhl_opt, set_option_direct_for};
+use crate::option::{OPT_LOCAL, OptTarget, K_OPT_BUFHIDDEN, parse_winhl_opt, set_option_direct_for};
 use crate::option_vars::*;
 use crate::optionstr::{
-    OptKeyDict_pvp, alloc_string_option, free_string_option, kOptPreviewpopup, opt_keyset,
+    OptKeyDict_pvp, alloc_string_option, free_string_option, K_OPT_PREVIEWPOPUP, opt_keyset,
 };
 use crate::os::fs::{MAXPATHL, os_dirname};
 use crate::plines::{plines_m_win, win_max_displaywidth};
@@ -39,11 +39,11 @@ use crate::window::{
 use std::ffi::{c_char, c_int};
 use std::ptr;
 
-const KEYSET_OPTIDX_pvp__width: u64 = 1;
-const KEYSET_OPTIDX_pvp__border: u64 = 2;
-const KEYSET_OPTIDX_pvp__height: u64 = 3;
+const KEYSET_OPTIDX_PVP_WIDTH: u64 = 1;
+const KEYSET_OPTIDX_PVP_BORDER: u64 = 2;
+const KEYSET_OPTIDX_PVP_HEIGHT: u64 = 3;
 
-use crate::ex_cmds::kWinPreview;
+use crate::ex_cmds::K_WIN_PREVIEW;
 
 /// Creates a new float, or transforms an existing window to a float (`win_new_float`).
 pub fn win_new_float(
@@ -53,7 +53,7 @@ pub fn win_new_float(
     err: &mut Error,
 ) -> *mut WinInfoInfo {
     unsafe {
-        let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
+        let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
         if wp.is_null() {
             let mut tp_last = if last {
                 g_st().lastwin
@@ -139,7 +139,7 @@ pub fn win_new_float(
 
 pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
      {
-        let empty_opt = empty_string_option.as_ptr().cast::<c_char>();
+        let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
         wp.w_onebuf_opt.wo_nu = 0;
         wp.w_onebuf_opt.wo_rnu = 0;
         wp.w_onebuf_opt.wo_cul = 0;
@@ -227,19 +227,19 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         wp.w_width = fconfig.width.max(1);
         wp.w_height = fconfig.height.max(1);
 
-        if fconfig.relative == kFloatRelativeCursor {
+        if fconfig.relative == K_FLOAT_RELATIVE_CURSOR {
             validate_cursor(curwin_mut());
-            fconfig.relative = kFloatRelativeWindow;
+            fconfig.relative = K_FLOAT_RELATIVE_WINDOW;
             fconfig.row += curwin_mut().w_wrow as f64;
             fconfig.col += curwin_mut().w_wcol as f64;
             fconfig.window = curwin_mut().handle;
-        } else if fconfig.relative == kFloatRelativeMouse {
+        } else if fconfig.relative == K_FLOAT_RELATIVE_MOUSE {
             let mut row = g_st().mouse_row;
             let mut col = g_st().mouse_col;
             let mut grid = g_st().mouse_grid;
             let mouse_win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
             if !mouse_win.is_null() {
-                fconfig.relative = kFloatRelativeWindow;
+                fconfig.relative = K_FLOAT_RELATIVE_WINDOW;
                 fconfig.row += row as f64;
                 fconfig.col += col as f64;
                 fconfig.window = (*mouse_win).handle;
@@ -261,8 +261,8 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
             }
         }
 
-        if !ui_has(kUIMultigrid) {
-            let above_ch = if wp.w_config.zindex < kZIndexMessages {
+        if !ui_has(K_UIMULTIGRID) {
+            let above_ch = if wp.w_config.zindex < K_ZINDEX_MESSAGES {
                 opt_vars().p_ch as c_int
             } else {
                 0
@@ -281,7 +281,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         }
 
         // compute initial position
-        if wp.w_config.relative == kFloatRelativeWindow {
+        if wp.w_config.relative == K_FLOAT_RELATIVE_WINDOW {
             let mut row = wp.w_config.row as c_int;
             let mut col = wp.w_config.col as c_int;
             let mut dummy = error_init();
@@ -361,7 +361,7 @@ pub fn win_check_anchored_floats(win: &mut WinInfoInfo) {
     unsafe {
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
-            if (*wp).w_config.relative == kFloatRelativeWindow
+            if (*wp).w_config.relative == K_FLOAT_RELATIVE_WINDOW
                 && (*wp).w_config.window == win.handle
             {
                 (*wp).w_pos_changed = true;
@@ -388,7 +388,7 @@ pub fn win_float_update_statusline() {
 pub fn win_float_anchor_laststatus() {
      {
         for win in for_all_windows_mut() {
-            if win.w_config.relative == kFloatRelativeLaststatus {
+            if win.w_config.relative == K_FLOAT_RELATIVE_LASTSTATUS {
                 win.w_pos_changed = true;
             }
         }
@@ -480,17 +480,17 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
         let mut config = WIN_CONFIG_INIT;
         config.col = curwin_mut().w_wcol as f64;
         config.row = curwin_mut().w_wrow as f64;
-        config.relative = kFloatRelativeEditor;
+        config.relative = K_FLOAT_RELATIVE_EDITOR;
         config.focusable = false;
         config.mouse = true;
         config.anchor = 0; // NW
         config.noautocmd = true;
         config.hide = true;
-        config.style = kWinStyleMinimal;
+        config.style = K_WIN_STYLE_MINIMAL;
         let mut err = error_init();
-        let preview = kind == kWinPreview;
+        let preview = kind == K_WIN_PREVIEW;
         if preview && !win_previewpopup_config(opt_vars().p_pvp, &mut config) {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return ptr::null_mut();
         }
 
@@ -510,7 +510,7 @@ pub fn win_float_special(enter: bool, new_buf: bool, kind: WinKind) -> *mut WinI
             };
             buf.b_p_bl = 0; // unlist
             set_option_direct_for(
-                kOptBufhidden,
+                K_OPT_BUFHIDDEN,
                 cstr_as_obj(c"wipe"),
                 OPT_LOCAL,
                 0,
@@ -552,7 +552,7 @@ pub fn win_float_close(kind: WinKind) {
 /// Re-layout a 'previewpopup' window for its current content (`win_float_update_preview`).
 pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     unsafe {
-        if wp.w_kind != kWinPreview || !wp.w_floating || wp.w_buffer.is_null() {
+        if wp.w_kind != K_WIN_PREVIEW || !wp.w_floating || wp.w_buffer.is_null() {
             return;
         }
 
@@ -566,12 +566,12 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
             let mut err = error_init();
             parse_bordertext(
                 cstr_as_obj(wp.buf_mut().b_fname),
-                kBorderTextTitle,
+                K_BORDER_TEXT_TITLE,
                 &mut wp.w_config,
                 &mut err,
             );
             api_clear_error(&mut err);
-            wp.w_config.title_pos = kAlignCenter;
+            wp.w_config.title_pos = K_ALIGN_CENTER;
         }
 
         let border_h = win_border_height(&mut *wp);
@@ -579,13 +579,13 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
         let row = wp.w_wantline.max(0).min(g_st().Rows - 1);
         let col = wp.w_wantcol.max(0).min(g_st().Columns - 1);
 
-        let v = opt_keyset(opt_vars().p_pvp, kOptPreviewpopup, ptr::null_mut()).cast::<OptKeyDict_pvp>();
-        let mut want_w = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__width) {
+        let v = opt_keyset(opt_vars().p_pvp, K_OPT_PREVIEWPOPUP, ptr::null_mut()).cast::<OptKeyDict_pvp>();
+        let mut want_w = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_WIDTH) {
             (*v).width as c_int
         } else {
             0
         };
-        let mut want_h = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__height) {
+        let mut want_h = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_HEIGHT) {
             (*v).height as c_int
         } else {
             0
@@ -620,8 +620,8 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 
         wp.w_config.height = want_h.min(max_height).max(1);
         wp.w_config.width = want_w.min(max_width).max(1);
-        wp.w_config.anchor = (if below { 0 } else { kFloatAnchorSouth })
-            | (if right { 0 } else { kFloatAnchorEast });
+        wp.w_config.anchor = (if below { 0 } else { K_FLOAT_ANCHOR_SOUTH })
+            | (if right { 0 } else { K_FLOAT_ANCHOR_EAST });
         wp.w_config.row = (row + if below { 1 } else { 0 }) as f64;
         wp.w_config.col = (col + if right { 1 } else { 0 }) as f64;
         wp.w_config.hide = false;
@@ -633,19 +633,19 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
 /// Applies a 'previewpopup' value ("height:N,width:N,border:style") to `config` (`win_previewpopup_config`).
 pub fn win_previewpopup_config(value: impl crate::strings::IntoCCharPtr, config: &mut WinConfig) -> bool { let value = value.into_c_char_ptr();
     unsafe {
-        let v = opt_keyset(value, kOptPreviewpopup, ptr::null_mut()).cast::<OptKeyDict_pvp>();
+        let v = opt_keyset(value, K_OPT_PREVIEWPOPUP, ptr::null_mut()).cast::<OptKeyDict_pvp>();
 
-        if (has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__height) && (*v).height < 1)
-            || (has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__width) && (*v).width < 1)
+        if (has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_HEIGHT) && (*v).height < 1)
+            || (has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_WIDTH) && (*v).width < 1)
         {
             return false;
         }
-        config.height = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__height) {
+        config.height = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_HEIGHT) {
             (*v).height as c_int
         } else {
             0
         };
-        config.width = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__width) {
+        config.width = if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_WIDTH) {
             (*v).width as c_int
         } else {
             0
@@ -653,7 +653,7 @@ pub fn win_previewpopup_config(value: impl crate::strings::IntoCCharPtr, config:
 
         // Use 'previewpopup' border if set, else fallback to 'winborder'.
         let mut border: *mut c_char = ptr::null_mut();
-        if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_pvp__border) {
+        if has_key((*v).is_set__pvp_, KEYSET_OPTIDX_PVP_BORDER) {
             border = (*v).border.as_mut_ptr();
         } else if !crate::memory::cstr_is_empty(opt_vars().p_winborder) {
             border = opt_vars().p_winborder;

@@ -19,11 +19,11 @@ use crate::memory::Arena;
 use crate::msgpack_rpc::packer::Integer;
 use crate::runtime::do_source_str;
 use crate::viml::parser::expressions::{
-    ExprASTNode, ccs_tab, east_node_type_tab, eltkn_cmp_type_tab, expr_asgn_type_tab,
-    kExprAsgnPlain, kExprFlagsDisallowEOC, kExprFlagsMulti, kExprFlagsParseLet,
-    kExprNodeAssignment, kExprNodeComparison, kExprNodeDoubleQuotedString, kExprNodeEnvironment,
-    kExprNodeFloat, kExprNodeInteger, kExprNodeOption, kExprNodePlainIdentifier, kExprNodePlainKey,
-    kExprNodeRegister, kExprNodeSingleQuotedString, viml_pexpr_parse,
+    ExprASTNode, CCS_TAB, EAST_NODE_TYPE_TAB, ELTKN_CMP_TYPE_TAB, EXPR_ASGN_TYPE_TAB,
+    K_EXPR_ASGN_PLAIN, K_EXPR_FLAGS_DISALLOW_EOC, K_EXPR_FLAGS_MULTI, K_EXPR_FLAGS_PARSE_LET,
+    K_EXPR_NODE_ASSIGNMENT, K_EXPR_NODE_COMPARISON, K_EXPR_NODE_DOUBLE_QUOTED_STRING, K_EXPR_NODE_ENVIRONMENT,
+    K_EXPR_NODE_FLOAT, K_EXPR_NODE_INTEGER, K_EXPR_NODE_OPTION, K_EXPR_NODE_PLAIN_IDENTIFIER, K_EXPR_NODE_PLAIN_KEY,
+    K_EXPR_NODE_REGISTER, K_EXPR_NODE_SINGLE_QUOTED_STRING, viml_pexpr_parse,
 };
 use crate::viml::parser::parser::{
     ParserHighlight, ParserInputReader, ParserLine, ParserPosition, ParserState,
@@ -550,9 +550,9 @@ pub fn nvim_parse_expression(
         for i in 0..flags.size {
             let b = crate::memory::cstr_byte_at(flags.data, i);
             match b {
-                b'm' => pflags |= kExprFlagsMulti,
-                b'E' => pflags |= kExprFlagsDisallowEOC,
-                b'l' => pflags |= kExprFlagsParseLet,
+                b'm' => pflags |= K_EXPR_FLAGS_MULTI,
+                b'E' => pflags |= K_EXPR_FLAGS_DISALLOW_EOC,
+                b'l' => pflags |= K_EXPR_FLAGS_PARSE_LET,
                 0 => {
                     api_set_error!(
                         err,
@@ -643,19 +643,19 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
     let nt = node.r#type;
         let items_size = 3
             + usize::from(node.children.is_some())
-            + usize::from(nt == kExprNodeOption || nt == kExprNodePlainIdentifier)
+            + usize::from(nt == K_EXPR_NODE_OPTION || nt == K_EXPR_NODE_PLAIN_IDENTIFIER)
             + usize::from(
-                nt == kExprNodeOption
-                    || nt == kExprNodePlainIdentifier
-                    || nt == kExprNodePlainKey
-                    || nt == kExprNodeEnvironment,
+                nt == K_EXPR_NODE_OPTION
+                    || nt == K_EXPR_NODE_PLAIN_IDENTIFIER
+                    || nt == K_EXPR_NODE_PLAIN_KEY
+                    || nt == K_EXPR_NODE_ENVIRONMENT,
             )
-            + usize::from(nt == kExprNodeRegister)
-            + 3 * usize::from(nt == kExprNodeComparison)
-            + usize::from(nt == kExprNodeInteger)
-            + usize::from(nt == kExprNodeFloat)
-            + usize::from(nt == kExprNodeDoubleQuotedString || nt == kExprNodeSingleQuotedString)
-            + usize::from(nt == kExprNodeAssignment);
+            + usize::from(nt == K_EXPR_NODE_REGISTER)
+            + 3 * usize::from(nt == K_EXPR_NODE_COMPARISON)
+            + usize::from(nt == K_EXPR_NODE_INTEGER)
+            + usize::from(nt == K_EXPR_NODE_FLOAT)
+            + usize::from(nt == K_EXPR_NODE_DOUBLE_QUOTED_STRING || nt == K_EXPR_NODE_SINGLE_QUOTED_STRING)
+            + usize::from(nt == K_EXPR_NODE_ASSIGNMENT);
         let mut ret_node = arena_dict(arena, items_size);
 
         if let Some(ref first_child) = node.children {
@@ -677,7 +677,7 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
         put_c(
             &mut ret_node,
             c"type",
-            string_obj(cstr_as_string(east_node_type_tab[nt as usize].as_ptr())),
+            string_obj(cstr_as_string(EAST_NODE_TYPE_TAB[nt as usize].as_ptr())),
         );
         let mut start_array = arena_array(arena, 2);
         add_c(&mut start_array, integer_obj(node.start.line as Integer));
@@ -686,12 +686,12 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
         put_c(&mut ret_node, c"len", integer_obj(node.len as Integer));
 
         match nt {
-            kExprNodeDoubleQuotedString | kExprNodeSingleQuotedString => {
+            K_EXPR_NODE_DOUBLE_QUOTED_STRING | K_EXPR_NODE_SINGLE_QUOTED_STRING => {
                 let str_obj =
                     cbuf_to_arena_obj(arena, node.data.str().value_ptr(), node.data.str().size);
                 put_c(&mut ret_node, c"svalue", str_obj);
             }
-            kExprNodeOption => {
+            K_EXPR_NODE_OPTION => {
                 put_c(
                     &mut ret_node,
                     c"scope",
@@ -703,7 +703,7 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
                     cbuf_to_arena_obj(arena, node.data.opt().ident, node.data.opt().ident_len),
                 );
             }
-            kExprNodePlainIdentifier => {
+            K_EXPR_NODE_PLAIN_IDENTIFIER => {
                 put_c(
                     &mut ret_node,
                     c"scope",
@@ -715,49 +715,49 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
                     cbuf_to_arena_obj(arena, node.data.var().ident, node.data.var().ident_len),
                 );
             }
-            kExprNodePlainKey => {
+            K_EXPR_NODE_PLAIN_KEY => {
                 put_c(
                     &mut ret_node,
                     c"ident",
                     cbuf_to_arena_obj(arena, node.data.var().ident, node.data.var().ident_len),
                 );
             }
-            kExprNodeEnvironment => {
+            K_EXPR_NODE_ENVIRONMENT => {
                 put_c(
                     &mut ret_node,
                     c"ident",
                     cbuf_to_arena_obj(arena, node.data.env().ident, node.data.env().ident_len),
                 );
             }
-            kExprNodeRegister => {
+            K_EXPR_NODE_REGISTER => {
                 put_c(
                     &mut ret_node,
                     c"name",
                     integer_obj(i64::from(node.data.reg().name)),
                 );
             }
-            kExprNodeComparison => {
+            K_EXPR_NODE_COMPARISON => {
                 put_c(
                     &mut ret_node,
                     c"cmp_type",
                     string_obj(cstr_as_string(
-                        eltkn_cmp_type_tab[node.data.cmp().r#type as usize].as_ptr(),
+                        ELTKN_CMP_TYPE_TAB[node.data.cmp().r#type as usize].as_ptr(),
                     )),
                 );
                 put_c(
                     &mut ret_node,
                     c"ccs_strategy",
                     string_obj(cstr_as_string(
-                        ccs_tab[node.data.cmp().ccs as usize]
+                        CCS_TAB[node.data.cmp().ccs as usize]
                             .map_or(std::ptr::null(), |s| s.as_ptr()),
                     )),
                 );
                 put_c(&mut ret_node, c"invert", boolean_obj(node.data.cmp().inv));
             }
-            kExprNodeFloat => {
+            K_EXPR_NODE_FLOAT => {
                 put_c(&mut ret_node, c"fvalue", float_obj(node.data.flt().value));
             }
-            kExprNodeInteger => {
+            K_EXPR_NODE_INTEGER => {
                 let v = node.data.num().value;
                 let iv = if v > API_INTEGER_MAX {
                     API_INTEGER_MAX as Integer
@@ -766,15 +766,15 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
                 };
                 put_c(&mut ret_node, c"ivalue", integer_obj(iv));
             }
-            kExprNodeAssignment => {
+            K_EXPR_NODE_ASSIGNMENT => {
                 let asgn_type = node.data.ass().r#type;
-                let str_val = if asgn_type == kExprAsgnPlain {
+                let str_val = if asgn_type == K_EXPR_ASGN_PLAIN {
                     NvimString {
                         data: std::ptr::null_mut(),
                         size: 0,
                     }
                 } else {
-                    cstr_as_string(expr_asgn_type_tab[asgn_type as usize].as_ptr())
+                    cstr_as_string(EXPR_ASGN_TYPE_TAB[asgn_type as usize].as_ptr())
                 };
                 put_c(&mut ret_node, c"augmentation", string_obj(str_val));
             }

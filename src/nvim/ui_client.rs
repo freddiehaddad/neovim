@@ -8,8 +8,8 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, Object, ObjectData, ObjectType,
 };
-use crate::api::ui::{ARRAY_INIT, kLineFlagWrap};
-use crate::channel::{CallbackReader, channel_connect, channel_job_start, kChannelStdinPipe};
+use crate::api::ui::{ARRAY_INIT, K_LINE_FLAG_WRAP};
+use crate::channel::{CallbackReader, channel_connect, channel_job_start, K_CHANNEL_STDIN_PIPE_CONST};
 use crate::eval::typval::Callback;
 use crate::event::r#loop::{loop_poll_events, loop_queues};
 use crate::event::multiqueue::{
@@ -43,7 +43,7 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 pub(crate) const UI_CLIENT_STDIN_FD: c_int = 3;
-use crate::highlight::KEYSET_OPTIDX_highlight__url;
+use crate::highlight::KEYSET_OPTIDX_HIGHLIGHT_URL;
 
 struct UiClientState {
     tui: Option<Box<TUIData>>,
@@ -114,7 +114,7 @@ pub fn ui_client_start_server(
             true,
             true,
             true,
-            kChannelStdinPipe,
+            K_CHANNEL_STDIN_PIPE_CONST,
             ptr::null(),
             0,
             0,
@@ -378,7 +378,7 @@ pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
             None,
             &mut err,
         );
-        if (dict.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__url)) != 0 {
+        if (dict.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
             attrs.url = tui_add_url(tui_ptr(), dict.url.data);
         }
         attrs
@@ -426,7 +426,7 @@ pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
         let startcol = g.args[2];
         let endcol = Integer::from(startcol) + Integer::from(g.coloff);
         let clearcol = endcol + Integer::from(g.clear_width);
-        let lineflags = if g.wrap { kLineFlagWrap } else { 0 };
+        let lineflags = if g.wrap { K_LINE_FLAG_WRAP } else { 0 };
 
         tui_raw_line(
             tui_ptr(),

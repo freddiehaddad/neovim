@@ -3,8 +3,8 @@
 use crate::autocmd::{EVENT_BUFREADCMD, has_autocmd};
 use crate::buffer::{
     GETF_SETMARK, GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, MAXLNUM, NOTDONE,
-    VAR_FIXED, bt_help, buflist_findname_exp, buflist_findnr, buflist_getfile, kOptJopFlagView,
-    kOptSwbFlagNewtab, kOptSwbFlagVsplit,
+    VAR_FIXED, bt_help, buflist_findname_exp, buflist_findnr, buflist_getfile, K_OPT_JOP_FLAG_VIEW,
+    K_OPT_SWB_FLAG_NEWTAB, K_OPT_SWB_FLAG_VSPLIT,
 };
 use crate::charset::{
     ascii_isalpha, ascii_isdigit, ascii_islower, ascii_iswhite, skipdigits, vim_isblankline,
@@ -16,7 +16,7 @@ use crate::cursor::{check_cursor, Linenr, CursorPos};
 use crate::drawscreen::{UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::typval::{
-    TypvalVval, VAR_UNLOCKED, VarType, callback_free, TvDict, kCallbackNone, TvList, tv_clear,
+    TypvalVval, VAR_UNLOCKED, VarType, callback_free, TvDict, K_CALLBACK_NONE_CONST, TvList, tv_clear,
     tv_dict_add_bool, tv_dict_add_list, tv_dict_add_nr, tv_dict_add_str, tv_dict_add_str_len,
     tv_dict_alloc, tv_dict_alloc_lock, tv_dict_find, tv_dict_get_number, tv_dict_get_string,
     tv_get_number, tv_list_alloc, tv_list_alloc_ret, tv_list_append_dict, tv_list_append_number,
@@ -55,10 +55,10 @@ use crate::option_vars::*;
 use crate::os::fs::{os_fopen, os_path_exists};
 use crate::os::input::{fast_breakcheck, line_breakcheck, os_breakcheck};
 use crate::path::{
-    FullName_save, PathCmpFlags, kPathCmpExpand, kPathCmpFull, path_equal, path_has_wildcard,
+    FullName_save, PathCmpFlags, K_PATH_CMP_EXPAND, K_PATH_CMP_FULL, path_equal, path_has_wildcard,
     path_tail, simplify_filename, to_slash_save, vim_isAbsName,
 };
-use crate::quickfix::{CMDBUFFSIZE, kOptSwbFlagUsetab, set_errorlist};
+use crate::quickfix::{CMDBUFFSIZE, K_OPT_SWB_FLAG_USETAB, set_errorlist};
 use crate::regexp::{
     MAXCOL, NSUBEXP, RE_MAGIC, Regmatch, skip_regexp, vim_regcomp, vim_regexec, vim_regfree,
 };
@@ -114,14 +114,14 @@ const NOTAGFILE: c_int = 99;
 const TAG_SEP: c_char = 0x02;
 const ML_EXTRA: usize = 3;
 
-const kCpoTagpat: c_int = b't' as c_int;
-const kOptFdoFlagTag: c_uint = 0x80;
-pub(crate) const kOptSwbFlagUseopen: c_uint = 0x01;
-const kOptTcFlagFollowic: c_uint = 0x01;
-const kOptTcFlagIgnore: c_uint = 0x02;
-const kOptTcFlagMatch: c_uint = 0x04;
-const kOptTcFlagFollowscs: c_uint = 0x08;
-const kOptTcFlagSmart: c_uint = 0x10;
+const K_CPO_TAGPAT: c_int = b't' as c_int;
+const K_OPT_FDO_FLAG_TAG: c_uint = 0x80;
+pub(crate) const K_OPT_SWB_FLAG_USEOPEN: c_uint = 0x01;
+const K_OPT_TC_FLAG_FOLLOWIC: c_uint = 0x01;
+const K_OPT_TC_FLAG_IGNORE: c_uint = 0x02;
+const K_OPT_TC_FLAG_MATCH: c_uint = 0x04;
+const K_OPT_TC_FLAG_FOLLOWSCS: c_uint = 0x08;
+const K_OPT_TC_FLAG_SMART: c_uint = 0x10;
 
 const E_TAG_STACK_EMPTY: &CStr = c"E73: Tag stack empty";
 const E_TAG_NOT_FOUND_STR: &CStr = c"E426: Tag not found: %s";
@@ -173,8 +173,8 @@ impl Drop for Tagname {
 
 use crate::change::{HLF_W, TAB};
 use crate::charset::NUL;
-use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
-use crate::eval::funcs::{SEARCH_KEEP, kSpecialVarNull};
+use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
+use crate::eval::funcs::{SEARCH_KEEP, K_SPECIAL_VAR_NULL_CONST};
 use crate::fileio::{SEEK_END, SEEK_SET};
 use crate::globals::IOSIZE;
 use crate::math::{FAIL, OK};
@@ -551,11 +551,11 @@ pub fn do_tag(eap: Option<&Exarg>,
                         }
                         curwin_mut().w_cursor.col = saved_fmark.mark.col;
                         curwin_mut().w_set_curswant = true;
-                        if (opt_vars().jop_flags & kOptJopFlagView) != 0 {
+                        if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 {
                             mark_view_restore(Some(&saved_fmark));
                         }
                         check_cursor(curwin_mut());
-                        if (opt_vars().fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
+                        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_TAG) != 0 && old_KeyTyped {
                             foldOpenCursor();
                         }
 
@@ -963,7 +963,7 @@ fn select_tag_match(eap: Option<&Exarg>,
             tv_dict_add_bool(
                 &mut *d,
                 c"cur",
-                if cur { kBoolVarTrue } else { kBoolVarFalse },
+                if cur { K_BOOL_VAR_TRUE_CONST } else { K_BOOL_VAR_FALSE_CONST },
             );
 
             let mut item = TypVal {
@@ -1271,7 +1271,7 @@ fn find_tagfunc_tags(
             }
         }
 
-        if curbuf_mut().b_p_tfu.cb_type() == kCallbackNone {
+        if curbuf_mut().b_p_tfu.cb_type() == K_CALLBACK_NONE_CONST {
             return FAIL;
         }
 
@@ -1335,7 +1335,7 @@ fn find_tagfunc_tags(
         if result == FAIL {
             return FAIL;
         }
-        if rettv.v_type == VarType::VarSpecial && rettv.vval.v_special() == kSpecialVarNull {
+        if rettv.v_type == VarType::VarSpecial && rettv.vval.v_special() == K_SPECIAL_VAR_NULL_CONST {
             tv_clear(&mut rettv);
             return NOTDONE;
         }
@@ -1633,7 +1633,7 @@ fn findtags_apply_tfu(
      {
         let use_tfu = (st.flags & TAG_NO_TAGFUNC) == 0;
 
-        if !use_tfu || tag_st().tfu_in_use || curbuf_mut().b_p_tfu.cb_type() == kCallbackNone {
+        if !use_tfu || tag_st().tfu_in_use || curbuf_mut().b_p_tfu.cb_type() == K_CALLBACK_NONE_CONST {
             return NOTDONE;
         }
 
@@ -2300,11 +2300,11 @@ pub fn find_tags(
         } else {
             opt_vars().tc_flags
         } {
-            kOptTcFlagFollowic => {}
-            kOptTcFlagIgnore => opt_vars().p_ic = 1,
-            kOptTcFlagMatch => opt_vars().p_ic = 0,
-            kOptTcFlagFollowscs => opt_vars().p_ic = ignorecase(pat),
-            kOptTcFlagSmart => opt_vars().p_ic = ignorecase_opt(pat, 1, 1),
+            K_OPT_TC_FLAG_FOLLOWIC => {}
+            K_OPT_TC_FLAG_IGNORE => opt_vars().p_ic = 1,
+            K_OPT_TC_FLAG_MATCH => opt_vars().p_ic = 0,
+            K_OPT_TC_FLAG_FOLLOWSCS => opt_vars().p_ic = ignorecase(pat),
+            K_OPT_TC_FLAG_SMART => opt_vars().p_ic = ignorecase_opt(pat, 1, 1),
             _ => std::process::abort(),
         }
 
@@ -2769,17 +2769,17 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
                 }
             }
 
-            if g_st().postponed_split != 0 && (opt_vars().swb_flags & (kOptSwbFlagUseopen | kOptSwbFlagUsetab)) != 0 {
+            if g_st().postponed_split != 0 && (opt_vars().swb_flags & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0 {
                 let existing_buf = buflist_findname_exp(fname);
                 if !existing_buf.is_null() && !swbuf_goto_win_with_buf(existing_buf).is_null() {
                     getfile_result = GETFILE_SAME_FILE;
                 }
             }
             if getfile_result == GETFILE_UNUSED && (g_st().postponed_split != 0 || g_st().cmdmod.cmod_tab != 0) {
-                if (opt_vars().swb_flags & kOptSwbFlagVsplit) != 0 {
+                if (opt_vars().swb_flags & K_OPT_SWB_FLAG_VSPLIT) != 0 {
                     g_st().cmdmod.cmod_split |= WSP_VERT;
                 }
-                if (opt_vars().swb_flags & kOptSwbFlagNewtab) != 0 && g_st().cmdmod.cmod_tab == 0 {
+                if (opt_vars().swb_flags & K_OPT_SWB_FLAG_NEWTAB) != 0 && g_st().cmdmod.cmod_tab == 0 {
                     g_st().cmdmod.cmod_tab = tabpage_index(g_st().curtab) + 1;
                 }
                 if !win_split(
@@ -2817,7 +2817,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
 
                 let save_no_hlsearch = g_st().Search.no_hlsearch;
 
-                let search_options = if !vim_strchr(opt_vars().p_cpo, kCpoTagpat).is_null() {
+                let search_options = if !vim_strchr(opt_vars().p_cpo, K_CPO_TAGPAT).is_null() {
                     0
                 } else {
                     SEARCH_KEEP
@@ -2968,7 +2968,7 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: c_int, keep_
                     if curbuf_mut().b_help {
                         set_topline(curwin_mut(), curwin_mut().w_cursor.lnum);
                     }
-                    if (opt_vars().fdo_flags & kOptFdoFlagTag) != 0 && old_KeyTyped {
+                    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_TAG) != 0 && old_KeyTyped {
                         foldOpenCursor();
                     }
                 }
@@ -3054,7 +3054,7 @@ fn test_for_current(
             retval = path_equal(
                 fullname.as_ptr(),
                 buf_ffname,
-                (kPathCmpExpand | kPathCmpFull) as PathCmpFlags,
+                (K_PATH_CMP_EXPAND | K_PATH_CMP_FULL) as PathCmpFlags,
             );
             *fname_end = c;
         }
@@ -3498,7 +3498,7 @@ pub fn set_tagstack(wp: &mut WinInfoInfo, d: Option<&TvDict>, action: c_int) -> 
         let di_items = tv_dict_find(d, c"items", -1);
         if !di_items.is_null() {
             if (*di_items).di_tv.v_type != VarType::VarList {
-                emsg(gettext(e_listreq));
+                emsg(gettext(E_LISTREQ));
                 return false;
             }
             l = (*di_items).di_tv.vval.v_list();

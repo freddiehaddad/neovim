@@ -19,7 +19,7 @@ use crate::cmdexpand::{EXPAND_EVENTS, EXPAND_FILES, EXPAND_NOTHING};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
 use crate::errors::*;
 use crate::eval::typval::{
-    Callback, callback_copy, callback_free, callback_to_string, kCallbackLua, tv_clear,
+    Callback, callback_copy, callback_free, callback_to_string, K_CALLBACK_LUA, tv_clear,
     tv_dict_add_nr, tv_dict_add_tv, tv_dict_set_keys_readonly, TypVal, Varnumber,
 };
 use crate::eval::userfunc::{restore_funccal, save_funccal};
@@ -34,12 +34,12 @@ use crate::event::multiqueue::{
 };
 use crate::ex_docmd::{do_cmdline, ends_excmd, Exarg, expand_sfile};
 use crate::ex_eval::{aborting, should_abort};
-use crate::extmark::{TriState, kFalse, kNone, kTrue};
+use crate::extmark::{TriState, K_FALSE, K_NONE, K_TRUE};
 use crate::fileio::{check_timestamps, file_pat_to_reg_pat, match_file_pat};
 use crate::globals::*;
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
 use crate::insexpand::ins_compl_active;
-use crate::lua::executor::{kRetNilBool, nlua_call_ref, nlua_set_sctx};
+use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
 
@@ -144,8 +144,8 @@ pub const AUGROUP_ALL: c_int = -3;
 pub const AUGROUP_DELETED: c_int = -4;
 
 pub(crate) const OPT_NOWIN: c_int = 0x10;
-pub(crate) const kOptEventignore: OptIndex = 88;
-pub(crate) const kOptModified: OptIndex = 196;
+pub(crate) const K_OPT_EVENTIGNORE: OptIndex = 88;
+pub(crate) const K_OPT_MODIFIED: OptIndex = 196;
 
 pub(crate) const DOCMD_VERBOSE: c_int = 0x01;
 pub(crate) const DOCMD_NOWAIT: c_int = 0x02;
@@ -1306,7 +1306,7 @@ impl AutocmdState {
             map_augroup_id_to_name: std::collections::BTreeMap::new(),
             apply_autocmds_nesting: 0,
             filechangeshell_busy: false,
-            pending_vimresume: kFalse,
+            pending_vimresume: K_FALSE,
             uienter_recursive: false,
             focusgained_recursive: false,
             focusgained_last_time: 0,
@@ -1886,7 +1886,7 @@ pub fn do_augroup(arg: impl crate::strings::IntoCCharPtr, del_group: bool) { let
      {
         if del_group {
             if crate::memory::cstr_is_empty(arg) {
-                emsg(tr(e_argreq));
+                emsg(tr(E_ARGREQ));
             } else {
                 augroup_del(arg, -1, true);
             }
@@ -2027,14 +2027,14 @@ pub fn au_event_disable(what: &std::ffi::CStr) -> std::ffi::CString {
             new_ei_vec.extend_from_slice(what_bytes);
         }
         let new_ei = CString::new(new_ei_vec).unwrap_or_default();
-        set_option_direct(kOptEventignore, cstr_as_obj(new_ei.as_ptr()), 0, SID_NONE);
+        set_option_direct(K_OPT_EVENTIGNORE, cstr_as_obj(new_ei.as_ptr()), 0, SID_NONE);
         save_ei
     }
 }
 
 pub fn au_event_restore(old_ei: Option<std::ffi::CString>) {
     if let Some(old_ei) = old_ei {
-            set_option_direct(kOptEventignore, cstr_as_obj(old_ei.as_ptr()), 0, SID_NONE);
+            set_option_direct(K_OPT_EVENTIGNORE, cstr_as_obj(old_ei.as_ptr()), 0, SID_NONE);
         }
 }
 
@@ -2130,7 +2130,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: *mut c_char, forceit: c_int) {
                 }
             } else if crate::memory::cstr_first_byte(arg) == b'*' || crate::memory::cstr_is_empty(arg) || crate::memory::cstr_first_byte(arg) == b'|' {
                 if !crate::memory::cstr_is_empty(cmd) {
-                    emsg(tr(e_cannot_define_autocommands_for_all_events));
+                    emsg(tr(E_CANNOT_DEFINE_AUTOCOMMANDS_FOR_ALL_EVENTS));
                 } else {
                     do_all_autocmd_events(pat, once, c_int::from(nested), cmd, forceit != 0, group);
                 }
@@ -2208,7 +2208,7 @@ pub fn do_autocmd_event(
                 let buflocal_nr = aupat_get_buflocal_nr(pat, patlen);
                 if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
                     semsg!(
-                        tr(e_buffer_nr_invalid_buffer_number),
+                        tr(E_BUFFER_NR_INVALID_BUFFER_NUMBER),
                         buflocal_nr,
                     );
                     return false;
@@ -2291,7 +2291,7 @@ pub fn autocmd_register(
             buflocal_nr = aupat_get_buflocal_nr(pat, patlen);
             if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
                 semsg!(
-                    tr(e_buffer_nr_invalid_buffer_number),
+                    tr(E_BUFFER_NR_INVALID_BUFFER_NUMBER),
                     buflocal_nr,
                 );
                 return false;
@@ -2626,7 +2626,7 @@ pub fn deferred_optionset_modified(bufnr: c_int, new_val: bool) {
             let new = boolean_obj(new_val);
             let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
-            apply_optionset_autocmd_now(kOptModified, OPT_LOCAL, old, old, old, new);
+            apply_optionset_autocmd_now(K_OPT_MODIFIED, OPT_LOCAL, old, old, old, new);
             ctx_restore(&mut aco);
         }
 }
@@ -3279,7 +3279,7 @@ fn au_callback(
     apc: &AutoPatCmd,
 ) -> bool {
     unsafe {
-        if callback.cb_type() == kCallbackLua {
+        if callback.cb_type() == K_CALLBACK_LUA {
             let mut data_items = [KeyValuePair {
                 key: NvimString {
                     data: ptr::null_mut(),
@@ -3367,7 +3367,7 @@ fn au_callback(
                 luaref,
                 ptr::null(),
                 args,
-                kRetNilBool,
+                K_RET_NIL_BOOL,
                 None,
                 None,
             );
@@ -3822,7 +3822,7 @@ fn arg_autocmd_flag_get(
         let pat_slice = crate::memory::cstr_slice(pattern.as_ptr(), len as usize);
         if cmd_bytes.starts_with(pat_slice) && ascii_iswhite(crate::memory::cstr_char_at(*cmd_ptr, len as usize)) {
             if *flag {
-                semsg!(tr(e_duparg2), pattern.as_ptr());
+                semsg!(tr(E_DUPARG2), pattern.as_ptr());
                 return true;
             }
             *flag = true;
@@ -3840,13 +3840,13 @@ pub fn vimresume_event() {
             false,
             ptr::null_mut(),
         );
-        au_st().pending_vimresume = kFalse;
+        au_st().pending_vimresume = K_FALSE;
 }
 
 pub fn may_trigger_vim_suspend_resume(suspend: bool) {
     unsafe {
-        if suspend && au_st().pending_vimresume == kFalse {
-            au_st().pending_vimresume = kNone;
+        if suspend && au_st().pending_vimresume == K_FALSE {
+            au_st().pending_vimresume = K_NONE;
             apply_autocmds(
                 EVENT_VIMSUSPEND,
                 ptr::null_mut(),
@@ -3854,9 +3854,9 @@ pub fn may_trigger_vim_suspend_resume(suspend: bool) {
                 false,
                 ptr::null_mut(),
             );
-            au_st().pending_vimresume = kTrue;
-        } else if !suspend && au_st().pending_vimresume == kTrue {
-            au_st().pending_vimresume = kNone;
+            au_st().pending_vimresume = K_TRUE;
+        } else if !suspend && au_st().pending_vimresume == K_TRUE {
+            au_st().pending_vimresume = K_NONE;
             let events = (*loop_queues(&mut g_st().main_loop)).events;
             multiqueue_put_event( &mut *events, Event::AutoCmdVimResume);
         }

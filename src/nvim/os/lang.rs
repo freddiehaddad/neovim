@@ -578,7 +578,7 @@ pub fn bind_textdomain_codeset(
 
 use crate::charset::NUL;
 #[cfg(unix)]
-use crate::diff::kShellOptSilent;
+use crate::diff::K_SHELL_OPT_SILENT;
 use crate::os::fs::MAXPATHL;
 
 #[inline]
@@ -782,7 +782,7 @@ fn find_locales() -> Vec<CString> {
     let Some(locale_a) = get_cmd_output(
         c"locale -a",
         ptr::null_mut(),
-        kShellOptSilent,
+        K_SHELL_OPT_SILENT,
     ) else {
         return Vec::new();
     };

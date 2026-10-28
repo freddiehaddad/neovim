@@ -8,24 +8,24 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     bt_cmdwin, bt_prompt, bt_quickfix, FileBuf, buf_get_changedtick, buf_is_empty, buf_meta_total,
-    Bufref, bufref_valid, kUIMessages, set_bufref,
+    Bufref, bufref_valid, K_UIMESSAGES, set_bufref,
 };
 use crate::change::{
     COM_MAX_LEN, MB_MAXCHAR, OPENLINE_DO_COM, appended_lines_mark, change_warning, changed_bytes,
     del_bytes, del_char, get_leader_len, ins_bytes_len, ins_char, ins_char_bytes, ins_str,
-    inserted_bytes, kCpoListwm, kOptVeFlagOnemore, open_line,
+    inserted_bytes, K_CPO_LISTWM, K_OPT_VE_FLAG_ONEMORE, open_line,
 };
 use crate::charset::{
     NUL, ascii_isdigit, ascii_isspace, ascii_iswhite, ascii_isxdigit, ascii2cells, char2cells,
     hex2nr, skipwhite, vim_isprintc, vim_iswordc,
 };
-use crate::cmdexpand::{Ctrl_N, Ctrl_P, MB_MAXBYTES};
+use crate::cmdexpand::{CTRL_N, CTRL_P, MB_MAXBYTES};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{
     VALID_VIRTCOL, char_before_cursor, check_cursor, check_cursor_col, check_visual_pos,
     coladvance, Colnr, dec_cursor, equalpos, gchar_cursor, get_cursor_line_len,
     get_cursor_line_ptr, get_cursor_pos_len, get_cursor_pos_ptr, getviscol, inc_cursor,
-    kOptVeFlagAll, Linenr, lt, CursorPos,
+    K_OPT_VE_FLAG_ALL, Linenr, lt, CursorPos,
 };
 use crate::decoration::{decor_conceal_line, win_lines_concealed};
 use crate::digraph::{digraph_get, do_digraph};
@@ -37,17 +37,17 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::buffer::{invoke_prompt_interrupt, prompt_invoke_callback};
-use crate::eval::typval::kCallbackNone;
+use crate::eval::typval::K_CALLBACK_NONE_CONST;
 use crate::eval::userfunc::ascii_iswhite_nl_or_nul;
 use crate::eval::vars::{VV_CHAR, VV_INSERTMODE, get_vim_var_str, set_vim_var_string};
-use crate::ex_cmds::{B_IMODE_LMAP, BL_FIX, BL_SOL, BL_WHITE, Ctrl_C, Ctrl_E, Ctrl_Y};
+use crate::ex_cmds::{B_IMODE_LMAP, BL_FIX, BL_SOL, BL_WHITE, CTRL_C_CONST, CTRL_E, CTRL_Y};
 use crate::ex_docmd::{CMOD_KEEPJUMPS, do_cmdline, do_cmdline_cmd, expr_map_locked};
 use crate::ex_getln::{
-    ABBR_OFF, B_IMODE_NONE, Ctrl__, Ctrl_A, Ctrl_BSL, Ctrl_D, Ctrl_F, Ctrl_G, Ctrl_HAT, Ctrl_K,
-    Ctrl_L, Ctrl_O, Ctrl_Q, Ctrl_R, Ctrl_RSB, Ctrl_T, Ctrl_U, Ctrl_W, Ctrl_Z, K_EVENT, K_LUA,
+    ABBR_OFF, B_IMODE_NONE, CTRL_CONST_CONST, CTRL_A, CTRL_BSL, CTRL_D_CONST, CTRL_F_CONST, CTRL_G, CTRL_HAT_CONST, CTRL_K_CONST,
+    CTRL_L_CONST, CTRL_O, CTRL_Q_CONST, CTRL_R_CONST, CTRL_RSB_CONST, CTRL_T_CONST, CTRL_U, CTRL_W_CONST, CTRL_Z_CONST, K_EVENT, K_LUA,
     K_SELECT, cmdwin_do_action,
 };
-use crate::extmark::{kFalse, kNone, kTrue};
+use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 use crate::fileio::check_timestamps;
 use crate::fold::{
     foldCheckClose, foldOpenCursor, foldUpdateAfterInsert, hasFolding, hasFoldingWin,
@@ -65,7 +65,7 @@ use crate::indent::{
 };
 use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
 use crate::input::{
-    K_COMPLETE_DELAY, K_PASTE_START, char_avail, kInsNone, langmap_adjust, map_execute_lua,
+    K_COMPLETE_DELAY, K_PASTE_START, char_avail, K_INS_NONE, langmap_adjust, map_execute_lua,
     mb_byte2len_check, merge_modifiers, paste_repeat, plain_vgetc, prep_redo, redo_append_char,
     redo_append_lit, redo_append_str, redo_keys, start_redo_ins, stop_redo_ins, stuff_empty,
     stuffReadbuffLen, stuffRedoReadbuff, stuffcharReadbuff, vgetc, vpeekc, vungetc,
@@ -99,7 +99,7 @@ use crate::keycodes::{
 };
 use crate::mapping::{check_abbr, map_to_exists_mode};
 use crate::mark::{mark_view_make, reset_fmark};
-use crate::marktree::kMTMetaInline;
+use crate::marktree::K_MTMETA_INLINE;
 use crate::mbyte::{
     GraphemeState, mb_adjust_cursor, mb_get_class, ptr2cells, utf_ClusterInfo, utf_char2bytes,
     utf_char2len, utf_composinglike, utf_head_off, utf_ptr2StrCharInfo, utf_ptr2char, utf_ptr2len,
@@ -133,7 +133,7 @@ use crate::plines::{
     linetabsize_col, win_charsize, win_chartabsize,
 };
 use crate::popupmenu::{pum_check_clear, pum_visible};
-use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL};
+use crate::regexp::{CTRL_H_CONST, CTRL_V_CONST, MAXCOL};
 use crate::register::{
     PUT_CURSEND, PUT_FIXINDENT, YREG_PASTE, do_put, get_expr_register, get_yank_register,
     insert_reg, is_literal_register, valid_yank_reg, Yankreg,
@@ -164,41 +164,41 @@ pub(crate) const MOD_MASK_SHIFT: c_int = 0x02;
 pub(crate) const MOD_MASK_CTRL: c_int = 0x04;
 const MOD_MASK_CMD: c_int = 0x80;
 
-pub(crate) const Ctrl_J: c_int = 10;
-pub(crate) const Ctrl_S: c_int = 19;
-pub(crate) const Ctrl_X: c_int = 24;
+pub(crate) const CTRL_J_CONST: c_int = 10;
+pub(crate) const CTRL_S_CONST: c_int = 19;
+pub(crate) const CTRL_X_CONST: c_int = 24;
 
-pub(crate) const kCharsizeFast: CSType = true;
+pub(crate) const K_CHARSIZE_FAST: CSType = true;
 
 #[inline]
 const fn IS_SPECIAL(c: c_int) -> bool {
     c < 0
 }
 
-const kInsArrow: c_int = 1;
-const kInsJump: c_int = 2;
+const K_INS_ARROW: c_int = 1;
+const K_INS_JUMP: c_int = 2;
 
 pub(crate) const HLF_8: usize = 1;
 
-pub(crate) const kOptFdoFlagAll: c_uint = 0x01;
-pub(crate) const kOptFdoFlagHor: c_uint = 0x04;
-const kOptFdoFlagInsert: c_uint = 0x100;
+pub(crate) const K_OPT_FDO_FLAG_ALL: c_uint = 0x01;
+pub(crate) const K_OPT_FDO_FLAG_HOR: c_uint = 0x04;
+const K_OPT_FDO_FLAG_INSERT: c_uint = 0x100;
 
-const kOptBoFlagBackspace: c_uint = 0x02;
-const kOptBoFlagCursor: c_uint = 0x04;
-const kOptBoFlagCopy: c_uint = 0x10;
-const kOptBoFlagCtrlg: c_uint = 0x20;
-const kOptBoFlagRegister: c_uint = 0x8000;
+const K_OPT_BO_FLAG_BACKSPACE: c_uint = 0x02;
+const K_OPT_BO_FLAG_CURSOR: c_uint = 0x04;
+const K_OPT_BO_FLAG_COPY: c_uint = 0x10;
+const K_OPT_BO_FLAG_CTRLG: c_uint = 0x20;
+const K_OPT_BO_FLAG_REGISTER: c_uint = 0x8000;
 
-pub(crate) const kFoAuto: c_int = b'a' as c_int;
-pub(crate) const kFoInsBlank: c_int = b'b' as c_int;
-const kFoInsLong: c_int = b'l' as c_int;
-const kFoRetComs: c_int = b'r' as c_int;
-pub(crate) const kFoWhitePar: c_int = b'w' as c_int;
+pub(crate) const K_FO_AUTO: c_int = b'a' as c_int;
+pub(crate) const K_FO_INS_BLANK: c_int = b'b' as c_int;
+const K_FO_INS_LONG: c_int = b'l' as c_int;
+const K_FO_RET_COMS: c_int = b'r' as c_int;
+pub(crate) const K_FO_WHITE_PAR: c_int = b'w' as c_int;
 
-const kCpoBackspace: c_int = b'v' as c_int;
-const kCpoIndent: c_int = b'I' as c_int;
-const kCpoReplcnt: c_int = b'X' as c_int;
+const K_CPO_BACKSPACE: c_int = b'v' as c_int;
+const K_CPO_INDENT: c_int = b'I' as c_int;
+const K_CPO_REPLCNT: c_int = b'X' as c_int;
 
 const BS_INDENT: c_int = b'i' as c_int;
 pub(crate) const BS_EOL: c_int = b'l' as c_int;
@@ -474,7 +474,7 @@ fn insert_enter(s: &mut InsertState) {
         may_trigger_modechanged();
         g_st().Ins.stop_insert_mode = false;
 
-        if gchar_cursor() == TAB || buf_meta_total(curbuf_mut(), kMTMetaInline) > 0 {
+        if gchar_cursor() == TAB || buf_meta_total(curbuf_mut(), K_MTMETA_INLINE) > 0 {
             curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
         }
 
@@ -494,9 +494,9 @@ fn insert_enter(s: &mut InsertState) {
 
         if g_st().restart_edit != 0 && stuff_empty() {
             g_st().Ins.moved = if g_st().where_paste_started.lnum == 0 {
-                kInsJump
+                K_INS_JUMP
             } else {
-                kInsNone
+                K_INS_NONE
             };
             g_st().restart_edit = 0;
 
@@ -519,7 +519,7 @@ fn insert_enter(s: &mut InsertState) {
             }
             g_st().ins_at_eol = false;
         } else {
-            g_st().Ins.moved = kInsNone;
+            g_st().Ins.moved = K_INS_NONE;
         }
 
         g_st().need_start_insertmode = false;
@@ -561,7 +561,7 @@ fn insert_enter(s: &mut InsertState) {
 
         pum_check_clear();
         foldUpdateAfterInsert();
-        if s.cmdchar != b'r' as c_int && s.cmdchar != b'v' as c_int && s.c != Ctrl_C {
+        if s.cmdchar != b'r' as c_int && s.cmdchar != b'v' as c_int && s.c != CTRL_C_CONST {
             ins_apply_autocmds(EVENT_INSERTLEAVE);
         }
         g_st().did_cursorhold = false;
@@ -582,7 +582,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
             g_st().Ins.revins_legal = 0;
         }
 
-        if g_st().Ins.moved != kInsNone {
+        if g_st().Ins.moved != K_INS_NONE {
             s.count = 0;
         }
 
@@ -601,7 +601,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
             return 0;
         }
 
-        if g_st().Ins.moved == kInsNone {
+        if g_st().Ins.moved == K_INS_NONE {
             curwin_mut().w_set_curswant = true;
         }
 
@@ -614,7 +614,7 @@ fn insert_check(s: &mut InsertState) -> c_int {
 
         g_st().msg_scroll = 0;
 
-        if (opt_vars().fdo_flags & kOptFdoFlagInsert) != 0 {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_INSERT) != 0 {
             foldOpenCursor();
         }
 
@@ -695,10 +695,10 @@ fn insert_check(s: &mut InsertState) -> c_int {
             s.lastc = s.c;
         }
 
-        if g_st().Ins.dont_sync_undo == kNone {
-            g_st().Ins.dont_sync_undo = kTrue;
+        if g_st().Ins.dont_sync_undo == K_NONE {
+            g_st().Ins.dont_sync_undo = K_TRUE;
         } else {
-            g_st().Ins.dont_sync_undo = kFalse;
+            g_st().Ins.dont_sync_undo = K_FALSE;
         }
 
         if s.ins_just_started {
@@ -755,7 +755,7 @@ fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
             && ins_compl_has_shown_match()
             && pum_wanted()
         {
-            if (s.c == K_BS || s.c == Ctrl_H) && curwin_mut().w_cursor.col > ins_compl_col() {
+            if (s.c == K_BS || s.c == CTRL_H_CONST) && curwin_mut().w_cursor.col > ins_compl_col() {
                 s.c = ins_compl_bs();
                 if s.c == NUL as c_int {
                     return 1;
@@ -763,7 +763,7 @@ fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
             }
 
             if !ins_compl_used_match() {
-                if s.c == Ctrl_L && (!ctrl_x_mode_line_or_eval() || ins_compl_long_shown_match())
+                if s.c == CTRL_L_CONST && (!ctrl_x_mode_line_or_eval() || ins_compl_long_shown_match())
                 {
                     ins_compl_addfrommatch();
                     return 1;
@@ -783,7 +783,7 @@ fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
                     return 1;
                 }
 
-                if (s.c == Ctrl_Y
+                if (s.c == CTRL_Y
                     || is_commit
                     || (ins_compl_enter_selects()
                         && (s.c == CAR || s.c == K_KENTER || s.c == NL)))
@@ -808,18 +808,18 @@ fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
             return 1;
         }
 
-        if s.c == Ctrl_BSL {
+        if s.c == CTRL_BSL {
             ins_redraw(false);
             g_st().no_mapping += 1;
             g_st().allow_keys += 1;
             s.c = plain_vgetc();
             g_st().no_mapping -= 1;
             g_st().allow_keys -= 1;
-            if s.c != Ctrl_N && s.c != Ctrl_G && s.c != Ctrl_O {
+            if s.c != CTRL_N && s.c != CTRL_G && s.c != CTRL_O {
                 vungetc(s.c);
-                s.c = Ctrl_BSL;
+                s.c = CTRL_BSL;
             } else {
-                if s.c == Ctrl_O {
+                if s.c == CTRL_O {
                     ins_ctrl_o();
                     g_st().ins_at_eol = false;
                     s.nomove = true;
@@ -833,15 +833,15 @@ fn insert_execute(s: &mut InsertState, key: c_int) -> c_int {
             s.c = do_digraph(s.c);
         }
 
-        if (s.c == Ctrl_V || s.c == Ctrl_Q) && ctrl_x_mode_cmdline() {
+        if (s.c == CTRL_V_CONST || s.c == CTRL_Q_CONST) && ctrl_x_mode_cmdline() {
             insert_do_complete(&mut *s);
             insert_handle_key_post(s);
             return 1;
         }
 
-        if s.c == Ctrl_V || s.c == Ctrl_Q {
+        if s.c == CTRL_V_CONST || s.c == CTRL_Q_CONST {
             ins_ctrl_v();
-            s.c = Ctrl_V;
+            s.c = CTRL_V_CONST;
             return 1;
         }
 
@@ -890,7 +890,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     return 0;
                 }
             }
-            Ctrl_C => {
+            CTRL_C_CONST => {
                 if bt_cmdwin(g_st().curbuf) {
                     g_st().got_int = false;
                     cmdwin_do_action(c"cancel");
@@ -904,15 +904,15 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     return 0;
                 }
             }
-            Ctrl_Z => {
+            CTRL_Z_CONST => {
                 goto_normalchar = true;
             }
-            Ctrl_O => {
+            CTRL_O => {
                 if ctrl_x_mode_omni() {
                     insert_do_complete(&mut *s);
-                } else if !echeck_abbr(Ctrl_O + ABBR_OFF) {
+                } else if !echeck_abbr(CTRL_O + ABBR_OFF) {
                     ins_ctrl_o();
-                    if (get_ve_flags(curwin_mut()) & kOptVeFlagOnemore) != 0 {
+                    if (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) != 0 {
                         g_st().ins_at_eol = false;
                         s.nomove = true;
                     }
@@ -931,15 +931,15 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
             c if c == b' ' as c_int && g_st().mod_mask != MOD_MASK_CTRL => {
                 goto_normalchar = true;
             }
-            c if c == b' ' as c_int || c == K_ZERO || c == NUL as c_int || c == Ctrl_A => {
-                if !stuff_inserted(NUL as c_int, 1, c_int::from(s.c == Ctrl_A))
-                    && s.c != Ctrl_A
+            c if c == b' ' as c_int || c == K_ZERO || c == NUL as c_int || c == CTRL_A => {
+                if !stuff_inserted(NUL as c_int, 1, c_int::from(s.c == CTRL_A))
+                    && s.c != CTRL_A
                 {
                     return 0;
                 }
                 s.inserted_space = 0;
             }
-            Ctrl_R => {
+            CTRL_R_CONST => {
                 if ctrl_x_mode_register() && !ins_compl_active() {
                     insert_do_complete(&mut *s);
                 } else {
@@ -948,20 +948,20 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     s.inserted_space = 0;
                 }
             }
-            Ctrl_G => {
+            CTRL_G => {
                 ins_ctrl_g();
             }
-            Ctrl_HAT => {
+            CTRL_HAT_CONST => {
                 ins_ctrl_hat();
             }
-            Ctrl__ => {
+            CTRL_CONST_CONST => {
                 if opt_vars().p_ari == 0 {
                     goto_normalchar = true;
                 } else {
                     ins_ctrl_();
                 }
             }
-            Ctrl_D => {
+            CTRL_D_CONST => {
                 if ctrl_x_mode_path_defines() {
                     insert_do_complete(&mut *s);
                 } else {
@@ -970,7 +970,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     s.inserted_space = 0;
                 }
             }
-            Ctrl_T => {
+            CTRL_T_CONST => {
                 if ctrl_x_mode_thesaurus() {
                     if check_compl_option(false) {
                         insert_do_complete(&mut *s);
@@ -985,16 +985,16 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 ins_del();
                 auto_format(false, true);
             }
-            K_BS | Ctrl_H => {
+            K_BS | CTRL_H_CONST => {
                 s.did_backspace = ins_bs(s.c, BACKSPACE_CHAR, &mut s.inserted_space);
                 auto_format(false, true);
                 if s.did_backspace {
                     may_trigger_autocomplete(s);
                 }
             }
-            Ctrl_W => {
+            CTRL_W_CONST => {
                 if bt_prompt(Some(crate::globals::curbuf_mut())) && (g_st().mod_mask & MOD_MASK_SHIFT) == 0 {
-                    stuffcharReadbuff(Ctrl_W);
+                    stuffcharReadbuff(CTRL_W_CONST);
                     g_st().restart_edit = b'A' as c_int;
                     s.nomove = true;
                     s.count = 0;
@@ -1006,7 +1006,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     may_trigger_autocomplete(s);
                 }
             }
-            Ctrl_U => {
+            CTRL_U => {
                 if ctrl_x_mode_function() {
                     insert_do_complete(&mut *s);
                 } else {
@@ -1050,8 +1050,8 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     paste_repeat(1);
                 } else if s.c == K_EVENT {
                     state_handle_k_event();
-                    if g_st().Ins.dont_sync_undo == kTrue {
-                        g_st().Ins.dont_sync_undo = kNone;
+                    if g_st().Ins.dont_sync_undo == K_TRUE {
+                        g_st().Ins.dont_sync_undo = K_NONE;
                     }
                 } else if s.c == K_COMMAND {
                     do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::CmdKeyCmd, 0);
@@ -1064,7 +1064,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                         g_st().edit_submode_extra = ptr::null_mut();
                         insert_do_complete(&mut *s);
                         if g_st().pum_want.finish {
-                            ins_compl_prep(Ctrl_Y);
+                            ins_compl_prep(CTRL_Y);
                         }
                     }
                     g_st().pum_want.active = false;
@@ -1082,8 +1082,8 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                 }
             }
             K_COMPLETE_DELAY => {
-                if g_st().Ins.dont_sync_undo == kTrue {
-                    g_st().Ins.dont_sync_undo = kNone;
+                if g_st().Ins.dont_sync_undo == K_TRUE {
+                    g_st().Ins.dont_sync_undo = K_NONE;
                 }
                 ins_compl_clear_autocomplete_delay();
                 if ins_compl_has_autocomplete() && !char_avail() && curwin_mut().w_cursor.col != 0 {
@@ -1194,7 +1194,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     s.inserted_space = 0;
                 }
             }
-            Ctrl_K => {
+            CTRL_K_CONST => {
                 if ctrl_x_mode_dictionary() {
                     if check_compl_option(true) {
                         insert_do_complete(&mut *s);
@@ -1206,41 +1206,41 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                     }
                 }
             }
-            Ctrl_X => {
+            CTRL_X_CONST => {
                 ins_ctrl_x();
             }
-            Ctrl_RSB => {
+            CTRL_RSB_CONST => {
                 if !ctrl_x_mode_tags() {
                     goto_normalchar = true;
                 } else {
                     insert_do_complete(&mut *s);
                 }
             }
-            Ctrl_F => {
+            CTRL_F_CONST => {
                 if !ctrl_x_mode_files() {
                     goto_normalchar = true;
                 } else {
                     insert_do_complete(&mut *s);
                 }
             }
-            c if c == b's' as c_int || c == Ctrl_S => {
+            c if c == b's' as c_int || c == CTRL_S_CONST => {
                 if !ctrl_x_mode_spell() {
                     goto_normalchar = true;
                 } else {
                     insert_do_complete(&mut *s);
                 }
             }
-            Ctrl_L => {
+            CTRL_L_CONST => {
                 if !ctrl_x_mode_whole_line() {
                     goto_normalchar = true;
                 } else {
                     goto_do_complete = true;
                 }
             }
-            Ctrl_P | Ctrl_N => {
+            CTRL_P | CTRL_N => {
                 goto_do_complete = true;
             }
-            Ctrl_Y | Ctrl_E => {
+            CTRL_Y | CTRL_E => {
                 s.c = ins_ctrl_ey(s.c);
             }
             _ => {
@@ -1302,7 +1302,7 @@ fn insert_handle_key(s: &mut InsertState) -> c_int {
                         s.c + ABBR_OFF
                     } else {
                         s.c
-                    }) && s.c != Ctrl_RSB)
+                    }) && s.c != CTRL_RSB_CONST)
                 {
                     insert_special(s.c, 0, 0);
                     g_st().Ins.revins_legal += 1;
@@ -1352,7 +1352,7 @@ fn insert_handle_key_post(s: &mut InsertState) {
             ins_compl_cancel();
         }
 
-        if g_st().Ins.moved != kInsNone {
+        if g_st().Ins.moved != K_INS_NONE {
             s.inserted_space = 0;
         }
 
@@ -1375,12 +1375,12 @@ pub fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
         }
 
         if g_st().sandbox != 0 {
-            emsg(gettext(e_sandbox));
+            emsg(gettext(E_SANDBOX));
             return false;
         }
 
         if g_st().textlock != 0 || ins_compl_active() || ins_st().compl_busy || pum_visible() || expr_map_locked() {
-            emsg(gettext(e_textlock));
+            emsg(gettext(E_TEXTLOCK));
             return false;
         }
 
@@ -1389,7 +1389,7 @@ pub fn edit(cmdchar: c_int, startln: bool, count: c_int) -> bool {
         s.startln = c_int::from(startln);
         s.count = count;
         insert_enter(&mut s);
-        s.c == Ctrl_O
+        s.c == CTRL_O
     }
 }
 
@@ -1490,7 +1490,7 @@ fn ins_ctrl_v() {
         }
         redo_append_str(c"\x16", 1);
 
-        add_to_showcmd_c(Ctrl_V);
+        add_to_showcmd_c(CTRL_V_CONST);
 
         let c = get_literal((g_st().mod_mask & MOD_MASK_SHIFT) != 0);
         if did_putchar {
@@ -1644,7 +1644,7 @@ fn set_insstart(lnum: Linenr, col: Colnr) {
         g_st().Ins.start_orig = g_st().Ins.start;
         g_st().Ins.start_textlen = g_st().Ins.start.col;
         g_st().Ins.start_blank_vcol = MAXCOL;
-        g_st().Ins.moved = kInsNone;
+        g_st().Ins.moved = K_INS_NONE;
 }
 
 pub fn edit_unputchar() {
@@ -1754,7 +1754,7 @@ pub fn get_literal(no_simplify: bool) -> c_int {
         let mut unicode: c_int = 0;
 
         if g_st().got_int {
-            return Ctrl_C;
+            return CTRL_C_CONST;
         }
 
         g_st().no_mapping += 1;
@@ -1867,7 +1867,7 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
     unsafe {
         let force_format = (flags & INSCHAR_FORMAT) != 0;
         let textwidth = comp_textwidth(force_format);
-        let fo_ins_blank = has_format_option(kFoInsBlank);
+        let fo_ins_blank = has_format_option(K_FO_INS_BLANK);
 
         if textwidth > 0
             && (force_format
@@ -1876,14 +1876,14 @@ pub fn insertchar(mut c: c_int, flags: c_int, second_indent: c_int) {
                         && (g_st().State & VREPLACE_FLAG) == 0
                         && !crate::memory::cstr_is_empty(get_cursor_pos_ptr()))
                     && (curwin_mut().w_cursor.lnum != g_st().Ins.start.lnum
-                        || ((!has_format_option(kFoInsLong) || g_st().Ins.start_textlen <= textwidth)
+                        || ((!has_format_option(K_FO_INS_LONG) || g_st().Ins.start_textlen <= textwidth)
                             && (!fo_ins_blank || g_st().Ins.start_blank_vcol <= textwidth)))))
         {
             let mut do_internal = true;
             let virtcol = get_nolist_virtcol()
                 + char2cells(if c != NUL as c_int { c } else { gchar_cursor() });
 
-            if curbuf_mut().b_p_fex.cb_type() != kCallbackNone
+            if curbuf_mut().b_p_fex.cb_type() != K_CALLBACK_NONE_CONST
                 && (flags & INSCHAR_NO_FEX) == 0
                 && (force_format || virtcol > textwidth)
             {
@@ -2038,20 +2038,20 @@ fn redo_literal(c: c_int) {
 
 /// Called when the cursor moves in insert-mode without editing text.
 pub fn start_arrow(end_insert_pos: *mut CursorPos, end_change: bool, move_key: c_int) {
-    if g_st().Ins.moved == kInsNone && end_change {
+    if g_st().Ins.moved == K_INS_NONE && end_change {
             stop_insert(end_insert_pos, 0, 0);
         }
-        if g_st().Ins.moved != kInsJump {
+        if g_st().Ins.moved != K_INS_JUMP {
             if move_key == NUL as c_int {
                 redo_append_str(c"\x1b", 1);
-                g_st().Ins.moved = kInsJump;
+                g_st().Ins.moved = K_INS_JUMP;
             } else {
                 if !IS_SPECIAL(move_key) {
-                    redo_append_char(Ctrl_G);
+                    redo_append_char(CTRL_G);
                 }
                 redo_append_char(move_key);
                 if end_change {
-                    g_st().Ins.moved = kInsArrow;
+                    g_st().Ins.moved = K_INS_ARROW;
                 }
             }
         }
@@ -2059,8 +2059,8 @@ pub fn start_arrow(end_insert_pos: *mut CursorPos, end_change: bool, move_key: c
 }
 
 fn start_arrow_with_change(end_insert_pos: &mut CursorPos, end_change: bool, move_key: c_int) {
-    if !end_change && g_st().Ins.moved != kInsJump {
-            redo_append_char(Ctrl_G);
+    if !end_change && g_st().Ins.moved != K_INS_JUMP {
+            redo_append_char(CTRL_G);
             redo_append_char(b'U' as c_int);
         }
         start_arrow(&raw mut *end_insert_pos, end_change, move_key);
@@ -2078,16 +2078,16 @@ fn check_spell_redraw() {
 
 pub fn stop_arrow() -> bool {
      {
-        if g_st().Ins.moved != kInsNone {
+        if g_st().Ins.moved != K_INS_NONE {
             g_st().Ins.start = curwin_mut().w_cursor;
             if g_st().Ins.start.col > g_st().Ins.start_orig.col && !g_st().Ins.need_undo {
                 g_st().Ins.update_start_orig = false;
             }
             g_st().Ins.start_textlen = linetabsize_str(get_cursor_line_ptr());
 
-            let jumped = g_st().Ins.moved == kInsJump;
+            let jumped = g_st().Ins.moved == K_INS_JUMP;
             if u_save_cursor() {
-                g_st().Ins.moved = kInsNone;
+                g_st().Ins.moved = K_INS_NONE;
                 g_st().Ins.need_undo = false;
             }
             g_st().Ins.ai_col = 0;
@@ -2121,7 +2121,7 @@ pub fn stop_arrow() -> bool {
 
         foldOpenCursor();
 
-        !(g_st().Ins.moved != kInsNone || g_st().Ins.need_undo)
+        !(g_st().Ins.moved != K_INS_NONE || g_st().Ins.need_undo)
     }
 }
 
@@ -2140,9 +2140,9 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: c_int, nomove: c_int) {
             ins_st().last_insert_skip = if added < 0 { 0 } else { g_st().Ins.new_insert_skip };
         }
 
-        if g_st().Ins.moved == kInsNone && !end_insert_pos.is_null() {
+        if g_st().Ins.moved == K_INS_NONE && !end_insert_pos.is_null() {
             let mut cc: c_int;
-            if !g_st().Ins.need_undo && has_format_option(kFoAuto) {
+            if !g_st().Ins.need_undo && has_format_option(K_FO_AUTO) {
                 let tpos = curwin_mut().w_cursor;
                 cc = b'x' as c_int;
                 if curwin_mut().w_cursor.col > 0 && gchar_cursor() == NUL as c_int {
@@ -2174,7 +2174,7 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: c_int, nomove: c_int) {
                 && g_st().Ins.did_ai
                 && !mc_ins_replaying()
                 && (esc != 0
-                    || (vim_strchr(opt_vars().p_cpo, kCpoIndent).is_null()
+                    || (vim_strchr(opt_vars().p_cpo, K_CPO_INDENT).is_null()
                         && curwin_mut().w_cursor.lnum != (*end_insert_pos).lnum))
                 && (*end_insert_pos).lnum <= curbuf_mut().b_ml.ml_line_count
             {
@@ -2240,7 +2240,7 @@ pub fn set_last_insert(c: c_int) {
         let mut buf = [0 as c_char; MB_MAXBYTES * 3 + 5];
         let mut s = buf.as_mut_ptr();
         if c < b' ' as c_int || c == DEL {
-            *s = Ctrl_V as c_char;
+            *s = CTRL_V_CONST as c_char;
             s = s.add(1);
         }
         s = add_char2buf(c, s);
@@ -2300,7 +2300,7 @@ pub fn oneright() -> bool {
         }
 
         let l = utfc_ptr2len(ptr);
-        if crate::memory::cstr_byte_at(ptr, l as usize) == 0 && (get_ve_flags(curwin_mut()) & kOptVeFlagOnemore) == 0 {
+        if crate::memory::cstr_byte_at(ptr, l as usize) == 0 && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0 {
             return false;
         }
         curwin_mut().w_cursor.col += l;
@@ -2368,7 +2368,7 @@ pub fn cursor_up_inner(wp: &mut WinInfoInfo, mut n: Linenr, skip_conceal: bool) 
                 if skip_conceal && decor_conceal_line(&raw mut *wp, lnum - 1, true) {
                     n += 1;
                 }
-                if n > 0 || !((g_st().State & MODE_INSERT) != 0 || (opt_vars().fdo_flags & kOptFdoFlagAll) != 0) {
+                if n > 0 || !((g_st().State & MODE_INSERT) != 0 || (opt_vars().fdo_flags & K_OPT_FDO_FLAG_ALL) != 0) {
                     hasFolding(&raw mut *wp, lnum, Some(&mut lnum), ptr::null_mut());
                 }
             }
@@ -2463,7 +2463,7 @@ pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> bool {
         let mut last: c_char = NUL;
         let mut insert = get_last_insert();
         if insert.data.is_null() {
-            emsg(gettext(e_noinstext));
+            emsg(gettext(E_NOINSTEXT));
             return false;
         }
 
@@ -2488,7 +2488,7 @@ pub fn stuff_inserted(c: c_int, mut count: c_int, no_esc: c_int) -> bool {
         if insert.size > 0 {
             let p = insert.data.add(insert.size - 1);
             if (crate::memory::cstr_first_byte(p) == b'0' || crate::memory::cstr_first_byte(p) == b'^')
-                && (no_esc != 0 || (*insert.data == Ctrl_D as c_char && count > 1))
+                && (no_esc != 0 || (*insert.data == CTRL_D_CONST as c_char && count > 1))
             {
                 last = *p;
                 insert.size -= 1;
@@ -2550,7 +2550,7 @@ pub fn get_last_insert_save() -> Option<std::ffi::CString> {
 
 fn echeck_abbr(c: c_int) -> bool {
      {
-        if opt_vars().p_paste != 0 || g_st().no_abbr || g_st().Ins.moved != kInsNone {
+        if opt_vars().p_paste != 0 || g_st().no_abbr || g_st().Ins.moved != K_INS_NONE {
             return false;
         }
         check_abbr(
@@ -2694,14 +2694,14 @@ fn ins_reg() {
         if redrawing() && !char_avail() {
             ins_redraw(false);
             edit_putchar(b'"' as c_int, true);
-            add_to_showcmd_c(Ctrl_R);
+            add_to_showcmd_c(CTRL_R_CONST);
         }
 
         g_st().no_mapping += 1;
         g_st().allow_keys += 1;
         let mut regname = plain_vgetc();
         langmap_adjust(&mut regname, true);
-        if regname == Ctrl_R || regname == Ctrl_O || regname == Ctrl_P {
+        if regname == CTRL_R_CONST || regname == CTRL_O || regname == CTRL_P {
             literally = regname;
             add_to_showcmd_c(literally);
             regname = plain_vgetc();
@@ -2719,13 +2719,13 @@ fn ins_reg() {
             check_cursor(curwin_mut());
         }
         if regname == NUL as c_int || !valid_yank_reg(regname, false) {
-            vim_beep(kOptBoFlagRegister);
+            vim_beep(K_OPT_BO_FLAG_REGISTER);
             need_redraw = true;
         } else {
             let reg: *mut Yankreg = get_yank_register(regname, YREG_PASTE);
 
-            if literally == Ctrl_O || literally == Ctrl_P {
-                redo_append_char(Ctrl_R);
+            if literally == CTRL_O || literally == CTRL_P {
+                redo_append_char(CTRL_R_CONST);
                 redo_append_char(literally);
                 redo_append_char(regname);
 
@@ -2734,18 +2734,18 @@ fn ins_reg() {
                     ptr::null_mut(),
                     BACKWARD,
                     1,
-                    (if literally == Ctrl_P {
+                    (if literally == CTRL_P {
                         PUT_FIXINDENT
                     } else {
                         0
                     }) | PUT_CURSEND,
                 );
             } else if (*reg).y_array.len() > 1 && is_literal_register(regname) {
-                redo_append_char(Ctrl_R);
+                redo_append_char(CTRL_R_CONST);
                 redo_append_char(regname);
                 do_put(regname, ptr::null_mut(), BACKWARD, 1, PUT_CURSEND);
             } else if !insert_reg(regname, ptr::null_mut(), literally != 0) {
-                vim_beep(kOptBoFlagRegister);
+                vim_beep(K_OPT_BO_FLAG_REGISTER);
                 need_redraw = true;
             } else if g_st().Ins.stop_insert_mode {
                 need_redraw = true;
@@ -2778,9 +2778,9 @@ fn ins_ctrl_g() {
         g_st().no_mapping -= 1;
         g_st().allow_keys -= 1;
         match c {
-            K_UP | Ctrl_K => ins_up(true),
+            K_UP | CTRL_K_CONST => ins_up(true),
             c if c == b'k' as c_int => ins_up(true),
-            K_DOWN | Ctrl_J => ins_down(true),
+            K_DOWN | CTRL_J_CONST => ins_down(true),
             c if c == b'j' as c_int => ins_down(true),
             c if c == b'u' as c_int => {
                 u_sync(true);
@@ -2789,11 +2789,11 @@ fn ins_ctrl_g() {
                 g_st().Ins.start = curwin_mut().w_cursor;
             }
             c if c == b'U' as c_int => {
-                g_st().Ins.dont_sync_undo = kNone;
+                g_st().Ins.dont_sync_undo = K_NONE;
             }
             ESC => {}
             _ => {
-                vim_beep(kOptBoFlagCtrlg);
+                vim_beep(K_OPT_BO_FLAG_CTRLG);
             }
         }
     }
@@ -2825,7 +2825,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
             g_st().RedrawingDisabled -= 1;
             ins_st().ins_esc_disabled_redraw = false;
         }
-        if g_st().Ins.moved == kInsNone {
+        if g_st().Ins.moved == K_INS_NONE {
             if cmdchar != b'r' as c_int && cmdchar != b'v' as c_int {
                 redo_append_str(c"\x1b", 1);
             }
@@ -2839,7 +2839,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
             *count -= 1;
             if *count > 0 {
-                if !vim_strchr(opt_vars().p_cpo, kCpoReplcnt).is_null() {
+                if !vim_strchr(opt_vars().p_cpo, K_CPO_REPLCNT).is_null() {
                     g_st().State &= !REPLACE_FLAG;
                 }
 
@@ -2853,7 +2853,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
             }
             stop_insert(&raw mut (*curwin_ptr()).w_cursor, 1, c_int::from(nomove));
             undisplay_dollar();
-        } else if g_st().Ins.moved == kInsArrow && cmdchar != b'r' as c_int && cmdchar != b'v' as c_int {
+        } else if g_st().Ins.moved == K_INS_ARROW && cmdchar != b'r' as c_int && cmdchar != b'v' as c_int {
             redo_append_str(c"\x1b", 1);
         }
 
@@ -2880,7 +2880,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
             && (g_st().restart_edit == NUL as c_int || (gchar_cursor() == NUL as c_int && !g_st().Visual.active))
             && !g_st().Ins.revins_on
         {
-            if curwin_mut().w_cursor.coladd > 0 || get_ve_flags(curwin_mut()) == kOptVeFlagAll {
+            if curwin_mut().w_cursor.coladd > 0 || get_ve_flags(curwin_mut()) == K_OPT_VE_FLAG_ALL {
                 oneleft();
                 if g_st().restart_edit != NUL as c_int {
                     curwin_mut().w_cursor.coladd += 1;
@@ -2894,7 +2894,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
 
         g_st().State = MODE_NORMAL;
         may_trigger_modechanged();
-        if gchar_cursor() == TAB || buf_meta_total(curbuf_mut(), kMTMetaInline) > 0 {
+        if gchar_cursor() == TAB || buf_meta_total(curbuf_mut(), K_MTMETA_INLINE) > 0 {
             curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
         }
 
@@ -2905,7 +2905,7 @@ fn ins_esc(count: &mut c_int, cmdchar: c_int, nomove: bool) -> bool {
             showmode();
         } else if opt_vars().p_smd != 0
             && (g_st().got_int || !skip_showmode())
-            && !(opt_vars().p_ch == 0 && !ui_has(kUIMessages))
+            && !(opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES))
         {
             unshowmode(false);
         }
@@ -2948,7 +2948,7 @@ fn ins_start_select(c: c_int) -> bool {
             K_KHOME | K_KEND | K_PAGEUP | K_KPAGEUP | K_PAGEDOWN | K_KPAGEDOWN | K_S_LEFT
             | K_S_RIGHT | K_S_UP | K_S_DOWN | K_S_END | K_S_HOME => {
                 start_selection();
-                stuffcharReadbuff(Ctrl_O);
+                stuffcharReadbuff(CTRL_O);
                 if g_st().mod_mask != 0 {
                     let buf = [
                         K_SPECIAL as c_char,
@@ -3011,7 +3011,7 @@ fn ins_shift(c: c_int, lastc: c_int) {
         }
         redo_append_char(c);
 
-        if c == Ctrl_D
+        if c == CTRL_D_CONST
             && (lastc == b'0' as c_int || lastc == b'^' as c_int)
             && curwin_mut().w_cursor.col > 0
         {
@@ -3026,7 +3026,7 @@ fn ins_shift(c: c_int, lastc: c_int) {
             change_indent(INDENT_SET, 0, 1, true);
         } else {
             change_indent(
-                if c == Ctrl_D { INDENT_DEC } else { INDENT_INC },
+                if c == CTRL_D_CONST { INDENT_DEC } else { INDENT_INC },
                 0,
                 1,
                 true,
@@ -3051,7 +3051,7 @@ fn ins_del() {
         if gchar_cursor() == NUL as c_int {
             let temp = curwin_mut().w_cursor.col;
             if !can_bs(BS_EOL) || !do_join(2, false, true, false, false) {
-                vim_beep(kOptBoFlagBackspace);
+                vim_beep(K_OPT_BO_FLAG_BACKSPACE);
             } else {
                 mc_ins_join();
                 curwin_mut().w_cursor.col = temp;
@@ -3060,7 +3060,7 @@ fn ins_del() {
                 }
             }
         } else if !del_char(false) {
-            vim_beep(kOptBoFlagBackspace);
+            vim_beep(K_OPT_BO_FLAG_BACKSPACE);
         }
         g_st().Ins.did_ai = false;
         g_st().Ins.did_si = false;
@@ -3081,16 +3081,16 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
             || (!g_st().Ins.revins_on
                 && ((curwin_mut().w_cursor.lnum == 1 && curwin_mut().w_cursor.col == 0)
                     || (!can_bs(BS_START)
-                        && ((g_st().Ins.moved != kInsNone && !bt_prompt(Some(crate::globals::curbuf_mut())))
+                        && ((g_st().Ins.moved != K_INS_NONE && !bt_prompt(Some(crate::globals::curbuf_mut())))
                             || (curwin_mut().w_cursor.lnum == g_st().Ins.start_orig.lnum
                                 && curwin_mut().w_cursor.col <= g_st().Ins.start_orig.col)))
                     || (!can_bs(BS_INDENT)
-                        && g_st().Ins.moved == kInsNone
+                        && g_st().Ins.moved == K_INS_NONE
                         && g_st().Ins.ai_col > 0
                         && curwin_mut().w_cursor.col <= g_st().Ins.ai_col)
                     || (!can_bs(BS_EOL) && curwin_mut().w_cursor.col == 0)))
         {
-            vim_beep(kOptBoFlagBackspace);
+            vim_beep(K_OPT_BO_FLAG_BACKSPACE);
             return false;
         }
 
@@ -3138,7 +3138,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                     temp = gchar_cursor();
                     curwin_mut().w_cursor.lnum -= 1;
 
-                    if has_format_option(kFoAuto) && has_format_option(kFoWhitePar) {
+                    if has_format_option(K_FO_AUTO) && has_format_option(K_FO_WHITE_PAR) {
                         let ptr = ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum);
                         let len = get_cursor_line_len();
                         if len > 0 && *ptr.add((len - 1) as usize) == b' ' as c_char {
@@ -3191,7 +3191,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
                         && curwin_mut().w_cursor.col > 0
                         && (*get_cursor_pos_ptr().offset(-1) == TAB as c_char
                             || (*get_cursor_pos_ptr().offset(-1) == b' ' as c_char
-                                && (*inserted_space_p == 0 || g_st().Ins.moved != kInsNone)))))
+                                && (*inserted_space_p == 0 || g_st().Ins.moved != K_INS_NONE)))))
             {
                 *inserted_space_p = 0;
 
@@ -3360,7 +3360,7 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
             g_st().Ins.start_orig.col = curwin_mut().w_cursor.col;
         }
 
-        if !vim_strchr(opt_vars().p_cpo, kCpoBackspace).is_null() && g_st().dollar_vcol == -1 {
+        if !vim_strchr(opt_vars().p_cpo, K_CPO_BACKSPACE).is_null() && g_st().dollar_vcol == -1 {
             g_st().dollar_vcol = curwin_mut().w_virtcol;
         }
 
@@ -3373,8 +3373,8 @@ fn ins_bs(c: c_int, mut mode: c_int, inserted_space_p: &mut c_int) -> bool {
 
 fn ins_left() {
      {
-        let end_change = g_st().Ins.dont_sync_undo == kFalse;
-        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
+        let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3391,15 +3391,15 @@ fn ins_left() {
             coladvance(curwin_mut(), MAXCOL);
             curwin_mut().w_set_curswant = true;
         } else {
-            vim_beep(kOptBoFlagCursor);
+            vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
-        g_st().Ins.dont_sync_undo = kFalse;
+        g_st().Ins.dont_sync_undo = K_FALSE;
     }
 }
 
 fn ins_home(c: c_int) {
      {
-        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3420,7 +3420,7 @@ fn ins_home(c: c_int) {
 
 fn ins_end(c: c_int) {
      {
-        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3440,8 +3440,8 @@ fn ins_end(c: c_int) {
 
 fn ins_s_left() {
      {
-        let end_change = g_st().Ins.dont_sync_undo == kFalse;
-        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
+        let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3450,16 +3450,16 @@ fn ins_s_left() {
             bck_word(1, false, false);
             curwin_mut().w_set_curswant = true;
         } else {
-            vim_beep(kOptBoFlagCursor);
+            vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
-        g_st().Ins.dont_sync_undo = kFalse;
+        g_st().Ins.dont_sync_undo = K_FALSE;
     }
 }
 
 fn ins_right() {
     unsafe {
-        let end_change = g_st().Ins.dont_sync_undo == kFalse;
-        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
+        let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3484,16 +3484,16 @@ fn ins_right() {
             curwin_mut().w_cursor.lnum += 1;
             curwin_mut().w_cursor.col = 0;
         } else {
-            vim_beep(kOptBoFlagCursor);
+            vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
-        g_st().Ins.dont_sync_undo = kFalse;
+        g_st().Ins.dont_sync_undo = K_FALSE;
     }
 }
 
 fn ins_s_right() {
      {
-        let end_change = g_st().Ins.dont_sync_undo == kFalse;
-        if (opt_vars().fdo_flags & kOptFdoFlagHor) != 0 && g_st().KeyTyped {
+        let end_change = g_st().Ins.dont_sync_undo == K_FALSE;
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_HOR) != 0 && g_st().KeyTyped {
             foldOpenCursor();
         }
         undisplay_dollar();
@@ -3503,9 +3503,9 @@ fn ins_s_right() {
             fwd_word(1, false, false);
             curwin_mut().w_set_curswant = true;
         } else {
-            vim_beep(kOptBoFlagCursor);
+            vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
-        g_st().Ins.dont_sync_undo = kFalse;
+        g_st().Ins.dont_sync_undo = K_FALSE;
     }
 }
 
@@ -3530,7 +3530,7 @@ fn ins_up(startcol: bool) {
             );
             g_st().Ins.can_cindent = true;
         } else {
-            vim_beep(kOptBoFlagCursor);
+            vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
     }
 }
@@ -3552,7 +3552,7 @@ fn ins_pageup() {
             start_arrow(&raw mut tpos, true, NUL as c_int);
             g_st().Ins.can_cindent = true;
         } else {
-            vim_beep(kOptBoFlagCursor);
+            vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
     }
 }
@@ -3578,7 +3578,7 @@ fn ins_down(startcol: bool) {
             );
             g_st().Ins.can_cindent = true;
         } else {
-            vim_beep(kOptBoFlagCursor);
+            vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
     }
 }
@@ -3600,7 +3600,7 @@ fn ins_pagedown() {
             start_arrow(&raw mut tpos, true, NUL as c_int);
             g_st().Ins.can_cindent = true;
         } else {
-            vim_beep(kOptBoFlagCursor);
+            vim_beep(K_OPT_BO_FLAG_CURSOR);
         }
     }
 }
@@ -3704,7 +3704,7 @@ fn ins_tab() -> bool {
                 cursor = &raw mut (*curwin_ptr()).w_cursor;
             }
 
-            if vim_strchr(opt_vars().p_cpo, kCpoListwm).is_null() {
+            if vim_strchr(opt_vars().p_cpo, K_CPO_LISTWM).is_null() {
                 curwin_mut().w_onebuf_opt.wo_list = 0;
             }
 
@@ -3853,7 +3853,7 @@ pub fn ins_eol(c: c_int) -> bool {
         redo_append_str(c"\n", 1);
         let i = open_line(
             FORWARD,
-            if has_format_option(kFoRetComs) {
+            if has_format_option(K_FO_RET_COMS) {
                 OPENLINE_DO_COM
             } else {
                 0
@@ -3876,7 +3876,7 @@ fn ins_digraph() -> c_int {
             ins_redraw(false);
             edit_putchar(b'?' as c_int, true);
             did_putchar = true;
-            add_to_showcmd_c(Ctrl_K);
+            add_to_showcmd_c(CTRL_K_CONST);
         }
 
         g_st().no_mapping += 1;
@@ -3927,7 +3927,7 @@ fn ins_digraph() -> c_int {
 pub fn ins_copychar(lnum: Linenr) -> c_int {
      {
         if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
-            vim_beep(kOptBoFlagCopy);
+            vim_beep(K_OPT_BO_FLAG_COPY);
             return NUL as c_int;
         }
 
@@ -3962,7 +3962,7 @@ pub fn ins_copychar(lnum: Linenr) -> c_int {
             ci.chr.value
         };
         if c == NUL as c_int {
-            vim_beep(kOptBoFlagCopy);
+            vim_beep(K_OPT_BO_FLAG_COPY);
         }
         c
     }
@@ -3972,14 +3972,14 @@ fn ins_ctrl_ey(tc: c_int) -> c_int {
      {
         let mut c = tc;
         if ctrl_x_mode_scroll() {
-            if c == Ctrl_Y {
+            if c == CTRL_Y {
                 scrolldown_clamp();
             } else {
                 scrollup_clamp();
             }
             redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         } else {
-            c = ins_copychar(curwin_mut().w_cursor.lnum + if c == Ctrl_Y { -1 } else { 1 });
+            c = ins_copychar(curwin_mut().w_cursor.lnum + if c == CTRL_Y { -1 } else { 1 });
             if c != NUL as c_int {
                 if c < 256 && !(c as u8).is_ascii_alphanumeric() {
                     redo_append_str(c"\x16", 1);
@@ -3990,7 +3990,7 @@ fn ins_ctrl_ey(tc: c_int) -> c_int {
                 curbuf_mut().b_p_tw = tw_save;
                 g_st().Ins.revins_chars += 1;
                 g_st().Ins.revins_legal += 1;
-                c = Ctrl_V;
+                c = CTRL_V_CONST;
                 auto_format(false, true);
             }
         }
@@ -4007,7 +4007,7 @@ pub fn get_nolist_virtcol() -> Colnr {
         {
             return 0;
         }
-        if curwin_mut().w_onebuf_opt.wo_list != 0 && vim_strchr(opt_vars().p_cpo, kCpoListwm).is_null() {
+        if curwin_mut().w_onebuf_opt.wo_list != 0 && vim_strchr(opt_vars().p_cpo, K_CPO_LISTWM).is_null() {
             return getvcol_nolist(&mut curwin_mut().w_cursor);
         }
         validate_virtcol(curwin_mut());
@@ -4017,7 +4017,7 @@ pub fn get_nolist_virtcol() -> Colnr {
 
 fn do_insert_char_pre(c: c_int) -> Option<std::ffi::CString> {
     {
-        if c == Ctrl_RSB || g_st().KeyStuffed != 0 || !has_event(EVENT_INSERTCHARPRE) {
+        if c == CTRL_RSB_CONST || g_st().KeyStuffed != 0 || !has_event(EVENT_INSERTCHARPRE) {
             return None;
         }
 

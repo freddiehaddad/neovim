@@ -3,7 +3,7 @@
 use crate::buffer::FileBuf;
 use crate::charset::{ascii_isalnum, ascii_iswhite, skipwhite, vim_iswordc, vim_iswordp};
 use crate::cursor::{equalpos, CursorPos};
-use crate::errors::{e_invarg2, e_invargNval, e_invargval, e_listarg};
+use crate::errors::{E_INVARG2, E_INVARG_NVAL, E_INVARGVAL, E_LISTARG};
 use crate::eval::callback_call;
 use crate::eval::fs::K_LIST_LEN_UNKNOWN;
 use crate::eval::typval::{
@@ -569,7 +569,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
 
         if arg0.v_type != VarType::VarList || arg0.vval.v_list().is_null() {
             semsg!(
-                e_listarg,
+                E_LISTARG,
                 if retmatchpos {
                     c"matchfuzzypos()".as_ptr()
                 } else {
@@ -579,7 +579,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
             return;
         }
         if arg1.v_type != VarType::VarString || arg1.vval.v_string().is_null() {
-            semsg!(e_invarg2, tv_get_string(arg1));
+            semsg!(E_INVARG2, tv_get_string(arg1));
             return;
         }
 
@@ -601,7 +601,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
                     || *(*di_key).di_tv.vval.v_string() == 0
                 {
                     semsg!(
-                        e_invargNval,
+                        E_INVARG_NVAL,
                         c"key",
                         tv_get_string(&(*di_key).di_tv),
                     );
@@ -609,7 +609,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
                 }
                 key = tv_get_string(&(*di_key).di_tv);
             } else if !tv_dict_get_callback(d.as_mut(), c"text_cb", -1, &mut cb) {
-                semsg!(e_invargval, c"text_cb");
+                semsg!(E_INVARGVAL, c"text_cb");
                 return;
             }
 
@@ -617,7 +617,7 @@ fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
             if !di_limit.is_null() {
                 if (*di_limit).di_tv.v_type != VarType::VarNumber {
                     callback_free(&mut cb);
-                    semsg!(e_invargval, c"limit");
+                    semsg!(E_INVARGVAL, c"limit");
                     return;
                 }
                 max_matches = tv_get_number_chk(&(*di_limit).di_tv, None) as c_int;

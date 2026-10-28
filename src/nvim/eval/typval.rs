@@ -10,8 +10,8 @@ use crate::errors::*;
 
 use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, FileBuf};
 use crate::eval::encode::{
-    MPConvPartialStage, MPConvStackData, MPConvStackVal, encode_bool_var_names,
-    encode_special_var_names, encode_tv2echo, encode_tv2string,
+    MPConvPartialStage, MPConvStackData, MPConvStackVal, ENCODE_BOOL_VAR_NAMES,
+    ENCODE_SPECIAL_VAR_NAMES, encode_tv2echo, encode_tv2string,
 };
 use crate::eval::executor::eexe_mod_op;
 use crate::eval::gc::{
@@ -22,7 +22,7 @@ use crate::eval::vars::{
 };
 use crate::eval::{
     DICT_MAXNEST, STR2NR_ALL, callback_call, callback_from_typval, func_equal, get_copyID,
-    kListLenMayKnow, partial_name, partial_unref, set_selfdict, var_item_copy, var2fpos,
+    K_LIST_LEN_MAY_KNOW_CONST, partial_name, partial_unref, set_selfdict, var_item_copy, var2fpos,
 };
 use crate::globals::*;
 use crate::hashtab::{
@@ -42,9 +42,9 @@ use std::ptr;
 
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
 use crate::cmdexpand::MB_MAXBYTES;
-use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
+use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 
-use crate::eval::funcs::kSpecialVarNull;
+use crate::eval::funcs::K_SPECIAL_VAR_NULL_CONST;
 use crate::math::OK;
 use crate::regexp::NUMBUFLEN;
 use crate::viml::parser::parser::CONV_NONE;
@@ -63,11 +63,11 @@ pub enum EvalFuncData {
 }
 
 pub(crate) const VAR_UNLOCKED: c_int = 0;
-pub const kCallbackNone: c_int = 0;
-pub const kCallbackFuncref: c_int = 1;
-pub const kCallbackPartial: c_int = 2;
-pub const kCallbackLua: c_int = 3;
-pub const kCallbackExpr: c_int = 4;
+pub const K_CALLBACK_NONE_CONST: c_int = 0;
+pub const K_CALLBACK_FUNCREF: c_int = 1;
+pub const K_CALLBACK_PARTIAL: c_int = 2;
+pub const K_CALLBACK_LUA: c_int = 3;
+pub const K_CALLBACK_EXPR: c_int = 4;
 
 #[repr(C)]
 pub struct TvBlob {
@@ -191,11 +191,11 @@ impl Callback {
     #[inline]
     pub const fn cb_type(&self) -> c_int {
         match self.data {
-            CallbackData::None => kCallbackNone,
-            CallbackData::Funcref(_) => kCallbackFuncref,
-            CallbackData::Partial(_) => kCallbackPartial,
-            CallbackData::Lua(_) => kCallbackLua,
-            CallbackData::Expr(_) => kCallbackExpr,
+            CallbackData::None => K_CALLBACK_NONE_CONST,
+            CallbackData::Funcref(_) => K_CALLBACK_FUNCREF,
+            CallbackData::Partial(_) => K_CALLBACK_PARTIAL,
+            CallbackData::Lua(_) => K_CALLBACK_LUA,
+            CallbackData::Expr(_) => K_CALLBACK_EXPR,
         }
     }
 
@@ -636,7 +636,7 @@ struct ListSortItem {
 }
 
 static TV_EMPTY_STRING_BYTE: c_char = 0;
-pub const tv_empty_string: *const c_char = &raw const TV_EMPTY_STRING_BYTE;
+pub const TV_EMPTY_STRING: *const c_char = &raw const TV_EMPTY_STRING_BYTE;
 
 pub(crate) struct TypvalModuleState {
     pub(crate) tv_in_free_unref_items: bool,
@@ -1374,7 +1374,7 @@ pub fn tv_list_check_range_index_one(
         }
 
         if !quiet {
-            semsg!(tr(e_list_index_out_of_range_nr), i64::from(*n1));
+            semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(*n1));
         }
         ptr::null_mut()
     }
@@ -1391,7 +1391,7 @@ pub fn tv_list_check_range_index_two(
             let ni = tv_list_find(l.as_deref_mut(), *n2);
             if ni.is_null() {
                 if !quiet {
-                    semsg!(tr(e_list_index_out_of_range_nr), i64::from(*n2));
+                    semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(*n2));
                 }
                 return false;
             }
@@ -1403,7 +1403,7 @@ pub fn tv_list_check_range_index_two(
         }
         if *n2 < *n1 {
             if !quiet {
-                semsg!(tr(e_list_index_out_of_range_nr), i64::from(*n2));
+                semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(*n2));
             }
             return false;
         }
@@ -1574,7 +1574,7 @@ fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
     unsafe {
         let mut p: *const c_char = argvars[0].vval.v_string();
 
-        tv_list_alloc_ret(&mut *rettv, kListLenMayKnow);
+        tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_MAY_KNOW_CONST);
         if p.is_null() {
             return;
         }
@@ -1681,7 +1681,7 @@ pub fn tv_list_slice_or_index(
         if n1 < 0 || n1 >= len {
             if !range {
                 if verbose {
-                    semsg!(tr(e_list_index_out_of_range_nr), n1_arg);
+                    semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), n1_arg);
                 }
                 return false;
             }
@@ -1784,7 +1784,7 @@ pub fn f_join(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
         if argvars[0].v_type != VarType::VarList {
-            emsg(tr(e_listreq));
+            emsg(tr(E_LISTREQ));
             return;
         }
         let sep = if argvars[1].v_type == VarType::VarUnknown {
@@ -1812,7 +1812,7 @@ pub fn f_list2str(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         if argvars[0].v_type != VarType::VarList {
-            emsg(tr(e_invarg));
+            emsg(tr(E_INVARG));
             return;
         }
 
@@ -1853,7 +1853,7 @@ pub fn tv_list_remove(argvars: &mut [TypVal],rettv: &mut TypVal,
         }
         let item = tv_list_find(l.as_mut(), idx as c_int);
         if item.is_null() {
-            semsg!(tr(e_list_index_out_of_range_nr), idx);
+            semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), idx);
         } else if argvars[2].v_type == VarType::VarUnknown {
             tv_list_drop_items( &mut *l, item,  &mut *item);
             *rettv = std::mem::replace(&mut (*item).li_tv, tv_initial_value());
@@ -1865,7 +1865,7 @@ pub fn tv_list_remove(argvars: &mut [TypVal],rettv: &mut TypVal,
             }
             let item2 = tv_list_find(l.as_mut(), end as c_int);
             if item2.is_null() {
-                semsg!(tr(e_list_index_out_of_range_nr), end);
+                semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), end);
             } else {
                 let mut cnt: c_int = 0;
                 let mut li = item;
@@ -1877,7 +1877,7 @@ pub fn tv_list_remove(argvars: &mut [TypVal],rettv: &mut TypVal,
                     li = (*li).li_next;
                 }
                 if li.is_null() {
-                    emsg(tr(e_invrange));
+                    emsg(tr(E_INVRANGE));
                 } else {
                     let tgt = tv_list_alloc_ret(rettv, cnt as isize);
                     tv_list_move_items(&mut *l,  &mut *item, &mut *item2, &mut *tgt, cnt);
@@ -2251,7 +2251,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
                     info.item_compare_func = Some(crate::memory::cstr_to_cstring(s));
                 }
             } else if nr != 0 {
-                emsg(tr(e_invarg));
+                emsg(tr(E_INVARG));
                 return false;
             }
             if let Some(ref func_cstr) = info.item_compare_func {
@@ -2297,7 +2297,7 @@ fn do_sort_uniq(argvars: &mut [TypVal], rettv: &mut TypVal, sort: bool) {
      {
         if argvars[0].v_type != VarType::VarList {
             semsg!(
-                tr(e_listarg),
+                tr(E_LISTARG),
                 if sort {
                     c"sort()".as_ptr()
                 } else {
@@ -2456,7 +2456,7 @@ pub fn tv_list_find_str(l: Option<&mut TvList>, n: c_int) -> *const c_char {
     unsafe {
         let li = tv_list_find(l, n);
         if li.is_null() {
-            semsg!(tr(e_list_index_out_of_range_nr), i64::from(n));
+            semsg!(tr(E_LIST_INDEX_OUT_OF_RANGE_NR), i64::from(n));
             return ptr::null();
         }
         tv_get_string(&(*li).li_tv)
@@ -2523,12 +2523,12 @@ pub fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
             return false;
         }
         match cb1.cb_type() {
-            kCallbackFuncref | kCallbackExpr => {
+            K_CALLBACK_FUNCREF | K_CALLBACK_EXPR => {
                 crate::memory::cstr_as_opt_bytes(cb1.data.as_funcref()) == crate::memory::cstr_as_opt_bytes(cb2.data.as_funcref())
             }
-            kCallbackPartial => cb1.data.as_partial() == cb2.data.as_partial(),
-            kCallbackLua => cb1.data.as_luaref() == cb2.data.as_luaref(),
-            kCallbackNone => true,
+            K_CALLBACK_PARTIAL => cb1.data.as_partial() == cb2.data.as_partial(),
+            K_CALLBACK_LUA => cb1.data.as_luaref() == cb2.data.as_luaref(),
+            K_CALLBACK_NONE_CONST => true,
             _ => std::process::abort(),
         }
 }
@@ -2536,13 +2536,13 @@ pub fn tv_callback_equal(cb1: &Callback, cb2: &Callback) -> bool {
 /// Unref/free callback.
 pub fn callback_free(callback: &mut Callback) {
     match callback.cb_type() {
-            kCallbackFuncref => {
+            K_CALLBACK_FUNCREF => {
                 func_unref(callback.data.as_funcref());
             }
-            kCallbackPartial => {
+            K_CALLBACK_PARTIAL => {
                 partial_unref(callback.data.as_partial());
             }
-            kCallbackLua => {
+            K_CALLBACK_LUA => {
                 let mut luaref = callback.data.as_luaref();
                 nlua_clear_ref(&mut luaref);
             }
@@ -2555,13 +2555,13 @@ pub fn callback_free(callback: &mut Callback) {
 pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
     unsafe {
         match cb.cb_type() {
-            kCallbackPartial => {
+            K_CALLBACK_PARTIAL => {
                 let pt = cb.data.as_partial();
                 tv.v_type = VarType::VarPartial;
                 tv.vval = crate::eval::typval::TypvalVval::Partial(pt);
                 (*pt).pt_refcount += 1;
             }
-            kCallbackFuncref => {
+            K_CALLBACK_FUNCREF => {
                 let funcref = cb.data.as_funcref();
                 tv_set_string(&mut *tv, funcref);
                 tv.v_type = VarType::VarFunc;
@@ -2569,7 +2569,7 @@ pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
             }
             _ => {
                 tv.v_type = VarType::VarSpecial;
-                tv.vval = crate::eval::typval::TypvalVval::Special(kSpecialVarNull);
+                tv.vval = crate::eval::typval::TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST);
             }
         }
     }
@@ -2579,21 +2579,21 @@ pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
 pub fn callback_copy(dest: &mut Callback, src: &Callback) {
     unsafe {
         match src.cb_type() {
-            kCallbackPartial => {
+            K_CALLBACK_PARTIAL => {
                 let pt = src.data.as_partial();
                 dest.data = CallbackData::partial(pt);
                 (*pt).pt_refcount += 1;
             }
-            kCallbackFuncref => {
+            K_CALLBACK_FUNCREF => {
                 let funcref = src.data.as_funcref();
                 dest.data = CallbackData::funcref(crate::memory::cstr_to_cstring(funcref));
                 func_ref(funcref);
             }
-            kCallbackLua => {
+            K_CALLBACK_LUA => {
                 let new_ref = api_new_luaref(src.data.as_luaref());
                 dest.data = CallbackData::lua(new_ref);
             }
-            kCallbackExpr => {
+            K_CALLBACK_EXPR => {
                 dest.data =
                     CallbackData::expr(crate::memory::cstr_to_cstring(src.data.as_funcref()));
             }
@@ -2607,7 +2607,7 @@ pub fn callback_copy(dest: &mut Callback, src: &Callback) {
 /// Generate a string description of a callback.
 pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
     unsafe {
-        if cb.cb_type() == kCallbackLua {
+        if cb.cb_type() == K_CALLBACK_LUA {
             return nlua_funcref_str(cb.data.as_luaref(), true);
         }
 
@@ -2615,7 +2615,7 @@ pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
         let mut msg: Vec<u8> = Vec::with_capacity(MSGLEN);
 
         match cb.cb_type() {
-            kCallbackFuncref => {
+            K_CALLBACK_FUNCREF => {
                 let s = crate::memory::cstr_as_bytes(cb.data.as_funcref());
                 let prefix = b"<vim function: ";
                 let suffix = b">";
@@ -2626,7 +2626,7 @@ pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
                     msg.push(b'>');
                 }
             }
-            kCallbackPartial => {
+            K_CALLBACK_PARTIAL => {
                 let pt = cb.data.as_partial();
                 let s = (*pt).pt_name.as_ref().map_or(&[][..], |n| n.as_bytes());
                 let prefix = b"<vim partial: ";
@@ -2822,7 +2822,7 @@ pub fn tv_dict_item_remove(dict: &mut TvDict, item: &mut Dictitem) {
         let key_ptr = item.di_key.as_ptr();
         let hi = hash_find(&dict.dv_hashtab, key_ptr);
         if hashitem_empty(&*hi) {
-            semsg!(tr(e_intern2), c"tv_dict_item_remove()");
+            semsg!(tr(E_INTERN2), c"tv_dict_item_remove()");
         } else {
             hash_remove(&mut dict.dv_hashtab,  &mut *hi);
         }
@@ -3608,7 +3608,7 @@ fn tv_blob_index(
             rettv.v_type = VarType::VarNumber;
             rettv.vval = crate::eval::typval::TypvalVval::Number(v);
         } else {
-            semsg!(tr(e_blobidx), idx);
+            semsg!(tr(E_BLOBIDX), idx);
             return false;
         }
 
@@ -3635,7 +3635,7 @@ pub fn tv_blob_slice_or_index(
 pub fn tv_blob_check_index(bloblen: c_int, n1: Varnumber, quiet: bool) -> bool {
     if n1 < 0 || n1 > i64::from(bloblen) {
             if !quiet {
-                semsg!(tr(e_blobidx), n1);
+                semsg!(tr(E_BLOBIDX), n1);
             }
             return false;
         }
@@ -3651,7 +3651,7 @@ pub fn tv_blob_check_range(
 ) -> bool {
     if n2 < 0 || n2 >= i64::from(bloblen) || n2 < n1 {
             if !quiet {
-                semsg!(tr(e_blobidx), n2);
+                semsg!(tr(E_BLOBIDX), n2);
             }
             return false;
         }
@@ -3710,7 +3710,7 @@ pub fn tv_blob_remove(argvars: &mut [TypVal],
                 idx += len;
             }
             if idx < 0 || idx >= len {
-                semsg!(tr(e_blobidx), idx);
+                semsg!(tr(E_BLOBIDX), idx);
                 return;
             }
             if argvars[2].v_type == VarType::VarUnknown {
@@ -3726,7 +3726,7 @@ pub fn tv_blob_remove(argvars: &mut [TypVal],
                     end += len;
                 }
                 if end >= len || idx > end {
-                    semsg!(tr(e_blobidx), end);
+                    semsg!(tr(E_BLOBIDX), end);
                     return;
                 }
                 let blob = tv_blob_alloc();
@@ -3743,7 +3743,7 @@ pub fn tv_blob_remove(argvars: &mut [TypVal],
 pub fn f_blob2list(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
         if !tv_check_for_blob_arg(argvars, 0) {
             return;
@@ -3783,7 +3783,7 @@ pub fn f_list2blob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             let n = tv_get_number_chk(&li.li_tv, Some(&mut error));
             if error || !(0..=255).contains(&n) {
                 if !error {
-                    semsg!(tr(e_invalid_value_for_blob_nr), n as c_int);
+                    semsg!(tr(E_INVALID_VALUE_FOR_BLOB_NR), n as c_int);
                 }
                 bv.clear();
                 return;
@@ -3917,7 +3917,7 @@ pub fn tv_dict_remove(argvars: &mut [TypVal],rettv: &mut TypVal,
 ) { let arg_errmsg = arg_errmsg.into_c_char_ptr();
     unsafe {
         if argvars[2].v_type != VarType::VarUnknown {
-            semsg!(tr(e_toomanyarg), c"remove()");
+            semsg!(tr(E_TOOMANYARG), c"remove()");
         } else {
             let d = argvars[0].vval.v_dict();
             if !d.is_null() && !value_check_lock((*d).dv_lock, arg_errmsg, TV_TRANSLATE) {
@@ -3925,7 +3925,7 @@ pub fn tv_dict_remove(argvars: &mut [TypVal],rettv: &mut TypVal,
                 if !key.is_null() {
                     let di = tv_dict_find(d.as_ref(), key, -1);
                     if di.is_null() {
-                        semsg!(tr(e_dictkey), key);
+                        semsg!(tr(E_DICTKEY), key);
                     } else if !var_check_fixed(
                         c_int::from((*di).di_flags),
                         arg_errmsg,
@@ -3982,7 +3982,7 @@ fn nothing_conv_func_start(tv: &mut TypVal, fun: *mut c_char) -> c_int {
             }
         } else {
             func_unref(fun);
-            if !ptr::eq(fun.cast_const(), tv_empty_string) {
+            if !ptr::eq(fun.cast_const(), TV_EMPTY_STRING) {
                 tv_free_string(fun);
             }
             tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -4157,11 +4157,11 @@ fn nothing_convert_one_value(
                 mpstack.push(mpsv);
             }
             VarType::VarBool => {
-                tv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
+                tv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_FALSE_CONST);
                 tv.v_lock = VAR_UNLOCKED;
             }
             VarType::VarSpecial => {
-                tv.vval = crate::eval::typval::TypvalVval::Special(kSpecialVarNull);
+                tv.vval = crate::eval::typval::TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST);
                 tv.v_lock = VAR_UNLOCKED;
             }
             VarType::VarDict => {
@@ -4388,7 +4388,7 @@ pub fn tv_copy(from: &TypVal, to: &mut TypVal) {
                 }
             }
             VarType::VarUnknown => {
-                semsg!(tr(e_intern2), c"tv_copy(UNKNOWN)");
+                semsg!(tr(E_INTERN2), c"tv_copy(UNKNOWN)");
             }
         }
     }
@@ -4517,9 +4517,9 @@ pub fn value_check_lock(
             VAR_UNLOCKED => return false,
             VAR_LOCKED => {
                 let error_message = if name.is_null() {
-                    e_value_is_locked.as_ptr()
+                    E_VALUE_IS_LOCKED.as_ptr()
                 } else {
-                    e_value_is_locked_str.as_ptr()
+                    E_VALUE_IS_LOCKED_STR.as_ptr()
                 };
                 if name.is_null() {
                     emsg(tr(error_message));
@@ -4535,9 +4535,9 @@ pub fn value_check_lock(
             }
             VAR_FIXED => {
                 let error_message = if name.is_null() {
-                    e_cannot_change_value.as_ptr()
+                    E_CANNOT_CHANGE_VALUE.as_ptr()
                 } else {
-                    e_cannot_change_value_of_str.as_ptr()
+                    E_CANNOT_CHANGE_VALUE_OF_STR.as_ptr()
                 };
                 if name.is_null() {
                     emsg(tr(error_message));
@@ -4658,7 +4658,7 @@ pub fn tv_check_str_or_nr(tv: &TypVal) -> bool {
         }
         VarType::VarUnknown => {
             semsg!(
-                tr(e_intern2),
+                tr(E_INTERN2),
                 c"tv_check_str_or_nr(&*UNKNOWN)",
             );
             false
@@ -4767,10 +4767,10 @@ pub fn tv_get_number_chk(tv: &TypVal,mut ret_error: Option<&mut bool>) -> Varnum
                 }
                 return n;
             }
-            VarType::VarBool => return i64::from(tv.vval.v_bool() == kBoolVarTrue),
+            VarType::VarBool => return i64::from(tv.vval.v_bool() == K_BOOL_VAR_TRUE_CONST),
             VarType::VarSpecial => return 0,
             VarType::VarUnknown => {
-                semsg!(tr(e_intern2), c"tv_get_number(&*UNKNOWN)");
+                semsg!(tr(E_INTERN2), c"tv_get_number(&*UNKNOWN)");
             }
         }
         if let Some(ref mut p) = ret_error {
@@ -4854,7 +4854,7 @@ pub fn tv_get_float(tv: &TypVal) -> TvFloat {
             0.0
         }
         VarType::VarUnknown => {
-            semsg!(tr(e_intern2), c"tv_get_float(&*UNKNOWN)");
+            semsg!(tr(E_INTERN2), c"tv_get_float(&*UNKNOWN)");
             0.0
         }
     }
@@ -5093,7 +5093,7 @@ pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut c_char) -> *const c_char {
             VarType::VarBool => {
                 xstrlcpy(
                     buf,
-                    encode_bool_var_names[tv.vval.v_bool() as usize],
+                    ENCODE_BOOL_VAR_NAMES[tv.vval.v_bool() as usize],
                     NUMBUFLEN,
                 );
                 buf
@@ -5101,7 +5101,7 @@ pub fn tv_get_string_buf_chk(tv: &TypVal, buf: *mut c_char) -> *const c_char {
             VarType::VarSpecial => {
                 xstrlcpy(
                     buf,
-                    encode_special_var_names[tv.vval.v_special() as usize],
+                    ENCODE_SPECIAL_VAR_NAMES[tv.vval.v_special() as usize],
                     NUMBUFLEN,
                 );
                 buf
@@ -5149,8 +5149,8 @@ pub fn tv2bool(tv: &TypVal) -> bool {
             VarType::VarDict => {
                 !tv.vval.v_dict().is_null() && (*tv.vval.v_dict()).dv_hashtab.ht_used > 0
             }
-            VarType::VarBool => tv.vval.v_bool() == kBoolVarTrue,
-            VarType::VarSpecial => tv.vval.v_special() != kSpecialVarNull,
+            VarType::VarBool => tv.vval.v_bool() == K_BOOL_VAR_TRUE_CONST,
+            VarType::VarSpecial => tv.vval.v_special() != K_SPECIAL_VAR_NULL_CONST,
             VarType::VarBlob => {
                 !tv.vval.v_blob().is_null() && !(*tv.vval.v_blob()).bv_ga.is_empty()
             }
@@ -5167,7 +5167,7 @@ pub fn check_repeat_count(slen: Varnumber, n: Varnumber) -> bool {
 
         let mut buf: [c_char; NUMBUFLEN] = [0; NUMBUFLEN];
         vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"%lld", n);
-        semsg!(tr(e_val_too_large), buf.as_ptr());
+        semsg!(tr(E_VAL_TOO_LARGE), buf.as_ptr());
         false
 }
 

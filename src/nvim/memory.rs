@@ -170,7 +170,7 @@ fn try_to_free_memory() {
 }
 
 fn out_of_memory_exit() -> ! {
-    preserve_exit(e_outofmem)
+    preserve_exit(E_OUTOFMEM)
 }
 
 /// Free all cached reusable arena blocks (`arena_free_reuse_blks`).

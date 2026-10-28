@@ -1,7 +1,7 @@
 //! Code for normal mode searching commands (`src/nvim/search.c`).
 
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
-use crate::buffer::{FileBuf, buf_get_changedtick, kUIMessages};
+use crate::buffer::{FileBuf, buf_get_changedtick, K_UIMESSAGES};
 use crate::change::{TAB, get_leader_len};
 use crate::charset::{NUL, ascii_isdigit, skipwhite, vim_isfilec, vim_iswordc, vim_iswordp};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
@@ -26,7 +26,7 @@ use crate::ex_docmd::{
     SEARCH_MSG, set_no_hlsearch,
 };
 use crate::ex_getln::gotocmdline;
-use crate::extmark::{TriState, kFalse, kNone, kTrue};
+use crate::extmark::{TriState, K_FALSE, K_NONE, K_TRUE};
 use crate::file_search::{
     FNAME_EXP, FNAME_INCL, FNAME_REL, file_name_in_line, find_file_name_in_path,
 };
@@ -39,10 +39,10 @@ use crate::input_cmdatom::Cmdarg;
 use crate::insexpand::{
     ACTION_EXPAND, LSIZE, compl_status_adding, compl_status_sol, ctrl_x_mode_not_default,
     find_word_end, find_word_start, ins_compl_add_infercase, ins_compl_check_keys,
-    ins_compl_interrupted, ins_compl_len, kShmCompletionscan,
+    ins_compl_interrupted, ins_compl_len, K_SHM_COMPLETIONSCAN,
 };
 use crate::mark::setpcmark;
-use crate::r#match::kCpoSearch;
+use crate::r#match::K_CPO_SEARCH;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_isupper, mb_strcmp_ic, mb_strnicmp, utf_char2bytes, utf_head_off, utf_iscomposing_first,
@@ -58,15 +58,15 @@ use crate::message::{
 use crate::mouse::setmouse;
 use crate::r#move::validate_cursor;
 use crate::normal::{
-    FM_FORWARD, SEARCH_ECHO, SEARCH_MARK, SEARCH_REV, kCpoMatch, kOptFdoFlagSearch,
-    kShmSearchcount, may_start_select,
+    FM_FORWARD, SEARCH_ECHO, SEARCH_MARK, SEARCH_REV, K_CPO_MATCH, K_OPT_FDO_FLAG_SEARCH,
+    K_SHM_SEARCHCOUNT, may_start_select,
 };
 use crate::option::{OptInt, shortmess};
 use crate::option_vars::*;
 use crate::os::fs::os_fopen;
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::os::time::{Timestamp, os_delay, os_time};
-use crate::path::{kPathCmpExpand, kPathCmpFull, path_equal, path_try_shorten_fname, to_slash};
+use crate::path::{K_PATH_CMP_EXPAND, K_PATH_CMP_FULL, path_equal, path_try_shorten_fname, to_slash};
 use crate::plines::getvcol;
 use crate::profile::{profile_passed_limit, profile_setlimit, Proftime};
 use crate::regexp::{
@@ -87,21 +87,21 @@ pub(crate) const BACKWARD: Direction = -1;
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::api::vim::HLF_N;
 use crate::cmdexpand::{HLF_D, RE_LAST, SEARCH_NOOF, SEARCH_OPT, SEARCH_PEEK, SEARCH_START};
-use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_END, SEARCH_KEEP, MTLineWise};
+use crate::eval::funcs::{RE_SEARCH, SEARCH_COL, SEARCH_END, SEARCH_KEEP, MT_LINE_WISE};
 use crate::globals::IOSIZE;
 pub type AdditionalData = crate::msgpack_rpc::unpacker::AdditionalData;
 
 const SEARCH_STAT_DEF_TIMEOUT: c_int = 40;
 const SEARCH_STAT_BUF_LEN: usize = 16;
 
-const kCpoLineoff: c_int = b'o' as c_int;
-const kCpoScolon: c_int = b';' as c_int;
-pub(crate) const kCpoMatchbsl: c_int = b'M' as c_int;
-const kCpoShowmatch: c_int = b'm' as c_int;
+const K_CPO_LINEOFF: c_int = b'o' as c_int;
+const K_CPO_SCOLON: c_int = b';' as c_int;
+pub(crate) const K_CPO_MATCHBSL: c_int = b'M' as c_int;
+const K_CPO_SHOWMATCH: c_int = b'm' as c_int;
 
-pub(crate) const kShmSearch: c_int = b's' as c_int;
+pub(crate) const K_SHM_SEARCH: c_int = b's' as c_int;
 
-const kOptBoFlagShowmatch: c_uint = 0x2000;
+const K_OPT_BO_FLAG_SHOWMATCH: c_uint = 0x2000;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -363,9 +363,9 @@ pub fn search_regcomp(
             };
             if srch().spats[i as usize].pat.is_none() {
                 if pat_use == RE_SUBST {
-                    emsg(tr(e_nopresub));
+                    emsg(tr(E_NOPRESUB));
                 } else {
-                    emsg(tr(e_noprevre));
+                    emsg(tr(E_NOPREVRE));
                 }
                 g_st().rc_did_emsg = true;
                 return false;
@@ -750,7 +750,7 @@ pub fn searchit(
             return FAIL;
         }
 
-        let search_from_match_end = !vim_strchr(opt_vars().p_cpo, kCpoSearch).is_null();
+        let search_from_match_end = !vim_strchr(opt_vars().p_cpo, K_CPO_SEARCH).is_null();
 
         loop {
             if (*pos).col == MAXCOL {
@@ -1068,15 +1068,15 @@ pub fn searchit(
                 } else {
                     1
                 };
-                if !shortmess(kShmSearch)
-                    && shortmess(kShmSearchcount)
+                if !shortmess(K_SHM_SEARCH)
+                    && shortmess(K_SHM_SEARCHCOUNT)
                     && (options & SEARCH_MSG) != 0
                 {
                     give_warning(
                         tr(if dir == BACKWARD {
-                            top_bot_msg.as_ptr()
+                            TOP_BOT_MSG.as_ptr()
                         } else {
-                            bot_top_msg.as_ptr()
+                            BOT_TOP_MSG.as_ptr()
                         }),
                         true,
                         false,
@@ -1103,10 +1103,10 @@ pub fn searchit(
 
         if found == 0 {
             if g_st().got_int {
-                emsg(tr(e_interr));
+                emsg(tr(E_INTERR));
             } else if (options & SEARCH_MSG) == SEARCH_MSG {
                 if opt_vars().p_ws != 0 {
-                    semsg!(tr(e_patnotf2), get_search_pat());
+                    semsg!(tr(E_PATNOTF2), get_search_pat());
                 } else if lnum == 0 {
                     semsg!(
                         tr(E_SEARCH_HIT_TOP_WITHOUT_MATCH_FOR_STR),
@@ -1263,7 +1263,7 @@ pub fn do_search(
 
         g_st().Search.cmdlen = 0;
 
-        if srch().spats[0].off.line && !vim_strchr(opt_vars().p_cpo, kCpoLineoff).is_null() {
+        if srch().spats[0].off.line && !vim_strchr(opt_vars().p_cpo, K_CPO_LINEOFF).is_null() {
             srch().spats[0].off.line = false;
             srch().spats[0].off.off = 0;
         }
@@ -1310,7 +1310,7 @@ pub fn do_search(
             if crate::memory::cstr_is_empty(pat) || c_int::from(crate::memory::cstr_first_byte(pat)) == search_delim {
                 if srch().spats[RE_SEARCH as usize].pat.is_none() {
                     if srch().spats[RE_SUBST as usize].pat.is_none() {
-                        emsg(tr(e_noprevre));
+                        emsg(tr(E_NOPREVRE));
                         retval = 0;
                         success = false;
                         break;
@@ -1347,7 +1347,7 @@ pub fn do_search(
             if (options & SEARCH_ECHO) != 0
                 && messaging()
                 && g_st().msg_silent == 0
-                && (!g_st().cmd_silent || !shortmess(kShmSearchcount))
+                && (!g_st().cmd_silent || !shortmess(K_SHM_SEARCHCOUNT))
             {
                 let mut off_buf = [0 as c_char; 40];
                 let off_buf_ptr = (&raw mut off_buf).cast::<c_char>();
@@ -1386,8 +1386,8 @@ pub fn do_search(
                     (searchstr, searchstrlen)
                 };
 
-                let mut msgbufsize = if !shortmess(kShmSearchcount) || g_st().cmd_silent {
-                    let mut sz = if ui_has(kUIMessages) {
+                let mut msgbufsize = if !shortmess(K_SHM_SEARCHCOUNT) || g_st().cmd_silent {
+                    let mut sz = if ui_has(K_UIMESSAGES) {
                         0
                     } else if g_st().msg_scrolled != 0 && !g_st().cmd_silent {
                         ((g_st().Rows - g_st().msg_row) * g_st().Columns - 1) as usize
@@ -1465,7 +1465,7 @@ pub fn do_search(
                     g_st().msg_nowait = true;
                 }
 
-                if !shortmess(kShmSearchcount) {
+                if !shortmess(K_SHM_SEARCHCOUNT) {
                     show_search_stats = true;
                 }
             }
@@ -1532,7 +1532,7 @@ pub fn do_search(
                 *dircp = search_delim as c_char;
             }
 
-            if !shortmess(kShmSearch) && sia.is_some() && sia.as_deref_mut().unwrap().sa_wrapped != 0 {
+            if !shortmess(K_SHM_SEARCH) && sia.is_some() && sia.as_deref_mut().unwrap().sa_wrapped != 0 {
                 show_top_bot_msg = true;
             }
 
@@ -1604,7 +1604,7 @@ pub fn do_search(
                     msgbuflen,
                     count != 1
                         || has_offset
-                        || ((opt_vars().fdo_flags & kOptFdoFlagSearch) == 0
+                        || ((opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) == 0
                             && hasFolding(
                                 curwin_ptr(),
                                 curwin_mut().w_cursor.lnum,
@@ -1668,8 +1668,8 @@ pub fn search_for_exact_line(
             if pos.lnum < 1 {
                 if opt_vars().p_ws != 0 {
                     pos.lnum = buf.b_ml.ml_line_count;
-                    if !shortmess(kShmSearch) {
-                        give_warning(tr(top_bot_msg), true, false);
+                    if !shortmess(K_SHM_SEARCH) {
+                        give_warning(tr(TOP_BOT_MSG), true, false);
                     }
                 } else {
                     pos.lnum = 1;
@@ -1678,8 +1678,8 @@ pub fn search_for_exact_line(
             } else if pos.lnum > buf.b_ml.ml_line_count {
                 if opt_vars().p_ws != 0 {
                     pos.lnum = 1;
-                    if !shortmess(kShmSearch) {
-                        give_warning(tr(bot_top_msg), true, false);
+                    if !shortmess(K_SHM_SEARCH) {
+                        give_warning(tr(BOT_TOP_MSG), true, false);
                     }
                 } else {
                     pos.lnum = 1;
@@ -1747,7 +1747,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
             t_cmd = srch().last_t_cmd;
             c = c_int::from(srch().lastc[0]);
 
-            if vim_strchr(opt_vars().p_cpo, kCpoScolon).is_null() && count == 1 && t_cmd {
+            if vim_strchr(opt_vars().p_cpo, K_CPO_SCOLON).is_null() && count == 1 && t_cmd {
                 stop = false;
             }
         }
@@ -1938,8 +1938,8 @@ pub fn findmatchlimit(
         srch().findmatch_pos.coladd = 0;
         let mut linep = ml_get(srch().findmatch_pos.lnum);
 
-        let cpo_match = !vim_strchr(opt_vars().p_cpo, kCpoMatch).is_null();
-        let cpo_bsl = !vim_strchr(opt_vars().p_cpo, kCpoMatchbsl).is_null();
+        let cpo_match = !vim_strchr(opt_vars().p_cpo, K_CPO_MATCH).is_null();
+        let cpo_bsl = !vim_strchr(opt_vars().p_cpo, K_CPO_MATCHBSL).is_null();
 
         let dir = if (flags & FM_BACKWARD) != 0 {
             BACKWARD
@@ -2040,7 +2040,7 @@ pub fn findmatchlimit(
             }
             if hash_dir != 0 {
                 if let Some(oap) = oap {
-                    oap.motion_type = MTLineWise;
+                    oap.motion_type = MT_LINE_WISE;
                 }
                 if initc != b'#' as c_int {
                     ptr_line = skipwhite(skipwhite(linep).add(1));
@@ -2108,7 +2108,7 @@ pub fn findmatchlimit(
 
         let mut do_quotes: c_int = -1;
         let mut at_start: c_int;
-        let mut start_in_quotes: TriState = kNone;
+        let mut start_in_quotes: TriState = K_NONE;
         let mut match_pos = CursorPos {
             lnum: 0,
             col: 0,
@@ -2318,10 +2318,10 @@ pub fn findmatchlimit(
                     inquote = false;
                     if ptr_line > linep && *ptr_line.sub(1) == b'\\' as c_char {
                         do_quotes = 1;
-                        if start_in_quotes == kNone {
+                        if start_in_quotes == K_NONE {
                             inquote = at_start != 0;
                             if inquote {
-                                start_in_quotes = kTrue;
+                                start_in_quotes = K_TRUE;
                             }
                         } else if backwards {
                             inquote = true;
@@ -2334,10 +2334,10 @@ pub fn findmatchlimit(
                                 == b'\\' as c_char
                         {
                             do_quotes = 1;
-                            if start_in_quotes == kNone {
+                            if start_in_quotes == K_NONE {
                                 inquote = at_start != 0;
                                 if inquote {
-                                    start_in_quotes = kTrue;
+                                    start_in_quotes = K_TRUE;
                                 }
                             } else if !backwards {
                                 inquote = true;
@@ -2347,8 +2347,8 @@ pub fn findmatchlimit(
                     }
                 }
             }
-            if start_in_quotes == kNone {
-                start_in_quotes = kFalse;
+            if start_in_quotes == K_NONE {
+                start_in_quotes = K_FALSE;
             }
 
             let c = utf_ptr2char(linep.add(srch().findmatch_pos.col as usize));
@@ -2357,7 +2357,7 @@ pub fn findmatchlimit(
                     || *linep.add((srch().findmatch_pos.col - 1) as usize) != b'\\' as c_char
                 {
                     inquote = false;
-                    start_in_quotes = kFalse;
+                    start_in_quotes = K_FALSE;
                 }
             } else if c == b'"' as c_int {
                 if do_quotes != 0 {
@@ -2370,7 +2370,7 @@ pub fn findmatchlimit(
                     }
                     if ((srch().findmatch_pos.col - 1 - col) & 1) == 0 {
                         inquote = !inquote;
-                        start_in_quotes = kFalse;
+                        start_in_quotes = K_FALSE;
                     }
                 }
             } else {
@@ -2430,7 +2430,7 @@ pub fn findmatchlimit(
                         continue;
                     }
 
-                    if (!inquote || start_in_quotes == kTrue) && (c == initc || c == findc) {
+                    if (!inquote || start_in_quotes == K_TRUE) && (c == initc || c == findc) {
                         let mut bslcnt = 0;
 
                         if !cpo_bsl {
@@ -2497,7 +2497,7 @@ pub fn showmatch(c: c_int) {
 
         let lpos = findmatch(None, c_int::from(NUL));
         if lpos.is_null() {
-            vim_beep(kOptBoFlagShowmatch);
+            vim_beep(K_OPT_BO_FLAG_SHOWMATCH);
             return;
         }
 
@@ -2544,7 +2544,7 @@ pub fn showmatch(c: c_int) {
         ui_flush();
         g_st().dollar_vcol = save_dollar_vcol;
 
-        if !vim_strchr(opt_vars().p_cpo, kCpoShowmatch).is_null() {
+        if !vim_strchr(opt_vars().p_cpo, K_CPO_SHOWMATCH).is_null() {
             os_delay((opt_vars().p_mat as u64) * 100 + 8, true);
         } else if !char_avail() {
             os_delay((opt_vars().p_mat as u64) * 100 + 9, false);
@@ -2672,7 +2672,7 @@ pub fn current_search(count: c_int, forward: bool) -> bool {
             }
         }
 
-        if (opt_vars().fdo_flags & kOptFdoFlagSearch) != 0 && g_st().KeyTyped {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0 && g_st().KeyTyped {
             foldOpenCursor();
         }
 
@@ -3039,7 +3039,7 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
         tv_dict_alloc_ret(rettv);
 
-        if shortmess(kShmSearchcount) {
+        if shortmess(K_SHM_SEARCHCOUNT) {
             recompute = true;
         }
 
@@ -3075,12 +3075,12 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             di = tv_dict_find(dict.as_ref(), c"pos", -1);
             if !di.is_null() {
                 if (*di).di_tv.v_type != VarType::VarList {
-                    semsg!(tr(e_invarg2), c"pos");
+                    semsg!(tr(E_INVARG2), c"pos");
                     return;
                 }
                 if tv_list_len(((*di).di_tv.vval.v_list()).as_ref()) != 3 {
                     semsg!(
-                        tr(e_invarg2),
+                        tr(E_INVARG2),
                         c"List format should be [lnum, col, off]",
                     );
                     return;
@@ -3323,7 +3323,7 @@ pub fn find_pattern_in_path(
                         if path_equal(
                             nf_ptr,
                             files[i as usize].name_ptr(),
-                            kPathCmpExpand | kPathCmpFull,
+                            K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                         ) {
                             if type_ != CHECK_PATH
                                 && action == ACTION_SHOW_ALL
@@ -3450,7 +3450,7 @@ pub fn find_pattern_in_path(
                         curr_fname = files[depth as usize].name_ptr();
                         files[depth as usize].lnum = 0;
                         files[depth as usize].matched = 0;
-                        if action == ACTION_EXPAND && !shortmess(kShmCompletionscan) && !silent {
+                        if action == ACTION_EXPAND && !shortmess(K_SHM_COMPLETIONSCAN) && !silent {
                             let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                             g_st().msg_hist_off = true;
                             vim_snprintf!(
@@ -3874,7 +3874,7 @@ pub fn find_pattern_in_path(
             }
         } else if !found && action != ACTION_EXPAND && !silent {
             if g_st().got_int || ins_compl_interrupted() {
-                emsg(tr(e_interr));
+                emsg(tr(E_INTERR));
             } else if type_ == FIND_DEFINE {
                 emsg(tr(c"E388: Couldn't find definition"));
             } else {
@@ -4060,7 +4060,7 @@ mod tests {
         let save_magic = opt_vars().p_magic;
             let save_cmp = opt_vars().cmp_flags;
             opt_vars().p_magic = 1;
-            opt_vars().cmp_flags = crate::mbyte::kOptCmpFlagInternal | crate::mbyte::kOptCmpFlagKeepascii;
+            opt_vars().cmp_flags = crate::mbyte::K_OPT_CMP_FLAG_INTERNAL | crate::mbyte::K_OPT_CMP_FLAG_KEEPASCII;
             for (pat, expected) in [
                 (c"", false),
                 (c"ä", false),

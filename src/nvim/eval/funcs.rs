@@ -13,16 +13,16 @@ use crate::autocmd::{
     au_exists, autocmd_supported,
 };
 use crate::buffer::{
-    VAR_FIXED, FileBuf, buf_close_terminal, buflist_findnr, buflist_findpat, kUIMessages, setfname,
+    VAR_FIXED, FileBuf, buf_close_terminal, buflist_findnr, buflist_findpat, K_UIMESSAGES, setfname,
 };
 use crate::buffer_updates::luaret_truthy;
 use crate::channel::{
     CallbackReader, Channel, ChannelStdinMode, channel_close, channel_connect,
     channel_create_event, channel_decref, channel_from_stdio, channel_incref, channel_job_start,
-    channel_send, channel_terminal_alloc, kChannelPartRpc, kChannelPartStderr, kChannelPartStdin,
-    kChannelPartStdout, kChannelStdinPipe, kChannelStreamProc, kProcTypePty,
+    channel_send, channel_terminal_alloc, K_CHANNEL_PART_RPC_CONST, K_CHANNEL_PART_STDERR, K_CHANNEL_PART_STDIN,
+    K_CHANNEL_PART_STDOUT, K_CHANNEL_STDIN_PIPE_CONST, K_CHANNEL_STREAM_PROC, K_PROC_TYPE_PTY,
 };
-use crate::charset::{Ctrl_V, VARNUMBER_MIN, ascii_isdigit, getdigits_int, skipwhite};
+use crate::charset::{CTRL_V_CONST, VARNUMBER_MIN, ascii_isdigit, getdigits_int, skipwhite};
 use crate::cmdexpand::{
     EXPAND_FILES, ExpandOne, SEARCH_START, WILD_ALL, WILD_ALL_KEEP, WILD_ICASE, WILD_KEEP_ALL,
     WILD_LIST_NOTFOUND, WILD_SILENT, WILD_USE_NL, WILD_USE_SHELLSLASH, Cmdidx,
@@ -82,7 +82,7 @@ use crate::eval::{
     add_timer_info, add_timer_info_all, buf_byteidx_to_charidx, buf_charidx_to_byteidx,
     callback_from_typval, common_job_callbacks, do_string_sub, eval_expr_to_bool, eval_expr_typval,
     eval_expr_valid_arg, eval_has_provider, eval_option, eval1, find_job, find_timer_by_nr,
-    get_callback_depth, get_copyID, get_lval, kListLenMayKnow, kListLenShouldKnow, kListLenUnknown,
+    get_callback_depth, get_copyID, get_lval, K_LIST_LEN_MAY_KNOW_CONST, K_LIST_LEN_SHOULD_KNOW, K_LIST_LEN_UNKNOWN_CONST,
     list2fpos, partial_name, save_tv_as_string, script_host_eval, string2float,
     timer_start, timer_stop, timer_stop_all, tv_dict_set_ret, tv_to_argv, var_item_copy, var2fpos,
 };
@@ -106,7 +106,7 @@ use crate::ex_eval::aborting;
 use crate::ex_getln::{
     VSE_NONE, get_user_input, Hlf, text_locked, text_locked_msg, vim_strsave_fnameescape,
 };
-use crate::extmark::{TriState, kFalse, kNone, kTrue};
+use crate::extmark::{TriState, K_FALSE, K_NONE, K_TRUE};
 use crate::globals::*;
 use crate::grid::{
     ScreenGrid, grid_getchar, Schar, schar_from_char, schar_get, schar_get_first_codepoint,
@@ -120,7 +120,7 @@ use crate::input::{restore_typeahead, save_typeahead, stuff_empty, Tasave, using
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::vim_strsave_escape_ks;
 use crate::lua::executor::{
-    kRetNilBool, kRetObject, nlua_call_luaeval, nlua_call_typval, nlua_exec, nlua_func_exists,
+    K_RET_NIL_BOOL, K_RET_OBJECT, nlua_call_luaeval, nlua_call_typval, nlua_exec, nlua_func_exists,
     nlua_is_table_from_lua, nlua_register_table_as_callable,
 };
 use crate::mark::{
@@ -182,7 +182,7 @@ use crate::regexp::{
 };
 use crate::register::{
     YREG_YANK, BlockDef, format_reg_type, get_reg_contents_list, get_reg_contents_str,
-    get_reg_type, get_register_name, get_unname_register, get_yank_register, kGRegExprSrc,
+    get_reg_type, get_register_name, get_unname_register, get_yank_register, K_GREG_EXPR_SRC,
     op_reg_set_previous, write_reg_contents_ex, write_reg_contents_lst,
 };
 use crate::runtime::{rt_st, Sctx};
@@ -224,7 +224,7 @@ const BASE_LAST: u8 = u8::MAX;
 
 pub(crate) const MAX_FUNC_ARGS: usize = 20;
 
-pub(crate) const kSpecialVarNull: SpecialVarValue = 0;
+pub(crate) const K_SPECIAL_VAR_NULL_CONST: SpecialVarValue = 0;
 
 use crate::eval::vars::{
     VAR_TYPE_BLOB, VAR_TYPE_BOOL, VAR_TYPE_DICT, VAR_TYPE_FLOAT, VAR_TYPE_FUNC, VAR_TYPE_LIST,
@@ -234,7 +234,7 @@ use crate::eval::vars::{
 pub(crate) const TFN_INT: c_int = 1;
 pub(crate) const TFN_NO_DEREF: c_int = 8;
 
-const kChannelStdinNull: ChannelStdinMode = 1;
+const K_CHANNEL_STDIN_NULL: ChannelStdinMode = 1;
 
 const VIM_GENERIC: c_int = 0;
 const VIM_ERROR: c_int = 1;
@@ -267,12 +267,12 @@ const SP_SUBPAT: c_int = 0x20;
 const SP_END: c_int = 0x40;
 const SP_COLUMN: c_int = 0x80;
 
-pub(crate) const kOptCpoptions: OptIndex = 61;
+pub(crate) const K_OPT_CPOPTIONS: OptIndex = 61;
 
-pub(crate) const MTUnknown: c_int = -1;
-pub(crate) const MTCharWise: c_int = 0;
-pub(crate) const MTLineWise: c_int = 1;
-pub(crate) const MTBlockWise: c_int = 2;
+pub(crate) const MT_UNKNOWN: c_int = -1;
+pub(crate) const MT_CHAR_WISE: c_int = 0;
+pub(crate) const MT_LINE_WISE: c_int = 1;
+pub(crate) const MT_BLOCK_WISE: c_int = 2;
 
 pub(crate) const HLF_SPB: Hlf = 37;
 pub(crate) const HLF_SPC: Hlf = 38;
@@ -330,7 +330,7 @@ impl EvalFuncsState {
         Self {
             INPUTSECRET_FLAG: false,
             GA_USERINPUT: Vec::new(),
-            HAS_WSL: kNone,
+            HAS_WSL: K_NONE,
             RAND_GX: 0,
             RAND_GY: 0,
             RAND_GZ: 0,
@@ -1194,9 +1194,9 @@ pub fn check_internal_func(fdef: &EvalFuncDef, argcount: c_int) -> c_int {
 
         let name = fdef.name.map_or(ptr::null(), |s| s.as_ptr());
         if res == FCERR_TOOMANY {
-            semsg!(gettext(e_toomanyarg), name);
+            semsg!(gettext(E_TOOMANYARG), name);
         } else {
-            semsg!(gettext(e_toofewarg), name);
+            semsg!(gettext(E_TOOFEWARG), name);
         }
         -1
 }
@@ -1274,7 +1274,7 @@ fn non_zero_arg(argvars: &TypVal) -> bool {
      {
         (argvars.v_type == VarType::VarNumber && argvars.vval.v_number() != 0)
             || (argvars.v_type == VarType::VarBool
-                && argvars.vval.v_bool() as c_int == kBoolVarTrue)
+                && argvars.vval.v_bool() as c_int == K_BOOL_VAR_TRUE_CONST)
             || (argvars.v_type == VarType::VarString
                 && !argvars.vval.v_string().is_null()
                 && !crate::memory::cstr_is_empty(argvars.vval.v_string()))
@@ -1331,7 +1331,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         let mut result = fn_ptr(VIML_INTERNAL_CALL, args, &mut arena, &mut err);
 
         if err.err_type != ErrorType::ErrorTypeNone {
-            semsg_multiline!(c"emsg", e_api_error, err.msg_ptr());
+            semsg_multiline!(c"emsg", E_API_ERROR, err.msg_ptr());
         } else {
             object_to_vim_take_luaref(&mut result, &mut *rettv, true, &mut err);
         }
@@ -1385,13 +1385,13 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
             cstr_as_string(buf.as_ptr()),
             ptr::null(),
             args,
-            kRetObject,
+            K_RET_OBJECT,
             Some(&mut arena),
             &mut err,
         );
 
         if err.err_type != ErrorType::ErrorTypeNone {
-            semsg_multiline!(c"emsg", e_api_error, err.msg_ptr());
+            semsg_multiline!(c"emsg", E_API_ERROR, err.msg_ptr());
         } else {
             object_to_vim_take_luaref(&mut result, &mut *rettv, true, &mut err);
         }
@@ -1473,7 +1473,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: c_int) -> *mut FileBuf {
         let save_magic = opt_vars().p_magic;
         opt_vars().p_magic = 1;
         let save_cpo = opt_vars().p_cpo;
-        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
+        opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
         let buf = buflist_findnr(buflist_findpat(
             name,
@@ -1515,7 +1515,7 @@ pub fn get_buf_arg(arg: &mut TypVal) -> *mut FileBuf {
         g_st().emsg_off -= 1;
         if buf.is_null() {
             semsg!(
-                gettext(e_invalid_buffer_name_str),
+                gettext(E_INVALID_BUFFER_NAME_STR),
                 tv_get_string(&*arg),
             );
         }
@@ -1576,7 +1576,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                 ptr::null_mut(),
             );
             let Some(ref tf) = tofree else {
-                emsg_funcname(e_unknown_function_str, func);
+                emsg_funcname(E_UNKNOWN_FUNCTION_STR, func);
                 return;
             };
             func = tf.as_ptr().cast_mut();
@@ -1623,21 +1623,21 @@ pub fn f_chanclose(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             || (argvars[1].v_type != VarType::VarString
                 && argvars[1].v_type != VarType::VarUnknown)
         {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
-        let mut part = kChannelPartAll;
+        let mut part = K_CHANNEL_PART_ALL;
         if argvars[1].v_type == VarType::VarString {
             let stream = tv_get_string(&argvars[1]);
             if crate::memory::cstr_as_bytes(stream) == b"stdin" {
-                part = kChannelPartStdin;
+                part = K_CHANNEL_PART_STDIN;
             } else if crate::memory::cstr_as_bytes(stream) == b"stdout" {
-                part = kChannelPartStdout;
+                part = K_CHANNEL_PART_STDOUT;
             } else if crate::memory::cstr_as_bytes(stream) == b"stderr" {
-                part = kChannelPartStderr;
+                part = K_CHANNEL_PART_STDERR;
             } else if crate::memory::cstr_as_bytes(stream) == b"rpc" {
-                part = kChannelPartRpc;
+                part = K_CHANNEL_PART_RPC_CONST;
             } else {
                 semsg!(gettext(c"Invalid channel stream \"%s\""), stream);
                 return;
@@ -1669,7 +1669,7 @@ pub fn f_chansend(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if argvars[0].v_type != VarType::VarNumber
             || argvars[1].v_type == VarType::VarUnknown
         {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -1780,7 +1780,7 @@ pub fn get_optional_window(argvars: &mut [TypVal], idx: c_int) -> *mut WinInfoIn
         }
         let win = find_win_by_nr_or_id(&argvars[idx as usize]);
         if win.is_null() {
-            emsg(gettext(e_invalwindow));
+            emsg(gettext(E_INVALWINDOW));
             return ptr::null_mut();
         }
         win
@@ -1879,7 +1879,7 @@ fn set_cursorpos(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
                 charcol,
             )
             {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 return;
             }
             lnum = pos.lnum;
@@ -1896,7 +1896,7 @@ fn set_cursorpos(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         {
             let mut ln = tv_get_lnum(&argvars[0]);
             if ln < 0 {
-                semsg!(gettext(e_invarg2), tv_get_string(&argvars[0]));
+                semsg!(gettext(E_INVARG2), tv_get_string(&argvars[0]));
             } else if ln == 0 {
                 ln = curwin_mut().w_cursor.lnum;
             }
@@ -1909,7 +1909,7 @@ fn set_cursorpos(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
                 coladd = tv_get_number_chk(&argvars[2], None) as Colnr;
             }
         } else {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
         if lnum < 0 || col < 0 || coladd < 0 {
@@ -1947,7 +1947,7 @@ pub fn f_debugbreak(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(FAIL));
         let pid = tv_get_number(&argvars[0]) as c_int;
         if pid == 0 {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -1997,13 +1997,13 @@ pub fn f_dictwatcheradd(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
             return;
         }
         if argvars[0].v_type != VarType::VarDict {
-            semsg!(gettext(e_invarg2), c"dict");
+            semsg!(gettext(E_INVARG2), c"dict");
             return;
         } else if argvars[0].vval.v_dict().is_null() {
             let arg_errmsg = gettext(c"dictwatcheradd() argument");
             let arg_errmsg_len = crate::memory::cstr_len(arg_errmsg);
             semsg!(
-                gettext(e_cannot_change_readonly_variable_str),
+                gettext(E_CANNOT_CHANGE_READONLY_VARIABLE_STR),
                 arg_errmsg_len as c_int,
                 arg_errmsg,
             );
@@ -2013,7 +2013,7 @@ pub fn f_dictwatcheradd(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
         if argvars[1].v_type != VarType::VarString
             && argvars[1].v_type != VarType::VarNumber
         {
-            semsg!(gettext(e_invarg2), c"key");
+            semsg!(gettext(E_INVARG2), c"key");
             return;
         }
 
@@ -2025,7 +2025,7 @@ pub fn f_dictwatcheradd(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
 
         let mut callback = Callback::NONE;
         if !callback_from_typval(&mut callback, &argvars[2]) {
-            semsg!(gettext(e_invarg2), c"funcref");
+            semsg!(gettext(E_INVARG2), c"funcref");
             return;
         }
 
@@ -2046,13 +2046,13 @@ pub fn f_dictwatcherdel(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
             return;
         }
         if argvars[0].v_type != VarType::VarDict {
-            semsg!(gettext(e_invarg2), c"dict");
+            semsg!(gettext(E_INVARG2), c"dict");
             return;
         }
         if argvars[2].v_type != VarType::VarFunc
             && argvars[2].v_type != VarType::VarString
         {
-            semsg!(gettext(e_invarg2), c"funcref");
+            semsg!(gettext(E_INVARG2), c"funcref");
             return;
         }
 
@@ -2111,10 +2111,10 @@ pub fn f_empty(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                 n = tv_dict_len(argvars[0].vval.v_dict().as_ref()) == 0;
             }
             VarType::VarBool => {
-                n = argvars[0].vval.v_bool() as c_int != kBoolVarTrue;
+                n = argvars[0].vval.v_bool() as c_int != K_BOOL_VAR_TRUE_CONST;
             }
             VarType::VarSpecial => {
-                n = argvars[0].vval.v_special() as c_int == kSpecialVarNull;
+                n = argvars[0].vval.v_special() as c_int == K_SPECIAL_VAR_NULL_CONST;
             }
             VarType::VarBlob => {
                 n = tv_blob_len(argvars[0].vval.v_blob().as_ref()) == 0;
@@ -2149,7 +2149,7 @@ pub fn f_getenv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
     let Some(p) = vim_getenv(tv_get_string(&argvars[0])) else {
             rettv.v_type = VarType::VarSpecial;
-            rettv.vval = crate::eval::typval::TypvalVval::Special(kSpecialVarNull);
+            rettv.vval = crate::eval::typval::TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST);
             return;
         };
         crate::eval::typval::tv_set_string(rettv, p.as_ptr());
@@ -2166,13 +2166,13 @@ pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
         let expr_start = s;
         if s.is_null() || !eval1(&raw mut s, &mut *rettv, Some(&mut g_st().EVALARG_EVALUATE)) {
             if !expr_start.is_null() && !aborting() {
-                semsg!(gettext(e_invexpr2), expr_start);
+                semsg!(gettext(E_INVEXPR2), expr_start);
             }
             g_st().need_clr_eos = false;
             rettv.v_type = VarType::VarNumber;
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         } else if !crate::memory::cstr_is_empty(s) {
-            semsg!(gettext(e_trailing_arg), s);
+            semsg!(gettext(E_TRAILING_ARG), s);
         }
     }
 }
@@ -2416,7 +2416,7 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 pub fn f_menu_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
      {
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
         let mut modes = MENU_ALL_MODES;
         if argvars[1].v_type == VarType::VarString {
             let strmodes = tv_get_string(&argvars[1]);
@@ -2441,7 +2441,7 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             && tv_dict_get_bool(
                 argvars[1].vval.v_dict().as_ref(),
                 c"errmsg",
-                kBoolVarFalse,
+                K_BOOL_VAR_FALSE_CONST,
             ) != 0
         {
             emsgoff = false;
@@ -2487,7 +2487,7 @@ fn flatten_common(argvars: &mut [TypVal], rettv: &mut TypVal, make_copy: bool) {
      {
         let mut error = false;
         if argvars[0].v_type != VarType::VarList {
-            semsg!(gettext(e_listarg), c"flatten()");
+            semsg!(gettext(E_LISTARG), c"flatten()");
             return;
         }
 
@@ -2649,7 +2649,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                 || (is_funcref && trans_name.is_null())
             {
                 semsg!(
-                    gettext(e_invarg2),
+                    gettext(E_INVARG2),
                     if use_string {
                         tv_get_string(&argvars[0])
                     } else {
@@ -2704,7 +2704,7 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                         if tv_list_len(list.as_ref()) == 0 {
                             arg_idx = 0;
                         } else if (tv_list_len(list.as_ref()) as usize) > MAX_FUNC_ARGS {
-                            emsg_funcname(e_toomanyarg, s);
+                            emsg_funcname(E_TOOMANYARG, s);
                             break 'theend;
                         }
                     }
@@ -2903,10 +2903,10 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                     tv_dict_add_bool(
                         dict,
                         c"varargs",
-                        if varargs { kBoolVarTrue } else { kBoolVarFalse },
+                        if varargs { K_BOOL_VAR_TRUE_CONST } else { K_BOOL_VAR_FALSE_CONST },
                     );
                 } else {
-                    semsg!(gettext(e_invarg2), what);
+                    semsg!(gettext(E_INVARG2), what);
                 }
 
                 if !what_is_dict {
@@ -2914,7 +2914,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                 }
             }
         } else {
-            semsg!(gettext(e_listdictblobarg), c"get()");
+            semsg!(gettext(E_LISTDICTBLOBARG), c"get()");
         }
 
         if tv.is_null() {
@@ -3113,7 +3113,7 @@ pub fn f_getfontname(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
         let wp = find_tabwin(&argvars[0], &argvars[1]);
         if wp.is_null() {
             return;
@@ -3162,7 +3162,7 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 pub fn f_getmarklist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
         if argvars[0].v_type == VarType::VarUnknown {
             get_global_marks( &mut *rettv.vval.v_list());
             return;
@@ -3214,7 +3214,7 @@ fn getregionpos(argvars: &mut [TypVal],rettv: &mut TypVal,
     oap: &mut Oparg,
 ) -> bool {
     unsafe {
-        tv_list_alloc_ret(&mut *rettv, kListLenMayKnow);
+        tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
         if !tv_check_for_list_arg(argvars, 0)
             || !tv_check_for_list_arg(argvars, 1)
@@ -3253,21 +3253,21 @@ fn getregionpos(argvars: &mut [TypVal],rettv: &mut TypVal,
 
         let mut block_width: c_int = 0;
         if crate::memory::cstr_first_byte(type_str) == b'v' && crate::memory::cstr_byte_at(type_str, 1) == 0 {
-            *region_type = MTCharWise;
+            *region_type = MT_CHAR_WISE;
         } else if crate::memory::cstr_first_byte(type_str) == b'V' && crate::memory::cstr_byte_at(type_str, 1) == 0 {
-            *region_type = MTLineWise;
-        } else if *type_str == Ctrl_V {
+            *region_type = MT_LINE_WISE;
+        } else if *type_str == CTRL_V_CONST {
             let mut p = type_str.add(1);
             if !crate::memory::cstr_is_empty(p) {
                 block_width = getdigits_int(&raw mut p, false, 0);
                 if block_width <= 0 || !crate::memory::cstr_is_empty(p) {
-                    semsg!(gettext(e_invargNval), c"type", type_str);
+                    semsg!(gettext(E_INVARG_NVAL), c"type", type_str);
                     return false;
                 }
             }
-            *region_type = MTBlockWise;
+            *region_type = MT_BLOCK_WISE;
         } else {
-            semsg!(gettext(e_invargNval), c"type", type_str);
+            semsg!(gettext(E_INVARG_NVAL), c"type", type_str);
             return false;
         }
 
@@ -3277,29 +3277,29 @@ fn getregionpos(argvars: &mut [TypVal],rettv: &mut TypVal,
             g_st().curbuf
         };
         if findbuf.is_null() || (*findbuf).b_ml.ml_mfp.is_none() {
-            emsg(gettext(e_buffer_is_not_loaded));
+            emsg(gettext(E_BUFFER_IS_NOT_LOADED));
             return false;
         }
 
         if p1.lnum < 1 || p1.lnum > (*findbuf).b_ml.ml_line_count {
-            semsg!(gettext(e_invalid_line_number_nr), p1.lnum);
+            semsg!(gettext(E_INVALID_LINE_NUMBER_NR), p1.lnum);
             return false;
         }
         if p1.col == MAXCOL {
             p1.col = ml_get_buf_len(&mut *findbuf, p1.lnum) + 1;
         } else if p1.col < 1 || p1.col > ml_get_buf_len(&mut *findbuf, p1.lnum) + 1 {
-            semsg!(gettext(e_invalid_column_number_nr), p1.col);
+            semsg!(gettext(E_INVALID_COLUMN_NUMBER_NR), p1.col);
             return false;
         }
 
         if p2.lnum < 1 || p2.lnum > (*findbuf).b_ml.ml_line_count {
-            semsg!(gettext(e_invalid_line_number_nr), p2.lnum);
+            semsg!(gettext(E_INVALID_LINE_NUMBER_NR), p2.lnum);
             return false;
         }
         if p2.col == MAXCOL {
             p2.col = ml_get_buf_len(&mut *findbuf, p2.lnum) + 1;
         } else if p2.col < 1 || p2.col > ml_get_buf_len(&mut *findbuf, p2.lnum) + 1 {
-            semsg!(gettext(e_invalid_column_number_nr), p2.col);
+            semsg!(gettext(E_INVALID_COLUMN_NUMBER_NR), p2.col);
             return false;
         }
 
@@ -3347,7 +3347,7 @@ pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             coladd: 0,
         };
         let mut inclusive = true;
-        let mut region_type = MTUnknown;
+        let mut region_type = MT_UNKNOWN;
         let mut oa = Oparg::new();
 
         if !getregionpos(
@@ -3364,12 +3364,12 @@ pub fn f_getregion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
 
         for lnum in p1.lnum..=p2.lnum {
-            if region_type == MTBlockWise {
+            if region_type == MT_BLOCK_WISE {
                 let mut bd = BlockDef::new();
                 block_prep(&mut oa, &mut bd, lnum, false);
                 let akt = block_def2str(&bd);
                 tv_list_append_string(unsafe { &mut *rettv.vval.v_list() }, akt.as_ptr(), akt.len() as isize);
-            } else if region_type == MTLineWise || (p1.lnum < lnum && lnum < p2.lnum) {
+            } else if region_type == MT_LINE_WISE || (p1.lnum < lnum && lnum < p2.lnum) {
                 tv_list_append_string(
                     unsafe { &mut *rettv.vval.v_list() },
                     ml_get(lnum),
@@ -3444,7 +3444,7 @@ pub fn f_getregionpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             coladd: 0,
         };
         let mut inclusive = true;
-        let mut region_type = MTUnknown;
+        let mut region_type = MT_UNKNOWN;
         let mut allow_eol = false;
         let mut bounds_only = false;
         let mut oa = Oparg::new();
@@ -3600,13 +3600,13 @@ pub fn f_getreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
         if return_list {
             rettv.v_type = VarType::VarList;
-            rettv.vval = crate::eval::typval::TypvalVval::List(get_reg_contents_list(regname, if arg2 != 0 { kGRegExprSrc } else { 0 }));
+            rettv.vval = crate::eval::typval::TypvalVval::List(get_reg_contents_list(regname, if arg2 != 0 { K_GREG_EXPR_SRC } else { 0 }));
             if rettv.vval.v_list().is_null() {
                 rettv.vval = crate::eval::typval::TypvalVval::List(tv_list_alloc(0));
             }
             tv_list_ref(rettv.vval.v_list().as_mut());
         } else {
-            let reg_str = get_reg_contents_str(regname, if arg2 != 0 { kGRegExprSrc } else { 0 });
+            let reg_str = get_reg_contents_str(regname, if arg2 != 0 { K_GREG_EXPR_SRC } else { 0 });
             crate::eval::typval::tv_set_string(
                 rettv,
                 reg_str.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
@@ -3666,7 +3666,7 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
         if argvars[0].v_type != VarType::VarNumber {
-            semsg!(gettext(e_invargval), c"1");
+            semsg!(gettext(E_INVARGVAL), c"1");
             return;
         }
         if (argvars[2].v_type != VarType::VarNumber
@@ -3674,7 +3674,7 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
             || (argvars[2].v_type == VarType::VarNumber
                 && argvars[2].vval.v_number() <= 0)
         {
-            semsg!(gettext(e_invargval), c"3");
+            semsg!(gettext(E_INVARGVAL), c"3");
             return;
         }
 
@@ -3967,7 +3967,7 @@ fn eval_has_static_feature(name: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 fn has_wsl() -> bool {
-    if funcs_st().HAS_WSL == kNone {
+    if funcs_st().HAS_WSL == K_NONE {
             let mut err = Error::new();
             let cmd = c"return vim.uv.os_uname()['release']:lower():match('microsoft')";
             let o = nlua_exec(
@@ -3981,14 +3981,14 @@ fn has_wsl() -> bool {
                     size: 0,
                     capacity: 0,
                 },
-                kRetNilBool,
+                K_RET_NIL_BOOL,
                 None,
                 &mut err,
             );
             debug_assert!(err.err_type == ErrorType::ErrorTypeNone);
-            funcs_st().HAS_WSL = if luaret_truthy(o) { kTrue } else { kFalse };
+            funcs_st().HAS_WSL = if luaret_truthy(o) { K_TRUE } else { K_FALSE };
         }
-        funcs_st().HAS_WSL == kTrue
+        funcs_st().HAS_WSL == K_TRUE
 }
 
 /// "highlightID(name)" function
@@ -4045,7 +4045,7 @@ pub fn f_index(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
             }
             return;
         } else if argvars[0].v_type != VarType::VarList {
-            emsg(gettext(e_listblobreq));
+            emsg(gettext(E_LISTBLOBREQ));
             return;
         }
 
@@ -4247,7 +4247,7 @@ pub fn f_inputlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
      {
         if argvars[0].v_type != VarType::VarList {
-            semsg!(gettext(e_listarg), c"inputlist()");
+            semsg!(gettext(E_LISTARG), c"inputlist()");
             return;
         }
 
@@ -4261,7 +4261,7 @@ pub fn f_inputlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         let l = argvars[0].vval.v_list();
         for li in crate::eval::typval::list_iter_mut(tv_list_first(unsafe { l.as_ref() })) {
             msg_puts(tv_get_string(&li.li_tv));
-            if !ui_has(kUIMessages) || !li.li_next.is_null() {
+            if !ui_has(K_UIMESSAGES) || !li.li_next.is_null() {
                 msg_putchar(b'\n' as c_int);
             }
         }
@@ -4337,9 +4337,9 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             if !crate::memory::cstr_is_empty(end) {
                 semsg!(
                     gettext(if lv.ll_name_len == 0 {
-                        e_invarg2.as_ptr()
+                        E_INVARG2.as_ptr()
                     } else {
-                        e_trailing_arg.as_ptr()
+                        E_TRAILING_ARG.as_ptr()
                     }),
                     end,
                 );
@@ -4354,7 +4354,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             } else if lv.ll_range {
                 emsg(gettext(c"E786: Range not allowed"));
             } else if let Some(ref newkey) = lv.ll_newkey {
-                semsg!(gettext(e_dictkey), newkey.as_ptr());
+                semsg!(gettext(E_DICTKEY), newkey.as_ptr());
             } else if !lv.ll_list.is_null() {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(tv_islocked(&(*lv.ll_li).li_tv)));
             } else {
@@ -4409,7 +4409,7 @@ pub fn f_jobpid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             return;
         }
         if argvars[0].v_type != VarType::VarNumber {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -4435,7 +4435,7 @@ pub fn f_jobresize(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             || argvars[1].v_type != VarType::VarNumber
             || argvars[2].v_type != VarType::VarNumber
         {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -4445,8 +4445,8 @@ pub fn f_jobresize(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
 
         let proc_ptr = &raw mut (*data).uv.proc_;
-        if (*proc_ptr).r#type != kProcTypePty {
-            emsg(gettext(e_channotpty));
+        if (*proc_ptr).r#type != K_PROC_TYPE_PTY {
+            emsg(gettext(E_CHANNOTPTY));
             return;
         }
 
@@ -4606,7 +4606,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if argvars[1].v_type != VarType::VarDict
             && argvars[1].v_type != VarType::VarUnknown
         {
-            semsg!(gettext(e_invarg2), c"expected dictionary");
+            semsg!(gettext(E_INVARG2), c"expected dictionary");
             return;
         }
 
@@ -4617,7 +4617,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let mut term = false;
         let mut clear_env = false;
         let mut overlapped = false;
-        let mut stdin_mode = kChannelStdinPipe;
+        let mut stdin_mode = K_CHANNEL_STDIN_PIPE_CONST;
         let mut on_stdout = CallbackReader::none();
         let mut on_stderr = CallbackReader::none();
         let mut on_exit = Callback::NONE;
@@ -4637,18 +4637,18 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             let s = tv_dict_get_string(job_opts.as_ref(), c"stdin");
             if !s.is_null() {
                 if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN) == crate::memory::cstr_prefix_bytes(c"null", NUMBUFLEN) {
-                    stdin_mode = kChannelStdinNull;
+                    stdin_mode = K_CHANNEL_STDIN_NULL;
                 } else if crate::memory::cstr_prefix_bytes(s, NUMBUFLEN) == crate::memory::cstr_prefix_bytes(c"pipe", NUMBUFLEN) {
                     // default
                 } else {
-                    semsg!(gettext(e_invargNval), c"stdin", s);
+                    semsg!(gettext(E_INVARG_NVAL), c"stdin", s);
                 }
             }
 
             let job_term = tv_dict_find(job_opts.as_ref(), c"term", 4);
             if !job_term.is_null() && (*job_term).di_tv.v_type != VarType::VarBool {
                 semsg!(
-                    gettext(e_invarg2),
+                    gettext(E_INVARG2),
                     c"'term' must be Boolean",
                 );
                 return;
@@ -4656,7 +4656,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
             if pty && rpc {
                 semsg!(
-                    gettext(e_invarg2),
+                    gettext(E_INVARG2),
                     c"job cannot have both 'pty' and 'rpc' options set",
                 );
                 return;
@@ -4665,7 +4665,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             #[cfg(windows)]
             if pty && overlapped {
                 semsg!(
-                    gettext(e_invarg2),
+                    gettext(E_INVARG2),
                     c"job cannot have both 'pty' and 'overlapped' options set",
                 );
                 return;
@@ -4676,7 +4676,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 cwd = new_cwd;
                 if !os_isdir(cwd) {
                     semsg!(
-                        gettext(e_invarg2),
+                        gettext(E_INVARG2),
                         c"expected valid directory",
                     );
                     return;
@@ -4685,7 +4685,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
             job_env = tv_dict_find(job_opts.as_ref(), c"env", 3);
             if !job_env.is_null() && (*job_env).di_tv.v_type != VarType::VarDict {
-                semsg!(gettext(e_invarg2), c"env");
+                semsg!(gettext(E_INVARG2), c"env");
                 return;
             }
 
@@ -4731,7 +4731,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
             overlapped = false;
             detach = false;
-            stdin_mode = kChannelStdinPipe;
+            stdin_mode = K_CHANNEL_STDIN_PIPE_CONST;
             if width == 0 {
                 width = (curwin_mut().w_view_width - win_col_off(curwin_ptr())).max(0) as u16;
             }
@@ -4894,7 +4894,7 @@ pub fn f_jobstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             return;
         }
         if argvars[0].v_type != VarType::VarNumber {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -4905,7 +4905,7 @@ pub fn f_jobstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         let mut error: *const c_char = ptr::null();
         if (*data).is_rpc {
-            channel_close((*data).id, kChannelPartRpc, &mut error);
+            channel_close((*data).id, K_CHANNEL_PART_RPC_CONST, &mut error);
         }
         proc_stop(&mut (*data).uv.proc_);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
@@ -4929,7 +4929,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             || (argvars[1].v_type != VarType::VarNumber
                 && argvars[1].v_type != VarType::VarUnknown)
         {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -4946,7 +4946,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             } else {
                 ptr::null_mut()
             };
-            if chan.is_null() || (*chan).streamtype != kChannelStreamProc {
+            if chan.is_null() || (*chan).streamtype != K_CHANNEL_STREAM_PROC {
                 jobs[i] = ptr::null_mut();
             } else {
                 let proc_ptr = &mut (*chan).uv.proc_;
@@ -5156,7 +5156,7 @@ fn libcall_common(argvars: &mut [TypVal], rettv: &mut TypVal, out_type: VarType)
             Some(&mut int_out),
         );
         if !success {
-            semsg!(gettext(e_libcall), funcname);
+            semsg!(gettext(E_LIBCALL), funcname);
             return;
         }
         if out_type == VarType::VarString {
@@ -5259,12 +5259,12 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
         let mut tofree_owned: Option<std::ffi::CString> = None;
 
         let save_cpo = opt_vars().p_cpo;
-        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
+        opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         match type_ {
             SomeMatchType::SomeMatchList => {
-                tv_list_alloc_ret(&mut *rettv, kListLenMayKnow);
+                tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_MAY_KNOW_CONST);
             }
             SomeMatchType::SomeMatchStrPos => {
                 tv_list_alloc_ret(&mut *rettv, 4);
@@ -5529,7 +5529,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-        tv_list_alloc_ret(rettv, kListLenUnknown);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
         let retlist = rettv.vval.v_list();
 
         if !tv_check_for_buffer_arg(argvars, 0)
@@ -5546,14 +5546,14 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         if buf.is_null() {
             if g_st().did_emsg == prev_did_emsg {
                 semsg!(
-                    gettext(e_invalid_buffer_name_str),
+                    gettext(E_INVALID_BUFFER_NAME_STR),
                     tv_get_string(&argvars[0]),
                 );
             }
             return;
         }
         if (*buf).b_ml.ml_mfp.is_none() {
-            emsg(gettext(e_buffer_is_not_loaded));
+            emsg(gettext(E_BUFFER_IS_NOT_LOADED));
             return;
         }
 
@@ -5566,7 +5566,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             return;
         }
         if slnum < 1 {
-            semsg!(gettext(e_invargval), c"lnum");
+            semsg!(gettext(E_INVARGVAL), c"lnum");
             return;
         }
 
@@ -5575,7 +5575,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             return;
         }
         if elnum < 1 || elnum < slnum {
-            semsg!(gettext(e_invargval), c"end_lnum");
+            semsg!(gettext(E_INVARGVAL), c"end_lnum");
             return;
         }
 
@@ -5590,7 +5590,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 let di = tv_dict_find(d.as_ref(), c"submatches", 10);
                 if !di.is_null() {
                     if (*di).di_tv.v_type != VarType::VarBool {
-                        semsg!(gettext(e_invargval), c"submatches");
+                        semsg!(gettext(E_INVARGVAL), c"submatches");
                         return;
                     }
                     submatches = tv_get_bool(&(*di).di_tv) != 0;
@@ -5599,7 +5599,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
 
         let save_cpo = opt_vars().p_cpo;
-        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
+        opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
         let mut regmatch: Regmatch = Regmatch::new();
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
@@ -5644,7 +5644,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
     unsafe {
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-        tv_list_alloc_ret(rettv, kListLenUnknown);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
         let retlist = rettv.vval.v_list();
 
         if !tv_check_for_list_arg(argvars, 0)
@@ -5666,7 +5666,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
 
         let save_cpo = opt_vars().p_cpo;
-        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
+        opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
         let mut regmatch: Regmatch = Regmatch::new();
         regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
@@ -5681,7 +5681,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                         let di = tv_dict_find(d.as_ref(), c"submatches", 10);
                         if !di.is_null() {
                             if (*di).di_tv.v_type != VarType::VarBool {
-                                semsg!(gettext(e_invargval), c"submatches");
+                                semsg!(gettext(E_INVARGVAL), c"submatches");
                                 break 'cleanup;
                             }
                             submatches = tv_get_bool(&(*di).di_tv) != 0;
@@ -5759,7 +5759,7 @@ fn max_min(tv: &TypVal, rettv: &mut TypVal, domax: bool) {
             }
         } else {
             semsg!(
-                gettext(e_listdictarg),
+                gettext(E_LISTDICTARG),
                 if domax {
                     c"max()".as_ptr()
                 } else {
@@ -5847,7 +5847,7 @@ pub fn f_msgpackdump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     unsafe {
         if argvars[0].v_type != VarType::VarList {
-            semsg!(gettext(e_listarg), c"msgpackdump()");
+            semsg!(gettext(E_LISTARG), c"msgpackdump()");
             return;
         }
         let list = argvars[0].vval.v_list();
@@ -5871,7 +5871,7 @@ pub fn f_msgpackdump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             }
         } else {
             encode_list_write(
-                (tv_list_alloc_ret(rettv, kListLenMayKnow)).as_mut(),
+                (tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST)).as_mut(),
                 data.as_ptr().cast::<c_char>(),
                 data.len(),
             );
@@ -5883,19 +5883,19 @@ fn emsg_mpack_error(status: c_int) {
     match status {
             MPACK_ERROR => {
                 semsg!(
-                    gettext(e_invarg2),
+                    gettext(E_INVARG2),
                     c"Failed to parse msgpack string",
                 );
             }
             MPACK_EOF => {
                 semsg!(
-                    gettext(e_invarg2),
+                    gettext(E_INVARG2),
                     c"Incomplete msgpack string",
                 );
             }
             MPACK_NOMEM => {
                 semsg!(
-                    gettext(e_invarg2),
+                    gettext(E_INVARG2),
                     c"object was too deep to unpack",
                 );
             }
@@ -5910,7 +5910,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
         }
         if (*tv_list_first(list)).li_tv.v_type != VarType::VarString {
             semsg!(
-                gettext(e_invarg2),
+                gettext(E_INVARG2),
                 c"List item is not a string",
             );
             return;
@@ -5936,7 +5936,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
                 );
                 if rlret == FAIL {
                     semsg!(
-                        gettext(e_invarg2),
+                        gettext(E_INVARG2),
                         c"List item is not a string",
                     );
                     break 'end;
@@ -6003,10 +6003,10 @@ pub fn f_msgpackparse(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
     unsafe {
         if argvars[0].v_type != VarType::VarList && argvars[0].v_type != VarType::VarBlob {
-            semsg!(gettext(e_listblobarg), c"msgpackparse()");
+            semsg!(gettext(E_LISTBLOBARG), c"msgpackparse()");
             return;
         }
-        let ret_list = tv_list_alloc_ret(rettv, kListLenMayKnow);
+        let ret_list = tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
         if argvars[0].v_type == VarType::VarList {
             msgpackparse_unpack_list(argvars[0].vval.v_list().as_ref(), &mut *ret_list);
         } else {
@@ -6207,7 +6207,7 @@ pub fn f_rand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
         } else if argvars[0].v_type == VarType::VarList {
             let l = argvars[0].vval.v_list();
             if tv_list_len(l.as_ref()) != 4 {
-                semsg!(gettext(e_invarg2), tv_get_string(&argvars[0]));
+                semsg!(gettext(E_INVARG2), tv_get_string(&argvars[0]));
                 rettv.v_type = VarType::VarNumber;
                 rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
                 return;
@@ -6222,7 +6222,7 @@ pub fn f_rand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                 || tvz.v_type != VarType::VarNumber
                 || tvw.v_type != VarType::VarNumber
             {
-                semsg!(gettext(e_invarg2), tv_get_string(&argvars[0]));
+                semsg!(gettext(E_INVARG2), tv_get_string(&argvars[0]));
                 rettv.v_type = VarType::VarNumber;
                 rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
                 return;
@@ -6239,7 +6239,7 @@ pub fn f_rand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
             tvz.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(z));
             tvw.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(w));
         } else {
-            semsg!(gettext(e_invarg2), tv_get_string(&argvars[0]));
+            semsg!(gettext(E_INVARG2), tv_get_string(&argvars[0]));
             rettv.v_type = VarType::VarNumber;
             rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
             return;
@@ -6350,7 +6350,7 @@ pub fn f_getreginfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
         let dict = tv_dict_alloc_ret(rettv);
 
-        let list = get_reg_contents_list(regname, kGRegExprSrc);
+        let list = get_reg_contents_list(regname, K_GREG_EXPR_SRC);
         if list.is_null() {
             return;
         }
@@ -6359,24 +6359,24 @@ pub fn f_getreginfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         let mut buf = [0 as c_char; NUMBUFLEN + 2];
         let mut reglen: Colnr = 0;
         let mut buflen = match get_reg_type(regname, Some(&mut reglen)) {
-            crate::register::MotionType::MTLineWise => {
+            crate::register::MotionType::MtLineWise => {
                 buf[0] = b'V' as c_char;
                 buf[1] = NUL;
                 1
             }
-            crate::register::MotionType::MTCharWise => {
+            crate::register::MotionType::MtCharWise => {
                 buf[0] = b'v' as c_char;
                 buf[1] = NUL;
                 1
             }
-            crate::register::MotionType::MTBlockWise => vim_snprintf_safelen!(
+            crate::register::MotionType::MtBlockWise => vim_snprintf_safelen!(
                 buf.as_mut_ptr(),
                 buf.len(),
                 c"%c%d",
-                c_int::from(Ctrl_V),
+                c_int::from(CTRL_V_CONST),
                 reglen + 1,
             ),
-            crate::register::MotionType::MTUnknown => std::process::abort(),
+            crate::register::MotionType::MtUnknown => std::process::abort(),
         };
         tv_dict_add_str_len(dict, c"regtype", buf.as_ptr(), buflen as c_int);
 
@@ -6395,9 +6395,9 @@ pub fn f_getreginfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 dict,
                 c"isunnamed",
                 if regname == c_int::from(buf[0]) {
-                    kBoolVarTrue
+                    K_BOOL_VAR_TRUE_CONST
                 } else {
-                    kBoolVarFalse
+                    K_BOOL_VAR_FALSE_CONST
                 },
             );
         }
@@ -6597,7 +6597,7 @@ fn reduce_list(argvars: &mut [TypVal], rettv: &mut TypVal) {
         if argvars[2].v_type == VarType::VarUnknown {
             if tv_list_len(l.as_ref()) == 0 {
                 semsg!(
-                    gettext(e_reduce_of_an_empty_str_with_no_initial_value),
+                    gettext(E_REDUCE_OF_AN_EMPTY_STR_WITH_NO_INITIAL_VALUE),
                     c"List",
                 );
                 return;
@@ -6644,7 +6644,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
         if argvars[2].v_type == VarType::VarUnknown {
             if crate::memory::cstr_is_empty(p) {
                 semsg!(
-                    gettext(e_reduce_of_an_empty_str_with_no_initial_value),
+                    gettext(E_REDUCE_OF_AN_EMPTY_STR_WITH_NO_INITIAL_VALUE),
                     c"String",
                 );
                 return;
@@ -6692,7 +6692,7 @@ fn reduce_blob(argvars: &mut [TypVal], rettv: &mut TypVal) {
         if argvars[2].v_type == VarType::VarUnknown {
             if tv_blob_len(b.as_ref()) == 0 {
                 semsg!(
-                    gettext(e_reduce_of_an_empty_str_with_no_initial_value),
+                    gettext(E_REDUCE_OF_AN_EMPTY_STR_WITH_NO_INITIAL_VALUE),
                     c"Blob",
                 );
                 return;
@@ -6795,7 +6795,7 @@ fn get_search_arg(varp: &mut TypVal,mut flagsp: Option<&mut c_int>) -> c_int {
                         };
                     }
                     if mask == 0 {
-                        semsg!(gettext(e_invarg2), flags);
+                        semsg!(gettext(E_INVARG2), flags);
                         dir = 0;
                     } else {
                         *flagsp.as_deref_mut().unwrap() |= mask;
@@ -6858,7 +6858,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
             if ((flags & (SP_REPEAT | SP_RETCOUNT)) != 0)
                 || ((flags & SP_NOMOVE) != 0 && (flags & SP_SETPCMARK) != 0)
             {
-                semsg!(gettext(e_invarg2), tv_get_string(&argvars[1]));
+                semsg!(gettext(E_INVARG2), tv_get_string(&argvars[1]));
                 break 'theend;
             }
 
@@ -6968,14 +6968,14 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
         if argvars[0].v_type != VarType::VarNumber || argvars[0].vval.v_number() < 0 {
             semsg!(
-                gettext(e_invarg2),
+                gettext(E_INVARG2),
                 c"Channel id must be a positive integer",
             );
             return;
         }
         if argvars[1].v_type != VarType::VarString {
             semsg!(
-                gettext(e_invarg2),
+                gettext(E_INVARG2),
                 c"Event type must be a string",
             );
             return;
@@ -7013,7 +7013,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
         if !ok {
             semsg!(
-                gettext(e_invarg2),
+                gettext(E_INVARG2),
                 c"Channel doesn't exist",
             );
             return;
@@ -7035,14 +7035,14 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
         if argvars[0].v_type != VarType::VarNumber || argvars[0].vval.v_number() <= 0 {
             semsg!(
-                gettext(e_invarg2),
+                gettext(E_INVARG2),
                 c"Channel id must be a positive integer",
             );
             return;
         }
         if argvars[1].v_type != VarType::VarString {
             semsg!(
-                gettext(e_invarg2),
+                gettext(E_INVARG2),
                 c"Method name must be a string",
             );
             return;
@@ -7219,7 +7219,7 @@ pub fn f_screenchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         let mut grid: *mut ScreenGrid = ptr::null_mut();
         screenchar_adjust(&raw mut grid, &mut row, &mut col);
 
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
         if row < 0 || row >= (*grid).rows || col < 0 || col >= (*grid).cols {
             return;
         }
@@ -7338,7 +7338,7 @@ fn searchpair_cmn(argvars: &mut [TypVal],match_pos: Option<&mut CursorPos>) -> c
             if ((flags & (SP_END | SP_SUBPAT)) != 0)
                 || ((flags & SP_NOMOVE) != 0 && (flags & SP_SETPCMARK) != 0)
             {
-                semsg!(gettext(e_invarg2), tv_get_string(&argvars[3]));
+                semsg!(gettext(E_INVARG2), tv_get_string(&argvars[3]));
                 break 'theend;
             }
 
@@ -7355,13 +7355,13 @@ fn searchpair_cmn(argvars: &mut [TypVal],match_pos: Option<&mut CursorPos>) -> c
                 if argvars[5].v_type != VarType::VarUnknown {
                     lnum_stop = tv_get_number_chk(&argvars[5], None) as Linenr;
                     if lnum_stop < 0 {
-                        semsg!(gettext(e_invarg2), tv_get_string(&argvars[5]));
+                        semsg!(gettext(E_INVARG2), tv_get_string(&argvars[5]));
                         break 'theend;
                     }
                     if argvars[6].v_type != VarType::VarUnknown {
                         time_limit = tv_get_number_chk(&argvars[6], None);
                         if time_limit < 0 {
-                            semsg!(gettext(e_invarg2), tv_get_string(&argvars[6]));
+                            semsg!(gettext(E_INVARG2), tv_get_string(&argvars[6]));
                             break 'theend;
                         }
                     }
@@ -7433,7 +7433,7 @@ pub fn do_searchpair(
         let mut options = SEARCH_KEEP;
 
         let save_cpo = opt_vars().p_cpo;
-        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
+        opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
         let tm = profile_setlimit(time_limit);
 
@@ -7591,12 +7591,12 @@ pub fn do_searchpair(
 
         drop(pat2_vec);
         drop(pat3_vec);
-        if opt_vars().p_cpo == empty_string_option.as_ptr().cast() {
+        if opt_vars().p_cpo == EMPTY_STRING_OPTION.as_ptr().cast() {
             opt_vars().p_cpo = save_cpo;
         } else {
             if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
                 set_option_value_give_err(
-                    kOptCpoptions,
+                    K_OPT_CPOPTIONS,
                     Object {
                         obj_type: ObjectType::ObjectTypeString,
                         data: ObjectData::String(cstr_as_string(save_cpo)),
@@ -7651,7 +7651,7 @@ pub fn f_serverlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             TypVal {
                 v_type: VarType::VarSpecial,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Special(kSpecialVarNull),
+                vval: TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST),
             }
         };
         let mut lua_args = [opts, addrs_tv, tv_initial_value()];
@@ -7678,7 +7678,7 @@ pub fn f_serverstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
         let address = if argvars[0].v_type != VarType::VarUnknown {
             if argvars[0].v_type != VarType::VarString {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 return;
             }
             to_slash_save(tv_get_string(&argvars[0])).unwrap_or_default()
@@ -7716,7 +7716,7 @@ pub fn f_serverstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             return;
         }
         if argvars[0].v_type != VarType::VarString {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
         rettv.v_type = VarType::VarNumber;
@@ -7781,7 +7781,7 @@ fn set_position(argvars: &mut [TypVal], rettv: &mut TypVal, charpos: bool) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);
             }
         } else {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
         }
     }
 }
@@ -7842,7 +7842,7 @@ pub fn f_setenv(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
             return;
         }
         if argvars[1].v_type == VarType::VarSpecial
-            && argvars[1].vval.v_special() as c_int == kSpecialVarNull
+            && argvars[1].vval.v_special() as c_int == K_SPECIAL_VAR_NULL_CONST
         {
             vim_unsetenv_ext(name);
         } else {
@@ -7867,7 +7867,7 @@ pub fn f_setfperm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             return;
         }
         if crate::memory::cstr_len(mode_str) != 9 {
-            semsg!(gettext(e_invarg2), mode_str);
+            semsg!(gettext(E_INVARG2), mode_str);
             return;
         }
 
@@ -7896,13 +7896,13 @@ fn get_yank_type(
         let mut stropt = *pp;
         match *stropt {
             c if c == b'v' as c_char || c == b'c' as c_char => {
-                *yank_type = crate::register::MotionType::MTCharWise;
+                *yank_type = crate::register::MotionType::MtCharWise;
             }
             c if c == b'V' as c_char || c == b'l' as c_char => {
-                *yank_type = crate::register::MotionType::MTLineWise;
+                *yank_type = crate::register::MotionType::MtLineWise;
             }
-            c if c == b'b' as c_char || c == Ctrl_V => {
-                *yank_type = crate::register::MotionType::MTBlockWise;
+            c if c == b'b' as c_char || c == CTRL_V_CONST => {
+                *yank_type = crate::register::MotionType::MtBlockWise;
                 if ascii_isdigit(crate::memory::cstr_char_at(stropt, 1)) {
                     stropt = stropt.add(1);
                     *block_len = getdigits_int(&raw mut stropt, false, 0) - 1;
@@ -7922,7 +7922,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     unsafe {
         let mut append = false;
         let mut block_len: c_int = -1;
-        let mut yank_type = crate::register::MotionType::MTUnknown;
+        let mut yank_type = crate::register::MotionType::MtUnknown;
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 
@@ -7945,7 +7945,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                     c_int::from(regname as u8),
                     lstval.as_mut_ptr(),
                     false,
-                    crate::register::MotionType::MTUnknown,
+                    crate::register::MotionType::MtUnknown,
                     -1,
                 );
                 return;
@@ -7961,7 +7961,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 let ret = get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
                 stropt = stropt.add(1);
                 if !ret || !crate::memory::cstr_is_empty(stropt) {
-                    semsg!(gettext(e_invargval), c"value");
+                    semsg!(gettext(E_INVARGVAL), c"value");
                     return;
                 }
             }
@@ -7981,8 +7981,8 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
         let mut set_unnamed = false;
         if argvars[2].v_type != VarType::VarUnknown {
-            if yank_type != crate::register::MotionType::MTUnknown {
-                semsg!(gettext(e_toomanyarg), c"setreg");
+            if yank_type != crate::register::MotionType::MtUnknown {
+                semsg!(gettext(E_TOOMANYARG), c"setreg");
                 return;
             }
 
@@ -8167,13 +8167,13 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         if argvars[0].v_type != VarType::VarString
             || argvars[1].v_type != VarType::VarString
         {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
         if argvars[2].v_type != VarType::VarDict
             && argvars[2].v_type != VarType::VarUnknown
         {
-            semsg!(gettext(e_invarg2), c"expected dictionary");
+            semsg!(gettext(E_INVARG2), c"expected dictionary");
             return;
         }
 
@@ -8186,7 +8186,7 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             } else if crate::memory::cstr_as_bytes(mode) == b"pipe" {
                 false
             } else {
-                semsg!(gettext(e_invarg2), c"invalid mode");
+                semsg!(gettext(E_INVARG2), c"invalid mode");
                 break 'cleanup;
             };
 
@@ -8200,7 +8200,7 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
                     break 'cleanup;
                 }
                 on_data.buffered = tv_dict_get_number(unsafe { opts.as_ref() }, c"data_buffered") != 0;
-                if on_data.buffered && on_data.cb.cb_type() == kCallbackNone {
+                if on_data.buffered && on_data.cb.cb_type() == K_CALLBACK_NONE_CONST {
                     on_data.self_dict = opts;
                 }
             }
@@ -8224,7 +8224,7 @@ pub fn f_stdioopen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
      {
         if argvars[0].v_type != VarType::VarDict {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -8240,14 +8240,14 @@ pub fn f_stdioopen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
 
         on_stdin.buffered = tv_dict_get_number(unsafe { opts.as_ref() }, c"stdin_buffered") != 0;
-        if on_stdin.buffered && on_stdin.cb.cb_type() == kCallbackNone {
+        if on_stdin.buffered && on_stdin.cb.cb_type() == K_CALLBACK_NONE_CONST {
             on_stdin.self_dict = opts;
         }
 
         let mut error: *const c_char = ptr::null();
         let id = channel_from_stdio(rpc, on_stdin, &mut error);
         if id == 0 {
-            semsg!(e_stdiochan2, error);
+            semsg!(E_STDIOCHAN2, error);
         }
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(id as Varnumber);
@@ -8288,7 +8288,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
         let ws = curwin_mut().w_s_ptr();
         if crate::memory::cstr_is_empty((*ws).b_p_spl) {
-            emsg(gettext(e_no_spell));
+            emsg(gettext(E_NO_SPELL));
             curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
             return;
         }
@@ -8353,7 +8353,7 @@ pub fn f_spellsuggest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
         let ws = curwin_mut().w_s_ptr();
         if crate::memory::cstr_is_empty((*ws).b_p_spl) {
-            emsg(gettext(e_no_spell));
+            emsg(gettext(E_NO_SPELL));
             curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
             return;
         }
@@ -8401,7 +8401,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
         let mut typeerr = false;
 
         let save_cpo = opt_vars().p_cpo;
-        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
+        opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
         let mut str_ = tv_get_string(&argvars[0]);
         let mut pat: *const c_char = ptr::null();
@@ -8419,7 +8419,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
             pat = c"[\\x01- ]\\+".as_ptr();
         }
 
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
         if !typeerr {
             let mut regmatch = Regmatch {
@@ -8470,7 +8470,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
 fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut TypVal) {
     unsafe {
-        let list = tv_list_alloc(kListLenShouldKnow);
+        let list = tv_list_alloc(K_LIST_LEN_SHOULD_KNOW);
         rettv.v_type = VarType::VarList;
         rettv.vval = crate::eval::typval::TypvalVval::List(list);
         tv_list_ref(list.as_mut());
@@ -8729,7 +8729,7 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// "swapfilelist()" function
 pub fn f_swapfilelist(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-    tv_list_alloc_ret(rettv, kListLenUnknown);
+    tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
         recover_names(ptr::null_mut(), false, unsafe { &mut *rettv.vval.v_list() });
 }
 
@@ -8933,7 +8933,7 @@ pub fn f_synstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
         if lnum >= 1 && lnum <= curbuf_mut().b_ml.ml_line_count && col >= 0 && col <= ml_get_len(lnum)
         {
-            tv_list_alloc_ret(rettv, kListLenMayKnow);
+            tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
             syn_get_id(curwin_mut(), lnum, col, 0, None, 1);
 
             let mut i: c_int = 0;
@@ -8967,7 +8967,7 @@ pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
             }
         }
         if !wp.is_null() {
-            tv_list_alloc_ret(rettv, kListLenMayKnow);
+            tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
             while !wp.is_null() {
                 tv_list_append_number(
                      &mut *rettv.vval.v_list(),
@@ -8981,7 +8981,7 @@ pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 
 /// "tagfiles()" function
 pub fn f_tagfiles(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-    tv_list_alloc_ret(rettv, kListLenUnknown);
+    tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
         let mut fname = [0 as c_char; MAXPATHL];
 
         let mut first = true;
@@ -9006,7 +9006,7 @@ pub fn f_taglist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             fname = tv_get_string(&argvars[1]);
         }
         get_tags(
-            &mut *tv_list_alloc_ret(rettv, kListLenUnknown),
+            &mut *tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST),
             tag_pattern.cast_mut(),
             fname.cast_mut(),
         );
@@ -9017,7 +9017,7 @@ pub fn f_taglist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 pub fn f_timer_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
-        tv_list_alloc_ret(rettv, kListLenUnknown);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
         if !tv_check_for_opt_number_arg(argvars, 0) {
             return;
         }
@@ -9037,7 +9037,7 @@ pub fn f_timer_pause(argvars: &mut [TypVal], _unused: &mut TypVal, _fptr: EvalFu
 
     unsafe {
         if argvars[0].v_type != VarType::VarNumber {
-            emsg(gettext(e_number_exp));
+            emsg(gettext(E_NUMBER_EXP));
             return;
         }
         let paused = tv_get_bool(&argvars[1]) != 0;
@@ -9225,7 +9225,7 @@ pub fn f_xor(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 }
 
 use crate::api::buffer::VIML_INTERNAL_CALL;
-use crate::api::ui::{MAX_SCHAR_SIZE, kChannelPartAll};
+use crate::api::ui::{MAX_SCHAR_SIZE, K_CHANNEL_PART_ALL};
 use crate::arglist::{f_argc, f_argidx, f_arglistid, f_argv};
 use crate::change::MB_MAXCHAR;
 use crate::charset::NUL;
@@ -9235,7 +9235,7 @@ use crate::cmdexpand::{f_cmdcomplete_info, f_getcompletion, f_getcompletiontype}
 use crate::cmdhist::{f_histadd, f_histdel, f_histget, f_histnr};
 use crate::diff::{f_diff_filler, f_diff_hlID};
 use crate::digraph::{
-    f_digraph_get, f_digraph_getlist, f_digraph_set, f_digraph_setlist, kBoolVarFalse, kBoolVarTrue,
+    f_digraph_get, f_digraph_getlist, f_digraph_set, f_digraph_setlist, K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST,
 };
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HLF_COUNT, SMT_ALL};
 use crate::eval::buffer::{
@@ -9258,7 +9258,7 @@ use crate::eval::list::{
 };
 use crate::eval::typval::{
     f_blob2list, f_has_key, f_items, f_join, f_keys, f_list2blob, f_list2str, f_sort, f_uniq,
-    f_values, kCallbackNone,
+    f_values, K_CALLBACK_NONE_CONST,
 };
 use crate::eval::vars::{
     f_getbufvar, f_gettabvar, f_gettabwinvar, f_getwinvar, f_setbufvar, f_settabvar,
@@ -11012,7 +11012,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[1]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[1]),
     },
     EvalFuncDef {
         name: Some(c"nvim_cmd"),
@@ -11021,7 +11021,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[2]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[2]),
     },
     EvalFuncDef {
         name: Some(c"nvim_put"),
@@ -11030,7 +11030,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[3]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[3]),
     },
     EvalFuncDef {
         name: Some(c"submatch"),
@@ -11354,7 +11354,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[7]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[7]),
     },
     EvalFuncDef {
         name: Some(c"nvim_eval"),
@@ -11363,7 +11363,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[9]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[9]),
     },
     EvalFuncDef {
         name: Some(c"nvim_exec"),
@@ -11372,7 +11372,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[10]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[10]),
     },
     EvalFuncDef {
         name: Some(c"sign_jump"),
@@ -11930,7 +11930,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[11]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[11]),
     },
     EvalFuncDef {
         name: Some(c"pum_getpos"),
@@ -12020,7 +12020,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[12]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[12]),
     },
     EvalFuncDef {
         name: Some(c"substitute"),
@@ -12137,7 +12137,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[13]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[13]),
     },
     EvalFuncDef {
         name: Some(c"sign_place"),
@@ -12263,7 +12263,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[19]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[19]),
     },
     EvalFuncDef {
         name: Some(c"timer_pause"),
@@ -12443,7 +12443,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[14]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[14]),
     },
     EvalFuncDef {
         name: Some(c"settagstack"),
@@ -12524,7 +12524,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[18]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[18]),
     },
     EvalFuncDef {
         name: Some(c"screenchars"),
@@ -12650,7 +12650,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[15]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[15]),
     },
     EvalFuncDef {
         name: Some(c"preinserted"),
@@ -12713,7 +12713,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[29]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[29]),
     },
     EvalFuncDef {
         name: Some(c"nvim__ns_set"),
@@ -12722,7 +12722,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[30]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[30]),
     },
     EvalFuncDef {
         name: Some(c"nvim__redraw"),
@@ -12731,7 +12731,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[25]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[25]),
     },
     EvalFuncDef {
         name: Some(c"nvim__unpack"),
@@ -12740,7 +12740,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[28]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[28]),
     },
     EvalFuncDef {
         name: Some(c"gettabwinvar"),
@@ -12794,7 +12794,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[27]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[27]),
     },
     EvalFuncDef {
         name: Some(c"getcmdprompt"),
@@ -12812,7 +12812,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[26]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[26]),
     },
     EvalFuncDef {
         name: Some(c"complete_add"),
@@ -12866,7 +12866,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[31]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[31]),
     },
     EvalFuncDef {
         name: Some(c"tabpagewinnr"),
@@ -12992,7 +12992,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[32]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[32]),
     },
     EvalFuncDef {
         name: Some(c"spellsuggest"),
@@ -13055,7 +13055,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[22]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[22]),
     },
     EvalFuncDef {
         name: Some(c"sign_unplace"),
@@ -13073,7 +13073,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[37]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[37]),
     },
     EvalFuncDef {
         name: Some(c"timer_stopall"),
@@ -13127,7 +13127,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[40]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[40]),
     },
     EvalFuncDef {
         name: Some(c"win_screenpos"),
@@ -13163,7 +13163,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[45]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[45]),
     },
     EvalFuncDef {
         name: Some(c"win_id2tabwin"),
@@ -13226,7 +13226,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[51]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[51]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_mark"),
@@ -13235,7 +13235,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[46]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[46]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_mode"),
@@ -13244,7 +13244,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[38]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[38]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_proc"),
@@ -13253,7 +13253,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[43]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[43]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_vvar"),
@@ -13262,7 +13262,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[34]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[34]),
     },
     EvalFuncDef {
         name: Some(c"searchpairpos"),
@@ -13298,7 +13298,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[41]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[41]),
     },
     EvalFuncDef {
         name: Some(c"setcellwidths"),
@@ -13325,7 +13325,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[42]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[42]),
     },
     EvalFuncDef {
         name: Some(c"win_splitmove"),
@@ -13379,7 +13379,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[35]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[35]),
     },
     EvalFuncDef {
         name: Some(c"nvim_strwidth"),
@@ -13388,7 +13388,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[47]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[47]),
     },
     EvalFuncDef {
         name: Some(c"assert_nobeep"),
@@ -13424,7 +13424,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[39]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[39]),
     },
     EvalFuncDef {
         name: Some(c"reg_executing"),
@@ -13442,7 +13442,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[53]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[53]),
     },
     EvalFuncDef {
         name: Some(c"nvim__id_float"),
@@ -13451,7 +13451,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[54]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[54]),
     },
     EvalFuncDef {
         name: Some(c"dictwatcheradd"),
@@ -13514,7 +13514,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[56]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[56]),
     },
     EvalFuncDef {
         name: Some(c"garbagecollect"),
@@ -13532,7 +13532,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[59]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[59]),
     },
     EvalFuncDef {
         name: Some(c"sign_getplaced"),
@@ -13559,7 +13559,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[60]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[60]),
     },
     EvalFuncDef {
         name: Some(c"nvim_list_wins"),
@@ -13568,7 +13568,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[61]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[61]),
     },
     EvalFuncDef {
         name: Some(c"isabsolutepath"),
@@ -13586,7 +13586,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[62]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[62]),
     },
     EvalFuncDef {
         name: Some(c"nvim_out_write"),
@@ -13595,7 +13595,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[63]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[63]),
     },
     EvalFuncDef {
         name: Some(c"nvim_parse_cmd"),
@@ -13604,7 +13604,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[64]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[64]),
     },
     EvalFuncDef {
         name: Some(c"sign_placelist"),
@@ -13622,7 +13622,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[68]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[68]),
     },
     EvalFuncDef {
         name: Some(c"assert_inrange"),
@@ -13640,7 +13640,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[72]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[72]),
     },
     EvalFuncDef {
         name: Some(c"windowsversion"),
@@ -13658,7 +13658,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[100]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[100]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_attach"),
@@ -13667,7 +13667,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[83]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[83]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_delete"),
@@ -13676,7 +13676,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[84]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[84]),
     },
     EvalFuncDef {
         name: Some(c"nvim_create_buf"),
@@ -13685,7 +13685,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[82]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[82]),
     },
     EvalFuncDef {
         name: Some(c"getcmdcompltype"),
@@ -13712,7 +13712,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[91]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[91]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_keymap"),
@@ -13721,7 +13721,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[96]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[96]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_option"),
@@ -13730,7 +13730,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[97]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[97]),
     },
     EvalFuncDef {
         name: Some(c"sign_getdefined"),
@@ -13748,7 +13748,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[95]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[95]),
     },
     EvalFuncDef {
         name: Some(c"digraph_getlist"),
@@ -13775,7 +13775,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[98]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[98]),
     },
     EvalFuncDef {
         name: Some(c"nvim_set_option"),
@@ -13784,7 +13784,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[99]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[99]),
     },
     EvalFuncDef {
         name: Some(c"strdisplaywidth"),
@@ -13829,7 +13829,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[92]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[92]),
     },
     EvalFuncDef {
         name: Some(c"highlight_exists"),
@@ -13847,7 +13847,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[108]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[108]),
     },
     EvalFuncDef {
         name: Some(c"sign_unplacelist"),
@@ -13883,7 +13883,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[109]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[109]),
     },
     EvalFuncDef {
         name: Some(c"setcursorcharpos"),
@@ -13901,7 +13901,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[124]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[124]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_del_var"),
@@ -13910,7 +13910,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[111]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[111]),
     },
     EvalFuncDef {
         name: Some(c"nvim__screenshot"),
@@ -13919,7 +13919,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[121]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[121]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_var"),
@@ -13928,7 +13928,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[125]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[125]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_get_buf"),
@@ -13937,7 +13937,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[112]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[112]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_get_var"),
@@ -13946,7 +13946,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[113]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[113]),
     },
     EvalFuncDef {
         name: Some(c"prompt_appendbuf"),
@@ -13964,7 +13964,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[126]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[126]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_set_buf"),
@@ -13973,7 +13973,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[114]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[114]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_set_var"),
@@ -13982,7 +13982,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[115]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[115]),
     },
     EvalFuncDef {
         name: Some(c"cmdcomplete_info"),
@@ -14000,7 +14000,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[116]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[116]),
     },
     EvalFuncDef {
         name: Some(c"prompt_getprompt"),
@@ -14036,7 +14036,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[107]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[107]),
     },
     EvalFuncDef {
         name: Some(c"nvim_err_writeln"),
@@ -14045,7 +14045,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[119]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[119]),
     },
     EvalFuncDef {
         name: Some(c"nvim__get_lib_dir"),
@@ -14054,7 +14054,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[137]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[137]),
     },
     EvalFuncDef {
         name: Some(c"nvim__get_runtime"),
@@ -14063,7 +14063,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[146]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[146]),
     },
     EvalFuncDef {
         name: Some(c"nvim_load_context"),
@@ -14072,7 +14072,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[140]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[140]),
     },
     EvalFuncDef {
         name: Some(c"nvim_open_tabpage"),
@@ -14081,7 +14081,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[134]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[134]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_autocmds"),
@@ -14090,7 +14090,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[153]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[153]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_commands"),
@@ -14099,7 +14099,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[156]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[156]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_del_mark"),
@@ -14108,7 +14108,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[129]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[129]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_mark"),
@@ -14117,7 +14117,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[130]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[130]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_name"),
@@ -14126,7 +14126,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[131]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[131]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_text"),
@@ -14135,7 +14135,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[138]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[138]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_hl_by_id"),
@@ -14144,7 +14144,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[128]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[128]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_is_valid"),
@@ -14153,7 +14153,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[150]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[150]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_is_valid"),
@@ -14162,7 +14162,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[151]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[151]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_set_mark"),
@@ -14171,7 +14171,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[132]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[132]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_set_name"),
@@ -14180,7 +14180,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[133]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[133]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_set_text"),
@@ -14189,7 +14189,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[139]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[139]),
     },
     EvalFuncDef {
         name: Some(c"getcompletiontype"),
@@ -14207,7 +14207,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[172]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[172]),
     },
     EvalFuncDef {
         name: Some(c"nvim__inspect_cell"),
@@ -14216,7 +14216,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[173]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[173]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_lines"),
@@ -14225,7 +14225,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[168]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[168]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_is_loaded"),
@@ -14234,7 +14234,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[170]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[170]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_set_lines"),
@@ -14243,7 +14243,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[175]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[175]),
     },
     EvalFuncDef {
         name: Some(c"nvim_call_function"),
@@ -14252,7 +14252,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[160]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[160]),
     },
     EvalFuncDef {
         name: Some(c"nvim_exec_autocmds"),
@@ -14261,7 +14261,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[161]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[161]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_chan_info"),
@@ -14270,7 +14270,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[163]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[163]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_color_map"),
@@ -14279,7 +14279,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[164]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[164]),
     },
     EvalFuncDef {
         name: Some(c"nvim_list_tabpages"),
@@ -14288,7 +14288,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[162]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[162]),
     },
     EvalFuncDef {
         name: Some(c"win_move_separator"),
@@ -14315,7 +14315,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[169]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[169]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_set_hl_ns"),
@@ -14324,7 +14324,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[176]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[176]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_set_width"),
@@ -14333,7 +14333,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[177]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[177]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_hl_by_name"),
@@ -14342,7 +14342,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[180]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[180]),
     },
     EvalFuncDef {
         name: Some(c"nvim_set_hl_ns_fast"),
@@ -14351,7 +14351,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[181]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[181]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_line_count"),
@@ -14360,7 +14360,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[182]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[182]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_del_keymap"),
@@ -14369,7 +14369,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[183]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[183]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_keymap"),
@@ -14378,7 +14378,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[184]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[184]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_set_keymap"),
@@ -14387,7 +14387,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[185]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[185]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_get_height"),
@@ -14396,7 +14396,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[186]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[186]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_set_height"),
@@ -14405,7 +14405,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[187]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[187]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_offset"),
@@ -14414,7 +14414,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[188]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[188]),
     },
     EvalFuncDef {
         name: Some(c"nvim_create_augroup"),
@@ -14423,7 +14423,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[189]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[189]),
     },
     EvalFuncDef {
         name: Some(c"nvim_clear_autocmds"),
@@ -14432,7 +14432,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[192]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[192]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_get_config"),
@@ -14441,7 +14441,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[193]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[193]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_set_config"),
@@ -14450,7 +14450,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[194]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[194]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_option"),
@@ -14459,7 +14459,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[195]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[195]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_set_option"),
@@ -14468,7 +14468,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[196]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[196]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_namespaces"),
@@ -14477,7 +14477,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[197]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[197]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_get_option"),
@@ -14486,7 +14486,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[198]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[198]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_set_option"),
@@ -14495,7 +14495,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[199]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[199]),
     },
     EvalFuncDef {
         name: Some(c"prompt_setinterrupt"),
@@ -14522,7 +14522,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[200]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[200]),
     },
     EvalFuncDef {
         name: Some(c"test_write_list_log"),
@@ -14540,7 +14540,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[201]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[201]),
     },
     EvalFuncDef {
         name: Some(c"nvim_command_output"),
@@ -14549,7 +14549,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[202]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[202]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_get_cursor"),
@@ -14558,7 +14558,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[203]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[203]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_get_number"),
@@ -14567,7 +14567,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[204]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[204]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_set_cursor"),
@@ -14576,7 +14576,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[205]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[205]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_del_extmark"),
@@ -14585,7 +14585,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[206]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[206]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_set_extmark"),
@@ -14594,7 +14594,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[207]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[207]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_get_tabpage"),
@@ -14603,7 +14603,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[208]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[208]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_current_buf"),
@@ -14612,7 +14612,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[209]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[209]),
     },
     EvalFuncDef {
         name: Some(c"nvim_set_current_buf"),
@@ -14621,7 +14621,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[210]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[210]),
     },
     EvalFuncDef {
         name: Some(c"nvim_set_current_dir"),
@@ -14630,7 +14630,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[211]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[211]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_text_height"),
@@ -14639,7 +14639,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[213]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[213]),
     },
     EvalFuncDef {
         name: Some(c"nvim_eval_statusline"),
@@ -14648,7 +14648,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[214]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[214]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_option_info"),
@@ -14657,7 +14657,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[218]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[218]),
     },
     EvalFuncDef {
         name: Some(c"nvim_tabpage_del_var"),
@@ -14666,7 +14666,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[221]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[221]),
     },
     EvalFuncDef {
         name: Some(c"nvim_tabpage_get_var"),
@@ -14675,7 +14675,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[222]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[222]),
     },
     EvalFuncDef {
         name: Some(c"nvim_tabpage_set_var"),
@@ -14684,7 +14684,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[223]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[223]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_current_win"),
@@ -14693,7 +14693,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[224]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[224]),
     },
     EvalFuncDef {
         name: Some(c"nvim_set_current_win"),
@@ -14702,7 +14702,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[225]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[225]),
     },
     EvalFuncDef {
         name: Some(c"nvim_tabpage_get_win"),
@@ -14711,7 +14711,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[226]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[226]),
     },
     EvalFuncDef {
         name: Some(c"nvim_tabpage_set_win"),
@@ -14720,7 +14720,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[227]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[227]),
     },
     EvalFuncDef {
         name: Some(c"nvim_tabpage_is_valid"),
@@ -14729,7 +14729,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[244]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[244]),
     },
     EvalFuncDef {
         name: Some(c"nvim_del_current_line"),
@@ -14738,7 +14738,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[232]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[232]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_current_line"),
@@ -14747,7 +14747,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[235]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[235]),
     },
     EvalFuncDef {
         name: Some(c"nvim_set_current_line"),
@@ -14756,7 +14756,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[242]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[242]),
     },
     EvalFuncDef {
         name: Some(c"nvim_parse_expression"),
@@ -14765,7 +14765,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[239]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[239]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_commands"),
@@ -14774,7 +14774,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[229]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[229]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_extmarks"),
@@ -14783,7 +14783,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[230]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[230]),
     },
     EvalFuncDef {
         name: Some(c"nvim_win_get_position"),
@@ -14792,7 +14792,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[245]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[245]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_option_info2"),
@@ -14801,7 +14801,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[236]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[236]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_option_value"),
@@ -14810,7 +14810,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[237]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[237]),
     },
     EvalFuncDef {
         name: Some(c"nvim_set_option_value"),
@@ -14819,7 +14819,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[243]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[243]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_runtime_file"),
@@ -14828,7 +14828,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[238]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[238]),
     },
     EvalFuncDef {
         name: Some(c"nvim__runtime_inspect"),
@@ -14837,7 +14837,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[228]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[228]),
     },
     EvalFuncDef {
         name: Some(c"nvim_create_namespace"),
@@ -14846,7 +14846,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[231]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[231]),
     },
     EvalFuncDef {
         name: Some(c"nvim_del_user_command"),
@@ -14855,7 +14855,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[233]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[233]),
     },
     EvalFuncDef {
         name: Some(c"nvim_replace_termcodes"),
@@ -14864,7 +14864,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[255]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[255]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_add_highlight"),
@@ -14873,7 +14873,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[252]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[252]),
     },
     EvalFuncDef {
         name: Some(c"nvim_tabpage_list_wins"),
@@ -14882,7 +14882,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[256]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[256]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_hl_id_by_name"),
@@ -14891,7 +14891,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[260]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[260]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_color_by_name"),
@@ -14900,7 +14900,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[259]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[259]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_proc_children"),
@@ -14909,7 +14909,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[254]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[254]),
     },
     EvalFuncDef {
         name: Some(c"nvim_del_augroup_by_id"),
@@ -14918,7 +14918,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[246]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[246]),
     },
     EvalFuncDef {
         name: Some(c"nvim_call_dict_function"),
@@ -14927,7 +14927,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[261]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[261]),
     },
     EvalFuncDef {
         name: Some(c"test_garbagecollect_now"),
@@ -14945,7 +14945,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[264]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[264]),
     },
     EvalFuncDef {
         name: Some(c"nvim_tabpage_get_number"),
@@ -14954,7 +14954,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[265]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[265]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_changedtick"),
@@ -14963,7 +14963,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[267]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[267]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_current_tabpage"),
@@ -14972,7 +14972,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[268]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[268]),
     },
     EvalFuncDef {
         name: Some(c"nvim_set_current_tabpage"),
@@ -14981,7 +14981,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[269]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[269]),
     },
     EvalFuncDef {
         name: Some(c"nvim_del_augroup_by_name"),
@@ -14990,7 +14990,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[270]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[270]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_clear_highlight"),
@@ -14999,7 +14999,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[271]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[271]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_clear_namespace"),
@@ -15008,7 +15008,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[272]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[272]),
     },
     EvalFuncDef {
         name: Some(c"nvim_create_user_command"),
@@ -15017,7 +15017,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[273]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[273]),
     },
     EvalFuncDef {
         name: Some(c"nvim__buf_debug_extmarks"),
@@ -15026,7 +15026,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[274]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[274]),
     },
     EvalFuncDef {
         name: Some(c"nvim_get_all_options_info"),
@@ -15035,7 +15035,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[275]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[275]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_del_user_command"),
@@ -15044,7 +15044,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[276]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[276]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_set_virtual_text"),
@@ -15053,7 +15053,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[277]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[277]),
     },
     EvalFuncDef {
         name: Some(c"nvim__set_restart_on_crash"),
@@ -15062,7 +15062,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[278]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[278]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_get_extmark_by_id"),
@@ -15071,7 +15071,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[279]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[279]),
     },
     EvalFuncDef {
         name: Some(c"nvim_select_popupmenu_item"),
@@ -15080,7 +15080,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[280]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[280]),
     },
     EvalFuncDef {
         name: Some(c"nvim__invalidate_glyph_cache"),
@@ -15089,7 +15089,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[281]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[281]),
     },
     EvalFuncDef {
         name: Some(c"nvim_buf_create_user_command"),
@@ -15098,7 +15098,7 @@ static FUNCTIONS: [EvalFuncDef; 643] = [
         base_arg: BASE_NONE,
         fast: false,
         func: viml_fn!(api_wrapper),
-        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::method_handlers[282]),
+        data: EvalFuncData::ApiHandler(&crate::api::private::dispatch::METHOD_HANDLERS[282]),
     },
     EvalFuncDef {
         name: None,
@@ -15140,9 +15140,9 @@ mod tests {
             assert!(non_zero_arg(&tv));
 
             tv.v_type = VarType::VarBool;
-            tv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
+            tv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_FALSE_CONST);
             assert!(!non_zero_arg(&tv));
-            tv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
+            tv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
             assert!(non_zero_arg(&tv));
     }
 

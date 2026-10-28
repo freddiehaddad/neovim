@@ -9,7 +9,7 @@ use crate::optionstr::{OptIndex, OptSchemaItem, OptSchemaKind};
 
 use crate::globals::GlobalState;
 
-pub static empty_string_option: GlobalState<[c_char; 1]> = GlobalState::new([0 as c_char; 1]);
+pub static EMPTY_STRING_OPTION: GlobalState<[c_char; 1]> = GlobalState::new([0 as c_char; 1]);
 
 pub struct OptionVars {
     pub p_ambw: *mut c_char,
@@ -672,7 +672,7 @@ impl OptionVars {
             p_ve: ptr::null_mut(),
             ve_flags: 0,
             p_verbose: 0,
-            p_vfile: empty_string_option.as_ptr().cast(),
+            p_vfile: EMPTY_STRING_OPTION.as_ptr().cast(),
             p_warn: 0,
             p_wop: ptr::null_mut(),
             wop_flags: 0,
@@ -708,27 +708,27 @@ pub fn opt_vars() -> &'static mut OptionVars {
     unsafe { &mut *OPT_VARS.as_ptr() }
 }
 
-pub static buf_opt_idx: [OptIndex; 93] = [
+pub static BUF_OPT_IDX: [OptIndex; 93] = [
     6, 9, 10, 16, 21, 22, 27, 28, 29, 30, 35, 38, 39, 40, 41, 42, 48, 49, 51, 52, 54, 55, 60, 67,
     69, 71, 81, 82, 84, 87, 90, 92, 94, 97, 99, 100, 114, 115, 116, 117, 118, 119, 121, 122, 143,
     144, 146, 147, 149, 150, 151, 155, 159, 161, 172, 173, 174, 180, 181, 182, 192, 195, 196, 206,
     209, 219, 220, 232, 233, 247, 270, 283, 286, 288, 289, 290, 291, 300, 301, 303, 304, 308, 310,
     311, 314, 322, 323, 324, 336, 337, 341, 342, 373,
 ];
-pub static opt_ambw_values: [&std::ffi::CStr; 2] = [c"single", c"double"];
-pub static opt_bg_values: [&std::ffi::CStr; 2] = [c"light", c"dark"];
-pub static opt_bs_values: [&std::ffi::CStr; 4] = [
+pub static OPT_AMBW_VALUES: [&std::ffi::CStr; 2] = [c"single", c"double"];
+pub static OPT_BG_VALUES: [&std::ffi::CStr; 2] = [c"light", c"dark"];
+pub static OPT_BS_VALUES: [&std::ffi::CStr; 4] = [
     c"indent",
     c"eol",
     c"start",
     c"nostop"];
-pub static opt_bkc_values: [&std::ffi::CStr; 5] = [
+pub static OPT_BKC_VALUES: [&std::ffi::CStr; 5] = [
     c"yes",
     c"auto",
     c"no",
     c"breaksymlink",
     c"breakhardlink"];
-pub static opt_bo_values: [&std::ffi::CStr; 20] = [
+pub static OPT_BO_VALUES: [&std::ffi::CStr; 20] = [
     c"all",
     c"backspace",
     c"cursor",
@@ -749,13 +749,13 @@ pub static opt_bo_values: [&std::ffi::CStr; 20] = [
     c"spell",
     c"term",
     c"wildmode"];
-pub static opt_briopt_values: [&std::ffi::CStr; 5] = [
+pub static OPT_BRIOPT_VALUES: [&std::ffi::CStr; 5] = [
     c"shift:",
     c"min:",
     c"sbr",
     c"list:",
     c"column:"];
-pub static opt_briopt_schema: [OptSchemaItem; 5] = [
+pub static OPT_BRIOPT_SCHEMA: [OptSchemaItem; 5] = [
     OptSchemaItem {
         name: c"shift",
         kind: OptSchemaKind::OptSchemaSNum,
@@ -782,13 +782,13 @@ pub static opt_briopt_schema: [OptSchemaItem; 5] = [
         enum_values: &[],
     },
 ];
-pub static opt_bh_values: [&std::ffi::CStr; 5] = [
+pub static OPT_BH_VALUES: [&std::ffi::CStr; 5] = [
     c"",
     c"hide",
     c"unload",
     c"delete",
     c"wipe"];
-pub static opt_bt_values: [&std::ffi::CStr; 8] = [
+pub static OPT_BT_VALUES: [&std::ffi::CStr; 8] = [
     c"",
     c"acwrite",
     c"help",
@@ -797,9 +797,9 @@ pub static opt_bt_values: [&std::ffi::CStr; 8] = [
     c"quickfix",
     c"terminal",
     c"prompt"];
-pub static opt_cmp_values: [&std::ffi::CStr; 2] = [c"internal", c"keepascii"];
-pub static opt_cb_values: [&std::ffi::CStr; 2] = [c"unnamed", c"unnamedplus"];
-pub static opt_cpt_values: [&std::ffi::CStr; 15] = [
+pub static OPT_CMP_VALUES: [&std::ffi::CStr; 2] = [c"internal", c"keepascii"];
+pub static OPT_CB_VALUES: [&std::ffi::CStr; 2] = [c"unnamed", c"unnamedplus"];
+pub static OPT_CPT_VALUES: [&std::ffi::CStr; 15] = [
     c".",
     c"w",
     c"b",
@@ -815,7 +815,7 @@ pub static opt_cpt_values: [&std::ffi::CStr; 15] = [
     c"f",
     c"F",
     c"o"];
-pub static opt_cot_values: [&std::ffi::CStr; 13] = [
+pub static OPT_COT_VALUES: [&std::ffi::CStr; 13] = [
     c"fuzzy",
     c"longest",
     c"menu",
@@ -829,20 +829,20 @@ pub static opt_cot_values: [&std::ffi::CStr; 13] = [
     c"preinsert",
     c"preselect",
     c"preview"];
-pub static opt_csl_values: [&std::ffi::CStr; 3] = [
+pub static OPT_CSL_VALUES: [&std::ffi::CStr; 3] = [
     c"",
     c"slash",
     c"backslash"];
-pub static opt_culopt_values: [&std::ffi::CStr; 4] = [
+pub static OPT_CULOPT_VALUES: [&std::ffi::CStr; 4] = [
     c"line",
     c"screenline",
     c"number",
     c"both"];
-pub static opt_debug_values: [&std::ffi::CStr; 3] = [
+pub static OPT_DEBUG_VALUES: [&std::ffi::CStr; 3] = [
     c"msg",
     c"throw",
     c"beep"];
-pub static opt_dip_values: [&std::ffi::CStr; 19] = [
+pub static OPT_DIP_VALUES: [&std::ffi::CStr; 19] = [
     c"filler",
     c"anchor",
     c"context:",
@@ -862,17 +862,17 @@ pub static opt_dip_values: [&std::ffi::CStr; 19] = [
     c"algorithm:",
     c"inline:",
     c"linematch:"];
-pub static opt_dip_algorithm_values: [&std::ffi::CStr; 4] = [
+pub static OPT_DIP_ALGORITHM_VALUES: [&std::ffi::CStr; 4] = [
     c"myers",
     c"minimal",
     c"patience",
     c"histogram"];
-pub static opt_dip_inline_values: [&std::ffi::CStr; 4] = [
+pub static OPT_DIP_INLINE_VALUES: [&std::ffi::CStr; 4] = [
     c"none",
     c"simple",
     c"char",
     c"word"];
-pub static opt_dip_schema: [OptSchemaItem; 19] = [
+pub static OPT_DIP_SCHEMA: [OptSchemaItem; 19] = [
     OptSchemaItem {
         name: c"filler",
         kind: OptSchemaKind::OptSchemaFlag,
@@ -956,12 +956,12 @@ pub static opt_dip_schema: [OptSchemaItem; 19] = [
     OptSchemaItem {
         name: c"algorithm",
         kind: OptSchemaKind::OptSchemaEnum,
-        enum_values: &opt_dip_algorithm_values,
+        enum_values: &OPT_DIP_ALGORITHM_VALUES,
     },
     OptSchemaItem {
         name: c"inline",
         kind: OptSchemaKind::OptSchemaEnum,
-        enum_values: &opt_dip_inline_values,
+        enum_values: &OPT_DIP_INLINE_VALUES,
     },
     OptSchemaItem {
         name: c"linematch",
@@ -969,21 +969,21 @@ pub static opt_dip_schema: [OptSchemaItem; 19] = [
         enum_values: &[],
     },
 ];
-pub static opt_dy_values: [&std::ffi::CStr; 4] = [
+pub static OPT_DY_VALUES: [&std::ffi::CStr; 4] = [
     c"lastline",
     c"truncate",
     c"uhex",
     c"msgsep"];
-pub static opt_ead_values: [&std::ffi::CStr; 3] = [
+pub static OPT_EAD_VALUES: [&std::ffi::CStr; 3] = [
     c"both",
     c"ver",
     c"hor"];
-pub static opt_ff_values: [&std::ffi::CStr; 3] = [
+pub static OPT_FF_VALUES: [&std::ffi::CStr; 3] = [
     c"unix",
     c"dos",
     c"mac"];
-pub static opt_fcl_values: [&std::ffi::CStr; 1] = [c"all"];
-pub static opt_fdc_values: [&std::ffi::CStr; 20] = [
+pub static OPT_FCL_VALUES: [&std::ffi::CStr; 1] = [c"all"];
+pub static OPT_FDC_VALUES: [&std::ffi::CStr; 20] = [
     c"auto",
     c"auto:1",
     c"auto:2",
@@ -1004,14 +1004,14 @@ pub static opt_fdc_values: [&std::ffi::CStr; 20] = [
     c"7",
     c"8",
     c"9"];
-pub static opt_fdm_values: [&std::ffi::CStr; 6] = [
+pub static OPT_FDM_VALUES: [&std::ffi::CStr; 6] = [
     c"manual",
     c"expr",
     c"marker",
     c"indent",
     c"syntax",
     c"diff"];
-pub static opt_fdo_values: [&std::ffi::CStr; 11] = [
+pub static OPT_FDO_VALUES: [&std::ffi::CStr; 11] = [
     c"all",
     c"block",
     c"hor",
@@ -1023,17 +1023,17 @@ pub static opt_fdo_values: [&std::ffi::CStr; 11] = [
     c"insert",
     c"undo",
     c"jump"];
-pub static opt_icm_values: [&std::ffi::CStr; 3] = [
+pub static OPT_ICM_VALUES: [&std::ffi::CStr; 3] = [
     c"nosplit",
     c"split",
     c""];
-pub static opt_jop_values: [&std::ffi::CStr; 3] = [
+pub static OPT_JOP_VALUES: [&std::ffi::CStr; 3] = [
     c"stack",
     c"view",
     c"clean"];
-pub static opt_km_values: [&std::ffi::CStr; 2] = [c"startsel", c"stopsel"];
-pub static opt_lop_values: [&std::ffi::CStr; 2] = [c"expr:0", c"expr:1"];
-pub static opt_mopt_values: [&std::ffi::CStr; 7] = [
+pub static OPT_KM_VALUES: [&std::ffi::CStr; 2] = [c"startsel", c"stopsel"];
+pub static OPT_LOP_VALUES: [&std::ffi::CStr; 2] = [c"expr:0", c"expr:1"];
+pub static OPT_MOPT_VALUES: [&std::ffi::CStr; 7] = [
     c"hit-enter",
     c"history:",
     c"maxheight:",
@@ -1041,8 +1041,8 @@ pub static opt_mopt_values: [&std::ffi::CStr; 7] = [
     c"progress:",
     c"timeout:",
     c"wait:"];
-pub static opt_mopt_progress_values: [&std::ffi::CStr; 2] = [c"", c"c"];
-pub static opt_mopt_schema: [OptSchemaItem; 7] = [
+pub static OPT_MOPT_PROGRESS_VALUES: [&std::ffi::CStr; 2] = [c"", c"c"];
+pub static OPT_MOPT_SCHEMA: [OptSchemaItem; 7] = [
     OptSchemaItem {
         name: c"hit-enter",
         kind: OptSchemaKind::OptSchemaFlag,
@@ -1066,7 +1066,7 @@ pub static opt_mopt_schema: [OptSchemaItem; 7] = [
     OptSchemaItem {
         name: c"progress",
         kind: OptSchemaKind::OptSchemaEnum,
-        enum_values: &opt_mopt_progress_values,
+        enum_values: &OPT_MOPT_PROGRESS_VALUES,
     },
     OptSchemaItem {
         name: c"timeout",
@@ -1079,12 +1079,12 @@ pub static opt_mopt_schema: [OptSchemaItem; 7] = [
         enum_values: &[],
     },
 ];
-pub static opt_mousem_values: [&std::ffi::CStr; 3] = [
+pub static OPT_MOUSEM_VALUES: [&std::ffi::CStr; 3] = [
     c"extend",
     c"popup",
     c"popup_setpos"];
-pub static opt_mousescroll_values: [&std::ffi::CStr; 2] = [c"hor:", c"ver:"];
-pub static opt_mousescroll_schema: [OptSchemaItem; 2] = [
+pub static OPT_MOUSESCROLL_VALUES: [&std::ffi::CStr; 2] = [c"hor:", c"ver:"];
+pub static OPT_MOUSESCROLL_SCHEMA: [OptSchemaItem; 2] = [
     OptSchemaItem {
         name: c"hor",
         kind: OptSchemaKind::OptSchemaNum,
@@ -1096,18 +1096,18 @@ pub static opt_mousescroll_schema: [OptSchemaItem; 2] = [
         enum_values: &[],
     },
 ];
-pub static opt_nf_values: [&std::ffi::CStr; 6] = [
+pub static OPT_NF_VALUES: [&std::ffi::CStr; 6] = [
     c"bin",
     c"octal",
     c"hex",
     c"alpha",
     c"unsigned",
     c"blank"];
-pub static opt_pvp_values: [&std::ffi::CStr; 3] = [
+pub static OPT_PVP_VALUES: [&std::ffi::CStr; 3] = [
     c"height:",
     c"width:",
     c"border:"];
-pub static opt_pvp_border_values: [&std::ffi::CStr; 7] = [
+pub static OPT_PVP_BORDER_VALUES: [&std::ffi::CStr; 7] = [
     c"double",
     c"single",
     c"shadow",
@@ -1115,7 +1115,7 @@ pub static opt_pvp_border_values: [&std::ffi::CStr; 7] = [
     c"solid",
     c"bold",
     c"none"];
-pub static opt_pvp_schema: [OptSchemaItem; 3] = [
+pub static OPT_PVP_SCHEMA: [OptSchemaItem; 3] = [
     OptSchemaItem {
         name: c"height",
         kind: OptSchemaKind::OptSchemaNum,
@@ -1129,10 +1129,10 @@ pub static opt_pvp_schema: [OptSchemaItem; 3] = [
     OptSchemaItem {
         name: c"border",
         kind: OptSchemaKind::OptSchemaEnum,
-        enum_values: &opt_pvp_border_values,
+        enum_values: &OPT_PVP_BORDER_VALUES,
     },
 ];
-pub static opt_pumborder_values: [&std::ffi::CStr; 8] = [
+pub static OPT_PUMBORDER_VALUES: [&std::ffi::CStr; 8] = [
     c"",
     c"double",
     c"single",
@@ -1141,27 +1141,27 @@ pub static opt_pumborder_values: [&std::ffi::CStr; 8] = [
     c"solid",
     c"bold",
     c"none"];
-pub static opt_rdb_values: [&std::ffi::CStr; 6] = [
+pub static OPT_RDB_VALUES: [&std::ffi::CStr; 6] = [
     c"compositor",
     c"nothrottle",
     c"invalid",
     c"nodelta",
     c"line",
     c"flush"];
-pub static opt_rlc_values: [&std::ffi::CStr; 1] = [c"search"];
-pub static opt_sbo_values: [&std::ffi::CStr; 3] = [
+pub static OPT_RLC_VALUES: [&std::ffi::CStr; 1] = [c"search"];
+pub static OPT_SBO_VALUES: [&std::ffi::CStr; 3] = [
     c"ver",
     c"hor",
     c"jump"];
-pub static opt_sel_values: [&std::ffi::CStr; 3] = [
+pub static OPT_SEL_VALUES: [&std::ffi::CStr; 3] = [
     c"inclusive",
     c"exclusive",
     c"old"];
-pub static opt_slm_values: [&std::ffi::CStr; 3] = [
+pub static OPT_SLM_VALUES: [&std::ffi::CStr; 3] = [
     c"mouse",
     c"key",
     c"cmd"];
-pub static opt_ssop_values: [&std::ffi::CStr; 18] = [
+pub static OPT_SSOP_VALUES: [&std::ffi::CStr; 18] = [
     c"buffers",
     c"winpos",
     c"resize",
@@ -1180,11 +1180,11 @@ pub static opt_ssop_values: [&std::ffi::CStr; 18] = [
     c"tabpages",
     c"terminal",
     c"skiprtp"];
-pub static opt_sloc_values: [&std::ffi::CStr; 3] = [
+pub static OPT_SLOC_VALUES: [&std::ffi::CStr; 3] = [
     c"last",
     c"statusline",
     c"tabline"];
-pub static opt_scl_values: [&std::ffi::CStr; 22] = [
+pub static OPT_SCL_VALUES: [&std::ffi::CStr; 22] = [
     c"yes",
     c"no",
     c"auto",
@@ -1207,33 +1207,33 @@ pub static opt_scl_values: [&std::ffi::CStr; 22] = [
     c"yes:8",
     c"yes:9",
     c"number"];
-pub static opt_spo_values: [&std::ffi::CStr; 2] = [c"camel", c"noplainbuffer"];
-pub static opt_sps_values: [&std::ffi::CStr; 6] = [
+pub static OPT_SPO_VALUES: [&std::ffi::CStr; 2] = [c"camel", c"noplainbuffer"];
+pub static OPT_SPS_VALUES: [&std::ffi::CStr; 6] = [
     c"best",
     c"fast",
     c"double",
     c"expr:",
     c"file:",
     c"timeout:"];
-pub static opt_spk_values: [&std::ffi::CStr; 3] = [
+pub static OPT_SPK_VALUES: [&std::ffi::CStr; 3] = [
     c"cursor",
     c"screen",
     c"topline"];
-pub static opt_swb_values: [&std::ffi::CStr; 6] = [
+pub static OPT_SWB_VALUES: [&std::ffi::CStr; 6] = [
     c"useopen",
     c"usetab",
     c"split",
     c"newtab",
     c"vsplit",
     c"uselast"];
-pub static opt_tcl_values: [&std::ffi::CStr; 2] = [c"left", c"uselast"];
-pub static opt_tc_values: [&std::ffi::CStr; 5] = [
+pub static OPT_TCL_VALUES: [&std::ffi::CStr; 2] = [c"left", c"uselast"];
+pub static OPT_TC_VALUES: [&std::ffi::CStr; 5] = [
     c"followic",
     c"ignore",
     c"match",
     c"followscs",
     c"smart"];
-pub static opt_tpf_values: [&std::ffi::CStr; 7] = [
+pub static OPT_TPF_VALUES: [&std::ffi::CStr; 7] = [
     c"BS",
     c"HT",
     c"FF",
@@ -1241,30 +1241,30 @@ pub static opt_tpf_values: [&std::ffi::CStr; 7] = [
     c"DEL",
     c"C0",
     c"C1"];
-pub static opt_ve_values: [&std::ffi::CStr; 6] = [
+pub static OPT_VE_VALUES: [&std::ffi::CStr; 6] = [
     c"block",
     c"insert",
     c"all",
     c"onemore",
     c"none",
     c"NONE"];
-pub static opt_wim_values: [&std::ffi::CStr; 6] = [
+pub static OPT_WIM_VALUES: [&std::ffi::CStr; 6] = [
     c"full",
     c"longest",
     c"list",
     c"lastused",
     c"noselect",
     c"noinsert"];
-pub static opt_wop_values: [&std::ffi::CStr; 4] = [
+pub static OPT_WOP_VALUES: [&std::ffi::CStr; 4] = [
     c"fuzzy",
     c"tagfile",
     c"pum",
     c"exacttext"];
-pub static opt_wak_values: [&std::ffi::CStr; 3] = [
+pub static OPT_WAK_VALUES: [&std::ffi::CStr; 3] = [
     c"yes",
     c"menu",
     c"no"];
-pub static opt_winborder_values: [&std::ffi::CStr; 8] = [
+pub static OPT_WINBORDER_VALUES: [&std::ffi::CStr; 8] = [
     c"",
     c"double",
     c"single",
@@ -1284,7 +1284,7 @@ mod tests {
             assert_eq!({ opt_vars().dy_escape_width }, 2);
             assert_eq!({ opt_vars().p_mousescroll_vert }, 3);
             assert_eq!({ opt_vars().p_mousescroll_hor }, 6);
-            assert_eq!({ (*empty_string_option.as_ptr())[0] }, 0);
+            assert_eq!({ (*EMPTY_STRING_OPTION.as_ptr())[0] }, 0);
             assert_eq!({ *opt_vars().p_vfile }, 0);
         }
     }

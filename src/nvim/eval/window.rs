@@ -34,10 +34,10 @@ use std::ffi::{CStr, c_char, c_int};
 use std::fmt::Write as _;
 use std::ptr;
 
-use crate::api::win_config::kCtxNoDisplay;
-use crate::api::window::{kCtxKeepCwd, kCtxValidate};
+use crate::api::win_config::K_CTX_NO_DISPLAY;
+use crate::api::window::{K_CTX_KEEP_CWD, K_CTX_VALIDATE};
 use crate::drawscreen::{FR_LEAF, FR_ROW};
-use crate::eval::{kListLenMayKnow, kListLenUnknown};
+use crate::eval::{K_LIST_LEN_MAY_KNOW_CONST, K_LIST_LEN_UNKNOWN_CONST};
 
 const E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE: &CStr =
     c"E1308: Cannot resize a window in another tab page";
@@ -295,7 +295,7 @@ fn get_framelayout(fr: Option<&Frame>, l: &mut TvList, outer: bool) {
                 tv_list_append_string( &mut *fr_list, c"col", 3);
             }
 
-            let win_list = tv_list_alloc(kListLenUnknown);
+            let win_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
             tv_list_append_list( &mut *fr_list, win_list);
             for child in frame_iter_ptr(fr.unwrap().fr_child) {
                 get_framelayout(child.as_ref(),  &mut *win_list, false);
@@ -362,7 +362,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> c_int {
             }
 
             if invalid_arg {
-                semsg!(gettext(e_invexpr2), arg);
+                semsg!(gettext(E_INVEXPR2), arg);
                 nr = 0;
             }
         } else if !win_has_winnr(&mut *twin, tp) {
@@ -471,7 +471,7 @@ fn get_tabpage_info(tp: &mut TabPageInfo, tp_idx: c_int) -> *mut TvDict {
 
         tv_dict_add_nr(&mut *dict, c"tabnr", tp_idx as Varnumber);
 
-        let l = tv_list_alloc(kListLenMayKnow);
+        let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         for wp in win_iter_mut(first_win_in_tab(tp)) {
             tv_list_append_number( &mut *l, wp.handle as Varnumber);
         }
@@ -494,7 +494,7 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             if argvars[0].v_type == VarType::VarUnknown {
                 1
             } else {
-                kListLenMayKnow
+                K_LIST_LEN_MAY_KNOW_CONST
             },
         );
 
@@ -526,7 +526,7 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     unsafe {
         let mut wparg: *mut WinInfoInfo = ptr::null_mut();
 
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
         if argvars[0].v_type != VarType::VarUnknown {
             wparg = win_id2wp(tv_get_number(&argvars[0]) as c_int);
@@ -591,7 +591,7 @@ pub fn f_tabpagenr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                         0
                     };
                 } else {
-                    semsg!(gettext(e_invexpr2), arg);
+                    semsg!(gettext(E_INVEXPR2), arg);
                 }
             }
         } else {
@@ -634,7 +634,7 @@ pub fn f_win_execute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             wp,
             tp,
             ptr::null_mut(),
-            kCtxNoDisplay | kCtxKeepCwd | kCtxValidate,
+            K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD | K_CTX_VALIDATE,
         ) {
             execute_common(argvars, rettv, 1);
         }
@@ -643,7 +643,7 @@ pub fn f_win_execute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// `win_findbuf()` function (`f_win_findbuf`).
 pub fn f_win_findbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
-    tv_list_alloc_ret(rettv, kListLenMayKnow);
+    tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
         win_findbuf(argvars, unsafe { &mut *rettv.vval.v_list() });
 }
 
@@ -776,7 +776,7 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             || !win_valid(targetwin)
             || (*targetwin).w_floating
         {
-            emsg(gettext(e_invalwindow));
+            emsg(gettext(E_INVALWINDOW));
             return;
         }
 
@@ -816,7 +816,7 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0);
             }
         } else {
-            emsg(gettext(e_auabort));
+            emsg(gettext(E_AUABORT));
         }
 
         if oldwin != curwin_ptr() && win_valid(oldwin) {

@@ -1,7 +1,7 @@
 //! Shell execution and wildcard expansion (`src/nvim/os/shell.c`).
 
 use crate::api::private::validate::NvimString;
-use crate::buffer::{kUIMessages, read_buffer_into};
+use crate::buffer::{K_UIMESSAGES, read_buffer_into};
 use crate::charset::{NL, NUL, skipwhite};
 #[cfg(unix)]
 use crate::charset::{ascii_iswhite, backslash_halve};
@@ -19,7 +19,7 @@ use crate::event::stream::{Stream, StreamCbData, stream_may_close};
 use crate::event::wstream::{
     wstream_init, wstream_new_vec_buffer, wstream_set_write_cb, wstream_write,
 };
-use crate::ex_cmds::{check_secure, kShellOptRead, kShellOptWrite, make_filter_cmd};
+use crate::ex_cmds::{check_secure, K_SHELL_OPT_READ, K_SHELL_OPT_WRITE, make_filter_cmd};
 use crate::ex_docmd::CAR;
 #[cfg(unix)]
 use crate::fileio::fopen;
@@ -27,7 +27,7 @@ use crate::fileio::{SEEK_END, SEEK_SET, fclose, fread, fseek, ftell, vim_tempnam
 use crate::globals::*;
 #[cfg(windows)]
 use crate::mbyte::CP_UTF8;
-use crate::mbyte::{utf8len_tab_zero, utfc_ptr2len_len};
+use crate::mbyte::{UTF8LEN_TAB_ZERO, utfc_ptr2len_len};
 use crate::memline::ml_append;
 use crate::memory::{xstrlcpy};
 #[cfg(unix)]
@@ -65,8 +65,8 @@ use std::ptr;
 
 use crate::autocmd::PROF_YES;
 use crate::change::TAB;
-use crate::channel::{STDERR_FILENO, STDOUT_FILENO, kProcTypeUv};
-use crate::diff::{kShellOptDoOut, kShellOptSilent};
+use crate::channel::{STDERR_FILENO, STDOUT_FILENO, K_PROC_TYPE_UV};
+use crate::diff::{K_SHELL_OPT_DO_OUT, K_SHELL_OPT_SILENT};
 use crate::eval::typval::Varnumber;
 use crate::state::MODE_EXTERNCMD;
 
@@ -76,8 +76,8 @@ const MAX_CHUNK_SIZE: usize = OUT_DATA_THRESHOLD / 2;
 #[cfg(unix)]
 const SHELL_SPECIAL: &CStr = c"\t \"&'$;<>()\\|\n";
 
-const kShellOptExpand: c_int = 2;
-const kShellOptHideMess: c_int = 64;
+const K_SHELL_OPT_EXPAND: c_int = 2;
+const K_SHELL_OPT_HIDE_MESS: c_int = 64;
 
 #[cfg(unix)]
 const STYLE_ECHO: c_int = 0;
@@ -192,7 +192,7 @@ pub fn os_expand_wildcards(
 
     unsafe {
         let mut extra_shell_arg: *mut c_char = ptr::null_mut();
-        let mut shellopts: c_int = kShellOptExpand | kShellOptSilent;
+        let mut shellopts: c_int = K_SHELL_OPT_EXPAND | K_SHELL_OPT_SILENT;
         let mut shell_style: c_int = STYLE_ECHO;
         let mut ampersand = false;
 
@@ -225,7 +225,7 @@ pub fn os_expand_wildcards(
         }
 
         let Some(tempname_cstr) = vim_tempname() else {
-            emsg(gettext(e_notmp));
+            emsg(gettext(E_NOTMP));
             return false;
         };
         let tempname = tempname_cstr.as_ptr();
@@ -372,7 +372,7 @@ pub fn os_expand_wildcards(
         }
 
         if (flags & EW_SILENT) != 0 {
-            shellopts |= kShellOptHideMess;
+            shellopts |= K_SHELL_OPT_HIDE_MESS;
         }
 
         if ampersand {
@@ -398,7 +398,7 @@ pub fn os_expand_wildcards(
             if (flags & EW_SILENT) == 0 {
                 msg_putchar(b'\n' as c_int);
                 g_st().cmdline_row = g_st().Rows - 1;
-                msg(gettext(e_wildexpand), 0);
+                msg(gettext(E_WILDEXPAND), 0);
                 msg_start();
             }
 
@@ -415,7 +415,7 @@ pub fn os_expand_wildcards(
         let fd = fopen(tempname, c"rb");
         if fd.is_null() {
             if (flags & EW_SILENT) == 0 {
-                msg(gettext(e_wildexpand), 0);
+                msg(gettext(E_WILDEXPAND), 0);
                 msg_start();
             }
             if (flags & EW_NOTFOUND) != 0 {
@@ -442,7 +442,7 @@ pub fn os_expand_wildcards(
         fclose(fd);
         os_remove(tempname);
         if readlen != len {
-            semsg!(gettext(e_cant_read_file_str), tempname);
+            semsg!(gettext(E_CANT_READ_FILE_STR), tempname);
             return false;
         }
         drop(tempname_cstr);
@@ -645,19 +645,19 @@ pub fn os_call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_
 
         signal_reject_deadly();
 
-        if (opts & (kShellOptHideMess | kShellOptExpand)) != 0 {
+        if (opts & (K_SHELL_OPT_HIDE_MESS | K_SHELL_OPT_EXPAND)) != 0 {
             forward_output = false;
         } else {
             g_st().State = MODE_EXTERNCMD;
 
-            if (opts & kShellOptWrite) != 0 {
+            if (opts & K_SHELL_OPT_WRITE) != 0 {
                 read_input(&mut input);
             }
 
-            if (opts & kShellOptRead) != 0 {
+            if (opts & K_SHELL_OPT_READ) != 0 {
                 want_output = true;
                 forward_output = false;
-            } else if (opts & kShellOptDoOut) != 0 {
+            } else if (opts & K_SHELL_OPT_DO_OUT) != 0 {
                 forward_output = false;
             }
         }
@@ -681,10 +681,10 @@ pub fn os_call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_
             write_output(output.as_mut_ptr(), nread, true);
         }
 
-        if g_st().emsg_silent == 0 && exitcode != 0 && (opts & kShellOptSilent) == 0 {
+        if g_st().emsg_silent == 0 && exitcode != 0 && (opts & K_SHELL_OPT_SILENT) == 0 {
             msg_ext_set_kind(c"shell_ret");
             msg_ext_no_fast();
-            if !ui_has(kUIMessages) {
+            if !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as c_int);
             }
             msg_puts(gettext(c"shell returned "));
@@ -709,7 +709,7 @@ pub fn call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_she
                 gettext(c"Executing command: \"%s\""),
                 if cmd.is_null() { opt_vars().p_sh } else { cmd },
             );
-            if !ui_has(kUIMessages) {
+            if !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as c_int);
             }
             verbose_leave();
@@ -720,7 +720,7 @@ pub fn call_shell(cmd: impl crate::strings::IntoCCharPtr, opts: c_int, extra_she
         }
 
         let retval = if crate::memory::cstr_is_empty(opt_vars().p_sh) {
-            emsg(gettext(e_shellempty));
+            emsg(gettext(E_SHELLEMPTY));
             -1
         } else {
             tag_freematch();
@@ -749,7 +749,7 @@ pub fn get_cmd_output(
         }
 
         let Some(tempname_cstr) = vim_tempname() else {
-            emsg(gettext(e_notmp));
+            emsg(gettext(E_NOTMP));
             return None;
         };
         let tempname = tempname_cstr.as_ptr().cast_mut();
@@ -759,7 +759,7 @@ pub fn get_cmd_output(
         g_st().no_check_timestamps += 1;
         call_shell(
             command.as_ptr().cast_mut(),
-            kShellOptDoOut | kShellOptExpand | flags,
+            K_SHELL_OPT_DO_OUT | K_SHELL_OPT_EXPAND | flags,
             ptr::null_mut(),
         );
         g_st().no_check_timestamps -= 1;
@@ -771,7 +771,7 @@ pub fn get_cmd_output(
 
         'done: {
             if fd.is_null() || fseek(fd, 0, SEEK_END) == -1 {
-                semsg!(gettext(e_cannot_read_from_str_2), tempname);
+                semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
                 if !fd.is_null() {
                     fclose(fd);
                 }
@@ -779,7 +779,7 @@ pub fn get_cmd_output(
             }
             let len_l = ftell(fd);
             if len_l == -1 || fseek(fd, 0, SEEK_SET) == -1 {
-                semsg!(gettext(e_cannot_read_from_str_2), tempname);
+                semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
                 fclose(fd);
                 break 'done;
             }
@@ -789,7 +789,7 @@ pub fn get_cmd_output(
             let i = fread(buffer.as_mut_ptr().cast(), 1, len, fd);
             fclose(fd);
             if i != len {
-                semsg!(gettext(e_cant_read_file_str), tempname);
+                semsg!(gettext(E_CANT_READ_FILE_STR), tempname);
             } else {
                 for b in &mut buffer {
                     if *b == 0 {
@@ -861,7 +861,7 @@ fn do_os_system(
         let mloop = main_loop_ptr();
         let mut uvproc = LibuvProc::new();
         let proc_ = &mut uvproc.proc_;
-        proc_.r#type = kProcTypeUv;
+        proc_.r#type = K_PROC_TYPE_UV;
         proc_.loop_ = mloop;
         proc_.status = -1;
         proc_.out.s.fd = STDOUT_FILENO;
@@ -1086,7 +1086,7 @@ fn out_data_append_to_screen(
             };
             if !eof
                 && i == 1
-                && usize::from(utf8len_tab_zero[crate::memory::cstr_first_byte(p) as usize])
+                && usize::from(UTF8LEN_TAB_ZERO[crate::memory::cstr_first_byte(p) as usize])
                     > (end as usize).wrapping_sub(p as usize)
             {
                 *count = off;
@@ -1096,7 +1096,7 @@ fn out_data_append_to_screen(
         }
 
         let str_copy = std::slice::from_raw_parts(output, *count).to_vec();
-        if ui_has(kUIMessages) {
+        if ui_has(K_UIMESSAGES) {
             let qc = loop_queues(&mut *main_loop_ptr());
             multiqueue_put_event( &mut *(*qc).fast_events, Event::ShellOutData { str_copy, fd });
         } else {

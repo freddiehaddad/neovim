@@ -6,9 +6,9 @@ use std::ptr;
 
 use crate::lpeg::lpcap::{finddyncap, runtimecap};
 use crate::lpeg::{
-    CapState, Capture, Cclose, Cgroup, Cruntime, IAny, IBackCommit, IBehind, ICall, IChar, IChoice,
-    ICloseCapture, ICloseRunTime, ICommit, IEnd, IFail, IFailTwice, IFullCapture, IGiveup, IJmp,
-    INITCAPSIZE, IOpenCapture, IPartialCommit, IRet, ISet, ISpan, ITestAny, ITestChar, ITestSet,
+    CapState, Capture, CCLOSE, CGROUP, CRUNTIME, IANY, IBACK_COMMIT, IBEHIND, ICALL, ICHAR, ICHOICE,
+    ICLOSE_CAPTURE, ICLOSE_RUN_TIME, ICOMMIT, IEND, IFAIL, IFAIL_TWICE, IFULL_CAPTURE, IGIVEUP, IJMP,
+    INITCAPSIZE, IOPEN_CAPTURE, IPARTIAL_COMMIT, IRET, ISET, ISPAN, ITEST_ANY, ITEST_CHAR, ITEST_SET,
     IUTFR, LpegIndex, Inst, InstAux2, Instruction, MAXBACK, MAXINDT, MAXLOP, MAXSTACKIDX, LpegByte,
     caplistidx, getkind, getoff, isopencap, lua_Integer, lua_State, stackidx, testchar, LpegUint,
     utf_to,
@@ -24,7 +24,7 @@ const INITBACK: usize = MAXBACK as usize;
 
 static GIVEUP: Instruction = Instruction {
     i: Inst {
-        code: IGiveup,
+        code: IGIVEUP,
         aux1: 0,
         aux2: InstAux2 { key: 0 },
     },
@@ -179,17 +179,17 @@ fn resdyncaptures(l: *mut lua_State, fr: c_int, curr: c_int, limit: c_int) -> c_
 fn adddyncaptures(index: LpegIndex, capture: *mut Capture, n: c_int, fd: c_int) {
     unsafe {
         let prev = capture.sub(1);
-        debug_assert!((*prev).kind == Cgroup && (*prev).siz == 0);
+        debug_assert!((*prev).kind == CGROUP && (*prev).siz == 0);
         (*prev).idx = 0;
         for i in 0..(n as usize) {
             let cap = capture.add(i);
-            (*cap).kind = Cruntime;
+            (*cap).kind = CRUNTIME;
             (*cap).siz = 1;
             (*cap).idx = (fd + i as c_int) as c_ushort;
             (*cap).index = index;
         }
         let close = capture.add(n as usize);
-        (*close).kind = Cclose;
+        (*close).kind = CCLOSE;
         (*close).siz = 1;
         (*close).index = index;
     }
@@ -223,7 +223,7 @@ fn findopen_full(mut cap: *mut Capture, currindex: LpegIndex) -> *mut Capture {
                 return ptr::null_mut();
             } else if isopencap( &*cap) {
                 return cap;
-            } else if (*cap).kind == Cclose {
+            } else if (*cap).kind == CCLOSE {
                 return ptr::null_mut();
             }
             cap = cap.sub(1);
@@ -264,24 +264,24 @@ pub fn r#match(
             debug_assert!(stackidx(ptop) + ndyncap == lua_gettop(l) && ndyncap <= captop);
 
             match (*p).i.code {
-                IEnd => {
+                IEND => {
                     debug_assert_eq!(stack, getstackbase(l, ptop).add(1));
                     let cap = capture.add(captop as usize);
-                    (*cap).kind = Cclose;
+                    (*cap).kind = CCLOSE;
                     (*cap).index = MAXINDT;
                     return s;
                 }
-                IGiveup => {
+                IGIVEUP => {
                     debug_assert_eq!(stack, getstackbase(l, ptop));
                     return ptr::null();
                 }
-                IRet => {
+                IRET => {
                     debug_assert!(stack > getstackbase(l, ptop) && (*stack.sub(1)).s.is_null());
                     stack = stack.sub(1);
                     p = (*stack).p;
                     continue;
                 }
-                IAny => {
+                IANY => {
                     if s < e {
                         p = p.add(1);
                         s = s.add(1);
@@ -299,7 +299,7 @@ pub fn r#match(
                         }
                     }
                 }
-                ITestAny => {
+                ITEST_ANY => {
                     if s < e {
                         p = p.add(2);
                     } else {
@@ -307,14 +307,14 @@ pub fn r#match(
                     }
                     continue;
                 }
-                IChar => {
+                ICHAR => {
                     if s < e && (*s as LpegByte) == (*p).i.aux1 {
                         p = p.add(1);
                         s = s.add(1);
                         continue;
                     }
                 }
-                ITestChar => {
+                ITEST_CHAR => {
                     if s < e && (*s as LpegByte) == (*p).i.aux1 {
                         p = p.add(2);
                     } else {
@@ -322,7 +322,7 @@ pub fn r#match(
                     }
                     continue;
                 }
-                ISet => {
+                ISET => {
                     if s < e {
                         let c = LpegUint::from(*s as LpegByte);
                         if charinset( &*p, p.add(1).cast::<LpegByte>(), c) != 0 {
@@ -332,7 +332,7 @@ pub fn r#match(
                         }
                     }
                 }
-                ITestSet => {
+                ITEST_SET => {
                     if s < e {
                         let c = LpegUint::from(*s as LpegByte);
                         if charinset( &*p, p.add(2).cast::<LpegByte>(), c) != 0 {
@@ -343,7 +343,7 @@ pub fn r#match(
                     p = p.offset(getoffset(p));
                     continue;
                 }
-                IBehind => {
+                IBEHIND => {
                     let n = (*p).i.aux1 as isize;
                     if n <= s.offset_from(o) {
                         s = s.offset(-n);
@@ -351,7 +351,7 @@ pub fn r#match(
                         continue;
                     }
                 }
-                ISpan => {
+                ISPAN => {
                     while s < e {
                         let c = LpegUint::from(*s as LpegByte);
                         if charinset( &*p, p.add(1).cast::<LpegByte>(), c) == 0 {
@@ -362,11 +362,11 @@ pub fn r#match(
                     p = p.add(1 + (*p).i.aux2.set.size as usize);
                     continue;
                 }
-                IJmp => {
+                IJMP => {
                     p = p.offset(getoffset(p));
                     continue;
                 }
-                IChoice => {
+                ICHOICE => {
                     if stack == stacklimit {
                         stack = doublestack(l, &mut stacklimit, ptop);
                     }
@@ -377,7 +377,7 @@ pub fn r#match(
                     p = p.add(2);
                     continue;
                 }
-                ICall => {
+                ICALL => {
                     if stack == stacklimit {
                         stack = doublestack(l, &mut stacklimit, ptop);
                     }
@@ -387,20 +387,20 @@ pub fn r#match(
                     p = p.offset(getoffset(p));
                     continue;
                 }
-                ICommit => {
+                ICOMMIT => {
                     debug_assert!(stack > getstackbase(l, ptop) && !(*stack.sub(1)).s.is_null());
                     stack = stack.sub(1);
                     p = p.offset(getoffset(p));
                     continue;
                 }
-                IPartialCommit => {
+                IPARTIAL_COMMIT => {
                     debug_assert!(stack > getstackbase(l, ptop) && !(*stack.sub(1)).s.is_null());
                     (*stack.sub(1)).s = s;
                     (*stack.sub(1)).caplevel = captop;
                     p = p.offset(getoffset(p));
                     continue;
                 }
-                IBackCommit => {
+                IBACK_COMMIT => {
                     debug_assert!(stack > getstackbase(l, ptop) && !(*stack.sub(1)).s.is_null());
                     stack = stack.sub(1);
                     s = (*stack).s;
@@ -411,12 +411,12 @@ pub fn r#match(
                     p = p.offset(getoffset(p));
                     continue;
                 }
-                IFailTwice => {
+                IFAIL_TWICE => {
                     debug_assert!(stack > getstackbase(l, ptop));
                     stack = stack.sub(1);
                 }
-                IFail => {}
-                ICloseRunTime => {
+                IFAIL => {}
+                ICLOSE_RUN_TIME => {
                     let mut cs = CapState {
                         cap: ptr::null_mut(),
                         ocap: capture,
@@ -458,7 +458,7 @@ pub fn r#match(
                         continue;
                     }
                 }
-                ICloseCapture => {
+                ICLOSE_CAPTURE => {
                     let curr_idx = s.offset_from(o) as LpegIndex;
                     let open = findopen_full(capture.add(captop as usize), curr_idx);
                     debug_assert!(captop > 0);
@@ -478,7 +478,7 @@ pub fn r#match(
                         continue;
                     }
                 }
-                IOpenCapture => {
+                IOPEN_CAPTURE => {
                     let cap = capture.add(captop as usize);
                     (*cap).siz = 0;
                     (*cap).index = s.offset_from(o) as LpegIndex;
@@ -489,7 +489,7 @@ pub fn r#match(
                     p = p.add(1);
                     continue;
                 }
-                IFullCapture => {
+                IFULL_CAPTURE => {
                     let off = getoff( &*p);
                     let cap = capture.add(captop as usize);
                     (*cap).siz = (off + 1) as LpegByte;

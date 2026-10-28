@@ -41,7 +41,7 @@ use crate::eval::vars::{
     set_vim_var_string, set_vim_var_type,
 };
 use crate::eval::{
-    eval_has_provider, eval_init, garbage_collect, kListLenMayKnow, set_argv_var, timer_teardown,
+    eval_has_provider, eval_init, garbage_collect, K_LIST_LEN_MAY_KNOW_CONST, set_argv_var, timer_teardown,
 };
 use crate::event::r#loop::{
     loop_close, loop_init, loop_poll_events, loop_queues, uv_guess_handle, uv_strerror,
@@ -50,7 +50,7 @@ use crate::event::multiqueue::{multiqueue_new_child, multiqueue_process_events};
 use crate::event::proc::proc_teardown;
 use crate::event::socket::socket_address_tcp_host_end;
 use crate::event::stream::{UV_NAMED_PIPE, UV_TCP};
-use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, do_ecmd, kOptShortmess};
+use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, do_ecmd, K_OPT_SHORTMESS};
 use crate::ex_docmd::{do_cmdline_cmd, filetype_maybe_enable, filetype_plugin_enable};
 use crate::ex_getln::cmdline_init;
 use crate::extmark::TriState;
@@ -65,7 +65,7 @@ use crate::log::{
 };
 use crate::lua::converter::{LUA_GLOBALSINDEX, lua_getfield, lua_pushstring, lua_tolstring};
 use crate::lua::executor::{
-    get_global_lstate, kRetObject, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init,
+    get_global_lstate, K_RET_OBJECT, nlua_call_typval, nlua_exec, nlua_exec_file, nlua_init,
     nlua_init_defaults, nlua_pcall,
 };
 use crate::mark::setpcmark;
@@ -78,10 +78,10 @@ use crate::r#move::update_topline;
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::server::{server_init, server_teardown};
 use crate::normal::{
-    check_scrollbind, init_normal_cmds, kOptCbFlagUnnamed, kOptCbFlagUnnamedplus, normal_enter,
+    check_scrollbind, init_normal_cmds, K_OPT_CB_FLAG_UNNAMED_CONST, K_OPT_CB_FLAG_UNNAMEDPLUS_CONST, normal_enter,
 };
 use crate::option::{
-    OptInt, kOptArabic, kOptKeymap, kOptRightleft, kOptWindow, reset_modifiable, set_init_1,
+    OptInt, K_OPT_ARABIC, K_OPT_KEYMAP, K_OPT_RIGHTLEFT, K_OPT_WINDOW, reset_modifiable, set_init_1,
     set_init_2, set_init_3, set_init_tablocal, set_option_direct, set_option_value_give_err,
     set_options_bin,
 };
@@ -108,11 +108,11 @@ use crate::os::time::os_realtime;
 #[cfg(windows)]
 use crate::path::path_to_slash;
 use crate::path::{
-    concat_fnames, kPathCmpExpand, path_equal, path_fix_case, path_guess_exepath, path_tail,
+    concat_fnames, K_PATH_CMP_EXPAND, path_equal, path_fix_case, path_guess_exepath, path_tail,
     vim_FullName,
 };
 use crate::profile::{profile_dump, time_finish, time_init, time_msg, time_start};
-use crate::quickfix::{kOptErrorfile, qf_init, qf_init_stack, qf_jump};
+use crate::quickfix::{K_OPT_ERRORFILE, qf_init, qf_init_stack, qf_jump};
 use crate::register::get_default_register_name;
 use crate::runtime::{
     DOSO_NONE, DOSO_VIMRC, ETYPE_ARGS, ETYPE_ENV, SID_CARG, SID_CMDARG, SID_ENV, do_source,
@@ -127,7 +127,7 @@ use crate::ui::{
 };
 use crate::ui_client::{ui_client_run, ui_client_start_server, ui_client_stop};
 use crate::ui_compositor::ui_comp_syn_init;
-use crate::version::{list_version, main_exitfree};
+use crate::version::{list_version, MAIN_EXITFREE};
 use crate::window::{
     goto_tabpage, make_tabpages, make_windows, only_one_window, TabPageInfo, win_alloc_first,
     win_close, win_count, win_enter, win_equal, win_init_size, win_new_screensize, win_valid,
@@ -153,8 +153,8 @@ const EDIT_STDIN: c_int = 2;
 const EDIT_TAG: c_int = 3;
 const EDIT_QF: c_int = 4;
 
-const kOptShadafile: OptIndex = 259;
-const kOptVerbosefile: OptIndex = 344;
+const K_OPT_SHADAFILE: OptIndex = 259;
+const K_OPT_VERBOSEFILE: OptIndex = 344;
 
 const PATHSEP: u8 = b'/';
 
@@ -260,7 +260,7 @@ fn main_init_st() -> &'static mut MainInitState {
 }
 
 use crate::charset::NUL;
-use crate::extmark::{kFalse, kNone, kTrue};
+use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 #[cfg(windows)]
 use crate::fileio::_setmode;
 use crate::fileio::setbuf;
@@ -797,7 +797,7 @@ fn nvim_main_inner(argc: c_int, argv: *mut *mut c_char) -> c_int {
             stuffcharReadbuff(K_NOP);
         }
 
-        if (opt_vars().cb_flags & (kOptCbFlagUnnamed | kOptCbFlagUnnamedplus)) != 0 {
+        if (opt_vars().cb_flags & (K_OPT_CB_FLAG_UNNAMED_CONST | K_OPT_CB_FLAG_UNNAMEDPLUS_CONST)) != 0 {
             eval_has_provider(c"clipboard", false);
         }
 
@@ -911,7 +911,7 @@ pub fn os_exit(mut r: c_int) -> ! {
             msg.as_ptr().cast(),
         );
 
-        if main_exitfree {
+        if MAIN_EXITFREE {
             free_all_mem();
         }
 
@@ -1244,7 +1244,7 @@ fn remote_request(
             data: c"return vim._cs_remote(...)".as_ptr().cast_mut(),
             size: 26,
         };
-        let o = nlua_exec(s, ptr::null(), a, kRetObject, None, &mut err);
+        let o = nlua_exec(s, ptr::null(), a, K_RET_OBJECT, None, &mut err);
         drop(args_vec);
         if err.err_type != ErrorType::ErrorTypeNone {
             fprintf!(stderr, c"%s\n", err.msg_ptr());
@@ -1260,8 +1260,8 @@ fn remote_request(
         }
         let dict: Dict = o.data.dict();
 
-        let mut should_exit: TriState = kNone;
-        let mut tabbed: TriState = kNone;
+        let mut should_exit: TriState = K_NONE;
+        let mut tabbed: TriState = K_NONE;
 
         for i in 0..dict.size {
             let item = &*dict.items.add(i);
@@ -1293,9 +1293,9 @@ fn remote_request(
                     os_exit(2);
                 }
                 tabbed = if item.value.data.boolean() {
-                    kTrue
+                    K_TRUE
                 } else {
-                    kFalse
+                    K_FALSE
                 };
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"should_exit") {
                 if item.value.obj_type != ObjectType::ObjectTypeBoolean {
@@ -1306,13 +1306,13 @@ fn remote_request(
                     os_exit(2);
                 }
                 should_exit = if item.value.data.boolean() {
-                    kTrue
+                    K_TRUE
                 } else {
-                    kFalse
+                    K_FALSE
                 };
             }
         }
-        if should_exit == kNone || tabbed == kNone {
+        if should_exit == K_NONE || tabbed == K_NONE {
             fprintf!(
                 stderr,
                 c"vim._cs_remote didn't return a value for should_exit or tabbed, bailing\n",
@@ -1321,10 +1321,10 @@ fn remote_request(
         }
         api_free_object(o);
 
-        if should_exit == kTrue {
+        if should_exit == K_TRUE {
             os_exit(0);
         }
-        if tabbed == kTrue {
+        if tabbed == K_TRUE {
             params.window_count = argc - remote_args - 1;
             params.window_layout = WIN_TABS;
         }
@@ -1430,7 +1430,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                             parmp.use_vimrc = Some(c"NONE".to_owned());
                             parmp.clean = true;
                             set_option_value_give_err(
-                                kOptShadafile,
+                                K_OPT_SHADAFILE,
                                 cstr_as_obj(c"NONE"),
                                 0,
                             );
@@ -1447,7 +1447,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         }
                     }
                     b'A' => {
-                        set_option_value_give_err(kOptArabic, boolean_obj(true), 0);
+                        set_option_value_give_err(K_OPT_ARABIC, boolean_obj(true), 0);
                     }
                     b'b' => {
                         set_options_bin(curbuf_mut().b_p_bin, 1, 0);
@@ -1472,8 +1472,8 @@ fn command_line_scan(parmp: &mut Mparm) {
                         os_exit(0);
                     }
                     b'H' => {
-                        set_option_value_give_err(kOptKeymap, cstr_as_obj(c"hebrew"), 0);
-                        set_option_value_give_err(kOptRightleft, boolean_obj(true), 0);
+                        set_option_value_give_err(K_OPT_KEYMAP, cstr_as_obj(c"hebrew"), 0);
+                        set_option_value_give_err(K_OPT_RIGHTLEFT, boolean_obj(true), 0);
                     }
                     b'M' => {
                         reset_modifiable();
@@ -1525,7 +1525,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                             parmp.no_swap_file = 1;
                             if opt_vars().p_shadafile.is_null() || crate::memory::cstr_is_empty(opt_vars().p_shadafile) {
                                 set_option_value_give_err(
-                                    kOptShadafile,
+                                    K_OPT_SHADAFILE,
                                     cstr_as_obj(c"NONE"),
                                     0,
                                 );
@@ -1555,7 +1555,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         opt_vars().p_verbose = i64::from(get_number_arg(arg0, &mut argv_idx, 10));
                         if crate::memory::cstr_byte_at(arg0, argv_idx as usize) != 0 {
                             set_option_value_give_err(
-                                kOptVerbosefile,
+                                K_OPT_VERBOSEFILE,
                                 cstr_as_obj(arg0.add(argv_idx as usize)),
                                 0,
                             );
@@ -1565,7 +1565,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     b'w' => {
                         if ascii_isdigit(crate::memory::cstr_char_at(arg0, argv_idx as usize)) {
                             let n = get_number_arg(arg0, &mut argv_idx, 10);
-                            set_option_value_give_err(kOptWindow, integer_obj(OptInt::from(n)), 0);
+                            set_option_value_give_err(K_OPT_WINDOW, integer_obj(OptInt::from(n)), 0);
                         } else {
                             want_argument = true;
                         }
@@ -1653,7 +1653,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                             parmp.use_ef = Some(crate::memory::cstr_to_cstring(cur_arg));
                         }
                         b'i' => {
-                            set_option_value_give_err(kOptShadafile, cstr_as_obj(cur_arg), 0);
+                            set_option_value_give_err(K_OPT_SHADAFILE, cstr_as_obj(cur_arg), 0);
                         }
                         b'l' => {
                             g_st().headless_mode = true;
@@ -1665,7 +1665,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                             }
                             if opt_vars().p_shadafile.is_null() || crate::memory::cstr_is_empty(opt_vars().p_shadafile) {
                                 set_option_value_give_err(
-                                    kOptShadafile,
+                                    K_OPT_SHADAFILE,
                                     cstr_as_obj(c"NONE"),
                                     0,
                                 );
@@ -1710,7 +1710,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                                 argv_idx = 0;
                                 let n = get_number_arg(cur_arg, &mut argv_idx, 10);
                                 set_option_value_give_err(
-                                    kOptWindow,
+                                    K_OPT_WINDOW,
                                     integer_obj(OptInt::from(n)),
                                     0,
                                 );
@@ -1824,7 +1824,7 @@ fn command_line_scan(parmp: &mut Mparm) {
 
 fn set_argf_var() {
     unsafe {
-        let list = tv_list_alloc(kListLenMayKnow);
+        let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         let count = gargcount();
         for i in 0..count {
             let fname = alist_name(&*garglist().add(i as usize));
@@ -1917,7 +1917,7 @@ fn set_window_layout(paramp: &mut Mparm) {
 fn handle_quickfix(paramp: &mut Mparm) {
     if paramp.edit_type == EDIT_QF {
             if let Some(ref use_ef) = paramp.use_ef {
-                set_option_direct(kOptErrorfile, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
+                set_option_direct(K_OPT_ERRORFILE, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
             }
             vim_snprintf!(g_st().IObuff.as_mut_ptr(), IOSIZE, c"cfile %s", opt_vars().p_ef);
             if qf_init(
@@ -2153,7 +2153,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                         let mut buf = [0 as c_char; 100];
                         p_shm_save = Some(crate::memory::cstr_to_cstring(opt_vars().p_shm));
                         vim_snprintf!(buf.as_mut_ptr(), buf.len(), c"F%s", opt_vars().p_shm);
-                        set_option_value_give_err(kOptShortmess, cstr_as_obj(buf.as_ptr()), 0);
+                        set_option_value_give_err(K_OPT_SHORTMESS, cstr_as_obj(buf.as_ptr()), 0);
                     }
                 } else {
                     if curwin_mut().w_next.is_null() {
@@ -2203,7 +2203,7 @@ fn edit_buffers(parmp: &mut Mparm) {
         }
 
         if let Some(ref p_shm_save) = p_shm_save {
-            set_option_value_give_err(kOptShortmess, cstr_as_obj(p_shm_save.as_ptr()), 0);
+            set_option_value_give_err(K_OPT_SHORTMESS, cstr_as_obj(p_shm_save.as_ptr()), 0);
         }
 
         if parmp.window_layout == WIN_TABS {
@@ -2344,7 +2344,7 @@ fn do_user_initialization() -> bool {
         {
             if os_path_exists(user_vimrc_ptr) {
                 semsg!(
-                    e_conflicting_configs,
+                    E_CONFLICTING_CONFIGS,
                     init_lua_ptr,
                     user_vimrc_ptr,
                 );
@@ -2357,7 +2357,7 @@ fn do_user_initialization() -> bool {
         if do_source(user_vimrc_ptr, true, DOSO_VIMRC, ptr::null_mut()) {
             do_exrc = opt_vars().p_exrc != 0;
             if do_exrc {
-                do_exrc = !path_equal(c".nvimrc", user_vimrc_ptr, kPathCmpExpand);
+                do_exrc = !path_equal(c".nvimrc", user_vimrc_ptr, K_PATH_CMP_EXPAND);
             }
             return do_exrc;
         }
@@ -2410,7 +2410,7 @@ fn do_user_initialization() -> bool {
                 {
                     if os_path_exists(init_vim.as_ptr().cast()) {
                         semsg!(
-                            e_conflicting_configs,
+                            E_CONFLICTING_CONFIGS,
                             init_lua.as_ptr(),
                             init_vim.as_ptr(),
                         );
@@ -2431,7 +2431,7 @@ fn do_user_initialization() -> bool {
                         do_exrc = !path_equal(
                             c".nvimrc",
                             init_vim.as_ptr().cast(),
-                            kPathCmpExpand,
+                            K_PATH_CMP_EXPAND,
                         );
                     }
                     return do_exrc;
@@ -2480,7 +2480,7 @@ fn source_startup_scripts(parmp: &Mparm) {
             )
             {
                 semsg!(
-                    gettext(e_cannot_read_from_str_2),
+                    gettext(E_CANNOT_READ_FROM_STR_2),
                     use_vimrc.as_ptr(),
                 );
             }

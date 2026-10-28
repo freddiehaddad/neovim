@@ -11,7 +11,7 @@ use crate::autocmd::{
     PROF_YES, apply_autocmds, has_autocmd, has_autocmd_fullname,
 };
 use crate::charset::{
-    Ctrl_V, skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len,
+    CTRL_V_CONST, skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len,
 };
 use crate::cmdexpand::{EXPAND_RUNTIME, LineGetter, WILD_ADD_SLASH, globpath};
 use crate::cursor::Linenr;
@@ -29,7 +29,7 @@ use crate::eval::userfunc::{func_tbl_get, restore_funccal, save_funccal, UserFun
 use crate::eval::vars::{SID_STR, new_script_vars, Scid};
 use crate::eval::{eval_to_number, get_copyID};
 #[cfg(windows)]
-use crate::ex_docmd::Ctrl_Z;
+use crate::ex_docmd::CTRL_Z_CONST;
 use crate::ex_docmd::{do_cmdline, do_cmdline_cmd, do_exedit, Exarg};
 use crate::ex_eval::{
     CSTP_FINISH, PendingVal, aborting, cleanup_conditionals, Cstack, report_make_pending,
@@ -41,7 +41,7 @@ use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::input::openscript;
 use crate::lua::executor::{
-    kRetNilBool, nlua_exec, nlua_exec_file, nlua_exec_lines, nlua_is_deferred_safe,
+    K_RET_NIL_BOOL, nlua_exec, nlua_exec_file, nlua_exec_lines, nlua_is_deferred_safe,
 };
 use crate::mbyte::{
     convert_setup, enc_canonize, mb_prevptr, string_convert, utfc_ptr2len, Vimconv,
@@ -57,7 +57,7 @@ use crate::message::{
     smsg, verbose_enter, verbose_leave,
 };
 use crate::msgpack_rpc::packer::Integer;
-use crate::option::{copy_option_part, kOptRuntimepath, set_option_value_give_err, vimrc_found};
+use crate::option::{copy_option_part, K_OPT_RUNTIMEPATH, set_option_value_give_err, vimrc_found};
 use crate::option_vars::*;
 use crate::optionstr::Optset;
 use crate::os::env::{
@@ -71,7 +71,7 @@ use crate::os::input::line_breakcheck;
 use crate::os::stdpaths::{XDGVarType, get_appname, stdpaths_get_xdg_var};
 use crate::path::{
     ENV_SEPCHAR, EW_DIR, EW_FILE, EW_NOBREAK, PATHSEP, add_pathsep, after_pathsep, append_path,
-    fix_fname, gen_expand_wildcards_vec, get_past_head, kPathCmpLiteral, path_cmp, path_equal,
+    fix_fname, gen_expand_wildcards_vec, get_past_head, K_PATH_CMP_LITERAL, path_cmp, path_equal,
     path_tail, path_with_extension, to_slash, vim_ispathsep, vim_ispathsep_nocolon,
 };
 use crate::profile::{
@@ -196,7 +196,7 @@ pub const DIP_NOAFTER: c_int = 0x40;
 pub const DIP_AFTER: c_int = 0x80;
 pub const DIP_DIRFILE: c_int = 0x200;
 
-const kCpoConcat: c_int = b'C' as c_int;
+const K_CPO_CONCAT: c_int = b'C' as c_int;
 
 pub(crate) const SID_CMDARG: Scid = -2;
 pub(crate) const SID_CARG: Scid = -3;
@@ -339,7 +339,7 @@ pub(crate) fn rt_st() -> &'static mut RuntimeModuleState {
 
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
 use crate::charset::NUL;
-use crate::extmark::{kFalse, kNone, kTrue};
+use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 use crate::os::fs::MAXPATHL;
 use crate::version::default_lib_dir;
 use crate::viml::parser::parser::CONV_NONE;
@@ -827,7 +827,7 @@ pub fn do_in_path(
             };
 
             if (flags & DIP_ERR) != 0 {
-                semsg!(gettext(e_dirnotf), basepath, name);
+                semsg!(gettext(E_DIRNOTF), basepath, name);
             } else if opt_vars().p_verbose > 1 {
                 verbose_enter();
                 smsg!(
@@ -945,7 +945,7 @@ fn do_in_cached_path(
 
         if !did_one && !name.is_null() {
             if (flags & DIP_ERR) != 0 {
-                semsg!(gettext(e_dirnotf), c"runtime path", name);
+                semsg!(gettext(E_DIRNOTF), c"runtime path", name);
             } else if opt_vars().p_verbose > 1 {
                 verbose_enter();
                 smsg!(
@@ -977,8 +977,8 @@ pub fn runtime_inspect(arena: &mut Arena) -> Array {
             if item.pack_inserted {
                 put_c(&mut entry, c"pack_inserted", boolean_obj(true));
             }
-            if item.has_lua != kNone {
-                put_c(&mut entry, c"has_lua", boolean_obj(item.has_lua == kTrue));
+            if item.has_lua != K_NONE {
+                put_c(&mut entry, c"has_lua", boolean_obj(item.has_lua == K_TRUE));
             }
             put_c(
                 &mut entry,
@@ -1039,12 +1039,12 @@ fn runtime_get_named_common(
     let mut rv = arena_array_opt(arena.as_deref_mut(), path.len() * pat.size);
     for item in path.iter_mut() {
         if lua {
-            if item.has_lua == kNone {
+            if item.has_lua == K_NONE {
                 let size = vim_snprintf!(buf, buf_len, c"%s/lua/", item.path.as_ptr())
                     as usize;
                 item.has_lua = TriState::from(size < buf_len && os_isdir(buf));
             }
-            if item.has_lua == kFalse {
+            if item.has_lua == K_FALSE {
                 continue;
             }
         }
@@ -1135,7 +1135,7 @@ fn push_path(
                 path: crate::memory::cstr_to_cstring(entry),
                 after,
                 pack_inserted: false,
-                has_lua: kNone,
+                has_lua: K_NONE,
                 pos_in_rtp,
             });
             return true;
@@ -1576,7 +1576,7 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
             }
 
             let was_valid = rt_st().runtime_search_path_valid;
-            set_option_value_give_err(kOptRuntimepath, string_obj(new_rtp), 0);
+            set_option_value_give_err(K_OPT_RUNTIMEPATH, string_obj(new_rtp), 0);
 
             debug_assert!(!rt_st().runtime_search_path_valid);
             if was_valid && !is_pack && rt_st().runtime_search_path_refcount == 0 {
@@ -1602,7 +1602,7 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
                         path: std::ffi::CString::new(&fname_bytes[..fname_end]).unwrap(),
                         after: false,
                         pack_inserted: true,
-                        has_lua: kNone,
+                        has_lua: K_NONE,
                         pos_in_rtp: first_pos,
                     },
                 );
@@ -1628,7 +1628,7 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
                             path: std::ffi::CString::new(&after_bytes[..after_end]).unwrap(),
                             after: true,
                             pack_inserted: true,
-                            has_lua: kNone,
+                            has_lua: K_NONE,
                             pos_in_rtp: target_after_pos,
                         },
                     );
@@ -1689,7 +1689,7 @@ fn add_pack_plugins(
                 let mut p: *mut c_char = opt_vars().p_rtp;
                 while !crate::memory::cstr_is_empty(p) {
                     copy_option_part(&mut p, buf.as_mut_ptr(), MAXPATHL, c",");
-                    if path_equal(buf.as_ptr(), fname, kPathCmpLiteral) {
+                    if path_equal(buf.as_ptr(), fname, K_PATH_CMP_LITERAL) {
                         found = true;
                         break;
                     }
@@ -2495,13 +2495,13 @@ fn cmd_source(fname: impl crate::strings::IntoCCharPtr,mut eap: Option<&mut Exar
     let fname = fname.into_c_char_ptr().cast_mut();
     unsafe {
         if !crate::memory::cstr_is_empty(fname) && eap.is_some() && eap.as_deref_mut().unwrap().addr_count > 0 {
-            emsg(gettext(e_norange));
+            emsg(gettext(E_NORANGE));
             return;
         }
 
         if eap.is_some() && crate::memory::cstr_is_empty(fname) {
             if eap.as_deref_mut().unwrap().forceit != 0 {
-                emsg(gettext(e_argreq));
+                emsg(gettext(E_ARGREQ));
             } else {
                 cmd_source_buffer(eap.as_deref(), false);
             }
@@ -2514,7 +2514,7 @@ fn cmd_source(fname: impl crate::strings::IntoCCharPtr,mut eap: Option<&mut Exar
                     || (*eap.cstack.cast::<Cstack>()).cs_idx >= 0,
             );
         } else if !do_source(fname, false, DOSO_NONE, ptr::null_mut()) {
-            semsg!(gettext(e_notopen), fname);
+            semsg!(gettext(E_NOTOPEN), fname);
         }
     }
 }
@@ -2955,7 +2955,7 @@ fn do_source_ext(
                     static_cstr_as_string(c"return require('vim._core.util').source_is_lua(...)"),
                     ptr::null(),
                     args,
-                    kRetNilBool,
+                    K_RET_NIL_BOOL,
                     None,
                     &mut err,
                 );
@@ -3014,7 +3014,7 @@ fn do_source_ext(
             }
 
             if g_st().got_int {
-                emsg(gettext(e_interr));
+                emsg(gettext(E_INTERR));
             }
             estack_pop();
             if opt_vars().p_verbose > 1 {
@@ -3098,7 +3098,7 @@ pub fn find_script_by_name(name: impl crate::strings::IntoCCharPtr) -> c_int { l
         while sid > 0 {
             let si = script_item(sid);
             if let Some(ref sn) = (*si).sn_name
-                && path_equal(sn.as_ptr().cast_mut(), name, kPathCmpLiteral)
+                && path_equal(sn.as_ptr().cast_mut(), name, K_PATH_CMP_LITERAL)
             {
                 return sid;
             }
@@ -3115,7 +3115,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
         let iobuff = g_st().IObuff.as_mut_ptr();
         if eap.addr_count > 0 || !crate::memory::cstr_is_empty(eap.arg) {
             if eap.addr_count > 0 && !script_id_valid(eap.line2) {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
             } else {
                 if eap.addr_count > 0 {
                     eap.arg = (*script_item(eap.line2)).name_ptr();
@@ -3266,7 +3266,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 }
                 if sid <= 0 {
                     semsg!(
-                        gettext(e_invargNval),
+                        gettext(E_INVARG_NVAL),
                         c"sid",
                         tv_get_string(&(*sid_di).di_tv),
                     );
@@ -3295,7 +3295,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 tv_dict_add_str(&mut *d, c"name", sn.as_ptr());
                 tv_dict_add_nr(&mut *d, c"sid", i);
                 tv_dict_add_nr(&mut *d, c"version", 1);
-                tv_dict_add_bool(&mut *d, c"autoload", kFalse);
+                tv_dict_add_bool(&mut *d, c"autoload", K_FALSE);
 
                 if sid > 0 {
                     let var_dict =
@@ -3352,7 +3352,7 @@ pub fn getsourceline(
 
         if let Some(ref mut buf) = line_vec
             && do_concat
-            && vim_strchr(opt_vars().p_cpo, kCpoConcat).is_null()
+            && vim_strchr(opt_vars().p_cpo, K_CPO_CONCAT).is_null()
         {
             sp.sourcing_lnum -= 1;
 
@@ -3466,7 +3466,7 @@ fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<c_char>> {
             {
                 if (len == 1 || (len >= 2 && buf[len - 2] == b'\n' as c_char))
                     && sp.fileformat == EOL_DOS
-                    && buf[len - 1] == Ctrl_Z
+                    && buf[len - 1] == CTRL_Z_CONST
                 {
                     buf.truncate(len - 1);
                     break;
@@ -3506,7 +3506,7 @@ fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<c_char>> {
                 }
 
                 let mut c = (len as isize) - 2;
-                while c >= 0 && buf[c as usize] == Ctrl_V {
+                while c >= 0 && buf[c as usize] == CTRL_V_CONST {
                     c -= 1;
                 }
                 if ((len as isize) & 1) != (c & 1) {

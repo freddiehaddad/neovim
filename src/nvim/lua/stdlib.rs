@@ -5,11 +5,11 @@ use crate::api::private::helpers::{
     find_window_by_handle, try_enter, try_leave, tv_dict_is_watched,
 };
 use crate::api::private::validate::{Error, ErrorType, NvimString};
-use crate::api::win_config::kCtxNoDisplay;
-use crate::api::window::{kCtxKeepCwd, kCtxValidate};
+use crate::api::win_config::K_CTX_NO_DISPLAY;
+use crate::api::window::{K_CTX_KEEP_CWD, K_CTX_VALIDATE};
 use crate::buffer::FileBuf;
 use crate::charset::NUL;
-use crate::context::kCtxKeepDirs;
+use crate::context::K_CTX_KEEP_DIRS;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, handle_get_buffer, handle_get_window};
 use crate::cursor::Linenr;
 use crate::eval::typval::{
@@ -23,10 +23,10 @@ use crate::ex_docmd::{
     undo_cmdmod,
 };
 use crate::ex_eval::aborting;
-use crate::extmark::kTrue;
+use crate::extmark::K_TRUE;
 use crate::fold::foldUpdate;
 use crate::globals::*;
-use crate::keycodes::{KeyChord, mod_mask_table, vim_strsave_escape_ks};
+use crate::keycodes::{KeyChord, MOD_MASK_TABLE, vim_strsave_escape_ks};
 use crate::log::log_st;
 use crate::lua::base64::luaopen_base64;
 use crate::lua::converter::{
@@ -683,7 +683,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
             }
 
             if !win.is_null() || !buf.is_null() || keepcwd {
-                let dirs = if keepcwd { kCtxKeepDirs } else { kCtxKeepCwd };
+                let dirs = if keepcwd { K_CTX_KEEP_DIRS } else { K_CTX_KEEP_CWD };
                 let tab = if !win.is_null() {
                     win_find_tabpage(win)
                 } else {
@@ -694,7 +694,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> c_int {
                     win,
                     tab,
                     buf,
-                    kCtxNoDisplay | dirs | if !win.is_null() { kCtxValidate } else { 0 },
+                    K_CTX_NO_DISPLAY | dirs | if !win.is_null() { K_CTX_VALIDATE } else { 0 },
                 );
             }
 
@@ -743,17 +743,17 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> c_int {
         let mut data = KeyChord::new();
 
         while !crate::memory::cstr_is_empty(p) {
-            let keys = str2special(&raw mut p, true, kTrue, Some(&mut data));
+            let keys = str2special(&raw mut p, true, K_TRUE, Some(&mut data));
 
             lua_createtable(lstate, 0, 3);
 
             lua_newtable(lstate);
             let mut i: usize = 0;
-            while mod_mask_table[i].name != b'A' as c_char {
-                if (data.mods & c_int::from(mod_mask_table[i].mod_mask))
-                    == c_int::from(mod_mask_table[i].mod_flag)
+            while MOD_MASK_TABLE[i].name != b'A' as c_char {
+                if (data.mods & c_int::from(MOD_MASK_TABLE[i].mod_mask))
+                    == c_int::from(MOD_MASK_TABLE[i].mod_flag)
                 {
-                    lua_pushlstring(lstate, &raw const mod_mask_table[i].name, 1);
+                    lua_pushlstring(lstate, &raw const MOD_MASK_TABLE[i].name, 1);
                     lua_rawseti(lstate, -2, (lua_objlen(lstate, -2) as c_int) + 1);
                 }
                 i += 1;

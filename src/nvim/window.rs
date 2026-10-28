@@ -6,9 +6,9 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Dict, Error, ErrorType, KeyValuePair};
 use crate::api::win_config::{
-    FR_COL, WIN_CONFIG_INIT, kCtxNoDisplay, kCtxNoEvents, kFloatAnchorEast, kFloatAnchorSouth,
-    kFloatRelativeLaststatus, kFloatRelativeTabline, kFloatRelativeWindow, kUIMultigrid,
-    kWinStyleMinimal,
+    FR_COL, WIN_CONFIG_INIT, K_CTX_NO_DISPLAY, K_CTX_NO_EVENTS, K_FLOAT_ANCHOR_EAST, K_FLOAT_ANCHOR_SOUTH,
+    K_FLOAT_RELATIVE_LASTSTATUS, K_FLOAT_RELATIVE_TABLINE, K_FLOAT_RELATIVE_WINDOW, K_UIMULTIGRID,
+    K_WIN_STYLE_MINIMAL,
 };
 use crate::autocmd::{
     AUGROUP_ALL, EVENT_BUFENTER, EVENT_BUFLEAVE, EVENT_TABCLOSED, EVENT_TABCLOSEDPRE,
@@ -21,11 +21,11 @@ use crate::buffer::{
     BLN_LISTED, DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, GETF_ALT, MAXLNUM, NOTDONE, VALID_TOPLINE,
     VAR_SCOPE, bt_help, bt_prompt, bt_quickfix, FileBuf, buf_hide, buf_valid, buflist_findname_exp,
     buflist_findnr, buflist_getfile, buflist_new, Bufref, bufref_valid, close_buffer,
-    do_autochdir, do_buffer, kUIMessages, maketitle, set_bufref,
+    do_autochdir, do_buffer, K_UIMESSAGES, maketitle, set_bufref,
 };
 use crate::charset::{ascii_isdigit, getdigits_int};
-use crate::cmdexpand::{Ctrl_N, Ctrl_P, Cmdidx};
-use crate::context::{CdCause, CtxSwitch, ctx_restore, ctx_switch, is_ctx_win, kCdCauseWindow};
+use crate::cmdexpand::{CTRL_N, CTRL_P, Cmdidx};
+use crate::context::{CdCause, CtxSwitch, ctx_restore, ctx_switch, is_ctx_win, K_CD_CAUSE_WINDOW};
 use crate::cursor::{check_cursor, check_cursor_lnum, Colnr, equalpos, Linenr, CursorPos};
 use crate::decoration::decor_conceal_line;
 use crate::diff::{diff_clear, diffopt_closeoff};
@@ -42,15 +42,15 @@ use crate::eval::typval::{
 use crate::eval::vars::{init_var_dict, unref_var_dict, vars_clear};
 use crate::eval::window::win_has_winnr;
 use crate::eval::{get_v_event, restore_v_event};
-use crate::ex_cmds::{BL_FIX, BL_SOL, Ctrl_C, ECMD_HIDE, ECMD_LASTL, do_ecmd};
+use crate::ex_cmds::{BL_FIX, BL_SOL, CTRL_C_CONST, ECMD_HIDE, ECMD_LASTL, do_ecmd};
 use crate::ex_cmds2::{can_abandon, dialog_changed};
 use crate::ex_docmd::{
     ACTION_SPLIT, CdScope, FIND_ANY, FIND_DEFINE, do_cmdline_cmd, tabpage_close,
 };
 use crate::ex_eval::aborting;
 use crate::ex_getln::{
-    Ctrl__, Ctrl_B, Ctrl_D, Ctrl_F, Ctrl_G, Ctrl_HAT, Ctrl_K, Ctrl_L, Ctrl_O, Ctrl_Q, Ctrl_R,
-    Ctrl_RSB, Ctrl_T, Ctrl_W, Ctrl_Z, compute_cmdrow, curbuf_locked, is_in_cmdwin, text_locked,
+    CTRL_CONST_CONST, CTRL_B_CONST, CTRL_D_CONST, CTRL_F_CONST, CTRL_G, CTRL_HAT_CONST, CTRL_K_CONST, CTRL_L_CONST, CTRL_O, CTRL_Q_CONST, CTRL_R_CONST,
+    CTRL_RSB_CONST, CTRL_T_CONST, CTRL_W_CONST, CTRL_Z_CONST, compute_cmdrow, curbuf_locked, is_in_cmdwin, text_locked,
     text_locked_msg, text_or_buf_locked,
 };
 use crate::file_search::{do_autocmd_dirchanged, grab_file_name};
@@ -63,7 +63,7 @@ use crate::grid::{
     GridView, ScreenGrid, grid_adjust, grid_assign_handle, grid_clear, grid_free, win_grid_alloc,
 };
 use crate::input::{beep_flush, langmap_adjust, plain_vgetc};
-use crate::insert::{Ctrl_J, Ctrl_S, Ctrl_X, beginline, cursor_down_inner, cursor_up_inner};
+use crate::insert::{CTRL_J_CONST, CTRL_S_CONST, CTRL_X_CONST, beginline, cursor_down_inner, cursor_up_inner};
 use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP, TAB};
 use crate::main_init::getout;
 use crate::mark::{copy_jumplist, free_jumplist, setmark, setpcmark};
@@ -71,7 +71,7 @@ use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
 use crate::memory::{xstrlcpy};
 use crate::message::{
-    emsg, iemsg, internal_error, kZIndexMessages, msg, msg_clr_eos_force, msg_grid_validate,
+    emsg, iemsg, internal_error, K_ZINDEX_MESSAGES, msg, msg_clr_eos_force, msg_grid_validate,
     msg_ui_flush, semsg, set_keep_msg,
 };
 use crate::mouse::{reset_dragwin, setmouse};
@@ -86,25 +86,25 @@ use crate::normal::{
     reset_VIsual_and_resel,
 };
 use crate::option::{
-    OptInt, buf_copy_options, clear_winopt, get_scrolloff_value, kOptCmdheight, kOptWindow,
+    OptInt, buf_copy_options, clear_winopt, get_scrolloff_value, K_OPT_CMDHEIGHT, K_OPT_WINDOW,
     option_was_set, set_option_value, win_copy_options,
 };
 use crate::option_vars::*;
 use crate::optionstr::Optset;
 use crate::os::fs::{os_chdir, os_dirname};
-use crate::path::{kPathCmpLiteral, path_equal};
+use crate::path::{K_PATH_CMP_LITERAL, path_equal};
 use crate::plines::{plines_win, plines_win_col, plines_win_nofill, win_text_height};
 use crate::popupmenu::pum_pos_ui_flush;
-use crate::quickfix::{copy_loclist_stack, kOptSwbFlagUsetab, qf_free_all, qf_view_result};
+use crate::quickfix::{copy_loclist_stack, K_OPT_SWB_FLAG_USETAB, qf_free_all, qf_view_result};
 use crate::search::find_pattern_in_path;
 use crate::state::{
     MODE_CMDLINE, MODE_INSERT, MODE_NORMAL, MODE_TERMINAL, get_real_state, SaveVEvent,
     virtual_active,
 };
-use crate::statusline::{kUITabline, stl_clear_click_defs};
+use crate::statusline::{K_UITABLINE, stl_clear_click_defs};
 use crate::strings::{gettext, vim_snprintf};
 use crate::syntax::reset_synblock;
-use crate::tag::{kOptSwbFlagUseopen, tagstack_clear_entry};
+use crate::tag::{K_OPT_SWB_FLAG_USEOPEN, tagstack_clear_entry};
 use crate::terminal::{terminal_check_size};
 use crate::ui::{
     ui_call_grid_destroy, ui_call_win_close, ui_call_win_external_pos, ui_call_win_float_pos,
@@ -784,7 +784,7 @@ impl WinInfoInfo {
             w_grid_alloc: SCREEN_GRID_INIT,
             w_pos_changed: false,
             w_floating: false,
-            w_kind: kWinNormal,
+            w_kind: K_WIN_NORMAL,
             w_config: WIN_CONFIG_INIT,
             w_fraction: 0,
             w_prev_fraction_row: 0,
@@ -880,17 +880,17 @@ impl TabPageInfo {
     }
 }
 
-use crate::api::vim::kCdScopeGlobal;
-use crate::api::window::kCtxKeepCwd;
+use crate::api::vim::K_CD_SCOPE_GLOBAL;
+use crate::api::window::K_CTX_KEEP_CWD;
 use crate::buffer::{BCO_ENTER, BCO_NOHELP};
 use crate::charset::NUL;
 use crate::drawline::{VALID_CROW, VALID_WCOL};
-use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
+use crate::eval::fs::{K_CD_SCOPE_BUFFER, K_CD_SCOPE_TABPAGE, K_CD_SCOPE_WINDOW};
 use crate::eval::typval::VAR_UNLOCKED;
 use crate::ex_docmd::CMOD_CONFIRM;
-use crate::insexpand::Ctrl_I;
+use crate::insexpand::CTRL_I_CONST;
 use crate::os::fs::MAXPATHL;
-use crate::regexp::{Ctrl_H, Ctrl_V, MAXCOL, NUMBUFLEN};
+use crate::regexp::{CTRL_H_CONST, CTRL_V_CONST, MAXCOL, NUMBUFLEN};
 use crate::runtime::SID_WINLAYOUT;
 use crate::search::FORWARD;
 
@@ -923,12 +923,12 @@ const WEE_TRIGGER_NEW_AUTOCMDS: c_int = 0x04;
 const WEE_TRIGGER_ENTER_AUTOCMDS: c_int = 0x08;
 const WEE_TRIGGER_LEAVE_AUTOCMDS: c_int = 0x10;
 
-const kOptTclFlagLeft: c_uint = 0x01;
-const kOptTclFlagUselast: c_uint = 0x02;
+const K_OPT_TCL_FLAG_LEFT: c_uint = 0x01;
+const K_OPT_TCL_FLAG_USELAST: c_uint = 0x02;
 
-const kWinOptScroll: usize = 33;
+const K_WIN_OPT_SCROLL: usize = 33;
 
-const kWinNormal: WinKind = 0;
+const K_WIN_NORMAL: WinKind = 0;
 
 const E_CANNOT_CLOSE_LAST_WINDOW: &CStr = c"E444: Cannot close last window";
 const E_CANNOT_SPLIT_WINDOW_WHEN_CLOSING_BUFFER: &CStr =
@@ -1047,7 +1047,7 @@ pub fn window_layout_locked_err(cmd: Cmdidx, err: &mut Error) -> bool {
                     err,
                     ErrorType::ErrorTypeException,
                     c"%s",
-                    e_not_allowed_to_change_window_layout_in_this_autocmd,
+                    E_NOT_ALLOWED_TO_CHANGE_WINDOW_LAYOUT_IN_THIS_AUTOCMD,
                 );
             }
             return true;
@@ -1060,7 +1060,7 @@ pub fn window_layout_locked_err(cmd: Cmdidx, err: &mut Error) -> bool {
 pub fn check_can_set_curbuf_disabled() -> bool {
      {
         if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
-            emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
+            emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
             return false;
         }
         true
@@ -1071,7 +1071,7 @@ pub fn check_can_set_curbuf_disabled() -> bool {
 pub fn check_can_set_curbuf_forceit(forceit: c_int) -> bool {
      {
         if forceit == 0 && curwin_mut().w_onebuf_opt.wo_wfb != 0 {
-            emsg(gettext(e_winfixbuf_cannot_go_to_buffer));
+            emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
             return false;
         }
         true
@@ -1100,11 +1100,11 @@ pub fn swbuf_goto_win_with_buf(buf: *mut FileBuf) -> *mut WinInfoInfo {
             return wp;
         }
 
-        if (opt_vars().swb_flags & kOptSwbFlagUseopen) != 0 {
+        if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USEOPEN) != 0 {
             wp = buf_jump_open_win(buf);
         }
 
-        if wp.is_null() && (opt_vars().swb_flags & kOptSwbFlagUsetab) != 0 {
+        if wp.is_null() && (opt_vars().swb_flags & K_OPT_SWB_FLAG_USETAB) != 0 {
             wp = buf_jump_open_tab(buf);
         }
 
@@ -1123,7 +1123,7 @@ fn do_window_newwindow(nchar: c_int, Prenum: c_int, cbuf: &mut [c_char; 40]) {
         } else {
             cbuf[0] = NUL;
         }
-        if nchar == b'v' as c_int || nchar == Ctrl_V {
+        if nchar == b'v' as c_int || nchar == CTRL_V_CONST {
             { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"v", _dsize - _dlen); };
         }
         { let _dst: *mut c_char = cbuf.as_mut_ptr(); let _dsize: usize = cbuf.len(); let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), c"new", _dsize - _dlen); };
@@ -1145,7 +1145,7 @@ fn do_window_gotofile(nchar: c_int, Prenum1: c_int) {
             setpcmark();
 
             let mut wp: *mut WinInfoInfo = ptr::null_mut();
-            if (opt_vars().swb_flags & (kOptSwbFlagUseopen | kOptSwbFlagUsetab)) != 0 && g_st().cmdmod.cmod_tab == 0 {
+            if (opt_vars().swb_flags & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0 && g_st().cmdmod.cmod_tab == 0 {
                 wp = swbuf_goto_win_with_buf(buflist_findname_exp(ptr));
             }
 
@@ -1190,7 +1190,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
         let Prenum1 = if Prenum == 0 { 1 } else { Prenum };
 
         match nchar {
-            c if c == b'S' as c_int || c == Ctrl_S || c == b's' as c_int => {
+            c if c == b'S' as c_int || c == CTRL_S_CONST || c == b's' as c_int => {
                 reset_VIsual_and_resel();
                 if bt_quickfix(Some(crate::globals::curbuf_mut())) {
                     do_window_newwindow(nchar, Prenum, &mut cbuf);
@@ -1198,7 +1198,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     win_split(Prenum, 0);
                 }
             }
-            c if c == Ctrl_V || c == b'v' as c_int => {
+            c if c == CTRL_V_CONST || c == b'v' as c_int => {
                 reset_VIsual_and_resel();
                 if bt_quickfix(Some(crate::globals::curbuf_mut())) {
                     do_window_newwindow(nchar, Prenum, &mut cbuf);
@@ -1206,7 +1206,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     win_split(Prenum, WSP_VERT);
                 }
             }
-            c if c == Ctrl_HAT || c == b'^' as c_int => {
+            c if c == CTRL_HAT_CONST || c == b'^' as c_int => {
                 reset_VIsual_and_resel();
 
                 if buflist_findnr(if Prenum == 0 {
@@ -1217,9 +1217,9 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 .is_null()
                 {
                     if Prenum == 0 {
-                        emsg(gettext(e_noalt));
+                        emsg(gettext(E_NOALT));
                     } else {
-                        semsg!(gettext(e_buffer_nr_not_found), i64::from(Prenum));
+                        semsg!(gettext(E_BUFFER_NR_NOT_FOUND), i64::from(Prenum));
                     }
                     return;
                 }
@@ -1237,11 +1237,11 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     );
                 }
             }
-            c if c == Ctrl_N || c == b'n' as c_int => {
+            c if c == CTRL_N || c == b'n' as c_int => {
                 reset_VIsual_and_resel();
                 do_window_newwindow(nchar, Prenum, &mut cbuf);
             }
-            c if c == Ctrl_Q || c == b'q' as c_int => {
+            c if c == CTRL_Q_CONST || c == b'q' as c_int => {
                 reset_VIsual_and_resel();
                 cmd_with_count(
                     c"quit",
@@ -1251,7 +1251,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 );
                 do_cmdline_cmd(cbuf.as_ptr());
             }
-            c if c == Ctrl_C || c == b'c' as c_int => {
+            c if c == CTRL_C_CONST || c == b'c' as c_int => {
                 reset_VIsual_and_resel();
                 cmd_with_count(
                     c"close",
@@ -1261,7 +1261,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 );
                 do_cmdline_cmd(cbuf.as_ptr());
             }
-            c if c == Ctrl_Z || c == b'z' as c_int => {
+            c if c == CTRL_Z_CONST || c == b'z' as c_int => {
                 reset_VIsual_and_resel();
                 do_cmdline_cmd(c"pclose");
             }
@@ -1279,7 +1279,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     win_goto(wp);
                 }
             }
-            c if c == Ctrl_O || c == b'o' as c_int => {
+            c if c == CTRL_O || c == b'o' as c_int => {
                 reset_VIsual_and_resel();
                 cmd_with_count(
                     c"only",
@@ -1289,7 +1289,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 );
                 do_cmdline_cmd(cbuf.as_ptr());
             }
-            c if c == Ctrl_W || c == b'w' as c_int || c == b'W' as c_int => {
+            c if c == CTRL_W_CONST || c == b'w' as c_int || c == b'W' as c_int => {
                 if one_window_macro() && Prenum != 1 {
                     beep_flush();
                 } else {
@@ -1346,16 +1346,16 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     win_goto(wp);
                 }
             }
-            c if c == b'j' as c_int || c == K_DOWN || c == Ctrl_J => {
+            c if c == b'j' as c_int || c == K_DOWN || c == CTRL_J_CONST => {
                 win_goto_ver(false, Prenum1);
             }
-            c if c == b'k' as c_int || c == K_UP || c == Ctrl_K => {
+            c if c == b'k' as c_int || c == K_UP || c == CTRL_K_CONST => {
                 win_goto_ver(true, Prenum1);
             }
-            c if c == b'h' as c_int || c == K_LEFT || c == Ctrl_H || c == K_BS => {
+            c if c == b'h' as c_int || c == K_LEFT || c == CTRL_H_CONST || c == K_BS => {
                 win_goto_hor(true, Prenum1);
             }
-            c if c == b'l' as c_int || c == K_RIGHT || c == Ctrl_L => {
+            c if c == b'l' as c_int || c == K_RIGHT || c == CTRL_L_CONST => {
                 win_goto_hor(false, Prenum1);
             }
             c if c == b'T' as c_int => {
@@ -1385,13 +1385,13 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     }
                 }
             }
-            c if c == b't' as c_int || c == Ctrl_T => {
+            c if c == b't' as c_int || c == CTRL_T_CONST => {
                 win_goto(g_st().firstwin);
             }
-            c if c == b'b' as c_int || c == Ctrl_B => {
+            c if c == b'b' as c_int || c == CTRL_B_CONST => {
                 win_goto(lastwin_nofloating(ptr::null_mut()));
             }
-            c if c == b'p' as c_int || c == Ctrl_P => {
+            c if c == b'p' as c_int || c == CTRL_P => {
                 if !win_valid(g_st().prevwin) || (*g_st().prevwin).w_config.hide || !(*g_st().prevwin).w_config.focusable
                 {
                     beep_flush();
@@ -1399,10 +1399,10 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     win_goto(g_st().prevwin);
                 }
             }
-            c if c == b'x' as c_int || c == Ctrl_X => {
+            c if c == b'x' as c_int || c == CTRL_X_CONST => {
                 win_exchange(Prenum);
             }
-            c if c == Ctrl_R || c == b'r' as c_int => {
+            c if c == CTRL_R_CONST || c == b'r' as c_int => {
                 reset_VIsual_and_resel();
                 win_rotate(false, Prenum1);
             }
@@ -1450,7 +1450,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
             c if c == b'-' as c_int => {
                 win_setheight(curwin_mut().w_height - Prenum1);
             }
-            c if c == Ctrl__ || c == b'_' as c_int => {
+            c if c == CTRL_CONST_CONST || c == b'_' as c_int => {
                 win_setheight(if Prenum != 0 {
                     Prenum
                 } else {
@@ -1466,7 +1466,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
             c if c == b'|' as c_int => {
                 win_setwidth(if Prenum != 0 { Prenum } else { g_st().Columns });
             }
-            c if c == b'}' as c_int || c == b']' as c_int || c == Ctrl_RSB => {
+            c if c == b'}' as c_int || c == b']' as c_int || c == CTRL_RSB_CONST => {
                 if nchar == b'}' as c_int {
                     if Prenum != 0 {
                         g_st().g_do_tagpreview = Prenum;
@@ -1483,14 +1483,14 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     g_st().postponed_split = -1;
                 }
 
-                do_nv_ident(Ctrl_RSB, NUL as c_int);
+                do_nv_ident(CTRL_RSB_CONST, NUL as c_int);
                 g_st().postponed_split = 0;
             }
-            c if c == b'f' as c_int || c == b'F' as c_int || c == Ctrl_F => {
+            c if c == b'f' as c_int || c == b'F' as c_int || c == CTRL_F_CONST => {
                 do_window_gotofile(nchar, Prenum1);
             }
-            c if c == b'i' as c_int || c == Ctrl_I || c == b'd' as c_int || c == Ctrl_D => {
-                if nchar == b'i' as c_int || nchar == Ctrl_I {
+            c if c == b'i' as c_int || c == CTRL_I_CONST || c == b'd' as c_int || c == CTRL_D_CONST => {
+                if nchar == b'i' as c_int || nchar == CTRL_I_CONST {
                     type_ = FIND_ANY;
                 }
                 let mut ptr: *mut c_char = ptr::null_mut();
@@ -1521,7 +1521,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                     qf_view_result(true);
                 }
             }
-            c if c == b'g' as c_int || c == Ctrl_G => {
+            c if c == b'g' as c_int || c == CTRL_G => {
                 g_st().no_mapping += 1;
                 g_st().allow_keys += 1;
                 if xchar == NUL as c_int {
@@ -1533,9 +1533,9 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                 add_to_showcmd(xchar);
 
                 match xchar {
-                    xc if xc == b'}' as c_int || xc == b']' as c_int || xc == Ctrl_RSB => {
+                    xc if xc == b'}' as c_int || xc == b']' as c_int || xc == CTRL_RSB_CONST => {
                         if xchar == b'}' as c_int {
-                            xchar = Ctrl_RSB;
+                            xchar = CTRL_RSB_CONST;
                             if Prenum != 0 {
                                 g_st().g_do_tagpreview = Prenum;
                             } else {
@@ -1567,7 +1567,7 @@ pub fn do_window(mut nchar: c_int, mut Prenum: c_int, mut xchar: c_int) {
                         }
                     }
                     xc if xc == b'e' as c_int => {
-                        if curwin_mut().w_floating || !ui_has(kUIMultigrid) {
+                        if curwin_mut().w_floating || !ui_has(K_UIMULTIGRID) {
                             beep_flush();
                             return;
                         }
@@ -1619,7 +1619,7 @@ pub fn win_set_buf(win: &mut WinInfoInfo, buf: &mut FileBuf, err: &mut Error) {
             &raw mut *win,
             tab,
             ptr::null_mut(),
-            kCtxNoDisplay | kCtxKeepCwd,
+            K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD,
         );
         if win_ok {
             let save_acd = opt_vars().p_acd;
@@ -1694,7 +1694,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
     unsafe {
         wp.w_pos_changed = false;
         if !wp.w_floating {
-            if ui_has(kUIMultigrid) {
+            if ui_has(K_UIMULTIGRID) {
                 wp.w_grid_alloc.comp_col = wp.w_wincol;
                 wp.w_grid_alloc.comp_row = wp.w_winrow;
             }
@@ -1714,7 +1714,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
             let mut grid: *mut ScreenGrid = &raw mut g_st().default_grid;
             let mut row = c.row;
             let mut col = c.col;
-            if c.relative == kFloatRelativeWindow {
+            if c.relative == K_FLOAT_RELATIVE_WINDOW {
                 let mut dummy = ERROR_INIT;
                 let win = find_window_by_handle(c.window, &mut dummy);
                 api_clear_error(&mut dummy);
@@ -1755,9 +1755,9 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                         col += f64::from(tcol - 1);
                     }
                 }
-            } else if c.relative == kFloatRelativeLaststatus {
+            } else if c.relative == K_FLOAT_RELATIVE_LASTSTATUS {
                 row += f64::from(g_st().Rows - opt_vars().p_ch as c_int - last_stl_height(false));
-            } else if c.relative == kFloatRelativeTabline {
+            } else if c.relative == K_FLOAT_RELATIVE_TABLINE {
                 row += f64::from(tabline_height());
             }
 
@@ -1768,18 +1768,18 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
             if resort {
                 ui_comp_layers_adjust(wp.w_grid_alloc.comp_index, raise);
             }
-            let valid = wp.w_redr_type == 0 || ui_has(kUIMultigrid);
+            let valid = wp.w_redr_type == 0 || ui_has(K_UIMULTIGRID);
             if !valid && !validate {
                 wp.w_pos_changed = true;
                 return;
             }
 
-            let east = (c.anchor & kFloatAnchorEast) != 0;
-            let south = (c.anchor & kFloatAnchorSouth) != 0;
+            let east = (c.anchor & K_FLOAT_ANCHOR_EAST) != 0;
+            let south = (c.anchor & K_FLOAT_ANCHOR_SOUTH) != 0;
 
             let mut comp_row = (row as c_int) - if south { wp.w_height_outer } else { 0 };
             let mut comp_col = (col as c_int) - if east { wp.w_width_outer } else { 0 };
-            let above_ch = if wp.w_config.zindex < kZIndexMessages {
+            let above_ch = if wp.w_config.zindex < K_ZINDEX_MESSAGES {
                 opt_vars().p_ch as c_int
             } else {
                 0
@@ -1803,8 +1803,8 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                     valid,
                     false,
                 );
-                if ui_has(kUIMultigrid) {
-                    let anchor = cstr_as_string(float_anchor_str[c.anchor as usize].as_ptr());
+                if ui_has(K_UIMULTIGRID) {
+                    let anchor = cstr_as_string(FLOAT_ANCHOR_STR[c.anchor as usize].as_ptr());
                     ui_call_win_float_pos(
                         Integer::from(wp.w_grid_alloc.handle),
                         wp.handle,
@@ -1826,7 +1826,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                     redraw_later(Some(&mut *wp), UPD_NOT_VALID);
                 }
             } else {
-                if ui_has(kUIMultigrid) {
+                if ui_has(K_UIMULTIGRID) {
                     ui_call_win_hide(Integer::from(wp.w_grid_alloc.handle));
                 }
                 ui_comp_remove_grid(&mut wp.w_grid_alloc);
@@ -1839,7 +1839,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
 
 pub fn ui_ext_win_viewport(wp: &mut WinInfoInfo) {
      {
-        if (ptr::eq(wp, curwin_ptr()) || ui_has(kUIMultigrid))
+        if (ptr::eq(wp, curwin_ptr()) || ui_has(K_UIMULTIGRID))
             && wp.w_viewport_invalid
             && wp.w_redr_type == 0
         {
@@ -2026,7 +2026,7 @@ pub fn win_split_ins(
 
         if one_window(firstwin_mut(), ptr::null_mut()) && opt_vars().p_ls == 1 && (*oldwin).w_status_height == 0 {
             if OptInt::from((*oldwin).w_height) <= opt_vars().p_wmh {
-                emsg(gettext(e_noroom));
+                emsg(gettext(E_NOROOM));
                 return ptr::null_mut();
             }
             need_status = STATUS_HEIGHT;
@@ -2073,7 +2073,7 @@ pub fn win_split_ins(
                 needed += minwidth;
             }
             if available < needed {
-                emsg(gettext(e_noroom));
+                emsg(gettext(E_NOROOM));
                 return ptr::null_mut();
             }
             if new_size == 0 {
@@ -2144,7 +2144,7 @@ pub fn win_split_ins(
                 needed += minheight;
             }
             if available < needed {
-                emsg(gettext(e_noroom));
+                emsg(gettext(E_NOROOM));
                 return ptr::null_mut();
             }
             oldwin_height = (*oldwin).w_height;
@@ -2216,7 +2216,7 @@ pub fn win_split_ins(
             win_init(&mut *wp, curwin_mut(), flags);
         } else if (*wp).w_floating {
             ui_comp_remove_grid(&mut (*wp).w_grid_alloc);
-            if ui_has(kUIMultigrid) {
+            if ui_has(K_UIMULTIGRID) {
                 (*wp).w_pos_changed = true;
             } else {
                 ui_call_win_hide(Integer::from((*wp).w_grid_alloc.handle));
@@ -2665,7 +2665,7 @@ pub fn make_windows(mut count: c_int, vertical: bool) -> c_int {
 fn win_exchange(mut Prenum: c_int) {
     unsafe {
         if curwin_mut().w_floating {
-            emsg(e_floatexchange);
+            emsg(E_FLOATEXCHANGE);
             return;
         }
 
@@ -2741,7 +2741,7 @@ fn win_exchange(mut Prenum: c_int) {
 fn win_rotate(upwards: bool, mut count: c_int) {
     unsafe {
         if curwin_mut().w_floating {
-            emsg(e_floatexchange);
+            emsg(E_FLOATEXCHANGE);
             return;
         }
 
@@ -3519,7 +3519,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
             return false;
         }
         if is_ctx_win(win) {
-            emsg(gettext(e_autocmd_close));
+            emsg(gettext(E_AUTOCMD_CLOSE));
             return false;
         }
         if lastwin_mut().w_floating && one_window( &mut *win, ptr::null_mut()) {
@@ -3543,7 +3543,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
                     return false;
                 }
             } else {
-                emsg(e_floatonly);
+                emsg(E_FLOATONLY);
                 return false;
             }
         }
@@ -3649,7 +3649,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
             && ((*g_st().first_tabpage).tp_next.is_null() || lastwin_mut().w_floating)
         {
             if !(*g_st().first_tabpage).tp_next.is_null() {
-                emsg(e_floatonly);
+                emsg(E_FLOATONLY);
             }
             win_unclose_buffer( &mut *win, &mut bufref);
             return false;
@@ -3661,7 +3661,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
         win_st().split_disallowed += 1;
 
         let was_floating = (*win).w_floating;
-        if ui_has(kUIMultigrid) {
+        if ui_has(K_UIMULTIGRID) {
             ui_call_win_close(Integer::from((*win).w_grid_alloc.handle));
         }
 
@@ -3897,7 +3897,7 @@ pub fn win_close_othertab(
             return false;
         }
         if is_ctx_win(win) {
-            emsg(gettext(e_autocmd_close));
+            emsg(gettext(E_AUTOCMD_CLOSE));
             return false;
         }
 
@@ -3920,7 +3920,7 @@ pub fn win_close_othertab(
                     return false;
                 }
             } else {
-                emsg(e_floatonly);
+                emsg(E_FLOATONLY);
                 return false;
             }
         }
@@ -3960,7 +3960,7 @@ pub fn win_close_othertab(
             return false;
         }
         if (*(*tp).tp_lastwin).w_floating && one_window( &mut *win, tp) {
-            emsg(e_floatonly);
+            emsg(E_FLOATONLY);
             if win_valid_any_tab(win) {
                 win_unclose_buffer( &mut *win, &mut bufref);
             }
@@ -3992,7 +3992,7 @@ pub fn win_close_othertab(
             }
         }
 
-        if ui_has(kUIMultigrid) {
+        if ui_has(K_UIMULTIGRID) {
             ui_call_win_close(Integer::from((*win).w_grid_alloc.handle));
         }
         if (*win).w_floating {
@@ -4396,12 +4396,12 @@ fn win_altframe(win: &mut WinInfoInfo, tp: *mut TabPageInfo) -> *mut Frame {
 
 fn alt_tabpage() -> *mut TabPageInfo {
     unsafe {
-        if (opt_vars().tcl_flags & kOptTclFlagUselast) != 0 && valid_tabpage(g_st().lastused_tabpage) {
+        if (opt_vars().tcl_flags & K_OPT_TCL_FLAG_USELAST) != 0 && valid_tabpage(g_st().lastused_tabpage) {
             return g_st().lastused_tabpage;
         }
 
         let forward = !curtab_mut().tp_next.is_null()
-            && ((opt_vars().tcl_flags & kOptTclFlagLeft) == 0 || ptr::eq(g_st().curtab, g_st().first_tabpage));
+            && ((opt_vars().tcl_flags & K_OPT_TCL_FLAG_LEFT) == 0 || ptr::eq(g_st().curtab, g_st().first_tabpage));
 
         if forward {
             curtab_mut().tp_next
@@ -4463,7 +4463,7 @@ pub fn frame_new_height(
             let new_ch = win_st().min_set_ch.max(opt_vars().p_ch + OptInt::from((*topfrp).fr_height - height));
             if new_ch != opt_vars().p_ch {
                 let save_ch = win_st().min_set_ch;
-                set_option_value(kOptCmdheight, integer_obj(new_ch), 0, true, None);
+                set_option_value(K_OPT_CMDHEIGHT, integer_obj(new_ch), 0, true, None);
                 win_st().min_set_ch = save_ch;
             }
             height = (rows_avail() as c_int).min(height);
@@ -4854,7 +4854,7 @@ pub fn close_others(message: c_int, forceit: c_int, ignore_pinned: bool) {
 
         if curwin_mut().w_floating {
             if message != 0 && !g_st().autocmd_busy {
-                emsg(e_floatonly);
+                emsg(E_FLOATONLY);
             }
             return;
         }
@@ -5184,7 +5184,7 @@ pub fn win_new_tabpage(
                 (*newtp).tp_curwin,
                 newtp,
                 ptr::null_mut(),
-                kCtxNoDisplay,
+                K_CTX_NO_DISPLAY,
             );
             debug_assert!(sw_ok);
 
@@ -5402,7 +5402,7 @@ fn enter_tabpage(
             let new_ch = opt_vars().p_ch;
             opt_vars().p_ch = prev_p_ch;
             win_st().command_frame_height = false;
-            set_option_value(kOptCmdheight, integer_obj(new_ch), 0, true, None);
+            set_option_value(K_OPT_CMDHEIGHT, integer_obj(new_ch), 0, true, None);
             win_st().command_frame_height = true;
         } else if !ptr::eq(old_curtab, g_st().curtab) {
             tabpage_check_windows(&mut *old_curtab);
@@ -5937,7 +5937,7 @@ fn win_enter_ext(wp: *mut WinInfoInfo, flags: c_int) {
             win_fix_cursor((get_real_state() & (MODE_NORMAL | MODE_CMDLINE | MODE_TERMINAL)) != 0);
         }
 
-        update_cwd(kCdCauseWindow);
+        update_cwd(K_CD_CAUSE_WINDOW);
 
         entering_window(curwin_mut());
         if (flags & WEE_TRIGGER_NEW_AUTOCMDS) != 0 {
@@ -6010,16 +6010,16 @@ pub fn update_cwd(cause: CdCause) {
 
         if let Some(ref d) = curbuf_mut().b_localdir {
             new_dir = Some(d.clone());
-            scope = kCdScopeBuffer;
+            scope = K_CD_SCOPE_BUFFER;
         } else if let Some(ref d) = curwin_mut().w_localdir {
             new_dir = Some(d.clone());
-            scope = kCdScopeWindow;
+            scope = K_CD_SCOPE_WINDOW;
         } else if let Some(ref d) = curtab_mut().tp_localdir {
             new_dir = Some(d.clone());
-            scope = kCdScopeTabpage;
+            scope = K_CD_SCOPE_TABPAGE;
         } else {
             new_dir = None;
-            scope = kCdScopeGlobal;
+            scope = K_CD_SCOPE_GLOBAL;
         }
 
         let mut cwd = [0 as c_char; MAXPATHL];
@@ -6032,7 +6032,7 @@ pub fn update_cwd(cause: CdCause) {
             if g_st().globaldir.is_none() && cwd[0] != NUL {
                 g_st().globaldir = Some(crate::memory::cstr_to_cstring(cwd.as_ptr()));
             }
-            let dir_differs = !path_equal(new_dir_ptr, cwd.as_ptr(), kPathCmpLiteral);
+            let dir_differs = !path_equal(new_dir_ptr, cwd.as_ptr(), K_PATH_CMP_LITERAL);
             if opt_vars().p_acd == 0 && dir_differs {
                 do_autocmd_dirchanged(new_dir_ptr, scope, cause, true);
             }
@@ -6043,12 +6043,12 @@ pub fn update_cwd(cause: CdCause) {
             shorten_fnames(1);
         } else if let Some(gdir) = g_st().globaldir.take() {
             let gdir_ptr = gdir.as_ptr().cast_mut();
-            let dir_differs = !path_equal(gdir_ptr, cwd.as_ptr(), kPathCmpLiteral);
+            let dir_differs = !path_equal(gdir_ptr, cwd.as_ptr(), K_PATH_CMP_LITERAL);
             if opt_vars().p_acd == 0 && dir_differs {
-                do_autocmd_dirchanged(gdir_ptr, kCdScopeGlobal, cause, true);
+                do_autocmd_dirchanged(gdir_ptr, K_CD_SCOPE_GLOBAL, cause, true);
             }
             if os_chdir(gdir_ptr) == 0 && opt_vars().p_acd == 0 && dir_differs {
-                do_autocmd_dirchanged(gdir_ptr, kCdScopeGlobal, cause, false);
+                do_autocmd_dirchanged(gdir_ptr, K_CD_SCOPE_GLOBAL, cause, false);
             }
             g_st().last_chdir_reason = None;
             shorten_fnames(1);
@@ -6211,7 +6211,7 @@ pub fn win_free(wp: *mut WinInfoInfo, tp: *mut TabPageInfo) {
             if let Some(pw) = pos_wip {
                 let wip_wp = &mut (&mut buf.b_wininfo)[pw];
                 wip_wp.wi_win = ptr::null_mut();
-                if (*wp).w_config.style == kWinStyleMinimal && wip_wp.wi_optset {
+                if (*wp).w_config.style == K_WIN_STYLE_MINIMAL && wip_wp.wi_optset {
                     clear_winopt(&mut wip_wp.wi_opt);
                     wip_wp.wi_folds.clear();
                     wip_wp.wi_optset = false;
@@ -6263,7 +6263,7 @@ impl Drop for WinInfoInfo {
 
 pub fn win_free_grid(wp: &mut WinInfoInfo, reinit: bool) {
      {
-        if wp.w_grid_alloc.handle != 0 && ui_has(kUIMultigrid) {
+        if wp.w_grid_alloc.handle != 0 && ui_has(K_UIMULTIGRID) {
             ui_call_grid_destroy(Integer::from(wp.w_grid_alloc.handle));
         }
         grid_free(&mut wp.w_grid_alloc);
@@ -6372,7 +6372,7 @@ fn frame_remove(frp: &mut Frame) {
 pub fn win_new_screensize() {
     if win_st().old_Rows != g_st().Rows {
             if opt_vars().p_window == OptInt::from(win_st().old_Rows - 1)
-                || (win_st().old_Rows == 0 && !option_was_set(kOptWindow))
+                || (win_st().old_Rows == 0 && !option_was_set(K_OPT_WINDOW))
             {
                 opt_vars().p_window = OptInt::from(g_st().Rows - 1);
             }
@@ -6784,7 +6784,7 @@ pub fn win_comp_pos() -> c_int {
 
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
-            if (*wp).w_config.relative == kFloatRelativeWindow {
+            if (*wp).w_config.relative == K_FLOAT_RELATIVE_WINDOW {
                 (*wp).w_pos_changed = true;
             }
             wp = (*wp).w_prev;
@@ -7119,7 +7119,7 @@ pub fn did_set_winminheight(_args: &mut Optset) -> *const c_char {
             }
             opt_vars().p_wmh -= 1;
             if first {
-                emsg(gettext(e_noroom));
+                emsg(gettext(E_NOROOM));
                 first = false;
             }
         }
@@ -7137,7 +7137,7 @@ pub fn did_set_winminwidth(_args: &mut Optset) -> *const c_char {
             }
             opt_vars().p_wmw -= 1;
             if first {
-                emsg(gettext(e_noroom));
+                emsg(gettext(E_NOROOM));
                 first = false;
             }
         }
@@ -7583,7 +7583,7 @@ pub fn win_set_inner_size(wp: &mut WinInfoInfo, valid_cursor: bool) {
         wp.w_winrow_off = wp.w_border_adj[0] + wp.w_winbar_height;
         wp.w_wincol_off = wp.w_border_adj[3];
 
-        if ui_has(kUIMultigrid) {
+        if ui_has(K_UIMULTIGRID) {
             ui_call_win_viewport_margins(
                 Integer::from(wp.w_grid_alloc.handle),
                 wp.handle,
@@ -7617,8 +7617,8 @@ pub fn win_comp_scroll(wp: &mut WinInfoInfo) {
         wp.w_onebuf_opt.wo_scr = win_default_scroll(wp);
 
         if wp.w_onebuf_opt.wo_scr != old_w_p_scr {
-            wp.w_onebuf_opt.wo_script_ctx[kWinOptScroll].sc_sid = SID_WINLAYOUT;
-            wp.w_onebuf_opt.wo_script_ctx[kWinOptScroll].sc_lnum = 0;
+            wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_SCROLL].sc_sid = SID_WINLAYOUT;
+            wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_SCROLL].sc_lnum = 0;
         }
 }
 
@@ -7640,7 +7640,7 @@ pub fn command_height() {
 
         while opt_vars().p_ch > OptInt::from(old_p_ch) && win_st().command_frame_height {
             if frp.is_null() {
-                emsg(gettext(e_noroom));
+                emsg(gettext(E_NOROOM));
                 opt_vars().p_ch = OptInt::from(old_p_ch);
                 break;
             }
@@ -7661,7 +7661,7 @@ pub fn command_height() {
 
         if g_st().msg_scrolled == 0 && g_st().full_screen {
             let mut grid: *mut GridView = &raw mut g_st().default_gridview;
-            if !ui_has(kUIMessages) {
+            if !ui_has(K_UIMESSAGES) {
                 msg_grid_validate();
                 grid = &raw mut g_st().msg_grid_adj;
             }
@@ -7739,13 +7739,13 @@ fn resize_frame_for_status(fr: &mut Frame) -> bool {
         let fp = find_horizontally_resizable_frame(fr);
 
         if fp.is_null() {
-            emsg(gettext(e_noroom));
+            emsg(gettext(E_NOROOM));
             false
         } else if !ptr::eq(fp, fr) {
             let old_height = fr.fr_height;
             frame_setheight(fr, old_height + 1, false);
             if fr.fr_height == old_height {
-                emsg(gettext(e_noroom));
+                emsg(gettext(E_NOROOM));
                 return false;
             }
             win_comp_pos();
@@ -7761,7 +7761,7 @@ fn resize_frame_for_winbar(fr: &mut Frame) -> bool {
     let old_height = fr.fr_height;
         frame_setheight(fr, old_height + 1, false);
         if fr.fr_height == old_height {
-            emsg(gettext(e_noroom));
+            emsg(gettext(E_NOROOM));
             return false;
         }
         win_comp_pos();
@@ -7813,7 +7813,7 @@ pub fn set_winbar_win(wp: &mut WinInfoInfo, make_room: bool, valid_cursor: bool)
         if wp.w_winbar_height != winbar_height {
             if winbar_height == 1 && wp.w_view_height <= 1 {
                 if wp.w_floating {
-                    emsg(gettext(e_noroom));
+                    emsg(gettext(E_NOROOM));
                     return NOTDONE;
                 } else if !make_room || !resize_frame_for_winbar(&mut *wp.w_frame) {
                     return FAIL;
@@ -7859,7 +7859,7 @@ pub fn set_winbar_all(make_room: bool) {
                     (*tp).tp_curwin,
                     tp,
                     ptr::null_mut(),
-                    kCtxNoEvents | kCtxNoDisplay,
+                    K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
                 ) {
                     let _ = set_winbar_curtab(make_room, false);
                 }
@@ -7871,7 +7871,7 @@ pub fn set_winbar_all(make_room: bool) {
 
 pub fn tabline_height() -> c_int {
     unsafe {
-        if ui_has(kUITabline) {
+        if ui_has(K_UITABLINE) {
             return 0;
         }
         debug_assert!(!g_st().first_tabpage.is_null());
@@ -8187,7 +8187,7 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *
             return ptr::null();
         }
 
-        let mut s: *mut c_char = empty_string_option.as_ptr().cast::<c_char>();
+        let mut s: *mut c_char = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
         if !cc.is_null() {
             s = cc;
         } else if wp.is_some() {
@@ -8209,7 +8209,7 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *
                 col = if crate::memory::cstr_first_byte(s) == b'-' { -1 } else { 1 };
                 s = s.add(1);
                 if !ascii_isdigit(c_int::from(crate::memory::cstr_first_byte(s))) {
-                    return e_invarg.as_ptr();
+                    return E_INVARG.as_ptr();
                 }
                 col *= getdigits_int(&raw mut s, true, 0);
                 if tw == 0 {
@@ -8223,7 +8223,7 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *
             } else if ascii_isdigit(c_int::from(crate::memory::cstr_first_byte(s))) {
                 col = getdigits_int(&raw mut s, true, 0);
             } else {
-                return e_invarg.as_ptr();
+                return E_INVARG.as_ptr();
             }
             if !skip {
                 color_cols[count] = col - 1;
@@ -8233,11 +8233,11 @@ pub fn check_colorcolumn(cc: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> *
                 break;
             }
             if crate::memory::cstr_first_byte(s) != b',' {
-                return e_invarg.as_ptr();
+                return E_INVARG.as_ptr();
             }
             s = s.add(1);
             if crate::memory::cstr_is_empty(s) {
-                return e_invarg.as_ptr();
+                return E_INVARG.as_ptr();
             }
         }
 

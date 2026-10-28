@@ -7,7 +7,7 @@ use crate::event::socket::{
     ADDRESS_MAX_SIZE, SocketWatcher, socket_watcher_close, socket_watcher_init,
     socket_watcher_start,
 };
-use crate::extmark::{TriState, kFalse, kNone, kTrue};
+use crate::extmark::{TriState, K_FALSE, K_NONE, K_TRUE};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
 use crate::memory::{cstr_to_cstring, xstrlcpy};
@@ -59,16 +59,16 @@ pub fn server_init(listen_addr: impl crate::strings::IntoCCharPtr) -> bool { let
     unsafe {
         let mut ok = true;
         let mut owned_addr: Option<std::ffi::CString> = None;
-        let mut user_arg: TriState = kTrue;
+        let mut user_arg: TriState = K_TRUE;
         srv_st().watchers = Vec::new();
 
         if listen_addr.is_null() || *listen_addr == 0 {
             if os_env_exists(ENV_LISTEN, true) {
-                user_arg = kFalse;
+                user_arg = K_FALSE;
                 let raw = os_getenv_cstr(ENV_LISTEN);
                 owned_addr = to_slash_save(raw.as_ref().map_or(ptr::null(), |c| c.as_ptr()));
             } else {
-                user_arg = kNone;
+                user_arg = K_NONE;
                 owned_addr = Some(server_address_new(ptr::null()));
             }
             listen_addr = owned_addr.as_ref().unwrap().as_ptr();
@@ -87,8 +87,8 @@ pub fn server_init(listen_addr: impl crate::strings::IntoCCharPtr) -> bool { let
             );
         }
 
-        if rv != 0 && user_arg != kNone {
-            let fmt = if user_arg == kTrue {
+        if rv != 0 && user_arg != K_NONE {
+            let fmt = if user_arg == K_TRUE {
                 c"Failed to --listen: %s: \"%s\"".as_ptr()
             } else {
                 c"Failed $NVIM_LISTEN_ADDRESS: %s: \"%s\"".as_ptr()

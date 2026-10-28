@@ -632,7 +632,7 @@ impl EditorState {
     revins_chars: 0,
     revins_legal: 0,
     revins_scol: 0,
-    dont_sync_undo: crate::extmark::kNone,
+    dont_sync_undo: crate::extmark::K_NONE,
     o_lnum: 0,
 },
             orig_line_count: 0,
@@ -883,6 +883,7 @@ pub fn g_st() -> &'static mut EditorState {
     unsafe { &mut *EDITOR_STATE.as_ptr() }
 }
 
+#[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
 pub static curwin: GlobalState<*mut WinInfoInfo> = GlobalState::new(ptr::null_mut());
 
@@ -1172,6 +1173,7 @@ pub fn frame_iter_ptr(start: *mut Frame) -> FramePtrIter {
     FramePtrIter(start)
 }
 
+#[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
 pub static starting: GlobalState<c_int> = GlobalState::new(NO_SCREEN);
 
@@ -1187,8 +1189,9 @@ pub fn set_starting(v: c_int) {
     }
 }
 
-pub const escape_chars: &std::ffi::CStr = c" \t\\\"|";
-pub const no_lines_msg: &std::ffi::CStr = c"--No lines in buffer--";
+pub const ESCAPE_CHARS: &std::ffi::CStr = c" \t\\\"|";
+pub const NO_LINES_MSG: &std::ffi::CStr = c"--No lines in buffer--";
+#[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
 pub static display_tick: GlobalState<Disptick> = GlobalState::new(0);
 
@@ -1237,7 +1240,7 @@ pub const SCREEN_GRID_INIT: ScreenGrid = ScreenGrid {
     comp_disabled: false,
     pending_comp_index_update: true,
 };
-pub const ui_ext_names: [&std::ffi::CStr; 10] = [
+pub const UI_EXT_NAMES: [&std::ffi::CStr; 10] = [
     c"ext_cmdline",
     c"ext_popupmenu",
     c"ext_tabline",
@@ -1249,9 +1252,9 @@ pub const ui_ext_names: [&std::ffi::CStr; 10] = [
     c"ext_termcolors",
     c"_debug_float",
 ];
-pub const msg_loclist: &std::ffi::CStr = c"[Location List]";
-pub const msg_qflist: &std::ffi::CStr = c"[Quickfix List]";
-pub const virt_text_pos_str: [&std::ffi::CStr; 6] = [
+pub const MSG_LOCLIST: &std::ffi::CStr = c"[Location List]";
+pub const MSG_QFLIST: &std::ffi::CStr = c"[Quickfix List]";
+pub const VIRT_TEXT_POS_STR: [&std::ffi::CStr; 6] = [
     c"eol",
     c"eol_right_align",
     c"inline",
@@ -1259,13 +1262,13 @@ pub const virt_text_pos_str: [&std::ffi::CStr; 6] = [
     c"right_align",
     c"win_col",
 ];
-pub const hl_mode_str: [&std::ffi::CStr; 4] = [
+pub const HL_MODE_STR: [&std::ffi::CStr; 4] = [
     c"",
     c"replace",
     c"combine",
     c"blend",
 ];
-pub const hlf_names: [Option<&std::ffi::CStr>; HLF_COUNT] = [
+pub const HLF_NAMES: [Option<&std::ffi::CStr>; HLF_COUNT] = [
     None,
     Some(c"SpecialKey"),
     Some(c"EndOfBuffer"),
@@ -1345,14 +1348,15 @@ pub const hlf_names: [Option<&std::ffi::CStr>; HLF_COUNT] = [
 ];
 #[inline]
 pub const fn hlf_name_ptr(idx: usize) -> *const c_char {
-    match hlf_names[idx] {
+    match HLF_NAMES[idx] {
         Some(s) => s.as_ptr(),
         None => ptr::null(),
     }
 }
+#[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
 pub static test_disable_char_avail: GlobalState<bool> = GlobalState::new(false);
-pub const float_anchor_str: [&std::ffi::CStr; 4] = [
+pub const FLOAT_ANCHOR_STR: [&std::ffi::CStr; 4] = [
     c"NW",
     c"NE",
     c"SW",
@@ -1379,7 +1383,7 @@ mod tests {
             assert_eq!({ g_st().Visual.mode }, b'v' as c_int);
             assert_eq!({ g_st().Search.last_line }, 0x7fffffff);
             assert_eq!(
-                crate::memory::cstr_as_bytes(no_lines_msg.as_ptr()),
+                crate::memory::cstr_as_bytes(NO_LINES_MSG.as_ptr()),
                 b"--No lines in buffer--"
             );
         }

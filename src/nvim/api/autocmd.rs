@@ -20,7 +20,7 @@ use crate::autocmd::{
 };
 use crate::buffer::do_modelines;
 use crate::eval::typval::{
-    Callback, callback_free, callback_to_string, kCallbackFuncref, kCallbackLua, kCallbackPartial,
+    Callback, callback_free, callback_to_string, K_CALLBACK_FUNCREF, K_CALLBACK_LUA, K_CALLBACK_PARTIAL,
 };
 use crate::globals::*;
 use crate::lua::converter::LUA_NOREF;
@@ -34,30 +34,30 @@ use crate::highlight::OptionalKeys;
 
 const AUCMD_MAX_PATTERNS: usize = 256;
 
-const KEYSET_OPTIDX_get_autocmds__id: u64 = 1;
-const KEYSET_OPTIDX_get_autocmds__buf: u64 = 2;
-const KEYSET_OPTIDX_get_autocmds__event: u64 = 3;
-const KEYSET_OPTIDX_get_autocmds__buffer: u64 = 5;
-const KEYSET_OPTIDX_get_autocmds__pattern: u64 = 6;
+const KEYSET_OPTIDX_GET_AUTOCMDS_ID: u64 = 1;
+const KEYSET_OPTIDX_GET_AUTOCMDS_BUF: u64 = 2;
+const KEYSET_OPTIDX_GET_AUTOCMDS_EVENT: u64 = 3;
+const KEYSET_OPTIDX_GET_AUTOCMDS_BUFFER: u64 = 5;
+const KEYSET_OPTIDX_GET_AUTOCMDS_PATTERN: u64 = 6;
 
-const KEYSET_OPTIDX_create_autocmd__buf: u64 = 1;
-const KEYSET_OPTIDX_create_autocmd__desc: u64 = 2;
-const KEYSET_OPTIDX_create_autocmd__buffer: u64 = 5;
-const KEYSET_OPTIDX_create_autocmd__command: u64 = 7;
-const KEYSET_OPTIDX_create_autocmd__pattern: u64 = 8;
-const KEYSET_OPTIDX_create_autocmd__callback: u64 = 9;
+const KEYSET_OPTIDX_CREATE_AUTOCMD_BUF: u64 = 1;
+const KEYSET_OPTIDX_CREATE_AUTOCMD_DESC: u64 = 2;
+const KEYSET_OPTIDX_CREATE_AUTOCMD_BUFFER: u64 = 5;
+const KEYSET_OPTIDX_CREATE_AUTOCMD_COMMAND: u64 = 7;
+const KEYSET_OPTIDX_CREATE_AUTOCMD_PATTERN: u64 = 8;
+const KEYSET_OPTIDX_CREATE_AUTOCMD_CALLBACK: u64 = 9;
 
-const KEYSET_OPTIDX_clear_autocmds__buf: u64 = 1;
-const KEYSET_OPTIDX_clear_autocmds__buffer: u64 = 4;
-const KEYSET_OPTIDX_clear_autocmds__pattern: u64 = 5;
+const KEYSET_OPTIDX_CLEAR_AUTOCMDS_BUF: u64 = 1;
+const KEYSET_OPTIDX_CLEAR_AUTOCMDS_BUFFER: u64 = 4;
+const KEYSET_OPTIDX_CLEAR_AUTOCMDS_PATTERN: u64 = 5;
 
-const KEYSET_OPTIDX_create_augroup__clear: u64 = 1;
+const KEYSET_OPTIDX_CREATE_AUGROUP_CLEAR: u64 = 1;
 
-const KEYSET_OPTIDX_exec_autocmds__buf: u64 = 1;
-const KEYSET_OPTIDX_exec_autocmds__data: u64 = 2;
-const KEYSET_OPTIDX_exec_autocmds__buffer: u64 = 4;
-const KEYSET_OPTIDX_exec_autocmds__pattern: u64 = 5;
-const KEYSET_OPTIDX_exec_autocmds__modeline: u64 = 6;
+const KEYSET_OPTIDX_EXEC_AUTOCMDS_BUF: u64 = 1;
+const KEYSET_OPTIDX_EXEC_AUTOCMDS_DATA: u64 = 2;
+const KEYSET_OPTIDX_EXEC_AUTOCMDS_BUFFER: u64 = 4;
+const KEYSET_OPTIDX_EXEC_AUTOCMDS_PATTERN: u64 = 5;
+const KEYSET_OPTIDX_EXEC_AUTOCMDS_MODELINE: u64 = 6;
 
 
 #[repr(C)]
@@ -437,13 +437,13 @@ pub fn nvim_get_autocmds(
             }
 
             let mask = opts.is_set__get_autocmds_;
-            let id: c_int = if has_key(mask, KEYSET_OPTIDX_get_autocmds__id) {
+            let id: c_int = if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_ID) {
                 opts.id as c_int
             } else {
                 -1
             };
 
-            if has_key(mask, KEYSET_OPTIDX_get_autocmds__event) {
+            if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_EVENT) {
                 check_event = true;
                 let v = opts.event;
                 if v.obj_type == ObjectType::ObjectTypeString {
@@ -483,8 +483,8 @@ pub fn nvim_get_autocmds(
                 }
             }
 
-            let has_buf_key = has_key(mask, KEYSET_OPTIDX_get_autocmds__buf);
-            let has_buffer_key = has_key(mask, KEYSET_OPTIDX_get_autocmds__buffer);
+            let has_buf_key = has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_BUF);
+            let has_buffer_key = has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_BUFFER);
             let has_buf = has_buf_key || has_buffer_key;
             let buf = if has_buf_key {
                 opts.buf
@@ -496,13 +496,13 @@ pub fn nvim_get_autocmds(
                 api_err_con(err, c"buf", c"buffer");
                 break 'body;
             }
-            if has_key(mask, KEYSET_OPTIDX_get_autocmds__pattern) && has_buf {
+            if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_PATTERN) && has_buf {
                 api_err_con(err, c"pattern", c"buf");
                 break 'body;
             }
 
             let mut pattern_filter_count = 0usize;
-            if has_key(mask, KEYSET_OPTIDX_get_autocmds__pattern) {
+            if has_key(mask, KEYSET_OPTIDX_GET_AUTOCMDS_PATTERN) {
                 let v = opts.pattern;
                 if v.obj_type == ObjectType::ObjectTypeString {
                     pattern_filters[pattern_filter_count] = v.data.string().data;
@@ -688,7 +688,7 @@ pub fn nvim_get_autocmds(
                             );
 
                             match cb.cb_type() {
-                                kCallbackLua => {
+                                K_CALLBACK_LUA => {
                                     let luaref = cb.data.as_luaref();
                                     if nlua_ref_is_function(luaref) {
                                         put_c(
@@ -698,7 +698,7 @@ pub fn nvim_get_autocmds(
                                         );
                                     }
                                 }
-                                kCallbackFuncref | kCallbackPartial => {
+                                K_CALLBACK_FUNCREF | K_CALLBACK_PARTIAL => {
                                     let cb_str = callback_to_string(cb);
                                     put_c(
                                         &mut autocmd_info,
@@ -836,8 +836,8 @@ pub fn nvim_create_autocmd(
             }
 
             let mask = opts.is_set__create_autocmd_;
-            let has_callback = has_key(mask, KEYSET_OPTIDX_create_autocmd__callback);
-            let has_command = has_key(mask, KEYSET_OPTIDX_create_autocmd__command);
+            let has_callback = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_CALLBACK);
+            let has_command = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_COMMAND);
 
             if has_callback && has_command {
                 api_err_con(err, c"callback", c"command");
@@ -886,8 +886,8 @@ pub fn nvim_create_autocmd(
                 break 'body;
             }
 
-            let has_buf_key = has_key(mask, KEYSET_OPTIDX_create_autocmd__buf);
-            let has_buffer_key = has_key(mask, KEYSET_OPTIDX_create_autocmd__buffer);
+            let has_buf_key = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_BUF);
+            let has_buffer_key = has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_BUFFER);
             let has_buf = has_buf_key || has_buffer_key;
             let buf = if has_buf_key {
                 opts.buf
@@ -899,7 +899,7 @@ pub fn nvim_create_autocmd(
                 api_err_con(err, c"buf", c"buffer");
                 break 'body;
             }
-            if has_key(mask, KEYSET_OPTIDX_create_autocmd__pattern) && has_buf {
+            if has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_PATTERN) && has_buf {
                 api_err_con(err, c"pattern", c"buf");
                 break 'body;
             }
@@ -925,7 +925,7 @@ pub fn nvim_create_autocmd(
                 break 'body;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_create_autocmd__desc) {
+            if has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_DESC) {
                 desc = opts.desc.data;
             }
 
@@ -976,7 +976,7 @@ pub fn nvim_create_autocmd(
             }
         }
 
-        if handler_fn.cb_type() == kCallbackLua {
+        if handler_fn.cb_type() == K_CALLBACK_LUA {
             callback_free(&mut handler_fn);
         }
 
@@ -1032,8 +1032,8 @@ pub fn nvim_clear_autocmds(
         }
 
         let mask = opts.is_set__clear_autocmds_;
-        let has_buf_key = has_key(mask, KEYSET_OPTIDX_clear_autocmds__buf);
-        let has_buffer_key = has_key(mask, KEYSET_OPTIDX_clear_autocmds__buffer);
+        let has_buf_key = has_key(mask, KEYSET_OPTIDX_CLEAR_AUTOCMDS_BUF);
+        let has_buffer_key = has_key(mask, KEYSET_OPTIDX_CLEAR_AUTOCMDS_BUFFER);
         let has_buf = has_buf_key || has_buffer_key;
         let buf = if has_buf_key {
             opts.buf
@@ -1045,7 +1045,7 @@ pub fn nvim_clear_autocmds(
             api_err_con(err, c"buf", c"buffer");
             return;
         }
-        if has_key(mask, KEYSET_OPTIDX_clear_autocmds__pattern) && has_buf {
+        if has_key(mask, KEYSET_OPTIDX_CLEAR_AUTOCMDS_PATTERN) && has_buf {
             api_err_con(err, c"pattern", c"buf");
             return;
         }
@@ -1123,7 +1123,7 @@ pub fn nvim_create_augroup(
         let augroup_name = name.data;
         let clear_autocmds = if has_key(
             opts.is_set__create_augroup_,
-            KEYSET_OPTIDX_create_augroup__clear,
+            KEYSET_OPTIDX_CREATE_AUGROUP_CLEAR,
         ) {
             opts.clear
         } else {
@@ -1246,8 +1246,8 @@ pub fn nvim_exec_autocmds(
         }
 
         let mask = opts.is_set__exec_autocmds_;
-        let has_buf_key = has_key(mask, KEYSET_OPTIDX_exec_autocmds__buf);
-        let has_buffer_key = has_key(mask, KEYSET_OPTIDX_exec_autocmds__buffer);
+        let has_buf_key = has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_BUF);
+        let has_buffer_key = has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_BUFFER);
         let has_buf = has_buf_key || has_buffer_key;
         let buf = if has_buf_key {
             opts.buf
@@ -1261,7 +1261,7 @@ pub fn nvim_exec_autocmds(
         }
 
         if has_buf {
-            if has_key(mask, KEYSET_OPTIDX_exec_autocmds__pattern) {
+            if has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_PATTERN) {
                 api_err_con(err, c"pattern", c"buf");
                 return;
             }
@@ -1283,11 +1283,11 @@ pub fn nvim_exec_autocmds(
             return;
         }
 
-        if has_key(mask, KEYSET_OPTIDX_exec_autocmds__data) {
+        if has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_DATA) {
             data = &mut opts.data;
         }
 
-        let modeline = if has_key(mask, KEYSET_OPTIDX_exec_autocmds__modeline) {
+        let modeline = if has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_MODELINE) {
             opts.modeline
         } else {
             true
@@ -1333,14 +1333,14 @@ pub fn nvim_exec_autocmds(
 mod tests {
     use super::*;
 
-    const KEYSET_OPTIDX_create_autocmd__once: u64 = 12;
+    const KEYSET_OPTIDX_CREATE_AUTOCMD_ONCE: u64 = 12;
 
     #[test]
     fn has_key_checks_bitmask() {
-        let mask = (1u64 << KEYSET_OPTIDX_create_autocmd__once)
-            | (1u64 << KEYSET_OPTIDX_create_autocmd__callback);
-        assert!(has_key(mask, KEYSET_OPTIDX_create_autocmd__once));
-        assert!(has_key(mask, KEYSET_OPTIDX_create_autocmd__callback));
-        assert!(!has_key(mask, KEYSET_OPTIDX_create_autocmd__command));
+        let mask = (1u64 << KEYSET_OPTIDX_CREATE_AUTOCMD_ONCE)
+            | (1u64 << KEYSET_OPTIDX_CREATE_AUTOCMD_CALLBACK);
+        assert!(has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_ONCE));
+        assert!(has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_CALLBACK));
+        assert!(!has_key(mask, KEYSET_OPTIDX_CREATE_AUTOCMD_COMMAND));
     }
 }

@@ -2,7 +2,7 @@
 
 use crate::charset::{skiptowhite, skipwhite};
 use crate::debugger::ex_breakadd;
-use crate::errors::e_notopen;
+use crate::errors::E_NOTOPEN;
 use crate::eval::typval::{TvDict, Dictitem, TvList, Listitem, TypVal};
 use crate::eval::userfunc::{DeferCall, func_tbl_get, get_current_funccal, UserFunc};
 use crate::eval::vars::{VV_PROFILING, set_vim_var_nr};
@@ -845,7 +845,7 @@ pub fn profile_dump() {
 
         let fd = os_fopen(profile_fname.as_ptr(), c"w");
         if fd.is_null() {
-            semsg!(e_notopen, profile_fname.as_ptr());
+            semsg!(E_NOTOPEN, profile_fname.as_ptr());
         } else {
             script_dump_profile(fd);
             func_dump_profile(fd);

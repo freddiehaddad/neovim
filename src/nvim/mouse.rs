@@ -36,7 +36,7 @@ use crate::keycodes::{
     K_X2MOUSE, K_X2RELEASE, get_mouse_button, key2termcap1,
 };
 use crate::mbyte::{
-    mb_get_class, utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo, utf8len_tab, utfc_ptr2len,
+    mb_get_class, utf_ClusterInfo, utf_head_off, utf_ptr2StrCharInfo, UTF8LEN_TAB, utfc_ptr2len,
 };
 use crate::mcursor::mc_toggle;
 use crate::memline::{gchar_pos, inc, ml_get, ml_get_buf};
@@ -71,13 +71,13 @@ use crate::window::{
 use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
-use crate::cmdexpand::Ctrl_P;
+use crate::cmdexpand::CTRL_P;
 use crate::drawline::{VALID_CROW, VALID_WROW};
-use crate::eval::funcs::{MTCharWise, MTLineWise};
-use crate::ex_getln::{Ctrl_G, Ctrl_O, Ctrl_R, Ctrl_RSB, Ctrl_T};
-use crate::extmark::kNone;
-use crate::insexpand::kWinInfo;
-use crate::regexp::Ctrl_V;
+use crate::eval::funcs::{MT_CHAR_WISE, MT_LINE_WISE};
+use crate::ex_getln::{CTRL_G, CTRL_O, CTRL_R_CONST, CTRL_RSB_CONST, CTRL_T_CONST};
+use crate::extmark::K_NONE;
+use crate::insexpand::K_WIN_INFO;
+use crate::regexp::CTRL_V_CONST;
 
 pub const IN_UNKNOWN: c_int = 0;
 pub const IN_BUFFER: c_int = 1;
@@ -116,17 +116,17 @@ const MOD_MASK_3CLICK: c_int = 0x40;
 const MOD_MASK_4CLICK: c_int = 0x60;
 const MOD_MASK_MULTI_CLICK: c_int = MOD_MASK_2CLICK | MOD_MASK_3CLICK | MOD_MASK_4CLICK;
 
-pub(crate) const kMouseVisual: c_int = b'v' as c_int;
+pub(crate) const K_MOUSE_VISUAL: c_int = b'v' as c_int;
 const ZERO_POS: CursorPos = CursorPos {
     lnum: 0,
     col: 0,
     coladd: 0,
 };
 
-pub(crate) const kStlClickDisabled: c_int = 0;
-pub(crate) const kStlClickTabSwitch: c_int = 1;
-pub(crate) const kStlClickTabClose: c_int = 2;
-pub(crate) const kStlClickFuncRun: c_int = 3;
+pub(crate) const K_STL_CLICK_DISABLED: c_int = 0;
+pub(crate) const K_STL_CLICK_TAB_SWITCH: c_int = 1;
+pub(crate) const K_STL_CLICK_TAB_CLOSE: c_int = 2;
+pub(crate) const K_STL_CLICK_FUNC_RUN: c_int = 3;
 
 #[repr(C)]
 #[derive(Clone)]
@@ -139,7 +139,7 @@ pub struct StlClickDefinition {
 impl StlClickDefinition {
     pub const fn new() -> Self {
         Self {
-            type_: kStlClickDisabled,
+            type_: K_STL_CLICK_DISABLED,
             tabnr: 0,
             func: None,
         }
@@ -210,7 +210,7 @@ fn mouse_st() -> &'static mut MouseModuleState {
 /// >2: multi-byte word character.
 fn get_mouse_class(p: impl crate::strings::IntoCCharPtr) -> c_int { let p = p.into_c_char_ptr();
      {
-        if utf8len_tab[crate::memory::cstr_first_byte(p) as usize] > 1 {
+        if UTF8LEN_TAB[crate::memory::cstr_first_byte(p) as usize] > 1 {
             return mb_get_class(p);
         }
 
@@ -478,7 +478,7 @@ fn do_popup(which_button: c_int, m_pos_flag: c_int, mut m_pos: CursorPos) -> c_i
                         && (lt(m_pos, g_st().Visual.start) || lt(curwin_mut().w_cursor, m_pos)))
                 {
                     jump_flags = MOUSE_MAY_STOP_VIS;
-                } else if g_st().Visual.mode == Ctrl_V {
+                } else if g_st().Visual.mode == CTRL_V_CONST {
                     let mut leftcol: Colnr = 0;
                     let mut rightcol: Colnr = 0;
                     getvcols(
@@ -578,12 +578,12 @@ pub fn do_mouse(
 
         if is_click && (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button == MOUSE_RIGHT {
             if (g_st().State & MODE_INSERT) != 0 {
-                stuffcharReadbuff(Ctrl_O);
+                stuffcharReadbuff(CTRL_O);
             }
             if count > 1 {
                 stuffnumReadbuff(count);
             }
-            stuffcharReadbuff(Ctrl_T);
+            stuffcharReadbuff(CTRL_T_CONST);
             mouse_st().got_click = false;
             if (g_st().State & MODE_INSERT) == 0 {
                 exec_stuffed(None);
@@ -621,7 +621,7 @@ pub fn do_mouse(
 
                 if g_st().Visual.active {
                     if g_st().Visual.select {
-                        stuffcharReadbuff(Ctrl_G);
+                        stuffcharReadbuff(CTRL_G);
                         stuffReadbuff(c"\"+p");
                     } else {
                         if regname != 0 {
@@ -657,8 +657,8 @@ pub fn do_mouse(
                             (if fixindent { PUT_FIXINDENT } else { 0 }) | PUT_CURSEND,
                         );
 
-                        redo_append_char(Ctrl_R);
-                        redo_append_char(if fixindent { Ctrl_P } else { Ctrl_O });
+                        redo_append_char(CTRL_R_CONST);
+                        redo_append_char(if fixindent { CTRL_P } else { CTRL_O });
                         redo_append_char(if regname == 0 { b'"' as c_int } else { regname });
                     }
                 }
@@ -687,8 +687,8 @@ pub fn do_mouse(
                     mouse_st().in_tab_line = true;
 
                     match g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].type_ {
-                        kStlClickDisabled => {}
-                        kStlClickTabSwitch => {
+                        K_STL_CLICK_DISABLED => {}
+                        K_STL_CLICK_TAB_SWITCH => {
                             if which_button != MOUSE_MIDDLE {
                                 if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
                                     end_visual_mode();
@@ -704,10 +704,10 @@ pub fn do_mouse(
                                 mouse_tab_close(tabnr);
                             }
                         }
-                        kStlClickTabClose => {
+                        K_STL_CLICK_TAB_CLOSE => {
                             mouse_tab_close(tabnr);
                         }
-                        kStlClickFuncRun => {
+                        K_STL_CLICK_FUNC_RUN => {
                             call_click_def_func(g_st().tab_page_click_defs.as_mut_ptr(), g_st().mouse_col, which_button);
                         }
                         _ => {}
@@ -729,7 +729,7 @@ pub fn do_mouse(
                 mouse_st().got_click = false;
                 if (g_st().State & MODE_INSERT) == 0 {
                     pos.coladd = 0;
-                    mc_toggle((*wp).buf_mut(), pos, false, kNone);
+                    mc_toggle((*wp).buf_mut(), pos, false, K_NONE);
                 }
                 return false;
             }
@@ -759,7 +759,7 @@ pub fn do_mouse(
 
         let mut end_visual = ZERO_POS;
         let mut start_visual = ZERO_POS;
-        let mouse_can_visual = ui_mouse_has(kMouseVisual);
+        let mouse_can_visual = ui_mouse_has(K_MOUSE_VISUAL);
         if (g_st().State & (MODE_NORMAL | MODE_INSERT)) != 0
             && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
         {
@@ -790,7 +790,7 @@ pub fn do_mouse(
 
         if !is_drag && oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
             mouse_st().got_click = false;
-            oap.as_deref_mut().unwrap().motion_type = MTCharWise;
+            oap.as_deref_mut().unwrap().motion_type = MT_CHAR_WISE;
         }
 
         if !is_click && !is_drag {
@@ -897,7 +897,7 @@ pub fn do_mouse(
 
             if !click_defs.is_null() {
                 match (*click_defs.add(click_col as usize)).type_ {
-                    kStlClickDisabled => {
+                    K_STL_CLICK_DISABLED => {
                         if in_statuscol
                             && mouse_model_popup()
                             && which_button == MOUSE_RIGHT
@@ -906,7 +906,7 @@ pub fn do_mouse(
                             do_popup(which_button, m_pos_flag, m_pos);
                         }
                     }
-                    kStlClickFuncRun => {
+                    K_STL_CLICK_FUNC_RUN => {
                         call_click_def_func(click_defs, click_col, which_button);
                     }
                     _ => {
@@ -942,10 +942,10 @@ pub fn do_mouse(
         let old_mode = g_st().Visual.mode;
         if start_visual.lnum != 0 {
             if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
-                g_st().Visual.mode = Ctrl_V;
+                g_st().Visual.mode = CTRL_V_CONST;
             }
 
-            if g_st().Visual.mode == Ctrl_V {
+            if g_st().Visual.mode == CTRL_V_CONST {
                 let mut leftcol: Colnr = 0;
                 let mut rightcol: Colnr = 0;
                 getvcols(
@@ -997,7 +997,7 @@ pub fn do_mouse(
                 }
             }
         } else if (g_st().State & MODE_INSERT) != 0 && g_st().Visual.active {
-            stuffcharReadbuff(Ctrl_O);
+            stuffcharReadbuff(CTRL_O);
         }
 
         if which_button == MOUSE_MIDDLE {
@@ -1066,16 +1066,16 @@ pub fn do_mouse(
             mouse_st().got_click = false;
         } else if curbuf_mut().b_help && (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
             if (g_st().State & MODE_INSERT) != 0 {
-                stuffcharReadbuff(Ctrl_O);
+                stuffcharReadbuff(CTRL_O);
             }
-            stuffcharReadbuff(Ctrl_RSB);
+            stuffcharReadbuff(CTRL_RSB_CONST);
             mouse_st().got_click = false;
             if (g_st().State & MODE_INSERT) == 0 {
                 exec_stuffed(None);
             }
         } else if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
             if (g_st().State & MODE_INSERT) != 0 || (g_st().Visual.active && g_st().Visual.select) {
-                stuffcharReadbuff(Ctrl_O);
+                stuffcharReadbuff(CTRL_O);
             }
             if which_button == MOUSE_LEFT {
                 stuffcharReadbuff(b'*' as c_int);
@@ -1104,14 +1104,14 @@ pub fn do_mouse(
                 }
                 if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
                     if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
-                        g_st().Visual.mode = Ctrl_V;
+                        g_st().Visual.mode = CTRL_V_CONST;
                     } else {
                         g_st().Visual.mode = b'v' as c_int;
                     }
                 } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
                     g_st().Visual.mode = b'V' as c_int;
                 } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
-                    g_st().Visual.mode = Ctrl_V;
+                    g_st().Visual.mode = CTRL_V_CONST;
                 }
             }
             if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
@@ -1123,7 +1123,7 @@ pub fn do_mouse(
                         inc(&mut end_visual);
                     }
                     if oap.is_some() {
-                        oap.as_deref_mut().unwrap().motion_type = MTCharWise;
+                        oap.as_deref_mut().unwrap().motion_type = MT_CHAR_WISE;
                     }
                     if oap.is_some()
                         && g_st().Visual.mode == b'v' as c_int
@@ -1133,7 +1133,7 @@ pub fn do_mouse(
                         pos = findmatch(oap.as_deref_mut(), 0);
                         if !pos.is_null() {
                             curwin_mut().w_cursor = *pos;
-                            if oap.unwrap().motion_type == MTLineWise {
+                            if oap.unwrap().motion_type == MT_LINE_WISE {
                                 g_st().Visual.mode = b'V' as c_int;
                             } else if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                                 if lt(curwin_mut().w_cursor, g_st().Visual.start) {
@@ -1165,7 +1165,7 @@ pub fn do_mouse(
             }
         } else if g_st().Visual.active && !old_active {
             if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
-                g_st().Visual.mode = Ctrl_V;
+                g_st().Visual.mode = CTRL_V_CONST;
             } else {
                 g_st().Visual.mode = b'v' as c_int;
             }
@@ -1338,7 +1338,7 @@ pub fn cmdline_mousescroll(dir: c_int) -> bool {
         let mut col = g_st().mouse_col;
 
         let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-        if wp.is_null() || (*wp).w_kind != kWinInfo {
+        if wp.is_null() || (*wp).w_kind != K_WIN_INFO {
             return false;
         }
 

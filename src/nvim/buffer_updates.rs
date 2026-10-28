@@ -10,7 +10,7 @@ use crate::extmark::Bcount;
 use crate::globals::*;
 use crate::log::logmsg;
 use crate::lua::converter::LUA_NOREF;
-use crate::lua::executor::{kRetNilBool, nlua_call_ref};
+use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref};
 use crate::memline::ml_flush_deleted_bytes;
 use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::rpc_send_event;
@@ -303,7 +303,7 @@ pub fn buf_updates_send_changes(
                         on_lines,
                         c"lines",
                         args,
-                        kRetNilBool,
+                        K_RET_NIL_BOOL,
                         None,
                         None,
                     );
@@ -369,7 +369,7 @@ pub fn buf_updates_send_splice(buf: &mut FileBuf,
                         on_bytes,
                         c"bytes",
                         args,
-                        kRetNilBool,
+                        K_RET_NIL_BOOL,
                         None,
                         None,
                     );
@@ -415,7 +415,7 @@ pub fn buf_updates_changedtick(buf: &mut FileBuf) {
                         on_changedtick,
                         c"changedtick",
                         args,
-                        kRetNilBool,
+                        K_RET_NIL_BOOL,
                         None,
                         None,
                     );

@@ -36,7 +36,7 @@ use crate::channel::{
 use crate::charset::{NL, NUL};
 use crate::context::{
     CONTEXT_INIT, CtxStateFlags, ctx_free, ctx_from_dict, ctx_load, ctx_save, ctx_to_dict,
-    kCtxBufs, kCtxFuncs, kCtxGVars, kCtxJumps, kCtxRegs, kCtxSFuncs,
+    K_CTX_BUFS, K_CTX_FUNCS, K_CTX_GVARS, K_CTX_JUMPS, K_CTX_REGS, K_CTX_SFUNCS,
 };
 use crate::cursor::{get_cursor_rel_lnum, Linenr};
 use crate::decoration::{NS, decor_redraw_signs};
@@ -63,7 +63,7 @@ use crate::highlight::{
     hl_get_attr_by_id, hl_inspect, hl_ns_get_attrs, ns_hl_def, win_check_ns_hl,
 };
 use crate::highlight_group::{
-    KeyDict_get_highlight, color_name_table, name_to_color, ns_get_hl_defs, syn_check_group,
+    KeyDict_get_highlight, COLOR_NAME_TABLE, name_to_color, ns_get_hl_defs, syn_check_group,
     syn_id2name,
 };
 use crate::input::{ins_typebuf, paste_store};
@@ -76,7 +76,7 @@ use crate::keycodes::{
 };
 use crate::lua::converter::{Boolean, Float, LUA_NOREF, LuaRef};
 use crate::lua::executor::{
-    kRetNilBool, kRetObject, nlua_exec, nlua_get_global_ref_count, nlua_is_deferred_safe,
+    K_RET_NIL_BOOL, K_RET_OBJECT, nlua_exec, nlua_get_global_ref_count, nlua_is_deferred_safe,
 };
 use crate::mapping::{MAPTYPE_MAP, REMAP_NONE, REMAP_YES, keymap_array, modify_keymap};
 use crate::mark::mark_get_global;
@@ -93,7 +93,7 @@ use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
 use crate::normal::reset_VIsual_and_resel;
 use crate::option::{
-    OPT_LOCAL, OptTarget, buf_copy_options, kOptBufhidden, kOptBuftype, set_option_direct_for,
+    OPT_LOCAL, OptTarget, buf_copy_options, K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, set_option_direct_for,
 };
 use crate::option_vars::*;
 use crate::optionstr::{CharBuf, check_stl_option};
@@ -127,19 +127,19 @@ use std::ptr;
 #[cfg(windows)]
 use crate::os::proc::os_proc_info;
 
-use crate::extmark::{kFalse, kNone, kTrue};
+use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 use crate::os::fs::MAXPATHL;
 
 pub(crate) const ERR_BUFLEN: usize = 256;
 pub(crate) const SIGN_SHOW_MAX: usize = 9;
 
-pub(crate) const kCdScopeGlobal: c_int = 3;
+pub(crate) const K_CD_SCOPE_GLOBAL: c_int = 3;
 
-pub(crate) const kOptCotFlagPopup: c_uint = 0x200;
+pub(crate) const K_OPT_COT_FLAG_POPUP: c_uint = 0x200;
 
-pub(crate) const kChannelStreamInternal: ChannelStreamType = 4;
+pub(crate) const K_CHANNEL_STREAM_INTERNAL: ChannelStreamType = 4;
 
-const kCtxAll: CtxStateFlags = kCtxRegs | kCtxJumps | kCtxBufs | kCtxGVars | kCtxSFuncs | kCtxFuncs;
+const K_CTX_ALL: CtxStateFlags = K_CTX_REGS | K_CTX_JUMPS | K_CTX_BUFS | K_CTX_GVARS | K_CTX_SFUNCS | K_CTX_FUNCS;
 
 pub(crate) const HLF_N: c_int = 12;
 pub(crate) const HLF_LNA: c_int = 13;
@@ -148,24 +148,24 @@ pub(crate) const HLF_CLN: c_int = 15;
 pub(crate) const HLF_CLS: c_int = 16;
 pub(crate) const HLF_SC: c_int = 35;
 
-use crate::highlight::{KEYSET_OPTIDX_highlight__update, KEYSET_OPTIDX_highlight__url};
+use crate::highlight::{KEYSET_OPTIDX_HIGHLIGHT_UPDATE, KEYSET_OPTIDX_HIGHLIGHT_URL};
 use crate::statusline::{STL_FOLDCOL, STL_SIGNCOL};
 
-const KEYSET_OPTIDX_get_ns__winid: u32 = 1;
-const KEYSET_OPTIDX_echo_opts__percent: u32 = 8;
-const KEYSET_OPTIDX_open_term__on_input: u32 = 1;
-const KEYSET_OPTIDX_open_term__force_crlf: u32 = 2;
-const KEYSET_OPTIDX_context__types: u32 = 1;
-const KEYSET_OPTIDX_chan_set__detach: u32 = 1;
-const KEYSET_OPTIDX_eval_statusline__fillchar: u32 = 2;
-const KEYSET_OPTIDX_eval_statusline__maxwidth: u32 = 3;
-const KEYSET_OPTIDX_eval_statusline__use_statuscol_lnum: u32 = 7;
-const KEYSET_OPTIDX_complete_set__info: u32 = 1;
-const KEYSET_OPTIDX_redraw__buf: u32 = 1;
-const KEYSET_OPTIDX_redraw__win: u32 = 2;
-const KEYSET_OPTIDX_redraw__flush: u32 = 3;
-const KEYSET_OPTIDX_redraw__range: u32 = 4;
-const KEYSET_OPTIDX_redraw__valid: u32 = 5;
+const KEYSET_OPTIDX_GET_NS_WINID: u32 = 1;
+const KEYSET_OPTIDX_ECHO_OPTS_PERCENT: u32 = 8;
+const KEYSET_OPTIDX_OPEN_TERM_ON_INPUT: u32 = 1;
+const KEYSET_OPTIDX_OPEN_TERM_FORCE_CRLF: u32 = 2;
+const KEYSET_OPTIDX_CONTEXT_TYPES: u32 = 1;
+const KEYSET_OPTIDX_CHAN_SET_DETACH: u32 = 1;
+const KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR: u32 = 2;
+const KEYSET_OPTIDX_EVAL_STATUSLINE_MAXWIDTH: u32 = 3;
+const KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM: u32 = 7;
+const KEYSET_OPTIDX_COMPLETE_SET_INFO: u32 = 1;
+const KEYSET_OPTIDX_REDRAW_BUF: u32 = 1;
+const KEYSET_OPTIDX_REDRAW_WIN: u32 = 2;
+const KEYSET_OPTIDX_REDRAW_FLUSH: u32 = 3;
+const KEYSET_OPTIDX_REDRAW_RANGE: u32 = 4;
+const KEYSET_OPTIDX_REDRAW_VALID: u32 = 5;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -458,7 +458,7 @@ pub fn nvim_set_hl(
         }
         let mut link_id: c_int = -1;
 
-        if (val.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__url)) != 0 {
+        if (val.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -467,7 +467,7 @@ pub fn nvim_set_hl(
             return;
         }
 
-        let update = (val.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_highlight__update)) != 0
+        let update = (val.is_set__highlight_ & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_UPDATE)) != 0
             && val.update;
         let mut base: *mut HlAttrs = ptr::null_mut();
         let mut base_attrs = HlAttrs::default();
@@ -496,7 +496,7 @@ pub fn nvim_set_hl(
 // DLLEXPORT Integer nvim_get_hl_ns(Dict(get_ns) *opts, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_get_hl_ns(opts: &mut KeyDict_get_ns, err: &mut Error) -> Integer {
      {
-        if (opts.is_set__get_ns_ & (1u64 << KEYSET_OPTIDX_get_ns__winid)) != 0 {
+        if (opts.is_set__get_ns_ & (1u64 << KEYSET_OPTIDX_GET_NS_WINID)) != 0 {
             let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(opts.winid, err) else {
                 return 0;
             };
@@ -850,7 +850,7 @@ pub fn nvim_exec_lua(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    nlua_exec(code, ptr::null(), args, kRetObject, Some(arena), err)
+    nlua_exec(code, ptr::null(), args, K_RET_OBJECT, Some(arena), err)
 }
 
 /// Like |nvim_exec_lua()|, but can be called during |api-fast| contexts.
@@ -1033,7 +1033,7 @@ pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
         }
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        do_chdir(dir.data, kCdScopeGlobal);
+        do_chdir(dir.data, K_CD_SCOPE_GLOBAL);
         try_leave(&tstate, err);
 }
 
@@ -1270,7 +1270,7 @@ pub fn nvim_echo(
         let is_progress = crate::memory::cstr_as_opt_bytes(kind) == Some(b"progress");
         let mut needs_clear = !history;
         let has_percent =
-            (opts.is_set__echo_opts_ & (1u64 << KEYSET_OPTIDX_echo_opts__percent)) != 0;
+            (opts.is_set__echo_opts_ & (1u64 << KEYSET_OPTIDX_ECHO_OPTS_PERCENT)) != 0;
 
         let valid = 'validate: {
             if !is_progress
@@ -1539,14 +1539,14 @@ pub fn nvim_create_buf(
 
             if scratch {
                 set_option_direct_for(
-                    kOptBufhidden,
+                    K_OPT_BUFHIDDEN,
                     string_obj(static_cstr_as_string(c"hide")),
                     OPT_LOCAL,
                     0,
                     OptTarget::Buf(buf),
                 );
                 set_option_direct_for(
-                    kOptBuftype,
+                    K_OPT_BUFTYPE,
                     string_obj(static_cstr_as_string(c"nofile")),
                     OPT_LOCAL,
                     0,
@@ -1652,19 +1652,19 @@ pub fn nvim_open_term(
         }
 
         let mut cb = LUA_NOREF;
-        if (opts.is_set__open_term_ & (1u64 << KEYSET_OPTIDX_open_term__on_input)) != 0 {
+        if (opts.is_set__open_term_ & (1u64 << KEYSET_OPTIDX_OPEN_TERM_ON_INPUT)) != 0 {
             cb = opts.on_input;
             opts.on_input = LUA_NOREF;
         }
 
         let force_crlf =
-            if (opts.is_set__open_term_ & (1u64 << KEYSET_OPTIDX_open_term__force_crlf)) != 0 {
+            if (opts.is_set__open_term_ & (1u64 << KEYSET_OPTIDX_OPEN_TERM_FORCE_CRLF)) != 0 {
                 opts.force_crlf
             } else {
                 true
             };
 
-        let chan = channel_alloc(kChannelStreamInternal);
+        let chan = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
         let internal = &mut (*chan).internal;
         let prefix = chan;
         let tail = chan;
@@ -1852,7 +1852,7 @@ pub fn nvim_paste(
             static_cstr_as_string(c"return vim.paste(...)"),
             ptr::null(),
             args,
-            kRetNilBool,
+            K_RET_NIL_BOOL,
             Some(arena),
             err,
         );
@@ -1867,13 +1867,13 @@ pub fn nvim_paste(
             size: 0,
         };
         if !api_vim_st().PASTE_CANCELLED && (phase == -1 || phase == 1) {
-            paste_store(channel_id, kFalse, null_str, crlf);
+            paste_store(channel_id, K_FALSE, null_str, crlf);
         }
         if !api_vim_st().PASTE_CANCELLED {
-            paste_store(channel_id, kNone, data, crlf);
+            paste_store(channel_id, K_NONE, data, crlf);
         }
         if phase == 3 || phase == (if api_vim_st().PASTE_CANCELLED { 2 } else { -1 }) {
-            paste_store(channel_id, kTrue, null_str, crlf);
+            paste_store(channel_id, K_TRUE, null_str, crlf);
         }
 
         let retval = !api_vim_st().PASTE_CANCELLED;
@@ -1984,8 +1984,8 @@ pub fn nvim_get_color_by_name(name: NvimString) -> Integer {
 /// @return Map of color names and RGB values.
 // DLLEXPORT DictOf(Integer) nvim_get_color_map(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_get_color_map(arena: &mut Arena) -> Dict {
-    let mut colors = arena_dict(arena, color_name_table.len());
-        for entry in &color_name_table {
+    let mut colors = arena_dict(arena, COLOR_NAME_TABLE.len());
+        for entry in &COLOR_NAME_TABLE {
             put_c(
                 &mut colors,
                 entry.name.as_ptr(),
@@ -2016,30 +2016,30 @@ pub fn nvim_get_context(
     err: &mut Error,
 ) -> Dict {
     {
-        let types = if (opts.is_set__context_ & (1u64 << KEYSET_OPTIDX_context__types)) != 0 {
+        let types = if (opts.is_set__context_ & (1u64 << KEYSET_OPTIDX_CONTEXT_TYPES)) != 0 {
             opts.types
         } else {
             Array::new()
         };
 
-        let mut int_types: CtxStateFlags = if types.size > 0 { 0 } else { kCtxAll };
+        let mut int_types: CtxStateFlags = if types.size > 0 { 0 } else { K_CTX_ALL };
         if types.size > 0 {
             for i in 0..types.size {
                 let item = types[i];
                 if item.obj_type == ObjectType::ObjectTypeString {
                     let s = item.data.string().data;
                     if crate::memory::cstr_as_opt_bytes(s) == Some(b"regs") {
-                        int_types |= kCtxRegs;
+                        int_types |= K_CTX_REGS;
                     } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"jumps") {
-                        int_types |= kCtxJumps;
+                        int_types |= K_CTX_JUMPS;
                     } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"bufs") {
-                        int_types |= kCtxBufs;
+                        int_types |= K_CTX_BUFS;
                     } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"gvars") {
-                        int_types |= kCtxGVars;
+                        int_types |= K_CTX_GVARS;
                     } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"sfuncs") {
-                        int_types |= kCtxSFuncs;
+                        int_types |= K_CTX_SFUNCS;
                     } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"funcs") {
-                        int_types |= kCtxFuncs;
+                        int_types |= K_CTX_FUNCS;
                     } else {
                         let _ = validate_s(false, c"type", s, err);
                         return Dict::new();
@@ -2067,7 +2067,7 @@ pub fn nvim_load_context(dict: Dict, err: &mut Error) -> Object {
 
         ctx_from_dict(dict, &mut ctx, err);
         if !error_set(err) {
-            ctx_load(&mut ctx, kCtxAll, 0);
+            ctx_load(&mut ctx, K_CTX_ALL, 0);
         }
 
         ctx_free(&mut ctx);
@@ -2308,7 +2308,7 @@ pub fn nvim_chan_set(
         if !validate_int(!channel.is_null(), c"chan", chan, err) {
             return;
         }
-        if (config.is_set__chan_set_ & (1u64 << KEYSET_OPTIDX_chan_set__detach)) != 0 {
+        if (config.is_set__chan_set_ & (1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH)) != 0 {
             (*channel).detach = config.detach;
             channel_event( &mut *channel, EVENT_CHANINFO);
         }
@@ -2529,7 +2529,7 @@ pub fn nvim_get_proc_children(
                     static_cstr_as_string(c"return vim._os_proc_children(...)"),
                     ptr::null(),
                     a,
-                    kRetObject,
+                    K_RET_OBJECT,
                     Some(arena),
                     err,
                 );
@@ -2593,7 +2593,7 @@ pub fn nvim_get_proc(pid: Integer, arena: &mut Arena, err: &mut Error) -> Object
                 static_cstr_as_string(c"return vim._os_proc_info(...)"),
                 ptr::null(),
                 a,
-                kRetObject,
+                K_RET_OBJECT,
                 Some(arena),
                 err,
             );
@@ -2888,7 +2888,7 @@ pub fn nvim_eval_statusline(
 
         let window = opts.winid;
 
-        if (opts.is_set__eval_statusline_ & (1u64 << KEYSET_OPTIDX_eval_statusline__fillchar))
+        if (opts.is_set__eval_statusline_ & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR))
             != 0
         {
             let ci = utf_ptr2StrCharInfo(opts.fillchar.data);
@@ -2917,7 +2917,7 @@ pub fn nvim_eval_statusline(
         }
 
         if (opts.is_set__eval_statusline_
-            & (1u64 << KEYSET_OPTIDX_eval_statusline__use_statuscol_lnum))
+            & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))
             != 0
         {
             statuscol_lnum = opts.use_statuscol_lnum as c_int;
@@ -2994,7 +2994,7 @@ pub fn nvim_eval_statusline(
         }
 
         let maxwidth = if (opts.is_set__eval_statusline_
-            & (1u64 << KEYSET_OPTIDX_eval_statusline__maxwidth))
+            & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_MAXWIDTH))
             != 0
         {
             opts.maxwidth as c_int
@@ -3141,7 +3141,7 @@ pub fn nvim__complete_set(
 ) -> Dict {
     unsafe {
         let mut rv = arena_dict(arena, 2);
-        if (get_cot_flags() & kOptCotFlagPopup) == 0 {
+        if (get_cot_flags() & K_OPT_COT_FLAG_POPUP) == 0 {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -3149,7 +3149,7 @@ pub fn nvim__complete_set(
             );
             return rv;
         }
-        if (opts.is_set__complete_set_ & (1u64 << KEYSET_OPTIDX_complete_set__info)) != 0 {
+        if (opts.is_set__complete_set_ & (1u64 << KEYSET_OPTIDX_COMPLETE_SET_INFO)) != 0 {
             let wp = pum_set_info(index as c_int, opts.info.data);
             if !wp.is_null() {
                 put_c(&mut rv, c"winid", window_obj((*wp).handle));
@@ -3222,14 +3222,14 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         let mut win: *mut WinInfoInfo = ptr::null_mut();
         let mut buf: *mut FileBuf = ptr::null_mut();
 
-        if (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__win)) != 0 {
+        if (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_REDRAW_WIN)) != 0 {
             win = find_window_by_handle(opts.win, err);
             if error_set(err) {
                 return;
             }
         }
 
-        if (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__buf)) != 0 {
+        if (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_REDRAW_BUF)) != 0 {
             if !win.is_null() {
                 api_set_error!(
                     err,
@@ -3256,9 +3256,9 @@ pub fn nvim__redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
             return;
         }
 
-        let has_valid = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__valid)) != 0;
-        let has_range = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__range)) != 0;
-        let has_flush = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_redraw__flush)) != 0;
+        let has_valid = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_REDRAW_VALID)) != 0;
+        let has_range = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_REDRAW_RANGE)) != 0;
+        let has_flush = (opts.is_set__redraw_ & (1u64 << KEYSET_OPTIDX_REDRAW_FLUSH)) != 0;
 
         if has_valid {
             let rtype = if opts.valid {

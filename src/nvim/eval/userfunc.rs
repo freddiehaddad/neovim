@@ -8,7 +8,7 @@ use crate::charset::{
     NUL, ascii_isalnum, ascii_islower, ascii_iswhite, getdigits, skiptowhite, skipwhite,
     vim_strsize,
 };
-use crate::cmdexpand::{EXPAND_USER_FUNC, Cmdidx, kUICmdline};
+use crate::cmdexpand::{EXPAND_USER_FUNC, Cmdidx, K_UICMDLINE};
 use crate::cursor::Linenr;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
 use crate::errors::*;
@@ -61,7 +61,7 @@ use crate::message::{
 use crate::option_vars::*;
 use crate::os::env::ExpandCtx;
 use crate::os::input::line_breakcheck;
-use crate::path::{kPathCmpLiteral, path_equal};
+use crate::path::{K_PATH_CMP_LITERAL, path_equal};
 use crate::profile::{
     func_do_profile, func_line_end, func_line_start, Funccall, prof_def_func, profile_add,
     profile_end, profile_self, profile_start, profile_sub_wait, profile_zero, Proftime,
@@ -459,7 +459,7 @@ fn get_function_args(
             p = skipwhite(p);
             if mustend && *p != endchar {
                 if !skip {
-                    semsg!(gettext(e_invarg2), *argp);
+                    semsg!(gettext(E_INVARG2), *argp);
                 }
                 break;
             }
@@ -1780,9 +1780,9 @@ fn user_func_error(error: c_int, name: impl crate::strings::IntoCCharPtr, found_
     match error {
             FCERR_UNKNOWN => {
                 if found_var {
-                    semsg!(gettext(e_not_callable_type_str), name);
+                    semsg!(gettext(E_NOT_CALLABLE_TYPE_STR), name);
                 } else {
-                    emsg_funcname(e_unknown_function_str, name);
+                    emsg_funcname(E_UNKNOWN_FUNCTION_STR, name);
                 }
             }
             FCERR_NOTMETHOD => {
@@ -1792,10 +1792,10 @@ fn user_func_error(error: c_int, name: impl crate::strings::IntoCCharPtr, found_
                 emsg_funcname(c"E933: Function was deleted: %s", name);
             }
             FCERR_TOOMANY => {
-                emsg_funcname(gettext(e_toomanyarg), name);
+                emsg_funcname(gettext(E_TOOMANYARG), name);
             }
             FCERR_TOOFEW => {
-                emsg_funcname(gettext(e_toofewarg), name);
+                emsg_funcname(gettext(E_TOOFEWARG), name);
             }
             FCERR_SCRIPT => {
                 emsg_funcname(
@@ -2198,7 +2198,7 @@ pub fn trans_function_name(
         if end.is_null() || (!lv.ll_tv.is_null() && (lead > 2 || lv.ll_range)) {
             if !aborting() {
                 if !end.is_null() {
-                    semsg!(gettext(e_invarg2), start);
+                    semsg!(gettext(E_INVARG2), start);
                 }
             } else {
                 *pp =
@@ -2224,7 +2224,7 @@ pub fn trans_function_name(
                 if is_luafunc(pt) && crate::memory::cstr_first_byte(end) == b'.' {
                     len = check_luafunc_name(end.add(1), true);
                     if len == 0 {
-                        semsg!(e_invexpr2, c"v:lua");
+                        semsg!(E_INVEXPR2, c"v:lua");
                         return None;
                     }
                     res = Some(cstr_from_bytes(std::slice::from_raw_parts(
@@ -2328,7 +2328,7 @@ pub fn trans_function_name(
                 || eval_fname_sid(*pp)
             {
                 if g_st().current_sctx.sc_sid <= 0 {
-                    emsg(gettext(e_usingsid));
+                    emsg(gettext(E_USINGSID));
                     return None;
                 }
                 sid_buflen = vim_snprintf!(
@@ -2390,7 +2390,7 @@ pub fn get_scriptlocal_funcname(funcname: impl crate::strings::IntoCCharPtr) -> 
         }
 
         if !crate::runtime::script_id_valid(g_st().current_sctx.sc_sid) {
-            emsg(gettext(e_usingsid));
+            emsg(gettext(E_USINGSID));
             return None;
         }
 
@@ -2496,7 +2496,7 @@ fn list_functions_matching_pat(eap: &mut Exarg) -> *mut c_char {
 fn list_one_function(eap: &mut Exarg, name: impl crate::strings::IntoCCharPtr, p: *mut c_char) -> *mut UserFunc { let name = name.into_c_char_ptr();
     unsafe {
         if ends_excmd(*skipwhite(p) as c_int) == 0 {
-            semsg!(gettext(e_trailing_arg), p);
+            semsg!(gettext(E_TRAILING_ARG), p);
             return ptr::null_mut();
         }
 
@@ -2903,7 +2903,7 @@ pub fn ex_function(eap: &mut Exarg) {
         if name.is_null() && (fudi.fd_dict.is_null() || !paren) && eap.skip == 0 {
             if !aborting() {
                 if let Some(ref newkey) = fudi.fd_newkey {
-                    semsg!(gettext(e_dictkey), newkey.as_ptr());
+                    semsg!(gettext(E_DICTKEY), newkey.as_ptr());
                 }
                 return;
             }
@@ -2997,7 +2997,7 @@ pub fn ex_function(eap: &mut Exarg) {
                         i += 1;
                     }
                     if crate::memory::cstr_byte_at(name_base, i) != 0 {
-                        emsg_funcname(e_invarg2, arg);
+                        emsg_funcname(E_INVARG2, arg);
                         ret_free!();
                     }
                 }
@@ -3020,7 +3020,7 @@ pub fn ex_function(eap: &mut Exarg) {
             errret_2!();
         }
 
-        if g_st().KeyTyped && ui_has(kUICmdline) {
+        if g_st().KeyTyped && ui_has(K_UICMDLINE) {
             show_block = true;
             ui_ext_cmdline_block_append(0, eap.cmd);
         }
@@ -3054,7 +3054,7 @@ pub fn ex_function(eap: &mut Exarg) {
         if crate::memory::cstr_first_byte(p) == b'\n' {
             line_arg = p.add(1);
         } else if !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b'"' && eap.skip == 0 && g_st().did_emsg == 0 {
-            semsg!(gettext(e_trailing_arg), p);
+            semsg!(gettext(E_TRAILING_ARG), p);
         }
 
         if g_st().KeyTyped {
@@ -3070,7 +3070,7 @@ pub fn ex_function(eap: &mut Exarg) {
                 erret!();
             }
 
-            if !ui_has(kUICmdline) {
+            if !ui_has(K_UICMDLINE) {
                 msg_putchar(b'\n' as c_int);
             }
             g_st().cmdline_row = g_st().msg_row;
@@ -3163,7 +3163,7 @@ pub fn ex_function(eap: &mut Exarg) {
                     let plen = crate::memory::cstr_len(p) as c_int;
                     let slen = crate::memory::cstr_len(sname) as c_int;
                     if slen > plen
-                        && path_equal(p, sname.add((slen - plen) as usize), kPathCmpLiteral)
+                        && path_equal(p, sname.add((slen - plen) as usize), K_PATH_CMP_LITERAL)
                     {
                         j = OK;
                     }
@@ -3350,7 +3350,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         };
         let name = name_cstr.as_ptr();
         if ends_excmd(*skipwhite(p) as c_int) == 0 {
-            semsg!(gettext(e_trailing_arg), p);
+            semsg!(gettext(E_TRAILING_ARG), p);
             return;
         }
         eap.nextcmd = check_nextcmd(p);
@@ -3360,7 +3360,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
 
         if (crate::memory::cstr_first_byte(name)).is_ascii_digit() && fudi.fd_dict.is_null() {
             if eap.skip == 0 {
-                semsg!(gettext(e_invarg2), eap.arg);
+                semsg!(gettext(E_INVARG2), eap.arg);
             }
             return;
         }
@@ -3542,7 +3542,7 @@ fn ex_call_inner(
         for lnum in eap.line1..=eap.line2 {
             if eap.addr_count > 0 {
                 if lnum > curbuf_mut().b_ml.ml_line_count {
-                    emsg(gettext(e_invrange));
+                    emsg(gettext(E_INVRANGE));
                     break;
                 }
                 curwin_mut().w_cursor.lnum = lnum;
@@ -3598,7 +3598,7 @@ fn ex_defer_inner(
 
         if uf_st().current_funccal.is_null() {
             semsg!(
-                gettext(e_str_not_inside_function),
+                gettext(E_STR_NOT_INSIDE_FUNCTION),
                 c"defer",
             );
             return false;
@@ -3633,7 +3633,7 @@ fn ex_defer_inner(
             if builtin_function(name, -1) {
                 let fdef = find_internal_func(name);
                 if fdef.is_null() {
-                    emsg_funcname(e_unknown_function_str, name);
+                    emsg_funcname(E_UNKNOWN_FUNCTION_STR, name);
                     r = false;
                 } else if check_internal_func(&*fdef, argcount) == -1 {
                     r = false;
@@ -3665,7 +3665,7 @@ fn ex_defer_inner(
 pub fn can_add_defer() -> bool {
     if get_current_funccal().is_null() {
             semsg!(
-                gettext(e_str_not_inside_function),
+                gettext(E_STR_NOT_INSIDE_FUNCTION),
                 c"defer",
             );
             return false;
@@ -3813,7 +3813,7 @@ pub fn ex_call(eap: &mut Exarg) {
             &raw mut partial,
         );
         if let Some(ref newkey) = fudi.fd_newkey {
-            semsg!(gettext(e_dictkey), newkey.as_ptr());
+            semsg!(gettext(E_DICTKEY), newkey.as_ptr());
         }
         let Some(ref tofree_cstr) = tofree_owned else {
             return;
@@ -3841,7 +3841,7 @@ pub fn ex_call(eap: &mut Exarg) {
         let startarg = skipwhite(arg);
 
         if crate::memory::cstr_first_byte(startarg) != b'(' {
-            semsg!(gettext(e_missingparen), eap.arg);
+            semsg!(gettext(E_MISSINGPAREN), eap.arg);
             tv_dict_unref(fudi.fd_dict);
             return;
         }
@@ -3873,7 +3873,7 @@ pub fn ex_call(eap: &mut Exarg) {
             if ends_excmd(crate::memory::cstr_first_char(arg)) == 0 {
                 if !failed && !aborting() {
                     g_st().emsg_severe = true;
-                    semsg!(gettext(e_trailing_arg), arg);
+                    semsg!(gettext(E_TRAILING_ARG), arg);
                 }
             } else {
                 eap.nextcmd = check_nextcmd(arg);

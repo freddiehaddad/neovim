@@ -3,7 +3,7 @@
 use crate::autocmd::{EVENT_FILECHANGEDRO, apply_autocmds, aucmd_defer_modified};
 use crate::buffer::{
     BF_NEVERLOADED, BF_NEW, MAXLNUM, bt_dontwrite, bt_prompt, FileBuf, buf_inc_changedtick,
-    buf_meta_total, kUIMessages,
+    buf_meta_total, K_UIMESSAGES,
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::charset::{
@@ -21,7 +21,7 @@ use crate::drawscreen::{
 };
 use crate::eval::vars::{VV_WARNINGMSG, set_vim_var_string};
 use crate::extmark::{
-    Bcount, extmark_adjust, extmark_splice, extmark_splice_cols, kExtmarkNOOP, kExtmarkUndo,
+    Bcount, extmark_adjust, extmark_splice, extmark_splice_cols, K_EXTMARK_NOOP, K_EXTMARK_UNDO,
 };
 use crate::fold::{find_wl_entry, foldUpdate, hasAnyFolding, hasFoldingWin};
 use crate::globals::*;
@@ -33,7 +33,7 @@ use crate::indent_c::{check_linecomment, cin_is_cinword, do_c_expr_indent, in_ci
 use crate::insert::{prompt_text, replace_push, replace_push_nul, truncate_spaces};
 use crate::insexpand::ins_compl_active;
 use crate::mark::{JUMPLISTSIZE, mark_adjust, mark_col_adjust, mark_view_make, reset_fmark};
-use crate::marktree::{kMTMetaInline, kMTMetaLines};
+use crate::marktree::{K_MTMETA_INLINE, K_MTMETA_LINES};
 use crate::mbyte::{
     mb_adjust_cursor, ptr2cells, utf_char2bytes, utf_composinglike, utf_head_off,
     utf_iscomposing_first, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
@@ -66,7 +66,7 @@ use std::ffi::{CStr, c_char, c_int, c_uint};
 use std::ptr;
 
 use crate::arglist::ML_EMPTY;
-use crate::eval::typval::kCallbackNone;
+use crate::eval::typval::K_CALLBACK_NONE_CONST;
 use crate::ex_docmd::{CMOD_KEEPJUMPS, CMOD_LOCKMARKS};
 use crate::regexp::{GRAPHEME_STATE_INIT, MAXCOL};
 
@@ -102,10 +102,10 @@ pub(crate) const SIN_NOMARK: c_int = 8;
 
 pub(crate) const ML_DEL_MESSAGE: c_int = 1;
 
-pub(crate) const kOptVeFlagOnemore: c_uint = 0x08;
-pub(crate) const kCpoDollar: c_int = b'$' as c_int;
-pub(crate) const kCpoListwm: c_int = b'L' as c_int;
-const kFoNoOpenComs: c_int = b'/' as c_int;
+pub(crate) const K_OPT_VE_FLAG_ONEMORE: c_uint = 0x08;
+pub(crate) const K_CPO_DOLLAR: c_int = b'$' as c_int;
+pub(crate) const K_CPO_LISTWM: c_int = b'L' as c_int;
+const K_FO_NO_OPEN_COMS: c_int = b'/' as c_int;
 
 pub(crate) const HLF_W: c_int = 26;
 
@@ -179,7 +179,7 @@ pub fn changed(buf: &mut FileBuf) {
                 g_st().need_wait_return = false;
                 ml_open_file(buf);
 
-                if g_st().need_wait_return && g_st().emsg_silent == 0 && !g_st().in_assert_fails && !ui_has(kUIMessages)
+                if g_st().need_wait_return && g_st().emsg_silent == 0 && !g_st().in_assert_fails && !ui_has(K_UIMESSAGES)
                 {
                     msg_delay(2002, true);
                     wait_return(c_int::from(true));
@@ -242,8 +242,8 @@ fn changed_lines_invalidate_win(
 
         if (xtra < 0
             && wp.w_onebuf_opt.wo_wrap != 0
-            && buf_meta_total(wp.buf_mut(), kMTMetaInline) != 0)
-            || (xtra != 0 && buf_meta_total(wp.buf_mut(), kMTMetaLines) != 0)
+            && buf_meta_total(wp.buf_mut(), K_MTMETA_INLINE) != 0)
+            || (xtra != 0 && buf_meta_total(wp.buf_mut(), K_MTMETA_LINES) != 0)
         {
             lnume += 1;
         }
@@ -469,7 +469,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
         changed_common(curbuf_mut(), lnum, col, lnum + 1, 0);
         if spell_check_window(curwin_mut())
             && lnum < curbuf_mut().b_ml.ml_line_count
-            && vim_strchr(opt_vars().p_cpo, kCpoDollar).is_null()
+            && vim_strchr(opt_vars().p_cpo, K_CPO_DOLLAR).is_null()
         {
             redrawWinline(crate::globals::curwin_mut(), lnum + 1);
         }
@@ -492,7 +492,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
 /// Insert/delete bytes at column.
 pub fn inserted_bytes(lnum: Linenr, start_col: Colnr, old_col: c_int, new_col: c_int) {
     if g_st().curbuf_splice_pending == 0 {
-            extmark_splice_cols(curbuf_mut(), lnum - 1, start_col, old_col, new_col, kExtmarkUndo);
+            extmark_splice_cols(curbuf_mut(), lnum - 1, start_col, old_col, new_col, K_EXTMARK_UNDO);
         }
 
         changed_bytes(lnum, start_col);
@@ -510,7 +510,7 @@ pub fn appended_lines(lnum: Linenr, count: Linenr) {
 
 /// Like `appended_lines()`, but adjust marks first.
 pub fn appended_lines_mark(lnum: Linenr, count: c_int) {
-    mark_adjust(lnum + 1, MAXLNUM, count, 0, kExtmarkUndo);
+    mark_adjust(lnum + 1, MAXLNUM, count, 0, K_EXTMARK_UNDO);
         changed_lines(curbuf_mut(), lnum + 1, 0, lnum + 1, count, true);
 }
 
@@ -529,14 +529,14 @@ pub fn deleted_lines_mark(lnum: Linenr, count: c_int) {
      {
         let made_empty = count > 0 && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0;
 
-        mark_adjust(lnum, lnum + count - 1, MAXLNUM, -count, kExtmarkNOOP);
+        mark_adjust(lnum, lnum + count - 1, MAXLNUM, -count, K_EXTMARK_NOOP);
         extmark_adjust(
             curbuf_mut(),
             lnum,
             lnum + count - 1,
             MAXLNUM,
             -count + c_int::from(made_empty),
-            kExtmarkUndo,
+            K_EXTMARK_UNDO,
         );
         changed_lines(curbuf_mut(), lnum, 0, lnum + count, -count, true);
     }
@@ -551,7 +551,7 @@ pub fn changed_lines_redraw_buf(
 ) {
      {
         if xtra != 0 && buf.b_marktree.n_keys > 0 {
-            lnume += 1 + c_int::from(xtra < 0 && buf_meta_total(buf, kMTMetaLines) != 0);
+            lnume += 1 + c_int::from(xtra < 0 && buf_meta_total(buf, K_MTMETA_LINES) != 0);
         }
 
         if buf.b_mod_set {
@@ -730,7 +730,7 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) { 
         if (g_st().State & REPLACE_FLAG) != 0 {
             if (g_st().State & VREPLACE_FLAG) != 0 {
                 let old_list = curwin_mut().w_onebuf_opt.wo_list;
-                if old_list != 0 && vim_strchr(opt_vars().p_cpo, kCpoListwm).is_null() {
+                if old_list != 0 && vim_strchr(opt_vars().p_cpo, K_CPO_LISTWM).is_null() {
                     curwin_mut().w_onebuf_opt.wo_list = 0;
                 }
                 let mut vcol: Colnr = 0;
@@ -908,7 +908,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
             if col > 0
                 && fixpos
                 && g_st().restart_edit == 0
-                && (get_ve_flags(curwin_mut()) & kOptVeFlagOnemore) == 0
+                && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0
             {
                 curwin_mut().w_cursor.col -= 1;
                 curwin_mut().w_cursor.coladd = 0;
@@ -1147,7 +1147,7 @@ pub fn open_line(
         }
 
         let do_cindent = opt_vars().p_paste == 0
-            && (curbuf_mut().b_p_cin != 0 || curbuf_mut().b_p_inde.cb_type() != kCallbackNone)
+            && (curbuf_mut().b_p_cin != 0 || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
             && in_cinkeys(
                 if dir == FORWARD {
                     KEY_OPEN_FORW
@@ -1166,7 +1166,7 @@ pub fn open_line(
                 && curbuf_mut().b_p_cin != 0
                 && do_cindent
                 && dir == FORWARD
-                && (!has_format_option(kFoNoOpenComs) || (flags & OPENLINE_FORMAT) != 0)
+                && (!has_format_option(K_FO_NO_OPEN_COMS) || (flags & OPENLINE_FORMAT) != 0)
             {
                 comment_start = check_linecomment(saved_line);
                 if comment_start != MAXCOL {
@@ -1612,7 +1612,7 @@ pub fn open_line(
                 did_append = false;
                 true
             } else {
-                mark_adjust(curwin_mut().w_cursor.lnum + 1, MAXLNUM, 1, 0, kExtmarkNOOP);
+                mark_adjust(curwin_mut().w_cursor.lnum + 1, MAXLNUM, 1, 0, K_EXTMARK_NOOP);
                 did_append = true;
                 false
             }
@@ -1689,7 +1689,7 @@ pub fn open_line(
                             new_len,
                             curwin_mut().w_cursor.col - new_len,
                             0,
-                            kExtmarkUndo,
+                            K_EXTMARK_UNDO,
                         );
                         cols_spliced = curwin_mut().w_cursor.col - new_len;
                     }
@@ -1706,7 +1706,7 @@ pub fn open_line(
                             1,
                             cols_added,
                             (1 + cols_added) as Bcount,
-                            kExtmarkUndo,
+                            K_EXTMARK_UNDO,
                         );
 
                         changed_lines(
@@ -1747,7 +1747,7 @@ pub fn open_line(
                     1,
                     0,
                     1 + extra,
-                    kExtmarkUndo,
+                    K_EXTMARK_UNDO,
                 );
                 changed_lines(
                     curbuf_mut(),

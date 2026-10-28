@@ -2,7 +2,7 @@
 
 use crate::api::private::converter::K_BOOL_VAR_TRUE;
 use crate::channel::{CallbackReader, channel_close, channel_create_event, channel_job_start};
-use crate::errors::{e_api_spawn_failed, e_invarg, e_invarg2};
+use crate::errors::{E_API_SPAWN_FAILED, E_INVARG, E_INVARG2};
 use crate::eval::find_job;
 use crate::eval::funcs::{f_jobstart, f_jobstop};
 use crate::eval::typval::{
@@ -43,7 +43,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if arg0.v_type != VarType::VarString
             || (arg1.v_type != VarType::VarList && arg1.v_type != VarType::VarUnknown)
         {
-            emsg(e_invarg);
+            emsg(E_INVARG);
             return;
         }
 
@@ -69,7 +69,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
         let prog = arg0.vval.v_string();
         if prog.is_null() || *prog == 0 {
-            emsg(e_api_spawn_failed);
+            emsg(E_API_SPAWN_FAILED);
             return;
         }
 
@@ -116,7 +116,7 @@ pub fn f_rpcstop(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData)
 
         let arg0 = &argvars[0];
         if arg0.v_type != VarType::VarNumber {
-            emsg(e_invarg);
+            emsg(E_INVARG);
             return;
         }
 
@@ -161,7 +161,7 @@ pub fn f_termopen(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData
         }
 
         if arg1.v_type != VarType::VarDict {
-            semsg!(e_invarg2, c"expected dictionary");
+            semsg!(E_INVARG2, c"expected dictionary");
             return;
         }
 

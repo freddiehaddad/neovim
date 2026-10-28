@@ -168,10 +168,10 @@ static NFA_CLASSCODES: [c_int; 27] = [
     NFA_NLOWER, NFA_UPPER, NFA_NUPPER,
 ];
 
-const e_nul_found: &CStr = c"E865: (NFA) Regexp end encountered prematurely";
-const e_misplaced: &CStr = c"E866: (NFA regexp) Misplaced %c";
-const e_ill_char_class: &CStr = c"E877: (NFA regexp) Invalid character class: %lld";
-const e_value_too_large: &CStr = c"E951: \\% value too large";
+const E_NUL_FOUND: &CStr = c"E865: (NFA) Regexp end encountered prematurely";
+const E_MISPLACED: &CStr = c"E866: (NFA regexp) Misplaced %c";
+const E_ILL_CHAR_CLASS: &CStr = c"E877: (NFA regexp) Invalid character class: %lld";
+const E_VALUE_TOO_LARGE: &CStr = c"E951: \\% value too large";
 
 struct RegexpNfaState {
     temp_subs: Regsubs,
@@ -345,37 +345,37 @@ fn nfa_recognize_char_class(start: *mut u8, end: *const u8, mut extra_newl: c_in
         if newl {
             extra_newl = NFA_ADD_NL;
         }
-        if config == CLASS_o9 {
+        if config == CLASS_O9 {
             extra_newl + NFA_DIGIT
-        } else if config == (CLASS_not | CLASS_o9) {
+        } else if config == (CLASS_NOT | CLASS_O9) {
             extra_newl + NFA_NDIGIT
-        } else if config == (CLASS_af | CLASS_AF | CLASS_o9) {
+        } else if config == (CLASS_AF_CONST | CLASS_AF | CLASS_O9) {
             extra_newl + NFA_HEX
-        } else if config == (CLASS_not | CLASS_af | CLASS_AF | CLASS_o9) {
+        } else if config == (CLASS_NOT | CLASS_AF_CONST | CLASS_AF | CLASS_O9) {
             extra_newl + NFA_NHEX
-        } else if config == CLASS_o7 {
+        } else if config == CLASS_O7 {
             extra_newl + NFA_OCTAL
-        } else if config == (CLASS_not | CLASS_o7) {
+        } else if config == (CLASS_NOT | CLASS_O7) {
             extra_newl + NFA_NOCTAL
-        } else if config == (CLASS_az | CLASS_AZ | CLASS_o9 | CLASS_underscore) {
+        } else if config == (CLASS_AZ_CONST | CLASS_AZ | CLASS_O9 | CLASS_UNDERSCORE) {
             extra_newl + NFA_WORD
-        } else if config == (CLASS_not | CLASS_az | CLASS_AZ | CLASS_o9 | CLASS_underscore) {
+        } else if config == (CLASS_NOT | CLASS_AZ_CONST | CLASS_AZ | CLASS_O9 | CLASS_UNDERSCORE) {
             extra_newl + NFA_NWORD
-        } else if config == (CLASS_az | CLASS_AZ | CLASS_underscore) {
+        } else if config == (CLASS_AZ_CONST | CLASS_AZ | CLASS_UNDERSCORE) {
             extra_newl + NFA_HEAD
-        } else if config == (CLASS_not | CLASS_az | CLASS_AZ | CLASS_underscore) {
+        } else if config == (CLASS_NOT | CLASS_AZ_CONST | CLASS_AZ | CLASS_UNDERSCORE) {
             extra_newl + NFA_NHEAD
-        } else if config == (CLASS_az | CLASS_AZ) {
+        } else if config == (CLASS_AZ_CONST | CLASS_AZ) {
             extra_newl + NFA_ALPHA
-        } else if config == (CLASS_not | CLASS_az | CLASS_AZ) {
+        } else if config == (CLASS_NOT | CLASS_AZ_CONST | CLASS_AZ) {
             extra_newl + NFA_NALPHA
-        } else if config == CLASS_az {
+        } else if config == CLASS_AZ_CONST {
             extra_newl + NFA_LOWER_IC
-        } else if config == (CLASS_not | CLASS_az) {
+        } else if config == (CLASS_NOT | CLASS_AZ_CONST) {
             extra_newl + NFA_NLOWER_IC
         } else if config == CLASS_AZ {
             extra_newl + NFA_UPPER_IC
-        } else if config == (CLASS_not | CLASS_AZ) {
+        } else if config == (CLASS_NOT | CLASS_AZ) {
             extra_newl + NFA_NUPPER_IC
         } else {
             FAIL
@@ -829,7 +829,7 @@ fn nfa_regatom() -> bool {
         let mut goto_multibyte = false;
 
         if c == NUL as c_int {
-            emsg(tr(e_nul_found));
+            emsg(tr(E_NUL_FOUND));
             g_st().rc_did_emsg = true;
             return false;
         } else if c == Magic(b'^' as c_int) {
@@ -848,7 +848,7 @@ fn nfa_regatom() -> bool {
         } else if c == Magic(b'_' as c_int) {
             c = no_Magic(getchr());
             if c == NUL as c_int {
-                emsg(tr(e_nul_found));
+                emsg(tr(E_NUL_FOUND));
                 g_st().rc_did_emsg = true;
                 return false;
             }
@@ -865,10 +865,10 @@ fn nfa_regatom() -> bool {
             if c == b'[' as c_int {
                 goto_collection = true;
             } else {
-                let p = vim_strchr(classchars.as_ptr().cast(), no_Magic(c)).cast::<u8>();
+                let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_Magic(c)).cast::<u8>();
                 if p.is_null() {
                     if extra == NFA_ADD_NL {
-                        semsg!(tr(e_ill_char_class), i64::from(c));
+                        semsg!(tr(E_ILL_CHAR_CLASS), i64::from(c));
                         g_st().rc_did_emsg = true;
                         return false;
                     }
@@ -880,7 +880,7 @@ fn nfa_regatom() -> bool {
                     c = getchr();
                     goto_multibyte = true;
                 } else {
-                    let idx = p.offset_from(classchars.as_ptr()) as usize;
+                    let idx = p.offset_from(CLASSCHARS.as_ptr()) as usize;
                     EMIT(NFA_CLASSCODES[idx]);
                     if extra == NFA_ADD_NL {
                         EMIT(NFA_NEWL);
@@ -923,10 +923,10 @@ fn nfa_regatom() -> bool {
                     || x == Magic(b'u' as c_int)
                     || x == Magic(b'U' as c_int)
             ) {
-                let p = vim_strchr(classchars.as_ptr().cast(), no_Magic(c)).cast::<u8>();
+                let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_Magic(c)).cast::<u8>();
                 if p.is_null() {
                     if extra == NFA_ADD_NL {
-                        semsg!(tr(e_ill_char_class), i64::from(c));
+                        semsg!(tr(E_ILL_CHAR_CLASS), i64::from(c));
                         g_st().rc_did_emsg = true;
                         return false;
                     }
@@ -937,7 +937,7 @@ fn nfa_regatom() -> bool {
                     old_regparse = re_st().regparse.cast();
                     c = getchr();
                 } else {
-                    let idx = p.offset_from(classchars.as_ptr()) as usize;
+                    let idx = p.offset_from(CLASSCHARS.as_ptr()) as usize;
                     EMIT(NFA_CLASSCODES[idx]);
                     if extra == NFA_ADD_NL {
                         EMIT(NFA_NEWL);
@@ -969,11 +969,11 @@ fn nfa_regatom() -> bool {
                 || c == Magic(b'*' as c_int)
                 || c == Magic(b'{' as c_int)
             {
-                semsg!(tr(e_misplaced), no_Magic(c));
+                semsg!(tr(E_MISPLACED), no_Magic(c));
                 return false;
             } else if c == Magic(b'~' as c_int) {
                 let Some(prev_sub) = reg_prev_sub_ref() else {
-                    emsg(tr(e_nopresub));
+                    emsg(tr(E_NOPRESUB));
                     return false;
                 };
                 let start_ptr = prev_sub.as_ptr().cast::<u8>();
@@ -1015,7 +1015,7 @@ fn nfa_regatom() -> bool {
                     }
                     b'1'..=b'9' => {
                         if (g_st().reg_do_extmatch & REX_USE) == 0 {
-                            emsg(tr(e_z1_not_allowed));
+                            emsg(tr(E_Z1_NOT_ALLOWED));
                             g_st().rc_did_emsg = true;
                             return false;
                         }
@@ -1025,7 +1025,7 @@ fn nfa_regatom() -> bool {
                     }
                     b'(' => {
                         if g_st().reg_do_extmatch != REX_SET {
-                            emsg(tr(e_z_not_allowed));
+                            emsg(tr(E_Z_NOT_ALLOWED));
                             g_st().rc_did_emsg = true;
                             return false;
                         }
@@ -1138,7 +1138,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                     && (crate::memory::cstr_byte_at(re_st().regparse, 1)) <= 50
                 {
                     semsg!(
-                        tr(e_atom_engine_must_be_at_start_of_pattern),
+                        tr(E_ATOM_ENGINE_MUST_BE_AT_START_OF_PATTERN),
                         crate::memory::cstr_char_at(re_st().regparse, 1),
                     );
                     return false;
@@ -1163,7 +1163,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                     }
                     if c == NUL as c_int {
                         semsg!(
-                            tr(e_missing_sb),
+                            tr(E_MISSING_SB),
                             if re_st().reg_magic == MAGIC_ALL {
                                 c"".as_ptr()
                             } else {
@@ -1181,7 +1181,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                 let _ = getchr();
                 if n == 0 {
                     semsg!(
-                        tr(e_empty_sb),
+                        tr(E_EMPTY_SB),
                         if re_st().reg_magic == MAGIC_ALL {
                             c"".as_ptr()
                         } else {
@@ -1212,13 +1212,13 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                 while ascii_isdigit(c) {
                     if cur {
                         semsg!(
-                            tr(e_regexp_number_after_dot_pos_search_chr),
+                            tr(E_REGEXP_NUMBER_AFTER_DOT_POS_SEARCH_CHR),
                             no_Magic(c),
                         );
                         return false;
                     }
                     if n > i64::from(i32::MAX - (c - b'0' as c_int)) / 10 {
-                        emsg(tr(e_value_too_large));
+                        emsg(tr(E_VALUE_TOO_LARGE));
                         return false;
                     }
                     n = n * 10 + i64::from(c - b'0' as c_int);
@@ -1228,7 +1228,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                 if c == b'l' as c_int || c == b'c' as c_int || c == b'v' as c_int {
                     let mut limit = i32::MAX;
                     if !cur && !got_digit {
-                        semsg!(tr(e_nfa_regexp_missing_value_in_chr), no_Magic(c));
+                        semsg!(tr(E_NFA_REGEXP_MISSING_VALUE_IN_CHR), no_Magic(c));
                         return false;
                     }
                     if c == b'l' as c_int {
@@ -1280,7 +1280,7 @@ fn nfa_regatom_percent(mut c: c_int, save_prev_at_start: c_int) -> bool {
                         limit = i32::MAX / MB_MAXBYTES;
                     }
                     if n >= i64::from(limit) {
-                        emsg(tr(e_value_too_large));
+                        emsg(tr(E_VALUE_TOO_LARGE));
                         return false;
                     }
                     EMIT(n as c_int);
@@ -1440,7 +1440,7 @@ fn nfa_regatom_collection(
                     } else if matches!(crate::memory::cstr_first_byte(re_st().regparse), b'd' | b'o' | b'x' | b'u' | b'U') {
                         *startc = coll_get_char();
                         if *startc == c_int::MAX {
-                            emsg(tr(e_unicode_val_too_large));
+                            emsg(tr(E_UNICODE_VAL_TOO_LARGE));
                             g_st().rc_did_emsg = true;
                             return FAIL;
                         }
@@ -1460,7 +1460,7 @@ fn nfa_regatom_collection(
                     range_endpoint = true;
                     *startc = oldstartc;
                     if *startc > endc {
-                        emsg(tr(e_reverse_range));
+                        emsg(tr(E_REVERSE_RANGE));
                         g_st().rc_did_emsg = true;
                         return FAIL;
                     }
@@ -1542,7 +1542,7 @@ fn nfa_regatom_collection(
         }
 
         if re_st().reg_strict != 0 {
-            emsg(tr(e_missingbracket));
+            emsg(tr(E_MISSINGBRACKET));
             g_st().rc_did_emsg = true;
             return FAIL;
         }
@@ -1802,7 +1802,7 @@ fn nfa_reg(paren: c_int) -> bool {
         }
 
         if re_st().nfa_reg_parse_depth >= REG_MAX_PAREN_DEPTH {
-            emsg(tr(e_command_too_complex));
+            emsg(tr(E_COMMAND_TOO_COMPLEX));
             g_st().rc_did_emsg = true;
             return false;
         }
@@ -1824,7 +1824,7 @@ fn nfa_reg(paren: c_int) -> bool {
         if paren != REG_NOPAREN && getchr() != Magic(b')' as c_int) {
             if paren == REG_NPAREN {
                 semsg!(
-                    tr(e_unmatched_str_percent_open),
+                    tr(E_UNMATCHED_STR_PERCENT_OPEN),
                     if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
@@ -1833,7 +1833,7 @@ fn nfa_reg(paren: c_int) -> bool {
                 );
             } else {
                 semsg!(
-                    tr(e_unmatched_str_open),
+                    tr(E_UNMATCHED_STR_OPEN),
                     if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
@@ -1847,7 +1847,7 @@ fn nfa_reg(paren: c_int) -> bool {
         } else if paren == REG_NOPAREN && peekchr() != NUL as c_int {
             if peekchr() == Magic(b')' as c_int) {
                 semsg!(
-                    tr(e_unmatched_str_close),
+                    tr(E_UNMATCHED_STR_CLOSE),
                     if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
@@ -2734,7 +2734,7 @@ fn addstate_idx(
                     let newlen = l.t.capacity() * 3 / 2 + 50;
                     let newsize = newlen * size_of::<NfaThread>();
                     if ((newsize >> 10) as i64) >= opt_vars().p_mmp {
-                        emsg(tr(e_pattern_uses_more_memory_than_maxmempattern));
+                        emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
                         return ptr::null_mut();
                     }
                     if subs != &raw mut nfa_st().temp_subs {
@@ -3001,7 +3001,7 @@ fn addstate_here(
                 let newlen = l.t.len() * 3 / 2 + 50;
                 let newsize = newlen * size_of::<NfaThread>();
                 if ((newsize >> 10) as i64) >= opt_vars().p_mmp {
-                    emsg(tr(e_pattern_uses_more_memory_than_maxmempattern));
+                    emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
                     return ptr::null_mut();
                 }
                 l.t.resize(newlen, NfaThread::new());
@@ -3122,7 +3122,7 @@ fn check_char_class(cls: c_int, c: c_int) -> bool {
                 }
             }
             _ => {
-                siemsg!(tr(e_ill_char_class), i64::from(cls));
+                siemsg!(tr(E_ILL_CHAR_CLASS), i64::from(cls));
                 return false;
             }
         }
@@ -4317,7 +4317,7 @@ fn nfa_regmatch(prog: &mut NfaRegprog,
                             &mut *re_st().rex.reg_buf,
                             crate::globals::curwin_mut(),
                             None,
-                            kMarkBufLocal,
+                            K_MARK_BUF_LOCAL,
                             t_st.val,
                         );
                         if REG_MULTI() {
@@ -4750,7 +4750,7 @@ fn nfa_regexec_both(
         };
 
         if prog.is_null() || line.is_null() {
-            iemsg(tr(e_null));
+            iemsg(tr(E_NULL));
             return finish_nfa_regexec(retval, col);
         }
 

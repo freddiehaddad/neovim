@@ -10,7 +10,7 @@ use crate::api::private::validate::{
 use crate::api::ui::{remote_ui_disconnect, remote_ui_flush_if_incomplete};
 use crate::channel::{
     CallbackReader, InternalState, channel_close, channel_decref, channel_event, channel_incref,
-    kChannelPartRpc, kChannelStreamProc, kChannelStreamSocket, kChannelStreamStdio,
+    K_CHANNEL_PART_RPC_CONST, K_CHANNEL_STREAM_PROC, K_CHANNEL_STREAM_SOCKET, K_CHANNEL_STREAM_STDIO,
 };
 use crate::eval::typval::Callback;
 use crate::event::r#loop::{loop_poll_events, loop_queues, uv_strerror};
@@ -47,13 +47,13 @@ const UV_EPIPE: c_int = -4047;
 #[cfg(not(windows))]
 const UV_EPIPE: c_int = -32;
 
-const kClientTypeUnknown: ClientType = -1;
-const kClientTypeRemote: ClientType = 0;
-const kClientTypeUi: ClientType = 1;
-const kClientTypeEmbedder: ClientType = 2;
-const kClientTypeHost: ClientType = 3;
-const kClientTypePlugin: ClientType = 4;
-const kClientTypeMsgpackRpc: ClientType = 5;
+const K_CLIENT_TYPE_UNKNOWN: ClientType = -1;
+const K_CLIENT_TYPE_REMOTE: ClientType = 0;
+const K_CLIENT_TYPE_UI: ClientType = 1;
+const K_CLIENT_TYPE_EMBEDDER: ClientType = 2;
+const K_CLIENT_TYPE_HOST: ClientType = 3;
+const K_CLIENT_TYPE_PLUGIN: ClientType = 4;
+const K_CLIENT_TYPE_MSGPACK_RPC: ClientType = 5;
 
 use crate::api::private::helpers::arena_string;
 
@@ -62,7 +62,7 @@ pub struct RemoteUI {
     pub rgb: bool,
     pub r#override: bool,
     pub composed: bool,
-    pub ui_ext: [bool; kUIExtCount],
+    pub ui_ext: [bool; K_UIEXT_COUNT],
     pub width: c_int,
     pub height: c_int,
     pub pum_nlines: c_int,
@@ -191,17 +191,17 @@ impl Drop for Channel {
 use crate::api::private::dispatch::{
     handle_nvim_get_mode, handle_nvim_paste, handle_nvim_ui_try_resize,
 };
-use crate::api::ui::kUIExtCount;
-use crate::api::vim::kChannelStreamInternal;
+use crate::api::ui::K_UIEXT_COUNT;
+use crate::api::vim::K_CHANNEL_STREAM_INTERNAL;
 use crate::autocmd::EVENT_CHANINFO;
 use crate::log::{LOGLVL_ERR, LOGLVL_INF};
 
 #[inline]
 pub fn channel_instream(chan: &mut Channel) -> *mut Stream {
     match chan.streamtype {
-            kChannelStreamProc => &raw mut chan.uv.proc_.r#in,
-            kChannelStreamSocket => &raw mut chan.socket.s,
-            kChannelStreamStdio => &raw mut chan.stdio_out,
+            K_CHANNEL_STREAM_PROC => &raw mut chan.uv.proc_.r#in,
+            K_CHANNEL_STREAM_SOCKET => &raw mut chan.socket.s,
+            K_CHANNEL_STREAM_STDIO => &raw mut chan.stdio_out,
             _ => std::process::abort(),
         }
 }
@@ -209,9 +209,9 @@ pub fn channel_instream(chan: &mut Channel) -> *mut Stream {
 #[inline]
 pub fn channel_outstream(chan: &mut Channel) -> *mut RStream {
     match chan.streamtype {
-            kChannelStreamProc => &raw mut chan.uv.proc_.out,
-            kChannelStreamSocket => &raw mut chan.socket,
-            kChannelStreamStdio => &raw mut chan.stdio_in,
+            K_CHANNEL_STREAM_PROC => &raw mut chan.uv.proc_.out,
+            K_CHANNEL_STREAM_SOCKET => &raw mut chan.socket,
+            K_CHANNEL_STREAM_STDIO => &raw mut chan.stdio_in,
             _ => std::process::abort(),
         }
 }
@@ -252,7 +252,7 @@ pub fn rpc_start(channel: &mut Channel) {
         };
         rpc.call_stack.clear();
 
-        if channel.streamtype != kChannelStreamInternal {
+        if channel.streamtype != K_CHANNEL_STREAM_INTERNAL {
             let out = channel_outstream(channel);
             rstream_start(&mut *out, StreamCbData::ChannelRpc(channel));
         }
@@ -471,7 +471,7 @@ fn parse_msgpack(channel: &mut Channel) {
                 }
                 arena_mem_free(arena_finish(&mut (*p).arena));
             } else if (*p).msg_type == MessageType::MessageTypeResponse {
-                let frame_opt = if channel.rpc.client_type == kClientTypeMsgpackRpc {
+                let frame_opt = if channel.rpc.client_type == K_CLIENT_TYPE_MSGPACK_RPC {
                     find_call_frame(&channel.rpc, (*p).request_id)
                 } else {
                     channel.rpc.call_stack.last().cloned()
@@ -643,7 +643,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
             return false;
         }
 
-        if channel.streamtype == kChannelStreamInternal {
+        if channel.streamtype == K_CHANNEL_STREAM_INTERNAL {
             channel_incref(&mut *channel);
             if !channel.events.is_null() {
                 multiqueue_put_event( &mut *channel.events, Event::RpcInternalRead { channel: &raw mut *channel, buffer });
@@ -776,13 +776,13 @@ pub fn rpc_close_event(mut channel: Option<&mut Channel>) {
 
             let is_ui_client = g_st().ui_client_channel_id != 0 && channel.as_deref_mut().unwrap().id == g_st().ui_client_channel_id;
             if is_ui_client {
-                if !g_st().exiting && channel.as_deref_mut().unwrap().streamtype != kChannelStreamProc {
+                if !g_st().exiting && channel.as_deref_mut().unwrap().streamtype != K_CHANNEL_STREAM_PROC {
                     ui_client_attach_to_restarted_server(false);
                 }
                 if g_st().ui_client_channel_id != channel.as_deref_mut().unwrap().id {
                     return;
                 }
-                if channel.as_deref_mut().unwrap().streamtype == kChannelStreamProc && g_st().ui_client_error_exit < 0 {
+                if channel.as_deref_mut().unwrap().streamtype == K_CHANNEL_STREAM_PROC && g_st().ui_client_error_exit < 0 {
                     return;
                 }
                 exit_on_closed_chan(0);
@@ -791,7 +791,7 @@ pub fn rpc_close_event(mut channel: Option<&mut Channel>) {
             } else {
                 #[cfg(windows)]
                 if ui_closed {
-                    os_detach_ui_console(channel.unwrap().streamtype == kChannelStreamStdio);
+                    os_detach_ui_console(channel.unwrap().streamtype == K_CHANNEL_STREAM_STDIO);
                 }
             }
         }
@@ -827,7 +827,7 @@ fn chan_close_on_err(channel: &mut Channel, msg: impl crate::strings::IntoCCharP
         }
 
         {
-            channel_close(channel.id, kChannelPartRpc, ptr::null_mut());
+            channel_close(channel.id, K_CHANNEL_PART_RPC_CONST, ptr::null_mut());
             logmsg!(
                 loglevel,
                 ptr::null(),
@@ -990,16 +990,16 @@ pub fn rpc_set_client_info(id: u64, info: Dict) {
 
         let r#type = get_client_info(&mut *chan, c"type");
         (*ct).rpc.client_type = if r#type.is_null() {
-            kClientTypeRemote
+            K_CLIENT_TYPE_REMOTE
         } else {
             match crate::memory::cstr_as_bytes(r#type) {
-                b"remote" => kClientTypeRemote,
-                b"msgpack-rpc" => kClientTypeMsgpackRpc,
-                b"ui" => kClientTypeUi,
-                b"embedder" => kClientTypeEmbedder,
-                b"host" => kClientTypeHost,
-                b"plugin" => kClientTypePlugin,
-                _ => kClientTypeUnknown,
+                b"remote" => K_CLIENT_TYPE_REMOTE,
+                b"msgpack-rpc" => K_CLIENT_TYPE_MSGPACK_RPC,
+                b"ui" => K_CLIENT_TYPE_UI,
+                b"embedder" => K_CLIENT_TYPE_EMBEDDER,
+                b"host" => K_CLIENT_TYPE_HOST,
+                b"plugin" => K_CLIENT_TYPE_PLUGIN,
+                _ => K_CLIENT_TYPE_UNKNOWN,
             }
         };
 
@@ -1050,7 +1050,7 @@ mod tests {
                 size: 0,
                 capacity: 0,
             },
-            client_type: kClientTypeMsgpackRpc,
+            client_type: K_CLIENT_TYPE_MSGPACK_RPC,
         };
         let f1 = std::rc::Rc::new(ChannelCallFrame {
             request_id: 10,

@@ -165,7 +165,7 @@ impl ConptyModuleState {
             pCreatePseudoConsole: None,
             pResizePseudoConsole: None,
             pClosePseudoConsole: None,
-            HAS_CONPTY: kNone,
+            HAS_CONPTY: K_NONE,
             CONPTY_COUNT: 0,
         }
     }
@@ -224,16 +224,16 @@ unsafe extern "system" {
 }
 
 #[cfg(windows)]
-use crate::extmark::{kFalse, kNone, kTrue};
+use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 #[cfg(windows)]
 use crate::os::os_win_console::{CloseHandle, GetLastError};
 
 #[cfg(windows)]
 pub fn os_has_conpty_working() -> bool {
-    if conpty_st().HAS_CONPTY == kNone {
+    if conpty_st().HAS_CONPTY == K_NONE {
             conpty_st().HAS_CONPTY = os_dyn_conpty_init();
         }
-        conpty_st().HAS_CONPTY == kTrue
+        conpty_st().HAS_CONPTY == K_TRUE
 }
 
 #[cfg(windows)]
@@ -256,7 +256,7 @@ pub fn os_dyn_conpty_init() -> TriState {
             uv_dlclose(&mut conpty_lib);
             if uv_dlopen(c"kernel32.dll".as_ptr(), &mut conpty_lib) != 0 {
                 uv_dlclose(&mut conpty_lib);
-                return kFalse;
+                return K_FALSE;
             }
             logmsg!(
                 LOGLVL_INF,
@@ -286,11 +286,11 @@ pub fn os_dyn_conpty_init() -> TriState {
         for (name, ptr) in entries {
             if uv_dlsym(&mut conpty_lib, name, ptr) != 0 {
                 uv_dlclose(&mut conpty_lib);
-                return kFalse;
+                return K_FALSE;
             }
         }
 
-        kTrue
+        K_TRUE
     }
 }
 

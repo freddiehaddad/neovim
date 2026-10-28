@@ -11,7 +11,7 @@ use crate::os::fs::os_realpath_cstr;
 use crate::os::fs::{ENV_SEPCHAR, MAXPATHL, PATHSEP};
 #[cfg(windows)]
 use crate::path::path_to_slash;
-use crate::path::{concat_fnames_cstr, kPathCmpLiteral, path_equal, path_is_absolute};
+use crate::path::{concat_fnames_cstr, K_PATH_CMP_LITERAL, path_equal, path_is_absolute};
 use std::ffi::{CStr, CString, c_char};
 
 #[repr(C)]
@@ -122,7 +122,7 @@ fn xdg_remove_duplicate(ret: CString, sep: u8) -> Option<CString> {
         let Ok(cand) = CString::new(part) else {
             continue;
         };
-        let is_dup = token_cstrs.iter().any(|existing| path_equal(existing.as_ptr(), cand.as_ptr(), kPathCmpLiteral));
+        let is_dup = token_cstrs.iter().any(|existing| path_equal(existing.as_ptr(), cand.as_ptr(), K_PATH_CMP_LITERAL));
         if !is_dup {
             token_cstrs.push(cand);
         }

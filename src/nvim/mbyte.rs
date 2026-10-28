@@ -76,8 +76,8 @@ const DBCS_CHT: c_int = 950;
 const DBCS_CHTU: c_int = 9950;
 const DBCS_DEBUG: c_int = -1;
 
-pub(crate) const kOptCmpFlagInternal: c_uint = 0x01;
-pub(crate) const kOptCmpFlagKeepascii: c_uint = 0x02;
+pub(crate) const K_OPT_CMP_FLAG_INTERNAL: c_uint = 0x01;
+pub(crate) const K_OPT_CMP_FLAG_KEEPASCII: c_uint = 0x02;
 
 const ICONV_E2BIG: c_int = 7;
 #[cfg(windows)]
@@ -183,7 +183,7 @@ const E_OVERLAPPING_RANGES_FOR_NR: &CStr = c"E1113: Overlapping ranges for 0x%lx
 const E_ONLY_VALUES_OF_0X80_AND_HIGHER_SUPPORTED: &CStr =
     c"E1114: Only values of 0x80 and higher supported";
 
-pub static utf8len_tab: [u8; 256] = [
+pub static UTF8LEN_TAB: [u8; 256] = [
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0?
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 1?
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 2?
@@ -202,7 +202,7 @@ pub static utf8len_tab: [u8; 256] = [
     4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 1, 1, // F?
 ];
 
-pub static utf8len_tab_zero: [u8; 256] = [
+pub static UTF8LEN_TAB_ZERO: [u8; 256] = [
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 0?
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 1?
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, // 2?
@@ -924,7 +924,7 @@ pub fn utf_ptr2CharInfo(p_in: impl crate::strings::IntoCCharPtr) -> CharInfo { l
                 len: 1,
             }
         } else {
-            let mut len = c_int::from(utf8len_tab[first as usize]);
+            let mut len = c_int::from(UTF8LEN_TAB[first as usize]);
             let code_point = utf_ptr2CharInfo_impl(p, len as usize);
             if code_point < 0 {
                 len = 1;
@@ -961,7 +961,7 @@ pub fn utf_ptr2CharInfo_len(p_in: impl crate::strings::IntoCCharPtr, size: c_int
                 len: 1,
             }
         } else {
-            let mut len = c_int::from(utf8len_tab[first as usize]);
+            let mut len = c_int::from(UTF8LEN_TAB[first as usize]);
             if len > size {
                 return CharInfo { value: -1, len: 1 };
             }
@@ -1103,7 +1103,7 @@ pub fn mb_get_class(p: impl crate::strings::IntoCCharPtr) -> c_int {
 pub fn mb_get_class_tab(p: impl crate::strings::IntoCCharPtr, chartab: *const u64) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         let b0 = *p.cast::<u8>();
-        if utf8len_tab[b0 as usize] == 1 {
+        if UTF8LEN_TAB[b0 as usize] == 1 {
             if b0 == 0 || ascii_iswhite(c_int::from(b0)) {
                 return 0;
             }
@@ -1268,7 +1268,7 @@ pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> c_int { let p_in
             return v0 as c_int;
         }
 
-        let len = utf8len_tab[v0 as usize];
+        let len = UTF8LEN_TAB[v0 as usize];
         if len < 2 {
             return v0 as c_int;
         }
@@ -1330,7 +1330,7 @@ fn utf_safe_read_char_adv(s: &mut *const c_char, n: &mut usize) -> c_int {
         }
 
         let b0 = *(*s).cast::<u8>();
-        let k = usize::from(utf8len_tab_zero[b0 as usize]);
+        let k = usize::from(UTF8LEN_TAB_ZERO[b0 as usize]);
         if k == 1 {
             *n -= 1;
             *s = (*s).add(1);
@@ -1398,7 +1398,7 @@ pub fn utf_ptr2len(p_in: impl crate::strings::IntoCCharPtr) -> c_int { let p_in 
         if *p == 0 {
             return 0;
         }
-        let len = c_int::from(utf8len_tab[*p as usize]);
+        let len = c_int::from(UTF8LEN_TAB[*p as usize]);
         for i in 1..len as usize {
             if (*p.add(i) & 0xc0) != 0x80 {
                 return 1;
@@ -1409,13 +1409,13 @@ pub fn utf_ptr2len(p_in: impl crate::strings::IntoCCharPtr) -> c_int { let p_in 
 }
 
 pub fn utf_byte2len(b: c_int) -> c_int {
-    c_int::from(utf8len_tab[b as usize])
+    c_int::from(UTF8LEN_TAB[b as usize])
 }
 
 pub fn utf_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: c_int) -> c_int { let p = p.into_c_char_ptr();
     unsafe {
         let bytes = p.cast::<u8>();
-        let len = c_int::from(utf8len_tab[*bytes as usize]);
+        let len = c_int::from(UTF8LEN_TAB[*bytes as usize]);
         if len == 1 {
             return 1;
         }
@@ -2052,10 +2052,10 @@ pub fn utf_fold(a: c_int) -> c_int {
 
 pub fn mb_toupper(a: c_int) -> c_int {
     unsafe {
-        if a < 128 && (opt_vars().cmp_flags & kOptCmpFlagKeepascii) != 0 {
+        if a < 128 && (opt_vars().cmp_flags & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
             return toupper_asc(a);
         }
-        if (opt_vars().cmp_flags & kOptCmpFlagInternal) == 0 {
+        if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
             return towupper(a as wint_t) as c_int;
         }
         if a < 128 {
@@ -2071,10 +2071,10 @@ pub fn mb_islower(a: c_int) -> bool {
 
 pub fn mb_tolower(a: c_int) -> c_int {
     unsafe {
-        if a < 128 && (opt_vars().cmp_flags & kOptCmpFlagKeepascii) != 0 {
+        if a < 128 && (opt_vars().cmp_flags & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
             return tolower_asc(a);
         }
-        if (opt_vars().cmp_flags & kOptCmpFlagInternal) == 0 {
+        if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
             return towlower(a as wint_t) as c_int;
         }
         if a < 128 {
@@ -2357,7 +2357,7 @@ pub fn utf_head_off(base_in: impl crate::strings::IntoCCharPtr, p_in: impl crate
             start = start.sub(1);
         }
 
-        let last_len = utf8len_tab[*start as usize];
+        let last_len = UTF8LEN_TAB[*start as usize];
         let mut cur_code = utf_ptr2CharInfo_impl(start, usize::from(last_len));
         if cur_code < 0 || p.offset_from(start) >= isize::from(last_len) {
             return 0;
@@ -2388,7 +2388,7 @@ pub fn utf_head_off(base_in: impl crate::strings::IntoCCharPtr, p_in: impl crate
                 start = start.sub(1);
             }
 
-            let prev_len = c_int::from(utf8len_tab[*start as usize]);
+            let prev_len = c_int::from(UTF8LEN_TAB[*start as usize]);
             let prev_code = utf_ptr2CharInfo_impl(start, prev_len as usize);
             if prev_code < 0 || (prev_len as isize) < cur_pos.offset_from(start) {
                 start = cur_pos;
@@ -2438,7 +2438,7 @@ pub fn utf_ClusterInfo_impl(base: StrCharInfo, max_len: &mut c_int) -> ClusterIn
             cells == 1 && opt_vars().p_emoji != 0 && prop_is_emojilike(utf8proc_get_property(base.chr.value));
 
         loop {
-            let next_len = utf8len_tab[*next as usize];
+            let next_len = UTF8LEN_TAB[*next as usize];
             if c_int::from(next_len) > *max_len {
                 return ClusterInfo {
                     next: StrCharInfo {
@@ -2646,7 +2646,7 @@ pub fn utf_cp_bounds_len(
         }
 
         let lead = *p.offset(first_off as isize);
-        let max_end_off = c_int::from(utf8len_tab[lead as usize]) + first_off;
+        let max_end_off = c_int::from(UTF8LEN_TAB[lead as usize]) + first_off;
         if max_end_off <= 0 || max_end_off > p_len {
             return CharBoundsOff {
                 begin_off: 0,
@@ -2748,7 +2748,7 @@ pub fn utf_valid_string(s: impl crate::strings::IntoCCharPtr, end: impl crate::s
         } else {
             p < end_u8
         } {
-            let mut l = usize::from(utf8len_tab_zero[*p as usize]);
+            let mut l = usize::from(UTF8LEN_TAB_ZERO[*p as usize]);
             if l == 0 {
                 return false;
             }
@@ -3312,7 +3312,7 @@ pub fn string_convert_ext(
                         out.push(0);
                     } else if l == 1 {
                         let b = *ptr.add(i).cast::<u8>();
-                        let l_w = usize::from(utf8len_tab_zero[b as usize]);
+                        let l_w = usize::from(UTF8LEN_TAB_ZERO[b as usize]);
                         if l_w == 0 {
                             return None;
                         }
@@ -3394,7 +3394,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
 
     unsafe {
         if argvars[0].v_type != VarType::VarList || argvars[0].vval.v_list().is_null() {
-            emsg((&raw const e_listreq).cast::<c_char>());
+            emsg((&raw const E_LISTREQ).cast::<c_char>());
             return;
         }
 

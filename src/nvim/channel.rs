@@ -8,12 +8,12 @@ use crate::buffer::FileBuf;
 use crate::errors::*;
 use crate::eval::encode::encode_list_write;
 use crate::eval::typval::{
-    Callback, TypvalVval, VAR_UNLOCKED, VarType, callback_free, TvDict, kCallbackNone, TvList,
+    Callback, TypvalVval, VAR_UNLOCKED, VarType, callback_free, TvDict, K_CALLBACK_NONE_CONST, TvList,
     tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_find, tv_dict_free,
     tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_string, tv_list_ref, tv_list_unref,
     TypVal, Varnumber,
 };
-use crate::eval::{callback_call, get_v_event, kListLenMayKnow, restore_v_event};
+use crate::eval::{callback_call, get_v_event, K_LIST_LEN_MAY_KNOW_CONST, restore_v_event};
 use crate::event::r#loop::{loop_queues, uv_strerror};
 use crate::event::multiqueue::{Event, multiqueue_new_child, multiqueue_put_event};
 use crate::event::proc::{Proc, exit_on_closed_chan, proc_spawn, proc_stop};
@@ -101,20 +101,20 @@ pub(crate) const STDIN_FILENO: c_int = 0;
 pub(crate) const STDOUT_FILENO: c_int = 1;
 pub(crate) const STDERR_FILENO: c_int = 2;
 
-pub(crate) const kProcTypeUv: c_int = 0;
-pub(crate) const kProcTypePty: c_int = 1;
+pub(crate) const K_PROC_TYPE_UV: c_int = 0;
+pub(crate) const K_PROC_TYPE_PTY: c_int = 1;
 
-pub(crate) const kChannelStreamProc: ChannelStreamType = 0;
-pub(crate) const kChannelStreamSocket: ChannelStreamType = 1;
-pub(crate) const kChannelStreamStdio: ChannelStreamType = 2;
-const kChannelStreamStderr: ChannelStreamType = 3;
+pub(crate) const K_CHANNEL_STREAM_PROC: ChannelStreamType = 0;
+pub(crate) const K_CHANNEL_STREAM_SOCKET: ChannelStreamType = 1;
+pub(crate) const K_CHANNEL_STREAM_STDIO: ChannelStreamType = 2;
+const K_CHANNEL_STREAM_STDERR: ChannelStreamType = 3;
 
-pub(crate) const kChannelPartStdin: ChannelPart = 0;
-pub(crate) const kChannelPartStdout: ChannelPart = 1;
-pub(crate) const kChannelPartStderr: ChannelPart = 2;
-pub(crate) const kChannelPartRpc: ChannelPart = 3;
+pub(crate) const K_CHANNEL_PART_STDIN: ChannelPart = 0;
+pub(crate) const K_CHANNEL_PART_STDOUT: ChannelPart = 1;
+pub(crate) const K_CHANNEL_PART_STDERR: ChannelPart = 2;
+pub(crate) const K_CHANNEL_PART_RPC_CONST: ChannelPart = 3;
 
-pub(crate) const kChannelStdinPipe: ChannelStdinMode = 0;
+pub(crate) const K_CHANNEL_STDIN_PIPE_CONST: ChannelStdinMode = 0;
 
 #[cfg(target_os = "linux")]
 const F_DUPFD_CLOEXEC: c_int = 1030;
@@ -165,8 +165,8 @@ pub struct TerminalOptions {
     pub force_crlf: bool,
 }
 
-use crate::api::ui::{CHAN_STDIO, kChannelPartAll};
-use crate::api::vim::kChannelStreamInternal;
+use crate::api::ui::{CHAN_STDIO, K_CHANNEL_PART_ALL};
+use crate::api::vim::K_CHANNEL_STREAM_INTERNAL;
 use crate::autocmd::{EVENT_CHANCLOSE, EVENT_CHANOPEN};
 #[cfg(not(windows))]
 use crate::fileio::dup2;
@@ -196,7 +196,7 @@ fn redirect_stderr_to_null() {
 
 #[inline]
 fn callback_reader_set(reader: &CallbackReader) -> bool {
-    reader.cb.cb_type() != kCallbackNone || !reader.self_dict.is_null()
+    reader.cb.cb_type() != K_CALLBACK_NONE_CONST || !reader.self_dict.is_null()
 }
 
 use crate::api::private::helpers::add_c;
@@ -206,7 +206,7 @@ pub fn channel_teardown() {
     unsafe {
         let all_chans: Vec<*mut Channel> = g_st().channels.values().copied().collect();
         for chan in all_chans {
-            channel_close((*chan).id, kChannelPartAll, ptr::null_mut());
+            channel_close((*chan).id, K_CHANNEL_PART_ALL, ptr::null_mut());
         }
     }
 }
@@ -235,72 +235,72 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                 return true;
             }
             {
-                *error = e_invchan.as_ptr();
+                *error = E_INVCHAN.as_ptr();
             }
             return false;
         }
 
         let mut close_main = false;
-        if part == kChannelPartRpc || part == kChannelPartAll {
+        if part == K_CHANNEL_PART_RPC_CONST || part == K_CHANNEL_PART_ALL {
             close_main = true;
             if (*chan).is_rpc {
                 rpc_close(&mut *chan);
-            } else if part == kChannelPartRpc {
+            } else if part == K_CHANNEL_PART_RPC_CONST {
                 {
-                    *error = e_invstream.as_ptr();
+                    *error = E_INVSTREAM.as_ptr();
                 }
                 return false;
             }
-        } else if (part == kChannelPartStdin || part == kChannelPartStdout) && (*chan).is_rpc {
+        } else if (part == K_CHANNEL_PART_STDIN || part == K_CHANNEL_PART_STDOUT) && (*chan).is_rpc {
             {
-                *error = e_invstreamrpc.as_ptr();
+                *error = E_INVSTREAMRPC.as_ptr();
             }
             return false;
         }
 
         match (*chan).streamtype {
-            kChannelStreamSocket => {
+            K_CHANNEL_STREAM_SOCKET => {
                 if !close_main {
                     {
-                        *error = e_invstream.as_ptr();
+                        *error = E_INVSTREAM.as_ptr();
                     }
                     return false;
                 }
                 rstream_may_close(&mut (*chan).socket);
             }
-            kChannelStreamProc => {
+            K_CHANNEL_STREAM_PROC => {
                 let proc_ptr = &mut (*chan).uv.proc_;
-                if part == kChannelPartStdin || close_main {
+                if part == K_CHANNEL_PART_STDIN || close_main {
                     stream_may_close(&mut proc_ptr.r#in);
                 }
-                if part == kChannelPartStdout || close_main {
+                if part == K_CHANNEL_PART_STDOUT || close_main {
                     rstream_may_close(&mut proc_ptr.out);
                 }
-                if part == kChannelPartStderr || part == kChannelPartAll {
+                if part == K_CHANNEL_PART_STDERR || part == K_CHANNEL_PART_ALL {
                     rstream_may_close(&mut proc_ptr.err);
                 }
-                if proc_ptr.r#type == kProcTypePty && part == kChannelPartAll {
+                if proc_ptr.r#type == K_PROC_TYPE_PTY && part == K_CHANNEL_PART_ALL {
                     pty_proc_close_master(proc_ptr);
                 }
             }
-            kChannelStreamStdio => {
-                if part == kChannelPartStdin || close_main {
+            K_CHANNEL_STREAM_STDIO => {
+                if part == K_CHANNEL_PART_STDIN || close_main {
                     rstream_may_close(&mut (*chan).stdio_in);
                 }
-                if part == kChannelPartStdout || close_main {
+                if part == K_CHANNEL_PART_STDOUT || close_main {
                     stream_may_close(&mut (*chan).stdio_out);
                 }
-                if part == kChannelPartStderr {
+                if part == K_CHANNEL_PART_STDERR {
                     {
-                        *error = e_invstream.as_ptr();
+                        *error = E_INVSTREAM.as_ptr();
                     }
                     return false;
                 }
             }
-            kChannelStreamStderr => {
-                if part != kChannelPartAll && part != kChannelPartStderr {
+            K_CHANNEL_STREAM_STDERR => {
+                if part != K_CHANNEL_PART_ALL && part != K_CHANNEL_PART_STDERR {
                     {
-                        *error = e_invstream.as_ptr();
+                        *error = E_INVSTREAM.as_ptr();
                     }
                     return false;
                 }
@@ -312,10 +312,10 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
                     channel_decref( &mut *chan);
                 }
             }
-            kChannelStreamInternal => {
+            K_CHANNEL_STREAM_INTERNAL => {
                 if !close_main {
                     {
-                        *error = e_invstream.as_ptr();
+                        *error = E_INVSTREAM.as_ptr();
                     }
                     return false;
                 }
@@ -339,16 +339,16 @@ pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) 
 
 /// Initializes the module.
 pub fn channel_init() {
-    let _ = channel_alloc(kChannelStreamStderr);
+    let _ = channel_alloc(K_CHANNEL_STREAM_STDERR);
         rpc_init();
 }
 
 /// Allocates a channel.
 pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
     unsafe {
-        let id = if r#type == kChannelStreamStdio {
+        let id = if r#type == K_CHANNEL_STREAM_STDIO {
             CHAN_STDIO
-        } else if r#type == kChannelStreamStderr {
+        } else if r#type == K_CHANNEL_STREAM_STDERR {
             CHAN_STDERR
         } else {
             let id = chan_st().NEXT_CHAN_ID;
@@ -373,7 +373,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
                 closed: false,
             },
             is_rpc: false,
-            detach: r#type != kChannelStreamStdio,
+            detach: r#type != K_CHANNEL_STREAM_STDIO,
             rpc: RpcState::new(),
             term: ptr::null_mut(),
             on_data: CallbackReader::none(),
@@ -465,7 +465,7 @@ pub fn channel_job_start(
     status_out: *mut Varnumber,
 ) -> *mut Channel { let exepath = exepath.into_c_char_ptr(); let cwd = cwd.into_c_char_ptr();
     unsafe {
-        let chan = channel_alloc(kChannelStreamProc);
+        let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
         (*chan).on_data = on_stdout;
         (*chan).on_stderr = on_stderr;
         (*chan).on_exit = on_exit;
@@ -475,7 +475,7 @@ pub fn channel_job_start(
             if detach {
                 {
                     semsg!(
-                        gettext(e_invarg2),
+                        gettext(E_INVARG2),
                         c"terminal/pty job cannot be detached",
                     );
                     if !env.is_null() {
@@ -487,7 +487,7 @@ pub fn channel_job_start(
                 *status_out = 0;
                 return ptr::null_mut();
             }
-            (*proc_ptr).r#type = kProcTypePty;
+            (*proc_ptr).r#type = K_PROC_TYPE_PTY;
             (*proc_ptr).data = chan;
             {
                 (*proc_ptr).loop_ = (&raw mut g_st().main_loop).cast();
@@ -502,7 +502,7 @@ pub fn channel_job_start(
                 (*proc_ptr).tty_fd = -1;
             }
         } else {
-            (*proc_ptr).r#type = kProcTypeUv;
+            (*proc_ptr).r#type = K_PROC_TYPE_UV;
             (*proc_ptr).data = chan;
             {
                 (*proc_ptr).loop_ = (&raw mut g_st().main_loop).cast();
@@ -539,7 +539,7 @@ pub fn channel_job_start(
             .clone()
             .unwrap_or_else(|| (*ph).argv.as_slice()[0].clone());
 
-        let (has_out, has_err) = if (*ph).r#type == kProcTypePty {
+        let (has_out, has_err) = if (*ph).r#type == K_PROC_TYPE_PTY {
             (true, false)
         } else {
             let out = rpc || callback_reader_set(&(*chan).on_data);
@@ -556,13 +556,13 @@ pub fn channel_job_start(
             (out, err)
         };
 
-        let has_in = stdin_mode == kChannelStdinPipe;
+        let has_in = stdin_mode == K_CHANNEL_STDIN_PIPE_CONST;
 
         let status = proc_spawn(&mut *proc_ptr, has_in, has_out, has_err);
         if status != 0 {
             {
                 semsg!(
-                    gettext(e_jobspawn),
+                    gettext(E_JOBSPAWN),
                     uv_strerror(status),
                     cmd.as_ptr(),
                 );
@@ -615,14 +615,14 @@ pub fn channel_connect(
 ) -> u64 { let address = address.into_c_char_ptr();
     unsafe {
         if !tcp && rpc && server_owns_pipe_address(address) {
-            let channel = channel_alloc(kChannelStreamInternal);
+            let channel = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
             (*channel).internal.cb = LUA_NOREF;
             rpc_start(&mut *channel);
             channel_create_event(&mut *channel, address);
             return (*channel).id;
         }
 
-        let channel = channel_alloc(kChannelStreamSocket);
+        let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
         let socket_stream = &mut (*channel).socket;
         let connected = socket_connect(
             &mut g_st().main_loop,
@@ -658,7 +658,7 @@ pub fn channel_connect(
 /// Creates an RPC channel from a tcp/pipe socket connection.
 pub fn channel_from_connection(watcher: &mut SocketWatcher) {
     unsafe {
-        let channel = channel_alloc(kChannelStreamSocket);
+        let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
         let socket_stream = &mut (*channel).socket;
         let result = socket_watcher_accept(watcher, socket_stream);
         if result != 0 {
@@ -693,7 +693,7 @@ pub fn channel_from_stdio(
         }
         chan_st().DID_STDIO = true;
 
-        let channel = channel_alloc(kChannelStreamStdio);
+        let channel = channel_alloc(K_CHANNEL_STREAM_STDIO);
         let mut stdin_dup_fd = STDIN_FILENO;
         let mut stdout_dup_fd = STDOUT_FILENO;
 
@@ -737,11 +737,11 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
         let len = data.len();
 
         if chan.is_null() {
-            *error = gettext(e_invchan);
+            *error = gettext(E_INVCHAN);
             return 0;
         }
 
-        if (*chan).streamtype == kChannelStreamStderr {
+        if (*chan).streamtype == K_CHANNEL_STREAM_STDERR {
             if (*chan).err_closed {
                 *error = gettext(c"Can't send data to closed stream");
                 return 0;
@@ -750,7 +750,7 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
             return if wres >= 0 { wres as usize } else { 0 };
         }
 
-        if (*chan).streamtype == kChannelStreamInternal {
+        if (*chan).streamtype == K_CHANNEL_STREAM_INTERNAL {
             if (*chan).is_rpc {
                 *error = gettext(c"Can't send raw data to rpc channel");
                 return 0;
@@ -787,7 +787,7 @@ pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> us
 #[inline]
 fn buffer_to_tv_list(buf: impl crate::strings::IntoCCharPtr, len: usize) -> *mut TvList { let buf = buf.into_c_char_ptr();
     unsafe {
-        let l = tv_list_alloc(kListLenMayKnow);
+        let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         tv_list_append_string( &mut *l, c"", 0);
         if len > 0 {
             encode_list_write(l.as_mut(), buf, len);
@@ -911,7 +911,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
                     );
                 } else {
                     semsg!(
-                        gettext(e_streamkey),
+                        gettext(E_STREAMKEY),
                         reader_type.as_ptr(),
                         chan.id,
                     );
@@ -955,7 +955,7 @@ pub(crate) fn channel_proc_exit_cb(proc_: &mut Proc, status: c_int, chan: &mut C
         }
 
         let exited = status >= 0;
-        if exited && chan.on_exit.cb_type() != kCallbackNone {
+        if exited && chan.on_exit.cb_type() != K_CALLBACK_NONE_CONST {
             schedule_channel_event(chan);
         }
         if exited {
@@ -1038,7 +1038,7 @@ pub fn channel_terminal_alloc(buf: &mut FileBuf, chan: &mut Channel) {
 
 pub fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
      {
-        if chan.streamtype == kChannelStreamInternal {
+        if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
             return;
         }
         let out_stream = &mut chan.uv.proc_.out;
@@ -1055,7 +1055,7 @@ pub fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
 
 pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, chan: &mut Channel) { let buf = buf.into_c_char_ptr();
     unsafe {
-        if chan.streamtype == kChannelStreamInternal {
+        if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
             let internal = &mut chan.internal;
             let cb = internal.cb;
             if cb == LUA_NOREF {
@@ -1081,7 +1081,7 @@ pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, c
                 cb,
                 c"input",
                 args,
-                crate::lua::executor::kRetNilBool,
+                crate::lua::executor::K_RET_NIL_BOOL,
                 None,
                 None,
             );
@@ -1103,14 +1103,14 @@ pub fn channel_term_write(buf: impl crate::strings::IntoCCharPtr, size: usize, c
 }
 
 pub fn channel_term_resize(width: u16, height: u16, chan: &mut Channel) {
-    if chan.streamtype == kChannelStreamInternal {
+    if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
             return;
         }
         pty_proc_resize(&mut chan.uv.proc_, width, height);
 }
 
 pub fn channel_term_resume(chan: &mut Channel) {
-    if chan.streamtype == kChannelStreamInternal {
+    if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
             return;
         }
         pty_proc_resume(&mut chan.uv.proc_);
@@ -1133,7 +1133,7 @@ pub fn term_delayed_free(chan: &mut Channel) {
 
 pub fn channel_term_close(chan: &mut Channel) {
     unsafe {
-        if chan.streamtype == kChannelStreamInternal {
+        if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
             let internal = &mut chan.internal;
             terminal_destroy(&raw mut chan.term);
             crate::lua::executor::api_free_luaref(internal.cb);
@@ -1193,7 +1193,7 @@ pub fn channel_job_running(id: u64) -> bool {
         if chan.is_null() {
             return false;
         }
-        if (*chan).streamtype != kChannelStreamProc {
+        if (*chan).streamtype != K_CHANNEL_STREAM_PROC {
             return false;
         }
         let ph = &mut (*chan).uv.proc_;
@@ -1224,10 +1224,10 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
         );
 
         let stream_desc: &'static CStr = match (*chan).streamtype {
-            kChannelStreamProc => {
+            K_CHANNEL_STREAM_PROC => {
                 let proc_ptr = &raw mut (*chan).uv.proc_;
                 let ph = proc_ptr;
-                if (*ph).r#type == kProcTypePty {
+                if (*ph).r#type == K_PROC_TYPE_PTY {
                     let name = pty_proc_tty_name(&mut *proc_ptr.cast());
                     let s = if name.is_null() {
                         NvimString {
@@ -1280,9 +1280,9 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                 );
                 c"job"
             }
-            kChannelStreamStdio => c"stdio",
-            kChannelStreamStderr => c"stderr",
-            kChannelStreamInternal => {
+            K_CHANNEL_STREAM_STDIO => c"stdio",
+            K_CHANNEL_STREAM_STDERR => c"stderr",
+            K_CHANNEL_STREAM_INTERNAL => {
                 put_c(
                     &mut info,
                     c"internal",

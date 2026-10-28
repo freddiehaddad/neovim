@@ -34,13 +34,13 @@ use std::ptr;
 
 use crate::change::MB_MAXCHAR;
 use crate::cursor::{Colnr, Linenr};
-use crate::eval::kListLenMayKnow;
+use crate::eval::K_LIST_LEN_MAY_KNOW_CONST;
 
 const SEARCH_HL_PRIORITY: c_int = 0;
 
 pub(crate) const HLF_L: usize = 8;
 pub(crate) const HLF_LC: usize = 9;
-pub(crate) const kCpoSearch: c_int = b'c' as c_int;
+pub(crate) const K_CPO_SEARCH: c_int = b'c' as c_int;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -174,7 +174,7 @@ fn match_add(
         if !pat.is_null() {
             regprog = vim_regcomp(pat, RE_MAGIC);
             if regprog.is_null() {
-                semsg!(gettext(e_invarg2), pat);
+                semsg!(gettext(E_INVARG2), pat);
                 return -1;
             }
         }
@@ -473,7 +473,7 @@ fn next_search_hl(
             }
             if shl.lnum == 0 {
                 matchcol = 0;
-            } else if vim_strchr(opt_vars().p_cpo, kCpoSearch).is_null()
+            } else if vim_strchr(opt_vars().p_cpo, K_CPO_SEARCH).is_null()
                 || (shl.rm.endpos[0].lnum == 0
                     && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
             {
@@ -921,7 +921,7 @@ fn matchadd_dict_arg(
 ) -> bool {
     unsafe {
         if tv.v_type != VarType::VarDict {
-            emsg(gettext(e_dictreq));
+            emsg(gettext(E_DICTREQ));
             return false;
         }
 
@@ -937,7 +937,7 @@ fn matchadd_dict_arg(
 
         *win = find_win_by_nr_or_id(&(*di).di_tv);
         if (*win).is_null() {
-            emsg(gettext(e_invalwindow));
+            emsg(gettext(E_INVALWINDOW));
             return false;
         }
 
@@ -960,7 +960,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     unsafe {
         let win = get_optional_window(argvars, 0);
 
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
         if win.is_null() {
             return;
         }
@@ -1020,7 +1020,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
         rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
         if argvars[0].v_type != VarType::VarList {
-            emsg(gettext(e_listreq));
+            emsg(gettext(E_LISTREQ));
             return;
         }
         if win.is_null() {
@@ -1171,7 +1171,7 @@ pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
         if argvars[1].v_type != VarType::VarList {
             semsg!(
-                gettext(e_listarg),
+                gettext(E_LISTARG),
                 c"matchaddpos()",
             );
             return;
@@ -1264,7 +1264,7 @@ pub fn ex_match(eap: &mut Exarg) {
         let id: c_int = if eap.line2 <= 3 {
             eap.line2 as c_int
         } else {
-            emsg(e_invcmd);
+            emsg(E_INVCMD);
             return;
         };
 
@@ -1293,17 +1293,17 @@ pub fn ex_match(eap: &mut Exarg) {
                 }
                 p = skipwhite(p);
                 if crate::memory::cstr_is_empty(p) {
-                    semsg!(gettext(e_invarg2), arg);
+                    semsg!(gettext(E_INVARG2), arg);
                     return;
                 }
                 end = skip_regexp(p.add(1), c_int::from(crate::memory::cstr_first_byte(p)), 1);
                 if eap.skip == 0 {
                     if !crate::memory::cstr_is_empty(end) && ends_excmd(c_int::from(*skipwhite(end.add(1)))) == 0 {
-                        eap.errmsg = ex_errmsg(e_trailing_arg, end);
+                        eap.errmsg = ex_errmsg(E_TRAILING_ARG, end);
                         return;
                     }
                     if *end != *p {
-                        semsg!(gettext(e_invarg2), p);
+                        semsg!(gettext(E_INVARG2), p);
                         return;
                     }
 

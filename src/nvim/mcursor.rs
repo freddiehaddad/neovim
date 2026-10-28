@@ -12,8 +12,8 @@ use crate::buffer::{MAXLNUM, FileBuf, buf_get_changedtick, bufref_valid};
 use crate::charset::to_special;
 use crate::clipboard::set_clipboard;
 use crate::context::{
-    CONTEXT_INIT, Context, INIT_POS, ctx_free, ctx_load, ctx_save, handle_get_buffer, kCtxCursor,
-    kCtxMarks, kCtxMergeReg, kCtxRegs, kCtxVisual,
+    CONTEXT_INIT, Context, INIT_POS, ctx_free, ctx_load, ctx_save, handle_get_buffer, K_CTX_CURSOR,
+    K_CTX_MARKS, K_CTX_MERGE_REG, K_CTX_REGS, K_CTX_VISUAL,
 };
 use crate::cursor::{
     check_cursor, check_cursor_col, check_pos, Colnr, equalpos, getvpos, Linenr, lt, ltoreq,
@@ -30,7 +30,7 @@ use crate::ex_docmd::{
 };
 use crate::extmark::{
     TriState, extmark_clear, extmark_del_id, extmark_from_id, extmark_get_pos, extmark_set,
-    extmark_set_pos, kFalse, kNone, kTrue,
+    extmark_set_pos, K_FALSE, K_NONE, K_TRUE,
 };
 use crate::globals::*;
 use crate::highlight_group::syn_check_group;
@@ -41,8 +41,8 @@ use crate::input::{
 use crate::input_cmdatom::{
     CmdAtom, CmdOrigin, atom_cmd_spec, atom_composite_active, atom_composite_queued,
     atom_did_global_op, atom_key_class, atom_lhs_replay_queue, atom_push_raw, atom_suppress,
-    atom_visual_reset, atom_visual_span, Cmdarg, atom_st, kAInsertSpan, kAMotion, kAVisualSpan,
-    kKeyInsFlush,
+    atom_visual_reset, atom_visual_span, Cmdarg, atom_st, K_AINSERT_SPAN, K_AMOTION, K_AVISUAL_SPAN,
+    K_KEY_INS_FLUSH,
 };
 use crate::insexpand::ins_compl_active;
 use crate::keycodes::{K_COMMAND, K_SPECIAL, NL};
@@ -86,14 +86,14 @@ const DECOR_INLINE_INIT: DecorInline = DecorInline {
     data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
 };
 
-pub(crate) const kOptFollow: c_int = 114;
+pub(crate) const K_OPT_FOLLOW: c_int = 114;
 
 const MC_REGS: &[u8] = b"abcdefghijklmnopqrstuvwxyz0123456789\"-\0";
 
-use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
-use crate::eval::funcs::{MTBlockWise, MTCharWise, MTLineWise, MTUnknown};
+use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
+use crate::eval::funcs::{MT_BLOCK_WISE, MT_CHAR_WISE, MT_LINE_WISE, MT_UNKNOWN};
 use crate::ex_getln::K_LUA;
-use crate::regexp::{Ctrl_V, MAXCOL};
+use crate::regexp::{CTRL_V_CONST, MAXCOL};
 
 #[repr(C)]
 struct McSandbox {
@@ -275,7 +275,7 @@ pub fn mc_showcmd(buf: *mut c_char, size: usize) -> usize {
 }
 
 pub fn mc_replaying() -> bool {
-     get_vim_var_tv(VV_CASCADING).vval.v_bool() == kBoolVarTrue
+     get_vim_var_tv(VV_CASCADING).vval.v_bool() == K_BOOL_VAR_TRUE_CONST
 }
 
 fn mc_mark_upd(buf: &mut FileBuf, mark: &mut u32, pos: CursorPos) {
@@ -289,11 +289,11 @@ fn mc_track_upd(buf: &mut FileBuf, mark: &mut u32, pos: CursorPos) {
 fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
      {
         assert!(!mc_replaying());
-        set_vim_var_bool(VV_CASCADING, kBoolVarTrue);
+        set_vim_var_bool(VV_CASCADING, K_BOOL_VAR_TRUE_CONST);
         sb.primary = CONTEXT_INIT;
         ctx_save(
             &mut sb.primary,
-            kCtxCursor | kCtxVisual | kCtxMarks | if save_regs { kCtxRegs } else { 0 },
+            K_CTX_CURSOR | K_CTX_VISUAL | K_CTX_MARKS | if save_regs { K_CTX_REGS } else { 0 },
         );
         sb.cursor_mark = 0;
         mc_track_upd(curbuf_mut(), &mut sb.cursor_mark, sb.primary.pos);
@@ -318,7 +318,7 @@ fn mc_sandbox_enter(sb: &mut McSandbox, save_regs: bool) {
 fn mc_sandbox_leave(sb: &mut McSandbox) {
     unsafe {
         if !sb.primary.regs.is_empty() {
-            ctx_load(&mut sb.primary, kCtxRegs, 0);
+            ctx_load(&mut sb.primary, K_CTX_REGS, 0);
         }
         restore_redobuff(&mut sb.redo);
         restore_search_patterns();
@@ -340,7 +340,7 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
         }
         if buf == g_st().curbuf {
             restore_viewstate(curwin_mut(), &sb.view);
-            ctx_load(&mut sb.primary, kCtxCursor | kCtxVisual | kCtxMarks, 0);
+            ctx_load(&mut sb.primary, K_CTX_CURSOR | K_CTX_VISUAL | K_CTX_MARKS, 0);
             check_cursor(curwin_mut());
             if topline_valid {
                 set_topline(curwin_mut(), topline.lnum.min(curbuf_mut().b_ml.ml_line_count));
@@ -348,7 +348,7 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
             }
         }
         ctx_free(&mut sb.primary);
-        set_vim_var_bool(VV_CASCADING, kBoolVarFalse);
+        set_vim_var_bool(VV_CASCADING, K_BOOL_VAR_FALSE_CONST);
     }
 }
 
@@ -377,14 +377,14 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
             return;
         }
 
-        let swap_regs = atom_type != kAMotion;
+        let swap_regs = atom_type != K_AMOTION;
         let mut regs_ts: Timestamp = 0;
         if swap_regs {
             if reg_max_ts(false) >= mc_st().mc_start.time {
-                ctx_load(&mut mc_st().mc_start.ctx, kCtxRegs, 0);
+                ctx_load(&mut mc_st().mc_start.ctx, K_CTX_REGS, 0);
             }
             if !ctx.regs.is_empty() {
-                ctx_load(&mut ctx, kCtxRegs, kCtxMergeReg);
+                ctx_load(&mut ctx, K_CTX_REGS, K_CTX_MERGE_REG);
             }
             regs_ts = reg_max_ts(false);
         }
@@ -394,7 +394,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         } else {
             atom_cmd
         };
-        let swap_marks = atom_type != kAMotion
+        let swap_marks = atom_type != K_AMOTION
             || atom_remap
             || mark_cmd == b'\'' as c_int
             || mark_cmd == b'`' as c_int;
@@ -402,25 +402,25 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         ctx_load(
             &mut ctx,
             if swap_marks {
-                kCtxVisual | kCtxMarks | kCtxCursor
+                K_CTX_VISUAL | K_CTX_MARKS | K_CTX_CURSOR
             } else {
-                kCtxCursor
+                K_CTX_CURSOR
             },
             0,
         );
 
-        if atom_type == kAInsertSpan {
+        if atom_type == K_AINSERT_SPAN {
             check_pos(curbuf_mut(), &mut curwin_mut().w_cursor);
         } else {
             check_cursor(curwin_mut());
         }
 
-        if atom_type == kAVisualSpan {
+        if atom_type == K_AVISUAL_SPAN {
             g_st().Visual.active = false;
             g_st().Visual.select = false;
         }
 
-        if atom_type == kAInsertSpan {
+        if atom_type == K_AINSERT_SPAN {
             g_st().State = MODE_INSERT;
         }
 
@@ -433,7 +433,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         };
         nvim_feedkeys(cstr_as_string(atom_keys), cstr_as_string(mode_str), false);
 
-        if atom_type == kAInsertSpan
+        if atom_type == K_AINSERT_SPAN
             && mc_st().mc_ins_span.first
             && g_st().did_beep != beeps
             && buf_get_changedtick(curbuf_mut()) == tick
@@ -443,7 +443,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         }
 
         if g_st().Visual.active {
-            if atom_type == kAVisualSpan {
+            if atom_type == K_AVISUAL_SPAN {
                 curbuf_mut().b_visual = visualinfo();
                 curbuf_mut().b_visual_mode_eval = g_st().Visual.mode;
             }
@@ -466,13 +466,13 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         ctx_save(
             &mut ctx,
             if swap_marks {
-                kCtxVisual | kCtxMarks | kCtxCursor
+                K_CTX_VISUAL | K_CTX_MARKS | K_CTX_CURSOR
             } else {
-                kCtxCursor
+                K_CTX_CURSOR
             },
         );
 
-        if atom_type == kAInsertSpan && curbuf_mut().b_last_insert.mark.lnum > 0 {
+        if atom_type == K_AINSERT_SPAN && curbuf_mut().b_last_insert.mark.lnum > 0 {
             ctx.pos = curbuf_mut().b_last_insert.mark;
         }
         mc_mark_upd(curbuf_mut(), &mut ctx.mark, ctx.pos);
@@ -496,7 +496,7 @@ fn mc_cascade() {
 
         let mut edits = false;
         for i in 0..atom_st().g_atoms.len() {
-            edits |= atom_st().g_atoms.as_slice()[i].r#type != kAMotion;
+            edits |= atom_st().g_atoms.as_slice()[i].r#type != K_AMOTION;
         }
         if edits {
             mc_cleanup(true, None, 0);
@@ -563,7 +563,7 @@ pub fn mc_clock_edge(map_edit: bool, map_moved: bool, follow: bool) {
             let mut has_edit = map_edit;
             let mut i = 0;
             while !has_edit && i < atom_st().g_atoms.len() {
-                has_edit = atom_st().g_atoms.as_slice()[i].r#type != kAMotion;
+                has_edit = atom_st().g_atoms.as_slice()[i].r#type != K_AMOTION;
                 i += 1;
             }
             if has_edit || follow || g_st().Visual.active {
@@ -686,7 +686,7 @@ fn mc_ins_span_push(keys: std::ffi::CString, text: Option<std::ffi::CString>) {
     unsafe {
         let cascade = mc_buf_has_cursors(curbuf_mut());
         let mut atom = CmdAtom::new();
-        atom.r#type = kAInsertSpan;
+        atom.r#type = K_AINSERT_SPAN;
         atom.keys = Some(keys);
         atom.text = text;
         atom.origin = mc_st().mc_ins_span.origin;
@@ -846,7 +846,7 @@ fn mc_ins_preview_set(new_text: &NvimString) {
         mc_track_upd(curbuf_mut(), &mut primary, curwin_mut().w_cursor);
         let save_cmod_flags = g_st().cmdmod.cmod_flags;
         g_st().cmdmod.cmod_flags |= CMOD_KEEPJUMPS;
-        set_vim_var_bool(VV_CASCADING, kBoolVarTrue);
+        set_vim_var_bool(VV_CASCADING, K_BOOL_VAR_TRUE_CONST);
         for i in 0..ins_regions().len() {
             let mut rs = INIT_POS;
             let mut re = INIT_POS;
@@ -855,7 +855,7 @@ fn mc_ins_preview_set(new_text: &NvimString) {
             }
             mc_ins_preview_replace(rs, re, new_text);
         }
-        set_vim_var_bool(VV_CASCADING, kBoolVarFalse);
+        set_vim_var_bool(VV_CASCADING, K_BOOL_VAR_FALSE_CONST);
         g_st().cmdmod.cmod_flags = save_cmod_flags;
         let mut pos = curwin_mut().w_cursor;
         if extmark_get_pos(curbuf_mut(), mc_session_ns(), primary, &mut pos) {
@@ -878,7 +878,7 @@ fn mc_ins_keys_nonliteral(keys: impl crate::strings::IntoCCharPtr, len: usize) -
                 );
                 i += 2;
             }
-            if (atom_key_class(key, NUL, NUL) & kKeyInsFlush) != 0 {
+            if (atom_key_class(key, NUL, NUL) & K_KEY_INS_FLUSH) != 0 {
                 return true;
             }
             i += 1;
@@ -1104,11 +1104,11 @@ fn mc_reg_gather() {
         });
 
         let mut save = CONTEXT_INIT;
-        ctx_save(&mut save, kCtxRegs);
+        ctx_save(&mut save, K_CTX_REGS);
 
         let mut joined: [Vec<c_char>; MC_REGS.len()] = [const { Vec::new() }; MC_REGS.len()];
         for &ctx_ptr in &order {
-            ctx_load(&mut *ctx_ptr, kCtxRegs, 0);
+            ctx_load(&mut *ctx_ptr, K_CTX_REGS, 0);
             let mut idx = 0;
             while MC_REGS[idx] != 0 {
                 if gather[idx] {
@@ -1128,7 +1128,7 @@ fn mc_reg_gather() {
             }
         }
         drop(primary);
-        ctx_load(&mut save, kCtxRegs, 0);
+        ctx_load(&mut save, K_CTX_REGS, 0);
         ctx_free(&mut save);
 
         let mut idx = 0;
@@ -1140,7 +1140,7 @@ fn mc_reg_gather() {
                     joined[idx].as_ptr(),
                     joined[idx].len() as isize,
                     false,
-                    crate::register::MotionType::MTLineWise,
+                    crate::register::MotionType::MtLineWise,
                     0,
                 );
                 if r == b'"' as c_int {
@@ -1217,7 +1217,7 @@ pub fn mc_vsel_refresh() {
             }
             cursors_mut()[i].pos = pos;
             let mut ctx = cursors()[i].clone();
-            ctx_load(&mut ctx, kCtxCursor | kCtxVisual | kCtxMarks, 0);
+            ctx_load(&mut ctx, K_CTX_CURSOR | K_CTX_VISUAL | K_CTX_MARKS, 0);
             check_cursor(curwin_mut());
             g_st().Visual.active = false;
             g_st().Visual.select = false;
@@ -1228,11 +1228,11 @@ pub fn mc_vsel_refresh() {
             let mut s = g_st().Visual.start;
             let mut e = curwin_mut().w_cursor;
             let r_type: c_int = if g_st().Visual.mode == b'V' as c_int {
-                MTLineWise
-            } else if g_st().Visual.mode == Ctrl_V {
-                MTBlockWise
+                MT_LINE_WISE
+            } else if g_st().Visual.mode == CTRL_V_CONST {
+                MT_BLOCK_WISE
             } else {
-                MTCharWise
+                MT_CHAR_WISE
             };
             let mut inclusive = true;
             let mut oa = Oparg::new();
@@ -1246,9 +1246,9 @@ pub fn mc_vsel_refresh() {
                 &mut inclusive,
                 &mut oa,
             );
-            if r_type == MTLineWise {
+            if r_type == MT_LINE_WISE {
                 mc_vsel_mark(s.lnum, 0, e.lnum, ml_get_len(e.lnum));
-            } else if r_type == MTBlockWise {
+            } else if r_type == MT_BLOCK_WISE {
                 if curwin_mut().w_curswant == MAXCOL {
                     oa.end_vcol = MAXCOL;
                 }
@@ -1360,7 +1360,7 @@ fn mc_lua_enable(enable: bool) {
             TypVal {
                 v_type: VarType::VarBool,
                 v_lock: 0,
-                vval: TypvalVval::Bool(if enable { kBoolVarTrue } else { kBoolVarFalse }),
+                vval: TypvalVval::Bool(if enable { K_BOOL_VAR_TRUE_CONST } else { K_BOOL_VAR_FALSE_CONST }),
             },
             TypVal {
                 v_type: VarType::VarUnknown,
@@ -1441,7 +1441,7 @@ fn mc_zq_target(
                 vi_start: step,
                 vi_end: step,
                 vi_curswant: step.col,
-                vi_mode: if motion_type == MTLineWise {
+                vi_mode: if motion_type == MT_LINE_WISE {
                     b'V' as c_int
                 } else {
                     b'v' as c_int
@@ -1458,7 +1458,7 @@ fn mc_zq_target(
         curbuf_mut().b_visual_mode_eval = curbuf_mut().b_visual.vi_mode;
         if let Some(ctx) = ctx {
             curwin_mut().w_cursor = step;
-            ctx_save(ctx, kCtxVisual);
+            ctx_save(ctx, K_CTX_VISUAL);
         }
         let target = curbuf_mut().b_visual;
         curbuf_mut().b_visual = save;
@@ -1507,7 +1507,7 @@ fn mc_zq_first(
             return true;
         }
         let failed = s.lnum == 0;
-        if failed && motion_type != MTLineWise && equalpos(from, start) {
+        if failed && motion_type != MT_LINE_WISE && equalpos(from, start) {
             return false;
         }
         if bof
@@ -1576,7 +1576,7 @@ fn mc_zq_run(
 pub fn mc_zq_start(cap: &mut Cmdarg) {
      {
         cap.oap_mut().from_visual = g_st().Visual.active;
-        cap.oap_mut().motion_type = MTUnknown;
+        cap.oap_mut().motion_type = MT_UNKNOWN;
         if g_st().Visual.active {
             atom_visual_reset();
             end_visual_mode();
@@ -1589,7 +1589,7 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
     unsafe {
         atom_did_global_op();
         if mc_replaying()
-            || oap.motion_type == MTUnknown
+            || oap.motion_type == MT_UNKNOWN
             || cap.cmdchar == b'i' as c_int
             || cap.cmdchar == b'a' as c_int
             || cap.cmdchar == K_LUA
@@ -1616,13 +1616,13 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
             bounds[1] = (*mark_get_visual(curbuf_mut(), b'>' as c_int)).mark;
         }
 
-        let lines = oap.motion_type == MTLineWise;
+        let lines = oap.motion_type == MT_LINE_WISE;
         if lines {
             bounds[0].col = 0;
             bounds[1].col = MAXCOL;
         }
         let mut vcols: [Colnr; 2] = [0, MAXCOL];
-        let blockwise = oap.from_visual && v.vi_mode == Ctrl_V && !lines;
+        let blockwise = oap.from_visual && v.vi_mode == CTRL_V_CONST && !lines;
         if blockwise {
             let [vcol0, vcol1] = &mut vcols;
             getvcols(
@@ -1755,13 +1755,13 @@ pub fn mc_follow_set(on: TriState) {
         if mc_replaying() {
             return;
         }
-        let follow = if on == kNone {
+        let follow = if on == K_NONE {
             curbuf_mut().b_p_follow == 0
         } else {
-            on == kTrue
+            on == K_TRUE
         };
         if (curbuf_mut().b_p_follow != 0) != follow {
-            set_option_value_give_err(kOptFollow, boolean_obj(follow), OPT_LOCAL);
+            set_option_value_give_err(K_OPT_FOLLOW, boolean_obj(follow), OPT_LOCAL);
         }
     }
 }
@@ -1772,13 +1772,13 @@ pub fn mc_toggle(buf: &mut FileBuf, pos: CursorPos, end_follow: bool, on: TriSta
             return;
         }
         if end_follow {
-            mc_follow_set(kFalse);
+            mc_follow_set(K_FALSE);
         }
         let mark = mc_mark_at( buf, pos, 0);
-        if mark != 0 && on != kTrue {
+        if mark != 0 && on != K_TRUE {
             extmark_del_id(buf, mc_ns(), mark);
             mc_cleanup(false, None, 0);
-        } else if mark == 0 && on != kFalse {
+        } else if mark == 0 && on != K_FALSE {
             mc_add( buf, pos);
         }
     }
@@ -1824,7 +1824,7 @@ pub fn mc_on_extmark_set(buf: &mut FileBuf, ns_id: u32, mut id: u32, pos: Cursor
         atom_visual_reset();
         if cursors().is_empty() {
             mc_st().mc_start.time = os_realtime() as Timestamp;
-            ctx_save(&mut mc_st().mc_start.ctx, kCtxRegs);
+            ctx_save(&mut mc_st().mc_start.ctx, K_CTX_REGS);
             mc_lua_enable(true);
         }
         let mut ctx = CONTEXT_INIT;

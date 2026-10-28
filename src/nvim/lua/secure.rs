@@ -1,7 +1,7 @@
 //! Secure file reading and `:trust` command (`src/nvim/lua/secure.c`).
 
 use crate::charset::{skiptowhite, skipwhite};
-use crate::errors::{e_invarg2, e_trustfile};
+use crate::errors::{E_INVARG2, E_TRUSTFILE};
 use crate::lua::converter::{
     LUA_GLOBALSINDEX, lua_createtable, lua_getfield, lua_gettop, lua_pushnumber, lua_pushstring,
     lua_settable, lua_settop, lua_toboolean, lua_tolstring,
@@ -54,7 +54,7 @@ fn nlua_trust(action: impl crate::strings::IntoCCharPtr, path: impl crate::strin
                     smsg!(0, c"Removed from trust database: \"%s\"", msg);
                 }
             } else {
-                semsg!(e_trustfile, msg);
+                semsg!(E_TRUSTFILE, msg);
             }
         }
 
@@ -79,7 +79,7 @@ pub fn ex_trust(eap: &mut Exarg) {
         } else if arg1_bytes == b"++remove" {
             action = c"remove".as_ptr();
         } else if !arg1_bytes.is_empty() {
-            semsg!(e_invarg2, arg1.as_ptr());
+            semsg!(E_INVARG2, arg1.as_ptr());
             return;
         }
 

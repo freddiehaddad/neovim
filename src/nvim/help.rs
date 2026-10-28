@@ -6,8 +6,8 @@ use crate::charset::{
     NUL, ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab, skipwhite,
 };
 use crate::errors::*;
-use crate::eval::kBoolVarFalse;
-use crate::eval::kBoolVarTrue;
+use crate::eval::K_BOOL_VAR_FALSE_CONST;
+use crate::eval::K_BOOL_VAR_TRUE_CONST;
 use crate::eval::typval::{TypvalVval, VarType, tv_clear, TypVal};
 use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, ECMD_SET_HELP, do_ecmd};
 use crate::ex_docmd::{CMOD_KEEPALT, do_cmdline_cmd, Exarg};
@@ -16,7 +16,7 @@ use crate::globals::*;
 use crate::lua::executor::nlua_call_typval;
 use crate::memory::xstrlcpy;
 use crate::message::{emsg, semsg, smsg};
-use crate::option::{OPT_LOCAL, OptInt, kOptBuftype, set_option_direct};
+use crate::option::{OPT_LOCAL, OptInt, K_OPT_BUFTYPE, set_option_direct};
 use crate::option_vars::*;
 use crate::optionstr::{OptIndex, check_buf_options};
 use crate::os::fs::os_fopen;
@@ -29,7 +29,7 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::cmdexpand::TAG_MANY;
-use crate::diff::kOptFoldmethod;
+use crate::diff::K_OPT_FOLDMETHOD;
 use crate::globals::IOSIZE;
 use crate::math::OK;
 
@@ -41,9 +41,9 @@ pub(crate) const TAG_VERBOSE: c_int = 32;
 pub(crate) const TAG_KEEP_LANG: c_int = 128;
 pub(crate) const TAG_NO_TAGFUNC: c_int = 256;
 
-pub(crate) const kOptIskeyword: OptIndex = 155;
+pub(crate) const K_OPT_ISKEYWORD: OptIndex = 155;
 
-use crate::eval::funcs::kSpecialVarNull;
+use crate::eval::funcs::K_SPECIAL_VAR_NULL_CONST;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
 pub fn ex_help(eap: &mut Exarg) {
@@ -127,7 +127,7 @@ pub fn ex_help(eap: &mut Exarg) {
                 arg = allocated_arg.as_ref().unwrap().as_ptr().cast_mut();
             } else {
                 tv_clear(&mut rettv);
-                emsg(gettext(e_noident));
+                emsg(gettext(E_NOIDENT));
                 return;
             }
         }
@@ -449,17 +449,17 @@ pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
 pub fn prepare_help_buffer() {
      {
         curbuf_mut().b_help = true;
-        set_option_direct(kOptBuftype, cstr_as_obj(c"help"), OPT_LOCAL, 0);
+        set_option_direct(K_OPT_BUFTYPE, cstr_as_obj(c"help"), OPT_LOCAL, 0);
 
         let p = c"!-~,^*,^|,^\",192-255";
         if crate::memory::cstr_as_bytes(curbuf_mut().b_p_isk) != p.to_bytes() {
-            set_option_direct(kOptIskeyword, cstr_as_obj(p), OPT_LOCAL, 0);
+            set_option_direct(K_OPT_ISKEYWORD, cstr_as_obj(p), OPT_LOCAL, 0);
             check_buf_options(curbuf_mut());
             buf_init_isk_chartab(curbuf_mut());
         }
 
         set_option_direct(
-            kOptFoldmethod,
+            K_OPT_FOLDMETHOD,
             cstr_as_obj(c"manual"),
             OPT_LOCAL,
             0,
@@ -525,7 +525,7 @@ pub fn ex_helptags(eap: &mut Exarg) {
                 TypVal {
                     v_type: VarType::VarSpecial,
                     v_lock: 0,
-                    vval: TypvalVval::Special(kSpecialVarNull),
+                    vval: TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST),
                 }
             } else {
                 TypVal {
@@ -538,9 +538,9 @@ pub fn ex_helptags(eap: &mut Exarg) {
                 v_type: VarType::VarBool,
                 v_lock: 0,
                 vval: TypvalVval::Number(if add_help_tags {
-                    kBoolVarTrue
+                    K_BOOL_VAR_TRUE_CONST
                 } else {
-                    kBoolVarFalse
+                    K_BOOL_VAR_FALSE_CONST
                 }),
             },
             TypVal {

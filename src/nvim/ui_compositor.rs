@@ -4,7 +4,7 @@
 use crate::api::private::validate::NvimString;
 use crate::globals::*;
 use crate::grid::{
-    ScreenGrid, braille_space, kOptRdbFlagInvalid, Sattr, Schar, schar_from_ascii,
+    ScreenGrid, BRAILLE_SPACE, K_OPT_RDB_FLAG_INVALID, Sattr, Schar, schar_from_ascii,
     schar_from_buf, schar_from_char, schar_invisible,
 };
 use crate::highlight::hl_blend_attrs;
@@ -14,7 +14,7 @@ use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::option_vars::*;
 use crate::os::time::os_sleep;
 use crate::ui::{
-    kLineFlagInvalid, ui_call_flush, ui_composed_call_grid_cursor_goto,
+    K_LINE_FLAG_INVALID, ui_call_flush, ui_composed_call_grid_cursor_goto,
     ui_composed_call_grid_resize, ui_composed_call_grid_scroll, ui_composed_call_raw_line, ui_has,
 };
 use std::ffi::{c_int, c_uint};
@@ -22,12 +22,12 @@ use std::ptr;
 
 use crate::tui::tui::LineFlags;
 
-const kOptRdbFlagCompositor: c_uint = 0x01;
+const K_OPT_RDB_FLAG_COMPOSITOR: c_uint = 0x01;
 
 const HLF_MSGSEP: usize = 61;
 
-use crate::api::ui::kLineFlagWrap;
-use crate::api::win_config::kUIMultigrid;
+use crate::api::ui::K_LINE_FLAG_WRAP;
+use crate::api::win_config::K_UIMULTIGRID;
 use crate::msgpack_rpc::channel::RemoteUI;
 
 struct UiCompositorState {
@@ -115,7 +115,7 @@ pub fn ui_comp_syn_init() {
 pub fn ui_comp_attach(ui: &mut RemoteUI) {
     comp().composed_uis += 1;
     ui.composed = true;
-    debug_assert_eq!(braille_space, schar_from_char(0x2800));
+    debug_assert_eq!(BRAILLE_SPACE, schar_from_char(0x2800));
 }
 
 pub fn ui_comp_detach(ui: &mut RemoteUI) {
@@ -360,7 +360,7 @@ pub fn ui_comp_mouse_focus(row: c_int, col: c_int) -> *mut ScreenGrid {
                 return grid;
             }
         }
-        if ui_has(kUIMultigrid) {
+        if ui_has(K_UIMULTIGRID) {
             for wp in for_all_windows_ptr() {
                 let grid = &raw mut (*wp).w_grid_alloc;
                 if (*grid).mouse_enabled
@@ -416,11 +416,11 @@ fn compose_line(
         startcol = startcol.max(0);
         let mut skipstart: c_int = 0;
         let mut skipend: c_int = 0;
-        if startcol > 0 && (flags & kLineFlagInvalid) != 0 {
+        if startcol > 0 && (flags & K_LINE_FLAG_INVALID) != 0 {
             startcol -= 1;
             skipstart = 1;
         }
-        if endcol < (g_st().default_grid.cols as Integer) && (flags & kLineFlagInvalid) != 0 {
+        if endcol < (g_st().default_grid.cols as Integer) && (flags & K_LINE_FLAG_INVALID) != 0 {
             endcol += 1;
             skipend = 1;
         }
@@ -534,14 +534,14 @@ fn compose_line(
             && (ptr::eq(grid, &raw const g_st().default_grid)
                 || ((*grid).comp_col == 0 && (*grid).cols == g_st().Columns)))
         {
-            flags &= !kLineFlagWrap;
+            flags &= !K_LINE_FLAG_WRAP;
         }
 
         let end_idx = ((endcol - skipend as Integer) - startcol) as c_int;
         for i in skipstart..end_idx {
             let p = abuf.add(i as usize);
             if *p < 0 {
-                if (opt_vars().rdb_flags & kOptRdbFlagInvalid) != 0 {
+                if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_INVALID) != 0 {
                     std::process::abort();
                 } else {
                     *p = 0;
@@ -570,7 +570,7 @@ fn compose_debug(
     syn_id: c_int,
     delay: bool,
 ) {
-    if (opt_vars().rdb_flags & kOptRdbFlagCompositor) == 0 || startcol >= endcol {
+    if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_COMPOSITOR) == 0 || startcol >= endcol {
             return;
         }
 
@@ -623,7 +623,7 @@ fn compose_area(
             return;
         }
         for r in (startrow as c_int)..(endrow as c_int) {
-            compose_line(r as Integer, startcol, endcol, kLineFlagInvalid);
+            compose_line(r as Integer, startcol, endcol, K_LINE_FLAG_INVALID);
         }
 }
 
@@ -660,7 +660,7 @@ pub fn ui_comp_raw_line(
         endcol += (*comp().curgrid).comp_col as Integer;
         clearcol += (*comp().curgrid).comp_col as Integer;
         if !ptr::eq(comp().curgrid, &raw const g_st().default_grid) {
-            flags &= !kLineFlagWrap;
+            flags &= !K_LINE_FLAG_WRAP;
         }
 
         debug_assert!(endcol <= clearcol);
@@ -682,7 +682,7 @@ pub fn ui_comp_raw_line(
             startcol as c_int,
             clearcol as c_int,
         );
-        if (flags & kLineFlagInvalid) != 0 || covered || (*comp().curgrid).blending {
+        if (flags & K_LINE_FLAG_INVALID) != 0 || covered || (*comp().curgrid).blending {
             compose_debug(row, row + 1, startcol, clearcol, comp().dbghl_composed, true);
             compose_line(row, startcol, clearcol, flags);
         } else {
@@ -831,7 +831,7 @@ pub fn ui_comp_grid_scroll(
             }
         } else {
             ui_composed_call_grid_scroll(1, top, bot, left, right, rows, cols);
-            if (opt_vars().rdb_flags & kOptRdbFlagCompositor) != 0 {
+            if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_COMPOSITOR) != 0 {
                 debug_delay(2);
             }
         }

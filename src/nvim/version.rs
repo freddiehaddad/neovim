@@ -2,8 +2,8 @@
 
 use crate::api::private::helpers::api_free_object;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString, ObjectType};
-use crate::api::win_config::kUIMultigrid;
-use crate::buffer::{buf_is_empty, kUIMessages};
+use crate::api::win_config::K_UIMULTIGRID;
+use crate::buffer::{buf_is_empty, K_UIMESSAGES};
 use crate::charset::vim_strsize;
 use crate::drawscreen::screenclear;
 use crate::ex_docmd::Exarg;
@@ -12,7 +12,7 @@ use crate::grid::{GridView, grid_line_flush, grid_line_puts, grid_line_start};
 use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::plain_vgetc;
 use crate::insert::HLF_8;
-use crate::lua::executor::{kRetObject, nlua_exec};
+use crate::lua::executor::{K_RET_OBJECT, nlua_exec};
 use crate::mbyte::{utf_ptr2char, utfc_ptr2len};
 use crate::message::{msg_ext_set_kind, msg_putchar, msg_puts};
 use crate::option_vars::*;
@@ -22,7 +22,7 @@ use crate::window::{LOWEST_WIN_ID, one_window};
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
-const kShmIntro: c_int = b'I' as c_int;
+const K_SHM_INTRO: c_int = b'I' as c_int;
 
 static VIM_VERSIONS: [c_int; 5] = [801, 802, 900, 901, 902];
 static NUM_PATCHES: [usize; 5] = [2409, 4049, 1650, 1726, 823];
@@ -3735,7 +3735,7 @@ static INCLUDED_PATCHSETS: [&[c_int]; 5] = [
     PATCHES_902,
 ];
 
-pub const Versions: [&CStr; 5] = [c"8.1", c"8.2", c"9.0", c"9.1", c"9.2"];
+pub const VERSIONS: [&CStr; 5] = [c"8.1", c"8.2", c"9.0", c"9.1", c"9.2"];
 
 const fn make_cstr_buf<const N: usize>(opt: Option<&str>) -> [u8; N] {
     let mut buf = [0u8; N];
@@ -3801,16 +3801,16 @@ static LONG_VERSION_BUF: [u8; 256] =
     make_cstr_buf_or(option_env!("NVIM_VERSION_LONG"), "NVIM v0.13.0-dev");
 static VERSION_BUILD_BUF: [u8; 256] = make_cstr_buf(option_env!("NVIM_VERSION_BUILD"));
 
-pub static nvim_version_major: c_int = parse_version_int(option_env!("NVIM_VERSION_MAJOR"), 0);
-pub static nvim_version_minor: c_int = parse_version_int(option_env!("NVIM_VERSION_MINOR"), 13);
-pub static nvim_version_patch: c_int = parse_version_int(option_env!("NVIM_VERSION_PATCH"), 0);
-pub const nvim_version_prerelease: bool = match option_env!("NVIM_VERSION_PRERELEASE") {
+pub static NVIM_VERSION_MAJOR_CONST: c_int = parse_version_int(option_env!("NVIM_VERSION_MAJOR"), 0);
+pub static NVIM_VERSION_MINOR_CONST: c_int = parse_version_int(option_env!("NVIM_VERSION_MINOR"), 13);
+pub static NVIM_VERSION_PATCH_CONST: c_int = parse_version_int(option_env!("NVIM_VERSION_PATCH"), 0);
+pub const NVIM_VERSION_PRERELEASE_CONST: bool = match option_env!("NVIM_VERSION_PRERELEASE") {
     Some(s) => !s.is_empty(),
     None => true,
 };
-pub const nvim_api_level: c_int = parse_version_int(option_env!("NVIM_API_LEVEL"), 15);
-pub const nvim_api_level_compat: c_int = parse_version_int(option_env!("NVIM_API_LEVEL_COMPAT"), 0);
-pub const nvim_api_prerelease: bool = env_flag_enabled(option_env!("NVIM_API_PRERELEASE"), true);
+pub const NVIM_API_LEVEL_CONST: c_int = parse_version_int(option_env!("NVIM_API_LEVEL"), 15);
+pub const NVIM_API_LEVEL_COMPAT_CONST: c_int = parse_version_int(option_env!("NVIM_API_LEVEL_COMPAT"), 0);
+pub const NVIM_API_PRERELEASE_CONST: bool = env_flag_enabled(option_env!("NVIM_API_PRERELEASE"), true);
 
 #[inline]
 pub const fn version_buildtype() -> *const c_char {
@@ -3844,7 +3844,7 @@ pub const fn default_lib_dir() -> *const c_char {
     (&raw const DEFAULT_LIB_DIR_BUF).cast::<c_char>()
 }
 
-pub static main_exitfree: bool = env_flag_enabled(option_env!("NVIM_EXITFREE"), false);
+pub static MAIN_EXITFREE: bool = env_flag_enabled(option_env!("NVIM_EXITFREE"), false);
 
 #[inline]
 pub const fn longVersion() -> *const c_char {
@@ -3900,7 +3900,7 @@ pub fn has_nvim_version(version_str: &[u8]) -> bool {
         }
     }
 
-    (major, minor, patch) <= (nvim_version_major, nvim_version_minor, nvim_version_patch)
+    (major, minor, patch) <= (NVIM_VERSION_MAJOR_CONST, NVIM_VERSION_MINOR_CONST, NVIM_VERSION_PATCH_CONST)
 }
 
 pub fn min_vim_version() -> c_int {
@@ -3948,7 +3948,7 @@ pub fn has_vim_patch(n: c_int, major_minor_version: c_int) -> bool {
 pub fn ex_version(eap: &mut Exarg) {
      {
         if crate::memory::cstr_is_empty(eap.arg) {
-            if !ui_has(kUIMessages) {
+            if !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as c_int);
             }
             list_version();
@@ -4053,7 +4053,7 @@ pub fn list_lua_version() {
             },
             ptr::null(),
             args,
-            kRetObject,
+            K_RET_OBJECT,
             None,
             &mut err,
         );
@@ -4076,7 +4076,7 @@ pub fn list_version() {
             msg_putchar(b'\n' as c_int);
             msg_puts(c"Vim versions: ");
 
-            for (i, ver) in Versions.iter().enumerate() {
+            for (i, ver) in VERSIONS.iter().enumerate() {
                 if i > 0 {
                     msg_puts(c", ");
                 }
@@ -4124,7 +4124,7 @@ pub fn may_show_intro() -> bool {
             && curbuf_mut().b_fnum == 1
             && curwin_mut().handle == LOWEST_WIN_ID
             && one_window(curwin_mut(), ptr::null_mut())
-            && vim_strchr(opt_vars().p_shm, kShmIntro).is_null()
+            && vim_strchr(opt_vars().p_shm, K_SHM_INTRO).is_null()
     }
 }
 
@@ -4168,8 +4168,8 @@ pub fn intro_message(colon: bool) {
 
                 let mesg: *const c_char = if crate::memory::cstr_as_bytes(p).windows(4).any(|w| w == b"news") {
                     let fmt_str = crate::memory::cstr_lossy(gettext(p));
-                    let major_s = nvim_version_major.to_string();
-                    let minor_s = nvim_version_minor.to_string();
+                    let major_s = NVIM_VERSION_MAJOR_CONST.to_string();
+                    let minor_s = NVIM_VERSION_MINOR_CONST.to_string();
                     let formatted = if let Some((a, rest)) = fmt_str.split_once("%s") {
                         if let Some((b, c)) = rest.split_once("%s") {
                             format!("{a}{major_s}{b}{minor_s}{c}")
@@ -4205,7 +4205,7 @@ fn do_intro_line(row: c_int, mesg: impl crate::strings::IntoCCharPtr, colon: boo
             col = 0;
         }
 
-        let grid = if !colon && ui_has(kUIMultigrid) {
+        let grid = if !colon && ui_has(K_UIMULTIGRID) {
             (&raw mut (*g_st().firstwin).w_grid).cast::<GridView>()
         } else {
             &raw mut g_st().default_gridview

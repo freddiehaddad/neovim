@@ -55,63 +55,63 @@ pub type AlignTextPos = c_int;
 pub type BorderTextType = c_int;
 pub type UIExtension = c_int;
 
-pub(crate) const kUIMultigrid: UIExtension = 6;
-pub(crate) const kZIndexFloatDefault: c_int = 50;
+pub(crate) const K_UIMULTIGRID: UIExtension = 6;
+pub(crate) const K_ZINDEX_FLOAT_DEFAULT: c_int = 50;
 
 pub(crate) const FR_COL: c_char = 2;
 
-pub(crate) const kCtxNoDisplay: c_int = 4;
-pub(crate) const kCtxNoEvents: c_int = 8;
+pub(crate) const K_CTX_NO_DISPLAY: c_int = 4;
+pub(crate) const K_CTX_NO_EVENTS: c_int = 8;
 
-pub(crate) const kFloatAnchorEast: FloatAnchor = 1;
-pub(crate) const kFloatAnchorSouth: FloatAnchor = 2;
+pub(crate) const K_FLOAT_ANCHOR_EAST: FloatAnchor = 1;
+pub(crate) const K_FLOAT_ANCHOR_SOUTH: FloatAnchor = 2;
 
-pub(crate) const kFloatRelativeEditor: FloatRelative = 0;
-pub(crate) const kFloatRelativeWindow: FloatRelative = 1;
-pub(crate) const kFloatRelativeCursor: FloatRelative = 2;
-pub(crate) const kFloatRelativeMouse: FloatRelative = 3;
-pub(crate) const kFloatRelativeTabline: FloatRelative = 4;
-pub(crate) const kFloatRelativeLaststatus: FloatRelative = 5;
+pub(crate) const K_FLOAT_RELATIVE_EDITOR: FloatRelative = 0;
+pub(crate) const K_FLOAT_RELATIVE_WINDOW: FloatRelative = 1;
+pub(crate) const K_FLOAT_RELATIVE_CURSOR: FloatRelative = 2;
+pub(crate) const K_FLOAT_RELATIVE_MOUSE: FloatRelative = 3;
+pub(crate) const K_FLOAT_RELATIVE_TABLINE: FloatRelative = 4;
+pub(crate) const K_FLOAT_RELATIVE_LASTSTATUS: FloatRelative = 5;
 
-const kWinSplitLeft: WinSplit = 0;
-const kWinSplitRight: WinSplit = 1;
-const kWinSplitAbove: WinSplit = 2;
-const kWinSplitBelow: WinSplit = 3;
+const K_WIN_SPLIT_LEFT: WinSplit = 0;
+const K_WIN_SPLIT_RIGHT: WinSplit = 1;
+const K_WIN_SPLIT_ABOVE: WinSplit = 2;
+const K_WIN_SPLIT_BELOW: WinSplit = 3;
 
-pub(crate) const kWinStyleUnused: WinStyle = 0;
-pub(crate) const kWinStyleMinimal: WinStyle = 1;
+pub(crate) const K_WIN_STYLE_UNUSED: WinStyle = 0;
+pub(crate) const K_WIN_STYLE_MINIMAL: WinStyle = 1;
 
-pub(crate) const kAlignLeft: AlignTextPos = 0;
-pub(crate) const kAlignCenter: AlignTextPos = 1;
-pub(crate) const kAlignRight: AlignTextPos = 2;
+pub(crate) const K_ALIGN_LEFT: AlignTextPos = 0;
+pub(crate) const K_ALIGN_CENTER: AlignTextPos = 1;
+pub(crate) const K_ALIGN_RIGHT: AlignTextPos = 2;
 
-pub(crate) const kBorderTextTitle: BorderTextType = 0;
-pub(crate) const kBorderTextFooter: BorderTextType = 1;
+pub(crate) const K_BORDER_TEXT_TITLE: BorderTextType = 0;
+pub(crate) const K_BORDER_TEXT_FOOTER: BorderTextType = 1;
 
-const KEYSET_OPTIDX_win_config__col: u64 = 1;
-const KEYSET_OPTIDX_win_config__row: u64 = 2;
-const KEYSET_OPTIDX_win_config__win: u64 = 3;
-const KEYSET_OPTIDX_win_config__hide: u64 = 4;
-const KEYSET_OPTIDX_win_config__width: u64 = 5;
-const KEYSET_OPTIDX_win_config__split: u64 = 6;
-const KEYSET_OPTIDX_win_config__title: u64 = 7;
-const KEYSET_OPTIDX_win_config__mouse: u64 = 8;
-const KEYSET_OPTIDX_win_config__fixed: u64 = 9;
-const KEYSET_OPTIDX_win_config__style: u64 = 10;
-const KEYSET_OPTIDX_win_config__anchor: u64 = 11;
-const KEYSET_OPTIDX_win_config__bufpos: u64 = 12;
-const KEYSET_OPTIDX_win_config__height: u64 = 13;
-const KEYSET_OPTIDX_win_config__zindex: u64 = 14;
-const KEYSET_OPTIDX_win_config__footer: u64 = 15;
-const KEYSET_OPTIDX_win_config__border: u64 = 16;
-const KEYSET_OPTIDX_win_config__external: u64 = 17;
-const KEYSET_OPTIDX_win_config__relative: u64 = 18;
-const KEYSET_OPTIDX_win_config__vertical: u64 = 19;
-const KEYSET_OPTIDX_win_config__focusable: u64 = 20;
-const KEYSET_OPTIDX_win_config__noautocmd: u64 = 21;
-const KEYSET_OPTIDX_win_config__title_pos: u64 = 22;
-const KEYSET_OPTIDX_win_config__footer_pos: u64 = 23;
-const KEYSET_OPTIDX_win_config___cmdline_offset: u64 = 24;
+const KEYSET_OPTIDX_WIN_CONFIG_COL: u64 = 1;
+const KEYSET_OPTIDX_WIN_CONFIG_ROW: u64 = 2;
+const KEYSET_OPTIDX_WIN_CONFIG_WIN: u64 = 3;
+const KEYSET_OPTIDX_WIN_CONFIG_HIDE: u64 = 4;
+const KEYSET_OPTIDX_WIN_CONFIG_WIDTH: u64 = 5;
+const KEYSET_OPTIDX_WIN_CONFIG_SPLIT: u64 = 6;
+const KEYSET_OPTIDX_WIN_CONFIG_TITLE: u64 = 7;
+const KEYSET_OPTIDX_WIN_CONFIG_MOUSE: u64 = 8;
+const KEYSET_OPTIDX_WIN_CONFIG_FIXED: u64 = 9;
+const KEYSET_OPTIDX_WIN_CONFIG_STYLE: u64 = 10;
+const KEYSET_OPTIDX_WIN_CONFIG_ANCHOR: u64 = 11;
+const KEYSET_OPTIDX_WIN_CONFIG_BUFPOS: u64 = 12;
+const KEYSET_OPTIDX_WIN_CONFIG_HEIGHT: u64 = 13;
+const KEYSET_OPTIDX_WIN_CONFIG_ZINDEX: u64 = 14;
+const KEYSET_OPTIDX_WIN_CONFIG_FOOTER: u64 = 15;
+const KEYSET_OPTIDX_WIN_CONFIG_BORDER: u64 = 16;
+const KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL: u64 = 17;
+const KEYSET_OPTIDX_WIN_CONFIG_RELATIVE: u64 = 18;
+const KEYSET_OPTIDX_WIN_CONFIG_VERTICAL: u64 = 19;
+const KEYSET_OPTIDX_WIN_CONFIG_FOCUSABLE: u64 = 20;
+const KEYSET_OPTIDX_WIN_CONFIG_NOAUTOCMD: u64 = 21;
+const KEYSET_OPTIDX_WIN_CONFIG_TITLE_POS: u64 = 22;
+const KEYSET_OPTIDX_WIN_CONFIG_FOOTER_POS: u64 = 23;
+const KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET: u64 = 24;
 
 use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::charset::NUL;
@@ -159,8 +159,8 @@ pub const WIN_CONFIG_INIT: WinConfig = WinConfig {
     focusable: true,
     mouse: true,
     split: 0,
-    zindex: kZIndexFloatDefault,
-    style: kWinStyleUnused,
+    zindex: K_ZINDEX_FLOAT_DEFAULT,
+    style: K_WIN_STYLE_UNUSED,
     border: false,
     shadow: false,
     border_chars: [[0; MAX_SCHAR_SIZE]; 8],
@@ -341,8 +341,8 @@ pub fn nvim_open_win(
         };
 
         let mask = config.is_set__win_config_;
-        let is_split = has_key(mask, KEYSET_OPTIDX_win_config__split)
-            || has_key(mask, KEYSET_OPTIDX_win_config__vertical);
+        let is_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT)
+            || has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
         let mut fconfig = WIN_CONFIG_INIT;
         if !parse_win_config(ptr::null_mut(), &mut *config, &mut fconfig, false, !is_split, err) {
             return 0;
@@ -382,20 +382,20 @@ pub fn nvim_open_win(
                     break 'cleanup;
                 }
 
-                if has_key(mask, KEYSET_OPTIDX_win_config__vertical)
-                    && !has_key(mask, KEYSET_OPTIDX_win_config__split)
+                if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL)
+                    && !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT)
                 {
                     if config.vertical {
                         fconfig.split = if opt_vars().p_spr != 0 {
-                            kWinSplitRight
+                            K_WIN_SPLIT_RIGHT
                         } else {
-                            kWinSplitLeft
+                            K_WIN_SPLIT_LEFT
                         };
                     } else {
                         fconfig.split = if opt_vars().p_sb != 0 {
-                            kWinSplitBelow
+                            K_WIN_SPLIT_BELOW
                         } else {
-                            kWinSplitAbove
+                            K_WIN_SPLIT_ABOVE
                         };
                     }
                 }
@@ -416,7 +416,7 @@ pub fn nvim_open_win(
                             parent,
                             tp,
                             ptr::null_mut(),
-                            kCtxNoEvents | kCtxNoDisplay,
+                            K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
                         );
                         assert!(result);
                         wp = win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut());
@@ -467,7 +467,7 @@ pub fn nvim_open_win(
             set_bufref(&mut bufref, (&raw mut *b));
             if !fconfig.noautocmd {
                 let mut switchwin: CtxSwitch = CtxSwitch::new();
-                let result = ctx_switch(&mut switchwin, wp, tp, ptr::null_mut(), kCtxNoDisplay);
+                let result = ctx_switch(&mut switchwin, wp, tp, ptr::null_mut(), K_CTX_NO_DISPLAY);
                 assert!(result);
                 if apply_autocmds_win(
                     EVENT_WINNEW,
@@ -510,7 +510,7 @@ pub fn nvim_open_win(
                 break 'cleanup;
             }
 
-            if fconfig.style == kWinStyleMinimal {
+            if fconfig.style == K_WIN_STYLE_MINIMAL {
                 win_set_minimal_style(&mut *wp);
                 didset_window_options( &mut *wp, true);
                 changed_window_setting(&mut *wp);
@@ -528,32 +528,32 @@ pub fn nvim_open_win(
 fn win_split_dir(win: &WinInfoInfo) -> WinSplit {
     unsafe {
         if win.w_frame.is_null() || (*win.w_frame).fr_parent.is_null() {
-            return kWinSplitLeft;
+            return K_WIN_SPLIT_LEFT;
         }
 
         let layout = (*(*win.w_frame).fr_parent).fr_layout;
         if layout == FR_COL {
             if !(*win.w_frame).fr_next.is_null() {
-                kWinSplitAbove
+                K_WIN_SPLIT_ABOVE
             } else {
-                kWinSplitBelow
+                K_WIN_SPLIT_BELOW
             }
         } else if !(*win.w_frame).fr_next.is_null() {
-            kWinSplitLeft
+            K_WIN_SPLIT_LEFT
         } else {
-            kWinSplitRight
+            K_WIN_SPLIT_RIGHT
         }
     }
 }
 
 const fn win_split_flags(split: WinSplit, toplevel: bool) -> c_int {
     let mut flags = 0;
-    if split == kWinSplitAbove || split == kWinSplitBelow {
+    if split == K_WIN_SPLIT_ABOVE || split == K_WIN_SPLIT_BELOW {
         flags |= WSP_HOR;
     } else {
         flags |= WSP_VERT;
     }
-    if split == kWinSplitAbove || split == kWinSplitLeft {
+    if split == K_WIN_SPLIT_ABOVE || split == K_WIN_SPLIT_LEFT {
         flags |= if toplevel { WSP_TOP } else { WSP_ABOVE };
     } else {
         flags |= if toplevel { WSP_BOT } else { WSP_BELOW };
@@ -587,7 +587,7 @@ fn win_can_move_tp(wp: *mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) 
                 err,
                 ErrorType::ErrorTypeException,
                 c"%s",
-                e_textlock,
+                E_TEXTLOCK,
             );
             return false;
         }
@@ -624,21 +624,21 @@ fn win_config_split(
     unsafe {
         let was_split = !win.w_floating;
         let mask = config.is_set__win_config_;
-        let has_split = has_key(mask, KEYSET_OPTIDX_win_config__split);
-        let has_vertical = has_key(mask, KEYSET_OPTIDX_win_config__vertical);
+        let has_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT);
+        let has_vertical = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
         let old_split = win_split_dir( win);
         if has_vertical && !has_split {
             if config.vertical {
-                fconfig.split = if old_split == kWinSplitRight || opt_vars().p_spr != 0 {
-                    kWinSplitRight
+                fconfig.split = if old_split == K_WIN_SPLIT_RIGHT || opt_vars().p_spr != 0 {
+                    K_WIN_SPLIT_RIGHT
                 } else {
-                    kWinSplitLeft
+                    K_WIN_SPLIT_LEFT
                 };
             } else {
-                fconfig.split = if old_split == kWinSplitBelow || opt_vars().p_sb != 0 {
-                    kWinSplitBelow
+                fconfig.split = if old_split == K_WIN_SPLIT_BELOW || opt_vars().p_sb != 0 {
+                    K_WIN_SPLIT_BELOW
                 } else {
-                    kWinSplitAbove
+                    K_WIN_SPLIT_ABOVE
                 };
             }
         }
@@ -646,7 +646,7 @@ fn win_config_split(
         'resize: {
             if (!has_vertical && !has_split)
                 || (was_split
-                    && !has_key(mask, KEYSET_OPTIDX_win_config__win)
+                    && !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN)
                     && old_split == fconfig.split)
             {
                 break 'resize;
@@ -744,8 +744,8 @@ fn win_config_split(
                         if n_frames > 2 {
                             let frame = (*win.w_frame).fr_parent;
                             if !(*frame).fr_parent.is_null() {
-                                neighbor = if fconfig.split == kWinSplitAbove
-                                    || fconfig.split == kWinSplitLeft
+                                neighbor = if fconfig.split == K_WIN_SPLIT_ABOVE
+                                    || fconfig.split == K_WIN_SPLIT_LEFT
                                 {
                                     win.w_next
                                 } else {
@@ -831,7 +831,7 @@ fn win_config_split(
                             parent,
                             parent_tp,
                             ptr::null_mut(),
-                            kCtxNoEvents | kCtxNoDisplay,
+                            K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
                         );
                         assert!(result);
                     }
@@ -878,10 +878,10 @@ fn win_config_split(
             return false;
         }
 
-        if has_key(mask, KEYSET_OPTIDX_win_config__width) {
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIDTH) {
             win_setwidth_win(fconfig.width, win, true);
         }
-        if has_key(mask, KEYSET_OPTIDX_win_config__height) {
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_HEIGHT) {
             win_setheight_win(fconfig.height, win, true);
         }
 
@@ -903,7 +903,7 @@ fn win_config_float_tp(
         let mut win_tp = win_find_tabpage(&raw mut *win);
         let mut parent = (&raw mut *win);
         let mut parent_tp = win_tp;
-        if has_key(config.is_set__win_config_, KEYSET_OPTIDX_win_config__win) {
+        if has_key(config.is_set__win_config_, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
             parent = find_window_by_handle(fconfig.window, err);
             if parent.is_null() {
                 return false;
@@ -1031,13 +1031,13 @@ pub fn nvim_win_set_config(
 
         let was_split = !w.w_floating;
         let mask = config.is_set__win_config_;
-        let has_split = has_key(mask, KEYSET_OPTIDX_win_config__split);
-        let has_vertical = has_key(mask, KEYSET_OPTIDX_win_config__vertical);
+        let has_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT);
+        let has_vertical = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
         let old_style = w.w_config.style;
         let mut fconfig = w.w_config.clone();
 
         let to_split = config.relative.size == 0
-            && !(has_key(mask, KEYSET_OPTIDX_win_config__external) && config.external)
+            && !(has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL) && config.external)
             && (has_split || has_vertical || was_split);
         let will_float =
             (!was_split && !to_split) || config.relative.size > 0 || config.external;
@@ -1061,7 +1061,7 @@ pub fn nvim_win_set_config(
             return;
         }
 
-        if fconfig.style == kWinStyleMinimal && old_style != fconfig.style {
+        if fconfig.style == K_WIN_STYLE_MINIMAL && old_style != fconfig.style {
             win_set_minimal_style(w);
             didset_window_options( w, true);
             changed_window_setting(w);
@@ -1081,27 +1081,27 @@ fn config_put_bordertext(
     arena: &mut Arena,
 ) {
     let (vt, align) = match bordertext_type {
-            kBorderTextTitle => (&fconfig.title_chunks, fconfig.title_pos),
+            K_BORDER_TEXT_TITLE => (&fconfig.title_chunks, fconfig.title_pos),
             _ => (&fconfig.footer_chunks, fconfig.footer_pos),
         };
 
         let bordertext = virt_text_to_array(vt, true, arena);
 
         let pos = match align {
-            kAlignLeft => c"left".as_ptr(),
-            kAlignCenter => c"center".as_ptr(),
+            K_ALIGN_LEFT => c"left".as_ptr(),
+            K_ALIGN_CENTER => c"center".as_ptr(),
             _ => c"right".as_ptr(),
         };
 
-        if bordertext_type == kBorderTextTitle {
-            config.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__title;
+        if bordertext_type == K_BORDER_TEXT_TITLE {
+            config.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_TITLE;
             config.title = array_obj(bordertext);
-            config.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__title_pos;
+            config.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_TITLE_POS;
             config.title_pos = cstr_as_string(pos);
         } else {
-            config.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__footer;
+            config.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOOTER;
             config.footer = array_obj(bordertext);
-            config.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__footer_pos;
+            config.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOOTER_POS;
             config.footer_pos = cstr_as_string(pos);
         }
 }
@@ -1146,41 +1146,41 @@ pub fn nvim_win_get_config(
 
         let config = &wp.w_config;
 
-        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__focusable;
+        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOCUSABLE;
         rv.focusable = config.focusable;
-        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__external;
+        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL;
         rv.external = config.external;
-        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__hide;
+        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HIDE;
         rv.hide = config.hide;
-        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__mouse;
+        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_MOUSE;
         rv.mouse = config.mouse;
-        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__style;
+        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_STYLE;
         rv.style = cstr_as_string(WIN_STYLE_STR[config.style as usize].as_ptr());
 
         if wp.w_floating {
-            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__width;
+            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIDTH;
             rv.width = i64::from(config.width);
-            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__height;
+            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HEIGHT;
             rv.height = i64::from(config.height);
             if !config.external {
-                if config.relative == kFloatRelativeWindow {
-                    rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__win;
+                if config.relative == K_FLOAT_RELATIVE_WINDOW {
+                    rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIN;
                     rv.win = config.window;
                     if config.bufpos.lnum >= 0 {
                         let mut pos = arena_array(arena, 2);
                         add_c(&mut pos, integer_obj(i64::from(config.bufpos.lnum)));
                         add_c(&mut pos, integer_obj(i64::from(config.bufpos.col)));
-                        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__bufpos;
+                        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BUFPOS;
                         rv.bufpos = pos;
                     }
                 }
-                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__anchor;
-                rv.anchor = cstr_as_string(float_anchor_str[config.anchor as usize].as_ptr());
-                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__row;
+                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_ANCHOR;
+                rv.anchor = cstr_as_string(FLOAT_ANCHOR_STR[config.anchor as usize].as_ptr());
+                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_ROW;
                 rv.row = config.row;
-                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__col;
+                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_COL;
                 rv.col = config.col;
-                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__zindex;
+                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_ZINDEX;
                 rv.zindex = i64::from(config.zindex);
             }
             if config.border {
@@ -1198,25 +1198,25 @@ pub fn nvim_win_get_config(
                         add_c(&mut border, string_obj(s));
                     }
                 }
-                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__border;
+                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BORDER;
                 rv.border = array_obj(border);
                 if config.title {
-                    config_put_bordertext(&mut rv, config, kBorderTextTitle, arena);
+                    config_put_bordertext(&mut rv, config, K_BORDER_TEXT_TITLE, arena);
                 }
                 if config.footer {
-                    config_put_bordertext(&mut rv, config, kBorderTextFooter, arena);
+                    config_put_bordertext(&mut rv, config, K_BORDER_TEXT_FOOTER, arena);
                 }
             } else {
-                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__border;
+                rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BORDER;
                 rv.border = string_obj(cstr_as_string(c"none"));
             }
         } else if !config.external {
-            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__width;
+            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIDTH;
             rv.width = i64::from(wp.w_width);
-            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__height;
+            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HEIGHT;
             rv.height = i64::from(wp.w_height);
             let split = win_split_dir( wp);
-            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__split;
+            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_SPLIT;
             rv.split = cstr_as_string(WIN_SPLIT_STR[split as usize].as_ptr());
         }
 
@@ -1225,10 +1225,10 @@ pub fn nvim_win_get_config(
         } else {
             c"".as_ptr()
         };
-        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config__relative;
+        rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_RELATIVE;
         rv.relative = cstr_as_string(rel);
         if config._cmdline_offset < c_int::MAX {
-            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_win_config___cmdline_offset;
+            rv.is_set__win_config_ |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET;
             rv._cmdline_offset = i64::from(config._cmdline_offset);
         }
 
@@ -1245,11 +1245,11 @@ fn parse_float_anchor(anchor: NvimString, out: &mut FloatAnchor) -> bool {
         if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"NW")) {
             *out = 0;
         } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"NE")) {
-            *out = kFloatAnchorEast;
+            *out = K_FLOAT_ANCHOR_EAST;
         } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"SW")) {
-            *out = kFloatAnchorSouth;
+            *out = K_FLOAT_ANCHOR_SOUTH;
         } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"SE")) {
-            *out = kFloatAnchorSouth | kFloatAnchorEast;
+            *out = K_FLOAT_ANCHOR_SOUTH | K_FLOAT_ANCHOR_EAST;
         } else {
             return false;
         }
@@ -1261,17 +1261,17 @@ fn parse_float_relative(relative: NvimString, out: &mut FloatRelative) -> bool {
     {
         let str_ptr = relative.data;
         if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"editor")) {
-            *out = kFloatRelativeEditor;
+            *out = K_FLOAT_RELATIVE_EDITOR;
         } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"win")) {
-            *out = kFloatRelativeWindow;
+            *out = K_FLOAT_RELATIVE_WINDOW;
         } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"cursor")) {
-            *out = kFloatRelativeCursor;
+            *out = K_FLOAT_RELATIVE_CURSOR;
         } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"mouse")) {
-            *out = kFloatRelativeMouse;
+            *out = K_FLOAT_RELATIVE_MOUSE;
         } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"tabline")) {
-            *out = kFloatRelativeTabline;
+            *out = K_FLOAT_RELATIVE_TABLINE;
         } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"laststatus")) {
-            *out = kFloatRelativeLaststatus;
+            *out = K_FLOAT_RELATIVE_LASTSTATUS;
         } else {
             return false;
         }
@@ -1283,13 +1283,13 @@ fn parse_config_split(split: NvimString, out: &mut WinSplit) -> bool {
     {
         let str_ptr = split.data;
         if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"left")) {
-            *out = kWinSplitLeft;
+            *out = K_WIN_SPLIT_LEFT;
         } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"right")) {
-            *out = kWinSplitRight;
+            *out = K_WIN_SPLIT_RIGHT;
         } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"above")) {
-            *out = kWinSplitAbove;
+            *out = K_WIN_SPLIT_ABOVE;
         } else if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"below")) {
-            *out = kWinSplitBelow;
+            *out = K_WIN_SPLIT_BELOW;
         } else {
             return false;
         }
@@ -1339,7 +1339,7 @@ pub fn parse_bordertext(
             return;
         }
 
-        let is_title = bordertext_type == kBorderTextTitle;
+        let is_title = bordertext_type == K_BORDER_TEXT_TITLE;
         let is_present = if is_title {
             &mut fconfig.title
         } else {
@@ -1385,7 +1385,7 @@ fn parse_bordertext_pos(
     fconfig: &mut WinConfig,
     err: &mut Error,
 ) -> bool {
-    let align = if bordertext_type == kBorderTextTitle {
+    let align = if bordertext_type == K_BORDER_TEXT_TITLE {
             &mut fconfig.title_pos
         } else {
             &mut fconfig.footer_pos
@@ -1393,22 +1393,22 @@ fn parse_bordertext_pos(
 
         if bordertext_pos.size == 0 {
             if wp.is_none() {
-                *align = kAlignLeft;
+                *align = K_ALIGN_LEFT;
             }
             return true;
         }
 
         let pos = bordertext_pos.data;
         if crate::memory::cstr_as_opt_bytes(pos) == Some(b"left") {
-            *align = kAlignLeft;
+            *align = K_ALIGN_LEFT;
         } else if crate::memory::cstr_as_opt_bytes(pos) == Some(b"center") {
-            *align = kAlignCenter;
+            *align = K_ALIGN_CENTER;
         } else if crate::memory::cstr_as_opt_bytes(pos) == Some(b"right") {
-            *align = kAlignRight;
+            *align = K_ALIGN_RIGHT;
         } else {
             api_err_invalid(
                 err,
-                if bordertext_type == kBorderTextTitle {
+                if bordertext_type == K_BORDER_TEXT_TITLE {
                     c"title_pos".as_ptr()
                 } else {
                     c"footer_pos".as_ptr()
@@ -1543,7 +1543,7 @@ pub fn parse_border_style(style: Object,fconfig: Option<&mut WinConfig>, err: &m
                 return;
             }
             for i in 0..6 {
-                let def_name = opt_winborder_values[i + 1].as_ptr();
+                let def_name = OPT_WINBORDER_VALUES[i + 1].as_ptr();
                 if crate::memory::cstr_as_opt_bytes(str_val.data) == crate::memory::cstr_as_opt_bytes(def_name) {
                     *chars = [[0; MAX_SCHAR_SIZE]; 8];
                     for (slot, piece) in chars.iter_mut().zip(DEFAULTS_CHARS[i].iter()) {
@@ -1646,9 +1646,9 @@ fn parse_win_config(
                     break 'fail;
                 }
 
-                if !(has_key(mask, KEYSET_OPTIDX_win_config__row)
-                    && has_key(mask, KEYSET_OPTIDX_win_config__col))
-                    && !has_key(mask, KEYSET_OPTIDX_win_config__bufpos)
+                if !(has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW)
+                    && has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL))
+                    && !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_BUFPOS)
                 {
                     api_err_required(err, c"'relative' requires 'row'/'col' or 'bufpos'");
                     break 'fail;
@@ -1656,13 +1656,13 @@ fn parse_win_config(
 
                 has_relative = true;
                 fconfig.external = false;
-                if fconfig.relative == kFloatRelativeWindow {
+                if fconfig.relative == K_FLOAT_RELATIVE_WINDOW {
                     relative_is_win = true;
                     fconfig.bufpos.lnum = -1;
                 }
             } else if !config.external {
-                if has_key(mask, KEYSET_OPTIDX_win_config__vertical)
-                    || has_key(mask, KEYSET_OPTIDX_win_config__split)
+                if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL)
+                    || has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT)
                 {
                     is_split = true;
                     fconfig.external = false;
@@ -1675,17 +1675,17 @@ fn parse_win_config(
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__vertical) && !is_split {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL) && !is_split {
                 api_err_conflict(err, c"vertical", c"floating windows");
                 break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__split) && !is_split {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT) && !is_split {
                 api_err_conflict(err, c"split", c"floating windows");
                 break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__split) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT) {
                 if !is_split {
                     api_err_conflict(err, c"split", c"floating windows");
                     break 'fail;
@@ -1696,14 +1696,14 @@ fn parse_win_config(
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__anchor)
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ANCHOR)
                 && !parse_float_anchor(config.anchor, &mut fconfig.anchor)
             {
                 api_err_invalid(err, c"anchor", config.anchor.data, 0, true);
                 break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__row) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW) {
                 if !has_relative || is_split {
                     generate_api_error(wp.as_ref(), c"row", err);
                     break 'fail;
@@ -1711,7 +1711,7 @@ fn parse_win_config(
                 fconfig.row = config.row;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__col) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL) {
                 if !has_relative || is_split {
                     generate_api_error(wp.as_ref(), c"col", err);
                     break 'fail;
@@ -1719,7 +1719,7 @@ fn parse_win_config(
                 fconfig.col = config.col;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__bufpos) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_BUFPOS) {
                 if !has_relative || is_split {
                     generate_api_error(wp.as_ref(), c"bufpos", err);
                     break 'fail;
@@ -1734,20 +1734,20 @@ fn parse_win_config(
                         break 'fail;
                     }
 
-                    if !has_key(mask, KEYSET_OPTIDX_win_config__row) {
-                        fconfig.row = if (fconfig.anchor & kFloatAnchorSouth) != 0 {
+                    if !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW) {
+                        fconfig.row = if (fconfig.anchor & K_FLOAT_ANCHOR_SOUTH) != 0 {
                             0.0
                         } else {
                             1.0
                         };
                     }
-                    if !has_key(mask, KEYSET_OPTIDX_win_config__col) {
+                    if !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL) {
                         fconfig.col = 0.0;
                     }
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__width) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIDTH) {
                 if config.width <= 0 {
                     api_err_exp(
                         err,
@@ -1763,7 +1763,7 @@ fn parse_win_config(
                 break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__height) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_HEIGHT) {
                 if config.height <= 0 {
                     api_err_exp(
                         err,
@@ -1779,13 +1779,13 @@ fn parse_win_config(
                 break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__external) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL) {
                 fconfig.external = config.external;
                 if has_relative && fconfig.external {
                     api_err_conflict(err, c"relative", c"external");
                     break 'fail;
                 }
-                if fconfig.external && !ui_has(kUIMultigrid) {
+                if fconfig.external && !ui_has(K_UIMULTIGRID) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeValidation,
@@ -1795,17 +1795,17 @@ fn parse_win_config(
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__win) && fconfig.external {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN) && fconfig.external {
                 api_err_conflict(err, c"win", c"external window");
                 break 'fail;
             }
 
             if relative_is_win
-                || (has_key(mask, KEYSET_OPTIDX_win_config__win)
+                || (has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN)
                     && !is_split
                     && !wp.is_null()
                     && (*wp).w_floating
-                    && fconfig.relative == kFloatRelativeWindow)
+                    && fconfig.relative == K_FLOAT_RELATIVE_WINDOW)
             {
                 let Some(target_win) = crate::api::private::helpers::find_window_by_handle_mut(config.win, err) else {
                     break 'fail;
@@ -1820,7 +1820,7 @@ fn parse_win_config(
                 }
                 fconfig.window = target_win.handle;
             } else {
-                if has_key(mask, KEYSET_OPTIDX_win_config__win) {
+                if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
                     if !is_split && !has_relative && (wp.is_null() || !(*wp).w_floating) {
                         api_err_required(
                             err,
@@ -1835,16 +1835,16 @@ fn parse_win_config(
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__focusable) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FOCUSABLE) {
                 fconfig.focusable = config.focusable;
                 fconfig.mouse = config.focusable;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__mouse) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_MOUSE) {
                 fconfig.mouse = config.mouse;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__zindex) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ZINDEX) {
                 if !will_float {
                     api_err_conflict(err, c"zindex", c"non-float window");
                     break 'fail;
@@ -1861,46 +1861,46 @@ fn parse_win_config(
                 fconfig.zindex = config.zindex as c_int;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__title) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_TITLE) {
                 if !will_float {
                     api_err_conflict(err, c"title", c"non-float window");
                     break 'fail;
                 }
 
-                parse_bordertext(config.title, kBorderTextTitle, fconfig, err);
+                parse_bordertext(config.title, K_BORDER_TEXT_TITLE, fconfig, err);
                 if error_set(err) {
                     break 'fail;
                 }
 
-                if !parse_bordertext_pos(wp.as_ref(), config.title_pos, kBorderTextTitle, fconfig, err) {
+                if !parse_bordertext_pos(wp.as_ref(), config.title_pos, K_BORDER_TEXT_TITLE, fconfig, err) {
                     break 'fail;
                 }
-            } else if has_key(mask, KEYSET_OPTIDX_win_config__title_pos) {
+            } else if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_TITLE_POS) {
                 api_err_required(err, c"'title' requires 'title_pos'");
                 break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__footer) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FOOTER) {
                 if !will_float {
                     api_err_conflict(err, c"footer", c"non-float window");
                     break 'fail;
                 }
 
-                parse_bordertext(config.footer, kBorderTextFooter, fconfig, err);
+                parse_bordertext(config.footer, K_BORDER_TEXT_FOOTER, fconfig, err);
                 if error_set(err) {
                     break 'fail;
                 }
 
-                if !parse_bordertext_pos(wp.as_ref(), config.footer_pos, kBorderTextFooter, fconfig, err)
+                if !parse_bordertext_pos(wp.as_ref(), config.footer_pos, K_BORDER_TEXT_FOOTER, fconfig, err)
                 {
                     break 'fail;
                 }
-            } else if has_key(mask, KEYSET_OPTIDX_win_config__footer_pos) {
+            } else if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FOOTER_POS) {
                 api_err_required(err, c"'footer' requires 'footer_pos'");
                 break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__border) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_BORDER) {
                 if !will_float {
                     api_err_conflict(err, c"border", c"non-float window");
                     break 'fail;
@@ -1919,18 +1919,18 @@ fn parse_win_config(
                 break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__style) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_STYLE) {
                 if crate::memory::cstr_is_empty(config.style.data) {
-                    fconfig.style = kWinStyleUnused;
+                    fconfig.style = K_WIN_STYLE_UNUSED;
                 } else if crate::memory::cstr_as_opt_bytes(config.style.data).is_some_and(|b| b.eq_ignore_ascii_case(b"minimal")) {
-                    fconfig.style = kWinStyleMinimal;
+                    fconfig.style = K_WIN_STYLE_MINIMAL;
                 } else {
                     api_err_invalid(err, c"style", config.style.data, 0, true);
                     break 'fail;
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__noautocmd) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_NOAUTOCMD) {
                 if !wp.is_null() && config.noautocmd != fconfig.noautocmd {
                     api_set_error!(
                         err,
@@ -1942,11 +1942,11 @@ fn parse_win_config(
                 fconfig.noautocmd = config.noautocmd;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__fixed) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FIXED) {
                 fconfig.fixed = config.fixed;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config__hide) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_HIDE) {
                 if !will_float && config.hide {
                     api_err_conflict(err, c"hide", c"non-float window");
                     break 'fail;
@@ -1957,7 +1957,7 @@ fn parse_win_config(
                 fconfig.hide = config.hide;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_win_config___cmdline_offset) {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET) {
                 fconfig._cmdline_offset = config._cmdline_offset as c_int;
             }
 
@@ -1982,9 +1982,9 @@ mod tests {
 
     #[test]
     fn win_split_flags_computes_expected_bits() {
-        assert_eq!(win_split_flags(kWinSplitAbove, false), WSP_HOR | WSP_ABOVE);
-        assert_eq!(win_split_flags(kWinSplitBelow, true), WSP_HOR | WSP_BOT);
-        assert_eq!(win_split_flags(kWinSplitLeft, true), WSP_VERT | WSP_TOP);
-        assert_eq!(win_split_flags(kWinSplitRight, false), WSP_VERT | WSP_BELOW);
+        assert_eq!(win_split_flags(K_WIN_SPLIT_ABOVE, false), WSP_HOR | WSP_ABOVE);
+        assert_eq!(win_split_flags(K_WIN_SPLIT_BELOW, true), WSP_HOR | WSP_BOT);
+        assert_eq!(win_split_flags(K_WIN_SPLIT_LEFT, true), WSP_VERT | WSP_TOP);
+        assert_eq!(win_split_flags(K_WIN_SPLIT_RIGHT, false), WSP_VERT | WSP_BELOW);
     }
 }

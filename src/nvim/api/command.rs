@@ -19,7 +19,7 @@ use crate::autocmd::{EVENT_CMDUNDEFINED, apply_autocmds, has_event};
 use crate::charset::{NUL, ascii_isupper, ascii_iswhite, getdigits_long, skiptowhite, skipwhite};
 use crate::ex_docmd::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
-    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CmdSize, CmdUser, CmdUserBuf, CMOD_BROWSE,
+    ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
     CMOD_CONFIRM, CMOD_ERRSILENT, CMOD_HIDE, CMOD_KEEPALT, CMOD_KEEPJUMPS, CMOD_KEEPMARKS,
     CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, CMOD_NOAUTOCMD, CMOD_NOSWAPFILE, CMOD_SANDBOX, CMOD_SILENT,
     CMOD_UNSILENT, EX_ARGOPT, EX_ARGSPACE, EX_BANG, EX_CMDARG, EX_COUNT, EX_DFLALL, EX_EXTRA,
@@ -48,39 +48,39 @@ use std::ptr;
 use crate::cmdexpand::{EXPAND_NOTHING, EXPAND_USER_LUA, CmdAddr};
 use crate::cursor::Linenr;
 
-const CmdIput: c_int = 200;
-const CmdPut: c_int = 350;
+const CMD_IPUT: c_int = 200;
+const CMD_PUT: c_int = 350;
 
-const KEYSET_OPTIDX_cmd__cmd: u64 = 1;
-const KEYSET_OPTIDX_cmd__reg: u64 = 2;
-const KEYSET_OPTIDX_cmd__bang: u64 = 3;
-const KEYSET_OPTIDX_cmd__addr: u64 = 4;
-const KEYSET_OPTIDX_cmd__mods: u64 = 5;
-const KEYSET_OPTIDX_cmd__args: u64 = 6;
-const KEYSET_OPTIDX_cmd__count: u64 = 7;
-const KEYSET_OPTIDX_cmd__magic: u64 = 8;
-const KEYSET_OPTIDX_cmd__nargs: u64 = 9;
-const KEYSET_OPTIDX_cmd__range: u64 = 10;
-const KEYSET_OPTIDX_cmd__nextcmd: u64 = 11;
+const KEYSET_OPTIDX_CMD_CMD: u64 = 1;
+const KEYSET_OPTIDX_CMD_REG: u64 = 2;
+const KEYSET_OPTIDX_CMD_BANG: u64 = 3;
+const KEYSET_OPTIDX_CMD_ADDR: u64 = 4;
+const KEYSET_OPTIDX_CMD_MODS: u64 = 5;
+const KEYSET_OPTIDX_CMD_ARGS: u64 = 6;
+const KEYSET_OPTIDX_CMD_COUNT: u64 = 7;
+const KEYSET_OPTIDX_CMD_MAGIC: u64 = 8;
+const KEYSET_OPTIDX_CMD_NARGS: u64 = 9;
+const KEYSET_OPTIDX_CMD_RANGE: u64 = 10;
+const KEYSET_OPTIDX_CMD_NEXTCMD: u64 = 11;
 
-const KEYSET_OPTIDX_cmd_magic__bar: u64 = 1;
-const KEYSET_OPTIDX_cmd_magic__file: u64 = 2;
+const KEYSET_OPTIDX_CMD_MAGIC_BAR: u64 = 1;
+const KEYSET_OPTIDX_CMD_MAGIC_FILE: u64 = 2;
 
-const KEYSET_OPTIDX_cmd_mods__tab: u64 = 1;
-const KEYSET_OPTIDX_cmd_mods__split: u64 = 3;
-const KEYSET_OPTIDX_cmd_mods__filter: u64 = 5;
-const KEYSET_OPTIDX_cmd_mods__verbose: u64 = 10;
+const KEYSET_OPTIDX_CMD_MODS_TAB: u64 = 1;
+const KEYSET_OPTIDX_CMD_MODS_SPLIT: u64 = 3;
+const KEYSET_OPTIDX_CMD_MODS_FILTER: u64 = 5;
+const KEYSET_OPTIDX_CMD_MODS_VERBOSE: u64 = 10;
 
-const KEYSET_OPTIDX_cmd_mods_filter__pattern: u64 = 2;
+const KEYSET_OPTIDX_CMD_MODS_FILTER_PATTERN: u64 = 2;
 
-const KEYSET_OPTIDX_user_command__addr: u64 = 2;
-const KEYSET_OPTIDX_user_command__desc: u64 = 4;
-const KEYSET_OPTIDX_user_command__count: u64 = 5;
-const KEYSET_OPTIDX_user_command__force: u64 = 6;
-const KEYSET_OPTIDX_user_command__nargs: u64 = 7;
-const KEYSET_OPTIDX_user_command__range: u64 = 8;
-const KEYSET_OPTIDX_user_command__preview: u64 = 9;
-const KEYSET_OPTIDX_user_command__complete: u64 = 10;
+const KEYSET_OPTIDX_USER_COMMAND_ADDR: u64 = 2;
+const KEYSET_OPTIDX_USER_COMMAND_DESC: u64 = 4;
+const KEYSET_OPTIDX_USER_COMMAND_COUNT: u64 = 5;
+const KEYSET_OPTIDX_USER_COMMAND_FORCE: u64 = 6;
+const KEYSET_OPTIDX_USER_COMMAND_NARGS: u64 = 7;
+const KEYSET_OPTIDX_USER_COMMAND_RANGE: u64 = 8;
+const KEYSET_OPTIDX_USER_COMMAND_PREVIEW: u64 = 9;
+const KEYSET_OPTIDX_USER_COMMAND_COMPLETE: u64 = 10;
 
 use crate::window::{WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT};
 
@@ -332,7 +332,7 @@ pub fn nvim_parse_cmd(
         let mut args = Array::new();
         let length = crate::memory::cstr_len(ea.arg);
 
-        if ea.cmdidx != CmdSize
+        if ea.cmdidx != CMD_SIZE
             && is_map_cmd(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))
             && !crate::memory::cstr_is_empty(ea.arg)
         {
@@ -358,16 +358,16 @@ pub fn nvim_parse_cmd(
             }
         }
 
-        let cmd = if ea.cmdidx == CmdUser {
+        let cmd = if ea.cmdidx == CMD_USER {
             let u = ucmds_mut();
             Some(&(u)[ea.useridx as usize])
-        } else if ea.cmdidx == CmdUserBuf {
+        } else if ea.cmdidx == CMD_USER_BUF {
             Some(&(&curbuf_mut().b_ucmds)[ea.useridx as usize])
         } else {
             None
         };
 
-        let name = if ea.cmdidx == CmdSize {
+        let name = if ea.cmdidx == CMD_SIZE {
             c"".as_ptr()
         } else if let Some(cmd) = cmd {
             cmd.uc_name.as_ptr()
@@ -375,7 +375,7 @@ pub fn nvim_parse_cmd(
             get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
         };
 
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__cmd;
+        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_CMD;
         result.cmd = cstr_as_string(name);
 
         if (ea.argt & EX_RANGE) != 0 && ea.addr_count > 0 {
@@ -384,7 +384,7 @@ pub fn nvim_parse_cmd(
                 add_c(&mut range, integer_obj(i64::from(ea.line1)));
             }
             add_c(&mut range, integer_obj(i64::from(ea.line2)));
-            result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__range;
+            result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_RANGE;
             result.range = range;
         }
 
@@ -397,20 +397,20 @@ pub fn nvim_parse_cmd(
                 0
             };
             if ea.addr_count > 0 || cmd.is_some_and(|c| c.uc_def != 0) || count != 0 {
-                result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__count;
+                result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_COUNT;
                 result.count = count;
             }
         }
 
         if (ea.argt & EX_REGSTR) != 0 {
             let reg = [ea.regname as c_char, NUL];
-            result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__reg;
+            result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_REG;
             result.reg = cstr_to_arena_str(arena, reg.as_ptr());
         }
 
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__bang;
+        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_BANG;
         result.bang = ea.forceit != 0;
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__args;
+        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_ARGS;
         result.args = args;
 
         let nargs_ch = if (ea.argt & EX_EXTRA) != 0 {
@@ -431,7 +431,7 @@ pub fn nvim_parse_cmd(
             b'0'
         };
         let nargs = [nargs_ch as c_char, NUL];
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__nargs;
+        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_NARGS;
         result.nargs = string_obj(cstr_to_arena_str(arena, nargs.as_ptr()));
 
         let addr = match ea.addr_type {
@@ -445,9 +445,9 @@ pub fn nvim_parse_cmd(
             ADDR_NONE => c"none".as_ptr(),
             _ => c"?".as_ptr(),
         };
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__addr;
+        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_ADDR;
         result.addr = cstr_as_string(addr);
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__nextcmd;
+        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_NEXTCMD;
         result.nextcmd = cstr_as_string(ea.nextcmd);
 
         let mut mods = arena_dict(arena, 20);
@@ -569,13 +569,13 @@ pub fn nvim_parse_cmd(
             string_obj(static_cstr_as_string(split)),
         );
 
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__mods;
+        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_MODS;
         result.mods = mods;
 
         let mut magic = arena_dict(arena, 2);
         put_c(&mut magic, c"file", boolean_obj(ea.magic.file));
         put_c(&mut magic, c"bar", boolean_obj(ea.magic.bar));
-        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_cmd__magic;
+        result.is_set__cmd_ |= 1u64 << KEYSET_OPTIDX_CMD_MAGIC;
         result.magic = magic;
 
         undo_cmdmod(&mut cmod);
@@ -638,14 +638,14 @@ pub fn nvim_cmd(
         let mask = cmd.is_set__cmd_;
 
         'end: {
-            if !has_key(mask, KEYSET_OPTIDX_cmd__cmd) {
+            if !has_key(mask, KEYSET_OPTIDX_CMD_CMD) {
                 api_err_required(err, c"cmd");
                 break 'end;
             }
 
             if crate::memory::cstr_is_empty(cmd.cmd.data)
-                && !((has_key(mask, KEYSET_OPTIDX_cmd__range) && cmd.range.size > 0)
-                    || has_key(mask, KEYSET_OPTIDX_cmd__mods))
+                && !((has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && cmd.range.size > 0)
+                    || has_key(mask, KEYSET_OPTIDX_CMD_MODS))
             {
                 api_err_exp(
                     err,
@@ -662,7 +662,7 @@ pub fn nvim_cmd(
             let mut p = find_ex_command(&mut ea, None);
 
             if !p.is_null()
-                && ea.cmdidx == CmdSize
+                && ea.cmdidx == CMD_SIZE
                 && ascii_isupper(crate::memory::cstr_first_char(ea.cmd))
                 && has_event(EVENT_CMDUNDEFINED)
             {
@@ -675,20 +675,20 @@ pub fn nvim_cmd(
                 };
             }
 
-            let range_only = ea.cmdidx == CmdSize
+            let range_only = ea.cmdidx == CMD_SIZE
                 && crate::memory::cstr_is_empty(cmd.cmd.data)
-                && has_key(mask, KEYSET_OPTIDX_cmd__range)
+                && has_key(mask, KEYSET_OPTIDX_CMD_RANGE)
                 && cmd.range.size > 0;
 
-            if ea.cmdidx == CmdSize
+            if ea.cmdidx == CMD_SIZE
                 && crate::memory::cstr_is_empty(cmd.cmd.data)
-                && (!has_key(mask, KEYSET_OPTIDX_cmd__range) || cmd.range.size == 0)
-                && has_key(mask, KEYSET_OPTIDX_cmd__mods)
+                && (!has_key(mask, KEYSET_OPTIDX_CMD_RANGE) || cmd.range.size == 0)
+                && has_key(mask, KEYSET_OPTIDX_CMD_MODS)
             {
                 break 'end;
             }
 
-            if !((!p.is_null() && ea.cmdidx != CmdSize) || range_only) {
+            if !((!p.is_null() && ea.cmdidx != CMD_SIZE) || range_only) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
@@ -734,7 +734,7 @@ pub fn nvim_cmd(
             }
 
             let mut count_from_first_arg = false;
-            if has_key(mask, KEYSET_OPTIDX_cmd__args) {
+            if has_key(mask, KEYSET_OPTIDX_CMD_ARGS) {
                 if cmd.args.size == 1 && (ea.argt & EX_COUNT) != 0 && (ea.argt & EX_EXTRA) == 0 {
                     let first_arg = *cmd.args.items.add(0);
                     let mut is_numeric = false;
@@ -828,7 +828,7 @@ pub fn nvim_cmd(
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_cmd__range) {
+            if has_key(mask, KEYSET_OPTIDX_CMD_RANGE) {
                 if (ea.argt & EX_RANGE) == 0 {
                     api_set_error!(
                         err,
@@ -897,7 +897,7 @@ pub fn nvim_cmd(
                 ea.argt = EX_RANGE | EX_SBOXOK;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_cmd__range)
+            if has_key(mask, KEYSET_OPTIDX_CMD_RANGE)
                 && !invalid_range(&mut ea).is_null()
             {
                 api_err_invalid(err, c"range", c"", 0, true);
@@ -920,7 +920,7 @@ pub fn nvim_cmd(
                 }
             }
 
-            if has_key(mask, KEYSET_OPTIDX_cmd__count) {
+            if has_key(mask, KEYSET_OPTIDX_CMD_COUNT) {
                 if count_from_first_arg {
                     api_set_error!(
                         err,
@@ -952,7 +952,7 @@ pub fn nvim_cmd(
                 set_cmd_count(&mut ea, cmd.count as Linenr, true);
             }
 
-            if has_key(mask, KEYSET_OPTIDX_cmd__reg) {
+            if has_key(mask, KEYSET_OPTIDX_CMD_REG) {
                 if (ea.argt & EX_REGSTR) == 0 {
                     api_set_error!(
                         err,
@@ -984,7 +984,7 @@ pub fn nvim_cmd(
                 }
                 if !valid_yank_reg(
                     c_int::from(regname as u8),
-                    !is_user_cmdidx(ea.cmdidx) && ea.cmdidx != CmdPut && ea.cmdidx != CmdIput,
+                    !is_user_cmdidx(ea.cmdidx) && ea.cmdidx != CMD_PUT && ea.cmdidx != CMD_IPUT,
                 ) {
                     api_set_error!(
                         err,
@@ -1009,7 +1009,7 @@ pub fn nvim_cmd(
                 break 'end;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_cmd__magic) {
+            if has_key(mask, KEYSET_OPTIDX_CMD_MAGIC) {
                 let mut magic = KeyDict_cmd_magic::default();
                 if !api_dict_to_keydict(
                     (&raw mut magic).cast(),
@@ -1020,13 +1020,13 @@ pub fn nvim_cmd(
                     break 'end;
                 }
 
-                ea.magic.file = if has_key(magic.is_set__cmd_magic_, KEYSET_OPTIDX_cmd_magic__file)
+                ea.magic.file = if has_key(magic.is_set__cmd_magic_, KEYSET_OPTIDX_CMD_MAGIC_FILE)
                 {
                     magic.file
                 } else {
                     (ea.argt & EX_XFILE) != 0
                 };
-                ea.magic.bar = if has_key(magic.is_set__cmd_magic_, KEYSET_OPTIDX_cmd_magic__bar) {
+                ea.magic.bar = if has_key(magic.is_set__cmd_magic_, KEYSET_OPTIDX_CMD_MAGIC_BAR) {
                     magic.bar
                 } else {
                     (ea.argt & EX_TRLBAR) != 0
@@ -1041,7 +1041,7 @@ pub fn nvim_cmd(
                 ea.magic.bar = (ea.argt & EX_TRLBAR) != 0;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_cmd__mods) {
+            if has_key(mask, KEYSET_OPTIDX_CMD_MODS) {
                 let mut mods = KeyDict_cmd_mods::default();
                 if !api_dict_to_keydict(
                     (&raw mut mods).cast(),
@@ -1053,7 +1053,7 @@ pub fn nvim_cmd(
                 }
 
                 let mods_mask = mods.is_set__cmd_mods_;
-                if has_key(mods_mask, KEYSET_OPTIDX_cmd_mods__filter) {
+                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_FILTER) {
                     let mut filter = KeyDict_cmd_mods_filter::default();
                     if !api_dict_to_keydict(
                         (&raw mut filter).cast(),
@@ -1066,7 +1066,7 @@ pub fn nvim_cmd(
 
                     if has_key(
                         filter.is_set__cmd_mods_filter_,
-                        KEYSET_OPTIDX_cmd_mods_filter__pattern,
+                        KEYSET_OPTIDX_CMD_MODS_FILTER_PATTERN,
                     ) {
                         cmod.cmod_filter_force = filter.force;
                         if !crate::memory::cstr_is_empty(filter.pattern.data) || cmod.cmod_filter_force {
@@ -1080,11 +1080,11 @@ pub fn nvim_cmd(
                     }
                 }
 
-                if has_key(mods_mask, KEYSET_OPTIDX_cmd_mods__tab) && (mods.tab as c_int) >= 0 {
+                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_TAB) && (mods.tab as c_int) >= 0 {
                     cmod.cmod_tab = (mods.tab as c_int) + 1;
                 }
 
-                if has_key(mods_mask, KEYSET_OPTIDX_cmd_mods__verbose)
+                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_VERBOSE)
                     && (mods.verbose as c_int) >= 0
                 {
                     cmod.cmod_verbose = (mods.verbose as c_int) + 1;
@@ -1097,7 +1097,7 @@ pub fn nvim_cmd(
                     cmod.cmod_split |= WSP_HOR;
                 }
 
-                if has_key(mods_mask, KEYSET_OPTIDX_cmd_mods__split) {
+                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_SPLIT) {
                     if crate::memory::cstr_is_empty(mods.split.data) {
                         // Empty string
                     } else if (crate::memory::cstr_as_opt_bytes(mods.split.data) == Some(b"aboveleft"))
@@ -1471,8 +1471,8 @@ pub fn create_user_command(
                 break 'err;
             }
             let mask = opts.is_set__user_command_;
-            if has_key(mask, KEYSET_OPTIDX_user_command__range)
-                && has_key(mask, KEYSET_OPTIDX_user_command__count)
+            if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_RANGE)
+                && has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COUNT)
             {
                 api_set_error!(
                     err,
@@ -1521,12 +1521,12 @@ pub fn create_user_command(
                         break 'err;
                     }
                 }
-            } else if has_key(mask, KEYSET_OPTIDX_user_command__nargs) {
+            } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_NARGS) {
                 api_err_invalid(err, c"nargs", c"", 0, true);
                 break 'err;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_user_command__complete) && argt == 0 {
+            if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COMPLETE) && argt == 0 {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
@@ -1554,7 +1554,7 @@ pub fn create_user_command(
                 argt |= EX_RANGE | EX_ZEROR;
                 def = opts.range.data.integer();
                 addr_type_arg = ADDR_LINES;
-            } else if has_key(mask, KEYSET_OPTIDX_user_command__range) {
+            } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_RANGE) {
                 api_err_invalid(err, c"range", c"", 0, true);
                 break 'err;
             }
@@ -1569,12 +1569,12 @@ pub fn create_user_command(
                 argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                 addr_type_arg = ADDR_OTHER;
                 def = opts.count.data.integer();
-            } else if has_key(mask, KEYSET_OPTIDX_user_command__count) {
+            } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COUNT) {
                 api_err_invalid(err, c"count", c"", 0, true);
                 break 'err;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_user_command__addr) {
+            if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_ADDR) {
                 if opts.addr.obj_type != ObjectType::ObjectTypeString {
                     api_err_exp(
                         err,
@@ -1618,7 +1618,7 @@ pub fn create_user_command(
                 argt |= EX_KEEPSCRIPT;
             }
 
-            let force = if has_key(mask, KEYSET_OPTIDX_user_command__force) {
+            let force = if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_FORCE) {
                 opts.force
             } else {
                 true
@@ -1650,7 +1650,7 @@ pub fn create_user_command(
                     );
                     break 'err;
                 }
-            } else if has_key(mask, KEYSET_OPTIDX_user_command__complete) {
+            } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COMPLETE) {
                 api_err_exp(
                     err,
                     c"complete",
@@ -1660,7 +1660,7 @@ pub fn create_user_command(
                 break 'err;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_user_command__preview) {
+            if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_PREVIEW) {
                 if opts.preview.obj_type != ObjectType::ObjectTypeLuaRef {
                     api_err_exp(
                         err,
@@ -1677,7 +1677,7 @@ pub fn create_user_command(
             }
 
             let mut desc: *const c_char = ptr::null();
-            if has_key(mask, KEYSET_OPTIDX_user_command__desc) {
+            if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_DESC) {
                 if opts.desc.obj_type != ObjectType::ObjectTypeString {
                     api_err_exp(
                         err,
@@ -1820,9 +1820,9 @@ mod tests {
 
     #[test]
     fn ascii_and_user_cmdidx_predicates() {
-        assert!(is_user_cmdidx(CmdUser));
-        assert!(is_user_cmdidx(CmdUserBuf));
-        assert!(!is_user_cmdidx(CmdSize));
+        assert!(is_user_cmdidx(CMD_USER));
+        assert!(is_user_cmdidx(CMD_USER_BUF));
+        assert!(!is_user_cmdidx(CMD_SIZE));
         assert!(ascii_isupper(b'A' as c_char));
         assert!(!ascii_isupper(b'a' as c_char));
         assert!(ascii_iswhite(b' ' as c_char));

@@ -62,7 +62,7 @@ use crate::window::{find_tabpage, TabPageInfo, WinInfoInfo};
 use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
-use crate::api::vim::kCdScopeGlobal;
+use crate::api::vim::K_CD_SCOPE_GLOBAL;
 use crate::charset::{NL, NUL};
 use crate::regexp::NUMBUFLEN;
 
@@ -71,10 +71,10 @@ pub(crate) const K_LIST_LEN_UNKNOWN: isize = -1;
 pub(crate) const VALID_PATH: c_int = 1;
 pub(crate) const VALID_HEAD: c_int = 2;
 
-const kCdScopeInvalid: c_int = -1;
-pub(crate) const kCdScopeBuffer: c_int = 0;
-pub(crate) const kCdScopeWindow: c_int = 1;
-pub(crate) const kCdScopeTabpage: c_int = 2;
+const K_CD_SCOPE_INVALID: c_int = -1;
+pub(crate) const K_CD_SCOPE_BUFFER: c_int = 0;
+pub(crate) const K_CD_SCOPE_WINDOW: c_int = 1;
+pub(crate) const K_CD_SCOPE_TABPAGE: c_int = 2;
 
 const S_IFMT_MASK: u64 = 0xF000;
 const S_IFCHR_VAL: u64 = 0x2000;
@@ -481,28 +481,28 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
             crate::eval::typval::tv_set_string(rettv, cwd.as_ptr());
         }
 
-        let mut scope: c_int = kCdScopeGlobal;
+        let mut scope: c_int = K_CD_SCOPE_GLOBAL;
         if argvars[1].v_type != VarType::VarUnknown {
             let s = tv_get_string(&argvars[1]);
             let s_bytes = crate::memory::cstr_as_bytes(s);
             if s_bytes == b"global" {
-                scope = kCdScopeGlobal;
+                scope = K_CD_SCOPE_GLOBAL;
             } else if s_bytes == b"tabpage" {
-                scope = kCdScopeTabpage;
+                scope = K_CD_SCOPE_TABPAGE;
             } else if s_bytes == b"window" {
-                scope = kCdScopeWindow;
+                scope = K_CD_SCOPE_WINDOW;
             } else if s_bytes == b"buffer" {
-                scope = kCdScopeBuffer;
+                scope = K_CD_SCOPE_BUFFER;
             } else {
-                semsg!(gettext(e_invargNval), c"scope", s);
+                semsg!(gettext(E_INVARG_NVAL), c"scope", s);
                 return;
             }
         } else if curbuf_mut().b_localdir.is_some() {
-            scope = kCdScopeBuffer;
+            scope = K_CD_SCOPE_BUFFER;
         } else if curwin_mut().w_localdir.is_some() {
-            scope = kCdScopeWindow;
+            scope = K_CD_SCOPE_WINDOW;
         } else if curtab_mut().tp_localdir.is_some() {
-            scope = kCdScopeTabpage;
+            scope = K_CD_SCOPE_TABPAGE;
         }
 
         if !do_chdir(argvars[0].vval.v_string(), scope) {
@@ -525,7 +525,7 @@ pub fn f_delete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
         let name = tv_get_string(&argvars[0]);
         if crate::memory::cstr_is_empty(name) {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -547,7 +547,7 @@ pub fn f_delete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             // delete a directory recursively
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(delete_recursive(name)));
         } else {
-            semsg!(gettext(e_invexpr2), flags);
+            semsg!(gettext(E_INVEXPR2), flags);
         }
     }
 }
@@ -783,9 +783,9 @@ fn getcwd_scope_args(argvars: &mut [TypVal],
     buf: *mut *mut FileBuf,
 ) -> bool {
     unsafe {
-        const kWinArg: usize = 0;
-        const kTabArg: usize = 1;
-        const kBufArg: usize = 2;
+        const K_WIN_ARG: usize = 0;
+        const K_TAB_ARG: usize = 1;
+        const K_BUF_ARG: usize = 2;
         let mut argv = [0 as c_int; 3];
         let mut argc: usize = 0;
 
@@ -800,13 +800,13 @@ fn getcwd_scope_args(argvars: &mut [TypVal],
                 break;
             }
             if argvars[argc].v_type != VarType::VarNumber {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 return false;
             }
             argv[argc] = argvars[argc].vval.v_number() as c_int;
             // It is an error for the scope number to be less than `-1`.
             if argv[argc] < -1 {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 return false;
             }
             argc += 1;
@@ -828,41 +828,41 @@ fn getcwd_scope_args(argvars: &mut [TypVal],
         match argc {
             0 => {}
             1 => {
-                if argv[kWinArg] >= 0 {
-                    *scope = kCdScopeWindow; // (X)
+                if argv[K_WIN_ARG] >= 0 {
+                    *scope = K_CD_SCOPE_WINDOW; // (X)
                 } else {
-                    *scope = kCdScopeTabpage; // (-1)
+                    *scope = K_CD_SCOPE_TABPAGE; // (-1)
                 }
             }
             2 => {
-                if argv[kWinArg] >= 0 {
-                    *scope = kCdScopeWindow; // (X, ...)
-                } else if argv[kTabArg] >= 0 {
-                    *scope = kCdScopeTabpage; // (-1, X)
+                if argv[K_WIN_ARG] >= 0 {
+                    *scope = K_CD_SCOPE_WINDOW; // (X, ...)
+                } else if argv[K_TAB_ARG] >= 0 {
+                    *scope = K_CD_SCOPE_TABPAGE; // (-1, X)
                 } else {
-                    *scope = kCdScopeGlobal; // (-1, -1)
+                    *scope = K_CD_SCOPE_GLOBAL; // (-1, -1)
                 }
             }
             3 => {
-                if argv[kBufArg] >= 0 {
-                    *scope = kCdScopeBuffer; // (-1, -1, X)
+                if argv[K_BUF_ARG] >= 0 {
+                    *scope = K_CD_SCOPE_BUFFER; // (-1, -1, X)
                 } else {
-                    *scope = kCdScopeGlobal; // (-1, -1, -1)
+                    *scope = K_CD_SCOPE_GLOBAL; // (-1, -1, -1)
                 }
             }
             _ => unreachable!(),
         }
 
-        if *scope == kCdScopeBuffer {
-            if argv[kWinArg] >= 0 || argv[kTabArg] >= 0 {
+        if *scope == K_CD_SCOPE_BUFFER {
+            if argv[K_WIN_ARG] >= 0 || argv[K_TAB_ARG] >= 0 {
                 emsg(gettext(
                     c"E5006: Window and tab scope must be -1 when using buffer scope",
                 ));
                 return false;
             }
-            if argv[kBufArg] > 0 {
+            if argv[K_BUF_ARG] > 0 {
                 let mut err = Error::new();
-                *buf = find_buffer_by_handle(argv[kBufArg], &mut err);
+                *buf = find_buffer_by_handle(argv[K_BUF_ARG], &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
                     emsg(gettext(c"E5007: Cannot find buffer number."));
                     crate::api::private::helpers::api_clear_error(&mut err);
@@ -872,8 +872,8 @@ fn getcwd_scope_args(argvars: &mut [TypVal],
         }
 
         // Find the tabpage by number.
-        if argv[kTabArg] > 0 {
-            *tp = find_tabpage(argv[kTabArg]);
+        if argv[K_TAB_ARG] > 0 {
+            *tp = find_tabpage(argv[K_TAB_ARG]);
             if (*tp).is_null() {
                 emsg(gettext(c"E5000: Cannot find tab number."));
                 return false;
@@ -881,7 +881,7 @@ fn getcwd_scope_args(argvars: &mut [TypVal],
         }
 
         // Find the window in `tp` by number.
-        if argv[kWinArg] > 0 {
+        if argv[K_WIN_ARG] > 0 {
             *win = find_win_by_nr(&argvars[0], *tp);
             if (*win).is_null() {
                 emsg(gettext(c"E5002: Cannot find window number."));
@@ -896,7 +896,7 @@ fn getcwd_scope_args(argvars: &mut [TypVal],
 /// `getcwd([{win}[, {tab}[, {buf}]]])` function
 pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     unsafe {
-        let mut scope: c_int = kCdScopeInvalid;
+        let mut scope: c_int = K_CD_SCOPE_INVALID;
         let mut win: *mut WinInfoInfo = ptr::null_mut();
         let mut tp: *mut TabPageInfo = ptr::null_mut();
         let mut buf: *mut FileBuf = ptr::null_mut();
@@ -904,10 +904,10 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
-        // Without arguments (kCdScopeInvalid), the effective working directory is returned.
+        // Without arguments (K_CD_SCOPE_INVALID), the effective working directory is returned.
         if !getcwd_scope_args(
             argvars,
-            kCdScopeInvalid,
+            K_CD_SCOPE_INVALID,
             &mut scope,
             &raw mut win,
             &raw mut tp,
@@ -920,28 +920,28 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         let mut cwd = vec![0 as c_char; MAXPATHL];
 
         let mut cur_scope = scope;
-        if cur_scope == kCdScopeWindow {
+        if cur_scope == K_CD_SCOPE_WINDOW {
             from = (*win)
                 .w_localdir
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr());
             if from.is_null() {
-                cur_scope = kCdScopeTabpage;
+                cur_scope = K_CD_SCOPE_TABPAGE;
             }
         }
-        if cur_scope == kCdScopeTabpage {
+        if cur_scope == K_CD_SCOPE_TABPAGE {
             from = (*tp)
                 .tp_localdir
                 .as_ref()
                 .map_or(ptr::null(), |s| s.as_ptr());
             if from.is_null() {
-                cur_scope = kCdScopeBuffer;
+                cur_scope = K_CD_SCOPE_BUFFER;
             }
         }
-        if cur_scope == kCdScopeBuffer {
+        if cur_scope == K_CD_SCOPE_BUFFER {
             // Only a buffer target reaches this with `scope` unchanged: a buffer belongs to no
             // particular window or tabpage, so it skips those and falls back to global dir.
-            from = if scope == kCdScopeBuffer {
+            from = if scope == K_CD_SCOPE_BUFFER {
                 (*buf)
                     .b_localdir
                     .as_ref()
@@ -950,17 +950,17 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 ptr::null()
             };
             if from.is_null() {
-                cur_scope = kCdScopeGlobal;
+                cur_scope = K_CD_SCOPE_GLOBAL;
             }
         }
-        if cur_scope == kCdScopeGlobal {
+        if cur_scope == K_CD_SCOPE_GLOBAL {
             if let Some(ref gdir) = g_st().globaldir {
                 from = gdir.as_ptr();
             } else {
-                cur_scope = kCdScopeInvalid;
+                cur_scope = K_CD_SCOPE_INVALID;
             }
         }
-        if cur_scope == kCdScopeInvalid && !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
+        if cur_scope == K_CD_SCOPE_INVALID && !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
             from = c"".as_ptr(); // Return empty string on failure.
         }
 
@@ -1207,7 +1207,7 @@ pub fn f_glob2regpat(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// `haslocaldir([{win}[, {tab}[, {buf}]]])` function
 pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
     unsafe {
-        let mut scope: c_int = kCdScopeWindow;
+        let mut scope: c_int = K_CD_SCOPE_WINDOW;
         let mut win: *mut WinInfoInfo = ptr::null_mut();
         let mut tp: *mut TabPageInfo = ptr::null_mut();
         let mut buf: *mut FileBuf = ptr::null_mut();
@@ -1218,7 +1218,7 @@ pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         // Without arguments, default to window scope.
         if !getcwd_scope_args(
             argvars,
-            kCdScopeWindow,
+            K_CD_SCOPE_WINDOW,
             &mut scope,
             &raw mut win,
             &raw mut tp,
@@ -1228,16 +1228,16 @@ pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
 
         match scope {
-            kCdScopeWindow => {
+            K_CD_SCOPE_WINDOW => {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from((*win).w_localdir.is_some()));
             }
-            kCdScopeBuffer => {
+            K_CD_SCOPE_BUFFER => {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from((*buf).b_localdir.is_some()));
             }
-            kCdScopeTabpage => {
+            K_CD_SCOPE_TABPAGE => {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from((*tp).tp_localdir.is_some()));
             }
-            kCdScopeGlobal => {
+            K_CD_SCOPE_GLOBAL => {
                 // The global scope never has a local directory
             }
             _ => std::process::abort(),
@@ -1306,7 +1306,7 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                 );
                 if ret != 0 {
                     semsg!(
-                        gettext(e_mkdir),
+                        gettext(E_MKDIR),
                         failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                         uv_strerror(ret),
                     );
@@ -1522,22 +1522,22 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
         let fname = tv_get_string(&argvars[0]);
 
         if os_isdir(fname) {
-            semsg!(gettext(e_isadir2), fname);
+            semsg!(gettext(E_ISADIR2), fname);
             return;
         }
         if crate::memory::cstr_is_empty(fname) {
-            semsg!(gettext(e_notopen), gettext(c"<empty>"));
+            semsg!(gettext(E_NOTOPEN), gettext(c"<empty>"));
             return;
         }
         let fd = os_fopen(fname, c"rb");
         if fd.is_null() {
-            semsg!(gettext(e_notopen), fname);
+            semsg!(gettext(E_NOTOPEN), fname);
             return;
         }
 
         if blob {
             if !read_blob(fd, rettv, offset, size) {
-                semsg!(gettext(e_cant_read_file_str), fname);
+                semsg!(gettext(E_CANT_READ_FILE_STR), fname);
             }
             fclose(fd);
             return;
@@ -2018,7 +2018,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                 && (script_is_lua(g_st().current_sctx.sc_sid) || g_st().current_sctx.sc_sid == SID_API_CLIENT))
         {
             semsg!(
-                gettext(e_invarg2),
+                gettext(E_INVARG2),
                 gettext(c"writefile() first argument must be a List or a Blob"),
             );
             return;

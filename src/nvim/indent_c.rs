@@ -10,7 +10,7 @@ use crate::charset::{
 use crate::cursor::{
     Colnr, get_cursor_line_ptr, get_cursor_pos_ptr, Linenr, Lpos, lt, CursorPos,
 };
-use crate::eval::typval::{EvalFuncData, kCallbackNone, tv_get_lnum, TypVal};
+use crate::eval::typval::{EvalFuncData, K_CALLBACK_NONE_CONST, tv_get_lnum, TypVal};
 use crate::globals::*;
 use crate::indent::{fixthisline, get_expr_indent, get_indent, get_indent_lnum, get_sw_value};
 use crate::keycodes::get_special_key_code;
@@ -306,7 +306,7 @@ pub fn cin_is_cinword(line: impl crate::strings::IntoCCharPtr) -> bool { let mut
 }
 pub fn cindent_on() -> bool {
      {
-        opt_vars().p_paste == 0 && (curbuf_mut().b_p_cin != 0 || curbuf_mut().b_p_inde.cb_type() != kCallbackNone)
+        opt_vars().p_paste == 0 && (curbuf_mut().b_p_cin != 0 || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
     }
 }
 fn cin_skipcomment(s: impl crate::strings::IntoCCharPtr) -> *const c_char { let mut s = s.into_c_char_ptr();
@@ -2987,7 +2987,7 @@ pub fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
         if keytyped == NUL as c_int {
             return false;
         }
-        let mut look: *const c_char = if curbuf_mut().b_p_inde.cb_type() != kCallbackNone {
+        let mut look: *const c_char = if curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST {
             curbuf_mut().b_p_indk
         } else {
             curbuf_mut().b_p_cink
@@ -3160,7 +3160,7 @@ pub fn in_cinkeys(keytyped: c_int, when: c_int, line_is_empty: bool) -> bool {
 /// Do C or expression indenting on the current line.
 pub fn do_c_expr_indent() {
      {
-        if curbuf_mut().b_p_inde.cb_type() != kCallbackNone {
+        if curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST {
             fixthisline(get_expr_indent);
         } else {
             fixthisline(get_c_indent);

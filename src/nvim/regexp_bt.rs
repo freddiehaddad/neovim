@@ -204,29 +204,29 @@ fn bt_recognize_char_class(start: *const u8, end: *const u8) -> c_int {
         if config < 0 || newl {
             return 0;
         }
-        if config == CLASS_o9 {
+        if config == CLASS_O9 {
             DIGIT
-        } else if config == (CLASS_not | CLASS_o9) {
+        } else if config == (CLASS_NOT | CLASS_O9) {
             NDIGIT
-        } else if config == (CLASS_af | CLASS_AF | CLASS_o9) {
+        } else if config == (CLASS_AF_CONST | CLASS_AF | CLASS_O9) {
             HEX
-        } else if config == (CLASS_not | CLASS_af | CLASS_AF | CLASS_o9) {
+        } else if config == (CLASS_NOT | CLASS_AF_CONST | CLASS_AF | CLASS_O9) {
             NHEX
-        } else if config == CLASS_o7 {
+        } else if config == CLASS_O7 {
             OCTAL
-        } else if config == (CLASS_not | CLASS_o7) {
+        } else if config == (CLASS_NOT | CLASS_O7) {
             NOCTAL
-        } else if config == (CLASS_az | CLASS_AZ | CLASS_o9 | CLASS_underscore) {
+        } else if config == (CLASS_AZ_CONST | CLASS_AZ | CLASS_O9 | CLASS_UNDERSCORE) {
             WORD
-        } else if config == (CLASS_not | CLASS_az | CLASS_AZ | CLASS_o9 | CLASS_underscore) {
+        } else if config == (CLASS_NOT | CLASS_AZ_CONST | CLASS_AZ | CLASS_O9 | CLASS_UNDERSCORE) {
             NWORD
-        } else if config == (CLASS_az | CLASS_AZ | CLASS_underscore) {
+        } else if config == (CLASS_AZ_CONST | CLASS_AZ | CLASS_UNDERSCORE) {
             HEAD
-        } else if config == (CLASS_not | CLASS_az | CLASS_AZ | CLASS_underscore) {
+        } else if config == (CLASS_NOT | CLASS_AZ_CONST | CLASS_AZ | CLASS_UNDERSCORE) {
             NHEAD
-        } else if config == (CLASS_az | CLASS_AZ) {
+        } else if config == (CLASS_AZ_CONST | CLASS_AZ) {
             ALPHA
-        } else if config == (CLASS_not | CLASS_az | CLASS_AZ) {
+        } else if config == (CLASS_NOT | CLASS_AZ_CONST | CLASS_AZ) {
             NALPHA
         } else {
             0
@@ -883,9 +883,9 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                 goto_collection = true;
             } else {
                 // fallthrough to character classes
-                let p = vim_strchr(classchars.as_ptr().cast(), no_Magic(c)).cast::<u8>();
+                let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_Magic(c)).cast::<u8>();
                 if p.is_null() {
-                    emsg(tr(e_invalid_use_of_underscore));
+                    emsg(tr(E_INVALID_USE_OF_UNDERSCORE));
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
@@ -893,7 +893,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     c = getchr();
                     goto_multibyte = true;
                 } else {
-                    let idx = p.offset_from(classchars.as_ptr()) as usize;
+                    let idx = p.offset_from(CLASSCHARS.as_ptr()) as usize;
                     ret = regnode(CLASSCODES[idx] + extra);
                     *flagp |= HASWIDTH | SIMPLE;
                     return ret;
@@ -932,9 +932,9 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     || x == Magic(b'u' as c_int)
                     || x == Magic(b'U' as c_int)
             ) {
-                let p = vim_strchr(classchars.as_ptr().cast(), no_Magic(c)).cast::<u8>();
+                let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_Magic(c)).cast::<u8>();
                 if p.is_null() {
-                    emsg(tr(e_invalid_use_of_underscore));
+                    emsg(tr(E_INVALID_USE_OF_UNDERSCORE));
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
@@ -942,7 +942,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     c = getchr();
                     goto_multibyte = true;
                 } else {
-                    let idx = p.offset_from(classchars.as_ptr()) as usize;
+                    let idx = p.offset_from(CLASSCHARS.as_ptr()) as usize;
                     ret = regnode(CLASSCODES[idx] + extra);
                     *flagp |= HASWIDTH | SIMPLE;
                     return ret;
@@ -961,7 +961,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
             } else if c == Magic(b'(' as c_int) {
                 if re_st().one_exactly {
                     semsg!(
-                        tr(e_invalid_item_in_str_brackets),
+                        tr(E_INVALID_ITEM_IN_STR_BRACKETS),
                         if re_st().reg_magic == MAGIC_ALL {
                             c"".as_ptr()
                         } else {
@@ -984,7 +984,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
             {
                 if re_st().one_exactly {
                     semsg!(
-                        tr(e_invalid_item_in_str_brackets),
+                        tr(E_INVALID_ITEM_IN_STR_BRACKETS),
                         if re_st().reg_magic == MAGIC_ALL {
                             c"".as_ptr()
                         } else {
@@ -994,7 +994,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
-                iemsg(tr(e_internal_error_in_regexp));
+                iemsg(tr(E_INTERNAL_ERROR_IN_REGEXP));
                 g_st().rc_did_emsg = true;
                 return ptr::null_mut();
             } else if c == Magic(b'=' as c_int)
@@ -1036,7 +1036,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     }
                     return ret;
                 } else {
-                    emsg(tr(e_nopresub));
+                    emsg(tr(E_NOPRESUB));
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
@@ -1051,13 +1051,13 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                 match c as u8 {
                     b'(' => {
                         if (g_st().reg_do_extmatch & REX_SET) == 0 {
-                            emsg(tr(e_z_not_allowed));
+                            emsg(tr(E_Z_NOT_ALLOWED));
                             g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
                         if re_st().one_exactly {
                             semsg!(
-                                tr(e_invalid_item_in_str_brackets),
+                                tr(E_INVALID_ITEM_IN_STR_BRACKETS),
                                 if re_st().reg_magic == MAGIC_ALL {
                                     c"".as_ptr()
                                 } else {
@@ -1077,7 +1077,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     }
                     b'1'..=b'9' => {
                         if (g_st().reg_do_extmatch & REX_USE) == 0 {
-                            emsg(tr(e_z1_not_allowed));
+                            emsg(tr(E_Z1_NOT_ALLOWED));
                             g_st().rc_did_emsg = true;
                             return ptr::null_mut();
                         }
@@ -1111,7 +1111,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     b'(' => {
                         if re_st().one_exactly {
                             semsg!(
-                                tr(e_invalid_item_in_str_brackets),
+                                tr(E_INVALID_ITEM_IN_STR_BRACKETS),
                                 if re_st().reg_magic == MAGIC_ALL {
                                     c"".as_ptr()
                                 } else {
@@ -1136,7 +1136,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             && (crate::memory::cstr_byte_at(re_st().regparse, 1)) <= 50
                         {
                             semsg!(
-                                tr(e_atom_engine_must_be_at_start_of_pattern),
+                                tr(E_ATOM_ENGINE_MUST_BE_AT_START_OF_PATTERN),
                                 crate::memory::cstr_char_at(re_st().regparse, 1),
                             );
                             return ptr::null_mut();
@@ -1148,7 +1148,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                     b'[' => {
                         if re_st().one_exactly {
                             semsg!(
-                                tr(e_invalid_item_in_str_brackets),
+                                tr(E_INVALID_ITEM_IN_STR_BRACKETS),
                                 if re_st().reg_magic == MAGIC_ALL {
                                     c"".as_ptr()
                                 } else {
@@ -1167,7 +1167,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             }
                             if c == NUL as c_int {
                                 semsg!(
-                                    tr(e_missing_sb),
+                                    tr(E_MISSING_SB),
                                     if re_st().reg_magic == MAGIC_ALL {
                                         c"".as_ptr()
                                     } else {
@@ -1196,7 +1196,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                         }
                         if ret.is_null() {
                             semsg!(
-                                tr(e_empty_sb),
+                                tr(E_EMPTY_SB),
                                 if re_st().reg_magic == MAGIC_ALL {
                                     c"".as_ptr()
                                 } else {
@@ -1304,7 +1304,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                             {
                                 if cur && n != 0 {
                                     semsg!(
-                                        tr(e_regexp_number_after_dot_pos_search_chr),
+                                        tr(E_REGEXP_NUMBER_AFTER_DOT_POS_SEARCH_CHR),
                                         no_Magic(c),
                                     );
                                     g_st().rc_did_emsg = true;
@@ -1418,13 +1418,13 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                                 endc = coll_get_char();
                             }
                             if startc > endc {
-                                emsg(tr(e_reverse_range));
+                                emsg(tr(E_REVERSE_RANGE));
                                 g_st().rc_did_emsg = true;
                                 return ptr::null_mut();
                             }
                             if utf_char2len(startc) > 1 || utf_char2len(endc) > 1 {
                                 if endc > startc + 256 {
-                                    emsg(tr(e_large_class));
+                                    emsg(tr(E_LARGE_CLASS));
                                     g_st().rc_did_emsg = true;
                                     return ptr::null_mut();
                                 }
@@ -1465,7 +1465,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                         } else if matches!(crate::memory::cstr_first_byte(re_st().regparse), b'd' | b'o' | b'x' | b'u' | b'U') {
                             startc = coll_get_char();
                             if startc == c_int::MAX {
-                                emsg(tr(e_unicode_val_too_large));
+                                emsg(tr(E_UNICODE_VAL_TOO_LARGE));
                                 g_st().rc_did_emsg = true;
                                 return ptr::null_mut();
                             }
@@ -1623,7 +1623,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                 regc(NUL as c_int);
                 re_st().prevchr_len = 1;
                 if crate::memory::cstr_first_byte(re_st().regparse) != b']' {
-                    emsg(tr(e_toomsbra));
+                    emsg(tr(E_TOOMSBRA));
                     g_st().rc_did_emsg = true;
                     return ptr::null_mut();
                 }
@@ -1632,7 +1632,7 @@ fn regatom(flagp: &mut c_int) -> *mut u8 {
                 return ret;
             } else if re_st().reg_strict != 0 {
                 semsg!(
-                    tr(e_missingbracket),
+                    tr(E_MISSINGBRACKET),
                     if re_st().reg_magic > MAGIC_OFF {
                         c"".as_ptr()
                     } else {
@@ -1737,7 +1737,7 @@ fn regpiece(flagp: &mut c_int) -> *mut u8 {
             }
             if lop == END {
                 semsg!(
-                    tr(e_invalid_character_after_str_at),
+                    tr(E_INVALID_CHARACTER_AFTER_STR_AT),
                     if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
@@ -1962,7 +1962,7 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
         }
 
         if re_st().bt_reg_parse_depth >= REG_MAX_PAREN_DEPTH {
-            emsg(tr(e_command_too_complex));
+            emsg(tr(E_COMMAND_TOO_COMPLEX));
             g_st().rc_did_emsg = true;
             return ptr::null_mut();
         }
@@ -2015,10 +2015,10 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
 
         if paren != REG_NOPAREN && getchr() != Magic(b')' as c_int) {
             if paren == REG_ZPAREN {
-                emsg(tr(e_unmatched_z));
+                emsg(tr(E_UNMATCHED_Z));
             } else if paren == REG_NPAREN {
                 semsg!(
-                    tr(e_unmatched_str_percent_open),
+                    tr(E_UNMATCHED_STR_PERCENT_OPEN),
                     if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
@@ -2027,7 +2027,7 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
                 );
             } else {
                 semsg!(
-                    tr(e_unmatched_str_open),
+                    tr(E_UNMATCHED_STR_OPEN),
                     if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
@@ -2041,7 +2041,7 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
         } else if paren == REG_NOPAREN && peekchr() != NUL as c_int {
             if re_st().curchr == Magic(b')' as c_int) {
                 semsg!(
-                    tr(e_unmatched_str_close),
+                    tr(E_UNMATCHED_STR_CLOSE),
                     if re_st().reg_magic == MAGIC_ALL {
                         c"".as_ptr()
                     } else {
@@ -2049,7 +2049,7 @@ fn reg(paren: c_int, flagp: &mut c_int) -> *mut u8 {
                     },
                 );
             } else {
-                emsg(tr(e_trailing));
+                emsg(tr(E_TRAILING));
             }
             g_st().rc_did_emsg = true;
             re_st().bt_reg_parse_depth -= 1;
@@ -2070,7 +2070,7 @@ pub(super) fn bt_regcomp(expr: *mut u8, re_flags: c_int) -> Option<BtRegprog> {
         let mut flags: c_int = 0;
 
         if expr.is_null() {
-            iemsg(tr(e_null));
+            iemsg(tr(E_NULL));
             g_st().rc_did_emsg = true;
             return None;
         }
@@ -2553,7 +2553,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> c_int {
                 }
             }
         } else {
-            iemsg(tr(e_re_corr));
+            iemsg(tr(E_RE_CORR));
         }
 
         re_st().rex.input = scan;
@@ -2569,7 +2569,7 @@ fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
     }
     unsafe {
         if i64::from(((re_st().regstack.len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
-            emsg(tr(e_pattern_uses_more_memory_than_maxmempattern));
+            emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
             return ptr::null_mut();
         }
         let old_len = re_st().regstack.len();
@@ -2721,7 +2721,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>,mut timed_out: Option<&mut c
                                 0
                             };
                             let fm =
-                                mark_get(&mut *re_st().rex.reg_buf, crate::globals::curwin_mut(), None, kMarkBufLocal, mark);
+                                mark_get(&mut *re_st().rex.reg_buf, crate::globals::curwin_mut(), None, K_MARK_BUF_LOCAL, mark);
                             if REG_MULTI() {
                                 re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                                 re_st().rex.input = re_st().rex.line.add(col);
@@ -3380,7 +3380,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>,mut timed_out: Option<&mut c
                             } {
                                 if i64::from(((re_st().regstack.len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
                                     emsg(
-                                        tr(e_pattern_uses_more_memory_than_maxmempattern),
+                                        tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN),
                                     );
                                     status = RA_FAIL;
                                 } else {
@@ -3416,7 +3416,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>,mut timed_out: Option<&mut c
                         }
                         BEHIND | NOBEHIND => {
                             if i64::from(((re_st().regstack.len() * 8) as c_uint) >> 10) >= opt_vars().p_mmp {
-                                emsg(tr(e_pattern_uses_more_memory_than_maxmempattern));
+                                emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
                                 status = RA_FAIL;
                             } else {
                                 re_st().regstack.resize(re_st().regstack.len() + size_of::<Regbehind>() / 8, 0);
@@ -3460,7 +3460,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>,mut timed_out: Option<&mut c
                             status = RA_MATCH;
                         }
                         _ => {
-                            iemsg(tr(e_re_corr));
+                            iemsg(tr(E_RE_CORR));
                             status = RA_FAIL;
                         }
                     }
@@ -3787,7 +3787,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>,mut timed_out: Option<&mut c
 
             if re_st().regstack.is_empty() || status == RA_FAIL {
                 if scan.is_null() {
-                    iemsg(tr(e_re_corr));
+                    iemsg(tr(E_RE_CORR));
                 }
                 return status == RA_MATCH;
             }
@@ -3891,7 +3891,7 @@ fn bt_regexec_both(
         };
 
         if prog.is_null() || line.is_null() {
-            iemsg(tr(e_null));
+            iemsg(tr(E_NULL));
             return finish_bt_regexec(retval, col);
         }
 

@@ -19,7 +19,7 @@ use crate::charset::{NL, NUL};
 use crate::cursor::Colnr;
 use crate::decoration::{
     DECOR_ID_INVALID, DecorInline, DecorVirtText, DecorVirtTextData, decor_find_virttext,
-    kHlModeUnknown, kVPosEndOfLine,
+    K_HL_MODE_UNKNOWN, K_VPOS_END_OF_LINE,
 };
 use crate::eval::vars::MAXCOL;
 use crate::eval::vars::get_globvar_dict;
@@ -28,14 +28,14 @@ use crate::globals::*;
 use crate::highlight::OptionalKeys;
 use crate::highlight_group::{syn_check_group, syn_get_final_id, syn_id2attr, syn_name2id};
 use crate::lua::converter::Boolean;
-use crate::lua::executor::{kRetObject, nlua_exec};
+use crate::lua::executor::{K_RET_OBJECT, nlua_exec};
 use crate::marktree::{DECOR_HIGHLIGHT_INLINE_INIT, DecorExt, DecorInlineData, MT_FLAG_DECOR_HL};
 use crate::memory::Arena;
 use crate::message::{emsg, msg, msg_end, msg_ext_no_fast};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::{
     OPT_GLOBAL, OPT_LOCAL, OptScope, OptTarget, find_option, get_option_info, get_option_value_for,
-    kOptInvalid, kOptScopeBuf, kOptScopeGlobal, kOptScopeWin, option_has_scope,
+    K_OPT_INVALID, K_OPT_SCOPE_BUF, K_OPT_SCOPE_GLOBAL, K_OPT_SCOPE_WIN, option_has_scope,
     set_option_value_for,
 };
 use crate::window::{win_setheight_win, win_setwidth_win};
@@ -112,7 +112,7 @@ pub fn nvim_execute_lua(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    nlua_exec(code, ptr::null(), args, kRetObject, Some(arena), err)
+    nlua_exec(code, ptr::null(), args, K_RET_OBJECT, Some(arena), err)
 }
 
 /// Gets the buffer number
@@ -320,11 +320,11 @@ pub fn nvim_buf_set_virtual_text(
         let vt = crate::decoration::decor_put_vt(
             DecorVirtText {
                 flags: 0,
-                hl_mode: kHlModeUnknown,
+                hl_mode: K_HL_MODE_UNKNOWN,
                 priority: 0,
                 width,
                 col: 0,
-                pos: kVPosEndOfLine,
+                pos: K_VPOS_END_OF_LINE,
                 data: DecorVirtTextData::VirtText(virt_text),
                 next: None,
             },
@@ -806,7 +806,7 @@ pub fn nvim_set_option(
     set_option_to(
             channel_id,
             OptTarget::Global,
-            kOptScopeGlobal,
+            K_OPT_SCOPE_GLOBAL,
             name,
             value,
             err,
@@ -824,7 +824,7 @@ pub fn nvim_set_option(
 //   FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
 pub fn nvim_get_option(name: NvimString, err: &mut Error) -> Object {
-    get_option_from(OptTarget::Global, kOptScopeGlobal, name, err)
+    get_option_from(OptTarget::Global, K_OPT_SCOPE_GLOBAL, name, err)
 }
 
 /// Gets a buffer option value
@@ -847,7 +847,7 @@ pub fn nvim_buf_get_option(
         if buf.is_null() {
             return OBJECT_NIL;
         }
-        get_option_from(OptTarget::Buf(buf), kOptScopeBuf, name, err)
+        get_option_from(OptTarget::Buf(buf), K_OPT_SCOPE_BUF, name, err)
 }
 
 /// Sets a buffer option value. Passing `nil` as value deletes the option (only
@@ -877,7 +877,7 @@ pub fn nvim_buf_set_option(
         set_option_to(
             channel_id,
             OptTarget::Buf(buf),
-            kOptScopeBuf,
+            K_OPT_SCOPE_BUF,
             name,
             value,
             err,
@@ -905,7 +905,7 @@ pub fn nvim_win_get_option(
         if win.is_null() {
             return OBJECT_NIL;
         }
-        get_option_from(OptTarget::Win(win), kOptScopeWin, name, err)
+        get_option_from(OptTarget::Win(win), K_OPT_SCOPE_WIN, name, err)
     }
 }
 
@@ -937,7 +937,7 @@ pub fn nvim_win_set_option(
         set_option_to(
             channel_id,
             OptTarget::Win(win),
-            kOptScopeWin,
+            K_OPT_SCOPE_WIN,
             name,
             value,
             err,
@@ -957,7 +957,7 @@ fn get_option_from(
         }
 
         let opt_idx = find_option(name.data);
-        if opt_idx == kOptInvalid {
+        if opt_idx == K_OPT_INVALID {
             api_err_invalid(err, c"option name", name.data, 0, true);
             return OBJECT_NIL;
         }
@@ -969,7 +969,7 @@ fn get_option_from(
 
         let value = get_option_value_for(
             opt_idx,
-            if scope == kOptScopeGlobal {
+            if scope == K_OPT_SCOPE_GLOBAL {
                 OPT_GLOBAL
             } else {
                 OPT_LOCAL
@@ -999,7 +999,7 @@ fn set_option_to(
         }
 
         let opt_idx = find_option(name.data);
-        if opt_idx == kOptInvalid {
+        if opt_idx == K_OPT_INVALID {
             api_err_invalid(err, c"option name", name.data, 0, true);
             return;
         }
@@ -1021,9 +1021,9 @@ fn set_option_to(
             return;
         }
 
-        let opt_flags = if scope == kOptScopeWin && !option_has_scope(opt_idx, kOptScopeGlobal) {
+        let opt_flags = if scope == K_OPT_SCOPE_WIN && !option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL) {
             0
-        } else if scope == kOptScopeGlobal {
+        } else if scope == K_OPT_SCOPE_GLOBAL {
             OPT_GLOBAL
         } else {
             OPT_LOCAL
@@ -1263,7 +1263,7 @@ pub fn nvim_notify(
             static_cstr_as_string(c"return vim.notify(...)"),
             ptr::null(),
             args,
-            kRetObject,
+            K_RET_OBJECT,
             Some(arena),
             err,
         )

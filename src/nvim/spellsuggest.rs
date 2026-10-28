@@ -49,7 +49,7 @@ use std::ffi::{CString, c_char, c_int, c_uint};
 use std::ptr;
 pub type Idx = c_int;
 pub type Salfirst = c_int;
-use crate::digraph::{kBoolVarFalse, kBoolVarTrue};
+use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 use crate::drawline::{HLF_COUNT, SMT_ALL};
 use crate::ex_getln::Hlf;
 use crate::globals::IOSIZE;
@@ -88,7 +88,7 @@ const SCORE_BIG: c_int = SCORE_INS * 3;
 const SCORE_MAXMAX: c_int = 999999;
 const SCORE_LIMITMAX: c_int = 350;
 const SCORE_EDIT_MIN: c_int = SCORE_SIMILAR;
-const DiffNone: u8 = 0;
+const DIFF_NONE: u8 = 0;
 const DIFF_YES: u8 = 1;
 const DIFF_INSERT: u8 = 2;
 const TSF_PREFIXOK: u8 = 1;
@@ -100,7 +100,7 @@ const PFD_NOTSPECIAL: u8 = 0xfd;
 const SPS_BEST: c_int = 1;
 const SPS_FAST: c_int = 2;
 const SPS_DOUBLE: c_int = 4;
-const kOptBoFlagSpell: c_uint = 0x20000;
+const K_OPT_BO_FLAG_SPELL: c_uint = 0x20000;
 pub struct Fromto {
     pub ft_from: std::ffi::CString,
     pub ft_to: std::ffi::CString,
@@ -648,9 +648,9 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
                     &mut *d,
                     c"salscore",
                     if stp.st_salscore {
-                        kBoolVarTrue
+                        K_BOOL_VAR_TRUE_CONST
                     } else {
-                        kBoolVarFalse
+                        K_BOOL_VAR_FALSE_CONST
                     },
                 );
             }
@@ -706,12 +706,12 @@ pub fn spell_suggest(count: c_int) {
         'skip: {
             let w_s = curwin_mut().w_s_ptr();
             if crate::memory::cstr_is_empty((*w_s).b_p_spl) {
-                emsg(gettext(e_no_spell));
+                emsg(gettext(E_NO_SPELL));
                 break 'skip;
             }
             if g_st().Visual.active {
                 if curwin_mut().w_cursor.lnum != g_st().Visual.start.lnum {
-                    vim_beep(kOptBoFlagSpell);
+                    vim_beep(K_OPT_BO_FLAG_SPELL);
                     break 'skip;
                 }
                 badlen = curwin_mut().w_cursor.col - g_st().Visual.start.col;
@@ -1025,7 +1025,7 @@ fn spell_suggest_file(su: &mut Suginfo, fname: impl crate::strings::IntoCCharPtr
         let mut cword: [c_char; MAXWLEN] = [0; MAXWLEN];
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
-            semsg!(gettext(e_notopen), fname);
+            semsg!(gettext(E_NOTOPEN), fname);
             return;
         }
         while !vim_fgets((&raw mut line).cast(), (MAXWLEN * 2) as c_int, fd) && !g_st().got_int {
@@ -1752,7 +1752,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                             let newscore = if c
                                 == crate::memory::cstr_byte_at(fword, stack[udepth].ts_fidx as usize) as c_int
                                 || (stack[udepth].ts_tcharlen > 0
-                                    && stack[udepth].ts_isdiff != DiffNone)
+                                    && stack[udepth].ts_isdiff != DIFF_NONE)
                             {
                                 0
                             } else {
@@ -1783,7 +1783,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword: *mut c_char, soundfold
                                     stack[udepth].ts_tcharlen = utf_byte2len(c) as u8;
                                     stack[udepth].ts_fcharstart = stack[udepth].ts_fidx - 1;
                                     stack[udepth].ts_isdiff =
-                                        if newscore != 0 { DIFF_YES } else { DiffNone };
+                                        if newscore != 0 { DIFF_YES } else { DIFF_NONE };
                                 } else if stack[udepth].ts_isdiff == DIFF_INSERT
                                     && stack[udepth].ts_fidx > 0
                                 {

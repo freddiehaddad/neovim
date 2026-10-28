@@ -256,15 +256,15 @@ const EXP_SYNC: c_int = 3;
 const EXP_CLUSTER: c_int = 4;
 
 const SYNTAX_FNAME: *const c_char = c"$VIMRUNTIME/syntax/%s.vim".as_ptr();
-const e_illegal_arg: *const c_char = c"E390: Illegal argument: %s".as_ptr();
-const e_contains_argument_not_accepted_here: *const c_char =
+const E_ILLEGAL_ARG: *const c_char = c"E390: Illegal argument: %s".as_ptr();
+const E_CONTAINS_ARGUMENT_NOT_ACCEPTED_HERE: *const c_char =
     c"E395: Contains argument not accepted here".as_ptr();
-const e_invalid_cchar_value: *const c_char = c"E844: Invalid cchar value".as_ptr();
-const e_trailing_char_after_rsb_str_str: *const c_char =
+const E_INVALID_CCHAR_VALUE: *const c_char = c"E844: Invalid cchar value".as_ptr();
+const E_TRAILING_CHAR_AFTER_RSB_STR_STR: *const c_char =
     c"E890: Trailing char after ']': %s]%s".as_ptr();
-const msg_no_items: *const c_char = c"No Syntax items defined for this buffer".as_ptr();
+const MSG_NO_ITEMS: *const c_char = c"No Syntax items defined for this buffer".as_ptr();
 
-const spo_name_tab: [*const c_char; SPO_COUNT] = [
+const SPO_NAME_TAB: [*const c_char; SPO_COUNT] = [
     c"ms=".as_ptr(),
     c"me=".as_ptr(),
     c"hs=".as_ptr(),
@@ -2781,7 +2781,7 @@ fn syn_cmd_conceal(eap: &mut Exarg, _syncing: c_int) {
         } else if crate::memory::cstr_prefix_bytes(arg, 3).eq_ignore_ascii_case(b"off") && next.offset_from(arg) == 3 {
             (*win_s(curwin_mut())).b_syn_conceal = 0;
         } else {
-            semsg!(gettext(e_illegal_arg), arg);
+            semsg!(gettext(E_ILLEGAL_ARG), arg);
         }
     }
 }
@@ -2806,7 +2806,7 @@ fn syn_cmd_case(eap: &mut Exarg, _syncing: c_int) {
         } else if crate::memory::cstr_prefix_bytes(arg, 6).eq_ignore_ascii_case(b"ignore") && next.offset_from(arg) == 6 {
             (*win_s(curwin_mut())).b_syn_ic = 1;
         } else {
-            semsg!(gettext(e_illegal_arg), arg);
+            semsg!(gettext(E_ILLEGAL_ARG), arg);
         }
     }
 }
@@ -2838,13 +2838,13 @@ fn syn_cmd_foldlevel(eap: &mut Exarg, _syncing: c_int) {
         } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(b"minimum") && arg_end.offset_from(arg) == 7 {
             (*win_s(curwin_mut())).b_syn_foldlevel = SYNFLD_MINIMUM;
         } else {
-            semsg!(gettext(e_illegal_arg), arg);
+            semsg!(gettext(E_ILLEGAL_ARG), arg);
             return;
         }
 
         arg = skipwhite(arg_end);
         if !crate::memory::cstr_is_empty(arg) {
-            semsg!(gettext(e_illegal_arg), arg);
+            semsg!(gettext(E_ILLEGAL_ARG), arg);
         }
     }
 }
@@ -2874,7 +2874,7 @@ fn syn_cmd_spell(eap: &mut Exarg, _syncing: c_int) {
         } else if crate::memory::cstr_prefix_bytes(arg, 7).eq_ignore_ascii_case(b"default") && next.offset_from(arg) == 7 {
             (*win_s(curwin_mut())).b_syn_spell = SYNSPL_DEFAULT;
         } else {
-            semsg!(gettext(e_illegal_arg), arg);
+            semsg!(gettext(E_ILLEGAL_ARG), arg);
             return;
         }
 
@@ -2903,7 +2903,7 @@ fn syn_cmd_iskeyword(eap: &mut Exarg, _syncing: c_int) {
             (*win_s(curwin_mut())).b_syn_isk = None;
         } else {
             if !check_isopt(arg) {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 return;
             }
             let isk = crate::memory::cstr_to_cstring(arg);
@@ -3035,7 +3035,7 @@ fn syn_cmd_clear(eap: &mut Exarg, syncing: c_int) {
                 } else {
                     let id = syn_name2id_len(arg, arg_end.offset_from(arg) as usize);
                     if id == 0 {
-                        semsg!(gettext(e_nogroup), arg);
+                        semsg!(gettext(E_NOGROUP), arg);
                         break;
                     }
                     syn_clear_one(id, syncing != 0);
@@ -3117,7 +3117,7 @@ fn syn_cmd_list(eap: &mut Exarg, syncing: c_int) {
 
         msg_ext_set_kind(c"list_cmd");
         if !syntax_present(curwin_mut()) {
-            msg(gettext(msg_no_items), 0);
+            msg(gettext(MSG_NO_ITEMS), 0);
             return;
         }
 
@@ -3181,7 +3181,7 @@ fn syn_cmd_list(eap: &mut Exarg, syncing: c_int) {
                 } else {
                     let id = syn_name2id_len(arg, arg_end.offset_from(arg) as usize);
                     if id == 0 {
-                        semsg!(gettext(e_nogroup), arg);
+                        semsg!(gettext(E_NOGROUP), arg);
                     } else {
                         syn_list_one(id, false, true);
                     }
@@ -3454,7 +3454,7 @@ fn put_pattern(s: &std::ffi::CStr, c: c_int, spp: &Synpat, hl_id: c_int) {
         msg_putchar(SEPCHARS[i] as c_int);
 
         let mut first = true;
-        for (j, &spo_name) in spo_name_tab.iter().enumerate().take(SPO_COUNT) {
+        for (j, &spo_name) in SPO_NAME_TAB.iter().enumerate().take(SPO_COUNT) {
             let mask: i16 = 1 << j;
             if (spp.sp_off_flags & (mask + (mask << SPO_COUNT))) == 0 {
                 continue;
@@ -3727,7 +3727,7 @@ fn get_syn_options(
             let (_, argtype, flags) = FLAGTAB[fidx as usize];
             if argtype == 1 {
                 if !opt.has_cont_list {
-                    emsg(gettext(e_contains_argument_not_accepted_here));
+                    emsg(gettext(E_CONTAINS_ARGUMENT_NOT_ACCEPTED_HERE));
                     return ptr::null_mut();
                 }
                 if !get_id_list(&raw mut arg, 8, &mut opt.cont_list, skip != 0) {
@@ -3745,7 +3745,7 @@ fn get_syn_options(
                 *conceal_char = utf_ptr2char(arg.add(6));
                 arg = arg.offset((utfc_ptr2len(arg.add(6)) - 1) as isize);
                 if !vim_isprintc(*conceal_char) {
-                    emsg(gettext(e_invalid_cchar_value));
+                    emsg(gettext(E_INVALID_CCHAR_VALUE));
                     return ptr::null_mut();
                 }
                 arg = skipwhite(arg.add(7));
@@ -3875,7 +3875,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: c_int) {
             source_runtime(eap.arg, DIP_ALL)
         };
         if !res {
-            semsg!(gettext(e_notopen), eap.arg);
+            semsg!(gettext(E_NOTOPEN), eap.arg);
         }
         (*win_s(curwin_mut())).b_syn_topgrp = prev_toplvl_grp;
         syn_st().current_syn_inc_tag = prev_syn_inc_tag;
@@ -3969,7 +3969,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: c_int) {
                             if crate::memory::cstr_byte_at(p, 1) == b']' {
                                 if crate::memory::cstr_byte_at(p, 2) != 0 {
                                     semsg!(
-                                        gettext(e_trailing_char_after_rsb_str_str),
+                                        gettext(E_TRAILING_CHAR_AFTER_RSB_STR_STR),
                                         kw,
                                         p.add(2)
                                     );
@@ -3992,7 +3992,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: c_int) {
         if !rest.is_null() {
             eap.nextcmd = check_nextcmd(rest);
         } else {
-            semsg!(gettext(e_invarg2), arg);
+            semsg!(gettext(E_INVARG2), arg);
         }
 
         redraw_curbuf_later(UPD_SOME_VALID);
@@ -4076,7 +4076,7 @@ fn syn_cmd_match(eap: &mut Exarg, syncing: c_int) {
         }
 
         if rest.is_null() {
-            semsg!(gettext(e_invarg2), arg);
+            semsg!(gettext(E_INVARG2), arg);
         }
     }
 }
@@ -4263,7 +4263,7 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: c_int) {
                     arg,
                 );
             } else if illegal || rest.is_null() {
-                semsg!(gettext(e_invarg2), arg);
+                semsg!(gettext(E_INVARG2), arg);
             }
         }
     }
@@ -4434,7 +4434,7 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: c_int) {
                     eap.skip != 0,
                 )
                 {
-                    semsg!(gettext(e_invarg2), rest);
+                    semsg!(gettext(E_INVARG2), rest);
                     break;
                 }
                 if scl_id >= 0 {
@@ -4454,7 +4454,7 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: c_int) {
             emsg(gettext(c"E400: No cluster specified"));
         }
         if rest.is_null() || ends_excmd(crate::memory::cstr_first_char(rest)) == 0 {
-            semsg!(gettext(e_invarg2), arg);
+            semsg!(gettext(E_INVARG2), arg);
         }
     }
 }
@@ -4478,7 +4478,7 @@ fn get_syn_pattern(arg: *mut c_char, ci: &mut Synpat) -> *mut c_char {
         let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
 
         let cpo_save = opt_vars().p_cpo;
-        opt_vars().p_cpo = empty_string_option.as_ptr().cast();
+        opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
         ci.sp_prog = crate::regexp::vim_regcomp_box(pat_cstr.as_ptr(), RE_MAGIC);
         opt_vars().p_cpo = cpo_save;
         ci.sp_pattern = Some(pat_cstr);
@@ -4493,7 +4493,7 @@ fn get_syn_pattern(arg: *mut c_char, ci: &mut Synpat) -> *mut c_char {
         loop {
             let mut idx: isize = SPO_COUNT as isize - 1;
             while idx >= 0 {
-                if crate::memory::cstr_prefix_bytes(end, 3) == crate::memory::cstr_prefix_bytes(spo_name_tab[idx as usize], 3) {
+                if crate::memory::cstr_prefix_bytes(end, 3) == crate::memory::cstr_prefix_bytes(SPO_NAME_TAB[idx as usize], 3) {
                     break;
                 }
                 idx -= 1;
@@ -4642,7 +4642,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: c_int) {
                     (*win_s(curwin_mut())).b_syn_linecont_ic = (*win_s(curwin_mut())).b_syn_ic;
 
                     let cpo_save = opt_vars().p_cpo;
-                    opt_vars().p_cpo = empty_string_option.as_ptr().cast();
+                    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
                     (*win_s(curwin_mut())).b_syn_linecont_prog =
                         crate::regexp::vim_regcomp_box(pat_cstr.as_ptr(), RE_MAGIC);
                     opt_vars().p_cpo = cpo_save;
@@ -5376,7 +5376,7 @@ pub fn ex_syntime(eap: &mut Exarg) {
         } else if crate::memory::cstr_as_bytes(eap.arg) == b"report" {
             syntime_report();
         } else {
-            semsg!(gettext(e_invarg2), eap.arg);
+            semsg!(gettext(E_INVARG2), eap.arg);
         }
     }
 }
@@ -5391,7 +5391,7 @@ fn syn_clear_time(st: &mut SynTime) {
 fn syntime_clear() {
     unsafe {
         if !syntax_present(curwin_mut()) {
-            msg(gettext(msg_no_items), 0);
+            msg(gettext(MSG_NO_ITEMS), 0);
             return;
         }
         for pat in &mut (*win_s(curwin_mut())).b_syn_patterns {
@@ -5417,7 +5417,7 @@ fn syn_compare_syntime(s1: &TimeEntry, s2: &TimeEntry) -> std::cmp::Ordering {
 fn syntime_report() {
     unsafe {
         if !syntax_present(curwin_mut()) {
-            msg(gettext(msg_no_items), 0);
+            msg(gettext(MSG_NO_ITEMS), 0);
             return;
         }
 

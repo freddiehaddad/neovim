@@ -3,7 +3,7 @@
 use crate::api::private::validate::NvimString;
 use crate::charset::{NUL, backslash_halve, backslash_halve_save, rem_backslash, skipwhite};
 use crate::cmdexpand::{WILD_ADD_SLASH, WILD_ICASE, globpath};
-use crate::diff::kShellOptSilent;
+use crate::diff::K_SHELL_OPT_SILENT;
 use crate::eval::eval_to_string;
 use crate::ex_docmd::eval_vars;
 use crate::fileio::{file_pat_to_reg_pat, match_file_list};
@@ -41,7 +41,7 @@ pub fn remove_duplicate_strings(fnames: &mut Vec<std::ffi::CString>) {
     sort_strings(fnames);
         let mut i = fnames.len() - 1;
         while i > 0 {
-            if path_equal(fnames[i - 1].as_ptr(), fnames[i].as_ptr(), kPathCmpLiteral) {
+            if path_equal(fnames[i - 1].as_ptr(), fnames[i].as_ptr(), K_PATH_CMP_LITERAL) {
                 fnames.remove(i);
             }
             i -= 1;
@@ -129,9 +129,9 @@ pub const EW_NOTENV: c_int = 0x10000;
 pub const EW_CDPATH: c_int = 0x20000;
 pub const EW_NOBREAK: c_int = 0x40000;
 
-pub const kPathCmpLiteral: PathCmpFlags = 1 << 0;
-pub const kPathCmpExpand: PathCmpFlags = 1 << 1;
-pub const kPathCmpFull: PathCmpFlags = 1 << 2;
+pub const K_PATH_CMP_LITERAL: PathCmpFlags = 1 << 0;
+pub const K_PATH_CMP_EXPAND: PathCmpFlags = 1 << 1;
+pub const K_PATH_CMP_FULL: PathCmpFlags = 1 << 2;
 
 struct PathModuleState {
     SCANDIR_COUNT: c_int,
@@ -214,16 +214,16 @@ pub fn path_equal<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCha
             device_id: 0,
         };
 
-        debug_assert!((flags & kPathCmpLiteral) == 0 || flags == kPathCmpLiteral);
+        debug_assert!((flags & K_PATH_CMP_LITERAL) == 0 || flags == K_PATH_CMP_LITERAL);
 
-        if flags == kPathCmpLiteral {
+        if flags == K_PATH_CMP_LITERAL {
             let is_url = path_with_url(s1) != 0 || path_with_url(s2) != 0;
             return (!is_url
                 || crate::memory::cstr_len(s1) == crate::memory::cstr_len(s2))
                 && path_cmp(opt_vars().p_fic != 0, s1, s2, MAXPATHL) == 0;
         }
 
-        if (flags & kPathCmpExpand) != 0 {
+        if (flags & K_PATH_CMP_EXPAND) != 0 {
             expand_env_esc(
                 s1,
                 expanded_s1.as_mut_ptr(),
@@ -241,7 +241,7 @@ pub fn path_equal<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCha
         if id_ok1 && id_ok2 && os_fileid_equal(&file_id1, &file_id2) {
             return true;
         }
-        if !id_ok1 && !id_ok2 && (flags & kPathCmpFull) != 0 {
+        if !id_ok1 && !id_ok2 && (flags & K_PATH_CMP_FULL) != 0 {
             vim_FullName(expanded_s1.as_ptr(), full1.as_mut_ptr(), MAXPATHL, false);
             vim_FullName(s2, full2.as_mut_ptr(), MAXPATHL, false);
             return path_cmp(opt_vars().p_fic != 0, full1.as_ptr(), full2.as_ptr(), MAXPATHL) == 0;
@@ -873,7 +873,7 @@ fn is_unique(maybe_unique: impl crate::strings::IntoCCharPtr, gap: &[std::ffi::C
                 continue;
             }
             let rival = other.add(other_path_len - candidate_len);
-            if path_equal(maybe_unique, rival, kPathCmpLiteral)
+            if path_equal(maybe_unique, rival, K_PATH_CMP_LITERAL)
                 && (rival == other || vim_ispathsep(*rival.sub(1) as c_int))
             {
                 return false;
@@ -1446,7 +1446,7 @@ fn expand_backtick(
                 cmd_ptr,
                 ptr::null_mut(),
                 if (flags & EW_SILENT) != 0 {
-                    kShellOptSilent
+                    K_SHELL_OPT_SILENT
                 } else {
                     0
                 },
@@ -2626,23 +2626,23 @@ mod tests {
             let f2_c = CString::new(f2_rel.clone()).unwrap();
             let f1_abs_c = CString::new(format!("{abs_dir}/f1.o")).unwrap();
 
-            assert!(path_equal(f1_c.as_ptr(), f1_c.as_ptr(), kPathCmpExpand));
-            assert!(path_equal(f1_c.as_ptr(), f1_abs_c.as_ptr(), kPathCmpExpand));
-            assert!(!path_equal(f1_c.as_ptr(), f2_c.as_ptr(), kPathCmpExpand));
+            assert!(path_equal(f1_c.as_ptr(), f1_c.as_ptr(), K_PATH_CMP_EXPAND));
+            assert!(path_equal(f1_c.as_ptr(), f1_abs_c.as_ptr(), K_PATH_CMP_EXPAND));
+            assert!(!path_equal(f1_c.as_ptr(), f2_c.as_ptr(), K_PATH_CMP_EXPAND));
             assert!(!path_equal(
                 f1_c.as_ptr(),
                 c"nonexistent_ut_file.txt",
-                kPathCmpExpand
+                K_PATH_CMP_EXPAND
             ));
             assert!(!path_equal(
                 c"nonexistent_ut_file.txt",
                 c"nonexistent_ut_file.txt",
-                kPathCmpExpand
+                K_PATH_CMP_EXPAND
             ));
             assert!(path_equal(
                 c"nonexistent_ut_file.txt",
                 c"nonexistent_ut_file.txt",
-                kPathCmpExpand | kPathCmpFull
+                K_PATH_CMP_EXPAND | K_PATH_CMP_FULL
             ));
 
             let saved_fic = opt_vars().p_fic;
@@ -2650,13 +2650,13 @@ mod tests {
             assert!(!path_equal(
                 c"Foo",
                 c"foo",
-                kPathCmpLiteral
+                K_PATH_CMP_LITERAL
             ));
             opt_vars().p_fic = 1;
             assert!(path_equal(
                 c"Foo",
                 c"foo",
-                kPathCmpLiteral
+                K_PATH_CMP_LITERAL
             ));
             opt_vars().p_fic = saved_fic;
 

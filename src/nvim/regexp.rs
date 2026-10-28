@@ -66,16 +66,16 @@ pub const REGSUB_COPY: c_int = 1;
 pub const REGSUB_MAGIC: c_int = 2;
 pub const REGSUB_BACKSLASH: c_int = 4;
 
-pub(super) const Ctrl_H: c_int = 0x08;
-pub(super) const Ctrl_V: c_int = 0x16;
+pub(super) const CTRL_H_CONST: c_int = 0x08;
+pub(super) const CTRL_V_CONST: c_int = 0x16;
 
 pub(super) const MAXCOL: Colnr = 0x7fffffff;
 pub(super) const NUMBUFLEN: usize = 65;
 pub(super) const MB_MAXBYTES: c_int = 30;
 pub(super) const MAX_MCO: usize = 6;
 pub(super) const GRAPHEME_STATE_INIT: GraphemeState = 0;
-pub(super) const kMarkBufLocal: c_int = 0;
-pub(super) const kCpoLiteral: c_int = b'l' as c_int;
+pub(super) const K_MARK_BUF_LOCAL: c_int = 0;
+pub(super) const K_CPO_LITERAL: c_int = b'l' as c_int;
 
 pub(super) const RGLF_LINE: RegGetlineFlags = 0x01;
 pub(super) const RGLF_LENGTH: RegGetlineFlags = 0x02;
@@ -146,50 +146,50 @@ pub(super) const REG_NPAREN: c_int = 3;
 pub(super) const REG_MAX_PAREN_DEPTH: c_int = 1000;
 pub(super) const MAX_REGSUB_NESTING: usize = 4;
 
-pub(super) const CLASS_not: c_int = 0x80;
-pub(super) const CLASS_af: c_int = 0x40;
+pub(super) const CLASS_NOT: c_int = 0x80;
+pub(super) const CLASS_AF_CONST: c_int = 0x40;
 pub(super) const CLASS_AF: c_int = 0x20;
-pub(super) const CLASS_az: c_int = 0x10;
+pub(super) const CLASS_AZ_CONST: c_int = 0x10;
 pub(super) const CLASS_AZ: c_int = 0x08;
-pub(super) const CLASS_o7: c_int = 0x04;
-pub(super) const CLASS_o9: c_int = 0x02;
-pub(super) const CLASS_underscore: c_int = 0x01;
+pub(super) const CLASS_O7: c_int = 0x04;
+pub(super) const CLASS_O9: c_int = 0x02;
+pub(super) const CLASS_UNDERSCORE: c_int = 0x01;
 
 pub(super) const REGEXP_INRANGE: &CStr = c"]^-n\\";
 pub(super) const REGEXP_ABBR: &CStr = c"nrtebdoxuU";
-pub(super) const classchars: &[u8; 28] = b".iIkKfFpPsSdDxXoOwWhHaAlLuU\0";
+pub(super) const CLASSCHARS: &[u8; 28] = b".iIkKfFpPsSdDxXoOwWhHaAlLuU\0";
 
-pub(super) const e_invalid_character_after_str_at: &CStr = c"E59: Invalid character after %s@";
-pub(super) const e_invalid_use_of_underscore: &CStr = c"E63: Invalid use of \\_";
-pub(super) const e_pattern_uses_more_memory_than_maxmempattern: &CStr =
+pub(super) const E_INVALID_CHARACTER_AFTER_STR_AT: &CStr = c"E59: Invalid character after %s@";
+pub(super) const E_INVALID_USE_OF_UNDERSCORE: &CStr = c"E63: Invalid use of \\_";
+pub(super) const E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN: &CStr =
     c"E363: Pattern uses more memory than 'maxmempattern'";
-pub(super) const e_invalid_item_in_str_brackets: &CStr = c"E369: Invalid item in %s%%[]";
-pub(super) const e_missing_delimiter_after_search_pattern_str: &CStr =
+pub(super) const E_INVALID_ITEM_IN_STR_BRACKETS: &CStr = c"E369: Invalid item in %s%%[]";
+pub(super) const E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR: &CStr =
     c"E654: Missing delimiter after search pattern: %s";
-pub(super) const e_missingbracket: &CStr = c"E769: Missing ] after %s[";
-pub(super) const e_reverse_range: &CStr = c"E944: Reverse range in character class";
-pub(super) const e_large_class: &CStr = c"E945: Range too large in character class";
-pub(super) const e_unmatched_z: &CStr = c"E52: Unmatched \\z(";
-pub(super) const e_unmatched_str_percent_open: &CStr = c"E53: Unmatched %s%%(";
-pub(super) const e_unmatched_str_open: &CStr = c"E54: Unmatched %s(";
-pub(super) const e_unmatched_str_close: &CStr = c"E55: Unmatched %s)";
-pub(super) const e_z_not_allowed: &CStr = c"E66: \\z( not allowed here";
-pub(super) const e_z1_not_allowed: &CStr = c"E67: \\z1 - \\z9 not allowed here";
-pub(super) const e_missing_sb: &CStr = c"E69: Missing ] after %s%%[";
-pub(super) const e_empty_sb: &CStr = c"E70: Empty %s%%[]";
-pub(super) const e_recursive: &CStr = c"E956: Cannot use pattern recursively";
-pub(super) const e_regexp_number_after_dot_pos_search_chr: &CStr =
+pub(super) const E_MISSINGBRACKET: &CStr = c"E769: Missing ] after %s[";
+pub(super) const E_REVERSE_RANGE: &CStr = c"E944: Reverse range in character class";
+pub(super) const E_LARGE_CLASS: &CStr = c"E945: Range too large in character class";
+pub(super) const E_UNMATCHED_Z: &CStr = c"E52: Unmatched \\z(";
+pub(super) const E_UNMATCHED_STR_PERCENT_OPEN: &CStr = c"E53: Unmatched %s%%(";
+pub(super) const E_UNMATCHED_STR_OPEN: &CStr = c"E54: Unmatched %s(";
+pub(super) const E_UNMATCHED_STR_CLOSE: &CStr = c"E55: Unmatched %s)";
+pub(super) const E_Z_NOT_ALLOWED: &CStr = c"E66: \\z( not allowed here";
+pub(super) const E_Z1_NOT_ALLOWED: &CStr = c"E67: \\z1 - \\z9 not allowed here";
+pub(super) const E_MISSING_SB: &CStr = c"E69: Missing ] after %s%%[";
+pub(super) const E_EMPTY_SB: &CStr = c"E70: Empty %s%%[]";
+pub(super) const E_RECURSIVE: &CStr = c"E956: Cannot use pattern recursively";
+pub(super) const E_REGEXP_NUMBER_AFTER_DOT_POS_SEARCH_CHR: &CStr =
     c"E1204: No Number allowed after .: '\\%%%c'";
-pub(super) const e_nfa_regexp_missing_value_in_chr: &CStr =
+pub(super) const E_NFA_REGEXP_MISSING_VALUE_IN_CHR: &CStr =
     c"E1273: (NFA regexp) missing value in '\\%%%c'";
-pub(super) const e_atom_engine_must_be_at_start_of_pattern: &CStr =
+pub(super) const E_ATOM_ENGINE_MUST_BE_AT_START_OF_PATTERN: &CStr =
     c"E1281: Atom '\\%%#=%c' must be at the start of the pattern";
-pub(super) const e_substitute_nesting_too_deep: &CStr = c"E1290: substitute nesting too deep";
-pub(super) const e_unicode_val_too_large: &CStr =
+pub(super) const E_SUBSTITUTE_NESTING_TOO_DEEP: &CStr = c"E1290: substitute nesting too deep";
+pub(super) const E_UNICODE_VAL_TOO_LARGE: &CStr =
     c"E1541: Value too large, max Unicode codepoint is U+10FFFF";
 
 #[rustfmt::skip]
-pub(super) static META_flags: [u8; 127] = [
+pub(super) static META_FLAGS: [u8; 127] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 //                 %  &     (  )  *  +        .
@@ -1589,7 +1589,7 @@ pub(super) fn get_coll_element(pp: *mut *mut c_char) -> c_int {
 }
 
 pub(super) fn get_cpo_flags() {
-    re_st().reg_cpo_lit = (!vim_strchr(opt_vars().p_cpo, kCpoLiteral).is_null()) as c_int;
+    re_st().reg_cpo_lit = (!vim_strchr(opt_vars().p_cpo, K_CPO_LITERAL).is_null()) as c_int;
 }
 
 /// Skip over a `[]` range.
@@ -1651,7 +1651,7 @@ pub fn skip_regexp_err(startp: *mut c_char, delim: c_int, magic: c_int) -> *mut 
         let p = skip_regexp(startp, delim, magic);
         if crate::memory::cstr_first_byte(p) as c_int != delim {
             semsg!(
-                tr(e_missing_delimiter_after_search_pattern_str),
+                tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR),
                 startp,
             );
             return ptr::null_mut();
@@ -1835,7 +1835,7 @@ pub(super) fn peekchr() -> c_int {
                 let c = crate::memory::cstr_byte_at(re_st().regparse, 1) as c_int;
                 if c == NUL as c_int {
                     re_st().curchr = b'\\' as c_int;
-                } else if c <= b'~' as c_int && META_flags[c as usize] != 0 {
+                } else if c <= b'~' as c_int && META_FLAGS[c as usize] != 0 {
                     re_st().curchr = -1;
                     re_st().prev_at_start = re_st().at_start;
                     re_st().at_start = 0;
@@ -2143,7 +2143,7 @@ pub(super) fn reg_match_visual() -> bool {
             {
                 return false;
             }
-        } else if mode == Ctrl_V {
+        } else if mode == CTRL_V_CONST {
             let mut start: Colnr = 0;
             let mut end: Colnr = 0;
             let mut start2: Colnr = 0;
@@ -2199,7 +2199,7 @@ pub(super) fn prog_magic_wrong() -> bool {
             return false;
         };
         if UCHARAT(bt_prog.program.as_ptr()) != REGMAGIC {
-            emsg(tr(e_re_corr));
+            emsg(tr(E_RE_CORR));
             return true;
         }
         false
@@ -2461,7 +2461,7 @@ pub fn regtilde(
                     && let Some(prev_sub) = prev_sub_ref
                 {
                     if tmpsublen > MAXCOL as usize {
-                        emsg(tr(e_resulting_text_too_long));
+                        emsg(tr(E_RESULTING_TEXT_TOO_LONG));
                         error = true;
                         break;
                     }
@@ -2620,14 +2620,14 @@ fn vim_regsub_both(
         let copy = (flags & REGSUB_COPY) != 0;
 
         if (source.is_null() && expr.is_none()) || dest.is_null() {
-            emsg(tr(e_null));
+            emsg(tr(E_NULL));
             return 0;
         }
         if prog_magic_wrong() {
             return 0;
         }
         if re_st().regsub_nesting == MAX_REGSUB_NESTING {
-            emsg(tr(e_substitute_nesting_too_deep));
+            emsg(tr(E_SUBSTITUTE_NESTING_TOO_DEEP));
             return 0;
         }
         let nested = re_st().regsub_nesting;
@@ -2837,7 +2837,7 @@ fn vim_regsub_both(
                                 src = src.add(1);
                             }
                             b'b' => {
-                                c = Ctrl_H;
+                                c = CTRL_H_CONST;
                                 src = src.add(1);
                             }
                             _ => {
@@ -2944,7 +2944,7 @@ fn vim_regsub_both(
                                 }
                             } else if crate::memory::cstr_is_empty(s) {
                                 if copy {
-                                    iemsg(tr(e_re_damg));
+                                    iemsg(tr(E_RE_DAMG));
                                 }
                                 return (dst.offset_from(dest) + 1) as c_int;
                             } else {
@@ -3187,7 +3187,7 @@ pub(super) fn get_char_class_bits(
         }
         let mut p = start;
         if *p == b'^' {
-            config |= CLASS_not;
+            config |= CLASS_NOT;
             p = p.add(1);
         }
 
@@ -3196,18 +3196,18 @@ pub(super) fn get_char_class_bits(
                 match *p {
                     b'0' => {
                         if *p.add(2) == b'9' {
-                            config |= CLASS_o9;
+                            config |= CLASS_O9;
                         } else if *p.add(2) == b'7' {
-                            config |= CLASS_o7;
+                            config |= CLASS_O7;
                         } else {
                             return -1;
                         }
                     }
                     b'a' => {
                         if *p.add(2) == b'z' {
-                            config |= CLASS_az;
+                            config |= CLASS_AZ_CONST;
                         } else if *p.add(2) == b'f' {
-                            config |= CLASS_af;
+                            config |= CLASS_AF_CONST;
                         } else {
                             return -1;
                         }
@@ -3228,7 +3228,7 @@ pub(super) fn get_char_class_bits(
                 *newl = true;
                 p = p.add(2);
             } else if *p == b'_' {
-                config |= CLASS_underscore;
+                config |= CLASS_UNDERSCORE;
                 p = p.add(1);
             } else if *p == b'\n' {
                 *newl = true;
@@ -3241,7 +3241,7 @@ pub(super) fn get_char_class_bits(
         if p != end {
             return -1;
         }
-        if (config & (CLASS_az | CLASS_AZ)) != 0 {
+        if (config & (CLASS_AZ_CONST | CLASS_AZ)) != 0 {
             return -1;
         }
         config
@@ -3456,7 +3456,7 @@ fn vim_regexec_string(
         let rex_in_use_save = re_st().rex_in_use;
 
         if (*rmp.regprog).re_in_use {
-            emsg(tr(e_recursive));
+            emsg(tr(E_RECURSIVE));
             return false;
         }
         (*rmp.regprog).re_in_use = true;
@@ -3546,7 +3546,7 @@ pub fn vim_regexec_multi(
         let rex_in_use_save = re_st().rex_in_use;
 
         if (*rmp.regprog).re_in_use {
-            emsg(tr(e_recursive));
+            emsg(tr(E_RECURSIVE));
             return 0;
         }
         (*rmp.regprog).re_in_use = true;
@@ -3636,14 +3636,14 @@ mod tests {
             let digits = b"0-9]";
             assert_eq!(
                 get_char_class_bits(digits.as_ptr(), digits.as_ptr().add(3), &mut newl),
-                CLASS_o9
+                CLASS_O9
             );
             assert!(!newl);
 
             let hex_nl = b"^0-9a-fA-F\\n]";
             assert_eq!(
                 get_char_class_bits(hex_nl.as_ptr(), hex_nl.as_ptr().add(12), &mut newl),
-                CLASS_not | CLASS_o9 | CLASS_af | CLASS_AF
+                CLASS_NOT | CLASS_O9 | CLASS_AF_CONST | CLASS_AF
             );
             assert!(newl);
         }

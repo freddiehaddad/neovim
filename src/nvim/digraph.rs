@@ -33,7 +33,7 @@ use crate::autocmd::HLF_8;
 use crate::buffer::KEYMAP_INIT;
 use crate::change::MB_MAXCHAR;
 use crate::cmdexpand::LineGetter;
-use crate::regexp::{Ctrl_H, NUMBUFLEN};
+use crate::regexp::{CTRL_H_CONST, NUMBUFLEN};
 use crate::state::MODE_LANGMAP;
 
 #[repr(C)]
@@ -51,8 +51,8 @@ pub struct Kmap {
 
 pub(crate) const HLF_CM: c_int = 11;
 
-pub(crate) const kBoolVarFalse: c_int = 0;
-pub(crate) const kBoolVarTrue: c_int = 1;
+pub(crate) const K_BOOL_VAR_FALSE_CONST: c_int = 0;
+pub(crate) const K_BOOL_VAR_TRUE_CONST: c_int = 1;
 
 const KEYMAP_LOADED: i16 = 2;
 
@@ -1621,7 +1621,7 @@ pub fn do_digraph(mut c: c_int) -> c_int {
             }
             digr_st().BACKSPACED = -1;
 
-            if (c == K_BS || c == Ctrl_H) && digr_st().LASTCHAR >= 0 {
+            if (c == K_BS || c == CTRL_H_CONST) && digr_st().LASTCHAR >= 0 {
                 digr_st().BACKSPACED = digr_st().LASTCHAR;
             }
         }
@@ -1772,7 +1772,7 @@ pub fn putdigraph(mut str: *mut c_char) {
             str = skipwhite(str);
 
             if !ascii_isdigit(crate::memory::cstr_first_char(str)) {
-                emsg(gettext(e_number_exp));
+                emsg(gettext(E_NUMBER_EXP));
                 return;
             }
             let n = getdigits_int(&raw mut str, true, 0);
@@ -2043,13 +2043,13 @@ pub fn f_digraph_getlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 /// `digraph_set()` function (`f_digraph_set`).
 pub fn f_digraph_set(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarBool;
-    rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
+    rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_FALSE_CONST);
 
     if !digraph_set_common(&argvars[0], &argvars[1]) {
         return;
     }
 
-    rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
+    rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
 }
 
 /// `digraph_setlist()` function (`f_digraph_setlist`).
@@ -2057,7 +2057,7 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
     unsafe {
         rettv.v_type = VarType::VarBool;
-        rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarFalse);
+        rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_FALSE_CONST);
 
         if argvars[0].v_type != VarType::VarList {
             emsg(gettext(
@@ -2068,7 +2068,7 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
         let pl = argvars[0].vval.v_list();
         if pl.is_null() {
-            rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
+            rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
             return;
         }
 
@@ -2106,7 +2106,7 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
             };
         }
 
-        rettv.vval = crate::eval::typval::TypvalVval::Bool(kBoolVarTrue);
+        rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
     }
 }
 

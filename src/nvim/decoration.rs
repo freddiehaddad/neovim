@@ -12,7 +12,7 @@ use crate::change::{TAB, changed_lines_invalidate_buf};
 use crate::cursor::{Colnr, Lpos};
 use crate::decoration_provider::decor_providers_invoke_conceal_line;
 use crate::drawscreen::{conceal_cursor_line, redraw_buf_line_later, redraw_buf_range_later};
-use crate::extmark::{TriState, extmark_set, kFalse, kNone, kTrue};
+use crate::extmark::{TriState, extmark_set, K_FALSE, K_NONE, K_TRUE};
 use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;
 use crate::grid::{Schar, schar_from_char, schar_get, schar_get_first_codepoint, schar_high};
@@ -22,7 +22,7 @@ use crate::indent::tabstop_padding;
 use crate::marktree::{
     DECOR_HIGHLIGHT_INLINE_INIT, DecorHighlightInline, DecorInlineData,
     MT_FLAG_DECOR_CONCEAL_LINES, MT_FLAG_DECOR_EXT, MT_FLAG_DECOR_HL, MT_FLAG_DECOR_SIGNTEXT,
-    MTKey, MTPair, MarkTreeIter, kMTMetaConcealLines, kMTMetaCount, kMTMetaLines, kMTMetaSignText,
+    MTKey, MTPair, MarkTreeIter, K_MTMETA_CONCEAL_LINES, K_MTMETA_COUNT, K_MTMETA_LINES, K_MTMETA_SIGN_TEXT,
     marktree_get_altpos, marktree_itr_current, marktree_itr_get, marktree_itr_get_filter,
     marktree_itr_get_overlap, marktree_itr_next, marktree_itr_next_filter,
     marktree_itr_step_out_filter, marktree_itr_step_overlap, mt_decor, mt_decor_any, mt_decor_sign,
@@ -47,35 +47,35 @@ pub type VirtTextPos = c_int;
 pub type VirtLineOverflow = c_int;
 
 pub(crate) const DECOR_ID_INVALID: u32 = u32::MAX;
-pub(crate) const kHlModeUnknown: u8 = 0;
-pub(crate) const kVPosEndOfLine: VirtTextPos = 0;
-pub(crate) const kVPosEndOfLineRightAlign: VirtTextPos = 1;
-pub(crate) const kVPosInline: VirtTextPos = 2;
-pub(crate) const kVPosOverlay: VirtTextPos = 3;
-pub(crate) const kVPosRightAlign: VirtTextPos = 4;
-pub(crate) const kVPosWinCol: VirtTextPos = 5;
+pub(crate) const K_HL_MODE_UNKNOWN: u8 = 0;
+pub(crate) const K_VPOS_END_OF_LINE: VirtTextPos = 0;
+pub(crate) const K_VPOS_END_OF_LINE_RIGHT_ALIGN: VirtTextPos = 1;
+pub(crate) const K_VPOS_INLINE: VirtTextPos = 2;
+pub(crate) const K_VPOS_OVERLAY: VirtTextPos = 3;
+pub(crate) const K_VPOS_RIGHT_ALIGN: VirtTextPos = 4;
+pub(crate) const K_VPOS_WIN_COL: VirtTextPos = 5;
 
-pub(crate) const kVLLeftcol: c_int = 1;
+pub(crate) const K_VLLEFTCOL: c_int = 1;
 
-pub(crate) const kVLOverflowTrunc: VirtLineOverflow = 0;
-pub(crate) const kVLOverflowScroll: VirtLineOverflow = 1;
-pub(crate) const kVLOverflowWrap: VirtLineOverflow = 2;
-pub(crate) const kVLOverflowAuto: VirtLineOverflow = 3;
+pub(crate) const K_VLOVERFLOW_TRUNC: VirtLineOverflow = 0;
+pub(crate) const K_VLOVERFLOW_SCROLL: VirtLineOverflow = 1;
+pub(crate) const K_VLOVERFLOW_WRAP: VirtLineOverflow = 2;
+pub(crate) const K_VLOVERFLOW_AUTO: VirtLineOverflow = 3;
 
-pub(crate) const kSHIsSign: u16 = 1;
-pub(crate) const kSHHlEol: u16 = 2;
-pub(crate) const kSHUIWatched: u16 = 4;
-pub(crate) const kSHUIWatchedOverlay: u16 = 8;
-pub(crate) const kSHSpellOn: u16 = 16;
-pub(crate) const kSHSpellOff: u16 = 32;
-pub(crate) const kSHConceal: u16 = 64;
-pub(crate) const kSHConcealLines: u16 = 128;
-pub(crate) const kSHConcealOff: u16 = 256;
+pub(crate) const K_SHIS_SIGN: u16 = 1;
+pub(crate) const K_SHHL_EOL: u16 = 2;
+pub(crate) const K_SHUIWATCHED: u16 = 4;
+pub(crate) const K_SHUIWATCHED_OVERLAY: u16 = 8;
+pub(crate) const K_SHSPELL_ON: u16 = 16;
+pub(crate) const K_SHSPELL_OFF: u16 = 32;
+pub(crate) const K_SHCONCEAL: u16 = 64;
+pub(crate) const K_SHCONCEAL_LINES: u16 = 128;
+pub(crate) const K_SHCONCEAL_OFF: u16 = 256;
 
-pub(crate) const kVTIsLines: u8 = 1;
-pub(crate) const kVTHide: u8 = 2;
-pub(crate) const kVTLinesAbove: u8 = 4;
-pub(crate) const kVTRepeatLinebreak: u8 = 8;
+pub(crate) const K_VTIS_LINES: u8 = 1;
+pub(crate) const K_VTHIDE: u8 = 2;
+pub(crate) const K_VTLINES_ABOVE: u8 = 4;
+pub(crate) const K_VTREPEAT_LINEBREAK: u8 = 8;
 
 #[repr(C)]
 #[derive(Clone)]
@@ -431,19 +431,19 @@ pub fn virt_text_iter_ptr(start: *mut DecorVirtText) -> VirtTextPtrIter {
 }
 
 use crate::extmark::{
-    kExtmarkHighlight, kExtmarkNone, kExtmarkSign, kExtmarkVirtLines, kExtmarkVirtText,
+    K_EXTMARK_HIGHLIGHT, K_EXTMARK_NONE, K_EXTMARK_SIGN, K_EXTMARK_VIRT_LINES, K_EXTMARK_VIRT_TEXT,
 };
 
 pub(crate) const SIGN_WIDTH: usize = 2;
 const SIGN_SHOW_MAX: c_int = 9;
 pub(crate) const SCL_NUM: c_int = -2;
 
-pub(crate) const kMTFilterSelect: u32 = u32::MAX;
+pub(crate) const K_MTFILTER_SELECT: u32 = u32::MAX;
 
-static CONCEAL_FILTER: [u32; kMTMetaCount] = [0, 0, 0, 0, kMTFilterSelect];
-static SIGN_FILTER: [u32; kMTMetaCount] = [0, 0, kMTFilterSelect, kMTFilterSelect, 0];
-static SIGNTEXT_FILTER: [u32; kMTMetaCount] = [0, 0, 0, kMTFilterSelect, 0];
-static LINES_FILTER: [u32; kMTMetaCount] = [0, kMTFilterSelect, 0, 0, 0];
+static CONCEAL_FILTER: [u32; K_MTMETA_COUNT] = [0, 0, 0, 0, K_MTFILTER_SELECT];
+static SIGN_FILTER: [u32; K_MTMETA_COUNT] = [0, 0, K_MTFILTER_SELECT, K_MTFILTER_SELECT, 0];
+static SIGNTEXT_FILTER: [u32; K_MTMETA_COUNT] = [0, 0, 0, K_MTFILTER_SELECT, 0];
+static LINES_FILTER: [u32; K_MTMETA_COUNT] = [0, K_MTFILTER_SELECT, 0, 0, 0];
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -561,11 +561,11 @@ pub fn decor_redraw(buf: &mut FileBuf,
      {
         if decor.is_ext() {
             for vt in virt_text_iter_mut(decor.data.ext().vt) {
-                let below = (vt.flags & kVTIsLines) != 0 && (vt.flags & kVTLinesAbove) == 0;
+                let below = (vt.flags & K_VTIS_LINES) != 0 && (vt.flags & K_VTLINES_ABOVE) == 0;
                 let vt_lnum = row1 + 1 + c_int::from(below);
                 redraw_buf_line_later(buf, vt_lnum, true);
-                if (vt.flags & kVTIsLines) != 0 || vt.pos == kVPosInline {
-                    let vt_col = if (vt.flags & kVTIsLines) != 0 {
+                if (vt.flags & K_VTIS_LINES) != 0 || vt.pos == K_VPOS_INLINE {
+                    let vt_col = if (vt.flags & K_VTIS_LINES) != 0 {
                         0
                     } else {
                         col1
@@ -591,20 +591,20 @@ pub fn decor_redraw_sh(buf: &mut FileBuf, row1: c_int, row2: c_int, sh: DecorSig
      {
         if (sh.hl_id != 0
             || sh.url.is_some()
-            || (sh.flags & (kSHIsSign | kSHSpellOn | kSHSpellOff | kSHConceal | kSHConcealOff))
+            || (sh.flags & (K_SHIS_SIGN | K_SHSPELL_ON | K_SHSPELL_OFF | K_SHCONCEAL | K_SHCONCEAL_OFF))
                 != 0)
             && row2 >= row1
         {
             redraw_buf_range_later(buf, row1 + 1, row2 + 1);
         }
-        if (sh.flags & kSHConcealLines) != 0 {
+        if (sh.flags & K_SHCONCEAL_LINES) != 0 {
             for wp in for_all_windows_mut() {
                 if wp.w_buffer == buf {
                     changed_window_setting(wp);
                 }
             }
         }
-        if (sh.flags & kSHUIWatched) != 0 {
+        if (sh.flags & K_SHUIWATCHED) != 0 {
             redraw_buf_line_later(buf, row1 + 1, false);
         }
     }
@@ -631,7 +631,7 @@ pub fn decor_put_vt(mut vt: DecorVirtText, next: *mut DecorVirtText) -> *mut Dec
 }
 
 pub fn decor_sh_from_inline(item: DecorHighlightInline) -> DecorSignHighlight {
-    assert!((item.flags & kSHIsSign) == 0);
+    assert!((item.flags & K_SHIS_SIGN) == 0);
     DecorSignHighlight {
         flags: item.flags,
         priority: item.priority,
@@ -688,11 +688,11 @@ pub fn buf_put_decor_sh(
     row1: c_int,
     row2: c_int,
 ) {
-    if (sh.flags & kSHIsSign) != 0 {
+    if (sh.flags & K_SHIS_SIGN) != 0 {
         sh.sign_add_id = decor_st().sign_add_id;
         decor_st().sign_add_id += 1;
         if sh.text[0] != 0 {
-            buf_signcols_count_range(&mut *buf, row1, row2, 1, kFalse);
+            buf_signcols_count_range(&mut *buf, row1, row2, 1, K_FALSE);
             may_force_numberwidth_recompute(buf, false);
         }
     }
@@ -731,9 +731,9 @@ pub fn buf_remove_decor_sh(
     sh: &DecorSignHighlight,
 ) {
     {
-        if (sh.flags & kSHIsSign) != 0 && sh.text[0] != 0 {
-            if buf_meta_total(&*buf, kMTMetaSignText) != 0 {
-                buf_signcols_count_range( &mut *buf, row1, row2, -1, kFalse);
+        if (sh.flags & K_SHIS_SIGN) != 0 && sh.text[0] != 0 {
+            if buf_meta_total(&*buf, K_MTMETA_SIGN_TEXT) != 0 {
+                buf_signcols_count_range( &mut *buf, row1, row2, -1, K_FALSE);
             } else {
                 may_force_numberwidth_recompute(&mut *buf, true);
                 buf.b_signcols.count[0] = 0;
@@ -813,9 +813,9 @@ pub fn decor_check_to_be_deleted() {
 pub fn decor_check_invalid_glyphs() {
      {
         for it in g_st().decor_items.iter_mut() {
-            let width = if (it.flags & kSHIsSign) != 0 {
+            let width = if (it.flags & K_SHIS_SIGN) != 0 {
                 SIGN_WIDTH
-            } else if (it.flags & kSHConceal) != 0 {
+            } else if (it.flags & K_SHCONCEAL) != 0 {
                 1
             } else {
                 0
@@ -863,7 +863,7 @@ pub fn decor_find_virttext(buf: &mut FileBuf, row: c_int, ns_id: u64) -> *mut De
                 break;
             } else if !mt_invalid(mark) {
                 let mut decor = mt_decor_virt(mark);
-                while !decor.is_null() && ((*decor).flags & kVTIsLines) != 0 {
+                while !decor.is_null() && ((*decor).flags & K_VTIS_LINES) != 0 {
                     decor = (*decor).next_ptr();
                 }
                 if (ns_id == 0 || ns_id == u64::from(mark.ns)) && !decor.is_null() {
@@ -901,7 +901,7 @@ pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
         match decor.data {
             DecorRangeData::Vt(vt) => (*vt).pos,
             DecorRangeData::Ui(ui) => ui.pos,
-            _ => kVPosEndOfLine,
+            _ => K_VPOS_END_OF_LINE,
         }
     }
 }
@@ -1082,7 +1082,7 @@ pub fn decor_range_add_virt(
     owned: bool,
 ) {
     unsafe {
-        let is_lines = ((*vt).flags & kVTIsLines) != 0;
+        let is_lines = ((*vt).flags & K_VTIS_LINES) != 0;
         let range = DecorRange {
             start_row,
             start_col,
@@ -1115,7 +1115,7 @@ pub fn decor_range_add_sh(
     mark_id: u32,
     subpriority: DecorPriority,
 ) {
-    if (sh.flags & kSHIsSign) != 0 {
+    if (sh.flags & K_SHIS_SIGN) != 0 {
             return;
         }
 
@@ -1124,7 +1124,7 @@ pub fn decor_range_add_sh(
 
         if sh.hl_id != 0
             || sh.url.is_some()
-            || (sh.flags & (kSHConcealOff | kSHConceal | kSHSpellOn | kSHSpellOff)) != 0
+            || (sh.flags & (K_SHCONCEAL_OFF | K_SHCONCEAL | K_SHSPELL_ON | K_SHSPELL_OFF)) != 0
         {
             let attr_id = if sh.hl_id != 0 {
                 syn_id2attr(sh.hl_id)
@@ -1148,7 +1148,7 @@ pub fn decor_range_add_sh(
             );
         }
 
-        if (sh.flags & kSHUIWatched) != 0 {
+        if (sh.flags & K_SHUIWATCHED) != 0 {
             decor_range_insert(
                 state,
                 DecorRange {
@@ -1162,10 +1162,10 @@ pub fn decor_range_add_sh(
                     data: DecorRangeData::Ui(DecorRangeUI {
                         ns_id: ns,
                         mark_id,
-                        pos: if (sh.flags & kSHUIWatchedOverlay) != 0 {
-                            kVPosOverlay
+                        pos: if (sh.flags & K_SHUIWATCHED_OVERLAY) != 0 {
+                            K_VPOS_OVERLAY
                         } else {
-                            kVPosEndOfLine
+                            K_VPOS_END_OF_LINE
                         },
                     }),
                     attr_id: 0,
@@ -1183,10 +1183,10 @@ pub fn decor_init_draw_col(win_col: c_int, hidden: bool, item: &mut DecorRange) 
             ptr::null_mut()
         };
         let pos = decor_virt_pos_kind(item);
-        if win_col < 0 && pos != kVPosInline {
+        if win_col < 0 && pos != K_VPOS_INLINE {
             item.draw_col = win_col;
-        } else if pos == kVPosOverlay {
-            item.draw_col = if !vt.is_null() && ((*vt).flags & kVTHide) != 0 && hidden {
+        } else if pos == K_VPOS_OVERLAY {
+            item.draw_col = if !vt.is_null() && ((*vt).flags & K_VTHIDE) != 0 && hidden {
                 c_int::MIN
             } else {
                 win_col
@@ -1302,7 +1302,7 @@ pub fn decor_redraw_col_impl(
         let mut conceal: c_int = 0;
         let mut conceal_char: Schar = 0;
         let mut conceal_attr: c_int = 0;
-        let mut spell: TriState = kNone;
+        let mut spell: TriState = K_NONE;
 
         for i in 0..cur_end {
             let index = (&state.ranges_i)[i as usize];
@@ -1321,12 +1321,12 @@ pub fn decor_redraw_col_impl(
 
                 if (*r).attr_id > 0 {
                     attr = hl_combine_attr(attr, (*r).attr_id);
-                    if (*r).data.is_sh() && ((*r).data.sh().flags & kSHHlEol) != 0 {
+                    if (*r).data.is_sh() && ((*r).data.sh().flags & K_SHHL_EOL) != 0 {
                         hl_eol_attr = hl_combine_attr(hl_eol_attr, (*r).attr_id);
                     }
                 }
 
-                if (*r).data.is_sh() && ((*r).data.sh().flags & kSHConceal) != 0 {
+                if (*r).data.is_sh() && ((*r).data.sh().flags & K_SHCONCEAL) != 0 {
                     conceal = 1;
                     if (*r).start_row == row && (*r).start_col == col {
                         conceal = 2;
@@ -1336,15 +1336,15 @@ pub fn decor_redraw_col_impl(
                     }
                 }
 
-                if (*r).data.is_sh() && ((*r).data.sh().flags & kSHConcealOff) != 0 {
+                if (*r).data.is_sh() && ((*r).data.sh().flags & K_SHCONCEAL_OFF) != 0 {
                     conceal = 0;
                 }
 
                 if (*r).data.is_sh() {
-                    if ((*r).data.sh().flags & kSHSpellOn) != 0 {
-                        spell = kTrue;
-                    } else if ((*r).data.sh().flags & kSHSpellOff) != 0 {
-                        spell = kFalse;
+                    if ((*r).data.sh().flags & K_SHSPELL_ON) != 0 {
+                        spell = K_TRUE;
+                    } else if ((*r).data.sh().flags & K_SHSPELL_OFF) != 0 {
+                        spell = K_FALSE;
                     }
                     if let Some(ref url) = (*r).data.sh().url {
                         attr = hl_add_url(attr, url.as_ptr());
@@ -1403,7 +1403,7 @@ pub fn decor_conceal_line(wp: *mut WinInfoInfo, row: c_int, check_cursor: bool) 
             return false;
         }
 
-        if buf_meta_total((*wp).buf_mut(), kMTMetaConcealLines) == 0 {
+        if buf_meta_total((*wp).buf_mut(), K_MTMETA_CONCEAL_LINES) == 0 {
             return decor_providers_invoke_conceal_line(&mut *wp, row);
         }
 
@@ -1555,7 +1555,7 @@ pub fn decor_find_sign(decor: DecorInline) -> Option<&'static DecorSignHighlight
                 return None;
             }
             let sh = &(&g_st().decor_items)[decor_id as usize];
-            if (sh.flags & kSHIsSign) != 0 {
+            if (sh.flags & K_SHIS_SIGN) != 0 {
                 return Some(sh);
             }
             decor_id = sh.next;
@@ -1571,7 +1571,7 @@ pub fn buf_signcols_count_range(
     clear: TriState,
 ) {
      {
-        if !buf.b_signcols.autom || row2 < row1 || buf_meta_total(buf, kMTMetaSignText) == 0 {
+        if !buf.b_signcols.autom || row2 < row1 || buf_meta_total(buf, K_MTMETA_SIGN_TEXT) == 0 {
             return;
         }
 
@@ -1608,11 +1608,11 @@ pub fn buf_signcols_count_range(
 
         for &c_val in &count {
             let prevwidth = SIGN_SHOW_MAX.min(c_val - add);
-            if clear != kNone && prevwidth > 0 {
+            if clear != K_NONE && prevwidth > 0 {
                 buf.b_signcols.count[(prevwidth - 1) as usize] -= 1;
             }
             let width = SIGN_SHOW_MAX.min(c_val);
-            if clear != kTrue && width > 0 {
+            if clear != K_TRUE && width > 0 {
                 buf.b_signcols.count[(width - 1) as usize] += 1;
                 if width > buf.b_signcols.max {
                     buf.b_signcols.max = width;
@@ -1655,7 +1655,7 @@ pub fn decor_redraw_eol(wp: &mut WinInfoInfo,
             let r: *const DecorRange = (&state.slots)[slot_idx].range();
             has_virt_pos |= (*r).start_row == state.row && decor_virt_pos(&*r);
 
-            if (*r).data.is_sh() && ((*r).data.sh().flags & kSHHlEol) != 0 {
+            if (*r).data.is_sh() && ((*r).data.sh().flags & K_SHHL_EOL) != 0 {
                 *eol_attr = hl_combine_attr(*eol_attr, (*r).attr_id);
             }
         }
@@ -1665,8 +1665,8 @@ pub fn decor_redraw_eol(wp: &mut WinInfoInfo,
 
 #[inline]
 fn decor_virt_line_wrap(wp: &mut WinInfoInfo, overflow: VirtLineOverflow) -> bool {
-    overflow == kVLOverflowWrap
-            || (overflow == kVLOverflowAuto && wp.w_onebuf_opt.wo_wrap != 0)
+    overflow == K_VLOVERFLOW_WRAP
+            || (overflow == K_VLOVERFLOW_AUTO && wp.w_onebuf_opt.wo_wrap != 0)
 }
 
 pub fn decor_virt_line_rows(wp: &mut WinInfoInfo,
@@ -1681,7 +1681,7 @@ pub fn decor_virt_line_rows(wp: &mut WinInfoInfo,
             return 1;
         }
         let row_width = wp.w_view_width
-            - if (vl.flags & kVLLeftcol) != 0 {
+            - if (vl.flags & K_VLLEFTCOL) != 0 {
                 0
             } else {
                 win_col_off(wp)
@@ -1731,7 +1731,7 @@ pub fn decor_virt_lines(
 ) -> c_int {
     unsafe {
         let buf = wp.w_buffer;
-        if buf_meta_total(&*buf, kMTMetaLines) == 0 {
+        if buf_meta_total(&*buf, K_MTMETA_LINES) == 0 {
             return 0;
         }
 
@@ -1758,8 +1758,8 @@ pub fn decor_virt_lines(
             if !mt_invalid(mark) && ns_in_win(mark.ns,  &mut *wp) {
                 while !vt.is_null() {
                     let virt_lines = (*vt).data.virt_lines();
-                    if ((*vt).flags & kVTIsLines) != 0 && !virt_lines.is_empty() {
-                        let above = ((*vt).flags & kVTLinesAbove) != 0;
+                    if ((*vt).flags & K_VTIS_LINES) != 0 && !virt_lines.is_empty() {
+                        let above = ((*vt).flags & K_VTLINES_ABOVE) != 0;
                         let mrow = mark.pos.row;
                         let draw_row = mrow + if above { 0 } else { 1 };
                         if draw_row >= start_row
@@ -1820,7 +1820,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
 
         if decor.is_ext() {
             for vt in virt_text_iter_ptr(decor.data.ext().vt) {
-                if ((*vt).flags & kVTIsLines) != 0 {
+                if ((*vt).flags & K_VTIS_LINES) != 0 {
                     virt_lines = vt;
                 } else {
                     virt_text = vt;
@@ -1831,7 +1831,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             while idx != DECOR_ID_INVALID {
                 let sh = &g_st().decor_items.as_slice()[idx as usize];
                 let next = sh.next;
-                if (sh.flags & kSHIsSign) != 0 {
+                if (sh.flags & K_SHIS_SIGN) != 0 {
                     sh_sign = sh;
                 } else {
                     sh_hl = sh;
@@ -1852,14 +1852,14 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             put_c(
                 dict,
                 c"hl_eol",
-                boolean_obj((sh_hl.flags & kSHHlEol) != 0),
+                boolean_obj((sh_hl.flags & K_SHHL_EOL) != 0),
             );
             priority = i32::from(sh_hl.priority);
         }
 
-        if (sh_hl.flags & kSHConcealOff) != 0 {
+        if (sh_hl.flags & K_SHCONCEAL_OFF) != 0 {
             put_c(dict, c"conceal", boolean_obj(false));
-        } else if (sh_hl.flags & kSHConceal) != 0 {
+        } else if (sh_hl.flags & K_SHCONCEAL) != 0 {
             let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
             schar_get(buf.as_mut_ptr(), sh_hl.text[0]);
             put_c(
@@ -1869,7 +1869,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             );
         }
 
-        if (sh_hl.flags & kSHConcealLines) != 0 {
+        if (sh_hl.flags & K_SHCONCEAL_LINES) != 0 {
             put_c(
                 dict,
                 c"conceal_lines",
@@ -1877,13 +1877,13 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             );
         }
 
-        if (sh_hl.flags & kSHSpellOn) != 0 {
+        if (sh_hl.flags & K_SHSPELL_ON) != 0 {
             put_c(dict, c"spell", boolean_obj(true));
-        } else if (sh_hl.flags & kSHSpellOff) != 0 {
+        } else if (sh_hl.flags & K_SHSPELL_OFF) != 0 {
             put_c(dict, c"spell", boolean_obj(false));
         }
 
-        if (sh_hl.flags & kSHUIWatched) != 0 {
+        if (sh_hl.flags & K_SHUIWATCHED) != 0 {
             put_c(dict, c"ui_watched", boolean_obj(true));
         }
 
@@ -1893,7 +1893,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
 
         if !virt_text.is_null() {
             if (*virt_text).hl_mode != 0 {
-                let mode_str = hl_mode_str[(*virt_text).hl_mode as usize].as_ptr();
+                let mode_str = HL_MODE_STR[(*virt_text).hl_mode as usize].as_ptr();
                 put_c(dict, c"hl_mode", cstr_as_obj(mode_str));
             }
 
@@ -1902,21 +1902,21 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             put_c(
                 dict,
                 c"virt_text_hide",
-                boolean_obj(((*virt_text).flags & kVTHide) != 0),
+                boolean_obj(((*virt_text).flags & K_VTHIDE) != 0),
             );
             put_c(
                 dict,
                 c"virt_text_repeat_linebreak",
-                boolean_obj(((*virt_text).flags & kVTRepeatLinebreak) != 0),
+                boolean_obj(((*virt_text).flags & K_VTREPEAT_LINEBREAK) != 0),
             );
-            if (*virt_text).pos == kVPosWinCol {
+            if (*virt_text).pos == K_VPOS_WIN_COL {
                 put_c(
                     dict,
                     c"virt_text_win_col",
                     integer_obj(Integer::from((*virt_text).col)),
                 );
             }
-            let pos_str = virt_text_pos_str[(*virt_text).pos as usize].as_ptr();
+            let pos_str = VIRT_TEXT_POS_STR[(*virt_text).pos as usize].as_ptr();
             put_c(dict, c"virt_text_pos", cstr_as_obj(pos_str));
             priority = i32::from((*virt_text).priority);
         }
@@ -1925,7 +1925,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             let vl_vec = (*virt_lines).data.virt_lines();
             let mut all_chunks = arena_array(arena, vl_vec.len());
             let mut virt_lines_flags: c_int = 0;
-            let mut virt_lines_overflow: VirtLineOverflow = kVLOverflowTrunc;
+            let mut virt_lines_overflow: VirtLineOverflow = K_VLOVERFLOW_TRUNC;
             for vl in vl_vec {
                 virt_lines_flags = vl.flags;
                 virt_lines_overflow = vl.overflow;
@@ -1936,18 +1936,18 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             put_c(
                 dict,
                 c"virt_lines_above",
-                boolean_obj(((*virt_lines).flags & kVTLinesAbove) != 0),
+                boolean_obj(((*virt_lines).flags & K_VTLINES_ABOVE) != 0),
             );
             put_c(
                 dict,
                 c"virt_lines_leftcol",
-                boolean_obj((virt_lines_flags & kVLLeftcol) != 0),
+                boolean_obj((virt_lines_flags & K_VLLEFTCOL) != 0),
             );
 
             let overflow = match virt_lines_overflow {
-                kVLOverflowScroll => c"scroll".as_ptr(),
-                kVLOverflowWrap => c"wrap".as_ptr(),
-                kVLOverflowAuto => c"auto".as_ptr(),
+                K_VLOVERFLOW_SCROLL => c"scroll".as_ptr(),
+                K_VLOVERFLOW_WRAP => c"wrap".as_ptr(),
+                K_VLOVERFLOW_AUTO => c"auto".as_ptr(),
                 _ => c"trunc".as_ptr(),
             };
             put_c(
@@ -1958,7 +1958,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
             priority = i32::from((*virt_lines).priority);
         }
 
-        if (sh_sign.flags & kSHIsSign) != 0 {
+        if (sh_sign.flags & K_SHIS_SIGN) != 0 {
             if sh_sign.text[0] != 0 {
                 let mut buf = [0 as c_char; SIGN_WIDTH * MAX_SCHAR_SIZE];
                 describe_sign_text(buf.as_mut_ptr(), sh_sign.text.as_ptr().cast_mut());
@@ -2004,29 +2004,29 @@ pub fn decor_to_dict_legacy(dict: &mut Dict,
 pub fn decor_type_flags(decor: DecorInline) -> u16 {
      {
         if decor.is_ext() {
-            let mut type_flags: u16 = kExtmarkNone;
+            let mut type_flags: u16 = K_EXTMARK_NONE;
             for vt in virt_text_iter_mut(decor.data.ext().vt) {
-                type_flags |= if (vt.flags & kVTIsLines) != 0 {
-                    kExtmarkVirtLines
+                type_flags |= if (vt.flags & K_VTIS_LINES) != 0 {
+                    K_EXTMARK_VIRT_LINES
                 } else {
-                    kExtmarkVirtText
+                    K_EXTMARK_VIRT_TEXT
                 };
             }
             let mut idx = decor.data.ext().sh_idx;
             while idx != DECOR_ID_INVALID {
                 let sh = &g_st().decor_items.as_slice()[idx as usize];
-                type_flags |= if (sh.flags & kSHIsSign) != 0 {
-                    kExtmarkSign
+                type_flags |= if (sh.flags & K_SHIS_SIGN) != 0 {
+                    K_EXTMARK_SIGN
                 } else {
-                    kExtmarkHighlight
+                    K_EXTMARK_HIGHLIGHT
                 };
                 idx = sh.next;
             }
             type_flags
-        } else if (decor.data.hl().flags & kSHIsSign) != 0 {
-            kExtmarkSign
+        } else if (decor.data.hl().flags & K_SHIS_SIGN) != 0 {
+            K_EXTMARK_SIGN
         } else {
-            kExtmarkHighlight
+            K_EXTMARK_HIGHLIGHT
         }
     }
 }
@@ -2059,6 +2059,6 @@ mod tests {
             let di = DecorInline {
                 data: DecorInlineData::Hl(inline),
             };
-            assert_eq!(decor_type_flags(di), kExtmarkHighlight);
+            assert_eq!(decor_type_flags(di), K_EXTMARK_HIGHLIGHT);
     }
 }

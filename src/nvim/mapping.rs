@@ -23,9 +23,9 @@ use crate::eval::typval::{
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func};
 use crate::eval::vars::{Scid, set_vim_var_char};
-use crate::eval::{eval_to_string, kListLenUnknown, last_set_msg};
+use crate::eval::{eval_to_string, K_LIST_LEN_UNKNOWN_CONST, last_set_msg};
 use crate::ex_cmds::check_secure;
-use crate::ex_docmd::{Ctrl_C, Exarg};
+use crate::ex_docmd::{CTRL_C_CONST, Exarg};
 use crate::ex_session::put_eol;
 use crate::fileio::{FILE, fputc, fputs};
 use crate::fuzzy::{
@@ -40,7 +40,7 @@ use crate::keycodes::{
 };
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{
-    api_free_luaref, api_new_luaref, kRetObject, nlua_call_ref, nlua_funcref_str, nlua_set_sctx,
+    api_free_luaref, api_new_luaref, K_RET_OBJECT, nlua_call_ref, nlua_funcref_str, nlua_set_sctx,
 };
 use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
@@ -55,10 +55,10 @@ use crate::option::opt_error;
 use crate::option_vars::*;
 use crate::optionstr::Optset;
 use crate::os::env::ExpandCtx;
-use crate::regexp::{Ctrl_V, NUMBUFLEN, Regmatch, vim_regexec};
+use crate::regexp::{CTRL_V_CONST, NUMBUFLEN, Regmatch, vim_regexec};
 use crate::runtime::{Sctx, sourcing_lnum};
 use crate::strings::{gettext, sort_strings, vim_snprintf, vim_strchr};
-use crate::viml::parser::expressions::Ctrl_H;
+use crate::viml::parser::expressions::CTRL_H_CONST;
 use std::ffi::{CStr, CString, c_char, c_int};
 use std::ptr;
 
@@ -77,10 +77,10 @@ pub const MAPTYPE_UNMAP: c_int = 1;
 pub const MAPTYPE_NOREMAP: c_int = 2;
 pub const MAPTYPE_UNMAP_LHS: c_int = 3;
 
-const kCpoBslash: c_int = b'B' as c_int;
+const K_CPO_BSLASH_CONST: c_int = b'B' as c_int;
 
-const KEYSET_OPTIDX_keymap__desc: u64 = 1;
-const KEYSET_OPTIDX_keymap__callback: u64 = 8;
+const KEYSET_OPTIDX_KEYMAP_DESC: u64 = 1;
+const KEYSET_OPTIDX_KEYMAP_CALLBACK: u64 = 8;
 
 pub struct MapAltLink {
     pub keys: [std::cell::Cell<Option<CString>>; 2],
@@ -163,9 +163,9 @@ impl Typebuf {
 }
 
 use crate::autocmd::HLF_8;
-use crate::ex_getln::{ABBR_OFF, Ctrl_RSB};
-use crate::extmark::{kFalse, kNone};
-use crate::insert::Ctrl_J;
+use crate::ex_getln::{ABBR_OFF, CTRL_RSB_CONST};
+use crate::extmark::{K_FALSE, K_NONE};
+use crate::insert::CTRL_J_CONST;
 use crate::state::{
     MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP, MODE_NORMAL, MODE_OP_PENDING, MODE_SELECT,
     MODE_TERMINAL, MODE_VISUAL,
@@ -634,9 +634,9 @@ fn str_to_mapargs(
         }
 
         let mut lhs_end = to_parse;
-        let do_backslash = vim_strchr(opt_vars().p_cpo, kCpoBslash).is_null();
+        let do_backslash = vim_strchr(opt_vars().p_cpo, K_CPO_BSLASH_CONST).is_null();
         while !crate::memory::cstr_is_empty(lhs_end) && (is_unmap || !ascii_iswhite(crate::memory::cstr_first_byte(lhs_end) as c_int)) {
-            if (*lhs_end == Ctrl_V as c_char || (do_backslash && crate::memory::cstr_first_byte(lhs_end) == b'\\'))
+            if (*lhs_end == CTRL_V_CONST as c_char || (do_backslash && crate::memory::cstr_first_byte(lhs_end) == b'\\'))
                 && crate::memory::cstr_byte_at(lhs_end, 1) != 0
             {
                 lhs_end = lhs_end.add(1);
@@ -687,7 +687,7 @@ fn map_add(
     alt: Option<std::rc::Rc<MapAltLink>>,
 ) { let keys = keys.into_c_char_ptr();
     unsafe {
-        if *keys == Ctrl_C {
+        if *keys == CTRL_C_CONST {
             if local {
                 buf.b_mapped_ctrl_c |= mode;
             } else {
@@ -1050,7 +1050,7 @@ fn buf_do_map(
                         if !keyround1_simplified {
                             retval = 2;
                         }
-                    } else if *lhs == Ctrl_C {
+                    } else if *lhs == CTRL_C_CONST {
                         if local {
                             buf.b_mapped_ctrl_c &= !mode;
                         } else {
@@ -1169,7 +1169,7 @@ fn do_mapclear(mut cmdp: *mut c_char, arg: impl crate::strings::IntoCCharPtr, fo
      {
         let local = crate::memory::cstr_as_bytes(arg) == b"<buffer>";
         if !local && !crate::memory::cstr_is_empty(arg) {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -1293,7 +1293,7 @@ fn translate_mapping(str_in: impl crate::strings::IntoCCharPtr, cpo_val: impl cr
         let mut str_ptr = str_in.cast::<u8>();
         let mut buf: Vec<u8> = Vec::with_capacity(40);
 
-        let cpo_bslash = !vim_strchr(cpo_val, kCpoBslash).is_null();
+        let cpo_bslash = !vim_strchr(cpo_val, K_CPO_BSLASH_CONST).is_null();
 
         while *str_ptr != 0 {
             let mut c = *str_ptr as c_int;
@@ -1326,12 +1326,12 @@ fn translate_mapping(str_in: impl crate::strings::IntoCCharPtr, cpo_val: impl cr
 
             if c == b' ' as c_int
                 || c == b'\t' as c_int
-                || c == Ctrl_J
-                || c == Ctrl_V
+                || c == CTRL_J_CONST
+                || c == CTRL_V_CONST
                 || c == b'<' as c_int
                 || (c == b'\\' as c_int && !cpo_bslash)
             {
-                buf.push(if cpo_bslash { Ctrl_V as u8 } else { b'\\' });
+                buf.push(if cpo_bslash { CTRL_V_CONST as u8 } else { b'\\' });
             }
 
             if c != 0 {
@@ -1540,7 +1540,7 @@ pub fn check_abbr(
             return false;
         }
 
-        if noremap_keys() && c != Ctrl_RSB {
+        if noremap_keys() && c != CTRL_RSB_CONST {
             return false;
         }
 
@@ -1608,7 +1608,7 @@ pub fn check_abbr(
             }
             if let Some(mp) = mp_opt {
                 let mut j: usize = 0;
-                if c != Ctrl_RSB {
+                if c != CTRL_RSB_CONST {
                     if is_special(c) || c == K_SPECIAL as c_int {
                         tb[j] = K_SPECIAL;
                         j += 1;
@@ -1618,7 +1618,7 @@ pub fn check_abbr(
                         j += 1;
                     } else {
                         if c < ABBR_OFF && (c < b' ' as c_int || c > b'~' as c_int) {
-                            tb[j] = Ctrl_V as u8;
+                            tb[j] = CTRL_V_CONST as u8;
                             j += 1;
                         }
                         if c >= ABBR_OFF {
@@ -1656,7 +1656,7 @@ pub fn check_abbr(
                     g_st().typebuf.tb_no_abbr_cnt += (cs.to_bytes().len() + j + 1) as c_int;
                 }
 
-                tb[0] = Ctrl_H;
+                tb[0] = CTRL_H_CONST;
                 tb[1] = 0;
                 len = clen;
                 while len > 0 {
@@ -1703,7 +1703,7 @@ pub fn eval_map_expr(mp: &Mapblock, c: c_int) -> Option<CString> {
                 luaref,
                 ptr::null(),
                 args,
-                kRetObject,
+                K_RET_OBJECT,
                 None,
                 Some(&mut err),
             );
@@ -2004,7 +2004,7 @@ pub fn put_escstr(fd: *mut FILE, strstart: impl crate::strings::IntoCCharPtr, wh
                 || (what == 0 && c == b' ' as c_int)
                 || (what == 1 && ptr::eq(str_ptr, strstart.cast::<u8>()) && c == b' ' as c_int)
                 || (what != 2 && c == b'<' as c_int))
-                && fputc(Ctrl_V, fd) < 0
+                && fputc(CTRL_V_CONST, fd) < 0
             {
                 return false;
             }
@@ -2106,7 +2106,7 @@ fn mapblock_fill_dict(
         let lhs = str2special_arena(
             mp.m_keys.as_ptr(),
             compatible,
-            if compatible { kFalse } else { kNone },
+            if compatible { K_FALSE } else { K_NONE },
             arena,
         );
         let mapmode = arena_alloc(arena, 7, false).cast::<c_char>();
@@ -2129,7 +2129,7 @@ fn mapblock_fill_dict(
             let rhs = cstr_as_string(if compatible {
                 mp.m_orig_str.as_ptr()
             } else {
-                str2special_arena(mp.m_str.as_ptr(), false, kNone, arena)
+                str2special_arena(mp.m_str.as_ptr(), false, K_NONE, arena)
             });
             put_c(&mut dict, c"rhs", string_obj(rhs));
         }
@@ -2283,7 +2283,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: c_int) {
                 } else {
                     crate::eval::typval::tv_set_string(
                         &mut *rettv,
-                        str2special_save(rhs, false, kFalse).as_ptr(),
+                        str2special_save(rhs, false, K_FALSE).as_ptr(),
                     );
                 }
             } else if rhs_lua != LUA_NOREF
@@ -2511,7 +2511,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
         let abbr = argvars[0].v_type != VarType::VarUnknown && tv_get_bool(&argvars[0]) != 0;
 
-        tv_list_alloc_ret(rettv, kListLenUnknown);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
 
         for buffer_local in 0..=1 {
             let b = if buffer_local != 0 {
@@ -2532,7 +2532,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                         pos: 0,
                         size: 0,
                     };
-                    let lhs = str2special_arena(mp.m_keys.as_ptr(), true, kFalse, &mut arena);
+                    let lhs = str2special_arena(mp.m_keys.as_ptr(), true, K_FALSE, &mut arena);
                     let keys_buf = replace_termcodes(
                         lhs,
                         crate::memory::cstr_len(lhs),
@@ -2742,13 +2742,13 @@ fn do_exmap(eap: &mut Exarg, isabbrev: bool) {
         match result {
             0 => match buf_do_map(maptype, &mut parsed_args, mode, isabbrev, curbuf_mut()) {
                 1 => {
-                    emsg(gettext(e_invarg));
+                    emsg(gettext(E_INVARG));
                 }
                 2 => {
                     emsg(if isabbrev {
-                        gettext(e_noabbr)
+                        gettext(E_NOABBR)
                     } else {
-                        gettext(e_nomap)
+                        gettext(E_NOMAP)
                     });
                 }
                 5 => {
@@ -2774,7 +2774,7 @@ fn do_exmap(eap: &mut Exarg, isabbrev: bool) {
                 _ => {}
             },
             1 => {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
             }
             _ => {
                 debug_assert!(false, "Unknown return code from str_to_mapargs!");
@@ -2846,11 +2846,11 @@ pub fn modify_keymap(
             parsed_args.expr = opts.expr;
             parsed_args.unique = opts.unique;
             parsed_args.replace_keycodes = opts.replace_keycodes;
-            if has_key(opts.is_set__keymap_, KEYSET_OPTIDX_keymap__callback) {
+            if has_key(opts.is_set__keymap_, KEYSET_OPTIDX_KEYMAP_CALLBACK) {
                 lua_funcref = opts.callback;
                 opts.callback = LUA_NOREF;
             }
-            if has_key(opts.is_set__keymap_, KEYSET_OPTIDX_keymap__desc) {
+            if has_key(opts.is_set__keymap_, KEYSET_OPTIDX_KEYMAP_DESC) {
                 parsed_args.desc = Some(string_to_cstr(opts.desc));
             }
         }
@@ -2969,10 +2969,10 @@ pub fn modify_keymap(
             match buf_do_map(maptype, &mut parsed_args, mode_val, is_abbrev, target_buf) {
                 0 => {}
                 1 => {
-                    api_set_error!(err, ErrorType::ErrorTypeException, e_invarg, 0);
+                    api_set_error!(err, ErrorType::ErrorTypeException, E_INVARG, 0);
                 }
                 2 => {
-                    api_set_error!(err, ErrorType::ErrorTypeException, e_nomap, 0);
+                    api_set_error!(err, ErrorType::ErrorTypeException, E_NOMAP, 0);
                 }
                 5 => {
                     api_set_error!(

@@ -163,13 +163,13 @@ use crate::event::r#loop::{uv_fs_fchown, uv_gid_t, uv_uid_t};
 const NODE_NORMAL: c_int = 0;
 pub(crate) const NODE_OTHER: c_int = 2;
 
-const kPathGeneric: c_int = 1;
+const K_PATH_GENERIC: c_int = 1;
 #[cfg(windows)]
-const kPathDrive: c_int = 2;
+const K_PATH_DRIVE: c_int = 2;
 #[cfg(windows)]
-const kPathUNC: c_int = 3;
+const K_PATH_UNC: c_int = 3;
 #[cfg(windows)]
-const kPathDevice: c_int = 4;
+const K_PATH_DEVICE: c_int = 4;
 
 const UV_FS: c_int = 6;
 
@@ -395,7 +395,7 @@ use crate::fileio::{O_RDONLY, S_IFDIR, S_IFMT, S_IFREG, dup, fdopen};
 #[cfg(not(windows))]
 use crate::fileio::{fcntl, getuid, read, write};
 #[cfg(windows)]
-use crate::memline::kPathDeviceUNC;
+use crate::memline::K_PATH_DEVICE_UNC;
 
 use crate::event::r#loop::{
     uv_exepath, uv_fs_access, uv_fs_chmod, uv_fs_close, uv_fs_copyfile, uv_fs_fstat, uv_fs_fsync,
@@ -1444,7 +1444,7 @@ pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
             let tail = path_tail_with_sep(fname);
             let last_char = tail.add(crate::memory::cstr_len(tail)).sub(1);
             if vim_ispathsep(c_int::from(crate::memory::cstr_first_byte(last_char))) {
-                emsg(gettext(e_noname));
+                emsg(gettext(E_NONAME));
                 return -1;
             }
             let c = *tail;
@@ -1453,7 +1453,7 @@ pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> c_int {
             let r = os_mkdir_recurse(fname, mode, &mut failed_dir, None);
             if r < 0 {
                 let _ = semsg!(
-                    gettext(e_mkdir),
+                    gettext(E_MKDIR),
                     failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                     uv_strerror(r),
                 );
@@ -1565,7 +1565,7 @@ pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo
         let p0 = crate::memory::cstr_first_byte(p);
         let p1 = crate::memory::cstr_byte_at(p, 1);
         if leading_slashes == 0 && p0.is_ascii_alphabetic() && p1 == b':' {
-            info.r#type = kPathDrive;
+            info.r#type = K_PATH_DRIVE;
             p = path_skip_sep(p.add(2), false);
             info.rest_off = (p as usize) - (path as usize);
             return true;
@@ -1574,7 +1574,7 @@ pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo
             if !vim_ispathsep_nocolon(c_int::from(p1)) {
                 return true;
             }
-            info.r#type = kPathDevice;
+            info.r#type = K_PATH_DEVICE;
             info.prefix_off = leading_slashes - 2;
             p = path_skip_sep(p.add(2), false);
             let p_bytes = [
@@ -1583,7 +1583,7 @@ pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo
                 (crate::memory::cstr_byte_at(p, 2)).to_ascii_lowercase(),
             ];
             if &p_bytes == b"unc" && vim_ispathsep_nocolon(c_int::from(crate::memory::cstr_byte_at(p, 3))) {
-                info.r#type = kPathDeviceUNC;
+                info.r#type = K_PATH_DEVICE_UNC;
                 p = path_skip_sep(p.add(4), false);
                 info.root_off = (p as usize) - (path as usize);
                 p = path_skip_sep(path_next_component(p), false);
@@ -1600,7 +1600,7 @@ pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo
             return true;
         }
         if leading_slashes == 2 {
-            info.r#type = kPathUNC;
+            info.r#type = K_PATH_UNC;
             p = path_skip_sep(path_next_component(p), false);
             p = path_skip_sep(path_next_component(p), false);
             info.rest_off = (p as usize) - (path as usize);
@@ -1608,7 +1608,7 @@ pub fn os_fileinfo2(path: impl crate::strings::IntoCCharPtr, info: &mut FileInfo
         }
     }
 
-    info.r#type = kPathGeneric;
+    info.r#type = K_PATH_GENERIC;
     info.rest_off = leading_slashes;
     info.root_off = if leading_slashes > 2 {
         leading_slashes - 1

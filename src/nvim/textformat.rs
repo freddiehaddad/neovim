@@ -15,20 +15,20 @@ use crate::cursor::{
 };
 use crate::drawscreen::{UPD_INVERTED, UPD_VALID, redraw_curbuf_later};
 use crate::eval::eval_expr_option_number;
-use crate::eval::typval::kCallbackNone;
+use crate::eval::typval::K_CALLBACK_NONE_CONST;
 use crate::eval::vars::{
     VV_CHAR, VV_COUNT, VV_LNUM, set_vim_var_char, set_vim_var_nr, set_vim_var_string,
 };
 use crate::globals::*;
 use crate::indent::{
     INDENT_SET, SIN_CHANGED, change_indent, get_expr_indent, get_indent, get_indent_lnum,
-    get_lisp_indent, get_number_indent, kFoQComs, set_indent,
+    get_lisp_indent, get_number_indent, K_FO_QCOMS, set_indent,
 };
 use crate::indent_c::{check_linecomment, cindent_on, get_c_indent};
 use crate::input::beep_flush;
 use crate::insert::{
     INSCHAR_FORMAT, INSCHAR_NO_FEX, backspace_until_column, beginline, get_nolist_virtcol,
-    insertchar, kFoAuto, kFoInsBlank, kFoWhitePar, set_can_cindent, undisplay_dollar,
+    insertchar, K_FO_AUTO, K_FO_INS_BLANK, K_FO_WHITE_PAR, set_can_cindent, undisplay_dollar,
 };
 use crate::mark::mark_col_adjust;
 use crate::mbyte::{utf_allow_break, utf_allow_break_before, utf_iscomposing_first, utf_ptr2char};
@@ -36,7 +36,7 @@ use crate::memline::{ml_get, ml_get_len, ml_replace};
 use crate::message::msgmore;
 use crate::r#move::update_topline;
 use crate::ops::do_join;
-use crate::option::{OPT_LOCAL, kBufOptFormatexpr, kOptFormatexpr, was_set_insecurely};
+use crate::option::{OPT_LOCAL, K_BUF_OPT_FORMATEXPR, K_OPT_FORMATEXPR, was_set_insecurely};
 use crate::option_vars::*;
 use crate::os::input::line_breakcheck;
 use crate::strings::{vim_strchr};
@@ -50,15 +50,15 @@ use std::ptr;
 const INSCHAR_DO_COM: c_int = 2;
 const INSCHAR_COM_LIST: c_int = 16;
 
-const kFoInsVi: c_int = b'v' as c_int;
-const kFoMbyteBreak: c_int = b'm' as c_int;
-const kFoOneLetter: c_int = b'1' as c_int;
-const kFoPeriodAbbr: c_int = b'p' as c_int;
-const kFoQNumber: c_int = b'n' as c_int;
-const kFoQSecond: c_int = b'2' as c_int;
-const kFoRigorousTw: c_int = b']' as c_int;
-const kFoWrap: c_int = b't' as c_int;
-const kFoWrapComs: c_int = b'c' as c_int;
+const K_FO_INS_VI: c_int = b'v' as c_int;
+const K_FO_MBYTE_BREAK: c_int = b'm' as c_int;
+const K_FO_ONE_LETTER: c_int = b'1' as c_int;
+const K_FO_PERIOD_ABBR: c_int = b'p' as c_int;
+const K_FO_QNUMBER: c_int = b'n' as c_int;
+const K_FO_QSECOND: c_int = b'2' as c_int;
+const K_FO_RIGOROUS_TW: c_int = b']' as c_int;
+const K_FO_WRAP: c_int = b't' as c_int;
+const K_FO_WRAP_COMS: c_int = b'c' as c_int;
 
 pub type InsArrow = c_int;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
@@ -202,10 +202,10 @@ pub fn internal_format(
         let mut cc: c_int;
         let mut save_char: c_char = NUL;
         let mut haveto_redraw = false;
-        let fo_ins_blank = has_format_option(kFoInsBlank);
-        let fo_multibyte = has_format_option(kFoMbyteBreak);
-        let fo_rigor_tw = has_format_option(kFoRigorousTw);
-        let fo_white_par = has_format_option(kFoWhitePar);
+        let fo_ins_blank = has_format_option(K_FO_INS_BLANK);
+        let fo_multibyte = has_format_option(K_FO_MBYTE_BREAK);
+        let fo_rigor_tw = has_format_option(K_FO_RIGOROUS_TW);
+        let fo_white_par = has_format_option(K_FO_WHITE_PAR);
         let mut first_line = true;
         let mut leader_len: Colnr;
         let mut no_leader = false;
@@ -239,7 +239,7 @@ pub fn internal_format(
 
             if no_leader {
                 do_comments = false;
-            } else if (flags & INSCHAR_FORMAT) == 0 && has_format_option(kFoWrapComs) {
+            } else if (flags & INSCHAR_FORMAT) == 0 && has_format_option(K_FO_WRAP_COMS) {
                 do_comments = true;
             }
 
@@ -267,7 +267,7 @@ pub fn internal_format(
             if leader_len == 0 {
                 no_leader = true;
             }
-            if (flags & INSCHAR_FORMAT) == 0 && leader_len == 0 && !has_format_option(kFoWrap) {
+            if (flags & INSCHAR_FORMAT) == 0 && leader_len == 0 && !has_format_option(K_FO_WRAP) {
                 break;
             }
             startcol = curwin_mut().w_cursor.col;
@@ -282,7 +282,7 @@ pub fn internal_format(
             foundcol = 0;
             let mut skip_pos: c_int = 0;
 
-            while (!fo_ins_blank && !has_format_option(kFoInsVi))
+            while (!fo_ins_blank && !has_format_option(K_FO_INS_VI))
                 || (flags & INSCHAR_FORMAT) != 0
                 || curwin_mut().w_cursor.lnum != g_st().Ins.start.lnum
                 || curwin_mut().w_cursor.col >= g_st().Ins.start.col
@@ -308,7 +308,7 @@ pub fn internal_format(
                         break;
                     }
 
-                    if has_format_option(kFoPeriodAbbr) && cc == b'.' as c_int && wcc < 2 {
+                    if has_format_option(K_FO_PERIOD_ABBR) && cc == b'.' as c_int && wcc < 2 {
                         continue;
                     }
 
@@ -316,7 +316,7 @@ pub fn internal_format(
                         break;
                     }
 
-                    if has_format_option(kFoOneLetter) {
+                    if has_format_option(K_FO_ONE_LETTER) {
                         if curwin_mut().w_cursor.col == 0 {
                             break;
                         }
@@ -496,7 +496,7 @@ pub fn internal_format(
             g_st().replace_offset = 0;
             if first_line {
                 if (flags & INSCHAR_COM_LIST) == 0 {
-                    if second_indent < 0 && has_format_option(kFoQNumber) {
+                    if second_indent < 0 && has_format_option(K_FO_QNUMBER) {
                         second_indent = get_number_indent(curwin_mut().w_cursor.lnum - 1);
                     }
                     if second_indent >= 0 {
@@ -668,7 +668,7 @@ fn paragraph_start(lnum: Linenr) -> bool {
         if crate::memory::cstr_is_empty(p) {
             return true;
         }
-        let do_comments = has_format_option(kFoQComs);
+        let do_comments = has_format_option(K_FO_QCOMS);
         if fmt_check_par(
             lnum - 1,
             &mut leader_len,
@@ -687,10 +687,10 @@ fn paragraph_start(lnum: Linenr) -> bool {
             return true;
         }
 
-        if has_format_option(kFoWhitePar) && !ends_in_white(lnum - 1) {
+        if has_format_option(K_FO_WHITE_PAR) && !ends_in_white(lnum - 1) {
             return true;
         }
-        if has_format_option(kFoQNumber) && get_number_indent(lnum) > 0 {
+        if has_format_option(K_FO_QNUMBER) && get_number_indent(lnum) > 0 {
             return true;
         }
         if !same_leader(
@@ -709,7 +709,7 @@ fn paragraph_start(lnum: Linenr) -> bool {
 /// Auto-format from the current line until the end of the paragraph (`auto_format`).
 pub fn auto_format(trailblank: bool, prev_line: bool) {
     unsafe {
-        if !has_format_option(kFoAuto) {
+        if !has_format_option(K_FO_AUTO) {
             return;
         }
 
@@ -722,7 +722,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
         if !crate::memory::cstr_is_empty(old) && !trailblank && wasatend {
             dec_cursor();
             let mut cc = gchar_cursor();
-            if !whitechar(cc) && curwin_mut().w_cursor.col > 0 && has_format_option(kFoOneLetter) {
+            if !whitechar(cc) && curwin_mut().w_cursor.col > 0 && has_format_option(K_FO_ONE_LETTER) {
                 dec_cursor();
             }
             cc = gchar_cursor();
@@ -741,8 +741,8 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             }
         }
 
-        if has_format_option(kFoWrapComs)
-            && !has_format_option(kFoWrap)
+        if has_format_option(K_FO_WRAP_COMS)
+            && !has_format_option(K_FO_WRAP)
             && get_leader_len(old, ptr::null_mut(), false, true) == 0
         {
             return;
@@ -767,7 +767,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             check_cursor_col(curwin_mut());
         }
 
-        if !wasatend && has_format_option(kFoWhitePar) {
+        if !wasatend && has_format_option(K_FO_WHITE_PAR) {
             let linep = get_cursor_line_ptr();
             let len = get_cursor_line_len();
             if curwin_mut().w_cursor.col == len {
@@ -901,14 +901,14 @@ pub fn op_formatexpr(oap: &mut Oparg) {
 /// Evaluate `'formatexpr'` (`fex_format`).
 pub fn fex_format(lnum: Linenr, count: c_long, c: c_int) -> c_int {
      {
-        let use_sandbox = was_set_insecurely(Some(crate::globals::curwin_mut()), kOptFormatexpr, OPT_LOCAL) != 0;
+        let use_sandbox = was_set_insecurely(Some(crate::globals::curwin_mut()), K_OPT_FORMATEXPR, OPT_LOCAL) != 0;
         let save_sctx = g_st().current_sctx;
 
         set_vim_var_nr(VV_LNUM, i64::from(lnum));
         set_vim_var_nr(VV_COUNT, count as _);
         set_vim_var_char(c);
 
-        g_st().current_sctx = curbuf_mut().b_p_script_ctx[kBufOptFormatexpr];
+        g_st().current_sctx = curbuf_mut().b_p_script_ctx[K_BUF_OPT_FORMATEXPR];
 
         let r = eval_expr_option_number(&mut curbuf_mut().b_p_fex, use_sandbox);
 
@@ -941,11 +941,11 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
 
         let max_len = comp_textwidth(true) * 3;
 
-        let do_comments = has_format_option(kFoQComs);
+        let do_comments = has_format_option(K_FO_QCOMS);
         let mut do_comments_list: c_int = 0;
-        let do_second_indent = has_format_option(kFoQSecond);
-        let do_number_indent = has_format_option(kFoQNumber);
-        let do_trail_white = has_format_option(kFoWhitePar);
+        let do_second_indent = has_format_option(K_FO_QSECOND);
+        let do_number_indent = has_format_option(K_FO_QNUMBER);
+        let do_trail_white = has_format_option(K_FO_WHITE_PAR);
 
         if curwin_mut().w_cursor.lnum > 1 {
             is_not_par = fmt_check_par(
@@ -1051,7 +1051,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                         } else if curbuf_mut().b_p_lisp != 0 {
                             get_lisp_indent()
                         } else if cindent_on() {
-                            if curbuf_mut().b_p_inde.cb_type() != kCallbackNone {
+                            if curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST {
                                 get_expr_indent()
                             } else {
                                 get_c_indent()

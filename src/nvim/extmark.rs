@@ -1,11 +1,11 @@
 //! Extended marks for plugins (`src/nvim/extmark.c`).
 
-use crate::buffer::{MAXLNUM, FileBuf, kExtmarkNoUndo};
+use crate::buffer::{MAXLNUM, FileBuf, K_EXTMARK_NO_UNDO};
 use crate::buffer_updates::buf_updates_send_splice;
 use crate::cursor::{Colnr, Linenr, CursorPos};
 use crate::decoration::{
     DecorInline, buf_decor_remove, buf_put_decor, buf_signcols_count_range, decor_free,
-    decor_redraw, decor_state_invalidate, decor_type_flags, kSHUIWatched, kSHUIWatchedOverlay,
+    decor_redraw, decor_state_invalidate, decor_type_flags, K_SHUIWATCHED, K_SHUIWATCHED_OVERLAY,
 };
 use crate::globals::*;
 use crate::marktree::{
@@ -32,19 +32,19 @@ pub type UndoObjectType = c_int;
 pub type TriState = c_int;
 pub type ExtmarkUndoVec = Vec<ExtmarkUndoObject>;
 
-pub(crate) const kExtmarkNOOP: ExtmarkOp = 0;
-pub(crate) const kExtmarkUndo: ExtmarkOp = 1;
-pub(crate) const kExtmarkNone: ExtmarkType = 0x1;
-pub(crate) const kExtmarkSign: ExtmarkType = 0x2;
-pub(crate) const kExtmarkVirtText: ExtmarkType = 0x8;
-pub(crate) const kExtmarkVirtLines: ExtmarkType = 0x10;
-pub(crate) const kExtmarkHighlight: ExtmarkType = 0x20;
-pub(crate) const kNone: c_int = -1;
-pub(crate) const kFalse: c_int = 0;
-pub(crate) const kTrue: c_int = 1;
+pub(crate) const K_EXTMARK_NOOP: ExtmarkOp = 0;
+pub(crate) const K_EXTMARK_UNDO: ExtmarkOp = 1;
+pub(crate) const K_EXTMARK_NONE: ExtmarkType = 0x1;
+pub(crate) const K_EXTMARK_SIGN: ExtmarkType = 0x2;
+pub(crate) const K_EXTMARK_VIRT_TEXT: ExtmarkType = 0x8;
+pub(crate) const K_EXTMARK_VIRT_LINES: ExtmarkType = 0x10;
+pub(crate) const K_EXTMARK_HIGHLIGHT: ExtmarkType = 0x20;
+pub(crate) const K_NONE: c_int = -1;
+pub(crate) const K_FALSE: c_int = 0;
+pub(crate) const K_TRUE: c_int = 1;
 
-pub(crate) const kExtmarkSplice: UndoObjectType = 0;
-pub(crate) const kExtmarkMove: UndoObjectType = 1;
+pub(crate) const K_EXTMARK_SPLICE: UndoObjectType = 0;
+pub(crate) const K_EXTMARK_MOVE: UndoObjectType = 1;
 
 #[repr(C)]
 #[derive(Clone, Copy, Default)]
@@ -322,7 +322,7 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: c_int, col: Colnr, revive: 
                 row1,
                 (curbuf_mut().b_ml.ml_line_count - 1).min(row2),
                 0,
-                kTrue,
+                K_TRUE,
             );
         }
 
@@ -346,7 +346,7 @@ fn extmark_setraw(buf: &mut FileBuf, mark: u64, row: c_int, col: Colnr, revive: 
                 row1,
                 (curbuf_mut().b_ml.ml_line_count - 1).min(row2),
                 0,
-                kNone,
+                K_NONE,
             );
         }
     }
@@ -528,7 +528,7 @@ fn push_mark(
     if !(ns_id == u32::MAX || mark.start.ns == ns_id) {
             return;
         }
-        if type_filter != kExtmarkNone {
+        if type_filter != K_EXTMARK_NONE {
             if !mt_decor_any(mark.start) {
                 return;
             }
@@ -568,7 +568,7 @@ pub fn extmark_set_pos(
             data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
         };
         if ui_watched {
-            decor.data.hl_mut().flags = kSHUIWatched | kSHUIWatchedOverlay;
+            decor.data.hl_mut().flags = K_SHUIWATCHED | K_SHUIWATCHED_OVERLAY;
         }
         extmark_set(
             buf,
@@ -688,7 +688,7 @@ pub fn extmark_splice_delete(
                 }
             }
 
-            if copy && (only_copy || (uvp.is_some() && op == kExtmarkUndo && !mt_no_undo(mark))) {
+            if copy && (only_copy || (uvp.is_some() && op == K_EXTMARK_UNDO && !mt_no_undo(mark))) {
                 let pos = ExtmarkSavePos {
                     mark: mt_lookup_key(mark),
                     invalidated,
@@ -722,7 +722,7 @@ pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
                         splice.old_row,
                         splice.old_col,
                         splice.old_byte,
-                        kExtmarkNoUndo,
+                        K_EXTMARK_NO_UNDO,
                     );
                 } else {
                     extmark_splice_impl(
@@ -736,7 +736,7 @@ pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
                         splice.new_row,
                         splice.new_col,
                         splice.new_byte,
-                        kExtmarkNoUndo,
+                        K_EXTMARK_NO_UNDO,
                     );
                 }
             }
@@ -766,7 +766,7 @@ pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
                         move_.start_row,
                         move_.start_col,
                         move_.start_byte,
-                        kExtmarkNoUndo,
+                        K_EXTMARK_NO_UNDO,
                     );
                 } else {
                     extmark_move_region(
@@ -780,7 +780,7 @@ pub fn extmark_apply_undo(undo_info: ExtmarkUndoObject, undo: bool) {
                         move_.new_row,
                         move_.new_col,
                         move_.new_byte,
-                        kExtmarkNoUndo,
+                        K_EXTMARK_NO_UNDO,
                     );
                 }
             }
@@ -914,7 +914,7 @@ pub fn extmark_splice_impl(
                 start_row,
                 (count - 1).min(start_row + old_row),
                 0,
-                kTrue,
+                K_TRUE,
             );
             buf.b_prev_line_count = 0;
         }
@@ -931,10 +931,10 @@ pub fn extmark_splice_impl(
 
         if old_row > 0 || new_row > 0 {
             let row2 = (buf.b_ml.ml_line_count - 1).min(start_row + new_row);
-            buf_signcols_count_range( &mut *buf, start_row, row2, 0, kNone);
+            buf_signcols_count_range( &mut *buf, start_row, row2, 0, K_NONE);
         }
 
-        if undo == kExtmarkUndo {
+        if undo == K_EXTMARK_UNDO {
             let Some(uh) = u_force_get_undo_header(buf) else {
                 return;
             };
@@ -1038,7 +1038,7 @@ pub fn extmark_move_region(
 
         let row1 = start_row.min(new_row);
         let row2 = start_row.max(new_row) + extent_row;
-        buf_signcols_count_range(&mut *buf, row1, row2, 0, kTrue);
+        buf_signcols_count_range(&mut *buf, row1, row2, 0, K_TRUE);
 
         marktree_move_region(
             &mut buf.b_marktree,
@@ -1050,7 +1050,7 @@ pub fn extmark_move_region(
             new_col,
         );
 
-        buf_signcols_count_range(&mut *buf, row1, row2, 0, kNone);
+        buf_signcols_count_range(&mut *buf, row1, row2, 0, K_NONE);
 
         buf_updates_send_splice(
             &mut *buf,
@@ -1065,7 +1065,7 @@ pub fn extmark_move_region(
             extent_byte,
         );
 
-        if undo == kExtmarkUndo {
+        if undo == K_EXTMARK_UNDO {
             let Some(uh) = u_force_get_undo_header(&mut *buf) else {
                 return;
             };

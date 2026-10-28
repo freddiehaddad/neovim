@@ -31,7 +31,7 @@ use crate::option_vars::*;
 use crate::os::fs::{MAXPATHL, os_chdir, os_dirname};
 use crate::register::{EMPTY_YANKREG, get_y_register};
 use crate::shada::{
-    kShaDaForceit, kShaDaNanos, kShaDaNoHistory, kShaDaNoOpt, kShaDaWantInfo, shada_encode_buflist,
+    K_SHA_DA_FORCEIT, K_SHA_DA_NANOS, K_SHA_DA_NO_HISTORY, K_SHA_DA_NO_OPT, K_SHA_DA_WANT_INFO, shada_encode_buflist,
     shada_encode_gvars, shada_encode_jumps, shada_encode_regs, shada_read_string,
 };
 use crate::window::{
@@ -44,8 +44,8 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 
 use crate::api::buffer::VIML_INTERNAL_CALL;
-use crate::api::win_config::{kCtxNoDisplay, kCtxNoEvents};
-use crate::api::window::{kCtxKeepCwd, kCtxValidate};
+use crate::api::win_config::{K_CTX_NO_DISPLAY, K_CTX_NO_EVENTS};
+use crate::api::window::{K_CTX_KEEP_CWD, K_CTX_VALIDATE};
 use crate::keycodes::K_SPECIAL;
 pub type CtxStateFlags = c_int;
 pub type CtxLoadFlags = c_int;
@@ -116,26 +116,26 @@ impl Default for CtxSwitch {
 
 const NUM_SAVED_REGISTERS: c_int = 37;
 
-pub(crate) const kCdCauseWindow: CdCause = 1;
+pub(crate) const K_CD_CAUSE_WINDOW: CdCause = 1;
 
-pub(crate) const kCtxRegs: CtxStateFlags = 1;
-pub(crate) const kCtxJumps: CtxStateFlags = 2;
-pub(crate) const kCtxBufs: CtxStateFlags = 4;
-pub(crate) const kCtxGVars: CtxStateFlags = 8;
-pub(crate) const kCtxSFuncs: CtxStateFlags = 16;
-pub(crate) const kCtxFuncs: CtxStateFlags = 32;
-pub(crate) const kCtxCursor: CtxStateFlags = 64;
-pub(crate) const kCtxMarks: CtxStateFlags = 128;
-pub(crate) const kCtxVisual: CtxStateFlags = 256;
+pub(crate) const K_CTX_REGS: CtxStateFlags = 1;
+pub(crate) const K_CTX_JUMPS: CtxStateFlags = 2;
+pub(crate) const K_CTX_BUFS: CtxStateFlags = 4;
+pub(crate) const K_CTX_GVARS: CtxStateFlags = 8;
+pub(crate) const K_CTX_SFUNCS: CtxStateFlags = 16;
+pub(crate) const K_CTX_FUNCS: CtxStateFlags = 32;
+pub(crate) const K_CTX_CURSOR: CtxStateFlags = 64;
+pub(crate) const K_CTX_MARKS: CtxStateFlags = 128;
+pub(crate) const K_CTX_VISUAL: CtxStateFlags = 256;
 
-pub(crate) const kCtxMergeReg: CtxLoadFlags = 1;
+pub(crate) const K_CTX_MERGE_REG: CtxLoadFlags = 1;
 
-pub(crate) const kCtxKeepDirs: CtxSwitchFlags = 2;
+pub(crate) const K_CTX_KEEP_DIRS: CtxSwitchFlags = 2;
 
-const kCtxSwitchNone: c_int = 0;
-const kCtxSwitchWin: c_int = 1;
-const kCtxSwitchBuf: c_int = 2;
-const kCtxSwitchDirs: c_int = 3;
+const K_CTX_SWITCH_NONE: c_int = 0;
+const K_CTX_SWITCH_WIN: c_int = 1;
+const K_CTX_SWITCH_BUF: c_int = 2;
+const K_CTX_SWITCH_DIRS: c_int = 3;
 
 #[derive(Clone)]
 pub struct Context {
@@ -257,8 +257,8 @@ fn ctx_marks_ns() -> u32 {
 
 fn ctx_positions(ctx: &mut Context, flags: CtxStateFlags) -> [*mut CursorPos; 6] {
      {
-        let visual = (flags & kCtxVisual) != 0;
-        let marks = (flags & kCtxMarks) != 0;
+        let visual = (flags & K_CTX_VISUAL) != 0;
+        let marks = (flags & K_CTX_MARKS) != 0;
         [
             if visual {
                 &raw mut ctx.visual.vi_start
@@ -315,7 +315,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
         ctx.buf = curbuf_mut().b_fnum;
         ctx.pos = curwin_mut().w_cursor;
 
-        if (flags & kCtxCursor) != 0 {
+        if (flags & K_CTX_CURSOR) != 0 {
             ctx.curswant = if curwin_mut().w_set_curswant {
                 -1
             } else {
@@ -323,17 +323,17 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
             };
         }
 
-        if (flags & kCtxVisual) != 0 {
+        if (flags & K_CTX_VISUAL) != 0 {
             ctx.visual = curbuf_mut().b_visual;
             ctx.visual_mode_eval = curbuf_mut().b_visual_mode_eval;
         }
-        if (flags & kCtxMarks) != 0 {
+        if (flags & K_CTX_MARKS) != 0 {
             ctx.op_start = curbuf_mut().b_op_start;
             ctx.op_end = curbuf_mut().b_op_end;
             ctx.last_change = curbuf_mut().b_last_change.clone();
             ctx.last_insert = curbuf_mut().b_last_insert.clone();
         }
-        if (flags & (kCtxVisual | kCtxMarks)) != 0 {
+        if (flags & (K_CTX_VISUAL | K_CTX_MARKS)) != 0 {
             let pos = ctx_positions(&mut *ctx, flags);
             for (i, &pos_ptr) in pos.iter().enumerate() {
                 if pos_ptr.is_null() {
@@ -360,21 +360,21 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
             }
         }
 
-        if (flags & kCtxRegs) != 0 {
+        if (flags & K_CTX_REGS) != 0 {
             ctx.regs = shada_encode_regs(false, 0);
         }
-        if (flags & kCtxJumps) != 0 {
+        if (flags & K_CTX_JUMPS) != 0 {
             ctx.jumps = shada_encode_jumps();
         }
-        if (flags & kCtxBufs) != 0 {
+        if (flags & K_CTX_BUFS) != 0 {
             ctx.bufs = shada_encode_buflist();
         }
-        if (flags & kCtxGVars) != 0 {
+        if (flags & K_CTX_GVARS) != 0 {
             ctx.gvars = shada_encode_gvars();
         }
 
-        if (flags & (kCtxFuncs | kCtxSFuncs)) != 0 {
-            let scriptonly = (flags & kCtxFuncs) == 0;
+        if (flags & (K_CTX_FUNCS | K_CTX_SFUNCS)) != 0 {
+            let scriptonly = (flags & K_CTX_FUNCS) == 0;
             ctx.funcs = Array::new();
             let mut err = Error::new();
 
@@ -411,7 +411,7 @@ pub fn ctx_save(ctx: &mut Context, flags: CtxStateFlags) {
 
 pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags) {
     unsafe {
-        if (flags & kCtxCursor) != 0 {
+        if (flags & K_CTX_CURSOR) != 0 {
             assert!(handle_get_buffer(ctx.buf) == g_st().curbuf);
             curwin_mut().w_cursor = ctx.pos;
             if ctx.curswant >= 0 {
@@ -423,7 +423,7 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
         }
 
         let buf = handle_get_buffer(ctx.buf);
-        if (flags & (kCtxVisual | kCtxMarks)) != 0 && !buf.is_null() {
+        if (flags & (K_CTX_VISUAL | K_CTX_MARKS)) != 0 && !buf.is_null() {
             let pos = ctx_positions(&mut *ctx, flags);
             for (i, &pos_ptr) in pos.iter().enumerate() {
                 if pos_ptr.is_null() || ctx.pos_marks[i] == 0 {
@@ -431,11 +431,11 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
                 }
                 extmark_get_pos( &mut *buf, ctx_marks_ns(), ctx.pos_marks[i], &mut *pos_ptr);
             }
-            if (flags & kCtxVisual) != 0 {
+            if (flags & K_CTX_VISUAL) != 0 {
                 (*buf).b_visual = ctx.visual;
                 (*buf).b_visual_mode_eval = ctx.visual_mode_eval;
             }
-            if (flags & kCtxMarks) != 0 {
+            if (flags & K_CTX_MARKS) != 0 {
                 (*buf).b_op_start = ctx.op_start;
                 (*buf).b_op_end = ctx.op_end;
                 (*buf).b_last_change = ctx.last_change.clone();
@@ -443,40 +443,40 @@ pub fn ctx_load(ctx: &mut Context, flags: CtxStateFlags, loadflags: CtxLoadFlags
             }
         }
 
-        if (flags & kCtxRegs) != 0 {
-            if (loadflags & kCtxMergeReg) == 0 {
+        if (flags & K_CTX_REGS) != 0 {
+            if (loadflags & K_CTX_MERGE_REG) == 0 {
                 for i in 0..NUM_SAVED_REGISTERS {
                     *get_y_register(i) = EMPTY_YANKREG;
                 }
             }
             shada_read_string(
                 &ctx.regs,
-                kShaDaWantInfo | kShaDaForceit | kShaDaNanos | kShaDaNoHistory,
+                K_SHA_DA_WANT_INFO | K_SHA_DA_FORCEIT | K_SHA_DA_NANOS | K_SHA_DA_NO_HISTORY,
             );
         }
 
-        if (flags & kCtxJumps) != 0 {
+        if (flags & K_CTX_JUMPS) != 0 {
             shada_read_string(
                 &ctx.jumps,
-                kShaDaWantInfo | kShaDaForceit | kShaDaNoHistory,
+                K_SHA_DA_WANT_INFO | K_SHA_DA_FORCEIT | K_SHA_DA_NO_HISTORY,
             );
         }
 
-        if (flags & kCtxBufs) != 0 {
+        if (flags & K_CTX_BUFS) != 0 {
             shada_read_string(
                 &ctx.bufs,
-                kShaDaWantInfo | kShaDaForceit | kShaDaNoHistory | kShaDaNoOpt,
+                K_SHA_DA_WANT_INFO | K_SHA_DA_FORCEIT | K_SHA_DA_NO_HISTORY | K_SHA_DA_NO_OPT,
             );
         }
 
-        if (flags & kCtxGVars) != 0 {
+        if (flags & K_CTX_GVARS) != 0 {
             shada_read_string(
                 &ctx.gvars,
-                kShaDaWantInfo | kShaDaForceit | kShaDaNoHistory | kShaDaNoOpt,
+                K_SHA_DA_WANT_INFO | K_SHA_DA_FORCEIT | K_SHA_DA_NO_HISTORY | K_SHA_DA_NO_OPT,
             );
         }
 
-        if (flags & kCtxFuncs) != 0 {
+        if (flags & K_CTX_FUNCS) != 0 {
             for i in 0..ctx.funcs.size {
                 do_cmdline_cmd((*ctx.funcs.items.add(i)).data.string().data);
             }
@@ -556,19 +556,19 @@ pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxState
                 continue;
             }
             if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"regs") {
-                types |= kCtxRegs;
+                types |= K_CTX_REGS;
                 ctx.regs = array_to_string(item.value.data.array(), err);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"jumps") {
-                types |= kCtxJumps;
+                types |= K_CTX_JUMPS;
                 ctx.jumps = array_to_string(item.value.data.array(), err);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"bufs") {
-                types |= kCtxBufs;
+                types |= K_CTX_BUFS;
                 ctx.bufs = array_to_string(item.value.data.array(), err);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"gvars") {
-                types |= kCtxGVars;
+                types |= K_CTX_GVARS;
                 ctx.gvars = array_to_string(item.value.data.array(), err);
             } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"funcs") {
-                types |= kCtxFuncs;
+                types |= K_CTX_FUNCS;
                 ctx.funcs = copy_object(item.value, None).data.array();
             }
         }
@@ -619,7 +619,7 @@ fn ctx_localdirs_restore(cs: &mut CtxSwitch,
         }
 
         if cwp.is_some() && (did_chdir || cwp.unwrap().w_localdir.is_some()) {
-            update_cwd(kCdCauseWindow);
+            update_cwd(K_CD_CAUSE_WINDOW);
         }
 
         if !(persist
@@ -633,13 +633,13 @@ fn ctx_localdirs_restore(cs: &mut CtxSwitch,
 
 fn ctx_dirs_save(cs: &mut CtxSwitch, wp: &mut WinInfoInfo, tp: *mut TabPageInfo, buf: *mut FileBuf) {
     unsafe {
-        if (cs.cs_flags & (kCtxKeepCwd | kCtxKeepDirs)) == 0 {
+        if (cs.cs_flags & (K_CTX_KEEP_CWD | K_CTX_KEEP_DIRS)) == 0 {
             return;
         }
 
         cs.cs_globaldir = g_st().globaldir.clone();
 
-        if (cs.cs_flags & kCtxKeepDirs) != 0 {
+        if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
             let target_buf = if !buf.is_null() { buf } else { wp.w_buffer };
             cs.cs_dirs_tab = (*tp).handle;
             cs.cs_w_localdir = wp.w_localdir.clone();
@@ -648,7 +648,7 @@ fn ctx_dirs_save(cs: &mut CtxSwitch, wp: &mut WinInfoInfo, tp: *mut TabPageInfo,
         }
 
         let mut cwd = [0 as c_char; MAXPATHL];
-        if ((cs.cs_flags & kCtxKeepDirs) != 0 || curwin_ptr() != (&raw mut *wp))
+        if ((cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || curwin_ptr() != (&raw mut *wp))
             && os_dirname(cwd.as_mut_ptr(), MAXPATHL)
         {
             cs.cs_cwd = Some(crate::memory::cstr_to_cstring(cwd.as_ptr()));
@@ -674,7 +674,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
             return;
         }
 
-        if (cs.cs_flags & kCtxKeepDirs) != 0 {
+        if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
             let mut dirs_tab: *mut TabPageInfo = ptr::null_mut();
             for tp in for_all_tabpages_ptr() {
                 if (*tp).handle == cs.cs_dirs_tab {
@@ -691,7 +691,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
         if cs.cs_apply_acd {
             do_autochdir();
         } else if let Some(ref cs_cwd) = cs.cs_cwd
-            && ((cs.cs_flags & kCtxKeepDirs) != 0 || !ctx_st().CTX_DID_CHDIR)
+            && ((cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || !ctx_st().CTX_DID_CHDIR)
         {
             os_chdir(cs_cwd.as_ptr());
             shorten_fnames(1);
@@ -797,21 +797,21 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
     flags: CtxSwitchFlags,
 ) -> bool {
     unsafe {
-        assert!((wp.is_null() != buf.is_null()) || (wp.is_null() && (flags & kCtxKeepDirs) != 0));
+        assert!((wp.is_null() != buf.is_null()) || (wp.is_null() && (flags & K_CTX_KEEP_DIRS) != 0));
         assert!(buf.is_null() || tp.is_null());
         *cs = CtxSwitch::new();
         cs.cs_flags = flags;
         cs.cs_mode = if !buf.is_null() {
-            kCtxSwitchBuf
+            K_CTX_SWITCH_BUF
         } else if !wp.is_null() {
-            kCtxSwitchWin
+            K_CTX_SWITCH_WIN
         } else {
-            kCtxSwitchDirs
+            K_CTX_SWITCH_DIRS
         };
         cs.cs_ctxwin_idx = -1;
         cs.cs_did_chdir = ctx_st().CTX_DID_CHDIR;
         ctx_st().CTX_DID_CHDIR = false;
-        if cs.cs_mode == kCtxSwitchDirs {
+        if cs.cs_mode == K_CTX_SWITCH_DIRS {
             wp = curwin_ptr();
         }
 
@@ -828,7 +828,7 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
             }
         }
 
-        if (flags & kCtxValidate) != 0 && !wp.is_null() {
+        if (flags & K_CTX_VALIDATE) != 0 && !wp.is_null() {
             cs.cs_target_win = (*wp).handle;
             cs.cs_target_old_pos = (*wp).w_cursor;
         }
@@ -852,12 +852,12 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
             g_st().Visual.active = false;
         }
 
-        if (flags & kCtxNoEvents) != 0 {
+        if (flags & K_CTX_NO_EVENTS) != 0 {
             block_autocmds();
         }
         if !tp.is_null() {
             cs.cs_curtab = g_st().curtab;
-            if (flags & kCtxNoDisplay) != 0 {
+            if (flags & K_CTX_NO_DISPLAY) != 0 {
                 unuse_tabpage(curtab_mut());
                 use_tabpage(tp);
             } else {
@@ -881,13 +881,13 @@ pub fn ctx_switch(cs: &mut CtxSwitch,
         cs.cs_new_curwin = curwin_mut().handle;
         set_bufref(&mut cs.cs_new_curbuf, g_st().curbuf.cast());
 
-        if cs.cs_mode == kCtxSwitchBuf && cs.cs_new_curwin != cs.cs_curwin {
+        if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
             if ctx_st().CTX_SWITCH_DEPTH == 0 {
                 ctx_st().CTX_SAVED_CURWIN = cs.cs_curwin;
             }
             ctx_st().CTX_SWITCH_DEPTH += 1;
         }
-        if (flags & kCtxValidate) != 0 {
+        if (flags & K_CTX_VALIDATE) != 0 {
             check_cursor(curwin_mut());
         }
         true
@@ -914,13 +914,13 @@ fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: *mut WinInfoInfo) {
 
 pub fn ctx_restore(cs: &mut CtxSwitch) {
     unsafe {
-        if cs.cs_mode == kCtxSwitchNone {
+        if cs.cs_mode == K_CTX_SWITCH_NONE {
             return;
         }
 
-        if cs.cs_mode == kCtxSwitchWin {
+        if cs.cs_mode == K_CTX_SWITCH_WIN {
             if !cs.cs_curtab.is_null() && valid_tabpage(cs.cs_curtab) {
-                if (cs.cs_flags & kCtxNoDisplay) != 0 {
+                if (cs.cs_flags & K_CTX_NO_DISPLAY) != 0 {
                     let old_tp_curwin = curtab_mut().tp_curwin;
                     unuse_tabpage(curtab_mut());
                     curtab_mut().tp_curwin = old_tp_curwin;
@@ -940,14 +940,14 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
 
             vars_clear(&mut (*(*cwp).w_vars()).dv_hashtab);
 
-            let free_dirs = (cs.cs_flags & kCtxKeepDirs) == 0;
+            let free_dirs = (cs.cs_flags & K_CTX_KEEP_DIRS) == 0;
             ctx_localdirs_restore(&mut *cs, cwp.as_ref(), Some(crate::globals::curtab_mut()), free_dirs);
 
             if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
                 curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
                 curwin_mut().w_topfill = 0;
             }
-        } else if cs.cs_mode == kCtxSwitchBuf {
+        } else if cs.cs_mode == K_CTX_SWITCH_BUF {
             let saved_buf = cs.cs_new_curbuf.br_buf.cast::<FileBuf>();
             if curwin_mut().handle == cs.cs_new_curwin
                 && g_st().curbuf != saved_buf
@@ -966,22 +966,22 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         if !cs.cs_same_win {
             g_st().Visual.active = cs.cs_visual_active;
         }
-        if cs.cs_mode == kCtxSwitchBuf {
+        if cs.cs_mode == K_CTX_SWITCH_BUF {
             check_cursor(curwin_mut());
             if g_st().Visual.active {
                 check_pos(curbuf_mut(), &mut g_st().Visual.start);
             }
         }
 
-        if (cs.cs_flags & kCtxNoEvents) != 0 {
+        if (cs.cs_flags & K_CTX_NO_EVENTS) != 0 {
             unblock_autocmds();
         }
         ctx_dirs_restore(cs);
         if cs.cs_ctxwin_idx < 0 && ctx_st().CTX_DID_CHDIR {
-            update_cwd(kCdCauseWindow);
+            update_cwd(K_CD_CAUSE_WINDOW);
         }
         ctx_st().CTX_DID_CHDIR = ctx_st().CTX_DID_CHDIR || cs.cs_did_chdir;
-        if (cs.cs_flags & kCtxValidate) != 0 {
+        if (cs.cs_flags & K_CTX_VALIDATE) != 0 {
             let wp = win_find_by_handle(cs.cs_target_win);
             if !wp.is_null() && !equalpos(cs.cs_target_old_pos, (*wp).w_cursor) {
                 (*wp).w_redr_status = true;
@@ -991,7 +991,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
                 check_pos(curbuf_mut(), &mut g_st().Visual.start);
             }
         }
-        if cs.cs_mode == kCtxSwitchBuf && cs.cs_new_curwin != cs.cs_curwin {
+        if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
             assert!(ctx_st().CTX_SWITCH_DEPTH > 0);
             ctx_st().CTX_SWITCH_DEPTH -= 1;
             if ctx_st().CTX_SWITCH_DEPTH == 0 {

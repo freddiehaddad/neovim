@@ -20,7 +20,7 @@ pub type Buffer = ObjHandle;
 pub type Window = ObjHandle;
 pub type Tabpage = ObjHandle;
 
-const KEYSET_OPTIDX_tabpage_config__after: u64 = 1;
+const KEYSET_OPTIDX_TABPAGE_CONFIG_AFTER: u64 = 1;
 
 #[repr(C)]
 #[derive(Default)]
@@ -263,7 +263,7 @@ pub fn nvim_open_tabpage(
 
         let after: c_int = if has_key(
             config.is_set__tabpage_config_,
-            KEYSET_OPTIDX_tabpage_config__after,
+            KEYSET_OPTIDX_TABPAGE_CONFIG_AFTER,
         ) {
             config.after as c_int
         } else {

@@ -3,7 +3,7 @@
 use crate::buffer::{
     MAXLNUM, SEA_NONE, bt_cmdwin, bt_nofilename, bt_prompt, FileBuf, buf_ensure_loaded,
     buf_get_changedtick, buflist_add, buflist_findlnum, buflist_findname_exp, buflist_findnr,
-    buflist_new, first_win_in_tab, kExtmarkNoUndo, kMarkAdjustNormal,
+    buflist_new, first_win_in_tab, K_EXTMARK_NO_UNDO, K_MARK_ADJUST_NORMAL,
 };
 use crate::change::{
     ML_DEL_MESSAGE, appended_lines_mark, changed_lines, deleted_lines_buf, deleted_lines_mark,
@@ -13,7 +13,7 @@ use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{check_cursor_col, Colnr, Linenr};
 use crate::eval::funcs::{get_buf_arg, tv_get_buf, tv_get_buf_from_arg};
 use crate::eval::typval::{
-    Callback, EvalFuncData, TypvalVval, VarType, callback_free, TvDict, kCallbackNone, TvList,
+    Callback, EvalFuncData, TypvalVval, VarType, callback_free, TvDict, K_CALLBACK_NONE_CONST, TvList,
     Listitem, tv_check_str_or_nr, tv_clear, tv_dict_add_dict, tv_dict_add_list, tv_dict_add_nr,
     tv_dict_add_str, tv_dict_alloc, tv_dict_get_bool, tv_get_bool_chk, tv_get_lnum,
     tv_get_lnum_buf, tv_get_string, tv_get_string_chk, tv_list_alloc, tv_list_alloc_ret,
@@ -22,10 +22,10 @@ use crate::eval::typval::{
 };
 use crate::eval::window::win_has_winnr;
 use crate::eval::{
-    callback_call, callback_from_typval, kListLenMayKnow, prompt_get_input, typval_tostring,
+    callback_call, callback_from_typval, K_LIST_LEN_MAY_KNOW_CONST, prompt_get_input, typval_tostring,
 };
 use crate::ex_cmds::check_secure;
-use crate::extmark::{extmark_splice_cols, kExtmarkUndo};
+use crate::extmark::{extmark_splice_cols, K_EXTMARK_UNDO};
 use crate::globals::*;
 use crate::insert::buf_prompt_text;
 use crate::mark::mark_adjust_buf;
@@ -311,8 +311,8 @@ fn prompt_trim_scrollback(buf: &mut FileBuf) {
             MAXLNUM,
             -to_delete,
             true,
-            kMarkAdjustNormal,
-            kExtmarkUndo,
+            K_MARK_ADJUST_NORMAL,
+            K_EXTMARK_UNDO,
         );
         deleted_lines_buf(buf, 1, to_delete);
 
@@ -348,7 +348,7 @@ pub fn prompt_invoke_callback() {
         curwin_mut().w_cursor.col = 0;
         curbuf_mut().b_prompt_start.mark.lnum = lnum + 1;
 
-        if curbuf_mut().b_prompt_callback.cb_type() != kCallbackNone {
+        if curbuf_mut().b_prompt_callback.cb_type() != K_CALLBACK_NONE_CONST {
             let mut rettv = TypVal {
                 v_type: VarType::VarUnknown,
                 v_lock: 0,
@@ -390,7 +390,7 @@ pub fn prompt_invoke_callback() {
 /// Return true when the interrupt callback was invoked (`invoke_prompt_interrupt`).
 pub fn invoke_prompt_interrupt() -> bool {
     unsafe {
-        if curbuf_mut().b_prompt_interrupt.cb_type() == kCallbackNone {
+        if curbuf_mut().b_prompt_interrupt.cb_type() == K_CALLBACK_NONE_CONST {
             return false;
         }
         let mut rettv = TypVal {
@@ -760,7 +760,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> *mut TvDict {
 
         tv_dict_add_dict(&mut *dict, c"variables", buf.b_vars());
 
-        let windows = tv_list_alloc(kListLenMayKnow);
+        let windows = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         for tp in for_all_tabpages_ptr() {
             for wp in win_iter_mut(first_win_in_tab( &mut *tp)) {
                 if wp.w_buffer == buf {
@@ -790,7 +790,7 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         let mut sel_bufloaded = false;
         let mut sel_bufmodified = false;
 
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
         if argvars[0].v_type == VarType::VarDict {
             let sel_d = argvars[0].vval.v_dict();
@@ -1080,7 +1080,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal,
                     0,
                     old_line_len,
                     new_prompt_len,
-                    kExtmarkNoUndo,
+                    K_EXTMARK_NO_UNDO,
                 );
                 cursor_col = new_prompt_len;
             } else {
@@ -1092,7 +1092,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal,
                     0,
                     mark_col,
                     new_prompt_len,
-                    kExtmarkNoUndo,
+                    K_EXTMARK_NO_UNDO,
                 );
                 cursor_col += new_prompt_len - mark_col;
             }

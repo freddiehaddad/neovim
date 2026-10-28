@@ -5,7 +5,7 @@ use crate::buffer::FileBuf;
 use crate::charset::{NUL, vim_isprintc, vim_strsize};
 use crate::cursor::{Colnr, Linenr, lt, ltoreq, CursorPos};
 use crate::decoration::{
-    decor_conceal_line, decor_virt_lines, kMTFilterSelect, kVPosInline, kVTIsLines,
+    decor_conceal_line, decor_virt_lines, K_MTFILTER_SELECT, K_VPOS_INLINE, K_VTIS_LINES,
 };
 use crate::diff::{diff_check_fill, diffopt_filler};
 use crate::fold::{hasFolding, hasFoldingWin, lineFolded};
@@ -13,7 +13,7 @@ use crate::globals::*;
 use crate::indent::{get_breakindent_win, tabstop_padding};
 use crate::keycodes::TAB;
 use crate::marktree::{
-    MarkTreeIter, kMTMetaCount, kMTMetaInline, kMTMetaLines, marktree_itr_current,
+    MarkTreeIter, K_MTMETA_COUNT, K_MTMETA_INLINE, K_MTMETA_LINES, marktree_itr_current,
     marktree_itr_get_filter, marktree_itr_next_filter, mt_decor, mt_invalid, mt_right,
 };
 use crate::mbyte::{ptr2cells, utf_ClusterInfo, utf_ptr2StrCharInfo, utf_ptr2char, utfc_ptr2len};
@@ -27,15 +27,15 @@ use std::ffi::{c_char, c_int, c_long};
 use std::ptr;
 
 use crate::drawscreen::GETVCOL_END_EXCL_LBR;
-use crate::insert::kCharsizeFast;
+use crate::insert::K_CHARSIZE_FAST;
 use crate::regexp::MAXCOL;
 pub type CSType = bool;
 
-const kInvalidByteCells: c_int = 4;
+const K_INVALID_BYTE_CELLS: c_int = 4;
 
-const kCharsizeRegular: CSType = false;
+const K_CHARSIZE_REGULAR: CSType = false;
 
-static INLINE_FILTER: [u32; kMTMetaCount] = [kMTFilterSelect, 0, 0, 0, 0];
+static INLINE_FILTER: [u32; K_MTMETA_COUNT] = [K_MTFILTER_SELECT, 0, 0, 0, 0];
 
 #[repr(C)]
 pub struct CharsizeArg {
@@ -118,7 +118,7 @@ pub(crate) fn win_charsize(
     csarg: &mut CharsizeArg,
     mb_width: c_int,
 ) -> CharSize { let ptr_val = ptr_val.into_c_char_ptr();
-    if cstype == kCharsizeFast {
+    if cstype == K_CHARSIZE_FAST {
             charsize_fast(csarg, ptr_val, vcol, chr, mb_width)
         } else {
             charsize_regular(&mut *csarg, ptr_val, vcol, chr, mb_width)
@@ -134,7 +134,7 @@ pub fn win_linetabsize(
 ) -> c_int {
     let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg,  wp, lnum, line);
-        if cstype == kCharsizeFast {
+        if cstype == K_CHARSIZE_FAST {
             linesize_fast(&csarg, 0, len)
         } else {
             linesize_regular(&mut csarg, 0, len)
@@ -157,7 +157,7 @@ pub fn linetabsize_col(startvcol: c_int, s: *mut c_char) -> c_int {
      {
         let mut csarg = CharsizeArg::new();
         let cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, s);
-        if cstype == kCharsizeFast {
+        if cstype == K_CHARSIZE_FAST {
             linesize_fast(&csarg, startvcol, MAXCOL)
         } else {
             linesize_regular(&mut csarg, startvcol, MAXCOL)
@@ -217,9 +217,9 @@ pub fn init_charsize_arg(
                     || wp.w_onebuf_opt.wo_bri != 0
                     || *get_showbreak_value(wp) != NUL))
         {
-            kCharsizeRegular
+            K_CHARSIZE_REGULAR
         } else {
-            kCharsizeFast
+            K_CHARSIZE_FAST
         }
     }
 }
@@ -233,9 +233,9 @@ pub fn init_charsize_arg_skip_cur_text(
      {
         let mut cstype = init_charsize_arg(csarg, wp, 0, line);
         csarg.skip_cur_text = true;
-        if lnum > 0 && wp.buf_mut().b_marktree.meta_root[kMTMetaInline] > 0 {
+        if lnum > 0 && wp.buf_mut().b_marktree.meta_root[K_MTMETA_INLINE] > 0 {
             csarg.virt_row = lnum - 1;
-            cstype = kCharsizeRegular;
+            cstype = K_CHARSIZE_REGULAR;
         }
         cstype
     }
@@ -261,7 +261,7 @@ fn inline_virt_text_width(
                 } else {
                     ptr::null_mut()
                 }) {
-                    if (vt.flags & kVTIsLines) == 0 && vt.pos == kVPosInline {
+                    if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
                         width += vt.width;
                     }
                 }
@@ -297,7 +297,7 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
         } else if crate::memory::cstr_is_empty(cur) {
             size = if has_lcs_eol { 1 } else { 0 };
         } else if cur_char < 0 {
-            size = kInvalidByteCells;
+            size = K_INVALID_BYTE_CELLS;
         } else {
             size = mb_width;
             is_doublewidth = size == 2 && cur_char >= 0x80;
@@ -317,7 +317,7 @@ pub fn charsize_regular(csarg: &mut CharsizeArg,
                     } else {
                         ptr::null_mut()
                     }) {
-                        if (vt.flags & kVTIsLines) == 0 && vt.pos == kVPosInline {
+                        if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
                             if mt_right(mark) {
                                 csarg.cur_text_width_right += vt.width;
                             } else {
@@ -536,7 +536,7 @@ fn charsize_fast_impl(
             }
         } else {
             let width = if cur_char < 0 {
-                kInvalidByteCells
+                K_INVALID_BYTE_CELLS
             } else {
                 mb_width
             };
@@ -592,7 +592,7 @@ pub fn charsize_nowrap(
     if cur_char == TAB && use_tabstop {
             tabstop_padding(vcol, buf.b_p_ts, &buf.b_p_vts_array)
         } else if cur_char < 0 {
-            kInvalidByteCells
+            K_INVALID_BYTE_CELLS
         } else {
             mb_width
         }
@@ -712,7 +712,7 @@ pub fn getvcol(
         let mut vcol: Colnr = 0;
         let mut char_size: CharSize;
         let mut ci = utf_ptr2StrCharInfo(line);
-        if cstype == kCharsizeFast {
+        if cstype == K_CHARSIZE_FAST {
             let use_tabstop = csarg.use_tabstop;
             loop {
                 if crate::memory::cstr_is_empty(ci.ptr) {
@@ -884,7 +884,7 @@ pub fn getvcols(
 pub fn win_may_fill(wp: &mut WinInfoInfo) -> bool {
      {
         (wp.w_onebuf_opt.wo_diff != 0 && diffopt_filler())
-            || wp.buf_mut().b_marktree.meta_root[kMTMetaLines] != 0
+            || wp.buf_mut().b_marktree.meta_root[K_MTMETA_LINES] != 0
     }
 }
 
@@ -925,7 +925,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> c_int {
             return 1;
         }
 
-        let mut col = if cstype == kCharsizeFast {
+        let mut col = if cstype == K_CHARSIZE_FAST {
             i64::from(linesize_fast(&csarg, 0, MAXCOL))
         } else {
             i64::from(linesize_regular(&mut csarg, 0, MAXCOL))
@@ -967,7 +967,7 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: c_long) -> c_i
         let mut vcol: Colnr = 0;
         let mut ci = utf_ptr2StrCharInfo(line);
         let limit_ptr = (line as *const c_char).add(column as usize);
-        if cstype == kCharsizeFast {
+        if cstype == K_CHARSIZE_FAST {
             let use_tabstop = csarg.use_tabstop;
             while !crate::memory::cstr_is_empty(ci.ptr) && ci.ptr < limit_ptr {
                 let cli = utf_ClusterInfo(ci);

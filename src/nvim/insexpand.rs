@@ -8,7 +8,7 @@ use crate::autocmd::{
     EVENT_COMPLETECHANGED, EVENT_COMPLETEDONE, EVENT_COMPLETEDONEPRE, apply_autocmds, has_event,
 };
 use crate::buffer::{
-    MAXLNUM, NOTDONE, VAR_FIXED, bt_cmdwin, FileBuf, buf_spname, buf_valid, kUIMessages,
+    MAXLNUM, NOTDONE, VAR_FIXED, bt_cmdwin, FileBuf, buf_spname, buf_valid, K_UIMESSAGES,
 };
 use crate::change::{
     HLF_W, MB_MAXCHAR, OPENLINE_FORCE_INDENT, OPENLINE_KEEPTRAIL, deleted_lines_mark,
@@ -19,7 +19,7 @@ use crate::charset::{
     vim_isIDc, vim_isfilec, vim_isprintc, vim_iswordc, vim_iswordp, vim_strsize,
 };
 use crate::cmdexpand::{
-    Ctrl_N, Ctrl_P, EXPAND_FILES, EXPAND_LUA, EXPAND_NOTHING, EXPAND_OK, EXPAND_UNSUCCESSFUL,
+    CTRL_N, CTRL_P, EXPAND_FILES, EXPAND_LUA, EXPAND_NOTHING, EXPAND_OK, EXPAND_UNSUCCESSFUL,
     RE_LAST, SEARCH_NFMSG, TAG_MANY, addstar, expand_cmdline, free_xp_files_extra, set_cmd_context,
 };
 use crate::cursor::{
@@ -27,7 +27,7 @@ use crate::cursor::{
     get_cursor_pos_len, get_cursor_pos_ptr, inc_cursor, Linenr, CursorPos,
 };
 use crate::drawscreen::{
-    conceal_cursor_line, kShmCompletionmenu, redrawWinline, setcursor, showmode, update_screen,
+    conceal_cursor_line, K_SHM_COMPLETIONMENU, redrawWinline, setcursor, showmode, update_screen,
 };
 use crate::errors::*;
 use crate::eval::typval::{
@@ -41,11 +41,11 @@ use crate::eval::typval::{
 use crate::eval::userfunc::callback_call_retnr;
 use crate::eval::vars::{VV_COMPLETED_ITEM, set_vim_var_dict};
 use crate::eval::{
-    callback_call, get_v_event, kListLenMayKnow, restore_v_event, set_ref_in_callback,
+    callback_call, get_v_event, K_LIST_LEN_MAY_KNOW_CONST, restore_v_event, set_ref_in_callback,
 };
 use crate::ex_eval::aborting;
 use crate::ex_getln::{
-    Ctrl_D, Ctrl_F, Ctrl_K, Ctrl_L, Ctrl_O, Ctrl_Q, Ctrl_R, Ctrl_RSB, Ctrl_T, Ctrl_U, Ctrl_Z,
+    CTRL_D_CONST, CTRL_F_CONST, CTRL_K_CONST, CTRL_L_CONST, CTRL_O, CTRL_Q_CONST, CTRL_R_CONST, CTRL_RSB_CONST, CTRL_T_CONST, CTRL_U, CTRL_Z_CONST,
     K_EVENT, K_LUA, K_SELECT, tilde_replace,
 };
 use crate::extmark::{ExtmarkUndoObject, extmark_apply_undo, extmark_splice_delete};
@@ -58,11 +58,11 @@ use crate::highlight_group::{syn_check_group, syn_id2attr, syn_id2name, syn_name
 use crate::indent::{get_indent, inindent};
 use crate::indent_c::{KEY_COMPLETE, do_c_expr_indent, in_cinkeys};
 use crate::input::{
-    kInsNone, redo_append_char, redo_append_lit, safe_vgetc, using_script, vgetc, vpeekc,
+    K_INS_NONE, redo_append_char, redo_append_lit, safe_vgetc, using_script, vgetc, vpeekc,
     vpeekc_any, vungetc,
 };
 use crate::insert::{
-    BS_START, Ctrl_S, Ctrl_X, backspace_until_column, get_can_cindent, ins_apply_autocmds, ins_eol,
+    BS_START, CTRL_S_CONST, CTRL_X_CONST, backspace_until_column, get_can_cindent, ins_apply_autocmds, ins_eol,
     ins_redraw, insertchar, start_arrow, stop_arrow,
 };
 use crate::keycodes::{
@@ -101,7 +101,7 @@ use crate::popupmenu::{
     pum_clear, pum_display, pum_get_height, pum_set_event_info, pum_undisplay, pum_visible,
     Pumitem,
 };
-use crate::regexp::{Ctrl_V, MAXCOL, RE_MAGIC, Regmatch, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{CTRL_V_CONST, MAXCOL, RE_MAGIC, Regmatch, vim_regcomp, vim_regexec, vim_regfree};
 use crate::register::{NUM_REGISTERS, copy_register, get_register_name, valid_yank_reg};
 use crate::search::{Direction, find_pattern_in_path, ignorecase, search_for_exact_line, searchit};
 use crate::spell::{
@@ -126,7 +126,7 @@ pub const CPT_MENU: usize = 2;
 pub const CPT_INFO: usize = 3;
 pub const CPT_COUNT: usize = 4;
 
-const kDirectionNotSet: Direction = 0;
+const K_DIRECTION_NOT_SET: Direction = 0;
 
 pub(crate) const ACTION_EXPAND: c_int = 5;
 
@@ -134,33 +134,33 @@ pub(crate) const LSIZE: usize = 512;
 const MIN_SPACE: c_int = 75;
 const LOOKBACK_LINE_COUNT: Linenr = 1000;
 
-pub(crate) const Ctrl_I: c_int = 9;
+pub(crate) const CTRL_I_CONST: c_int = 9;
 
-pub(crate) const kWinInfo: WinKind = 1;
+pub(crate) const K_WIN_INFO: WinKind = 1;
 
-const VarUnknown: VarType = VarType::VarUnknown;
-const VarNumber: VarType = VarType::VarNumber;
-pub(crate) const VarString: VarType = VarType::VarString;
-const VarList: VarType = VarType::VarList;
-const VarDict: VarType = VarType::VarDict;
+const VAR_UNKNOWN: VarType = VarType::VarUnknown;
+const VAR_NUMBER: VarType = VarType::VarNumber;
+pub(crate) const VAR_STRING: VarType = VarType::VarString;
+const VAR_LIST: VarType = VarType::VarList;
+const VAR_DICT: VarType = VarType::VarDict;
 
-pub(crate) const kOptComplete: OptIndex = 51;
+pub(crate) const K_OPT_COMPLETE: OptIndex = 51;
 
-const kOptBoFlagComplete: c_uint = 0x08;
+const K_OPT_BO_FLAG_COMPLETE: c_uint = 0x08;
 
-pub(crate) const kOptCotFlagFuzzy: c_uint = 0x01;
-const kOptCotFlagLongest: c_uint = 0x02;
-const kOptCotFlagMenu: c_uint = 0x04;
-const kOptCotFlagMenuone: c_uint = 0x08;
-const kOptCotFlagNearest: c_uint = 0x10;
-const kOptCotFlagNoinsert: c_uint = 0x20;
-const kOptCotFlagNoselect: c_uint = 0x40;
-const kOptCotFlagNosort: c_uint = 0x80;
-const kOptCotFlagPathopt: c_uint = 0x100;
-const kOptCotFlagPreinsert: c_uint = 0x400;
-const kOptCotFlagPreselect: c_uint = 0x800;
+pub(crate) const K_OPT_COT_FLAG_FUZZY: c_uint = 0x01;
+const K_OPT_COT_FLAG_LONGEST: c_uint = 0x02;
+const K_OPT_COT_FLAG_MENU: c_uint = 0x04;
+const K_OPT_COT_FLAG_MENUONE: c_uint = 0x08;
+const K_OPT_COT_FLAG_NEAREST: c_uint = 0x10;
+const K_OPT_COT_FLAG_NOINSERT: c_uint = 0x20;
+const K_OPT_COT_FLAG_NOSELECT: c_uint = 0x40;
+const K_OPT_COT_FLAG_NOSORT: c_uint = 0x80;
+const K_OPT_COT_FLAG_PATHOPT: c_uint = 0x100;
+const K_OPT_COT_FLAG_PREINSERT: c_uint = 0x400;
+const K_OPT_COT_FLAG_PRESELECT: c_uint = 0x800;
 
-pub(crate) const kShmCompletionscan: c_int = b'C' as c_int;
+pub(crate) const K_SHM_COMPLETIONSCAN: c_int = b'C' as c_int;
 
 pub(crate) const TAG_NOIC: c_int = 8;
 pub(crate) const TAG_INS_COMP: c_int = 64;
@@ -452,10 +452,10 @@ struct CptSource {
 use crate::charset::NUL;
 use crate::drawline::{HLF_COUNT, SMT_ALL};
 use crate::eval::funcs::SEARCH_KEEP;
-use crate::eval::typval::kCallbackNone;
-use crate::ex_cmds::{Ctrl_C, Ctrl_E, Ctrl_Y, HLF_R};
+use crate::eval::typval::K_CALLBACK_NONE_CONST;
+use crate::ex_cmds::{CTRL_C_CONST, CTRL_E, CTRL_Y, HLF_R};
 use crate::ex_docmd::{FIND_ANY, FIND_DEFINE};
-use crate::extmark::kExtmarkUndo;
+use crate::extmark::K_EXTMARK_UNDO;
 use crate::globals::IOSIZE;
 use crate::help::{TAG_NAMES, TAG_REGEXP, TAG_VERBOSE};
 use crate::option::{OPT_GLOBAL, OPT_LOCAL};
@@ -820,8 +820,8 @@ pub fn check_compl_option(dict_opt: bool) -> bool {
         } else {
             crate::memory::cstr_is_empty(curbuf_mut().b_p_tsr)
                 && crate::memory::cstr_is_empty(opt_vars().p_tsr)
-                && curbuf_mut().b_p_tsrfu.cb_type() == kCallbackNone
-                && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu) == kCallbackNone
+                && curbuf_mut().b_p_tsrfu.cb_type() == K_CALLBACK_NONE_CONST
+                && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu) == K_CALLBACK_NONE_CONST
         };
         if empty {
             insexp().ctrl_x_mode = CTRL_X_NORMAL;
@@ -832,7 +832,7 @@ pub fn check_compl_option(dict_opt: bool) -> bool {
                 c"'thesaurus' option is empty".as_ptr()
             }));
             if g_st().emsg_silent == 0 && !g_st().in_assert_fails {
-                vim_beep(kOptBoFlagComplete);
+                vim_beep(K_OPT_BO_FLAG_COMPLETE);
                 setcursor();
                 msg_delay(2004, false);
             }
@@ -849,46 +849,46 @@ pub fn vim_is_ctrl_x_key(c: c_int) -> bool {
         }
 
         match insexp().ctrl_x_mode {
-            0 => c == Ctrl_N || c == Ctrl_P || c == Ctrl_X,
+            0 => c == CTRL_N || c == CTRL_P || c == CTRL_X_CONST,
             CTRL_X_NOT_DEFINED_YET | CTRL_X_CMDLINE_CTRL_X => {
-                c == Ctrl_X
-                    || c == Ctrl_Y
-                    || c == Ctrl_E
-                    || c == Ctrl_L
-                    || c == Ctrl_F
-                    || c == Ctrl_RSB
-                    || c == Ctrl_I
-                    || c == Ctrl_D
-                    || c == Ctrl_P
-                    || c == Ctrl_N
-                    || c == Ctrl_T
-                    || c == Ctrl_V
-                    || c == Ctrl_Q
-                    || c == Ctrl_U
-                    || c == Ctrl_O
-                    || c == Ctrl_S
-                    || c == Ctrl_K
+                c == CTRL_X_CONST
+                    || c == CTRL_Y
+                    || c == CTRL_E
+                    || c == CTRL_L_CONST
+                    || c == CTRL_F_CONST
+                    || c == CTRL_RSB_CONST
+                    || c == CTRL_I_CONST
+                    || c == CTRL_D_CONST
+                    || c == CTRL_P
+                    || c == CTRL_N
+                    || c == CTRL_T_CONST
+                    || c == CTRL_V_CONST
+                    || c == CTRL_Q_CONST
+                    || c == CTRL_U
+                    || c == CTRL_O
+                    || c == CTRL_S_CONST
+                    || c == CTRL_K_CONST
                     || c == b's' as c_int
-                    || c == Ctrl_Z
-                    || c == Ctrl_R
+                    || c == CTRL_Z_CONST
+                    || c == CTRL_R_CONST
             }
-            CTRL_X_SCROLL => c == Ctrl_Y || c == Ctrl_E,
-            CTRL_X_WHOLE_LINE => c == Ctrl_L || c == Ctrl_P || c == Ctrl_N,
-            CTRL_X_FILES => c == Ctrl_F || c == Ctrl_P || c == Ctrl_N,
-            CTRL_X_DICTIONARY => c == Ctrl_K || c == Ctrl_P || c == Ctrl_N,
-            CTRL_X_THESAURUS => c == Ctrl_T || c == Ctrl_P || c == Ctrl_N,
-            CTRL_X_TAGS => c == Ctrl_RSB || c == Ctrl_P || c == Ctrl_N,
-            CTRL_X_PATH_PATTERNS => c == Ctrl_P || c == Ctrl_N,
-            CTRL_X_PATH_DEFINES => c == Ctrl_D || c == Ctrl_P || c == Ctrl_N,
+            CTRL_X_SCROLL => c == CTRL_Y || c == CTRL_E,
+            CTRL_X_WHOLE_LINE => c == CTRL_L_CONST || c == CTRL_P || c == CTRL_N,
+            CTRL_X_FILES => c == CTRL_F_CONST || c == CTRL_P || c == CTRL_N,
+            CTRL_X_DICTIONARY => c == CTRL_K_CONST || c == CTRL_P || c == CTRL_N,
+            CTRL_X_THESAURUS => c == CTRL_T_CONST || c == CTRL_P || c == CTRL_N,
+            CTRL_X_TAGS => c == CTRL_RSB_CONST || c == CTRL_P || c == CTRL_N,
+            CTRL_X_PATH_PATTERNS => c == CTRL_P || c == CTRL_N,
+            CTRL_X_PATH_DEFINES => c == CTRL_D_CONST || c == CTRL_P || c == CTRL_N,
             CTRL_X_CMDLINE => {
-                c == Ctrl_V || c == Ctrl_Q || c == Ctrl_P || c == Ctrl_N || c == Ctrl_X
+                c == CTRL_V_CONST || c == CTRL_Q_CONST || c == CTRL_P || c == CTRL_N || c == CTRL_X_CONST
             }
-            CTRL_X_FUNCTION => c == Ctrl_U || c == Ctrl_P || c == Ctrl_N,
-            CTRL_X_OMNI => c == Ctrl_O || c == Ctrl_P || c == Ctrl_N,
-            CTRL_X_SPELL => c == Ctrl_S || c == Ctrl_P || c == Ctrl_N,
-            CTRL_X_EVAL => c == Ctrl_P || c == Ctrl_N,
-            CTRL_X_BUFNAMES => c == Ctrl_P || c == Ctrl_N,
-            CTRL_X_REGISTER => c == Ctrl_R || c == Ctrl_P || c == Ctrl_N,
+            CTRL_X_FUNCTION => c == CTRL_U || c == CTRL_P || c == CTRL_N,
+            CTRL_X_OMNI => c == CTRL_O || c == CTRL_P || c == CTRL_N,
+            CTRL_X_SPELL => c == CTRL_S_CONST || c == CTRL_P || c == CTRL_N,
+            CTRL_X_EVAL => c == CTRL_P || c == CTRL_N,
+            CTRL_X_BUFNAMES => c == CTRL_P || c == CTRL_N,
+            CTRL_X_REGISTER => c == CTRL_R_CONST || c == CTRL_P || c == CTRL_N,
             _ => {
                 internal_error(c"vim_is_ctrl_x_key()");
                 false
@@ -949,9 +949,9 @@ fn do_autocmd_completedone(c: c_int, mode: c_int, word: Option<&NvimString>) {
             }
         }
 
-        let reason = if c == Ctrl_Y || word.is_some_and(|w| !w.data.is_null()) {
+        let reason = if c == CTRL_Y || word.is_some_and(|w| !w.data.is_null()) {
             c"accept".as_ptr()
-        } else if c == Ctrl_E {
+        } else if c == CTRL_E {
             c"cancel".as_ptr()
         } else {
             c"discard".as_ptr()
@@ -1166,12 +1166,12 @@ pub fn ins_compl_add_infercase(
 
 #[inline]
 fn cot_fuzzy() -> bool {
-    (get_cot_flags() & kOptCotFlagFuzzy) != 0 && !ctrl_x_mode_thesaurus()
+    (get_cot_flags() & K_OPT_COT_FLAG_FUZZY) != 0 && !ctrl_x_mode_thesaurus()
 }
 
 #[inline]
 fn is_nearest_active() -> bool {
-    (insexp().compl_autocomplete || (get_cot_flags() & kOptCotFlagNearest) != 0) && !cot_fuzzy()
+    (insexp().compl_autocomplete || (get_cot_flags() & K_OPT_COT_FLAG_NEAREST) != 0) && !cot_fuzzy()
 }
 
 /// True if a match is selected (even if it is not inserted).
@@ -1182,8 +1182,8 @@ pub fn ins_compl_is_match_selected() -> bool {
 /// Returns true if autocomplete is active and the pre-insert effect targets the longest prefix.
 pub fn ins_compl_preinsert_longest() -> bool {
     insexp().compl_autocomplete
-            && (get_cot_flags() & (kOptCotFlagLongest | kOptCotFlagPreinsert | kOptCotFlagFuzzy))
-                == kOptCotFlagLongest
+            && (get_cot_flags() & (K_OPT_COT_FLAG_LONGEST | K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_FUZZY))
+                == K_OPT_COT_FLAG_LONGEST
 }
 
 /// Add a match to the list of matches.
@@ -1201,7 +1201,7 @@ fn ins_compl_add(
     commit_chars: Option<std::ffi::CString>,
 ) -> c_int {
     unsafe {
-        let dir = if cdir == kDirectionNotSet {
+        let dir = if cdir == K_DIRECTION_NOT_SET {
             insexp().compl_direction
         } else {
             cdir
@@ -1329,7 +1329,7 @@ fn ins_compl_add(
         insexp().compl_curr_idx = Some(insert_idx);
         if preselect
             && { insexp().compl_preselect_idx }.is_none()
-            && (get_cot_flags() & kOptCotFlagPreselect) != 0
+            && (get_cot_flags() & K_OPT_COT_FLAG_PRESELECT) != 0
         {
             insexp().compl_preselect_idx = Some(insert_idx);
         }
@@ -1613,7 +1613,7 @@ fn ins_compl_del_pum() {
 }
 
 pub fn pum_wanted() -> bool {
-    (get_cot_flags() & (kOptCotFlagMenu | kOptCotFlagMenuone)) != 0 || insexp().compl_autocomplete
+    (get_cot_flags() & (K_OPT_COT_FLAG_MENU | K_OPT_COT_FLAG_MENUONE)) != 0 || insexp().compl_autocomplete
 }
 
 fn pum_enough_matches() -> bool {
@@ -1629,7 +1629,7 @@ fn pum_enough_matches() -> bool {
             }
         }
 
-        if (get_cot_flags() & kOptCotFlagMenuone) != 0 || insexp().compl_autocomplete {
+        if (get_cot_flags() & K_OPT_COT_FLAG_MENUONE) != 0 || insexp().compl_autocomplete {
             return i >= 1;
         }
         i >= 2
@@ -1871,7 +1871,7 @@ fn ins_compl_build_pum() -> c_int {
             api_clear_string(&mut insexp().compl_leader);
         }
 
-        let compl_no_select = (get_cot_flags() & kOptCotFlagNoselect) != 0
+        let compl_no_select = (get_cot_flags() & K_OPT_COT_FLAG_NOSELECT) != 0
             || (insexp().compl_autocomplete && !ins_compl_has_preinsert());
 
         let is_forward = compl_shows_dir_forward();
@@ -2272,7 +2272,7 @@ fn ins_compl_files(
                 break;
             }
             let fp = os_fopen(file, c"r");
-            if flags != DICT_EXACT && !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
+            if flags != DICT_EXACT && !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
                 let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                 vim_snprintf!(
                     iobuff_ptr,
@@ -2508,10 +2508,10 @@ pub fn ins_compl_has_preinsert() -> bool {
             return false;
         }
         if !insexp().compl_autocomplete {
-            (cur_cot_flags & (kOptCotFlagPreinsert | kOptCotFlagFuzzy | kOptCotFlagMenuone))
-                == (kOptCotFlagPreinsert | kOptCotFlagMenuone)
+            (cur_cot_flags & (K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_FUZZY | K_OPT_COT_FLAG_MENUONE))
+                == (K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_MENUONE)
         } else {
-            (cur_cot_flags & (kOptCotFlagPreinsert | kOptCotFlagFuzzy)) == kOptCotFlagPreinsert
+            (cur_cot_flags & (K_OPT_COT_FLAG_PREINSERT | K_OPT_COT_FLAG_FUZZY)) == K_OPT_COT_FLAG_PREINSERT
         }
 }
 
@@ -2594,9 +2594,9 @@ fn ins_compl_fuzzy_sort() {
     let cur_cot_flags = get_cot_flags();
 
         set_fuzzy_score();
-        if (cur_cot_flags & kOptCotFlagNosort) == 0 {
+        if (cur_cot_flags & K_OPT_COT_FLAG_NOSORT) == 0 {
             sort_compl_match_list(cp_compare_fuzzy);
-            if (cur_cot_flags & (kOptCotFlagNoinsert | kOptCotFlagNoselect)) == kOptCotFlagNoinsert
+            if (cur_cot_flags & (K_OPT_COT_FLAG_NOINSERT | K_OPT_COT_FLAG_NOSELECT)) == K_OPT_COT_FLAG_NOINSERT
             {
                 let target = if compl_shows_dir_forward() {
                     Some(0)
@@ -2640,7 +2640,7 @@ fn ins_compl_new_leader() {
             } else {
                 insexp().compl_autocomplete = false;
             }
-            if !ins_complete(Ctrl_N, false) {
+            if !ins_complete(CTRL_N, false) {
                 insexp().compl_cont_status = 0;
             }
             insexp().compl_restarting = false;
@@ -2773,7 +2773,7 @@ fn set_ctrl_x_mode(c: c_int) -> bool {
     let mut retval = false;
 
         match c {
-            Ctrl_E | Ctrl_Y => {
+            CTRL_E | CTRL_Y => {
                 insexp().ctrl_x_mode = CTRL_X_SCROLL;
                 if (g_st().State & REPLACE_FLAG) == 0 {
                     g_st().edit_submode = gettext(c" (insert) Scroll (^E/^Y)");
@@ -2783,54 +2783,54 @@ fn set_ctrl_x_mode(c: c_int) -> bool {
                 g_st().edit_submode_pre = ptr::null();
                 g_st().redraw_mode = true;
             }
-            Ctrl_L => {
+            CTRL_L_CONST => {
                 insexp().ctrl_x_mode = CTRL_X_WHOLE_LINE;
             }
-            Ctrl_F => {
+            CTRL_F_CONST => {
                 insexp().ctrl_x_mode = CTRL_X_FILES;
             }
-            Ctrl_K => {
+            CTRL_K_CONST => {
                 insexp().ctrl_x_mode = CTRL_X_DICTIONARY;
             }
-            Ctrl_R => {
+            CTRL_R_CONST => {
                 if vpeekc() != b'=' as c_int {
                     insexp().ctrl_x_mode = CTRL_X_REGISTER;
                 }
             }
-            Ctrl_T => {
+            CTRL_T_CONST => {
                 insexp().ctrl_x_mode = CTRL_X_THESAURUS;
             }
-            Ctrl_U => {
+            CTRL_U => {
                 insexp().ctrl_x_mode = CTRL_X_FUNCTION;
             }
-            Ctrl_O => {
+            CTRL_O => {
                 insexp().ctrl_x_mode = CTRL_X_OMNI;
             }
-            x if x == b's' as c_int || x == Ctrl_S => {
+            x if x == b's' as c_int || x == CTRL_S_CONST => {
                 insexp().ctrl_x_mode = CTRL_X_SPELL;
                 g_st().emsg_off += 1;
                 spell_back_to_badword();
                 g_st().emsg_off -= 1;
             }
-            Ctrl_RSB => {
+            CTRL_RSB_CONST => {
                 insexp().ctrl_x_mode = CTRL_X_TAGS;
             }
-            Ctrl_I | K_S_TAB => {
+            CTRL_I_CONST | K_S_TAB => {
                 insexp().ctrl_x_mode = CTRL_X_PATH_PATTERNS;
             }
-            Ctrl_D => {
+            CTRL_D_CONST => {
                 insexp().ctrl_x_mode = CTRL_X_PATH_DEFINES;
             }
-            Ctrl_V | Ctrl_Q => {
+            CTRL_V_CONST | CTRL_Q_CONST => {
                 insexp().ctrl_x_mode = CTRL_X_CMDLINE;
             }
-            Ctrl_Z => {
+            CTRL_Z_CONST => {
                 insexp().ctrl_x_mode = CTRL_X_NORMAL;
                 g_st().edit_submode = ptr::null();
                 g_st().redraw_mode = true;
                 retval = true;
             }
-            Ctrl_P | Ctrl_N => {
+            CTRL_P | CTRL_N => {
                 if (insexp().compl_cont_status & CONT_INTRPT) == 0 {
                     insexp().compl_cont_status |= CONT_LOCAL;
                 } else if insexp().compl_cont_mode != 0 {
@@ -2841,7 +2841,7 @@ fn set_ctrl_x_mode(c: c_int) -> bool {
                 g_st().redraw_mode = true;
             }
             _ => {
-                if c == Ctrl_X {
+                if c == CTRL_X_CONST {
                     if insexp().compl_cont_mode != 0 {
                         insexp().compl_cont_status = 0;
                     } else {
@@ -2864,9 +2864,9 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
         }
 
         let curr = compl_opt(insexp().compl_curr_idx);
-        if !curr.is_null() || !insexp().compl_leader.data.is_null() || c == Ctrl_E {
+        if !curr.is_null() || !insexp().compl_leader.data.is_null() || c == CTRL_E {
             let mut ptr: *mut c_char = ptr::null_mut();
-            if !curr.is_null() && insexp().compl_used_match && c != Ctrl_E {
+            if !curr.is_null() && insexp().compl_used_match && c != CTRL_E {
                 ptr = (*curr).cp_str.data;
             }
             ins_compl_fixRedoBufForLeader(ptr);
@@ -2886,7 +2886,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
                 dec_cursor();
             }
 
-            if g_st().Ins.moved == kInsNone && !g_st().Ins.need_undo && c != Ctrl_E {
+            if g_st().Ins.moved == K_INS_NONE && !g_st().Ins.need_undo && c != CTRL_E {
                 insertchar(NUL as c_int, 0, -1);
             }
 
@@ -2897,7 +2897,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
 
         let mut word_owned: Option<std::ffi::CString> = None;
         let is_commit = pum_visible() && ins_compl_commit_char(c);
-        if (c == Ctrl_Y
+        if (c == CTRL_Y
             || is_commit
             || (insexp().compl_enter_selects && (c == CAR || c == K_KENTER || c == NL)))
             && pum_visible()
@@ -2913,7 +2913,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
         let arr = &insexp().compl_match_array;
         let curr = compl_opt(insexp().compl_curr_idx);
         if word_owned.is_none()
-            && c != Ctrl_E
+            && c != CTRL_E
             && insexp().compl_used_match
             && arr.is_empty()
             && !curr.is_null()
@@ -2922,7 +2922,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
             word_owned = Some(crate::memory::cstr_to_cstring((*curr).cp_str.data));
         }
 
-        if c == Ctrl_E {
+        if c == CTRL_E {
             ins_compl_delete(false);
             let mut p: *const c_char = ptr::null();
             let mut plen: usize = 0;
@@ -2951,7 +2951,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
         ins_compl_free();
         insexp().compl_started = false;
         insexp().compl_matches = 0;
-        if !shortmess(kShmCompletionmenu) {
+        if !shortmess(K_SHM_COMPLETIONMENU) {
             msg_clr_cmdline();
         }
         insexp().ctrl_x_mode = CTRL_X_NORMAL;
@@ -2966,7 +2966,7 @@ fn ins_compl_stop(c: c_int, prev_mode: c_int, mut retval: bool) -> bool {
         insexp().compl_num_bests = 0;
         insexp().compl_ins_end_col = 0;
 
-        if c == Ctrl_C && bt_cmdwin(g_st().curbuf) {
+        if c == CTRL_C_CONST && bt_cmdwin(g_st().curbuf) {
             update_screen();
         }
 
@@ -2994,7 +2994,7 @@ pub fn ins_compl_prep(c: c_int) -> bool {
     let mut retval = false;
         let prev_mode = insexp().ctrl_x_mode;
 
-        if c != Ctrl_R && vim_is_ctrl_x_key(c) {
+        if c != CTRL_R_CONST && vim_is_ctrl_x_key(c) {
             g_st().edit_submode_extra = ptr::null_mut();
         }
 
@@ -3011,15 +3011,15 @@ pub fn ins_compl_prep(c: c_int) -> bool {
             return retval;
         }
 
-        if insexp().ctrl_x_mode == CTRL_X_CMDLINE_CTRL_X && c != Ctrl_X {
-            if c == Ctrl_V
-                || c == Ctrl_Q
-                || c == Ctrl_Z
+        if insexp().ctrl_x_mode == CTRL_X_CMDLINE_CTRL_X && c != CTRL_X_CONST {
+            if c == CTRL_V_CONST
+                || c == CTRL_Q_CONST
+                || c == CTRL_Z_CONST
                 || ins_compl_pum_key(c)
                 || !vim_is_ctrl_x_key(c)
             {
                 insexp().ctrl_x_mode = CTRL_X_CMDLINE;
-                if c == Ctrl_Z {
+                if c == CTRL_Z_CONST {
                     retval = true;
                 }
             } else {
@@ -3030,14 +3030,14 @@ pub fn ins_compl_prep(c: c_int) -> bool {
         }
 
         if ctrl_x_mode_not_defined_yet() || (ctrl_x_mode_normal() && !insexp().compl_started) {
-            insexp().compl_get_longest = (get_cot_flags() & kOptCotFlagLongest) != 0;
+            insexp().compl_get_longest = (get_cot_flags() & K_OPT_COT_FLAG_LONGEST) != 0;
             insexp().compl_used_match = true;
         }
 
         if ctrl_x_mode_not_defined_yet() {
             retval = set_ctrl_x_mode(c);
         } else if ctrl_x_mode_not_default() {
-            if c != Ctrl_R && !vim_is_ctrl_x_key(c) {
+            if c != CTRL_R_CONST && !vim_is_ctrl_x_key(c) {
                 insexp().ctrl_x_mode = if ctrl_x_mode_scroll() {
                     CTRL_X_NORMAL
                 } else {
@@ -3051,9 +3051,9 @@ pub fn ins_compl_prep(c: c_int) -> bool {
         if insexp().compl_started || insexp().ctrl_x_mode == CTRL_X_FINISHED {
             g_st().redraw_mode = true;
             if (ctrl_x_mode_normal()
-                && c != Ctrl_N
-                && c != Ctrl_P
-                && c != Ctrl_R
+                && c != CTRL_N
+                && c != CTRL_P
+                && c != CTRL_R_CONST
                 && !ins_compl_pum_key(c))
                 || insexp().ctrl_x_mode == CTRL_X_FINISHED
             {
@@ -3065,7 +3065,7 @@ pub fn ins_compl_prep(c: c_int) -> bool {
 
         may_trigger_modechanged();
 
-        if c != Ctrl_R && !vim_is_ctrl_x_key(c) {
+        if c != CTRL_R_CONST && !vim_is_ctrl_x_key(c) {
             insexp().compl_cont_status = 0;
             insexp().compl_cont_mode = 0;
         }
@@ -3189,7 +3189,7 @@ fn copy_cpt_callbacks(dest: &mut Vec<Callback>, src: &mut [Callback]) {
         dest.resize(src.len(), Callback::new());
 
         for (dst_cb, src_cb) in dest.iter_mut().zip(src.iter_mut()) {
-            if src_cb.cb_type() != kCallbackNone {
+            if src_cb.cb_type() != K_CALLBACK_NONE_CONST {
                 callback_copy(dst_cb, src_cb);
             }
         }
@@ -3297,7 +3297,7 @@ fn get_insert_callback(type_: c_int) -> *mut Callback {
         if type_ == CTRL_X_OMNI {
             return &raw mut (*g_st().curbuf).b_p_ofu;
         }
-        if curbuf_mut().b_p_tsrfu.cb_type() != kCallbackNone {
+        if curbuf_mut().b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
             &raw mut (*g_st().curbuf).b_p_tsrfu
         } else {
             &raw mut opt_vars().p_tsrfu
@@ -3316,18 +3316,18 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
 
         let is_cpt_function = !cb.is_null();
         let use_sandbox =
-            is_cpt_function && was_set_insecurely(Some(crate::globals::curwin_mut()), kOptComplete, OPT_LOCAL) != 0;
+            is_cpt_function && was_set_insecurely(Some(crate::globals::curwin_mut()), K_OPT_COMPLETE, OPT_LOCAL) != 0;
         if !is_cpt_function {
             cb = get_insert_callback(type_);
-            if (*cb).cb_type() == kCallbackNone {
+            if (*cb).cb_type() == K_CALLBACK_NONE_CONST {
                 return;
             }
         }
 
         let mut args: [TypVal; 3] = [TypVal::new(); 3];
-        args[0].v_type = VarNumber;
-        args[1].v_type = VarString;
-        args[2].v_type = VarUnknown;
+        args[0].v_type = VAR_NUMBER;
+        args[1].v_type = VAR_STRING;
+        args[2].v_type = VAR_UNKNOWN;
         args[0].vval = crate::eval::typval::TypvalVval::Number(0);
         args[1].vval = crate::eval::typval::TypvalVval::String(if !base.is_null() {
             base
@@ -3347,10 +3347,10 @@ fn expand_by_function(type_: c_int, base: *mut c_char, mut cb: *mut Callback) {
         }
         if called {
             match rettv.v_type {
-                VarList => {
+                VAR_LIST => {
                     matchlist = rettv.vval.v_list();
                 }
-                VarDict => {
+                VAR_DICT => {
                     matchdict = rettv.vval.v_dict();
                 }
                 _ => {
@@ -3403,9 +3403,9 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> c_int {
         let mut commit_chars: Option<std::ffi::CString> = None;
         let mut user_hl: [c_int; 2] = [0, 0];
         let mut user_data: TypVal = TypVal::new();
-        user_data.v_type = VarUnknown;
+        user_data.v_type = VAR_UNKNOWN;
 
-        if tv.v_type == VarDict && !tv.vval.v_dict().is_null() {
+        if tv.v_type == VAR_DICT && !tv.vval.v_dict().is_null() {
             let d = tv.vval.v_dict();
             word = tv_dict_get_string(d.as_ref(), c"word");
             cptext[CPT_ABBR] = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"abbr");
@@ -3482,7 +3482,7 @@ fn ins_compl_add_dict(dict: &mut TvDict) {
     unsafe {
         insexp().compl_opt_refresh_always = false;
         let di_refresh = tv_dict_find(Some(dict), c"refresh", 7);
-        if !di_refresh.is_null() && (*di_refresh).di_tv.v_type == VarString {
+        if !di_refresh.is_null() && (*di_refresh).di_tv.v_type == VAR_STRING {
             let v = (*di_refresh).di_tv.vval.v_string();
             if !v.is_null() && crate::memory::cstr_as_bytes(v) == b"always" {
                 insexp().compl_opt_refresh_always = true;
@@ -3490,7 +3490,7 @@ fn ins_compl_add_dict(dict: &mut TvDict) {
         }
 
         let di_words = tv_dict_find(Some(dict), c"words", 5);
-        if !di_words.is_null() && (*di_words).di_tv.v_type == VarList {
+        if !di_words.is_null() && (*di_words).di_tv.v_type == VAR_LIST {
             ins_compl_add_list(((*di_words).di_tv.vval.v_list()).as_ref());
         }
     }
@@ -3506,7 +3506,7 @@ fn save_orig_extmarks() {
             insexp().compl_col + insexp().compl_length,
             Some(&mut insexp().compl_orig_extmarks),
             true,
-            kExtmarkUndo,
+            K_EXTMARK_UNDO,
         );
     }
 }
@@ -3524,9 +3524,9 @@ fn set_completion(mut startcol: Colnr, list: Option<&TvList>) {
     unsafe {
         let mut flags = CP_ORIGINAL_TEXT;
         let cur_cot_flags = get_cot_flags();
-        let compl_longest = (cur_cot_flags & kOptCotFlagLongest) != 0;
-        let compl_no_insert = (cur_cot_flags & kOptCotFlagNoinsert) != 0;
-        let compl_no_select = (cur_cot_flags & kOptCotFlagNoselect) != 0;
+        let compl_longest = (cur_cot_flags & K_OPT_COT_FLAG_LONGEST) != 0;
+        let compl_no_insert = (cur_cot_flags & K_OPT_COT_FLAG_NOINSERT) != 0;
+        let compl_no_select = (cur_cot_flags & K_OPT_COT_FLAG_NOSELECT) != 0;
 
         if insexp().compl_started || ctrl_x_mode_not_default() {
             ins_compl_prep(b' ' as c_int);
@@ -3584,14 +3584,14 @@ fn set_completion(mut startcol: Colnr, list: Option<&TvList>) {
             && !no_select
         {
             insexp().compl_curr_idx = compl_prev_idx(pre_idx);
-            ins_complete(if compl_no_insert { K_DOWN } else { Ctrl_N }, false);
+            ins_complete(if compl_no_insert { K_DOWN } else { CTRL_N }, false);
         } else if compl_no_insert || no_select {
             ins_complete(K_DOWN, false);
             if no_select {
                 ins_complete(K_UP, false);
             }
         } else {
-            ins_complete(Ctrl_N, false);
+            ins_complete(CTRL_N, false);
         }
         insexp().compl_enter_selects = compl_no_insert;
 
@@ -3618,8 +3618,8 @@ pub fn f_complete(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncDa
             return;
         }
 
-        if argvars[1].v_type != VarList {
-            emsg(gettext(e_invarg));
+        if argvars[1].v_type != VAR_LIST {
+            emsg(gettext(E_INVARG));
         } else {
             let startcol = tv_get_number_chk(&argvars[0], None) as Colnr;
             if startcol > 0 {
@@ -3783,7 +3783,7 @@ fn fill_complete_info_dict(di: &mut TvDict, match_: *mut Compl, add_match: bool)
         if let Some(ref commit_chars) = (*match_).cp_commit_chars {
             tv_dict_add_str(di, c"commit_chars", commit_chars.as_ptr());
         }
-        if (*match_).cp_user_data.v_type == VarUnknown {
+        if (*match_).cp_user_data.v_type == VAR_UNKNOWN {
             tv_dict_add_str_len(di, c"user_data", c"", 0);
         } else {
             tv_dict_add_tv(
@@ -3874,7 +3874,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
             let has_matches = (what_flag & CI_WHAT_MATCHES) != 0;
             let has_completed = (what_flag & CI_WHAT_COMPLETED) != 0;
             if has_items || has_matches {
-                li = tv_list_alloc(kListLenMayKnow);
+                li = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
                 let key = if has_matches && !has_items {
                     c"matches"
                 } else {
@@ -3915,7 +3915,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
                     c"selected",
                     Varnumber::from(selected_idx),
                 );
-                let wp = win_float_find(kWinInfo);
+                let wp = win_float_find(K_WIN_INFO);
                 if !wp.is_null() {
                     tv_dict_add_nr(
                         retdict,
@@ -3945,9 +3945,9 @@ pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
         let mut what_list: *mut TvList = ptr::null_mut();
 
-        if argvars[0].v_type != VarUnknown {
-            if argvars[0].v_type != VarList {
-                emsg(gettext(e_listreq));
+        if argvars[0].v_type != VAR_UNKNOWN {
+            if argvars[0].v_type != VAR_LIST {
+                emsg(gettext(E_LISTREQ));
                 return;
             }
             what_list = argvars[0].vval.v_list();
@@ -3960,8 +3960,8 @@ pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 fn thesaurus_func_complete(type_: c_int) -> bool {
      {
         type_ == CTRL_X_THESAURUS
-            && (curbuf_mut().b_p_tsrfu.cb_type() != kCallbackNone
-                || crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu) != kCallbackNone)
+            && (curbuf_mut().b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST
+                || crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_tsrfu) != K_CALLBACK_NONE_CONST)
     }
 }
 
@@ -4038,7 +4038,7 @@ fn process_next_cpt_value(
                 st.dict = Some(crate::memory::cstr_to_cstring((*st.ins_buf).b_fname));
                 st.dict_f = DICT_EXACT;
             }
-            if !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
+            if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
                 let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                 let name = if (*st.ins_buf).b_fname.is_null() {
                     buf_spname(st.ins_buf)
@@ -4096,7 +4096,7 @@ fn process_next_cpt_value(
                     || st.e_cpt_char() == b't' as c_char
                 {
                     compl_type = CTRL_X_TAGS;
-                    if !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
+                    if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
                         let iobuff_ptr = g_st().IObuff.as_mut_ptr();
                         vim_snprintf!(
                             iobuff_ptr,
@@ -4359,7 +4359,7 @@ fn get_next_filename_completion() {
         }
 
         let mut flags = EW_FILE | EW_DIR | EW_ADDSLASH | EW_SILENT;
-        if (get_cot_flags() & kOptCotFlagPathopt) != 0 {
+        if (get_cot_flags() & K_OPT_COT_FLAG_PATHOPT) != 0 {
             flags |= EW_PATH;
         }
         let mut pat_ptr = compl_pattern_ptr();
@@ -4870,7 +4870,7 @@ fn get_callback_if_cpt_func(p: impl crate::strings::IntoCCharPtr, idx: c_int) ->
                 if idx < 0 || (idx as usize) >= cbs.len() {
                     return CptFuncSource::None;
                 }
-                return if cbs[idx as usize].cb_type() != kCallbackNone {
+                return if cbs[idx as usize].cb_type() != K_CALLBACK_NONE_CONST {
                     CptFuncSource::CptCb(idx as usize)
                 } else {
                     CptFuncSource::None
@@ -5063,7 +5063,7 @@ fn advance_cpt_sources_index_safe() -> bool {
             return true;
         }
         semsg!(
-            gettext(e_list_index_out_of_range_nr),
+            gettext(E_LIST_INDEX_OUT_OF_RANGE_NR),
             i64::from(insexp().cpt_sources_index),
         );
         false
@@ -5554,7 +5554,7 @@ fn ins_compl_show_filename() {
         let lead = gettext(c"match in file");
 
         let mut space =
-            (if ui_has(kUIMessages) { g_st().Columns } else { g_st().sc_col }) - vim_strsize(lead) - 2;
+            (if ui_has(K_UIMESSAGES) { g_st().Columns } else { g_st().sc_col }) - vim_strsize(lead) - 2;
         if space <= 0 {
             return;
         }
@@ -5633,7 +5633,7 @@ fn find_next_completion_match(
         let mut found_end: bool;
         let mut found_compl: Option<usize> = None;
         let cur_cot_flags = get_cot_flags();
-        let compl_no_select = (cur_cot_flags & kOptCotFlagNoselect) != 0
+        let compl_no_select = (cur_cot_flags & K_OPT_COT_FLAG_NOSELECT) != 0
             || (insexp().compl_autocomplete && !ins_compl_has_preinsert());
 
         loop {
@@ -5734,7 +5734,7 @@ fn ins_compl_next(allow_get_expansion: bool, count: c_int, insert_match: bool) -
         let started = insexp().compl_started;
         let orig_curbuf = g_st().curbuf;
         let cur_cot_flags = get_cot_flags();
-        let compl_no_insert = (cur_cot_flags & kOptCotFlagNoinsert) != 0
+        let compl_no_insert = (cur_cot_flags & K_OPT_COT_FLAG_NOINSERT) != 0
             || (insexp().compl_autocomplete && !ins_compl_has_preinsert());
         let compl_preinsert = ins_compl_has_preinsert();
 
@@ -5840,14 +5840,14 @@ pub fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool) {
 
         let mut c = vpeekc_any();
         if c != NUL as c_int && !*test_disable_char_avail.as_ptr() {
-            if vim_is_ctrl_x_key(c) && c != Ctrl_X && c != Ctrl_R {
+            if vim_is_ctrl_x_key(c) && c != CTRL_X_CONST && c != CTRL_R_CONST {
                 c = safe_vgetc();
                 insexp().compl_shows_dir = ins_compl_key2dir(c);
                 let _ = ins_compl_next(false, ins_compl_key2count(c), c != K_UP && c != K_DOWN);
             } else {
                 c = safe_vgetc();
                 if c != K_IGNORE {
-                    if c != Ctrl_R && (g_st().KeyTyped || (in_compl_func && g_st().reg_executing == 0)) {
+                    if c != CTRL_R_CONST && (g_st().KeyTyped || (in_compl_func && g_st().reg_executing == 0)) {
                         insexp().compl_interrupted = true;
                     }
 
@@ -5868,7 +5868,7 @@ pub fn ins_compl_check_keys(frequency: c_int, in_compl_func: bool) {
 
         if insexp().compl_pending != 0
             && !g_st().got_int
-            && (opt_vars().cot_flags & (kOptCotFlagNoinsert | kOptCotFlagFuzzy)) == 0
+            && (opt_vars().cot_flags & (K_OPT_COT_FLAG_NOINSERT | K_OPT_COT_FLAG_FUZZY)) == 0
             && (!insexp().compl_autocomplete || ins_compl_has_preinsert())
         {
             let todo = insexp().compl_pending.abs();
@@ -5886,7 +5886,7 @@ fn ins_compl_key2dir(c: c_int) -> Direction {
                 FORWARD
             };
         }
-        if c == Ctrl_P || c == Ctrl_L || c == K_PAGEUP || c == K_KPAGEUP || c == K_S_UP || c == K_UP
+        if c == CTRL_P || c == CTRL_L_CONST || c == K_PAGEUP || c == K_KPAGEUP || c == K_S_UP || c == K_UP
         {
             return BACKWARD;
         }
@@ -6164,12 +6164,12 @@ fn get_userdefined_compl_info(
 
         let is_cpt_function = !cb.is_null();
         let use_sandbox =
-            is_cpt_function && was_set_insecurely(Some(crate::globals::curwin_mut()), kOptComplete, OPT_LOCAL) != 0;
+            is_cpt_function && was_set_insecurely(Some(crate::globals::curwin_mut()), K_OPT_COMPLETE, OPT_LOCAL) != 0;
         if !is_cpt_function {
             cb = get_insert_callback(insexp().ctrl_x_mode);
-            if (*cb).cb_type() == kCallbackNone {
+            if (*cb).cb_type() == K_CALLBACK_NONE_CONST {
                 semsg!(
-                    gettext(e_notset),
+                    gettext(E_NOTSET),
                     if ctrl_x_mode_function() {
                         c"completefunc".as_ptr()
                     } else {
@@ -6181,9 +6181,9 @@ fn get_userdefined_compl_info(
         }
 
         let mut args: [TypVal; 3] = [TypVal::new(); 3];
-        args[0].v_type = VarNumber;
-        args[1].v_type = VarString;
-        args[2].v_type = VarUnknown;
+        args[0].v_type = VAR_NUMBER;
+        args[1].v_type = VAR_STRING;
+        args[2].v_type = VAR_UNKNOWN;
         args[0].vval = crate::eval::typval::TypvalVval::Number(1);
         args[1].vval = crate::eval::typval::TypvalVval::String(c"".as_ptr().cast_mut());
 
@@ -6221,7 +6221,7 @@ fn get_userdefined_compl_info(
             }
             insexp().ctrl_x_mode = CTRL_X_NORMAL;
             g_st().edit_submode = ptr::null();
-            if !shortmess(kShmCompletionmenu) {
+            if !shortmess(K_SHM_COMPLETIONMENU) {
                 msg_clr_cmdline();
             }
             return false;
@@ -6385,7 +6385,7 @@ fn ins_compl_start() -> bool {
         }
 
         if compl_status_adding() {
-            if !shortmess(kShmCompletionmenu) {
+            if !shortmess(K_SHM_COMPLETIONMENU) {
                 g_st().edit_submode_pre = gettext(c" Adding");
             }
             if ctrl_x_mode_line_or_eval() {
@@ -6404,7 +6404,7 @@ fn ins_compl_start() -> bool {
             insexp().compl_startpos.col = insexp().compl_col;
         }
 
-        if !shortmess(kShmCompletionmenu) && !insexp().compl_autocomplete {
+        if !shortmess(K_SHM_COMPLETIONMENU) && !insexp().compl_autocomplete {
             if (insexp().compl_cont_status & CONT_LOCAL) != 0 {
                 g_st().edit_submode = gettext(ctrl_x_msg(CTRL_X_LOCAL_MSG));
             } else {
@@ -6446,7 +6446,7 @@ fn ins_compl_start() -> bool {
             return false;
         }
 
-        if !shortmess(kShmCompletionmenu) && !insexp().compl_autocomplete {
+        if !shortmess(K_SHM_COMPLETIONMENU) && !insexp().compl_autocomplete {
             g_st().edit_submode_extra = gettext(c"-- Searching...");
             g_st().edit_submode_highl = HLF_COUNT;
             showmode();
@@ -6517,7 +6517,7 @@ fn ins_compl_show_statusmsg() {
         }
 
         g_st().redraw_mode = true;
-        if !shortmess(kShmCompletionmenu) {
+        if !shortmess(K_SHM_COMPLETIONMENU) {
             if !g_st().edit_submode_extra.is_null() {
                 if opt_vars().p_smd == 0 {
                     g_st().msg_hist_off = true;
@@ -6597,11 +6597,11 @@ pub fn ins_complete(c: c_int, enable_pum: bool) -> bool {
             insexp().compl_cont_status &= !CONT_S_IPOS;
         }
 
-        if !shortmess(kShmCompletionmenu) && !insexp().compl_autocomplete {
+        if !shortmess(K_SHM_COMPLETIONMENU) && !insexp().compl_autocomplete {
             ins_compl_show_statusmsg();
         }
 
-        if !shortmess(kShmCompletionscan) && !insexp().compl_autocomplete {
+        if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
             msg_progress(
                 ptr::null_mut(),
                 c"nvim.completion",

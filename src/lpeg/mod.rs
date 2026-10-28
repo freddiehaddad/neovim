@@ -100,22 +100,22 @@ pub const fn instsize(l: c_int) -> c_int {
 }
 
 pub type CapKind = LpegByte;
-pub const Cclose: CapKind = 0;
-pub const Cposition: CapKind = 1;
-pub const Cconst: CapKind = 2;
-pub const Cbackref: CapKind = 3;
-pub const Carg: CapKind = 4;
-pub const Csimple: CapKind = 5;
-pub const Ctable: CapKind = 6;
-pub const Cfunction: CapKind = 7;
-pub const Cacc: CapKind = 8;
-pub const Cquery: CapKind = 9;
-pub const Cstring: CapKind = 10;
-pub const Cnum: CapKind = 11;
-pub const Csubst: CapKind = 12;
-pub const Cfold: CapKind = 13;
-pub const Cruntime: CapKind = 14;
-pub const Cgroup: CapKind = 15;
+pub const CCLOSE: CapKind = 0;
+pub const CPOSITION: CapKind = 1;
+pub const CCONST: CapKind = 2;
+pub const CBACKREF: CapKind = 3;
+pub const CARG: CapKind = 4;
+pub const CSIMPLE: CapKind = 5;
+pub const CTABLE: CapKind = 6;
+pub const CFUNCTION: CapKind = 7;
+pub const CACC: CapKind = 8;
+pub const CQUERY: CapKind = 9;
+pub const CSTRING: CapKind = 10;
+pub const CNUM: CapKind = 11;
+pub const CSUBST: CapKind = 12;
+pub const CFOLD: CapKind = 13;
+pub const CRUNTIME: CapKind = 14;
+pub const CGROUP: CapKind = 15;
 
 pub const MAXINDT: LpegIndex = !0;
 pub const MAXLOP: c_int = 20;
@@ -165,7 +165,7 @@ pub fn captype(cap: *const Capture) -> LpegByte {
 
 #[inline]
 pub fn isclosecap(cap: *const Capture) -> bool {
-    captype(cap) == Cclose
+    captype(cap) == CCLOSE
 }
 
 #[inline]
@@ -185,25 +185,25 @@ pub fn capinside(c1: &Capture, c2: *const Capture) -> bool {
 }
 
 pub type TTag = LpegByte;
-pub const TChar: TTag = 0;
-pub const TSet: TTag = 1;
-pub const TAny: TTag = 2;
-pub const TTrue: TTag = 3;
-pub const TFalse: TTag = 4;
+pub const TCHAR: TTag = 0;
+pub const TSET: TTag = 1;
+pub const TANY: TTag = 2;
+pub const TTRUE: TTag = 3;
+pub const TFALSE: TTag = 4;
 pub const TUTFR: TTag = 5;
-pub const TRep: TTag = 6;
-pub const TSeq: TTag = 7;
-pub const TChoice: TTag = 8;
-pub const TNot: TTag = 9;
-pub const TAnd: TTag = 10;
-pub const TCall: TTag = 11;
-pub const TOpenCall: TTag = 12;
-pub const TRule: TTag = 13;
-pub const TXInfo: TTag = 14;
-pub const TGrammar: TTag = 15;
-pub const TBehind: TTag = 16;
-pub const TCapture: TTag = 17;
-pub const TRunTime: TTag = 18;
+pub const TREP: TTag = 6;
+pub const TSEQ: TTag = 7;
+pub const TCHOICE: TTag = 8;
+pub const TNOT: TTag = 9;
+pub const TAND: TTag = 10;
+pub const TCALL: TTag = 11;
+pub const TOPEN_CALL: TTag = 12;
+pub const TRULE: TTag = 13;
+pub const TXINFO: TTag = 14;
+pub const TGRAMMAR: TTag = 15;
+pub const TBEHIND: TTag = 16;
+pub const TCAPTURE: TTag = 17;
+pub const TRUN_TIME: TTag = 18;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -269,32 +269,32 @@ pub const NUMSIBLINGS: [LpegByte; 19] = [
 ];
 
 pub type Opcode = LpegByte;
-pub const IAny: Opcode = 0;
-pub const IChar: Opcode = 1;
-pub const ISet: Opcode = 2;
-pub const ITestAny: Opcode = 3;
-pub const ITestChar: Opcode = 4;
-pub const ITestSet: Opcode = 5;
-pub const ISpan: Opcode = 6;
+pub const IANY: Opcode = 0;
+pub const ICHAR: Opcode = 1;
+pub const ISET: Opcode = 2;
+pub const ITEST_ANY: Opcode = 3;
+pub const ITEST_CHAR: Opcode = 4;
+pub const ITEST_SET: Opcode = 5;
+pub const ISPAN: Opcode = 6;
 pub const IUTFR: Opcode = 7;
-pub const IBehind: Opcode = 8;
-pub const IRet: Opcode = 9;
-pub const IEnd: Opcode = 10;
-pub const IChoice: Opcode = 11;
-pub const IJmp: Opcode = 12;
-pub const ICall: Opcode = 13;
-pub const IOpenCall: Opcode = 14;
-pub const ICommit: Opcode = 15;
-pub const IPartialCommit: Opcode = 16;
-pub const IBackCommit: Opcode = 17;
-pub const IFailTwice: Opcode = 18;
-pub const IFail: Opcode = 19;
-pub const IGiveup: Opcode = 20;
-pub const IFullCapture: Opcode = 21;
-pub const IOpenCapture: Opcode = 22;
-pub const ICloseCapture: Opcode = 23;
-pub const ICloseRunTime: Opcode = 24;
-pub const IEmpty: Opcode = 25;
+pub const IBEHIND: Opcode = 8;
+pub const IRET: Opcode = 9;
+pub const IEND: Opcode = 10;
+pub const ICHOICE: Opcode = 11;
+pub const IJMP: Opcode = 12;
+pub const ICALL: Opcode = 13;
+pub const IOPEN_CALL: Opcode = 14;
+pub const ICOMMIT: Opcode = 15;
+pub const IPARTIAL_COMMIT: Opcode = 16;
+pub const IBACK_COMMIT: Opcode = 17;
+pub const IFAIL_TWICE: Opcode = 18;
+pub const IFAIL: Opcode = 19;
+pub const IGIVEUP: Opcode = 20;
+pub const IFULL_CAPTURE: Opcode = 21;
+pub const IOPEN_CAPTURE: Opcode = 22;
+pub const ICLOSE_CAPTURE: Opcode = 23;
+pub const ICLOSE_RUN_TIME: Opcode = 24;
+pub const IEMPTY: Opcode = 25;
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -381,14 +381,14 @@ mod tests {
     fn test_charsettype_and_helpers() {
         let mut cs = [0u8; CHARSETSIZE];
         let mut info = CharsetInfo::new();
-        assert_eq!(charsettype(&cs, &mut info), IFail);
+        assert_eq!(charsettype(&cs, &mut info), IFAIL);
 
         setchar(&mut cs, b'A' as usize);
         assert_eq!(testchar(cs.as_ptr(), b'A' as LpegUint), 1);
-        assert_eq!(charsettype(&cs, &mut info), IChar);
+        assert_eq!(charsettype(&cs, &mut info), ICHAR);
         assert_eq!(info.offset, c_int::from(b'A'));
 
         fillset(&mut cs, 0xFF);
-        assert_eq!(charsettype(&cs, &mut info), IAny);
+        assert_eq!(charsettype(&cs, &mut info), IANY);
     }
 }

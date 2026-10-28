@@ -8,7 +8,7 @@ use crate::change::{
 };
 use crate::charset::{
     NUL, ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, char2cells, getdigits,
-    getwhitecols_curline, kOptDyFlagUhex, skipwhite, vim_strsize,
+    getwhitecols_curline, K_OPT_DY_FLAG_UHEX, skipwhite, vim_strsize,
 };
 use crate::cursor::{
     check_cursor, coladvance, Colnr, get_cursor_line_len, get_cursor_line_ptr, Linenr, lt,
@@ -17,10 +17,10 @@ use crate::cursor::{
 use crate::drawscreen::{UPD_INVERTED, redraw_curbuf_later};
 use crate::errors::*;
 use crate::eval::eval_expr_option_number;
-use crate::eval::typval::{EvalFuncData, kCallbackNone, tv_get_lnum, TypVal, Varnumber};
+use crate::eval::typval::{EvalFuncData, K_CALLBACK_NONE_CONST, tv_get_lnum, TypVal, Varnumber};
 use crate::eval::vars::{VV_LNUM, set_vim_var_nr};
 use crate::ex_docmd::{CMOD_LOCKMARKS, Exarg, handle_did_throw};
-use crate::extmark::{extmark_splice_cols, kExtmarkUndo};
+use crate::extmark::{extmark_splice_cols, K_EXTMARK_UNDO};
 use crate::globals::*;
 use crate::indent_c::{cindent_on, do_c_expr_indent, in_cinkeys};
 use crate::insert::{
@@ -70,19 +70,19 @@ const SIN_UNDO: c_int = 4;
 pub(crate) const INDENT_SET: c_int = 1;
 pub(crate) const INDENT_DEC: c_int = 3;
 
-pub(crate) const kFoQComs: c_int = b'q' as c_int;
+pub(crate) const K_FO_QCOMS: c_int = b'q' as c_int;
 
-pub(crate) const kOptBreakindentopt: OptIndex = 25;
-pub(crate) const kOptIndentexpr: OptIndex = 149;
-pub(crate) const kOptTabstop: OptIndex = 308;
-pub(crate) const kOptVartabstop: OptIndex = 342;
-pub(crate) const kBufOptIndentexpr: usize = 48;
+pub(crate) const K_OPT_BREAKINDENTOPT: OptIndex = 25;
+pub(crate) const K_OPT_INDENTEXPR: OptIndex = 149;
+pub(crate) const K_OPT_TABSTOP: OptIndex = 308;
+pub(crate) const K_OPT_VARTABSTOP: OptIndex = 342;
+pub(crate) const K_BUF_OPT_INDENTEXPR: usize = 48;
 
-const KEYSET_OPTIDX_briopt__min: u64 = 1;
-const KEYSET_OPTIDX_briopt__sbr: u64 = 2;
-const KEYSET_OPTIDX_briopt__list: u64 = 3;
-const KEYSET_OPTIDX_briopt__shift: u64 = 4;
-const KEYSET_OPTIDX_briopt__column: u64 = 5;
+const KEYSET_OPTIDX_BRIOPT_MIN: u64 = 1;
+const KEYSET_OPTIDX_BRIOPT_SBR: u64 = 2;
+const KEYSET_OPTIDX_BRIOPT_LIST: u64 = 3;
+const KEYSET_OPTIDX_BRIOPT_SHIFT: u64 = 4;
+const KEYSET_OPTIDX_BRIOPT_COLUMN: u64 = 5;
 
 struct IndentModuleState {
     PREV_INDENT: c_int,
@@ -149,10 +149,10 @@ pub fn tabstop_set(
                 let mut end = cp;
                 if getdigits(&raw mut end, false, 1) <= 0 {
                     if cp != end {
-                        return e_positive.as_ptr();
+                        return E_POSITIVE.as_ptr();
                     }
                     var = cp;
-                    return opt_error(errbuf, e_invarg2, var);
+                    return opt_error(errbuf, E_INVARG2, var);
                 }
             }
 
@@ -169,7 +169,7 @@ pub fn tabstop_set(
                 cp = cp.add(1);
                 continue;
             }
-            return opt_error(errbuf, e_invarg2, var);
+            return opt_error(errbuf, E_INVARG2, var);
         }
 
         let mut out = Vec::with_capacity(valcount);
@@ -179,7 +179,7 @@ pub fn tabstop_set(
             if n <= 0 || n > TABSTOP_MAX {
                 array.clear();
                 var = cp;
-                return opt_error(errbuf, e_invarg2, var);
+                return opt_error(errbuf, E_INVARG2, var);
             }
             out.push(n);
             while !crate::memory::cstr_is_empty(cp) && crate::memory::cstr_first_byte(cp) != b',' {
@@ -682,7 +682,7 @@ pub fn set_indent(size: c_int, flags: c_int) -> bool {
                     skipcols,
                     old_offset - skipcols,
                     new_offset - skipcols,
-                    kExtmarkUndo,
+                    K_EXTMARK_UNDO,
                 );
             }
 
@@ -719,7 +719,7 @@ pub fn get_number_indent(lnum: Linenr) -> c_int {
         };
         let mut lead_len: c_int = 0;
 
-        if (g_st().State & MODE_INSERT) != 0 || has_format_option(kFoQComs) {
+        if (g_st().State & MODE_INSERT) != 0 || has_format_option(K_FO_QCOMS) {
             lead_len = get_leader_len(ml_get(lnum), ptr::null_mut(), false, true);
         }
 
@@ -765,28 +765,28 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
         }
         let v = opt_keyset(
             wp.as_deref_mut().unwrap().w_onebuf_opt.wo_briopt,
-            kOptBreakindentopt,
+            K_OPT_BREAKINDENTOPT,
             ptr::null_mut(),
         )
         .cast::<OptKeyDict_briopt>();
         let vr = &*v;
-        wp.as_deref_mut().unwrap().w_briopt_shift = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__shift) {
+        wp.as_deref_mut().unwrap().w_briopt_shift = if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SHIFT) {
             vr.shift as c_int
         } else {
             0
         };
-        wp.as_deref_mut().unwrap().w_briopt_min = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__min) {
+        wp.as_deref_mut().unwrap().w_briopt_min = if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_MIN) {
             vr.min as c_int
         } else {
             20
         };
-        wp.as_deref_mut().unwrap().w_briopt_sbr = has_briopt_key(vr, KEYSET_OPTIDX_briopt__sbr);
-        wp.as_deref_mut().unwrap().w_briopt_list = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__list) {
+        wp.as_deref_mut().unwrap().w_briopt_sbr = has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SBR);
+        wp.as_deref_mut().unwrap().w_briopt_list = if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_LIST) {
             vr.list as c_int
         } else {
             0
         };
-        wp.unwrap().w_briopt_vcol = if has_briopt_key(vr, KEYSET_OPTIDX_briopt__column) {
+        wp.unwrap().w_briopt_vcol = if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_COLUMN) {
             vr.column as c_int
         } else {
             0
@@ -809,7 +809,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
             || ind_st().PREV_TICK != buf_get_changedtick(&*buf)
             || ind_st().PREV_LISTOPT != wp.w_briopt_list
             || ind_st().PREV_NO_TS != no_ts
-            || ind_st().PREV_DY_UHEX != (opt_vars().dy_flags & kOptDyFlagUhex)
+            || ind_st().PREV_DY_UHEX != (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX)
             || ind_st().PREV_FLP.as_deref() != Some(flp_val)
             || ind_st().PREV_LINE.as_deref() != Some(line_cstr)
         {
@@ -828,7 +828,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::Into
             ind_st().PREV_LISTOPT = wp.w_briopt_list;
             ind_st().PREV_LIST = 0;
             ind_st().PREV_NO_TS = no_ts;
-            ind_st().PREV_DY_UHEX = opt_vars().dy_flags & kOptDyFlagUhex;
+            ind_st().PREV_DY_UHEX = opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX;
             ind_st().PREV_FLP = Some(flp_val.to_owned());
 
             if wp.w_briopt_list != 0 && wp.w_briopt_vcol == 0 {
@@ -916,7 +916,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
         let start_lnum = curwin_mut().w_cursor.lnum;
 
         if !modifiable(curbuf_mut()) {
-            emsg(gettext(e_modifiable));
+            emsg(gettext(E_MODIFIABLE));
             return;
         }
 
@@ -1050,7 +1050,7 @@ pub fn may_do_si() -> bool {
      {
         curbuf_mut().b_p_si != 0
             && curbuf_mut().b_p_cin == 0
-            && curbuf_mut().b_p_inde.cb_type() == kCallbackNone
+            && curbuf_mut().b_p_inde.cb_type() == K_CALLBACK_NONE_CONST
             && opt_vars().p_paste == 0
     }
 }
@@ -1285,7 +1285,7 @@ pub fn change_indent(type_: c_int, amount: c_int, round: c_int, call_changed_byt
                 new_col,
                 if delta < 0 { -delta } else { 0 },
                 if delta > 0 { delta } else { 0 },
-                kExtmarkUndo,
+                K_EXTMARK_UNDO,
             );
         }
     }
@@ -1390,7 +1390,7 @@ pub fn copy_indent(size: c_int, src: impl crate::strings::IntoCCharPtr) -> bool 
 }
 
 fn emsg_text_too_long() {
-    emsg(gettext(e_resulting_text_too_long));
+    emsg(gettext(E_RESULTING_TEXT_TOO_LONG));
         if g_st().trylevel == 0 {
             g_st().got_int = true;
         }
@@ -1524,7 +1524,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                                     0,
                                     old_len,
                                     new_len - 1,
-                                    kExtmarkUndo,
+                                    K_EXTMARK_UNDO,
                                 );
                             }
                             drop(new_line_vec);
@@ -1565,7 +1565,7 @@ pub fn ex_retab(eap: &mut Exarg) {
             lnum += 1;
         }
         if g_st().got_int {
-            emsg(gettext(e_interr));
+            emsg(gettext(E_INTERR));
         }
 
         if first_line != 0 {
@@ -1581,7 +1581,7 @@ pub fn ex_retab(eap: &mut Exarg) {
 
             if tabstop_count(&curbuf_mut().b_p_vts_array) > 0 || tabstop_count(&new_vts_array) > 1 {
                 set_option_value(
-                    kOptVartabstop,
+                    K_OPT_VARTABSTOP,
                     cstr_as_obj(ts_cstr.as_ptr()),
                     OPT_LOCAL,
                     true,
@@ -1589,7 +1589,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                 );
             } else {
                 set_option_value(
-                    kOptTabstop,
+                    K_OPT_TABSTOP,
                     integer_obj(i64::from(tabstop_first(&new_vts_array))),
                     OPT_LOCAL,
                     true,
@@ -1607,7 +1607,7 @@ pub fn ex_retab(eap: &mut Exarg) {
 /// Get indent level from `'indentexpr'` (`get_expr_indent`).
 pub fn get_expr_indent() -> c_int {
      {
-        let use_sandbox = was_set_insecurely(Some(crate::globals::curwin_mut()), kOptIndentexpr, OPT_LOCAL) != 0;
+        let use_sandbox = was_set_insecurely(Some(crate::globals::curwin_mut()), K_OPT_INDENTEXPR, OPT_LOCAL) != 0;
         let save_sctx = g_st().current_sctx;
 
         let save_pos = curwin_mut().w_cursor;
@@ -1616,7 +1616,7 @@ pub fn get_expr_indent() -> c_int {
         set_vim_var_nr(VV_LNUM, i64::from(curwin_mut().w_cursor.lnum));
 
         g_st().textlock += 1;
-        g_st().current_sctx = curbuf_mut().b_p_script_ctx[kBufOptIndentexpr];
+        g_st().current_sctx = curbuf_mut().b_p_script_ctx[K_BUF_OPT_INDENTEXPR];
 
         let mut indent = eval_expr_option_number(&mut curbuf_mut().b_p_inde, use_sandbox);
 
@@ -1904,7 +1904,7 @@ pub fn fixthisline(get_the_indent: IndentGetter) {
 pub fn use_indentexpr_for_lisp() -> bool {
      {
         curbuf_mut().b_p_lisp != 0
-            && curbuf_mut().b_p_inde.cb_type() != kCallbackNone
+            && curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST
             && (crate::memory::cstr_as_bytes(curbuf_mut().b_p_lop) == b"expr:1")
     }
 }

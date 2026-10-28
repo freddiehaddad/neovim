@@ -1,7 +1,7 @@
 //! Cursor positioning, validation, and line access (`src/nvim/cursor.c`).
 
 use crate::buffer::FileBuf;
-use crate::change::{TAB, inserted_bytes, kOptVeFlagOnemore};
+use crate::change::{TAB, inserted_bytes, K_OPT_VE_FLAG_ONEMORE};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_later};
 use crate::fold::{hasAnyFolding, hasFolding};
 use crate::globals::*;
@@ -89,7 +89,7 @@ pub const fn ltoreq(a: CursorPos, b: CursorPos) -> bool {
 
 pub(crate) const VALID_VIRTCOL: c_int = 0x04;
 
-pub(crate) const kOptVeFlagAll: c_uint = 0x04;
+pub(crate) const K_OPT_VE_FLAG_ALL: c_uint = 0x04;
 
 /// Return the screen position of the cursor (`getviscol`).
 pub fn getviscol() -> c_int {
@@ -178,7 +178,7 @@ fn coladvance2(
                 || (g_st().State & MODE_TERMINAL) != 0
                 || g_st().restart_edit != 0
                 || (g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
-                || ((get_ve_flags( &mut *wp) & kOptVeFlagOnemore) != 0 && wcol < MAXCOL),
+                || ((get_ve_flags( &mut *wp) & K_OPT_VE_FLAG_ONEMORE) != 0 && wcol < MAXCOL),
         );
 
         let line = ml_get_buf(wp.buf_mut(), pos.lnum);
@@ -399,7 +399,7 @@ pub fn check_cursor_col(win: &mut WinInfoInfo) {
                 || g_st().restart_edit != 0
                 || (g_st().State & MODE_TERMINAL) != 0
                 || (g_st().Visual.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
-                || (cur_ve_flags & kOptVeFlagOnemore) != 0
+                || (cur_ve_flags & K_OPT_VE_FLAG_ONEMORE) != 0
                 || virtual_active( &mut *win)
             {
                 win.w_cursor.col = len;
@@ -413,7 +413,7 @@ pub fn check_cursor_col(win: &mut WinInfoInfo) {
 
         if oldcol == MAXCOL {
             win.w_cursor.coladd = 0;
-        } else if cur_ve_flags == kOptVeFlagAll {
+        } else if cur_ve_flags == K_OPT_VE_FLAG_ALL {
             if oldcoladd > win.w_cursor.col {
                 win.w_cursor.coladd = oldcoladd - win.w_cursor.col;
 

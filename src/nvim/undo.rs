@@ -27,8 +27,8 @@ use crate::ex_docmd::{UNDO_HASH_SIZE, Exarg, expr_map_locked};
 use crate::ex_getln::{text_locked, text_locked_msg};
 use crate::extmark::{
     ExtmarkMove, ExtmarkSplice, ExtmarkUndoObject, UndoObjectType, extmark_apply_undo,
-    extmark_splice_cols, ExtmarkUndoVec, kExtmarkMove, kExtmarkNOOP, kExtmarkSplice,
-    kExtmarkUndo,
+    extmark_splice_cols, ExtmarkUndoVec, K_EXTMARK_MOVE, K_EXTMARK_NOOP, K_EXTMARK_SPLICE,
+    K_EXTMARK_UNDO,
 };
 #[cfg(unix)]
 use crate::fileio::getuid;
@@ -80,15 +80,15 @@ use crate::os::fs::{os_fchown, os_fileinfo};
 
 use crate::arglist::ML_EMPTY;
 use crate::charset::NUL;
-use crate::eval::kListLenMayKnow;
-use crate::ex_cmds::{BL_FIX, BL_SOL, kCpoUndo};
+use crate::eval::K_LIST_LEN_MAY_KNOW_CONST;
+use crate::ex_cmds::{BL_FIX, BL_SOL, K_CPO_UNDO};
 
 const UH_CHANGED: c_int = 0x01;
 const UH_EMPTYBUF: c_int = 0x02;
 const UH_RELOAD: c_int = 0x04;
 
-const kShmUndo: c_int = b'u' as c_int;
-const kOptFdoFlagUndo: c_uint = 0x200;
+const K_SHM_UNDO: c_int = b'u' as c_int;
+const K_OPT_FDO_FLAG_UNDO: c_uint = 0x200;
 
 const UF_START_MAGIC: &[u8; 9] = b"Vim\x9fUnDo\xe5";
 const UF_START_MAGIC_LEN: usize = 9;
@@ -328,17 +328,17 @@ pub fn u_savedel(lnum: Linenr, nlines: Linenr) -> bool {
 pub fn undo_allowed(buf: &mut FileBuf) -> bool {
      {
         if buf.b_p_ma == 0 {
-            emsg(gettext(e_modifiable));
+            emsg(gettext(E_MODIFIABLE));
             return false;
         }
 
         if g_st().sandbox != 0 {
-            emsg(gettext(e_sandbox));
+            emsg(gettext(E_SANDBOX));
             return false;
         }
 
         if g_st().textlock != 0 || expr_map_locked() {
-            emsg(gettext(e_textlock));
+            emsg(gettext(E_TEXTLOCK));
             return false;
         }
 
@@ -913,7 +913,7 @@ fn serialize_extmark(bi: &mut Bufinfo, extup: ExtmarkUndoObject) -> bool {
     match extup {
             ExtmarkUndoObject::Splice(splice) => {
                 undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
-                undo_write_bytes(bi, kExtmarkSplice as u64, 4);
+                undo_write_bytes(bi, K_EXTMARK_SPLICE as u64, 4);
                 if !undo_write(
                     bi,
                     (&raw const splice).cast::<u8>().cast_mut(),
@@ -924,7 +924,7 @@ fn serialize_extmark(bi: &mut Bufinfo, extup: ExtmarkUndoObject) -> bool {
             }
             ExtmarkUndoObject::Move(move_) => {
                 undo_write_bytes(bi, UF_ENTRY_MAGIC as u64, 2);
-                undo_write_bytes(bi, kExtmarkMove as u64, 4);
+                undo_write_bytes(bi, K_EXTMARK_MOVE as u64, 4);
                 if !undo_write(
                     bi,
                     (&raw const move_).cast::<u8>().cast_mut(),
@@ -943,7 +943,7 @@ fn unserialize_extmark(
     _filename: *const c_char,
 ) -> Option<ExtmarkUndoObject> {
     let type_ = undo_read_4c(bi) as UndoObjectType;
-        if type_ == kExtmarkSplice {
+        if type_ == K_EXTMARK_SPLICE {
             let mut splice = ExtmarkSplice::new();
             if !undo_read(
                 bi,
@@ -953,7 +953,7 @@ fn unserialize_extmark(
                 return None;
             }
             Some(ExtmarkUndoObject::Splice(splice))
-        } else if type_ == kExtmarkMove {
+        } else if type_ == K_EXTMARK_MOVE {
             let mut move_ = ExtmarkMove::new();
             if !undo_read(bi, (&raw mut move_).cast::<u8>(), size_of::<ExtmarkMove>()) {
                 return None;
@@ -1649,7 +1649,7 @@ pub fn u_undo(mut count: c_int) {
             count = 1;
         }
 
-        if vim_strchr(opt_vars().p_cpo, kCpoUndo).is_null() {
+        if vim_strchr(opt_vars().p_cpo, K_CPO_UNDO).is_null() {
             undo_st().undo_undoes = true;
         } else {
             undo_st().undo_undoes = !undo_st().undo_undoes;
@@ -1660,7 +1660,7 @@ pub fn u_undo(mut count: c_int) {
 
 /// Redo `count` times.
 pub fn u_redo(count: c_int) {
-    if vim_strchr(opt_vars().p_cpo, kCpoUndo).is_null() {
+    if vim_strchr(opt_vars().p_cpo, K_CPO_UNDO).is_null() {
             undo_st().undo_undoes = false;
         }
 
@@ -1719,7 +1719,7 @@ fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
                     curbuf_mut().b_u_curhead = curbuf_mut().b_u_oldhead;
                     beep_flush();
                     if count == startcount - 1 {
-                        if !shortmess(kShmUndo) {
+                        if !shortmess(K_SHM_UNDO) {
                             msg(gettext(c"Already at oldest change"), 0);
                         }
                         return;
@@ -1732,7 +1732,7 @@ fn u_doit(startcount: c_int, quiet: bool, do_buf_event: bool) {
                 if curbuf_mut().b_u_curhead.is_none() || get_undolevel(curbuf_mut()) <= 0 {
                     beep_flush();
                     if count == startcount - 1 {
-                        if !shortmess(kShmUndo) {
+                        if !shortmess(K_SHM_UNDO) {
                             msg(gettext(c"Already at newest change"), 0);
                         }
                         return;
@@ -1932,7 +1932,7 @@ pub fn undo_time(step: c_int, sec: bool, file: bool, absolute: bool) {
                 }
 
                 if closest == closest_start {
-                    if !shortmess(kShmUndo) {
+                    if !shortmess(K_SHM_UNDO) {
                         if step < 0 {
                             msg(gettext(c"Already at oldest change"), 0);
                         } else {
@@ -2170,7 +2170,7 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
                     top + oldsize,
                     MAXLNUM,
                     newsize - oldsize,
-                    kExtmarkNOOP,
+                    K_EXTMARK_NOOP,
                 );
                 if curbuf_mut().b_op_start.lnum > top + oldsize {
                     curbuf_mut().b_op_start.lnum += newsize - oldsize;
@@ -2312,11 +2312,11 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
 
 fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
     unsafe {
-        if (opt_vars().fdo_flags & kOptFdoFlagUndo) != 0 && g_st().KeyTyped {
+        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_UNDO) != 0 && g_st().KeyTyped {
             foldOpenCursor();
         }
 
-        if quiet || g_st().global_busy != 0 || !messaging() || shortmess(kShmUndo) {
+        if quiet || g_st().global_busy != 0 || !messaging() || shortmess(K_SHM_UNDO) {
             return;
         }
 
@@ -2897,7 +2897,7 @@ pub fn u_undoline() {
             0,
             oldp.as_bytes().len() as Colnr,
             new_line_len,
-            kExtmarkUndo,
+            K_EXTMARK_UNDO,
         );
         changed_bytes(curbuf_mut().b_u_line_lnum, 0);
         curbuf_mut().b_u_line_ptr = Some(oldp);
@@ -2948,7 +2948,7 @@ pub fn curbufIsChanged() -> bool {
 
 fn u_eval_tree(buf: &mut FileBuf, first_uhp: Option<usize>) -> *mut TvList {
     unsafe {
-        let list = tv_list_alloc(kListLenMayKnow);
+        let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
 
         let mut uhp = first_uhp;
         while let Some(uh) = uhp {

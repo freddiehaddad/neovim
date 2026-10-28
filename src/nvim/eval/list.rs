@@ -232,7 +232,7 @@ fn filter_map_blob(
             if filtermap != FilterMap::ForEach {
                 if newtv.v_type != VarType::VarNumber && newtv.v_type != VarType::VarBool {
                     tv_clear(&mut newtv);
-                    emsg(e_invalblob);
+                    emsg(E_INVALBLOB);
                     break;
                 }
                 if filtermap != FilterMap::Filter {
@@ -291,7 +291,7 @@ fn filter_map_string(
                 if newtv.v_type != VarType::VarString {
                     tv_clear(&mut newtv);
                     tv_clear(&mut tv);
-                    emsg(e_string_required);
+                    emsg(E_STRING_REQUIRED);
                     break;
                 } else if !newtv.vval.v_string().is_null() {
                     out.extend_from_slice(crate::memory::cstr_as_bytes(newtv.vval.v_string()));
@@ -498,7 +498,7 @@ pub fn f_add(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                 }
             }
         } else {
-            emsg(e_listblobreq);
+            emsg(E_LISTBLOBREQ);
         }
     }
 }
@@ -548,7 +548,7 @@ fn count_list(l: Option<&mut TvList>, needle: &TypVal, idx: i64, ic: bool) -> i6
         }
         let mut li = tv_list_find(l, idx as c_int);
         if li.is_null() {
-            semsg!(e_list_index_out_of_range_nr, idx);
+            semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, idx);
             return 0;
         }
         let mut n: i64 = 0;
@@ -613,7 +613,7 @@ pub fn f_count(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         let d = arg0.vval.v_dict();
         if !d.is_null() {
             if arg2.v_type != VarType::VarUnknown && arg3.v_type != VarType::VarUnknown {
-                emsg(e_invarg);
+                emsg(E_INVARG);
             } else {
                 n = count_dict(unsafe { d.as_ref() }, arg1, ic);
             }
@@ -668,7 +668,7 @@ fn extend_dict(argvars: &mut [TypVal],
                     if is_new {
                         tv_dict_unref(d1);
                     }
-                    semsg!(e_invarg2, action);
+                    semsg!(E_INVARG2, action);
                     return;
                 }
             }
@@ -722,7 +722,7 @@ fn extend_list(argvars: &mut [TypVal],
                 if before != tv_list_len(unsafe { l1.as_ref() }) {
                     item = tv_list_find(unsafe { l1.as_mut() }, before);
                     if item.is_null() {
-                        semsg!(e_list_index_out_of_range_nr, before as i64);
+                        semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before as i64);
                         if is_new {
                             tv_list_unref(l1);
                         }
@@ -759,7 +759,7 @@ fn extend_impl(argvars: &mut [TypVal],
             extend_dict(argvars, arg_errmsg.as_ptr(), is_new, rettv);
         } else {
             semsg!(
-                e_listdictarg,
+                E_LISTDICTARG,
                 if is_new {
                     c"extendnew()".as_ptr()
                 } else {
@@ -805,7 +805,7 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                     return;
                 }
                 if before < 0 || before > len {
-                    semsg!(e_invarg2, tv_get_string(arg2));
+                    semsg!(E_INVARG2, tv_get_string(arg2));
                     return;
                 }
             }
@@ -814,7 +814,7 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 return;
             }
             if !(0..=255).contains(&val) {
-                semsg!(e_invarg2, tv_get_string(arg1));
+                semsg!(E_INVARG2, tv_get_string(arg1));
                 return;
             }
 
@@ -824,7 +824,7 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
             tv_copy(arg0, rettv);
         } else if arg0.v_type != VarType::VarList {
-            semsg!(e_listblobarg, c"insert()");
+            semsg!(E_LISTBLOBARG, c"insert()");
         } else {
             let mut l = arg0.vval.v_list();
             if value_check_lock(
@@ -847,7 +847,7 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             if before != (tv_list_len(l.as_ref()) as i64) {
                 item = tv_list_find(l.as_mut(), before as c_int);
                 if item.is_null() {
-                    semsg!(e_list_index_out_of_range_nr, before);
+                    semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before);
                     l = std::ptr::null_mut();
                 }
             }
@@ -869,7 +869,7 @@ pub fn f_remove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             VarType::VarBlob => tv_blob_remove(argvars, rettv, arg_errmsg),
             VarType::VarList => tv_list_remove(argvars, rettv, arg_errmsg),
             _ => {
-                semsg!(e_listdictblobarg, c"remove()");
+                semsg!(E_LISTDICTBLOBARG, c"remove()");
             }
         }
     }

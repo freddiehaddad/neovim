@@ -46,7 +46,7 @@ const MOD_MASK_2CLICK: u8 = 0x20;
 const MOD_MASK_3CLICK: u8 = 0x40;
 const MOD_MASK_4CLICK: u8 = 0x60;
 
-const Ctrl_C: u8 = 3;
+const CTRL_C_CONST_CONST_CONST: u8 = 3;
 
 const BREAKCHECK_SKIP: c_int = 1000;
 
@@ -691,14 +691,14 @@ fn process_ctrl_c() {
         let mut i = available as isize - 1;
         while i >= 0 {
             let c = *osi_st().input_read_pos.offset(i) as u8;
-            if c == Ctrl_C
+            if c == CTRL_C_CONST_CONST_CONST
                 || (c == b'C'
                     && i >= 3
                     && *osi_st().input_read_pos.offset(i - 3) as u8 == K_SPECIAL
                     && *osi_st().input_read_pos.offset(i - 2) as u8 == KS_MODIFIER
                     && *osi_st().input_read_pos.offset(i - 1) as u8 == MOD_MASK_CTRL)
             {
-                *osi_st().input_read_pos.offset(i) = Ctrl_C as c_char;
+                *osi_st().input_read_pos.offset(i) = CTRL_C_CONST_CONST_CONST as c_char;
                 g_st().got_int = true;
                 break;
             }

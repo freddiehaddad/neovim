@@ -9,9 +9,9 @@ use crate::arglist::get_arglist_name;
 use crate::autocmd::{
     HLF_T, aucmd_set_expand_context, expand_get_augroup_name, expand_get_event_name,
 };
-use crate::buffer::{ExpandBufnames, kUIMessages};
+use crate::buffer::{ExpandBufnames, K_UIMESSAGES};
 use crate::charset::{
-    Ctrl_V, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_isupper,
+    CTRL_V_CONST, ascii_isalnum, ascii_isalpha, ascii_isdigit, ascii_isspace, ascii_isupper,
     ascii_iswhite, backslash_halve_save, rem_backslash, skipdigits, skiptowhite, skipwhite,
     transchar, transchar_byte, vim_isfilec_or_wc, vim_strsize,
 };
@@ -53,7 +53,7 @@ use crate::input::{beep_flush, char_avail, vpeekc};
 use crate::insexpand::find_word_end;
 use crate::keycodes::{K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP};
 use crate::lua::executor::{
-    kRetObject, nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
+    K_RET_OBJECT, nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
 };
 use crate::mapping::{ExpandMappings, set_context_in_map_cmd};
 use crate::math::FAIL;
@@ -1466,8 +1466,8 @@ impl CmdlineInfo {
     }
 }
 
-pub(crate) const Ctrl_N: c_int = 14;
-pub(crate) const Ctrl_P: c_int = 16;
+pub(crate) const CTRL_N: c_int = 14;
+pub(crate) const CTRL_P: c_int = 16;
 
 pub(crate) const MB_MAXBYTES: usize = 30;
 
@@ -1595,18 +1595,18 @@ pub const EXPAND_MARKS: c_int = 68;
 
 pub(crate) const EX_NOTRLCOM: u32 = 0x800;
 
-const kOptWopFlagFuzzy: c_uint = 0x01;
-const kOptWopFlagTagfile: c_uint = 0x02;
-const kOptWopFlagPum: c_uint = 0x04;
-const kOptWopFlagExacttext: c_uint = 0x08;
+const K_OPT_WOP_FLAG_FUZZY: c_uint = 0x01;
+const K_OPT_WOP_FLAG_TAGFILE: c_uint = 0x02;
+const K_OPT_WOP_FLAG_PUM: c_uint = 0x04;
+const K_OPT_WOP_FLAG_EXACTTEXT: c_uint = 0x08;
 
-use crate::ex_getln::{kOptWimFlagNoinsert, kOptWimFlagNoselect};
+use crate::ex_getln::{K_OPT_WIM_FLAG_NOINSERT, K_OPT_WIM_FLAG_NOSELECT};
 
-pub(crate) const kOptBoFlagWildmode: c_uint = 0x80000;
+pub(crate) const K_OPT_BO_FLAG_WILDMODE: c_uint = 0x80000;
 
-pub(crate) const kUICmdline: UIExtension = 0;
-pub(crate) const kUIPopupmenu: UIExtension = 1;
-pub(crate) const kUIWildmenu: UIExtension = 3;
+pub(crate) const K_UICMDLINE: UIExtension = 0;
+pub(crate) const K_UIPOPUPMENU_CONST: UIExtension = 1;
+pub(crate) const K_UIWILDMENU_CONST: UIExtension = 3;
 
 const WM_SHOWN: c_int = 1;
 const WM_SCROLLED: c_int = 2;
@@ -1756,14 +1756,14 @@ fn cmdline_fuzzy_completion_supported(xp: &ExpandCtx) -> bool {
             | EXPAND_TAGS_LISTFILES
             | EXPAND_USER_LIST
             | EXPAND_USER_LUA => false,
-            _ => (opt_vars().wop_flags & kOptWopFlagFuzzy) != 0,
+            _ => (opt_vars().wop_flags & K_OPT_WOP_FLAG_FUZZY) != 0,
         }
 }
 
 /// Returns true if fuzzy completion for cmdline completion is enabled and
 /// "fuzzystr" is not empty.
 pub fn cmdline_fuzzy_complete(fuzzystr: impl crate::strings::IntoCCharPtr) -> bool { let fuzzystr = fuzzystr.into_c_char_ptr();
-     (opt_vars().wop_flags & kOptWopFlagFuzzy) != 0 && !crate::memory::cstr_is_empty(fuzzystr)
+     (opt_vars().wop_flags & K_OPT_WOP_FLAG_FUZZY) != 0 && !crate::memory::cstr_is_empty(fuzzystr)
 }
 
 /// Sort function for the completion matches.
@@ -1918,7 +1918,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: c_int, options: c_int, escape: boo
         if !g_st().cmd_silent
             && !from_wildtrigger_func
             && !wild_navigate
-            && !(ui_has(kUICmdline) || ui_has(kUIWildmenu))
+            && !(ui_has(K_UICMDLINE) || ui_has(K_UIWILDMENU_CONST))
         {
             msg_puts(c"...");
             ui_flush();
@@ -2077,7 +2077,7 @@ fn cmdline_pum_create(
         } else {
             xp.xp_pattern
         };
-        if ui_has(kUICmdline) && g_st().cmdline_win.is_null() {
+        if ui_has(K_UICMDLINE) && g_st().cmdline_win.is_null() {
             cmdexp().compl_startcol = endpos.offset_from(ccline.cmdbuff) as c_int;
         } else {
             cmdexp().compl_startcol = cmd_screencol(endpos.offset_from(ccline.cmdbuff) as c_int);
@@ -2143,10 +2143,10 @@ pub fn cmdline_compl_is_fuzzy() -> bool {
 /// Checks whether popup menu should be used for cmdline completion wildmenu.
 fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
     (need_wildmenu
-            && (opt_vars().wop_flags & kOptWopFlagPum) != 0
-            && !(ui_has(kUICmdline) && g_st().cmdline_win.is_null()))
-            || ui_has(kUIWildmenu)
-            || (ui_has(kUICmdline) && ui_has(kUIPopupmenu))
+            && (opt_vars().wop_flags & K_OPT_WOP_FLAG_PUM) != 0
+            && !(ui_has(K_UICMDLINE) && g_st().cmdline_win.is_null()))
+            || ui_has(K_UIWILDMENU_CONST)
+            || (ui_has(K_UICMDLINE) && ui_has(K_UIPOPUPMENU_CONST))
 }
 
 /// Return the number of characters that should be skipped in the wildmenu.
@@ -2478,13 +2478,13 @@ fn ExpandOne_start(
             xp.xp_numfiles = 0;
             #[cfg(windows)]
             if (options & WILD_SILENT) == 0 && (options & WILD_LIST_NOTFOUND) != 0 {
-                semsg!(gettext(e_nomatch2), str_arg);
+                semsg!(gettext(E_NOMATCH2), str_arg);
             }
         } else {
             xp.xp_numfiles = xp.xp_files.len() as c_int;
             if xp.xp_numfiles == 0 {
                 if (options & WILD_SILENT) == 0 {
-                    semsg!(gettext(e_nomatch2), str_arg);
+                    semsg!(gettext(E_NOMATCH2), str_arg);
                 }
             } else {
                 let nfiles = xp.xp_numfiles as usize;
@@ -2515,7 +2515,7 @@ fn ExpandOne_start(
                     }
                     if non_suf_match != 1 {
                         if (options & WILD_SILENT) == 0 {
-                            emsg(gettext(e_toomany));
+                            emsg(gettext(E_TOOMANY));
                         } else if (options & WILD_NO_BEEP) == 0 {
                             beep_flush();
                         }
@@ -2560,7 +2560,7 @@ fn find_longest_match(xp: &mut ExpandCtx, options: c_int) -> CString {
             }
             if (i as c_int) < xp.xp_numfiles {
                 if (options & WILD_NO_BEEP) == 0 {
-                    vim_beep(kOptBoFlagWildmode);
+                    vim_beep(K_OPT_BO_FLAG_WILDMODE);
                 }
                 break;
             }
@@ -2791,8 +2791,8 @@ pub fn showmatches(
         let ccline = get_cmdline_info();
         let mut temp_matches: Vec<CString> = Vec::new();
         let showtail: bool;
-        let noselect = (wim_flags_arg & c_int::from(kOptWimFlagNoselect)) != 0;
-        let noinsert = (wim_flags_arg & c_int::from(kOptWimFlagNoinsert)) != 0;
+        let noselect = (wim_flags_arg & c_int::from(K_OPT_WIM_FLAG_NOSELECT)) != 0;
+        let noinsert = (wim_flags_arg & c_int::from(K_OPT_WIM_FLAG_NOINSERT)) != 0;
         let cmdline_unchanged = noselect || noinsert;
 
         let matches: &[CString] = if xp.xp_numfiles == -1 {
@@ -2822,7 +2822,7 @@ pub fn showmatches(
         if display_list {
             g_st().msg_didany = false;
             msg_start();
-            if !ui_has(kUIMessages) {
+            if !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as c_int);
             }
             ui_flush();
@@ -3755,7 +3755,7 @@ fn set_context_by_cmdname(
             | Cmdidx::CmdTjump
             | Cmdidx::CmdStjump
             | Cmdidx::CmdPtjump => {
-                if (opt_vars().wop_flags & kOptWopFlagTagfile) != 0 {
+                if (opt_vars().wop_flags & K_OPT_WOP_FLAG_TAGFILE) != 0 {
                     xp.xp_context = EXPAND_TAGS_LISTFILES;
                 } else {
                     xp.xp_context = EXPAND_TAGS;
@@ -4161,7 +4161,7 @@ fn set_one_cmd_context(xp: &mut ExpandCtx, buff: impl crate::strings::IntoCCharP
                 p = p.add(2);
             }
             while !crate::memory::cstr_is_empty(p) {
-                if *p == Ctrl_V {
+                if *p == CTRL_V_CONST {
                     if crate::memory::cstr_byte_at(p, 1) != 0 {
                         p = p.add(1);
                     }
@@ -4498,7 +4498,7 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: c_int) -> *mut c_char {
                 },
                 ptr::null(),
                 a,
-                kRetObject,
+                K_RET_OBJECT,
                 None,
                 &mut err,
             );
@@ -4552,7 +4552,7 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: c_int) -> *m
                 cstr_as_string(lua.as_ptr()),
                 ptr::null(),
                 args,
-                kRetObject,
+                K_RET_OBJECT,
                 None,
                 &mut err,
             );
@@ -5546,9 +5546,9 @@ pub fn wildmenu_translate_key(
 
         if cmdline_pum_active() || did_wild_list || g_st().wild_menu_showing != 0 {
             if c == K_LEFT {
-                c = Ctrl_P;
+                c = CTRL_P;
             } else if c == K_RIGHT {
-                c = Ctrl_N;
+                c = CTRL_N;
             }
         }
 
@@ -5816,7 +5816,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
         if argvars[0].v_type != VarType::VarString {
             if !tv_get_string_chk(&argvars[0]).is_null() {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
             }
             return;
         }
@@ -5843,19 +5843,19 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             xpc.xp_context = cmdcomplete_str_to_type(type_str);
             match xpc.xp_context {
                 EXPAND_NOTHING => {
-                    semsg!(gettext(e_invarg2), type_str);
+                    semsg!(gettext(E_INVARG2), type_str);
                     return;
                 }
                 EXPAND_USER_DEFINED => {
                     if !(crate::memory::cstr_prefix_bytes(type_str, 7) == &b"custom,"[..7]) {
-                        semsg!(gettext(e_invarg2), type_str);
+                        semsg!(gettext(E_INVARG2), type_str);
                         return;
                     }
                     xpc.xp_arg = type_str.add(7).cast_mut();
                 }
                 EXPAND_USER_LIST => {
                     if !(crate::memory::cstr_prefix_bytes(type_str, 11) == &b"customlist,"[..11]) {
-                        semsg!(gettext(e_invarg2), type_str);
+                        semsg!(gettext(E_INVARG2), type_str);
                         return;
                     }
                     xpc.xp_arg = type_str.add(11).cast_mut();
@@ -6017,7 +6017,7 @@ fn copy_substring_from_pos(
     match_end: &mut CursorPos,
 ) -> Option<CString> {
     unsafe {
-        let exacttext = (opt_vars().wop_flags & kOptWopFlagExacttext) != 0;
+        let exacttext = (opt_vars().wop_flags & K_OPT_WOP_FLAG_EXACTTEXT) != 0;
 
         if start.lnum > end.lnum
             || (start.lnum == end.lnum && start.col >= end.col)
@@ -6157,7 +6157,7 @@ fn expand_pattern_in_buf(
     matches: &mut Vec<CString>,
 ) -> bool { let pat = pat.into_c_char_ptr();
      {
-        let exacttext = (opt_vars().wop_flags & kOptWopFlagExacttext) != 0;
+        let exacttext = (opt_vars().wop_flags & K_OPT_WOP_FLAG_EXACTTEXT) != 0;
         let has_range = g_st().Search.first_line != 0;
 
         matches.clear();

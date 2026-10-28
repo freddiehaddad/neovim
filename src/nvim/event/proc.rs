@@ -26,7 +26,7 @@ use std::ptr;
 
 const KILL_TIMEOUT_MS: u64 = 2000;
 
-use crate::channel::{kProcTypePty, kProcTypeUv};
+use crate::channel::{K_PROC_TYPE_PTY, K_PROC_TYPE_UV};
 use crate::os::signal::{SIGHUP, SIGKILL, SIGTERM};
 
 #[repr(C)]
@@ -206,8 +206,8 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c_int {
         }
 
         let status = match proc_.r#type {
-            kProcTypeUv => libuv_proc_spawn(&mut *(&raw mut *proc_).cast()),
-            kProcTypePty => pty_proc_spawn(&mut *(&raw mut *proc_).cast()),
+            K_PROC_TYPE_UV => libuv_proc_spawn(&mut *(&raw mut *proc_).cast()),
+            K_PROC_TYPE_PTY => pty_proc_spawn(&mut *(&raw mut *proc_).cast()),
             _ => unreachable!(),
         };
 
@@ -222,7 +222,7 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> c_int {
                 uv_close((&raw mut (*s_err).uv).cast(), None);
             }
 
-            if proc_.r#type == kProcTypeUv {
+            if proc_.r#type == K_PROC_TYPE_UV {
                 uv_close(libuv_proc_uv(proc_), None);
             } else {
                 proc_close(proc_);
@@ -263,7 +263,7 @@ pub fn proc_teardown(loop_: &mut Loop) {
         proc_st().proc_is_tearing_down = true;
         let qc = loop_queues(loop_);
         for &proc_ in &(*qc).children {
-            if (*proc_).detach || (*proc_).r#type == kProcTypePty {
+            if (*proc_).detach || (*proc_).r#type == K_PROC_TYPE_PTY {
                 if !(*qc).events.is_null() {
                     multiqueue_put_event( &mut *(*qc).events, Event::ProcCloseHandles(proc_));
                 } else {
@@ -340,11 +340,11 @@ pub fn proc_stop(proc_: &mut Proc) {
         proc_.stopped_time = os_hrtime();
 
         match proc_.r#type {
-            kProcTypeUv => {
+            K_PROC_TYPE_UV => {
                 proc_.exit_signal = SIGTERM as u8;
                 os_proc_tree_kill(proc_.pid, SIGTERM);
             }
-            kProcTypePty => {
+            K_PROC_TYPE_PTY => {
                 proc_.exit_signal = SIGHUP as u8;
                 proc_close_streams(proc_);
                 pty_proc_close_master(&mut *(&raw mut *proc_).cast());
@@ -373,7 +373,7 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
                 continue;
             }
             let term_sent = (*proc_).stopped_time == u64::MAX;
-            if (*proc_).r#type != kProcTypePty || term_sent {
+            if (*proc_).r#type != K_PROC_TYPE_PTY || term_sent {
                 (*proc_).exit_signal = SIGKILL as u8;
                 os_proc_tree_kill((*proc_).pid, SIGKILL);
             } else {
@@ -424,20 +424,20 @@ fn proc_close(proc_: &mut Proc) {
     unsafe {
         if proc_st().proc_is_tearing_down
             && proc_.closed
-            && (proc_.detach || proc_.r#type == kProcTypePty)
+            && (proc_.detach || proc_.r#type == K_PROC_TYPE_PTY)
         {
             return;
         }
         debug_assert!(!proc_.closed);
         proc_.closed = true;
 
-        if proc_.detach && proc_.r#type == kProcTypeUv {
+        if proc_.detach && proc_.r#type == K_PROC_TYPE_UV {
             uv_unref(libuv_proc_uv(proc_));
         }
 
         match proc_.r#type {
-            kProcTypeUv => libuv_proc_close(&mut *(&raw mut *proc_).cast()),
-            kProcTypePty => pty_proc_close(&mut *(&raw mut *proc_).cast()),
+            K_PROC_TYPE_UV => libuv_proc_close(&mut *(&raw mut *proc_).cast()),
+            K_PROC_TYPE_PTY => pty_proc_close(&mut *(&raw mut *proc_).cast()),
             _ => unreachable!(),
         }
     }
@@ -453,7 +453,7 @@ fn flush_stream(proc_: &mut Proc, stream: &mut RStream) {
         let limit_bytes = if cfg!(windows) {
             true
         } else {
-            proc_.r#type != kProcTypePty || proc_st().proc_is_tearing_down
+            proc_.r#type != K_PROC_TYPE_PTY || proc_st().proc_is_tearing_down
         };
         if limit_bytes {
             let mut system_buffer_size: c_int = 0;
@@ -472,7 +472,7 @@ fn flush_stream(proc_: &mut Proc, stream: &mut RStream) {
         {
             let num_bytes = stream.num_bytes;
 
-            if proc_.r#type == kProcTypePty && !stream.did_eof {
+            if proc_.r#type == K_PROC_TYPE_PTY && !stream.did_eof {
                 pty_proc_flush_master(&mut *(&raw mut *proc_).cast());
             }
             loop_poll_events(&mut *proc_.loop_, 0);

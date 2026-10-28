@@ -15,7 +15,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, VarType, kCallbackNone, tv_get_lnum, TypVal, Varnumber,
+    EvalFuncData, VarType, K_CALLBACK_NONE_CONST, tv_get_lnum, TypVal, Varnumber,
 };
 use crate::eval::vars::{
     VV_FOLDDASHES, VV_FOLDEND, VV_FOLDLEVEL, VV_FOLDSTART, VV_LNUM, get_vim_var_nr,
@@ -23,7 +23,7 @@ use crate::eval::vars::{
 };
 use crate::eval::{eval_foldexpr, eval_foldtext};
 use crate::ex_session::{put_eol, put_line};
-use crate::extmark::{TriState, extmark_splice_cols, kExtmarkUndo, kFalse, kNone, kTrue};
+use crate::extmark::{TriState, extmark_splice_cols, K_EXTMARK_UNDO, K_FALSE, K_NONE, K_TRUE};
 use crate::fileio::{FILE, fputs};
 use crate::globals::*;
 use crate::indent::{get_indent_buf, get_sw_value};
@@ -59,7 +59,7 @@ const DONE_NOTHING: c_int = 0;
 const DONE_ACTION: c_int = 1;
 const DONE_FOLD: c_int = 2;
 
-const kWinOptFoldtext: usize = 22;
+const K_WIN_OPT_FOLDTEXT: usize = 22;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LevelGetterKind {
@@ -572,7 +572,7 @@ pub fn foldCreate(wp: &mut WinInfoInfo, mut start: CursorPos, mut end: CursorPos
                     fd_len: end_rel.lnum - start_rel.lnum + 1,
                     fd_nested: fold_ga,
                     fd_flags: FD_CLOSED,
-                    fd_small: kNone,
+                    fd_small: K_NONE,
                 },
             );
 
@@ -688,7 +688,7 @@ pub fn foldUpdate(wp: *mut WinInfoInfo, top: Linenr, bot: Linenr) {
             let folds = &mut (*wp).w_folds;
             let (_, mut idx) = foldFind(folds, maybe_small_start);
             while idx < folds.len() && folds[idx].fd_top <= maybe_small_end {
-                folds[idx].fd_small = kNone;
+                folds[idx].fd_small = K_NONE;
                 idx += 1;
             }
         }
@@ -1084,8 +1084,8 @@ fn deleteFoldEntry(gap: &mut Vec<FoldEntry>, idx: c_int, recursive: bool) {
             if parent.fd_flags == FD_LEVEL {
                 child.fd_flags = FD_LEVEL;
             }
-            if parent.fd_small == kNone {
-                child.fd_small = kNone;
+            if parent.fd_small == K_NONE {
+                child.fd_small = K_NONE;
             }
         }
         gap.splice(idx..idx, nested);
@@ -1233,15 +1233,15 @@ fn check_closed(
             closed = true;
         }
 
-        if fp.fd_small == kNone {
+        if fp.fd_small == K_NONE {
             *maybe_smallp = true;
         }
         if closed {
             if *maybe_smallp {
-                fp.fd_small = kNone;
+                fp.fd_small = K_NONE;
             }
             checkSmall( wp, fp, lnum_off);
-            if fp.fd_small == kTrue {
+            if fp.fd_small == K_TRUE {
                 closed = false;
             }
         }
@@ -1251,31 +1251,31 @@ fn check_closed(
 
 fn checkSmall(wp: &mut WinInfoInfo, fp: &mut FoldEntry, lnum_off: Linenr) {
      {
-        if fp.fd_small != kNone {
+        if fp.fd_small != K_NONE {
             return;
         }
 
         setSmallMaybe(&mut fp.fd_nested);
 
         if i64::from(fp.fd_len) > wp.w_onebuf_opt.wo_fml {
-            fp.fd_small = kFalse;
+            fp.fd_small = K_FALSE;
         } else {
             let mut count: c_int = 0;
             for n in 0..fp.fd_len {
                 count += plines_win_nofold(wp, fp.fd_top + lnum_off + n);
                 if i64::from(count) > wp.w_onebuf_opt.wo_fml {
-                    fp.fd_small = kFalse;
+                    fp.fd_small = K_FALSE;
                     return;
                 }
             }
-            fp.fd_small = kTrue;
+            fp.fd_small = K_TRUE;
         }
     }
 }
 
 fn setSmallMaybe(gap: &mut [FoldEntry]) {
     for entry in gap {
-        entry.fd_small = kNone;
+        entry.fd_small = K_NONE;
     }
 }
 
@@ -1283,7 +1283,7 @@ fn foldCreateMarkers(wp: &mut WinInfoInfo, start: CursorPos, end: CursorPos) {
     unsafe {
         let buf = wp.w_buffer;
         if (*buf).b_p_ma == 0 {
-            emsg(gettext(e_modifiable));
+            emsg(gettext(E_MODIFIABLE));
             return;
         }
         parseMarker(&mut *wp);
@@ -1340,7 +1340,7 @@ fn foldAddMarker(buf: &mut FileBuf, pos: CursorPos, marker: impl crate::strings:
                 line_len as Colnr,
                 0,
                 added as Colnr,
-                kExtmarkUndo,
+                K_EXTMARK_UNDO,
             );
         }
     }
@@ -1424,7 +1424,7 @@ fn foldDelMarker(buf: &mut FileBuf, lnum: Linenr, marker: impl crate::strings::I
                     before_len as Colnr,
                     len as Colnr,
                     0,
-                    kExtmarkUndo,
+                    K_EXTMARK_UNDO,
                 );
             }
             break;
@@ -1453,7 +1453,7 @@ pub fn get_foldtext(
             g_st().did_emsg = 0;
         }
 
-        if wp.w_onebuf_opt.wo_fdt.cb_type() != kCallbackNone {
+        if wp.w_onebuf_opt.wo_fdt.cb_type() != K_CALLBACK_NONE_CONST {
             let mut dashes = [0 as c_char; (MAX_LEVEL as usize) + 2];
 
             set_vim_var_nr(VV_FOLDSTART, Varnumber::from(lnum));
@@ -1471,7 +1471,7 @@ pub fn get_foldtext(
 
                 set_curwin(&raw mut *wp);
                 g_st().curbuf = wp.w_buffer;
-                g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[kWinOptFoldtext];
+                g_st().current_sctx = wp.w_onebuf_opt.wo_script_ctx[K_WIN_OPT_FOLDTEXT];
 
                 g_st().emsg_off += 1;
 
@@ -1963,7 +1963,7 @@ fn foldUpdateIEMSRecurse(
                                 }
                                 fp.fd_len += fp.fd_top - firstlnum;
                                 fp.fd_top = firstlnum;
-                                fp.fd_small = kNone;
+                                fp.fd_small = K_NONE;
                                 fold_st().fold_changed = true;
                             } else if (flp.start != 0 && lvl == level) || firstlnum != startlnum {
                                 let (breakstart, breakend) = if firstlnum != startlnum {
@@ -2029,7 +2029,7 @@ fn foldUpdateIEMSRecurse(
                         } else {
                             fp.fd_flags = prev_flags;
                         }
-                        fp.fd_small = kNone;
+                        fp.fd_small = K_NONE;
                         if getlevel == LevelGetterKind::Marker
                             || getlevel == LevelGetterKind::Expr
                             || getlevel == LevelGetterKind::Syntax
@@ -2104,7 +2104,7 @@ fn foldUpdateIEMSRecurse(
 
         if gap[fpi].fd_len < flp.lnum - gap[fpi].fd_top {
             gap[fpi].fd_len = flp.lnum - gap[fpi].fd_top;
-            gap[fpi].fd_small = kNone;
+            gap[fpi].fd_small = K_NONE;
             fold_st().fold_changed = true;
         } else if gap[fpi].fd_top + gap[fpi].fd_len > linecount {
             gap[fpi].fd_len = linecount - gap[fpi].fd_top + 1;
@@ -2176,7 +2176,7 @@ fn foldInsert(gap: &mut Vec<FoldEntry>, i: c_int) {
             fd_len: 0,
             fd_nested: Vec::new(),
             fd_flags: 0,
-            fd_small: kNone,
+            fd_small: K_NONE,
         },
     );
 }
@@ -2192,8 +2192,8 @@ fn foldSplit(gap: &mut Vec<FoldEntry>, i: c_int, top: Linenr, bot: Linenr) {
         debug_assert!(next_fp.fd_top > bot);
         next_fp.fd_len = fp.fd_len - (next_fp.fd_top - fp.fd_top);
         next_fp.fd_flags = fp.fd_flags;
-        next_fp.fd_small = kNone;
-        fp.fd_small = kNone;
+        next_fp.fd_small = K_NONE;
+        fp.fd_small = K_NONE;
 
         let delta = next_fp.fd_top - fp.fd_top;
         let (_, split_idx) = foldFind(&fp.fd_nested, bot + 1 - fp.fd_top);
@@ -2819,7 +2819,7 @@ mod tests {
             fd_len: 5,
             fd_nested: Vec::new(),
             fd_flags: FD_CLOSED,
-            fd_small: kNone,
+            fd_small: K_NONE,
         };
         assert_eq!(fold_end(&f), 14);
     }

@@ -896,7 +896,7 @@ pub fn format_overflow_error(pstart: *const c_char) {
             p = p.add(1);
         }
         semsg!(
-            gettext(e_val_too_large_len),
+            gettext(E_VAL_TOO_LARGE_LEN),
             p.offset_from(pstart) as c_int,
             pstart,
         );
@@ -2215,7 +2215,7 @@ macro_rules! vim_snprintf_safelen {
 }
 use crate::charset::NUL;
 use crate::cmdexpand::MB_MAXBYTES;
-use crate::eval::kListLenUnknown;
+use crate::eval::K_LIST_LEN_UNKNOWN_CONST;
 use crate::regexp::NUMBUFLEN;
 pub use vim_snprintf_safelen;
 
@@ -2316,7 +2316,7 @@ fn byteidx_common(argvars: &mut [TypVal], rettv: &mut TypVal, comp: bool) {
             }
             if !(0..=1).contains(&utf16idx) {
                 semsg!(
-                    gettext(e_using_number_as_bool_nr),
+                    gettext(E_USING_NUMBER_AS_BOOL_NR),
                     utf16idx,
                 );
                 return;
@@ -2440,7 +2440,7 @@ pub fn f_charidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 pub fn f_str2list(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
 
     unsafe {
-        tv_list_alloc_ret(rettv, kListLenUnknown);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
         let mut p = tv_get_string(&argvars[0]);
         while *p != NUL {
             tv_list_append_number( &mut *rettv.vval.v_list(), Varnumber::from(utf_ptr2char(p)));
@@ -2458,7 +2458,7 @@ pub fn f_str2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         if argvars[1].v_type != VarType::VarUnknown {
             base = tv_get_number(&argvars[1]) as c_int;
             if !matches!(base, 2 | 8 | 10 | 16) {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 return;
             }
             if argvars[2].v_type != VarType::VarUnknown && tv_get_bool(&argvars[2]) != 0
@@ -2608,7 +2608,7 @@ pub fn f_strchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
             if !(0..=1).contains(&skipcc) {
                 semsg!(
-                    gettext(e_using_number_as_bool_nr),
+                    gettext(E_USING_NUMBER_AS_BOOL_NR),
                     skipcc,
                 );
                 return;
@@ -2690,7 +2690,7 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
                 }
                 if !(0..=1).contains(&skipcc) {
                     semsg!(
-                        gettext(e_using_number_as_bool_nr),
+                        gettext(E_USING_NUMBER_AS_BOOL_NR),
                         skipcc,
                     );
                     return;
@@ -2986,7 +2986,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                         tp = tp.add(tolen);
                     }
                     if *tp == NUL {
-                        semsg!(gettext(e_invarg2), fromstr);
+                        semsg!(gettext(E_INVARG2), fromstr);
                         return;
                     }
                     break;
@@ -3004,7 +3004,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                     tp = tp.add(tolen);
                 }
                 if idx != 0 {
-                    semsg!(gettext(e_invarg2), fromstr);
+                    semsg!(gettext(E_INVARG2), fromstr);
                     return;
                 }
             }
@@ -3051,7 +3051,7 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData){
                 }
                 if !(0..=2).contains(&dir) {
                     semsg!(
-                        gettext(e_invarg2),
+                        gettext(E_INVARG2),
                         tv_get_string(&argvars[2]),
                     );
                     return;
@@ -3187,7 +3187,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         unsafe {
             crate::option_vars::opt_vars().cmp_flags =
-                crate::mbyte::kOptCmpFlagInternal | crate::mbyte::kOptCmpFlagKeepascii;
+                crate::mbyte::K_OPT_CMP_FLAG_INTERNAL | crate::mbyte::K_OPT_CMP_FLAG_KEEPASCII;
 
             for (s, esc, expected) in [
                 (c"abcd", c"abcd", "\\a\\b\\c\\d"),

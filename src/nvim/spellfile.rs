@@ -25,7 +25,7 @@ use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
 };
-use crate::option::{OPT_LOCAL, copy_option_part, kOptSpellfile, set_option_value_give_err};
+use crate::option::{OPT_LOCAL, copy_option_part, K_OPT_SPELLFILE, set_option_value_give_err};
 use crate::option_vars::*;
 use crate::os::env::home_replace;
 use crate::os::fs::{MAXPATHL, os_fopen, os_isdir, os_mkdir, os_mkdir_recurse, os_path_exists};
@@ -33,7 +33,7 @@ use crate::os::input::{fast_breakcheck, line_breakcheck, veryfast_breakcheck};
 use crate::os::stdpaths::{XDGVarType, get_xdg_home};
 use crate::os::time::{Timestamp, os_time, time_t};
 use crate::path::{
-    dir_of_file_exists, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail, path_tail_with_sep,
+    dir_of_file_exists, K_PATH_CMP_EXPAND, K_PATH_CMP_LITERAL, path_equal, path_tail, path_tail_with_sep,
     vim_ispathsep,
 };
 use crate::regexp::{RE_MAGIC, RE_STRICT, RE_STRING, Regprog, vim_regexec_prog};
@@ -41,7 +41,7 @@ use crate::runtime::{ETYPE_SPELL, estack_pop, estack_push};
 use crate::spell::{
     MAXWLEN, SP_FORMERROR, WF_BANNED, WF_COMPROOT, WF_FIXCAP, WF_HAS_AFF, WF_KEEPCAP, WF_NEEDCOMP,
     WF_NOCOMPAFT, WF_NOCOMPBEF, WF_RARE, WF_REGION, WFP_NC, captype, clear_spell_chartab,
-    close_spellbuf, count_common_word, e_format, init_spell_chartab, init_syl_tab, onecap_copy,
+    close_spellbuf, count_common_word, E_FORMAT, init_spell_chartab, init_syl_tab, onecap_copy,
     open_spellbuf, parse_spelllang, slang_alloc, slang_clear, slang_clear_sug, spell_casefold,
     spell_enc, spell_priv_st, spell_soundfold, spell_toupper,
 };
@@ -66,9 +66,9 @@ pub const SPELL_ADD_GOOD: SpellAddType = 0;
 pub const SPELL_ADD_BAD: SpellAddType = 1;
 pub const SPELL_ADD_RARE: SpellAddType = 2;
 
-const CmdSpellrare: c_int = 431;
-const CmdSpellundo: c_int = 432;
-const CmdSpellwrong: c_int = 433;
+const CMD_SPELLRARE: c_int = 431;
+const CMD_SPELLUNDO: c_int = 432;
+const CMD_SPELLWRONG: c_int = 433;
 
 pub(crate) const MAXREGIONS: usize = 8;
 
@@ -158,14 +158,14 @@ const CONDIT_CFIX: c_int = 2;
 const CONDIT_SUF: c_int = 4;
 const CONDIT_AFF: c_int = 8;
 
-const e_spell_trunc: *const c_char = c"E758: Truncated spell file".as_ptr();
-const e_error_while_reading_sug_file_str: *const c_char =
+const E_SPELL_TRUNC: *const c_char = c"E758: Truncated spell file".as_ptr();
+const E_ERROR_WHILE_READING_SUG_FILE_STR: *const c_char =
     c"E782: Error while reading .sug file: %s".as_ptr();
-const e_duplicate_char_in_map_entry: *const c_char = c"E783: Duplicate char in MAP entry".as_ptr();
-const e_illegal_character_in_word: *const c_char = c"E1280: Illegal character in word".as_ptr();
-const e_afftrailing: *const c_char = c"Trailing text in %s line %d: %s".as_ptr();
-const e_affname: *const c_char = c"Affix name too long in %s line %d: %s".as_ptr();
-const msg_compressing: *const c_char = c"Compressing word tree...".as_ptr();
+const E_DUPLICATE_CHAR_IN_MAP_ENTRY: *const c_char = c"E783: Duplicate char in MAP entry".as_ptr();
+const E_ILLEGAL_CHARACTER_IN_WORD: *const c_char = c"E1280: Illegal character in word".as_ptr();
+const E_AFFTRAILING: *const c_char = c"Trailing text in %s line %d: %s".as_ptr();
+const E_AFFNAME: *const c_char = c"Affix name too long in %s line %d: %s".as_ptr();
+const MSG_COMPRESSING: *const c_char = c"Compressing word tree...".as_ptr();
 
 struct SpellfileModuleState {
     compress_start: c_int,
@@ -481,10 +481,10 @@ pub fn spell_load_file(
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
             if !silent {
-                semsg!(gettext(e_notopen), fname);
+                semsg!(gettext(E_NOTOPEN), fname);
             } else if opt_vars().p_verbose > 2 {
                 verbose_enter();
-                smsg!(0, e_notopen, fname);
+                smsg!(0, E_NOTOPEN, fname);
                 verbose_leave();
             }
             if !lang.is_null() {
@@ -697,10 +697,10 @@ pub fn spell_load_file(
 
         if check_someerror {
             if res == SP_FORMERROR {
-                emsg(gettext(e_format));
+                emsg(gettext(E_FORMAT));
                 fail = true;
             } else if res == SP_TRUNCERROR {
-                emsg(gettext(e_spell_trunc));
+                emsg(gettext(E_SPELL_TRUNC));
                 fail = true;
             } else if res == SP_OTHERERROR {
                 fail = true;
@@ -796,7 +796,7 @@ pub fn suggest_load_files() {
                     lpi += 1;
                     continue;
                 };
-                if !path_equal(fname_cstr.as_ptr().add(prefix_len), c".spl", kPathCmpLiteral) {
+                if !path_equal(fname_cstr.as_ptr().add(prefix_len), c".spl", K_PATH_CMP_LITERAL) {
                     lpi += 1;
                     continue;
                 }
@@ -904,7 +904,7 @@ pub fn suggest_load_files() {
                         }
 
                         if someerror {
-                            semsg!(gettext(e_error_while_reading_sug_file_str), sug_ptr);
+                            semsg!(gettext(E_ERROR_WHILE_READING_SUG_FILE_STR), sug_ptr);
                             slang_clear_sug(&mut *slang);
                         } else {
                             tree_count_words(
@@ -1652,7 +1652,7 @@ fn spell_reload_one(fname: impl crate::strings::IntoCCharPtr, added_word: bool) 
             if (*slang)
                 .sl_fname
                 .as_ref()
-                .is_some_and(|f| path_equal(fname, f.as_ptr(), kPathCmpExpand))
+                .is_some_and(|f| path_equal(fname, f.as_ptr(), K_PATH_CMP_EXPAND))
             {
                 slang_clear(&mut *slang);
                 if spell_load_file(fname, ptr::null_mut(), slang, false).is_null() {
@@ -1736,7 +1736,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr
 
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
-            semsg!(gettext(e_notopen), fname);
+            semsg!(gettext(E_NOTOPEN), fname);
             return None;
         }
 
@@ -2166,7 +2166,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr
                     }
 
                     if itemcnt > lasti && !aff.af_ignoreextra && *items[lasti] != b'#' as c_char {
-                        smsg!(0, gettext(e_afftrailing), fname, lnum, items[lasti]);
+                        smsg!(0, gettext(E_AFFTRAILING), fname, lnum, items[lasti]);
                     }
 
                     if crate::memory::cstr_as_bytes(items[2]) != b"Y" && crate::memory::cstr_as_bytes(items[2]) != b"N"
@@ -2203,7 +2203,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr
                         && *items[lasti] != b'#' as c_char
                         && (crate::memory::cstr_as_bytes(items[lasti]) != b"-" || itemcnt != lasti + 1)
                     {
-                        smsg!(0, gettext(e_afftrailing), fname, lnum, items[lasti]);
+                        smsg!(0, gettext(E_AFFTRAILING), fname, lnum, items[lasti]);
                     }
 
                     aff_todo -= 1;
@@ -2399,7 +2399,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr
                     && itemcnt >= 3
                 {
                     if itemcnt > 3 && *items[3] != b'#' as c_char {
-                        smsg!(0, gettext(e_afftrailing), fname, lnum, items[3]);
+                        smsg!(0, gettext(E_AFFTRAILING), fname, lnum, items[3]);
                     }
                     let is_repsal = *items[0].add(3) == b'S' as c_char;
                     if if is_repsal { do_repsal } else { do_rep } {
@@ -2713,7 +2713,7 @@ fn affitem2flag(
             }
         }
         if !crate::memory::cstr_is_empty(p) {
-            smsg!(0, gettext(e_affname), fname, lnum, item);
+            smsg!(0, gettext(E_AFFNAME), fname, lnum, item);
             return 0;
         }
         res
@@ -2819,7 +2819,7 @@ fn store_afflist_add(store_afflist: *mut c_char, cntp: &mut c_int, id: c_int) ->
     unsafe {
         if *cntp >= (MAXWLEN - 1) as c_int {
             emsg(gettext(
-                e_too_many_postponed_prefixes_spell,
+                E_TOO_MANY_POSTPONED_PREFIXES_SPELL,
             ));
             return false;
         }
@@ -2943,7 +2943,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr
 
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
-            semsg!(gettext(e_notopen), fname);
+            semsg!(gettext(E_NOTOPEN), fname);
             return false;
         }
 
@@ -3563,7 +3563,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCh
 
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
-            semsg!(gettext(e_notopen), fname);
+            semsg!(gettext(E_NOTOPEN), fname);
             return false;
         }
 
@@ -3980,7 +3980,7 @@ fn tree_add_word(
 
             if spin.si_verbose != 0 {
                 msg_start();
-                msg_puts(gettext(msg_compressing));
+                msg_puts(gettext(MSG_COMPRESSING));
                 msg_clr_eos();
                 g_st().msg_didout = false;
                 g_st().msg_col = 0;
@@ -4182,7 +4182,7 @@ fn write_vim_spell(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPt
 
         let fd = os_fopen(fname, c"w");
         if fd.is_null() {
-            semsg!(gettext(e_notopen), fname);
+            semsg!(gettext(E_NOTOPEN), fname);
             return false;
         }
 
@@ -4191,7 +4191,7 @@ fn write_vim_spell(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPt
             if fclose(fd) == EOF {
                 // error
             }
-            emsg(gettext(e_write));
+            emsg(gettext(E_WRITE));
             return false;
         }
 
@@ -4483,7 +4483,7 @@ fn write_vim_spell(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPt
             retval = false;
         }
         if !retval {
-            emsg(gettext(e_write));
+            emsg(gettext(E_WRITE));
         }
 
         retval
@@ -4584,7 +4584,7 @@ fn put_node(
                 }
 
                 if !fd.is_null() && fputc(n.wn_byte as c_int, fd) == EOF {
-                    emsg(gettext(e_write));
+                    emsg(gettext(E_WRITE));
                     return 0;
                 }
             }
@@ -4638,7 +4638,7 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname: impl crate::strings::IntoCCh
             .find(|s| {
                 s.sl_fname
                     .as_ref()
-                    .is_some_and(|f| path_equal(wfname, f.as_ptr(), kPathCmpExpand))
+                    .is_some_and(|f| path_equal(wfname, f.as_ptr(), K_PATH_CMP_EXPAND))
             })
             .map_or(ptr::null_mut(), |s| &raw mut **s);
         let mut temp_slang: Option<Box<Slang>> = None;
@@ -4670,7 +4670,7 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname: impl crate::strings::IntoCCh
                 spin.si_spellbuf.as_ref().unwrap().b_ml.ml_line_count as i64,
             );
 
-            spell_message(&*spin, gettext(msg_compressing));
+            spell_message(&*spin, gettext(MSG_COMPRESSING));
             wordtree_compress(spin, spin.si_foldroot, c"case-folded");
 
             let mut fname_buf = [0 as c_char; MAXPATHL];
@@ -4890,7 +4890,7 @@ fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) { l
     unsafe {
         let fd = os_fopen(fname, c"w");
         if fd.is_null() {
-            semsg!(gettext(e_notopen), fname);
+            semsg!(gettext(E_NOTOPEN), fname);
             return;
         }
 
@@ -4903,7 +4903,7 @@ fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) { l
         spell_message(&*spin, g_st().IObuff.as_mut_ptr());
 
         if fwrite(VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL, 1, fd) != 1 {
-            emsg(gettext(e_write));
+            emsg(gettext(E_WRITE));
             fclose(fd);
             return;
         }
@@ -4934,7 +4934,7 @@ fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) { l
             let line = ml_get_buf(&mut *spellbuf, lnum);
             let len = ml_get_buf_len(&mut *spellbuf, lnum) + 1;
             if fwrite(line.cast(), len as usize, 1, fd) == 0 {
-                emsg(gettext(e_write));
+                emsg(gettext(E_WRITE));
                 write_err = true;
                 break;
             }
@@ -4943,7 +4943,7 @@ fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) { l
 
         if !write_err {
             if fputc(0, fd) == EOF {
-                emsg(gettext(e_write));
+                emsg(gettext(E_WRITE));
             }
 
             vim_snprintf!(
@@ -5032,7 +5032,7 @@ fn mkspell(
         }
 
         if incount <= 0 {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
         } else if !vim_strchr(path_tail(wfname), b'_' as c_int).is_null() {
             emsg(gettext(
                 c"E751: Output file name must not have region name",
@@ -5043,9 +5043,9 @@ fn mkspell(
                 MAXREGIONS as c_int,
             );
         } else if !over_write && os_path_exists(wfname) {
-            emsg(gettext(e_exists));
+            emsg(gettext(E_EXISTS));
         } else if os_isdir(wfname) {
-            semsg!(gettext(e_isadir2), wfname);
+            semsg!(gettext(E_ISADIR2), wfname);
         } else {
             let fname = fname_buf.as_mut_ptr();
 
@@ -5111,7 +5111,7 @@ fn mkspell(
                 }
 
                 if !error && !g_st().got_int {
-                    spell_message(&spin, gettext(msg_compressing));
+                    spell_message(&spin, gettext(MSG_COMPRESSING));
                     let foldroot = spin.si_foldroot;
                     wordtree_compress(&mut spin, foldroot, c"case-folded");
                     let keeproot = spin.si_keeproot;
@@ -5182,9 +5182,9 @@ fn spell_message(spin: &Spellinfo, str_: impl crate::strings::IntoCCharPtr) { le
 /// ":[count]spellrare  {word}"
 pub fn ex_spell(eap: &mut Exarg) {
      {
-        let what = if eap.cmdidx == CmdSpellwrong {
+        let what = if eap.cmdidx == CMD_SPELLWRONG {
             SPELL_ADD_BAD
-        } else if eap.cmdidx == CmdSpellrare {
+        } else if eap.cmdidx == CMD_SPELLRARE {
             SPELL_ADD_RARE
         } else {
             SPELL_ADD_GOOD
@@ -5198,7 +5198,7 @@ pub fn ex_spell(eap: &mut Exarg) {
             } else {
                 eap.line2 as c_int
             },
-            eap.cmdidx == CmdSpellundo,
+            eap.cmdidx == CMD_SPELLUNDO,
         );
     }
 }
@@ -5219,7 +5219,7 @@ pub fn spell_add_word(
         let mut line = [0 as c_char; MAXWLEN * 2];
 
         if !valid_spell_word(word, word.offset(len as isize)) {
-            emsg(gettext(e_illegal_character_in_word));
+            emsg(gettext(E_ILLEGAL_CHARACTER_IN_WORD));
             return;
         }
 
@@ -5244,7 +5244,7 @@ pub fn spell_add_word(
             }
 
             if *(*win_s(curwin_mut())).b_p_spf == NUL {
-                semsg!(gettext(e_notset), c"spellfile");
+                semsg!(gettext(E_NOTSET), c"spellfile");
                 return;
             }
             let fnamebuf = fnamebuf_arr.as_mut_ptr();
@@ -5271,7 +5271,7 @@ pub fn spell_add_word(
                 buf = ptr::null_mut();
             }
             if !buf.is_null() && bufIsChanged(&mut *buf) {
-                emsg(gettext(e_bufloaded));
+                emsg(gettext(E_BUFLOADED));
                 return;
             }
 
@@ -5349,7 +5349,7 @@ pub fn spell_add_word(
             }
 
             if fd.is_null() {
-                semsg!(gettext(e_notopen), fname);
+                semsg!(gettext(E_NOTOPEN), fname);
             } else {
                 let wlen = (0..(len as usize))
                     .take_while(|&i| crate::memory::cstr_byte_at(word, i) != 0)
@@ -5465,7 +5465,7 @@ fn init_spellfile() {
             enc_suffix,
         );
 
-        set_option_value_give_err(kOptSpellfile, cstr_as_obj(buf), OPT_LOCAL);
+        set_option_value_give_err(K_OPT_SPELLFILE, cstr_as_obj(buf), OPT_LOCAL);
     }
 }
 
@@ -5572,7 +5572,7 @@ fn set_map_str(lp: &mut Slang, map: impl crate::strings::IntoCCharPtr) { let map
 
                 if c >= 256 {
                     if lp.sl_map_hash.insert(c, headc).is_some() {
-                        emsg(gettext(e_duplicate_char_in_map_entry));
+                        emsg(gettext(E_DUPLICATE_CHAR_IN_MAP_ENTRY));
                     }
                 } else {
                     lp.sl_map_array[c as usize] = headc;

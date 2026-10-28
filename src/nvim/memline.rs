@@ -7,7 +7,7 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE, SEA_NONE, SEA_QUIT, SEA_RECOVER, FileBuf,
-    buf_inc_changedtick, buf_spname, kUIMessages, open_buffer, setfname,
+    buf_inc_changedtick, buf_spname, K_UIMESSAGES, open_buffer, setfname,
 };
 use crate::change::{ML_DEL_MESSAGE, changed_internal, unchanged};
 use crate::charset::ascii_isalpha;
@@ -20,7 +20,7 @@ use crate::eval::typval::{
 };
 use crate::eval::vars::{VV_SWAPCHOICE, VV_SWAPNAME, get_vim_var_str, set_vim_var_string};
 use crate::fileio::{
-    EOL_DOS, O_RDONLY, READ_NEW, SEEK_END, buf_store_file_info, kOptFileencoding, modname, Off,
+    EOL_DOS, O_RDONLY, READ_NEW, SEEK_END, buf_store_file_info, K_OPT_FILEENCODING, modname, Off,
     read_eintr, readfile, vim_deltempdir, vim_rename, vim_tempname,
 };
 use crate::globals::*;
@@ -55,7 +55,7 @@ use crate::os::users::os_get_username;
 use crate::path::path_is_absolute;
 use crate::path::{
     EW_FILE, EW_KEEPALL, EW_SILENT, after_pathsep, concat_fnames, expand_wildcards_vec, fix_fname,
-    kPathCmpFull, kPathCmpLiteral, path_equal, path_tail, same_directory, shorten_dir,
+    K_PATH_CMP_FULL, K_PATH_CMP_LITERAL, path_equal, path_tail, same_directory, shorten_dir,
     vim_FullName, vim_ispathsep,
 };
 use crate::spell::spell_delete_wordlist;
@@ -177,9 +177,9 @@ pub(crate) const MFS_FLUSH: c_int = 4;
 
 const BF_RECOVERED: c_int = 0x01;
 
-const kShmAttention: c_int = b'A' as c_int;
+const K_SHM_ATTENTION: c_int = b'A' as c_int;
 
-pub(crate) const kPathDeviceUNC: c_int = 5;
+pub(crate) const K_PATH_DEVICE_UNC: c_int = 5;
 
 #[cfg(unix)]
 const ENOENT: c_int = 2;
@@ -333,17 +333,17 @@ fn ml_st() -> &'static mut MemlineModuleState {
     unsafe { &mut *ML_STATE.as_ptr() }
 }
 
-static e_ml_get_invalid_lnum_nr: &CStr = c"E315: ml_get: Invalid lnum: %lld";
-static e_ml_get_cannot_find_line_nr_in_buffer_nr_str: &CStr =
+static E_ML_GET_INVALID_LNUM_NR: &CStr = c"E315: ml_get: Invalid lnum: %lld";
+static E_ML_GET_CANNOT_FIND_LINE_NR_IN_BUFFER_NR_STR: &CStr =
     c"E316: ml_get: Cannot find line %lldin buffer %d %s";
-static e_pointer_block_id_wrong: &CStr = c"E317: Pointer block id wrong";
-static e_pointer_block_id_wrong_two: &CStr = c"E317: Pointer block id wrong 2";
-static e_pointer_block_id_wrong_three: &CStr = c"E317: Pointer block id wrong 3";
-static e_pointer_block_id_wrong_four: &CStr = c"E317: Pointer block id wrong 4";
-static e_line_number_out_of_range_nr_past_the_end: &CStr =
+static E_POINTER_BLOCK_ID_WRONG: &CStr = c"E317: Pointer block id wrong";
+static E_POINTER_BLOCK_ID_WRONG_TWO: &CStr = c"E317: Pointer block id wrong 2";
+static E_POINTER_BLOCK_ID_WRONG_THREE: &CStr = c"E317: Pointer block id wrong 3";
+static E_POINTER_BLOCK_ID_WRONG_FOUR: &CStr = c"E317: Pointer block id wrong 4";
+static E_LINE_NUMBER_OUT_OF_RANGE_NR_PAST_THE_END: &CStr =
     c"E322: Line number out of range: %lld past the end";
-static e_line_count_wrong_in_block_nr: &CStr = c"E323: Line count wrong in block %lld";
-static e_warning_pointer_block_corrupted: &CStr = c"E1364: Warning: Pointer block corrupted";
+static E_LINE_COUNT_WRONG_IN_BLOCK_NR: &CStr = c"E323: Line count wrong in block %lld";
+static E_WARNING_POINTER_BLOCK_CORRUPTED: &CStr = c"E1364: Warning: Pointer block corrupted";
 
 use crate::arglist::ML_EMPTY;
 use crate::buffer::BF_DUMMY;
@@ -362,7 +362,7 @@ use crate::os::fs::MAXPATHL;
 #[cfg(unix)]
 const EINVAL: c_int = 22;
 use crate::regexp::MAXCOL;
-use crate::version::Versions;
+use crate::version::VERSIONS;
 
 use crate::event::r#loop::uv_uptime;
 
@@ -438,7 +438,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
         let ver_dst = (&raw mut (*b0p).b0_version).cast::<c_char>();
         ptr::copy_nonoverlapping(c"VIM ".as_ptr(), ver_dst, 5);
         let ver_dst = ver_dst.add(4);
-        xstrlcpy(ver_dst, Versions[0].as_ptr(), 6);
+        xstrlcpy(ver_dst, VERSIONS[0].as_ptr(), 6);
         long_to_char(
             (*mfp).mf_page_size as c_long,
             (&raw mut (*b0p).b0_page_size).cast(),
@@ -540,7 +540,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
                 continue;
             };
 
-            if path_equal(fname.as_ptr(), mf_fname_ptr, kPathCmpLiteral) {
+            if path_equal(fname.as_ptr(), mf_fname_ptr, K_PATH_CMP_LITERAL) {
                 success = true;
                 break;
             }
@@ -1143,7 +1143,7 @@ pub fn ml_recover(checkext: bool) {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(cstr_as_string(fenc.as_ptr())),
             };
-            set_option_value_give_err(kOptFileencoding, fenc_obj, OPT_LOCAL);
+            set_option_value_give_err(K_OPT_FILEENCODING, fenc_obj, OPT_LOCAL);
         }
         unchanged(curbuf_mut(), true, true);
 
@@ -1193,7 +1193,7 @@ pub fn ml_recover(checkext: bool) {
                         (*pp).pb_count = (*pp).pb_count_max;
                     }
                     if ptr_block_error {
-                        emsg(tr(e_warning_pointer_block_corrupted));
+                        emsg(tr(E_WARNING_POINTER_BLOCK_CORRUPTED));
                     }
 
                     if idx == 0 && line_count != 0 {
@@ -1449,7 +1449,7 @@ pub fn ml_recover(checkext: bool) {
                 msg_puts(tr(c"\nNote: process STILL RUNNING: "));
                 msg_outnum(char_to_long((&raw const (*b0p).b0_pid).cast()) as c_int);
             }
-            if !ui_has(kUIMessages) {
+            if !ui_has(K_UIMESSAGES) {
                 msg_puts(c"\n\n");
             }
             g_st().cmdline_row = g_st().msg_row;
@@ -1579,7 +1579,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut TvLis
             };
 
             if let Some(cur_p) = cur_mfp_fname {
-                files.retain(|f| !path_equal(cur_p, f.as_ptr(), kPathCmpFull));
+                files.retain(|f| !path_equal(cur_p, f.as_ptr(), K_PATH_CMP_FULL));
             }
 
             if crate::memory::cstr_is_empty(dirp)
@@ -1588,7 +1588,7 @@ pub fn recover_names(fname: *mut c_char, skip_curbuf: bool, ret_list: &mut TvLis
                 && !fname.is_null()
                 && let Some(swapname) = modname(fname_res, c".swp", true)
                 && os_path_exists(swapname.as_ptr())
-                && cur_mfp_fname.is_none_or(|cur_p| !path_equal(cur_p, swapname.as_ptr(), kPathCmpFull))
+                && cur_mfp_fname.is_none_or(|cur_p| !path_equal(cur_p, swapname.as_ptr(), K_PATH_CMP_FULL))
             {
                 crate::eval::typval::tv_list_append_string(ret_list, swapname.as_ptr(), -1);
             }
@@ -1624,7 +1624,7 @@ pub fn make_percent_swname(
             return None;
         }
         let mut fixed_data = fname_ptr.add(file_info.root_off);
-        if file_info.r#type == kPathDeviceUNC {
+        if file_info.r#type == K_PATH_DEVICE_UNC {
             assert!(file_info.root_off >= 2);
             fixed_data = fixed_data.sub(2);
             *fixed_data = b'/' as c_char;
@@ -2112,7 +2112,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> *m
         if lnum > buf.b_ml.ml_line_count {
             if ml_st().ml_get_recursive == 0 {
                 ml_st().ml_get_recursive += 1;
-                siemsg!(tr(e_ml_get_invalid_lnum_nr), i64::from(lnum));
+                siemsg!(tr(E_ML_GET_INVALID_LNUM_NR), i64::from(lnum));
                 ml_st().ml_get_recursive -= 1;
             }
             ml_flush_line(buf, false);
@@ -2131,7 +2131,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> *m
                     let namebuff_ptr = g_st().NameBuff.as_mut_ptr();
                     shorten_dir(namebuff_ptr);
                     siemsg!(
-                        tr(e_ml_get_cannot_find_line_nr_in_buffer_nr_str),
+                        tr(E_ML_GET_CANNOT_FIND_LINE_NR_IN_BUFFER_NR_STR),
                         i64::from(lnum),
                         buf.b_fnum,
                         namebuff_ptr,
@@ -2435,7 +2435,7 @@ fn ml_append_int(
                 }
                 let mut pp = (*hp).data_ptr().cast::<PointerBlock>();
                 if (*pp).pb_id != PTR_ID {
-                    iemsg(tr(e_pointer_block_id_wrong_three));
+                    iemsg(tr(E_POINTER_BLOCK_ID_WRONG_THREE));
                     mf_put( &mut *mfp, hp, false, false);
                     return false;
                 }
@@ -2777,7 +2777,7 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: c_int) -> bool {
 
         if buf.b_ml.ml_line_count == 1 {
             if (flags & ML_DEL_MESSAGE) != 0 {
-                set_keep_msg(gettext(no_lines_msg), 0);
+                set_keep_msg(gettext(NO_LINES_MSG), 0);
             }
             let i = ml_replace_buf(buf, 1, c"", true, false);
             buf.b_ml.ml_flags |= ML_EMPTY;
@@ -2832,7 +2832,7 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: c_int) -> bool {
                 }
                 let pp = (*hp).data_ptr().cast::<PointerBlock>();
                 if (*pp).pb_id != PTR_ID {
-                    iemsg(tr(e_pointer_block_id_wrong_four));
+                    iemsg(tr(E_POINTER_BLOCK_ID_WRONG_FOUR));
                     mf_put( &mut *mfp, hp, false, false);
                     return false;
                 }
@@ -3202,7 +3202,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: c_int) -> *mut Bhdr {
 
             let pp = dp.cast::<PointerBlock>();
             if (*pp).pb_id != PTR_ID {
-                iemsg(tr(e_pointer_block_id_wrong));
+                iemsg(tr(E_POINTER_BLOCK_ID_WRONG));
                 mf_put( &mut *mfp, hp, false, false);
                 return ml_find_line_error_noblock(buf, action);
             }
@@ -3242,11 +3242,11 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: c_int) -> *mut Bhdr {
             if idx >= c_int::from((*pp).pb_count) {
                 if lnum > buf.b_ml.ml_line_count {
                     siemsg!(
-                        tr(e_line_number_out_of_range_nr_past_the_end),
+                        tr(E_LINE_NUMBER_OUT_OF_RANGE_NR_PAST_THE_END),
                         i64::from(lnum - buf.b_ml.ml_line_count),
                     );
                 } else {
-                    siemsg!(tr(e_line_count_wrong_in_block_nr), bnum);
+                    siemsg!(tr(E_LINE_COUNT_WRONG_IN_BLOCK_NR), bnum);
                 }
                 mf_put( &mut *mfp, hp, false, false);
                 return ml_find_line_error_noblock(buf, action);
@@ -3300,7 +3300,7 @@ fn ml_lineadd(buf: &mut FileBuf, count: c_int) {
             let pp = (*hp).data_ptr().cast::<PointerBlock>();
             if (*pp).pb_id != PTR_ID {
                 mf_put( &mut *mfp, hp, false, false);
-                iemsg(tr(e_pointer_block_id_wrong_two));
+                iemsg(tr(E_POINTER_BLOCK_ID_WRONG_TWO));
                 break;
             }
             (*pb_ptr(&mut *pp, ip.ip_index as usize)).pe_line_count += count;
@@ -3570,7 +3570,7 @@ fn findswapname(
                 break;
             }
 
-            if !old_fname.is_null() && path_equal(fname, old_fname, kPathCmpLiteral) {
+            if !old_fname.is_null() && path_equal(fname, old_fname, K_PATH_CMP_LITERAL) {
                 break;
             }
 
@@ -3598,7 +3598,7 @@ fn findswapname(
                             if !path_equal(
                                 path_tail(buf.b_ffname),
                                 path_tail((&raw const b0.b0_fname).cast()),
-                                kPathCmpLiteral,
+                                K_PATH_CMP_LITERAL,
                             ) || !same_directory(fname, buf.b_ffname)
                             {
                                 expand_env(
@@ -3634,7 +3634,7 @@ fn findswapname(
 
                 if !differ
                     && (curbuf_mut().b_flags & BF_RECOVERED) == 0
-                    && vim_strchr(opt_vars().p_shm, kShmAttention).is_null()
+                    && vim_strchr(opt_vars().p_shm, K_SHM_ATTENTION).is_null()
                 {
                     let mut choice: SeaChoice = SEA_CHOICE_NONE;
 

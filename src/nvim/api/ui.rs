@@ -35,7 +35,7 @@ use std::ffi::{CStr, c_char, c_int};
 use std::ptr;
 
 #[cfg(windows)]
-use crate::channel::kChannelStreamStdio;
+use crate::channel::K_CHANNEL_STREAM_STDIO;
 #[cfg(windows)]
 use crate::os::os_win_console::os_detach_ui_console;
 
@@ -46,19 +46,19 @@ pub(crate) const HLATTRS_DICT_SIZE: usize = 24;
 pub(crate) const NO_SCREEN: c_int = 2;
 pub(crate) const CHAN_STDIO: u64 = 1;
 
-pub(crate) const kChannelPartAll: c_int = 4;
+pub(crate) const K_CHANNEL_PART_ALL: c_int = 4;
 
-pub(crate) const kUICmdline: usize = 0;
-const kUIPopupmenu: usize = 1;
-const kUIWildmenu: usize = 3;
-pub(crate) const kUIMessages: usize = 4;
-pub(crate) const kUILinegrid: usize = 5;
-pub(crate) const kUIMultigrid: usize = 6;
-pub(crate) const kUIHlState: usize = 7;
-pub(crate) const kUITermColors: usize = 8;
-pub(crate) const kUIExtCount: usize = 10;
+pub(crate) const K_UICMDLINE: usize = 0;
+const K_UIPOPUPMENU: usize = 1;
+const K_UIWILDMENU: usize = 3;
+pub(crate) const K_UIMESSAGES: usize = 4;
+pub(crate) const K_UILINEGRID: usize = 5;
+pub(crate) const K_UIMULTIGRID: usize = 6;
+pub(crate) const K_UIHL_STATE: usize = 7;
+pub(crate) const K_UITERM_COLORS: usize = 8;
+pub(crate) const K_UIEXT_COUNT: usize = 10;
 
-pub(crate) const kLineFlagWrap: c_int = 1;
+pub(crate) const K_LINE_FLAG_WRAP: c_int = 1;
 
 pub(crate) const ARRAY_INIT: Array = Array {
     items: ptr::null_mut(),
@@ -177,18 +177,18 @@ pub fn ui_detach_channel(chan: u64, err: &mut Error) {
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"%s",
-                (&raw const e_invchan).cast::<c_char>(),
+                (&raw const E_INVCHAN).cast::<c_char>(),
             );
             return;
         }
         #[cfg(windows)]
-        let detach_stdio = (*c).streamtype == kChannelStreamStdio;
+        let detach_stdio = (*c).streamtype == K_CHANNEL_STREAM_STDIO;
         (*c).detach = true;
         remote_ui_disconnect(chan, err, true);
         if error_set(err) {
             return;
         }
-        channel_close(chan, kChannelPartAll, ptr::null_mut());
+        channel_close(chan, K_CHANNEL_PART_ALL, ptr::null_mut());
         #[cfg(windows)]
         {
             os_detach_ui_console(detach_stdio);
@@ -303,7 +303,7 @@ pub fn nvim_ui_attach(
             rgb: true,
             r#override: false,
             composed: false,
-            ui_ext: [false; kUIExtCount],
+            ui_ext: [false; K_UIEXT_COUNT],
             width: width as c_int,
             height: height as c_int,
             pum_nlines: 0,
@@ -343,12 +343,12 @@ pub fn nvim_ui_attach(
             }
         }
 
-        if ui.ui_ext[kUIHlState] || ui.ui_ext[kUIMultigrid] {
-            ui.ui_ext[kUILinegrid] = true;
+        if ui.ui_ext[K_UIHL_STATE] || ui.ui_ext[K_UIMULTIGRID] {
+            ui.ui_ext[K_UILINEGRID] = true;
         }
-        if ui.ui_ext[kUIMessages] {
-            ui.ui_ext[kUILinegrid] = true;
-            ui.ui_ext[kUICmdline] = true;
+        if ui.ui_ext[K_UIMESSAGES] {
+            ui.ui_ext[K_UILINEGRID] = true;
+            ui.ui_ext[K_UICMDLINE] = true;
         }
 
         ui.cur_event = None;
@@ -547,7 +547,7 @@ fn ui_set_option(
                 return;
             }
             ui.rgb = value.data.boolean();
-            if !init && !ui.ui_ext[kUILinegrid] {
+            if !init && !ui.ui_ext[K_UILINEGRID] {
                 ui_refresh();
             }
             return;
@@ -657,8 +657,8 @@ fn ui_set_option(
         }
 
         let is_popupmenu = crate::memory::cstr_as_opt_bytes(name.data) == Some(b"popupmenu_external");
-        for (i, ext_name) in ui_ext_names.iter().enumerate().take(kUIExtCount) {
-            if (crate::memory::cstr_as_opt_bytes(name.data) == crate::memory::cstr_as_opt_bytes(ext_name.as_ptr())) || (i == kUIPopupmenu && is_popupmenu) {
+        for (i, ext_name) in UI_EXT_NAMES.iter().enumerate().take(K_UIEXT_COUNT) {
+            if (crate::memory::cstr_as_opt_bytes(name.data) == crate::memory::cstr_as_opt_bytes(ext_name.as_ptr())) || (i == K_UIPOPUPMENU && is_popupmenu) {
                 if value.obj_type != ObjectType::ObjectTypeBoolean {
                     api_err_exp(
                         err,
@@ -669,7 +669,7 @@ fn ui_set_option(
                     return;
                 }
                 let boolval = value.data.boolean();
-                if !init && i == kUILinegrid && boolval != ui.ui_ext[i] {
+                if !init && i == K_UILINEGRID && boolval != ui.ui_ext[i] {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeValidation,
@@ -745,7 +745,7 @@ pub fn nvim_ui_pum_set_height(channel_id: u64, height: Integer, err: &mut Error)
             );
             return;
         }
-        if !ui.ui_ext[kUIPopupmenu] {
+        if !ui.ui_ext[K_UIPOPUPMENU] {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -786,7 +786,7 @@ pub fn nvim_ui_pum_set_bounds(
     let Some(ui) = get_ui_or_err(channel_id, err) else {
             return;
         };
-        if !ui.ui_ext[kUIPopupmenu] {
+        if !ui.ui_ext[K_UIPOPUPMENU] {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -894,10 +894,10 @@ pub fn remote_ui_grid_clear(ui: &mut RemoteUI, grid: Integer) {
     let mut args_items: [Object; 1] = [integer_obj(grid)];
         let args = Array {
             items: args_items.as_mut_ptr(),
-            size: usize::from(ui.ui_ext[kUILinegrid]),
+            size: usize::from(ui.ui_ext[K_UILINEGRID]),
             capacity: 1,
         };
-        let name = if ui.ui_ext[kUILinegrid] {
+        let name = if ui.ui_ext[K_UILINEGRID] {
             c"grid_clear"
         } else {
             c"clear"
@@ -914,7 +914,7 @@ pub fn remote_ui_grid_resize(
 ) {
     let mut args_items = [Object::default(); 3];
         let mut size = 0;
-        if ui.ui_ext[kUILinegrid] {
+        if ui.ui_ext[K_UILINEGRID] {
             args_items[size] = integer_obj(grid);
             size += 1;
         } else {
@@ -929,7 +929,7 @@ pub fn remote_ui_grid_resize(
             size,
             capacity: 3,
         };
-        let name = if ui.ui_ext[kUILinegrid] {
+        let name = if ui.ui_ext[K_UILINEGRID] {
             c"grid_resize"
         } else {
             c"resize"
@@ -949,7 +949,7 @@ pub fn remote_ui_grid_scroll(
     rows: Integer,
     cols: Integer,
 ) {
-    if ui.ui_ext[kUILinegrid] {
+    if ui.ui_ext[K_UILINEGRID] {
             let mut args_items: [Object; 7] = [
                 integer_obj(grid),
                 integer_obj(top),
@@ -1020,7 +1020,7 @@ pub fn remote_ui_default_colors_set(
     cterm_bg: Integer,
 ) {
      {
-        if !ui.ui_ext[kUITermColors] {
+        if !ui.ui_ext[K_UITERM_COLORS] {
             let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
             if rgb_fg == -1 {
                 rgb_fg = if dark { 0xFFFFFF } else { 0x000000 };
@@ -1049,7 +1049,7 @@ pub fn remote_ui_default_colors_set(
             },
         );
 
-        if !ui.ui_ext[kUILinegrid] {
+        if !ui.ui_ext[K_UILINEGRID] {
             args_items[0] = integer_obj(if ui.rgb { rgb_fg } else { cterm_fg - 1 });
             push_call(
                 ui,
@@ -1096,7 +1096,7 @@ pub fn remote_ui_hl_attr_define(
     info: Array,
 ) {
     unsafe {
-        if !ui.ui_ext[kUILinegrid] {
+        if !ui.ui_ext[K_UILINEGRID] {
             return;
         }
 
@@ -1128,7 +1128,7 @@ pub fn remote_ui_hl_attr_define(
             integer_obj(id),
             dict_obj(rgb),
             dict_obj(cterm),
-            array_obj(if ui.ui_ext[kUIHlState] {
+            array_obj(if ui.ui_ext[K_UIHL_STATE] {
                 info
             } else {
                 ARRAY_INIT
@@ -1179,7 +1179,7 @@ pub fn remote_ui_grid_cursor_goto(
     row: Integer,
     col: Integer,
 ) {
-    if ui.ui_ext[kUILinegrid] {
+    if ui.ui_ext[K_UILINEGRID] {
             let mut args_items: [Object; 3] =
                 [integer_obj(grid), integer_obj(row), integer_obj(col)];
             let args = Array {
@@ -1241,7 +1241,7 @@ pub fn remote_ui_raw_line(
     attrs: *const Sattr,
 ) {
     unsafe {
-        if ui.ui_ext[kUILinegrid] {
+        if ui.ui_ext[K_UILINEGRID] {
             prepare_call(ui, c"grid_line");
 
             let buf = &raw mut ui.packer.ptr;
@@ -1322,7 +1322,7 @@ pub fn remote_ui_raw_line(
                 mpack_uint(buf, (clearcol - endcol) as u32);
             }
             mpack_w2(&raw mut lenpos, nelem);
-            mpack_bool(buf, (flags & kLineFlagWrap) != 0);
+            mpack_bool(buf, (flags & K_LINE_FLAG_WRAP) != 0);
         } else {
             let count = (endcol - startcol) as usize;
             for i in 0..count {
@@ -1397,7 +1397,7 @@ pub(crate) fn remote_ui_flush_if_incomplete(channel_id: u64) {
 // DLLEXPORT void remote_ui_flush(RemoteUI *ui);
 pub fn remote_ui_flush(ui: &mut RemoteUI) {
     if ui.nevents > 0 || ui.flushed_events {
-            if !ui.ui_ext[kUILinegrid] {
+            if !ui.ui_ext[K_UILINEGRID] {
                 remote_ui_cursor_goto(ui, ui.cursor_row, ui.cursor_col);
             }
             push_call(ui, c"flush", ARRAY_INIT);
@@ -1475,7 +1475,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
             pos: 0,
             size: 0,
         };
-        if !ui.ui_ext[kUILinegrid] {
+        if !ui.ui_ext[K_UILINEGRID] {
             if name == c"cmdline_show" {
                 let new_args = translate_firstarg(ui, args, &mut arena);
                 push_call(ui, name, new_args);
@@ -1509,10 +1509,10 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
             }
         }
 
-        if ui.ui_ext[kUIWildmenu] {
+        if ui.ui_ext[K_UIWILDMENU] {
             if name == c"popupmenu_show" {
                 ui.wildmenu_active =
-                    args[4].data.integer() == -1 || !ui.ui_ext[kUIPopupmenu];
+                    args[4].data.integer() == -1 || !ui.ui_ext[K_UIPOPUPMENU];
                 if ui.wildmenu_active {
                     let items = (*args.items).data.array();
                     let mut new_items = arena_array(&mut arena, items.size);

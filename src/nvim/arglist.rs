@@ -26,7 +26,7 @@ use crate::option_vars::*;
 use crate::os::input::os_breakcheck;
 use crate::path::{
     EW_ADDSLASH, EW_DIR, EW_FILE, EW_NOTFOUND, EW_NOTWILD, FullName_save, expand_wildcards_vec,
-    fix_fname, gen_expand_wildcards_vec, kPathCmpExpand, kPathCmpFull, kPathCmpLiteral, path_equal,
+    fix_fname, gen_expand_wildcards_vec, K_PATH_CMP_EXPAND, K_PATH_CMP_FULL, K_PATH_CMP_LITERAL, path_equal,
 };
 use crate::regexp::{RE_MAGIC, Regmatch, vim_regcomp, vim_regexec, vim_regfree};
 use crate::strings::gettext;
@@ -48,12 +48,12 @@ const AL_SET: c_int = 1;
 const AL_ADD: c_int = 2;
 const AL_DEL: c_int = 3;
 
-const CmdArgs: c_int = 7;
-pub(crate) const CmdArgdo: c_int = 10;
-const CmdArgglobal: c_int = 13;
-const CmdArglocal: c_int = 14;
-const CmdDrop: c_int = 132;
-const CmdSnextVariant: c_int = 420;
+const CMD_ARGS: c_int = 7;
+pub(crate) const CMD_ARGDO: c_int = 10;
+const CMD_ARGGLOBAL: c_int = 13;
+const CMD_ARGLOCAL: c_int = 14;
+const CMD_DROP: c_int = 132;
+const CMD_SNEXT_VARIANT: c_int = 420;
 
 pub(crate) const CCGD_AW: c_int = 1;
 pub(crate) const CCGD_MULTWIN: c_int = 2;
@@ -173,7 +173,7 @@ pub fn gargcount() -> c_int {
 fn check_arglist_locked() -> bool {
     if arglist_st().arglist_locked {
             emsg(gettext(
-                e_cannot_change_arglist_recursively,
+                E_CANNOT_CHANGE_ARGLIST_RECURSIVELY,
             ));
             return false;
         }
@@ -414,7 +414,7 @@ fn arglist_del_files(alist_ga: &[*mut c_char]) {
 
             vim_regfree(regmatch.regprog);
             if !didone {
-                semsg!(gettext(e_nomatch2), orig_p);
+                semsg!(gettext(E_NOMATCH2), orig_p);
             }
         }
     }
@@ -451,7 +451,7 @@ fn do_arglist(mut str_: *mut c_char, what: c_int, after: c_int, will_edit: bool)
             );
             drop(new_ga);
             if !i || exp_files.is_empty() {
-                emsg(gettext(e_nomatch));
+                emsg(gettext(E_NOMATCH));
                 return false;
             }
 
@@ -485,7 +485,7 @@ pub fn editing_arg_idx(win: &mut WinInfoInfo) -> bool {
             return true;
         }
         let ffname = win.buf_mut().b_ffname;
-        !ffname.is_null() && path_equal(alist_name(&*entry), ffname, kPathCmpExpand | kPathCmpFull)
+        !ffname.is_null() && path_equal(alist_name(&*entry), ffname, K_PATH_CMP_EXPAND | K_PATH_CMP_FULL)
     }
 }
 
@@ -509,7 +509,7 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
                         && path_equal(
                             alist_name(&*last_entry),
                             (*buf).b_ffname,
-                            kPathCmpExpand | kPathCmpFull,
+                            K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                         ))
                 {
                     g_st().arg_had_last = true;
@@ -527,11 +527,11 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
 /// `:args`, `:arglocal` and `:argglobal` (`ex_args`).
 pub fn ex_args(eap: &mut Exarg) {
     unsafe {
-        if eap.cmdidx != CmdArgs {
+        if eap.cmdidx != CMD_ARGS {
             if !check_arglist_locked() {
                 return;
             }
-            if eap.cmdidx == CmdArgglobal {
+            if eap.cmdidx == CMD_ARGGLOBAL {
                 curwin_mut().w_alist = None;
             } else {
                 alist_new();
@@ -546,7 +546,7 @@ pub fn ex_args(eap: &mut Exarg) {
             return;
         }
 
-        if eap.cmdidx == CmdArgs {
+        if eap.cmdidx == CMD_ARGS {
             let count = argcount();
             if count <= 0 {
                 return;
@@ -562,7 +562,7 @@ pub fn ex_args(eap: &mut Exarg) {
             return;
         }
 
-        if eap.cmdidx == CmdArglocal {
+        if eap.cmdidx == CMD_ARGLOCAL {
             let al = win_alist(curwin_mut());
             let gcount = gargcount() as usize;
             (*al).al_ga.reserve(gcount);
@@ -690,7 +690,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: c_int) {
         )
         {
             curwin_mut().w_arg_idx = old_arg_idx;
-        } else if eap.cmdidx != CmdArgdo {
+        } else if eap.cmdidx != CMD_ARGDO {
             setmark(b'\'' as c_int);
         }
     }
@@ -700,7 +700,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: c_int) {
 pub fn ex_next(eap: &mut Exarg) {
      {
         if buf_hide(curbuf_mut())
-            || eap.cmdidx == CmdSnextVariant
+            || eap.cmdidx == CMD_SNEXT_VARIANT
             || !check_changed(
                 curbuf_mut(),
                 CCGD_AW | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
@@ -736,7 +736,7 @@ pub fn ex_argdedupe(_eap: &mut Exarg) {
                 let second_ptr = second_fullname
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                let dup = path_equal(first_ptr, second_ptr, kPathCmpLiteral);
+                let dup = path_equal(first_ptr, second_ptr, K_PATH_CMP_LITERAL);
 
                 if dup {
                     (*win_alist(curwin_mut())).al_ga.remove(j as usize);
@@ -821,12 +821,12 @@ pub fn ex_argdelete(eap: &mut Exarg) {
             }
             let n = eap.line2 - eap.line1 + 1;
             if !crate::memory::cstr_is_empty(eap.arg) {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 return;
             }
             if n <= 0 {
                 if eap.line1 != 1 || eap.line2 != 0 {
-                    emsg(gettext(e_invrange));
+                    emsg(gettext(E_INVRANGE));
                 }
                 return;
             }
@@ -927,7 +927,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                                 || path_equal(
                                     alist_name(&*entry),
                                     (*buf).b_ffname,
-                                    kPathCmpExpand | kPathCmpFull,
+                                    K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                                 )
                             {
                                 let mut weight: c_int = 1;
@@ -1187,7 +1187,7 @@ pub fn ex_all(eap: &mut Exarg) {
     if eap.addr_count == 0 {
             eap.line2 = 9999;
         }
-        do_arg_all(eap.line2, eap.forceit, eap.cmdidx == CmdDrop);
+        do_arg_all(eap.line2, eap.forceit, eap.cmdidx == CMD_DROP);
 }
 
 /// Concatenate all files in the argument list, separated by spaces (`arg_all`).

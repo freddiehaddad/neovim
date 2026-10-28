@@ -15,7 +15,7 @@ use crate::errors::*;
 use crate::ex_cmds::do_sub_msg;
 use crate::ex_docmd::{do_cmdline_cmd, Exarg};
 use crate::ex_getln::Hlf;
-use crate::extmark::{TriState, kFalse, kNone, kTrue};
+use crate::extmark::{TriState, K_FALSE, K_NONE, K_TRUE};
 use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::insexpand::{ins_compl_add_infercase, ins_compl_check_keys, ins_compl_interrupted};
@@ -33,7 +33,7 @@ use crate::message::{
     emsg, give_warning, msg_end, msg_ext_set_kind, msg_putchar, msg_puts, msg_start, semsg, smsg,
 };
 use crate::option::{
-    OPT_LOCAL, copy_option_part, get_option_value, kOptSpell, kOptSpelllang, optval_free,
+    OPT_LOCAL, copy_option_part, get_option_value, K_OPT_SPELL, K_OPT_SPELLLANG, optval_free,
     set_option_value_give_err, shortmess, valid_name,
 };
 use crate::option_vars::*;
@@ -41,10 +41,10 @@ use crate::os::fs::{MAXPATHL, os_remove};
 use crate::os::input::line_breakcheck;
 #[cfg(windows)]
 use crate::path::path_to_slash;
-use crate::path::{PathCmpFlags, kPathCmpExpand, kPathCmpLiteral, path_equal, path_tail};
+use crate::path::{PathCmpFlags, K_PATH_CMP_EXPAND, K_PATH_CMP_LITERAL, path_equal, path_tail};
 use crate::regexp::{MAXCOL, RE_MAGIC, Regmatch, Regprog, vim_regexec, vim_regexec_prog};
 use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
-use crate::search::{BACKWARD, Direction, FORWARD, do_search, kShmSearch};
+use crate::search::{BACKWARD, Direction, FORWARD, do_search, K_SHM_SEARCH};
 use crate::spellfile::{MAXREGIONS, spell_load_file};
 use crate::spellsuggest::{Idx, Langp, Slang, spell_suggest_list, Spelltab};
 use crate::strings::{
@@ -57,7 +57,7 @@ use std::ffi::{c_char, c_int};
 use std::ptr;
 pub type Smt = c_int;
 use crate::cmdexpand::MB_MAXBYTES;
-use crate::drawline::{HLF_COUNT, SMT_ALL, kOptSpoFlagNoplainbuffer};
+use crate::drawline::{HLF_COUNT, SMT_ALL, K_OPT_SPO_FLAG_NOPLAINBUFFER};
 use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR, SEARCH_KEEP};
 use crate::math::{FAIL, OK};
 use crate::normal::{SMT_BAD, SMT_RARE};
@@ -96,7 +96,7 @@ const FIND_KEEPCOMPOUND: c_int = 4;
 const CHAR_OTHER: c_int = 0;
 const CHAR_UPPER: c_int = 1;
 const CHAR_DIGIT: c_int = 2;
-const kOptSpoFlagCamel: u32 = 0x01;
+const K_OPT_SPO_FLAG_CAMEL: u32 = 0x01;
 const DUMPFLAG_KEEPCASE: c_int = 1;
 const DUMPFLAG_COUNT: c_int = 2;
 const DUMPFLAG_ICASE: c_int = 4;
@@ -184,7 +184,7 @@ impl std::ops::DerefMut for OwnedSlang {
     }
 }
 
-pub const e_format: &std::ffi::CStr = c"E759: Format error in spell file";
+pub const E_FORMAT: &std::ffi::CStr = c"E759: Format error in spell file";
 
 pub(crate) struct SpellPrivateState {
     pub(crate) first_lang: Vec<OwnedSlang>,
@@ -276,7 +276,7 @@ pub fn spell_check(
         let mut nrlen: usize = 0;
         let mut wrongcaplen: usize = 0;
         let mut count_word = docount;
-        let use_camel_case = ((*w_s).b_p_spo_flags & kOptSpoFlagCamel) != 0;
+        let use_camel_case = ((*w_s).b_p_spo_flags & K_OPT_SPO_FLAG_CAMEL) != 0;
         let mut is_camel_case = false;
         let mut mi = Matchinf::new();
         if *ptr >= b'0' as c_char && *ptr <= b'9' as c_char {
@@ -510,7 +510,7 @@ fn find_word(mip: &mut Matchinf, mode: c_int) {
             arridx += 1;
             if *byts.add(arridx as usize) == 0 {
                 if endidxcnt == MAXWLEN {
-                    emsg(gettext(e_format));
+                    emsg(gettext(E_FORMAT));
                     return;
                 }
                 endlen[endidxcnt] = wlen;
@@ -1073,7 +1073,7 @@ pub fn no_spell_checking(wp: &mut WinInfoInfo) -> bool {
     unsafe {
         let w_s = wp.w_s_ptr();
         if wp.w_onebuf_opt.wo_spell == 0 || crate::memory::cstr_is_empty((*w_s).b_p_spl) || (*w_s).b_langp.is_empty() {
-            emsg(gettext(e_no_spell));
+            emsg(gettext(E_NO_SPELL));
             return true;
         }
         false
@@ -1189,12 +1189,12 @@ pub fn spell_move_to(
                             let col = p.offset_from(buf) as Colnr;
                             let w_s = wp.w_s_ptr();
                             let no_plain_buffer =
-                                ((*w_s).b_p_spo_flags & kOptSpoFlagNoplainbuffer) != 0;
+                                ((*w_s).b_p_spo_flags & K_OPT_SPO_FLAG_NOPLAINBUFFER) != 0;
                             let mut can_spell = !no_plain_buffer;
                             match decor_spell_nav_col(&mut *wp, lnum, &mut decor_lnum, col) {
-                                kTrue => can_spell = true,
-                                kFalse => can_spell = false,
-                                kNone if has_syntax => {
+                                K_TRUE => can_spell = true,
+                                K_FALSE => can_spell = false,
+                                K_NONE if has_syntax => {
                                     can_spell = can_syn_spell(&mut *wp, lnum, col);
                                 }
                                 _ => {}
@@ -1246,8 +1246,8 @@ pub fn spell_move_to(
                     } else {
                         lnum = wp.buf_mut().b_ml.ml_line_count;
                         wrapped = true;
-                        if !shortmess(kShmSearch) {
-                            give_warning(gettext(top_bot_msg), true, false);
+                        if !shortmess(K_SHM_SEARCH) {
+                            give_warning(gettext(TOP_BOT_MSG), true, false);
                         }
                     }
                     capcol = -1;
@@ -1259,8 +1259,8 @@ pub fn spell_move_to(
                     } else {
                         lnum = 1;
                         wrapped = true;
-                        if !shortmess(kShmSearch) {
-                            give_warning(gettext(bot_top_msg), true, false);
+                        if !shortmess(K_SHM_SEARCH) {
+                            give_warning(gettext(BOT_TOP_MSG), true, false);
                         }
                     }
                     if lnum == wp.w_cursor.lnum && !found_one {
@@ -1678,7 +1678,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> *mut c_char {
                     && path_equal(
                         lang_ptr.add((len - 4) as usize),
                         c".spl",
-                        kPathCmpLiteral as PathCmpFlags,
+                        K_PATH_CMP_LITERAL as PathCmpFlags,
                     ) {
                     let p = vim_strchr(path_tail(lang_ptr), b'_' as c_int);
                     if !p.is_null()
@@ -1701,7 +1701,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> *mut c_char {
                         .rev()
                         .find(|s| {
                             s.sl_fname.as_ref().is_some_and(|f| {
-                                path_equal(lang_ptr, f.as_ptr(), kPathCmpExpand as PathCmpFlags)
+                                path_equal(lang_ptr, f.as_ptr(), K_PATH_CMP_EXPAND as PathCmpFlags)
                             })
                         })
                         .map_or(ptr::null_mut(), |s| &raw mut **s);
@@ -1747,7 +1747,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> *mut c_char {
                     let slang: &mut Slang = s;
                     let matched = if filename {
                         slang.sl_fname.as_ref().is_some_and(|f| {
-                            path_equal(lang_ptr, f.as_ptr(), kPathCmpExpand as PathCmpFlags)
+                            path_equal(lang_ptr, f.as_ptr(), K_PATH_CMP_EXPAND as PathCmpFlags)
                         })
                     } else {
                         slang
@@ -1808,7 +1808,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> *mut c_char {
                     let mut c = 0;
                     while c < ga.len() {
                         if (*ga[c].lp_slang).sl_fname.as_ref().is_some_and(|p| {
-                            path_equal(spf_ptr, p.as_ptr(), kPathCmpExpand as PathCmpFlags)
+                            path_equal(spf_ptr, p.as_ptr(), K_PATH_CMP_EXPAND as PathCmpFlags)
                         }) {
                             break;
                         }
@@ -1823,7 +1823,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> *mut c_char {
                     .rev()
                     .find(|s| {
                         s.sl_fname.as_ref().is_some_and(|f| {
-                            path_equal(spf_ptr, f.as_ptr(), kPathCmpExpand as PathCmpFlags)
+                            path_equal(spf_ptr, f.as_ptr(), K_PATH_CMP_EXPAND as PathCmpFlags)
                         })
                     })
                     .map_or(ptr::null_mut(), |s| &raw mut **s);
@@ -2791,10 +2791,10 @@ pub fn ex_spelldump(eap: &mut Exarg) {
         if no_spell_checking(curwin_mut()) {
             return;
         }
-        let spl = get_option_value(kOptSpelllang, OPT_LOCAL);
+        let spl = get_option_value(K_OPT_SPELLLANG, OPT_LOCAL);
         do_cmdline_cmd(c"new");
-        set_option_value_give_err(kOptSpell, boolean_obj(true), OPT_LOCAL);
-        set_option_value_give_err(kOptSpelllang, spl, OPT_LOCAL);
+        set_option_value_give_err(K_OPT_SPELL, boolean_obj(true), OPT_LOCAL);
+        set_option_value_give_err(K_OPT_SPELLLANG, spl, OPT_LOCAL);
         optval_free(spl);
         if !buf_is_empty(curbuf_mut()) {
             return;
@@ -3285,7 +3285,7 @@ pub fn compile_cap_prog(
             let re = concat_str(c"^", value);
             rp = crate::regexp::vim_regcomp_box(re.as_ptr(), RE_MAGIC);
             if rp.is_none() {
-                return e_invarg.as_ptr();
+                return E_INVARG.as_ptr();
             }
         }
         *prog = rp;

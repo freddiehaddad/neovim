@@ -6,11 +6,11 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::NvimString;
 use crate::autocmd::{EVENT_DIRCHANGED, EVENT_DIRCHANGEDPRE, apply_autocmds, has_event};
 use crate::charset::{NUL, getdigits, getdigits_int32, getdigits_long, skipwhite, vim_isfilec};
-use crate::context::{CdCause, kCdCauseWindow};
+use crate::context::{CdCause, K_CD_CAUSE_WINDOW};
 use crate::cursor::{get_cursor_line_ptr, Linenr};
 use crate::errors::*;
 use crate::eval::typval::{
-    kCallbackNone, tv_clear, tv_dict_add_bool, tv_dict_add_str, tv_dict_set_keys_readonly,
+    K_CALLBACK_NONE_CONST, tv_clear, tv_dict_add_bool, tv_dict_add_str, tv_dict_set_keys_readonly,
     tv_get_string, TypVal,
 };
 use crate::eval::vars::{VV_FNAME, set_vim_var_string};
@@ -29,7 +29,7 @@ use crate::os::fs::{
 use crate::os::input::os_breakcheck;
 use crate::path::{
     EW_ADDSLASH, EW_DIR, EW_NOTWILD, EW_SILENT, FullName_save, PATHSEP, after_pathsep,
-    expand_wildcards_vec, kPathCmpLiteral, path_cmp, path_equal, path_has_drive_letter,
+    expand_wildcards_vec, K_PATH_CMP_LITERAL, path_cmp, path_equal, path_has_drive_letter,
     path_is_url, path_shorten_fname, path_tail, path_tail_with_sep, path_with_url,
     simplify_filename, vim_isAbsName, vim_ispathsep,
 };
@@ -40,7 +40,7 @@ use crate::strings::{tr, vim_snprintf, vim_strchr};
 use std::ffi::{CStr, c_char, c_int, c_long};
 use std::ptr;
 
-use crate::ex_docmd::{CdScope, kCdCauseManual};
+use crate::ex_docmd::{CdScope, K_CD_CAUSE_MANUAL};
 use crate::optionstr::OptIndex;
 
 pub const FINDFILE_FILE: c_int = 0;
@@ -59,10 +59,10 @@ const EMPTY_C: &CStr = c"";
 
 const FF_MAX_STAR_STAR_EXPAND: c_char = 30;
 
-const kCpoDottag: c_int = b'd' as c_int;
+const K_CPO_DOTTAG: c_int = b'd' as c_int;
 
-pub(crate) const kOptIncludeexpr: OptIndex = 147;
-pub(crate) const kBufOptIncludeexpr: usize = 47;
+pub(crate) const K_OPT_INCLUDEEXPR: OptIndex = 147;
+pub(crate) const K_BUF_OPT_INCLUDEEXPR: usize = 47;
 
 pub(crate) const NULL_STRING: NvimString = NvimString {
     data: ptr::null_mut(),
@@ -71,10 +71,10 @@ pub(crate) const NULL_STRING: NvimString = NvimString {
 
 const E_PATH_TOO_LONG_FOR_COMPLETION: &CStr = c"E854: Path too long for completion";
 
-use crate::api::vim::kCdScopeGlobal;
-use crate::buffer::{kCdCauseAuto, kCdCauseBuffer};
-use crate::eval::fs::{kCdScopeBuffer, kCdScopeTabpage, kCdScopeWindow};
-use crate::ex_session::kCdCauseOther;
+use crate::api::vim::K_CD_SCOPE_GLOBAL;
+use crate::buffer::{K_CD_CAUSE_AUTO, K_CD_CAUSE_BUFFER};
+use crate::eval::fs::{K_CD_SCOPE_BUFFER, K_CD_SCOPE_TABPAGE, K_CD_SCOPE_WINDOW};
+use crate::ex_session::K_CD_CAUSE_OTHER;
 
 #[repr(C)]
 pub struct FfStack {
@@ -197,7 +197,7 @@ pub fn vim_findfile_init(
 
         if crate::memory::cstr_first_byte(path) == b'.'
             && (vim_ispathsep(c_int::from(crate::memory::cstr_byte_at(path, 1))) || crate::memory::cstr_byte_at(path, 1) == 0)
-            && (tagfile == 0 || vim_strchr(opt_vars().p_cpo, kCpoDottag).is_null())
+            && (tagfile == 0 || vim_strchr(opt_vars().p_cpo, K_CPO_DOTTAG).is_null())
             && !rel_fname.is_null()
         {
             let len = path_tail(rel_fname).offset_from(rel_fname) as usize;
@@ -802,7 +802,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                     for i in stackp.ffs_filearray_cur..stackp.ffs_filearray.len() {
                         let entry = stackp.ffs_filearray.as_slice()[i].as_ptr();
                         let entry_len = stackp.ffs_filearray.as_slice()[i].as_bytes().len();
-                        if path_equal(entry, stackp.ffs_fix_path.data, kPathCmpLiteral) {
+                        if path_equal(entry, stackp.ffs_fix_path.data, K_PATH_CMP_LITERAL) {
                             continue;
                         }
                         if !os_isdir(entry) {
@@ -922,7 +922,7 @@ fn ff_get_visited_list(
             path_equal(
                 filename,
                 item.ffvl_filename.as_ptr().cast_mut(),
-                kPathCmpLiteral,
+                K_PATH_CMP_LITERAL,
             )
         }) {
             return pos;
@@ -1005,7 +1005,7 @@ fn ff_check_visited(
                 && path_equal(
                     vp.ffv_fname.as_ptr(),
                     expand_buf.as_ptr(),
-                    kPathCmpLiteral,
+                    K_PATH_CMP_LITERAL,
                 ))
                 || (!url
                     && vp.file_id_valid
@@ -1367,14 +1367,14 @@ pub fn find_file_in_path_option(
         if file_name.is_none() && (options & FNAME_MESS) != 0 {
             if first == c_int::from(true) {
                 if find_what == FINDFILE_DIR {
-                    semsg!(tr(e_cant_find_directory_str_in_cdpath), ftf);
+                    semsg!(tr(E_CANT_FIND_DIRECTORY_STR_IN_CDPATH), ftf);
                 } else {
-                    semsg!(tr(e_cant_find_file_str_in_path), ftf);
+                    semsg!(tr(E_CANT_FIND_FILE_STR_IN_PATH), ftf);
                 }
             } else if find_what == FINDFILE_DIR {
-                semsg!(tr(e_no_more_directory_str_found_in_cdpath), ftf);
+                semsg!(tr(E_NO_MORE_DIRECTORY_STR_FOUND_IN_CDPATH), ftf);
             } else {
-                semsg!(tr(e_no_more_file_str_found_in_path), ftf);
+                semsg!(tr(E_NO_MORE_FILE_STR_FOUND_IN_PATH), ftf);
             }
         }
 
@@ -1508,7 +1508,7 @@ pub fn file_name_in_line(
             if p_bytes.starts_with(english) {
                 p = p.add(english.len());
             } else {
-                let loc_msg = crate::memory::cstr_as_bytes(tr(line_msg));
+                let loc_msg = crate::memory::cstr_as_bytes(tr(LINE_MSG));
                 if p_bytes.starts_with(loc_msg) {
                     p = p.add(loc_msg.len());
                 } else {
@@ -1534,9 +1534,9 @@ fn eval_includeexpr(ptr: impl crate::strings::IntoCCharPtr, len: usize) -> Optio
      {
         let save_sctx = g_st().current_sctx;
         set_vim_var_string(VV_FNAME, ptr, len as isize);
-        g_st().current_sctx = curbuf_mut().b_p_script_ctx[kBufOptIncludeexpr];
+        g_st().current_sctx = curbuf_mut().b_p_script_ctx[K_BUF_OPT_INCLUDEEXPR];
 
-        let use_sandbox = was_set_insecurely(Some(crate::globals::curwin_mut()), kOptIncludeexpr, OPT_LOCAL) != 0;
+        let use_sandbox = was_set_insecurely(Some(crate::globals::curwin_mut()), K_OPT_INCLUDEEXPR, OPT_LOCAL) != 0;
         let mut tv: TypVal = TypVal::new();
         let mut res = None;
         if eval_expr_option_tv(&mut curbuf_mut().b_p_inex, use_sandbox, &mut tv) {
@@ -1580,7 +1580,7 @@ pub fn find_file_name_in_path(
             len -= off;
         }
 
-        if (options & FNAME_INCL) != 0 && curbuf_mut().b_p_inex.cb_type() != kCallbackNone {
+        if (options & FNAME_INCL) != 0 && curbuf_mut().b_p_inex.cb_type() != K_CALLBACK_NONE_CONST {
             tofree = eval_includeexpr(ptr, len);
             if let Some(ref tf) = tofree {
                 ptr = tf.as_ptr().cast_mut();
@@ -1605,7 +1605,7 @@ pub fn find_file_name_in_path(
 
             if file_name.is_none()
                 && (options & FNAME_INCL) == 0
-                && curbuf_mut().b_p_inex.cb_type() != kCallbackNone
+                && curbuf_mut().b_p_inex.cb_type() != K_CALLBACK_NONE_CONST
             {
                 tofree = eval_includeexpr(ptr, len);
                 if let Some(ref tf) = tofree {
@@ -1681,10 +1681,10 @@ pub fn do_autocmd_dirchanged(
         let mut buf: [c_char; 8] = [0; 8];
 
         let scope_cstr = match scope {
-            kCdScopeGlobal => c"global",
-            kCdScopeTabpage => c"tabpage",
-            kCdScopeBuffer => c"buffer",
-            kCdScopeWindow => c"window",
+            K_CD_SCOPE_GLOBAL => c"global",
+            K_CD_SCOPE_TABPAGE => c"tabpage",
+            K_CD_SCOPE_BUFFER => c"buffer",
+            K_CD_SCOPE_WINDOW => c"window",
             _ => std::process::abort(),
         };
         xstrlcpy(buf.as_mut_ptr(), scope_cstr.as_ptr(), buf.len());
@@ -1698,13 +1698,13 @@ pub fn do_autocmd_dirchanged(
         tv_dict_add_bool(
             &mut *dict,
             c"changed_window",
-            c_int::from(cause == kCdCauseWindow),
+            c_int::from(cause == K_CD_CAUSE_WINDOW),
         );
         tv_dict_set_keys_readonly(&mut *dict);
 
         match cause {
-            kCdCauseManual | kCdCauseWindow | kCdCauseBuffer => {}
-            kCdCauseAuto => {
+            K_CD_CAUSE_MANUAL | K_CD_CAUSE_WINDOW | K_CD_CAUSE_BUFFER => {}
+            K_CD_CAUSE_AUTO => {
                 xstrlcpy(buf.as_mut_ptr(), c"auto", buf.len());
             }
             _ => std::process::abort(),
@@ -1731,20 +1731,20 @@ pub fn vim_chdirfile(fname: impl crate::strings::IntoCCharPtr, cause: CdCause) -
             *name_buff = NUL;
         }
 
-        if path_equal(dir.as_ptr(), name_buff, kPathCmpLiteral) {
+        if path_equal(dir.as_ptr(), name_buff, K_PATH_CMP_LITERAL) {
             return true;
         }
 
-        if cause != kCdCauseOther {
-            do_autocmd_dirchanged(dir.as_mut_ptr(), kCdScopeWindow, cause, true);
+        if cause != K_CD_CAUSE_OTHER {
+            do_autocmd_dirchanged(dir.as_mut_ptr(), K_CD_SCOPE_WINDOW, cause, true);
         }
 
         if os_chdir(dir.as_ptr()) != 0 {
             return false;
         }
 
-        if cause != kCdCauseOther {
-            do_autocmd_dirchanged(dir.as_mut_ptr(), kCdScopeWindow, cause, false);
+        if cause != K_CD_CAUSE_OTHER {
+            do_autocmd_dirchanged(dir.as_mut_ptr(), K_CD_SCOPE_WINDOW, cause, false);
         }
 
         true

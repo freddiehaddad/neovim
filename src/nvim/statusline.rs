@@ -5,7 +5,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
 use crate::buffer::{
-    append_arg_number, bt_quickfix, FileBuf, buf_spname, calc_percentage, get_rel_pos, kUIMessages,
+    append_arg_number, bt_quickfix, FileBuf, buf_spname, calc_percentage, get_rel_pos, K_UIMESSAGES,
 };
 use crate::charset::{
     EOL_MAC, ascii_isdigit, getdigits_int, skipdigits, trans_characters, transstr_buf,
@@ -37,11 +37,11 @@ use crate::memory::{Arena, arena_finish, arena_mem_free, xstrlcpy};
 use crate::message::HLF_MSG;
 use crate::message::msg_clr_eos;
 use crate::mouse::{
-    StlClickDefinition, kStlClickDisabled, kStlClickFuncRun, kStlClickTabClose, kStlClickTabSwitch,
+    StlClickDefinition, K_STL_CLICK_DISABLED, K_STL_CLICK_FUNC_RUN, K_STL_CLICK_TAB_CLOSE, K_STL_CLICK_TAB_SWITCH,
 };
 use crate::normal::showcmd_update_clear_state;
 use crate::option::{
-    find_option, get_fileformat, get_option_default, kOptStatuscolumn, kOptStatusline, kOptWinbar,
+    find_option, get_fileformat, get_option_default, K_OPT_STATUSCOLUMN, K_OPT_STATUSLINE, K_OPT_WINBAR,
     optval_free_read, set_option_direct, was_set_insecurely,
 };
 use crate::option_vars::*;
@@ -65,10 +65,10 @@ use crate::api::win_config::{FR_COL, UIExtension};
 const TMPLEN: usize = 70;
 const MAX_STL_EVAL_DEPTH: c_int = 100;
 
-const kOptRulerformat: OptIndex = 244;
-const kOptTabline: OptIndex = 306;
+const K_OPT_RULERFORMAT: OptIndex = 244;
+const K_OPT_TABLINE: OptIndex = 306;
 
-pub(crate) const kUITabline: UIExtension = 2;
+pub(crate) const K_UITABLINE: UIExtension = 2;
 
 const HLF_S: Hlf = 19;
 const HLF_SNC: Hlf = 20;
@@ -253,10 +253,10 @@ impl Default for Foldinfo {
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::HLF_T;
 use crate::charset::NUL;
-use crate::cmdexpand::kUIWildmenu;
+use crate::cmdexpand::K_UIWILDMENU_CONST;
 use crate::decoration::{SCL_NUM, SignTextAttrs};
 use crate::keycodes::CAR;
-use crate::option::{OPT_LOCAL, kOptInvalid};
+use crate::option::{OPT_LOCAL, K_OPT_INVALID};
 use crate::os::fs::MAXPATHL;
 use crate::runtime::SID_ERROR;
 use crate::state::MODE_INSERT;
@@ -339,7 +339,7 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
      {
         let is_stl_global = global_stl_height() > 0;
 
-        if stl_st().redr_status_busy || (g_st().wild_menu_showing != 0 && !ui_has(kUIWildmenu)) {
+        if stl_st().redr_status_busy || (g_st().wild_menu_showing != 0 && !ui_has(K_UIWILDMENU_CONST)) {
             return;
         }
 
@@ -444,7 +444,7 @@ pub fn stl_fill_click_defs(
         let mut len: c_int = 0;
 
         let mut cur_click_def = StlClickDefinition {
-            type_: kStlClickDisabled,
+            type_: K_STL_CLICK_DISABLED,
             tabnr: 0,
             func: None,
         };
@@ -464,10 +464,10 @@ pub fn stl_fill_click_defs(
             buf = (*click_recs.add(i)).start;
             cur_click_def = (*click_recs.add(i)).def.clone();
             if !tabline
-                && !(cur_click_def.type_ == kStlClickDisabled
-                    || cur_click_def.type_ == kStlClickFuncRun)
+                && !(cur_click_def.type_ == K_STL_CLICK_DISABLED
+                    || cur_click_def.type_ == K_STL_CLICK_FUNC_RUN)
             {
-                cur_click_def.type_ = kStlClickDisabled;
+                cur_click_def.type_ = K_STL_CLICK_DISABLED;
             }
             i += 1;
         }
@@ -531,10 +531,10 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             group = HLF_TPF;
             attr = hl_attr(group);
             maxwidth = g_st().Columns;
-            opt_idx = kOptTabline;
+            opt_idx = K_OPT_TABLINE;
             click_defs = g_st().tab_page_click_defs.as_mut_ptr();
         } else if draw_winbar {
-            opt_idx = kOptWinbar;
+            opt_idx = K_OPT_WINBAR;
             stl = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_wbr) {
                 (*wp).w_onebuf_opt.wo_wbr
             } else {
@@ -566,7 +566,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             click_defs = stl_alloc_click_defs(&mut (*wp).w_winbar_click_defs, maxwidth);
         } else if draw_ruler && ui_event {
             stl = opt_vars().p_ruf;
-            opt_idx = kOptRulerformat;
+            opt_idx = K_OPT_RULERFORMAT;
             maxwidth = g_st().Columns / 2;
             fillchar = schar_from_ascii(b' ');
             group = HLF_MSG;
@@ -574,7 +574,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             click_defs = ptr::null_mut();
         } else if draw_ruler {
             stl = opt_vars().p_ruf;
-            opt_idx = kOptRulerformat;
+            opt_idx = K_OPT_RULERFORMAT;
             if crate::memory::cstr_first_byte(stl) == b'%' {
                 stl = stl.add(1);
                 if crate::memory::cstr_first_byte(stl) == b'-' {
@@ -605,7 +605,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             } else {
                 opt_vars().p_stl
             };
-            opt_idx = kOptStatusline;
+            opt_idx = K_OPT_STATUSLINE;
             opt_scope = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl) {
                 OPT_LOCAL
             } else {
@@ -806,11 +806,11 @@ pub fn redraw_ruler() {
         let is_stl_global = global_stl_height() > 0;
 
         let part_of_status = (*wp).w_status_height != 0 || is_stl_global;
-        if opt_vars().p_ru == 0 || part_of_status || (opt_vars().p_ch == 0 && !ui_has(kUIMessages)) {
-            if stl_st().did_show_ext_ruler && ui_has(kUIMessages) {
+        if opt_vars().p_ru == 0 || part_of_status || (opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES)) {
+            if stl_st().did_show_ext_ruler && ui_has(K_UIMESSAGES) {
                 ui_call_msg_ruler(Array::new());
                 stl_st().did_show_ext_ruler = false;
-            } else if stl_st().did_show_ruler && !ui_has(kUIMessages) {
+            } else if stl_st().did_show_ruler && !ui_has(K_UIMESSAGES) {
                 msg_clr_eos();
             }
             stl_st().did_show_ruler = false;
@@ -825,8 +825,8 @@ pub fn redraw_ruler() {
             return;
         }
 
-        win_redr_stl_expr(wp, false, true, ui_has(kUIMessages));
-        stl_st().did_show_ruler = !ui_has(kUIMessages);
+        win_redr_stl_expr(wp, false, true, ui_has(K_UIMESSAGES));
+        stl_st().did_show_ruler = !ui_has(K_UIMESSAGES);
     }
 }
 
@@ -959,7 +959,7 @@ pub fn draw_tabline() {
         }
         g_st().redraw_tabline = false;
 
-        if ui_has(kUITabline) {
+        if ui_has(K_UITABLINE) {
             ui_ext_tabline_update();
             return;
         }
@@ -1077,7 +1077,7 @@ pub fn draw_tabline() {
                 tabcount += 1;
                 while scol < col {
                     g_st().tab_page_click_defs.as_mut_slice()[scol as usize] = StlClickDefinition {
-                        type_: kStlClickTabSwitch,
+                        type_: K_STL_CLICK_TAB_SWITCH,
                         tabnr: tabcount,
                         func: None,
                     };
@@ -1089,7 +1089,7 @@ pub fn draw_tabline() {
 
             for scol in col..g_st().Columns {
                 g_st().tab_page_click_defs.as_mut_slice()[scol as usize] = StlClickDefinition {
-                    type_: kStlClickTabSwitch,
+                    type_: K_STL_CLICK_TAB_SWITCH,
                     tabnr: 0,
                     func: None,
                 };
@@ -1116,7 +1116,7 @@ pub fn draw_tabline() {
             if tabcount > 1 {
                 grid_line_put_schar(g_st().Columns - 1, schar_from_ascii(b'X'), attr_nosel);
                 g_st().tab_page_click_defs.as_mut_slice()[(g_st().Columns - 1) as usize] = StlClickDefinition {
-                    type_: kStlClickTabClose,
+                    type_: K_STL_CLICK_TAB_CLOSE,
                     tabnr: 999,
                     func: None,
                 };
@@ -1152,7 +1152,7 @@ pub fn build_statuscol_str(wp: &mut WinInfoInfo,
             wp,
             buf,
             stc.as_ptr().cast_mut(),
-            kOptStatuscolumn,
+            K_OPT_STATUSCOLUMN,
             OPT_LOCAL,
             0,
             stcp.width,
@@ -1425,7 +1425,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             stl_tabtab!().resize(INIT_LEN + 1, StlClickRecord::new());
         }
 
-        let use_sandbox = if opt_idx != kOptInvalid {
+        let use_sandbox = if opt_idx != K_OPT_INVALID {
             was_set_insecurely(wp.as_mut(), opt_idx, opt_scope) != 0
         } else {
             false
@@ -2032,7 +2032,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     str = buf_tmp.as_mut_ptr();
                 }
                 STL_SHOWCMD => {
-                    if opt_vars().p_sc != 0 && (opt_idx == kOptInvalid || find_option(opt_vars().p_sloc) == opt_idx) {
+                    if opt_vars().p_sc != 0 && (opt_idx == K_OPT_INVALID || find_option(opt_vars().p_sloc) == opt_idx) {
                         str = (&raw mut g_st().showcmd_buf).cast();
                     }
                 }
@@ -2149,9 +2149,9 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 STL_QUICKFIX => {
                     if bt_quickfix(((*wp).w_buffer).as_ref()) {
                         str = if !(*wp).w_llist_ref.is_null() {
-                            tr(msg_loclist)
+                            tr(MSG_LOCLIST)
                         } else {
-                            tr(msg_qflist)
+                            tr(MSG_QFLIST)
                         };
                     }
                 }
@@ -2511,14 +2511,14 @@ pub unsafe extern "C" fn build_stl_str_hl(
                     let rec = &mut stl_tabtab!()[tab_idx];
                     rec.start = item.start;
                     if item.minwid == 0 {
-                        rec.def.type_ = kStlClickDisabled;
+                        rec.def.type_ = K_STL_CLICK_DISABLED;
                         rec.def.tabnr = 0;
                     } else {
                         let mut tabnr = item.minwid;
                         if item.minwid > 0 {
-                            rec.def.type_ = kStlClickTabSwitch;
+                            rec.def.type_ = K_STL_CLICK_TAB_SWITCH;
                         } else {
-                            rec.def.type_ = kStlClickTabClose;
+                            rec.def.type_ = K_STL_CLICK_TAB_CLOSE;
                             tabnr = -tabnr;
                         }
                         rec.def.tabnr = tabnr;
@@ -2528,7 +2528,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
                 } else if item.type_ == StlItemType::ClickFunc {
                     let rec = &mut stl_tabtab!()[tab_idx];
                     rec.start = item.start;
-                    rec.def.type_ = kStlClickFuncRun;
+                    rec.def.type_ = K_STL_CLICK_FUNC_RUN;
                     rec.def.tabnr = item.minwid;
                     rec.def.func = item.cmd.take();
                     tab_idx += 1;
@@ -2536,7 +2536,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
             }
             let rec = &mut stl_tabtab!()[tab_idx];
             rec.start = ptr::null();
-            rec.def.type_ = kStlClickDisabled;
+            rec.def.type_ = K_STL_CLICK_DISABLED;
             rec.def.tabnr = 0;
             rec.def.func = None;
         }
@@ -2544,7 +2544,7 @@ pub unsafe extern "C" fn build_stl_str_hl(
         stl_st().curitem = evalstart;
         g_st().redraw_not_allowed = save_redraw_not_allowed;
 
-        if opt_idx != kOptInvalid && g_st().did_emsg > did_emsg_before {
+        if opt_idx != K_OPT_INVALID && g_st().did_emsg > did_emsg_before {
             let def = get_option_default(opt_idx, opt_scope);
             set_option_direct(opt_idx, def, opt_scope, SID_ERROR);
             optval_free_read(opt_idx, def);
@@ -2616,7 +2616,7 @@ mod tests {
                         size: out_buf.len(),
                     },
                     pat_c.as_mut_ptr().cast(),
-                    kOptInvalid,
+                    K_OPT_INVALID,
                     0,
                     fillchar,
                     max_cells,

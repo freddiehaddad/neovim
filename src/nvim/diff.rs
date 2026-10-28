@@ -14,7 +14,7 @@ use crate::decoration::decor_conceal_line;
 use crate::drawscreen::{UPD_NOT_VALID, UPD_SOME_VALID, UPD_VALID, redraw_later};
 use crate::errors::*;
 use crate::eval::typval::{
-    EvalFuncData, kCallbackNone, tv_get_lnum, tv_get_number, TypVal, Varnumber,
+    EvalFuncData, K_CALLBACK_NONE_CONST, tv_get_lnum, tv_get_number, TypVal, Varnumber,
 };
 use crate::eval::vars::{eval_diff, eval_patch};
 use crate::ex_cmds::{append_redir, ex_file};
@@ -99,25 +99,25 @@ pub(crate) const XDF_IGNORE_BLANK_LINES: c_ulong = 1 << 7;
 const XDF_PATIENCE_DIFF: c_int = 1 << 14;
 const XDF_HISTOGRAM_DIFF: c_int = 1 << 15;
 const XDF_INDENT_HEURISTIC: c_int = 1 << 23;
-pub(crate) const kOptDiff: OptIndex = 70;
-pub(crate) const kOptDiffopt: OptIndex = 73;
-pub(crate) const kOptFoldmethod: OptIndex = 109;
-const CmdDiffget: c_int = 121;
-const CmdDiffput: c_int = 124;
-const CmdSplit: c_int = 426;
-pub(crate) const kShellOptFilter: c_int = 1;
-pub(crate) const kShellOptDoOut: c_int = 4;
-pub(crate) const kShellOptSilent: c_int = 8;
-pub(crate) const kOptBoFlagOperator: c_uint = 0x4000;
+pub(crate) const K_OPT_DIFF: OptIndex = 70;
+pub(crate) const K_OPT_DIFFOPT: OptIndex = 73;
+pub(crate) const K_OPT_FOLDMETHOD: OptIndex = 109;
+const CMD_DIFFGET: c_int = 121;
+const CMD_DIFFPUT: c_int = 124;
+const CMD_SPLIT: c_int = 426;
+pub(crate) const K_SHELL_OPT_FILTER: c_int = 1;
+pub(crate) const K_SHELL_OPT_DO_OUT: c_int = 4;
+pub(crate) const K_SHELL_OPT_SILENT: c_int = 8;
+pub(crate) const K_OPT_BO_FLAG_OPERATOR: c_uint = 0x4000;
 pub(crate) const HLF_ADD: Hlf = 30;
 pub(crate) const HLF_CHD: Hlf = 31;
 pub(crate) const HLF_TXD: Hlf = 33;
 pub(crate) const HLF_TXA: Hlf = 34;
-const KEYSET_OPTIDX_dip__inline_: u64 = 5;
-const KEYSET_OPTIDX_dip__context: u64 = 7;
-const KEYSET_OPTIDX_dip__linematch: u64 = 11;
-const KEYSET_OPTIDX_dip__algorithm: u64 = 13;
-const KEYSET_OPTIDX_dip__foldcolumn: u64 = 16;
+const KEYSET_OPTIDX_DIP_INLINE: u64 = 5;
+const KEYSET_OPTIDX_DIP_CONTEXT: u64 = 7;
+const KEYSET_OPTIDX_DIP_LINEMATCH: u64 = 11;
+const KEYSET_OPTIDX_DIP_ALGORITHM: u64 = 13;
+const KEYSET_OPTIDX_DIP_FOLDCOLUMN: u64 = 16;
 #[repr(C)]
 pub struct DiffBlock {
     pub df_id: u64,
@@ -185,14 +185,14 @@ struct LinemapEntry {
 use crate::arglist::ML_EMPTY;
 use crate::charset::{NL, NUL};
 use crate::cmdexpand::MB_MAXBYTES;
-use crate::extmark::{kExtmarkNOOP, kExtmarkUndo, kFalse, kNone, kTrue};
+use crate::extmark::{K_EXTMARK_NOOP, K_EXTMARK_UNDO, K_FALSE, K_NONE, K_TRUE};
 use crate::math::{FAIL, OK};
 use crate::option::OPT_LOCAL;
 #[cfg(unix)]
 use crate::os::fs::MAXPATHL;
 use crate::regexp::MAXCOL;
 use crate::search::{BACKWARD, FORWARD};
-const diff_word_gap: c_int = 5;
+const DIFF_WORD_GAP: c_int = 5;
 
 struct DiffState {
     diff_busy: bool,
@@ -227,7 +227,7 @@ impl DiffState {
                 | DIFF_INLINE_CHAR,
             diff_algorithm: XDF_INDENT_HEURISTIC,
             linematch_lines: 40,
-            diff_a_works: kNone,
+            diff_a_works: K_NONE,
             next_diff_id: 1,
             diff_finger_dp_idx: None,
             diff_finger_tp: ptr::null_mut(),
@@ -888,7 +888,7 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
                     )
                     {
                         emsg(gettext(
-                            e_failed_to_find_all_diff_anchors,
+                            E_FAILED_TO_FIND_ALL_DIFF_ANCHORS,
                         ));
                         num_anchors = 0;
                         anchors = [[0; MAX_DIFF_ANCHORS]; DB_COUNT];
@@ -973,7 +973,7 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
 }
 pub fn diff_internal() -> c_int {
     c_int::from(
-            (diff_st().diff_flags & DIFF_INTERNAL) != 0 && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) == kCallbackNone,
+            (diff_st().diff_flags & DIFF_INTERNAL) != 0 && crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) == K_CALLBACK_NONE_CONST,
         )
 }
 pub fn ex_diffupdate(eap: &mut Exarg) {
@@ -1054,7 +1054,7 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
         let new_fname = diffio.dio_new.din_fname.as_ref().unwrap().as_ptr();
         let diff_fname = diffio.dio_diff.dout_fname.as_ref().unwrap().as_ptr();
         loop {
-            ok = kFalse;
+            ok = K_FALSE;
             let mut fd = os_fopen(orig_fname, c"w");
             if fd.is_null() {
                 io_error = true;
@@ -1087,7 +1087,7 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
                             if (crate::memory::cstr_prefix_bytes((&raw const linebuf).cast(), 3) == &b"1c1"[..3])
                                 || (crate::memory::cstr_prefix_bytes((&raw const linebuf).cast(), 11) == &b"@@ -1 +1 @@"[..11])
                             {
-                                ok = kTrue;
+                                ok = K_TRUE;
                             }
                         }
                         fclose(fd);
@@ -1097,10 +1097,10 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
                 }
                 let _ = os_remove(orig_fname);
             }
-            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != kCallbackNone {
+            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != K_CALLBACK_NONE_CONST {
                 break;
             }
-            if diff_st().diff_a_works != kNone {
+            if diff_st().diff_a_works != K_NONE {
                 break;
             }
             diff_st().diff_a_works = ok;
@@ -1113,7 +1113,7 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
                 emsg(gettext(c"E810: Cannot read or write temp files"));
             }
             emsg(gettext(c"E97: Cannot create diffs"));
-            diff_st().diff_a_works = kNone;
+            diff_st().diff_a_works = K_NONE;
             return false;
         }
         true
@@ -1145,7 +1145,7 @@ fn diff_file_internal(diffio: &mut Diffio) -> bool {
             || diffio.dio_new.din_mmfile.size > MAX_XDIFF_SIZE
         {
             emsg(gettext(
-                e_problem_creating_internal_diff,
+                E_PROBLEM_CREATING_INTERNAL_DIFF,
             ));
             return false;
         }
@@ -1158,7 +1158,7 @@ fn diff_file_internal(diffio: &mut Diffio) -> bool {
         ) < 0
         {
             emsg(gettext(
-                e_problem_creating_internal_diff,
+                E_PROBLEM_CREATING_INTERNAL_DIFF,
             ));
             return false;
         }
@@ -1181,7 +1181,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
             .dout_fname
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != kCallbackNone {
+        if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != K_CALLBACK_NONE_CONST {
             eval_diff(tmp_orig, tmp_new, tmp_diff);
             return true;
         }
@@ -1198,7 +1198,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
             cmd,
             len,
             c"diff %s%s%s%s%s%s%s%s %s",
-            if diff_st().diff_a_works == kFalse {
+            if diff_st().diff_a_works == K_FALSE {
                 c"".as_ptr()
             } else {
                 c"-a ".as_ptr()
@@ -1236,7 +1236,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
         crate::autocmd::block_autocmds();
         call_shell(
             cmd,
-            kShellOptFilter | kShellOptSilent | kShellOptDoOut,
+            K_SHELL_OPT_FILTER | K_SHELL_OPT_SILENT | K_SHELL_OPT_DO_OUT,
             ptr::null_mut(),
         );
         crate::autocmd::unblock_autocmds();
@@ -1313,7 +1313,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                     shorten_fnames(1);
                 }
             }
-            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_pex) != kCallbackNone {
+            if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_pex) != K_CALLBACK_NONE_CONST {
                 #[cfg(unix)]
                 eval_patch(
                     tmp_orig,
@@ -1334,13 +1334,13 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                     esc_ptr,
                 );
                 crate::autocmd::block_autocmds();
-                call_shell(buf, kShellOptFilter, ptr::null_mut());
+                call_shell(buf, K_SHELL_OPT_FILTER, ptr::null_mut());
                 crate::autocmd::unblock_autocmds();
             }
             #[cfg(unix)]
             if dirbuf[0] != NUL {
                 if crate::os::fs::os_chdir((&raw const dirbuf).cast()) != 0 {
-                    emsg(gettext(e_prev_dir));
+                    emsg(gettext(E_PREV_DIR));
                 }
                 shorten_fnames(1);
             }
@@ -1374,7 +1374,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                     },
                 )
                 {
-                    eap.cmdidx = CmdSplit;
+                    eap.cmdidx = CMD_SPLIT;
                     eap.arg = tmp_new;
                     do_exedit(eap, old_curwin);
                     if curwin_ptr() != old_curwin && win_valid(old_curwin) {
@@ -1422,7 +1422,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
         {
             return;
         }
-        eap.cmdidx = CmdSplit;
+        eap.cmdidx = CMD_SPLIT;
         curwin_mut().w_onebuf_opt.wo_diff = 1;
         do_exedit(eap, old_curwin);
         if curwin_ptr() == old_curwin {
@@ -1452,7 +1452,7 @@ fn set_diff_option(wp: *mut WinInfoInfo, value: bool) {
         set_curwin(wp);
         g_st().curbuf = curwin_mut().w_buffer;
         curbuf_mut().b_ro_locked += 1;
-        set_option_value_give_err(kOptDiff, boolean_obj(value), OPT_LOCAL);
+        set_option_value_give_err(K_OPT_DIFF, boolean_obj(value), OPT_LOCAL);
         curbuf_mut().b_ro_locked -= 1;
         set_curwin(old_curwin);
         g_st().curbuf = curwin_mut().w_buffer;
@@ -1486,7 +1486,7 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
             wp.w_onebuf_opt.wo_fdm_save = alloc_string_option(wp.w_onebuf_opt.wo_fdm);
         }
         set_option_direct_for(
-            kOptFoldmethod,
+            K_OPT_FOLDMETHOD,
             static_cstr_as_obj(c"diff"),
             OPT_LOCAL,
             0,
@@ -2326,7 +2326,7 @@ fn parse_diffanchors(
             }
             if bw.is_null() && !crate::memory::cstr_is_empty(dia) {
                 emsg(gettext(
-                    e_diff_anchors_with_hidden_windows,
+                    E_DIFF_ANCHORS_WITH_HIDDEN_WINDOWS,
                 ));
                 return false;
             }
@@ -2363,7 +2363,7 @@ fn parse_diffanchors(
             }
             if !check_only && (lnum == MAXLNUM || lnum <= 0 || lnum > (*buf).b_ml.ml_line_count + 1)
             {
-                emsg(gettext(e_invrange));
+                emsg(gettext(E_INVRANGE));
                 return false;
             }
             if !anchors.is_null() {
@@ -2376,7 +2376,7 @@ fn parse_diffanchors(
         }
         if i == MAX_DIFF_ANCHORS && !crate::memory::cstr_is_empty(dia) {
             semsg!(
-                gettext(e_cannot_have_more_than_nr_diff_anchors),
+                gettext(E_CANNOT_HAVE_MORE_THAN_NR_DIFF_ANCHORS),
                 MAX_DIFF_ANCHORS as c_int,
             );
             return false;
@@ -2409,7 +2409,7 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
 }
 pub fn diffopt_changed() -> bool {
     unsafe {
-        let v = opt_keyset(opt_vars().p_dip, kOptDiffopt, ptr::null_mut()).cast::<OptKeyDict_dip>();
+        let v = opt_keyset(opt_vars().p_dip, K_OPT_DIFFOPT, ptr::null_mut()).cast::<OptKeyDict_dip>();
         let mut flags = (if (*v).filler { DIFF_FILLER } else { 0 })
             | (if (*v).anchor { DIFF_ANCHOR } else { 0 })
             | (if (*v).iblank { DIFF_IBLANK } else { 0 })
@@ -2423,10 +2423,10 @@ pub fn diffopt_changed() -> bool {
             | (if (*v).hiddenoff { DIFF_HIDDEN_OFF } else { 0 })
             | (if (*v).followwrap { DIFF_FOLLOWWRAP } else { 0 })
             | (if (*v).internal { DIFF_INTERNAL } else { 0 });
-        if has_dip_key(&*v, KEYSET_OPTIDX_dip__linematch) {
+        if has_dip_key(&*v, KEYSET_OPTIDX_DIP_LINEMATCH) {
             flags |= DIFF_LINEMATCH | DIFF_FILLER;
         }
-        if has_dip_key(&*v, KEYSET_OPTIDX_dip__inline_) {
+        if has_dip_key(&*v, KEYSET_OPTIDX_DIP_INLINE) {
             flags &= !ALL_INLINE;
             let inline_ptr = (&raw const (*v).inline_).cast::<c_char>();
             if crate::memory::cstr_as_opt_bytes(inline_ptr) == Some(b"simple") {
@@ -2444,7 +2444,7 @@ pub fn diffopt_changed() -> bool {
         } else {
             0
         };
-        if has_dip_key(&*v, KEYSET_OPTIDX_dip__algorithm) {
+        if has_dip_key(&*v, KEYSET_OPTIDX_DIP_ALGORITHM) {
             let algo_ptr = (&raw const (*v).algorithm).cast::<c_char>();
             if crate::memory::cstr_as_opt_bytes(algo_ptr) == Some(b"minimal") {
                 algorithm |= XDF_NEED_MINIMAL;
@@ -2463,19 +2463,19 @@ pub fn diffopt_changed() -> bool {
                     tp.tp_diff_invalid = 1;
                 }
             }
-            let context = if has_dip_key(&*v, KEYSET_OPTIDX_dip__context) {
+            let context = if has_dip_key(&*v, KEYSET_OPTIDX_DIP_CONTEXT) {
                 (*v).context as c_int
             } else {
                 6
             };
             diff_st().diff_flags = flags;
             g_st().diff_context = if context == 0 { 1 } else { context };
-            diff_st().linematch_lines = if has_dip_key(&*v, KEYSET_OPTIDX_dip__linematch) {
+            diff_st().linematch_lines = if has_dip_key(&*v, KEYSET_OPTIDX_DIP_LINEMATCH) {
                 (*v).linematch as c_int
             } else {
                 0
             };
-            g_st().diff_foldcolumn = if has_dip_key(&*v, KEYSET_OPTIDX_dip__foldcolumn) {
+            g_st().diff_foldcolumn = if has_dip_key(&*v, KEYSET_OPTIDX_DIP_FOLDCOLUMN) {
                 (*v).foldcolumn as c_int
             } else {
                 2
@@ -2750,7 +2750,7 @@ fn diff_refine_inline_word_highlight(
                 let gap_start = entry1.byte_start + entry1.num_bytes;
                 let gap_end = entry2.byte_start;
                 let gap_size = gap_end - gap_start;
-                if gap_size <= 0 || gap_size > diff_word_gap {
+                if gap_size <= 0 || gap_size > DIFF_WORD_GAP {
                     di += 1;
                     continue;
                 }
@@ -3195,7 +3195,7 @@ pub fn diff_infold(wp: &mut WinInfoInfo, lnum: Linenr) -> bool {
 pub fn nv_diffgetput(put: bool, count: usize) {
      {
         if bt_prompt(Some(crate::globals::curbuf_mut())) {
-            vim_beep(kOptBoFlagOperator);
+            vim_beep(K_OPT_BO_FLAG_OPERATOR);
             return;
         }
         let mut ea = Exarg::new();
@@ -3206,7 +3206,7 @@ pub fn nv_diffgetput(put: bool, count: usize) {
             vim_snprintf!((&raw mut buf).cast(), buf.len(), c"%zu", count);
             ea.arg = (&raw mut buf).cast();
         }
-        ea.cmdidx = if put { CmdDiffput } else { CmdDiffget };
+        ea.cmdidx = if put { CMD_DIFFPUT } else { CMD_DIFFGET };
         ea.addr_count = 0;
         ea.line1 = curwin_mut().w_cursor.lnum;
         ea.line2 = curwin_mut().w_cursor.lnum;
@@ -3233,7 +3233,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             let mut idx = 0;
             while idx < DB_COUNT {
                 if curtab_mut().tp_diffbuf[idx] != g_st().curbuf && !curtab_mut().tp_diffbuf[idx].is_null() {
-                    if eap.cmdidx != CmdDiffput || modifiable(&*curtab_mut().tp_diffbuf[idx]) {
+                    if eap.cmdidx != CMD_DIFFPUT || modifiable(&*curtab_mut().tp_diffbuf[idx]) {
                         break;
                     }
                     found_not_ma = true;
@@ -3254,7 +3254,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             for i in (idx_other + 1)..DB_COUNT {
                 if curtab_mut().tp_diffbuf[i] != g_st().curbuf
                     && !curtab_mut().tp_diffbuf[i].is_null()
-                    && (eap.cmdidx != CmdDiffput || modifiable(&*curtab_mut().tp_diffbuf[i]))
+                    && (eap.cmdidx != CMD_DIFFPUT || modifiable(&*curtab_mut().tp_diffbuf[i]))
                 {
                     emsg(gettext(
                         c"E101: More than two buffers in diff mode, don't know which one to use",
@@ -3318,7 +3318,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             }
         }
         let mut aco = CtxSwitch::new();
-        if eap.cmdidx != CmdDiffget {
+        if eap.cmdidx != CMD_DIFFGET {
             ctx_switch(
                 &mut aco,
                 ptr::null_mut(),
@@ -3327,12 +3327,12 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                 0,
             );
         }
-        let idx_from = if eap.cmdidx == CmdDiffget {
+        let idx_from = if eap.cmdidx == CMD_DIFFGET {
             idx_other
         } else {
             idx_cur
         };
-        let idx_to = if eap.cmdidx == CmdDiffget {
+        let idx_to = if eap.cmdidx == CMD_DIFFGET {
             idx_cur
         } else {
             idx_other
@@ -3341,7 +3341,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             if curbuf_mut().b_changed == 0 {
                 change_warning(curbuf_mut(), 0);
                 if diff_buf_idx(g_st().curbuf, curtab_mut()) != idx_to as c_int {
-                    emsg(gettext(e_buffer_changed_unexpectedly));
+                    emsg(gettext(E_BUFFER_CHANGED_UNEXPECTEDLY));
                     ctx_restore(&mut aco);
                     break 'theend;
                 }
@@ -3354,7 +3354,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
                 eap.line1,
                 eap.line2,
             );
-            if eap.cmdidx != CmdDiffget {
+            if eap.cmdidx != CMD_DIFFGET {
                 if g_st().KeyTyped {
                     u_sync(false);
                 }
@@ -3518,7 +3518,7 @@ fn diffgetput(
                     }
                 }
                 if added != 0 {
-                    mark_adjust(lnum, lnum + count - 1, MAXLNUM, added, kExtmarkNOOP);
+                    mark_adjust(lnum, lnum + count - 1, MAXLNUM, added, K_EXTMARK_NOOP);
                     if curwin_mut().w_cursor.lnum >= lnum {
                         if curwin_mut().w_cursor.lnum >= lnum + count {
                             curwin_mut().w_cursor.lnum += added;
@@ -3529,7 +3529,7 @@ fn diffgetput(
                         }
                     }
                 }
-                extmark_adjust(curbuf_mut(), lnum, lnum + count - 1, MAXLNUM, added, kExtmarkUndo);
+                extmark_adjust(curbuf_mut(), lnum, lnum + count - 1, MAXLNUM, added, K_EXTMARK_UNDO);
                 changed_lines(curbuf_mut(), lnum, 0, lnum + count, added, true);
                 if did_free {
                     diff_fold_update(&dfree_lnum, &dfree_count, idx_to);

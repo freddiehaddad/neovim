@@ -27,7 +27,7 @@ use crate::ex_eval::{aborting, should_abort};
 use crate::fileio::{
     EOL_DOS, EOL_UNIX, FIO_ENDIAN_L, FIO_LATIN1, FIO_NOCONVERT, FIO_UCS2, FIO_UCS4, FIO_UTF8,
     FIO_UTF16, ICONV_EINVAL, WRITEBUFSIZE, add_quoted_fname, buf_store_file_info, call_iconv,
-    call_iconv_close, close, filemess_bufwrite, fname_msg_id, get_fio_flags, iconv_t, kShmOver,
+    call_iconv_close, close, filemess_bufwrite, fname_msg_id, get_fio_flags, iconv_t, K_SHM_OVER,
     match_file_list, modname, msg_add_fileformat, msg_add_lines, need_conversion, set_rw_fname,
     slow_io_ns, time_differs, vim_rename, vim_tempname, write_eintr,
 };
@@ -52,7 +52,7 @@ use crate::os::fs::{
 use crate::os::fs::{os_chown, os_fchown, os_file_settime, os_fsetperm, s_isdir, s_isreg};
 use crate::os::input::os_breakcheck;
 use crate::os::time::os_hrtime;
-use crate::path::{after_pathsep, kPathCmpLiteral, path_equal, path_tail};
+use crate::path::{after_pathsep, K_PATH_CMP_LITERAL, path_equal, path_tail};
 use crate::sha256::ContextSha256;
 use crate::strings::{gettext, vim_snprintf, vim_snprintf_add, vim_strchr};
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush};
@@ -63,9 +63,9 @@ use std::ptr;
 use crate::api::private::helpers::HLF_E;
 use crate::arglist::ML_EMPTY;
 use crate::charset::{EOL_MAC, NUL};
-use crate::eval::typval::kCallbackNone;
+use crate::eval::typval::K_CALLBACK_NONE_CONST;
 use crate::math::{FAIL, OK};
-use crate::optionstr::{kOptBkcFlagAuto, kOptBkcFlagYes};
+use crate::optionstr::{K_OPT_BKC_FLAG_AUTO, K_OPT_BKC_FLAG_YES};
 #[cfg(windows)]
 use crate::os::fs::NODE_OTHER;
 
@@ -82,14 +82,14 @@ const kOptBkcFlagBreaksymlink: c_uint = 0x08;
 #[cfg(unix)]
 const kOptBkcFlagBreakhardlink: c_uint = 0x10;
 
-const kCpoFnameapp: c_int = b'P' as c_int;
-const kCpoFnamew: c_int = b'F' as c_int;
-const kCpoFwrite: c_int = b'W' as c_int;
-const kCpoKeepro: c_int = b'Z' as c_int;
-const kCpoPlus: c_int = b'+' as c_int;
+const K_CPO_FNAMEAPP: c_int = b'P' as c_int;
+const K_CPO_FNAMEW: c_int = b'F' as c_int;
+const K_CPO_FWRITE: c_int = b'W' as c_int;
+const K_CPO_KEEPRO: c_int = b'Z' as c_int;
+const K_CPO_PLUS: c_int = b'+' as c_int;
 
-const kShmWri: c_int = b'w' as c_int;
-const kShmWrite: c_int = b'W' as c_int;
+const K_SHM_WRI: c_int = b'w' as c_int;
+const K_SHM_WRITE: c_int = b'W' as c_int;
 
 const UV_FS_COPYFILE_FICLONE: c_int = 0x0002;
 
@@ -503,7 +503,7 @@ fn buf_write_do_autocmds(
                 if reset_changed
                     && (*buf).b_changed != 0
                     && !append
-                    && (overwriting || !vim_strchr(opt_vars().p_cpo, kCpoPlus).is_null())
+                    && (overwriting || !vim_strchr(opt_vars().p_cpo, K_CPO_PLUS).is_null())
                 {
                     return FAIL;
                 }
@@ -801,7 +801,7 @@ fn get_fileinfo(
             *readonly = os_file_is_writable(fname) == 0;
 
             if !forceit && *readonly {
-                if !vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null() {
+                if !vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE).is_null() {
                     *err = set_err_num(
                         c"E504",
                         gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
@@ -880,9 +880,9 @@ fn buf_write_make_backup(
         let mut file_info = FileInfo::new();
         let no_prepend_dot = false;
 
-        if (bkc & kOptBkcFlagYes) != 0 || append {
+        if (bkc & K_OPT_BKC_FLAG_YES) != 0 || append {
             *backup_copyp = true;
-        } else if (bkc & kOptBkcFlagAuto) != 0 {
+        } else if (bkc & K_OPT_BKC_FLAG_AUTO) != 0 {
             if os_fileinfo_hardlinks(file_info_old) > 1
                 || !os_fileinfo_link(fname, &mut file_info)
                 || !os_fileinfo_id_equal(&file_info, file_info_old)
@@ -1053,7 +1053,7 @@ fn buf_write_make_backup(
             }
             *err = set_err(ptr::null());
         } else {
-            if file_readonly && !vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null() {
+            if file_readonly && !vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE).is_null() {
                 *err = set_err_num(
                     c"E504",
                     gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
@@ -1133,14 +1133,14 @@ pub fn buf_write(
             return FAIL;
         }
         if (*buf).b_ml.ml_mfp.is_none() {
-            emsg(gettext(e_empty_buffer));
+            emsg(gettext(E_EMPTY_BUFFER));
             return FAIL;
         }
         if check_secure() {
             return FAIL;
         }
         if crate::memory::cstr_len(fname) >= MAXPATHL {
-            emsg(gettext(e_longname));
+            emsg(gettext(E_LONGNAME));
             return FAIL;
         }
 
@@ -1163,8 +1163,8 @@ pub fn buf_write(
             && buf == g_st().curbuf
             && !bt_nofilename(buf.as_ref())
             && !filtering
-            && (!append || !vim_strchr(opt_vars().p_cpo, kCpoFnameapp).is_null())
-            && !vim_strchr(opt_vars().p_cpo, kCpoFnamew).is_null()
+            && (!append || !vim_strchr(opt_vars().p_cpo, K_CPO_FNAMEAPP).is_null())
+            && !vim_strchr(opt_vars().p_cpo, K_CPO_FNAMEW).is_null()
         {
             if !set_rw_fname(fname, sfname) {
                 return FAIL;
@@ -1183,7 +1183,7 @@ pub fn buf_write(
         }
 
         let overwriting =
-            !(*buf).b_ffname.is_null() && path_equal(ffname, (*buf).b_ffname, kPathCmpLiteral);
+            !(*buf).b_ffname.is_null() && path_equal(ffname, (*buf).b_ffname, K_PATH_CMP_LITERAL);
 
         g_st().no_wait_return += 1;
 
@@ -1233,7 +1233,7 @@ pub fn buf_write(
             (*buf).b_op_end = orig_end;
         }
 
-        g_st().msg_scroll = c_int::from(!(shortmess(kShmOver) && !g_st().exiting));
+        g_st().msg_scroll = c_int::from(!(shortmess(K_SHM_OVER) && !g_st().exiting));
 
         let mut msg_id = [0 as c_char; MAXPATHL + 32];
         #[cfg(windows)]
@@ -1337,14 +1337,14 @@ pub fn buf_write(
                     && perm >= 0
                     && (perm & 0o200) == 0
                     && file_info_old.stat.st_uid == u64::from(getuid())
-                    && vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null()
+                    && vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE).is_null()
                 {
                     perm |= 0o200;
                     let _ = os_setperm(fname, perm);
                     made_writable = true;
                 }
 
-                if forceit && overwriting && vim_strchr(opt_vars().p_cpo, kCpoKeepro).is_null() {
+                if forceit && overwriting && vim_strchr(opt_vars().p_cpo, K_CPO_KEEPRO).is_null() {
                     (*buf).b_p_ro = 0;
                     g_st().need_maketitle = true;
                     status_redraw_all();
@@ -1367,7 +1367,7 @@ pub fn buf_write(
                         };
                         ml_preserve(&mut *buf, false, fsync_opt);
                         if g_st().got_int {
-                            err = set_err(gettext(e_interr));
+                            err = set_err(gettext(E_INTERR));
                             break 'restore_backup;
                         }
                     }
@@ -1405,7 +1405,7 @@ pub fn buf_write(
                         if write_info.bw_iconv_fd != -1 {
                             write_info.bw_conv_buf = vec![0; (bufsize as usize) * ICONV_MULT];
                             write_info.bw_first = 1;
-                        } else if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != kCallbackNone {
+                        } else if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_ccv) != K_CALLBACK_NONE_CONST {
                             wfname_owned = vim_tempname();
                             match wfname_owned {
                                 Some(ref wf) => wfname = wf.as_ptr().cast_mut(),
@@ -1487,7 +1487,7 @@ pub fn buf_write(
                                                 fd,
                                             );
                                             if forceit
-                                                && vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null()
+                                                && vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE).is_null()
                                                 && perm >= 0
                                             {
                                                 if (perm & 0o200) == 0 {
@@ -1516,7 +1516,7 @@ pub fn buf_write(
                                             fd,
                                         );
                                         if forceit
-                                            && vim_strchr(opt_vars().p_cpo, kCpoFwrite).is_null()
+                                            && vim_strchr(opt_vars().p_cpo, K_CPO_FWRITE).is_null()
                                             && perm >= 0
                                         {
                                             if !append {
@@ -1674,7 +1674,7 @@ pub fn buf_write(
                                     );
                                     if buf_get_changedtick(&*buf) != write_tick {
                                         err = set_err(gettext(
-                                            e_buffer_changed_unexpectedly,
+                                            E_BUFFER_CHANGED_UNEXPECTEDLY,
                                         ));
                                         end = 0;
                                         break;
@@ -1717,7 +1717,7 @@ pub fn buf_write(
                         if do_fsync {
                             let error = os_fsync(fd);
                             if error != 0 && error != UV_ENOTSUP && !device {
-                                err = set_err_arg(e_fsync, error);
+                                err = set_err_arg(E_FSYNC, error);
                                 end = 0;
                             }
                         }
@@ -1804,7 +1804,7 @@ pub fn buf_write(
                                     };
                                 }
                             } else if g_st().got_int {
-                                err = set_err(gettext(e_interr));
+                                err = set_err(gettext(E_INTERR));
                             } else {
                                 err = set_err(gettext(
                                     c"E514: Write error (file system full?)",
@@ -1815,7 +1815,7 @@ pub fn buf_write(
                         if let Some(ref bk) = backup {
                             if backup_copy {
                                 if g_st().got_int {
-                                    msg(gettext(e_interr), 0);
+                                    msg(gettext(E_INTERR), 0);
                                     ui_flush();
                                 }
                                 if os_copy(bk.as_ptr(), fname, UV_FS_COPYFILE_FICLONE) == 0 {
@@ -1872,15 +1872,15 @@ pub fn buf_write(
                             insert_space = true;
                         }
                         msg_add_lines(c_int::from(insert_space), lnum, nchars);
-                        if !shortmess(kShmWrite) {
+                        if !shortmess(K_SHM_WRITE) {
                             if append {
-                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(kShmWri) {
+                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(K_SHM_WRI) {
                                         gettext(c" [a]")
                                     } else {
                                         gettext(c" appended")
                                     }, _dsize - _dlen); };
                             } else {
-                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(kShmWri) {
+                                { let _dst: *mut c_char = iobuf; let _dsize: usize = IOSIZE; let _dlen = crate::memory::cstr_len(_dst); crate::memory::xstrlcpy(_dst.add(_dlen), if shortmess(K_SHM_WRI) {
                                         gettext(c" [w]")
                                     } else {
                                         gettext(c" written")
@@ -1919,7 +1919,7 @@ pub fn buf_write(
                         && whole
                         && !append
                         && write_info.bw_conv_error == 0
-                        && (overwriting || !vim_strchr(opt_vars().p_cpo, kCpoPlus).is_null())
+                        && (overwriting || !vim_strchr(opt_vars().p_cpo, K_CPO_PLUS).is_null())
                         && buf_get_changedtick(&*buf) == write_tick
                     {
                         unchanged( &mut *buf, true, false);

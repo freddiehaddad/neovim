@@ -38,8 +38,8 @@ pub(crate) const K_MP_ARRAY: usize = 5;
 
 const FF: c_int = 0x0c;
 
-pub const encode_bool_var_names: [*const c_char; 2] = [c"v:false".as_ptr(), c"v:true".as_ptr()];
-pub const encode_special_var_names: [*const c_char; 1] = [c"v:null".as_ptr()];
+pub const ENCODE_BOOL_VAR_NAMES: [*const c_char; 2] = [c"v:false".as_ptr(), c"v:true".as_ptr()];
+pub const ENCODE_SPECIAL_VAR_NAMES: [*const c_char; 1] = [c"v:null".as_ptr()];
 
 struct EvalEncodeState {
     DID_ECHO_STRING_EMSG: bool,

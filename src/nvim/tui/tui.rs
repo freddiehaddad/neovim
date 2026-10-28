@@ -37,7 +37,7 @@ use crate::grid::{
 };
 use crate::highlight::{HLATTRS_INIT, HlAttrs};
 use crate::log::{LOGLVL_DBG, LOGLVL_ERR, LOGLVL_WRN, log_st, logmsg};
-use crate::lua::executor::{kRetObject, nlua_exec};
+use crate::lua::executor::{K_RET_OBJECT, nlua_exec};
 use crate::mbyte::{utf_ambiguous_width, utf_char2cells, utf_ptr2char};
 use crate::memory::{Arena, arena_finish, arena_mem_free, arena_memdupz};
 use crate::msgpack_rpc::channel::rpc_send_event;
@@ -50,10 +50,10 @@ use crate::os::fs::UV_EINTR;
 use crate::os::input::os_isatty;
 use crate::os::time::os_hrtime;
 use crate::tui::input::{
-    PrimaryDeviceAttrAction, TermInput, kKeyEncodingKitty, kKeyEncodingLegacy, kKeyEncodingXterm,
+    PrimaryDeviceAttrAction, TermInput, K_KEY_ENCODING_KITTY, K_KEY_ENCODING_LEGACY, K_KEY_ENCODING_XTERM,
     tinput_destroy, tinput_init, tinput_start, tinput_stop,
 };
-use crate::tui::termkey::driver_ti::{TerminfoEntry, kTermCount, kTerminfoFuncKeyMax};
+use crate::tui::termkey::driver_ti::{TerminfoEntry, K_TERM_COUNT, K_TERMINFO_FUNC_KEY_MAX};
 use crate::tui::ugrid::{
     UCell, UGrid, ugrid_clear, ugrid_clear_chunk, ugrid_goto, ugrid_resize, ugrid_scroll,
 };
@@ -74,21 +74,21 @@ pub type ModeShape = c_int;
 pub type LineFlags = c_int;
 pub type TerminfoDef = usize;
 
-pub const kTermModeLeftAndRightMargins: TermMode = 69;
-pub const kTermModeMouseButtonEvent: TermMode = 1002;
-pub const kTermModeMouseAnyEvent: TermMode = 1003;
-pub const kTermModeMouseSGRExt: TermMode = 1006;
-pub const kTermModeBracketedPaste: TermMode = 2004;
-pub const kTermModeSynchronizedOutput: TermMode = 2026;
-pub const kTermModeGraphemeClusters: TermMode = 2027;
-pub const kTermModeThemeUpdates: TermMode = 2031;
-pub const kTermModeResizeEvents: TermMode = 2048;
+pub const K_TERM_MODE_LEFT_AND_RIGHT_MARGINS: TermMode = 69;
+pub const K_TERM_MODE_MOUSE_BUTTON_EVENT: TermMode = 1002;
+pub const K_TERM_MODE_MOUSE_ANY_EVENT: TermMode = 1003;
+pub const K_TERM_MODE_MOUSE_SGREXT: TermMode = 1006;
+pub const K_TERM_MODE_BRACKETED_PASTE: TermMode = 2004;
+pub const K_TERM_MODE_SYNCHRONIZED_OUTPUT: TermMode = 2026;
+pub const K_TERM_MODE_GRAPHEME_CLUSTERS: TermMode = 2027;
+pub const K_TERM_MODE_THEME_UPDATES: TermMode = 2031;
+pub const K_TERM_MODE_RESIZE_EVENTS: TermMode = 2048;
 
-pub const kTermModeNotRecognized: TermModeState = 0;
-pub const kTermModeSet: TermModeState = 1;
-pub const kTermModeReset: TermModeState = 2;
-pub const kTermModePermanentlySet: TermModeState = 3;
-pub const kTermModePermanentlyReset: TermModeState = 4;
+pub const K_TERM_MODE_NOT_RECOGNIZED: TermModeState = 0;
+pub const K_TERM_MODE_SET: TermModeState = 1;
+pub const K_TERM_MODE_RESET: TermModeState = 2;
+pub const K_TERM_MODE_PERMANENTLY_SET: TermModeState = 3;
+pub const K_TERM_MODE_PERMANENTLY_RESET: TermModeState = 4;
 
 const EXIT_TIMEOUT_MS: i64 = 1000;
 const OUTBUF_SIZE: usize = 0xffff;
@@ -321,7 +321,7 @@ use crate::fileio::{getpgid, getpgrp, getppid, kill};
 
 use crate::event::r#loop::{uv_tty_get_winsize, uv_tty_reset_mode};
 
-use crate::api::ui::{MAX_SCHAR_SIZE, kLineFlagWrap};
+use crate::api::ui::{MAX_SCHAR_SIZE, K_LINE_FLAG_WRAP};
 use crate::channel::STDOUT_FILENO;
 use crate::charset::NUL;
 use crate::drawline::{HL_OVERLINE, HL_STRIKETHROUGH, HL_UNDERLINE_MASK};
@@ -414,7 +414,7 @@ fn tui_set_term_mode(tui: &mut TUIData, mode: TermMode, set: bool) {
 pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeState) {
     let mut is_set = false;
         match state {
-            kTermModeNotRecognized | kTermModePermanentlyReset => {
+            K_TERM_MODE_NOT_RECOGNIZED | K_TERM_MODE_PERMANENTLY_RESET => {
                 if !g_st().nvim_testing && log_st().g_min_log_level <= LOGLVL_WRN {
                     logmsg!(
                         LOGLVL_WRN,
@@ -428,8 +428,8 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
                     );
                 }
             }
-            kTermModePermanentlySet | kTermModeSet | kTermModeReset => {
-                if state == kTermModePermanentlySet || state == kTermModeSet {
+            K_TERM_MODE_PERMANENTLY_SET | K_TERM_MODE_SET | K_TERM_MODE_RESET => {
+                if state == K_TERM_MODE_PERMANENTLY_SET || state == K_TERM_MODE_SET {
                     is_set = true;
                 }
                 if !g_st().nvim_testing && log_st().g_min_log_level <= LOGLVL_WRN {
@@ -446,29 +446,29 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
                 }
 
                 match mode {
-                    kTermModeSynchronizedOutput => {
+                    K_TERM_MODE_SYNCHRONIZED_OUTPUT => {
                         tui.has_sync_mode = true;
                     }
-                    kTermModeGraphemeClusters => {
+                    K_TERM_MODE_GRAPHEME_CLUSTERS => {
                         if !is_set {
                             tui_set_term_mode(tui, mode, true);
                             tui.modes_grapheme_clusters = true;
                         }
                     }
-                    kTermModeThemeUpdates => {
+                    K_TERM_MODE_THEME_UPDATES => {
                         if !is_set {
                             tui_set_term_mode(tui, mode, true);
                             tui.modes_theme_updates = true;
                         }
                     }
-                    kTermModeResizeEvents => {
+                    K_TERM_MODE_RESIZE_EVENTS => {
                         if !is_set {
                             tui_set_term_mode(tui, mode, true);
                             tui.modes_resize_events = true;
                         }
                         tui.resize_events_enabled = true;
                     }
-                    kTermModeLeftAndRightMargins => {
+                    K_TERM_MODE_LEFT_AND_RIGHT_MARGINS => {
                         tui.has_left_and_right_margin_mode = true;
                     }
                     _ => {}
@@ -485,7 +485,7 @@ fn tui_query_extended_underline(tui: &mut TUIData) {
 }
 
 pub fn tui_enable_extended_underline(tui: &mut TUIData) {
-    terminfo_set_if_empty(tui, kTerm_set_underline_style, c"\x1b[4:%p1%dm");
+    terminfo_set_if_empty(tui, K_TERM_SET_UNDERLINE_STYLE, c"\x1b[4:%p1%dm");
     tui.can_set_underline_color = true;
 }
 
@@ -509,30 +509,30 @@ fn tui_query_kitty_keyboard(tui: &mut TUIData) {
 
 pub fn tui_set_key_encoding(tui: &mut TUIData) {
     match tui.input.key_encoding {
-            kKeyEncodingKitty => {
+            K_KEY_ENCODING_KITTY => {
                 let seq = b"\x1b[>3u";
                 out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
             }
-            kKeyEncodingXterm => {
+            K_KEY_ENCODING_XTERM => {
                 let seq = b"\x1b[>4;2m";
                 out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
             }
-            kKeyEncodingLegacy => {}
+            K_KEY_ENCODING_LEGACY => {}
             _ => {}
         }
 }
 
 fn tui_reset_key_encoding(tui: &mut TUIData) {
     match tui.input.key_encoding {
-            kKeyEncodingKitty => {
+            K_KEY_ENCODING_KITTY => {
                 let seq = b"\x1b[<u";
                 out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
             }
-            kKeyEncodingXterm => {
+            K_KEY_ENCODING_XTERM => {
                 let seq = b"\x1b[>4;0m";
                 out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
             }
-            kKeyEncodingLegacy => {}
+            K_KEY_ENCODING_LEGACY => {}
             _ => {}
         }
 }
@@ -587,76 +587,76 @@ fn lookup_termdef_field(name: &[u8]) -> Option<TermdefFieldTarget> {
         b"max_colors" => Some(IntMaxColors),
         b"lines" => Some(IntLines),
         b"columns" => Some(IntColumns),
-        b"carriage_return" => Some(Def(kTerm_carriage_return)),
-        b"change_scroll_region" => Some(Def(kTerm_change_scroll_region)),
-        b"clear_screen" => Some(Def(kTerm_clear_screen)),
-        b"clr_eol" => Some(Def(kTerm_clr_eol)),
-        b"clr_eos" => Some(Def(kTerm_clr_eos)),
-        b"cursor_address" => Some(Def(kTerm_cursor_address)),
-        b"cursor_down" => Some(Def(kTerm_cursor_down)),
-        b"cursor_invisible" => Some(Def(kTerm_cursor_invisible)),
-        b"cursor_left" => Some(Def(kTerm_cursor_left)),
-        b"cursor_home" => Some(Def(kTerm_cursor_home)),
-        b"cursor_normal" => Some(Def(kTerm_cursor_normal)),
-        b"cursor_up" => Some(Def(kTerm_cursor_up)),
-        b"cursor_right" => Some(Def(kTerm_cursor_right)),
-        b"delete_line" => Some(Def(kTerm_delete_line)),
-        b"enter_blink_mode" => Some(Def(kTerm_enter_blink_mode)),
-        b"enter_bold_mode" => Some(Def(kTerm_enter_bold_mode)),
-        b"enter_ca_mode" => Some(Def(kTerm_enter_ca_mode)),
-        b"enter_dim_mode" => Some(Def(kTerm_enter_dim_mode)),
-        b"enter_italics_mode" => Some(Def(kTerm_enter_italics_mode)),
-        b"enter_reverse_mode" => Some(Def(kTerm_enter_reverse_mode)),
-        b"enter_secure_mode" => Some(Def(kTerm_enter_secure_mode)),
-        b"enter_standout_mode" => Some(Def(kTerm_enter_standout_mode)),
-        b"enter_underline_mode" => Some(Def(kTerm_enter_underline_mode)),
-        b"erase_chars" => Some(Def(kTerm_erase_chars)),
-        b"exit_attribute_mode" => Some(Def(kTerm_exit_attribute_mode)),
-        b"exit_ca_mode" => Some(Def(kTerm_exit_ca_mode)),
-        b"from_status_line" => Some(Def(kTerm_from_status_line)),
-        b"insert_line" => Some(Def(kTerm_insert_line)),
-        b"keypad_local" => Some(Def(kTerm_keypad_local)),
-        b"keypad_xmit" => Some(Def(kTerm_keypad_xmit)),
-        b"parm_delete_line" => Some(Def(kTerm_parm_delete_line)),
-        b"parm_down_cursor" => Some(Def(kTerm_parm_down_cursor)),
-        b"parm_insert_line" => Some(Def(kTerm_parm_insert_line)),
-        b"parm_left_cursor" => Some(Def(kTerm_parm_left_cursor)),
-        b"parm_right_cursor" => Some(Def(kTerm_parm_right_cursor)),
-        b"parm_up_cursor" => Some(Def(kTerm_parm_up_cursor)),
-        b"set_a_background" => Some(Def(kTerm_set_a_background)),
-        b"set_a_foreground" => Some(Def(kTerm_set_a_foreground)),
-        b"set_attributes" => Some(Def(kTerm_set_attributes)),
-        b"set_lr_margin" => Some(Def(kTerm_set_lr_margin)),
-        b"to_status_line" => Some(Def(kTerm_to_status_line)),
-        b"reset_cursor_style" => Some(Def(kTerm_reset_cursor_style)),
-        b"set_cursor_style" => Some(Def(kTerm_set_cursor_style)),
-        b"enter_strikethrough_mode" => Some(Def(kTerm_enter_strikethrough_mode)),
-        b"set_rgb_foreground" => Some(Def(kTerm_set_rgb_foreground)),
-        b"set_rgb_background" => Some(Def(kTerm_set_rgb_background)),
-        b"set_cursor_color" => Some(Def(kTerm_set_cursor_color)),
-        b"reset_cursor_color" => Some(Def(kTerm_reset_cursor_color)),
-        b"set_underline_style" => Some(Def(kTerm_set_underline_style)),
-        b"key_backspace" => Some(KeyStr(kTermKey_backspace)),
-        b"key_beg" => Some(KeyArr(kTermKey_beg)),
-        b"key_btab" => Some(KeyStr(kTermKey_btab)),
-        b"key_clear" => Some(KeyStr(kTermKey_clear)),
-        b"key_dc" => Some(KeyArr(kTermKey_dc)),
-        b"key_end" => Some(KeyArr(kTermKey_end)),
-        b"key_find" => Some(KeyArr(kTermKey_find)),
-        b"key_home" => Some(KeyArr(kTermKey_home)),
-        b"key_ic" => Some(KeyArr(kTermKey_ic)),
-        b"key_npage" => Some(KeyStr(kTermKey_npage)),
-        b"key_ppage" => Some(KeyStr(kTermKey_ppage)),
-        b"key_select" => Some(KeyStr(kTermKey_select)),
-        b"key_suspend" => Some(KeyArr(kTermKey_suspend)),
-        b"key_undo" => Some(KeyArr(kTermKey_undo)),
-        b"key_left" => Some(KeyArr(kTermKey_left)),
-        b"key_right" => Some(KeyArr(kTermKey_right)),
+        b"carriage_return" => Some(Def(K_TERM_CARRIAGE_RETURN)),
+        b"change_scroll_region" => Some(Def(K_TERM_CHANGE_SCROLL_REGION)),
+        b"clear_screen" => Some(Def(K_TERM_CLEAR_SCREEN)),
+        b"clr_eol" => Some(Def(K_TERM_CLR_EOL)),
+        b"clr_eos" => Some(Def(K_TERM_CLR_EOS)),
+        b"cursor_address" => Some(Def(K_TERM_CURSOR_ADDRESS)),
+        b"cursor_down" => Some(Def(K_TERM_CURSOR_DOWN)),
+        b"cursor_invisible" => Some(Def(K_TERM_CURSOR_INVISIBLE)),
+        b"cursor_left" => Some(Def(K_TERM_CURSOR_LEFT)),
+        b"cursor_home" => Some(Def(K_TERM_CURSOR_HOME)),
+        b"cursor_normal" => Some(Def(K_TERM_CURSOR_NORMAL)),
+        b"cursor_up" => Some(Def(K_TERM_CURSOR_UP)),
+        b"cursor_right" => Some(Def(K_TERM_CURSOR_RIGHT)),
+        b"delete_line" => Some(Def(K_TERM_DELETE_LINE)),
+        b"enter_blink_mode" => Some(Def(K_TERM_ENTER_BLINK_MODE)),
+        b"enter_bold_mode" => Some(Def(K_TERM_ENTER_BOLD_MODE)),
+        b"enter_ca_mode" => Some(Def(K_TERM_ENTER_CA_MODE)),
+        b"enter_dim_mode" => Some(Def(K_TERM_ENTER_DIM_MODE)),
+        b"enter_italics_mode" => Some(Def(K_TERM_ENTER_ITALICS_MODE)),
+        b"enter_reverse_mode" => Some(Def(K_TERM_ENTER_REVERSE_MODE)),
+        b"enter_secure_mode" => Some(Def(K_TERM_ENTER_SECURE_MODE)),
+        b"enter_standout_mode" => Some(Def(K_TERM_ENTER_STANDOUT_MODE)),
+        b"enter_underline_mode" => Some(Def(K_TERM_ENTER_UNDERLINE_MODE)),
+        b"erase_chars" => Some(Def(K_TERM_ERASE_CHARS)),
+        b"exit_attribute_mode" => Some(Def(K_TERM_EXIT_ATTRIBUTE_MODE)),
+        b"exit_ca_mode" => Some(Def(K_TERM_EXIT_CA_MODE)),
+        b"from_status_line" => Some(Def(K_TERM_FROM_STATUS_LINE)),
+        b"insert_line" => Some(Def(K_TERM_INSERT_LINE)),
+        b"keypad_local" => Some(Def(K_TERM_KEYPAD_LOCAL)),
+        b"keypad_xmit" => Some(Def(K_TERM_KEYPAD_XMIT)),
+        b"parm_delete_line" => Some(Def(K_TERM_PARM_DELETE_LINE)),
+        b"parm_down_cursor" => Some(Def(K_TERM_PARM_DOWN_CURSOR)),
+        b"parm_insert_line" => Some(Def(K_TERM_PARM_INSERT_LINE)),
+        b"parm_left_cursor" => Some(Def(K_TERM_PARM_LEFT_CURSOR)),
+        b"parm_right_cursor" => Some(Def(K_TERM_PARM_RIGHT_CURSOR)),
+        b"parm_up_cursor" => Some(Def(K_TERM_PARM_UP_CURSOR)),
+        b"set_a_background" => Some(Def(K_TERM_SET_A_BACKGROUND)),
+        b"set_a_foreground" => Some(Def(K_TERM_SET_A_FOREGROUND)),
+        b"set_attributes" => Some(Def(K_TERM_SET_ATTRIBUTES)),
+        b"set_lr_margin" => Some(Def(K_TERM_SET_LR_MARGIN)),
+        b"to_status_line" => Some(Def(K_TERM_TO_STATUS_LINE)),
+        b"reset_cursor_style" => Some(Def(K_TERM_RESET_CURSOR_STYLE)),
+        b"set_cursor_style" => Some(Def(K_TERM_SET_CURSOR_STYLE)),
+        b"enter_strikethrough_mode" => Some(Def(K_TERM_ENTER_STRIKETHROUGH_MODE)),
+        b"set_rgb_foreground" => Some(Def(K_TERM_SET_RGB_FOREGROUND)),
+        b"set_rgb_background" => Some(Def(K_TERM_SET_RGB_BACKGROUND)),
+        b"set_cursor_color" => Some(Def(K_TERM_SET_CURSOR_COLOR)),
+        b"reset_cursor_color" => Some(Def(K_TERM_RESET_CURSOR_COLOR)),
+        b"set_underline_style" => Some(Def(K_TERM_SET_UNDERLINE_STYLE)),
+        b"key_backspace" => Some(KeyStr(K_TERM_KEY_BACKSPACE)),
+        b"key_beg" => Some(KeyArr(K_TERM_KEY_BEG)),
+        b"key_btab" => Some(KeyStr(K_TERM_KEY_BTAB)),
+        b"key_clear" => Some(KeyStr(K_TERM_KEY_CLEAR)),
+        b"key_dc" => Some(KeyArr(K_TERM_KEY_DC)),
+        b"key_end" => Some(KeyArr(K_TERM_KEY_END)),
+        b"key_find" => Some(KeyArr(K_TERM_KEY_FIND)),
+        b"key_home" => Some(KeyArr(K_TERM_KEY_HOME)),
+        b"key_ic" => Some(KeyArr(K_TERM_KEY_IC)),
+        b"key_npage" => Some(KeyStr(K_TERM_KEY_NPAGE)),
+        b"key_ppage" => Some(KeyStr(K_TERM_KEY_PPAGE)),
+        b"key_select" => Some(KeyStr(K_TERM_KEY_SELECT)),
+        b"key_suspend" => Some(KeyArr(K_TERM_KEY_SUSPEND)),
+        b"key_undo" => Some(KeyArr(K_TERM_KEY_UNDO)),
+        b"key_left" => Some(KeyArr(K_TERM_KEY_LEFT)),
+        b"key_right" => Some(KeyArr(K_TERM_KEY_RIGHT)),
         _ => {
             if let Some(rest) = name.strip_prefix(b"key_f")
                 && let Ok(s) = std::str::from_utf8(rest)
                 && let Ok(n) = s.parse::<usize>()
-                && (1..=kTerminfoFuncKeyMax).contains(&n)
+                && (1..=K_TERMINFO_FUNC_KEY_MAX).contains(&n)
             {
                 return Some(FKey(n - 1));
             }
@@ -697,7 +697,7 @@ fn apply_termdefs(tui: &mut TUIData) {
             static_cstr_as_string(c"return require('vim.tty')._get_termdefs()"),
             ptr::null(),
             empty_args,
-            kRetObject,
+            K_RET_OBJECT,
             None,
             &mut lua_err,
         );
@@ -937,14 +937,14 @@ fn terminfo_start(tui: &mut TUIData) {
         augment_terminfo(tui, term, vtev, konsolev, weztermv, iterm_env, nsterm);
         apply_termdefs(tui);
 
-        let has_set_underline_style = tui.ti.defs[kTerm_set_underline_style].is_some();
-        tui.can_change_scroll_region = tui.ti.defs[kTerm_change_scroll_region].is_some();
-        tui.can_set_lr_margin = tui.ti.defs[kTerm_set_lr_margin].is_some();
-        tui.can_scroll = tui.ti.defs[kTerm_delete_line].is_some()
-            && tui.ti.defs[kTerm_parm_delete_line].is_some()
-            && tui.ti.defs[kTerm_insert_line].is_some()
-            && tui.ti.defs[kTerm_parm_insert_line].is_some();
-        tui.can_erase_chars = tui.ti.defs[kTerm_erase_chars].is_some();
+        let has_set_underline_style = tui.ti.defs[K_TERM_SET_UNDERLINE_STYLE].is_some();
+        tui.can_change_scroll_region = tui.ti.defs[K_TERM_CHANGE_SCROLL_REGION].is_some();
+        tui.can_set_lr_margin = tui.ti.defs[K_TERM_SET_LR_MARGIN].is_some();
+        tui.can_scroll = tui.ti.defs[K_TERM_DELETE_LINE].is_some()
+            && tui.ti.defs[K_TERM_PARM_DELETE_LINE].is_some()
+            && tui.ti.defs[K_TERM_INSERT_LINE].is_some()
+            && tui.ti.defs[K_TERM_PARM_INSERT_LINE].is_some();
+        tui.can_erase_chars = tui.ti.defs[K_TERM_ERASE_CHARS].is_some();
         tui.immediate_wrap_after_last_column = terminfo_is_term_family(term, c"conemu")
             || terminfo_is_term_family(term, c"cygwin")
             || terminfo_is_term_family(term, c"win32con")
@@ -952,21 +952,21 @@ fn terminfo_start(tui: &mut TUIData) {
         tui.bce = tui.ti.back_color_erase;
         g_st().t_colors = tui.ti.max_colors;
 
-        terminfo_out(tui, kTerm_enter_ca_mode);
-        terminfo_out(tui, kTerm_keypad_xmit);
-        terminfo_out(tui, kTerm_clear_screen);
+        terminfo_out(tui, K_TERM_ENTER_CA_MODE);
+        terminfo_out(tui, K_TERM_KEYPAD_XMIT);
+        terminfo_out(tui, K_TERM_CLEAR_SCREEN);
 
-        tui_set_term_mode(tui, kTermModeBracketedPaste, true);
+        tui_set_term_mode(tui, K_TERM_MODE_BRACKETED_PASTE, true);
 
         tui.has_left_and_right_margin_mode = false;
         tui.has_sync_mode = false;
 
         if !nsterm {
-            tui_request_term_mode(tui, kTermModeLeftAndRightMargins);
-            tui_request_term_mode(tui, kTermModeSynchronizedOutput);
-            tui_request_term_mode(tui, kTermModeGraphemeClusters);
-            tui_request_term_mode(tui, kTermModeThemeUpdates);
-            tui_request_term_mode(tui, kTermModeResizeEvents);
+            tui_request_term_mode(tui, K_TERM_MODE_LEFT_AND_RIGHT_MARGINS);
+            tui_request_term_mode(tui, K_TERM_MODE_SYNCHRONIZED_OUTPUT);
+            tui_request_term_mode(tui, K_TERM_MODE_GRAPHEME_CLUSTERS);
+            tui_request_term_mode(tui, K_TERM_MODE_THEME_UPDATES);
+            tui_request_term_mode(tui, K_TERM_MODE_RESIZE_EVENTS);
         }
 
         if !has_set_underline_style && !(screen || tmux || nsterm) {
@@ -1054,31 +1054,31 @@ fn terminfo_start(tui: &mut TUIData) {
 
 fn terminfo_disable(tui: &mut TUIData) {
     if tui.modes_theme_updates {
-            tui_set_term_mode(tui, kTermModeThemeUpdates, false);
+            tui_set_term_mode(tui, K_TERM_MODE_THEME_UPDATES, false);
         }
 
         tui_mode_change(tui, NULL_STRING, SHAPE_IDX_N as Integer);
         tui_mouse_off(tui);
-        terminfo_out(tui, kTerm_exit_attribute_mode);
-        terminfo_out(tui, kTerm_cursor_normal);
-        terminfo_out(tui, kTerm_reset_cursor_style);
-        terminfo_out(tui, kTerm_keypad_local);
+        terminfo_out(tui, K_TERM_EXIT_ATTRIBUTE_MODE);
+        terminfo_out(tui, K_TERM_CURSOR_NORMAL);
+        terminfo_out(tui, K_TERM_RESET_CURSOR_STYLE);
+        terminfo_out(tui, K_TERM_KEYPAD_LOCAL);
 
         tui_reset_key_encoding(tui);
 
         if tui.modes_resize_events {
-            tui_set_term_mode(tui, kTermModeResizeEvents, false);
+            tui_set_term_mode(tui, K_TERM_MODE_RESIZE_EVENTS, false);
         }
 
         if tui.modes_grapheme_clusters {
-            tui_set_term_mode(tui, kTermModeGraphemeClusters, false);
+            tui_set_term_mode(tui, K_TERM_MODE_GRAPHEME_CLUSTERS, false);
         }
 
         tui_set_title(tui, NULL_STRING);
         if tui.cursor_has_color {
-            terminfo_out(tui, kTerm_reset_cursor_color);
+            terminfo_out(tui, K_TERM_RESET_CURSOR_COLOR);
         }
-        tui_set_term_mode(tui, kTermModeBracketedPaste, false);
+        tui_set_term_mode(tui, K_TERM_MODE_BRACKETED_PASTE, false);
         out_len(tui, tui.terminfo_ext.disable_focus_reporting);
 
         let da1 = b"\x1b[c";
@@ -1095,7 +1095,7 @@ fn terminfo_stop(tui: &mut TUIData) {
 
         if g_st().ui_client_exit_status == g_st().ui_client_error_exit.max(0) {
             cursor_goto(tui, tui.height - 1, 0);
-            terminfo_out(tui, kTerm_exit_ca_mode);
+            terminfo_out(tui, K_TERM_EXIT_CA_MODE);
         }
 
         flush_buf(tui, FlushBufFinish::FlushBufFinal);
@@ -1296,7 +1296,7 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
         let underdouble: bool;
         let underdotted: bool;
         let underdashed: bool;
-        if tui.ti.defs[kTerm_set_underline_style].is_some() {
+        if tui.ti.defs[K_TERM_SET_UNDERLINE_STYLE].is_some() {
             let ul = attr & HL_UNDERLINE_MASK;
             underline = ul == HL_UNDERLINE;
             undercurl = ul == HL_UNDERCURL;
@@ -1313,7 +1313,7 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
 
         let has_any_underline = undercurl || underline || underdouble || underdotted || underdashed;
 
-        if tui.ti.defs[kTerm_set_attributes].is_some() {
+        if tui.ti.defs[K_TERM_SET_ATTRIBUTES].is_some() {
             if bold || dim || blink || reverse || underline || standout {
                 let mut params = [TPVAR::default(); 9];
                 params[0].num = c_long::from(standout);
@@ -1325,61 +1325,61 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
                 params[6].num = 0;
                 params[7].num = 0;
                 params[8].num = 0;
-                terminfo_print(tui, kTerm_set_attributes, params.as_mut_ptr());
+                terminfo_print(tui, K_TERM_SET_ATTRIBUTES, params.as_mut_ptr());
             } else if !tui.default_attr {
-                terminfo_out(tui, kTerm_exit_attribute_mode);
+                terminfo_out(tui, K_TERM_EXIT_ATTRIBUTE_MODE);
             }
         } else {
             if !tui.default_attr {
-                terminfo_out(tui, kTerm_exit_attribute_mode);
+                terminfo_out(tui, K_TERM_EXIT_ATTRIBUTE_MODE);
             }
             if bold {
-                terminfo_out(tui, kTerm_enter_bold_mode);
+                terminfo_out(tui, K_TERM_ENTER_BOLD_MODE);
             }
             if underline {
-                terminfo_out(tui, kTerm_enter_underline_mode);
+                terminfo_out(tui, K_TERM_ENTER_UNDERLINE_MODE);
             }
             if standout {
-                terminfo_out(tui, kTerm_enter_standout_mode);
+                terminfo_out(tui, K_TERM_ENTER_STANDOUT_MODE);
             }
             if reverse {
-                terminfo_out(tui, kTerm_enter_reverse_mode);
+                terminfo_out(tui, K_TERM_ENTER_REVERSE_MODE);
             }
             if dim {
-                terminfo_out(tui, kTerm_enter_dim_mode);
+                terminfo_out(tui, K_TERM_ENTER_DIM_MODE);
             }
             if blink {
-                terminfo_out(tui, kTerm_enter_blink_mode);
+                terminfo_out(tui, K_TERM_ENTER_BLINK_MODE);
             }
         }
         if italic {
-            terminfo_out(tui, kTerm_enter_italics_mode);
+            terminfo_out(tui, K_TERM_ENTER_ITALICS_MODE);
         }
         if altfont {
             out_len(tui, tui.terminfo_ext.enter_altfont_mode);
         }
         if strikethrough {
-            terminfo_out(tui, kTerm_enter_strikethrough_mode);
+            terminfo_out(tui, K_TERM_ENTER_STRIKETHROUGH_MODE);
         }
         if conceal {
-            terminfo_out(tui, kTerm_enter_secure_mode);
+            terminfo_out(tui, K_TERM_ENTER_SECURE_MODE);
         }
         if overline {
             let seq = b"\x1b[53m";
             out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
         }
-        if tui.ti.defs[kTerm_set_underline_style].is_some() {
+        if tui.ti.defs[K_TERM_SET_UNDERLINE_STYLE].is_some() {
             if undercurl {
-                terminfo_print_num1(tui, kTerm_set_underline_style, 3);
+                terminfo_print_num1(tui, K_TERM_SET_UNDERLINE_STYLE, 3);
             }
             if underdouble {
-                terminfo_print_num1(tui, kTerm_set_underline_style, 2);
+                terminfo_print_num1(tui, K_TERM_SET_UNDERLINE_STYLE, 2);
             }
             if underdotted {
-                terminfo_print_num1(tui, kTerm_set_underline_style, 4);
+                terminfo_print_num1(tui, K_TERM_SET_UNDERLINE_STYLE, 4);
             }
             if underdashed {
-                terminfo_print_num1(tui, kTerm_set_underline_style, 5);
+                terminfo_print_num1(tui, K_TERM_SET_UNDERLINE_STYLE, 5);
             }
         }
 
@@ -1404,7 +1404,7 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
             if fg != -1 {
                 terminfo_print_num(
                     tui,
-                    kTerm_set_rgb_foreground,
+                    K_TERM_SET_RGB_FOREGROUND,
                     (fg >> 16) & 0xff,
                     (fg >> 8) & 0xff,
                     fg & 0xff,
@@ -1417,7 +1417,7 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
                 c_int::from(tui.clear_attrs.cterm_fg_color) - 1
             };
             if fg != -1 {
-                terminfo_print_num1(tui, kTerm_set_a_foreground, fg);
+                terminfo_print_num1(tui, K_TERM_SET_A_FOREGROUND, fg);
             }
         }
 
@@ -1431,7 +1431,7 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
             if bg != -1 {
                 terminfo_print_num(
                     tui,
-                    kTerm_set_rgb_background,
+                    K_TERM_SET_RGB_BACKGROUND,
                     (bg >> 16) & 0xff,
                     (bg >> 8) & 0xff,
                     bg & 0xff,
@@ -1444,7 +1444,7 @@ fn update_attrs(tui: &mut TUIData, attr_id: c_int) {
                 c_int::from(tui.clear_attrs.cterm_bg_color) - 1
             };
             if bg != -1 {
-                terminfo_print_num1(tui, kTerm_set_a_background, bg);
+                terminfo_print_num1(tui, K_TERM_SET_A_BACKGROUND, bg);
             }
         }
 
@@ -1543,7 +1543,7 @@ fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
         }
 
         if row == 0 && col == 0 {
-            terminfo_out(tui, kTerm_cursor_home);
+            terminfo_out(tui, K_TERM_CURSOR_HOME);
             ugrid_goto(&mut tui.grid, row, col);
             return;
         }
@@ -1560,7 +1560,7 @@ fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
                 false
             };
             if do_cr {
-                terminfo_out(tui, kTerm_carriage_return);
+                terminfo_out(tui, K_TERM_CARRIAGE_RETURN);
                 let cur_row = tui.grid.row;
                 ugrid_goto(&mut tui.grid, cur_row, 0);
             }
@@ -1571,10 +1571,10 @@ fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
                     let n = tui.grid.col - col;
                     if n <= 4 {
                         for _ in 0..n {
-                            terminfo_out(tui, kTerm_cursor_left);
+                            terminfo_out(tui, K_TERM_CURSOR_LEFT);
                         }
                     } else {
-                        terminfo_print_num1(tui, kTerm_parm_left_cursor, n);
+                        terminfo_print_num1(tui, K_TERM_PARM_LEFT_CURSOR, n);
                     }
                     ugrid_goto(&mut tui.grid, row, col);
                     return;
@@ -1582,10 +1582,10 @@ fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
                     let n = col - tui.grid.col;
                     if n <= 2 {
                         for _ in 0..n {
-                            terminfo_out(tui, kTerm_cursor_right);
+                            terminfo_out(tui, K_TERM_CURSOR_RIGHT);
                         }
                     } else {
-                        terminfo_print_num1(tui, kTerm_parm_right_cursor, n);
+                        terminfo_print_num1(tui, K_TERM_PARM_RIGHT_CURSOR, n);
                     }
                     ugrid_goto(&mut tui.grid, row, col);
                     return;
@@ -1596,10 +1596,10 @@ fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
                     let n = row - tui.grid.row;
                     if n <= 4 {
                         for _ in 0..n {
-                            terminfo_out(tui, kTerm_cursor_down);
+                            terminfo_out(tui, K_TERM_CURSOR_DOWN);
                         }
                     } else {
-                        terminfo_print_num1(tui, kTerm_parm_down_cursor, n);
+                        terminfo_print_num1(tui, K_TERM_PARM_DOWN_CURSOR, n);
                     }
                     ugrid_goto(&mut tui.grid, row, col);
                     return;
@@ -1607,10 +1607,10 @@ fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
                     let n = tui.grid.row - row;
                     if n <= 2 {
                         for _ in 0..n {
-                            terminfo_out(tui, kTerm_cursor_up);
+                            terminfo_out(tui, K_TERM_CURSOR_UP);
                         }
                     } else {
-                        terminfo_print_num1(tui, kTerm_parm_up_cursor, n);
+                        terminfo_print_num1(tui, K_TERM_PARM_UP_CURSOR, n);
                     }
                     ugrid_goto(&mut tui.grid, row, col);
                     return;
@@ -1618,7 +1618,7 @@ fn cursor_goto(tui: &mut TUIData, row: c_int, col: c_int) {
             }
         }
 
-        terminfo_print_num2(tui, kTerm_cursor_address, row, col);
+        terminfo_print_num2(tui, K_TERM_CURSOR_ADDRESS, row, col);
         ugrid_goto(&mut tui.grid, row, col);
 }
 
@@ -1685,25 +1685,25 @@ fn clear_region(
     if tui.set_default_colors {
             update_attrs(tui, attr_id);
         } else {
-            terminfo_out(tui, kTerm_exit_attribute_mode);
+            terminfo_out(tui, K_TERM_EXIT_ATTRIBUTE_MODE);
         }
 
         if tui.can_clear_attr && left == 0 && right == tui.width && bot == tui.height {
             if top == 0 {
-                terminfo_out(tui, kTerm_clear_screen);
+                terminfo_out(tui, K_TERM_CLEAR_SCREEN);
                 ugrid_goto(&mut tui.grid, top, left);
             } else {
                 cursor_goto(tui, top, 0);
-                terminfo_out(tui, kTerm_clr_eos);
+                terminfo_out(tui, K_TERM_CLR_EOS);
             }
         } else {
             let width = right - left;
             for row in top..bot {
                 cursor_goto(tui, row, left);
                 if tui.can_clear_attr && right == tui.width {
-                    terminfo_out(tui, kTerm_clr_eol);
+                    terminfo_out(tui, K_TERM_CLR_EOL);
                 } else if tui.can_erase_chars && tui.can_clear_attr {
-                    terminfo_print_num1(tui, kTerm_erase_chars, width);
+                    terminfo_print_num1(tui, K_TERM_ERASE_CHARS, width);
                 } else {
                     print_spaces(tui, width);
                 }
@@ -1712,10 +1712,10 @@ fn clear_region(
 }
 
 fn set_scroll_region(tui: &mut TUIData, top: c_int, bot: c_int, left: c_int, right: c_int) {
-    terminfo_print_num2(tui, kTerm_change_scroll_region, top, bot);
+    terminfo_print_num2(tui, K_TERM_CHANGE_SCROLL_REGION, top, bot);
         if left != 0 || right != tui.width - 1 {
-            tui_set_term_mode(tui, kTermModeLeftAndRightMargins, true);
-            terminfo_print_num2(tui, kTerm_set_lr_margin, left, right);
+            tui_set_term_mode(tui, K_TERM_MODE_LEFT_AND_RIGHT_MARGINS, true);
+            terminfo_print_num2(tui, K_TERM_SET_LR_MARGIN, left, right);
         }
         tui.grid.row = -1;
 }
@@ -1724,11 +1724,11 @@ fn reset_scroll_region(tui: &mut TUIData, fullwidth: bool) {
     if tui.terminfo_ext.reset_scroll_region.is_some() {
             out_len(tui, tui.terminfo_ext.reset_scroll_region);
         } else {
-            terminfo_print_num2(tui, kTerm_change_scroll_region, 0, tui.height - 1);
+            terminfo_print_num2(tui, K_TERM_CHANGE_SCROLL_REGION, 0, tui.height - 1);
         }
         if !fullwidth {
-            terminfo_print_num2(tui, kTerm_set_lr_margin, 0, tui.width - 1);
-            tui_set_term_mode(tui, kTermModeLeftAndRightMargins, false);
+            terminfo_print_num2(tui, K_TERM_SET_LR_MARGIN, 0, tui.width - 1);
+            tui_set_term_mode(tui, K_TERM_MODE_LEFT_AND_RIGHT_MARGINS, false);
         }
         tui.grid.row = -1;
 }
@@ -1792,7 +1792,7 @@ fn tui_cursor_decode_shape(shape_str: impl crate::strings::IntoCCharPtr) -> Curs
 }
 
 fn tui_cursor_reset_style(tui: &mut TUIData) {
-    terminfo_out(tui, kTerm_reset_cursor_style);
+    terminfo_out(tui, K_TERM_RESET_CURSOR_STYLE);
 }
 
 fn decode_cursor_entry(args: Dict) -> Cursorentry {
@@ -1845,10 +1845,10 @@ pub fn tui_busy_stop(tui: &mut TUIData) {
 
 pub fn tui_mouse_on(tui: &mut TUIData) {
     if !tui.mouse_enabled {
-            tui_set_term_mode(tui, kTermModeMouseButtonEvent, true);
-            tui_set_term_mode(tui, kTermModeMouseSGRExt, true);
+            tui_set_term_mode(tui, K_TERM_MODE_MOUSE_BUTTON_EVENT, true);
+            tui_set_term_mode(tui, K_TERM_MODE_MOUSE_SGREXT, true);
             if tui.mouse_move_enabled {
-                tui_set_term_mode(tui, kTermModeMouseAnyEvent, true);
+                tui_set_term_mode(tui, K_TERM_MODE_MOUSE_ANY_EVENT, true);
             }
             tui.mouse_enabled = true;
         }
@@ -1857,10 +1857,10 @@ pub fn tui_mouse_on(tui: &mut TUIData) {
 pub fn tui_mouse_off(tui: &mut TUIData) {
     if tui.mouse_enabled {
             if tui.mouse_move_enabled {
-                tui_set_term_mode(tui, kTermModeMouseAnyEvent, false);
+                tui_set_term_mode(tui, K_TERM_MODE_MOUSE_ANY_EVENT, false);
             }
-            tui_set_term_mode(tui, kTermModeMouseButtonEvent, false);
-            tui_set_term_mode(tui, kTermModeMouseSGRExt, false);
+            tui_set_term_mode(tui, K_TERM_MODE_MOUSE_BUTTON_EVENT, false);
+            tui_set_term_mode(tui, K_TERM_MODE_MOUSE_SGREXT, false);
             tui.mouse_enabled = false;
         }
 }
@@ -1876,7 +1876,7 @@ fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
             let aep = tui.attrs.as_slice()[c.id as usize];
             tui.want_invisible = aep.hl_blend == 100;
             if !tui.want_invisible && (aep.rgb_ae_attr & HL_INVERSE) != 0 {
-                terminfo_out(tui, kTerm_reset_cursor_color);
+                terminfo_out(tui, K_TERM_RESET_CURSOR_COLOR);
             } else if !tui.want_invisible && aep.rgb_bg_color >= 0 {
                 let mut params = [TPVAR::default(); 9];
                 if tui.set_cursor_color_as_str {
@@ -1889,13 +1889,13 @@ fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
                 } else {
                     params[0].num = c_long::from(aep.rgb_bg_color);
                 }
-                terminfo_print(tui, kTerm_set_cursor_color, params.as_mut_ptr());
+                terminfo_print(tui, K_TERM_SET_CURSOR_COLOR, params.as_mut_ptr());
                 tui.cursor_has_color = true;
             }
         } else if c.id == 0 && (tui.want_invisible || tui.cursor_has_color) {
             tui.want_invisible = false;
             tui.cursor_has_color = false;
-            terminfo_out(tui, kTerm_reset_cursor_color);
+            terminfo_out(tui, K_TERM_RESET_CURSOR_COLOR);
         }
 
         let shape = match c.shape {
@@ -1904,7 +1904,7 @@ fn tui_set_mode(tui: &mut TUIData, mode: ModeShape) {
             CursorShape::ShapeVer => 5,
         };
         let steady = c_int::from(c.blinkon == 0 || c.blinkoff == 0);
-        terminfo_print_num1(tui, kTerm_set_cursor_style, shape + steady);
+        terminfo_print_num1(tui, K_TERM_SET_CURSOR_STYLE, shape + steady);
 }
 
 pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) {
@@ -1980,14 +1980,14 @@ pub fn tui_grid_scroll(
 
             if rows > 0 {
                 if rows == 1 {
-                    terminfo_out(tui, kTerm_delete_line);
+                    terminfo_out(tui, K_TERM_DELETE_LINE);
                 } else {
-                    terminfo_print_num1(tui, kTerm_parm_delete_line, rows as c_int);
+                    terminfo_print_num1(tui, K_TERM_PARM_DELETE_LINE, rows as c_int);
                 }
             } else if rows == -1 {
-                terminfo_out(tui, kTerm_insert_line);
+                terminfo_out(tui, K_TERM_INSERT_LINE);
             } else {
-                terminfo_print_num1(tui, kTerm_parm_insert_line, -(rows as c_int));
+                terminfo_print_num1(tui, K_TERM_PARM_INSERT_LINE, -(rows as c_int));
             }
 
             if !full_screen_scroll {
@@ -2303,9 +2303,9 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
             if (tui.buf.len() - tui.bufpos) < title.size + 2 * TERMINFO_SEQ_LIMIT {
                 flush_buf(tui, FlushBufFinish::FlushBufFinal);
             }
-            terminfo_out(tui, kTerm_to_status_line);
+            terminfo_out(tui, K_TERM_TO_STATUS_LINE);
             out(tui, title.data, title.size);
-            terminfo_out(tui, kTerm_from_status_line);
+            terminfo_out(tui, K_TERM_FROM_STATUS_LINE);
         } else if tui.title_enabled {
             let seq = b"\x1b[23;0t";
             out(tui, seq.as_ptr().cast::<c_char>(), seq.len());
@@ -2329,7 +2329,7 @@ pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
         tui.screenshot = Some(f);
         let header = format!("{},{}\n", tui.grid.height, tui.grid.width);
         fwrite(header.as_ptr().cast(), header.len(), 1, fp);
-        terminfo_out(tui, kTerm_clear_screen);
+        terminfo_out(tui, K_TERM_CLEAR_SCREEN);
         for i in 0..tui.grid.height {
             cursor_goto(tui, i, 0);
             for j in 0..tui.grid.width {
@@ -2459,7 +2459,7 @@ pub fn tui_raw_line(
             );
         }
 
-        if (flags & kLineFlagWrap) != 0
+        if (flags & K_LINE_FLAG_WRAP) != 0
             && tui.width == tui.grid.width
             && (linerow as c_int) + 1 < tui.grid.height
         {
@@ -2653,7 +2653,7 @@ fn terminfo_print_num(
 
 fn terminfo_print(tui: &mut TUIData, what: TerminfoDef, params: *mut TPVAR) {
     unsafe {
-        if what >= kTermCount {
+        if what >= K_TERM_COUNT {
             std::process::abort();
         }
 
@@ -2709,8 +2709,8 @@ fn term_has_truecolor(tui: &mut TUIData, colorterm: impl crate::strings::IntoCCh
             return true;
         }
 
-        tui.ti.defs[kTerm_set_rgb_foreground].is_some()
-            && tui.ti.defs[kTerm_set_rgb_background].is_some()
+        tui.ti.defs[K_TERM_SET_RGB_FOREGROUND].is_some()
+            && tui.ti.defs[K_TERM_SET_RGB_BACKGROUND].is_some()
 }
 
 fn patch_terminfo_bugs(
@@ -2753,7 +2753,7 @@ fn patch_terminfo_bugs(
         let cygwin = terminfo_is_term_family(term, c"cygwin");
         let ghostty = terminfo_is_term_family(term, c"xterm-ghostty");
 
-        if let Some(fix_normal) = tui.ti.defs[kTerm_cursor_normal].clone() {
+        if let Some(fix_normal) = tui.ti.defs[K_TERM_CURSOR_NORMAL].clone() {
             let mut bytes = fix_normal.to_bytes();
             let mut changed = false;
             if let Some(rest) = bytes.strip_prefix(b"\x1b[?12l") {
@@ -2767,16 +2767,16 @@ fn patch_terminfo_bugs(
                 changed = true;
             }
             if changed {
-                tui.ti.defs[kTerm_cursor_normal] = Some(std::borrow::Cow::Owned(
+                tui.ti.defs[K_TERM_CURSOR_NORMAL] = Some(std::borrow::Cow::Owned(
                     std::ffi::CString::new(bytes).unwrap(),
                 ));
             }
         }
-        if let Some(fix_invisible) = tui.ti.defs[kTerm_cursor_invisible].clone()
+        if let Some(fix_invisible) = tui.ti.defs[K_TERM_CURSOR_INVISIBLE].clone()
             && linuxvt
             && let Some(rest) = fix_invisible.to_bytes().strip_suffix(LINUXSET1C)
         {
-            tui.ti.defs[kTerm_cursor_invisible] = Some(std::borrow::Cow::Owned(
+            tui.ti.defs[K_TERM_CURSOR_INVISIBLE] = Some(std::borrow::Cow::Owned(
                 std::ffi::CString::new(rest).unwrap(),
             ));
         }
@@ -2787,43 +2787,43 @@ fn patch_terminfo_bugs(
 
         if xterm || hterm {
             if !hterm {
-                terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b]0;");
-                terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x07");
+                terminfo_set_if_empty(tui, K_TERM_TO_STATUS_LINE, c"\x1b]0;");
+                terminfo_set_if_empty(tui, K_TERM_FROM_STATUS_LINE, c"\x07");
             }
-            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m");
-            terminfo_set_if_empty(tui, kTerm_set_lr_margin, c"\x1b[%i%p1%d;%p2%ds");
+            terminfo_set_if_empty(tui, K_TERM_ENTER_ITALICS_MODE, c"\x1b[3m");
+            terminfo_set_if_empty(tui, K_TERM_SET_LR_MARGIN, c"\x1b[%i%p1%d;%p2%ds");
             #[cfg(windows)]
             {
-                terminfo_set_str(tui, kTerm_cursor_down, c"\x1b[B");
+                terminfo_set_str(tui, K_TERM_CURSOR_DOWN, c"\x1b[B");
             }
         } else if rxvt {
-            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m");
-            terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b]2");
-            terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x07");
-            terminfo_set_str(tui, kTerm_enter_ca_mode, c"\x1b[?1049h");
-            terminfo_set_str(tui, kTerm_exit_ca_mode, c"\x1b[?1049l");
-            terminfo_set_str(tui, kTerm_reset_cursor_style, c"\x1b[2 q");
-            terminfo_set_str(tui, kTerm_set_cursor_style, c"\x1b[%p1%d q");
+            terminfo_set_if_empty(tui, K_TERM_ENTER_ITALICS_MODE, c"\x1b[3m");
+            terminfo_set_if_empty(tui, K_TERM_TO_STATUS_LINE, c"\x1b]2");
+            terminfo_set_if_empty(tui, K_TERM_FROM_STATUS_LINE, c"\x07");
+            terminfo_set_str(tui, K_TERM_ENTER_CA_MODE, c"\x1b[?1049h");
+            terminfo_set_str(tui, K_TERM_EXIT_CA_MODE, c"\x1b[?1049l");
+            terminfo_set_str(tui, K_TERM_RESET_CURSOR_STYLE, c"\x1b[2 q");
+            terminfo_set_str(tui, K_TERM_SET_CURSOR_STYLE, c"\x1b[%p1%d q");
         } else if screen {
-            terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b_");
-            terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x1b\\");
+            terminfo_set_if_empty(tui, K_TERM_TO_STATUS_LINE, c"\x1b_");
+            terminfo_set_if_empty(tui, K_TERM_FROM_STATUS_LINE, c"\x1b\\");
         } else if tmux {
-            terminfo_set_if_empty(tui, kTerm_to_status_line, c"\x1b_");
-            terminfo_set_if_empty(tui, kTerm_from_status_line, c"\x1b\\");
-            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m");
+            terminfo_set_if_empty(tui, K_TERM_TO_STATUS_LINE, c"\x1b_");
+            terminfo_set_if_empty(tui, K_TERM_FROM_STATUS_LINE, c"\x1b\\");
+            terminfo_set_if_empty(tui, K_TERM_ENTER_ITALICS_MODE, c"\x1b[3m");
         } else if terminfo_is_term_family(term, c"interix") {
-            terminfo_set_if_empty(tui, kTerm_carriage_return, c"\x0d");
+            terminfo_set_if_empty(tui, K_TERM_CARRIAGE_RETURN, c"\x0d");
         } else if linuxvt {
-            terminfo_set_if_empty(tui, kTerm_parm_up_cursor, c"\x1b[%p1%dA");
-            terminfo_set_if_empty(tui, kTerm_parm_down_cursor, c"\x1b[%p1%dB");
-            terminfo_set_if_empty(tui, kTerm_parm_right_cursor, c"\x1b[%p1%dC");
-            terminfo_set_if_empty(tui, kTerm_parm_left_cursor, c"\x1b[%p1%dD");
+            terminfo_set_if_empty(tui, K_TERM_PARM_UP_CURSOR, c"\x1b[%p1%dA");
+            terminfo_set_if_empty(tui, K_TERM_PARM_DOWN_CURSOR, c"\x1b[%p1%dB");
+            terminfo_set_if_empty(tui, K_TERM_PARM_RIGHT_CURSOR, c"\x1b[%p1%dC");
+            terminfo_set_if_empty(tui, K_TERM_PARM_LEFT_CURSOR, c"\x1b[%p1%dD");
         } else if putty {
             // No bugs in the vanilla terminfo for our purposes.
         } else if iterm {
-            terminfo_set_str(tui, kTerm_enter_ca_mode, c"\x1b[?1049h");
-            terminfo_set_str(tui, kTerm_exit_ca_mode, c"\x1b[?1049l");
-            terminfo_set_if_empty(tui, kTerm_enter_italics_mode, c"\x1b[3m");
+            terminfo_set_str(tui, K_TERM_ENTER_CA_MODE, c"\x1b[?1049h");
+            terminfo_set_str(tui, K_TERM_EXIT_CA_MODE, c"\x1b[?1049l");
+            terminfo_set_if_empty(tui, K_TERM_ENTER_ITALICS_MODE, c"\x1b[3m");
         } else if st {
             // No bugs in the vanilla terminfo for our purposes.
         }
@@ -2831,8 +2831,8 @@ fn patch_terminfo_bugs(
         if tui.ti.max_colors < 256 {
             if true_xterm || iterm || iterm_pretending_xterm {
                 tui.ti.max_colors = 256;
-                terminfo_set_str(tui, kTerm_set_a_foreground, XTERM_SETAF_256_COLON);
-                terminfo_set_str(tui, kTerm_set_a_background, XTERM_SETAB_256_COLON);
+                terminfo_set_str(tui, K_TERM_SET_A_FOREGROUND, XTERM_SETAF_256_COLON);
+                terminfo_set_str(tui, K_TERM_SET_A_BACKGROUND, XTERM_SETAB_256_COLON);
             } else if konsolev != 0
                 || xterm
                 || gnome
@@ -2847,18 +2847,18 @@ fn patch_terminfo_bugs(
                 || cstr_contains(term, b"256")
             {
                 tui.ti.max_colors = 256;
-                terminfo_set_str(tui, kTerm_set_a_foreground, XTERM_SETAF_256);
-                terminfo_set_str(tui, kTerm_set_a_background, XTERM_SETAB_256);
+                terminfo_set_str(tui, K_TERM_SET_A_FOREGROUND, XTERM_SETAF_256);
+                terminfo_set_str(tui, K_TERM_SET_A_BACKGROUND, XTERM_SETAB_256);
             }
         }
         if tui.ti.max_colors < 16 && !colorterm.is_null() {
             tui.ti.max_colors = 16;
-            terminfo_set_if_empty(tui, kTerm_set_a_foreground, XTERM_SETAF_16);
-            terminfo_set_if_empty(tui, kTerm_set_a_background, XTERM_SETAB_16);
+            terminfo_set_if_empty(tui, K_TERM_SET_A_FOREGROUND, XTERM_SETAF_16);
+            terminfo_set_if_empty(tui, K_TERM_SET_A_BACKGROUND, XTERM_SETAB_16);
         }
 
         if st || (vte_version != 0 && vte_version < 3900) || konsolev != 0 {
-            tui.ti.defs[kTerm_reset_cursor_style] = None;
+            tui.ti.defs[K_TERM_RESET_CURSOR_STYLE] = None;
         }
 
         if !bsdvt
@@ -2879,18 +2879,18 @@ fn patch_terminfo_bugs(
                 || ghostty
                 || (linuxvt && (!xterm_version.is_null() || !colorterm.is_null())))
         {
-            terminfo_set_str(tui, kTerm_set_cursor_style, c"\x1b[%p1%d q");
-            terminfo_set_str(tui, kTerm_reset_cursor_style, c"\x1b[0 q");
+            terminfo_set_str(tui, K_TERM_SET_CURSOR_STYLE, c"\x1b[%p1%d q");
+            terminfo_set_str(tui, K_TERM_RESET_CURSOR_STYLE, c"\x1b[0 q");
         } else if linuxvt {
             terminfo_set_str(
                 tui,
-                kTerm_set_cursor_style,
+                K_TERM_SET_CURSOR_STYLE,
                 c"\x1b[?%?%p1%{2}%<%t%{8}%e%p1%{2}%=%t%{112}%e%p1%{3}%=%t%{4}%e%p1%{4}%=%t%{4}%e%p1%{5}%=%t%{2}%e%p1%{6}%=%t%{2}%e%{0}%;%dc",
             );
-            terminfo_set_str(tui, kTerm_reset_cursor_style, c"\x1b[?c");
+            terminfo_set_str(tui, K_TERM_RESET_CURSOR_STYLE, c"\x1b[?c");
         } else if !bsdvt && xterm {
-            terminfo_set_if_empty(tui, kTerm_set_cursor_style, c"\x1b[%p1%d q");
-            terminfo_set_if_empty(tui, kTerm_reset_cursor_style, c"\x1b[2 q");
+            terminfo_set_if_empty(tui, K_TERM_SET_CURSOR_STYLE, c"\x1b[%p1%d q");
+            terminfo_set_if_empty(tui, K_TERM_RESET_CURSOR_STYLE, c"\x1b[2 q");
         }
 }
 
@@ -2941,8 +2941,8 @@ fn augment_terminfo(
         let has_colon_rgb =
             !tmux && !screen && vte_version == 0 && (iterm || iterm_pretending_xterm || true_xterm);
 
-        if tui.ti.defs[kTerm_set_rgb_foreground].is_none() {
-            tui.ti.defs[kTerm_set_rgb_foreground] = Some(std::borrow::Cow::Borrowed(
+        if tui.ti.defs[K_TERM_SET_RGB_FOREGROUND].is_none() {
+            tui.ti.defs[K_TERM_SET_RGB_FOREGROUND] = Some(std::borrow::Cow::Borrowed(
                 if has_colon_rgb {
                     c"\x1b[38:2:%p1%d:%p2%d:%p3%dm"
                 } else {
@@ -2950,8 +2950,8 @@ fn augment_terminfo(
                 },
             ));
         }
-        if tui.ti.defs[kTerm_set_rgb_background].is_none() {
-            tui.ti.defs[kTerm_set_rgb_background] = Some(std::borrow::Cow::Borrowed(
+        if tui.ti.defs[K_TERM_SET_RGB_BACKGROUND].is_none() {
+            tui.ti.defs[K_TERM_SET_RGB_BACKGROUND] = Some(std::borrow::Cow::Borrowed(
                 if has_colon_rgb {
                     c"\x1b[48:2:%p1%d:%p2%d:%p3%dm"
                 } else {
@@ -2960,9 +2960,9 @@ fn augment_terminfo(
             ));
         }
 
-        if tui.ti.defs[kTerm_set_cursor_color].is_none() {
+        if tui.ti.defs[K_TERM_SET_CURSOR_COLOR].is_none() {
             if iterm || iterm_pretending_xterm {
-                tui.ti.defs[kTerm_set_cursor_color] = Some(std::borrow::Cow::Borrowed(
+                tui.ti.defs[K_TERM_SET_CURSOR_COLOR] = Some(std::borrow::Cow::Borrowed(
                     if tmux {
                         c"\x1bPtmux;\x1b\x1b]Pl%p1%06x\x1b\\\x1b\\"
                     } else {
@@ -2972,18 +2972,18 @@ fn augment_terminfo(
             } else if (xterm || hterm || rxvt || tmux || alacritty || st)
                 && (vte_version == 0 || vte_version >= 3900)
             {
-                tui.ti.defs[kTerm_set_cursor_color] =
+                tui.ti.defs[K_TERM_SET_CURSOR_COLOR] =
                     Some(std::borrow::Cow::Borrowed(c"\x1b]12;%p1%s\x07"));
             }
         }
-        if let Some(ref set_cursor_color) = tui.ti.defs[kTerm_set_cursor_color] {
+        if let Some(ref set_cursor_color) = tui.ti.defs[K_TERM_SET_CURSOR_COLOR] {
             tui.set_cursor_color_as_str =
                 cstr_contains(set_cursor_color.as_ptr(), b"%s");
-            terminfo_set_if_empty(tui, kTerm_reset_cursor_color, c"\x1b]112\x07");
+            terminfo_set_if_empty(tui, K_TERM_RESET_CURSOR_COLOR, c"\x1b]112\x07");
         }
 
-        if tui.ti.defs[kTerm_to_status_line].is_some()
-            && tui.ti.defs[kTerm_from_status_line].is_some()
+        if tui.ti.defs[K_TERM_TO_STATUS_LINE].is_some()
+            && tui.ti.defs[K_TERM_FROM_STATUS_LINE].is_some()
         {
             tui.can_set_title = true;
         }
@@ -2999,7 +2999,7 @@ fn augment_terminfo(
             b"\x1b[?1004l"
         });
 
-        if tui.ti.defs[kTerm_set_underline_style].is_none() {
+        if tui.ti.defs[K_TERM_SET_UNDERLINE_STYLE].is_none() {
             let wezterm_ok = !weztermv.is_null()
                 && crate::memory::cstr_as_bytes(weztermv) > &b"20210203-095643"[..];
             if vte_version >= 5102 || konsolev >= 221170 || tui.ti.Su || wezterm_ok {
@@ -3010,9 +3010,9 @@ fn augment_terminfo(
         }
 
         if kitty || (vte_version != 0 && vte_version < 5400) {
-            tui.input.key_encoding = kKeyEncodingLegacy;
+            tui.input.key_encoding = K_KEY_ENCODING_LEGACY;
         } else {
-            tui.input.key_encoding = kKeyEncodingXterm;
+            tui.input.key_encoding = K_KEY_ENCODING_XTERM;
         }
     }
 }
@@ -3055,7 +3055,7 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: *mut c
             tui.sync_output_active = true;
         } else if !tui.sync_output_active && !tui.is_invisible {
             tui.is_invisible = true;
-            if let Some(ref str_) = tui.ti.defs[kTerm_cursor_invisible] {
+            if let Some(ref str_) = tui.ti.defs[K_TERM_CURSOR_INVISIBLE] {
                 pre_len += terminfo_fmt(
                     pre.as_mut_ptr().add(pre_len),
                     pre.as_mut_ptr().add(pre.len()),
@@ -3079,12 +3079,12 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: *mut c
         if !tui.sync_output_active {
             let mut str_: *const c_char = ptr::null();
             if tui.is_invisible && !should_be_invisible {
-                str_ = tui.ti.defs[kTerm_cursor_normal]
+                str_ = tui.ti.defs[K_TERM_CURSOR_NORMAL]
                     .as_deref()
                     .map_or(ptr::null(), CStr::as_ptr);
                 tui.is_invisible = false;
             } else if !tui.is_invisible && should_be_invisible {
-                str_ = tui.ti.defs[kTerm_cursor_invisible]
+                str_ = tui.ti.defs[K_TERM_CURSOR_INVISIBLE]
                     .as_deref()
                     .map_or(ptr::null(), CStr::as_ptr);
                 tui.is_invisible = true;
@@ -3270,11 +3270,11 @@ mod tests {
         ));
         assert!(matches!(
             lookup_termdef_field(b"enter_ca_mode"),
-            Some(TermdefFieldTarget::Def(kTerm_enter_ca_mode))
+            Some(TermdefFieldTarget::Def(K_TERM_ENTER_CA_MODE))
         ));
         assert!(matches!(
             lookup_termdef_field(b"key_home"),
-            Some(TermdefFieldTarget::KeyArr(kTermKey_home))
+            Some(TermdefFieldTarget::KeyArr(K_TERM_KEY_HOME))
         ));
         assert!(matches!(
             lookup_termdef_field(b"key_f63"),

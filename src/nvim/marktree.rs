@@ -15,14 +15,14 @@ pub const MT_LOG2_BRANCH: c_int = 5;
 const T: c_int = MT_BRANCH_FACTOR as c_int;
 const T_USIZE: usize = MT_BRANCH_FACTOR;
 
-pub const kMTMetaInline: usize = 0;
-pub const kMTMetaLines: usize = 1;
-pub const kMTMetaSignHL: usize = 2;
-pub const kMTMetaSignText: usize = 3;
-pub const kMTMetaConcealLines: usize = 4;
-pub const kMTMetaCount: usize = 5;
+pub const K_MTMETA_INLINE: usize = 0;
+pub const K_MTMETA_LINES: usize = 1;
+pub const K_MTMETA_SIGN_HL: usize = 2;
+pub const K_MTMETA_SIGN_TEXT: usize = 3;
+pub const K_MTMETA_CONCEAL_LINES: usize = 4;
+pub const K_MTMETA_COUNT: usize = 5;
 
-pub type MetaFilter = [u32; kMTMetaCount];
+pub type MetaFilter = [u32; K_MTMETA_COUNT];
 
 pub const MT_FLAG_REAL: u16 = 1 << 0;
 pub const MT_FLAG_END: u16 = 1 << 1;
@@ -57,7 +57,7 @@ pub const MT_FLAG_EXTERNAL_MASK: u16 = MT_FLAG_DECOR_MASK
 pub const MARKTREE_END_FLAG: u64 = 1;
 pub const DECOR_PRIORITY_BASE: u16 = 0x1000;
 
-const META_MAP: [u32; kMTMetaCount] = [
+const META_MAP: [u32; K_MTMETA_COUNT] = [
     MT_FLAG_DECOR_VIRT_TEXT_INLINE as u32,
     MT_FLAG_DECOR_VIRT_LINES as u32,
     MT_FLAG_DECOR_SIGNHL as u32,
@@ -186,7 +186,7 @@ pub type Intersection = Vec<u64>;
 #[derive(Clone, Copy)]
 pub struct MtnodeInner {
     pub i_ptr: [Option<usize>; 2 * MT_BRANCH_FACTOR],
-    pub i_meta: [[u32; kMTMetaCount]; 2 * MT_BRANCH_FACTOR],
+    pub i_meta: [[u32; K_MTMETA_COUNT]; 2 * MT_BRANCH_FACTOR],
 }
 
 #[repr(C)]
@@ -267,7 +267,7 @@ pub type MTDamageMap = std::collections::BTreeMap<u64, MTDamagePair>;
 #[repr(C)]
 pub struct MarkTree {
     pub root: Option<usize>,
-    pub meta_root: [u32; kMTMetaCount],
+    pub meta_root: [u32; K_MTMETA_COUNT],
     pub n_keys: usize,
     pub n_nodes: usize,
     pub id2node: PMapUint64,
@@ -279,7 +279,7 @@ impl MarkTree {
     pub const fn new() -> Self {
         Self {
             root: None,
-            meta_root: [0; kMTMetaCount],
+            meta_root: [0; K_MTMETA_COUNT],
             n_keys: 0,
             n_nodes: 0,
             id2node: std::collections::BTreeMap::new(),
@@ -465,12 +465,12 @@ fn node_ptr(b: &MarkTree, x: usize) -> &[Option<usize>; 2 * MT_BRANCH_FACTOR] {
 }
 
 #[inline]
-fn node_meta(b: &MarkTree, x: usize) -> &[[u32; kMTMetaCount]; 2 * MT_BRANCH_FACTOR] {
+fn node_meta(b: &MarkTree, x: usize) -> &[[u32; K_MTMETA_COUNT]; 2 * MT_BRANCH_FACTOR] {
     &node_inner(b, x).i_meta
 }
 
 #[inline]
-fn node_meta_mut(b: &mut MarkTree, x: usize) -> &mut [[u32; kMTMetaCount]; 2 * MT_BRANCH_FACTOR] {
+fn node_meta_mut(b: &mut MarkTree, x: usize) -> &mut [[u32; K_MTMETA_COUNT]; 2 * MT_BRANCH_FACTOR] {
     &mut node_inner_mut(b, x).i_meta
 }
 
@@ -572,7 +572,7 @@ fn split_node(b: &mut MarkTree, x: usize, i: c_int, next: MTKey) {
         let y_ptrs: [Option<usize>; T_USIZE] = node_inner(b, y).i_ptr[T_USIZE..(2 * T_USIZE)]
             .try_into()
             .unwrap();
-        let y_metas: [[u32; kMTMetaCount]; T_USIZE] = node_inner(b, y).i_meta
+        let y_metas: [[u32; K_MTMETA_COUNT]; T_USIZE] = node_inner(b, y).i_meta
             [T_USIZE..(2 * T_USIZE)]
             .try_into()
             .unwrap();
@@ -588,7 +588,7 @@ fn split_node(b: &mut MarkTree, x: usize, i: c_int, next: MTKey) {
     let i_usize = i as usize;
     let xn = b.nodes[x].n;
     let count_after = (xn - i) as usize;
-    let mut z_meta = [0u32; kMTMetaCount];
+    let mut z_meta = [0u32; K_MTMETA_COUNT];
     meta_describe_node(b, &mut z_meta, z);
     {
         let x_inner = node_inner_mut(b, x);
@@ -638,7 +638,7 @@ fn split_node(b: &mut MarkTree, x: usize, i: c_int, next: MTKey) {
     }
 }
 
-fn marktree_putp_aux(b: &mut MarkTree, x: usize, mut k: MTKey, meta_inc: &[u32; kMTMetaCount]) {
+fn marktree_putp_aux(b: &mut MarkTree, x: usize, mut k: MTKey, meta_inc: &[u32; K_MTMETA_COUNT]) {
     let mut i = marktree_getp_aux(b, x, k, None) + 1;
     if b.nodes[x].level == 0 {
         let xn = b.nodes[x].n;
@@ -664,7 +664,7 @@ fn marktree_putp_aux(b: &mut MarkTree, x: usize, mut k: MTKey, meta_inc: &[u32; 
         let child = node_ptr(b, x)[i as usize].unwrap();
         marktree_putp_aux(b, child, k, meta_inc);
         let x_meta = node_meta_mut(b, x);
-        for m in 0..kMTMetaCount {
+        for m in 0..K_MTMETA_COUNT {
             x_meta[i as usize][m] += meta_inc[m];
         }
     }
@@ -790,7 +790,7 @@ fn marktree_alloc_node(b: &mut MarkTree, internal: bool) -> usize {
     let inner = if internal {
         Some(Box::new(MtnodeInner {
             i_ptr: [None; 2 * MT_BRANCH_FACTOR],
-            i_meta: [[0; kMTMetaCount]; 2 * MT_BRANCH_FACTOR],
+            i_meta: [[0; K_MTMETA_COUNT]; 2 * MT_BRANCH_FACTOR],
         }))
     } else {
         None
@@ -816,24 +816,24 @@ fn marktree_alloc_node(b: &mut MarkTree, internal: bool) -> usize {
 }
 
 #[inline]
-fn meta_describe_key_inc(meta_inc: &mut [u32; kMTMetaCount], key: MTKey) {
+fn meta_describe_key_inc(meta_inc: &mut [u32; K_MTMETA_COUNT], key: MTKey) {
     if !mt_end(key) && !mt_invalid(key) {
-        meta_inc[kMTMetaInline] += u32::from((key.flags & MT_FLAG_DECOR_VIRT_TEXT_INLINE) != 0);
-        meta_inc[kMTMetaLines] += u32::from((key.flags & MT_FLAG_DECOR_VIRT_LINES) != 0);
-        meta_inc[kMTMetaSignHL] += u32::from((key.flags & MT_FLAG_DECOR_SIGNHL) != 0);
-        meta_inc[kMTMetaSignText] += u32::from((key.flags & MT_FLAG_DECOR_SIGNTEXT) != 0);
-        meta_inc[kMTMetaConcealLines] += u32::from((key.flags & MT_FLAG_DECOR_CONCEAL_LINES) != 0);
+        meta_inc[K_MTMETA_INLINE] += u32::from((key.flags & MT_FLAG_DECOR_VIRT_TEXT_INLINE) != 0);
+        meta_inc[K_MTMETA_LINES] += u32::from((key.flags & MT_FLAG_DECOR_VIRT_LINES) != 0);
+        meta_inc[K_MTMETA_SIGN_HL] += u32::from((key.flags & MT_FLAG_DECOR_SIGNHL) != 0);
+        meta_inc[K_MTMETA_SIGN_TEXT] += u32::from((key.flags & MT_FLAG_DECOR_SIGNTEXT) != 0);
+        meta_inc[K_MTMETA_CONCEAL_LINES] += u32::from((key.flags & MT_FLAG_DECOR_CONCEAL_LINES) != 0);
     }
 }
 
 #[inline]
-fn meta_describe_key(k: MTKey) -> [u32; kMTMetaCount] {
-    let mut meta_inc = [0u32; kMTMetaCount];
+fn meta_describe_key(k: MTKey) -> [u32; K_MTMETA_COUNT] {
+    let mut meta_inc = [0u32; K_MTMETA_COUNT];
     meta_describe_key_inc(&mut meta_inc, k);
     meta_inc
 }
 
-fn meta_describe_node(b: &MarkTree, meta_node: &mut [u32; kMTMetaCount], x: usize) {
+fn meta_describe_node(b: &MarkTree, meta_node: &mut [u32; K_MTMETA_COUNT], x: usize) {
     meta_node.fill(0);
     for i in 0..b.nodes[x].n as usize {
         meta_describe_key_inc(meta_node, b.nodes[x].key[i]);
@@ -841,7 +841,7 @@ fn meta_describe_node(b: &MarkTree, meta_node: &mut [u32; kMTMetaCount], x: usiz
     if b.nodes[x].level != 0 {
         let x_meta = node_meta(b, x);
         for child_meta in &x_meta[..(b.nodes[x].n as usize + 1)] {
-            for m in 0..kMTMetaCount {
+            for m in 0..K_MTMETA_COUNT {
                 meta_node[m] += child_meta[m];
             }
         }
@@ -849,9 +849,9 @@ fn meta_describe_node(b: &MarkTree, meta_node: &mut [u32; kMTMetaCount], x: usiz
 }
 
 #[inline]
-fn meta_has(meta_count: &[u32; kMTMetaCount], meta_filter: &MetaFilter) -> bool {
+fn meta_has(meta_count: &[u32; K_MTMETA_COUNT], meta_filter: &MetaFilter) -> bool {
     let mut count = 0u32;
-    for m in 0..kMTMetaCount {
+    for m in 0..K_MTMETA_COUNT {
         count += meta_count[m] & meta_filter[m];
     }
     count > 0
@@ -1143,7 +1143,7 @@ pub fn marktree_revise_meta(b: &mut MarkTree, itr: &MarkTreeIter, old_key: MTKey
     while let Some(parent) = b.nodes[lnode].parent {
         let p_idx = b.nodes[lnode].p_idx as usize;
         let meta_p = &mut node_meta_mut(b, parent)[p_idx];
-        for m in 0..kMTMetaCount {
+        for m in 0..K_MTMETA_COUNT {
             meta_p[m] = meta_p[m]
                 .wrapping_add(meta_new[m])
                 .wrapping_sub(meta_old[m]);
@@ -1151,7 +1151,7 @@ pub fn marktree_revise_meta(b: &mut MarkTree, itr: &MarkTreeIter, old_key: MTKey
         lnode = parent;
     }
 
-    for m in 0..kMTMetaCount {
+    for m in 0..K_MTMETA_COUNT {
         b.meta_root[m] = b.meta_root[m]
             .wrapping_add(meta_new[m])
             .wrapping_sub(meta_old[m]);
@@ -1404,7 +1404,7 @@ fn merge_node(b: &mut MarkTree, p: usize, i: c_int) -> usize {
     }
     if b.nodes[x].level != 0 {
         let y_ptrs: Vec<Option<usize>> = node_inner(b, y).i_ptr[..(yn + 1)].to_vec();
-        let y_metas: Vec<[u32; kMTMetaCount]> = node_inner(b, y).i_meta[..(yn + 1)].to_vec();
+        let y_metas: Vec<[u32; K_MTMETA_COUNT]> = node_inner(b, y).i_meta[..(yn + 1)].to_vec();
         node_inner_mut(b, x).i_ptr[(xn + 1)..(xn + 2 + yn)].copy_from_slice(&y_ptrs);
         node_inner_mut(b, x).i_meta[(xn + 1)..(xn + 2 + yn)].copy_from_slice(&y_metas);
         let x_inter = b.nodes[x].intersect.clone();
@@ -1488,7 +1488,7 @@ fn pivot_right(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
 
     {
         let p_inner = node_inner_mut(b, p);
-        for m in 0..kMTMetaCount {
+        for m in 0..K_MTMETA_COUNT {
             p_inner.i_meta[i_usize + 1][m] += meta_inc_y[m];
             p_inner.i_meta[i_usize][m] -= meta_inc_x[m];
         }
@@ -1589,7 +1589,7 @@ fn pivot_left(b: &mut MarkTree, _p_pos: MTPos, p: usize, i: c_int) {
     let meta_inc_y = meta_describe_key(b.nodes[p].key[i_usize]);
     {
         let p_inner = node_inner_mut(b, p);
-        for m in 0..kMTMetaCount {
+        for m in 0..K_MTMETA_COUNT {
             p_inner.i_meta[i_usize][m] += meta_inc_x[m];
             p_inner.i_meta[i_usize + 1][m] -= meta_inc_y[m];
         }
@@ -1672,7 +1672,7 @@ pub fn marktree_clear(b: &mut MarkTree) {
     b.free_nodes.clear();
     b.n_keys = 0;
     b.n_nodes = 0;
-    b.meta_root = [0; kMTMetaCount];
+    b.meta_root = [0; K_MTMETA_COUNT];
 }
 
 fn marktree_free_node(b: &mut MarkTree, x: usize) {
@@ -2251,7 +2251,7 @@ fn swap_keys(
                     let p1 = b.nodes[x1].parent.unwrap();
                     let p1_idx = b.nodes[x1].p_idx as usize;
                     let meta_node = &mut node_meta_mut(b, p1)[p1_idx];
-                    for m in 0..kMTMetaCount {
+                    for m in 0..K_MTMETA_COUNT {
                         meta_node[m] = meta_node[m]
                             .wrapping_add(meta_inc_2[m])
                             .wrapping_sub(meta_inc_1[m]);
@@ -2262,7 +2262,7 @@ fn swap_keys(
                     let p2 = b.nodes[x2].parent.unwrap();
                     let p2_idx = b.nodes[x2].p_idx as usize;
                     let meta_node = &mut node_meta_mut(b, p2)[p2_idx];
-                    for m in 0..kMTMetaCount {
+                    for m in 0..K_MTMETA_COUNT {
                         meta_node[m] = meta_node[m]
                             .wrapping_add(meta_inc_1[m])
                             .wrapping_sub(meta_inc_2[m]);
@@ -2720,7 +2720,7 @@ pub fn marktree_check_node(
     x: usize,
     last: &mut MTPos,
     last_right: &mut bool,
-    meta_node_ref: &[u32; kMTMetaCount],
+    meta_node_ref: &[u32; K_MTMETA_COUNT],
 ) -> usize {
     assert!(b.nodes[x].n < 2 * T);
         assert!(b.nodes[x].n >= if Some(x) != b.root { T - 1 } else { 0 });
@@ -2767,7 +2767,7 @@ pub fn marktree_check_node(
             *last = b.nodes[x].key[b.nodes[x].n as usize - 1].pos;
         }
 
-        let mut meta_node = [0u32; kMTMetaCount];
+        let mut meta_node = [0u32; K_MTMETA_COUNT];
         meta_describe_node(b, &mut meta_node, x);
         assert_eq!(&meta_node, meta_node_ref);
 

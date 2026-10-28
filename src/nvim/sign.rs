@@ -11,7 +11,7 @@ use crate::charset::{
 use crate::cursor::{check_cursor_lnum, Linenr};
 use crate::decoration::{
     DECOR_SIGN_HIGHLIGHT_INIT, DecorInline, DecorPriority, DecorSignHighlight, NS, SIGN_WIDTH,
-    SignItem, decor_find_sign, decor_put_sh, kSHIsSign, sign_item_cmp,
+    SignItem, decor_find_sign, decor_put_sh, K_SHIS_SIGN, sign_item_cmp,
 };
 use crate::drawscreen::{UPD_NOT_VALID, redraw_buf_later};
 use crate::errors::*;
@@ -35,7 +35,7 @@ use crate::insert::beginline;
 use crate::mark::setpcmark;
 use crate::marktree::{
     DecorExt, DecorInlineData, MT_FLAG_DECOR_SIGNHL, MT_FLAG_DECOR_SIGNTEXT, MTKey, MTPair,
-    MarkTreeIter, kMTMetaSignHL, kMTMetaSignText, marktree_itr_current, marktree_itr_get,
+    MarkTreeIter, K_MTMETA_SIGN_HL, K_MTMETA_SIGN_TEXT, marktree_itr_current, marktree_itr_get,
     marktree_itr_get_overlap, marktree_itr_next, marktree_itr_step_overlap, marktree_lookup_ns,
     mt_decor, mt_decor_sign, mt_end,
 };
@@ -84,7 +84,7 @@ use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::cmdexpand::{
     EXPAND_BUFFERS, EXPAND_FILES, EXPAND_HIGHLIGHT, EXPAND_NOTHING, EXPAND_SIGN, HLF_D,
 };
-use crate::eval::kListLenMayKnow;
+use crate::eval::K_LIST_LEN_MAY_KNOW_CONST;
 use crate::eval::userfunc::MSG_BUF_LEN;
 use crate::os::env::ExpandCtx;
 
@@ -194,7 +194,7 @@ fn buf_set_sign(
         };
         let mut sign = DECOR_SIGN_HIGHLIGHT_INIT;
 
-        sign.flags |= kSHIsSign;
+        sign.flags |= K_SHIS_SIGN;
         sign.text = sp.sn_text;
         sign.sign_name = Some(sp.sn_name.clone());
         sign.hl_id = sp.sn_text_hl;
@@ -352,7 +352,7 @@ fn buf_delete_signs(
 }
 
 pub fn buf_has_signs(buf: &FileBuf) -> bool {
-     buf_meta_total(buf, kMTMetaSignHL) + buf_meta_total(buf, kMTMetaSignText) != 0
+     buf_meta_total(buf, K_MTMETA_SIGN_HL) + buf_meta_total(buf, K_MTMETA_SIGN_TEXT) != 0
 }
 
 fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr) { let group = group.into_c_char_ptr();
@@ -840,7 +840,7 @@ fn sign_define_cmd(name: impl crate::strings::IntoCCharPtr, mut cmdline: *mut c_
             } else if crate::memory::cstr_prefix_bytes(arg, 9) == &b"priority="[..9] {
                 prio = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(arg.add(9))) as c_int;
             } else {
-                semsg!(gettext(e_invarg2), arg);
+                semsg!(gettext(E_INVARG2), arg);
                 return;
             }
             if crate::memory::cstr_is_empty(cmdline) {
@@ -865,13 +865,13 @@ fn sign_place_cmd(
     unsafe {
         if id <= 0 {
             if lnum >= 0 || !name.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
             } else {
                 sign_list_placed(buf, group);
             }
         } else {
             if name.is_null() || buf.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 return;
             }
             let mut uid = id as u32;
@@ -889,7 +889,7 @@ fn sign_unplace_cmd(
 ) { let group = group.into_c_char_ptr(); let name = name.into_c_char_ptr();
     unsafe {
         if lnum >= 0 || !name.is_null() || (!group.is_null() && crate::memory::cstr_is_empty(group)) {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -913,12 +913,12 @@ fn sign_jump_cmd(
 ) { let group = group.into_c_char_ptr(); let name = name.into_c_char_ptr();
      {
         if name.is_null() && group.is_null() && id == -1 {
-            emsg(gettext(e_argreq));
+            emsg(gettext(E_ARGREQ));
             return;
         }
 
         if buf.is_none() || (!group.is_null() && crate::memory::cstr_is_empty(group)) || lnum >= 0 || !name.is_null() {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -959,7 +959,7 @@ fn parse_sign_cmd_args(
                 lnum_arg = true;
             } else if (crate::memory::cstr_prefix_bytes(arg, 1) == &b"*"[..1]) && cmd == SIGNCMD_UNPLACE {
                 if *id != -1 {
-                    emsg(gettext(e_invarg));
+                    emsg(gettext(E_INVARG));
                     return false;
                 }
                 *id = -2;
@@ -998,18 +998,18 @@ fn parse_sign_cmd_args(
                 filename = arg;
                 *buf = buflist_findnr(getdigits_int(&raw mut arg, true, 0));
                 if *skipwhite(arg) != NUL {
-                    semsg!(gettext(e_trailing_arg), arg);
+                    semsg!(gettext(E_TRAILING_ARG), arg);
                 }
                 break;
             } else {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 return false;
             }
             arg = skipwhite(arg);
         }
 
         if !filename.is_null() && (*buf).is_null() {
-            semsg!(gettext(e_invalid_buffer_name_str), filename);
+            semsg!(gettext(E_INVALID_BUFFER_NAME_STR), filename);
             return false;
         }
 
@@ -1143,7 +1143,7 @@ fn sign_get_placed_info_dict(mark: MTKey) -> *mut TvDict {
 
 pub fn get_buffer_signs(buf: &mut FileBuf) -> *mut TvList {
     unsafe {
-        let l = tv_list_alloc(kListLenMayKnow);
+        let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         let mut itr = MarkTreeIter::new();
         let b = &buf.b_marktree;
         marktree_itr_get(b, 0, 0, &mut itr);
@@ -1173,7 +1173,7 @@ fn sign_get_placed_in_buf(
 
         tv_dict_add_nr(&mut *d, c"bufnr", i64::from(buf.b_fnum));
 
-        let l = tv_list_alloc(kListLenMayKnow);
+        let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
         tv_dict_add_list(&mut *d, c"signs", l);
 
         let ns = group_get_ns(group);
@@ -1430,7 +1430,7 @@ fn sign_define_multiple(l: Option<&TvList>, retlist: &mut TvList) {
                     unsafe { li.li_tv.vval.v_dict().as_ref() },
                 );
             } else {
-                emsg(gettext(e_dictreq));
+                emsg(gettext(E_DICTREQ));
             }
             tv_list_append_number(retlist, i64::from(retval));
         }
@@ -1443,7 +1443,7 @@ pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         if argvars[0].v_type == VarType::VarList
             && argvars[1].v_type == VarType::VarUnknown
         {
-            tv_list_alloc_ret(rettv, kListLenMayKnow);
+            tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
             sign_define_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe { &mut *rettv.vval.v_list() });
             return;
         }
@@ -1551,7 +1551,7 @@ pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             return;
         }
         if id <= 0 {
-            emsg(gettext(e_invarg));
+            emsg(gettext(E_INVARG));
             return;
         }
 
@@ -1594,7 +1594,7 @@ fn sign_place_from_dict(
                 return -1;
             }
             if id < 0 {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 return -1;
             }
         }
@@ -1649,7 +1649,7 @@ fn sign_place_from_dict(
         if !di_lnum.is_null() {
             lnum = tv_get_lnum(&(*di_lnum).di_tv);
             if lnum <= 0 {
-                emsg(gettext(e_invarg));
+                emsg(gettext(E_INVARG));
                 return -1;
             }
         }
@@ -1698,10 +1698,10 @@ pub fn f_sign_place(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     unsafe {
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
         if argvars[0].v_type != VarType::VarList {
-            emsg(gettext(e_listreq));
+            emsg(gettext(E_LISTREQ));
             return;
         }
 
@@ -1718,7 +1718,7 @@ pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
                         li.li_tv.vval.v_dict().as_ref(),
                     );
                 } else {
-                    emsg(gettext(e_dictreq));
+                    emsg(gettext(E_DICTREQ));
                 }
                 tv_list_append_number( &mut *rettv.vval.v_list(), i64::from(sign_id));
             }
@@ -1748,7 +1748,7 @@ pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         if argvars[0].v_type == VarType::VarList
             && argvars[1].v_type == VarType::VarUnknown
         {
-            tv_list_alloc_ret(rettv, kListLenMayKnow);
+            tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
             sign_undefine_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe { &mut *rettv.vval.v_list() });
             return;
         }
@@ -1794,7 +1794,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> c
             if !tv_dict_find(dict, c"id", -1).is_null() {
                 id = tv_dict_get_number(dict, c"id") as c_int;
                 if id <= 0 {
-                    emsg(gettext(e_invarg));
+                    emsg(gettext(E_INVARG));
                     return -1;
                 }
             }
@@ -1829,10 +1829,10 @@ pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal,
     _fptr: EvalFuncData,){
 
     unsafe {
-        tv_list_alloc_ret(rettv, kListLenMayKnow);
+        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
         if argvars[0].v_type != VarType::VarList {
-            emsg(gettext(e_listreq));
+            emsg(gettext(E_LISTREQ));
             return;
         }
 
@@ -1846,7 +1846,7 @@ pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal,
                         li.li_tv.vval.v_dict().as_ref(),
                     );
                 } else {
-                    emsg(gettext(e_dictreq));
+                    emsg(gettext(E_DICTREQ));
                 }
                 tv_list_append_number( &mut *rettv.vval.v_list(), i64::from(retval));
             }

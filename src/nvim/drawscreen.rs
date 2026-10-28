@@ -2,16 +2,16 @@
 
 use crate::autocmd::{EVENT_VIMRESIZED, apply_autocmds};
 use crate::buffer::{
-    MAXLNUM, STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, FileBuf, buf_meta_total, kUIMessages,
+    MAXLNUM, STL_IN_ICON, STL_IN_TITLE, VALID_TOPLINE, FileBuf, buf_meta_total, K_UIMESSAGES,
     maketitle,
 };
 use crate::charset::{NUL, vim_isprintc, vim_strsize};
-use crate::cmdexpand::{cmdline_pum_display, kUICmdline};
+use crate::cmdexpand::{cmdline_pum_display, K_UICMDLINE};
 use crate::context::ctx_saved_curwin;
 use crate::cursor::{Colnr, Linenr, CursorPos};
 use crate::decoration::{
     DecorVirtText, DecorVirtTextData, NS, SCL_NUM, VirtTextChunk, buf_signcols_count_range,
-    decor_conceal_line, decor_range_add_virt, decor_redraw_reset, decor_virt_lines, kVPosWinCol,
+    decor_conceal_line, decor_range_add_virt, decor_redraw_reset, decor_virt_lines, K_VPOS_WIN_COL,
     win_lines_concealed,
 };
 use crate::decoration_provider::{
@@ -20,8 +20,8 @@ use crate::decoration_provider::{
 };
 use crate::diff::diff_redraw;
 use crate::digraph::{HLF_CM, get_keymap_str};
-use crate::drawline::{HLF_AT, HLF_COUNT, HLF_FC, VALID_WCOL, kCpoNumcol, win_line};
-use crate::eval::typval::{kCallbackNone, Varnumber};
+use crate::drawline::{HLF_AT, HLF_COUNT, HLF_FC, VALID_WCOL, K_CPO_NUMCOL, win_line};
+use crate::eval::typval::{K_CALLBACK_NONE_CONST, Varnumber};
 use crate::eval::vars::{VV_ECHOSPACE, set_vim_var_nr};
 use crate::ex_getln::{
     cmdline_screen_cleared, compute_cmdrow, get_cmdline_info, Hlf, redrawcmdline,
@@ -40,7 +40,7 @@ use crate::highlight::{
 use crate::highlight_group::highlight_changed;
 use crate::input::char_avail;
 use crate::insexpand::ins_compl_show_pum;
-use crate::marktree::{DECOR_PRIORITY_BASE, kMTMetaSignText};
+use crate::marktree::{DECOR_PRIORITY_BASE, K_MTMETA_SIGN_TEXT};
 use crate::r#match::{init_search_hl, prepare_search_hl};
 use crate::mbyte::{utf_ptr2cells, utf_ptr2char};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
@@ -61,7 +61,7 @@ use crate::option_vars::*;
 use crate::plines::{getvcols, getvvcol, plines_m_win, plines_win, win_get_fill, win_may_fill};
 use crate::popupmenu::{pum_check_clear, pum_drawn, pum_invalidate, pum_redraw};
 use crate::profile::profile_setlimit;
-use crate::regexp::{Ctrl_V, MAXCOL, re_multiline, vim_regfree};
+use crate::regexp::{CTRL_V_CONST, MAXCOL, re_multiline, vim_regfree};
 use crate::search::last_pat_prog;
 use crate::spell::spell_check_window;
 use crate::state::{
@@ -94,8 +94,8 @@ use std::ptr;
 
 use crate::api::ui::NO_SCREEN;
 use crate::api::vim::{HLF_N, HLF_SC};
-use crate::api::win_config::{FR_COL, kUIMultigrid};
-use crate::extmark::kFalse;
+use crate::api::win_config::{FR_COL, K_UIMULTIGRID};
+use crate::extmark::K_FALSE;
 use crate::os::fs::MAXPATHL;
 
 pub const UPD_VALID: c_int = 10;
@@ -122,11 +122,11 @@ const HLF_EOB: Hlf = 2;
 pub(crate) const HLF_C: c_int = 21;
 pub(crate) const HLF_MSG: usize = 63;
 
-pub(crate) const kShmCompletionmenu: c_int = b'c' as c_int;
-const kShmRecording: c_int = b'q' as c_int;
-pub(crate) const kOptVeFlagBlock: c_uint = 0x05;
-const kOptDyFlagLastline: c_uint = 0x01;
-const kOptDyFlagTruncate: c_uint = 0x02;
+pub(crate) const K_SHM_COMPLETIONMENU: c_int = b'c' as c_int;
+const K_SHM_RECORDING: c_int = b'q' as c_int;
+pub(crate) const K_OPT_VE_FLAG_BLOCK: c_uint = 0x05;
+const K_OPT_DY_FLAG_LASTLINE: c_uint = 0x01;
+const K_OPT_DY_FLAG_TRUNCATE: c_uint = 0x02;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WindowCorner {
@@ -184,7 +184,7 @@ impl DrawscreenState {
             default_grid_resizing: false,
             still_may_intro: true,
             win_update_recursive: false,
-            suspended_virt_text: DecorVirtText { flags: 0, hl_mode: 0, priority: DECOR_PRIORITY_BASE, width: 0, col: 0, pos: kVPosWinCol, data: DecorVirtTextData::empty(), next: None },
+            suspended_virt_text: DecorVirtText { flags: 0, hl_mode: 0, priority: DECOR_PRIORITY_BASE, width: 0, col: 0, pos: K_VPOS_WIN_COL, data: DecorVirtTextData::empty(), next: None },
         }
     }
 }
@@ -319,7 +319,7 @@ pub fn screenclear() {
 
 fn cmdline_number_prompt() -> bool {
     unsafe {
-        !ui_has(kUIMessages)
+        !ui_has(K_UIMESSAGES)
             && (g_st().State & MODE_CMDLINE) != 0
             && (*get_cmdline_info()).mouse_used.is_some()
     }
@@ -345,7 +345,7 @@ pub fn screen_resize(mut width: c_int, mut height: c_int) {
         g_st().Rows = height;
         g_st().Columns = width;
         check_screensize();
-        if !ui_has(kUIMessages) {
+        if !ui_has(K_UIMESSAGES) {
             let max_p_ch = OptInt::from(g_st().Rows - min_rows(curtab_mut()) + 1);
             if opt_vars().p_ch > 0 && opt_vars().p_ch > max_p_ch {
                 opt_vars().p_ch = max_p_ch.max(1);
@@ -530,7 +530,7 @@ pub fn update_screen() -> bool {
             g_st().msg_grid.throttled = false;
             let mut was_invalidated = false;
 
-            if type_ == UPD_NOT_VALID && !ui_has(kUIMultigrid) && g_st().msg_scrolled != 0 {
+            if type_ == UPD_NOT_VALID && !ui_has(K_UIMULTIGRID) && g_st().msg_scrolled != 0 {
                 was_invalidated = ui_comp_set_screen_valid(false);
                 let mut i = valid;
                 while i < g_st().Rows - (opt_vars().p_ch as c_int) {
@@ -579,7 +579,7 @@ pub fn update_screen() -> bool {
         if type_ == UPD_CLEAR {
             screenclear();
             cmdline_screen_cleared();
-            if ui_has(kUIMessages) {
+            if ui_has(K_UIMESSAGES) {
                 ui_call_msg_clear();
             }
             type_ = UPD_NOT_VALID;
@@ -589,7 +589,7 @@ pub fn update_screen() -> bool {
             g_st().default_grid.valid = true;
         }
 
-        if type_ == UPD_NOT_VALID && g_st().clear_cmdline && !ui_has(kUIMessages) {
+        if type_ == UPD_NOT_VALID && g_st().clear_cmdline && !ui_has(K_UIMESSAGES) {
             grid_clear(
                 &raw mut g_st().default_gridview,
                 g_st().Rows - (opt_vars().p_ch as c_int),
@@ -755,7 +755,7 @@ pub fn update_screen() -> bool {
 
         decor_providers_invoke_end();
 
-        if !ui_has(kUICmdline) {
+        if !ui_has(K_UICMDLINE) {
             g_st().cmdline_was_last_drawn = false;
         }
 
@@ -900,7 +900,7 @@ pub fn showmode() -> c_int {
                 || g_st().restart_edit != 0
                 || g_st().Visual.active);
 
-        let can_show_mode = opt_vars().p_ch != 0 || ui_has(kUIMessages);
+        let can_show_mode = opt_vars().p_ch != 0 || ui_has(K_UIMESSAGES);
         if (do_mode || g_st().reg_recording != 0) && can_show_mode {
             if skip_showmode() {
                 return 0;
@@ -923,8 +923,8 @@ pub fn showmode() -> c_int {
 
             if do_mode {
                 msg_puts_hl(c"--", hl_id, false);
-                if !g_st().edit_submode.is_null() && !shortmess(kShmCompletionmenu) {
-                    length = if ui_has(kUIMessages) {
+                if !g_st().edit_submode.is_null() && !shortmess(K_SHM_COMPLETIONMENU) {
+                    length = if ui_has(K_UIMESSAGES) {
                         c_int::MAX
                     } else {
                         (g_st().Rows - g_st().msg_row) * g_st().Columns - 3
@@ -998,7 +998,7 @@ pub fn showmode() -> c_int {
 
                     if g_st().Visual.active {
                         let code = (if g_st().Visual.select { 4 } else { 0 })
-                            + (if g_st().Visual.mode == Ctrl_V { 2 } else { 0 })
+                            + (if g_st().Visual.mode == CTRL_V_CONST { 2 } else { 0 })
                             + (if g_st().Visual.mode == c_int::from(b'V') {
                                 1
                             } else {
@@ -1086,7 +1086,7 @@ pub fn clearmode() {
 }
 
 fn recording_mode(hl_id: c_int) {
-    if shortmess(kShmRecording) {
+    if shortmess(K_SHM_RECORDING) {
             return;
         }
 
@@ -1141,7 +1141,7 @@ fn win_redraw_signcols(wp: &mut WinInfoInfo) -> bool {
                 || (wp.w_maxscwidth > 1 && wp.w_minscwidth != wp.w_maxscwidth))
         {
             (*buf).b_signcols.autom = true;
-            buf_signcols_count_range( &mut *buf, 0, (*buf).b_ml.ml_line_count - 1, MAXLNUM, kFalse);
+            buf_signcols_count_range( &mut *buf, 0, (*buf).b_ml.ml_line_count - 1, MAXLNUM, K_FALSE);
         }
 
         while (*buf).b_signcols.max > 0
@@ -1157,7 +1157,7 @@ fn win_redraw_signcols(wp: &mut WinInfoInfo) -> bool {
         if rebuild_stc {
             wp.w_nrwidth_line_count = 0;
         } else if wp.w_minscwidth == 0 && wp.w_maxscwidth == 1 {
-            width = c_int::from(buf_meta_total(&*buf, kMTMetaSignText) > 0);
+            width = c_int::from(buf_meta_total(&*buf, K_MTMETA_SIGN_TEXT) > 0);
         }
 
         let scwidth = wp.w_scwidth;
@@ -1774,7 +1774,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                     }
                 }
 
-                if g_st().Visual.mode == Ctrl_V {
+                if g_st().Visual.mode == CTRL_V_CONST {
                     let mut fromc: Colnr = 0;
                     let mut toc: Colnr = 0;
                     getvcols(
@@ -1787,7 +1787,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                     );
                     toc += 1;
                     if curwin_mut().w_curswant == MAXCOL {
-                        if (get_ve_flags(curwin_mut()) & kOptVeFlagBlock) != 0 {
+                        if (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_BLOCK) != 0 {
                             let cursor_above = curwin_mut().w_cursor.lnum < g_st().Visual.start.lnum;
                             toc = 0;
                             let mut pos = CursorPos {
@@ -2102,7 +2102,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                         && wl_cur.wl_valid
                         && wl_cur.wl_lnum == lnum
                         && lnum > wp.w_topline
-                        && (opt_vars().dy_flags & (kOptDyFlagLastline | kOptDyFlagTruncate)) == 0
+                        && (opt_vars().dy_flags & (K_OPT_DY_FLAG_LASTLINE | K_OPT_DY_FLAG_TRUNCATE)) == 0
                         && srow + c_int::from(wl_cur.wl_size) > wp.w_view_height
                         && win_get_fill(wp, lnum) == 0
                     {
@@ -2118,7 +2118,7 @@ fn win_update(wp: &mut WinInfoInfo) {
 
                         let display_buf_line = !concealed
                             && (foldinfo.fi_lines == 0
-                                || wp.w_onebuf_opt.wo_fdt.cb_type() == kCallbackNone);
+                                || wp.w_onebuf_opt.wo_fdt.cb_type() == K_CALLBACK_NONE_CONST);
 
                         let mut zero_spv = Spellvars::default();
                         row = win_line(
@@ -2276,7 +2276,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 } else if win_get_fill(wp, lnum) >= wp.w_view_height - srow {
                     wp.w_botline = lnum;
                     wp.w_filler_rows = wp.w_view_height - srow;
-                } else if (opt_vars().dy_flags & kOptDyFlagTruncate) != 0 {
+                } else if (opt_vars().dy_flags & K_OPT_DY_FLAG_TRUNCATE) != 0 {
                     grid_line_start(&raw mut wp.w_grid, wp.w_view_height - 1);
                     grid_line_fill(
                         0,
@@ -2288,7 +2288,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                     grid_line_flush();
                     set_empty_rows(&mut *wp, srow);
                     wp.w_botline = lnum;
-                } else if (opt_vars().dy_flags & kOptDyFlagLastline) != 0 {
+                } else if (opt_vars().dy_flags & K_OPT_DY_FLAG_LASTLINE) != 0 {
                     grid_line_start(&raw mut wp.w_grid, wp.w_view_height - 1);
                     let width =
                         if grid_line_getchar((wp.w_view_width - 3).max(0), None) == 0
@@ -2501,7 +2501,7 @@ pub fn win_draw_end(
                 }
 
                 if (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
-                    && vim_strchr(opt_vars().p_cpo, kCpoNumcol).is_null()
+                    && vim_strchr(opt_vars().p_cpo, K_CPO_NUMCOL).is_null()
                 {
                     let width = number_width(&mut *wp) + 1;
                     n = grid_line_fill(
@@ -2575,7 +2575,7 @@ pub fn number_width(wp: &mut WinInfoInfo) -> c_int {
         n = n.max((wp.w_onebuf_opt.wo_nuw as c_int) - 1);
 
         if n < 2
-            && buf_meta_total(wp.buf_mut(), kMTMetaSignText) != 0
+            && buf_meta_total(wp.buf_mut(), K_MTMETA_SIGN_TEXT) != 0
             && wp.w_minscwidth == SCL_NUM
         {
             n = 2;
