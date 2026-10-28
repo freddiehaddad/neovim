@@ -3587,7 +3587,7 @@ pub fn do_finish(eap: &mut Exarg, reanimate: bool) {
             (*sp).finished = false;
         }
 
-        let cstack = &mut *eap.cstack.cast::<Cstack>();
+        let cstack = eap.cstack_mut();
         let idx = cleanup_conditionals(&mut *cstack, 0, 1);
         if idx >= 0 {
             cstack.cs_pending[idx as usize] = CSTP_FINISH as c_char;

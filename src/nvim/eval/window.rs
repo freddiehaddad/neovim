@@ -465,7 +465,7 @@ fn get_tabpage_info(tp: &mut TabPageInfo, tp_idx: i32) -> &'static mut TvDict {
 
 /// `gettabinfo()` function (`f_gettabinfo`).
 pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut tparg: *mut TabPageInfo = ptr::null_mut();
 
         tv_list_alloc_ret(
@@ -491,7 +491,7 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 continue;
             }
             let d = get_tabpage_info(&mut *tp, tpnr);
-            tv_list_append_dict(&mut *rettv.vval.v_list(), d);
+            tv_list_append_dict(rettv.vval.v_list_ref(), d);
             if !tparg.is_null() {
                 return;
             }
@@ -501,7 +501,7 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `getwininfo()` function (`f_getwininfo`).
 pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let mut wparg: *mut WinInfoInfo = ptr::null_mut();
 
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
@@ -524,7 +524,7 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     continue;
                 }
                 let d = get_win_info(&mut *wp, tabnr, if has_winnr { winnr } else { 0 });
-                tv_list_append_dict(&mut *rettv.vval.v_list(), d);
+                tv_list_append_dict(rettv.vval.v_list_ref(), d);
                 if !wparg.is_null() {
                     return;
                 }
@@ -536,8 +536,8 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 /// `getwinpos({timeout})` function (`f_getwinpos`).
 pub fn f_getwinpos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, 2);
-    tv_list_append_number(unsafe { &mut *rettv.vval.v_list() }, -1);
-    tv_list_append_number(unsafe { &mut *rettv.vval.v_list() }, -1);
+    tv_list_append_number(rettv.vval.v_list_ref(), -1);
+    tv_list_append_number(rettv.vval.v_list_ref(), -1);
 }
 
 /// `getwinposx()` function (`f_getwinposx`).
@@ -619,7 +619,7 @@ pub fn f_win_execute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// `win_findbuf()` function (`f_win_findbuf`).
 pub fn f_win_findbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-    win_findbuf(argvars, unsafe { &mut *rettv.vval.v_list() });
+    win_findbuf(argvars, rettv.vval.v_list_ref());
 }
 
 /// `win_getid()` function (`f_win_getid`).
@@ -710,7 +710,7 @@ pub fn f_win_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         tv_list_alloc_ret(rettv, 2);
         let wp = find_win_by_nr_or_id(&argvars[0]);
         tv_list_append_number(
-            &mut *rettv.vval.v_list(),
+            rettv.vval.v_list_ref(),
             if wp.is_null() {
                 0
             } else {
@@ -718,7 +718,7 @@ pub fn f_win_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             },
         );
         tv_list_append_number(
-            &mut *rettv.vval.v_list(),
+            rettv.vval.v_list_ref(),
             if wp.is_null() {
                 0
             } else {
@@ -881,7 +881,7 @@ pub fn f_winlayout(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             found
         };
 
-        get_framelayout((*tp).tp_topframe.as_ref(), &mut *rettv.vval.v_list(), true);
+        get_framelayout((*tp).tp_topframe.as_ref(), rettv.vval.v_list_ref(), true);
     }
 }
 

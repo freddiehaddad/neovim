@@ -413,6 +413,13 @@ impl Exarg {
     }
 }
 
+impl Exarg {
+    #[inline]
+    pub fn cstack_mut(&self) -> &'static mut crate::ex_eval::Cstack {
+        unsafe { &mut *self.cstack.cast::<crate::ex_eval::Cstack>() }
+    }
+}
+
 impl Default for Exarg {
     #[inline]
     fn default() -> Self {

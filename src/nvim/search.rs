@@ -3223,27 +3223,23 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             );
 
             tv_dict_add_nr(
-                &mut *rettv.vval.v_dict(),
+                rettv.vval.v_dict_ref(),
                 c"current",
                 Varnumber::from(stat.cur),
             );
+            tv_dict_add_nr(rettv.vval.v_dict_ref(), c"total", Varnumber::from(stat.cnt));
             tv_dict_add_nr(
-                &mut *rettv.vval.v_dict(),
-                c"total",
-                Varnumber::from(stat.cnt),
-            );
-            tv_dict_add_nr(
-                &mut *rettv.vval.v_dict(),
+                rettv.vval.v_dict_ref(),
                 c"exact_match",
                 Varnumber::from(stat.exact_match),
             );
             tv_dict_add_nr(
-                &mut *rettv.vval.v_dict(),
+                rettv.vval.v_dict_ref(),
                 c"incomplete",
                 Varnumber::from(stat.incomplete),
             );
             tv_dict_add_nr(
-                &mut *rettv.vval.v_dict(),
+                rettv.vval.v_dict_ref(),
                 c"maxcount",
                 Varnumber::from(stat.last_maxcount),
             );

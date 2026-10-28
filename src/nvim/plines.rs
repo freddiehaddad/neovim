@@ -822,14 +822,7 @@ pub fn getvcol_nolist(posp: &mut CursorPos) -> Colnr {
 
         curwin_mut().w_onebuf_opt.wo_list = 0;
         if posp.coladd != 0 {
-            getvvcol(
-                unsafe { &mut *(curwin_ptr()) },
-                posp,
-                None,
-                Some(&mut vcol),
-                None,
-                0,
-            );
+            getvvcol(curwin_mut(), posp, None, Some(&mut vcol), None, 0);
         } else {
             getvcol(curwin_mut(), posp, None, Some(&mut vcol), None, 0);
         }

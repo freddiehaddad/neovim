@@ -3585,7 +3585,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
 }
 
 pub fn f_getcellwidths(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         let table = mbyte_st().cw_table.as_slice();
         tv_list_alloc_ret(rettv, table.len() as isize);
         for &entry_data in table {
@@ -3593,7 +3593,7 @@ pub fn f_getcellwidths(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
             tv_list_append_number(&mut *entry, entry_data.first);
             tv_list_append_number(&mut *entry, entry_data.last);
             tv_list_append_number(&mut *entry, Varnumber::from(entry_data.width));
-            tv_list_append_list(&mut *rettv.vval.v_list(), entry);
+            tv_list_append_list(rettv.vval.v_list_ref(), entry);
         }
     }
 }

@@ -4006,7 +4006,7 @@ pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             }
             what_list = argvars[0].vval.v_list();
         }
-        get_complete_info(what_list.as_ref(), &mut *rettv.vval.v_dict());
+        get_complete_info(what_list.as_ref(), rettv.vval.v_dict_ref());
     }
 }
 

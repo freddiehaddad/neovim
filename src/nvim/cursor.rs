@@ -96,7 +96,7 @@ pub fn getviscol() -> i32 {
     {
         let mut x: Colnr = 0;
         getvvcol(
-            unsafe { &mut *(curwin_ptr()) },
+            curwin_mut(),
             &mut curwin_mut().w_cursor,
             Some(&mut x),
             None,
@@ -116,14 +116,7 @@ pub fn getviscol2(col: Colnr, coladd: Colnr) -> i32 {
             col,
             coladd,
         };
-        getvvcol(
-            unsafe { &mut *(curwin_ptr()) },
-            &mut pos,
-            Some(&mut x),
-            None,
-            None,
-            0,
-        );
+        getvvcol(curwin_mut(), &mut pos, Some(&mut x), None, None, 0);
         x as i32
     }
 }
@@ -479,7 +472,7 @@ pub fn adjust_cursor_col() {
 
 /// Set `curwin->w_leftcol` to `leftcol` (`set_leftcol`).
 pub fn set_leftcol(leftcol: Colnr) -> bool {
-    unsafe {
+    {
         if curwin_mut().w_leftcol == leftcol {
             return false;
         }
@@ -507,7 +500,7 @@ pub fn set_leftcol(leftcol: Colnr) -> bool {
         let mut s: Colnr = 0;
         let mut e: Colnr = 0;
         getvvcol(
-            &mut *(curwin_ptr()),
+            curwin_mut(),
             &mut curwin_mut().w_cursor,
             Some(&mut s),
             None,

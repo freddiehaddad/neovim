@@ -3982,7 +3982,7 @@ pub fn do_return(
     mut rettv: Option<TypVal>,
 ) -> bool {
     unsafe {
-        let cstack = &mut *eap.cstack.cast::<Cstack>();
+        let cstack = eap.cstack_mut();
 
         if reanimate {
             cur_funccal_mut().fc_returned = 0;

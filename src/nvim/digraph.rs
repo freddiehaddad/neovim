@@ -1853,7 +1853,7 @@ fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
 }
 
 pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
-    unsafe {
+    {
         let user_slice = digr_st().user_digraphs.as_slice();
         let cap = (DIGRAPHDEFAULT.len() + user_slice.len()) as isize;
         tv_list_alloc_ret(&mut *rettv, cap);
@@ -1869,7 +1869,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
                     result: getexactdigraph(i32::from(dp.char1), i32::from(dp.char2), false),
                 };
                 if tmp.result != 0 && tmp.result != i32::from(tmp.char2) {
-                    digraph_getlist_appendpair(&tmp, &mut *rettv.vval.v_list());
+                    digraph_getlist_appendpair(&tmp, rettv.vval.v_list_ref());
                 }
             }
         }
@@ -1878,7 +1878,7 @@ pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
             if g_st().got_int {
                 break;
             }
-            digraph_getlist_appendpair(dp, &mut *rettv.vval.v_list());
+            digraph_getlist_appendpair(dp, rettv.vval.v_list_ref());
         }
     }
 }

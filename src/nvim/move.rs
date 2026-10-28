@@ -1669,7 +1669,7 @@ pub fn scrollup(wp: &mut WinInfoInfo, line_count: Linenr, byfold: bool) -> bool 
 
 /// Make sure that `curwin->w_skipcol` is valid for `'smoothscroll'`.
 pub fn adjust_skipcol() {
-    unsafe {
+    {
         if curwin_mut().w_onebuf_opt.wo_wrap == 0
             || curwin_mut().w_onebuf_opt.wo_sms == 0
             || curwin_mut().w_cursor.lnum != curwin_mut().w_topline
@@ -1700,7 +1700,7 @@ pub fn adjust_skipcol() {
         }
 
         validate_virtcol(curwin_mut());
-        let overlap = sms_marker_overlap(&mut *(curwin_ptr()), curwin_mut().w_view_width - width2);
+        let overlap = sms_marker_overlap(curwin_mut(), curwin_mut().w_view_width - width2);
         while curwin_mut().w_skipcol > 0
             && i64::from(curwin_mut().w_virtcol)
                 < i64::from(curwin_mut().w_skipcol + overlap) + scrolloff_cols
@@ -1783,11 +1783,7 @@ pub fn scrolldown_clamp() {
         if can_fill {
             end_row += 1;
         } else {
-            end_row += plines_win_nofill(
-                unsafe { &mut *(curwin_ptr()) },
-                curwin_mut().w_topline - 1,
-                true,
-            );
+            end_row += plines_win_nofill(curwin_mut(), curwin_mut().w_topline - 1, true);
         }
         if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_view_width != 0 {
             validate_cheight(curwin_mut());
@@ -1820,7 +1816,7 @@ pub fn scrolldown_clamp() {
 
 /// Scroll the screen one line up, without moving the cursor off the screen.
 pub fn scrollup_clamp() {
-    unsafe {
+    {
         if curwin_mut().w_topline == curbuf_mut().b_ml.ml_line_count && curwin_mut().w_topfill == 0
         {
             return;
@@ -1829,7 +1825,7 @@ pub fn scrollup_clamp() {
         validate_cursor(curwin_mut());
 
         let mut start_row = curwin_mut().w_wrow
-            - plines_win_nofill(&mut *(curwin_ptr()), curwin_mut().w_topline, true)
+            - plines_win_nofill(curwin_mut(), curwin_mut().w_topline, true)
             - curwin_mut().w_topfill;
         if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_view_width != 0 {
             validate_virtcol(curwin_mut());
@@ -2460,7 +2456,7 @@ fn get_scroll_overlap(dir: Direction) -> i32 {
             height: if fill > 0 {
                 1
             } else {
-                plines_win_nofill(unsafe { &mut *(curwin_ptr()) }, lnum, true)
+                plines_win_nofill(curwin_mut(), lnum, true)
             },
         };
 
@@ -2568,13 +2564,8 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
                 && (curwin_mut().w_topline + curwin_mut().w_view_height + count > buflen
                     || win_lines_concealed(curwin_mut()))
             {
-                let mut n = plines_correct_topline(
-                    unsafe { &mut *(curwin_ptr()) },
-                    curwin_mut().w_topline,
-                    None,
-                    false,
-                    None,
-                );
+                let mut n =
+                    plines_correct_topline(curwin_mut(), curwin_mut().w_topline, None, false, None);
                 if n - count < curwin_mut().w_view_height && curwin_mut().w_topline < buflen {
                     n += plines_m_win(
                         curwin_mut(),

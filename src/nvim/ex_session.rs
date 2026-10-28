@@ -1110,14 +1110,8 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                         shorten_fnames(1);
                     }
                 } else {
-                    failed |= !put_view(
-                        fd,
-                        &mut *(curwin_ptr()),
-                        curtab_mut(),
-                        !using_vdir,
-                        &mut *flagp,
-                        -1,
-                    );
+                    failed |=
+                        !put_view(fd, curwin_mut(), curtab_mut(), !using_vdir, &mut *flagp, -1);
                 }
                 if !write_bytes(fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                     failed = true;

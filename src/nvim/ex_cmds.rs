@@ -57,7 +57,7 @@ use crate::ex_docmd::{
     CMOD_CONFIRM, CMOD_KEEPALT, CMOD_KEEPMARKS, CMOD_KEEPPATTERNS, CMOD_LOCKMARKS, Exarg,
     before_quit_all, check_nextcmd, do_cmdline, ex_may_print, not_exiting,
 };
-use crate::ex_eval::{Cstack, aborting, should_abort};
+use crate::ex_eval::{aborting, should_abort};
 use crate::ex_getln::{curbuf_locked, gotocmdline, text_locked};
 use crate::extmark::{Bcount, K_EXTMARK_NOOP, K_EXTMARK_UNDO, extmark_move_region, extmark_splice};
 use crate::fileio::{
@@ -1752,7 +1752,7 @@ fn do_filter(
                         }
                         write_lnum_adjust(-linecount);
                         fold_update(
-                            unsafe { &mut *(curwin_ptr()) },
+                            curwin_mut(),
                             curbuf_mut().b_op_start.lnum,
                             curbuf_mut().b_op_end.lnum,
                         );
@@ -3353,7 +3353,7 @@ pub fn do_ecmd(
         if (!bufref_valid(Some(&old_curbuf)) || g_st().curbuf != old_curbuf.br_buf)
             && !curbuf_mut().terminal.is_null()
         {
-            terminal_check_size(&mut *curbuf_mut().terminal);
+            terminal_check_size(curbuf_mut().terminal_mut());
         }
 
         if did_inc_redrawing_disabled {
@@ -3413,7 +3413,7 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<c_char>> {
         } else {
             let getline_state = g_st().state_global;
             g_st().state_global = MODE_CMDLINE;
-            let cstack = &mut *eap.cstack.cast::<Cstack>();
+            let cstack = eap.cstack_mut();
             let raw_line = eap.ea_getline.call(
                 if cstack.cs_looplevel > 0 {
                     -1

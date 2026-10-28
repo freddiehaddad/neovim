@@ -187,7 +187,7 @@ fn output_mouse(
     mut col: i32,
     mut row: i32,
 ) {
-    unsafe {
+    {
         modifiers <<= 2;
 
         match state.mouse_protocol {
@@ -212,7 +212,7 @@ fn output_mouse(
                     (col + 0x21) as u8,
                     (row + 0x21) as u8,
                 ];
-                vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, &payload);
+                vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, &payload);
             }
             MOUSE_UTF8 => {
                 let mut utf8 = [0u8; 19];
@@ -236,12 +236,12 @@ fn output_mouse(
                     utf8.as_mut_ptr().wrapping_add(len).cast::<c_char>(),
                 ) as usize;
 
-                vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, &utf8[..len]);
+                vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, &utf8[..len]);
             }
             MOUSE_SGR => {
                 let ch = if pressed != 0 { 'M' } else { 'm' };
                 let s = format!("<{};{};{}{ch}", code | modifiers, col + 1, row + 1);
-                vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, s.as_bytes());
+                vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
             }
             MOUSE_RXVT => {
                 if pressed == 0 {
@@ -249,7 +249,7 @@ fn output_mouse(
                 }
 
                 let s = format!("{};{};{}M", code | modifiers, col + 1, row + 1);
-                vterm_push_output_ctrl_bytes(&mut *state.vt, C1_CSI, s.as_bytes());
+                vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
             }
             _ => {}
         }

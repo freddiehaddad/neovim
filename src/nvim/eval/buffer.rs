@@ -821,7 +821,7 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             }
 
             let d = get_buffer_info(&mut *buf);
-            tv_list_append_dict(&mut *rettv.vval.v_list(), d);
+            tv_list_append_dict(rettv.vval.v_list_ref(), d);
             if !argbuf.is_null() {
                 return;
             }
@@ -837,7 +837,7 @@ fn get_buffer_lines(
     retlist: bool,
     rettv: &mut TypVal,
 ) {
-    unsafe {
+    {
         rettv.v_type = if retlist {
             VarType::VarList
         } else {
@@ -866,7 +866,7 @@ fn get_buffer_lines(
             tv_list_alloc_ret(&mut *rettv, (end - start + 1) as isize);
             while start <= end {
                 tv_list_append_string(
-                    &mut *rettv.vval.v_list(),
+                    rettv.vval.v_list_ref(),
                     ml_get_buf(buf.as_deref_mut().unwrap(), start),
                     ml_get_buf_len(buf.as_deref_mut().unwrap(), start) as isize,
                 );

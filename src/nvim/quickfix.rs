@@ -7780,7 +7780,7 @@ fn get_qf_loc_list(
     if what_arg.v_type == VarType::VarUnknown {
         tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_MAY_KNOW_CONST);
         if is_qf || wp.is_some() {
-            get_errorlist(None, wp, -1, 0, unsafe { &mut *rettv.vval.v_list() });
+            get_errorlist(None, wp, -1, 0, rettv.vval.v_list_ref());
         }
     } else {
         tv_dict_alloc_ret(rettv);
@@ -7789,7 +7789,7 @@ fn get_qf_loc_list(
                 let d = what_arg.vval.v_dict();
                 if !d.is_null() {
                     unsafe {
-                        qf_get_properties(wp, &mut *d, &mut *rettv.vval.v_dict());
+                        qf_get_properties(wp, &mut *d, rettv.vval.v_dict_ref());
                     }
                 }
             } else {

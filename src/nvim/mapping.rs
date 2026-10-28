@@ -2648,7 +2648,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                         &mut crate::api::private::validate::Error::new(),
                     );
                     debug_assert!(d.v_type == VarType::VarDict);
-                    tv_list_append_dict(unsafe { &mut *rettv.vval.v_list() }, d.vval.v_dict());
+                    tv_list_append_dict(rettv.vval.v_list_ref(), d.vval.v_dict());
                     arena_mem_free(arena_finish(&mut arena));
                 }
             }

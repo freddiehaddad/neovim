@@ -656,7 +656,7 @@ pub fn f_filewritable(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 }
 
 fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
-    unsafe {
+    {
         let mut fresult: Option<std::ffi::CString> = None;
         let mut path = if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
             opt_vars().p_path
@@ -726,7 +726,7 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
                 if let Some(ref res) = fresult
                     && rettv.v_type == VarType::VarList
                 {
-                    tv_list_append_string(&mut *rettv.vval.v_list(), res.as_ptr(), -1);
+                    tv_list_append_string(rettv.vval.v_list_ref(), res.as_ptr(), -1);
                 }
 
                 let keep_going = rettv.v_type == VarType::VarList || {
@@ -1140,7 +1140,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
                 for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
                     tv_list_append_string(
-                        unsafe { &mut *rettv.vval.v_list() },
+                        rettv.vval.v_list_ref(),
                         f.as_ptr(),
                         f.as_bytes().len() as isize,
                     );
@@ -1199,7 +1199,7 @@ pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 tv_list_alloc_ret(rettv, ga.len() as isize);
                 for s in &ga {
                     tv_list_append_string(
-                        unsafe { &mut *rettv.vval.v_list() },
+                        rettv.vval.v_list_ref(),
                         s.as_ptr(),
                         s.as_bytes().len() as isize,
                     );
@@ -1447,7 +1447,7 @@ pub fn f_readdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         let ret = readdir_core(&mut entries, path, unsafe { expr.as_mut() });
         if ret {
             for entry in &entries {
-                tv_list_append_string(unsafe { &mut *rettv.vval.v_list() }, entry.as_ptr(), -1);
+                tv_list_append_string(rettv.vval.v_list_ref(), entry.as_ptr(), -1);
             }
         }
     }

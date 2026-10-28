@@ -92,6 +92,13 @@ struct Fline {
     had_end: i32,
 }
 
+impl Fline {
+    #[inline]
+    fn wp_mut(&self) -> &'static mut WinInfoInfo {
+        unsafe { &mut *self.wp }
+    }
+}
+
 struct FoldModuleState {
     fold_changed: bool,
     invalid_top: Linenr,
@@ -1937,7 +1944,7 @@ fn fold_update_iemsrecurse(
         let mut startlnum2 = startlnum;
         let firstlnum = flp.lnum;
         let mut finish = false;
-        let linecount = (*{ &mut *flp.wp }.w_buffer).b_ml.ml_line_count - flp.off;
+        let linecount = (*flp.wp_mut().w_buffer).b_ml.ml_line_count - flp.off;
 
         flp.lnum_save = flp.lnum;
         while !g_st().got_int {
@@ -2093,12 +2100,12 @@ fn fold_update_iemsrecurse(
                         fp.fd_top = firstlnum;
                         fp.fd_len = bot - firstlnum + 1;
                         if topflags == FD_OPEN {
-                            { &mut *flp.wp }.w_fold_manual = true;
+                            flp.wp_mut().w_fold_manual = true;
                             fp.fd_flags = FD_OPEN;
                         } else if i == 0 {
                             fp.fd_flags = topflags;
                             if topflags != FD_LEVEL {
-                                { &mut *flp.wp }.w_fold_manual = true;
+                                flp.wp_mut().w_fold_manual = true;
                             }
                         } else {
                             fp.fd_flags = prev_flags;
@@ -2468,12 +2475,12 @@ fn fold_merge(gap: &mut Vec<FoldEntry>, idx1: usize) {
 fn foldlevel_indent(flp: &mut Fline) {
     unsafe {
         let lnum = flp.lnum + flp.off;
-        let buf = { &mut *flp.wp }.w_buffer;
+        let buf = flp.wp_mut().w_buffer;
         let s = skipwhite(ml_get_buf(&mut *buf, lnum));
 
         if crate::memory::cstr_is_empty(s)
             || crate::strings::vim_haschr(
-                { &mut *flp.wp }.w_onebuf_opt.wo_fdi,
+                flp.wp_mut().w_onebuf_opt.wo_fdi,
                 crate::memory::cstr_first_byte(s) as i32,
             )
         {
@@ -2485,25 +2492,23 @@ fn foldlevel_indent(flp: &mut Fline) {
         } else {
             flp.lvl = get_indent_buf(&mut *buf, lnum) / get_sw_value(&mut *buf);
         }
-        flp.lvl = flp
-            .lvl
-            .min({ &mut *flp.wp }.w_onebuf_opt.wo_fdn.max(0) as i32);
+        flp.lvl = flp.lvl.min(flp.wp_mut().w_onebuf_opt.wo_fdn.max(0) as i32);
     }
 }
 
 fn foldlevel_diff(flp: &mut Fline) {
-    unsafe {
-        flp.lvl = i32::from(diff_infold(&mut *flp.wp, flp.lnum + flp.off));
+    {
+        flp.lvl = i32::from(diff_infold(flp.wp_mut(), flp.lnum + flp.off));
     }
 }
 
 fn foldlevel_expr(flp: &mut Fline) {
-    unsafe {
+    {
         let lnum = flp.lnum + flp.off;
 
         let win = curwin_ptr();
         set_curwin(flp.wp);
-        g_st().curbuf = { &mut *flp.wp }.w_buffer;
+        g_st().curbuf = flp.wp_mut().w_buffer;
         set_vim_var_nr(VV_LNUM, Varnumber::from(lnum));
 
         flp.start = 0;
@@ -2515,7 +2520,7 @@ fn foldlevel_expr(flp: &mut Fline) {
 
         let save_keytyped = g_st().key_typed;
         let mut c: i32 = 0;
-        let n = eval_foldexpr(&mut *flp.wp, &mut c);
+        let n = eval_foldexpr(flp.wp_mut(), &mut c);
         g_st().key_typed = save_keytyped;
 
         match c as u8 {
@@ -2586,7 +2591,7 @@ fn parse_marker(wp: &mut WinInfoInfo) {
 fn foldlevel_marker(flp: &mut Fline) {
     unsafe {
         let start_lvl = flp.lvl;
-        let startmarker_full = { &mut *flp.wp }.w_onebuf_opt.wo_fmr;
+        let startmarker_full = flp.wp_mut().w_onebuf_opt.wo_fmr;
         let cstart = *startmarker_full;
         let startmarker = startmarker_full.wrapping_add(1);
         let cend = *fold_st().foldendmarker;
@@ -2600,7 +2605,7 @@ fn foldlevel_marker(flp: &mut Fline) {
         flp.start = 0;
         flp.lvl_next = flp.lvl;
 
-        let mut s = ml_get_buf(&mut *{ &mut *flp.wp }.w_buffer, flp.lnum + flp.off);
+        let mut s = ml_get_buf(flp.wp_mut().buf_mut(), flp.lnum + flp.off);
         while !crate::memory::cstr_is_empty(s) {
             let rem_bytes = &crate::memory::cstr_as_bytes(s)[1..];
             if *s == cstart && rem_bytes.starts_with(start_rest) {
@@ -2643,10 +2648,10 @@ fn foldlevel_syntax(flp: &mut Fline) {
     unsafe {
         let lnum = flp.lnum + flp.off;
 
-        flp.lvl = syn_get_foldlevel(&mut *flp.wp, lnum);
+        flp.lvl = syn_get_foldlevel(flp.wp_mut(), lnum);
         flp.start = 0;
-        if lnum < (*{ &mut *flp.wp }.w_buffer).b_ml.ml_line_count {
-            let n = syn_get_foldlevel(&mut *flp.wp, lnum + 1);
+        if lnum < (*flp.wp_mut().w_buffer).b_ml.ml_line_count {
+            let n = syn_get_foldlevel(flp.wp_mut(), lnum + 1);
             if n > flp.lvl {
                 flp.start = n - flp.lvl;
                 flp.lvl = n;

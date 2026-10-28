@@ -445,6 +445,11 @@ pub struct FileBuf {
 }
 
 impl FileBuf {
+    #[inline]
+    pub fn terminal_mut(&self) -> &'static mut Terminal {
+        unsafe { &mut *self.terminal }
+    }
+
     pub const fn new() -> Self {
         const ZERO_POS: CursorPos = CursorPos {
             lnum: 0,
@@ -2680,7 +2685,7 @@ fn enter_buffer(buf: *mut FileBuf) {
         curbuf_mut().b_last_used = os_time() as i64;
 
         if !curbuf_mut().terminal.is_null() {
-            terminal_check_size(&mut *curbuf_mut().terminal);
+            terminal_check_size(curbuf_mut().terminal_mut());
         }
 
         redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);

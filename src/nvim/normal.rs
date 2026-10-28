@@ -4653,7 +4653,7 @@ fn nv_scroll(cap: &mut Cmdarg) {
                         ptr::null_mut(),
                     );
                     n += i32::from(decor_conceal_line(
-                        unsafe { &mut *(curwin_ptr()) },
+                        curwin_mut(),
                         curwin_mut().w_cursor.lnum,
                         true,
                     ));
@@ -4704,7 +4704,7 @@ fn nv_scroll(cap: &mut Cmdarg) {
                 n = cap.count1 - 1;
                 if win_lines_concealed(curwin_mut()) {
                     lnum = curwin_mut().w_topline;
-                    while (decor_conceal_line(unsafe { &mut *(curwin_ptr()) }, lnum - 1, true) || {
+                    while (decor_conceal_line(curwin_mut(), lnum - 1, true) || {
                         let prev = n;
                         n -= 1;
                         prev > 0
@@ -6397,7 +6397,7 @@ fn nv_gv_cmd(cap: &mut Cmdarg) {
 }
 
 pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
-    unsafe {
+    {
         let mut i: i32;
         let flag = cap.nchar == b'^' as i32;
 
@@ -6415,7 +6415,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
 
             if curwin_mut().w_skipcol > 0 && curwin_mut().w_cursor.lnum == curwin_mut().w_topline {
                 let overlap = crate::r#move::sms_marker_overlap(
-                    &mut *(curwin_ptr()),
+                    curwin_mut(),
                     curwin_mut().w_view_width - width2,
                 );
                 if overlap > 0 && i == curwin_mut().w_skipcol {
@@ -6527,7 +6527,7 @@ fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
             if curwin_mut().w_cursor.col > 0 && utf_ptr2cells(get_cursor_pos_ptr()) > 1 {
                 let mut vcol: Colnr = 0;
                 getvvcol(
-                    &mut *(curwin_ptr()),
+                    curwin_mut(),
                     &mut curwin_mut().w_cursor,
                     None,
                     None,

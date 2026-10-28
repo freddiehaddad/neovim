@@ -1280,7 +1280,7 @@ fn get_arglist_as_rettv(arglist_ptr: *mut Aentry, count: i32, rettv: &mut TypVal
         if !arglist_ptr.is_null() {
             for idx in 0..(count as usize) {
                 tv_list_append_string(
-                    &mut *rettv.vval.v_list(),
+                    rettv.vval.v_list_ref(),
                     alist_name(&*arglist_ptr.wrapping_add(idx)),
                     -1,
                 );

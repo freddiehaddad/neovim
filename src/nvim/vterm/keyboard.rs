@@ -128,6 +128,11 @@ pub struct VTermStateFull {
 
 impl VTermStateFull {
     #[inline]
+    pub fn vt_mut(&self) -> &'static mut VTerm {
+        unsafe { &mut *self.vt }
+    }
+
+    #[inline]
     pub fn screen_ptr(&self) -> *mut VTermScreen {
         unsafe { (*self.vt).screen_mut_ptr() }
     }

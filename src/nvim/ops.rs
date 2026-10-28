@@ -2330,22 +2330,8 @@ pub fn getregionpos_prep(
             let mut sc2: Colnr = 0;
             let mut ec2: Colnr = 0;
             let lbr_saved = reset_lbr();
-            getvvcol(
-                &mut *(curwin_ptr()),
-                p1,
-                Some(&mut sc1),
-                None,
-                Some(&mut ec1),
-                0,
-            );
-            getvvcol(
-                &mut *(curwin_ptr()),
-                p2,
-                Some(&mut sc2),
-                None,
-                Some(&mut ec2),
-                0,
-            );
+            getvvcol(curwin_mut(), p1, Some(&mut sc1), None, Some(&mut ec1), 0);
+            getvvcol(curwin_mut(), p2, Some(&mut sc2), None, Some(&mut ec2), 0);
             restore_lbr(lbr_saved);
             oap.motion_type = MT_BLOCK_WISE;
             oap.inclusive = true;
@@ -3576,7 +3562,7 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
         mark_mb_adjustpos(curwin_mut().w_buffer, &mut oap.end);
 
         getvvcol(
-            unsafe { &mut *(curwin_ptr()) },
+            curwin_mut(),
             &mut oap.start,
             Some(&mut oap.start_vcol),
             None,
@@ -3584,7 +3570,7 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
             0,
         );
         getvvcol(
-            unsafe { &mut *(curwin_ptr()) },
+            curwin_mut(),
             &mut oap.end,
             Some(&mut start),
             None,
@@ -3611,7 +3597,7 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
             curwin_mut().w_cursor.lnum = oap.start.lnum;
             while curwin_mut().w_cursor.lnum <= oap.end.lnum {
                 getvvcol(
-                    unsafe { &mut *(curwin_ptr()) },
+                    curwin_mut(),
                     &mut curwin_mut().w_cursor,
                     None,
                     None,
@@ -3663,7 +3649,7 @@ fn op_ins_visual(oap: &mut Oparg, cap: &mut Cmdarg) -> VisualIns {
 }
 
 pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
-    unsafe {
+    {
         let oap = cap.oap_mut();
         let lbr_saved = curwin_mut().w_onebuf_opt.wo_lbr != 0;
 
@@ -3788,7 +3774,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     } else {
                         if g_st().visual_global.mode != CTRL_V_CONST {
                             getvvcol(
-                                &mut *(curwin_ptr()),
+                                curwin_mut(),
                                 &mut oap.end,
                                 None,
                                 None,
@@ -3799,7 +3785,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                         if g_st().visual_global.mode == CTRL_V_CONST || oap.line_count <= 1 {
                             if g_st().visual_global.mode != CTRL_V_CONST {
                                 getvvcol(
-                                    &mut *(curwin_ptr()),
+                                    curwin_mut(),
                                     &mut oap.start,
                                     Some(&mut oap.start_vcol),
                                     None,

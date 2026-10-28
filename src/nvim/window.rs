@@ -2061,7 +2061,7 @@ pub fn win_split_ins(
             let mut minwidth: i32;
             let available: i32;
             if toplevel {
-                minwidth = frame_minwidth(&mut *g_st().topframe, nowin());
+                minwidth = frame_minwidth(topframe_mut(), nowin());
                 available = crate::globals::topframe_mut().fr_width;
                 needed += minwidth;
             } else if opt_vars().p_ea != 0 {
@@ -2132,7 +2132,7 @@ pub fn win_split_ins(
             let mut minheight: i32;
             let available: i32;
             if toplevel {
-                minheight = frame_minheight(&mut *g_st().topframe, nowin()) + need_status;
+                minheight = frame_minheight(topframe_mut(), nowin()) + need_status;
                 available = crate::globals::topframe_mut().fr_height;
                 needed += minheight;
             } else if opt_vars().p_ea != 0 {
@@ -2973,7 +2973,7 @@ fn get_maximum_wincount(fr: &mut Frame, mut height: i32) -> i32 {
 }
 
 pub fn win_equal(next_curwin: *mut WinInfoInfo, current: bool, mut dir: i32) {
-    unsafe {
+    {
         if dir == 0 {
             dir = i32::from(crate::memory::cstr_first_byte(opt_vars().p_ead));
         }
@@ -2984,7 +2984,7 @@ pub fn win_equal(next_curwin: *mut WinInfoInfo, current: bool, mut dir: i32) {
                 next_curwin
             },
             current,
-            &mut *g_st().topframe,
+            topframe_mut(),
             dir,
             0,
             tabline_height(),
@@ -5206,7 +5206,7 @@ pub fn win_new_tabpage(
         last_status(false);
 
         if !curbuf_mut().terminal.is_null() {
-            terminal_check_size(&mut *curbuf_mut().terminal);
+            terminal_check_size(curbuf_mut().terminal_mut());
         }
 
         if enter {
@@ -6466,7 +6466,7 @@ pub fn win_new_screen_rows() {
         if g_st().firstwin.is_null() {
             return;
         }
-        let h = (rows_avail() as i32).max(frame_minheight(&mut *g_st().topframe, ptr::null_mut()));
+        let h = (rows_avail() as i32).max(frame_minheight(topframe_mut(), ptr::null_mut()));
 
         frame_new_height(&mut *(g_st().topframe), h, false, true, false);
         if !frame_check_height(&*g_st().topframe, h) {
@@ -6490,9 +6490,9 @@ pub fn win_new_screen_cols() {
             return;
         }
 
-        frame_new_width(&mut *g_st().topframe, g_st().columns_global, false, true);
+        frame_new_width(topframe_mut(), g_st().columns_global, false, true);
         if !frame_check_width(&*g_st().topframe, g_st().columns_global) {
-            frame_new_width(&mut *g_st().topframe, g_st().columns_global, false, false);
+            frame_new_width(topframe_mut(), g_st().columns_global, false, false);
         }
 
         win_comp_pos();
@@ -6850,7 +6850,7 @@ pub fn win_comp_pos() -> i32 {
         let mut row = tabline_height();
         let mut col: i32 = 0;
 
-        frame_comp_pos(&mut *g_st().topframe, &mut row, &mut col);
+        frame_comp_pos(topframe_mut(), &mut row, &mut col);
 
         let mut wp = g_st().lastwin;
         while !wp.is_null() && (*wp).w_floating {
@@ -7200,11 +7200,11 @@ pub fn did_set_winminheight(_args: &mut Optset) -> *const c_char {
 }
 
 pub fn did_set_winminwidth(_args: &mut Optset) -> *const c_char {
-    unsafe {
+    {
         let mut first = true;
         while opt_vars().p_wmw > 0 {
             let room = g_st().columns_global;
-            let needed = frame_minwidth(&mut *g_st().topframe, ptr::null_mut());
+            let needed = frame_minwidth(topframe_mut(), ptr::null_mut());
             if room >= needed {
                 break;
             }
@@ -7770,9 +7770,9 @@ fn frame_add_height(mut frp: *mut Frame, n: i32) {
 }
 
 pub fn last_status(morewin: bool) {
-    unsafe {
+    {
         last_status_rec(
-            &mut *g_st().topframe,
+            topframe_mut(),
             last_stl_height(morewin) > 0,
             global_stl_height() > 0,
         );
@@ -8130,8 +8130,8 @@ pub fn reset_lnums() {
 }
 
 pub fn make_snapshot(idx: i32) {
-    unsafe {
-        curtab_mut().tp_snapshot[idx as usize] = Some(make_snapshot_rec(&mut *g_st().topframe));
+    {
+        curtab_mut().tp_snapshot[idx as usize] = Some(make_snapshot_rec(topframe_mut()));
     }
 }
 
@@ -8182,13 +8182,13 @@ fn get_snapshot_curwin(idx: i32) -> *mut WinInfoInfo {
 }
 
 pub fn restore_snapshot(idx: i32, close_curwin: i32) {
-    unsafe {
+    {
         if let Some(sn) = curtab_mut().tp_snapshot[idx as usize].take()
             && sn.fr_width == crate::globals::topframe_mut().fr_width
             && sn.fr_height == crate::globals::topframe_mut().fr_height
-            && check_snapshot_rec(&sn, &mut *g_st().topframe)
+            && check_snapshot_rec(&sn, topframe_mut())
         {
-            let wp = restore_snapshot_rec(&sn, &mut *g_st().topframe);
+            let wp = restore_snapshot_rec(&sn, topframe_mut());
             win_comp_pos();
             if !wp.is_null() && close_curwin != 0 {
                 win_goto(wp);

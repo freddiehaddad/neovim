@@ -2467,11 +2467,11 @@ pub fn f_charidx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 }
 
 pub fn f_str2list(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
+    {
         tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
         let mut p = tv_get_string(&argvars[0]);
         while !crate::memory::cstr_is_empty(p) {
-            tv_list_append_number(&mut *rettv.vval.v_list(), Varnumber::from(utf_ptr2char(p)));
+            tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(utf_ptr2char(p)));
             p = p.wrapping_add(utf_ptr2len(p) as usize);
         }
     }

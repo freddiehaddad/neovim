@@ -50,6 +50,13 @@ struct UiCompositorState {
 }
 
 impl UiCompositorState {
+    #[inline]
+    fn curgrid_mut(&self) -> &'static mut ScreenGrid {
+        unsafe { &mut *self.curgrid }
+    }
+}
+
+impl UiCompositorState {
     const fn new() -> Self {
         Self {
             composed_uis: 0,
@@ -283,7 +290,7 @@ pub fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
 
 pub fn ui_comp_set_grid(handle: ObjHandle) -> bool {
     unsafe {
-        if { &mut *comp().curgrid }.handle == handle {
+        if comp().curgrid_mut().handle == handle {
             return true;
         }
         for &g in layers_mut().iter() {
@@ -327,17 +334,17 @@ pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
         if !ui_comp_set_grid(grid_handle as i32) {
             return;
         }
-        let cursor_row = { &mut *comp().curgrid }.comp_row + (r as i32);
-        let cursor_col = { &mut *comp().curgrid }.comp_col + (c as i32);
+        let cursor_row = comp().curgrid_mut().comp_row + (r as i32);
+        let cursor_col = comp().curgrid_mut().comp_col + (c as i32);
 
         if !ptr::eq(comp().curgrid, &raw const g_st().default_grid) {
             let l = layers_mut();
             let mut new_index = l.len() - 1;
-            while new_index > 1 && (*l[new_index]).zindex > { &mut *comp().curgrid }.zindex {
+            while new_index > 1 && (*l[new_index]).zindex > comp().curgrid_mut().zindex {
                 new_index -= 1;
             }
-            if { &mut *comp().curgrid }.comp_index < new_index {
-                ui_comp_raise_grid(&mut *comp().curgrid, new_index);
+            if comp().curgrid_mut().comp_index < new_index {
+                ui_comp_raise_grid(comp().curgrid_mut(), new_index);
             }
         }
 
@@ -674,10 +681,10 @@ pub fn ui_comp_raw_line(
             return;
         }
 
-        row += { &mut *comp().curgrid }.comp_row as Integer;
-        startcol += { &mut *comp().curgrid }.comp_col as Integer;
-        endcol += { &mut *comp().curgrid }.comp_col as Integer;
-        clearcol += { &mut *comp().curgrid }.comp_col as Integer;
+        row += comp().curgrid_mut().comp_row as Integer;
+        startcol += comp().curgrid_mut().comp_col as Integer;
+        endcol += comp().curgrid_mut().comp_col as Integer;
+        clearcol += comp().curgrid_mut().comp_col as Integer;
         if !ptr::eq(comp().curgrid, &raw const g_st().default_grid) {
             flags &= !K_LINE_FLAG_WRAP;
         }
@@ -697,7 +704,7 @@ pub fn ui_comp_raw_line(
 
         let covered =
             curgrid_covered_above(row as i32, row as i32, startcol as i32, clearcol as i32);
-        if (flags & K_LINE_FLAG_INVALID) != 0 || covered || { &mut *comp().curgrid }.blending {
+        if (flags & K_LINE_FLAG_INVALID) != 0 || covered || comp().curgrid_mut().blending {
             compose_debug(
                 row,
                 row + 1,
@@ -802,7 +809,7 @@ fn curgrid_covered_above(top: i32, bot: i32, left: i32, right: i32) -> bool {
     unsafe {
         for &g in layers_mut()
             .iter()
-            .skip({ &mut *comp().curgrid }.comp_index + 1)
+            .skip(comp().curgrid_mut().comp_index + 1)
         {
             let g = &*g;
             let grid_top = g.comp_row
@@ -836,13 +843,13 @@ pub fn ui_comp_grid_scroll(
         if !ui_comp_should_draw() || !ui_comp_set_grid(grid as i32) {
             return;
         }
-        top += { &mut *comp().curgrid }.comp_row as Integer;
-        bot += { &mut *comp().curgrid }.comp_row as Integer;
-        left += { &mut *comp().curgrid }.comp_col as Integer;
-        right += { &mut *comp().curgrid }.comp_col as Integer;
+        top += comp().curgrid_mut().comp_row as Integer;
+        bot += comp().curgrid_mut().comp_row as Integer;
+        left += comp().curgrid_mut().comp_col as Integer;
+        right += comp().curgrid_mut().comp_col as Integer;
         let covered = curgrid_covered_above(top as i32, bot as i32, left as i32, right as i32);
 
-        if covered || { &mut *comp().curgrid }.blending {
+        if covered || comp().curgrid_mut().blending {
             compose_debug(top, bot, left, right, comp().dbghl_recompose, true);
             let start_r = (top + (-rows).max(0)) as i32;
             let end_r = (bot - rows.max(0)) as i32;

@@ -1796,14 +1796,14 @@ pub fn nvim_paste(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Boolean {
-    unsafe {
+    {
         if !validate_int((-1..=3).contains(&phase), c"phase", phase, err) {
             return false;
         }
         if phase == -1 || phase == 1 {
             api_vim_st().paste_cancelled = false;
             if !curbuf_mut().terminal.is_null() {
-                terminal_set_streamed_paste(&mut *curbuf_mut().terminal, true);
+                terminal_set_streamed_paste(curbuf_mut().terminal_mut(), true);
             }
         } else if api_vim_st().paste_cancelled {
             let retval = !api_vim_st().paste_cancelled;
@@ -1834,7 +1834,7 @@ pub fn nvim_paste(
         if (phase == -1 || phase == 3 || api_vim_st().paste_cancelled)
             && !curbuf_mut().terminal.is_null()
         {
-            terminal_set_streamed_paste(&mut *curbuf_mut().terminal, false);
+            terminal_set_streamed_paste(curbuf_mut().terminal_mut(), false);
         }
         let null_str = NvimString {
             data: ptr::null_mut(),

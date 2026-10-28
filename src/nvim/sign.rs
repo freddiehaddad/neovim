@@ -1505,8 +1505,8 @@ pub fn f_sign_define(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     {
         if argvars[0].v_type == VarType::VarList && argvars[1].v_type == VarType::VarUnknown {
             tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-            sign_define_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe {
-                &mut *rettv.vval.v_list()
+            sign_define_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, {
+                rettv.vval.v_list_ref()
             });
             return;
         }
@@ -1540,12 +1540,12 @@ pub fn f_sign_getdefined(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
         if argvars[0].v_type == VarType::VarUnknown {
             for sp in &mut sign_st().sign_map {
-                tv_list_append_dict(&mut *rettv.vval.v_list(), sign_get_info_dict(sp));
+                tv_list_append_dict(rettv.vval.v_list_ref(), sign_get_info_dict(sp));
             }
         } else {
             let sp = pmap_get_sign(tv_get_string(&argvars[0]));
             if !sp.is_null() {
-                tv_list_append_dict(&mut *rettv.vval.v_list(), sign_get_info_dict(&mut *sp));
+                tv_list_append_dict(rettv.vval.v_list_ref(), sign_get_info_dict(&mut *sp));
             }
         }
     }
@@ -1599,13 +1599,7 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
             }
         }
 
-        sign_get_placed(
-            buf.as_mut(),
-            lnum,
-            sign_id,
-            group,
-            &mut *rettv.vval.v_list(),
-        );
+        sign_get_placed(buf.as_mut(), lnum, sign_id, group, rettv.vval.v_list_ref());
     }
 }
 
@@ -1789,7 +1783,7 @@ pub fn f_sign_placelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
                 } else {
                     emsg(gettext(E_DICTREQ));
                 }
-                tv_list_append_number(&mut *rettv.vval.v_list(), i64::from(sign_id));
+                tv_list_append_number(rettv.vval.v_list_ref(), i64::from(sign_id));
             }
         }
     }
@@ -1815,8 +1809,8 @@ pub fn f_sign_undefine(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     {
         if argvars[0].v_type == VarType::VarList && argvars[1].v_type == VarType::VarUnknown {
             tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-            sign_undefine_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, unsafe {
-                &mut *rettv.vval.v_list()
+            sign_undefine_multiple(unsafe { argvars[0].vval.v_list().as_ref() }, {
+                rettv.vval.v_list_ref()
             });
             return;
         }
@@ -1913,7 +1907,7 @@ pub fn f_sign_unplacelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
                 } else {
                     emsg(gettext(E_DICTREQ));
                 }
-                tv_list_append_number(&mut *rettv.vval.v_list(), i64::from(retval));
+                tv_list_append_number(rettv.vval.v_list_ref(), i64::from(retval));
             }
         }
     }

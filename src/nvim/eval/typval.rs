@@ -317,11 +317,21 @@ impl TypvalVval {
     }
 
     #[inline]
+    pub fn v_list_ref(self) -> &'static mut TvList {
+        unsafe { &mut *self.v_list() }
+    }
+
+    #[inline]
     pub const fn v_dict(self) -> *mut TvDict {
         match self {
             Self::Dict(p) => p,
             _ => ptr::null_mut(),
         }
+    }
+
+    #[inline]
+    pub fn v_dict_ref(self) -> &'static mut TvDict {
+        unsafe { &mut *self.v_dict() }
     }
 
     #[inline]
@@ -1523,7 +1533,7 @@ fn tv_blob2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
         for i in 0..tv_blob_len_inline(blob.as_ref()) {
             let l2 = tv_list_alloc(2);
-            tv_list_append_list(&mut *rettv.vval.v_list(), l2);
+            tv_list_append_list(rettv.vval.v_list_ref(), l2);
             tv_list_append_number(&mut *l2, i64::from(i));
             tv_list_append_number(&mut *l2, i64::from(tv_blob_get_inline(&*blob, i)));
         }
@@ -1547,7 +1557,7 @@ fn tv_list2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
         for (idx, li) in (0 as Varnumber..).zip(crate::eval::typval::list_iter_mut((*l).lv_first)) {
             let l2 = tv_list_alloc(2);
-            tv_list_append_list(&mut *rettv.vval.v_list(), l2);
+            tv_list_append_list(rettv.vval.v_list_ref(), l2);
             tv_list_append_number(&mut *l2, idx);
             tv_list_append_tv(&mut *l2, &mut li.li_tv);
         }
@@ -1556,7 +1566,7 @@ fn tv_list2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
 /// "items(string)" function.
 fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
-    unsafe {
+    {
         let mut p: *const c_char = argvars[0].vval.v_string();
 
         tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_MAY_KNOW_CONST);
@@ -1571,7 +1581,7 @@ fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
                 break;
             }
             let l2 = tv_list_alloc(2);
-            tv_list_append_list(&mut *rettv.vval.v_list(), l2);
+            tv_list_append_list(rettv.vval.v_list_ref(), l2);
             tv_list_append_number(&mut *l2, idx);
             tv_list_append_string(&mut *l2, p, len as isize);
             p = p.wrapping_add(len as usize);
@@ -3846,7 +3856,7 @@ fn tv_dict2list(argvars: &mut [TypVal], rettv: &mut TypVal, what: DictListType) 
                     }
                 }
 
-                tv_list_append_owned_tv(&mut *rettv.vval.v_list(), tv_item);
+                tv_list_append_owned_tv(rettv.vval.v_list_ref(), tv_item);
             }
             hi = hi.wrapping_add(1);
         }

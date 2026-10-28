@@ -989,7 +989,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 tv_dict_add_str_len(&mut *dict, c"conceal", buf.as_ptr(), buflen);
             }
 
-            tv_list_append_dict(&mut *rettv.vval.v_list(), dict);
+            tv_list_append_dict(rettv.vval.v_list_ref(), dict);
         }
     }
 }
@@ -1223,15 +1223,15 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             let m = get_match(curwin_mut(), id);
             if !m.is_null() {
                 let m = { &mut *m };
-                tv_list_append_string(&mut *rettv.vval.v_list(), syn_id2name(m.mit_hlg_id), -1);
+                tv_list_append_string(rettv.vval.v_list_ref(), syn_id2name(m.mit_hlg_id), -1);
                 tv_list_append_string(
-                    &mut *rettv.vval.v_list(),
+                    rettv.vval.v_list_ref(),
                     m.mit_pattern.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
                     -1,
                 );
             } else {
-                tv_list_append_string(&mut *rettv.vval.v_list(), ptr::null(), 0);
-                tv_list_append_string(&mut *rettv.vval.v_list(), ptr::null(), 0);
+                tv_list_append_string(rettv.vval.v_list_ref(), ptr::null(), 0);
+                tv_list_append_string(rettv.vval.v_list_ref(), ptr::null(), 0);
             }
         }
     }

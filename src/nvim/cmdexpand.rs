@@ -6102,7 +6102,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
         for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
             tv_list_append_string(
-                &mut *rettv.vval.v_list(),
+                rettv.vval.v_list_ref(),
                 f.as_ptr(),
                 f.as_bytes().len() as isize,
             );

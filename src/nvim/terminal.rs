@@ -211,6 +211,13 @@ struct TerminalState {
 }
 
 impl TerminalState {
+    #[inline]
+    fn term_mut(&self) -> &'static mut Terminal {
+        unsafe { &mut *self.term }
+    }
+}
+
+impl TerminalState {
     const fn new() -> Self {
         Self {
             term: ptr::null_mut(),
@@ -1130,8 +1137,8 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
         let wp = handle_get_window(s.save_curwin_handle);
         if !wp.is_null() {
             let mut winopts: *mut Winopt = ptr::null_mut();
-            if (*wp).buf_mut().b_fnum != { &mut *s.term }.buf_handle {
-                let buf = handle_get_buffer({ &mut *s.term }.buf_handle);
+            if (*wp).buf_mut().b_fnum != s.term_mut().buf_handle {
+                let buf = handle_get_buffer(s.term_mut().buf_handle);
                 if !buf.is_null() {
                     for wip in &mut (*buf).b_wininfo {
                         if wip.wi_win == wp && wip.wi_optset {
@@ -1182,7 +1189,7 @@ pub fn terminal_enter() -> bool {
         s.cursor_visible = true;
         g_st().ins_global.stop_insert_mode = false;
 
-        terminal_check_size(&mut *s.term);
+        terminal_check_size(s.term_mut());
 
         atom_term_enter();
         let save_state = g_st().state_global;
@@ -1193,15 +1200,15 @@ pub fn terminal_enter() -> bool {
 
         set_terminal_winopts(&mut s);
 
-        { &mut *s.term }.pending.cursor = true;
-        adjust_topline_cursor(&mut *s.term, &mut *buf, 0);
+        s.term_mut().pending.cursor = true;
+        adjust_topline_cursor(s.term_mut(), &mut *buf, 0);
         showmode();
         ui_cursor_shape();
 
-        terminal_focus(&mut *s.term, true);
+        terminal_focus(s.term_mut(), true);
         curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
 
-        { &mut *s.term }.refcount += 1;
+        s.term_mut().refcount += 1;
         apply_autocmds(
             EVENT_TERMENTER,
             ptr::null_mut(),
@@ -1210,8 +1217,8 @@ pub fn terminal_enter() -> bool {
             g_st().curbuf,
         );
         may_trigger_modechanged();
-        { &mut *s.term }.refcount -= 1;
-        if { &mut *s.term }.buf_handle == 0 {
+        s.term_mut().refcount -= 1;
+        if s.term_mut().buf_handle == 0 {
             s.close = true;
         }
 
@@ -1230,7 +1237,7 @@ pub fn terminal_enter() -> bool {
 
         unset_terminal_winopts(&mut s);
 
-        terminal_focus(&mut *s.term, false);
+        terminal_focus(s.term_mut(), false);
         curbuf_mut().b_last_changedtick = buf_get_changedtick(curbuf_mut());
 
         if curbuf_mut().terminal == s.term && !s.close {
@@ -1244,7 +1251,7 @@ pub fn terminal_enter() -> bool {
         ui_cursor_shape();
 
         if s.close {
-            { &mut *s.term }.refcount += 1;
+            s.term_mut().refcount += 1;
         }
         apply_autocmds(
             EVENT_TERMLEAVE,
@@ -1254,10 +1261,10 @@ pub fn terminal_enter() -> bool {
             g_st().curbuf,
         );
         if s.close {
-            { &mut *s.term }.refcount -= 1;
-            let buf_handle = { &mut *s.term }.buf_handle;
-            { &mut *s.term }.destroy = true;
-            channel_term_close(&mut *{ &mut *s.term }.opts.data);
+            s.term_mut().refcount -= 1;
+            let buf_handle = s.term_mut().buf_handle;
+            s.term_mut().destroy = true;
+            channel_term_close(&mut *s.term_mut().opts.data);
             if buf_handle != 0 {
                 do_buffer(DOBUF_WIPE, DOBUF_FIRST, FORWARD, buf_handle, 1);
             }
@@ -1268,8 +1275,8 @@ pub fn terminal_enter() -> bool {
 }
 
 fn terminal_check_cursor() {
-    unsafe {
-        let term = &mut *curbuf_mut().terminal;
+    {
+        let term = curbuf_mut().terminal_mut();
         curwin_mut().w_cursor.lnum = curbuf_mut()
             .b_ml
             .ml_line_count
@@ -1307,28 +1314,28 @@ fn terminal_check_focus(s: &mut TerminalState) -> bool {
             unset_terminal_winopts(s);
             set_terminal_winopts(s);
         }
-        let cur_term = &mut *curbuf_mut().terminal;
+        let cur_term = curbuf_mut().terminal_mut();
         if !std::ptr::eq(s.term, cur_term) {
-            terminal_focus(&mut *s.term, false);
+            terminal_focus(s.term_mut(), false);
             if s.close {
-                { &mut *s.term }.destroy = true;
-                channel_term_close(&mut *{ &mut *s.term }.opts.data);
+                s.term_mut().destroy = true;
+                channel_term_close(&mut *s.term_mut().opts.data);
                 s.close = false;
             }
 
             s.term = &raw mut *cur_term;
-            { &mut *s.term }.pending.cursor = true;
-            invalidate_terminal(&mut *s.term, -1, -1);
-            terminal_focus(&mut *s.term, true);
+            s.term_mut().pending.cursor = true;
+            invalidate_terminal(s.term_mut(), -1, -1);
+            terminal_focus(s.term_mut(), true);
         }
         true
     }
 }
 
 fn terminal_check(s: &mut TerminalState) -> i32 {
-    unsafe {
+    {
         debug_assert!(
-            !s.close || ({ &mut *s.term }.buf_handle == 0 && s.term != curbuf_mut().terminal)
+            !s.close || (s.term_mut().buf_handle == 0 && s.term != curbuf_mut().terminal)
         );
 
         if g_st().ins_global.stop_insert_mode || !terminal_check_focus(&mut *s) {
@@ -1340,7 +1347,7 @@ fn terminal_check(s: &mut TerminalState) -> i32 {
         terminal_check_cursor();
         validate_cursor(curwin_mut());
 
-        { &mut *s.term }.refcount += 1;
+        s.term_mut().refcount += 1;
         if has_event(EVENT_TEXTCHANGEDT)
             && curbuf_mut().b_last_changedtick_i != buf_get_changedtick(curbuf_mut())
         {
@@ -1354,8 +1361,8 @@ fn terminal_check(s: &mut TerminalState) -> i32 {
             curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
         }
         may_trigger_win_scrolled_resized();
-        { &mut *s.term }.refcount -= 1;
-        if { &mut *s.term }.buf_handle == 0 {
+        s.term_mut().refcount -= 1;
+        if s.term_mut().buf_handle == 0 {
             s.close = true;
         }
 
@@ -1376,7 +1383,7 @@ fn terminal_check(s: &mut TerminalState) -> i32 {
         }
 
         setcursor();
-        refresh_cursor(&mut *s.term, &mut s.cursor_visible);
+        refresh_cursor(s.term_mut(), &mut s.cursor_visible);
         ui_flush();
         1
     }
@@ -1392,7 +1399,7 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
             | K_MIDDLERELEASE | K_RIGHTMOUSE | K_RIGHTDRAG | K_RIGHTRELEASE | K_X1MOUSE
             | K_X1DRAG | K_X1RELEASE | K_X2MOUSE | K_X2DRAG | K_X2RELEASE | K_MOUSEDOWN
             | K_MOUSEUP | K_MOUSELEFT | K_MOUSERIGHT | K_MOUSEMOVE => {
-                if send_mouse_event(&mut *s.term, key) {
+                if send_mouse_event(s.term_mut(), key) {
                     return 0;
                 }
             }
@@ -1400,10 +1407,10 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
                 paste_repeat(1);
             }
             K_EVENT => {
-                { &mut *s.term }.refcount += 1;
+                s.term_mut().refcount += 1;
                 state_handle_k_event();
-                { &mut *s.term }.refcount -= 1;
-                if { &mut *s.term }.buf_handle == 0 {
+                s.term_mut().refcount -= 1;
+                if s.term_mut().buf_handle == 0 {
                     s.close = true;
                 }
             }
@@ -1430,18 +1437,18 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
                     s.got_bsl = true;
                     return 1;
                 }
-                if { &mut *s.term }.suspended {
-                    channel_term_resume(&mut *{ &mut *s.term }.opts.data);
-                    terminal_set_state(&mut *s.term, false);
+                if s.term_mut().suspended {
+                    channel_term_resume(&mut *s.term_mut().opts.data);
+                    terminal_set_state(s.term_mut(), false);
                     return 1;
                 }
-                if { &mut *s.term }.closed {
+                if s.term_mut().closed {
                     s.close = true;
                     return 0;
                 }
 
                 s.got_bsl = false;
-                terminal_send_key(&mut *s.term, key);
+                terminal_send_key(s.term_mut(), key);
             }
         }
 
@@ -1515,9 +1522,9 @@ fn is_filter_char(c: i32) -> bool {
 }
 
 pub fn terminal_set_streamed_paste(term: &mut Terminal, streamed: bool) {
-    unsafe {
+    {
         if term.streamed_paste != streamed {
-            let cur_term = &mut *curbuf_mut().terminal;
+            let cur_term = curbuf_mut().terminal_mut();
             if streamed {
                 vterm_keyboard_start_paste(&mut cur_term.vt);
             } else {
@@ -1533,7 +1540,7 @@ pub fn terminal_paste(count: i32, y_array: *mut NvimString, y_size: usize) {
         if y_size == 0 {
             return;
         }
-        let cur_term = &mut *curbuf_mut().terminal;
+        let cur_term = curbuf_mut().terminal_mut();
         if !cur_term.streamed_paste {
             vterm_keyboard_start_paste(&mut cur_term.vt);
         }
@@ -1541,7 +1548,7 @@ pub fn terminal_paste(count: i32, y_array: *mut NvimString, y_size: usize) {
         for _ in 0..count {
             for j in 0..y_size {
                 if j > 0 {
-                    let term_now = &mut *curbuf_mut().terminal;
+                    let term_now = curbuf_mut().terminal_mut();
                     #[cfg(windows)]
                     terminal_send(term_now, c"\r\n", 2);
                     #[cfg(not(windows))]
@@ -1559,11 +1566,11 @@ pub fn terminal_paste(count: i32, y_array: *mut NvimString, y_size: usize) {
                     }
                     src = src.wrapping_add(len);
                 }
-                let term_now = &mut *curbuf_mut().terminal;
+                let term_now = curbuf_mut().terminal_mut();
                 terminal_send(term_now, buff.as_ptr(), buff.len());
             }
         }
-        let term_end = &mut *curbuf_mut().terminal;
+        let term_end = curbuf_mut().terminal_mut();
         if !term_end.streamed_paste {
             vterm_keyboard_end_paste(&mut term_end.vt);
         }

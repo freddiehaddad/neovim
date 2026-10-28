@@ -540,6 +540,13 @@ struct SyntaxState {
 }
 
 impl SyntaxState {
+    #[inline]
+    fn syn_buf_mut(&self) -> &'static mut FileBuf {
+        unsafe { &mut *self.syn_buf }
+    }
+}
+
+impl SyntaxState {
     const fn new() -> Self {
         Self {
             did_syntax_onoff: false,
@@ -683,7 +690,7 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
 
         if valid_state()
             && syn_st().current_lnum < lnum
-            && syn_st().current_lnum < { &mut *syn_st().syn_buf }.b_ml.ml_line_count
+            && syn_st().current_lnum < syn_st().syn_buf_mut().b_ml.ml_line_count
         {
             syn_finish_line(false);
             if !syn_st().current_state_stored {
@@ -736,7 +743,7 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
         let dist = if sst_len <= g_st().rows_global {
             999999
         } else {
-            { &mut *syn_st().syn_buf }.b_ml.ml_line_count / (sst_len - g_st().rows_global) + 1
+            syn_st().syn_buf_mut().b_ml.ml_line_count / (sst_len - g_st().rows_global) + 1
         };
 
         while syn_st().current_lnum < lnum {
@@ -1007,13 +1014,13 @@ fn save_chartab(chartab: *mut c_char) {
         }
 
         ptr::copy(
-            (&raw const { &mut *syn_st().syn_buf }.b_chartab).cast::<u8>(),
+            (&raw const syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
             chartab.cast::<u8>(),
             32,
         );
         ptr::copy(
             (&raw const win_s(&mut *syn_st().syn_win).b_syn_chartab).cast::<u8>(),
-            (&raw mut { &mut *syn_st().syn_buf }.b_chartab).cast::<u8>(),
+            (&raw mut syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
             32,
         );
     }
@@ -1025,7 +1032,7 @@ fn restore_chartab(chartab: impl crate::strings::IntoCCharPtr) {
         if win_s(&mut *syn_st().syn_win).b_syn_isk.is_some() {
             ptr::copy(
                 chartab.cast::<u8>(),
-                (&raw mut { &mut *syn_st().syn_buf }.b_chartab).cast::<u8>(),
+                (&raw mut syn_st().syn_buf_mut().b_chartab).cast::<u8>(),
                 32,
             );
         }
@@ -1149,12 +1156,12 @@ pub fn syn_stack_free_all(block: *mut Synblock) {
 
 fn syn_stack_alloc() {
     {
-        let mut len = (unsafe { &mut *syn_st().syn_buf }.b_ml.ml_line_count / SST_DIST
+        let mut len = (syn_st().syn_buf_mut().b_ml.ml_line_count / SST_DIST
             + g_st().rows_global * 2)
             .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
         let cur_len = syn_block_mut().b_sst_max;
         if cur_len > len * 2 || cur_len < len {
-            len = unsafe { &mut *syn_st().syn_buf }.b_ml.ml_line_count;
+            len = syn_st().syn_buf_mut().b_ml.ml_line_count;
             len = ((len + len / 2) / SST_DIST + g_st().rows_global * 2)
                 .clamp(SST_MIN_ENTRIES, SST_MAX_ENTRIES);
 
@@ -1228,8 +1235,7 @@ fn syn_stack_cleanup() -> bool {
         let dist = if sst_len <= g_st().rows_global {
             999999
         } else {
-            unsafe { &mut *syn_st().syn_buf }.b_ml.ml_line_count / (sst_len - g_st().rows_global)
-                + 1
+            syn_st().syn_buf_mut().b_ml.ml_line_count / (sst_len - g_st().rows_global) + 1
         };
 
         let mut tick = syn_block_mut().b_sst_lasttick;
@@ -1569,9 +1575,7 @@ pub fn get_syntax_attr(col: Colnr, can_spell: *mut bool, keep_state: bool) -> i3
             return 0;
         }
 
-        if { &mut *syn_st().syn_buf }.b_p_smc > 0
-            && col >= { &mut *syn_st().syn_buf }.b_p_smc as Colnr
-        {
+        if syn_st().syn_buf_mut().b_p_smc > 0 && col >= syn_st().syn_buf_mut().b_p_smc as Colnr {
             clear_current_state();
             syn_st().current_id = 0;
             syn_st().current_trans_id = 0;
@@ -1685,7 +1689,7 @@ fn syn_current_attr(
                 if do_keywords {
                     line = syn_getcurline();
                     let cur_pos = line.wrapping_offset(syn_st().current_col as isize);
-                    if vim_iswordp_buf(cur_pos, &mut *syn_st().syn_buf)
+                    if vim_iswordp_buf(cur_pos, syn_st().syn_buf_mut())
                         && (syn_st().current_col == 0
                             || !vim_iswordp_buf(
                                 cur_pos.wrapping_sub(1).wrapping_sub(utf_head_off(
@@ -1693,7 +1697,7 @@ fn syn_current_attr(
                                     cur_pos.wrapping_sub(1),
                                 )
                                     as usize),
-                                &mut *syn_st().syn_buf,
+                                syn_st().syn_buf_mut(),
                             ))
                     {
                         syn_id = check_keyword_id(
@@ -2468,7 +2472,7 @@ fn find_endpos(
                         break;
                     }
 
-                    let line_len = ml_get_buf_len(&mut *syn_st().syn_buf, startpos.lnum);
+                    let line_len = ml_get_buf_len(syn_st().syn_buf_mut(), startpos.lnum);
 
                     if pos.col <= matchcol {
                         matchcol += 1;
@@ -2561,7 +2565,7 @@ fn syn_add_end_off(
     idx: usize,
     extra: i32,
 ) {
-    unsafe {
+    {
         let mut col: i32;
         let mut off: i32;
 
@@ -2575,10 +2579,10 @@ fn syn_add_end_off(
             off = spp.sp_offsets[idx];
         }
 
-        if result.lnum > { &mut *syn_st().syn_buf }.b_ml.ml_line_count {
+        if result.lnum > syn_st().syn_buf_mut().b_ml.ml_line_count {
             col = 0;
         } else if off != 0 {
-            let base = ml_get_buf(&mut *syn_st().syn_buf, result.lnum);
+            let base = ml_get_buf(syn_st().syn_buf_mut(), result.lnum);
             let mut p = base.wrapping_offset(col as isize);
             if off > 0 {
                 while off > 0 && !crate::memory::cstr_is_empty(p) {
@@ -2604,7 +2608,7 @@ fn syn_add_start_off(
     idx: usize,
     extra: i32,
 ) {
-    unsafe {
+    {
         let mut col: i32;
         let mut off: i32;
 
@@ -2617,12 +2621,12 @@ fn syn_add_start_off(
             col = regmatch.startpos[0].col;
             off = spp.sp_offsets[idx];
         }
-        if result.lnum > { &mut *syn_st().syn_buf }.b_ml.ml_line_count {
-            result.lnum = { &mut *syn_st().syn_buf }.b_ml.ml_line_count;
-            col = ml_get_buf_len(&mut *syn_st().syn_buf, result.lnum);
+        if result.lnum > syn_st().syn_buf_mut().b_ml.ml_line_count {
+            result.lnum = syn_st().syn_buf_mut().b_ml.ml_line_count;
+            col = ml_get_buf_len(syn_st().syn_buf_mut(), result.lnum);
         }
         if off != 0 {
-            let base = ml_get_buf(&mut *syn_st().syn_buf, result.lnum);
+            let base = ml_get_buf(syn_st().syn_buf_mut(), result.lnum);
             let mut p = base.wrapping_offset(col as isize);
             if off > 0 {
                 while off > 0 && !crate::memory::cstr_is_empty(p) {
@@ -2643,12 +2647,12 @@ fn syn_add_start_off(
 
 #[inline]
 fn syn_getcurline() -> *mut c_char {
-    ml_get_buf(unsafe { &mut *syn_st().syn_buf }, syn_st().current_lnum)
+    ml_get_buf(syn_st().syn_buf_mut(), syn_st().current_lnum)
 }
 
 #[inline]
 fn syn_getcurline_len() -> Colnr {
-    ml_get_buf_len(unsafe { &mut *syn_st().syn_buf }, syn_st().current_lnum)
+    ml_get_buf_len(syn_st().syn_buf_mut(), syn_st().current_lnum)
 }
 
 fn syn_regexec(rmp: &mut Regmmatch, lnum: Linenr, col: Colnr, st: &mut SynTime) -> bool {
@@ -2665,7 +2669,7 @@ fn syn_regexec(rmp: &mut Regmmatch, lnum: Linenr, col: Colnr, st: &mut SynTime) 
             return false;
         }
 
-        rmp.rmm_maxcol = { &mut *syn_st().syn_buf }.b_p_smc as Colnr;
+        rmp.rmm_maxcol = syn_st().syn_buf_mut().b_p_smc as Colnr;
         let r = vim_regexec_multi(
             rmp,
             syn_st().syn_win,
@@ -2719,7 +2723,7 @@ fn check_keyword_id(
         let mut kwlen: i32 = 0;
         loop {
             kwlen += utfc_ptr2len(kwp.wrapping_offset(kwlen as isize));
-            if !vim_iswordp_buf(kwp.wrapping_offset(kwlen as isize), &mut *syn_st().syn_buf) {
+            if !vim_iswordp_buf(kwp.wrapping_offset(kwlen as isize), syn_st().syn_buf_mut()) {
                 break;
             }
         }

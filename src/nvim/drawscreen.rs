@@ -229,11 +229,7 @@ pub fn conceal_check_cursor_line() {
 
         redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
 
-        if decor_conceal_line(
-            unsafe { &mut *(curwin_ptr()) },
-            curwin_mut().w_cursor.lnum - 1,
-            true,
-        ) {
+        if decor_conceal_line(curwin_mut(), curwin_mut().w_cursor.lnum - 1, true) {
             changed_window_setting(curwin_mut());
         }
         curs_columns(curwin_mut(), 1);
