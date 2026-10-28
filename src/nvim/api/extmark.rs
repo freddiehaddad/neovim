@@ -1467,22 +1467,21 @@ pub fn nvim_set_decoration_provider(
     _err: &mut Error,
 ) {
     unsafe {
-        let p = get_decor_provider(ns_id as NS, true);
-        assert!(!p.is_null());
-        decor_provider_clear(p.as_mut());
+        let p = &mut *get_decor_provider(ns_id as NS, true);
+        decor_provider_clear(Some(&mut *p));
 
         redraw_all_later(UPD_NOT_VALID);
 
         let pairs: [(*mut LuaRef, *mut LuaRef); 9] = [
-            (&raw mut opts.on_start, &raw mut (*p).redraw_start),
-            (&raw mut opts.on_buf, &raw mut (*p).redraw_buf),
-            (&raw mut opts.on_win, &raw mut (*p).redraw_win),
-            (&raw mut opts.on_line, &raw mut (*p).redraw_line),
-            (&raw mut opts.on_range, &raw mut (*p).redraw_range),
-            (&raw mut opts.on_end, &raw mut (*p).redraw_end),
-            (&raw mut opts._on_hl_def, &raw mut (*p).hl_def),
-            (&raw mut opts._on_spell_nav, &raw mut (*p).spell_nav),
-            (&raw mut opts._on_conceal_line, &raw mut (*p).conceal_line),
+            (&raw mut opts.on_start, &raw mut p.redraw_start),
+            (&raw mut opts.on_buf, &raw mut p.redraw_buf),
+            (&raw mut opts.on_win, &raw mut p.redraw_win),
+            (&raw mut opts.on_line, &raw mut p.redraw_line),
+            (&raw mut opts.on_range, &raw mut p.redraw_range),
+            (&raw mut opts.on_end, &raw mut p.redraw_end),
+            (&raw mut opts._on_hl_def, &raw mut p.hl_def),
+            (&raw mut opts._on_spell_nav, &raw mut p.spell_nav),
+            (&raw mut opts._on_conceal_line, &raw mut p.conceal_line),
         ];
 
         for (src, dst) in pairs {
@@ -1492,9 +1491,9 @@ pub fn nvim_set_decoration_provider(
             }
         }
 
-        (*p).state = K_DECOR_PROVIDER_ACTIVE;
-        (*p).hl_valid += 1;
-        (*p).hl_cached = false;
+        p.state = K_DECOR_PROVIDER_ACTIVE;
+        p.hl_valid += 1;
+        p.hl_cached = false;
     }
 }
 

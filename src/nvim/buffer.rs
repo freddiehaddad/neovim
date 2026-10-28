@@ -2820,12 +2820,13 @@ pub fn buflist_new(
         }
         if buf != g_st().curbuf || g_st().curbuf.is_null() {
             buf = FileBuf::alloc();
+            let buf = &mut *buf;
             init_var_dict(
                 &mut *tv_dict_alloc(),
-                &mut *(&raw mut (*buf).b_bufvar).cast(),
+                &mut *(&raw mut buf.b_bufvar).cast(),
                 VAR_SCOPE,
             );
-            (*buf).changedtick_di.di_key = b"changedtick\0".iter().map(|&b| b as c_char).collect();
+            buf.changedtick_di.di_key = b"changedtick\0".iter().map(|&b| b as c_char).collect();
             buf_init_changedtick(&mut *buf);
         }
 

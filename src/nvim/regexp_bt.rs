@@ -2612,13 +2612,13 @@ fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
 
 fn regstack_pop(scan: *mut *mut u8) {
     unsafe {
-        let rp = re_st()
+        let rp = &mut *re_st()
             .regstack
             .as_mut_ptr()
             .add(re_st().regstack.len())
             .cast::<Regitem>()
             .sub(1);
-        *scan = (*rp).rs_scan;
+        *scan = rp.rs_scan;
         re_st()
             .regstack
             .truncate(re_st().regstack.len() - size_of::<Regitem>() / 8);
@@ -3545,21 +3545,21 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
             }
 
             while !re_st().regstack.is_empty() && status != RA_FAIL {
-                let rp = re_st()
+                let rp = &mut *re_st()
                     .regstack
                     .as_mut_ptr()
                     .add(re_st().regstack.len())
                     .cast::<Regitem>()
                     .sub(1);
-                match (*rp).rs_state {
+                match rp.rs_state {
                     RS_NOPEN => {
                         regstack_pop(&raw mut scan);
                     }
                     RS_MOPEN => {
                         if status == RA_NOMATCH {
-                            let no = (*rp).rs_no as usize;
+                            let no = rp.rs_no as usize;
                             restore_se(
-                                (*rp).rs_un.sesave(),
+                                rp.rs_un.sesave(),
                                 if re_st().rex.reg_startpos.is_null() {
                                     ptr::null_mut()
                                 } else {
@@ -3576,9 +3576,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                     }
                     RS_ZOPEN => {
                         if status == RA_NOMATCH {
-                            let no = (*rp).rs_no as usize;
+                            let no = rp.rs_no as usize;
                             restore_se(
-                                (*rp).rs_un.sesave(),
+                                rp.rs_un.sesave(),
                                 (&raw mut re_st().reg_startzpos).cast::<Lpos>().add(no),
                                 (&raw mut re_st().reg_startzp).cast::<*mut u8>().add(no),
                             );
@@ -3587,9 +3587,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                     }
                     RS_MCLOSE => {
                         if status == RA_NOMATCH {
-                            let no = (*rp).rs_no as usize;
+                            let no = rp.rs_no as usize;
                             restore_se(
-                                (*rp).rs_un.sesave(),
+                                rp.rs_un.sesave(),
                                 if re_st().rex.reg_endpos.is_null() {
                                     ptr::null_mut()
                                 } else {
@@ -3606,9 +3606,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                     }
                     RS_ZCLOSE => {
                         if status == RA_NOMATCH {
-                            let no = (*rp).rs_no as usize;
+                            let no = rp.rs_no as usize;
                             restore_se(
-                                (*rp).rs_un.sesave(),
+                                rp.rs_un.sesave(),
                                 (&raw mut re_st().reg_endzpos).cast::<Lpos>().add(no),
                                 (&raw mut re_st().reg_endzp).cast::<*mut u8>().add(no),
                             );
@@ -3620,34 +3620,34 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             regstack_pop(&raw mut scan);
                         } else {
                             if status != RA_BREAK {
-                                reg_restore((*rp).rs_un.regsave_mut());
-                                scan = (*rp).rs_scan;
+                                reg_restore(rp.rs_un.regsave_mut());
+                                scan = rp.rs_scan;
                             }
                             if scan.is_null() || op_fn(scan) != BRANCH {
                                 status = RA_NOMATCH;
                                 regstack_pop(&raw mut scan);
                             } else {
-                                (*rp).rs_scan = regnext(scan);
-                                reg_save((*rp).rs_un.regsave_mut());
+                                rp.rs_scan = regnext(scan);
+                                reg_save(rp.rs_un.regsave_mut());
                                 scan = operand_fn(scan);
                             }
                         }
                     }
                     RS_BRCPLX_MORE => {
                         if status == RA_NOMATCH {
-                            reg_restore((*rp).rs_un.regsave_mut());
+                            reg_restore(rp.rs_un.regsave_mut());
                             *(&raw mut re_st().brace_count)
                                 .cast::<c_int>()
-                                .add((*rp).rs_no as usize) -= 1;
+                                .add(rp.rs_no as usize) -= 1;
                         }
                         regstack_pop(&raw mut scan);
                     }
                     RS_BRCPLX_LONG => {
                         if status == RA_NOMATCH {
-                            reg_restore((*rp).rs_un.regsave_mut());
+                            reg_restore(rp.rs_un.regsave_mut());
                             *(&raw mut re_st().brace_count)
                                 .cast::<c_int>()
-                                .add((*rp).rs_no as usize) -= 1;
+                                .add(rp.rs_no as usize) -= 1;
                             status = RA_CONT;
                         }
                         regstack_pop(&raw mut scan);
@@ -3657,7 +3657,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                     }
                     RS_BRCPLX_SHORT => {
                         if status == RA_NOMATCH {
-                            reg_restore((*rp).rs_un.regsave_mut());
+                            reg_restore(rp.rs_un.regsave_mut());
                         }
                         regstack_pop(&raw mut scan);
                         if status == RA_NOMATCH {
@@ -3667,7 +3667,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                     }
                     RS_NOMATCH => {
                         if status
-                            == if (*rp).rs_no == NOMATCH as i16 {
+                            == if rp.rs_no == NOMATCH as i16 {
                                 RA_MATCH
                             } else {
                                 RA_NOMATCH
@@ -3676,8 +3676,8 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             status = RA_NOMATCH;
                         } else {
                             status = RA_CONT;
-                            if (*rp).rs_no != SUBPAT as i16 {
-                                reg_restore((*rp).rs_un.regsave_mut());
+                            if rp.rs_no != SUBPAT as i16 {
+                                reg_restore(rp.rs_un.regsave_mut());
                             }
                         }
                         regstack_pop(&raw mut scan);
@@ -3692,26 +3692,26 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 .regstack
                                 .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
                         } else {
-                            let bp = rp.cast::<Regbehind>().sub(1);
+                            let bp = (&raw mut *rp).cast::<Regbehind>().sub(1);
                             let bp = { &mut *bp };
                             let bp = { &mut *bp };
                             let bp = { &mut *bp };
                             reg_save(&mut bp.save_after);
                             bp.save_behind = re_st().behind_pos;
-                            re_st().behind_pos = *(*rp).rs_un.regsave();
-                            (*rp).rs_state = RS_BEHIND2;
-                            reg_restore((*rp).rs_un.regsave_mut());
-                            scan = operand_fn((*rp).rs_scan).add(4);
+                            re_st().behind_pos = *rp.rs_un.regsave();
+                            rp.rs_state = RS_BEHIND2;
+                            reg_restore(rp.rs_un.regsave_mut());
+                            scan = operand_fn(rp.rs_scan).add(4);
                         }
                     }
                     RS_BEHIND2 => {
-                        let bp = rp.cast::<Regbehind>().sub(1);
+                        let bp = (&raw mut *rp).cast::<Regbehind>().sub(1);
                         let bp = { &mut *bp };
                         let bp = { &mut *bp };
                         let bp = { &mut *bp };
                         if status == RA_MATCH && reg_save_equal(&re_st().behind_pos) {
                             re_st().behind_pos = bp.save_behind;
-                            if (*rp).rs_no == BEHIND as i16 {
+                            if rp.rs_no == BEHIND as i16 {
                                 reg_restore(&mut bp.save_after);
                             } else {
                                 status = RA_NOMATCH;
@@ -3723,9 +3723,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
                         } else {
                             let mut no = OK;
-                            let limit = operand_min((*rp).rs_scan);
+                            let limit = operand_min(rp.rs_scan);
                             if reg_multi() {
-                                let rp_pos = (*rp).rs_un.regsave().rs_u.pos();
+                                let rp_pos = rp.rs_un.regsave().rs_u.pos();
                                 let bpos = re_st().behind_pos.rs_u.pos();
                                 if limit > 0
                                     && i64::from(
@@ -3739,49 +3739,49 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 {
                                     no = FAIL;
                                 } else if rp_pos.col == 0 {
-                                    (*rp).rs_un.regsave_mut().rs_u.pos_mut().lnum -= 1;
-                                    let new_lnum = (*rp).rs_un.regsave().rs_u.pos().lnum;
+                                    rp.rs_un.regsave_mut().rs_u.pos_mut().lnum -= 1;
+                                    let new_lnum = rp.rs_un.regsave().rs_u.pos().lnum;
                                     if new_lnum + 1 < bpos.lnum || reg_getline(new_lnum).is_null() {
                                         no = FAIL;
                                     } else {
-                                        reg_restore((*rp).rs_un.regsave_mut());
-                                        (*rp).rs_un.regsave_mut().rs_u.pos_mut().col =
+                                        reg_restore(rp.rs_un.regsave_mut());
+                                        rp.rs_un.regsave_mut().rs_u.pos_mut().col =
                                             crate::memory::cstr_len(re_st().rex.line.cast())
                                                 as Colnr;
                                     }
                                 } else {
                                     let line = reg_getline(rp_pos.lnum);
-                                    (*rp).rs_un.regsave_mut().rs_u.pos_mut().col -=
+                                    rp.rs_un.regsave_mut().rs_u.pos_mut().col -=
                                         utf_head_off(line, line.add(rp_pos.col as usize - 1)) + 1;
                                 }
-                            } else if (*rp).rs_un.regsave().rs_u.ptr() == re_st().rex.line {
+                            } else if rp.rs_un.regsave().rs_u.ptr() == re_st().rex.line {
                                 no = FAIL;
                             } else {
                                 mb_ptr_back(
                                     re_st().rex.line,
-                                    (*rp).rs_un.regsave_mut().rs_u.ptr_mut(),
+                                    rp.rs_un.regsave_mut().rs_u.ptr_mut(),
                                 );
                                 if limit > 0
                                     && re_st()
                                         .behind_pos
                                         .rs_u
                                         .ptr()
-                                        .offset_from((*rp).rs_un.regsave().rs_u.ptr())
+                                        .offset_from(rp.rs_un.regsave().rs_u.ptr())
                                         > limit as isize
                                 {
                                     no = FAIL;
                                 }
                             }
                             if no == OK {
-                                reg_restore((*rp).rs_un.regsave_mut());
-                                scan = operand_fn((*rp).rs_scan).add(4);
+                                reg_restore(rp.rs_un.regsave_mut());
+                                scan = operand_fn(rp.rs_scan).add(4);
                                 if status == RA_MATCH {
                                     status = RA_NOMATCH;
                                     restore_subexpr(&mut *bp);
                                 }
                             } else {
                                 re_st().behind_pos = bp.save_behind;
-                                if (*rp).rs_no == NOBEHIND as i16 {
+                                if rp.rs_no == NOBEHIND as i16 {
                                     reg_restore(&mut bp.save_after);
                                     status = RA_MATCH;
                                 } else if status == RA_MATCH {
@@ -3796,7 +3796,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                     }
                     RS_STAR_LONG | RS_STAR_SHORT => {
-                        let rst = rp.cast::<Regstar>().sub(1);
+                        let rst = (&raw mut *rp).cast::<Regstar>().sub(1);
                         let rst = { &mut *rst };
                         let rst = { &mut *rst };
                         let rst = { &mut *rst };
@@ -3807,11 +3807,11 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 .truncate(re_st().regstack.len() - size_of::<Regstar>() / 8);
                         } else {
                             if status != RA_BREAK {
-                                reg_restore((*rp).rs_un.regsave_mut());
+                                reg_restore(rp.rs_un.regsave_mut());
                             }
                             loop {
                                 if status != RA_BREAK {
-                                    if (*rp).rs_state == RS_STAR_LONG {
+                                    if rp.rs_state == RS_STAR_LONG {
                                         rst.count -= 1;
                                         if rst.count < rst.minval {
                                             break;
@@ -3839,7 +3839,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                         }
                                     } else {
                                         if rst.count == rst.minval
-                                            || regrepeat(operand_fn((*rp).rs_scan), 1) == 0
+                                            || regrepeat(operand_fn(rp.rs_scan), 1) == 0
                                         {
                                             break;
                                         }
@@ -3856,8 +3856,8 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     || *re_st().rex.input as c_int == rst.nextb
                                     || *re_st().rex.input as c_int == rst.nextb_ic
                                 {
-                                    reg_save((*rp).rs_un.regsave_mut());
-                                    scan = regnext((*rp).rs_scan);
+                                    reg_save(rp.rs_un.regsave_mut());
+                                    scan = regnext(rp.rs_scan);
                                     status = RA_CONT;
                                     break;
                                 }
@@ -3880,7 +3880,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                     .add(re_st().regstack.len())
                     .cast::<Regitem>()
                     .sub(1);
-                if status == RA_CONT || rp == top {
+                if status == RA_CONT || ptr::eq(rp, top) {
                     break;
                 }
             }

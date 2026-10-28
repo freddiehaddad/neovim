@@ -128,20 +128,21 @@ pub fn win_new_float(
             }
             win_append(lastwin_nofloating(tp), wp, tp);
         }
-        (*wp).w_floating = true;
-        (*wp).w_status_height = if !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl)
+        let wp = &mut *wp;
+        wp.w_floating = true;
+        wp.w_status_height = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
             && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2)
         {
             STATUS_HEIGHT
         } else {
             0
         };
-        (*wp).w_winbar_height = 0;
-        (*wp).w_hsep_height = 0;
-        (*wp).w_vsep_width = 0;
+        wp.w_winbar_height = 0;
+        wp.w_hsep_height = 0;
+        wp.w_vsep_width = 0;
 
         win_config_float(&mut *wp, fconfig);
-        redraw_later(wp.as_mut(), UPD_VALID);
+        redraw_later(Some(&mut *wp), UPD_VALID);
         wp
     }
 }

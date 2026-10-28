@@ -577,6 +577,7 @@ fn sign_define_by_name(
         } else {
             existing
         };
+        let sp = &mut *sp;
 
         if !icon.is_null() {
             let mut icon_vec = crate::memory::cstr_as_bytes_with_nul(icon).to_vec();
@@ -586,21 +587,22 @@ fn sign_define_by_name(
                 .position(|&b| b == 0)
                 .unwrap_or(icon_vec.len());
             icon_vec.truncate(end);
-            (*sp).sn_icon = Some(std::ffi::CString::new(icon_vec).unwrap());
+            sp.sn_icon = Some(std::ffi::CString::new(icon_vec).unwrap());
         }
 
-        if !text.is_null() && !init_sign_text(sp.as_ref(), (*sp).sn_text.as_mut_ptr(), text) {
+        let sn_text = sp.sn_text.as_mut_ptr();
+        if !text.is_null() && !init_sign_text(Some(&*sp), sn_text, text) {
             return false;
         }
 
-        (*sp).sn_priority = prio;
+        sp.sn_priority = prio;
 
         let args = [linehl, texthl, culhl, numhl];
         let hls = [
-            &raw mut (*sp).sn_line_hl,
-            &raw mut (*sp).sn_text_hl,
-            &raw mut (*sp).sn_cul_hl,
-            &raw mut (*sp).sn_num_hl,
+            &raw mut sp.sn_line_hl,
+            &raw mut sp.sn_text_hl,
+            &raw mut sp.sn_cul_hl,
+            &raw mut sp.sn_num_hl,
         ];
         for i in 0..4 {
             if !args[i].is_null() {
@@ -618,11 +620,11 @@ fn sign_define_by_name(
                 if sh.sign_name.as_ref().is_some_and(|sn| {
                     crate::memory::cstr_as_bytes(sn.as_ptr()) == crate::memory::cstr_as_bytes(name)
                 }) {
-                    sh.text = (*sp).sn_text;
-                    sh.hl_id = (*sp).sn_text_hl;
-                    sh.line_hl_id = (*sp).sn_line_hl;
-                    sh.number_hl_id = (*sp).sn_num_hl;
-                    sh.cursorline_hl_id = (*sp).sn_cul_hl;
+                    sh.text = sp.sn_text;
+                    sh.hl_id = sp.sn_text_hl;
+                    sh.line_hl_id = sp.sn_line_hl;
+                    sh.number_hl_id = sp.sn_num_hl;
+                    sh.cursorline_hl_id = sp.sn_cul_hl;
                     if !did_redraw {
                         for wp in for_all_windows_mut() {
                             if buf_has_signs(wp.buf_mut()) {

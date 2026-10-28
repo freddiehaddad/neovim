@@ -2239,23 +2239,24 @@ pub fn win_split_ins(
             win_append(oldwin.w_prev, wp, ptr::null_mut());
         }
 
-        if new_wp.is_null() {
-            if wp.is_null() {
-                return ptr::null_mut();
-            }
+        if new_wp.is_null() && wp.is_null() {
+            return ptr::null_mut();
+        }
+        let wp = &mut *wp;
 
-            new_frame(&mut *wp);
+        if new_wp.is_null() {
+            new_frame(wp);
             win_init(&mut *wp, curwin_mut(), flags);
-        } else if (*wp).w_floating {
-            ui_comp_remove_grid(&mut (*wp).w_grid_alloc);
+        } else if wp.w_floating {
+            ui_comp_remove_grid(&mut wp.w_grid_alloc);
             if ui_has(K_UIMULTIGRID) {
-                (*wp).w_pos_changed = true;
+                wp.w_pos_changed = true;
             } else {
-                ui_call_win_hide(Integer::from((*wp).w_grid_alloc.handle));
+                ui_call_win_hide(Integer::from(wp.w_grid_alloc.handle));
                 win_free_grid(&mut *wp, true);
             }
 
-            if (*wp).w_config.external {
+            if wp.w_config.external {
                 for tp in for_all_tabpages_ptr() {
                     if !ptr::eq(tp, g_st().curtab) && ptr::eq(tp.tp_curwin, wp) {
                         tp.tp_curwin = tp.tp_firstwin;
@@ -2263,11 +2264,11 @@ pub fn win_split_ins(
                 }
             }
 
-            (*wp).w_floating = false;
+            wp.w_floating = false;
             new_frame(&mut *wp);
 
-            clear_float_config(&mut (*wp).w_config, true);
-            (*wp).w_border_adj = [0; 4];
+            clear_float_config(&mut wp.w_config, true);
+            wp.w_border_adj = [0; 4];
         }
 
         if !to_flatten.is_null() {
@@ -2326,7 +2327,7 @@ pub fn win_split_ins(
         }
 
         let frp = if new_wp.is_null() {
-            (*wp).w_frame
+            wp.w_frame
         } else {
             (*new_wp).w_frame
         };
@@ -2342,34 +2343,34 @@ pub fn win_split_ins(
         if !did_set_fraction {
             set_fraction(&mut *oldwin);
         }
-        (*wp).w_fraction = oldwin.w_fraction;
+        wp.w_fraction = oldwin.w_fraction;
 
         if vertical {
-            (*wp).w_onebuf_opt.wo_scr = curwin_mut().w_onebuf_opt.wo_scr;
+            wp.w_onebuf_opt.wo_scr = curwin_mut().w_onebuf_opt.wo_scr;
 
             if need_status != 0 {
                 win_new_height(oldwin, oldwin.w_height - 1);
                 oldwin.w_status_height = need_status;
             }
             if toplevel {
-                (*wp).w_winrow = tabline_height();
+                wp.w_winrow = tabline_height();
                 let ls_h = c_int::from(opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
                 win_new_height(&mut *wp, (*curfrp).fr_height - ls_h);
-                (*wp).w_status_height = ls_h;
-                (*wp).w_hsep_height = 0;
+                wp.w_status_height = ls_h;
+                wp.w_hsep_height = 0;
             } else {
-                (*wp).w_winrow = oldwin.w_winrow;
+                wp.w_winrow = oldwin.w_winrow;
                 win_new_height(&mut *wp, oldwin.w_height);
-                (*wp).w_status_height = oldwin.w_status_height;
-                (*wp).w_hsep_height = oldwin.w_hsep_height;
+                wp.w_status_height = oldwin.w_status_height;
+                wp.w_hsep_height = oldwin.w_hsep_height;
             }
             frp.fr_height = (*curfrp).fr_height;
 
             win_new_width(&mut *wp, new_size);
             if before {
-                (*wp).w_vsep_width = 1;
+                wp.w_vsep_width = 1;
             } else {
-                (*wp).w_vsep_width = oldwin.w_vsep_width;
+                wp.w_vsep_width = oldwin.w_vsep_width;
                 oldwin.w_vsep_width = 1;
             }
             if toplevel {
@@ -2386,32 +2387,32 @@ pub fn win_split_ins(
                 win_new_width(oldwin, oldwin.w_width - (new_size + 1));
             }
             if before {
-                (*wp).w_wincol = oldwin.w_wincol;
+                wp.w_wincol = oldwin.w_wincol;
                 oldwin.w_wincol += new_size + 1;
             } else {
-                (*wp).w_wincol = oldwin.w_wincol + oldwin.w_width + 1;
+                wp.w_wincol = oldwin.w_wincol + oldwin.w_width + 1;
             }
             frame_fix_width(&mut *oldwin);
             frame_fix_width(&mut *wp);
         } else {
             let is_stl_global = global_stl_height() > 0;
             if toplevel {
-                (*wp).w_wincol = 0;
+                wp.w_wincol = 0;
                 win_new_width(&mut *wp, g_st().columns_global);
-                (*wp).w_vsep_width = 0;
+                wp.w_vsep_width = 0;
             } else {
-                (*wp).w_wincol = oldwin.w_wincol;
+                wp.w_wincol = oldwin.w_wincol;
                 win_new_width(&mut *wp, oldwin.w_width);
-                (*wp).w_vsep_width = oldwin.w_vsep_width;
+                wp.w_vsep_width = oldwin.w_vsep_width;
             }
             frp.fr_width = (*curfrp).fr_width;
 
             win_new_height(&mut *wp, new_size);
             let old_status_height = oldwin.w_status_height;
             if before {
-                (*wp).w_hsep_height = c_int::from(is_stl_global);
+                wp.w_hsep_height = c_int::from(is_stl_global);
             } else {
-                (*wp).w_hsep_height = oldwin.w_hsep_height;
+                wp.w_hsep_height = oldwin.w_hsep_height;
                 oldwin.w_hsep_height = c_int::from(is_stl_global);
             }
             if toplevel {
@@ -2442,20 +2443,20 @@ pub fn win_split_ins(
             }
 
             if before {
-                (*wp).w_winrow = oldwin.w_winrow;
+                wp.w_winrow = oldwin.w_winrow;
                 if is_stl_global {
-                    (*wp).w_status_height = 0;
-                    oldwin.w_winrow += (*wp).w_height + 1;
+                    wp.w_status_height = 0;
+                    oldwin.w_winrow += wp.w_height + 1;
                 } else {
-                    (*wp).w_status_height = STATUS_HEIGHT;
-                    oldwin.w_winrow += (*wp).w_height + STATUS_HEIGHT;
+                    wp.w_status_height = STATUS_HEIGHT;
+                    oldwin.w_winrow += wp.w_height + STATUS_HEIGHT;
                 }
             } else if is_stl_global {
-                (*wp).w_winrow = oldwin.w_winrow + oldwin.w_height + 1;
-                (*wp).w_status_height = 0;
+                wp.w_winrow = oldwin.w_winrow + oldwin.w_height + 1;
+                wp.w_status_height = 0;
             } else {
-                (*wp).w_winrow = oldwin.w_winrow + oldwin.w_height + STATUS_HEIGHT;
-                (*wp).w_status_height = old_status_height;
+                wp.w_winrow = oldwin.w_winrow + oldwin.w_height + STATUS_HEIGHT;
+                wp.w_status_height = old_status_height;
                 if (flags & WSP_BOT) == 0 {
                     oldwin.w_status_height = STATUS_HEIGHT;
                 }
@@ -2468,7 +2469,7 @@ pub fn win_split_ins(
             win_comp_pos();
         }
 
-        redraw_later(wp.as_mut(), UPD_NOT_VALID);
+        redraw_later(Some(&mut *wp), UPD_NOT_VALID);
         redraw_later(Some(&mut *oldwin), UPD_NOT_VALID);
         status_redraw_all();
 

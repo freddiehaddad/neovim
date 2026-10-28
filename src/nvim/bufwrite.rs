@@ -1212,6 +1212,7 @@ pub fn buf_write(
             }
             buf = g_st().curbuf;
         }
+        let buf = &mut *buf;
 
         if sfname.is_null() {
             sfname = fname;
@@ -1224,17 +1225,17 @@ pub fn buf_write(
         }
 
         let overwriting =
-            !(*buf).b_ffname.is_null() && path_equal(ffname, (*buf).b_ffname, K_PATH_CMP_LITERAL);
+            !buf.b_ffname.is_null() && path_equal(ffname, buf.b_ffname, K_PATH_CMP_LITERAL);
 
         g_st().no_wait_return += 1;
 
-        let orig_start = (*buf).b_op_start;
-        let orig_end = (*buf).b_op_end;
+        let orig_start = buf.b_op_start;
+        let orig_end = buf.b_op_end;
 
-        (*buf).b_op_start.lnum = start;
-        (*buf).b_op_start.col = 0;
-        (*buf).b_op_end.lnum = end;
-        (*buf).b_op_end.col = 0;
+        buf.b_op_start.lnum = start;
+        buf.b_op_start.col = 0;
+        buf.b_op_end.lnum = end;
+        buf.b_op_end.col = 0;
 
         let res = buf_write_do_autocmds(
             buf,
@@ -1270,8 +1271,8 @@ pub fn buf_write(
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
         if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
-            (*buf).b_op_start = orig_start;
-            (*buf).b_op_end = orig_end;
+            buf.b_op_start = orig_start;
+            buf.b_op_end = orig_end;
         }
 
         g_st().msg_scroll = c_int::from(!(shortmess(K_SHM_OVER) && !g_st().exiting));
@@ -1351,7 +1352,7 @@ pub fn buf_write(
                 let mut backup_copy = false;
                 prev_got_int = g_st().got_int;
                 g_st().got_int = false;
-                (*buf).b_saving = true;
+                buf.b_saving = true;
 
                 if !(append && crate::memory::cstr_is_empty(opt_vars().p_pm))
                     && !filtering
@@ -1390,13 +1391,13 @@ pub fn buf_write(
                 }
 
                 if forceit && overwriting && vim_strchr(opt_vars().p_cpo, K_CPO_KEEPRO).is_null() {
-                    (*buf).b_p_ro = 0;
+                    buf.b_p_ro = 0;
                     g_st().need_maketitle = true;
                     status_redraw_all();
                 }
 
-                end = end.min((*buf).b_ml.ml_line_count);
-                if ((*buf).b_ml.ml_flags & ML_EMPTY) != 0 {
+                end = end.min(buf.b_ml.ml_line_count);
+                if (buf.b_ml.ml_flags & ML_EMPTY) != 0 {
                     start = end + 1;
                 }
 
@@ -1409,8 +1410,8 @@ pub fn buf_write(
                         && overwriting
                         && !(g_st().exiting && backup.is_some())
                     {
-                        let fsync_opt = if (*buf).b_p_fs >= 0 {
-                            (*buf).b_p_fs != 0
+                        let fsync_opt = if buf.b_p_fs >= 0 {
+                            buf.b_p_fs != 0
                         } else {
                             opt_vars().p_fs != 0
                         };
@@ -1429,7 +1430,7 @@ pub fn buf_write(
                         fenc_tofree = Some(e);
                         ptr
                     } else {
-                        (*buf).b_p_fenc
+                        buf.b_p_fenc
                     };
 
                     let converted = need_conversion(fenc);
@@ -1578,6 +1579,7 @@ pub fn buf_write(
                         }
                         err = set_err(ptr::null());
 
+                        let buf = &mut *buf;
                         let buffer = write_info.bw_buf.as_mut_ptr();
                         nchars = 0;
 
@@ -1586,10 +1588,10 @@ pub fn buf_write(
                         {
                             eap.force_bin == FORCE_BIN
                         } else {
-                            (*buf).b_p_bin != 0
+                            buf.b_p_bin != 0
                         };
 
-                        if (*buf).b_p_bomb != 0 && !write_bin && (!append || perm < 0) {
+                        if buf.b_p_bomb != 0 && !write_bin && (!append || perm < 0) {
                             write_info.bw_len = make_bom(buffer, fenc);
                             if write_info.bw_len > 0 {
                                 write_info.bw_flags = FIO_NOCONVERT | wb_flags;
@@ -1602,7 +1604,7 @@ pub fn buf_write(
                         }
                         write_info.bw_start_lnum = start;
 
-                        write_undo_file = (*buf).b_p_udf != 0
+                        write_undo_file = buf.b_p_udf != 0
                             && overwriting
                             && !append
                             && !filtering
@@ -1655,10 +1657,9 @@ pub fn buf_write(
                             }
                             if end == 0
                                 || (lnum == end
-                                    && (write_bin || (*buf).b_p_fixeol == 0)
-                                    && ((write_bin && lnum == (*buf).b_no_eol_lnum)
-                                        || (lnum == (*buf).b_ml.ml_line_count
-                                            && (*buf).b_p_eol == 0)))
+                                    && (write_bin || buf.b_p_fixeol == 0)
+                                    && ((write_bin && lnum == buf.b_no_eol_lnum)
+                                        || (lnum == buf.b_ml.ml_line_count && buf.b_p_eol == 0)))
                             {
                                 lnum += 1;
                                 no_eol = true;
@@ -1745,7 +1746,7 @@ pub fn buf_write(
                             end = 0;
                         }
 
-                        if (*buf).b_p_fixeol == 0 && (*buf).b_p_eof != 0 {
+                        if buf.b_p_fixeol == 0 && buf.b_p_eof != 0 {
                             let _ = write_eintr(write_info.bw_fd, c"\x1a".as_ptr().cast(), 1);
                         }
 
@@ -1756,8 +1757,8 @@ pub fn buf_write(
                     }
 
                     if !checking_conversion {
-                        let do_fsync = if (*buf).b_p_fs >= 0 {
-                            (*buf).b_p_fs != 0
+                        let do_fsync = if buf.b_p_fs >= 0 {
+                            buf.b_p_fs != 0
                         } else {
                             opt_vars().p_fs != 0
                         };
@@ -2040,8 +2041,8 @@ pub fn buf_write(
                     {
                         unchanged(&mut *buf, true, false);
                         let changedtick = buf_get_changedtick(&*buf);
-                        if (*buf).b_last_changedtick + 1 == changedtick {
-                            (*buf).b_last_changedtick = changedtick;
+                        if buf.b_last_changedtick + 1 == changedtick {
+                            buf.b_last_changedtick = changedtick;
                         }
                         u_unchanged(&mut *buf);
                         u_update_save_nr(&mut *buf);
@@ -2050,9 +2051,9 @@ pub fn buf_write(
                     if overwriting {
                         ml_timestamp(&mut *buf);
                         if append {
-                            (*buf).b_flags &= !BF_NEW;
+                            buf.b_flags &= !BF_NEW;
                         } else {
-                            (*buf).b_flags &= !BF_WRITE_MASK;
+                            buf.b_flags &= !BF_WRITE_MASK;
                         }
                     }
 
@@ -2168,13 +2169,13 @@ pub fn buf_write(
 
                 if os_fileinfo(fname, &mut file_info_old) {
                     buf_store_file_info(&mut *buf, &mut file_info_old);
-                    (*buf).b_mtime_read = (*buf).b_mtime;
-                    (*buf).b_mtime_read_ns = (*buf).b_mtime_ns;
+                    buf.b_mtime_read = buf.b_mtime;
+                    buf.b_mtime_read_ns = buf.b_mtime_ns;
                 }
             }
         }
 
-        (*buf).b_saving = false;
+        buf.b_saving = false;
         g_st().msg_scroll = msg_save;
 
         if retval == OK && write_undo_file {

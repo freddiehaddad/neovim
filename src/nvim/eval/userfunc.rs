@@ -3281,26 +3281,27 @@ pub fn ex_function(eap: &mut Exarg) {
             }
             (*fp).uf_refcount = 1;
         }
-        (*fp).uf_args = newargs;
-        (*fp).uf_def_args = default_args;
-        (*fp).uf_lines = newlines;
+        let fp = &mut *fp;
+        fp.uf_args = newargs;
+        fp.uf_def_args = default_args;
+        fp.uf_lines = newlines;
         if (flags & FC_CLOSURE) != 0 {
             register_closure(&mut *fp);
         } else {
-            (*fp).uf_scoped = ptr::null_mut();
+            fp.uf_scoped = ptr::null_mut();
         }
         if prof_def_func() {
             func_do_profile(fp);
         }
-        (*fp).uf_varargs = varargs;
+        fp.uf_varargs = varargs;
         if g_st().sandbox != 0 {
             flags |= FC_SANDBOX;
         }
-        (*fp).uf_flags = flags;
-        (*fp).uf_calls = 0;
-        (*fp).uf_script_ctx = g_st().current_sctx;
-        (*fp).uf_script_ctx.sc_lnum += sourcing_lnum_top;
-        nlua_set_sctx(&mut (*fp).uf_script_ctx);
+        fp.uf_flags = flags;
+        fp.uf_calls = 0;
+        fp.uf_script_ctx = g_st().current_sctx;
+        fp.uf_script_ctx.sc_lnum += sourcing_lnum_top;
+        nlua_set_sctx(&mut fp.uf_script_ctx);
 
         ret_free!();
     }

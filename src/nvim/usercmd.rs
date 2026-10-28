@@ -1224,24 +1224,25 @@ pub fn uc_add_command(
             gap.insert(i as usize, empty_ucmd);
             cmd = &raw mut gap[i as usize];
         }
+        let cmd = &mut *cmd;
 
-        (*cmd).uc_rep = rep_cstr;
-        (*cmd).uc_desc = if !crate::memory::cstr_is_empty(desc) {
+        cmd.uc_rep = rep_cstr;
+        cmd.uc_desc = if !crate::memory::cstr_is_empty(desc) {
             Some(crate::memory::cstr_to_cstring(desc))
         } else {
             None
         };
-        (*cmd).uc_argt = argt;
-        (*cmd).uc_def = def;
-        (*cmd).uc_compl = context;
-        (*cmd).uc_script_ctx = g_st().current_sctx;
-        (*cmd).uc_script_ctx.sc_lnum += sourcing_lnum();
-        nlua_set_sctx(&mut (*cmd).uc_script_ctx);
-        (*cmd).uc_compl_arg = compl_arg;
-        (*cmd).uc_compl_luaref = compl_luaref;
-        (*cmd).uc_preview_luaref = preview_luaref;
-        (*cmd).uc_addr_type = addr_type;
-        (*cmd).uc_luaref = luaref;
+        cmd.uc_argt = argt;
+        cmd.uc_def = def;
+        cmd.uc_compl = context;
+        cmd.uc_script_ctx = g_st().current_sctx;
+        cmd.uc_script_ctx.sc_lnum += sourcing_lnum();
+        nlua_set_sctx(&mut cmd.uc_script_ctx);
+        cmd.uc_compl_arg = compl_arg;
+        cmd.uc_compl_luaref = compl_luaref;
+        cmd.uc_preview_luaref = preview_luaref;
+        cmd.uc_addr_type = addr_type;
+        cmd.uc_luaref = luaref;
 
         true
     }

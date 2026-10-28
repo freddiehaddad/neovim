@@ -586,25 +586,25 @@ pub fn evalvars_init() {
 
         let vimvars_ptr = (&raw mut vars_st().vimvars).cast::<VimVar>();
         for i in 0..VV_LEN {
-            let p = vimvars_ptr.add(i);
-            if ((*p).vv_flags & VV_RO) != 0 {
-                (*p).vv_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-            } else if ((*p).vv_flags & VV_RO_SBX) != 0 {
-                (*p).vv_di.di_flags = DI_FLAGS_RO_SBX | DI_FLAGS_FIX;
+            let p = &mut *vimvars_ptr.add(i);
+            if (p.vv_flags & VV_RO) != 0 {
+                p.vv_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
+            } else if (p.vv_flags & VV_RO_SBX) != 0 {
+                p.vv_di.di_flags = DI_FLAGS_RO_SBX | DI_FLAGS_FIX;
             } else {
-                (*p).vv_di.di_flags = DI_FLAGS_FIX;
+                p.vv_di.di_flags = DI_FLAGS_FIX;
             }
 
-            let name_bytes = (*p).vv_name.to_bytes_with_nul();
-            (*p).vv_di.di_key.clear();
-            (*p).vv_di
+            let name_bytes = p.vv_name.to_bytes_with_nul();
+            p.vv_di.di_key.clear();
+            p.vv_di
                 .di_key
                 .extend(name_bytes.iter().map(|&b| b as c_char));
-            if (*p).vv_di.di_tv.v_type != VarType::VarUnknown {
-                hash_add(&mut vars_st().vimvardict.dv_hashtab, &mut (*p).vv_di);
+            if p.vv_di.di_tv.v_type != VarType::VarUnknown {
+                hash_add(&mut vars_st().vimvardict.dv_hashtab, &mut p.vv_di);
             }
-            if ((*p).vv_flags & VV_COMPAT) != 0 {
-                hash_add(&mut vars_st().compat_hashtab, &mut (*p).vv_di);
+            if (p.vv_flags & VV_COMPAT) != 0 {
+                hash_add(&mut vars_st().compat_hashtab, &mut p.vv_di);
             }
         }
         let vim_version = Varnumber::from(min_vim_version());
@@ -698,13 +698,13 @@ pub fn evalvars_clear() {
     unsafe {
         let vimvars_ptr = (&raw mut vars_st().vimvars).cast::<VimVar>();
         for i in 0..VV_LEN {
-            let p = vimvars_ptr.add(i);
-            if (*p).vv_di.di_tv.v_type == VarType::VarString
-                || (*p).vv_di.di_tv.v_type == VarType::VarList
+            let p = &mut *vimvars_ptr.add(i);
+            if p.vv_di.di_tv.v_type == VarType::VarString
+                || p.vv_di.di_tv.v_type == VarType::VarList
             {
-                tv_clear(&mut (*p).vv_di.di_tv);
+                tv_clear(&mut p.vv_di.di_tv);
             }
-            (*p).vv_di.di_key = Vec::new();
+            p.vv_di.di_key = Vec::new();
         }
 
         partial_unref(get_vim_var_partial(VV_LUA));
@@ -2136,14 +2136,14 @@ fn do_unlet_var(lp: &mut Lval, name_end: *mut c_char, eap: &mut Exarg, _deep: c_
         } else {
             let d = lp.ll_dict;
             debug_assert!(!d.is_null());
-            let di = lp.ll_di;
+            let di = &mut *lp.ll_di;
             let watched = tv_dict_is_watched(d.as_ref());
             let mut key: Option<std::ffi::CString> = None;
             let mut oldtv: TypVal = TypVal::new();
 
             if watched {
-                tv_copy(&(*di).di_tv, &mut oldtv);
-                key = Some(cstr_to_cstring((*di).di_key.as_ptr()));
+                tv_copy(&di.di_tv, &mut oldtv);
+                key = Some(cstr_to_cstring(di.di_key.as_ptr()));
             }
 
             tv_dict_item_remove(&mut *d, &mut *di);
