@@ -899,7 +899,7 @@ pub fn on_channel_event(chan: &mut Channel) {
         channel_reader_callbacks(chan, &mut (*ct).on_data);
         channel_reader_callbacks(chan, &mut (*ct).on_stderr);
         if exit_status > -1 {
-            channel_callback_call(chan, ptr::null_mut());
+            channel_callback_call(chan, None);
             (*ct).exit_status = -1;
         }
 
@@ -936,17 +936,17 @@ pub fn channel_reader_callbacks(chan: &mut Channel, reader: &mut CallbackReader)
                         );
                     }
                 } else {
-                    channel_callback_call(chan, &raw mut *reader);
+                    channel_callback_call(chan, Some(&mut *reader));
                 }
                 reader.eof = false;
             }
         } else {
             let is_eof = reader.eof;
             if !reader.buffer.is_empty() {
-                channel_callback_call(chan, &raw mut *reader);
+                channel_callback_call(chan, Some(&mut *reader));
             }
             if is_eof {
-                channel_callback_call(chan, &raw mut *reader);
+                channel_callback_call(chan, Some(&mut *reader));
                 reader.eof = false;
             }
         }
@@ -990,7 +990,8 @@ pub(crate) fn channel_proc_state_cb(_proc: &mut Proc, suspended: bool, chan: &mu
     }
 }
 
-fn channel_callback_call(chan: &mut Channel, reader: *mut CallbackReader) {
+fn channel_callback_call(chan: &mut Channel,reader: Option<&mut CallbackReader>) {
+    let reader: *mut CallbackReader = reader.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let cp = &raw mut *chan;
         let ct = &raw mut *chan;

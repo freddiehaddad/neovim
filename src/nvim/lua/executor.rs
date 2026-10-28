@@ -2306,7 +2306,7 @@ pub fn ex_lua(eap: &mut exarg_T) {
     unsafe {
         if *eap.arg == NUL {
             if eap.addr_count > 0 {
-                cmd_source_buffer(eap, true);
+                cmd_source_buffer(Some(eap), true);
             } else {
                 emsg(gettext((&raw const e_argreq).cast()));
             }

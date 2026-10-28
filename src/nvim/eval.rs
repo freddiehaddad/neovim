@@ -488,7 +488,8 @@ pub fn eval_to_bool(
 }
 
 /// Call eval1() and give an error message if not done at a lower level.
-fn eval1_emsg(arg: *mut *mut c_char,rettv: &mut typval_T, eap: *mut exarg_T) -> c_int {
+fn eval1_emsg(arg: *mut *mut c_char,rettv: &mut typval_T,eap: Option<&mut exarg_T>) -> c_int {
+    let eap: *mut exarg_T = eap.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let start = *arg;
         let did_emsg_before = g_st().did_emsg;
@@ -603,7 +604,7 @@ fn eval_expr_string(expr: *const typval_T, rettv: *mut typval_T) -> c_int {
         }
 
         s = skipwhite(s);
-        if eval1_emsg(&raw mut s, &mut *rettv, ptr::null_mut()) == FAIL {
+        if eval1_emsg(&raw mut s, &mut *rettv, None) == FAIL {
             return FAIL;
         }
 
@@ -726,10 +727,10 @@ fn typval2string(tv: &mut typval_T, join_list: bool) -> Option<std::ffi::CString
 /// Top level evaluation function, returning a string.
 pub fn eval_to_string_eap(
     arg: *mut c_char,
-    join_list: bool,
-    eap: *mut exarg_T,
+    join_list: bool,eap: Option<&mut exarg_T>,
     use_simple_function: bool,
 ) -> Option<std::ffi::CString> {
+    let eap: *mut exarg_T = eap.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut tv = tv_initial_value();
         let retval: Option<std::ffi::CString>;
@@ -757,7 +758,7 @@ pub fn eval_to_string(
     join_list: bool,
     use_simple_function: bool,
 ) -> Option<std::ffi::CString> {
-    eval_to_string_eap(arg, join_list, ptr::null_mut(), use_simple_function)
+    eval_to_string_eap(arg, join_list, None, use_simple_function)
 }
 
 /// Call eval_to_string() without using current local variables and using textlock.
@@ -2048,9 +2049,9 @@ fn eval_func(
     evalarg: *mut evalarg_T,
     name: *mut c_char,
     name_len: c_int,rettv: &mut typval_T,
-    flags: c_int,
-    basetv: *mut typval_T,
+    flags: c_int,basetv: Option<&mut typval_T>,
 ) -> c_int {
+    let basetv: *mut typval_T = basetv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let evaluate = (flags & EVAL_EVALUATE) != 0;
         let mut s = name;
@@ -2959,7 +2960,7 @@ fn eval7(
                 };
                 if *skipwhite(*arg) == b'(' as c_char {
                     *arg = skipwhite(*arg);
-                    ret = eval_func(arg, evalarg, s, len, &mut *rettv, flags, ptr::null_mut());
+                    ret = eval_func(arg, evalarg, s, len, &mut *rettv, flags, None);
                 } else if evaluate {
                     ret = eval_variable(s, len, rettv, ptr::null_mut(), true, false);
                 } else {
@@ -3063,10 +3064,10 @@ fn call_func_rettv(
     evalarg: *mut evalarg_T,
     rettv: *mut typval_T,
     evaluate: bool,
-    selfdict: *mut dict_T,
-    basetv: *mut typval_T,
+    selfdict: *mut dict_T,basetv: Option<&mut typval_T>,
     lua_funcname: *const c_char,
 ) -> c_int {
+    let basetv: *mut typval_T = basetv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut pt: *mut partial_T = ptr::null_mut();
         let mut functv = tv_initial_value();
@@ -3166,7 +3167,7 @@ fn eval_lambda(
                 rettv,
                 evaluate,
                 ptr::null_mut(),
-                &raw mut base,
+                Some(&mut base),
                 ptr::null(),
             );
         }
@@ -3296,7 +3297,7 @@ fn eval_method(
                         rettv,
                         evaluate,
                         ptr::null_mut(),
-                        &raw mut base,
+                        Some(&mut base),
                         lua_funcname,
                     );
                 } else {
@@ -3307,7 +3308,7 @@ fn eval_method(
                         len,
                         &mut *rettv,
                         if evaluate { EVAL_EVALUATE } else { 0 },
-                        &raw mut base,
+                        Some(&mut base),
                     );
                 }
             }
@@ -6419,7 +6420,7 @@ pub fn handle_subscript(
                     rettv,
                     evaluate,
                     selfdict,
-                    ptr::null_mut(),
+                    None,
                     lua_funcname,
                 );
 
@@ -6669,7 +6670,7 @@ pub fn ex_execute(eap: &mut exarg_T) {
             g_st().emsg_skip += 1;
         }
         while *arg != NUL && *arg != b'|' as c_char && *arg != b'\n' as c_char {
-            ret = eval1_emsg(&raw mut arg, &mut rettv, eap);
+            ret = eval1_emsg(&raw mut arg, &mut rettv, Some(eap));
             if ret == FAIL {
                 break;
             }

@@ -3060,10 +3060,10 @@ pub fn my_iconv_open(to: *mut c_char, from: *mut c_char) -> Option<usize> {
 fn iconv_string(
     vcp: &vimconv_T,
     str_: *const c_char,
-    slen: usize,
-    unconvlenp: *mut usize,
+    slen: usize,unconvlenp: Option<&mut usize>,
     resultlenp: *mut usize,
 ) -> Option<Vec<u8>> {
+    let unconvlenp: *mut usize = unconvlenp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut to: *mut c_char;
         let mut len = 0usize;
@@ -3241,14 +3241,14 @@ pub fn string_convert(
     ptr: *mut c_char,
     lenp: *mut usize,
 ) -> Option<Vec<u8>> {
-    string_convert_ext(vcp, ptr, lenp, ptr::null_mut())
+    string_convert_ext(vcp, ptr, lenp, None)
 }
 
 pub fn string_convert_ext(
     vcp: &vimconv_T,
     ptr: *mut c_char,
     lenp: *mut usize,
-    unconvlenp: *mut usize,
+    mut unconvlenp: Option<&mut usize>,
 ) -> Option<Vec<u8>> {
     unsafe {
         let len = if lenp.is_null() {
@@ -3318,8 +3318,10 @@ pub fn string_convert_ext(
                         if l_w == 0 {
                             return None;
                         }
-                        if !unconvlenp.is_null() && l_w > len - i {
-                            *unconvlenp = len - i;
+                        if let Some(ref mut ulen) = unconvlenp
+                            && l_w > len - i
+                        {
+                            **ulen = len - i;
                             break;
                         }
                         out.push(b);

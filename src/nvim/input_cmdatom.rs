@@ -1394,10 +1394,10 @@ fn atom_visual_span_flush() {
 }
 
 fn atom_visual_end_suffix(
-    suffix: Option<std::ffi::CString>,
-    spec: *const CmdSpec,
+    suffix: Option<std::ffi::CString>,spec: Option<&CmdSpec>,
     redoable: bool,
 ) -> bool {
+    let spec: *const CmdSpec = spec.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         if mc_replaying() || atom_st().atom_suppressed {
             return false;
@@ -1505,7 +1505,7 @@ pub fn atom_visual_end(spec: CmdSpec, redoable: bool) -> bool {
             return false;
         }
         let suffix = atom_redo_keys(&spec);
-        atom_visual_end_suffix(Some(suffix), &spec, redoable)
+        atom_visual_end_suffix(Some(suffix), Some(&spec), redoable)
 }
 
 pub fn atom_capture_op(oap: &mut oparg_T, cap: &mut cmdarg_T, redo_yank: bool) {
@@ -1550,7 +1550,7 @@ pub fn atom_capture_op(oap: &mut oparg_T, cap: &mut cmdarg_T, redo_yank: bool) {
                     },
                     0,
                 ];
-                atom_visual_end_suffix(Some(cstr_to_cstring(suffix.as_ptr())), &spec, redoable);
+                atom_visual_end_suffix(Some(cstr_to_cstring(suffix.as_ptr())), Some(&spec), redoable);
             } else {
                 spec.cmdarg = if oap.op_type == OP_REPLACE {
                     cap.nchar
@@ -1882,16 +1882,16 @@ fn atom_capture_cmd(ca: &mut cmdarg_T, old: *mut CmdFrame, is_root: bool) -> boo
             let v_atoms = &raw const atom_st().vatom.atoms;
             if let Some(suffix) = own.keys.take() {
                 drop(own);
-                atom_visual_end_suffix(Some(suffix), ptr::null(), false);
+                atom_visual_end_suffix(Some(suffix), None, false);
             } else if user && atom_visual_replayable() && !(*v_atoms).is_empty() {
                 let suffix: [c_char; 2] = [ESC as c_char, 0];
                 atom_visual_end_suffix(
                     Some(cstr_to_cstring(suffix.as_ptr())),
-                    ptr::null(),
+                    None,
                     false,
                 );
             } else {
-                atom_visual_end_suffix(None, ptr::null(), false);
+                atom_visual_end_suffix(None, None, false);
             }
         }
 

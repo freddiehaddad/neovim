@@ -2557,7 +2557,7 @@ fn has_state_with_pos(
                 && sub_equal(&mut (*thread).subs.norm, &mut (*subs).norm)
                 && (re_st().rex.nfa_has_zsubexpr == 0
                     || sub_equal(&mut (*thread).subs.synt, &mut (*subs).synt))
-                && pim_equal(&raw const (*thread).pim, pim)
+                && pim_equal(Some(&(*thread).pim), pim)
             {
                 return true;
             }
@@ -2567,7 +2567,8 @@ fn has_state_with_pos(
 }
 
 #[inline]
-fn pim_equal(one: *const nfa_pim_T, two: *const nfa_pim_T) -> bool {
+fn pim_equal(one: Option<&nfa_pim_T>, two: *const nfa_pim_T) -> bool {
+    let one: *const nfa_pim_T = one.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let one_unused = one.is_null() || (*one).result == NFA_PIM_UNUSED;
         let two_unused = two.is_null() || (*two).result == NFA_PIM_UNUSED;
@@ -2660,12 +2661,12 @@ fn state_in_list(
 fn addstate(
     states: &mut [nfa_state_T],
     l: *mut nfa_list_T,
-    state: Option<usize>,
-    subs_arg: *mut regsubs_T,
+    state: Option<usize>,subs_arg: Option<&mut regsubs_T>,
     pim: *mut nfa_pim_T,
     off_arg: c_int,
     depth: c_int,
 ) -> *mut regsubs_T {
+    let subs_arg: *mut regsubs_T = subs_arg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     let Some(state_idx) = state else {
         if depth >= 5000 || subs_arg.is_null() {
             return ptr::null_mut();
@@ -2990,7 +2991,7 @@ fn addstate_here(
             states,
             l,
             state,
-            subs,
+            Some(subs),
             pim,
             -listidx - ADDSTATE_HERE_OFFSET,
             0,
@@ -3615,7 +3616,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                 &mut prog.state,
                 &raw mut list[0],
                 start_out,
-                m,
+                Some(&mut *m),
                 ptr::null_mut(),
                 0,
                 0,
@@ -3625,7 +3626,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                 &mut prog.state,
                 &raw mut list[0],
                 start,
-                m,
+                Some(&mut *m),
                 ptr::null_mut(),
                 0,
                 0,
@@ -4547,7 +4548,7 @@ fn nfa_regmatch(prog: &mut nfa_regprog_T,
                             &mut prog.state,
                             nextlist,
                             start_out,
-                            m,
+                            Some(&mut *m),
                             ptr::null_mut(),
                             clen,
                             0,

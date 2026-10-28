@@ -350,7 +350,7 @@ pub fn closeFold(pos: pos_T, count: c_int) {
 
 /// Close fold for current window at position `pos` recursively.
 pub fn closeFoldRecurse(pos: pos_T) {
-    setManualFold(pos, false, true, ptr::null_mut());
+    setManualFold(pos, false, true, None);
 }
 
 /// Open or Close folds for current window in lines "first" to "last".
@@ -377,7 +377,7 @@ pub fn opFoldRange(
             if opening != 0 && recurse == 0 {
                 hasFolding(*curwin.as_ptr(), lnum, ptr::null_mut(), &mut lnum_next);
             }
-            setManualFold(temp, opening != 0, recurse != 0, &mut done);
+            setManualFold(temp, opening != 0, recurse != 0, Some(&mut done));
             if opening == 0 && recurse == 0 {
                 hasFolding(*curwin.as_ptr(), lnum, ptr::null_mut(), &mut lnum_next);
             }
@@ -399,7 +399,7 @@ pub fn openFold(pos: pos_T, count: c_int) {
 
 /// Open fold for current window at position `pos` recursively.
 pub fn openFoldRecurse(pos: pos_T) {
-    setManualFold(pos, true, true, ptr::null_mut());
+    setManualFold(pos, true, true, None);
 }
 
 /// Open folds until the cursor line is not in a closed fold.
@@ -409,7 +409,7 @@ pub fn foldOpenCursor() {
         if hasAnyFolding(&mut **curwin.as_ptr()) != 0 {
             loop {
                 let mut done = DONE_NOTHING;
-                setManualFold((**curwin.as_ptr()).w_cursor, true, false, &mut done);
+                setManualFold((**curwin.as_ptr()).w_cursor, true, false, Some(&mut done));
                 if (done & DONE_ACTION) == 0 {
                     break;
                 }
@@ -953,7 +953,7 @@ fn checkupdate(wp: *mut win_T) {
 fn setFoldRepeat(pos: pos_T, count: c_int, do_open: bool) {
     for n in 0..count {
             let mut done = DONE_NOTHING;
-            setManualFold(pos, do_open, false, &mut done);
+            setManualFold(pos, do_open, false, Some(&mut done));
             if (done & DONE_ACTION) == 0 {
                 if n == 0 && (done & DONE_FOLD) == 0 {
                     emsg(gettext(E_NOFOLD.as_ptr()));
@@ -963,7 +963,8 @@ fn setFoldRepeat(pos: pos_T, count: c_int, do_open: bool) {
         }
 }
 
-fn setManualFold(pos: pos_T, opening: bool, recurse: bool, donep: *mut c_int) -> linenr_T {
+fn setManualFold(pos: pos_T, opening: bool, recurse: bool,donep: Option<&mut c_int>) -> linenr_T {
+    let donep: *mut c_int = donep.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if foldmethodIsDiff(&mut **curwin.as_ptr()) && (**curwin.as_ptr()).w_onebuf_opt.wo_scb != 0 {
             let mut wp = g_st().firstwin;
@@ -971,14 +972,14 @@ fn setManualFold(pos: pos_T, opening: bool, recurse: bool, donep: *mut c_int) ->
                 if !ptr::eq(wp, *curwin.as_ptr()) && foldmethodIsDiff(&mut *wp) && (*wp).w_onebuf_opt.wo_scb != 0 {
                     let dlnum = diff_lnum_win((**curwin.as_ptr()).w_cursor.lnum, &mut *wp);
                     if dlnum != 0 {
-                        setManualFoldWin(&mut *wp, dlnum, opening, recurse, ptr::null_mut());
+                        setManualFoldWin(&mut *wp, dlnum, opening, recurse, None);
                     }
                 }
                 wp = (*wp).w_next;
             }
         }
 
-        setManualFoldWin(&mut **curwin.as_ptr(), pos.lnum, opening, recurse, donep)
+        setManualFoldWin(&mut **curwin.as_ptr(), pos.lnum, opening, recurse, (!donep.is_null()).then(|| &mut *donep))
     }
 }
 
@@ -986,9 +987,9 @@ fn setManualFoldWin(
     wp: &mut win_T,
     mut lnum: linenr_T,
     opening: bool,
-    recurse: bool,
-    donep: *mut c_int,
+    recurse: bool,donep: Option<&mut c_int>,
 ) -> linenr_T {
+    let donep: *mut c_int = donep.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut found: *mut fold_T = ptr::null_mut();
         let mut level: c_int = 0;

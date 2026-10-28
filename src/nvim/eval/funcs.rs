@@ -6968,7 +6968,8 @@ pub fn f_reduce(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncD
     }
 }
 
-fn get_search_arg(varp: &mut typval_T, flagsp: *mut c_int) -> c_int {
+fn get_search_arg(varp: &mut typval_T,flagsp: Option<&mut c_int>) -> c_int {
+    let flagsp: *mut c_int = flagsp.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut dir = FORWARD;
         if varp.v_type == VarType::VAR_UNKNOWN {
@@ -7027,7 +7028,7 @@ fn search_cmn(argvars: *mut typval_T, match_pos: Option<&mut pos_T>, flagsp: &mu
 
         'theend: {
             let pat = tv_get_string(argvars);
-            let dir = get_search_arg(&mut *argvars.add(1), &raw mut *flagsp);
+            let dir = get_search_arg(&mut *argvars.add(1), Some(&mut *flagsp));
             if dir == 0 {
                 break 'theend;
             }
@@ -7528,7 +7529,8 @@ pub fn f_searchdecl(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalF
     }
 }
 
-fn searchpair_cmn(argvars: *mut typval_T, match_pos: *mut pos_T) -> c_int {
+fn searchpair_cmn(argvars: *mut typval_T,match_pos: Option<&mut pos_T>) -> c_int {
+    let match_pos: *mut pos_T = match_pos.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let save_p_ws = opt_vars().p_ws;
         let mut flags: c_int = 0;
@@ -7546,7 +7548,7 @@ fn searchpair_cmn(argvars: *mut typval_T, match_pos: *mut pos_T) -> c_int {
                 break 'theend;
             }
 
-            let dir = get_search_arg(&mut *argvars.add(3), &raw mut flags);
+            let dir = get_search_arg(&mut *argvars.add(3), Some(&mut flags));
             if dir == 0 {
                 break 'theend;
             }
@@ -7599,7 +7601,7 @@ fn searchpair_cmn(argvars: *mut typval_T, match_pos: *mut pos_T) -> c_int {
 pub fn f_searchpair(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: EvalFuncData){
     let argvars = argvars.as_mut_ptr();
 
-    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(searchpair_cmn(argvars, ptr::null_mut())));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(varnumber_T::from(searchpair_cmn(argvars, None)));
 }
 
 /// "searchpairpos()" function
@@ -7615,7 +7617,7 @@ pub fn f_searchpairpos(argvars: &mut [typval_T], rettv: &mut typval_T, _fptr: Ev
         let mut col: c_int = 0;
 
         tv_list_alloc_ret(rettv, 2);
-        if searchpair_cmn(argvars, &raw mut match_pos) > 0 {
+        if searchpair_cmn(argvars, Some(&mut match_pos)) > 0 {
             lnum = match_pos.lnum;
             col = match_pos.col;
         }

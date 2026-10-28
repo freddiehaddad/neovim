@@ -2502,7 +2502,8 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
     }
 }
 
-fn cmd_source(fname: *mut c_char, eap: *mut exarg_T) {
+fn cmd_source(fname: *mut c_char,eap: Option<&mut exarg_T>) {
+    let eap: *mut exarg_T = eap.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         if *fname != NUL && !eap.is_null() && (*eap).addr_count > 0 {
             emsg(gettext(e_norange.as_ptr()));
@@ -2513,7 +2514,7 @@ fn cmd_source(fname: *mut c_char, eap: *mut exarg_T) {
             if (*eap).forceit != 0 {
                 emsg(gettext(e_argreq.as_ptr()));
             } else {
-                cmd_source_buffer(eap, false);
+                cmd_source_buffer((!eap.is_null()).then(|| &*eap), false);
             }
         } else if !eap.is_null() && (*eap).forceit != 0 {
             openscript(
@@ -2531,7 +2532,7 @@ fn cmd_source(fname: *mut c_char, eap: *mut exarg_T) {
 
 /// ":source [{fname}]"
 pub fn ex_source(eap: &mut exarg_T) {
-    cmd_source(eap.arg, eap);
+    cmd_source(eap.arg, Some(&mut *eap));
 }
 
 /// ":options"
@@ -2544,7 +2545,7 @@ pub fn ex_options(_eap: &mut exarg_T) {
         os_setenv(c"OPTWIN_CMD".as_ptr(), buf.as_ptr(), 1);
         cmd_source(
             c"$VIMRUNTIME/scripts/optwin.lua".as_ptr() as *mut c_char,
-            ptr::null_mut(),
+            None,
         );
 }
 
@@ -2636,10 +2637,10 @@ pub fn new_script_item(
 }
 
 fn do_source_buffer_init(
-    sp: &mut source_cookie_T,
-    eap: *const exarg_T,
+    sp: &mut source_cookie_T,eap: Option<&exarg_T>,
     ex_lua: bool,
 ) -> Option<std::ffi::CString> {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         if g_st().curbuf.is_null() {
             return None;
@@ -2700,16 +2701,16 @@ fn do_source_str_init(sp: &mut source_cookie_T, mut str_ptr: *const c_char) {
     }
 }
 
-pub fn cmd_source_buffer(eap: *const exarg_T, ex_lua: bool) {
+pub fn cmd_source_buffer(eap: Option<&exarg_T>, ex_lua: bool) {
     do_source_ext(
-            ptr::null_mut(),
-            false,
-            DOSO_NONE,
-            ptr::null_mut(),
-            eap,
-            ex_lua,
-            ptr::null(),
-        );
+        ptr::null_mut(),
+        false,
+        DOSO_NONE,
+        ptr::null_mut(),
+        eap,
+        ex_lua,
+        ptr::null(),
+    );
 }
 
 /// Executes lines in `str` as Ex commands.
@@ -2733,7 +2734,7 @@ pub fn do_source_str(str_ptr: *const c_char, mut traceback_name: *const c_char) 
             false,
             DOSO_NONE,
             ptr::null_mut(),
-            ptr::null(),
+            None,
             false,
             str_ptr,
         )
@@ -2743,11 +2744,11 @@ fn do_source_ext(
     fname: *mut c_char,
     check_other: bool,
     is_vimrc: c_int,
-    ret_sid: *mut c_int,
-    eap: *const exarg_T,
+    ret_sid: *mut c_int,eap: Option<&exarg_T>,
     ex_lua: bool,
     str_ptr: *const c_char,
 ) -> c_int {
+    let eap: *const exarg_T = eap.map_or(std::ptr::null(), |p| &raw const *p);
     unsafe {
         let mut cookie = source_cookie_T::new();
         let mut firstline: Option<std::ffi::CString> = None;
@@ -2759,7 +2760,7 @@ fn do_source_ext(
 
         let fname_exp_owned: std::ffi::CString = if fname.is_null() {
             debug_assert!(str_ptr.is_null());
-            let Some(fe) = do_source_buffer_init(&mut cookie, eap, ex_lua) else {
+            let Some(fe) = do_source_buffer_init(&mut cookie, (!eap.is_null()).then(|| &*eap), ex_lua) else {
                 return FAIL;
             };
             fe
@@ -3085,7 +3086,7 @@ pub fn do_source(
             check_other,
             is_vimrc,
             ret_sid,
-            ptr::null(),
+            None,
             false,
             ptr::null(),
         )

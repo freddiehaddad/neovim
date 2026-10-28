@@ -816,7 +816,7 @@ pub fn qf_init(
             (*qi).qf_curlist,
             efile,
             g_st().curbuf,
-            ptr::null_mut(),
+            None,
             errorformat,
             newlist != 0,
             0,
@@ -1475,12 +1475,12 @@ fn qf_parse_line(
 fn qf_setup_state(
     pstate: &mut qfstate_T,
     enc: *mut c_char,
-    efile: *const c_char,
-    tv: *mut typval_T,
+    efile: *const c_char,tv: Option<&mut typval_T>,
     buf: *mut buf_T,
     lnumfirst: linenr_T,
     lnumlast: linenr_T,
 ) -> c_int {
+    let tv: *mut typval_T = tv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         pstate.vc.vc_type = CONV_NONE;
         if !enc.is_null() && *enc != NUL {
@@ -1520,8 +1520,7 @@ fn qf_init_ext(
     qi: &mut qf_info_T,
     mut qf_idx: c_int,
     efile: *const c_char,
-    buf: *mut buf_T,
-    tv: *mut typval_T,
+    buf: *mut buf_T,tv: Option<&mut typval_T>,
     errorformat: *mut c_char,
     newlist: bool,
     lnumfirst: linenr_T,
@@ -1529,6 +1528,7 @@ fn qf_init_ext(
     qf_title: *const c_char,
     enc: *mut c_char,
 ) -> c_int {
+    let tv: *mut typval_T = tv.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut state = qfstate_T::default();
         let mut fields = qffields_T::default();
@@ -1537,7 +1537,7 @@ fn qf_init_ext(
 
         qf_st().qf_last_bufname = None;
 
-        if qf_setup_state(&mut state, enc, efile, tv, buf, lnumfirst, lnumlast) == FAIL {
+        if qf_setup_state(&mut state, enc, efile, (!tv.is_null()).then(|| &mut *tv), buf, lnumfirst, lnumlast) == FAIL {
             if qf_idx == qi.qf_curlist {
                 qf_update_buffer(qi, old_count);
             }
@@ -6164,13 +6164,13 @@ fn get_qfline_items(qfp: &mut qfline_T, list: &mut list_T) -> c_int {
         OK
 }
 
-fn get_errorlist(
-    qi_arg: *mut qf_info_T,
+fn get_errorlist(qi_arg: Option<&mut qf_info_T>,
     wp: *mut win_T,
     mut qf_idx: c_int,
     eidx: c_int,
     list: *mut list_T,
 ) -> c_int {
+    let qi_arg: *mut qf_info_T = qi_arg.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut qi = qi_arg;
         if qi.is_null() {
@@ -6255,7 +6255,7 @@ fn qf_get_list_from_lines(
             0,
             ptr::null(),
             ptr::null_mut(),
-            &raw mut (*di).di_tv,
+            Some(&mut (*di).di_tv),
             errorformat,
             true,
             0,
@@ -6264,7 +6264,7 @@ fn qf_get_list_from_lines(
             ptr::null_mut(),
         ) > 0
         {
-            get_errorlist(&raw mut qi, ptr::null_mut(), 0, 0, l);
+            get_errorlist(Some(&mut qi), ptr::null_mut(), 0, 0, l);
         }
 
         tv_dict_add_list(retdict, c"items".as_ptr(), 5, l);
@@ -6473,7 +6473,7 @@ fn qf_getprop_items(
 ) -> c_int {
     unsafe {
         let l = tv_list_alloc(kListLenMayKnow);
-        get_errorlist(&raw mut *qi, ptr::null_mut(), qf_idx, eidx, l);
+        get_errorlist(Some(&mut *qi), ptr::null_mut(), qf_idx, eidx, l);
         tv_dict_add_list(retdict, c"items".as_ptr(), 5, l);
         OK
     }
@@ -7006,7 +7006,7 @@ fn qf_setprop_items_from_lines(
             qf_idx,
             ptr::null(),
             ptr::null_mut(),
-            &raw mut (*di).di_tv,
+            Some(&mut (*di).di_tv),
             errorformat,
             false,
             0,
@@ -7403,7 +7403,7 @@ pub fn ex_cbuffer(eap: &mut exarg_T) {
             (*qi).qf_curlist,
             ptr::null(),
             buf,
-            ptr::null_mut(),
+            None,
             opt_vars().p_efm,
             eap.cmdidx != CMD_caddbuffer && eap.cmdidx != CMD_laddbuffer,
             eap.line1,
@@ -7489,7 +7489,7 @@ pub fn cexpr_core(eap: &exarg_T, tv: &mut typval_T) -> c_int {
                 (*qi).qf_curlist,
                 ptr::null(),
                 ptr::null_mut(),
-                &raw mut *tv,
+                Some(&mut *tv),
                 opt_vars().p_efm,
                 eap.cmdidx != CMD_caddexpr && eap.cmdidx != CMD_laddexpr,
                 0,
@@ -7785,7 +7785,7 @@ fn get_qf_loc_list(
     if what_arg.v_type == VarType::VAR_UNKNOWN {
             tv_list_alloc_ret(&mut *rettv, kListLenMayKnow);
             if is_qf || !wp.is_null() {
-                get_errorlist(ptr::null_mut(), wp, -1, 0, rettv.vval.v_list());
+                get_errorlist(None, wp, -1, 0, rettv.vval.v_list());
             }
         } else {
             tv_dict_alloc_ret(&raw mut *rettv);

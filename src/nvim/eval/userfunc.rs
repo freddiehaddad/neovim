@@ -381,11 +381,11 @@ fn one_function_arg(
 fn get_function_args(
     argp: *mut *mut c_char,
     endchar: c_char,
-    mut newargs: Option<&mut Vec<std::ffi::CString>>,
-    varargs: *mut c_int,
+    mut newargs: Option<&mut Vec<std::ffi::CString>>,varargs: Option<&mut c_int>,
     mut default_args: Option<&mut Vec<std::ffi::CString>>,
     skip: bool,
 ) -> c_int {
+    let varargs: *mut c_int = varargs.map_or(std::ptr::null_mut(), |p| &raw mut *p);
     unsafe {
         let mut mustend = false;
         let mut arg = *argp;
@@ -581,7 +581,7 @@ pub fn get_lambda_tv(
             &raw mut s,
             b'-' as c_char,
             None,
-            ptr::null_mut(),
+            None,
             None,
             true,
         );
@@ -594,7 +594,7 @@ pub fn get_lambda_tv(
             arg,
             b'-' as c_char,
             evaluate.then_some(&mut newargs),
-            &raw mut varargs,
+            Some(&mut varargs),
             None,
             false,
         );
@@ -3050,7 +3050,7 @@ pub fn ex_function(eap: &mut exarg_T) {
             &raw mut p,
             b')' as c_char,
             Some(&mut newargs),
-            &raw mut varargs,
+            Some(&mut varargs),
             Some(&mut default_args),
             eap.skip != 0,
         ) == FAIL
