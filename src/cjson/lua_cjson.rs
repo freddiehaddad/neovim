@@ -361,13 +361,13 @@ fn json_create_config(l: *mut lua_State) {
 
 fn json_encode_exception(
     l: *mut lua_State,
-    ctx: *mut json_encode_t,
+    ctx: &mut json_encode_t,
     lindex: c_int,
     reason: *const c_char,
 ) -> ! {
     unsafe {
-        if (*(*ctx).options).sort_keys != 0 {
-            (*(*ctx).options).keybuf = keybuf_t::new();
+        if (*ctx.options).sort_keys != 0 {
+            (*ctx.options).keybuf = keybuf_t::new();
         }
 
         luaL_error(
@@ -382,15 +382,15 @@ fn json_encode_exception(
 
 fn json_append_string_contents(
     l: *mut lua_State,
-    ctx: *mut json_encode_t,
+    ctx: &mut json_encode_t,
     lindex: c_int,
     use_keybuf: bool,
 ) {
     unsafe {
         let json = if use_keybuf {
-            &raw mut (*(*ctx).options).keybuf.buf
+            &mut (*ctx.options).keybuf.buf
         } else {
-            (*ctx).json
+            &mut *ctx.json
         };
 
         let mut len: usize = 0;
@@ -401,7 +401,7 @@ fn json_append_string_contents(
         }
         strbuf_ensure_empty_length(json, len * 6);
 
-        let escape_table = (*(*ctx).options).char2escape;
+        let escape_table = (*ctx.options).char2escape;
         for i in 0..len {
             let ch = *str_ptr.add(i);
             let escstr = *escape_table.add((ch as u8) as usize);
@@ -414,15 +414,15 @@ fn json_append_string_contents(
     }
 }
 
-fn json_append_string(l: *mut lua_State, ctx: *mut json_encode_t, lindex: c_int) {
+fn json_append_string(l: *mut lua_State, ctx: &mut json_encode_t, lindex: c_int) {
     unsafe {
-        strbuf_append_char((*ctx).json, b'"' as c_char);
+        strbuf_append_char(&mut *ctx.json, b'"' as c_char);
         json_append_string_contents(l, ctx, lindex, false);
-        strbuf_append_char((*ctx).json, b'"' as c_char);
+        strbuf_append_char(&mut *ctx.json, b'"' as c_char);
     }
 }
 
-fn lua_array_length(l: *mut lua_State, ctx: *mut json_encode_t) -> c_int {
+fn lua_array_length(l: *mut lua_State, ctx: &mut json_encode_t) -> c_int {
     unsafe {
         let mut max: c_int = 0;
         let mut items: c_int = 0;
@@ -455,7 +455,7 @@ fn lua_array_length(l: *mut lua_State, ctx: *mut json_encode_t) -> c_int {
 
 fn json_check_encode_depth(
     l: *mut lua_State,
-    ctx: *mut json_encode_t,
+    ctx: &mut json_encode_t,
     current_depth: c_int,
 ) {
     unsafe {
@@ -463,8 +463,8 @@ fn json_check_encode_depth(
             return;
         }
 
-        if (*(*ctx).options).sort_keys != 0 {
-            (*(*ctx).options).keybuf = keybuf_t::new();
+        if (*ctx.options).sort_keys != 0 {
+            (*ctx.options).keybuf = keybuf_t::new();
         }
 
         luaL_error(
@@ -476,27 +476,27 @@ fn json_check_encode_depth(
 }
 
 fn json_append_newline_and_indent(
-    json: *mut strbuf_t,
-    ctx: *mut json_encode_t,
+    json: &mut strbuf_t,
+    ctx: &json_encode_t,
     depth: c_int,
 ) {
     unsafe {
         strbuf_append_char(json, b'\n' as c_char);
         for _ in 0..depth {
-            strbuf_append_string(json, (*(*ctx).options).indent);
+            strbuf_append_string(json, (*ctx.options).indent);
         }
     }
 }
 
 fn json_append_array(
     l: *mut lua_State,
-    ctx: *mut json_encode_t,
+    ctx: &mut json_encode_t,
     current_depth: c_int,
     array_length: c_int,
     raw: c_int,
 ) {
     unsafe {
-        let json = (*ctx).json;
+        let json = &mut *ctx.json;
         let mut has_items = false;
 
         strbuf_append_char(json, b'[' as c_char);
@@ -511,7 +511,7 @@ fn json_append_array(
             }
             comma += 1;
 
-            if !(*(*ctx).options).indent.is_null() {
+            if !(*ctx.options).indent.is_null() {
                 json_append_newline_and_indent(json, ctx, current_depth);
             }
 
@@ -532,7 +532,7 @@ fn json_append_array(
             lua_pop(l, 1);
         }
 
-        if has_items && !(*(*ctx).options).indent.is_null() {
+        if has_items && !(*ctx.options).indent.is_null() {
             json_append_newline_and_indent(json, ctx, current_depth - 1);
         }
 
@@ -542,16 +542,16 @@ fn json_append_array(
 
 fn json_append_number(
     l: *mut lua_State,
-    ctx: *mut json_encode_t,
+    ctx: &mut json_encode_t,
     lindex: c_int,
     use_keybuf: bool,
 ) {
     unsafe {
         let num = lua_tonumber(l, lindex);
         let json = if use_keybuf {
-            &raw mut (*(*ctx).options).keybuf.buf
+            &mut (*ctx.options).keybuf.buf
         } else {
-            (*ctx).json
+            &mut *ctx.json
         };
 
         if num.is_infinite() || num.is_nan() {
@@ -578,19 +578,19 @@ fn cmp_key_entries(ka: &key_entry_t, kb: &key_entry_t) -> std::cmp::Ordering {
     }
 }
 
-fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current_depth: c_int) {
+fn json_append_object(l: *mut lua_State, ctx: &mut json_encode_t, current_depth: c_int) {
     unsafe {
-        let json = (*ctx).json;
+        let json = &mut *ctx.json;
         let mut has_items = false;
 
         strbuf_append_char(json, b'{' as c_char);
 
         let mut comma: c_int = 0;
         lua_pushnil(l);
-        if (*(*ctx).options).sort_keys != 0 {
-            let keybuf = &raw mut (*(*ctx).options).keybuf;
+        if (*ctx.options).sort_keys != 0 {
+            let keybuf = &raw mut (*ctx.options).keybuf;
             let init_keybuf_size = (*keybuf).keys.len();
-            let init_keybuf_length = strbuf_length(&raw mut (*keybuf).buf);
+            let init_keybuf_length = strbuf_length(&(*keybuf).buf);
 
             while lua_next(l, -2) != 0 {
                 has_items = true;
@@ -598,7 +598,7 @@ fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current_depth:
                 let keytype = lua_type(l, -2);
                 let mut key_entry = key_entry_t {
                     buf: &raw mut (*keybuf).buf,
-                    offset: strbuf_length(&raw mut (*keybuf).buf),
+                    offset: strbuf_length(&(*keybuf).buf),
                     length: 0,
                     raw: KeyEntryRaw::Number(0.0),
                 };
@@ -616,7 +616,7 @@ fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current_depth:
                         c"table key must be number or string".as_ptr(),
                     );
                 }
-                key_entry.length = strbuf_length(&raw mut (*keybuf).buf) - key_entry.offset;
+                key_entry.length = strbuf_length(&(*keybuf).buf) - key_entry.offset;
                 (*keybuf).keys.push(key_entry);
                 lua_pop(l, 1);
             }
@@ -635,7 +635,7 @@ fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current_depth:
                 }
                 comma += 1;
 
-                if !(*(*ctx).options).indent.is_null() {
+                if !(*ctx.options).indent.is_null() {
                     json_append_newline_and_indent(json, ctx, current_depth);
                 }
 
@@ -648,7 +648,7 @@ fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current_depth:
                 );
                 strbuf_append_mem_unsafe(json, c"\":".as_ptr(), 2);
 
-                if !(*(*ctx).options).indent.is_null() {
+                if !(*ctx.options).indent.is_null() {
                     strbuf_append_char(json, b' ' as c_char);
                 }
 
@@ -667,7 +667,7 @@ fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current_depth:
                 }
                 lua_pop(l, 1);
             }
-            strbuf_set_length(&raw mut (*keybuf).buf, init_keybuf_length as c_int);
+            strbuf_set_length(&mut (*keybuf).buf, init_keybuf_length as c_int);
             (*keybuf).keys.truncate(init_keybuf_size);
         } else {
             while lua_next(l, -2) != 0 {
@@ -679,7 +679,7 @@ fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current_depth:
                 }
                 comma += 1;
 
-                if !(*(*ctx).options).indent.is_null() {
+                if !(*ctx.options).indent.is_null() {
                     json_append_newline_and_indent(json, ctx, current_depth);
                 }
 
@@ -699,7 +699,7 @@ fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current_depth:
                         c"table key must be a number or string".as_ptr(),
                     );
                 }
-                if !(*(*ctx).options).indent.is_null() {
+                if !(*ctx.options).indent.is_null() {
                     strbuf_append_char(json, b' ' as c_char);
                 }
 
@@ -715,7 +715,7 @@ fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current_depth:
             }
         }
 
-        if has_items && !(*(*ctx).options).indent.is_null() {
+        if has_items && !(*ctx.options).indent.is_null() {
             json_append_newline_and_indent(json, ctx, current_depth - 1);
         }
 
@@ -725,11 +725,11 @@ fn json_append_object(l: *mut lua_State, ctx: *mut json_encode_t, current_depth:
 
 fn json_append_data(
     l: *mut lua_State,
-    ctx: *mut json_encode_t,
+    ctx: &mut json_encode_t,
     mut current_depth: c_int,
 ) -> c_int {
     unsafe {
-        let json = (*ctx).json;
+        let json = &mut *ctx.json;
 
         match lua_type(l, -1) {
             LUA_TSTRING => {
@@ -894,12 +894,12 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> c_int {
         }
 
         let encode_buf = &raw mut (*cfg).encode_buf;
-        strbuf_reset(encode_buf);
+        strbuf_reset(&mut *encode_buf);
 
         ctx.json = encode_buf;
         json_append_data(l, &mut ctx, 0);
         let mut len: usize = 0;
-        let json = strbuf_string(encode_buf, &mut len);
+        let json = strbuf_string(&mut *encode_buf, &mut len);
 
         lua_pushlstring(l, json, len);
 
@@ -957,12 +957,12 @@ fn codepoint_to_utf8(utf8: &mut [u8; 4], codepoint: c_int) -> usize {
     0
 }
 
-fn json_append_unicode_escape(json: *mut json_parse_t) -> c_int {
+fn json_append_unicode_escape(json: &mut json_parse_t) -> c_int {
     let mut utf8 = [0u8; 4];
     let mut escape_len: usize = 6;
 
     unsafe {
-        let mut codepoint = decode_hex4((*json).ptr.add(2));
+        let mut codepoint = decode_hex4(json.ptr.add(2));
         if codepoint < 0 {
             return -1;
         }
@@ -971,13 +971,13 @@ fn json_append_unicode_escape(json: *mut json_parse_t) -> c_int {
             if (codepoint & 0x400) != 0 {
                 return -1;
             }
-            if *(*json).ptr.add(escape_len) != b'\\' as c_char
-                || *(*json).ptr.add(escape_len + 1) != b'u' as c_char
+            if *json.ptr.add(escape_len) != b'\\' as c_char
+                || *json.ptr.add(escape_len + 1) != b'u' as c_char
             {
                 return -1;
             }
 
-            let mut surrogate_low = decode_hex4((*json).ptr.add(2 + escape_len));
+            let mut surrogate_low = decode_hex4(json.ptr.add(2 + escape_len));
             if surrogate_low < 0 {
                 return -1;
             }
@@ -996,34 +996,34 @@ fn json_append_unicode_escape(json: *mut json_parse_t) -> c_int {
             return -1;
         }
 
-        strbuf_append_mem_unsafe((*json).tmp, utf8.as_ptr().cast::<c_char>(), len);
-        (*json).ptr = (*json).ptr.add(escape_len);
+        strbuf_append_mem_unsafe(&mut *json.tmp, utf8.as_ptr().cast::<c_char>(), len);
+        json.ptr = json.ptr.add(escape_len);
     }
 
     0
 }
 
 fn json_set_token_error(
-    token: *mut json_token_t,
-    json: *mut json_parse_t,
+    token: &mut json_token_t,
+    json: &json_parse_t,
     errtype: *const c_char,
 ) {
     unsafe {
-        (*token).r#type = T_ERROR;
-        (*token).index = (*json).ptr.offset_from((*json).data) as usize;
-        (*token).value = JsonTokenValue::String(errtype);
+        token.r#type = T_ERROR;
+        token.index = json.ptr.offset_from(json.data) as usize;
+        token.value = JsonTokenValue::String(errtype);
     }
 }
 
-fn json_next_string_token(json: *mut json_parse_t, token: *mut json_token_t) {
+fn json_next_string_token(json: &mut json_parse_t, token: &mut json_token_t) {
     unsafe {
-        debug_assert_eq!(*(*json).ptr, b'"' as c_char);
+        debug_assert_eq!(*json.ptr, b'"' as c_char);
 
-        (*json).ptr = (*json).ptr.add(1);
-        strbuf_reset((*json).tmp);
+        json.ptr = json.ptr.add(1);
+        strbuf_reset(&mut *json.tmp);
 
         loop {
-            let mut ch = *(*json).ptr;
+            let mut ch = *json.ptr;
             if ch == b'"' as c_char {
                 break;
             }
@@ -1033,7 +1033,7 @@ fn json_next_string_token(json: *mut json_parse_t, token: *mut json_token_t) {
             }
 
             if ch == b'\\' as c_char {
-                ch = *(*json).ptr.add(1);
+                ch = *json.ptr.add(1);
                 ch = ESCAPE2CHAR[(ch as u8) as usize];
                 if ch == b'u' as c_char {
                     if json_append_unicode_escape(json) == 0 {
@@ -1046,19 +1046,19 @@ fn json_next_string_token(json: *mut json_parse_t, token: *mut json_token_t) {
                     json_set_token_error(token, json, c"invalid escape code".as_ptr());
                     return;
                 }
-                (*json).ptr = (*json).ptr.add(1);
+                json.ptr = json.ptr.add(1);
             }
 
-            strbuf_append_char_unsafe((*json).tmp, ch);
-            (*json).ptr = (*json).ptr.add(1);
+            strbuf_append_char_unsafe(&mut *json.tmp, ch);
+            json.ptr = json.ptr.add(1);
         }
-        (*json).ptr = (*json).ptr.add(1);
+        json.ptr = json.ptr.add(1);
 
-        strbuf_ensure_null((*json).tmp);
+        strbuf_ensure_null(&mut *json.tmp);
 
-        (*token).r#type = T_STRING;
-        (*token).value =
-            JsonTokenValue::String(strbuf_string((*json).tmp, &mut (*token).string_len));
+        token.r#type = T_STRING;
+        token.value =
+            JsonTokenValue::String(strbuf_string(&mut *json.tmp, &mut token.string_len));
     }
 }
 
@@ -1078,9 +1078,9 @@ fn starts_with_ignore_ascii_case_3(p: *const c_char, target: &[u8; 3]) -> bool {
     }
 }
 
-fn json_is_invalid_number(json: *mut json_parse_t) -> bool {
+fn json_is_invalid_number(json: &json_parse_t) -> bool {
     unsafe {
-        let mut p = (*json).ptr;
+        let mut p = json.ptr;
         if *p == b'+' as c_char {
             return true;
         }
@@ -1105,9 +1105,9 @@ fn json_is_invalid_number(json: *mut json_parse_t) -> bool {
     }
 }
 
-fn json_next_number_token(json: *mut json_parse_t, token: *mut json_token_t) {
+fn json_next_number_token(json: &mut json_parse_t, token: &mut json_token_t) {
     unsafe {
-        let mut s = (*json).ptr;
+        let mut s = json.ptr;
         while matches!(*s as u8, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c) {
             s = s.add(1);
         }
@@ -1142,7 +1142,7 @@ fn json_next_number_token(json: *mut json_parse_t, token: *mut json_token_t) {
             }
             s = s.add(1);
         }
-        let mut endptr: *mut c_char = if any { s.cast_mut() } else { (*json).ptr.cast_mut() };
+        let mut endptr: *mut c_char = if any { s.cast_mut() } else { json.ptr.cast_mut() };
         let tmpval: c_longlong = if overflow {
             if neg { c_longlong::MIN } else { c_longlong::MAX }
         } else if neg {
@@ -1151,90 +1151,90 @@ fn json_next_number_token(json: *mut json_parse_t, token: *mut json_token_t) {
             acc as c_longlong
         };
         let end_ch = *endptr as u8;
-        if (*json).ptr == endptr.cast_const()
+        if json.ptr == endptr.cast_const()
             || end_ch == b'.'
             || end_ch == b'e'
             || end_ch == b'E'
             || end_ch == b'x'
         {
-            (*token).r#type = T_NUMBER;
-            (*token).value = JsonTokenValue::Number(fpconv_strtod((*json).ptr, &mut endptr));
-            if (*json).ptr == endptr.cast_const() {
+            token.r#type = T_NUMBER;
+            token.value = JsonTokenValue::Number(fpconv_strtod(json.ptr, &mut endptr));
+            if json.ptr == endptr.cast_const() {
                 json_set_token_error(token, json, c"invalid number".as_ptr());
                 return;
             }
         } else if tmpval > (isize::MAX as c_longlong) || tmpval < (isize::MIN as c_longlong) {
-            (*token).r#type = T_NUMBER;
-            (*token).value = JsonTokenValue::Number(tmpval as c_double);
+            token.r#type = T_NUMBER;
+            token.value = JsonTokenValue::Number(tmpval as c_double);
         } else {
-            (*token).r#type = T_INTEGER;
-            (*token).value = JsonTokenValue::Integer(tmpval as lua_Integer);
+            token.r#type = T_INTEGER;
+            token.value = JsonTokenValue::Integer(tmpval as lua_Integer);
         }
-        (*json).ptr = endptr;
+        json.ptr = endptr;
     }
 }
 
-fn json_next_token(json: *mut json_parse_t, token: *mut json_token_t) {
+fn json_next_token(json: &mut json_parse_t, token: &mut json_token_t) {
     unsafe {
         let mut ch: usize;
 
         loop {
             loop {
-                ch = (*(*json).ptr as u8) as usize;
-                (*token).r#type = CH2TOKEN[ch];
-                if (*token).r#type != T_WHITESPACE {
+                ch = (*json.ptr as u8) as usize;
+                token.r#type = CH2TOKEN[ch];
+                if token.r#type != T_WHITESPACE {
                     break;
                 }
-                (*json).ptr = (*json).ptr.add(1);
+                json.ptr = json.ptr.add(1);
             }
 
-            if !(*(*json).options).skip_comments {
+            if !(*json.options).skip_comments {
                 break;
             }
 
-            let c0 = *(*json).ptr as u8;
+            let c0 = *json.ptr as u8;
             if c0 != b'/' {
                 break;
             }
-            let c1 = *(*json).ptr.add(1) as u8;
+            let c1 = *json.ptr.add(1) as u8;
             if c1 != b'/' && c1 != b'*' {
                 break;
             }
 
             if c1 == b'/' {
-                (*json).ptr = (*json).ptr.add(2);
-                while *(*json).ptr != 0 && *(*json).ptr != b'\n' as c_char {
-                    (*json).ptr = (*json).ptr.add(1);
+                json.ptr = json.ptr.add(2);
+                while *json.ptr != 0 && *json.ptr != b'\n' as c_char {
+                    json.ptr = json.ptr.add(1);
                 }
             } else {
-                (*json).ptr = (*json).ptr.add(2);
+                json.ptr = json.ptr.add(2);
                 loop {
-                    if *(*json).ptr == 0 {
+                    if *json.ptr == 0 {
                         json_set_token_error(token, json, c"unclosed multi-line comment".as_ptr());
                         return;
                     }
-                    if *(*json).ptr == b'*' as c_char && *(*json).ptr.add(1) == b'/' as c_char {
-                        (*json).ptr = (*json).ptr.add(2);
+                    if *json.ptr == b'*' as c_char && *json.ptr.add(1) == b'/' as c_char {
+                        json.ptr = json.ptr.add(2);
                         break;
                     }
-                    (*json).ptr = (*json).ptr.add(1);
+                    json.ptr = json.ptr.add(1);
                 }
             }
         }
 
-        (*token).index = (*json).ptr.offset_from((*json).data) as usize;
+        token.index = json.ptr.offset_from(json.data) as usize;
 
-        if (*token).r#type == T_ERROR {
+        if token.r#type == T_ERROR {
             json_set_token_error(token, json, c"invalid token".as_ptr());
             return;
         }
 
-        if (*token).r#type == T_END {
+        if token.r#type == T_END {
             return;
         }
 
-        if (*token).r#type != T_UNKNOWN {
-            (*json).ptr = (*json).ptr.add(1);
+        if token.r#type != T_UNKNOWN {
+            json.ptr = json.ptr.add(1);
             return;
         }
 
@@ -1245,19 +1245,19 @@ fn json_next_token(json: *mut json_parse_t, token: *mut json_token_t) {
         } else if ch_u8 == b'-' || ch_u8.is_ascii_digit() {
             json_next_number_token(json, token);
             return;
-        } else if crate::memory::cstr_prefix_bytes((*json).ptr, 4) == &b"true"[..4] {
-            (*token).r#type = T_BOOLEAN;
-            (*token).value = JsonTokenValue::Boolean(1);
-            (*json).ptr = (*json).ptr.add(4);
+        } else if crate::memory::cstr_prefix_bytes(json.ptr, 4) == &b"true"[..4] {
+            token.r#type = T_BOOLEAN;
+            token.value = JsonTokenValue::Boolean(1);
+            json.ptr = json.ptr.add(4);
             return;
-        } else if crate::memory::cstr_prefix_bytes((*json).ptr, 5) == &b"false"[..5] {
-            (*token).r#type = T_BOOLEAN;
-            (*token).value = JsonTokenValue::Boolean(0);
-            (*json).ptr = (*json).ptr.add(5);
+        } else if crate::memory::cstr_prefix_bytes(json.ptr, 5) == &b"false"[..5] {
+            token.r#type = T_BOOLEAN;
+            token.value = JsonTokenValue::Boolean(0);
+            json.ptr = json.ptr.add(5);
             return;
-        } else if crate::memory::cstr_prefix_bytes((*json).ptr, 4) == &b"null"[..4] {
-            (*token).r#type = T_NULL;
-            (*json).ptr = (*json).ptr.add(4);
+        } else if crate::memory::cstr_prefix_bytes(json.ptr, 4) == &b"null"[..4] {
+            token.r#type = T_NULL;
+            json.ptr = json.ptr.add(4);
             return;
         } else if json_is_invalid_number(json) {
             json_next_number_token(json, token);
@@ -1270,16 +1270,16 @@ fn json_next_token(json: *mut json_parse_t, token: *mut json_token_t) {
 
 fn json_throw_parse_error(
     l: *mut lua_State,
-    json: *mut json_parse_t,
+    json: &mut json_parse_t,
     exp: *const c_char,
-    token: *mut json_token_t,
+    token: &json_token_t,
 ) -> ! {
     unsafe {
-        *(*json).tmp = strbuf_t::new();
-        let found = if (*token).r#type == T_ERROR {
-            (*token).value.as_string()
+        *json.tmp = strbuf_t::new();
+        let found = if token.r#type == T_ERROR {
+            token.value.as_string()
         } else {
-            JSON_TOKEN_TYPE_NAME[(*token).r#type as usize].as_ptr()
+            JSON_TOKEN_TYPE_NAME[token.r#type as usize].as_ptr()
         };
 
         luaL_error(
@@ -1287,37 +1287,35 @@ fn json_throw_parse_error(
             c"Expected %s but found %s at character %d".as_ptr(),
             exp,
             found,
-            ((*token).index + 1) as c_int,
+            (token.index + 1) as c_int,
         );
         unreachable!()
     }
 }
 
 #[inline]
-fn json_decode_ascend(json: *mut json_parse_t) {
-    unsafe {
-        (*json).current_depth -= 1;
-    }
+fn json_decode_ascend(json: &mut json_parse_t) {
+    json.current_depth -= 1;
 }
 
-fn json_decode_descend(l: *mut lua_State, json: *mut json_parse_t, slots: c_int) {
+fn json_decode_descend(l: *mut lua_State, json: &mut json_parse_t, slots: c_int) {
     unsafe {
-        (*json).current_depth += 1;
-        if (*json).current_depth <= DEFAULT_DECODE_MAX_DEPTH && lua_checkstack(l, slots) != 0 {
+        json.current_depth += 1;
+        if json.current_depth <= DEFAULT_DECODE_MAX_DEPTH && lua_checkstack(l, slots) != 0 {
             return;
         }
 
-        *(*json).tmp = strbuf_t::new();
+        *json.tmp = strbuf_t::new();
         luaL_error(
             l,
             c"Found too many nested data structures (%d) at character %d".as_ptr(),
-            (*json).current_depth,
-            (*json).ptr.offset_from((*json).data) as c_int,
+            json.current_depth,
+            json.ptr.offset_from(json.data) as c_int,
         );
     }
 }
 
-fn json_parse_object_context(l: *mut lua_State, json: *mut json_parse_t) {
+fn json_parse_object_context(l: *mut lua_State, json: &mut json_parse_t) {
     unsafe {
         let mut token = json_token_t::new();
 
@@ -1334,18 +1332,18 @@ fn json_parse_object_context(l: *mut lua_State, json: *mut json_parse_t) {
 
         loop {
             if token.r#type != T_STRING {
-                json_throw_parse_error(l, json, c"object key string".as_ptr(), &mut token);
+                json_throw_parse_error(l, json, c"object key string".as_ptr(), &token);
             }
 
             lua_pushlstring(l, token.value.as_string(), token.string_len);
 
             json_next_token(json, &mut token);
             if token.r#type != T_COLON {
-                json_throw_parse_error(l, json, c"colon".as_ptr(), &mut token);
+                json_throw_parse_error(l, json, c"colon".as_ptr(), &token);
             }
 
             json_next_token(json, &mut token);
-            json_process_value(l, json, &mut token, (*(*json).options).luanil_object);
+            json_process_value(l, json, &token, (*json.options).luanil_object);
 
             lua_rawset(l, -3);
 
@@ -1355,7 +1353,7 @@ fn json_parse_object_context(l: *mut lua_State, json: *mut json_parse_t) {
                 return;
             }
             if token.r#type != T_COMMA {
-                json_throw_parse_error(l, json, c"comma or object end".as_ptr(), &mut token);
+                json_throw_parse_error(l, json, c"comma or object end".as_ptr(), &token);
             }
 
             json_next_token(json, &mut token);
@@ -1363,7 +1361,7 @@ fn json_parse_object_context(l: *mut lua_State, json: *mut json_parse_t) {
     }
 }
 
-fn json_parse_array_context(l: *mut lua_State, json: *mut json_parse_t) {
+fn json_parse_array_context(l: *mut lua_State, json: &mut json_parse_t) {
     unsafe {
         let mut token = json_token_t::new();
 
@@ -1379,7 +1377,7 @@ fn json_parse_array_context(l: *mut lua_State, json: *mut json_parse_t) {
 
         let mut i: c_int = 1;
         loop {
-            json_process_value(l, json, &mut token, (*(*json).options).luanil_array);
+            json_process_value(l, json, &token, (*json.options).luanil_array);
             lua_rawseti(l, -2, i);
 
             json_next_token(json, &mut token);
@@ -1388,7 +1386,7 @@ fn json_parse_array_context(l: *mut lua_State, json: *mut json_parse_t) {
                 return;
             }
             if token.r#type != T_COMMA {
-                json_throw_parse_error(l, json, c"comma or array end".as_ptr(), &mut token);
+                json_throw_parse_error(l, json, c"comma or array end".as_ptr(), &token);
             }
 
             json_next_token(json, &mut token);
@@ -1399,23 +1397,23 @@ fn json_parse_array_context(l: *mut lua_State, json: *mut json_parse_t) {
 
 fn json_process_value(
     l: *mut lua_State,
-    json: *mut json_parse_t,
-    token: *mut json_token_t,
+    json: &mut json_parse_t,
+    token: &json_token_t,
     use_luanil: bool,
 ) {
     unsafe {
-        match (*token).r#type {
+        match token.r#type {
             T_STRING => {
-                lua_pushlstring(l, (*token).value.as_string(), (*token).string_len);
+                lua_pushlstring(l, token.value.as_string(), token.string_len);
             }
             T_NUMBER => {
-                lua_pushnumber(l, (*token).value.as_number());
+                lua_pushnumber(l, token.value.as_number());
             }
             T_INTEGER => {
-                lua_pushinteger(l, (*token).value.as_integer());
+                lua_pushinteger(l, token.value.as_integer());
             }
             T_BOOLEAN => {
-                lua_pushboolean(l, (*token).value.as_boolean());
+                lua_pushboolean(l, token.value.as_boolean());
             }
             T_OBJ_BEGIN => {
                 json_parse_object_context(l, json);
@@ -1489,31 +1487,34 @@ unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> c_int {
             luaL_error(l, c"JSON parser does not support UTF-16 or UTF-32".as_ptr());
         }
 
-        strbuf_init(json.tmp, json_len);
+        strbuf_init(&mut *json.tmp, json_len);
 
         let mut token = json_token_t::new();
         json_next_token(&mut json, &mut token);
-        json_process_value(l, &mut json, &mut token, (*json.options).luanil_object);
+        let luanil_object = (*json.options).luanil_object;
+        json_process_value(l, &mut json, &token, luanil_object);
 
         json_next_token(&mut json, &mut token);
         if token.r#type != T_END {
-            json_throw_parse_error(l, &mut json, c"the end".as_ptr(), &mut token);
+            json_throw_parse_error(l, &mut json, c"the end".as_ptr(), &token);
         }
 
         1
     }
 }
 
-fn compat_luaL_setfuncs(l: *mut lua_State, mut reg: *const luaL_Reg, nup: c_int) {
+fn compat_luaL_setfuncs(l: *mut lua_State, reg: &[luaL_Reg], nup: c_int) {
     unsafe {
         luaL_checkstack(l, nup, c"too many upvalues".as_ptr());
-        while !(*reg).name.is_null() {
+        for entry in reg {
+            if entry.name.is_null() {
+                break;
+            }
             for _ in 0..nup {
                 lua_pushvalue(l, -nup);
             }
-            lua_pushcclosure(l, (*reg).func, nup);
-            lua_setfield(l, -(nup + 2), (*reg).name);
-            reg = reg.add(1);
+            lua_pushcclosure(l, entry.func, nup);
+            lua_setfield(l, -(nup + 2), entry.name);
         }
         lua_pop(l, nup);
     }
@@ -1557,7 +1558,7 @@ pub unsafe extern "C-unwind" fn lua_cjson_new(l: *mut lua_State) -> c_int {
         lua_newtable(l);
 
         json_create_config(l);
-        compat_luaL_setfuncs(l, reg.as_ptr(), 1);
+        compat_luaL_setfuncs(l, &reg, 1);
 
         lua_pushlstring(
             l,

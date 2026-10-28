@@ -210,17 +210,11 @@ const CSIFUNCS: [keyinfo; NCSIFUNCS] = {
 };
 
 #[inline]
-pub fn termkey_key_get_linecol(key: &TermKeyKey, line: *mut c_int, col: *mut c_int) {
-    unsafe {
-        if !col.is_null() {
-            *col = c_int::from(key.code.mouse[1] as u8)
-                | (c_int::from(key.code.mouse[3] as u8 & 0x0f) << 8);
-        }
-        if !line.is_null() {
-            *line = c_int::from(key.code.mouse[2] as u8)
-                | (c_int::from(key.code.mouse[3] as u8 & 0x70) << 4);
-        }
-    }
+pub fn termkey_key_get_linecol(key: &TermKeyKey, line: &mut c_int, col: &mut c_int) {
+    *col = c_int::from(key.code.mouse[1] as u8)
+        | (c_int::from(key.code.mouse[3] as u8 & 0x0f) << 8);
+    *line = c_int::from(key.code.mouse[2] as u8)
+        | (c_int::from(key.code.mouse[3] as u8 & 0x70) << 4);
 }
 
 #[inline]
@@ -266,8 +260,8 @@ fn handle_csi_ss3_full(
             result = termkey_interpret_csi_param(
                 params[1],
                 &mut arg,
-                &mut subparam,
-                &mut nsubparams,
+                Some(std::slice::from_mut(&mut subparam)),
+                Some(&mut nsubparams),
             );
             if result != TERMKEY_RES_KEY {
                 return result;
@@ -319,8 +313,8 @@ fn handle_csifunc(
             result = termkey_interpret_csi_param(
                 params[1],
                 &mut args[1],
-                &mut subparam,
-                &mut nsubparams,
+                Some(std::slice::from_mut(&mut subparam)),
+                Some(&mut nsubparams),
             );
             if result != TERMKEY_RES_KEY {
                 return result;
@@ -340,23 +334,13 @@ fn handle_csifunc(
 
         key.r#type = TERMKEY_TYPE_KEYSYM;
 
-        result = termkey_interpret_csi_param(
-            params[0],
-            &mut args[0],
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-        );
+        result = termkey_interpret_csi_param(params[0], &mut args[0], None, None);
         if result != TERMKEY_RES_KEY {
             return result;
         }
 
         if args[0] == 27 && nparams > 2 && params[2].present {
-            result = termkey_interpret_csi_param(
-                params[2],
-                &mut args[2],
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-            );
+            result = termkey_interpret_csi_param(params[2], &mut args[2], None, None);
             if result != TERMKEY_RES_KEY {
                 return result;
             }
@@ -399,8 +383,8 @@ fn handle_csi_u(
             if termkey_interpret_csi_param(
                 params[1],
                 &mut args[1],
-                &mut subparam,
-                &mut nsubparams,
+                Some(std::slice::from_mut(&mut subparam)),
+                Some(&mut nsubparams),
             ) != TERMKEY_RES_KEY
             {
                 return TERMKEY_RES_ERROR;
@@ -418,13 +402,7 @@ fn handle_csi_u(
             key.modifiers = 0;
         }
 
-        if termkey_interpret_csi_param(
-            params[0],
-            &mut args[0],
-            std::ptr::null_mut(),
-            std::ptr::null_mut(),
-        ) != TERMKEY_RES_KEY
-        {
+        if termkey_interpret_csi_param(params[0], &mut args[0], None, None) != TERMKEY_RES_KEY {
             return TERMKEY_RES_ERROR;
         }
 
@@ -456,13 +434,7 @@ fn handle_csi_m(
 
     let mut args = [0 as c_int; 3];
         for (i, arg) in args.iter_mut().enumerate() {
-            if termkey_interpret_csi_param(
-                params[i],
-                arg,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-            ) != TERMKEY_RES_KEY
-            {
+            if termkey_interpret_csi_param(params[i], arg, None, None) != TERMKEY_RES_KEY {
                 return TERMKEY_RES_ERROR;
             }
         }
@@ -572,22 +544,10 @@ fn handle_csi_R(
                 return TERMKEY_RES_NONE;
             }
             let mut args = [0 as c_int; 2];
-            if termkey_interpret_csi_param(
-                params[0],
-                &mut args[0],
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-            ) != TERMKEY_RES_KEY
-            {
+            if termkey_interpret_csi_param(params[0], &mut args[0], None, None) != TERMKEY_RES_KEY {
                 return TERMKEY_RES_ERROR;
             }
-            if termkey_interpret_csi_param(
-                params[1],
-                &mut args[1],
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-            ) != TERMKEY_RES_KEY
-            {
+            if termkey_interpret_csi_param(params[1], &mut args[1], None, None) != TERMKEY_RES_KEY {
                 return TERMKEY_RES_ERROR;
             }
             key.r#type = TERMKEY_TYPE_POSITION;
@@ -602,14 +562,14 @@ fn handle_csi_R(
 pub fn termkey_interpret_position(
     _tk: &TermKey,
     key: &TermKeyKey,
-    line: *mut c_int,
-    col: *mut c_int,
+    line: &mut c_int,
+    col: &mut c_int,
 ) -> TermKeyResult {
     if key.r#type != TERMKEY_TYPE_POSITION {
-            return TERMKEY_RES_NONE;
-        }
-        termkey_key_get_linecol(key, line, col);
-        TERMKEY_RES_KEY
+        return TERMKEY_RES_NONE;
+    }
+    termkey_key_get_linecol(key, line, col);
+    TERMKEY_RES_KEY
 }
 
 fn handle_csi_y(
@@ -626,22 +586,10 @@ fn handle_csi_y(
                 return TERMKEY_RES_NONE;
             }
             let mut args = [0 as c_int; 2];
-            if termkey_interpret_csi_param(
-                params[0],
-                &mut args[0],
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-            ) != TERMKEY_RES_KEY
-            {
+            if termkey_interpret_csi_param(params[0], &mut args[0], None, None) != TERMKEY_RES_KEY {
                 return TERMKEY_RES_ERROR;
             }
-            if termkey_interpret_csi_param(
-                params[1],
-                &mut args[1],
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-            ) != TERMKEY_RES_KEY
-            {
+            if termkey_interpret_csi_param(params[1], &mut args[1], None, None) != TERMKEY_RES_KEY {
                 return TERMKEY_RES_ERROR;
             }
             key.r#type = TERMKEY_TYPE_MODEREPORT;
@@ -685,127 +633,115 @@ fn parse_csi(
     introlen: usize,
     csi_len: &mut usize,
     params: &mut [TermKeyCsiParam; 16],
-    nargs: *mut usize,
-    commandp: *mut c_uint,
+    nargs: &mut usize,
+    commandp: &mut c_uint,
 ) -> TermKeyResult {
-    unsafe {
-        let mut csi_end = introlen;
-        let slice = &tk.buffer[tk.buffstart..tk.buffstart + tk.buffcount];
+    let mut csi_end = introlen;
+    let slice = &tk.buffer[tk.buffstart..tk.buffstart + tk.buffcount];
 
-        while csi_end < tk.buffcount {
-            let b = slice[csi_end];
-            if (0x40..0x80).contains(&b) {
-                break;
-            }
-            csi_end += 1;
+    while csi_end < tk.buffcount {
+        let b = slice[csi_end];
+        if (0x40..0x80).contains(&b) {
+            break;
         }
-
-        if csi_end >= tk.buffcount {
-            return TERMKEY_RES_AGAIN;
-        }
-
-        let cmd = slice[csi_end];
-        *commandp = c_uint::from(cmd);
-
-        let mut param_start: Option<usize> = None;
-        let mut argi = 0usize;
-        let mut p = introlen;
-
-        if (slice[p] >= b'<') && (slice[p] <= b'?') {
-            *commandp |= c_uint::from(slice[p]) << 8;
-            p += 1;
-        }
-
-        while p < csi_end {
-            let c = slice[p];
-
-            if (b'0'..b';').contains(&c) {
-                if param_start.is_none() {
-                    param_start = Some(p);
-                }
-            } else if c == b';' {
-                params[argi] = match param_start.take() {
-                    Some(start) => TermKeyCsiParam::from_bytes(&slice[start..p]),
-                    None => TermKeyCsiParam::new(),
-                };
-                argi += 1;
-                if argi >= 16 {
-                    break;
-                }
-            } else if (0x20..=0x2f).contains(&c) {
-                *commandp |= c_uint::from(c) << 16;
-                break;
-            }
-
-            p += 1;
-        }
-
-        if let Some(start) = param_start {
-            params[argi] = TermKeyCsiParam::from_bytes(&slice[start..p]);
-            argi += 1;
-        }
-
-        *nargs = argi;
-        *csi_len = csi_end + 1;
-
-        TERMKEY_RES_KEY
+        csi_end += 1;
     }
+
+    if csi_end >= tk.buffcount {
+        return TERMKEY_RES_AGAIN;
+    }
+
+    let cmd = slice[csi_end];
+    *commandp = c_uint::from(cmd);
+
+    let mut param_start: Option<usize> = None;
+    let mut argi = 0usize;
+    let mut p = introlen;
+
+    if (slice[p] >= b'<') && (slice[p] <= b'?') {
+        *commandp |= c_uint::from(slice[p]) << 8;
+        p += 1;
+    }
+
+    while p < csi_end {
+        let c = slice[p];
+
+        if (b'0'..b';').contains(&c) {
+            if param_start.is_none() {
+                param_start = Some(p);
+            }
+        } else if c == b';' {
+            params[argi] = match param_start.take() {
+                Some(start) => TermKeyCsiParam::from_bytes(&slice[start..p]),
+                None => TermKeyCsiParam::new(),
+            };
+            argi += 1;
+            if argi >= 16 {
+                break;
+            }
+        } else if (0x20..=0x2f).contains(&c) {
+            *commandp |= c_uint::from(c) << 16;
+            break;
+        }
+
+        p += 1;
+    }
+
+    if let Some(start) = param_start {
+        params[argi] = TermKeyCsiParam::from_bytes(&slice[start..p]);
+        argi += 1;
+    }
+
+    *nargs = argi;
+    *csi_len = csi_end + 1;
+
+    TERMKEY_RES_KEY
 }
 
 pub fn termkey_interpret_csi(
     tk: &TermKey,
     key: &TermKeyKey,
     params: &mut [TermKeyCsiParam; 16],
-    nparams: *mut usize,
-    cmd: *mut c_uint,
+    nparams: &mut usize,
+    cmd: &mut c_uint,
 ) -> TermKeyResult {
     let mut dummy: usize = 0;
-        if tk.hightide == 0 {
-            return TERMKEY_RES_NONE;
-        }
-        if key.r#type != TERMKEY_TYPE_UNKNOWN_CSI {
-            return TERMKEY_RES_NONE;
-        }
-        parse_csi(tk, 0, &mut dummy, params, nparams, cmd)
+    if tk.hightide == 0 {
+        return TERMKEY_RES_NONE;
+    }
+    if key.r#type != TERMKEY_TYPE_UNKNOWN_CSI {
+        return TERMKEY_RES_NONE;
+    }
+    parse_csi(tk, 0, &mut dummy, params, nparams, cmd)
 }
 
 pub fn termkey_interpret_csi_param(
     param: TermKeyCsiParam,
-    paramp: *mut c_int,
-    subparams: *mut c_int,
-    nsubparams: *mut usize,
+    paramp: &mut c_int,
+    subparams: Option<&mut [c_int]>,
+    nsubparams: Option<&mut usize>,
 ) -> TermKeyResult {
-    if paramp.is_null() {
-        return TERMKEY_RES_ERROR;
+    if !param.present {
+        *paramp = -1;
+        if let Some(nsub) = nsubparams {
+            *nsub = 0;
+        }
+        return TERMKEY_RES_KEY;
     }
 
-    unsafe {
-        if !param.present {
-            *paramp = -1;
-            if !nsubparams.is_null() {
-                *nsubparams = 0;
-            }
-            return TERMKEY_RES_KEY;
+    *paramp = param.param;
+    let capacity = nsubparams.as_deref().copied().unwrap_or(0);
+    let count = param.nsubparams.min(capacity).min(param.subparams.len());
+    if let Some(sub) = subparams {
+        for (dst, &src) in sub.iter_mut().take(count).zip(&param.subparams[..count]) {
+            *dst = src;
         }
-
-        *paramp = param.param;
-        let capacity = if !nsubparams.is_null() {
-            *nsubparams
-        } else {
-            0
-        };
-        let count = param.nsubparams.min(capacity).min(param.subparams.len());
-        if !subparams.is_null() {
-            for i in 0..count {
-                *subparams.add(i) = param.subparams[i];
-            }
-        }
-        if !nsubparams.is_null() {
-            *nsubparams = count;
-        }
-
-        TERMKEY_RES_KEY
     }
+    if let Some(nsub) = nsubparams {
+        *nsub = count;
+    }
+
+    TERMKEY_RES_KEY
 }
 
 fn peekkey_csi_csi(
@@ -1054,9 +990,9 @@ mod tests {
         let mut sub = [0 as c_int; 2];
         let mut nsub: usize = 2;
         assert_eq!(
-                termkey_interpret_csi_param(param, &mut p, sub.as_mut_ptr(), &mut nsub),
-                TERMKEY_RES_KEY
-            );
+            termkey_interpret_csi_param(param, &mut p, Some(&mut sub), Some(&mut nsub)),
+            TERMKEY_RES_KEY
+        );
             assert_eq!(p, 12);
             assert_eq!(nsub, 2);
             assert_eq!(sub, [3, 4]);

@@ -26,7 +26,7 @@ mod tests {
             strbuf_init(&mut sb, 0);
             strbuf_append_string(&mut sb, c"hello".as_ptr());
             strbuf_append_char(&mut sb, b'!' as c_char);
-            assert_eq!(strbuf_length(&mut sb), 6);
+            assert_eq!(strbuf_length(&sb), 6);
             let mut len = 0usize;
             let ptr = strbuf_string(&mut sb, &mut len);
             let bytes = std::slice::from_raw_parts(ptr.cast::<u8>(), len);

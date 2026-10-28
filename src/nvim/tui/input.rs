@@ -754,13 +754,7 @@ fn handle_primary_device_attr(
         let mut response = String::from("\x1b[?");
         for (i, &param) in params.iter().enumerate().take(nparams) {
             let mut arg: c_int = 0;
-            if termkey_interpret_csi_param(
-                param,
-                &raw mut arg,
-                ptr::null_mut(),
-                ptr::null_mut(),
-            ) != TERMKEY_RES_KEY
-            {
+            if termkey_interpret_csi_param(param, &mut arg, None, None) != TERMKEY_RES_KEY {
                 return;
             }
             use std::fmt::Write as _;
@@ -801,13 +795,8 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
         let mut params = [TermKeyCsiParam::new(); 16];
         let mut nparams: usize = 16;
         let mut cmd: c_uint = 0;
-        if termkey_interpret_csi(
-            (*p).tk(),
-            key,
-            &mut params,
-            &raw mut nparams,
-            &raw mut cmd,
-        ) != TERMKEY_RES_KEY
+        if termkey_interpret_csi((*p).tk(), key, &mut params, &mut nparams, &mut cmd)
+            != TERMKEY_RES_KEY
         {
             return;
         }
@@ -822,12 +811,8 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
                     let mut response = String::from("\x1b[>");
                     for (i, param) in params.iter().enumerate().take(nparams) {
                         let mut arg: c_int = 0;
-                        if termkey_interpret_csi_param(
-                            *param,
-                            &raw mut arg,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                        ) != TERMKEY_RES_KEY
+                        if termkey_interpret_csi_param(*param, &mut arg, None, None)
+                            != TERMKEY_RES_KEY
                         {
                             return;
                         }
@@ -857,12 +842,8 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
                 if nparams == 5 {
                     let mut args = [0 as c_int; 3];
                     for i in 0..args.len() {
-                        if termkey_interpret_csi_param(
-                            params[i],
-                            &raw mut args[i],
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                        ) != TERMKEY_RES_KEY
+                        if termkey_interpret_csi_param(params[i], &mut args[i], None, None)
+                            != TERMKEY_RES_KEY
                         {
                             return;
                         }
@@ -877,12 +858,8 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
             b'n' => {
                 if nparams == 1 {
                     let mut arg: c_int = 0;
-                    if termkey_interpret_csi_param(
-                        params[0],
-                        &raw mut arg,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                    ) != TERMKEY_RES_KEY
+                    if termkey_interpret_csi_param(params[0], &mut arg, None, None)
+                        != TERMKEY_RES_KEY
                     {
                         return;
                     }
@@ -892,12 +869,8 @@ fn handle_unknown_csi(input: &mut TermInput, key: &TermKeyKey) {
                 } else if nparams == 2 {
                     let mut args = [0 as c_int; 2];
                     for i in 0..args.len() {
-                        if termkey_interpret_csi_param(
-                            params[i],
-                            &raw mut args[i],
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                        ) != TERMKEY_RES_KEY
+                        if termkey_interpret_csi_param(params[i], &mut args[i], None, None)
+                            != TERMKEY_RES_KEY
                         {
                             return;
                         }

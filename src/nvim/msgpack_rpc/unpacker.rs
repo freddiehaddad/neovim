@@ -395,22 +395,19 @@ impl Drop for Unpacker {
     }
 }
 
-pub fn unpacker_init(p: *mut Unpacker) {
-    unsafe {
-        let p_ref = &mut *p;
-        mpack_parser_init(&mut p_ref.parser, 0);
-        p_ref.parser.data = crate::mpack::object::mpack_data_t::Unpacker(p);
-        mpack_tokbuf_init(&mut p_ref.reader);
-        p_ref.unpack_error = Error::new();
-        p_ref.arena = empty_arena();
-        p_ref.has_grid_line_event = false;
-    }
+pub fn unpacker_init(p: &mut Unpacker) {
+    let p_ptr = &raw mut *p;
+    mpack_parser_init(&mut p.parser, 0);
+    p.parser.data = crate::mpack::object::mpack_data_t::Unpacker(p_ptr);
+    mpack_tokbuf_init(&mut p.reader);
+    p.unpack_error = Error::new();
+    p.arena = empty_arena();
+    p.has_grid_line_event = false;
 }
 
 /// Parse the header of a msgpack-rpc message (`unpacker_parse_header`).
-pub fn unpacker_parse_header(p: *mut Unpacker) -> bool {
-    unsafe {
-        let p = &mut *p;
+pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
+    {
         let mut tok = mpack_token_t::new();
         let mut data = p.read_ptr;
         let mut size = p.read_size;
@@ -522,39 +519,40 @@ pub fn unpacker_parse_header(p: *mut Unpacker) -> bool {
 }
 
 /// Advance the unpacker state machine (`unpacker_advance`).
-pub fn unpacker_advance(p: *mut Unpacker) -> bool {
+pub fn unpacker_advance(p: &mut Unpacker) -> bool {
     unsafe {
-        let p_ref = &mut *p;
-        assert!(p_ref.state >= 0);
-        p_ref.has_grid_line_event = false;
-        if p_ref.state == 0 {
-            if !unpacker_parse_header(p) {
+        let p_ptr = &raw mut *p;
+        (*p_ptr).parser.data = crate::mpack::object::mpack_data_t::Unpacker(p_ptr);
+        assert!((*p_ptr).state >= 0);
+        (*p_ptr).has_grid_line_event = false;
+        if (*p_ptr).state == 0 {
+            if !unpacker_parse_header(&mut *p_ptr) {
                 return false;
             }
-            if p_ref.msg_type == MessageType::kMessageTypeNotification
-                && p_ref
+            if (*p_ptr).msg_type == MessageType::kMessageTypeNotification
+                && (*p_ptr)
                     .handler
                     .r#fn
                     .is_some_and(|f| f as *const () == handle_ui_client_redraw as *const ())
             {
-                p_ref.msg_type = MessageType::kMessageTypeRedrawEvent;
-                p_ref.state = 10;
+                (*p_ptr).msg_type = MessageType::kMessageTypeRedrawEvent;
+                (*p_ptr).state = 10;
             } else {
-                p_ref.state = if p_ref.msg_type == MessageType::kMessageTypeResponse {
+                (*p_ptr).state = if (*p_ptr).msg_type == MessageType::kMessageTypeResponse {
                     1
                 } else {
                     2
                 };
-                p_ref.arena = empty_arena();
+                (*p_ptr).arena = empty_arena();
             }
         }
 
         let mut need_parse = true;
-        if p_ref.state >= 10 && p_ref.state != 13 {
-            if !unpacker_parse_redraw(p) {
-                if p_ref.state < 0 {
+        if (*p_ptr).state >= 10 && (*p_ptr).state != 13 {
+            if !unpacker_parse_redraw(&mut *p_ptr) {
+                if (*p_ptr).state < 0 {
                     api_set_error!(
-                        &mut p_ref.unpack_error,
+                        &mut (*p_ptr).unpack_error,
                         ErrorType::kErrorTypeValidation,
                         c"failed to parse redraw event".as_ptr(),
                     );
@@ -562,22 +560,22 @@ pub fn unpacker_advance(p: *mut Unpacker) -> bool {
                 return false;
             }
 
-            if p_ref.state == 16 {
-                p_ref.has_grid_line_event = true;
+            if (*p_ptr).state == 16 {
+                (*p_ptr).has_grid_line_event = true;
                 need_parse = false;
             } else {
-                assert_eq!(p_ref.state, 12);
-                p_ref.arena = empty_arena();
-                p_ref.state = 13;
+                assert_eq!((*p_ptr).state, 12);
+                (*p_ptr).arena = empty_arena();
+                (*p_ptr).state = 13;
             }
         }
 
         loop {
             if need_parse {
                 let result = mpack_parse(
-                    &mut p_ref.parser,
-                    &mut p_ref.read_ptr,
-                    &mut p_ref.read_size,
+                    &mut (*p_ptr).parser,
+                    &mut (*p_ptr).read_ptr,
+                    &mut (*p_ptr).read_size,
                     Some(api_parse_enter),
                     Some(api_parse_exit),
                 );
@@ -585,33 +583,33 @@ pub fn unpacker_advance(p: *mut Unpacker) -> bool {
                     return false;
                 } else if result != MPACK_OK {
                     api_set_error!(
-                        &mut p_ref.unpack_error,
+                        &mut (*p_ptr).unpack_error,
                         ErrorType::kErrorTypeValidation,
                         c"failed to parse msgpack".as_ptr(),
                     );
-                    p_ref.state = -1;
+                    (*p_ptr).state = -1;
                     return false;
                 }
             }
 
-            match p_ref.state {
+            match (*p_ptr).state {
                 1 => {
-                    p_ref.error = p_ref.result;
-                    p_ref.state = 2;
+                    (*p_ptr).error = (*p_ptr).result;
+                    (*p_ptr).state = 2;
                     need_parse = true;
                 }
                 2 => {
-                    p_ref.state = 0;
+                    (*p_ptr).state = 0;
                     return true;
                 }
                 13 | 16 => {
-                    p_ref.ncalls -= 1;
-                    if p_ref.ncalls > 0 {
-                        p_ref.state = if p_ref.state == 16 { 14 } else { 12 };
-                    } else if p_ref.nevents > 0 {
-                        p_ref.state = 11;
+                    (*p_ptr).ncalls -= 1;
+                    if (*p_ptr).ncalls > 0 {
+                        (*p_ptr).state = if (*p_ptr).state == 16 { 14 } else { 12 };
+                    } else if (*p_ptr).nevents > 0 {
+                        (*p_ptr).state = 11;
                     } else {
-                        p_ref.state = 0;
+                        (*p_ptr).state = 0;
                     }
                     return true;
                 }
@@ -646,9 +644,8 @@ fn next_type(
 }
 
 /// Specialized redraw/grid_line parser (`unpacker_parse_redraw`).
-pub fn unpacker_parse_redraw(p: *mut Unpacker) -> bool {
+pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
     unsafe {
-        let p = &mut *p;
         let mut tok = mpack_token_t::new();
         let mut data = p.read_ptr;
         let mut size = p.read_size;

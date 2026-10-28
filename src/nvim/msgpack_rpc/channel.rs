@@ -246,7 +246,7 @@ pub fn rpc_start(channel: &mut Channel) {
         let rpc = &raw mut (*ct).rpc;
         (*rpc).closed = false;
         let mut unpacker = Box::new(Unpacker::new());
-        unpacker_init(&raw mut *unpacker);
+        unpacker_init(&mut unpacker);
         (*rpc).unpacker = Some(unpacker);
         (*rpc).next_request_id = 1;
         (*rpc).info = Dict {
@@ -466,7 +466,7 @@ fn parse_msgpack(channel: &mut Channel) {
         let ct = &raw mut *channel;
         let p: *mut Unpacker = (*ct).rpc.unpacker.as_deref_mut().unwrap();
 
-        while unpacker_advance(p) {
+        while unpacker_advance(&mut *p) {
             if (*p).msg_type == MessageType::kMessageTypeRedrawEvent {
                 if g_st().ui_client_attached {
                     if (*p).has_grid_line_event {
