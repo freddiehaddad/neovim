@@ -4684,25 +4684,22 @@ fn frame_fixed_width(mut frp: *mut Frame) -> bool {
 }
 
 fn frame_add_statusline(mut frp: *mut Frame) {
-    unsafe {
-        if (*frp).fr_layout == FR_LEAF {
-            let wp = &mut *(*frp).fr_win;
-            wp.w_status_height = STATUS_HEIGHT;
-        } else if (*frp).fr_layout == FR_ROW {
-            frp = (*frp).fr_child;
-            while !frp.is_null() {
-                frame_add_statusline(frp);
-                frp = (*frp).fr_next;
-            }
-        } else {
-            debug_assert!((*frp).fr_layout == FR_COL);
-            frp = (*frp).fr_child;
-            while !(*frp).fr_next.is_null() {
-                frp = (*frp).fr_next;
-            }
-            frame_add_statusline(frp);
+    let mut fr = unsafe { &mut *frp };
+    if fr.fr_layout == FR_LEAF {
+        fr.win_mut().w_status_height = STATUS_HEIGHT;
+    } else if fr.fr_layout == FR_ROW {
+        for child in frame_iter_ptr(fr.fr_child) {
+            frame_add_statusline(child);
         }
+    } else {
+        debug_assert!(fr.fr_layout == FR_COL);
+        fr = fr.child_mut();
+        while !fr.fr_next.is_null() {
+            fr = fr.next_mut();
+        }
+        frame_add_statusline(fr);
     }
+    let _ = &mut frp;
 }
 
 fn frame_new_width(topfrp: &mut Frame, mut width: c_int, leftfirst: bool, wfw: bool) {
@@ -4795,55 +4792,48 @@ fn frame_new_width(topfrp: &mut Frame, mut width: c_int, leftfirst: bool, wfw: b
     }
 }
 
-fn frame_set_vsep(mut frp: *const Frame, add: bool) {
-    unsafe {
-        if (*frp).fr_layout == FR_LEAF {
-            let wp = &mut *(*frp).fr_win;
-            if add && wp.w_vsep_width == 0 {
-                if wp.w_width > 0 {
-                    win_new_width(wp, wp.w_width - 1);
-                }
-                wp.w_vsep_width = 1;
-            } else if !add && wp.w_vsep_width == 1 {
-                win_new_width(wp, wp.w_width + 1);
-                wp.w_vsep_width = 0;
+fn frame_set_vsep(frp: *const Frame, add: bool) {
+    let mut fr = unsafe { &mut *frp.cast_mut() };
+    if fr.fr_layout == FR_LEAF {
+        let wp = fr.win_mut();
+        if add && wp.w_vsep_width == 0 {
+            if wp.w_width > 0 {
+                win_new_width(wp, wp.w_width - 1);
             }
-        } else if (*frp).fr_layout == FR_COL {
-            frp = (*frp).fr_child;
-            while !frp.is_null() {
-                frame_set_vsep(frp, add);
-                frp = (*frp).fr_next;
-            }
-        } else {
-            debug_assert!((*frp).fr_layout == FR_ROW);
-            frp = (*frp).fr_child;
-            while !(*frp).fr_next.is_null() {
-                frp = (*frp).fr_next;
-            }
-            frame_set_vsep(frp, add);
+            wp.w_vsep_width = 1;
+        } else if !add && wp.w_vsep_width == 1 {
+            win_new_width(wp, wp.w_width + 1);
+            wp.w_vsep_width = 0;
         }
+    } else if fr.fr_layout == FR_COL {
+        for child in frame_iter_ptr(fr.fr_child) {
+            frame_set_vsep(child, add);
+        }
+    } else {
+        debug_assert!(fr.fr_layout == FR_ROW);
+        fr = fr.child_mut();
+        while !fr.fr_next.is_null() {
+            fr = fr.next_mut();
+        }
+        frame_set_vsep(fr, add);
     }
 }
 
-fn frame_add_hsep(mut frp: *const Frame) {
-    unsafe {
-        if (*frp).fr_layout == FR_LEAF {
-            let wp = &mut *(*frp).fr_win;
-            wp.w_hsep_height = 1;
-        } else if (*frp).fr_layout == FR_ROW {
-            frp = (*frp).fr_child;
-            while !frp.is_null() {
-                frame_add_hsep(frp);
-                frp = (*frp).fr_next;
-            }
-        } else {
-            debug_assert!((*frp).fr_layout == FR_COL);
-            frp = (*frp).fr_child;
-            while !(*frp).fr_next.is_null() {
-                frp = (*frp).fr_next;
-            }
-            frame_add_hsep(frp);
+fn frame_add_hsep(frp: *const Frame) {
+    let mut fr = unsafe { &mut *frp.cast_mut() };
+    if fr.fr_layout == FR_LEAF {
+        fr.win_mut().w_hsep_height = 1;
+    } else if fr.fr_layout == FR_ROW {
+        for child in frame_iter_ptr(fr.fr_child) {
+            frame_add_hsep(child);
         }
+    } else {
+        debug_assert!(fr.fr_layout == FR_COL);
+        fr = fr.child_mut();
+        while !fr.fr_next.is_null() {
+            fr = fr.next_mut();
+        }
+        frame_add_hsep(fr);
     }
 }
 
@@ -8453,6 +8443,21 @@ impl Frame {
     #[inline]
     pub fn parent_mut(&self) -> &'static mut Frame {
         unsafe { &mut *self.fr_parent }
+    }
+
+    #[inline]
+    pub fn child_mut(&self) -> &'static mut Frame {
+        unsafe { &mut *self.fr_child }
+    }
+
+    #[inline]
+    pub fn next_mut(&self) -> &'static mut Frame {
+        unsafe { &mut *self.fr_next }
+    }
+
+    #[inline]
+    pub fn prev_mut(&self) -> &'static mut Frame {
+        unsafe { &mut *self.fr_prev }
     }
 
     #[inline]

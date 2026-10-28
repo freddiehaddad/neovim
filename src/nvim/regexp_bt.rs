@@ -2738,9 +2738,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         CURSOR => {
                             if re_st().rex.reg_win.is_null()
                                 || (re_st().rex.lnum + re_st().rex.reg_firstlnum
-                                    != (*re_st().rex.reg_win).w_cursor.lnum)
+                                    != re_st().rex.win_mut().w_cursor.lnum)
                                 || (re_st().rex.input.offset_from(re_st().rex.line) as Colnr
-                                    != (*re_st().rex.reg_win).w_cursor.col)
+                                    != re_st().rex.win_mut().w_cursor.col)
                             {
                                 status = RA_NOMATCH;
                             }
@@ -2854,7 +2854,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             } else {
                                 let this_class = mb_get_class_tab(
                                     re_st().rex.input.cast(),
-                                    (&raw const (*re_st().rex.reg_buf).b_chartab).cast(),
+                                    (&raw const re_st().rex.buf_mut().b_chartab).cast(),
                                 );
                                 if this_class <= 1 || reg_prev_class() == this_class {
                                     status = RA_NOMATCH;
@@ -2867,7 +2867,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             } else {
                                 let this_class = mb_get_class_tab(
                                     re_st().rex.input.cast(),
-                                    (&raw const (*re_st().rex.reg_buf).b_chartab).cast(),
+                                    (&raw const re_st().rex.buf_mut().b_chartab).cast(),
                                 );
                                 let prev_class = reg_prev_class();
                                 if this_class == prev_class || prev_class == 0 || prev_class == 1 {
@@ -3989,15 +3989,15 @@ fn bt_regexec_both(
         }
 
         let prog: *mut BtRegprog = if reg_multi() {
-            let p = (*re_st().rex.reg_mmatch).prog_mut().bt_mut();
+            let p = re_st().rex.mmatch_mut().prog_mut().bt_mut();
             line = reg_getline(0).cast();
-            re_st().rex.reg_startpos = (&raw mut (*re_st().rex.reg_mmatch).startpos).cast();
-            re_st().rex.reg_endpos = (&raw mut (*re_st().rex.reg_mmatch).endpos).cast();
+            re_st().rex.reg_startpos = (&raw mut re_st().rex.mmatch_mut().startpos).cast();
+            re_st().rex.reg_endpos = (&raw mut re_st().rex.mmatch_mut().endpos).cast();
             p
         } else {
-            let p = (*(*re_st().rex.reg_match).regprog).bt_mut();
-            re_st().rex.reg_startp = (&raw mut (*re_st().rex.reg_match).startp).cast();
-            re_st().rex.reg_endp = (&raw mut (*re_st().rex.reg_match).endp).cast();
+            let p = (*re_st().rex.match_mut().regprog).bt_mut();
+            re_st().rex.reg_startp = (&raw mut re_st().rex.match_mut().startp).cast();
+            re_st().rex.reg_endp = (&raw mut re_st().rex.match_mut().endp).cast();
             p
         };
         if prog.is_null() || line.is_null() {
@@ -4136,7 +4136,7 @@ fn bt_regexec_both(
 }
 
 fn finish_bt_regexec(retval: c_int, col: Colnr) -> c_int {
-    unsafe {
+    {
         if re_st().reg_tofree.capacity() > 400 {
             re_st().reg_tofree = Vec::new();
         }
@@ -4149,17 +4149,17 @@ fn finish_bt_regexec(retval: c_int, col: Colnr) -> c_int {
 
         if retval > 0 {
             if reg_multi() {
-                let start = (*re_st().rex.reg_mmatch).startpos[0];
-                let end = (*re_st().rex.reg_mmatch).endpos[0];
+                let start = re_st().rex.mmatch_mut().startpos[0];
+                let end = re_st().rex.mmatch_mut().endpos[0];
                 if end.lnum < start.lnum || (end.lnum == start.lnum && end.col < start.col) {
-                    (*re_st().rex.reg_mmatch).endpos[0] = start;
+                    re_st().rex.mmatch_mut().endpos[0] = start;
                 }
-                (*re_st().rex.reg_mmatch).rmm_matchcol = col;
+                re_st().rex.mmatch_mut().rmm_matchcol = col;
             } else {
-                if (*re_st().rex.reg_match).endp[0] < (*re_st().rex.reg_match).startp[0] {
-                    (*re_st().rex.reg_match).endp[0] = (*re_st().rex.reg_match).startp[0];
+                if re_st().rex.match_mut().endp[0] < re_st().rex.match_mut().startp[0] {
+                    re_st().rex.match_mut().endp[0] = re_st().rex.match_mut().startp[0];
                 }
-                (*re_st().rex.reg_match).rm_matchcol = col;
+                re_st().rex.match_mut().rm_matchcol = col;
             }
         }
 

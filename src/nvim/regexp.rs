@@ -2096,7 +2096,7 @@ pub(super) fn reg_prev_class() -> c_int {
         if re_st().rex.input > re_st().rex.line {
             let prev = re_st().rex.input.sub(1).cast::<c_char>();
             let head = prev.sub(utf_head_off(re_st().rex.line.cast(), prev) as usize);
-            return mb_get_class_tab(head, (&raw const (*re_st().rex.reg_buf).b_chartab).cast());
+            return mb_get_class_tab(head, (&raw const re_st().rex.buf_mut().b_chartab).cast());
         }
         -1
     }
@@ -2213,9 +2213,9 @@ pub(super) fn reg_match_visual() -> bool {
 pub(super) fn prog_magic_wrong() -> bool {
     unsafe {
         let prog = if reg_multi() {
-            (*re_st().rex.reg_mmatch).regprog
+            re_st().rex.mmatch_mut().regprog
         } else {
-            (*re_st().rex.reg_match).regprog
+            re_st().rex.match_mut().regprog
         };
         let RegProgEngine::Bt(ref bt_prog) = (*prog).engine else {
             return false;
@@ -2566,11 +2566,11 @@ pub(crate) fn fill_submatch_list(
 
         let mut li = tv_list_first(((*listarg).vval.v_list()).as_ref());
         for i in 0..10 {
-            let s = (*re_st().rsm.sm_match).startp[i];
-            if s.is_null() || (*re_st().rsm.sm_match).endp[i].is_null() {
+            let s = re_st().rsm.match_mut().startp[i];
+            if s.is_null() || re_st().rsm.match_mut().endp[i].is_null() {
                 tv_set_string(&mut (*li).li_tv, ptr::null());
             } else {
-                let len = (*re_st().rsm.sm_match).endp[i].offset_from(s) as usize;
+                let len = re_st().rsm.match_mut().endp[i].offset_from(s) as usize;
                 let cs = cstring_from_bytes(s, len).unwrap_or_default();
                 tv_set_string(&mut (*li).li_tv, cs.as_ptr());
             }
@@ -2931,34 +2931,33 @@ fn vim_regsub_both(
                 } else {
                     let mut s: *mut c_char;
                     if reg_multi() {
-                        clnum = (*re_st().rex.reg_mmatch).startpos[no as usize].lnum;
-                        if clnum < 0 || (*re_st().rex.reg_mmatch).endpos[no as usize].lnum < 0 {
+                        clnum = re_st().rex.mmatch_mut().startpos[no as usize].lnum;
+                        if clnum < 0 || re_st().rex.mmatch_mut().endpos[no as usize].lnum < 0 {
                             s = ptr::null_mut();
                         } else {
                             s = reg_getline(clnum)
-                                .add((*re_st().rex.reg_mmatch).startpos[no as usize].col as usize);
-                            if (*re_st().rex.reg_mmatch).endpos[no as usize].lnum == clnum {
-                                len = (*re_st().rex.reg_mmatch).endpos[no as usize].col
-                                    - (*re_st().rex.reg_mmatch).startpos[no as usize].col;
+                                .add(re_st().rex.mmatch_mut().startpos[no as usize].col as usize);
+                            if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
+                                len = re_st().rex.mmatch_mut().endpos[no as usize].col
+                                    - re_st().rex.mmatch_mut().startpos[no as usize].col;
                             } else {
                                 len = reg_getline_len(clnum)
-                                    - (*re_st().rex.reg_mmatch).startpos[no as usize].col;
+                                    - re_st().rex.mmatch_mut().startpos[no as usize].col;
                             }
                         }
                     } else {
-                        s = (*re_st().rex.reg_match).startp[no as usize];
-                        if (*re_st().rex.reg_match).endp[no as usize].is_null() {
+                        s = re_st().rex.match_mut().startp[no as usize];
+                        if re_st().rex.match_mut().endp[no as usize].is_null() {
                             s = ptr::null_mut();
                         } else {
-                            len =
-                                (*re_st().rex.reg_match).endp[no as usize].offset_from(s) as c_int;
+                            len = re_st().rex.match_mut().endp[no as usize].offset_from(s) as c_int;
                         }
                     }
                     if !s.is_null() {
                         loop {
                             if len == 0 {
                                 if reg_multi() {
-                                    if (*re_st().rex.reg_mmatch).endpos[no as usize].lnum == clnum {
+                                    if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
                                         break;
                                     }
                                     if copy {
@@ -2971,8 +2970,8 @@ fn vim_regsub_both(
                                     dst = dst.add(1);
                                     clnum += 1;
                                     s = reg_getline(clnum);
-                                    if (*re_st().rex.reg_mmatch).endpos[no as usize].lnum == clnum {
-                                        len = (*re_st().rex.reg_mmatch).endpos[no as usize].col;
+                                    if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
+                                        len = re_st().rex.mmatch_mut().endpos[no as usize].col;
                                     } else {
                                         len = reg_getline_len(clnum);
                                     }
@@ -3066,8 +3065,8 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
 
         if re_st().rsm.sm_match.is_null() {
             for round in 1..=2 {
-                let mut lnum = (*re_st().rsm.sm_mmatch).startpos[no].lnum;
-                if lnum < 0 || (*re_st().rsm.sm_mmatch).endpos[no].lnum < 0 {
+                let mut lnum = re_st().rsm.mmatch_mut().startpos[no].lnum;
+                if lnum < 0 || re_st().rsm.mmatch_mut().endpos[no].lnum < 0 {
                     return None;
                 }
 
@@ -3075,11 +3074,11 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                 if s.is_null() {
                     break;
                 }
-                s = s.add((*re_st().rsm.sm_mmatch).startpos[no].col as usize);
+                s = s.add(re_st().rsm.mmatch_mut().startpos[no].col as usize);
                 let mut len: isize;
-                if (*re_st().rsm.sm_mmatch).endpos[no].lnum == lnum {
-                    len = ((*re_st().rsm.sm_mmatch).endpos[no].col
-                        - (*re_st().rsm.sm_mmatch).startpos[no].col)
+                if re_st().rsm.mmatch_mut().endpos[no].lnum == lnum {
+                    len = (re_st().rsm.mmatch_mut().endpos[no].col
+                        - re_st().rsm.mmatch_mut().startpos[no].col)
                         as isize;
                     if round == 2 {
                         crate::memory::cstr_ncpy(retval, s, len as usize);
@@ -3087,7 +3086,7 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     len += 1;
                 } else {
                     len = (reg_getline_submatch_len(lnum)
-                        - (*re_st().rsm.sm_mmatch).startpos[no].col)
+                        - re_st().rsm.mmatch_mut().startpos[no].col)
                         as isize;
                     if round == 2 {
                         crate::memory::cstr_cpy(retval, s);
@@ -3095,7 +3094,7 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                     }
                     len += 1;
                     lnum += 1;
-                    while lnum < (*re_st().rsm.sm_mmatch).endpos[no].lnum {
+                    while lnum < re_st().rsm.mmatch_mut().endpos[no].lnum {
                         s = reg_getline_submatch(lnum);
                         if round == 2 {
                             crate::memory::cstr_cpy(retval.add(len as usize), s);
@@ -3111,13 +3110,13 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
                         {
                             let dst = retval.add(len as usize);
                             let src = reg_getline_submatch(lnum);
-                            let cap_n = (*re_st().rsm.sm_mmatch).endpos[no].col as usize;
+                            let cap_n = re_st().rsm.mmatch_mut().endpos[no].col as usize;
                             let copy_n = crate::memory::xstrnlen(src, cap_n);
                             ptr::copy_nonoverlapping(src, dst, copy_n);
                             ptr::write_bytes(dst.add(copy_n), 0, cap_n - copy_n);
                         }
                     }
-                    len += (*re_st().rsm.sm_mmatch).endpos[no].col as isize;
+                    len += re_st().rsm.mmatch_mut().endpos[no].col as isize;
                     if round == 2 {
                         *retval.add(len as usize) = NUL as c_char;
                     }
@@ -3131,11 +3130,11 @@ pub fn reg_submatch(no: c_int) -> Option<std::ffi::CString> {
             }
             (!retval.is_null()).then(|| crate::memory::cstr_to_cstring(retval))
         } else {
-            let s = (*re_st().rsm.sm_match).startp[no];
-            if s.is_null() || (*re_st().rsm.sm_match).endp[no].is_null() {
+            let s = re_st().rsm.match_mut().startp[no];
+            if s.is_null() || re_st().rsm.match_mut().endp[no].is_null() {
                 None
             } else {
-                cstring_from_bytes(s, (*re_st().rsm.sm_match).endp[no].offset_from(s) as usize)
+                cstring_from_bytes(s, re_st().rsm.match_mut().endp[no].offset_from(s) as usize)
             }
         }
     }
@@ -3150,14 +3149,14 @@ pub fn reg_submatch_list(no: c_int) -> *mut TvList {
         let list: *mut TvList;
 
         if re_st().rsm.sm_match.is_null() {
-            let slnum = (*re_st().rsm.sm_mmatch).startpos[no].lnum;
-            let elnum = (*re_st().rsm.sm_mmatch).endpos[no].lnum;
+            let slnum = re_st().rsm.mmatch_mut().startpos[no].lnum;
+            let elnum = re_st().rsm.mmatch_mut().endpos[no].lnum;
             if slnum < 0 || elnum < 0 {
                 return ptr::null_mut();
             }
 
-            let scol = (*re_st().rsm.sm_mmatch).startpos[no].col;
-            let ecol = (*re_st().rsm.sm_mmatch).endpos[no].col;
+            let scol = re_st().rsm.mmatch_mut().startpos[no].col;
+            let ecol = re_st().rsm.mmatch_mut().endpos[no].col;
 
             list = tv_list_alloc((elnum - slnum + 1) as isize);
 
@@ -3175,15 +3174,15 @@ pub fn reg_submatch_list(no: c_int) -> *mut TvList {
                 tv_list_append_string(&mut *list, s, ecol as isize);
             }
         } else {
-            let s = (*re_st().rsm.sm_match).startp[no];
-            if s.is_null() || (*re_st().rsm.sm_match).endp[no].is_null() {
+            let s = re_st().rsm.match_mut().startp[no];
+            if s.is_null() || re_st().rsm.match_mut().endp[no].is_null() {
                 return ptr::null_mut();
             }
             list = tv_list_alloc(1);
             tv_list_append_string(
                 &mut *list,
                 s,
-                (*re_st().rsm.sm_match).endp[no].offset_from(s),
+                re_st().rsm.match_mut().endp[no].offset_from(s),
             );
         }
 
@@ -3198,13 +3197,13 @@ pub(super) fn init_regexec_multi(
     buf: *mut FileBuf,
     lnum: Linenr,
 ) {
-    unsafe {
+    {
         re_st().rex.reg_match = ptr::null_mut();
         re_st().rex.reg_mmatch = rmp;
         re_st().rex.reg_buf = buf;
         re_st().rex.reg_win = win;
         re_st().rex.reg_firstlnum = lnum;
-        re_st().rex.reg_maxline = (*re_st().rex.reg_buf).b_ml.ml_line_count - lnum;
+        re_st().rex.reg_maxline = re_st().rex.buf_mut().b_ml.ml_line_count - lnum;
         re_st().rex.reg_line_lbr = false;
         re_st().rex.reg_ic = rmp.rmm_ic != 0;
         re_st().rex.reg_icombine = false;
@@ -3678,6 +3677,36 @@ pub fn vim_regexec_multi(
         }
 
         if result <= 0 { 0 } else { result }
+    }
+}
+
+impl Regexec {
+    #[inline]
+    pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
+        unsafe { &mut *self.reg_mmatch }
+    }
+    #[inline]
+    pub fn match_mut(&self) -> &'static mut Regmatch {
+        unsafe { &mut *self.reg_match }
+    }
+    #[inline]
+    pub fn buf_mut(&self) -> &'static mut FileBuf {
+        unsafe { &mut *self.reg_buf }
+    }
+    #[inline]
+    pub fn win_mut(&self) -> &'static mut WinInfoInfo {
+        unsafe { &mut *self.reg_win }
+    }
+}
+
+impl Regsubmatch {
+    #[inline]
+    pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
+        unsafe { &mut *self.sm_mmatch }
+    }
+    #[inline]
+    pub fn match_mut(&self) -> &'static mut Regmatch {
+        unsafe { &mut *self.sm_match }
     }
 }
 
