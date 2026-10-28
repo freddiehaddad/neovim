@@ -26,44 +26,36 @@ fn gc_st() -> &'static mut GcModuleState {
 
 #[inline]
 pub fn gc_register_dict(d: &mut TvDict) {
-    {
-        let idx = gc_st().gc_dicts.len();
-        gc_st().gc_dicts.push(d);
-        d.dv_gc_idx = Some(idx);
-    }
+    let idx = gc_st().gc_dicts.len();
+    gc_st().gc_dicts.push(d);
+    d.dv_gc_idx = Some(idx);
 }
 
 #[inline]
 pub fn gc_unregister_dict(idx: usize) {
-    {
-        gc_st().gc_dicts.swap_remove(idx);
-        if idx < gc_st().gc_dicts.len() {
-            let moved = gc_st().gc_dicts.as_slice()[idx];
-            unsafe {
-                (*moved).dv_gc_idx = Some(idx);
-            }
+    gc_st().gc_dicts.swap_remove(idx);
+    if idx < gc_st().gc_dicts.len() {
+        let moved = gc_st().gc_dicts.as_slice()[idx];
+        unsafe {
+            (*moved).dv_gc_idx = Some(idx);
         }
     }
 }
 
 #[inline]
 pub fn gc_register_list(l: &mut TvList) {
-    {
-        let idx = gc_st().gc_lists.len();
-        gc_st().gc_lists.push(l);
-        l.lv_gc_idx = Some(idx);
-    }
+    let idx = gc_st().gc_lists.len();
+    gc_st().gc_lists.push(l);
+    l.lv_gc_idx = Some(idx);
 }
 
 #[inline]
 pub fn gc_unregister_list(idx: usize) {
-    {
-        gc_st().gc_lists.swap_remove(idx);
-        if idx < gc_st().gc_lists.len() {
-            let moved = gc_st().gc_lists.as_slice()[idx];
-            unsafe {
-                (*moved).lv_gc_idx = Some(idx);
-            }
+    gc_st().gc_lists.swap_remove(idx);
+    if idx < gc_st().gc_lists.len() {
+        let moved = gc_st().gc_lists.as_slice()[idx];
+        unsafe {
+            (*moved).lv_gc_idx = Some(idx);
         }
     }
 }

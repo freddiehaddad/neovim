@@ -207,23 +207,21 @@ pub fn os_enable_ctrl_c() {
 
 #[cfg(windows)]
 pub fn os_open_conin_fd() -> i32 {
-    {
-        let conin_handle = unsafe {
-            CreateFileA(
-                c"CONIN$".as_ptr(),
-                GENERIC_READ | GENERIC_WRITE,
-                FILE_SHARE_READ | FILE_SHARE_WRITE,
-                std::ptr::null_mut(),
-                OPEN_EXISTING,
-                0,
-                std::ptr::null_mut(),
-            )
-        };
-        assert_ne!(conin_handle, INVALID_HANDLE_VALUE);
-        let conin_fd = unsafe { _open_osfhandle(conin_handle as isize, O_RDONLY) };
-        assert_ne!(conin_fd, -1);
-        conin_fd
-    }
+    let conin_handle = unsafe {
+        CreateFileA(
+            c"CONIN$".as_ptr(),
+            GENERIC_READ | GENERIC_WRITE,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            std::ptr::null_mut(),
+            OPEN_EXISTING,
+            0,
+            std::ptr::null_mut(),
+        )
+    };
+    assert_ne!(conin_handle, INVALID_HANDLE_VALUE);
+    let conin_fd = unsafe { _open_osfhandle(conin_handle as isize, O_RDONLY) };
+    assert_ne!(conin_fd, -1);
+    conin_fd
 }
 
 #[cfg(windows)]
@@ -233,11 +231,9 @@ pub fn os_clear_hwnd() {
 
 #[cfg(windows)]
 pub fn os_redirect_stdin_to_conin() {
-    {
-        unsafe { close(STDIN_FILENO) };
-        let conin_fd = os_open_conin_fd();
-        assert_eq!(conin_fd, STDIN_FILENO);
-    }
+    unsafe { close(STDIN_FILENO) };
+    let conin_fd = os_open_conin_fd();
+    assert_eq!(conin_fd, STDIN_FILENO);
 }
 
 #[cfg(windows)]
@@ -311,82 +307,78 @@ pub fn os_detach_ui_console(stdio_ui: bool) {
 
 #[cfg(windows)]
 pub fn os_icon_reset() {
-    {
-        if wincon_st().H_WND.is_null() {
-            return;
-        }
-        if !wincon_st().H_ORIG_ICON_SMALL.is_null() {
-            unsafe {
-                SendMessageA(
-                    wincon_st().H_WND,
-                    WM_SETICON,
-                    ICON_SMALL,
-                    wincon_st().H_ORIG_ICON_SMALL as LPARAM,
-                )
-            };
-        }
-        if !wincon_st().H_ORIG_ICON.is_null() {
-            unsafe {
-                SendMessageA(
-                    wincon_st().H_WND,
-                    WM_SETICON,
-                    ICON_BIG,
-                    wincon_st().H_ORIG_ICON as LPARAM,
-                )
-            };
-        }
+    if wincon_st().H_WND.is_null() {
+        return;
+    }
+    if !wincon_st().H_ORIG_ICON_SMALL.is_null() {
+        unsafe {
+            SendMessageA(
+                wincon_st().H_WND,
+                WM_SETICON,
+                ICON_SMALL,
+                wincon_st().H_ORIG_ICON_SMALL as LPARAM,
+            )
+        };
+    }
+    if !wincon_st().H_ORIG_ICON.is_null() {
+        unsafe {
+            SendMessageA(
+                wincon_st().H_WND,
+                WM_SETICON,
+                ICON_BIG,
+                wincon_st().H_ORIG_ICON as LPARAM,
+            )
+        };
     }
 }
 
 #[cfg(windows)]
 pub fn os_icon_init() {
-    {
-        wincon_st().H_WND = unsafe { GetConsoleWindow() };
-        if wincon_st().H_WND.is_null() {
-            return;
-        }
+    wincon_st().H_WND = unsafe { GetConsoleWindow() };
+    if wincon_st().H_WND.is_null() {
+        return;
+    }
 
-        if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
-            let namebuff = std::ptr::addr_of_mut!(g_st().name_buff).cast::<c_char>();
-            vim_snprintf!(namebuff, MAXPATHL, c"%s/neovim.ico", vimruntime.as_ptr());
-            if !os_path_exists(namebuff) {
-                logmsg!(
-                    LOGLVL_WRN,
-                    std::ptr::null(),
-                    c"os_icon_init",
-                    148,
-                    true,
-                    c"neovim.ico not found: %s",
+    if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
+        let namebuff = std::ptr::addr_of_mut!(g_st().name_buff).cast::<c_char>();
+        vim_snprintf!(namebuff, MAXPATHL, c"%s/neovim.ico", vimruntime.as_ptr());
+        if !os_path_exists(namebuff) {
+            logmsg!(
+                LOGLVL_WRN,
+                std::ptr::null(),
+                c"os_icon_init",
+                148,
+                true,
+                c"neovim.ico not found: %s",
+                namebuff,
+            );
+        } else {
+            let h_vim_icon = unsafe {
+                LoadImageA(
+                    std::ptr::null_mut(),
                     namebuff,
-                );
-            } else {
-                let h_vim_icon = unsafe {
-                    LoadImageA(
-                        std::ptr::null_mut(),
-                        namebuff,
-                        IMAGE_ICON,
-                        64,
-                        64,
-                        LR_LOADFROMFILE | LR_LOADMAP3DCOLORS,
-                    )
-                };
-                wincon_st().H_ORIG_ICON_SMALL = unsafe {
-                    SendMessageA(
-                        wincon_st().H_WND,
-                        WM_SETICON,
-                        ICON_SMALL,
-                        h_vim_icon as LPARAM,
-                    )
-                } as HICON;
-                wincon_st().H_ORIG_ICON = unsafe {
-                    SendMessageA(
-                        wincon_st().H_WND,
-                        WM_SETICON,
-                        ICON_BIG,
-                        h_vim_icon as LPARAM,
-                    )
-                } as HICON;
-            }
+                    IMAGE_ICON,
+                    64,
+                    64,
+                    LR_LOADFROMFILE | LR_LOADMAP3DCOLORS,
+                )
+            };
+            wincon_st().H_ORIG_ICON_SMALL = unsafe {
+                SendMessageA(
+                    wincon_st().H_WND,
+                    WM_SETICON,
+                    ICON_SMALL,
+                    h_vim_icon as LPARAM,
+                )
+            } as HICON;
+            wincon_st().H_ORIG_ICON = unsafe {
+                SendMessageA(
+                    wincon_st().H_WND,
+                    WM_SETICON,
+                    ICON_BIG,
+                    h_vim_icon as LPARAM,
+                )
+            } as HICON;
         }
     }
 }

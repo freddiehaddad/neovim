@@ -85,81 +85,87 @@ impl Event {
     }
 
     pub fn dispatch(self) {
-        unsafe {
-            match self {
-                Self::None => {}
-                Self::Oneshot(data) => {
-                    if let Some(ev) = data.take() {
-                        ev.dispatch();
-                    }
+        match self {
+            Self::None => {}
+            Self::Oneshot(data) => {
+                if let Some(ev) = data.take() {
+                    ev.dispatch();
                 }
-                Self::LoopDeferred { loop_, event } => {
-                    crate::event::r#loop::loop_deferred_event(&mut *loop_, *event);
-                }
-                Self::TimeWatcher(watcher) => crate::event::time::time_event(&mut *watcher),
-                Self::TimeWatcherClose(watcher) => crate::event::time::close_event(&mut *watcher),
-                Self::Signal(watcher) => crate::event::signal::signal_event(&mut *watcher),
-                Self::RStreamRead(stream) => crate::event::rstream::read_event(&mut *stream),
-                Self::SocketConnection { watcher, status } => {
-                    crate::event::socket::connection_event(watcher, status);
-                }
-                Self::ProcCloseHandles(proc_) => {
-                    crate::event::proc::proc_close_handles(&mut *proc_)
-                }
-                Self::ProcClose(proc_) => crate::event::proc::proc_close_event(&mut *proc_),
-                Self::ProcExit(status) => crate::event::proc::exit_event(status),
-                Self::AutoCmdDeferred(ev) => crate::autocmd::deferred_event(*ev),
-                Self::AutoCmdOptionSetModified { bufnr, new_val } => {
-                    crate::autocmd::deferred_optionset_modified(bufnr, new_val);
-                }
-                Self::AutoCmdVimResume => crate::autocmd::vimresume_event(),
-                Self::ChannelFree(chan) => crate::channel::free_channel_event(&mut *chan),
-                Self::ChannelCallback(chan) => crate::channel::on_channel_event(&mut *chan),
-                Self::ChannelTermDelayedFree(chan) => crate::channel::term_delayed_free(&mut *chan),
-                Self::ChannelSetInfo { chan, event } => {
-                    crate::channel::set_info_event(&mut *chan, event);
-                }
-                Self::RpcRequest(ev) => crate::msgpack_rpc::channel::request_event(*ev),
-                Self::RpcInternalRead { channel, buffer } => {
-                    crate::msgpack_rpc::channel::internal_read_event(&mut *channel, buffer);
-                }
-                Self::RpcClose(chan) => crate::msgpack_rpc::channel::rpc_close_event(chan.as_mut()),
-                Self::NluaLuvError { msg, kind } => {
-                    crate::lua::executor::nlua_luv_error_event(msg, kind);
-                }
-                Self::NluaSchedule { cb, ns_id } => {
-                    crate::lua::executor::nlua_schedule_event(cb, ns_id);
-                }
-                Self::NluaPrint(text) => {
-                    crate::lua::executor::nlua_print_event(text);
-                }
-                Self::MsgSemsg(s) => crate::message::msg_semsg_event(s),
-                Self::MsgSemsgMultiline(s) => crate::message::msg_semsg_multiline_event(s),
-                Self::CursorHold => crate::os::input::cursorhold_event(),
-                #[cfg(windows)]
-                Self::PtyProcFinish(proc_) => crate::os::pty_proc_win::pty_proc_finish(&mut *proc_),
-                Self::ShellOutData { str_copy, fd } => {
-                    crate::os::shell::out_data_event(str_copy, fd);
-                }
-                Self::TermRequest(ev) => crate::terminal::emit_termrequest(ev),
-                Self::TermStateChange(buf_handle) => {
-                    crate::terminal::terminal_state_change_event(buf_handle);
-                }
-                Self::TermSyncFlush(buf_handle) => crate::terminal::on_sync_flush(buf_handle),
-                Self::TermClipboardSet { mask, data } => {
-                    crate::terminal::term_clipboard_set(mask, data);
-                }
-                Self::TInputDone => crate::tui::input::tinput_done_event(),
-                Self::UiRefresh => crate::ui::ui_refresh_event(),
-                Self::UiClientConnect(addr) => crate::ui_client::channel_connect_event(addr),
-                Self::CmdwinOpen {
-                    firstc,
-                    content,
-                    pos,
-                } => crate::ex_getln::open_cmdwin_event(firstc, content, pos),
-                #[cfg(test)]
-                Self::Test(_) => {}
             }
+            Self::LoopDeferred { loop_, event } => {
+                crate::event::r#loop::loop_deferred_event(unsafe { &mut *loop_ }, *event);
+            }
+            Self::TimeWatcher(watcher) => crate::event::time::time_event(unsafe { &mut *watcher }),
+            Self::TimeWatcherClose(watcher) => {
+                crate::event::time::close_event(unsafe { &mut *watcher })
+            }
+            Self::Signal(watcher) => crate::event::signal::signal_event(unsafe { &mut *watcher }),
+            Self::RStreamRead(stream) => crate::event::rstream::read_event(unsafe { &mut *stream }),
+            Self::SocketConnection { watcher, status } => {
+                crate::event::socket::connection_event(watcher, status);
+            }
+            Self::ProcCloseHandles(proc_) => {
+                crate::event::proc::proc_close_handles(unsafe { &mut *proc_ })
+            }
+            Self::ProcClose(proc_) => crate::event::proc::proc_close_event(unsafe { &mut *proc_ }),
+            Self::ProcExit(status) => crate::event::proc::exit_event(status),
+            Self::AutoCmdDeferred(ev) => crate::autocmd::deferred_event(*ev),
+            Self::AutoCmdOptionSetModified { bufnr, new_val } => {
+                crate::autocmd::deferred_optionset_modified(bufnr, new_val);
+            }
+            Self::AutoCmdVimResume => crate::autocmd::vimresume_event(),
+            Self::ChannelFree(chan) => crate::channel::free_channel_event(unsafe { &mut *chan }),
+            Self::ChannelCallback(chan) => crate::channel::on_channel_event(unsafe { &mut *chan }),
+            Self::ChannelTermDelayedFree(chan) => {
+                crate::channel::term_delayed_free(unsafe { &mut *chan })
+            }
+            Self::ChannelSetInfo { chan, event } => {
+                crate::channel::set_info_event(unsafe { &mut *chan }, event);
+            }
+            Self::RpcRequest(ev) => crate::msgpack_rpc::channel::request_event(*ev),
+            Self::RpcInternalRead { channel, buffer } => {
+                crate::msgpack_rpc::channel::internal_read_event(unsafe { &mut *channel }, buffer);
+            }
+            Self::RpcClose(chan) => {
+                crate::msgpack_rpc::channel::rpc_close_event(unsafe { chan.as_mut() })
+            }
+            Self::NluaLuvError { msg, kind } => {
+                crate::lua::executor::nlua_luv_error_event(msg, kind);
+            }
+            Self::NluaSchedule { cb, ns_id } => {
+                crate::lua::executor::nlua_schedule_event(cb, ns_id);
+            }
+            Self::NluaPrint(text) => {
+                crate::lua::executor::nlua_print_event(text);
+            }
+            Self::MsgSemsg(s) => crate::message::msg_semsg_event(s),
+            Self::MsgSemsgMultiline(s) => crate::message::msg_semsg_multiline_event(s),
+            Self::CursorHold => crate::os::input::cursorhold_event(),
+            #[cfg(windows)]
+            Self::PtyProcFinish(proc_) => {
+                crate::os::pty_proc_win::pty_proc_finish(unsafe { &mut *proc_ })
+            }
+            Self::ShellOutData { str_copy, fd } => {
+                crate::os::shell::out_data_event(str_copy, fd);
+            }
+            Self::TermRequest(ev) => crate::terminal::emit_termrequest(ev),
+            Self::TermStateChange(buf_handle) => {
+                crate::terminal::terminal_state_change_event(buf_handle);
+            }
+            Self::TermSyncFlush(buf_handle) => crate::terminal::on_sync_flush(buf_handle),
+            Self::TermClipboardSet { mask, data } => {
+                crate::terminal::term_clipboard_set(mask, data);
+            }
+            Self::TInputDone => crate::tui::input::tinput_done_event(),
+            Self::UiRefresh => crate::ui::ui_refresh_event(),
+            Self::UiClientConnect(addr) => crate::ui_client::channel_connect_event(addr),
+            Self::CmdwinOpen {
+                firstc,
+                content,
+                pos,
+            } => crate::ex_getln::open_cmdwin_event(firstc, content, pos),
+            #[cfg(test)]
+            Self::Test(_) => {}
         }
     }
 }
@@ -347,45 +353,43 @@ mod tests {
 
     #[test]
     fn parent_and_child_interleaved_ordering() {
-        {
-            let parent = multiqueue_new(std::ptr::null_mut());
-            let c1 = multiqueue_new_child(&mut *parent);
-            let c2 = multiqueue_new_child(&mut *parent);
+        let parent = multiqueue_new(std::ptr::null_mut());
+        let c1 = multiqueue_new_child(&mut *parent);
+        let c2 = multiqueue_new_child(&mut *parent);
 
-            let make_ev = Event::Test;
-            let ev_val = |ev: Event| match ev {
-                Event::Test(v) => v,
-                _ => panic!("expected Event::Test"),
-            };
+        let make_ev = Event::Test;
+        let ev_val = |ev: Event| match ev {
+            Event::Test(v) => v,
+            _ => panic!("expected Event::Test"),
+        };
 
-            multiqueue_put_event(&mut *c1, make_ev(11));
-            multiqueue_put_event(&mut *c2, make_ev(21));
-            multiqueue_put_event(&mut *c1, make_ev(12));
-            assert_eq!(multiqueue_size(&*c1), 2);
-            assert_eq!(multiqueue_size(&*c2), 1);
+        multiqueue_put_event(&mut *c1, make_ev(11));
+        multiqueue_put_event(&mut *c2, make_ev(21));
+        multiqueue_put_event(&mut *c1, make_ev(12));
+        assert_eq!(multiqueue_size(&*c1), 2);
+        assert_eq!(multiqueue_size(&*c2), 1);
 
-            // Pop from c2 first; should also unlink from parent.
-            assert_eq!(ev_val(multiqueue_get(&mut *c2)), 21);
-            assert_eq!(multiqueue_size(&*c2), 0);
+        // Pop from c2 first; should also unlink from parent.
+        assert_eq!(ev_val(multiqueue_get(&mut *c2)), 21);
+        assert_eq!(multiqueue_size(&*c2), 0);
 
-            // Remaining in parent should be 11 then 12.
-            assert_eq!(ev_val(multiqueue_get(&mut *parent)), 11);
-            assert_eq!(ev_val(multiqueue_get(&mut *parent)), 12);
-            assert!(multiqueue_empty(&*parent));
+        // Remaining in parent should be 11 then 12.
+        assert_eq!(ev_val(multiqueue_get(&mut *parent)), 11);
+        assert_eq!(ev_val(multiqueue_get(&mut *parent)), 12);
+        assert!(multiqueue_empty(&*parent));
 
-            // Child free unlinks remaining events from parent.
-            let c3 = multiqueue_new_child(&mut *parent);
-            multiqueue_put_event(&mut *c1, make_ev(101));
-            multiqueue_put_event(&mut *c2, make_ev(201));
-            multiqueue_put_event(&mut *c3, make_ev(301));
-            multiqueue_free(c2);
-            assert_eq!(ev_val(multiqueue_get(&mut *parent)), 101);
-            assert_eq!(ev_val(multiqueue_get(&mut *c3)), 301);
-            assert!(multiqueue_empty(&*parent));
+        // Child free unlinks remaining events from parent.
+        let c3 = multiqueue_new_child(&mut *parent);
+        multiqueue_put_event(&mut *c1, make_ev(101));
+        multiqueue_put_event(&mut *c2, make_ev(201));
+        multiqueue_put_event(&mut *c3, make_ev(301));
+        multiqueue_free(c2);
+        assert_eq!(ev_val(multiqueue_get(&mut *parent)), 101);
+        assert_eq!(ev_val(multiqueue_get(&mut *c3)), 301);
+        assert!(multiqueue_empty(&*parent));
 
-            multiqueue_free(c1);
-            multiqueue_free(c3);
-            multiqueue_free(parent);
-        }
+        multiqueue_free(c1);
+        multiqueue_free(c3);
+        multiqueue_free(parent);
     }
 }

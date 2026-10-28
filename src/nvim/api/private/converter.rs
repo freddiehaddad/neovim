@@ -271,102 +271,100 @@ pub fn vim_to_object(
     mut arena: Option<&mut Arena>,
     reuse_strdata: bool,
 ) -> Object {
-    {
-        let copy_id = get_copy_id();
-        let mut stack: Vec<Object> = Vec::with_capacity(4);
-        let mut mpstack: Vec<ConvStackEntry> = Vec::new();
+    let copy_id = get_copy_id();
+    let mut stack: Vec<Object> = Vec::with_capacity(4);
+    let mut mpstack: Vec<ConvStackEntry> = Vec::new();
+
+    convert_one_value(
+        &mut stack,
+        &mut mpstack,
+        arena.as_deref_mut(),
+        reuse_strdata,
+        obj,
+        copy_id,
+    );
+
+    while let Some(top) = mpstack.last_mut() {
+        let next_tv: *mut TypVal = match top {
+            ConvStackEntry::List {
+                list,
+                li,
+                saved_copy_id,
+                first,
+            } => {
+                if li.is_null() {
+                    let list_ptr = *list;
+                    let saved = *saved_copy_id;
+                    mpstack.pop();
+                    unsafe {
+                        (*list_ptr).lv_copy_id = saved;
+                    }
+                    pop_into_parent_list(&mut stack);
+                    continue;
+                }
+                if !*first {
+                    pop_into_parent_list(&mut stack);
+                }
+                *first = false;
+                let cur_li = *li;
+                *li = unsafe { (*cur_li).li_next };
+                unsafe { &mut (*cur_li).li_tv }
+            }
+            ConvStackEntry::Dict {
+                dict,
+                hi,
+                todo,
+                saved_copy_id,
+                first,
+            } => {
+                if *todo == 0 {
+                    let dict_ptr = *dict;
+                    let saved = *saved_copy_id;
+                    mpstack.pop();
+                    unsafe {
+                        (*dict_ptr).dv_copy_id = saved;
+                    }
+                    pop_into_parent_dict(&mut stack);
+                    continue;
+                }
+                if !*first {
+                    pop_into_parent_dict(&mut stack);
+                }
+                *first = false;
+                while hashitem_empty(unsafe { &**hi }) {
+                    *hi = (*hi).wrapping_add(1);
+                }
+                let cur_hi = *hi;
+                *hi = (*hi).wrapping_add(1);
+                *todo -= 1;
+
+                let di = crate::eval::typval::tv_dict_hi2di(cur_hi);
+                let key_ptr = di.di_key.as_ptr();
+                let key_len = crate::memory::cstr_len(key_ptr);
+                let key_obj =
+                    cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_ptr, key_len);
+
+                let dict_obj = stack.last_mut().unwrap();
+                debug_assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);
+                let d = dict_obj.data.dict_mut();
+                d.next_slot_mut().key = key_obj.data.string();
+
+                &mut di.di_tv
+            }
+        };
 
         convert_one_value(
             &mut stack,
             &mut mpstack,
             arena.as_deref_mut(),
             reuse_strdata,
-            obj,
+            next_tv,
             copy_id,
         );
-
-        while let Some(top) = mpstack.last_mut() {
-            let next_tv: *mut TypVal = match top {
-                ConvStackEntry::List {
-                    list,
-                    li,
-                    saved_copy_id,
-                    first,
-                } => {
-                    if li.is_null() {
-                        let list_ptr = *list;
-                        let saved = *saved_copy_id;
-                        mpstack.pop();
-                        unsafe {
-                            (*list_ptr).lv_copy_id = saved;
-                        }
-                        pop_into_parent_list(&mut stack);
-                        continue;
-                    }
-                    if !*first {
-                        pop_into_parent_list(&mut stack);
-                    }
-                    *first = false;
-                    let cur_li = *li;
-                    *li = unsafe { (*cur_li).li_next };
-                    unsafe { &mut (*cur_li).li_tv }
-                }
-                ConvStackEntry::Dict {
-                    dict,
-                    hi,
-                    todo,
-                    saved_copy_id,
-                    first,
-                } => {
-                    if *todo == 0 {
-                        let dict_ptr = *dict;
-                        let saved = *saved_copy_id;
-                        mpstack.pop();
-                        unsafe {
-                            (*dict_ptr).dv_copy_id = saved;
-                        }
-                        pop_into_parent_dict(&mut stack);
-                        continue;
-                    }
-                    if !*first {
-                        pop_into_parent_dict(&mut stack);
-                    }
-                    *first = false;
-                    while hashitem_empty(unsafe { &**hi }) {
-                        *hi = (*hi).wrapping_add(1);
-                    }
-                    let cur_hi = *hi;
-                    *hi = (*hi).wrapping_add(1);
-                    *todo -= 1;
-
-                    let di = crate::eval::typval::tv_dict_hi2di(cur_hi);
-                    let key_ptr = di.di_key.as_ptr();
-                    let key_len = crate::memory::cstr_len(key_ptr);
-                    let key_obj =
-                        cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_ptr, key_len);
-
-                    let dict_obj = stack.last_mut().unwrap();
-                    debug_assert_eq!(dict_obj.obj_type, ObjectType::ObjectTypeDict);
-                    let d = dict_obj.data.dict_mut();
-                    d.next_slot_mut().key = key_obj.data.string();
-
-                    &mut di.di_tv
-                }
-            };
-
-            convert_one_value(
-                &mut stack,
-                &mut mpstack,
-                arena.as_deref_mut(),
-                reuse_strdata,
-                next_tv,
-                copy_id,
-            );
-        }
-
-        assert_eq!(stack.len(), 1);
-        stack.pop().unwrap()
     }
+
+    assert_eq!(stack.len(), 1);
+    stack.pop().unwrap()
 }
 
 /// Convert an API `Object` into a Vimscript `TypVal` (`object_to_vim`).

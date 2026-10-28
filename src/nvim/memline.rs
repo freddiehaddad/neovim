@@ -396,12 +396,10 @@ fn hp_ptr_block(hp: *mut Bhdr) -> &'static mut PointerBlock {
 
 #[inline]
 fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> &'static mut PointerEntry {
-    {
-        unsafe {
-            &mut *(&raw mut pp.pb_pointer)
-                .cast::<PointerEntry>()
-                .wrapping_add(idx)
-        }
+    unsafe {
+        &mut *(&raw mut pp.pb_pointer)
+            .cast::<PointerEntry>()
+            .wrapping_add(idx)
     }
 }
 
@@ -414,9 +412,7 @@ fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> &'static mut u32 {
 fn sb_push_cstr(sb: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
     let s = s.into_c_char_ptr();
     if !s.is_null() {
-        {
-            sb.extend_from_slice(crate::memory::cstr_as_bytes(s));
-        }
+        sb.extend_from_slice(crate::memory::cstr_as_bytes(s));
     }
 }
 
@@ -527,77 +523,73 @@ fn ml_open_error(buf: &mut FileBuf, mfp: Option<&mut Memfile>, hp: *mut Bhdr) ->
 
 /// Called when the file name of `buf` has been changed.
 pub fn ml_setname(buf: &mut FileBuf) {
-    {
-        let mut success = false;
-        let mfp = buf.b_ml.mfp_ptr();
-        let mfp = { unsafe { &mut *mfp } };
-        if mfp.mf_fd < 0 {
-            if opt_vars().p_uc != 0 && (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
-                ml_open_file(buf);
-            }
+    let mut success = false;
+    let mfp = buf.b_ml.mfp_ptr();
+    let mfp = { unsafe { &mut *mfp } };
+    if mfp.mf_fd < 0 {
+        if opt_vars().p_uc != 0 && (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
+            ml_open_file(buf);
+        }
+        return;
+    }
+
+    let mut dirp = opt_vars().p_dir;
+    let mut found_existing_dir = false;
+    loop {
+        if crate::memory::cstr_is_empty(dirp) {
+            break;
+        }
+        let mf_fname_ptr = mfp
+            .mf_fname
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+        let fname = findswapname(buf, &raw mut dirp, mf_fname_ptr, &mut found_existing_dir);
+        if buf.b_ml.mfp_ptr() != mfp {
             return;
         }
+        if dirp.is_null() {
+            break;
+        }
+        let Some(fname) = fname else {
+            continue;
+        };
 
-        let mut dirp = opt_vars().p_dir;
-        let mut found_existing_dir = false;
-        loop {
-            if crate::memory::cstr_is_empty(dirp) {
-                break;
-            }
-            let mf_fname_ptr = mfp
-                .mf_fname
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-            let fname = findswapname(buf, &raw mut dirp, mf_fname_ptr, &mut found_existing_dir);
-            if buf.b_ml.mfp_ptr() != mfp {
-                return;
-            }
-            if dirp.is_null() {
-                break;
-            }
-            let Some(fname) = fname else {
-                continue;
-            };
-
-            if path_equal(fname.as_ptr(), mf_fname_ptr, K_PATH_CMP_LITERAL) {
-                success = true;
-                break;
-            }
-            if mfp.mf_fd >= 0 {
-                unsafe { close(mfp.mf_fd) };
-                mfp.mf_fd = -1;
-            }
-
-            if vim_rename(mf_fname_ptr, fname.as_ptr()) == 0 {
-                success = true;
-                mf_free_fnames(&mut *mfp);
-                mf_set_fnames(&mut *mfp, fname);
-                ml_upd_block0(buf, UpdBlock0::UbSameDir);
-                break;
-            }
+        if path_equal(fname.as_ptr(), mf_fname_ptr, K_PATH_CMP_LITERAL) {
+            success = true;
+            break;
+        }
+        if mfp.mf_fd >= 0 {
+            unsafe { close(mfp.mf_fd) };
+            mfp.mf_fd = -1;
         }
 
-        if mfp.mf_fd == -1 {
-            mfp.mf_fd = os_open(mfp.mf_fname.as_ref().unwrap().as_ptr(), O_RDWR, 0);
-            if mfp.mf_fd < 0 {
-                emsg(tr(c"E301: Oops, lost the swap file!!!"));
-                return;
-            }
-            os_set_cloexec(mfp.mf_fd);
+        if vim_rename(mf_fname_ptr, fname.as_ptr()) == 0 {
+            success = true;
+            mf_free_fnames(&mut *mfp);
+            mf_set_fnames(&mut *mfp, fname);
+            ml_upd_block0(buf, UpdBlock0::UbSameDir);
+            break;
         }
-        if !success {
-            emsg(tr(c"E302: Could not rename swap file"));
+    }
+
+    if mfp.mf_fd == -1 {
+        mfp.mf_fd = os_open(mfp.mf_fname.as_ref().unwrap().as_ptr(), O_RDWR, 0);
+        if mfp.mf_fd < 0 {
+            emsg(tr(c"E301: Oops, lost the swap file!!!"));
+            return;
         }
+        os_set_cloexec(mfp.mf_fd);
+    }
+    if !success {
+        emsg(tr(c"E302: Could not rename swap file"));
     }
 }
 
 /// Open a file for the memfile for all buffers that are not readonly or have been modified.
 pub fn ml_open_files() {
-    {
-        for buf in for_all_buffers_mut() {
-            if buf.b_p_ro == 0 || buf.b_changed != 0 {
-                ml_open_file(buf);
-            }
+    for buf in for_all_buffers_mut() {
+        if buf.b_p_ro == 0 || buf.b_changed != 0 {
+            ml_open_file(buf);
         }
     }
 }
@@ -668,60 +660,50 @@ pub fn ml_open_file(buf: &mut FileBuf) {
 
 /// If still need to create a swapfile, create a swapfile now.
 pub fn check_need_swap(newfile: bool) {
-    {
-        let old_msg_silent = g_st().msg_silent;
-        g_st().msg_silent = 0;
+    let old_msg_silent = g_st().msg_silent;
+    g_st().msg_silent = 0;
 
-        if curbuf_mut().b_may_swap && (curbuf_mut().b_p_ro == 0 || !newfile) {
-            ml_open_file(curbuf_mut());
-        }
-
-        g_st().msg_silent = old_msg_silent;
+    if curbuf_mut().b_may_swap && (curbuf_mut().b_p_ro == 0 || !newfile) {
+        ml_open_file(curbuf_mut());
     }
+
+    g_st().msg_silent = old_msg_silent;
 }
 
 /// Close memline for buffer `buf`.
 pub fn ml_close(buf: &mut FileBuf, del_file: i32) {
-    {
-        if buf.b_ml.ml_mfp.is_none() {
-            return;
-        }
-        mf_close(buf.b_ml.ml_mfp.take(), del_file != 0);
-        buf.b_ml.ml_line_buf = Vec::new();
-        buf.b_ml.ml_stack = Vec::new();
-        buf.b_ml.ml_chunksize = Vec::new();
-
-        buf.b_flags &= !BF_RECOVERED;
+    if buf.b_ml.ml_mfp.is_none() {
+        return;
     }
+    mf_close(buf.b_ml.ml_mfp.take(), del_file != 0);
+    buf.b_ml.ml_line_buf = Vec::new();
+    buf.b_ml.ml_stack = Vec::new();
+    buf.b_ml.ml_chunksize = Vec::new();
+
+    buf.b_flags &= !BF_RECOVERED;
 }
 
 /// Close all existing memlines and memfiles.
 pub fn ml_close_all(del_file: bool) {
-    {
-        for buf in for_all_buffers_ptr() {
-            ml_close(&mut *buf, i32::from(del_file));
-        }
-        spell_delete_wordlist();
-        vim_deltempdir();
+    for buf in for_all_buffers_ptr() {
+        ml_close(&mut *buf, i32::from(del_file));
     }
+    spell_delete_wordlist();
+    vim_deltempdir();
 }
 
 /// Close all memfiles for not modified buffers.
 pub fn ml_close_notmod() {
-    {
-        for buf in for_all_buffers_ptr() {
-            if !buf_is_changed_fn(&mut *buf) {
-                ml_close(&mut *buf, 1);
-            }
+    for buf in for_all_buffers_ptr() {
+        if !buf_is_changed_fn(&mut *buf) {
+            ml_close(&mut *buf, 1);
         }
     }
 }
 
 /// Update the timestamp in the `.swp` file.
 pub fn ml_timestamp(buf: &mut FileBuf) {
-    {
-        ml_upd_block0(buf, UpdBlock0::UbFname);
-    }
+    ml_upd_block0(buf, UpdBlock0::UbFname);
 }
 
 #[inline]
@@ -731,13 +713,11 @@ fn ml_check_b0_id(b0p: &ZeroBlock) -> bool {
 
 #[inline]
 fn ml_check_b0_strings(b0p: &ZeroBlock) -> bool {
-    {
-        let b0 = b0p;
-        b0.b0_version.contains(&NUL)
-            && b0.b0_uname.contains(&NUL)
-            && b0.b0_hname.contains(&NUL)
-            && b0.b0_fname[..B0_FNAME_SIZE_CRYPT].contains(&NUL)
-    }
+    let b0 = b0p;
+    b0.b0_version.contains(&NUL)
+        && b0.b0_uname.contains(&NUL)
+        && b0.b0_hname.contains(&NUL)
+        && b0.b0_fname[..B0_FNAME_SIZE_CRYPT].contains(&NUL)
 }
 
 fn ml_upd_block0(buf: &mut FileBuf, what: UpdBlock0) {
@@ -763,62 +743,60 @@ fn ml_upd_block0(buf: &mut FileBuf, what: UpdBlock0) {
 }
 
 fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
-    {
-        if buf.b_ffname.is_null() {
-            b0p.b0_fname[0] = NUL;
-        } else {
-            let mut uname = [0 as c_char; B0_UNAME_SIZE];
-            let fname_ptr = (&raw mut b0p.b0_fname).cast::<c_char>();
-            let flen = home_replace(None, buf.b_ffname, fname_ptr, B0_FNAME_SIZE_CRYPT, true);
-            if b0p.b0_fname[0] == b'~' as c_char {
-                let retval = os_get_username((&raw mut uname).cast(), B0_UNAME_SIZE);
-                let ulen = crate::memory::cstr_len((&raw const uname).cast());
-                if !retval || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
-                    xstrlcpy(fname_ptr, buf.b_ffname, B0_FNAME_SIZE_CRYPT);
-                } else {
-                    unsafe {
-                        ptr::copy(
-                            fname_ptr.wrapping_add(1),
-                            fname_ptr.wrapping_add(ulen + 1),
-                            flen,
-                        )
-                    };
-                    unsafe {
-                        ptr::copy_nonoverlapping(
-                            (&raw const uname).cast(),
-                            fname_ptr.wrapping_add(1),
-                            ulen,
-                        )
-                    };
-                }
-            }
-            let mut file_info = FileInfo::new();
-            if os_fileinfo(buf.b_ffname, &mut file_info) {
-                long_to_char(
-                    file_info.stat.st_mtim.tv_sec,
-                    (&raw mut b0p.b0_mtime).cast(),
-                );
-                long_to_char(
-                    os_fileinfo_inode(&file_info) as i64,
-                    (&raw mut b0p.b0_ino).cast(),
-                );
-                buf_store_file_info(buf, &mut file_info);
-                buf.b_mtime_read = buf.b_mtime;
-                buf.b_mtime_read_ns = buf.b_mtime_ns;
+    if buf.b_ffname.is_null() {
+        b0p.b0_fname[0] = NUL;
+    } else {
+        let mut uname = [0 as c_char; B0_UNAME_SIZE];
+        let fname_ptr = (&raw mut b0p.b0_fname).cast::<c_char>();
+        let flen = home_replace(None, buf.b_ffname, fname_ptr, B0_FNAME_SIZE_CRYPT, true);
+        if b0p.b0_fname[0] == b'~' as c_char {
+            let retval = os_get_username((&raw mut uname).cast(), B0_UNAME_SIZE);
+            let ulen = crate::memory::cstr_len((&raw const uname).cast());
+            if !retval || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
+                xstrlcpy(fname_ptr, buf.b_ffname, B0_FNAME_SIZE_CRYPT);
             } else {
-                long_to_char(0, (&raw mut b0p.b0_mtime).cast());
-                long_to_char(0, (&raw mut b0p.b0_ino).cast());
-                buf.b_mtime = 0;
-                buf.b_mtime_ns = 0;
-                buf.b_mtime_read = 0;
-                buf.b_mtime_read_ns = 0;
-                buf.b_orig_size = 0;
-                buf.b_orig_mode = 0;
+                unsafe {
+                    ptr::copy(
+                        fname_ptr.wrapping_add(1),
+                        fname_ptr.wrapping_add(ulen + 1),
+                        flen,
+                    )
+                };
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        (&raw const uname).cast(),
+                        fname_ptr.wrapping_add(1),
+                        ulen,
+                    )
+                };
             }
         }
-
-        add_b0_fenc(b0p, curbuf_mut());
+        let mut file_info = FileInfo::new();
+        if os_fileinfo(buf.b_ffname, &mut file_info) {
+            long_to_char(
+                file_info.stat.st_mtim.tv_sec,
+                (&raw mut b0p.b0_mtime).cast(),
+            );
+            long_to_char(
+                os_fileinfo_inode(&file_info) as i64,
+                (&raw mut b0p.b0_ino).cast(),
+            );
+            buf_store_file_info(buf, &mut file_info);
+            buf.b_mtime_read = buf.b_mtime;
+            buf.b_mtime_read_ns = buf.b_mtime_ns;
+        } else {
+            long_to_char(0, (&raw mut b0p.b0_mtime).cast());
+            long_to_char(0, (&raw mut b0p.b0_ino).cast());
+            buf.b_mtime = 0;
+            buf.b_mtime_ns = 0;
+            buf.b_mtime_read = 0;
+            buf.b_mtime_read_ns = 0;
+            buf.b_orig_size = 0;
+            buf.b_orig_mode = 0;
+        }
     }
+
+    add_b0_fenc(b0p, curbuf_mut());
 }
 
 fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
@@ -837,19 +815,17 @@ fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
 }
 
 fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
-    {
-        let size = B0_FNAME_SIZE_NOCRYPT;
-        let n = crate::memory::cstr_len(buf.b_p_fenc);
-        let fname_ptr = (&raw mut b0p.b0_fname).cast::<c_char>();
-        if crate::memory::cstr_len(fname_ptr) + n + 1 > size {
-            b0p.set_flags(b0p.flags() & !B0_HAS_FENC);
-        } else {
-            unsafe { ptr::copy(buf.b_p_fenc, fname_ptr.wrapping_add(size - n), n) };
-            unsafe {
-                *fname_ptr.wrapping_add(size - n - 1) = NUL;
-            }
-            b0p.set_flags(b0p.flags() | B0_HAS_FENC);
+    let size = B0_FNAME_SIZE_NOCRYPT;
+    let n = crate::memory::cstr_len(buf.b_p_fenc);
+    let fname_ptr = (&raw mut b0p.b0_fname).cast::<c_char>();
+    if crate::memory::cstr_len(fname_ptr) + n + 1 > size {
+        b0p.set_flags(b0p.flags() & !B0_HAS_FENC);
+    } else {
+        unsafe { ptr::copy(buf.b_p_fenc, fname_ptr.wrapping_add(size - n), n) };
+        unsafe {
+            *fname_ptr.wrapping_add(size - n - 1) = NUL;
         }
+        b0p.set_flags(b0p.flags() | B0_HAS_FENC);
     }
 }
 
@@ -1525,34 +1501,32 @@ fn ml_recover_theend(
     serious_error: bool,
     called_from_main: bool,
 ) {
-    {
-        g_st().msg_ext_skip_flush = false;
-        g_st().recoverymode = false;
-        if let Some(mfp) = mfp {
-            if !hp.is_null() {
-                mf_put(mfp, hp, false, false);
-            }
-            mf_close(buf.as_mut().and_then(|b| b.b_ml.ml_mfp.take()), false);
+    g_st().msg_ext_skip_flush = false;
+    g_st().recoverymode = false;
+    if let Some(mfp) = mfp {
+        if !hp.is_null() {
+            mf_put(mfp, hp, false, false);
         }
-        drop(buf);
-        if serious_error && called_from_main {
-            ml_close(curbuf_mut(), 1);
-        } else {
-            apply_autocmds(
-                EVENT_BUFREADPOST,
-                ptr::null_mut(),
-                curbuf_mut().b_fname,
-                false,
-                g_st().curbuf,
-            );
-            apply_autocmds(
-                EVENT_BUFWINENTER,
-                ptr::null_mut(),
-                curbuf_mut().b_fname,
-                false,
-                g_st().curbuf,
-            );
-        }
+        mf_close(buf.as_mut().and_then(|b| b.b_ml.ml_mfp.take()), false);
+    }
+    drop(buf);
+    if serious_error && called_from_main {
+        ml_close(curbuf_mut(), 1);
+    } else {
+        apply_autocmds(
+            EVENT_BUFREADPOST,
+            ptr::null_mut(),
+            curbuf_mut().b_fname,
+            false,
+            g_st().curbuf,
+        );
+        apply_autocmds(
+            EVENT_BUFWINENTER,
+            ptr::null_mut(),
+            curbuf_mut().b_fname,
+            false,
+            g_st().curbuf,
+        );
     }
 }
 
@@ -2104,46 +2078,42 @@ pub fn ml_get_pos_len(pos: &mut CursorPos) -> Colnr {
 
 /// Return length (excluding NUL) of the given line in `buf`.
 pub fn ml_get_buf_len(buf: &mut FileBuf, lnum: Linenr) -> Colnr {
-    {
-        let line = ml_get_buf(buf, lnum);
-        if crate::memory::cstr_is_empty(line) {
-            return 0;
-        }
-        assert!(buf.b_ml.ml_line_textlen > 0);
-        buf.b_ml.ml_line_textlen - 1
+    let line = ml_get_buf(buf, lnum);
+    if crate::memory::cstr_is_empty(line) {
+        return 0;
     }
+    assert!(buf.b_ml.ml_line_textlen > 0);
+    buf.b_ml.ml_line_textlen - 1
 }
 
 /// Gets the charwise NL-joined text of range `[start, end)` as a `Vec<u8>`.
 pub fn ml_region_text(buf: &mut FileBuf, start: CursorPos, end: CursorPos) -> Vec<u8> {
-    {
-        let mut sb = Vec::<u8>::new();
-        for lnum in start.lnum..=end.lnum {
-            let line = ml_get_buf(buf, lnum);
-            let len = ml_get_buf_len(buf, lnum);
-            let from = if lnum == start.lnum {
-                start.col.min(len).max(0)
-            } else {
-                0
-            };
-            let to = if lnum == end.lnum {
-                end.col.min(len).max(from)
-            } else {
-                len
-            };
-            let slice = unsafe {
-                std::slice::from_raw_parts(
-                    line.wrapping_add(from as usize).cast::<u8>(),
-                    (to - from) as usize,
-                )
-            };
-            sb.extend_from_slice(slice);
-            if lnum < end.lnum {
-                sb.push(NL as u8);
-            }
+    let mut sb = Vec::<u8>::new();
+    for lnum in start.lnum..=end.lnum {
+        let line = ml_get_buf(buf, lnum);
+        let len = ml_get_buf_len(buf, lnum);
+        let from = if lnum == start.lnum {
+            start.col.min(len).max(0)
+        } else {
+            0
+        };
+        let to = if lnum == end.lnum {
+            end.col.min(len).max(from)
+        } else {
+            len
+        };
+        let slice = unsafe {
+            std::slice::from_raw_parts(
+                line.wrapping_add(from as usize).cast::<u8>(),
+                (to - from) as usize,
+            )
+        };
+        sb.extend_from_slice(slice);
+        if lnum < end.lnum {
+            sb.push(NL as u8);
         }
-        sb
     }
+    sb
 }
 
 /// Return codepoint at `pos`.
@@ -2155,66 +2125,64 @@ pub fn gchar_pos(pos: &mut CursorPos) -> i32 {
 }
 
 fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> *mut c_char {
-    {
-        if buf.b_ml.ml_mfp.is_none() {
-            buf.b_ml.ml_line_textlen = 1;
-            return c"".as_ptr().cast_mut();
-        }
+    if buf.b_ml.ml_mfp.is_none() {
+        buf.b_ml.ml_line_textlen = 1;
+        return c"".as_ptr().cast_mut();
+    }
 
-        if lnum > buf.b_ml.ml_line_count {
+    if lnum > buf.b_ml.ml_line_count {
+        if ml_st().ml_get_recursive == 0 {
+            ml_st().ml_get_recursive += 1;
+            siemsg!(tr(E_ML_GET_INVALID_LNUM_NR), i64::from(lnum));
+            ml_st().ml_get_recursive -= 1;
+        }
+        ml_flush_line(buf, false);
+        return ml_get_errorret(buf, lnum);
+    }
+    lnum = lnum.max(1);
+
+    if buf.b_ml.ml_line_lnum != lnum {
+        ml_flush_line(buf, false);
+
+        let hp = ml_find_line(buf, lnum, ML_FIND);
+        if hp.is_null() {
             if ml_st().ml_get_recursive == 0 {
                 ml_st().ml_get_recursive += 1;
-                siemsg!(tr(E_ML_GET_INVALID_LNUM_NR), i64::from(lnum));
+                get_trans_bufname(buf);
+                let namebuff_ptr = g_st().name_buff.as_mut_ptr();
+                shorten_dir(namebuff_ptr);
+                siemsg!(
+                    tr(E_ML_GET_CANNOT_FIND_LINE_NR_IN_BUFFER_NR_STR),
+                    i64::from(lnum),
+                    buf.b_fnum,
+                    namebuff_ptr,
+                );
                 ml_st().ml_get_recursive -= 1;
             }
-            ml_flush_line(buf, false);
             return ml_get_errorret(buf, lnum);
         }
-        lnum = lnum.max(1);
+        let hp = unsafe { &mut *hp };
 
-        if buf.b_ml.ml_line_lnum != lnum {
-            ml_flush_line(buf, false);
+        let dp = hp_data_block(hp);
+        let idx = (lnum - buf.b_ml.ml_locked_low) as usize;
+        let start = *db_idx_ptr(&mut *dp, idx) & DB_INDEX_MASK;
+        let end = if idx == 0 {
+            dp.db_txt_end
+        } else {
+            *db_idx_ptr(&mut *dp, idx - 1) & DB_INDEX_MASK
+        };
 
-            let hp = ml_find_line(buf, lnum, ML_FIND);
-            if hp.is_null() {
-                if ml_st().ml_get_recursive == 0 {
-                    ml_st().ml_get_recursive += 1;
-                    get_trans_bufname(buf);
-                    let namebuff_ptr = g_st().name_buff.as_mut_ptr();
-                    shorten_dir(namebuff_ptr);
-                    siemsg!(
-                        tr(E_ML_GET_CANNOT_FIND_LINE_NR_IN_BUFFER_NR_STR),
-                        i64::from(lnum),
-                        buf.b_fnum,
-                        namebuff_ptr,
-                    );
-                    ml_st().ml_get_recursive -= 1;
-                }
-                return ml_get_errorret(buf, lnum);
-            }
-            let hp = unsafe { &mut *hp };
-
-            let dp = hp_data_block(hp);
-            let idx = (lnum - buf.b_ml.ml_locked_low) as usize;
-            let start = *db_idx_ptr(&mut *dp, idx) & DB_INDEX_MASK;
-            let end = if idx == 0 {
-                dp.db_txt_end
-            } else {
-                *db_idx_ptr(&mut *dp, idx - 1) & DB_INDEX_MASK
-            };
-
-            buf.b_ml.ml_line_ptr = dp.as_char_ptr().wrapping_add(start as usize);
-            buf.b_ml.ml_line_textlen = (end - start) as Colnr;
-            buf.b_ml.ml_line_lnum = lnum;
-            buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
-        }
-        if will_change {
-            buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
-            ml_add_deleted_len_buf(buf, buf.b_ml.ml_line_ptr, -1);
-        }
-
-        buf.b_ml.ml_line_ptr
+        buf.b_ml.ml_line_ptr = dp.as_char_ptr().wrapping_add(start as usize);
+        buf.b_ml.ml_line_textlen = (end - start) as Colnr;
+        buf.b_ml.ml_line_lnum = lnum;
+        buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
     }
+    if will_change {
+        buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
+        ml_add_deleted_len_buf(buf, buf.b_ml.ml_line_ptr, -1);
+    }
+
+    buf.b_ml.ml_line_ptr
 }
 
 fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> *mut c_char {
@@ -2850,129 +2818,133 @@ pub fn ml_delete_buf(buf: &mut FileBuf, lnum: Linenr, message: bool) -> bool {
 }
 
 fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
-    unsafe {
-        if ml_st().lowest_marked != 0 && ml_st().lowest_marked > lnum {
-            ml_st().lowest_marked -= 1;
-        }
+    if ml_st().lowest_marked != 0 && ml_st().lowest_marked > lnum {
+        ml_st().lowest_marked -= 1;
+    }
 
-        if buf.b_ml.ml_line_count == 1 {
-            if (flags & ML_DEL_MESSAGE) != 0 {
-                set_keep_msg(gettext(NO_LINES_MSG), 0);
+    if buf.b_ml.ml_line_count == 1 {
+        if (flags & ML_DEL_MESSAGE) != 0 {
+            set_keep_msg(gettext(NO_LINES_MSG), 0);
+        }
+        let i = ml_replace_buf(buf, 1, c"", true, false);
+        buf.b_ml.ml_flags |= ML_EMPTY;
+        return i;
+    }
+
+    let mfp = buf.b_ml.mfp_ptr();
+    if mfp.is_null() {
+        return false;
+    }
+
+    let mut hp = ml_find_line(buf, lnum, ML_DELETE);
+    if hp.is_null() {
+        return false;
+    }
+
+    let dp = hp_data_block(hp);
+    let mut count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 2;
+    let mut idx = lnum - buf.b_ml.ml_locked_low;
+
+    if buf.b_prev_line_count == 0 {
+        buf.b_prev_line_count = buf.b_ml.ml_line_count;
+    }
+    buf.b_ml.ml_line_count -= 1;
+
+    let line_start = (*db_idx_ptr(&mut *dp, idx as usize) & DB_INDEX_MASK) as i32;
+    let line_size: i32 = if idx == 0 {
+        (dp.db_txt_end as i32) - line_start
+    } else {
+        ((*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as i32) - line_start
+    };
+
+    assert!(line_size >= 1);
+    ml_add_deleted_len_buf(
+        buf,
+        dp.as_char_ptr().wrapping_add(line_start as usize),
+        (line_size - 1) as isize,
+    );
+
+    if count == 1 {
+        mf_free(unsafe { &mut *mfp }, unsafe { &mut *hp });
+        buf.b_ml.ml_locked = ptr::null_mut();
+
+        let mut stack_idx = buf.b_ml.ml_stack_top - 1;
+        while stack_idx >= 0 {
+            buf.b_ml.ml_stack_top = 0;
+            let ip = buf
+                .b_ml
+                .ml_stack
+                .as_mut_ptr()
+                .wrapping_add(stack_idx as usize);
+            idx = unsafe { (*ip).ip_index };
+            hp = mf_get(unsafe { &mut *mfp }, unsafe { (*ip).ip_bnum }, 1);
+            if hp.is_null() {
+                return false;
             }
-            let i = ml_replace_buf(buf, 1, c"", true, false);
-            buf.b_ml.ml_flags |= ML_EMPTY;
-            return i;
-        }
-
-        let mfp = buf.b_ml.mfp_ptr();
-        if mfp.is_null() {
-            return false;
-        }
-
-        let mut hp = ml_find_line(buf, lnum, ML_DELETE);
-        if hp.is_null() {
-            return false;
-        }
-
-        let dp = hp_data_block(hp);
-        let mut count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 2;
-        let mut idx = lnum - buf.b_ml.ml_locked_low;
-
-        if buf.b_prev_line_count == 0 {
-            buf.b_prev_line_count = buf.b_ml.ml_line_count;
-        }
-        buf.b_ml.ml_line_count -= 1;
-
-        let line_start = (*db_idx_ptr(&mut *dp, idx as usize) & DB_INDEX_MASK) as i32;
-        let line_size: i32 = if idx == 0 {
-            (dp.db_txt_end as i32) - line_start
-        } else {
-            ((*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as i32) - line_start
-        };
-
-        assert!(line_size >= 1);
-        ml_add_deleted_len_buf(
-            buf,
-            dp.as_char_ptr().wrapping_add(line_start as usize),
-            (line_size - 1) as isize,
-        );
-
-        if count == 1 {
-            mf_free(&mut *mfp, &mut *hp);
-            buf.b_ml.ml_locked = ptr::null_mut();
-
-            let mut stack_idx = buf.b_ml.ml_stack_top - 1;
-            while stack_idx >= 0 {
-                buf.b_ml.ml_stack_top = 0;
-                let ip = buf
-                    .b_ml
-                    .ml_stack
-                    .as_mut_ptr()
-                    .wrapping_add(stack_idx as usize);
-                idx = (*ip).ip_index;
-                hp = mf_get(&mut *mfp, (*ip).ip_bnum, 1);
-                if hp.is_null() {
-                    return false;
-                }
-                let pp = hp_ptr_block(hp);
-                if pp.pb_id != PTR_ID {
-                    iemsg(tr(E_POINTER_BLOCK_ID_WRONG_FOUR));
-                    mf_put(&mut *mfp, hp, false, false);
-                    return false;
-                }
-                pp.pb_count -= 1;
-                count = i32::from(pp.pb_count);
-                if count == 0 {
-                    mf_free(&mut *mfp, &mut *hp);
-                } else {
-                    if count != idx {
+            let pp = hp_ptr_block(hp);
+            if pp.pb_id != PTR_ID {
+                iemsg(tr(E_POINTER_BLOCK_ID_WRONG_FOUR));
+                mf_put(unsafe { &mut *mfp }, hp, false, false);
+                return false;
+            }
+            pp.pb_count -= 1;
+            count = i32::from(pp.pb_count);
+            if count == 0 {
+                mf_free(unsafe { &mut *mfp }, unsafe { &mut *hp });
+            } else {
+                if count != idx {
+                    unsafe {
                         ptr::copy(
                             pb_ptr(&mut *pp, (idx + 1) as usize),
                             pb_ptr(&mut *pp, idx as usize),
                             (count - idx) as usize,
-                        );
-                    }
-                    mf_put(&mut *mfp, hp, true, false);
+                        )
+                    };
+                }
+                mf_put(unsafe { &mut *mfp }, hp, true, false);
 
-                    buf.b_ml.ml_stack_top = stack_idx;
-                    if buf.b_ml.ml_locked_lineadd != 0 {
-                        ml_lineadd(buf, buf.b_ml.ml_locked_lineadd);
-                        let top_ip = buf
-                            .b_ml
-                            .ml_stack
-                            .as_mut_ptr()
-                            .wrapping_add(buf.b_ml.ml_stack_top as usize);
+                buf.b_ml.ml_stack_top = stack_idx;
+                if buf.b_ml.ml_locked_lineadd != 0 {
+                    ml_lineadd(buf, buf.b_ml.ml_locked_lineadd);
+                    let top_ip = buf
+                        .b_ml
+                        .ml_stack
+                        .as_mut_ptr()
+                        .wrapping_add(buf.b_ml.ml_stack_top as usize);
+                    unsafe {
                         (*top_ip).ip_high += buf.b_ml.ml_locked_lineadd;
                     }
-                    buf.b_ml.ml_stack_top += 1;
-                    break;
                 }
-                stack_idx -= 1;
+                buf.b_ml.ml_stack_top += 1;
+                break;
             }
-        } else {
-            let text_start = dp.db_txt_start as i32;
+            stack_idx -= 1;
+        }
+    } else {
+        let text_start = dp.db_txt_start as i32;
+        unsafe {
             ptr::copy(
                 dp.as_char_ptr().wrapping_add(text_start as usize),
                 dp.as_char_ptr()
                     .wrapping_add((text_start + line_size) as usize),
                 (line_start - text_start) as usize,
-            );
+            )
+        };
 
-            for i in idx..(count - 1) {
-                *db_idx_ptr(&mut *dp, i as usize) =
-                    *db_idx_ptr(&mut *dp, (i + 1) as usize) + (line_size as u32);
-            }
-
-            dp.db_free += (line_size as u32) + (INDEX_SIZE as u32);
-            dp.db_txt_start += line_size as u32;
-            dp.db_line_count -= 1;
-
-            buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
+        for i in idx..(count - 1) {
+            *db_idx_ptr(&mut *dp, i as usize) =
+                *db_idx_ptr(&mut *dp, (i + 1) as usize) + (line_size as u32);
         }
 
-        ml_updatechunk(buf, lnum, line_size, ML_CHNK_DELLINE);
-        true
+        dp.db_free += (line_size as u32) + (INDEX_SIZE as u32);
+        dp.db_txt_start += line_size as u32;
+        dp.db_line_count -= 1;
+
+        buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
     }
+
+    ml_updatechunk(buf, lnum, line_size, ML_CHNK_DELLINE);
+    true
 }
 
 /// Delete line `lnum` in the current buffer.
@@ -2982,103 +2954,94 @@ pub fn ml_delete(lnum: Linenr) -> bool {
 
 /// Like `ml_delete()` but using flags.
 pub fn ml_delete_flags(lnum: Linenr, flags: i32) -> bool {
-    {
-        ml_flush_line(curbuf_mut(), false);
-        if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
-            return false;
-        }
-        ml_delete_int(curbuf_mut(), lnum, flags)
+    ml_flush_line(curbuf_mut(), false);
+    if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count {
+        return false;
     }
+    ml_delete_int(curbuf_mut(), lnum, flags)
 }
 
 /// Set the `DB_MARKED` flag for line `lnum`.
 pub fn ml_setmarked(lnum: Linenr) {
-    {
-        if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count || curbuf_mut().b_ml.ml_mfp.is_none()
-        {
-            return;
-        }
-        if ml_st().lowest_marked == 0 || ml_st().lowest_marked > lnum {
-            ml_st().lowest_marked = lnum;
-        }
-
-        let hp = ml_find_line(curbuf_mut(), lnum, ML_FIND);
-        if hp.is_null() {
-            return;
-        }
-        let hp = unsafe { &mut *hp };
-        let dp = hp_data_block(hp);
-        *db_idx_ptr(&mut *dp, (lnum - curbuf_mut().b_ml.ml_locked_low) as usize) |= DB_MARKED;
-        curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
+    if lnum < 1 || lnum > curbuf_mut().b_ml.ml_line_count || curbuf_mut().b_ml.ml_mfp.is_none() {
+        return;
     }
+    if ml_st().lowest_marked == 0 || ml_st().lowest_marked > lnum {
+        ml_st().lowest_marked = lnum;
+    }
+
+    let hp = ml_find_line(curbuf_mut(), lnum, ML_FIND);
+    if hp.is_null() {
+        return;
+    }
+    let hp = unsafe { &mut *hp };
+    let dp = hp_data_block(hp);
+    *db_idx_ptr(&mut *dp, (lnum - curbuf_mut().b_ml.ml_locked_low) as usize) |= DB_MARKED;
+    curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
 }
 
 /// Find the first line with its `DB_MARKED` flag set.
 pub fn ml_firstmarked() -> Linenr {
-    {
-        if curbuf_mut().b_ml.ml_mfp.is_none() {
+    if curbuf_mut().b_ml.ml_mfp.is_none() {
+        return 0;
+    }
+
+    let mut lnum = ml_st().lowest_marked;
+    while lnum <= curbuf_mut().b_ml.ml_line_count {
+        let hp = ml_find_line(curbuf_mut(), lnum, ML_FIND);
+        if hp.is_null() {
             return 0;
         }
-
-        let mut lnum = ml_st().lowest_marked;
-        while lnum <= curbuf_mut().b_ml.ml_line_count {
-            let hp = ml_find_line(curbuf_mut(), lnum, ML_FIND);
-            if hp.is_null() {
-                return 0;
-            }
-            let hp = { unsafe { &mut *hp } };
-            let dp = hp_data_block(hp);
-            let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as isize;
-            while lnum <= curbuf_mut().b_ml.ml_locked_high {
-                let idx_p = (&raw mut dp.db_index).cast::<u32>().wrapping_offset(i);
-                if (unsafe { *idx_p } & DB_MARKED) != 0 {
-                    unsafe {
-                        *idx_p &= DB_INDEX_MASK;
-                    }
-                    curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
-                    ml_st().lowest_marked = lnum + 1;
-                    return lnum;
+        let hp = { unsafe { &mut *hp } };
+        let dp = hp_data_block(hp);
+        let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as isize;
+        while lnum <= curbuf_mut().b_ml.ml_locked_high {
+            let idx_p = (&raw mut dp.db_index).cast::<u32>().wrapping_offset(i);
+            if (unsafe { *idx_p } & DB_MARKED) != 0 {
+                unsafe {
+                    *idx_p &= DB_INDEX_MASK;
                 }
-                i += 1;
-                lnum += 1;
+                curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
+                ml_st().lowest_marked = lnum + 1;
+                return lnum;
             }
+            i += 1;
+            lnum += 1;
         }
-
-        0
     }
+
+    0
 }
 
 /// Clear all `DB_MARKED` flags.
 pub fn ml_clearmarked() {
-    {
-        if curbuf_mut().b_ml.ml_mfp.is_none() {
+    if curbuf_mut().b_ml.ml_mfp.is_none() {
+        return;
+    }
+
+    let mut lnum = ml_st().lowest_marked;
+    while lnum <= curbuf_mut().b_ml.ml_line_count {
+        let hp = ml_find_line(curbuf_mut(), lnum, ML_FIND);
+        if hp.is_null() {
             return;
         }
-
-        let mut lnum = ml_st().lowest_marked;
-        while lnum <= curbuf_mut().b_ml.ml_line_count {
-            let hp = ml_find_line(curbuf_mut(), lnum, ML_FIND);
-            if hp.is_null() {
-                return;
-            }
-            let hp = { unsafe { &mut *hp } };
-            let dp = hp_data_block(hp);
-            let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as isize;
-            while lnum <= curbuf_mut().b_ml.ml_locked_high {
-                let idx_p = (&raw mut dp.db_index).cast::<u32>().wrapping_offset(i);
-                if (unsafe { *idx_p } & DB_MARKED) != 0 {
-                    unsafe {
-                        *idx_p &= DB_INDEX_MASK;
-                    }
-                    curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
+        let hp = { unsafe { &mut *hp } };
+        let dp = hp_data_block(hp);
+        let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as isize;
+        while lnum <= curbuf_mut().b_ml.ml_locked_high {
+            let idx_p = (&raw mut dp.db_index).cast::<u32>().wrapping_offset(i);
+            if (unsafe { *idx_p } & DB_MARKED) != 0 {
+                unsafe {
+                    *idx_p &= DB_INDEX_MASK;
                 }
-                i += 1;
-                lnum += 1;
+                curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
             }
+            i += 1;
+            lnum += 1;
         }
-
-        ml_st().lowest_marked = 0;
     }
+
+    ml_st().lowest_marked = 0;
 }
 
 pub fn ml_flush_deleted_bytes(
@@ -3096,281 +3059,268 @@ pub fn ml_flush_deleted_bytes(
 }
 
 fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
-    {
-        if buf.b_ml.ml_line_lnum == 0 || buf.b_ml.ml_mfp.is_none() {
+    if buf.b_ml.ml_line_lnum == 0 || buf.b_ml.ml_mfp.is_none() {
+        return;
+    }
+    if (buf.b_ml.ml_flags & ML_LINE_DIRTY) != 0 {
+        if ml_st().ml_flush_entered {
             return;
         }
-        if (buf.b_ml.ml_flags & ML_LINE_DIRTY) != 0 {
-            if ml_st().ml_flush_entered {
-                return;
-            }
-            ml_st().ml_flush_entered = true;
+        ml_st().ml_flush_entered = true;
 
-            buf.flush_count += 1;
+        buf.flush_count += 1;
 
-            let lnum = buf.b_ml.ml_line_lnum;
-            let owned_line = if noalloc {
-                Vec::new()
+        let lnum = buf.b_ml.ml_line_lnum;
+        let owned_line = if noalloc {
+            Vec::new()
+        } else {
+            std::mem::take(&mut buf.b_ml.ml_line_buf)
+        };
+        let new_line = if noalloc {
+            buf.b_ml.ml_line_ptr
+        } else {
+            owned_line.as_ptr().cast_mut()
+        };
+
+        let hp = ml_find_line(buf, lnum, ML_FIND);
+        if hp.is_null() {
+            siemsg!(tr(c"E320: Cannot find line %lld"), i64::from(lnum));
+        } else {
+            let dp = hp_data_block(hp);
+            let idx = (lnum - buf.b_ml.ml_locked_low) as usize;
+            let start = (*db_idx_ptr(&mut *dp, idx) & DB_INDEX_MASK) as i32;
+            let old_line = dp.as_char_ptr().wrapping_add(start as usize);
+            let old_len: i32 = if idx == 0 {
+                (dp.db_txt_end as i32) - start
             } else {
-                std::mem::take(&mut buf.b_ml.ml_line_buf)
+                ((*db_idx_ptr(&mut *dp, idx - 1) & DB_INDEX_MASK) as i32) - start
             };
-            let new_line = if noalloc {
-                buf.b_ml.ml_line_ptr
-            } else {
-                owned_line.as_ptr().cast_mut()
-            };
+            let new_len = buf.b_ml.ml_line_textlen;
+            let extra = new_len - old_len;
 
-            let hp = ml_find_line(buf, lnum, ML_FIND);
-            if hp.is_null() {
-                siemsg!(tr(c"E320: Cannot find line %lld"), i64::from(lnum));
-            } else {
-                let dp = hp_data_block(hp);
-                let idx = (lnum - buf.b_ml.ml_locked_low) as usize;
-                let start = (*db_idx_ptr(&mut *dp, idx) & DB_INDEX_MASK) as i32;
-                let old_line = dp.as_char_ptr().wrapping_add(start as usize);
-                let old_len: i32 = if idx == 0 {
-                    (dp.db_txt_end as i32) - start
-                } else {
-                    ((*db_idx_ptr(&mut *dp, idx - 1) & DB_INDEX_MASK) as i32) - start
-                };
-                let new_len = buf.b_ml.ml_line_textlen;
-                let extra = new_len - old_len;
-
-                if (dp.db_free as i32) >= extra {
-                    let count = (buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1) as usize;
-                    if extra != 0 && idx < count - 1 {
-                        let txt_start = dp.db_txt_start as isize;
-                        unsafe {
-                            ptr::copy(
-                                dp.as_char_ptr().wrapping_offset(txt_start),
-                                dp.as_char_ptr().wrapping_offset(txt_start - extra as isize),
-                                (start - dp.db_txt_start as i32) as usize,
-                            )
-                        };
-                        for i in (idx + 1)..count {
-                            *db_idx_ptr(&mut *dp, i) =
-                                (*db_idx_ptr(&mut *dp, i)).wrapping_sub(extra as u32);
-                        }
-                    }
-                    *db_idx_ptr(&mut *dp, idx) =
-                        (*db_idx_ptr(&mut *dp, idx)).wrapping_sub(extra as u32);
-
-                    dp.db_free = dp.db_free.wrapping_sub(extra as u32);
-                    dp.db_txt_start = dp.db_txt_start.wrapping_sub(extra as u32);
-
+            if (dp.db_free as i32) >= extra {
+                let count = (buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1) as usize;
+                if extra != 0 && idx < count - 1 {
+                    let txt_start = dp.db_txt_start as isize;
                     unsafe {
                         ptr::copy(
-                            new_line,
-                            old_line.wrapping_offset(-(extra as isize)),
-                            new_len as usize,
+                            dp.as_char_ptr().wrapping_offset(txt_start),
+                            dp.as_char_ptr().wrapping_offset(txt_start - extra as isize),
+                            (start - dp.db_txt_start as i32) as usize,
                         )
                     };
-                    buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
-                    if extra != 0 {
-                        ml_updatechunk(buf, lnum, extra, ML_CHNK_UPDLINE);
+                    for i in (idx + 1)..count {
+                        *db_idx_ptr(&mut *dp, i) =
+                            (*db_idx_ptr(&mut *dp, i)).wrapping_sub(extra as u32);
                     }
-                } else {
-                    let mark_flag = if (*db_idx_ptr(&mut *dp, idx) & DB_MARKED) != 0 {
-                        ML_APPEND_MARK
-                    } else {
-                        0
-                    };
-                    let _ = ml_append_int(buf, lnum, new_line, new_len, mark_flag);
-                    let _ = ml_delete_int(buf, lnum, 0);
                 }
+                *db_idx_ptr(&mut *dp, idx) =
+                    (*db_idx_ptr(&mut *dp, idx)).wrapping_sub(extra as u32);
+
+                dp.db_free = dp.db_free.wrapping_sub(extra as u32);
+                dp.db_txt_start = dp.db_txt_start.wrapping_sub(extra as u32);
+
+                unsafe {
+                    ptr::copy(
+                        new_line,
+                        old_line.wrapping_offset(-(extra as isize)),
+                        new_len as usize,
+                    )
+                };
+                buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
+                if extra != 0 {
+                    ml_updatechunk(buf, lnum, extra, ML_CHNK_UPDLINE);
+                }
+            } else {
+                let mark_flag = if (*db_idx_ptr(&mut *dp, idx) & DB_MARKED) != 0 {
+                    ML_APPEND_MARK
+                } else {
+                    0
+                };
+                let _ = ml_append_int(buf, lnum, new_line, new_len, mark_flag);
+                let _ = ml_delete_int(buf, lnum, 0);
             }
-            drop(owned_line);
-
-            ml_st().ml_flush_entered = false;
         }
+        drop(owned_line);
 
-        buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
-        buf.b_ml.ml_line_lnum = 0;
-        buf.b_ml.ml_line_offset = 0;
+        ml_st().ml_flush_entered = false;
     }
+
+    buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
+    buf.b_ml.ml_line_lnum = 0;
+    buf.b_ml.ml_line_offset = 0;
 }
 
 fn ml_new_data(mfp: &mut Memfile, negative: bool, page_count: i64) -> *mut Bhdr {
-    {
-        assert!(page_count >= 0);
-        let hp = mf_new(mfp, negative, page_count as u32);
-        let dp = hp_data_block(hp);
-        dp.db_id = DATA_ID;
-        dp.db_txt_end = (page_count as u32).wrapping_mul(mfp.mf_page_size);
-        dp.db_txt_start = dp.db_txt_end;
-        dp.db_free = dp.db_txt_start - (HEADER_SIZE as u32);
-        dp.db_line_count = 0;
-        hp
-    }
+    assert!(page_count >= 0);
+    let hp = mf_new(mfp, negative, page_count as u32);
+    let dp = hp_data_block(hp);
+    dp.db_id = DATA_ID;
+    dp.db_txt_end = (page_count as u32).wrapping_mul(mfp.mf_page_size);
+    dp.db_txt_start = dp.db_txt_end;
+    dp.db_free = dp.db_txt_start - (HEADER_SIZE as u32);
+    dp.db_line_count = 0;
+    hp
 }
 
 fn ml_new_ptr(mfp: &mut Memfile) -> *mut Bhdr {
-    {
-        let hp = mf_new(mfp, false, 1);
-        let pp = hp_ptr_block(hp);
-        pp.pb_id = PTR_ID;
-        pp.pb_count = 0;
-        pp.pb_count_max = pb_count_max(mfp);
-        hp
-    }
+    let hp = mf_new(mfp, false, 1);
+    let pp = hp_ptr_block(hp);
+    pp.pb_id = PTR_ID;
+    pp.pb_count = 0;
+    pp.pb_count_max = pb_count_max(mfp);
+    hp
 }
 
 fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> *mut Bhdr {
-    unsafe {
-        let mfp = buf.b_ml.mfp_ptr();
+    let mfp = buf.b_ml.mfp_ptr();
 
-        if !buf.b_ml.ml_locked.is_null() {
-            if ml_simple(action)
-                && buf.b_ml.ml_locked_low <= lnum
-                && buf.b_ml.ml_locked_high >= lnum
-            {
-                if action == ML_INSERT {
-                    buf.b_ml.ml_locked_lineadd += 1;
-                    buf.b_ml.ml_locked_high += 1;
-                } else if action == ML_DELETE {
-                    buf.b_ml.ml_locked_lineadd -= 1;
-                    buf.b_ml.ml_locked_high -= 1;
-                }
-                return buf.b_ml.ml_locked.cast();
+    if !buf.b_ml.ml_locked.is_null() {
+        if ml_simple(action) && buf.b_ml.ml_locked_low <= lnum && buf.b_ml.ml_locked_high >= lnum {
+            if action == ML_INSERT {
+                buf.b_ml.ml_locked_lineadd += 1;
+                buf.b_ml.ml_locked_high += 1;
+            } else if action == ML_DELETE {
+                buf.b_ml.ml_locked_lineadd -= 1;
+                buf.b_ml.ml_locked_high -= 1;
             }
-
-            mf_put(
-                &mut *mfp,
-                buf.b_ml.ml_locked.cast(),
-                (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) != 0,
-                (buf.b_ml.ml_flags & ML_LOCKED_POS) != 0,
-            );
-            buf.b_ml.ml_locked = ptr::null_mut();
-
-            if buf.b_ml.ml_locked_lineadd != 0 {
-                ml_lineadd(buf, buf.b_ml.ml_locked_lineadd);
-            }
+            return buf.b_ml.ml_locked.cast();
         }
 
-        if action == ML_FLUSH {
-            return ptr::null_mut();
+        mf_put(
+            unsafe { &mut *mfp },
+            buf.b_ml.ml_locked.cast(),
+            (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) != 0,
+            (buf.b_ml.ml_flags & ML_LOCKED_POS) != 0,
+        );
+        buf.b_ml.ml_locked = ptr::null_mut();
+
+        if buf.b_ml.ml_locked_lineadd != 0 {
+            ml_lineadd(buf, buf.b_ml.ml_locked_lineadd);
         }
+    }
 
-        let mut bnum: Blocknr = 1;
-        let mut page_count: i32 = 1;
-        let mut low: Linenr = 1;
-        let mut high: Linenr = buf.b_ml.ml_line_count;
+    if action == ML_FLUSH {
+        return ptr::null_mut();
+    }
 
-        if action == ML_FIND {
-            let mut top = buf.b_ml.ml_stack_top - 1;
-            while top >= 0 {
-                let ip = &(&buf.b_ml.ml_stack)[top as usize];
-                if ip.ip_low <= lnum && ip.ip_high >= lnum {
-                    bnum = ip.ip_bnum;
-                    low = ip.ip_low;
-                    high = ip.ip_high;
-                    buf.b_ml.ml_stack_top = top;
-                    break;
-                }
-                top -= 1;
+    let mut bnum: Blocknr = 1;
+    let mut page_count: i32 = 1;
+    let mut low: Linenr = 1;
+    let mut high: Linenr = buf.b_ml.ml_line_count;
+
+    if action == ML_FIND {
+        let mut top = buf.b_ml.ml_stack_top - 1;
+        while top >= 0 {
+            let ip = &(&buf.b_ml.ml_stack)[top as usize];
+            if ip.ip_low <= lnum && ip.ip_high >= lnum {
+                bnum = ip.ip_bnum;
+                low = ip.ip_low;
+                high = ip.ip_high;
+                buf.b_ml.ml_stack_top = top;
+                break;
             }
-            if top < 0 {
-                buf.b_ml.ml_stack_top = 0;
-            }
-        } else {
+            top -= 1;
+        }
+        if top < 0 {
             buf.b_ml.ml_stack_top = 0;
         }
+    } else {
+        buf.b_ml.ml_stack_top = 0;
+    }
 
-        loop {
-            let hp = mf_get(&mut *mfp, bnum, page_count as u32);
-            if hp.is_null() {
-                return ml_find_line_error_noblock(buf, action);
-            }
-
-            if action == ML_INSERT {
-                high += 1;
-            } else if action == ML_DELETE {
-                high -= 1;
-            }
-
-            let dp = hp_data_block(hp);
-            if dp.db_id == DATA_ID {
-                buf.b_ml.ml_locked = hp.cast();
-                buf.b_ml.ml_locked_low = low;
-                buf.b_ml.ml_locked_high = high;
-                buf.b_ml.ml_locked_lineadd = 0;
-                buf.b_ml.ml_flags &= !(ML_LOCKED_DIRTY | ML_LOCKED_POS);
-                return hp;
-            }
-
-            let pp = &mut *(dp as *mut DataBlock).cast::<PointerBlock>();
-            if pp.pb_id != PTR_ID {
-                iemsg(tr(E_POINTER_BLOCK_ID_WRONG));
-                mf_put(&mut *mfp, hp, false, false);
-                return ml_find_line_error_noblock(buf, action);
-            }
-
-            let top = ml_add_stack(buf);
-            let ip = &mut (&mut buf.b_ml.ml_stack)[top as usize];
-            ip.ip_bnum = bnum;
-            ip.ip_low = low;
-            ip.ip_high = high;
-            ip.ip_index = -1;
-
-            let mut dirty = false;
-            let mut idx: i32 = 0;
-            while idx < i32::from(pp.pb_count) {
-                let pe = pb_ptr(&mut *pp, idx as usize);
-                let t = pe.pe_line_count;
-                low += t;
-                if low > lnum {
-                    ip.ip_index = idx;
-                    bnum = pe.pe_bnum;
-                    page_count = pe.pe_page_count;
-                    high = low - 1;
-                    low -= t;
-
-                    if bnum < 0 {
-                        let bnum2 = mf_trans_del(&mut *mfp, bnum);
-                        if bnum != bnum2 {
-                            bnum = bnum2;
-                            pe.pe_bnum = bnum;
-                            dirty = true;
-                        }
-                    }
-                    break;
-                }
-                idx += 1;
-            }
-            if idx >= i32::from(pp.pb_count) {
-                if lnum > buf.b_ml.ml_line_count {
-                    siemsg!(
-                        tr(E_LINE_NUMBER_OUT_OF_RANGE_NR_PAST_THE_END),
-                        i64::from(lnum - buf.b_ml.ml_line_count),
-                    );
-                } else {
-                    siemsg!(tr(E_LINE_COUNT_WRONG_IN_BLOCK_NR), bnum);
-                }
-                mf_put(&mut *mfp, hp, false, false);
-                return ml_find_line_error_noblock(buf, action);
-            }
-            if action == ML_DELETE {
-                pb_ptr(&mut *pp, idx as usize).pe_line_count -= 1;
-                dirty = true;
-            } else if action == ML_INSERT {
-                pb_ptr(&mut *pp, idx as usize).pe_line_count += 1;
-                dirty = true;
-            }
-            mf_put(&mut *mfp, hp, dirty, false);
+    loop {
+        let hp = mf_get(unsafe { &mut *mfp }, bnum, page_count as u32);
+        if hp.is_null() {
+            return ml_find_line_error_noblock(buf, action);
         }
+
+        if action == ML_INSERT {
+            high += 1;
+        } else if action == ML_DELETE {
+            high -= 1;
+        }
+
+        let dp = hp_data_block(hp);
+        if dp.db_id == DATA_ID {
+            buf.b_ml.ml_locked = hp.cast();
+            buf.b_ml.ml_locked_low = low;
+            buf.b_ml.ml_locked_high = high;
+            buf.b_ml.ml_locked_lineadd = 0;
+            buf.b_ml.ml_flags &= !(ML_LOCKED_DIRTY | ML_LOCKED_POS);
+            return hp;
+        }
+
+        let pp = unsafe { &mut *(dp as *mut DataBlock).cast::<PointerBlock>() };
+        if pp.pb_id != PTR_ID {
+            iemsg(tr(E_POINTER_BLOCK_ID_WRONG));
+            mf_put(unsafe { &mut *mfp }, hp, false, false);
+            return ml_find_line_error_noblock(buf, action);
+        }
+
+        let top = ml_add_stack(buf);
+        let ip = &mut (&mut buf.b_ml.ml_stack)[top as usize];
+        ip.ip_bnum = bnum;
+        ip.ip_low = low;
+        ip.ip_high = high;
+        ip.ip_index = -1;
+
+        let mut dirty = false;
+        let mut idx: i32 = 0;
+        while idx < i32::from(pp.pb_count) {
+            let pe = pb_ptr(&mut *pp, idx as usize);
+            let t = pe.pe_line_count;
+            low += t;
+            if low > lnum {
+                ip.ip_index = idx;
+                bnum = pe.pe_bnum;
+                page_count = pe.pe_page_count;
+                high = low - 1;
+                low -= t;
+
+                if bnum < 0 {
+                    let bnum2 = mf_trans_del(unsafe { &mut *mfp }, bnum);
+                    if bnum != bnum2 {
+                        bnum = bnum2;
+                        pe.pe_bnum = bnum;
+                        dirty = true;
+                    }
+                }
+                break;
+            }
+            idx += 1;
+        }
+        if idx >= i32::from(pp.pb_count) {
+            if lnum > buf.b_ml.ml_line_count {
+                siemsg!(
+                    tr(E_LINE_NUMBER_OUT_OF_RANGE_NR_PAST_THE_END),
+                    i64::from(lnum - buf.b_ml.ml_line_count),
+                );
+            } else {
+                siemsg!(tr(E_LINE_COUNT_WRONG_IN_BLOCK_NR), bnum);
+            }
+            mf_put(unsafe { &mut *mfp }, hp, false, false);
+            return ml_find_line_error_noblock(buf, action);
+        }
+        if action == ML_DELETE {
+            pb_ptr(&mut *pp, idx as usize).pe_line_count -= 1;
+            dirty = true;
+        } else if action == ML_INSERT {
+            pb_ptr(&mut *pp, idx as usize).pe_line_count += 1;
+            dirty = true;
+        }
+        mf_put(unsafe { &mut *mfp }, hp, dirty, false);
     }
 }
 
 fn ml_find_line_error_noblock(buf: &mut FileBuf, action: i32) -> *mut Bhdr {
-    {
-        if action == ML_DELETE {
-            ml_lineadd(&mut *buf, 1);
-        } else if action == ML_INSERT {
-            ml_lineadd(&mut *buf, -1);
-        }
-        buf.b_ml.ml_stack_top = 0;
-        ptr::null_mut()
+    if action == ML_DELETE {
+        ml_lineadd(&mut *buf, 1);
+    } else if action == ML_INSERT {
+        ml_lineadd(&mut *buf, -1);
     }
+    buf.b_ml.ml_stack_top = 0;
+    ptr::null_mut()
 }
 
 fn ml_add_stack(buf: &mut FileBuf) -> i32 {
@@ -3386,26 +3336,24 @@ fn ml_add_stack(buf: &mut FileBuf) -> i32 {
 }
 
 fn ml_lineadd(buf: &mut FileBuf, count: i32) {
-    {
-        let mfp = buf.b_ml.mfp_ptr();
-        let mut idx = buf.b_ml.ml_stack_top - 1;
-        while idx >= 0 {
-            let ip = &mut (&mut buf.b_ml.ml_stack)[idx as usize];
-            let hp = mf_get(unsafe { &mut *mfp }, ip.ip_bnum, 1);
-            if hp.is_null() {
-                break;
-            }
-            let pp = hp_ptr_block(hp);
-            if pp.pb_id != PTR_ID {
-                mf_put(unsafe { &mut *mfp }, hp, false, false);
-                iemsg(tr(E_POINTER_BLOCK_ID_WRONG_TWO));
-                break;
-            }
-            pb_ptr(&mut *pp, ip.ip_index as usize).pe_line_count += count;
-            ip.ip_high += count;
-            mf_put(unsafe { &mut *mfp }, hp, true, false);
-            idx -= 1;
+    let mfp = buf.b_ml.mfp_ptr();
+    let mut idx = buf.b_ml.ml_stack_top - 1;
+    while idx >= 0 {
+        let ip = &mut (&mut buf.b_ml.ml_stack)[idx as usize];
+        let hp = mf_get(unsafe { &mut *mfp }, ip.ip_bnum, 1);
+        if hp.is_null() {
+            break;
         }
+        let pp = hp_ptr_block(hp);
+        if pp.pb_id != PTR_ID {
+            mf_put(unsafe { &mut *mfp }, hp, false, false);
+            iemsg(tr(E_POINTER_BLOCK_ID_WRONG_TWO));
+            break;
+        }
+        pb_ptr(&mut *pp, ip.ip_index as usize).pe_line_count += count;
+        ip.ip_high += count;
+        mf_put(unsafe { &mut *mfp }, hp, true, false);
+        idx -= 1;
     }
 }
 
@@ -3504,65 +3452,61 @@ pub fn makeswapname(
 
 /// Get file name to use for swapfile or backup file.
 pub fn get_file_in_dir(fname: *mut c_char, dname: *mut c_char) -> Option<std::ffi::CString> {
+    let tail = cstr_as_string(path_tail(fname));
+
+    if crate::memory::cstr_first_byte(dname) == b'.' && crate::memory::cstr_byte_at(dname, 1) == 0 {
+        let n = crate::memory::ptr_offset_from(tail.data, fname) as usize + tail.size;
+        return Some(
+            std::ffi::CString::new(crate::memory::cstr_slice(fname, n)).unwrap_or_default(),
+        );
+    }
+
+    let dname_len = crate::memory::cstr_len(dname);
+    let retval = if crate::memory::cstr_first_byte(dname) == b'.'
+        && vim_ispathsep(crate::memory::cstr_byte_at(dname, 1) as i32)
     {
-        let tail = cstr_as_string(path_tail(fname));
-
-        if crate::memory::cstr_first_byte(dname) == b'.'
-            && crate::memory::cstr_byte_at(dname, 1) == 0
-        {
-            let n = crate::memory::ptr_offset_from(tail.data, fname) as usize + tail.size;
-            return Some(
-                std::ffi::CString::new(crate::memory::cstr_slice(fname, n)).unwrap_or_default(),
-            );
-        }
-
-        let dname_len = crate::memory::cstr_len(dname);
-        let retval = if crate::memory::cstr_first_byte(dname) == b'.'
-            && vim_ispathsep(crate::memory::cstr_byte_at(dname, 1) as i32)
-        {
-            if tail.data == fname {
-                concat_fnames(
-                    NvimString {
-                        data: dname.wrapping_add(2),
-                        size: dname_len - 2,
-                    },
-                    tail,
-                    true,
-                )
-            } else {
-                let save_char = unsafe { *tail.data };
-                unsafe {
-                    *tail.data = NUL;
-                }
-                let tmp = concat_fnames(
-                    NvimString {
-                        data: fname,
-                        size: crate::memory::ptr_offset_from(tail.data, fname) as usize,
-                    },
-                    NvimString {
-                        data: dname.wrapping_add(2),
-                        size: dname_len - 2,
-                    },
-                    true,
-                );
-                unsafe {
-                    *tail.data = save_char;
-                }
-                concat_fnames(cstr_as_string(tmp.as_ptr()), tail, true)
-            }
-        } else {
+        if tail.data == fname {
             concat_fnames(
                 NvimString {
-                    data: dname,
-                    size: dname_len,
+                    data: dname.wrapping_add(2),
+                    size: dname_len - 2,
                 },
                 tail,
                 true,
             )
-        };
+        } else {
+            let save_char = unsafe { *tail.data };
+            unsafe {
+                *tail.data = NUL;
+            }
+            let tmp = concat_fnames(
+                NvimString {
+                    data: fname,
+                    size: crate::memory::ptr_offset_from(tail.data, fname) as usize,
+                },
+                NvimString {
+                    data: dname.wrapping_add(2),
+                    size: dname_len - 2,
+                },
+                true,
+            );
+            unsafe {
+                *tail.data = save_char;
+            }
+            concat_fnames(cstr_as_string(tmp.as_ptr()), tail, true)
+        }
+    } else {
+        concat_fnames(
+            NvimString {
+                data: dname,
+                size: dname_len,
+            },
+            tail,
+            true,
+        )
+    };
 
-        Some(retval)
-    }
+    Some(retval)
 }
 
 fn attention_message(
@@ -3662,9 +3606,9 @@ fn findswapname(
     found_existing_dir: &mut bool,
 ) -> Option<std::ffi::CString> {
     let old_fname = old_fname.into_c_char_ptr();
-    unsafe {
+    {
         let buf_fname = buf.b_fname;
-        let dir_len = crate::memory::cstr_len(*dirp) + 1;
+        let dir_len = crate::memory::cstr_len(unsafe { *dirp }) + 1;
         let mut dir_name_vec: Vec<c_char> = vec![0; dir_len];
         let dir_name = dir_name_vec.as_mut_ptr();
         copy_option_part(dirp, dir_name, dir_len, c",");
@@ -3748,7 +3692,7 @@ fn findswapname(
                             }
                         }
                     }
-                    close(fd);
+                    unsafe { close(fd) };
                 }
 
                 if !differ
@@ -3872,22 +3816,28 @@ fn findswapname(
                     fname_vec = None;
                     break;
                 }
-                *fname.wrapping_add(n - 2) -= 1;
-                *fname.wrapping_add(n - 1) = (b'z' + 1) as c_char;
+                unsafe {
+                    *fname.wrapping_add(n - 2) -= 1;
+                }
+                unsafe {
+                    *fname.wrapping_add(n - 1) = (b'z' + 1) as c_char;
+                }
             }
-            *fname.wrapping_add(n - 1) -= 1;
+            unsafe {
+                *fname.wrapping_add(n - 1) -= 1;
+            }
         }
 
         if os_isdir(dir_name) {
             *found_existing_dir = true;
-        } else if !*found_existing_dir && **dirp == NUL {
+        } else if !*found_existing_dir && unsafe { **dirp } == NUL {
             let mut failed_dir: Option<std::ffi::CString> = None;
             let ret = os_mkdir_recurse(dir_name, 0o755, &mut failed_dir, None);
             if ret != 0 {
                 semsg!(
                     tr(c"E303: Unable to create directory \"%s\" for swap file, recovery impossible: %s"),
                     failed_dir.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
-                    uv_strerror(ret),
+                    unsafe { uv_strerror(ret) },
                 );
             }
         }
@@ -3980,23 +3930,21 @@ fn char_to_long(s_in: impl crate::strings::IntoCCharPtr) -> i64 {
 
 /// Set the flags in the first block of the swapfile.
 pub fn ml_setflags(buf: &mut FileBuf) {
-    {
-        if buf.b_ml.ml_mfp.is_none() {
-            return;
-        }
-        let mfp = buf.b_ml.mfp_ptr();
-        let hp = pmap_get_bhdr(unsafe { &(*mfp).mf_hash }, 0);
-        if !hp.is_null() {
-            let hp = { unsafe { &mut *hp } };
-            let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
-            let b0p = { unsafe { &mut *b0p } };
-            (*b0p).set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
-            let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;
-            (*b0p).set_flags(((*b0p).flags() & !B0_FF_MASK) | ff_bits);
-            add_b0_fenc(&mut *b0p, buf);
-            hp.bh_flags |= BH_DIRTY;
-            mf_sync(unsafe { &mut *mfp }, MFS_ZERO);
-        }
+    if buf.b_ml.ml_mfp.is_none() {
+        return;
+    }
+    let mfp = buf.b_ml.mfp_ptr();
+    let hp = pmap_get_bhdr(unsafe { &(*mfp).mf_hash }, 0);
+    if !hp.is_null() {
+        let hp = { unsafe { &mut *hp } };
+        let b0p = (*hp).data_ptr().cast::<ZeroBlock>();
+        let b0p = { unsafe { &mut *b0p } };
+        (*b0p).set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
+        let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;
+        (*b0p).set_flags(((*b0p).flags() & !B0_FF_MASK) | ff_bits);
+        add_b0_fenc(&mut *b0p, buf);
+        hp.bh_flags |= BH_DIRTY;
+        mf_sync(unsafe { &mut *mfp }, MFS_ZERO);
     }
 }
 
@@ -4179,191 +4127,183 @@ pub fn ml_find_line_or_offset(
     mut offp: Option<&mut i32>,
     no_ff: bool,
 ) -> i32 {
-    {
-        let ffdos = i32::from(!no_ff && get_fileformat(buf) == EOL_DOS);
-        let mut extra: i32 = 0;
+    let ffdos = i32::from(!no_ff && get_fileformat(buf) == EOL_DOS);
+    let mut extra: i32 = 0;
 
-        let can_cache = lnum != 0 && ffdos == 0 && buf.b_ml.ml_line_lnum == lnum;
-        if lnum == 0 || buf.b_ml.ml_line_lnum < lnum || !no_ff {
-            ml_flush_line(curbuf_mut(), false);
-        } else if can_cache && buf.b_ml.ml_line_offset > 0 {
-            return buf.b_ml.ml_line_offset as i32;
+    let can_cache = lnum != 0 && ffdos == 0 && buf.b_ml.ml_line_lnum == lnum;
+    if lnum == 0 || buf.b_ml.ml_line_lnum < lnum || !no_ff {
+        ml_flush_line(curbuf_mut(), false);
+    } else if can_cache && buf.b_ml.ml_line_offset > 0 {
+        return buf.b_ml.ml_line_offset as i32;
+    }
+
+    if buf.b_ml.ml_usedchunks == -1 || buf.b_ml.ml_chunksize.is_empty() || lnum < 0 {
+        if no_ff && buf.b_ml.ml_mfp.is_some() && (lnum == 1 || lnum == 2) {
+            return lnum - 1;
         }
+        return -1;
+    }
 
-        if buf.b_ml.ml_usedchunks == -1 || buf.b_ml.ml_chunksize.is_empty() || lnum < 0 {
-            if no_ff && buf.b_ml.ml_mfp.is_some() && (lnum == 1 || lnum == 2) {
-                return lnum - 1;
-            }
+    let offset = if offp.is_none() {
+        0
+    } else {
+        *offp.as_deref_mut().unwrap()
+    };
+    if lnum == 0 && offset <= 0 {
+        return 1;
+    }
+
+    let mut curline: Linenr = 1;
+    let mut curix: i32 = 0;
+    let mut size: i32 = 0;
+    let chunks = buf.b_ml.ml_chunksize.as_mut_ptr();
+    while curix < buf.b_ml.ml_usedchunks - 1
+        && ((lnum != 0
+            && lnum >= curline + unsafe { (*chunks.wrapping_add(curix as usize)).mlcs_numlines })
+            || (offset != 0
+                && offset
+                    > size
+                        + unsafe { (*chunks.wrapping_add(curix as usize)).mlcs_totalsize }
+                        + ffdos * unsafe { (*chunks.wrapping_add(curix as usize)).mlcs_numlines }))
+    {
+        let ch = chunks.wrapping_add(curix as usize);
+        let ch = { unsafe { &mut *ch } };
+        curline += ch.mlcs_numlines;
+        size += ch.mlcs_totalsize;
+        if offset != 0 && ffdos != 0 {
+            size += ch.mlcs_numlines;
+        }
+        curix += 1;
+    }
+
+    while (lnum != 0 && curline < lnum) || (offset != 0 && size < offset) {
+        if curline > buf.b_ml.ml_line_count {
             return -1;
         }
-
-        let offset = if offp.is_none() {
-            0
+        let hp = ml_find_line(buf, curline, ML_FIND);
+        if hp.is_null() {
+            return -1;
+        }
+        let dp = hp_data_block(hp);
+        let count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1;
+        let start_idx = curline - buf.b_ml.ml_locked_low;
+        let mut idx = start_idx;
+        let text_end = if idx == 0 {
+            dp.db_txt_end as i32
         } else {
-            *offp.as_deref_mut().unwrap()
+            (*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as i32
         };
-        if lnum == 0 && offset <= 0 {
-            return 1;
-        }
 
-        let mut curline: Linenr = 1;
-        let mut curix: i32 = 0;
-        let mut size: i32 = 0;
-        let chunks = buf.b_ml.ml_chunksize.as_mut_ptr();
-        while curix < buf.b_ml.ml_usedchunks - 1
-            && ((lnum != 0
-                && lnum
-                    >= curline + unsafe { (*chunks.wrapping_add(curix as usize)).mlcs_numlines })
-                || (offset != 0
-                    && offset
-                        > size
-                            + unsafe { (*chunks.wrapping_add(curix as usize)).mlcs_totalsize }
-                            + ffdos
-                                * unsafe { (*chunks.wrapping_add(curix as usize)).mlcs_numlines }))
-        {
-            let ch = chunks.wrapping_add(curix as usize);
-            let ch = { unsafe { &mut *ch } };
-            curline += ch.mlcs_numlines;
-            size += ch.mlcs_totalsize;
-            if offset != 0 && ffdos != 0 {
-                size += ch.mlcs_numlines;
+        if lnum != 0 {
+            if curline + (count - idx) >= lnum {
+                idx += lnum - curline - 1;
+            } else {
+                idx = count - 1;
             }
-            curix += 1;
+        } else {
+            extra = 0;
+            loop {
+                if offset
+                    < size + text_end
+                        - ((*db_idx_ptr(&mut *dp, idx as usize) & DB_INDEX_MASK) as i32)
+                        + ffdos
+                {
+                    break;
+                }
+                if ffdos != 0 {
+                    size += 1;
+                }
+                if idx == count - 1 {
+                    extra = 1;
+                    break;
+                }
+                idx += 1;
+            }
         }
-
-        while (lnum != 0 && curline < lnum) || (offset != 0 && size < offset) {
+        let len = text_end - ((*db_idx_ptr(&mut *dp, idx as usize) & DB_INDEX_MASK) as i32);
+        size += len;
+        if offset != 0 && size >= offset {
+            if size + ffdos == offset {
+                *offp.as_deref_mut().unwrap() = 0;
+            } else if idx == start_idx {
+                *offp.as_deref_mut().unwrap() = offset - size + len;
+            } else {
+                *offp.as_deref_mut().unwrap() = offset - size + len
+                    - (text_end
+                        - ((*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as i32));
+            }
+            curline += idx - start_idx + extra;
             if curline > buf.b_ml.ml_line_count {
                 return -1;
             }
-            let hp = ml_find_line(buf, curline, ML_FIND);
-            if hp.is_null() {
-                return -1;
-            }
-            let dp = hp_data_block(hp);
-            let count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1;
-            let start_idx = curline - buf.b_ml.ml_locked_low;
-            let mut idx = start_idx;
-            let text_end = if idx == 0 {
-                dp.db_txt_end as i32
-            } else {
-                (*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as i32
-            };
-
-            if lnum != 0 {
-                if curline + (count - idx) >= lnum {
-                    idx += lnum - curline - 1;
-                } else {
-                    idx = count - 1;
-                }
-            } else {
-                extra = 0;
-                loop {
-                    if offset
-                        < size + text_end
-                            - ((*db_idx_ptr(&mut *dp, idx as usize) & DB_INDEX_MASK) as i32)
-                            + ffdos
-                    {
-                        break;
-                    }
-                    if ffdos != 0 {
-                        size += 1;
-                    }
-                    if idx == count - 1 {
-                        extra = 1;
-                        break;
-                    }
-                    idx += 1;
-                }
-            }
-            let len = text_end - ((*db_idx_ptr(&mut *dp, idx as usize) & DB_INDEX_MASK) as i32);
-            size += len;
-            if offset != 0 && size >= offset {
-                if size + ffdos == offset {
-                    *offp.as_deref_mut().unwrap() = 0;
-                } else if idx == start_idx {
-                    *offp.as_deref_mut().unwrap() = offset - size + len;
-                } else {
-                    *offp.as_deref_mut().unwrap() = offset - size + len
-                        - (text_end
-                            - ((*db_idx_ptr(&mut *dp, (idx - 1) as usize) & DB_INDEX_MASK) as i32));
-                }
-                curline += idx - start_idx + extra;
-                if curline > buf.b_ml.ml_line_count {
-                    return -1;
-                }
-                return curline;
-            }
-            curline = buf.b_ml.ml_locked_high + 1;
+            return curline;
         }
-
-        if lnum != 0 {
-            if ffdos != 0 {
-                size += lnum - 1;
-            }
-            if (buf.b_p_fixeol == 0 || buf.b_p_bin != 0)
-                && buf.b_p_eol == 0
-                && lnum > buf.b_ml.ml_line_count
-            {
-                size -= ffdos + 1;
-            }
-        }
-
-        if can_cache && size > 0 {
-            buf.b_ml.ml_line_offset = size as usize;
-        }
-
-        size
+        curline = buf.b_ml.ml_locked_high + 1;
     }
+
+    if lnum != 0 {
+        if ffdos != 0 {
+            size += lnum - 1;
+        }
+        if (buf.b_p_fixeol == 0 || buf.b_p_bin != 0)
+            && buf.b_p_eol == 0
+            && lnum > buf.b_ml.ml_line_count
+        {
+            size -= ffdos + 1;
+        }
+    }
+
+    if can_cache && size > 0 {
+        buf.b_ml.ml_line_offset = size as usize;
+    }
+
+    size
 }
 
 /// Goto byte in buffer with offset `cnt`.
 pub fn goto_byte(cnt: i32) {
-    {
-        let mut boff = cnt;
-        ml_flush_line(curbuf_mut(), false);
-        setpcmark();
-        if boff != 0 {
-            boff -= 1;
-        }
-        let lnum = ml_find_line_or_offset(curbuf_mut(), 0, Some(&mut boff), false) as Linenr;
-        if lnum < 1 {
-            curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
-            curwin_mut().w_curswant = MAXCOL;
-            coladvance(curwin_mut(), MAXCOL);
-        } else {
-            curwin_mut().w_cursor.lnum = lnum;
-            curwin_mut().w_cursor.col = boff as Colnr;
-            curwin_mut().w_cursor.coladd = 0;
-            curwin_mut().w_set_curswant = true;
-        }
-        check_cursor(curwin_mut());
-        mb_adjust_cursor();
+    let mut boff = cnt;
+    ml_flush_line(curbuf_mut(), false);
+    setpcmark();
+    if boff != 0 {
+        boff -= 1;
     }
+    let lnum = ml_find_line_or_offset(curbuf_mut(), 0, Some(&mut boff), false) as Linenr;
+    if lnum < 1 {
+        curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
+        curwin_mut().w_curswant = MAXCOL;
+        coladvance(curwin_mut(), MAXCOL);
+    } else {
+        curwin_mut().w_cursor.lnum = lnum;
+        curwin_mut().w_cursor.col = boff as Colnr;
+        curwin_mut().w_cursor.coladd = 0;
+        curwin_mut().w_set_curswant = true;
+    }
+    check_cursor(curwin_mut());
+    mb_adjust_cursor();
 }
 
 /// Increment the line pointer `lp` crossing line boundaries as necessary.
 pub fn inc(lp: &mut CursorPos) -> i32 {
-    {
-        if lp.col != MAXCOL {
-            let p = ml_get_pos(lp);
-            if !crate::memory::cstr_is_empty(p) {
-                let l = utfc_ptr2len(p);
-                lp.col += l;
-                return if crate::memory::cstr_byte_at(p, l as usize) != 0 {
-                    0
-                } else {
-                    2
-                };
-            }
+    if lp.col != MAXCOL {
+        let p = ml_get_pos(lp);
+        if !crate::memory::cstr_is_empty(p) {
+            let l = utfc_ptr2len(p);
+            lp.col += l;
+            return if crate::memory::cstr_byte_at(p, l as usize) != 0 {
+                0
+            } else {
+                2
+            };
         }
-        if lp.lnum != curbuf_mut().b_ml.ml_line_count {
-            lp.col = 0;
-            lp.lnum += 1;
-            lp.coladd = 0;
-            return 1;
-        }
-        -1
     }
+    if lp.lnum != curbuf_mut().b_ml.ml_line_count {
+        lp.col = 0;
+        lp.lnum += 1;
+        lp.coladd = 0;
+        return 1;
+    }
+    -1
 }
 
 /// Same as `inc()`, but skip NUL at the end of non-empty lines.
@@ -4377,31 +4317,29 @@ pub fn incl(lp: &mut CursorPos) -> i32 {
 
 /// Decrements position `lp` by one character (multibyte-aware), crossing line boundaries.
 pub fn dec(lp: &mut CursorPos) -> i32 {
-    {
-        lp.coladd = 0;
-        if lp.col == MAXCOL {
-            let p = ml_get(lp.lnum);
-            lp.col = ml_get_len(lp.lnum);
-            lp.col -= utf_head_off(p, p.wrapping_offset(lp.col as isize));
-            return 0;
-        }
-
-        if lp.col > 0 {
-            lp.col -= 1;
-            let p = ml_get(lp.lnum);
-            lp.col -= utf_head_off(p, p.wrapping_offset(lp.col as isize));
-            return 0;
-        }
-        if lp.lnum > 1 {
-            lp.lnum -= 1;
-            let p = ml_get(lp.lnum);
-            lp.col = ml_get_len(lp.lnum);
-            lp.col -= utf_head_off(p, p.wrapping_offset(lp.col as isize));
-            return 1;
-        }
-
-        -1
+    lp.coladd = 0;
+    if lp.col == MAXCOL {
+        let p = ml_get(lp.lnum);
+        lp.col = ml_get_len(lp.lnum);
+        lp.col -= utf_head_off(p, p.wrapping_offset(lp.col as isize));
+        return 0;
     }
+
+    if lp.col > 0 {
+        lp.col -= 1;
+        let p = ml_get(lp.lnum);
+        lp.col -= utf_head_off(p, p.wrapping_offset(lp.col as isize));
+        return 0;
+    }
+    if lp.lnum > 1 {
+        lp.lnum -= 1;
+        let p = ml_get(lp.lnum);
+        lp.col = ml_get_len(lp.lnum);
+        lp.col -= utf_head_off(p, p.wrapping_offset(lp.col as isize));
+        return 1;
+    }
+
+    -1
 }
 
 /// Same as `dec()`, but skip NUL at the end of non-empty lines.

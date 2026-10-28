@@ -94,138 +94,128 @@ fn write_fmt(fd: *mut FILE, s: String) -> bool {
 }
 
 fn put_view_curpos(fd: *mut FILE, wp: &WinInfoInfo, spaces: &str) -> i32 {
-    {
-        let s = if wp.w_curswant == MAXCOL {
-            format!("{spaces}normal! $\n")
-        } else {
-            format!("{spaces}normal! 0{}|\n", wp.w_virtcol + 1)
-        };
-        i32::from(write_fmt(fd, s))
-    }
+    let s = if wp.w_curswant == MAXCOL {
+        format!("{spaces}normal! $\n")
+    } else {
+        format!("{spaces}normal! 0{}|\n", wp.w_virtcol + 1)
+    };
+    i32::from(write_fmt(fd, s))
 }
 
 fn ses_winsizes(fd: *mut FILE, restore_size: bool, tab_firstwin: *mut WinInfoInfo) -> bool {
-    {
-        if restore_size && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_WINSIZE) != 0 {
-            let mut n: i32 = 0;
-            for wp in win_iter_mut(tab_firstwin) {
-                if ses_do_win(wp) == 0 {
-                    continue;
-                }
-                n += 1;
-
-                if wp.w_height + wp.w_hsep_height + wp.w_status_height
-                    < crate::globals::topframe_mut().fr_height
-                    && !write_fmt(
-                        fd,
-                        format!(
-                            "exe '{n}resize ' . ((&lines * {} + {}) / {})\n",
-                            i64::from(wp.w_height),
-                            i64::from(g_st().rows_global) / 2,
-                            i64::from(g_st().rows_global)
-                        ),
-                    )
-                {
-                    return false;
-                }
-
-                if wp.w_width < g_st().columns_global
-                    && !write_fmt(
-                        fd,
-                        format!(
-                            "exe 'vert {n}resize ' . ((&columns * {} + {}) / {})\n",
-                            i64::from(wp.w_width),
-                            i64::from(g_st().columns_global) / 2,
-                            i64::from(g_st().columns_global)
-                        ),
-                    )
-                {
-                    return false;
-                }
+    if restore_size && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_WINSIZE) != 0 {
+        let mut n: i32 = 0;
+        for wp in win_iter_mut(tab_firstwin) {
+            if ses_do_win(wp) == 0 {
+                continue;
             }
-        } else if !put_line(fd, c"wincmd =") {
-            return false;
+            n += 1;
+
+            if wp.w_height + wp.w_hsep_height + wp.w_status_height
+                < crate::globals::topframe_mut().fr_height
+                && !write_fmt(
+                    fd,
+                    format!(
+                        "exe '{n}resize ' . ((&lines * {} + {}) / {})\n",
+                        i64::from(wp.w_height),
+                        i64::from(g_st().rows_global) / 2,
+                        i64::from(g_st().rows_global)
+                    ),
+                )
+            {
+                return false;
+            }
+
+            if wp.w_width < g_st().columns_global
+                && !write_fmt(
+                    fd,
+                    format!(
+                        "exe 'vert {n}resize ' . ((&columns * {} + {}) / {})\n",
+                        i64::from(wp.w_width),
+                        i64::from(g_st().columns_global) / 2,
+                        i64::from(g_st().columns_global)
+                    ),
+                )
+            {
+                return false;
+            }
         }
-        true
+    } else if !put_line(fd, c"wincmd =") {
+        return false;
     }
+    true
 }
 
 fn ses_win_rec(fd: *mut FILE, fr: &mut Frame) -> bool {
-    {
-        let mut count: i32 = 0;
+    let mut count: i32 = 0;
 
-        if fr.fr_layout == FR_LEAF {
-            return true;
-        }
-
-        let mut frc = ses_skipframe(fr.fr_child);
-        if !frc.is_null() {
-            loop {
-                frc = ses_skipframe(unsafe { (*frc).fr_next });
-                if frc.is_null() {
-                    break;
-                }
-                let split_cmd = if fr.fr_layout == FR_COL {
-                    b"wincmd _ | wincmd |\nsplit\n" as &[u8]
-                } else {
-                    b"wincmd _ | wincmd |\nvsplit\n" as &[u8]
-                };
-                if !write_bytes(fd, split_cmd) {
-                    return false;
-                }
-                count += 1;
-            }
-        }
-
-        if count > 0 {
-            let back_cmd = if fr.fr_layout == FR_COL {
-                format!("{count}wincmd k\n")
-            } else {
-                format!("{count}wincmd h\n")
-            };
-            if !write_fmt(fd, back_cmd) {
-                return false;
-            }
-        }
-
-        frc = ses_skipframe(fr.fr_child);
-        while !frc.is_null() {
-            ses_win_rec(fd, unsafe { &mut *frc });
-            frc = ses_skipframe(unsafe { (*frc).fr_next });
-            if !frc.is_null() && !put_line(fd, c"wincmd w") {
-                return false;
-            }
-        }
-
-        true
+    if fr.fr_layout == FR_LEAF {
+        return true;
     }
+
+    let mut frc = ses_skipframe(fr.fr_child);
+    if !frc.is_null() {
+        loop {
+            frc = ses_skipframe(unsafe { (*frc).fr_next });
+            if frc.is_null() {
+                break;
+            }
+            let split_cmd = if fr.fr_layout == FR_COL {
+                b"wincmd _ | wincmd |\nsplit\n" as &[u8]
+            } else {
+                b"wincmd _ | wincmd |\nvsplit\n" as &[u8]
+            };
+            if !write_bytes(fd, split_cmd) {
+                return false;
+            }
+            count += 1;
+        }
+    }
+
+    if count > 0 {
+        let back_cmd = if fr.fr_layout == FR_COL {
+            format!("{count}wincmd k\n")
+        } else {
+            format!("{count}wincmd h\n")
+        };
+        if !write_fmt(fd, back_cmd) {
+            return false;
+        }
+    }
+
+    frc = ses_skipframe(fr.fr_child);
+    while !frc.is_null() {
+        ses_win_rec(fd, unsafe { &mut *frc });
+        frc = ses_skipframe(unsafe { (*frc).fr_next });
+        if !frc.is_null() && !put_line(fd, c"wincmd w") {
+            return false;
+        }
+    }
+
+    true
 }
 
 fn ses_skipframe(fr: *mut Frame) -> *mut Frame {
-    {
-        let mut frc = fr;
-        while !frc.is_null() {
-            if ses_do_frame(unsafe { &*frc }) {
-                break;
-            }
-            frc = unsafe { (*frc).fr_next };
+    let mut frc = fr;
+    while !frc.is_null() {
+        if ses_do_frame(unsafe { &*frc }) {
+            break;
         }
-        frc
+        frc = unsafe { (*frc).fr_next };
     }
+    frc
 }
 
 fn ses_do_frame(fr: &Frame) -> bool {
-    {
-        if fr.fr_layout == FR_LEAF {
-            return ses_do_win(unsafe { &mut *fr.fr_win }) != 0;
-        }
-        for frc in frame_iter_mut(fr.fr_child) {
-            if ses_do_frame(frc) {
-                return true;
-            }
-        }
-        false
+    if fr.fr_layout == FR_LEAF {
+        return ses_do_win(unsafe { &mut *fr.fr_win }) != 0;
     }
+    for frc in frame_iter_mut(fr.fr_child) {
+        if ses_do_frame(frc) {
+            return true;
+        }
+    }
+    false
 }
 
 fn ses_do_win(wp: &mut WinInfoInfo) -> i32 {
@@ -279,17 +269,15 @@ fn ses_arglist(
 }
 
 fn ses_get_fname(buf: &mut FileBuf, flagp: &u32) -> *mut c_char {
+    if !buf.b_sfname.is_null()
+        && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
+        && (opt_vars().ssop_flags & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
+        && opt_vars().p_acd == 0
+        && !exses_st().did_lcd
     {
-        if !buf.b_sfname.is_null()
-            && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
-            && (opt_vars().ssop_flags & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
-            && opt_vars().p_acd == 0
-            && !exses_st().did_lcd
-        {
-            return buf.b_sfname;
-        }
-        buf.b_ffname
+        return buf.b_sfname;
     }
+    buf.b_ffname
 }
 
 fn ses_fname(fd: *mut FILE, buf: &mut FileBuf, flagp: &mut u32, add_eol: bool) -> bool {
@@ -339,273 +327,271 @@ fn put_view(
     flagp: &mut u32,
     current_arg_idx: i32,
 ) -> bool {
-    unsafe {
-        let mut did_next = false;
-        let mut do_cursor = ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
-            || (*flagp & K_OPT_SSOP_FLAG_CURSOR) != 0;
+    let mut did_next = false;
+    let mut do_cursor =
+        ptr::eq(flagp, &raw mut opt_vars().ssop_flags) || (*flagp & K_OPT_SSOP_FLAG_CURSOR) != 0;
 
-        if wp.w_alist.is_none() {
-            if !put_line(fd, c"argglobal") {
+    if wp.w_alist.is_none() {
+        if !put_line(fd, c"argglobal") {
+            return false;
+        }
+    } else {
+        let alist = crate::arglist::win_alist(&*wp);
+        if !ses_arglist(
+            fd,
+            c"arglocal",
+            &alist.al_ga,
+            ptr::eq(&raw mut *flagp, &raw mut opt_vars().vop_flags)
+                || (*flagp & K_OPT_SSOP_FLAG_CURDIR) == 0
+                || tp.tp_localdir.is_some()
+                || wp.w_localdir.is_some(),
+            &mut *flagp,
+        ) {
+            return false;
+        }
+    }
+
+    let wargcount = crate::arglist::win_alist(&*wp).al_ga.len() as i32;
+    if wp.w_arg_idx != current_arg_idx
+        && wp.w_arg_idx < wargcount
+        && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
+    {
+        if !write_fmt(fd, format!("{}argu\n", i64::from(wp.w_arg_idx) + 1)) {
+            return false;
+        }
+        did_next = true;
+    }
+
+    if add_edit && (!did_next || wp.w_arg_idx_invalid) {
+        let fname_esc = ses_escape_fname(ses_get_fname((*wp).buf_mut(), flagp));
+        if bt_help(unsafe { (wp.w_buffer).as_ref() }) {
+            let mut curtag: *const c_char = c"".as_ptr();
+            if 0 < wp.w_tagstackidx && wp.w_tagstackidx <= wp.w_tagstacklen {
+                curtag = wp.w_tagstack[(wp.w_tagstackidx - 1) as usize]
+                    .tagname
+                    .as_ref()
+                    .map_or(c"".as_ptr(), |s| s.as_ptr());
+            }
+
+            if !put_line(fd, c"enew | setl bt=help")
+                || !write_fmt(fd, format!("help {}", cstr_to_str(curtag)))
+                || !put_eol(fd)
+            {
                 return false;
             }
-        } else {
-            let alist = crate::arglist::win_alist(&*wp);
-            if !ses_arglist(
+        } else if !(*wp).buf_mut().b_ffname.is_null()
+            && (!bt_nofilename(unsafe { (wp.w_buffer).as_ref() })
+                || !(*wp).buf_mut().terminal.is_null())
+        {
+            let fesc = cstr_to_str(fname_esc.as_ptr());
+            if !write_fmt(
                 fd,
-                c"arglocal",
-                &alist.al_ga,
-                ptr::eq(&raw mut *flagp, &raw mut opt_vars().vop_flags)
-                    || (*flagp & K_OPT_SSOP_FLAG_CURDIR) == 0
-                    || tp.tp_localdir.is_some()
-                    || wp.w_localdir.is_some(),
-                &mut *flagp,
+                format!(
+                    "if bufexists(fnamemodify(\"{fesc}\", \":p\")) | buffer {fesc} | else | edit {fesc} | endif\nif &buftype ==# 'terminal'\n  silent file {fesc}\nendif\n"
+                ),
             ) {
                 return false;
             }
-        }
-
-        let wargcount = crate::arglist::win_alist(&*wp).al_ga.len() as i32;
-        if wp.w_arg_idx != current_arg_idx
-            && wp.w_arg_idx < wargcount
-            && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
-        {
-            if !write_fmt(fd, format!("{}argu\n", i64::from(wp.w_arg_idx) + 1)) {
+        } else {
+            if !put_line(fd, c"enew") {
                 return false;
             }
-            did_next = true;
+            if !(*wp).buf_mut().b_ffname.is_null()
+                && !write_fmt(fd, format!("file {}\n", cstr_to_str(fname_esc.as_ptr())))
+            {
+                return false;
+            }
+            do_cursor = false;
         }
+    }
 
-        if add_edit && (!did_next || wp.w_arg_idx_invalid) {
-            let fname_esc = ses_escape_fname(ses_get_fname((*wp).buf_mut(), flagp));
-            if bt_help((wp.w_buffer).as_ref()) {
-                let mut curtag: *const c_char = c"".as_ptr();
-                if 0 < wp.w_tagstackidx && wp.w_tagstackidx <= wp.w_tagstacklen {
-                    curtag = wp.w_tagstack[(wp.w_tagstackidx - 1) as usize]
-                        .tagname
-                        .as_ref()
-                        .map_or(c"".as_ptr(), |s| s.as_ptr());
+    if wp.w_alt_fnum != 0 {
+        let alt = buflist_findnr(wp.w_alt_fnum);
+        if ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
+            && !alt.is_null()
+            && !crate::memory::cstr_is_empty(unsafe { (*alt).b_fname })
+            && unsafe { (*alt).b_p_bl } != 0
+            && !(bt_terminal(unsafe { alt.as_ref() })
+                && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
+            && (fputs(c"balt ", fd) < 0 || !ses_fname(fd, unsafe { &mut *alt }, &mut *flagp, true))
+        {
+            return false;
+        }
+    }
+
+    if (*flagp & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0
+        && !makemap(fd, wp.w_buffer)
+    {
+        return false;
+    }
+
+    let save_curwin = curwin_ptr();
+    set_curwin(wp);
+    g_st().curbuf = curwin_mut().w_buffer;
+    let f = if (*flagp & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0 {
+        makeset(
+            fd,
+            OPT_LOCAL,
+            i32::from(
+                ptr::eq(flagp, &raw mut opt_vars().vop_flags)
+                    || (*flagp & K_OPT_SSOP_FLAG_OPTIONS) == 0,
+            ),
+        )
+    } else if (*flagp & K_OPT_SSOP_FLAG_FOLDS) != 0 {
+        makefoldset(fd)
+    } else {
+        true
+    };
+    set_curwin(save_curwin);
+    g_st().curbuf = curwin_mut().w_buffer;
+    if !f {
+        return false;
+    }
+
+    if (*flagp & K_OPT_SSOP_FLAG_FOLDS) != 0
+        && !(*wp).buf_mut().b_ffname.is_null()
+        && (bt_normal(unsafe { (wp.w_buffer).as_ref() })
+            || bt_help(unsafe { (wp.w_buffer).as_ref() }))
+        && !put_folds(fd, &mut *wp)
+    {
+        return false;
+    }
+
+    if do_cursor {
+        if wp.w_view_height <= 0 {
+            if !write_fmt(fd, format!("let s:l = {}\n", wp.w_cursor.lnum)) {
+                return false;
+            }
+        } else if !write_fmt(
+            fd,
+            format!(
+                "let s:l = {} - (({} * winheight(0) + {}) / {})\n",
+                wp.w_cursor.lnum,
+                wp.w_cursor.lnum - wp.w_topline,
+                wp.w_view_height / 2,
+                wp.w_view_height
+            ),
+        ) {
+            return false;
+        }
+        if !write_fmt(
+            fd,
+            format!(
+                "if s:l < 1 | let s:l = 1 | endif\nkeepjumps exe s:l\nnormal! zt\nkeepjumps {}\n",
+                wp.w_cursor.lnum
+            ),
+        ) {
+            return false;
+        }
+        if wp.w_cursor.col == 0 {
+            if !put_line(fd, c"normal! 0") {
+                return false;
+            }
+        } else if wp.w_onebuf_opt.wo_wrap == 0 && wp.w_leftcol > 0 && wp.w_width > 0 {
+            let vcol1 = i64::from(wp.w_virtcol) + 1;
+            if !write_fmt(
+                fd,
+                format!(
+                    "let s:c = {vcol1} - (({} * winwidth(0) + {}) / {})\nif s:c > 0\n  exe 'normal! ' . s:c . '|zs' . {vcol1} . '|'\nelse\n",
+                    i64::from(wp.w_virtcol - wp.w_leftcol),
+                    i64::from(wp.w_width / 2),
+                    i64::from(wp.w_width),
+                ),
+            ) || put_view_curpos(fd, &*wp, "  ") == FAIL
+                || !put_line(fd, c"endif")
+            {
+                return false;
+            }
+        } else if put_view_curpos(fd, &*wp, "") == FAIL {
+            return false;
+        }
+    }
+
+    if let Some(ref w_localdir) = wp.w_localdir
+        && (!ptr::eq(flagp, &raw mut opt_vars().vop_flags)
+            || (*flagp & K_OPT_SSOP_FLAG_CURDIR) != 0)
+    {
+        if fputs(c"lcd ", fd) < 0
+            || !ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), &mut *flagp)
+            || !write_bytes(fd, b"\n")
+        {
+            return false;
+        }
+        exses_st().did_lcd = true;
+    }
+
+    true
+}
+
+fn store_session_globals(fd: *mut FILE) -> bool {
+    let d = get_globvar_dict();
+    let ht = &mut d.dv_hashtab;
+    let mut todo = ht.ht_used;
+    let mut hi = (ht).array_ptr();
+    while todo > 0 {
+        if !hashitem_empty(unsafe { &*hi }) {
+            todo -= 1;
+            let this_var = crate::eval::typval::tv_dict_hi2di(hi);
+            let key_ptr = this_var.di_key.as_mut_ptr();
+            if (this_var.di_tv.v_type == VarType::VarNumber
+                || this_var.di_tv.v_type == VarType::VarString)
+                && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
+            {
+                let p = vim_strsave_escaped(tv_get_string(&this_var.di_tv), c"\\\"\n\r");
+                let mut p_vec: Vec<c_char> = p
+                    .into_bytes_with_nul()
+                    .into_iter()
+                    .map(|b| b as c_char)
+                    .collect();
+                let mut t = p_vec.as_mut_ptr();
+                while !crate::memory::cstr_is_empty(t) {
+                    if crate::memory::cstr_first_byte(t) == b'\n' {
+                        unsafe {
+                            *t = b'n' as c_char;
+                        }
+                    } else if crate::memory::cstr_first_byte(t) == b'\r' {
+                        unsafe {
+                            *t = b'r' as c_char;
+                        }
+                    }
+                    t = t.wrapping_add(1);
                 }
-
-                if !put_line(fd, c"enew | setl bt=help")
-                    || !write_fmt(fd, format!("help {}", cstr_to_str(curtag)))
+                let quote = if this_var.di_tv.v_type == VarType::VarString {
+                    '"'
+                } else {
+                    ' '
+                };
+                if !write_fmt(
+                    fd,
+                    format!(
+                        "let {} = {quote}{}{quote}",
+                        cstr_to_str(key_ptr),
+                        cstr_to_str(p_vec.as_ptr())
+                    ),
+                ) || !put_eol(fd)
+                {
+                    return false;
+                }
+            } else if this_var.di_tv.v_type == VarType::VarFloat
+                && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
+            {
+                let mut f = this_var.di_tv.vval.v_float();
+                let sign = if f < 0.0 {
+                    f = -f;
+                    '-'
+                } else {
+                    ' '
+                };
+                if !write_fmt(fd, format!("let {} = {sign}{f:.6}", cstr_to_str(key_ptr)))
                     || !put_eol(fd)
                 {
                     return false;
                 }
-            } else if !(*wp).buf_mut().b_ffname.is_null()
-                && (!bt_nofilename((wp.w_buffer).as_ref()) || !(*wp).buf_mut().terminal.is_null())
-            {
-                let fesc = cstr_to_str(fname_esc.as_ptr());
-                if !write_fmt(
-                    fd,
-                    format!(
-                        "if bufexists(fnamemodify(\"{fesc}\", \":p\")) | buffer {fesc} | else | edit {fesc} | endif\nif &buftype ==# 'terminal'\n  silent file {fesc}\nendif\n"
-                    ),
-                ) {
-                    return false;
-                }
-            } else {
-                if !put_line(fd, c"enew") {
-                    return false;
-                }
-                if !(*wp).buf_mut().b_ffname.is_null()
-                    && !write_fmt(fd, format!("file {}\n", cstr_to_str(fname_esc.as_ptr())))
-                {
-                    return false;
-                }
-                do_cursor = false;
             }
         }
-
-        if wp.w_alt_fnum != 0 {
-            let alt = buflist_findnr(wp.w_alt_fnum);
-            if ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
-                && !alt.is_null()
-                && !crate::memory::cstr_is_empty((*alt).b_fname)
-                && (*alt).b_p_bl != 0
-                && !(bt_terminal(alt.as_ref())
-                    && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
-                && (fputs(c"balt ", fd) < 0 || !ses_fname(fd, &mut *alt, &mut *flagp, true))
-            {
-                return false;
-            }
-        }
-
-        if (*flagp & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0
-            && !makemap(fd, wp.w_buffer)
-        {
-            return false;
-        }
-
-        let save_curwin = curwin_ptr();
-        set_curwin(wp);
-        g_st().curbuf = curwin_mut().w_buffer;
-        let f = if (*flagp & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0 {
-            makeset(
-                fd,
-                OPT_LOCAL,
-                i32::from(
-                    ptr::eq(flagp, &raw mut opt_vars().vop_flags)
-                        || (*flagp & K_OPT_SSOP_FLAG_OPTIONS) == 0,
-                ),
-            )
-        } else if (*flagp & K_OPT_SSOP_FLAG_FOLDS) != 0 {
-            makefoldset(fd)
-        } else {
-            true
-        };
-        set_curwin(save_curwin);
-        g_st().curbuf = curwin_mut().w_buffer;
-        if !f {
-            return false;
-        }
-
-        if (*flagp & K_OPT_SSOP_FLAG_FOLDS) != 0
-            && !(*wp).buf_mut().b_ffname.is_null()
-            && (bt_normal((wp.w_buffer).as_ref()) || bt_help((wp.w_buffer).as_ref()))
-            && !put_folds(fd, &mut *wp)
-        {
-            return false;
-        }
-
-        if do_cursor {
-            if wp.w_view_height <= 0 {
-                if !write_fmt(fd, format!("let s:l = {}\n", wp.w_cursor.lnum)) {
-                    return false;
-                }
-            } else if !write_fmt(
-                fd,
-                format!(
-                    "let s:l = {} - (({} * winheight(0) + {}) / {})\n",
-                    wp.w_cursor.lnum,
-                    wp.w_cursor.lnum - wp.w_topline,
-                    wp.w_view_height / 2,
-                    wp.w_view_height
-                ),
-            ) {
-                return false;
-            }
-            if !write_fmt(
-                fd,
-                format!(
-                    "if s:l < 1 | let s:l = 1 | endif\nkeepjumps exe s:l\nnormal! zt\nkeepjumps {}\n",
-                    wp.w_cursor.lnum
-                ),
-            ) {
-                return false;
-            }
-            if wp.w_cursor.col == 0 {
-                if !put_line(fd, c"normal! 0") {
-                    return false;
-                }
-            } else if wp.w_onebuf_opt.wo_wrap == 0 && wp.w_leftcol > 0 && wp.w_width > 0 {
-                let vcol1 = i64::from(wp.w_virtcol) + 1;
-                if !write_fmt(
-                    fd,
-                    format!(
-                        "let s:c = {vcol1} - (({} * winwidth(0) + {}) / {})\nif s:c > 0\n  exe 'normal! ' . s:c . '|zs' . {vcol1} . '|'\nelse\n",
-                        i64::from(wp.w_virtcol - wp.w_leftcol),
-                        i64::from(wp.w_width / 2),
-                        i64::from(wp.w_width),
-                    ),
-                ) || put_view_curpos(fd, &*wp, "  ") == FAIL
-                    || !put_line(fd, c"endif")
-                {
-                    return false;
-                }
-            } else if put_view_curpos(fd, &*wp, "") == FAIL {
-                return false;
-            }
-        }
-
-        if let Some(ref w_localdir) = wp.w_localdir
-            && (!ptr::eq(flagp, &raw mut opt_vars().vop_flags)
-                || (*flagp & K_OPT_SSOP_FLAG_CURDIR) != 0)
-        {
-            if fputs(c"lcd ", fd) < 0
-                || !ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), &mut *flagp)
-                || !write_bytes(fd, b"\n")
-            {
-                return false;
-            }
-            exses_st().did_lcd = true;
-        }
-
-        true
+        hi = hi.wrapping_add(1);
     }
-}
-
-fn store_session_globals(fd: *mut FILE) -> bool {
-    {
-        let d = get_globvar_dict();
-        let ht = &mut d.dv_hashtab;
-        let mut todo = ht.ht_used;
-        let mut hi = (ht).array_ptr();
-        while todo > 0 {
-            if !hashitem_empty(unsafe { &*hi }) {
-                todo -= 1;
-                let this_var = crate::eval::typval::tv_dict_hi2di(hi);
-                let key_ptr = this_var.di_key.as_mut_ptr();
-                if (this_var.di_tv.v_type == VarType::VarNumber
-                    || this_var.di_tv.v_type == VarType::VarString)
-                    && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
-                {
-                    let p = vim_strsave_escaped(tv_get_string(&this_var.di_tv), c"\\\"\n\r");
-                    let mut p_vec: Vec<c_char> = p
-                        .into_bytes_with_nul()
-                        .into_iter()
-                        .map(|b| b as c_char)
-                        .collect();
-                    let mut t = p_vec.as_mut_ptr();
-                    while !crate::memory::cstr_is_empty(t) {
-                        if crate::memory::cstr_first_byte(t) == b'\n' {
-                            unsafe {
-                                *t = b'n' as c_char;
-                            }
-                        } else if crate::memory::cstr_first_byte(t) == b'\r' {
-                            unsafe {
-                                *t = b'r' as c_char;
-                            }
-                        }
-                        t = t.wrapping_add(1);
-                    }
-                    let quote = if this_var.di_tv.v_type == VarType::VarString {
-                        '"'
-                    } else {
-                        ' '
-                    };
-                    if !write_fmt(
-                        fd,
-                        format!(
-                            "let {} = {quote}{}{quote}",
-                            cstr_to_str(key_ptr),
-                            cstr_to_str(p_vec.as_ptr())
-                        ),
-                    ) || !put_eol(fd)
-                    {
-                        return false;
-                    }
-                } else if this_var.di_tv.v_type == VarType::VarFloat
-                    && var_flavour(key_ptr) == VAR_FLAVOUR_SESSION
-                {
-                    let mut f = this_var.di_tv.vval.v_float();
-                    let sign = if f < 0.0 {
-                        f = -f;
-                        '-'
-                    } else {
-                        ' '
-                    };
-                    if !write_fmt(fd, format!("let {} = {sign}{f:.6}", cstr_to_str(key_ptr)))
-                        || !put_eol(fd)
-                    {
-                        return false;
-                    }
-                }
-            }
-            hi = hi.wrapping_add(1);
-        }
-        true
-    }
+    true
 }
 
 fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
@@ -988,179 +974,184 @@ fn makeopens(fd: *mut FILE, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 pub fn ex_loadview(eap: &mut Exarg) {
-    {
-        let Some(fname) = get_view_file(unsafe { *eap.arg }) else {
-            return;
-        };
+    let Some(fname) = get_view_file(unsafe { *eap.arg }) else {
+        return;
+    };
 
-        if !do_source(fname.as_ptr().cast_mut(), false, DOSO_NONE, ptr::null_mut()) {
-            semsg!(gettext(E_NOTOPEN), fname.as_ptr());
-        }
+    if !do_source(fname.as_ptr().cast_mut(), false, DOSO_NONE, ptr::null_mut()) {
+        semsg!(gettext(E_NOTOPEN), fname.as_ptr());
     }
 }
 
 pub fn ex_mkrc(eap: &mut Exarg) {
-    unsafe {
-        let mut view_session = false;
-        let mut using_vdir = false;
-        let mut view_file: Option<CString> = None;
+    let mut view_session = false;
+    let mut using_vdir = false;
+    let mut view_file: Option<CString> = None;
 
-        if eap.cmdidx == CMD_MKSESSION || eap.cmdidx == CMD_MKVIEW {
-            view_session = true;
-        }
+    if eap.cmdidx == CMD_MKSESSION || eap.cmdidx == CMD_MKVIEW {
+        view_session = true;
+    }
 
-        exses_st().did_lcd = false;
+    exses_st().did_lcd = false;
 
-        let fname: *mut c_char;
-        if eap.cmdidx == CMD_MKVIEW
-            && (crate::memory::cstr_is_empty(eap.arg)
-                || (ascii_isdigit(*eap.arg as i32) && crate::memory::cstr_byte_at(eap.arg, 1) == 0))
-        {
-            eap.forceit = 1;
-            let Some(vf) = get_view_file(*eap.arg) else {
-                return;
-            };
-            fname = vf.as_ptr().cast_mut();
-            view_file = Some(vf);
-            using_vdir = true;
-        } else if !crate::memory::cstr_is_empty(eap.arg) {
-            fname = eap.arg;
-        } else if eap.cmdidx == CMD_MKVIMRC {
-            fname = c".nvimrc".as_ptr().cast_mut();
-        } else if eap.cmdidx == CMD_MKSESSION {
-            fname = c"Session.vim".as_ptr().cast_mut();
+    let fname: *mut c_char;
+    if eap.cmdidx == CMD_MKVIEW
+        && (crate::memory::cstr_is_empty(eap.arg)
+            || (ascii_isdigit(unsafe { *eap.arg } as i32)
+                && crate::memory::cstr_byte_at(eap.arg, 1) == 0))
+    {
+        eap.forceit = 1;
+        let Some(vf) = get_view_file(unsafe { *eap.arg }) else {
+            return;
+        };
+        fname = vf.as_ptr().cast_mut();
+        view_file = Some(vf);
+        using_vdir = true;
+    } else if !crate::memory::cstr_is_empty(eap.arg) {
+        fname = eap.arg;
+    } else if eap.cmdidx == CMD_MKVIMRC {
+        fname = c".nvimrc".as_ptr().cast_mut();
+    } else if eap.cmdidx == CMD_MKSESSION {
+        fname = c"Session.vim".as_ptr().cast_mut();
+    } else {
+        fname = c".exrc".as_ptr().cast_mut();
+    }
+
+    if using_vdir && !os_isdir(opt_vars().p_vdir) {
+        vim_mkdir_emsg(opt_vars().p_vdir, 0o755);
+    }
+
+    let fd = open_exfile(fname, eap.forceit, c"wb");
+    if !fd.is_null() {
+        let mut failed = false;
+        let flagp = if eap.cmdidx == CMD_MKVIEW {
+            &raw mut opt_vars().vop_flags
         } else {
-            fname = c".exrc".as_ptr().cast_mut();
-        }
-
-        if using_vdir && !os_isdir(opt_vars().p_vdir) {
-            vim_mkdir_emsg(opt_vars().p_vdir, 0o755);
-        }
-
-        let fd = open_exfile(fname, eap.forceit, c"wb");
-        if !fd.is_null() {
-            let mut failed = false;
-            let flagp = if eap.cmdidx == CMD_MKVIEW {
-                &raw mut opt_vars().vop_flags
-            } else {
-                &raw mut opt_vars().ssop_flags
-            };
-
-            if eap.cmdidx == CMD_MKSESSION {
-                apply_autocmds(
-                    EVENT_SESSIONWRITEPRE,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    false,
-                    g_st().curbuf,
-                );
-            }
-
-            if eap.cmdidx == CMD_MKVIMRC {
-                put_line(fd, c"version 6.0");
-            }
-
-            if eap.cmdidx == CMD_MKSESSION && !put_line(fd, c"let SessionLoad = 1") {
-                failed = true;
-            }
-
-            if !view_session
-                || (eap.cmdidx == CMD_MKSESSION && (*flagp & K_OPT_SSOP_FLAG_OPTIONS) != 0)
-            {
-                let mut flags = OPT_GLOBAL;
-                if eap.cmdidx == CMD_MKSESSION && (*flagp & K_OPT_SSOP_FLAG_SKIPRTP) != 0 {
-                    flags |= OPT_SKIPRTP;
-                }
-                failed |= !makemap(fd, ptr::null_mut()) || !makeset(fd, flags, 0);
-            }
-
-            if !failed && view_session {
-                if !put_line(
-                    fd,
-                    c"let s:so_save = &g:so | let s:siso_save = &g:siso | setg so=0 siso=0 | setl so=-1 siso=-1",
-                )
-                {
-                    failed = true;
-                }
-                if eap.cmdidx == CMD_MKSESSION {
-                    let mut dirnow_vec: Vec<c_char> = vec![0; MAXPATHL];
-                    let dirnow = dirnow_vec.as_mut_ptr();
-
-                    if !os_dirname(dirnow, MAXPATHL) || os_chdir(dirnow) != 0 {
-                        *dirnow = NUL;
-                    }
-                    if !crate::memory::cstr_is_empty(dirnow)
-                        && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
-                    {
-                        if vim_chdirfile(fname, K_CD_CAUSE_OTHER) {
-                            shorten_fnames(1);
-                        }
-                    } else if !crate::memory::cstr_is_empty(dirnow)
-                        && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
-                        && let Some(ref gdir) = g_st().globaldir
-                        && os_chdir(gdir.as_ptr()) == 0
-                    {
-                        shorten_fnames(1);
-                    }
-
-                    failed |= !makeopens(fd, dirnow);
-
-                    if !crate::memory::cstr_is_empty(dirnow)
-                        && ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
-                            || ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
-                                && g_st().globaldir.is_some()))
-                    {
-                        if os_chdir(dirnow) != 0 {
-                            emsg(gettext(E_PREV_DIR));
-                        }
-                        shorten_fnames(1);
-                    }
-                } else {
-                    failed |=
-                        !put_view(fd, curwin_mut(), curtab_mut(), !using_vdir, &mut *flagp, -1);
-                }
-                if !write_bytes(fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
-                    failed = true;
-                }
-                if opt_vars().p_hls != 0 && !write_bytes(fd, b"set hlsearch\n") {
-                    failed = true;
-                }
-                if g_st().search_global.no_hlsearch && !write_bytes(fd, b"nohlsearch\n") {
-                    failed = true;
-                }
-                if eap.cmdidx == CMD_MKSESSION
-                    && !write_bytes(fd, b"doautoall SessionLoadPost\nunlet SessionLoad\n")
-                {
-                    failed = true;
-                }
-            }
-            if !put_line(fd, c"\" vim: set ft=vim :") {
-                failed = true;
-            }
-
-            failed |= fclose(fd) != 0;
-
-            if failed {
-                emsg(gettext(E_WRITE));
-            } else if eap.cmdidx == CMD_MKSESSION {
-                let mut tbuf: Vec<c_char> = vec![0; MAXPATHL];
-                if vim_full_name(fname, tbuf.as_mut_ptr(), MAXPATHL, false) {
-                    set_vim_var_string(VV_THIS_SESSION, tbuf.as_ptr(), -1);
-                }
-            }
-        }
-
-        drop(view_file);
+            &raw mut opt_vars().ssop_flags
+        };
 
         if eap.cmdidx == CMD_MKSESSION {
             apply_autocmds(
-                EVENT_SESSIONWRITEPOST,
+                EVENT_SESSIONWRITEPRE,
                 ptr::null_mut(),
                 ptr::null_mut(),
                 false,
                 g_st().curbuf,
             );
         }
+
+        if eap.cmdidx == CMD_MKVIMRC {
+            put_line(fd, c"version 6.0");
+        }
+
+        if eap.cmdidx == CMD_MKSESSION && !put_line(fd, c"let SessionLoad = 1") {
+            failed = true;
+        }
+
+        if !view_session
+            || (eap.cmdidx == CMD_MKSESSION && (unsafe { *flagp } & K_OPT_SSOP_FLAG_OPTIONS) != 0)
+        {
+            let mut flags = OPT_GLOBAL;
+            if eap.cmdidx == CMD_MKSESSION && (unsafe { *flagp } & K_OPT_SSOP_FLAG_SKIPRTP) != 0 {
+                flags |= OPT_SKIPRTP;
+            }
+            failed |= !makemap(fd, ptr::null_mut()) || !makeset(fd, flags, 0);
+        }
+
+        if !failed && view_session {
+            if !put_line(
+                    fd,
+                    c"let s:so_save = &g:so | let s:siso_save = &g:siso | setg so=0 siso=0 | setl so=-1 siso=-1",
+                )
+                {
+                    failed = true;
+                }
+            if eap.cmdidx == CMD_MKSESSION {
+                let mut dirnow_vec: Vec<c_char> = vec![0; MAXPATHL];
+                let dirnow = dirnow_vec.as_mut_ptr();
+
+                if !os_dirname(dirnow, MAXPATHL) || os_chdir(dirnow) != 0 {
+                    unsafe {
+                        *dirnow = NUL;
+                    }
+                }
+                if !crate::memory::cstr_is_empty(dirnow)
+                    && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
+                {
+                    if vim_chdirfile(fname, K_CD_CAUSE_OTHER) {
+                        shorten_fnames(1);
+                    }
+                } else if !crate::memory::cstr_is_empty(dirnow)
+                    && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
+                    && let Some(ref gdir) = g_st().globaldir
+                    && os_chdir(gdir.as_ptr()) == 0
+                {
+                    shorten_fnames(1);
+                }
+
+                failed |= !makeopens(fd, dirnow);
+
+                if !crate::memory::cstr_is_empty(dirnow)
+                    && ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
+                        || ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
+                            && g_st().globaldir.is_some()))
+                {
+                    if os_chdir(dirnow) != 0 {
+                        emsg(gettext(E_PREV_DIR));
+                    }
+                    shorten_fnames(1);
+                }
+            } else {
+                failed |= !put_view(
+                    fd,
+                    curwin_mut(),
+                    curtab_mut(),
+                    !using_vdir,
+                    unsafe { &mut *flagp },
+                    -1,
+                );
+            }
+            if !write_bytes(fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
+                failed = true;
+            }
+            if opt_vars().p_hls != 0 && !write_bytes(fd, b"set hlsearch\n") {
+                failed = true;
+            }
+            if g_st().search_global.no_hlsearch && !write_bytes(fd, b"nohlsearch\n") {
+                failed = true;
+            }
+            if eap.cmdidx == CMD_MKSESSION
+                && !write_bytes(fd, b"doautoall SessionLoadPost\nunlet SessionLoad\n")
+            {
+                failed = true;
+            }
+        }
+        if !put_line(fd, c"\" vim: set ft=vim :") {
+            failed = true;
+        }
+
+        failed |= unsafe { fclose(fd) } != 0;
+
+        if failed {
+            emsg(gettext(E_WRITE));
+        } else if eap.cmdidx == CMD_MKSESSION {
+            let mut tbuf: Vec<c_char> = vec![0; MAXPATHL];
+            if vim_full_name(fname, tbuf.as_mut_ptr(), MAXPATHL, false) {
+                set_vim_var_string(VV_THIS_SESSION, tbuf.as_ptr(), -1);
+            }
+        }
+    }
+
+    drop(view_file);
+
+    if eap.cmdidx == CMD_MKSESSION {
+        apply_autocmds(
+            EVENT_SESSIONWRITEPOST,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            false,
+            g_st().curbuf,
+        );
     }
 }
 
@@ -1227,19 +1218,15 @@ fn get_view_file(c: c_char) -> Option<CString> {
 }
 
 pub fn put_eol(fd: *mut FILE) -> bool {
-    {
-        if unsafe { fputc(b'\n' as i32, fd) } < 0 {
-            return false;
-        }
-        true
+    if unsafe { fputc(b'\n' as i32, fd) } < 0 {
+        return false;
     }
+    true
 }
 
 pub fn put_line(fd: *mut FILE, s: &std::ffi::CStr) -> bool {
-    {
-        if fputs(s.as_ptr().cast_mut(), fd) < 0 || unsafe { fputc(b'\n' as i32, fd) } < 0 {
-            return false;
-        }
-        true
+    if fputs(s.as_ptr().cast_mut(), fd) < 0 || unsafe { fputc(b'\n' as i32, fd) } < 0 {
+        return false;
     }
+    true
 }

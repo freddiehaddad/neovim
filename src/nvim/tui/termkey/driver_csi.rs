@@ -469,65 +469,63 @@ pub fn termkey_interpret_mouse(
     line: &mut i32,
     col: &mut i32,
 ) -> TermKeyResult {
+    if key.r#type != TERMKEY_TYPE_MOUSE {
+        return TERMKEY_RES_NONE;
+    }
+
     {
-        if key.r#type != TERMKEY_TYPE_MOUSE {
-            return TERMKEY_RES_NONE;
+        *button = 0;
+    }
+
+    termkey_key_get_linecol(key, line, col);
+
+    let mut btn: i32 = 0;
+    let mut code = i32::from(key.code.mouse[0] as u8);
+    let drag = (code & 0x20) != 0;
+    code &= !0x3c;
+
+    match code {
+        0..=2 => {
+            *event = if drag {
+                TERMKEY_MOUSE_DRAG
+            } else {
+                TERMKEY_MOUSE_PRESS
+            };
+            btn = code + 1;
         }
-
-        {
-            *button = 0;
-        }
-
-        termkey_key_get_linecol(key, line, col);
-
-        let mut btn: i32 = 0;
-        let mut code = i32::from(key.code.mouse[0] as u8);
-        let drag = (code & 0x20) != 0;
-        code &= !0x3c;
-
-        match code {
-            0..=2 => {
-                *event = if drag {
-                    TERMKEY_MOUSE_DRAG
-                } else {
-                    TERMKEY_MOUSE_PRESS
-                };
-                btn = code + 1;
-            }
-            3 => {
-                *event = TERMKEY_MOUSE_RELEASE;
-            }
-            64..=67 => {
-                *event = if drag {
-                    TERMKEY_MOUSE_DRAG
-                } else {
-                    TERMKEY_MOUSE_PRESS
-                };
-                btn = code + 4 - 64;
-            }
-            128 | 129 => {
-                *event = if drag {
-                    TERMKEY_MOUSE_DRAG
-                } else {
-                    TERMKEY_MOUSE_PRESS
-                };
-                btn = code + 8 - 128;
-            }
-            _ => {
-                *event = TERMKEY_MOUSE_UNKNOWN;
-            }
-        }
-
-        {
-            *button = btn;
-        }
-
-        if (key.code.mouse[3] as u8 & 0x80) != 0 {
+        3 => {
             *event = TERMKEY_MOUSE_RELEASE;
         }
-
-        TERMKEY_RES_KEY
+        64..=67 => {
+            *event = if drag {
+                TERMKEY_MOUSE_DRAG
+            } else {
+                TERMKEY_MOUSE_PRESS
+            };
+            btn = code + 4 - 64;
+        }
+        128 | 129 => {
+            *event = if drag {
+                TERMKEY_MOUSE_DRAG
+            } else {
+                TERMKEY_MOUSE_PRESS
+            };
+            btn = code + 8 - 128;
+        }
+        _ => {
+            *event = TERMKEY_MOUSE_UNKNOWN;
+        }
     }
+
+    {
+        *button = btn;
+    }
+
+    if (key.code.mouse[3] as u8 & 0x80) != 0 {
+        *event = TERMKEY_MOUSE_RELEASE;
+    }
+
+    TERMKEY_RES_KEY
 }
 
 fn handle_csi_r(
@@ -608,21 +606,19 @@ pub fn termkey_interpret_modereport(
     mode: &mut i32,
     value: &mut i32,
 ) -> TermKeyResult {
-    {
-        if key.r#type != TERMKEY_TYPE_MODEREPORT {
-            return TERMKEY_RES_NONE;
-        }
-        {
-            *initial = i32::from(key.code.mouse[0] as u8);
-        }
-        {
-            *mode = (i32::from(key.code.mouse[1] as u8) << 8) | i32::from(key.code.mouse[2] as u8);
-        }
-        {
-            *value = i32::from(key.code.mouse[3] as u8);
-        }
-        TERMKEY_RES_KEY
+    if key.r#type != TERMKEY_TYPE_MODEREPORT {
+        return TERMKEY_RES_NONE;
     }
+    {
+        *initial = i32::from(key.code.mouse[0] as u8);
+    }
+    {
+        *mode = (i32::from(key.code.mouse[1] as u8) << 8) | i32::from(key.code.mouse[2] as u8);
+    }
+    {
+        *value = i32::from(key.code.mouse[3] as u8);
+    }
+    TERMKEY_RES_KEY
 }
 
 fn parse_csi(
@@ -748,74 +744,72 @@ fn peekkey_csi_csi(
     force: i32,
     nbytep: &mut usize,
 ) -> TermKeyResult {
-    {
-        let mut csi_len: usize = 0;
-        let mut nparams: usize = 16;
-        let mut params = [TermKeyCsiParam::new(); 16];
-        let mut cmd: u32 = 0;
+    let mut csi_len: usize = 0;
+    let mut nparams: usize = 16;
+    let mut params = [TermKeyCsiParam::new(); 16];
+    let mut cmd: u32 = 0;
 
-        let ret = parse_csi(
-            tk,
-            introlen,
-            &mut csi_len,
-            &mut params,
-            &mut nparams,
-            &mut cmd,
-        );
+    let ret = parse_csi(
+        tk,
+        introlen,
+        &mut csi_len,
+        &mut params,
+        &mut nparams,
+        &mut cmd,
+    );
 
-        if ret == TERMKEY_RES_AGAIN {
-            if force == 0 {
-                return TERMKEY_RES_AGAIN;
-            }
-            emit_codepoint(tk, b'[' as i32, key);
-            key.modifiers |= TERMKEY_KEYMOD_ALT;
-            *nbytep = introlen;
-            return TERMKEY_RES_KEY;
+    if ret == TERMKEY_RES_AGAIN {
+        if force == 0 {
+            return TERMKEY_RES_AGAIN;
         }
-
-        if cmd == b'M' as u32 && nparams < 3 {
-            tk.buffstart += csi_len;
-            tk.buffcount -= csi_len;
-
-            let mouse_result = peekkey_mouse(tk, key, nbytep);
-
-            tk.buffstart -= csi_len;
-            tk.buffcount += csi_len;
-
-            if mouse_result == TERMKEY_RES_KEY {
-                *nbytep += csi_len;
-            }
-
-            return mouse_result;
-        }
-
-        let cmd_i32 = cmd as i32;
-        let np_i32 = nparams as i32;
-        let result = match (cmd & 0xff) as u8 {
-            b'u' => handle_csi_u(tk, key, cmd_i32, &params, np_i32),
-            b'M' | b'm' => handle_csi_m(tk, key, cmd_i32, &params, np_i32),
-            b'R' => handle_csi_r(tk, key, cmd_i32, &params, np_i32),
-            b'y' => handle_csi_y(tk, key, cmd_i32, &params, np_i32),
-            b'~' => handle_csifunc(tk, key, cmd_i32, &params, np_i32),
-            b'A'..=b'F' | b'H' | b'P'..=b'S' | b'Z' => {
-                handle_csi_ss3_full(tk, key, cmd_i32, &params, np_i32)
-            }
-            _ => TERMKEY_RES_NONE,
-        };
-
-        if result == TERMKEY_RES_NONE {
-            key.r#type = TERMKEY_TYPE_UNKNOWN_CSI;
-            key.code.number = cmd as i32;
-            key.modifiers = 0;
-
-            tk.hightide = csi_len - introlen;
-            *nbytep = introlen;
-            return TERMKEY_RES_KEY;
-        }
-
-        *nbytep = csi_len;
-        result
+        emit_codepoint(tk, b'[' as i32, key);
+        key.modifiers |= TERMKEY_KEYMOD_ALT;
+        *nbytep = introlen;
+        return TERMKEY_RES_KEY;
     }
+
+    if cmd == b'M' as u32 && nparams < 3 {
+        tk.buffstart += csi_len;
+        tk.buffcount -= csi_len;
+
+        let mouse_result = peekkey_mouse(tk, key, nbytep);
+
+        tk.buffstart -= csi_len;
+        tk.buffcount += csi_len;
+
+        if mouse_result == TERMKEY_RES_KEY {
+            *nbytep += csi_len;
+        }
+
+        return mouse_result;
+    }
+
+    let cmd_i32 = cmd as i32;
+    let np_i32 = nparams as i32;
+    let result = match (cmd & 0xff) as u8 {
+        b'u' => handle_csi_u(tk, key, cmd_i32, &params, np_i32),
+        b'M' | b'm' => handle_csi_m(tk, key, cmd_i32, &params, np_i32),
+        b'R' => handle_csi_r(tk, key, cmd_i32, &params, np_i32),
+        b'y' => handle_csi_y(tk, key, cmd_i32, &params, np_i32),
+        b'~' => handle_csifunc(tk, key, cmd_i32, &params, np_i32),
+        b'A'..=b'F' | b'H' | b'P'..=b'S' | b'Z' => {
+            handle_csi_ss3_full(tk, key, cmd_i32, &params, np_i32)
+        }
+        _ => TERMKEY_RES_NONE,
+    };
+
+    if result == TERMKEY_RES_NONE {
+        key.r#type = TERMKEY_TYPE_UNKNOWN_CSI;
+        key.code.number = cmd as i32;
+        key.modifiers = 0;
+
+        tk.hightide = csi_len - introlen;
+        *nbytep = introlen;
+        return TERMKEY_RES_KEY;
+    }
+
+    *nbytep = csi_len;
+    result
 }
 
 fn peekkey_ss3(
@@ -825,50 +819,48 @@ fn peekkey_ss3(
     force: i32,
     nbytep: &mut usize,
 ) -> TermKeyResult {
-    {
-        if tk.buffcount < introlen + 1 {
-            if force == 0 {
-                return TERMKEY_RES_AGAIN;
-            }
-            emit_codepoint(tk, b'O' as i32, key);
-            key.modifiers |= TERMKEY_KEYMOD_ALT;
-            *nbytep = tk.buffcount;
-            return TERMKEY_RES_KEY;
+    if tk.buffcount < introlen + 1 {
+        if force == 0 {
+            return TERMKEY_RES_AGAIN;
         }
-
-        let cmd = tk.buffer[tk.buffstart + introlen];
-        if !(0x40..0x80).contains(&cmd) {
-            return TERMKEY_RES_NONE;
-        }
-
-        let idx = usize::from(cmd - 0x40);
-        key.r#type = CSI_SS3S[idx].r#type;
-        key.code.sym = CSI_SS3S[idx].sym;
-        key.code.number = CSI_SS3S[idx].sym;
-        key.modifiers = CSI_SS3S[idx].modifier_set;
-
-        if key.code.sym == TERMKEY_SYM_UNKNOWN {
-            if (tk.flags & TERMKEY_FLAG_CONVERTKP) != 0 && SS3_KPALTS[idx] != 0 {
-                key.r#type = TERMKEY_TYPE_UNICODE;
-                key.code.codepoint = i32::from(SS3_KPALTS[idx] as u8);
-                key.modifiers = 0;
-                key.utf8[0] = SS3_KPALTS[idx];
-                key.utf8[1] = 0;
-            } else {
-                key.r#type = SS3S[idx].r#type;
-                key.code.sym = SS3S[idx].sym;
-                key.code.number = SS3S[idx].sym;
-                key.modifiers = SS3S[idx].modifier_set;
-            }
-        }
-
-        if key.code.sym == TERMKEY_SYM_UNKNOWN {
-            return TERMKEY_RES_NONE;
-        }
-
-        *nbytep = introlen + 1;
-        TERMKEY_RES_KEY
+        emit_codepoint(tk, b'O' as i32, key);
+        key.modifiers |= TERMKEY_KEYMOD_ALT;
+        *nbytep = tk.buffcount;
+        return TERMKEY_RES_KEY;
     }
+
+    let cmd = tk.buffer[tk.buffstart + introlen];
+    if !(0x40..0x80).contains(&cmd) {
+        return TERMKEY_RES_NONE;
+    }
+
+    let idx = usize::from(cmd - 0x40);
+    key.r#type = CSI_SS3S[idx].r#type;
+    key.code.sym = CSI_SS3S[idx].sym;
+    key.code.number = CSI_SS3S[idx].sym;
+    key.modifiers = CSI_SS3S[idx].modifier_set;
+
+    if key.code.sym == TERMKEY_SYM_UNKNOWN {
+        if (tk.flags & TERMKEY_FLAG_CONVERTKP) != 0 && SS3_KPALTS[idx] != 0 {
+            key.r#type = TERMKEY_TYPE_UNICODE;
+            key.code.codepoint = i32::from(SS3_KPALTS[idx] as u8);
+            key.modifiers = 0;
+            key.utf8[0] = SS3_KPALTS[idx];
+            key.utf8[1] = 0;
+        } else {
+            key.r#type = SS3S[idx].r#type;
+            key.code.sym = SS3S[idx].sym;
+            key.code.number = SS3S[idx].sym;
+            key.modifiers = SS3S[idx].modifier_set;
+        }
+    }
+
+    if key.code.sym == TERMKEY_SYM_UNKNOWN {
+        return TERMKEY_RES_NONE;
+    }
+
+    *nbytep = introlen + 1;
+    TERMKEY_RES_KEY
 }
 
 fn peekkey_ctrlstring(
@@ -878,67 +870,65 @@ fn peekkey_ctrlstring(
     _force: i32,
     nbytep: &mut usize,
 ) -> TermKeyResult {
-    {
-        let mut str_end = introlen;
-        let slice = &tk.buffer[tk.buffstart..tk.buffstart + tk.buffcount];
+    let mut str_end = introlen;
+    let slice = &tk.buffer[tk.buffstart..tk.buffstart + tk.buffcount];
 
-        while str_end < tk.buffcount {
-            let b = slice[str_end];
-            if b == 0x07 || b == 0x9c {
-                break;
-            }
-            if b == 0x1b && (str_end + 1) < tk.buffcount && slice[str_end + 1] == 0x5c {
-                break;
-            }
-            str_end += 1;
+    while str_end < tk.buffcount {
+        let b = slice[str_end];
+        if b == 0x07 || b == 0x9c {
+            break;
         }
-
-        if str_end >= tk.buffcount {
-            return TERMKEY_RES_AGAIN;
+        if b == 0x1b && (str_end + 1) < tk.buffcount && slice[str_end + 1] == 0x5c {
+            break;
         }
-
-        *nbytep = str_end + 1;
-        if slice[str_end] == 0x1b {
-            *nbytep += 1;
-        }
-
-        let len = str_end - introlen;
-        let ctrl_type = slice[introlen - 1] & 0x1f;
-        let saved_string = &mut tk.csi.saved_string;
-        saved_string.clear();
-        saved_string.reserve(len + 1);
-        tk.csi.saved_string_id += 1;
-
-        let mut copied = 0usize;
-        while copied < len && tk.buffer[tk.buffstart + introlen + copied] != 0 {
-            saved_string.push(tk.buffer[tk.buffstart + introlen + copied] as c_char);
-            copied += 1;
-        }
-        while copied <= len {
-            saved_string.push(0);
-            copied += 1;
-        }
-
-        match ctrl_type {
-            0x10 => {
-                key.r#type = TERMKEY_TYPE_DCS;
-            }
-            0x1d => {
-                key.r#type = TERMKEY_TYPE_OSC;
-            }
-            0x1f => {
-                key.r#type = TERMKEY_TYPE_APC;
-            }
-            _ => {
-                std::process::abort();
-            }
-        }
-
-        key.code.number = tk.csi.saved_string_id;
-        key.modifiers = 0;
-
-        TERMKEY_RES_KEY
+        str_end += 1;
     }
+
+    if str_end >= tk.buffcount {
+        return TERMKEY_RES_AGAIN;
+    }
+
+    *nbytep = str_end + 1;
+    if slice[str_end] == 0x1b {
+        *nbytep += 1;
+    }
+
+    let len = str_end - introlen;
+    let ctrl_type = slice[introlen - 1] & 0x1f;
+    let saved_string = &mut tk.csi.saved_string;
+    saved_string.clear();
+    saved_string.reserve(len + 1);
+    tk.csi.saved_string_id += 1;
+
+    let mut copied = 0usize;
+    while copied < len && tk.buffer[tk.buffstart + introlen + copied] != 0 {
+        saved_string.push(tk.buffer[tk.buffstart + introlen + copied] as c_char);
+        copied += 1;
+    }
+    while copied <= len {
+        saved_string.push(0);
+        copied += 1;
+    }
+
+    match ctrl_type {
+        0x10 => {
+            key.r#type = TERMKEY_TYPE_DCS;
+        }
+        0x1d => {
+            key.r#type = TERMKEY_TYPE_OSC;
+        }
+        0x1f => {
+            key.r#type = TERMKEY_TYPE_APC;
+        }
+        _ => {
+            std::process::abort();
+        }
+    }
+
+    key.code.number = tk.csi.saved_string_id;
+    key.modifiers = 0;
+
+    TERMKEY_RES_KEY
 }
 
 pub fn peekkey_csi(

@@ -176,13 +176,11 @@ fn out_of_memory_exit() -> ! {
 
 /// Free all cached reusable arena blocks (`arena_free_reuse_blks`).
 pub fn arena_free_reuse_blks() {
-    {
-        while mem_st().arena_reuse_count > 0 {
-            let blk = mem_st().arena_reuse_head;
-            mem_st().arena_reuse_head = unsafe { (*blk).prev };
-            raw_dealloc(blk.cast::<c_void>());
-            mem_st().arena_reuse_count -= 1;
-        }
+    while mem_st().arena_reuse_count > 0 {
+        let blk = mem_st().arena_reuse_head;
+        mem_st().arena_reuse_head = unsafe { (*blk).prev };
+        raw_dealloc(blk.cast::<c_void>());
+        mem_st().arena_reuse_count -= 1;
     }
 }
 
@@ -518,16 +516,14 @@ pub fn arena_finish(arena: &mut Arena) -> ArenaMem {
 
 /// Allocate a `ARENA_BLOCK_SIZE` block (`alloc_block`).
 pub fn alloc_block() -> *mut c_char {
-    {
-        if mem_st().arena_reuse_count > 0 {
-            let retval = mem_st().arena_reuse_head.cast::<c_char>();
-            mem_st().arena_reuse_head = unsafe { (*mem_st().arena_reuse_head).prev };
-            mem_st().arena_reuse_count -= 1;
-            retval
-        } else {
-            g_st().arena_alloc_count += 1;
-            raw_alloc(ARENA_BLOCK_SIZE).cast::<c_char>()
-        }
+    if mem_st().arena_reuse_count > 0 {
+        let retval = mem_st().arena_reuse_head.cast::<c_char>();
+        mem_st().arena_reuse_head = unsafe { (*mem_st().arena_reuse_head).prev };
+        mem_st().arena_reuse_count -= 1;
+        retval
+    } else {
+        g_st().arena_alloc_count += 1;
+        raw_alloc(ARENA_BLOCK_SIZE).cast::<c_char>()
     }
 }
 
@@ -876,22 +872,20 @@ mod tests {
 
     #[test]
     fn arena_lifecycle() {
-        {
-            let mut arena = Arena {
-                cur_blk: std::ptr::null_mut(),
-                pos: 0,
-                size: 0,
-            };
-            let s1 = arena_strdup(&mut arena, c"hello arena");
-            let big = arena_alloc(&mut arena, 8192, true);
-            assert!(!big.is_null());
-            assert_eq!(
-                unsafe { CStr::from_ptr(s1) }.to_str().unwrap(),
-                "hello arena"
-            );
-            let mem = arena_finish(&mut arena);
-            arena_mem_free(mem);
-            arena_free_reuse_blks();
-        }
+        let mut arena = Arena {
+            cur_blk: std::ptr::null_mut(),
+            pos: 0,
+            size: 0,
+        };
+        let s1 = arena_strdup(&mut arena, c"hello arena");
+        let big = arena_alloc(&mut arena, 8192, true);
+        assert!(!big.is_null());
+        assert_eq!(
+            unsafe { CStr::from_ptr(s1) }.to_str().unwrap(),
+            "hello arena"
+        );
+        let mem = arena_finish(&mut arena);
+        arena_mem_free(mem);
+        arena_free_reuse_blks();
     }
 }

@@ -206,139 +206,147 @@ use crate::api::private::helpers::add_c;
 
 /// Teardown the module.
 pub fn channel_teardown() {
-    {
-        let all_chans: Vec<*mut Channel> = g_st().channels.values().copied().collect();
-        for chan in all_chans {
-            channel_close(unsafe { (*chan).id }, K_CHANNEL_PART_ALL, ptr::null_mut());
-        }
+    let all_chans: Vec<*mut Channel> = g_st().channels.values().copied().collect();
+    for chan in all_chans {
+        channel_close(unsafe { (*chan).id }, K_CHANNEL_PART_ALL, ptr::null_mut());
     }
 }
 
 pub fn channel_free_all_mem() {
-    {
-        for (_, chan) in std::mem::take(&mut g_st().channels) {
-            drop(unsafe { Box::from_raw(chan) });
-        }
-
-        callback_free(&mut g_st().on_print);
+    for (_, chan) in std::mem::take(&mut g_st().channels) {
+        drop(unsafe { Box::from_raw(chan) });
     }
+
+    callback_free(&mut g_st().on_print);
 }
 
 /// Closes a channel.
 pub fn channel_close(id: u64, part: ChannelPart, mut error: *mut *const c_char) -> bool {
-    unsafe {
-        let mut dummy: *const c_char = ptr::null();
-        if error.is_null() {
-            error = &raw mut dummy;
-        }
+    let mut dummy: *const c_char = ptr::null();
+    if error.is_null() {
+        error = &raw mut dummy;
+    }
 
-        let chan = find_channel(id);
-        if chan.is_null() {
-            if id < chan_st().next_chan_id {
-                return true;
-            }
-            {
+    let chan = find_channel(id);
+    if chan.is_null() {
+        if id < chan_st().next_chan_id {
+            return true;
+        }
+        {
+            unsafe {
                 *error = E_INVCHAN.as_ptr();
+            }
+        }
+        return false;
+    }
+    let chan = { unsafe { &mut *chan } };
+
+    let mut close_main = false;
+    if part == K_CHANNEL_PART_RPC_CONST || part == K_CHANNEL_PART_ALL {
+        close_main = true;
+        if chan.is_rpc {
+            rpc_close(&mut *chan);
+        } else if part == K_CHANNEL_PART_RPC_CONST {
+            {
+                unsafe {
+                    *error = E_INVSTREAM.as_ptr();
+                }
             }
             return false;
         }
-        let chan = { &mut *chan };
+    } else if (part == K_CHANNEL_PART_STDIN || part == K_CHANNEL_PART_STDOUT) && chan.is_rpc {
+        {
+            unsafe {
+                *error = E_INVSTREAMRPC.as_ptr();
+            }
+        }
+        return false;
+    }
 
-        let mut close_main = false;
-        if part == K_CHANNEL_PART_RPC_CONST || part == K_CHANNEL_PART_ALL {
-            close_main = true;
-            if chan.is_rpc {
-                rpc_close(&mut *chan);
-            } else if part == K_CHANNEL_PART_RPC_CONST {
+    match chan.streamtype {
+        K_CHANNEL_STREAM_SOCKET => {
+            if !close_main {
                 {
-                    *error = E_INVSTREAM.as_ptr();
+                    unsafe {
+                        *error = E_INVSTREAM.as_ptr();
+                    }
                 }
                 return false;
             }
-        } else if (part == K_CHANNEL_PART_STDIN || part == K_CHANNEL_PART_STDOUT) && chan.is_rpc {
-            {
-                *error = E_INVSTREAMRPC.as_ptr();
-            }
-            return false;
+            rstream_may_close(&mut chan.socket);
         }
-
-        match chan.streamtype {
-            K_CHANNEL_STREAM_SOCKET => {
-                if !close_main {
-                    {
-                        *error = E_INVSTREAM.as_ptr();
-                    }
-                    return false;
-                }
-                rstream_may_close(&mut chan.socket);
+        K_CHANNEL_STREAM_PROC => {
+            let proc_ptr = &mut chan.uv.proc_;
+            if part == K_CHANNEL_PART_STDIN || close_main {
+                stream_may_close(&mut proc_ptr.r#in);
             }
-            K_CHANNEL_STREAM_PROC => {
-                let proc_ptr = &mut chan.uv.proc_;
-                if part == K_CHANNEL_PART_STDIN || close_main {
-                    stream_may_close(&mut proc_ptr.r#in);
-                }
-                if part == K_CHANNEL_PART_STDOUT || close_main {
-                    rstream_may_close(&mut proc_ptr.out);
-                }
-                if part == K_CHANNEL_PART_STDERR || part == K_CHANNEL_PART_ALL {
-                    rstream_may_close(&mut proc_ptr.err);
-                }
-                if proc_ptr.r#type == K_PROC_TYPE_PTY && part == K_CHANNEL_PART_ALL {
-                    pty_proc_close_master(proc_ptr);
-                }
+            if part == K_CHANNEL_PART_STDOUT || close_main {
+                rstream_may_close(&mut proc_ptr.out);
             }
-            K_CHANNEL_STREAM_STDIO => {
-                if part == K_CHANNEL_PART_STDIN || close_main {
-                    rstream_may_close(&mut chan.stdio_in);
-                }
-                if part == K_CHANNEL_PART_STDOUT || close_main {
-                    stream_may_close(&mut chan.stdio_out);
-                }
-                if part == K_CHANNEL_PART_STDERR {
-                    {
-                        *error = E_INVSTREAM.as_ptr();
-                    }
-                    return false;
-                }
+            if part == K_CHANNEL_PART_STDERR || part == K_CHANNEL_PART_ALL {
+                rstream_may_close(&mut proc_ptr.err);
             }
-            K_CHANNEL_STREAM_STDERR => {
-                if part != K_CHANNEL_PART_ALL && part != K_CHANNEL_PART_STDERR {
-                    {
-                        *error = E_INVSTREAM.as_ptr();
-                    }
-                    return false;
-                }
-                if !chan.err_closed {
-                    chan.err_closed = true;
-                    if !g_st().exiting {
-                        redirect_stderr_to_null();
-                    }
-                    channel_decref(&mut *chan);
-                }
+            if proc_ptr.r#type == K_PROC_TYPE_PTY && part == K_CHANNEL_PART_ALL {
+                pty_proc_close_master(proc_ptr);
             }
-            K_CHANNEL_STREAM_INTERNAL => {
-                if !close_main {
-                    {
-                        *error = E_INVSTREAM.as_ptr();
-                    }
-                    return false;
-                }
-                if !chan.term.is_null() {
-                    let internal = &mut chan.internal;
-                    api_free_luaref(internal.cb);
-                    internal.cb = LUA_NOREF;
-                    internal.closed = true;
-                    terminal_close(&raw mut chan.term, 0);
-                    chan.exit_status = 0;
-                } else {
-                    channel_decref(&mut *chan);
-                }
-            }
-            _ => {}
         }
-
-        true
+        K_CHANNEL_STREAM_STDIO => {
+            if part == K_CHANNEL_PART_STDIN || close_main {
+                rstream_may_close(&mut chan.stdio_in);
+            }
+            if part == K_CHANNEL_PART_STDOUT || close_main {
+                stream_may_close(&mut chan.stdio_out);
+            }
+            if part == K_CHANNEL_PART_STDERR {
+                {
+                    unsafe {
+                        *error = E_INVSTREAM.as_ptr();
+                    }
+                }
+                return false;
+            }
+        }
+        K_CHANNEL_STREAM_STDERR => {
+            if part != K_CHANNEL_PART_ALL && part != K_CHANNEL_PART_STDERR {
+                {
+                    unsafe {
+                        *error = E_INVSTREAM.as_ptr();
+                    }
+                }
+                return false;
+            }
+            if !chan.err_closed {
+                chan.err_closed = true;
+                if !g_st().exiting {
+                    redirect_stderr_to_null();
+                }
+                channel_decref(&mut *chan);
+            }
+        }
+        K_CHANNEL_STREAM_INTERNAL => {
+            if !close_main {
+                {
+                    unsafe {
+                        *error = E_INVSTREAM.as_ptr();
+                    }
+                }
+                return false;
+            }
+            if !chan.term.is_null() {
+                let internal = &mut chan.internal;
+                api_free_luaref(internal.cb);
+                internal.cb = LUA_NOREF;
+                internal.closed = true;
+                terminal_close(&raw mut chan.term, 0);
+                chan.exit_status = 0;
+            } else {
+                channel_decref(&mut *chan);
+            }
+        }
+        _ => {}
     }
+
+    true
 }
 
 /// Initializes the module.
@@ -349,52 +357,50 @@ pub fn channel_init() {
 
 /// Allocates a channel.
 pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
+    let id = if r#type == K_CHANNEL_STREAM_STDIO {
+        CHAN_STDIO
+    } else if r#type == K_CHANNEL_STREAM_STDERR {
+        CHAN_STDERR
+    } else {
+        let id = chan_st().next_chan_id;
+        chan_st().next_chan_id += 1;
+        id
+    };
+    assert!(id <= (i64::MAX as u64));
+
+    let qc = loop_queues(&mut g_st().main_loop);
+    let chan = Box::into_raw(Box::new(Channel {
+        id,
+        refcount: 1,
+        events: multiqueue_new_child(qc.events),
+        streamtype: r#type,
+        uv: crate::event::proc::LibuvProc::new(),
+        socket: RStream::new(),
+        stdio_in: RStream::new(),
+        stdio_out: Stream::new(),
+        err_closed: false,
+        internal: InternalState {
+            cb: 0,
+            closed: false,
+        },
+        is_rpc: false,
+        detach: r#type != K_CHANNEL_STREAM_STDIO,
+        rpc: RpcState::new(),
+        term: ptr::null_mut(),
+        on_data: CallbackReader::none(),
+        on_stderr: CallbackReader::none(),
+        on_exit: Callback::NONE,
+        exit_status: -1,
+        callback_busy: false,
+        callback_scheduled: false,
+        did_close_event: false,
+    }));
+
     {
-        let id = if r#type == K_CHANNEL_STREAM_STDIO {
-            CHAN_STDIO
-        } else if r#type == K_CHANNEL_STREAM_STDERR {
-            CHAN_STDERR
-        } else {
-            let id = chan_st().next_chan_id;
-            chan_st().next_chan_id += 1;
-            id
-        };
-        assert!(id <= (i64::MAX as u64));
-
-        let qc = loop_queues(&mut g_st().main_loop);
-        let chan = Box::into_raw(Box::new(Channel {
-            id,
-            refcount: 1,
-            events: multiqueue_new_child(qc.events),
-            streamtype: r#type,
-            uv: crate::event::proc::LibuvProc::new(),
-            socket: RStream::new(),
-            stdio_in: RStream::new(),
-            stdio_out: Stream::new(),
-            err_closed: false,
-            internal: InternalState {
-                cb: 0,
-                closed: false,
-            },
-            is_rpc: false,
-            detach: r#type != K_CHANNEL_STREAM_STDIO,
-            rpc: RpcState::new(),
-            term: ptr::null_mut(),
-            on_data: CallbackReader::none(),
-            on_stderr: CallbackReader::none(),
-            on_exit: Callback::NONE,
-            exit_status: -1,
-            callback_busy: false,
-            callback_scheduled: false,
-            did_close_event: false,
-        }));
-
-        {
-            g_st().channels.insert(id, chan);
-        }
-
-        chan
+        g_st().channels.insert(id, chan);
     }
+
+    chan
 }
 
 pub fn channel_create_event(chan: &mut Channel, _ext_source: *const c_char) {
@@ -406,20 +412,18 @@ pub fn channel_incref(chan: &mut Channel) {
 }
 
 pub fn channel_decref(chan: &mut Channel) {
-    {
-        if chan.refcount == 1 && !chan.did_close_event {
-            chan.did_close_event = true;
-            channel_event(chan, EVENT_CHANCLOSE);
-        }
+    if chan.refcount == 1 && !chan.did_close_event {
+        chan.did_close_event = true;
+        channel_event(chan, EVENT_CHANCLOSE);
+    }
 
-        chan.refcount -= 1;
-        if chan.refcount == 0 {
-            let qc = loop_queues(&mut g_st().main_loop);
-            multiqueue_put_event(
-                unsafe { &mut *qc.events },
-                Event::ChannelFree(&raw mut *chan),
-            );
-        }
+    chan.refcount -= 1;
+    if chan.refcount == 0 {
+        let qc = loop_queues(&mut g_st().main_loop);
+        multiqueue_put_event(
+            unsafe { &mut *qc.events },
+            Event::ChannelFree(&raw mut *chan),
+        );
     }
 }
 
@@ -435,25 +439,23 @@ pub fn free_channel_event(chan: &mut Channel) {
 }
 
 fn channel_destroy_early(chan: &mut Channel) {
-    {
-        chan_st().next_chan_id -= 1;
-        if chan.id != chan_st().next_chan_id {
-            std::process::abort();
-        }
-        let _ = g_st().channels.remove(&chan.id);
-        chan.id = 0;
-
-        chan.refcount -= 1;
-        if chan.refcount != 0 {
-            std::process::abort();
-        }
-
-        let qc = loop_queues(&mut g_st().main_loop);
-        multiqueue_put_event(
-            unsafe { &mut *qc.events },
-            Event::ChannelFree(&raw mut *chan),
-        );
+    chan_st().next_chan_id -= 1;
+    if chan.id != chan_st().next_chan_id {
+        std::process::abort();
     }
+    let _ = g_st().channels.remove(&chan.id);
+    chan.id = 0;
+
+    chan.refcount -= 1;
+    if chan.refcount != 0 {
+        std::process::abort();
+    }
+
+    let qc = loop_queues(&mut g_st().main_loop);
+    multiqueue_put_event(
+        unsafe { &mut *qc.events },
+        Event::ChannelFree(&raw mut *chan),
+    );
 }
 
 /// Starts a job and returns the associated channel.
@@ -682,56 +684,60 @@ pub fn channel_from_connection(watcher: &mut SocketWatcher) {
 
 /// Creates an API channel from stdin/stdout. Used when embedding Nvim.
 pub fn channel_from_stdio(rpc: bool, on_output: CallbackReader, error: *mut *const c_char) -> u64 {
-    unsafe {
-        if !g_st().headless_mode && !g_st().embedded_mode {
+    if !g_st().headless_mode && !g_st().embedded_mode {
+        unsafe {
             *error = gettext(c"can only be opened in headless mode");
-            return 0;
         }
+        return 0;
+    }
 
-        if chan_st().did_stdio {
-            {
+    if chan_st().did_stdio {
+        {
+            unsafe {
                 *error = gettext(c"channel was already open");
             }
-            return 0;
         }
-        chan_st().did_stdio = true;
-
-        let channel = channel_alloc(K_CHANNEL_STREAM_STDIO);
-        let mut stdin_dup_fd = STDIN_FILENO;
-        let mut stdout_dup_fd = STDOUT_FILENO;
-
-        #[cfg(windows)]
-        if g_st().embedded_mode && os_has_conpty_working() {
-            stdin_dup_fd = os_dup_cloexec(STDIN_FILENO);
-            stdout_dup_fd = os_dup_cloexec(STDOUT_FILENO);
-            os_attach_parent_console();
-        }
-
-        #[cfg(not(windows))]
-        if g_st().embedded_mode {
-            stdin_dup_fd = fcntl(STDIN_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
-            stdout_dup_fd = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
-            let _ = dup2(STDERR_FILENO, STDOUT_FILENO);
-            let _ = dup2(STDERR_FILENO, STDIN_FILENO);
-        }
-
-        let stdio_in = &mut (*channel).stdio_in;
-        let stdio_out = &mut (*channel).stdio_out;
-        {
-            rstream_init_fd((&raw mut g_st().main_loop).cast(), stdio_in, stdin_dup_fd);
-            wstream_init_fd(&mut g_st().main_loop, stdio_out, stdout_dup_fd, 0);
-        }
-
-        if rpc {
-            rpc_start(&mut *channel);
-        } else {
-            (*channel).on_data = on_output;
-            callback_reader_start(&mut (*channel).on_data, c"stdin");
-            rstream_start(stdio_in, StreamCbData::ChannelData(channel));
-        }
-
-        (*channel).id
+        return 0;
     }
+    chan_st().did_stdio = true;
+
+    let channel = channel_alloc(K_CHANNEL_STREAM_STDIO);
+    let mut stdin_dup_fd = STDIN_FILENO;
+    let mut stdout_dup_fd = STDOUT_FILENO;
+
+    #[cfg(windows)]
+    if g_st().embedded_mode && os_has_conpty_working() {
+        stdin_dup_fd = os_dup_cloexec(STDIN_FILENO);
+        stdout_dup_fd = os_dup_cloexec(STDOUT_FILENO);
+        os_attach_parent_console();
+    }
+
+    #[cfg(not(windows))]
+    if g_st().embedded_mode {
+        stdin_dup_fd = fcntl(STDIN_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
+        stdout_dup_fd = fcntl(STDOUT_FILENO, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
+        let _ = dup2(STDERR_FILENO, STDOUT_FILENO);
+        let _ = dup2(STDERR_FILENO, STDIN_FILENO);
+    }
+
+    let stdio_in = unsafe { &mut (*channel).stdio_in };
+    let stdio_out = unsafe { &mut (*channel).stdio_out };
+    {
+        rstream_init_fd((&raw mut g_st().main_loop).cast(), stdio_in, stdin_dup_fd);
+        wstream_init_fd(&mut g_st().main_loop, stdio_out, stdout_dup_fd, 0);
+    }
+
+    if rpc {
+        rpc_start(unsafe { &mut *channel });
+    } else {
+        unsafe {
+            (*channel).on_data = on_output;
+        }
+        callback_reader_start(unsafe { &mut (*channel).on_data }, c"stdin");
+        rstream_start(stdio_in, StreamCbData::ChannelData(channel));
+    }
+
+    unsafe { (*channel).id }
 }
 
 pub fn channel_send(id: u64, data: Vec<c_char>, error: *mut *const c_char) -> usize {
@@ -879,29 +885,27 @@ fn schedule_channel_event(chan: &mut Channel) {
 }
 
 pub fn on_channel_event(chan: &mut Channel) {
-    {
-        chan.callback_busy = true;
-        chan.callback_scheduled = false;
+    chan.callback_busy = true;
+    chan.callback_scheduled = false;
 
-        let exit_status = chan.exit_status;
-        channel_reader_callbacks(chan, false);
-        channel_reader_callbacks(chan, true);
-        if exit_status > -1 {
-            channel_callback_call(chan, None);
-            chan.exit_status = -1;
-        }
-
-        chan.callback_busy = false;
-        if chan.callback_scheduled {
-            multiqueue_put_event(
-                unsafe { &mut *chan.events },
-                Event::ChannelCallback(&raw mut *chan),
-            );
-            channel_incref(chan);
-        }
-
-        channel_decref(chan);
+    let exit_status = chan.exit_status;
+    channel_reader_callbacks(chan, false);
+    channel_reader_callbacks(chan, true);
+    if exit_status > -1 {
+        channel_callback_call(chan, None);
+        chan.exit_status = -1;
     }
+
+    chan.callback_busy = false;
+    if chan.callback_scheduled {
+        multiqueue_put_event(
+            unsafe { &mut *chan.events },
+            Event::ChannelCallback(&raw mut *chan),
+        );
+        channel_incref(chan);
+    }
+
+    channel_decref(chan);
 }
 
 pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
@@ -952,28 +956,26 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
 }
 
 pub(crate) fn channel_proc_exit_cb(proc_: &mut Proc, status: i32, chan: &mut Channel) {
-    {
-        if !chan.term.is_null() {
-            terminal_close(&raw mut chan.term, status);
-        }
-
-        if !g_st().exiting && g_st().ui_client_channel_id == chan.id {
-            ui_client_attach_to_restarted_server(proc_.status != 0);
-            if g_st().ui_client_channel_id == chan.id {
-                exit_on_closed_chan(status);
-            }
-        }
-
-        let exited = status >= 0;
-        if exited && chan.on_exit.cb_type() != K_CALLBACK_NONE_CONST {
-            schedule_channel_event(chan);
-        }
-        if exited {
-            chan.exit_status = status;
-        }
-
-        channel_decref(chan);
+    if !chan.term.is_null() {
+        terminal_close(&raw mut chan.term, status);
     }
+
+    if !g_st().exiting && g_st().ui_client_channel_id == chan.id {
+        ui_client_attach_to_restarted_server(proc_.status != 0);
+        if g_st().ui_client_channel_id == chan.id {
+            exit_on_closed_chan(status);
+        }
+    }
+
+    let exited = status >= 0;
+    if exited && chan.on_exit.cb_type() != K_CALLBACK_NONE_CONST {
+        schedule_channel_event(chan);
+    }
+    if exited {
+        chan.exit_status = status;
+    }
+
+    channel_decref(chan);
 }
 
 #[cfg(unix)]
@@ -1031,35 +1033,31 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
 
 /// Allocate terminal for channel.
 pub fn channel_terminal_alloc(buf: &mut FileBuf, chan: &mut Channel) {
+    let topts = TerminalOptions {
+        data: chan,
+        width: chan.uv.proc_.width,
+        height: chan.uv.proc_.height,
+        force_crlf: false,
+    };
+    buf.b_p_channel = chan.id as OptInt;
+    channel_incref(&mut *chan);
     {
-        let topts = TerminalOptions {
-            data: chan,
-            width: chan.uv.proc_.width,
-            height: chan.uv.proc_.height,
-            force_crlf: false,
-        };
-        buf.b_p_channel = chan.id as OptInt;
-        channel_incref(&mut *chan);
-        {
-            chan.term = terminal_alloc(buf, topts);
-        }
+        chan.term = terminal_alloc(buf, topts);
     }
 }
 
 pub fn channel_term_read_pause(pause: bool, chan: &mut Channel) {
-    {
-        if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
-            return;
-        }
-        let out_stream = &mut chan.uv.proc_.out;
-        if out_stream.s.closed {
-            return;
-        }
-        if pause {
-            rstream_stop_inner(out_stream);
-        } else {
-            rstream_start_inner(out_stream);
-        }
+    if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
+        return;
+    }
+    let out_stream = &mut chan.uv.proc_.out;
+    if out_stream.s.closed {
+        return;
+    }
+    if pause {
+        rstream_stop_inner(out_stream);
+    } else {
+        rstream_start_inner(out_stream);
     }
 }
 
@@ -1128,100 +1126,90 @@ pub fn channel_term_resume(chan: &mut Channel) {
 }
 
 pub fn term_delayed_free(chan: &mut Channel) {
-    {
-        let proc_ptr = &mut chan.uv.proc_;
-        if proc_ptr.r#in.pending_reqs != 0 || proc_ptr.out.s.pending_reqs != 0 {
-            multiqueue_put_event(
-                unsafe { &mut *chan.events },
-                Event::ChannelTermDelayedFree(&raw mut *chan),
-            );
-            return;
-        }
-
-        if !chan.term.is_null() {
-            terminal_destroy(&raw mut chan.term);
-        }
-        channel_decref(chan);
-    }
-}
-
-pub fn channel_term_close(chan: &mut Channel) {
-    {
-        if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
-            let internal = &mut chan.internal;
-            terminal_destroy(&raw mut chan.term);
-            crate::lua::executor::api_free_luaref(internal.cb);
-            internal.cb = LUA_NOREF;
-            channel_decref(chan);
-            return;
-        }
-        proc_stop(&mut chan.uv.proc_);
+    let proc_ptr = &mut chan.uv.proc_;
+    if proc_ptr.r#in.pending_reqs != 0 || proc_ptr.out.s.pending_reqs != 0 {
         multiqueue_put_event(
             unsafe { &mut *chan.events },
             Event::ChannelTermDelayedFree(&raw mut *chan),
         );
+        return;
     }
+
+    if !chan.term.is_null() {
+        terminal_destroy(&raw mut chan.term);
+    }
+    channel_decref(chan);
+}
+
+pub fn channel_term_close(chan: &mut Channel) {
+    if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
+        let internal = &mut chan.internal;
+        terminal_destroy(&raw mut chan.term);
+        crate::lua::executor::api_free_luaref(internal.cb);
+        internal.cb = LUA_NOREF;
+        channel_decref(chan);
+        return;
+    }
+    proc_stop(&mut chan.uv.proc_);
+    multiqueue_put_event(
+        unsafe { &mut *chan.events },
+        Event::ChannelTermDelayedFree(&raw mut *chan),
+    );
 }
 
 pub fn channel_event(chan: &mut Channel, event: AuEvent) {
-    {
-        if has_event(event) {
-            channel_incref(chan);
-            let qc = loop_queues(&mut g_st().main_loop);
-            multiqueue_put_event(
-                unsafe { &mut *qc.events },
-                Event::ChannelSetInfo {
-                    chan: &raw mut *chan,
-                    event,
-                },
-            );
-        }
+    if has_event(event) {
+        channel_incref(chan);
+        let qc = loop_queues(&mut g_st().main_loop);
+        multiqueue_put_event(
+            unsafe { &mut *qc.events },
+            Event::ChannelSetInfo {
+                chan: &raw mut *chan,
+                event,
+            },
+        );
     }
 }
 
 pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
-    {
-        let mut save_v_event: SaveVEvent = SaveVEvent::new();
-        let dict = get_v_event(&mut save_v_event);
-        let mut arena = Arena {
-            cur_blk: ptr::null_mut(),
-            pos: 0,
-            size: 0,
-        };
-        let info = channel_info(chan.id, &mut arena);
-        let mut retval: TypVal = TypVal::new();
-        object_to_vim(
-            Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(info),
-            },
-            &mut retval,
-            &mut crate::api::private::validate::Error::new(),
-        );
-        assert_eq!(retval.v_type, VarType::VarDict);
-        let _ = tv_dict_add_dict(&mut *dict, c"info", retval.vval.v_dict());
-        tv_dict_set_keys_readonly(&mut *dict);
+    let mut save_v_event: SaveVEvent = SaveVEvent::new();
+    let dict = get_v_event(&mut save_v_event);
+    let mut arena = Arena {
+        cur_blk: ptr::null_mut(),
+        pos: 0,
+        size: 0,
+    };
+    let info = channel_info(chan.id, &mut arena);
+    let mut retval: TypVal = TypVal::new();
+    object_to_vim(
+        Object {
+            obj_type: ObjectType::ObjectTypeDict,
+            data: ObjectData::Dict(info),
+        },
+        &mut retval,
+        &mut crate::api::private::validate::Error::new(),
+    );
+    assert_eq!(retval.v_type, VarType::VarDict);
+    let _ = tv_dict_add_dict(&mut *dict, c"info", retval.vval.v_dict());
+    tv_dict_set_keys_readonly(&mut *dict);
 
-        let _ = apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), true, g_st().curbuf);
+    let _ = apply_autocmds(event, ptr::null_mut(), ptr::null_mut(), true, g_st().curbuf);
 
-        restore_v_event(&mut *dict, &mut save_v_event);
-        arena_mem_free(arena_finish(&mut arena));
-        channel_decref(chan);
-    }
+    restore_v_event(&mut *dict, &mut save_v_event);
+    arena_mem_free(arena_finish(&mut arena));
+    channel_decref(chan);
 }
 
 pub fn channel_job_running(id: u64) -> bool {
-    {
-        let chan = find_channel(id);
-        if chan.is_null() {
-            return false;
-        }
-        if unsafe { (*chan).streamtype } != K_CHANNEL_STREAM_PROC {
-            return false;
-        }
-        let ph = unsafe { &mut (*chan).uv.proc_ };
-        !(ph.status >= 0 || ph.stopped_time != 0)
+    let chan = find_channel(id);
+    if chan.is_null() {
+        return false;
     }
+    if unsafe { (*chan).streamtype } != K_CHANNEL_STREAM_PROC {
+        return false;
+    }
+    let ph = unsafe { &mut (*chan).uv.proc_ };
+    !(ph.status >= 0 || ph.stopped_time != 0)
 }
 
 pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
@@ -1391,22 +1379,20 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
 }
 
 pub fn channel_all_info(arena: &mut Arena) -> Array {
-    {
-        let mut ret = arena_array(arena, g_st().channels.len());
+    let mut ret = arena_array(arena, g_st().channels.len());
 
-        for &id in g_st().channels.keys() {
-            let info = channel_info(id, arena);
-            add_c(
-                &mut ret,
-                Object {
-                    obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(info),
-                },
-            );
-        }
-
-        ret
+    for &id in g_st().channels.keys() {
+        let info = channel_info(id, arena);
+        add_c(
+            &mut ret,
+            Object {
+                obj_type: ObjectType::ObjectTypeDict,
+                data: ObjectData::Dict(info),
+            },
+        );
     }
+
+    ret
 }
 
 #[cfg(test)]

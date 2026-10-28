@@ -140,51 +140,49 @@ fn get_linematch_results(
     count_b: i32,
     iwhite: bool,
 ) {
-    {
-        let ma0 = fastforward_buf_to_lnum(unsafe { *ma }, start_a + 1);
-        let mb0 = fastforward_buf_to_lnum(unsafe { *mb }, start_b + 1);
+    let ma0 = fastforward_buf_to_lnum(unsafe { *ma }, start_a + 1);
+    let mb0 = fastforward_buf_to_lnum(unsafe { *mb }, start_b + 1);
 
-        let decisions = linematch_nbuffers(&[&ma0, &mb0], &[count_a, count_b], iwhite);
+    let decisions = linematch_nbuffers(&[&ma0, &mb0], &[count_a, count_b], iwhite);
 
-        let mut lnuma = start_a;
-        let mut lnumb = start_b;
-        let mut hunkstarta = lnuma;
-        let mut hunkstartb = lnumb;
-        let mut hunkcounta = 0;
-        let mut hunkcountb = 0;
+    let mut lnuma = start_a;
+    let mut lnumb = start_b;
+    let mut hunkstarta = lnuma;
+    let mut hunkstartb = lnumb;
+    let mut hunkcounta = 0;
+    let mut hunkcountb = 0;
 
-        for (i, &dec) in decisions.iter().enumerate() {
-            if i > 0 && decisions[i - 1] != dec {
-                lua_pushhunk(
-                    lstate,
-                    hunkstarta as isize,
-                    hunkcounta as isize,
-                    hunkstartb as isize,
-                    hunkcountb as isize,
-                );
-                hunkstarta = lnuma;
-                hunkstartb = lnumb;
-                hunkcounta = 0;
-                hunkcountb = 0;
-            }
-            if (dec & COMPARED_BUFFER0) != 0 {
-                lnuma += 1;
-                hunkcounta += 1;
-            }
-            if (dec & COMPARED_BUFFER1) != 0 {
-                lnumb += 1;
-                hunkcountb += 1;
-            }
+    for (i, &dec) in decisions.iter().enumerate() {
+        if i > 0 && decisions[i - 1] != dec {
+            lua_pushhunk(
+                lstate,
+                hunkstarta as isize,
+                hunkcounta as isize,
+                hunkstartb as isize,
+                hunkcountb as isize,
+            );
+            hunkstarta = lnuma;
+            hunkstartb = lnumb;
+            hunkcounta = 0;
+            hunkcountb = 0;
         }
-
-        lua_pushhunk(
-            lstate,
-            hunkstarta as isize,
-            hunkcounta as isize,
-            hunkstartb as isize,
-            hunkcountb as isize,
-        );
+        if (dec & COMPARED_BUFFER0) != 0 {
+            lnuma += 1;
+            hunkcounta += 1;
+        }
+        if (dec & COMPARED_BUFFER1) != 0 {
+            lnumb += 1;
+            hunkcountb += 1;
+        }
     }
+
+    lua_pushhunk(
+        lstate,
+        hunkstarta as isize,
+        hunkcounta as isize,
+        hunkstartb as isize,
+        hunkcountb as isize,
+    );
 }
 
 pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[Mmbuffer]) -> i32 {
@@ -271,19 +269,17 @@ pub(crate) fn call_on_hunk_cb(
 }
 
 fn get_string_arg(lstate: *mut lua_State, idx: i32) -> Mmfile {
-    {
-        if unsafe { lua_type(lstate, idx) } != LUA_TSTRING {
-            luaL_argerror(lstate, idx, c"expected string");
-        }
-        let mut size: usize = 0;
-        let ptr = unsafe { lua_tolstring(lstate, idx, &mut size) }.cast_mut();
-        if size > (i32::MAX as usize) {
-            luaL_argerror(lstate, idx, c"string too long");
-        }
-        Mmfile {
-            ptr,
-            size: size as i32,
-        }
+    if unsafe { lua_type(lstate, idx) } != LUA_TSTRING {
+        luaL_argerror(lstate, idx, c"expected string");
+    }
+    let mut size: usize = 0;
+    let ptr = unsafe { lua_tolstring(lstate, idx, &mut size) }.cast_mut();
+    if size > (i32::MAX as usize) {
+        luaL_argerror(lstate, idx, c"string too long");
+    }
+    Mmfile {
+        ptr,
+        size: size as i32,
     }
 }
 
@@ -426,84 +422,74 @@ fn process_xdl_diff_opts(
 
 /// Lua `vim.diff(a, b, opts)` implementation (`nlua_xdl_diff`).
 pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        {
-            {
-                if lua_gettop(lstate) < 2 {
-                    return luaL_error(lstate, c"Expected at least 2 arguments".as_ptr());
-                }
-                let mut ma = get_string_arg(lstate, 1);
-                let mut mb = get_string_arg(lstate, 2);
+    if unsafe { lua_gettop(lstate) } < 2 {
+        return unsafe { luaL_error(lstate, c"Expected at least 2 arguments".as_ptr()) };
+    }
+    let mut ma = get_string_arg(lstate, 1);
+    let mut mb = get_string_arg(lstate, 2);
 
-                let mut err = Error::new();
+    let mut err = Error::new();
 
-                let mut cfg = Xdemitconf::default();
-                let mut params = Xpparam::default();
-                let mut linematch: i64 = 0;
-                let mut mode = NluaXdiffMode::Unified;
+    let mut cfg = Xdemitconf::default();
+    let mut params = Xpparam::default();
+    let mut linematch: i64 = 0;
+    let mut mode = NluaXdiffMode::Unified;
 
-                if lua_gettop(lstate) == 3 {
-                    if lua_type(lstate, 3) != LUA_TTABLE {
-                        return luaL_argerror(lstate, 3, c"expected table");
-                    }
-                    mode = process_xdl_diff_opts(
-                        lstate,
-                        &mut cfg,
-                        &mut params,
-                        &mut linematch,
-                        &mut err,
-                    );
-                }
+    if unsafe { lua_gettop(lstate) } == 3 {
+        if unsafe { lua_type(lstate, 3) } != LUA_TTABLE {
+            return luaL_argerror(lstate, 3, c"expected table");
+        }
+        mode = process_xdl_diff_opts(lstate, &mut cfg, &mut params, &mut linematch, &mut err);
+    }
 
-                let mut unified_buf: Vec<u8> = Vec::new();
-                let mut priv_state = HunkPriv {
-                    lstate,
-                    err,
-                    ma: &mut ma,
-                    mb: &mut mb,
-                    linematch,
-                    iwhite: (params.flags & XDF_IGNORE_WHITESPACE) != 0,
-                };
+    let mut unified_buf: Vec<u8> = Vec::new();
+    let mut priv_state = HunkPriv {
+        lstate,
+        err,
+        ma: &mut ma,
+        mb: &mut mb,
+        linematch,
+        iwhite: (params.flags & XDF_IGNORE_WHITESPACE) != 0,
+    };
 
-                if priv_state.err.err_type == ErrorType::ErrorTypeNone {
-                    let mut ecb = match mode {
-                        NluaXdiffMode::Unified => Xdemitcb::Unified(&raw mut unified_buf),
-                        NluaXdiffMode::OnHunkCb => Xdemitcb::OnHunk(&raw mut priv_state),
-                        NluaXdiffMode::Locations => {
-                            lua_createtable(lstate, 0, 0);
-                            Xdemitcb::Locations(&raw mut priv_state)
-                        }
-                    };
-
-                    if xdl_diff(&mut ma, &mut mb, &params, &cfg, &mut ecb) == -1
-                        && priv_state.err.err_type == ErrorType::ErrorTypeNone
-                    {
-                        api_set_error!(
-                            &mut priv_state.err,
-                            ErrorType::ErrorTypeException,
-                            c"diff operation failed",
-                        );
-                    }
-                }
-
-                if priv_state.err.err_type != ErrorType::ErrorTypeNone {
-                    luaL_where(lstate, 1);
-                    lua_pushstring(lstate, priv_state.err.msg_ptr());
-                    api_clear_error(&mut priv_state.err);
-                    lua_concat(lstate, 2);
-                    return lua_error(lstate);
-                } else if mode == NluaXdiffMode::Unified {
-                    lua_pushlstring(
-                        lstate,
-                        unified_buf.as_ptr().cast::<c_char>(),
-                        unified_buf.len(),
-                    );
-                    return 1;
-                } else if mode == NluaXdiffMode::Locations {
-                    return 1;
-                }
-                0
+    if priv_state.err.err_type == ErrorType::ErrorTypeNone {
+        let mut ecb = match mode {
+            NluaXdiffMode::Unified => Xdemitcb::Unified(&raw mut unified_buf),
+            NluaXdiffMode::OnHunkCb => Xdemitcb::OnHunk(&raw mut priv_state),
+            NluaXdiffMode::Locations => {
+                unsafe { lua_createtable(lstate, 0, 0) };
+                Xdemitcb::Locations(&raw mut priv_state)
             }
+        };
+
+        if xdl_diff(&mut ma, &mut mb, &params, &cfg, &mut ecb) == -1
+            && priv_state.err.err_type == ErrorType::ErrorTypeNone
+        {
+            api_set_error!(
+                &mut priv_state.err,
+                ErrorType::ErrorTypeException,
+                c"diff operation failed",
+            );
         }
     }
+
+    if priv_state.err.err_type != ErrorType::ErrorTypeNone {
+        unsafe { luaL_where(lstate, 1) };
+        lua_pushstring(lstate, priv_state.err.msg_ptr());
+        api_clear_error(&mut priv_state.err);
+        unsafe { lua_concat(lstate, 2) };
+        return unsafe { lua_error(lstate) };
+    } else if mode == NluaXdiffMode::Unified {
+        unsafe {
+            lua_pushlstring(
+                lstate,
+                unified_buf.as_ptr().cast::<c_char>(),
+                unified_buf.len(),
+            )
+        };
+        return 1;
+    } else if mode == NluaXdiffMode::Locations {
+        return 1;
+    }
+    0
 }

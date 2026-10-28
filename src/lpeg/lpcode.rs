@@ -379,13 +379,11 @@ fn getinstr(cs: &mut CompileState, i: i32) -> &'static mut Instruction {
 }
 
 fn addinstruction(compst: &mut CompileState, op: Opcode, aux: i32) -> i32 {
-    {
-        let i = nextinstruction(compst, 1);
-        let inst = getinstr(compst, i);
-        inst.i.code = op;
-        inst.i.aux1 = aux as LpegByte;
-        i
-    }
+    let i = nextinstruction(compst, 1);
+    let inst = getinstr(compst, i);
+    inst.i.code = op;
+    inst.i.aux1 = aux as LpegByte;
+    i
 }
 
 fn addoffsetinst(compst: &mut CompileState, op: Opcode) -> i32 {
@@ -397,9 +395,7 @@ fn addoffsetinst(compst: &mut CompileState, op: Opcode) -> i32 {
 
 #[inline]
 fn setoffset(compst: &mut CompileState, instruction: i32, offset: i32) {
-    {
-        getinstr(compst, instruction + 1).offset = offset;
-    }
+    getinstr(compst, instruction + 1).offset = offset;
 }
 
 fn codeutfr(compst: &mut CompileState, tree: &mut TTree) {
@@ -415,11 +411,9 @@ fn codeutfr(compst: &mut CompileState, tree: &mut TTree) {
 }
 
 fn addinstcap(compst: &mut CompileState, op: Opcode, cap: i32, key: i32, aux: i32) -> i32 {
-    {
-        let i = addinstruction(compst, op, joinkindoff(cap, aux));
-        getinstr(compst, i).i.aux2.key = key as i16;
-        i
-    }
+    let i = addinstruction(compst, op, joinkindoff(cap, aux));
+    getinstr(compst, i).i.aux2.key = key as i16;
+    i
 }
 
 #[inline]
@@ -508,23 +502,21 @@ fn codetestset(compst: &mut CompileState, cs: &Charset, e: i32) -> i32 {
     if e != 0 {
         NOINST
     } else {
-        {
-            let mut info = CharsetInfo::new();
-            let op = charsettype(&cs.cs, &mut info);
-            match op {
-                IFAIL => addoffsetinst(compst, IJMP),
-                IANY => addoffsetinst(compst, ITEST_ANY),
-                ICHAR => {
-                    let i = addoffsetinst(compst, ITEST_CHAR);
-                    getinstr(compst, i).i.aux1 = info.offset as LpegByte;
-                    i
-                }
-                _ => {
-                    debug_assert_eq!(op, ISET);
-                    let i = addoffsetinst(compst, ITEST_SET);
-                    addcharset(compst, i, &info);
-                    i
-                }
+        let mut info = CharsetInfo::new();
+        let op = charsettype(&cs.cs, &mut info);
+        match op {
+            IFAIL => addoffsetinst(compst, IJMP),
+            IANY => addoffsetinst(compst, ITEST_ANY),
+            ICHAR => {
+                let i = addoffsetinst(compst, ITEST_CHAR);
+                getinstr(compst, i).i.aux1 = info.offset as LpegByte;
+                i
+            }
+            _ => {
+                debug_assert_eq!(op, ISET);
+                let i = addoffsetinst(compst, ITEST_SET);
+                addcharset(compst, i, &info);
+                i
             }
         }
     }
@@ -608,43 +600,39 @@ fn codeand(compst: &mut CompileState, tree: *mut TTree, tt: i32) {
 }
 
 fn codecapture(compst: &mut CompileState, tree: &mut TTree, tt: i32, fl: &Charset) {
-    {
-        let len = fixedlen(sib1(&raw mut *tree));
-        if (0..=MAXOFF).contains(&len) && hascaptures(sib1(&raw mut *tree)) == 0 {
-            codegen(compst, sib1(&raw mut *tree), false, tt, fl);
-            addinstcap(
-                compst,
-                IFULL_CAPTURE,
-                i32::from(tree.cap),
-                i32::from(tree.key),
-                len,
-            );
-        } else {
-            addinstcap(
-                compst,
-                IOPEN_CAPTURE,
-                i32::from(tree.cap),
-                i32::from(tree.key),
-                0,
-            );
-            codegen(compst, sib1(&raw mut *tree), false, tt, fl);
-            addinstcap(compst, ICLOSE_CAPTURE, i32::from(CCLOSE), 0, 0);
-        }
+    let len = fixedlen(sib1(&raw mut *tree));
+    if (0..=MAXOFF).contains(&len) && hascaptures(sib1(&raw mut *tree)) == 0 {
+        codegen(compst, sib1(&raw mut *tree), false, tt, fl);
+        addinstcap(
+            compst,
+            IFULL_CAPTURE,
+            i32::from(tree.cap),
+            i32::from(tree.key),
+            len,
+        );
+    } else {
+        addinstcap(
+            compst,
+            IOPEN_CAPTURE,
+            i32::from(tree.cap),
+            i32::from(tree.key),
+            0,
+        );
+        codegen(compst, sib1(&raw mut *tree), false, tt, fl);
+        addinstcap(compst, ICLOSE_CAPTURE, i32::from(CCLOSE), 0, 0);
     }
 }
 
 fn coderuntime(compst: &mut CompileState, tree: &mut TTree, tt: i32) {
-    {
-        addinstcap(
-            compst,
-            IOPEN_CAPTURE,
-            i32::from(CGROUP),
-            i32::from(tree.key),
-            0,
-        );
-        codegen(compst, sib1(&raw mut *tree), false, tt, &FULLSET);
-        addinstcap(compst, ICLOSE_RUN_TIME, i32::from(CCLOSE), 0, 0);
-    }
+    addinstcap(
+        compst,
+        IOPEN_CAPTURE,
+        i32::from(CGROUP),
+        i32::from(tree.key),
+        0,
+    );
+    codegen(compst, sib1(&raw mut *tree), false, tt, &FULLSET);
+    addinstcap(compst, ICLOSE_RUN_TIME, i32::from(CCLOSE), 0, 0);
 }
 
 fn closeloop(compst: &mut CompileState, test: i32) {

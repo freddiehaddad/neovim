@@ -125,11 +125,9 @@ pub fn get_hislen() -> i32 {
 
 /// Return a slice of a specified history table (`get_histentry`).
 pub fn get_histentry(hist_type: i32) -> &'static [Histentry] {
-    {
-        unsafe { (&raw const hist_st().history[hist_type as usize]).as_ref() }
-            .unwrap()
-            .as_slice()
-    }
+    unsafe { (&raw const hist_st().history[hist_type as usize]).as_ref() }
+        .unwrap()
+        .as_slice()
 }
 
 /// Return the current index for `hist_type` (`get_hisidx`).
@@ -520,230 +518,220 @@ fn del_history_idx(histype: i32, idx_arg: i32) -> i32 {
 
 /// `"histadd()"` function (`f_histadd`).
 pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-        if check_secure() {
-            return;
-        }
-        let str_ptr = tv_get_string_chk(&argvars[0]);
-        let histype = if !str_ptr.is_null() {
-            get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false)
-        } else {
-            HIST_INVALID
-        };
-        if histype == HIST_INVALID {
-            return;
-        }
-
-        let mut buf = [0 as c_char; NUMBUFLEN];
-        let entry_str = tv_get_string_buf(&argvars[1], buf.as_mut_ptr());
-        if unsafe { *entry_str } == 0 {
-            return;
-        }
-
-        init_history();
-        add_to_history(
-            histype,
-            entry_str,
-            crate::memory::cstr_len(entry_str),
-            false,
-            0,
-        );
-        rettv.vval = crate::eval::typval::TypvalVval::Number(1);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+    if check_secure() {
+        return;
     }
+    let str_ptr = tv_get_string_chk(&argvars[0]);
+    let histype = if !str_ptr.is_null() {
+        get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false)
+    } else {
+        HIST_INVALID
+    };
+    if histype == HIST_INVALID {
+        return;
+    }
+
+    let mut buf = [0 as c_char; NUMBUFLEN];
+    let entry_str = tv_get_string_buf(&argvars[1], buf.as_mut_ptr());
+    if unsafe { *entry_str } == 0 {
+        return;
+    }
+
+    init_history();
+    add_to_history(
+        histype,
+        entry_str,
+        crate::memory::cstr_len(entry_str),
+        false,
+        0,
+    );
+    rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 }
 
 /// `"histdel()"` function (`f_histdel`).
 pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        let str_ptr = tv_get_string_chk(&argvars[0]);
-        let n = if str_ptr.is_null() {
-            0
+    let str_ptr = tv_get_string_chk(&argvars[0]);
+    let n = if str_ptr.is_null() {
+        0
+    } else {
+        let htype = get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false);
+        let arg1 = &argvars[1];
+        if arg1.v_type == VarType::VarUnknown {
+            i32::from(clr_history(htype))
+        } else if arg1.v_type == VarType::VarNumber {
+            del_history_idx(htype, tv_get_number(arg1) as i32)
         } else {
-            let htype = get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false);
-            let arg1 = &argvars[1];
-            if arg1.v_type == VarType::VarUnknown {
-                i32::from(clr_history(htype))
-            } else if arg1.v_type == VarType::VarNumber {
-                del_history_idx(htype, tv_get_number(arg1) as i32)
-            } else {
-                let mut buf = [0 as c_char; NUMBUFLEN];
-                let pat = tv_get_string_buf(arg1, buf.as_mut_ptr());
-                del_history_entry(htype, pat.cast_mut())
-            }
-        };
-        rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);
-    }
+            let mut buf = [0 as c_char; NUMBUFLEN];
+            let pat = tv_get_string_buf(arg1, buf.as_mut_ptr());
+            del_history_entry(htype, pat.cast_mut())
+        }
+    };
+    rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);
 }
 
 /// `"histget()"` function (`f_histget`).
 pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        let str_ptr = tv_get_string_chk(&argvars[0]);
-        if str_ptr.is_null() {
-            tv_set_string(rettv, std::ptr::null());
+    let str_ptr = tv_get_string_chk(&argvars[0]);
+    if str_ptr.is_null() {
+        tv_set_string(rettv, std::ptr::null());
+    } else {
+        let htype = get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false);
+        let arg1 = &argvars[1];
+        let req_idx = if arg1.v_type == VarType::VarUnknown {
+            get_history_idx(htype)
         } else {
-            let htype = get_histtype(str_ptr, crate::memory::cstr_len(str_ptr), false);
-            let arg1 = &argvars[1];
-            let req_idx = if arg1.v_type == VarType::VarUnknown {
-                get_history_idx(htype)
-            } else {
-                tv_get_number_chk(arg1, None) as i32
-            };
-            let idx = calc_hist_idx(htype, req_idx);
-            if idx < 0 {
-                tv_set_string(rettv, c"");
-            } else {
-                let entry = &hist_st().history[htype as usize][idx as usize];
-                tv_set_string(rettv, entry.hisstr_ptr());
-            }
+            tv_get_number_chk(arg1, None) as i32
+        };
+        let idx = calc_hist_idx(htype, req_idx);
+        if idx < 0 {
+            tv_set_string(rettv, c"");
+        } else {
+            let entry = &hist_st().history[htype as usize][idx as usize];
+            tv_set_string(rettv, entry.hisstr_ptr());
         }
     }
 }
 
 /// `"histnr()"` function (`f_histnr`).
 pub fn f_histnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        let histname = tv_get_string_chk(&argvars[0]);
-        let htype = if histname.is_null() {
-            HIST_INVALID
-        } else {
-            get_histtype(histname, crate::memory::cstr_len(histname), false)
-        };
-        rettv.vval = crate::eval::typval::TypvalVval::Number(if htype != HIST_INVALID {
-            get_history_idx(htype) as i64
-        } else {
-            HIST_INVALID as i64
-        });
-    }
+    let histname = tv_get_string_chk(&argvars[0]);
+    let htype = if histname.is_null() {
+        HIST_INVALID
+    } else {
+        get_histtype(histname, crate::memory::cstr_len(histname), false)
+    };
+    rettv.vval = crate::eval::typval::TypvalVval::Number(if htype != HIST_INVALID {
+        get_history_idx(htype) as i64
+    } else {
+        HIST_INVALID as i64
+    });
 }
 
 /// `:history` command (`ex_history`).
 pub fn ex_history(eap: &mut Exarg) {
-    {
-        let mut histype1 = HIST_CMD;
-        let mut histype2 = HIST_CMD;
-        let mut hisidx1: i32 = 1;
-        let mut hisidx2: i32 = -1;
-        let arg = eap.arg;
+    let mut histype1 = HIST_CMD;
+    let mut histype2 = HIST_CMD;
+    let mut hisidx1: i32 = 1;
+    let mut hisidx2: i32 = -1;
+    let arg = eap.arg;
 
-        msg_ext_set_kind(c"list_cmd");
-        let hislen = hist_st().hislen;
-        if hislen == 0 {
-            msg(c"'history' option is zero", 0);
-            return;
+    msg_ext_set_kind(c"list_cmd");
+    let hislen = hist_st().hislen;
+    if hislen == 0 {
+        msg(c"'history' option is zero", 0);
+        return;
+    }
+
+    let b0 = crate::memory::cstr_first_byte(arg);
+    let mut end = arg;
+    if !(b0.is_ascii_digit() || b0 == b'-' || b0 == b',') {
+        while (crate::memory::cstr_first_byte(end)).is_ascii_alphabetic()
+            || matches!(
+                crate::memory::cstr_first_byte(end),
+                b':' | b'=' | b'@' | b'>' | b'/' | b'?'
+            )
+        {
+            end = end.wrapping_add(1);
         }
-
-        let b0 = crate::memory::cstr_first_byte(arg);
-        let mut end = arg;
-        if !(b0.is_ascii_digit() || b0 == b'-' || b0 == b',') {
-            while (crate::memory::cstr_first_byte(end)).is_ascii_alphabetic()
-                || matches!(
-                    crate::memory::cstr_first_byte(end),
-                    b':' | b'=' | b'@' | b'>' | b'/' | b'?'
-                )
+        let name_len = (end as usize) - (arg as usize);
+        histype1 = get_histtype(arg, name_len, false);
+        if histype1 == HIST_INVALID {
+            if crate::memory::cstr_prefix_bytes(arg, name_len)
+                .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"all", name_len))
             {
-                end = end.wrapping_add(1);
+                histype1 = 0;
+                histype2 = (HIST_COUNT as i32) - 1;
+            } else {
+                semsg!(E_TRAILING_ARG, arg);
+                return;
             }
-            let name_len = (end as usize) - (arg as usize);
-            histype1 = get_histtype(arg, name_len, false);
-            if histype1 == HIST_INVALID {
-                if crate::memory::cstr_prefix_bytes(arg, name_len)
-                    .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(c"all", name_len))
+        } else {
+            histype2 = histype1;
+        }
+    }
+
+    if !get_list_range(&mut end, &mut hisidx1, &mut hisidx2) || unsafe { *end } != 0 {
+        if unsafe { *end } != 0 {
+            semsg!(E_TRAILING_ARG, end);
+        } else {
+            semsg!(E_VAL_TOO_LARGE, arg);
+        }
+        return;
+    }
+
+    let mut iobuf = [0 as c_char; IOSIZE];
+    while !g_st().got_int && histype1 <= histype2 {
+        let hname = HISTORY_NAMES[histype1 as usize].to_str().unwrap();
+        let title = format!("\n      #  {hname} history\0");
+        msg_puts_title(title.as_ptr().cast::<c_char>());
+
+        let idx = hist_st().hisidx[histype1 as usize];
+        let hist = hist_st().history[histype1 as usize].as_slice();
+        let mut j = hisidx1;
+        let mut k = hisidx2;
+        if j < 0 {
+            j = if -j > hislen {
+                0
+            } else {
+                hist[((hislen + j + idx + 1) % hislen) as usize].hisnum
+            };
+        }
+        if k < 0 {
+            k = if -k > hislen {
+                0
+            } else {
+                hist[((hislen + k + idx + 1) % hislen) as usize].hisnum
+            };
+        }
+        if idx >= 0 && j <= k {
+            let mut i = idx + 1;
+            while !g_st().got_int {
+                if i == hislen {
+                    i = 0;
+                }
+                let entry = &hist[i as usize];
+                let entry_ptr = entry.hisstr_ptr();
+                if !entry_ptr.is_null()
+                    && entry.hisnum >= j
+                    && entry.hisnum <= k
+                    && !message_filtered(entry_ptr)
                 {
-                    histype1 = 0;
-                    histype2 = (HIST_COUNT as i32) - 1;
-                } else {
-                    semsg!(E_TRAILING_ARG, arg);
-                    return;
+                    msg_putchar(b'\n' as i32);
+                    let marker = if i == idx { '>' } else { ' ' };
+                    let prefix = format!("{marker}{:6}  ", entry.hisnum);
+                    let prefix_bytes = prefix.as_bytes();
+                    unsafe {
+                        std::ptr::copy_nonoverlapping(
+                            prefix_bytes.as_ptr(),
+                            iobuf.as_mut_ptr().cast::<u8>(),
+                            prefix_bytes.len(),
+                        )
+                    };
+                    let len = prefix_bytes.len();
+                    if vim_strsize(entry_ptr) > g_st().columns_global - 10 {
+                        trunc_string(
+                            entry_ptr,
+                            iobuf.as_mut_ptr().wrapping_add(len),
+                            g_st().columns_global - 10,
+                            (IOSIZE - len) as i32,
+                        );
+                    } else {
+                        xstrlcpy(
+                            iobuf.as_mut_ptr().wrapping_add(len),
+                            entry_ptr,
+                            IOSIZE - len,
+                        );
+                    }
+                    msg_outtrans(iobuf.as_ptr(), 0, false);
                 }
-            } else {
-                histype2 = histype1;
-            }
-        }
-
-        if !get_list_range(&mut end, &mut hisidx1, &mut hisidx2) || unsafe { *end } != 0 {
-            if unsafe { *end } != 0 {
-                semsg!(E_TRAILING_ARG, end);
-            } else {
-                semsg!(E_VAL_TOO_LARGE, arg);
-            }
-            return;
-        }
-
-        let mut iobuf = [0 as c_char; IOSIZE];
-        while !g_st().got_int && histype1 <= histype2 {
-            let hname = HISTORY_NAMES[histype1 as usize].to_str().unwrap();
-            let title = format!("\n      #  {hname} history\0");
-            msg_puts_title(title.as_ptr().cast::<c_char>());
-
-            let idx = hist_st().hisidx[histype1 as usize];
-            let hist = hist_st().history[histype1 as usize].as_slice();
-            let mut j = hisidx1;
-            let mut k = hisidx2;
-            if j < 0 {
-                j = if -j > hislen {
-                    0
-                } else {
-                    hist[((hislen + j + idx + 1) % hislen) as usize].hisnum
-                };
-            }
-            if k < 0 {
-                k = if -k > hislen {
-                    0
-                } else {
-                    hist[((hislen + k + idx + 1) % hislen) as usize].hisnum
-                };
-            }
-            if idx >= 0 && j <= k {
-                let mut i = idx + 1;
-                while !g_st().got_int {
-                    if i == hislen {
-                        i = 0;
-                    }
-                    let entry = &hist[i as usize];
-                    let entry_ptr = entry.hisstr_ptr();
-                    if !entry_ptr.is_null()
-                        && entry.hisnum >= j
-                        && entry.hisnum <= k
-                        && !message_filtered(entry_ptr)
-                    {
-                        msg_putchar(b'\n' as i32);
-                        let marker = if i == idx { '>' } else { ' ' };
-                        let prefix = format!("{marker}{:6}  ", entry.hisnum);
-                        let prefix_bytes = prefix.as_bytes();
-                        unsafe {
-                            std::ptr::copy_nonoverlapping(
-                                prefix_bytes.as_ptr(),
-                                iobuf.as_mut_ptr().cast::<u8>(),
-                                prefix_bytes.len(),
-                            )
-                        };
-                        let len = prefix_bytes.len();
-                        if vim_strsize(entry_ptr) > g_st().columns_global - 10 {
-                            trunc_string(
-                                entry_ptr,
-                                iobuf.as_mut_ptr().wrapping_add(len),
-                                g_st().columns_global - 10,
-                                (IOSIZE - len) as i32,
-                            );
-                        } else {
-                            xstrlcpy(
-                                iobuf.as_mut_ptr().wrapping_add(len),
-                                entry_ptr,
-                                IOSIZE - len,
-                            );
-                        }
-                        msg_outtrans(iobuf.as_ptr(), 0, false);
-                    }
-                    if i == idx {
-                        break;
-                    }
-                    i += 1;
+                if i == idx {
+                    break;
                 }
+                i += 1;
             }
-            histype1 += 1;
         }
+        histype1 += 1;
     }
 }
 

@@ -278,14 +278,12 @@ use crate::lua::converter::LUA_NOREF;
 
 #[inline]
 pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: i32) -> i32 {
+    if let Some(ref tbl) = wp.w_ns_hl_attr
+        && g_st().ns_hl_fast < 0
     {
-        if let Some(ref tbl) = wp.w_ns_hl_attr
-            && g_st().ns_hl_fast < 0
-        {
-            tbl[hlf as usize].get()
-        } else {
-            hl_attr(hlf)
-        }
+        tbl[hlf as usize].get()
+    } else {
+        hl_attr(hlf)
     }
 }
 
@@ -307,18 +305,16 @@ const fn hl_attr_key(a: i32, b: i32) -> u64 {
 }
 
 pub fn highlight_init() {
-    {
-        if hl_st().attr_entries.is_empty() {
-            let entry = HlEntry {
-                attr: HLATTRS_INIT,
-                kind: K_HL_INVALID,
-                id1: 0,
-                id2: 0,
-                winid: 0,
-            };
-            hl_st().attr_entries.push(entry);
-            hl_st().attr_entry_ids.insert(entry, 0);
-        }
+    if hl_st().attr_entries.is_empty() {
+        let entry = HlEntry {
+            attr: HLATTRS_INIT,
+            kind: K_HL_INVALID,
+            id1: 0,
+            id2: 0,
+            winid: 0,
+        };
+        hl_st().attr_entries.push(entry);
+        hl_st().attr_entry_ids.insert(entry, 0);
     }
 }
 
@@ -332,76 +328,72 @@ pub fn highlight_use_hlstate() -> bool {
 }
 
 fn get_attr_entry(mut entry: HlEntry) -> i32 {
-    {
-        let mut retried = false;
-        if !hl_st().hlstate_active {
-            entry.kind = K_HL_UNKNOWN;
-            entry.id1 = 0;
-            entry.id2 = 0;
+    let mut retried = false;
+    if !hl_st().hlstate_active {
+        entry.kind = K_HL_UNKNOWN;
+        entry.id1 = 0;
+        entry.id2 = 0;
+    }
+
+    loop {
+        if let Some(&k) = hl_st().attr_entry_ids.get(&entry) {
+            return k as i32;
         }
 
-        loop {
-            if let Some(&k) = hl_st().attr_entry_ids.get(&entry) {
-                return k as i32;
+        if hl_st().attr_entries.len() as u32 >= MAX_TYPENR {
+            if hl_st().get_attr_entry_recursive || retried {
+                emsg(gettext(
+                    c"E424: Too many different highlighting attributes in use",
+                ));
+                return 0;
             }
+            hl_st().get_attr_entry_recursive = true;
+            clear_hl_tables(true);
+            hl_st().get_attr_entry_recursive = false;
 
-            if hl_st().attr_entries.len() as u32 >= MAX_TYPENR {
-                if hl_st().get_attr_entry_recursive || retried {
-                    emsg(gettext(
-                        c"E424: Too many different highlighting attributes in use",
-                    ));
-                    return 0;
-                }
-                hl_st().get_attr_entry_recursive = true;
-                clear_hl_tables(true);
-                hl_st().get_attr_entry_recursive = false;
-
-                if entry.kind == K_HL_COMBINE {
-                    return 0;
-                }
-                retried = true;
-                continue;
+            if entry.kind == K_HL_COMBINE {
+                return 0;
             }
-
-            let k = hl_st().attr_entries.len() as u32;
-            hl_st().attr_entries.push(entry);
-            hl_st().attr_entry_ids.insert(entry, k);
-
-            let id = k as i32;
-            let mut arena = Arena {
-                cur_blk: ptr::null_mut(),
-                pos: 0,
-                size: 0,
-            };
-            let inspect = hl_inspect(id, &mut arena);
-            ui_call_hl_attr_define(Integer::from(id), entry.attr, entry.attr, inspect);
-            arena_mem_free(arena_finish(&mut arena));
-            return id;
+            retried = true;
+            continue;
         }
+
+        let k = hl_st().attr_entries.len() as u32;
+        hl_st().attr_entries.push(entry);
+        hl_st().attr_entry_ids.insert(entry, k);
+
+        let id = k as i32;
+        let mut arena = Arena {
+            cur_blk: ptr::null_mut(),
+            pos: 0,
+            size: 0,
+        };
+        let inspect = hl_inspect(id, &mut arena);
+        ui_call_hl_attr_define(Integer::from(id), entry.attr, entry.attr, inspect);
+        arena_mem_free(arena_finish(&mut arena));
+        return id;
     }
 }
 
 pub fn ui_send_all_hls(ui: &mut RemoteUI) {
-    {
-        let len = hl_st().attr_entries.len();
-        for i in 1..len {
-            let mut arena = Arena {
-                cur_blk: ptr::null_mut(),
-                pos: 0,
-                size: 0,
-            };
-            let inspect = hl_inspect(i as i32, &mut arena);
-            let attr = hl_st().attr_entries.as_slice()[i].attr;
-            remote_ui_hl_attr_define(ui, i as Integer, attr, attr, inspect);
-            arena_mem_free(arena_finish(&mut arena));
-        }
-        for hlf in 0..HLF_COUNT {
-            remote_ui_hl_group_set(
-                ui,
-                cstr_as_string(hlf_name_ptr(hlf)),
-                Integer::from(g_st().highlight_attr[hlf]),
-            );
-        }
+    let len = hl_st().attr_entries.len();
+    for i in 1..len {
+        let mut arena = Arena {
+            cur_blk: ptr::null_mut(),
+            pos: 0,
+            size: 0,
+        };
+        let inspect = hl_inspect(i as i32, &mut arena);
+        let attr = hl_st().attr_entries.as_slice()[i].attr;
+        remote_ui_hl_attr_define(ui, i as Integer, attr, attr, inspect);
+        arena_mem_free(arena_finish(&mut arena));
+    }
+    for hlf in 0..HLF_COUNT {
+        remote_ui_hl_group_set(
+            ui,
+            cstr_as_string(hlf_name_ptr(hlf)),
+            Integer::from(g_st().highlight_attr[hlf]),
+        );
     }
 }
 
@@ -434,178 +426,170 @@ pub fn ns_hl_def(
     link_id: i32,
     dict: Option<&KeyDict_highlight>,
 ) {
-    {
-        if ns_id == 0 {
-            let dict = dict.expect("ns_hl_def with ns_id == 0 requires dict");
-            set_hl_group(hl_id, attrs, dict, link_id);
-            return;
-        }
-        let key = ColorKey {
-            ns_id,
-            syn_id: hl_id,
-        };
-        if (attrs.rgb_ae_attr & HL_DEFAULT) != 0 && hl_st().ns_hls.contains_key(&key) {
-            return;
-        }
-        let p = get_decor_provider(ns_id, true);
-        let attr_id = if link_id > 0 {
-            -1
-        } else {
-            hl_get_syn_attr(ns_id, hl_id, attrs)
-        };
-        let it = ColorItem {
-            attr_id,
-            link_id,
-            version: unsafe { (*p).hl_valid },
-            is_default: (attrs.rgb_ae_attr & HL_DEFAULT) != 0,
-            link_global: (attrs.rgb_ae_attr & HL_GLOBAL) != 0,
-        };
-        hl_st().ns_hls.insert(key, it);
-        unsafe {
-            (*p).hl_cached = false;
-        }
+    if ns_id == 0 {
+        let dict = dict.expect("ns_hl_def with ns_id == 0 requires dict");
+        set_hl_group(hl_id, attrs, dict, link_id);
+        return;
+    }
+    let key = ColorKey {
+        ns_id,
+        syn_id: hl_id,
+    };
+    if (attrs.rgb_ae_attr & HL_DEFAULT) != 0 && hl_st().ns_hls.contains_key(&key) {
+        return;
+    }
+    let p = get_decor_provider(ns_id, true);
+    let attr_id = if link_id > 0 {
+        -1
+    } else {
+        hl_get_syn_attr(ns_id, hl_id, attrs)
+    };
+    let it = ColorItem {
+        attr_id,
+        link_id,
+        version: unsafe { (*p).hl_valid },
+        is_default: (attrs.rgb_ae_attr & HL_DEFAULT) != 0,
+        link_global: (attrs.rgb_ae_attr & HL_GLOBAL) != 0,
+    };
+    hl_st().ns_hls.insert(key, it);
+    unsafe {
+        (*p).hl_cached = false;
     }
 }
 
 pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32 {
-    {
-        if *ns_hl == 0 {
+    if *ns_hl == 0 {
+        return -1;
+    }
+
+    if *ns_hl < 0 {
+        if g_st().ns_hl_active <= 0 {
             return -1;
         }
+        *ns_hl = g_st().ns_hl_active;
+    }
 
-        if *ns_hl < 0 {
-            if g_st().ns_hl_active <= 0 {
-                return -1;
-            }
-            *ns_hl = g_st().ns_hl_active;
-        }
+    let ns_id = *ns_hl;
+    let p = get_decor_provider(ns_id, true);
+    let key = ColorKey {
+        ns_id,
+        syn_id: hl_id,
+    };
+    let mut it = hl_st().ns_hls.get(&key).copied().unwrap_or(ColorItem {
+        attr_id: -1,
+        link_id: -1,
+        version: -1,
+        is_default: false,
+        link_global: false,
+    });
+    let mut valid_item = it.version >= unsafe { (*p).hl_valid };
 
-        let ns_id = *ns_hl;
-        let p = get_decor_provider(ns_id, true);
-        let key = ColorKey {
-            ns_id,
-            syn_id: hl_id,
+    if !valid_item && unsafe { (*p).hl_def } != LUA_NOREF && hl_st().ns_get_hl_recursive == 0 {
+        let mut args_storage = [Object {
+            obj_type: ObjectType::ObjectTypeNil,
+            data: ObjectData::Integer(0),
+        }; 3];
+        let mut args = Array {
+            size: 0,
+            capacity: 3,
+            items: args_storage.as_mut_ptr(),
         };
-        let mut it = hl_st().ns_hls.get(&key).copied().unwrap_or(ColorItem {
-            attr_id: -1,
-            link_id: -1,
-            version: -1,
-            is_default: false,
-            link_global: false,
-        });
-        let mut valid_item = it.version >= unsafe { (*p).hl_valid };
+        add_c(&mut args, integer_obj(Integer::from(ns_id)));
+        add_c(&mut args, cstr_as_obj(syn_id2name(hl_id)));
+        add_c(&mut args, boolean_obj(link));
 
-        if !valid_item && unsafe { (*p).hl_def } != LUA_NOREF && hl_st().ns_get_hl_recursive == 0 {
-            let mut args_storage = [Object {
-                obj_type: ObjectType::ObjectTypeNil,
-                data: ObjectData::Integer(0),
-            }; 3];
-            let mut args = Array {
-                size: 0,
-                capacity: 3,
-                items: args_storage.as_mut_ptr(),
-            };
-            add_c(&mut args, integer_obj(Integer::from(ns_id)));
-            add_c(&mut args, cstr_as_obj(syn_id2name(hl_id)));
-            add_c(&mut args, boolean_obj(link));
+        let mut err = Error::new();
+        hl_st().ns_get_hl_recursive += 1;
+        let ret = nlua_call_ref(
+            unsafe { (*p).hl_def },
+            c"hl_def",
+            args,
+            K_RET_OBJECT,
+            None,
+            Some(&mut err),
+        );
+        hl_st().ns_get_hl_recursive -= 1;
 
-            let mut err = Error::new();
-            hl_st().ns_get_hl_recursive += 1;
-            let ret = nlua_call_ref(
-                unsafe { (*p).hl_def },
-                c"hl_def",
-                args,
-                K_RET_OBJECT,
-                None,
-                Some(&mut err),
-            );
-            hl_st().ns_get_hl_recursive -= 1;
-
-            let mut fallback = true;
-            let mut tmp = false;
-            let mut attrs = HLATTRS_INIT;
-            if ret.obj_type == ObjectType::ObjectTypeDict {
-                fallback = false;
-                let mut dict = KeyDict_highlight::default();
-                if api_dict_to_keydict(
-                    (&raw mut dict).cast(),
-                    Some(key_dict_highlight_get_field),
-                    ret.data.dict(),
-                    &mut err,
-                ) {
-                    attrs = dict2hlattrs(&mut dict, true, Some(&mut it.link_id), None, &mut err);
-                    fallback = if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FALLBACK) {
-                        dict.fallback
-                    } else {
-                        true
-                    };
-                    tmp = dict.fallback;
-                    if it.link_id >= 0 {
-                        fallback = true;
-                    }
+        let mut fallback = true;
+        let mut tmp = false;
+        let mut attrs = HLATTRS_INIT;
+        if ret.obj_type == ObjectType::ObjectTypeDict {
+            fallback = false;
+            let mut dict = KeyDict_highlight::default();
+            if api_dict_to_keydict(
+                (&raw mut dict).cast(),
+                Some(key_dict_highlight_get_field),
+                ret.data.dict(),
+                &mut err,
+            ) {
+                attrs = dict2hlattrs(&mut dict, true, Some(&mut it.link_id), None, &mut err);
+                fallback = if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FALLBACK) {
+                    dict.fallback
+                } else {
+                    true
+                };
+                tmp = dict.fallback;
+                if it.link_id >= 0 {
+                    fallback = true;
                 }
             }
-
-            it.attr_id = if fallback {
-                -1
-            } else {
-                hl_get_syn_attr(ns_id, hl_id, attrs)
-            };
-            it.version = unsafe { (*p).hl_valid } - i32::from(tmp);
-            it.is_default = (attrs.rgb_ae_attr & HL_DEFAULT) != 0;
-            it.link_global = (attrs.rgb_ae_attr & HL_GLOBAL) != 0;
-            hl_st().ns_hls.insert(key, it);
-            valid_item = true;
         }
 
-        if (it.is_default && nodefault) || !valid_item {
-            return -1;
-        }
-
-        if link {
-            if it.attr_id >= 0 {
-                return 0;
-            }
-            if it.link_global {
-                *ns_hl = 0;
-            }
-            it.link_id
+        it.attr_id = if fallback {
+            -1
         } else {
-            it.attr_id
+            hl_get_syn_attr(ns_id, hl_id, attrs)
+        };
+        it.version = unsafe { (*p).hl_valid } - i32::from(tmp);
+        it.is_default = (attrs.rgb_ae_attr & HL_DEFAULT) != 0;
+        it.link_global = (attrs.rgb_ae_attr & HL_GLOBAL) != 0;
+        hl_st().ns_hls.insert(key, it);
+        valid_item = true;
+    }
+
+    if (it.is_default && nodefault) || !valid_item {
+        return -1;
+    }
+
+    if link {
+        if it.attr_id >= 0 {
+            return 0;
         }
+        if it.link_global {
+            *ns_hl = 0;
+        }
+        it.link_id
+    } else {
+        it.attr_id
     }
 }
 
 pub fn hl_check_ns() -> bool {
-    {
-        let ns = if g_st().ns_hl_fast > 0 {
-            g_st().ns_hl_fast
-        } else if g_st().ns_hl_win >= 0 {
-            g_st().ns_hl_win
-        } else {
-            g_st().ns_hl_global
-        };
-        if g_st().ns_hl_active == ns {
-            return false;
-        }
-
-        g_st().ns_hl_active = ns;
-        g_st().hl_attr_active = None;
-        if ns > 0 {
-            update_ns_hl(ns);
-            if let Some(hl_def) = hl_st().ns_hl_attr.get(&ns) {
-                g_st().hl_attr_active = Some(hl_def.clone());
-            }
-        }
-        true
+    let ns = if g_st().ns_hl_fast > 0 {
+        g_st().ns_hl_fast
+    } else if g_st().ns_hl_win >= 0 {
+        g_st().ns_hl_win
+    } else {
+        g_st().ns_hl_global
+    };
+    if g_st().ns_hl_active == ns {
+        return false;
     }
+
+    g_st().ns_hl_active = ns;
+    g_st().hl_attr_active = None;
+    if ns > 0 {
+        update_ns_hl(ns);
+        if let Some(hl_def) = hl_st().ns_hl_attr.get(&ns) {
+            g_st().hl_attr_active = Some(hl_def.clone());
+        }
+    }
+    true
 }
 
 pub fn win_check_ns_hl(wp: Option<&WinInfoInfo>) -> bool {
-    {
-        g_st().ns_hl_win = wp.map_or(-1, |wp| wp.w_ns_hl);
-        hl_check_ns()
-    }
+    g_st().ns_hl_win = wp.map_or(-1, |wp| wp.w_ns_hl);
+    hl_check_ns()
 }
 
 pub fn hl_ns_get_attrs(
@@ -614,22 +598,20 @@ pub fn hl_ns_get_attrs(
     mut optional: Option<&mut bool>,
     attrs: &mut HlAttrs,
 ) -> bool {
-    {
-        let mut opt = if let Some(optional) = optional.as_deref_mut() {
-            *optional
-        } else {
-            true
-        };
-        let syn_attr = syn_ns_id2attr(ns_id, hl_id, &mut opt);
-        if let Some(optional) = optional {
-            *optional = opt;
-        }
-        if syn_attr <= 0 {
-            return false;
-        }
-        *attrs = syn_attr2entry(syn_attr);
+    let mut opt = if let Some(optional) = optional.as_deref_mut() {
+        *optional
+    } else {
         true
+    };
+    let syn_attr = syn_ns_id2attr(ns_id, hl_id, &mut opt);
+    if let Some(optional) = optional {
+        *optional = opt;
     }
+    if syn_attr <= 0 {
+        return false;
+    }
+    *attrs = syn_attr2entry(syn_attr);
+    true
 }
 
 pub fn hl_get_ui_attr(ns_id: i32, idx: i32, final_id: i32, mut optional: bool) -> i32 {
@@ -662,148 +644,139 @@ pub fn hl_get_ui_attr(ns_id: i32, idx: i32, final_id: i32, mut optional: bool) -
 }
 
 pub fn hl_apply_winblend(winbl: i32, mut attr: i32) -> i32 {
-    {
-        let mut entry = hl_st().attr_entries.as_slice()[attr as usize];
-        if entry.attr.hl_blend == -1 && winbl > 0 {
-            entry.attr.hl_blend = winbl;
-            attr = get_attr_entry(entry);
-        }
-        attr
+    let mut entry = hl_st().attr_entries.as_slice()[attr as usize];
+    if entry.attr.hl_blend == -1 && winbl > 0 {
+        entry.attr.hl_blend = winbl;
+        attr = get_attr_entry(entry);
     }
+    attr
 }
 
 pub fn update_window_hl(wp: &mut WinInfoInfo, invalid: bool) {
-    {
-        let ns_id = wp.w_ns_hl;
+    let ns_id = wp.w_ns_hl;
 
-        update_ns_hl(ns_id);
-        if ns_id != wp.w_ns_hl_active {
-            wp.w_ns_hl_active = ns_id;
+    update_ns_hl(ns_id);
+    if ns_id != wp.w_ns_hl_active {
+        wp.w_ns_hl_active = ns_id;
 
-            wp.w_ns_hl_attr = hl_st().ns_hl_attr.get(&ns_id).cloned();
+        wp.w_ns_hl_attr = hl_st().ns_hl_attr.get(&ns_id).cloned();
+    }
+
+    let w_ns_hl_attr = wp.w_ns_hl_attr.clone();
+    let hl_def_get = |idx: usize| -> i32 {
+        if let Some(ref tbl) = w_ns_hl_attr {
+            tbl[idx].get()
+        } else {
+            hl_attr(idx as i32)
         }
+    };
 
-        let w_ns_hl_attr = wp.w_ns_hl_attr.clone();
-        let hl_def_get = |idx: usize| -> i32 {
-            if let Some(ref tbl) = w_ns_hl_attr {
-                tbl[idx].get()
-            } else {
-                hl_attr(idx as i32)
-            }
+    if wp.w_hl_needs_update == 0 && !invalid {
+        return;
+    }
+    wp.w_hl_needs_update = 0;
+
+    let float_win = wp.w_floating && !wp.w_config.external;
+    if float_win && hl_def_get(HLF_NFLOAT) != 0 && ns_id > 0 {
+        wp.w_hl_attr_normal = hl_def_get(HLF_NFLOAT);
+    } else if hl_def_get(HLF_NONE) > 0 {
+        wp.w_hl_attr_normal = hl_def_get(HLF_NONE);
+    } else if float_win {
+        wp.w_hl_attr_normal = if hl_attr(HLF_NFLOAT as i32) > 0 {
+            hl_attr(HLF_NFLOAT as i32)
+        } else {
+            g_st().highlight_attr[HLF_NFLOAT]
         };
+    } else {
+        wp.w_hl_attr_normal = 0;
+    }
 
-        if wp.w_hl_needs_update == 0 && !invalid {
-            return;
-        }
-        wp.w_hl_needs_update = 0;
+    if wp.w_floating {
+        wp.w_hl_attr_normal =
+            hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as i32, wp.w_hl_attr_normal);
+    }
 
-        let float_win = wp.w_floating && !wp.w_config.external;
-        if float_win && hl_def_get(HLF_NFLOAT) != 0 && ns_id > 0 {
-            wp.w_hl_attr_normal = hl_def_get(HLF_NFLOAT);
-        } else if hl_def_get(HLF_NONE) > 0 {
-            wp.w_hl_attr_normal = hl_def_get(HLF_NONE);
-        } else if float_win {
-            wp.w_hl_attr_normal = if hl_attr(HLF_NFLOAT as i32) > 0 {
-                hl_attr(HLF_NFLOAT as i32)
-            } else {
-                g_st().highlight_attr[HLF_NFLOAT]
-            };
-        } else {
-            wp.w_hl_attr_normal = 0;
-        }
-
-        if wp.w_floating {
-            wp.w_hl_attr_normal =
-                hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as i32, wp.w_hl_attr_normal);
-        }
-
-        wp.w_config.shadow = false;
-        if wp.w_floating && wp.w_config.border {
-            for i in 0..8 {
-                let mut attr = hl_def_get(HLF_BORDER);
-                if wp.w_config.border_hl_ids[i] != 0 {
-                    attr = hl_get_ui_attr(
-                        ns_id,
-                        HLF_BORDER as i32,
-                        wp.w_config.border_hl_ids[i],
-                        false,
-                    );
-                }
-                attr = hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as i32, attr);
-                if syn_attr2entry(attr).hl_blend > 0 {
-                    wp.w_config.shadow = true;
-                }
-                wp.w_config.border_attr[i] = attr;
+    wp.w_config.shadow = false;
+    if wp.w_floating && wp.w_config.border {
+        for i in 0..8 {
+            let mut attr = hl_def_get(HLF_BORDER);
+            if wp.w_config.border_hl_ids[i] != 0 {
+                attr = hl_get_ui_attr(
+                    ns_id,
+                    HLF_BORDER as i32,
+                    wp.w_config.border_hl_ids[i],
+                    false,
+                );
             }
+            attr = hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as i32, attr);
+            if syn_attr2entry(attr).hl_blend > 0 {
+                wp.w_config.shadow = true;
+            }
+            wp.w_config.border_attr[i] = attr;
         }
+    }
 
-        check_blending(&mut *wp);
+    check_blending(&mut *wp);
 
-        if hl_def_get(HLF_INACTIVE) == 0 {
-            wp.w_hl_attr_normalnc =
-                hl_combine_attr(hl_attr(HLF_INACTIVE as i32), wp.w_hl_attr_normal);
-        } else {
-            wp.w_hl_attr_normalnc = hl_def_get(HLF_INACTIVE);
-        }
+    if hl_def_get(HLF_INACTIVE) == 0 {
+        wp.w_hl_attr_normalnc = hl_combine_attr(hl_attr(HLF_INACTIVE as i32), wp.w_hl_attr_normal);
+    } else {
+        wp.w_hl_attr_normalnc = hl_def_get(HLF_INACTIVE);
+    }
 
-        if wp.w_floating {
-            wp.w_hl_attr_normalnc =
-                hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as i32, wp.w_hl_attr_normalnc);
-        }
+    if wp.w_floating {
+        wp.w_hl_attr_normalnc =
+            hl_apply_winblend(wp.w_onebuf_opt.wo_winbl as i32, wp.w_hl_attr_normalnc);
     }
 }
 
 pub fn update_ns_hl(ns_id: i32) {
-    {
-        if ns_id <= 0 {
-            return;
-        }
-        let mut p = get_decor_provider(ns_id, true);
-        if unsafe { (*p).hl_cached } {
-            return;
-        }
+    if ns_id <= 0 {
+        return;
+    }
+    let mut p = get_decor_provider(ns_id, true);
+    if unsafe { (*p).hl_cached } {
+        return;
+    }
 
-        let alloc = hl_st()
-            .ns_hl_attr
-            .entry(ns_id)
-            .or_insert_with(|| std::rc::Rc::new([const { std::cell::Cell::new(0) }; HLF_COUNT]))
-            .clone();
+    let alloc = hl_st()
+        .ns_hl_attr
+        .entry(ns_id)
+        .or_insert_with(|| std::rc::Rc::new([const { std::cell::Cell::new(0) }; HLF_COUNT]))
+        .clone();
 
-        for hlf in 1..HLF_COUNT {
-            let name_cstr = HLF_NAMES[hlf].unwrap();
-            let id = syn_check_group(name_cstr.as_ptr(), name_cstr.to_bytes().len());
-            let optional = hlf == HLF_INACTIVE || hlf == HLF_NFLOAT;
-            alloc[hlf].set(hl_get_ui_attr(ns_id, hlf as i32, id, optional));
-        }
+    for hlf in 1..HLF_COUNT {
+        let name_cstr = HLF_NAMES[hlf].unwrap();
+        let id = syn_check_group(name_cstr.as_ptr(), name_cstr.to_bytes().len());
+        let optional = hlf == HLF_INACTIVE || hlf == HLF_NFLOAT;
+        alloc[hlf].set(hl_get_ui_attr(ns_id, hlf as i32, id, optional));
+    }
 
-        let normality = syn_check_group(c"Normal", 6);
-        alloc[HLF_NONE].set(hl_get_ui_attr(ns_id, -1, normality, true));
+    let normality = syn_check_group(c"Normal", 6);
+    alloc[HLF_NONE].set(hl_get_ui_attr(ns_id, -1, normality, true));
 
-        p = get_decor_provider(ns_id, true);
-        unsafe {
-            (*p).hl_cached = true;
-        }
+    p = get_decor_provider(ns_id, true);
+    unsafe {
+        (*p).hl_cached = true;
     }
 }
 
 pub fn win_bg_attr(wp: &mut WinInfoInfo) -> i32 {
-    {
-        if g_st().ns_hl_fast < 0 {
-            let local = if ptr::eq(wp, curwin_ptr()) {
-                wp.w_hl_attr_normal
-            } else {
-                wp.w_hl_attr_normalnc
-            };
-            if local != 0 {
-                return local;
-            }
-        }
-
-        if ptr::eq(wp, curwin_ptr()) || hl_attr(HLF_INACTIVE as i32) == 0 {
-            hl_attr(HLF_NONE as i32)
+    if g_st().ns_hl_fast < 0 {
+        let local = if ptr::eq(wp, curwin_ptr()) {
+            wp.w_hl_attr_normal
         } else {
-            hl_attr(HLF_INACTIVE as i32)
+            wp.w_hl_attr_normalnc
+        };
+        if local != 0 {
+            return local;
         }
+    }
+
+    if ptr::eq(wp, curwin_ptr()) || hl_attr(HLF_INACTIVE as i32) == 0 {
+        hl_attr(HLF_NONE as i32)
+    } else {
+        hl_attr(HLF_INACTIVE as i32)
     }
 }
 
@@ -866,61 +839,53 @@ pub fn hl_add_font_idx(font_name: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 pub fn hl_get_font(index: i32) -> *const c_char {
-    {
-        if index < 0 || (index as usize) >= hl_st().fonts.len() {
-            return ptr::null();
-        }
-        hl_st().fonts.as_slice()[index as usize].as_ptr()
+    if index < 0 || (index as usize) >= hl_st().fonts.len() {
+        return ptr::null();
     }
+    hl_st().fonts.as_slice()[index as usize].as_ptr()
 }
 
 pub fn hl_get_term_attr(aep: &mut HlAttrs) -> i32 {
-    {
-        get_attr_entry(HlEntry {
-            attr: *aep,
-            kind: K_HL_TERMINAL,
-            id1: 0,
-            id2: 0,
-            winid: 0,
-        })
-    }
+    get_attr_entry(HlEntry {
+        attr: *aep,
+        kind: K_HL_TERMINAL,
+        id1: 0,
+        id2: 0,
+        winid: 0,
+    })
 }
 
 pub fn clear_hl_tables(reinit: bool) {
-    {
-        if reinit {
-            hl_st().attr_entries.clear();
-            hl_st().attr_entry_ids.clear();
-            highlight_init();
-            hl_st().combine_attr_entries.clear();
-            hl_st().blend_attr_entries.clear();
-            hl_st().blendthrough_attr_entries.clear();
-            hl_st().urls.clear();
-            g_st().highlight_attr_last = [-1; HLF_COUNT];
-            highlight_attr_set_all();
-            highlight_changed();
-            screen_invalidate_highlights();
-        } else {
-            hl_st().attr_entries = Vec::new();
-            hl_st().attr_entry_ids = std::collections::BTreeMap::new();
-            hl_st().combine_attr_entries = std::collections::BTreeMap::new();
-            hl_st().blend_attr_entries = std::collections::BTreeMap::new();
-            hl_st().blendthrough_attr_entries = std::collections::BTreeMap::new();
-            hl_st().ns_hls = std::collections::BTreeMap::new();
-            hl_st().ns_hl_attr = std::collections::BTreeMap::new();
-            hl_st().urls = Vec::new();
-            hl_st().fonts = Vec::new();
-        }
+    if reinit {
+        hl_st().attr_entries.clear();
+        hl_st().attr_entry_ids.clear();
+        highlight_init();
+        hl_st().combine_attr_entries.clear();
+        hl_st().blend_attr_entries.clear();
+        hl_st().blendthrough_attr_entries.clear();
+        hl_st().urls.clear();
+        g_st().highlight_attr_last = [-1; HLF_COUNT];
+        highlight_attr_set_all();
+        highlight_changed();
+        screen_invalidate_highlights();
+    } else {
+        hl_st().attr_entries = Vec::new();
+        hl_st().attr_entry_ids = std::collections::BTreeMap::new();
+        hl_st().combine_attr_entries = std::collections::BTreeMap::new();
+        hl_st().blend_attr_entries = std::collections::BTreeMap::new();
+        hl_st().blendthrough_attr_entries = std::collections::BTreeMap::new();
+        hl_st().ns_hls = std::collections::BTreeMap::new();
+        hl_st().ns_hl_attr = std::collections::BTreeMap::new();
+        hl_st().urls = Vec::new();
+        hl_st().fonts = Vec::new();
     }
 }
 
 pub fn hl_invalidate_blends() {
-    {
-        hl_st().blend_attr_entries.clear();
-        hl_st().blendthrough_attr_entries.clear();
-        highlight_changed();
-        update_window_hl(curwin_mut(), true);
-    }
+    hl_st().blend_attr_entries.clear();
+    hl_st().blendthrough_attr_entries.clear();
+    highlight_changed();
+    update_window_hl(curwin_mut(), true);
 }
 
 #[inline]
@@ -932,205 +897,197 @@ const fn hl_combine_ae(char_ae: i32, prim_ae: i32) -> i32 {
 }
 
 pub fn hl_combine_attr(char_attr: i32, prim_attr: i32) -> i32 {
-    {
-        if char_attr == 0 {
-            return prim_attr;
-        } else if prim_attr == 0 {
-            return char_attr;
-        }
-
-        let combine_tag = hl_attr_key(char_attr, prim_attr);
-        let mut id = hl_st()
-            .combine_attr_entries
-            .get(&combine_tag)
-            .copied()
-            .unwrap_or(0);
-        if id > 0 {
-            return id;
-        }
-
-        let char_aep = syn_attr2entry(char_attr);
-        let prim_aep = syn_attr2entry(prim_attr);
-
-        let mut new_en = char_aep;
-
-        if (prim_aep.cterm_ae_attr & HL_NOCOMBINE) != 0 {
-            new_en.cterm_ae_attr = prim_aep.cterm_ae_attr;
-        } else {
-            new_en.cterm_ae_attr = hl_combine_ae(new_en.cterm_ae_attr, prim_aep.cterm_ae_attr);
-        }
-        if (prim_aep.rgb_ae_attr & HL_NOCOMBINE) != 0 {
-            new_en.rgb_ae_attr = prim_aep.rgb_ae_attr;
-        } else {
-            new_en.rgb_ae_attr = hl_combine_ae(new_en.rgb_ae_attr, prim_aep.rgb_ae_attr);
-        }
-
-        if prim_aep.cterm_fg_color > 0 {
-            new_en.cterm_fg_color = prim_aep.cterm_fg_color;
-            new_en.rgb_ae_attr &= !HL_FG_INDEXED | (prim_aep.rgb_ae_attr & HL_FG_INDEXED);
-        }
-
-        if prim_aep.cterm_bg_color > 0 {
-            new_en.cterm_bg_color = prim_aep.cterm_bg_color;
-            new_en.rgb_ae_attr &= !HL_BG_INDEXED | (prim_aep.rgb_ae_attr & HL_BG_INDEXED);
-        }
-
-        if prim_aep.rgb_fg_color >= 0 {
-            new_en.rgb_fg_color = prim_aep.rgb_fg_color;
-            new_en.rgb_ae_attr &= !HL_FG_INDEXED | (prim_aep.rgb_ae_attr & HL_FG_INDEXED);
-        }
-
-        if prim_aep.rgb_bg_color >= 0 {
-            new_en.rgb_bg_color = prim_aep.rgb_bg_color;
-            new_en.rgb_ae_attr &= !HL_BG_INDEXED | (prim_aep.rgb_ae_attr & HL_BG_INDEXED);
-        }
-
-        if prim_aep.rgb_sp_color >= 0 {
-            new_en.rgb_sp_color = prim_aep.rgb_sp_color;
-        }
-
-        if prim_aep.hl_blend >= 0 {
-            new_en.hl_blend = prim_aep.hl_blend;
-        }
-
-        if new_en.url == -1 && prim_aep.url >= 0 {
-            new_en.url = prim_aep.url;
-        }
-
-        if prim_aep.font >= 0 {
-            new_en.font = prim_aep.font;
-        }
-
-        id = get_attr_entry(HlEntry {
-            attr: new_en,
-            kind: K_HL_COMBINE,
-            id1: char_attr,
-            id2: prim_attr,
-            winid: 0,
-        });
-        if id > 0 {
-            hl_st().combine_attr_entries.insert(combine_tag, id);
-        }
-
-        id
+    if char_attr == 0 {
+        return prim_attr;
+    } else if prim_attr == 0 {
+        return char_attr;
     }
+
+    let combine_tag = hl_attr_key(char_attr, prim_attr);
+    let mut id = hl_st()
+        .combine_attr_entries
+        .get(&combine_tag)
+        .copied()
+        .unwrap_or(0);
+    if id > 0 {
+        return id;
+    }
+
+    let char_aep = syn_attr2entry(char_attr);
+    let prim_aep = syn_attr2entry(prim_attr);
+
+    let mut new_en = char_aep;
+
+    if (prim_aep.cterm_ae_attr & HL_NOCOMBINE) != 0 {
+        new_en.cterm_ae_attr = prim_aep.cterm_ae_attr;
+    } else {
+        new_en.cterm_ae_attr = hl_combine_ae(new_en.cterm_ae_attr, prim_aep.cterm_ae_attr);
+    }
+    if (prim_aep.rgb_ae_attr & HL_NOCOMBINE) != 0 {
+        new_en.rgb_ae_attr = prim_aep.rgb_ae_attr;
+    } else {
+        new_en.rgb_ae_attr = hl_combine_ae(new_en.rgb_ae_attr, prim_aep.rgb_ae_attr);
+    }
+
+    if prim_aep.cterm_fg_color > 0 {
+        new_en.cterm_fg_color = prim_aep.cterm_fg_color;
+        new_en.rgb_ae_attr &= !HL_FG_INDEXED | (prim_aep.rgb_ae_attr & HL_FG_INDEXED);
+    }
+
+    if prim_aep.cterm_bg_color > 0 {
+        new_en.cterm_bg_color = prim_aep.cterm_bg_color;
+        new_en.rgb_ae_attr &= !HL_BG_INDEXED | (prim_aep.rgb_ae_attr & HL_BG_INDEXED);
+    }
+
+    if prim_aep.rgb_fg_color >= 0 {
+        new_en.rgb_fg_color = prim_aep.rgb_fg_color;
+        new_en.rgb_ae_attr &= !HL_FG_INDEXED | (prim_aep.rgb_ae_attr & HL_FG_INDEXED);
+    }
+
+    if prim_aep.rgb_bg_color >= 0 {
+        new_en.rgb_bg_color = prim_aep.rgb_bg_color;
+        new_en.rgb_ae_attr &= !HL_BG_INDEXED | (prim_aep.rgb_ae_attr & HL_BG_INDEXED);
+    }
+
+    if prim_aep.rgb_sp_color >= 0 {
+        new_en.rgb_sp_color = prim_aep.rgb_sp_color;
+    }
+
+    if prim_aep.hl_blend >= 0 {
+        new_en.hl_blend = prim_aep.hl_blend;
+    }
+
+    if new_en.url == -1 && prim_aep.url >= 0 {
+        new_en.url = prim_aep.url;
+    }
+
+    if prim_aep.font >= 0 {
+        new_en.font = prim_aep.font;
+    }
+
+    id = get_attr_entry(HlEntry {
+        attr: new_en,
+        kind: K_HL_COMBINE,
+        id1: char_attr,
+        id2: prim_attr,
+        winid: 0,
+    });
+    if id > 0 {
+        hl_st().combine_attr_entries.insert(combine_tag, id);
+    }
+
+    id
 }
 
 fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
-    {
-        if attrs.rgb_bg_color == -1 {
-            attrs.rgb_bg_color = g_st().normal_bg;
-        }
-        if attrs.rgb_fg_color == -1 {
-            attrs.rgb_fg_color = g_st().normal_fg;
-        }
-        if attrs.rgb_sp_color == -1 {
-            attrs.rgb_sp_color = g_st().normal_sp;
-        }
-        let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
-        if attrs.rgb_fg_color == -1 {
-            attrs.rgb_fg_color = if dark { 0xFFFFFF } else { 0x000000 };
-        }
-        if attrs.rgb_bg_color == -1 {
-            attrs.rgb_bg_color = if dark { 0x000000 } else { 0xFFFFFF };
-        }
-        if attrs.rgb_sp_color == -1 {
-            attrs.rgb_sp_color = 0xFF0000;
-        }
-
-        if (attrs.rgb_ae_attr & HL_INVERSE) != 0 {
-            std::mem::swap(&mut attrs.rgb_bg_color, &mut attrs.rgb_fg_color);
-            attrs.rgb_ae_attr &= !HL_INVERSE;
-        }
-
-        attrs
+    if attrs.rgb_bg_color == -1 {
+        attrs.rgb_bg_color = g_st().normal_bg;
     }
+    if attrs.rgb_fg_color == -1 {
+        attrs.rgb_fg_color = g_st().normal_fg;
+    }
+    if attrs.rgb_sp_color == -1 {
+        attrs.rgb_sp_color = g_st().normal_sp;
+    }
+    let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
+    if attrs.rgb_fg_color == -1 {
+        attrs.rgb_fg_color = if dark { 0xFFFFFF } else { 0x000000 };
+    }
+    if attrs.rgb_bg_color == -1 {
+        attrs.rgb_bg_color = if dark { 0x000000 } else { 0xFFFFFF };
+    }
+    if attrs.rgb_sp_color == -1 {
+        attrs.rgb_sp_color = 0xFF0000;
+    }
+
+    if (attrs.rgb_ae_attr & HL_INVERSE) != 0 {
+        std::mem::swap(&mut attrs.rgb_bg_color, &mut attrs.rgb_fg_color);
+        attrs.rgb_ae_attr &= !HL_INVERSE;
+    }
+
+    attrs
 }
 
 pub fn hl_blend_attrs(back_attr: i32, front_attr: i32, through: &mut bool) -> i32 {
-    {
-        if front_attr < 0 || back_attr < 0 {
-            return front_attr;
-        }
-
-        let fattrs_raw = syn_attr2entry(front_attr);
-        let fattrs = get_colors_force(fattrs_raw);
-        let ratio = fattrs.hl_blend;
-        if ratio <= 0 {
-            *through = false;
-            return front_attr;
-        }
-
-        let combine_tag = hl_attr_key(back_attr, front_attr);
-        let map_ptr = if *through {
-            &raw mut hl_st().blendthrough_attr_entries
-        } else {
-            &raw mut hl_st().blend_attr_entries
-        };
-        let map = unsafe { &mut *map_ptr };
-        let mut id = map.get(&combine_tag).copied().unwrap_or(0);
-        if id > 0 {
-            return id;
-        }
-
-        let battrs_raw = syn_attr2entry(back_attr);
-        let battrs = get_colors_force(battrs_raw);
-        let mut cattrs: HlAttrs;
-
-        if *through {
-            cattrs = battrs;
-            cattrs.rgb_fg_color = rgb_blend(ratio, battrs.rgb_fg_color, fattrs.rgb_bg_color);
-            if (cattrs.rgb_ae_attr & HL_UNDERLINE_MASK) != 0 && battrs_raw.rgb_sp_color != -1 {
-                cattrs.rgb_sp_color = rgb_blend(ratio, battrs.rgb_sp_color, fattrs.rgb_bg_color);
-            } else {
-                cattrs.rgb_sp_color = -1;
-            }
-
-            cattrs.cterm_bg_color = fattrs.cterm_bg_color;
-            cattrs.cterm_fg_color =
-                cterm_blend(ratio, battrs.cterm_fg_color, fattrs.cterm_bg_color) as i16;
-            cattrs.rgb_ae_attr &= !(HL_FG_INDEXED | HL_BG_INDEXED);
-        } else {
-            cattrs = fattrs;
-            cattrs.rgb_fg_color = rgb_blend(ratio / 2, battrs.rgb_fg_color, fattrs.rgb_fg_color);
-            if (cattrs.rgb_ae_attr & HL_UNDERLINE_MASK) != 0 {
-                cattrs.rgb_sp_color =
-                    rgb_blend(ratio / 2, battrs.rgb_bg_color, fattrs.rgb_sp_color);
-            } else {
-                cattrs.rgb_sp_color = -1;
-            }
-
-            cattrs.rgb_ae_attr &= !(HL_FG_INDEXED | HL_BG_INDEXED);
-        }
-
-        if ratio == 100 && battrs_raw.rgb_bg_color == -1 {
-            cattrs.rgb_bg_color = -1;
-        } else {
-            cattrs.rgb_bg_color = if battrs_raw.rgb_bg_color == -1 && fattrs_raw.rgb_bg_color == -1
-            {
-                -1
-            } else {
-                rgb_blend(ratio, battrs.rgb_bg_color, fattrs.rgb_bg_color)
-            };
-        }
-        cattrs.hl_blend = -1;
-        let kind = if *through {
-            K_HL_BLEND_THROUGH
-        } else {
-            K_HL_BLEND
-        };
-        id = get_attr_entry(HlEntry {
-            attr: cattrs,
-            kind,
-            id1: back_attr,
-            id2: front_attr,
-            winid: 0,
-        });
-        if id > 0 {
-            map.insert(combine_tag, id);
-        }
-        id
+    if front_attr < 0 || back_attr < 0 {
+        return front_attr;
     }
+
+    let fattrs_raw = syn_attr2entry(front_attr);
+    let fattrs = get_colors_force(fattrs_raw);
+    let ratio = fattrs.hl_blend;
+    if ratio <= 0 {
+        *through = false;
+        return front_attr;
+    }
+
+    let combine_tag = hl_attr_key(back_attr, front_attr);
+    let map_ptr = if *through {
+        &raw mut hl_st().blendthrough_attr_entries
+    } else {
+        &raw mut hl_st().blend_attr_entries
+    };
+    let map = unsafe { &mut *map_ptr };
+    let mut id = map.get(&combine_tag).copied().unwrap_or(0);
+    if id > 0 {
+        return id;
+    }
+
+    let battrs_raw = syn_attr2entry(back_attr);
+    let battrs = get_colors_force(battrs_raw);
+    let mut cattrs: HlAttrs;
+
+    if *through {
+        cattrs = battrs;
+        cattrs.rgb_fg_color = rgb_blend(ratio, battrs.rgb_fg_color, fattrs.rgb_bg_color);
+        if (cattrs.rgb_ae_attr & HL_UNDERLINE_MASK) != 0 && battrs_raw.rgb_sp_color != -1 {
+            cattrs.rgb_sp_color = rgb_blend(ratio, battrs.rgb_sp_color, fattrs.rgb_bg_color);
+        } else {
+            cattrs.rgb_sp_color = -1;
+        }
+
+        cattrs.cterm_bg_color = fattrs.cterm_bg_color;
+        cattrs.cterm_fg_color =
+            cterm_blend(ratio, battrs.cterm_fg_color, fattrs.cterm_bg_color) as i16;
+        cattrs.rgb_ae_attr &= !(HL_FG_INDEXED | HL_BG_INDEXED);
+    } else {
+        cattrs = fattrs;
+        cattrs.rgb_fg_color = rgb_blend(ratio / 2, battrs.rgb_fg_color, fattrs.rgb_fg_color);
+        if (cattrs.rgb_ae_attr & HL_UNDERLINE_MASK) != 0 {
+            cattrs.rgb_sp_color = rgb_blend(ratio / 2, battrs.rgb_bg_color, fattrs.rgb_sp_color);
+        } else {
+            cattrs.rgb_sp_color = -1;
+        }
+
+        cattrs.rgb_ae_attr &= !(HL_FG_INDEXED | HL_BG_INDEXED);
+    }
+
+    if ratio == 100 && battrs_raw.rgb_bg_color == -1 {
+        cattrs.rgb_bg_color = -1;
+    } else {
+        cattrs.rgb_bg_color = if battrs_raw.rgb_bg_color == -1 && fattrs_raw.rgb_bg_color == -1 {
+            -1
+        } else {
+            rgb_blend(ratio, battrs.rgb_bg_color, fattrs.rgb_bg_color)
+        };
+    }
+    cattrs.hl_blend = -1;
+    let kind = if *through {
+        K_HL_BLEND_THROUGH
+    } else {
+        K_HL_BLEND
+    };
+    id = get_attr_entry(HlEntry {
+        attr: cattrs,
+        kind,
+        id1: back_attr,
+        id2: front_attr,
+        winid: 0,
+    });
+    if id > 0 {
+        map.insert(combine_tag, id);
+    }
+    id
 }
 
 const fn rgb_blend(ratio: i32, rgb1: i32, rgb2: i32) -> i32 {
@@ -1211,12 +1168,10 @@ const fn hl_cterm2rgb_color(nr: i32) -> i32 {
 }
 
 pub fn syn_attr2entry(attr: i32) -> HlAttrs {
-    {
-        if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
-            return HLATTRS_INIT;
-        }
-        hl_st().attr_entries.as_slice()[attr as usize].attr
+    if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
+        return HLATTRS_INIT;
     }
+    hl_st().attr_entries.as_slice()[attr as usize].attr
 }
 
 pub fn hl_get_attr_by_id(
@@ -1225,36 +1180,34 @@ pub fn hl_get_attr_by_id(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    {
-        let dic = Dict {
-            size: 0,
-            capacity: 0,
-            items: ptr::null_mut(),
-        };
+    let dic = Dict {
+        size: 0,
+        capacity: 0,
+        items: ptr::null_mut(),
+    };
 
-        if attr_id == 0 {
-            return dic;
-        }
-
-        if attr_id < 0 || (attr_id as usize) >= hl_st().attr_entries.len() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Invalid attribute id: %lld",
-                attr_id,
-            );
-            return dic;
-        }
-        let mut retval = arena_dict(arena, HLATTRS_DICT_SIZE);
-        hlattrs2dict(
-            &mut retval,
-            None,
-            syn_attr2entry(attr_id as i32),
-            rgb,
-            false,
-        );
-        retval
+    if attr_id == 0 {
+        return dic;
     }
+
+    if attr_id < 0 || (attr_id as usize) >= hl_st().attr_entries.len() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Invalid attribute id: %lld",
+            attr_id,
+        );
+        return dic;
+    }
+    let mut retval = arena_dict(arena, HLATTRS_DICT_SIZE);
+    hlattrs2dict(
+        &mut retval,
+        None,
+        syn_attr2entry(attr_id as i32),
+        rgb,
+        false,
+    );
+    retval
 }
 
 pub fn hlattrs2dict(
@@ -1419,337 +1372,335 @@ pub fn dict2hlattrs(
     base: Option<&HlAttrs>,
     err: &mut Error,
 ) -> HlAttrs {
-    {
-        let mut hlattrs = HLATTRS_INIT;
-        let mut fg: i32 = if let Some(base) = base {
-            base.rgb_fg_color
-        } else {
+    let mut hlattrs = HLATTRS_INIT;
+    let mut fg: i32 = if let Some(base) = base {
+        base.rgb_fg_color
+    } else {
+        -1
+    };
+    let mut bg: i32 = if let Some(base) = base {
+        base.rgb_bg_color
+    } else {
+        -1
+    };
+    let mut ctermfg: i32 = if let Some(base) = base {
+        if base.cterm_fg_color == 0 {
             -1
-        };
-        let mut bg: i32 = if let Some(base) = base {
-            base.rgb_bg_color
         } else {
+            i32::from(base.cterm_fg_color) - 1
+        }
+    } else {
+        -1
+    };
+    let mut ctermbg: i32 = if let Some(base) = base {
+        if base.cterm_bg_color == 0 {
             -1
-        };
-        let mut ctermfg: i32 = if let Some(base) = base {
-            if base.cterm_fg_color == 0 {
-                -1
-            } else {
-                i32::from(base.cterm_fg_color) - 1
-            }
         } else {
-            -1
-        };
-        let mut ctermbg: i32 = if let Some(base) = base {
-            if base.cterm_bg_color == 0 {
-                -1
-            } else {
-                i32::from(base.cterm_bg_color) - 1
-            }
-        } else {
-            -1
-        };
-        let mut sp: i32 = if let Some(base) = base {
-            base.rgb_sp_color
-        } else {
-            -1
-        };
-        let mut blend: i32 = if let Some(base) = base {
-            base.hl_blend
-        } else {
-            -1
-        };
-        let mut mask: i32 = if let Some(base) = base {
-            base.rgb_ae_attr
-        } else {
-            0
-        };
-        let mut cterm_mask: i32 = if let Some(base) = base {
-            base.cterm_ae_attr
-        } else {
-            0
-        };
-        let mut font: i32 = if let Some(base) = base { base.font } else { -1 };
-        let mut cterm_mask_provided = false;
-
-        let is_set = dict.is_set_highlight;
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_REVERSE,
-            dict.reverse,
-            mask,
-            HL_INVERSE,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_BOLD,
-            dict.bold,
-            mask,
-            HL_BOLD,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_ITALIC,
-            dict.italic,
-            mask,
-            HL_ITALIC,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_UNDERLINE,
-            dict.underline,
-            mask,
-            HL_UNDERLINE,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_UNDERCURL,
-            dict.undercurl,
-            mask,
-            HL_UNDERCURL,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_UNDERDOUBLE,
-            dict.underdouble,
-            mask,
-            HL_UNDERDOUBLE,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_UNDERDOTTED,
-            dict.underdotted,
-            mask,
-            HL_UNDERDOTTED,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_UNDERDASHED,
-            dict.underdashed,
-            mask,
-            HL_UNDERDASHED,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_STANDOUT,
-            dict.standout,
-            mask,
-            HL_STANDOUT,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_STRIKETHROUGH,
-            dict.strikethrough,
-            mask,
-            HL_STRIKETHROUGH,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_ALTFONT,
-            dict.altfont,
-            mask,
-            HL_ALTFONT,
-        );
-        mask = apply_flag_with_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_DIM, dict.dim, mask, HL_DIM);
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_BLINK,
-            dict.blink,
-            mask,
-            HL_BLINK,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_CONCEAL,
-            dict.conceal,
-            mask,
-            HL_CONCEALED,
-        );
-        mask = apply_flag_with_key(
-            is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_OVERLINE,
-            dict.overline,
-            mask,
-            HL_OVERLINE,
-        );
-        if use_rgb {
-            mask = apply_flag_with_key(
-                is_set,
-                KEYSET_OPTIDX_HIGHLIGHT_FG_INDEXED,
-                dict.fg_indexed,
-                mask,
-                HL_FG_INDEXED,
-            );
-            mask = apply_flag_with_key(
-                is_set,
-                KEYSET_OPTIDX_HIGHLIGHT_BG_INDEXED,
-                dict.bg_indexed,
-                mask,
-                HL_BG_INDEXED,
-            );
+            i32::from(base.cterm_bg_color) - 1
         }
+    } else {
+        -1
+    };
+    let mut sp: i32 = if let Some(base) = base {
+        base.rgb_sp_color
+    } else {
+        -1
+    };
+    let mut blend: i32 = if let Some(base) = base {
+        base.hl_blend
+    } else {
+        -1
+    };
+    let mut mask: i32 = if let Some(base) = base {
+        base.rgb_ae_attr
+    } else {
+        0
+    };
+    let mut cterm_mask: i32 = if let Some(base) = base {
+        base.cterm_ae_attr
+    } else {
+        0
+    };
+    let mut font: i32 = if let Some(base) = base { base.font } else { -1 };
+    let mut cterm_mask_provided = false;
+
+    let is_set = dict.is_set_highlight;
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_REVERSE,
+        dict.reverse,
+        mask,
+        HL_INVERSE,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_BOLD,
+        dict.bold,
+        mask,
+        HL_BOLD,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_ITALIC,
+        dict.italic,
+        mask,
+        HL_ITALIC,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_UNDERLINE,
+        dict.underline,
+        mask,
+        HL_UNDERLINE,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_UNDERCURL,
+        dict.undercurl,
+        mask,
+        HL_UNDERCURL,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_UNDERDOUBLE,
+        dict.underdouble,
+        mask,
+        HL_UNDERDOUBLE,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_UNDERDOTTED,
+        dict.underdotted,
+        mask,
+        HL_UNDERDOTTED,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_UNDERDASHED,
+        dict.underdashed,
+        mask,
+        HL_UNDERDASHED,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_STANDOUT,
+        dict.standout,
+        mask,
+        HL_STANDOUT,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_STRIKETHROUGH,
+        dict.strikethrough,
+        mask,
+        HL_STRIKETHROUGH,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_ALTFONT,
+        dict.altfont,
+        mask,
+        HL_ALTFONT,
+    );
+    mask = apply_flag_with_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_DIM, dict.dim, mask, HL_DIM);
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_BLINK,
+        dict.blink,
+        mask,
+        HL_BLINK,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_CONCEAL,
+        dict.conceal,
+        mask,
+        HL_CONCEALED,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_OVERLINE,
+        dict.overline,
+        mask,
+        HL_OVERLINE,
+    );
+    if use_rgb {
         mask = apply_flag_with_key(
             is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_NOCOMBINE,
-            dict.nocombine,
+            KEYSET_OPTIDX_HIGHLIGHT_FG_INDEXED,
+            dict.fg_indexed,
             mask,
-            HL_NOCOMBINE,
+            HL_FG_INDEXED,
         );
         mask = apply_flag_with_key(
             is_set,
-            KEYSET_OPTIDX_HIGHLIGHT_DEFAULT,
-            dict.default_,
+            KEYSET_OPTIDX_HIGHLIGHT_BG_INDEXED,
+            dict.bg_indexed,
             mask,
-            HL_DEFAULT,
+            HL_BG_INDEXED,
         );
-
-        if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FG) {
-            fg = object_to_color(dict.fg, c"fg", use_rgb, err);
-        } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FOREGROUND) {
-            fg = object_to_color(dict.foreground, c"foreground", use_rgb, err);
-        }
-        if err.err_type != ErrorType::ErrorTypeNone {
-            return hlattrs;
-        }
-
-        if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BG) {
-            bg = object_to_color(dict.bg, c"bg", use_rgb, err);
-        } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BACKGROUND) {
-            bg = object_to_color(dict.background, c"background", use_rgb, err);
-        }
-        if err.err_type != ErrorType::ErrorTypeNone {
-            return hlattrs;
-        }
-
-        if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_SP) {
-            sp = object_to_color(dict.sp, c"sp", true, err);
-        } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_SPECIAL) {
-            sp = object_to_color(dict.special, c"special", true, err);
-        }
-        if err.err_type != ErrorType::ErrorTypeNone {
-            return hlattrs;
-        }
-
-        if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BLEND) {
-            let blend0 = dict.blend;
-            if !(0..=100).contains(&blend0) {
-                api_err_invalid(err, c"blend", c"out of range", 0, false);
-                return hlattrs;
-            }
-            blend = blend0 as i32;
-        }
-
-        if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK)
-            || has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL)
-        {
-            if link_id.is_none() {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Invalid Key: '%s'",
-                    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL) {
-                        c"link_global".as_ptr()
-                    } else {
-                        c"link".as_ptr()
-                    },
-                );
-                return hlattrs;
-            }
-            if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL) {
-                *link_id.as_deref_mut().unwrap() = dict.link_global as i32;
-                mask |= HL_GLOBAL;
-            } else {
-                *link_id.unwrap() = dict.link as i32;
-            }
-
-            if err.err_type != ErrorType::ErrorTypeNone {
-                return hlattrs;
-            }
-        }
-
-        if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERM) {
-            let mut cterm = KeyDict_highlight_cterm::default();
-            if !api_dict_to_keydict(
-                (&raw mut cterm).cast(),
-                Some(key_dict_highlight_cterm_get_field),
-                dict.cterm,
-                err,
-            ) {
-                return hlattrs;
-            }
-
-            cterm_mask_provided = true;
-            cterm_mask = 0;
-            cterm_mask = apply_cterm_flag(cterm.reverse, cterm_mask, HL_INVERSE);
-            cterm_mask = apply_cterm_flag(cterm.bold, cterm_mask, HL_BOLD);
-            cterm_mask = apply_cterm_flag(cterm.italic, cterm_mask, HL_ITALIC);
-            cterm_mask = apply_cterm_flag(cterm.underline, cterm_mask, HL_UNDERLINE);
-            cterm_mask = apply_cterm_flag(cterm.undercurl, cterm_mask, HL_UNDERCURL);
-            cterm_mask = apply_cterm_flag(cterm.underdouble, cterm_mask, HL_UNDERDOUBLE);
-            cterm_mask = apply_cterm_flag(cterm.underdotted, cterm_mask, HL_UNDERDOTTED);
-            cterm_mask = apply_cterm_flag(cterm.underdashed, cterm_mask, HL_UNDERDASHED);
-            cterm_mask = apply_cterm_flag(cterm.standout, cterm_mask, HL_STANDOUT);
-            cterm_mask = apply_cterm_flag(cterm.strikethrough, cterm_mask, HL_STRIKETHROUGH);
-            cterm_mask = apply_cterm_flag(cterm.altfont, cterm_mask, HL_ALTFONT);
-            cterm_mask = apply_cterm_flag(cterm.dim, cterm_mask, HL_DIM);
-            cterm_mask = apply_cterm_flag(cterm.blink, cterm_mask, HL_BLINK);
-            cterm_mask = apply_cterm_flag(cterm.conceal, cterm_mask, HL_CONCEALED);
-            cterm_mask = apply_cterm_flag(cterm.overline, cterm_mask, HL_OVERLINE);
-            cterm_mask = apply_cterm_flag(cterm.nocombine, cterm_mask, HL_NOCOMBINE);
-        }
-
-        if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERMFG) {
-            ctermfg = object_to_color(dict.ctermfg, c"ctermfg", false, err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                return hlattrs;
-            }
-        }
-
-        if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERMBG) {
-            ctermbg = object_to_color(dict.ctermbg, c"ctermbg", false, err);
-            if err.err_type != ErrorType::ErrorTypeNone {
-                return hlattrs;
-            }
-        }
-
-        if use_rgb {
-            if !cterm_mask_provided {
-                cterm_mask = mask;
-            }
-            hlattrs.rgb_ae_attr = mask;
-            hlattrs.rgb_bg_color = bg;
-            hlattrs.rgb_fg_color = fg;
-            hlattrs.rgb_sp_color = sp;
-            hlattrs.hl_blend = blend;
-            hlattrs.cterm_bg_color = if ctermbg == -1 {
-                0
-            } else {
-                (ctermbg + 1) as i16
-            };
-            hlattrs.cterm_fg_color = if ctermfg == -1 {
-                0
-            } else {
-                (ctermfg + 1) as i16
-            };
-            hlattrs.cterm_ae_attr = cterm_mask;
-        } else {
-            hlattrs.cterm_bg_color = if bg == -1 { 0 } else { (bg + 1) as i16 };
-            hlattrs.cterm_fg_color = if fg == -1 { 0 } else { (fg + 1) as i16 };
-            hlattrs.cterm_ae_attr = mask;
-        }
-
-        if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FONT) {
-            let str_ = dict.font;
-            font = if str_.size > 0 && !is_none_str(str_.data) {
-                hl_add_font_idx(str_.data)
-            } else {
-                -1
-            };
-        }
-        hlattrs.font = font;
-
-        hlattrs
     }
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_NOCOMBINE,
+        dict.nocombine,
+        mask,
+        HL_NOCOMBINE,
+    );
+    mask = apply_flag_with_key(
+        is_set,
+        KEYSET_OPTIDX_HIGHLIGHT_DEFAULT,
+        dict.default_,
+        mask,
+        HL_DEFAULT,
+    );
+
+    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FG) {
+        fg = object_to_color(dict.fg, c"fg", use_rgb, err);
+    } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FOREGROUND) {
+        fg = object_to_color(dict.foreground, c"foreground", use_rgb, err);
+    }
+    if err.err_type != ErrorType::ErrorTypeNone {
+        return hlattrs;
+    }
+
+    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BG) {
+        bg = object_to_color(dict.bg, c"bg", use_rgb, err);
+    } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BACKGROUND) {
+        bg = object_to_color(dict.background, c"background", use_rgb, err);
+    }
+    if err.err_type != ErrorType::ErrorTypeNone {
+        return hlattrs;
+    }
+
+    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_SP) {
+        sp = object_to_color(dict.sp, c"sp", true, err);
+    } else if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_SPECIAL) {
+        sp = object_to_color(dict.special, c"special", true, err);
+    }
+    if err.err_type != ErrorType::ErrorTypeNone {
+        return hlattrs;
+    }
+
+    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BLEND) {
+        let blend0 = dict.blend;
+        if !(0..=100).contains(&blend0) {
+            api_err_invalid(err, c"blend", c"out of range", 0, false);
+            return hlattrs;
+        }
+        blend = blend0 as i32;
+    }
+
+    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK)
+        || has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL)
+    {
+        if link_id.is_none() {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"Invalid Key: '%s'",
+                if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL) {
+                    c"link_global".as_ptr()
+                } else {
+                    c"link".as_ptr()
+                },
+            );
+            return hlattrs;
+        }
+        if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_LINK_GLOBAL) {
+            *link_id.as_deref_mut().unwrap() = dict.link_global as i32;
+            mask |= HL_GLOBAL;
+        } else {
+            *link_id.unwrap() = dict.link as i32;
+        }
+
+        if err.err_type != ErrorType::ErrorTypeNone {
+            return hlattrs;
+        }
+    }
+
+    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERM) {
+        let mut cterm = KeyDict_highlight_cterm::default();
+        if !api_dict_to_keydict(
+            (&raw mut cterm).cast(),
+            Some(key_dict_highlight_cterm_get_field),
+            dict.cterm,
+            err,
+        ) {
+            return hlattrs;
+        }
+
+        cterm_mask_provided = true;
+        cterm_mask = 0;
+        cterm_mask = apply_cterm_flag(cterm.reverse, cterm_mask, HL_INVERSE);
+        cterm_mask = apply_cterm_flag(cterm.bold, cterm_mask, HL_BOLD);
+        cterm_mask = apply_cterm_flag(cterm.italic, cterm_mask, HL_ITALIC);
+        cterm_mask = apply_cterm_flag(cterm.underline, cterm_mask, HL_UNDERLINE);
+        cterm_mask = apply_cterm_flag(cterm.undercurl, cterm_mask, HL_UNDERCURL);
+        cterm_mask = apply_cterm_flag(cterm.underdouble, cterm_mask, HL_UNDERDOUBLE);
+        cterm_mask = apply_cterm_flag(cterm.underdotted, cterm_mask, HL_UNDERDOTTED);
+        cterm_mask = apply_cterm_flag(cterm.underdashed, cterm_mask, HL_UNDERDASHED);
+        cterm_mask = apply_cterm_flag(cterm.standout, cterm_mask, HL_STANDOUT);
+        cterm_mask = apply_cterm_flag(cterm.strikethrough, cterm_mask, HL_STRIKETHROUGH);
+        cterm_mask = apply_cterm_flag(cterm.altfont, cterm_mask, HL_ALTFONT);
+        cterm_mask = apply_cterm_flag(cterm.dim, cterm_mask, HL_DIM);
+        cterm_mask = apply_cterm_flag(cterm.blink, cterm_mask, HL_BLINK);
+        cterm_mask = apply_cterm_flag(cterm.conceal, cterm_mask, HL_CONCEALED);
+        cterm_mask = apply_cterm_flag(cterm.overline, cterm_mask, HL_OVERLINE);
+        cterm_mask = apply_cterm_flag(cterm.nocombine, cterm_mask, HL_NOCOMBINE);
+    }
+
+    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERMFG) {
+        ctermfg = object_to_color(dict.ctermfg, c"ctermfg", false, err);
+        if err.err_type != ErrorType::ErrorTypeNone {
+            return hlattrs;
+        }
+    }
+
+    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERMBG) {
+        ctermbg = object_to_color(dict.ctermbg, c"ctermbg", false, err);
+        if err.err_type != ErrorType::ErrorTypeNone {
+            return hlattrs;
+        }
+    }
+
+    if use_rgb {
+        if !cterm_mask_provided {
+            cterm_mask = mask;
+        }
+        hlattrs.rgb_ae_attr = mask;
+        hlattrs.rgb_bg_color = bg;
+        hlattrs.rgb_fg_color = fg;
+        hlattrs.rgb_sp_color = sp;
+        hlattrs.hl_blend = blend;
+        hlattrs.cterm_bg_color = if ctermbg == -1 {
+            0
+        } else {
+            (ctermbg + 1) as i16
+        };
+        hlattrs.cterm_fg_color = if ctermfg == -1 {
+            0
+        } else {
+            (ctermfg + 1) as i16
+        };
+        hlattrs.cterm_ae_attr = cterm_mask;
+    } else {
+        hlattrs.cterm_bg_color = if bg == -1 { 0 } else { (bg + 1) as i16 };
+        hlattrs.cterm_fg_color = if fg == -1 { 0 } else { (fg + 1) as i16 };
+        hlattrs.cterm_ae_attr = mask;
+    }
+
+    if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_FONT) {
+        let str_ = dict.font;
+        font = if str_.size > 0 && !is_none_str(str_.data) {
+            hl_add_font_idx(str_.data)
+        } else {
+            -1
+        };
+    }
+    hlattrs.font = font;
+
+    hlattrs
 }
 
 pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut Error) -> i32 {
@@ -1796,58 +1747,54 @@ pub fn hl_inspect(attr: i32, arena: &mut Arena) -> Array {
 }
 
 fn hl_inspect_size(attr: i32) -> usize {
-    {
-        if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
-            return 0;
-        }
-
-        let e = hl_st().attr_entries.as_slice()[attr as usize];
-        if e.kind == K_HL_COMBINE || e.kind == K_HL_BLEND || e.kind == K_HL_BLEND_THROUGH {
-            return hl_inspect_size(e.id1) + hl_inspect_size(e.id2);
-        }
-        1
+    if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
+        return 0;
     }
+
+    let e = hl_st().attr_entries.as_slice()[attr as usize];
+    if e.kind == K_HL_COMBINE || e.kind == K_HL_BLEND || e.kind == K_HL_BLEND_THROUGH {
+        return hl_inspect_size(e.id1) + hl_inspect_size(e.id2);
+    }
+    1
 }
 
 fn hl_inspect_impl(arr: &mut Array, attr: i32, arena: &mut Arena) {
-    {
-        if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
+    if attr <= 0 || (attr as usize) >= hl_st().attr_entries.len() {
+        return;
+    }
+
+    let e = hl_st().attr_entries.as_slice()[attr as usize];
+    let mut item: Dict;
+    match e.kind {
+        K_HL_SYNTAX => {
+            item = arena_dict(arena, 3);
+            put_c(&mut item, c"kind", cstr_as_obj(c"syntax"));
+            put_c(&mut item, c"hi_name", cstr_as_obj(syn_id2name(e.id1)));
+        }
+        K_HL_UI => {
+            item = arena_dict(arena, 4);
+            put_c(&mut item, c"kind", cstr_as_obj(c"ui"));
+            let ui_name = if e.id1 == -1 {
+                c"Normal".as_ptr()
+            } else {
+                hlf_name_ptr(e.id1 as usize)
+            };
+            put_c(&mut item, c"ui_name", cstr_as_obj(ui_name));
+            put_c(&mut item, c"hi_name", cstr_as_obj(syn_id2name(e.id2)));
+        }
+        K_HL_TERMINAL => {
+            item = arena_dict(arena, 2);
+            put_c(&mut item, c"kind", cstr_as_obj(c"term"));
+        }
+        K_HL_COMBINE | K_HL_BLEND | K_HL_BLEND_THROUGH => {
+            hl_inspect_impl(arr, e.id1, arena);
+            hl_inspect_impl(arr, e.id2, arena);
             return;
         }
-
-        let e = hl_st().attr_entries.as_slice()[attr as usize];
-        let mut item: Dict;
-        match e.kind {
-            K_HL_SYNTAX => {
-                item = arena_dict(arena, 3);
-                put_c(&mut item, c"kind", cstr_as_obj(c"syntax"));
-                put_c(&mut item, c"hi_name", cstr_as_obj(syn_id2name(e.id1)));
-            }
-            K_HL_UI => {
-                item = arena_dict(arena, 4);
-                put_c(&mut item, c"kind", cstr_as_obj(c"ui"));
-                let ui_name = if e.id1 == -1 {
-                    c"Normal".as_ptr()
-                } else {
-                    hlf_name_ptr(e.id1 as usize)
-                };
-                put_c(&mut item, c"ui_name", cstr_as_obj(ui_name));
-                put_c(&mut item, c"hi_name", cstr_as_obj(syn_id2name(e.id2)));
-            }
-            K_HL_TERMINAL => {
-                item = arena_dict(arena, 2);
-                put_c(&mut item, c"kind", cstr_as_obj(c"term"));
-            }
-            K_HL_COMBINE | K_HL_BLEND | K_HL_BLEND_THROUGH => {
-                hl_inspect_impl(arr, e.id1, arena);
-                hl_inspect_impl(arr, e.id2, arena);
-                return;
-            }
-            _ => return,
-        }
-        put_c(&mut item, c"id", integer_obj(Integer::from(attr)));
-        add_c(arr, dict_obj(item));
+        _ => return,
     }
+    put_c(&mut item, c"id", integer_obj(Integer::from(attr)));
+    add_c(arr, dict_obj(item));
 }
 
 #[cfg(test)]

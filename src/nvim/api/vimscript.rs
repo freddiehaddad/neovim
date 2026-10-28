@@ -108,20 +108,18 @@ pub fn nvim_exec2(
     opts: &mut KeyDict_exec_opts,
     err: &mut Error,
 ) -> Dict {
-    {
-        let mut result = Dict::new();
-        let output = exec_impl(channel_id, src, &mut *opts, err);
-        if error_set(err) {
-            return result;
-        }
-        if opts.output {
-            result.push(KeyValuePair {
-                key: cstr_to_string(c"output"),
-                value: string_obj(output),
-            });
-        }
-        result
+    let mut result = Dict::new();
+    let output = exec_impl(channel_id, src, &mut *opts, err);
+    if error_set(err) {
+        return result;
     }
+    if opts.output {
+        result.push(KeyValuePair {
+            key: cstr_to_string(c"output"),
+            value: string_obj(output),
+        });
+    }
+    result
 }
 
 // DLLEXPORT String exec_impl(uint64_t channel_id, String src, Dict(exec_opts) *opts, Error *err);
@@ -200,42 +198,40 @@ pub fn nvim_command(cmd: NvimString, err: &mut Error) {
 /// @return         Evaluation result or expanded object
 // DLLEXPORT Object nvim_eval(String expr, Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_eval(expr: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-    {
-        let mut rv = nil_obj();
+    let mut rv = nil_obj();
 
-        if api_vims_st().eval_recursive == 0 {
-            g_st().force_abort = false;
-            g_st().suppress_errthrow = false;
-            g_st().did_throw = false;
-            g_st().did_emsg = 0;
-        }
-        api_vims_st().eval_recursive += 1;
-
-        let mut rettv: TypVal = TypVal::new();
-        let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        let ok = eval0(expr.data, &mut rettv, None, &mut g_st().evalarg_evaluate);
-        try_leave(&tstate, err);
-
-        if !error_set(err) {
-            if !ok {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"Failed to evaluate expression: '%.*s'",
-                    256_i32,
-                    expr.data,
-                );
-            } else {
-                rv = vim_to_object(&mut rettv, Some(arena), false);
-            }
-        }
-
-        tv_clear(&mut rettv);
-        api_vims_st().eval_recursive -= 1;
-
-        rv
+    if api_vims_st().eval_recursive == 0 {
+        g_st().force_abort = false;
+        g_st().suppress_errthrow = false;
+        g_st().did_throw = false;
+        g_st().did_emsg = 0;
     }
+    api_vims_st().eval_recursive += 1;
+
+    let mut rettv: TypVal = TypVal::new();
+    let mut tstate = TryState::new();
+    try_enter(&mut tstate);
+    let ok = eval0(expr.data, &mut rettv, None, &mut g_st().evalarg_evaluate);
+    try_leave(&tstate, err);
+
+    if !error_set(err) {
+        if !ok {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Failed to evaluate expression: '%.*s'",
+                256_i32,
+                expr.data,
+            );
+        } else {
+            rv = vim_to_object(&mut rettv, Some(arena), false);
+        }
+    }
+
+    tv_clear(&mut rettv);
+    api_vims_st().eval_recursive -= 1;
+
+    rv
 }
 
 fn call_function_impl(
@@ -246,75 +242,73 @@ fn call_function_impl(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    {
-        let mut rv = nil_obj();
+    let mut rv = nil_obj();
 
-        if args.size > MAX_FUNC_ARGS {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Function called with too many arguments",
-            );
-            return rv;
-        }
-
-        let mut vim_args: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
-        let mut i = 0usize;
-        while i < args.size {
-            object_to_vim(args[i], &mut vim_args[i], err);
-            i += 1;
-        }
-
-        if api_vims_st().call_func_recursive == 0 {
-            g_st().force_abort = false;
-            g_st().suppress_errthrow = false;
-            g_st().did_throw = false;
-            g_st().did_emsg = 0;
-        }
-        api_vims_st().call_func_recursive += 1;
-
-        let mut rettv: TypVal = TypVal::new();
-        let lnum = curwin_mut().w_cursor.lnum;
-        let mut funcexe = Funcexe {
-            fe_fill_submatch: false,
-            fe_firstline: lnum,
-            fe_lastline: lnum,
-            fe_doesrange: false,
-            fe_evaluate: true,
-            fe_partial: std::ptr::null_mut(),
-            fe_selfdict: self_dict,
-            fe_basetv: std::ptr::null_mut(),
-            fe_found_var: false,
-        };
-
-        let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        let save_current_sctx = api_set_sctx(channel_id);
-        let _ = call_func(
-            fn_name.data,
-            fn_name.size as i32,
-            &mut rettv,
-            args.size as i32,
-            vim_args.as_mut_ptr(),
-            &mut funcexe,
+    if args.size > MAX_FUNC_ARGS {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Function called with too many arguments",
         );
-        g_st().current_sctx = save_current_sctx;
-        try_leave(&tstate, err);
-
-        if !error_set(err) {
-            rv = vim_to_object(&mut rettv, Some(arena), false);
-        }
-
-        tv_clear(&mut rettv);
-        api_vims_st().call_func_recursive -= 1;
-
-        while i > 0 {
-            i -= 1;
-            tv_clear(&mut vim_args[i]);
-        }
-
-        rv
+        return rv;
     }
+
+    let mut vim_args: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
+    let mut i = 0usize;
+    while i < args.size {
+        object_to_vim(args[i], &mut vim_args[i], err);
+        i += 1;
+    }
+
+    if api_vims_st().call_func_recursive == 0 {
+        g_st().force_abort = false;
+        g_st().suppress_errthrow = false;
+        g_st().did_throw = false;
+        g_st().did_emsg = 0;
+    }
+    api_vims_st().call_func_recursive += 1;
+
+    let mut rettv: TypVal = TypVal::new();
+    let lnum = curwin_mut().w_cursor.lnum;
+    let mut funcexe = Funcexe {
+        fe_fill_submatch: false,
+        fe_firstline: lnum,
+        fe_lastline: lnum,
+        fe_doesrange: false,
+        fe_evaluate: true,
+        fe_partial: std::ptr::null_mut(),
+        fe_selfdict: self_dict,
+        fe_basetv: std::ptr::null_mut(),
+        fe_found_var: false,
+    };
+
+    let mut tstate = TryState::new();
+    try_enter(&mut tstate);
+    let save_current_sctx = api_set_sctx(channel_id);
+    let _ = call_func(
+        fn_name.data,
+        fn_name.size as i32,
+        &mut rettv,
+        args.size as i32,
+        vim_args.as_mut_ptr(),
+        &mut funcexe,
+    );
+    g_st().current_sctx = save_current_sctx;
+    try_leave(&tstate, err);
+
+    if !error_set(err) {
+        rv = vim_to_object(&mut rettv, Some(arena), false);
+    }
+
+    tv_clear(&mut rettv);
+    api_vims_st().call_func_recursive -= 1;
+
+    while i > 0 {
+        i -= 1;
+        tv_clear(&mut vim_args[i]);
+    }
+
+    rv
 }
 
 /// Calls a Vimscript function with the given arguments.
@@ -356,108 +350,106 @@ pub fn nvim_call_dict_function(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    {
-        let mut rv = nil_obj();
-        let mut rettv: TypVal = TypVal::new();
-        let mut mustfree = false;
+    let mut rv = nil_obj();
+    let mut rettv: TypVal = TypVal::new();
+    let mut mustfree = false;
 
-        match dict.obj_type {
-            ObjectType::ObjectTypeString => {
-                let mut tstate = TryState::new();
-                try_enter(&mut tstate);
-                let eval_ret = eval0(
-                    dict.data.string().data,
-                    &mut rettv,
-                    None,
-                    &mut g_st().evalarg_evaluate,
-                );
-                try_leave(&tstate, err);
-                if error_set(err) {
-                    return rv;
-                }
-                if !eval_ret {
-                    std::process::abort();
-                }
-                mustfree = true;
-            }
-            ObjectType::ObjectTypeDict => {
-                object_to_vim(dict, &mut rettv, err);
-            }
-            _ => {
-                api_err_exp(err, c"dict argument", c"String or Dict", std::ptr::null());
+    match dict.obj_type {
+        ObjectType::ObjectTypeString => {
+            let mut tstate = TryState::new();
+            try_enter(&mut tstate);
+            let eval_ret = eval0(
+                dict.data.string().data,
+                &mut rettv,
+                None,
+                &mut g_st().evalarg_evaluate,
+            );
+            try_leave(&tstate, err);
+            if error_set(err) {
                 return rv;
             }
+            if !eval_ret {
+                std::process::abort();
+            }
+            mustfree = true;
+        }
+        ObjectType::ObjectTypeDict => {
+            object_to_vim(dict, &mut rettv, err);
+        }
+        _ => {
+            api_err_exp(err, c"dict argument", c"String or Dict", std::ptr::null());
+            return rv;
+        }
+    }
+
+    'body: {
+        let self_dict = rettv.vval.v_dict();
+        if rettv.v_type != VarType::VarDict || self_dict.is_null() {
+            api_set_error!(err, ErrorType::ErrorTypeValidation, c"dict not found",);
+            break 'body;
         }
 
-        'body: {
-            let self_dict = rettv.vval.v_dict();
-            if rettv.v_type != VarType::VarDict || self_dict.is_null() {
-                api_set_error!(err, ErrorType::ErrorTypeValidation, c"dict not found",);
-                break 'body;
-            }
-
-            if !fn_name.data.is_null()
-                && fn_name.size > 0
-                && dict.obj_type != ObjectType::ObjectTypeDict
-            {
-                let di = tv_dict_find(
-                    unsafe { self_dict.as_ref() },
-                    fn_name.data,
-                    fn_name.size as isize,
-                );
-                if di.is_null() {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Not found: %s",
-                        fn_name.data,
-                    );
-                    break 'body;
-                }
-                let di = { unsafe { &mut *di } };
-                if di.di_tv.v_type == VarType::VarPartial {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"partial function not supported",
-                    );
-                    break 'body;
-                }
-                if di.di_tv.v_type != VarType::VarFunc {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Not a function: %s",
-                        fn_name.data,
-                    );
-                    break 'body;
-                }
-                let s = di.di_tv.vval.v_string();
-                fn_name = NvimString {
-                    data: s,
-                    size: crate::memory::cstr_len(s),
-                };
-            }
-
-            if fn_name.data.is_null() || fn_name.size == 0 {
+        if !fn_name.data.is_null()
+            && fn_name.size > 0
+            && dict.obj_type != ObjectType::ObjectTypeDict
+        {
+            let di = tv_dict_find(
+                unsafe { self_dict.as_ref() },
+                fn_name.data,
+                fn_name.size as isize,
+            );
+            if di.is_null() {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
-                    c"Invalid function name: %s",
-                    c"(empty)",
+                    c"Not found: %s",
+                    fn_name.data,
                 );
                 break 'body;
             }
-
-            rv = call_function_impl(channel_id, fn_name, args, self_dict, arena, err);
+            let di = { unsafe { &mut *di } };
+            if di.di_tv.v_type == VarType::VarPartial {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"partial function not supported",
+                );
+                break 'body;
+            }
+            if di.di_tv.v_type != VarType::VarFunc {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"Not a function: %s",
+                    fn_name.data,
+                );
+                break 'body;
+            }
+            let s = di.di_tv.vval.v_string();
+            fn_name = NvimString {
+                data: s,
+                size: crate::memory::cstr_len(s),
+            };
         }
 
-        if mustfree {
-            tv_clear(&mut rettv);
+        if fn_name.data.is_null() || fn_name.size == 0 {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"Invalid function name: %s",
+                c"(empty)",
+            );
+            break 'body;
         }
 
-        rv
+        rv = call_function_impl(channel_id, fn_name, args, self_dict, arena, err);
     }
+
+    if mustfree {
+        tv_clear(&mut rettv);
+    }
+
+    rv
 }
 
 /// Parse a Vimscript expression.
@@ -543,101 +535,99 @@ pub fn nvim_parse_expression(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    {
-        let mut pflags: i32 = 0;
-        for i in 0..flags.size {
-            let b = crate::memory::cstr_byte_at(flags.data, i);
-            match b {
-                b'm' => pflags |= K_EXPR_FLAGS_MULTI,
-                b'E' => pflags |= K_EXPR_FLAGS_DISALLOW_EOC,
-                b'l' => pflags |= K_EXPR_FLAGS_PARSE_LET,
-                0 => {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Invalid flag: '\\0' (%u)",
-                        u32::from(b),
-                    );
-                    return Dict::new();
-                }
-                _ => {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Invalid flag: '%c' (%u)",
-                        i32::from(b as c_char),
-                        u32::from(b),
-                    );
-                    return Dict::new();
-                }
-            }
-        }
-
-        let parser_lines = [
-            ParserLine {
-                data: expr.data,
-                size: expr.size,
-            },
-            ParserLine {
-                data: std::ptr::null(),
-                size: 0,
-            },
-        ];
-        let mut pstate = ParserState {
-            reader: ParserInputReader::new(&parser_lines),
-            pos: ParserPosition { line: 0, col: 0 },
-            colors: hl.then(ParserHighlight::new),
-        };
-
-        let east = viml_pexpr_parse(&mut pstate, pflags);
-
-        let ret_size = 2 + usize::from(east.err.msg.is_some()) + usize::from(hl);
-        let mut ret = arena_dict(arena, ret_size);
-        let parsed_len = if pstate.pos.line == 1 {
-            parser_lines[0].size
-        } else {
-            pstate.pos.col
-        };
-        put_c(&mut ret, c"len", integer_obj(parsed_len as Integer));
-
-        if let Some(err_msg) = east.err.msg {
-            let mut err_dict = arena_dict(arena, 2);
-            let msg_str = arena_string(arena, cstr_as_string(err_msg.as_ptr()));
-            put_c(&mut err_dict, c"message", string_obj(msg_str));
-            put_c(
-                &mut err_dict,
-                c"arg",
-                cbuf_to_arena_obj(arena, east.err.arg, east.err.arg_len as usize),
-            );
-            put_c(&mut ret, c"error", dict_obj(err_dict));
-        }
-
-        if let Some(colors) = pstate.colors.take() {
-            let mut hl_arr = arena_array(arena, colors.len());
-            for chunk in &colors {
-                let mut chunk_arr = arena_array(arena, 4);
-                add_c(&mut chunk_arr, integer_obj(chunk.start.line as Integer));
-                add_c(&mut chunk_arr, integer_obj(chunk.start.col as Integer));
-                add_c(&mut chunk_arr, integer_obj(chunk.end_col as Integer));
-                add_c(
-                    &mut chunk_arr,
-                    string_obj(cstr_as_string(chunk.group.as_ptr())),
+    let mut pflags: i32 = 0;
+    for i in 0..flags.size {
+        let b = crate::memory::cstr_byte_at(flags.data, i);
+        match b {
+            b'm' => pflags |= K_EXPR_FLAGS_MULTI,
+            b'E' => pflags |= K_EXPR_FLAGS_DISALLOW_EOC,
+            b'l' => pflags |= K_EXPR_FLAGS_PARSE_LET,
+            0 => {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"Invalid flag: '\\0' (%u)",
+                    u32::from(b),
                 );
-                add_c(&mut hl_arr, array_obj(chunk_arr));
+                return Dict::new();
             }
-            put_c(&mut ret, c"highlight", array_obj(hl_arr));
+            _ => {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"Invalid flag: '%c' (%u)",
+                    i32::from(b as c_char),
+                    u32::from(b),
+                );
+                return Dict::new();
+            }
         }
-
-        let ast = if let Some(ref root) = east.root {
-            expr_ast_node_to_obj(root, arena)
-        } else {
-            nil_obj()
-        };
-        put_c(&mut ret, c"ast", ast);
-
-        debug_assert_eq!(ret.size, ret.capacity);
-        ret
     }
+
+    let parser_lines = [
+        ParserLine {
+            data: expr.data,
+            size: expr.size,
+        },
+        ParserLine {
+            data: std::ptr::null(),
+            size: 0,
+        },
+    ];
+    let mut pstate = ParserState {
+        reader: ParserInputReader::new(&parser_lines),
+        pos: ParserPosition { line: 0, col: 0 },
+        colors: hl.then(ParserHighlight::new),
+    };
+
+    let east = viml_pexpr_parse(&mut pstate, pflags);
+
+    let ret_size = 2 + usize::from(east.err.msg.is_some()) + usize::from(hl);
+    let mut ret = arena_dict(arena, ret_size);
+    let parsed_len = if pstate.pos.line == 1 {
+        parser_lines[0].size
+    } else {
+        pstate.pos.col
+    };
+    put_c(&mut ret, c"len", integer_obj(parsed_len as Integer));
+
+    if let Some(err_msg) = east.err.msg {
+        let mut err_dict = arena_dict(arena, 2);
+        let msg_str = arena_string(arena, cstr_as_string(err_msg.as_ptr()));
+        put_c(&mut err_dict, c"message", string_obj(msg_str));
+        put_c(
+            &mut err_dict,
+            c"arg",
+            cbuf_to_arena_obj(arena, east.err.arg, east.err.arg_len as usize),
+        );
+        put_c(&mut ret, c"error", dict_obj(err_dict));
+    }
+
+    if let Some(colors) = pstate.colors.take() {
+        let mut hl_arr = arena_array(arena, colors.len());
+        for chunk in &colors {
+            let mut chunk_arr = arena_array(arena, 4);
+            add_c(&mut chunk_arr, integer_obj(chunk.start.line as Integer));
+            add_c(&mut chunk_arr, integer_obj(chunk.start.col as Integer));
+            add_c(&mut chunk_arr, integer_obj(chunk.end_col as Integer));
+            add_c(
+                &mut chunk_arr,
+                string_obj(cstr_as_string(chunk.group.as_ptr())),
+            );
+            add_c(&mut hl_arr, array_obj(chunk_arr));
+        }
+        put_c(&mut ret, c"highlight", array_obj(hl_arr));
+    }
+
+    let ast = if let Some(ref root) = east.root {
+        expr_ast_node_to_obj(root, arena)
+    } else {
+        nil_obj()
+    };
+    put_c(&mut ret, c"ast", ast);
+
+    debug_assert_eq!(ret.size, ret.capacity);
+    ret
 }
 
 fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {

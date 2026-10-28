@@ -272,82 +272,80 @@ pub fn get_extra_op_char(optype: i32) -> i32 {
 
 /// Handle a shift operation.
 pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
-    {
-        let mut block_col: i32 = 0;
+    let mut block_col: i32 = 0;
 
-        if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
-            return;
-        }
-
-        if oap.motion_type == MT_BLOCK_WISE {
-            block_col = curwin_mut().w_cursor.col;
-        }
-
-        let mut i = oap.line_count - 1;
-        while i >= 0 {
-            let first_char = i32::from(crate::memory::cstr_first_byte(get_cursor_line_ptr()));
-            if first_char == 0 {
-                curwin_mut().w_cursor.col = 0;
-            } else if oap.motion_type == MT_BLOCK_WISE {
-                shift_block(oap, amount);
-            } else if first_char != b'#' as i32 || !preprocs_left() {
-                shift_line(oap.op_type == OP_LSHIFT, opt_vars().p_sr != 0, amount, 0);
-            }
-            curwin_mut().w_cursor.lnum += 1;
-            i -= 1;
-        }
-
-        if oap.motion_type == MT_BLOCK_WISE {
-            curwin_mut().w_cursor.lnum = oap.start.lnum;
-            curwin_mut().w_cursor.col = block_col;
-        } else if curs_top {
-            curwin_mut().w_cursor.lnum = oap.start.lnum;
-            beginline(BL_SOL | BL_FIX);
-        } else {
-            curwin_mut().w_cursor.lnum -= 1;
-        }
-        fold_open_cursor();
-
-        if i64::from(oap.line_count) > opt_vars().p_report {
-            let op = if oap.op_type == OP_RSHIFT {
-                c">".as_ptr()
-            } else {
-                c"<".as_ptr()
-            };
-
-            let msg_line_single = ngettext(
-                c"%lld line %sed %d time",
-                c"%lld line %sed %d times",
-                amount as u64,
-            );
-            let msg_line_plural = ngettext(
-                c"%lld lines %sed %d time",
-                c"%lld lines %sed %d times",
-                amount as u64,
-            );
-            let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-            vim_snprintf!(
-                iobuff_ptr,
-                IOSIZE,
-                ngettext(msg_line_single, msg_line_plural, oap.line_count as u64,),
-                i64::from(oap.line_count),
-                op,
-                amount,
-            );
-            msg_keep(iobuff_ptr, 0, true, false);
-        }
-
-        if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            curbuf_mut().b_op_start = oap.start;
-            curbuf_mut().b_op_end.lnum = oap.end.lnum;
-            curbuf_mut().b_op_end.col = ml_get_len(oap.end.lnum);
-            if curbuf_mut().b_op_end.col > 0 {
-                curbuf_mut().b_op_end.col -= 1;
-            }
-        }
-
-        changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
+    if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
+        return;
     }
+
+    if oap.motion_type == MT_BLOCK_WISE {
+        block_col = curwin_mut().w_cursor.col;
+    }
+
+    let mut i = oap.line_count - 1;
+    while i >= 0 {
+        let first_char = i32::from(crate::memory::cstr_first_byte(get_cursor_line_ptr()));
+        if first_char == 0 {
+            curwin_mut().w_cursor.col = 0;
+        } else if oap.motion_type == MT_BLOCK_WISE {
+            shift_block(oap, amount);
+        } else if first_char != b'#' as i32 || !preprocs_left() {
+            shift_line(oap.op_type == OP_LSHIFT, opt_vars().p_sr != 0, amount, 0);
+        }
+        curwin_mut().w_cursor.lnum += 1;
+        i -= 1;
+    }
+
+    if oap.motion_type == MT_BLOCK_WISE {
+        curwin_mut().w_cursor.lnum = oap.start.lnum;
+        curwin_mut().w_cursor.col = block_col;
+    } else if curs_top {
+        curwin_mut().w_cursor.lnum = oap.start.lnum;
+        beginline(BL_SOL | BL_FIX);
+    } else {
+        curwin_mut().w_cursor.lnum -= 1;
+    }
+    fold_open_cursor();
+
+    if i64::from(oap.line_count) > opt_vars().p_report {
+        let op = if oap.op_type == OP_RSHIFT {
+            c">".as_ptr()
+        } else {
+            c"<".as_ptr()
+        };
+
+        let msg_line_single = ngettext(
+            c"%lld line %sed %d time",
+            c"%lld line %sed %d times",
+            amount as u64,
+        );
+        let msg_line_plural = ngettext(
+            c"%lld lines %sed %d time",
+            c"%lld lines %sed %d times",
+            amount as u64,
+        );
+        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
+        vim_snprintf!(
+            iobuff_ptr,
+            IOSIZE,
+            ngettext(msg_line_single, msg_line_plural, oap.line_count as u64,),
+            i64::from(oap.line_count),
+            op,
+            amount,
+        );
+        msg_keep(iobuff_ptr, 0, true, false);
+    }
+
+    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+        curbuf_mut().b_op_start = oap.start;
+        curbuf_mut().b_op_end.lnum = oap.end.lnum;
+        curbuf_mut().b_op_end.col = ml_get_len(oap.end.lnum);
+        if curbuf_mut().b_op_end.col > 0 {
+            curbuf_mut().b_op_end.col -= 1;
+        }
+    }
+
+    changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
 }
 
 fn get_vts(vts_array: &[i32], index: i32) -> i32 {
@@ -439,238 +437,232 @@ fn get_new_vts_indent(left: bool, round: bool, amount: i32, vts_array: &[i32]) -
 
 /// Shift the current line `amount` shiftwidth(s) left or right.
 pub fn shift_line(left: bool, round: bool, amount: i32, call_changed_bytes: i32) {
-    {
-        let sw_val = curbuf_mut().b_p_sw;
-        let ts_val = curbuf_mut().b_p_ts;
-        let vts_array = &curbuf_mut().b_p_vts_array;
+    let sw_val = curbuf_mut().b_p_sw;
+    let ts_val = curbuf_mut().b_p_ts;
+    let vts_array = &curbuf_mut().b_p_vts_array;
 
-        let count = if sw_val != 0 {
-            get_new_sw_indent(left, round, i64::from(amount), sw_val)
-        } else if vts_array.is_empty() {
-            get_new_sw_indent(left, round, i64::from(amount), ts_val)
-        } else {
-            get_new_vts_indent(left, round, amount, vts_array)
-        };
+    let count = if sw_val != 0 {
+        get_new_sw_indent(left, round, i64::from(amount), sw_val)
+    } else if vts_array.is_empty() {
+        get_new_sw_indent(left, round, i64::from(amount), ts_val)
+    } else {
+        get_new_vts_indent(left, round, amount, vts_array)
+    };
 
-        if (g_st().state_global & VREPLACE_FLAG) != 0 {
-            change_indent(INDENT_SET, trim_to_int(count), 0, call_changed_bytes != 0);
-        } else {
-            set_indent(
-                trim_to_int(count),
-                if call_changed_bytes != 0 {
-                    SIN_CHANGED
-                } else {
-                    0
-                },
-            );
-        }
+    if (g_st().state_global & VREPLACE_FLAG) != 0 {
+        change_indent(INDENT_SET, trim_to_int(count), 0, call_changed_bytes != 0);
+    } else {
+        set_indent(
+            trim_to_int(count),
+            if call_changed_bytes != 0 {
+                SIN_CHANGED
+            } else {
+                0
+            },
+        );
     }
 }
 
 fn shift_block(oap: &mut Oparg, amount: i32) {
-    {
-        let left = oap.op_type == OP_LSHIFT;
-        let oldstate = g_st().state_global;
-        let oldcol = curwin_mut().w_cursor.col;
-        let sw_val = get_sw_value_indent(curbuf_mut(), left);
-        let ts_val = curbuf_mut().b_p_ts as i32;
-        let mut bd = BlockDef::new();
-        let old_p_ri = opt_vars().p_ri;
+    let left = oap.op_type == OP_LSHIFT;
+    let oldstate = g_st().state_global;
+    let oldcol = curwin_mut().w_cursor.col;
+    let sw_val = get_sw_value_indent(curbuf_mut(), left);
+    let ts_val = curbuf_mut().b_p_ts as i32;
+    let mut bd = BlockDef::new();
+    let old_p_ri = opt_vars().p_ri;
 
-        opt_vars().p_ri = 0;
+    opt_vars().p_ri = 0;
 
-        g_st().state_global = MODE_INSERT;
-        block_prep(oap, &mut bd, curwin_mut().w_cursor.lnum, true);
-        if bd.is_short != 0 {
-            return;
-        }
-
-        let mut total = (amount as u32).wrapping_mul(sw_val as u32) as i32;
-        if (total / sw_val) != amount {
-            return;
-        }
-
-        let oldp = get_cursor_line_ptr();
-        let old_line_len = get_cursor_line_len();
-
-        let mut newp_vec: Vec<c_char>;
-        let newp: *mut c_char;
-        let startcol: i32;
-        let oldlen: i32;
-        let newlen: i32;
-
-        if !left {
-            total += bd.pre_whitesp;
-            let mut ws_vcol = bd.start_vcol - bd.pre_whitesp;
-            let old_textstart = bd.textstart;
-            if bd.startspaces != 0 {
-                if utfc_ptr2len(bd.textstart) == 1 {
-                    bd.textstart = bd.textstart.wrapping_add(1);
-                } else {
-                    ws_vcol = 0;
-                    bd.startspaces = 0;
-                }
-            }
-
-            let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(
-                &mut csarg,
-                curwin_mut(),
-                curwin_mut().w_cursor.lnum,
-                bd.textstart,
-            );
-            let mut ci = utf_ptr2_str_char_info(bd.textstart);
-            let mut vcol = bd.start_vcol;
-            while ascii_iswhite(ci.chr.value) {
-                let cli = utf_cluster_info(ci);
-                let incr =
-                    win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells).width;
-                ci = cli.next;
-                total += incr;
-                vcol += incr;
-            }
-            bd.textstart = ci.ptr.cast_mut();
-            bd.start_vcol = vcol;
-
-            let mut tabs: i32 = 0;
-            let mut spaces: i32 = 0;
-            if curbuf_mut().b_p_et == 0 {
-                tabstop_fromto(
-                    ws_vcol,
-                    ws_vcol + total,
-                    ts_val,
-                    &curbuf_mut().b_p_vts_array,
-                    &mut tabs,
-                    &mut spaces,
-                );
-            } else {
-                spaces = total;
-            }
-
-            let col_pre = bd.pre_whitesp_c - i32::from(bd.startspaces != 0);
-            bd.textcol -= col_pre;
-
-            let new_line_len = bd.textcol
-                + tabs
-                + spaces
-                + (old_line_len - (crate::memory::ptr_offset_from(bd.textstart, oldp) as i32));
-            newp_vec = vec![0 as c_char; (new_line_len as usize) + 1];
-            newp = newp_vec.as_mut_ptr();
-            unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
-            startcol = bd.textcol;
-            oldlen = (crate::memory::ptr_offset_from(bd.textstart, old_textstart) as i32) + col_pre;
-            newlen = tabs + spaces;
-            unsafe {
-                ptr::write_bytes(newp.wrapping_add(bd.textcol as usize), b'\t', tabs as usize)
-            };
-            unsafe {
-                ptr::write_bytes(
-                    newp.wrapping_add((bd.textcol + tabs) as usize),
-                    b' ',
-                    spaces as usize,
-                )
-            };
-            crate::memory::cstr_cpy(
-                newp.wrapping_add((bd.textcol + tabs + spaces) as usize),
-                bd.textstart,
-            );
-            debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
-        } else {
-            let mut non_white = bd.textstart;
-
-            if bd.startspaces != 0 {
-                non_white = non_white.wrapping_add(utfc_ptr2len(non_white) as usize);
-            }
-
-            let mut non_white_col = bd.start_vcol;
-
-            let mut csarg = CharsizeArg::new();
-            let mut cstype: CSType = init_charsize_arg(
-                &mut csarg,
-                curwin_mut(),
-                curwin_mut().w_cursor.lnum,
-                bd.textstart,
-            );
-            while ascii_iswhite(i32::from(crate::memory::cstr_first_byte(non_white))) {
-                let incr = win_charsize(
-                    cstype,
-                    non_white_col,
-                    non_white,
-                    i32::from(crate::memory::cstr_first_byte(non_white)),
-                    &mut csarg,
-                    1,
-                )
-                .width;
-                non_white_col += incr;
-                non_white = non_white.wrapping_add(1);
-            }
-
-            let block_space_width = non_white_col - oap.start_vcol;
-            let shift_amount = block_space_width.min(total);
-            let destination_col = non_white_col - shift_amount;
-
-            let mut verbatim_copy_end = bd.textstart;
-            let mut verbatim_copy_width = bd.start_vcol;
-
-            if bd.startspaces != 0 {
-                verbatim_copy_width -= bd.start_char_vcols;
-            }
-            cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, bd.textstart);
-            let mut ci = utf_ptr2_str_char_info(verbatim_copy_end);
-            while verbatim_copy_width < destination_col {
-                let cli = utf_cluster_info(ci);
-                let incr = win_charsize(
-                    cstype,
-                    verbatim_copy_width,
-                    ci.ptr,
-                    ci.chr.value,
-                    &mut csarg,
-                    cli.cells,
-                )
-                .width;
-                if verbatim_copy_width + incr > destination_col {
-                    break;
-                }
-                verbatim_copy_width += incr;
-                ci = cli.next;
-            }
-            verbatim_copy_end = ci.ptr.cast_mut();
-
-            debug_assert!(destination_col - verbatim_copy_width >= 0);
-            let fill = destination_col - verbatim_copy_width;
-
-            debug_assert!(crate::memory::ptr_offset_from(verbatim_copy_end, oldp) >= 0);
-            let fixedlen = crate::memory::ptr_offset_from(verbatim_copy_end, oldp) as i32;
-            let new_line_len = fixedlen
-                + fill
-                + (old_line_len - (crate::memory::ptr_offset_from(non_white, oldp) as i32));
-
-            newp_vec = vec![0 as c_char; (new_line_len as usize) + 1];
-            newp = newp_vec.as_mut_ptr();
-            startcol = fixedlen;
-            oldlen = bd.textcol + (crate::memory::ptr_offset_from(non_white, bd.textstart) as i32)
-                - fixedlen;
-            newlen = fill;
-            unsafe { ptr::copy(oldp, newp, fixedlen as usize) };
-            unsafe { ptr::write_bytes(newp.wrapping_add(fixedlen as usize), b' ', fill as usize) };
-            crate::memory::cstr_cpy(newp.wrapping_add((fixedlen + fill) as usize), non_white);
-            debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
-        }
-        ml_replace(curwin_mut().w_cursor.lnum, newp, true);
-        drop(newp_vec);
-        changed_bytes(curwin_mut().w_cursor.lnum, bd.textcol);
-        extmark_splice_cols(
-            curbuf_mut(),
-            curwin_mut().w_cursor.lnum - 1,
-            startcol,
-            oldlen,
-            newlen,
-            K_EXTMARK_UNDO,
-        );
-        g_st().state_global = oldstate;
-        curwin_mut().w_cursor.col = oldcol;
-        opt_vars().p_ri = old_p_ri;
+    g_st().state_global = MODE_INSERT;
+    block_prep(oap, &mut bd, curwin_mut().w_cursor.lnum, true);
+    if bd.is_short != 0 {
+        return;
     }
+
+    let mut total = (amount as u32).wrapping_mul(sw_val as u32) as i32;
+    if (total / sw_val) != amount {
+        return;
+    }
+
+    let oldp = get_cursor_line_ptr();
+    let old_line_len = get_cursor_line_len();
+
+    let mut newp_vec: Vec<c_char>;
+    let newp: *mut c_char;
+    let startcol: i32;
+    let oldlen: i32;
+    let newlen: i32;
+
+    if !left {
+        total += bd.pre_whitesp;
+        let mut ws_vcol = bd.start_vcol - bd.pre_whitesp;
+        let old_textstart = bd.textstart;
+        if bd.startspaces != 0 {
+            if utfc_ptr2len(bd.textstart) == 1 {
+                bd.textstart = bd.textstart.wrapping_add(1);
+            } else {
+                ws_vcol = 0;
+                bd.startspaces = 0;
+            }
+        }
+
+        let mut csarg = CharsizeArg::new();
+        let cstype: CSType = init_charsize_arg(
+            &mut csarg,
+            curwin_mut(),
+            curwin_mut().w_cursor.lnum,
+            bd.textstart,
+        );
+        let mut ci = utf_ptr2_str_char_info(bd.textstart);
+        let mut vcol = bd.start_vcol;
+        while ascii_iswhite(ci.chr.value) {
+            let cli = utf_cluster_info(ci);
+            let incr =
+                win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells).width;
+            ci = cli.next;
+            total += incr;
+            vcol += incr;
+        }
+        bd.textstart = ci.ptr.cast_mut();
+        bd.start_vcol = vcol;
+
+        let mut tabs: i32 = 0;
+        let mut spaces: i32 = 0;
+        if curbuf_mut().b_p_et == 0 {
+            tabstop_fromto(
+                ws_vcol,
+                ws_vcol + total,
+                ts_val,
+                &curbuf_mut().b_p_vts_array,
+                &mut tabs,
+                &mut spaces,
+            );
+        } else {
+            spaces = total;
+        }
+
+        let col_pre = bd.pre_whitesp_c - i32::from(bd.startspaces != 0);
+        bd.textcol -= col_pre;
+
+        let new_line_len = bd.textcol
+            + tabs
+            + spaces
+            + (old_line_len - (crate::memory::ptr_offset_from(bd.textstart, oldp) as i32));
+        newp_vec = vec![0 as c_char; (new_line_len as usize) + 1];
+        newp = newp_vec.as_mut_ptr();
+        unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
+        startcol = bd.textcol;
+        oldlen = (crate::memory::ptr_offset_from(bd.textstart, old_textstart) as i32) + col_pre;
+        newlen = tabs + spaces;
+        unsafe { ptr::write_bytes(newp.wrapping_add(bd.textcol as usize), b'\t', tabs as usize) };
+        unsafe {
+            ptr::write_bytes(
+                newp.wrapping_add((bd.textcol + tabs) as usize),
+                b' ',
+                spaces as usize,
+            )
+        };
+        crate::memory::cstr_cpy(
+            newp.wrapping_add((bd.textcol + tabs + spaces) as usize),
+            bd.textstart,
+        );
+        debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
+    } else {
+        let mut non_white = bd.textstart;
+
+        if bd.startspaces != 0 {
+            non_white = non_white.wrapping_add(utfc_ptr2len(non_white) as usize);
+        }
+
+        let mut non_white_col = bd.start_vcol;
+
+        let mut csarg = CharsizeArg::new();
+        let mut cstype: CSType = init_charsize_arg(
+            &mut csarg,
+            curwin_mut(),
+            curwin_mut().w_cursor.lnum,
+            bd.textstart,
+        );
+        while ascii_iswhite(i32::from(crate::memory::cstr_first_byte(non_white))) {
+            let incr = win_charsize(
+                cstype,
+                non_white_col,
+                non_white,
+                i32::from(crate::memory::cstr_first_byte(non_white)),
+                &mut csarg,
+                1,
+            )
+            .width;
+            non_white_col += incr;
+            non_white = non_white.wrapping_add(1);
+        }
+
+        let block_space_width = non_white_col - oap.start_vcol;
+        let shift_amount = block_space_width.min(total);
+        let destination_col = non_white_col - shift_amount;
+
+        let mut verbatim_copy_end = bd.textstart;
+        let mut verbatim_copy_width = bd.start_vcol;
+
+        if bd.startspaces != 0 {
+            verbatim_copy_width -= bd.start_char_vcols;
+        }
+        cstype = init_charsize_arg(&mut csarg, curwin_mut(), 0, bd.textstart);
+        let mut ci = utf_ptr2_str_char_info(verbatim_copy_end);
+        while verbatim_copy_width < destination_col {
+            let cli = utf_cluster_info(ci);
+            let incr = win_charsize(
+                cstype,
+                verbatim_copy_width,
+                ci.ptr,
+                ci.chr.value,
+                &mut csarg,
+                cli.cells,
+            )
+            .width;
+            if verbatim_copy_width + incr > destination_col {
+                break;
+            }
+            verbatim_copy_width += incr;
+            ci = cli.next;
+        }
+        verbatim_copy_end = ci.ptr.cast_mut();
+
+        debug_assert!(destination_col - verbatim_copy_width >= 0);
+        let fill = destination_col - verbatim_copy_width;
+
+        debug_assert!(crate::memory::ptr_offset_from(verbatim_copy_end, oldp) >= 0);
+        let fixedlen = crate::memory::ptr_offset_from(verbatim_copy_end, oldp) as i32;
+        let new_line_len = fixedlen
+            + fill
+            + (old_line_len - (crate::memory::ptr_offset_from(non_white, oldp) as i32));
+
+        newp_vec = vec![0 as c_char; (new_line_len as usize) + 1];
+        newp = newp_vec.as_mut_ptr();
+        startcol = fixedlen;
+        oldlen = bd.textcol + (crate::memory::ptr_offset_from(non_white, bd.textstart) as i32)
+            - fixedlen;
+        newlen = fill;
+        unsafe { ptr::copy(oldp, newp, fixedlen as usize) };
+        unsafe { ptr::write_bytes(newp.wrapping_add(fixedlen as usize), b' ', fill as usize) };
+        crate::memory::cstr_cpy(newp.wrapping_add((fixedlen + fill) as usize), non_white);
+        debug_assert_eq!(newlen - oldlen, new_line_len - old_line_len);
+    }
+    ml_replace(curwin_mut().w_cursor.lnum, newp, true);
+    drop(newp_vec);
+    changed_bytes(curwin_mut().w_cursor.lnum, bd.textcol);
+    extmark_splice_cols(
+        curbuf_mut(),
+        curwin_mut().w_cursor.lnum - 1,
+        startcol,
+        oldlen,
+        newlen,
+        K_EXTMARK_UNDO,
+    );
+    g_st().state_global = oldstate;
+    curwin_mut().w_cursor.col = oldcol;
+    opt_vars().p_ri = old_p_ri;
 }
 
 fn block_insert(
@@ -816,349 +808,343 @@ fn block_insert(
 
 /// Handle a delete operation.
 pub fn op_delete(oap: &mut Oparg) -> bool {
-    {
-        let mut bd = BlockDef::new();
-        let old_lcount = curbuf_mut().b_ml.ml_line_count;
+    let mut bd = BlockDef::new();
+    let old_lcount = curbuf_mut().b_ml.ml_line_count;
 
-        if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+        return true;
+    }
+
+    if oap.empty {
+        return u_save_cursor();
+    }
+
+    if !modifiable(curbuf_mut()) {
+        emsg(tr(E_MODIFIABLE));
+        return false;
+    }
+
+    if g_st().visual_global.select && oap.is_visual {
+        oap.regname = g_st().visual_global.select_reg;
+    }
+
+    mb_adjust_opend(oap);
+
+    if oap.motion_type == MT_CHAR_WISE
+        && !oap.is_visual
+        && oap.line_count > 1
+        && oap.motion_force == i32::from(NUL)
+        && oap.op_type == OP_DELETE
+    {
+        let mut ptr_line = ml_get(oap.end.lnum).wrapping_add(oap.end.col as usize);
+        if !crate::memory::cstr_is_empty(ptr_line) {
+            ptr_line = ptr_line.wrapping_add(usize::from(oap.inclusive));
+        }
+        ptr_line = skipwhite(ptr_line);
+        if crate::memory::cstr_is_empty(ptr_line) && inindent(0) {
+            oap.motion_type = MT_LINE_WISE;
+        }
+    }
+
+    let mut only_setmarks = false;
+    if oap.motion_type != MT_LINE_WISE
+        && oap.line_count == 1
+        && oap.op_type == OP_DELETE
+        && unsafe { *ml_get(oap.start.lnum) } == NUL
+    {
+        if g_st().virtual_op != 0 {
+            only_setmarks = true;
+        } else {
+            if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_EMPTYREGION) {
+                beep_flush();
+            }
             return true;
         }
+    }
 
-        if oap.empty {
-            return u_save_cursor();
-        }
-
-        if !modifiable(curbuf_mut()) {
-            emsg(tr(E_MODIFIABLE));
-            return false;
-        }
-
-        if g_st().visual_global.select && oap.is_visual {
-            oap.regname = g_st().visual_global.select_reg;
-        }
-
-        mb_adjust_opend(oap);
-
-        if oap.motion_type == MT_CHAR_WISE
-            && !oap.is_visual
-            && oap.line_count > 1
-            && oap.motion_force == i32::from(NUL)
-            && oap.op_type == OP_DELETE
-        {
-            let mut ptr_line = ml_get(oap.end.lnum).wrapping_add(oap.end.col as usize);
-            if !crate::memory::cstr_is_empty(ptr_line) {
-                ptr_line = ptr_line.wrapping_add(usize::from(oap.inclusive));
-            }
-            ptr_line = skipwhite(ptr_line);
-            if crate::memory::cstr_is_empty(ptr_line) && inindent(0) {
-                oap.motion_type = MT_LINE_WISE;
-            }
-        }
-
-        let mut only_setmarks = false;
-        if oap.motion_type != MT_LINE_WISE
-            && oap.line_count == 1
-            && oap.op_type == OP_DELETE
-            && unsafe { *ml_get(oap.start.lnum) } == NUL
-        {
-            if g_st().virtual_op != 0 {
-                only_setmarks = true;
-            } else {
-                if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_EMPTYREGION) {
+    if !only_setmarks {
+        if oap.regname != b'_' as i32 {
+            let mut reg: *mut Yankreg = ptr::null_mut();
+            let mut did_yank = false;
+            if oap.regname != 0 {
+                if !valid_yank_reg(oap.regname, true) {
                     beep_flush();
+                    return true;
                 }
-                return true;
+                reg = get_yank_register(oap.regname, YREG_YANK);
+                op_yank_reg(oap, false, reg, is_append_register(oap.regname));
+                did_yank = true;
+            }
+
+            if oap.motion_type == MT_LINE_WISE || oap.line_count > 1 || oap.use_reg_one {
+                shift_delete_registers(is_append_register(oap.regname));
+                reg = get_y_register(1);
+                op_yank_reg(oap, false, reg, false);
+                did_yank = true;
+            }
+
+            if oap.regname == 0 && oap.motion_type != MT_LINE_WISE && oap.line_count == 1 {
+                reg = get_yank_register(b'-' as i32, YREG_YANK);
+                op_yank_reg(oap, false, reg, false);
+                did_yank = true;
+            }
+
+            if did_yank || oap.regname == 0 {
+                if reg.is_null() {
+                    std::process::abort();
+                }
+                set_clipboard(oap.regname, unsafe { &*reg });
+                do_autocmd_textyankpost(oap, unsafe { &mut *reg });
             }
         }
 
-        if !only_setmarks {
-            if oap.regname != b'_' as i32 {
-                let mut reg: *mut Yankreg = ptr::null_mut();
-                let mut did_yank = false;
-                if oap.regname != 0 {
-                    if !valid_yank_reg(oap.regname, true) {
-                        beep_flush();
-                        return true;
-                    }
-                    reg = get_yank_register(oap.regname, YREG_YANK);
-                    op_yank_reg(oap, false, reg, is_append_register(oap.regname));
-                    did_yank = true;
-                }
-
-                if oap.motion_type == MT_LINE_WISE || oap.line_count > 1 || oap.use_reg_one {
-                    shift_delete_registers(is_append_register(oap.regname));
-                    reg = get_y_register(1);
-                    op_yank_reg(oap, false, reg, false);
-                    did_yank = true;
-                }
-
-                if oap.regname == 0 && oap.motion_type != MT_LINE_WISE && oap.line_count == 1 {
-                    reg = get_yank_register(b'-' as i32, YREG_YANK);
-                    op_yank_reg(oap, false, reg, false);
-                    did_yank = true;
-                }
-
-                if did_yank || oap.regname == 0 {
-                    if reg.is_null() {
-                        std::process::abort();
-                    }
-                    set_clipboard(oap.regname, unsafe { &*reg });
-                    do_autocmd_textyankpost(oap, unsafe { &mut *reg });
-                }
+        if oap.motion_type == MT_BLOCK_WISE {
+            if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
+                return false;
             }
 
-            if oap.motion_type == MT_BLOCK_WISE {
-                if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
+            for lnum in curwin_mut().w_cursor.lnum..=oap.end.lnum {
+                block_prep(oap, &mut bd, lnum, true);
+                if bd.textlen == 0 {
+                    continue;
+                }
+
+                if lnum == curwin_mut().w_cursor.lnum {
+                    curwin_mut().w_cursor.col = bd.textcol + bd.startspaces;
+                    curwin_mut().w_cursor.coladd = 0;
+                }
+
+                let n = bd.textlen - bd.startspaces - bd.endspaces;
+                let oldp = ml_get(lnum);
+                let mut newp_vec = vec![0 as c_char; ((ml_get_len(lnum) - n) as usize) + 1];
+                let newp: *mut c_char = newp_vec.as_mut_ptr();
+                unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
+                unsafe {
+                    ptr::write_bytes(
+                        newp.wrapping_add(bd.textcol as usize),
+                        b' ',
+                        (bd.startspaces + bd.endspaces) as usize,
+                    )
+                };
+                crate::memory::cstr_cpy(
+                    newp.wrapping_add((bd.textcol + bd.startspaces + bd.endspaces) as usize),
+                    oldp.wrapping_add((bd.textcol + bd.textlen) as usize),
+                );
+                ml_replace(lnum, newp, true);
+                drop(newp_vec);
+
+                extmark_splice_cols(
+                    curbuf_mut(),
+                    lnum - 1,
+                    bd.textcol,
+                    bd.textlen,
+                    bd.startspaces + bd.endspaces,
+                    K_EXTMARK_UNDO,
+                );
+            }
+
+            check_cursor_col(curwin_mut());
+            changed_lines(
+                curbuf_mut(),
+                curwin_mut().w_cursor.lnum,
+                curwin_mut().w_cursor.col,
+                oap.end.lnum + 1,
+                0,
+                true,
+            );
+            oap.line_count = 0;
+        } else if oap.motion_type == MT_LINE_WISE {
+            if oap.op_type == OP_CHANGE {
+                if oap.line_count > 1 {
+                    let lnum = curwin_mut().w_cursor.lnum;
+                    curwin_mut().w_cursor.lnum += 1;
+                    del_lines(oap.line_count - 1, true);
+                    curwin_mut().w_cursor.lnum = lnum;
+                }
+                if !u_save_cursor() {
                     return false;
                 }
-
-                for lnum in curwin_mut().w_cursor.lnum..=oap.end.lnum {
-                    block_prep(oap, &mut bd, lnum, true);
-                    if bd.textlen == 0 {
-                        continue;
-                    }
-
-                    if lnum == curwin_mut().w_cursor.lnum {
-                        curwin_mut().w_cursor.col = bd.textcol + bd.startspaces;
-                        curwin_mut().w_cursor.coladd = 0;
-                    }
-
-                    let n = bd.textlen - bd.startspaces - bd.endspaces;
-                    let oldp = ml_get(lnum);
-                    let mut newp_vec = vec![0 as c_char; ((ml_get_len(lnum) - n) as usize) + 1];
-                    let newp: *mut c_char = newp_vec.as_mut_ptr();
-                    unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
-                    unsafe {
-                        ptr::write_bytes(
-                            newp.wrapping_add(bd.textcol as usize),
-                            b' ',
-                            (bd.startspaces + bd.endspaces) as usize,
-                        )
-                    };
-                    crate::memory::cstr_cpy(
-                        newp.wrapping_add((bd.textcol + bd.startspaces + bd.endspaces) as usize),
-                        oldp.wrapping_add((bd.textcol + bd.textlen) as usize),
-                    );
-                    ml_replace(lnum, newp, true);
-                    drop(newp_vec);
-
-                    extmark_splice_cols(
-                        curbuf_mut(),
-                        lnum - 1,
-                        bd.textcol,
-                        bd.textlen,
-                        bd.startspaces + bd.endspaces,
-                        K_EXTMARK_UNDO,
-                    );
-                }
-
-                check_cursor_col(curwin_mut());
-                changed_lines(
-                    curbuf_mut(),
-                    curwin_mut().w_cursor.lnum,
-                    curwin_mut().w_cursor.col,
-                    oap.end.lnum + 1,
-                    0,
-                    true,
-                );
-                oap.line_count = 0;
-            } else if oap.motion_type == MT_LINE_WISE {
-                if oap.op_type == OP_CHANGE {
-                    if oap.line_count > 1 {
-                        let lnum = curwin_mut().w_cursor.lnum;
-                        curwin_mut().w_cursor.lnum += 1;
-                        del_lines(oap.line_count - 1, true);
-                        curwin_mut().w_cursor.lnum = lnum;
-                    }
-                    if !u_save_cursor() {
-                        return false;
-                    }
-                    if curbuf_mut().b_p_ai != 0 {
-                        beginline(BL_WHITE);
-                        g_st().ins_global.did_ai = true;
-                        g_st().ins_global.ai_col = curwin_mut().w_cursor.col;
-                    } else {
-                        beginline(0);
-                    }
-                    truncate_line(0);
-                    if oap.line_count > 1 {
-                        u_clearline(curbuf_mut());
-                    }
+                if curbuf_mut().b_p_ai != 0 {
+                    beginline(BL_WHITE);
+                    g_st().ins_global.did_ai = true;
+                    g_st().ins_global.ai_col = curwin_mut().w_cursor.col;
                 } else {
-                    del_lines(oap.line_count, true);
-                    beginline(BL_WHITE | BL_FIX);
+                    beginline(0);
+                }
+                truncate_line(0);
+                if oap.line_count > 1 {
                     u_clearline(curbuf_mut());
                 }
             } else {
-                if g_st().virtual_op != 0 {
-                    if gchar_pos(&mut oap.start) == TAB {
-                        let mut endcol: i32 = 0;
-                        if !u_save_cursor() {
-                            return false;
-                        }
-                        if oap.line_count == 1 {
-                            endcol = getviscol2(oap.end.col, oap.end.coladd);
-                        }
-                        coladvance_force(getviscol2(oap.start.col, oap.start.coladd));
-                        oap.start = curwin_mut().w_cursor;
-                        if oap.line_count == 1 {
-                            coladvance(curwin_mut(), endcol);
-                            oap.end.col = curwin_mut().w_cursor.col;
-                            oap.end.coladd = curwin_mut().w_cursor.coladd;
-                            curwin_mut().w_cursor = oap.start;
-                        }
-                    }
-
-                    if gchar_pos(&mut oap.end) == TAB && oap.end.coladd == 0 && oap.inclusive {
-                        if !u_save(oap.end.lnum - 1, oap.end.lnum + 1) {
-                            return false;
-                        }
-                        curwin_mut().w_cursor = oap.end;
-                        coladvance_force(getviscol2(oap.end.col, oap.end.coladd));
-                        oap.end = curwin_mut().w_cursor;
-                        curwin_mut().w_cursor = oap.start;
-                    }
-                    mb_adjust_opend(oap);
-                }
-
-                if oap.line_count == 1 {
+                del_lines(oap.line_count, true);
+                beginline(BL_WHITE | BL_FIX);
+                u_clearline(curbuf_mut());
+            }
+        } else {
+            if g_st().virtual_op != 0 {
+                if gchar_pos(&mut oap.start) == TAB {
+                    let mut endcol: i32 = 0;
                     if !u_save_cursor() {
                         return false;
                     }
-
-                    if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_DOLLAR)
-                        && oap.op_type == OP_CHANGE
-                        && oap.end.lnum == curwin_mut().w_cursor.lnum
-                        && !oap.is_visual
-                    {
-                        display_dollar(oap.end.col - i32::from(!oap.inclusive));
+                    if oap.line_count == 1 {
+                        endcol = getviscol2(oap.end.col, oap.end.coladd);
                     }
-
-                    let mut n = oap.end.col - oap.start.col + 1 - i32::from(!oap.inclusive);
-
-                    if g_st().virtual_op != 0 {
-                        let len = get_cursor_line_len();
-
-                        if oap.end.coladd != 0
-                            && oap.end.col >= len - 1
-                            && !(oap.start.coladd != 0 && oap.end.col >= len - 1)
-                        {
-                            n += 1;
-                        }
-                        if n == 0 && oap.start.coladd != oap.end.coladd {
-                            n = 1;
-                        }
-
-                        if gchar_cursor() != i32::from(NUL) {
-                            curwin_mut().w_cursor.coladd = 0;
-                        }
+                    coladvance_force(getviscol2(oap.start.col, oap.start.coladd));
+                    oap.start = curwin_mut().w_cursor;
+                    if oap.line_count == 1 {
+                        coladvance(curwin_mut(), endcol);
+                        oap.end.col = curwin_mut().w_cursor.col;
+                        oap.end.coladd = curwin_mut().w_cursor.coladd;
+                        curwin_mut().w_cursor = oap.start;
                     }
+                }
 
-                    del_bytes(
-                        n,
-                        g_st().virtual_op == 0,
-                        oap.op_type == OP_DELETE && !oap.is_visual,
-                    );
-                } else {
-                    if !u_save(
-                        curwin_mut().w_cursor.lnum - 1,
-                        curwin_mut().w_cursor.lnum + oap.line_count,
-                    ) {
+                if gchar_pos(&mut oap.end) == TAB && oap.end.coladd == 0 && oap.inclusive {
+                    if !u_save(oap.end.lnum - 1, oap.end.lnum + 1) {
                         return false;
                     }
-
-                    g_st().curbuf_splice_pending += 1;
-                    let startpos = curwin_mut().w_cursor;
-                    let deleted_bytes = get_region_bytecount(
-                        curbuf_mut(),
-                        startpos.lnum,
-                        oap.end.lnum,
-                        startpos.col,
-                        oap.end.col,
-                    ) + isize::from(oap.inclusive);
-                    truncate_line(1);
-
-                    let curpos = curwin_mut().w_cursor;
-                    curwin_mut().w_cursor.lnum += 1;
-
-                    del_lines(oap.line_count - 2, false);
-
-                    let n = oap.end.col + 1 - i32::from(!oap.inclusive);
-                    curwin_mut().w_cursor.col = 0;
-                    del_bytes(
-                        n,
-                        g_st().virtual_op == 0,
-                        oap.op_type == OP_DELETE && !oap.is_visual,
-                    );
-                    curwin_mut().w_cursor = curpos;
-                    do_join(2, false, false, false, false);
-                    g_st().curbuf_splice_pending -= 1;
-                    extmark_splice(
-                        curbuf_mut(),
-                        startpos.lnum - 1,
-                        startpos.col,
-                        oap.line_count - 1,
-                        n,
-                        deleted_bytes,
-                        0,
-                        0,
-                        0,
-                        K_EXTMARK_UNDO,
-                    );
+                    curwin_mut().w_cursor = oap.end;
+                    coladvance_force(getviscol2(oap.end.col, oap.end.coladd));
+                    oap.end = curwin_mut().w_cursor;
+                    curwin_mut().w_cursor = oap.start;
                 }
-                if oap.op_type == OP_DELETE {
-                    auto_format(false, true);
-                }
+                mb_adjust_opend(oap);
             }
 
-            msgmore(curbuf_mut().b_ml.ml_line_count - old_lcount);
-        }
+            if oap.line_count == 1 {
+                if !u_save_cursor() {
+                    return false;
+                }
 
-        if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            if oap.motion_type == MT_BLOCK_WISE {
-                curbuf_mut().b_op_end.lnum = oap.end.lnum;
-                curbuf_mut().b_op_end.col = oap.start.col;
+                if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_DOLLAR)
+                    && oap.op_type == OP_CHANGE
+                    && oap.end.lnum == curwin_mut().w_cursor.lnum
+                    && !oap.is_visual
+                {
+                    display_dollar(oap.end.col - i32::from(!oap.inclusive));
+                }
+
+                let mut n = oap.end.col - oap.start.col + 1 - i32::from(!oap.inclusive);
+
+                if g_st().virtual_op != 0 {
+                    let len = get_cursor_line_len();
+
+                    if oap.end.coladd != 0
+                        && oap.end.col >= len - 1
+                        && !(oap.start.coladd != 0 && oap.end.col >= len - 1)
+                    {
+                        n += 1;
+                    }
+                    if n == 0 && oap.start.coladd != oap.end.coladd {
+                        n = 1;
+                    }
+
+                    if gchar_cursor() != i32::from(NUL) {
+                        curwin_mut().w_cursor.coladd = 0;
+                    }
+                }
+
+                del_bytes(
+                    n,
+                    g_st().virtual_op == 0,
+                    oap.op_type == OP_DELETE && !oap.is_visual,
+                );
             } else {
-                curbuf_mut().b_op_end = oap.start;
+                if !u_save(
+                    curwin_mut().w_cursor.lnum - 1,
+                    curwin_mut().w_cursor.lnum + oap.line_count,
+                ) {
+                    return false;
+                }
+
+                g_st().curbuf_splice_pending += 1;
+                let startpos = curwin_mut().w_cursor;
+                let deleted_bytes = get_region_bytecount(
+                    curbuf_mut(),
+                    startpos.lnum,
+                    oap.end.lnum,
+                    startpos.col,
+                    oap.end.col,
+                ) + isize::from(oap.inclusive);
+                truncate_line(1);
+
+                let curpos = curwin_mut().w_cursor;
+                curwin_mut().w_cursor.lnum += 1;
+
+                del_lines(oap.line_count - 2, false);
+
+                let n = oap.end.col + 1 - i32::from(!oap.inclusive);
+                curwin_mut().w_cursor.col = 0;
+                del_bytes(
+                    n,
+                    g_st().virtual_op == 0,
+                    oap.op_type == OP_DELETE && !oap.is_visual,
+                );
+                curwin_mut().w_cursor = curpos;
+                do_join(2, false, false, false, false);
+                g_st().curbuf_splice_pending -= 1;
+                extmark_splice(
+                    curbuf_mut(),
+                    startpos.lnum - 1,
+                    startpos.col,
+                    oap.line_count - 1,
+                    n,
+                    deleted_bytes,
+                    0,
+                    0,
+                    0,
+                    K_EXTMARK_UNDO,
+                );
             }
-            curbuf_mut().b_op_start = oap.start;
+            if oap.op_type == OP_DELETE {
+                auto_format(false, true);
+            }
         }
 
-        true
+        msgmore(curbuf_mut().b_ml.ml_line_count - old_lcount);
     }
+
+    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+        if oap.motion_type == MT_BLOCK_WISE {
+            curbuf_mut().b_op_end.lnum = oap.end.lnum;
+            curbuf_mut().b_op_end.col = oap.start.col;
+        } else {
+            curbuf_mut().b_op_end = oap.start;
+        }
+        curbuf_mut().b_op_start = oap.start;
+    }
+
+    true
 }
 
 fn mb_adjust_opend(oap: &mut Oparg) {
-    {
-        if !oap.inclusive {
-            return;
-        }
+    if !oap.inclusive {
+        return;
+    }
 
-        let line = ml_get(oap.end.lnum);
-        let mut ptr_line = line.wrapping_add(oap.end.col as usize);
-        if !crate::memory::cstr_is_empty(ptr_line) {
-            ptr_line = ptr_line.wrapping_sub(utf_head_off(line, ptr_line) as usize);
-            ptr_line = ptr_line.wrapping_add((utfc_ptr2len(ptr_line) - 1) as usize);
-            oap.end.col = crate::memory::ptr_offset_from(ptr_line, line) as Colnr;
-        }
+    let line = ml_get(oap.end.lnum);
+    let mut ptr_line = line.wrapping_add(oap.end.col as usize);
+    if !crate::memory::cstr_is_empty(ptr_line) {
+        ptr_line = ptr_line.wrapping_sub(utf_head_off(line, ptr_line) as usize);
+        ptr_line = ptr_line.wrapping_add((utfc_ptr2len(ptr_line) - 1) as usize);
+        oap.end.col = crate::memory::ptr_offset_from(ptr_line, line) as Colnr;
     }
 }
 
 fn pbyte(mut lp: CursorPos, c: i32) {
-    {
-        debug_assert!(c <= u8::MAX as i32);
-        let p = ml_get_buf_mut(curbuf_mut(), lp.lnum);
-        let len = curbuf_mut().b_ml.ml_line_textlen;
+    debug_assert!(c <= u8::MAX as i32);
+    let p = ml_get_buf_mut(curbuf_mut(), lp.lnum);
+    let len = curbuf_mut().b_ml.ml_line_textlen;
 
-        if lp.col >= len {
-            lp.col = if len > 1 { len - 2 } else { 0 };
-        }
-        unsafe {
-            *p.wrapping_add(lp.col as usize) = c as c_char;
-        }
-        if g_st().curbuf_splice_pending == 0 {
-            extmark_splice_cols(curbuf_mut(), lp.lnum - 1, lp.col, 1, 1, K_EXTMARK_UNDO);
-        }
+    if lp.col >= len {
+        lp.col = if len > 1 { len - 2 } else { 0 };
+    }
+    unsafe {
+        *p.wrapping_add(lp.col as usize) = c as c_char;
+    }
+    if g_st().curbuf_splice_pending == 0 {
+        extmark_splice_cols(curbuf_mut(), lp.lnum - 1, lp.col, 1, 1, K_EXTMARK_UNDO);
     }
 }
 
@@ -1172,337 +1158,330 @@ fn replace_character(c: i32) {
 }
 
 fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
-    {
-        let mut n: i32;
-        let mut bd = BlockDef::new();
-        let mut after_p: Vec<c_char> = Vec::new();
-        let mut had_ctrl_v_cr = false;
+    let mut n: i32;
+    let mut bd = BlockDef::new();
+    let mut after_p: Vec<c_char> = Vec::new();
+    let mut had_ctrl_v_cr = false;
 
-        if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 || oap.empty {
-            return true;
-        }
-        if c == REPLACE_CR_NCHAR {
-            had_ctrl_v_cr = true;
-            c = CAR;
-        } else if c == REPLACE_NL_NCHAR {
-            had_ctrl_v_cr = true;
-            c = NL;
-        }
+    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 || oap.empty {
+        return true;
+    }
+    if c == REPLACE_CR_NCHAR {
+        had_ctrl_v_cr = true;
+        c = CAR;
+    } else if c == REPLACE_NL_NCHAR {
+        had_ctrl_v_cr = true;
+        c = NL;
+    }
 
-        mb_adjust_opend(oap);
+    mb_adjust_opend(oap);
 
-        if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
-            return false;
-        }
+    if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
+        return false;
+    }
 
-        if oap.motion_type == MT_BLOCK_WISE {
-            bd.is_max = i32::from(curwin_mut().w_curswant == MAXCOL);
-            while curwin_mut().w_cursor.lnum <= oap.end.lnum {
-                curwin_mut().w_cursor.col = 0;
-                block_prep(oap, &mut bd, curwin_mut().w_cursor.lnum, true);
-                if bd.textlen == 0 && (g_st().virtual_op == 0 || bd.is_max != 0) {
-                    curwin_mut().w_cursor.lnum += 1;
-                    continue;
-                }
+    if oap.motion_type == MT_BLOCK_WISE {
+        bd.is_max = i32::from(curwin_mut().w_curswant == MAXCOL);
+        while curwin_mut().w_cursor.lnum <= oap.end.lnum {
+            curwin_mut().w_cursor.col = 0;
+            block_prep(oap, &mut bd, curwin_mut().w_cursor.lnum, true);
+            if bd.textlen == 0 && (g_st().virtual_op == 0 || bd.is_max != 0) {
+                curwin_mut().w_cursor.lnum += 1;
+                continue;
+            }
 
-                if g_st().virtual_op != 0
-                    && bd.is_short != 0
-                    && crate::memory::cstr_is_empty(bd.textstart)
-                {
-                    let mut vpos = CursorPos {
-                        lnum: curwin_mut().w_cursor.lnum,
-                        col: 0,
-                        coladd: 0,
-                    };
-                    getvpos(curwin_ptr(), &mut vpos, oap.start_vcol);
-                    bd.startspaces += vpos.coladd;
-                    n = bd.startspaces;
-                } else {
-                    n = if bd.startspaces != 0 {
-                        bd.start_char_vcols - 1
-                    } else {
-                        0
-                    };
-                }
-
-                n += if bd.endspaces != 0 && bd.is_one_char == 0 && bd.end_char_vcols > 0 {
-                    bd.end_char_vcols - 1
+            if g_st().virtual_op != 0
+                && bd.is_short != 0
+                && crate::memory::cstr_is_empty(bd.textstart)
+            {
+                let mut vpos = CursorPos {
+                    lnum: curwin_mut().w_cursor.lnum,
+                    col: 0,
+                    coladd: 0,
+                };
+                getvpos(curwin_ptr(), &mut vpos, oap.start_vcol);
+                bd.startspaces += vpos.coladd;
+                n = bd.startspaces;
+            } else {
+                n = if bd.startspaces != 0 {
+                    bd.start_char_vcols - 1
                 } else {
                     0
                 };
-                let mut numc = oap.end_vcol - oap.start_vcol + 1;
-                if bd.is_short != 0 && (g_st().virtual_op == 0 || bd.is_max != 0) {
-                    numc -= (oap.end_vcol - bd.end_vcol) + 1;
-                }
+            }
 
-                if utf_char2cells(c) > 1 {
-                    if (numc & 1) != 0 && bd.is_short == 0 {
-                        bd.endspaces += 1;
-                        n += 1;
-                    }
-                    numc /= 2;
-                }
-                let _ = n;
+            n += if bd.endspaces != 0 && bd.is_one_char == 0 && bd.end_char_vcols > 0 {
+                bd.end_char_vcols - 1
+            } else {
+                0
+            };
+            let mut numc = oap.end_vcol - oap.start_vcol + 1;
+            if bd.is_short != 0 && (g_st().virtual_op == 0 || bd.is_max != 0) {
+                numc -= (oap.end_vcol - bd.end_vcol) + 1;
+            }
 
-                let mut num_chars = numc;
-                numc *= utf_char2len(c);
+            if utf_char2cells(c) > 1 {
+                if (numc & 1) != 0 && bd.is_short == 0 {
+                    bd.endspaces += 1;
+                    n += 1;
+                }
+                numc /= 2;
+            }
+            let _ = n;
 
-                let mut oldp = get_cursor_line_ptr();
-                let oldlen = get_cursor_line_len();
+            let mut num_chars = numc;
+            numc *= utf_char2len(c);
 
-                let mut newp_size = (bd.textcol as usize) + (bd.startspaces as usize);
-                if had_ctrl_v_cr || (c != b'\r' as i32 && c != b'\n' as i32) {
-                    newp_size += numc as usize;
-                    if bd.is_short == 0 {
-                        newp_size += (bd.endspaces + oldlen - bd.textcol - bd.textlen) as usize;
-                    }
+            let mut oldp = get_cursor_line_ptr();
+            let oldlen = get_cursor_line_len();
+
+            let mut newp_size = (bd.textcol as usize) + (bd.startspaces as usize);
+            if had_ctrl_v_cr || (c != b'\r' as i32 && c != b'\n' as i32) {
+                newp_size += numc as usize;
+                if bd.is_short == 0 {
+                    newp_size += (bd.endspaces + oldlen - bd.textcol - bd.textlen) as usize;
                 }
-                let mut newp_vec = vec![0 as c_char; newp_size + 1];
-                let newp: *mut c_char = newp_vec.as_mut_ptr();
-                unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
-                oldp = oldp.wrapping_add((bd.textcol + bd.textlen) as usize);
-                unsafe {
-                    ptr::write_bytes(
-                        newp.wrapping_add(bd.textcol as usize),
-                        b' ',
-                        bd.startspaces as usize,
-                    )
-                };
-                let col = oldlen - bd.textcol - bd.textlen + 1;
-                debug_assert!(col >= 0);
-                let mut newrows: i32 = 0;
-                let mut newcols: i32 = 0;
-                if had_ctrl_v_cr || (c != b'\r' as i32 && c != b'\n' as i32) {
-                    let mut newp_len = bd.textcol + bd.startspaces;
-                    while num_chars > 0 {
-                        num_chars -= 1;
-                        newp_len += utf_char2bytes(c, newp.wrapping_add(newp_len as usize));
-                    }
-                    if bd.is_short == 0 {
-                        unsafe {
-                            ptr::write_bytes(
-                                newp.wrapping_add(newp_len as usize),
-                                b' ',
-                                bd.endspaces as usize,
-                            )
-                        };
-                        newp_len += bd.endspaces;
-                        unsafe {
-                            ptr::copy(oldp, newp.wrapping_add(newp_len as usize), col as usize)
-                        };
-                    }
-                    newcols = newp_len - bd.textcol;
-                } else {
-                    after_p.clear();
-                    after_p.extend_from_slice(unsafe {
-                        std::slice::from_raw_parts(oldp, col as usize)
-                    });
-                    newrows = 1;
+            }
+            let mut newp_vec = vec![0 as c_char; newp_size + 1];
+            let newp: *mut c_char = newp_vec.as_mut_ptr();
+            unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
+            oldp = oldp.wrapping_add((bd.textcol + bd.textlen) as usize);
+            unsafe {
+                ptr::write_bytes(
+                    newp.wrapping_add(bd.textcol as usize),
+                    b' ',
+                    bd.startspaces as usize,
+                )
+            };
+            let col = oldlen - bd.textcol - bd.textlen + 1;
+            debug_assert!(col >= 0);
+            let mut newrows: i32 = 0;
+            let mut newcols: i32 = 0;
+            if had_ctrl_v_cr || (c != b'\r' as i32 && c != b'\n' as i32) {
+                let mut newp_len = bd.textcol + bd.startspaces;
+                while num_chars > 0 {
+                    num_chars -= 1;
+                    newp_len += utf_char2bytes(c, newp.wrapping_add(newp_len as usize));
                 }
-                ml_replace(curwin_mut().w_cursor.lnum, newp, true);
-                drop(newp_vec);
-                g_st().curbuf_splice_pending += 1;
-                let baselnum = curwin_mut().w_cursor.lnum;
-                if !after_p.is_empty() {
-                    let cur_lnum = curwin_mut().w_cursor.lnum;
-                    curwin_mut().w_cursor.lnum += 1;
-                    ml_append(cur_lnum, after_p.as_mut_ptr(), after_p.len() as i32, false);
-                    appended_lines_mark(curwin_mut().w_cursor.lnum, 1);
-                    oap.end.lnum += 1;
-                    after_p.clear();
+                if bd.is_short == 0 {
+                    unsafe {
+                        ptr::write_bytes(
+                            newp.wrapping_add(newp_len as usize),
+                            b' ',
+                            bd.endspaces as usize,
+                        )
+                    };
+                    newp_len += bd.endspaces;
+                    unsafe { ptr::copy(oldp, newp.wrapping_add(newp_len as usize), col as usize) };
                 }
-                g_st().curbuf_splice_pending -= 1;
-                extmark_splice(
-                    curbuf_mut(),
-                    baselnum - 1,
-                    bd.textcol,
-                    0,
-                    bd.textlen,
-                    bd.textlen as isize,
-                    newrows,
-                    newcols,
-                    (newrows + newcols) as isize,
-                    K_EXTMARK_UNDO,
-                );
+                newcols = newp_len - bd.textcol;
+            } else {
+                after_p.clear();
+                after_p
+                    .extend_from_slice(unsafe { std::slice::from_raw_parts(oldp, col as usize) });
+                newrows = 1;
+            }
+            ml_replace(curwin_mut().w_cursor.lnum, newp, true);
+            drop(newp_vec);
+            g_st().curbuf_splice_pending += 1;
+            let baselnum = curwin_mut().w_cursor.lnum;
+            if !after_p.is_empty() {
+                let cur_lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum += 1;
+                ml_append(cur_lnum, after_p.as_mut_ptr(), after_p.len() as i32, false);
+                appended_lines_mark(curwin_mut().w_cursor.lnum, 1);
+                oap.end.lnum += 1;
+                after_p.clear();
             }
-        } else {
-            if oap.motion_type == MT_LINE_WISE {
-                oap.start.col = 0;
-                curwin_mut().w_cursor.col = 0;
-                oap.end.col = ml_get_len(oap.end.lnum);
-                if oap.end.col != 0 {
-                    oap.end.col -= 1;
-                }
-            } else if !oap.inclusive {
-                dec(&mut oap.end);
+            g_st().curbuf_splice_pending -= 1;
+            extmark_splice(
+                curbuf_mut(),
+                baselnum - 1,
+                bd.textcol,
+                0,
+                bd.textlen,
+                bd.textlen as isize,
+                newrows,
+                newcols,
+                (newrows + newcols) as isize,
+                K_EXTMARK_UNDO,
+            );
+            curwin_mut().w_cursor.lnum += 1;
+        }
+    } else {
+        if oap.motion_type == MT_LINE_WISE {
+            oap.start.col = 0;
+            curwin_mut().w_cursor.col = 0;
+            oap.end.col = ml_get_len(oap.end.lnum);
+            if oap.end.col != 0 {
+                oap.end.col -= 1;
             }
+        } else if !oap.inclusive {
+            dec(&mut oap.end);
+        }
 
-            while ltoreq(curwin_mut().w_cursor, oap.end) {
-                let mut done = false;
+        while ltoreq(curwin_mut().w_cursor, oap.end) {
+            let mut done = false;
 
-                n = gchar_cursor();
-                if n != i32::from(NUL) {
-                    let new_byte_len = utf_char2len(c);
-                    let old_byte_len = utfc_ptr2len(get_cursor_pos_ptr());
+            n = gchar_cursor();
+            if n != i32::from(NUL) {
+                let new_byte_len = utf_char2len(c);
+                let old_byte_len = utfc_ptr2len(get_cursor_pos_ptr());
 
-                    if new_byte_len > 1 || old_byte_len > 1 {
+                if new_byte_len > 1 || old_byte_len > 1 {
+                    if curwin_mut().w_cursor.lnum == oap.end.lnum {
+                        oap.end.col += new_byte_len - old_byte_len;
+                    }
+                    replace_character(c);
+                    done = true;
+                } else {
+                    if n == TAB {
+                        let mut end_vcol: i32 = 0;
+
                         if curwin_mut().w_cursor.lnum == oap.end.lnum {
-                            oap.end.col += new_byte_len - old_byte_len;
+                            end_vcol = getviscol2(oap.end.col, oap.end.coladd);
                         }
-                        replace_character(c);
+                        coladvance_force(getviscol());
+                        if curwin_mut().w_cursor.lnum == oap.end.lnum {
+                            getvpos(curwin_ptr(), &mut oap.end, end_vcol);
+                        }
+                    }
+                    if gchar_cursor() != i32::from(NUL) {
+                        pbyte(curwin_mut().w_cursor, c);
                         done = true;
-                    } else {
-                        if n == TAB {
-                            let mut end_vcol: i32 = 0;
-
-                            if curwin_mut().w_cursor.lnum == oap.end.lnum {
-                                end_vcol = getviscol2(oap.end.col, oap.end.coladd);
-                            }
-                            coladvance_force(getviscol());
-                            if curwin_mut().w_cursor.lnum == oap.end.lnum {
-                                getvpos(curwin_ptr(), &mut oap.end, end_vcol);
-                            }
-                        }
-                        if gchar_cursor() != i32::from(NUL) {
-                            pbyte(curwin_mut().w_cursor, c);
-                            done = true;
-                        }
                     }
-                }
-                if !done && g_st().virtual_op != 0 && curwin_mut().w_cursor.lnum == oap.end.lnum {
-                    let mut virtcols = oap.end.coladd;
-
-                    if curwin_mut().w_cursor.lnum == oap.start.lnum
-                        && oap.start.col == oap.end.col
-                        && oap.start.coladd != 0
-                    {
-                        virtcols -= oap.start.coladd;
-                    }
-
-                    coladvance_force(getviscol2(oap.end.col, oap.end.coladd) + 1);
-                    curwin_mut().w_cursor.col -= virtcols + 1;
-                    while virtcols >= 0 {
-                        if utf_char2len(c) > 1 {
-                            replace_character(c);
-                        } else {
-                            pbyte(curwin_mut().w_cursor, c);
-                        }
-                        if inc(&mut curwin_mut().w_cursor) == -1 {
-                            break;
-                        }
-                        virtcols -= 1;
-                    }
-                }
-
-                if inc_cursor() == -1 {
-                    break;
                 }
             }
+            if !done && g_st().virtual_op != 0 && curwin_mut().w_cursor.lnum == oap.end.lnum {
+                let mut virtcols = oap.end.coladd;
+
+                if curwin_mut().w_cursor.lnum == oap.start.lnum
+                    && oap.start.col == oap.end.col
+                    && oap.start.coladd != 0
+                {
+                    virtcols -= oap.start.coladd;
+                }
+
+                coladvance_force(getviscol2(oap.end.col, oap.end.coladd) + 1);
+                curwin_mut().w_cursor.col -= virtcols + 1;
+                while virtcols >= 0 {
+                    if utf_char2len(c) > 1 {
+                        replace_character(c);
+                    } else {
+                        pbyte(curwin_mut().w_cursor, c);
+                    }
+                    if inc(&mut curwin_mut().w_cursor) == -1 {
+                        break;
+                    }
+                    virtcols -= 1;
+                }
+            }
+
+            if inc_cursor() == -1 {
+                break;
+            }
         }
-
-        curwin_mut().w_cursor = oap.start;
-        check_cursor(curwin_mut());
-        changed_lines(
-            curbuf_mut(),
-            oap.start.lnum,
-            oap.start.col,
-            oap.end.lnum + 1,
-            0,
-            true,
-        );
-
-        if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            curbuf_mut().b_op_start = oap.start;
-            curbuf_mut().b_op_end = oap.end;
-        }
-
-        true
     }
+
+    curwin_mut().w_cursor = oap.start;
+    check_cursor(curwin_mut());
+    changed_lines(
+        curbuf_mut(),
+        oap.start.lnum,
+        oap.start.col,
+        oap.end.lnum + 1,
+        0,
+        true,
+    );
+
+    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+        curbuf_mut().b_op_start = oap.start;
+        curbuf_mut().b_op_end = oap.end;
+    }
+
+    true
 }
 
 /// Handle the (non-standard vi) tilde operator. Also for "gu", "gU" and "g?".
 pub fn op_tilde(oap: &mut Oparg) {
-    {
-        let mut bd = BlockDef::new();
-        let mut did_change = false;
+    let mut bd = BlockDef::new();
+    let mut did_change = false;
 
-        if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
-            return;
+    if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
+        return;
+    }
+
+    let mut pos = oap.start;
+    if oap.motion_type == MT_BLOCK_WISE {
+        while pos.lnum <= oap.end.lnum {
+            block_prep(oap, &mut bd, pos.lnum, false);
+            pos.col = bd.textcol;
+            let one_change = swapchars(oap.op_type, &mut pos, bd.textlen) != 0;
+            did_change |= one_change;
+            pos.lnum += 1;
+        }
+        if did_change {
+            changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
+        }
+    } else {
+        if oap.motion_type == MT_LINE_WISE {
+            oap.start.col = 0;
+            pos.col = 0;
+            oap.end.col = ml_get_len(oap.end.lnum);
+            if oap.end.col != 0 {
+                oap.end.col -= 1;
+            }
+        } else if !oap.inclusive {
+            dec(&mut oap.end);
         }
 
-        let mut pos = oap.start;
-        if oap.motion_type == MT_BLOCK_WISE {
-            while pos.lnum <= oap.end.lnum {
-                block_prep(oap, &mut bd, pos.lnum, false);
-                pos.col = bd.textcol;
-                let one_change = swapchars(oap.op_type, &mut pos, bd.textlen) != 0;
-                did_change |= one_change;
-                pos.lnum += 1;
-            }
-            if did_change {
-                changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
-            }
+        if pos.lnum == oap.end.lnum {
+            let len = oap.end.col - pos.col + 1;
+            did_change = swapchars(oap.op_type, &mut pos, len) != 0;
         } else {
-            if oap.motion_type == MT_LINE_WISE {
-                oap.start.col = 0;
-                pos.col = 0;
-                oap.end.col = ml_get_len(oap.end.lnum);
-                if oap.end.col != 0 {
-                    oap.end.col -= 1;
-                }
-            } else if !oap.inclusive {
-                dec(&mut oap.end);
-            }
-
-            if pos.lnum == oap.end.lnum {
-                let len = oap.end.col - pos.col + 1;
-                did_change = swapchars(oap.op_type, &mut pos, len) != 0;
-            } else {
-                loop {
-                    let len = if pos.lnum == oap.end.lnum {
-                        oap.end.col + 1
-                    } else {
-                        ml_get_pos_len(&mut pos)
-                    };
-                    did_change |= swapchars(oap.op_type, &mut pos, len) != 0;
-                    if ltoreq(oap.end, pos) || inc(&mut pos) == -1 {
-                        break;
-                    }
+            loop {
+                let len = if pos.lnum == oap.end.lnum {
+                    oap.end.col + 1
+                } else {
+                    ml_get_pos_len(&mut pos)
+                };
+                did_change |= swapchars(oap.op_type, &mut pos, len) != 0;
+                if ltoreq(oap.end, pos) || inc(&mut pos) == -1 {
+                    break;
                 }
             }
-            if did_change {
-                changed_lines(
-                    curbuf_mut(),
-                    oap.start.lnum,
-                    oap.start.col,
-                    oap.end.lnum + 1,
-                    0,
-                    true,
-                );
-            }
         }
-
-        if !did_change && oap.is_visual {
-            redraw_curbuf_later(UPD_INVERTED);
-        }
-
-        if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            curbuf_mut().b_op_start = oap.start;
-            curbuf_mut().b_op_end = oap.end;
-        }
-
-        if i64::from(oap.line_count) > opt_vars().p_report {
-            smsg!(
+        if did_change {
+            changed_lines(
+                curbuf_mut(),
+                oap.start.lnum,
+                oap.start.col,
+                oap.end.lnum + 1,
                 0,
-                ngettext(
-                    c"%lld line changed",
-                    c"%lld lines changed",
-                    oap.line_count as u64,
-                ),
-                i64::from(oap.line_count),
+                true,
             );
         }
+    }
+
+    if !did_change && oap.is_visual {
+        redraw_curbuf_later(UPD_INVERTED);
+    }
+
+    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+        curbuf_mut().b_op_start = oap.start;
+        curbuf_mut().b_op_end = oap.end;
+    }
+
+    if i64::from(oap.line_count) > opt_vars().p_report {
+        smsg!(
+            0,
+            ngettext(
+                c"%lld line changed",
+                c"%lld lines changed",
+                oap.line_count as u64,
+            ),
+            i64::from(oap.line_count),
+        );
     }
 }
 
@@ -1525,405 +1504,396 @@ fn swapchars(op_type: i32, pos: &mut CursorPos, length: i32) -> i32 {
 }
 
 pub fn swapchar(op_type: i32, pos: &mut CursorPos) -> bool {
-    {
-        let c = gchar_pos(pos);
+    let c = gchar_pos(pos);
 
-        if c >= 0x80 && op_type == OP_ROT13 {
-            return false;
-        }
-
-        let mut nc = c;
-        if mb_islower(c) {
-            if op_type == OP_ROT13 {
-                nc = rot13(c, b'a' as i32);
-            } else if op_type != OP_LOWER {
-                nc = mb_toupper(c);
-            }
-        } else if mb_isupper(c) {
-            if op_type == OP_ROT13 {
-                nc = rot13(c, b'A' as i32);
-            } else if op_type != OP_UPPER {
-                nc = mb_tolower(c);
-            }
-        }
-        if nc != c {
-            if c >= 0x80 || nc >= 0x80 {
-                let sp = curwin_mut().w_cursor;
-
-                curwin_mut().w_cursor = *pos;
-                del_bytes(utf_ptr2len(get_cursor_pos_ptr()), false, false);
-                ins_char(nc);
-                curwin_mut().w_cursor = sp;
-            } else {
-                pbyte(*pos, nc);
-            }
-            return true;
-        }
-        false
+    if c >= 0x80 && op_type == OP_ROT13 {
+        return false;
     }
+
+    let mut nc = c;
+    if mb_islower(c) {
+        if op_type == OP_ROT13 {
+            nc = rot13(c, b'a' as i32);
+        } else if op_type != OP_LOWER {
+            nc = mb_toupper(c);
+        }
+    } else if mb_isupper(c) {
+        if op_type == OP_ROT13 {
+            nc = rot13(c, b'A' as i32);
+        } else if op_type != OP_UPPER {
+            nc = mb_tolower(c);
+        }
+    }
+    if nc != c {
+        if c >= 0x80 || nc >= 0x80 {
+            let sp = curwin_mut().w_cursor;
+
+            curwin_mut().w_cursor = *pos;
+            del_bytes(utf_ptr2len(get_cursor_pos_ptr()), false, false);
+            ins_char(nc);
+            curwin_mut().w_cursor = sp;
+        } else {
+            pbyte(*pos, nc);
+        }
+        return true;
+    }
+    false
 }
 
 /// Insert and append operators for Visual mode.
 pub fn op_insert(oap: &mut Oparg, count1: i32) {
-    {
-        let mut pre_textlen: i32 = 0;
-        let mut ind_pre_col: Colnr = 0;
-        let mut ind_pre_vcol: i32 = 0;
-        let mut bd = BlockDef::new();
+    let mut pre_textlen: i32 = 0;
+    let mut ind_pre_col: Colnr = 0;
+    let mut ind_pre_vcol: i32 = 0;
+    let mut bd = BlockDef::new();
 
-        bd.is_max = i32::from(curwin_mut().w_curswant == MAXCOL);
+    bd.is_max = i32::from(curwin_mut().w_curswant == MAXCOL);
 
-        curwin_mut().w_cursor.lnum = oap.start.lnum;
-        redraw_curbuf_later(UPD_INVERTED);
-        update_screen();
+    curwin_mut().w_cursor.lnum = oap.start.lnum;
+    redraw_curbuf_later(UPD_INVERTED);
+    update_screen();
 
-        if oap.motion_type == MT_BLOCK_WISE {
-            if curwin_mut().w_cursor.coladd > 0 {
-                let old_ve_flags = curwin_mut().w_onebuf_opt.wo_ve_flags;
+    if oap.motion_type == MT_BLOCK_WISE {
+        if curwin_mut().w_cursor.coladd > 0 {
+            let old_ve_flags = curwin_mut().w_onebuf_opt.wo_ve_flags;
 
+            if !u_save_cursor() {
+                return;
+            }
+            curwin_mut().w_onebuf_opt.wo_ve_flags = K_OPT_VE_FLAG_ALL;
+            coladvance_force(if oap.op_type == OP_APPEND {
+                oap.end_vcol + 1
+            } else {
+                getviscol()
+            });
+            if oap.op_type == OP_APPEND {
+                curwin_mut().w_cursor.col -= 1;
+            }
+            curwin_mut().w_onebuf_opt.wo_ve_flags = old_ve_flags;
+        }
+        block_prep(oap, &mut bd, oap.start.lnum, true);
+        ind_pre_col = getwhitecols_curline() as Colnr;
+        ind_pre_vcol = get_indent();
+        pre_textlen = ml_get_len(oap.start.lnum) - bd.textcol;
+        if oap.op_type == OP_APPEND {
+            pre_textlen -= bd.textlen;
+        }
+    }
+
+    if oap.op_type == OP_APPEND {
+        if oap.motion_type == MT_BLOCK_WISE && curwin_mut().w_cursor.coladd == 0 {
+            curwin_mut().w_set_curswant = true;
+            while !crate::memory::cstr_is_empty(get_cursor_pos_ptr())
+                && curwin_mut().w_cursor.col < bd.textcol + bd.textlen
+            {
+                curwin_mut().w_cursor.col += 1;
+            }
+            if bd.is_short != 0 && bd.is_max == 0 {
                 if !u_save_cursor() {
                     return;
                 }
-                curwin_mut().w_onebuf_opt.wo_ve_flags = K_OPT_VE_FLAG_ALL;
-                coladvance_force(if oap.op_type == OP_APPEND {
-                    oap.end_vcol + 1
-                } else {
-                    getviscol()
-                });
-                if oap.op_type == OP_APPEND {
-                    curwin_mut().w_cursor.col -= 1;
+                for _ in 0..bd.endspaces {
+                    ins_char(b' ' as i32);
                 }
-                curwin_mut().w_onebuf_opt.wo_ve_flags = old_ve_flags;
+                bd.textlen += bd.endspaces;
             }
-            block_prep(oap, &mut bd, oap.start.lnum, true);
-            ind_pre_col = getwhitecols_curline() as Colnr;
-            ind_pre_vcol = get_indent();
-            pre_textlen = ml_get_len(oap.start.lnum) - bd.textcol;
-            if oap.op_type == OP_APPEND {
-                pre_textlen -= bd.textlen;
+        } else {
+            curwin_mut().w_cursor = oap.end;
+            check_cursor_col(curwin_mut());
+
+            if !lineempty(curwin_mut().w_cursor.lnum) && oap.start_vcol != oap.end_vcol {
+                inc_cursor();
             }
         }
+    }
 
-        if oap.op_type == OP_APPEND {
-            if oap.motion_type == MT_BLOCK_WISE && curwin_mut().w_cursor.coladd == 0 {
-                curwin_mut().w_set_curswant = true;
-                while !crate::memory::cstr_is_empty(get_cursor_pos_ptr())
-                    && curwin_mut().w_cursor.col < bd.textcol + bd.textlen
-                {
-                    curwin_mut().w_cursor.col += 1;
-                }
-                if bd.is_short != 0 && bd.is_max == 0 {
-                    if !u_save_cursor() {
-                        return;
-                    }
-                    for _ in 0..bd.endspaces {
-                        ins_char(b' ' as i32);
-                    }
-                    bd.textlen += bd.endspaces;
-                }
-            } else {
-                curwin_mut().w_cursor = oap.end;
-                check_cursor_col(curwin_mut());
+    let t1 = oap.start;
+    let start_insert = curwin_mut().w_cursor;
+    edit(i32::from(NUL), false, count1);
 
-                if !lineempty(curwin_mut().w_cursor.lnum) && oap.start_vcol != oap.end_vcol {
-                    inc_cursor();
-                }
-            }
+    if t1.lnum == curbuf_mut().b_op_start_orig.lnum && lt(curbuf_mut().b_op_start_orig, t1) {
+        oap.start = curbuf_mut().b_op_start_orig;
+    }
+
+    if curwin_mut().w_cursor.lnum != oap.start.lnum || g_st().got_int {
+        return;
+    }
+
+    if oap.motion_type == MT_BLOCK_WISE {
+        let mut ind_post_vcol: i32 = 0;
+        let mut bd2 = BlockDef::new();
+        let mut did_indent = false;
+
+        let ind_post_col = getwhitecols_curline() as Colnr;
+        if curbuf_mut().b_op_start.col > ind_pre_col && ind_post_col > ind_pre_col {
+            bd.textcol += ind_post_col - ind_pre_col;
+            ind_post_vcol = get_indent();
+            bd.start_vcol += ind_post_vcol - ind_pre_vcol;
+            did_indent = true;
         }
 
-        let t1 = oap.start;
-        let start_insert = curwin_mut().w_cursor;
-        edit(i32::from(NUL), false, count1);
+        if oap.start.lnum == curbuf_mut().b_op_start_orig.lnum && bd.is_max == 0 && !did_indent {
+            let t = getviscol2(
+                curbuf_mut().b_op_start_orig.col,
+                curbuf_mut().b_op_start_orig.coladd,
+            );
 
-        if t1.lnum == curbuf_mut().b_op_start_orig.lnum && lt(curbuf_mut().b_op_start_orig, t1) {
-            oap.start = curbuf_mut().b_op_start_orig;
-        }
-
-        if curwin_mut().w_cursor.lnum != oap.start.lnum || g_st().got_int {
-            return;
-        }
-
-        if oap.motion_type == MT_BLOCK_WISE {
-            let mut ind_post_vcol: i32 = 0;
-            let mut bd2 = BlockDef::new();
-            let mut did_indent = false;
-
-            let ind_post_col = getwhitecols_curline() as Colnr;
-            if curbuf_mut().b_op_start.col > ind_pre_col && ind_post_col > ind_pre_col {
-                bd.textcol += ind_post_col - ind_pre_col;
-                ind_post_vcol = get_indent();
-                bd.start_vcol += ind_post_vcol - ind_pre_vcol;
-                did_indent = true;
-            }
-
-            if oap.start.lnum == curbuf_mut().b_op_start_orig.lnum && bd.is_max == 0 && !did_indent
+            if oap.op_type == OP_INSERT
+                && oap.start.col + oap.start.coladd
+                    != curbuf_mut().b_op_start_orig.col + curbuf_mut().b_op_start_orig.coladd
             {
-                let t = getviscol2(
-                    curbuf_mut().b_op_start_orig.col,
-                    curbuf_mut().b_op_start_orig.coladd,
-                );
+                oap.start.col = curbuf_mut().b_op_start_orig.col;
+                pre_textlen -= t - oap.start_vcol;
+                oap.start_vcol = t;
+            } else if oap.op_type == OP_APPEND
+                && oap.start.col + oap.start.coladd
+                    >= curbuf_mut().b_op_start_orig.col + curbuf_mut().b_op_start_orig.coladd
+            {
+                oap.start.col = curbuf_mut().b_op_start_orig.col;
+                pre_textlen += bd.textlen;
+                pre_textlen -= t - oap.start_vcol;
+                oap.start_vcol = t;
+                oap.op_type = OP_INSERT;
+            }
+        }
 
-                if oap.op_type == OP_INSERT
-                    && oap.start.col + oap.start.coladd
-                        != curbuf_mut().b_op_start_orig.col + curbuf_mut().b_op_start_orig.coladd
-                {
-                    oap.start.col = curbuf_mut().b_op_start_orig.col;
-                    pre_textlen -= t - oap.start_vcol;
-                    oap.start_vcol = t;
-                } else if oap.op_type == OP_APPEND
-                    && oap.start.col + oap.start.coladd
-                        >= curbuf_mut().b_op_start_orig.col + curbuf_mut().b_op_start_orig.coladd
-                {
-                    oap.start.col = curbuf_mut().b_op_start_orig.col;
-                    pre_textlen += bd.textlen;
-                    pre_textlen -= t - oap.start_vcol;
-                    oap.start_vcol = t;
-                    oap.op_type = OP_INSERT;
-                }
-            }
-
-            if did_indent && bd.textcol - ind_post_col > 0 {
-                oap.start.col += ind_post_col - ind_pre_col;
-                oap.start_vcol += ind_post_vcol - ind_pre_vcol;
-                oap.end.col += ind_post_col - ind_pre_col;
-                oap.end_vcol += ind_post_vcol - ind_pre_vcol;
-            }
-            block_prep(oap, &mut bd2, oap.start.lnum, true);
-            if did_indent && bd.textcol - ind_post_col > 0 {
-                oap.start.col -= ind_post_col - ind_pre_col;
-                oap.start_vcol -= ind_post_vcol - ind_pre_vcol;
-                oap.end.col -= ind_post_col - ind_pre_col;
-                oap.end_vcol -= ind_post_vcol - ind_pre_vcol;
-            }
-            if bd.is_max == 0 || bd2.textlen < bd.textlen {
-                if oap.op_type == OP_APPEND {
-                    pre_textlen += bd2.textlen - bd.textlen;
-                    if bd2.endspaces != 0 {
-                        bd2.textlen -= 1;
-                    }
-                }
-                bd.textcol = bd2.textcol;
-                bd.textlen = bd2.textlen;
-            }
-
-            let mut firstline = ml_get(oap.start.lnum);
-            let mut len = ml_get_len(oap.start.lnum);
-            let mut add = bd.textcol;
-            let mut offset: Colnr = 0;
+        if did_indent && bd.textcol - ind_post_col > 0 {
+            oap.start.col += ind_post_col - ind_pre_col;
+            oap.start_vcol += ind_post_vcol - ind_pre_vcol;
+            oap.end.col += ind_post_col - ind_pre_col;
+            oap.end_vcol += ind_post_vcol - ind_pre_vcol;
+        }
+        block_prep(oap, &mut bd2, oap.start.lnum, true);
+        if did_indent && bd.textcol - ind_post_col > 0 {
+            oap.start.col -= ind_post_col - ind_pre_col;
+            oap.start_vcol -= ind_post_vcol - ind_pre_vcol;
+            oap.end.col -= ind_post_col - ind_pre_col;
+            oap.end_vcol -= ind_post_vcol - ind_pre_vcol;
+        }
+        if bd.is_max == 0 || bd2.textlen < bd.textlen {
             if oap.op_type == OP_APPEND {
-                add += bd.textlen;
-                if bd.is_max != 0
-                    && start_insert.lnum == g_st().ins_global.start.lnum
-                    && start_insert.col > g_st().ins_global.start.col
-                {
-                    offset = start_insert.col - g_st().ins_global.start.col;
-                    add -= offset;
-                    if oap.end_vcol > offset {
-                        oap.end_vcol -= offset + 1;
-                    } else {
-                        return;
-                    }
+                pre_textlen += bd2.textlen - bd.textlen;
+                if bd2.endspaces != 0 {
+                    bd2.textlen -= 1;
                 }
             }
-            add = add.min(len);
-            firstline = firstline.wrapping_add(add as usize);
-            len -= add;
-            let ins_len = len - pre_textlen - offset;
-            if pre_textlen >= 0 && ins_len > 0 {
-                let mut ins_text = Vec::with_capacity(ins_len as usize + 1);
-                ins_text.extend_from_slice(unsafe {
-                    std::slice::from_raw_parts(firstline, ins_len as usize)
-                });
-                ins_text.push(NUL);
-                if u_save(oap.start.lnum, oap.end.lnum + 1) {
-                    block_insert(
-                        oap,
-                        ins_text.as_ptr(),
-                        ins_len as usize,
-                        oap.op_type == OP_INSERT,
-                        &mut bd,
-                    );
-                }
+            bd.textcol = bd2.textcol;
+            bd.textlen = bd2.textlen;
+        }
 
-                curwin_mut().w_cursor.col = oap.start.col;
-                check_cursor(curwin_mut());
+        let mut firstline = ml_get(oap.start.lnum);
+        let mut len = ml_get_len(oap.start.lnum);
+        let mut add = bd.textcol;
+        let mut offset: Colnr = 0;
+        if oap.op_type == OP_APPEND {
+            add += bd.textlen;
+            if bd.is_max != 0
+                && start_insert.lnum == g_st().ins_global.start.lnum
+                && start_insert.col > g_st().ins_global.start.col
+            {
+                offset = start_insert.col - g_st().ins_global.start.col;
+                add -= offset;
+                if oap.end_vcol > offset {
+                    oap.end_vcol -= offset + 1;
+                } else {
+                    return;
+                }
             }
+        }
+        add = add.min(len);
+        firstline = firstline.wrapping_add(add as usize);
+        len -= add;
+        let ins_len = len - pre_textlen - offset;
+        if pre_textlen >= 0 && ins_len > 0 {
+            let mut ins_text = Vec::with_capacity(ins_len as usize + 1);
+            ins_text.extend_from_slice(unsafe {
+                std::slice::from_raw_parts(firstline, ins_len as usize)
+            });
+            ins_text.push(NUL);
+            if u_save(oap.start.lnum, oap.end.lnum + 1) {
+                block_insert(
+                    oap,
+                    ins_text.as_ptr(),
+                    ins_len as usize,
+                    oap.op_type == OP_INSERT,
+                    &mut bd,
+                );
+            }
+
+            curwin_mut().w_cursor.col = oap.start.col;
+            check_cursor(curwin_mut());
         }
     }
 }
 
 /// Handle a change operation.
 pub fn op_change(oap: &mut Oparg) -> i32 {
-    {
-        let mut pre_textlen: i32 = 0;
-        let mut pre_indent: i32 = 0;
-        let mut firstline: *mut c_char;
-        let mut bd = BlockDef::new();
+    let mut pre_textlen: i32 = 0;
+    let mut pre_indent: i32 = 0;
+    let mut firstline: *mut c_char;
+    let mut bd = BlockDef::new();
 
-        let mut l = oap.start.col;
-        if oap.motion_type == MT_LINE_WISE {
-            l = 0;
-            g_st().ins_global.can_si = may_do_si();
-        }
+    let mut l = oap.start.col;
+    if oap.motion_type == MT_LINE_WISE {
+        l = 0;
+        g_st().ins_global.can_si = may_do_si();
+    }
 
-        if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
-            if !u_save_cursor() {
-                return 0;
-            }
-        } else if !op_delete(oap) {
+    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+        if !u_save_cursor() {
             return 0;
         }
-
-        if l > curwin_mut().w_cursor.col
-            && !lineempty(curwin_mut().w_cursor.lnum)
-            && g_st().virtual_op == 0
-        {
-            inc_cursor();
-        }
-
-        if oap.motion_type == MT_BLOCK_WISE {
-            if g_st().virtual_op != 0
-                && (curwin_mut().w_cursor.coladd > 0 || gchar_cursor() == i32::from(NUL))
-            {
-                coladvance_force(getviscol());
-            }
-            firstline = ml_get(oap.start.lnum);
-            pre_textlen = ml_get_len(oap.start.lnum);
-            pre_indent = getwhitecols(firstline) as i32;
-            bd.textcol = curwin_mut().w_cursor.col;
-        }
-
-        if oap.motion_type == MT_LINE_WISE {
-            fix_indent();
-        }
-
-        let save_finish_op = g_st().finish_op;
-        g_st().finish_op = false;
-
-        let retval = i32::from(edit(i32::from(NUL), false, 1));
-
-        g_st().finish_op = save_finish_op;
-
-        if oap.motion_type == MT_BLOCK_WISE && oap.start.lnum != oap.end.lnum && !g_st().got_int {
-            firstline = ml_get(oap.start.lnum);
-            if bd.textcol > pre_indent {
-                let new_indent = getwhitecols(firstline) as i32;
-                pre_textlen += new_indent - pre_indent;
-                bd.textcol += new_indent - pre_indent;
-            }
-
-            let ins_len = ml_get_len(oap.start.lnum) - pre_textlen;
-            if ins_len > 0 {
-                let mut ins_text = vec![0 as c_char; (ins_len as usize) + 1];
-                crate::memory::cstr_ncpy(
-                    ins_text.as_mut_ptr(),
-                    firstline.wrapping_add(bd.textcol as usize),
-                    ins_len as usize,
-                );
-                for linenr in (oap.start.lnum + 1)..=oap.end.lnum {
-                    block_prep(oap, &mut bd, linenr, true);
-                    if bd.is_short == 0 || g_st().virtual_op != 0 {
-                        let mut vpos = CursorPos {
-                            lnum: linenr,
-                            col: 0,
-                            coladd: 0,
-                        };
-                        if bd.is_short != 0 {
-                            getvpos(curwin_ptr(), &mut vpos, oap.start_vcol);
-                        } else {
-                            vpos.coladd = 0;
-                        }
-                        let oldp = ml_get(linenr);
-                        let mut newp_vec = vec![
-                            0 as c_char;
-                            (ml_get_len(linenr) as usize)
-                                + (vpos.coladd as usize)
-                                + (ins_len as usize)
-                                + 1
-                        ];
-                        let newp: *mut c_char = newp_vec.as_mut_ptr();
-                        unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
-                        let mut newlen = bd.textcol;
-                        unsafe {
-                            ptr::write_bytes(
-                                newp.wrapping_add(newlen as usize),
-                                b' ',
-                                vpos.coladd as usize,
-                            )
-                        };
-                        newlen += vpos.coladd;
-                        unsafe {
-                            ptr::copy(
-                                ins_text.as_ptr(),
-                                newp.wrapping_add(newlen as usize),
-                                ins_len as usize,
-                            )
-                        };
-                        newlen += ins_len;
-                        crate::memory::cstr_cpy(
-                            newp.wrapping_add(newlen as usize),
-                            oldp.wrapping_add(bd.textcol as usize),
-                        );
-                        ml_replace(linenr, newp, true);
-                        drop(newp_vec);
-                        extmark_splice_cols(
-                            curbuf_mut(),
-                            linenr - 1,
-                            bd.textcol,
-                            0,
-                            vpos.coladd + ins_len,
-                            K_EXTMARK_UNDO,
-                        );
-                    }
-                }
-                check_cursor(curwin_mut());
-                changed_lines(
-                    curbuf_mut(),
-                    oap.start.lnum + 1,
-                    0,
-                    oap.end.lnum + 1,
-                    0,
-                    true,
-                );
-            }
-        }
-        auto_format(false, true);
-
-        retval
+    } else if !op_delete(oap) {
+        return 0;
     }
+
+    if l > curwin_mut().w_cursor.col
+        && !lineempty(curwin_mut().w_cursor.lnum)
+        && g_st().virtual_op == 0
+    {
+        inc_cursor();
+    }
+
+    if oap.motion_type == MT_BLOCK_WISE {
+        if g_st().virtual_op != 0
+            && (curwin_mut().w_cursor.coladd > 0 || gchar_cursor() == i32::from(NUL))
+        {
+            coladvance_force(getviscol());
+        }
+        firstline = ml_get(oap.start.lnum);
+        pre_textlen = ml_get_len(oap.start.lnum);
+        pre_indent = getwhitecols(firstline) as i32;
+        bd.textcol = curwin_mut().w_cursor.col;
+    }
+
+    if oap.motion_type == MT_LINE_WISE {
+        fix_indent();
+    }
+
+    let save_finish_op = g_st().finish_op;
+    g_st().finish_op = false;
+
+    let retval = i32::from(edit(i32::from(NUL), false, 1));
+
+    g_st().finish_op = save_finish_op;
+
+    if oap.motion_type == MT_BLOCK_WISE && oap.start.lnum != oap.end.lnum && !g_st().got_int {
+        firstline = ml_get(oap.start.lnum);
+        if bd.textcol > pre_indent {
+            let new_indent = getwhitecols(firstline) as i32;
+            pre_textlen += new_indent - pre_indent;
+            bd.textcol += new_indent - pre_indent;
+        }
+
+        let ins_len = ml_get_len(oap.start.lnum) - pre_textlen;
+        if ins_len > 0 {
+            let mut ins_text = vec![0 as c_char; (ins_len as usize) + 1];
+            crate::memory::cstr_ncpy(
+                ins_text.as_mut_ptr(),
+                firstline.wrapping_add(bd.textcol as usize),
+                ins_len as usize,
+            );
+            for linenr in (oap.start.lnum + 1)..=oap.end.lnum {
+                block_prep(oap, &mut bd, linenr, true);
+                if bd.is_short == 0 || g_st().virtual_op != 0 {
+                    let mut vpos = CursorPos {
+                        lnum: linenr,
+                        col: 0,
+                        coladd: 0,
+                    };
+                    if bd.is_short != 0 {
+                        getvpos(curwin_ptr(), &mut vpos, oap.start_vcol);
+                    } else {
+                        vpos.coladd = 0;
+                    }
+                    let oldp = ml_get(linenr);
+                    let mut newp_vec = vec![
+                        0 as c_char;
+                        (ml_get_len(linenr) as usize)
+                            + (vpos.coladd as usize)
+                            + (ins_len as usize)
+                            + 1
+                    ];
+                    let newp: *mut c_char = newp_vec.as_mut_ptr();
+                    unsafe { ptr::copy(oldp, newp, bd.textcol as usize) };
+                    let mut newlen = bd.textcol;
+                    unsafe {
+                        ptr::write_bytes(
+                            newp.wrapping_add(newlen as usize),
+                            b' ',
+                            vpos.coladd as usize,
+                        )
+                    };
+                    newlen += vpos.coladd;
+                    unsafe {
+                        ptr::copy(
+                            ins_text.as_ptr(),
+                            newp.wrapping_add(newlen as usize),
+                            ins_len as usize,
+                        )
+                    };
+                    newlen += ins_len;
+                    crate::memory::cstr_cpy(
+                        newp.wrapping_add(newlen as usize),
+                        oldp.wrapping_add(bd.textcol as usize),
+                    );
+                    ml_replace(linenr, newp, true);
+                    drop(newp_vec);
+                    extmark_splice_cols(
+                        curbuf_mut(),
+                        linenr - 1,
+                        bd.textcol,
+                        0,
+                        vpos.coladd + ins_len,
+                        K_EXTMARK_UNDO,
+                    );
+                }
+            }
+            check_cursor(curwin_mut());
+            changed_lines(
+                curbuf_mut(),
+                oap.start.lnum + 1,
+                0,
+                oap.end.lnum + 1,
+                0,
+                true,
+            );
+        }
+    }
+    auto_format(false, true);
+
+    retval
 }
 
 /// When the cursor is on the NUL past the end of the line and it should not be
 /// there move it left.
 pub fn adjust_cursor_eol() {
-    {
-        let cur_ve_flags = get_ve_flags(curwin_mut());
+    let cur_ve_flags = get_ve_flags(curwin_mut());
 
-        let adj_cursor = curwin_mut().w_cursor.col > 0
-            && gchar_cursor() == i32::from(NUL)
-            && (cur_ve_flags & K_OPT_VE_FLAG_ONEMORE) == 0
-            && (cur_ve_flags & K_OPT_VE_FLAG_ALL) == 0
-            && !(g_st().restart_edit != 0 || (g_st().state_global & MODE_INSERT) != 0);
-        if !adj_cursor {
-            return;
-        }
+    let adj_cursor = curwin_mut().w_cursor.col > 0
+        && gchar_cursor() == i32::from(NUL)
+        && (cur_ve_flags & K_OPT_VE_FLAG_ONEMORE) == 0
+        && (cur_ve_flags & K_OPT_VE_FLAG_ALL) == 0
+        && !(g_st().restart_edit != 0 || (g_st().state_global & MODE_INSERT) != 0);
+    if !adj_cursor {
+        return;
+    }
 
-        dec_cursor();
+    dec_cursor();
 
-        if cur_ve_flags == K_OPT_VE_FLAG_ALL {
-            let mut scol: Colnr = 0;
-            let mut ecol: Colnr = 0;
+    if cur_ve_flags == K_OPT_VE_FLAG_ALL {
+        let mut scol: Colnr = 0;
+        let mut ecol: Colnr = 0;
 
-            getvcol(
-                curwin_mut(),
-                &mut curwin_mut().w_cursor,
-                Some(&mut scol),
-                None,
-                Some(&mut ecol),
-                0,
-            );
-            curwin_mut().w_cursor.coladd = ecol - scol + 1;
-        }
+        getvcol(
+            curwin_mut(),
+            &mut curwin_mut().w_cursor,
+            Some(&mut scol),
+            None,
+            Some(&mut ecol),
+            0,
+        );
+        curwin_mut().w_cursor.coladd = ecol - scol + 1;
     }
 }
 
@@ -1933,35 +1903,11 @@ pub fn skip_comment(
     include_space: bool,
     is_comment: &mut bool,
 ) -> *mut c_char {
-    {
-        let mut comment_flags: *mut c_char = ptr::null_mut();
-        let leader_offset = get_last_leader_offset(line, &raw mut comment_flags);
+    let mut comment_flags: *mut c_char = ptr::null_mut();
+    let leader_offset = get_last_leader_offset(line, &raw mut comment_flags);
 
-        *is_comment = false;
-        if leader_offset != -1 {
-            while !crate::memory::cstr_is_empty(comment_flags) {
-                if unsafe { *comment_flags } == COM_END
-                    || crate::memory::cstr_first_byte(comment_flags) == b':'
-                {
-                    break;
-                }
-                comment_flags = comment_flags.wrapping_add(1);
-            }
-            if unsafe { *comment_flags } != COM_END {
-                *is_comment = true;
-            }
-        }
-
-        if !process {
-            return line;
-        }
-
-        let lead_len = get_leader_len(line, &raw mut comment_flags, false, include_space);
-
-        if lead_len == 0 {
-            return line;
-        }
-
+    *is_comment = false;
+    if leader_offset != -1 {
         while !crate::memory::cstr_is_empty(comment_flags) {
             if unsafe { *comment_flags } == COM_END
                 || crate::memory::cstr_first_byte(comment_flags) == b':'
@@ -1970,15 +1916,37 @@ pub fn skip_comment(
             }
             comment_flags = comment_flags.wrapping_add(1);
         }
-
-        if crate::memory::cstr_first_byte(comment_flags) == b':'
-            || crate::memory::cstr_is_empty(comment_flags)
-        {
-            line = line.wrapping_add(lead_len as usize);
+        if unsafe { *comment_flags } != COM_END {
+            *is_comment = true;
         }
-
-        line
     }
+
+    if !process {
+        return line;
+    }
+
+    let lead_len = get_leader_len(line, &raw mut comment_flags, false, include_space);
+
+    if lead_len == 0 {
+        return line;
+    }
+
+    while !crate::memory::cstr_is_empty(comment_flags) {
+        if unsafe { *comment_flags } == COM_END
+            || crate::memory::cstr_first_byte(comment_flags) == b':'
+        {
+            break;
+        }
+        comment_flags = comment_flags.wrapping_add(1);
+    }
+
+    if crate::memory::cstr_first_byte(comment_flags) == b':'
+        || crate::memory::cstr_is_empty(comment_flags)
+    {
+        line = line.wrapping_add(lead_len as usize);
+    }
+
+    line
 }
 
 pub fn do_join(
@@ -2191,141 +2159,135 @@ pub fn do_join(
 
 /// Reset 'linebreak' and take care of side effects.
 pub fn reset_lbr() -> bool {
-    {
-        if curwin_mut().w_onebuf_opt.wo_lbr == 0 {
-            return false;
-        }
-        curwin_mut().w_onebuf_opt.wo_lbr = 0;
-        curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
-        true
+    if curwin_mut().w_onebuf_opt.wo_lbr == 0 {
+        return false;
     }
+    curwin_mut().w_onebuf_opt.wo_lbr = 0;
+    curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
+    true
 }
 
 /// Restore 'linebreak' and take care of side effects.
 pub fn restore_lbr(lbr_saved: bool) {
-    {
-        if curwin_mut().w_onebuf_opt.wo_lbr != 0 || !lbr_saved {
-            return;
-        }
-
-        curwin_mut().w_onebuf_opt.wo_lbr = 1;
-        curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
+    if curwin_mut().w_onebuf_opt.wo_lbr != 0 || !lbr_saved {
+        return;
     }
+
+    curwin_mut().w_onebuf_opt.wo_lbr = 1;
+    curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
 }
 
 /// Prepare a few things for block mode yank/delete/tilde.
 pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: bool) {
-    {
-        let mut incr: i32 = 0;
-        let lbr_saved = reset_lbr();
+    let mut incr: i32 = 0;
+    let lbr_saved = reset_lbr();
 
-        bdp.startspaces = 0;
-        bdp.endspaces = 0;
-        bdp.textlen = 0;
-        bdp.start_vcol = 0;
-        bdp.end_vcol = 0;
-        bdp.is_short = 0;
-        bdp.is_one_char = 0;
-        bdp.pre_whitesp = 0;
-        bdp.pre_whitesp_c = 0;
-        bdp.end_char_vcols = 0;
-        bdp.start_char_vcols = 0;
+    bdp.startspaces = 0;
+    bdp.endspaces = 0;
+    bdp.textlen = 0;
+    bdp.start_vcol = 0;
+    bdp.end_vcol = 0;
+    bdp.is_short = 0;
+    bdp.is_one_char = 0;
+    bdp.pre_whitesp = 0;
+    bdp.pre_whitesp_c = 0;
+    bdp.end_char_vcols = 0;
+    bdp.start_char_vcols = 0;
 
-        let line = ml_get(lnum);
-        let mut prev_pstart = line;
+    let line = ml_get(lnum);
+    let mut prev_pstart = line;
 
-        let mut csarg = CharsizeArg::new();
-        let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
-        let mut ci = utf_ptr2_str_char_info(line);
-        let mut vcol = bdp.start_vcol;
-        while vcol < oap.start_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
-            let cli = utf_cluster_info(ci);
-            incr = win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells).width;
-            vcol += incr;
-            if ascii_iswhite(ci.chr.value) {
-                bdp.pre_whitesp += incr;
-                bdp.pre_whitesp_c += 1;
-            } else {
-                bdp.pre_whitesp = 0;
-                bdp.pre_whitesp_c = 0;
-            }
-            prev_pstart = ci.ptr.cast_mut();
-            ci = cli.next;
+    let mut csarg = CharsizeArg::new();
+    let mut cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
+    let mut ci = utf_ptr2_str_char_info(line);
+    let mut vcol = bdp.start_vcol;
+    while vcol < oap.start_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
+        let cli = utf_cluster_info(ci);
+        incr = win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells).width;
+        vcol += incr;
+        if ascii_iswhite(ci.chr.value) {
+            bdp.pre_whitesp += incr;
+            bdp.pre_whitesp_c += 1;
+        } else {
+            bdp.pre_whitesp = 0;
+            bdp.pre_whitesp_c = 0;
         }
-        bdp.start_vcol = vcol;
-        let mut pstart = ci.ptr.cast_mut();
+        prev_pstart = ci.ptr.cast_mut();
+        ci = cli.next;
+    }
+    bdp.start_vcol = vcol;
+    let mut pstart = ci.ptr.cast_mut();
 
-        bdp.start_char_vcols = incr;
-        if bdp.start_vcol < oap.start_vcol {
-            bdp.end_vcol = bdp.start_vcol;
-            bdp.is_short = 1;
-            if !is_del || oap.op_type == OP_APPEND {
-                bdp.endspaces = oap.end_vcol - oap.start_vcol + 1;
+    bdp.start_char_vcols = incr;
+    if bdp.start_vcol < oap.start_vcol {
+        bdp.end_vcol = bdp.start_vcol;
+        bdp.is_short = 1;
+        if !is_del || oap.op_type == OP_APPEND {
+            bdp.endspaces = oap.end_vcol - oap.start_vcol + 1;
+        }
+    } else {
+        bdp.startspaces = bdp.start_vcol - oap.start_vcol;
+        if is_del && bdp.startspaces != 0 {
+            bdp.startspaces = bdp.start_char_vcols - bdp.startspaces;
+        }
+        let mut pend: *const c_char = pstart;
+        bdp.end_vcol = bdp.start_vcol;
+        if bdp.end_vcol > oap.end_vcol {
+            bdp.is_one_char = 1;
+            if oap.op_type == OP_INSERT {
+                bdp.endspaces = bdp.start_char_vcols - bdp.startspaces;
+            } else if oap.op_type == OP_APPEND {
+                bdp.startspaces += oap.end_vcol - oap.start_vcol + 1;
+                bdp.endspaces = bdp.start_char_vcols - bdp.startspaces;
+            } else {
+                bdp.startspaces = oap.end_vcol - oap.start_vcol + 1;
+                if is_del && oap.op_type != OP_LSHIFT {
+                    bdp.startspaces = bdp.start_char_vcols - (bdp.start_vcol - oap.start_vcol);
+                    bdp.endspaces = bdp.end_vcol - oap.end_vcol - 1;
+                }
             }
         } else {
-            bdp.startspaces = bdp.start_vcol - oap.start_vcol;
-            if is_del && bdp.startspaces != 0 {
-                bdp.startspaces = bdp.start_char_vcols - bdp.startspaces;
+            cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
+            ci = utf_ptr2_str_char_info(pend);
+            vcol = bdp.end_vcol;
+            let mut prev_pend = pend;
+            while vcol <= oap.end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
+                prev_pend = ci.ptr;
+                let cli = utf_cluster_info(ci);
+                incr =
+                    win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells).width;
+                vcol += incr;
+                ci = cli.next;
             }
-            let mut pend: *const c_char = pstart;
-            bdp.end_vcol = bdp.start_vcol;
-            if bdp.end_vcol > oap.end_vcol {
-                bdp.is_one_char = 1;
-                if oap.op_type == OP_INSERT {
-                    bdp.endspaces = bdp.start_char_vcols - bdp.startspaces;
-                } else if oap.op_type == OP_APPEND {
-                    bdp.startspaces += oap.end_vcol - oap.start_vcol + 1;
-                    bdp.endspaces = bdp.start_char_vcols - bdp.startspaces;
-                } else {
-                    bdp.startspaces = oap.end_vcol - oap.start_vcol + 1;
-                    if is_del && oap.op_type != OP_LSHIFT {
-                        bdp.startspaces = bdp.start_char_vcols - (bdp.start_vcol - oap.start_vcol);
-                        bdp.endspaces = bdp.end_vcol - oap.end_vcol - 1;
-                    }
-                }
-            } else {
-                cstype = init_charsize_arg(&mut csarg, curwin_mut(), lnum, line);
-                ci = utf_ptr2_str_char_info(pend);
-                vcol = bdp.end_vcol;
-                let mut prev_pend = pend;
-                while vcol <= oap.end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
-                    prev_pend = ci.ptr;
-                    let cli = utf_cluster_info(ci);
-                    incr = win_charsize(cstype, vcol, ci.ptr, ci.chr.value, &mut csarg, cli.cells)
-                        .width;
-                    vcol += incr;
-                    ci = cli.next;
-                }
-                bdp.end_vcol = vcol;
-                pend = ci.ptr;
+            bdp.end_vcol = vcol;
+            pend = ci.ptr;
 
-                if bdp.end_vcol <= oap.end_vcol
-                    && (!is_del || oap.op_type == OP_APPEND || oap.op_type == OP_REPLACE)
-                {
-                    bdp.is_short = 1;
-                    if oap.op_type == OP_APPEND || g_st().virtual_op != 0 {
-                        bdp.endspaces = oap.end_vcol - bdp.end_vcol + i32::from(oap.inclusive);
-                    }
-                } else if bdp.end_vcol > oap.end_vcol {
-                    bdp.endspaces = bdp.end_vcol - oap.end_vcol - 1;
-                    if !is_del && bdp.endspaces != 0 {
-                        bdp.endspaces = incr - bdp.endspaces;
-                        if !ptr::eq(pend, pstart) {
-                            pend = prev_pend;
-                        }
+            if bdp.end_vcol <= oap.end_vcol
+                && (!is_del || oap.op_type == OP_APPEND || oap.op_type == OP_REPLACE)
+            {
+                bdp.is_short = 1;
+                if oap.op_type == OP_APPEND || g_st().virtual_op != 0 {
+                    bdp.endspaces = oap.end_vcol - bdp.end_vcol + i32::from(oap.inclusive);
+                }
+            } else if bdp.end_vcol > oap.end_vcol {
+                bdp.endspaces = bdp.end_vcol - oap.end_vcol - 1;
+                if !is_del && bdp.endspaces != 0 {
+                    bdp.endspaces = incr - bdp.endspaces;
+                    if !ptr::eq(pend, pstart) {
+                        pend = prev_pend;
                     }
                 }
             }
-            bdp.end_char_vcols = incr;
-            if is_del && bdp.startspaces != 0 {
-                pstart = prev_pstart;
-            }
-            bdp.textlen = crate::memory::ptr_offset_from(pend, pstart) as i32;
         }
-        bdp.textcol = crate::memory::ptr_offset_from(pstart, line) as Colnr;
-        bdp.textstart = pstart;
-        restore_lbr(lbr_saved);
+        bdp.end_char_vcols = incr;
+        if is_del && bdp.startspaces != 0 {
+            pstart = prev_pstart;
+        }
+        bdp.textlen = crate::memory::ptr_offset_from(pend, pstart) as i32;
     }
+    bdp.textcol = crate::memory::ptr_offset_from(pstart, line) as Colnr;
+    bdp.textstart = pstart;
+    restore_lbr(lbr_saved);
 }
 
 pub fn getregionpos_prep(
@@ -2337,47 +2299,45 @@ pub fn getregionpos_prep(
     inclusive: &mut bool,
     oap: &mut Oparg,
 ) {
-    {
-        *inclusive = true;
-        if !lt(*p1, *p2) {
-            unsafe { ptr::swap(p1, p2) };
-        }
+    *inclusive = true;
+    if !lt(*p1, *p2) {
+        unsafe { ptr::swap(p1, p2) };
+    }
 
-        if region_type == MT_CHAR_WISE {
-            if exclusive && !equalpos(*p1, *p2) {
-                *inclusive = !unadjust_for_sel_inner(p2);
-            }
-            if *inclusive && g_st().virtual_op == 0 && unsafe { *ml_get_pos(p2) } == NUL {
-                *inclusive = false;
-            }
-        } else if region_type == MT_BLOCK_WISE {
-            let mut sc1: Colnr = 0;
-            let mut ec1: Colnr = 0;
-            let mut sc2: Colnr = 0;
-            let mut ec2: Colnr = 0;
-            let lbr_saved = reset_lbr();
-            getvvcol(curwin_mut(), p1, Some(&mut sc1), None, Some(&mut ec1), 0);
-            getvvcol(curwin_mut(), p2, Some(&mut sc2), None, Some(&mut ec2), 0);
-            restore_lbr(lbr_saved);
-            oap.motion_type = MT_BLOCK_WISE;
-            oap.inclusive = true;
-            oap.op_type = OP_NOP;
-            oap.start = *p1;
-            oap.end = *p2;
-            oap.start_vcol = sc1.min(sc2);
-            if block_width > 0 {
-                oap.end_vcol = oap.start_vcol + block_width - 1;
-            } else if exclusive && ec1 < sc2 && 0 < sc2 && ec2 > ec1 {
-                oap.end_vcol = sc2 - 1;
-            } else {
-                oap.end_vcol = ec1.max(ec2);
-            }
+    if region_type == MT_CHAR_WISE {
+        if exclusive && !equalpos(*p1, *p2) {
+            *inclusive = !unadjust_for_sel_inner(p2);
         }
+        if *inclusive && g_st().virtual_op == 0 && unsafe { *ml_get_pos(p2) } == NUL {
+            *inclusive = false;
+        }
+    } else if region_type == MT_BLOCK_WISE {
+        let mut sc1: Colnr = 0;
+        let mut ec1: Colnr = 0;
+        let mut sc2: Colnr = 0;
+        let mut ec2: Colnr = 0;
+        let lbr_saved = reset_lbr();
+        getvvcol(curwin_mut(), p1, Some(&mut sc1), None, Some(&mut ec1), 0);
+        getvvcol(curwin_mut(), p2, Some(&mut sc2), None, Some(&mut ec2), 0);
+        restore_lbr(lbr_saved);
+        oap.motion_type = MT_BLOCK_WISE;
+        oap.inclusive = true;
+        oap.op_type = OP_NOP;
+        oap.start = *p1;
+        oap.end = *p2;
+        oap.start_vcol = sc1.min(sc2);
+        if block_width > 0 {
+            oap.end_vcol = oap.start_vcol + block_width - 1;
+        } else if exclusive && ec1 < sc2 && 0 < sc2 && ec2 > ec1 {
+            oap.end_vcol = sc2 - 1;
+        } else {
+            oap.end_vcol = ec1.max(ec2);
+        }
+    }
 
-        let l = utfc_ptr2len(ml_get_pos(p2));
-        if l > 1 {
-            p2.col += l - 1;
-        }
+    let l = utfc_ptr2len(ml_get_pos(p2));
+    if l > 1 {
+        p2.col += l - 1;
     }
 }
 
@@ -2392,78 +2352,74 @@ pub fn getregionpos_line(
     ret_p1: &mut CursorPos,
     ret_p2: &mut CursorPos,
 ) {
-    {
-        let line = ml_get(lnum);
-        let line_len = ml_get_len(lnum);
+    let line = ml_get(lnum);
+    let line_len = ml_get_len(lnum);
 
-        if region_type == MT_LINE_WISE {
-            ret_p1.col = 1;
-            ret_p1.coladd = 0;
-            ret_p2.col = MAXCOL;
-            ret_p2.coladd = 0;
+    if region_type == MT_LINE_WISE {
+        ret_p1.col = 1;
+        ret_p1.coladd = 0;
+        ret_p2.col = MAXCOL;
+        ret_p2.coladd = 0;
+    } else {
+        let mut bd = BlockDef::new();
+
+        if region_type == MT_BLOCK_WISE {
+            block_prep(oap, &mut bd, lnum, false);
         } else {
-            let mut bd = BlockDef::new();
+            charwise_block_prep(p1, p2, &mut bd, lnum, inclusive);
+        }
 
+        if bd.is_one_char != 0 {
             if region_type == MT_BLOCK_WISE {
-                block_prep(oap, &mut bd, lnum, false);
-            } else {
-                charwise_block_prep(p1, p2, &mut bd, lnum, inclusive);
-            }
-
-            if bd.is_one_char != 0 {
-                if region_type == MT_BLOCK_WISE {
-                    ret_p1.col =
-                        (crate::memory::ptr_offset_from(mb_prevptr(line, bd.textstart), line)
-                            as Colnr)
-                            + 1;
-                    ret_p1.coladd = bd.start_char_vcols - (bd.start_vcol - oap.start_vcol);
-                } else {
-                    ret_p1.col = p1.col + 1;
-                    ret_p1.coladd = p1.coladd;
-                }
-            } else if region_type == MT_BLOCK_WISE && oap.start_vcol > bd.start_vcol {
-                ret_p1.col = MAXCOL;
-                ret_p1.coladd = oap.start_vcol - bd.start_vcol;
-                bd.is_one_char = 1;
-            } else if bd.startspaces > 0 {
                 ret_p1.col = (crate::memory::ptr_offset_from(mb_prevptr(line, bd.textstart), line)
                     as Colnr)
                     + 1;
-                ret_p1.coladd = bd.start_char_vcols - bd.startspaces;
+                ret_p1.coladd = bd.start_char_vcols - (bd.start_vcol - oap.start_vcol);
             } else {
-                ret_p1.col = bd.textcol + 1;
-                ret_p1.coladd = 0;
+                ret_p1.col = p1.col + 1;
+                ret_p1.coladd = p1.coladd;
             }
-
-            if bd.is_one_char != 0 {
-                ret_p2.col = ret_p1.col;
-                ret_p2.coladd = ret_p1.coladd + bd.startspaces + bd.endspaces;
-            } else if bd.endspaces > 0 {
-                ret_p2.col = bd.textcol + bd.textlen + 1;
-                ret_p2.coladd = bd.endspaces;
-            } else {
-                ret_p2.col = bd.textcol + bd.textlen;
-                ret_p2.coladd = 0;
-            }
-        }
-
-        if !allow_eol && ret_p1.col > line_len {
-            ret_p1.col = 0;
+        } else if region_type == MT_BLOCK_WISE && oap.start_vcol > bd.start_vcol {
+            ret_p1.col = MAXCOL;
+            ret_p1.coladd = oap.start_vcol - bd.start_vcol;
+            bd.is_one_char = 1;
+        } else if bd.startspaces > 0 {
+            ret_p1.col =
+                (crate::memory::ptr_offset_from(mb_prevptr(line, bd.textstart), line) as Colnr) + 1;
+            ret_p1.coladd = bd.start_char_vcols - bd.startspaces;
+        } else {
+            ret_p1.col = bd.textcol + 1;
             ret_p1.coladd = 0;
-        } else if ret_p1.col > line_len + 1 {
-            ret_p1.col = line_len + 1;
         }
 
-        if !allow_eol && ret_p2.col > line_len {
-            ret_p2.col = if ret_p1.col == 0 { 0 } else { line_len };
+        if bd.is_one_char != 0 {
+            ret_p2.col = ret_p1.col;
+            ret_p2.coladd = ret_p1.coladd + bd.startspaces + bd.endspaces;
+        } else if bd.endspaces > 0 {
+            ret_p2.col = bd.textcol + bd.textlen + 1;
+            ret_p2.coladd = bd.endspaces;
+        } else {
+            ret_p2.col = bd.textcol + bd.textlen;
             ret_p2.coladd = 0;
-        } else if ret_p2.col > line_len + 1 {
-            ret_p2.col = line_len + 1;
         }
-
-        ret_p1.lnum = lnum;
-        ret_p2.lnum = lnum;
     }
+
+    if !allow_eol && ret_p1.col > line_len {
+        ret_p1.col = 0;
+        ret_p1.coladd = 0;
+    } else if ret_p1.col > line_len + 1 {
+        ret_p1.col = line_len + 1;
+    }
+
+    if !allow_eol && ret_p2.col > line_len {
+        ret_p2.col = if ret_p1.col == 0 { 0 } else { line_len };
+        ret_p2.coladd = 0;
+    } else if ret_p2.col > line_len + 1 {
+        ret_p2.col = line_len + 1;
+    }
+
+    ret_p1.lnum = lnum;
+    ret_p2.lnum = lnum;
 }
 
 pub fn charwise_block_prep(
@@ -2473,177 +2429,172 @@ pub fn charwise_block_prep(
     lnum: Linenr,
     inclusive: bool,
 ) {
-    {
-        let mut startcol: Colnr = 0;
-        let mut endcol: Colnr = MAXCOL;
-        let mut cs: Colnr = 0;
-        let mut ce: Colnr = 0;
-        let p = ml_get(lnum);
-        let plen = ml_get_len(lnum);
+    let mut startcol: Colnr = 0;
+    let mut endcol: Colnr = MAXCOL;
+    let mut cs: Colnr = 0;
+    let mut ce: Colnr = 0;
+    let p = ml_get(lnum);
+    let plen = ml_get_len(lnum);
 
-        bdp.startspaces = 0;
-        bdp.endspaces = 0;
-        bdp.is_one_char = 0;
-        bdp.start_char_vcols = 0;
+    bdp.startspaces = 0;
+    bdp.endspaces = 0;
+    bdp.is_one_char = 0;
+    bdp.start_char_vcols = 0;
 
-        if lnum == start.lnum {
-            startcol = start.col;
-            if g_st().virtual_op != 0 {
-                getvcol(
-                    curwin_mut(),
-                    &mut start,
-                    Some(&mut cs),
-                    None,
-                    Some(&mut ce),
-                    0,
-                );
-                if ce != cs && start.coladd > 0 {
-                    bdp.start_char_vcols = ce - cs + 1;
-                    bdp.startspaces = (bdp.start_char_vcols - start.coladd).max(0);
-                    startcol += 1;
-                }
+    if lnum == start.lnum {
+        startcol = start.col;
+        if g_st().virtual_op != 0 {
+            getvcol(
+                curwin_mut(),
+                &mut start,
+                Some(&mut cs),
+                None,
+                Some(&mut ce),
+                0,
+            );
+            if ce != cs && start.coladd > 0 {
+                bdp.start_char_vcols = ce - cs + 1;
+                bdp.startspaces = (bdp.start_char_vcols - start.coladd).max(0);
+                startcol += 1;
             }
         }
-
-        if lnum == end.lnum {
-            endcol = end.col;
-            if g_st().virtual_op != 0 {
-                getvcol(
-                    curwin_mut(),
-                    &mut end,
-                    Some(&mut cs),
-                    None,
-                    Some(&mut ce),
-                    0,
-                );
-                if crate::memory::cstr_byte_at(p, endcol as usize) == 0
-                    || (cs + end.coladd < ce
-                        && utf_head_off(p, p.wrapping_add(endcol as usize)) == 0)
-                {
-                    if start.lnum == end.lnum && start.col == end.col {
-                        bdp.is_one_char = 1;
-                        bdp.startspaces = end.coladd - start.coladd + i32::from(inclusive);
-                        endcol = startcol;
-                    } else {
-                        bdp.endspaces = end.coladd + i32::from(inclusive);
-                        endcol -= i32::from(inclusive);
-                    }
-                }
-            }
-        }
-        if endcol == MAXCOL {
-            endcol = ml_get_len(lnum);
-        }
-        if startcol > endcol || bdp.is_one_char != 0 {
-            bdp.textlen = 0;
-        } else {
-            bdp.textlen = endcol - startcol + i32::from(inclusive);
-        }
-        bdp.textcol = startcol;
-        bdp.textstart = if startcol <= plen {
-            p.wrapping_add(startcol as usize)
-        } else {
-            p
-        };
     }
+
+    if lnum == end.lnum {
+        endcol = end.col;
+        if g_st().virtual_op != 0 {
+            getvcol(
+                curwin_mut(),
+                &mut end,
+                Some(&mut cs),
+                None,
+                Some(&mut ce),
+                0,
+            );
+            if crate::memory::cstr_byte_at(p, endcol as usize) == 0
+                || (cs + end.coladd < ce && utf_head_off(p, p.wrapping_add(endcol as usize)) == 0)
+            {
+                if start.lnum == end.lnum && start.col == end.col {
+                    bdp.is_one_char = 1;
+                    bdp.startspaces = end.coladd - start.coladd + i32::from(inclusive);
+                    endcol = startcol;
+                } else {
+                    bdp.endspaces = end.coladd + i32::from(inclusive);
+                    endcol -= i32::from(inclusive);
+                }
+            }
+        }
+    }
+    if endcol == MAXCOL {
+        endcol = ml_get_len(lnum);
+    }
+    if startcol > endcol || bdp.is_one_char != 0 {
+        bdp.textlen = 0;
+    } else {
+        bdp.textlen = endcol - startcol + i32::from(inclusive);
+    }
+    bdp.textcol = startcol;
+    bdp.textstart = if startcol <= plen {
+        p.wrapping_add(startcol as usize)
+    } else {
+        p
+    };
 }
 
 pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
-    {
-        let mut bd = BlockDef::new();
-        let mut change_cnt: isize = 0;
-        let mut amount = prenum1;
+    let mut bd = BlockDef::new();
+    let mut change_cnt: isize = 0;
+    let mut amount = prenum1;
 
-        g_st().disable_fold_update += 1;
+    g_st().disable_fold_update += 1;
 
-        if !g_st().visual_global.active {
-            let mut pos = curwin_mut().w_cursor;
-            if !u_save_cursor() {
-                g_st().disable_fold_update -= 1;
-                return;
-            }
-            change_cnt = isize::from(do_addsub(oap.op_type, &mut pos, 0, amount));
+    if !g_st().visual_global.active {
+        let mut pos = curwin_mut().w_cursor;
+        if !u_save_cursor() {
             g_st().disable_fold_update -= 1;
-            if change_cnt != 0 {
-                changed_lines(curbuf_mut(), pos.lnum, 0, pos.lnum + 1, 0, true);
-            }
-        } else {
-            let mut length: i32;
-            let mut startpos = CursorPos {
-                lnum: 0,
-                col: 0,
-                coladd: 0,
-            };
+            return;
+        }
+        change_cnt = isize::from(do_addsub(oap.op_type, &mut pos, 0, amount));
+        g_st().disable_fold_update -= 1;
+        if change_cnt != 0 {
+            changed_lines(curbuf_mut(), pos.lnum, 0, pos.lnum + 1, 0, true);
+        }
+    } else {
+        let mut length: i32;
+        let mut startpos = CursorPos {
+            lnum: 0,
+            col: 0,
+            coladd: 0,
+        };
 
-            if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
-                g_st().disable_fold_update -= 1;
-                return;
-            }
-
-            let mut pos = oap.start;
-            while pos.lnum <= oap.end.lnum {
-                if oap.motion_type == MT_BLOCK_WISE {
-                    block_prep(oap, &mut bd, pos.lnum, false);
-                    pos.col = bd.textcol;
-                    length = bd.textlen;
-                } else if oap.motion_type == MT_LINE_WISE {
-                    curwin_mut().w_cursor.col = 0;
-                    pos.col = 0;
-                    length = ml_get_len(pos.lnum);
-                } else {
-                    if pos.lnum == oap.start.lnum && !oap.inclusive {
-                        dec(&mut oap.end);
-                    }
-                    length = ml_get_len(pos.lnum);
-                    pos.col = 0;
-                    if pos.lnum == oap.start.lnum {
-                        pos.col += oap.start.col;
-                        length -= oap.start.col;
-                    }
-                    if pos.lnum == oap.end.lnum {
-                        length = ml_get_len(oap.end.lnum);
-                        oap.end.col = oap.end.col.min(length - 1);
-                        length = oap.end.col - pos.col + 1;
-                    }
-                }
-                let one_change = do_addsub(oap.op_type, &mut pos, length, amount);
-                if one_change {
-                    if change_cnt == 0 {
-                        startpos = curbuf_mut().b_op_start;
-                    }
-                    change_cnt += 1;
-                }
-
-                if g_cmd && one_change {
-                    amount += prenum1;
-                }
-                pos.lnum += 1;
-            }
-
+        if !u_save(oap.start.lnum - 1, oap.end.lnum + 1) {
             g_st().disable_fold_update -= 1;
-            if change_cnt != 0 {
-                changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
+            return;
+        }
+
+        let mut pos = oap.start;
+        while pos.lnum <= oap.end.lnum {
+            if oap.motion_type == MT_BLOCK_WISE {
+                block_prep(oap, &mut bd, pos.lnum, false);
+                pos.col = bd.textcol;
+                length = bd.textlen;
+            } else if oap.motion_type == MT_LINE_WISE {
+                curwin_mut().w_cursor.col = 0;
+                pos.col = 0;
+                length = ml_get_len(pos.lnum);
+            } else {
+                if pos.lnum == oap.start.lnum && !oap.inclusive {
+                    dec(&mut oap.end);
+                }
+                length = ml_get_len(pos.lnum);
+                pos.col = 0;
+                if pos.lnum == oap.start.lnum {
+                    pos.col += oap.start.col;
+                    length -= oap.start.col;
+                }
+                if pos.lnum == oap.end.lnum {
+                    length = ml_get_len(oap.end.lnum);
+                    oap.end.col = oap.end.col.min(length - 1);
+                    length = oap.end.col - pos.col + 1;
+                }
+            }
+            let one_change = do_addsub(oap.op_type, &mut pos, length, amount);
+            if one_change {
+                if change_cnt == 0 {
+                    startpos = curbuf_mut().b_op_start;
+                }
+                change_cnt += 1;
             }
 
-            if change_cnt == 0 && oap.is_visual {
-                redraw_curbuf_later(UPD_INVERTED);
+            if g_cmd && one_change {
+                amount += prenum1;
             }
+            pos.lnum += 1;
+        }
 
-            if change_cnt > 0 && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-                curbuf_mut().b_op_start = startpos;
-            }
+        g_st().disable_fold_update -= 1;
+        if change_cnt != 0 {
+            changed_lines(curbuf_mut(), oap.start.lnum, 0, oap.end.lnum + 1, 0, true);
+        }
 
-            if (change_cnt as i64) > opt_vars().p_report {
-                smsg!(
-                    0,
-                    ngettext(
-                        c"%lld lines changed",
-                        c"%lld lines changed",
-                        change_cnt as u64,
-                    ),
-                    change_cnt as i64,
-                );
-            }
+        if change_cnt == 0 && oap.is_visual {
+            redraw_curbuf_later(UPD_INVERTED);
+        }
+
+        if change_cnt > 0 && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+            curbuf_mut().b_op_start = startpos;
+        }
+
+        if (change_cnt as i64) > opt_vars().p_report {
+            smsg!(
+                0,
+                ngettext(
+                    c"%lld lines changed",
+                    c"%lld lines changed",
+                    change_cnt as u64,
+                ),
+                change_cnt as i64,
+            );
         }
     }
 }
@@ -3110,191 +3061,188 @@ fn line_count_info(
 }
 
 pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
-    {
-        let mut buf1 = [0 as c_char; 50];
-        let buf1_ptr = (&raw mut buf1).cast::<c_char>();
-        let mut buf2 = [0 as c_char; 40];
-        let buf2_ptr = (&raw mut buf2).cast::<c_char>();
-        let mut byte_count: Varnumber = 0;
-        let mut bom_count: Varnumber = 0;
-        let mut byte_count_cursor: Varnumber = 0;
-        let mut char_count: Varnumber = 0;
-        let mut char_count_cursor: Varnumber = 0;
-        let mut word_count: Varnumber = 0;
-        let mut word_count_cursor: Varnumber = 0;
-        let mut min_pos = CursorPos {
-            lnum: 0,
-            col: 0,
-            coladd: 0,
-        };
-        let mut max_pos = CursorPos {
-            lnum: 0,
-            col: 0,
-            coladd: 0,
-        };
-        let mut oparg = Oparg::new();
-        let mut bd = BlockDef::new();
-        let l_visual_active = g_st().visual_global.active;
-        let l_visual_mode = g_st().visual_global.mode;
+    let mut buf1 = [0 as c_char; 50];
+    let buf1_ptr = (&raw mut buf1).cast::<c_char>();
+    let mut buf2 = [0 as c_char; 40];
+    let buf2_ptr = (&raw mut buf2).cast::<c_char>();
+    let mut byte_count: Varnumber = 0;
+    let mut bom_count: Varnumber = 0;
+    let mut byte_count_cursor: Varnumber = 0;
+    let mut char_count: Varnumber = 0;
+    let mut char_count_cursor: Varnumber = 0;
+    let mut word_count: Varnumber = 0;
+    let mut word_count_cursor: Varnumber = 0;
+    let mut min_pos = CursorPos {
+        lnum: 0,
+        col: 0,
+        coladd: 0,
+    };
+    let mut max_pos = CursorPos {
+        lnum: 0,
+        col: 0,
+        coladd: 0,
+    };
+    let mut oparg = Oparg::new();
+    let mut bd = BlockDef::new();
+    let l_visual_active = g_st().visual_global.active;
+    let l_visual_mode = g_st().visual_global.mode;
 
-        if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
-            if dict.is_none() {
-                msg(tr(NO_LINES_MSG), 0);
-                return;
-            }
+    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+        if dict.is_none() {
+            msg(tr(NO_LINES_MSG), 0);
+            return;
+        }
+    } else {
+        let mut last_check: Varnumber = 100000;
+        let mut line_count_selected: i32 = 0;
+        let eol_size = if get_fileformat(curbuf_mut()) == EOL_DOS {
+            2
         } else {
-            let mut last_check: Varnumber = 100000;
-            let mut line_count_selected: i32 = 0;
-            let eol_size = if get_fileformat(curbuf_mut()) == EOL_DOS {
-                2
-            } else {
-                1
-            };
+            1
+        };
 
-            if l_visual_active {
-                if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
-                    min_pos = g_st().visual_global.start;
-                    max_pos = curwin_mut().w_cursor;
-                } else {
-                    min_pos = curwin_mut().w_cursor;
-                    max_pos = g_st().visual_global.start;
+        if l_visual_active {
+            if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
+                min_pos = g_st().visual_global.start;
+                max_pos = curwin_mut().w_cursor;
+            } else {
+                min_pos = curwin_mut().w_cursor;
+                max_pos = g_st().visual_global.start;
+            }
+            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && max_pos.col > 0 {
+                max_pos.col -= 1;
+            }
+
+            if l_visual_mode == CTRL_V_CONST {
+                let saved_sbr = opt_vars().p_sbr;
+                let saved_w_sbr = curwin_mut().w_onebuf_opt.wo_sbr;
+
+                opt_vars().p_sbr = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+                curwin_mut().w_onebuf_opt.wo_sbr = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+                oparg.is_visual = true;
+                oparg.motion_type = MT_BLOCK_WISE;
+                oparg.op_type = OP_NOP;
+                getvcols(
+                    curwin_ptr(),
+                    &mut min_pos,
+                    &mut max_pos,
+                    &mut oparg.start_vcol,
+                    &mut oparg.end_vcol,
+                    0,
+                );
+                opt_vars().p_sbr = saved_sbr;
+                curwin_mut().w_onebuf_opt.wo_sbr = saved_w_sbr;
+                if curwin_mut().w_curswant == MAXCOL {
+                    oparg.end_vcol = MAXCOL;
                 }
-                if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && max_pos.col > 0 {
-                    max_pos.col -= 1;
+                if oparg.end_vcol < oparg.start_vcol {
+                    std::mem::swap(&mut oparg.start_vcol, &mut oparg.end_vcol);
                 }
+            }
+            line_count_selected = max_pos.lnum - min_pos.lnum + 1;
+        }
+
+        for lnum in 1..=curbuf_mut().b_ml.ml_line_count {
+            if byte_count > last_check {
+                os_breakcheck();
+                if g_st().got_int {
+                    return;
+                }
+                last_check = byte_count + 100000;
+            }
+
+            if l_visual_active && lnum >= min_pos.lnum && lnum <= max_pos.lnum {
+                let mut s: *mut c_char = ptr::null_mut();
+                let mut len: i32 = 0;
 
                 if l_visual_mode == CTRL_V_CONST {
-                    let saved_sbr = opt_vars().p_sbr;
-                    let saved_w_sbr = curwin_mut().w_onebuf_opt.wo_sbr;
+                    g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
+                    block_prep(&mut oparg, &mut bd, lnum, false);
+                    g_st().virtual_op = K_NONE;
+                    s = bd.textstart;
+                    len = bd.textlen;
+                } else if l_visual_mode == b'V' as i32 {
+                    s = ml_get(lnum);
+                    len = MAXCOL;
+                } else if l_visual_mode == b'v' as i32 {
+                    let start_col = if lnum == min_pos.lnum { min_pos.col } else { 0 };
+                    let end_col = if lnum == max_pos.lnum {
+                        max_pos.col - start_col + 1
+                    } else {
+                        MAXCOL
+                    };
 
-                    opt_vars().p_sbr = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
-                    curwin_mut().w_onebuf_opt.wo_sbr =
-                        EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
-                    oparg.is_visual = true;
-                    oparg.motion_type = MT_BLOCK_WISE;
-                    oparg.op_type = OP_NOP;
+                    s = ml_get(lnum).wrapping_add(start_col as usize);
+                    len = end_col;
+                }
+                if !s.is_null() {
+                    byte_count_cursor += line_count_info(
+                        s,
+                        &mut word_count_cursor,
+                        &mut char_count_cursor,
+                        Varnumber::from(len),
+                        eol_size,
+                    );
+                    if lnum == curbuf_mut().b_ml.ml_line_count
+                        && curbuf_mut().b_p_eol == 0
+                        && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0)
+                        && (crate::memory::cstr_len(s) as i32) < len
+                    {
+                        byte_count_cursor -= Varnumber::from(eol_size);
+                    }
+                }
+            } else if lnum == curwin_mut().w_cursor.lnum {
+                word_count_cursor += word_count;
+                char_count_cursor += char_count;
+                byte_count_cursor = byte_count
+                    + line_count_info(
+                        ml_get(lnum),
+                        &mut word_count_cursor,
+                        &mut char_count_cursor,
+                        Varnumber::from(curwin_mut().w_cursor.col) + 1,
+                        eol_size,
+                    );
+            }
+            byte_count += line_count_info(
+                ml_get(lnum),
+                &mut word_count,
+                &mut char_count,
+                Varnumber::from(MAXCOL),
+                eol_size,
+            );
+        }
+
+        if curbuf_mut().b_p_eol == 0 && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0)
+        {
+            byte_count -= Varnumber::from(eol_size);
+        }
+
+        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
+        if dict.is_none() {
+            if l_visual_active {
+                if l_visual_mode == CTRL_V_CONST && curwin_mut().w_curswant < MAXCOL {
+                    let mut min_col = min_pos.col;
+                    let mut max_col = max_pos.col;
                     getvcols(
                         curwin_ptr(),
                         &mut min_pos,
                         &mut max_pos,
-                        &mut oparg.start_vcol,
-                        &mut oparg.end_vcol,
+                        &mut min_col,
+                        &mut max_col,
                         0,
                     );
-                    opt_vars().p_sbr = saved_sbr;
-                    curwin_mut().w_onebuf_opt.wo_sbr = saved_w_sbr;
-                    if curwin_mut().w_curswant == MAXCOL {
-                        oparg.end_vcol = MAXCOL;
-                    }
-                    if oparg.end_vcol < oparg.start_vcol {
-                        std::mem::swap(&mut oparg.start_vcol, &mut oparg.end_vcol);
+                    let cols = i64::from(oparg.end_vcol + 1)
+                        .checked_sub(i64::from(oparg.start_vcol))
+                        .unwrap_or_else(|| std::process::abort());
+                    vim_snprintf!(buf1_ptr, buf1.len(), tr(c"%lld Cols; "), cols,);
+                } else {
+                    unsafe {
+                        *buf1_ptr = NUL;
                     }
                 }
-                line_count_selected = max_pos.lnum - min_pos.lnum + 1;
-            }
 
-            for lnum in 1..=curbuf_mut().b_ml.ml_line_count {
-                if byte_count > last_check {
-                    os_breakcheck();
-                    if g_st().got_int {
-                        return;
-                    }
-                    last_check = byte_count + 100000;
-                }
-
-                if l_visual_active && lnum >= min_pos.lnum && lnum <= max_pos.lnum {
-                    let mut s: *mut c_char = ptr::null_mut();
-                    let mut len: i32 = 0;
-
-                    if l_visual_mode == CTRL_V_CONST {
-                        g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
-                        block_prep(&mut oparg, &mut bd, lnum, false);
-                        g_st().virtual_op = K_NONE;
-                        s = bd.textstart;
-                        len = bd.textlen;
-                    } else if l_visual_mode == b'V' as i32 {
-                        s = ml_get(lnum);
-                        len = MAXCOL;
-                    } else if l_visual_mode == b'v' as i32 {
-                        let start_col = if lnum == min_pos.lnum { min_pos.col } else { 0 };
-                        let end_col = if lnum == max_pos.lnum {
-                            max_pos.col - start_col + 1
-                        } else {
-                            MAXCOL
-                        };
-
-                        s = ml_get(lnum).wrapping_add(start_col as usize);
-                        len = end_col;
-                    }
-                    if !s.is_null() {
-                        byte_count_cursor += line_count_info(
-                            s,
-                            &mut word_count_cursor,
-                            &mut char_count_cursor,
-                            Varnumber::from(len),
-                            eol_size,
-                        );
-                        if lnum == curbuf_mut().b_ml.ml_line_count
-                            && curbuf_mut().b_p_eol == 0
-                            && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0)
-                            && (crate::memory::cstr_len(s) as i32) < len
-                        {
-                            byte_count_cursor -= Varnumber::from(eol_size);
-                        }
-                    }
-                } else if lnum == curwin_mut().w_cursor.lnum {
-                    word_count_cursor += word_count;
-                    char_count_cursor += char_count;
-                    byte_count_cursor = byte_count
-                        + line_count_info(
-                            ml_get(lnum),
-                            &mut word_count_cursor,
-                            &mut char_count_cursor,
-                            Varnumber::from(curwin_mut().w_cursor.col) + 1,
-                            eol_size,
-                        );
-                }
-                byte_count += line_count_info(
-                    ml_get(lnum),
-                    &mut word_count,
-                    &mut char_count,
-                    Varnumber::from(MAXCOL),
-                    eol_size,
-                );
-            }
-
-            if curbuf_mut().b_p_eol == 0
-                && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0)
-            {
-                byte_count -= Varnumber::from(eol_size);
-            }
-
-            let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-            if dict.is_none() {
-                if l_visual_active {
-                    if l_visual_mode == CTRL_V_CONST && curwin_mut().w_curswant < MAXCOL {
-                        let mut min_col = min_pos.col;
-                        let mut max_col = max_pos.col;
-                        getvcols(
-                            curwin_ptr(),
-                            &mut min_pos,
-                            &mut max_pos,
-                            &mut min_col,
-                            &mut max_col,
-                            0,
-                        );
-                        let cols = i64::from(oparg.end_vcol + 1)
-                            .checked_sub(i64::from(oparg.start_vcol))
-                            .unwrap_or_else(|| std::process::abort());
-                        vim_snprintf!(buf1_ptr, buf1.len(), tr(c"%lld Cols; "), cols,);
-                    } else {
-                        unsafe {
-                            *buf1_ptr = NUL;
-                        }
-                    }
-
-                    if char_count_cursor == byte_count_cursor && char_count == byte_count {
-                        vim_snprintf!(
+                if char_count_cursor == byte_count_cursor && char_count == byte_count {
+                    vim_snprintf!(
                             iobuff_ptr,
                             IOSIZE,
                             tr(
@@ -3308,8 +3256,8 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                             byte_count_cursor as i64,
                             byte_count as i64,
                         );
-                    } else {
-                        vim_snprintf!(
+                } else {
+                    vim_snprintf!(
                             iobuff_ptr,
                             IOSIZE,
                             tr(
@@ -3325,25 +3273,25 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                             byte_count_cursor as i64,
                             byte_count as i64,
                         );
-                    }
-                } else {
-                    let p = get_cursor_line_ptr();
-                    validate_virtcol(curwin_mut());
-                    col_print(
-                        buf1_ptr,
-                        buf1.len(),
-                        curwin_mut().w_cursor.col + 1,
-                        curwin_mut().w_virtcol + 1,
-                    );
-                    col_print(
-                        buf2_ptr,
-                        buf2.len(),
-                        get_cursor_line_len(),
-                        linetabsize_str(p),
-                    );
+                }
+            } else {
+                let p = get_cursor_line_ptr();
+                validate_virtcol(curwin_mut());
+                col_print(
+                    buf1_ptr,
+                    buf1.len(),
+                    curwin_mut().w_cursor.col + 1,
+                    curwin_mut().w_virtcol + 1,
+                );
+                col_print(
+                    buf2_ptr,
+                    buf2.len(),
+                    get_cursor_line_len(),
+                    linetabsize_str(p),
+                );
 
-                    if char_count_cursor == byte_count_cursor && char_count == byte_count {
-                        vim_snprintf!(
+                if char_count_cursor == byte_count_cursor && char_count == byte_count {
+                    vim_snprintf!(
                             iobuff_ptr,
                             IOSIZE,
                             tr(
@@ -3358,8 +3306,8 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                             byte_count_cursor as i64,
                             byte_count as i64,
                         );
-                    } else {
-                        vim_snprintf!(
+                } else {
+                    vim_snprintf!(
                             iobuff_ptr,
                             IOSIZE,
                             tr(
@@ -3376,128 +3324,125 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                             byte_count_cursor as i64,
                             byte_count as i64,
                         );
-                    }
                 }
-            }
-
-            bom_count = Varnumber::from(bomb_size());
-            if dict.is_none() && bom_count > 0 {
-                let len = crate::memory::cstr_len(iobuff_ptr);
-                vim_snprintf!(
-                    iobuff_ptr.wrapping_add(len),
-                    IOSIZE - len,
-                    tr(c"(+%lld for BOM)"),
-                    bom_count as i64,
-                );
-            }
-            if dict.is_none() {
-                let p = opt_vars().p_shm;
-                opt_vars().p_shm = c"".as_ptr().cast_mut();
-                if opt_vars().p_ch < 1 {
-                    msg_start();
-                    g_st().msg_scroll = 1;
-                }
-                msg(iobuff_ptr, 0);
-                opt_vars().p_shm = p;
             }
         }
 
-        if dict.is_some() {
-            tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"words", word_count);
-            tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"chars", char_count);
-            tv_dict_add_nr(
-                dict.as_deref_mut().unwrap(),
-                c"bytes",
-                byte_count + bom_count,
-            );
-
-            tv_dict_add_nr(
-                dict.as_deref_mut().unwrap(),
-                if l_visual_active {
-                    c"visual_bytes"
-                } else {
-                    c"cursor_bytes"
-                },
-                byte_count_cursor,
-            );
-            tv_dict_add_nr(
-                dict.as_deref_mut().unwrap(),
-                if l_visual_active {
-                    c"visual_chars"
-                } else {
-                    c"cursor_chars"
-                },
-                char_count_cursor,
-            );
-            tv_dict_add_nr(
-                dict.unwrap(),
-                if l_visual_active {
-                    c"visual_words"
-                } else {
-                    c"cursor_words"
-                },
-                word_count_cursor,
+        bom_count = Varnumber::from(bomb_size());
+        if dict.is_none() && bom_count > 0 {
+            let len = crate::memory::cstr_len(iobuff_ptr);
+            vim_snprintf!(
+                iobuff_ptr.wrapping_add(len),
+                IOSIZE - len,
+                tr(c"(+%lld for BOM)"),
+                bom_count as i64,
             );
         }
+        if dict.is_none() {
+            let p = opt_vars().p_shm;
+            opt_vars().p_shm = c"".as_ptr().cast_mut();
+            if opt_vars().p_ch < 1 {
+                msg_start();
+                g_st().msg_scroll = 1;
+            }
+            msg(iobuff_ptr, 0);
+            opt_vars().p_shm = p;
+        }
+    }
+
+    if dict.is_some() {
+        tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"words", word_count);
+        tv_dict_add_nr(dict.as_deref_mut().unwrap(), c"chars", char_count);
+        tv_dict_add_nr(
+            dict.as_deref_mut().unwrap(),
+            c"bytes",
+            byte_count + bom_count,
+        );
+
+        tv_dict_add_nr(
+            dict.as_deref_mut().unwrap(),
+            if l_visual_active {
+                c"visual_bytes"
+            } else {
+                c"cursor_bytes"
+            },
+            byte_count_cursor,
+        );
+        tv_dict_add_nr(
+            dict.as_deref_mut().unwrap(),
+            if l_visual_active {
+                c"visual_chars"
+            } else {
+                c"cursor_chars"
+            },
+            char_count_cursor,
+        );
+        tv_dict_add_nr(
+            dict.unwrap(),
+            if l_visual_active {
+                c"visual_words"
+            } else {
+                c"cursor_words"
+            },
+            word_count_cursor,
+        );
     }
 }
 
 fn op_colon(oap: &mut Oparg) {
-    {
-        if oap.is_visual {
-            stuff_readbuff(c"'<,'>");
+    if oap.is_visual {
+        stuff_readbuff(c"'<,'>");
+    } else {
+        if oap.start.lnum == curwin_mut().w_cursor.lnum {
+            stuffchar_readbuff(b'.' as i32);
         } else {
-            if oap.start.lnum == curwin_mut().w_cursor.lnum {
+            stuffnum_readbuff(oap.start.lnum);
+        }
+
+        let mut end_of_start_fold = oap.start.lnum;
+        has_folding(
+            curwin_ptr(),
+            oap.start.lnum,
+            None,
+            &raw mut end_of_start_fold,
+        );
+        if oap.end.lnum != oap.start.lnum && oap.end.lnum != end_of_start_fold {
+            stuffchar_readbuff(b',' as i32);
+            if oap.end.lnum == curwin_mut().w_cursor.lnum {
                 stuffchar_readbuff(b'.' as i32);
+            } else if oap.end.lnum == curbuf_mut().b_ml.ml_line_count {
+                stuffchar_readbuff(b'$' as i32);
+            } else if oap.start.lnum == curwin_mut().w_cursor.lnum
+                && !has_folding(curwin_ptr(), oap.end.lnum, None, ptr::null_mut())
+            {
+                stuff_readbuff(c".+");
+                stuffnum_readbuff(oap.line_count - 1);
             } else {
-                stuffnum_readbuff(oap.start.lnum);
-            }
-
-            let mut end_of_start_fold = oap.start.lnum;
-            has_folding(
-                curwin_ptr(),
-                oap.start.lnum,
-                None,
-                &raw mut end_of_start_fold,
-            );
-            if oap.end.lnum != oap.start.lnum && oap.end.lnum != end_of_start_fold {
-                stuffchar_readbuff(b',' as i32);
-                if oap.end.lnum == curwin_mut().w_cursor.lnum {
-                    stuffchar_readbuff(b'.' as i32);
-                } else if oap.end.lnum == curbuf_mut().b_ml.ml_line_count {
-                    stuffchar_readbuff(b'$' as i32);
-                } else if oap.start.lnum == curwin_mut().w_cursor.lnum
-                    && !has_folding(curwin_ptr(), oap.end.lnum, None, ptr::null_mut())
-                {
-                    stuff_readbuff(c".+");
-                    stuffnum_readbuff(oap.line_count - 1);
-                } else {
-                    stuffnum_readbuff(oap.end.lnum);
-                }
+                stuffnum_readbuff(oap.end.lnum);
             }
         }
-        if oap.op_type != OP_COLON {
-            stuff_readbuff(c"!");
-        }
-        if oap.op_type == OP_INDENT {
-            stuff_readbuff(get_equalprg());
-            stuff_readbuff(c"\n");
-        } else if oap.op_type == OP_FORMAT {
-            if !crate::memory::cstr_is_empty(curbuf_mut().b_p_fp) {
-                stuff_readbuff(curbuf_mut().b_p_fp);
-            } else if !crate::memory::cstr_is_empty(opt_vars().p_fp) {
-                stuff_readbuff(opt_vars().p_fp);
-            } else {
-                stuff_readbuff(c"fmt");
-            }
-            stuff_readbuff(c"\n']");
-        }
-
-        do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::ExLine, 0);
-        atom_suppress(true);
-        exec_stuffed(None);
-        atom_suppress(false);
     }
+    if oap.op_type != OP_COLON {
+        stuff_readbuff(c"!");
+    }
+    if oap.op_type == OP_INDENT {
+        stuff_readbuff(get_equalprg());
+        stuff_readbuff(c"\n");
+    } else if oap.op_type == OP_FORMAT {
+        if !crate::memory::cstr_is_empty(curbuf_mut().b_p_fp) {
+            stuff_readbuff(curbuf_mut().b_p_fp);
+        } else if !crate::memory::cstr_is_empty(opt_vars().p_fp) {
+            stuff_readbuff(opt_vars().p_fp);
+        } else {
+            stuff_readbuff(c"fmt");
+        }
+        stuff_readbuff(c"\n']");
+    }
+
+    do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::ExLine, 0);
+    atom_suppress(true);
+    exec_stuffed(None);
+    atom_suppress(false);
 }
 
 pub fn free_operatorfunc_option() {
@@ -3514,137 +3459,132 @@ pub fn set_ref_in_opfunc(copy_id: i32) -> bool {
 }
 
 fn op_function(oap: &Oparg) {
-    {
-        let orig_start = curbuf_mut().b_op_start;
-        let orig_end = curbuf_mut().b_op_end;
+    let orig_start = curbuf_mut().b_op_start;
+    let orig_end = curbuf_mut().b_op_end;
 
-        if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_opfunc) == K_CALLBACK_NONE_CONST
-        {
-            emsg(tr(c"E774: 'operatorfunc' is empty"));
-        } else {
-            curbuf_mut().b_op_start = oap.start;
-            curbuf_mut().b_op_end = oap.end;
-            if oap.motion_type == MT_CHAR_WISE && !oap.inclusive {
-                decl(&mut curbuf_mut().b_op_end);
-            }
+    if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_opfunc) == K_CALLBACK_NONE_CONST {
+        emsg(tr(c"E774: 'operatorfunc' is empty"));
+    } else {
+        curbuf_mut().b_op_start = oap.start;
+        curbuf_mut().b_op_end = oap.end;
+        if oap.motion_type == MT_CHAR_WISE && !oap.inclusive {
+            decl(&mut curbuf_mut().b_op_end);
+        }
 
-            let mode_str = match oap.motion_type {
-                MT_BLOCK_WISE => c"block".as_ptr(),
-                MT_LINE_WISE => c"line".as_ptr(),
-                _ => c"char".as_ptr(),
-            };
-            let mut argv = [
-                TypVal {
-                    v_type: VarType::VarString,
-                    v_lock: 0,
-                    vval: TypvalVval::String(mode_str.cast_mut()),
-                },
-                TypVal {
-                    v_type: VarType::VarUnknown,
-                    v_lock: 0,
-                    vval: TypvalVval::String(ptr::null_mut()),
-                },
-            ];
+        let mode_str = match oap.motion_type {
+            MT_BLOCK_WISE => c"block".as_ptr(),
+            MT_LINE_WISE => c"line".as_ptr(),
+            _ => c"char".as_ptr(),
+        };
+        let mut argv = [
+            TypVal {
+                v_type: VarType::VarString,
+                v_lock: 0,
+                vval: TypvalVval::String(mode_str.cast_mut()),
+            },
+            TypVal {
+                v_type: VarType::VarUnknown,
+                v_lock: 0,
+                vval: TypvalVval::String(ptr::null_mut()),
+            },
+        ];
 
-            let save_virtual_op = g_st().virtual_op;
-            g_st().virtual_op = K_NONE;
+        let save_virtual_op = g_st().virtual_op;
+        g_st().virtual_op = K_NONE;
 
-            let save_finish_op = g_st().finish_op;
-            g_st().finish_op = false;
+        let save_finish_op = g_st().finish_op;
+        g_st().finish_op = false;
 
-            let mut save_redo = RedoState::new();
-            save_redobuff(&mut save_redo);
+        let mut save_redo = RedoState::new();
+        save_redobuff(&mut save_redo);
 
-            let mut rettv: TypVal = TypVal::new();
-            if callback_call(
-                &mut opt_vars().p_opfunc,
-                1,
-                (&raw mut argv).cast::<TypVal>(),
-                &mut rettv,
-            ) {
-                tv_clear(&mut rettv);
-            }
-            restore_redobuff(&mut save_redo);
+        let mut rettv: TypVal = TypVal::new();
+        if callback_call(
+            &mut opt_vars().p_opfunc,
+            1,
+            (&raw mut argv).cast::<TypVal>(),
+            &mut rettv,
+        ) {
+            tv_clear(&mut rettv);
+        }
+        restore_redobuff(&mut save_redo);
 
-            g_st().virtual_op = save_virtual_op;
-            g_st().finish_op = save_finish_op;
-            if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
-                curbuf_mut().b_op_start = orig_start;
-                curbuf_mut().b_op_end = orig_end;
-            }
+        g_st().virtual_op = save_virtual_op;
+        g_st().finish_op = save_finish_op;
+        if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
+            curbuf_mut().b_op_start = orig_start;
+            curbuf_mut().b_op_end = orig_end;
         }
     }
 }
 
 fn get_op_vcol(oap: &mut Oparg, initial: bool) {
+    let mut start: Colnr = 0;
+    let mut end: Colnr = 0;
+
+    if g_st().visual_global.mode != CTRL_V_CONST
+        || (!initial && oap.end.col < curwin_mut().w_view_width)
     {
-        let mut start: Colnr = 0;
-        let mut end: Colnr = 0;
-
-        if g_st().visual_global.mode != CTRL_V_CONST
-            || (!initial && oap.end.col < curwin_mut().w_view_width)
-        {
-            return;
-        }
-
-        mark_mb_adjustpos(curwin_mut().w_buffer, &mut oap.end);
-
-        getvvcol(
-            curwin_mut(),
-            &mut oap.start,
-            Some(&mut oap.start_vcol),
-            None,
-            Some(&mut oap.end_vcol),
-            0,
-        );
-        getvvcol(
-            curwin_mut(),
-            &mut oap.end,
-            Some(&mut start),
-            None,
-            Some(&mut end),
-            0,
-        );
-
-        oap.start_vcol = oap.start_vcol.min(start);
-        if end > oap.end_vcol {
-            if initial
-                && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-                && start >= 1
-                && start > oap.end_vcol
-            {
-                oap.end_vcol = start - 1;
-            } else {
-                oap.end_vcol = end;
-            }
-        }
-
-        if curwin_mut().w_curswant == MAXCOL {
-            curwin_mut().w_cursor.col = MAXCOL;
-            oap.end_vcol = 0;
-            curwin_mut().w_cursor.lnum = oap.start.lnum;
-            while curwin_mut().w_cursor.lnum <= oap.end.lnum {
-                getvvcol(
-                    curwin_mut(),
-                    &mut curwin_mut().w_cursor,
-                    None,
-                    None,
-                    Some(&mut end),
-                    0,
-                );
-                oap.end_vcol = oap.end_vcol.max(end);
-                curwin_mut().w_cursor.lnum += 1;
-            }
-        }
-
-        curwin_mut().w_cursor.lnum = oap.end.lnum;
-        coladvance(curwin_mut(), oap.end_vcol);
-        oap.end = curwin_mut().w_cursor;
-
-        curwin_mut().w_cursor = oap.start;
-        coladvance(curwin_mut(), oap.start_vcol);
-        oap.start = curwin_mut().w_cursor;
+        return;
     }
+
+    mark_mb_adjustpos(curwin_mut().w_buffer, &mut oap.end);
+
+    getvvcol(
+        curwin_mut(),
+        &mut oap.start,
+        Some(&mut oap.start_vcol),
+        None,
+        Some(&mut oap.end_vcol),
+        0,
+    );
+    getvvcol(
+        curwin_mut(),
+        &mut oap.end,
+        Some(&mut start),
+        None,
+        Some(&mut end),
+        0,
+    );
+
+    oap.start_vcol = oap.start_vcol.min(start);
+    if end > oap.end_vcol {
+        if initial
+            && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+            && start >= 1
+            && start > oap.end_vcol
+        {
+            oap.end_vcol = start - 1;
+        } else {
+            oap.end_vcol = end;
+        }
+    }
+
+    if curwin_mut().w_curswant == MAXCOL {
+        curwin_mut().w_cursor.col = MAXCOL;
+        oap.end_vcol = 0;
+        curwin_mut().w_cursor.lnum = oap.start.lnum;
+        while curwin_mut().w_cursor.lnum <= oap.end.lnum {
+            getvvcol(
+                curwin_mut(),
+                &mut curwin_mut().w_cursor,
+                None,
+                None,
+                Some(&mut end),
+                0,
+            );
+            oap.end_vcol = oap.end_vcol.max(end);
+            curwin_mut().w_cursor.lnum += 1;
+        }
+    }
+
+    curwin_mut().w_cursor.lnum = oap.end.lnum;
+    coladvance(curwin_mut(), oap.end_vcol);
+    oap.end = curwin_mut().w_cursor;
+
+    curwin_mut().w_cursor = oap.start;
+    coladvance(curwin_mut(), oap.start_vcol);
+    oap.start = curwin_mut().w_cursor;
 }
 
 fn is_ex_cmdchar(cap: &Cmdarg) -> bool {
@@ -3677,494 +3617,490 @@ fn op_ins_visual(oap: &mut Oparg, cap: &mut Cmdarg) -> VisualIns {
 }
 
 pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
-    {
-        let oap = cap.oap_mut();
-        let lbr_saved = curwin_mut().w_onebuf_opt.wo_lbr != 0;
+    let oap = cap.oap_mut();
+    let lbr_saved = curwin_mut().w_onebuf_opt.wo_lbr != 0;
 
-        let old_cursor = curwin_mut().w_cursor;
-        let op_origin = oap.start;
+    let old_cursor = curwin_mut().w_cursor;
+    let op_origin = oap.start;
 
-        if (g_st().finish_op || g_st().visual_global.active) && oap.op_type != OP_NOP {
-            let mut include_line_break = false;
-            let redo_yank = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_YANK) && !gui_yank;
+    if (g_st().finish_op || g_st().visual_global.active) && oap.op_type != OP_NOP {
+        let mut include_line_break = false;
+        let redo_yank = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_YANK) && !gui_yank;
 
-            reset_lbr();
-            oap.is_visual = g_st().visual_global.active;
-            if oap.motion_force == b'V' as i32 {
-                oap.motion_type = MT_LINE_WISE;
-            } else if oap.motion_force == b'v' as i32 {
-                if oap.motion_type == MT_LINE_WISE {
-                    oap.inclusive = false;
-                } else if oap.motion_type == MT_CHAR_WISE {
-                    oap.inclusive = !oap.inclusive;
-                }
-                oap.motion_type = MT_CHAR_WISE;
-            } else if oap.motion_force == CTRL_V_CONST {
-                if !g_st().visual_global.active {
-                    g_st().visual_global.active = true;
-                    g_st().visual_global.start = oap.start;
-                }
-                g_st().visual_global.mode = CTRL_V_CONST;
-                g_st().visual_global.select = false;
-                g_st().visual_global.reselect = 0;
+        reset_lbr();
+        oap.is_visual = g_st().visual_global.active;
+        if oap.motion_force == b'V' as i32 {
+            oap.motion_type = MT_LINE_WISE;
+        } else if oap.motion_force == b'v' as i32 {
+            if oap.motion_type == MT_LINE_WISE {
+                oap.inclusive = false;
+            } else if oap.motion_type == MT_CHAR_WISE {
+                oap.inclusive = !oap.inclusive;
+            }
+            oap.motion_type = MT_CHAR_WISE;
+        } else if oap.motion_force == CTRL_V_CONST {
+            if !g_st().visual_global.active {
+                g_st().visual_global.active = true;
+                g_st().visual_global.start = oap.start;
+            }
+            g_st().visual_global.mode = CTRL_V_CONST;
+            g_st().visual_global.select = false;
+            g_st().visual_global.reselect = 0;
+        }
+
+        atom_capture_op(oap, cap, redo_yank);
+
+        if g_st().visual_global.active {
+            if !gui_yank && !g_st().finish_op {
+                curbuf_mut().b_visual = visualinfo();
+                restore_visual_mode();
+                curbuf_mut().b_visual_mode_eval = g_st().visual_global.mode;
             }
 
-            atom_capture_op(oap, cap, redo_yank);
-
-            if g_st().visual_global.active {
-                if !gui_yank && !g_st().finish_op {
-                    curbuf_mut().b_visual = visualinfo();
-                    restore_visual_mode();
-                    curbuf_mut().b_visual_mode_eval = g_st().visual_global.mode;
+            if g_st().visual_global.select
+                && g_st().visual_global.mode == b'V' as i32
+                && cap.oap_mut().op_type != OP_DELETE
+            {
+                if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
+                    g_st().visual_global.start.col = 0;
+                    curwin_mut().w_cursor.col = ml_get_len(curwin_mut().w_cursor.lnum);
+                } else {
+                    curwin_mut().w_cursor.col = 0;
+                    g_st().visual_global.start.col = ml_get_len(g_st().visual_global.start.lnum);
                 }
+                g_st().visual_global.mode = b'v' as i32;
+            } else if g_st().visual_global.mode == b'v' as i32 {
+                include_line_break = unadjust_for_sel();
+            }
 
-                if g_st().visual_global.select
-                    && g_st().visual_global.mode == b'V' as i32
-                    && cap.oap_mut().op_type != OP_DELETE
-                {
-                    if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
-                        g_st().visual_global.start.col = 0;
-                        curwin_mut().w_cursor.col = ml_get_len(curwin_mut().w_cursor.lnum);
-                    } else {
-                        curwin_mut().w_cursor.col = 0;
-                        g_st().visual_global.start.col =
-                            ml_get_len(g_st().visual_global.start.lnum);
-                    }
-                    g_st().visual_global.mode = b'v' as i32;
-                } else if g_st().visual_global.mode == b'v' as i32 {
-                    include_line_break = unadjust_for_sel();
-                }
+            oap.start = g_st().visual_global.start;
+            if g_st().visual_global.mode == b'V' as i32 {
+                oap.start.col = 0;
+                oap.start.coladd = 0;
+            }
+        }
 
-                oap.start = g_st().visual_global.start;
-                if g_st().visual_global.mode == b'V' as i32 {
+        if lt(oap.start, curwin_mut().w_cursor) {
+            if !g_st().visual_global.active {
+                if has_folding(
+                    curwin_ptr(),
+                    oap.start.lnum,
+                    Some(&mut oap.start.lnum),
+                    ptr::null_mut(),
+                ) {
                     oap.start.col = 0;
-                    oap.start.coladd = 0;
                 }
-            }
-
-            if lt(oap.start, curwin_mut().w_cursor) {
-                if !g_st().visual_global.active {
-                    if has_folding(
-                        curwin_ptr(),
-                        oap.start.lnum,
-                        Some(&mut oap.start.lnum),
-                        ptr::null_mut(),
-                    ) {
-                        oap.start.col = 0;
-                    }
-                    if (curwin_mut().w_cursor.col > 0
-                        || oap.inclusive
-                        || oap.motion_type == MT_LINE_WISE)
-                        && has_folding(
-                            curwin_ptr(),
-                            curwin_mut().w_cursor.lnum,
-                            None,
-                            &raw mut curwin_mut().w_cursor.lnum,
-                        )
-                    {
-                        curwin_mut().w_cursor.col = get_cursor_line_len();
-                    }
-                }
-                oap.end = curwin_mut().w_cursor;
-                curwin_mut().w_cursor = oap.start;
-
-                curwin_mut().w_valid &= !VALID_VIRTCOL;
-            } else {
-                if !g_st().visual_global.active && oap.motion_type == MT_LINE_WISE {
-                    if has_folding(
+                if (curwin_mut().w_cursor.col > 0
+                    || oap.inclusive
+                    || oap.motion_type == MT_LINE_WISE)
+                    && has_folding(
                         curwin_ptr(),
                         curwin_mut().w_cursor.lnum,
-                        Some(&mut curwin_mut().w_cursor.lnum),
-                        ptr::null_mut(),
-                    ) {
-                        curwin_mut().w_cursor.col = 0;
-                    }
-                    if has_folding(curwin_ptr(), oap.start.lnum, None, &raw mut oap.start.lnum) {
-                        oap.start.col = ml_get_len(oap.start.lnum);
-                    }
+                        None,
+                        &raw mut curwin_mut().w_cursor.lnum,
+                    )
+                {
+                    curwin_mut().w_cursor.col = get_cursor_line_len();
                 }
-                oap.end = oap.start;
-                oap.start = curwin_mut().w_cursor;
             }
+            oap.end = curwin_mut().w_cursor;
+            curwin_mut().w_cursor = oap.start;
 
-            check_pos(curwin_mut().buf_mut(), &mut oap.end);
-            oap.line_count = oap.end.lnum - oap.start.lnum + 1;
+            curwin_mut().w_valid &= !VALID_VIRTCOL;
+        } else {
+            if !g_st().visual_global.active && oap.motion_type == MT_LINE_WISE {
+                if has_folding(
+                    curwin_ptr(),
+                    curwin_mut().w_cursor.lnum,
+                    Some(&mut curwin_mut().w_cursor.lnum),
+                    ptr::null_mut(),
+                ) {
+                    curwin_mut().w_cursor.col = 0;
+                }
+                if has_folding(curwin_ptr(), oap.start.lnum, None, &raw mut oap.start.lnum) {
+                    oap.start.col = ml_get_len(oap.start.lnum);
+                }
+            }
+            oap.end = oap.start;
+            oap.start = curwin_mut().w_cursor;
+        }
 
-            g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
+        check_pos(curwin_mut().buf_mut(), &mut oap.end);
+        oap.line_count = oap.end.lnum - oap.start.lnum + 1;
 
-            if g_st().visual_global.active {
-                get_op_vcol(&mut *oap, true);
+        g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
 
-                if !gui_yank {
-                    g_st().visual_global.resel.mode = g_st().visual_global.mode;
-                    if curwin_mut().w_curswant == MAXCOL {
-                        g_st().visual_global.resel.vcol = MAXCOL;
-                    } else {
+        if g_st().visual_global.active {
+            get_op_vcol(&mut *oap, true);
+
+            if !gui_yank {
+                g_st().visual_global.resel.mode = g_st().visual_global.mode;
+                if curwin_mut().w_curswant == MAXCOL {
+                    g_st().visual_global.resel.vcol = MAXCOL;
+                } else {
+                    if g_st().visual_global.mode != CTRL_V_CONST {
+                        getvvcol(
+                            curwin_mut(),
+                            &mut oap.end,
+                            None,
+                            None,
+                            Some(&mut oap.end_vcol),
+                            0,
+                        );
+                    }
+                    if g_st().visual_global.mode == CTRL_V_CONST || oap.line_count <= 1 {
                         if g_st().visual_global.mode != CTRL_V_CONST {
                             getvvcol(
                                 curwin_mut(),
-                                &mut oap.end,
+                                &mut oap.start,
+                                Some(&mut oap.start_vcol),
                                 None,
                                 None,
-                                Some(&mut oap.end_vcol),
                                 0,
                             );
                         }
-                        if g_st().visual_global.mode == CTRL_V_CONST || oap.line_count <= 1 {
-                            if g_st().visual_global.mode != CTRL_V_CONST {
-                                getvvcol(
-                                    curwin_mut(),
-                                    &mut oap.start,
-                                    Some(&mut oap.start_vcol),
-                                    None,
-                                    None,
-                                    0,
-                                );
-                            }
-                            g_st().visual_global.resel.vcol = oap.end_vcol - oap.start_vcol + 1;
-                        } else {
-                            g_st().visual_global.resel.vcol = oap.end_vcol;
-                        }
+                        g_st().visual_global.resel.vcol = oap.end_vcol - oap.start_vcol + 1;
+                    } else {
+                        g_st().visual_global.resel.vcol = oap.end_vcol;
                     }
-                    g_st().visual_global.resel.line_count = oap.line_count;
                 }
+                g_st().visual_global.resel.line_count = oap.line_count;
+            }
 
-                if oap.motion_force == i32::from(NUL) || oap.motion_type == MT_LINE_WISE {
+            if oap.motion_force == i32::from(NUL) || oap.motion_type == MT_LINE_WISE {
+                oap.inclusive = true;
+            }
+            if g_st().visual_global.mode == b'V' as i32 {
+                oap.motion_type = MT_LINE_WISE;
+            } else if g_st().visual_global.mode == b'v' as i32 {
+                oap.motion_type = MT_CHAR_WISE;
+                if crate::memory::cstr_is_empty(ml_get_pos(&oap.end))
+                    && (include_line_break || g_st().virtual_op == 0)
+                {
+                    oap.inclusive = false;
+                    if crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o'
+                        && op_on_lines(oap.op_type) == 0
+                        && oap.end.lnum < curbuf_mut().b_ml.ml_line_count
+                    {
+                        oap.end.lnum += 1;
+                        oap.end.col = 0;
+                        oap.end.coladd = 0;
+                        oap.line_count += 1;
+                    }
+                }
+            } else if g_st().visual_global.mode == CTRL_V_CONST {
+                oap.motion_type = MT_BLOCK_WISE;
+            }
+
+            if !gui_yank {
+                g_st().visual_global.active = false;
+                setmouse();
+                g_st().mouse_dragging = 0;
+                may_clear_cmdline();
+                if (oap.op_type == OP_YANK
+                    || oap.op_type == OP_COLON
+                    || oap.op_type == OP_FUNCTION
+                    || oap.op_type == OP_FILTER)
+                    && oap.motion_force == i32::from(NUL)
+                {
+                    restore_lbr(lbr_saved);
+                    redraw_curbuf_later(UPD_INVERTED);
+                }
+            }
+        }
+
+        if oap.inclusive {
+            let l = utfc_ptr2len(ml_get_pos(&oap.end));
+            if l > 1 {
+                oap.end.col += l - 1;
+            }
+        }
+        curwin_mut().w_set_curswant = true;
+
+        oap.empty = oap.motion_type != MT_LINE_WISE
+            && ((!oap.inclusive && oap.motion_type != MT_BLOCK_WISE)
+                || (oap.op_type == OP_YANK && gchar_pos(&mut oap.end) == i32::from(NUL)))
+            && equalpos(oap.start, oap.end)
+            && !(g_st().virtual_op != 0 && oap.start.coladd != oap.end.coladd);
+        let empty_region_error =
+            oap.empty && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_EMPTYREGION);
+
+        if oap.is_visual && (oap.empty || !modifiable(curbuf_mut()) || oap.op_type == OP_FOLD) {
+            restore_lbr(lbr_saved);
+            redraw_curbuf_later(UPD_INVERTED);
+        }
+
+        if oap.motion_type == MT_CHAR_WISE
+            && !oap.inclusive
+            && (cap.retval & CA_NO_ADJ_OP_END) == 0
+            && oap.end.col == 0
+            && (!oap.is_visual || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
+            && oap.line_count > 1
+        {
+            oap.end_adjusted = true;
+            oap.line_count -= 1;
+            oap.end.lnum -= 1;
+            if inindent(0) {
+                oap.motion_type = MT_LINE_WISE;
+            } else {
+                oap.end.col = ml_get_len(oap.end.lnum);
+                if oap.end.col != 0 {
+                    oap.end.col -= 1;
                     oap.inclusive = true;
                 }
-                if g_st().visual_global.mode == b'V' as i32 {
-                    oap.motion_type = MT_LINE_WISE;
-                } else if g_st().visual_global.mode == b'v' as i32 {
-                    oap.motion_type = MT_CHAR_WISE;
-                    if crate::memory::cstr_is_empty(ml_get_pos(&oap.end))
-                        && (include_line_break || g_st().virtual_op == 0)
-                    {
-                        oap.inclusive = false;
-                        if crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o'
-                            && op_on_lines(oap.op_type) == 0
-                            && oap.end.lnum < curbuf_mut().b_ml.ml_line_count
-                        {
-                            oap.end.lnum += 1;
-                            oap.end.col = 0;
-                            oap.end.coladd = 0;
-                            oap.line_count += 1;
-                        }
-                    }
-                } else if g_st().visual_global.mode == CTRL_V_CONST {
-                    oap.motion_type = MT_BLOCK_WISE;
-                }
-
-                if !gui_yank {
-                    g_st().visual_global.active = false;
-                    setmouse();
-                    g_st().mouse_dragging = 0;
-                    may_clear_cmdline();
-                    if (oap.op_type == OP_YANK
-                        || oap.op_type == OP_COLON
-                        || oap.op_type == OP_FUNCTION
-                        || oap.op_type == OP_FILTER)
-                        && oap.motion_force == i32::from(NUL)
-                    {
-                        restore_lbr(lbr_saved);
-                        redraw_curbuf_later(UPD_INVERTED);
-                    }
-                }
             }
+        } else {
+            oap.end_adjusted = false;
+        }
 
-            if oap.inclusive {
-                let l = utfc_ptr2len(ml_get_pos(&oap.end));
-                if l > 1 {
-                    oap.end.col += l - 1;
-                }
+        match oap.op_type {
+            OP_LSHIFT | OP_RSHIFT => {
+                op_shift(oap, true, if oap.is_visual { cap.count1 } else { 1 });
+                auto_format(false, true);
             }
-            curwin_mut().w_set_curswant = true;
-
-            oap.empty = oap.motion_type != MT_LINE_WISE
-                && ((!oap.inclusive && oap.motion_type != MT_BLOCK_WISE)
-                    || (oap.op_type == OP_YANK && gchar_pos(&mut oap.end) == i32::from(NUL)))
-                && equalpos(oap.start, oap.end)
-                && !(g_st().virtual_op != 0 && oap.start.coladd != oap.end.coladd);
-            let empty_region_error =
-                oap.empty && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_EMPTYREGION);
-
-            if oap.is_visual && (oap.empty || !modifiable(curbuf_mut()) || oap.op_type == OP_FOLD) {
-                restore_lbr(lbr_saved);
-                redraw_curbuf_later(UPD_INVERTED);
-            }
-
-            if oap.motion_type == MT_CHAR_WISE
-                && !oap.inclusive
-                && (cap.retval & CA_NO_ADJ_OP_END) == 0
-                && oap.end.col == 0
-                && (!oap.is_visual || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
-                && oap.line_count > 1
-            {
-                oap.end_adjusted = true;
-                oap.line_count -= 1;
-                oap.end.lnum -= 1;
-                if inindent(0) {
-                    oap.motion_type = MT_LINE_WISE;
+            OP_JOIN_NS | OP_JOIN => {
+                oap.line_count = oap.line_count.max(2);
+                if curwin_mut().w_cursor.lnum + oap.line_count - 1 > curbuf_mut().b_ml.ml_line_count
+                {
+                    beep_flush();
                 } else {
-                    oap.end.col = ml_get_len(oap.end.lnum);
-                    if oap.end.col != 0 {
-                        oap.end.col -= 1;
-                        oap.inclusive = true;
-                    }
-                }
-            } else {
-                oap.end_adjusted = false;
-            }
-
-            match oap.op_type {
-                OP_LSHIFT | OP_RSHIFT => {
-                    op_shift(oap, true, if oap.is_visual { cap.count1 } else { 1 });
+                    do_join(
+                        oap.line_count as usize,
+                        oap.op_type == OP_JOIN,
+                        true,
+                        true,
+                        true,
+                    );
                     auto_format(false, true);
                 }
-                OP_JOIN_NS | OP_JOIN => {
-                    oap.line_count = oap.line_count.max(2);
-                    if curwin_mut().w_cursor.lnum + oap.line_count - 1
-                        > curbuf_mut().b_ml.ml_line_count
+            }
+            OP_DELETE => {
+                g_st().visual_global.reselect = 0;
+                if empty_region_error {
+                    vim_beep(K_OPT_BO_FLAG_OPERATOR);
+                    redo_cancel();
+                } else {
+                    op_delete(oap);
+                    if oap.motion_type == MT_LINE_WISE
+                        && has_format_option(K_FO_AUTO)
+                        && u_save_cursor()
                     {
-                        beep_flush();
-                    } else {
-                        do_join(
-                            oap.line_count as usize,
-                            oap.op_type == OP_JOIN,
-                            true,
-                            true,
-                            true,
-                        );
                         auto_format(false, true);
                     }
                 }
-                OP_DELETE => {
-                    g_st().visual_global.reselect = 0;
-                    if empty_region_error {
+            }
+            OP_YANK => {
+                if empty_region_error {
+                    if !gui_yank {
                         vim_beep(K_OPT_BO_FLAG_OPERATOR);
                         redo_cancel();
+                    }
+                } else {
+                    restore_lbr(lbr_saved);
+                    oap.excl_tr_ws = cap.cmdchar == b'z' as i32;
+                    if oap.restore_cursor {
+                        curwin_mut().w_cursor = oap.cursor_start;
+                    }
+                    op_yank(oap, !gui_yank);
+                }
+                check_cursor_col(curwin_mut());
+            }
+            OP_CHANGE => {
+                g_st().visual_global.reselect = 0;
+                if empty_region_error {
+                    vim_beep(K_OPT_BO_FLAG_OPERATOR);
+                    redo_cancel();
+                } else {
+                    let restart_edit_save = if !g_st().key_typed {
+                        g_st().restart_edit
                     } else {
-                        op_delete(oap);
-                        if oap.motion_type == MT_LINE_WISE
-                            && has_format_option(K_FO_AUTO)
-                            && u_save_cursor()
-                        {
-                            auto_format(false, true);
-                        }
+                        0
+                    };
+                    g_st().restart_edit = 0;
+
+                    restore_lbr(lbr_saved);
+
+                    curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
+
+                    let mut session: InsSession = atom_ins_start(
+                        b'c' as i32,
+                        i64::from(cap.count0),
+                        op_ins_visual(oap, cap),
+                        oap.is_visual && oap.motion_type == MT_BLOCK_WISE,
+                    );
+                    let busy = op_change(oap) != 0;
+                    if busy {
+                        cap.retval |= CA_COMMAND_BUSY;
+                    }
+                    if g_st().restart_edit == 0 {
+                        g_st().restart_edit = restart_edit_save;
+                    }
+                    atom_ins_end(&mut session, busy);
+                }
+            }
+            OP_FILTER | OP_INDENT | OP_COLON => {
+                if oap.op_type == OP_FILTER {
+                    if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FILTER) {
+                        redo_append_str(c"!\r", 2);
+                    } else {
+                        g_st().bangredo = true;
                     }
                 }
-                OP_YANK => {
-                    if empty_region_error {
-                        if !gui_yank {
-                            vim_beep(K_OPT_BO_FLAG_OPERATOR);
-                            redo_cancel();
-                        }
-                    } else {
-                        restore_lbr(lbr_saved);
-                        oap.excl_tr_ws = cap.cmdchar == b'z' as i32;
-                        if oap.restore_cursor {
-                            curwin_mut().w_cursor = oap.cursor_start;
-                        }
-                        op_yank(oap, !gui_yank);
-                    }
-                    check_cursor_col(curwin_mut());
-                }
-                OP_CHANGE => {
-                    g_st().visual_global.reselect = 0;
-                    if empty_region_error {
-                        vim_beep(K_OPT_BO_FLAG_OPERATOR);
-                        redo_cancel();
-                    } else {
-                        let restart_edit_save = if !g_st().key_typed {
-                            g_st().restart_edit
+
+                if oap.op_type == OP_INDENT && crate::memory::cstr_is_empty(get_equalprg()) {
+                    if curbuf_mut().b_p_lisp != 0 {
+                        if use_indentexpr_for_lisp() {
+                            op_reindent(oap, get_expr_indent);
                         } else {
-                            0
-                        };
-                        g_st().restart_edit = 0;
-
-                        restore_lbr(lbr_saved);
-
-                        curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
-
-                        let mut session: InsSession = atom_ins_start(
-                            b'c' as i32,
-                            i64::from(cap.count0),
-                            op_ins_visual(oap, cap),
-                            oap.is_visual && oap.motion_type == MT_BLOCK_WISE,
-                        );
-                        let busy = op_change(oap) != 0;
-                        if busy {
-                            cap.retval |= CA_COMMAND_BUSY;
+                            op_reindent(oap, get_lisp_indent);
                         }
-                        if g_st().restart_edit == 0 {
-                            g_st().restart_edit = restart_edit_save;
-                        }
-                        atom_ins_end(&mut session, busy);
-                    }
-                }
-                OP_FILTER | OP_INDENT | OP_COLON => {
-                    if oap.op_type == OP_FILTER {
-                        if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FILTER) {
-                            redo_append_str(c"!\r", 2);
-                        } else {
-                            g_st().bangredo = true;
-                        }
-                    }
-
-                    if oap.op_type == OP_INDENT && crate::memory::cstr_is_empty(get_equalprg()) {
-                        if curbuf_mut().b_p_lisp != 0 {
-                            if use_indentexpr_for_lisp() {
-                                op_reindent(oap, get_expr_indent);
+                    } else {
+                        op_reindent(
+                            oap,
+                            if curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST {
+                                get_expr_indent
                             } else {
-                                op_reindent(oap, get_lisp_indent);
-                            }
-                        } else {
-                            op_reindent(
-                                oap,
-                                if curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST {
-                                    get_expr_indent
-                                } else {
-                                    get_c_indent
-                                },
-                            );
-                        }
-                    } else {
-                        op_colon(oap);
-                    }
-                }
-                OP_TILDE | OP_UPPER | OP_LOWER | OP_ROT13 => {
-                    if empty_region_error {
-                        vim_beep(K_OPT_BO_FLAG_OPERATOR);
-                        redo_cancel();
-                    } else {
-                        op_tilde(oap);
-                    }
-                    check_cursor_col(curwin_mut());
-                }
-                OP_FORMAT => {
-                    if curbuf_mut().b_p_fex.cb_type() != K_CALLBACK_NONE_CONST {
-                        op_formatexpr(oap);
-                    } else if !crate::memory::cstr_is_empty(opt_vars().p_fp)
-                        || !crate::memory::cstr_is_empty(curbuf_mut().b_p_fp)
-                    {
-                        op_colon(oap);
-                    } else {
-                        op_format(oap, false);
-                    }
-                }
-                OP_FORMAT2 => {
-                    op_format(oap, true);
-                }
-                OP_FUNCTION => {
-                    restore_lbr(lbr_saved);
-                    op_function(oap);
-                }
-                OP_INSERT | OP_APPEND => {
-                    g_st().visual_global.reselect = 0;
-                    if empty_region_error {
-                        vim_beep(K_OPT_BO_FLAG_OPERATOR);
-                        redo_cancel();
-                    } else {
-                        let restart_edit_save = g_st().restart_edit;
-                        g_st().restart_edit = 0;
-
-                        restore_lbr(lbr_saved);
-
-                        curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
-
-                        let mut session: InsSession = atom_ins_start(
-                            b'I' as i32,
-                            i64::from(cap.count1),
-                            op_ins_visual(oap, cap),
-                            oap.motion_type == MT_BLOCK_WISE,
+                                get_c_indent
+                            },
                         );
-                        op_insert(oap, cap.count1);
-                        atom_ins_end(&mut session, false);
-
-                        reset_lbr();
-                        auto_format(false, true);
-
-                        if g_st().restart_edit == 0 {
-                            g_st().restart_edit = restart_edit_save;
-                        } else {
-                            cap.retval |= CA_COMMAND_BUSY;
-                        }
                     }
-                }
-                OP_REPLACE => {
-                    g_st().visual_global.reselect = 0;
-                    if empty_region_error {
-                        vim_beep(K_OPT_BO_FLAG_OPERATOR);
-                        redo_cancel();
-                    } else {
-                        restore_lbr(lbr_saved);
-                        op_replace(oap, cap.nchar);
-                    }
-                }
-                OP_FOLD => {
-                    g_st().visual_global.reselect = 0;
-                    fold_create(curwin_mut(), oap.start, oap.end);
-                }
-                OP_MCURSOR => {
-                    restore_lbr(lbr_saved);
-                    mc_zq(oap, cap, op_origin);
-                }
-                OP_FOLDOPEN | OP_FOLDOPENREC | OP_FOLDCLOSE | OP_FOLDCLOSEREC => {
-                    g_st().visual_global.reselect = 0;
-                    op_fold_range(
-                        oap.start,
-                        oap.end,
-                        i32::from(oap.op_type == OP_FOLDOPEN || oap.op_type == OP_FOLDOPENREC),
-                        i32::from(oap.op_type == OP_FOLDOPENREC || oap.op_type == OP_FOLDCLOSEREC),
-                        oap.is_visual,
-                    );
-                }
-                OP_FOLDDEL | OP_FOLDDELREC => {
-                    g_st().visual_global.reselect = 0;
-                    delete_fold(
-                        curwin_mut(),
-                        oap.start.lnum,
-                        oap.end.lnum,
-                        i32::from(oap.op_type == OP_FOLDDELREC),
-                        oap.is_visual,
-                    );
-                }
-                OP_NR_ADD | OP_NR_SUB => {
-                    if empty_region_error {
-                        vim_beep(K_OPT_BO_FLAG_OPERATOR);
-                        redo_cancel();
-                    } else {
-                        g_st().visual_global.active = true;
-                        restore_lbr(lbr_saved);
-                        op_addsub(oap, cap.count1, cap.arg != 0);
-                        g_st().visual_global.active = false;
-                    }
-                    check_cursor_col(curwin_mut());
-                }
-                _ => {
-                    clearopbeep(oap);
+                } else {
+                    op_colon(oap);
                 }
             }
-            g_st().virtual_op = K_NONE;
-            if !gui_yank {
-                if opt_vars().p_sol == 0
-                    && oap.motion_type == MT_LINE_WISE
-                    && !oap.end_adjusted
-                    && (oap.op_type == OP_LSHIFT
-                        || oap.op_type == OP_RSHIFT
-                        || oap.op_type == OP_DELETE)
+            OP_TILDE | OP_UPPER | OP_LOWER | OP_ROT13 => {
+                if empty_region_error {
+                    vim_beep(K_OPT_BO_FLAG_OPERATOR);
+                    redo_cancel();
+                } else {
+                    op_tilde(oap);
+                }
+                check_cursor_col(curwin_mut());
+            }
+            OP_FORMAT => {
+                if curbuf_mut().b_p_fex.cb_type() != K_CALLBACK_NONE_CONST {
+                    op_formatexpr(oap);
+                } else if !crate::memory::cstr_is_empty(opt_vars().p_fp)
+                    || !crate::memory::cstr_is_empty(curbuf_mut().b_p_fp)
                 {
-                    reset_lbr();
-                    curwin_mut().w_curswant = old_col;
-                    coladvance(curwin_mut(), old_col);
+                    op_colon(oap);
+                } else {
+                    op_format(oap, false);
                 }
-            } else {
-                curwin_mut().w_cursor = old_cursor;
             }
-            clearop(oap);
-            g_st().motion_force = i32::from(NUL);
+            OP_FORMAT2 => {
+                op_format(oap, true);
+            }
+            OP_FUNCTION => {
+                restore_lbr(lbr_saved);
+                op_function(oap);
+            }
+            OP_INSERT | OP_APPEND => {
+                g_st().visual_global.reselect = 0;
+                if empty_region_error {
+                    vim_beep(K_OPT_BO_FLAG_OPERATOR);
+                    redo_cancel();
+                } else {
+                    let restart_edit_save = g_st().restart_edit;
+                    g_st().restart_edit = 0;
+
+                    restore_lbr(lbr_saved);
+
+                    curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
+
+                    let mut session: InsSession = atom_ins_start(
+                        b'I' as i32,
+                        i64::from(cap.count1),
+                        op_ins_visual(oap, cap),
+                        oap.motion_type == MT_BLOCK_WISE,
+                    );
+                    op_insert(oap, cap.count1);
+                    atom_ins_end(&mut session, false);
+
+                    reset_lbr();
+                    auto_format(false, true);
+
+                    if g_st().restart_edit == 0 {
+                        g_st().restart_edit = restart_edit_save;
+                    } else {
+                        cap.retval |= CA_COMMAND_BUSY;
+                    }
+                }
+            }
+            OP_REPLACE => {
+                g_st().visual_global.reselect = 0;
+                if empty_region_error {
+                    vim_beep(K_OPT_BO_FLAG_OPERATOR);
+                    redo_cancel();
+                } else {
+                    restore_lbr(lbr_saved);
+                    op_replace(oap, cap.nchar);
+                }
+            }
+            OP_FOLD => {
+                g_st().visual_global.reselect = 0;
+                fold_create(curwin_mut(), oap.start, oap.end);
+            }
+            OP_MCURSOR => {
+                restore_lbr(lbr_saved);
+                mc_zq(oap, cap, op_origin);
+            }
+            OP_FOLDOPEN | OP_FOLDOPENREC | OP_FOLDCLOSE | OP_FOLDCLOSEREC => {
+                g_st().visual_global.reselect = 0;
+                op_fold_range(
+                    oap.start,
+                    oap.end,
+                    i32::from(oap.op_type == OP_FOLDOPEN || oap.op_type == OP_FOLDOPENREC),
+                    i32::from(oap.op_type == OP_FOLDOPENREC || oap.op_type == OP_FOLDCLOSEREC),
+                    oap.is_visual,
+                );
+            }
+            OP_FOLDDEL | OP_FOLDDELREC => {
+                g_st().visual_global.reselect = 0;
+                delete_fold(
+                    curwin_mut(),
+                    oap.start.lnum,
+                    oap.end.lnum,
+                    i32::from(oap.op_type == OP_FOLDDELREC),
+                    oap.is_visual,
+                );
+            }
+            OP_NR_ADD | OP_NR_SUB => {
+                if empty_region_error {
+                    vim_beep(K_OPT_BO_FLAG_OPERATOR);
+                    redo_cancel();
+                } else {
+                    g_st().visual_global.active = true;
+                    restore_lbr(lbr_saved);
+                    op_addsub(oap, cap.count1, cap.arg != 0);
+                    g_st().visual_global.active = false;
+                }
+                check_cursor_col(curwin_mut());
+            }
+            _ => {
+                clearopbeep(oap);
+            }
         }
-        restore_lbr(lbr_saved);
+        g_st().virtual_op = K_NONE;
+        if !gui_yank {
+            if opt_vars().p_sol == 0
+                && oap.motion_type == MT_LINE_WISE
+                && !oap.end_adjusted
+                && (oap.op_type == OP_LSHIFT
+                    || oap.op_type == OP_RSHIFT
+                    || oap.op_type == OP_DELETE)
+            {
+                reset_lbr();
+                curwin_mut().w_curswant = old_col;
+                coladvance(curwin_mut(), old_col);
+            }
+        } else {
+            curwin_mut().w_cursor = old_cursor;
+        }
+        clearop(oap);
+        g_st().motion_force = i32::from(NUL);
     }
+    restore_lbr(lbr_saved);
 }
 
 /// Get the byte count of buffer region. End-exclusive.

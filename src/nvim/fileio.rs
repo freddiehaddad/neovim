@@ -2925,61 +2925,55 @@ fn readfile_linenr(
 /// Fill "*eap" to force the 'fileencoding', 'fileformat' and 'binary' to be
 /// equal to the buffer "buf".
 pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) -> std::ffi::CString {
-    {
-        let fenc_bytes = crate::memory::cstr_as_bytes(buf.b_p_fenc);
-        let mut cmd_vec = Vec::with_capacity(8 + fenc_bytes.len());
-        cmd_vec.extend_from_slice(b"e ++enc=");
-        cmd_vec.extend_from_slice(fenc_bytes);
-        let cmd_cstr = std::ffi::CString::new(cmd_vec).unwrap_or_default();
-        eap.cmd = cmd_cstr.as_ptr().cast_mut();
-        eap.force_enc = 8;
-        eap.bad_char = buf.b_bad_char;
-        eap.force_ff = (crate::memory::cstr_first_byte(buf.b_p_ff)) as i32;
-        eap.force_bin = if buf.b_p_bin != 0 {
-            FORCE_BIN
-        } else {
-            FORCE_NOBIN
-        };
-        eap.read_edit = 0;
-        eap.forceit = 0;
-        cmd_cstr
-    }
+    let fenc_bytes = crate::memory::cstr_as_bytes(buf.b_p_fenc);
+    let mut cmd_vec = Vec::with_capacity(8 + fenc_bytes.len());
+    cmd_vec.extend_from_slice(b"e ++enc=");
+    cmd_vec.extend_from_slice(fenc_bytes);
+    let cmd_cstr = std::ffi::CString::new(cmd_vec).unwrap_or_default();
+    eap.cmd = cmd_cstr.as_ptr().cast_mut();
+    eap.force_enc = 8;
+    eap.bad_char = buf.b_bad_char;
+    eap.force_ff = (crate::memory::cstr_first_byte(buf.b_p_ff)) as i32;
+    eap.force_bin = if buf.b_p_bin != 0 {
+        FORCE_BIN
+    } else {
+        FORCE_NOBIN
+    };
+    eap.read_edit = 0;
+    eap.forceit = 0;
+    cmd_cstr
 }
 
 /// Set default or forced 'fileformat' and 'binary'.
 pub fn set_file_options(set_options: bool, eap: Option<&Exarg>) {
-    {
-        if set_options {
-            if eap.is_some() && eap.unwrap().force_ff != 0 {
-                set_fileformat(
-                    get_fileformat_force(curbuf_mut(), (eap.is_some()).then(|| eap.unwrap())),
-                    OPT_LOCAL,
-                );
-            } else if !crate::memory::cstr_is_empty(opt_vars().p_ffs) {
-                set_fileformat(default_fileformat(), OPT_LOCAL);
-            }
+    if set_options {
+        if eap.is_some() && eap.unwrap().force_ff != 0 {
+            set_fileformat(
+                get_fileformat_force(curbuf_mut(), (eap.is_some()).then(|| eap.unwrap())),
+                OPT_LOCAL,
+            );
+        } else if !crate::memory::cstr_is_empty(opt_vars().p_ffs) {
+            set_fileformat(default_fileformat(), OPT_LOCAL);
         }
+    }
 
-        if let Some(eap) = eap
-            && eap.force_bin != 0
-        {
-            let oldval = curbuf_mut().b_p_bin;
-            curbuf_mut().b_p_bin = i32::from(eap.force_bin == FORCE_BIN);
-            set_options_bin(oldval, curbuf_mut().b_p_bin, OPT_LOCAL);
-        }
+    if let Some(eap) = eap
+        && eap.force_bin != 0
+    {
+        let oldval = curbuf_mut().b_p_bin;
+        curbuf_mut().b_p_bin = i32::from(eap.force_bin == FORCE_BIN);
+        set_options_bin(oldval, curbuf_mut().b_p_bin, OPT_LOCAL);
     }
 }
 
 /// Set forced 'fileencoding'.
 pub fn set_forced_fenc(eap: &Exarg) {
-    {
-        if eap.force_enc == 0 {
-            return;
-        }
-
-        let fenc = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize));
-        set_option_direct(K_OPT_FILEENCODING, cstr_as_obj(fenc.as_ptr()), OPT_LOCAL, 0);
+    if eap.force_enc == 0 {
+        return;
     }
+
+    let fenc = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize));
+    set_option_direct(K_OPT_FILEENCODING, cstr_as_obj(fenc.as_ptr()), OPT_LOCAL, 0);
 }
 
 /// Find next fileencoding to use from 'fileencodings'.
@@ -3053,66 +3047,64 @@ fn readfile_charconvert(
 
 /// Set the name of the current buffer.
 pub fn set_rw_fname(fname: *mut c_char, sfname: *mut c_char) -> bool {
-    {
-        let buf = g_st().curbuf;
+    let buf = g_st().curbuf;
 
-        if curbuf_mut().b_p_bl != 0 {
-            apply_autocmds(
-                EVENT_BUFDELETE,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
-        }
+    if curbuf_mut().b_p_bl != 0 {
         apply_autocmds(
-            EVENT_BUFWIPEOUT,
+            EVENT_BUFDELETE,
             ptr::null_mut(),
             ptr::null_mut(),
             false,
             g_st().curbuf,
         );
-        if aborting() {
-            return false;
-        }
-        if g_st().curbuf != buf {
-            emsg(tr(E_AUCHANGEDBUF));
-            return false;
-        }
-
-        if setfname(curbuf_mut(), fname, sfname, false) {
-            curbuf_mut().b_flags |= BF_NOTEDITED;
-        }
-
-        apply_autocmds(
-            EVENT_BUFNEW,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
-        if curbuf_mut().b_p_bl != 0 {
-            apply_autocmds(
-                EVENT_BUFADD,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
-        }
-        if aborting() {
-            return false;
-        }
-
-        if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
-            if augroup_exists(c"filetypedetect") {
-                do_doautocmd(c"filetypedetect BufRead", false, None);
-            }
-            do_modelines(0);
-        }
-
-        true
     }
+    apply_autocmds(
+        EVENT_BUFWIPEOUT,
+        ptr::null_mut(),
+        ptr::null_mut(),
+        false,
+        g_st().curbuf,
+    );
+    if aborting() {
+        return false;
+    }
+    if g_st().curbuf != buf {
+        emsg(tr(E_AUCHANGEDBUF));
+        return false;
+    }
+
+    if setfname(curbuf_mut(), fname, sfname, false) {
+        curbuf_mut().b_flags |= BF_NOTEDITED;
+    }
+
+    apply_autocmds(
+        EVENT_BUFNEW,
+        ptr::null_mut(),
+        ptr::null_mut(),
+        false,
+        g_st().curbuf,
+    );
+    if curbuf_mut().b_p_bl != 0 {
+        apply_autocmds(
+            EVENT_BUFADD,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            false,
+            g_st().curbuf,
+        );
+    }
+    if aborting() {
+        return false;
+    }
+
+    if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
+        if augroup_exists(c"filetypedetect") {
+            do_doautocmd(c"filetypedetect BufRead", false, None);
+        }
+        do_modelines(0);
+    }
+
+    true
 }
 
 /// Put file name into the specified buffer with quotes.
@@ -3171,76 +3163,72 @@ pub fn fname_msg_id(
 
 /// Append message for text mode to IObuff.
 pub fn msg_add_fileformat(eol_type: i32) -> bool {
-    {
-        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
-        #[cfg(not(windows))]
-        if eol_type == EOL_DOS {
-            {
-                let _dst: *mut c_char = iobuf_ptr;
-                let _dsize: usize = IOSIZE;
-                let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[dos]"), _dsize - _dlen);
-            };
-            return true;
-        }
-        if eol_type == EOL_MAC {
-            {
-                let _dst: *mut c_char = iobuf_ptr;
-                let _dsize: usize = IOSIZE;
-                let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), tr(c"[mac]"), _dsize - _dlen);
-            };
-            return true;
-        }
-        #[cfg(windows)]
-        if eol_type == EOL_UNIX {
-            {
-                let _dst: *mut c_char = iobuf_ptr;
-                let _dsize: usize = IOSIZE;
-                let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), tr(c"[unix]"), _dsize - _dlen);
-            };
-            return true;
-        }
-        false
+    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
+    #[cfg(not(windows))]
+    if eol_type == EOL_DOS {
+        {
+            let _dst: *mut c_char = iobuf_ptr;
+            let _dsize: usize = IOSIZE;
+            let _dlen = crate::memory::cstr_len(_dst);
+            crate::memory::xstrlcpy(_dst.add(_dlen), tr(c"[dos]"), _dsize - _dlen);
+        };
+        return true;
     }
+    if eol_type == EOL_MAC {
+        {
+            let _dst: *mut c_char = iobuf_ptr;
+            let _dsize: usize = IOSIZE;
+            let _dlen = crate::memory::cstr_len(_dst);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), tr(c"[mac]"), _dsize - _dlen);
+        };
+        return true;
+    }
+    #[cfg(windows)]
+    if eol_type == EOL_UNIX {
+        {
+            let _dst: *mut c_char = iobuf_ptr;
+            let _dsize: usize = IOSIZE;
+            let _dlen = crate::memory::cstr_len(_dst);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), tr(c"[unix]"), _dsize - _dlen);
+        };
+        return true;
+    }
+    false
 }
 
 /// Append line and character count to IObuff.
 pub fn msg_add_lines(insert_space: i32, lnum: Linenr, nchars: Off) {
-    {
-        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
-        let mut len = crate::memory::cstr_len(iobuf_ptr);
-        let space = if insert_space != 0 {
-            c" ".as_ptr()
-        } else {
-            c"".as_ptr()
-        };
+    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
+    let mut len = crate::memory::cstr_len(iobuf_ptr);
+    let space = if insert_space != 0 {
+        c" ".as_ptr()
+    } else {
+        c"".as_ptr()
+    };
 
-        if shortmess(K_SHM_LINES) {
-            vim_snprintf!(
-                iobuf_ptr.wrapping_add(len),
-                IOSIZE - len,
-                tr(c"%s%lldL, %lldB"),
-                space,
-                i64::from(lnum),
-                nchars,
-            );
-        } else {
-            len += vim_snprintf!(
-                iobuf_ptr.wrapping_add(len),
-                IOSIZE - len,
-                ngettext(c"%s%lld line, ", c"%s%lld lines, ", lnum as usize,),
-                space,
-                i64::from(lnum),
-            ) as usize;
-            vim_snprintf!(
-                iobuf_ptr.wrapping_add(len),
-                IOSIZE - len,
-                ngettext(c"%lld byte", c"%lld bytes", nchars as usize,),
-                nchars,
-            );
-        }
+    if shortmess(K_SHM_LINES) {
+        vim_snprintf!(
+            iobuf_ptr.wrapping_add(len),
+            IOSIZE - len,
+            tr(c"%s%lldL, %lldB"),
+            space,
+            i64::from(lnum),
+            nchars,
+        );
+    } else {
+        len += vim_snprintf!(
+            iobuf_ptr.wrapping_add(len),
+            IOSIZE - len,
+            ngettext(c"%s%lld line, ", c"%s%lld lines, ", lnum as usize,),
+            space,
+            i64::from(lnum),
+        ) as usize;
+        vim_snprintf!(
+            iobuf_ptr.wrapping_add(len),
+            IOSIZE - len,
+            ngettext(c"%lld byte", c"%lld bytes", nchars as usize,),
+            nchars,
+        );
     }
 }
 
@@ -3384,53 +3372,49 @@ fn check_for_bom(
 
 /// Shorten filename of a buffer.
 pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: *mut c_char, force: i32) -> bool {
+    if buf.b_fname.is_null()
+        || bt_nofilename(Some(&*buf))
+        || path_with_url(buf.b_fname) != 0
+        || !(force != 0 || buf.b_sfname.is_null() || path_is_absolute(buf.b_sfname))
     {
-        if buf.b_fname.is_null()
-            || bt_nofilename(Some(&*buf))
-            || path_with_url(buf.b_fname) != 0
-            || !(force != 0 || buf.b_sfname.is_null() || path_is_absolute(buf.b_sfname))
-        {
-            return false;
-        }
-
-        let p = path_shorten_fname(buf.b_ffname, dirname);
-        let shorten = !crate::memory::cstr_is_empty(p);
-        if shorten
-            && !buf.b_sfname.is_null()
-            && crate::memory::cstr_from_ptr(p) == crate::memory::cstr_from_ptr(buf.b_sfname)
-        {
-            return false;
-        }
-
-        let new_fname = if shorten { p } else { buf.b_ffname };
-        let changed = new_fname.is_null()
-            || crate::memory::cstr_from_ptr(new_fname) != crate::memory::cstr_from_ptr(buf.b_fname);
-
-        buf.set_sfname(shorten.then(|| cstr_to_cstring(p)));
-        if shorten {
-            buf.b_fname = buf.b_sfname;
-        } else {
-            buf.b_fname = buf.b_ffname;
-        }
-        changed
+        return false;
     }
+
+    let p = path_shorten_fname(buf.b_ffname, dirname);
+    let shorten = !crate::memory::cstr_is_empty(p);
+    if shorten
+        && !buf.b_sfname.is_null()
+        && crate::memory::cstr_from_ptr(p) == crate::memory::cstr_from_ptr(buf.b_sfname)
+    {
+        return false;
+    }
+
+    let new_fname = if shorten { p } else { buf.b_ffname };
+    let changed = new_fname.is_null()
+        || crate::memory::cstr_from_ptr(new_fname) != crate::memory::cstr_from_ptr(buf.b_fname);
+
+    buf.set_sfname(shorten.then(|| cstr_to_cstring(p)));
+    if shorten {
+        buf.b_fname = buf.b_sfname;
+    } else {
+        buf.b_fname = buf.b_ffname;
+    }
+    changed
 }
 
 /// Shortens filenames for all buffers.
 pub fn shorten_fnames(force: i32) {
-    {
-        let mut dirname: [c_char; MAXPATHL] = [0; MAXPATHL];
-        let mut changed = false;
+    let mut dirname: [c_char; MAXPATHL] = [0; MAXPATHL];
+    let mut changed = false;
 
-        os_dirname(dirname.as_mut_ptr(), MAXPATHL);
-        for buf in for_all_buffers_mut() {
-            changed |= shorten_buf_fname(buf, dirname.as_mut_ptr(), force);
-            mf_fullname(unsafe { buf.b_ml.mfp_ptr().as_mut() });
-        }
-        if changed {
-            status_redraw_all();
-            g_st().redraw_tabline = true;
-        }
+    os_dirname(dirname.as_mut_ptr(), MAXPATHL);
+    for buf in for_all_buffers_mut() {
+        changed |= shorten_buf_fname(buf, dirname.as_mut_ptr(), force);
+        mf_fullname(unsafe { buf.b_ml.mfp_ptr().as_mut() });
+    }
+    if changed {
+        status_redraw_all();
+        g_st().redraw_tabline = true;
     }
 }
 
@@ -3442,7 +3426,7 @@ pub fn modname(
 ) -> Option<std::ffi::CString> {
     let fname = fname.into_c_char_ptr();
     let ext = ext.into_c_char_ptr();
-    unsafe {
+    {
         let mut retval_vec: Vec<c_char>;
         let retval: *mut c_char;
         let fnamelen: usize;
@@ -3461,7 +3445,7 @@ pub fn modname(
             fnamelen = crate::memory::cstr_len(fname);
             retval_vec = vec![0; fnamelen + extlen + 3];
             retval = retval_vec.as_mut_ptr();
-            ptr::copy_nonoverlapping(fname, retval, fnamelen + 1);
+            unsafe { ptr::copy_nonoverlapping(fname, retval, fnamelen + 1) };
         }
 
         let mut ptr = retval.wrapping_add(fnamelen);
@@ -3476,19 +3460,23 @@ pub fn modname(
         let mut ptrlen = fnamelen - crate::memory::ptr_offset_from(ptr, retval) as usize;
         if ptrlen > BASENAMELEN {
             ptrlen = BASENAMELEN;
-            *ptr.wrapping_add(ptrlen) = NUL;
+            unsafe {
+                *ptr.wrapping_add(ptrlen) = NUL;
+            }
         }
 
         let mut s = ptr.wrapping_add(ptrlen);
 
-        ptr::copy_nonoverlapping(ext, s, extlen + 1);
+        unsafe { ptr::copy_nonoverlapping(ext, s, extlen + 1) };
 
         let e = path_tail(retval);
         if prepend_dot && crate::memory::cstr_first_byte(e) != b'.' {
             let move_len =
                 ((fnamelen + extlen) - crate::memory::ptr_offset_from(e, retval) as usize) + 1;
-            ptr::copy(e, e.wrapping_add(1), move_len);
-            *e = b'.' as c_char;
+            unsafe { ptr::copy(e, e.wrapping_add(1), move_len) };
+            unsafe {
+                *e = b'.' as c_char;
+            }
         }
 
         if !fname.is_null()
@@ -3500,12 +3488,16 @@ pub fn modname(
                     break;
                 }
                 if crate::memory::cstr_first_byte(s) != b'_' {
-                    *s = b'_' as c_char;
+                    unsafe {
+                        *s = b'_' as c_char;
+                    }
                     break;
                 }
             }
             if s < ptr {
-                *ptr = b'v' as c_char;
+                unsafe {
+                    *ptr = b'v' as c_char;
+                }
             }
         }
         Some(crate::memory::cstr_to_cstring(retval))
@@ -3515,152 +3507,144 @@ pub fn modname(
 /// Like fgets(), but if the file line is too long, it is truncated and the
 /// rest of the line is thrown away.
 pub fn vim_fgets(buf: *mut c_char, size: i32, fp: *mut FILE) -> bool {
-    unsafe {
-        if size < 2 {
-            if size == 1 {
+    if size < 2 {
+        if size == 1 {
+            unsafe {
                 *buf = NUL;
             }
-            return true;
+        }
+        return true;
+    }
+
+    unsafe {
+        *buf.wrapping_offset((size - 2) as isize) = NUL;
+    }
+
+    let mut retval: *mut c_char;
+    loop {
+        os_set_errno(0);
+        retval = unsafe { fgets(buf, size, fp) };
+        if !retval.is_null() || os_errno() != EINTR || unsafe { ferror(fp) } == 0 {
+            break;
+        }
+    }
+
+    let penultimate = unsafe { *buf.wrapping_offset((size - 2) as isize) };
+    if penultimate != NUL && penultimate != b'\n' as c_char {
+        let mut tbuf: [c_char; 200] = [0; 200];
+
+        unsafe {
+            *buf.wrapping_offset((size - 1) as isize) = NUL;
         }
 
-        *buf.wrapping_offset((size - 2) as isize) = NUL;
-
-        let mut retval: *mut c_char;
         loop {
+            tbuf[tbuf.len() - 2] = NUL;
             os_set_errno(0);
-            retval = fgets(buf, size, fp);
-            if !retval.is_null() || os_errno() != EINTR || ferror(fp) == 0 {
+            retval = unsafe { fgets(tbuf.as_mut_ptr(), tbuf.len() as i32, fp) };
+            if retval.is_null() && (unsafe { feof(fp) } != 0 || os_errno() != EINTR) {
+                break;
+            }
+            if tbuf[tbuf.len() - 2] == NUL || tbuf[tbuf.len() - 2] == b'\n' as c_char {
                 break;
             }
         }
-
-        let penultimate = *buf.wrapping_offset((size - 2) as isize);
-        if penultimate != NUL && penultimate != b'\n' as c_char {
-            let mut tbuf: [c_char; 200] = [0; 200];
-
-            *buf.wrapping_offset((size - 1) as isize) = NUL;
-
-            loop {
-                tbuf[tbuf.len() - 2] = NUL;
-                os_set_errno(0);
-                retval = fgets(tbuf.as_mut_ptr(), tbuf.len() as i32, fp);
-                if retval.is_null() && (feof(fp) != 0 || os_errno() != EINTR) {
-                    break;
-                }
-                if tbuf[tbuf.len() - 2] == NUL || tbuf[tbuf.len() - 2] == b'\n' as c_char {
-                    break;
-                }
-            }
-        }
-        retval.is_null()
     }
+    retval.is_null()
 }
 
 /// Read 2 bytes from "fd" and turn them into an int, MSB first.
 pub fn get2c(fd: *mut FILE) -> i32 {
-    {
-        let n = unsafe { fgetc(fd) };
-        if n == EOF {
-            return -1;
-        }
-        let c = unsafe { fgetc(fd) };
-        if c == EOF {
-            return -1;
-        }
-        (n << 8) + c
+    let n = unsafe { fgetc(fd) };
+    if n == EOF {
+        return -1;
     }
+    let c = unsafe { fgetc(fd) };
+    if c == EOF {
+        return -1;
+    }
+    (n << 8) + c
 }
 
 /// Read 3 bytes from "fd" and turn them into an int, MSB first.
 pub fn get3c(fd: *mut FILE) -> i32 {
-    {
-        let mut n = unsafe { fgetc(fd) };
-        if n == EOF {
-            return -1;
-        }
-        let mut c = unsafe { fgetc(fd) };
-        if c == EOF {
-            return -1;
-        }
-        n = (n << 8) + c;
-        c = unsafe { fgetc(fd) };
-        if c == EOF {
-            return -1;
-        }
-        (n << 8) + c
+    let mut n = unsafe { fgetc(fd) };
+    if n == EOF {
+        return -1;
     }
+    let mut c = unsafe { fgetc(fd) };
+    if c == EOF {
+        return -1;
+    }
+    n = (n << 8) + c;
+    c = unsafe { fgetc(fd) };
+    if c == EOF {
+        return -1;
+    }
+    (n << 8) + c
 }
 
 /// Read 4 bytes from "fd" and turn them into an int, MSB first.
 pub fn get4c(fd: *mut FILE) -> i32 {
-    {
-        let mut c = unsafe { fgetc(fd) };
-        if c == EOF {
-            return -1;
-        }
-        let mut n = c as u32;
-        c = unsafe { fgetc(fd) };
-        if c == EOF {
-            return -1;
-        }
-        n = (n << 8) + (c as u32);
-        c = unsafe { fgetc(fd) };
-        if c == EOF {
-            return -1;
-        }
-        n = (n << 8) + (c as u32);
-        c = unsafe { fgetc(fd) };
-        if c == EOF {
-            return -1;
-        }
-        n = (n << 8) + (c as u32);
-        n as i32
+    let mut c = unsafe { fgetc(fd) };
+    if c == EOF {
+        return -1;
     }
+    let mut n = c as u32;
+    c = unsafe { fgetc(fd) };
+    if c == EOF {
+        return -1;
+    }
+    n = (n << 8) + (c as u32);
+    c = unsafe { fgetc(fd) };
+    if c == EOF {
+        return -1;
+    }
+    n = (n << 8) + (c as u32);
+    c = unsafe { fgetc(fd) };
+    if c == EOF {
+        return -1;
+    }
+    n = (n << 8) + (c as u32);
+    n as i32
 }
 
 /// Read 8 bytes from `fd` and turn them into a time_t, MSB first.
 pub fn get8ctime(fd: *mut FILE) -> time_t {
-    {
-        let mut n: time_t = 0;
+    let mut n: time_t = 0;
 
-        for _ in 0..8 {
-            let c = unsafe { fgetc(fd) };
-            if c == EOF {
-                return -1;
-            }
-            n = (n << 8) + i64::from(c);
+    for _ in 0..8 {
+        let c = unsafe { fgetc(fd) };
+        if c == EOF {
+            return -1;
         }
-        n
+        n = (n << 8) + i64::from(c);
     }
+    n
 }
 
 /// Reads a string of length "cnt" from "fd" into allocated memory.
 pub fn read_string(fd: *mut FILE, cnt: usize) -> Option<Vec<c_char>> {
-    {
-        let mut buf: Vec<c_char> = Vec::with_capacity(cnt + 1);
-        for _ in 0..cnt {
-            let c = unsafe { fgetc(fd) };
-            if c == EOF {
-                return None;
-            }
-            buf.push(c as c_char);
+    let mut buf: Vec<c_char> = Vec::with_capacity(cnt + 1);
+    for _ in 0..cnt {
+        let c = unsafe { fgetc(fd) };
+        if c == EOF {
+            return None;
         }
-        buf.push(0);
-        Some(buf)
+        buf.push(c as c_char);
     }
+    buf.push(0);
+    Some(buf)
 }
 
 /// Writes a number to file "fd", most significant bit first, in "len" bytes.
 pub fn put_bytes(fd: *mut FILE, number: u64, len: usize) -> bool {
-    {
-        debug_assert!(len > 0);
-        for i in (0..len).rev() {
-            if unsafe { fputc(((number >> (i * 8)) & 0xff) as i32, fd) } == EOF {
-                return false;
-            }
+    debug_assert!(len > 0);
+    for i in (0..len).rev() {
+        if unsafe { fputc(((number >> (i * 8)) & 0xff) as i32, fd) } == EOF {
+            return false;
         }
-        true
     }
+    true
 }
 
 /// Writes time_t to file "fd" in 8 bytes.
@@ -3808,457 +3792,447 @@ pub fn vim_copyfile(
 
 /// Check if any not hidden buffer has been changed.
 pub fn check_timestamps(focus: i32) -> i32 {
-    {
-        if g_st().no_check_timestamps > 0 {
-            return 0;
-        }
-
-        if focus != 0 && g_st().did_check_timestamps {
-            g_st().need_check_timestamps = true;
-            return 0;
-        }
-
-        let mut didit: i32 = 0;
-
-        if !stuff_empty()
-            || g_st().global_busy != 0
-            || typebuf_typed() == 0
-            || g_st().autocmd_busy
-            || curbuf_mut().b_ro_locked > 0
-            || g_st().allbuf_lock > 0
-        {
-            g_st().need_check_timestamps = true;
-        } else {
-            g_st().no_wait_return += 1;
-            g_st().did_check_timestamps = true;
-            fio_st().already_warned = false;
-            let mut buf = g_st().firstbuf;
-            while !buf.is_null() {
-                if unsafe { (*buf).b_nwindows } > 0 {
-                    let mut bufref: Bufref = Bufref::new();
-                    set_bufref(&mut bufref, buf);
-                    let n = buf_check_timestamp(unsafe { &mut *buf });
-                    didit = didit.max(n);
-                    if n > 0 && !bufref_valid(Some(&bufref)) {
-                        buf = g_st().firstbuf;
-                        continue;
-                    }
-                }
-                buf = unsafe { (*buf).b_next };
-            }
-            g_st().no_wait_return -= 1;
-            g_st().need_check_timestamps = false;
-            if g_st().need_wait_return && didit == 2 {
-                msg_puts(c"\n");
-                ui_flush();
-            }
-        }
-        didit
+    if g_st().no_check_timestamps > 0 {
+        return 0;
     }
+
+    if focus != 0 && g_st().did_check_timestamps {
+        g_st().need_check_timestamps = true;
+        return 0;
+    }
+
+    let mut didit: i32 = 0;
+
+    if !stuff_empty()
+        || g_st().global_busy != 0
+        || typebuf_typed() == 0
+        || g_st().autocmd_busy
+        || curbuf_mut().b_ro_locked > 0
+        || g_st().allbuf_lock > 0
+    {
+        g_st().need_check_timestamps = true;
+    } else {
+        g_st().no_wait_return += 1;
+        g_st().did_check_timestamps = true;
+        fio_st().already_warned = false;
+        let mut buf = g_st().firstbuf;
+        while !buf.is_null() {
+            if unsafe { (*buf).b_nwindows } > 0 {
+                let mut bufref: Bufref = Bufref::new();
+                set_bufref(&mut bufref, buf);
+                let n = buf_check_timestamp(unsafe { &mut *buf });
+                didit = didit.max(n);
+                if n > 0 && !bufref_valid(Some(&bufref)) {
+                    buf = g_st().firstbuf;
+                    continue;
+                }
+            }
+            buf = unsafe { (*buf).b_next };
+        }
+        g_st().no_wait_return -= 1;
+        g_st().need_check_timestamps = false;
+        if g_st().need_wait_return && didit == 2 {
+            msg_puts(c"\n");
+            ui_flush();
+        }
+    }
+    didit
 }
 
 /// Move all the lines from buffer "frombuf" to buffer "tobuf".
 fn move_lines(frombuf: &mut FileBuf, tobuf: *mut FileBuf) -> bool {
-    {
-        let tbuf = g_st().curbuf;
-        let mut retval = true;
+    let tbuf = g_st().curbuf;
+    let mut retval = true;
 
-        g_st().curbuf = tobuf;
-        for lnum in 1..=frombuf.b_ml.ml_line_count {
-            let p = crate::memory::cstr_to_cstring(ml_get_buf(frombuf, lnum));
-            if !ml_append(lnum - 1, p.as_ptr().cast_mut(), 0, false) {
+    g_st().curbuf = tobuf;
+    for lnum in 1..=frombuf.b_ml.ml_line_count {
+        let p = crate::memory::cstr_to_cstring(ml_get_buf(frombuf, lnum));
+        if !ml_append(lnum - 1, p.as_ptr().cast_mut(), 0, false) {
+            retval = false;
+            break;
+        }
+    }
+
+    if retval {
+        g_st().curbuf = (&raw mut *frombuf);
+        let mut lnum = curbuf_mut().b_ml.ml_line_count;
+        while lnum > 0 {
+            if !ml_delete(lnum) {
                 retval = false;
                 break;
             }
+            lnum -= 1;
         }
-
-        if retval {
-            g_st().curbuf = (&raw mut *frombuf);
-            let mut lnum = curbuf_mut().b_ml.ml_line_count;
-            while lnum > 0 {
-                if !ml_delete(lnum) {
-                    retval = false;
-                    break;
-                }
-                lnum -= 1;
-            }
-        }
-
-        g_st().curbuf = tbuf;
-        retval
     }
+
+    g_st().curbuf = tbuf;
+    retval
 }
 
 /// Check if buffer "buf" has been changed.
 pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
+    static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+    const RELOAD_NONE: i32 = 0;
+    const RELOAD_NORMAL: i32 = 1;
+    const RELOAD_DETECT: i32 = 2;
+
+    let mut retval: i32 = 0;
+    let mut mesg: *mut c_char = ptr::null_mut();
+    let mut mesg2: *mut c_char = c"".as_ptr().cast_mut();
+    let mut helpmesg = false;
+    let mut reload: i32 = RELOAD_NONE;
+    let mut can_reload = false;
+    let orig_size = buf.b_orig_size;
+    let orig_mode = buf.b_orig_mode;
+
+    let mut bufref: Bufref = Bufref::new();
+    set_bufref(&mut bufref, &raw mut *buf);
+
+    if !buf.terminal.is_null()
+        || buf.b_ffname.is_null()
+        || buf.b_ml.ml_mfp.is_none()
+        || !bt_normal(Some(&*buf))
+        || buf.b_saving
+        || BUSY.load(std::sync::atomic::Ordering::Relaxed)
     {
-        static BUSY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        return 0;
+    }
 
-        const RELOAD_NONE: i32 = 0;
-        const RELOAD_NORMAL: i32 = 1;
-        const RELOAD_DETECT: i32 = 2;
+    let mut file_info: FileInfo = FileInfo::new();
+    let file_info_ok: bool;
+    if (buf.b_flags & BF_NOTEDITED) == 0
+        && buf.b_mtime != 0
+        && ({
+            file_info_ok = os_fileinfo(buf.b_ffname, &mut file_info);
+            !file_info_ok
+                || time_differs(&file_info, buf.b_mtime, buf.b_mtime_ns)
+                || (file_info.stat.st_mode as i32) != buf.b_orig_mode
+        })
+    {
+        let prev_b_mtime = buf.b_mtime;
 
-        let mut retval: i32 = 0;
-        let mut mesg: *mut c_char = ptr::null_mut();
-        let mut mesg2: *mut c_char = c"".as_ptr().cast_mut();
-        let mut helpmesg = false;
-        let mut reload: i32 = RELOAD_NONE;
-        let mut can_reload = false;
-        let orig_size = buf.b_orig_size;
-        let orig_mode = buf.b_orig_mode;
+        retval = 1;
 
-        let mut bufref: Bufref = Bufref::new();
-        set_bufref(&mut bufref, &raw mut *buf);
+        if !file_info_ok {
+            buf.b_mtime = -1;
+            buf.b_orig_size = 0;
+            buf.b_orig_mode = 0;
+        } else {
+            buf_store_file_info(&mut *buf, &mut file_info);
+        }
 
-        if !buf.terminal.is_null()
-            || buf.b_ffname.is_null()
-            || buf.b_ml.ml_mfp.is_none()
-            || !bt_normal(Some(&*buf))
-            || buf.b_saving
-            || BUSY.load(std::sync::atomic::Ordering::Relaxed)
+        if os_isdir(buf.b_fname) {
+            // Don't do anything for a directory.
+        } else if (if buf.b_p_ar >= 0 {
+            buf.b_p_ar
+        } else {
+            opt_vars().p_ar
+        }) != 0
+            && !buf_is_changed_fn(buf)
+            && file_info_ok
         {
-            return 0;
-        }
-
-        let mut file_info: FileInfo = FileInfo::new();
-        let file_info_ok: bool;
-        if (buf.b_flags & BF_NOTEDITED) == 0
-            && buf.b_mtime != 0
-            && ({
-                file_info_ok = os_fileinfo(buf.b_ffname, &mut file_info);
-                !file_info_ok
-                    || time_differs(&file_info, buf.b_mtime, buf.b_mtime_ns)
-                    || (file_info.stat.st_mode as i32) != buf.b_orig_mode
-            })
-        {
-            let prev_b_mtime = buf.b_mtime;
-
-            retval = 1;
-
-            if !file_info_ok {
-                buf.b_mtime = -1;
-                buf.b_orig_size = 0;
-                buf.b_orig_mode = 0;
+            reload = RELOAD_NORMAL;
+        } else {
+            let (reason, reasonlen) = if !file_info_ok {
+                (c"deleted", 7isize)
+            } else if buf_is_changed_fn(buf) {
+                (c"conflict", 8isize)
+            } else if orig_size != buf.b_orig_size || buf_contents_changed(&mut *buf) {
+                (c"changed", 7isize)
+            } else if orig_mode != buf.b_orig_mode {
+                (c"mode", 4isize)
             } else {
-                buf_store_file_info(&mut *buf, &mut file_info);
-            }
+                (c"time", 4isize)
+            };
 
-            if os_isdir(buf.b_fname) {
-                // Don't do anything for a directory.
-            } else if (if buf.b_p_ar >= 0 {
-                buf.b_p_ar
-            } else {
-                opt_vars().p_ar
-            }) != 0
-                && !buf_is_changed_fn(buf)
-                && file_info_ok
-            {
-                reload = RELOAD_NORMAL;
-            } else {
-                let (reason, reasonlen) = if !file_info_ok {
-                    (c"deleted", 7isize)
-                } else if buf_is_changed_fn(buf) {
-                    (c"conflict", 8isize)
-                } else if orig_size != buf.b_orig_size || buf_contents_changed(&mut *buf) {
-                    (c"changed", 7isize)
-                } else if orig_mode != buf.b_orig_mode {
-                    (c"mode", 4isize)
-                } else {
-                    (c"time", 4isize)
-                };
-
-                BUSY.store(true, std::sync::atomic::Ordering::Relaxed);
-                set_vim_var_string(VV_FCS_REASON, reason, reasonlen);
-                set_vim_var_string(VV_FCS_CHOICE, c"", 0);
-                g_st().allbuf_lock += 1;
-                let mut n = apply_autocmds(
-                    EVENT_FILECHANGEDSHELL,
-                    buf.b_fname,
-                    buf.b_fname,
-                    false,
-                    &raw mut *buf,
-                );
-                g_st().allbuf_lock -= 1;
-                BUSY.store(false, std::sync::atomic::Ordering::Relaxed);
-                if n {
-                    if !bufref_valid(Some(&bufref)) {
-                        emsg(tr(c"E246: FileChangedShell autocommand deleted buffer"));
-                    }
-                    let s = crate::memory::cstr_from_ptr(get_vim_var_str(VV_FCS_CHOICE));
-                    if s == c"reload" && crate::memory::cstr_first_byte(reason) != b'd' {
-                        reload = RELOAD_NORMAL;
-                    } else if s == c"edit" {
-                        reload = RELOAD_DETECT;
-                    } else if s == c"ask" {
-                        n = false;
-                    } else {
-                        return 2;
-                    }
-                }
-                if !n {
-                    if crate::memory::cstr_first_byte(reason) == b'd' {
-                        if prev_b_mtime != -1 {
-                            mesg = tr(c"E211: File \"%s\" no longer available");
-                        }
-                    } else {
-                        helpmesg = true;
-                        can_reload = true;
-
-                        if crate::memory::cstr_byte_at(reason, 2) == b'n' {
-                            mesg = tr(
-                                c"W12: Warning: File \"%s\" has changed and the buffer was changed in Vim as well",
-                            );
-                            mesg2 = tr(c"See \":help W12\" for more info.");
-                        } else if crate::memory::cstr_byte_at(reason, 1) == b'h' {
-                            mesg =
-                                tr(c"W11: Warning: File \"%s\" has changed since editing started");
-                            mesg2 = tr(c"See \":help W11\" for more info.");
-                        } else if crate::memory::cstr_first_byte(reason) == b'm' {
-                            mesg = tr(
-                                c"W16: Warning: Mode of file \"%s\" has changed since editing started",
-                            );
-                            mesg2 = tr(c"See \":help W16\" for more info.");
-                        } else {
-                            buf.b_mtime_read = buf.b_mtime;
-                            buf.b_mtime_read_ns = buf.b_mtime_ns;
-                        }
-                    }
-                }
-            }
-        } else if (buf.b_flags & BF_NEW) != 0
-            && (buf.b_flags & BF_NEW_W) == 0
-            && os_path_exists(buf.b_ffname)
-        {
-            retval = 1;
-            mesg = tr(c"W13: Warning: File \"%s\" has been created after editing started");
-            buf.b_flags |= BF_NEW_W;
-            can_reload = true;
-        }
-
-        if !mesg.is_null() {
-            let path = home_replace_save(Some(buf), buf.b_fname);
-            if !helpmesg {
-                mesg2 = c"".as_ptr().cast_mut();
-            }
-            let tbufsize = path.as_bytes().len()
-                + crate::memory::cstr_len(mesg)
-                + crate::memory::cstr_len(mesg2)
-                + 3;
-            let mut tbuf_vec = vec![0 as c_char; tbufsize];
-            let tbuf = tbuf_vec.as_mut_ptr();
-            let tbuflen = vim_snprintf!(tbuf, tbufsize, mesg, path.as_ptr());
-            set_vim_var_string(VV_WARNINGMSG, tbuf, tbuflen as isize);
-            if can_reload {
-                if !crate::memory::cstr_is_empty(mesg2) {
-                    vim_snprintf!(
-                        tbuf.wrapping_offset(tbuflen as isize),
-                        tbufsize - (tbuflen as usize),
-                        c"\n%s",
-                        mesg2,
-                    );
-                }
-                match do_dialog(
-                    VIM_WARNING,
-                    tr(c"Warning"),
-                    tbuf,
-                    tr(c"&OK\n&Load File\nLoad File &and Options"),
-                    1,
-                    ptr::null_mut(),
-                    1,
-                ) {
-                    2 => reload = RELOAD_NORMAL,
-                    3 => reload = RELOAD_DETECT,
-                    _ => {}
-                }
-            } else if g_st().state_global > MODE_NORMAL_BUSY
-                || (g_st().state_global & MODE_CMDLINE) != 0
-                || fio_st().already_warned
-            {
-                if !crate::memory::cstr_is_empty(mesg2) {
-                    vim_snprintf!(
-                        tbuf.wrapping_offset(tbuflen as isize),
-                        tbufsize - (tbuflen as usize),
-                        c"; %s",
-                        mesg2,
-                    );
-                }
-                emsg(tbuf);
-                retval = 2;
-            } else {
-                if !g_st().autocmd_busy {
-                    msg_start();
-                    msg_puts_hl(tbuf, HLF_E, true);
-                    if !crate::memory::cstr_is_empty(mesg2) {
-                        msg_puts_hl(mesg2, HLF_W, true);
-                    }
-                    msg_clr_eos();
-                    msg_end();
-                    if g_st().emsg_silent == 0 && !g_st().in_assert_fails && !ui_has(K_UIMESSAGES) {
-                        msg_delay(1004, true);
-                        g_st().redraw_cmdline = false;
-                    }
-                }
-                fio_st().already_warned = true;
-            }
-
-            drop(tbuf_vec);
-            drop(path);
-        }
-
-        if reload != RELOAD_NONE {
-            buf_reload(&mut *buf, orig_mode, reload == RELOAD_DETECT);
-            if bufref_valid(Some(&bufref)) && buf.b_p_udf != 0 && !buf.b_ffname.is_null() {
-                let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
-                u_compute_hash(buf, hash.as_mut_ptr());
-                u_write_undo(ptr::null(), false, buf, hash.as_mut_ptr());
-            }
-        }
-
-        if bufref_valid(Some(&bufref)) && retval != 0 {
-            apply_autocmds(
-                EVENT_FILECHANGEDSHELLPOST,
+            BUSY.store(true, std::sync::atomic::Ordering::Relaxed);
+            set_vim_var_string(VV_FCS_REASON, reason, reasonlen);
+            set_vim_var_string(VV_FCS_CHOICE, c"", 0);
+            g_st().allbuf_lock += 1;
+            let mut n = apply_autocmds(
+                EVENT_FILECHANGEDSHELL,
                 buf.b_fname,
                 buf.b_fname,
                 false,
                 &raw mut *buf,
             );
+            g_st().allbuf_lock -= 1;
+            BUSY.store(false, std::sync::atomic::Ordering::Relaxed);
+            if n {
+                if !bufref_valid(Some(&bufref)) {
+                    emsg(tr(c"E246: FileChangedShell autocommand deleted buffer"));
+                }
+                let s = crate::memory::cstr_from_ptr(get_vim_var_str(VV_FCS_CHOICE));
+                if s == c"reload" && crate::memory::cstr_first_byte(reason) != b'd' {
+                    reload = RELOAD_NORMAL;
+                } else if s == c"edit" {
+                    reload = RELOAD_DETECT;
+                } else if s == c"ask" {
+                    n = false;
+                } else {
+                    return 2;
+                }
+            }
+            if !n {
+                if crate::memory::cstr_first_byte(reason) == b'd' {
+                    if prev_b_mtime != -1 {
+                        mesg = tr(c"E211: File \"%s\" no longer available");
+                    }
+                } else {
+                    helpmesg = true;
+                    can_reload = true;
+
+                    if crate::memory::cstr_byte_at(reason, 2) == b'n' {
+                        mesg = tr(
+                                c"W12: Warning: File \"%s\" has changed and the buffer was changed in Vim as well",
+                            );
+                        mesg2 = tr(c"See \":help W12\" for more info.");
+                    } else if crate::memory::cstr_byte_at(reason, 1) == b'h' {
+                        mesg = tr(c"W11: Warning: File \"%s\" has changed since editing started");
+                        mesg2 = tr(c"See \":help W11\" for more info.");
+                    } else if crate::memory::cstr_first_byte(reason) == b'm' {
+                        mesg = tr(
+                            c"W16: Warning: Mode of file \"%s\" has changed since editing started",
+                        );
+                        mesg2 = tr(c"See \":help W16\" for more info.");
+                    } else {
+                        buf.b_mtime_read = buf.b_mtime;
+                        buf.b_mtime_read_ns = buf.b_mtime_ns;
+                    }
+                }
+            }
         }
-        retval
+    } else if (buf.b_flags & BF_NEW) != 0
+        && (buf.b_flags & BF_NEW_W) == 0
+        && os_path_exists(buf.b_ffname)
+    {
+        retval = 1;
+        mesg = tr(c"W13: Warning: File \"%s\" has been created after editing started");
+        buf.b_flags |= BF_NEW_W;
+        can_reload = true;
     }
+
+    if !mesg.is_null() {
+        let path = home_replace_save(Some(buf), buf.b_fname);
+        if !helpmesg {
+            mesg2 = c"".as_ptr().cast_mut();
+        }
+        let tbufsize = path.as_bytes().len()
+            + crate::memory::cstr_len(mesg)
+            + crate::memory::cstr_len(mesg2)
+            + 3;
+        let mut tbuf_vec = vec![0 as c_char; tbufsize];
+        let tbuf = tbuf_vec.as_mut_ptr();
+        let tbuflen = vim_snprintf!(tbuf, tbufsize, mesg, path.as_ptr());
+        set_vim_var_string(VV_WARNINGMSG, tbuf, tbuflen as isize);
+        if can_reload {
+            if !crate::memory::cstr_is_empty(mesg2) {
+                vim_snprintf!(
+                    tbuf.wrapping_offset(tbuflen as isize),
+                    tbufsize - (tbuflen as usize),
+                    c"\n%s",
+                    mesg2,
+                );
+            }
+            match do_dialog(
+                VIM_WARNING,
+                tr(c"Warning"),
+                tbuf,
+                tr(c"&OK\n&Load File\nLoad File &and Options"),
+                1,
+                ptr::null_mut(),
+                1,
+            ) {
+                2 => reload = RELOAD_NORMAL,
+                3 => reload = RELOAD_DETECT,
+                _ => {}
+            }
+        } else if g_st().state_global > MODE_NORMAL_BUSY
+            || (g_st().state_global & MODE_CMDLINE) != 0
+            || fio_st().already_warned
+        {
+            if !crate::memory::cstr_is_empty(mesg2) {
+                vim_snprintf!(
+                    tbuf.wrapping_offset(tbuflen as isize),
+                    tbufsize - (tbuflen as usize),
+                    c"; %s",
+                    mesg2,
+                );
+            }
+            emsg(tbuf);
+            retval = 2;
+        } else {
+            if !g_st().autocmd_busy {
+                msg_start();
+                msg_puts_hl(tbuf, HLF_E, true);
+                if !crate::memory::cstr_is_empty(mesg2) {
+                    msg_puts_hl(mesg2, HLF_W, true);
+                }
+                msg_clr_eos();
+                msg_end();
+                if g_st().emsg_silent == 0 && !g_st().in_assert_fails && !ui_has(K_UIMESSAGES) {
+                    msg_delay(1004, true);
+                    g_st().redraw_cmdline = false;
+                }
+            }
+            fio_st().already_warned = true;
+        }
+
+        drop(tbuf_vec);
+        drop(path);
+    }
+
+    if reload != RELOAD_NONE {
+        buf_reload(&mut *buf, orig_mode, reload == RELOAD_DETECT);
+        if bufref_valid(Some(&bufref)) && buf.b_p_udf != 0 && !buf.b_ffname.is_null() {
+            let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
+            u_compute_hash(buf, hash.as_mut_ptr());
+            u_write_undo(ptr::null(), false, buf, hash.as_mut_ptr());
+        }
+    }
+
+    if bufref_valid(Some(&bufref)) && retval != 0 {
+        apply_autocmds(
+            EVENT_FILECHANGEDSHELLPOST,
+            buf.b_fname,
+            buf.b_fname,
+            false,
+            &raw mut *buf,
+        );
+    }
+    retval
 }
 
 /// Reload a buffer that is already loaded.
 pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
-    {
-        let mut ea: Exarg = Exarg::new();
-        let old_ro = buf.b_p_ro;
-        let savebuf: *mut FileBuf;
-        let mut bufref: Bufref = Bufref::new();
-        let mut saved = OK;
-        let mut aco: CtxSwitch = CtxSwitch::new();
-        let mut flags = READ_NEW;
+    let mut ea: Exarg = Exarg::new();
+    let old_ro = buf.b_p_ro;
+    let savebuf: *mut FileBuf;
+    let mut bufref: Bufref = Bufref::new();
+    let mut saved = OK;
+    let mut aco: CtxSwitch = CtxSwitch::new();
+    let mut flags = READ_NEW;
 
-        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+    ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
 
-        mc_buf_clear(&mut *buf);
+    mc_buf_clear(&mut *buf);
 
-        let _ea_cmd = if !reload_options {
-            Some(prep_exarg(&mut ea, &*buf))
+    let _ea_cmd = if !reload_options {
+        Some(prep_exarg(&mut ea, &*buf))
+    } else {
+        None
+    };
+
+    let old_cursor = curwin_mut().w_cursor;
+    let old_topline = curwin_mut().w_topline;
+
+    if opt_vars().p_ur < 0 || i64::from(curbuf_mut().b_ml.ml_line_count) <= opt_vars().p_ur {
+        u_sync(false);
+        saved = if u_savecommon(
+            curbuf_mut(),
+            0,
+            curbuf_mut().b_ml.ml_line_count + 1,
+            0,
+            true,
+        ) {
+            OK
         } else {
-            None
+            FAIL
         };
-
-        let old_cursor = curwin_mut().w_cursor;
-        let old_topline = curwin_mut().w_topline;
-
-        if opt_vars().p_ur < 0 || i64::from(curbuf_mut().b_ml.ml_line_count) <= opt_vars().p_ur {
-            u_sync(false);
-            saved = if u_savecommon(
-                curbuf_mut(),
-                0,
-                curbuf_mut().b_ml.ml_line_count + 1,
-                0,
-                true,
-            ) {
-                OK
-            } else {
-                FAIL
-            };
-            flags |= READ_KEEP_UNDO;
-        }
-
-        if buf_is_empty(curbuf_mut()) || saved == FAIL {
-            savebuf = ptr::null_mut();
-        } else {
-            savebuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
-            set_bufref(&mut bufref, savebuf);
-            if !savebuf.is_null() && ptr::eq(buf, g_st().curbuf) {
-                g_st().curbuf = savebuf;
-                curwin_mut().w_buffer = savebuf;
-                saved = if ml_open(curbuf_mut()) { OK } else { FAIL };
-                g_st().curbuf = buf;
-                curwin_mut().w_buffer = buf;
-            }
-            if savebuf.is_null()
-                || saved == FAIL
-                || !ptr::eq(buf, g_st().curbuf)
-                || !move_lines(&mut *buf, savebuf)
-            {
-                semsg!(
-                    tr(c"E462: Could not prepare for reloading \"%s\""),
-                    buf.b_fname,
-                );
-                saved = FAIL;
-            }
-        }
-
-        if saved == OK {
-            curbuf_mut().b_flags |= BF_CHECK_RO;
-            curbuf_mut().b_keep_filetype = true;
-            if readfile(
-                buf.b_ffname,
-                buf.b_fname,
-                0,
-                0,
-                MAXLNUM,
-                Some(&ea),
-                flags,
-                shortmess(K_SHM_FILEINFO),
-            ) != OK
-            {
-                if !aborting() {
-                    semsg!(tr(c"E321: Could not reload \"%s\""), buf.b_fname,);
-                }
-                if !savebuf.is_null() && bufref_valid(Some(&bufref)) && ptr::eq(buf, g_st().curbuf)
-                {
-                    while !buf_is_empty(curbuf_mut()) {
-                        if !ml_delete(buf.b_ml.ml_line_count) {
-                            break;
-                        }
-                    }
-                    move_lines(unsafe { &mut *savebuf }, buf);
-                }
-            } else if ptr::eq(buf, g_st().curbuf) {
-                unchanged(&mut *buf, true, true);
-                if (flags & READ_KEEP_UNDO) == 0 {
-                    u_clearallandblockfree(&mut *buf);
-                } else {
-                    u_unchanged(curbuf_mut());
-                }
-                buf_updates_unload(curbuf_mut(), true);
-                curbuf_mut().b_mod_set = true;
-            }
-        }
-        drop(_ea_cmd);
-
-        if !savebuf.is_null() && bufref_valid(Some(&bufref)) {
-            wipe_buffer(savebuf, false);
-        }
-
-        diff_invalidate(g_st().curbuf);
-
-        curwin_mut().w_topline = old_topline.min(curbuf_mut().b_ml.ml_line_count);
-        curwin_mut().w_cursor = old_cursor;
-        check_cursor(curwin_mut());
-        update_topline(curwin_mut());
-        curbuf_mut().b_keep_filetype = false;
-
-        for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(&*tp) {
-                if wp.w_buffer == curwin_mut().w_buffer && !foldmethod_is_manual(wp) {
-                    fold_update_all(wp);
-                }
-            }
-        }
-
-        if orig_mode == curbuf_mut().b_orig_mode {
-            curbuf_mut().b_p_ro |= old_ro;
-        }
-
-        do_modelines(0);
-
-        ctx_restore(&mut aco);
+        flags |= READ_KEEP_UNDO;
     }
+
+    if buf_is_empty(curbuf_mut()) || saved == FAIL {
+        savebuf = ptr::null_mut();
+    } else {
+        savebuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
+        set_bufref(&mut bufref, savebuf);
+        if !savebuf.is_null() && ptr::eq(buf, g_st().curbuf) {
+            g_st().curbuf = savebuf;
+            curwin_mut().w_buffer = savebuf;
+            saved = if ml_open(curbuf_mut()) { OK } else { FAIL };
+            g_st().curbuf = buf;
+            curwin_mut().w_buffer = buf;
+        }
+        if savebuf.is_null()
+            || saved == FAIL
+            || !ptr::eq(buf, g_st().curbuf)
+            || !move_lines(&mut *buf, savebuf)
+        {
+            semsg!(
+                tr(c"E462: Could not prepare for reloading \"%s\""),
+                buf.b_fname,
+            );
+            saved = FAIL;
+        }
+    }
+
+    if saved == OK {
+        curbuf_mut().b_flags |= BF_CHECK_RO;
+        curbuf_mut().b_keep_filetype = true;
+        if readfile(
+            buf.b_ffname,
+            buf.b_fname,
+            0,
+            0,
+            MAXLNUM,
+            Some(&ea),
+            flags,
+            shortmess(K_SHM_FILEINFO),
+        ) != OK
+        {
+            if !aborting() {
+                semsg!(tr(c"E321: Could not reload \"%s\""), buf.b_fname,);
+            }
+            if !savebuf.is_null() && bufref_valid(Some(&bufref)) && ptr::eq(buf, g_st().curbuf) {
+                while !buf_is_empty(curbuf_mut()) {
+                    if !ml_delete(buf.b_ml.ml_line_count) {
+                        break;
+                    }
+                }
+                move_lines(unsafe { &mut *savebuf }, buf);
+            }
+        } else if ptr::eq(buf, g_st().curbuf) {
+            unchanged(&mut *buf, true, true);
+            if (flags & READ_KEEP_UNDO) == 0 {
+                u_clearallandblockfree(&mut *buf);
+            } else {
+                u_unchanged(curbuf_mut());
+            }
+            buf_updates_unload(curbuf_mut(), true);
+            curbuf_mut().b_mod_set = true;
+        }
+    }
+    drop(_ea_cmd);
+
+    if !savebuf.is_null() && bufref_valid(Some(&bufref)) {
+        wipe_buffer(savebuf, false);
+    }
+
+    diff_invalidate(g_st().curbuf);
+
+    curwin_mut().w_topline = old_topline.min(curbuf_mut().b_ml.ml_line_count);
+    curwin_mut().w_cursor = old_cursor;
+    check_cursor(curwin_mut());
+    update_topline(curwin_mut());
+    curbuf_mut().b_keep_filetype = false;
+
+    for tp in for_all_tabpages_ptr() {
+        for wp in for_all_windows_in_tab_mut(&*tp) {
+            if wp.w_buffer == curwin_mut().w_buffer && !foldmethod_is_manual(wp) {
+                fold_update_all(wp);
+            }
+        }
+    }
+
+    if orig_mode == curbuf_mut().b_orig_mode {
+        curbuf_mut().b_p_ro |= old_ro;
+    }
+
+    do_modelines(0);
+
+    ctx_restore(&mut aco);
 }
 
 pub fn buf_store_file_info(buf: &mut FileBuf, file_info: &mut FileInfo) {
@@ -4270,86 +4244,109 @@ pub fn buf_store_file_info(buf: &mut FileBuf, file_info: &mut FileInfo) {
 
 /// Adjust the line with missing eol, used for the next write.
 pub fn write_lnum_adjust(offset: Linenr) {
-    {
-        if curbuf_mut().b_no_eol_lnum != 0 {
-            curbuf_mut().b_no_eol_lnum += offset;
-        }
+    if curbuf_mut().b_no_eol_lnum != 0 {
+        curbuf_mut().b_no_eol_lnum += offset;
     }
 }
 
 /// Creates a directory for private use by this instance of Nvim.
 fn vim_mktempdir() {
+    #[cfg(windows)]
+    const TEMP_DIRS: [&CStr; 5] = [c"$TMPDIR", c"$TMP", c"$TEMP", c"$USERPROFILE", c""];
+    #[cfg(not(windows))]
+    const TEMP_DIRS: [&CStr; 4] = [c"$TMPDIR", c"/tmp", c".", c"~"];
+
+    let mut tmp: [c_char; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
+    let mut path: [c_char; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
+    let mut user: [c_char; 40] = [0; 40];
+
+    os_get_username(user.as_mut_ptr(), user.len());
     {
-        #[cfg(windows)]
-        const TEMP_DIRS: [&CStr; 5] = [c"$TMPDIR", c"$TMP", c"$TEMP", c"$USERPROFILE", c""];
-        #[cfg(not(windows))]
-        const TEMP_DIRS: [&CStr; 4] = [c"$TMPDIR", c"/tmp", c".", c"~"];
-
-        let mut tmp: [c_char; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
-        let mut path: [c_char; TEMP_FILE_PATH_MAXLEN] = [0; TEMP_FILE_PATH_MAXLEN];
-        let mut user: [c_char; 40] = [0; 40];
-
-        os_get_username(user.as_mut_ptr(), user.len());
-        {
-            let _d = (user.as_mut_ptr()).cast::<u8>();
-            let _sz = user.len();
-            if _sz > 0 {
-                let _c = (b'/' as c_char) as u8;
-                let _x = (b'_' as c_char) as u8;
-                for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
-                    if *_b == _c {
-                        *_b = _x;
-                    }
+        let _d = (user.as_mut_ptr()).cast::<u8>();
+        let _sz = user.len();
+        if _sz > 0 {
+            let _c = (b'/' as c_char) as u8;
+            let _x = (b'_' as c_char) as u8;
+            for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
+                if *_b == _c {
+                    *_b = _x;
                 }
             }
-        };
-        {
-            let _d = (user.as_mut_ptr()).cast::<u8>();
-            let _sz = user.len();
-            if _sz > 0 {
-                let _c = (b'\\' as c_char) as u8;
-                let _x = (b'_' as c_char) as u8;
-                for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
-                    if *_b == _c {
-                        *_b = _x;
-                    }
+        }
+    };
+    {
+        let _d = (user.as_mut_ptr()).cast::<u8>();
+        let _sz = user.len();
+        if _sz > 0 {
+            let _c = (b'\\' as c_char) as u8;
+            let _x = (b'_' as c_char) as u8;
+            for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
+                if *_b == _c {
+                    *_b = _x;
                 }
             }
-        };
+        }
+    };
 
-        let umask_save = call_umask(0o077);
-        for temp_dir in TEMP_DIRS {
-            let mut tmplen = expand_env(
-                temp_dir.as_ptr().cast_mut(),
-                tmp.as_mut_ptr(),
-                (TEMP_FILE_PATH_MAXLEN - 64) as i32,
-            );
-            if !os_isdir(tmp.as_ptr()) {
-                if crate::memory::cstr_as_opt_bytes(temp_dir.as_ptr()) == Some(b"$TMPDIR") {
-                    if !os_env_exists(c"TMPDIR", true) {
-                        logmsg!(
-                            LOG_DEBUG,
-                            ptr::null(),
-                            c"vim_mktempdir",
-                            0,
-                            true,
-                            c"$TMPDIR is unset",
-                        );
-                    } else {
-                        logmsg!(
-                            LOG_WARN,
-                            ptr::null(),
-                            c"vim_mktempdir",
-                            0,
-                            true,
-                            c"$TMPDIR tempdir not a directory (or does not exist): \"%s\"",
-                            tmp.as_ptr(),
-                        );
-                    }
+    let umask_save = call_umask(0o077);
+    for temp_dir in TEMP_DIRS {
+        let mut tmplen = expand_env(
+            temp_dir.as_ptr().cast_mut(),
+            tmp.as_mut_ptr(),
+            (TEMP_FILE_PATH_MAXLEN - 64) as i32,
+        );
+        if !os_isdir(tmp.as_ptr()) {
+            if crate::memory::cstr_as_opt_bytes(temp_dir.as_ptr()) == Some(b"$TMPDIR") {
+                if !os_env_exists(c"TMPDIR", true) {
+                    logmsg!(
+                        LOG_DEBUG,
+                        ptr::null(),
+                        c"vim_mktempdir",
+                        0,
+                        true,
+                        c"$TMPDIR is unset",
+                    );
+                } else {
+                    logmsg!(
+                        LOG_WARN,
+                        ptr::null(),
+                        c"vim_mktempdir",
+                        0,
+                        true,
+                        c"$TMPDIR tempdir not a directory (or does not exist): \"%s\"",
+                        tmp.as_ptr(),
+                    );
                 }
-                continue;
             }
+            continue;
+        }
 
+        if after_pathsep(tmp.as_ptr(), tmp.as_ptr().wrapping_add(tmplen)) == 0 {
+            tmplen += vim_snprintf!(
+                tmp.as_mut_ptr().wrapping_add(tmplen),
+                tmp.len() - tmplen,
+                c"%s",
+                PATHSEPSTR,
+            ) as usize;
+            debug_assert!(tmplen < tmp.len());
+        }
+        tmplen += vim_snprintf!(
+            tmp.as_mut_ptr().wrapping_add(tmplen),
+            tmp.len() - tmplen,
+            c"nvim.%s",
+            user.as_ptr(),
+        ) as usize;
+        debug_assert!(tmplen < tmp.len());
+        os_mkdir(tmp.as_ptr(), 0o700);
+        let owned = os_file_owned(tmp.as_ptr());
+        let isdir = os_isdir(tmp.as_ptr());
+        #[cfg(unix)]
+        let perm = os_getperm(tmp.as_ptr());
+        #[cfg(unix)]
+        let valid = isdir && owned && 0o700 == (perm & 0o777);
+        #[cfg(not(unix))]
+        let valid = isdir && owned;
+        if valid {
             if after_pathsep(tmp.as_ptr(), tmp.as_ptr().wrapping_add(tmplen)) == 0 {
                 tmplen += vim_snprintf!(
                     tmp.as_mut_ptr().wrapping_add(tmplen),
@@ -4359,101 +4356,74 @@ fn vim_mktempdir() {
                 ) as usize;
                 debug_assert!(tmplen < tmp.len());
             }
-            tmplen += vim_snprintf!(
-                tmp.as_mut_ptr().wrapping_add(tmplen),
-                tmp.len() - tmplen,
-                c"nvim.%s",
-                user.as_ptr(),
-            ) as usize;
-            debug_assert!(tmplen < tmp.len());
-            os_mkdir(tmp.as_ptr(), 0o700);
-            let owned = os_file_owned(tmp.as_ptr());
-            let isdir = os_isdir(tmp.as_ptr());
-            #[cfg(unix)]
-            let perm = os_getperm(tmp.as_ptr());
-            #[cfg(unix)]
-            let valid = isdir && owned && 0o700 == (perm & 0o777);
-            #[cfg(not(unix))]
-            let valid = isdir && owned;
-            if valid {
-                if after_pathsep(tmp.as_ptr(), tmp.as_ptr().wrapping_add(tmplen)) == 0 {
-                    tmplen += vim_snprintf!(
-                        tmp.as_mut_ptr().wrapping_add(tmplen),
-                        tmp.len() - tmplen,
-                        c"%s",
-                        PATHSEPSTR,
-                    ) as usize;
-                    debug_assert!(tmplen < tmp.len());
-                }
-            } else {
-                if !owned {
-                    logmsg!(
-                        LOG_ERR,
-                        ptr::null(),
-                        c"vim_mktempdir",
-                        0,
-                        true,
-                        c"tempdir root not owned by current user (%s): %s",
-                        user.as_ptr(),
-                        tmp.as_ptr(),
-                    );
-                } else if !isdir {
-                    logmsg!(
-                        LOG_ERR,
-                        ptr::null(),
-                        c"vim_mktempdir",
-                        0,
-                        true,
-                        c"tempdir root not a directory: %s",
-                        tmp.as_ptr(),
-                    );
-                }
-                #[cfg(unix)]
-                if 0o700 != (perm & 0o777) {
-                    logmsg!(
-                        LOG_ERR,
-                        ptr::null(),
-                        c"vim_mktempdir",
-                        0,
-                        true,
-                        c"tempdir root has invalid permissions (%o): %s",
-                        perm,
-                        tmp.as_ptr(),
-                    );
-                }
-                tmplen -= crate::memory::cstr_len(user.as_ptr());
-                tmp[tmplen] = NUL;
-            }
-
-            tmplen += vim_snprintf!(
-                tmp.as_mut_ptr().wrapping_add(tmplen),
-                tmp.len() - tmplen,
-                c"XXXXXX",
-            ) as usize;
-            debug_assert!(tmplen < tmp.len());
-            let _ = tmplen;
-            let r = os_mkdtemp(tmp.as_ptr(), path.as_mut_ptr());
-            if r != 0 {
+        } else {
+            if !owned {
                 logmsg!(
-                    LOG_WARN,
+                    LOG_ERR,
                     ptr::null(),
                     c"vim_mktempdir",
                     0,
                     true,
-                    c"tempdir create failed: %s: %s",
-                    unsafe { uv_strerror(r) },
+                    c"tempdir root not owned by current user (%s): %s",
+                    user.as_ptr(),
                     tmp.as_ptr(),
                 );
-                continue;
+            } else if !isdir {
+                logmsg!(
+                    LOG_ERR,
+                    ptr::null(),
+                    c"vim_mktempdir",
+                    0,
+                    true,
+                    c"tempdir root not a directory: %s",
+                    tmp.as_ptr(),
+                );
             }
-
-            if vim_settempdir(path.as_mut_ptr()) {
-                break;
+            #[cfg(unix)]
+            if 0o700 != (perm & 0o777) {
+                logmsg!(
+                    LOG_ERR,
+                    ptr::null(),
+                    c"vim_mktempdir",
+                    0,
+                    true,
+                    c"tempdir root has invalid permissions (%o): %s",
+                    perm,
+                    tmp.as_ptr(),
+                );
             }
-            os_rmdir(path.as_ptr());
+            tmplen -= crate::memory::cstr_len(user.as_ptr());
+            tmp[tmplen] = NUL;
         }
-        call_umask(umask_save);
+
+        tmplen += vim_snprintf!(
+            tmp.as_mut_ptr().wrapping_add(tmplen),
+            tmp.len() - tmplen,
+            c"XXXXXX",
+        ) as usize;
+        debug_assert!(tmplen < tmp.len());
+        let _ = tmplen;
+        let r = os_mkdtemp(tmp.as_ptr(), path.as_mut_ptr());
+        if r != 0 {
+            logmsg!(
+                LOG_WARN,
+                ptr::null(),
+                c"vim_mktempdir",
+                0,
+                true,
+                c"tempdir create failed: %s: %s",
+                unsafe { uv_strerror(r) },
+                tmp.as_ptr(),
+            );
+            continue;
+        }
+
+        if vim_settempdir(path.as_mut_ptr()) {
+            break;
+        }
+        os_rmdir(path.as_ptr());
     }
+    call_umask(umask_save);
 }
 
 /// Core part of "readdir()" function.
@@ -4578,62 +4548,55 @@ fn vim_closetempdir() {
 
 /// Delete the temp directory and all files it contains.
 pub fn vim_deltempdir() {
-    {
-        let Some(td) = fio_st().vim_tempdir.take() else {
-            return;
-        };
+    let Some(td) = fio_st().vim_tempdir.take() else {
+        return;
+    };
 
-        #[cfg(unix)]
-        vim_closetempdir();
+    #[cfg(unix)]
+    vim_closetempdir();
 
-        let mut td_vec: Vec<c_char> = td
-            .into_bytes_with_nul()
-            .into_iter()
-            .map(|b| b as c_char)
-            .collect();
-        unsafe {
-            *path_tail(td_vec.as_mut_ptr()).wrapping_sub(1) = NUL;
-        }
-        delete_recursive(td_vec.as_ptr());
+    let mut td_vec: Vec<c_char> = td
+        .into_bytes_with_nul()
+        .into_iter()
+        .map(|b| b as c_char)
+        .collect();
+    unsafe {
+        *path_tail(td_vec.as_mut_ptr()).wrapping_sub(1) = NUL;
     }
+    delete_recursive(td_vec.as_ptr());
 }
 
 /// Gets path to Nvim's own temp dir (ending with slash).
 pub fn vim_gettempdir() -> *mut c_char {
-    {
-        let current_td = unsafe { (&raw const fio_st().vim_tempdir).as_ref() }
-            .unwrap()
-            .as_ref()
-            .map_or(ptr::null(), |s| s.as_ptr());
-        if current_td.is_null() || !os_isdir(current_td) {
-            if !current_td.is_null() {
-                fio_st().notfound += 1;
-                if fio_st().notfound == 1 {
-                    logmsg!(
-                        LOG_ERR,
-                        ptr::null(),
-                        c"vim_gettempdir",
-                        0,
-                        true,
-                        c"tempdir disappeared (antivirus or broken cleanup job?): %s",
-                        current_td,
-                    );
-                }
-                if fio_st().notfound > 1 {
-                    msg_schedule_semsg!(
-                        c"E5431: tempdir disappeared (%d times)",
-                        fio_st().notfound
-                    );
-                }
-                fio_st().vim_tempdir = None;
+    let current_td = unsafe { (&raw const fio_st().vim_tempdir).as_ref() }
+        .unwrap()
+        .as_ref()
+        .map_or(ptr::null(), |s| s.as_ptr());
+    if current_td.is_null() || !os_isdir(current_td) {
+        if !current_td.is_null() {
+            fio_st().notfound += 1;
+            if fio_st().notfound == 1 {
+                logmsg!(
+                    LOG_ERR,
+                    ptr::null(),
+                    c"vim_gettempdir",
+                    0,
+                    true,
+                    c"tempdir disappeared (antivirus or broken cleanup job?): %s",
+                    current_td,
+                );
             }
-            vim_mktempdir();
+            if fio_st().notfound > 1 {
+                msg_schedule_semsg!(c"E5431: tempdir disappeared (%d times)", fio_st().notfound);
+            }
+            fio_st().vim_tempdir = None;
         }
-        unsafe { (&raw const fio_st().vim_tempdir).as_ref() }
-            .unwrap()
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+        vim_mktempdir();
     }
+    unsafe { (&raw const fio_st().vim_tempdir).as_ref() }
+        .unwrap()
+        .as_ref()
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
 }
 
 /// Sets Nvim's own temporary directory name to `tempdir`.
@@ -4728,33 +4691,30 @@ pub fn match_file_pat(
 
 /// Check if a file matches with a pattern in "list".
 pub fn match_file_list(list: *mut c_char, sfname: *mut c_char, ffname: *mut c_char) -> bool {
-    {
-        let tail = path_tail(sfname);
+    let tail = path_tail(sfname);
 
-        let mut p = list;
-        while !crate::memory::cstr_is_empty(p) {
-            let mut buf: [c_char; MAXPATHL] = [0; MAXPATHL];
-            copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",");
-            let mut allow_dirs: c_char = 0;
-            let Some(regpat) =
-                file_pat_to_reg_pat(buf.as_ptr(), ptr::null(), &raw mut allow_dirs, 0)
-            else {
-                break;
-            };
-            let matched = match_file_pat(
-                regpat.as_ptr().cast_mut(),
-                None,
-                ffname,
-                sfname,
-                tail,
-                i32::from(allow_dirs),
-            );
-            if matched {
-                return true;
-            }
+    let mut p = list;
+    while !crate::memory::cstr_is_empty(p) {
+        let mut buf: [c_char; MAXPATHL] = [0; MAXPATHL];
+        copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",");
+        let mut allow_dirs: c_char = 0;
+        let Some(regpat) = file_pat_to_reg_pat(buf.as_ptr(), ptr::null(), &raw mut allow_dirs, 0)
+        else {
+            break;
+        };
+        let matched = match_file_pat(
+            regpat.as_ptr().cast_mut(),
+            None,
+            ffname,
+            sfname,
+            tail,
+            i32::from(allow_dirs),
+        );
+        if matched {
+            return true;
         }
-        false
     }
+    false
 }
 
 /// Convert the given pattern "pat" which has shell style wildcards in it, into
@@ -4969,42 +4929,37 @@ pub fn file_pat_to_reg_pat(
 
 /// Version of read() that retries when interrupted by EINTR.
 pub fn read_eintr(fd: i32, buf: *mut c_void, bufsize: usize) -> isize {
-    {
-        loop {
-            #[cfg(windows)]
-            let ret = unsafe { _read(fd, buf, bufsize as u32) } as isize;
-            #[cfg(not(windows))]
-            let ret = read(fd, buf, bufsize);
-            if ret >= 0 || os_errno() != EINTR {
-                return ret;
-            }
+    loop {
+        #[cfg(windows)]
+        let ret = unsafe { _read(fd, buf, bufsize as u32) } as isize;
+        #[cfg(not(windows))]
+        let ret = read(fd, buf, bufsize);
+        if ret >= 0 || os_errno() != EINTR {
+            return ret;
         }
     }
 }
 
 /// Version of write() that retries when interrupted by EINTR.
 pub fn write_eintr(fd: i32, buf: *const c_void, bufsize: usize) -> isize {
-    {
-        let mut ret: isize = 0;
+    let mut ret: isize = 0;
 
-        while (ret as usize) < bufsize {
-            let rem = bufsize - (ret as usize);
-            #[cfg(windows)]
-            let wlen =
-                unsafe { _write(fd, buf.cast::<u8>().wrapping_offset(ret).cast(), rem as u32) }
-                    as isize;
-            #[cfg(not(windows))]
-            let wlen = write(fd, buf.cast::<u8>().offset(ret).cast(), rem);
-            if wlen < 0 {
-                if os_errno() != EINTR {
-                    break;
-                }
-            } else {
-                ret += wlen;
+    while (ret as usize) < bufsize {
+        let rem = bufsize - (ret as usize);
+        #[cfg(windows)]
+        let wlen = unsafe { _write(fd, buf.cast::<u8>().wrapping_offset(ret).cast(), rem as u32) }
+            as isize;
+        #[cfg(not(windows))]
+        let wlen = write(fd, buf.cast::<u8>().offset(ret).cast(), rem);
+        if wlen < 0 {
+            if os_errno() != EINTR {
+                break;
             }
+        } else {
+            ret += wlen;
         }
-        ret
     }
+    ret
 }
 
 pub fn vim_fprintf_fmt(
@@ -5105,26 +5060,24 @@ mod tests {
 
     #[test]
     fn test_check_for_bom() {
-        {
-            let mut len = 0;
-            let utf8_bom = [0xefu8, 0xbb, 0xbf, b'a'];
-            let enc = check_for_bom(utf8_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
-            assert!(!enc.is_null());
-            assert_eq!(crate::memory::cstr_from_ptr(enc), c"utf-8");
-            assert_eq!(len, 3);
+        let mut len = 0;
+        let utf8_bom = [0xefu8, 0xbb, 0xbf, b'a'];
+        let enc = check_for_bom(utf8_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
+        assert!(!enc.is_null());
+        assert_eq!(crate::memory::cstr_from_ptr(enc), c"utf-8");
+        assert_eq!(len, 3);
 
-            let utf16le_bom = [0xffu8, 0xfe, b'a', 0];
-            let enc = check_for_bom(utf16le_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
-            assert!(!enc.is_null());
-            assert_eq!(crate::memory::cstr_from_ptr(enc), c"utf-16le");
-            assert_eq!(len, 2);
+        let utf16le_bom = [0xffu8, 0xfe, b'a', 0];
+        let enc = check_for_bom(utf16le_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
+        assert!(!enc.is_null());
+        assert_eq!(crate::memory::cstr_from_ptr(enc), c"utf-16le");
+        assert_eq!(len, 2);
 
-            let ucs4le_bom = [0xffu8, 0xfe, 0x00, 0x00];
-            let enc = check_for_bom(ucs4le_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
-            assert!(!enc.is_null());
-            assert_eq!(crate::memory::cstr_from_ptr(enc), c"ucs-4le");
-            assert_eq!(len, 4);
-        }
+        let ucs4le_bom = [0xffu8, 0xfe, 0x00, 0x00];
+        let enc = check_for_bom(ucs4le_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
+        assert!(!enc.is_null());
+        assert_eq!(crate::memory::cstr_from_ptr(enc), c"ucs-4le");
+        assert_eq!(len, 4);
     }
 
     #[test]

@@ -101,72 +101,70 @@ unsafe extern "C" {
 }
 
 pub fn signal_init() {
-    {
-        #[cfg(unix)]
-        unsafe {
-            let mut mask = [0u64; 16];
-            sigemptyset((&raw mut mask).cast());
-            if pthread_sigmask(SIG_SETMASK, (&raw const mask).cast(), ptr::null_mut()) != 0 {
-                logmsg!(
-                    LOGLVL_ERR,
-                    ptr::null(),
-                    c"signal_init",
-                    line!() as i32,
-                    true,
-                    c"Could not unblock signals, nvim might behave strangely.",
-                );
-            }
+    #[cfg(unix)]
+    unsafe {
+        let mut mask = [0u64; 16];
+        sigemptyset((&raw mut mask).cast());
+        if pthread_sigmask(SIG_SETMASK, (&raw const mask).cast(), ptr::null_mut()) != 0 {
+            logmsg!(
+                LOGLVL_ERR,
+                ptr::null(),
+                c"signal_init",
+                line!() as i32,
+                true,
+                c"Could not unblock signals, nvim might behave strangely.",
+            );
         }
-
-        signal_watcher_init(
-            &mut g_st().main_loop,
-            &raw mut sig_st().spipe,
-            ptr::null_mut(),
-        );
-        signal_watcher_init(
-            &mut g_st().main_loop,
-            &raw mut sig_st().shup,
-            ptr::null_mut(),
-        );
-        signal_watcher_init(
-            &mut g_st().main_loop,
-            &raw mut sig_st().sint,
-            ptr::null_mut(),
-        );
-        signal_watcher_init(
-            &mut g_st().main_loop,
-            &raw mut sig_st().squit,
-            ptr::null_mut(),
-        );
-        signal_watcher_init(
-            &mut g_st().main_loop,
-            &raw mut sig_st().sterm,
-            ptr::null_mut(),
-        );
-        signal_watcher_init(
-            &mut g_st().main_loop,
-            &raw mut sig_st().ststp,
-            ptr::null_mut(),
-        );
-        #[cfg(target_os = "linux")]
-        signal_watcher_init(
-            &mut g_st().main_loop,
-            &raw mut sig_st().spwr,
-            ptr::null_mut(),
-        );
-        #[cfg(unix)]
-        signal_watcher_init(
-            &mut g_st().main_loop,
-            &raw mut sig_st().susr1,
-            ptr::null_mut(),
-        );
-        signal_watcher_init(
-            &mut g_st().main_loop,
-            &raw mut sig_st().swinch,
-            ptr::null_mut(),
-        );
-        signal_start();
     }
+
+    signal_watcher_init(
+        &mut g_st().main_loop,
+        &raw mut sig_st().spipe,
+        ptr::null_mut(),
+    );
+    signal_watcher_init(
+        &mut g_st().main_loop,
+        &raw mut sig_st().shup,
+        ptr::null_mut(),
+    );
+    signal_watcher_init(
+        &mut g_st().main_loop,
+        &raw mut sig_st().sint,
+        ptr::null_mut(),
+    );
+    signal_watcher_init(
+        &mut g_st().main_loop,
+        &raw mut sig_st().squit,
+        ptr::null_mut(),
+    );
+    signal_watcher_init(
+        &mut g_st().main_loop,
+        &raw mut sig_st().sterm,
+        ptr::null_mut(),
+    );
+    signal_watcher_init(
+        &mut g_st().main_loop,
+        &raw mut sig_st().ststp,
+        ptr::null_mut(),
+    );
+    #[cfg(target_os = "linux")]
+    signal_watcher_init(
+        &mut g_st().main_loop,
+        &raw mut sig_st().spwr,
+        ptr::null_mut(),
+    );
+    #[cfg(unix)]
+    signal_watcher_init(
+        &mut g_st().main_loop,
+        &raw mut sig_st().susr1,
+        ptr::null_mut(),
+    );
+    signal_watcher_init(
+        &mut g_st().main_loop,
+        &raw mut sig_st().swinch,
+        ptr::null_mut(),
+    );
+    signal_start();
 }
 
 /// During shutdown, we don't want the default actions of these signals.

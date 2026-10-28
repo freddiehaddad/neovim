@@ -298,287 +298,285 @@ pub fn nvim_parse_cmd(
     arena: &mut Arena,
     err: &mut Error,
 ) -> KeyDict_cmd {
-    {
-        let mut result = KeyDict_cmd::default();
-        let mut ea: Exarg = Exarg::new();
-        let mut cmod: Cmdmod = Cmdmod::new();
-        let mut cmdline = arena_memdupz(arena, str_val.data, str_val.size);
-        let mut cmdline_buf: Vec<c_char> = Vec::new();
-        let mut errormsg: *const c_char = ptr::null();
+    let mut result = KeyDict_cmd::default();
+    let mut ea: Exarg = Exarg::new();
+    let mut cmod: Cmdmod = Cmdmod::new();
+    let mut cmdline = arena_memdupz(arena, str_val.data, str_val.size);
+    let mut cmdline_buf: Vec<c_char> = Vec::new();
+    let mut errormsg: *const c_char = ptr::null();
 
-        if !parse_cmdline(
-            &mut cmdline,
-            &mut cmdline_buf,
-            &mut ea,
-            &mut cmod,
-            &mut errormsg,
-            false,
-        ) {
-            if !errormsg.is_null() {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"Parsing command-line: %s",
-                    errormsg,
-                );
-            } else {
-                api_set_error!(err, ErrorType::ErrorTypeException, c"Parsing command-line",);
-            }
-            return result;
-        }
-
-        let mut args = Array::new();
-        let length = crate::memory::cstr_len(ea.arg);
-
-        if ea.cmdidx != CMD_SIZE
-            && is_map_cmd(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))
-            && !crate::memory::cstr_is_empty(ea.arg)
-        {
-            args = parse_map_cmd(ea.arg, arena);
-        } else if (ea.argt & EX_NOSPC) != 0 {
-            if !crate::memory::cstr_is_empty(ea.arg) {
-                args = arena_array(arena, 1);
-                add_c(&mut args, string_obj(cstrn_as_string(ea.arg, length)));
-            }
+    if !parse_cmdline(
+        &mut cmdline,
+        &mut cmdline_buf,
+        &mut ea,
+        &mut cmod,
+        &mut errormsg,
+        false,
+    ) {
+        if !errormsg.is_null() {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Parsing command-line: %s",
+                errormsg,
+            );
         } else {
-            let mut end: usize = 0;
-            let mut len: usize = 0;
-            let mut buf = arena_alloc(arena, length + 1, false).cast::<c_char>();
-            let mut done = false;
-            args = arena_array(arena, uc_nargs_upper_bound(ea.arg, length));
-
-            while !done {
-                done = uc_split_args_iter(ea.arg, length, &mut end, buf, &mut len);
-                if len > 0 {
-                    add_c(&mut args, string_obj(cstrn_as_string(buf, len)));
-                    buf = buf.wrapping_add(len + 1);
-                }
-            }
+            api_set_error!(err, ErrorType::ErrorTypeException, c"Parsing command-line",);
         }
-
-        let cmd = if ea.cmdidx == CMD_USER {
-            let u = ucmds_mut();
-            Some(&(u)[ea.useridx as usize])
-        } else if ea.cmdidx == CMD_USER_BUF {
-            Some(&(&curbuf_mut().b_ucmds)[ea.useridx as usize])
-        } else {
-            None
-        };
-
-        let name = if ea.cmdidx == CMD_SIZE {
-            c"".as_ptr()
-        } else if let Some(cmd) = cmd {
-            cmd.uc_name.as_ptr()
-        } else {
-            get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
-        };
-
-        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_CMD;
-        result.cmd = cstr_as_string(name);
-
-        if (ea.argt & EX_RANGE) != 0 && ea.addr_count > 0 {
-            let mut range = arena_array(arena, 2);
-            if ea.addr_count > 1 {
-                add_c(&mut range, integer_obj(i64::from(ea.line1)));
-            }
-            add_c(&mut range, integer_obj(i64::from(ea.line2)));
-            result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_RANGE;
-            result.range = range;
-        }
-
-        if (ea.argt & EX_COUNT) != 0 {
-            let count = if ea.addr_count > 0 {
-                i64::from(ea.line2)
-            } else if let Some(cmd) = cmd {
-                cmd.uc_def
-            } else {
-                0
-            };
-            if ea.addr_count > 0 || cmd.is_some_and(|c| c.uc_def != 0) || count != 0 {
-                result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_COUNT;
-                result.count = count;
-            }
-        }
-
-        if (ea.argt & EX_REGSTR) != 0 {
-            let reg = [ea.regname as c_char, NUL];
-            result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_REG;
-            result.reg = cstr_to_arena_str(arena, reg.as_ptr());
-        }
-
-        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_BANG;
-        result.bang = ea.forceit != 0;
-        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_ARGS;
-        result.args = args;
-
-        let nargs_ch = if (ea.argt & EX_EXTRA) != 0 {
-            if (ea.argt & EX_NOSPC) != 0 {
-                if (ea.argt & EX_ARGSPACE) != 0 {
-                    b'_'
-                } else if (ea.argt & EX_NEEDARG) != 0 {
-                    b'1'
-                } else {
-                    b'?'
-                }
-            } else if (ea.argt & EX_NEEDARG) != 0 {
-                b'+'
-            } else {
-                b'*'
-            }
-        } else {
-            b'0'
-        };
-        let nargs = [nargs_ch as c_char, NUL];
-        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_NARGS;
-        result.nargs = string_obj(cstr_to_arena_str(arena, nargs.as_ptr()));
-
-        let addr = match ea.addr_type {
-            ADDR_LINES => c"line".as_ptr(),
-            ADDR_ARGUMENTS => c"arg".as_ptr(),
-            ADDR_BUFFERS => c"buf".as_ptr(),
-            ADDR_LOADED_BUFFERS => c"load".as_ptr(),
-            ADDR_WINDOWS => c"win".as_ptr(),
-            ADDR_TABS => c"tab".as_ptr(),
-            ADDR_QUICKFIX => c"qf".as_ptr(),
-            ADDR_NONE => c"none".as_ptr(),
-            _ => c"?".as_ptr(),
-        };
-        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_ADDR;
-        result.addr = cstr_as_string(addr);
-        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_NEXTCMD;
-        result.nextcmd = cstr_as_string(ea.nextcmd);
-
-        let mut mods = arena_dict(arena, 20);
-        let mut filter = arena_dict(arena, 2);
-        put_c(
-            &mut filter,
-            c"pattern",
-            string_obj(cstr_to_arena_str(
-                arena,
-                cmod.cmod_filter_pat
-                    .as_ref()
-                    .map_or(ptr::null(), |s| s.as_ptr()),
-            )),
-        );
-        put_c(&mut filter, c"force", boolean_obj(cmod.cmod_filter_force));
-        put_c(&mut mods, c"filter", dict_obj(filter));
-
-        put_c(
-            &mut mods,
-            c"silent",
-            boolean_obj((cmod.cmod_flags & CMOD_SILENT) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"emsg_silent",
-            boolean_obj((cmod.cmod_flags & CMOD_ERRSILENT) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"unsilent",
-            boolean_obj((cmod.cmod_flags & CMOD_UNSILENT) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"sandbox",
-            boolean_obj((cmod.cmod_flags & CMOD_SANDBOX) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"noautocmd",
-            boolean_obj((cmod.cmod_flags & CMOD_NOAUTOCMD) != 0),
-        );
-        put_c(&mut mods, c"tab", integer_obj(i64::from(cmod.cmod_tab - 1)));
-        put_c(
-            &mut mods,
-            c"verbose",
-            integer_obj(i64::from(cmod.cmod_verbose - 1)),
-        );
-        put_c(
-            &mut mods,
-            c"browse",
-            boolean_obj((cmod.cmod_flags & CMOD_BROWSE) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"confirm",
-            boolean_obj((cmod.cmod_flags & CMOD_CONFIRM) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"hide",
-            boolean_obj((cmod.cmod_flags & CMOD_HIDE) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"keepalt",
-            boolean_obj((cmod.cmod_flags & CMOD_KEEPALT) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"keepjumps",
-            boolean_obj((cmod.cmod_flags & CMOD_KEEPJUMPS) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"keepmarks",
-            boolean_obj((cmod.cmod_flags & CMOD_KEEPMARKS) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"keeppatterns",
-            boolean_obj((cmod.cmod_flags & CMOD_KEEPPATTERNS) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"lockmarks",
-            boolean_obj((cmod.cmod_flags & CMOD_LOCKMARKS) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"noswapfile",
-            boolean_obj((cmod.cmod_flags & CMOD_NOSWAPFILE) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"vertical",
-            boolean_obj((cmod.cmod_split & WSP_VERT) != 0),
-        );
-        put_c(
-            &mut mods,
-            c"horizontal",
-            boolean_obj((cmod.cmod_split & WSP_HOR) != 0),
-        );
-
-        let split = if (cmod.cmod_split & WSP_BOT) != 0 {
-            c"botright"
-        } else if (cmod.cmod_split & WSP_TOP) != 0 {
-            c"topleft"
-        } else if (cmod.cmod_split & WSP_BELOW) != 0 {
-            c"belowright"
-        } else if (cmod.cmod_split & WSP_ABOVE) != 0 {
-            c"aboveleft"
-        } else {
-            c""
-        };
-        put_c(
-            &mut mods,
-            c"split",
-            string_obj(static_cstr_as_string(split)),
-        );
-
-        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_MODS;
-        result.mods = mods;
-
-        let mut magic = arena_dict(arena, 2);
-        put_c(&mut magic, c"file", boolean_obj(ea.magic.file));
-        put_c(&mut magic, c"bar", boolean_obj(ea.magic.bar));
-        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_MAGIC;
-        result.magic = magic;
-
-        undo_cmdmod(&mut cmod);
-        result
+        return result;
     }
+
+    let mut args = Array::new();
+    let length = crate::memory::cstr_len(ea.arg);
+
+    if ea.cmdidx != CMD_SIZE
+        && is_map_cmd(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))
+        && !crate::memory::cstr_is_empty(ea.arg)
+    {
+        args = parse_map_cmd(ea.arg, arena);
+    } else if (ea.argt & EX_NOSPC) != 0 {
+        if !crate::memory::cstr_is_empty(ea.arg) {
+            args = arena_array(arena, 1);
+            add_c(&mut args, string_obj(cstrn_as_string(ea.arg, length)));
+        }
+    } else {
+        let mut end: usize = 0;
+        let mut len: usize = 0;
+        let mut buf = arena_alloc(arena, length + 1, false).cast::<c_char>();
+        let mut done = false;
+        args = arena_array(arena, uc_nargs_upper_bound(ea.arg, length));
+
+        while !done {
+            done = uc_split_args_iter(ea.arg, length, &mut end, buf, &mut len);
+            if len > 0 {
+                add_c(&mut args, string_obj(cstrn_as_string(buf, len)));
+                buf = buf.wrapping_add(len + 1);
+            }
+        }
+    }
+
+    let cmd = if ea.cmdidx == CMD_USER {
+        let u = ucmds_mut();
+        Some(&(u)[ea.useridx as usize])
+    } else if ea.cmdidx == CMD_USER_BUF {
+        Some(&(&curbuf_mut().b_ucmds)[ea.useridx as usize])
+    } else {
+        None
+    };
+
+    let name = if ea.cmdidx == CMD_SIZE {
+        c"".as_ptr()
+    } else if let Some(cmd) = cmd {
+        cmd.uc_name.as_ptr()
+    } else {
+        get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
+    };
+
+    result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_CMD;
+    result.cmd = cstr_as_string(name);
+
+    if (ea.argt & EX_RANGE) != 0 && ea.addr_count > 0 {
+        let mut range = arena_array(arena, 2);
+        if ea.addr_count > 1 {
+            add_c(&mut range, integer_obj(i64::from(ea.line1)));
+        }
+        add_c(&mut range, integer_obj(i64::from(ea.line2)));
+        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_RANGE;
+        result.range = range;
+    }
+
+    if (ea.argt & EX_COUNT) != 0 {
+        let count = if ea.addr_count > 0 {
+            i64::from(ea.line2)
+        } else if let Some(cmd) = cmd {
+            cmd.uc_def
+        } else {
+            0
+        };
+        if ea.addr_count > 0 || cmd.is_some_and(|c| c.uc_def != 0) || count != 0 {
+            result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_COUNT;
+            result.count = count;
+        }
+    }
+
+    if (ea.argt & EX_REGSTR) != 0 {
+        let reg = [ea.regname as c_char, NUL];
+        result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_REG;
+        result.reg = cstr_to_arena_str(arena, reg.as_ptr());
+    }
+
+    result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_BANG;
+    result.bang = ea.forceit != 0;
+    result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_ARGS;
+    result.args = args;
+
+    let nargs_ch = if (ea.argt & EX_EXTRA) != 0 {
+        if (ea.argt & EX_NOSPC) != 0 {
+            if (ea.argt & EX_ARGSPACE) != 0 {
+                b'_'
+            } else if (ea.argt & EX_NEEDARG) != 0 {
+                b'1'
+            } else {
+                b'?'
+            }
+        } else if (ea.argt & EX_NEEDARG) != 0 {
+            b'+'
+        } else {
+            b'*'
+        }
+    } else {
+        b'0'
+    };
+    let nargs = [nargs_ch as c_char, NUL];
+    result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_NARGS;
+    result.nargs = string_obj(cstr_to_arena_str(arena, nargs.as_ptr()));
+
+    let addr = match ea.addr_type {
+        ADDR_LINES => c"line".as_ptr(),
+        ADDR_ARGUMENTS => c"arg".as_ptr(),
+        ADDR_BUFFERS => c"buf".as_ptr(),
+        ADDR_LOADED_BUFFERS => c"load".as_ptr(),
+        ADDR_WINDOWS => c"win".as_ptr(),
+        ADDR_TABS => c"tab".as_ptr(),
+        ADDR_QUICKFIX => c"qf".as_ptr(),
+        ADDR_NONE => c"none".as_ptr(),
+        _ => c"?".as_ptr(),
+    };
+    result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_ADDR;
+    result.addr = cstr_as_string(addr);
+    result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_NEXTCMD;
+    result.nextcmd = cstr_as_string(ea.nextcmd);
+
+    let mut mods = arena_dict(arena, 20);
+    let mut filter = arena_dict(arena, 2);
+    put_c(
+        &mut filter,
+        c"pattern",
+        string_obj(cstr_to_arena_str(
+            arena,
+            cmod.cmod_filter_pat
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr()),
+        )),
+    );
+    put_c(&mut filter, c"force", boolean_obj(cmod.cmod_filter_force));
+    put_c(&mut mods, c"filter", dict_obj(filter));
+
+    put_c(
+        &mut mods,
+        c"silent",
+        boolean_obj((cmod.cmod_flags & CMOD_SILENT) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"emsg_silent",
+        boolean_obj((cmod.cmod_flags & CMOD_ERRSILENT) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"unsilent",
+        boolean_obj((cmod.cmod_flags & CMOD_UNSILENT) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"sandbox",
+        boolean_obj((cmod.cmod_flags & CMOD_SANDBOX) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"noautocmd",
+        boolean_obj((cmod.cmod_flags & CMOD_NOAUTOCMD) != 0),
+    );
+    put_c(&mut mods, c"tab", integer_obj(i64::from(cmod.cmod_tab - 1)));
+    put_c(
+        &mut mods,
+        c"verbose",
+        integer_obj(i64::from(cmod.cmod_verbose - 1)),
+    );
+    put_c(
+        &mut mods,
+        c"browse",
+        boolean_obj((cmod.cmod_flags & CMOD_BROWSE) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"confirm",
+        boolean_obj((cmod.cmod_flags & CMOD_CONFIRM) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"hide",
+        boolean_obj((cmod.cmod_flags & CMOD_HIDE) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"keepalt",
+        boolean_obj((cmod.cmod_flags & CMOD_KEEPALT) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"keepjumps",
+        boolean_obj((cmod.cmod_flags & CMOD_KEEPJUMPS) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"keepmarks",
+        boolean_obj((cmod.cmod_flags & CMOD_KEEPMARKS) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"keeppatterns",
+        boolean_obj((cmod.cmod_flags & CMOD_KEEPPATTERNS) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"lockmarks",
+        boolean_obj((cmod.cmod_flags & CMOD_LOCKMARKS) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"noswapfile",
+        boolean_obj((cmod.cmod_flags & CMOD_NOSWAPFILE) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"vertical",
+        boolean_obj((cmod.cmod_split & WSP_VERT) != 0),
+    );
+    put_c(
+        &mut mods,
+        c"horizontal",
+        boolean_obj((cmod.cmod_split & WSP_HOR) != 0),
+    );
+
+    let split = if (cmod.cmod_split & WSP_BOT) != 0 {
+        c"botright"
+    } else if (cmod.cmod_split & WSP_TOP) != 0 {
+        c"topleft"
+    } else if (cmod.cmod_split & WSP_BELOW) != 0 {
+        c"belowright"
+    } else if (cmod.cmod_split & WSP_ABOVE) != 0 {
+        c"aboveleft"
+    } else {
+        c""
+    };
+    put_c(
+        &mut mods,
+        c"split",
+        string_obj(static_cstr_as_string(split)),
+    );
+
+    result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_MODS;
+    result.mods = mods;
+
+    let mut magic = arena_dict(arena, 2);
+    put_c(&mut magic, c"file", boolean_obj(ea.magic.file));
+    put_c(&mut magic, c"bar", boolean_obj(ea.magic.bar));
+    result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_MAGIC;
+    result.magic = magic;
+
+    undo_cmdmod(&mut cmod);
+    result
 }
 
 /// Executes an Ex command `cmd`, specified as a Dict with the same structure as returned by
@@ -1221,17 +1219,15 @@ pub fn nvim_cmd(
 }
 
 fn string_iswhite(str_val: NvimString) -> bool {
-    {
-        for i in 0..str_val.size {
-            let c = unsafe { *str_val.data.wrapping_add(i) };
-            if !ascii_iswhite(c) {
-                return false;
-            } else if c == NUL {
-                break;
-            }
+    for i in 0..str_val.size {
+        let c = unsafe { *str_val.data.wrapping_add(i) };
+        if !ascii_iswhite(c) {
+            return false;
+        } else if c == NUL {
+            break;
         }
-        true
     }
+    true
 }
 
 fn build_cmdline_str(
@@ -1240,39 +1236,36 @@ fn build_cmdline_str(
     eap: &mut Exarg,
     args: Array,
 ) {
-    {
-        cmdline_buf.clear();
-        cmdline_buf.reserve(32);
+    cmdline_buf.clear();
+    cmdline_buf.reserve(32);
 
-        if (eap.argt & EX_RANGE) != 0 {
-            if eap.addr_count == 1 {
-                let s = eap.line2.to_string();
-                cmdline_buf.extend(s.as_bytes().iter().map(|&b| b as c_char));
-            } else if eap.addr_count > 1 {
-                let s = format!("{},{}", eap.line1, eap.line2);
-                cmdline_buf.extend(s.as_bytes().iter().map(|&b| b as c_char));
-            }
+    if (eap.argt & EX_RANGE) != 0 {
+        if eap.addr_count == 1 {
+            let s = eap.line2.to_string();
+            cmdline_buf.extend(s.as_bytes().iter().map(|&b| b as c_char));
+        } else if eap.addr_count > 1 {
+            let s = format!("{},{}", eap.line1, eap.line2);
+            cmdline_buf.extend(s.as_bytes().iter().map(|&b| b as c_char));
         }
+    }
 
-        cmdline_buf.extend(
-            crate::memory::cstr_as_bytes(eap.cmd)
-                .iter()
-                .map(|&b| b as c_char),
-        );
+    cmdline_buf.extend(
+        crate::memory::cstr_as_bytes(eap.cmd)
+            .iter()
+            .map(|&b| b as c_char),
+    );
 
-        for i in 0..args.size {
-            let s = args[i].data.string();
-            cmdline_buf.push(b' ' as c_char);
-            if s.size > 0 {
-                cmdline_buf
-                    .extend_from_slice(unsafe { std::slice::from_raw_parts(s.data, s.size) });
-            }
+    for i in 0..args.size {
+        let s = args[i].data.string();
+        cmdline_buf.push(b' ' as c_char);
+        if s.size > 0 {
+            cmdline_buf.extend_from_slice(unsafe { std::slice::from_raw_parts(s.data, s.size) });
         }
-        cmdline_buf.push(NUL);
+    }
+    cmdline_buf.push(NUL);
 
-        unsafe {
-            *cmdlinep = cmdline_buf.as_mut_ptr();
-        }
+    unsafe {
+        *cmdlinep = cmdline_buf.as_mut_ptr();
     }
 }
 
@@ -1329,9 +1322,7 @@ pub fn nvim_create_user_command(
     opts: &mut KeyDict_user_command,
     err: &mut Error,
 ) {
-    {
-        create_user_command(channel_id, name, cmd, &mut *opts, 0, err);
-    }
+    create_user_command(channel_id, name, cmd, &mut *opts, 0, err);
 }
 
 /// Delete a user-defined command.
@@ -1341,9 +1332,7 @@ pub fn nvim_create_user_command(
 // DLLEXPORT void nvim_del_user_command(String name, Error *err)
 //   FUNC_API_SINCE(9);
 pub fn nvim_del_user_command(name: NvimString, err: &mut Error) {
-    {
-        nvim_buf_del_user_command(-1, name, err);
-    }
+    nvim_buf_del_user_command(-1, name, err);
 }
 
 /// Creates a buffer-local command |user-commands|.
@@ -1362,17 +1351,15 @@ pub fn nvim_buf_create_user_command(
     opts: &mut KeyDict_user_command,
     err: &mut Error,
 ) {
-    {
-        let target_buf = find_buffer_by_handle(buf, err);
-        if error_set(err) {
-            return;
-        }
-
-        let save_curbuf = g_st().curbuf;
-        g_st().curbuf = target_buf;
-        create_user_command(channel_id, name, cmd, &mut *opts, UC_BUFFER, err);
-        g_st().curbuf = save_curbuf;
+    let target_buf = find_buffer_by_handle(buf, err);
+    if error_set(err) {
+        return;
     }
+
+    let save_curbuf = g_st().curbuf;
+    g_st().curbuf = target_buf;
+    create_user_command(channel_id, name, cmd, &mut *opts, UC_BUFFER, err);
+    g_st().curbuf = save_curbuf;
 }
 
 /// Delete a buffer-local user-defined command.
@@ -1424,270 +1411,268 @@ pub fn create_user_command(
     flags: i32,
     err: &mut Error,
 ) {
-    {
-        let mut argt: u32 = 0;
-        let mut def: i64 = -1;
-        let mut addr_type_arg: CmdAddr = ADDR_NONE;
-        let mut context: i32 = EXPAND_NOTHING;
-        let mut compl_arg: Option<std::ffi::CString> = None;
-        let rep: *const c_char;
-        let mut luaref: LuaRef = LUA_NOREF;
-        let mut compl_luaref: LuaRef = LUA_NOREF;
-        let mut preview_luaref: LuaRef = LUA_NOREF;
+    let mut argt: u32 = 0;
+    let mut def: i64 = -1;
+    let mut addr_type_arg: CmdAddr = ADDR_NONE;
+    let mut context: i32 = EXPAND_NOTHING;
+    let mut compl_arg: Option<std::ffi::CString> = None;
+    let rep: *const c_char;
+    let mut luaref: LuaRef = LUA_NOREF;
+    let mut compl_luaref: LuaRef = LUA_NOREF;
+    let mut preview_luaref: LuaRef = LUA_NOREF;
 
-        'err: {
-            if uc_validate_name(name.data).is_null() {
-                api_err_invalid(err, c"command name", name.data, 0, true);
-                break 'err;
-            }
-            if mb_islower(i32::from(unsafe { *name.data.cast::<u8>() })) {
-                api_err_invalid(
-                    err,
-                    c"command name (must start with uppercase)",
-                    name.data,
-                    0,
-                    true,
-                );
-                break 'err;
-            }
-            let mask = opts.is_set_user_command;
-            if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_RANGE)
-                && has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COUNT)
-            {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"%s",
-                    c"Cannot use both 'range' and 'count'",
-                );
-                break 'err;
-            }
+    'err: {
+        if uc_validate_name(name.data).is_null() {
+            api_err_invalid(err, c"command name", name.data, 0, true);
+            break 'err;
+        }
+        if mb_islower(i32::from(unsafe { *name.data.cast::<u8>() })) {
+            api_err_invalid(
+                err,
+                c"command name (must start with uppercase)",
+                name.data,
+                0,
+                true,
+            );
+            break 'err;
+        }
+        let mask = opts.is_set_user_command;
+        if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_RANGE)
+            && has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COUNT)
+        {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"%s",
+                c"Cannot use both 'range' and 'count'",
+            );
+            break 'err;
+        }
 
-            if opts.nargs.obj_type == ObjectType::ObjectTypeInteger {
-                match opts.nargs.data.integer() {
-                    0 => {}
-                    1 => {
-                        argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG;
-                    }
-                    n => {
-                        api_err_invalid(err, c"nargs", ptr::null(), n, false);
-                        break 'err;
-                    }
+        if opts.nargs.obj_type == ObjectType::ObjectTypeInteger {
+            match opts.nargs.data.integer() {
+                0 => {}
+                1 => {
+                    argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG;
                 }
-            } else if opts.nargs.obj_type == ObjectType::ObjectTypeString {
-                if opts.nargs.data.string().size > 1 {
+                n => {
+                    api_err_invalid(err, c"nargs", ptr::null(), n, false);
+                    break 'err;
+                }
+            }
+        } else if opts.nargs.obj_type == ObjectType::ObjectTypeString {
+            if opts.nargs.data.string().size > 1 {
+                api_err_invalid(err, c"nargs", opts.nargs.data.string().data, 0, true);
+                break 'err;
+            }
+            match crate::memory::cstr_first_byte(opts.nargs.data.string().data) {
+                b'*' => argt |= EX_EXTRA,
+                b'?' => argt |= EX_EXTRA | EX_NOSPC,
+                b'+' => argt |= EX_EXTRA | EX_NEEDARG,
+                b'_' => argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE,
+                _ => {
                     api_err_invalid(err, c"nargs", opts.nargs.data.string().data, 0, true);
                     break 'err;
                 }
-                match crate::memory::cstr_first_byte(opts.nargs.data.string().data) {
-                    b'*' => argt |= EX_EXTRA,
-                    b'?' => argt |= EX_EXTRA | EX_NOSPC,
-                    b'+' => argt |= EX_EXTRA | EX_NEEDARG,
-                    b'_' => argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE,
-                    _ => {
-                        api_err_invalid(err, c"nargs", opts.nargs.data.string().data, 0, true);
-                        break 'err;
-                    }
-                }
-            } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_NARGS) {
-                api_err_invalid(err, c"nargs", c"", 0, true);
-                break 'err;
             }
+        } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_NARGS) {
+            api_err_invalid(err, c"nargs", c"", 0, true);
+            break 'err;
+        }
 
-            if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COMPLETE) && argt == 0 {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"%s",
-                    c"'complete' used without 'nargs'",
-                );
-                break 'err;
+        if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COMPLETE) && argt == 0 {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"%s",
+                c"'complete' used without 'nargs'",
+            );
+            break 'err;
+        }
+
+        if opts.range.obj_type == ObjectType::ObjectTypeBoolean {
+            if opts.range.data.boolean() {
+                argt |= EX_RANGE;
+                addr_type_arg = ADDR_LINES;
             }
-
-            if opts.range.obj_type == ObjectType::ObjectTypeBoolean {
-                if opts.range.data.boolean() {
-                    argt |= EX_RANGE;
-                    addr_type_arg = ADDR_LINES;
-                }
-            } else if opts.range.obj_type == ObjectType::ObjectTypeString {
-                if !(crate::memory::cstr_first_byte(opts.range.data.string().data) == b'%'
-                    && opts.range.data.string().size == 1)
-                {
-                    api_err_invalid(err, c"range", c"", 0, true);
-                    break 'err;
-                }
-                argt |= EX_RANGE | EX_DFLALL;
-                addr_type_arg = ADDR_LINES;
-            } else if opts.range.obj_type == ObjectType::ObjectTypeInteger {
-                argt |= EX_RANGE | EX_ZEROR;
-                def = opts.range.data.integer();
-                addr_type_arg = ADDR_LINES;
-            } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_RANGE) {
+        } else if opts.range.obj_type == ObjectType::ObjectTypeString {
+            if !(crate::memory::cstr_first_byte(opts.range.data.string().data) == b'%'
+                && opts.range.data.string().size == 1)
+            {
                 api_err_invalid(err, c"range", c"", 0, true);
                 break 'err;
             }
+            argt |= EX_RANGE | EX_DFLALL;
+            addr_type_arg = ADDR_LINES;
+        } else if opts.range.obj_type == ObjectType::ObjectTypeInteger {
+            argt |= EX_RANGE | EX_ZEROR;
+            def = opts.range.data.integer();
+            addr_type_arg = ADDR_LINES;
+        } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_RANGE) {
+            api_err_invalid(err, c"range", c"", 0, true);
+            break 'err;
+        }
 
-            if opts.count.obj_type == ObjectType::ObjectTypeBoolean {
-                if opts.count.data.boolean() {
-                    argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
-                    addr_type_arg = ADDR_OTHER;
-                    def = 0;
-                }
-            } else if opts.count.obj_type == ObjectType::ObjectTypeInteger {
+        if opts.count.obj_type == ObjectType::ObjectTypeBoolean {
+            if opts.count.data.boolean() {
                 argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
                 addr_type_arg = ADDR_OTHER;
-                def = opts.count.data.integer();
-            } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COUNT) {
-                api_err_invalid(err, c"count", c"", 0, true);
+                def = 0;
+            }
+        } else if opts.count.obj_type == ObjectType::ObjectTypeInteger {
+            argt |= EX_COUNT | EX_ZEROR | EX_RANGE;
+            addr_type_arg = ADDR_OTHER;
+            def = opts.count.data.integer();
+        } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COUNT) {
+            api_err_invalid(err, c"count", c"", 0, true);
+            break 'err;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_ADDR) {
+            if opts.addr.obj_type != ObjectType::ObjectTypeString {
+                api_err_exp(
+                    err,
+                    c"addr",
+                    api_typename(ObjectType::ObjectTypeString),
+                    api_typename(opts.addr.obj_type),
+                );
                 break 'err;
             }
-
-            if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_ADDR) {
-                if opts.addr.obj_type != ObjectType::ObjectTypeString {
-                    api_err_exp(
-                        err,
-                        c"addr",
-                        api_typename(ObjectType::ObjectTypeString),
-                        api_typename(opts.addr.obj_type),
-                    );
-                    break 'err;
-                }
-                if !parse_addr_type_arg(
-                    opts.addr.data.string().data,
-                    opts.addr.data.string().size as i32,
-                    &mut addr_type_arg,
-                ) {
-                    api_err_invalid(err, c"addr", opts.addr.data.string().data, 0, true);
-                    break 'err;
-                }
-                argt |= EX_RANGE;
-                if addr_type_arg != ADDR_LINES {
-                    argt |= EX_ZEROR;
-                }
-            }
-
-            if opts.bang {
-                argt |= EX_BANG;
-            }
-            if opts.bar {
-                argt |= EX_TRLBAR;
-            }
-            if opts.register_ {
-                argt |= EX_REGSTR;
-            }
-            if opts.keepscript {
-                argt |= EX_KEEPSCRIPT;
-            }
-
-            let force = if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_FORCE) {
-                opts.force
-            } else {
-                true
-            };
-            if error_set(err) {
+            if !parse_addr_type_arg(
+                opts.addr.data.string().data,
+                opts.addr.data.string().size as i32,
+                &mut addr_type_arg,
+            ) {
+                api_err_invalid(err, c"addr", opts.addr.data.string().data, 0, true);
                 break 'err;
             }
+            argt |= EX_RANGE;
+            if addr_type_arg != ADDR_LINES {
+                argt |= EX_ZEROR;
+            }
+        }
 
-            if opts.complete.obj_type == ObjectType::ObjectTypeLuaRef {
-                context = EXPAND_USER_LUA;
-                compl_luaref = opts.complete.data.luaref();
-                opts.complete.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
-            } else if opts.complete.obj_type == ObjectType::ObjectTypeString {
-                if !parse_compl_arg(
-                    opts.complete.data.string().data,
-                    opts.complete.data.string().size as i32,
-                    &mut context,
-                    &mut argt,
-                    &mut compl_arg,
-                ) {
-                    api_err_invalid(err, c"complete", opts.complete.data.string().data, 0, true);
-                    break 'err;
-                }
-            } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COMPLETE) {
-                api_err_exp(err, c"complete", c"Function or String", ptr::null());
+        if opts.bang {
+            argt |= EX_BANG;
+        }
+        if opts.bar {
+            argt |= EX_TRLBAR;
+        }
+        if opts.register_ {
+            argt |= EX_REGSTR;
+        }
+        if opts.keepscript {
+            argt |= EX_KEEPSCRIPT;
+        }
+
+        let force = if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_FORCE) {
+            opts.force
+        } else {
+            true
+        };
+        if error_set(err) {
+            break 'err;
+        }
+
+        if opts.complete.obj_type == ObjectType::ObjectTypeLuaRef {
+            context = EXPAND_USER_LUA;
+            compl_luaref = opts.complete.data.luaref();
+            opts.complete.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
+        } else if opts.complete.obj_type == ObjectType::ObjectTypeString {
+            if !parse_compl_arg(
+                opts.complete.data.string().data,
+                opts.complete.data.string().size as i32,
+                &mut context,
+                &mut argt,
+                &mut compl_arg,
+            ) {
+                api_err_invalid(err, c"complete", opts.complete.data.string().data, 0, true);
                 break 'err;
             }
+        } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COMPLETE) {
+            api_err_exp(err, c"complete", c"Function or String", ptr::null());
+            break 'err;
+        }
 
-            if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_PREVIEW) {
-                if opts.preview.obj_type != ObjectType::ObjectTypeLuaRef {
-                    api_err_exp(
-                        err,
-                        c"preview",
-                        api_typename(ObjectType::ObjectTypeLuaRef),
-                        api_typename(opts.preview.obj_type),
-                    );
-                    break 'err;
-                }
-                argt |= EX_PREVIEW;
-                preview_luaref = opts.preview.data.luaref();
-                opts.preview.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
+        if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_PREVIEW) {
+            if opts.preview.obj_type != ObjectType::ObjectTypeLuaRef {
+                api_err_exp(
+                    err,
+                    c"preview",
+                    api_typename(ObjectType::ObjectTypeLuaRef),
+                    api_typename(opts.preview.obj_type),
+                );
+                break 'err;
             }
+            argt |= EX_PREVIEW;
+            preview_luaref = opts.preview.data.luaref();
+            opts.preview.data = crate::api::private::validate::ObjectData::LuaRef(LUA_NOREF);
+        }
 
-            let mut desc: *const c_char = ptr::null();
-            if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_DESC) {
-                if opts.desc.obj_type != ObjectType::ObjectTypeString {
-                    api_err_exp(
-                        err,
-                        c"desc",
-                        api_typename(ObjectType::ObjectTypeString),
-                        api_typename(opts.desc.obj_type),
-                    );
-                    break 'err;
-                }
-                desc = opts.desc.data.string().data;
+        let mut desc: *const c_char = ptr::null();
+        if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_DESC) {
+            if opts.desc.obj_type != ObjectType::ObjectTypeString {
+                api_err_exp(
+                    err,
+                    c"desc",
+                    api_typename(ObjectType::ObjectTypeString),
+                    api_typename(opts.desc.obj_type),
+                );
+                break 'err;
             }
+            desc = opts.desc.data.string().data;
+        }
 
-            match cmd.obj_type {
-                ObjectType::ObjectTypeLuaRef => {
-                    luaref = api_new_luaref(cmd.data.luaref());
-                    rep = c"".as_ptr();
-                }
-                ObjectType::ObjectTypeString => {
-                    rep = cmd.data.string().data;
-                }
-                _ => {
-                    api_err_exp(err, c"command", c"Function or String", ptr::null());
-                    break 'err;
-                }
+        match cmd.obj_type {
+            ObjectType::ObjectTypeLuaRef => {
+                luaref = api_new_luaref(cmd.data.luaref());
+                rep = c"".as_ptr();
             }
-
-            with_script_context(channel_id, || {
-                if !uc_add_command(
-                    name.data,
-                    name.size,
-                    rep,
-                    argt,
-                    def,
-                    flags,
-                    context,
-                    compl_arg,
-                    compl_luaref,
-                    preview_luaref,
-                    addr_type_arg,
-                    luaref,
-                    desc,
-                    force,
-                ) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"Failed to create user command",
-                    );
-                }
-            });
-
-            return;
+            ObjectType::ObjectTypeString => {
+                rep = cmd.data.string().data;
+            }
+            _ => {
+                api_err_exp(err, c"command", c"Function or String", ptr::null());
+                break 'err;
+            }
         }
 
-        if luaref != LUA_NOREF {
-            api_free_luaref(luaref);
-        }
-        if compl_luaref != LUA_NOREF {
-            api_free_luaref(compl_luaref);
-        }
-        if preview_luaref != LUA_NOREF {
-            api_free_luaref(preview_luaref);
-        }
+        with_script_context(channel_id, || {
+            if !uc_add_command(
+                name.data,
+                name.size,
+                rep,
+                argt,
+                def,
+                flags,
+                context,
+                compl_arg,
+                compl_luaref,
+                preview_luaref,
+                addr_type_arg,
+                luaref,
+                desc,
+                force,
+            ) {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeException,
+                    c"Failed to create user command",
+                );
+            }
+        });
+
+        return;
+    }
+
+    if luaref != LUA_NOREF {
+        api_free_luaref(luaref);
+    }
+    if compl_luaref != LUA_NOREF {
+        api_free_luaref(compl_luaref);
+    }
+    if preview_luaref != LUA_NOREF {
+        api_free_luaref(preview_luaref);
     }
 }
 
@@ -1729,30 +1714,28 @@ pub fn nvim_buf_get_commands(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    {
-        let global = buf == -1;
-        if error_set(err) {
-            return Dict::new();
-        }
-
-        if global {
-            if opts.builtin {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"builtin=true not implemented",
-                );
-                return Dict::new();
-            }
-            return commands_array(None, arena);
-        }
-
-        let b = find_buffer_by_handle(buf, err);
-        if opts.builtin || b.is_null() {
-            return Dict::new();
-        }
-        commands_array(unsafe { b.as_ref() }, arena)
+    let global = buf == -1;
+    if error_set(err) {
+        return Dict::new();
     }
+
+    if global {
+        if opts.builtin {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"builtin=true not implemented",
+            );
+            return Dict::new();
+        }
+        return commands_array(None, arena);
+    }
+
+    let b = find_buffer_by_handle(buf, err);
+    if opts.builtin || b.is_null() {
+        return Dict::new();
+    }
+    commands_array(unsafe { b.as_ref() }, arena)
 }
 
 #[cfg(test)]

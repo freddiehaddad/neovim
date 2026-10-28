@@ -375,28 +375,26 @@ pub fn error_set(e: &Error) -> bool {
 
 /// Start block that may cause Vimscript exceptions while evaluating another code (`try_enter`).
 pub fn try_enter(tstate: &mut TryState) {
-    {
-        let saved_msg_list = g_st().msg_list.replace(Vec::new());
-        let saved_excp = g_st().current_exception.take();
-        unsafe {
-            ptr::write(
-                tstate,
-                TryState {
-                    current_exception: saved_excp,
-                    msg_list: saved_msg_list,
-                    got_int: i32::from(g_st().got_int),
-                    did_throw: g_st().did_throw,
-                    need_rethrow: i32::from(g_st().need_rethrow),
-                    did_emsg: g_st().did_emsg,
-                },
-            )
-        };
-        g_st().got_int = false;
-        g_st().did_throw = false;
-        g_st().need_rethrow = false;
-        g_st().did_emsg = 0;
-        g_st().trylevel += 1;
-    }
+    let saved_msg_list = g_st().msg_list.replace(Vec::new());
+    let saved_excp = g_st().current_exception.take();
+    unsafe {
+        ptr::write(
+            tstate,
+            TryState {
+                current_exception: saved_excp,
+                msg_list: saved_msg_list,
+                got_int: i32::from(g_st().got_int),
+                did_throw: g_st().did_throw,
+                need_rethrow: i32::from(g_st().need_rethrow),
+                did_emsg: g_st().did_emsg,
+            },
+        )
+    };
+    g_st().got_int = false;
+    g_st().did_throw = false;
+    g_st().need_rethrow = false;
+    g_st().did_emsg = 0;
+    g_st().trylevel += 1;
 }
 
 /// Ends a `try_enter` block; sets error message if any (`try_leave`).
@@ -475,20 +473,18 @@ pub fn dict_get_value(
     arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
-    {
-        let di = tv_dict_find(dict, key.data, key.size as isize);
-        if di.is_null() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Key not found: %s",
-                key.data,
-            );
-            return OBJECT_NIL;
-        }
-        let di = unsafe { &mut *di };
-        vim_to_object(&raw mut di.di_tv, arena, true)
+    let di = tv_dict_find(dict, key.data, key.size as isize);
+    if di.is_null() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Key not found: %s",
+            key.data,
+        );
+        return OBJECT_NIL;
     }
+    let di = unsafe { &mut *di };
+    vim_to_object(&raw mut di.di_tv, arena, true)
 }
 
 pub fn dict_check_writable(
@@ -497,42 +493,40 @@ pub fn dict_check_writable(
     del: bool,
     err: &mut Error,
 ) -> *mut Dictitem {
-    {
-        let di = tv_dict_find(Some(dict), key.data, key.size as isize);
-        if !di.is_null() {
-            let di = unsafe { &mut *di };
-            let di = { &mut *di };
-            if (di.di_flags & DI_FLAGS_RO) != 0 {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"Key is read-only: %s",
-                    key.data,
-                );
-            } else if (di.di_flags & DI_FLAGS_LOCK) != 0 {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"Key is locked: %s",
-                    key.data,
-                );
-            } else if del && (di.di_flags & DI_FLAGS_FIX) != 0 {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"Key is fixed: %s",
-                    key.data,
-                );
-            }
-        } else if dict.dv_lock != 0 {
-            api_set_error!(err, ErrorType::ErrorTypeException, c"Dict is locked",);
-        } else if key.size == 0 {
-            api_set_error!(err, ErrorType::ErrorTypeValidation, c"Key name is empty",);
-        } else if key.size > i32::MAX as usize {
-            api_set_error!(err, ErrorType::ErrorTypeValidation, c"Key name is too long",);
+    let di = tv_dict_find(Some(dict), key.data, key.size as isize);
+    if !di.is_null() {
+        let di = unsafe { &mut *di };
+        let di = { &mut *di };
+        if (di.di_flags & DI_FLAGS_RO) != 0 {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Key is read-only: %s",
+                key.data,
+            );
+        } else if (di.di_flags & DI_FLAGS_LOCK) != 0 {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Key is locked: %s",
+                key.data,
+            );
+        } else if del && (di.di_flags & DI_FLAGS_FIX) != 0 {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Key is fixed: %s",
+                key.data,
+            );
         }
-        di
+    } else if dict.dv_lock != 0 {
+        api_set_error!(err, ErrorType::ErrorTypeException, c"Dict is locked",);
+    } else if key.size == 0 {
+        api_set_error!(err, ErrorType::ErrorTypeValidation, c"Key name is empty",);
+    } else if key.size > i32::MAX as usize {
+        api_set_error!(err, ErrorType::ErrorTypeValidation, c"Key name is too long",);
     }
+    di
 }
 
 /// Set a value in a scope dict (`dict_set_var`).
@@ -616,26 +610,24 @@ pub fn dict_set_var(
 }
 
 pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut FileBuf {
-    {
-        if buffer == 0 {
-            return g_st().curbuf;
-        }
-        let rv = g_st()
-            .buffer_handles
-            .get(&buffer)
-            .copied()
-            .unwrap_or(ptr::null_mut());
-        if rv.is_null() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Invalid buffer id: %lld",
-                i64::from(buffer),
-            );
-            return ptr::null_mut();
-        }
-        rv
+    if buffer == 0 {
+        return g_st().curbuf;
     }
+    let rv = g_st()
+        .buffer_handles
+        .get(&buffer)
+        .copied()
+        .unwrap_or(ptr::null_mut());
+    if rv.is_null() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Invalid buffer id: %lld",
+            i64::from(buffer),
+        );
+        return ptr::null_mut();
+    }
+    rv
 }
 
 #[unsafe(no_mangle)]
@@ -660,26 +652,24 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut
 }
 
 pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut TabPageInfo {
-    {
-        if tabpage == 0 {
-            return g_st().curtab;
-        }
-        let rv = g_st()
-            .tabpage_handles
-            .get(&tabpage)
-            .copied()
-            .unwrap_or(ptr::null_mut());
-        if rv.is_null() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Invalid tabpage id: %lld",
-                i64::from(tabpage),
-            );
-            return ptr::null_mut();
-        }
-        rv
+    if tabpage == 0 {
+        return g_st().curtab;
     }
+    let rv = g_st()
+        .tabpage_handles
+        .get(&tabpage)
+        .copied()
+        .unwrap_or(ptr::null_mut());
+    if rv.is_null() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Invalid tabpage id: %lld",
+            i64::from(tabpage),
+        );
+        return ptr::null_mut();
+    }
+    rv
 }
 
 #[inline]
@@ -724,14 +714,12 @@ pub fn cstr_to_string(str_: impl crate::strings::IntoCCharPtr) -> NvimString {
 }
 
 pub fn string_to_cstr(str_: NvimString) -> std::ffi::CString {
-    {
-        let slice = if str_.data.is_null() || str_.size == 0 {
-            &[]
-        } else {
-            crate::memory::cstr_slice(str_.data, str_.size)
-        };
-        crate::memory::cstr_from_bytes(slice)
-    }
+    let slice = if str_.data.is_null() || str_.size == 0 {
+        &[]
+    } else {
+        crate::memory::cstr_slice(str_.data, str_.size)
+    };
+    crate::memory::cstr_from_bytes(slice)
 }
 
 pub fn cbuf_to_string(buf: impl crate::strings::IntoCCharPtr, size: usize) -> NvimString {
@@ -773,67 +761,69 @@ pub fn cstr_as_string<S: crate::strings::IntoCCharPtr>(str_: S) -> NvimString {
 }
 
 pub fn string_to_array(input: NvimString, crlf: bool, arena: &mut Arena) -> Array {
-    unsafe {
-        let mut ret = ArrayBuilder::new();
+    let mut ret = ArrayBuilder::new();
 
-        let mut i: usize = 0;
-        while i < input.size {
-            let start = input.data.wrapping_add(i);
-            let mut end = start;
-            let mut line_len: usize = 0;
-            while line_len < input.size - i {
-                end = start.wrapping_add(line_len);
-                if *end == NL || (crlf && *end == CAR) {
-                    break;
-                }
-                line_len += 1;
+    let mut i: usize = 0;
+    while i < input.size {
+        let start = input.data.wrapping_add(i);
+        let mut end = start;
+        let mut line_len: usize = 0;
+        while line_len < input.size - i {
+            end = start.wrapping_add(line_len);
+            if unsafe { *end } == NL || (crlf && unsafe { *end } == CAR) {
+                break;
             }
-            i += line_len;
-            if crlf && *end == CAR && i + 1 < input.size && *end.wrapping_add(1) == NL {
-                i += 1;
-            }
-            let s = arena_string(
-                arena,
-                NvimString {
-                    data: start,
-                    size: line_len,
-                },
-            );
-            {
-                let _d = (s.data).cast::<u8>();
-                let _sz = line_len;
-                if _sz > 0 {
-                    let _c = (NUL) as u8;
-                    let _x = (NL) as u8;
-                    for _b in std::slice::from_raw_parts_mut(_d, _sz) {
-                        if *_b == _c {
-                            *_b = _x;
-                        }
-                    }
-                }
-            };
-            ret.push(Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(s),
-            });
-            if i + 1 == input.size && (*end == NL || (crlf && *end == CAR)) {
-                let empty_s = arena_string(
-                    arena,
-                    NvimString {
-                        data: c"".as_ptr().cast_mut(),
-                        size: 0,
-                    },
-                );
-                ret.push(Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(empty_s),
-                });
-            }
+            line_len += 1;
+        }
+        i += line_len;
+        if crlf
+            && unsafe { *end } == CAR
+            && i + 1 < input.size
+            && unsafe { *end.wrapping_add(1) } == NL
+        {
             i += 1;
         }
-
-        arena_take_arraybuilder(arena, &mut ret)
+        let s = arena_string(
+            arena,
+            NvimString {
+                data: start,
+                size: line_len,
+            },
+        );
+        {
+            let _d = (s.data).cast::<u8>();
+            let _sz = line_len;
+            if _sz > 0 {
+                let _c = (NUL) as u8;
+                let _x = (NL) as u8;
+                for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
+                    if *_b == _c {
+                        *_b = _x;
+                    }
+                }
+            }
+        };
+        ret.push(Object {
+            obj_type: ObjectType::ObjectTypeString,
+            data: ObjectData::String(s),
+        });
+        if i + 1 == input.size && (unsafe { *end } == NL || (crlf && unsafe { *end } == CAR)) {
+            let empty_s = arena_string(
+                arena,
+                NvimString {
+                    data: c"".as_ptr().cast_mut(),
+                    size: 0,
+                },
+            );
+            ret.push(Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(empty_s),
+            });
+        }
+        i += 1;
     }
+
+    arena_take_arraybuilder(arena, &mut ret)
 }
 
 pub fn normalize_index(
@@ -864,46 +854,44 @@ pub fn buf_get_text(
     mut end_col: i64,
     err: &mut Error,
 ) -> NvimString {
-    {
-        let rv = NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
-        if lnum >= MAXLNUM {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"'line index' value out of range",
-            );
-            return rv;
-        }
+    let rv = NvimString {
+        data: ptr::null_mut(),
+        size: 0,
+    };
+    if lnum >= MAXLNUM {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"'line index' value out of range",
+        );
+        return rv;
+    }
 
-        let bufstr = ml_get_buf(buf, lnum as Linenr);
-        let line_length = i64::from(ml_get_buf_len(buf, lnum as Linenr));
+    let bufstr = ml_get_buf(buf, lnum as Linenr);
+    let line_length = i64::from(ml_get_buf_len(buf, lnum as Linenr));
 
-        if start_col < 0 {
-            start_col = line_length + start_col + 1;
-        }
-        if end_col < 0 {
-            end_col = line_length + end_col + 1;
-        }
+    if start_col < 0 {
+        start_col = line_length + start_col + 1;
+    }
+    if end_col < 0 {
+        end_col = line_length + end_col + 1;
+    }
 
-        start_col = start_col.clamp(0, line_length);
-        end_col = end_col.clamp(0, line_length);
+    start_col = start_col.clamp(0, line_length);
+    end_col = end_col.clamp(0, line_length);
 
-        if start_col > end_col {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"start_col must be less than or equal to end_col",
-            );
-            return rv;
-        }
+    if start_col > end_col {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"start_col must be less than or equal to end_col",
+        );
+        return rv;
+    }
 
-        NvimString {
-            data: bufstr.wrapping_add(start_col as usize),
-            size: (end_col - start_col) as usize,
-        }
+    NvimString {
+        data: bufstr.wrapping_add(start_col as usize),
+        size: (end_col - start_col) as usize,
     }
 }
 
@@ -980,16 +968,14 @@ pub fn arena_string_opt(arena: Option<&mut Arena>, str_: NvimString) -> NvimStri
 }
 
 pub fn arena_take_arraybuilder(arena: &mut Arena, arr: &mut ArrayBuilder) -> Array {
-    {
-        let len = arr.len();
-        let mut ret = arena_array(arena, len);
-        ret.size = len;
-        if len > 0 {
-            unsafe { ptr::copy_nonoverlapping(arr.as_ptr(), ret.items, len) };
-        }
-        *arr = Vec::new();
-        ret
+    let len = arr.len();
+    let mut ret = arena_array(arena, len);
+    ret.size = len;
+    if len > 0 {
+        unsafe { ptr::copy_nonoverlapping(arr.as_ptr(), ret.items, len) };
     }
+    *arr = Vec::new();
+    ret
 }
 
 pub fn api_free_object(value: Object) {
@@ -1047,30 +1033,26 @@ pub fn copy_string(str_: NvimString, arena: Option<&mut Arena>) -> NvimString {
 }
 
 pub fn copy_array(array: Array, mut arena: Option<&mut Arena>) -> Array {
-    {
-        let mut rv = arena_array_opt(arena.as_deref_mut(), array.size);
-        for i in 0..array.size {
-            rv[i] = copy_object(array[i], arena.as_deref_mut());
-        }
-        rv.size = array.size;
-        rv
+    let mut rv = arena_array_opt(arena.as_deref_mut(), array.size);
+    for i in 0..array.size {
+        rv[i] = copy_object(array[i], arena.as_deref_mut());
     }
+    rv.size = array.size;
+    rv
 }
 
 pub fn copy_dict(dict: Dict, mut arena: Option<&mut Arena>) -> Dict {
-    {
-        let mut rv = arena_dict_opt(arena.as_deref_mut(), dict.size);
-        for i in 0..dict.size {
-            let item = dict[i];
-            let k_copy = copy_string(item.key, arena.as_deref_mut());
-            rv[i] = KeyValuePair {
-                key: cstr_as_string(k_copy.data),
-                value: copy_object(item.value, arena.as_deref_mut()),
-            };
-        }
-        rv.size = dict.size;
-        rv
+    let mut rv = arena_dict_opt(arena.as_deref_mut(), dict.size);
+    for i in 0..dict.size {
+        let item = dict[i];
+        let k_copy = copy_string(item.key, arena.as_deref_mut());
+        rv[i] = KeyValuePair {
+            key: cstr_as_string(k_copy.data),
+            value: copy_object(item.value, arena.as_deref_mut()),
+        };
     }
+    rv.size = dict.size;
+    rv
 }
 
 pub fn copy_object(obj: Object, arena: Option<&mut Arena>) -> Object {
@@ -1175,45 +1157,40 @@ pub const fn api_typename(t: ObjectType) -> &'static std::ffi::CStr {
 }
 
 pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
-    {
-        let mut hl_msg = HlMessage::new();
-        for i in 0..chunks.size {
-            let item = chunks[i];
-            if item.obj_type != ObjectType::ObjectTypeArray {
-                api_err_exp(
-                    err,
-                    c"chunk",
-                    api_typename(ObjectType::ObjectTypeArray),
-                    api_typename(item.obj_type),
-                );
-                return HlMessage::new();
-            }
-            let chunk = item.data.array();
-            if chunk.size == 0
-                || chunk.size > 2
-                || chunk[0].obj_type != ObjectType::ObjectTypeString
-            {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"%s",
-                    c"Invalid chunk: expected Array with 1 or 2 Strings",
-                );
-                return HlMessage::new();
-            }
-
-            let str_ = copy_string(chunk[0].data.string(), None);
-            let hl_id = if chunk.size == 2 {
-                object_to_hl_id(chunk[1], c"text highlight", err)
-            } else if is_err {
-                HLF_E
-            } else {
-                0
-            };
-            hl_msg.push(HlMessageChunk { text: str_, hl_id });
+    let mut hl_msg = HlMessage::new();
+    for i in 0..chunks.size {
+        let item = chunks[i];
+        if item.obj_type != ObjectType::ObjectTypeArray {
+            api_err_exp(
+                err,
+                c"chunk",
+                api_typename(ObjectType::ObjectTypeArray),
+                api_typename(item.obj_type),
+            );
+            return HlMessage::new();
         }
-        hl_msg
+        let chunk = item.data.array();
+        if chunk.size == 0 || chunk.size > 2 || chunk[0].obj_type != ObjectType::ObjectTypeString {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"%s",
+                c"Invalid chunk: expected Array with 1 or 2 Strings",
+            );
+            return HlMessage::new();
+        }
+
+        let str_ = copy_string(chunk[0].data.string(), None);
+        let hl_id = if chunk.size == 2 {
+            object_to_hl_id(chunk[1], c"text highlight", err)
+        } else if is_err {
+            HLF_E
+        } else {
+            0
+        };
+        hl_msg.push(HlMessageChunk { text: str_, hl_id });
     }
+    hl_msg
 }
 
 pub fn api_dict_to_keydict(
@@ -1389,68 +1366,66 @@ pub fn api_keydict_to_dict(
     max_size: usize,
     arena: &mut Arena,
 ) -> Dict {
-    unsafe {
-        let mut rv = arena_dict(arena, max_size);
-        let mut i: usize = 0;
-        while let Some(field_str) = (*table.wrapping_add(i)).str {
-            let field = &*table.wrapping_add(i);
-            let mut is_set = true;
-            if field.opt_index >= 0 {
-                is_set = ((*value).is_set_ & (1u64 << field.opt_index)) != 0;
-            }
-            if !is_set {
-                i += 1;
-                continue;
-            }
-
-            let mem = value.cast::<u8>().wrapping_add(field.ptr_off);
-            let field_type =
-                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
-            let val = match field_type {
-                ObjectType::ObjectTypeNil => *mem.cast::<Object>(),
-                ObjectType::ObjectTypeInteger => Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(*mem.cast::<Integer>()),
-                },
-                ObjectType::ObjectTypeFloat => Object {
-                    obj_type: ObjectType::ObjectTypeFloat,
-                    data: ObjectData::Floating(*mem.cast::<Float>()),
-                },
-                ObjectType::ObjectTypeBoolean => Object {
-                    obj_type: ObjectType::ObjectTypeBoolean,
-                    data: ObjectData::Boolean(*mem.cast::<Boolean>()),
-                },
-                ObjectType::ObjectTypeString => Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(*mem.cast::<NvimString>()),
-                },
-                ObjectType::ObjectTypeArray => Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(*mem.cast::<Array>()),
-                },
-                ObjectType::ObjectTypeDict => Object {
-                    obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(*mem.cast::<Dict>()),
-                },
-                ObjectType::ObjectTypeBuffer
-                | ObjectType::ObjectTypeWindow
-                | ObjectType::ObjectTypeTabpage => Object {
-                    obj_type: field_type,
-                    data: ObjectData::Integer(Integer::from(*mem.cast::<ObjHandle>())),
-                },
-                ObjectType::ObjectTypeLuaRef => OBJECT_NIL,
-                ObjectType::ObjectTypeUnset => std::process::abort(),
-            };
-
-            *rv.next_slot_mut() = KeyValuePair {
-                key: cstr_as_string(field_str.as_ptr()),
-                value: val,
-            };
-            rv.size += 1;
-            i += 1;
+    let mut rv = arena_dict(arena, max_size);
+    let mut i: usize = 0;
+    while let Some(field_str) = unsafe { (*table.wrapping_add(i)).str } {
+        let field = unsafe { &*table.wrapping_add(i) };
+        let mut is_set = true;
+        if field.opt_index >= 0 {
+            is_set = (unsafe { (*value).is_set_ } & (1u64 << field.opt_index)) != 0;
         }
-        rv
+        if !is_set {
+            i += 1;
+            continue;
+        }
+
+        let mem = value.cast::<u8>().wrapping_add(field.ptr_off);
+        let field_type =
+            ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
+        let val = match field_type {
+            ObjectType::ObjectTypeNil => unsafe { *mem.cast::<Object>() },
+            ObjectType::ObjectTypeInteger => Object {
+                obj_type: ObjectType::ObjectTypeInteger,
+                data: ObjectData::Integer(unsafe { *mem.cast::<Integer>() }),
+            },
+            ObjectType::ObjectTypeFloat => Object {
+                obj_type: ObjectType::ObjectTypeFloat,
+                data: ObjectData::Floating(unsafe { *mem.cast::<Float>() }),
+            },
+            ObjectType::ObjectTypeBoolean => Object {
+                obj_type: ObjectType::ObjectTypeBoolean,
+                data: ObjectData::Boolean(unsafe { *mem.cast::<Boolean>() }),
+            },
+            ObjectType::ObjectTypeString => Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(unsafe { *mem.cast::<NvimString>() }),
+            },
+            ObjectType::ObjectTypeArray => Object {
+                obj_type: ObjectType::ObjectTypeArray,
+                data: ObjectData::Array(unsafe { *mem.cast::<Array>() }),
+            },
+            ObjectType::ObjectTypeDict => Object {
+                obj_type: ObjectType::ObjectTypeDict,
+                data: ObjectData::Dict(unsafe { *mem.cast::<Dict>() }),
+            },
+            ObjectType::ObjectTypeBuffer
+            | ObjectType::ObjectTypeWindow
+            | ObjectType::ObjectTypeTabpage => Object {
+                obj_type: field_type,
+                data: ObjectData::Integer(Integer::from(unsafe { *mem.cast::<ObjHandle>() })),
+            },
+            ObjectType::ObjectTypeLuaRef => OBJECT_NIL,
+            ObjectType::ObjectTypeUnset => std::process::abort(),
+        };
+
+        *rv.next_slot_mut() = KeyValuePair {
+            key: cstr_as_string(field_str.as_ptr()),
+            value: val,
+        };
+        rv.size += 1;
+        i += 1;
     }
+    rv
 }
 
 pub fn api_luarefs_free_object(value: Object) {
@@ -1500,81 +1475,77 @@ pub fn set_mark(
     mut col: Integer,
     err: &mut Error,
 ) -> bool {
-    {
-        if buf.is_null() {
-            buf = g_st().curbuf;
-        }
-        let mut deleting = false;
-        if line == 0 {
-            col = 0;
-            deleting = true;
-        } else {
-            if col > MAXCOL {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"'column' value out of range",
-                );
-                return false;
-            }
-            if line < 1 || line > i64::from(unsafe { (*buf).b_ml.ml_line_count }) {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"'line' value out of range",
-                );
-                return false;
-            }
-        }
-        let mut pos = CursorPos {
-            lnum: line as Linenr,
-            col: col as Colnr,
-            coladd: 0,
-        };
-        let res = setmark_pos(
-            crate::memory::cstr_first_char(name.data),
-            &mut pos,
-            unsafe { (*buf).b_fnum },
-            None,
-        );
-        if !res {
-            if deleting {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"Failed to delete named mark: %c",
-                    crate::memory::cstr_first_char(name.data),
-                );
-            } else {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"Failed to set named mark: %c",
-                    crate::memory::cstr_first_char(name.data),
-                );
-            }
-        }
-        res
+    if buf.is_null() {
+        buf = g_st().curbuf;
     }
+    let mut deleting = false;
+    if line == 0 {
+        col = 0;
+        deleting = true;
+    } else {
+        if col > MAXCOL {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"'column' value out of range",
+            );
+            return false;
+        }
+        if line < 1 || line > i64::from(unsafe { (*buf).b_ml.ml_line_count }) {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"'line' value out of range",
+            );
+            return false;
+        }
+    }
+    let mut pos = CursorPos {
+        lnum: line as Linenr,
+        col: col as Colnr,
+        coladd: 0,
+    };
+    let res = setmark_pos(
+        crate::memory::cstr_first_char(name.data),
+        &mut pos,
+        unsafe { (*buf).b_fnum },
+        None,
+    );
+    if !res {
+        if deleting {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Failed to delete named mark: %c",
+                crate::memory::cstr_first_char(name.data),
+            );
+        } else {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Failed to set named mark: %c",
+                crate::memory::cstr_first_char(name.data),
+            );
+        }
+    }
+    res
 }
 
 pub fn get_default_stl_hl(wp: *mut WinInfoInfo, use_winbar: bool, stc_hl_id: i32) -> *const c_char {
-    {
-        if wp.is_null() {
-            c"TabLineFill".as_ptr()
-        } else if use_winbar {
-            if wp == curwin_ptr() {
-                c"WinBar".as_ptr()
-            } else {
-                c"WinBarNC".as_ptr()
-            }
-        } else if stc_hl_id > 0 {
-            syn_id2name(stc_hl_id)
-        } else if wp == curwin_ptr() {
-            c"StatusLine".as_ptr()
+    if wp.is_null() {
+        c"TabLineFill".as_ptr()
+    } else if use_winbar {
+        if wp == curwin_ptr() {
+            c"WinBar".as_ptr()
         } else {
-            c"StatusLineNC".as_ptr()
+            c"WinBarNC".as_ptr()
         }
+    } else if stc_hl_id > 0 {
+        syn_id2name(stc_hl_id)
+    } else if wp == curwin_ptr() {
+        c"StatusLine".as_ptr()
+    } else {
+        c"StatusLineNC".as_ptr()
     }
 }
 
@@ -4409,27 +4380,25 @@ mod tests {
 
     #[test]
     fn api_typename_and_cstr_helpers_work() {
-        {
-            assert_eq!(
-                api_typename(ObjectType::ObjectTypeString).to_str().unwrap(),
-                "String"
-            );
-            assert_eq!(
-                api_typename(ObjectType::ObjectTypeLuaRef).to_str().unwrap(),
-                "Function"
-            );
-            let s = cstr_to_string(c"hello");
-            assert_eq!(s.size, 5);
-            let cstr = string_to_cstr(s);
-            assert_eq!(cstr.to_str().unwrap(), "hello");
-            api_free_string(s);
+        assert_eq!(
+            api_typename(ObjectType::ObjectTypeString).to_str().unwrap(),
+            "String"
+        );
+        assert_eq!(
+            api_typename(ObjectType::ObjectTypeLuaRef).to_str().unwrap(),
+            "Function"
+        );
+        let s = cstr_to_string(c"hello");
+        assert_eq!(s.size, 5);
+        let cstr = string_to_cstr(s);
+        assert_eq!(cstr.to_str().unwrap(), "hello");
+        api_free_string(s);
 
-            let raw = api_metadata_raw();
-            assert!(!raw.data.is_null());
-            assert!(raw.size > 30_000);
-            let meta = api_metadata();
-            assert_eq!(meta.obj_type, ObjectType::ObjectTypeDict);
-            assert_eq!(meta.data.dict().size, 6);
-        }
+        let raw = api_metadata_raw();
+        assert!(!raw.data.is_null());
+        assert!(raw.size > 30_000);
+        let meta = api_metadata();
+        assert_eq!(meta.obj_type, ObjectType::ObjectTypeDict);
+        assert_eq!(meta.data.dict().size, 6);
     }
 }

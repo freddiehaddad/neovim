@@ -260,15 +260,13 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: *mut c_char, size: usize) -> 
     let buffered = fp.write_pos.saturating_sub(fp.read_pos);
     let from_buffer = buffered.min(size);
     if from_buffer > 0 {
-        {
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast::<u8>(),
-                    ret_buf.cast::<u8>(),
-                    from_buffer,
-                )
-            };
-        }
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                fp.buffer.as_ptr().wrapping_add(fp.read_pos).cast::<u8>(),
+                ret_buf.cast::<u8>(),
+                from_buffer,
+            )
+        };
     }
 
     #[cfg(unix)]

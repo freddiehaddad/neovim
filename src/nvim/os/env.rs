@@ -648,7 +648,7 @@ pub fn expand_env_esc(
     let esc_chars = esc_chars.into_c_char_ptr();
     let prefix = prefix.into_c_char_ptr();
     let srcp = srcp.into_c_char_ptr();
-    unsafe {
+    {
         let mut at_start = true;
         let dst_start = dst;
         let prefix_len: usize = if prefix.is_null() {
@@ -659,7 +659,7 @@ pub fn expand_env_esc(
 
         let mut src = skipwhite(srcp);
         dstlen -= 1;
-        while *src != 0 && dstlen > 0 {
+        while unsafe { *src } != 0 && dstlen > 0 {
             if crate::memory::cstr_first_byte(src) == b'`'
                 && crate::memory::cstr_byte_at(src, 1) == b'='
             {
@@ -673,7 +673,7 @@ pub fn expand_env_esc(
                 if len > (dstlen as usize) {
                     len = dstlen as usize;
                 }
-                ptr::copy_nonoverlapping(var, dst, len);
+                unsafe { ptr::copy_nonoverlapping(var, dst, len) };
                 dst = dst.wrapping_add(len);
                 dstlen -= len as i32;
                 continue;
@@ -717,7 +717,7 @@ pub fn expand_env_esc(
                     #[cfg(windows)]
                     {
                         let len = env_name_len(tail).min(c.max(0) as usize);
-                        ptr::copy_nonoverlapping(tail, var, len);
+                        unsafe { ptr::copy_nonoverlapping(tail, var, len) };
                         var = var.wrapping_add(len);
                         tail = tail.wrapping_add(len);
                     }
@@ -743,7 +743,9 @@ pub fn expand_env_esc(
 
                     #[cfg(windows)]
                     {
-                        *var = NUL;
+                        unsafe {
+                            *var = NUL;
+                        }
                         var_cstr = vim_getenv(dst);
                         if let Some(ref c) = var_cstr {
                             to_slash(c.as_ptr().cast_mut());
@@ -759,8 +761,7 @@ pub fn expand_env_esc(
                         i32::from(crate::memory::cstr_byte_at(src, 1)),
                     )
                 {
-                    var = (&raw const env_st().homedir)
-                        .as_ref()
+                    var = unsafe { (&raw const env_st().homedir).as_ref() }
                         .unwrap()
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -812,7 +813,7 @@ pub fn expand_env_esc(
                 if !crate::memory::cstr_is_empty(var) {
                     let c = crate::memory::cstr_len(var);
                     if c + crate::memory::cstr_len(tail) + 1 < (dstlen as usize) {
-                        ptr::copy_nonoverlapping(var, dst, c + 1);
+                        unsafe { ptr::copy_nonoverlapping(var, dst, c + 1) };
                         dstlen -= c as i32;
                         let ends_with_sep = after_pathsep(dst, dst.wrapping_add(c)) != 0;
                         #[cfg(windows)]
@@ -838,7 +839,9 @@ pub fn expand_env_esc(
                 if crate::memory::cstr_first_byte(src) == b'\\'
                     && crate::memory::cstr_byte_at(src, 1) != 0
                 {
-                    *dst = *src;
+                    unsafe {
+                        *dst = *src;
+                    }
                     dst = dst.wrapping_add(1);
                     src = src.wrapping_add(1);
                     dstlen -= 1;
@@ -849,24 +852,30 @@ pub fn expand_env_esc(
                     at_start = true;
                 }
                 if dstlen > 0 {
-                    *dst = *src;
+                    unsafe {
+                        *dst = *src;
+                    }
                     dst = dst.wrapping_add(1);
                     src = src.wrapping_add(1);
                     dstlen -= 1;
 
                     if !prefix.is_null()
                         && (src as usize) >= (srcp as usize) + prefix_len
-                        && std::slice::from_raw_parts(
-                            src.wrapping_sub(prefix_len).cast::<u8>(),
-                            prefix_len,
-                        ) == crate::memory::cstr_slice(prefix, prefix_len)
+                        && unsafe {
+                            std::slice::from_raw_parts(
+                                src.wrapping_sub(prefix_len).cast::<u8>(),
+                                prefix_len,
+                            )
+                        } == crate::memory::cstr_slice(prefix, prefix_len)
                     {
                         at_start = true;
                     }
                 }
             }
         }
-        *dst = NUL;
+        unsafe {
+            *dst = NUL;
+        }
 
         (dst as usize) - (dst_start as usize)
     }
@@ -1124,9 +1133,11 @@ pub fn home_replace(
     one: bool,
 ) -> usize {
     let mut src = src.into_c_char_ptr();
-    unsafe {
+    {
         if src.is_null() {
-            *dst = NUL;
+            unsafe {
+                *dst = NUL;
+            }
             return 0;
         }
 
@@ -1135,8 +1146,7 @@ pub fn home_replace(
             return dlen.min(dstlen - 1);
         }
 
-        let homedir_ptr = (&raw const env_st().homedir)
-            .as_ref()
+        let homedir_ptr = unsafe { (&raw const env_st().homedir).as_ref() }
             .unwrap()
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -1188,7 +1198,9 @@ pub fn home_replace(
                     flen - 1,
                 )))
             {
-                *homedir_env_mod.wrapping_add(flen - 1) = NUL;
+                unsafe {
+                    *homedir_env_mod.wrapping_add(flen - 1) = NUL;
+                }
             }
         }
 
@@ -1202,7 +1214,7 @@ pub fn home_replace(
             src = skipwhite(src);
         }
         let mut dst_p = dst;
-        while *src != 0 && dstlen > 0 {
+        while unsafe { *src } != 0 && dstlen > 0 {
             let mut p = homedir_ptr;
             let mut len = dirlen;
             loop {
@@ -1218,7 +1230,9 @@ pub fn home_replace(
                     src = src.wrapping_add(len);
                     dstlen -= 1;
                     if dstlen > 0 {
-                        *dst_p = b'~' as c_char;
+                        unsafe {
+                            *dst_p = b'~' as c_char;
+                        }
                         dst_p = dst_p.wrapping_add(1);
                     }
                     break;
@@ -1233,7 +1247,7 @@ pub fn home_replace(
             if dstlen == 0 {
                 break;
             }
-            while *src != 0
+            while unsafe { *src } != 0
                 && (one
                     || (crate::memory::cstr_first_byte(src) != b','
                         && crate::memory::cstr_first_byte(src) != b' '))
@@ -1242,7 +1256,9 @@ pub fn home_replace(
                 if dstlen == 0 {
                     break;
                 }
-                *dst_p = *src;
+                unsafe {
+                    *dst_p = *src;
+                }
                 dst_p = dst_p.wrapping_add(1);
                 src = src.wrapping_add(1);
             }
@@ -1256,13 +1272,17 @@ pub fn home_replace(
                 if dstlen == 0 {
                     break;
                 }
-                *dst_p = *src;
+                unsafe {
+                    *dst_p = *src;
+                }
                 dst_p = dst_p.wrapping_add(1);
                 src = src.wrapping_add(1);
             }
         }
 
-        *dst_p = NUL;
+        unsafe {
+            *dst_p = NUL;
+        }
         (dst_p as usize) - (dst as usize)
     }
 }

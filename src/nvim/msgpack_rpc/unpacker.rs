@@ -410,113 +410,111 @@ pub fn unpacker_init(p: &mut Unpacker) {
 
 /// Parse the header of a msgpack-rpc message (`unpacker_parse_header`).
 pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
+    let mut tok = MpackToken::new();
+    let mut data = p.read_ptr;
+    let mut size = p.read_size;
+
+    assert_eq!(p.unpack_error.err_type, ErrorType::ErrorTypeNone);
+
+    let mut result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+    if result == 0
+        && (tok.r#type != MpackTokenType::MpackTokenArray || tok.length < 3 || tok.length > 4)
     {
-        let mut tok = MpackToken::new();
-        let mut data = p.read_ptr;
-        let mut size = p.read_size;
-
-        assert_eq!(p.unpack_error.err_type, ErrorType::ErrorTypeNone);
-
-        let mut result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
-        if result == 0
-            && (tok.r#type != MpackTokenType::MpackTokenArray || tok.length < 3 || tok.length > 4)
-        {
+        result = MPACK_ERROR;
+    }
+    if result == 0 {
+        let array_length = tok.length as usize;
+        result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+        if result == 0 && tok.r#type != MpackTokenType::MpackTokenUint {
             result = MPACK_ERROR;
         }
         if result == 0 {
-            let array_length = tok.length as usize;
-            result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
-            if result == 0 && tok.r#type != MpackTokenType::MpackTokenUint {
-                result = MPACK_ERROR;
-            }
-            if result == 0 {
-                let msg_type = mpack_unpack_uint(tok) as u32;
-                let bad_type = if array_length == 3 {
-                    msg_type != 2
-                } else {
-                    msg_type >= 2
-                };
-                let Some(mt) = (if bad_type {
-                    None
-                } else {
-                    MessageType::from_raw(msg_type as i32)
-                }) else {
-                    api_set_error!(
-                        &mut p.unpack_error,
-                        ErrorType::ErrorTypeValidation,
-                        c"failed to decode msgpack",
-                    );
-                    p.state = -1;
-                    return false;
-                };
-                p.msg_type = mt;
-                p.request_id = 0;
+            let msg_type = mpack_unpack_uint(tok) as u32;
+            let bad_type = if array_length == 3 {
+                msg_type != 2
+            } else {
+                msg_type >= 2
+            };
+            let Some(mt) = (if bad_type {
+                None
+            } else {
+                MessageType::from_raw(msg_type as i32)
+            }) else {
+                api_set_error!(
+                    &mut p.unpack_error,
+                    ErrorType::ErrorTypeValidation,
+                    c"failed to decode msgpack",
+                );
+                p.state = -1;
+                return false;
+            };
+            p.msg_type = mt;
+            p.request_id = 0;
 
-                if p.msg_type != MessageType::MessageTypeNotification {
-                    result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
-                    if result == 0 && tok.r#type != MpackTokenType::MpackTokenUint {
-                        result = MPACK_ERROR;
-                    }
-                    if result == 0 {
-                        p.request_id = mpack_unpack_uint(tok) as u32;
-                    }
+            if p.msg_type != MessageType::MessageTypeNotification {
+                result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+                if result == 0 && tok.r#type != MpackTokenType::MpackTokenUint {
+                    result = MPACK_ERROR;
                 }
-
-                if result == 0 && p.msg_type != MessageType::MessageTypeResponse {
-                    result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
-                    if result == 0
-                        && ((tok.r#type != MpackTokenType::MpackTokenStr
-                            && tok.r#type != MpackTokenType::MpackTokenBin)
-                            || tok.length > 100)
-                    {
-                        result = MPACK_ERROR;
-                    }
-                    if result == 0 {
-                        p.method_name_len = tok.length as usize;
-                        if p.method_name_len > 0 {
-                            result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
-                            if result == 0 {
-                                assert_eq!(tok.r#type, MpackTokenType::MpackTokenChunk);
-                            }
-                        }
-                        if result == 0 && (tok.length as usize) < p.method_name_len {
-                            result = MPACK_EOF;
-                        }
-                        if result == 0 {
-                            let name_ptr = if tok.length != 0 {
-                                tok.data.chunk_ptr()
-                            } else {
-                                c"".as_ptr()
-                            };
-                            p.handler = msgpack_rpc_get_handler_for(
-                                name_ptr,
-                                tok.length as usize,
-                                &mut p.unpack_error,
-                            );
-                        }
-                    }
-                }
-
                 if result == 0 {
-                    p.read_ptr = data;
-                    p.read_size = size;
-                    return true;
+                    p.request_id = mpack_unpack_uint(tok) as u32;
                 }
             }
-        }
 
-        if result == MPACK_EOF {
-            mpack_tokbuf_init(&mut p.reader);
-        } else {
-            api_set_error!(
-                &mut p.unpack_error,
-                ErrorType::ErrorTypeValidation,
-                c"failed to decode msgpack",
-            );
-            p.state = -1;
+            if result == 0 && p.msg_type != MessageType::MessageTypeResponse {
+                result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+                if result == 0
+                    && ((tok.r#type != MpackTokenType::MpackTokenStr
+                        && tok.r#type != MpackTokenType::MpackTokenBin)
+                        || tok.length > 100)
+                {
+                    result = MPACK_ERROR;
+                }
+                if result == 0 {
+                    p.method_name_len = tok.length as usize;
+                    if p.method_name_len > 0 {
+                        result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+                        if result == 0 {
+                            assert_eq!(tok.r#type, MpackTokenType::MpackTokenChunk);
+                        }
+                    }
+                    if result == 0 && (tok.length as usize) < p.method_name_len {
+                        result = MPACK_EOF;
+                    }
+                    if result == 0 {
+                        let name_ptr = if tok.length != 0 {
+                            tok.data.chunk_ptr()
+                        } else {
+                            c"".as_ptr()
+                        };
+                        p.handler = msgpack_rpc_get_handler_for(
+                            name_ptr,
+                            tok.length as usize,
+                            &mut p.unpack_error,
+                        );
+                    }
+                }
+            }
+
+            if result == 0 {
+                p.read_ptr = data;
+                p.read_size = size;
+                return true;
+            }
         }
-        false
     }
+
+    if result == MPACK_EOF {
+        mpack_tokbuf_init(&mut p.reader);
+    } else {
+        api_set_error!(
+            &mut p.unpack_error,
+            ErrorType::ErrorTypeValidation,
+            c"failed to decode msgpack",
+        );
+        p.state = -1;
+    }
+    false
 }
 
 /// Advance the unpacker state machine (`unpacker_advance`).
@@ -642,26 +640,127 @@ fn next_type(
 
 /// Specialized redraw/grid_line parser (`unpacker_parse_redraw`).
 pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
-    {
-        let mut tok = MpackToken::new();
-        let mut data = p.read_ptr;
-        let mut size = p.read_size;
+    let mut tok = MpackToken::new();
+    let mut data = p.read_ptr;
+    let mut size = p.read_size;
 
-        if p.state == 10 {
-            if !next_type(
-                p,
-                &mut data,
-                &mut size,
-                &mut tok,
-                MpackTokenType::MpackTokenArray,
-            ) {
-                return false;
-            }
-            p.nevents = tok.length as i32;
-            p.state = 11;
+    if p.state == 10 {
+        if !next_type(
+            p,
+            &mut data,
+            &mut size,
+            &mut tok,
+            MpackTokenType::MpackTokenArray,
+        ) {
+            return false;
+        }
+        p.nevents = tok.length as i32;
+        p.state = 11;
+    }
+
+    if p.state == 11 {
+        if !next_type(
+            p,
+            &mut data,
+            &mut size,
+            &mut tok,
+            MpackTokenType::MpackTokenArray,
+        ) {
+            return false;
+        }
+        p.ncalls = tok.length as i32;
+        let prev_ncalls = p.ncalls;
+        p.ncalls -= 1;
+        if prev_ncalls == 0 {
+            p.state = -1;
+            return false;
         }
 
-        if p.state == 11 {
+        if !next_type(
+            p,
+            &mut data,
+            &mut size,
+            &mut tok,
+            MpackTokenType::MpackTokenStr,
+        ) {
+            return false;
+        }
+        let str_len = tok.length as usize;
+        if str_len > size {
+            return false;
+        }
+
+        p.ui_handler = ui_client_get_redraw_handler(data, str_len);
+        data = data.wrapping_add(str_len);
+        size -= str_len;
+
+        p.nevents -= 1;
+        p.read_ptr = data;
+        p.read_size = size;
+        if p.ui_handler
+            .r#fn
+            .is_none_or(|f| !std::ptr::fn_addr_eq(f, ui_client_event_grid_line as fn(Array)))
+        {
+            p.state = 12;
+            return true;
+        } else {
+            p.state = 14;
+            p.arena = empty_arena();
+        }
+    }
+
+    if p.state == 14 {
+        if !next_type(
+            p,
+            &mut data,
+            &mut size,
+            &mut tok,
+            MpackTokenType::MpackTokenArray,
+        ) {
+            return false;
+        }
+        let eventarrsize = tok.length as i32;
+        if eventarrsize != 5 {
+            p.state = -1;
+            return false;
+        }
+
+        for i in 0..3 {
+            if !next_type(
+                p,
+                &mut data,
+                &mut size,
+                &mut tok,
+                MpackTokenType::MpackTokenUint,
+            ) {
+                return false;
+            }
+            p.grid_line_event.args[i] = tok.data.value().lo as i32;
+        }
+
+        if !next_type(
+            p,
+            &mut data,
+            &mut size,
+            &mut tok,
+            MpackTokenType::MpackTokenArray,
+        ) {
+            return false;
+        }
+        p.grid_line_event.ncells = tok.length as i32;
+        p.grid_line_event.icell = 0;
+        p.grid_line_event.coloff = 0;
+        p.grid_line_event.cur_attr = -1;
+
+        p.read_ptr = data;
+        p.read_size = size;
+        p.state = 15;
+    }
+
+    if p.state == 15 {
+        while p.grid_line_event.icell != p.grid_line_event.ncells {
+            assert!(p.grid_line_event.icell < p.grid_line_event.ncells);
+
             if !next_type(
                 p,
                 &mut data,
@@ -671,10 +770,8 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
             ) {
                 return false;
             }
-            p.ncalls = tok.length as i32;
-            let prev_ncalls = p.ncalls;
-            p.ncalls -= 1;
-            if prev_ncalls == 0 {
+            let cellarrsize = tok.length as i32;
+            if !(1..=3).contains(&cellarrsize) {
                 p.state = -1;
                 return false;
             }
@@ -688,47 +785,30 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
             ) {
                 return false;
             }
-            let str_len = tok.length as usize;
-            if str_len > size {
+            let cellsize = tok.length as usize;
+            if cellsize > size {
                 return false;
             }
 
-            p.ui_handler = ui_client_get_redraw_handler(data, str_len);
-            data = data.wrapping_add(str_len);
-            size -= str_len;
+            let cellbuf = data;
+            data = data.wrapping_add(cellsize);
+            size -= cellsize;
 
-            p.nevents -= 1;
-            p.read_ptr = data;
-            p.read_size = size;
-            if p.ui_handler
-                .r#fn
-                .is_none_or(|f| !std::ptr::fn_addr_eq(f, ui_client_event_grid_line as fn(Array)))
-            {
-                p.state = 12;
-                return true;
-            } else {
-                p.state = 14;
-                p.arena = empty_arena();
-            }
-        }
-
-        if p.state == 14 {
-            if !next_type(
-                p,
-                &mut data,
-                &mut size,
-                &mut tok,
-                MpackTokenType::MpackTokenArray,
-            ) {
-                return false;
-            }
-            let eventarrsize = tok.length as i32;
-            if eventarrsize != 5 {
-                p.state = -1;
-                return false;
+            if cellarrsize >= 2 {
+                if !next_type(
+                    p,
+                    &mut data,
+                    &mut size,
+                    &mut tok,
+                    MpackTokenType::MpackTokenSint,
+                ) {
+                    return false;
+                }
+                p.grid_line_event.cur_attr = tok.data.value().lo as i32;
             }
 
-            for i in 0..3 {
+            let mut repeat = 1_i32;
+            if cellarrsize >= 3 {
                 if !next_type(
                     p,
                     &mut data,
@@ -738,174 +818,88 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
                 ) {
                     return false;
                 }
-                p.grid_line_event.args[i] = tok.data.value().lo as i32;
+                repeat = tok.data.value().lo as i32;
             }
 
-            if !next_type(
-                p,
-                &mut data,
-                &mut size,
-                &mut tok,
-                MpackTokenType::MpackTokenArray,
-            ) {
-                return false;
+            p.grid_line_event.clear_width = 0;
+            if p.grid_line_event.icell == p.grid_line_event.ncells - 1
+                && cellsize == 1
+                && crate::memory::cstr_first_byte(cellbuf) == b' '
+                && repeat > 1
+            {
+                p.grid_line_event.clear_width = repeat;
+            } else {
+                let sc = schar_from_buf(cellbuf, cellsize);
+                for _ in 0..repeat {
+                    if p.grid_line_event.coloff >= (g_st().grid_line_buf_char.len() as i32) {
+                        p.state = -1;
+                        return false;
+                    }
+                    let off = p.grid_line_event.coloff as usize;
+                    g_st().grid_line_buf_char[off] = sc;
+                    g_st().grid_line_buf_attr[off] = p.grid_line_event.cur_attr;
+                    p.grid_line_event.coloff += 1;
+                }
             }
-            p.grid_line_event.ncells = tok.length as i32;
-            p.grid_line_event.icell = 0;
-            p.grid_line_event.coloff = 0;
-            p.grid_line_event.cur_attr = -1;
 
             p.read_ptr = data;
             p.read_size = size;
-            p.state = 15;
+            p.grid_line_event.icell += 1;
         }
-
-        if p.state == 15 {
-            while p.grid_line_event.icell != p.grid_line_event.ncells {
-                assert!(p.grid_line_event.icell < p.grid_line_event.ncells);
-
-                if !next_type(
-                    p,
-                    &mut data,
-                    &mut size,
-                    &mut tok,
-                    MpackTokenType::MpackTokenArray,
-                ) {
-                    return false;
-                }
-                let cellarrsize = tok.length as i32;
-                if !(1..=3).contains(&cellarrsize) {
-                    p.state = -1;
-                    return false;
-                }
-
-                if !next_type(
-                    p,
-                    &mut data,
-                    &mut size,
-                    &mut tok,
-                    MpackTokenType::MpackTokenStr,
-                ) {
-                    return false;
-                }
-                let cellsize = tok.length as usize;
-                if cellsize > size {
-                    return false;
-                }
-
-                let cellbuf = data;
-                data = data.wrapping_add(cellsize);
-                size -= cellsize;
-
-                if cellarrsize >= 2 {
-                    if !next_type(
-                        p,
-                        &mut data,
-                        &mut size,
-                        &mut tok,
-                        MpackTokenType::MpackTokenSint,
-                    ) {
-                        return false;
-                    }
-                    p.grid_line_event.cur_attr = tok.data.value().lo as i32;
-                }
-
-                let mut repeat = 1_i32;
-                if cellarrsize >= 3 {
-                    if !next_type(
-                        p,
-                        &mut data,
-                        &mut size,
-                        &mut tok,
-                        MpackTokenType::MpackTokenUint,
-                    ) {
-                        return false;
-                    }
-                    repeat = tok.data.value().lo as i32;
-                }
-
-                p.grid_line_event.clear_width = 0;
-                if p.grid_line_event.icell == p.grid_line_event.ncells - 1
-                    && cellsize == 1
-                    && crate::memory::cstr_first_byte(cellbuf) == b' '
-                    && repeat > 1
-                {
-                    p.grid_line_event.clear_width = repeat;
-                } else {
-                    let sc = schar_from_buf(cellbuf, cellsize);
-                    for _ in 0..repeat {
-                        if p.grid_line_event.coloff >= (g_st().grid_line_buf_char.len() as i32) {
-                            p.state = -1;
-                            return false;
-                        }
-                        let off = p.grid_line_event.coloff as usize;
-                        g_st().grid_line_buf_char[off] = sc;
-                        g_st().grid_line_buf_attr[off] = p.grid_line_event.cur_attr;
-                        p.grid_line_event.coloff += 1;
-                    }
-                }
-
-                p.read_ptr = data;
-                p.read_size = size;
-                p.grid_line_event.icell += 1;
-            }
-            p.state = 16;
-        }
-
-        if p.state == 16 {
-            if !next_type(
-                p,
-                &mut data,
-                &mut size,
-                &mut tok,
-                MpackTokenType::MpackTokenBoolean,
-            ) {
-                return false;
-            }
-            p.grid_line_event.wrap = mpack_unpack_boolean(tok);
-            p.read_ptr = data;
-            p.read_size = size;
-            return true;
-        }
-
-        if p.state == 12 {
-            return true;
-        }
-
-        std::process::abort()
+        p.state = 16;
     }
+
+    if p.state == 16 {
+        if !next_type(
+            p,
+            &mut data,
+            &mut size,
+            &mut tok,
+            MpackTokenType::MpackTokenBoolean,
+        ) {
+            return false;
+        }
+        p.grid_line_event.wrap = mpack_unpack_boolean(tok);
+        p.read_ptr = data;
+        p.read_size = size;
+        return true;
+    }
+
+    if p.state == 12 {
+        return true;
+    }
+
+    std::process::abort()
 }
 
 /// Unpack a complete msgpack string/bin token (`unpack_string`).
 pub fn unpack_string(data: &mut *const c_char, size: &mut usize) -> NvimString {
-    {
-        let mut data2 = *data;
-        let mut size2 = *size;
-        let mut tok = MpackToken::new();
+    let mut data2 = *data;
+    let mut size2 = *size;
+    let mut tok = MpackToken::new();
 
-        let result = mpack_rtoken(&mut data2, &mut size2, &mut tok);
-        if result != 0
-            || (tok.r#type != MpackTokenType::MpackTokenStr
-                && tok.r#type != MpackTokenType::MpackTokenBin)
-        {
-            return NvimString {
-                data: std::ptr::null_mut(),
-                size: 0,
-            };
-        }
-        let len = tok.length as usize;
-        if size2 < len {
-            return NvimString {
-                data: std::ptr::null_mut(),
-                size: 0,
-            };
-        }
-        *data = data2.wrapping_add(len);
-        *size = size2 - len;
-        NvimString {
-            data: data2.cast_mut(),
-            size: len,
-        }
+    let result = mpack_rtoken(&mut data2, &mut size2, &mut tok);
+    if result != 0
+        || (tok.r#type != MpackTokenType::MpackTokenStr
+            && tok.r#type != MpackTokenType::MpackTokenBin)
+    {
+        return NvimString {
+            data: std::ptr::null_mut(),
+            size: 0,
+        };
+    }
+    let len = tok.length as usize;
+    if size2 < len {
+        return NvimString {
+            data: std::ptr::null_mut(),
+            size: 0,
+        };
+    }
+    *data = data2.wrapping_add(len);
+    *size = size2 - len;
+    NvimString {
+        data: data2.cast_mut(),
+        size: len,
     }
 }
 
@@ -959,11 +953,9 @@ pub fn push_additional_data(
     let entry = ad.get_or_insert_with(AdditionalData::default);
     entry.nitems += 1;
     if !data.is_null() && size > 0 {
-        {
-            entry
-                .bytes
-                .extend_from_slice(unsafe { std::slice::from_raw_parts(data, size) });
-        }
+        entry
+            .bytes
+            .extend_from_slice(unsafe { std::slice::from_raw_parts(data, size) });
     }
 }
 

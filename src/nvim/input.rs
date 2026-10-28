@@ -330,88 +330,80 @@ pub fn mb_byte2len_check(b: i32) -> i32 {
 
 #[inline]
 pub(crate) fn langmap_adjust(c: &mut i32, condition: bool) {
-    {
-        if !crate::memory::cstr_is_empty(opt_vars().p_langmap)
-            && condition
-            && (opt_vars().p_lrm != 0
-                || if g_st().vgetc_busy != 0 {
-                    typebuf_maplen() == 0
-                } else {
-                    g_st().key_typed
-                })
-            && g_st().key_stuffed == 0
-            && *c >= 0
-        {
-            if *c < 256 {
-                *c = g_st().langmap_mapchar[*c as usize] as i32;
+    if !crate::memory::cstr_is_empty(opt_vars().p_langmap)
+        && condition
+        && (opt_vars().p_lrm != 0
+            || if g_st().vgetc_busy != 0 {
+                typebuf_maplen() == 0
             } else {
-                *c = langmap_adjust_mb(*c);
-            }
+                g_st().key_typed
+            })
+        && g_st().key_stuffed == 0
+        && *c >= 0
+    {
+        if *c < 256 {
+            *c = g_st().langmap_mapchar[*c as usize] as i32;
+        } else {
+            *c = langmap_adjust_mb(*c);
         }
     }
 }
 
 /// Gets the contents of the record buffer as a string (typeahead encoding) and clears the buffer.
 pub fn get_recorded() -> std::ffi::CString {
-    {
-        let mut bytes: Vec<u8> = std::mem::take(&mut inp_st().recordbuff)
-            .into_iter()
-            .map(|b| b as u8)
-            .collect();
-        let mut len = bytes.len();
+    let mut bytes: Vec<u8> = std::mem::take(&mut inp_st().recordbuff)
+        .into_iter()
+        .map(|b| b as u8)
+        .collect();
+    let mut len = bytes.len();
 
-        if len >= inp_st().last_recorded_len {
-            len -= inp_st().last_recorded_len;
-            bytes.truncate(len);
-        }
-
-        if len > 0 && g_st().restart_edit != 0 && bytes[len - 1] == CTRL_O as u8 {
-            bytes.pop();
-        }
-
-        crate::memory::cstr_from_bytes(&bytes)
+    if len >= inp_st().last_recorded_len {
+        len -= inp_st().last_recorded_len;
+        bytes.truncate(len);
     }
+
+    if len > 0 && g_st().restart_edit != 0 && bytes[len - 1] == CTRL_O as u8 {
+        bytes.pop();
+    }
+
+    crate::memory::cstr_from_bytes(&bytes)
 }
 
 fn redo_prefix(spec: &CmdSpec, buf: &mut Vec<c_char>, replay: bool) {
-    {
-        if spec.regname != 0 {
-            sb_add_char(buf, b'"' as i32);
-            sb_add_char(buf, spec.regname);
-            if replay && spec.regname == b'=' as i32 {
-                sb_add_char(buf, CAR);
-            }
+    if spec.regname != 0 {
+        sb_add_char(buf, b'"' as i32);
+        sb_add_char(buf, spec.regname);
+        if replay && spec.regname == b'=' as i32 {
+            sb_add_char(buf, CAR);
         }
-        if spec.count != 0 {
-            let mut numbuf = [0 as c_char; 32];
-            let n = vim_snprintf!(numbuf.as_mut_ptr(), numbuf.len(), c"%d", spec.count as i32,);
-            if n > 0 {
-                buf.extend_from_slice(&numbuf[..n as usize]);
-            }
+    }
+    if spec.count != 0 {
+        let mut numbuf = [0 as c_char; 32];
+        let n = vim_snprintf!(numbuf.as_mut_ptr(), numbuf.len(), c"%d", spec.count as i32,);
+        if n > 0 {
+            buf.extend_from_slice(&numbuf[..n as usize]);
         }
     }
 }
 
 fn redo_chars(spec: &CmdSpec, buf: &mut Vec<c_char>, arg_meta: bool) {
-    {
-        if spec.op != NUL {
-            sb_add_char(buf, spec.op);
-        }
-        if spec.op_extra != NUL {
-            sb_add_char(buf, spec.op_extra);
-        }
-        if spec.motion_force != NUL {
-            sb_add_char(buf, spec.motion_force);
-        }
-        if spec.cmd != NUL {
-            sb_add_char(buf, spec.cmd);
-        }
-        if spec.cmd2 != NUL {
-            sb_add_char(buf, spec.cmd2);
-        }
-        if spec.cmdarg != NUL && !arg_meta {
-            sb_add_char(buf, spec.cmdarg);
-        }
+    if spec.op != NUL {
+        sb_add_char(buf, spec.op);
+    }
+    if spec.op_extra != NUL {
+        sb_add_char(buf, spec.op_extra);
+    }
+    if spec.motion_force != NUL {
+        sb_add_char(buf, spec.motion_force);
+    }
+    if spec.cmd != NUL {
+        sb_add_char(buf, spec.cmd);
+    }
+    if spec.cmd2 != NUL {
+        sb_add_char(buf, spec.cmd2);
+    }
+    if spec.cmdarg != NUL && !arg_meta {
+        sb_add_char(buf, spec.cmdarg);
     }
 }
 
@@ -483,22 +475,20 @@ fn key_byte_encode(c: i32, temp: &mut [c_char; 4]) -> isize {
 }
 
 fn key_char_encode(c: i32, buf: *mut c_char) -> usize {
-    {
-        let mut bytes = [0u8; MB_MAXBYTES + 1];
-        let len = if is_special(c) {
-            1
-        } else {
-            utf_char2bytes(c, bytes.as_mut_ptr().cast())
-        };
-        let mut off: usize = 0;
-        for &b in bytes.iter().take(len as usize) {
-            let mut tmp = [0 as c_char; 4];
-            let n = key_byte_encode(if is_special(c) { c } else { b as i32 }, &mut tmp) as usize;
-            unsafe { ptr::copy_nonoverlapping(tmp.as_ptr(), buf.wrapping_add(off), n + 1) };
-            off += n;
-        }
-        off
+    let mut bytes = [0u8; MB_MAXBYTES + 1];
+    let len = if is_special(c) {
+        1
+    } else {
+        utf_char2bytes(c, bytes.as_mut_ptr().cast())
+    };
+    let mut off: usize = 0;
+    for &b in bytes.iter().take(len as usize) {
+        let mut tmp = [0 as c_char; 4];
+        let n = key_byte_encode(if is_special(c) { c } else { b as i32 }, &mut tmp) as usize;
+        unsafe { ptr::copy_nonoverlapping(tmp.as_ptr(), buf.wrapping_add(off), n + 1) };
+        off += n;
     }
+    off
 }
 
 fn add_char_buff(buf: &mut StuffBuf, c: i32) {
@@ -570,47 +560,45 @@ pub fn typeahead_noflush(c: i32) {
 
 /// Remove the contents of the stuff buffer and the mapped characters in the typeahead buffer.
 pub fn flush_buffers(flush_typeahead: FlushBuffers) {
-    {
-        init_typebuf();
+    init_typebuf();
 
-        if g_st().typebuf.tb_maplen > 0 {
-            atom_composite_abort();
-        }
+    if g_st().typebuf.tb_maplen > 0 {
+        atom_composite_abort();
+    }
 
-        if !inp_st().readbuf2.keys.is_empty() && g_st().visual_global.active {
-            g_st().visual_global.need_end = true;
-        }
-        inp_st().readbuf1 = StuffBuf::new();
-        inp_st().readbuf2 = StuffBuf::new();
+    if !inp_st().readbuf2.keys.is_empty() && g_st().visual_global.active {
+        g_st().visual_global.need_end = true;
+    }
+    inp_st().readbuf1 = StuffBuf::new();
+    inp_st().readbuf2 = StuffBuf::new();
 
-        if flush_typeahead == FLUSH_MINIMAL {
-            if g_st().typebuf.tb_off + g_st().typebuf.tb_maplen >= g_st().typebuf.tb_buflen {
-                g_st().typebuf.tb_off = MAXMAPLEN as i32;
-                g_st().typebuf.tb_len = 0;
-            } else {
-                g_st().typebuf.tb_off += g_st().typebuf.tb_maplen;
-                g_st().typebuf.tb_len -= g_st().typebuf.tb_maplen;
-            }
-            if g_st().typebuf.tb_len == 0 {
-                g_st().typebuf_was_filled = false;
-            }
-        } else {
-            if flush_typeahead == FLUSH_INPUT {
-                init_typebuf();
-                while inchar(tb_buf_ptr(), g_st().typebuf.tb_buflen - 1, 10) != 0 {}
-            }
+    if flush_typeahead == FLUSH_MINIMAL {
+        if g_st().typebuf.tb_off + g_st().typebuf.tb_maplen >= g_st().typebuf.tb_buflen {
             g_st().typebuf.tb_off = MAXMAPLEN as i32;
             g_st().typebuf.tb_len = 0;
+        } else {
+            g_st().typebuf.tb_off += g_st().typebuf.tb_maplen;
+            g_st().typebuf.tb_len -= g_st().typebuf.tb_maplen;
+        }
+        if g_st().typebuf.tb_len == 0 {
             g_st().typebuf_was_filled = false;
         }
-        g_st().typebuf.tb_maplen = 0;
-        g_st().typebuf.tb_silent = 0;
-        g_st().cmd_silent = false;
-        g_st().typebuf.tb_no_abbr_cnt = 0;
-        g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
-        if g_st().typebuf.tb_change_cnt == 0 {
-            g_st().typebuf.tb_change_cnt = 1;
+    } else {
+        if flush_typeahead == FLUSH_INPUT {
+            init_typebuf();
+            while inchar(tb_buf_ptr(), g_st().typebuf.tb_buflen - 1, 10) != 0 {}
         }
+        g_st().typebuf.tb_off = MAXMAPLEN as i32;
+        g_st().typebuf.tb_len = 0;
+        g_st().typebuf_was_filled = false;
+    }
+    g_st().typebuf.tb_maplen = 0;
+    g_st().typebuf.tb_silent = 0;
+    g_st().cmd_silent = false;
+    g_st().typebuf.tb_no_abbr_cnt = 0;
+    g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
+    if g_st().typebuf.tb_change_cnt == 0 {
+        g_st().typebuf.tb_change_cnt = 1;
     }
 }
 
@@ -633,35 +621,29 @@ pub fn beep_flush() {
 
 /// Starts capturing a new change.
 pub fn redo_new(spec: CmdSpec) {
-    {
-        assert!(spec.body.is_empty());
-        if inp_st().block_redo {
-            return;
-        }
-
-        inp_st().redobuff.old = std::mem::replace(&mut inp_st().redobuff.cur, spec);
+    assert!(spec.body.is_empty());
+    if inp_st().block_redo {
+        return;
     }
+
+    inp_st().redobuff.old = std::mem::replace(&mut inp_st().redobuff.cur, spec);
 }
 
 /// Frees both redo buffers.
 pub fn redo_free_all() {
-    {
-        inp_st().redobuff = RedoState::new();
-    }
+    inp_st().redobuff = RedoState::new();
 }
 
 /// Prepare for redo of any command.
 pub fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
-    {
-        if as_atom {
-            atom_redo_prepped();
-        }
-        redo_new(spec.without_body());
-        if inp_st().block_redo {
-            return;
-        }
-        redo_chars(&spec, &mut inp_st().redobuff.cur.body, arg_meta);
+    if as_atom {
+        atom_redo_prepped();
     }
+    redo_new(spec.without_body());
+    if inp_st().block_redo {
+        return;
+    }
+    redo_chars(&spec, &mut inp_st().redobuff.cur.body, arg_meta);
 }
 
 /// Prepare for redo of a Visual-mode command.
@@ -690,31 +672,25 @@ pub fn prep_redo_visual(keys: impl crate::strings::IntoCCharPtr, len: usize, spe
 
 /// Discard the contents of the redo buffer and restore the previous redo buffer.
 pub fn redo_cancel() {
-    {
-        if inp_st().block_redo {
-            return;
-        }
-
-        atom_redo_cancel();
-        inp_st().redobuff.cur = std::mem::take(&mut inp_st().redobuff.old);
-        inp_st().readbuf1 = StuffBuf::new();
-        inp_st().readbuf2 = StuffBuf::new();
+    if inp_st().block_redo {
+        return;
     }
+
+    atom_redo_cancel();
+    inp_st().redobuff.cur = std::mem::take(&mut inp_st().redobuff.old);
+    inp_st().readbuf1 = StuffBuf::new();
+    inp_st().readbuf2 = StuffBuf::new();
 }
 
 /// Saves the redo state to `save_redo` and detaches it.
 pub fn save_redobuff(save_redo: &mut RedoState) {
-    {
-        save_redo.cur = inp_st().redobuff.cur.clone();
-        save_redo.old = std::mem::take(&mut inp_st().redobuff.old);
-    }
+    save_redo.cur = inp_st().redobuff.cur.clone();
+    save_redo.old = std::mem::take(&mut inp_st().redobuff.old);
 }
 
 /// Restores the redo state from `save_redo`.
 pub fn restore_redobuff(save_redo: &mut RedoState) {
-    {
-        inp_st().redobuff = std::mem::take(&mut *save_redo);
-    }
+    inp_st().redobuff = std::mem::take(&mut *save_redo);
 }
 
 /// Append `len` bytes of `s` (-1: up to the NUL) to the redo buffer.
@@ -831,10 +807,8 @@ pub fn redo_append_spec(s: impl crate::strings::IntoCCharPtr) {
 
 /// Appends character `c` to the redo buffer, translated to typeahead encoding.
 pub fn redo_append_char(c: i32) {
-    {
-        if !inp_st().block_redo {
-            sb_add_char(&mut inp_st().redobuff.cur.body, c);
-        }
+    if !inp_st().block_redo {
+        sb_add_char(&mut inp_st().redobuff.cur.body, c);
     }
 }
 
@@ -922,77 +896,72 @@ pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) {
 
 /// Dot-repeat `"."` command.
 pub fn start_redo(count: i32, old_redo: bool) -> bool {
-    {
-        let rd = if old_redo {
-            &raw mut inp_st().redobuff.old
-        } else {
-            &raw mut inp_st().redobuff.cur
-        };
-        let rd = unsafe { &mut *rd };
-        if rd.body.is_empty() && rd.regname == 0 && rd.count == 0 {
-            return false;
-        }
-
-        let mut spec = (*rd).without_body();
-        if spec.regname >= b'1' as i32 && spec.regname < b'9' as i32 {
-            spec.regname += 1;
-        }
-        if count != 0 {
-            spec.count = i64::from(count);
-        }
-        let mut prefix: Vec<c_char> = Vec::new();
-        redo_prefix(&spec, &mut prefix, true);
-        add_buff(
-            &mut inp_st().readbuf2,
-            prefix.as_ptr(),
-            prefix.len() as isize,
-        );
-        drop(prefix);
-        if spec.regname == b'=' as i32 {
-            g_st().cmd_silent = true;
-        }
-
-        add_buff(
-            &mut inp_st().readbuf2,
-            rd.body.as_ptr(),
-            rd.body.len() as isize,
-        );
-        true
+    let rd = if old_redo {
+        &raw mut inp_st().redobuff.old
+    } else {
+        &raw mut inp_st().redobuff.cur
+    };
+    let rd = unsafe { &mut *rd };
+    if rd.body.is_empty() && rd.regname == 0 && rd.count == 0 {
+        return false;
     }
+
+    let mut spec = (*rd).without_body();
+    if spec.regname >= b'1' as i32 && spec.regname < b'9' as i32 {
+        spec.regname += 1;
+    }
+    if count != 0 {
+        spec.count = i64::from(count);
+    }
+    let mut prefix: Vec<c_char> = Vec::new();
+    redo_prefix(&spec, &mut prefix, true);
+    add_buff(
+        &mut inp_st().readbuf2,
+        prefix.as_ptr(),
+        prefix.len() as isize,
+    );
+    drop(prefix);
+    if spec.regname == b'=' as i32 {
+        g_st().cmd_silent = true;
+    }
+
+    add_buff(
+        &mut inp_st().readbuf2,
+        rd.body.as_ptr(),
+        rd.body.len() as isize,
+    );
+    true
 }
 
 /// Repeats the last insert (`R`, `o`, `O`, `a`, `A`, `i` or `I` command).
 pub fn start_redo_ins() -> bool {
-    {
-        if inp_st().redobuff.cur.body.is_empty() {
-            return false;
-        }
-        start_stuff();
+    if inp_st().redobuff.cur.body.is_empty() {
+        return false;
+    }
+    start_stuff();
 
-        let mut p = inp_st().redobuff.cur.body.as_ptr();
-        let end = p.wrapping_add(inp_st().redobuff.cur.body.len());
-        while p < end {
-            if crate::memory::cstr_first_byte(p) == K_SPECIAL && unsafe { end.offset_from(p) } >= 3
+    let mut p = inp_st().redobuff.cur.body.as_ptr();
+    let end = p.wrapping_add(inp_st().redobuff.cur.body.len());
+    while p < end {
+        if crate::memory::cstr_first_byte(p) == K_SPECIAL && unsafe { end.offset_from(p) } >= 3 {
+            p = p.wrapping_add(3);
+            continue;
+        }
+        if crate::strings::vim_haschr(c"AaIiRrOo", crate::memory::cstr_first_byte(p) as i32) {
+            if crate::memory::cstr_first_byte(p) == b'O'
+                || crate::memory::cstr_first_byte(p) == b'o'
             {
-                p = p.wrapping_add(3);
-                continue;
-            }
-            if crate::strings::vim_haschr(c"AaIiRrOo", crate::memory::cstr_first_byte(p) as i32) {
-                if crate::memory::cstr_first_byte(p) == b'O'
-                    || crate::memory::cstr_first_byte(p) == b'o'
-                {
-                    add_buff(&mut inp_st().readbuf2, NL_STR, -1);
-                }
-                p = p.wrapping_add(1);
-                break;
+                add_buff(&mut inp_st().readbuf2, NL_STR, -1);
             }
             p = p.wrapping_add(1);
+            break;
         }
-
-        add_buff(&mut inp_st().readbuf2, p, unsafe { end.offset_from(p) });
-        inp_st().block_redo = true;
-        true
+        p = p.wrapping_add(1);
     }
+
+    add_buff(&mut inp_st().readbuf2, p, unsafe { end.offset_from(p) });
+    inp_st().block_redo = true;
+    true
 }
 
 pub fn stop_redo_ins() {
@@ -1000,18 +969,16 @@ pub fn stop_redo_ins() {
 }
 
 fn init_typebuf() {
-    {
-        if !g_st().typebuf.tb_buf.is_empty() {
-            return;
-        }
-
-        g_st().typebuf.tb_buf = vec![0u8; TYPELEN_INIT];
-        g_st().typebuf.tb_noremap = vec![0u8; TYPELEN_INIT];
-        g_st().typebuf.tb_buflen = TYPELEN_INIT as i32;
-        g_st().typebuf.tb_len = 0;
-        g_st().typebuf.tb_off = (MAXMAPLEN + 4) as i32;
-        g_st().typebuf.tb_change_cnt = 1;
+    if !g_st().typebuf.tb_buf.is_empty() {
+        return;
     }
+
+    g_st().typebuf.tb_buf = vec![0u8; TYPELEN_INIT];
+    g_st().typebuf.tb_noremap = vec![0u8; TYPELEN_INIT];
+    g_st().typebuf.tb_buflen = TYPELEN_INIT as i32;
+    g_st().typebuf.tb_len = 0;
+    g_st().typebuf.tb_off = (MAXMAPLEN + 4) as i32;
+    g_st().typebuf.tb_change_cnt = 1;
 }
 
 /// Returns true when keys cannot be remapped.
@@ -1175,82 +1142,79 @@ pub fn typebuf_maplen() -> i32 {
 
 /// Remove `len` characters from `typebuf.tb_buf[typebuf.tb_off + offset]`.
 pub fn del_typebuf(len: i32, offset: i32) {
+    if len == 0 {
+        return;
+    }
+
+    g_st().typebuf.tb_len -= len;
+
+    if offset == 0
+        && g_st().typebuf.tb_buflen - (g_st().typebuf.tb_off + len) >= (3 * MAXMAPLEN + 3) as i32
     {
-        if len == 0 {
-            return;
+        g_st().typebuf.tb_off += len;
+    } else {
+        let i = g_st().typebuf.tb_off + offset;
+        if g_st().typebuf.tb_off > MAXMAPLEN as i32 {
+            unsafe {
+                ptr::copy(
+                    tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
+                    tb_buf_ptr().wrapping_add(MAXMAPLEN),
+                    offset as usize,
+                )
+            };
+            unsafe {
+                ptr::copy(
+                    tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
+                    tb_noremap_ptr().wrapping_add(MAXMAPLEN),
+                    offset as usize,
+                )
+            };
+            g_st().typebuf.tb_off = MAXMAPLEN as i32;
         }
+        let bytes = g_st().typebuf.tb_len - offset + 1;
+        assert!(bytes > 0);
+        unsafe {
+            ptr::copy(
+                tb_buf_ptr().wrapping_add((i + len) as usize),
+                tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
+                bytes as usize,
+            )
+        };
+        unsafe {
+            ptr::copy(
+                tb_noremap_ptr().wrapping_add((i + len) as usize),
+                tb_noremap_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
+                (g_st().typebuf.tb_len - offset) as usize,
+            )
+        };
+    }
 
-        g_st().typebuf.tb_len -= len;
-
-        if offset == 0
-            && g_st().typebuf.tb_buflen - (g_st().typebuf.tb_off + len)
-                >= (3 * MAXMAPLEN + 3) as i32
-        {
-            g_st().typebuf.tb_off += len;
+    if g_st().typebuf.tb_maplen > offset {
+        if g_st().typebuf.tb_maplen < offset + len {
+            g_st().typebuf.tb_maplen = offset;
         } else {
-            let i = g_st().typebuf.tb_off + offset;
-            if g_st().typebuf.tb_off > MAXMAPLEN as i32 {
-                unsafe {
-                    ptr::copy(
-                        tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
-                        tb_buf_ptr().wrapping_add(MAXMAPLEN),
-                        offset as usize,
-                    )
-                };
-                unsafe {
-                    ptr::copy(
-                        tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize),
-                        tb_noremap_ptr().wrapping_add(MAXMAPLEN),
-                        offset as usize,
-                    )
-                };
-                g_st().typebuf.tb_off = MAXMAPLEN as i32;
-            }
-            let bytes = g_st().typebuf.tb_len - offset + 1;
-            assert!(bytes > 0);
-            unsafe {
-                ptr::copy(
-                    tb_buf_ptr().wrapping_add((i + len) as usize),
-                    tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
-                    bytes as usize,
-                )
-            };
-            unsafe {
-                ptr::copy(
-                    tb_noremap_ptr().wrapping_add((i + len) as usize),
-                    tb_noremap_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
-                    (g_st().typebuf.tb_len - offset) as usize,
-                )
-            };
+            g_st().typebuf.tb_maplen -= len;
         }
+    }
+    if g_st().typebuf.tb_silent > offset {
+        if g_st().typebuf.tb_silent < offset + len {
+            g_st().typebuf.tb_silent = offset;
+        } else {
+            g_st().typebuf.tb_silent -= len;
+        }
+    }
+    if g_st().typebuf.tb_no_abbr_cnt > offset {
+        if g_st().typebuf.tb_no_abbr_cnt < offset + len {
+            g_st().typebuf.tb_no_abbr_cnt = offset;
+        } else {
+            g_st().typebuf.tb_no_abbr_cnt -= len;
+        }
+    }
 
-        if g_st().typebuf.tb_maplen > offset {
-            if g_st().typebuf.tb_maplen < offset + len {
-                g_st().typebuf.tb_maplen = offset;
-            } else {
-                g_st().typebuf.tb_maplen -= len;
-            }
-        }
-        if g_st().typebuf.tb_silent > offset {
-            if g_st().typebuf.tb_silent < offset + len {
-                g_st().typebuf.tb_silent = offset;
-            } else {
-                g_st().typebuf.tb_silent -= len;
-            }
-        }
-        if g_st().typebuf.tb_no_abbr_cnt > offset {
-            if g_st().typebuf.tb_no_abbr_cnt < offset + len {
-                g_st().typebuf.tb_no_abbr_cnt = offset;
-            } else {
-                g_st().typebuf.tb_no_abbr_cnt -= len;
-            }
-        }
-
-        g_st().typebuf_was_filled = false;
-        g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
-        if g_st().typebuf.tb_change_cnt == 0 {
-            g_st().typebuf.tb_change_cnt = 1;
-        }
+    g_st().typebuf_was_filled = false;
+    g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
+    if g_st().typebuf.tb_change_cnt == 0 {
+        g_st().typebuf.tb_change_cnt = 1;
     }
 }
 
@@ -1299,57 +1263,55 @@ fn gotchars_add_byte(state: &mut GotcharsState, byte: u8) -> bool {
 }
 
 fn gotchars(chars: *const u8, len: usize) {
-    {
-        let mut s = chars;
-        let mut todo = len;
+    let mut s = chars;
+    let mut todo = len;
 
-        while todo > 0 {
-            todo -= 1;
-            let b = unsafe { *s };
-            s = s.wrapping_add(1);
-            if !gotchars_add_byte(&mut inp_st().gotchars_state, b) {
-                continue;
-            }
-
-            let buflen = inp_st().gotchars_state.buflen;
-            for i in 0..buflen {
-                updatescript(inp_st().gotchars_state.buf[i] as i32);
-            }
-
-            if buflen > inp_st().on_key_ignore_len {
-                let start_ptr = (&raw const inp_st().gotchars_state.buf)
-                    .cast::<c_char>()
-                    .wrapping_add(inp_st().on_key_ignore_len);
-                inp_st().on_key_buf.extend_from_slice(unsafe {
-                    std::slice::from_raw_parts(start_ptr, buflen - inp_st().on_key_ignore_len)
-                });
-                inp_st().on_key_ignore_len = 0;
-            } else {
-                inp_st().on_key_ignore_len -= buflen;
-            }
-
-            if g_st().reg_recording != 0 {
-                inp_st().recordbuff.extend_from_slice(unsafe {
-                    std::slice::from_raw_parts(
-                        (&raw const inp_st().gotchars_state.buf).cast::<c_char>(),
-                        buflen,
-                    )
-                });
-                inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_add(buflen);
-            }
-
-            atom_typed_add(
-                (&raw const inp_st().gotchars_state.buf).cast::<u8>(),
-                buflen,
-            );
-
-            inp_st().gotchars_state.buflen = 0;
+    while todo > 0 {
+        todo -= 1;
+        let b = unsafe { *s };
+        s = s.wrapping_add(1);
+        if !gotchars_add_byte(&mut inp_st().gotchars_state, b) {
+            continue;
         }
 
-        may_sync_undo();
-        g_st().debug_did_msg = false;
-        g_st().maptick += 1;
+        let buflen = inp_st().gotchars_state.buflen;
+        for i in 0..buflen {
+            updatescript(inp_st().gotchars_state.buf[i] as i32);
+        }
+
+        if buflen > inp_st().on_key_ignore_len {
+            let start_ptr = (&raw const inp_st().gotchars_state.buf)
+                .cast::<c_char>()
+                .wrapping_add(inp_st().on_key_ignore_len);
+            inp_st().on_key_buf.extend_from_slice(unsafe {
+                std::slice::from_raw_parts(start_ptr, buflen - inp_st().on_key_ignore_len)
+            });
+            inp_st().on_key_ignore_len = 0;
+        } else {
+            inp_st().on_key_ignore_len -= buflen;
+        }
+
+        if g_st().reg_recording != 0 {
+            inp_st().recordbuff.extend_from_slice(unsafe {
+                std::slice::from_raw_parts(
+                    (&raw const inp_st().gotchars_state.buf).cast::<c_char>(),
+                    buflen,
+                )
+            });
+            inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_add(buflen);
+        }
+
+        atom_typed_add(
+            (&raw const inp_st().gotchars_state.buf).cast::<u8>(),
+            buflen,
+        );
+
+        inp_st().gotchars_state.buflen = 0;
     }
+
+    may_sync_undo();
+    g_st().debug_did_msg = false;
+    g_st().maptick += 1;
 }
 
 /// Record an `<Ignore>` key.
@@ -1360,24 +1322,22 @@ pub fn gotchars_ignore() {
 }
 
 fn ungetchars(len: i32, recorded: bool) {
-    {
-        if !g_st().key_typed {
-            return;
-        }
-        let len_u = len as usize;
-        if recorded && g_st().reg_recording != 0 && inp_st().recordbuff.len() >= len_u {
-            inp_st()
-                .recordbuff
-                .truncate(inp_st().recordbuff.len() - len_u);
-            inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_sub(len_u);
-        }
-        atom_typed_del(len_u);
-        let trim = len_u.min(inp_st().on_key_buf.len());
-        inp_st()
-            .on_key_buf
-            .truncate(inp_st().on_key_buf.len() - trim);
-        inp_st().on_key_ignore_len += len_u - trim;
+    if !g_st().key_typed {
+        return;
     }
+    let len_u = len as usize;
+    if recorded && g_st().reg_recording != 0 && inp_st().recordbuff.len() >= len_u {
+        inp_st()
+            .recordbuff
+            .truncate(inp_st().recordbuff.len() - len_u);
+        inp_st().last_recorded_len = inp_st().last_recorded_len.wrapping_sub(len_u);
+    }
+    atom_typed_del(len_u);
+    let trim = len_u.min(inp_st().on_key_buf.len());
+    inp_st()
+        .on_key_buf
+        .truncate(inp_st().on_key_buf.len() - trim);
+    inp_st().on_key_ignore_len += len_u - trim;
 }
 
 /// Sync undo when typed characters are obtained from the typeahead buffer.
@@ -1427,29 +1387,25 @@ fn can_get_ungot() -> bool {
 
 /// Save all three kinds of typeahead, so that the user must type at a prompt.
 pub fn save_typeahead(tp: &mut Tasave) {
-    {
-        let prev_cnt = g_st().typebuf.tb_change_cnt;
-        tp.save_typebuf = std::mem::replace(&mut g_st().typebuf, Typebuf::ZERO);
-        g_st().typebuf.tb_change_cnt = prev_cnt;
-        alloc_typebuf();
-        tp.ungot = inp_st().ungot;
-        inp_st().ungot.c = -1;
+    let prev_cnt = g_st().typebuf.tb_change_cnt;
+    tp.save_typebuf = std::mem::replace(&mut g_st().typebuf, Typebuf::ZERO);
+    g_st().typebuf.tb_change_cnt = prev_cnt;
+    alloc_typebuf();
+    tp.ungot = inp_st().ungot;
+    inp_st().ungot.c = -1;
 
-        tp.save_readbuf1 = std::mem::replace(&mut inp_st().readbuf1, StuffBuf::new());
-        tp.save_readbuf2 = std::mem::replace(&mut inp_st().readbuf2, StuffBuf::new());
-    }
+    tp.save_readbuf1 = std::mem::replace(&mut inp_st().readbuf1, StuffBuf::new());
+    tp.save_readbuf2 = std::mem::replace(&mut inp_st().readbuf2, StuffBuf::new());
 }
 
 /// Restore the typeahead to what it was before calling `save_typeahead()`.
 pub fn restore_typeahead(tp: &mut Tasave) {
-    {
-        free_typebuf();
-        g_st().typebuf = std::mem::replace(&mut tp.save_typebuf, Typebuf::ZERO);
-        inp_st().ungot = tp.ungot;
+    free_typebuf();
+    g_st().typebuf = std::mem::replace(&mut tp.save_typebuf, Typebuf::ZERO);
+    inp_st().ungot = tp.ungot;
 
-        inp_st().readbuf1 = std::mem::replace(&mut tp.save_readbuf1, StuffBuf::new());
-        inp_st().readbuf2 = std::mem::replace(&mut tp.save_readbuf2, StuffBuf::new());
-    }
+    inp_st().readbuf1 = std::mem::replace(&mut tp.save_readbuf1, StuffBuf::new());
+    inp_st().readbuf2 = std::mem::replace(&mut tp.save_readbuf2, StuffBuf::new());
 }
 
 /// Open a new script file for the `":source!"` command.
@@ -1519,20 +1475,18 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) {
 }
 
 fn closescript() {
-    {
-        assert!(inp_st().curscript >= 0);
-        free_typebuf();
-        g_st().typebuf = std::mem::replace(
-            &mut inp_st().saved_typebuf[inp_st().curscript as usize],
-            Typebuf::ZERO,
-        );
+    assert!(inp_st().curscript >= 0);
+    free_typebuf();
+    g_st().typebuf = std::mem::replace(
+        &mut inp_st().saved_typebuf[inp_st().curscript as usize],
+        Typebuf::ZERO,
+    );
 
-        let scriptin_ptr = (&raw mut inp_st().scriptin)
-            .cast::<FileDescriptor>()
-            .wrapping_add(inp_st().curscript as usize);
-        file_close(unsafe { &mut *scriptin_ptr }, false);
-        inp_st().curscript -= 1;
-    }
+    let scriptin_ptr = (&raw mut inp_st().scriptin)
+        .cast::<FileDescriptor>()
+        .wrapping_add(inp_st().curscript as usize);
+    file_close(unsafe { &mut *scriptin_ptr }, false);
+    inp_st().curscript -= 1;
 }
 
 pub fn close_all_scripts() {
@@ -1595,22 +1549,20 @@ pub fn before_blocking() {
 }
 
 fn updatescript(c: i32) {
+    if c != 0
+        && let Some(ref so) = g_st().scriptout
     {
-        if c != 0
-            && let Some(ref so) = g_st().scriptout
-        {
-            unsafe { fputc(c, so.as_ptr()) };
-        }
-        let idle = c == 0;
-        if idle
-            || (opt_vars().p_uc > 0 && {
-                inp_st().updatescript_count += 1;
-                (inp_st().updatescript_count as OptInt) >= opt_vars().p_uc
-            })
-        {
-            ml_sync_all(i32::from(idle), 1, opt_vars().p_fs != 0 || idle);
-            inp_st().updatescript_count = 0;
-        }
+        unsafe { fputc(c, so.as_ptr()) };
+    }
+    let idle = c == 0;
+    if idle
+        || (opt_vars().p_uc > 0 && {
+            inp_st().updatescript_count += 1;
+            (inp_st().updatescript_count as OptInt) >= opt_vars().p_uc
+        })
+    {
+        ml_sync_all(i32::from(idle), 1, opt_vars().p_fs != 0 || idle);
+        inp_st().updatescript_count = 0;
     }
 }
 
@@ -1635,233 +1587,229 @@ pub fn merge_modifiers(c_arg: i32, modifiers: &mut i32) -> i32 {
 }
 
 fn add_byte_to_showcmd(byte: u8) {
-    unsafe {
-        if opt_vars().p_sc == 0 || g_st().msg_silent != 0 {
-            return;
-        }
+    if opt_vars().p_sc == 0 || g_st().msg_silent != 0 {
+        return;
+    }
 
-        if !gotchars_add_byte(&mut inp_st().showcmd_state, byte) {
-            return;
-        }
+    if !gotchars_add_byte(&mut inp_st().showcmd_state, byte) {
+        return;
+    }
 
-        let buflen = inp_st().showcmd_state.buflen;
-        inp_st().showcmd_state.buf[buflen] = NUL as u8;
-        inp_st().showcmd_state.buflen = 0;
+    let buflen = inp_st().showcmd_state.buflen;
+    inp_st().showcmd_state.buf[buflen] = NUL as u8;
+    inp_st().showcmd_state.buflen = 0;
 
-        let mut modifiers: i32 = 0;
-        let mut c: i32 = NUL;
+    let mut modifiers: i32 = 0;
+    let mut c: i32 = NUL;
 
-        let mut ptr = (&raw const inp_st().showcmd_state.buf).cast::<u8>();
-        if *ptr == K_SPECIAL
-            && *ptr.wrapping_add(1) == KS_MODIFIER
-            && crate::memory::cstr_byte_at(ptr.cast(), 2) != 0_u8
-        {
-            modifiers = crate::memory::cstr_char_at(ptr.cast(), 2);
-            ptr = ptr.wrapping_add(3);
-        }
+    let mut ptr = (&raw const inp_st().showcmd_state.buf).cast::<u8>();
+    if unsafe { *ptr } == K_SPECIAL
+        && unsafe { *ptr.wrapping_add(1) } == KS_MODIFIER
+        && crate::memory::cstr_byte_at(ptr.cast(), 2) != 0_u8
+    {
+        modifiers = crate::memory::cstr_char_at(ptr.cast(), 2);
+        ptr = ptr.wrapping_add(3);
+    }
 
-        if *ptr != NUL as u8 {
-            let mut cptr = ptr.cast::<c_char>();
-            let mb_ptr = mb_unescape(&raw mut cptr);
-            ptr = cptr.cast::<u8>();
-            if !mb_ptr.is_null() {
-                c = utf_ptr2char(mb_ptr);
-            } else {
-                c = *ptr as i32;
-                ptr = ptr.wrapping_add(1);
-            }
-            if c <= 0x7f {
-                let mut modifiers_after = modifiers;
-                let mod_c = merge_modifiers(c, &mut modifiers_after);
-                if modifiers_after == 0 {
-                    modifiers = 0;
-                    c = mod_c;
-                }
-            }
-        }
-
-        if modifiers != 0 {
-            add_to_showcmd(K_SPECIAL as i32);
-            add_to_showcmd(KS_MODIFIER as i32);
-            add_to_showcmd(modifiers);
-        }
-        if c != NUL {
-            add_to_showcmd(c);
-        }
-        while *ptr != NUL as u8 {
-            add_to_showcmd(*ptr as i32);
+    if unsafe { *ptr } != NUL as u8 {
+        let mut cptr = ptr.cast::<c_char>();
+        let mb_ptr = mb_unescape(&raw mut cptr);
+        ptr = cptr.cast::<u8>();
+        if !mb_ptr.is_null() {
+            c = utf_ptr2char(mb_ptr);
+        } else {
+            c = unsafe { *ptr } as i32;
             ptr = ptr.wrapping_add(1);
         }
+        if c <= 0x7f {
+            let mut modifiers_after = modifiers;
+            let mod_c = merge_modifiers(c, &mut modifiers_after);
+            if modifiers_after == 0 {
+                modifiers = 0;
+                c = mod_c;
+            }
+        }
+    }
+
+    if modifiers != 0 {
+        add_to_showcmd(K_SPECIAL as i32);
+        add_to_showcmd(KS_MODIFIER as i32);
+        add_to_showcmd(modifiers);
+    }
+    if c != NUL {
+        add_to_showcmd(c);
+    }
+    while unsafe { *ptr } != NUL as u8 {
+        add_to_showcmd(unsafe { *ptr } as i32);
+        ptr = ptr.wrapping_add(1);
     }
 }
 
 /// Get the next input character.
 pub fn vgetc() -> i32 {
-    {
-        let mut c: i32;
-        let mut buf = [0u8; MB_MAXBYTES + 1];
+    let mut c: i32;
+    let mut buf = [0u8; MB_MAXBYTES + 1];
 
-        if g_st().may_garbage_collect && g_st().want_garbage_collect {
-            garbage_collect(false);
-        }
+    if g_st().may_garbage_collect && g_st().want_garbage_collect {
+        garbage_collect(false);
+    }
 
-        if can_get_ungot() {
-            c = inp_st().ungot.c;
-            inp_st().ungot.c = -1;
-            g_st().mod_mask = inp_st().ungot.mod_mask;
-            g_st().mouse_grid = inp_st().ungot.mouse_grid;
-            g_st().mouse_row = inp_st().ungot.mouse_row;
-            g_st().mouse_col = inp_st().ungot.mouse_col;
-        } else {
-            g_st().mod_mask = 0;
-            g_st().vgetc_mod_mask = 0;
-            g_st().vgetc_char = 0;
+    if can_get_ungot() {
+        c = inp_st().ungot.c;
+        inp_st().ungot.c = -1;
+        g_st().mod_mask = inp_st().ungot.mod_mask;
+        g_st().mouse_grid = inp_st().ungot.mouse_grid;
+        g_st().mouse_row = inp_st().ungot.mouse_row;
+        g_st().mouse_col = inp_st().ungot.mouse_col;
+    } else {
+        g_st().mod_mask = 0;
+        g_st().vgetc_mod_mask = 0;
+        g_st().vgetc_char = 0;
 
-            inp_st().last_recorded_len = inp_st()
-                .last_recorded_len
-                .wrapping_sub(inp_st().last_vgetc_recorded_len);
+        inp_st().last_recorded_len = inp_st()
+            .last_recorded_len
+            .wrapping_sub(inp_st().last_vgetc_recorded_len);
 
-            loop {
-                let mut did_inc = false;
-                if g_st().mod_mask != 0 {
-                    g_st().no_mapping += 1;
-                    g_st().allow_keys += 1;
-                    did_inc = true;
-                }
+        loop {
+            let mut did_inc = false;
+            if g_st().mod_mask != 0 {
+                g_st().no_mapping += 1;
+                g_st().allow_keys += 1;
+                did_inc = true;
+            }
+            c = vgetorpeek(true);
+            if did_inc {
+                g_st().no_mapping -= 1;
+                g_st().allow_keys -= 1;
+            }
+
+            if c == K_SPECIAL as i32 {
+                let save_allow_keys = g_st().allow_keys;
+                g_st().no_mapping += 1;
+                g_st().allow_keys = 0;
+                let c2 = vgetorpeek(true);
                 c = vgetorpeek(true);
-                if did_inc {
-                    g_st().no_mapping -= 1;
-                    g_st().allow_keys -= 1;
-                }
-
-                if c == K_SPECIAL as i32 {
-                    let save_allow_keys = g_st().allow_keys;
-                    g_st().no_mapping += 1;
-                    g_st().allow_keys = 0;
-                    let c2 = vgetorpeek(true);
-                    c = vgetorpeek(true);
-                    g_st().no_mapping -= 1;
-                    g_st().allow_keys = save_allow_keys;
-                    if c2 == KS_MODIFIER as i32 {
-                        g_st().mod_mask = c;
-                        continue;
-                    }
-                    c = to_special(c2, c);
-                }
-
-                let n = mb_byte2len_check(c);
-                if n > 1 {
-                    g_st().no_mapping += 1;
-                    buf[0] = c as u8;
-                    for slot in buf.iter_mut().take(n as usize).skip(1) {
-                        *slot = vgetorpeek(true) as u8;
-                        if *slot == K_SPECIAL {
-                            vgetorpeek(true);
-                            vgetorpeek(true);
-                        }
-                    }
-                    g_st().no_mapping -= 1;
-                    c = utf_ptr2char(buf.as_ptr().cast());
-                }
-
-                if g_st().no_mapping == 0
-                    && g_st().key_typed
-                    && g_st().mod_mask == MOD_MASK_ALT as i32
-                    && (g_st().state_global & MODE_TERMINAL) == 0
-                    && !is_mouse_key(c)
-                {
-                    g_st().mod_mask = 0;
-                    requeue_key(c, 0, 3, true);
-                    ins_typebuf(
-                        ESC_STR,
-                        inp_st().key_noremap,
-                        0,
-                        !g_st().key_typed,
-                        g_st().cmd_silent,
-                    );
+                g_st().no_mapping -= 1;
+                g_st().allow_keys = save_allow_keys;
+                if c2 == KS_MODIFIER as i32 {
+                    g_st().mod_mask = c;
                     continue;
                 }
-
-                if g_st().vgetc_char == 0 {
-                    g_st().vgetc_mod_mask = g_st().mod_mask;
-                    g_st().vgetc_char = c;
-                }
-
-                match c {
-                    K_KPLUS => c = b'+' as i32,
-                    K_KMINUS => c = b'-' as i32,
-                    K_KDIVIDE => c = b'/' as i32,
-                    K_KMULTIPLY => c = b'*' as i32,
-                    K_KENTER => c = CAR,
-                    K_KPOINT => c = b'.' as i32,
-                    K_KCOMMA => c = b',' as i32,
-                    K_KEQUAL => c = b'=' as i32,
-                    K_K0 => c = b'0' as i32,
-                    K_K1 => c = b'1' as i32,
-                    K_K2 => c = b'2' as i32,
-                    K_K3 => c = b'3' as i32,
-                    K_K4 => c = b'4' as i32,
-                    K_K5 => c = b'5' as i32,
-                    K_K6 => c = b'6' as i32,
-                    K_K7 => c = b'7' as i32,
-                    K_K8 => c = b'8' as i32,
-                    K_K9 => c = b'9' as i32,
-                    K_XHOME | K_ZHOME => {
-                        if g_st().mod_mask == MOD_MASK_SHIFT as i32 {
-                            c = K_S_HOME;
-                            g_st().mod_mask = 0;
-                        } else if g_st().mod_mask == MOD_MASK_CTRL as i32 {
-                            c = K_C_HOME;
-                            g_st().mod_mask = 0;
-                        } else {
-                            c = K_HOME;
-                        }
-                    }
-                    K_XEND | K_ZEND => {
-                        if g_st().mod_mask == MOD_MASK_SHIFT as i32 {
-                            c = K_S_END;
-                            g_st().mod_mask = 0;
-                        } else if g_st().mod_mask == MOD_MASK_CTRL as i32 {
-                            c = K_C_END;
-                            g_st().mod_mask = 0;
-                        } else {
-                            c = K_END;
-                        }
-                    }
-                    K_KUP | K_XUP => c = K_UP,
-                    K_KDOWN | K_XDOWN => c = K_DOWN,
-                    K_KLEFT | K_XLEFT => c = K_LEFT,
-                    K_KRIGHT | K_XRIGHT => c = K_RIGHT,
-                    _ => {}
-                }
-
-                break;
+                c = to_special(c2, c);
             }
 
-            inp_st().last_vgetc_recorded_len = inp_st().last_recorded_len;
-        }
-
-        g_st().may_garbage_collect = false;
-
-        inp_st().on_key_buf.push(NUL as c_char);
-        if inp_st().on_key_blocked == 0 && nlua_exec_on_key(c, inp_st().on_key_buf.as_mut_ptr()) {
-            if c == K_COMMAND {
-                let _ = getcmdkeycmd(NUL, 0, false);
-            } else if c == K_LUA {
-                map_execute_lua(false, true);
-            } else if c == K_PASTE_START {
-                paste_repeat(0);
+            let n = mb_byte2len_check(c);
+            if n > 1 {
+                g_st().no_mapping += 1;
+                buf[0] = c as u8;
+                for slot in buf.iter_mut().take(n as usize).skip(1) {
+                    *slot = vgetorpeek(true) as u8;
+                    if *slot == K_SPECIAL {
+                        vgetorpeek(true);
+                        vgetorpeek(true);
+                    }
+                }
+                g_st().no_mapping -= 1;
+                c = utf_ptr2char(buf.as_ptr().cast());
             }
-            c = K_IGNORE;
-        }
-        inp_st().on_key_buf = Vec::new();
 
-        if c != K_IGNORE {
-            state_no_longer_safe(c"key typed");
+            if g_st().no_mapping == 0
+                && g_st().key_typed
+                && g_st().mod_mask == MOD_MASK_ALT as i32
+                && (g_st().state_global & MODE_TERMINAL) == 0
+                && !is_mouse_key(c)
+            {
+                g_st().mod_mask = 0;
+                requeue_key(c, 0, 3, true);
+                ins_typebuf(
+                    ESC_STR,
+                    inp_st().key_noremap,
+                    0,
+                    !g_st().key_typed,
+                    g_st().cmd_silent,
+                );
+                continue;
+            }
+
+            if g_st().vgetc_char == 0 {
+                g_st().vgetc_mod_mask = g_st().mod_mask;
+                g_st().vgetc_char = c;
+            }
+
+            match c {
+                K_KPLUS => c = b'+' as i32,
+                K_KMINUS => c = b'-' as i32,
+                K_KDIVIDE => c = b'/' as i32,
+                K_KMULTIPLY => c = b'*' as i32,
+                K_KENTER => c = CAR,
+                K_KPOINT => c = b'.' as i32,
+                K_KCOMMA => c = b',' as i32,
+                K_KEQUAL => c = b'=' as i32,
+                K_K0 => c = b'0' as i32,
+                K_K1 => c = b'1' as i32,
+                K_K2 => c = b'2' as i32,
+                K_K3 => c = b'3' as i32,
+                K_K4 => c = b'4' as i32,
+                K_K5 => c = b'5' as i32,
+                K_K6 => c = b'6' as i32,
+                K_K7 => c = b'7' as i32,
+                K_K8 => c = b'8' as i32,
+                K_K9 => c = b'9' as i32,
+                K_XHOME | K_ZHOME => {
+                    if g_st().mod_mask == MOD_MASK_SHIFT as i32 {
+                        c = K_S_HOME;
+                        g_st().mod_mask = 0;
+                    } else if g_st().mod_mask == MOD_MASK_CTRL as i32 {
+                        c = K_C_HOME;
+                        g_st().mod_mask = 0;
+                    } else {
+                        c = K_HOME;
+                    }
+                }
+                K_XEND | K_ZEND => {
+                    if g_st().mod_mask == MOD_MASK_SHIFT as i32 {
+                        c = K_S_END;
+                        g_st().mod_mask = 0;
+                    } else if g_st().mod_mask == MOD_MASK_CTRL as i32 {
+                        c = K_C_END;
+                        g_st().mod_mask = 0;
+                    } else {
+                        c = K_END;
+                    }
+                }
+                K_KUP | K_XUP => c = K_UP,
+                K_KDOWN | K_XDOWN => c = K_DOWN,
+                K_KLEFT | K_XLEFT => c = K_LEFT,
+                K_KRIGHT | K_XRIGHT => c = K_RIGHT,
+                _ => {}
+            }
+
+            break;
         }
 
-        c
+        inp_st().last_vgetc_recorded_len = inp_st().last_recorded_len;
     }
+
+    g_st().may_garbage_collect = false;
+
+    inp_st().on_key_buf.push(NUL as c_char);
+    if inp_st().on_key_blocked == 0 && nlua_exec_on_key(c, inp_st().on_key_buf.as_mut_ptr()) {
+        if c == K_COMMAND {
+            let _ = getcmdkeycmd(NUL, 0, false);
+        } else if c == K_LUA {
+            map_execute_lua(false, true);
+        } else if c == K_PASTE_START {
+            paste_repeat(0);
+        }
+        c = K_IGNORE;
+    }
+    inp_st().on_key_buf = Vec::new();
+
+    if c != K_IGNORE {
+        state_no_longer_safe(c"key typed");
+    }
+
+    c
 }
 
 /// Like `vgetc()`, but never return a NUL when called recursively.
@@ -1902,15 +1850,13 @@ pub fn vpeekc_any() -> i32 {
 
 /// Call `vpeekc()` without causing anything to be mapped.
 pub fn char_avail() -> bool {
-    {
-        if unsafe { *test_disable_char_avail.as_ptr() } {
-            return false;
-        }
-        g_st().no_mapping += 1;
-        let retval = vpeekc();
-        g_st().no_mapping -= 1;
-        retval != NUL
+    if unsafe { *test_disable_char_avail.as_ptr() } {
+        return false;
     }
+    g_st().no_mapping += 1;
+    let retval = vpeekc();
+    g_st().no_mapping -= 1;
+    retval != NUL
 }
 
 fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: bool) {
@@ -2087,33 +2033,31 @@ pub fn f_getcharmod(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 fn put_string_in_typebuf(offset: i32, slen: i32, string: *mut u8, new_slen: i32) -> bool {
-    {
-        let extra = new_slen - slen;
-        unsafe {
-            *string.wrapping_add(new_slen as usize) = NUL as u8;
-        }
-        if extra < 0 {
-            del_typebuf(-extra, offset);
-        } else if extra > 0
-            && !ins_typebuf(
-                string.wrapping_add(slen as usize).cast::<c_char>(),
-                REMAP_YES,
-                offset,
-                false,
-                false,
-            )
-        {
-            return false;
-        }
-        unsafe {
-            ptr::copy(
-                string,
-                tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
-                new_slen as usize,
-            )
-        };
-        true
+    let extra = new_slen - slen;
+    unsafe {
+        *string.wrapping_add(new_slen as usize) = NUL as u8;
     }
+    if extra < 0 {
+        del_typebuf(-extra, offset);
+    } else if extra > 0
+        && !ins_typebuf(
+            string.wrapping_add(slen as usize).cast::<c_char>(),
+            REMAP_YES,
+            offset,
+            false,
+            false,
+        )
+    {
+        return false;
+    }
+    unsafe {
+        ptr::copy(
+            string,
+            tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize),
+            new_slen as usize,
+        )
+    };
+    true
 }
 
 fn at_ins_compl_key() -> bool {
@@ -2135,446 +2079,445 @@ fn at_ins_compl_key() -> bool {
 }
 
 fn check_simplify_modifier(max_offset: i32) -> i32 {
-    {
-        if (g_st().state_global & MODE_TERMINAL) != 0 || inp_st().no_reduce_keys > 0 {
-            return 0;
-        }
-
-        for offset in 0..max_offset {
-            if offset + 3 >= g_st().typebuf.tb_len {
-                break;
-            }
-            let tp = tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize);
-            if unsafe { *tp } == K_SPECIAL && unsafe { *tp.wrapping_add(1) } == KS_MODIFIER {
-                let mut modifier = crate::memory::cstr_char_at(tp.cast(), 2);
-                let c = crate::memory::cstr_char_at(tp.cast(), 3);
-                let new_c = merge_modifiers(c, &mut modifier);
-
-                if new_c != c {
-                    if offset == 0 {
-                        g_st().vgetc_char = c;
-                        g_st().vgetc_mod_mask = crate::memory::cstr_char_at(tp.cast(), 2);
-                    }
-                    let mut new_string = [0u8; MB_MAXBYTES + 1];
-                    let len = if is_special(new_c) {
-                        new_string[0] = K_SPECIAL;
-                        new_string[1] = k_second(new_c);
-                        new_string[2] = k_third(new_c);
-                        3
-                    } else {
-                        utf_char2bytes(new_c, new_string.as_mut_ptr().cast())
-                    };
-                    if modifier == 0 {
-                        if !put_string_in_typebuf(offset, 4, new_string.as_mut_ptr(), len) {
-                            return -1;
-                        }
-                    } else {
-                        unsafe {
-                            *tp.wrapping_add(2) = modifier as u8;
-                        }
-                        if !put_string_in_typebuf(offset + 3, 1, new_string.as_mut_ptr(), len) {
-                            return -1;
-                        }
-                    }
-                    return len;
-                }
-            }
-        }
-        0
+    if (g_st().state_global & MODE_TERMINAL) != 0 || inp_st().no_reduce_keys > 0 {
+        return 0;
     }
+
+    for offset in 0..max_offset {
+        if offset + 3 >= g_st().typebuf.tb_len {
+            break;
+        }
+        let tp = tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + offset) as usize);
+        if unsafe { *tp } == K_SPECIAL && unsafe { *tp.wrapping_add(1) } == KS_MODIFIER {
+            let mut modifier = crate::memory::cstr_char_at(tp.cast(), 2);
+            let c = crate::memory::cstr_char_at(tp.cast(), 3);
+            let new_c = merge_modifiers(c, &mut modifier);
+
+            if new_c != c {
+                if offset == 0 {
+                    g_st().vgetc_char = c;
+                    g_st().vgetc_mod_mask = crate::memory::cstr_char_at(tp.cast(), 2);
+                }
+                let mut new_string = [0u8; MB_MAXBYTES + 1];
+                let len = if is_special(new_c) {
+                    new_string[0] = K_SPECIAL;
+                    new_string[1] = k_second(new_c);
+                    new_string[2] = k_third(new_c);
+                    3
+                } else {
+                    utf_char2bytes(new_c, new_string.as_mut_ptr().cast())
+                };
+                if modifier == 0 {
+                    if !put_string_in_typebuf(offset, 4, new_string.as_mut_ptr(), len) {
+                        return -1;
+                    }
+                } else {
+                    unsafe {
+                        *tp.wrapping_add(2) = modifier as u8;
+                    }
+                    if !put_string_in_typebuf(offset + 3, 1, new_string.as_mut_ptr(), len) {
+                        return -1;
+                    }
+                }
+                return len;
+            }
+        }
+    }
+    0
 }
 
 fn char_iter(itp: *mut *const u8, nomap: i32) -> i32 {
-    unsafe {
-        let mut it = *itp;
-        let mut c = *it as i32;
-        if c == NUL {
-            return 0;
-        }
+    let mut it = unsafe { *itp };
+    let mut c = unsafe { *it } as i32;
+    if c == NUL {
+        return 0;
+    }
 
-        if nomap == 0 {
-            let mblen = utf_byte2len(c);
-            if mblen > 1 {
-                let mut buf = [0u8; MB_MAXBYTES + 1];
-                buf[0] = c as u8;
-                let mut i: i32 = 1;
+    if nomap == 0 {
+        let mblen = utf_byte2len(c);
+        if mblen > 1 {
+            let mut buf = [0u8; MB_MAXBYTES + 1];
+            buf[0] = c as u8;
+            let mut i: i32 = 1;
 
-                loop {
+            loop {
+                it = it.wrapping_add(1);
+                buf[i as usize] = unsafe { *it };
+                if buf[i as usize] == K_SPECIAL {
                     it = it.wrapping_add(1);
-                    buf[i as usize] = *it;
-                    if buf[i as usize] == K_SPECIAL {
-                        it = it.wrapping_add(1);
-                        if *it == NUL as u8 {
-                            break;
-                        }
-                        it = it.wrapping_add(1);
-                        if *it == NUL as u8 {
-                            break;
-                        }
-                    }
-                    if buf[i as usize] == NUL as u8 {
+                    if unsafe { *it } == NUL as u8 {
                         break;
                     }
-                    i += 1;
-                    if i >= mblen {
+                    it = it.wrapping_add(1);
+                    if unsafe { *it } == NUL as u8 {
                         break;
                     }
                 }
-
-                if i != mblen {
-                    *itp = it;
-                    return 0;
+                if buf[i as usize] == NUL as u8 {
+                    break;
                 }
-
-                c = utf_ptr2char(buf.as_ptr().cast());
-                if c == buf[0] as i32 {
-                    it = *itp;
+                i += 1;
+                if i >= mblen {
+                    break;
                 }
             }
-        }
 
-        it = it.wrapping_add(1);
-        *itp = it;
-        c
+            if i != mblen {
+                unsafe {
+                    *itp = it;
+                }
+                return 0;
+            }
+
+            c = utf_ptr2char(buf.as_ptr().cast());
+            if c == buf[0] as i32 {
+                it = unsafe { *itp };
+            }
+        }
     }
+
+    it = it.wrapping_add(1);
+    unsafe {
+        *itp = it;
+    }
+    c
 }
 
 fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advance: bool) -> i32 {
-    unsafe {
-        let mut mp: Option<&Mapblock> = None;
-        let mut mp_match: Option<&Mapblock> = None;
-        let mut mp_match_len: i32 = 0;
-        let mut tb_match_len: i32 = 0;
-        let mut max_mlen: i32 = 0;
-        let mut keylen = *keylenp;
-        let local_state = get_real_state();
-        let mut is_plug_map = false;
+    let mut mp: Option<&Mapblock> = None;
+    let mut mp_match: Option<&Mapblock> = None;
+    let mut mp_match_len: i32 = 0;
+    let mut tb_match_len: i32 = 0;
+    let mut max_mlen: i32 = 0;
+    let mut keylen = *keylenp;
+    let local_state = get_real_state();
+    let mut is_plug_map = false;
 
-        let tb_start = tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize);
-        if g_st().typebuf.tb_len >= 3
-            && *tb_start == K_SPECIAL
-            && *tb_start.wrapping_add(1) == KS_EXTRA
-            && *tb_start.wrapping_add(2) == KE_PLUG
-        {
-            is_plug_map = true;
-        }
+    let tb_start = tb_buf_ptr().wrapping_add(g_st().typebuf.tb_off as usize);
+    if g_st().typebuf.tb_len >= 3
+        && unsafe { *tb_start } == K_SPECIAL
+        && unsafe { *tb_start.wrapping_add(1) } == KS_EXTRA
+        && unsafe { *tb_start.wrapping_add(2) } == KE_PLUG
+    {
+        is_plug_map = true;
+    }
 
-        let mut tb_b1 = *tb_start as i32;
-        if g_st().no_mapping == 0
-            && (g_st().no_zero_mapping == 0 || tb_b1 != b'0' as i32)
-            && (g_st().typebuf.tb_maplen == 0
-                || is_plug_map
-                || (*tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize)
-                    & (RM_NONE | RM_ABBR))
-                    == 0)
-            && !(opt_vars().p_paste != 0
-                && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0)
-            && !(g_st().state_global == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as i32))
-            && g_st().state_global != MODE_ASKMORE
-            && !at_ins_compl_key()
-        {
-            let nolmaplen: i32;
-            let mut tb_c1 = tb_b1;
-            let mut tb_iter: *const u8 = tb_start.cast_const();
+    let mut tb_b1 = unsafe { *tb_start } as i32;
+    if g_st().no_mapping == 0
+        && (g_st().no_zero_mapping == 0 || tb_b1 != b'0' as i32)
+        && (g_st().typebuf.tb_maplen == 0
+            || is_plug_map
+            || (unsafe { *tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize) }
+                & (RM_NONE | RM_ABBR))
+                == 0)
+        && !(opt_vars().p_paste != 0 && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0)
+        && !(g_st().state_global == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as i32))
+        && g_st().state_global != MODE_ASKMORE
+        && !at_ins_compl_key()
+    {
+        let nolmaplen: i32;
+        let mut tb_c1 = tb_b1;
+        let mut tb_iter: *const u8 = tb_start.cast_const();
 
-            if tb_b1 == K_SPECIAL as i32 {
-                nolmaplen = 2;
-                tb_iter = tb_iter.wrapping_add(1);
-            } else {
-                tb_c1 = char_iter(&raw mut tb_iter, 0);
-                if tb_c1 == 0 {
-                    if *timedout {
-                        *keylenp = 0;
-                        return MapResult::MapResultGet as i32;
-                    }
-                    *keylenp = KEYLEN_PART_KEY;
-                    return MapResult::MapResultNomatch as i32;
+        if tb_b1 == K_SPECIAL as i32 {
+            nolmaplen = 2;
+            tb_iter = tb_iter.wrapping_add(1);
+        } else {
+            tb_c1 = char_iter(&raw mut tb_iter, 0);
+            if tb_c1 == 0 {
+                if *timedout {
+                    *keylenp = 0;
+                    return MapResult::MapResultGet as i32;
                 }
-
-                let orig_tb_c1 = tb_c1;
-                langmap_adjust(
-                    &mut tb_c1,
-                    (g_st().state_global & (MODE_CMDLINE | MODE_INSERT)) == 0
-                        && get_real_state() != MODE_SELECT,
-                );
-                if orig_tb_c1 != tb_c1 {
-                    let mut cbuf = [0 as c_char; 6];
-                    utf_char2bytes(tb_c1, cbuf.as_mut_ptr());
-                    tb_b1 = cbuf[0] as u8 as i32;
-                }
-                nolmaplen = 0;
+                *keylenp = KEYLEN_PART_KEY;
+                return MapResult::MapResultNomatch as i32;
             }
 
-            mp = None;
-            for cand in get_buf_maphash_list(local_state, tb_b1)
-                .iter()
-                .chain(get_maphash_list(local_state, tb_b1))
+            let orig_tb_c1 = tb_c1;
+            langmap_adjust(
+                &mut tb_c1,
+                (g_st().state_global & (MODE_CMDLINE | MODE_INSERT)) == 0
+                    && get_real_state() != MODE_SELECT,
+            );
+            if orig_tb_c1 != tb_c1 {
+                let mut cbuf = [0 as c_char; 6];
+                utf_char2bytes(tb_c1, cbuf.as_mut_ptr());
+                tb_b1 = cbuf[0] as u8 as i32;
+            }
+            nolmaplen = 0;
+        }
+
+        mp = None;
+        for cand in get_buf_maphash_list(local_state, tb_b1)
+            .iter()
+            .chain(get_maphash_list(local_state, tb_b1))
+        {
+            let mut key_iter: *const u8 = cand.m_keys.as_ptr().cast::<u8>();
+
+            if char_iter(&raw mut key_iter, 0) == tb_c1
+                && (cand.m_mode & local_state) != 0
+                && ((cand.m_mode & MODE_LANGMAP) == 0 || g_st().typebuf.tb_maplen == 0)
             {
-                let mut key_iter: *const u8 = cand.m_keys.as_ptr().cast::<u8>();
+                let mut nomap = nolmaplen;
+                let mut modifiers: i32 = 0;
+                let mut tmp_tb_iter = tb_iter;
+                let mut mlen =
+                    unsafe { key_iter.offset_from(cand.m_keys.as_ptr().cast::<u8>()) } as i32;
+                let mut tb_mlen = (unsafe { tmp_tb_iter.offset_from(tb_buf_ptr()) } as i32)
+                    - g_st().typebuf.tb_off;
 
-                if char_iter(&raw mut key_iter, 0) == tb_c1
-                    && (cand.m_mode & local_state) != 0
-                    && ((cand.m_mode & MODE_LANGMAP) == 0 || g_st().typebuf.tb_maplen == 0)
-                {
-                    let mut nomap = nolmaplen;
-                    let mut modifiers: i32 = 0;
-                    let mut tmp_tb_iter = tb_iter;
-                    let mut mlen = key_iter.offset_from(cand.m_keys.as_ptr().cast::<u8>()) as i32;
-                    let mut tb_mlen =
-                        (tmp_tb_iter.offset_from(tb_buf_ptr()) as i32) - g_st().typebuf.tb_off;
-
-                    loop {
-                        let mut c2 = char_iter(&raw mut tmp_tb_iter, nomap);
-                        if c2 == 0 {
-                            break;
-                        }
-                        let tb_nomap = nomap;
-                        if nomap > 0 {
-                            if nomap == 2 && c2 == KS_MODIFIER as i32 {
-                                modifiers = 1;
-                            } else if nomap == 1 && modifiers == 1 {
-                                modifiers = c2;
-                            }
-                            nomap -= 1;
-                        } else {
-                            if c2 == K_SPECIAL as i32 {
-                                nomap = 2;
-                            } else if merge_modifiers(c2, &mut modifiers) == c2 {
-                                langmap_adjust(&mut c2, true);
-                            }
-                            modifiers = 0;
-                        }
-
-                        let key_char = char_iter(&raw mut key_iter, tb_nomap);
-                        if key_char != c2 {
-                            break;
-                        }
-
-                        mlen = key_iter.offset_from(cand.m_keys.as_ptr().cast::<u8>()) as i32;
-                        tb_mlen =
-                            (tmp_tb_iter.offset_from(tb_buf_ptr()) as i32) - g_st().typebuf.tb_off;
+                loop {
+                    let mut c2 = char_iter(&raw mut tmp_tb_iter, nomap);
+                    if c2 == 0 {
+                        break;
                     }
-
-                    keylen = cand.m_keylen;
-                    if mlen == keylen
-                        || (mlen == g_st().typebuf.tb_len && g_st().typebuf.tb_len < keylen)
-                    {
-                        let mut s = tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize);
-                        let m_keys_u8 = cand.m_keys.as_ptr().cast::<u8>();
-                        if *s == RM_SCRIPT
-                            && (*m_keys_u8 != K_SPECIAL
-                                || *m_keys_u8.wrapping_add(1) != KS_EXTRA
-                                || *m_keys_u8.wrapping_add(2) != KE_SNR)
-                        {
-                            continue;
+                    let tb_nomap = nomap;
+                    if nomap > 0 {
+                        if nomap == 2 && c2 == KS_MODIFIER as i32 {
+                            modifiers = 1;
+                        } else if nomap == 1 && modifiers == 1 {
+                            modifiers = c2;
                         }
-
-                        let mut n = mlen;
-                        while {
-                            n -= 1;
-                            n >= 0
-                        } {
-                            if (*s & (RM_NONE | RM_ABBR)) != 0 {
-                                break;
-                            }
-                            s = s.wrapping_add(1);
-                        }
-                        if !is_plug_map && n >= 0 {
-                            continue;
-                        }
-
-                        if keylen > g_st().typebuf.tb_len {
-                            if !*timedout && !mp_match.is_some_and(|m| m.m_nowait != 0) {
-                                keylen = KEYLEN_PART_MAP;
-                                mp = Some(cand);
-                                break;
-                            }
-                        } else if keylen > mp_match_len
-                            || (keylen == mp_match_len
-                                && mp_match.is_some_and(|m| (m.m_mode & MODE_LANGMAP) == 0)
-                                && (cand.m_mode & MODE_LANGMAP) != 0)
-                        {
-                            mp_match = Some(cand);
-                            mp_match_len = keylen;
-                            tb_match_len = tb_mlen;
-                        }
+                        nomap -= 1;
                     } else {
-                        max_mlen = max_mlen.max(mlen);
-                    }
-                }
-            }
-
-            if keylen != KEYLEN_PART_MAP && mp_match.is_some() {
-                mp = mp_match;
-                keylen = tb_match_len;
-            }
-        }
-
-        if (mp.is_none() || max_mlen > mp_match_len) && keylen != KEYLEN_PART_MAP {
-            if g_st().no_mapping == 0 || g_st().allow_keys != 0 {
-                if tb_b1 == K_SPECIAL as i32
-                    && (g_st().typebuf.tb_len < 2
-                        || (*tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + 1) as usize)
-                            == KS_MODIFIER
-                            && g_st().typebuf.tb_len < 4))
-                {
-                    keylen = KEYLEN_PART_KEY;
-                } else {
-                    keylen = check_simplify_modifier(max_mlen + 1);
-                    if keylen < 0 {
-                        return MapResult::MapResultFail as i32;
-                    }
-                }
-            } else {
-                keylen = 0;
-            }
-            if keylen == 0 && mp.is_none() {
-                *keylenp = keylen;
-                return MapResult::MapResultGet as i32;
-            }
-            if keylen > 0 {
-                *keylenp = keylen;
-                return MapResult::MapResultRetry as i32;
-            }
-            if keylen < 0 {
-                assert_eq!(keylen, KEYLEN_PART_KEY);
-            } else {
-                assert!(mp.is_some());
-                keylen = tb_match_len;
-            }
-        }
-
-        if keylen >= 0 && keylen <= g_st().typebuf.tb_len {
-            let mp = mp.unwrap();
-            if keylen > g_st().typebuf.tb_maplen && (mp.m_mode & MODE_LANGMAP) == 0 {
-                gotchars(
-                    tb_buf_ptr()
-                        .wrapping_add((g_st().typebuf.tb_off + g_st().typebuf.tb_maplen) as usize),
-                    (keylen - g_st().typebuf.tb_maplen) as usize,
-                );
-                atom_map_start(mp.m_keys.as_ptr(), mp.m_keylen as usize, !advance);
-            }
-
-            g_st().cmd_silent = g_st().typebuf.tb_silent > 0;
-            del_typebuf(keylen, 0);
-
-            *mapdepth += 1;
-            if (*mapdepth as OptInt) >= opt_vars().p_mmd {
-                emsg(gettext(E_RECURSIVE_MAPPING));
-                if (g_st().state_global & MODE_CMDLINE) != 0 {
-                    redrawcmdline();
-                } else {
-                    setcursor();
-                }
-                flush_buffers(FLUSH_MINIMAL);
-                *mapdepth = 0;
-                *keylenp = keylen;
-                return MapResult::MapResultFail as i32;
-            }
-
-            if g_st().visual_global.active
-                && g_st().visual_global.select
-                && (mp.m_mode & MODE_VISUAL) != 0
-            {
-                g_st().visual_global.select = false;
-                ins_typebuf(
-                    K_SELECT_STRING.as_ptr().cast::<c_char>().cast_mut(),
-                    REMAP_NONE,
-                    0,
-                    true,
-                    false,
-                );
-            }
-
-            let save_m_expr = mp.m_expr != 0;
-            let save_m_noremap = mp.m_noremap;
-            let save_m_silent = mp.m_silent != 0;
-            let save_m_mode = mp.m_mode;
-            let save_m_keys = mp.m_keys.clone();
-            let save_alt_m_keys = mp.alt_keys();
-            let save_alt_m_keylen = save_alt_m_keys
-                .as_ref()
-                .map_or(0, |k| k.as_bytes().len() as i32);
-
-            let owned_map_str: Option<std::ffi::CString> = if save_m_expr {
-                let save_vgetc_busy = g_st().vgetc_busy;
-                let save_may_garbage_collect = g_st().may_garbage_collect;
-                let prev_did_emsg = g_st().did_emsg;
-
-                g_st().vgetc_busy = 0;
-                g_st().may_garbage_collect = false;
-
-                let mut res = eval_map_expr(mp, NUL);
-
-                if res.as_ref().is_none_or(|s| s.to_bytes().is_empty()) {
-                    if prev_did_emsg != g_st().did_emsg {
-                        res =
-                            Some(std::ffi::CString::new([K_SPECIAL, KS_EXTRA, KE_IGNORE]).unwrap());
-                        if (g_st().state_global & MODE_CMDLINE) != 0 {
-                            g_st().msg_didout = true;
-                            g_st().msg_row = g_st().msg_row.max(g_st().cmdline_row);
-                            redrawcmd();
+                        if c2 == K_SPECIAL as i32 {
+                            nomap = 2;
+                        } else if merge_modifiers(c2, &mut modifiers) == c2 {
+                            langmap_adjust(&mut c2, true);
                         }
-                    } else if (g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0 {
-                        setcursor();
+                        modifiers = 0;
                     }
+
+                    let key_char = char_iter(&raw mut key_iter, tb_nomap);
+                    if key_char != c2 {
+                        break;
+                    }
+
+                    mlen =
+                        unsafe { key_iter.offset_from(cand.m_keys.as_ptr().cast::<u8>()) } as i32;
+                    tb_mlen = (unsafe { tmp_tb_iter.offset_from(tb_buf_ptr()) } as i32)
+                        - g_st().typebuf.tb_off;
                 }
 
-                g_st().vgetc_busy = save_vgetc_busy;
-                g_st().may_garbage_collect = save_may_garbage_collect;
-                res
-            } else {
-                Some(mp.m_str.clone())
-            };
-            let map_str: *mut c_char = owned_map_str
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-
-            let i = if map_str.is_null() {
-                false
-            } else {
-                if keylen > g_st().typebuf.tb_maplen && (save_m_mode & MODE_LANGMAP) != 0 {
-                    gotchars(map_str.cast::<u8>(), crate::memory::cstr_len(map_str));
-                }
-
-                let noremap = if save_m_noremap != REMAP_YES {
-                    save_m_noremap
-                } else if (crate::memory::cstr_prefix_bytes(map_str, keylen as usize)
-                    == crate::memory::cstr_prefix_bytes(save_m_keys.as_ptr(), keylen as usize))
-                    || save_alt_m_keys.as_ref().is_some_and(|alt| {
-                        crate::memory::cstr_prefix_bytes(map_str, save_alt_m_keylen as usize)
-                            == crate::memory::cstr_prefix_bytes(
-                                alt.as_ptr(),
-                                save_alt_m_keylen as usize,
-                            )
-                    })
+                keylen = cand.m_keylen;
+                if mlen == keylen
+                    || (mlen == g_st().typebuf.tb_len && g_st().typebuf.tb_len < keylen)
                 {
-                    REMAP_SKIP
-                } else {
-                    REMAP_YES
-                };
+                    let mut s = tb_noremap_ptr().wrapping_add(g_st().typebuf.tb_off as usize);
+                    let m_keys_u8 = cand.m_keys.as_ptr().cast::<u8>();
+                    if unsafe { *s } == RM_SCRIPT
+                        && (unsafe { *m_keys_u8 } != K_SPECIAL
+                            || unsafe { *m_keys_u8.wrapping_add(1) } != KS_EXTRA
+                            || unsafe { *m_keys_u8.wrapping_add(2) } != KE_SNR)
+                    {
+                        continue;
+                    }
 
-                ins_typebuf(
-                    map_str,
-                    noremap,
-                    0,
-                    true,
-                    g_st().cmd_silent || save_m_silent,
-                )
-            };
-            drop(owned_map_str);
-            drop(save_m_keys);
-            drop(save_alt_m_keys);
-            *keylenp = keylen;
-            if !i {
-                return MapResult::MapResultFail as i32;
+                    let mut n = mlen;
+                    while {
+                        n -= 1;
+                        n >= 0
+                    } {
+                        if (unsafe { *s } & (RM_NONE | RM_ABBR)) != 0 {
+                            break;
+                        }
+                        s = s.wrapping_add(1);
+                    }
+                    if !is_plug_map && n >= 0 {
+                        continue;
+                    }
+
+                    if keylen > g_st().typebuf.tb_len {
+                        if !*timedout && !mp_match.is_some_and(|m| m.m_nowait != 0) {
+                            keylen = KEYLEN_PART_MAP;
+                            mp = Some(cand);
+                            break;
+                        }
+                    } else if keylen > mp_match_len
+                        || (keylen == mp_match_len
+                            && mp_match.is_some_and(|m| (m.m_mode & MODE_LANGMAP) == 0)
+                            && (cand.m_mode & MODE_LANGMAP) != 0)
+                    {
+                        mp_match = Some(cand);
+                        mp_match_len = keylen;
+                        tb_match_len = tb_mlen;
+                    }
+                } else {
+                    max_mlen = max_mlen.max(mlen);
+                }
             }
+        }
+
+        if keylen != KEYLEN_PART_MAP && mp_match.is_some() {
+            mp = mp_match;
+            keylen = tb_match_len;
+        }
+    }
+
+    if (mp.is_none() || max_mlen > mp_match_len) && keylen != KEYLEN_PART_MAP {
+        if g_st().no_mapping == 0 || g_st().allow_keys != 0 {
+            if tb_b1 == K_SPECIAL as i32
+                && (g_st().typebuf.tb_len < 2
+                    || (unsafe {
+                        *tb_buf_ptr().wrapping_add((g_st().typebuf.tb_off + 1) as usize)
+                    } == KS_MODIFIER
+                        && g_st().typebuf.tb_len < 4))
+            {
+                keylen = KEYLEN_PART_KEY;
+            } else {
+                keylen = check_simplify_modifier(max_mlen + 1);
+                if keylen < 0 {
+                    return MapResult::MapResultFail as i32;
+                }
+            }
+        } else {
+            keylen = 0;
+        }
+        if keylen == 0 && mp.is_none() {
+            *keylenp = keylen;
+            return MapResult::MapResultGet as i32;
+        }
+        if keylen > 0 {
+            *keylenp = keylen;
             return MapResult::MapResultRetry as i32;
         }
-
-        *keylenp = keylen;
-        MapResult::MapResultNomatch as i32
+        if keylen < 0 {
+            assert_eq!(keylen, KEYLEN_PART_KEY);
+        } else {
+            assert!(mp.is_some());
+            keylen = tb_match_len;
+        }
     }
+
+    if keylen >= 0 && keylen <= g_st().typebuf.tb_len {
+        let mp = mp.unwrap();
+        if keylen > g_st().typebuf.tb_maplen && (mp.m_mode & MODE_LANGMAP) == 0 {
+            gotchars(
+                tb_buf_ptr()
+                    .wrapping_add((g_st().typebuf.tb_off + g_st().typebuf.tb_maplen) as usize),
+                (keylen - g_st().typebuf.tb_maplen) as usize,
+            );
+            atom_map_start(mp.m_keys.as_ptr(), mp.m_keylen as usize, !advance);
+        }
+
+        g_st().cmd_silent = g_st().typebuf.tb_silent > 0;
+        del_typebuf(keylen, 0);
+
+        *mapdepth += 1;
+        if (*mapdepth as OptInt) >= opt_vars().p_mmd {
+            emsg(gettext(E_RECURSIVE_MAPPING));
+            if (g_st().state_global & MODE_CMDLINE) != 0 {
+                redrawcmdline();
+            } else {
+                setcursor();
+            }
+            flush_buffers(FLUSH_MINIMAL);
+            *mapdepth = 0;
+            *keylenp = keylen;
+            return MapResult::MapResultFail as i32;
+        }
+
+        if g_st().visual_global.active
+            && g_st().visual_global.select
+            && (mp.m_mode & MODE_VISUAL) != 0
+        {
+            g_st().visual_global.select = false;
+            ins_typebuf(
+                K_SELECT_STRING.as_ptr().cast::<c_char>().cast_mut(),
+                REMAP_NONE,
+                0,
+                true,
+                false,
+            );
+        }
+
+        let save_m_expr = mp.m_expr != 0;
+        let save_m_noremap = mp.m_noremap;
+        let save_m_silent = mp.m_silent != 0;
+        let save_m_mode = mp.m_mode;
+        let save_m_keys = mp.m_keys.clone();
+        let save_alt_m_keys = mp.alt_keys();
+        let save_alt_m_keylen = save_alt_m_keys
+            .as_ref()
+            .map_or(0, |k| k.as_bytes().len() as i32);
+
+        let owned_map_str: Option<std::ffi::CString> = if save_m_expr {
+            let save_vgetc_busy = g_st().vgetc_busy;
+            let save_may_garbage_collect = g_st().may_garbage_collect;
+            let prev_did_emsg = g_st().did_emsg;
+
+            g_st().vgetc_busy = 0;
+            g_st().may_garbage_collect = false;
+
+            let mut res = eval_map_expr(mp, NUL);
+
+            if res.as_ref().is_none_or(|s| s.to_bytes().is_empty()) {
+                if prev_did_emsg != g_st().did_emsg {
+                    res = Some(std::ffi::CString::new([K_SPECIAL, KS_EXTRA, KE_IGNORE]).unwrap());
+                    if (g_st().state_global & MODE_CMDLINE) != 0 {
+                        g_st().msg_didout = true;
+                        g_st().msg_row = g_st().msg_row.max(g_st().cmdline_row);
+                        redrawcmd();
+                    }
+                } else if (g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0 {
+                    setcursor();
+                }
+            }
+
+            g_st().vgetc_busy = save_vgetc_busy;
+            g_st().may_garbage_collect = save_may_garbage_collect;
+            res
+        } else {
+            Some(mp.m_str.clone())
+        };
+        let map_str: *mut c_char = owned_map_str
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+
+        let i = if map_str.is_null() {
+            false
+        } else {
+            if keylen > g_st().typebuf.tb_maplen && (save_m_mode & MODE_LANGMAP) != 0 {
+                gotchars(map_str.cast::<u8>(), crate::memory::cstr_len(map_str));
+            }
+
+            let noremap = if save_m_noremap != REMAP_YES {
+                save_m_noremap
+            } else if (crate::memory::cstr_prefix_bytes(map_str, keylen as usize)
+                == crate::memory::cstr_prefix_bytes(save_m_keys.as_ptr(), keylen as usize))
+                || save_alt_m_keys.as_ref().is_some_and(|alt| {
+                    crate::memory::cstr_prefix_bytes(map_str, save_alt_m_keylen as usize)
+                        == crate::memory::cstr_prefix_bytes(
+                            alt.as_ptr(),
+                            save_alt_m_keylen as usize,
+                        )
+                })
+            {
+                REMAP_SKIP
+            } else {
+                REMAP_YES
+            };
+
+            ins_typebuf(
+                map_str,
+                noremap,
+                0,
+                true,
+                g_st().cmd_silent || save_m_silent,
+            )
+        };
+        drop(owned_map_str);
+        drop(save_m_keys);
+        drop(save_alt_m_keys);
+        *keylenp = keylen;
+        if !i {
+            return MapResult::MapResultFail as i32;
+        }
+        return MapResult::MapResultRetry as i32;
+    }
+
+    *keylenp = keylen;
+    MapResult::MapResultNomatch as i32
 }
 
 /// Unget one character (can only be done once!).
@@ -3027,82 +2970,80 @@ fn vgetorpeek(advance: bool) -> i32 {
 }
 
 fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
-    {
-        let mut len: i32 = 0;
-        let mut retesc: i32 = 0;
-        let tb_change_cnt = g_st().typebuf.tb_change_cnt;
+    let mut len: i32 = 0;
+    let mut retesc: i32 = 0;
+    let tb_change_cnt = g_st().typebuf.tb_change_cnt;
 
-        if wait_time == -1 || wait_time > 100 {
+    if wait_time == -1 || wait_time > 100 {
+        ui_flush();
+    }
+
+    if g_st().state_global != MODE_HITRETURN {
+        g_st().did_outofmem_msg = false;
+        g_st().did_swapwrite_msg = false;
+    }
+
+    let mut read_size: isize = -1;
+    while inp_st().curscript >= 0 && read_size <= 0 && !g_st().ignore_script {
+        let mut script_char: c_char = 0;
+        let scriptin_ptr = (&raw mut inp_st().scriptin)
+            .cast::<FileDescriptor>()
+            .wrapping_add(inp_st().curscript as usize);
+        if g_st().got_int || {
+            read_size = file_read(scriptin_ptr, &raw mut script_char, 1);
+            read_size != 1
+        } {
+            closescript();
+            if g_st().got_int {
+                retesc = 1;
+            } else {
+                return -1;
+            }
+        } else {
+            unsafe {
+                *buf = script_char as u8;
+            }
+            len = 1;
+        }
+    }
+
+    if read_size <= 0 {
+        if g_st().got_int {
+            let mut dum = [0u8; DUM_LEN + 1];
+            loop {
+                len = input_get(dum.as_mut_ptr(), DUM_LEN as i32, 0, 0, ptr::null_mut());
+                if len == 0 || (len == 1 && dum[0] == CTRL_C_CONST as u8) {
+                    break;
+                }
+            }
+            return retesc;
+        }
+
+        if wait_time == -1 || wait_time > 10 {
             ui_flush();
         }
 
-        if g_st().state_global != MODE_HITRETURN {
-            g_st().did_outofmem_msg = false;
-            g_st().did_swapwrite_msg = false;
-        }
-
-        let mut read_size: isize = -1;
-        while inp_st().curscript >= 0 && read_size <= 0 && !g_st().ignore_script {
-            let mut script_char: c_char = 0;
-            let scriptin_ptr = (&raw mut inp_st().scriptin)
-                .cast::<FileDescriptor>()
-                .wrapping_add(inp_st().curscript as usize);
-            if g_st().got_int || {
-                read_size = file_read(scriptin_ptr, &raw mut script_char, 1);
-                read_size != 1
-            } {
-                closescript();
-                if g_st().got_int {
-                    retesc = 1;
-                } else {
-                    return -1;
-                }
-            } else {
-                unsafe {
-                    *buf = script_char as u8;
-                }
-                len = 1;
-            }
-        }
-
-        if read_size <= 0 {
-            if g_st().got_int {
-                let mut dum = [0u8; DUM_LEN + 1];
-                loop {
-                    len = input_get(dum.as_mut_ptr(), DUM_LEN as i32, 0, 0, ptr::null_mut());
-                    if len == 0 || (len == 1 && dum[0] == CTRL_C_CONST as u8) {
-                        break;
-                    }
-                }
-                return retesc;
-            }
-
-            if wait_time == -1 || wait_time > 10 {
-                ui_flush();
-            }
-
-            len = input_get(
-                buf,
-                maxlen / 3,
-                wait_time as i32,
-                tb_change_cnt,
-                ptr::null_mut(),
-            );
-        }
-
-        if typebuf_changed(tb_change_cnt) {
-            return 0;
-        }
-
-        if len > 0 {
-            g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
-            if g_st().typebuf.tb_change_cnt == 0 {
-                g_st().typebuf.tb_change_cnt = 1;
-            }
-        }
-
-        fix_input_buffer(buf, len)
+        len = input_get(
+            buf,
+            maxlen / 3,
+            wait_time as i32,
+            tb_change_cnt,
+            ptr::null_mut(),
+        );
     }
+
+    if typebuf_changed(tb_change_cnt) {
+        return 0;
+    }
+
+    if len > 0 {
+        g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
+        if g_st().typebuf.tb_change_cnt == 0 {
+            g_st().typebuf.tb_change_cnt = 1;
+        }
+    }
+
+    fix_input_buffer(buf, len)
 }
 
 /// Fix typed characters for use by `vgetc()`.
@@ -3136,70 +3077,68 @@ pub fn fix_input_buffer(buf: *mut u8, mut len: i32) -> i32 {
 
 /// Get a key stroke directly from the user.
 pub fn get_keystroke(events: *mut MultiQueue) -> i32 {
-    {
-        let mut buf: Vec<u8> = vec![0; 150];
-        let mut buflen: i32 = 150;
-        let mut len: i32 = 0;
-        let mut n: i32;
-        let save_mapped_ctrl_c = g_st().mapped_ctrl_c;
+    let mut buf: Vec<u8> = vec![0; 150];
+    let mut buflen: i32 = 150;
+    let mut len: i32 = 0;
+    let mut n: i32;
+    let save_mapped_ctrl_c = g_st().mapped_ctrl_c;
 
-        g_st().mod_mask = 0;
-        g_st().mapped_ctrl_c = 0;
-        loop {
-            ui_flush();
-            let mut maxlen = (buflen - 6 - len) / 3;
-            if maxlen < 10 {
-                buflen += 100;
-                buf.resize(buflen as usize, 0);
-                maxlen = (buflen - 6 - len) / 3;
-            }
-
-            n = input_get(
-                buf.as_mut_ptr().wrapping_add(len as usize),
-                maxlen,
-                if len == 0 { -1 } else { 100 },
-                0,
-                events,
-            );
-            if n > 0 {
-                n = fix_input_buffer(buf.as_mut_ptr().wrapping_add(len as usize), n);
-                len += n;
-            }
-
-            if n > 0 {
-                len = n;
-            }
-            if len == 0 {
-                continue;
-            }
-
-            n = buf[0] as i32;
-            if n == K_SPECIAL as i32 {
-                n = to_special(buf[1] as i32, buf[2] as i32);
-                if buf[1] == KS_MODIFIER || n == K_IGNORE || (is_mouse_key(n) && n != K_LEFTMOUSE) {
-                    if buf[1] == KS_MODIFIER {
-                        g_st().mod_mask = buf[2] as i32;
-                    }
-                    len -= 3;
-                    if len > 0 {
-                        buf.copy_within(3..(3 + len as usize), 0);
-                    }
-                    continue;
-                }
-                break;
-            }
-            if utf_byte2len(n) > len {
-                continue;
-            }
-            let term_idx = if len >= buflen { buflen - 1 } else { len } as usize;
-            buf[term_idx] = NUL as u8;
-            n = utf_ptr2char(buf.as_ptr().cast());
-            break;
+    g_st().mod_mask = 0;
+    g_st().mapped_ctrl_c = 0;
+    loop {
+        ui_flush();
+        let mut maxlen = (buflen - 6 - len) / 3;
+        if maxlen < 10 {
+            buflen += 100;
+            buf.resize(buflen as usize, 0);
+            maxlen = (buflen - 6 - len) / 3;
         }
 
-        g_st().mapped_ctrl_c = save_mapped_ctrl_c;
-        merge_modifiers(n, &mut g_st().mod_mask)
+        n = input_get(
+            buf.as_mut_ptr().wrapping_add(len as usize),
+            maxlen,
+            if len == 0 { -1 } else { 100 },
+            0,
+            events,
+        );
+        if n > 0 {
+            n = fix_input_buffer(buf.as_mut_ptr().wrapping_add(len as usize), n);
+            len += n;
+        }
+
+        if n > 0 {
+            len = n;
+        }
+        if len == 0 {
+            continue;
+        }
+
+        n = buf[0] as i32;
+        if n == K_SPECIAL as i32 {
+            n = to_special(buf[1] as i32, buf[2] as i32);
+            if buf[1] == KS_MODIFIER || n == K_IGNORE || (is_mouse_key(n) && n != K_LEFTMOUSE) {
+                if buf[1] == KS_MODIFIER {
+                    g_st().mod_mask = buf[2] as i32;
+                }
+                len -= 3;
+                if len > 0 {
+                    buf.copy_within(3..(3 + len as usize), 0);
+                }
+                continue;
+            }
+            break;
+        }
+        if utf_byte2len(n) > len {
+            continue;
+        }
+        let term_idx = if len >= buflen { buflen - 1 } else { len } as usize;
+        buf[term_idx] = NUL as u8;
+        n = utf_ptr2char(buf.as_ptr().cast());
+        break;
     }
+
+    g_st().mapped_ctrl_c = save_mapped_ctrl_c;
+    merge_modifiers(n, &mut g_st().mod_mask)
 }
 
 /// Function passed to `do_cmdline()` to get the command after a `<Cmd>` key from typeahead.
@@ -3271,139 +3210,134 @@ pub fn getcmdkeycmd(promptc: i32, _indent: i32, _do_concat: bool) -> Option<std:
 
 /// Handle a Lua mapping: get its id from typeahead and execute its callback.
 pub fn map_execute_lua(may_repeat: bool, discard: bool) -> bool {
-    {
-        let mut line: Vec<c_char> = Vec::new();
-        let mut c1: i32 = -1;
-        let mut aborted = false;
+    let mut line: Vec<c_char> = Vec::new();
+    let mut c1: i32 = -1;
+    let mut aborted = false;
 
-        g_st().no_mapping += 1;
+    g_st().no_mapping += 1;
 
-        g_st().got_int = false;
-        while c1 != NUL && !aborted {
-            c1 = vgetorpeek(true);
-            if g_st().got_int {
-                aborted = true;
-            } else if c1 == b'\r' as i32 || c1 == b'\n' as i32 {
-                c1 = NUL;
-            } else {
-                line.push(c1 as c_char);
-            }
+    g_st().got_int = false;
+    while c1 != NUL && !aborted {
+        c1 = vgetorpeek(true);
+        if g_st().got_int {
+            aborted = true;
+        } else if c1 == b'\r' as i32 || c1 == b'\n' as i32 {
+            c1 = NUL;
+        } else {
+            line.push(c1 as c_char);
         }
-
-        g_st().no_mapping -= 1;
-
-        if aborted || discard {
-            return !aborted;
-        }
-
-        line.push(NUL as c_char);
-        let id =
-            crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(line.as_ptr())) as i32;
-        drop(line);
-        let ref_ = map_luaid_get(id);
-        if ref_ == LUA_NOREF {
-            emsg(gettext(E_LUA_MAPPING_GONE));
-            return false;
-        }
-        if may_repeat {
-            g_st().repeat_luamap = id;
-        }
-
-        let mut err = Error::new();
-        let args = Array {
-            items: ptr::null_mut(),
-            size: 0,
-            capacity: 0,
-        };
-        nlua_call_ref(
-            ref_,
-            ptr::null(),
-            args,
-            K_RET_NIL_BOOL,
-            None,
-            Some(&mut err),
-        );
-        if err.err_type != ErrorType::ErrorTypeNone {
-            semsg_multiline!(c"emsg", c"E5108: %s", err.msg_ptr());
-            api_clear_error(&mut err);
-        }
-
-        true
     }
+
+    g_st().no_mapping -= 1;
+
+    if aborted || discard {
+        return !aborted;
+    }
+
+    line.push(NUL as c_char);
+    let id = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(line.as_ptr())) as i32;
+    drop(line);
+    let ref_ = map_luaid_get(id);
+    if ref_ == LUA_NOREF {
+        emsg(gettext(E_LUA_MAPPING_GONE));
+        return false;
+    }
+    if may_repeat {
+        g_st().repeat_luamap = id;
+    }
+
+    let mut err = Error::new();
+    let args = Array {
+        items: ptr::null_mut(),
+        size: 0,
+        capacity: 0,
+    };
+    nlua_call_ref(
+        ref_,
+        ptr::null(),
+        args,
+        K_RET_NIL_BOOL,
+        None,
+        Some(&mut err),
+    );
+    if err.err_type != ErrorType::ErrorTypeNone {
+        semsg_multiline!(c"emsg", c"E5108: %s", err.msg_ptr());
+        api_clear_error(&mut err);
+    }
+
+    true
 }
 
 /// Wraps pasted text stream with `K_PASTE_START` and `K_PASTE_END`.
 pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: bool) {
-    {
-        if (g_st().state_global & MODE_CMDLINE) != 0 {
-            return;
+    if (g_st().state_global & MODE_CMDLINE) != 0 {
+        return;
+    }
+
+    let need_redo = !inp_st().block_redo;
+    let need_record = g_st().reg_recording != 0 && !is_internal_call(channel_id);
+
+    if !need_redo && !need_record {
+        return;
+    }
+
+    if state != K_NONE {
+        let c = if state == K_FALSE {
+            K_PASTE_START
+        } else {
+            K_PASTE_END
+        };
+        if need_redo {
+            if state == K_FALSE && (g_st().state_global & MODE_INSERT) == 0 {
+                redo_new(CmdSpec::default());
+            }
+            sb_add_char(&mut inp_st().redobuff.cur.body, c);
+        }
+        if need_record {
+            sb_add_char(&mut inp_st().recordbuff, c);
+        }
+        return;
+    }
+
+    let mut s = str_.data.cast_const();
+    let str_end = s.wrapping_add(str_.size);
+
+    while s < str_end {
+        let start = s;
+        while s < str_end
+            && crate::memory::cstr_first_byte(s) != K_SPECIAL
+            && !crate::memory::cstr_is_empty(s)
+            && unsafe { *s } != NL as c_char
+            && !(crlf && unsafe { *s } == CAR as c_char)
+        {
+            s = s.wrapping_add(1);
         }
 
-        let need_redo = !inp_st().block_redo;
-        let need_record = g_st().reg_recording != 0 && !is_internal_call(channel_id);
-
-        if !need_redo && !need_record {
-            return;
-        }
-
-        if state != K_NONE {
-            let c = if state == K_FALSE {
-                K_PASTE_START
-            } else {
-                K_PASTE_END
-            };
+        if s > start {
+            let n = unsafe { s.offset_from(start) } as usize;
+            let slice = unsafe { std::slice::from_raw_parts(start, n) };
             if need_redo {
-                if state == K_FALSE && (g_st().state_global & MODE_INSERT) == 0 {
-                    redo_new(CmdSpec::default());
-                }
-                sb_add_char(&mut inp_st().redobuff.cur.body, c);
+                inp_st().redobuff.cur.body.extend_from_slice(slice);
             }
             if need_record {
-                sb_add_char(&mut inp_st().recordbuff, c);
+                inp_st().recordbuff.extend_from_slice(slice);
             }
-            return;
         }
 
-        let mut s = str_.data.cast_const();
-        let str_end = s.wrapping_add(str_.size);
-
-        while s < str_end {
-            let start = s;
-            while s < str_end
-                && crate::memory::cstr_first_byte(s) != K_SPECIAL
-                && !crate::memory::cstr_is_empty(s)
-                && unsafe { *s } != NL as c_char
-                && !(crlf && unsafe { *s } == CAR as c_char)
-            {
-                s = s.wrapping_add(1);
+        if s < str_end {
+            let mut c = crate::memory::cstr_first_byte(s) as i32;
+            s = s.wrapping_add(1);
+            if crlf && c == CAR {
+                if s < str_end && unsafe { *s } == NL as c_char {
+                    s = s.wrapping_add(1);
+                }
+                c = NL;
             }
-
-            if s > start {
-                let n = unsafe { s.offset_from(start) } as usize;
-                let slice = unsafe { std::slice::from_raw_parts(start, n) };
-                if need_redo {
-                    inp_st().redobuff.cur.body.extend_from_slice(slice);
-                }
-                if need_record {
-                    inp_st().recordbuff.extend_from_slice(slice);
-                }
+            if need_redo {
+                sb_add_byte(&mut inp_st().redobuff.cur.body, c);
             }
-
-            if s < str_end {
-                let mut c = crate::memory::cstr_first_byte(s) as i32;
-                s = s.wrapping_add(1);
-                if crlf && c == CAR {
-                    if s < str_end && unsafe { *s } == NL as c_char {
-                        s = s.wrapping_add(1);
-                    }
-                    c = NL;
-                }
-                if need_redo {
-                    sb_add_byte(&mut inp_st().redobuff.cur.body, c);
-                }
-                if need_record {
-                    sb_add_byte(&mut inp_st().recordbuff, c);
-                }
+            if need_record {
+                sb_add_byte(&mut inp_st().recordbuff, c);
             }
         }
     }
@@ -3411,55 +3345,53 @@ pub fn paste_store(channel_id: u64, state: TriState, str_: NvimString, crlf: boo
 
 /// Gets a paste stored by `paste_store()` from typeahead and repeats it.
 pub fn paste_repeat(count: i32) {
-    {
-        let mut buf: Vec<u8> = Vec::new();
-        let mut aborted = false;
+    let mut buf: Vec<u8> = Vec::new();
+    let mut aborted = false;
 
-        g_st().no_mapping += 1;
+    g_st().no_mapping += 1;
 
-        g_st().got_int = false;
-        while !aborted {
-            let mut c1 = vgetorpeek(true) as u8;
-            if c1 == K_SPECIAL {
-                c1 = vgetorpeek(true) as u8;
-                let c2 = vgetorpeek(true) as u8;
-                let c = to_special(c1 as i32, c2 as i32);
-                if c == K_PASTE_END {
-                    break;
-                } else if c == K_ZERO {
-                    buf.push(NUL as u8);
-                } else if c == K_SPECIAL as i32 {
-                    buf.push(K_SPECIAL);
-                } else {
-                    buf.extend_from_slice(&[K_SPECIAL, c1, c2]);
-                }
+    g_st().got_int = false;
+    while !aborted {
+        let mut c1 = vgetorpeek(true) as u8;
+        if c1 == K_SPECIAL {
+            c1 = vgetorpeek(true) as u8;
+            let c2 = vgetorpeek(true) as u8;
+            let c = to_special(c1 as i32, c2 as i32);
+            if c == K_PASTE_END {
+                break;
+            } else if c == K_ZERO {
+                buf.push(NUL as u8);
+            } else if c == K_SPECIAL as i32 {
+                buf.push(K_SPECIAL);
             } else {
-                buf.push(c1);
+                buf.extend_from_slice(&[K_SPECIAL, c1, c2]);
             }
-            aborted = g_st().got_int;
+        } else {
+            buf.push(c1);
         }
-
-        g_st().no_mapping -= 1;
-
-        let str_ = NvimString {
-            data: buf.as_mut_ptr().cast::<c_char>(),
-            size: buf.len(),
-        };
-        let mut arena = Arena {
-            cur_blk: ptr::null_mut(),
-            pos: 0,
-            size: 0,
-        };
-        let mut err = Error::new();
-        let mut i = 0;
-        while !aborted && i < count {
-            nvim_paste(LUA_INTERNAL_CALL, str_, false, -1, &mut arena, &mut err);
-            aborted = err.err_type != ErrorType::ErrorTypeNone;
-            i += 1;
-        }
-        api_clear_error(&mut err);
-        arena_mem_free(arena_finish(&mut arena));
+        aborted = g_st().got_int;
     }
+
+    g_st().no_mapping -= 1;
+
+    let str_ = NvimString {
+        data: buf.as_mut_ptr().cast::<c_char>(),
+        size: buf.len(),
+    };
+    let mut arena = Arena {
+        cur_blk: ptr::null_mut(),
+        pos: 0,
+        size: 0,
+    };
+    let mut err = Error::new();
+    let mut i = 0;
+    while !aborted && i < count {
+        nvim_paste(LUA_INTERNAL_CALL, str_, false, -1, &mut arena, &mut err);
+        aborted = err.err_type != ErrorType::ErrorTypeNone;
+        i += 1;
+    }
+    api_clear_error(&mut err);
+    arena_mem_free(arena_finish(&mut arena));
 }
 
 #[cfg(test)]

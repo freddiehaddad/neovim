@@ -45,26 +45,24 @@ pub fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
 // DLLEXPORT void nvim_ui_term_event(uint64_t channel_id, String event, Object value,
 //                                   Error *err) FUNC_API_SINCE(12) FUNC_API_REMOTE_ONLY;
 pub fn nvim_ui_term_event(channel_id: u64, event: NvimString, value: Object, err: &mut Error) {
-    {
-        if !event.data.is_null() && crate::memory::cstr_as_bytes(event.data) == b"termresponse" {
-            if value.obj_type != ObjectType::ObjectTypeString {
-                api_err_exp(
-                    err,
-                    c"termresponse",
-                    api_typename(ObjectType::ObjectTypeString),
-                    api_typename(value.obj_type),
-                );
-                return;
-            }
-
-            let termresponse = value.data.string();
-            set_vim_var_string(
-                VV_TERMRESPONSE,
-                termresponse.data,
-                termresponse.size as isize,
+    if !event.data.is_null() && crate::memory::cstr_as_bytes(event.data) == b"termresponse" {
+        if value.obj_type != ObjectType::ObjectTypeString {
+            api_err_exp(
+                err,
+                c"termresponse",
+                api_typename(ObjectType::ObjectTypeString),
+                api_typename(value.obj_type),
             );
-            do_termresponse_autocmd(termresponse, channel_id);
+            return;
         }
+
+        let termresponse = value.data.string();
+        set_vim_var_string(
+            VV_TERMRESPONSE,
+            termresponse.data,
+            termresponse.size as isize,
+        );
+        do_termresponse_autocmd(termresponse, channel_id);
     }
 }
 

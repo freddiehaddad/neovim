@@ -167,19 +167,17 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
 }
 
 pub fn state_handle_k_event() {
-    {
-        loop {
-            let events = main_loop_events();
-            multiqueue_get(unsafe { &mut *events }).dispatch();
+    loop {
+        let events = main_loop_events();
+        multiqueue_get(unsafe { &mut *events }).dispatch();
 
-            if multiqueue_empty(unsafe { &*main_loop_events() }) {
-                return;
-            }
+        if multiqueue_empty(unsafe { &*main_loop_events() }) {
+            return;
+        }
 
-            os_breakcheck();
-            if input_available() != 0 || g_st().got_int {
-                return;
-            }
+        os_breakcheck();
+        if input_available() != 0 || g_st().got_int {
+            return;
         }
     }
 }
@@ -318,53 +316,51 @@ pub fn get_mode(buf: *mut c_char) {
 }
 
 pub fn may_trigger_modechanged() {
-    {
-        if !has_event(EVENT_MODECHANGED) || g_st().got_int {
-            return;
-        }
-
-        let mut curr_mode: [c_char; MODE_MAX_LENGTH] = [0; MODE_MAX_LENGTH];
-        let mut pattern_buf: [c_char; 2 * MODE_MAX_LENGTH] = [0; 2 * MODE_MAX_LENGTH];
-
-        get_mode(curr_mode.as_mut_ptr());
-        if crate::memory::cstr_as_bytes(curr_mode.as_ptr())
-            == crate::memory::cstr_as_bytes(ptr::addr_of!(g_st().last_mode).cast())
-        {
-            return;
-        }
-
-        let mut save_v_event: SaveVEvent = SaveVEvent::new();
-        let v_event = get_v_event(&mut save_v_event);
-        tv_dict_add_str(&mut *v_event, c"new_mode", curr_mode.as_ptr());
-        tv_dict_add_str(
-            &mut *v_event,
-            c"old_mode",
-            ptr::addr_of!(g_st().last_mode).cast(),
-        );
-        tv_dict_set_keys_readonly(&mut *v_event);
-
-        vim_snprintf!(
-            pattern_buf.as_mut_ptr(),
-            pattern_buf.len(),
-            c"%s:%s",
-            ptr::addr_of!(g_st().last_mode).cast::<c_char>(),
-            curr_mode.as_ptr(),
-        );
-
-        apply_autocmds(
-            EVENT_MODECHANGED,
-            pattern_buf.as_mut_ptr(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
-        crate::memory::cstr_cpy(
-            ptr::addr_of_mut!(g_st().last_mode).cast(),
-            curr_mode.as_ptr(),
-        );
-
-        restore_v_event(&mut *v_event, &mut save_v_event);
+    if !has_event(EVENT_MODECHANGED) || g_st().got_int {
+        return;
     }
+
+    let mut curr_mode: [c_char; MODE_MAX_LENGTH] = [0; MODE_MAX_LENGTH];
+    let mut pattern_buf: [c_char; 2 * MODE_MAX_LENGTH] = [0; 2 * MODE_MAX_LENGTH];
+
+    get_mode(curr_mode.as_mut_ptr());
+    if crate::memory::cstr_as_bytes(curr_mode.as_ptr())
+        == crate::memory::cstr_as_bytes(ptr::addr_of!(g_st().last_mode).cast())
+    {
+        return;
+    }
+
+    let mut save_v_event: SaveVEvent = SaveVEvent::new();
+    let v_event = get_v_event(&mut save_v_event);
+    tv_dict_add_str(&mut *v_event, c"new_mode", curr_mode.as_ptr());
+    tv_dict_add_str(
+        &mut *v_event,
+        c"old_mode",
+        ptr::addr_of!(g_st().last_mode).cast(),
+    );
+    tv_dict_set_keys_readonly(&mut *v_event);
+
+    vim_snprintf!(
+        pattern_buf.as_mut_ptr(),
+        pattern_buf.len(),
+        c"%s:%s",
+        ptr::addr_of!(g_st().last_mode).cast::<c_char>(),
+        curr_mode.as_ptr(),
+    );
+
+    apply_autocmds(
+        EVENT_MODECHANGED,
+        pattern_buf.as_mut_ptr(),
+        ptr::null_mut(),
+        false,
+        g_st().curbuf,
+    );
+    crate::memory::cstr_cpy(
+        ptr::addr_of_mut!(g_st().last_mode).cast(),
+        curr_mode.as_ptr(),
+    );
+
+    restore_v_event(&mut *v_event, &mut save_v_event);
 }
 
 #[inline]

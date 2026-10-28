@@ -231,74 +231,66 @@ fn get_mouse_class(p: impl crate::strings::IntoCCharPtr) -> i32 {
 
 /// Move "pos" back to the start of the word it's in.
 fn find_start_of_word(pos: &mut CursorPos) {
-    {
-        let line = ml_get(pos.lnum);
-        let cclass = get_mouse_class(line.wrapping_add(pos.col as usize));
+    let line = ml_get(pos.lnum);
+    let cclass = get_mouse_class(line.wrapping_add(pos.col as usize));
 
-        while pos.col > 0 {
-            let mut col = pos.col - 1;
-            col -= utf_head_off(line, line.wrapping_add(col as usize));
-            if get_mouse_class(line.wrapping_add(col as usize)) != cclass {
-                break;
-            }
-            pos.col = col;
+    while pos.col > 0 {
+        let mut col = pos.col - 1;
+        col -= utf_head_off(line, line.wrapping_add(col as usize));
+        if get_mouse_class(line.wrapping_add(col as usize)) != cclass {
+            break;
         }
+        pos.col = col;
     }
 }
 
 /// Move "pos" forward to the end of the word it's in.
 /// When 'selection' is "exclusive", the position is just after the word.
 fn find_end_of_word(pos: &mut CursorPos) {
-    {
-        let line = ml_get(pos.lnum);
-        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && pos.col > 0 {
-            pos.col -= 1;
-            pos.col -= utf_head_off(line, line.wrapping_add(pos.col as usize));
-        }
-        let cclass = get_mouse_class(line.wrapping_add(pos.col as usize));
-        while crate::memory::cstr_byte_at(line, pos.col as usize) != 0 {
-            let col = pos.col + utfc_ptr2len(line.wrapping_add(pos.col as usize));
-            if get_mouse_class(line.wrapping_add(col as usize)) != cclass {
-                if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
-                    pos.col = col;
-                }
-                break;
+    let line = ml_get(pos.lnum);
+    if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && pos.col > 0 {
+        pos.col -= 1;
+        pos.col -= utf_head_off(line, line.wrapping_add(pos.col as usize));
+    }
+    let cclass = get_mouse_class(line.wrapping_add(pos.col as usize));
+    while crate::memory::cstr_byte_at(line, pos.col as usize) != 0 {
+        let col = pos.col + utfc_ptr2len(line.wrapping_add(pos.col as usize));
+        if get_mouse_class(line.wrapping_add(col as usize)) != cclass {
+            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+                pos.col = col;
             }
-            pos.col = col;
+            break;
         }
+        pos.col = col;
     }
 }
 
 /// Move the current tab to tab in same column as mouse or to end of the
 /// tabline if there is no tab there.
 fn move_tab_to_mouse() {
-    {
-        let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].tabnr;
-        if tabnr <= 0 {
-            tabpage_move(9999);
-        } else if tabnr < tabpage_index(g_st().curtab) {
-            tabpage_move(tabnr - 1);
-        } else {
-            tabpage_move(tabnr);
-        }
+    let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].tabnr;
+    if tabnr <= 0 {
+        tabpage_move(9999);
+    } else if tabnr < tabpage_index(g_st().curtab) {
+        tabpage_move(tabnr - 1);
+    } else {
+        tabpage_move(tabnr);
     }
 }
 
 /// Close the current or specified tab page.
 fn mouse_tab_close(c1: i32) {
-    {
-        let tp = if c1 == 999 {
-            g_st().curtab
-        } else {
-            find_tabpage(c1)
-        };
-        if tp == g_st().curtab {
-            if !crate::globals::first_tabpage_mut().tp_next.is_null() {
-                tabpage_close(0);
-            }
-        } else if !tp.is_null() {
-            tabpage_close_other(unsafe { &mut *tp }, 0);
+    let tp = if c1 == 999 {
+        g_st().curtab
+    } else {
+        find_tabpage(c1)
+    };
+    if tp == g_st().curtab {
+        if !crate::globals::first_tabpage_mut().tp_next.is_null() {
+            tabpage_close(0);
         }
+    } else if !tp.is_null() {
+        tabpage_close_other(unsafe { &mut *tp }, 0);
     }
 }
 
@@ -397,134 +389,127 @@ fn call_click_def_func(click_defs: *mut StlClickDefinition, col: i32, which_butt
 /// Translate window coordinates to buffer position without any side effects.
 /// Returns IN_BUFFER and sets `mpos` (0-based column) when in buffer text.
 fn get_fpos_of_mouse(mpos: &mut CursorPos, wpp: *mut *mut WinInfoInfo) -> i32 {
+    let mut grid = g_st().mouse_grid;
+    let mut row = g_st().mouse_row;
+    let mut col = g_st().mouse_col;
+
+    if row < 0 || col < 0 {
+        return IN_UNKNOWN;
+    }
+
+    let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
+    if wp.is_null() {
+        return IN_UNKNOWN;
+    }
+    let wp = { unsafe { &mut *wp } };
+    if !wpp.is_null() {
+        unsafe {
+            *wpp = wp;
+        }
+    }
+    let winrow = row;
+    let wincol = col;
+
+    let below_buffer = mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut mpos.lnum);
+
+    if !below_buffer
+        && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
+        && (if wp.w_onebuf_opt.wo_rl != 0 {
+            wincol >= wp.w_view_width - win_col_off(wp)
+        } else {
+            wincol < win_col_off(wp)
+        })
     {
-        let mut grid = g_st().mouse_grid;
-        let mut row = g_st().mouse_row;
-        let mut col = g_st().mouse_col;
+        return MOUSE_STATUSCOL;
+    }
 
-        if row < 0 || col < 0 {
-            return IN_UNKNOWN;
-        }
-
-        let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-        if wp.is_null() {
-            return IN_UNKNOWN;
-        }
-        let wp = { unsafe { &mut *wp } };
-        if !wpp.is_null() {
-            unsafe {
-                *wpp = wp;
-            }
-        }
-        let winrow = row;
-        let wincol = col;
-
-        let below_buffer = mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut mpos.lnum);
-
-        if !below_buffer
-            && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
-            && (if wp.w_onebuf_opt.wo_rl != 0 {
-                wincol >= wp.w_view_width - win_col_off(wp)
-            } else {
-                wincol < win_col_off(wp)
-            })
+    if winrow >= wp.w_view_height + wp.w_status_height {
+        if g_st().mouse_grid <= 1
+            && i64::from(g_st().mouse_row) < i64::from(g_st().rows_global) - opt_vars().p_ch
+            && i64::from(g_st().mouse_row)
+                >= i64::from(g_st().rows_global) - opt_vars().p_ch - i64::from(global_stl_height())
         {
-            return MOUSE_STATUSCOL;
-        }
-
-        if winrow >= wp.w_view_height + wp.w_status_height {
-            if g_st().mouse_grid <= 1
-                && i64::from(g_st().mouse_row) < i64::from(g_st().rows_global) - opt_vars().p_ch
-                && i64::from(g_st().mouse_row)
-                    >= i64::from(g_st().rows_global)
-                        - opt_vars().p_ch
-                        - i64::from(global_stl_height())
-            {
-                return IN_STATUS_LINE;
-            }
-            return IN_UNKNOWN;
-        } else if winrow >= wp.w_view_height {
             return IN_STATUS_LINE;
         }
-
-        if winrow < 0 && winrow + wp.w_winbar_height >= 0 {
-            return MOUSE_WINBAR;
-        }
-
-        if wincol >= wp.w_view_width {
-            return IN_SEP_LINE;
-        }
-
-        if (wpp.is_null() && !std::ptr::eq(wp, curwin_ptr())) || below_buffer {
-            return IN_UNKNOWN;
-        }
-
-        mpos.col = vcol2col(&mut *wp, mpos.lnum, col, Some(&mut mpos.coladd));
-        IN_BUFFER
+        return IN_UNKNOWN;
+    } else if winrow >= wp.w_view_height {
+        return IN_STATUS_LINE;
     }
+
+    if winrow < 0 && winrow + wp.w_winbar_height >= 0 {
+        return MOUSE_WINBAR;
+    }
+
+    if wincol >= wp.w_view_width {
+        return IN_SEP_LINE;
+    }
+
+    if (wpp.is_null() && !std::ptr::eq(wp, curwin_ptr())) || below_buffer {
+        return IN_UNKNOWN;
+    }
+
+    mpos.col = vcol2col(&mut *wp, mpos.lnum, col, Some(&mut mpos.coladd));
+    IN_BUFFER
 }
 
 fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
-    {
-        let mut jump_flags = 0;
-        if crate::memory::cstr_as_bytes(opt_vars().p_mousem) == b"popup_setpos" {
-            if g_st().visual_global.active {
-                if m_pos_flag != IN_BUFFER {
-                    jump_flags = MOUSE_MAY_STOP_VIS;
-                } else if g_st().visual_global.mode == b'V' as i32 {
-                    if (curwin_mut().w_cursor.lnum <= g_st().visual_global.start.lnum
-                        && (m_pos.lnum < curwin_mut().w_cursor.lnum
-                            || g_st().visual_global.start.lnum < m_pos.lnum))
-                        || (g_st().visual_global.start.lnum < curwin_mut().w_cursor.lnum
-                            && (m_pos.lnum < g_st().visual_global.start.lnum
-                                || curwin_mut().w_cursor.lnum < m_pos.lnum))
-                    {
-                        jump_flags = MOUSE_MAY_STOP_VIS;
-                    }
-                } else if (ltoreq(curwin_mut().w_cursor, g_st().visual_global.start)
-                    && (lt(m_pos, curwin_mut().w_cursor) || lt(g_st().visual_global.start, m_pos)))
-                    || (lt(g_st().visual_global.start, curwin_mut().w_cursor)
-                        && (lt(m_pos, g_st().visual_global.start)
-                            || lt(curwin_mut().w_cursor, m_pos)))
+    let mut jump_flags = 0;
+    if crate::memory::cstr_as_bytes(opt_vars().p_mousem) == b"popup_setpos" {
+        if g_st().visual_global.active {
+            if m_pos_flag != IN_BUFFER {
+                jump_flags = MOUSE_MAY_STOP_VIS;
+            } else if g_st().visual_global.mode == b'V' as i32 {
+                if (curwin_mut().w_cursor.lnum <= g_st().visual_global.start.lnum
+                    && (m_pos.lnum < curwin_mut().w_cursor.lnum
+                        || g_st().visual_global.start.lnum < m_pos.lnum))
+                    || (g_st().visual_global.start.lnum < curwin_mut().w_cursor.lnum
+                        && (m_pos.lnum < g_st().visual_global.start.lnum
+                            || curwin_mut().w_cursor.lnum < m_pos.lnum))
                 {
                     jump_flags = MOUSE_MAY_STOP_VIS;
-                } else if g_st().visual_global.mode == CTRL_V_CONST {
-                    let mut leftcol: Colnr = 0;
-                    let mut rightcol: Colnr = 0;
-                    getvcols(
-                        curwin_ptr(),
-                        &mut curwin_mut().w_cursor,
-                        &mut g_st().visual_global.start,
-                        &mut leftcol,
-                        &mut rightcol,
-                        0,
-                    );
-                    let mut col = m_pos.col;
-                    getvcol(curwin_mut(), &mut m_pos, None, Some(&mut col), None, 0);
-                    m_pos.col = col;
-                    if m_pos.col < leftcol || m_pos.col > rightcol {
-                        jump_flags = MOUSE_MAY_STOP_VIS;
-                    }
                 }
-            } else {
+            } else if (ltoreq(curwin_mut().w_cursor, g_st().visual_global.start)
+                && (lt(m_pos, curwin_mut().w_cursor) || lt(g_st().visual_global.start, m_pos)))
+                || (lt(g_st().visual_global.start, curwin_mut().w_cursor)
+                    && (lt(m_pos, g_st().visual_global.start) || lt(curwin_mut().w_cursor, m_pos)))
+            {
                 jump_flags = MOUSE_MAY_STOP_VIS;
+            } else if g_st().visual_global.mode == CTRL_V_CONST {
+                let mut leftcol: Colnr = 0;
+                let mut rightcol: Colnr = 0;
+                getvcols(
+                    curwin_ptr(),
+                    &mut curwin_mut().w_cursor,
+                    &mut g_st().visual_global.start,
+                    &mut leftcol,
+                    &mut rightcol,
+                    0,
+                );
+                let mut col = m_pos.col;
+                getvcol(curwin_mut(), &mut m_pos, None, Some(&mut col), None, 0);
+                m_pos.col = col;
+                if m_pos.col < leftcol || m_pos.col > rightcol {
+                    jump_flags = MOUSE_MAY_STOP_VIS;
+                }
             }
+        } else {
+            jump_flags = MOUSE_MAY_STOP_VIS;
         }
-        if jump_flags != 0 {
-            jump_flags = jump_to_mouse(jump_flags, ptr::null_mut(), which_button);
-            redraw_curbuf_later(if g_st().visual_global.active {
-                UPD_INVERTED
-            } else {
-                UPD_VALID
-            });
-            update_screen();
-            setcursor();
-            ui_flush();
-        }
-        show_popupmenu();
-        mouse_st().got_click = false;
-        jump_flags
     }
+    if jump_flags != 0 {
+        jump_flags = jump_to_mouse(jump_flags, ptr::null_mut(), which_button);
+        redraw_curbuf_later(if g_st().visual_global.active {
+            UPD_INVERTED
+        } else {
+            UPD_VALID
+        });
+        update_screen();
+        setcursor();
+        ui_flush();
+    }
+    show_popupmenu();
+    mouse_st().got_click = false;
+    jump_flags
 }
 
 /// Do the appropriate action for the current mouse click in the current mode.
@@ -1213,123 +1198,117 @@ pub fn do_mouse(
 }
 
 pub fn ins_mouse(c: i32) {
-    {
-        let old_curwin = curwin_ptr();
+    let old_curwin = curwin_ptr();
 
-        undisplay_dollar();
-        let mut tpos = curwin_mut().w_cursor;
-        if do_mouse(None, c, BACKWARD, 1, false) {
-            let new_curwin = curwin_ptr();
+    undisplay_dollar();
+    let mut tpos = curwin_mut().w_cursor;
+    if do_mouse(None, c, BACKWARD, 1, false) {
+        let new_curwin = curwin_ptr();
 
-            if curwin_ptr() != old_curwin && win_valid(old_curwin) {
-                set_curwin(old_curwin);
-                g_st().curbuf = curwin_mut().w_buffer;
-                if bt_prompt(Some(crate::globals::curbuf_mut())) {
-                    curbuf_mut().b_prompt_insert = b'A' as i32;
-                }
+        if curwin_ptr() != old_curwin && win_valid(old_curwin) {
+            set_curwin(old_curwin);
+            g_st().curbuf = curwin_mut().w_buffer;
+            if bt_prompt(Some(crate::globals::curbuf_mut())) {
+                curbuf_mut().b_prompt_insert = b'A' as i32;
             }
-            start_arrow(
-                if curwin_ptr() == old_curwin {
-                    &raw mut tpos
-                } else {
-                    ptr::null_mut()
-                },
-                true,
-                0,
-            );
-            if curwin_ptr() != new_curwin && win_valid(new_curwin) {
-                set_curwin(new_curwin);
-                g_st().curbuf = curwin_mut().w_buffer;
-            }
-            set_can_cindent(true);
         }
-
-        redraw_statuslines();
+        start_arrow(
+            if curwin_ptr() == old_curwin {
+                &raw mut tpos
+            } else {
+                ptr::null_mut()
+            },
+            true,
+            0,
+        );
+        if curwin_ptr() != new_curwin && win_valid(new_curwin) {
+            set_curwin(new_curwin);
+            g_st().curbuf = curwin_mut().w_buffer;
+        }
+        set_can_cindent(true);
     }
+
+    redraw_statuslines();
 }
 
 /// Common mouse wheel scrolling, shared between Insert mode and NV modes.
 pub fn do_mousescroll(cap: &mut Cmdarg) {
-    {
-        let shift_or_ctrl = (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0;
+    let shift_or_ctrl = (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) != 0;
 
-        if cap.arg == MSCR_UP || cap.arg == MSCR_DOWN {
-            if (g_st().state_global & MODE_NORMAL) != 0 && shift_or_ctrl {
-                pagescroll(if cap.arg != 0 { FORWARD } else { BACKWARD }, 1, false);
-            } else {
-                if shift_or_ctrl {
-                    cap.count1 = curwin_mut().w_botline - curwin_mut().w_topline;
-                } else {
-                    cap.count1 = opt_vars().p_mousescroll_vert as i32;
-                }
-                if cap.count1 > 0 {
-                    cap.count0 = cap.count1;
-                    nv_scroll_line(cap);
-                }
-            }
+    if cap.arg == MSCR_UP || cap.arg == MSCR_DOWN {
+        if (g_st().state_global & MODE_NORMAL) != 0 && shift_or_ctrl {
+            pagescroll(if cap.arg != 0 { FORWARD } else { BACKWARD }, 1, false);
         } else {
-            let step = if shift_or_ctrl {
-                curwin_mut().w_view_width
+            if shift_or_ctrl {
+                cap.count1 = curwin_mut().w_botline - curwin_mut().w_topline;
             } else {
-                opt_vars().p_mousescroll_hor as i32
-            };
-            let leftcol =
-                (curwin_mut().w_leftcol + if cap.arg == MSCR_RIGHT { -step } else { step }).max(0);
-            do_mousescroll_horiz(leftcol);
+                cap.count1 = opt_vars().p_mousescroll_vert as i32;
+            }
+            if cap.count1 > 0 {
+                cap.count0 = cap.count1;
+                nv_scroll_line(cap);
+            }
         }
+    } else {
+        let step = if shift_or_ctrl {
+            curwin_mut().w_view_width
+        } else {
+            opt_vars().p_mousescroll_hor as i32
+        };
+        let leftcol =
+            (curwin_mut().w_leftcol + if cap.arg == MSCR_RIGHT { -step } else { step }).max(0);
+        do_mousescroll_horiz(leftcol);
     }
 }
 
 /// Implementation for scrolling in Insert mode in direction "dir", which is one
 /// of the MSCR_ values.
 pub fn ins_mousescroll(dir: i32) {
-    {
-        let mut cap = Cmdarg::new();
-        let mut oa = Oparg::new();
-        cap.oap = &raw mut oa;
-        cap.arg = dir;
+    let mut cap = Cmdarg::new();
+    let mut oa = Oparg::new();
+    cap.oap = &raw mut oa;
+    cap.arg = dir;
 
-        match dir {
-            MSCR_UP => cap.cmdchar = K_MOUSEUP,
-            MSCR_DOWN => cap.cmdchar = K_MOUSEDOWN,
-            MSCR_LEFT => cap.cmdchar = K_MOUSELEFT,
-            MSCR_RIGHT => cap.cmdchar = K_MOUSERIGHT,
-            _ => siemsg!(c"Invalid ins_mousescroll() argument: %d", dir),
+    match dir {
+        MSCR_UP => cap.cmdchar = K_MOUSEUP,
+        MSCR_DOWN => cap.cmdchar = K_MOUSEDOWN,
+        MSCR_LEFT => cap.cmdchar = K_MOUSELEFT,
+        MSCR_RIGHT => cap.cmdchar = K_MOUSERIGHT,
+        _ => siemsg!(c"Invalid ins_mousescroll() argument: %d", dir),
+    }
+
+    let old_curwin = curwin_ptr();
+    if g_st().mouse_row >= 0 && g_st().mouse_col >= 0 {
+        let mut grid = g_st().mouse_grid;
+        let mut row = g_st().mouse_row;
+        let mut col = g_st().mouse_col;
+        set_curwin(mouse_find_win_inner(&mut grid, &mut row, &mut col));
+        if (curwin_ptr()).is_null() {
+            set_curwin(old_curwin);
+            return;
         }
-
-        let old_curwin = curwin_ptr();
-        if g_st().mouse_row >= 0 && g_st().mouse_col >= 0 {
-            let mut grid = g_st().mouse_grid;
-            let mut row = g_st().mouse_row;
-            let mut col = g_st().mouse_col;
-            set_curwin(mouse_find_win_inner(&mut grid, &mut row, &mut col));
-            if (curwin_ptr()).is_null() {
-                set_curwin(old_curwin);
-                return;
-            }
-            g_st().curbuf = curwin_mut().w_buffer;
-        }
-
-        if curwin_ptr() == old_curwin {
-            if pum_visible() {
-                return;
-            }
-
-            undisplay_dollar();
-        }
-
-        let mut orig_cursor = curwin_mut().w_cursor;
-
-        do_mousescroll(&mut cap);
-
-        curwin_mut().w_redr_status = true;
-        set_curwin(old_curwin);
         g_st().curbuf = curwin_mut().w_buffer;
+    }
 
-        if !equalpos(curwin_mut().w_cursor, orig_cursor) {
-            start_arrow(&raw mut orig_cursor, true, 0);
-            set_can_cindent(true);
+    if curwin_ptr() == old_curwin {
+        if pum_visible() {
+            return;
         }
+
+        undisplay_dollar();
+    }
+
+    let mut orig_cursor = curwin_mut().w_cursor;
+
+    do_mousescroll(&mut cap);
+
+    curwin_mut().w_redr_status = true;
+    set_curwin(old_curwin);
+    g_st().curbuf = curwin_mut().w_buffer;
+
+    if !equalpos(curwin_mut().w_cursor, orig_cursor) {
+        start_arrow(&raw mut orig_cursor, true, 0);
+        set_can_cindent(true);
     }
 }
 
@@ -1338,44 +1317,42 @@ pub fn ins_mousescroll(dir: i32) {
 /// pointer is on top of it.
 /// Returns true when the info popup was scrolled.
 pub fn cmdline_mousescroll(dir: i32) -> bool {
-    {
-        let mut cap = Cmdarg::new();
-        let mut oa = Oparg::new();
-        cap.oap = &raw mut oa;
-        cap.arg = dir;
+    let mut cap = Cmdarg::new();
+    let mut oa = Oparg::new();
+    cap.oap = &raw mut oa;
+    cap.arg = dir;
 
-        match dir {
-            MSCR_UP => cap.cmdchar = K_MOUSEUP,
-            MSCR_DOWN => cap.cmdchar = K_MOUSEDOWN,
-            MSCR_LEFT => cap.cmdchar = K_MOUSELEFT,
-            MSCR_RIGHT => cap.cmdchar = K_MOUSERIGHT,
-            _ => {}
-        }
-
-        if g_st().mouse_row < 0 || g_st().mouse_col < 0 {
-            return false;
-        }
-
-        let mut grid = g_st().mouse_grid;
-        let mut row = g_st().mouse_row;
-        let mut col = g_st().mouse_col;
-
-        let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-        if wp.is_null() || unsafe { (*wp).w_kind } != K_WIN_INFO {
-            return false;
-        }
-
-        let old_curwin = curwin_ptr();
-
-        set_curwin(wp);
-        g_st().curbuf = unsafe { (*wp).w_buffer };
-        do_mousescroll(&mut cap);
-        set_curwin(old_curwin);
-        g_st().curbuf = curwin_mut().w_buffer;
-
-        update_screen();
-        true
+    match dir {
+        MSCR_UP => cap.cmdchar = K_MOUSEUP,
+        MSCR_DOWN => cap.cmdchar = K_MOUSEDOWN,
+        MSCR_LEFT => cap.cmdchar = K_MOUSELEFT,
+        MSCR_RIGHT => cap.cmdchar = K_MOUSERIGHT,
+        _ => {}
     }
+
+    if g_st().mouse_row < 0 || g_st().mouse_col < 0 {
+        return false;
+    }
+
+    let mut grid = g_st().mouse_grid;
+    let mut row = g_st().mouse_row;
+    let mut col = g_st().mouse_col;
+
+    let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
+    if wp.is_null() || unsafe { (*wp).w_kind } != K_WIN_INFO {
+        return false;
+    }
+
+    let old_curwin = curwin_ptr();
+
+    set_curwin(wp);
+    g_st().curbuf = unsafe { (*wp).w_buffer };
+    do_mousescroll(&mut cap);
+    set_curwin(old_curwin);
+    g_st().curbuf = curwin_mut().w_buffer;
+
+    update_screen();
+    true
 }
 
 /// Return true if "c" is a mouse key.
@@ -1448,379 +1425,379 @@ fn jump_to_mouse_retnomove(
 /// Change current window if necessary. Returns an integer with the
 /// CURSOR_MOVED bit set if the cursor has moved or unset otherwise.
 pub fn jump_to_mouse(mut flags: i32, inclusive: *mut bool, which_button: i32) -> i32 {
-    unsafe {
-        let mut row = g_st().mouse_row;
-        let mut col = g_st().mouse_col;
-        let mut grid = g_st().mouse_grid;
-        let keep_focus = (flags & MOUSE_FOCUS) != 0;
+    let mut row = g_st().mouse_row;
+    let mut col = g_st().mouse_col;
+    let mut grid = g_st().mouse_grid;
+    let keep_focus = (flags & MOUSE_FOCUS) != 0;
 
-        g_st().mouse_past_bottom = false;
-        g_st().mouse_past_eol = false;
+    g_st().mouse_past_bottom = false;
+    g_st().mouse_past_eol = false;
 
-        if (flags & MOUSE_RELEASED) != 0 {
-            if !mouse_st().dragwin.is_null() && mouse_st().did_drag == 0 {
-                flags &= !(MOUSE_FOCUS | MOUSE_DID_MOVE);
-            }
+    if (flags & MOUSE_RELEASED) != 0 {
+        if !mouse_st().dragwin.is_null() && mouse_st().did_drag == 0 {
+            flags &= !(MOUSE_FOCUS | MOUSE_DID_MOVE);
+        }
+        mouse_st().dragwin = ptr::null_mut();
+        mouse_st().did_drag = 0;
+    }
+
+    if (flags & MOUSE_DID_MOVE) != 0
+        && mouse_st().prev_row == g_st().mouse_row
+        && mouse_st().prev_col == g_st().mouse_col
+    {
+        return jump_to_mouse_retnomove(
+            flags,
+            mouse_st().status_line_offset,
+            mouse_st().sep_line_offset,
+            mouse_st().on_winbar,
+            mouse_st().on_statuscol,
+        );
+    }
+
+    mouse_st().prev_row = g_st().mouse_row;
+    mouse_st().prev_col = g_st().mouse_col;
+
+    if (flags & MOUSE_SETPOS) != 0 {
+        return jump_to_mouse_retnomove(
+            flags,
+            mouse_st().status_line_offset,
+            mouse_st().sep_line_offset,
+            mouse_st().on_winbar,
+            mouse_st().on_statuscol,
+        );
+    }
+
+    if row < 0 || col < 0 {
+        return IN_UNKNOWN;
+    }
+
+    let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
+    if wp.is_null() {
+        return IN_UNKNOWN;
+    }
+    let wp = { unsafe { &mut *wp } };
+
+    let below_window = grid == DEFAULT_GRID_HANDLE && row + wp.w_winbar_height >= wp.w_height;
+    mouse_st().on_status_line = below_window && row + wp.w_winbar_height - wp.w_height + 1 == 1;
+    mouse_st().on_sep_line =
+        grid == DEFAULT_GRID_HANDLE && col >= wp.w_width && col - wp.w_width + 1 == 1;
+    mouse_st().on_winbar = row < 0 && row + wp.w_winbar_height >= 0;
+    mouse_st().on_statuscol = !below_window
+        && !mouse_st().on_status_line
+        && !mouse_st().on_sep_line
+        && !mouse_st().on_winbar
+        && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
+        && (if wp.w_onebuf_opt.wo_rl != 0 {
+            col >= wp.w_view_width - win_col_off(wp)
+        } else {
+            col < win_col_off(wp)
+        });
+
+    if mouse_st().on_status_line && mouse_st().on_sep_line {
+        if stl_connected(&mut *wp) {
+            mouse_st().on_sep_line = false;
+        } else {
+            mouse_st().on_status_line = false;
+        }
+    }
+
+    if keep_focus {
+        row = g_st().mouse_row;
+        col = g_st().mouse_col;
+        grid = g_st().mouse_grid;
+    }
+
+    let old_curwin = curwin_ptr();
+    let old_cursor = curwin_mut().w_cursor;
+    if !keep_focus {
+        if mouse_st().on_winbar {
+            return IN_OTHER_WIN | MOUSE_WINBAR;
+        }
+
+        if !mouse_st().on_statuscol {
+            let fdc = win_fdccol_count(&mut *wp);
             mouse_st().dragwin = ptr::null_mut();
-            mouse_st().did_drag = 0;
-        }
 
-        if (flags & MOUSE_DID_MOVE) != 0
-            && mouse_st().prev_row == g_st().mouse_row
-            && mouse_st().prev_col == g_st().mouse_col
-        {
-            return jump_to_mouse_retnomove(
-                flags,
-                mouse_st().status_line_offset,
-                mouse_st().sep_line_offset,
-                mouse_st().on_winbar,
-                mouse_st().on_statuscol,
-            );
-        }
-
-        mouse_st().prev_row = g_st().mouse_row;
-        mouse_st().prev_col = g_st().mouse_col;
-
-        if (flags & MOUSE_SETPOS) != 0 {
-            return jump_to_mouse_retnomove(
-                flags,
-                mouse_st().status_line_offset,
-                mouse_st().sep_line_offset,
-                mouse_st().on_winbar,
-                mouse_st().on_statuscol,
-            );
-        }
-
-        if row < 0 || col < 0 {
-            return IN_UNKNOWN;
-        }
-
-        let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-        if wp.is_null() {
-            return IN_UNKNOWN;
-        }
-        let wp = { &mut *wp };
-
-        let below_window = grid == DEFAULT_GRID_HANDLE && row + wp.w_winbar_height >= wp.w_height;
-        mouse_st().on_status_line = below_window && row + wp.w_winbar_height - wp.w_height + 1 == 1;
-        mouse_st().on_sep_line =
-            grid == DEFAULT_GRID_HANDLE && col >= wp.w_width && col - wp.w_width + 1 == 1;
-        mouse_st().on_winbar = row < 0 && row + wp.w_winbar_height >= 0;
-        mouse_st().on_statuscol = !below_window
-            && !mouse_st().on_status_line
-            && !mouse_st().on_sep_line
-            && !mouse_st().on_winbar
-            && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
-            && (if wp.w_onebuf_opt.wo_rl != 0 {
-                col >= wp.w_view_width - win_col_off(wp)
+            if below_window {
+                mouse_st().status_line_offset = row + wp.w_winbar_height - wp.w_height + 1;
+                mouse_st().dragwin = wp;
             } else {
-                col < win_col_off(wp)
-            });
-
-        if mouse_st().on_status_line && mouse_st().on_sep_line {
-            if stl_connected(&mut *wp) {
-                mouse_st().on_sep_line = false;
-            } else {
-                mouse_st().on_status_line = false;
-            }
-        }
-
-        if keep_focus {
-            row = g_st().mouse_row;
-            col = g_st().mouse_col;
-            grid = g_st().mouse_grid;
-        }
-
-        let old_curwin = curwin_ptr();
-        let old_cursor = curwin_mut().w_cursor;
-        if !keep_focus {
-            if mouse_st().on_winbar {
-                return IN_OTHER_WIN | MOUSE_WINBAR;
+                mouse_st().status_line_offset = 0;
             }
 
-            if !mouse_st().on_statuscol {
-                let fdc = win_fdccol_count(&mut *wp);
-                mouse_st().dragwin = ptr::null_mut();
+            if grid == DEFAULT_GRID_HANDLE && col >= wp.w_width {
+                mouse_st().sep_line_offset = col - wp.w_width + 1;
+                mouse_st().dragwin = wp;
+            } else {
+                mouse_st().sep_line_offset = 0;
+            }
 
-                if below_window {
-                    mouse_st().status_line_offset = row + wp.w_winbar_height - wp.w_height + 1;
-                    mouse_st().dragwin = wp;
+            if mouse_st().status_line_offset != 0 && mouse_st().sep_line_offset != 0 {
+                if stl_connected(&mut *wp) {
+                    mouse_st().sep_line_offset = 0;
                 } else {
                     mouse_st().status_line_offset = 0;
                 }
-
-                if grid == DEFAULT_GRID_HANDLE && col >= wp.w_width {
-                    mouse_st().sep_line_offset = col - wp.w_width + 1;
-                    mouse_st().dragwin = wp;
-                } else {
-                    mouse_st().sep_line_offset = 0;
-                }
-
-                if mouse_st().status_line_offset != 0 && mouse_st().sep_line_offset != 0 {
-                    if stl_connected(&mut *wp) {
-                        mouse_st().sep_line_offset = 0;
-                    } else {
-                        mouse_st().status_line_offset = 0;
-                    }
-                }
-
-                if g_st().visual_global.active
-                    && (wp.w_buffer != curwin_mut().w_buffer
-                        || (mouse_st().status_line_offset == 0
-                            && mouse_st().sep_line_offset == 0
-                            && (if wp.w_onebuf_opt.wo_rl != 0 {
-                                col < wp.w_view_width - fdc
-                            } else {
-                                col >= fdc
-                            })
-                            && (flags & MOUSE_MAY_STOP_VIS) != 0))
-                {
-                    end_visual_mode();
-                    redraw_curbuf_later(UPD_INVERTED);
-                }
-
-                if mouse_st().dragwin.is_null() || (flags & MOUSE_RELEASED) != 0 {
-                    win_enter(wp, true);
-                }
-                if curwin_ptr() != old_curwin {
-                    set_mouse_topline(curwin_mut());
-                }
-                if mouse_st().status_line_offset != 0 {
-                    if curwin_ptr() == old_curwin {
-                        return IN_STATUS_LINE;
-                    }
-                    return IN_STATUS_LINE | CURSOR_MOVED;
-                }
-                if mouse_st().sep_line_offset != 0 {
-                    if curwin_ptr() == old_curwin {
-                        return IN_SEP_LINE;
-                    }
-                    return IN_SEP_LINE | CURSOR_MOVED;
-                }
-
-                curwin_mut().w_cursor.lnum = curwin_mut().w_topline;
             }
-        } else if mouse_st().status_line_offset != 0 {
-            if which_button == MOUSE_LEFT && !mouse_st().dragwin.is_null() {
-                let count = row - (*mouse_st().dragwin).w_winrow - (*mouse_st().dragwin).w_height
-                    + 1
-                    - mouse_st().status_line_offset;
-                win_drag_status_line(&mut *mouse_st().dragwin, count);
-                mouse_st().did_drag |= count;
-            }
-            return IN_STATUS_LINE;
-        } else if mouse_st().sep_line_offset != 0 && which_button == MOUSE_LEFT {
-            if !mouse_st().dragwin.is_null() {
-                let count = col - (*mouse_st().dragwin).w_wincol - (*mouse_st().dragwin).w_width
-                    + 1
-                    - mouse_st().sep_line_offset;
-                win_drag_vsep_line(&mut *mouse_st().dragwin, count);
-                mouse_st().did_drag |= count;
-            }
-            return IN_SEP_LINE;
-        } else if mouse_st().on_status_line && which_button == MOUSE_RIGHT {
-            return IN_STATUS_LINE;
-        } else if mouse_st().on_winbar && which_button == MOUSE_RIGHT {
-            return IN_OTHER_WIN | MOUSE_WINBAR;
-        } else if mouse_st().on_statuscol && which_button == MOUSE_RIGHT {
-            return IN_OTHER_WIN | MOUSE_STATUSCOL;
-        } else {
-            if (flags & MOUSE_MAY_STOP_VIS) != 0 {
+
+            if g_st().visual_global.active
+                && (wp.w_buffer != curwin_mut().w_buffer
+                    || (mouse_st().status_line_offset == 0
+                        && mouse_st().sep_line_offset == 0
+                        && (if wp.w_onebuf_opt.wo_rl != 0 {
+                            col < wp.w_view_width - fdc
+                        } else {
+                            col >= fdc
+                        })
+                        && (flags & MOUSE_MAY_STOP_VIS) != 0))
+            {
                 end_visual_mode();
                 redraw_curbuf_later(UPD_INVERTED);
             }
 
-            if grid == 0 {
-                row -= curwin_mut().w_grid_alloc.comp_row + curwin_mut().w_grid.row_offset;
-                col -= curwin_mut().w_grid_alloc.comp_col + curwin_mut().w_grid.col_offset;
-            } else if grid != DEFAULT_GRID_HANDLE {
-                row -= curwin_mut().w_grid.row_offset;
-                col -= curwin_mut().w_grid.col_offset;
+            if mouse_st().dragwin.is_null() || (flags & MOUSE_RELEASED) != 0 {
+                win_enter(wp, true);
+            }
+            if curwin_ptr() != old_curwin {
+                set_mouse_topline(curwin_mut());
+            }
+            if mouse_st().status_line_offset != 0 {
+                if curwin_ptr() == old_curwin {
+                    return IN_STATUS_LINE;
+                }
+                return IN_STATUS_LINE | CURSOR_MOVED;
+            }
+            if mouse_st().sep_line_offset != 0 {
+                if curwin_ptr() == old_curwin {
+                    return IN_SEP_LINE;
+                }
+                return IN_SEP_LINE | CURSOR_MOVED;
             }
 
-            if row < 0 {
-                let mut count = 0;
-                let mut first = true;
-                while curwin_mut().w_topline > 1 {
-                    if curwin_mut().w_topfill
-                        < win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline)
-                    {
-                        count += 1;
-                    } else {
-                        count += plines_win(curwin_ptr(), curwin_mut().w_topline - 1, true);
-                    }
-                    if !first && count > -row {
-                        break;
-                    }
-                    first = false;
-                    has_folding(
+            curwin_mut().w_cursor.lnum = curwin_mut().w_topline;
+        }
+    } else if mouse_st().status_line_offset != 0 {
+        if which_button == MOUSE_LEFT && !mouse_st().dragwin.is_null() {
+            let count = row
+                - unsafe { (*mouse_st().dragwin).w_winrow }
+                - unsafe { (*mouse_st().dragwin).w_height }
+                + 1
+                - mouse_st().status_line_offset;
+            win_drag_status_line(unsafe { &mut *mouse_st().dragwin }, count);
+            mouse_st().did_drag |= count;
+        }
+        return IN_STATUS_LINE;
+    } else if mouse_st().sep_line_offset != 0 && which_button == MOUSE_LEFT {
+        if !mouse_st().dragwin.is_null() {
+            let count = col
+                - unsafe { (*mouse_st().dragwin).w_wincol }
+                - unsafe { (*mouse_st().dragwin).w_width }
+                + 1
+                - mouse_st().sep_line_offset;
+            win_drag_vsep_line(unsafe { &mut *mouse_st().dragwin }, count);
+            mouse_st().did_drag |= count;
+        }
+        return IN_SEP_LINE;
+    } else if mouse_st().on_status_line && which_button == MOUSE_RIGHT {
+        return IN_STATUS_LINE;
+    } else if mouse_st().on_winbar && which_button == MOUSE_RIGHT {
+        return IN_OTHER_WIN | MOUSE_WINBAR;
+    } else if mouse_st().on_statuscol && which_button == MOUSE_RIGHT {
+        return IN_OTHER_WIN | MOUSE_STATUSCOL;
+    } else {
+        if (flags & MOUSE_MAY_STOP_VIS) != 0 {
+            end_visual_mode();
+            redraw_curbuf_later(UPD_INVERTED);
+        }
+
+        if grid == 0 {
+            row -= curwin_mut().w_grid_alloc.comp_row + curwin_mut().w_grid.row_offset;
+            col -= curwin_mut().w_grid_alloc.comp_col + curwin_mut().w_grid.col_offset;
+        } else if grid != DEFAULT_GRID_HANDLE {
+            row -= curwin_mut().w_grid.row_offset;
+            col -= curwin_mut().w_grid.col_offset;
+        }
+
+        if row < 0 {
+            let mut count = 0;
+            let mut first = true;
+            while curwin_mut().w_topline > 1 {
+                if curwin_mut().w_topfill
+                    < win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline)
+                {
+                    count += 1;
+                } else {
+                    count += plines_win(curwin_ptr(), curwin_mut().w_topline - 1, true);
+                }
+                if !first && count > -row {
+                    break;
+                }
+                first = false;
+                has_folding(
+                    curwin_ptr(),
+                    curwin_mut().w_topline,
+                    Some(&mut curwin_mut().w_topline),
+                    ptr::null_mut(),
+                );
+                if curwin_mut().w_topfill
+                    < win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline)
+                {
+                    curwin_mut().w_topfill += 1;
+                } else {
+                    curwin_mut().w_topline -= 1;
+                    curwin_mut().w_topfill = 0;
+                }
+            }
+            check_topfill(curwin_mut(), false);
+            curwin_mut().w_valid &= !(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
+            row = 0;
+        } else if row >= curwin_mut().w_view_height {
+            let mut count = 0;
+            let mut first = true;
+            while curwin_mut().w_topline < curbuf_mut().b_ml.ml_line_count {
+                if curwin_mut().w_topfill > 0 {
+                    count += 1;
+                } else {
+                    count += plines_win(curwin_ptr(), curwin_mut().w_topline, true);
+                }
+
+                if !first && count > row - curwin_mut().w_view_height + 1 {
+                    break;
+                }
+                first = false;
+
+                if curwin_mut().w_topfill > 0 {
+                    curwin_mut().w_topfill -= 1;
+                } else {
+                    if has_folding(
                         curwin_ptr(),
                         curwin_mut().w_topline,
-                        Some(&mut curwin_mut().w_topline),
-                        ptr::null_mut(),
-                    );
-                    if curwin_mut().w_topfill
-                        < win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline)
+                        None,
+                        &raw mut curwin_mut().w_topline,
+                    ) && curwin_mut().w_topline == curbuf_mut().b_ml.ml_line_count
                     {
-                        curwin_mut().w_topfill += 1;
-                    } else {
-                        curwin_mut().w_topline -= 1;
-                        curwin_mut().w_topfill = 0;
-                    }
-                }
-                check_topfill(curwin_mut(), false);
-                curwin_mut().w_valid &=
-                    !(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP);
-                redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
-                row = 0;
-            } else if row >= curwin_mut().w_view_height {
-                let mut count = 0;
-                let mut first = true;
-                while curwin_mut().w_topline < curbuf_mut().b_ml.ml_line_count {
-                    if curwin_mut().w_topfill > 0 {
-                        count += 1;
-                    } else {
-                        count += plines_win(curwin_ptr(), curwin_mut().w_topline, true);
-                    }
-
-                    if !first && count > row - curwin_mut().w_view_height + 1 {
                         break;
                     }
-                    first = false;
-
-                    if curwin_mut().w_topfill > 0 {
-                        curwin_mut().w_topfill -= 1;
-                    } else {
-                        if has_folding(
-                            curwin_ptr(),
-                            curwin_mut().w_topline,
-                            None,
-                            &raw mut curwin_mut().w_topline,
-                        ) && curwin_mut().w_topline == curbuf_mut().b_ml.ml_line_count
-                        {
-                            break;
-                        }
-                        curwin_mut().w_topline += 1;
-                        curwin_mut().w_topfill =
-                            win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline);
-                    }
+                    curwin_mut().w_topline += 1;
+                    curwin_mut().w_topfill =
+                        win_get_fill(crate::globals::curwin_mut(), curwin_mut().w_topline);
                 }
-                check_topfill(curwin_mut(), false);
-                redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
-                curwin_mut().w_valid &=
-                    !(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP);
-                row = curwin_mut().w_view_height - 1;
-            } else if row == 0
-                && g_st().mouse_dragging > 0
-                && curwin_mut().w_cursor.lnum == curwin_mut().buf_mut().b_ml.ml_line_count
-                && curwin_mut().w_cursor.lnum == curwin_mut().w_topline
-            {
-                curwin_mut().w_valid &= !VALID_TOPLINE;
             }
+            check_topfill(curwin_mut(), false);
+            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
+            curwin_mut().w_valid &= !(VALID_WROW | VALID_CROW | VALID_BOTLINE | VALID_BOTLINE_AP);
+            row = curwin_mut().w_view_height - 1;
+        } else if row == 0
+            && g_st().mouse_dragging > 0
+            && curwin_mut().w_cursor.lnum == curwin_mut().buf_mut().b_ml.ml_line_count
+            && curwin_mut().w_cursor.lnum == curwin_mut().w_topline
+        {
+            curwin_mut().w_valid &= !VALID_TOPLINE;
         }
+    }
 
-        let mut col_from_screen: Colnr = -1;
-        let mut mouse_fold_flags: i32 = 0;
-        mouse_check_grid(&mut col_from_screen, &mut mouse_fold_flags);
+    let mut col_from_screen: Colnr = -1;
+    let mut mouse_fold_flags: i32 = 0;
+    mouse_check_grid(&mut col_from_screen, &mut mouse_fold_flags);
 
-        if mouse_comp_pos(
-            curwin_mut(),
-            &mut row,
-            &mut col,
-            &mut curwin_mut().w_cursor.lnum,
-        ) {
-            g_st().mouse_past_bottom = true;
+    if mouse_comp_pos(
+        curwin_mut(),
+        &mut row,
+        &mut col,
+        &mut curwin_mut().w_cursor.lnum,
+    ) {
+        g_st().mouse_past_bottom = true;
+    }
+
+    if (flags & MOUSE_MAY_VIS) != 0 && !g_st().visual_global.active {
+        g_st().visual_global.start = old_cursor;
+        g_st().visual_global.active = true;
+        g_st().visual_global.reselect = 1;
+        may_start_select(b'o' as i32);
+        setmouse();
+
+        if opt_vars().p_smd != 0 && g_st().msg_silent == 0 {
+            g_st().redraw_cmdline = true;
         }
+    }
 
-        if (flags & MOUSE_MAY_VIS) != 0 && !g_st().visual_global.active {
-            g_st().visual_global.start = old_cursor;
-            g_st().visual_global.active = true;
-            g_st().visual_global.reselect = 1;
-            may_start_select(b'o' as i32);
-            setmouse();
+    if col_from_screen >= 0 {
+        col = col_from_screen;
+    }
 
-            if opt_vars().p_smd != 0 && g_st().msg_silent == 0 {
-                g_st().redraw_cmdline = true;
-            }
-        }
-
-        if col_from_screen >= 0 {
-            col = col_from_screen;
-        }
-
-        curwin_mut().w_curswant = col;
-        curwin_mut().w_set_curswant = false;
-        if !coladvance(curwin_mut(), col) {
-            if !inclusive.is_null() {
+    curwin_mut().w_curswant = col;
+    curwin_mut().w_set_curswant = false;
+    if !coladvance(curwin_mut(), col) {
+        if !inclusive.is_null() {
+            unsafe {
                 *inclusive = true;
             }
-            g_st().mouse_past_eol = true;
-        } else if !inclusive.is_null() {
+        }
+        g_st().mouse_past_eol = true;
+    } else if !inclusive.is_null() {
+        unsafe {
             *inclusive = false;
         }
-
-        let mut count = if mouse_st().on_statuscol {
-            IN_OTHER_WIN | MOUSE_STATUSCOL
-        } else {
-            IN_BUFFER
-        };
-        if curwin_ptr() != old_curwin
-            || curwin_mut().w_cursor.lnum != old_cursor.lnum
-            || curwin_mut().w_cursor.col != old_cursor.col
-        {
-            count |= CURSOR_MOVED;
-        }
-
-        count |= mouse_fold_flags;
-
-        count
     }
+
+    let mut count = if mouse_st().on_statuscol {
+        IN_OTHER_WIN | MOUSE_STATUSCOL
+    } else {
+        IN_BUFFER
+    };
+    if curwin_ptr() != old_curwin
+        || curwin_mut().w_cursor.lnum != old_cursor.lnum
+        || curwin_mut().w_cursor.col != old_cursor.col
+    {
+        count |= CURSOR_MOVED;
+    }
+
+    count |= mouse_fold_flags;
+
+    count
 }
 
 /// Make a horizontal scroll to "leftcol".
 /// Return true if the cursor moved, false otherwise.
 fn do_mousescroll_horiz(leftcol: Colnr) -> bool {
-    {
-        if curwin_mut().w_onebuf_opt.wo_wrap != 0 {
-            return false;
-        }
-        if curwin_mut().w_leftcol == leftcol {
-            return false;
-        }
-
-        if !virtual_active(curwin_mut()) && leftcol > scroll_line_len(curwin_mut().w_cursor.lnum) {
-            curwin_mut().w_cursor.lnum = find_longest_lnum();
-            curwin_mut().w_cursor.col = 0;
-        }
-
-        set_leftcol(leftcol)
+    if curwin_mut().w_onebuf_opt.wo_wrap != 0 {
+        return false;
     }
+    if curwin_mut().w_leftcol == leftcol {
+        return false;
+    }
+
+    if !virtual_active(curwin_mut()) && leftcol > scroll_line_len(curwin_mut().w_cursor.lnum) {
+        curwin_mut().w_cursor.lnum = find_longest_lnum();
+        curwin_mut().w_cursor.col = 0;
+    }
+
+    set_leftcol(leftcol)
 }
 
 /// Normal and Visual modes implementation for scrolling in direction
 /// "cap->arg", which is one of the MSCR_ values.
 pub fn nv_mousescroll(cap: &mut Cmdarg) {
-    {
-        let old_curwin = curwin_ptr();
+    let old_curwin = curwin_ptr();
 
-        if g_st().mouse_row >= 0 && g_st().mouse_col >= 0 {
-            let mut grid = g_st().mouse_grid;
-            let mut row = g_st().mouse_row;
-            let mut col = g_st().mouse_col;
-            set_curwin(mouse_find_win_inner(&mut grid, &mut row, &mut col));
-            if (curwin_ptr()).is_null() {
-                set_curwin(old_curwin);
-                return;
-            }
-            g_st().curbuf = curwin_mut().w_buffer;
+    if g_st().mouse_row >= 0 && g_st().mouse_col >= 0 {
+        let mut grid = g_st().mouse_grid;
+        let mut row = g_st().mouse_row;
+        let mut col = g_st().mouse_col;
+        set_curwin(mouse_find_win_inner(&mut grid, &mut row, &mut col));
+        if (curwin_ptr()).is_null() {
+            set_curwin(old_curwin);
+            return;
         }
-
-        do_mousescroll(cap);
-
-        curwin_mut().w_redr_status = true;
-        set_curwin(old_curwin);
         g_st().curbuf = curwin_mut().w_buffer;
     }
+
+    do_mousescroll(cap);
+
+    curwin_mut().w_redr_status = true;
+    set_curwin(old_curwin);
+    g_st().curbuf = curwin_mut().w_buffer;
 }
 
 /// Mouse clicks and drags.
@@ -1843,116 +1820,112 @@ pub fn mouse_comp_pos(
     colp: &mut i32,
     lnump: &mut Linenr,
 ) -> bool {
-    {
-        let mut col = *colp;
-        let mut row = *rowp;
-        let mut retval = false;
+    let mut col = *colp;
+    let mut row = *rowp;
+    let mut retval = false;
 
-        if win.w_onebuf_opt.wo_rl != 0 {
-            col = win.w_view_width - 1 - col;
-        }
-
-        let mut lnum = win.w_topline;
-
-        while row > 0 {
-            let filler_lines = if lnum == win.w_topline {
-                win.w_topfill
-            } else {
-                win_get_fill(win, lnum)
-            };
-            let mut count = plines_win_nofill(&mut *win, lnum, false);
-
-            if win.w_skipcol > 0 && lnum == win.w_topline {
-                let width1 = win.w_view_width - win_col_off(&raw mut *win);
-
-                if width1 > 0 {
-                    let skip_lines = if win.w_skipcol > width1 {
-                        (win.w_skipcol - width1) / (width1 + win_col_off2(win)) + 1
-                    } else if win.w_skipcol > 0 {
-                        1
-                    } else {
-                        0
-                    };
-
-                    count -= skip_lines;
-                }
-            }
-
-            if count + filler_lines > row {
-                break;
-            }
-
-            has_folding(&raw mut *win, lnum, None, &raw mut lnum);
-
-            if lnum == win.buf_mut().b_ml.ml_line_count {
-                retval = true;
-                break;
-            }
-            row -= count + filler_lines;
-            lnum += 1;
-        }
-
-        let mut virt_below: i32 = 0;
-        let virt_lines =
-            decor_virt_lines(&mut *win, lnum - 1, lnum, Some(&mut virt_below), None, true);
-        let diff_fill = diff_check_fill(&mut *win, lnum);
-        let skip_fill = if lnum == win.w_topline {
-            virt_lines + diff_fill - win.w_topfill
-        } else {
-            0
-        };
-
-        let mut virtnum = row - (virt_lines + diff_fill - skip_fill);
-        if row < virt_below - skip_fill {
-            lnum -= 1;
-            let mut virt_below_prev: i32 = 0;
-            let virt_lines_prev = decor_virt_lines(
-                &mut *win,
-                lnum - 1,
-                lnum,
-                Some(&mut virt_below_prev),
-                None,
-                true,
-            );
-            let diff_fill_prev = diff_check_fill(&mut *win, lnum - 1);
-            virtnum = -row - 1 - virt_lines_prev - diff_fill_prev + virt_below_prev;
-        } else if row < virt_lines + diff_fill - skip_fill {
-            virtnum = -row;
-        }
-        set_vim_var_nr(VV_LNUM, Varnumber::from(lnum));
-        set_vim_var_nr(VV_VIRTNUM, Varnumber::from(virtnum));
-
-        row -= virt_lines + diff_fill - skip_fill;
-
-        while lnum < win.buf_mut().b_ml.ml_line_count
-            && decor_conceal_line(&mut *win, lnum - 1, false)
-        {
-            lnum += 1;
-            has_folding(&raw mut *win, lnum, None, &raw mut lnum);
-        }
-
-        if !retval {
-            let off = win_col_off(&raw mut *win) - win_col_off2(win);
-            col = col.max(off);
-            col += row * (win.w_view_width - off);
-
-            if lnum == win.w_topline {
-                col += win.w_skipcol;
-            }
-        }
-
-        if win.w_onebuf_opt.wo_wrap == 0 {
-            col += win.w_leftcol;
-        }
-
-        col -= win_col_off(&raw mut *win);
-        col = col.max(0);
-
-        *colp = col;
-        *rowp = row;
-        *lnump = lnum;
-        retval
+    if win.w_onebuf_opt.wo_rl != 0 {
+        col = win.w_view_width - 1 - col;
     }
+
+    let mut lnum = win.w_topline;
+
+    while row > 0 {
+        let filler_lines = if lnum == win.w_topline {
+            win.w_topfill
+        } else {
+            win_get_fill(win, lnum)
+        };
+        let mut count = plines_win_nofill(&mut *win, lnum, false);
+
+        if win.w_skipcol > 0 && lnum == win.w_topline {
+            let width1 = win.w_view_width - win_col_off(&raw mut *win);
+
+            if width1 > 0 {
+                let skip_lines = if win.w_skipcol > width1 {
+                    (win.w_skipcol - width1) / (width1 + win_col_off2(win)) + 1
+                } else if win.w_skipcol > 0 {
+                    1
+                } else {
+                    0
+                };
+
+                count -= skip_lines;
+            }
+        }
+
+        if count + filler_lines > row {
+            break;
+        }
+
+        has_folding(&raw mut *win, lnum, None, &raw mut lnum);
+
+        if lnum == win.buf_mut().b_ml.ml_line_count {
+            retval = true;
+            break;
+        }
+        row -= count + filler_lines;
+        lnum += 1;
+    }
+
+    let mut virt_below: i32 = 0;
+    let virt_lines = decor_virt_lines(&mut *win, lnum - 1, lnum, Some(&mut virt_below), None, true);
+    let diff_fill = diff_check_fill(&mut *win, lnum);
+    let skip_fill = if lnum == win.w_topline {
+        virt_lines + diff_fill - win.w_topfill
+    } else {
+        0
+    };
+
+    let mut virtnum = row - (virt_lines + diff_fill - skip_fill);
+    if row < virt_below - skip_fill {
+        lnum -= 1;
+        let mut virt_below_prev: i32 = 0;
+        let virt_lines_prev = decor_virt_lines(
+            &mut *win,
+            lnum - 1,
+            lnum,
+            Some(&mut virt_below_prev),
+            None,
+            true,
+        );
+        let diff_fill_prev = diff_check_fill(&mut *win, lnum - 1);
+        virtnum = -row - 1 - virt_lines_prev - diff_fill_prev + virt_below_prev;
+    } else if row < virt_lines + diff_fill - skip_fill {
+        virtnum = -row;
+    }
+    set_vim_var_nr(VV_LNUM, Varnumber::from(lnum));
+    set_vim_var_nr(VV_VIRTNUM, Varnumber::from(virtnum));
+
+    row -= virt_lines + diff_fill - skip_fill;
+
+    while lnum < win.buf_mut().b_ml.ml_line_count && decor_conceal_line(&mut *win, lnum - 1, false)
+    {
+        lnum += 1;
+        has_folding(&raw mut *win, lnum, None, &raw mut lnum);
+    }
+
+    if !retval {
+        let off = win_col_off(&raw mut *win) - win_col_off2(win);
+        col = col.max(off);
+        col += row * (win.w_view_width - off);
+
+        if lnum == win.w_topline {
+            col += win.w_skipcol;
+        }
+    }
+
+    if win.w_onebuf_opt.wo_wrap == 0 {
+        col += win.w_leftcol;
+    }
+
+    col -= win_col_off(&raw mut *win);
+    col = col.max(0);
+
+    *colp = col;
+    *rowp = row;
+    *lnump = lnum;
+    retval
 }
 
 /// Find the window at "grid" position "*rowp" and "*colp". The positions are
@@ -2006,15 +1979,13 @@ pub fn mouse_find_win_inner(gridp: &mut i32, rowp: &mut i32, colp: &mut i32) -> 
 /// Find the window at "grid" position "*rowp" and "*colp". The positions are
 /// updated to become relative to the top-left of the window.
 pub fn mouse_find_win_outer(gridp: &mut i32, rowp: &mut i32, colp: &mut i32) -> *mut WinInfoInfo {
-    {
-        let wp = mouse_find_win_inner(gridp, rowp, colp);
-        if !wp.is_null() {
-            let wp = unsafe { &mut *wp };
-            *rowp += wp.w_winrow_off;
-            *colp += wp.w_wincol_off;
-        }
-        wp
+    let wp = mouse_find_win_inner(gridp, rowp, colp);
+    if !wp.is_null() {
+        let wp = unsafe { &mut *wp };
+        *rowp += wp.w_winrow_off;
+        *colp += wp.w_wincol_off;
     }
+    wp
 }
 
 fn mouse_find_grid_win(gridp: &mut i32, rowp: &mut i32, colp: &mut i32) -> *mut WinInfoInfo {
@@ -2068,36 +2039,34 @@ pub fn vcol2col(
     vcol: Colnr,
     coladdp: Option<&mut Colnr>,
 ) -> Colnr {
-    {
-        let line = ml_get_buf(wp.buf_mut(), lnum);
-        let mut csarg = CharsizeArg::new();
-        let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line);
-        let mut ci = utf_ptr2_str_char_info(line);
-        let mut cur_vcol: i32 = 0;
-        while cur_vcol < vcol && !crate::memory::cstr_is_empty(ci.ptr) {
-            let cli = utf_cluster_info(ci);
-            let next_vcol = cur_vcol
-                + win_charsize(
-                    cstype,
-                    cur_vcol,
-                    ci.ptr.cast_mut(),
-                    ci.chr.value,
-                    &mut csarg,
-                    cli.cells,
-                )
-                .width;
-            if next_vcol > vcol {
-                break;
-            }
-            cur_vcol = next_vcol;
-            ci = cli.next;
+    let line = ml_get_buf(wp.buf_mut(), lnum);
+    let mut csarg = CharsizeArg::new();
+    let cstype: CSType = init_charsize_arg(&mut csarg, wp, lnum, line);
+    let mut ci = utf_ptr2_str_char_info(line);
+    let mut cur_vcol: i32 = 0;
+    while cur_vcol < vcol && !crate::memory::cstr_is_empty(ci.ptr) {
+        let cli = utf_cluster_info(ci);
+        let next_vcol = cur_vcol
+            + win_charsize(
+                cstype,
+                cur_vcol,
+                ci.ptr.cast_mut(),
+                ci.chr.value,
+                &mut csarg,
+                cli.cells,
+            )
+            .width;
+        if next_vcol > vcol {
+            break;
         }
-
-        if let Some(coladdp) = coladdp {
-            *coladdp = vcol - cur_vcol;
-        }
-        crate::memory::ptr_offset_from(ci.ptr, line.cast_const()) as Colnr
+        cur_vcol = next_vcol;
+        ci = cli.next;
     }
+
+    if let Some(coladdp) = coladdp {
+        *coladdp = vcol - cur_vcol;
+    }
+    crate::memory::ptr_offset_from(ci.ptr, line.cast_const()) as Colnr
 }
 
 /// Set UI mouse depending on current mode and 'mouse'.
@@ -2113,134 +2082,126 @@ fn set_mouse_topline(wp: &mut WinInfoInfo) {
 
 /// Return length of line "lnum" for horizontal scrolling.
 fn scroll_line_len(lnum: Linenr) -> Colnr {
-    {
-        let mut col: Colnr = 0;
-        let mut line = ml_get(lnum);
-        if !crate::memory::cstr_is_empty(line) {
-            loop {
-                let numchar = win_chartabsize(curwin_mut(), line, col);
-                line = line.wrapping_add(utfc_ptr2len(line) as usize);
-                if crate::memory::cstr_is_empty(line) {
-                    break;
-                }
-                col += numchar;
+    let mut col: Colnr = 0;
+    let mut line = ml_get(lnum);
+    if !crate::memory::cstr_is_empty(line) {
+        loop {
+            let numchar = win_chartabsize(curwin_mut(), line, col);
+            line = line.wrapping_add(utfc_ptr2len(line) as usize);
+            if crate::memory::cstr_is_empty(line) {
+                break;
             }
+            col += numchar;
         }
-        col
     }
+    col
 }
 
 /// Find longest visible line number.
 fn find_longest_lnum() -> Linenr {
+    let mut ret: Linenr = 0;
+
+    if curwin_mut().w_topline <= curwin_mut().w_cursor.lnum
+        && curwin_mut().w_botline > curwin_mut().w_cursor.lnum
+        && curwin_mut().w_botline <= curbuf_mut().b_ml.ml_line_count + 1
     {
-        let mut ret: Linenr = 0;
+        let mut max: Colnr = 0;
 
-        if curwin_mut().w_topline <= curwin_mut().w_cursor.lnum
-            && curwin_mut().w_botline > curwin_mut().w_cursor.lnum
-            && curwin_mut().w_botline <= curbuf_mut().b_ml.ml_line_count + 1
-        {
-            let mut max: Colnr = 0;
-
-            for lnum in curwin_mut().w_topline..curwin_mut().w_botline {
-                let len = scroll_line_len(lnum);
-                if len > max {
-                    max = len;
-                    ret = lnum;
-                } else if len == max
-                    && (lnum - curwin_mut().w_cursor.lnum).abs()
-                        < (ret - curwin_mut().w_cursor.lnum).abs()
-                {
-                    ret = lnum;
-                }
+        for lnum in curwin_mut().w_topline..curwin_mut().w_botline {
+            let len = scroll_line_len(lnum);
+            if len > max {
+                max = len;
+                ret = lnum;
+            } else if len == max
+                && (lnum - curwin_mut().w_cursor.lnum).abs()
+                    < (ret - curwin_mut().w_cursor.lnum).abs()
+            {
+                ret = lnum;
             }
-        } else {
-            ret = curwin_mut().w_cursor.lnum;
         }
-
-        ret
+    } else {
+        ret = curwin_mut().w_cursor.lnum;
     }
+
+    ret
 }
 
 /// Check clicked cell on its grid
 fn mouse_check_grid(vcolp: &mut Colnr, flagsp: &mut i32) {
+    let mut click_grid = g_st().mouse_grid;
+    let mut click_row = g_st().mouse_row;
+    let mut click_col = g_st().mouse_col;
+
+    if mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col) != curwin_ptr()
+        || curwin_mut().w_redr_type != 0
     {
-        let mut click_grid = g_st().mouse_grid;
-        let mut click_row = g_st().mouse_row;
-        let mut click_col = g_st().mouse_col;
+        return;
+    }
+    let mut start_row: i32 = 0;
+    let mut start_col: i32 = 0;
+    let gp = unsafe { &*grid_adjust(&mut curwin_mut().w_grid, &mut start_row, &mut start_col) };
+    if gp.handle != click_grid || gp.chars.is_empty() {
+        return;
+    }
+    click_row += start_row;
+    click_col += start_col;
+    if click_row < 0 || click_row >= gp.rows || click_col < 0 || click_col >= gp.cols {
+        return;
+    }
 
-        if mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col) != curwin_ptr()
-            || curwin_mut().w_redr_type != 0
-        {
-            return;
-        }
-        let mut start_row: i32 = 0;
-        let mut start_col: i32 = 0;
-        let gp = unsafe { &*grid_adjust(&mut curwin_mut().w_grid, &mut start_row, &mut start_col) };
-        if gp.handle != click_grid || gp.chars.is_empty() {
-            return;
-        }
-        click_row += start_row;
-        click_col += start_col;
-        if click_row < 0 || click_row >= gp.rows || click_col < 0 || click_col >= gp.cols {
-            return;
-        }
+    let off = gp.line_offset[click_row as usize] + click_col as usize;
+    let col_from_screen = gp.vcols[off];
 
-        let off = gp.line_offset[click_row as usize] + click_col as usize;
-        let col_from_screen = gp.vcols[off];
+    if col_from_screen >= 0 {
+        *vcolp = col_from_screen;
+    }
 
-        if col_from_screen >= 0 {
-            *vcolp = col_from_screen;
-        }
-
-        if col_from_screen == -2 {
-            *flagsp |= MOUSE_FOLD_OPEN;
-        } else if col_from_screen == -3 {
-            *flagsp |= MOUSE_FOLD_CLOSE;
-        }
+    if col_from_screen == -2 {
+        *flagsp |= MOUSE_FOLD_OPEN;
+    } else if col_from_screen == -3 {
+        *flagsp |= MOUSE_FOLD_CLOSE;
     }
 }
 
 /// "getmousepos()" function
 pub fn f_getmousepos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        let mut row = g_st().mouse_row;
-        let mut col = g_st().mouse_col;
-        let mut grid = g_st().mouse_grid;
-        let mut winid: Varnumber = 0;
-        let mut winrow: Varnumber = 0;
-        let mut wincol: Varnumber = 0;
-        let mut lnum: Linenr = 0;
-        let mut column: Varnumber = 0;
-        let mut coladd: Colnr = 0;
+    let mut row = g_st().mouse_row;
+    let mut col = g_st().mouse_col;
+    let mut grid = g_st().mouse_grid;
+    let mut winid: Varnumber = 0;
+    let mut winrow: Varnumber = 0;
+    let mut wincol: Varnumber = 0;
+    let mut lnum: Linenr = 0;
+    let mut column: Varnumber = 0;
+    let mut coladd: Colnr = 0;
 
-        let d = tv_dict_alloc_ret(rettv);
+    let d = tv_dict_alloc_ret(rettv);
 
-        tv_dict_add_nr(d, c"screenrow", Varnumber::from(g_st().mouse_row) + 1);
-        tv_dict_add_nr(d, c"screencol", Varnumber::from(g_st().mouse_col) + 1);
+    tv_dict_add_nr(d, c"screenrow", Varnumber::from(g_st().mouse_row) + 1);
+    tv_dict_add_nr(d, c"screencol", Varnumber::from(g_st().mouse_col) + 1);
 
-        let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-        if !wp.is_null() {
-            let wp = unsafe { &mut *wp };
-            let wp = { &mut *wp };
-            let height = wp.w_height + wp.w_hsep_height + wp.w_status_height;
-            if row < height + wp.w_border_adj[2] {
-                winid = Varnumber::from(wp.handle);
-                winrow = Varnumber::from(row + 1 + wp.w_winrow_off);
-                wincol = Varnumber::from(col + 1 + wp.w_wincol_off);
-                if row >= 0 && row < wp.w_height && col >= 0 && col < wp.w_width {
-                    mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut lnum);
-                    col = vcol2col(&mut *wp, lnum, col, Some(&mut coladd));
-                    column = Varnumber::from(col) + 1;
-                }
+    let wp = mouse_find_win_inner(&mut grid, &mut row, &mut col);
+    if !wp.is_null() {
+        let wp = unsafe { &mut *wp };
+        let wp = { &mut *wp };
+        let height = wp.w_height + wp.w_hsep_height + wp.w_status_height;
+        if row < height + wp.w_border_adj[2] {
+            winid = Varnumber::from(wp.handle);
+            winrow = Varnumber::from(row + 1 + wp.w_winrow_off);
+            wincol = Varnumber::from(col + 1 + wp.w_wincol_off);
+            if row >= 0 && row < wp.w_height && col >= 0 && col < wp.w_width {
+                mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut lnum);
+                col = vcol2col(&mut *wp, lnum, col, Some(&mut coladd));
+                column = Varnumber::from(col) + 1;
             }
         }
-        tv_dict_add_nr(d, c"winid", winid);
-        tv_dict_add_nr(d, c"winrow", winrow);
-        tv_dict_add_nr(d, c"wincol", wincol);
-        tv_dict_add_nr(d, c"line", Varnumber::from(lnum));
-        tv_dict_add_nr(d, c"column", column);
-        tv_dict_add_nr(d, c"coladd", Varnumber::from(coladd));
     }
+    tv_dict_add_nr(d, c"winid", winid);
+    tv_dict_add_nr(d, c"winrow", winrow);
+    tv_dict_add_nr(d, c"wincol", wincol);
+    tv_dict_add_nr(d, c"line", Varnumber::from(lnum));
+    tv_dict_add_nr(d, c"column", column);
+    tv_dict_add_nr(d, c"coladd", Varnumber::from(coladd));
 }
 
 #[cfg(test)]

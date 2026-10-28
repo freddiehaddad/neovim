@@ -454,67 +454,63 @@ fn locale_candidates(locale: &str) -> Vec<String> {
 }
 
 fn current_message_locale() -> Option<String> {
-    {
-        let mut buf = [0 as c_char; 256];
-        for var in [c"LANGUAGE", c"LC_ALL", c"LC_MESSAGES", c"LANG"] {
-            let p = os_getenv_buf(var.as_ptr(), buf.as_mut_ptr(), buf.len());
-            if !p.is_null()
-                && unsafe { *p } != 0
-                && let Ok(s) = crate::memory::cstr_from_ptr(p).to_str()
-            {
-                return Some(s.to_string());
-            }
-        }
-        #[cfg(not(windows))]
-        let p = get_locale_val(LC_MESSAGES);
-        #[cfg(windows)]
-        let p = get_locale_val(LC_CTYPE);
+    let mut buf = [0 as c_char; 256];
+    for var in [c"LANGUAGE", c"LC_ALL", c"LC_MESSAGES", c"LANG"] {
+        let p = os_getenv_buf(var.as_ptr(), buf.as_mut_ptr(), buf.len());
         if !p.is_null()
             && unsafe { *p } != 0
             && let Ok(s) = crate::memory::cstr_from_ptr(p).to_str()
         {
             return Some(s.to_string());
         }
-        None
     }
+    #[cfg(not(windows))]
+    let p = get_locale_val(LC_MESSAGES);
+    #[cfg(windows)]
+    let p = get_locale_val(LC_CTYPE);
+    if !p.is_null()
+        && unsafe { *p } != 0
+        && let Ok(s) = crate::memory::cstr_from_ptr(p).to_str()
+    {
+        return Some(s.to_string());
+    }
+    None
 }
 
 fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
-    {
-        let catalogs = &mut lang_st().catalogs;
-        if !lang_st().catalog_valid {
-            lang_st().catalog_valid = true;
-            lang_st().active_catalog = None;
-            if lang_st().locale_dir_len == 0 {
-                return None;
+    let catalogs = &mut lang_st().catalogs;
+    if !lang_st().catalog_valid {
+        lang_st().catalog_valid = true;
+        lang_st().active_catalog = None;
+        if lang_st().locale_dir_len == 0 {
+            return None;
+        }
+        let dir_slice = unsafe {
+            std::slice::from_raw_parts(
+                (&raw const lang_st().locale_dir).cast::<u8>(),
+                lang_st().locale_dir_len,
+            )
+        };
+        let dir_str = std::str::from_utf8(dir_slice).ok()?;
+        let base_dir = Path::new(dir_str);
+        let locale = current_message_locale()?;
+        for cand in locale_candidates(&locale) {
+            let mo_path = base_dir.join(&cand).join("LC_MESSAGES").join("nvim.mo");
+            if let Some(idx) = catalogs.iter().position(|c| c.path == mo_path) {
+                lang_st().active_catalog = Some(idx);
+                break;
             }
-            let dir_slice = unsafe {
-                std::slice::from_raw_parts(
-                    (&raw const lang_st().locale_dir).cast::<u8>(),
-                    lang_st().locale_dir_len,
-                )
-            };
-            let dir_str = std::str::from_utf8(dir_slice).ok()?;
-            let base_dir = Path::new(dir_str);
-            let locale = current_message_locale()?;
-            for cand in locale_candidates(&locale) {
-                let mo_path = base_dir.join(&cand).join("LC_MESSAGES").join("nvim.mo");
-                if let Some(idx) = catalogs.iter().position(|c| c.path == mo_path) {
-                    lang_st().active_catalog = Some(idx);
-                    break;
-                }
-                if let Ok(bytes) = std::fs::read(&mo_path)
-                    && let Some(cat) = parse_mo_catalog(mo_path, &bytes)
-                {
-                    let idx = catalogs.len();
-                    catalogs.push(cat);
-                    lang_st().active_catalog = Some(idx);
-                    break;
-                }
+            if let Ok(bytes) = std::fs::read(&mo_path)
+                && let Some(cat) = parse_mo_catalog(mo_path, &bytes)
+            {
+                let idx = catalogs.len();
+                catalogs.push(cat);
+                lang_st().active_catalog = Some(idx);
+                break;
             }
         }
-        lang_st().active_catalog.and_then(|idx| catalogs.get(idx))
     }
+    lang_st().active_catalog.and_then(|idx| catalogs.get(idx))
 }
 
 pub(crate) fn c_gettext(msgid: impl crate::strings::IntoCCharPtr) -> *mut c_char {
@@ -656,123 +652,119 @@ pub fn set_lang_var() {
 
 /// Setup to use the current locale.
 pub fn init_locale() {
-    {
-        let _ = unsafe { setlocale(LC_ALL, c"".as_ptr()) };
-        let _ = unsafe { setlocale(LC_NUMERIC, c"C".as_ptr()) };
+    let _ = unsafe { setlocale(LC_ALL, c"".as_ptr()) };
+    let _ = unsafe { setlocale(LC_NUMERIC, c"C".as_ptr()) };
 
-        let mut localepath = [0 as c_char; MAXPATHL];
-        xstrlcpy(
-            localepath.as_mut_ptr(),
-            get_vim_var_str(VV_PROGPATH),
-            MAXPATHL,
-        );
-        let mut tail = path_tail_with_sep(localepath.as_mut_ptr());
-        unsafe {
-            *tail = NUL;
-        }
-        tail = path_tail(localepath.as_ptr());
-        let offset = (tail as usize) - (localepath.as_ptr() as usize);
-        xstrlcpy(tail, c"share/locale", MAXPATHL - offset);
+    let mut localepath = [0 as c_char; MAXPATHL];
+    xstrlcpy(
+        localepath.as_mut_ptr(),
+        get_vim_var_str(VV_PROGPATH),
+        MAXPATHL,
+    );
+    let mut tail = path_tail_with_sep(localepath.as_mut_ptr());
+    unsafe {
+        *tail = NUL;
+    }
+    tail = path_tail(localepath.as_ptr());
+    let offset = (tail as usize) - (localepath.as_ptr() as usize);
+    xstrlcpy(tail, c"share/locale", MAXPATHL - offset);
 
-        if HAVE_LIBINTL {
-            let bytes = crate::memory::cstr_as_bytes(localepath.as_ptr());
-            let len = bytes.len().min(MAXPATHL);
-            lang_st().locale_dir[..len].copy_from_slice(&bytes[..len]);
-            lang_st().locale_dir_len = len;
-            lang_st().catalog_valid = false;
-        }
+    if HAVE_LIBINTL {
+        let bytes = crate::memory::cstr_as_bytes(localepath.as_ptr());
+        let len = bytes.len().min(MAXPATHL);
+        lang_st().locale_dir[..len].copy_from_slice(&bytes[..len]);
+        lang_st().locale_dir_len = len;
+        lang_st().catalog_valid = false;
+    }
 
-        if has_time_fd() {
-            time_msg(c"locale set", None);
-        }
+    if has_time_fd() {
+        time_msg(c"locale set", None);
     }
 }
 
 /// `":language"`: Set the language (locale).
 pub fn ex_language(eap: &mut Exarg) {
+    let mut what = LC_ALL;
+    let mut whatstr: *const c_char = c"".as_ptr();
+    let mut name = eap.arg;
+
+    let p = skiptowhite(eap.arg);
+    let arg_len = (p as usize) - (eap.arg as usize);
+    if (crate::memory::cstr_is_empty(p)
+        || matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t'))
+        && arg_len >= 3
     {
-        let mut what = LC_ALL;
-        let mut whatstr: *const c_char = c"".as_ptr();
-        let mut name = eap.arg;
-
-        let p = skiptowhite(eap.arg);
-        let arg_len = (p as usize) - (eap.arg as usize);
-        if (crate::memory::cstr_is_empty(p)
-            || matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t'))
-            && arg_len >= 3
-        {
-            if mb_strnicmp(eap.arg, c"messages", arg_len) == 0 {
-                what = VIM_LC_MESSAGES;
-                name = skipwhite(p);
-                whatstr = c"messages ".as_ptr();
-            } else if mb_strnicmp(eap.arg, c"ctype", arg_len) == 0 {
-                what = LC_CTYPE;
-                name = skipwhite(p);
-                whatstr = c"ctype ".as_ptr();
-            } else if mb_strnicmp(eap.arg, c"time", arg_len) == 0 {
-                what = LC_TIME;
-                name = skipwhite(p);
-                whatstr = c"time ".as_ptr();
-            } else if mb_strnicmp(eap.arg, c"collate", arg_len) == 0 {
-                what = LC_COLLATE;
-                name = skipwhite(p);
-                whatstr = c"collate ".as_ptr();
-            }
+        if mb_strnicmp(eap.arg, c"messages", arg_len) == 0 {
+            what = VIM_LC_MESSAGES;
+            name = skipwhite(p);
+            whatstr = c"messages ".as_ptr();
+        } else if mb_strnicmp(eap.arg, c"ctype", arg_len) == 0 {
+            what = LC_CTYPE;
+            name = skipwhite(p);
+            whatstr = c"ctype ".as_ptr();
+        } else if mb_strnicmp(eap.arg, c"time", arg_len) == 0 {
+            what = LC_TIME;
+            name = skipwhite(p);
+            whatstr = c"time ".as_ptr();
+        } else if mb_strnicmp(eap.arg, c"collate", arg_len) == 0 {
+            what = LC_COLLATE;
+            name = skipwhite(p);
+            whatstr = c"collate ".as_ptr();
         }
-
-        if crate::memory::cstr_is_empty(name) {
-            let mut mess_buf = [0 as c_char; 64];
-            let mut p_val = if what == VIM_LC_MESSAGES {
-                get_mess_env(&mut mess_buf)
-            } else {
-                unsafe { setlocale(what, ptr::null()) }
-            };
-            if crate::memory::cstr_is_empty(p_val) {
-                p_val = c"Unknown".as_ptr().cast_mut();
-            }
-            let _ = smsg!(0, gettext(c"Current %slanguage: \"%s\""), whatstr, p_val,);
-        } else {
-            #[cfg(windows)]
-            let loc = if what == VIM_LC_MESSAGES {
-                c"".as_ptr().cast_mut()
-            } else {
-                let l = unsafe { setlocale(what, name) };
-                let _ = unsafe { setlocale(LC_NUMERIC, c"C".as_ptr()) };
-                l
-            };
-            #[cfg(not(windows))]
-            let loc = {
-                let l = setlocale(what, name);
-                let _ = setlocale(LC_NUMERIC, c"C".as_ptr());
-                l
-            };
-
-            if loc.is_null() {
-                let _ = semsg!(gettext(c"E197: Cannot set language to \"%s\""), name,);
-            } else {
-                lang_st().catalog_valid = false;
-                let _ = os_setenv(c"LC_ALL", c"", 1);
-
-                if what != LC_TIME && what != LC_COLLATE {
-                    if what == LC_ALL {
-                        let _ = os_setenv(c"LANG", name, 1);
-                        let _ = os_setenv(c"LANGUAGE", c"", 1);
-                    }
-                    if what != LC_CTYPE {
-                        let _ = os_setenv(c"LC_MESSAGES", name, 1);
-                        set_helplang_default(name);
-                    }
-                }
-
-                set_lang_var();
-                maketitle();
-            }
-        }
-
-        let _ = buf_init_isk_chartab(curbuf_mut());
-        let _ = init_isf_chartab();
-        let _ = init_isi_chartab();
     }
+
+    if crate::memory::cstr_is_empty(name) {
+        let mut mess_buf = [0 as c_char; 64];
+        let mut p_val = if what == VIM_LC_MESSAGES {
+            get_mess_env(&mut mess_buf)
+        } else {
+            unsafe { setlocale(what, ptr::null()) }
+        };
+        if crate::memory::cstr_is_empty(p_val) {
+            p_val = c"Unknown".as_ptr().cast_mut();
+        }
+        let _ = smsg!(0, gettext(c"Current %slanguage: \"%s\""), whatstr, p_val,);
+    } else {
+        #[cfg(windows)]
+        let loc = if what == VIM_LC_MESSAGES {
+            c"".as_ptr().cast_mut()
+        } else {
+            let l = unsafe { setlocale(what, name) };
+            let _ = unsafe { setlocale(LC_NUMERIC, c"C".as_ptr()) };
+            l
+        };
+        #[cfg(not(windows))]
+        let loc = {
+            let l = setlocale(what, name);
+            let _ = setlocale(LC_NUMERIC, c"C".as_ptr());
+            l
+        };
+
+        if loc.is_null() {
+            let _ = semsg!(gettext(c"E197: Cannot set language to \"%s\""), name,);
+        } else {
+            lang_st().catalog_valid = false;
+            let _ = os_setenv(c"LC_ALL", c"", 1);
+
+            if what != LC_TIME && what != LC_COLLATE {
+                if what == LC_ALL {
+                    let _ = os_setenv(c"LANG", name, 1);
+                    let _ = os_setenv(c"LANGUAGE", c"", 1);
+                }
+                if what != LC_CTYPE {
+                    let _ = os_setenv(c"LC_MESSAGES", name, 1);
+                    set_helplang_default(name);
+                }
+            }
+
+            set_lang_var();
+            maketitle();
+        }
+    }
+
+    let _ = buf_init_isk_chartab(curbuf_mut());
+    let _ = init_isf_chartab();
+    let _ = init_isi_chartab();
 }
 
 #[cfg(not(windows))]
@@ -845,39 +837,31 @@ mod tests {
 
     #[test]
     fn is_valid_mess_lang_and_get_lang_arg_work() {
-        {
-            assert!(!is_valid_mess_lang(ptr::null()));
-            assert!(!is_valid_mess_lang(c"C"));
-            assert!(!is_valid_mess_lang(c"C.UTF-8"));
-            assert!(is_valid_mess_lang(c"en_US.UTF-8"));
+        assert!(!is_valid_mess_lang(ptr::null()));
+        assert!(!is_valid_mess_lang(c"C"));
+        assert!(!is_valid_mess_lang(c"C.UTF-8"));
+        assert!(is_valid_mess_lang(c"en_US.UTF-8"));
 
-            assert_eq!(
-                crate::memory::cstr_as_bytes(get_lang_arg(
-                    &mut crate::os::env::ExpandCtx::new(),
-                    0
-                )),
-                b"messages"
-            );
-            assert_eq!(
-                crate::memory::cstr_as_bytes(get_lang_arg(
-                    &mut crate::os::env::ExpandCtx::new(),
-                    3
-                )),
-                b"collate"
-            );
+        assert_eq!(
+            crate::memory::cstr_as_bytes(get_lang_arg(&mut crate::os::env::ExpandCtx::new(), 0)),
+            b"messages"
+        );
+        assert_eq!(
+            crate::memory::cstr_as_bytes(get_lang_arg(&mut crate::os::env::ExpandCtx::new(), 3)),
+            b"collate"
+        );
 
-            assert_eq!(eval_plural_expr(b"(n != 1)", 1), 0);
-            assert_eq!(eval_plural_expr(b"(n != 1)", 2), 1);
-            let slavic =
-                b"n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2";
-            assert_eq!(eval_plural_expr(slavic, 1), 0);
-            assert_eq!(eval_plural_expr(slavic, 2), 1);
-            assert_eq!(eval_plural_expr(slavic, 5), 2);
-            assert_eq!(eval_plural_expr(slavic, 11), 2);
-            assert_eq!(eval_plural_expr(slavic, 21), 0);
+        assert_eq!(eval_plural_expr(b"(n != 1)", 1), 0);
+        assert_eq!(eval_plural_expr(b"(n != 1)", 2), 1);
+        let slavic =
+            b"n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2";
+        assert_eq!(eval_plural_expr(slavic, 1), 0);
+        assert_eq!(eval_plural_expr(slavic, 2), 1);
+        assert_eq!(eval_plural_expr(slavic, 5), 2);
+        assert_eq!(eval_plural_expr(slavic, 11), 2);
+        assert_eq!(eval_plural_expr(slavic, 21), 0);
 
-            let cands = locale_candidates("ja_JP.UTF-8");
-            assert!(cands.iter().any(|c| c == "ja"));
-        }
+        let cands = locale_candidates("ja_JP.UTF-8");
+        assert!(cands.iter().any(|c| c == "ja"));
     }
 }

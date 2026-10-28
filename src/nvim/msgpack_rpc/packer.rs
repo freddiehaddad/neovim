@@ -415,94 +415,92 @@ pub fn mpack_object_inner(
     let mut stack: Vec<ContainerStackItem> = Vec::with_capacity(2);
 
     loop {
-        {
-            mpack_check_buffer(packer);
-            let cur = unsafe { &mut *current };
-            match cur.obj_type {
-                ObjectType::ObjectTypeLuaRef => {
-                    let cs = nlua_funcref_str(cur.data.luaref(), true);
-                    api_free_luaref(cur.data.luaref());
-                    cur.data = ObjectData::LuaRef(LUA_NOREF);
-                    let s = NvimString {
-                        data: cs.as_ptr().cast_mut(),
-                        size: cs.to_bytes().len(),
-                    };
-                    mpack_str(s, packer);
-                }
-                ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
-                    mpack_nil(&mut packer.ptr);
-                }
-                ObjectType::ObjectTypeBoolean => {
-                    mpack_bool(&mut packer.ptr, cur.data.boolean());
-                }
-                ObjectType::ObjectTypeInteger => {
-                    mpack_integer(&mut packer.ptr, cur.data.integer());
-                }
-                ObjectType::ObjectTypeFloat => {
-                    mpack_float8(&mut packer.ptr, cur.data.floating());
-                }
-                ObjectType::ObjectTypeString => {
-                    mpack_str(cur.data.string(), packer);
-                }
-                ObjectType::ObjectTypeBuffer
-                | ObjectType::ObjectTypeWindow
-                | ObjectType::ObjectTypeTabpage => {
-                    mpack_handle(cur.obj_type, cur.data.integer() as ObjHandle, packer);
-                }
-                ObjectType::ObjectTypeDict | ObjectType::ObjectTypeArray => {
-                    let current_size = if cur.obj_type == ObjectType::ObjectTypeArray {
-                        let sz = cur.data.array().size;
-                        mpack_array(&mut packer.ptr, sz as u32);
-                        sz
-                    } else {
-                        let sz = cur.data.dict().size;
-                        mpack_map(&mut packer.ptr, sz as u32);
-                        sz
-                    };
-                    if current_size > 0 {
-                        if cur.obj_type == ObjectType::ObjectTypeArray && current_size == 1 {
-                            current = cur.data.array().items;
-                            continue;
-                        }
-                        if !container.is_null() {
-                            stack.push(ContainerStackItem {
-                                container,
-                                idx: container_idx,
-                            });
-                        }
-                        container = current;
-                        container_idx = 0;
-                    }
-                }
+        mpack_check_buffer(packer);
+        let cur = unsafe { &mut *current };
+        match cur.obj_type {
+            ObjectType::ObjectTypeLuaRef => {
+                let cs = nlua_funcref_str(cur.data.luaref(), true);
+                api_free_luaref(cur.data.luaref());
+                cur.data = ObjectData::LuaRef(LUA_NOREF);
+                let s = NvimString {
+                    data: cs.as_ptr().cast_mut(),
+                    size: cs.to_bytes().len(),
+                };
+                mpack_str(s, packer);
             }
-
-            if container.is_null() {
-                if let Some(it) = stack.pop() {
-                    container = it.container;
-                    container_idx = it.idx;
+            ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {
+                mpack_nil(&mut packer.ptr);
+            }
+            ObjectType::ObjectTypeBoolean => {
+                mpack_bool(&mut packer.ptr, cur.data.boolean());
+            }
+            ObjectType::ObjectTypeInteger => {
+                mpack_integer(&mut packer.ptr, cur.data.integer());
+            }
+            ObjectType::ObjectTypeFloat => {
+                mpack_float8(&mut packer.ptr, cur.data.floating());
+            }
+            ObjectType::ObjectTypeString => {
+                mpack_str(cur.data.string(), packer);
+            }
+            ObjectType::ObjectTypeBuffer
+            | ObjectType::ObjectTypeWindow
+            | ObjectType::ObjectTypeTabpage => {
+                mpack_handle(cur.obj_type, cur.data.integer() as ObjHandle, packer);
+            }
+            ObjectType::ObjectTypeDict | ObjectType::ObjectTypeArray => {
+                let current_size = if cur.obj_type == ObjectType::ObjectTypeArray {
+                    let sz = cur.data.array().size;
+                    mpack_array(&mut packer.ptr, sz as u32);
+                    sz
                 } else {
-                    break;
+                    let sz = cur.data.dict().size;
+                    mpack_map(&mut packer.ptr, sz as u32);
+                    sz
+                };
+                if current_size > 0 {
+                    if cur.obj_type == ObjectType::ObjectTypeArray && current_size == 1 {
+                        current = cur.data.array().items;
+                        continue;
+                    }
+                    if !container.is_null() {
+                        stack.push(ContainerStackItem {
+                            container,
+                            idx: container_idx,
+                        });
+                    }
+                    container = current;
+                    container_idx = 0;
                 }
             }
+        }
 
-            let cont = unsafe { &mut *container };
-            if cont.obj_type == ObjectType::ObjectTypeArray {
-                let arr = cont.data.array();
-                current = arr.items.wrapping_add(container_idx);
-                container_idx += 1;
-                if container_idx >= arr.size {
-                    container = std::ptr::null_mut();
-                }
+        if container.is_null() {
+            if let Some(it) = stack.pop() {
+                container = it.container;
+                container_idx = it.idx;
             } else {
-                let mut dict = cont.data.dict();
-                let it = &mut dict[container_idx];
-                container_idx += 1;
-                mpack_check_buffer(packer);
-                mpack_str(it.key, packer);
-                current = &mut it.value;
-                if container_idx >= dict.size {
-                    container = std::ptr::null_mut();
-                }
+                break;
+            }
+        }
+
+        let cont = unsafe { &mut *container };
+        if cont.obj_type == ObjectType::ObjectTypeArray {
+            let arr = cont.data.array();
+            current = arr.items.wrapping_add(container_idx);
+            container_idx += 1;
+            if container_idx >= arr.size {
+                container = std::ptr::null_mut();
+            }
+        } else {
+            let mut dict = cont.data.dict();
+            let it = &mut dict[container_idx];
+            container_idx += 1;
+            mpack_check_buffer(packer);
+            mpack_str(it.key, packer);
+            current = &mut it.value;
+            if container_idx >= dict.size {
+                container = std::ptr::null_mut();
             }
         }
     }

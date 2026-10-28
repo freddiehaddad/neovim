@@ -100,30 +100,26 @@ fn buf_pos(ui: &RemoteUI) -> usize {
 }
 
 fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI> {
-    {
-        let ui = api_ui_st()
-            .connected_uis
-            .get_mut(&chan_id)
-            .map(|b| &mut **b);
-        if ui.is_none() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"UI not attached to channel: %lld",
-                chan_id as i64,
-            );
-        }
-        ui
+    let ui = api_ui_st()
+        .connected_uis
+        .get_mut(&chan_id)
+        .map(|b| &mut **b);
+    if ui.is_none() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"UI not attached to channel: %lld",
+            chan_id as i64,
+        );
     }
+    ui
 }
 
 fn mpack_array_dyn16(buf: *mut *mut c_char) -> *mut c_char {
-    {
-        mpack_w(buf, 0xdc);
-        let pos = unsafe { *buf };
-        mpack_w2(buf, 0xFFEF);
-        pos
-    }
+    mpack_w(buf, 0xdc);
+    let pos = unsafe { *buf };
+    mpack_w2(buf, 0xFFEF);
+    pos
 }
 
 fn mpack_str_small(buf: *mut *mut c_char, str_: impl crate::strings::IntoCCharPtr, len: usize) {
@@ -142,31 +138,29 @@ fn mpack_str_small(buf: *mut *mut c_char, str_: impl crate::strings::IntoCCharPt
 /// @param send_error_exit  send an "error_exit" event with 0 status first
 // DLLEXPORT void remote_ui_disconnect(uint64_t channel_id, Error *err, bool send_error_exit);
 pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: bool) {
-    {
-        let Some(ui) = get_ui_or_err(channel_id, err) else {
-            return;
+    let Some(ui) = get_ui_or_err(channel_id, err) else {
+        return;
+    };
+    if send_error_exit {
+        let mut args_items: [Object; 1] = [integer_obj(0)];
+        let args = Array {
+            items: args_items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
         };
-        if send_error_exit {
-            let mut args_items: [Object; 1] = [integer_obj(0)];
-            let args = Array {
-                items: args_items.as_mut_ptr(),
-                size: 1,
-                capacity: 1,
-            };
-            push_call(ui, c"error_exit", args);
-            ui_flush_buf(ui, false);
-        }
-        let mut ui_box = api_ui_st().connected_uis.remove(&channel_id);
-        let ui_detached = ui_box.as_deref_mut().unwrap_or(ui);
-        ui_detach_impl(ui_detached, channel_id);
-        let chan = find_channel(channel_id);
-        if !chan.is_null() {
-            unsafe {
-                (*chan).rpc.has_ui = false;
-            }
-        }
-        drop(ui_box);
+        push_call(ui, c"error_exit", args);
+        ui_flush_buf(ui, false);
     }
+    let mut ui_box = api_ui_st().connected_uis.remove(&channel_id);
+    let ui_detached = ui_box.as_deref_mut().unwrap_or(ui);
+    ui_detach_impl(ui_detached, channel_id);
+    let chan = find_channel(channel_id);
+    if !chan.is_null() {
+        unsafe {
+            (*chan).rpc.has_ui = false;
+        }
+    }
+    drop(ui_box);
 }
 
 /// Detaches the UI on channel `chan` (server keeps running). Sets `channel.detach`, sends an
@@ -176,30 +170,28 @@ pub fn remote_ui_disconnect(channel_id: u64, err: &mut Error, send_error_exit: b
 /// @param[out] err Error details, if any.
 // DLLEXPORT void ui_detach_channel(uint64_t chan, Error *err);
 pub fn ui_detach_channel(chan: u64, err: &mut Error) {
+    let c = find_channel(chan);
+    if c.is_null() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"%s",
+            (&raw const E_INVCHAN).cast::<c_char>(),
+        );
+        return;
+    }
+    let c = unsafe { &mut *c };
+    #[cfg(windows)]
+    let detach_stdio = c.streamtype == K_CHANNEL_STREAM_STDIO;
+    c.detach = true;
+    remote_ui_disconnect(chan, err, true);
+    if error_set(err) {
+        return;
+    }
+    channel_close(chan, K_CHANNEL_PART_ALL, ptr::null_mut());
+    #[cfg(windows)]
     {
-        let c = find_channel(chan);
-        if c.is_null() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"%s",
-                (&raw const E_INVCHAN).cast::<c_char>(),
-            );
-            return;
-        }
-        let c = unsafe { &mut *c };
-        #[cfg(windows)]
-        let detach_stdio = c.streamtype == K_CHANNEL_STREAM_STDIO;
-        c.detach = true;
-        remote_ui_disconnect(chan, err, true);
-        if error_set(err) {
-            return;
-        }
-        channel_close(chan, K_CHANNEL_PART_ALL, ptr::null_mut());
-        #[cfg(windows)]
-        {
-            os_detach_ui_console(detach_stdio);
-        }
+        os_detach_ui_console(detach_stdio);
     }
 }
 
@@ -209,34 +201,30 @@ pub fn ui_detach_channel(chan: u64, err: &mut Error) {
 /// @return Number of UIs detached.
 // DLLEXPORT size_t ui_detach_others(uint64_t keep_chan);
 pub fn ui_detach_others(keep_chan: u64) -> usize {
-    {
-        let mut chans = Vec::<u64>::new();
-        for &chan in api_ui_st().connected_uis.keys() {
-            if chan != keep_chan {
-                chans.push(chan);
-            }
+    let mut chans = Vec::<u64>::new();
+    for &chan in api_ui_st().connected_uis.keys() {
+        if chan != keep_chan {
+            chans.push(chan);
         }
-
-        let mut detached: usize = 0;
-        for chan in chans {
-            let mut err = Error::new();
-            ui_detach_channel(chan, &mut err);
-            if error_set(&err) {
-                api_clear_error(&mut err);
-            } else {
-                detached += 1;
-            }
-        }
-
-        detached
     }
+
+    let mut detached: usize = 0;
+    for chan in chans {
+        let mut err = Error::new();
+        ui_detach_channel(chan, &mut err);
+        if error_set(&err) {
+            api_clear_error(&mut err);
+        } else {
+            detached += 1;
+        }
+    }
+
+    detached
 }
 
 // DLLEXPORT void remote_ui_free_all_mem(void);
 pub fn remote_ui_free_all_mem() {
-    {
-        api_ui_st().connected_uis.clear();
-    }
+    api_ui_st().connected_uis.clear();
 }
 
 /// Wait until UI has connected.
@@ -279,119 +267,117 @@ pub fn nvim_ui_attach(
     options: Dict,
     err: &mut Error,
 ) {
-    {
-        if api_ui_st().connected_uis.contains_key(&channel_id) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"UI already attached to channel: %lld",
-                channel_id as i64,
-            );
-            return;
-        }
-        if !ui_can_attach_more() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Maximum UI count reached",
-            );
-            return;
-        }
-        if width <= 0 || height <= 0 {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Expected width > 0 and height > 0",
-            );
-            return;
-        }
-
-        let mut ui_box = Box::new(RemoteUI {
-            rgb: true,
-            r#override: false,
-            composed: false,
-            ui_ext: [false; K_UIEXT_COUNT],
-            width: width as i32,
-            height: height as i32,
-            pum_nlines: 0,
-            pum_pos: false,
-            pum_row: -1.0,
-            pum_col: -1.0,
-            pum_height: 0.0,
-            pum_width: 0.0,
-            term_name: None,
-            term_colors: 0,
-            stdin_tty: false,
-            stdout_tty: false,
-            channel_id,
-            packer: crate::msgpack_rpc::packer::PackerBuffer::new(),
-            cur_event: None,
-            nevents_pos: None,
-            ncalls_pos: None,
-            nevents: 0,
-            ncalls: 0,
-            flushed_events: false,
-            incomplete_event: false,
-            ncells_pending: 0,
-            hl_id: 0,
-            cursor_row: 0,
-            cursor_col: 0,
-            client_row: 0,
-            client_col: -1,
-            wildmenu_active: false,
-        });
-        let ui: &mut RemoteUI = &mut ui_box;
-
-        for i in 0..options.size {
-            let item = options[i];
-            ui_set_option(ui, true, item.key, item.value, err);
-            if error_set(err) {
-                return;
-            }
-        }
-
-        if ui.ui_ext[K_UIHL_STATE] || ui.ui_ext[K_UIMULTIGRID] {
-            ui.ui_ext[K_UILINEGRID] = true;
-        }
-        if ui.ui_ext[K_UIMESSAGES] {
-            ui.ui_ext[K_UILINEGRID] = true;
-            ui.ui_ext[K_UICMDLINE] = true;
-        }
-
-        ui.cur_event = None;
-        ui.hl_id = 0;
-        ui.client_col = -1;
-        ui.nevents_pos = None;
-        ui.nevents = 0;
-        ui.flushed_events = false;
-        ui.incomplete_event = false;
-        ui.ncalls_pos = None;
-        ui.ncalls = 0;
-        ui.ncells_pending = 0;
-        api_ui_st().connected_uis.insert(channel_id, ui_box);
-        let ui: &mut RemoteUI = api_ui_st().connected_uis.get_mut(&channel_id).unwrap();
-        ui.packer = PackerBuffer {
-            startptr: ptr::null_mut(),
-            ptr: ptr::null_mut(),
-            endptr: ptr::null_mut(),
-            anydata: crate::msgpack_rpc::packer::PackerData::Ui(&raw mut *ui),
-            anyint: 0,
-            owned_buf: Vec::new(),
-        };
-        ui.wildmenu_active = false;
-
-        g_st().current_ui = channel_id;
-        ui_attach_impl(ui, channel_id);
-
-        let chan = find_channel(channel_id);
-        if !chan.is_null() {
-            unsafe {
-                (*chan).rpc.has_ui = true;
-            }
-        }
-
-        may_trigger_vim_suspend_resume(false);
+    if api_ui_st().connected_uis.contains_key(&channel_id) {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"UI already attached to channel: %lld",
+            channel_id as i64,
+        );
+        return;
     }
+    if !ui_can_attach_more() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Maximum UI count reached",
+        );
+        return;
+    }
+    if width <= 0 || height <= 0 {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Expected width > 0 and height > 0",
+        );
+        return;
+    }
+
+    let mut ui_box = Box::new(RemoteUI {
+        rgb: true,
+        r#override: false,
+        composed: false,
+        ui_ext: [false; K_UIEXT_COUNT],
+        width: width as i32,
+        height: height as i32,
+        pum_nlines: 0,
+        pum_pos: false,
+        pum_row: -1.0,
+        pum_col: -1.0,
+        pum_height: 0.0,
+        pum_width: 0.0,
+        term_name: None,
+        term_colors: 0,
+        stdin_tty: false,
+        stdout_tty: false,
+        channel_id,
+        packer: crate::msgpack_rpc::packer::PackerBuffer::new(),
+        cur_event: None,
+        nevents_pos: None,
+        ncalls_pos: None,
+        nevents: 0,
+        ncalls: 0,
+        flushed_events: false,
+        incomplete_event: false,
+        ncells_pending: 0,
+        hl_id: 0,
+        cursor_row: 0,
+        cursor_col: 0,
+        client_row: 0,
+        client_col: -1,
+        wildmenu_active: false,
+    });
+    let ui: &mut RemoteUI = &mut ui_box;
+
+    for i in 0..options.size {
+        let item = options[i];
+        ui_set_option(ui, true, item.key, item.value, err);
+        if error_set(err) {
+            return;
+        }
+    }
+
+    if ui.ui_ext[K_UIHL_STATE] || ui.ui_ext[K_UIMULTIGRID] {
+        ui.ui_ext[K_UILINEGRID] = true;
+    }
+    if ui.ui_ext[K_UIMESSAGES] {
+        ui.ui_ext[K_UILINEGRID] = true;
+        ui.ui_ext[K_UICMDLINE] = true;
+    }
+
+    ui.cur_event = None;
+    ui.hl_id = 0;
+    ui.client_col = -1;
+    ui.nevents_pos = None;
+    ui.nevents = 0;
+    ui.flushed_events = false;
+    ui.incomplete_event = false;
+    ui.ncalls_pos = None;
+    ui.ncalls = 0;
+    ui.ncells_pending = 0;
+    api_ui_st().connected_uis.insert(channel_id, ui_box);
+    let ui: &mut RemoteUI = api_ui_st().connected_uis.get_mut(&channel_id).unwrap();
+    ui.packer = PackerBuffer {
+        startptr: ptr::null_mut(),
+        ptr: ptr::null_mut(),
+        endptr: ptr::null_mut(),
+        anydata: crate::msgpack_rpc::packer::PackerData::Ui(&raw mut *ui),
+        anyint: 0,
+        owned_buf: Vec::new(),
+    };
+    ui.wildmenu_active = false;
+
+    g_st().current_ui = channel_id;
+    ui_attach_impl(ui, channel_id);
+
+    let chan = find_channel(channel_id);
+    if !chan.is_null() {
+        unsafe {
+            (*chan).rpc.has_ui = true;
+        }
+    }
+
+    may_trigger_vim_suspend_resume(false);
 }
 
 /// @deprecated
@@ -404,18 +390,16 @@ pub fn ui_attach(
     enable_rgb: Boolean,
     err: &mut Error,
 ) {
-    {
-        let mut opts_items: [KeyValuePair; 1] = [KeyValuePair {
-            key: cstr_as_string(c"rgb"),
-            value: boolean_obj(enable_rgb),
-        }];
-        let opts = Dict {
-            items: opts_items.as_mut_ptr(),
-            size: 1,
-            capacity: 1,
-        };
-        nvim_ui_attach(channel_id, width, height, opts, err);
-    }
+    let mut opts_items: [KeyValuePair; 1] = [KeyValuePair {
+        key: cstr_as_string(c"rgb"),
+        value: boolean_obj(enable_rgb),
+    }];
+    let opts = Dict {
+        items: opts_items.as_mut_ptr(),
+        size: 1,
+        capacity: 1,
+    };
+    nvim_ui_attach(channel_id, width, height, opts, err);
 }
 
 /// Tells the nvim server if focus was gained or lost by the GUI
@@ -466,27 +450,25 @@ pub fn remote_ui_connect(
 /// Sends a "restart" event to all UIs. (Not autogenerated because `chan_config` is per-channel.)
 // DLLEXPORT void remote_ui_restart(String listen_addr);
 pub fn remote_ui_restart(listen_addr: NvimString) {
-    {
-        for ui in api_ui_st().connected_uis.values_mut() {
-            let chan = find_channel(ui.channel_id);
-            let detach_val = !chan.is_null() && unsafe { (*chan).detach };
-            let mut cfg_items: [KeyValuePair; 1] = [KeyValuePair {
-                key: cstr_as_string(c"detach"),
-                value: boolean_obj(detach_val),
-            }];
-            let chan_config = Dict {
-                items: cfg_items.as_mut_ptr(),
-                size: 1,
-                capacity: 1,
-            };
-            let mut args_items: [Object; 2] = [string_obj(listen_addr), dict_obj(chan_config)];
-            let args = Array {
-                items: args_items.as_mut_ptr(),
-                size: 2,
-                capacity: 2,
-            };
-            push_call(ui, c"restart", args);
-        }
+    for ui in api_ui_st().connected_uis.values_mut() {
+        let chan = find_channel(ui.channel_id);
+        let detach_val = !chan.is_null() && unsafe { (*chan).detach };
+        let mut cfg_items: [KeyValuePair; 1] = [KeyValuePair {
+            key: cstr_as_string(c"detach"),
+            value: boolean_obj(detach_val),
+        }];
+        let chan_config = Dict {
+            items: cfg_items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+        let mut args_items: [Object; 2] = [string_obj(listen_addr), dict_obj(chan_config)];
+        let args = Array {
+            items: args_items.as_mut_ptr(),
+            size: 2,
+            capacity: 2,
+        };
+        push_call(ui, c"restart", args);
     }
 }
 
@@ -519,175 +501,172 @@ pub fn nvim_ui_set_option(channel_id: u64, name: NvimString, value: Object, erro
 }
 
 fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object, err: &mut Error) {
-    {
-        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"override") {
-            if value.obj_type != ObjectType::ObjectTypeBoolean {
-                api_err_exp(
-                    err,
-                    c"override",
-                    api_typename(ObjectType::ObjectTypeBoolean),
-                    api_typename(value.obj_type),
-                );
-                return;
-            }
-            ui.r#override = value.data.boolean();
+    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"override") {
+        if value.obj_type != ObjectType::ObjectTypeBoolean {
+            api_err_exp(
+                err,
+                c"override",
+                api_typename(ObjectType::ObjectTypeBoolean),
+                api_typename(value.obj_type),
+            );
             return;
         }
-
-        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"rgb") {
-            if value.obj_type != ObjectType::ObjectTypeBoolean {
-                api_err_exp(
-                    err,
-                    c"rgb",
-                    api_typename(ObjectType::ObjectTypeBoolean),
-                    api_typename(value.obj_type),
-                );
-                return;
-            }
-            ui.rgb = value.data.boolean();
-            if !init && !ui.ui_ext[K_UILINEGRID] {
-                ui_refresh();
-            }
-            return;
-        }
-
-        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"term_name") {
-            if value.obj_type != ObjectType::ObjectTypeString {
-                api_err_exp(
-                    err,
-                    c"term_name",
-                    api_typename(ObjectType::ObjectTypeString),
-                    api_typename(value.obj_type),
-                );
-                return;
-            }
-            let s = value.data.string();
-            let slice = if s.data.is_null() || s.size == 0 {
-                &[][..]
-            } else {
-                crate::memory::cstr_slice(s.data, s.size)
-            };
-            let term_cstr = std::ffi::CString::new(slice).unwrap();
-            set_tty_option(c"term", Some(term_cstr.clone()));
-            ui.term_name = Some(term_cstr);
-            return;
-        }
-
-        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"term_colors") {
-            if value.obj_type != ObjectType::ObjectTypeInteger {
-                api_err_exp(
-                    err,
-                    c"term_colors",
-                    api_typename(ObjectType::ObjectTypeInteger),
-                    api_typename(value.obj_type),
-                );
-                return;
-            }
-            g_st().t_colors = value.data.integer() as i32;
-            ui.term_colors = value.data.integer() as i32;
-            return;
-        }
-
-        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdin_fd") {
-            if value.obj_type != ObjectType::ObjectTypeInteger {
-                api_err_exp(
-                    err,
-                    c"stdin_fd",
-                    api_typename(ObjectType::ObjectTypeInteger),
-                    api_typename(value.obj_type),
-                );
-                return;
-            }
-            if value.data.integer() < 0 {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Invalid stdin_fd: %lld",
-                    value.data.integer(),
-                );
-                return;
-            }
-            if starting_val() != NO_SCREEN {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"%s",
-                    c"stdin_fd can only be used with first attached UI",
-                );
-                return;
-            }
-            g_st().stdin_fd = value.data.integer() as i32;
-            return;
-        }
-
-        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdin_tty") {
-            if value.obj_type != ObjectType::ObjectTypeBoolean {
-                api_err_exp(
-                    err,
-                    c"stdin_tty",
-                    api_typename(ObjectType::ObjectTypeBoolean),
-                    api_typename(value.obj_type),
-                );
-                return;
-            }
-            if ui.channel_id == CHAN_STDIO {
-                g_st().stdin_isatty = value.data.boolean();
-            }
-            ui.stdin_tty = value.data.boolean();
-            return;
-        }
-
-        if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdout_tty") {
-            if value.obj_type != ObjectType::ObjectTypeBoolean {
-                api_err_exp(
-                    err,
-                    c"stdout_tty",
-                    api_typename(ObjectType::ObjectTypeBoolean),
-                    api_typename(value.obj_type),
-                );
-                return;
-            }
-            if ui.channel_id == CHAN_STDIO {
-                g_st().stdout_isatty = value.data.boolean();
-            }
-            ui.stdout_tty = value.data.boolean();
-            return;
-        }
-
-        let is_popupmenu =
-            crate::memory::cstr_as_opt_bytes(name.data) == Some(b"popupmenu_external");
-        for (i, ext_name) in UI_EXT_NAMES.iter().enumerate().take(K_UIEXT_COUNT) {
-            if (crate::memory::cstr_as_opt_bytes(name.data)
-                == crate::memory::cstr_as_opt_bytes(ext_name.as_ptr()))
-                || (i == K_UIPOPUPMENU && is_popupmenu)
-            {
-                if value.obj_type != ObjectType::ObjectTypeBoolean {
-                    api_err_exp(err, name.data, c"Boolean", api_typename(value.obj_type));
-                    return;
-                }
-                let boolval = value.data.boolean();
-                if !init && i == K_UILINEGRID && boolval != ui.ui_ext[i] {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"ext_linegrid option cannot be changed",
-                    );
-                }
-                ui.ui_ext[i] = boolval;
-                if !init {
-                    ui_set_ext_option(ui, i as UIExtension, boolval);
-                }
-                return;
-            }
-        }
-
-        api_set_error!(
-            err,
-            ErrorType::ErrorTypeValidation,
-            c"Invalid UI option: '%s'",
-            name.data,
-        );
+        ui.r#override = value.data.boolean();
+        return;
     }
+
+    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"rgb") {
+        if value.obj_type != ObjectType::ObjectTypeBoolean {
+            api_err_exp(
+                err,
+                c"rgb",
+                api_typename(ObjectType::ObjectTypeBoolean),
+                api_typename(value.obj_type),
+            );
+            return;
+        }
+        ui.rgb = value.data.boolean();
+        if !init && !ui.ui_ext[K_UILINEGRID] {
+            ui_refresh();
+        }
+        return;
+    }
+
+    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"term_name") {
+        if value.obj_type != ObjectType::ObjectTypeString {
+            api_err_exp(
+                err,
+                c"term_name",
+                api_typename(ObjectType::ObjectTypeString),
+                api_typename(value.obj_type),
+            );
+            return;
+        }
+        let s = value.data.string();
+        let slice = if s.data.is_null() || s.size == 0 {
+            &[][..]
+        } else {
+            crate::memory::cstr_slice(s.data, s.size)
+        };
+        let term_cstr = std::ffi::CString::new(slice).unwrap();
+        set_tty_option(c"term", Some(term_cstr.clone()));
+        ui.term_name = Some(term_cstr);
+        return;
+    }
+
+    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"term_colors") {
+        if value.obj_type != ObjectType::ObjectTypeInteger {
+            api_err_exp(
+                err,
+                c"term_colors",
+                api_typename(ObjectType::ObjectTypeInteger),
+                api_typename(value.obj_type),
+            );
+            return;
+        }
+        g_st().t_colors = value.data.integer() as i32;
+        ui.term_colors = value.data.integer() as i32;
+        return;
+    }
+
+    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdin_fd") {
+        if value.obj_type != ObjectType::ObjectTypeInteger {
+            api_err_exp(
+                err,
+                c"stdin_fd",
+                api_typename(ObjectType::ObjectTypeInteger),
+                api_typename(value.obj_type),
+            );
+            return;
+        }
+        if value.data.integer() < 0 {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"Invalid stdin_fd: %lld",
+                value.data.integer(),
+            );
+            return;
+        }
+        if starting_val() != NO_SCREEN {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"%s",
+                c"stdin_fd can only be used with first attached UI",
+            );
+            return;
+        }
+        g_st().stdin_fd = value.data.integer() as i32;
+        return;
+    }
+
+    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdin_tty") {
+        if value.obj_type != ObjectType::ObjectTypeBoolean {
+            api_err_exp(
+                err,
+                c"stdin_tty",
+                api_typename(ObjectType::ObjectTypeBoolean),
+                api_typename(value.obj_type),
+            );
+            return;
+        }
+        if ui.channel_id == CHAN_STDIO {
+            g_st().stdin_isatty = value.data.boolean();
+        }
+        ui.stdin_tty = value.data.boolean();
+        return;
+    }
+
+    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"stdout_tty") {
+        if value.obj_type != ObjectType::ObjectTypeBoolean {
+            api_err_exp(
+                err,
+                c"stdout_tty",
+                api_typename(ObjectType::ObjectTypeBoolean),
+                api_typename(value.obj_type),
+            );
+            return;
+        }
+        if ui.channel_id == CHAN_STDIO {
+            g_st().stdout_isatty = value.data.boolean();
+        }
+        ui.stdout_tty = value.data.boolean();
+        return;
+    }
+
+    let is_popupmenu = crate::memory::cstr_as_opt_bytes(name.data) == Some(b"popupmenu_external");
+    for (i, ext_name) in UI_EXT_NAMES.iter().enumerate().take(K_UIEXT_COUNT) {
+        if (crate::memory::cstr_as_opt_bytes(name.data)
+            == crate::memory::cstr_as_opt_bytes(ext_name.as_ptr()))
+            || (i == K_UIPOPUPMENU && is_popupmenu)
+        {
+            if value.obj_type != ObjectType::ObjectTypeBoolean {
+                api_err_exp(err, name.data, c"Boolean", api_typename(value.obj_type));
+                return;
+            }
+            let boolval = value.data.boolean();
+            if !init && i == K_UILINEGRID && boolval != ui.ui_ext[i] {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"ext_linegrid option cannot be changed",
+                );
+            }
+            ui.ui_ext[i] = boolval;
+            if !init {
+                ui_set_ext_option(ui, i as UIExtension, boolval);
+            }
+            return;
+        }
+    }
+
+    api_set_error!(
+        err,
+        ErrorType::ErrorTypeValidation,
+        c"Invalid UI option: '%s'",
+        name.data,
+    );
 }
 
 /// Tell Nvim to resize a grid. Triggers a grid_resize event with the requested
@@ -710,15 +689,13 @@ pub fn nvim_ui_try_resize_grid(
     height: Integer,
     err: &mut Error,
 ) {
-    {
-        if get_ui_or_err(channel_id, err).is_none() {
-            return;
-        }
-        if grid == Integer::from(crate::drawscreen::DEFAULT_GRID_HANDLE) {
-            nvim_ui_try_resize(channel_id, width, height, err);
-        } else {
-            ui_grid_resize(grid as ObjHandle, width as i32, height as i32, err);
-        }
+    if get_ui_or_err(channel_id, err).is_none() {
+        return;
+    }
+    if grid == Integer::from(crate::drawscreen::DEFAULT_GRID_HANDLE) {
+        nvim_ui_try_resize(channel_id, width, height, err);
+    } else {
+        ui_grid_resize(grid as ObjHandle, width as i32, height as i32, err);
     }
 }
 
@@ -806,61 +783,54 @@ pub fn nvim_ui_pum_set_bounds(
 }
 
 fn flush_event(ui: &mut RemoteUI) {
-    {
-        if ui.cur_event.is_some() {
-            if let Some(off) = ui.ncalls_pos {
-                let mut pos = ui.packer.startptr.wrapping_add(off);
-                mpack_w2(&raw mut pos, 1 + ui.ncalls);
-            }
-            ui.cur_event = None;
-            ui.ncalls_pos = None;
-            ui.ncalls = 0;
+    if ui.cur_event.is_some() {
+        if let Some(off) = ui.ncalls_pos {
+            let mut pos = ui.packer.startptr.wrapping_add(off);
+            mpack_w2(&raw mut pos, 1 + ui.ncalls);
         }
+        ui.cur_event = None;
+        ui.ncalls_pos = None;
+        ui.ncalls = 0;
     }
 }
 
 fn ui_alloc_buf(ui: &mut RemoteUI) {
-    {
-        ui.packer.owned_buf = vec![0; UI_BUF_SIZE];
-        ui.packer.startptr = ui.packer.owned_buf.as_mut_ptr();
-        ui.packer.ptr = ui.packer.startptr;
-        ui.packer.endptr = ui.packer.startptr.wrapping_add(UI_BUF_SIZE);
-    }
+    ui.packer.owned_buf = vec![0; UI_BUF_SIZE];
+    ui.packer.startptr = ui.packer.owned_buf.as_mut_ptr();
+    ui.packer.ptr = ui.packer.startptr;
+    ui.packer.endptr = ui.packer.startptr.wrapping_add(UI_BUF_SIZE);
 }
 
 fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
+    if !ui.packer.startptr.is_null()
+        && (buf_pos(ui) > UI_BUF_SIZE - EVENT_BUF_SIZE || ui.ncells_pending >= 500)
     {
-        if !ui.packer.startptr.is_null()
-            && (buf_pos(ui) > UI_BUF_SIZE - EVENT_BUF_SIZE || ui.ncells_pending >= 500)
-        {
-            ui_flush_buf(ui, false);
-        }
+        ui_flush_buf(ui, false);
+    }
 
-        if ui.packer.startptr.is_null() {
-            ui_alloc_buf(ui);
-        }
+    if ui.packer.startptr.is_null() {
+        ui_alloc_buf(ui);
+    }
 
-        if ui.cur_event != Some(name) {
-            let buf = &raw mut ui.packer.ptr;
-            if ui.nevents_pos.is_none() {
-                mpack_array(buf, 3);
-                mpack_uint(buf, 2);
-                mpack_str_small(buf, c"redraw", 6);
-                let pos = mpack_array_dyn16(buf);
-                ui.nevents_pos =
-                    Some(crate::memory::ptr_offset_from(pos, ui.packer.startptr) as usize);
-                debug_assert!(ui.cur_event.is_none());
-            }
-            flush_event(ui);
-            ui.cur_event = Some(name);
+    if ui.cur_event != Some(name) {
+        let buf = &raw mut ui.packer.ptr;
+        if ui.nevents_pos.is_none() {
+            mpack_array(buf, 3);
+            mpack_uint(buf, 2);
+            mpack_str_small(buf, c"redraw", 6);
             let pos = mpack_array_dyn16(buf);
-            ui.ncalls_pos = Some(crate::memory::ptr_offset_from(pos, ui.packer.startptr) as usize);
-            mpack_str_small(buf, name.as_ptr(), name.to_bytes().len());
-            ui.nevents += 1;
-            ui.ncalls = 1;
-        } else {
-            ui.ncalls += 1;
+            ui.nevents_pos = Some(crate::memory::ptr_offset_from(pos, ui.packer.startptr) as usize);
+            debug_assert!(ui.cur_event.is_none());
         }
+        flush_event(ui);
+        ui.cur_event = Some(name);
+        let pos = mpack_array_dyn16(buf);
+        ui.ncalls_pos = Some(crate::memory::ptr_offset_from(pos, ui.packer.startptr) as usize);
+        mpack_str_small(buf, name.as_ptr(), name.to_bytes().len());
+        ui.nevents += 1;
+        ui.ncalls = 1;
+    } else {
+        ui.ncalls += 1;
     }
 }
 
@@ -872,11 +842,9 @@ pub fn push_call(ui: &mut RemoteUI, name: &'static CStr, args: Array) {
 }
 
 pub(crate) fn ui_flush_callback(packer: &mut PackerBuffer) {
-    {
-        let ui = &mut *packer.anydata.as_ui();
-        ui_flush_buf(ui, true);
-        ui_alloc_buf(ui);
-    }
+    let ui = &mut *packer.anydata.as_ui();
+    ui_flush_buf(ui, true);
+    ui_alloc_buf(ui);
 }
 
 // DLLEXPORT void remote_ui_grid_clear(RemoteUI *ui, Integer grid);
@@ -1004,70 +972,68 @@ pub fn remote_ui_default_colors_set(
     cterm_fg: Integer,
     cterm_bg: Integer,
 ) {
-    {
-        if !ui.ui_ext[K_UITERM_COLORS] {
-            let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
-            if rgb_fg == -1 {
-                rgb_fg = if dark { 0xFFFFFF } else { 0x000000 };
-            }
-            if rgb_bg == -1 {
-                rgb_bg = if dark { 0x000000 } else { 0xFFFFFF };
-            }
-            if rgb_sp == -1 {
-                rgb_sp = 0xFF0000;
-            }
+    if !ui.ui_ext[K_UITERM_COLORS] {
+        let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
+        if rgb_fg == -1 {
+            rgb_fg = if dark { 0xFFFFFF } else { 0x000000 };
         }
-        let mut args_items: [Object; 5] = [
-            integer_obj(rgb_fg),
-            integer_obj(rgb_bg),
-            integer_obj(rgb_sp),
-            integer_obj(cterm_fg),
-            integer_obj(cterm_bg),
-        ];
+        if rgb_bg == -1 {
+            rgb_bg = if dark { 0x000000 } else { 0xFFFFFF };
+        }
+        if rgb_sp == -1 {
+            rgb_sp = 0xFF0000;
+        }
+    }
+    let mut args_items: [Object; 5] = [
+        integer_obj(rgb_fg),
+        integer_obj(rgb_bg),
+        integer_obj(rgb_sp),
+        integer_obj(cterm_fg),
+        integer_obj(cterm_bg),
+    ];
+    push_call(
+        ui,
+        c"default_colors_set",
+        Array {
+            items: args_items.as_mut_ptr(),
+            size: 5,
+            capacity: 5,
+        },
+    );
+
+    if !ui.ui_ext[K_UILINEGRID] {
+        args_items[0] = integer_obj(if ui.rgb { rgb_fg } else { cterm_fg - 1 });
         push_call(
             ui,
-            c"default_colors_set",
+            c"update_fg",
             Array {
                 items: args_items.as_mut_ptr(),
-                size: 5,
+                size: 1,
                 capacity: 5,
             },
         );
 
-        if !ui.ui_ext[K_UILINEGRID] {
-            args_items[0] = integer_obj(if ui.rgb { rgb_fg } else { cterm_fg - 1 });
-            push_call(
-                ui,
-                c"update_fg",
-                Array {
-                    items: args_items.as_mut_ptr(),
-                    size: 1,
-                    capacity: 5,
-                },
-            );
+        args_items[0] = integer_obj(if ui.rgb { rgb_bg } else { cterm_bg - 1 });
+        push_call(
+            ui,
+            c"update_bg",
+            Array {
+                items: args_items.as_mut_ptr(),
+                size: 1,
+                capacity: 5,
+            },
+        );
 
-            args_items[0] = integer_obj(if ui.rgb { rgb_bg } else { cterm_bg - 1 });
-            push_call(
-                ui,
-                c"update_bg",
-                Array {
-                    items: args_items.as_mut_ptr(),
-                    size: 1,
-                    capacity: 5,
-                },
-            );
-
-            args_items[0] = integer_obj(if ui.rgb { rgb_sp } else { -1 });
-            push_call(
-                ui,
-                c"update_sp",
-                Array {
-                    items: args_items.as_mut_ptr(),
-                    size: 1,
-                    capacity: 5,
-                },
-            );
-        }
+        args_items[0] = integer_obj(if ui.rgb { rgb_sp } else { -1 });
+        push_call(
+            ui,
+            c"update_sp",
+            Array {
+                items: args_items.as_mut_ptr(),
+                size: 1,
+                capacity: 5,
+            },
+        );
     }
 }
 
@@ -1080,52 +1046,50 @@ pub fn remote_ui_hl_attr_define(
     _cterm_attrs: HlAttrs,
     info: Array,
 ) {
-    {
-        if !ui.ui_ext[K_UILINEGRID] {
-            return;
-        }
-
-        let mut rgb_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
-        let mut rgb = Dict {
-            items: rgb_items.as_mut_ptr(),
-            size: 0,
-            capacity: HLATTRS_DICT_SIZE,
-        };
-        let mut cterm_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
-        let mut cterm = Dict {
-            items: cterm_items.as_mut_ptr(),
-            size: 0,
-            capacity: HLATTRS_DICT_SIZE,
-        };
-        hlattrs2dict(&mut rgb, None, rgb_attrs, true, false);
-        hlattrs2dict(&mut cterm, None, rgb_attrs, false, false);
-
-        if rgb_attrs.url >= 0 {
-            let url = hl_get_url(rgb_attrs.url as u32);
-            *rgb.next_slot_mut() = KeyValuePair {
-                key: cstr_as_string(c"url"),
-                value: string_obj(cstr_as_string(url)),
-            };
-            rgb.size += 1;
-        }
-
-        let mut args_items: [Object; 4] = [
-            integer_obj(id),
-            dict_obj(rgb),
-            dict_obj(cterm),
-            array_obj(if ui.ui_ext[K_UIHL_STATE] {
-                info
-            } else {
-                ARRAY_INIT
-            }),
-        ];
-        let args = Array {
-            items: args_items.as_mut_ptr(),
-            size: 4,
-            capacity: 4,
-        };
-        push_call(ui, c"hl_attr_define", args);
+    if !ui.ui_ext[K_UILINEGRID] {
+        return;
     }
+
+    let mut rgb_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
+    let mut rgb = Dict {
+        items: rgb_items.as_mut_ptr(),
+        size: 0,
+        capacity: HLATTRS_DICT_SIZE,
+    };
+    let mut cterm_items = [KeyValuePair::default(); HLATTRS_DICT_SIZE];
+    let mut cterm = Dict {
+        items: cterm_items.as_mut_ptr(),
+        size: 0,
+        capacity: HLATTRS_DICT_SIZE,
+    };
+    hlattrs2dict(&mut rgb, None, rgb_attrs, true, false);
+    hlattrs2dict(&mut cterm, None, rgb_attrs, false, false);
+
+    if rgb_attrs.url >= 0 {
+        let url = hl_get_url(rgb_attrs.url as u32);
+        *rgb.next_slot_mut() = KeyValuePair {
+            key: cstr_as_string(c"url"),
+            value: string_obj(cstr_as_string(url)),
+        };
+        rgb.size += 1;
+    }
+
+    let mut args_items: [Object; 4] = [
+        integer_obj(id),
+        dict_obj(rgb),
+        dict_obj(cterm),
+        array_obj(if ui.ui_ext[K_UIHL_STATE] {
+            info
+        } else {
+            ARRAY_INIT
+        }),
+    ];
+    let args = Array {
+        items: args_items.as_mut_ptr(),
+        size: 4,
+        capacity: 4,
+    };
+    push_call(ui, c"hl_attr_define", args);
 }
 
 // DLLEXPORT void remote_ui_highlight_set(RemoteUI *ui, int id);
@@ -1326,33 +1290,31 @@ pub fn remote_ui_raw_line(
 }
 
 fn ui_flush_buf(ui: &mut RemoteUI, incomplete_event: bool) {
-    {
-        if ui.packer.startptr.is_null() || buf_pos(ui) == 0 {
-            return;
-        }
-        ui.incomplete_event = incomplete_event;
-
-        flush_event(ui);
-        if let Some(off) = ui.nevents_pos {
-            let mut pos = ui.packer.startptr.wrapping_add(off);
-            mpack_w2(&raw mut pos, ui.nevents);
-            ui.nevents = 0;
-            ui.nevents_pos = None;
-        }
-
-        let len = buf_pos(ui);
-        let mut vec = std::mem::take(&mut ui.packer.owned_buf);
-        vec.truncate(len);
-        let buf = wstream_new_vec_buffer(vec);
-        rpc_write_raw(ui.channel_id, buf);
-
-        ui.packer.startptr = ptr::null_mut();
-        ui.packer.ptr = ptr::null_mut();
-        ui.packer.endptr = ptr::null_mut();
-
-        ui.flushed_events = true;
-        ui.ncells_pending = 0;
+    if ui.packer.startptr.is_null() || buf_pos(ui) == 0 {
+        return;
     }
+    ui.incomplete_event = incomplete_event;
+
+    flush_event(ui);
+    if let Some(off) = ui.nevents_pos {
+        let mut pos = ui.packer.startptr.wrapping_add(off);
+        mpack_w2(&raw mut pos, ui.nevents);
+        ui.nevents = 0;
+        ui.nevents_pos = None;
+    }
+
+    let len = buf_pos(ui);
+    let mut vec = std::mem::take(&mut ui.packer.owned_buf);
+    vec.truncate(len);
+    let buf = wstream_new_vec_buffer(vec);
+    rpc_write_raw(ui.channel_id, buf);
+
+    ui.packer.startptr = ptr::null_mut();
+    ui.packer.ptr = ptr::null_mut();
+    ui.packer.endptr = ptr::null_mut();
+
+    ui.flushed_events = true;
+    ui.ncells_pending = 0;
 }
 
 pub(crate) fn remote_ui_flush_if_incomplete(channel_id: u64) {
@@ -1399,126 +1361,119 @@ pub fn remote_ui_flush_pending_data(ui: &mut RemoteUI) {
 }
 
 fn translate_contents(ui: &mut RemoteUI, contents: Array, arena: &mut Arena) -> Array {
-    {
-        let mut new_contents = arena_array(arena, contents.size);
-        for i in 0..contents.size {
-            let item = contents[i].data.array();
-            let mut new_item = arena_array(arena, 2);
-            let attr = item[0].data.integer() as i32;
-            if attr != 0 {
-                let mut rgb_attrs = arena_dict(arena, HLATTRS_DICT_SIZE);
-                hlattrs2dict(&mut rgb_attrs, None, syn_attr2entry(attr), ui.rgb, false);
-                new_item[0] = dict_obj(rgb_attrs);
-            } else {
-                new_item[0] = dict_obj(DICT_INIT);
-            }
-            new_item[1] = item[1];
-            new_item.size = 2;
-            new_contents[i] = array_obj(new_item);
+    let mut new_contents = arena_array(arena, contents.size);
+    for i in 0..contents.size {
+        let item = contents[i].data.array();
+        let mut new_item = arena_array(arena, 2);
+        let attr = item[0].data.integer() as i32;
+        if attr != 0 {
+            let mut rgb_attrs = arena_dict(arena, HLATTRS_DICT_SIZE);
+            hlattrs2dict(&mut rgb_attrs, None, syn_attr2entry(attr), ui.rgb, false);
+            new_item[0] = dict_obj(rgb_attrs);
+        } else {
+            new_item[0] = dict_obj(DICT_INIT);
         }
-        new_contents.size = contents.size;
-        new_contents
+        new_item[1] = item[1];
+        new_item.size = 2;
+        new_contents[i] = array_obj(new_item);
     }
+    new_contents.size = contents.size;
+    new_contents
 }
 
 fn translate_firstarg(ui: &mut RemoteUI, args: Array, arena: &mut Arena) -> Array {
-    {
-        let mut new_args = arena_array(arena, args.size);
-        let contents = args[0].data.array();
-        new_args[0] = array_obj(translate_contents(ui, contents, arena));
-        for i in 1..args.size {
-            new_args[i] = args[i];
-        }
-        new_args.size = args.size;
-        new_args
+    let mut new_args = arena_array(arena, args.size);
+    let contents = args[0].data.array();
+    new_args[0] = array_obj(translate_contents(ui, contents, arena));
+    for i in 1..args.size {
+        new_args[i] = args[i];
     }
+    new_args.size = args.size;
+    new_args
 }
 
 // DLLEXPORT void remote_ui_event(RemoteUI *ui, char *name, Array args);
 pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) {
-    {
-        let mut arena = Arena {
-            cur_blk: ptr::null_mut(),
-            pos: 0,
-            size: 0,
-        };
-        if !ui.ui_ext[K_UILINEGRID] {
-            if name == c"cmdline_show" {
-                let new_args = translate_firstarg(ui, args, &mut arena);
-                push_call(ui, name, new_args);
-                arena_mem_free(arena_finish(&mut arena));
-                return;
-            } else if name == c"cmdline_block_show" {
-                let block = args[0].data.array();
-                let mut new_block = arena_array(&mut arena, block.size);
-                for i in 0..block.size {
-                    new_block[i] =
-                        array_obj(translate_contents(ui, block[i].data.array(), &mut arena));
-                }
-                new_block.size = block.size;
-                let mut new_args_items: [Object; 1] = [array_obj(new_block)];
-                let new_args = Array {
-                    items: new_args_items.as_mut_ptr(),
-                    size: 1,
-                    capacity: 1,
-                };
-                push_call(ui, name, new_args);
-                arena_mem_free(arena_finish(&mut arena));
-                return;
-            } else if name == c"cmdline_block_append" {
-                let new_args = translate_firstarg(ui, args, &mut arena);
-                push_call(ui, name, new_args);
-                arena_mem_free(arena_finish(&mut arena));
-                return;
+    let mut arena = Arena {
+        cur_blk: ptr::null_mut(),
+        pos: 0,
+        size: 0,
+    };
+    if !ui.ui_ext[K_UILINEGRID] {
+        if name == c"cmdline_show" {
+            let new_args = translate_firstarg(ui, args, &mut arena);
+            push_call(ui, name, new_args);
+            arena_mem_free(arena_finish(&mut arena));
+            return;
+        } else if name == c"cmdline_block_show" {
+            let block = args[0].data.array();
+            let mut new_block = arena_array(&mut arena, block.size);
+            for i in 0..block.size {
+                new_block[i] = array_obj(translate_contents(ui, block[i].data.array(), &mut arena));
             }
+            new_block.size = block.size;
+            let mut new_args_items: [Object; 1] = [array_obj(new_block)];
+            let new_args = Array {
+                items: new_args_items.as_mut_ptr(),
+                size: 1,
+                capacity: 1,
+            };
+            push_call(ui, name, new_args);
+            arena_mem_free(arena_finish(&mut arena));
+            return;
+        } else if name == c"cmdline_block_append" {
+            let new_args = translate_firstarg(ui, args, &mut arena);
+            push_call(ui, name, new_args);
+            arena_mem_free(arena_finish(&mut arena));
+            return;
         }
+    }
 
-        if ui.ui_ext[K_UIWILDMENU] {
-            if name == c"popupmenu_show" {
-                ui.wildmenu_active = args[4].data.integer() == -1 || !ui.ui_ext[K_UIPOPUPMENU];
-                if ui.wildmenu_active {
-                    let items = args[0].data.array();
-                    let mut new_items = arena_array(&mut arena, items.size);
-                    for i in 0..items.size {
-                        new_items[i] = unsafe { *items[i].data.array().items };
-                    }
-                    new_items.size = items.size;
-                    let mut new_args_items: [Object; 1] = [array_obj(new_items)];
+    if ui.ui_ext[K_UIWILDMENU] {
+        if name == c"popupmenu_show" {
+            ui.wildmenu_active = args[4].data.integer() == -1 || !ui.ui_ext[K_UIPOPUPMENU];
+            if ui.wildmenu_active {
+                let items = args[0].data.array();
+                let mut new_items = arena_array(&mut arena, items.size);
+                for i in 0..items.size {
+                    new_items[i] = unsafe { *items[i].data.array().items };
+                }
+                new_items.size = items.size;
+                let mut new_args_items: [Object; 1] = [array_obj(new_items)];
+                push_call(
+                    ui,
+                    c"wildmenu_show",
+                    Array {
+                        items: new_args_items.as_mut_ptr(),
+                        size: 1,
+                        capacity: 1,
+                    },
+                );
+                if args[1].data.integer() != -1 {
+                    new_args_items[0] = args[1];
                     push_call(
                         ui,
-                        c"wildmenu_show",
+                        c"wildmenu_select",
                         Array {
                             items: new_args_items.as_mut_ptr(),
                             size: 1,
                             capacity: 1,
                         },
                     );
-                    if args[1].data.integer() != -1 {
-                        new_args_items[0] = args[1];
-                        push_call(
-                            ui,
-                            c"wildmenu_select",
-                            Array {
-                                items: new_args_items.as_mut_ptr(),
-                                size: 1,
-                                capacity: 1,
-                            },
-                        );
-                    }
-                    arena_mem_free(arena_finish(&mut arena));
-                    return;
                 }
-            } else if name == c"popupmenu_select" {
-                if ui.wildmenu_active {
-                    name = c"wildmenu_select";
-                }
-            } else if name == c"popupmenu_hide" && ui.wildmenu_active {
-                name = c"wildmenu_hide";
+                arena_mem_free(arena_finish(&mut arena));
+                return;
             }
+        } else if name == c"popupmenu_select" {
+            if ui.wildmenu_active {
+                name = c"wildmenu_select";
+            }
+        } else if name == c"popupmenu_hide" && ui.wildmenu_active {
+            name = c"wildmenu_hide";
         }
-
-        push_call(ui, name, args);
     }
+
+    push_call(ui, name, args);
 }
 
 /// Sends arbitrary data to a UI. Use this instead of |nvim_chan_send()| or `io.stdout:write()`, if

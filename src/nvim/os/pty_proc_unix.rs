@@ -629,54 +629,48 @@ mod unix_impl {
     }
 
     unsafe extern "C" fn chld_handler(handle: *mut uv_signal_t, _signum: i32) {
-        {
-            let mut stat: i32 = 0;
-            let uv_loop = uv_handle_get_loop(handle.cast());
-            let loop_ = *uv_loop.cast::<*mut Loop>();
-            let qc = loop_queues(&mut *loop_);
+        let mut stat: i32 = 0;
+        let uv_loop = uv_handle_get_loop(handle.cast());
+        let loop_ = *uv_loop.cast::<*mut Loop>();
+        let qc = loop_queues(&mut *loop_);
 
-            for &proc_ in &(*qc).children {
-                let hdr = proc_;
-                let hdr = { &mut *hdr };
-                let proc_t = proc_;
+        for &proc_ in &(*qc).children {
+            let hdr = proc_;
+            let hdr = { &mut *hdr };
+            let proc_t = proc_;
 
-                let mut pid: i32;
-                loop {
-                    pid = waitpid((*hdr).pid, &raw mut stat, WNOHANG | WUNTRACED | WCONTINUED);
-                    if !(pid < 0 && os_errno() == EINTR) {
-                        break;
-                    }
+            let mut pid: i32;
+            loop {
+                pid = waitpid((*hdr).pid, &raw mut stat, WNOHANG | WUNTRACED | WCONTINUED);
+                if !(pid < 0 && os_errno() == EINTR) {
+                    break;
                 }
-
-                if pid <= 0 {
-                    continue;
-                }
-
-                if wifstopped(stat) {
-                    if !(*hdr).data.is_null() {
-                        crate::channel::channel_proc_state_cb(&mut *proc_, true, &mut *(*hdr).data);
-                    }
-                    continue;
-                }
-                if wifcontinued(stat) {
-                    if !(*hdr).data.is_null() {
-                        crate::channel::channel_proc_state_cb(
-                            &mut *proc_,
-                            false,
-                            &mut *(*hdr).data,
-                        );
-                    }
-                    continue;
-                }
-
-                if wifexited(stat) {
-                    (*hdr).status = wexitstatus(stat);
-                } else if wifsignaled(stat) {
-                    (*hdr).status = 128 + wtermsig(stat);
-                }
-                let _ = proc_t;
-                crate::event::proc::on_proc_exit(&mut *proc_);
             }
+
+            if pid <= 0 {
+                continue;
+            }
+
+            if wifstopped(stat) {
+                if !(*hdr).data.is_null() {
+                    crate::channel::channel_proc_state_cb(&mut *proc_, true, &mut *(*hdr).data);
+                }
+                continue;
+            }
+            if wifcontinued(stat) {
+                if !(*hdr).data.is_null() {
+                    crate::channel::channel_proc_state_cb(&mut *proc_, false, &mut *(*hdr).data);
+                }
+                continue;
+            }
+
+            if wifexited(stat) {
+                (*hdr).status = wexitstatus(stat);
+            } else if wifsignaled(stat) {
+                (*hdr).status = 128 + wtermsig(stat);
+            }
+            let _ = proc_t;
+            crate::event::proc::on_proc_exit(&mut *proc_);
         }
     }
 }

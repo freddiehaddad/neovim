@@ -436,36 +436,34 @@ pub fn ex_debug(eap: &mut Exarg) {
 
 /// Check if a breakpoint or debug break level was hit (`dbg_check_breakpoint`).
 pub fn dbg_check_breakpoint(eap: &mut Exarg) {
-    {
-        dbg_st().debug_skipped = false;
-        if !dbg_st().debug_breakpoint_name.is_null() {
-            if eap.skip == 0 {
-                let bp_name = dbg_st().debug_breakpoint_name;
-                let is_snr = (crate::memory::cstr_first_byte(bp_name)) == K_SPECIAL
-                    && (crate::memory::cstr_byte_at(bp_name, 1)) == KS_EXTRA
-                    && (crate::memory::cstr_byte_at(bp_name, 2)) == KE_SNR;
-                let (prefix, rest) = if is_snr {
-                    (c"<SNR>", bp_name.wrapping_add(3))
-                } else {
-                    (c"", bp_name)
-                };
-                let lnum = dbg_st().debug_breakpoint_lnum;
-                let fmt_str = format!("Breakpoint in \"%s%s\" line {lnum}\0");
-                smsg!(0, fmt_str.as_ptr().cast::<c_char>(), prefix, rest);
-                dbg_st().debug_breakpoint_name = std::ptr::null_mut();
-                do_debug(eap.cmd);
+    dbg_st().debug_skipped = false;
+    if !dbg_st().debug_breakpoint_name.is_null() {
+        if eap.skip == 0 {
+            let bp_name = dbg_st().debug_breakpoint_name;
+            let is_snr = (crate::memory::cstr_first_byte(bp_name)) == K_SPECIAL
+                && (crate::memory::cstr_byte_at(bp_name, 1)) == KS_EXTRA
+                && (crate::memory::cstr_byte_at(bp_name, 2)) == KE_SNR;
+            let (prefix, rest) = if is_snr {
+                (c"<SNR>", bp_name.wrapping_add(3))
             } else {
-                dbg_st().debug_skipped = true;
-                dbg_st().debug_skipped_name = dbg_st().debug_breakpoint_name;
-                dbg_st().debug_breakpoint_name = std::ptr::null_mut();
-            }
-        } else if g_st().ex_nesting_level <= g_st().debug_break_level {
-            if eap.skip == 0 {
-                do_debug(eap.cmd);
-            } else {
-                dbg_st().debug_skipped = true;
-                dbg_st().debug_skipped_name = std::ptr::null_mut();
-            }
+                (c"", bp_name)
+            };
+            let lnum = dbg_st().debug_breakpoint_lnum;
+            let fmt_str = format!("Breakpoint in \"%s%s\" line {lnum}\0");
+            smsg!(0, fmt_str.as_ptr().cast::<c_char>(), prefix, rest);
+            dbg_st().debug_breakpoint_name = std::ptr::null_mut();
+            do_debug(eap.cmd);
+        } else {
+            dbg_st().debug_skipped = true;
+            dbg_st().debug_skipped_name = dbg_st().debug_breakpoint_name;
+            dbg_st().debug_breakpoint_name = std::ptr::null_mut();
+        }
+    } else if g_st().ex_nesting_level <= g_st().debug_break_level {
+        if eap.skip == 0 {
+            do_debug(eap.cmd);
+        } else {
+            dbg_st().debug_skipped = true;
+            dbg_st().debug_skipped_name = std::ptr::null_mut();
         }
     }
 }
@@ -633,57 +631,55 @@ fn update_has_expr_breakpoint() {
 
 /// `:breakdel` and `:profdel` command (`ex_breakdel`).
 pub fn ex_breakdel(eap: &mut Exarg) {
-    {
-        let mut todel: isize = -1;
-        let mut del_all = false;
-        let mut best_lnum: i32 = 0;
-        let is_prof = eap.cmdidx == CMD_PROFDEL;
-        let gap = dbg_vec_mut(is_prof);
+    let mut todel: isize = -1;
+    let mut del_all = false;
+    let mut best_lnum: i32 = 0;
+    let is_prof = eap.cmdidx == CMD_PROFDEL;
+    let gap = dbg_vec_mut(is_prof);
 
-        let first_byte = crate::memory::cstr_first_byte(eap.arg);
-        if first_byte.is_ascii_digit() {
-            let nr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32;
-            if let Some(idx) = gap.iter().position(|bp| bp.dbg_nr == nr) {
-                todel = idx as isize;
-            }
-        } else if first_byte == b'*' {
-            todel = 0;
-            del_all = true;
-        } else {
-            let Some(bp) = dbg_parsearg(eap.arg, is_prof) else {
-                return;
-            };
-            for (i, bpi) in gap.iter().enumerate() {
-                if bp.dbg_type == bpi.dbg_type
-                    && bpi.dbg_name == bp.dbg_name
-                    && (bp.dbg_lnum == bpi.dbg_lnum
-                        || (bp.dbg_lnum == 0 && (best_lnum == 0 || bpi.dbg_lnum < best_lnum)))
-                {
-                    todel = i as isize;
-                    best_lnum = bpi.dbg_lnum;
-                }
-            }
+    let first_byte = crate::memory::cstr_first_byte(eap.arg);
+    if first_byte.is_ascii_digit() {
+        let nr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32;
+        if let Some(idx) = gap.iter().position(|bp| bp.dbg_nr == nr) {
+            todel = idx as isize;
         }
-
-        if todel < 0 || (todel as usize) >= gap.len() {
-            semsg!(c"E161: Breakpoint not found: %s", eap.arg);
+    } else if first_byte == b'*' {
+        todel = 0;
+        del_all = true;
+    } else {
+        let Some(bp) = dbg_parsearg(eap.arg, is_prof) else {
             return;
-        }
-
-        let idx = todel as usize;
-        while idx < gap.len() {
-            let _ = gap.remove(idx);
-            if eap.cmdidx == CMD_BREAKDEL {
-                g_st().debug_tick += 1;
+        };
+        for (i, bpi) in gap.iter().enumerate() {
+            if bp.dbg_type == bpi.dbg_type
+                && bpi.dbg_name == bp.dbg_name
+                && (bp.dbg_lnum == bpi.dbg_lnum
+                    || (bp.dbg_lnum == 0 && (best_lnum == 0 || bpi.dbg_lnum < best_lnum)))
+            {
+                todel = i as isize;
+                best_lnum = bpi.dbg_lnum;
             }
-            if !del_all {
-                break;
-            }
         }
+    }
 
-        if !is_prof {
-            update_has_expr_breakpoint();
+    if todel < 0 || (todel as usize) >= gap.len() {
+        semsg!(c"E161: Breakpoint not found: %s", eap.arg);
+        return;
+    }
+
+    let idx = todel as usize;
+    while idx < gap.len() {
+        let _ = gap.remove(idx);
+        if eap.cmdidx == CMD_BREAKDEL {
+            g_st().debug_tick += 1;
         }
+        if !del_all {
+            break;
+        }
+    }
+
+    if !is_prof {
+        update_has_expr_breakpoint();
     }
 }
 

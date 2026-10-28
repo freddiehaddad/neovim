@@ -592,33 +592,33 @@ pub fn loop_init(loop_: &mut Loop) {
 
 /// Process `Loop.uv` events with a timeout.
 fn loop_uv_run(loop_: &mut Loop, ms: i64) -> bool {
-    unsafe {
-        let old_rec = loop_.recursive;
-        loop_.recursive = old_rec + 1;
-        if old_rec != 0 {
-            std::process::abort(); // Should not re-enter uv_run
-        }
-
-        let mut mode: i32 = UV_RUN_ONCE;
-        let poll_timer = loop_poll_timer(loop_);
-        let timeout_expired = *poll_timer.cast::<*mut bool>();
-        *timeout_expired = false;
-
-        if ms > 0 {
-            uv_timer_start(poll_timer, Some(timer_cb), ms as u64, ms as u64);
-        } else if ms == 0 {
-            mode = UV_RUN_NOWAIT;
-        }
-
-        uv_run((&raw mut loop_.uv).cast(), mode);
-
-        if ms > 0 {
-            uv_timer_stop(poll_timer);
-        }
-
-        loop_.recursive -= 1; // Can re-enter uv_run now
-        *timeout_expired
+    let old_rec = loop_.recursive;
+    loop_.recursive = old_rec + 1;
+    if old_rec != 0 {
+        std::process::abort(); // Should not re-enter uv_run
     }
+
+    let mut mode: i32 = UV_RUN_ONCE;
+    let poll_timer = loop_poll_timer(loop_);
+    let timeout_expired = unsafe { *poll_timer.cast::<*mut bool>() };
+    unsafe {
+        *timeout_expired = false;
+    }
+
+    if ms > 0 {
+        unsafe { uv_timer_start(poll_timer, Some(timer_cb), ms as u64, ms as u64) };
+    } else if ms == 0 {
+        mode = UV_RUN_NOWAIT;
+    }
+
+    unsafe { uv_run((&raw mut loop_.uv).cast(), mode) };
+
+    if ms > 0 {
+        unsafe { uv_timer_stop(poll_timer) };
+    }
+
+    loop_.recursive -= 1; // Can re-enter uv_run now
+    unsafe { *timeout_expired }
 }
 
 /// Processes one `Loop.uv` event (at most).
@@ -659,39 +659,35 @@ pub fn loop_deferred_event(loop_: &mut Loop, event: Event) {
 }
 
 pub fn loop_on_put(loop_: &mut Loop) {
-    {
-        if loop_.recursive != 0 {
-            unsafe { uv_stop((&raw mut loop_.uv).cast()) };
-        }
+    if loop_.recursive != 0 {
+        unsafe { uv_stop((&raw mut loop_.uv).cast()) };
     }
 }
 
 unsafe extern "C" fn loop_walk_cb(handle: *mut uv_handle_t, _arg: *mut c_void) {
     unsafe {
-        {
-            {
-                if uv_is_closing(handle) == 0 {
-                    uv_close(handle, None);
-                }
-            }
+        if uv_is_closing(handle) == 0 {
+            uv_close(handle, None);
         }
     }
 }
 
 /// Closes `loop` and its handles, and frees its structures.
 pub fn loop_close(loop_: &mut Loop, wait: bool) -> bool {
+    let mut rv = true;
     unsafe {
-        let mut rv = true;
         *loop_closing_ptr(loop_) = true;
-        uv_mutex_destroy(loop_mutex(loop_));
-        uv_close(loop_children_watcher(loop_).cast(), None);
-        uv_close(loop_children_kill_timer(loop_).cast(), None);
-        uv_close(loop_poll_timer(loop_).cast(), None);
-        uv_close(loop_exit_delay_timer(loop_).cast(), None);
-        uv_close(loop_async(loop_).cast(), None);
-        let start = if wait { os_hrtime() } else { 0 };
-        let mut didstop = false;
-        loop {
+    }
+    unsafe { uv_mutex_destroy(loop_mutex(loop_)) };
+    unsafe { uv_close(loop_children_watcher(loop_).cast(), None) };
+    unsafe { uv_close(loop_children_kill_timer(loop_).cast(), None) };
+    unsafe { uv_close(loop_poll_timer(loop_).cast(), None) };
+    unsafe { uv_close(loop_exit_delay_timer(loop_).cast(), None) };
+    unsafe { uv_close(loop_async(loop_).cast(), None) };
+    let start = if wait { os_hrtime() } else { 0 };
+    let mut didstop = false;
+    loop {
+        unsafe {
             uv_run(
                 (&raw mut loop_.uv).cast(),
                 if didstop {
@@ -699,41 +695,43 @@ pub fn loop_close(loop_: &mut Loop, wait: bool) -> bool {
                 } else {
                     UV_RUN_NOWAIT
                 },
+            )
+        };
+        if unsafe { uv_loop_close((&raw mut loop_.uv).cast()) } != UV_EBUSY || !wait {
+            break;
+        }
+        let elapsed_s = (os_hrtime() - start) / NS_PER_SEC;
+        if elapsed_s >= 2 {
+            rv = false;
+            logmsg!(
+                LOGLVL_ERR,
+                ptr::null(),
+                c"loop_close",
+                line!() as i32,
+                true,
+                c"uv_loop_close() hang?",
             );
-            if uv_loop_close((&raw mut loop_.uv).cast()) != UV_EBUSY || !wait {
-                break;
-            }
-            let elapsed_s = (os_hrtime() - start) / NS_PER_SEC;
-            if elapsed_s >= 2 {
-                rv = false;
-                logmsg!(
-                    LOGLVL_ERR,
-                    ptr::null(),
-                    c"loop_close",
-                    line!() as i32,
-                    true,
-                    c"uv_loop_close() hang?",
-                );
-                log_uv_handles((&raw mut loop_.uv).cast());
-                break;
-            }
-            if !didstop {
-                uv_stop((&raw mut loop_.uv).cast());
+            log_uv_handles((&raw mut loop_.uv).cast());
+            break;
+        }
+        if !didstop {
+            unsafe { uv_stop((&raw mut loop_.uv).cast()) };
+            unsafe {
                 uv_walk(
                     (&raw mut loop_.uv).cast(),
                     Some(loop_walk_cb),
                     ptr::null_mut(),
-                );
-                didstop = true;
-            }
+                )
+            };
+            didstop = true;
         }
-        let qc = loop_queues(loop_);
-        multiqueue_free(qc.fast_events);
-        multiqueue_free(qc.thread_events);
-        multiqueue_free(qc.events);
-        qc.children = Vec::new();
-        rv
     }
+    let qc = loop_queues(loop_);
+    multiqueue_free(qc.fast_events);
+    multiqueue_free(qc.thread_events);
+    multiqueue_free(qc.events);
+    qc.children = Vec::new();
+    rv
 }
 
 pub fn loop_purge(loop_: &mut Loop) {
@@ -760,28 +758,20 @@ pub fn loop_size(loop_: &mut Loop) -> usize {
 
 unsafe extern "C" fn async_cb(handle: *mut uv_async_t) {
     unsafe {
-        {
-            {
-                let uv_loop = uv_handle_get_loop(handle.cast());
-                let l = *uv_loop.cast::<*mut Loop>();
-                let mutex = loop_mutex(&mut *l);
-                let qc = loop_queues(&mut *l);
-                uv_mutex_lock(mutex);
-                multiqueue_move_events(&mut *qc.fast_events, &mut *qc.thread_events);
-                uv_mutex_unlock(mutex);
-            }
-        }
+        let uv_loop = uv_handle_get_loop(handle.cast());
+        let l = *uv_loop.cast::<*mut Loop>();
+        let mutex = loop_mutex(&mut *l);
+        let qc = loop_queues(&mut *l);
+        uv_mutex_lock(mutex);
+        multiqueue_move_events(&mut *qc.fast_events, &mut *qc.thread_events);
+        uv_mutex_unlock(mutex);
     }
 }
 
 unsafe extern "C" fn timer_cb(handle: *mut uv_timer_t) {
     unsafe {
-        {
-            {
-                let timeout_expired = *handle.cast::<*mut bool>();
-                *timeout_expired = true;
-            }
-        }
+        let timeout_expired = *handle.cast::<*mut bool>();
+        *timeout_expired = true;
     }
 }
 

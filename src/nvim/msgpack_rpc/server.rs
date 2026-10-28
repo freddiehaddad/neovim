@@ -132,12 +132,10 @@ fn set_vservername(srvs: &[*mut SocketWatcher]) {
 }
 
 pub fn server_teardown() {
-    {
-        for &watcher in watchers_mut().iter() {
-            socket_watcher_close(unsafe { &mut *watcher });
-        }
-        srv_st().watchers = Vec::new();
+    for &watcher in watchers_mut().iter() {
+        socket_watcher_close(unsafe { &mut *watcher });
     }
+    srv_st().watchers = Vec::new();
 }
 
 pub fn server_address_new(name: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
@@ -347,20 +345,18 @@ pub fn server_address_list() -> Vec<std::ffi::CString> {
 }
 
 pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: i32) {
-    {
-        if result != 0 {
-            logmsg!(
-                LOGLVL_ERR,
-                ptr::null(),
-                c"connection_cb",
-                276,
-                true,
-                c"Failed to accept connection: %s",
-                unsafe { uv_strerror(result) },
-            );
-            return;
-        }
-
-        channel_from_connection(unsafe { &mut *watcher });
+    if result != 0 {
+        logmsg!(
+            LOGLVL_ERR,
+            ptr::null(),
+            c"connection_cb",
+            276,
+            true,
+            c"Failed to accept connection: %s",
+            unsafe { uv_strerror(result) },
+        );
+        return;
     }
+
+    channel_from_connection(unsafe { &mut *watcher });
 }

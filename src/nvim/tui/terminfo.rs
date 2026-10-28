@@ -2904,29 +2904,27 @@ fn push(num: i64, string: Option<[c_char; 8]>, stack: &mut TPSTACK) -> i32 {
 }
 
 fn pop(num: *mut i64, string: Option<&mut Option<[c_char; 8]>>, stack: &mut TPSTACK) -> i32 {
-    {
-        if stack.offset == 0 {
-            if !num.is_null() {
-                unsafe {
-                    *num = 0;
-                }
-            }
-            if let Some(s) = string {
-                *s = None;
-            }
-            return -1;
-        }
-        stack.offset -= 1;
+    if stack.offset == 0 {
         if !num.is_null() {
             unsafe {
-                *num = stack.nums[stack.offset];
+                *num = 0;
             }
         }
         if let Some(s) = string {
-            *s = stack.strings[stack.offset];
+            *s = None;
         }
-        0
+        return -1;
     }
+    stack.offset -= 1;
+    if !num.is_null() {
+        unsafe {
+            *num = stack.nums[stack.offset];
+        }
+    }
+    if let Some(s) = string {
+        *s = stack.strings[stack.offset];
+    }
+    0
 }
 
 fn ochar(buf: *mut *mut c_char, buf_end: impl crate::strings::IntoCCharPtr, mut c: i32) -> bool {
@@ -2980,7 +2978,7 @@ pub fn terminfo_fmt(
     let buf_start = buf_start.into_c_char_ptr().cast_mut();
     let buf_end = buf_end.into_c_char_ptr().cast_mut();
     let mut str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let mut fmt = [0 as c_char; 64];
         let mut ostr: Option<[c_char; 8]> = None;
         let mut val: i64;
@@ -2996,13 +2994,13 @@ pub fn terminfo_fmt(
         };
 
         loop {
-            let mut c = *str_;
+            let mut c = unsafe { *str_ };
             str_ = str_.wrapping_add(1);
             if c == NUL {
                 break;
             }
             if c != b'%' as c_char || {
-                c = *str_;
+                c = unsafe { *str_ };
                 str_ = str_.wrapping_add(1);
                 c == b'%' as c_char
             } {
@@ -3079,14 +3077,14 @@ pub fn terminfo_fmt(
                     }
                 }
                 if done == 0 {
-                    c = *str_;
+                    c = unsafe { *str_ };
                     str_ = str_.wrapping_add(1);
                 }
             }
 
             let olen = if done == 2 {
                 fp_idx = 1;
-                fmt[fp_idx] = *str_;
+                fmt[fp_idx] = unsafe { *str_ };
                 0
             } else {
                 if dot == 0 {
@@ -3142,7 +3140,7 @@ pub fn terminfo_fmt(
                     }
                     str_ = str_.wrapping_add(1);
                     let l = (sc - b'1') as usize;
-                    let param = *params.wrapping_add(l);
+                    let param = unsafe { *params.wrapping_add(l) };
                     if push(param.num, param.string, &mut stack) != 0 {
                         return 0;
                     }
@@ -3169,8 +3167,12 @@ pub fn terminfo_fmt(
                     }
                 }
                 b'i' => {
-                    (*params.wrapping_add(0)).num += 1;
-                    (*params.wrapping_add(1)).num += 1;
+                    unsafe {
+                        (*params.wrapping_add(0)).num += 1;
+                    }
+                    unsafe {
+                        (*params.wrapping_add(1)).num += 1;
+                    }
                 }
                 b'\'' => {
                     let ch = crate::memory::cstr_first_byte(str_);

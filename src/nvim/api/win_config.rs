@@ -334,228 +334,227 @@ pub fn nvim_open_win(
     config: &mut KeyDict_win_config,
     err: &mut Error,
 ) -> Window {
-    unsafe {
-        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
-            return 0;
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+        return 0;
+    };
+
+    let mask = config.is_set_win_config;
+    let is_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT)
+        || has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
+    let mut fconfig = WIN_CONFIG_INIT;
+    if !parse_win_config(
+        ptr::null_mut(),
+        &mut *config,
+        &mut fconfig,
+        false,
+        !is_split,
+        err,
+    ) {
+        return 0;
+    }
+
+    let mut rv: Window = 0;
+    if fconfig.noautocmd {
+        block_autocmds();
+    }
+
+    'cleanup: {
+        let mut wp: *mut WinInfoInfo = ptr::null_mut();
+        let mut tp = g_st().curtab;
+        assert!(!(curwin_ptr()).is_null());
+        let mut parent = if config.win == 0 {
+            curwin_ptr()
+        } else {
+            ptr::null_mut()
         };
-
-        let mask = config.is_set_win_config;
-        let is_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT)
-            || has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
-        let mut fconfig = WIN_CONFIG_INIT;
-        if !parse_win_config(
-            ptr::null_mut(),
-            &mut *config,
-            &mut fconfig,
-            false,
-            !is_split,
-            err,
-        ) {
-            return 0;
-        }
-
-        let mut rv: Window = 0;
-        if fconfig.noautocmd {
-            block_autocmds();
-        }
-
-        'cleanup: {
-            let mut wp: *mut WinInfoInfo = ptr::null_mut();
-            let mut tp = g_st().curtab;
-            assert!(!(curwin_ptr()).is_null());
-            let mut parent = if config.win == 0 {
-                curwin_ptr()
-            } else {
-                ptr::null_mut()
-            };
-            if config.win > 0 {
-                parent = find_window_by_handle(fconfig.window, err);
-                if parent.is_null() {
-                    break 'cleanup;
-                } else if is_split && (*parent).w_floating {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"Cannot split a floating window",
-                    );
-                    break 'cleanup;
-                }
-                tp = win_find_tabpage(parent);
-            }
-            if is_split {
-                if !check_split_disallowed_err(
-                    if !parent.is_null() {
-                        parent
-                    } else {
-                        curwin_ptr()
-                    },
-                    err,
-                ) {
-                    break 'cleanup;
-                }
-
-                if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL)
-                    && !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT)
-                {
-                    if config.vertical {
-                        fconfig.split = if opt_vars().p_spr != 0 {
-                            K_WIN_SPLIT_RIGHT
-                        } else {
-                            K_WIN_SPLIT_LEFT
-                        };
-                    } else {
-                        fconfig.split = if opt_vars().p_sb != 0 {
-                            K_WIN_SPLIT_BELOW
-                        } else {
-                            K_WIN_SPLIT_ABOVE
-                        };
-                    }
-                }
-                let flags = win_split_flags(fconfig.split, parent.is_null()) | WSP_NOENTER;
-                let size = if (flags & WSP_VERT) != 0 {
-                    fconfig.width
-                } else {
-                    fconfig.height
-                };
-
-                try_wrap(err, || {
-                    if parent.is_null() || parent == curwin_ptr() {
-                        wp = win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut());
-                    } else {
-                        let mut switchwin: CtxSwitch = CtxSwitch::new();
-                        let result = ctx_switch(
-                            &mut switchwin,
-                            parent,
-                            tp,
-                            ptr::null_mut(),
-                            K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
-                        );
-                        assert!(result);
-                        wp = win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut());
-                        ctx_restore(&mut switchwin);
-                    }
-                });
-                if !wp.is_null() {
-                    let wp = { &mut *wp };
-                    wp.w_config = fconfig.clone();
-                    if size > 0 {
-                        if (flags & WSP_VERT) != 0 && wp.w_width != size {
-                            win_setwidth_win(size, &mut *wp, true);
-                        } else if (flags & WSP_VERT) == 0 && wp.w_height != size {
-                            win_setheight_win(size, &mut *wp, true);
-                        }
-                    }
-                }
-            } else {
-                if curwin_mut().buf_mut().b_locked_split != 0 {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"E1159: Cannot open a float when closing the buffer",
-                    );
-                    break 'cleanup;
-                }
-                wp = win_new_float(ptr::null_mut(), false, fconfig.clone(), err);
-            }
-            if wp.is_null() {
-                if !error_set(err) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"Failed to create window",
-                    );
-                }
+        if config.win > 0 {
+            parent = find_window_by_handle(fconfig.window, err);
+            if parent.is_null() {
                 break 'cleanup;
-            }
-
-            if fconfig._cmdline_offset < i32::MAX {
-                g_st().cmdline_win = wp;
-            }
-
-            let mut bufref = Bufref {
-                br_buf: ptr::null_mut(),
-                br_fnum: 0,
-                br_buf_free_count: 0,
-            };
-            set_bufref(&mut bufref, (&raw mut *b));
-            if !fconfig.noautocmd {
-                let mut switchwin: CtxSwitch = CtxSwitch::new();
-                let result = ctx_switch(&mut switchwin, wp, tp, ptr::null_mut(), K_CTX_NO_DISPLAY);
-                assert!(result);
-                if apply_autocmds_win(
-                    EVENT_WINNEW,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    false,
-                    g_st().curbuf,
-                    wp.as_ref(),
-                ) {
-                    tp = win_find_tabpage(wp);
-                }
-                ctx_restore(&mut switchwin);
-            }
-            if !tp.is_null() && enter {
-                goto_tabpage_win(&mut *tp, wp);
-                tp = win_find_tabpage(wp);
-            }
-            if !tp.is_null() && bufref_valid(Some(&bufref)) && (&raw mut *b) != (*wp).w_buffer {
-                let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
-                if au_no_enter_leave {
-                    g_st().autocmd_no_enter += 1;
-                    g_st().autocmd_no_leave += 1;
-                }
-                win_set_buf(&mut *wp, b, err);
-                if !fconfig.noautocmd {
-                    tp = win_find_tabpage(wp);
-                }
-                if au_no_enter_leave {
-                    g_st().autocmd_no_enter -= 1;
-                    g_st().autocmd_no_leave -= 1;
-                }
-            }
-            if tp.is_null() {
-                api_clear_error(err);
+            } else if is_split && unsafe { (*parent).w_floating } {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
-                    c"Window was closed immediately",
+                    c"Cannot split a floating window",
                 );
                 break 'cleanup;
             }
-
-            if fconfig.style == K_WIN_STYLE_MINIMAL {
-                win_set_minimal_style(&mut *wp);
-                didset_window_options(&mut *wp, true);
-                changed_window_setting(&mut *wp);
+            tp = win_find_tabpage(parent);
+        }
+        if is_split {
+            if !check_split_disallowed_err(
+                if !parent.is_null() {
+                    parent
+                } else {
+                    curwin_ptr()
+                },
+                err,
+            ) {
+                break 'cleanup;
             }
-            rv = (*wp).handle;
+
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL)
+                && !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT)
+            {
+                if config.vertical {
+                    fconfig.split = if opt_vars().p_spr != 0 {
+                        K_WIN_SPLIT_RIGHT
+                    } else {
+                        K_WIN_SPLIT_LEFT
+                    };
+                } else {
+                    fconfig.split = if opt_vars().p_sb != 0 {
+                        K_WIN_SPLIT_BELOW
+                    } else {
+                        K_WIN_SPLIT_ABOVE
+                    };
+                }
+            }
+            let flags = win_split_flags(fconfig.split, parent.is_null()) | WSP_NOENTER;
+            let size = if (flags & WSP_VERT) != 0 {
+                fconfig.width
+            } else {
+                fconfig.height
+            };
+
+            try_wrap(err, || {
+                if parent.is_null() || parent == curwin_ptr() {
+                    wp = win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut());
+                } else {
+                    let mut switchwin: CtxSwitch = CtxSwitch::new();
+                    let result = ctx_switch(
+                        &mut switchwin,
+                        parent,
+                        tp,
+                        ptr::null_mut(),
+                        K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
+                    );
+                    assert!(result);
+                    wp = win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut());
+                    ctx_restore(&mut switchwin);
+                }
+            });
+            if !wp.is_null() {
+                let wp = { unsafe { &mut *wp } };
+                wp.w_config = fconfig.clone();
+                if size > 0 {
+                    if (flags & WSP_VERT) != 0 && wp.w_width != size {
+                        win_setwidth_win(size, &mut *wp, true);
+                    } else if (flags & WSP_VERT) == 0 && wp.w_height != size {
+                        win_setheight_win(size, &mut *wp, true);
+                    }
+                }
+            }
+        } else {
+            if curwin_mut().buf_mut().b_locked_split != 0 {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeException,
+                    c"E1159: Cannot open a float when closing the buffer",
+                );
+                break 'cleanup;
+            }
+            wp = win_new_float(ptr::null_mut(), false, fconfig.clone(), err);
+        }
+        if wp.is_null() {
+            if !error_set(err) {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeException,
+                    c"Failed to create window",
+                );
+            }
+            break 'cleanup;
         }
 
-        if fconfig.noautocmd {
-            unblock_autocmds();
+        if fconfig._cmdline_offset < i32::MAX {
+            g_st().cmdline_win = wp;
         }
-        rv
+
+        let mut bufref = Bufref {
+            br_buf: ptr::null_mut(),
+            br_fnum: 0,
+            br_buf_free_count: 0,
+        };
+        set_bufref(&mut bufref, (&raw mut *b));
+        if !fconfig.noautocmd {
+            let mut switchwin: CtxSwitch = CtxSwitch::new();
+            let result = ctx_switch(&mut switchwin, wp, tp, ptr::null_mut(), K_CTX_NO_DISPLAY);
+            assert!(result);
+            if apply_autocmds_win(
+                EVENT_WINNEW,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                g_st().curbuf,
+                unsafe { wp.as_ref() },
+            ) {
+                tp = win_find_tabpage(wp);
+            }
+            ctx_restore(&mut switchwin);
+        }
+        if !tp.is_null() && enter {
+            goto_tabpage_win(unsafe { &mut *tp }, wp);
+            tp = win_find_tabpage(wp);
+        }
+        if !tp.is_null()
+            && bufref_valid(Some(&bufref))
+            && (&raw mut *b) != unsafe { (*wp).w_buffer }
+        {
+            let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
+            if au_no_enter_leave {
+                g_st().autocmd_no_enter += 1;
+                g_st().autocmd_no_leave += 1;
+            }
+            win_set_buf(unsafe { &mut *wp }, b, err);
+            if !fconfig.noautocmd {
+                tp = win_find_tabpage(wp);
+            }
+            if au_no_enter_leave {
+                g_st().autocmd_no_enter -= 1;
+                g_st().autocmd_no_leave -= 1;
+            }
+        }
+        if tp.is_null() {
+            api_clear_error(err);
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Window was closed immediately",
+            );
+            break 'cleanup;
+        }
+
+        if fconfig.style == K_WIN_STYLE_MINIMAL {
+            win_set_minimal_style(unsafe { &mut *wp });
+            didset_window_options(unsafe { &mut *wp }, true);
+            changed_window_setting(unsafe { &mut *wp });
+        }
+        rv = unsafe { (*wp).handle };
     }
+
+    if fconfig.noautocmd {
+        unblock_autocmds();
+    }
+    rv
 }
 
 fn win_split_dir(win: &WinInfoInfo) -> WinSplit {
-    {
-        if win.w_frame.is_null() || win.frame_mut().fr_parent.is_null() {
-            return K_WIN_SPLIT_LEFT;
-        }
+    if win.w_frame.is_null() || win.frame_mut().fr_parent.is_null() {
+        return K_WIN_SPLIT_LEFT;
+    }
 
-        let layout = unsafe { (*win.frame_mut().fr_parent).fr_layout };
-        if layout == FR_COL {
-            if !win.frame_mut().fr_next.is_null() {
-                K_WIN_SPLIT_ABOVE
-            } else {
-                K_WIN_SPLIT_BELOW
-            }
-        } else if !win.frame_mut().fr_next.is_null() {
-            K_WIN_SPLIT_LEFT
+    let layout = unsafe { (*win.frame_mut().fr_parent).fr_layout };
+    if layout == FR_COL {
+        if !win.frame_mut().fr_next.is_null() {
+            K_WIN_SPLIT_ABOVE
         } else {
-            K_WIN_SPLIT_RIGHT
+            K_WIN_SPLIT_BELOW
         }
+    } else if !win.frame_mut().fr_next.is_null() {
+        K_WIN_SPLIT_LEFT
+    } else {
+        K_WIN_SPLIT_RIGHT
     }
 }
 
@@ -575,47 +574,45 @@ const fn win_split_flags(split: WinSplit, toplevel: bool) -> i32 {
 }
 
 fn win_can_move_tp(wp: *mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) -> bool {
-    {
-        if one_window(
-            unsafe { &mut *wp },
-            if &raw mut *tp == g_st().curtab {
-                ptr::null_mut()
-            } else {
-                &raw mut *tp
-            },
-        ) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Cannot move last non-floating window",
-            );
-            return false;
-        }
-        if win_locked(unsafe { &mut *wp }) != 0 {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Cannot move window to another tabpage whilst in use",
-            );
-            return false;
-        }
-        if window_layout_locked_err(crate::cmdexpand::Cmdidx::CmdSize, err) {
-            return false;
-        }
-        if g_st().textlock != 0 || expr_map_locked() {
-            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", E_TEXTLOCK,);
-            return false;
-        }
-        if is_ctx_win(wp) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Cannot move autocmd window to another tabpage",
-            );
-            return false;
-        }
-        true
+    if one_window(
+        unsafe { &mut *wp },
+        if &raw mut *tp == g_st().curtab {
+            ptr::null_mut()
+        } else {
+            &raw mut *tp
+        },
+    ) {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Cannot move last non-floating window",
+        );
+        return false;
     }
+    if win_locked(unsafe { &mut *wp }) != 0 {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Cannot move window to another tabpage whilst in use",
+        );
+        return false;
+    }
+    if window_layout_locked_err(crate::cmdexpand::Cmdidx::CmdSize, err) {
+        return false;
+    }
+    if g_st().textlock != 0 || expr_map_locked() {
+        api_set_error!(err, ErrorType::ErrorTypeException, c"%s", E_TEXTLOCK,);
+        return false;
+    }
+    if is_ctx_win(wp) {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Cannot move autocmd window to another tabpage",
+        );
+        return false;
+    }
+    true
 }
 
 fn win_find_altwin(win: *mut WinInfoInfo, tp: &mut TabPageInfo) -> *mut WinInfoInfo {
@@ -918,103 +915,105 @@ fn win_config_float_tp(
     fconfig: &WinConfig,
     err: &mut Error,
 ) -> bool {
-    unsafe {
-        let mut win_tp = win_find_tabpage(&raw mut *win);
-        let mut parent = (&raw mut *win);
-        let mut parent_tp = win_tp;
-        if has_key(config.is_set_win_config, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
-            parent = find_window_by_handle(fconfig.window, err);
-            if parent.is_null() {
+    let mut win_tp = win_find_tabpage(&raw mut *win);
+    let mut parent = (&raw mut *win);
+    let mut parent_tp = win_tp;
+    if has_key(config.is_set_win_config, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
+        parent = find_window_by_handle(fconfig.window, err);
+        if parent.is_null() {
+            return false;
+        }
+        parent_tp = win_find_tabpage(parent);
+    }
+
+    let mut curwin_moving_tp = false;
+    let mut altwin: *mut WinInfoInfo = ptr::null_mut();
+
+    'restore_curwin: {
+        if win_tp != parent_tp {
+            if !win_can_move_tp((&raw mut *win), unsafe { &mut *win_tp }, err) {
                 return false;
             }
-            parent_tp = win_find_tabpage(parent);
-        }
+            altwin = win_find_altwin((&raw mut *win), unsafe { &mut *win_tp });
+            assert!(!altwin.is_null());
 
-        let mut curwin_moving_tp = false;
-        let mut altwin: *mut WinInfoInfo = ptr::null_mut();
-
-        'restore_curwin: {
-            if win_tp != parent_tp {
-                if !win_can_move_tp((&raw mut *win), &mut *win_tp, err) {
-                    return false;
-                }
-                altwin = win_find_altwin((&raw mut *win), &mut *win_tp);
-                assert!(!altwin.is_null());
+            if curwin_ptr() == (&raw mut *win) {
+                curwin_moving_tp = true;
+                win_goto(altwin);
 
                 if curwin_ptr() == (&raw mut *win) {
-                    curwin_moving_tp = true;
-                    win_goto(altwin);
-
-                    if curwin_ptr() == (&raw mut *win) {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeException,
-                            c"Failed to switch away from window %d",
-                            win.handle,
-                        );
-                        return false;
-                    }
-                    win_tp = win_find_tabpage(&raw mut *win);
-                    parent_tp = win_find_tabpage(parent);
-
-                    if win_tp.is_null() || parent_tp.is_null() {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeException,
-                            c"Target windows were closed",
-                        );
-                        break 'restore_curwin;
-                    }
-                    if win_tp != parent_tp && !win_can_move_tp((&raw mut *win), &mut *win_tp, err) {
-                        break 'restore_curwin;
-                    }
-                    altwin = win_find_altwin((&raw mut *win), &mut *win_tp);
-                    assert!(!altwin.is_null());
+                    api_set_error!(
+                        err,
+                        ErrorType::ErrorTypeException,
+                        c"Failed to switch away from window %d",
+                        win.handle,
+                    );
+                    return false;
                 }
-            }
+                win_tp = win_find_tabpage(&raw mut *win);
+                parent_tp = win_find_tabpage(parent);
 
-            if !win.w_floating {
-                if win_new_float((&raw mut *win), false, fconfig.clone(), err).is_null() {
+                if win_tp.is_null() || parent_tp.is_null() {
+                    api_set_error!(
+                        err,
+                        ErrorType::ErrorTypeException,
+                        c"Target windows were closed",
+                    );
                     break 'restore_curwin;
                 }
-                redraw_later(Some(&mut *win), UPD_NOT_VALID);
+                if win_tp != parent_tp
+                    && !win_can_move_tp((&raw mut *win), unsafe { &mut *win_tp }, err)
+                {
+                    break 'restore_curwin;
+                }
+                altwin = win_find_altwin((&raw mut *win), unsafe { &mut *win_tp });
+                assert!(!altwin.is_null());
             }
+        }
 
-            if win_tp != parent_tp {
-                win_remove(
-                    win,
-                    if win_tp == g_st().curtab {
-                        ptr::null_mut()
-                    } else {
-                        win_tp
-                    },
-                );
-                let append_tp = if parent_tp == g_st().curtab {
+        if !win.w_floating {
+            if win_new_float((&raw mut *win), false, fconfig.clone(), err).is_null() {
+                break 'restore_curwin;
+            }
+            redraw_later(Some(&mut *win), UPD_NOT_VALID);
+        }
+
+        if win_tp != parent_tp {
+            win_remove(
+                win,
+                if win_tp == g_st().curtab {
                     ptr::null_mut()
                 } else {
-                    parent_tp
-                };
-                win_append(lastwin_nofloating(append_tp), (&raw mut *win), append_tp);
+                    win_tp
+                },
+            );
+            let append_tp = if parent_tp == g_st().curtab {
+                ptr::null_mut()
+            } else {
+                parent_tp
+            };
+            win_append(lastwin_nofloating(append_tp), (&raw mut *win), append_tp);
 
-                if win_tp != g_st().curtab && (*win_tp).tp_curwin == (&raw mut *win) {
+            if win_tp != g_st().curtab && unsafe { (*win_tp).tp_curwin } == (&raw mut *win) {
+                unsafe {
                     (*win_tp).tp_curwin = altwin;
                 }
-
-                ui_comp_remove_grid(&mut win.w_grid_alloc);
-
-                redraw_later(Some(&mut *win), UPD_NOT_VALID);
-                set_must_redraw(UPD_NOT_VALID);
             }
 
-            win_config_float(win, fconfig.clone());
-            return true;
+            ui_comp_remove_grid(&mut win.w_grid_alloc);
+
+            redraw_later(Some(&mut *win), UPD_NOT_VALID);
+            set_must_redraw(UPD_NOT_VALID);
         }
 
-        if curwin_moving_tp && win_valid(&raw mut *win) {
-            win_goto(&raw mut *win);
-        }
-        false
+        win_config_float(win, fconfig.clone());
+        return true;
     }
+
+    if curwin_moving_tp && win_valid(&raw mut *win) {
+        win_goto(&raw mut *win);
+    }
+    false
 }
 
 /// Reconfigures the layout and properties of a window.
@@ -1039,52 +1038,50 @@ fn win_config_float_tp(
 // DLLEXPORT void nvim_win_set_config(Window win, Dict(win_config) *config, Error *err)
 //   FUNC_API_SINCE(6);
 pub fn nvim_win_set_config(win: Window, config: &mut KeyDict_win_config, err: &mut Error) {
-    {
-        let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
-            return;
-        };
+    let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
+        return;
+    };
 
-        let was_split = !w.w_floating;
-        let mask = config.is_set_win_config;
-        let has_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT);
-        let has_vertical = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
-        let old_style = w.w_config.style;
-        let mut fconfig = w.w_config.clone();
+    let was_split = !w.w_floating;
+    let mask = config.is_set_win_config;
+    let has_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT);
+    let has_vertical = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
+    let old_style = w.w_config.style;
+    let mut fconfig = w.w_config.clone();
 
-        let to_split = config.relative.size == 0
-            && !(has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL) && config.external)
-            && (has_split || has_vertical || was_split);
-        let will_float = (!was_split && !to_split) || config.relative.size > 0 || config.external;
+    let to_split = config.relative.size == 0
+        && !(has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL) && config.external)
+        && (has_split || has_vertical || was_split);
+    let will_float = (!was_split && !to_split) || config.relative.size > 0 || config.external;
 
-        if !parse_win_config(
-            (&raw mut *w),
-            &mut *config,
-            &mut fconfig,
-            !was_split || to_split,
-            will_float,
-            err,
-        ) {
-            return;
-        }
+    if !parse_win_config(
+        (&raw mut *w),
+        &mut *config,
+        &mut fconfig,
+        !was_split || to_split,
+        will_float,
+        err,
+    ) {
+        return;
+    }
 
-        if to_split {
-            if !win_config_split(w, &*config, &mut fconfig, err) {
-                return;
-            }
-        } else if !win_config_float_tp(w, &*config, &fconfig, err) {
+    if to_split {
+        if !win_config_split(w, &*config, &mut fconfig, err) {
             return;
         }
+    } else if !win_config_float_tp(w, &*config, &fconfig, err) {
+        return;
+    }
 
-        if fconfig.style == K_WIN_STYLE_MINIMAL && old_style != fconfig.style {
-            win_set_minimal_style(w);
-            didset_window_options(w, true);
-            changed_window_setting(w);
-        }
-        if fconfig._cmdline_offset < i32::MAX {
-            g_st().cmdline_win = (&raw mut *w);
-        } else if (&raw mut *w) == g_st().cmdline_win && fconfig._cmdline_offset == i32::MAX {
-            g_st().cmdline_win = ptr::null_mut();
-        }
+    if fconfig.style == K_WIN_STYLE_MINIMAL && old_style != fconfig.style {
+        win_set_minimal_style(w);
+        didset_window_options(w, true);
+        changed_window_setting(w);
+    }
+    if fconfig._cmdline_offset < i32::MAX {
+        g_st().cmdline_win = (&raw mut *w);
+    } else if (&raw mut *w) == g_st().cmdline_win && fconfig._cmdline_offset == i32::MAX {
+        g_st().cmdline_win = ptr::null_mut();
     }
 }
 
@@ -1136,202 +1133,190 @@ fn config_put_bordertext(
 // DLLEXPORT Dict(win_config) nvim_win_get_config(Window win, Arena *arena, Error *err)
 //   FUNC_API_SINCE(6);
 pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> KeyDict_win_config {
-    {
-        const FLOAT_RELATIVE_STR: [&CStr; 6] = [
-            c"editor",
-            c"win",
-            c"cursor",
-            c"mouse",
-            c"tabline",
-            c"laststatus",
-        ];
-        const WIN_SPLIT_STR: [&CStr; 4] = [c"left", c"right", c"above", c"below"];
-        const WIN_STYLE_STR: [&CStr; 2] = [c"", c"minimal"];
+    const FLOAT_RELATIVE_STR: [&CStr; 6] = [
+        c"editor",
+        c"win",
+        c"cursor",
+        c"mouse",
+        c"tabline",
+        c"laststatus",
+    ];
+    const WIN_SPLIT_STR: [&CStr; 4] = [c"left", c"right", c"above", c"below"];
+    const WIN_STYLE_STR: [&CStr; 2] = [c"", c"minimal"];
 
-        let mut rv = KeyDict_win_config::default();
+    let mut rv = KeyDict_win_config::default();
 
-        let Some(wp) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
-            return rv;
-        };
+    let Some(wp) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
+        return rv;
+    };
 
-        let config = &wp.w_config;
+    let config = &wp.w_config;
 
-        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOCUSABLE;
-        rv.focusable = config.focusable;
-        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL;
-        rv.external = config.external;
-        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HIDE;
-        rv.hide = config.hide;
-        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_MOUSE;
-        rv.mouse = config.mouse;
-        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_STYLE;
-        rv.style = cstr_as_string(WIN_STYLE_STR[config.style as usize].as_ptr());
+    rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_FOCUSABLE;
+    rv.focusable = config.focusable;
+    rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL;
+    rv.external = config.external;
+    rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HIDE;
+    rv.hide = config.hide;
+    rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_MOUSE;
+    rv.mouse = config.mouse;
+    rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_STYLE;
+    rv.style = cstr_as_string(WIN_STYLE_STR[config.style as usize].as_ptr());
 
-        if wp.w_floating {
-            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIDTH;
-            rv.width = i64::from(config.width);
-            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HEIGHT;
-            rv.height = i64::from(config.height);
-            if !config.external {
-                if config.relative == K_FLOAT_RELATIVE_WINDOW {
-                    rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIN;
-                    rv.win = config.window;
-                    if config.bufpos.lnum >= 0 {
-                        let mut pos = arena_array(arena, 2);
-                        add_c(&mut pos, integer_obj(i64::from(config.bufpos.lnum)));
-                        add_c(&mut pos, integer_obj(i64::from(config.bufpos.col)));
-                        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BUFPOS;
-                        rv.bufpos = pos;
-                    }
+    if wp.w_floating {
+        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIDTH;
+        rv.width = i64::from(config.width);
+        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HEIGHT;
+        rv.height = i64::from(config.height);
+        if !config.external {
+            if config.relative == K_FLOAT_RELATIVE_WINDOW {
+                rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIN;
+                rv.win = config.window;
+                if config.bufpos.lnum >= 0 {
+                    let mut pos = arena_array(arena, 2);
+                    add_c(&mut pos, integer_obj(i64::from(config.bufpos.lnum)));
+                    add_c(&mut pos, integer_obj(i64::from(config.bufpos.col)));
+                    rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BUFPOS;
+                    rv.bufpos = pos;
                 }
-                rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_ANCHOR;
-                rv.anchor = cstr_as_string(FLOAT_ANCHOR_STR[config.anchor as usize].as_ptr());
-                rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_ROW;
-                rv.row = config.row;
-                rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_COL;
-                rv.col = config.col;
-                rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_ZINDEX;
-                rv.zindex = i64::from(config.zindex);
             }
-            if config.border {
-                let mut border = arena_array(arena, 8);
-                for i in 0..8 {
-                    let s = cstrn_as_string(config.border_chars[i].as_ptr(), MAX_SCHAR_SIZE);
-                    let hi_id = config.border_hl_ids[i];
-                    let hi_name = syn_id2name(hi_id);
-                    if unsafe { *hi_name } != 0 {
-                        let mut tuple = arena_array(arena, 2);
-                        add_c(&mut tuple, string_obj(s));
-                        add_c(&mut tuple, string_obj(cstr_as_string(hi_name)));
-                        add_c(&mut border, array_obj(tuple));
-                    } else {
-                        add_c(&mut border, string_obj(s));
-                    }
-                }
-                rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BORDER;
-                rv.border = array_obj(border);
-                if config.title {
-                    config_put_bordertext(&mut rv, config, K_BORDER_TEXT_TITLE, arena);
-                }
-                if config.footer {
-                    config_put_bordertext(&mut rv, config, K_BORDER_TEXT_FOOTER, arena);
-                }
-            } else {
-                rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BORDER;
-                rv.border = string_obj(cstr_as_string(c"none"));
-            }
-        } else if !config.external {
-            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIDTH;
-            rv.width = i64::from(wp.w_width);
-            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HEIGHT;
-            rv.height = i64::from(wp.w_height);
-            let split = win_split_dir(wp);
-            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_SPLIT;
-            rv.split = cstr_as_string(WIN_SPLIT_STR[split as usize].as_ptr());
+            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_ANCHOR;
+            rv.anchor = cstr_as_string(FLOAT_ANCHOR_STR[config.anchor as usize].as_ptr());
+            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_ROW;
+            rv.row = config.row;
+            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_COL;
+            rv.col = config.col;
+            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_ZINDEX;
+            rv.zindex = i64::from(config.zindex);
         }
-
-        let rel = if wp.w_floating && !config.external {
-            FLOAT_RELATIVE_STR[config.relative as usize].as_ptr()
+        if config.border {
+            let mut border = arena_array(arena, 8);
+            for i in 0..8 {
+                let s = cstrn_as_string(config.border_chars[i].as_ptr(), MAX_SCHAR_SIZE);
+                let hi_id = config.border_hl_ids[i];
+                let hi_name = syn_id2name(hi_id);
+                if unsafe { *hi_name } != 0 {
+                    let mut tuple = arena_array(arena, 2);
+                    add_c(&mut tuple, string_obj(s));
+                    add_c(&mut tuple, string_obj(cstr_as_string(hi_name)));
+                    add_c(&mut border, array_obj(tuple));
+                } else {
+                    add_c(&mut border, string_obj(s));
+                }
+            }
+            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BORDER;
+            rv.border = array_obj(border);
+            if config.title {
+                config_put_bordertext(&mut rv, config, K_BORDER_TEXT_TITLE, arena);
+            }
+            if config.footer {
+                config_put_bordertext(&mut rv, config, K_BORDER_TEXT_FOOTER, arena);
+            }
         } else {
-            c"".as_ptr()
-        };
-        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_RELATIVE;
-        rv.relative = cstr_as_string(rel);
-        if config._cmdline_offset < i32::MAX {
-            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET;
-            rv._cmdline_offset = i64::from(config._cmdline_offset);
+            rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_BORDER;
+            rv.border = string_obj(cstr_as_string(c"none"));
         }
-
-        rv
+    } else if !config.external {
+        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_WIDTH;
+        rv.width = i64::from(wp.w_width);
+        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_HEIGHT;
+        rv.height = i64::from(wp.w_height);
+        let split = win_split_dir(wp);
+        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_SPLIT;
+        rv.split = cstr_as_string(WIN_SPLIT_STR[split as usize].as_ptr());
     }
+
+    let rel = if wp.w_floating && !config.external {
+        FLOAT_RELATIVE_STR[config.relative as usize].as_ptr()
+    } else {
+        c"".as_ptr()
+    };
+    rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_RELATIVE;
+    rv.relative = cstr_as_string(rel);
+    if config._cmdline_offset < i32::MAX {
+        rv.is_set_win_config |= 1u64 << KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET;
+        rv._cmdline_offset = i64::from(config._cmdline_offset);
+    }
+
+    rv
 }
 
 fn parse_float_anchor(anchor: NvimString, out: &mut FloatAnchor) -> bool {
-    {
-        if anchor.size == 0 {
-            *out = 0;
-        }
-        let str_ptr = anchor.data;
-        if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"NW"))
-        {
-            *out = 0;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"NE"))
-        {
-            *out = K_FLOAT_ANCHOR_EAST;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"SW"))
-        {
-            *out = K_FLOAT_ANCHOR_SOUTH;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"SE"))
-        {
-            *out = K_FLOAT_ANCHOR_SOUTH | K_FLOAT_ANCHOR_EAST;
-        } else {
-            return false;
-        }
-        true
+    if anchor.size == 0 {
+        *out = 0;
     }
+    let str_ptr = anchor.data;
+    if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"NW")) {
+        *out = 0;
+    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"NE"))
+    {
+        *out = K_FLOAT_ANCHOR_EAST;
+    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"SW"))
+    {
+        *out = K_FLOAT_ANCHOR_SOUTH;
+    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"SE"))
+    {
+        *out = K_FLOAT_ANCHOR_SOUTH | K_FLOAT_ANCHOR_EAST;
+    } else {
+        return false;
+    }
+    true
 }
 
 fn parse_float_relative(relative: NvimString, out: &mut FloatRelative) -> bool {
+    let str_ptr = relative.data;
+    if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"editor"))
     {
-        let str_ptr = relative.data;
-        if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"editor"))
-        {
-            *out = K_FLOAT_RELATIVE_EDITOR;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"win"))
-        {
-            *out = K_FLOAT_RELATIVE_WINDOW;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"cursor"))
-        {
-            *out = K_FLOAT_RELATIVE_CURSOR;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"mouse"))
-        {
-            *out = K_FLOAT_RELATIVE_MOUSE;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"tabline"))
-        {
-            *out = K_FLOAT_RELATIVE_TABLINE;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"laststatus"))
-        {
-            *out = K_FLOAT_RELATIVE_LASTSTATUS;
-        } else {
-            return false;
-        }
-        true
+        *out = K_FLOAT_RELATIVE_EDITOR;
+    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"win"))
+    {
+        *out = K_FLOAT_RELATIVE_WINDOW;
+    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"cursor"))
+    {
+        *out = K_FLOAT_RELATIVE_CURSOR;
+    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"mouse"))
+    {
+        *out = K_FLOAT_RELATIVE_MOUSE;
+    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"tabline"))
+    {
+        *out = K_FLOAT_RELATIVE_TABLINE;
+    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"laststatus"))
+    {
+        *out = K_FLOAT_RELATIVE_LASTSTATUS;
+    } else {
+        return false;
     }
+    true
 }
 
 fn parse_config_split(split: NvimString, out: &mut WinSplit) -> bool {
+    let str_ptr = split.data;
+    if crate::memory::cstr_as_opt_bytes(str_ptr).is_some_and(|b| b.eq_ignore_ascii_case(b"left")) {
+        *out = K_WIN_SPLIT_LEFT;
+    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"right"))
     {
-        let str_ptr = split.data;
-        if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"left"))
-        {
-            *out = K_WIN_SPLIT_LEFT;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"right"))
-        {
-            *out = K_WIN_SPLIT_RIGHT;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"above"))
-        {
-            *out = K_WIN_SPLIT_ABOVE;
-        } else if crate::memory::cstr_as_opt_bytes(str_ptr)
-            .is_some_and(|b| b.eq_ignore_ascii_case(b"below"))
-        {
-            *out = K_WIN_SPLIT_BELOW;
-        } else {
-            return false;
-        }
-        true
+        *out = K_WIN_SPLIT_RIGHT;
+    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"above"))
+    {
+        *out = K_WIN_SPLIT_ABOVE;
+    } else if crate::memory::cstr_as_opt_bytes(str_ptr)
+        .is_some_and(|b| b.eq_ignore_ascii_case(b"below"))
+    {
+        *out = K_WIN_SPLIT_BELOW;
+    } else {
+        return false;
     }
+    true
 }
 
 fn parse_float_bufpos(bufpos: Array, out: &mut Lpos) -> bool {
@@ -1456,150 +1441,144 @@ fn parse_bordertext_pos(
 
 // DLLEXPORT void parse_border_style(Object style, WinConfig *fconfig, Error *err);
 pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &mut Error) {
-    {
-        const DEFAULTS_CHARS: [[&str; 8]; 6] = [
-            ["╔", "═", "╗", "║", "╝", "═", "╚", "║"],
-            ["┌", "─", "┐", "│", "┘", "─", "└", "│"],
-            ["", "", " ", " ", " ", " ", " ", ""],
-            ["╭", "─", "╮", "│", "╯", "─", "╰", "│"],
-            [" ", " ", " ", " ", " ", " ", " ", " "],
-            ["┏", "━", "┓", "┃", "┛", "━", "┗", "┃"],
-        ];
-        const DEFAULTS_SHADOW: [bool; 6] = [false, false, true, false, false, false];
+    const DEFAULTS_CHARS: [[&str; 8]; 6] = [
+        ["╔", "═", "╗", "║", "╝", "═", "╚", "║"],
+        ["┌", "─", "┐", "│", "┘", "─", "└", "│"],
+        ["", "", " ", " ", " ", " ", " ", ""],
+        ["╭", "─", "╮", "│", "╯", "─", "╰", "│"],
+        [" ", " ", " ", " ", " ", " ", " ", " "],
+        ["┏", "━", "┓", "┃", "┛", "━", "┗", "┃"],
+    ];
+    const DEFAULTS_SHADOW: [bool; 6] = [false, false, true, false, false, false];
 
-        let fconfig = fconfig.unwrap();
-        fconfig.border = true;
-        let chars = &mut fconfig.border_chars;
-        let hl_ids = &mut fconfig.border_hl_ids;
+    let fconfig = fconfig.unwrap();
+    fconfig.border = true;
+    let chars = &mut fconfig.border_chars;
+    let hl_ids = &mut fconfig.border_hl_ids;
 
-        if style.obj_type == ObjectType::ObjectTypeArray {
-            let arr = style.data.array();
-            let mut size = arr.size;
-            if size == 0 || size > 8 || (size & (size - 1)) != 0 {
-                api_err_exp(err, c"border", c"1, 2, 4, or 8 chars", ptr::null());
-                return;
-            }
-            for i in 0..size {
-                let iytem = arr[i];
-                let string: NvimString;
-                let mut hl_id: i32 = 0;
-                if iytem.obj_type == ObjectType::ObjectTypeArray {
-                    let iarr = iytem.data.array();
-                    if iarr.size == 0 || iarr.size > 2 {
-                        api_err_exp(err, c"border", c"1 or 2-item Array", ptr::null());
-                        return;
-                    }
-                    let first = iarr[0];
-                    if first.obj_type != ObjectType::ObjectTypeString {
-                        api_err_exp(err, c"border", c"Array of Strings", ptr::null());
-                        return;
-                    }
-                    string = first.data.string();
-                    if iarr.size == 2 {
-                        hl_id = object_to_hl_id(iarr[1], c"border char highlight", err);
-                        if error_set(err) {
-                            return;
-                        }
-                    }
-                } else if iytem.obj_type == ObjectType::ObjectTypeString {
-                    string = iytem.data.string();
-                } else {
-                    api_err_exp(
-                        err,
-                        c"border",
-                        c"String or Array",
-                        api_typename(iytem.obj_type),
-                    );
+    if style.obj_type == ObjectType::ObjectTypeArray {
+        let arr = style.data.array();
+        let mut size = arr.size;
+        if size == 0 || size > 8 || (size & (size - 1)) != 0 {
+            api_err_exp(err, c"border", c"1, 2, 4, or 8 chars", ptr::null());
+            return;
+        }
+        for i in 0..size {
+            let iytem = arr[i];
+            let string: NvimString;
+            let mut hl_id: i32 = 0;
+            if iytem.obj_type == ObjectType::ObjectTypeArray {
+                let iarr = iytem.data.array();
+                if iarr.size == 0 || iarr.size > 2 {
+                    api_err_exp(err, c"border", c"1 or 2-item Array", ptr::null());
                     return;
                 }
-                if string.size != 0 && mb_string2cells_len(string.data, string.size) > 1 {
-                    api_err_exp(err, c"border", c"only one-cell chars", ptr::null());
+                let first = iarr[0];
+                if first.obj_type != ObjectType::ObjectTypeString {
+                    api_err_exp(err, c"border", c"Array of Strings", ptr::null());
                     return;
                 }
-                let len = string.size.min(MAX_SCHAR_SIZE - 1);
-                if len > 0 {
-                    unsafe { ptr::copy_nonoverlapping(string.data, chars[i].as_mut_ptr(), len) };
+                string = first.data.string();
+                if iarr.size == 2 {
+                    hl_id = object_to_hl_id(iarr[1], c"border char highlight", err);
+                    if error_set(err) {
+                        return;
+                    }
                 }
-                chars[i][len] = NUL;
-                hl_ids[i] = hl_id;
-            }
-            while size < 8 {
-                for j in 0..size {
-                    chars[size + j] = chars[j];
-                    hl_ids[size + j] = hl_ids[j];
-                }
-                size <<= 1;
-            }
-            if (chars[7][0] != 0 && chars[1][0] != 0 && chars[0][0] == 0)
-                || (chars[1][0] != 0 && chars[3][0] != 0 && chars[2][0] == 0)
-                || (chars[3][0] != 0 && chars[5][0] != 0 && chars[4][0] == 0)
-                || (chars[5][0] != 0 && chars[7][0] != 0 && chars[6][0] == 0)
-            {
+            } else if iytem.obj_type == ObjectType::ObjectTypeString {
+                string = iytem.data.string();
+            } else {
                 api_err_exp(
                     err,
                     c"border",
-                    c"corner char between edge chars",
-                    ptr::null(),
+                    c"String or Array",
+                    api_typename(iytem.obj_type),
                 );
-            }
-        } else if style.obj_type == ObjectType::ObjectTypeString {
-            let str_val = style.data.string();
-            if str_val.size == 0
-                || (crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"none"))
-            {
-                fconfig.border = false;
-                fconfig.title = false;
-                fconfig.footer = false;
                 return;
             }
-            for i in 0..6 {
-                let def_name = OPT_WINBORDER_VALUES[i + 1].as_ptr();
-                if crate::memory::cstr_as_opt_bytes(str_val.data)
-                    == crate::memory::cstr_as_opt_bytes(def_name)
-                {
-                    *chars = [[0; MAX_SCHAR_SIZE]; 8];
-                    for (slot, piece) in chars.iter_mut().zip(DEFAULTS_CHARS[i].iter()) {
-                        let bytes = piece.as_bytes();
-                        unsafe {
-                            ptr::copy_nonoverlapping(
-                                bytes.as_ptr().cast::<c_char>(),
-                                slot.as_mut_ptr(),
-                                bytes.len(),
-                            )
-                        };
-                    }
-                    *hl_ids = [0; 8];
-                    if DEFAULTS_SHADOW[i] {
-                        let hl_blend = syn_check_group(c"FloatShadow", 11);
-                        let hl_through = syn_check_group(c"FloatShadowThrough", 18);
-                        hl_ids[2] = hl_through;
-                        hl_ids[3] = hl_blend;
-                        hl_ids[4] = hl_blend;
-                        hl_ids[5] = hl_blend;
-                        hl_ids[6] = hl_through;
-                    }
-                    return;
-                }
+            if string.size != 0 && mb_string2cells_len(string.data, string.size) > 1 {
+                api_err_exp(err, c"border", c"only one-cell chars", ptr::null());
+                return;
             }
-            api_err_invalid(err, c"border", str_val.data, 0, true);
+            let len = string.size.min(MAX_SCHAR_SIZE - 1);
+            if len > 0 {
+                unsafe { ptr::copy_nonoverlapping(string.data, chars[i].as_mut_ptr(), len) };
+            }
+            chars[i][len] = NUL;
+            hl_ids[i] = hl_id;
         }
+        while size < 8 {
+            for j in 0..size {
+                chars[size + j] = chars[j];
+                hl_ids[size + j] = hl_ids[j];
+            }
+            size <<= 1;
+        }
+        if (chars[7][0] != 0 && chars[1][0] != 0 && chars[0][0] == 0)
+            || (chars[1][0] != 0 && chars[3][0] != 0 && chars[2][0] == 0)
+            || (chars[3][0] != 0 && chars[5][0] != 0 && chars[4][0] == 0)
+            || (chars[5][0] != 0 && chars[7][0] != 0 && chars[6][0] == 0)
+        {
+            api_err_exp(
+                err,
+                c"border",
+                c"corner char between edge chars",
+                ptr::null(),
+            );
+        }
+    } else if style.obj_type == ObjectType::ObjectTypeString {
+        let str_val = style.data.string();
+        if str_val.size == 0 || (crate::memory::cstr_as_opt_bytes(str_val.data) == Some(b"none")) {
+            fconfig.border = false;
+            fconfig.title = false;
+            fconfig.footer = false;
+            return;
+        }
+        for i in 0..6 {
+            let def_name = OPT_WINBORDER_VALUES[i + 1].as_ptr();
+            if crate::memory::cstr_as_opt_bytes(str_val.data)
+                == crate::memory::cstr_as_opt_bytes(def_name)
+            {
+                *chars = [[0; MAX_SCHAR_SIZE]; 8];
+                for (slot, piece) in chars.iter_mut().zip(DEFAULTS_CHARS[i].iter()) {
+                    let bytes = piece.as_bytes();
+                    unsafe {
+                        ptr::copy_nonoverlapping(
+                            bytes.as_ptr().cast::<c_char>(),
+                            slot.as_mut_ptr(),
+                            bytes.len(),
+                        )
+                    };
+                }
+                *hl_ids = [0; 8];
+                if DEFAULTS_SHADOW[i] {
+                    let hl_blend = syn_check_group(c"FloatShadow", 11);
+                    let hl_through = syn_check_group(c"FloatShadowThrough", 18);
+                    hl_ids[2] = hl_through;
+                    hl_ids[3] = hl_blend;
+                    hl_ids[4] = hl_blend;
+                    hl_ids[5] = hl_blend;
+                    hl_ids[6] = hl_through;
+                }
+                return;
+            }
+        }
+        api_err_invalid(err, c"border", str_val.data, 0, true);
     }
 }
 
 fn generate_api_error(wp: Option<&WinInfoInfo>, attribute: &std::ffi::CStr, err: &mut Error) {
+    if let Some(wp) = wp
+        && wp.w_floating
     {
-        if let Some(wp) = wp
-            && wp.w_floating
-        {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Required: 'relative' when reconfiguring floating window %d",
-                wp.handle,
-            );
-        } else {
-            api_err_conflict(err, attribute.as_ptr(), c"non-float window");
-        }
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Required: 'relative' when reconfiguring floating window %d",
+            wp.handle,
+        );
+    } else {
+        api_err_conflict(err, attribute.as_ptr(), c"non-float window");
     }
 }
 

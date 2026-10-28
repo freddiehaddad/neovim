@@ -841,30 +841,28 @@ impl std::hash::Hash for PathKey {
 
 #[inline]
 fn hmll_init(hmll: &mut HMLList, size: usize) {
-    {
-        unsafe {
-            ptr::write(
-                hmll,
-                HMLList {
-                    entries: vec![
-                        HMLListEntry {
-                            data: MISSING_ENTRY,
-                            next: None,
-                            prev: None,
-                        };
-                        size
-                    ],
-                    first: None,
-                    last: None,
-                    free_entry: None,
-                    last_free_entry: 0,
-                    size,
-                    num_entries: 0,
-                    contained_entries: std::collections::HashMap::new(),
-                },
-            )
-        };
-    }
+    unsafe {
+        ptr::write(
+            hmll,
+            HMLList {
+                entries: vec![
+                    HMLListEntry {
+                        data: MISSING_ENTRY,
+                        next: None,
+                        prev: None,
+                    };
+                    size
+                ],
+                first: None,
+                last: None,
+                free_entry: None,
+                last_free_entry: 0,
+                size,
+                num_entries: 0,
+                contained_entries: std::collections::HashMap::new(),
+            },
+        )
+    };
 }
 
 #[inline]
@@ -953,44 +951,40 @@ fn hmll_dealloc(hmll: &mut HMLList) {
 }
 
 fn sd_reader_skip(sd_reader: &mut FileDescriptor, offset: usize) -> ShaDaReadResult {
-    {
-        let skip_bytes = file_skip((&raw mut *sd_reader), offset);
-        if skip_bytes < 0 {
+    let skip_bytes = file_skip((&raw mut *sd_reader), offset);
+    if skip_bytes < 0 {
+        semsg!(
+            gettext(c"E886: System error while skipping in ShaDa file: %s"),
+            unsafe { uv_strerror(skip_bytes as i32) },
+        );
+        return ShaDaReadResult::SDReadStatusReadError;
+    } else if skip_bytes != (offset as isize) {
+        assert!(skip_bytes < (offset as isize));
+        if file_eof(sd_reader) {
             semsg!(
-                gettext(c"E886: System error while skipping in ShaDa file: %s"),
-                unsafe { uv_strerror(skip_bytes as i32) },
-            );
-            return ShaDaReadResult::SDReadStatusReadError;
-        } else if skip_bytes != (offset as isize) {
-            assert!(skip_bytes < (offset as isize));
-            if file_eof(sd_reader) {
-                semsg!(
                     gettext(
                         c"E576: Reading ShaDa file: last entry specified that it occupies %llu bytes, but file ended earlier",
                     ),
                     offset as u64,
                 );
-            } else {
-                semsg!(
-                    gettext(c"E886: System error while skipping in ShaDa file: %s"),
-                    gettext(c"too few bytes read"),
-                );
-            }
-            return ShaDaReadResult::SDReadStatusNotShaDa;
+        } else {
+            semsg!(
+                gettext(c"E886: System error while skipping in ShaDa file: %s"),
+                gettext(c"too few bytes read"),
+            );
         }
-        ShaDaReadResult::SDReadStatusSuccess
+        return ShaDaReadResult::SDReadStatusNotShaDa;
     }
+    ShaDaReadResult::SDReadStatusSuccess
 }
 
 fn close_file(cookie: &mut FileDescriptor) {
-    {
-        let error = file_close(cookie, opt_vars().p_fs != 0);
-        if error != 0 {
-            semsg!(
-                gettext(c"E886: System error while closing ShaDa file: %s"),
-                unsafe { uv_strerror(error) },
-            );
-        }
+    let error = file_close(cookie, opt_vars().p_fs != 0);
+    if error != 0 {
+        semsg!(
+            gettext(c"E886: System error while closing ShaDa file: %s"),
+            unsafe { uv_strerror(error) },
+        );
     }
 }
 
@@ -1209,59 +1203,54 @@ fn var_shada_iter(
     rettv: &mut TypVal,
     flavour: VarFlavour,
 ) -> Option<usize> {
-    {
-        let globvarht = get_globvar_ht();
-        let hinum = globvarht.ht_mask + 1;
-        let harray = unsafe { std::slice::from_raw_parts(globvarht.array_ptr(), hinum) };
-        *name = ptr::null();
-        let mut idx = if let Some(i) = iter {
-            i
-        } else {
-            let mut i = 0;
-            while i < hinum
-                && (hashitem_empty(&harray[i]) || (var_flavour(harray[i].key_ptr()) & flavour) == 0)
-            {
-                i += 1;
-            }
-            if i == hinum {
-                return None;
-            }
-            i
-        };
-        let di = tv_dict_hi2di(&raw const harray[idx]);
-        *name = di.di_key.as_ptr();
-        tv_copy(&di.di_tv, rettv);
-        idx += 1;
-        while idx < hinum {
-            if !hashitem_empty(&harray[idx]) && (var_flavour(harray[idx].key_ptr()) & flavour) != 0
-            {
-                return Some(idx);
-            }
-            idx += 1;
+    let globvarht = get_globvar_ht();
+    let hinum = globvarht.ht_mask + 1;
+    let harray = unsafe { std::slice::from_raw_parts(globvarht.array_ptr(), hinum) };
+    *name = ptr::null();
+    let mut idx = if let Some(i) = iter {
+        i
+    } else {
+        let mut i = 0;
+        while i < hinum
+            && (hashitem_empty(&harray[i]) || (var_flavour(harray[i].key_ptr()) & flavour) == 0)
+        {
+            i += 1;
         }
-        None
+        if i == hinum {
+            return None;
+        }
+        i
+    };
+    let di = tv_dict_hi2di(&raw const harray[idx]);
+    *name = di.di_key.as_ptr();
+    tv_copy(&di.di_tv, rettv);
+    idx += 1;
+    while idx < hinum {
+        if !hashitem_empty(&harray[idx]) && (var_flavour(harray[idx].key_ptr()) & flavour) != 0 {
+            return Some(idx);
+        }
+        idx += 1;
     }
+    None
 }
 
 fn find_buffer(
     fname_bufs: &mut std::collections::HashMap<Vec<u8>, *mut FileBuf>,
     fname: *const c_char,
 ) -> *mut FileBuf {
-    {
-        let key = crate::memory::cstr_as_bytes(fname);
-        if let Some(&buf) = fname_bufs.get(key) {
+    let key = crate::memory::cstr_as_bytes(fname);
+    if let Some(&buf) = fname_bufs.get(key) {
+        return buf;
+    }
+
+    for buf in for_all_buffers_ptr() {
+        if !buf.b_ffname.is_null() && path_equal(fname, buf.b_ffname, K_PATH_CMP_LITERAL) {
+            fname_bufs.insert(key.to_vec(), buf);
             return buf;
         }
-
-        for buf in for_all_buffers_ptr() {
-            if !buf.b_ffname.is_null() && path_equal(fname, buf.b_ffname, K_PATH_CMP_LITERAL) {
-                fname_bufs.insert(key.to_vec(), buf);
-                return buf;
-            }
-        }
-        fname_bufs.insert(key.to_vec(), ptr::null_mut());
-        ptr::null_mut()
     }
+    fname_bufs.insert(key.to_vec(), ptr::null_mut());
+    ptr::null_mut()
 }
 
 #[inline]
@@ -1708,17 +1697,15 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
 }
 
 fn shada_get_default_file() -> *const c_char {
-    {
-        if shada_st().default_shada_file.is_none() {
-            let shada_dir = stdpaths_user_state_subpath(c"shada", 0, false);
-            shada_st().default_shada_file =
-                Some(concat_fnames_cstr(shada_dir.as_ptr(), c"main.shada", true));
-        }
-        unsafe { (&raw const shada_st().default_shada_file).as_ref() }
-            .unwrap()
-            .as_ref()
-            .map_or(ptr::null(), |s| s.as_ptr())
+    if shada_st().default_shada_file.is_none() {
+        let shada_dir = stdpaths_user_state_subpath(c"shada", 0, false);
+        shada_st().default_shada_file =
+            Some(concat_fnames_cstr(shada_dir.as_ptr(), c"main.shada", true));
     }
+    unsafe { (&raw const shada_st().default_shada_file).as_ref() }
+        .unwrap()
+        .as_ref()
+        .map_or(ptr::null(), |s| s.as_ptr())
 }
 
 fn shada_filename(file: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::CString> {
@@ -1777,279 +1764,277 @@ fn shada_pack_entry(
     entry: &ShadaEntry,
     max_kbyte: usize,
 ) -> ShaDaWriteResult {
-    {
-        let mut ret = ShaDaWriteResult::SDWriteFailed;
-        let mut sbuf = packer_string_buffer();
-        let def = sd_default_value(entry.entry_type);
+    let mut ret = ShaDaWriteResult::SDWriteFailed;
+    let mut sbuf = packer_string_buffer();
+    let def = sd_default_value(entry.entry_type);
 
-        shada_check_buffer(&mut sbuf);
-        match entry.entry_type {
-            ShadaEntryType::SDItemMissing => std::process::abort(),
-            ShadaEntryType::SDItemUnknown => {
-                let ui = entry.data.unknown_item();
-                mpack_raw(ui.contents.as_ptr(), ui.contents.len(), &mut sbuf);
+    shada_check_buffer(&mut sbuf);
+    match entry.entry_type {
+        ShadaEntryType::SDItemMissing => std::process::abort(),
+        ShadaEntryType::SDItemUnknown => {
+            let ui = entry.data.unknown_item();
+            mpack_raw(ui.contents.as_ptr(), ui.contents.len(), &mut sbuf);
+        }
+        ShadaEntryType::SDItemHistoryEntry => {
+            let hi = entry.data.history_item();
+            let is_hist_search = (hi.histtype as i32) == HIST_SEARCH;
+            let arr_size =
+                2 + u32::from(is_hist_search) + additional_data_len(&entry.additional_data);
+            mpack_array(&mut sbuf.ptr, arr_size);
+            mpack_uint(&mut sbuf.ptr, u32::from(hi.histtype));
+            mpack_bin(
+                cstr_as_string(hi.string.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
+                &mut sbuf,
+            );
+            if is_hist_search {
+                mpack_uint(&mut sbuf.ptr, u32::from(hi.sep as u8));
             }
-            ShadaEntryType::SDItemHistoryEntry => {
-                let hi = entry.data.history_item();
-                let is_hist_search = (hi.histtype as i32) == HIST_SEARCH;
-                let arr_size =
-                    2 + u32::from(is_hist_search) + additional_data_len(&entry.additional_data);
-                mpack_array(&mut sbuf.ptr, arr_size);
-                mpack_uint(&mut sbuf.ptr, u32::from(hi.histtype));
-                mpack_bin(
-                    cstr_as_string(hi.string.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
-                    &mut sbuf,
-                );
-                if is_hist_search {
-                    mpack_uint(&mut sbuf.ptr, u32::from(hi.sep as u8));
-                }
-                dump_additional_data(&entry.additional_data, &mut sbuf);
+            dump_additional_data(&entry.additional_data, &mut sbuf);
+        }
+        ShadaEntryType::SDItemVariable => {
+            let gv_name_ptr = entry
+                .data
+                .global_var()
+                .name
+                .as_ref()
+                .map_or(ptr::null(), |s| s.as_ptr());
+            let mut gv_val = entry.data.global_var().value;
+            let is_blob = gv_val.v_type == VarType::VarBlob;
+            let arr_size = 2 + u32::from(is_blob) + additional_data_len(&entry.additional_data);
+            mpack_array(&mut sbuf.ptr, arr_size);
+            let varname = cstr_as_string(gv_name_ptr);
+            mpack_bin(varname, &mut sbuf);
+            let mut vardesc = [0 as c_char; 256];
+            let prefix = b"variable g:";
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    prefix.as_ptr().cast::<c_char>(),
+                    vardesc.as_mut_ptr(),
+                    prefix.len(),
+                )
+            };
+            let copy_len = varname.size.min(vardesc.len() - prefix.len() - 1);
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    varname.data,
+                    vardesc.as_mut_ptr().wrapping_add(prefix.len()),
+                    copy_len,
+                )
+            };
+            vardesc[prefix.len() + copy_len] = 0;
+            if !encode_vim_to_msgpack(&mut sbuf, &mut gv_val, vardesc.as_ptr()) {
+                ret = ShaDaWriteResult::SDWriteIgnError;
+                semsg!(gettext(c"E574: Failed to write variable %s"), gv_name_ptr);
+                return ret;
             }
-            ShadaEntryType::SDItemVariable => {
-                let gv_name_ptr = entry
-                    .data
-                    .global_var()
-                    .name
-                    .as_ref()
-                    .map_or(ptr::null(), |s| s.as_ptr());
-                let mut gv_val = entry.data.global_var().value;
-                let is_blob = gv_val.v_type == VarType::VarBlob;
-                let arr_size = 2 + u32::from(is_blob) + additional_data_len(&entry.additional_data);
-                mpack_array(&mut sbuf.ptr, arr_size);
-                let varname = cstr_as_string(gv_name_ptr);
-                mpack_bin(varname, &mut sbuf);
-                let mut vardesc = [0 as c_char; 256];
-                let prefix = b"variable g:";
-                unsafe {
-                    ptr::copy_nonoverlapping(
-                        prefix.as_ptr().cast::<c_char>(),
-                        vardesc.as_mut_ptr(),
-                        prefix.len(),
-                    )
-                };
-                let copy_len = varname.size.min(vardesc.len() - prefix.len() - 1);
-                unsafe {
-                    ptr::copy_nonoverlapping(
-                        varname.data,
-                        vardesc.as_mut_ptr().wrapping_add(prefix.len()),
-                        copy_len,
-                    )
-                };
-                vardesc[prefix.len() + copy_len] = 0;
-                if !encode_vim_to_msgpack(&mut sbuf, &mut gv_val, vardesc.as_ptr()) {
-                    ret = ShaDaWriteResult::SDWriteIgnError;
-                    semsg!(gettext(c"E574: Failed to write variable %s"), gv_name_ptr);
-                    return ret;
-                }
-                if is_blob {
-                    mpack_check_buffer(&mut sbuf);
-                    mpack_integer(&mut sbuf.ptr, VAR_TYPE_BLOB);
-                }
-                dump_additional_data(&entry.additional_data, &mut sbuf);
+            if is_blob {
+                mpack_check_buffer(&mut sbuf);
+                mpack_integer(&mut sbuf.ptr, VAR_TYPE_BLOB);
             }
-            ShadaEntryType::SDItemSubString => {
-                let arr_size = 1 + additional_data_len(&entry.additional_data);
-                mpack_array(&mut sbuf.ptr, arr_size);
-                mpack_bin(
-                    cstr_as_string(
-                        entry
-                            .data
-                            .sub_string()
-                            .sub
-                            .as_ref()
-                            .map_or(ptr::null(), |s| s.as_ptr()),
-                    ),
-                    &mut sbuf,
-                );
-                dump_additional_data(&entry.additional_data, &mut sbuf);
+            dump_additional_data(&entry.additional_data, &mut sbuf);
+        }
+        ShadaEntryType::SDItemSubString => {
+            let arr_size = 1 + additional_data_len(&entry.additional_data);
+            mpack_array(&mut sbuf.ptr, arr_size);
+            mpack_bin(
+                cstr_as_string(
+                    entry
+                        .data
+                        .sub_string()
+                        .sub
+                        .as_ref()
+                        .map_or(ptr::null(), |s| s.as_ptr()),
+                ),
+                &mut sbuf,
+            );
+            dump_additional_data(&entry.additional_data, &mut sbuf);
+        }
+        ShadaEntryType::SDItemSearchPattern => {
+            let sp = entry.data.search_pattern();
+            let dsp = def.data.search_pattern();
+            let entry_map_size = 1
+                + u32::from(sp.magic != dsp.magic)
+                + u32::from(sp.is_last_used != dsp.is_last_used)
+                + u32::from(sp.smartcase != dsp.smartcase)
+                + u32::from(sp.has_line_offset != dsp.has_line_offset)
+                + u32::from(sp.place_cursor_at_end != dsp.place_cursor_at_end)
+                + u32::from(sp.is_substitute_pattern != dsp.is_substitute_pattern)
+                + u32::from(sp.highlighted != dsp.highlighted)
+                + u32::from(sp.offset != dsp.offset)
+                + u32::from(sp.search_backward != dsp.search_backward)
+                + additional_data_len(&entry.additional_data);
+            mpack_map(&mut sbuf.ptr, entry_map_size);
+            mpack_str(static_cstr_as_string(c"sp"), &mut sbuf);
+            mpack_bin(sp.pat, &mut sbuf);
+            if sp.magic != dsp.magic {
+                mpack_str(static_cstr_as_string(c"sm"), &mut sbuf);
+                mpack_bool(&mut sbuf.ptr, !dsp.magic);
             }
-            ShadaEntryType::SDItemSearchPattern => {
-                let sp = entry.data.search_pattern();
-                let dsp = def.data.search_pattern();
+            if sp.is_last_used != dsp.is_last_used {
+                mpack_str(static_cstr_as_string(c"su"), &mut sbuf);
+                mpack_bool(&mut sbuf.ptr, !dsp.is_last_used);
+            }
+            if sp.smartcase != dsp.smartcase {
+                mpack_str(static_cstr_as_string(c"sc"), &mut sbuf);
+                mpack_bool(&mut sbuf.ptr, !dsp.smartcase);
+            }
+            if sp.has_line_offset != dsp.has_line_offset {
+                mpack_str(static_cstr_as_string(c"sl"), &mut sbuf);
+                mpack_bool(&mut sbuf.ptr, !dsp.has_line_offset);
+            }
+            if sp.place_cursor_at_end != dsp.place_cursor_at_end {
+                mpack_str(static_cstr_as_string(c"se"), &mut sbuf);
+                mpack_bool(&mut sbuf.ptr, !dsp.place_cursor_at_end);
+            }
+            if sp.is_substitute_pattern != dsp.is_substitute_pattern {
+                mpack_str(static_cstr_as_string(c"ss"), &mut sbuf);
+                mpack_bool(&mut sbuf.ptr, !dsp.is_substitute_pattern);
+            }
+            if sp.highlighted != dsp.highlighted {
+                mpack_str(static_cstr_as_string(c"sh"), &mut sbuf);
+                mpack_bool(&mut sbuf.ptr, !dsp.highlighted);
+            }
+            if sp.search_backward != dsp.search_backward {
+                mpack_str(static_cstr_as_string(c"sb"), &mut sbuf);
+                mpack_bool(&mut sbuf.ptr, !dsp.search_backward);
+            }
+            if sp.offset != dsp.offset {
+                mpack_str(static_cstr_as_string(c"so"), &mut sbuf);
+                mpack_integer(&mut sbuf.ptr, sp.offset);
+            }
+            dump_additional_data(&entry.additional_data, &mut sbuf);
+        }
+        ShadaEntryType::SDItemChange
+        | ShadaEntryType::SDItemGlobalMark
+        | ShadaEntryType::SDItemLocalMark
+        | ShadaEntryType::SDItemJump => {
+            let fm = entry.data.filemark();
+            let dfm = def.data.filemark();
+            let entry_map_size = 1
+                + u32::from(fm.mark.lnum != dfm.mark.lnum)
+                + u32::from(fm.mark.col != dfm.mark.col)
+                + u32::from(fm.name != dfm.name)
+                + additional_data_len(&entry.additional_data);
+            mpack_map(&mut sbuf.ptr, entry_map_size);
+            mpack_str(static_cstr_as_string(c"f"), &mut sbuf);
+            mpack_bin(
+                cstr_as_string(fm.fname.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
+                &mut sbuf,
+            );
+            if fm.mark.lnum != dfm.mark.lnum {
+                mpack_str(static_cstr_as_string(c"l"), &mut sbuf);
+                mpack_integer(&mut sbuf.ptr, i64::from(fm.mark.lnum));
+            }
+            if fm.mark.col != dfm.mark.col {
+                mpack_str(static_cstr_as_string(c"c"), &mut sbuf);
+                mpack_integer(&mut sbuf.ptr, i64::from(fm.mark.col));
+            }
+            assert!(if entry.entry_type == ShadaEntryType::SDItemJump
+                || entry.entry_type == ShadaEntryType::SDItemChange
+            {
+                fm.name == dfm.name
+            } else {
+                true
+            });
+            if fm.name != dfm.name {
+                mpack_str(static_cstr_as_string(c"n"), &mut sbuf);
+                mpack_uint(&mut sbuf.ptr, u32::from(fm.name as u8));
+            }
+            dump_additional_data(&entry.additional_data, &mut sbuf);
+        }
+        ShadaEntryType::SDItemRegister => {
+            let r = entry.data.reg();
+            let dr = def.data.reg();
+            let entry_map_size = 2
+                + u32::from(r.reg_type != dr.reg_type)
+                + u32::from(r.width != dr.width)
+                + u32::from(r.is_unnamed != dr.is_unnamed)
+                + additional_data_len(&entry.additional_data);
+            mpack_map(&mut sbuf.ptr, entry_map_size);
+            mpack_str(static_cstr_as_string(c"rc"), &mut sbuf);
+            mpack_array(&mut sbuf.ptr, r.contents.len() as u32);
+            for &s in &r.contents {
+                mpack_bin(s, &mut sbuf);
+            }
+            mpack_str(static_cstr_as_string(c"n"), &mut sbuf);
+            mpack_uint(&mut sbuf.ptr, u32::from(r.name as u8));
+            if r.reg_type != dr.reg_type {
+                mpack_str(static_cstr_as_string(c"rt"), &mut sbuf);
+                mpack_uint(&mut sbuf.ptr, u32::from(r.reg_type));
+            }
+            if r.width != dr.width {
+                mpack_str(static_cstr_as_string(c"rw"), &mut sbuf);
+                mpack_uint64(&mut sbuf.ptr, r.width as u64);
+            }
+            if r.is_unnamed != dr.is_unnamed {
+                mpack_str(static_cstr_as_string(c"ru"), &mut sbuf);
+                mpack_bool(&mut sbuf.ptr, r.is_unnamed);
+            }
+            dump_additional_data(&entry.additional_data, &mut sbuf);
+        }
+        ShadaEntryType::SDItemBufferList => {
+            let bl = entry.data.buffer_list();
+            mpack_array(&mut sbuf.ptr, bl.buffers.len() as u32);
+            for b in &bl.buffers {
                 let entry_map_size = 1
-                    + u32::from(sp.magic != dsp.magic)
-                    + u32::from(sp.is_last_used != dsp.is_last_used)
-                    + u32::from(sp.smartcase != dsp.smartcase)
-                    + u32::from(sp.has_line_offset != dsp.has_line_offset)
-                    + u32::from(sp.place_cursor_at_end != dsp.place_cursor_at_end)
-                    + u32::from(sp.is_substitute_pattern != dsp.is_substitute_pattern)
-                    + u32::from(sp.highlighted != dsp.highlighted)
-                    + u32::from(sp.offset != dsp.offset)
-                    + u32::from(sp.search_backward != dsp.search_backward)
-                    + additional_data_len(&entry.additional_data);
-                mpack_map(&mut sbuf.ptr, entry_map_size);
-                mpack_str(static_cstr_as_string(c"sp"), &mut sbuf);
-                mpack_bin(sp.pat, &mut sbuf);
-                if sp.magic != dsp.magic {
-                    mpack_str(static_cstr_as_string(c"sm"), &mut sbuf);
-                    mpack_bool(&mut sbuf.ptr, !dsp.magic);
-                }
-                if sp.is_last_used != dsp.is_last_used {
-                    mpack_str(static_cstr_as_string(c"su"), &mut sbuf);
-                    mpack_bool(&mut sbuf.ptr, !dsp.is_last_used);
-                }
-                if sp.smartcase != dsp.smartcase {
-                    mpack_str(static_cstr_as_string(c"sc"), &mut sbuf);
-                    mpack_bool(&mut sbuf.ptr, !dsp.smartcase);
-                }
-                if sp.has_line_offset != dsp.has_line_offset {
-                    mpack_str(static_cstr_as_string(c"sl"), &mut sbuf);
-                    mpack_bool(&mut sbuf.ptr, !dsp.has_line_offset);
-                }
-                if sp.place_cursor_at_end != dsp.place_cursor_at_end {
-                    mpack_str(static_cstr_as_string(c"se"), &mut sbuf);
-                    mpack_bool(&mut sbuf.ptr, !dsp.place_cursor_at_end);
-                }
-                if sp.is_substitute_pattern != dsp.is_substitute_pattern {
-                    mpack_str(static_cstr_as_string(c"ss"), &mut sbuf);
-                    mpack_bool(&mut sbuf.ptr, !dsp.is_substitute_pattern);
-                }
-                if sp.highlighted != dsp.highlighted {
-                    mpack_str(static_cstr_as_string(c"sh"), &mut sbuf);
-                    mpack_bool(&mut sbuf.ptr, !dsp.highlighted);
-                }
-                if sp.search_backward != dsp.search_backward {
-                    mpack_str(static_cstr_as_string(c"sb"), &mut sbuf);
-                    mpack_bool(&mut sbuf.ptr, !dsp.search_backward);
-                }
-                if sp.offset != dsp.offset {
-                    mpack_str(static_cstr_as_string(c"so"), &mut sbuf);
-                    mpack_integer(&mut sbuf.ptr, sp.offset);
-                }
-                dump_additional_data(&entry.additional_data, &mut sbuf);
-            }
-            ShadaEntryType::SDItemChange
-            | ShadaEntryType::SDItemGlobalMark
-            | ShadaEntryType::SDItemLocalMark
-            | ShadaEntryType::SDItemJump => {
-                let fm = entry.data.filemark();
-                let dfm = def.data.filemark();
-                let entry_map_size = 1
-                    + u32::from(fm.mark.lnum != dfm.mark.lnum)
-                    + u32::from(fm.mark.col != dfm.mark.col)
-                    + u32::from(fm.name != dfm.name)
-                    + additional_data_len(&entry.additional_data);
+                    + u32::from(b.pos.lnum != DEFAULT_POS.lnum)
+                    + u32::from(b.pos.col != DEFAULT_POS.col)
+                    + additional_data_len(&b.additional_data);
                 mpack_map(&mut sbuf.ptr, entry_map_size);
                 mpack_str(static_cstr_as_string(c"f"), &mut sbuf);
                 mpack_bin(
-                    cstr_as_string(fm.fname.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
+                    cstr_as_string(b.fname.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
                     &mut sbuf,
                 );
-                if fm.mark.lnum != dfm.mark.lnum {
+                if b.pos.lnum != 1 {
                     mpack_str(static_cstr_as_string(c"l"), &mut sbuf);
-                    mpack_integer(&mut sbuf.ptr, i64::from(fm.mark.lnum));
+                    mpack_uint64(&mut sbuf.ptr, b.pos.lnum as u64);
                 }
-                if fm.mark.col != dfm.mark.col {
+                if b.pos.col != 0 {
                     mpack_str(static_cstr_as_string(c"c"), &mut sbuf);
-                    mpack_integer(&mut sbuf.ptr, i64::from(fm.mark.col));
+                    mpack_uint64(&mut sbuf.ptr, b.pos.col as u64);
                 }
-                assert!(if entry.entry_type == ShadaEntryType::SDItemJump
-                    || entry.entry_type == ShadaEntryType::SDItemChange
-                {
-                    fm.name == dfm.name
-                } else {
-                    true
-                });
-                if fm.name != dfm.name {
-                    mpack_str(static_cstr_as_string(c"n"), &mut sbuf);
-                    mpack_uint(&mut sbuf.ptr, u32::from(fm.name as u8));
-                }
-                dump_additional_data(&entry.additional_data, &mut sbuf);
+                dump_additional_data(&b.additional_data, &mut sbuf);
             }
-            ShadaEntryType::SDItemRegister => {
-                let r = entry.data.reg();
-                let dr = def.data.reg();
-                let entry_map_size = 2
-                    + u32::from(r.reg_type != dr.reg_type)
-                    + u32::from(r.width != dr.width)
-                    + u32::from(r.is_unnamed != dr.is_unnamed)
-                    + additional_data_len(&entry.additional_data);
-                mpack_map(&mut sbuf.ptr, entry_map_size);
-                mpack_str(static_cstr_as_string(c"rc"), &mut sbuf);
-                mpack_array(&mut sbuf.ptr, r.contents.len() as u32);
-                for &s in &r.contents {
-                    mpack_bin(s, &mut sbuf);
-                }
-                mpack_str(static_cstr_as_string(c"n"), &mut sbuf);
-                mpack_uint(&mut sbuf.ptr, u32::from(r.name as u8));
-                if r.reg_type != dr.reg_type {
-                    mpack_str(static_cstr_as_string(c"rt"), &mut sbuf);
-                    mpack_uint(&mut sbuf.ptr, u32::from(r.reg_type));
-                }
-                if r.width != dr.width {
-                    mpack_str(static_cstr_as_string(c"rw"), &mut sbuf);
-                    mpack_uint64(&mut sbuf.ptr, r.width as u64);
-                }
-                if r.is_unnamed != dr.is_unnamed {
-                    mpack_str(static_cstr_as_string(c"ru"), &mut sbuf);
-                    mpack_bool(&mut sbuf.ptr, r.is_unnamed);
-                }
-                dump_additional_data(&entry.additional_data, &mut sbuf);
-            }
-            ShadaEntryType::SDItemBufferList => {
-                let bl = entry.data.buffer_list();
-                mpack_array(&mut sbuf.ptr, bl.buffers.len() as u32);
-                for b in &bl.buffers {
-                    let entry_map_size = 1
-                        + u32::from(b.pos.lnum != DEFAULT_POS.lnum)
-                        + u32::from(b.pos.col != DEFAULT_POS.col)
-                        + additional_data_len(&b.additional_data);
-                    mpack_map(&mut sbuf.ptr, entry_map_size);
-                    mpack_str(static_cstr_as_string(c"f"), &mut sbuf);
-                    mpack_bin(
-                        cstr_as_string(b.fname.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
-                        &mut sbuf,
-                    );
-                    if b.pos.lnum != 1 {
-                        mpack_str(static_cstr_as_string(c"l"), &mut sbuf);
-                        mpack_uint64(&mut sbuf.ptr, b.pos.lnum as u64);
+        }
+        ShadaEntryType::SDItemHeader => {
+            let hdr = entry.data.header();
+            mpack_map(&mut sbuf.ptr, hdr.size as u32);
+            for i in 0..hdr.size {
+                let kv = hdr[i];
+                mpack_str(kv.key, &mut sbuf);
+                match kv.value.obj_type {
+                    ObjectType::ObjectTypeString => {
+                        mpack_bin(kv.value.data.string(), &mut sbuf);
                     }
-                    if b.pos.col != 0 {
-                        mpack_str(static_cstr_as_string(c"c"), &mut sbuf);
-                        mpack_uint64(&mut sbuf.ptr, b.pos.col as u64);
+                    ObjectType::ObjectTypeInteger => {
+                        mpack_integer(&mut sbuf.ptr, kv.value.data.integer());
                     }
-                    dump_additional_data(&b.additional_data, &mut sbuf);
-                }
-            }
-            ShadaEntryType::SDItemHeader => {
-                let hdr = entry.data.header();
-                mpack_map(&mut sbuf.ptr, hdr.size as u32);
-                for i in 0..hdr.size {
-                    let kv = hdr[i];
-                    mpack_str(kv.key, &mut sbuf);
-                    match kv.value.obj_type {
-                        ObjectType::ObjectTypeString => {
-                            mpack_bin(kv.value.data.string(), &mut sbuf);
-                        }
-                        ObjectType::ObjectTypeInteger => {
-                            mpack_integer(&mut sbuf.ptr, kv.value.data.integer());
-                        }
-                        _ => std::process::abort(),
-                    }
+                    _ => std::process::abort(),
                 }
             }
         }
-
-        let packed = packer_take_string(&mut sbuf);
-        if max_kbyte == 0 || packed.len() <= max_kbyte * 1024 {
-            shada_check_buffer(packer);
-            if entry.entry_type == ShadaEntryType::SDItemUnknown {
-                mpack_uint64(&mut packer.ptr, entry.data.unknown_item().item_type);
-            } else {
-                mpack_uint64(&mut packer.ptr, entry.entry_type as i32 as u64);
-            }
-            mpack_uint64(&mut packer.ptr, entry.timestamp);
-            if !packed.is_empty() {
-                mpack_uint64(&mut packer.ptr, packed.len() as u64);
-                mpack_raw(packed.as_ptr().cast::<c_char>(), packed.len(), packer);
-            }
-            if packer.anyint != 0 {
-                return ret;
-            }
-        }
-        ret = ShaDaWriteResult::SDWriteSuccessful;
-        ret
     }
+
+    let packed = packer_take_string(&mut sbuf);
+    if max_kbyte == 0 || packed.len() <= max_kbyte * 1024 {
+        shada_check_buffer(packer);
+        if entry.entry_type == ShadaEntryType::SDItemUnknown {
+            mpack_uint64(&mut packer.ptr, entry.data.unknown_item().item_type);
+        } else {
+            mpack_uint64(&mut packer.ptr, entry.entry_type as i32 as u64);
+        }
+        mpack_uint64(&mut packer.ptr, entry.timestamp);
+        if !packed.is_empty() {
+            mpack_uint64(&mut packer.ptr, packed.len() as u64);
+            mpack_raw(packed.as_ptr().cast::<c_char>(), packed.len(), packer);
+        }
+        if packer.anyint != 0 {
+            return ret;
+        }
+    }
+    ret = ShaDaWriteResult::SDWriteSuccessful;
+    ret
 }
 
 #[inline]
@@ -2105,305 +2090,303 @@ fn shada_read_when_writing(
     wms: &mut WriteMergerState,
     packer: &mut PackerBuffer,
 ) -> ShaDaWriteResult {
-    unsafe {
-        let mut ret = ShaDaWriteResult::SDWriteSuccessful;
-        let mut entry = MISSING_ENTRY;
+    let mut ret = ShaDaWriteResult::SDWriteSuccessful;
+    let mut entry = MISSING_ENTRY;
 
-        loop {
-            let srni_ret = shada_read_next_item(sd_reader, &mut entry, srni_flags, max_kbyte);
-            if srni_ret == ShaDaReadResult::SDReadStatusFinished {
-                break;
+    loop {
+        let srni_ret = shada_read_next_item(sd_reader, &mut entry, srni_flags, max_kbyte);
+        if srni_ret == ShaDaReadResult::SDReadStatusFinished {
+            break;
+        }
+        match srni_ret {
+            ShaDaReadResult::SDReadStatusSuccess => {}
+            ShaDaReadResult::SDReadStatusFinished => std::process::abort(),
+            ShaDaReadResult::SDReadStatusNotShaDa => {
+                return ShaDaWriteResult::SDWriteReadNotShada;
             }
-            match srni_ret {
-                ShaDaReadResult::SDReadStatusSuccess => {}
-                ShaDaReadResult::SDReadStatusFinished => std::process::abort(),
-                ShaDaReadResult::SDReadStatusNotShaDa => {
-                    return ShaDaWriteResult::SDWriteReadNotShada;
-                }
-                ShaDaReadResult::SDReadStatusReadError => {
-                    return ret;
-                }
-                ShaDaReadResult::SDReadStatusMalformed => continue,
+            ShaDaReadResult::SDReadStatusReadError => {
+                return ret;
             }
+            ShaDaReadResult::SDReadStatusMalformed => continue,
+        }
 
-            let compare_with_entry = |wms_entry: *mut ShadaEntry, mut e: ShadaEntry| {
-                if (*wms_entry).entry_type != ShadaEntryType::SDItemMissing {
-                    if (*wms_entry).timestamp >= e.timestamp {
-                        shada_free_shada_entry(&mut e);
-                        return;
-                    }
-                    shada_free_shada_entry(&mut *wms_entry);
+        let compare_with_entry = |wms_entry: *mut ShadaEntry, mut e: ShadaEntry| {
+            if unsafe { (*wms_entry).entry_type } != ShadaEntryType::SDItemMissing {
+                if unsafe { (*wms_entry).timestamp } >= e.timestamp {
+                    shada_free_shada_entry(&mut e);
+                    return;
                 }
+                shada_free_shada_entry(unsafe { &mut *wms_entry });
+            }
+            unsafe {
                 *wms_entry = e;
-            };
+            }
+        };
 
-            match entry.entry_type {
-                ShadaEntryType::SDItemMissing => {}
-                ShadaEntryType::SDItemHeader | ShadaEntryType::SDItemBufferList => {
-                    std::process::abort();
+        match entry.entry_type {
+            ShadaEntryType::SDItemMissing => {}
+            ShadaEntryType::SDItemHeader | ShadaEntryType::SDItemBufferList => {
+                std::process::abort();
+            }
+            ShadaEntryType::SDItemUnknown => {
+                ret = shada_pack_entry(packer, &entry, 0);
+                shada_free_shada_entry(&mut entry);
+            }
+            ShadaEntryType::SDItemSearchPattern => {
+                let is_sub = entry.data.search_pattern().is_substitute_pattern;
+                let wms_pat = if is_sub {
+                    &raw mut wms.sub_search_pattern
+                } else {
+                    &raw mut wms.search_pattern
+                };
+                if unsafe { (*wms_pat).entry_type } == ShadaEntryType::SDItemMissing
+                    && search_pattern_cleared(is_sub)
+                    && get_search_pattern_timestamp(is_sub) >= entry.timestamp
+                {
+                    shada_free_shada_entry(&mut entry);
+                    continue;
                 }
-                ShadaEntryType::SDItemUnknown => {
+                let e = std::mem::replace(&mut entry, MISSING_ENTRY);
+                compare_with_entry(wms_pat, e);
+            }
+            ShadaEntryType::SDItemSubString => {
+                let e = std::mem::replace(&mut entry, MISSING_ENTRY);
+                compare_with_entry(&raw mut wms.replacement, e);
+            }
+            ShadaEntryType::SDItemHistoryEntry => {
+                let ht = entry.data.history_item().histtype as usize;
+                if ht >= HIST_COUNT {
                     ret = shada_pack_entry(packer, &entry, 0);
                     shada_free_shada_entry(&mut entry);
+                    continue;
                 }
-                ShadaEntryType::SDItemSearchPattern => {
-                    let is_sub = entry.data.search_pattern().is_substitute_pattern;
-                    let wms_pat = if is_sub {
-                        &raw mut wms.sub_search_pattern
-                    } else {
-                        &raw mut wms.search_pattern
-                    };
-                    if (*wms_pat).entry_type == ShadaEntryType::SDItemMissing
-                        && search_pattern_cleared(is_sub)
-                        && get_search_pattern_timestamp(is_sub) >= entry.timestamp
+                if wms.hms[ht].hmll.size != 0 {
+                    let e = std::mem::replace(&mut entry, MISSING_ENTRY);
+                    hms_insert(&mut wms.hms[ht], e, true);
+                } else {
+                    shada_free_shada_entry(&mut entry);
+                }
+            }
+            ShadaEntryType::SDItemRegister => {
+                let reg_name = entry.data.reg().name;
+                let idx = op_reg_index(i32::from(reg_name));
+                if idx < 0 {
+                    ret = shada_pack_entry(packer, &entry, 0);
+                    shada_free_shada_entry(&mut entry);
+                    continue;
+                }
+                let u_idx = idx as usize;
+                if wms.registers[u_idx].entry_type == ShadaEntryType::SDItemMissing {
+                    let reg = op_reg_get(reg_name);
+                    if !reg.is_null()
+                        && reg_empty(unsafe { &*reg })
+                        && unsafe { (*reg).timestamp } / NS_PER_SEC >= entry.timestamp
                     {
                         shada_free_shada_entry(&mut entry);
                         continue;
                     }
-                    let e = std::mem::replace(&mut entry, MISSING_ENTRY);
-                    compare_with_entry(wms_pat, e);
                 }
-                ShadaEntryType::SDItemSubString => {
-                    let e = std::mem::replace(&mut entry, MISSING_ENTRY);
-                    compare_with_entry(&raw mut wms.replacement, e);
+                let e = std::mem::replace(&mut entry, MISSING_ENTRY);
+                compare_with_entry(&raw mut wms.registers[u_idx], e);
+            }
+            ShadaEntryType::SDItemVariable => {
+                let var_name = entry
+                    .data
+                    .global_var()
+                    .name
+                    .as_ref()
+                    .map_or(&b""[..], |s| s.to_bytes());
+                if !wms.dumped_variables.contains(var_name) {
+                    ret = shada_pack_entry(packer, &entry, 0);
                 }
-                ShadaEntryType::SDItemHistoryEntry => {
-                    let ht = entry.data.history_item().histtype as usize;
-                    if ht >= HIST_COUNT {
-                        ret = shada_pack_entry(packer, &entry, 0);
-                        shada_free_shada_entry(&mut entry);
-                        continue;
+                shada_free_shada_entry(&mut entry);
+            }
+            ShadaEntryType::SDItemGlobalMark => {
+                let fm_mark = entry.data.filemark().mark;
+                let name = entry.data.filemark().name;
+                if (name as u8).is_ascii_digit() {
+                    let mut processed_mark = false;
+                    for i in (1..=EXTRA_MARKS).rev() {
+                        let wms_entry = &wms.numbered_marks[i - 1];
+                        if wms_entry.entry_type != ShadaEntryType::SDItemGlobalMark {
+                            continue;
+                        }
+                        if wms_entry.timestamp == entry.timestamp
+                            && wms_entry.additional_data.is_none()
+                            && entry.additional_data.is_none()
+                            && marks_equal(wms_entry.data.filemark().mark, fm_mark)
+                            && wms_entry.data.filemark().fname == entry.data.filemark().fname
+                        {
+                            shada_free_shada_entry(&mut entry);
+                            processed_mark = true;
+                            break;
+                        }
+                        if wms_entry.timestamp >= entry.timestamp {
+                            processed_mark = true;
+                            if i < EXTRA_MARKS {
+                                let e = std::mem::replace(&mut entry, MISSING_ENTRY);
+                                replace_numbered_mark(wms, i, e);
+                            } else {
+                                shada_free_shada_entry(&mut entry);
+                            }
+                            break;
+                        }
                     }
-                    if wms.hms[ht].hmll.size != 0 {
+                    if !processed_mark {
                         let e = std::mem::replace(&mut entry, MISSING_ENTRY);
-                        hms_insert(&mut wms.hms[ht], e, true);
-                    } else {
-                        shada_free_shada_entry(&mut entry);
+                        replace_numbered_mark(wms, 0, e);
                     }
-                }
-                ShadaEntryType::SDItemRegister => {
-                    let reg_name = entry.data.reg().name;
-                    let idx = op_reg_index(i32::from(reg_name));
+                } else {
+                    let idx = mark_global_index(name);
                     if idx < 0 {
                         ret = shada_pack_entry(packer, &entry, 0);
                         shada_free_shada_entry(&mut entry);
                         continue;
                     }
                     let u_idx = idx as usize;
-                    if wms.registers[u_idx].entry_type == ShadaEntryType::SDItemMissing {
-                        let reg = op_reg_get(reg_name);
-                        if !reg.is_null()
-                            && reg_empty(&*reg)
-                            && (*reg).timestamp / NS_PER_SEC >= entry.timestamp
-                        {
-                            shada_free_shada_entry(&mut entry);
-                            continue;
-                        }
-                    }
-                    let e = std::mem::replace(&mut entry, MISSING_ENTRY);
-                    compare_with_entry(&raw mut wms.registers[u_idx], e);
-                }
-                ShadaEntryType::SDItemVariable => {
-                    let var_name = entry
-                        .data
-                        .global_var()
-                        .name
-                        .as_ref()
-                        .map_or(&b""[..], |s| s.to_bytes());
-                    if !wms.dumped_variables.contains(var_name) {
-                        ret = shada_pack_entry(packer, &entry, 0);
-                    }
-                    shada_free_shada_entry(&mut entry);
-                }
-                ShadaEntryType::SDItemGlobalMark => {
-                    let fm_mark = entry.data.filemark().mark;
-                    let name = entry.data.filemark().name;
-                    if (name as u8).is_ascii_digit() {
-                        let mut processed_mark = false;
-                        for i in (1..=EXTRA_MARKS).rev() {
-                            let wms_entry = &wms.numbered_marks[i - 1];
-                            if wms_entry.entry_type != ShadaEntryType::SDItemGlobalMark {
-                                continue;
-                            }
-                            if wms_entry.timestamp == entry.timestamp
-                                && wms_entry.additional_data.is_none()
-                                && entry.additional_data.is_none()
-                                && marks_equal(wms_entry.data.filemark().mark, fm_mark)
-                                && wms_entry.data.filemark().fname == entry.data.filemark().fname
-                            {
-                                shada_free_shada_entry(&mut entry);
-                                processed_mark = true;
-                                break;
-                            }
-                            if wms_entry.timestamp >= entry.timestamp {
-                                processed_mark = true;
-                                if i < EXTRA_MARKS {
-                                    let e = std::mem::replace(&mut entry, MISSING_ENTRY);
-                                    replace_numbered_mark(wms, i, e);
-                                } else {
-                                    shada_free_shada_entry(&mut entry);
-                                }
-                                break;
-                            }
-                        }
-                        if !processed_mark {
-                            let e = std::mem::replace(&mut entry, MISSING_ENTRY);
-                            replace_numbered_mark(wms, 0, e);
-                        }
+                    let mark = if u_idx < 26 {
+                        &raw mut wms.global_marks[u_idx]
                     } else {
-                        let idx = mark_global_index(name);
-                        if idx < 0 {
-                            ret = shada_pack_entry(packer, &entry, 0);
-                            shada_free_shada_entry(&mut entry);
-                            continue;
-                        }
-                        let u_idx = idx as usize;
-                        let mark = if u_idx < 26 {
-                            &raw mut wms.global_marks[u_idx]
-                        } else {
-                            &raw mut wms.numbered_marks[u_idx - 26]
-                        };
-                        if (*mark).entry_type == ShadaEntryType::SDItemMissing
-                            && g_st().namedfm[u_idx].fmark.timestamp >= entry.timestamp
-                        {
-                            shada_free_shada_entry(&mut entry);
-                            continue;
-                        }
-                        let e = std::mem::replace(&mut entry, MISSING_ENTRY);
-                        compare_with_entry(mark, e);
-                    }
-                }
-                ShadaEntryType::SDItemChange | ShadaEntryType::SDItemLocalMark => {
-                    let fm_mark = entry.data.filemark().mark;
-                    let fm_name = entry.data.filemark().name;
-                    let fname_ptr = entry
-                        .data
-                        .filemark()
-                        .fname
-                        .as_ref()
-                        .map_or(ptr::null(), |s| s.as_ptr());
-                    if shada_removable(fname_ptr) {
+                        &raw mut wms.numbered_marks[u_idx - 26]
+                    };
+                    if unsafe { (*mark).entry_type } == ShadaEntryType::SDItemMissing
+                        && g_st().namedfm[u_idx].fmark.timestamp >= entry.timestamp
+                    {
                         shada_free_shada_entry(&mut entry);
                         continue;
                     }
-                    let fname_bytes = entry
-                        .data
-                        .filemark()
-                        .fname
-                        .as_ref()
-                        .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
-                    let filemarks: *mut FileMarks = wms
-                        .file_marks
-                        .entry(fname_bytes)
-                        .or_insert_with(FileMarks::new);
-                    let filemarks = &mut *filemarks;
-                    if entry.timestamp > filemarks.greatest_timestamp {
-                        filemarks.greatest_timestamp = entry.timestamp;
-                    }
-                    if entry.entry_type == ShadaEntryType::SDItemLocalMark {
-                        let idx = mark_local_index(fm_name);
-                        if idx < 0 {
-                            let e = std::mem::replace(&mut entry, MISSING_ENTRY);
-                            filemarks.additional_marks.push(e);
+                    let e = std::mem::replace(&mut entry, MISSING_ENTRY);
+                    compare_with_entry(mark, e);
+                }
+            }
+            ShadaEntryType::SDItemChange | ShadaEntryType::SDItemLocalMark => {
+                let fm_mark = entry.data.filemark().mark;
+                let fm_name = entry.data.filemark().name;
+                let fname_ptr = entry
+                    .data
+                    .filemark()
+                    .fname
+                    .as_ref()
+                    .map_or(ptr::null(), |s| s.as_ptr());
+                if shada_removable(fname_ptr) {
+                    shada_free_shada_entry(&mut entry);
+                    continue;
+                }
+                let fname_bytes = entry
+                    .data
+                    .filemark()
+                    .fname
+                    .as_ref()
+                    .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
+                let filemarks: *mut FileMarks = wms
+                    .file_marks
+                    .entry(fname_bytes)
+                    .or_insert_with(FileMarks::new);
+                let filemarks = unsafe { &mut *filemarks };
+                if entry.timestamp > filemarks.greatest_timestamp {
+                    filemarks.greatest_timestamp = entry.timestamp;
+                }
+                if entry.entry_type == ShadaEntryType::SDItemLocalMark {
+                    let idx = mark_local_index(fm_name);
+                    if idx < 0 {
+                        let e = std::mem::replace(&mut entry, MISSING_ENTRY);
+                        filemarks.additional_marks.push(e);
+                    } else {
+                        let wms_entry = &raw mut filemarks.marks[idx as usize];
+                        let mut set_wms = true;
+                        if unsafe { (*wms_entry).entry_type } != ShadaEntryType::SDItemMissing {
+                            if unsafe { (*wms_entry).timestamp } >= entry.timestamp {
+                                shada_free_shada_entry(&mut entry);
+                                continue;
+                            }
+                            if unsafe { (*wms_entry).can_free_entry } {
+                                shada_free_shada_entry(unsafe { &mut *wms_entry });
+                            }
                         } else {
-                            let wms_entry = &raw mut filemarks.marks[idx as usize];
-                            let mut set_wms = true;
-                            if (*wms_entry).entry_type != ShadaEntryType::SDItemMissing {
-                                if (*wms_entry).timestamp >= entry.timestamp {
-                                    shada_free_shada_entry(&mut entry);
-                                    continue;
-                                }
-                                if (*wms_entry).can_free_entry {
-                                    shada_free_shada_entry(&mut *wms_entry);
-                                }
-                            } else {
-                                for buf in for_all_buffers_mut() {
-                                    if !buf.b_ffname.is_null()
-                                        && path_equal(fname_ptr, buf.b_ffname, K_PATH_CMP_LITERAL)
-                                    {
-                                        let mut fm = Fmark::new();
-                                        mark_get(
-                                            buf,
-                                            curwin_mut(),
-                                            Some(&mut fm),
-                                            K_MARK_BUF_LOCAL,
-                                            i32::from(fm_name),
-                                        );
-                                        if fm.timestamp >= entry.timestamp {
-                                            set_wms = false;
-                                            shada_free_shada_entry(&mut entry);
-                                            break;
-                                        }
+                            for buf in for_all_buffers_mut() {
+                                if !buf.b_ffname.is_null()
+                                    && path_equal(fname_ptr, buf.b_ffname, K_PATH_CMP_LITERAL)
+                                {
+                                    let mut fm = Fmark::new();
+                                    mark_get(
+                                        buf,
+                                        curwin_mut(),
+                                        Some(&mut fm),
+                                        K_MARK_BUF_LOCAL,
+                                        i32::from(fm_name),
+                                    );
+                                    if fm.timestamp >= entry.timestamp {
+                                        set_wms = false;
+                                        shada_free_shada_entry(&mut entry);
+                                        break;
                                     }
                                 }
                             }
-                            if set_wms {
+                        }
+                        if set_wms {
+                            unsafe {
                                 *wms_entry = std::mem::replace(&mut entry, MISSING_ENTRY);
                             }
                         }
-                    } else {
-                        let mut i = filemarks.changes_size as i32;
-                        while i > 0 {
-                            let jl_entry = &filemarks.changes[(i - 1) as usize];
-                            if jl_entry.timestamp <= entry.timestamp {
-                                if marks_equal(jl_entry.data.filemark().mark, fm_mark) {
-                                    i = -1;
-                                }
-                                break;
-                            }
-                            i -= 1;
-                        }
-                        if i > 0 && filemarks.changes_size == JUMPLISTSIZE {
-                            shada_free_shada_entry(&mut filemarks.changes[0]);
-                        }
-                        i = marklist_insert(
-                            &mut filemarks.changes,
-                            filemarks.changes_size as i32,
-                            i,
-                        );
-                        if i != -1 {
-                            filemarks.changes[i as usize] =
-                                std::mem::replace(&mut entry, MISSING_ENTRY);
-                            if filemarks.changes_size < JUMPLISTSIZE {
-                                filemarks.changes_size += 1;
-                            }
-                        } else {
-                            shada_free_shada_entry(&mut entry);
-                        }
                     }
-                }
-                ShadaEntryType::SDItemJump => {
-                    let fm_mark = entry.data.filemark().mark;
-                    let mut i = wms.jumps_size as i32;
+                } else {
+                    let mut i = filemarks.changes_size as i32;
                     while i > 0 {
-                        let jl_entry = &wms.jumps[(i - 1) as usize];
+                        let jl_entry = &filemarks.changes[(i - 1) as usize];
                         if jl_entry.timestamp <= entry.timestamp {
-                            if marks_equal(jl_entry.data.filemark().mark, fm_mark)
-                                && jl_entry.data.filemark().fname == entry.data.filemark().fname
-                            {
+                            if marks_equal(jl_entry.data.filemark().mark, fm_mark) {
                                 i = -1;
                             }
                             break;
                         }
                         i -= 1;
                     }
-                    if i > 0 && wms.jumps_size == JUMPLISTSIZE {
-                        shada_free_shada_entry(&mut wms.jumps[0]);
+                    if i > 0 && filemarks.changes_size == JUMPLISTSIZE {
+                        shada_free_shada_entry(&mut filemarks.changes[0]);
                     }
-                    i = marklist_insert(&mut wms.jumps, wms.jumps_size as i32, i);
+                    i = marklist_insert(&mut filemarks.changes, filemarks.changes_size as i32, i);
                     if i != -1 {
-                        wms.jumps[i as usize] = std::mem::replace(&mut entry, MISSING_ENTRY);
-                        if wms.jumps_size < JUMPLISTSIZE {
-                            wms.jumps_size += 1;
+                        filemarks.changes[i as usize] =
+                            std::mem::replace(&mut entry, MISSING_ENTRY);
+                        if filemarks.changes_size < JUMPLISTSIZE {
+                            filemarks.changes_size += 1;
                         }
                     } else {
                         shada_free_shada_entry(&mut entry);
                     }
                 }
             }
+            ShadaEntryType::SDItemJump => {
+                let fm_mark = entry.data.filemark().mark;
+                let mut i = wms.jumps_size as i32;
+                while i > 0 {
+                    let jl_entry = &wms.jumps[(i - 1) as usize];
+                    if jl_entry.timestamp <= entry.timestamp {
+                        if marks_equal(jl_entry.data.filemark().mark, fm_mark)
+                            && jl_entry.data.filemark().fname == entry.data.filemark().fname
+                        {
+                            i = -1;
+                        }
+                        break;
+                    }
+                    i -= 1;
+                }
+                if i > 0 && wms.jumps_size == JUMPLISTSIZE {
+                    shada_free_shada_entry(&mut wms.jumps[0]);
+                }
+                i = marklist_insert(&mut wms.jumps, wms.jumps_size as i32, i);
+                if i != -1 {
+                    wms.jumps[i as usize] = std::mem::replace(&mut entry, MISSING_ENTRY);
+                    if wms.jumps_size < JUMPLISTSIZE {
+                        wms.jumps_size += 1;
+                    }
+                } else {
+                    shada_free_shada_entry(&mut entry);
+                }
+            }
         }
-        ret
     }
+    ret
 }
 
 #[inline]
@@ -2423,29 +2406,27 @@ fn ignore_buf(
 
 #[inline]
 fn shada_get_buflist(removable_bufs: &std::collections::HashSet<*mut FileBuf>) -> ShadaEntry {
-    {
-        let max_bufs = get_shada_parameter(b'%' as i32);
-        let mut buffers = Vec::new();
-        for buf in for_all_buffers_ptr() {
-            if !ignore_buf(buf, removable_bufs) && buf.b_p_bl != 0 {
-                if max_bufs >= 0 && buffers.len() >= (max_bufs as usize) {
-                    break;
-                }
-                buffers.push(BufferListBuffer {
-                    pos: buf.b_last_cursor.mark,
-                    fname: Some(crate::memory::cstr_to_cstring(buf.b_ffname)),
-                    additional_data: buf.additional_data.clone(),
-                });
+    let max_bufs = get_shada_parameter(b'%' as i32);
+    let mut buffers = Vec::new();
+    for buf in for_all_buffers_ptr() {
+        if !ignore_buf(buf, removable_bufs) && buf.b_p_bl != 0 {
+            if max_bufs >= 0 && buffers.len() >= (max_bufs as usize) {
+                break;
             }
+            buffers.push(BufferListBuffer {
+                pos: buf.b_last_cursor.mark,
+                fname: Some(crate::memory::cstr_to_cstring(buf.b_ffname)),
+                additional_data: buf.additional_data.clone(),
+            });
         }
+    }
 
-        ShadaEntry {
-            entry_type: ShadaEntryType::SDItemBufferList,
-            can_free_entry: false,
-            timestamp: os_time(),
-            data: ShadaEntryData::BufferList(ShadaBufferList { buffers }),
-            additional_data: None,
-        }
+    ShadaEntry {
+        entry_type: ShadaEntryType::SDItemBufferList,
+        can_free_entry: false,
+        timestamp: os_time(),
+        data: ShadaEntryData::BufferList(ShadaBufferList { buffers }),
+        additional_data: None,
     }
 }
 
@@ -2457,124 +2438,116 @@ fn add_search_pattern(
     search_last_used: bool,
     search_highlighted: bool,
 ) {
-    {
-        let mut pat = SearchPattern::new();
-        get_pattern(&mut pat);
-        if pat.pat.is_some() {
-            let is_last_used = is_substitute_pattern ^ search_last_used;
-            *ret_pse = ShadaEntry {
-                can_free_entry: false,
-                entry_type: ShadaEntryType::SDItemSearchPattern,
-                timestamp: pat.timestamp,
-                data: ShadaEntryData::SearchPattern(KeyDict__shada_search_pat {
-                    is_set_shada_search_pat: 0,
-                    magic: pat.magic,
-                    smartcase: !pat.no_scs,
-                    has_line_offset: if is_substitute_pattern {
-                        DEFAULT_SEARCH_PAT.has_line_offset
-                    } else {
-                        pat.off.line
-                    },
-                    place_cursor_at_end: if is_substitute_pattern {
-                        DEFAULT_SEARCH_PAT.place_cursor_at_end
-                    } else {
-                        pat.off.end
-                    },
-                    offset: if is_substitute_pattern {
-                        DEFAULT_SEARCH_PAT.offset
-                    } else {
-                        pat.off.off
-                    },
-                    is_last_used,
-                    is_substitute_pattern,
-                    highlighted: is_last_used && search_highlighted,
-                    pat: cstr_as_string(get_search_pattern_ptr(is_substitute_pattern)),
-                    search_backward: !is_substitute_pattern && pat.off.dir == (b'?' as c_char),
-                }),
-                additional_data: pat.additional_data,
-            };
-        }
+    let mut pat = SearchPattern::new();
+    get_pattern(&mut pat);
+    if pat.pat.is_some() {
+        let is_last_used = is_substitute_pattern ^ search_last_used;
+        *ret_pse = ShadaEntry {
+            can_free_entry: false,
+            entry_type: ShadaEntryType::SDItemSearchPattern,
+            timestamp: pat.timestamp,
+            data: ShadaEntryData::SearchPattern(KeyDict__shada_search_pat {
+                is_set_shada_search_pat: 0,
+                magic: pat.magic,
+                smartcase: !pat.no_scs,
+                has_line_offset: if is_substitute_pattern {
+                    DEFAULT_SEARCH_PAT.has_line_offset
+                } else {
+                    pat.off.line
+                },
+                place_cursor_at_end: if is_substitute_pattern {
+                    DEFAULT_SEARCH_PAT.place_cursor_at_end
+                } else {
+                    pat.off.end
+                },
+                offset: if is_substitute_pattern {
+                    DEFAULT_SEARCH_PAT.offset
+                } else {
+                    pat.off.off
+                },
+                is_last_used,
+                is_substitute_pattern,
+                highlighted: is_last_used && search_highlighted,
+                pat: cstr_as_string(get_search_pattern_ptr(is_substitute_pattern)),
+                search_backward: !is_substitute_pattern && pat.off.dir == (b'?' as c_char),
+            }),
+            additional_data: pat.additional_data,
+        };
     }
 }
 
 #[inline]
 fn shada_initialize_registers(wms: &mut WriteMergerState, max_reg_lines: i32, scale_ts: bool) {
-    {
-        let mut reg_iter: Option<usize> = None;
-        let limit_reg_lines = max_reg_lines >= 0;
-        loop {
-            let mut reg: *const Yankreg = ptr::null();
-            let mut name: c_char = NUL;
-            let mut is_unnamed = false;
-            reg_iter = op_global_reg_iter(reg_iter, &mut name, &mut reg, &mut is_unnamed);
-            if name == NUL {
-                break;
-            }
-            let reg_ref = unsafe { &*reg };
-            if limit_reg_lines && reg_ref.y_array.len() > (max_reg_lines as usize) {
-                if reg_iter.is_none() {
-                    break;
-                }
-                continue;
-            }
-            let idx = op_reg_index(i32::from(name)) as usize;
-            wms.registers[idx] = ShadaEntry {
-                can_free_entry: false,
-                entry_type: ShadaEntryType::SDItemRegister,
-                timestamp: if scale_ts {
-                    reg_ref.timestamp / NS_PER_SEC
-                } else {
-                    reg_ref.timestamp
-                },
-                data: ShadaEntryData::Reg(ShadaReg {
-                    contents: reg_ref.y_array.clone(),
-                    reg_type: reg_ref.y_type as u8,
-                    width: if reg_ref.y_type == MotionType::MtBlockWise {
-                        reg_ref.y_width as usize
-                    } else {
-                        0
-                    },
-                    name,
-                    is_unnamed,
-                }),
-                additional_data: reg_ref.additional_data.clone(),
-            };
+    let mut reg_iter: Option<usize> = None;
+    let limit_reg_lines = max_reg_lines >= 0;
+    loop {
+        let mut reg: *const Yankreg = ptr::null();
+        let mut name: c_char = NUL;
+        let mut is_unnamed = false;
+        reg_iter = op_global_reg_iter(reg_iter, &mut name, &mut reg, &mut is_unnamed);
+        if name == NUL {
+            break;
+        }
+        let reg_ref = unsafe { &*reg };
+        if limit_reg_lines && reg_ref.y_array.len() > (max_reg_lines as usize) {
             if reg_iter.is_none() {
                 break;
             }
+            continue;
+        }
+        let idx = op_reg_index(i32::from(name)) as usize;
+        wms.registers[idx] = ShadaEntry {
+            can_free_entry: false,
+            entry_type: ShadaEntryType::SDItemRegister,
+            timestamp: if scale_ts {
+                reg_ref.timestamp / NS_PER_SEC
+            } else {
+                reg_ref.timestamp
+            },
+            data: ShadaEntryData::Reg(ShadaReg {
+                contents: reg_ref.y_array.clone(),
+                reg_type: reg_ref.y_type as u8,
+                width: if reg_ref.y_type == MotionType::MtBlockWise {
+                    reg_ref.y_width as usize
+                } else {
+                    0
+                },
+                name,
+                is_unnamed,
+            }),
+            additional_data: reg_ref.additional_data.clone(),
+        };
+        if reg_iter.is_none() {
+            break;
         }
     }
 }
 
 #[inline]
 fn replace_numbered_mark(wms: &mut WriteMergerState, idx: usize, entry: ShadaEntry) {
-    {
-        shada_free_shada_entry(&mut wms.numbered_marks[EXTRA_MARKS - 1]);
-        for i in idx..(EXTRA_MARKS - 1) {
-            if wms.numbered_marks[i].entry_type == ShadaEntryType::SDItemGlobalMark {
-                wms.numbered_marks[i].data.filemark_mut().name = (b'0' + (i as u8) + 1) as c_char;
-            }
+    shada_free_shada_entry(&mut wms.numbered_marks[EXTRA_MARKS - 1]);
+    for i in idx..(EXTRA_MARKS - 1) {
+        if wms.numbered_marks[i].entry_type == ShadaEntryType::SDItemGlobalMark {
+            wms.numbered_marks[i].data.filemark_mut().name = (b'0' + (i as u8) + 1) as c_char;
         }
-        let base = (&raw mut wms.numbered_marks).cast::<ShadaEntry>();
-        unsafe {
-            ptr::copy(
-                base.wrapping_add(idx),
-                base.wrapping_add(idx + 1),
-                EXTRA_MARKS - 1 - idx,
-            )
-        };
-        unsafe { ptr::write(base.wrapping_add(idx), entry) };
-        wms.numbered_marks[idx].data.filemark_mut().name = (b'0' + (idx as u8)) as c_char;
     }
+    let base = (&raw mut wms.numbered_marks).cast::<ShadaEntry>();
+    unsafe {
+        ptr::copy(
+            base.wrapping_add(idx),
+            base.wrapping_add(idx + 1),
+            EXTRA_MARKS - 1 - idx,
+        )
+    };
+    unsafe { ptr::write(base.wrapping_add(idx), entry) };
+    wms.numbered_marks[idx].data.filemark_mut().name = (b'0' + (idx as u8)) as c_char;
 }
 
 #[inline]
 fn find_removable_bufs(removable_bufs: &mut std::collections::HashSet<*mut FileBuf>) {
-    {
-        for buf in for_all_buffers_ptr() {
-            if !buf.b_ffname.is_null() && shada_removable(buf.b_ffname) {
-                removable_bufs.insert(buf);
-            }
+    for buf in for_all_buffers_ptr() {
+        if !buf.b_ffname.is_null() && shada_removable(buf.b_ffname) {
+            removable_bufs.insert(buf);
         }
     }
 }
@@ -2591,29 +2564,25 @@ const fn hist_type2char(hist_type: i32) -> i32 {
 }
 
 pub(crate) fn flush_file_buffer(buffer: &mut PackerBuffer) {
-    {
-        let fd = buffer.anydata.as_file();
-        let base = fd.buffer.as_ptr();
-        fd.write_pos = (buffer.ptr as usize).saturating_sub(base as usize);
-        buffer.anyint = i64::from(file_flush(fd));
-        buffer.ptr = fd.buffer.as_mut_ptr().wrapping_add(fd.write_pos);
-    }
+    let fd = buffer.anydata.as_file();
+    let base = fd.buffer.as_ptr();
+    fd.write_pos = (buffer.ptr as usize).saturating_sub(base as usize);
+    buffer.anyint = i64::from(file_flush(fd));
+    buffer.ptr = fd.buffer.as_mut_ptr().wrapping_add(fd.write_pos);
 }
 
 fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
-    {
-        if file_space(&*file) < SHADA_MPACK_FREE_SPACE {
-            file_flush(&raw mut *file);
-        }
-        let base = file.buffer.as_mut_ptr();
-        PackerBuffer {
-            startptr: base,
-            ptr: base.wrapping_add(file.write_pos),
-            endptr: base.wrapping_add(ARENA_BLOCK_SIZE),
-            anydata: crate::msgpack_rpc::packer::PackerData::File(file),
-            anyint: 0,
-            owned_buf: Vec::new(),
-        }
+    if file_space(&*file) < SHADA_MPACK_FREE_SPACE {
+        file_flush(&raw mut *file);
+    }
+    let base = file.buffer.as_mut_ptr();
+    PackerBuffer {
+        startptr: base,
+        ptr: base.wrapping_add(file.write_pos),
+        endptr: base.wrapping_add(ARENA_BLOCK_SIZE),
+        anydata: crate::msgpack_rpc::packer::PackerData::File(file),
+        anyint: 0,
+        owned_buf: Vec::new(),
     }
 }
 
@@ -3168,7 +3137,7 @@ fn shada_write(
 /// Write ShaDa file to a given location (`shada_write_file`).
 pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bool) -> bool {
     let file = file.into_c_char_ptr();
-    unsafe {
+    {
         let Some(fname_cstr) = shada_filename(file) else {
             return false;
         };
@@ -3190,7 +3159,7 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
                             c"E886: System error while opening ShaDa file %s for reading to merge before writing it: %s",
                         ),
                         fname,
-                        uv_strerror(error),
+                        unsafe { uv_strerror(error) },
                     );
                 }
                 nomerge = true;
@@ -3235,7 +3204,7 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
                                         c"E886: System error while opening temporary ShaDa file %s for writing: %s",
                                     ),
                                     tempname,
-                                    uv_strerror(error),
+                                    unsafe { uv_strerror(error) },
                                 );
                             }
                         } else {
@@ -3252,8 +3221,10 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
         if nomerge {
             let tail = path_tail_with_sep(fname);
             if tail != fname {
-                let tail_save = *tail;
-                *tail = NUL;
+                let tail_save = unsafe { *tail };
+                unsafe {
+                    *tail = NUL;
+                }
                 if !os_isdir(fname) {
                     let mut failed_dir: Option<std::ffi::CString> = None;
                     let ret = os_mkdir_recurse(fname, 0o700, &mut failed_dir, None);
@@ -3263,12 +3234,14 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
                                 c"E886: Failed to create directory %s for writing ShaDa file: %s",
                             ),
                             failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                            uv_strerror(ret),
+                            unsafe { uv_strerror(ret) },
                         );
                         return false;
                     }
                 }
-                *tail = tail_save;
+                unsafe {
+                    *tail = tail_save;
+                }
             }
             let error = file_open(
                 &mut sd_writer,
@@ -3280,7 +3253,7 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
                 semsg!(
                     gettext(c"E886: System error while opening ShaDa file %s for writing: %s",),
                     fname,
-                    uv_strerror(error),
+                    unsafe { uv_strerror(error) },
                 );
             } else {
                 did_open_writer = true;
@@ -3300,15 +3273,14 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, mut nomerge: bo
             verbose_leave();
         }
 
-        let sw_ret = shada_write(
-            &mut sd_writer,
+        let sw_ret = shada_write(&mut sd_writer, unsafe {
             (if nomerge {
                 ptr::null_mut()
             } else {
                 &mut sd_reader
             })
-            .as_mut(),
-        );
+            .as_mut()
+        });
         assert!(sw_ret != ShaDaWriteResult::SDWriteIgnError);
         if !nomerge {
             let tempname = tempname_bytes.as_ptr().cast::<c_char>();
@@ -3435,46 +3407,44 @@ pub fn shada_read_everything(
 }
 
 fn shada_free_shada_entry(entry: &mut ShadaEntry) {
-    {
-        if !entry.can_free_entry {
-            return;
-        }
-        match entry.entry_type {
-            ShadaEntryType::SDItemMissing => {}
-            ShadaEntryType::SDItemUnknown => {}
-            ShadaEntryType::SDItemHeader => {
-                api_free_dict(entry.data.header());
-            }
-            ShadaEntryType::SDItemChange
-            | ShadaEntryType::SDItemJump
-            | ShadaEntryType::SDItemGlobalMark
-            | ShadaEntryType::SDItemLocalMark => {
-                entry.data.filemark_mut().fname = None;
-            }
-            ShadaEntryType::SDItemSearchPattern => {
-                api_free_string(entry.data.search_pattern().pat);
-            }
-            ShadaEntryType::SDItemRegister => {
-                for s in entry.data.reg_mut().contents.drain(..) {
-                    api_free_string(s);
-                }
-            }
-            ShadaEntryType::SDItemHistoryEntry => {
-                entry.data.history_item_mut().string = None;
-            }
-            ShadaEntryType::SDItemVariable => {
-                entry.data.global_var_mut().name = None;
-                tv_clear(&mut entry.data.global_var_mut().value);
-            }
-            ShadaEntryType::SDItemSubString => {
-                entry.data.sub_string_mut().sub = None;
-            }
-            ShadaEntryType::SDItemBufferList => {
-                entry.data.buffer_list_mut().buffers.clear();
-            }
-        }
-        entry.additional_data = None;
+    if !entry.can_free_entry {
+        return;
     }
+    match entry.entry_type {
+        ShadaEntryType::SDItemMissing => {}
+        ShadaEntryType::SDItemUnknown => {}
+        ShadaEntryType::SDItemHeader => {
+            api_free_dict(entry.data.header());
+        }
+        ShadaEntryType::SDItemChange
+        | ShadaEntryType::SDItemJump
+        | ShadaEntryType::SDItemGlobalMark
+        | ShadaEntryType::SDItemLocalMark => {
+            entry.data.filemark_mut().fname = None;
+        }
+        ShadaEntryType::SDItemSearchPattern => {
+            api_free_string(entry.data.search_pattern().pat);
+        }
+        ShadaEntryType::SDItemRegister => {
+            for s in entry.data.reg_mut().contents.drain(..) {
+                api_free_string(s);
+            }
+        }
+        ShadaEntryType::SDItemHistoryEntry => {
+            entry.data.history_item_mut().string = None;
+        }
+        ShadaEntryType::SDItemVariable => {
+            entry.data.global_var_mut().name = None;
+            tv_clear(&mut entry.data.global_var_mut().value);
+        }
+        ShadaEntryType::SDItemSubString => {
+            entry.data.sub_string_mut().sub = None;
+        }
+        ShadaEntryType::SDItemBufferList => {
+            entry.data.buffer_list_mut().buffers.clear();
+        }
+    }
+    entry.additional_data = None;
 }
 
 fn fread_len(
@@ -3510,60 +3480,58 @@ fn msgpack_read_uint64(
     allow_eof: bool,
     result: &mut u64,
 ) -> ShaDaReadResult {
-    {
-        let fpos = sd_reader.bytes_read;
-        let mut ret: u8 = 0;
-        let read_bytes = file_read((&raw mut *sd_reader), (&raw mut ret).cast::<c_char>(), 1);
-        if read_bytes < 0 {
-            semsg!(
-                gettext(c"E886: System error while reading integer from ShaDa file: %s"),
-                unsafe { uv_strerror(read_bytes as i32) },
-            );
-            return ShaDaReadResult::SDReadStatusReadError;
-        } else if read_bytes == 0 {
-            if allow_eof && file_eof(sd_reader) {
-                return ShaDaReadResult::SDReadStatusFinished;
-            }
-            semsg!(
+    let fpos = sd_reader.bytes_read;
+    let mut ret: u8 = 0;
+    let read_bytes = file_read((&raw mut *sd_reader), (&raw mut ret).cast::<c_char>(), 1);
+    if read_bytes < 0 {
+        semsg!(
+            gettext(c"E886: System error while reading integer from ShaDa file: %s"),
+            unsafe { uv_strerror(read_bytes as i32) },
+        );
+        return ShaDaReadResult::SDReadStatusReadError;
+    } else if read_bytes == 0 {
+        if allow_eof && file_eof(sd_reader) {
+            return ShaDaReadResult::SDReadStatusFinished;
+        }
+        semsg!(
                 gettext(
                     c"E576: Error while reading ShaDa file: expected positive integer at position %llu, but got nothing",
                 ),
                 fpos,
             );
-            return ShaDaReadResult::SDReadStatusNotShaDa;
-        }
+        return ShaDaReadResult::SDReadStatusNotShaDa;
+    }
 
-        if (ret & 0x80) == 0 {
-            *result = u64::from(ret);
-        } else {
-            let length = match ret {
-                0xCC => 1usize,
-                0xCD => 2usize,
-                0xCE => 4usize,
-                0xCF => 8usize,
-                _ => {
-                    semsg!(
+    if (ret & 0x80) == 0 {
+        *result = u64::from(ret);
+    } else {
+        let length = match ret {
+            0xCC => 1usize,
+            0xCD => 2usize,
+            0xCE => 4usize,
+            0xCF => 8usize,
+            _ => {
+                semsg!(
                         gettext(
                             c"E576: Error while reading ShaDa file: expected positive integer at position %llu",
                         ),
                         fpos,
                     );
-                    return ShaDaReadResult::SDReadStatusNotShaDa;
-                }
-            };
-            let mut buf = [0u8; 8];
-            let fl_ret = fread_len(
-                (&raw mut *sd_reader),
-                buf.as_mut_ptr().wrapping_add(8 - length).cast::<c_char>(),
-                length,
-            );
-            if fl_ret != ShaDaReadResult::SDReadStatusSuccess {
-                return fl_ret;
+                return ShaDaReadResult::SDReadStatusNotShaDa;
             }
-            *result = u64::from_be_bytes(buf);
+        };
+        let mut buf = [0u8; 8];
+        let fl_ret = fread_len(
+            (&raw mut *sd_reader),
+            buf.as_mut_ptr().wrapping_add(8 - length).cast::<c_char>(),
+            length,
+        );
+        if fl_ret != ShaDaReadResult::SDReadStatusSuccess {
+            return fl_ret;
         }
-        ShaDaReadResult::SDReadStatusSuccess
+        *result = u64::from_be_bytes(buf);
     }
+    ShaDaReadResult::SDReadStatusSuccess
 }
 
 fn shada_read_next_item(
@@ -3572,642 +3540,623 @@ fn shada_read_next_item(
     flags: u32,
     max_kbyte: usize,
 ) -> ShaDaReadResult {
-    {
-        let mut ret = ShaDaReadResult::SDReadStatusMalformed;
-        loop {
-            *entry = MISSING_ENTRY;
-            if file_eof(sd_reader) {
-                return ShaDaReadResult::SDReadStatusFinished;
-            }
+    let mut ret = ShaDaReadResult::SDReadStatusMalformed;
+    loop {
+        *entry = MISSING_ENTRY;
+        if file_eof(sd_reader) {
+            return ShaDaReadResult::SDReadStatusFinished;
+        }
 
-            let mut verify_but_ignore = false;
-            let mut type_u64: u64 = 0;
-            let mut timestamp_u64: u64 = 0;
-            let mut length_u64: u64 = 0;
+        let mut verify_but_ignore = false;
+        let mut type_u64: u64 = 0;
+        let mut timestamp_u64: u64 = 0;
+        let mut length_u64: u64 = 0;
 
-            let initial_fpos = sd_reader.bytes_read;
-            let mut ad = AdditionalDataBuilder::default();
-            let mut read_additional_array_elements: u32 = 0;
-            let mut error_alloc: Option<std::ffi::CString> = None;
+        let initial_fpos = sd_reader.bytes_read;
+        let mut ad = AdditionalDataBuilder::default();
+        let mut read_additional_array_elements: u32 = 0;
+        let mut error_alloc: Option<std::ffi::CString> = None;
 
-            let mut mru_ret = msgpack_read_uint64(sd_reader, true, &mut type_u64);
-            if mru_ret != ShaDaReadResult::SDReadStatusSuccess {
-                return mru_ret;
-            }
-            mru_ret = msgpack_read_uint64(sd_reader, false, &mut timestamp_u64);
-            if mru_ret != ShaDaReadResult::SDReadStatusSuccess {
-                return mru_ret;
-            }
-            mru_ret = msgpack_read_uint64(sd_reader, false, &mut length_u64);
-            if mru_ret != ShaDaReadResult::SDReadStatusSuccess {
-                return mru_ret;
-            }
+        let mut mru_ret = msgpack_read_uint64(sd_reader, true, &mut type_u64);
+        if mru_ret != ShaDaReadResult::SDReadStatusSuccess {
+            return mru_ret;
+        }
+        mru_ret = msgpack_read_uint64(sd_reader, false, &mut timestamp_u64);
+        if mru_ret != ShaDaReadResult::SDReadStatusSuccess {
+            return mru_ret;
+        }
+        mru_ret = msgpack_read_uint64(sd_reader, false, &mut length_u64);
+        if mru_ret != ShaDaReadResult::SDReadStatusSuccess {
+            return mru_ret;
+        }
 
-            if length_u64 > (isize::MAX as u64) {
-                semsg!(
+        if length_u64 > (isize::MAX as u64) {
+            semsg!(
                     gettext(
                         c"E576: Error while reading ShaDa file: there is an item at position %llu that is stated to be too long",
                     ),
                     initial_fpos,
                 );
-                return ShaDaReadResult::SDReadStatusNotShaDa;
-            }
+            return ShaDaReadResult::SDReadStatusNotShaDa;
+        }
 
-            let length = length_u64 as usize;
-            entry.timestamp = timestamp_u64;
-            entry.can_free_entry = true;
+        let length = length_u64 as usize;
+        entry.timestamp = timestamp_u64;
+        entry.can_free_entry = true;
 
-            if type_u64 == 0 {
-                semsg!(
+        if type_u64 == 0 {
+            semsg!(
                     gettext(
                         c"E576: Error while reading ShaDa file: there is an item at position %llu that must not be there: Missing items are for internal uses only",
                     ),
                     initial_fpos,
                 );
-                return ShaDaReadResult::SDReadStatusNotShaDa;
-            }
+            return ShaDaReadResult::SDReadStatusNotShaDa;
+        }
 
-            let skip_by_flags = if type_u64 > SHADA_LAST_ENTRY {
-                (flags & K_SDREAD_UNKNOWN) == 0
+        let skip_by_flags = if type_u64 > SHADA_LAST_ENTRY {
+            (flags & K_SDREAD_UNKNOWN) == 0
+        } else {
+            ((1u32 << (type_u64 as u32)) & flags) == 0
+        };
+        if skip_by_flags || (max_kbyte != 0 && length > max_kbyte * 1024) {
+            if initial_fpos == 0 && (type_u64 == u64::from(b'\n') || type_u64 > SHADA_LAST_ENTRY) {
+                verify_but_ignore = true;
             } else {
-                ((1u32 << (type_u64 as u32)) & flags) == 0
-            };
-            if skip_by_flags || (max_kbyte != 0 && length > max_kbyte * 1024) {
-                if initial_fpos == 0
-                    && (type_u64 == u64::from(b'\n') || type_u64 > SHADA_LAST_ENTRY)
-                {
-                    verify_but_ignore = true;
-                } else {
-                    let srs_ret = sd_reader_skip(sd_reader, length);
-                    if srs_ret != ShaDaReadResult::SDReadStatusSuccess {
-                        return srs_ret;
-                    }
-                    continue;
-                }
-            }
-
-            let parse_pos = sd_reader.bytes_read;
-            let mut owned_buf: Vec<c_char> = Vec::new();
-            let mut buf = file_try_read_buffered((&raw mut *sd_reader), length);
-            if buf.is_null() {
-                owned_buf = vec![0 as c_char; length];
-                buf = owned_buf.as_mut_ptr();
-                let fl_ret = fread_len((&raw mut *sd_reader), buf, length);
-                if fl_ret != ShaDaReadResult::SDReadStatusSuccess {
-                    return fl_ret;
-                }
-            }
-
-            let mut read_ptr: *const c_char = buf;
-            let mut read_size: usize = length;
-
-            if verify_but_ignore {
-                let status = unpack_skip(&mut read_ptr, &mut read_size);
-                let spm_ret = shada_check_status(parse_pos, status, read_size);
-                if spm_ret != ShaDaReadResult::SDReadStatusSuccess {
-                    return spm_ret;
+                let srs_ret = sd_reader_skip(sd_reader, length);
+                if srs_ret != ShaDaReadResult::SDReadStatusSuccess {
+                    return srs_ret;
                 }
                 continue;
             }
+        }
 
-            if type_u64 > SHADA_LAST_ENTRY {
-                entry.entry_type = ShadaEntryType::SDItemUnknown;
-                if initial_fpos == 0 {
-                    let status = unpack_skip(&mut read_ptr, &mut read_size);
-                    let spm_ret = shada_check_status(parse_pos, status, read_size);
-                    if spm_ret != ShaDaReadResult::SDReadStatusSuccess {
-                        entry.entry_type = ShadaEntryType::SDItemMissing;
-                        return spm_ret;
-                    }
-                }
-                let contents = if !owned_buf.is_empty() {
-                    owned_buf
-                } else {
-                    unsafe { std::slice::from_raw_parts(buf, length) }.to_vec()
-                };
-                entry.data = ShadaEntryData::UnknownItem(ShadaUnknownItem {
-                    item_type: type_u64,
-                    contents,
-                });
-                return ShaDaReadResult::SDReadStatusSuccess;
+        let parse_pos = sd_reader.bytes_read;
+        let mut owned_buf: Vec<c_char> = Vec::new();
+        let mut buf = file_try_read_buffered((&raw mut *sd_reader), length);
+        if buf.is_null() {
+            owned_buf = vec![0 as c_char; length];
+            buf = owned_buf.as_mut_ptr();
+            let fl_ret = fread_len((&raw mut *sd_reader), buf, length);
+            if fl_ret != ShaDaReadResult::SDReadStatusSuccess {
+                return fl_ret;
             }
+        }
 
-            let entry_type = match type_u64 {
-                1 => ShadaEntryType::SDItemHeader,
-                2 => ShadaEntryType::SDItemSearchPattern,
-                3 => ShadaEntryType::SDItemSubString,
-                4 => ShadaEntryType::SDItemHistoryEntry,
-                5 => ShadaEntryType::SDItemRegister,
-                6 => ShadaEntryType::SDItemVariable,
-                7 => ShadaEntryType::SDItemGlobalMark,
-                8 => ShadaEntryType::SDItemJump,
-                9 => ShadaEntryType::SDItemBufferList,
-                10 => ShadaEntryType::SDItemLocalMark,
-                11 => ShadaEntryType::SDItemChange,
-                _ => ShadaEntryType::SDItemUnknown,
+        let mut read_ptr: *const c_char = buf;
+        let mut read_size: usize = length;
+
+        if verify_but_ignore {
+            let status = unpack_skip(&mut read_ptr, &mut read_size);
+            let spm_ret = shada_check_status(parse_pos, status, read_size);
+            if spm_ret != ShaDaReadResult::SDReadStatusSuccess {
+                return spm_ret;
+            }
+            continue;
+        }
+
+        if type_u64 > SHADA_LAST_ENTRY {
+            entry.entry_type = ShadaEntryType::SDItemUnknown;
+            if initial_fpos == 0 {
+                let status = unpack_skip(&mut read_ptr, &mut read_size);
+                let spm_ret = shada_check_status(parse_pos, status, read_size);
+                if spm_ret != ShaDaReadResult::SDReadStatusSuccess {
+                    entry.entry_type = ShadaEntryType::SDItemMissing;
+                    return spm_ret;
+                }
+            }
+            let contents = if !owned_buf.is_empty() {
+                owned_buf
+            } else {
+                unsafe { std::slice::from_raw_parts(buf, length) }.to_vec()
             };
-            entry.data = sd_default_value(entry_type).data;
+            entry.data = ShadaEntryData::UnknownItem(ShadaUnknownItem {
+                item_type: type_u64,
+                contents,
+            });
+            return ShaDaReadResult::SDReadStatusSuccess;
+        }
 
-            let parse_ok: bool = 'parse_item: {
-                match entry_type {
-                    ShadaEntryType::SDItemHeader => {}
-                    ShadaEntryType::SDItemSearchPattern => {
-                        let it = entry.data.search_pattern_mut();
-                        if !unpack_keydict(
-                            (&raw mut *it).cast(),
-                            Some(shada_search_pat_get_field_cb),
-                            &mut ad,
-                            &mut read_ptr,
-                            &mut read_size,
-                            &mut error_alloc,
-                        ) {
-                            semsg!(
+        let entry_type = match type_u64 {
+            1 => ShadaEntryType::SDItemHeader,
+            2 => ShadaEntryType::SDItemSearchPattern,
+            3 => ShadaEntryType::SDItemSubString,
+            4 => ShadaEntryType::SDItemHistoryEntry,
+            5 => ShadaEntryType::SDItemRegister,
+            6 => ShadaEntryType::SDItemVariable,
+            7 => ShadaEntryType::SDItemGlobalMark,
+            8 => ShadaEntryType::SDItemJump,
+            9 => ShadaEntryType::SDItemBufferList,
+            10 => ShadaEntryType::SDItemLocalMark,
+            11 => ShadaEntryType::SDItemChange,
+            _ => ShadaEntryType::SDItemUnknown,
+        };
+        entry.data = sd_default_value(entry_type).data;
+
+        let parse_ok: bool = 'parse_item: {
+            match entry_type {
+                ShadaEntryType::SDItemHeader => {}
+                ShadaEntryType::SDItemSearchPattern => {
+                    let it = entry.data.search_pattern_mut();
+                    if !unpack_keydict(
+                        (&raw mut *it).cast(),
+                        Some(shada_search_pat_get_field_cb),
+                        &mut ad,
+                        &mut read_ptr,
+                        &mut read_size,
+                        &mut error_alloc,
+                    ) {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: search pattern entry at position %llu %s",
                                 ),
                                 initial_fpos,
                                 error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             );
-                            it.pat = NvimString {
-                                data: ptr::null_mut(),
-                                size: 0,
-                            };
-                            break 'parse_item false;
-                        }
-                        if (it.is_set_shada_search_pat
-                            & (1u64 << KEYSET_OPTIDX_SHADA_SEARCH_PAT_SP))
-                            == 0
-                        {
-                            semsg!(
+                        it.pat = NvimString {
+                            data: ptr::null_mut(),
+                            size: 0,
+                        };
+                        break 'parse_item false;
+                    }
+                    if (it.is_set_shada_search_pat & (1u64 << KEYSET_OPTIDX_SHADA_SEARCH_PAT_SP))
+                        == 0
+                    {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: search pattern entry at position %llu has no pattern",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        it.pat = copy_string(it.pat, None);
+                        break 'parse_item false;
                     }
-                    ShadaEntryType::SDItemChange
-                    | ShadaEntryType::SDItemJump
-                    | ShadaEntryType::SDItemGlobalMark
-                    | ShadaEntryType::SDItemLocalMark => {
-                        let mut it = KeyDict__shada_mark::default();
-                        if !unpack_keydict(
-                            (&raw mut it).cast(),
-                            Some(shada_mark_get_field_cb),
-                            &mut ad,
-                            &mut read_ptr,
-                            &mut read_size,
-                            &mut error_alloc,
-                        ) {
-                            semsg!(
+                    it.pat = copy_string(it.pat, None);
+                }
+                ShadaEntryType::SDItemChange
+                | ShadaEntryType::SDItemJump
+                | ShadaEntryType::SDItemGlobalMark
+                | ShadaEntryType::SDItemLocalMark => {
+                    let mut it = KeyDict__shada_mark::default();
+                    if !unpack_keydict(
+                        (&raw mut it).cast(),
+                        Some(shada_mark_get_field_cb),
+                        &mut ad,
+                        &mut read_ptr,
+                        &mut read_size,
+                        &mut error_alloc,
+                    ) {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: mark entry at position %llu %s",
                                 ),
                                 initial_fpos,
                                 error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             );
-                            break 'parse_item false;
-                        }
-                        let fm = entry.data.filemark_mut();
-                        if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_N)) != 0 {
-                            if entry_type == ShadaEntryType::SDItemJump
-                                || entry_type == ShadaEntryType::SDItemChange
-                            {
-                                semsg!(
+                        break 'parse_item false;
+                    }
+                    let fm = entry.data.filemark_mut();
+                    if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_N)) != 0 {
+                        if entry_type == ShadaEntryType::SDItemJump
+                            || entry_type == ShadaEntryType::SDItemChange
+                        {
+                            semsg!(
                                     gettext(
                                         c"E575: Error while reading ShaDa file: mark entry at position %llu has n key which is only valid for local and global mark entries",
                                     ),
                                     initial_fpos,
                                 );
-                                break 'parse_item false;
-                            }
-                            fm.name = it.n as c_char;
+                            break 'parse_item false;
                         }
-                        if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_L)) != 0 {
-                            fm.mark.lnum = it.l as Linenr;
-                        }
-                        if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_C)) != 0 {
-                            fm.mark.col = it.c as Colnr;
-                        }
-                        if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_F)) != 0 {
-                            let mut bytes =
-                                crate::memory::cstr_slice(it.f.data, it.f.size).to_vec();
-                            bytes.push(0);
-                            #[cfg(windows)]
-                            path_to_slash(bytes.as_mut_ptr().cast::<c_char>());
-                            fm.fname = Some(
-                                CStr::from_bytes_with_nul(&bytes)
-                                    .unwrap_or_default()
-                                    .to_owned(),
-                            );
-                        }
-                        if fm.fname.is_none() {
-                            semsg!(
+                        fm.name = it.n as c_char;
+                    }
+                    if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_L)) != 0 {
+                        fm.mark.lnum = it.l as Linenr;
+                    }
+                    if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_C)) != 0 {
+                        fm.mark.col = it.c as Colnr;
+                    }
+                    if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_F)) != 0 {
+                        let mut bytes = crate::memory::cstr_slice(it.f.data, it.f.size).to_vec();
+                        bytes.push(0);
+                        #[cfg(windows)]
+                        path_to_slash(bytes.as_mut_ptr().cast::<c_char>());
+                        fm.fname = Some(
+                            CStr::from_bytes_with_nul(&bytes)
+                                .unwrap_or_default()
+                                .to_owned(),
+                        );
+                    }
+                    if fm.fname.is_none() {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: mark entry at position %llu is missing file name",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        if fm.mark.lnum <= 0 {
-                            semsg!(
+                        break 'parse_item false;
+                    }
+                    if fm.mark.lnum <= 0 {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: mark entry at position %llu has invalid line number",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        if fm.mark.col < 0 {
-                            semsg!(
+                        break 'parse_item false;
+                    }
+                    if fm.mark.col < 0 {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: mark entry at position %llu has invalid column number",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
+                        break 'parse_item false;
                     }
-                    ShadaEntryType::SDItemRegister => {
-                        let mut it = KeyDict__shada_register {
-                            is_set_shada_register: 0,
-                            rc: Vec::new(),
-                            ru: false,
-                            rt: 0,
-                            n: 0,
-                            rw: 0,
-                        };
-                        if !unpack_keydict(
-                            (&raw mut it).cast(),
-                            Some(shada_register_get_field_cb),
-                            &mut ad,
-                            &mut read_ptr,
-                            &mut read_size,
-                            &mut error_alloc,
-                        ) {
-                            semsg!(
+                }
+                ShadaEntryType::SDItemRegister => {
+                    let mut it = KeyDict__shada_register {
+                        is_set_shada_register: 0,
+                        rc: Vec::new(),
+                        ru: false,
+                        rt: 0,
+                        n: 0,
+                        rw: 0,
+                    };
+                    if !unpack_keydict(
+                        (&raw mut it).cast(),
+                        Some(shada_register_get_field_cb),
+                        &mut ad,
+                        &mut read_ptr,
+                        &mut read_size,
+                        &mut error_alloc,
+                    ) {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: register entry at position %llu %s",
                                 ),
                                 initial_fpos,
                                 error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                             );
-                            break 'parse_item false;
-                        }
-                        if it.rc.is_empty() {
-                            semsg!(
+                        break 'parse_item false;
+                    }
+                    if it.rc.is_empty() {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: register entry at position %llu has rc key with missing or empty array",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        for s in &mut it.rc {
-                            *s = copy_string(*s, None);
-                        }
-                        let reg = entry.data.reg_mut();
-                        reg.contents = it.rc;
-
-                        if (it.is_set_shada_register & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RU))
-                            != 0
-                        {
-                            reg.is_unnamed = it.ru;
-                        }
-                        if (it.is_set_shada_register & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RT))
-                            != 0
-                        {
-                            reg.reg_type = it.rt as u8;
-                        }
-                        if (it.is_set_shada_register & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_N))
-                            != 0
-                        {
-                            reg.name = it.n as c_char;
-                        }
-                        if (it.is_set_shada_register & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RW))
-                            != 0
-                        {
-                            reg.width = it.rw as usize;
-                        }
+                        break 'parse_item false;
                     }
-                    ShadaEntryType::SDItemHistoryEntry => {
-                        let len = unpack_array(&mut read_ptr, &mut read_size);
-                        if len < 2 {
-                            semsg!(
+                    for s in &mut it.rc {
+                        *s = copy_string(*s, None);
+                    }
+                    let reg = entry.data.reg_mut();
+                    reg.contents = it.rc;
+
+                    if (it.is_set_shada_register & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RU)) != 0 {
+                        reg.is_unnamed = it.ru;
+                    }
+                    if (it.is_set_shada_register & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RT)) != 0 {
+                        reg.reg_type = it.rt as u8;
+                    }
+                    if (it.is_set_shada_register & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_N)) != 0 {
+                        reg.name = it.n as c_char;
+                    }
+                    if (it.is_set_shada_register & (1u64 << KEYSET_OPTIDX_SHADA_REGISTER_RW)) != 0 {
+                        reg.width = it.rw as usize;
+                    }
+                }
+                ShadaEntryType::SDItemHistoryEntry => {
+                    let len = unpack_array(&mut read_ptr, &mut read_size);
+                    if len < 2 {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: history entry at position %llu is not an array with enough elements",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        let mut hist_type: Integer = 0;
-                        if !unpack_integer(&mut read_ptr, &mut read_size, &mut hist_type) {
-                            semsg!(
+                        break 'parse_item false;
+                    }
+                    let mut hist_type: Integer = 0;
+                    if !unpack_integer(&mut read_ptr, &mut read_size, &mut hist_type) {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: history entry at position %llu has wrong history type type",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        let item = unpack_string(&mut read_ptr, &mut read_size);
-                        if item.data.is_null() {
-                            semsg!(
+                        break 'parse_item false;
+                    }
+                    let item = unpack_string(&mut read_ptr, &mut read_size);
+                    if item.data.is_null() {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: history entry at position %llu has wrong history string type",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        let item_slice = crate::memory::cstr_slice(item.data, item.size);
-                        if item_slice.contains(&0) {
-                            semsg!(
+                        break 'parse_item false;
+                    }
+                    let item_slice = crate::memory::cstr_slice(item.data, item.size);
+                    if item_slice.contains(&0) {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: history entry at position %llu contains string with zero byte inside",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        let hi = entry.data.history_item_mut();
-                        hi.histtype = hist_type as u8;
-                        let is_hist_search = (hi.histtype as i32) == HIST_SEARCH;
-                        if is_hist_search {
-                            if len < 3 {
-                                semsg!(
+                        break 'parse_item false;
+                    }
+                    let hi = entry.data.history_item_mut();
+                    hi.histtype = hist_type as u8;
+                    let is_hist_search = (hi.histtype as i32) == HIST_SEARCH;
+                    if is_hist_search {
+                        if len < 3 {
+                            semsg!(
                                     gettext(
                                         c"E575: Error while reading ShaDa file: search history entry at position %llu does not have separator character",
                                     ),
                                     initial_fpos,
                                 );
-                                break 'parse_item false;
-                            }
-                            let mut sep_type: Integer = 0;
-                            if !unpack_integer(&mut read_ptr, &mut read_size, &mut sep_type) {
-                                semsg!(
+                            break 'parse_item false;
+                        }
+                        let mut sep_type: Integer = 0;
+                        if !unpack_integer(&mut read_ptr, &mut read_size, &mut sep_type) {
+                            semsg!(
                                     gettext(
                                         c"E575: Error while reading ShaDa file: search history entry at position %llu has wrong history separator type",
                                     ),
                                     initial_fpos,
                                 );
-                                break 'parse_item false;
-                            }
-                            hi.sep = sep_type as c_char;
+                            break 'parse_item false;
                         }
-                        hi.string = Some(
-                            std::ffi::CString::new(unsafe {
-                                std::slice::from_raw_parts(item.data.cast::<u8>(), item.size)
-                            })
-                            .unwrap_or_default(),
-                        );
-                        read_additional_array_elements =
-                            (len as u32) - (2 + u32::from(is_hist_search));
+                        hi.sep = sep_type as c_char;
                     }
-                    ShadaEntryType::SDItemVariable => {
-                        let len = unpack_array(&mut read_ptr, &mut read_size);
-                        if len < 2 {
-                            semsg!(
+                    hi.string = Some(
+                        std::ffi::CString::new(unsafe {
+                            std::slice::from_raw_parts(item.data.cast::<u8>(), item.size)
+                        })
+                        .unwrap_or_default(),
+                    );
+                    read_additional_array_elements = (len as u32) - (2 + u32::from(is_hist_search));
+                }
+                ShadaEntryType::SDItemVariable => {
+                    let len = unpack_array(&mut read_ptr, &mut read_size);
+                    if len < 2 {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: variable entry at position %llu is not an array with enough elements",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        let name = unpack_string(&mut read_ptr, &mut read_size);
-                        if name.data.is_null() {
-                            semsg!(
+                        break 'parse_item false;
+                    }
+                    let name = unpack_string(&mut read_ptr, &mut read_size);
+                    if name.data.is_null() {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: variable entry at position %llu has wrong variable name type",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        let gv = entry.data.global_var_mut();
-                        gv.name = Some(
-                            std::ffi::CString::new(unsafe {
-                                std::slice::from_raw_parts(name.data.cast::<u8>(), name.size)
-                            })
-                            .unwrap_or_default(),
-                        );
-                        let binval = unpack_string(&mut read_ptr, &mut read_size);
-                        let mut is_blob = false;
-                        if !binval.data.is_null() {
-                            if len > 2 {
-                                let mut vtype: Integer = 0;
-                                if !unpack_integer(&mut read_ptr, &mut read_size, &mut vtype)
-                                    || vtype != VAR_TYPE_BLOB
-                                {
-                                    semsg!(
+                        break 'parse_item false;
+                    }
+                    let gv = entry.data.global_var_mut();
+                    gv.name = Some(
+                        std::ffi::CString::new(unsafe {
+                            std::slice::from_raw_parts(name.data.cast::<u8>(), name.size)
+                        })
+                        .unwrap_or_default(),
+                    );
+                    let binval = unpack_string(&mut read_ptr, &mut read_size);
+                    let mut is_blob = false;
+                    if !binval.data.is_null() {
+                        if len > 2 {
+                            let mut vtype: Integer = 0;
+                            if !unpack_integer(&mut read_ptr, &mut read_size, &mut vtype)
+                                || vtype != VAR_TYPE_BLOB
+                            {
+                                semsg!(
                                         gettext(
                                             c"E575: Error while reading ShaDa file: variable entry at position %llu has wrong variable type",
                                         ),
                                         initial_fpos,
                                     );
-                                    break 'parse_item false;
-                                }
-                                is_blob = true;
+                                break 'parse_item false;
                             }
-                            gv.value = decode_string(binval.data, binval.size, is_blob, false);
-                        } else {
-                            let status =
-                                unpack_typval(&mut read_ptr, &mut read_size, &mut gv.value);
-                            if status != MPACK_OK {
-                                semsg!(
+                            is_blob = true;
+                        }
+                        gv.value = decode_string(binval.data, binval.size, is_blob, false);
+                    } else {
+                        let status = unpack_typval(&mut read_ptr, &mut read_size, &mut gv.value);
+                        if status != MPACK_OK {
+                            semsg!(
                                     gettext(
                                         c"E575: Error while reading ShaDa file: variable entry at position %llu has value that cannot be converted to the Vimscript value",
                                     ),
                                     initial_fpos,
                                 );
-                                break 'parse_item false;
-                            }
+                            break 'parse_item false;
                         }
-                        read_additional_array_elements = (len as u32) - 2 - u32::from(is_blob);
                     }
-                    ShadaEntryType::SDItemSubString => {
-                        let len = unpack_array(&mut read_ptr, &mut read_size);
-                        if len < 1 {
-                            semsg!(
+                    read_additional_array_elements = (len as u32) - 2 - u32::from(is_blob);
+                }
+                ShadaEntryType::SDItemSubString => {
+                    let len = unpack_array(&mut read_ptr, &mut read_size);
+                    if len < 1 {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: sub string entry at position %llu is not an array with enough elements",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        let sub = unpack_string(&mut read_ptr, &mut read_size);
-                        if sub.data.is_null() {
-                            semsg!(
+                        break 'parse_item false;
+                    }
+                    let sub = unpack_string(&mut read_ptr, &mut read_size);
+                    if sub.data.is_null() {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: sub string entry at position %llu has wrong sub string type",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        entry.data.sub_string_mut().sub = Some(
-                            std::ffi::CString::new(unsafe {
-                                std::slice::from_raw_parts(sub.data.cast::<u8>(), sub.size)
-                            })
-                            .unwrap_or_default(),
-                        );
-                        read_additional_array_elements = (len as u32) - 1;
+                        break 'parse_item false;
                     }
-                    ShadaEntryType::SDItemBufferList => {
-                        let len = unpack_array(&mut read_ptr, &mut read_size);
-                        if len < 0 {
-                            semsg!(
+                    entry.data.sub_string_mut().sub = Some(
+                        std::ffi::CString::new(unsafe {
+                            std::slice::from_raw_parts(sub.data.cast::<u8>(), sub.size)
+                        })
+                        .unwrap_or_default(),
+                    );
+                    read_additional_array_elements = (len as u32) - 1;
+                }
+                ShadaEntryType::SDItemBufferList => {
+                    let len = unpack_array(&mut read_ptr, &mut read_size);
+                    if len < 0 {
+                        semsg!(
                                 gettext(
                                     c"E575: Error while reading ShaDa file: buffer list entry at position %llu is not an array",
                                 ),
                                 initial_fpos,
                             );
-                            break 'parse_item false;
-                        }
-                        if len > 0 {
-                            let ulen = len as usize;
-                            let buffers = &mut entry.data.buffer_list_mut().buffers;
-                            buffers.reserve(ulen);
-                            for _ in 0..ulen {
-                                let mut it = KeyDict__shada_buflist_item::default();
-                                let mut it_ad = AdditionalDataBuilder::default();
-                                if !unpack_keydict(
-                                    (&raw mut it).cast(),
-                                    Some(shada_buflist_item_get_field_cb),
-                                    &mut it_ad,
-                                    &mut read_ptr,
-                                    &mut read_size,
-                                    &mut error_alloc,
-                                ) {
-                                    semsg!(
+                        break 'parse_item false;
+                    }
+                    if len > 0 {
+                        let ulen = len as usize;
+                        let buffers = &mut entry.data.buffer_list_mut().buffers;
+                        buffers.reserve(ulen);
+                        for _ in 0..ulen {
+                            let mut it = KeyDict__shada_buflist_item::default();
+                            let mut it_ad = AdditionalDataBuilder::default();
+                            if !unpack_keydict(
+                                (&raw mut it).cast(),
+                                Some(shada_buflist_item_get_field_cb),
+                                &mut it_ad,
+                                &mut read_ptr,
+                                &mut read_size,
+                                &mut error_alloc,
+                            ) {
+                                semsg!(
                                         gettext(
                                             c"E575: Error while reading ShaDa file: buffer list at position %llu contains entry that %s",
                                         ),
                                         initial_fpos,
                                         error_alloc.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                                     );
-                                    break 'parse_item false;
+                                break 'parse_item false;
+                            }
+                            let mut e = BufferListBuffer {
+                                pos: DEFAULT_POS,
+                                fname: None,
+                                additional_data: additional_data_take(&mut it_ad),
+                            };
+                            if (it.is_set_shada_buflist_item
+                                & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_L))
+                                != 0
+                            {
+                                e.pos.lnum = it.l as Linenr;
+                            }
+                            if (it.is_set_shada_buflist_item
+                                & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_C))
+                                != 0
+                            {
+                                e.pos.col = it.c as Colnr;
+                            }
+                            if (it.is_set_shada_buflist_item
+                                & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_F))
+                                != 0
+                            {
+                                let mut bytes = unsafe {
+                                    std::slice::from_raw_parts(it.f.data.cast::<u8>(), it.f.size)
                                 }
-                                let mut e = BufferListBuffer {
-                                    pos: DEFAULT_POS,
-                                    fname: None,
-                                    additional_data: additional_data_take(&mut it_ad),
-                                };
-                                if (it.is_set_shada_buflist_item
-                                    & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_L))
-                                    != 0
-                                {
-                                    e.pos.lnum = it.l as Linenr;
-                                }
-                                if (it.is_set_shada_buflist_item
-                                    & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_C))
-                                    != 0
-                                {
-                                    e.pos.col = it.c as Colnr;
-                                }
-                                if (it.is_set_shada_buflist_item
-                                    & (1u64 << KEYSET_OPTIDX_SHADA_BUFLIST_ITEM_F))
-                                    != 0
-                                {
-                                    let mut bytes = unsafe {
-                                        std::slice::from_raw_parts(
-                                            it.f.data.cast::<u8>(),
-                                            it.f.size,
-                                        )
-                                    }
-                                    .to_vec();
-                                    bytes.push(0);
-                                    #[cfg(windows)]
-                                    path_to_slash(bytes.as_mut_ptr().cast::<c_char>());
-                                    e.fname = Some(
-                                        CStr::from_bytes_with_nul(&bytes)
-                                            .unwrap_or_default()
-                                            .to_owned(),
-                                    );
-                                }
-                                let has_fname = e.fname.is_some();
-                                let pos = e.pos;
-                                buffers.push(e);
-                                if pos.lnum <= 0 {
-                                    semsg!(
+                                .to_vec();
+                                bytes.push(0);
+                                #[cfg(windows)]
+                                path_to_slash(bytes.as_mut_ptr().cast::<c_char>());
+                                e.fname = Some(
+                                    CStr::from_bytes_with_nul(&bytes)
+                                        .unwrap_or_default()
+                                        .to_owned(),
+                                );
+                            }
+                            let has_fname = e.fname.is_some();
+                            let pos = e.pos;
+                            buffers.push(e);
+                            if pos.lnum <= 0 {
+                                semsg!(
                                         gettext(
                                             c"E575: Error while reading ShaDa file: buffer list at position %llu contains entry with invalid line number",
                                         ),
                                         initial_fpos,
                                     );
-                                    break 'parse_item false;
-                                }
-                                if pos.col < 0 {
-                                    semsg!(
+                                break 'parse_item false;
+                            }
+                            if pos.col < 0 {
+                                semsg!(
                                         gettext(
                                             c"E575: Error while reading ShaDa file: buffer list at position %llu contains entry with invalid column number",
                                         ),
                                         initial_fpos,
                                     );
-                                    break 'parse_item false;
-                                }
-                                if !has_fname {
-                                    semsg!(
+                                break 'parse_item false;
+                            }
+                            if !has_fname {
+                                semsg!(
                                         gettext(
                                             c"E575: Error while reading ShaDa file: buffer list at position %llu contains entry that does not have a file name",
                                         ),
                                         initial_fpos,
                                     );
-                                    break 'parse_item false;
-                                }
+                                break 'parse_item false;
                             }
                         }
                     }
-                    ShadaEntryType::SDItemMissing | ShadaEntryType::SDItemUnknown => {
-                        std::process::abort();
-                    }
                 }
-
-                for _ in 0..read_additional_array_elements {
-                    let item_start = read_ptr;
-                    let status = unpack_skip(&mut read_ptr, &mut read_size);
-                    if status != 0 {
-                        break 'parse_item false;
-                    }
-                    push_additional_data(
-                        &mut ad,
-                        item_start,
-                        (read_ptr as usize) - (item_start as usize),
-                    );
+                ShadaEntryType::SDItemMissing | ShadaEntryType::SDItemUnknown => {
+                    std::process::abort();
                 }
+            }
 
-                if read_size != 0 {
-                    semsg!(
+            for _ in 0..read_additional_array_elements {
+                let item_start = read_ptr;
+                let status = unpack_skip(&mut read_ptr, &mut read_size);
+                if status != 0 {
+                    break 'parse_item false;
+                }
+                push_additional_data(
+                    &mut ad,
+                    item_start,
+                    (read_ptr as usize) - (item_start as usize),
+                );
+            }
+
+            if read_size != 0 {
+                semsg!(
                         gettext(
                             c"E575: Error while reading ShaDa file: item entry at position %llu additional bytes",
                         ),
                         initial_fpos,
                     );
-                    break 'parse_item false;
-                }
-
-                true
-            };
-
-            if parse_ok {
-                entry.entry_type = entry_type;
-                entry.additional_data = additional_data_take(&mut ad);
-                ret = ShaDaReadResult::SDReadStatusSuccess;
-            } else {
-                entry.entry_type = entry_type;
-                shada_free_shada_entry(entry);
-                entry.entry_type = ShadaEntryType::SDItemMissing;
+                break 'parse_item false;
             }
 
-            drop(owned_buf);
-            return ret;
+            true
+        };
+
+        if parse_ok {
+            entry.entry_type = entry_type;
+            entry.additional_data = additional_data_take(&mut ad);
+            ret = ShaDaReadResult::SDReadStatusSuccess;
+        } else {
+            entry.entry_type = entry_type;
+            shada_free_shada_entry(entry);
+            entry.entry_type = ShadaEntryType::SDItemMissing;
         }
+
+        drop(owned_buf);
+        return ret;
     }
 }
 
@@ -4362,51 +4311,49 @@ pub fn shada_encode_buflist() -> Vec<u8> {
 
 /// Gets global Vimscript variables as a msgpack-encoded byte buffer, in shada format (`shada_encode_gvars`).
 pub fn shada_encode_gvars() -> Vec<u8> {
-    {
-        let mut packer = packer_string_buffer();
-        let mut var_iter: Option<usize> = None;
-        let cur_timestamp = os_time();
-        loop {
-            let mut vartv = TypVal::new();
-            let mut name: *const c_char = ptr::null();
-            var_iter = var_shada_iter(
-                var_iter,
-                &mut name,
-                &mut vartv,
-                VAR_FLAVOUR_DEFAULT | VAR_FLAVOUR_SESSION | VAR_FLAVOUR_SHADA,
-            );
-            if name.is_null() {
-                break;
-            }
-            if vartv.v_type != VarType::VarFunc && vartv.v_type != VarType::VarPartial {
-                let mut tgttv = TypVal::new();
-                tv_copy(&vartv, &mut tgttv);
-                let r = shada_pack_entry(
-                    &mut packer,
-                    &ShadaEntry {
-                        entry_type: ShadaEntryType::SDItemVariable,
-                        can_free_entry: false,
-                        timestamp: cur_timestamp,
-                        data: ShadaEntryData::GlobalVar(ShadaGlobalVar {
-                            name: Some(crate::memory::cstr_to_cstring(name)),
-                            value: tgttv,
-                        }),
-                        additional_data: None,
-                    },
-                    0,
-                );
-                if r == ShaDaWriteResult::SDWriteFailed {
-                    std::process::abort();
-                }
-                tv_clear(&mut tgttv);
-            }
-            tv_clear(&mut vartv);
-            if var_iter.is_none() {
-                break;
-            }
+    let mut packer = packer_string_buffer();
+    let mut var_iter: Option<usize> = None;
+    let cur_timestamp = os_time();
+    loop {
+        let mut vartv = TypVal::new();
+        let mut name: *const c_char = ptr::null();
+        var_iter = var_shada_iter(
+            var_iter,
+            &mut name,
+            &mut vartv,
+            VAR_FLAVOUR_DEFAULT | VAR_FLAVOUR_SESSION | VAR_FLAVOUR_SHADA,
+        );
+        if name.is_null() {
+            break;
         }
-        packer_take_string(&mut packer)
+        if vartv.v_type != VarType::VarFunc && vartv.v_type != VarType::VarPartial {
+            let mut tgttv = TypVal::new();
+            tv_copy(&vartv, &mut tgttv);
+            let r = shada_pack_entry(
+                &mut packer,
+                &ShadaEntry {
+                    entry_type: ShadaEntryType::SDItemVariable,
+                    can_free_entry: false,
+                    timestamp: cur_timestamp,
+                    data: ShadaEntryData::GlobalVar(ShadaGlobalVar {
+                        name: Some(crate::memory::cstr_to_cstring(name)),
+                        value: tgttv,
+                    }),
+                    additional_data: None,
+                },
+                0,
+            );
+            if r == ShaDaWriteResult::SDWriteFailed {
+                std::process::abort();
+            }
+            tv_clear(&mut tgttv);
+        }
+        tv_clear(&mut vartv);
+        if var_iter.is_none() {
+            break;
+        }
     }
+    packer_take_string(&mut packer)
 }
 
 /// Read ShaDa from byte slice (`shada_read_string`).
@@ -4426,55 +4373,49 @@ pub fn shada_read_string(bytes: &[u8], flags: i32) {
 
 /// Find the parameter represented by the given character in 'shada' (`get_shada_parameter`).
 pub fn get_shada_parameter(param_type: i32) -> i32 {
-    {
-        let p = find_shada_parameter(param_type);
-        if !p.is_null() && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
-            let mut val: i32 = 0;
-            let mut cur = p;
-            while (crate::memory::cstr_first_byte(cur)).is_ascii_digit() {
-                val = val
-                    .wrapping_mul(10)
-                    .wrapping_add(i32::from((crate::memory::cstr_first_byte(cur)) - b'0'));
-                cur = cur.wrapping_add(1);
-            }
-            return val;
+    let p = find_shada_parameter(param_type);
+    if !p.is_null() && (crate::memory::cstr_first_byte(p)).is_ascii_digit() {
+        let mut val: i32 = 0;
+        let mut cur = p;
+        while (crate::memory::cstr_first_byte(cur)).is_ascii_digit() {
+            val = val
+                .wrapping_mul(10)
+                .wrapping_add(i32::from((crate::memory::cstr_first_byte(cur)) - b'0'));
+            cur = cur.wrapping_add(1);
         }
-        -1
+        return val;
     }
+    -1
 }
 
 /// Find the parameter represented by the given character in 'shada' (`find_shada_parameter`).
 pub fn find_shada_parameter(param_type: i32) -> *mut c_char {
-    {
-        let mut p = opt_vars().p_shada;
-        while unsafe { *p } != 0 {
-            if i32::from(crate::memory::cstr_first_byte(p)) == param_type {
-                return p.wrapping_add(1);
-            }
-            if unsafe { *p } == (b'n' as c_char) {
-                break;
-            }
-            p = vim_strchr(p, b',' as i32);
-            if p.is_null() {
-                break;
-            }
-            p = p.wrapping_add(1);
+    let mut p = opt_vars().p_shada;
+    while unsafe { *p } != 0 {
+        if i32::from(crate::memory::cstr_first_byte(p)) == param_type {
+            return p.wrapping_add(1);
         }
-        ptr::null_mut()
+        if unsafe { *p } == (b'n' as c_char) {
+            break;
+        }
+        p = vim_strchr(p, b',' as i32);
+        if p.is_null() {
+            break;
+        }
+        p = p.wrapping_add(1);
     }
+    ptr::null_mut()
 }
 
 /// Read marks for the current buffer from the ShaDa file (`check_marks_read`).
 pub fn check_marks_read() {
+    if !curbuf_mut().b_marks_read
+        && get_shada_parameter(b'\'' as i32) > 0
+        && !curbuf_mut().b_ffname.is_null()
     {
-        if !curbuf_mut().b_marks_read
-            && get_shada_parameter(b'\'' as i32) > 0
-            && !curbuf_mut().b_ffname.is_null()
-        {
-            shada_read_marks();
-        }
-        curbuf_mut().b_marks_read = true;
+        shada_read_marks();
     }
+    curbuf_mut().b_marks_read = true;
 }
 
 #[cfg(test)]

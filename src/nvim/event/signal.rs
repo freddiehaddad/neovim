@@ -47,16 +47,14 @@ pub fn signal_watcher_init(
 }
 
 pub fn signal_watcher_start(watcher: &mut SignalWatcher, signum: i32) {
-    {
-        watcher.signum = signum;
-        unsafe {
-            uv_signal_start(
-                (&raw mut watcher.uv).cast(),
-                Some(signal_watcher_cb),
-                signum,
-            )
-        };
-    }
+    watcher.signum = signum;
+    unsafe {
+        uv_signal_start(
+            (&raw mut watcher.uv).cast(),
+            Some(signal_watcher_cb),
+            signum,
+        )
+    };
 }
 
 pub fn signal_watcher_stop(watcher: &mut SignalWatcher) {
@@ -72,28 +70,22 @@ pub fn signal_watcher_close(watcher: &mut SignalWatcher) {
 }
 
 pub fn signal_event(watcher: &mut SignalWatcher) {
-    {
-        if watcher.data.is_null() {
-            crate::os::signal::on_signal(watcher.signum);
-        } else {
-            crate::tui::tui::sigwinch_cb(unsafe { &mut *watcher.data });
-        }
+    if watcher.data.is_null() {
+        crate::os::signal::on_signal(watcher.signum);
+    } else {
+        crate::tui::tui::sigwinch_cb(unsafe { &mut *watcher.data });
     }
 }
 
 unsafe extern "C" fn signal_watcher_cb(handle: *mut uv_signal_t, signum: i32) {
     unsafe {
-        {
-            {
-                let watcher = *handle.cast::<*mut SignalWatcher>();
-                (*watcher).signum = signum;
-                let events = (*watcher).events;
-                if !events.is_null() {
-                    multiqueue_put_event(&mut *events, Event::Signal(watcher));
-                } else {
-                    signal_event(&mut *watcher);
-                }
-            }
+        let watcher = *handle.cast::<*mut SignalWatcher>();
+        (*watcher).signum = signum;
+        let events = (*watcher).events;
+        if !events.is_null() {
+            multiqueue_put_event(&mut *events, Event::Signal(watcher));
+        } else {
+            signal_event(&mut *watcher);
         }
     }
 }

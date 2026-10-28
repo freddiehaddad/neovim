@@ -723,10 +723,8 @@ fn get_varp(p: &mut Vimoption) -> *mut c_void {
 }
 
 pub fn set_init_tablocal() {
-    {
-        // cmdheight calls itself OPT_GLOBAL but is really tablocal!
-        opt_vars().p_ch = get_option(K_OPT_CMDHEIGHT).def_val.data.integer();
-    }
+    // cmdheight calls itself OPT_GLOBAL but is really tablocal!
+    opt_vars().p_ch = get_option(K_OPT_CMDHEIGHT).def_val.data.integer();
 }
 
 /// Initialize the 'shell' option to a default value.
@@ -746,27 +744,23 @@ fn set_init_default_shell() {
 
 /// Set the default for 'backupskip' to include environment variables for temp files.
 fn set_init_default_backupskip() {
-    {
+    #[cfg(unix)]
+    let names: [*const c_char; 4] = [
+        c"".as_ptr(),
+        c"TMPDIR".as_ptr(),
+        c"TEMP".as_ptr(),
+        c"TMP".as_ptr(),
+    ];
+    #[cfg(not(unix))]
+    let names: [*const c_char; 3] = [c"TMPDIR".as_ptr(), c"TEMP".as_ptr(), c"TMP".as_ptr()];
+
+    let mut buf: Vec<c_char> = Vec::new();
+    let opt_idx = K_OPT_BACKUPSKIP;
+
+    for &name in &names {
         #[cfg(unix)]
-        let names: [*const c_char; 4] = [
-            c"".as_ptr(),
-            c"TMPDIR".as_ptr(),
-            c"TEMP".as_ptr(),
-            c"TMP".as_ptr(),
-        ];
-        #[cfg(not(unix))]
-        let names: [*const c_char; 3] = [c"TMPDIR".as_ptr(), c"TEMP".as_ptr(), c"TMP".as_ptr()];
-
-        let mut buf: Vec<c_char> = Vec::new();
-        let opt_idx = K_OPT_BACKUPSKIP;
-
-        for &name in &names {
-            #[cfg(unix)]
-            let (p_owned, p, mut plen): (
-                Option<std::ffi::CString>,
-                *const c_char,
-                usize,
-            ) = if crate::memory::cstr_is_empty(name) {
+        let (p_owned, p, mut plen): (Option<std::ffi::CString>, *const c_char, usize) =
+            if crate::memory::cstr_is_empty(name) {
                 #[cfg(target_os = "macos")]
                 {
                     (None, c"/private/tmp".as_ptr(), "/private/tmp".len())
@@ -780,123 +774,124 @@ fn set_init_default_backupskip() {
                 let ptr = env.as_ref().map_or(ptr::null(), |s| s.as_ptr());
                 (env, ptr, 0)
             };
-            #[cfg(not(unix))]
-            let (p_owned, p, mut plen): (
-                Option<std::ffi::CString>,
-                *const c_char,
-                usize,
-            ) = {
-                let env = vim_getenv(name);
-                let ptr = env.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-                (env, ptr, 0)
-            };
-            let _ = &p_owned;
+        #[cfg(not(unix))]
+        let (p_owned, p, mut plen): (Option<std::ffi::CString>, *const c_char, usize) = {
+            let env = vim_getenv(name);
+            let ptr = env.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+            (env, ptr, 0)
+        };
+        let _ = &p_owned;
 
-            if !crate::memory::cstr_is_empty(p) {
-                let mut has_trailing_path_sep = false;
+        if !crate::memory::cstr_is_empty(p) {
+            let mut has_trailing_path_sep = false;
 
-                if plen == 0 {
-                    plen = crate::memory::cstr_len(p);
-                    if after_pathsep(p, p.wrapping_add(plen)) != 0 {
-                        has_trailing_path_sep = true;
-                    }
-                }
-
-                let itemsize = plen + usize::from(!has_trailing_path_sep) + 2;
-                let mut item = vec![0 as c_char; itemsize];
-
-                let itemlen = vim_snprintf!(
-                    item.as_mut_ptr(),
-                    itemsize,
-                    c"%s%s*",
-                    p,
-                    if has_trailing_path_sep {
-                        c"".as_ptr()
-                    } else {
-                        PATHSEPSTR
-                    },
-                ) as usize;
-
-                if find_dup_item(
-                    if buf.is_empty() {
-                        ptr::null()
-                    } else {
-                        buf.as_ptr()
-                    },
-                    item.as_ptr(),
-                    itemlen,
-                    get_option(opt_idx).flags,
-                )
-                .is_null()
-                {
-                    if !buf.is_empty() {
-                        // Replace trailing NUL with ','
-                        let last = buf.len() - 1;
-                        buf[last] = b',' as c_char;
-                    }
-                    buf.extend_from_slice(&item[..itemlen]);
-                    buf.push(NUL);
+            if plen == 0 {
+                plen = crate::memory::cstr_len(p);
+                if after_pathsep(p, p.wrapping_add(plen)) != 0 {
+                    has_trailing_path_sep = true;
                 }
             }
+
+            let itemsize = plen + usize::from(!has_trailing_path_sep) + 2;
+            let mut item = vec![0 as c_char; itemsize];
+
+            let itemlen = vim_snprintf!(
+                item.as_mut_ptr(),
+                itemsize,
+                c"%s%s*",
+                p,
+                if has_trailing_path_sep {
+                    c"".as_ptr()
+                } else {
+                    PATHSEPSTR
+                },
+            ) as usize;
+
+            if find_dup_item(
+                if buf.is_empty() {
+                    ptr::null()
+                } else {
+                    buf.as_ptr()
+                },
+                item.as_ptr(),
+                itemlen,
+                get_option(opt_idx).flags,
+            )
+            .is_null()
+            {
+                if !buf.is_empty() {
+                    // Replace trailing NUL with ','
+                    let last = buf.len() - 1;
+                    buf[last] = b',' as c_char;
+                }
+                buf.extend_from_slice(&item[..itemlen]);
+                buf.push(NUL);
+            }
         }
-        if !buf.is_empty() {
-            set_string_default(K_OPT_BACKUPSKIP, buf.as_ptr());
-        }
+    }
+    if !buf.is_empty() {
+        set_string_default(K_OPT_BACKUPSKIP, buf.as_ptr());
     }
 }
 
 /// Initialize the 'cdpath' option to a default value.
 fn set_init_default_cdpath() {
-    unsafe {
-        let Some(cdpath_cstr) = vim_getenv(c"CDPATH") else {
-            return;
-        };
-        let cdpath = cdpath_cstr.as_ptr();
+    let Some(cdpath_cstr) = vim_getenv(c"CDPATH") else {
+        return;
+    };
+    let cdpath = cdpath_cstr.as_ptr();
 
-        let mut buf_vec = vec![0 as c_char; 2 * cdpath_cstr.as_bytes().len() + 2];
-        let buf = buf_vec.as_mut_ptr();
+    let mut buf_vec = vec![0 as c_char; 2 * cdpath_cstr.as_bytes().len() + 2];
+    let buf = buf_vec.as_mut_ptr();
+    unsafe {
         *buf = b',' as c_char;
-        let mut j: usize = 1;
-        let mut i: usize = 0;
-        while crate::memory::cstr_byte_at(cdpath, i) != 0 {
-            let ch = *cdpath.wrapping_add(i);
-            if vim_ispathlistsep(ch as i32) {
+    }
+    let mut j: usize = 1;
+    let mut i: usize = 0;
+    while crate::memory::cstr_byte_at(cdpath, i) != 0 {
+        let ch = unsafe { *cdpath.wrapping_add(i) };
+        if vim_ispathlistsep(ch as i32) {
+            unsafe {
                 *buf.wrapping_add(j) = b',' as c_char;
-                j += 1;
-            } else {
-                if ch == b' ' as c_char || ch == b',' as c_char {
+            }
+            j += 1;
+        } else {
+            if ch == b' ' as c_char || ch == b',' as c_char {
+                unsafe {
                     *buf.wrapping_add(j) = b'\\' as c_char;
-                    j += 1;
                 }
-                *buf.wrapping_add(j) = ch;
                 j += 1;
             }
-            i += 1;
+            unsafe {
+                *buf.wrapping_add(j) = ch;
+            }
+            j += 1;
         }
-        *buf.wrapping_add(j) = NUL;
-        change_option_default(K_OPT_CDPATH, cstr_to_obj(buf));
+        i += 1;
     }
+    unsafe {
+        *buf.wrapping_add(j) = NUL;
+    }
+    change_option_default(K_OPT_CDPATH, cstr_to_obj(buf));
 }
 
 /// Expand environment variables and things like "~" for the defaults.
 fn set_init_expand_env() {
-    {
-        for opt_idx in 0..K_OPT_COUNT {
-            let opt = get_option(opt_idx);
-            if (opt.flags & K_OPT_FLAG_NO_DEF_EXP) != 0 {
-                continue;
-            }
-            let mut p: *mut c_char = ptr::null_mut();
-            if (opt.flags & K_OPT_FLAG_GETTEXT) != 0 && !opt.var.is_null() {
-                p = tr(unsafe { *(opt.var.cast::<*mut c_char>()) });
-            } else if (opt.flags & K_OPT_FLAG_EXPAND) != 0 {
-                p = option_expand(opt_idx, opt.def_val.data.string().data);
-            }
-            if !p.is_null() {
-                let ov = cstr_to_obj(p);
-                set_option_varp(opt_idx, opt.var, ov);
-                change_option_default(opt_idx, ov);
-            }
+    for opt_idx in 0..K_OPT_COUNT {
+        let opt = get_option(opt_idx);
+        if (opt.flags & K_OPT_FLAG_NO_DEF_EXP) != 0 {
+            continue;
+        }
+        let mut p: *mut c_char = ptr::null_mut();
+        if (opt.flags & K_OPT_FLAG_GETTEXT) != 0 && !opt.var.is_null() {
+            p = tr(unsafe { *(opt.var.cast::<*mut c_char>()) });
+        } else if (opt.flags & K_OPT_FLAG_EXPAND) != 0 {
+            p = option_expand(opt_idx, opt.def_val.data.string().data);
+        }
+        if !p.is_null() {
+            let ov = cstr_to_obj(p);
+            set_option_varp(opt_idx, opt.var, ov);
+            change_option_default(opt_idx, ov);
         }
     }
 }
@@ -908,171 +903,159 @@ fn set_init_fenc_default() {
 
 /// Initialize the options, first part.
 pub fn set_init_1(clean_arg: bool) {
-    {
-        langmap_init();
+    langmap_init();
 
-        alloc_options_default();
+    alloc_options_default();
 
-        set_init_default_shell();
-        set_init_default_backupskip();
-        set_init_default_cdpath();
+    set_init_default_shell();
+    set_init_default_backupskip();
+    set_init_default_cdpath();
 
-        let raw_backupdir = stdpaths_user_state_subpath(c"backup", 2, true);
-        let mut backupdir_bytes = Vec::with_capacity(raw_backupdir.as_bytes().len() + 2);
-        backupdir_bytes.extend_from_slice(b".,");
-        backupdir_bytes.extend_from_slice(raw_backupdir.as_bytes());
-        let backupdir = crate::memory::cstr_from_bytes(&backupdir_bytes);
-        set_string_default(K_OPT_BACKUPDIR, backupdir.as_ptr());
-        set_string_default(
-            K_OPT_VIEWDIR,
-            stdpaths_user_state_subpath(c"view", 2, false).as_ptr(),
-        );
-        set_string_default(
-            K_OPT_DIRECTORY,
-            stdpaths_user_state_subpath(c"swap", 2, true).as_ptr(),
-        );
-        set_string_default(
-            K_OPT_UNDODIR,
-            stdpaths_user_state_subpath(c"undo", 2, true).as_ptr(),
-        );
-        set_string_default(
-            K_OPT_PACKLOCKFILE,
-            stdpaths_user_conf_subpath(c"nvim-pack-lock.json").as_ptr(),
-        );
-        if let Some(rtp) = runtimepath_default(clean_arg) {
-            set_string_default(K_OPT_RUNTIMEPATH, rtp.as_ptr());
-            set_string_default(K_OPT_PACKPATH, rtp.as_ptr());
-        }
-
-        set_options_default(0);
-
-        curbuf_mut().b_p_initialized = true;
-        curbuf_mut().b_p_ac = -1;
-        curbuf_mut().b_p_ar = -1;
-        curbuf_mut().b_p_fs = -1;
-        curbuf_mut().b_p_ul = NO_LOCAL_UNDOLEVEL;
-        check_buf_options(curbuf_mut());
-        check_win_options(curwin_mut());
-        check_options();
-
-        last_status(false);
-
-        didset_options();
-
-        init_spell_chartab();
-
-        set_init_expand_env();
-
-        if os_env_exists(c"NVIM_NOTTYFAST", false) {
-            set_option_value_give_err(K_OPT_TTYFAST, boolean_obj(false), 0);
-        }
-
-        save_file_ff(curbuf_mut());
-
-        if os_env_exists(c"MLTERM", false) {
-            set_option_value_give_err(K_OPT_TERMBIDI, boolean_obj(true), 0);
-        }
-
-        didset_options2();
-
-        lang_init();
-        set_init_fenc_default();
-
-        let _ = bind_textdomain_codeset(c"nvim".as_ptr(), opt_vars().p_enc);
-
-        set_helplang_default(get_mess_lang());
+    let raw_backupdir = stdpaths_user_state_subpath(c"backup", 2, true);
+    let mut backupdir_bytes = Vec::with_capacity(raw_backupdir.as_bytes().len() + 2);
+    backupdir_bytes.extend_from_slice(b".,");
+    backupdir_bytes.extend_from_slice(raw_backupdir.as_bytes());
+    let backupdir = crate::memory::cstr_from_bytes(&backupdir_bytes);
+    set_string_default(K_OPT_BACKUPDIR, backupdir.as_ptr());
+    set_string_default(
+        K_OPT_VIEWDIR,
+        stdpaths_user_state_subpath(c"view", 2, false).as_ptr(),
+    );
+    set_string_default(
+        K_OPT_DIRECTORY,
+        stdpaths_user_state_subpath(c"swap", 2, true).as_ptr(),
+    );
+    set_string_default(
+        K_OPT_UNDODIR,
+        stdpaths_user_state_subpath(c"undo", 2, true).as_ptr(),
+    );
+    set_string_default(
+        K_OPT_PACKLOCKFILE,
+        stdpaths_user_conf_subpath(c"nvim-pack-lock.json").as_ptr(),
+    );
+    if let Some(rtp) = runtimepath_default(clean_arg) {
+        set_string_default(K_OPT_RUNTIMEPATH, rtp.as_ptr());
+        set_string_default(K_OPT_PACKPATH, rtp.as_ptr());
     }
+
+    set_options_default(0);
+
+    curbuf_mut().b_p_initialized = true;
+    curbuf_mut().b_p_ac = -1;
+    curbuf_mut().b_p_ar = -1;
+    curbuf_mut().b_p_fs = -1;
+    curbuf_mut().b_p_ul = NO_LOCAL_UNDOLEVEL;
+    check_buf_options(curbuf_mut());
+    check_win_options(curwin_mut());
+    check_options();
+
+    last_status(false);
+
+    didset_options();
+
+    init_spell_chartab();
+
+    set_init_expand_env();
+
+    if os_env_exists(c"NVIM_NOTTYFAST", false) {
+        set_option_value_give_err(K_OPT_TTYFAST, boolean_obj(false), 0);
+    }
+
+    save_file_ff(curbuf_mut());
+
+    if os_env_exists(c"MLTERM", false) {
+        set_option_value_give_err(K_OPT_TERMBIDI, boolean_obj(true), 0);
+    }
+
+    didset_options2();
+
+    lang_init();
+    set_init_fenc_default();
+
+    let _ = bind_textdomain_codeset(c"nvim".as_ptr(), opt_vars().p_enc);
+
+    set_helplang_default(get_mess_lang());
 }
 
 /// Get default value for option, based on the option's type and scope.
 pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
+    let opt = get_option(opt_idx);
+    let is_global_local_option = option_is_global_local(opt_idx);
+
+    #[cfg(unix)]
+    if opt_idx == K_OPT_MODELINE && getuid() == ROOT_UID {
+        return boolean_obj(false);
+    }
+
+    if (opt_flags & OPT_LOCAL) != 0 && is_global_local_option {
+        return unset_obj();
+    }
+
+    let mut def_val = opt.def_val;
+    if option_has_type(opt_idx, ObjectType::ObjectTypeString)
+        && (opt.flags & K_OPT_FLAG_NO_DEF_EXP) == 0
     {
-        let opt = get_option(opt_idx);
-        let is_global_local_option = option_is_global_local(opt_idx);
-
-        #[cfg(unix)]
-        if opt_idx == K_OPT_MODELINE && getuid() == ROOT_UID {
-            return boolean_obj(false);
+        let s = option_expand(opt_idx, def_val.data.string().data);
+        if !s.is_null() {
+            def_val = cstr_as_obj(s);
         }
-
-        if (opt_flags & OPT_LOCAL) != 0 && is_global_local_option {
-            return unset_obj();
-        }
-
-        let mut def_val = opt.def_val;
-        if option_has_type(opt_idx, ObjectType::ObjectTypeString)
-            && (opt.flags & K_OPT_FLAG_NO_DEF_EXP) == 0
-        {
-            let s = option_expand(opt_idx, def_val.data.string().data);
-            if !s.is_null() {
-                def_val = cstr_as_obj(s);
-            }
-        }
-        if optval_is_owned(opt_idx) {
-            copy_object(def_val, None)
-        } else {
-            def_val
-        }
+    }
+    if optval_is_owned(opt_idx) {
+        copy_object(def_val, None)
+    } else {
+        def_val
     }
 }
 
 /// Allocate the default values for all options by copying them from the stack.
 fn alloc_options_default() {
-    {
-        for opt_idx in 0..K_OPT_COUNT {
-            let opt = get_option(opt_idx);
-            opt.def_val = copy_object(opt.def_val, None);
-        }
+    for opt_idx in 0..K_OPT_COUNT {
+        let opt = get_option(opt_idx);
+        opt.def_val = copy_object(opt.def_val, None);
     }
 }
 
 /// Change the default value for an option.
 fn change_option_default(opt_idx: OptIndex, value: Object) {
-    {
-        let opt = get_option(opt_idx);
-        optval_free(opt.def_val);
-        opt.def_val = value;
-    }
+    let opt = get_option(opt_idx);
+    optval_free(opt.def_val);
+    opt.def_val = value;
 }
 
 /// Set an option to its default value.
 fn set_option_default(opt_idx: OptIndex, opt_flags: i32) {
-    {
-        let both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
-        let def_val = get_option_default(opt_idx, opt_flags);
-        set_option_direct(opt_idx, def_val, opt_flags, g_st().current_sctx.sc_sid);
-        optval_free_read(opt_idx, def_val);
+    let both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
+    let def_val = get_option_default(opt_idx, opt_flags);
+    set_option_direct(opt_idx, def_val, opt_flags, g_st().current_sctx.sc_sid);
+    optval_free_read(opt_idx, def_val);
 
-        if opt_idx == K_OPT_SCROLL {
-            win_comp_scroll(curwin_mut());
-        }
+    if opt_idx == K_OPT_SCROLL {
+        win_comp_scroll(curwin_mut());
+    }
 
-        let mut flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, opt_flags);
+    let mut flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, opt_flags);
+    *flagsp &= !K_OPT_FLAG_INSECURE;
+    if both {
+        flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, OPT_LOCAL);
         *flagsp &= !K_OPT_FLAG_INSECURE;
-        if both {
-            flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, OPT_LOCAL);
-            *flagsp &= !K_OPT_FLAG_INSECURE;
-        }
     }
 }
 
 /// Set all options (except terminal options) to their default value.
 fn set_options_default(opt_flags: i32) {
-    {
-        for opt_idx in 0..K_OPT_COUNT {
-            if (get_option(opt_idx).flags & K_OPT_FLAG_NO_DEFAULT) == 0 {
-                set_option_default(opt_idx, opt_flags);
-            }
+    for opt_idx in 0..K_OPT_COUNT {
+        if (get_option(opt_idx).flags & K_OPT_FLAG_NO_DEFAULT) == 0 {
+            set_option_default(opt_idx, opt_flags);
         }
-
-        for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(&*tp) {
-                win_comp_scroll(wp);
-            }
-        }
-
-        parse_cino(curbuf_mut());
     }
+
+    for tp in for_all_tabpages_ptr() {
+        for wp in for_all_windows_in_tab_mut(&*tp) {
+            win_comp_scroll(wp);
+        }
+    }
+
+    parse_cino(curbuf_mut());
 }
 
 /// Set the Vi-default value of a string option.
@@ -1128,108 +1111,99 @@ fn find_dup_item(
 
 /// Free all options.
 pub fn free_all_options() {
-    {
-        for opt_idx in 0..K_OPT_COUNT {
-            let opt = get_option(opt_idx);
-            let hidden = is_option_hidden(opt_idx);
+    for opt_idx in 0..K_OPT_COUNT {
+        let opt = get_option(opt_idx);
+        let hidden = is_option_hidden(opt_idx);
 
-            if !hidden
-                && !opt.var.is_null()
-                && (option_is_global_only(opt_idx) || !option_is_window_local(opt_idx))
-            {
-                if is_callback_option(opt_idx) {
-                    callback_free(unsafe { &mut *opt.var.cast::<Callback>() });
-                } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
-                    crate::optionstr::clear_string_option(opt.var.cast::<*mut c_char>());
-                }
+        if !hidden
+            && !opt.var.is_null()
+            && (option_is_global_only(opt_idx) || !option_is_window_local(opt_idx))
+        {
+            if is_callback_option(opt_idx) {
+                callback_free(unsafe { &mut *opt.var.cast::<Callback>() });
+            } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
+                crate::optionstr::clear_string_option(opt.var.cast::<*mut c_char>());
             }
-            optval_free(opt.def_val);
         }
-        free_operatorfunc_option();
-        free_tagfunc_option();
-        free_findfunc_option();
-        g_st().fenc_default = None;
-        opt_st().p_term = None;
-        opt_st().p_ttytype = None;
+        optval_free(opt.def_val);
     }
+    free_operatorfunc_option();
+    free_tagfunc_option();
+    free_findfunc_option();
+    g_st().fenc_default = None;
+    opt_st().p_term = None;
+    opt_st().p_ttytype = None;
 }
 
 /// Initialize the options, part two: After getting Rows and Columns.
 pub fn set_init_2(_headless: bool) {
-    {
-        logmsg!(
-            1,
-            ptr::null(),
-            c"set_init_2",
-            592,
-            true,
-            c"startup runtimepath/packpath value: %s",
-            opt_vars().p_rtp,
-        );
+    logmsg!(
+        1,
+        ptr::null(),
+        c"set_init_2",
+        592,
+        true,
+        c"startup runtimepath/packpath value: %s",
+        opt_vars().p_rtp,
+    );
 
-        if (get_option(K_OPT_SCROLL).flags & K_OPT_FLAG_WAS_SET) == 0 {
-            set_option_default(K_OPT_SCROLL, OPT_LOCAL);
-        }
-        comp_col();
-
-        if !option_was_set(K_OPT_WINDOW) {
-            opt_vars().p_window = OptInt::from(g_st().rows_global - 1);
-        }
-        change_option_default(
-            K_OPT_WINDOW,
-            integer_obj(OptInt::from(g_st().rows_global - 1)),
-        );
+    if (get_option(K_OPT_SCROLL).flags & K_OPT_FLAG_WAS_SET) == 0 {
+        set_option_default(K_OPT_SCROLL, OPT_LOCAL);
     }
+    comp_col();
+
+    if !option_was_set(K_OPT_WINDOW) {
+        opt_vars().p_window = OptInt::from(g_st().rows_global - 1);
+    }
+    change_option_default(
+        K_OPT_WINDOW,
+        integer_obj(OptInt::from(g_st().rows_global - 1)),
+    );
 }
 
 fn change_option_and_default_if_unset(idx: OptIndex, val: Option<&'static CStr>) {
-    {
-        let Some(val) = val else {
-            return;
-        };
-        if (get_option(idx).flags & K_OPT_FLAG_WAS_SET) != 0 {
-            return;
-        }
-        let optval = cstr_as_obj(val.as_ptr());
-        set_option_direct(idx, optval, 0, SID_NONE);
-        change_option_default(idx, copy_object(optval, None));
+    let Some(val) = val else {
+        return;
+    };
+    if (get_option(idx).flags & K_OPT_FLAG_WAS_SET) != 0 {
+        return;
     }
+    let optval = cstr_as_obj(val.as_ptr());
+    set_option_direct(idx, optval, 0, SID_NONE);
+    change_option_default(idx, copy_object(optval, None));
 }
 
 /// Initialize the options, part three: After reading the .vimrc
 pub fn set_init_3() {
-    {
-        parse_shape_opt(SHAPE_CURSOR);
+    parse_shape_opt(SHAPE_CURSOR);
 
-        let mut len: usize = 0;
-        let mut name = [0 as c_char; MAXPATHL];
-        let p = invocation_path_tail(opt_vars().p_sh, Some(&mut len));
-        crate::memory::cstr_ncpy(name.as_mut_ptr(), p, len);
-        for (i, rule) in SHELL_RULES.iter().enumerate() {
-            if !c_str_contains(name.as_ptr(), rule.pat.to_bytes()) {
-                continue;
-            }
-            change_option_and_default_if_unset(K_OPT_SHELLCMDFLAG, rule.shcf);
-            change_option_and_default_if_unset(K_OPT_SHELLPIPE, rule.sp);
-            change_option_and_default_if_unset(K_OPT_SHELLREDIR, rule.srr);
-            change_option_and_default_if_unset(K_OPT_SHELLXQUOTE, rule.sxq);
-            #[cfg(windows)]
-            if i > 0 && (get_option(K_OPT_SHELLSLASH).flags & K_OPT_FLAG_WAS_SET) == 0 {
-                set_option_direct(K_OPT_SHELLSLASH, boolean_obj(true), 0, SID_NONE);
-                change_option_default(K_OPT_SHELLSLASH, boolean_obj(true));
-            }
-            let _ = i;
-            break;
+    let mut len: usize = 0;
+    let mut name = [0 as c_char; MAXPATHL];
+    let p = invocation_path_tail(opt_vars().p_sh, Some(&mut len));
+    crate::memory::cstr_ncpy(name.as_mut_ptr(), p, len);
+    for (i, rule) in SHELL_RULES.iter().enumerate() {
+        if !c_str_contains(name.as_ptr(), rule.pat.to_bytes()) {
+            continue;
         }
-
-        if buf_is_empty(curbuf_mut())
-            && (get_option(K_OPT_FILEFORMATS).flags & K_OPT_FLAG_WAS_SET) != 0
-        {
-            set_fileformat(default_fileformat(), OPT_LOCAL);
+        change_option_and_default_if_unset(K_OPT_SHELLCMDFLAG, rule.shcf);
+        change_option_and_default_if_unset(K_OPT_SHELLPIPE, rule.sp);
+        change_option_and_default_if_unset(K_OPT_SHELLREDIR, rule.srr);
+        change_option_and_default_if_unset(K_OPT_SHELLXQUOTE, rule.sxq);
+        #[cfg(windows)]
+        if i > 0 && (get_option(K_OPT_SHELLSLASH).flags & K_OPT_FLAG_WAS_SET) == 0 {
+            set_option_direct(K_OPT_SHELLSLASH, boolean_obj(true), 0, SID_NONE);
+            change_option_default(K_OPT_SHELLSLASH, boolean_obj(true));
         }
-
-        set_title_defaults();
+        let _ = i;
+        break;
     }
+
+    if buf_is_empty(curbuf_mut()) && (get_option(K_OPT_FILEFORMATS).flags & K_OPT_FLAG_WAS_SET) != 0
+    {
+        set_fileformat(default_fileformat(), OPT_LOCAL);
+    }
+
+    set_title_defaults();
 }
 
 /// When 'helplang' is still at its default value, set it to "lang".
@@ -1269,15 +1243,13 @@ pub fn set_helplang_default(lang: impl crate::strings::IntoCCharPtr) {
 }
 
 pub fn set_title_defaults() {
-    {
-        if (get_option(K_OPT_TITLE).flags & K_OPT_FLAG_WAS_SET) == 0 {
-            change_option_default(K_OPT_TITLE, boolean_obj(false));
-            opt_vars().p_title = 0;
-        }
-        if (get_option(K_OPT_ICON).flags & K_OPT_FLAG_WAS_SET) == 0 {
-            change_option_default(K_OPT_ICON, boolean_obj(false));
-            opt_vars().p_icon = 0;
-        }
+    if (get_option(K_OPT_TITLE).flags & K_OPT_FLAG_WAS_SET) == 0 {
+        change_option_default(K_OPT_TITLE, boolean_obj(false));
+        opt_vars().p_title = 0;
+    }
+    if (get_option(K_OPT_ICON).flags & K_OPT_FLAG_WAS_SET) == 0 {
+        change_option_default(K_OPT_ICON, boolean_obj(false));
+        opt_vars().p_icon = 0;
     }
 }
 
@@ -1303,8 +1275,8 @@ fn stropt_copy_value(
     flags: u32,
 ) -> Vec<c_char> {
     let origval = origval.into_c_char_ptr();
-    unsafe {
-        let mut arg = *argp;
+    {
+        let mut arg = unsafe { *argp };
 
         let mut newlen = crate::memory::cstr_len(arg) + 1;
         if op != OP_NONE {
@@ -1336,18 +1308,24 @@ fn stropt_copy_value(
             }
             let i = utfc_ptr2len(arg);
             if i > 1 {
-                ptr::copy(arg, s, i as usize);
+                unsafe { ptr::copy(arg, s, i as usize) };
                 arg = arg.wrapping_add(i as usize);
                 s = s.wrapping_add(i as usize);
             } else {
-                *s = *arg;
+                unsafe {
+                    *s = *arg;
+                }
                 s = s.wrapping_add(1);
                 arg = arg.wrapping_add(1);
             }
         }
-        *s = NUL;
+        unsafe {
+            *s = NUL;
+        }
 
-        *argp = arg;
+        unsafe {
+            *argp = arg;
+        }
         newval_vec
     }
 }
@@ -1564,22 +1542,20 @@ fn append_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
 
 /// Prepend a comma-separated item to the beginning of "str" in-place.
 fn prepend_item(str_arg: *mut c_char, item: *mut c_char, item_len: isize) {
-    {
-        let len = crate::memory::cstr_len(str_arg) as isize;
-        let comma: isize = if len > 0 { 1 } else { 0 };
+    let len = crate::memory::cstr_len(str_arg) as isize;
+    let comma: isize = if len > 0 { 1 } else { 0 };
 
+    unsafe {
+        ptr::copy(
+            str_arg,
+            str_arg.wrapping_offset(item_len + comma),
+            (len + 1) as usize,
+        )
+    };
+    unsafe { ptr::copy(item, str_arg, item_len as usize) };
+    if comma != 0 {
         unsafe {
-            ptr::copy(
-                str_arg,
-                str_arg.wrapping_offset(item_len + comma),
-                (len + 1) as usize,
-            )
-        };
-        unsafe { ptr::copy(item, str_arg, item_len as usize) };
-        if comma != 0 {
-            unsafe {
-                *str_arg.wrapping_offset(item_len) = b',' as c_char;
-            }
+            *str_arg.wrapping_offset(item_len) = b',' as c_char;
         }
     }
 }
@@ -1823,51 +1799,47 @@ fn validate_opt_idx(
     prefix: SetPrefix,
     errmsg: *mut *const c_char,
 ) -> bool {
-    {
-        if !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) && prefix != PREFIX_NONE {
-            unsafe {
-                *errmsg = E_INVARG.as_ptr();
-            }
-            return false;
+    if !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) && prefix != PREFIX_NONE {
+        unsafe {
+            *errmsg = E_INVARG.as_ptr();
         }
-
-        if (opt_flags & OPT_WINONLY) != 0 && !option_is_window_local(opt_idx) {
-            return false;
-        }
-
-        if (opt_flags & OPT_NOWIN) != 0 && option_is_window_local(opt_idx) {
-            return false;
-        }
-
-        if (opt_flags & OPT_MODELINE) != 0 {
-            if (flags & K_OPT_FLAG_SECURE) != 0 {
-                unsafe {
-                    *errmsg = E_NOT_ALLOWED_IN_MODELINE;
-                }
-                return false;
-            }
-            if (flags & K_OPT_FLAG_MLE) != 0 && opt_vars().p_mle == 0 {
-                unsafe {
-                    *errmsg = E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF;
-                }
-                return false;
-            }
-            if win.w_onebuf_opt.wo_diff != 0
-                && (opt_idx == K_OPT_FOLDMETHOD || opt_idx == K_OPT_WRAP)
-            {
-                return false;
-            }
-        }
-
-        if g_st().sandbox != 0 && (flags & K_OPT_FLAG_SECURE) != 0 {
-            unsafe {
-                *errmsg = E_SANDBOX.as_ptr();
-            }
-            return false;
-        }
-
-        true
+        return false;
     }
+
+    if (opt_flags & OPT_WINONLY) != 0 && !option_is_window_local(opt_idx) {
+        return false;
+    }
+
+    if (opt_flags & OPT_NOWIN) != 0 && option_is_window_local(opt_idx) {
+        return false;
+    }
+
+    if (opt_flags & OPT_MODELINE) != 0 {
+        if (flags & K_OPT_FLAG_SECURE) != 0 {
+            unsafe {
+                *errmsg = E_NOT_ALLOWED_IN_MODELINE;
+            }
+            return false;
+        }
+        if (flags & K_OPT_FLAG_MLE) != 0 && opt_vars().p_mle == 0 {
+            unsafe {
+                *errmsg = E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF;
+            }
+            return false;
+        }
+        if win.w_onebuf_opt.wo_diff != 0 && (opt_idx == K_OPT_FOLDMETHOD || opt_idx == K_OPT_WRAP) {
+            return false;
+        }
+    }
+
+    if g_st().sandbox != 0 && (flags & K_OPT_FLAG_SECURE) != 0 {
+        unsafe {
+            *errmsg = E_SANDBOX.as_ptr();
+        }
+        return false;
+    }
+
+    true
 }
 
 /// Skip over the name of a TTY option or keycode option.
@@ -2225,91 +2197,89 @@ fn do_one_set_option(
 
 /// Parse 'arg' for option settings.
 pub fn do_set(mut arg: *mut c_char, opt_flags: i32) -> bool {
-    {
-        let mut did_show = false;
+    let mut did_show = false;
 
-        if crate::memory::cstr_is_empty(arg) {
-            showoptions(false, opt_flags);
-            did_show = true;
-        } else {
-            while !crate::memory::cstr_is_empty(arg) {
-                if (crate::memory::cstr_prefix_bytes(arg, 3) == &b"all"[..3])
-                    && !ascii_isalpha(crate::memory::cstr_char_at(arg, 3))
-                    && (opt_flags & OPT_MODELINE) == 0
-                {
-                    arg = arg.wrapping_add(3);
-                    if crate::memory::cstr_first_byte(arg) == b'&' {
-                        arg = arg.wrapping_add(1);
-                        set_options_default(opt_flags);
-                        didset_options_all();
-                        didset_options();
-                        didset_options2();
-                        ui_refresh_options();
-                        redraw_all_later(UPD_CLEAR);
-                    } else {
-                        showoptions(true, opt_flags);
-                        did_show = true;
-                    }
+    if crate::memory::cstr_is_empty(arg) {
+        showoptions(false, opt_flags);
+        did_show = true;
+    } else {
+        while !crate::memory::cstr_is_empty(arg) {
+            if (crate::memory::cstr_prefix_bytes(arg, 3) == &b"all"[..3])
+                && !ascii_isalpha(crate::memory::cstr_char_at(arg, 3))
+                && (opt_flags & OPT_MODELINE) == 0
+            {
+                arg = arg.wrapping_add(3);
+                if crate::memory::cstr_first_byte(arg) == b'&' {
+                    arg = arg.wrapping_add(1);
+                    set_options_default(opt_flags);
+                    didset_options_all();
+                    didset_options();
+                    didset_options2();
+                    ui_refresh_options();
+                    redraw_all_later(UPD_CLEAR);
                 } else {
-                    let startarg = arg;
-                    let mut errbuf_storage = [0 as c_char; ERR_BUFLEN];
-                    let errbuf = CharBuf {
-                        data: errbuf_storage.as_mut_ptr(),
-                        size: ERR_BUFLEN,
-                    };
-                    let errmsg =
-                        do_one_set_option(opt_flags, &raw mut arg, &mut did_show, Some(errbuf));
+                    showoptions(true, opt_flags);
+                    did_show = true;
+                }
+            } else {
+                let startarg = arg;
+                let mut errbuf_storage = [0 as c_char; ERR_BUFLEN];
+                let errbuf = CharBuf {
+                    data: errbuf_storage.as_mut_ptr(),
+                    size: ERR_BUFLEN,
+                };
+                let errmsg =
+                    do_one_set_option(opt_flags, &raw mut arg, &mut did_show, Some(errbuf));
 
-                    for _ in 0..2 {
-                        arg = skiptowhite_esc(arg);
-                        arg = skipwhite(arg);
-                        if crate::memory::cstr_first_byte(arg) != b'=' {
-                            break;
-                        }
-                    }
-
-                    if !errmsg.is_null() {
-                        let iobuf_ptr = g_st().iobuff.as_mut_ptr();
-                        let i = (vim_snprintf!(iobuf_ptr, IOSIZE, c"%s", tr(errmsg)) + 2) as isize;
-                        let arg_len = crate::memory::ptr_offset_from(arg, startarg);
-                        if (i + arg_len) < IOSIZE as isize {
-                            xstrlcpy(
-                                iobuf_ptr.wrapping_offset(i - 2),
-                                c": ",
-                                (IOSIZE as isize - i + 2) as usize,
-                            );
-                            assert!(arg >= startarg);
-                            unsafe {
-                                ptr::copy(startarg, iobuf_ptr.wrapping_offset(i), arg_len as usize)
-                            };
-                            unsafe {
-                                *iobuf_ptr.wrapping_offset(i + arg_len) = NUL;
-                            }
-                        }
-                        trans_characters(iobuf_ptr, IOSIZE as i32);
-
-                        g_st().no_wait_return += 1;
-                        emsg(iobuf_ptr);
-                        g_st().no_wait_return -= 1;
-
-                        return false;
+                for _ in 0..2 {
+                    arg = skiptowhite_esc(arg);
+                    arg = skipwhite(arg);
+                    if crate::memory::cstr_first_byte(arg) != b'=' {
+                        break;
                     }
                 }
 
-                arg = skipwhite(arg);
+                if !errmsg.is_null() {
+                    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
+                    let i = (vim_snprintf!(iobuf_ptr, IOSIZE, c"%s", tr(errmsg)) + 2) as isize;
+                    let arg_len = crate::memory::ptr_offset_from(arg, startarg);
+                    if (i + arg_len) < IOSIZE as isize {
+                        xstrlcpy(
+                            iobuf_ptr.wrapping_offset(i - 2),
+                            c": ",
+                            (IOSIZE as isize - i + 2) as usize,
+                        );
+                        assert!(arg >= startarg);
+                        unsafe {
+                            ptr::copy(startarg, iobuf_ptr.wrapping_offset(i), arg_len as usize)
+                        };
+                        unsafe {
+                            *iobuf_ptr.wrapping_offset(i + arg_len) = NUL;
+                        }
+                    }
+                    trans_characters(iobuf_ptr, IOSIZE as i32);
+
+                    g_st().no_wait_return += 1;
+                    emsg(iobuf_ptr);
+                    g_st().no_wait_return -= 1;
+
+                    return false;
+                }
             }
-        }
 
-        if g_st().silent_mode && did_show {
-            g_st().silent_mode = false;
-            g_st().info_message = true;
-            msg_putchar(b'\n' as i32);
-            g_st().silent_mode = true;
-            g_st().info_message = false;
+            arg = skipwhite(arg);
         }
-
-        true
     }
+
+    if g_st().silent_mode && did_show {
+        g_st().silent_mode = false;
+        g_st().info_message = true;
+        msg_putchar(b'\n' as i32);
+        g_st().silent_mode = true;
+        g_st().info_message = false;
+    }
+
+    true
 }
 
 fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: bool) -> i32 {
@@ -2365,62 +2335,58 @@ pub fn string_to_key(arg: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 pub fn did_set_title() {
-    {
-        if starting_val() != NO_SCREEN {
-            maketitle();
-        }
+    if starting_val() != NO_SCREEN {
+        maketitle();
     }
 }
 
 /// set_options_bin - called when 'bin' changes value.
 pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
-    {
-        if newval != 0 {
-            if oldval == 0 {
-                if (opt_flags & OPT_GLOBAL) == 0 {
-                    curbuf_mut().b_p_tw_nobin = curbuf_mut().b_p_tw;
-                    curbuf_mut().b_p_wm_nobin = curbuf_mut().b_p_wm;
-                    curbuf_mut().b_p_ml_nobin = curbuf_mut().b_p_ml;
-                    curbuf_mut().b_p_et_nobin = curbuf_mut().b_p_et;
-                }
-                if (opt_flags & OPT_LOCAL) == 0 {
-                    opt_st().p_tw_nobin = opt_vars().p_tw;
-                    opt_st().p_wm_nobin = opt_vars().p_wm;
-                    opt_st().p_ml_nobin = opt_vars().p_ml;
-                    opt_st().p_et_nobin = opt_vars().p_et;
-                }
-            }
-
+    if newval != 0 {
+        if oldval == 0 {
             if (opt_flags & OPT_GLOBAL) == 0 {
-                curbuf_mut().b_p_tw = 0;
-                curbuf_mut().b_p_wm = 0;
-                curbuf_mut().b_p_ml = 0;
-                curbuf_mut().b_p_et = 0;
+                curbuf_mut().b_p_tw_nobin = curbuf_mut().b_p_tw;
+                curbuf_mut().b_p_wm_nobin = curbuf_mut().b_p_wm;
+                curbuf_mut().b_p_ml_nobin = curbuf_mut().b_p_ml;
+                curbuf_mut().b_p_et_nobin = curbuf_mut().b_p_et;
             }
             if (opt_flags & OPT_LOCAL) == 0 {
-                opt_vars().p_tw = 0;
-                opt_vars().p_wm = 0;
-                opt_vars().p_ml = 0;
-                opt_vars().p_et = 0;
-                opt_vars().p_bin = 1;
-            }
-        } else if oldval != 0 {
-            if (opt_flags & OPT_GLOBAL) == 0 {
-                curbuf_mut().b_p_tw = curbuf_mut().b_p_tw_nobin;
-                curbuf_mut().b_p_wm = curbuf_mut().b_p_wm_nobin;
-                curbuf_mut().b_p_ml = curbuf_mut().b_p_ml_nobin;
-                curbuf_mut().b_p_et = curbuf_mut().b_p_et_nobin;
-            }
-            if (opt_flags & OPT_LOCAL) == 0 {
-                opt_vars().p_tw = opt_st().p_tw_nobin;
-                opt_vars().p_wm = opt_st().p_wm_nobin;
-                opt_vars().p_ml = opt_st().p_ml_nobin;
-                opt_vars().p_et = opt_st().p_et_nobin;
+                opt_st().p_tw_nobin = opt_vars().p_tw;
+                opt_st().p_wm_nobin = opt_vars().p_wm;
+                opt_st().p_ml_nobin = opt_vars().p_ml;
+                opt_st().p_et_nobin = opt_vars().p_et;
             }
         }
 
-        didset_options_sctx(opt_flags, P_BIN_DEP_OPTS);
+        if (opt_flags & OPT_GLOBAL) == 0 {
+            curbuf_mut().b_p_tw = 0;
+            curbuf_mut().b_p_wm = 0;
+            curbuf_mut().b_p_ml = 0;
+            curbuf_mut().b_p_et = 0;
+        }
+        if (opt_flags & OPT_LOCAL) == 0 {
+            opt_vars().p_tw = 0;
+            opt_vars().p_wm = 0;
+            opt_vars().p_ml = 0;
+            opt_vars().p_et = 0;
+            opt_vars().p_bin = 1;
+        }
+    } else if oldval != 0 {
+        if (opt_flags & OPT_GLOBAL) == 0 {
+            curbuf_mut().b_p_tw = curbuf_mut().b_p_tw_nobin;
+            curbuf_mut().b_p_wm = curbuf_mut().b_p_wm_nobin;
+            curbuf_mut().b_p_ml = curbuf_mut().b_p_ml_nobin;
+            curbuf_mut().b_p_et = curbuf_mut().b_p_et_nobin;
+        }
+        if (opt_flags & OPT_LOCAL) == 0 {
+            opt_vars().p_tw = opt_st().p_tw_nobin;
+            opt_vars().p_wm = opt_st().p_wm_nobin;
+            opt_vars().p_ml = opt_st().p_ml_nobin;
+            opt_vars().p_et = opt_st().p_et_nobin;
+        }
     }
+
+    didset_options_sctx(opt_flags, P_BIN_DEP_OPTS);
 }
 
 /// Expand environment variables for some string options.
@@ -2469,55 +2435,51 @@ fn option_expand(opt_idx: OptIndex, val: impl crate::strings::IntoCCharPtr) -> *
 
 /// After setting various option values: recompute variables that depend on option values.
 fn didset_options() {
-    {
-        buf_init_isk_chartab(curbuf_mut());
-        init_isf_chartab();
-        init_isi_chartab();
+    buf_init_isk_chartab(curbuf_mut());
+    init_isf_chartab();
+    init_isi_chartab();
 
-        didset_string_options();
+    didset_string_options();
 
-        let mut sps_flags: i32 = 0;
-        let mut sps_limit: i32 = 0;
-        if spell_check_sps(opt_vars().p_sps, &mut sps_flags, &mut sps_limit) {
-            spell_apply_sps(sps_flags, sps_limit);
-        }
-        let ws = curwin_mut().w_s_ptr();
-        compile_cap_prog(ws.b_p_spc, &mut ws.b_cap_prog);
-        did_set_spell_option();
-        let mut dummy = Optset::new();
-        did_set_cedit(&mut dummy);
-        did_set_breakat(&mut dummy);
-        didset_window_options(curwin_mut(), true);
+    let mut sps_flags: i32 = 0;
+    let mut sps_limit: i32 = 0;
+    if spell_check_sps(opt_vars().p_sps, &mut sps_flags, &mut sps_limit) {
+        spell_apply_sps(sps_flags, sps_limit);
     }
+    let ws = curwin_mut().w_s_ptr();
+    compile_cap_prog(ws.b_p_spc, &mut ws.b_cap_prog);
+    did_set_spell_option();
+    let mut dummy = Optset::new();
+    did_set_cedit(&mut dummy);
+    did_set_breakat(&mut dummy);
+    didset_window_options(curwin_mut(), true);
 }
 
 fn didset_options2() {
-    {
-        highlight_changed();
+    highlight_changed();
 
-        set_chars_option(
-            curwin_mut(),
-            curwin_mut().w_onebuf_opt.wo_fcs,
-            CharsOption::Fillchars,
-            true,
-            None,
-        );
-        set_chars_option(
-            curwin_mut(),
-            curwin_mut().w_onebuf_opt.wo_lcs,
-            CharsOption::Listchars,
-            true,
-            None,
-        );
+    set_chars_option(
+        curwin_mut(),
+        curwin_mut().w_onebuf_opt.wo_fcs,
+        CharsOption::Fillchars,
+        true,
+        None,
+    );
+    set_chars_option(
+        curwin_mut(),
+        curwin_mut().w_onebuf_opt.wo_lcs,
+        CharsOption::Listchars,
+        true,
+        None,
+    );
 
-        check_opt_wim(opt_vars().p_wim, (&raw mut g_st().wim_flags).cast::<u8>());
-        tabstop_set(
-            curbuf_mut().b_p_vsts,
-            &mut curbuf_mut().b_p_vsts_array,
-            None,
-        );
-        tabstop_set(curbuf_mut().b_p_vts, &mut curbuf_mut().b_p_vts_array, None);
-    }
+    check_opt_wim(opt_vars().p_wim, (&raw mut g_st().wim_flags).cast::<u8>());
+    tabstop_set(
+        curbuf_mut().b_p_vsts,
+        &mut curbuf_mut().b_p_vsts_array,
+        None,
+    );
+    tabstop_set(curbuf_mut().b_p_vts, &mut curbuf_mut().b_p_vts_array, None);
 }
 
 /// Repair UI state after `:set all&`.
@@ -2531,27 +2493,23 @@ fn didset_options_all() {
 
 /// Check for string options that are NULL (normally only termcap options).
 pub fn check_options() {
-    {
-        for opt_idx in 0..K_OPT_COUNT {
-            let opt = get_option(opt_idx);
-            if option_has_type(opt_idx, ObjectType::ObjectTypeString)
-                && !is_callback_option(opt_idx)
-                && !opt.immutable
-                && !opt.var.is_null()
-            {
-                check_string_option(get_varp(&mut *opt).cast::<*mut c_char>());
-            }
+    for opt_idx in 0..K_OPT_COUNT {
+        let opt = get_option(opt_idx);
+        if option_has_type(opt_idx, ObjectType::ObjectTypeString)
+            && !is_callback_option(opt_idx)
+            && !opt.immutable
+            && !opt.var.is_null()
+        {
+            check_string_option(get_varp(&mut *opt).cast::<*mut c_char>());
         }
     }
 }
 
 /// Check if option was set insecurely.
 pub fn was_set_insecurely(wp: Option<&mut WinInfoInfo>, opt_idx: OptIndex, opt_flags: i32) -> i32 {
-    {
-        assert!(opt_idx != K_OPT_INVALID);
-        let flagp = insecure_flag(wp, opt_idx, opt_flags);
-        i32::from((*flagp & K_OPT_FLAG_INSECURE) != 0)
-    }
+    assert!(opt_idx != K_OPT_INVALID);
+    let flagp = insecure_flag(wp, opt_idx, opt_flags);
+    i32::from((*flagp & K_OPT_FLAG_INSECURE) != 0)
 }
 
 /// Get a pointer to the flags used for the K_OPT_FLAG_INSECURE flag of option "opt_idx".
@@ -2560,42 +2518,40 @@ pub fn insecure_flag(
     opt_idx: OptIndex,
     opt_flags: i32,
 ) -> &'static mut u32 {
-    unsafe {
-        if (opt_flags & OPT_LOCAL) != 0 {
-            let wp: *mut WinInfoInfo = wp.unwrap();
-            let wp = { &mut *wp };
-            match opt_idx {
-                K_OPT_WRAP => return &mut wp.w_onebuf_opt.wo_wrap_flags,
-                K_OPT_STATUSLINE => return &mut wp.w_onebuf_opt.wo_stl_flags,
-                K_OPT_WINBAR => return &mut wp.w_onebuf_opt.wo_wbr_flags,
-                K_OPT_FOLDEXPR => return &mut wp.w_onebuf_opt.wo_fde_flags,
-                K_OPT_FOLDTEXT => return &mut wp.w_onebuf_opt.wo_fdt_flags,
-                K_OPT_INDENTEXPR => return &mut (*wp.w_buffer).b_p_inde_flags,
-                K_OPT_FORMATEXPR => return &mut (*wp.w_buffer).b_p_fex_flags,
-                K_OPT_INCLUDEEXPR => return &mut (*wp.w_buffer).b_p_inex_flags,
-                K_OPT_COMPLETE => return &mut (*wp.w_buffer).b_p_cpt_flags,
-                _ => {}
-            }
-        } else {
-            match opt_idx {
-                K_OPT_WRAP => {
-                    let wp: *mut WinInfoInfo = wp.unwrap();
-                    let wp = { &mut *wp };
-                    return &mut wp.w_allbuf_opt.wo_wrap_flags;
-                }
-                K_OPT_FOLDEXPR => {
-                    let wp: *mut WinInfoInfo = wp.unwrap();
-                    return &mut (*wp).w_allbuf_opt.wo_fde_flags;
-                }
-                K_OPT_FOLDTEXT => {
-                    let wp: *mut WinInfoInfo = wp.unwrap();
-                    return &mut (*wp).w_allbuf_opt.wo_fdt_flags;
-                }
-                _ => {}
-            }
+    if (opt_flags & OPT_LOCAL) != 0 {
+        let wp: *mut WinInfoInfo = wp.unwrap();
+        let wp = { unsafe { &mut *wp } };
+        match opt_idx {
+            K_OPT_WRAP => return &mut wp.w_onebuf_opt.wo_wrap_flags,
+            K_OPT_STATUSLINE => return &mut wp.w_onebuf_opt.wo_stl_flags,
+            K_OPT_WINBAR => return &mut wp.w_onebuf_opt.wo_wbr_flags,
+            K_OPT_FOLDEXPR => return &mut wp.w_onebuf_opt.wo_fde_flags,
+            K_OPT_FOLDTEXT => return &mut wp.w_onebuf_opt.wo_fdt_flags,
+            K_OPT_INDENTEXPR => return unsafe { &mut (*wp.w_buffer).b_p_inde_flags },
+            K_OPT_FORMATEXPR => return unsafe { &mut (*wp.w_buffer).b_p_fex_flags },
+            K_OPT_INCLUDEEXPR => return unsafe { &mut (*wp.w_buffer).b_p_inex_flags },
+            K_OPT_COMPLETE => return unsafe { &mut (*wp.w_buffer).b_p_cpt_flags },
+            _ => {}
         }
-        &mut get_option(opt_idx).flags
+    } else {
+        match opt_idx {
+            K_OPT_WRAP => {
+                let wp: *mut WinInfoInfo = wp.unwrap();
+                let wp = { unsafe { &mut *wp } };
+                return &mut wp.w_allbuf_opt.wo_wrap_flags;
+            }
+            K_OPT_FOLDEXPR => {
+                let wp: *mut WinInfoInfo = wp.unwrap();
+                return unsafe { &mut (*wp).w_allbuf_opt.wo_fde_flags };
+            }
+            K_OPT_FOLDTEXT => {
+                let wp: *mut WinInfoInfo = wp.unwrap();
+                return unsafe { &mut (*wp).w_allbuf_opt.wo_fdt_flags };
+            }
+            _ => {}
+        }
     }
+    &mut get_option(opt_idx).flags
 }
 
 /// Redraw the window title and/or tab page text later.
@@ -2732,27 +2688,25 @@ pub fn get_option_sctx(opt_idx: OptIndex) -> &'static mut Sctx {
 
 /// Set the script_ctx for an option.
 pub fn set_option_sctx(opt_idx: OptIndex, opt_flags: i32, mut script_ctx: Sctx) {
-    {
-        let both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
+    let both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
 
-        if (opt_flags & OPT_MODELINE) == 0 {
-            script_ctx.sc_lnum += sourcing_lnum();
-        }
-        nlua_set_sctx(&mut script_ctx);
+    if (opt_flags & OPT_MODELINE) == 0 {
+        script_ctx.sc_lnum += sourcing_lnum();
+    }
+    nlua_set_sctx(&mut script_ctx);
 
-        if both || (opt_flags & OPT_GLOBAL) != 0 || option_is_global_only(opt_idx) {
-            get_option(opt_idx).script_ctx = script_ctx;
-        }
-        if both || (opt_flags & OPT_LOCAL) != 0 {
-            if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
-                curbuf_mut().b_p_script_ctx[option_scope_idx(opt_idx, K_OPT_SCOPE_BUF) as usize] =
-                    script_ctx;
-            } else if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
-                let win_idx = option_scope_idx(opt_idx, K_OPT_SCOPE_WIN) as usize;
-                curwin_mut().w_onebuf_opt.wo_script_ctx[win_idx] = script_ctx;
-                if both {
-                    curwin_mut().w_allbuf_opt.wo_script_ctx[win_idx] = script_ctx;
-                }
+    if both || (opt_flags & OPT_GLOBAL) != 0 || option_is_global_only(opt_idx) {
+        get_option(opt_idx).script_ctx = script_ctx;
+    }
+    if both || (opt_flags & OPT_LOCAL) != 0 {
+        if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
+            curbuf_mut().b_p_script_ctx[option_scope_idx(opt_idx, K_OPT_SCOPE_BUF) as usize] =
+                script_ctx;
+        } else if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
+            let win_idx = option_scope_idx(opt_idx, K_OPT_SCOPE_WIN) as usize;
+            curwin_mut().w_onebuf_opt.wo_script_ctx[win_idx] = script_ctx;
+            if both {
+                curwin_mut().w_allbuf_opt.wo_script_ctx[win_idx] = script_ctx;
             }
         }
     }
@@ -2767,61 +2721,59 @@ pub fn apply_optionset_autocmd_now(
     oldval_l: Object,
     newval: Object,
 ) {
-    {
-        if starting_val() != 0 || !crate::memory::cstr_is_empty(get_vim_var_str(VV_OPTION_TYPE)) {
-            return;
-        }
-
-        let mut buf_type = [0 as c_char; 7];
-        let mut oldval_tv = opt_to_tv(oldval, false);
-        let mut oldval_g_tv = opt_to_tv(oldval_g, false);
-        let mut oldval_l_tv = opt_to_tv(oldval_l, false);
-        let mut newval_tv = opt_to_tv(newval, false);
-
-        set_vim_var_tv(VV_OPTION_OLD, &mut oldval_tv);
-        set_vim_var_tv(VV_OPTION_NEW, &mut newval_tv);
-        let typelen = vim_snprintf_safelen!(
-            buf_type.as_mut_ptr(),
-            buf_type.len(),
-            c"%s",
-            if (opt_flags & OPT_LOCAL) != 0 {
-                c"local".as_ptr()
-            } else {
-                c"global".as_ptr()
-            },
-        );
-        set_vim_var_string(VV_OPTION_TYPE, buf_type.as_ptr(), typelen as isize);
-        if (opt_flags & OPT_LOCAL) != 0 {
-            set_vim_var_string(VV_OPTION_COMMAND, c"setlocal", "setlocal".len() as isize);
-            set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
-        }
-        if (opt_flags & OPT_GLOBAL) != 0 {
-            set_vim_var_string(VV_OPTION_COMMAND, c"setglobal", "setglobal".len() as isize);
-            set_vim_var_tv(VV_OPTION_OLDGLOBAL, &mut oldval_tv);
-        }
-        if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0 {
-            set_vim_var_string(VV_OPTION_COMMAND, c"set", "set".len() as isize);
-            set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_l_tv);
-            set_vim_var_tv(VV_OPTION_OLDGLOBAL, &mut oldval_g_tv);
-        }
-        if (opt_flags & OPT_MODELINE) != 0 {
-            set_vim_var_string(VV_OPTION_COMMAND, c"modeline", "modeline".len() as isize);
-            set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
-        }
-        apply_autocmds(
-            EVENT_OPTIONSET,
-            get_option(opt_idx).fullname.as_ptr().cast_mut(),
-            ptr::null_mut(),
-            false,
-            ptr::null_mut(),
-        );
-        reset_v_option_vars();
-
-        tv_clear(&mut oldval_tv);
-        tv_clear(&mut oldval_g_tv);
-        tv_clear(&mut oldval_l_tv);
-        tv_clear(&mut newval_tv);
+    if starting_val() != 0 || !crate::memory::cstr_is_empty(get_vim_var_str(VV_OPTION_TYPE)) {
+        return;
     }
+
+    let mut buf_type = [0 as c_char; 7];
+    let mut oldval_tv = opt_to_tv(oldval, false);
+    let mut oldval_g_tv = opt_to_tv(oldval_g, false);
+    let mut oldval_l_tv = opt_to_tv(oldval_l, false);
+    let mut newval_tv = opt_to_tv(newval, false);
+
+    set_vim_var_tv(VV_OPTION_OLD, &mut oldval_tv);
+    set_vim_var_tv(VV_OPTION_NEW, &mut newval_tv);
+    let typelen = vim_snprintf_safelen!(
+        buf_type.as_mut_ptr(),
+        buf_type.len(),
+        c"%s",
+        if (opt_flags & OPT_LOCAL) != 0 {
+            c"local".as_ptr()
+        } else {
+            c"global".as_ptr()
+        },
+    );
+    set_vim_var_string(VV_OPTION_TYPE, buf_type.as_ptr(), typelen as isize);
+    if (opt_flags & OPT_LOCAL) != 0 {
+        set_vim_var_string(VV_OPTION_COMMAND, c"setlocal", "setlocal".len() as isize);
+        set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
+    }
+    if (opt_flags & OPT_GLOBAL) != 0 {
+        set_vim_var_string(VV_OPTION_COMMAND, c"setglobal", "setglobal".len() as isize);
+        set_vim_var_tv(VV_OPTION_OLDGLOBAL, &mut oldval_tv);
+    }
+    if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0 {
+        set_vim_var_string(VV_OPTION_COMMAND, c"set", "set".len() as isize);
+        set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_l_tv);
+        set_vim_var_tv(VV_OPTION_OLDGLOBAL, &mut oldval_g_tv);
+    }
+    if (opt_flags & OPT_MODELINE) != 0 {
+        set_vim_var_string(VV_OPTION_COMMAND, c"modeline", "modeline".len() as isize);
+        set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
+    }
+    apply_autocmds(
+        EVENT_OPTIONSET,
+        get_option(opt_idx).fullname.as_ptr().cast_mut(),
+        ptr::null_mut(),
+        false,
+        ptr::null_mut(),
+    );
+    reset_v_option_vars();
+
+    tv_clear(&mut oldval_tv);
+    tv_clear(&mut oldval_g_tv);
+    tv_clear(&mut oldval_l_tv);
+    tv_clear(&mut newval_tv);
 }
 
 /// For 'modified', the event is deferred.
@@ -2833,68 +2785,64 @@ fn apply_optionset_autocmd(
     oldval_l: Object,
     newval: Object,
 ) {
-    {
-        if starting_val() != 0 {
-            return;
-        }
-        if opt_idx == K_OPT_MODIFIED {
-            aucmd_defer_modified(curbuf_mut(), newval.data.boolean());
-            return;
-        }
-        apply_optionset_autocmd_now(opt_idx, opt_flags, oldval, oldval_g, oldval_l, newval);
+    if starting_val() != 0 {
+        return;
     }
+    if opt_idx == K_OPT_MODIFIED {
+        aucmd_defer_modified(curbuf_mut(), newval.data.boolean());
+        return;
+    }
+    apply_optionset_autocmd_now(opt_idx, opt_flags, oldval, oldval_g, oldval_l, newval);
 }
 
 /// Process the updated 'arabic' option value.
 pub fn did_set_arabic(args: &mut Optset) -> *const c_char {
-    {
-        let win = args.os_win;
-        let win = unsafe { &mut *win };
-        let mut errmsg: *const c_char = ptr::null();
+    let win = args.os_win;
+    let win = unsafe { &mut *win };
+    let mut errmsg: *const c_char = ptr::null();
 
-        if win.w_onebuf_opt.wo_arab != 0 {
-            if opt_vars().p_tbidi == 0 {
-                if win.w_onebuf_opt.wo_rl == 0 {
-                    win.w_onebuf_opt.wo_rl = 1;
-                    changed_window_setting(&mut *win);
-                }
-
-                if opt_vars().p_arshape == 0 {
-                    opt_vars().p_arshape = 1;
-                    redraw_all_later(UPD_NOT_VALID);
-                }
-            }
-
-            if crate::memory::cstr_as_bytes(opt_vars().p_enc) != b"utf-8" {
-                msg_source(HLF_W);
-                msg(tr(W_ARABIC), HLF_W);
-                set_vim_var_string(VV_WARNINGMSG, tr(W_ARABIC), -1);
-            }
-
-            opt_vars().p_deco = 1;
-
-            errmsg = set_option_value(
-                K_OPT_KEYMAP,
-                string_obj(NvimString {
-                    data: c"arabic".as_ptr().cast_mut(),
-                    size: "arabic".len(),
-                }),
-                OPT_LOCAL,
-                true,
-                args.os_errbuf,
-            );
-        } else {
-            if opt_vars().p_tbidi == 0 && win.w_onebuf_opt.wo_rl != 0 {
-                win.w_onebuf_opt.wo_rl = 0;
+    if win.w_onebuf_opt.wo_arab != 0 {
+        if opt_vars().p_tbidi == 0 {
+            if win.w_onebuf_opt.wo_rl == 0 {
+                win.w_onebuf_opt.wo_rl = 1;
                 changed_window_setting(&mut *win);
             }
 
-            (*win).buf_mut().b_p_iminsert = B_IMODE_NONE;
-            (*win).buf_mut().b_p_imsearch = B_IMODE_USE_INSERT;
+            if opt_vars().p_arshape == 0 {
+                opt_vars().p_arshape = 1;
+                redraw_all_later(UPD_NOT_VALID);
+            }
         }
 
-        errmsg
+        if crate::memory::cstr_as_bytes(opt_vars().p_enc) != b"utf-8" {
+            msg_source(HLF_W);
+            msg(tr(W_ARABIC), HLF_W);
+            set_vim_var_string(VV_WARNINGMSG, tr(W_ARABIC), -1);
+        }
+
+        opt_vars().p_deco = 1;
+
+        errmsg = set_option_value(
+            K_OPT_KEYMAP,
+            string_obj(NvimString {
+                data: c"arabic".as_ptr().cast_mut(),
+                size: "arabic".len(),
+            }),
+            OPT_LOCAL,
+            true,
+            args.os_errbuf,
+        );
+    } else {
+        if opt_vars().p_tbidi == 0 && win.w_onebuf_opt.wo_rl != 0 {
+            win.w_onebuf_opt.wo_rl = 0;
+            changed_window_setting(&mut *win);
+        }
+
+        (*win).buf_mut().b_p_iminsert = B_IMODE_NONE;
+        (*win).buf_mut().b_p_imsearch = B_IMODE_USE_INSERT;
     }
+
+    errmsg
 }
 
 /// Process the updated 'autochdir' option value.
@@ -2905,59 +2853,53 @@ pub fn did_set_autochdir(_args: &mut Optset) -> *const c_char {
 
 /// Process the updated 'binary' option value.
 pub fn did_set_binary(args: &mut Optset) -> *const c_char {
-    {
-        set_options_bin(
-            i32::from(args.os_oldval.data.boolean()),
-            unsafe { (*args.os_buf).b_p_bin },
-            args.os_flags,
-        );
-        redraw_titles();
-        ptr::null()
-    }
+    set_options_bin(
+        i32::from(args.os_oldval.data.boolean()),
+        unsafe { (*args.os_buf).b_p_bin },
+        args.os_flags,
+    );
+    redraw_titles();
+    ptr::null()
 }
 
 /// Process the updated 'buflisted' option value.
 pub fn did_set_buflisted(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
+    let buf = args.os_buf;
 
-        if i32::from(args.os_oldval.data.boolean()) != unsafe { (*buf).b_p_bl } {
-            apply_autocmds(
-                if unsafe { (*buf).b_p_bl } != 0 {
-                    EVENT_BUFADD
-                } else {
-                    EVENT_BUFDELETE
-                },
-                ptr::null_mut(),
-                ptr::null_mut(),
-                true,
-                buf,
-            );
-        }
-        ptr::null()
+    if i32::from(args.os_oldval.data.boolean()) != unsafe { (*buf).b_p_bl } {
+        apply_autocmds(
+            if unsafe { (*buf).b_p_bl } != 0 {
+                EVENT_BUFADD
+            } else {
+                EVENT_BUFDELETE
+            },
+            ptr::null_mut(),
+            ptr::null_mut(),
+            true,
+            buf,
+        );
     }
+    ptr::null()
 }
 
 /// Process the new 'cmdheight' option value.
 pub fn did_set_cmdheight(args: &mut Optset) -> *const c_char {
-    {
-        let old_value = args.os_oldval.data.integer();
+    let old_value = args.os_oldval.data.integer();
 
-        if opt_vars().p_ch > OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1) {
-            opt_vars().p_ch = OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1);
-        }
-
-        if (opt_vars().p_ch != old_value
-            || OptInt::from(
-                tabline_height() + global_stl_height() + crate::globals::topframe_mut().fr_height,
-            ) != OptInt::from(g_st().rows_global) - opt_vars().p_ch)
-            && g_st().full_screen
-        {
-            command_height();
-        }
-
-        ptr::null()
+    if opt_vars().p_ch > OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1) {
+        opt_vars().p_ch = OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1);
     }
+
+    if (opt_vars().p_ch != old_value
+        || OptInt::from(
+            tabline_height() + global_stl_height() + crate::globals::topframe_mut().fr_height,
+        ) != OptInt::from(g_st().rows_global) - opt_vars().p_ch)
+        && g_st().full_screen
+    {
+        command_height();
+    }
+
+    ptr::null()
 }
 
 /// Process the updated 'diff' option value.
@@ -2988,26 +2930,22 @@ pub fn did_set_equalalways(args: &mut Optset) -> *const c_char {
 
 /// Process the new 'foldenable' option value.
 pub fn did_set_foldenable(args: &mut Optset) -> *const c_char {
+    let win = args.os_win;
+    let win = unsafe { &mut *win };
+    if args.os_varp == (&raw mut win.w_onebuf_opt.wo_fen).cast::<c_void>()
+        && i32::from(args.os_oldval.data.boolean()) != win.w_onebuf_opt.wo_fen
+        && foldmethod_is_diff(&mut *win)
+        && win.w_onebuf_opt.wo_scb != 0
     {
-        let win = args.os_win;
-        let win = unsafe { &mut *win };
-        if args.os_varp == (&raw mut win.w_onebuf_opt.wo_fen).cast::<c_void>()
-            && i32::from(args.os_oldval.data.boolean()) != win.w_onebuf_opt.wo_fen
-            && foldmethod_is_diff(&mut *win)
-            && win.w_onebuf_opt.wo_scb != 0
-        {
-            for wp in for_all_windows_ptr() {
-                if !std::ptr::eq(wp, win)
-                    && foldmethod_is_diff(&mut *wp)
-                    && wp.w_onebuf_opt.wo_scb != 0
-                {
-                    wp.w_onebuf_opt.wo_fen = win.w_onebuf_opt.wo_fen;
-                    changed_window_setting(&mut *wp);
-                }
+        for wp in for_all_windows_ptr() {
+            if !std::ptr::eq(wp, win) && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb != 0
+            {
+                wp.w_onebuf_opt.wo_fen = win.w_onebuf_opt.wo_fen;
+                changed_window_setting(&mut *wp);
             }
         }
-        ptr::null()
     }
+    ptr::null()
 }
 
 /// Process the new 'foldlevel' option value.
@@ -3045,15 +2983,13 @@ pub fn did_set_follow(args: &mut Optset) -> *const c_char {
 
 /// Process the new 'helpheight' option value.
 pub fn did_set_helpheight(_args: &mut Optset) -> *const c_char {
+    if !firstwin_mut().w_next.is_null()
+        && curbuf_mut().b_help
+        && OptInt::from(curwin_mut().w_height) < opt_vars().p_hh
     {
-        if !firstwin_mut().w_next.is_null()
-            && curbuf_mut().b_help
-            && OptInt::from(curwin_mut().w_height) < opt_vars().p_hh
-        {
-            win_setheight(opt_vars().p_hh as i32);
-        }
-        ptr::null()
+        win_setheight(opt_vars().p_hh as i32);
     }
+    ptr::null()
 }
 
 /// Process the updated 'hlsearch' option value.
@@ -3091,37 +3027,35 @@ pub fn did_set_langremap(_args: &mut Optset) -> *const c_char {
 
 /// Process the new 'laststatus' option value.
 pub fn did_set_laststatus(args: &mut Optset) -> *const c_char {
-    {
-        let old_value = args.os_oldval.data.integer();
-        let value = args.os_newval.data.integer();
+    let old_value = args.os_oldval.data.integer();
+    let value = args.os_newval.data.integer();
 
-        if value == 3 && old_value != 3 {
-            frame_new_height(
-                unsafe { &mut *(g_st().topframe) },
-                crate::globals::topframe_mut().fr_height - STATUS_HEIGHT,
-                false,
-                false,
-                false,
-            );
-            win_comp_pos();
-            g_st().clear_cmdline = true;
-        }
-        if old_value == 3 && value != 3 {
-            frame_new_height(
-                unsafe { &mut *(g_st().topframe) },
-                crate::globals::topframe_mut().fr_height + STATUS_HEIGHT,
-                false,
-                false,
-                false,
-            );
-            win_comp_pos();
-        }
-
-        status_redraw_curbuf();
-        last_status(false);
-        win_float_update_statusline();
-        ptr::null()
+    if value == 3 && old_value != 3 {
+        frame_new_height(
+            unsafe { &mut *(g_st().topframe) },
+            crate::globals::topframe_mut().fr_height - STATUS_HEIGHT,
+            false,
+            false,
+            false,
+        );
+        win_comp_pos();
+        g_st().clear_cmdline = true;
     }
+    if old_value == 3 && value != 3 {
+        frame_new_height(
+            unsafe { &mut *(g_st().topframe) },
+            crate::globals::topframe_mut().fr_height + STATUS_HEIGHT,
+            false,
+            false,
+            false,
+        );
+        win_comp_pos();
+    }
+
+    status_redraw_curbuf();
+    last_status(false);
+    win_float_update_statusline();
+    ptr::null()
 }
 
 /// Process the updated 'lines' or 'columns' option value.
@@ -3172,17 +3106,15 @@ pub fn did_set_modifiable(_args: &mut Optset) -> *const c_char {
 
 /// Process the updated 'modified' option value.
 pub fn did_set_modified(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
-        if !args.os_newval.data.boolean() {
-            save_file_ff(unsafe { &mut *buf });
-        }
-        redraw_titles();
-        unsafe {
-            (*buf).b_modified_was_set = args.os_newval.data.boolean();
-        }
-        ptr::null()
+    let buf = args.os_buf;
+    if !args.os_newval.data.boolean() {
+        save_file_ff(unsafe { &mut *buf });
     }
+    redraw_titles();
+    unsafe {
+        (*buf).b_modified_was_set = args.os_newval.data.boolean();
+    }
+    ptr::null()
 }
 
 /// Process the updated 'number' or 'relativenumber' option value.
@@ -3207,138 +3139,134 @@ pub fn did_set_numberwidth(args: &mut Optset) -> *const c_char {
 
 /// Process the updated 'paste' option value.
 pub fn did_set_paste(_args: &mut Optset) -> *const c_char {
-    {
-        let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
-        if opt_vars().p_paste != 0 {
-            if opt_st().old_p_paste == 0 {
-                for buf in for_all_buffers_mut() {
-                    buf.b_p_tw_nopaste = buf.b_p_tw;
-                    buf.b_p_wm_nopaste = buf.b_p_wm;
-                    buf.b_p_sts_nopaste = buf.b_p_sts;
-                    buf.b_p_ai_nopaste = buf.b_p_ai;
-                    buf.b_p_et_nopaste = buf.b_p_et;
-                    buf.b_p_vsts_nopaste = if !buf.b_p_vsts.is_null() && buf.b_p_vsts != empty_opt {
-                        Some(crate::memory::cstr_to_cstring(buf.b_p_vsts))
-                    } else {
-                        None
-                    };
-                }
-
-                opt_st().save_sm = opt_vars().p_sm;
-                opt_st().save_sta = opt_vars().p_sta;
-                opt_st().save_ru = opt_vars().p_ru;
-                opt_st().save_ri = opt_vars().p_ri;
-                opt_st().p_ai_nopaste = opt_vars().p_ai;
-                opt_st().p_et_nopaste = opt_vars().p_et;
-                opt_st().p_sts_nopaste = opt_vars().p_sts;
-                opt_st().p_tw_nopaste = opt_vars().p_tw;
-                opt_st().p_wm_nopaste = opt_vars().p_wm;
-                opt_st().p_vsts_nopaste =
-                    if !opt_vars().p_vsts.is_null() && opt_vars().p_vsts != empty_opt {
-                        Some(crate::memory::cstr_to_cstring(opt_vars().p_vsts))
-                    } else {
-                        None
-                    };
-            }
-
+    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+    if opt_vars().p_paste != 0 {
+        if opt_st().old_p_paste == 0 {
             for buf in for_all_buffers_mut() {
-                buf.b_p_tw = 0;
-                buf.b_p_wm = 0;
-                buf.b_p_sts = 0;
-                buf.b_p_ai = 0;
-                buf.b_p_et = 0;
-                if !buf.b_p_vsts.is_null() {
-                    free_string_option(buf.b_p_vsts);
-                }
-                buf.b_p_vsts = empty_opt;
-                buf.b_p_vsts_array.clear();
-            }
-
-            opt_vars().p_sm = 0;
-            opt_vars().p_sta = 0;
-            if opt_vars().p_ru != 0 {
-                status_redraw_all();
-            }
-            opt_vars().p_ru = 0;
-            opt_vars().p_ri = 0;
-            opt_vars().p_tw = 0;
-            opt_vars().p_wm = 0;
-            opt_vars().p_sts = 0;
-            opt_vars().p_ai = 0;
-            opt_vars().p_et = 0;
-            if !opt_vars().p_vsts.is_null() {
-                free_string_option(opt_vars().p_vsts);
-            }
-            opt_vars().p_vsts = empty_opt;
-        } else if opt_st().old_p_paste != 0 {
-            for buf in for_all_buffers_mut() {
-                buf.b_p_tw = buf.b_p_tw_nopaste;
-                buf.b_p_wm = buf.b_p_wm_nopaste;
-                buf.b_p_sts = buf.b_p_sts_nopaste;
-                buf.b_p_ai = buf.b_p_ai_nopaste;
-                buf.b_p_et = buf.b_p_et_nopaste;
-                if !buf.b_p_vsts.is_null() {
-                    free_string_option(buf.b_p_vsts);
-                }
-                buf.b_p_vsts = buf
-                    .b_p_vsts_nopaste
-                    .as_ref()
-                    .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
-                if !buf.b_p_vsts.is_null() && buf.b_p_vsts != empty_opt {
-                    tabstop_set(buf.b_p_vsts, &mut buf.b_p_vsts_array, None);
+                buf.b_p_tw_nopaste = buf.b_p_tw;
+                buf.b_p_wm_nopaste = buf.b_p_wm;
+                buf.b_p_sts_nopaste = buf.b_p_sts;
+                buf.b_p_ai_nopaste = buf.b_p_ai;
+                buf.b_p_et_nopaste = buf.b_p_et;
+                buf.b_p_vsts_nopaste = if !buf.b_p_vsts.is_null() && buf.b_p_vsts != empty_opt {
+                    Some(crate::memory::cstr_to_cstring(buf.b_p_vsts))
                 } else {
-                    buf.b_p_vsts_array.clear();
-                }
+                    None
+                };
             }
 
-            opt_vars().p_sm = opt_st().save_sm;
-            opt_vars().p_sta = opt_st().save_sta;
-            if opt_vars().p_ru != opt_st().save_ru {
-                status_redraw_all();
-            }
-            opt_vars().p_ru = opt_st().save_ru;
-            opt_vars().p_ri = opt_st().save_ri;
-            opt_vars().p_ai = opt_st().p_ai_nopaste;
-            opt_vars().p_et = opt_st().p_et_nopaste;
-            opt_vars().p_sts = opt_st().p_sts_nopaste;
-            opt_vars().p_tw = opt_st().p_tw_nopaste;
-            opt_vars().p_wm = opt_st().p_wm_nopaste;
-            if !opt_vars().p_vsts.is_null() {
-                free_string_option(opt_vars().p_vsts);
-            }
-            opt_vars().p_vsts = opt_st()
-                .p_vsts_nopaste
-                .as_ref()
-                .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
+            opt_st().save_sm = opt_vars().p_sm;
+            opt_st().save_sta = opt_vars().p_sta;
+            opt_st().save_ru = opt_vars().p_ru;
+            opt_st().save_ri = opt_vars().p_ri;
+            opt_st().p_ai_nopaste = opt_vars().p_ai;
+            opt_st().p_et_nopaste = opt_vars().p_et;
+            opt_st().p_sts_nopaste = opt_vars().p_sts;
+            opt_st().p_tw_nopaste = opt_vars().p_tw;
+            opt_st().p_wm_nopaste = opt_vars().p_wm;
+            opt_st().p_vsts_nopaste =
+                if !opt_vars().p_vsts.is_null() && opt_vars().p_vsts != empty_opt {
+                    Some(crate::memory::cstr_to_cstring(opt_vars().p_vsts))
+                } else {
+                    None
+                };
         }
 
-        opt_st().old_p_paste = opt_vars().p_paste;
+        for buf in for_all_buffers_mut() {
+            buf.b_p_tw = 0;
+            buf.b_p_wm = 0;
+            buf.b_p_sts = 0;
+            buf.b_p_ai = 0;
+            buf.b_p_et = 0;
+            if !buf.b_p_vsts.is_null() {
+                free_string_option(buf.b_p_vsts);
+            }
+            buf.b_p_vsts = empty_opt;
+            buf.b_p_vsts_array.clear();
+        }
 
-        didset_options_sctx(OPT_LOCAL | OPT_GLOBAL, P_PASTE_DEP_OPTS);
+        opt_vars().p_sm = 0;
+        opt_vars().p_sta = 0;
+        if opt_vars().p_ru != 0 {
+            status_redraw_all();
+        }
+        opt_vars().p_ru = 0;
+        opt_vars().p_ri = 0;
+        opt_vars().p_tw = 0;
+        opt_vars().p_wm = 0;
+        opt_vars().p_sts = 0;
+        opt_vars().p_ai = 0;
+        opt_vars().p_et = 0;
+        if !opt_vars().p_vsts.is_null() {
+            free_string_option(opt_vars().p_vsts);
+        }
+        opt_vars().p_vsts = empty_opt;
+    } else if opt_st().old_p_paste != 0 {
+        for buf in for_all_buffers_mut() {
+            buf.b_p_tw = buf.b_p_tw_nopaste;
+            buf.b_p_wm = buf.b_p_wm_nopaste;
+            buf.b_p_sts = buf.b_p_sts_nopaste;
+            buf.b_p_ai = buf.b_p_ai_nopaste;
+            buf.b_p_et = buf.b_p_et_nopaste;
+            if !buf.b_p_vsts.is_null() {
+                free_string_option(buf.b_p_vsts);
+            }
+            buf.b_p_vsts = buf
+                .b_p_vsts_nopaste
+                .as_ref()
+                .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
+            if !buf.b_p_vsts.is_null() && buf.b_p_vsts != empty_opt {
+                tabstop_set(buf.b_p_vsts, &mut buf.b_p_vsts_array, None);
+            } else {
+                buf.b_p_vsts_array.clear();
+            }
+        }
 
-        ptr::null()
+        opt_vars().p_sm = opt_st().save_sm;
+        opt_vars().p_sta = opt_st().save_sta;
+        if opt_vars().p_ru != opt_st().save_ru {
+            status_redraw_all();
+        }
+        opt_vars().p_ru = opt_st().save_ru;
+        opt_vars().p_ri = opt_st().save_ri;
+        opt_vars().p_ai = opt_st().p_ai_nopaste;
+        opt_vars().p_et = opt_st().p_et_nopaste;
+        opt_vars().p_sts = opt_st().p_sts_nopaste;
+        opt_vars().p_tw = opt_st().p_tw_nopaste;
+        opt_vars().p_wm = opt_st().p_wm_nopaste;
+        if !opt_vars().p_vsts.is_null() {
+            free_string_option(opt_vars().p_vsts);
+        }
+        opt_vars().p_vsts = opt_st()
+            .p_vsts_nopaste
+            .as_ref()
+            .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
     }
+
+    opt_st().old_p_paste = opt_vars().p_paste;
+
+    didset_options_sctx(OPT_LOCAL | OPT_GLOBAL, P_PASTE_DEP_OPTS);
+
+    ptr::null()
 }
 
 /// Validate the 'previewwindow' option.
 pub fn validate_previewwindow(args: &mut Optset) -> *const c_char {
-    {
-        if (args.os_flags & OPT_GLOBAL) != 0 || !args.os_newval.data.boolean() {
-            return ptr::null();
-        }
-        let win = args.os_win;
-        let tab = if win == curwin_ptr() {
-            g_st().curtab
-        } else {
-            win_find_tabpage(win)
-        };
-        for wp in for_all_windows_in_tab_ptr(unsafe { &*tab }) {
-            if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw != 0 {
-                return E_PREVIEW_WINDOW_ALREADY_EXISTS;
-            }
-        }
-        ptr::null()
+    if (args.os_flags & OPT_GLOBAL) != 0 || !args.os_newval.data.boolean() {
+        return ptr::null();
     }
+    let win = args.os_win;
+    let tab = if win == curwin_ptr() {
+        g_st().curtab
+    } else {
+        win_find_tabpage(win)
+    };
+    for wp in for_all_windows_in_tab_ptr(unsafe { &*tab }) {
+        if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw != 0 {
+            return E_PREVIEW_WINDOW_ALREADY_EXISTS;
+        }
+    }
+    ptr::null()
 }
 
 /// Process the new 'pumblend' option value.
@@ -3352,21 +3280,19 @@ pub fn did_set_pumblend(_args: &mut Optset) -> *const c_char {
 
 /// Process the updated 'readonly' option value.
 pub fn did_set_readonly(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
-        let buf = unsafe { &mut *buf };
+    let buf = args.os_buf;
+    let buf = unsafe { &mut *buf };
 
-        if buf.b_p_ro == 0 && (args.os_flags & OPT_LOCAL) == 0 {
-            g_st().readonlymode = false;
-        }
-
-        if buf.b_p_ro != 0 {
-            buf.b_did_warn = false;
-        }
-
-        redraw_titles();
-        ptr::null()
+    if buf.b_p_ro == 0 && (args.os_flags & OPT_LOCAL) == 0 {
+        g_st().readonlymode = false;
     }
+
+    if buf.b_p_ro != 0 {
+        buf.b_did_warn = false;
+    }
+
+    redraw_titles();
+    ptr::null()
 }
 
 /// Process the new 'scrollback' option value.
@@ -3457,14 +3383,12 @@ pub fn did_set_swapfile(args: &mut Optset) -> *const c_char {
 
 /// Process the new 'textwidth' option value.
 pub fn did_set_textwidth(_args: &mut Optset) -> *const c_char {
-    {
-        for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr(&*tp) {
-                check_colorcolumn(ptr::null_mut(), Some(&mut *wp));
-            }
+    for tp in for_all_tabpages_ptr() {
+        for wp in for_all_windows_in_tab_ptr(&*tp) {
+            check_colorcolumn(ptr::null_mut(), Some(&mut *wp));
         }
-        ptr::null()
     }
+    ptr::null()
 }
 
 /// Process the updated 'title' or the 'icon' option value.
@@ -3475,38 +3399,34 @@ pub fn did_set_title_icon(_args: &mut Optset) -> *const c_char {
 
 /// Process the new 'titlelen' option value.
 pub fn did_set_titlelen(args: &mut Optset) -> *const c_char {
-    {
-        let old_value = args.os_oldval.data.integer();
-        if starting_val() != NO_SCREEN && old_value != opt_vars().p_titlelen {
-            g_st().need_maketitle = true;
-        }
-        ptr::null()
+    let old_value = args.os_oldval.data.integer();
+    if starting_val() != NO_SCREEN && old_value != opt_vars().p_titlelen {
+        g_st().need_maketitle = true;
     }
+    ptr::null()
 }
 
 /// Process the updated 'undofile' option value.
 pub fn did_set_undofile(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
+    let buf = args.os_buf;
 
-        if unsafe { (*buf).b_p_udf } == 0 && opt_vars().p_udf == 0 {
-            return ptr::null();
-        }
-
-        let mut hash = [0u8; UNDO_HASH_SIZE];
-
-        for bp in for_all_buffers_ptr() {
-            if (buf == bp || (args.os_flags & OPT_GLOBAL) != 0 || args.os_flags == 0)
-                && !buf_is_changed_fn(&mut *bp)
-                && bp.b_ml.ml_mfp.is_some()
-            {
-                u_compute_hash(&mut *bp, hash.as_mut_ptr());
-                u_read_undo(ptr::null_mut(), hash.as_ptr(), bp.b_fname);
-            }
-        }
-
-        ptr::null()
+    if unsafe { (*buf).b_p_udf } == 0 && opt_vars().p_udf == 0 {
+        return ptr::null();
     }
+
+    let mut hash = [0u8; UNDO_HASH_SIZE];
+
+    for bp in for_all_buffers_ptr() {
+        if (buf == bp || (args.os_flags & OPT_GLOBAL) != 0 || args.os_flags == 0)
+            && !buf_is_changed_fn(&mut *bp)
+            && bp.b_ml.ml_mfp.is_some()
+        {
+            u_compute_hash(&mut *bp, hash.as_mut_ptr());
+            u_read_undo(ptr::null_mut(), hash.as_ptr(), bp.b_fname);
+        }
+    }
+
+    ptr::null()
 }
 
 /// Process the new global 'undolevels' option value.
@@ -3573,19 +3493,17 @@ pub fn validate_wildchar(args: &mut Optset) -> *const c_char {
 
 /// Process the new 'winblend' option value.
 pub fn did_set_winblend(args: &mut Optset) -> *const c_char {
-    {
-        let win = args.os_win;
-        let win = unsafe { &mut *win };
-        let old_value = args.os_oldval.data.integer();
-        let value = args.os_newval.data.integer();
+    let win = args.os_win;
+    let win = unsafe { &mut *win };
+    let old_value = args.os_oldval.data.integer();
+    let value = args.os_newval.data.integer();
 
-        if value != old_value {
-            win.w_onebuf_opt.wo_winbl = win.w_onebuf_opt.wo_winbl.clamp(0, 100);
-            win.w_hl_needs_update = 1;
-            check_blending(&mut *win);
-        }
-        ptr::null()
+    if value != old_value {
+        win.w_onebuf_opt.wo_winbl = win.w_onebuf_opt.wo_winbl.clamp(0, 100);
+        win.w_hl_needs_update = 1;
+        check_blending(&mut *win);
     }
+    ptr::null()
 }
 
 /// Process the new 'window' option value.
@@ -3598,58 +3516,48 @@ pub fn did_set_window(_args: &mut Optset) -> *const c_char {
 
 /// Process the new 'winheight' value.
 pub fn did_set_winheight(_args: &mut Optset) -> *const c_char {
-    {
-        if !firstwin_mut().w_next.is_null() && OptInt::from(curwin_mut().w_height) < opt_vars().p_wh
-        {
-            win_setheight(opt_vars().p_wh as i32);
-        }
-        ptr::null()
+    if !firstwin_mut().w_next.is_null() && OptInt::from(curwin_mut().w_height) < opt_vars().p_wh {
+        win_setheight(opt_vars().p_wh as i32);
     }
+    ptr::null()
 }
 
 /// Process the new 'winwidth' option value.
 pub fn did_set_winwidth(_args: &mut Optset) -> *const c_char {
-    {
-        if !firstwin_mut().w_next.is_null() && OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw
-        {
-            win_setwidth(opt_vars().p_wiw as i32);
-        }
-        ptr::null()
+    if !firstwin_mut().w_next.is_null() && OptInt::from(curwin_mut().w_width) < opt_vars().p_wiw {
+        win_setwidth(opt_vars().p_wiw as i32);
     }
+    ptr::null()
 }
 
 /// Process the updated 'wrap' option value.
 pub fn did_set_wrap(args: &mut Optset) -> *const c_char {
-    {
-        let win = args.os_win;
-        let win = unsafe { &mut *win };
-        if win.w_onebuf_opt.wo_wrap != 0 {
-            win.w_leftcol = 0;
-        } else {
-            win.w_skipcol = 0;
-        }
-        ptr::null()
+    let win = args.os_win;
+    let win = unsafe { &mut *win };
+    if win.w_onebuf_opt.wo_wrap != 0 {
+        win.w_leftcol = 0;
+    } else {
+        win.w_skipcol = 0;
     }
+    ptr::null()
 }
 
 /// Process the new 'chistory' or 'lhistory' option value.
 pub fn did_set_xhistory(args: &mut Optset) -> *const c_char {
-    {
-        let is_p_chi = args.os_varp.cast::<OptInt>() == &raw mut opt_vars().p_chi;
-        let arg = if is_p_chi {
-            &raw mut opt_vars().p_chi
-        } else {
-            args.os_varp.cast::<OptInt>()
-        };
+    let is_p_chi = args.os_varp.cast::<OptInt>() == &raw mut opt_vars().p_chi;
+    let arg = if is_p_chi {
+        &raw mut opt_vars().p_chi
+    } else {
+        args.os_varp.cast::<OptInt>()
+    };
 
-        if is_p_chi {
-            qf_resize_stack(unsafe { *arg } as i32);
-        } else {
-            ll_resize_stack(unsafe { &mut *args.os_win }, unsafe { *arg } as i32);
-        }
-
-        ptr::null()
+    if is_p_chi {
+        qf_resize_stack(unsafe { *arg } as i32);
+    } else {
+        ll_resize_stack(unsafe { &mut *args.os_win }, unsafe { *arg } as i32);
     }
+
+    ptr::null()
 }
 
 fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
@@ -3666,34 +3574,32 @@ fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
 }
 
 fn do_spelllang_source(win: &mut WinInfoInfo) {
-    {
-        let mut fname = [0 as c_char; 200];
-        let ws = win.w_s_ptr();
-        let mut q = ws.b_p_spl;
+    let mut fname = [0 as c_char; 200];
+    let ws = win.w_s_ptr();
+    let mut q = ws.b_p_spl;
 
-        if crate::memory::cstr_prefix_bytes(q, 4) == &b"cjk,"[..4] {
-            q = q.wrapping_add(4);
-        }
+    if crate::memory::cstr_prefix_bytes(q, 4) == &b"cjk,"[..4] {
+        q = q.wrapping_add(4);
+    }
 
-        let mut p = q;
-        while !crate::memory::cstr_is_empty(p) {
-            if !ascii_isalnum(crate::memory::cstr_first_char(p))
-                && crate::memory::cstr_first_byte(p) != b'-'
-            {
-                break;
-            }
-            p = p.wrapping_add(1);
+    let mut p = q;
+    while !crate::memory::cstr_is_empty(p) {
+        if !ascii_isalnum(crate::memory::cstr_first_char(p))
+            && crate::memory::cstr_first_byte(p) != b'-'
+        {
+            break;
         }
-        if p > q {
-            vim_snprintf!(
-                fname.as_mut_ptr(),
-                fname.len(),
-                c"spell/%.*s.*",
-                crate::memory::ptr_offset_from(p, q) as i32,
-                q,
-            );
-            source_runtime_vim_lua(fname.as_mut_ptr(), DIP_ALL);
-        }
+        p = p.wrapping_add(1);
+    }
+    if p > q {
+        vim_snprintf!(
+            fname.as_mut_ptr(),
+            fname.len(),
+            c"spell/%.*s.*",
+            crate::memory::ptr_offset_from(p, q) as i32,
+            q,
+        );
+        source_runtime_vim_lua(fname.as_mut_ptr(), DIP_ALL);
     }
 }
 
@@ -3758,193 +3664,187 @@ fn validate_num_option(
     win: &mut WinInfoInfo,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
-    {
-        let value = unsafe { *newval };
+    let value = unsafe { *newval };
 
-        if value < OptInt::from(i32::MIN) || value > OptInt::from(i32::MAX) {
-            return E_INVARG.as_ptr();
+    if value < OptInt::from(i32::MIN) || value > OptInt::from(i32::MAX) {
+        return E_INVARG.as_ptr();
+    }
+
+    const MAX_SEARCH_COUNT: OptInt = 9999;
+
+    match opt_idx {
+        K_OPT_HELPHEIGHT | K_OPT_TITLELEN | K_OPT_UPDATECOUNT | K_OPT_REPORT | K_OPT_UPDATETIME
+        | K_OPT_SIDESCROLL | K_OPT_FOLDLEVEL | K_OPT_SHIFTWIDTH | K_OPT_TEXTWIDTH
+        | K_OPT_WRITEDELAY | K_OPT_TIMEOUTLEN => {
+            if value < 0 {
+                return E_POSITIVE.as_ptr();
+            }
         }
-
-        const MAX_SEARCH_COUNT: OptInt = 9999;
-
-        match opt_idx {
-            K_OPT_HELPHEIGHT | K_OPT_TITLELEN | K_OPT_UPDATECOUNT | K_OPT_REPORT
-            | K_OPT_UPDATETIME | K_OPT_SIDESCROLL | K_OPT_FOLDLEVEL | K_OPT_SHIFTWIDTH
-            | K_OPT_TEXTWIDTH | K_OPT_WRITEDELAY | K_OPT_TIMEOUTLEN => {
-                if value < 0 {
-                    return E_POSITIVE.as_ptr();
-                }
+        K_OPT_WINHEIGHT => {
+            if value < 1 {
+                return E_POSITIVE.as_ptr();
+            } else if opt_vars().p_wmh > value {
+                return E_WINHEIGHT.as_ptr();
             }
-            K_OPT_WINHEIGHT => {
-                if value < 1 {
-                    return E_POSITIVE.as_ptr();
-                } else if opt_vars().p_wmh > value {
-                    return E_WINHEIGHT.as_ptr();
-                }
+        }
+        K_OPT_WINMINHEIGHT => {
+            if value < 0 {
+                return E_POSITIVE.as_ptr();
+            } else if value > opt_vars().p_wh {
+                return E_WINHEIGHT.as_ptr();
             }
-            K_OPT_WINMINHEIGHT => {
-                if value < 0 {
-                    return E_POSITIVE.as_ptr();
-                } else if value > opt_vars().p_wh {
-                    return E_WINHEIGHT.as_ptr();
-                }
+        }
+        K_OPT_WINWIDTH => {
+            if value < 1 {
+                return E_POSITIVE.as_ptr();
+            } else if opt_vars().p_wmw > value {
+                return E_WINWIDTH.as_ptr();
             }
-            K_OPT_WINWIDTH => {
-                if value < 1 {
-                    return E_POSITIVE.as_ptr();
-                } else if opt_vars().p_wmw > value {
-                    return E_WINWIDTH.as_ptr();
-                }
+        }
+        K_OPT_WINMINWIDTH => {
+            if value < 0 {
+                return E_POSITIVE.as_ptr();
+            } else if value > opt_vars().p_wiw {
+                return E_WINWIDTH.as_ptr();
             }
-            K_OPT_WINMINWIDTH => {
-                if value < 0 {
-                    return E_POSITIVE.as_ptr();
-                } else if value > opt_vars().p_wiw {
-                    return E_WINWIDTH.as_ptr();
-                }
+        }
+        K_OPT_MAXCOMBINE => unsafe {
+            *newval = MAX_MCO;
+        },
+        K_OPT_CMDHEIGHT => {
+            if value < 0 {
+                return E_POSITIVE.as_ptr();
             }
-            K_OPT_MAXCOMBINE => unsafe {
-                *newval = MAX_MCO;
-            },
-            K_OPT_CMDHEIGHT => {
-                if value < 0 {
-                    return E_POSITIVE.as_ptr();
-                }
-            }
-            K_OPT_HISTORY => {
-                if value < 0 {
-                    return E_POSITIVE.as_ptr();
-                } else if value > 10000 {
-                    return E_INVARG.as_ptr();
-                }
-            }
-            K_OPT_PYXVERSION => {
-                if value == 0 {
-                    unsafe {
-                        *newval = 3;
-                    }
-                } else if value != 3 {
-                    return E_INVARG.as_ptr();
-                }
-            }
-            K_OPT_REGEXPENGINE => {
-                if !(0..=2).contains(&value) {
-                    return E_INVARG.as_ptr();
-                }
-            }
-            K_OPT_SCROLLOFF => {
-                if value < 0 && g_st().full_screen {
-                    return E_POSITIVE.as_ptr();
-                }
-            }
-            K_OPT_SCROLLOFFPAD => {
-                if value < 0 {
-                    return E_INVARG.as_ptr();
-                }
-            }
-            K_OPT_SIDESCROLLOFF => {
-                if value < 0 && g_st().full_screen {
-                    return E_POSITIVE.as_ptr();
-                }
-            }
-            K_OPT_CMDWINHEIGHT => {
-                if value < 1 {
-                    return E_POSITIVE.as_ptr();
-                }
-            }
-            K_OPT_CONCEALLEVEL => {
-                if value < 0 {
-                    return E_POSITIVE.as_ptr();
-                } else if value > 3 {
-                    return E_INVARG.as_ptr();
-                }
-            }
-            K_OPT_NUMBERWIDTH => {
-                if value < 1 {
-                    return E_POSITIVE.as_ptr();
-                } else if value > MAX_NUMBERWIDTH {
-                    return E_INVARG.as_ptr();
-                }
-            }
-            K_OPT_IMINSERT => {
-                if !(0..=B_IMODE_LAST).contains(&value) {
-                    return E_INVARG.as_ptr();
-                }
-            }
-            K_OPT_IMSEARCH => {
-                if !(-1..=B_IMODE_LAST).contains(&value) {
-                    return E_INVARG.as_ptr();
-                }
-            }
-            K_OPT_CHANNEL => {
+        }
+        K_OPT_HISTORY => {
+            if value < 0 {
+                return E_POSITIVE.as_ptr();
+            } else if value > 10000 {
                 return E_INVARG.as_ptr();
             }
-            K_OPT_SCROLLBACK => {
-                if !(-1..=SB_MAX).contains(&value) {
-                    return E_INVARG.as_ptr();
-                }
-            }
-            K_OPT_TABSTOP => {
-                if value < 1 {
-                    return E_POSITIVE.as_ptr();
-                } else if value > OptInt::from(crate::indent::TABSTOP_MAX) {
-                    return E_INVARG.as_ptr();
-                }
-            }
-            K_OPT_CHISTORY | K_OPT_LHISTORY => {
-                if value < 1 {
-                    return E_CANNOT_HAVE_NEGATIVE_OR_ZERO_NUMBER_OF_QUICKFIX;
-                } else if value > 100 {
-                    return E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX;
-                }
-            }
-            K_OPT_MAXSEARCHCOUNT => {
-                if value <= 0 {
-                    return E_POSITIVE.as_ptr();
-                } else if value > MAX_SEARCH_COUNT {
-                    return E_INVARG.as_ptr();
-                }
-            }
-            _ => {}
         }
-
-        check_num_option_bounds(opt_idx, newval, win, errbuf)
+        K_OPT_PYXVERSION => {
+            if value == 0 {
+                unsafe {
+                    *newval = 3;
+                }
+            } else if value != 3 {
+                return E_INVARG.as_ptr();
+            }
+        }
+        K_OPT_REGEXPENGINE => {
+            if !(0..=2).contains(&value) {
+                return E_INVARG.as_ptr();
+            }
+        }
+        K_OPT_SCROLLOFF => {
+            if value < 0 && g_st().full_screen {
+                return E_POSITIVE.as_ptr();
+            }
+        }
+        K_OPT_SCROLLOFFPAD => {
+            if value < 0 {
+                return E_INVARG.as_ptr();
+            }
+        }
+        K_OPT_SIDESCROLLOFF => {
+            if value < 0 && g_st().full_screen {
+                return E_POSITIVE.as_ptr();
+            }
+        }
+        K_OPT_CMDWINHEIGHT => {
+            if value < 1 {
+                return E_POSITIVE.as_ptr();
+            }
+        }
+        K_OPT_CONCEALLEVEL => {
+            if value < 0 {
+                return E_POSITIVE.as_ptr();
+            } else if value > 3 {
+                return E_INVARG.as_ptr();
+            }
+        }
+        K_OPT_NUMBERWIDTH => {
+            if value < 1 {
+                return E_POSITIVE.as_ptr();
+            } else if value > MAX_NUMBERWIDTH {
+                return E_INVARG.as_ptr();
+            }
+        }
+        K_OPT_IMINSERT => {
+            if !(0..=B_IMODE_LAST).contains(&value) {
+                return E_INVARG.as_ptr();
+            }
+        }
+        K_OPT_IMSEARCH => {
+            if !(-1..=B_IMODE_LAST).contains(&value) {
+                return E_INVARG.as_ptr();
+            }
+        }
+        K_OPT_CHANNEL => {
+            return E_INVARG.as_ptr();
+        }
+        K_OPT_SCROLLBACK => {
+            if !(-1..=SB_MAX).contains(&value) {
+                return E_INVARG.as_ptr();
+            }
+        }
+        K_OPT_TABSTOP => {
+            if value < 1 {
+                return E_POSITIVE.as_ptr();
+            } else if value > OptInt::from(crate::indent::TABSTOP_MAX) {
+                return E_INVARG.as_ptr();
+            }
+        }
+        K_OPT_CHISTORY | K_OPT_LHISTORY => {
+            if value < 1 {
+                return E_CANNOT_HAVE_NEGATIVE_OR_ZERO_NUMBER_OF_QUICKFIX;
+            } else if value > 100 {
+                return E_CANNOT_HAVE_MORE_THAN_HUNDRED_QUICKFIX;
+            }
+        }
+        K_OPT_MAXSEARCHCOUNT => {
+            if value <= 0 {
+                return E_POSITIVE.as_ptr();
+            } else if value > MAX_SEARCH_COUNT {
+                return E_INVARG.as_ptr();
+            }
+        }
+        _ => {}
     }
+
+    check_num_option_bounds(opt_idx, newval, win, errbuf)
 }
 
 /// Called after an option changed: check if something needs to be redrawn.
 pub fn check_redraw_for(buf: *mut FileBuf, win: &mut WinInfoInfo, flags: u32) {
-    {
-        let all = (flags & K_OPT_FLAG_REDR_ALL) == K_OPT_FLAG_REDR_ALL;
+    let all = (flags & K_OPT_FLAG_REDR_ALL) == K_OPT_FLAG_REDR_ALL;
 
-        if (flags & K_OPT_FLAG_REDR_STAT) != 0 || all {
-            status_redraw_all();
-        }
+    if (flags & K_OPT_FLAG_REDR_STAT) != 0 || all {
+        status_redraw_all();
+    }
 
-        if (flags & K_OPT_FLAG_REDR_TABL) != 0 || all {
-            g_st().redraw_tabline = true;
-        }
+    if (flags & K_OPT_FLAG_REDR_TABL) != 0 || all {
+        g_st().redraw_tabline = true;
+    }
 
-        if (flags & K_OPT_FLAG_REDR_BUF) != 0 || (flags & K_OPT_FLAG_REDR_WIN) != 0 || all {
-            if (flags & K_OPT_FLAG_HLONLY) != 0 {
-                redraw_later(Some(&mut *win), UPD_NOT_VALID);
-            } else {
-                changed_window_setting(win);
-            }
+    if (flags & K_OPT_FLAG_REDR_BUF) != 0 || (flags & K_OPT_FLAG_REDR_WIN) != 0 || all {
+        if (flags & K_OPT_FLAG_HLONLY) != 0 {
+            redraw_later(Some(&mut *win), UPD_NOT_VALID);
+        } else {
+            changed_window_setting(win);
         }
-        if (flags & K_OPT_FLAG_REDR_BUF) != 0 {
-            redraw_buf_later(buf, UPD_NOT_VALID);
-        }
-        if all {
-            redraw_all_later(UPD_NOT_VALID);
-        }
+    }
+    if (flags & K_OPT_FLAG_REDR_BUF) != 0 {
+        redraw_buf_later(buf, UPD_NOT_VALID);
+    }
+    if all {
+        redraw_all_later(UPD_NOT_VALID);
     }
 }
 
 pub fn check_redraw(flags: u32) {
-    {
-        check_redraw_for(g_st().curbuf, curwin_mut(), flags);
-    }
+    check_redraw_for(g_st().curbuf, curwin_mut(), flags);
 }
 
 pub fn is_tty_option(name: impl crate::strings::IntoCCharPtr) -> bool {
@@ -5351,269 +5251,270 @@ fn opt_from_callback(cb: &mut Callback) -> Object {
 }
 
 fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
-    {
-        let mut cb = Callback::NONE;
-        match value.obj_type {
-            ObjectType::ObjectTypeLuaRef => {
-                cb.data =
-                    crate::eval::typval::CallbackData::lua(api_new_luaref(value.data.luaref()));
-            }
-            ObjectType::ObjectTypeString => {
-                if !is_expr {
-                    option_set_callback_func(value.data.string().data, &mut cb);
-                } else if value.data.string().size > 0 {
-                    let funcref =
-                        if let Some(name) = get_scriptlocal_funcname(value.data.string().data) {
-                            name
-                        } else {
-                            crate::memory::cstr_to_cstring(value.data.string().data)
-                        };
-                    cb.data = crate::eval::typval::CallbackData::expr(funcref);
-                }
-            }
-            _ => {}
+    let mut cb = Callback::NONE;
+    match value.obj_type {
+        ObjectType::ObjectTypeLuaRef => {
+            cb.data = crate::eval::typval::CallbackData::lua(api_new_luaref(value.data.luaref()));
         }
-        cb
+        ObjectType::ObjectTypeString => {
+            if !is_expr {
+                option_set_callback_func(value.data.string().data, &mut cb);
+            } else if value.data.string().size > 0 {
+                let funcref = if let Some(name) = get_scriptlocal_funcname(value.data.string().data)
+                {
+                    name
+                } else {
+                    crate::memory::cstr_to_cstring(value.data.string().data)
+                };
+                cb.data = crate::eval::typval::CallbackData::expr(funcref);
+            }
+        }
+        _ => {}
     }
+    cb
 }
 
 /// Creates Object from var pointer.
 pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
-    {
-        let opt = get_option(opt_idx);
-        if opt.immutable {
-            return if opt.opt_type == ObjectType::ObjectTypeString {
-                string_obj(cstr_as_string(opt.def_val.data.string().data))
-            } else {
-                opt.def_val
-            };
-        }
+    let opt = get_option(opt_idx);
+    if opt.immutable {
+        return if opt.opt_type == ObjectType::ObjectTypeString {
+            string_obj(cstr_as_string(opt.def_val.data.string().data))
+        } else {
+            opt.def_val
+        };
+    }
 
-        if varp.cast::<i32>() == &raw mut curbuf_mut().b_changed {
-            return boolean_obj(curbuf_is_changed_fn());
-        }
+    if varp.cast::<i32>() == &raw mut curbuf_mut().b_changed {
+        return boolean_obj(curbuf_is_changed_fn());
+    }
 
-        if is_callback_option(opt_idx) {
-            return opt_from_callback(unsafe { &mut *varp.cast::<Callback>() });
-        }
+    if is_callback_option(opt_idx) {
+        return opt_from_callback(unsafe { &mut *varp.cast::<Callback>() });
+    }
 
-        match opt.opt_type {
-            ObjectType::ObjectTypeBoolean => {
-                opt_from_tristate(tristate_from_int(OptInt::from(unsafe {
-                    *(varp.cast::<i32>())
-                })))
-            }
-            ObjectType::ObjectTypeInteger => integer_obj(unsafe { *(varp.cast::<OptInt>()) }),
-            ObjectType::ObjectTypeString => {
-                string_obj(cstr_as_string(unsafe { *(varp.cast::<*mut c_char>()) }))
-            }
-            _ => std::process::abort(),
+    match opt.opt_type {
+        ObjectType::ObjectTypeBoolean => {
+            opt_from_tristate(tristate_from_int(OptInt::from(unsafe {
+                *(varp.cast::<i32>())
+            })))
         }
+        ObjectType::ObjectTypeInteger => integer_obj(unsafe { *(varp.cast::<OptInt>()) }),
+        ObjectType::ObjectTypeString => {
+            string_obj(cstr_as_string(unsafe { *(varp.cast::<*mut c_char>()) }))
+        }
+        _ => std::process::abort(),
     }
 }
 
 /// Stores an option value at its "varp", freeing the previously-stored value.
 fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
-    unsafe {
-        let opt = get_option(opt_idx);
-        if opt.immutable {
-            return;
-        }
+    let opt = get_option(opt_idx);
+    if opt.immutable {
+        return;
+    }
 
-        if is_callback_option(opt_idx) {
-            let cb = varp.cast::<Callback>();
-            callback_free(&mut *cb);
+    if is_callback_option(opt_idx) {
+        let cb = varp.cast::<Callback>();
+        callback_free(unsafe { &mut *cb });
+        unsafe {
             *cb = opt_to_callback(value, (opt.flags & K_OPT_FLAG_EXPR) != 0);
-            return;
         }
+        return;
+    }
 
-        match value.obj_type {
-            ObjectType::ObjectTypeUnset => {
-                assert!(option_is_global_local(opt_idx));
-                if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
+    match value.obj_type {
+        ObjectType::ObjectTypeUnset => {
+            assert!(option_is_global_local(opt_idx));
+            if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
+                unsafe {
                     *(varp.cast::<i32>()) = K_NONE;
-                } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
-                    let pp = varp.cast::<*mut c_char>();
-                    free_string_option(*pp);
+                }
+            } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
+                let pp = varp.cast::<*mut c_char>();
+                free_string_option(unsafe { *pp });
+                unsafe {
                     *pp = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
-                } else if opt_idx == K_OPT_UNDOLEVELS {
+                }
+            } else if opt_idx == K_OPT_UNDOLEVELS {
+                unsafe {
                     *(varp.cast::<OptInt>()) = NO_LOCAL_UNDOLEVEL;
-                } else {
-                    assert!(
-                        opt_idx == K_OPT_SCROLLOFF
-                            || opt_idx == K_OPT_SCROLLOFFPAD
-                            || opt_idx == K_OPT_SIDESCROLLOFF
-                    );
+                }
+            } else {
+                assert!(
+                    opt_idx == K_OPT_SCROLLOFF
+                        || opt_idx == K_OPT_SCROLLOFFPAD
+                        || opt_idx == K_OPT_SIDESCROLLOFF
+                );
+                unsafe {
                     *(varp.cast::<OptInt>()) = -1;
                 }
             }
-            ObjectType::ObjectTypeBoolean => {
-                assert!(option_has_type(opt_idx, ObjectType::ObjectTypeBoolean));
+        }
+        ObjectType::ObjectTypeBoolean => {
+            assert!(option_has_type(opt_idx, ObjectType::ObjectTypeBoolean));
+            unsafe {
                 *(varp.cast::<i32>()) = i32::from(value.data.boolean());
             }
-            ObjectType::ObjectTypeInteger => {
-                assert!(option_has_type(opt_idx, ObjectType::ObjectTypeInteger));
+        }
+        ObjectType::ObjectTypeInteger => {
+            assert!(option_has_type(opt_idx, ObjectType::ObjectTypeInteger));
+            unsafe {
                 *(varp.cast::<OptInt>()) = value.data.integer();
             }
-            ObjectType::ObjectTypeString => {
-                assert!(option_has_type(opt_idx, ObjectType::ObjectTypeString));
-                let pp = varp.cast::<*mut c_char>();
-                free_string_option(*pp);
+        }
+        ObjectType::ObjectTypeString => {
+            assert!(option_has_type(opt_idx, ObjectType::ObjectTypeString));
+            let pp = varp.cast::<*mut c_char>();
+            free_string_option(unsafe { *pp });
+            unsafe {
                 *pp = copy_option_val(value.data.string().data);
             }
-            _ => std::process::abort(),
         }
+        _ => std::process::abort(),
     }
 }
 
 /// Gets the string form of an option value.
 fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
-    {
-        match o.obj_type {
-            ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => std::ffi::CString::default(),
-            ObjectType::ObjectTypeBoolean => {
-                if o.data.boolean() {
-                    c"true".to_owned()
-                } else {
-                    c"false".to_owned()
-                }
+    match o.obj_type {
+        ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => std::ffi::CString::default(),
+        ObjectType::ObjectTypeBoolean => {
+            if o.data.boolean() {
+                c"true".to_owned()
+            } else {
+                c"false".to_owned()
             }
-            ObjectType::ObjectTypeInteger => {
-                let s = format!("{}", o.data.integer());
-                crate::memory::cstr_from_bytes(s.as_bytes())
-            }
-            ObjectType::ObjectTypeString => {
-                let slice = if o.data.string().data.is_null() || o.data.string().size == 0 {
-                    &[][..]
-                } else {
-                    crate::memory::cstr_slice(o.data.string().data, o.data.string().size)
-                };
-                if !quote {
-                    return crate::memory::cstr_from_bytes(slice);
-                }
-                let mut out = Vec::with_capacity(slice.len() + 2);
-                out.push(b'"');
-                out.extend_from_slice(slice);
-                out.push(b'"');
-                crate::memory::cstr_from_bytes(&out)
-            }
-            ObjectType::ObjectTypeLuaRef => nlua_funcref_str(o.data.luaref(), false),
-            _ => std::process::abort(),
         }
+        ObjectType::ObjectTypeInteger => {
+            let s = format!("{}", o.data.integer());
+            crate::memory::cstr_from_bytes(s.as_bytes())
+        }
+        ObjectType::ObjectTypeString => {
+            let slice = if o.data.string().data.is_null() || o.data.string().size == 0 {
+                &[][..]
+            } else {
+                crate::memory::cstr_slice(o.data.string().data, o.data.string().size)
+            };
+            if !quote {
+                return crate::memory::cstr_from_bytes(slice);
+            }
+            let mut out = Vec::with_capacity(slice.len() + 2);
+            out.push(b'"');
+            out.extend_from_slice(slice);
+            out.push(b'"');
+            crate::memory::cstr_from_bytes(&out)
+        }
+        ObjectType::ObjectTypeLuaRef => nlua_funcref_str(o.data.luaref(), false),
+        _ => std::process::abort(),
     }
 }
 
 /// Converts a structured option (non-scalar Object) to the internal scalar (:set-style) form.
 pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool) -> Object {
-    {
-        if o.obj_type == ObjectType::ObjectTypeNil {
-            return nil_obj();
-        }
-
-        let flags = get_option(opt_idx).flags;
-        let is_list = (flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_FLAG_LIST)) != 0;
-        let is_map = (flags & K_OPT_FLAG_COLON) != 0 || is_dict_option(opt_idx);
-        let is_flaglist = (flags & K_OPT_FLAG_FLAG_LIST) != 0;
-        let is_comma = (flags & K_OPT_FLAG_COMMA) != 0;
-        let allow_dup = (flags & K_OPT_FLAG_NO_DUP) == 0;
-
-        let type_ok = match o.obj_type {
-            ObjectType::ObjectTypeBoolean => {
-                option_has_type(opt_idx, ObjectType::ObjectTypeBoolean)
-            }
-            ObjectType::ObjectTypeInteger => {
-                option_has_type(opt_idx, ObjectType::ObjectTypeInteger)
-            }
-            ObjectType::ObjectTypeString => {
-                option_has_type(opt_idx, ObjectType::ObjectTypeString)
-                    || opt_idx == K_OPT_WILDCHAR
-                    || opt_idx == K_OPT_WILDCHARM
-            }
-            ObjectType::ObjectTypeArray => is_list,
-            ObjectType::ObjectTypeDict => is_map || is_flaglist,
-            ObjectType::ObjectTypeLuaRef => is_callback_option(opt_idx),
-            _ => false,
-        };
-        if !type_ok {
-            *error = true;
-            return nil_obj();
-        }
-
-        match o.obj_type {
-            ObjectType::ObjectTypeBoolean | ObjectType::ObjectTypeInteger => return o,
-            ObjectType::ObjectTypeLuaRef => return luaref_obj(api_new_luaref(o.data.luaref())),
-            _ => {}
-        }
-
-        let mut str_cstr: std::ffi::CString = if o.obj_type == ObjectType::ObjectTypeString {
-            crate::memory::cstr_to_cstring(o.data.string().data)
-        } else if o.obj_type == ObjectType::ObjectTypeArray {
-            let mut items: Vec<std::ffi::CString> = Vec::with_capacity(o.data.array().size);
-            for ai in 0..o.data.array().size {
-                let item = o.data.array()[ai];
-                if item.obj_type != ObjectType::ObjectTypeString {
-                    *error = true;
-                    return nil_obj();
-                }
-                let s_cstr = crate::memory::cstr_from_ptr(item.data.string().data);
-                if !allow_dup && items.iter().any(|existing| existing.as_c_str() == s_cstr) {
-                    continue;
-                }
-                items.push(s_cstr.to_owned());
-            }
-            join_cstrings(&items, if is_flaglist && !is_comma { b"" } else { b"," })
-        } else {
-            let dict = o.data.dict();
-            let mut items: Vec<std::ffi::CString> = Vec::with_capacity(dict.size);
-            for di in 0..dict.size {
-                let k = dict[di].key;
-                let v = dict[di].value;
-                if is_flaglist {
-                    if !(v.obj_type == ObjectType::ObjectTypeNil
-                        || (v.obj_type == ObjectType::ObjectTypeBoolean && !v.data.boolean()))
-                    {
-                        items.push(crate::memory::cstr_to_cstring(k.data));
-                    }
-                } else if v.obj_type == ObjectType::ObjectTypeString {
-                    let k_bytes = crate::memory::cstr_as_bytes(k.data);
-                    let v_bytes = crate::memory::cstr_as_bytes(v.data.string().data);
-                    let mut kv = Vec::with_capacity(k_bytes.len() + 1 + v_bytes.len());
-                    kv.extend_from_slice(k_bytes);
-                    kv.push(b':');
-                    kv.extend_from_slice(v_bytes);
-                    items.push(crate::memory::cstr_from_bytes(&kv));
-                } else if v.obj_type == ObjectType::ObjectTypeInteger {
-                    let k_bytes = crate::memory::cstr_as_bytes(k.data);
-                    let num_s = format!(":{}", v.data.integer());
-                    let mut kv = Vec::with_capacity(k_bytes.len() + num_s.len());
-                    kv.extend_from_slice(k_bytes);
-                    kv.extend_from_slice(num_s.as_bytes());
-                    items.push(crate::memory::cstr_from_bytes(&kv));
-                } else if v.obj_type == ObjectType::ObjectTypeBoolean
-                    || v.obj_type == ObjectType::ObjectTypeNil
-                {
-                    if v.obj_type == ObjectType::ObjectTypeBoolean && v.data.boolean() {
-                        items.push(crate::memory::cstr_to_cstring(k.data));
-                    }
-                } else {
-                    *error = true;
-                    return nil_obj();
-                }
-            }
-            if !items.is_empty() && (is_map || is_comma) {
-                items.sort_unstable();
-            }
-            join_cstrings(&items, if is_flaglist && !is_comma { b"" } else { b"," })
-        };
-
-        if op == OP_REMOVING && is_map && !str_cstr.as_bytes().contains(&b':') {
-            let mut bytes = str_cstr.into_bytes();
-            bytes.push(b':');
-            str_cstr = std::ffi::CString::new(bytes).unwrap();
-        }
-
-        cstr_to_obj(str_cstr.as_ptr())
+    if o.obj_type == ObjectType::ObjectTypeNil {
+        return nil_obj();
     }
+
+    let flags = get_option(opt_idx).flags;
+    let is_list = (flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_FLAG_LIST)) != 0;
+    let is_map = (flags & K_OPT_FLAG_COLON) != 0 || is_dict_option(opt_idx);
+    let is_flaglist = (flags & K_OPT_FLAG_FLAG_LIST) != 0;
+    let is_comma = (flags & K_OPT_FLAG_COMMA) != 0;
+    let allow_dup = (flags & K_OPT_FLAG_NO_DUP) == 0;
+
+    let type_ok = match o.obj_type {
+        ObjectType::ObjectTypeBoolean => option_has_type(opt_idx, ObjectType::ObjectTypeBoolean),
+        ObjectType::ObjectTypeInteger => option_has_type(opt_idx, ObjectType::ObjectTypeInteger),
+        ObjectType::ObjectTypeString => {
+            option_has_type(opt_idx, ObjectType::ObjectTypeString)
+                || opt_idx == K_OPT_WILDCHAR
+                || opt_idx == K_OPT_WILDCHARM
+        }
+        ObjectType::ObjectTypeArray => is_list,
+        ObjectType::ObjectTypeDict => is_map || is_flaglist,
+        ObjectType::ObjectTypeLuaRef => is_callback_option(opt_idx),
+        _ => false,
+    };
+    if !type_ok {
+        *error = true;
+        return nil_obj();
+    }
+
+    match o.obj_type {
+        ObjectType::ObjectTypeBoolean | ObjectType::ObjectTypeInteger => return o,
+        ObjectType::ObjectTypeLuaRef => return luaref_obj(api_new_luaref(o.data.luaref())),
+        _ => {}
+    }
+
+    let mut str_cstr: std::ffi::CString = if o.obj_type == ObjectType::ObjectTypeString {
+        crate::memory::cstr_to_cstring(o.data.string().data)
+    } else if o.obj_type == ObjectType::ObjectTypeArray {
+        let mut items: Vec<std::ffi::CString> = Vec::with_capacity(o.data.array().size);
+        for ai in 0..o.data.array().size {
+            let item = o.data.array()[ai];
+            if item.obj_type != ObjectType::ObjectTypeString {
+                *error = true;
+                return nil_obj();
+            }
+            let s_cstr = crate::memory::cstr_from_ptr(item.data.string().data);
+            if !allow_dup && items.iter().any(|existing| existing.as_c_str() == s_cstr) {
+                continue;
+            }
+            items.push(s_cstr.to_owned());
+        }
+        join_cstrings(&items, if is_flaglist && !is_comma { b"" } else { b"," })
+    } else {
+        let dict = o.data.dict();
+        let mut items: Vec<std::ffi::CString> = Vec::with_capacity(dict.size);
+        for di in 0..dict.size {
+            let k = dict[di].key;
+            let v = dict[di].value;
+            if is_flaglist {
+                if !(v.obj_type == ObjectType::ObjectTypeNil
+                    || (v.obj_type == ObjectType::ObjectTypeBoolean && !v.data.boolean()))
+                {
+                    items.push(crate::memory::cstr_to_cstring(k.data));
+                }
+            } else if v.obj_type == ObjectType::ObjectTypeString {
+                let k_bytes = crate::memory::cstr_as_bytes(k.data);
+                let v_bytes = crate::memory::cstr_as_bytes(v.data.string().data);
+                let mut kv = Vec::with_capacity(k_bytes.len() + 1 + v_bytes.len());
+                kv.extend_from_slice(k_bytes);
+                kv.push(b':');
+                kv.extend_from_slice(v_bytes);
+                items.push(crate::memory::cstr_from_bytes(&kv));
+            } else if v.obj_type == ObjectType::ObjectTypeInteger {
+                let k_bytes = crate::memory::cstr_as_bytes(k.data);
+                let num_s = format!(":{}", v.data.integer());
+                let mut kv = Vec::with_capacity(k_bytes.len() + num_s.len());
+                kv.extend_from_slice(k_bytes);
+                kv.extend_from_slice(num_s.as_bytes());
+                items.push(crate::memory::cstr_from_bytes(&kv));
+            } else if v.obj_type == ObjectType::ObjectTypeBoolean
+                || v.obj_type == ObjectType::ObjectTypeNil
+            {
+                if v.obj_type == ObjectType::ObjectTypeBoolean && v.data.boolean() {
+                    items.push(crate::memory::cstr_to_cstring(k.data));
+                }
+            } else {
+                *error = true;
+                return nil_obj();
+            }
+        }
+        if !items.is_empty() && (is_map || is_comma) {
+            items.sort_unstable();
+        }
+        join_cstrings(&items, if is_flaglist && !is_comma { b"" } else { b"," })
+    };
+
+    if op == OP_REMOVING && is_map && !str_cstr.as_bytes().contains(&b':') {
+        let mut bytes = str_cstr.into_bytes();
+        bytes.push(b':');
+        str_cstr = std::ffi::CString::new(bytes).unwrap();
+    }
+
+    cstr_to_obj(str_cstr.as_ptr())
 }
 
 /// Check if option is hidden.
@@ -5628,44 +5529,35 @@ pub fn option_has_type(opt_idx: OptIndex, opt_type: ObjectType) -> bool {
 
 /// Check if option supports a specific scope.
 pub fn option_has_scope(opt_idx: OptIndex, scope: OptScope) -> bool {
-    {
-        assert!((K_OPT_SCOPE_GLOBAL..K_OPT_SCOPE_SIZE).contains(&scope));
-        (get_option(opt_idx).scope_flags & (1u8 << scope)) != 0
-    }
+    assert!((K_OPT_SCOPE_GLOBAL..K_OPT_SCOPE_SIZE).contains(&scope));
+    (get_option(opt_idx).scope_flags & (1u8 << scope)) != 0
 }
 
 #[inline]
 fn option_is_global_local(opt_idx: OptIndex) -> bool {
-    {
-        if opt_idx == K_OPT_INVALID {
-            return false;
-        }
-        let bw: OptScopeFlags = (1 << K_OPT_SCOPE_BUF) | (1 << K_OPT_SCOPE_WIN);
-        (get_option(opt_idx).scope_flags & bw) != 0 && option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL)
+    if opt_idx == K_OPT_INVALID {
+        return false;
     }
+    let bw: OptScopeFlags = (1 << K_OPT_SCOPE_BUF) | (1 << K_OPT_SCOPE_WIN);
+    (get_option(opt_idx).scope_flags & bw) != 0 && option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL)
 }
 
 #[inline]
 fn option_is_global_only(opt_idx: OptIndex) -> bool {
-    {
-        if opt_idx == K_OPT_INVALID {
-            return false;
-        }
-        let bw: OptScopeFlags = (1 << K_OPT_SCOPE_BUF) | (1 << K_OPT_SCOPE_WIN);
-        (get_option(opt_idx).scope_flags & bw) == 0 && option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL)
+    if opt_idx == K_OPT_INVALID {
+        return false;
     }
+    let bw: OptScopeFlags = (1 << K_OPT_SCOPE_BUF) | (1 << K_OPT_SCOPE_WIN);
+    (get_option(opt_idx).scope_flags & bw) == 0 && option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL)
 }
 
 #[inline]
 fn option_is_window_local(opt_idx: OptIndex) -> bool {
-    {
-        if opt_idx == K_OPT_INVALID {
-            return false;
-        }
-        let exclude: OptScopeFlags = (1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_BUF);
-        (get_option(opt_idx).scope_flags & exclude) == 0
-            && option_has_scope(opt_idx, K_OPT_SCOPE_WIN)
+    if opt_idx == K_OPT_INVALID {
+        return false;
     }
+    let exclude: OptScopeFlags = (1 << K_OPT_SCOPE_GLOBAL) | (1 << K_OPT_SCOPE_BUF);
+    (get_option(opt_idx).scope_flags & exclude) == 0 && option_has_scope(opt_idx, K_OPT_SCOPE_WIN)
 }
 
 /// Get option index for scope.
@@ -5726,228 +5618,228 @@ fn did_set_option(
     value_replaced: bool,
     value_untrusted: bool,
 ) -> *const c_char {
+    let opt_idx = args.os_idx;
+    let varp = args.os_varp;
+    let opt_flags = args.os_flags;
+    let opt = get_option(opt_idx);
+    let mut errmsg: *const c_char = ptr::null();
+
+    if direct {
+        // Don't do any extra processing if setting directly.
+    } else if (g_st().secure != 0 || g_st().sandbox != 0) && (opt.flags & K_OPT_FLAG_SECURE) != 0 {
+        errmsg = E_SECURE.as_ptr();
+    } else if args.os_newval.obj_type == ObjectType::ObjectTypeString
+        && !is_callback_option(opt_idx)
+        && check_illegal_path_names(unsafe { *(varp.cast::<*mut c_char>()) }, opt.flags)
     {
-        let opt_idx = args.os_idx;
-        let varp = args.os_varp;
-        let opt_flags = args.os_flags;
-        let opt = get_option(opt_idx);
-        let mut errmsg: *const c_char = ptr::null();
-
-        if direct {
-            // Don't do any extra processing if setting directly.
-        } else if (g_st().secure != 0 || g_st().sandbox != 0)
-            && (opt.flags & K_OPT_FLAG_SECURE) != 0
-        {
-            errmsg = E_SECURE.as_ptr();
-        } else if args.os_newval.obj_type == ObjectType::ObjectTypeString
-            && !is_callback_option(opt_idx)
-            && check_illegal_path_names(unsafe { *(varp.cast::<*mut c_char>()) }, opt.flags)
-        {
-            errmsg = E_INVARG.as_ptr();
-        } else if let Some(cb) = opt.opt_did_set_cb {
-            errmsg = cb(args);
-        }
-
-        if !errmsg.is_null() {
-            set_option_varp(opt_idx, varp, args.os_oldval);
-            optval_free(args.os_oldval);
-            return errmsg;
-        }
-
-        let new_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
-
-        if set_sid != SID_NONE {
-            let script_ctx = if set_sid == 0 {
-                g_st().current_sctx
-            } else {
-                Sctx {
-                    sc_sid: set_sid,
-                    sc_seq: 0,
-                    sc_lnum: 0,
-                    sc_chan: 0,
-                }
-            };
-            set_option_sctx(opt_idx, opt_flags, script_ctx);
-        }
-
-        optval_free(args.os_oldval);
-
-        let scope_both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
-
-        if scope_both {
-            if option_is_global_local(opt_idx) {
-                set_option_varp(opt_idx, get_varp_scope(opt, OPT_LOCAL), unset_obj());
-            } else {
-                let varp_global = get_varp_scope(opt, OPT_GLOBAL);
-                if varp_global != varp {
-                    set_option_varp(opt_idx, varp_global, new_value);
-                }
-            }
-        }
-
-        optval_free(new_value);
-
-        if direct {
-            return errmsg;
-        }
-
-        let ws = curwin_mut().w_s_ptr();
-        if varp == (&raw mut curbuf_mut().b_p_syn).cast::<c_void>() {
-            do_syntax_autocmd(curbuf_mut(), args.os_value_changed);
-        } else if varp == (&raw mut curbuf_mut().b_p_ft).cast::<c_void>() {
-            if (opt_flags & OPT_MODELINE) == 0 || args.os_value_changed {
-                do_filetype_autocmd(curbuf_mut(), args.os_value_changed);
-            }
-        } else if varp == (&raw mut ws.b_p_spl).cast::<c_void>() {
-            do_spelllang_source(curwin_mut());
-        }
-
-        comp_col();
-
-        if varp == (&raw mut opt_vars().p_mouse).cast::<c_void>() {
-            setmouse();
-        } else if (varp == (&raw mut opt_vars().p_flp).cast::<c_void>()
-            || varp == (&raw mut curbuf_mut().b_p_flp).cast::<c_void>())
-            && curwin_mut().w_briopt_list != 0
-        {
-            redraw_all_later(UPD_NOT_VALID);
-        } else if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>()
-            || varp == (&raw mut curwin_mut().w_onebuf_opt.wo_wbr).cast::<c_void>()
-        {
-            if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>() {
-                set_winbar_all(true);
-            } else {
-                set_winbar(true);
-            }
-        }
-
-        if curwin_mut().w_curswant != MAXCOL
-            && (opt.flags & (K_OPT_FLAG_CURSWANT | K_OPT_FLAG_REDR_ALL)) != 0
-            && (opt.flags & K_OPT_FLAG_HLONLY) == 0
-        {
-            curwin_mut().w_set_curswant = true;
-        }
-
-        check_redraw(opt.flags);
-
-        if errmsg.is_null() {
-            opt.flags |= K_OPT_FLAG_WAS_SET;
-
-            let flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, opt_flags);
-            let flagsp_local = if scope_both {
-                insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, OPT_LOCAL)
-            } else {
-                ptr::null_mut()
-            };
-            if !args.os_value_checked && value_untrusted {
-                *flagsp |= K_OPT_FLAG_INSECURE;
-                if !flagsp_local.is_null() {
-                    unsafe {
-                        *flagsp_local |= K_OPT_FLAG_INSECURE;
-                    }
-                }
-            } else if value_replaced {
-                *flagsp &= !K_OPT_FLAG_INSECURE;
-                if !flagsp_local.is_null() {
-                    unsafe {
-                        *flagsp_local &= !K_OPT_FLAG_INSECURE;
-                    }
-                }
-            }
-        }
-
-        errmsg
+        errmsg = E_INVARG.as_ptr();
+    } else if let Some(cb) = opt.opt_did_set_cb {
+        errmsg = cb(args);
     }
+
+    if !errmsg.is_null() {
+        set_option_varp(opt_idx, varp, args.os_oldval);
+        optval_free(args.os_oldval);
+        return errmsg;
+    }
+
+    let new_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
+
+    if set_sid != SID_NONE {
+        let script_ctx = if set_sid == 0 {
+            g_st().current_sctx
+        } else {
+            Sctx {
+                sc_sid: set_sid,
+                sc_seq: 0,
+                sc_lnum: 0,
+                sc_chan: 0,
+            }
+        };
+        set_option_sctx(opt_idx, opt_flags, script_ctx);
+    }
+
+    optval_free(args.os_oldval);
+
+    let scope_both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
+
+    if scope_both {
+        if option_is_global_local(opt_idx) {
+            set_option_varp(opt_idx, get_varp_scope(opt, OPT_LOCAL), unset_obj());
+        } else {
+            let varp_global = get_varp_scope(opt, OPT_GLOBAL);
+            if varp_global != varp {
+                set_option_varp(opt_idx, varp_global, new_value);
+            }
+        }
+    }
+
+    optval_free(new_value);
+
+    if direct {
+        return errmsg;
+    }
+
+    let ws = curwin_mut().w_s_ptr();
+    if varp == (&raw mut curbuf_mut().b_p_syn).cast::<c_void>() {
+        do_syntax_autocmd(curbuf_mut(), args.os_value_changed);
+    } else if varp == (&raw mut curbuf_mut().b_p_ft).cast::<c_void>() {
+        if (opt_flags & OPT_MODELINE) == 0 || args.os_value_changed {
+            do_filetype_autocmd(curbuf_mut(), args.os_value_changed);
+        }
+    } else if varp == (&raw mut ws.b_p_spl).cast::<c_void>() {
+        do_spelllang_source(curwin_mut());
+    }
+
+    comp_col();
+
+    if varp == (&raw mut opt_vars().p_mouse).cast::<c_void>() {
+        setmouse();
+    } else if (varp == (&raw mut opt_vars().p_flp).cast::<c_void>()
+        || varp == (&raw mut curbuf_mut().b_p_flp).cast::<c_void>())
+        && curwin_mut().w_briopt_list != 0
+    {
+        redraw_all_later(UPD_NOT_VALID);
+    } else if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>()
+        || varp == (&raw mut curwin_mut().w_onebuf_opt.wo_wbr).cast::<c_void>()
+    {
+        if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>() {
+            set_winbar_all(true);
+        } else {
+            set_winbar(true);
+        }
+    }
+
+    if curwin_mut().w_curswant != MAXCOL
+        && (opt.flags & (K_OPT_FLAG_CURSWANT | K_OPT_FLAG_REDR_ALL)) != 0
+        && (opt.flags & K_OPT_FLAG_HLONLY) == 0
+    {
+        curwin_mut().w_set_curswant = true;
+    }
+
+    check_redraw(opt.flags);
+
+    if errmsg.is_null() {
+        opt.flags |= K_OPT_FLAG_WAS_SET;
+
+        let flagsp = insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, opt_flags);
+        let flagsp_local = if scope_both {
+            insecure_flag(Some(crate::globals::curwin_mut()), opt_idx, OPT_LOCAL)
+        } else {
+            ptr::null_mut()
+        };
+        if !args.os_value_checked && value_untrusted {
+            *flagsp |= K_OPT_FLAG_INSECURE;
+            if !flagsp_local.is_null() {
+                unsafe {
+                    *flagsp_local |= K_OPT_FLAG_INSECURE;
+                }
+            }
+        } else if value_replaced {
+            *flagsp &= !K_OPT_FLAG_INSECURE;
+            if !flagsp_local.is_null() {
+                unsafe {
+                    *flagsp_local &= !K_OPT_FLAG_INSECURE;
+                }
+            }
+        }
+    }
+
+    errmsg
 }
 
 /// Validates an option value and prepares any data needed to apply it, without side effects.
 pub fn validate_and_prepare_option_value(args: &mut Optset) -> *const c_char {
-    unsafe {
-        let opt_idx = args.os_idx;
-        let newval = &mut args.os_newval;
-        let opt_flags = args.os_flags;
-        let buf = args.os_buf;
-        let win = args.os_win;
-        let errbuf = args.os_errbuf;
-        let mut errmsg: *const c_char = ptr::null();
-        let opt = get_option(opt_idx);
+    let opt_idx = args.os_idx;
+    let newval = &mut args.os_newval;
+    let opt_flags = args.os_flags;
+    let buf = args.os_buf;
+    let win = args.os_win;
+    let errbuf = args.os_errbuf;
+    let mut errmsg: *const c_char = ptr::null();
+    let opt = get_option(opt_idx);
 
-        if (opt_flags & OPT_LOCAL) != 0 && optval_is_unset_local(opt_idx, *newval) {
-            return ptr::null();
-        }
+    if (opt_flags & OPT_LOCAL) != 0 && optval_is_unset_local(opt_idx, *newval) {
+        return ptr::null();
+    }
 
-        if newval.obj_type == ObjectType::ObjectTypeNil {
-            if opt_flags == OPT_GLOBAL {
-                errmsg = tr(c"Cannot unset global option value");
+    if newval.obj_type == ObjectType::ObjectTypeNil {
+        if opt_flags == OPT_GLOBAL {
+            errmsg = tr(c"Cannot unset global option value");
+        } else {
+            let varp =
+                get_varp_scope_from(opt, OPT_GLOBAL, unsafe { &mut *buf }, unsafe { &mut *win });
+            *newval = if option_is_global_local(opt_idx) {
+                unset_obj()
             } else {
-                let varp = get_varp_scope_from(opt, OPT_GLOBAL, &mut *buf, &mut *win);
-                *newval = if option_is_global_local(opt_idx) {
-                    unset_obj()
-                } else {
-                    optval_own(opt_idx, opt_from_varp(opt_idx, varp))
-                };
-            }
-        } else if newval.obj_type == ObjectType::ObjectTypeLuaRef {
-            assert!(is_callback_option(opt_idx));
-        } else if !option_has_type(opt_idx, optval_type(*newval)) {
-            let rep = optval_to_cstr(*newval, true);
-            let type_str = optval_type_name(opt.opt_type);
-            errmsg = if let Some(errbuf) = errbuf {
-                vim_snprintf!(
-                    errbuf.data,
-                    errbuf.size,
-                    gettext(c"Invalid value for option '%s': expected %s, got %s %s"),
-                    opt.fullname.as_ptr(),
-                    type_str,
-                    optval_type_name(optval_type(*newval)),
-                    rep.as_ptr(),
-                );
-                errbuf.data.cast_const()
-            } else {
-                c"".as_ptr()
+                optval_own(opt_idx, opt_from_varp(opt_idx, varp))
             };
-        } else if newval.obj_type == ObjectType::ObjectTypeInteger {
-            errmsg = validate_num_option(opt_idx, newval.data.integer_mut(), &mut *win, errbuf);
         }
+    } else if newval.obj_type == ObjectType::ObjectTypeLuaRef {
+        assert!(is_callback_option(opt_idx));
+    } else if !option_has_type(opt_idx, optval_type(*newval)) {
+        let rep = optval_to_cstr(*newval, true);
+        let type_str = optval_type_name(opt.opt_type);
+        errmsg = if let Some(errbuf) = errbuf {
+            vim_snprintf!(
+                errbuf.data,
+                errbuf.size,
+                gettext(c"Invalid value for option '%s': expected %s, got %s %s"),
+                opt.fullname.as_ptr(),
+                type_str,
+                optval_type_name(optval_type(*newval)),
+                rep.as_ptr(),
+            );
+            errbuf.data.cast_const()
+        } else {
+            c"".as_ptr()
+        };
+    } else if newval.obj_type == ObjectType::ObjectTypeInteger {
+        errmsg = validate_num_option(
+            opt_idx,
+            newval.data.integer_mut(),
+            unsafe { &mut *win },
+            errbuf,
+        );
+    }
+    if !errmsg.is_null() {
+        return errmsg;
+    }
+
+    if opt.immutable {
+        let oldval = opt_from_varp(
+            opt_idx,
+            get_varp_scope_from(opt, opt_flags, unsafe { &mut *buf }, unsafe { &mut *win }),
+        );
+        let unchanged = option_equal(oldval, *newval);
+        optval_free_read(opt_idx, oldval);
+        if !unchanged {
+            return E_UNSUPPORTEDOPTION.as_ptr();
+        }
+    }
+    let schema = opt.schema;
+    if newval.obj_type == ObjectType::ObjectTypeString && !schema.is_empty() {
+        errmsg = opt_strings_check(newval.data.string().data, schema, errbuf);
         if !errmsg.is_null() {
             return errmsg;
         }
-
-        if opt.immutable {
-            let oldval = opt_from_varp(
-                opt_idx,
-                get_varp_scope_from(opt, opt_flags, &mut *buf, &mut *win),
-            );
-            let unchanged = option_equal(oldval, *newval);
-            optval_free_read(opt_idx, oldval);
-            if !unchanged {
-                return E_UNSUPPORTEDOPTION.as_ptr();
-            }
-        }
-        let schema = opt.schema;
-        if newval.obj_type == ObjectType::ObjectTypeString && !schema.is_empty() {
-            errmsg = opt_strings_check(newval.data.string().data, schema, errbuf);
-            if !errmsg.is_null() {
-                return errmsg;
-            }
-        }
-        if newval.obj_type != ObjectType::ObjectTypeUnset
-            && let Some(validate_cb) = opt.opt_validate_cb
-        {
-            let scope_both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
-            args.os_varp = if scope_both && option_is_global_local(opt_idx) {
-                opt.var
-            } else {
-                get_varp_scope_from(opt, opt_flags, &mut *buf, &mut *win)
-            };
-            args.os_oldval = opt_from_varp(opt_idx, args.os_varp);
-            errmsg = validate_cb(args);
-            optval_free_read(opt_idx, args.os_oldval);
-            args.os_oldval = nil_obj();
-            return errmsg;
-        }
-        ptr::null()
     }
+    if newval.obj_type != ObjectType::ObjectTypeUnset
+        && let Some(validate_cb) = opt.opt_validate_cb
+    {
+        let scope_both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
+        args.os_varp = if scope_both && option_is_global_local(opt_idx) {
+            opt.var
+        } else {
+            get_varp_scope_from(opt, opt_flags, unsafe { &mut *buf }, unsafe { &mut *win })
+        };
+        args.os_oldval = opt_from_varp(opt_idx, args.os_varp);
+        errmsg = validate_cb(args);
+        optval_free_read(opt_idx, args.os_oldval);
+        args.os_oldval = nil_obj();
+        return errmsg;
+    }
+    ptr::null()
 }
 
 /// Set the value of an option using an Object.
@@ -5960,176 +5852,174 @@ fn set_option(
     value_replaced: bool,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
+    assert!(opt_idx != K_OPT_INVALID);
+
+    let mut errmsg: *const c_char = ptr::null();
+    let mut args = Optset {
+        os_varp: ptr::null_mut(),
+        os_idx: opt_idx,
+        os_flags: opt_flags,
+        os_oldval: nil_obj(),
+        os_newval: value,
+        os_prep: crate::optionstr::OptSetPrep::None,
+        os_value_checked: false,
+        os_value_changed: false,
+        os_restore_chartab: false,
+        os_errbuf: errbuf,
+        os_win: curwin_ptr(),
+        os_buf: g_st().curbuf,
+    };
+
+    let opt = get_option(opt_idx);
+    if !direct {
+        if (g_st().secure != 0 || g_st().sandbox != 0) && (opt.flags & K_OPT_FLAG_SECURE) != 0 {
+            optval_free(value);
+            return E_SECURE.as_ptr();
+        }
+
+        errmsg = validate_and_prepare_option_value(&mut args);
+        value = args.os_newval;
+
+        if errmsg.is_null()
+            && value.obj_type == ObjectType::ObjectTypeString
+            && (opt.flags & K_OPT_FLAG_FUNC) != 0
+            && value.data.string().size > 0
+        {
+            let mut cb = Callback::NONE;
+            if !option_set_callback_func(value.data.string().data, &mut cb) {
+                errmsg = E_INVARG.as_ptr();
+            }
+            callback_free(&mut cb);
+        }
+    } else if value.obj_type == ObjectType::ObjectTypeString && is_dict_option(opt_idx) {
+        errmsg = opt_strings_check(
+            value.data.string().data,
+            opt_dict_schema(opt_idx).unwrap().schema,
+            errbuf,
+        );
+    }
+
+    if !errmsg.is_null() {
+        optval_free(value);
+        return errmsg;
+    }
+
+    #[cfg(windows)]
     {
-        assert!(opt_idx != K_OPT_INVALID);
-
-        let mut errmsg: *const c_char = ptr::null();
-        let mut args = Optset {
-            os_varp: ptr::null_mut(),
-            os_idx: opt_idx,
-            os_flags: opt_flags,
-            os_oldval: nil_obj(),
-            os_newval: value,
-            os_prep: crate::optionstr::OptSetPrep::None,
-            os_value_checked: false,
-            os_value_changed: false,
-            os_restore_chartab: false,
-            os_errbuf: errbuf,
-            os_win: curwin_ptr(),
-            os_buf: g_st().curbuf,
-        };
-
-        let opt = get_option(opt_idx);
-        if !direct {
-            if (g_st().secure != 0 || g_st().sandbox != 0) && (opt.flags & K_OPT_FLAG_SECURE) != 0 {
-                optval_free(value);
-                return E_SECURE.as_ptr();
-            }
-
-            errmsg = validate_and_prepare_option_value(&mut args);
-            value = args.os_newval;
-
-            if errmsg.is_null()
-                && value.obj_type == ObjectType::ObjectTypeString
-                && (opt.flags & K_OPT_FLAG_FUNC) != 0
-                && value.data.string().size > 0
-            {
-                let mut cb = Callback::NONE;
-                if !option_set_callback_func(value.data.string().data, &mut cb) {
-                    errmsg = E_INVARG.as_ptr();
+        let flags = opt.flags;
+        if value.obj_type == ObjectType::ObjectTypeString
+            && (flags & K_OPT_FLAG_EXPAND) != 0
+            && opt_idx != K_OPT_EQUALPRG
+            && opt_idx != K_OPT_FORMATPRG
+            && opt_idx != K_OPT_GREPPRG
+            && opt_idx != K_OPT_KEYWORDPRG
+            && opt_idx != K_OPT_MAKEPRG
+            && opt_idx != K_OPT_SHELL
+        {
+            let allow_comma = (flags & K_OPT_FLAG_COMMA) != 0;
+            let allow_space =
+                opt_idx == K_OPT_CDPATH || opt_idx == K_OPT_PATH || opt_idx == K_OPT_TAGS;
+            let mut p = value.data.string().data;
+            while !crate::memory::cstr_is_empty(p) {
+                if crate::memory::cstr_first_byte(p) != b'\\'
+                    || (crate::memory::cstr_byte_at(p, 1) == b',' && allow_comma)
+                    || (crate::memory::cstr_byte_at(p, 1) == b' ' && allow_space)
+                {
+                    p = p.wrapping_add(1);
+                    continue;
                 }
-                callback_free(&mut cb);
+                unsafe {
+                    *p = b'/' as c_char;
+                }
+                p = p.wrapping_add(1);
             }
-        } else if value.obj_type == ObjectType::ObjectTypeString && is_dict_option(opt_idx) {
-            errmsg = opt_strings_check(
-                value.data.string().data,
-                opt_dict_schema(opt_idx).unwrap().schema,
-                errbuf,
+        }
+    }
+
+    let scope_local = (opt_flags & OPT_LOCAL) != 0;
+    let scope_global = (opt_flags & OPT_GLOBAL) != 0;
+    let scope_both = !scope_local && !scope_global;
+    let is_opt_local_unset = is_option_local_value_unset(opt_idx);
+
+    let varp = if scope_both && option_is_global_local(opt_idx) {
+        opt.var
+    } else {
+        get_varp_scope(opt, opt_flags)
+    };
+    let varp_local = get_varp_scope(opt, OPT_LOCAL);
+    let varp_global = get_varp_scope(opt, OPT_GLOBAL);
+
+    let old_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
+
+    let mut saved_used_value = nil_obj();
+    let mut saved_old_global_value = nil_obj();
+    let mut saved_old_local_value = nil_obj();
+    let mut saved_new_value = nil_obj();
+    if !direct {
+        saved_old_global_value = optval_snapshot_varp(opt_idx, varp_global);
+        saved_old_local_value = if is_opt_local_unset {
+            copy_object(saved_old_global_value, None)
+        } else {
+            optval_snapshot_varp(opt_idx, varp_local)
+        };
+        saved_used_value = if scope_local && is_opt_local_unset {
+            optval_snapshot_varp(opt_idx, get_varp(&mut *opt))
+        } else {
+            optval_snapshot(old_value)
+        };
+    }
+
+    let secure_saved = g_st().secure;
+
+    let value_untrusted = g_st().secure != 0
+        || g_st().sandbox != 0
+        || (opt_flags & OPT_MODELINE) != 0
+        || (!value_replaced
+            && was_set_insecurely(Some(crate::globals::curwin_mut()), opt_idx, opt_flags) != 0);
+    if g_st().secure == 0 && value_untrusted {
+        g_st().secure = 1;
+    }
+
+    set_option_varp(opt_idx, varp, value);
+    if value.obj_type == ObjectType::ObjectTypeUnset {
+        value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
+    }
+    if !direct {
+        saved_new_value = optval_snapshot(value);
+    }
+    args.os_varp = varp;
+    args.os_oldval = old_value;
+    args.os_newval = value;
+    args.os_buf = g_st().curbuf;
+    args.os_win = curwin_ptr();
+    errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted);
+    args.os_prep = crate::optionstr::OptSetPrep::None;
+
+    g_st().secure = secure_saved;
+
+    if errmsg.is_null() && !direct {
+        if starting_val() == 0 {
+            apply_optionset_autocmd(
+                opt_idx,
+                opt_flags,
+                saved_used_value,
+                saved_old_global_value,
+                saved_old_local_value,
+                saved_new_value,
             );
         }
-
-        if !errmsg.is_null() {
-            optval_free(value);
-            return errmsg;
+        if (opt.flags & K_OPT_FLAG_UIOPTION) != 0 {
+            ui_call_option_set(cstr_as_string(opt.fullname.as_ptr()), saved_new_value);
         }
-
-        #[cfg(windows)]
-        {
-            let flags = opt.flags;
-            if value.obj_type == ObjectType::ObjectTypeString
-                && (flags & K_OPT_FLAG_EXPAND) != 0
-                && opt_idx != K_OPT_EQUALPRG
-                && opt_idx != K_OPT_FORMATPRG
-                && opt_idx != K_OPT_GREPPRG
-                && opt_idx != K_OPT_KEYWORDPRG
-                && opt_idx != K_OPT_MAKEPRG
-                && opt_idx != K_OPT_SHELL
-            {
-                let allow_comma = (flags & K_OPT_FLAG_COMMA) != 0;
-                let allow_space =
-                    opt_idx == K_OPT_CDPATH || opt_idx == K_OPT_PATH || opt_idx == K_OPT_TAGS;
-                let mut p = value.data.string().data;
-                while !crate::memory::cstr_is_empty(p) {
-                    if crate::memory::cstr_first_byte(p) != b'\\'
-                        || (crate::memory::cstr_byte_at(p, 1) == b',' && allow_comma)
-                        || (crate::memory::cstr_byte_at(p, 1) == b' ' && allow_space)
-                    {
-                        p = p.wrapping_add(1);
-                        continue;
-                    }
-                    unsafe {
-                        *p = b'/' as c_char;
-                    }
-                    p = p.wrapping_add(1);
-                }
-            }
-        }
-
-        let scope_local = (opt_flags & OPT_LOCAL) != 0;
-        let scope_global = (opt_flags & OPT_GLOBAL) != 0;
-        let scope_both = !scope_local && !scope_global;
-        let is_opt_local_unset = is_option_local_value_unset(opt_idx);
-
-        let varp = if scope_both && option_is_global_local(opt_idx) {
-            opt.var
-        } else {
-            get_varp_scope(opt, opt_flags)
-        };
-        let varp_local = get_varp_scope(opt, OPT_LOCAL);
-        let varp_global = get_varp_scope(opt, OPT_GLOBAL);
-
-        let old_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
-
-        let mut saved_used_value = nil_obj();
-        let mut saved_old_global_value = nil_obj();
-        let mut saved_old_local_value = nil_obj();
-        let mut saved_new_value = nil_obj();
-        if !direct {
-            saved_old_global_value = optval_snapshot_varp(opt_idx, varp_global);
-            saved_old_local_value = if is_opt_local_unset {
-                copy_object(saved_old_global_value, None)
-            } else {
-                optval_snapshot_varp(opt_idx, varp_local)
-            };
-            saved_used_value = if scope_local && is_opt_local_unset {
-                optval_snapshot_varp(opt_idx, get_varp(&mut *opt))
-            } else {
-                optval_snapshot(old_value)
-            };
-        }
-
-        let secure_saved = g_st().secure;
-
-        let value_untrusted = g_st().secure != 0
-            || g_st().sandbox != 0
-            || (opt_flags & OPT_MODELINE) != 0
-            || (!value_replaced
-                && was_set_insecurely(Some(crate::globals::curwin_mut()), opt_idx, opt_flags) != 0);
-        if g_st().secure == 0 && value_untrusted {
-            g_st().secure = 1;
-        }
-
-        set_option_varp(opt_idx, varp, value);
-        if value.obj_type == ObjectType::ObjectTypeUnset {
-            value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
-        }
-        if !direct {
-            saved_new_value = optval_snapshot(value);
-        }
-        args.os_varp = varp;
-        args.os_oldval = old_value;
-        args.os_newval = value;
-        args.os_buf = g_st().curbuf;
-        args.os_win = curwin_ptr();
-        errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted);
-        args.os_prep = crate::optionstr::OptSetPrep::None;
-
-        g_st().secure = secure_saved;
-
-        if errmsg.is_null() && !direct {
-            if starting_val() == 0 {
-                apply_optionset_autocmd(
-                    opt_idx,
-                    opt_flags,
-                    saved_used_value,
-                    saved_old_global_value,
-                    saved_old_local_value,
-                    saved_new_value,
-                );
-            }
-            if (opt.flags & K_OPT_FLAG_UIOPTION) != 0 {
-                ui_call_option_set(cstr_as_string(opt.fullname.as_ptr()), saved_new_value);
-            }
-        }
-
-        optval_free(saved_used_value);
-        optval_free(saved_old_local_value);
-        optval_free(saved_old_global_value);
-        optval_free(saved_new_value);
-        optval_free(value);
-
-        errmsg
     }
+
+    optval_free(saved_used_value);
+    optval_free(saved_old_local_value);
+    optval_free(saved_old_global_value);
+    optval_free(saved_new_value);
+    optval_free(value);
+
+    errmsg
 }
 
 /// Set option value directly, without processing any side effects.
@@ -6158,27 +6048,25 @@ pub fn set_option_direct_for(
     set_sid: Scid,
     target: OptTarget,
 ) {
-    {
-        let save_curbuf = g_st().curbuf;
-        let save_curwin = curwin_ptr();
+    let save_curbuf = g_st().curbuf;
+    let save_curwin = curwin_ptr();
 
-        match target {
-            OptTarget::Global => {}
-            OptTarget::Win(win) => {
-                set_curwin(win);
-                g_st().curbuf = curwin_mut().w_buffer;
-            }
-            OptTarget::Buf(buf) => {
-                g_st().curbuf = buf;
-            }
-            OptTarget::Tab(_) => std::process::abort(),
+    match target {
+        OptTarget::Global => {}
+        OptTarget::Win(win) => {
+            set_curwin(win);
+            g_st().curbuf = curwin_mut().w_buffer;
         }
-
-        set_option_direct(opt_idx, value, opt_flags, set_sid);
-
-        set_curwin(save_curwin);
-        g_st().curbuf = save_curbuf;
+        OptTarget::Buf(buf) => {
+            g_st().curbuf = buf;
+        }
+        OptTarget::Tab(_) => std::process::abort(),
     }
+
+    set_option_direct(opt_idx, value, opt_flags, set_sid);
+
+    set_curwin(save_curwin);
+    g_st().curbuf = save_curbuf;
 }
 
 /// Sets the value of an (non-tty) option.
@@ -6189,24 +6077,22 @@ pub fn set_option_value(
     value_replaced: bool,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
-    {
-        assert!(opt_idx != K_OPT_INVALID);
+    assert!(opt_idx != K_OPT_INVALID);
 
-        let flags = get_option(opt_idx).flags;
-        if g_st().sandbox > 0 && (flags & K_OPT_FLAG_SECURE) != 0 {
-            return tr(E_SANDBOX);
-        }
-
-        set_option(
-            opt_idx,
-            copy_object(value, None),
-            opt_flags,
-            0,
-            false,
-            value_replaced,
-            errbuf,
-        )
+    let flags = get_option(opt_idx).flags;
+    if g_st().sandbox > 0 && (flags & K_OPT_FLAG_SECURE) != 0 {
+        return tr(E_SANDBOX);
     }
+
+    set_option(
+        opt_idx,
+        copy_object(value, None),
+        opt_flags,
+        0,
+        false,
+        value_replaced,
+        errbuf,
+    )
 }
 
 #[inline]
@@ -6250,79 +6136,75 @@ fn switch_option_context(
     from: OptTarget,
     err: &mut Error,
 ) -> bool {
-    {
-        match scope {
-            K_OPT_SCOPE_GLOBAL => false,
-            K_OPT_SCOPE_WIN => {
-                let OptTarget::Win(win) = from else {
-                    return false;
-                };
-                if win == curwin_ptr() {
-                    return false;
-                }
-                let mut cs = CtxSwitch::new();
-                if !ctx_switch(
-                    &mut cs,
-                    win,
-                    win_find_tabpage(win),
-                    ptr::null_mut(),
-                    K_CTX_NO_DISPLAY,
-                ) {
-                    ctx_restore(&mut cs);
-                    if !error_set(err) {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeException,
-                            c"Problem while switching windows",
-                        );
-                    }
-                    return false;
-                }
-                *ctx = OptSavedCtx::Switch(cs);
-                true
+    match scope {
+        K_OPT_SCOPE_GLOBAL => false,
+        K_OPT_SCOPE_WIN => {
+            let OptTarget::Win(win) = from else {
+                return false;
+            };
+            if win == curwin_ptr() {
+                return false;
             }
-            K_OPT_SCOPE_BUF => {
-                let OptTarget::Buf(buf) = from else {
-                    return false;
-                };
-                if buf == g_st().curbuf {
-                    return false;
+            let mut cs = CtxSwitch::new();
+            if !ctx_switch(
+                &mut cs,
+                win,
+                win_find_tabpage(win),
+                ptr::null_mut(),
+                K_CTX_NO_DISPLAY,
+            ) {
+                ctx_restore(&mut cs);
+                if !error_set(err) {
+                    api_set_error!(
+                        err,
+                        ErrorType::ErrorTypeException,
+                        c"Problem while switching windows",
+                    );
                 }
-                let mut cs = CtxSwitch::new();
-                ctx_switch(&mut cs, ptr::null_mut(), ptr::null_mut(), buf, 0);
-                *ctx = OptSavedCtx::Switch(cs);
-                true
+                return false;
             }
-            K_OPT_SCOPE_TAB => {
-                let OptTarget::Tab(tab) = from else {
-                    return false;
-                };
-                if tab == g_st().curtab {
-                    return false;
-                }
-                *ctx = OptSavedCtx::Tab(g_st().curtab);
-                unuse_tabpage(curtab_mut());
-                use_tabpage(tab);
-                true
-            }
-            _ => unreachable!(),
+            *ctx = OptSavedCtx::Switch(cs);
+            true
         }
+        K_OPT_SCOPE_BUF => {
+            let OptTarget::Buf(buf) = from else {
+                return false;
+            };
+            if buf == g_st().curbuf {
+                return false;
+            }
+            let mut cs = CtxSwitch::new();
+            ctx_switch(&mut cs, ptr::null_mut(), ptr::null_mut(), buf, 0);
+            *ctx = OptSavedCtx::Switch(cs);
+            true
+        }
+        K_OPT_SCOPE_TAB => {
+            let OptTarget::Tab(tab) = from else {
+                return false;
+            };
+            if tab == g_st().curtab {
+                return false;
+            }
+            *ctx = OptSavedCtx::Tab(g_st().curtab);
+            unuse_tabpage(curtab_mut());
+            use_tabpage(tab);
+            true
+        }
+        _ => unreachable!(),
     }
 }
 
 fn restore_option_context(ctx: &mut OptSavedCtx, scope: OptScope) {
-    {
-        match (scope, ctx) {
-            (K_OPT_SCOPE_GLOBAL, _) => {}
-            (K_OPT_SCOPE_WIN | K_OPT_SCOPE_BUF, OptSavedCtx::Switch(cs)) => {
-                ctx_restore(cs);
-            }
-            (K_OPT_SCOPE_TAB, OptSavedCtx::Tab(saved_curtab)) => {
-                unuse_tabpage(curtab_mut());
-                use_tabpage(*saved_curtab);
-            }
-            _ => {}
+    match (scope, ctx) {
+        (K_OPT_SCOPE_GLOBAL, _) => {}
+        (K_OPT_SCOPE_WIN | K_OPT_SCOPE_BUF, OptSavedCtx::Switch(cs)) => {
+            ctx_restore(cs);
         }
+        (K_OPT_SCOPE_TAB, OptSavedCtx::Tab(saved_curtab)) => {
+            unuse_tabpage(curtab_mut());
+            use_tabpage(*saved_curtab);
+        }
+        _ => {}
     }
 }
 
@@ -6360,340 +6242,326 @@ pub fn set_option_value_for(
     value_replaced: bool,
     err: &mut Error,
 ) {
+    if let (K_OPT_SCOPE_TAB, OptTarget::Tab(tab)) = (scope, from)
+        && tab != g_st().curtab
     {
-        if let (K_OPT_SCOPE_TAB, OptTarget::Tab(tab)) = (scope, from)
-            && tab != g_st().curtab
-        {
-            assert!(opt_idx == K_OPT_CMDHEIGHT);
-            if value.obj_type != ObjectType::ObjectTypeInteger {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"'cmdheight' requires a Number",
-                );
-                return;
-            }
-            unsafe {
-                (*tab).tp_ch_used = value.data.integer();
-            }
+        assert!(opt_idx == K_OPT_CMDHEIGHT);
+        if value.obj_type != ObjectType::ObjectTypeInteger {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"'cmdheight' requires a Number",
+            );
             return;
         }
-
-        let mut ctx = OptSavedCtx::None;
-
-        let switched = switch_option_context(&mut ctx, scope, from, err);
-        if error_set(err) {
-            return;
+        unsafe {
+            (*tab).tp_ch_used = value.data.integer();
         }
+        return;
+    }
 
-        let mut errbuf_storage = [0 as c_char; IOSIZE];
-        let errbuf = CharBuf {
-            data: errbuf_storage.as_mut_ptr(),
-            size: IOSIZE,
-        };
-        let errmsg = set_option_value(opt_idx, value, opt_flags, value_replaced, Some(errbuf));
-        if !errmsg.is_null() {
-            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg);
-        }
+    let mut ctx = OptSavedCtx::None;
 
-        if switched {
-            restore_option_context(&mut ctx, scope);
-        }
+    let switched = switch_option_context(&mut ctx, scope, from, err);
+    if error_set(err) {
+        return;
+    }
+
+    let mut errbuf_storage = [0 as c_char; IOSIZE];
+    let errbuf = CharBuf {
+        data: errbuf_storage.as_mut_ptr(),
+        size: IOSIZE,
+    };
+    let errmsg = set_option_value(opt_idx, value, opt_flags, value_replaced, Some(errbuf));
+    if !errmsg.is_null() {
+        api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg);
+    }
+
+    if switched {
+        restore_option_context(&mut ctx, scope);
     }
 }
 
 fn showoptions(all: bool, opt_flags: i32) {
-    {
-        const INC: i32 = 20;
-        const GAP: i32 = 3;
+    const INC: i32 = 20;
+    const GAP: i32 = 3;
 
-        let mut items: Vec<*mut Vimoption> = Vec::with_capacity(K_OPT_COUNT as usize);
+    let mut items: Vec<*mut Vimoption> = Vec::with_capacity(K_OPT_COUNT as usize);
 
-        msg_ext_set_kind(c"list_cmd");
-        if (opt_flags & OPT_GLOBAL) != 0 {
-            msg_puts_title(tr(c"\n--- Global option values ---"));
-        } else if (opt_flags & OPT_LOCAL) != 0 {
-            msg_puts_title(tr(c"\n--- Local option values ---"));
-        } else {
-            msg_puts_title(tr(c"\n--- Options ---"));
-        }
+    msg_ext_set_kind(c"list_cmd");
+    if (opt_flags & OPT_GLOBAL) != 0 {
+        msg_puts_title(tr(c"\n--- Global option values ---"));
+    } else if (opt_flags & OPT_LOCAL) != 0 {
+        msg_puts_title(tr(c"\n--- Local option values ---"));
+    } else {
+        msg_puts_title(tr(c"\n--- Options ---"));
+    }
 
-        let mut run = 1;
-        while run <= 2 && !g_st().got_int {
-            items.clear();
-            for opt_idx in 0..K_OPT_COUNT {
-                let opt = get_option(opt_idx);
-                if message_filtered(opt.fullname.as_ptr().cast_mut()) {
-                    continue;
-                }
-
-                let mut varp: *mut c_void = ptr::null_mut();
-                if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) != 0 {
-                    if !option_is_global_only(opt_idx) {
-                        varp = get_varp_scope(opt, opt_flags);
-                    }
-                } else {
-                    varp = get_varp(&mut *opt);
-                }
-                if !varp.is_null() && (all || optval_default(opt_idx, varp) == 0) {
-                    let len = if (opt_flags & OPT_ONECOLUMN) != 0 {
-                        g_st().columns_global
-                    } else if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
-                        1
-                    } else {
-                        optval_fmt(opt_idx, opt_flags);
-                        (opt.fullname.to_bytes().len() as i32)
-                            + vim_strsize(g_st().name_buff.as_ptr())
-                            + 1
-                    };
-                    if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
-                        items.push(opt);
-                    }
-                }
+    let mut run = 1;
+    while run <= 2 && !g_st().got_int {
+        items.clear();
+        for opt_idx in 0..K_OPT_COUNT {
+            let opt = get_option(opt_idx);
+            if message_filtered(opt.fullname.as_ptr().cast_mut()) {
+                continue;
             }
 
-            let item_count = items.len();
-            let rows = if run == 1 {
-                let mut cols = (g_st().columns_global + GAP - 3) / INC;
-                if cols == 0 {
-                    cols = 1;
+            let mut varp: *mut c_void = ptr::null_mut();
+            if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) != 0 {
+                if !option_is_global_only(opt_idx) {
+                    varp = get_varp_scope(opt, opt_flags);
                 }
-                (item_count as i32 + cols - 1) / cols
             } else {
-                item_count as i32
-            };
-
-            let mut row = 0;
-            while row < rows && !g_st().got_int {
-                msg_putchar(b'\n' as i32);
-                if g_st().got_int {
-                    break;
-                }
-                let mut col: i32 = 0;
-                let mut i = row as usize;
-                while i < item_count {
-                    msg_advance(col);
-                    showoneopt(unsafe { &mut *items[i] }, opt_flags);
-                    col += INC;
-                    i += rows as usize;
-                }
-                os_breakcheck();
-                row += 1;
+                varp = get_varp(&mut *opt);
             }
-            run += 1;
+            if !varp.is_null() && (all || optval_default(opt_idx, varp) == 0) {
+                let len = if (opt_flags & OPT_ONECOLUMN) != 0 {
+                    g_st().columns_global
+                } else if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
+                    1
+                } else {
+                    optval_fmt(opt_idx, opt_flags);
+                    (opt.fullname.to_bytes().len() as i32)
+                        + vim_strsize(g_st().name_buff.as_ptr())
+                        + 1
+                };
+                if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
+                    items.push(opt);
+                }
+            }
         }
+
+        let item_count = items.len();
+        let rows = if run == 1 {
+            let mut cols = (g_st().columns_global + GAP - 3) / INC;
+            if cols == 0 {
+                cols = 1;
+            }
+            (item_count as i32 + cols - 1) / cols
+        } else {
+            item_count as i32
+        };
+
+        let mut row = 0;
+        while row < rows && !g_st().got_int {
+            msg_putchar(b'\n' as i32);
+            if g_st().got_int {
+                break;
+            }
+            let mut col: i32 = 0;
+            let mut i = row as usize;
+            while i < item_count {
+                msg_advance(col);
+                showoneopt(unsafe { &mut *items[i] }, opt_flags);
+                col += INC;
+                i += rows as usize;
+            }
+            os_breakcheck();
+            row += 1;
+        }
+        run += 1;
     }
 }
 
 fn optval_default(opt_idx: OptIndex, varp: *mut c_void) -> i32 {
-    {
-        if is_option_hidden(opt_idx) {
-            return 1;
-        }
-
-        let current_val = opt_from_varp(opt_idx, varp);
-        let default_val = get_option(opt_idx).def_val;
-
-        let is_default = option_equal(current_val, default_val);
-        optval_free_read(opt_idx, current_val);
-        i32::from(is_default)
+    if is_option_hidden(opt_idx) {
+        return 1;
     }
+
+    let current_val = opt_from_varp(opt_idx, varp);
+    let default_val = get_option(opt_idx).def_val;
+
+    let is_default = option_equal(current_val, default_val);
+    optval_free_read(opt_idx, current_val);
+    i32::from(is_default)
 }
 
 /// Send update to UIs with values of UI relevant options.
 pub fn ui_refresh_options() {
-    {
-        for opt_idx in 0..K_OPT_COUNT {
-            let opt = get_option(opt_idx);
-            if (opt.flags & K_OPT_FLAG_UIOPTION) == 0 {
-                continue;
-            }
-            let name = cstr_as_string(opt.fullname.as_ptr());
-            let value = opt_from_varp(opt_idx, opt.var);
-            ui_call_option_set(name, value);
+    for opt_idx in 0..K_OPT_COUNT {
+        let opt = get_option(opt_idx);
+        if (opt.flags & K_OPT_FLAG_UIOPTION) == 0 {
+            continue;
         }
-        if !opt_vars().p_mouse.is_null() {
-            setmouse();
-        }
+        let name = cstr_as_string(opt.fullname.as_ptr());
+        let value = opt_from_varp(opt_idx, opt.var);
+        ui_call_option_set(name, value);
+    }
+    if !opt_vars().p_mouse.is_null() {
+        setmouse();
     }
 }
 
 fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
-    {
-        let save_silent = g_st().silent_mode;
+    let save_silent = g_st().silent_mode;
 
-        g_st().silent_mode = false;
-        g_st().info_message = true;
+    g_st().silent_mode = false;
+    g_st().info_message = true;
 
-        let opt_idx = get_opt_idx(&raw mut *opt);
-        let varp = get_varp_scope(&raw mut *opt, opt_flags);
+    let opt_idx = get_opt_idx(&raw mut *opt);
+    let varp = get_varp_scope(&raw mut *opt, opt_flags);
 
-        if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
-            let val_int = if opt.immutable {
-                i32::from(opt.def_val.data.boolean())
-            } else if varp.cast::<i32>() == &raw mut curbuf_mut().b_changed {
-                i32::from(curbuf_is_changed_fn())
-            } else {
-                unsafe { *(varp.cast::<i32>()) }
-            };
-            if val_int == 0 {
-                msg_puts(c"no");
-            } else if val_int < 0 {
-                msg_puts(c"--");
-            } else {
-                msg_puts(c"  ");
-            }
+    if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
+        let val_int = if opt.immutable {
+            i32::from(opt.def_val.data.boolean())
+        } else if varp.cast::<i32>() == &raw mut curbuf_mut().b_changed {
+            i32::from(curbuf_is_changed_fn())
+        } else {
+            unsafe { *(varp.cast::<i32>()) }
+        };
+        if val_int == 0 {
+            msg_puts(c"no");
+        } else if val_int < 0 {
+            msg_puts(c"--");
         } else {
             msg_puts(c"  ");
         }
-        msg_puts(opt.fullname.as_ptr());
-        if !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
-            msg_putchar(b'=' as i32);
-            optval_fmt(opt_idx, opt_flags);
-            let namebuf_ptr = g_st().name_buff.as_ptr();
-            if !crate::memory::cstr_is_empty(namebuf_ptr) {
-                msg_outtrans(namebuf_ptr, 0, false);
-            }
-        }
-
-        g_st().silent_mode = save_silent;
-        g_st().info_message = false;
+    } else {
+        msg_puts(c"  ");
     }
+    msg_puts(opt.fullname.as_ptr());
+    if !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
+        msg_putchar(b'=' as i32);
+        optval_fmt(opt_idx, opt_flags);
+        let namebuf_ptr = g_st().name_buff.as_ptr();
+        if !crate::memory::cstr_is_empty(namebuf_ptr) {
+            msg_outtrans(namebuf_ptr, 0, false);
+        }
+    }
+
+    g_st().silent_mode = save_silent;
+    g_st().info_message = false;
 }
 
 /// Write modified options as ":set" commands to a file.
 pub fn makeset(fd: *mut FILE, opt_flags: i32, local_only: i32) -> bool {
-    {
-        for pri in (0..=1).rev() {
-            for opt_idx in 0..K_OPT_COUNT {
-                let opt = get_option(opt_idx);
+    for pri in (0..=1).rev() {
+        for opt_idx in 0..K_OPT_COUNT {
+            let opt = get_option(opt_idx);
 
-                if (opt.flags & K_OPT_FLAG_NO_MKRC) == 0
-                    && ((pri == 1) == ((opt.flags & K_OPT_FLAG_PRI_MKRC) != 0))
+            if (opt.flags & K_OPT_FLAG_NO_MKRC) == 0
+                && ((pri == 1) == ((opt.flags & K_OPT_FLAG_PRI_MKRC) != 0))
+            {
+                if option_is_global_only(opt_idx) && (opt_flags & OPT_GLOBAL) == 0 {
+                    continue;
+                }
+
+                if (opt_flags & OPT_GLOBAL) != 0 && (opt.flags & K_OPT_FLAG_NO_GLOB) != 0 {
+                    continue;
+                }
+
+                let mut varp = get_varp_scope(opt, opt_flags);
+                if varp.is_null() {
+                    continue;
+                }
+                if (opt_flags & OPT_GLOBAL) != 0 && optval_default(opt_idx, varp) != 0 {
+                    continue;
+                }
+
+                if (opt_flags & OPT_SKIPRTP) != 0
+                    && (opt.var == (&raw mut opt_vars().p_rtp).cast::<c_void>()
+                        || opt.var == (&raw mut opt_vars().p_pp).cast::<c_void>())
                 {
-                    if option_is_global_only(opt_idx) && (opt_flags & OPT_GLOBAL) == 0 {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    if (opt_flags & OPT_GLOBAL) != 0 && (opt.flags & K_OPT_FLAG_NO_GLOB) != 0 {
+                let mut round: i32 = 2;
+                let mut varp_local: *mut c_void = ptr::null_mut();
+                if option_is_window_local(opt_idx) {
+                    if (opt_flags & OPT_LOCAL) == 0 {
                         continue;
                     }
-
-                    let mut varp = get_varp_scope(opt, opt_flags);
-                    if varp.is_null() {
-                        continue;
-                    }
-                    if (opt_flags & OPT_GLOBAL) != 0 && optval_default(opt_idx, varp) != 0 {
-                        continue;
-                    }
-
-                    if (opt_flags & OPT_SKIPRTP) != 0
-                        && (opt.var == (&raw mut opt_vars().p_rtp).cast::<c_void>()
-                            || opt.var == (&raw mut opt_vars().p_pp).cast::<c_void>())
-                    {
-                        continue;
-                    }
-
-                    let mut round: i32 = 2;
-                    let mut varp_local: *mut c_void = ptr::null_mut();
-                    if option_is_window_local(opt_idx) {
-                        if (opt_flags & OPT_LOCAL) == 0 {
-                            continue;
-                        }
-                        if (opt_flags & OPT_GLOBAL) == 0 && local_only == 0 {
-                            let varp_fresh = get_varp_scope(opt, OPT_GLOBAL);
-                            if optval_default(opt_idx, varp_fresh) == 0 {
-                                round = 1;
-                                varp_local = varp;
-                                varp = varp_fresh;
-                            }
+                    if (opt_flags & OPT_GLOBAL) == 0 && local_only == 0 {
+                        let varp_fresh = get_varp_scope(opt, OPT_GLOBAL);
+                        if optval_default(opt_idx, varp_fresh) == 0 {
+                            round = 1;
+                            varp_local = varp;
+                            varp = varp_fresh;
                         }
                     }
+                }
 
-                    while round <= 2 {
-                        let cmd = if round == 1 || (opt_flags & OPT_GLOBAL) != 0 {
-                            c"set".as_ptr().cast_mut()
-                        } else {
-                            c"setlocal".as_ptr().cast_mut()
-                        };
+                while round <= 2 {
+                    let cmd = if round == 1 || (opt_flags & OPT_GLOBAL) != 0 {
+                        c"set".as_ptr().cast_mut()
+                    } else {
+                        c"setlocal".as_ptr().cast_mut()
+                    };
 
-                        let mut do_endif = false;
-                        if opt_idx == K_OPT_SYNTAX || opt_idx == K_OPT_FILETYPE {
-                            if fprintf!(fd, c"if &%s != '%s'", opt.fullname.as_ptr(), unsafe {
-                                *(varp.cast::<*mut c_char>())
-                            },) < 0
-                                || !put_eol(fd.cast())
-                            {
-                                return false;
-                            }
-                            do_endif = true;
-                        }
-                        if !put_set(fd, cmd, opt_idx, varp) {
+                    let mut do_endif = false;
+                    if opt_idx == K_OPT_SYNTAX || opt_idx == K_OPT_FILETYPE {
+                        if fprintf!(fd, c"if &%s != '%s'", opt.fullname.as_ptr(), unsafe {
+                            *(varp.cast::<*mut c_char>())
+                        },) < 0
+                            || !put_eol(fd.cast())
+                        {
                             return false;
                         }
-                        if do_endif && !put_line(fd.cast(), c"endif") {
-                            return false;
-                        }
-
-                        varp = varp_local;
-                        round += 1;
+                        do_endif = true;
                     }
+                    if !put_set(fd, cmd, opt_idx, varp) {
+                        return false;
+                    }
+                    if do_endif && !put_line(fd.cast(), c"endif") {
+                        return false;
+                    }
+
+                    varp = varp_local;
+                    round += 1;
                 }
             }
         }
-        true
     }
+    true
 }
 
 /// Generate set commands for the local fold options only.
 pub fn makefoldset(fd: *mut FILE) -> bool {
-    {
-        let cmd = c"setlocal".as_ptr().cast_mut();
-        if !put_set(
-            fd,
-            cmd,
-            K_OPT_FOLDMETHOD,
-            (&raw mut curwin_mut().w_onebuf_opt.wo_fdm).cast(),
-        ) || !put_set(
-            fd,
-            cmd,
-            K_OPT_FOLDEXPR,
-            (&raw mut curwin_mut().w_onebuf_opt.wo_fde).cast(),
-        ) || !put_set(
-            fd,
-            cmd,
-            K_OPT_FOLDMARKER,
-            (&raw mut curwin_mut().w_onebuf_opt.wo_fmr).cast(),
-        ) || !put_set(
-            fd,
-            cmd,
-            K_OPT_FOLDIGNORE,
-            (&raw mut curwin_mut().w_onebuf_opt.wo_fdi).cast(),
-        ) || !put_set(
-            fd,
-            cmd,
-            K_OPT_FOLDLEVEL,
-            (&raw mut curwin_mut().w_onebuf_opt.wo_fdl).cast(),
-        ) || !put_set(
-            fd,
-            cmd,
-            K_OPT_FOLDMINLINES,
-            (&raw mut curwin_mut().w_onebuf_opt.wo_fml).cast(),
-        ) || !put_set(
-            fd,
-            cmd,
-            K_OPT_FOLDNESTMAX,
-            (&raw mut curwin_mut().w_onebuf_opt.wo_fdn).cast(),
-        ) || !put_set(
-            fd,
-            cmd,
-            K_OPT_FOLDENABLE,
-            (&raw mut curwin_mut().w_onebuf_opt.wo_fen).cast(),
-        ) {
-            return false;
-        }
-        true
+    let cmd = c"setlocal".as_ptr().cast_mut();
+    if !put_set(
+        fd,
+        cmd,
+        K_OPT_FOLDMETHOD,
+        (&raw mut curwin_mut().w_onebuf_opt.wo_fdm).cast(),
+    ) || !put_set(
+        fd,
+        cmd,
+        K_OPT_FOLDEXPR,
+        (&raw mut curwin_mut().w_onebuf_opt.wo_fde).cast(),
+    ) || !put_set(
+        fd,
+        cmd,
+        K_OPT_FOLDMARKER,
+        (&raw mut curwin_mut().w_onebuf_opt.wo_fmr).cast(),
+    ) || !put_set(
+        fd,
+        cmd,
+        K_OPT_FOLDIGNORE,
+        (&raw mut curwin_mut().w_onebuf_opt.wo_fdi).cast(),
+    ) || !put_set(
+        fd,
+        cmd,
+        K_OPT_FOLDLEVEL,
+        (&raw mut curwin_mut().w_onebuf_opt.wo_fdl).cast(),
+    ) || !put_set(
+        fd,
+        cmd,
+        K_OPT_FOLDMINLINES,
+        (&raw mut curwin_mut().w_onebuf_opt.wo_fml).cast(),
+    ) || !put_set(
+        fd,
+        cmd,
+        K_OPT_FOLDNESTMAX,
+        (&raw mut curwin_mut().w_onebuf_opt.wo_fdn).cast(),
+    ) || !put_set(
+        fd,
+        cmd,
+        K_OPT_FOLDENABLE,
+        (&raw mut curwin_mut().w_onebuf_opt.wo_fen).cast(),
+    ) {
+        return false;
     }
+    true
 }
 
 fn put_set_value(
@@ -6822,63 +6690,61 @@ pub fn get_varp_scope_from(
     buf: &mut FileBuf,
     win: &mut WinInfoInfo,
 ) -> *mut c_void {
-    {
-        let opt_idx = get_opt_idx(p);
+    let opt_idx = get_opt_idx(p);
 
-        if (opt_flags & OPT_GLOBAL) != 0 && !option_is_global_only(opt_idx) {
-            if option_is_window_local(opt_idx) {
-                return get_varp_from(unsafe { &mut *p }, buf, win)
-                    .cast::<u8>()
-                    .wrapping_add(std::mem::size_of::<Winopt>())
-                    .cast::<c_void>();
-            }
-            return unsafe { (*p).var };
+    if (opt_flags & OPT_GLOBAL) != 0 && !option_is_global_only(opt_idx) {
+        if option_is_window_local(opt_idx) {
+            return get_varp_from(unsafe { &mut *p }, buf, win)
+                .cast::<u8>()
+                .wrapping_add(std::mem::size_of::<Winopt>())
+                .cast::<c_void>();
         }
-
-        if (opt_flags & OPT_LOCAL) != 0 && option_is_global_local(opt_idx) {
-            let ptr: *mut c_void = match opt_idx {
-                K_OPT_FORMATPRG => (&raw mut buf.b_p_fp).cast(),
-                K_OPT_FSYNC => (&raw mut buf.b_p_fs).cast(),
-                K_OPT_FINDFUNC => (&raw mut buf.b_p_ffu).cast(),
-                K_OPT_ERRORFORMAT => (&raw mut buf.b_p_efm).cast(),
-                K_OPT_GREPFORMAT => (&raw mut buf.b_p_gefm).cast(),
-                K_OPT_GREPPRG => (&raw mut buf.b_p_gp).cast(),
-                K_OPT_MAKEPRG => (&raw mut buf.b_p_mp).cast(),
-                K_OPT_EQUALPRG => (&raw mut buf.b_p_ep).cast(),
-                K_OPT_KEYWORDPRG => (&raw mut buf.b_p_kp).cast(),
-                K_OPT_PATH => (&raw mut buf.b_p_path).cast(),
-                K_OPT_AUTOCOMPLETE => (&raw mut buf.b_p_ac).cast(),
-                K_OPT_AUTOREAD => (&raw mut buf.b_p_ar).cast(),
-                K_OPT_TAGS => (&raw mut buf.b_p_tags).cast(),
-                K_OPT_TAGCASE => (&raw mut buf.b_p_tc).cast(),
-                K_OPT_SIDESCROLLOFF => (&raw mut win.w_onebuf_opt.wo_siso).cast(),
-                K_OPT_SCROLLOFF => (&raw mut win.w_onebuf_opt.wo_so).cast(),
-                K_OPT_SCROLLOFFPAD => (&raw mut win.w_onebuf_opt.wo_sop).cast(),
-                K_OPT_DEFINE => (&raw mut buf.b_p_def).cast(),
-                K_OPT_INCLUDE => (&raw mut buf.b_p_inc).cast(),
-                K_OPT_COMPLETEOPT => (&raw mut buf.b_p_cot).cast(),
-                K_OPT_DICTIONARY => (&raw mut buf.b_p_dict).cast(),
-                K_OPT_DIFFANCHORS => (&raw mut buf.b_p_dia).cast(),
-                K_OPT_THESAURUS => (&raw mut buf.b_p_tsr).cast(),
-                K_OPT_THESAURUSFUNC => (&raw mut buf.b_p_tsrfu).cast(),
-                K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
-                K_OPT_SHOWBREAK => (&raw mut win.w_onebuf_opt.wo_sbr).cast(),
-                K_OPT_STATUSLINE => (&raw mut win.w_onebuf_opt.wo_stl).cast(),
-                K_OPT_WINBAR => (&raw mut win.w_onebuf_opt.wo_wbr).cast(),
-                K_OPT_UNDOLEVELS => (&raw mut buf.b_p_ul).cast(),
-                K_OPT_LISPWORDS => (&raw mut buf.b_p_lw).cast(),
-                K_OPT_BACKUPCOPY => (&raw mut buf.b_p_bkc).cast(),
-                K_OPT_MAKEENCODING => (&raw mut buf.b_p_menc).cast(),
-                K_OPT_FILLCHARS => (&raw mut win.w_onebuf_opt.wo_fcs).cast(),
-                K_OPT_LISTCHARS => (&raw mut win.w_onebuf_opt.wo_lcs).cast(),
-                K_OPT_VIRTUALEDIT => (&raw mut win.w_onebuf_opt.wo_ve).cast(),
-                _ => std::process::abort(),
-            };
-            return ptr;
-        }
-
-        get_varp_from(unsafe { &mut *p }, buf, win)
+        return unsafe { (*p).var };
     }
+
+    if (opt_flags & OPT_LOCAL) != 0 && option_is_global_local(opt_idx) {
+        let ptr: *mut c_void = match opt_idx {
+            K_OPT_FORMATPRG => (&raw mut buf.b_p_fp).cast(),
+            K_OPT_FSYNC => (&raw mut buf.b_p_fs).cast(),
+            K_OPT_FINDFUNC => (&raw mut buf.b_p_ffu).cast(),
+            K_OPT_ERRORFORMAT => (&raw mut buf.b_p_efm).cast(),
+            K_OPT_GREPFORMAT => (&raw mut buf.b_p_gefm).cast(),
+            K_OPT_GREPPRG => (&raw mut buf.b_p_gp).cast(),
+            K_OPT_MAKEPRG => (&raw mut buf.b_p_mp).cast(),
+            K_OPT_EQUALPRG => (&raw mut buf.b_p_ep).cast(),
+            K_OPT_KEYWORDPRG => (&raw mut buf.b_p_kp).cast(),
+            K_OPT_PATH => (&raw mut buf.b_p_path).cast(),
+            K_OPT_AUTOCOMPLETE => (&raw mut buf.b_p_ac).cast(),
+            K_OPT_AUTOREAD => (&raw mut buf.b_p_ar).cast(),
+            K_OPT_TAGS => (&raw mut buf.b_p_tags).cast(),
+            K_OPT_TAGCASE => (&raw mut buf.b_p_tc).cast(),
+            K_OPT_SIDESCROLLOFF => (&raw mut win.w_onebuf_opt.wo_siso).cast(),
+            K_OPT_SCROLLOFF => (&raw mut win.w_onebuf_opt.wo_so).cast(),
+            K_OPT_SCROLLOFFPAD => (&raw mut win.w_onebuf_opt.wo_sop).cast(),
+            K_OPT_DEFINE => (&raw mut buf.b_p_def).cast(),
+            K_OPT_INCLUDE => (&raw mut buf.b_p_inc).cast(),
+            K_OPT_COMPLETEOPT => (&raw mut buf.b_p_cot).cast(),
+            K_OPT_DICTIONARY => (&raw mut buf.b_p_dict).cast(),
+            K_OPT_DIFFANCHORS => (&raw mut buf.b_p_dia).cast(),
+            K_OPT_THESAURUS => (&raw mut buf.b_p_tsr).cast(),
+            K_OPT_THESAURUSFUNC => (&raw mut buf.b_p_tsrfu).cast(),
+            K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
+            K_OPT_SHOWBREAK => (&raw mut win.w_onebuf_opt.wo_sbr).cast(),
+            K_OPT_STATUSLINE => (&raw mut win.w_onebuf_opt.wo_stl).cast(),
+            K_OPT_WINBAR => (&raw mut win.w_onebuf_opt.wo_wbr).cast(),
+            K_OPT_UNDOLEVELS => (&raw mut buf.b_p_ul).cast(),
+            K_OPT_LISPWORDS => (&raw mut buf.b_p_lw).cast(),
+            K_OPT_BACKUPCOPY => (&raw mut buf.b_p_bkc).cast(),
+            K_OPT_MAKEENCODING => (&raw mut buf.b_p_menc).cast(),
+            K_OPT_FILLCHARS => (&raw mut win.w_onebuf_opt.wo_fcs).cast(),
+            K_OPT_LISTCHARS => (&raw mut win.w_onebuf_opt.wo_lcs).cast(),
+            K_OPT_VIRTUALEDIT => (&raw mut win.w_onebuf_opt.wo_ve).cast(),
+            _ => std::process::abort(),
+        };
+        return ptr;
+    }
+
+    get_varp_from(unsafe { &mut *p }, buf, win)
 }
 
 /// Get pointer to option variable, depending on local or global scope.
@@ -6897,395 +6763,391 @@ pub fn get_option_varp_scope_from(
 }
 
 pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: &mut WinInfoInfo) -> *mut c_void {
-    {
-        let opt_idx = get_opt_idx(&raw mut *p);
+    let opt_idx = get_opt_idx(&raw mut *p);
 
-        if is_option_hidden(opt_idx) || option_is_global_only(opt_idx) {
-            return p.var;
+    if is_option_hidden(opt_idx) || option_is_global_only(opt_idx) {
+        return p.var;
+    }
+
+    match opt_idx {
+        K_OPT_EQUALPRG => {
+            if !crate::memory::cstr_is_empty(buf.b_p_ep) {
+                (&raw mut buf.b_p_ep).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_KEYWORDPRG => {
+            if !crate::memory::cstr_is_empty(buf.b_p_kp) {
+                (&raw mut buf.b_p_kp).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_PATH => {
+            if !crate::memory::cstr_is_empty(buf.b_p_path) {
+                (&raw mut buf.b_p_path).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_AUTOCOMPLETE => {
+            if buf.b_p_ac >= 0 {
+                (&raw mut buf.b_p_ac).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_AUTOREAD => {
+            if buf.b_p_ar >= 0 {
+                (&raw mut buf.b_p_ar).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_TAGS => {
+            if !crate::memory::cstr_is_empty(buf.b_p_tags) {
+                (&raw mut buf.b_p_tags).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_TAGCASE => {
+            if !crate::memory::cstr_is_empty(buf.b_p_tc) {
+                (&raw mut buf.b_p_tc).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_SIDESCROLLOFF => {
+            if win.w_onebuf_opt.wo_siso >= 0 {
+                (&raw mut win.w_onebuf_opt.wo_siso).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_SCROLLOFF => {
+            if win.w_onebuf_opt.wo_so >= 0 {
+                (&raw mut win.w_onebuf_opt.wo_so).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_SCROLLOFFPAD => {
+            if win.w_onebuf_opt.wo_sop >= 0 {
+                (&raw mut win.w_onebuf_opt.wo_sop).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_BACKUPCOPY => {
+            if !crate::memory::cstr_is_empty(buf.b_p_bkc) {
+                (&raw mut buf.b_p_bkc).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_DEFINE => {
+            if !crate::memory::cstr_is_empty(buf.b_p_def) {
+                (&raw mut buf.b_p_def).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_INCLUDE => {
+            if !crate::memory::cstr_is_empty(buf.b_p_inc) {
+                (&raw mut buf.b_p_inc).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_COMPLETEOPT => {
+            if !crate::memory::cstr_is_empty(buf.b_p_cot) {
+                (&raw mut buf.b_p_cot).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_DICTIONARY => {
+            if !crate::memory::cstr_is_empty(buf.b_p_dict) {
+                (&raw mut buf.b_p_dict).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_DIFFANCHORS => {
+            if !crate::memory::cstr_is_empty(buf.b_p_dia) {
+                (&raw mut buf.b_p_dia).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_THESAURUS => {
+            if !crate::memory::cstr_is_empty(buf.b_p_tsr) {
+                (&raw mut buf.b_p_tsr).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_THESAURUSFUNC => {
+            if buf.b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
+                (&raw mut buf.b_p_tsrfu).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_FORMATPRG => {
+            if !crate::memory::cstr_is_empty(buf.b_p_fp) {
+                (&raw mut buf.b_p_fp).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_FSYNC => {
+            if buf.b_p_fs >= 0 {
+                (&raw mut buf.b_p_fs).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_FINDFUNC => {
+            if buf.b_p_ffu.cb_type() != K_CALLBACK_NONE_CONST {
+                (&raw mut buf.b_p_ffu).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_ERRORFORMAT => {
+            if !crate::memory::cstr_is_empty(buf.b_p_efm) {
+                (&raw mut buf.b_p_efm).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_GREPFORMAT => {
+            if !crate::memory::cstr_is_empty(buf.b_p_gefm) {
+                (&raw mut buf.b_p_gefm).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_GREPPRG => {
+            if !crate::memory::cstr_is_empty(buf.b_p_gp) {
+                (&raw mut buf.b_p_gp).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_MAKEPRG => {
+            if !crate::memory::cstr_is_empty(buf.b_p_mp) {
+                (&raw mut buf.b_p_mp).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_SHOWBREAK => {
+            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_sbr) {
+                (&raw mut win.w_onebuf_opt.wo_sbr).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_STATUSLINE => {
+            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_stl) {
+                (&raw mut win.w_onebuf_opt.wo_stl).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_WINBAR => {
+            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_wbr) {
+                (&raw mut win.w_onebuf_opt.wo_wbr).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_UNDOLEVELS => {
+            if buf.b_p_ul != NO_LOCAL_UNDOLEVEL {
+                (&raw mut buf.b_p_ul).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_LISPWORDS => {
+            if !crate::memory::cstr_is_empty(buf.b_p_lw) {
+                (&raw mut buf.b_p_lw).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_MAKEENCODING => {
+            if !crate::memory::cstr_is_empty(buf.b_p_menc) {
+                (&raw mut buf.b_p_menc).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_FILLCHARS => {
+            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_fcs) {
+                (&raw mut win.w_onebuf_opt.wo_fcs).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_LISTCHARS => {
+            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_lcs) {
+                (&raw mut win.w_onebuf_opt.wo_lcs).cast()
+            } else {
+                p.var
+            }
+        }
+        K_OPT_VIRTUALEDIT => {
+            if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_ve) {
+                (&raw mut win.w_onebuf_opt.wo_ve).cast()
+            } else {
+                p.var
+            }
         }
 
-        match opt_idx {
-            K_OPT_EQUALPRG => {
-                if !crate::memory::cstr_is_empty(buf.b_p_ep) {
-                    (&raw mut buf.b_p_ep).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_KEYWORDPRG => {
-                if !crate::memory::cstr_is_empty(buf.b_p_kp) {
-                    (&raw mut buf.b_p_kp).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_PATH => {
-                if !crate::memory::cstr_is_empty(buf.b_p_path) {
-                    (&raw mut buf.b_p_path).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_AUTOCOMPLETE => {
-                if buf.b_p_ac >= 0 {
-                    (&raw mut buf.b_p_ac).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_AUTOREAD => {
-                if buf.b_p_ar >= 0 {
-                    (&raw mut buf.b_p_ar).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_TAGS => {
-                if !crate::memory::cstr_is_empty(buf.b_p_tags) {
-                    (&raw mut buf.b_p_tags).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_TAGCASE => {
-                if !crate::memory::cstr_is_empty(buf.b_p_tc) {
-                    (&raw mut buf.b_p_tc).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_SIDESCROLLOFF => {
-                if win.w_onebuf_opt.wo_siso >= 0 {
-                    (&raw mut win.w_onebuf_opt.wo_siso).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_SCROLLOFF => {
-                if win.w_onebuf_opt.wo_so >= 0 {
-                    (&raw mut win.w_onebuf_opt.wo_so).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_SCROLLOFFPAD => {
-                if win.w_onebuf_opt.wo_sop >= 0 {
-                    (&raw mut win.w_onebuf_opt.wo_sop).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_BACKUPCOPY => {
-                if !crate::memory::cstr_is_empty(buf.b_p_bkc) {
-                    (&raw mut buf.b_p_bkc).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_DEFINE => {
-                if !crate::memory::cstr_is_empty(buf.b_p_def) {
-                    (&raw mut buf.b_p_def).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_INCLUDE => {
-                if !crate::memory::cstr_is_empty(buf.b_p_inc) {
-                    (&raw mut buf.b_p_inc).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_COMPLETEOPT => {
-                if !crate::memory::cstr_is_empty(buf.b_p_cot) {
-                    (&raw mut buf.b_p_cot).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_DICTIONARY => {
-                if !crate::memory::cstr_is_empty(buf.b_p_dict) {
-                    (&raw mut buf.b_p_dict).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_DIFFANCHORS => {
-                if !crate::memory::cstr_is_empty(buf.b_p_dia) {
-                    (&raw mut buf.b_p_dia).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_THESAURUS => {
-                if !crate::memory::cstr_is_empty(buf.b_p_tsr) {
-                    (&raw mut buf.b_p_tsr).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_THESAURUSFUNC => {
-                if buf.b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
-                    (&raw mut buf.b_p_tsrfu).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_FORMATPRG => {
-                if !crate::memory::cstr_is_empty(buf.b_p_fp) {
-                    (&raw mut buf.b_p_fp).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_FSYNC => {
-                if buf.b_p_fs >= 0 {
-                    (&raw mut buf.b_p_fs).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_FINDFUNC => {
-                if buf.b_p_ffu.cb_type() != K_CALLBACK_NONE_CONST {
-                    (&raw mut buf.b_p_ffu).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_ERRORFORMAT => {
-                if !crate::memory::cstr_is_empty(buf.b_p_efm) {
-                    (&raw mut buf.b_p_efm).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_GREPFORMAT => {
-                if !crate::memory::cstr_is_empty(buf.b_p_gefm) {
-                    (&raw mut buf.b_p_gefm).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_GREPPRG => {
-                if !crate::memory::cstr_is_empty(buf.b_p_gp) {
-                    (&raw mut buf.b_p_gp).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_MAKEPRG => {
-                if !crate::memory::cstr_is_empty(buf.b_p_mp) {
-                    (&raw mut buf.b_p_mp).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_SHOWBREAK => {
-                if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_sbr) {
-                    (&raw mut win.w_onebuf_opt.wo_sbr).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_STATUSLINE => {
-                if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_stl) {
-                    (&raw mut win.w_onebuf_opt.wo_stl).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_WINBAR => {
-                if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_wbr) {
-                    (&raw mut win.w_onebuf_opt.wo_wbr).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_UNDOLEVELS => {
-                if buf.b_p_ul != NO_LOCAL_UNDOLEVEL {
-                    (&raw mut buf.b_p_ul).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_LISPWORDS => {
-                if !crate::memory::cstr_is_empty(buf.b_p_lw) {
-                    (&raw mut buf.b_p_lw).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_MAKEENCODING => {
-                if !crate::memory::cstr_is_empty(buf.b_p_menc) {
-                    (&raw mut buf.b_p_menc).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_FILLCHARS => {
-                if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_fcs) {
-                    (&raw mut win.w_onebuf_opt.wo_fcs).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_LISTCHARS => {
-                if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_lcs) {
-                    (&raw mut win.w_onebuf_opt.wo_lcs).cast()
-                } else {
-                    p.var
-                }
-            }
-            K_OPT_VIRTUALEDIT => {
-                if !crate::memory::cstr_is_empty(win.w_onebuf_opt.wo_ve) {
-                    (&raw mut win.w_onebuf_opt.wo_ve).cast()
-                } else {
-                    p.var
-                }
-            }
+        K_OPT_ARABIC => (&raw mut win.w_onebuf_opt.wo_arab).cast(),
+        K_OPT_LIST => (&raw mut win.w_onebuf_opt.wo_list).cast(),
+        K_OPT_SPELL => (&raw mut win.w_onebuf_opt.wo_spell).cast(),
+        K_OPT_CURSORCOLUMN => (&raw mut win.w_onebuf_opt.wo_cuc).cast(),
+        K_OPT_CURSORLINE => (&raw mut win.w_onebuf_opt.wo_cul).cast(),
+        K_OPT_CURSORLINEOPT => (&raw mut win.w_onebuf_opt.wo_culopt).cast(),
+        K_OPT_COLORCOLUMN => (&raw mut win.w_onebuf_opt.wo_cc).cast(),
+        K_OPT_DIFF => (&raw mut win.w_onebuf_opt.wo_diff).cast(),
+        K_OPT_EVENTIGNOREWIN => (&raw mut win.w_onebuf_opt.wo_eiw).cast(),
+        K_OPT_FOLDCOLUMN => (&raw mut win.w_onebuf_opt.wo_fdc).cast(),
+        K_OPT_FOLDENABLE => (&raw mut win.w_onebuf_opt.wo_fen).cast(),
+        K_OPT_FOLDIGNORE => (&raw mut win.w_onebuf_opt.wo_fdi).cast(),
+        K_OPT_FOLDLEVEL => (&raw mut win.w_onebuf_opt.wo_fdl).cast(),
+        K_OPT_FOLDMETHOD => (&raw mut win.w_onebuf_opt.wo_fdm).cast(),
+        K_OPT_FOLDMINLINES => (&raw mut win.w_onebuf_opt.wo_fml).cast(),
+        K_OPT_FOLDNESTMAX => (&raw mut win.w_onebuf_opt.wo_fdn).cast(),
+        K_OPT_FOLDEXPR => (&raw mut win.w_onebuf_opt.wo_fde).cast(),
+        K_OPT_FOLDTEXT => (&raw mut win.w_onebuf_opt.wo_fdt).cast(),
+        K_OPT_FOLDMARKER => (&raw mut win.w_onebuf_opt.wo_fmr).cast(),
+        K_OPT_NUMBER => (&raw mut win.w_onebuf_opt.wo_nu).cast(),
+        K_OPT_RELATIVENUMBER => (&raw mut win.w_onebuf_opt.wo_rnu).cast(),
+        K_OPT_NUMBERWIDTH => (&raw mut win.w_onebuf_opt.wo_nuw).cast(),
+        K_OPT_WINFIXBUF => (&raw mut win.w_onebuf_opt.wo_wfb).cast(),
+        K_OPT_WINFIXHEIGHT => (&raw mut win.w_onebuf_opt.wo_wfh).cast(),
+        K_OPT_WINFIXWIDTH => (&raw mut win.w_onebuf_opt.wo_wfw).cast(),
+        K_OPT_WINPINNED => (&raw mut win.w_onebuf_opt.wo_wp).cast(),
+        K_OPT_PREVIEWWINDOW => (&raw mut win.w_onebuf_opt.wo_pvw).cast(),
+        K_OPT_LHISTORY => (&raw mut win.w_onebuf_opt.wo_lhi).cast(),
+        K_OPT_RIGHTLEFT => (&raw mut win.w_onebuf_opt.wo_rl).cast(),
+        K_OPT_RIGHTLEFTCMD => (&raw mut win.w_onebuf_opt.wo_rlc).cast(),
+        K_OPT_SCROLL => (&raw mut win.w_onebuf_opt.wo_scr).cast(),
+        K_OPT_SMOOTHSCROLL => (&raw mut win.w_onebuf_opt.wo_sms).cast(),
+        K_OPT_WRAP => (&raw mut win.w_onebuf_opt.wo_wrap).cast(),
+        K_OPT_LINEBREAK => (&raw mut win.w_onebuf_opt.wo_lbr).cast(),
+        K_OPT_BREAKINDENT => (&raw mut win.w_onebuf_opt.wo_bri).cast(),
+        K_OPT_BREAKINDENTOPT => (&raw mut win.w_onebuf_opt.wo_briopt).cast(),
+        K_OPT_SCROLLBIND => (&raw mut win.w_onebuf_opt.wo_scb).cast(),
+        K_OPT_CURSORBIND => (&raw mut win.w_onebuf_opt.wo_crb).cast(),
+        K_OPT_CONCEALCURSOR => (&raw mut win.w_onebuf_opt.wo_cocu).cast(),
+        K_OPT_CONCEALLEVEL => (&raw mut win.w_onebuf_opt.wo_cole).cast(),
 
-            K_OPT_ARABIC => (&raw mut win.w_onebuf_opt.wo_arab).cast(),
-            K_OPT_LIST => (&raw mut win.w_onebuf_opt.wo_list).cast(),
-            K_OPT_SPELL => (&raw mut win.w_onebuf_opt.wo_spell).cast(),
-            K_OPT_CURSORCOLUMN => (&raw mut win.w_onebuf_opt.wo_cuc).cast(),
-            K_OPT_CURSORLINE => (&raw mut win.w_onebuf_opt.wo_cul).cast(),
-            K_OPT_CURSORLINEOPT => (&raw mut win.w_onebuf_opt.wo_culopt).cast(),
-            K_OPT_COLORCOLUMN => (&raw mut win.w_onebuf_opt.wo_cc).cast(),
-            K_OPT_DIFF => (&raw mut win.w_onebuf_opt.wo_diff).cast(),
-            K_OPT_EVENTIGNOREWIN => (&raw mut win.w_onebuf_opt.wo_eiw).cast(),
-            K_OPT_FOLDCOLUMN => (&raw mut win.w_onebuf_opt.wo_fdc).cast(),
-            K_OPT_FOLDENABLE => (&raw mut win.w_onebuf_opt.wo_fen).cast(),
-            K_OPT_FOLDIGNORE => (&raw mut win.w_onebuf_opt.wo_fdi).cast(),
-            K_OPT_FOLDLEVEL => (&raw mut win.w_onebuf_opt.wo_fdl).cast(),
-            K_OPT_FOLDMETHOD => (&raw mut win.w_onebuf_opt.wo_fdm).cast(),
-            K_OPT_FOLDMINLINES => (&raw mut win.w_onebuf_opt.wo_fml).cast(),
-            K_OPT_FOLDNESTMAX => (&raw mut win.w_onebuf_opt.wo_fdn).cast(),
-            K_OPT_FOLDEXPR => (&raw mut win.w_onebuf_opt.wo_fde).cast(),
-            K_OPT_FOLDTEXT => (&raw mut win.w_onebuf_opt.wo_fdt).cast(),
-            K_OPT_FOLDMARKER => (&raw mut win.w_onebuf_opt.wo_fmr).cast(),
-            K_OPT_NUMBER => (&raw mut win.w_onebuf_opt.wo_nu).cast(),
-            K_OPT_RELATIVENUMBER => (&raw mut win.w_onebuf_opt.wo_rnu).cast(),
-            K_OPT_NUMBERWIDTH => (&raw mut win.w_onebuf_opt.wo_nuw).cast(),
-            K_OPT_WINFIXBUF => (&raw mut win.w_onebuf_opt.wo_wfb).cast(),
-            K_OPT_WINFIXHEIGHT => (&raw mut win.w_onebuf_opt.wo_wfh).cast(),
-            K_OPT_WINFIXWIDTH => (&raw mut win.w_onebuf_opt.wo_wfw).cast(),
-            K_OPT_WINPINNED => (&raw mut win.w_onebuf_opt.wo_wp).cast(),
-            K_OPT_PREVIEWWINDOW => (&raw mut win.w_onebuf_opt.wo_pvw).cast(),
-            K_OPT_LHISTORY => (&raw mut win.w_onebuf_opt.wo_lhi).cast(),
-            K_OPT_RIGHTLEFT => (&raw mut win.w_onebuf_opt.wo_rl).cast(),
-            K_OPT_RIGHTLEFTCMD => (&raw mut win.w_onebuf_opt.wo_rlc).cast(),
-            K_OPT_SCROLL => (&raw mut win.w_onebuf_opt.wo_scr).cast(),
-            K_OPT_SMOOTHSCROLL => (&raw mut win.w_onebuf_opt.wo_sms).cast(),
-            K_OPT_WRAP => (&raw mut win.w_onebuf_opt.wo_wrap).cast(),
-            K_OPT_LINEBREAK => (&raw mut win.w_onebuf_opt.wo_lbr).cast(),
-            K_OPT_BREAKINDENT => (&raw mut win.w_onebuf_opt.wo_bri).cast(),
-            K_OPT_BREAKINDENTOPT => (&raw mut win.w_onebuf_opt.wo_briopt).cast(),
-            K_OPT_SCROLLBIND => (&raw mut win.w_onebuf_opt.wo_scb).cast(),
-            K_OPT_CURSORBIND => (&raw mut win.w_onebuf_opt.wo_crb).cast(),
-            K_OPT_CONCEALCURSOR => (&raw mut win.w_onebuf_opt.wo_cocu).cast(),
-            K_OPT_CONCEALLEVEL => (&raw mut win.w_onebuf_opt.wo_cole).cast(),
-
-            K_OPT_AUTOINDENT => (&raw mut buf.b_p_ai).cast(),
-            K_OPT_BINARY => (&raw mut buf.b_p_bin).cast(),
-            K_OPT_BOMB => (&raw mut buf.b_p_bomb).cast(),
-            K_OPT_BUFHIDDEN => (&raw mut buf.b_p_bh).cast(),
-            K_OPT_BUFTYPE => (&raw mut buf.b_p_bt).cast(),
-            K_OPT_BUFLISTED => (&raw mut buf.b_p_bl).cast(),
-            K_OPT_BUSY => (&raw mut buf.b_p_busy).cast(),
-            K_OPT_CHANNEL => (&raw mut buf.b_p_channel).cast(),
-            K_OPT_COPYINDENT => (&raw mut buf.b_p_ci).cast(),
-            K_OPT_CINDENT => (&raw mut buf.b_p_cin).cast(),
-            K_OPT_CINKEYS => (&raw mut buf.b_p_cink).cast(),
-            K_OPT_CINOPTIONS => (&raw mut buf.b_p_cino).cast(),
-            K_OPT_CINSCOPEDECLS => (&raw mut buf.b_p_cinsd).cast(),
-            K_OPT_CINWORDS => (&raw mut buf.b_p_cinw).cast(),
-            K_OPT_COMMENTS => (&raw mut buf.b_p_com).cast(),
-            K_OPT_COMMENTSTRING => (&raw mut buf.b_p_cms).cast(),
-            K_OPT_COMPLETE => (&raw mut buf.b_p_cpt).cast(),
-            #[cfg(windows)]
-            K_OPT_COMPLETESLASH => (&raw mut buf.b_p_csl).cast(),
-            K_OPT_COMPLETEFUNC => (&raw mut buf.b_p_cfu).cast(),
-            K_OPT_OMNIFUNC => (&raw mut buf.b_p_ofu).cast(),
-            K_OPT_ENDOFFILE => (&raw mut buf.b_p_eof).cast(),
-            K_OPT_ENDOFLINE => (&raw mut buf.b_p_eol).cast(),
-            K_OPT_FIXENDOFLINE => (&raw mut buf.b_p_fixeol).cast(),
-            K_OPT_EXPANDTAB => (&raw mut buf.b_p_et).cast(),
-            K_OPT_FILEENCODING => (&raw mut buf.b_p_fenc).cast(),
-            K_OPT_FILEFORMAT => (&raw mut buf.b_p_ff).cast(),
-            K_OPT_FILETYPE => (&raw mut buf.b_p_ft).cast(),
-            K_OPT_FOLLOW => (&raw mut buf.b_p_follow).cast(),
-            K_OPT_FORMATOPTIONS => (&raw mut buf.b_p_fo).cast(),
-            K_OPT_FORMATLISTPAT => (&raw mut buf.b_p_flp).cast(),
-            K_OPT_IMINSERT => (&raw mut buf.b_p_iminsert).cast(),
-            K_OPT_IMSEARCH => (&raw mut buf.b_p_imsearch).cast(),
-            K_OPT_INFERCASE => (&raw mut buf.b_p_inf).cast(),
-            K_OPT_ISKEYWORD => (&raw mut buf.b_p_isk).cast(),
-            K_OPT_INCLUDEEXPR => (&raw mut buf.b_p_inex).cast(),
-            K_OPT_INDENTEXPR => (&raw mut buf.b_p_inde).cast(),
-            K_OPT_INDENTKEYS => (&raw mut buf.b_p_indk).cast(),
-            K_OPT_FORMATEXPR => (&raw mut buf.b_p_fex).cast(),
-            K_OPT_LISP => (&raw mut buf.b_p_lisp).cast(),
-            K_OPT_LISPOPTIONS => (&raw mut buf.b_p_lop).cast(),
-            K_OPT_MODELINE => (&raw mut buf.b_p_ml).cast(),
-            K_OPT_MATCHPAIRS => (&raw mut buf.b_p_mps).cast(),
-            K_OPT_MODIFIABLE => (&raw mut buf.b_p_ma).cast(),
-            K_OPT_MODIFIED => (&raw mut buf.b_changed).cast(),
-            K_OPT_NRFORMATS => (&raw mut buf.b_p_nf).cast(),
-            K_OPT_PRESERVEINDENT => (&raw mut buf.b_p_pi).cast(),
-            K_OPT_QUOTEESCAPE => (&raw mut buf.b_p_qe).cast(),
-            K_OPT_READONLY => (&raw mut buf.b_p_ro).cast(),
-            K_OPT_SCROLLBACK => (&raw mut buf.b_p_scbk).cast(),
-            K_OPT_SMARTINDENT => (&raw mut buf.b_p_si).cast(),
-            K_OPT_SOFTTABSTOP => (&raw mut buf.b_p_sts).cast(),
-            K_OPT_SUFFIXESADD => (&raw mut buf.b_p_sua).cast(),
-            K_OPT_SWAPFILE => (&raw mut buf.b_p_swf).cast(),
-            K_OPT_SYNMAXCOL => (&raw mut buf.b_p_smc).cast(),
-            K_OPT_SYNTAX => (&raw mut buf.b_p_syn).cast(),
-            K_OPT_SPELLCAPCHECK => {
-                let ws = win.w_s_ptr();
-                (&raw mut ws.b_p_spc).cast()
-            }
-            K_OPT_SPELLFILE => {
-                let ws = win.w_s_ptr();
-                (&raw mut ws.b_p_spf).cast()
-            }
-            K_OPT_SPELLLANG => {
-                let ws = win.w_s_ptr();
-                (&raw mut ws.b_p_spl).cast()
-            }
-            K_OPT_SPELLOPTIONS => {
-                let ws = win.w_s_ptr();
-                (&raw mut ws.b_p_spo).cast()
-            }
-            K_OPT_SHIFTWIDTH => (&raw mut buf.b_p_sw).cast(),
-            K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
-            K_OPT_TABSTOP => (&raw mut buf.b_p_ts).cast(),
-            K_OPT_TEXTWIDTH => (&raw mut buf.b_p_tw).cast(),
-            K_OPT_UNDOFILE => (&raw mut buf.b_p_udf).cast(),
-            K_OPT_WRAPMARGIN => (&raw mut buf.b_p_wm).cast(),
-            K_OPT_VARSOFTTABSTOP => (&raw mut buf.b_p_vsts).cast(),
-            K_OPT_VARTABSTOP => (&raw mut buf.b_p_vts).cast(),
-            K_OPT_KEYMAP => (&raw mut buf.b_p_keymap).cast(),
-            K_OPT_SIGNCOLUMN => (&raw mut win.w_onebuf_opt.wo_scl).cast(),
-            K_OPT_WINHIGHLIGHT => (&raw mut win.w_onebuf_opt.wo_winhl).cast(),
-            K_OPT_WINBLEND => (&raw mut win.w_onebuf_opt.wo_winbl).cast(),
-            K_OPT_STATUSCOLUMN => (&raw mut win.w_onebuf_opt.wo_stc).cast(),
-            _ => {
-                iemsg(tr(c"E356: get_varp ERROR"));
-                (&raw mut buf.b_p_wm).cast()
-            }
+        K_OPT_AUTOINDENT => (&raw mut buf.b_p_ai).cast(),
+        K_OPT_BINARY => (&raw mut buf.b_p_bin).cast(),
+        K_OPT_BOMB => (&raw mut buf.b_p_bomb).cast(),
+        K_OPT_BUFHIDDEN => (&raw mut buf.b_p_bh).cast(),
+        K_OPT_BUFTYPE => (&raw mut buf.b_p_bt).cast(),
+        K_OPT_BUFLISTED => (&raw mut buf.b_p_bl).cast(),
+        K_OPT_BUSY => (&raw mut buf.b_p_busy).cast(),
+        K_OPT_CHANNEL => (&raw mut buf.b_p_channel).cast(),
+        K_OPT_COPYINDENT => (&raw mut buf.b_p_ci).cast(),
+        K_OPT_CINDENT => (&raw mut buf.b_p_cin).cast(),
+        K_OPT_CINKEYS => (&raw mut buf.b_p_cink).cast(),
+        K_OPT_CINOPTIONS => (&raw mut buf.b_p_cino).cast(),
+        K_OPT_CINSCOPEDECLS => (&raw mut buf.b_p_cinsd).cast(),
+        K_OPT_CINWORDS => (&raw mut buf.b_p_cinw).cast(),
+        K_OPT_COMMENTS => (&raw mut buf.b_p_com).cast(),
+        K_OPT_COMMENTSTRING => (&raw mut buf.b_p_cms).cast(),
+        K_OPT_COMPLETE => (&raw mut buf.b_p_cpt).cast(),
+        #[cfg(windows)]
+        K_OPT_COMPLETESLASH => (&raw mut buf.b_p_csl).cast(),
+        K_OPT_COMPLETEFUNC => (&raw mut buf.b_p_cfu).cast(),
+        K_OPT_OMNIFUNC => (&raw mut buf.b_p_ofu).cast(),
+        K_OPT_ENDOFFILE => (&raw mut buf.b_p_eof).cast(),
+        K_OPT_ENDOFLINE => (&raw mut buf.b_p_eol).cast(),
+        K_OPT_FIXENDOFLINE => (&raw mut buf.b_p_fixeol).cast(),
+        K_OPT_EXPANDTAB => (&raw mut buf.b_p_et).cast(),
+        K_OPT_FILEENCODING => (&raw mut buf.b_p_fenc).cast(),
+        K_OPT_FILEFORMAT => (&raw mut buf.b_p_ff).cast(),
+        K_OPT_FILETYPE => (&raw mut buf.b_p_ft).cast(),
+        K_OPT_FOLLOW => (&raw mut buf.b_p_follow).cast(),
+        K_OPT_FORMATOPTIONS => (&raw mut buf.b_p_fo).cast(),
+        K_OPT_FORMATLISTPAT => (&raw mut buf.b_p_flp).cast(),
+        K_OPT_IMINSERT => (&raw mut buf.b_p_iminsert).cast(),
+        K_OPT_IMSEARCH => (&raw mut buf.b_p_imsearch).cast(),
+        K_OPT_INFERCASE => (&raw mut buf.b_p_inf).cast(),
+        K_OPT_ISKEYWORD => (&raw mut buf.b_p_isk).cast(),
+        K_OPT_INCLUDEEXPR => (&raw mut buf.b_p_inex).cast(),
+        K_OPT_INDENTEXPR => (&raw mut buf.b_p_inde).cast(),
+        K_OPT_INDENTKEYS => (&raw mut buf.b_p_indk).cast(),
+        K_OPT_FORMATEXPR => (&raw mut buf.b_p_fex).cast(),
+        K_OPT_LISP => (&raw mut buf.b_p_lisp).cast(),
+        K_OPT_LISPOPTIONS => (&raw mut buf.b_p_lop).cast(),
+        K_OPT_MODELINE => (&raw mut buf.b_p_ml).cast(),
+        K_OPT_MATCHPAIRS => (&raw mut buf.b_p_mps).cast(),
+        K_OPT_MODIFIABLE => (&raw mut buf.b_p_ma).cast(),
+        K_OPT_MODIFIED => (&raw mut buf.b_changed).cast(),
+        K_OPT_NRFORMATS => (&raw mut buf.b_p_nf).cast(),
+        K_OPT_PRESERVEINDENT => (&raw mut buf.b_p_pi).cast(),
+        K_OPT_QUOTEESCAPE => (&raw mut buf.b_p_qe).cast(),
+        K_OPT_READONLY => (&raw mut buf.b_p_ro).cast(),
+        K_OPT_SCROLLBACK => (&raw mut buf.b_p_scbk).cast(),
+        K_OPT_SMARTINDENT => (&raw mut buf.b_p_si).cast(),
+        K_OPT_SOFTTABSTOP => (&raw mut buf.b_p_sts).cast(),
+        K_OPT_SUFFIXESADD => (&raw mut buf.b_p_sua).cast(),
+        K_OPT_SWAPFILE => (&raw mut buf.b_p_swf).cast(),
+        K_OPT_SYNMAXCOL => (&raw mut buf.b_p_smc).cast(),
+        K_OPT_SYNTAX => (&raw mut buf.b_p_syn).cast(),
+        K_OPT_SPELLCAPCHECK => {
+            let ws = win.w_s_ptr();
+            (&raw mut ws.b_p_spc).cast()
+        }
+        K_OPT_SPELLFILE => {
+            let ws = win.w_s_ptr();
+            (&raw mut ws.b_p_spf).cast()
+        }
+        K_OPT_SPELLLANG => {
+            let ws = win.w_s_ptr();
+            (&raw mut ws.b_p_spl).cast()
+        }
+        K_OPT_SPELLOPTIONS => {
+            let ws = win.w_s_ptr();
+            (&raw mut ws.b_p_spo).cast()
+        }
+        K_OPT_SHIFTWIDTH => (&raw mut buf.b_p_sw).cast(),
+        K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
+        K_OPT_TABSTOP => (&raw mut buf.b_p_ts).cast(),
+        K_OPT_TEXTWIDTH => (&raw mut buf.b_p_tw).cast(),
+        K_OPT_UNDOFILE => (&raw mut buf.b_p_udf).cast(),
+        K_OPT_WRAPMARGIN => (&raw mut buf.b_p_wm).cast(),
+        K_OPT_VARSOFTTABSTOP => (&raw mut buf.b_p_vsts).cast(),
+        K_OPT_VARTABSTOP => (&raw mut buf.b_p_vts).cast(),
+        K_OPT_KEYMAP => (&raw mut buf.b_p_keymap).cast(),
+        K_OPT_SIGNCOLUMN => (&raw mut win.w_onebuf_opt.wo_scl).cast(),
+        K_OPT_WINHIGHLIGHT => (&raw mut win.w_onebuf_opt.wo_winhl).cast(),
+        K_OPT_WINBLEND => (&raw mut win.w_onebuf_opt.wo_winbl).cast(),
+        K_OPT_STATUSCOLUMN => (&raw mut win.w_onebuf_opt.wo_stc).cast(),
+        _ => {
+            iemsg(tr(c"E356: get_varp ERROR"));
+            (&raw mut buf.b_p_wm).cast()
         }
     }
 }
 
 /// Get the value of 'equalprg', either the buffer-local one or the global one.
 pub fn get_equalprg() -> *mut c_char {
-    {
-        if crate::memory::cstr_is_empty(curbuf_mut().b_p_ep) {
-            opt_vars().p_ep
-        } else {
-            curbuf_mut().b_p_ep
-        }
+    if crate::memory::cstr_is_empty(curbuf_mut().b_p_ep) {
+        opt_vars().p_ep
+    } else {
+        curbuf_mut().b_p_ep
     }
 }
 
@@ -7450,45 +7312,41 @@ pub fn clear_winopt(wop: &mut Winopt) {
 }
 
 pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
-    {
-        if wp.w_onebuf_opt.wo_wrap != 0 {
-            wp.w_leftcol = 0;
-        } else {
-            wp.w_skipcol = 0;
-        }
-        check_colorcolumn(ptr::null_mut(), Some(&mut *wp));
-        briopt_check(Some(&mut *wp));
-        let mut culopt_flags: u32 = 0;
-        if fill_culopt_flags(wp.w_onebuf_opt.wo_culopt, &mut culopt_flags) {
-            wp.w_p_culopt_flags = culopt_flags as u8;
-        }
-        set_chars_option(
-            wp,
-            wp.w_onebuf_opt.wo_fcs,
-            CharsOption::Fillchars,
-            true,
-            None,
-        );
-        set_chars_option(
-            wp,
-            wp.w_onebuf_opt.wo_lcs,
-            CharsOption::Listchars,
-            true,
-            None,
-        );
-        parse_winhl_opt(ptr::null(), Some(&mut *wp));
-        check_blending(wp);
-        set_winbar_win(wp, false, valid_cursor);
-        check_signcolumn(ptr::null_mut(), Some(&mut *wp));
-        wp.w_grid_alloc.blending = wp.w_onebuf_opt.wo_winbl > 0;
+    if wp.w_onebuf_opt.wo_wrap != 0 {
+        wp.w_leftcol = 0;
+    } else {
+        wp.w_skipcol = 0;
     }
+    check_colorcolumn(ptr::null_mut(), Some(&mut *wp));
+    briopt_check(Some(&mut *wp));
+    let mut culopt_flags: u32 = 0;
+    if fill_culopt_flags(wp.w_onebuf_opt.wo_culopt, &mut culopt_flags) {
+        wp.w_p_culopt_flags = culopt_flags as u8;
+    }
+    set_chars_option(
+        wp,
+        wp.w_onebuf_opt.wo_fcs,
+        CharsOption::Fillchars,
+        true,
+        None,
+    );
+    set_chars_option(
+        wp,
+        wp.w_onebuf_opt.wo_lcs,
+        CharsOption::Listchars,
+        true,
+        None,
+    );
+    parse_winhl_opt(ptr::null(), Some(&mut *wp));
+    check_blending(wp);
+    set_winbar_win(wp, false, valid_cursor);
+    check_signcolumn(ptr::null_mut(), Some(&mut *wp));
+    wp.w_grid_alloc.blending = wp.w_onebuf_opt.wo_winbl > 0;
 }
 
 #[inline]
 fn copy_opt_sctx(buf: &mut FileBuf, bv: usize) {
-    {
-        buf.b_p_script_ctx[bv] = get_option(BUF_OPT_IDX[bv]).script_ctx;
-    }
+    buf.b_p_script_ctx[bv] = get_option(BUF_OPT_IDX[bv]).script_ctx;
 }
 
 #[inline]
@@ -7498,271 +7356,267 @@ fn copy_opt_insecure(bv: usize) -> u32 {
 
 /// Copy global option values to local options for one buffer.
 pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
-    {
-        let mut should_copy = true;
-        let mut save_p_isk: *mut c_char = ptr::null_mut();
-        let mut did_isk = false;
-        let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+    let mut should_copy = true;
+    let mut save_p_isk: *mut c_char = ptr::null_mut();
+    let mut did_isk = false;
+    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
 
-        if !opt_vars().p_cpo.is_null() {
-            if (!crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BUFOPTGLOB)
-                || (flags & BCO_ENTER) == 0)
-                && (buf.b_p_initialized
-                    || ((flags & BCO_ENTER) == 0
-                        && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BUFOPT)))
+    if !opt_vars().p_cpo.is_null() {
+        if (!crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BUFOPTGLOB)
+            || (flags & BCO_ENTER) == 0)
+            && (buf.b_p_initialized
+                || ((flags & BCO_ENTER) == 0
+                    && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BUFOPT)))
+        {
+            should_copy = false;
+        }
+
+        if should_copy || (flags & BCO_ALWAYS) != 0 {
+            buf.b_p_script_ctx = [Sctx {
+                sc_sid: 0,
+                sc_seq: 0,
+                sc_lnum: 0,
+                sc_chan: 0,
+            }; 93];
+            let dont_do_help = ((flags & BCO_NOHELP) != 0 && buf.b_help) || buf.b_p_initialized;
+            if dont_do_help {
+                save_p_isk = buf.b_p_isk;
+                buf.b_p_isk = ptr::null_mut();
+            }
+            if !buf.b_p_initialized {
+                free_buf_options(buf, true);
+                buf.b_p_ro = 0;
+                buf.b_p_fenc = alloc_string_option(opt_vars().p_fenc);
+                buf.b_p_ff = match crate::memory::cstr_first_byte(opt_vars().p_ffs) {
+                    b'm' => alloc_string_option(c"mac"),
+                    b'd' => alloc_string_option(c"dos"),
+                    b'u' => alloc_string_option(c"unix"),
+                    _ => alloc_string_option(opt_vars().p_ff),
+                };
+                buf.b_p_bh = empty_opt;
+                buf.b_p_bt = empty_opt;
+            } else {
+                free_buf_options(buf, false);
+            }
+
+            buf.b_p_ai = opt_vars().p_ai;
+            copy_opt_sctx(buf, K_BUF_OPT_AUTOINDENT);
+            buf.b_p_ai_nopaste = opt_st().p_ai_nopaste;
+            buf.b_p_sw = opt_vars().p_sw;
+            copy_opt_sctx(buf, K_BUF_OPT_SHIFTWIDTH);
+            buf.b_p_scbk = opt_vars().p_scbk;
+            copy_opt_sctx(buf, K_BUF_OPT_SCROLLBACK);
+            buf.b_p_tw = opt_vars().p_tw;
+            copy_opt_sctx(buf, K_BUF_OPT_TEXTWIDTH);
+            buf.b_p_tw_nopaste = opt_st().p_tw_nopaste;
+            buf.b_p_tw_nobin = opt_st().p_tw_nobin;
+            buf.b_p_wm = opt_vars().p_wm;
+            copy_opt_sctx(buf, K_BUF_OPT_WRAPMARGIN);
+            buf.b_p_wm_nopaste = opt_st().p_wm_nopaste;
+            buf.b_p_wm_nobin = opt_st().p_wm_nobin;
+            buf.b_p_bin = opt_vars().p_bin;
+            copy_opt_sctx(buf, K_BUF_OPT_BINARY);
+            buf.b_p_bomb = opt_vars().p_bomb;
+            copy_opt_sctx(buf, K_BUF_OPT_BOMB);
+            buf.b_p_et = opt_vars().p_et;
+            copy_opt_sctx(buf, K_BUF_OPT_EXPANDTAB);
+            buf.b_p_fixeol = opt_vars().p_fixeol;
+            copy_opt_sctx(buf, K_BUF_OPT_FIXENDOFLINE);
+            buf.b_p_follow = opt_vars().p_follow;
+            copy_opt_sctx(buf, K_BUF_OPT_FOLLOW);
+            buf.b_p_et_nobin = opt_st().p_et_nobin;
+            buf.b_p_et_nopaste = opt_st().p_et_nopaste;
+            buf.b_p_ml = opt_vars().p_ml;
+            copy_opt_sctx(buf, K_BUF_OPT_MODELINE);
+            buf.b_p_ml_nobin = opt_st().p_ml_nobin;
+            buf.b_p_inf = opt_vars().p_inf;
+            copy_opt_sctx(buf, K_BUF_OPT_INFERCASE);
+            if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
+                buf.b_p_swf = 0;
+            } else {
+                buf.b_p_swf = opt_vars().p_swf;
+                copy_opt_sctx(buf, K_BUF_OPT_SWAPFILE);
+            }
+            buf.b_p_cpt = alloc_string_option(opt_vars().p_cpt);
+            copy_opt_sctx(buf, K_BUF_OPT_COMPLETE);
+            buf.b_p_cpt_flags = copy_opt_insecure(K_BUF_OPT_COMPLETE);
+            set_buflocal_cpt_callbacks(Some(&mut *buf));
+            #[cfg(windows)]
             {
-                should_copy = false;
+                buf.b_p_csl = alloc_string_option(opt_vars().p_csl);
+                copy_opt_sctx(buf, K_BUF_OPT_COMPLETESLASH);
             }
+            callback_copy(&mut buf.b_p_cfu, &opt_vars().p_cfu);
+            copy_opt_sctx(buf, K_BUF_OPT_COMPLETEFUNC);
+            callback_copy(&mut buf.b_p_ofu, &opt_vars().p_ofu);
+            copy_opt_sctx(buf, K_BUF_OPT_OMNIFUNC);
+            callback_copy(&mut buf.b_p_tfu, &opt_vars().p_tfu);
+            copy_opt_sctx(buf, K_BUF_OPT_TAGFUNC);
+            buf.b_p_sts = opt_vars().p_sts;
+            copy_opt_sctx(buf, K_BUF_OPT_SOFTTABSTOP);
+            buf.b_p_sts_nopaste = opt_st().p_sts_nopaste;
+            buf.b_p_vsts = alloc_string_option(opt_vars().p_vsts);
+            copy_opt_sctx(buf, K_BUF_OPT_VARSOFTTABSTOP);
+            if !opt_vars().p_vsts.is_null() && opt_vars().p_vsts != empty_opt {
+                tabstop_set(opt_vars().p_vsts, &mut buf.b_p_vsts_array, None);
+            } else {
+                buf.b_p_vsts_array.clear();
+            }
+            buf.b_p_vsts_nopaste = opt_st().p_vsts_nopaste.clone();
+            buf.b_p_com = alloc_string_option(opt_vars().p_com);
+            copy_opt_sctx(buf, K_BUF_OPT_COMMENTS);
+            buf.b_p_cms = alloc_string_option(opt_vars().p_cms);
+            copy_opt_sctx(buf, K_BUF_OPT_COMMENTSTRING);
+            buf.b_p_fo = alloc_string_option(opt_vars().p_fo);
+            copy_opt_sctx(buf, K_BUF_OPT_FORMATOPTIONS);
+            buf.b_p_flp = alloc_string_option(opt_vars().p_flp);
+            copy_opt_sctx(buf, K_BUF_OPT_FORMATLISTPAT);
+            buf.b_p_nf = alloc_string_option(opt_vars().p_nf);
+            copy_opt_sctx(buf, K_BUF_OPT_NRFORMATS);
+            buf.b_p_mps = alloc_string_option(opt_vars().p_mps);
+            copy_opt_sctx(buf, K_BUF_OPT_MATCHPAIRS);
+            buf.b_p_si = opt_vars().p_si;
+            copy_opt_sctx(buf, K_BUF_OPT_SMARTINDENT);
+            buf.b_p_channel = 0;
+            buf.b_p_ci = opt_vars().p_ci;
+            copy_opt_sctx(buf, K_BUF_OPT_COPYINDENT);
+            buf.b_p_cin = opt_vars().p_cin;
+            copy_opt_sctx(buf, K_BUF_OPT_CINDENT);
+            buf.b_p_cink = alloc_string_option(opt_vars().p_cink);
+            copy_opt_sctx(buf, K_BUF_OPT_CINKEYS);
+            buf.b_p_cino = alloc_string_option(opt_vars().p_cino);
+            copy_opt_sctx(buf, K_BUF_OPT_CINOPTIONS);
+            buf.b_p_cinsd = alloc_string_option(opt_vars().p_cinsd);
+            copy_opt_sctx(buf, K_BUF_OPT_CINSCOPEDECLS);
+            buf.b_p_lop = alloc_string_option(opt_vars().p_lop);
+            copy_opt_sctx(buf, K_BUF_OPT_LISPOPTIONS);
 
-            if should_copy || (flags & BCO_ALWAYS) != 0 {
-                buf.b_p_script_ctx = [Sctx {
-                    sc_sid: 0,
-                    sc_seq: 0,
-                    sc_lnum: 0,
-                    sc_chan: 0,
-                }; 93];
-                let dont_do_help = ((flags & BCO_NOHELP) != 0 && buf.b_help) || buf.b_p_initialized;
-                if dont_do_help {
-                    save_p_isk = buf.b_p_isk;
-                    buf.b_p_isk = ptr::null_mut();
-                }
-                if !buf.b_p_initialized {
-                    free_buf_options(buf, true);
-                    buf.b_p_ro = 0;
-                    buf.b_p_fenc = alloc_string_option(opt_vars().p_fenc);
-                    buf.b_p_ff = match crate::memory::cstr_first_byte(opt_vars().p_ffs) {
-                        b'm' => alloc_string_option(c"mac"),
-                        b'd' => alloc_string_option(c"dos"),
-                        b'u' => alloc_string_option(c"unix"),
-                        _ => alloc_string_option(opt_vars().p_ff),
-                    };
-                    buf.b_p_bh = empty_opt;
-                    buf.b_p_bt = empty_opt;
-                } else {
-                    free_buf_options(buf, false);
-                }
+            buf.b_p_ft = empty_opt;
+            buf.b_p_pi = opt_vars().p_pi;
+            copy_opt_sctx(buf, K_BUF_OPT_PRESERVEINDENT);
+            buf.b_p_cinw = alloc_string_option(opt_vars().p_cinw);
+            copy_opt_sctx(buf, K_BUF_OPT_CINWORDS);
+            buf.b_p_lisp = opt_vars().p_lisp;
+            copy_opt_sctx(buf, K_BUF_OPT_LISP);
+            buf.b_p_syn = empty_opt;
+            buf.b_p_smc = opt_vars().p_smc;
+            copy_opt_sctx(buf, K_BUF_OPT_SYNMAXCOL);
+            buf.b_s.b_syn_isk = None;
+            buf.b_s.b_p_spc = alloc_string_option(opt_vars().p_spc);
+            copy_opt_sctx(buf, K_BUF_OPT_SPELLCAPCHECK);
+            compile_cap_prog(buf.b_s.b_p_spc, &mut buf.b_s.b_cap_prog);
+            buf.b_s.b_p_spf = alloc_string_option(opt_vars().p_spf);
+            copy_opt_sctx(buf, K_BUF_OPT_SPELLFILE);
+            buf.b_s.b_p_spl = alloc_string_option(opt_vars().p_spl);
+            copy_opt_sctx(buf, K_BUF_OPT_SPELLLANG);
+            buf.b_s.b_p_spo = alloc_string_option(opt_vars().p_spo);
+            copy_opt_sctx(buf, K_BUF_OPT_SPELLOPTIONS);
+            buf.b_s.b_p_spo_flags = opt_vars().spo_flags;
+            callback_copy(&mut buf.b_p_inde, &opt_vars().p_inde);
+            copy_opt_sctx(buf, K_BUF_OPT_INDENTEXPR);
+            buf.b_p_inde_flags = copy_opt_insecure(K_BUF_OPT_INDENTEXPR);
+            buf.b_p_indk = alloc_string_option(opt_vars().p_indk);
+            copy_opt_sctx(buf, K_BUF_OPT_INDENTKEYS);
+            buf.b_p_fp = empty_opt;
+            callback_copy(&mut buf.b_p_fex, &opt_vars().p_fex);
+            copy_opt_sctx(buf, K_BUF_OPT_FORMATEXPR);
+            buf.b_p_fex_flags = copy_opt_insecure(K_BUF_OPT_FORMATEXPR);
+            buf.b_p_sua = alloc_string_option(opt_vars().p_sua);
+            copy_opt_sctx(buf, K_BUF_OPT_SUFFIXESADD);
+            buf.b_p_keymap = alloc_string_option(opt_vars().p_keymap);
+            copy_opt_sctx(buf, K_BUF_OPT_KEYMAP);
+            buf.b_kmap_state |= KEYMAP_INIT;
+            buf.b_p_iminsert = opt_vars().p_iminsert;
+            copy_opt_sctx(buf, K_BUF_OPT_IMINSERT);
+            buf.b_p_imsearch = opt_vars().p_imsearch;
+            copy_opt_sctx(buf, K_BUF_OPT_IMSEARCH);
 
-                buf.b_p_ai = opt_vars().p_ai;
-                copy_opt_sctx(buf, K_BUF_OPT_AUTOINDENT);
-                buf.b_p_ai_nopaste = opt_st().p_ai_nopaste;
-                buf.b_p_sw = opt_vars().p_sw;
-                copy_opt_sctx(buf, K_BUF_OPT_SHIFTWIDTH);
-                buf.b_p_scbk = opt_vars().p_scbk;
-                copy_opt_sctx(buf, K_BUF_OPT_SCROLLBACK);
-                buf.b_p_tw = opt_vars().p_tw;
-                copy_opt_sctx(buf, K_BUF_OPT_TEXTWIDTH);
-                buf.b_p_tw_nopaste = opt_st().p_tw_nopaste;
-                buf.b_p_tw_nobin = opt_st().p_tw_nobin;
-                buf.b_p_wm = opt_vars().p_wm;
-                copy_opt_sctx(buf, K_BUF_OPT_WRAPMARGIN);
-                buf.b_p_wm_nopaste = opt_st().p_wm_nopaste;
-                buf.b_p_wm_nobin = opt_st().p_wm_nobin;
-                buf.b_p_bin = opt_vars().p_bin;
-                copy_opt_sctx(buf, K_BUF_OPT_BINARY);
-                buf.b_p_bomb = opt_vars().p_bomb;
-                copy_opt_sctx(buf, K_BUF_OPT_BOMB);
-                buf.b_p_et = opt_vars().p_et;
-                copy_opt_sctx(buf, K_BUF_OPT_EXPANDTAB);
-                buf.b_p_fixeol = opt_vars().p_fixeol;
-                copy_opt_sctx(buf, K_BUF_OPT_FIXENDOFLINE);
-                buf.b_p_follow = opt_vars().p_follow;
-                copy_opt_sctx(buf, K_BUF_OPT_FOLLOW);
-                buf.b_p_et_nobin = opt_st().p_et_nobin;
-                buf.b_p_et_nopaste = opt_st().p_et_nopaste;
-                buf.b_p_ml = opt_vars().p_ml;
-                copy_opt_sctx(buf, K_BUF_OPT_MODELINE);
-                buf.b_p_ml_nobin = opt_st().p_ml_nobin;
-                buf.b_p_inf = opt_vars().p_inf;
-                copy_opt_sctx(buf, K_BUF_OPT_INFERCASE);
-                if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
-                    buf.b_p_swf = 0;
-                } else {
-                    buf.b_p_swf = opt_vars().p_swf;
-                    copy_opt_sctx(buf, K_BUF_OPT_SWAPFILE);
-                }
-                buf.b_p_cpt = alloc_string_option(opt_vars().p_cpt);
-                copy_opt_sctx(buf, K_BUF_OPT_COMPLETE);
-                buf.b_p_cpt_flags = copy_opt_insecure(K_BUF_OPT_COMPLETE);
-                set_buflocal_cpt_callbacks(Some(&mut *buf));
-                #[cfg(windows)]
+            buf.b_p_ac = -1;
+            buf.b_p_ar = -1;
+            buf.b_p_fs = -1;
+            buf.b_p_ul = NO_LOCAL_UNDOLEVEL;
+            buf.b_p_bkc = empty_opt;
+            buf.b_bkc_flags = 0;
+            buf.b_p_gefm = empty_opt;
+            buf.b_p_gp = empty_opt;
+            buf.b_p_mp = empty_opt;
+            buf.b_p_efm = empty_opt;
+            buf.b_p_ep = empty_opt;
+            buf.b_p_ffu = Callback::NONE;
+            buf.b_p_kp = empty_opt;
+            buf.b_p_path = empty_opt;
+            buf.b_p_tags = empty_opt;
+            buf.b_p_tc = empty_opt;
+            buf.b_tc_flags = 0;
+            buf.b_p_def = empty_opt;
+            buf.b_p_inc = empty_opt;
+            callback_copy(&mut buf.b_p_inex, &opt_vars().p_inex);
+            copy_opt_sctx(buf, K_BUF_OPT_INCLUDEEXPR);
+            buf.b_p_inex_flags = copy_opt_insecure(K_BUF_OPT_INCLUDEEXPR);
+            buf.b_p_cot = empty_opt;
+            buf.b_cot_flags = 0;
+            buf.b_p_dict = empty_opt;
+            buf.b_p_dia = empty_opt;
+            buf.b_p_tsr = empty_opt;
+            buf.b_p_tsrfu = Callback::NONE;
+            buf.b_p_qe = alloc_string_option(opt_vars().p_qe);
+            copy_opt_sctx(buf, K_BUF_OPT_QUOTEESCAPE);
+            buf.b_p_udf = opt_vars().p_udf;
+            copy_opt_sctx(buf, K_BUF_OPT_UNDOFILE);
+            buf.b_p_lw = empty_opt;
+            buf.b_p_menc = empty_opt;
+
+            if dont_do_help {
+                buf.b_p_isk = save_p_isk;
+                if !opt_vars().p_vts.is_null()
+                    && !crate::memory::cstr_is_empty(opt_vars().p_vts)
+                    && buf.b_p_vts_array.is_empty()
                 {
-                    buf.b_p_csl = alloc_string_option(opt_vars().p_csl);
-                    copy_opt_sctx(buf, K_BUF_OPT_COMPLETESLASH);
-                }
-                callback_copy(&mut buf.b_p_cfu, &opt_vars().p_cfu);
-                copy_opt_sctx(buf, K_BUF_OPT_COMPLETEFUNC);
-                callback_copy(&mut buf.b_p_ofu, &opt_vars().p_ofu);
-                copy_opt_sctx(buf, K_BUF_OPT_OMNIFUNC);
-                callback_copy(&mut buf.b_p_tfu, &opt_vars().p_tfu);
-                copy_opt_sctx(buf, K_BUF_OPT_TAGFUNC);
-                buf.b_p_sts = opt_vars().p_sts;
-                copy_opt_sctx(buf, K_BUF_OPT_SOFTTABSTOP);
-                buf.b_p_sts_nopaste = opt_st().p_sts_nopaste;
-                buf.b_p_vsts = alloc_string_option(opt_vars().p_vsts);
-                copy_opt_sctx(buf, K_BUF_OPT_VARSOFTTABSTOP);
-                if !opt_vars().p_vsts.is_null() && opt_vars().p_vsts != empty_opt {
-                    tabstop_set(opt_vars().p_vsts, &mut buf.b_p_vsts_array, None);
+                    tabstop_set(opt_vars().p_vts, &mut buf.b_p_vts_array, None);
                 } else {
-                    buf.b_p_vsts_array.clear();
+                    buf.b_p_vts_array.clear();
                 }
-                buf.b_p_vsts_nopaste = opt_st().p_vsts_nopaste.clone();
-                buf.b_p_com = alloc_string_option(opt_vars().p_com);
-                copy_opt_sctx(buf, K_BUF_OPT_COMMENTS);
-                buf.b_p_cms = alloc_string_option(opt_vars().p_cms);
-                copy_opt_sctx(buf, K_BUF_OPT_COMMENTSTRING);
-                buf.b_p_fo = alloc_string_option(opt_vars().p_fo);
-                copy_opt_sctx(buf, K_BUF_OPT_FORMATOPTIONS);
-                buf.b_p_flp = alloc_string_option(opt_vars().p_flp);
-                copy_opt_sctx(buf, K_BUF_OPT_FORMATLISTPAT);
-                buf.b_p_nf = alloc_string_option(opt_vars().p_nf);
-                copy_opt_sctx(buf, K_BUF_OPT_NRFORMATS);
-                buf.b_p_mps = alloc_string_option(opt_vars().p_mps);
-                copy_opt_sctx(buf, K_BUF_OPT_MATCHPAIRS);
-                buf.b_p_si = opt_vars().p_si;
-                copy_opt_sctx(buf, K_BUF_OPT_SMARTINDENT);
-                buf.b_p_channel = 0;
-                buf.b_p_ci = opt_vars().p_ci;
-                copy_opt_sctx(buf, K_BUF_OPT_COPYINDENT);
-                buf.b_p_cin = opt_vars().p_cin;
-                copy_opt_sctx(buf, K_BUF_OPT_CINDENT);
-                buf.b_p_cink = alloc_string_option(opt_vars().p_cink);
-                copy_opt_sctx(buf, K_BUF_OPT_CINKEYS);
-                buf.b_p_cino = alloc_string_option(opt_vars().p_cino);
-                copy_opt_sctx(buf, K_BUF_OPT_CINOPTIONS);
-                buf.b_p_cinsd = alloc_string_option(opt_vars().p_cinsd);
-                copy_opt_sctx(buf, K_BUF_OPT_CINSCOPEDECLS);
-                buf.b_p_lop = alloc_string_option(opt_vars().p_lop);
-                copy_opt_sctx(buf, K_BUF_OPT_LISPOPTIONS);
-
-                buf.b_p_ft = empty_opt;
-                buf.b_p_pi = opt_vars().p_pi;
-                copy_opt_sctx(buf, K_BUF_OPT_PRESERVEINDENT);
-                buf.b_p_cinw = alloc_string_option(opt_vars().p_cinw);
-                copy_opt_sctx(buf, K_BUF_OPT_CINWORDS);
-                buf.b_p_lisp = opt_vars().p_lisp;
-                copy_opt_sctx(buf, K_BUF_OPT_LISP);
-                buf.b_p_syn = empty_opt;
-                buf.b_p_smc = opt_vars().p_smc;
-                copy_opt_sctx(buf, K_BUF_OPT_SYNMAXCOL);
-                buf.b_s.b_syn_isk = None;
-                buf.b_s.b_p_spc = alloc_string_option(opt_vars().p_spc);
-                copy_opt_sctx(buf, K_BUF_OPT_SPELLCAPCHECK);
-                compile_cap_prog(buf.b_s.b_p_spc, &mut buf.b_s.b_cap_prog);
-                buf.b_s.b_p_spf = alloc_string_option(opt_vars().p_spf);
-                copy_opt_sctx(buf, K_BUF_OPT_SPELLFILE);
-                buf.b_s.b_p_spl = alloc_string_option(opt_vars().p_spl);
-                copy_opt_sctx(buf, K_BUF_OPT_SPELLLANG);
-                buf.b_s.b_p_spo = alloc_string_option(opt_vars().p_spo);
-                copy_opt_sctx(buf, K_BUF_OPT_SPELLOPTIONS);
-                buf.b_s.b_p_spo_flags = opt_vars().spo_flags;
-                callback_copy(&mut buf.b_p_inde, &opt_vars().p_inde);
-                copy_opt_sctx(buf, K_BUF_OPT_INDENTEXPR);
-                buf.b_p_inde_flags = copy_opt_insecure(K_BUF_OPT_INDENTEXPR);
-                buf.b_p_indk = alloc_string_option(opt_vars().p_indk);
-                copy_opt_sctx(buf, K_BUF_OPT_INDENTKEYS);
-                buf.b_p_fp = empty_opt;
-                callback_copy(&mut buf.b_p_fex, &opt_vars().p_fex);
-                copy_opt_sctx(buf, K_BUF_OPT_FORMATEXPR);
-                buf.b_p_fex_flags = copy_opt_insecure(K_BUF_OPT_FORMATEXPR);
-                buf.b_p_sua = alloc_string_option(opt_vars().p_sua);
-                copy_opt_sctx(buf, K_BUF_OPT_SUFFIXESADD);
-                buf.b_p_keymap = alloc_string_option(opt_vars().p_keymap);
-                copy_opt_sctx(buf, K_BUF_OPT_KEYMAP);
-                buf.b_kmap_state |= KEYMAP_INIT;
-                buf.b_p_iminsert = opt_vars().p_iminsert;
-                copy_opt_sctx(buf, K_BUF_OPT_IMINSERT);
-                buf.b_p_imsearch = opt_vars().p_imsearch;
-                copy_opt_sctx(buf, K_BUF_OPT_IMSEARCH);
-
-                buf.b_p_ac = -1;
-                buf.b_p_ar = -1;
-                buf.b_p_fs = -1;
-                buf.b_p_ul = NO_LOCAL_UNDOLEVEL;
-                buf.b_p_bkc = empty_opt;
-                buf.b_bkc_flags = 0;
-                buf.b_p_gefm = empty_opt;
-                buf.b_p_gp = empty_opt;
-                buf.b_p_mp = empty_opt;
-                buf.b_p_efm = empty_opt;
-                buf.b_p_ep = empty_opt;
-                buf.b_p_ffu = Callback::NONE;
-                buf.b_p_kp = empty_opt;
-                buf.b_p_path = empty_opt;
-                buf.b_p_tags = empty_opt;
-                buf.b_p_tc = empty_opt;
-                buf.b_tc_flags = 0;
-                buf.b_p_def = empty_opt;
-                buf.b_p_inc = empty_opt;
-                callback_copy(&mut buf.b_p_inex, &opt_vars().p_inex);
-                copy_opt_sctx(buf, K_BUF_OPT_INCLUDEEXPR);
-                buf.b_p_inex_flags = copy_opt_insecure(K_BUF_OPT_INCLUDEEXPR);
-                buf.b_p_cot = empty_opt;
-                buf.b_cot_flags = 0;
-                buf.b_p_dict = empty_opt;
-                buf.b_p_dia = empty_opt;
-                buf.b_p_tsr = empty_opt;
-                buf.b_p_tsrfu = Callback::NONE;
-                buf.b_p_qe = alloc_string_option(opt_vars().p_qe);
-                copy_opt_sctx(buf, K_BUF_OPT_QUOTEESCAPE);
-                buf.b_p_udf = opt_vars().p_udf;
-                copy_opt_sctx(buf, K_BUF_OPT_UNDOFILE);
-                buf.b_p_lw = empty_opt;
-                buf.b_p_menc = empty_opt;
-
-                if dont_do_help {
-                    buf.b_p_isk = save_p_isk;
-                    if !opt_vars().p_vts.is_null()
-                        && !crate::memory::cstr_is_empty(opt_vars().p_vts)
-                        && buf.b_p_vts_array.is_empty()
-                    {
-                        tabstop_set(opt_vars().p_vts, &mut buf.b_p_vts_array, None);
-                    } else {
-                        buf.b_p_vts_array.clear();
-                    }
+            } else {
+                buf.b_p_isk = alloc_string_option(opt_vars().p_isk);
+                copy_opt_sctx(buf, K_BUF_OPT_ISKEYWORD);
+                did_isk = true;
+                buf.b_p_ts = opt_vars().p_ts;
+                copy_opt_sctx(buf, K_BUF_OPT_TABSTOP);
+                buf.b_p_vts = alloc_string_option(opt_vars().p_vts);
+                copy_opt_sctx(buf, K_BUF_OPT_VARTABSTOP);
+                if !opt_vars().p_vts.is_null()
+                    && !crate::memory::cstr_is_empty(opt_vars().p_vts)
+                    && buf.b_p_vts_array.is_empty()
+                {
+                    tabstop_set(opt_vars().p_vts, &mut buf.b_p_vts_array, None);
                 } else {
-                    buf.b_p_isk = alloc_string_option(opt_vars().p_isk);
-                    copy_opt_sctx(buf, K_BUF_OPT_ISKEYWORD);
-                    did_isk = true;
-                    buf.b_p_ts = opt_vars().p_ts;
-                    copy_opt_sctx(buf, K_BUF_OPT_TABSTOP);
-                    buf.b_p_vts = alloc_string_option(opt_vars().p_vts);
-                    copy_opt_sctx(buf, K_BUF_OPT_VARTABSTOP);
-                    if !opt_vars().p_vts.is_null()
-                        && !crate::memory::cstr_is_empty(opt_vars().p_vts)
-                        && buf.b_p_vts_array.is_empty()
-                    {
-                        tabstop_set(opt_vars().p_vts, &mut buf.b_p_vts_array, None);
-                    } else {
-                        buf.b_p_vts_array.clear();
-                    }
-                    buf.b_help = false;
-                    if crate::memory::cstr_first_byte(buf.b_p_bt) == b'h' {
-                        clear_string_option(&raw mut buf.b_p_bt);
-                    }
-                    buf.b_p_ma = opt_vars().p_ma;
-                    copy_opt_sctx(buf, K_BUF_OPT_MODIFIABLE);
+                    buf.b_p_vts_array.clear();
                 }
-            }
-
-            if should_copy {
-                buf.b_p_initialized = true;
+                buf.b_help = false;
+                if crate::memory::cstr_first_byte(buf.b_p_bt) == b'h' {
+                    clear_string_option(&raw mut buf.b_p_bt);
+                }
+                buf.b_p_ma = opt_vars().p_ma;
+                copy_opt_sctx(buf, K_BUF_OPT_MODIFIABLE);
             }
         }
 
-        check_buf_options(buf);
-        if did_isk {
-            buf_init_isk_chartab(buf);
+        if should_copy {
+            buf.b_p_initialized = true;
         }
+    }
+
+    check_buf_options(buf);
+    if did_isk {
+        buf_init_isk_chartab(buf);
     }
 }
 
 /// Reset the 'modifiable' option and its default value.
 pub fn reset_modifiable() {
-    {
-        curbuf_mut().b_p_ma = 0;
-        opt_vars().p_ma = 0;
-        change_option_default(K_OPT_MODIFIABLE, boolean_obj(false));
-    }
+    curbuf_mut().b_p_ma = 0;
+    opt_vars().p_ma = 0;
+    change_option_default(K_OPT_MODIFIABLE, boolean_obj(false));
 }
 
 /// Set the global value for 'iminsert' to the local value.
@@ -7776,257 +7630,253 @@ pub fn set_imsearch_global(buf: &mut FileBuf) {
 }
 
 pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, mut arg: *mut c_char, opt_flags: i32) {
-    unsafe {
-        opt_st().expand_option_flags = opt_flags;
+    opt_st().expand_option_flags = opt_flags;
 
-        xp.xp_context = EXPAND_SETTINGS;
-        if crate::memory::cstr_is_empty(arg) {
-            xp.xp_pattern = arg;
+    xp.xp_context = EXPAND_SETTINGS;
+    if crate::memory::cstr_is_empty(arg) {
+        xp.xp_pattern = arg;
+        return;
+    }
+    let argend = arg.wrapping_add(crate::memory::cstr_len(arg));
+    let mut p = argend.wrapping_offset(-1);
+    if crate::memory::cstr_first_byte(p) == b' '
+        && unsafe { *p.wrapping_offset(-1) } != b'\\' as c_char
+    {
+        xp.xp_pattern = p.wrapping_add(1);
+        return;
+    }
+    while p > arg {
+        let mut s = p;
+        if crate::memory::cstr_first_byte(p) == b' ' || crate::memory::cstr_first_byte(p) == b',' {
+            while s > arg && unsafe { *s.wrapping_offset(-1) } == b'\\' as c_char {
+                s = s.wrapping_offset(-1);
+            }
+        }
+        if crate::memory::cstr_first_byte(p) == b' '
+            && (crate::memory::ptr_offset_from(p, s) & 1) == 0
+        {
+            p = p.wrapping_add(1);
+            break;
+        }
+        p = p.wrapping_offset(-1);
+    }
+    if crate::memory::cstr_prefix_bytes(p, 2) == &b"no"[..2] {
+        xp.xp_context = EXPAND_BOOL_SETTINGS;
+        xp.xp_prefix = XP_PREFIX_NO;
+        p = p.wrapping_add(2);
+    } else if crate::memory::cstr_prefix_bytes(p, 3) == &b"inv"[..3] {
+        xp.xp_context = EXPAND_BOOL_SETTINGS;
+        xp.xp_prefix = XP_PREFIX_INV;
+        p = p.wrapping_add(3);
+    }
+    xp.xp_pattern = p;
+    arg = p;
+
+    let mut nextchar: c_char;
+    let mut flags: u32 = 0;
+    let mut opt_idx: OptIndex = 0;
+    let mut is_term_option = false;
+
+    if crate::memory::cstr_first_byte(arg) == b'<' {
+        while crate::memory::cstr_first_byte(p) != b'>' {
+            if crate::memory::cstr_is_empty(p) {
+                return;
+            }
+            p = p.wrapping_add(1);
+        }
+        p = p.wrapping_add(1);
+        let key = get_special_key_code(arg.wrapping_add(1));
+        if key == 0 {
+            xp.xp_context = EXPAND_NOTHING;
             return;
         }
-        let argend = arg.wrapping_add(crate::memory::cstr_len(arg));
-        let mut p = argend.wrapping_offset(-1);
-        if crate::memory::cstr_first_byte(p) == b' ' && *p.wrapping_offset(-1) != b'\\' as c_char {
-            xp.xp_pattern = p.wrapping_add(1);
+        nextchar = unsafe { *p };
+        is_term_option = true;
+        opt_st().expand_option_name[2] = key2termcap0(key) as c_char;
+        opt_st().expand_option_name[3] = key2termcap1(key) as c_char;
+    } else if crate::memory::cstr_first_byte(p) == b't' && crate::memory::cstr_byte_at(p, 1) == b'_'
+    {
+        p = p.wrapping_add(2);
+        if !crate::memory::cstr_is_empty(p) {
+            p = p.wrapping_add(1);
+        }
+        if crate::memory::cstr_is_empty(p) {
             return;
         }
-        while p > arg {
-            let mut s = p;
+        p = p.wrapping_add(1);
+        nextchar = unsafe { *p };
+        is_term_option = true;
+        opt_st().expand_option_name[2] = unsafe { *p.wrapping_offset(-2) };
+        opt_st().expand_option_name[3] = unsafe { *p.wrapping_offset(-1) };
+    } else {
+        while ascii_isalnum(crate::memory::cstr_first_char(p))
+            || crate::memory::cstr_first_byte(p) == b'_'
+            || crate::memory::cstr_first_byte(p) == b'*'
+        {
+            p = p.wrapping_add(1);
+        }
+        if crate::memory::cstr_is_empty(p) {
+            return;
+        }
+        nextchar = unsafe { *p };
+        opt_idx = find_option_len(arg, crate::memory::ptr_offset_from(p, arg) as usize);
+        if opt_idx == K_OPT_INVALID || is_option_hidden(opt_idx) {
+            xp.xp_context = EXPAND_NOTHING;
+            return;
+        }
+        flags = get_option(opt_idx).flags;
+        if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
+            xp.xp_context = EXPAND_NOTHING;
+            return;
+        }
+    }
+
+    opt_st().expand_option_append = false;
+    let mut expand_option_subtract = false;
+    if (nextchar == b'-' as c_char || nextchar == b'+' as c_char || nextchar == b'^' as c_char)
+        && crate::memory::cstr_byte_at(p, 1) == b'='
+    {
+        if nextchar == b'-' as c_char {
+            expand_option_subtract = true;
+        }
+        if nextchar == b'+' as c_char || nextchar == b'^' as c_char {
+            opt_st().expand_option_append = true;
+        }
+        p = p.wrapping_add(1);
+        nextchar = b'=' as c_char;
+    }
+    if (nextchar != b'=' as c_char && nextchar != b':' as c_char)
+        || xp.xp_context == EXPAND_BOOL_SETTINGS
+    {
+        xp.xp_context = EXPAND_UNSUCCESSFUL;
+        return;
+    }
+
+    if is_term_option {
+        opt_st().expand_option_idx = K_OPT_INVALID;
+    } else {
+        opt_st().expand_option_idx = opt_idx;
+    }
+
+    xp.xp_pattern = p.wrapping_add(1);
+    opt_st().expand_option_start_col =
+        crate::memory::ptr_offset_from(p.wrapping_add(1), xp.xp_line) as i32;
+
+    let opt_var = get_option(opt_idx).var;
+    if opt_var == (&raw mut opt_vars().p_syn).cast::<c_void>() {
+        xp.xp_context = EXPAND_OWNSYNTAX;
+        return;
+    }
+    if opt_var == (&raw mut opt_vars().p_ft).cast::<c_void>() {
+        xp.xp_context = EXPAND_FILETYPE;
+        return;
+    }
+    if opt_var == (&raw mut opt_vars().p_keymap).cast::<c_void>() {
+        xp.xp_context = EXPAND_KEYMAP;
+        return;
+    }
+
+    if expand_option_subtract {
+        xp.xp_context = EXPAND_SETTING_SUBTRACT;
+        return;
+    } else if opt_st().expand_option_idx != K_OPT_INVALID
+        && get_option(opt_st().expand_option_idx)
+            .opt_expand_cb
+            .is_some()
+    {
+        xp.xp_context = EXPAND_STRING_SETTING;
+    } else if crate::memory::cstr_is_empty(xp.xp_pattern) {
+        xp.xp_context = EXPAND_OLD_SETTING;
+        return;
+    } else {
+        xp.xp_context = EXPAND_NOTHING;
+    }
+
+    if is_term_option || option_has_type(opt_idx, ObjectType::ObjectTypeInteger) {
+        return;
+    }
+
+    if (flags & K_OPT_FLAG_EXPAND) != 0 {
+        let v = get_option(opt_idx).var;
+        if v == (&raw mut opt_vars().p_bdir).cast()
+            || v == (&raw mut opt_vars().p_dir).cast()
+            || v == (&raw mut opt_vars().p_path).cast()
+            || v == (&raw mut opt_vars().p_pp).cast()
+            || v == (&raw mut opt_vars().p_rtp).cast()
+            || v == (&raw mut opt_vars().p_cdpath).cast()
+            || v == (&raw mut opt_vars().p_vdir).cast()
+        {
+            xp.xp_context = EXPAND_DIRECTORIES;
+            if v == (&raw mut opt_vars().p_path).cast()
+                || v == (&raw mut opt_vars().p_cdpath).cast()
+            {
+                xp.xp_backslash = XP_BS_THREE;
+            } else {
+                xp.xp_backslash = XP_BS_ONE;
+            }
+        } else {
+            xp.xp_context = EXPAND_FILES;
+            if v == (&raw mut opt_vars().p_tags).cast() {
+                xp.xp_backslash = XP_BS_THREE;
+            } else {
+                xp.xp_backslash = XP_BS_ONE;
+            }
+        }
+        if (flags & K_OPT_FLAG_COMMA) != 0 {
+            xp.xp_backslash |= XP_BS_COMMA;
+        }
+    }
+
+    if (flags & K_OPT_FLAG_EXPAND) != 0
+        || (flags & K_OPT_FLAG_COMMA) != 0
+        || (flags & K_OPT_FLAG_COLON) != 0
+    {
+        p = argend.wrapping_offset(-1);
+        while p > xp.xp_pattern {
             if crate::memory::cstr_first_byte(p) == b' '
                 || crate::memory::cstr_first_byte(p) == b','
+                || (crate::memory::cstr_first_byte(p) == b':' && (flags & K_OPT_FLAG_COLON) != 0)
             {
-                while s > arg && *s.wrapping_offset(-1) == b'\\' as c_char {
+                let mut s = p;
+                while s > xp.xp_pattern && unsafe { *s.wrapping_offset(-1) } == b'\\' as c_char {
                     s = s.wrapping_offset(-1);
                 }
-            }
-            if crate::memory::cstr_first_byte(p) == b' '
-                && (crate::memory::ptr_offset_from(p, s) & 1) == 0
-            {
-                p = p.wrapping_add(1);
-                break;
-            }
-            p = p.wrapping_offset(-1);
-        }
-        if crate::memory::cstr_prefix_bytes(p, 2) == &b"no"[..2] {
-            xp.xp_context = EXPAND_BOOL_SETTINGS;
-            xp.xp_prefix = XP_PREFIX_NO;
-            p = p.wrapping_add(2);
-        } else if crate::memory::cstr_prefix_bytes(p, 3) == &b"inv"[..3] {
-            xp.xp_context = EXPAND_BOOL_SETTINGS;
-            xp.xp_prefix = XP_PREFIX_INV;
-            p = p.wrapping_add(3);
-        }
-        xp.xp_pattern = p;
-        arg = p;
+                #[cfg(windows)]
+                let comma_unesc = crate::memory::cstr_first_byte(p) == b','
+                    && (flags & K_OPT_FLAG_COMMA) != 0
+                    && crate::memory::ptr_offset_from(p, s) < 1;
+                #[cfg(not(windows))]
+                let comma_unesc = crate::memory::cstr_first_byte(p) == b','
+                    && (flags & K_OPT_FLAG_COMMA) != 0
+                    && p.offset_from(s) < 2;
 
-        let mut nextchar: c_char;
-        let mut flags: u32 = 0;
-        let mut opt_idx: OptIndex = 0;
-        let mut is_term_option = false;
-
-        if crate::memory::cstr_first_byte(arg) == b'<' {
-            while crate::memory::cstr_first_byte(p) != b'>' {
-                if crate::memory::cstr_is_empty(p) {
-                    return;
-                }
-                p = p.wrapping_add(1);
-            }
-            p = p.wrapping_add(1);
-            let key = get_special_key_code(arg.wrapping_add(1));
-            if key == 0 {
-                xp.xp_context = EXPAND_NOTHING;
-                return;
-            }
-            nextchar = *p;
-            is_term_option = true;
-            opt_st().expand_option_name[2] = key2termcap0(key) as c_char;
-            opt_st().expand_option_name[3] = key2termcap1(key) as c_char;
-        } else if crate::memory::cstr_first_byte(p) == b't'
-            && crate::memory::cstr_byte_at(p, 1) == b'_'
-        {
-            p = p.wrapping_add(2);
-            if !crate::memory::cstr_is_empty(p) {
-                p = p.wrapping_add(1);
-            }
-            if crate::memory::cstr_is_empty(p) {
-                return;
-            }
-            p = p.wrapping_add(1);
-            nextchar = *p;
-            is_term_option = true;
-            opt_st().expand_option_name[2] = *p.wrapping_offset(-2);
-            opt_st().expand_option_name[3] = *p.wrapping_offset(-1);
-        } else {
-            while ascii_isalnum(crate::memory::cstr_first_char(p))
-                || crate::memory::cstr_first_byte(p) == b'_'
-                || crate::memory::cstr_first_byte(p) == b'*'
-            {
-                p = p.wrapping_add(1);
-            }
-            if crate::memory::cstr_is_empty(p) {
-                return;
-            }
-            nextchar = *p;
-            opt_idx = find_option_len(arg, crate::memory::ptr_offset_from(p, arg) as usize);
-            if opt_idx == K_OPT_INVALID || is_option_hidden(opt_idx) {
-                xp.xp_context = EXPAND_NOTHING;
-                return;
-            }
-            flags = get_option(opt_idx).flags;
-            if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
-                xp.xp_context = EXPAND_NOTHING;
-                return;
-            }
-        }
-
-        opt_st().expand_option_append = false;
-        let mut expand_option_subtract = false;
-        if (nextchar == b'-' as c_char || nextchar == b'+' as c_char || nextchar == b'^' as c_char)
-            && crate::memory::cstr_byte_at(p, 1) == b'='
-        {
-            if nextchar == b'-' as c_char {
-                expand_option_subtract = true;
-            }
-            if nextchar == b'+' as c_char || nextchar == b'^' as c_char {
-                opt_st().expand_option_append = true;
-            }
-            p = p.wrapping_add(1);
-            nextchar = b'=' as c_char;
-        }
-        if (nextchar != b'=' as c_char && nextchar != b':' as c_char)
-            || xp.xp_context == EXPAND_BOOL_SETTINGS
-        {
-            xp.xp_context = EXPAND_UNSUCCESSFUL;
-            return;
-        }
-
-        if is_term_option {
-            opt_st().expand_option_idx = K_OPT_INVALID;
-        } else {
-            opt_st().expand_option_idx = opt_idx;
-        }
-
-        xp.xp_pattern = p.wrapping_add(1);
-        opt_st().expand_option_start_col =
-            crate::memory::ptr_offset_from(p.wrapping_add(1), xp.xp_line) as i32;
-
-        let opt_var = get_option(opt_idx).var;
-        if opt_var == (&raw mut opt_vars().p_syn).cast::<c_void>() {
-            xp.xp_context = EXPAND_OWNSYNTAX;
-            return;
-        }
-        if opt_var == (&raw mut opt_vars().p_ft).cast::<c_void>() {
-            xp.xp_context = EXPAND_FILETYPE;
-            return;
-        }
-        if opt_var == (&raw mut opt_vars().p_keymap).cast::<c_void>() {
-            xp.xp_context = EXPAND_KEYMAP;
-            return;
-        }
-
-        if expand_option_subtract {
-            xp.xp_context = EXPAND_SETTING_SUBTRACT;
-            return;
-        } else if opt_st().expand_option_idx != K_OPT_INVALID
-            && get_option(opt_st().expand_option_idx)
-                .opt_expand_cb
-                .is_some()
-        {
-            xp.xp_context = EXPAND_STRING_SETTING;
-        } else if crate::memory::cstr_is_empty(xp.xp_pattern) {
-            xp.xp_context = EXPAND_OLD_SETTING;
-            return;
-        } else {
-            xp.xp_context = EXPAND_NOTHING;
-        }
-
-        if is_term_option || option_has_type(opt_idx, ObjectType::ObjectTypeInteger) {
-            return;
-        }
-
-        if (flags & K_OPT_FLAG_EXPAND) != 0 {
-            let v = get_option(opt_idx).var;
-            if v == (&raw mut opt_vars().p_bdir).cast()
-                || v == (&raw mut opt_vars().p_dir).cast()
-                || v == (&raw mut opt_vars().p_path).cast()
-                || v == (&raw mut opt_vars().p_pp).cast()
-                || v == (&raw mut opt_vars().p_rtp).cast()
-                || v == (&raw mut opt_vars().p_cdpath).cast()
-                || v == (&raw mut opt_vars().p_vdir).cast()
-            {
-                xp.xp_context = EXPAND_DIRECTORIES;
-                if v == (&raw mut opt_vars().p_path).cast()
-                    || v == (&raw mut opt_vars().p_cdpath).cast()
-                {
-                    xp.xp_backslash = XP_BS_THREE;
-                } else {
-                    xp.xp_backslash = XP_BS_ONE;
-                }
-            } else {
-                xp.xp_context = EXPAND_FILES;
-                if v == (&raw mut opt_vars().p_tags).cast() {
-                    xp.xp_backslash = XP_BS_THREE;
-                } else {
-                    xp.xp_backslash = XP_BS_ONE;
-                }
-            }
-            if (flags & K_OPT_FLAG_COMMA) != 0 {
-                xp.xp_backslash |= XP_BS_COMMA;
-            }
-        }
-
-        if (flags & K_OPT_FLAG_EXPAND) != 0
-            || (flags & K_OPT_FLAG_COMMA) != 0
-            || (flags & K_OPT_FLAG_COLON) != 0
-        {
-            p = argend.wrapping_offset(-1);
-            while p > xp.xp_pattern {
-                if crate::memory::cstr_first_byte(p) == b' '
-                    || crate::memory::cstr_first_byte(p) == b','
+                if (crate::memory::cstr_first_byte(p) == b' '
+                    && ((xp.xp_backslash & XP_BS_THREE) != 0
+                        && crate::memory::ptr_offset_from(p, s) < 3))
+                    || comma_unesc
                     || (crate::memory::cstr_first_byte(p) == b':'
                         && (flags & K_OPT_FLAG_COLON) != 0)
                 {
-                    let mut s = p;
-                    while s > xp.xp_pattern && *s.wrapping_offset(-1) == b'\\' as c_char {
-                        s = s.wrapping_offset(-1);
-                    }
-                    #[cfg(windows)]
-                    let comma_unesc = crate::memory::cstr_first_byte(p) == b','
-                        && (flags & K_OPT_FLAG_COMMA) != 0
-                        && crate::memory::ptr_offset_from(p, s) < 1;
-                    #[cfg(not(windows))]
-                    let comma_unesc = crate::memory::cstr_first_byte(p) == b','
-                        && (flags & K_OPT_FLAG_COMMA) != 0
-                        && p.offset_from(s) < 2;
-
-                    if (crate::memory::cstr_first_byte(p) == b' '
-                        && ((xp.xp_backslash & XP_BS_THREE) != 0
-                            && crate::memory::ptr_offset_from(p, s) < 3))
-                        || comma_unesc
-                        || (crate::memory::cstr_first_byte(p) == b':'
-                            && (flags & K_OPT_FLAG_COLON) != 0)
-                    {
-                        xp.xp_pattern = p.wrapping_add(1);
-                        break;
-                    }
+                    xp.xp_pattern = p.wrapping_add(1);
+                    break;
                 }
-                p = p.wrapping_offset(-1);
             }
+            p = p.wrapping_offset(-1);
         }
+    }
 
-        if (flags & K_OPT_FLAG_FLAG_LIST) != 0 {
-            xp.xp_pattern = argend;
-        }
+    if (flags & K_OPT_FLAG_FLAG_LIST) != 0 {
+        xp.xp_pattern = argend;
+    }
 
-        if get_option(opt_idx).var == (&raw mut opt_vars().p_sps).cast() {
-            if crate::memory::cstr_prefix_bytes(xp.xp_pattern, 5) == &b"file:"[..5] {
-                xp.xp_pattern = xp.xp_pattern.wrapping_add(5);
-            } else if get_option(opt_st().expand_option_idx)
-                .opt_expand_cb
-                .is_some()
-            {
-                xp.xp_context = EXPAND_STRING_SETTING;
-            }
+    if get_option(opt_idx).var == (&raw mut opt_vars().p_sps).cast() {
+        if crate::memory::cstr_prefix_bytes(xp.xp_pattern, 5) == &b"file:"[..5] {
+            xp.xp_pattern = xp.xp_pattern.wrapping_add(5);
+        } else if get_option(opt_st().expand_option_idx)
+            .opt_expand_cb
+            .is_some()
+        {
+            xp.xp_context = EXPAND_STRING_SETTING;
         }
     }
 }
@@ -8185,36 +8035,34 @@ pub fn expand_string_setting(
     regmatch: &mut Regmatch,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    {
-        if opt_st().expand_option_idx == K_OPT_INVALID {
-            return false;
-        }
-        let opt = get_option(opt_st().expand_option_idx);
-        let Some(expand_cb) = opt.opt_expand_cb else {
-            return false;
-        };
-
-        let set_arg = xp
-            .xp_line
-            .wrapping_add(opt_st().expand_option_start_col as usize);
-        let mut args = Optexpand {
-            oe_varp: get_varp_scope(opt, opt_st().expand_option_flags).cast::<c_char>(),
-            oe_idx: opt_st().expand_option_idx,
-            oe_opt_value: ptr::null_mut(),
-            oe_append: opt_st().expand_option_append,
-            oe_include_orig_val: !opt_st().expand_option_append
-                && crate::memory::cstr_is_empty(set_arg),
-            oe_regmatch: regmatch,
-            oe_xp: xp,
-            oe_set_arg: set_arg,
-        };
-
-        optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
-        let buf = escape_option_str_cmdline(g_st().name_buff.as_mut_ptr());
-        args.oe_opt_value = buf.as_ptr().cast_mut();
-
-        expand_cb(&mut args, matches)
+    if opt_st().expand_option_idx == K_OPT_INVALID {
+        return false;
     }
+    let opt = get_option(opt_st().expand_option_idx);
+    let Some(expand_cb) = opt.opt_expand_cb else {
+        return false;
+    };
+
+    let set_arg = xp
+        .xp_line
+        .wrapping_add(opt_st().expand_option_start_col as usize);
+    let mut args = Optexpand {
+        oe_varp: get_varp_scope(opt, opt_st().expand_option_flags).cast::<c_char>(),
+        oe_idx: opt_st().expand_option_idx,
+        oe_opt_value: ptr::null_mut(),
+        oe_append: opt_st().expand_option_append,
+        oe_include_orig_val: !opt_st().expand_option_append
+            && crate::memory::cstr_is_empty(set_arg),
+        oe_regmatch: regmatch,
+        oe_xp: xp,
+        oe_set_arg: set_arg,
+    };
+
+    optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
+    let buf = escape_option_str_cmdline(g_st().name_buff.as_mut_ptr());
+    args.oe_opt_value = buf.as_ptr().cast_mut();
+
+    expand_cb(&mut args, matches)
 }
 
 /// Expansion handler for :set-=
@@ -8223,141 +8071,135 @@ pub fn expand_setting_subtract(
     regmatch: &mut Regmatch,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
+    if opt_st().expand_option_idx == K_OPT_INVALID
+        || option_has_type(opt_st().expand_option_idx, ObjectType::ObjectTypeInteger)
+        || is_callback_option(opt_st().expand_option_idx)
     {
-        if opt_st().expand_option_idx == K_OPT_INVALID
-            || option_has_type(opt_st().expand_option_idx, ObjectType::ObjectTypeInteger)
-            || is_callback_option(opt_st().expand_option_idx)
-        {
-            return expand_old_setting(matches);
-        }
-
-        let option_val = unsafe {
-            *(get_option_varp_scope_from(
-                opt_st().expand_option_idx,
-                opt_st().expand_option_flags,
-                curbuf_mut(),
-                curwin_ptr(),
-            )
-            .cast::<*mut c_char>())
-        };
-
-        let option_flags = get_option(opt_st().expand_option_idx).flags;
-
-        if (option_flags & K_OPT_FLAG_COMMA) != 0 {
-            if crate::memory::cstr_is_empty(option_val) {
-                return false;
-            }
-
-            let mut option_copy = crate::memory::cstr_to_cstring(option_val).into_bytes_with_nul();
-            let mut next_val = option_copy.as_mut_ptr().cast::<c_char>();
-
-            matches.clear();
-
-            loop {
-                let item = next_val;
-                let mut comma = vim_strchr(next_val, b',' as i32);
-                while !comma.is_null()
-                    && comma != next_val
-                    && unsafe { *comma.wrapping_offset(-1) } == b'\\' as c_char
-                {
-                    comma = vim_strchr(comma.wrapping_add(1), b',' as i32);
-                }
-                if !comma.is_null() {
-                    unsafe {
-                        *comma = NUL;
-                    }
-                    next_val = comma.wrapping_add(1);
-                } else {
-                    next_val = ptr::null_mut();
-                }
-
-                if !crate::memory::cstr_is_empty(item) && vim_regexec(regmatch, item, 0) {
-                    matches.push(escape_option_str_cmdline(item));
-                }
-
-                if next_val.is_null() {
-                    break;
-                }
-            }
-
-            return true;
-        } else if (option_flags & K_OPT_FLAG_FLAG_LIST) != 0 {
-            if !crate::memory::cstr_is_empty(xp.xp_pattern) {
-                return false;
-            }
-
-            let num_flags = crate::memory::cstr_len(option_val);
-            if num_flags == 0 {
-                return false;
-            }
-
-            matches.clear();
-            matches.reserve_exact(num_flags + 1);
-            matches.push(crate::memory::cstr_from_bytes(unsafe {
-                std::slice::from_raw_parts(option_val.cast::<u8>(), num_flags)
-            }));
-
-            if num_flags > 1 {
-                let flag = option_val;
-                for &flag_byte in crate::memory::cstr_as_bytes(flag) {
-                    matches.push(crate::memory::cstr_from_bytes(&[flag_byte]));
-                }
-            }
-
-            return true;
-        }
-
-        expand_old_setting(matches)
+        return expand_old_setting(matches);
     }
+
+    let option_val = unsafe {
+        *(get_option_varp_scope_from(
+            opt_st().expand_option_idx,
+            opt_st().expand_option_flags,
+            curbuf_mut(),
+            curwin_ptr(),
+        )
+        .cast::<*mut c_char>())
+    };
+
+    let option_flags = get_option(opt_st().expand_option_idx).flags;
+
+    if (option_flags & K_OPT_FLAG_COMMA) != 0 {
+        if crate::memory::cstr_is_empty(option_val) {
+            return false;
+        }
+
+        let mut option_copy = crate::memory::cstr_to_cstring(option_val).into_bytes_with_nul();
+        let mut next_val = option_copy.as_mut_ptr().cast::<c_char>();
+
+        matches.clear();
+
+        loop {
+            let item = next_val;
+            let mut comma = vim_strchr(next_val, b',' as i32);
+            while !comma.is_null()
+                && comma != next_val
+                && unsafe { *comma.wrapping_offset(-1) } == b'\\' as c_char
+            {
+                comma = vim_strchr(comma.wrapping_add(1), b',' as i32);
+            }
+            if !comma.is_null() {
+                unsafe {
+                    *comma = NUL;
+                }
+                next_val = comma.wrapping_add(1);
+            } else {
+                next_val = ptr::null_mut();
+            }
+
+            if !crate::memory::cstr_is_empty(item) && vim_regexec(regmatch, item, 0) {
+                matches.push(escape_option_str_cmdline(item));
+            }
+
+            if next_val.is_null() {
+                break;
+            }
+        }
+
+        return true;
+    } else if (option_flags & K_OPT_FLAG_FLAG_LIST) != 0 {
+        if !crate::memory::cstr_is_empty(xp.xp_pattern) {
+            return false;
+        }
+
+        let num_flags = crate::memory::cstr_len(option_val);
+        if num_flags == 0 {
+            return false;
+        }
+
+        matches.clear();
+        matches.reserve_exact(num_flags + 1);
+        matches.push(crate::memory::cstr_from_bytes(unsafe {
+            std::slice::from_raw_parts(option_val.cast::<u8>(), num_flags)
+        }));
+
+        if num_flags > 1 {
+            let flag = option_val;
+            for &flag_byte in crate::memory::cstr_as_bytes(flag) {
+                matches.push(crate::memory::cstr_from_bytes(&[flag_byte]));
+            }
+        }
+
+        return true;
+    }
+
+    expand_old_setting(matches)
 }
 
 fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
-    {
-        let opt = get_option(opt_idx);
-        let varp = get_varp_scope(opt, opt_flags);
-        assert!(!varp.is_null());
+    let opt = get_option(opt_idx);
+    let varp = get_varp_scope(opt, opt_flags);
+    assert!(!varp.is_null());
 
-        let namebuf_ptr = g_st().name_buff.as_mut_ptr();
-        let mut wc: OptInt = 0;
-        if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
-            xstrlcpy(namebuf_ptr, get_special_key_name(wc as i32, 0), MAXPATHL);
-            return;
-        }
-        if wc != 0 {
-            xstrlcpy(namebuf_ptr, transchar(wc as i32), MAXPATHL);
-            return;
-        }
-        if (opt.flags & K_OPT_FLAG_EXPAND) != 0
-            && !is_callback_option(opt_idx)
-            && option_has_type(opt_idx, ObjectType::ObjectTypeString)
-        {
-            home_replace(
-                None,
-                unsafe { *(varp.cast::<*mut c_char>()) },
-                namebuf_ptr,
-                MAXPATHL,
-                false,
-            );
-            return;
-        }
-
-        let o = opt_from_varp(opt_idx, varp);
-        let s = optval_to_cstr(o, false);
-        xstrlcpy(namebuf_ptr, s.as_ptr(), MAXPATHL);
-        optval_free_read(opt_idx, o);
+    let namebuf_ptr = g_st().name_buff.as_mut_ptr();
+    let mut wc: OptInt = 0;
+    if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
+        xstrlcpy(namebuf_ptr, get_special_key_name(wc as i32, 0), MAXPATHL);
+        return;
     }
+    if wc != 0 {
+        xstrlcpy(namebuf_ptr, transchar(wc as i32), MAXPATHL);
+        return;
+    }
+    if (opt.flags & K_OPT_FLAG_EXPAND) != 0
+        && !is_callback_option(opt_idx)
+        && option_has_type(opt_idx, ObjectType::ObjectTypeString)
+    {
+        home_replace(
+            None,
+            unsafe { *(varp.cast::<*mut c_char>()) },
+            namebuf_ptr,
+            MAXPATHL,
+            false,
+        );
+        return;
+    }
+
+    let o = opt_from_varp(opt_idx, varp);
+    let s = optval_to_cstr(o, false);
+    xstrlcpy(namebuf_ptr, s.as_ptr(), MAXPATHL);
+    optval_free_read(opt_idx, o);
 }
 
 fn wc_use_keyname(p: *const OptInt, wcp: &mut OptInt) -> i32 {
-    {
-        if p == &raw const opt_vars().p_wc || p == &raw const opt_vars().p_wcm {
-            *wcp = unsafe { *p };
-            if is_special(*wcp as i32) || find_special_key_in_table(*wcp as i32) >= 0 {
-                return 1;
-            }
+    if p == &raw const opt_vars().p_wc || p == &raw const opt_vars().p_wcm {
+        *wcp = unsafe { *p };
+        if is_special(*wcp as i32) || find_special_key_in_table(*wcp as i32) >= 0 {
+            return 1;
         }
-        0
     }
+    0
 }
 
 pub fn shortmess(x: i32) -> bool {
@@ -8379,18 +8221,14 @@ pub fn vimrc_found(fname: impl crate::strings::IntoCCharPtr, envname: &std::ffi:
 
 /// Check whether global option has been set.
 pub fn option_was_set(opt_idx: OptIndex) -> bool {
-    {
-        assert!(opt_idx != K_OPT_INVALID);
-        (get_option(opt_idx).flags & K_OPT_FLAG_WAS_SET) != 0
-    }
+    assert!(opt_idx != K_OPT_INVALID);
+    (get_option(opt_idx).flags & K_OPT_FLAG_WAS_SET) != 0
 }
 
 /// Reset the flag indicating option "name" was set.
 pub fn reset_option_was_set(opt_idx: OptIndex) {
-    {
-        assert!(opt_idx != K_OPT_INVALID);
-        get_option(opt_idx).flags &= !K_OPT_FLAG_WAS_SET;
-    }
+    assert!(opt_idx != K_OPT_INVALID);
+    get_option(opt_idx).flags &= !K_OPT_FLAG_WAS_SET;
 }
 
 /// Parse 'cursorlineopt', writing flags only when the value is valid.
@@ -8481,123 +8319,107 @@ fn didset_options_sctx(opt_flags: i32, opts: &[i32]) {
 
 /// Check if backspacing over something is allowed.
 pub fn can_bs(what: i32) -> bool {
-    {
-        if what == BS_START && bt_prompt(Some(crate::globals::curbuf_mut())) {
-            return false;
-        }
-
-        if what == BS_EOL && !mc_ins_replay_can_join() {
-            return false;
-        }
-
-        if crate::memory::cstr_first_byte(opt_vars().p_bs) == b'2' {
-            return what != BS_NOSTOP;
-        }
-
-        crate::strings::vim_haschr(opt_vars().p_bs, what)
+    if what == BS_START && bt_prompt(Some(crate::globals::curbuf_mut())) {
+        return false;
     }
+
+    if what == BS_EOL && !mc_ins_replay_can_join() {
+        return false;
+    }
+
+    if crate::memory::cstr_first_byte(opt_vars().p_bs) == b'2' {
+        return what != BS_NOSTOP;
+    }
+
+    crate::strings::vim_haschr(opt_vars().p_bs, what)
 }
 
 /// Get the local or global value of 'backupcopy' flags.
 pub fn get_bkc_flags(buf: &mut FileBuf) -> u32 {
-    {
-        if buf.b_bkc_flags != 0 {
-            buf.b_bkc_flags
-        } else {
-            opt_vars().bkc_flags
-        }
+    if buf.b_bkc_flags != 0 {
+        buf.b_bkc_flags
+    } else {
+        opt_vars().bkc_flags
     }
 }
 
 /// Get the local or global value of 'formatlistpat'.
 pub fn get_flp_value(buf: &mut FileBuf) -> *mut c_char {
-    {
-        if crate::memory::cstr_is_empty(buf.b_p_flp) {
-            opt_vars().p_flp
-        } else {
-            buf.b_p_flp
-        }
+    if crate::memory::cstr_is_empty(buf.b_p_flp) {
+        opt_vars().p_flp
+    } else {
+        buf.b_p_flp
     }
 }
 
 /// Get the local or global value of 'virtualedit' flags.
 pub fn get_ve_flags(wp: &mut WinInfoInfo) -> u32 {
-    {
-        let f = if wp.w_onebuf_opt.wo_ve_flags != 0 {
-            wp.w_onebuf_opt.wo_ve_flags
-        } else {
-            opt_vars().ve_flags
-        };
-        f & !(K_OPT_VE_FLAG_NONE | K_OPT_VE_FLAG_NONE_U)
-    }
+    let f = if wp.w_onebuf_opt.wo_ve_flags != 0 {
+        wp.w_onebuf_opt.wo_ve_flags
+    } else {
+        opt_vars().ve_flags
+    };
+    f & !(K_OPT_VE_FLAG_NONE | K_OPT_VE_FLAG_NONE_U)
 }
 
 /// Get the local or global value of 'showbreak'.
 pub fn get_showbreak_value(win: &mut WinInfoInfo) -> *mut c_char {
-    {
-        let sbr = win.w_onebuf_opt.wo_sbr;
-        if crate::memory::cstr_is_empty(sbr) {
-            return opt_vars().p_sbr;
-        }
-        if crate::memory::cstr_as_bytes(sbr) == b"NONE" {
-            return EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
-        }
-        sbr
+    let sbr = win.w_onebuf_opt.wo_sbr;
+    if crate::memory::cstr_is_empty(sbr) {
+        return opt_vars().p_sbr;
     }
+    if crate::memory::cstr_as_bytes(sbr) == b"NONE" {
+        return EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+    }
+    sbr
 }
 
 /// Return the current end-of-line type: EOL_DOS, EOL_UNIX or EOL_MAC.
 pub fn get_fileformat(buf: &FileBuf) -> i32 {
-    {
-        let c = crate::memory::cstr_first_byte(buf.b_p_ff);
-        if buf.b_p_bin != 0 || c == b'u' {
-            return EOL_UNIX;
-        }
-        if c == b'm' {
-            return EOL_MAC;
-        }
-        EOL_DOS
+    let c = crate::memory::cstr_first_byte(buf.b_p_ff);
+    if buf.b_p_bin != 0 || c == b'u' {
+        return EOL_UNIX;
     }
+    if c == b'm' {
+        return EOL_MAC;
+    }
+    EOL_DOS
 }
 
 /// Like get_fileformat(), but override 'fileformat' with "p" for "++opt=val" argument.
 pub fn get_fileformat_force(buf: &FileBuf, eap: Option<&Exarg>) -> i32 {
+    let c = if let Some(eap) = eap
+        && eap.force_ff != 0
     {
-        let c = if let Some(eap) = eap
-            && eap.force_ff != 0
+        eap.force_ff as u8
+    } else {
+        let is_bin = if let Some(eap) = eap
+            && eap.force_bin != 0
         {
-            eap.force_ff as u8
+            eap.force_bin == FORCE_BIN
         } else {
-            let is_bin = if let Some(eap) = eap
-                && eap.force_bin != 0
-            {
-                eap.force_bin == FORCE_BIN
-            } else {
-                buf.b_p_bin != 0
-            };
-            if is_bin {
-                return EOL_UNIX;
-            }
-            crate::memory::cstr_first_byte(buf.b_p_ff)
+            buf.b_p_bin != 0
         };
-        if c == b'u' {
+        if is_bin {
             return EOL_UNIX;
         }
-        if c == b'm' {
-            return EOL_MAC;
-        }
-        EOL_DOS
+        crate::memory::cstr_first_byte(buf.b_p_ff)
+    };
+    if c == b'u' {
+        return EOL_UNIX;
     }
+    if c == b'm' {
+        return EOL_MAC;
+    }
+    EOL_DOS
 }
 
 /// Return the default fileformat from 'fileformats'.
 pub fn default_fileformat() -> i32 {
-    {
-        match crate::memory::cstr_first_byte(opt_vars().p_ffs) {
-            b'm' => EOL_MAC,
-            b'd' => EOL_DOS,
-            _ => EOL_UNIX,
-        }
+    match crate::memory::cstr_first_byte(opt_vars().p_ffs) {
+        b'm' => EOL_MAC,
+        b'd' => EOL_DOS,
+        _ => EOL_UNIX,
     }
 }
 
@@ -8640,45 +8462,48 @@ pub fn copy_option_part(
     maxlen: usize,
     sep_chars: &std::ffi::CStr,
 ) -> usize {
-    unsafe {
-        let mut len: usize = 0;
-        let mut p = *option;
+    let mut len: usize = 0;
+    let mut p = unsafe { *option };
 
-        if crate::memory::cstr_first_byte(p) == b'.' {
+    if crate::memory::cstr_first_byte(p) == b'.' {
+        unsafe {
             *buf.wrapping_add(len) = *p;
-            len += 1;
-            p = p.wrapping_add(1);
         }
-        while !crate::memory::cstr_is_empty(p)
-            && !crate::strings::vim_haschr(
+        len += 1;
+        p = p.wrapping_add(1);
+    }
+    while !crate::memory::cstr_is_empty(p)
+        && !crate::strings::vim_haschr(sep_chars.as_ptr(), crate::memory::cstr_first_byte(p) as i32)
+    {
+        if crate::memory::cstr_first_byte(p) == b'\\'
+            && crate::strings::vim_haschr(
                 sep_chars.as_ptr(),
-                crate::memory::cstr_first_byte(p) as i32,
+                crate::memory::cstr_byte_at(p, 1) as i32,
             )
         {
-            if crate::memory::cstr_first_byte(p) == b'\\'
-                && crate::strings::vim_haschr(
-                    sep_chars.as_ptr(),
-                    crate::memory::cstr_byte_at(p, 1) as i32,
-                )
-            {
-                p = p.wrapping_add(1);
-            }
-            if len < maxlen - 1 {
+            p = p.wrapping_add(1);
+        }
+        if len < maxlen - 1 {
+            unsafe {
                 *buf.wrapping_add(len) = *p;
-                len += 1;
             }
-            p = p.wrapping_add(1);
+            len += 1;
         }
-        *buf.wrapping_add(len) = NUL;
-
-        if !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b',' {
-            p = p.wrapping_add(1);
-        }
-        p = skip_to_option_part(p);
-
-        *option = p;
-        len
+        p = p.wrapping_add(1);
     }
+    unsafe {
+        *buf.wrapping_add(len) = NUL;
+    }
+
+    if !crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b',' {
+        p = p.wrapping_add(1);
+    }
+    p = skip_to_option_part(p);
+
+    unsafe {
+        *option = p;
+    }
+    len
 }
 
 /// Iterates comma-separated parts of option, splitting each part at its first ':' into key/value.
@@ -8748,68 +8573,60 @@ pub fn fish_like_shell() -> bool {
 
 /// Get window or buffer local options.
 pub fn get_winbuf_options(bufopt: i32) -> &'static mut TvDict {
-    {
-        let d = tv_dict_alloc();
+    let d = tv_dict_alloc();
 
-        for opt_idx in 0..K_OPT_COUNT {
-            let opt = get_option(opt_idx);
+    for opt_idx in 0..K_OPT_COUNT {
+        let opt = get_option(opt_idx);
 
-            if (bufopt != 0 && option_has_scope(opt_idx, K_OPT_SCOPE_BUF))
-                || (bufopt == 0 && option_has_scope(opt_idx, K_OPT_SCOPE_WIN))
-            {
-                let varp = get_varp(&mut *opt);
-                if !varp.is_null() {
-                    let ov = opt_from_varp(opt_idx, varp);
-                    let mut opt_tv = opt_to_tv(ov, true);
-                    tv_dict_add_tv(
-                        &mut *d,
-                        opt.fullname.as_ptr(),
-                        opt.fullname.to_bytes().len(),
-                        &mut opt_tv,
-                    );
-                    tv_clear(&mut opt_tv);
-                    optval_free_read(opt_idx, ov);
-                }
+        if (bufopt != 0 && option_has_scope(opt_idx, K_OPT_SCOPE_BUF))
+            || (bufopt == 0 && option_has_scope(opt_idx, K_OPT_SCOPE_WIN))
+        {
+            let varp = get_varp(&mut *opt);
+            if !varp.is_null() {
+                let ov = opt_from_varp(opt_idx, varp);
+                let mut opt_tv = opt_to_tv(ov, true);
+                tv_dict_add_tv(
+                    &mut *d,
+                    opt.fullname.as_ptr(),
+                    opt.fullname.to_bytes().len(),
+                    &mut opt_tv,
+                );
+                tv_clear(&mut opt_tv);
+                optval_free_read(opt_idx, ov);
             }
         }
-
-        d
     }
+
+    d
 }
 
 /// Return the effective 'scrolloff' value for the current window.
 pub fn get_scrolloff_value(wp: &mut WinInfoInfo) -> i64 {
-    {
-        if (g_st().state_global & MODE_TERMINAL) != 0 && !wp.buf_mut().terminal.is_null() {
-            return 0;
-        }
-        if wp.w_onebuf_opt.wo_so < 0 {
-            opt_vars().p_so
-        } else {
-            wp.w_onebuf_opt.wo_so
-        }
+    if (g_st().state_global & MODE_TERMINAL) != 0 && !wp.buf_mut().terminal.is_null() {
+        return 0;
+    }
+    if wp.w_onebuf_opt.wo_so < 0 {
+        opt_vars().p_so
+    } else {
+        wp.w_onebuf_opt.wo_so
     }
 }
 
 /// Return the effective 'scrolloffpad' value for the current window.
 pub fn get_scrolloffpad_value(wp: &mut WinInfoInfo) -> i64 {
-    {
-        if wp.w_onebuf_opt.wo_sop == -1 {
-            opt_vars().p_sop
-        } else {
-            wp.w_onebuf_opt.wo_sop
-        }
+    if wp.w_onebuf_opt.wo_sop == -1 {
+        opt_vars().p_sop
+    } else {
+        wp.w_onebuf_opt.wo_sop
     }
 }
 
 /// Return the effective 'sidescrolloff' value for the current window.
 pub fn get_sidescrolloff_value(wp: &mut WinInfoInfo) -> i64 {
-    {
-        if wp.w_onebuf_opt.wo_siso < 0 {
-            opt_vars().p_siso
-        } else {
-            wp.w_onebuf_opt.wo_siso
-        }
+    if wp.w_onebuf_opt.wo_siso < 0 {
+        opt_vars().p_siso
+    } else {
+        wp.w_onebuf_opt.wo_siso
     }
 }
 
@@ -8822,40 +8639,35 @@ pub fn get_option_info(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    {
-        let opt_idx = find_option_len(name.data, name.size);
-        if opt_idx == K_OPT_INVALID {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Invalid option (not found): '%s'",
-                name.data,
-            );
-            return Dict::new();
-        }
-
-        option_info_dict(
-            &mut *get_option(opt_idx),
-            opt_flags,
-            unsafe { &mut *buf },
-            win,
-            arena,
-        )
+    let opt_idx = find_option_len(name.data, name.size);
+    if opt_idx == K_OPT_INVALID {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Invalid option (not found): '%s'",
+            name.data,
+        );
+        return Dict::new();
     }
+
+    option_info_dict(
+        &mut *get_option(opt_idx),
+        opt_flags,
+        unsafe { &mut *buf },
+        win,
+        arena,
+    )
 }
 
 /// Metadata Dict for every option, keyed by full name.
 pub fn get_all_options_info(arena: &mut Arena) -> Dict {
-    {
-        let mut retval = arena_dict(arena, K_OPT_COUNT as usize);
-        for opt_idx in 0..K_OPT_COUNT {
-            let opt = get_option(opt_idx);
-            let opt_dict =
-                option_info_dict(&mut *opt, OPT_GLOBAL, curbuf_mut(), curwin_mut(), arena);
-            put_c(&mut retval, opt.fullname.as_ptr(), dict_obj(opt_dict));
-        }
-        retval
+    let mut retval = arena_dict(arena, K_OPT_COUNT as usize);
+    for opt_idx in 0..K_OPT_COUNT {
+        let opt = get_option(opt_idx);
+        let opt_dict = option_info_dict(&mut *opt, OPT_GLOBAL, curbuf_mut(), curwin_mut(), arena);
+        put_c(&mut retval, opt.fullname.as_ptr(), dict_obj(opt_dict));
     }
+    retval
 }
 
 fn option_info_dict(
@@ -8865,104 +8677,102 @@ fn option_info_dict(
     win: &mut WinInfoInfo,
     arena: &mut Arena,
 ) -> Dict {
-    {
-        let opt_idx = get_opt_idx(&raw mut *opt);
-        let mut dict = arena_dict(arena, 13);
+    let opt_idx = get_opt_idx(&raw mut *opt);
+    let mut dict = arena_dict(arena, 13);
 
-        put_c(&mut dict, c"name", cstr_as_obj(opt.fullname.as_ptr()));
-        put_c(
-            &mut dict,
-            c"shortname",
-            cstr_as_obj(opt.shortname.map_or(ptr::null(), |s| s.as_ptr())),
-        );
+    put_c(&mut dict, c"name", cstr_as_obj(opt.fullname.as_ptr()));
+    put_c(
+        &mut dict,
+        c"shortname",
+        cstr_as_obj(opt.shortname.map_or(ptr::null(), |s| s.as_ptr())),
+    );
 
-        let scope = if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
-            c"buf".as_ptr()
-        } else if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
-            c"win".as_ptr()
-        } else if option_has_scope(opt_idx, K_OPT_SCOPE_TAB) {
-            c"tab".as_ptr()
-        } else {
-            c"global".as_ptr()
-        };
+    let scope = if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
+        c"buf".as_ptr()
+    } else if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
+        c"win".as_ptr()
+    } else if option_has_scope(opt_idx, K_OPT_SCOPE_TAB) {
+        c"tab".as_ptr()
+    } else {
+        c"global".as_ptr()
+    };
 
-        put_c(&mut dict, c"scope", cstr_as_obj(scope));
+    put_c(&mut dict, c"scope", cstr_as_obj(scope));
 
-        put_c(
-            &mut dict,
-            c"global_local",
-            boolean_obj(option_is_global_local(opt_idx)),
-        );
-        put_c(
-            &mut dict,
-            c"commalist",
-            boolean_obj((opt.flags & K_OPT_FLAG_COMMA) != 0),
-        );
-        put_c(
-            &mut dict,
-            c"flaglist",
-            boolean_obj((opt.flags & K_OPT_FLAG_FLAG_LIST) != 0),
-        );
+    put_c(
+        &mut dict,
+        c"global_local",
+        boolean_obj(option_is_global_local(opt_idx)),
+    );
+    put_c(
+        &mut dict,
+        c"commalist",
+        boolean_obj((opt.flags & K_OPT_FLAG_COMMA) != 0),
+    );
+    put_c(
+        &mut dict,
+        c"flaglist",
+        boolean_obj((opt.flags & K_OPT_FLAG_FLAG_LIST) != 0),
+    );
 
-        put_c(
-            &mut dict,
-            c"was_set",
-            boolean_obj((opt.flags & K_OPT_FLAG_WAS_SET) != 0),
-        );
+    put_c(
+        &mut dict,
+        c"was_set",
+        boolean_obj((opt.flags & K_OPT_FLAG_WAS_SET) != 0),
+    );
 
-        let mut script_ctx = Sctx {
-            sc_sid: 0,
-            sc_seq: 0,
-            sc_lnum: 0,
-            sc_chan: 0,
-        };
-        if opt_flags == OPT_GLOBAL {
-            script_ctx = opt.script_ctx;
-        } else {
-            if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
-                script_ctx = buf.b_p_script_ctx[opt.scope_idx[K_OPT_SCOPE_BUF as usize] as usize];
-            }
-            if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
-                script_ctx = win.w_onebuf_opt.wo_script_ctx
-                    [opt.scope_idx[K_OPT_SCOPE_WIN as usize] as usize];
-            }
-            if opt_flags != OPT_LOCAL && script_ctx.sc_sid == 0 {
-                script_ctx = opt.script_ctx;
-            }
+    let mut script_ctx = Sctx {
+        sc_sid: 0,
+        sc_seq: 0,
+        sc_lnum: 0,
+        sc_chan: 0,
+    };
+    if opt_flags == OPT_GLOBAL {
+        script_ctx = opt.script_ctx;
+    } else {
+        if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
+            script_ctx = buf.b_p_script_ctx[opt.scope_idx[K_OPT_SCOPE_BUF as usize] as usize];
         }
-
-        put_c(
-            &mut dict,
-            c"last_set_sid",
-            integer_obj(i64::from(script_ctx.sc_sid)),
-        );
-        put_c(
-            &mut dict,
-            c"last_set_linenr",
-            integer_obj(i64::from(script_ctx.sc_lnum)),
-        );
-        put_c(
-            &mut dict,
-            c"last_set_chan",
-            integer_obj(script_ctx.sc_chan as i64),
-        );
-
-        put_c(
-            &mut dict,
-            c"type",
-            cstr_as_obj(optval_type_name(
-                get_option(get_opt_idx(&raw mut *opt)).opt_type,
-            )),
-        );
-        put_c(&mut dict, c"default", opt.def_val);
-        put_c(
-            &mut dict,
-            c"allows_duplicates",
-            boolean_obj((opt.flags & K_OPT_FLAG_NO_DUP) == 0),
-        );
-
-        dict
+        if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
+            script_ctx =
+                win.w_onebuf_opt.wo_script_ctx[opt.scope_idx[K_OPT_SCOPE_WIN as usize] as usize];
+        }
+        if opt_flags != OPT_LOCAL && script_ctx.sc_sid == 0 {
+            script_ctx = opt.script_ctx;
+        }
     }
+
+    put_c(
+        &mut dict,
+        c"last_set_sid",
+        integer_obj(i64::from(script_ctx.sc_sid)),
+    );
+    put_c(
+        &mut dict,
+        c"last_set_linenr",
+        integer_obj(i64::from(script_ctx.sc_lnum)),
+    );
+    put_c(
+        &mut dict,
+        c"last_set_chan",
+        integer_obj(script_ctx.sc_chan as i64),
+    );
+
+    put_c(
+        &mut dict,
+        c"type",
+        cstr_as_obj(optval_type_name(
+            get_option(get_opt_idx(&raw mut *opt)).opt_type,
+        )),
+    );
+    put_c(&mut dict, c"default", opt.def_val);
+    put_c(
+        &mut dict,
+        c"allows_duplicates",
+        boolean_obj((opt.flags & K_OPT_FLAG_NO_DUP) == 0),
+    );
+
+    dict
 }
 
 #[cfg(test)]

@@ -1631,17 +1631,15 @@ pub fn do_digraph(mut c: i32) -> i32 {
 
 /// Find a digraph for `val` (`get_digraph_for_char`).
 pub fn get_digraph_for_char(val: i32) -> *mut c_char {
-    {
-        for dp in digr_st().user_digraphs.iter().chain(DIGRAPHDEFAULT.iter()) {
-            if dp.result == val {
-                digr_st().digraph_for_char_buf[0] = dp.char1 as c_char;
-                digr_st().digraph_for_char_buf[1] = dp.char2 as c_char;
-                digr_st().digraph_for_char_buf[2] = NUL;
-                return &raw mut digr_st().digraph_for_char_buf[0];
-            }
+    for dp in digr_st().user_digraphs.iter().chain(DIGRAPHDEFAULT.iter()) {
+        if dp.result == val {
+            digr_st().digraph_for_char_buf[0] = dp.char1 as c_char;
+            digr_st().digraph_for_char_buf[1] = dp.char2 as c_char;
+            digr_st().digraph_for_char_buf[2] = NUL;
+            return &raw mut digr_st().digraph_for_char_buf[0];
         }
-        ptr::null_mut()
     }
+    ptr::null_mut()
 }
 
 /// Get a digraph (`get_digraph`).
@@ -1716,21 +1714,19 @@ pub fn digraph_get(char1: i32, char2: i32, meta_char: bool) -> i32 {
 
 /// Add a digraph to the digraph table (`registerdigraph`).
 fn registerdigraph(char1: i32, char2: i32, n: i32) {
-    {
-        let user_vec = &mut digr_st().user_digraphs;
-        for dp in user_vec.iter_mut() {
-            if i32::from(dp.char1) == char1 && i32::from(dp.char2) == char2 {
-                dp.result = n;
-                return;
-            }
+    let user_vec = &mut digr_st().user_digraphs;
+    for dp in user_vec.iter_mut() {
+        if i32::from(dp.char1) == char1 && i32::from(dp.char2) == char2 {
+            dp.result = n;
+            return;
         }
-
-        user_vec.push(DigraphEntry {
-            char1: char1 as u8,
-            char2: char2 as u8,
-            result: n,
-        });
     }
+
+    user_vec.push(DigraphEntry {
+        char1: char1 as u8,
+        char2: char2 as u8,
+        result: n,
+    });
 }
 
 /// Check the characters are valid for a digraph (`check_digraph_chars_valid`).
@@ -1754,31 +1750,29 @@ pub fn check_digraph_chars_valid(char1: i32, char2: i32) -> bool {
 
 /// Add the digraphs in the argument to the digraph table (`putdigraph`).
 pub fn putdigraph(mut str: *mut c_char) {
-    {
-        while !crate::memory::cstr_is_empty(str) {
-            str = skipwhite(str);
-            if crate::memory::cstr_is_empty(str) {
-                return;
-            }
-            let char1 = crate::memory::cstr_first_byte(str);
-            str = str.wrapping_add(1);
-            let char2 = crate::memory::cstr_first_byte(str);
-            str = str.wrapping_add(1);
-
-            if !check_digraph_chars_valid(i32::from(char1), i32::from(char2)) {
-                return;
-            }
-
-            str = skipwhite(str);
-
-            if !ascii_isdigit(crate::memory::cstr_first_char(str)) {
-                emsg(gettext(E_NUMBER_EXP));
-                return;
-            }
-            let n = getdigits_int(&raw mut str, true, 0);
-
-            registerdigraph(i32::from(char1), i32::from(char2), n);
+    while !crate::memory::cstr_is_empty(str) {
+        str = skipwhite(str);
+        if crate::memory::cstr_is_empty(str) {
+            return;
         }
+        let char1 = crate::memory::cstr_first_byte(str);
+        str = str.wrapping_add(1);
+        let char2 = crate::memory::cstr_first_byte(str);
+        str = str.wrapping_add(1);
+
+        if !check_digraph_chars_valid(i32::from(char1), i32::from(char2)) {
+            return;
+        }
+
+        str = skipwhite(str);
+
+        if !ascii_isdigit(crate::memory::cstr_first_char(str)) {
+            emsg(gettext(E_NUMBER_EXP));
+            return;
+        }
+        let n = getdigits_int(&raw mut str, true, 0);
+
+        registerdigraph(i32::from(char1), i32::from(char2), n);
     }
 }
 
@@ -1792,12 +1786,68 @@ fn digraph_header(msg: impl crate::strings::IntoCCharPtr) {
 }
 
 pub fn listdigraphs(use_headers: bool) {
-    {
-        let mut previous: DigrResult = 0;
+    let mut previous: DigrResult = 0;
 
-        msg_ext_set_kind(c"list_cmd");
-        msg_putchar(b'\n' as i32);
+    msg_ext_set_kind(c"list_cmd");
+    msg_putchar(b'\n' as i32);
 
+    for dp in DIGRAPHDEFAULT {
+        if g_st().got_int {
+            break;
+        }
+        let tmp = DigraphEntry {
+            char1: dp.char1,
+            char2: dp.char2,
+            result: getexactdigraph(i32::from(dp.char1), i32::from(dp.char2), false),
+        };
+
+        if tmp.result != 0 && tmp.result != i32::from(tmp.char2) {
+            printdigraph(
+                &tmp,
+                if use_headers {
+                    &raw mut previous
+                } else {
+                    ptr::null_mut()
+                },
+            );
+        }
+        fast_breakcheck();
+    }
+
+    for dp in digr_st().user_digraphs.as_slice() {
+        if g_st().got_int {
+            break;
+        }
+        if previous >= 0 && use_headers {
+            digraph_header(gettext(c"Custom"));
+        }
+        previous = -1;
+        printdigraph(dp, ptr::null_mut());
+        fast_breakcheck();
+    }
+}
+
+fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
+    let l2 = tv_list_alloc(2);
+    tv_list_append_list(&mut *l, l2);
+
+    let mut buf = [0 as c_char; 30];
+    buf[0] = dp.char1 as c_char;
+    buf[1] = dp.char2 as c_char;
+    buf[2] = NUL;
+    tv_list_append_string(&mut *l2, buf.as_ptr(), -1);
+
+    let len = utf_char2bytes(dp.result, buf.as_mut_ptr()) as usize;
+    buf[len] = NUL;
+    tv_list_append_string(&mut *l2, buf.as_ptr(), -1);
+}
+
+pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
+    let user_slice = digr_st().user_digraphs.as_slice();
+    let cap = (DIGRAPHDEFAULT.len() + user_slice.len()) as isize;
+    tv_list_alloc_ret(&mut *rettv, cap);
+
+    if list_all {
         for dp in DIGRAPHDEFAULT {
             if g_st().got_int {
                 break;
@@ -1807,242 +1857,170 @@ pub fn listdigraphs(use_headers: bool) {
                 char2: dp.char2,
                 result: getexactdigraph(i32::from(dp.char1), i32::from(dp.char2), false),
             };
-
             if tmp.result != 0 && tmp.result != i32::from(tmp.char2) {
-                printdigraph(
-                    &tmp,
-                    if use_headers {
-                        &raw mut previous
-                    } else {
-                        ptr::null_mut()
-                    },
-                );
+                digraph_getlist_appendpair(&tmp, rettv.vval.v_list_ref());
             }
-            fast_breakcheck();
-        }
-
-        for dp in digr_st().user_digraphs.as_slice() {
-            if g_st().got_int {
-                break;
-            }
-            if previous >= 0 && use_headers {
-                digraph_header(gettext(c"Custom"));
-            }
-            previous = -1;
-            printdigraph(dp, ptr::null_mut());
-            fast_breakcheck();
         }
     }
-}
 
-fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
-    {
-        let l2 = tv_list_alloc(2);
-        tv_list_append_list(&mut *l, l2);
-
-        let mut buf = [0 as c_char; 30];
-        buf[0] = dp.char1 as c_char;
-        buf[1] = dp.char2 as c_char;
-        buf[2] = NUL;
-        tv_list_append_string(&mut *l2, buf.as_ptr(), -1);
-
-        let len = utf_char2bytes(dp.result, buf.as_mut_ptr()) as usize;
-        buf[len] = NUL;
-        tv_list_append_string(&mut *l2, buf.as_ptr(), -1);
-    }
-}
-
-pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
-    {
-        let user_slice = digr_st().user_digraphs.as_slice();
-        let cap = (DIGRAPHDEFAULT.len() + user_slice.len()) as isize;
-        tv_list_alloc_ret(&mut *rettv, cap);
-
-        if list_all {
-            for dp in DIGRAPHDEFAULT {
-                if g_st().got_int {
-                    break;
-                }
-                let tmp = DigraphEntry {
-                    char1: dp.char1,
-                    char2: dp.char2,
-                    result: getexactdigraph(i32::from(dp.char1), i32::from(dp.char2), false),
-                };
-                if tmp.result != 0 && tmp.result != i32::from(tmp.char2) {
-                    digraph_getlist_appendpair(&tmp, rettv.vval.v_list_ref());
-                }
-            }
+    for dp in user_slice {
+        if g_st().got_int {
+            break;
         }
-
-        for dp in user_slice {
-            if g_st().got_int {
-                break;
-            }
-            digraph_getlist_appendpair(dp, rettv.vval.v_list_ref());
-        }
+        digraph_getlist_appendpair(dp, rettv.vval.v_list_ref());
     }
 }
 
 fn printdigraph(dp: &DigraphEntry, previous: *mut DigrResult) {
-    {
-        let mut buf = [0 as c_char; 30];
-        let list_width: i32 = 13;
+    let mut buf = [0 as c_char; 30];
+    let list_width: i32 = 13;
 
-        if dp.result == 0 {
-            return;
-        }
-
-        if !previous.is_null() {
-            for i in 0..HEADER_TABLE.len() {
-                let Some(header) = HEADER_TABLE[i].dg_header else {
-                    break;
-                };
-                if unsafe { *previous } < HEADER_TABLE[i].dg_start
-                    && dp.result >= HEADER_TABLE[i].dg_start
-                    && dp.result < HEADER_TABLE[i + 1].dg_start
-                {
-                    digraph_header(gettext(header.as_ptr()));
-                    break;
-                }
-            }
-            unsafe {
-                *previous = dp.result;
-            }
-        }
-        if g_st().msg_col > g_st().columns_global - list_width {
-            msg_putchar(b'\n' as i32);
-        }
-
-        if g_st().msg_col % list_width != 0 {
-            msg_advance((g_st().msg_col / list_width + 1) * list_width);
-        }
-
-        buf[0] = dp.char1 as c_char;
-        buf[1] = dp.char2 as c_char;
-        buf[2] = b' ' as c_char;
-        buf[3] = NUL;
-        msg_outtrans(buf.as_ptr(), 0, false);
-
-        let mut p = buf.as_mut_ptr();
-        if utf_iscomposing_first(dp.result) {
-            unsafe {
-                *p = b' ' as c_char;
-            }
-            p = p.wrapping_add(1);
-        }
-        p = p.wrapping_add(utf_char2bytes(dp.result, p) as usize);
-        unsafe {
-            *p = NUL;
-        }
-        msg_outtrans(buf.as_ptr(), HLF_8, false);
-
-        p = buf.as_mut_ptr();
-        if char2cells(dp.result) == 1 {
-            unsafe {
-                *p = b' ' as c_char;
-            }
-            p = p.wrapping_add(1);
-        }
-        let used = crate::memory::ptr_offset_from(p, buf.as_ptr()) as usize;
-        vim_snprintf!(p, buf.len() - used, c" %3d", dp.result);
-        msg_outtrans(buf.as_ptr(), 0, false);
+    if dp.result == 0 {
+        return;
     }
+
+    if !previous.is_null() {
+        for i in 0..HEADER_TABLE.len() {
+            let Some(header) = HEADER_TABLE[i].dg_header else {
+                break;
+            };
+            if unsafe { *previous } < HEADER_TABLE[i].dg_start
+                && dp.result >= HEADER_TABLE[i].dg_start
+                && dp.result < HEADER_TABLE[i + 1].dg_start
+            {
+                digraph_header(gettext(header.as_ptr()));
+                break;
+            }
+        }
+        unsafe {
+            *previous = dp.result;
+        }
+    }
+    if g_st().msg_col > g_st().columns_global - list_width {
+        msg_putchar(b'\n' as i32);
+    }
+
+    if g_st().msg_col % list_width != 0 {
+        msg_advance((g_st().msg_col / list_width + 1) * list_width);
+    }
+
+    buf[0] = dp.char1 as c_char;
+    buf[1] = dp.char2 as c_char;
+    buf[2] = b' ' as c_char;
+    buf[3] = NUL;
+    msg_outtrans(buf.as_ptr(), 0, false);
+
+    let mut p = buf.as_mut_ptr();
+    if utf_iscomposing_first(dp.result) {
+        unsafe {
+            *p = b' ' as c_char;
+        }
+        p = p.wrapping_add(1);
+    }
+    p = p.wrapping_add(utf_char2bytes(dp.result, p) as usize);
+    unsafe {
+        *p = NUL;
+    }
+    msg_outtrans(buf.as_ptr(), HLF_8, false);
+
+    p = buf.as_mut_ptr();
+    if char2cells(dp.result) == 1 {
+        unsafe {
+            *p = b' ' as c_char;
+        }
+        p = p.wrapping_add(1);
+    }
+    let used = crate::memory::ptr_offset_from(p, buf.as_ptr()) as usize;
+    vim_snprintf!(p, buf.len() - used, c" %3d", dp.result);
+    msg_outtrans(buf.as_ptr(), 0, false);
 }
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
 fn get_digraph_chars(arg: &TypVal, char1: &mut i32, char2: &mut i32) -> bool {
-    {
-        let mut buf_chars = [0 as c_char; NUMBUFLEN];
-        let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr());
-        let mut p = chars;
+    let mut buf_chars = [0 as c_char; NUMBUFLEN];
+    let chars = tv_get_string_buf_chk(arg, buf_chars.as_mut_ptr());
+    let mut p = chars;
 
+    if !crate::memory::cstr_is_empty(p) {
+        *char1 = mb_cptr2char_adv(&raw mut p);
         if !crate::memory::cstr_is_empty(p) {
-            *char1 = mb_cptr2char_adv(&raw mut p);
-            if !crate::memory::cstr_is_empty(p) {
-                *char2 = mb_cptr2char_adv(&raw mut p);
-                if crate::memory::cstr_is_empty(p) {
-                    if check_digraph_chars_valid(*char1, *char2) {
-                        return true;
-                    }
-                    return false;
+            *char2 = mb_cptr2char_adv(&raw mut p);
+            if crate::memory::cstr_is_empty(p) {
+                if check_digraph_chars_valid(*char1, *char2) {
+                    return true;
                 }
+                return false;
             }
         }
-        semsg!(gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR), chars,);
-        false
     }
+    semsg!(gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR), chars,);
+    false
 }
 
 fn digraph_set_common(argchars: &TypVal, argdigraph: &TypVal) -> bool {
-    {
-        let mut char1: i32 = 0;
-        let mut char2: i32 = 0;
-        if !get_digraph_chars(argchars, &mut char1, &mut char2) {
-            return false;
-        }
-
-        let mut buf_digraph = [0 as c_char; NUMBUFLEN];
-        let digraph = tv_get_string_buf_chk(argdigraph, buf_digraph.as_mut_ptr());
-        if digraph.is_null() {
-            return false;
-        }
-        let mut p = digraph;
-        let n = mb_cptr2char_adv(&raw mut p);
-        if !crate::memory::cstr_is_empty(p) {
-            semsg!(
-                gettext(E_DIGRAPH_ARGUMENT_MUST_BE_ONE_CHARACTER_STR),
-                digraph,
-            );
-            return false;
-        }
-
-        registerdigraph(char1, char2, n);
-        true
+    let mut char1: i32 = 0;
+    let mut char2: i32 = 0;
+    if !get_digraph_chars(argchars, &mut char1, &mut char2) {
+        return false;
     }
+
+    let mut buf_digraph = [0 as c_char; NUMBUFLEN];
+    let digraph = tv_get_string_buf_chk(argdigraph, buf_digraph.as_mut_ptr());
+    if digraph.is_null() {
+        return false;
+    }
+    let mut p = digraph;
+    let n = mb_cptr2char_adv(&raw mut p);
+    if !crate::memory::cstr_is_empty(p) {
+        semsg!(
+            gettext(E_DIGRAPH_ARGUMENT_MUST_BE_ONE_CHARACTER_STR),
+            digraph,
+        );
+        return false;
+    }
+
+    registerdigraph(char1, char2, n);
+    true
 }
 
 /// `digraph_get()` function (`f_digraph_get`).
 pub fn f_digraph_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-        let digraphs = tv_get_string_chk(&argvars[0]);
+    rettv.v_type = VarType::VarString;
+    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    let digraphs = tv_get_string_chk(&argvars[0]);
 
-        if digraphs.is_null() {
-            return;
-        }
-        if crate::memory::cstr_len(digraphs) != 2 {
-            semsg!(gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR), digraphs,);
-            return;
-        }
-        let code = digraph_get(
-            crate::memory::cstr_first_char(digraphs),
-            crate::memory::cstr_char_at(digraphs, 1),
-            false,
-        );
-
-        let mut buf = [0 as c_char; NUMBUFLEN];
-        let len = utf_char2bytes(code, buf.as_mut_ptr()) as usize;
-        buf[len] = NUL;
-        crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr(), len);
+    if digraphs.is_null() {
+        return;
     }
+    if crate::memory::cstr_len(digraphs) != 2 {
+        semsg!(gettext(E_DIGRAPH_MUST_BE_JUST_TWO_CHARACTERS_STR), digraphs,);
+        return;
+    }
+    let code = digraph_get(
+        crate::memory::cstr_first_char(digraphs),
+        crate::memory::cstr_char_at(digraphs, 1),
+        false,
+    );
+
+    let mut buf = [0 as c_char; NUMBUFLEN];
+    let len = utf_char2bytes(code, buf.as_mut_ptr()) as usize;
+    buf[len] = NUL;
+    crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr(), len);
 }
 
 /// `digraph_getlist()` function (`f_digraph_getlist`).
 pub fn f_digraph_getlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        if !tv_check_for_opt_bool_arg(argvars, 0) {
-            return;
-        }
-
-        let flag_list_all = if argvars[0].v_type == VarType::VarUnknown {
-            false
-        } else {
-            tv_get_bool(&argvars[0]) != 0
-        };
-
-        digraph_getlist_common(flag_list_all, rettv);
+    if !tv_check_for_opt_bool_arg(argvars, 0) {
+        return;
     }
+
+    let flag_list_all = if argvars[0].v_type == VarType::VarUnknown {
+        false
+    } else {
+        tv_get_bool(&argvars[0]) != 0
+    };
+
+    digraph_getlist_common(flag_list_all, rettv);
 }
 
 /// `digraph_set()` function (`f_digraph_set`).
@@ -2059,180 +2037,172 @@ pub fn f_digraph_set(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// `digraph_setlist()` function (`f_digraph_setlist`).
 pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        rettv.v_type = VarType::VarBool;
-        rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_FALSE_CONST);
+    rettv.v_type = VarType::VarBool;
+    rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_FALSE_CONST);
 
-        if argvars[0].v_type != VarType::VarList {
+    if argvars[0].v_type != VarType::VarList {
+        emsg(gettext(
+            E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
+        ));
+        return;
+    }
+
+    let pl = argvars[0].vval.v_list();
+    if pl.is_null() {
+        rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
+        return;
+    }
+
+    let mut pli = tv_list_first(unsafe { pl.as_ref() });
+    while !pli.is_null() {
+        let tv = unsafe { &(*pli).li_tv };
+        if tv.v_type != VarType::VarList {
             emsg(gettext(
                 E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
             ));
             return;
         }
 
-        let pl = argvars[0].vval.v_list();
-        if pl.is_null() {
-            rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
+        let l = tv.vval.v_list();
+        if l.is_null() || tv_list_len(unsafe { l.as_ref() }) != 2 {
+            emsg(gettext(
+                E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
+            ));
             return;
         }
 
-        let mut pli = tv_list_first(pl.as_ref());
-        while !pli.is_null() {
-            let tv = &(*pli).li_tv;
-            if tv.v_type != VarType::VarList {
-                emsg(gettext(
-                    E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
-                ));
-                return;
-            }
-
-            let l = tv.vval.v_list();
-            if l.is_null() || tv_list_len(l.as_ref()) != 2 {
-                emsg(gettext(
-                    E_DIGRAPH_SETLIST_ARGUMENT_MUST_BE_LIST_OF_LISTS_WITH_TWO_ITEMS,
-                ));
-                return;
-            }
-
-            let first = tv_list_first(l.as_ref());
-            let second = if ptr::eq(first, (*l).lv_last) {
-                ptr::null_mut()
-            } else {
-                (*first).li_next
-            };
-            if !digraph_set_common(&(*first).li_tv, &(*second).li_tv) {
-                return;
-            }
-            pli = if ptr::eq(pli, (*pl).lv_last) {
-                ptr::null_mut()
-            } else {
-                (*pli).li_next
-            };
+        let first = tv_list_first(unsafe { l.as_ref() });
+        let second = if ptr::eq(first, unsafe { (*l).lv_last }) {
+            ptr::null_mut()
+        } else {
+            unsafe { (*first).li_next }
+        };
+        if !digraph_set_common(unsafe { &(*first).li_tv }, unsafe { &(*second).li_tv }) {
+            return;
         }
-
-        rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
+        pli = if ptr::eq(pli, unsafe { (*pl).lv_last }) {
+            ptr::null_mut()
+        } else {
+            unsafe { (*pli).li_next }
+        };
     }
+
+    rettv.vval = crate::eval::typval::TypvalVval::Bool(K_BOOL_VAR_TRUE_CONST);
 }
 
 /// Set up key mapping tables for the `'keymap'` option (`keymap_init`).
 pub fn keymap_init() -> *mut c_char {
-    {
-        curbuf_mut().b_kmap_state &= !KEYMAP_INIT;
+    curbuf_mut().b_kmap_state &= !KEYMAP_INIT;
 
-        if crate::memory::cstr_is_empty(curbuf_mut().b_p_keymap) {
-            keymap_unload();
-            do_cmdline_cmd(c"unlet! b:keymap_name");
-        } else {
-            let kmap = crate::memory::cstr_lossy(curbuf_mut().b_p_keymap);
-            let enc = crate::memory::cstr_lossy(opt_vars().p_enc);
-            let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
-            if !source_runtime(primary.as_ptr().cast_mut(), 0) {
-                let fallback = CString::new(format!("keymap/{kmap}.vim")).unwrap_or_default();
-                if !source_runtime(fallback.as_ptr().cast_mut(), 0) {
-                    return c"E544: Keymap file not found".as_ptr().cast_mut();
-                }
+    if crate::memory::cstr_is_empty(curbuf_mut().b_p_keymap) {
+        keymap_unload();
+        do_cmdline_cmd(c"unlet! b:keymap_name");
+    } else {
+        let kmap = crate::memory::cstr_lossy(curbuf_mut().b_p_keymap);
+        let enc = crate::memory::cstr_lossy(opt_vars().p_enc);
+        let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
+        if !source_runtime(primary.as_ptr().cast_mut(), 0) {
+            let fallback = CString::new(format!("keymap/{kmap}.vim")).unwrap_or_default();
+            if !source_runtime(fallback.as_ptr().cast_mut(), 0) {
+                return c"E544: Keymap file not found".as_ptr().cast_mut();
             }
         }
-
-        ptr::null_mut()
     }
+
+    ptr::null_mut()
 }
 
 /// `:loadkeymap` command: load the following lines as the keymap (`ex_loadkeymap`).
 pub fn ex_loadkeymap(eap: &mut Exarg) {
-    {
-        let mut buf = [0 as c_char; KMAP_LLEN + 11];
-        let save_cpo = opt_vars().p_cpo;
-        let fgetline: LineGetter = eap.ea_getline;
+    let mut buf = [0 as c_char; KMAP_LLEN + 11];
+    let save_cpo = opt_vars().p_cpo;
+    let fgetline: LineGetter = eap.ea_getline;
 
-        if !fgetline.is_source() {
-            emsg(gettext(c"E105: Using :loadkeymap not in a sourced file"));
-            return;
-        }
+    if !fgetline.is_source() {
+        emsg(gettext(c"E105: Using :loadkeymap not in a sourced file"));
+        return;
+    }
 
-        if eap.skip != 0 {
-            while fgetline.call(0, 0, true).is_some() {}
-            return;
-        }
+    if eap.skip != 0 {
+        while fgetline.call(0, 0, true).is_some() {}
+        return;
+    }
 
-        keymap_unload();
+    keymap_unload();
 
-        curbuf_mut().b_kmap_state = 0;
-        curbuf_mut().b_kmap_ga.clear();
+    curbuf_mut().b_kmap_state = 0;
+    curbuf_mut().b_kmap_ga.clear();
 
-        opt_vars().p_cpo = c"C".as_ptr().cast_mut();
+    opt_vars().p_cpo = c"C".as_ptr().cast_mut();
 
-        while let Some(line_cstr) = fgetline.call(0, 0, true) {
-            let line = line_cstr.as_ptr();
-            let mut p = skipwhite(line);
-            if crate::memory::cstr_first_byte(p) != b'"' && !crate::memory::cstr_is_empty(p) {
-                let mut s = skiptowhite(p);
-                let from_len = crate::memory::ptr_offset_from(s, p) as usize;
-                let from_slice = crate::memory::cstr_slice(p, from_len);
-                p = skipwhite(s);
-                s = skiptowhite(p);
-                let to_len = crate::memory::ptr_offset_from(s, p) as usize;
-                let to_slice = crate::memory::cstr_slice(p, to_len);
+    while let Some(line_cstr) = fgetline.call(0, 0, true) {
+        let line = line_cstr.as_ptr();
+        let mut p = skipwhite(line);
+        if crate::memory::cstr_first_byte(p) != b'"' && !crate::memory::cstr_is_empty(p) {
+            let mut s = skiptowhite(p);
+            let from_len = crate::memory::ptr_offset_from(s, p) as usize;
+            let from_slice = crate::memory::cstr_slice(p, from_len);
+            p = skipwhite(s);
+            s = skiptowhite(p);
+            let to_len = crate::memory::ptr_offset_from(s, p) as usize;
+            let to_slice = crate::memory::cstr_slice(p, to_len);
 
-                if from_len + to_len >= KMAP_LLEN || from_len == 0 || to_len == 0 {
-                    if to_len == 0 {
-                        emsg(gettext(c"E791: Empty keymap entry"));
-                    }
-                } else if let (Ok(from), Ok(to)) = (
-                    std::ffi::CString::new(from_slice),
-                    std::ffi::CString::new(to_slice),
-                ) {
-                    curbuf_mut().b_kmap_ga.push(Kmap { from, to });
+            if from_len + to_len >= KMAP_LLEN || from_len == 0 || to_len == 0 {
+                if to_len == 0 {
+                    emsg(gettext(c"E791: Empty keymap entry"));
                 }
+            } else if let (Ok(from), Ok(to)) = (
+                std::ffi::CString::new(from_slice),
+                std::ffi::CString::new(to_slice),
+            ) {
+                curbuf_mut().b_kmap_ga.push(Kmap { from, to });
             }
         }
-
-        for kp in &curbuf_mut().b_kmap_ga {
-            vim_snprintf!(
-                buf.as_mut_ptr(),
-                buf.len(),
-                c"<buffer> %s %s",
-                kp.from.as_ptr(),
-                kp.to.as_ptr(),
-            );
-            do_map(MAPTYPE_MAP, buf.as_mut_ptr(), MODE_LANGMAP, false);
-        }
-
-        opt_vars().p_cpo = save_cpo;
-
-        curbuf_mut().b_kmap_state |= KEYMAP_LOADED;
-        status_redraw_curbuf();
     }
+
+    for kp in &curbuf_mut().b_kmap_ga {
+        vim_snprintf!(
+            buf.as_mut_ptr(),
+            buf.len(),
+            c"<buffer> %s %s",
+            kp.from.as_ptr(),
+            kp.to.as_ptr(),
+        );
+        do_map(MAPTYPE_MAP, buf.as_mut_ptr(), MODE_LANGMAP, false);
+    }
+
+    opt_vars().p_cpo = save_cpo;
+
+    curbuf_mut().b_kmap_state |= KEYMAP_LOADED;
+    status_redraw_curbuf();
 }
 
 /// Stop using `'keymap'` (`keymap_unload`).
 fn keymap_unload() {
-    {
-        let mut buf = [0 as c_char; KMAP_MAXLEN + 10];
-        let save_cpo = opt_vars().p_cpo;
+    let mut buf = [0 as c_char; KMAP_MAXLEN + 10];
+    let save_cpo = opt_vars().p_cpo;
 
-        if (curbuf_mut().b_kmap_state & KEYMAP_LOADED) == 0 {
-            return;
-        }
-
-        opt_vars().p_cpo = c"C".as_ptr().cast_mut();
-
-        for entry in &curbuf_mut().b_kmap_ga {
-            vim_snprintf!(
-                buf.as_mut_ptr(),
-                buf.len(),
-                c"<buffer> %s",
-                entry.from.as_ptr(),
-            );
-            do_map(MAPTYPE_UNMAP, buf.as_mut_ptr(), MODE_LANGMAP, false);
-        }
-        curbuf_mut().b_kmap_ga.clear();
-
-        opt_vars().p_cpo = save_cpo;
-
-        curbuf_mut().b_kmap_state &= !KEYMAP_LOADED;
-        status_redraw_curbuf();
+    if (curbuf_mut().b_kmap_state & KEYMAP_LOADED) == 0 {
+        return;
     }
+
+    opt_vars().p_cpo = c"C".as_ptr().cast_mut();
+
+    for entry in &curbuf_mut().b_kmap_ga {
+        vim_snprintf!(
+            buf.as_mut_ptr(),
+            buf.len(),
+            c"<buffer> %s",
+            entry.from.as_ptr(),
+        );
+        do_map(MAPTYPE_UNMAP, buf.as_mut_ptr(), MODE_LANGMAP, false);
+    }
+    curbuf_mut().b_kmap_ga.clear();
+
+    opt_vars().p_cpo = save_cpo;
+
+    curbuf_mut().b_kmap_state &= !KEYMAP_LOADED;
+    status_redraw_curbuf();
 }
 
 /// Get the value to show for the language mappings, active `'keymap'` (`get_keymap_str`).
@@ -2242,40 +2212,38 @@ pub fn get_keymap_str(
     buf: *mut c_char,
     len: i32,
 ) -> i32 {
-    {
-        if wp.buf_mut().b_p_iminsert != crate::ex_cmds::B_IMODE_LMAP {
-            return 0;
-        }
-
-        let old_curbuf = g_st().curbuf;
-        let old_curwin = curwin_ptr();
-
-        g_st().curbuf = wp.w_buffer;
-        set_curwin(&raw mut *wp);
-        g_st().emsg_skip += 1;
-        let s = eval_to_string(c"b:keymap_name", false, false);
-        let mut p: *const c_char = s.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
-        g_st().emsg_skip -= 1;
-        g_st().curbuf = old_curbuf;
-        set_curwin(old_curwin);
-        if crate::memory::cstr_is_empty(p) {
-            if (wp.buf_mut().b_kmap_state & KEYMAP_LOADED) != 0 {
-                p = wp.buf_mut().b_p_keymap;
-            } else {
-                p = c"lang".as_ptr();
-            }
-        }
-        let mut plen = vim_snprintf!(buf, len as usize, fmt.as_ptr().cast_mut(), p);
-        drop(s);
-        if plen < 0 || plen > len - 1 {
-            unsafe {
-                *buf = NUL;
-            }
-            plen = 0;
-        }
-
-        plen
+    if wp.buf_mut().b_p_iminsert != crate::ex_cmds::B_IMODE_LMAP {
+        return 0;
     }
+
+    let old_curbuf = g_st().curbuf;
+    let old_curwin = curwin_ptr();
+
+    g_st().curbuf = wp.w_buffer;
+    set_curwin(&raw mut *wp);
+    g_st().emsg_skip += 1;
+    let s = eval_to_string(c"b:keymap_name", false, false);
+    let mut p: *const c_char = s.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
+    g_st().emsg_skip -= 1;
+    g_st().curbuf = old_curbuf;
+    set_curwin(old_curwin);
+    if crate::memory::cstr_is_empty(p) {
+        if (wp.buf_mut().b_kmap_state & KEYMAP_LOADED) != 0 {
+            p = wp.buf_mut().b_p_keymap;
+        } else {
+            p = c"lang".as_ptr();
+        }
+    }
+    let mut plen = vim_snprintf!(buf, len as usize, fmt.as_ptr().cast_mut(), p);
+    drop(s);
+    if plen < 0 || plen > len - 1 {
+        unsafe {
+            *buf = NUL;
+        }
+        plen = 0;
+    }
+
+    plen
 }
 
 #[cfg(test)]

@@ -221,251 +221,241 @@ fn w_lines_at(wp: &mut WinInfoInfo, idx: usize) -> &mut Wline {
 }
 
 pub fn conceal_check_cursor_line() {
-    {
-        let should_conceal = conceal_cursor_line(curwin_mut());
-        if curwin_mut().w_onebuf_opt.wo_cole <= 0 || ds_st().conceal_cursor_used == should_conceal {
-            return;
-        }
-
-        redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
-
-        if decor_conceal_line(curwin_mut(), curwin_mut().w_cursor.lnum - 1, true) {
-            changed_window_setting(curwin_mut());
-        }
-        curs_columns(curwin_mut(), 1);
+    let should_conceal = conceal_cursor_line(curwin_mut());
+    if curwin_mut().w_onebuf_opt.wo_cole <= 0 || ds_st().conceal_cursor_used == should_conceal {
+        return;
     }
+
+    redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
+
+    if decor_conceal_line(curwin_mut(), curwin_mut().w_cursor.lnum - 1, true) {
+        changed_window_setting(curwin_mut());
+    }
+    curs_columns(curwin_mut(), 1);
 }
 
 pub fn default_grid_alloc() -> bool {
-    {
-        if ds_st().default_grid_resizing {
-            return false;
-        }
-        ds_st().default_grid_resizing = true;
-
-        if (grid_allocated(&g_st().default_grid)
-            && g_st().rows_global == g_st().default_grid.rows
-            && g_st().columns_global == g_st().default_grid.cols)
-            || g_st().rows_global == 0
-            || g_st().columns_global == 0
-        {
-            ds_st().default_grid_resizing = false;
-            return false;
-        }
-
-        grid_alloc(
-            &mut g_st().default_grid,
-            g_st().rows_global,
-            g_st().columns_global,
-            true,
-            true,
-        );
-
-        stl_clear_click_defs(&mut g_st().tab_page_click_defs);
-        stl_alloc_click_defs(&mut g_st().tab_page_click_defs, g_st().columns_global);
-
-        g_st().default_grid.comp_height = g_st().rows_global;
-        g_st().default_grid.comp_width = g_st().columns_global;
-        g_st().default_grid.handle = DEFAULT_GRID_HANDLE;
-
-        ds_st().default_grid_resizing = false;
-        true
+    if ds_st().default_grid_resizing {
+        return false;
     }
+    ds_st().default_grid_resizing = true;
+
+    if (grid_allocated(&g_st().default_grid)
+        && g_st().rows_global == g_st().default_grid.rows
+        && g_st().columns_global == g_st().default_grid.cols)
+        || g_st().rows_global == 0
+        || g_st().columns_global == 0
+    {
+        ds_st().default_grid_resizing = false;
+        return false;
+    }
+
+    grid_alloc(
+        &mut g_st().default_grid,
+        g_st().rows_global,
+        g_st().columns_global,
+        true,
+        true,
+    );
+
+    stl_clear_click_defs(&mut g_st().tab_page_click_defs);
+    stl_alloc_click_defs(&mut g_st().tab_page_click_defs, g_st().columns_global);
+
+    g_st().default_grid.comp_height = g_st().rows_global;
+    g_st().default_grid.comp_width = g_st().columns_global;
+    g_st().default_grid.handle = DEFAULT_GRID_HANDLE;
+
+    ds_st().default_grid_resizing = false;
+    true
 }
 
 pub fn screenclear() {
+    msg_check_for_delay(false);
+
+    if starting_val() == NO_SCREEN || !grid_allocated(&g_st().default_grid) {
+        return;
+    }
+
+    for i in 0..g_st().default_grid.rows {
+        grid_clear_line(
+            &mut g_st().default_grid,
+            g_st().default_grid.line_offset[i as usize],
+            g_st().default_grid.cols,
+            true,
+        );
+    }
+
+    ui_call_grid_clear(1);
+    ui_comp_set_screen_valid(true);
+
+    g_st().ns_hl_fast = -1;
+
+    g_st().clear_cmdline = false;
+    g_st().mode_displayed = false;
+
+    redraw_all_later(UPD_NOT_VALID);
+    g_st().cmdline_was_last_drawn = false;
+    g_st().redraw_cmdline = true;
+    g_st().redraw_tabline = true;
+    ds_st().redraw_popupmenu = true;
+    pum_invalidate();
+
+    for wp in for_all_windows_mut() {
+        if wp.w_floating {
+            wp.w_redr_type = UPD_CLEAR;
+        }
+    }
+
+    if g_st().must_redraw == UPD_CLEAR {
+        g_st().must_redraw = UPD_NOT_VALID;
+    }
+    compute_cmdrow();
+    g_st().msg_row = g_st().cmdline_row;
+    g_st().msg_col = 0;
+    msg_reset_scroll();
+    g_st().msg_didany = false;
+    g_st().msg_didout = false;
+    if crate::highlight::hl_attr(HLF_MSG as i32) > 0
+        && msg_use_grid()
+        && grid_allocated(&g_st().msg_grid)
     {
-        msg_check_for_delay(false);
-
-        if starting_val() == NO_SCREEN || !grid_allocated(&g_st().default_grid) {
-            return;
-        }
-
-        for i in 0..g_st().default_grid.rows {
-            grid_clear_line(
-                &mut g_st().default_grid,
-                g_st().default_grid.line_offset[i as usize],
-                g_st().default_grid.cols,
-                true,
-            );
-        }
-
-        ui_call_grid_clear(1);
-        ui_comp_set_screen_valid(true);
-
-        g_st().ns_hl_fast = -1;
-
-        g_st().clear_cmdline = false;
-        g_st().mode_displayed = false;
-
-        redraw_all_later(UPD_NOT_VALID);
-        g_st().cmdline_was_last_drawn = false;
-        g_st().redraw_cmdline = true;
-        g_st().redraw_tabline = true;
-        ds_st().redraw_popupmenu = true;
-        pum_invalidate();
-
-        for wp in for_all_windows_mut() {
-            if wp.w_floating {
-                wp.w_redr_type = UPD_CLEAR;
-            }
-        }
-
-        if g_st().must_redraw == UPD_CLEAR {
-            g_st().must_redraw = UPD_NOT_VALID;
-        }
-        compute_cmdrow();
-        g_st().msg_row = g_st().cmdline_row;
-        g_st().msg_col = 0;
-        msg_reset_scroll();
-        g_st().msg_didany = false;
-        g_st().msg_didout = false;
-        if crate::highlight::hl_attr(HLF_MSG as i32) > 0
-            && msg_use_grid()
-            && grid_allocated(&g_st().msg_grid)
-        {
-            grid_invalidate(&mut g_st().msg_grid);
-            msg_grid_validate();
-            ds_st().msg_grid_invalid = false;
-            g_st().clear_cmdline = true;
-        }
+        grid_invalidate(&mut g_st().msg_grid);
+        msg_grid_validate();
+        ds_st().msg_grid_invalid = false;
+        g_st().clear_cmdline = true;
     }
 }
 
 fn cmdline_number_prompt() -> bool {
-    {
-        !ui_has(K_UIMESSAGES)
-            && (g_st().state_global & MODE_CMDLINE) != 0
-            && get_cmdline_info().mouse_used.is_some()
-    }
+    !ui_has(K_UIMESSAGES)
+        && (g_st().state_global & MODE_CMDLINE) != 0
+        && get_cmdline_info().mouse_used.is_some()
 }
 
 pub fn screen_resize(mut width: i32, mut height: i32) {
-    {
-        if g_st().updating_screen || g_st().resizing_screen || cmdline_number_prompt() {
-            return;
-        }
-
-        if width < 0 || height < 0 {
-            return;
-        }
-
-        if g_st().state_global == MODE_HITRETURN || g_st().state_global == MODE_SETWSIZE {
-            g_st().state_global = MODE_SETWSIZE;
-            return;
-        }
-
-        g_st().resizing_screen = true;
-
-        g_st().rows_global = height;
-        g_st().columns_global = width;
-        check_screensize();
-        if !ui_has(K_UIMESSAGES) {
-            let max_p_ch = OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1);
-            if opt_vars().p_ch > 0 && opt_vars().p_ch > max_p_ch {
-                opt_vars().p_ch = max_p_ch.max(1);
-                curtab_mut().tp_ch_used = opt_vars().p_ch;
-            }
-            for tp in for_all_tabpages_ptr() {
-                if !ptr::eq(tp, g_st().curtab) {
-                    let max_tp_ch = OptInt::from(g_st().rows_global - min_rows(&mut *tp) + 1);
-                    if tp.tp_ch_used > 0 && tp.tp_ch_used > max_tp_ch {
-                        tp.tp_ch_used = max_tp_ch.max(1);
-                    }
-                }
-            }
-        }
-        height = g_st().rows_global;
-        width = g_st().columns_global;
-        opt_vars().p_lines = OptInt::from(g_st().rows_global);
-        opt_vars().p_columns = OptInt::from(g_st().columns_global);
-
-        ui_call_grid_resize(1, Integer::from(width), Integer::from(height));
-
-        let mut retry_count = 0;
-        ds_st().resizing_autocmd = true;
-
-        while default_grid_alloc() {
-            ui_comp_set_screen_valid(false);
-            if grid_allocated(&g_st().msg_grid) {
-                ds_st().msg_grid_invalid = true;
-            }
-
-            g_st().redrawing_disabled += 1;
-
-            win_new_screensize();
-            comp_col();
-
-            g_st().redrawing_disabled -= 1;
-
-            retry_count += 1;
-            if retry_count > 3 {
-                break;
-            }
-
-            apply_autocmds(
-                EVENT_VIMRESIZED,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
-        }
-
-        ds_st().resizing_autocmd = false;
-        redraw_all_later(UPD_CLEAR);
-
-        if g_st().state_global != MODE_ASKMORE && g_st().state_global != MODE_EXTERNCMD {
-            screenclear();
-        }
-
-        if starting_val() != NO_SCREEN {
-            maketitle();
-
-            changed_line_abv_curs();
-            invalidate_botline_win(curwin_mut());
-
-            if g_st().state_global == MODE_ASKMORE
-                || g_st().state_global == MODE_EXTERNCMD
-                || ((g_st().state_global & MODE_CMDLINE) != 0 && get_cmdline_info().one_key)
-            {
-                if (g_st().state_global & MODE_CMDLINE) != 0 {
-                    update_screen();
-                }
-                if grid_allocated(&g_st().msg_grid) {
-                    msg_grid_validate();
-                }
-                ui_comp_set_screen_valid(true);
-                repeat_message();
-            } else {
-                if curwin_mut().w_onebuf_opt.wo_scb != 0 {
-                    do_check_scrollbind(true);
-                }
-                if (g_st().state_global & MODE_CMDLINE) != 0 {
-                    ds_st().redraw_popupmenu = false;
-                    update_screen();
-                    redrawcmdline();
-                    if pum_drawn() {
-                        cmdline_pum_display(false);
-                    }
-                } else {
-                    update_topline(curwin_mut());
-                    if pum_drawn() {
-                        ds_st().redraw_popupmenu = false;
-                        ins_compl_show_pum();
-                    }
-                    update_screen();
-                    if redrawing() {
-                        setcursor();
-                    }
-                }
-            }
-            if g_st().state_global != MODE_ASKMORE {
-                ui_flush();
-            }
-        }
-        g_st().resizing_screen = false;
+    if g_st().updating_screen || g_st().resizing_screen || cmdline_number_prompt() {
+        return;
     }
+
+    if width < 0 || height < 0 {
+        return;
+    }
+
+    if g_st().state_global == MODE_HITRETURN || g_st().state_global == MODE_SETWSIZE {
+        g_st().state_global = MODE_SETWSIZE;
+        return;
+    }
+
+    g_st().resizing_screen = true;
+
+    g_st().rows_global = height;
+    g_st().columns_global = width;
+    check_screensize();
+    if !ui_has(K_UIMESSAGES) {
+        let max_p_ch = OptInt::from(g_st().rows_global - min_rows(curtab_mut()) + 1);
+        if opt_vars().p_ch > 0 && opt_vars().p_ch > max_p_ch {
+            opt_vars().p_ch = max_p_ch.max(1);
+            curtab_mut().tp_ch_used = opt_vars().p_ch;
+        }
+        for tp in for_all_tabpages_ptr() {
+            if !ptr::eq(tp, g_st().curtab) {
+                let max_tp_ch = OptInt::from(g_st().rows_global - min_rows(&mut *tp) + 1);
+                if tp.tp_ch_used > 0 && tp.tp_ch_used > max_tp_ch {
+                    tp.tp_ch_used = max_tp_ch.max(1);
+                }
+            }
+        }
+    }
+    height = g_st().rows_global;
+    width = g_st().columns_global;
+    opt_vars().p_lines = OptInt::from(g_st().rows_global);
+    opt_vars().p_columns = OptInt::from(g_st().columns_global);
+
+    ui_call_grid_resize(1, Integer::from(width), Integer::from(height));
+
+    let mut retry_count = 0;
+    ds_st().resizing_autocmd = true;
+
+    while default_grid_alloc() {
+        ui_comp_set_screen_valid(false);
+        if grid_allocated(&g_st().msg_grid) {
+            ds_st().msg_grid_invalid = true;
+        }
+
+        g_st().redrawing_disabled += 1;
+
+        win_new_screensize();
+        comp_col();
+
+        g_st().redrawing_disabled -= 1;
+
+        retry_count += 1;
+        if retry_count > 3 {
+            break;
+        }
+
+        apply_autocmds(
+            EVENT_VIMRESIZED,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            false,
+            g_st().curbuf,
+        );
+    }
+
+    ds_st().resizing_autocmd = false;
+    redraw_all_later(UPD_CLEAR);
+
+    if g_st().state_global != MODE_ASKMORE && g_st().state_global != MODE_EXTERNCMD {
+        screenclear();
+    }
+
+    if starting_val() != NO_SCREEN {
+        maketitle();
+
+        changed_line_abv_curs();
+        invalidate_botline_win(curwin_mut());
+
+        if g_st().state_global == MODE_ASKMORE
+            || g_st().state_global == MODE_EXTERNCMD
+            || ((g_st().state_global & MODE_CMDLINE) != 0 && get_cmdline_info().one_key)
+        {
+            if (g_st().state_global & MODE_CMDLINE) != 0 {
+                update_screen();
+            }
+            if grid_allocated(&g_st().msg_grid) {
+                msg_grid_validate();
+            }
+            ui_comp_set_screen_valid(true);
+            repeat_message();
+        } else {
+            if curwin_mut().w_onebuf_opt.wo_scb != 0 {
+                do_check_scrollbind(true);
+            }
+            if (g_st().state_global & MODE_CMDLINE) != 0 {
+                ds_st().redraw_popupmenu = false;
+                update_screen();
+                redrawcmdline();
+                if pum_drawn() {
+                    cmdline_pum_display(false);
+                }
+            } else {
+                update_topline(curwin_mut());
+                if pum_drawn() {
+                    ds_st().redraw_popupmenu = false;
+                    ins_compl_show_pum();
+                }
+                update_screen();
+                if redrawing() {
+                    setcursor();
+                }
+            }
+        }
+        if g_st().state_global != MODE_ASKMORE {
+            ui_flush();
+        }
+    }
+    g_st().resizing_screen = false;
 }
 
 pub fn check_screensize() {
@@ -808,29 +798,25 @@ pub fn end_search_hl() {
 }
 
 pub fn setcursor() {
-    {
-        setcursor_mayforce(curwin_mut(), false);
-    }
+    setcursor_mayforce(curwin_mut(), false);
 }
 
 pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
-    {
-        if force || redrawing() {
-            validate_cursor(wp);
+    if force || redrawing() {
+        validate_cursor(wp);
 
-            let mut row = wp.w_wrow;
-            let mut col = wp.w_wcol;
-            if wp.w_onebuf_opt.wo_rl != 0 {
-                let cursor = ml_get_buf(wp.buf_mut(), wp.w_cursor.lnum)
-                    .wrapping_add(wp.w_cursor.col as usize);
-                let wide = utf_ptr2cells(cursor) == 2 && vim_isprintc(utf_ptr2char(cursor));
-                col = wp.w_view_width - wp.w_wcol - if wide { 2 } else { 1 };
-            }
+        let mut row = wp.w_wrow;
+        let mut col = wp.w_wcol;
+        if wp.w_onebuf_opt.wo_rl != 0 {
+            let cursor =
+                ml_get_buf(wp.buf_mut(), wp.w_cursor.lnum).wrapping_add(wp.w_cursor.col as usize);
+            let wide = utf_ptr2cells(cursor) == 2 && vim_isprintc(utf_ptr2char(cursor));
+            col = wp.w_view_width - wp.w_wcol - if wide { 2 } else { 1 };
+        }
 
-            let grid = grid_adjust(&mut wp.w_grid, &mut row, &mut col);
-            if !grid.is_null() {
-                ui_grid_cursor_goto(unsafe { (*grid).handle }, row, col);
-            }
+        let grid = grid_adjust(&mut wp.w_grid, &mut row, &mut col);
+        if !grid.is_null() {
+            ui_grid_cursor_goto(unsafe { (*grid).handle }, row, col);
         }
     }
 }
@@ -846,59 +832,56 @@ pub fn redraw_custom_title_later() -> bool {
 }
 
 pub fn show_cursor_info_later(force: bool) {
+    let state = get_real_state();
+    let empty_line = i32::from(
+        (g_st().state_global & MODE_INSERT) == 0
+            && unsafe { *ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum) } == NUL,
+    );
+
+    validate_virtcol(curwin_mut());
+    if force
+        || curwin_mut().w_cursor.lnum != curwin_mut().w_stl_cursor.lnum
+        || curwin_mut().w_cursor.col != curwin_mut().w_stl_cursor.col
+        || curwin_mut().w_virtcol != curwin_mut().w_stl_virtcol
+        || curwin_mut().w_cursor.coladd != curwin_mut().w_stl_cursor.coladd
+        || curwin_mut().w_topline != curwin_mut().w_stl_topline
+        || curwin_mut().buf_mut().b_ml.ml_line_count != curwin_mut().w_stl_line_count
+        || curwin_mut().w_topfill != curwin_mut().w_stl_topfill
+        || (empty_line as c_char) != curwin_mut().w_stl_empty
+        || g_st().reg_recording != curwin_mut().w_stl_recording
+        || state != curwin_mut().w_stl_state
+        || (g_st().visual_global.active
+            && (g_st().visual_global.mode != curwin_mut().w_stl_visual_mode
+                || g_st().visual_global.start.lnum != curwin_mut().w_stl_visual_pos.lnum
+                || g_st().visual_global.start.col != curwin_mut().w_stl_visual_pos.col
+                || g_st().visual_global.start.coladd != curwin_mut().w_stl_visual_pos.coladd))
     {
-        let state = get_real_state();
-        let empty_line = i32::from(
-            (g_st().state_global & MODE_INSERT) == 0
-                && unsafe { *ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum) }
-                    == NUL,
-        );
+        if curwin_mut().w_status_height != 0 || global_stl_height() != 0 {
+            curwin_mut().w_redr_status = true;
+        } else {
+            g_st().redraw_cmdline = true;
+        }
 
-        validate_virtcol(curwin_mut());
-        if force
-            || curwin_mut().w_cursor.lnum != curwin_mut().w_stl_cursor.lnum
-            || curwin_mut().w_cursor.col != curwin_mut().w_stl_cursor.col
-            || curwin_mut().w_virtcol != curwin_mut().w_stl_virtcol
-            || curwin_mut().w_cursor.coladd != curwin_mut().w_stl_cursor.coladd
-            || curwin_mut().w_topline != curwin_mut().w_stl_topline
-            || curwin_mut().buf_mut().b_ml.ml_line_count != curwin_mut().w_stl_line_count
-            || curwin_mut().w_topfill != curwin_mut().w_stl_topfill
-            || (empty_line as c_char) != curwin_mut().w_stl_empty
-            || g_st().reg_recording != curwin_mut().w_stl_recording
-            || state != curwin_mut().w_stl_state
-            || (g_st().visual_global.active
-                && (g_st().visual_global.mode != curwin_mut().w_stl_visual_mode
-                    || g_st().visual_global.start.lnum != curwin_mut().w_stl_visual_pos.lnum
-                    || g_st().visual_global.start.col != curwin_mut().w_stl_visual_pos.col
-                    || g_st().visual_global.start.coladd != curwin_mut().w_stl_visual_pos.coladd))
+        if !crate::memory::cstr_is_empty(opt_vars().p_wbr)
+            || !crate::memory::cstr_is_empty(curwin_mut().w_onebuf_opt.wo_wbr)
         {
-            if curwin_mut().w_status_height != 0 || global_stl_height() != 0 {
-                curwin_mut().w_redr_status = true;
-            } else {
-                g_st().redraw_cmdline = true;
-            }
-
-            if !crate::memory::cstr_is_empty(opt_vars().p_wbr)
-                || !crate::memory::cstr_is_empty(curwin_mut().w_onebuf_opt.wo_wbr)
-            {
-                curwin_mut().w_redr_status = true;
-            }
-
-            redraw_custom_title_later();
+            curwin_mut().w_redr_status = true;
         }
 
-        curwin_mut().w_stl_cursor = curwin_mut().w_cursor;
-        curwin_mut().w_stl_virtcol = curwin_mut().w_virtcol;
-        curwin_mut().w_stl_empty = empty_line as c_char;
-        curwin_mut().w_stl_topline = curwin_mut().w_topline;
-        curwin_mut().w_stl_line_count = curwin_mut().buf_mut().b_ml.ml_line_count;
-        curwin_mut().w_stl_topfill = curwin_mut().w_topfill;
-        curwin_mut().w_stl_recording = g_st().reg_recording;
-        curwin_mut().w_stl_state = state;
-        if g_st().visual_global.active {
-            curwin_mut().w_stl_visual_mode = g_st().visual_global.mode;
-            curwin_mut().w_stl_visual_pos = g_st().visual_global.start;
-        }
+        redraw_custom_title_later();
+    }
+
+    curwin_mut().w_stl_cursor = curwin_mut().w_cursor;
+    curwin_mut().w_stl_virtcol = curwin_mut().w_virtcol;
+    curwin_mut().w_stl_empty = empty_line as c_char;
+    curwin_mut().w_stl_topline = curwin_mut().w_topline;
+    curwin_mut().w_stl_line_count = curwin_mut().buf_mut().b_ml.ml_line_count;
+    curwin_mut().w_stl_topfill = curwin_mut().w_topfill;
+    curwin_mut().w_stl_recording = g_st().reg_recording;
+    curwin_mut().w_stl_state = state;
+    if g_st().visual_global.active {
+        curwin_mut().w_stl_visual_mode = g_st().visual_global.mode;
+        curwin_mut().w_stl_visual_pos = g_st().visual_global.start;
     }
 }
 
@@ -915,176 +898,174 @@ pub fn skip_showmode() -> bool {
 }
 
 pub fn showmode() -> i32 {
-    {
-        let mut length: i32 = 0;
+    let mut length: i32 = 0;
 
-        msg_ext_ui_flush();
-        msg_grid_validate();
+    msg_ext_ui_flush();
+    msg_grid_validate();
 
-        let do_mode = (opt_vars().p_smd != 0 && g_st().msg_silent == 0)
-            && ((g_st().state_global & MODE_TERMINAL) != 0
-                || (g_st().state_global & MODE_INSERT) != 0
-                || g_st().restart_edit != 0
-                || g_st().visual_global.active);
+    let do_mode = (opt_vars().p_smd != 0 && g_st().msg_silent == 0)
+        && ((g_st().state_global & MODE_TERMINAL) != 0
+            || (g_st().state_global & MODE_INSERT) != 0
+            || g_st().restart_edit != 0
+            || g_st().visual_global.active);
 
-        let can_show_mode = opt_vars().p_ch != 0 || ui_has(K_UIMESSAGES);
-        if (do_mode || g_st().reg_recording != 0) && can_show_mode {
-            if skip_showmode() {
-                return 0;
-            }
+    let can_show_mode = opt_vars().p_ch != 0 || ui_has(K_UIMESSAGES);
+    if (do_mode || g_st().reg_recording != 0) && can_show_mode {
+        if skip_showmode() {
+            return 0;
+        }
 
-            let nwr_save = g_st().need_wait_return;
-            msg_check_for_delay(false);
+        let nwr_save = g_st().need_wait_return;
+        msg_check_for_delay(false);
 
-            let mut need_clear = g_st().clear_cmdline;
-            if g_st().clear_cmdline && g_st().cmdline_row < g_st().rows_global - 1 {
-                msg_clr_cmdline();
-            }
+        let mut need_clear = g_st().clear_cmdline;
+        if g_st().clear_cmdline && g_st().cmdline_row < g_st().rows_global - 1 {
+            msg_clr_cmdline();
+        }
 
-            msg_pos_mode();
-            let hl_id = HLF_CM;
+        msg_pos_mode();
+        let hl_id = HLF_CM;
 
-            g_st().msg_no_more = true;
-            let save_lines_left = g_st().lines_left;
-            g_st().lines_left = 0;
+        g_st().msg_no_more = true;
+        let save_lines_left = g_st().lines_left;
+        g_st().lines_left = 0;
 
-            if do_mode {
-                msg_puts_hl(c"--", hl_id, false);
-                if !g_st().edit_submode.is_null() && !shortmess(K_SHM_COMPLETIONMENU) {
-                    length = if ui_has(K_UIMESSAGES) {
-                        i32::MAX
-                    } else {
-                        (g_st().rows_global - g_st().msg_row) * g_st().columns_global - 3
-                    };
-                    if !g_st().edit_submode_extra.is_null() {
-                        length -= vim_strsize(g_st().edit_submode_extra);
-                    }
-                    if length > 0 {
-                        if !g_st().edit_submode_pre.is_null() {
-                            length -= vim_strsize(g_st().edit_submode_pre);
-                        }
-                        if length - vim_strsize(g_st().edit_submode) > 0 {
-                            if !g_st().edit_submode_pre.is_null() {
-                                msg_puts_hl(g_st().edit_submode_pre, hl_id, false);
-                            }
-                            msg_puts_hl(g_st().edit_submode, hl_id, false);
-                        }
-                        if !g_st().edit_submode_extra.is_null() {
-                            msg_puts_hl(c" ", hl_id, false);
-                            let sub_id = if g_st().edit_submode_highl < HLF_COUNT {
-                                g_st().edit_submode_highl
-                            } else {
-                                hl_id
-                            };
-                            msg_puts_hl(g_st().edit_submode_extra, sub_id, false);
-                        }
-                    }
+        if do_mode {
+            msg_puts_hl(c"--", hl_id, false);
+            if !g_st().edit_submode.is_null() && !shortmess(K_SHM_COMPLETIONMENU) {
+                length = if ui_has(K_UIMESSAGES) {
+                    i32::MAX
                 } else {
-                    if (g_st().state_global & MODE_TERMINAL) != 0 {
-                        msg_puts_hl(gettext(c" TERMINAL"), hl_id, false);
-                    } else if (g_st().state_global & VREPLACE_FLAG) != 0 {
-                        msg_puts_hl(gettext(c" VREPLACE"), hl_id, false);
-                    } else if (g_st().state_global & REPLACE_FLAG) != 0 {
-                        msg_puts_hl(gettext(c" REPLACE"), hl_id, false);
-                    } else if (g_st().state_global & MODE_INSERT) != 0 {
-                        if opt_vars().p_ri != 0 {
-                            msg_puts_hl(gettext(c" REVERSE"), hl_id, false);
+                    (g_st().rows_global - g_st().msg_row) * g_st().columns_global - 3
+                };
+                if !g_st().edit_submode_extra.is_null() {
+                    length -= vim_strsize(g_st().edit_submode_extra);
+                }
+                if length > 0 {
+                    if !g_st().edit_submode_pre.is_null() {
+                        length -= vim_strsize(g_st().edit_submode_pre);
+                    }
+                    if length - vim_strsize(g_st().edit_submode) > 0 {
+                        if !g_st().edit_submode_pre.is_null() {
+                            msg_puts_hl(g_st().edit_submode_pre, hl_id, false);
                         }
-                        msg_puts_hl(gettext(c" INSERT"), hl_id, false);
-                    } else if g_st().restart_edit == i32::from(b'I')
-                        || g_st().restart_edit == i32::from(b'i')
-                        || g_st().restart_edit == i32::from(b'a')
-                        || g_st().restart_edit == i32::from(b'A')
-                    {
-                        if !curbuf_mut().terminal.is_null() {
-                            msg_puts_hl(gettext(c" (terminal)"), hl_id, false);
+                        msg_puts_hl(g_st().edit_submode, hl_id, false);
+                    }
+                    if !g_st().edit_submode_extra.is_null() {
+                        msg_puts_hl(c" ", hl_id, false);
+                        let sub_id = if g_st().edit_submode_highl < HLF_COUNT {
+                            g_st().edit_submode_highl
                         } else {
-                            msg_puts_hl(gettext(c" (insert)"), hl_id, false);
-                        }
-                    } else if g_st().restart_edit == i32::from(b'R') {
-                        msg_puts_hl(gettext(c" (replace)"), hl_id, false);
-                    } else if g_st().restart_edit == i32::from(b'V') {
-                        msg_puts_hl(gettext(c" (vreplace)"), hl_id, false);
-                    }
-                    if (g_st().state_global & MODE_LANGMAP) != 0 {
-                        if curwin_mut().w_onebuf_opt.wo_arab != 0 {
-                            msg_puts_hl(gettext(c" Arabic"), hl_id, false);
-                        } else if get_keymap_str(
-                            curwin_mut(),
-                            c" (%s)",
-                            g_st().name_buff.as_mut_ptr(),
-                            MAXPATHL as i32,
-                        ) > 0
-                        {
-                            msg_puts_hl(g_st().name_buff.as_ptr(), hl_id, false);
-                        }
-                    }
-                    if (g_st().state_global & MODE_INSERT) != 0 && opt_vars().p_paste != 0 {
-                        msg_puts_hl(gettext(c" (paste)"), hl_id, false);
-                    }
-
-                    if g_st().visual_global.active {
-                        let code = (if g_st().visual_global.select { 4 } else { 0 })
-                            + (if g_st().visual_global.mode == CTRL_V_CONST {
-                                2
-                            } else {
-                                0
-                            })
-                            + (if g_st().visual_global.mode == i32::from(b'V') {
-                                1
-                            } else {
-                                0
-                            });
-                        let p: &CStr = match code {
-                            0 => c" VISUAL",
-                            1 => c" VISUAL LINE",
-                            2 => c" VISUAL BLOCK",
-                            4 => c" SELECT",
-                            5 => c" SELECT LINE",
-                            _ => c" SELECT BLOCK",
+                            hl_id
                         };
-                        msg_puts_hl(gettext(p.as_ptr()), hl_id, false);
+                        msg_puts_hl(g_st().edit_submode_extra, sub_id, false);
                     }
-                    msg_puts_hl(c" --", hl_id, false);
+                }
+            } else {
+                if (g_st().state_global & MODE_TERMINAL) != 0 {
+                    msg_puts_hl(gettext(c" TERMINAL"), hl_id, false);
+                } else if (g_st().state_global & VREPLACE_FLAG) != 0 {
+                    msg_puts_hl(gettext(c" VREPLACE"), hl_id, false);
+                } else if (g_st().state_global & REPLACE_FLAG) != 0 {
+                    msg_puts_hl(gettext(c" REPLACE"), hl_id, false);
+                } else if (g_st().state_global & MODE_INSERT) != 0 {
+                    if opt_vars().p_ri != 0 {
+                        msg_puts_hl(gettext(c" REVERSE"), hl_id, false);
+                    }
+                    msg_puts_hl(gettext(c" INSERT"), hl_id, false);
+                } else if g_st().restart_edit == i32::from(b'I')
+                    || g_st().restart_edit == i32::from(b'i')
+                    || g_st().restart_edit == i32::from(b'a')
+                    || g_st().restart_edit == i32::from(b'A')
+                {
+                    if !curbuf_mut().terminal.is_null() {
+                        msg_puts_hl(gettext(c" (terminal)"), hl_id, false);
+                    } else {
+                        msg_puts_hl(gettext(c" (insert)"), hl_id, false);
+                    }
+                } else if g_st().restart_edit == i32::from(b'R') {
+                    msg_puts_hl(gettext(c" (replace)"), hl_id, false);
+                } else if g_st().restart_edit == i32::from(b'V') {
+                    msg_puts_hl(gettext(c" (vreplace)"), hl_id, false);
+                }
+                if (g_st().state_global & MODE_LANGMAP) != 0 {
+                    if curwin_mut().w_onebuf_opt.wo_arab != 0 {
+                        msg_puts_hl(gettext(c" Arabic"), hl_id, false);
+                    } else if get_keymap_str(
+                        curwin_mut(),
+                        c" (%s)",
+                        g_st().name_buff.as_mut_ptr(),
+                        MAXPATHL as i32,
+                    ) > 0
+                    {
+                        msg_puts_hl(g_st().name_buff.as_ptr(), hl_id, false);
+                    }
+                }
+                if (g_st().state_global & MODE_INSERT) != 0 && opt_vars().p_paste != 0 {
+                    msg_puts_hl(gettext(c" (paste)"), hl_id, false);
                 }
 
-                need_clear = true;
-            }
-            if g_st().reg_recording != 0 && g_st().edit_submode.is_null() {
-                recording_mode(hl_id);
-                need_clear = true;
+                if g_st().visual_global.active {
+                    let code = (if g_st().visual_global.select { 4 } else { 0 })
+                        + (if g_st().visual_global.mode == CTRL_V_CONST {
+                            2
+                        } else {
+                            0
+                        })
+                        + (if g_st().visual_global.mode == i32::from(b'V') {
+                            1
+                        } else {
+                            0
+                        });
+                    let p: &CStr = match code {
+                        0 => c" VISUAL",
+                        1 => c" VISUAL LINE",
+                        2 => c" VISUAL BLOCK",
+                        4 => c" SELECT",
+                        5 => c" SELECT LINE",
+                        _ => c" SELECT BLOCK",
+                    };
+                    msg_puts_hl(gettext(p.as_ptr()), hl_id, false);
+                }
+                msg_puts_hl(c" --", hl_id, false);
             }
 
-            g_st().mode_displayed = true;
-            if need_clear || g_st().clear_cmdline || g_st().redraw_mode {
-                msg_clr_eos();
-            }
-            g_st().msg_didout = false;
-            length = g_st().msg_col;
-            g_st().msg_col = 0;
-            g_st().msg_no_more = false;
-            g_st().lines_left = save_lines_left;
-            g_st().need_wait_return = nwr_save;
-        } else if g_st().clear_cmdline && g_st().msg_silent == 0 {
-            msg_clr_cmdline();
-        } else if g_st().redraw_mode {
-            msg_pos_mode();
+            need_clear = true;
+        }
+        if g_st().reg_recording != 0 && g_st().edit_submode.is_null() {
+            recording_mode(hl_id);
+            need_clear = true;
+        }
+
+        g_st().mode_displayed = true;
+        if need_clear || g_st().clear_cmdline || g_st().redraw_mode {
             msg_clr_eos();
         }
-
-        msg_ext_flush_showmode();
-
-        if g_st().visual_global.active {
-            clear_showcmd();
-        }
-
-        redraw_ruler();
-        g_st().redraw_cmdline = false;
-        g_st().redraw_mode = false;
-        g_st().clear_cmdline = false;
-
-        length
+        g_st().msg_didout = false;
+        length = g_st().msg_col;
+        g_st().msg_col = 0;
+        g_st().msg_no_more = false;
+        g_st().lines_left = save_lines_left;
+        g_st().need_wait_return = nwr_save;
+    } else if g_st().clear_cmdline && g_st().msg_silent == 0 {
+        msg_clr_cmdline();
+    } else if g_st().redraw_mode {
+        msg_pos_mode();
+        msg_clr_eos();
     }
+
+    msg_ext_flush_showmode();
+
+    if g_st().visual_global.active {
+        clear_showcmd();
+    }
+
+    redraw_ruler();
+    g_st().redraw_cmdline = false;
+    g_st().redraw_mode = false;
+    g_st().clear_cmdline = false;
+
+    length
 }
 
 fn msg_pos_mode() {
@@ -1132,153 +1113,142 @@ fn recording_mode(hl_id: i32) {
 }
 
 pub fn comp_col() {
-    {
-        let last_has_status = last_stl_height(false) > 0;
+    let last_has_status = last_stl_height(false) > 0;
 
-        g_st().sc_col = 0;
-        g_st().ru_col = 0;
-        if opt_vars().p_ru != 0 {
-            g_st().ru_col = if g_st().ru_wid != 0 {
-                g_st().ru_wid
-            } else {
-                COL_RULER
-            };
-            if !last_has_status {
-                g_st().sc_col = g_st().ru_col;
-            }
+    g_st().sc_col = 0;
+    g_st().ru_col = 0;
+    if opt_vars().p_ru != 0 {
+        g_st().ru_col = if g_st().ru_wid != 0 {
+            g_st().ru_wid
+        } else {
+            COL_RULER
+        };
+        if !last_has_status {
+            g_st().sc_col = g_st().ru_col;
         }
-        if opt_vars().p_sc != 0 && crate::memory::cstr_first_byte(opt_vars().p_sloc) == b'l' {
-            g_st().sc_col += SHOWCMD_COLS;
-            if opt_vars().p_ru == 0 || last_has_status {
-                g_st().sc_col += 1;
-            }
-        }
-        assert!(g_st().sc_col >= 0 && i32::MIN + g_st().sc_col <= g_st().columns_global);
-        g_st().sc_col = g_st().columns_global - g_st().sc_col;
-        assert!(g_st().ru_col >= 0 && i32::MIN + g_st().ru_col <= g_st().columns_global);
-        g_st().ru_col = g_st().columns_global - g_st().ru_col;
-        if g_st().sc_col <= 0 {
-            g_st().sc_col = 1;
-        }
-        if g_st().ru_col <= 0 {
-            g_st().ru_col = 1;
-        }
-        set_vim_var_nr(VV_ECHOSPACE, Varnumber::from(g_st().sc_col - 1));
     }
+    if opt_vars().p_sc != 0 && crate::memory::cstr_first_byte(opt_vars().p_sloc) == b'l' {
+        g_st().sc_col += SHOWCMD_COLS;
+        if opt_vars().p_ru == 0 || last_has_status {
+            g_st().sc_col += 1;
+        }
+    }
+    assert!(g_st().sc_col >= 0 && i32::MIN + g_st().sc_col <= g_st().columns_global);
+    g_st().sc_col = g_st().columns_global - g_st().sc_col;
+    assert!(g_st().ru_col >= 0 && i32::MIN + g_st().ru_col <= g_st().columns_global);
+    g_st().ru_col = g_st().columns_global - g_st().ru_col;
+    if g_st().sc_col <= 0 {
+        g_st().sc_col = 1;
+    }
+    if g_st().ru_col <= 0 {
+        g_st().ru_col = 1;
+    }
+    set_vim_var_nr(VV_ECHOSPACE, Varnumber::from(g_st().sc_col - 1));
 }
 
 fn win_redraw_signcols(wp: &mut WinInfoInfo) -> bool {
+    let buf = wp.buf_mut();
+
+    if !buf.b_signcols.autom
+        && (!crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
+            || (wp.w_maxscwidth > 1 && wp.w_minscwidth != wp.w_maxscwidth))
     {
-        let buf = wp.buf_mut();
-
-        if !buf.b_signcols.autom
-            && (!crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
-                || (wp.w_maxscwidth > 1 && wp.w_minscwidth != wp.w_maxscwidth))
-        {
-            buf.b_signcols.autom = true;
-            let last_line = buf.b_ml.ml_line_count - 1;
-            buf_signcols_count_range(buf, 0, last_line, MAXLNUM, K_FALSE);
-        }
-
-        while buf.b_signcols.max > 0 && buf.b_signcols.count[(buf.b_signcols.max - 1) as usize] == 0
-        {
-            buf.b_signcols.max -= 1;
-        }
-
-        let mut width = wp.w_maxscwidth.min(buf.b_signcols.max);
-        let rebuild_stc = buf.b_signcols.max != buf.b_signcols.last_max
-            && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc);
-
-        if rebuild_stc {
-            wp.w_nrwidth_line_count = 0;
-        } else if wp.w_minscwidth == 0 && wp.w_maxscwidth == 1 {
-            width = i32::from(buf_meta_total(&*buf, K_MTMETA_SIGN_TEXT) > 0);
-        }
-
-        let scwidth = wp.w_scwidth;
-        wp.w_scwidth = 0.max(wp.w_minscwidth).max(width);
-        wp.w_scwidth != scwidth || rebuild_stc
+        buf.b_signcols.autom = true;
+        let last_line = buf.b_ml.ml_line_count - 1;
+        buf_signcols_count_range(buf, 0, last_line, MAXLNUM, K_FALSE);
     }
+
+    while buf.b_signcols.max > 0 && buf.b_signcols.count[(buf.b_signcols.max - 1) as usize] == 0 {
+        buf.b_signcols.max -= 1;
+    }
+
+    let mut width = wp.w_maxscwidth.min(buf.b_signcols.max);
+    let rebuild_stc = buf.b_signcols.max != buf.b_signcols.last_max
+        && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc);
+
+    if rebuild_stc {
+        wp.w_nrwidth_line_count = 0;
+    } else if wp.w_minscwidth == 0 && wp.w_maxscwidth == 1 {
+        width = i32::from(buf_meta_total(&*buf, K_MTMETA_SIGN_TEXT) > 0);
+    }
+
+    let scwidth = wp.w_scwidth;
+    wp.w_scwidth = 0.max(wp.w_minscwidth).max(width);
+    wp.w_scwidth != scwidth || rebuild_stc
 }
 
 fn hsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
-    {
-        let before = corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft;
-        let sep_row = if corner == WindowCorner::TopLeft || corner == WindowCorner::TopRight {
-            wp.w_winrow - 1
-        } else {
-            w_endrow(&*wp)
-        };
-        let mut fr = wp.frame_mut();
+    let before = corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft;
+    let sep_row = if corner == WindowCorner::TopLeft || corner == WindowCorner::TopRight {
+        wp.w_winrow - 1
+    } else {
+        w_endrow(&*wp)
+    };
+    let mut fr = wp.frame_mut();
 
-        while !fr.fr_parent.is_null() {
-            if unsafe { (*fr.fr_parent).fr_layout } == FR_ROW
-                && !(if before { fr.fr_prev } else { fr.fr_next }).is_null()
-            {
-                fr = if before { fr.prev_mut() } else { fr.next_mut() };
-                break;
-            }
-            fr = fr.parent_mut();
+    while !fr.fr_parent.is_null() {
+        if unsafe { (*fr.fr_parent).fr_layout } == FR_ROW
+            && !(if before { fr.fr_prev } else { fr.fr_next }).is_null()
+        {
+            fr = if before { fr.prev_mut() } else { fr.next_mut() };
+            break;
         }
-        if fr.fr_parent.is_null() {
-            return false;
-        }
-        while fr.fr_layout != FR_LEAF {
-            fr = fr.child_mut();
-            if unsafe { (*fr.fr_parent).fr_layout } == FR_ROW && before {
-                while !fr.fr_next.is_null() {
-                    fr = fr.next_mut();
-                }
-            } else {
-                while !fr.fr_next.is_null() && frame2win(fr).w_winrow + fr.fr_height < sep_row {
-                    fr = fr.next_mut();
-                }
-            }
-        }
-
-        sep_row == unsafe { (*fr.fr_win).w_winrow } - 1
-            || sep_row == w_endrow(unsafe { &*fr.fr_win })
+        fr = fr.parent_mut();
     }
+    if fr.fr_parent.is_null() {
+        return false;
+    }
+    while fr.fr_layout != FR_LEAF {
+        fr = fr.child_mut();
+        if unsafe { (*fr.fr_parent).fr_layout } == FR_ROW && before {
+            while !fr.fr_next.is_null() {
+                fr = fr.next_mut();
+            }
+        } else {
+            while !fr.fr_next.is_null() && frame2win(fr).w_winrow + fr.fr_height < sep_row {
+                fr = fr.next_mut();
+            }
+        }
+    }
+
+    sep_row == unsafe { (*fr.fr_win).w_winrow } - 1 || sep_row == w_endrow(unsafe { &*fr.fr_win })
 }
 
 fn vsep_connected(wp: &mut WinInfoInfo, corner: WindowCorner) -> bool {
-    {
-        let before = corner == WindowCorner::TopLeft || corner == WindowCorner::TopRight;
-        let sep_col = if corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft {
-            wp.w_wincol - 1
-        } else {
-            w_endcol(&*wp)
-        };
-        let mut fr = wp.frame_mut();
+    let before = corner == WindowCorner::TopLeft || corner == WindowCorner::TopRight;
+    let sep_col = if corner == WindowCorner::TopLeft || corner == WindowCorner::BottomLeft {
+        wp.w_wincol - 1
+    } else {
+        w_endcol(&*wp)
+    };
+    let mut fr = wp.frame_mut();
 
-        while !fr.fr_parent.is_null() {
-            if unsafe { (*fr.fr_parent).fr_layout } == FR_COL
-                && !(if before { fr.fr_prev } else { fr.fr_next }).is_null()
-            {
-                fr = if before { fr.prev_mut() } else { fr.next_mut() };
-                break;
-            }
-            fr = fr.parent_mut();
+    while !fr.fr_parent.is_null() {
+        if unsafe { (*fr.fr_parent).fr_layout } == FR_COL
+            && !(if before { fr.fr_prev } else { fr.fr_next }).is_null()
+        {
+            fr = if before { fr.prev_mut() } else { fr.next_mut() };
+            break;
         }
-        if fr.fr_parent.is_null() {
-            return false;
-        }
-        while fr.fr_layout != FR_LEAF {
-            fr = fr.child_mut();
-            if unsafe { (*fr.fr_parent).fr_layout } == FR_COL && before {
-                while !fr.fr_next.is_null() {
-                    fr = fr.next_mut();
-                }
-            } else {
-                while !fr.fr_next.is_null() && frame2win(fr).w_wincol + fr.fr_width < sep_col {
-                    fr = fr.next_mut();
-                }
-            }
-        }
-
-        sep_col == unsafe { (*fr.fr_win).w_wincol } - 1
-            || sep_col == w_endcol(unsafe { &*fr.fr_win })
+        fr = fr.parent_mut();
     }
+    if fr.fr_parent.is_null() {
+        return false;
+    }
+    while fr.fr_layout != FR_LEAF {
+        fr = fr.child_mut();
+        if unsafe { (*fr.fr_parent).fr_layout } == FR_COL && before {
+            while !fr.fr_next.is_null() {
+                fr = fr.next_mut();
+            }
+        } else {
+            while !fr.fr_next.is_null() && frame2win(fr).w_wincol + fr.fr_width < sep_col {
+                fr = fr.next_mut();
+            }
+        }
+    }
+
+    sep_col == unsafe { (*fr.fr_win).w_wincol } - 1 || sep_col == w_endcol(unsafe { &*fr.fr_win })
 }
 
 fn draw_vsep_win(wp: &mut WinInfoInfo) {
@@ -2437,41 +2407,39 @@ fn win_update(wp: &mut WinInfoInfo) {
 }
 
 pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: i32, line_count: i32) {
-    {
-        if !redrawing() || line_count == 0 {
-            return;
-        }
+    if !redrawing() || line_count == 0 {
+        return;
+    }
 
-        let mut col: i32 = 0;
-        let mut row_off: i32 = 0;
-        let grid = grid_adjust(&mut wp.w_grid, &mut row_off, &mut col);
+    let mut col: i32 = 0;
+    let mut row_off: i32 = 0;
+    let grid = grid_adjust(&mut wp.w_grid, &mut row_off, &mut col);
 
-        let checked_width = (unsafe { (*grid).cols } - col).min(wp.w_view_width);
-        let checked_height = (unsafe { (*grid).rows } - row_off).min(wp.w_view_height);
+    let checked_width = (unsafe { (*grid).cols } - col).min(wp.w_view_width);
+    let checked_height = (unsafe { (*grid).rows } - row_off).min(wp.w_view_height);
 
-        if row + line_count.abs() >= checked_height {
-            return;
-        }
+    if row + line_count.abs() >= checked_height {
+        return;
+    }
 
-        if line_count < 0 {
-            grid_del_lines(
-                unsafe { &mut *grid },
-                row + row_off,
-                -line_count,
-                checked_height + row_off,
-                col,
-                checked_width,
-            );
-        } else {
-            grid_ins_lines(
-                unsafe { &mut *grid },
-                row + row_off,
-                line_count,
-                checked_height + row_off,
-                col,
-                checked_width,
-            );
-        }
+    if line_count < 0 {
+        grid_del_lines(
+            unsafe { &mut *grid },
+            row + row_off,
+            -line_count,
+            checked_height + row_off,
+            col,
+            checked_width,
+        );
+    } else {
+        grid_ins_lines(
+            unsafe { &mut *grid },
+            row + row_off,
+            line_count,
+            checked_height + row_off,
+            col,
+            checked_width,
+        );
     }
 }
 
@@ -2541,85 +2509,74 @@ pub fn win_draw_end(
 }
 
 pub fn compute_foldcolumn(wp: &mut WinInfoInfo, col: i32) -> i32 {
-    {
-        let fdc = win_fdccol_count(wp);
-        let wmw = if ptr::eq((&raw mut *wp), curwin_ptr()) && opt_vars().p_wmw == 0 {
-            1
-        } else {
-            opt_vars().p_wmw as i32
-        };
-        let n = wp.w_view_width - (col + wmw);
-        fdc.min(n)
-    }
+    let fdc = win_fdccol_count(wp);
+    let wmw = if ptr::eq((&raw mut *wp), curwin_ptr()) && opt_vars().p_wmw == 0 {
+        1
+    } else {
+        opt_vars().p_wmw as i32
+    };
+    let n = wp.w_view_width - (col + wmw);
+    fdc.min(n)
 }
 
 pub fn number_width(wp: &mut WinInfoInfo) -> i32 {
-    {
-        let mut lnum = if wp.w_onebuf_opt.wo_rnu != 0 && wp.w_onebuf_opt.wo_nu == 0 {
-            wp.w_view_height
-        } else {
-            wp.buf_mut().b_ml.ml_line_count
-        };
+    let mut lnum = if wp.w_onebuf_opt.wo_rnu != 0 && wp.w_onebuf_opt.wo_nu == 0 {
+        wp.w_view_height
+    } else {
+        wp.buf_mut().b_ml.ml_line_count
+    };
 
-        if lnum == wp.w_nrwidth_line_count {
-            return wp.w_nrwidth_width;
-        }
-        wp.w_nrwidth_line_count = lnum;
-
-        if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
-            wp.w_statuscol_line_count = 0;
-            wp.w_nrwidth_width =
-                i32::from(wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
-                    * (wp.w_onebuf_opt.wo_nuw as i32);
-            return wp.w_nrwidth_width;
-        }
-
-        let mut n: i32 = 0;
-        loop {
-            lnum /= 10;
-            n += 1;
-            if lnum <= 0 {
-                break;
-            }
-        }
-
-        n = n.max((wp.w_onebuf_opt.wo_nuw as i32) - 1);
-
-        if n < 2
-            && buf_meta_total(wp.buf_mut(), K_MTMETA_SIGN_TEXT) != 0
-            && wp.w_minscwidth == SCL_NUM
-        {
-            n = 2;
-        }
-
-        wp.w_nrwidth_width = n;
-        n
+    if lnum == wp.w_nrwidth_line_count {
+        return wp.w_nrwidth_width;
     }
+    wp.w_nrwidth_line_count = lnum;
+
+    if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
+        wp.w_statuscol_line_count = 0;
+        wp.w_nrwidth_width = i32::from(wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
+            * (wp.w_onebuf_opt.wo_nuw as i32);
+        return wp.w_nrwidth_width;
+    }
+
+    let mut n: i32 = 0;
+    loop {
+        lnum /= 10;
+        n += 1;
+        if lnum <= 0 {
+            break;
+        }
+    }
+
+    n = n.max((wp.w_onebuf_opt.wo_nuw as i32) - 1);
+
+    if n < 2 && buf_meta_total(wp.buf_mut(), K_MTMETA_SIGN_TEXT) != 0 && wp.w_minscwidth == SCL_NUM
+    {
+        n = 2;
+    }
+
+    wp.w_nrwidth_width = n;
+    n
 }
 
 pub fn redraw_later(mut wp: Option<&mut WinInfoInfo>, type_: i32) {
+    assert!(wp.is_some() || g_st().exiting);
+    if !g_st().exiting
+        && !g_st().redraw_not_allowed
+        && wp.as_deref_mut().unwrap().w_redr_type < type_
     {
-        assert!(wp.is_some() || g_st().exiting);
-        if !g_st().exiting
-            && !g_st().redraw_not_allowed
-            && wp.as_deref_mut().unwrap().w_redr_type < type_
-        {
-            wp.as_deref_mut().unwrap().w_redr_type = type_;
-            if type_ >= UPD_NOT_VALID {
-                wp.unwrap().w_lines_valid = 0;
-            }
-            g_st().must_redraw = g_st().must_redraw.max(type_);
+        wp.as_deref_mut().unwrap().w_redr_type = type_;
+        if type_ >= UPD_NOT_VALID {
+            wp.unwrap().w_lines_valid = 0;
         }
+        g_st().must_redraw = g_st().must_redraw.max(type_);
     }
 }
 
 pub fn redraw_all_later(type_: i32) {
-    {
-        for wp in for_all_windows_ptr() {
-            redraw_later(Some(&mut *wp), type_);
-        }
-        set_must_redraw(type_);
+    for wp in for_all_windows_ptr() {
+        redraw_later(Some(&mut *wp), type_);
     }
+    set_must_redraw(type_);
 }
 
 pub fn set_must_redraw(type_: i32) {
@@ -2629,11 +2586,9 @@ pub fn set_must_redraw(type_: i32) {
 }
 
 pub fn screen_invalidate_highlights() {
-    {
-        for wp in for_all_windows_ptr() {
-            redraw_later(Some(&mut *wp), UPD_NOT_VALID);
-            wp.w_grid_alloc.valid = false;
-        }
+    for wp in for_all_windows_ptr() {
+        redraw_later(Some(&mut *wp), UPD_NOT_VALID);
+        wp.w_grid_alloc.valid = false;
     }
 }
 
@@ -2642,39 +2597,33 @@ pub fn redraw_curbuf_later(type_: i32) {
 }
 
 pub fn redraw_buf_later(buf: *mut FileBuf, type_: i32) {
-    {
-        for wp in for_all_windows_ptr() {
-            if ptr::eq(wp.w_buffer, buf) {
-                redraw_later(Some(&mut *wp), type_);
-            }
+    for wp in for_all_windows_ptr() {
+        if ptr::eq(wp.w_buffer, buf) {
+            redraw_later(Some(&mut *wp), type_);
         }
     }
 }
 
 pub fn redraw_buf_line_later(buf: &FileBuf, line: Linenr, force: bool) {
-    {
-        for wp in for_all_windows_ptr() {
-            if ptr::eq(wp.w_buffer, buf) {
-                redraw_winline(&mut *wp, line.min(buf.b_ml.ml_line_count));
-                if force && line > buf.b_ml.ml_line_count {
-                    wp.w_redraw_bot = line;
-                }
+    for wp in for_all_windows_ptr() {
+        if ptr::eq(wp.w_buffer, buf) {
+            redraw_winline(&mut *wp, line.min(buf.b_ml.ml_line_count));
+            if force && line > buf.b_ml.ml_line_count {
+                wp.w_redraw_bot = line;
             }
         }
     }
 }
 
 pub fn redraw_win_range_later(wp: &mut WinInfoInfo, first: Linenr, last: Linenr) {
-    {
-        if last >= wp.w_topline && first < wp.w_botline {
-            if wp.w_redraw_top == 0 || wp.w_redraw_top > first {
-                wp.w_redraw_top = first;
-            }
-            if wp.w_redraw_bot == 0 || wp.w_redraw_bot < last {
-                wp.w_redraw_bot = last;
-            }
-            redraw_later(Some(&mut *wp), UPD_VALID);
+    if last >= wp.w_topline && first < wp.w_botline {
+        if wp.w_redraw_top == 0 || wp.w_redraw_top > first {
+            wp.w_redraw_top = first;
         }
+        if wp.w_redraw_bot == 0 || wp.w_redraw_bot < last {
+            wp.w_redraw_bot = last;
+        }
+        redraw_later(Some(&mut *wp), UPD_VALID);
     }
 }
 
@@ -2683,49 +2632,43 @@ pub fn redraw_winline(wp: &mut WinInfoInfo, lnum: Linenr) {
 }
 
 pub fn redraw_buf_range_later(buf: *mut FileBuf, first: Linenr, last: Linenr) {
-    {
-        for wp in for_all_windows_ptr() {
-            if ptr::eq(wp.w_buffer, buf) {
-                redraw_win_range_later(&mut *wp, first, last);
-            }
+    for wp in for_all_windows_ptr() {
+        if ptr::eq(wp.w_buffer, buf) {
+            redraw_win_range_later(&mut *wp, first, last);
         }
     }
 }
 
 pub fn redraw_buf_status_later(buf: *mut FileBuf) {
-    {
-        for wp in for_all_windows_ptr() {
-            if ptr::eq(wp.w_buffer, buf)
-                && (wp.w_status_height != 0
-                    || (ptr::eq(wp, curwin_ptr()) && global_stl_height() != 0)
-                    || wp.w_winbar_height != 0)
-            {
-                wp.w_redr_status = true;
-                set_must_redraw(UPD_VALID);
-            }
-        }
-        if opt_vars().p_ru != 0
-            && ptr::eq(curwin_mut().w_buffer, buf)
-            && curwin_mut().w_status_height == 0
-            && !curwin_mut().w_redr_status
+    for wp in for_all_windows_ptr() {
+        if ptr::eq(wp.w_buffer, buf)
+            && (wp.w_status_height != 0
+                || (ptr::eq(wp, curwin_ptr()) && global_stl_height() != 0)
+                || wp.w_winbar_height != 0)
         {
-            g_st().redraw_cmdline = true;
+            wp.w_redr_status = true;
+            set_must_redraw(UPD_VALID);
         }
+    }
+    if opt_vars().p_ru != 0
+        && ptr::eq(curwin_mut().w_buffer, buf)
+        && curwin_mut().w_status_height == 0
+        && !curwin_mut().w_redr_status
+    {
+        g_st().redraw_cmdline = true;
     }
 }
 
 pub fn status_redraw_all() {
-    {
-        let is_stl_global = global_stl_height() != 0;
+    let is_stl_global = global_stl_height() != 0;
 
-        for wp in for_all_windows_ptr() {
-            if (!is_stl_global && wp.w_status_height != 0)
-                || ptr::eq(wp, curwin_ptr())
-                || wp.w_winbar_height != 0
-            {
-                wp.w_redr_status = true;
-                redraw_later(Some(&mut *wp), UPD_VALID);
-            }
+    for wp in for_all_windows_ptr() {
+        if (!is_stl_global && wp.w_status_height != 0)
+            || ptr::eq(wp, curwin_ptr())
+            || wp.w_winbar_height != 0
+        {
+            wp.w_redr_status = true;
+            redraw_later(Some(&mut *wp), UPD_VALID);
         }
     }
 }
@@ -2735,45 +2678,40 @@ pub fn status_redraw_curbuf() {
 }
 
 pub fn status_redraw_buf(buf: *mut FileBuf) {
-    {
-        let is_stl_global = global_stl_height() != 0;
+    let is_stl_global = global_stl_height() != 0;
 
-        for wp in for_all_windows_ptr() {
-            if ptr::eq(wp.w_buffer, buf)
-                && ((!is_stl_global && wp.w_status_height != 0)
-                    || (is_stl_global && ptr::eq(wp, curwin_ptr()))
-                    || wp.w_winbar_height != 0)
-            {
-                wp.w_redr_status = true;
-                redraw_later(Some(&mut *wp), UPD_VALID);
-            }
-        }
-        if opt_vars().p_ru != 0 && curwin_mut().w_status_height == 0 && !curwin_mut().w_redr_status
+    for wp in for_all_windows_ptr() {
+        if ptr::eq(wp.w_buffer, buf)
+            && ((!is_stl_global && wp.w_status_height != 0)
+                || (is_stl_global && ptr::eq(wp, curwin_ptr()))
+                || wp.w_winbar_height != 0)
         {
-            g_st().redraw_cmdline = true;
-            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
+            wp.w_redr_status = true;
+            redraw_later(Some(&mut *wp), UPD_VALID);
         }
+    }
+    if opt_vars().p_ru != 0 && curwin_mut().w_status_height == 0 && !curwin_mut().w_redr_status {
+        g_st().redraw_cmdline = true;
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
     }
 }
 
 pub fn redraw_statuslines() {
-    {
-        for wp in for_all_windows_ptr() {
-            if wp.w_redr_status {
-                win_check_ns_hl(Some(&*wp));
-                win_redr_winbar(&mut *wp);
-                win_redr_status(&mut *wp);
-            }
+    for wp in for_all_windows_ptr() {
+        if wp.w_redr_status {
+            win_check_ns_hl(Some(&*wp));
+            win_redr_winbar(&mut *wp);
+            win_redr_status(&mut *wp);
         }
+    }
 
-        win_check_ns_hl(None);
-        if g_st().redraw_tabline {
-            draw_tabline();
-        }
+    win_check_ns_hl(None);
+    if g_st().redraw_tabline {
+        draw_tabline();
+    }
 
-        if g_st().need_maketitle {
-            maketitle();
-        }
+    if g_st().need_maketitle {
+        maketitle();
     }
 }
 
@@ -2797,32 +2735,26 @@ pub fn win_redraw_last_status(mut frp: *const Frame) {
 }
 
 pub fn conceal_cursor_line(wp: &WinInfoInfo) -> bool {
-    {
-        if crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_cocu) {
-            return false;
-        }
-        let c = if (get_real_state() & MODE_VISUAL) != 0 {
-            i32::from(b'v')
-        } else if (g_st().state_global & MODE_INSERT) != 0 {
-            i32::from(b'i')
-        } else if (g_st().state_global & MODE_NORMAL) != 0 {
-            i32::from(b'n')
-        } else if (g_st().state_global & MODE_CMDLINE) != 0 {
-            i32::from(b'c')
-        } else {
-            return false;
-        };
-        crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu, c)
+    if crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_cocu) {
+        return false;
     }
+    let c = if (get_real_state() & MODE_VISUAL) != 0 {
+        i32::from(b'v')
+    } else if (g_st().state_global & MODE_INSERT) != 0 {
+        i32::from(b'i')
+    } else if (g_st().state_global & MODE_NORMAL) != 0 {
+        i32::from(b'n')
+    } else if (g_st().state_global & MODE_CMDLINE) != 0 {
+        i32::from(b'c')
+    } else {
+        return false;
+    };
+    crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu, c)
 }
 
 pub fn win_cursorline_standout(wp: &WinInfoInfo) -> bool {
-    {
-        wp.w_onebuf_opt.wo_cul != 0
-            || (ptr::eq(wp, curwin_ptr())
-                && wp.w_onebuf_opt.wo_cole > 0
-                && !conceal_cursor_line(wp))
-    }
+    wp.w_onebuf_opt.wo_cul != 0
+        || (ptr::eq(wp, curwin_ptr()) && wp.w_onebuf_opt.wo_cole > 0 && !conceal_cursor_line(wp))
 }
 
 pub fn win_update_cursorline(wp: &mut WinInfoInfo, foldinfo: &mut Foldinfo) {

@@ -885,9 +885,7 @@ use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
 pub fn mb_ptr_adv(p: &mut *mut c_char) {
-    {
-        *p = (*p).wrapping_add(utfc_ptr2len(*p) as usize);
-    }
+    *p = (*p).wrapping_add(utfc_ptr2len(*p) as usize);
 }
 
 #[inline]
@@ -995,58 +993,54 @@ pub fn utf_ptr2_str_char_info_len(
 
 #[inline]
 pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
-    {
-        if crate::memory::cstr_is_empty(cur.ptr) {
-            return ClusterInfo {
-                next: cur,
-                cells: opt_vars().dy_escape_width,
-                first_compose: false,
-            };
-        }
-        let next = cur.ptr.wrapping_add(cur.chr.len as usize).cast::<u8>();
-        if unsafe { *next } < 0x80 {
-            return ClusterInfo {
-                next: StrCharInfo {
-                    ptr: next.cast::<c_char>(),
-                    chr: CharInfo {
-                        value: i32::from(unsafe { *next }),
-                        len: 1,
-                    },
-                },
-                cells: basechar_cells_impl(cur.chr),
-                first_compose: utf_iscomposing_first(cur.chr.value),
-            };
-        }
-        let mut scratch = i32::MAX;
-        utf_cluster_info_impl(cur, &mut scratch)
+    if crate::memory::cstr_is_empty(cur.ptr) {
+        return ClusterInfo {
+            next: cur,
+            cells: opt_vars().dy_escape_width,
+            first_compose: false,
+        };
     }
+    let next = cur.ptr.wrapping_add(cur.chr.len as usize).cast::<u8>();
+    if unsafe { *next } < 0x80 {
+        return ClusterInfo {
+            next: StrCharInfo {
+                ptr: next.cast::<c_char>(),
+                chr: CharInfo {
+                    value: i32::from(unsafe { *next }),
+                    len: 1,
+                },
+            },
+            cells: basechar_cells_impl(cur.chr),
+            first_compose: utf_iscomposing_first(cur.chr.value),
+        };
+    }
+    let mut scratch = i32::MAX;
+    utf_cluster_info_impl(cur, &mut scratch)
 }
 
 #[inline]
 pub fn utf_cluster_info_len(cur: StrCharInfo, size: &mut i32) -> ClusterInfo {
-    {
-        *size -= cur.chr.len;
-        let nextptr = cur.ptr.wrapping_add(cur.chr.len as usize).cast::<u8>();
-        let nextval = if *size == 0 {
-            -1
-        } else {
-            i32::from(unsafe { *nextptr })
-        };
-        if nextval < 0x80 {
-            return ClusterInfo {
-                next: StrCharInfo {
-                    ptr: nextptr.cast::<c_char>(),
-                    chr: CharInfo {
-                        value: nextval,
-                        len: 1,
-                    },
+    *size -= cur.chr.len;
+    let nextptr = cur.ptr.wrapping_add(cur.chr.len as usize).cast::<u8>();
+    let nextval = if *size == 0 {
+        -1
+    } else {
+        i32::from(unsafe { *nextptr })
+    };
+    if nextval < 0x80 {
+        return ClusterInfo {
+            next: StrCharInfo {
+                ptr: nextptr.cast::<c_char>(),
+                chr: CharInfo {
+                    value: nextval,
+                    len: 1,
                 },
-                cells: basechar_cells_impl(cur.chr),
-                first_compose: utf_iscomposing_first(cur.chr.value),
-            };
-        }
-        utf_cluster_info_impl(cur, size)
+            },
+            cells: basechar_cells_impl(cur.chr),
+            first_compose: utf_iscomposing_first(cur.chr.value),
+        };
     }
+    utf_cluster_info_impl(cur, size)
 }
 
 fn enc_canon_search(name: impl crate::strings::IntoCCharPtr) -> i32 {
@@ -1079,20 +1073,18 @@ pub fn enc_canon_props(name: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 pub fn bomb_size() -> i32 {
-    {
-        let mut n = 0;
-        if curbuf_mut().b_p_bomb != 0 && curbuf_mut().b_p_bin == 0 {
-            let fenc = crate::memory::cstr_as_bytes(curbuf_mut().b_p_fenc);
-            if fenc.is_empty() || fenc == b"utf-8" {
-                n = 3;
-            } else if fenc.starts_with(b"ucs-2") || fenc.starts_with(b"utf-16") {
-                n = 2;
-            } else if fenc.starts_with(b"ucs-4") {
-                n = 4;
-            }
+    let mut n = 0;
+    if curbuf_mut().b_p_bomb != 0 && curbuf_mut().b_p_bin == 0 {
+        let fenc = crate::memory::cstr_as_bytes(curbuf_mut().b_p_fenc);
+        if fenc.is_empty() || fenc == b"utf-8" {
+            n = 3;
+        } else if fenc.starts_with(b"ucs-2") || fenc.starts_with(b"utf-16") {
+            n = 2;
+        } else if fenc.starts_with(b"ucs-4") {
+            n = 4;
         }
-        n
     }
+    n
 }
 
 pub fn remove_bom(s: *mut c_char) {
@@ -1137,42 +1129,37 @@ fn prop_is_emojilike(prop: &utf8proc_property_t) -> bool {
 }
 
 pub fn utf_char2cells(c: i32) -> i32 {
-    {
-        if c < 0x80 {
-            return 1;
-        }
-
-        if !vim_isprintc(c) {
-            assert!(c <= 0xFFFF);
-            return if c > 0xFF { 6 } else { 4 };
-        }
-
-        let n = cw_value(c);
-        if n != 0 {
-            return n;
-        }
-
-        let prop = utf8proc_get_property(c);
-        if prop.charwidth() == 2 {
-            return 2;
-        }
-        if !opt_vars().p_ambw.is_null()
-            && crate::memory::cstr_first_byte(opt_vars().p_ambw) == b'd'
-            && prop.ambiguous_width()
-        {
-            return 2;
-        }
-
-        if opt_vars().p_emoji != 0
-            && c >= 0x1f000
-            && !prop.ambiguous_width()
-            && prop_is_emojilike(prop)
-        {
-            return 2;
-        }
-
-        1
+    if c < 0x80 {
+        return 1;
     }
+
+    if !vim_isprintc(c) {
+        assert!(c <= 0xFFFF);
+        return if c > 0xFF { 6 } else { 4 };
+    }
+
+    let n = cw_value(c);
+    if n != 0 {
+        return n;
+    }
+
+    let prop = utf8proc_get_property(c);
+    if prop.charwidth() == 2 {
+        return 2;
+    }
+    if !opt_vars().p_ambw.is_null()
+        && crate::memory::cstr_first_byte(opt_vars().p_ambw) == b'd'
+        && prop.ambiguous_width()
+    {
+        return 2;
+    }
+
+    if opt_vars().p_emoji != 0 && c >= 0x1f000 && !prop.ambiguous_width() && prop_is_emojilike(prop)
+    {
+        return 2;
+    }
+
+    1
 }
 
 pub fn ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
@@ -1191,66 +1178,64 @@ pub fn utf_ptr2cells(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 pub fn utf_ptr2_char_info_impl(p: *const u8, len: usize) -> i32 {
-    unsafe {
-        const CORRECTIONS: [u32; 7] = [
-            1u32 << 31,
-            1u32 << 31,
-            0u32.wrapping_sub(0x80u32 + (0xC0u32 << 6)),
-            0u32.wrapping_sub(0x80u32 + (0x80u32 << 6) + (0xE0u32 << 12)),
-            0u32.wrapping_sub(0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0xF0u32 << 18)),
-            0u32.wrapping_sub(
-                0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0x80u32 << 18) + (0xF8u32 << 24),
-            ),
-            0u32.wrapping_sub(
-                0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0x80u32 << 18) + (0x80u32 << 24),
-            ),
-        ];
+    const CORRECTIONS: [u32; 7] = [
+        1u32 << 31,
+        1u32 << 31,
+        0u32.wrapping_sub(0x80u32 + (0xC0u32 << 6)),
+        0u32.wrapping_sub(0x80u32 + (0x80u32 << 6) + (0xE0u32 << 12)),
+        0u32.wrapping_sub(0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0xF0u32 << 18)),
+        0u32.wrapping_sub(
+            0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0x80u32 << 18) + (0xF8u32 << 24),
+        ),
+        0u32.wrapping_sub(
+            0x80u32 + (0x80u32 << 6) + (0x80u32 << 12) + (0x80u32 << 18) + (0x80u32 << 24),
+        ),
+    ];
 
-        let corr = CORRECTIONS[len];
-        let mut cur = *p.wrapping_add(1);
-        let mut code_point = (u32::from(*p) << 6).wrapping_add(u32::from(cur));
-        if (cur & 0xC0) != 0x80 {
-            return -1;
-        }
-        if (len as u32) < 3 {
-            return code_point.wrapping_add(corr) as i32;
-        }
-
-        cur = *p.wrapping_add(2);
-        code_point = (code_point << 6).wrapping_add(u32::from(cur));
-        if (cur & 0xC0) != 0x80 {
-            return -1;
-        }
-        if (len as u32) == 3 {
-            return code_point.wrapping_add(corr) as i32;
-        }
-
-        cur = *p.wrapping_add(3);
-        code_point = (code_point << 6).wrapping_add(u32::from(cur));
-        if (cur & 0xC0) != 0x80 {
-            return -1;
-        }
-        if (len as u32) == 4 {
-            return code_point.wrapping_add(corr) as i32;
-        }
-
-        cur = *p.wrapping_add(4);
-        code_point = (code_point << 6).wrapping_add(u32::from(cur));
-        if (cur & 0xC0) != 0x80 {
-            return -1;
-        }
-        if (len as u32) == 5 {
-            return code_point.wrapping_add(corr) as i32;
-        }
-
-        cur = *p.wrapping_add(5);
-        code_point = (code_point << 6).wrapping_add(u32::from(cur));
-        if (cur & 0xC0) != 0x80 {
-            return -1;
-        }
-
-        code_point.wrapping_add(corr) as i32
+    let corr = CORRECTIONS[len];
+    let mut cur = unsafe { *p.wrapping_add(1) };
+    let mut code_point = (u32::from(unsafe { *p }) << 6).wrapping_add(u32::from(cur));
+    if (cur & 0xC0) != 0x80 {
+        return -1;
     }
+    if (len as u32) < 3 {
+        return code_point.wrapping_add(corr) as i32;
+    }
+
+    cur = unsafe { *p.wrapping_add(2) };
+    code_point = (code_point << 6).wrapping_add(u32::from(cur));
+    if (cur & 0xC0) != 0x80 {
+        return -1;
+    }
+    if (len as u32) == 3 {
+        return code_point.wrapping_add(corr) as i32;
+    }
+
+    cur = unsafe { *p.wrapping_add(3) };
+    code_point = (code_point << 6).wrapping_add(u32::from(cur));
+    if (cur & 0xC0) != 0x80 {
+        return -1;
+    }
+    if (len as u32) == 4 {
+        return code_point.wrapping_add(corr) as i32;
+    }
+
+    cur = unsafe { *p.wrapping_add(4) };
+    code_point = (code_point << 6).wrapping_add(u32::from(cur));
+    if (cur & 0xC0) != 0x80 {
+        return -1;
+    }
+    if (len as u32) == 5 {
+        return code_point.wrapping_add(corr) as i32;
+    }
+
+    cur = unsafe { *p.wrapping_add(5) };
+    code_point = (code_point << 6).wrapping_add(u32::from(cur));
+    if (cur & 0xC0) != 0x80 {
+        return -1;
+    }
+
+    code_point.wrapping_add(corr) as i32
 }
 
 pub fn mb_string2cells(str_: impl crate::strings::IntoCCharPtr) -> usize {
@@ -1286,9 +1271,9 @@ pub fn mb_string2cells_len(str_: impl crate::strings::IntoCCharPtr, size: usize)
 
 pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
     let p_in = p_in.into_c_char_ptr();
-    unsafe {
+    {
         let p = p_in.cast::<u8>();
-        let v0 = u32::from(*p);
+        let v0 = u32::from(unsafe { *p });
         if v0 < 0x80 {
             return v0 as i32;
         }
@@ -1298,7 +1283,7 @@ pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
             return v0 as i32;
         }
 
-        let v1 = u32::from(*p.wrapping_add(1));
+        let v1 = u32::from(unsafe { *p.wrapping_add(1) });
         if (v1 & 0xC0) != 0x80 {
             return v0 as i32;
         }
@@ -1306,7 +1291,7 @@ pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
             return ((v0 << 6) + v1 - ((0xC0 << 6) + 0x80)) as i32;
         }
 
-        let v2 = u32::from(*p.wrapping_add(2));
+        let v2 = u32::from(unsafe { *p.wrapping_add(2) });
         if (v2 & 0xC0) != 0x80 {
             return v0 as i32;
         }
@@ -1314,7 +1299,7 @@ pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
             return ((v0 << 12) + (v1 << 6) + v2 - ((0xE0 << 12) + (0x80 << 6) + 0x80)) as i32;
         }
 
-        let v3 = u32::from(*p.wrapping_add(3));
+        let v3 = u32::from(unsafe { *p.wrapping_add(3) });
         if (v3 & 0xC0) != 0x80 {
             return v0 as i32;
         }
@@ -1323,7 +1308,7 @@ pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
                 - ((0xF0 << 18) + (0x80 << 12) + (0x80 << 6) + 0x80)) as i32;
         }
 
-        let v4 = u32::from(*p.wrapping_add(4));
+        let v4 = u32::from(unsafe { *p.wrapping_add(4) });
         if (v4 & 0xC0) != 0x80 {
             return v0 as i32;
         }
@@ -1333,7 +1318,7 @@ pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
                 as i32;
         }
 
-        let v5 = u32::from(*p.wrapping_add(5));
+        let v5 = u32::from(unsafe { *p.wrapping_add(5) });
         if (v5 & 0xC0) != 0x80 {
             return v0 as i32;
         }
@@ -1349,32 +1334,30 @@ pub fn utf_ptr2char(p_in: impl crate::strings::IntoCCharPtr) -> i32 {
 }
 
 fn utf_safe_read_char_adv(s: &mut *const c_char, n: &mut usize) -> i32 {
-    {
-        if *n == 0 {
-            return 0;
-        }
-
-        let b0 = unsafe { *(*s).cast::<u8>() };
-        let k = usize::from(UTF8LEN_TAB_ZERO[b0 as usize]);
-        if k == 1 {
-            *n -= 1;
-            *s = (*s).wrapping_add(1);
-            return i32::from(b0);
-        }
-
-        if k <= *n {
-            let c = utf_ptr2char(*s);
-            if c != i32::from(b0)
-                || (c == 0xC3 && unsafe { *(*s).wrapping_add(1).cast::<u8>() } == 0x83)
-            {
-                *s = (*s).wrapping_add(k);
-                *n -= k;
-                return c;
-            }
-        }
-
-        -1
+    if *n == 0 {
+        return 0;
     }
+
+    let b0 = unsafe { *(*s).cast::<u8>() };
+    let k = usize::from(UTF8LEN_TAB_ZERO[b0 as usize]);
+    if k == 1 {
+        *n -= 1;
+        *s = (*s).wrapping_add(1);
+        return i32::from(b0);
+    }
+
+    if k <= *n {
+        let c = utf_ptr2char(*s);
+        if c != i32::from(b0)
+            || (c == 0xC3 && unsafe { *(*s).wrapping_add(1).cast::<u8>() } == 0x83)
+        {
+            *s = (*s).wrapping_add(k);
+            *n -= k;
+            return c;
+        }
+    }
+
+    -1
 }
 
 pub fn mb_ptr2char_adv(pp: *mut *const c_char) -> i32 {
@@ -2085,18 +2068,16 @@ pub fn utf_fold(a: i32) -> i32 {
 }
 
 pub fn mb_toupper(a: i32) -> i32 {
-    {
-        if a < 128 && (opt_vars().cmp_flags & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
-            return toupper_asc(a);
-        }
-        if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
-            return unsafe { towupper(a as wint_t) } as i32;
-        }
-        if a < 128 {
-            return toupper_asc(a);
-        }
-        utf8proc_toupper(a)
+    if a < 128 && (opt_vars().cmp_flags & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
+        return toupper_asc(a);
     }
+    if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
+        return unsafe { towupper(a as wint_t) } as i32;
+    }
+    if a < 128 {
+        return toupper_asc(a);
+    }
+    utf8proc_toupper(a)
 }
 
 pub fn mb_islower(a: i32) -> bool {
@@ -2104,18 +2085,16 @@ pub fn mb_islower(a: i32) -> bool {
 }
 
 pub fn mb_tolower(a: i32) -> i32 {
-    {
-        if a < 128 && (opt_vars().cmp_flags & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
-            return tolower_asc(a);
-        }
-        if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
-            return unsafe { towlower(a as wint_t) } as i32;
-        }
-        if a < 128 {
-            return tolower_asc(a);
-        }
-        utf8proc_tolower(a)
+    if a < 128 && (opt_vars().cmp_flags & K_OPT_CMP_FLAG_KEEPASCII) != 0 {
+        return tolower_asc(a);
     }
+    if (opt_vars().cmp_flags & K_OPT_CMP_FLAG_INTERNAL) == 0 {
+        return unsafe { towlower(a as wint_t) } as i32;
+    }
+    if a < 128 {
+        return tolower_asc(a);
+    }
+    utf8proc_tolower(a)
 }
 
 pub fn mb_isupper(a: i32) -> bool {
@@ -2231,8 +2210,8 @@ pub fn utf16_to_utf8(
     utf16len: i32,
     utf8: &mut Option<std::ffi::CString>,
 ) -> i32 {
-    unsafe {
-        let mut bufsize = WideCharToMultiByte(
+    let mut bufsize = unsafe {
+        WideCharToMultiByte(
             CP_UTF8,
             0,
             utf16,
@@ -2241,14 +2220,16 @@ pub fn utf16_to_utf8(
             0,
             ptr::null(),
             ptr::null_mut(),
-        );
-        if bufsize == 0 {
-            *utf8 = None;
-            return uv_translate_sys_error(GetLastError() as i32);
-        }
+        )
+    };
+    if bufsize == 0 {
+        *utf8 = None;
+        return unsafe { uv_translate_sys_error(GetLastError() as i32) };
+    }
 
-        let mut vec = vec![0 as c_char; (bufsize as usize) + 1];
-        bufsize = WideCharToMultiByte(
+    let mut vec = vec![0 as c_char; (bufsize as usize) + 1];
+    bufsize = unsafe {
+        WideCharToMultiByte(
             CP_UTF8,
             0,
             utf16,
@@ -2257,16 +2238,16 @@ pub fn utf16_to_utf8(
             bufsize,
             ptr::null(),
             ptr::null_mut(),
-        );
-        if bufsize == 0 {
-            *utf8 = None;
-            return uv_translate_sys_error(GetLastError() as i32);
-        }
-
-        vec[bufsize as usize] = NUL;
-        *utf8 = Some(crate::memory::cstr_to_cstring(vec.as_ptr()));
-        0
+        )
+    };
+    if bufsize == 0 {
+        *utf8 = None;
+        return unsafe { uv_translate_sys_error(GetLastError() as i32) };
     }
+
+    vec[bufsize as usize] = NUL;
+    *utf8 = Some(crate::memory::cstr_to_cstring(vec.as_ptr()));
+    0
 }
 
 pub fn mb_utflen(
@@ -2351,41 +2332,39 @@ pub fn mb_stricmp(
 }
 
 pub fn show_utf8() {
-    {
-        let line = get_cursor_pos_ptr();
-        let len = utfc_ptr2len(line);
-        if len == 0 {
-            msg(c"NUL", 0);
-            return;
-        }
-
-        let mut out = String::new();
-        let mut clen = 0;
-        for i in 0..len as usize {
-            if clen == 0 {
-                if i > 0 {
-                    out.push_str("+ ");
-                }
-                clen = utf_ptr2len(line.wrapping_add(i));
-            }
-            let b = unsafe { *line.wrapping_add(i) };
-            let byte_val: u8 = if b == NL { 0 } else { b as u8 };
-            use std::fmt::Write as _;
-            let _ = write!(out, "{byte_val:02x} ");
-            clen -= 1;
-            if out.len() > IOSIZE - 20 {
-                break;
-            }
-        }
-
-        let copy_len = out.len().min(IOSIZE - 1);
-        let io_ptr = g_st().iobuff.as_mut_ptr();
-        unsafe { ptr::copy_nonoverlapping(out.as_ptr().cast::<c_char>(), io_ptr, copy_len) };
-        unsafe {
-            *io_ptr.wrapping_add(copy_len) = NUL;
-        }
-        msg(io_ptr, 0);
+    let line = get_cursor_pos_ptr();
+    let len = utfc_ptr2len(line);
+    if len == 0 {
+        msg(c"NUL", 0);
+        return;
     }
+
+    let mut out = String::new();
+    let mut clen = 0;
+    for i in 0..len as usize {
+        if clen == 0 {
+            if i > 0 {
+                out.push_str("+ ");
+            }
+            clen = utf_ptr2len(line.wrapping_add(i));
+        }
+        let b = unsafe { *line.wrapping_add(i) };
+        let byte_val: u8 = if b == NL { 0 } else { b as u8 };
+        use std::fmt::Write as _;
+        let _ = write!(out, "{byte_val:02x} ");
+        clen -= 1;
+        if out.len() > IOSIZE - 20 {
+            break;
+        }
+    }
+
+    let copy_len = out.len().min(IOSIZE - 1);
+    let io_ptr = g_st().iobuff.as_mut_ptr();
+    unsafe { ptr::copy_nonoverlapping(out.as_ptr().cast::<c_char>(), io_ptr, copy_len) };
+    unsafe {
+        *io_ptr.wrapping_add(copy_len) = NUL;
+    }
+    msg(io_ptr, 0);
 }
 
 #[inline]
@@ -2408,8 +2387,8 @@ pub fn utf_head_off(
 ) -> i32 {
     let base_in = base_in.into_c_char_ptr();
     let p_in = p_in.into_c_char_ptr();
-    unsafe {
-        if *p_in.cast::<u8>() < 0x80 {
+    {
+        if unsafe { *p_in.cast::<u8>() } < 0x80 {
             return 0;
         }
 
@@ -2418,13 +2397,13 @@ pub fn utf_head_off(
         let mut start = p;
 
         while start > base
-            && (*start & 0xc0) == 0x80
+            && (unsafe { *start } & 0xc0) == 0x80
             && (crate::memory::ptr_offset_from(p, start) as usize) < 6
         {
             start = start.wrapping_sub(1);
         }
 
-        let last_len = UTF8LEN_TAB[*start as usize];
+        let last_len = UTF8LEN_TAB[unsafe { *start } as usize];
         let mut cur_code = utf_ptr2_char_info_impl(start, usize::from(last_len));
         if cur_code < 0 || crate::memory::ptr_offset_from(p, start) >= isize::from(last_len) {
             return 0;
@@ -2440,22 +2419,22 @@ pub fn utf_head_off(
         let p_start = start;
 
         loop {
-            if *start.wrapping_sub(1) == 0 {
+            if unsafe { *start.wrapping_sub(1) } == 0 {
                 break;
             }
             start = start.wrapping_sub(1);
-            if *start < 0x80 {
+            if unsafe { *start } < 0x80 {
                 break;
             }
 
             while start > base
-                && (*start & 0xc0) == 0x80
+                && (unsafe { *start } & 0xc0) == 0x80
                 && (crate::memory::ptr_offset_from(cur_pos, start) as usize) < 6
             {
                 start = start.wrapping_sub(1);
             }
 
-            let prev_len = i32::from(UTF8LEN_TAB[*start as usize]);
+            let prev_len = i32::from(UTF8LEN_TAB[unsafe { *start } as usize]);
             let prev_code = utf_ptr2_char_info_impl(start, prev_len as usize);
             if prev_code < 0 || (prev_len as isize) < crate::memory::ptr_offset_from(cur_pos, start)
             {
@@ -2496,85 +2475,82 @@ pub fn utf_head_off(
 }
 
 pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInfo {
-    {
-        let mut cells = basechar_cells_impl(base.chr);
-        let first_compose = utf_iscomposing_first(base.chr.value);
-        let mut prev_code = base.chr.value;
-        let mut next = base.ptr.wrapping_add(base.chr.len as usize).cast::<u8>();
-        let mut state: GraphemeState = GRAPHEME_STATE_INIT;
-        assert!(unsafe { *next } >= 0x80 && *max_len > 0);
-        let mut cluster_len = base.chr.len;
+    let mut cells = basechar_cells_impl(base.chr);
+    let first_compose = utf_iscomposing_first(base.chr.value);
+    let mut prev_code = base.chr.value;
+    let mut next = base.ptr.wrapping_add(base.chr.len as usize).cast::<u8>();
+    let mut state: GraphemeState = GRAPHEME_STATE_INIT;
+    assert!(unsafe { *next } >= 0x80 && *max_len > 0);
+    let mut cluster_len = base.chr.len;
 
-        let mut check_emoji = cells == 1
-            && opt_vars().p_emoji != 0
-            && prop_is_emojilike(utf8proc_get_property(base.chr.value));
+    let mut check_emoji = cells == 1
+        && opt_vars().p_emoji != 0
+        && prop_is_emojilike(utf8proc_get_property(base.chr.value));
 
-        loop {
-            let next_len = UTF8LEN_TAB[unsafe { *next } as usize];
-            if i32::from(next_len) > *max_len {
-                return ClusterInfo {
-                    next: StrCharInfo {
-                        ptr: next.cast::<c_char>(),
-                        chr: CharInfo { value: -1, len: 1 },
-                    },
-                    cells,
-                    first_compose,
-                };
-            }
+    loop {
+        let next_len = UTF8LEN_TAB[unsafe { *next } as usize];
+        if i32::from(next_len) > *max_len {
+            return ClusterInfo {
+                next: StrCharInfo {
+                    ptr: next.cast::<c_char>(),
+                    chr: CharInfo { value: -1, len: 1 },
+                },
+                cells,
+                first_compose,
+            };
+        }
 
-            let next_code = utf_ptr2_char_info_impl(next, usize::from(next_len));
-            if next_code < 0 || !utf_iscomposing(prev_code, next_code, &mut state) {
-                return ClusterInfo {
-                    next: StrCharInfo {
-                        ptr: next.cast::<c_char>(),
-                        chr: CharInfo {
-                            value: next_code,
-                            len: if next_code < 0 {
-                                1
-                            } else {
-                                i32::from(next_len)
-                            },
+        let next_code = utf_ptr2_char_info_impl(next, usize::from(next_len));
+        if next_code < 0 || !utf_iscomposing(prev_code, next_code, &mut state) {
+            return ClusterInfo {
+                next: StrCharInfo {
+                    ptr: next.cast::<c_char>(),
+                    chr: CharInfo {
+                        value: next_code,
+                        len: if next_code < 0 {
+                            1
+                        } else {
+                            i32::from(next_len)
                         },
                     },
-                    cells,
-                    first_compose,
-                };
-            }
+                },
+                cells,
+                first_compose,
+            };
+        }
 
-            if check_emoji {
-                if next_code == 0xFE0F {
-                    cells = 2;
-                }
-                check_emoji = false;
-            }
-
-            cluster_len += i32::from(next_len);
-            if cells == 1
-                && (utf8proc_get_property(next_code).boundclass()
-                    == UTF8PROC_BOUNDCLASS_SPACINGMARK
-                    || (next_code & !1) == 0xFF9E)
-                && base.chr.len != 1
-                && (cluster_len as usize) < MAX_SCHAR_SIZE - 1 - usize::from(first_compose)
-            {
+        if check_emoji {
+            if next_code == 0xFE0F {
                 cells = 2;
             }
+            check_emoji = false;
+        }
 
-            prev_code = next_code;
-            next = next.wrapping_add(usize::from(next_len));
-            *max_len -= i32::from(next_len);
-            if *max_len > 0 && unsafe { *next } < 0x80 {
-                return ClusterInfo {
-                    next: StrCharInfo {
-                        ptr: next.cast::<c_char>(),
-                        chr: CharInfo {
-                            value: i32::from(unsafe { *next }),
-                            len: 1,
-                        },
+        cluster_len += i32::from(next_len);
+        if cells == 1
+            && (utf8proc_get_property(next_code).boundclass() == UTF8PROC_BOUNDCLASS_SPACINGMARK
+                || (next_code & !1) == 0xFF9E)
+            && base.chr.len != 1
+            && (cluster_len as usize) < MAX_SCHAR_SIZE - 1 - usize::from(first_compose)
+        {
+            cells = 2;
+        }
+
+        prev_code = next_code;
+        next = next.wrapping_add(usize::from(next_len));
+        *max_len -= i32::from(next_len);
+        if *max_len > 0 && unsafe { *next } < 0x80 {
+            return ClusterInfo {
+                next: StrCharInfo {
+                    ptr: next.cast::<c_char>(),
+                    chr: CharInfo {
+                        value: i32::from(unsafe { *next }),
+                        len: 1,
                     },
-                    cells,
-                    first_compose,
-                };
-            }
+                },
+                cells,
+                first_compose,
+            };
         }
     }
 }
@@ -2759,70 +2735,68 @@ pub fn utf_cp_bounds(
 }
 
 pub fn utf_find_illegal() {
-    {
-        let pos: CursorPos = curwin_mut().w_cursor;
-        let mut vimconv = Vimconv {
-            vc_type: CONV_NONE,
-            vc_factor: 1,
-            vc_fd: None,
-            vc_fail: false,
-        };
-        let mut tofree: Option<Vec<u8>> = None;
+    let pos: CursorPos = curwin_mut().w_cursor;
+    let mut vimconv = Vimconv {
+        vc_type: CONV_NONE,
+        vc_factor: 1,
+        vc_fd: None,
+        vc_fail: false,
+    };
+    let mut tofree: Option<Vec<u8>> = None;
 
-        if (enc_canon_props(curbuf_mut().b_p_fenc) & ENC_8BIT) != 0 {
-            convert_setup(&mut vimconv, opt_vars().p_enc, curbuf_mut().b_p_fenc);
-        }
+    if (enc_canon_props(curbuf_mut().b_p_fenc) & ENC_8BIT) != 0 {
+        convert_setup(&mut vimconv, opt_vars().p_enc, curbuf_mut().b_p_fenc);
+    }
 
-        curwin_mut().w_cursor.coladd = 0;
-        'search: loop {
-            let mut p = get_cursor_pos_ptr();
-            if vimconv.vc_type != CONV_NONE {
-                tofree = string_convert(&vimconv, p, None);
-                let Some(ref tf) = tofree else {
-                    break;
-                };
-                p = tf.as_ptr().cast::<c_char>().cast_mut();
-            }
-
-            while !crate::memory::cstr_is_empty(p) {
-                let mut len = utf_ptr2len(p);
-                if unsafe { *p.cast::<u8>() } >= 0x80
-                    && (len == 1 || utf_char2len(utf_ptr2char(p)) != len)
-                {
-                    if vimconv.vc_type == CONV_NONE {
-                        curwin_mut().w_cursor.col +=
-                            crate::memory::ptr_offset_from(p, get_cursor_pos_ptr()) as Colnr;
-                    } else {
-                        len = crate::memory::ptr_offset_from(
-                            p,
-                            tofree.as_ref().unwrap().as_ptr().cast::<c_char>(),
-                        ) as i32;
-                        let mut cur_p = get_cursor_pos_ptr();
-                        while !crate::memory::cstr_is_empty(cur_p) && len > 0 {
-                            len -= 1;
-                            let l = utf_ptr2len(cur_p);
-                            curwin_mut().w_cursor.col += l;
-                            cur_p = cur_p.wrapping_add(l as usize);
-                        }
-                    }
-                    curwin_mut().w_set_curswant = true;
-                    break 'search;
-                }
-                p = p.wrapping_add(len as usize);
-            }
-            if curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count {
-                curwin_mut().w_cursor = pos;
-                beep_flush();
+    curwin_mut().w_cursor.coladd = 0;
+    'search: loop {
+        let mut p = get_cursor_pos_ptr();
+        if vimconv.vc_type != CONV_NONE {
+            tofree = string_convert(&vimconv, p, None);
+            let Some(ref tf) = tofree else {
                 break;
-            }
-            curwin_mut().w_cursor.lnum += 1;
-            curwin_mut().w_cursor.col = 0;
+            };
+            p = tf.as_ptr().cast::<c_char>().cast_mut();
         }
 
-        if vimconv.vc_type != CONV_NONE && tofree.is_none() {
+        while !crate::memory::cstr_is_empty(p) {
+            let mut len = utf_ptr2len(p);
+            if unsafe { *p.cast::<u8>() } >= 0x80
+                && (len == 1 || utf_char2len(utf_ptr2char(p)) != len)
+            {
+                if vimconv.vc_type == CONV_NONE {
+                    curwin_mut().w_cursor.col +=
+                        crate::memory::ptr_offset_from(p, get_cursor_pos_ptr()) as Colnr;
+                } else {
+                    len = crate::memory::ptr_offset_from(
+                        p,
+                        tofree.as_ref().unwrap().as_ptr().cast::<c_char>(),
+                    ) as i32;
+                    let mut cur_p = get_cursor_pos_ptr();
+                    while !crate::memory::cstr_is_empty(cur_p) && len > 0 {
+                        len -= 1;
+                        let l = utf_ptr2len(cur_p);
+                        curwin_mut().w_cursor.col += l;
+                        cur_p = cur_p.wrapping_add(l as usize);
+                    }
+                }
+                curwin_mut().w_set_curswant = true;
+                break 'search;
+            }
+            p = p.wrapping_add(len as usize);
+        }
+        if curwin_mut().w_cursor.lnum == curbuf_mut().b_ml.ml_line_count {
             curwin_mut().w_cursor = pos;
             beep_flush();
+            break;
         }
+        curwin_mut().w_cursor.lnum += 1;
+        curwin_mut().w_cursor.col = 0;
+    }
+
+    if vimconv.vc_type != CONV_NONE && tofree.is_none() {
+        curwin_mut().w_cursor = pos;
+        beep_flush();
     }
 }
 
@@ -2863,48 +2837,42 @@ pub fn utf_valid_string(
 }
 
 pub fn mb_adjust_cursor() {
-    {
-        mark_mb_adjustpos(g_st().curbuf.cast(), &mut curwin_mut().w_cursor);
-    }
+    mark_mb_adjustpos(g_st().curbuf.cast(), &mut curwin_mut().w_cursor);
 }
 
 pub fn mb_check_adjust_col(win: &mut WinInfoInfo) {
-    {
-        let oldcol = win.w_cursor.col;
+    let oldcol = win.w_cursor.col;
 
-        if oldcol != 0 {
-            let p = ml_get_buf(win.buf_mut(), win.w_cursor.lnum);
-            let len = crate::memory::cstr_len(p) as Colnr;
+    if oldcol != 0 {
+        let p = ml_get_buf(win.buf_mut(), win.w_cursor.lnum);
+        let len = crate::memory::cstr_len(p) as Colnr;
 
-            if len == 0 || oldcol < 0 {
-                win.w_cursor.col = 0;
-            } else {
-                if oldcol > len {
-                    win.w_cursor.col = len - 1;
-                }
-                win.w_cursor.col -= utf_head_off(p, p.wrapping_add(win.w_cursor.col as usize));
+        if len == 0 || oldcol < 0 {
+            win.w_cursor.col = 0;
+        } else {
+            if oldcol > len {
+                win.w_cursor.col = len - 1;
             }
+            win.w_cursor.col -= utf_head_off(p, p.wrapping_add(win.w_cursor.col as usize));
+        }
 
-            let cur_col = win.w_cursor.col as usize;
-            if win.w_cursor.coladd == 1
-                && unsafe { *p.wrapping_add(cur_col) } != TAB
-                && vim_isprintc(utf_ptr2char(p.wrapping_add(cur_col)))
-                && ptr2cells(p.wrapping_add(cur_col)) > 1
-            {
-                win.w_cursor.coladd = 0;
-            }
+        let cur_col = win.w_cursor.col as usize;
+        if win.w_cursor.coladd == 1
+            && unsafe { *p.wrapping_add(cur_col) } != TAB
+            && vim_isprintc(utf_ptr2char(p.wrapping_add(cur_col)))
+            && ptr2cells(p.wrapping_add(cur_col)) > 1
+        {
+            win.w_cursor.coladd = 0;
         }
     }
 }
 
 pub fn mb_prevptr(line: *mut c_char, mut p: *mut c_char) -> *mut c_char {
-    {
-        if p > line {
-            let off = utf_head_off(line, p.wrapping_sub(1)) + 1;
-            p = p.wrapping_sub(off as usize);
-        }
-        p
+    if p > line {
+        let off = utf_head_off(line, p.wrapping_sub(1)) + 1;
+        p = p.wrapping_sub(off as usize);
     }
+    p
 }
 
 pub fn mb_charlen(str_: impl crate::strings::IntoCCharPtr) -> i32 {
@@ -2974,15 +2942,13 @@ pub fn mb_unescape(pp: *mut *const c_char) -> *const c_char {
 }
 
 pub fn enc_skip(p: *mut c_char) -> *mut c_char {
-    {
-        let bytes = crate::memory::cstr_as_bytes(p);
-        if bytes.starts_with(b"2byte-") {
-            p.wrapping_add(6)
-        } else if bytes.starts_with(b"8bit-") {
-            p.wrapping_add(5)
-        } else {
-            p
-        }
+    let bytes = crate::memory::cstr_as_bytes(p);
+    if bytes.starts_with(b"2byte-") {
+        p.wrapping_add(6)
+    } else if bytes.starts_with(b"8bit-") {
+        p.wrapping_add(5)
+    } else {
+        p
     }
 }
 
@@ -3061,76 +3027,74 @@ pub fn enc_canonize(enc: impl crate::strings::IntoCCharPtr) -> std::ffi::CString
 }
 
 pub fn enc_locale() -> Option<std::ffi::CString> {
-    {
-        #[cfg(unix)]
-        let mut s: *const c_char = nl_langinfo(CODESET);
-        #[cfg(not(unix))]
-        let mut s: *const c_char = ptr::null();
+    #[cfg(unix)]
+    let mut s: *const c_char = nl_langinfo(CODESET);
+    #[cfg(not(unix))]
+    let mut s: *const c_char = ptr::null();
 
-        let mut env_buf = [0 as c_char; 64];
+    let mut env_buf = [0 as c_char; 64];
+    if crate::memory::cstr_is_empty(s) {
+        s = unsafe { setlocale(LC_CTYPE, ptr::null()) };
         if crate::memory::cstr_is_empty(s) {
-            s = unsafe { setlocale(LC_CTYPE, ptr::null()) };
-            if crate::memory::cstr_is_empty(s) {
-                s = os_getenv_buf(c"LC_ALL", env_buf.as_mut_ptr(), env_buf.len());
+            s = os_getenv_buf(c"LC_ALL", env_buf.as_mut_ptr(), env_buf.len());
+            if s.is_null() {
+                s = os_getenv_buf(c"LC_CTYPE", env_buf.as_mut_ptr(), env_buf.len());
                 if s.is_null() {
-                    s = os_getenv_buf(c"LC_CTYPE", env_buf.as_mut_ptr(), env_buf.len());
-                    if s.is_null() {
-                        s = os_getenv_buf(c"LANG", env_buf.as_mut_ptr(), env_buf.len());
-                    }
+                    s = os_getenv_buf(c"LANG", env_buf.as_mut_ptr(), env_buf.len());
                 }
             }
         }
-
-        if s.is_null() {
-            return None;
-        }
-
-        let mut buf = [0 as c_char; 50];
-        let p = vim_strchr(s, b'.' as i32);
-        if !p.is_null() {
-            if p.cast_const() > s.wrapping_add(2)
-                && crate::memory::cstr_slice(p, (1) + (3))[1..].eq_ignore_ascii_case(b"EUC")
-                && !(crate::memory::cstr_byte_at(p, 4)).is_ascii_alphanumeric()
-                && crate::memory::cstr_byte_at(p, 4) != b'-'
-                && unsafe { *p.wrapping_sub(3) } == b'_' as c_char
-            {
-                unsafe {
-                    ptr::copy_nonoverlapping(b"euc-".as_ptr().cast::<c_char>(), buf.as_mut_ptr(), 4)
-                };
-                let c2 = unsafe { *p.wrapping_sub(2) } as u8;
-                let c1 = unsafe { *p.wrapping_sub(1) } as u8;
-                buf[4] = if c2.is_ascii_alphanumeric() {
-                    tolower_asc(i32::from(c2)) as u8 as c_char
-                } else {
-                    0
-                };
-                buf[5] = if c1.is_ascii_alphanumeric() {
-                    tolower_asc(i32::from(c1)) as u8 as c_char
-                } else {
-                    0
-                };
-                buf[6] = NUL;
-                return Some(enc_canonize(buf.as_ptr()));
-            }
-            s = p.wrapping_add(1);
-        }
-
-        let mut i = 0usize;
-        while i < buf.len() - 1 && crate::memory::cstr_byte_at(s, i) != 0 {
-            let ch = crate::memory::cstr_byte_at(s, i);
-            if ch == b'_' || ch == b'-' {
-                buf[i] = b'-' as c_char;
-            } else if ch.is_ascii_alphanumeric() {
-                buf[i] = tolower_asc(i32::from(ch)) as u8 as c_char;
-            } else {
-                break;
-            }
-            i += 1;
-        }
-        buf[i] = NUL;
-
-        Some(enc_canonize(buf.as_ptr()))
     }
+
+    if s.is_null() {
+        return None;
+    }
+
+    let mut buf = [0 as c_char; 50];
+    let p = vim_strchr(s, b'.' as i32);
+    if !p.is_null() {
+        if p.cast_const() > s.wrapping_add(2)
+            && crate::memory::cstr_slice(p, (1) + (3))[1..].eq_ignore_ascii_case(b"EUC")
+            && !(crate::memory::cstr_byte_at(p, 4)).is_ascii_alphanumeric()
+            && crate::memory::cstr_byte_at(p, 4) != b'-'
+            && unsafe { *p.wrapping_sub(3) } == b'_' as c_char
+        {
+            unsafe {
+                ptr::copy_nonoverlapping(b"euc-".as_ptr().cast::<c_char>(), buf.as_mut_ptr(), 4)
+            };
+            let c2 = unsafe { *p.wrapping_sub(2) } as u8;
+            let c1 = unsafe { *p.wrapping_sub(1) } as u8;
+            buf[4] = if c2.is_ascii_alphanumeric() {
+                tolower_asc(i32::from(c2)) as u8 as c_char
+            } else {
+                0
+            };
+            buf[5] = if c1.is_ascii_alphanumeric() {
+                tolower_asc(i32::from(c1)) as u8 as c_char
+            } else {
+                0
+            };
+            buf[6] = NUL;
+            return Some(enc_canonize(buf.as_ptr()));
+        }
+        s = p.wrapping_add(1);
+    }
+
+    let mut i = 0usize;
+    while i < buf.len() - 1 && crate::memory::cstr_byte_at(s, i) != 0 {
+        let ch = crate::memory::cstr_byte_at(s, i);
+        if ch == b'_' || ch == b'-' {
+            buf[i] = b'-' as c_char;
+        } else if ch.is_ascii_alphanumeric() {
+            buf[i] = tolower_asc(i32::from(ch)) as u8 as c_char;
+        } else {
+            break;
+        }
+        i += 1;
+    }
+    buf[i] = NUL;
+
+    Some(enc_canonize(buf.as_ptr()))
 }
 
 pub fn my_iconv_open(
@@ -3605,28 +3569,24 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
 }
 
 pub fn f_getcellwidths(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        let table = mbyte_st().cw_table.as_slice();
-        tv_list_alloc_ret(rettv, table.len() as isize);
-        for &entry_data in table {
-            let entry = tv_list_alloc(3);
-            tv_list_append_number(&mut *entry, entry_data.first);
-            tv_list_append_number(&mut *entry, entry_data.last);
-            tv_list_append_number(&mut *entry, Varnumber::from(entry_data.width));
-            tv_list_append_list(rettv.vval.v_list_ref(), entry);
-        }
+    let table = mbyte_st().cw_table.as_slice();
+    tv_list_alloc_ret(rettv, table.len() as isize);
+    for &entry_data in table {
+        let entry = tv_list_alloc(3);
+        tv_list_append_number(&mut *entry, entry_data.first);
+        tv_list_append_number(&mut *entry, entry_data.last);
+        tv_list_append_number(&mut *entry, Varnumber::from(entry_data.width));
+        tv_list_append_list(rettv.vval.v_list_ref(), entry);
     }
 }
 
 pub fn f_charclass(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        if !tv_check_for_string_arg(argvars, 0) || argvars[0].vval.v_string().is_null() {
-            return;
-        }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(mb_get_class(
-            argvars[0].vval.v_string(),
-        )));
+    if !tv_check_for_string_arg(argvars, 0) || argvars[0].vval.v_string().is_null() {
+        return;
     }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(mb_get_class(
+        argvars[0].vval.v_string(),
+    )));
 }
 
 pub fn get_encoding_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {

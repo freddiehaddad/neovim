@@ -643,47 +643,45 @@ pub fn shell_build_argv(
 
 /// Joins shell arguments from `argv` into a fixed 256-byte string buffer.
 pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> [c_char; 256] {
-    {
-        let mut n: usize = 0;
-        let maxsize: usize = 256;
-        let mut rv: [c_char; 256] = [0; 256];
-        let rv_ptr = rv.as_mut_ptr();
-        if argv.is_empty() {
-            return rv;
-        }
-        for arg in argv {
-            {
-                let _dst: *mut c_char = rv_ptr;
-                let _dsize: usize = maxsize;
-                let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"'", _dsize - _dlen);
-            };
-            {
-                let _dst: *mut c_char = rv_ptr;
-                let _dsize: usize = maxsize;
-                let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), arg.as_ptr(), _dsize - _dlen);
-            };
-            n = {
-                let _dst: *mut c_char = rv_ptr;
-                let _dsize: usize = maxsize;
-                let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"' ", _dsize - _dlen) + _dlen
-            };
-            if n >= maxsize {
-                break;
-            }
-        }
-        if n < maxsize {
-            rv[n - 1] = NUL;
-        } else {
-            rv[maxsize - 4] = b'.' as c_char;
-            rv[maxsize - 3] = b'.' as c_char;
-            rv[maxsize - 2] = b'.' as c_char;
-            rv[maxsize - 1] = NUL;
-        }
-        rv
+    let mut n: usize = 0;
+    let maxsize: usize = 256;
+    let mut rv: [c_char; 256] = [0; 256];
+    let rv_ptr = rv.as_mut_ptr();
+    if argv.is_empty() {
+        return rv;
     }
+    for arg in argv {
+        {
+            let _dst: *mut c_char = rv_ptr;
+            let _dsize: usize = maxsize;
+            let _dlen = crate::memory::cstr_len(_dst);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"'", _dsize - _dlen);
+        };
+        {
+            let _dst: *mut c_char = rv_ptr;
+            let _dsize: usize = maxsize;
+            let _dlen = crate::memory::cstr_len(_dst);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), arg.as_ptr(), _dsize - _dlen);
+        };
+        n = {
+            let _dst: *mut c_char = rv_ptr;
+            let _dsize: usize = maxsize;
+            let _dlen = crate::memory::cstr_len(_dst);
+            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), c"' ", _dsize - _dlen) + _dlen
+        };
+        if n >= maxsize {
+            break;
+        }
+    }
+    if n < maxsize {
+        rv[n - 1] = NUL;
+    } else {
+        rv[maxsize - 4] = b'.' as c_char;
+        rv[maxsize - 3] = b'.' as c_char;
+        rv[maxsize - 2] = b'.' as c_char;
+        rv[maxsize - 1] = NUL;
+    }
+    rv
 }
 
 /// Calls the user-configured 'shell' (opt_vars().p_sh) for running a command or wildcard expansion.
@@ -807,7 +805,7 @@ pub fn get_cmd_output(
 ) -> Option<std::ffi::CString> {
     let infile = infile.into_c_char_ptr();
     let cmd = cmd.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         if check_secure() {
             return None;
         }
@@ -834,24 +832,24 @@ pub fn get_cmd_output(
         let mut result: Option<std::ffi::CString> = None;
 
         'done: {
-            if fd.is_null() || vim_fseek(fd, 0, SEEK_END) == -1 {
+            if fd.is_null() || unsafe { vim_fseek(fd, 0, SEEK_END) } == -1 {
                 semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
                 if !fd.is_null() {
-                    fclose(fd);
+                    unsafe { fclose(fd) };
                 }
                 break 'done;
             }
-            let len_l = vim_ftell(fd);
-            if len_l == -1 || vim_fseek(fd, 0, SEEK_SET) == -1 {
+            let len_l = unsafe { vim_ftell(fd) };
+            if len_l == -1 || unsafe { vim_fseek(fd, 0, SEEK_SET) } == -1 {
                 semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
-                fclose(fd);
+                unsafe { fclose(fd) };
                 break 'done;
             }
 
             let len = len_l as usize;
             let mut buffer = vec![0u8; len];
-            let i = fread(buffer.as_mut_ptr().cast(), 1, len, fd);
-            fclose(fd);
+            let i = unsafe { fread(buffer.as_mut_ptr().cast(), 1, len, fd) };
+            unsafe { fclose(fd) };
             if i != len {
                 semsg!(gettext(E_CANT_READ_FILE_STR), tempname);
             } else {
@@ -860,7 +858,7 @@ pub fn get_cmd_output(
                         *b = 1;
                     }
                 }
-                result = Some(std::ffi::CString::from_vec_unchecked(buffer));
+                result = Some(unsafe { std::ffi::CString::from_vec_unchecked(buffer) });
             }
         }
 
@@ -890,17 +888,17 @@ fn do_os_system(
     forward_output: bool,
 ) -> i32 {
     let input = input.into_c_char_ptr();
-    unsafe {
+    {
         let mut exitcode: i32 = -1;
 
         #[cfg(windows)]
         let (oldval, old_output_cp, old_input_cp) = {
             let ov = os_getenv_cstr(c"NoDefaultCurrentDirectoryInExePath");
             os_setenv(c"NoDefaultCurrentDirectoryInExePath", c"1", 1);
-            let oocp = GetConsoleOutputCP();
-            let oicp = GetConsoleCP();
-            SetConsoleOutputCP(CP_UTF8);
-            SetConsoleCP(CP_UTF8);
+            let oocp = unsafe { GetConsoleOutputCP() };
+            let oicp = unsafe { GetConsoleCP() };
+            unsafe { SetConsoleOutputCP(CP_UTF8) };
+            unsafe { SetConsoleCP(CP_UTF8) };
             (ov, oocp, oicp)
         };
 
@@ -940,7 +938,7 @@ fn do_os_system(
                 loop_poll_events(&mut *mloop, 0);
                 if !silent {
                     msg_puts(gettext(c"\nshell failed to start: "));
-                    msg_outtrans(uv_strerror(status), 0, false);
+                    msg_outtrans(unsafe { uv_strerror(status) }, 0, false);
                     msg_puts(c": ");
                     msg_outtrans(prog.as_ptr(), 0, false);
                     msg_putchar(b'\n' as i32);
@@ -960,8 +958,9 @@ fn do_os_system(
             rstream_start(r_err, cb_data);
 
             if has_input {
-                let input_buffer =
-                    wstream_new_vec_buffer(std::slice::from_raw_parts(input, len).to_vec());
+                let input_buffer = wstream_new_vec_buffer(
+                    unsafe { std::slice::from_raw_parts(input, len) }.to_vec(),
+                );
                 if wstream_write(s_in, input_buffer) != 0 {
                     proc_stop(proc_);
                     break 'end;
@@ -1002,8 +1001,8 @@ fn do_os_system(
         #[cfg(windows)]
         {
             restore_env_var(c"NoDefaultCurrentDirectoryInExePath", oldval);
-            SetConsoleOutputCP(old_output_cp);
-            SetConsoleCP(old_input_cp);
+            unsafe { SetConsoleOutputCP(old_output_cp) };
+            unsafe { SetConsoleCP(old_input_cp) };
         }
 
         exitcode
@@ -1230,30 +1229,30 @@ pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
 }
 
 fn read_input(buf: &mut Vec<c_char>) {
-    {
-        read_buffer_into(
-            Some(crate::globals::curbuf_mut()),
-            curbuf_mut().b_op_start.lnum,
-            curbuf_mut().b_op_end.lnum,
-            buf,
-        );
-    }
+    read_buffer_into(
+        Some(crate::globals::curbuf_mut()),
+        curbuf_mut().b_op_start.lnum,
+        curbuf_mut().b_op_end.lnum,
+        buf,
+    );
 }
 
 fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usize {
     if output.is_null() {
         return 0;
     }
-    unsafe {
+    {
         let start = output;
         let mut off: usize = 0;
         while off < remaining {
-            if *output.wrapping_add(off) == CAR
+            if unsafe { *output.wrapping_add(off) } == CAR
                 && off + 1 < remaining
-                && *output.wrapping_add(off + 1) == NL
+                && unsafe { *output.wrapping_add(off + 1) } == NL
                 && curbuf_mut().b_p_bin == 0
             {
-                *output.wrapping_add(off) = NUL;
+                unsafe {
+                    *output.wrapping_add(off) = NUL;
+                }
                 let lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum += 1;
                 ml_append(lnum, output, off as i32 + 1, false);
@@ -1262,10 +1261,12 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
                 remaining -= skip;
                 off = 0;
                 continue;
-            } else if (*output.wrapping_add(off) == CAR && curbuf_mut().b_p_bin == 0)
-                || *output.wrapping_add(off) == NL
+            } else if (unsafe { *output.wrapping_add(off) } == CAR && curbuf_mut().b_p_bin == 0)
+                || unsafe { *output.wrapping_add(off) } == NL
             {
-                *output.wrapping_add(off) = NUL;
+                unsafe {
+                    *output.wrapping_add(off) = NUL;
+                }
                 let lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum += 1;
                 ml_append(lnum, output, off as i32 + 1, false);
@@ -1277,7 +1278,9 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
             }
 
             if crate::memory::cstr_byte_at(output, off) == 0 {
-                *output.wrapping_add(off) = NL;
+                unsafe {
+                    *output.wrapping_add(off) = NL;
+                }
             }
             off += 1;
         }
@@ -1301,15 +1304,13 @@ fn write_output(mut output: *mut c_char, mut remaining: usize, eof: bool) -> usi
 }
 
 pub(crate) fn shell_write_cb(stream: &mut Stream, status: i32) {
-    {
-        if status != 0 {
-            msg_schedule_semsg!(
-                gettext(c"E5677: Error writing input to shell-command: %s"),
-                unsafe { uv_err_name(status) },
-            );
-        }
-        stream_may_close(stream);
+    if status != 0 {
+        msg_schedule_semsg!(
+            gettext(c"E5677: Error writing input to shell-command: %s"),
+            unsafe { uv_err_name(status) },
+        );
     }
+    stream_may_close(stream);
 }
 
 fn shell_xescape_xquote(cmd: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
@@ -1366,87 +1367,85 @@ mod tests {
 
     #[test]
     fn shell_build_argv_and_argv_to_str() {
-        {
-            let save_sh = opt_vars().p_sh;
-            let save_shcf = opt_vars().p_shcf;
-            let save_sxq = opt_vars().p_sxq;
-            let save_sxe = opt_vars().p_sxe;
+        let save_sh = opt_vars().p_sh;
+        let save_shcf = opt_vars().p_shcf;
+        let save_sxq = opt_vars().p_sxq;
+        let save_sxe = opt_vars().p_sxe;
 
-            opt_vars().p_sh = c"/bin/sh".as_ptr().cast_mut();
-            opt_vars().p_shcf = c"-c".as_ptr().cast_mut();
-            opt_vars().p_sxq = c"".as_ptr().cast_mut();
-            opt_vars().p_sxe = c"".as_ptr().cast_mut();
+        opt_vars().p_sh = c"/bin/sh".as_ptr().cast_mut();
+        opt_vars().p_shcf = c"-c".as_ptr().cast_mut();
+        opt_vars().p_sxq = c"".as_ptr().cast_mut();
+        opt_vars().p_sxe = c"".as_ptr().cast_mut();
 
-            let collect_argv = |cmd: *const c_char, extra: *const c_char| -> Vec<String> {
-                shell_build_argv(cmd, extra)
-                    .into_iter()
-                    .map(|arg| arg.into_string().unwrap())
-                    .collect()
-            };
+        let collect_argv = |cmd: *const c_char, extra: *const c_char| -> Vec<String> {
+            shell_build_argv(cmd, extra)
+                .into_iter()
+                .map(|arg| arg.into_string().unwrap())
+                .collect()
+        };
 
-            assert_eq!(collect_argv(ptr::null(), ptr::null()), vec!["/bin/sh"]);
-            assert_eq!(
-                collect_argv(c"abc  def".as_ptr(), ptr::null()),
-                vec!["/bin/sh", "-c", "abc  def"]
-            );
-            assert_eq!(
-                collect_argv(ptr::null(), c"ghi  jkl".as_ptr()),
-                vec!["/bin/sh", "ghi  jkl"]
-            );
-            assert_eq!(
-                collect_argv(c"abc  def".as_ptr(), c"ghi  jkl".as_ptr()),
-                vec!["/bin/sh", "ghi  jkl", "-c", "abc  def"]
-            );
+        assert_eq!(collect_argv(ptr::null(), ptr::null()), vec!["/bin/sh"]);
+        assert_eq!(
+            collect_argv(c"abc  def".as_ptr(), ptr::null()),
+            vec!["/bin/sh", "-c", "abc  def"]
+        );
+        assert_eq!(
+            collect_argv(ptr::null(), c"ghi  jkl".as_ptr()),
+            vec!["/bin/sh", "ghi  jkl"]
+        );
+        assert_eq!(
+            collect_argv(c"abc  def".as_ptr(), c"ghi  jkl".as_ptr()),
+            vec!["/bin/sh", "ghi  jkl", "-c", "abc  def"]
+        );
 
-            opt_vars().p_sh = c"/Program\" \"Files/zsh -f".as_ptr().cast_mut();
-            opt_vars().p_shcf = c"-x -o \"sh word split\" \"-\"c".as_ptr().cast_mut();
-            assert_eq!(
-                collect_argv(c"abc  def".as_ptr(), c"ghi  jkl".as_ptr()),
-                vec![
-                    "/Program Files/zsh",
-                    "-f",
-                    "ghi  jkl",
-                    "-x",
-                    "-o",
-                    "sh word split",
-                    "-c",
-                    "abc  def"
-                ]
-            );
+        opt_vars().p_sh = c"/Program\" \"Files/zsh -f".as_ptr().cast_mut();
+        opt_vars().p_shcf = c"-x -o \"sh word split\" \"-\"c".as_ptr().cast_mut();
+        assert_eq!(
+            collect_argv(c"abc  def".as_ptr(), c"ghi  jkl".as_ptr()),
+            vec![
+                "/Program Files/zsh",
+                "-f",
+                "ghi  jkl",
+                "-x",
+                "-o",
+                "sh word split",
+                "-c",
+                "abc  def"
+            ]
+        );
 
-            opt_vars().p_sh = c"/bin/sh".as_ptr().cast_mut();
-            opt_vars().p_shcf = c"-c".as_ptr().cast_mut();
-            opt_vars().p_sxq = c"(".as_ptr().cast_mut();
-            opt_vars().p_sxe = c"\"&|<>()@^".as_ptr().cast_mut();
-            assert_eq!(
-                collect_argv(c"echo &|<>()@^".as_ptr(), ptr::null()),
-                vec!["/bin/sh", "-c", "(echo ^&^|^<^>^(^)^@^^)"]
-            );
+        opt_vars().p_sh = c"/bin/sh".as_ptr().cast_mut();
+        opt_vars().p_shcf = c"-c".as_ptr().cast_mut();
+        opt_vars().p_sxq = c"(".as_ptr().cast_mut();
+        opt_vars().p_sxe = c"\"&|<>()@^".as_ptr().cast_mut();
+        assert_eq!(
+            collect_argv(c"echo &|<>()@^".as_ptr(), ptr::null()),
+            vec!["/bin/sh", "-c", "(echo ^&^|^<^>^(^)^@^^)"]
+        );
 
-            opt_vars().p_sxq = c"\"(".as_ptr().cast_mut();
-            assert_eq!(
-                collect_argv(c"echo -n some text".as_ptr(), ptr::null()),
-                vec!["/bin/sh", "-c", "\"(echo -n some text)\""]
-            );
+        opt_vars().p_sxq = c"\"(".as_ptr().cast_mut();
+        assert_eq!(
+            collect_argv(c"echo -n some text".as_ptr(), ptr::null()),
+            vec!["/bin/sh", "-c", "\"(echo -n some text)\""]
+        );
 
-            opt_vars().p_sxq = c"\"".as_ptr().cast_mut();
-            opt_vars().p_sxe = c"".as_ptr().cast_mut();
-            assert_eq!(
-                collect_argv(c"echo -n some text".as_ptr(), ptr::null()),
-                vec!["/bin/sh", "-c", "\"echo -n some text\""]
-            );
+        opt_vars().p_sxq = c"\"".as_ptr().cast_mut();
+        opt_vars().p_sxe = c"".as_ptr().cast_mut();
+        assert_eq!(
+            collect_argv(c"echo -n some text".as_ptr(), ptr::null()),
+            vec!["/bin/sh", "-c", "\"echo -n some text\""]
+        );
 
-            let argv_arr = [c"foo".to_owned(), c"".to_owned(), c"bar".to_owned()];
-            let s = shell_argv_to_str(&argv_arr);
-            assert_eq!(
-                crate::memory::cstr_from_ptr(s.as_ptr()).to_str().unwrap(),
-                "'foo' '' 'bar'"
-            );
+        let argv_arr = [c"foo".to_owned(), c"".to_owned(), c"bar".to_owned()];
+        let s = shell_argv_to_str(&argv_arr);
+        assert_eq!(
+            crate::memory::cstr_from_ptr(s.as_ptr()).to_str().unwrap(),
+            "'foo' '' 'bar'"
+        );
 
-            opt_vars().p_sh = save_sh;
-            opt_vars().p_shcf = save_shcf;
-            opt_vars().p_sxq = save_sxq;
-            opt_vars().p_sxe = save_sxe;
-        }
+        opt_vars().p_sh = save_sh;
+        opt_vars().p_shcf = save_shcf;
+        opt_vars().p_sxq = save_sxq;
+        opt_vars().p_sxe = save_sxe;
     }
 }

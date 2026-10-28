@@ -228,29 +228,27 @@ fn pum() -> &'static mut PopupmenuState {
 use crate::api::private::helpers::cstr_to_string;
 
 fn pum_compute_size() {
-    {
-        pum().base_width = 0;
-        pum().kind_width = 0;
-        pum().extra_width = 0;
-        for i in 0..(pum().size as usize) {
-            let item = unsafe { &*pum().array.wrapping_add(i) };
-            if let Some(ref text) = item.pum_text {
-                let w = vim_strsize(text.as_ptr().cast_mut());
-                if pum().base_width < w {
-                    pum().base_width = w;
-                }
+    pum().base_width = 0;
+    pum().kind_width = 0;
+    pum().extra_width = 0;
+    for i in 0..(pum().size as usize) {
+        let item = unsafe { &*pum().array.wrapping_add(i) };
+        if let Some(ref text) = item.pum_text {
+            let w = vim_strsize(text.as_ptr().cast_mut());
+            if pum().base_width < w {
+                pum().base_width = w;
             }
-            if let Some(ref kind) = item.pum_kind {
-                let w = vim_strsize(kind.as_ptr().cast_mut()) + 1;
-                if pum().kind_width < w {
-                    pum().kind_width = w;
-                }
+        }
+        if let Some(ref kind) = item.pum_kind {
+            let w = vim_strsize(kind.as_ptr().cast_mut()) + 1;
+            if pum().kind_width < w {
+                pum().kind_width = w;
             }
-            if let Some(ref extra) = item.pum_extra {
-                let w = vim_strsize(extra.as_ptr().cast_mut()) + 1;
-                if pum().extra_width < w {
-                    pum().extra_width = w;
-                }
+        }
+        if let Some(ref extra) = item.pum_extra {
+            let w = vim_strsize(extra.as_ptr().cast_mut()) + 1;
+            if pum().extra_width < w {
+                pum().extra_width = w;
             }
         }
     }
@@ -265,75 +263,73 @@ fn pum_compute_vertical_placement(
     below_row: i32,
     pum_border_size: i32,
 ) {
-    {
-        let context_lines: i32;
+    let context_lines: i32;
 
-        pum().height = size.min(PUM_DEF_HEIGHT);
+    pum().height = size.min(PUM_DEF_HEIGHT);
+    if opt_vars().p_ph > 0 && i64::from(pum().height) > opt_vars().p_ph {
+        pum().height = opt_vars().p_ph as i32;
+    }
+
+    if pum_win_row + 2 + pum_border_size >= below_row - pum().height
+        && pum_win_row - above_row > (below_row - above_row) / 2
+    {
+        pum().above = true;
+
+        if (g_st().state_global & MODE_CMDLINE) != 0 && target_win.is_none() {
+            context_lines = 0;
+        } else {
+            context_lines = 2.min(
+                target_win.as_deref_mut().unwrap().w_wrow
+                    - target_win.as_deref_mut().unwrap().w_cline_row,
+            );
+        }
+
+        if pum_win_row >= size + context_lines {
+            pum().row = pum_win_row - size - context_lines;
+            pum().height = size;
+        } else {
+            pum().row = 0;
+            pum().height = pum_win_row - context_lines;
+        }
+        if opt_vars().p_ph > 0 && i64::from(pum().height) > opt_vars().p_ph {
+            pum().row += pum().height - (opt_vars().p_ph as i32);
+            pum().height = opt_vars().p_ph as i32;
+        }
+
+        if pum_border_size > 0 && pum_border_size + pum().row + pum().height >= pum_win_row {
+            if pum().row < 2 {
+                pum().height -= pum_border_size;
+            } else {
+                pum().row -= pum_border_size;
+            }
+        }
+    } else {
+        pum().above = false;
+
+        if (g_st().state_global & MODE_CMDLINE) != 0 && target_win.is_none() {
+            context_lines = 0;
+        } else {
+            validate_cheight(target_win.as_deref_mut().unwrap());
+            let cline_visible_offset = target_win.as_deref_mut().unwrap().w_cline_row
+                + target_win.as_deref_mut().unwrap().w_cline_height
+                - target_win.unwrap().w_wrow;
+            context_lines = 3.min(cline_visible_offset);
+        }
+
+        pum().row = pum_win_row + context_lines;
+        pum().height = (below_row - pum().row).min(size);
         if opt_vars().p_ph > 0 && i64::from(pum().height) > opt_vars().p_ph {
             pum().height = opt_vars().p_ph as i32;
         }
 
-        if pum_win_row + 2 + pum_border_size >= below_row - pum().height
-            && pum_win_row - above_row > (below_row - above_row) / 2
-        {
-            pum().above = true;
-
-            if (g_st().state_global & MODE_CMDLINE) != 0 && target_win.is_none() {
-                context_lines = 0;
-            } else {
-                context_lines = 2.min(
-                    target_win.as_deref_mut().unwrap().w_wrow
-                        - target_win.as_deref_mut().unwrap().w_cline_row,
-                );
-            }
-
-            if pum_win_row >= size + context_lines {
-                pum().row = pum_win_row - size - context_lines;
-                pum().height = size;
-            } else {
-                pum().row = 0;
-                pum().height = pum_win_row - context_lines;
-            }
-            if opt_vars().p_ph > 0 && i64::from(pum().height) > opt_vars().p_ph {
-                pum().row += pum().height - (opt_vars().p_ph as i32);
-                pum().height = opt_vars().p_ph as i32;
-            }
-
-            if pum_border_size > 0 && pum_border_size + pum().row + pum().height >= pum_win_row {
-                if pum().row < 2 {
-                    pum().height -= pum_border_size;
-                } else {
-                    pum().row -= pum_border_size;
-                }
-            }
-        } else {
-            pum().above = false;
-
-            if (g_st().state_global & MODE_CMDLINE) != 0 && target_win.is_none() {
-                context_lines = 0;
-            } else {
-                validate_cheight(target_win.as_deref_mut().unwrap());
-                let cline_visible_offset = target_win.as_deref_mut().unwrap().w_cline_row
-                    + target_win.as_deref_mut().unwrap().w_cline_height
-                    - target_win.unwrap().w_wrow;
-                context_lines = 3.min(cline_visible_offset);
-            }
-
-            pum().row = pum_win_row + context_lines;
-            pum().height = (below_row - pum().row).min(size);
-            if opt_vars().p_ph > 0 && i64::from(pum().height) > opt_vars().p_ph {
-                pum().height = opt_vars().p_ph as i32;
-            }
-
-            if pum().row + pum().height + pum_border_size >= g_st().cmdline_row {
-                pum().height -= pum_border_size;
-            }
+        if pum().row + pum().height + pum_border_size >= g_st().cmdline_row {
+            pum().height -= pum_border_size;
         }
+    }
 
-        if above_row > 0 && pum().row < above_row && pum().height > above_row {
-            pum().row = above_row;
-            pum().height = pum_win_row - above_row;
-        }
+    if above_row > 0 && pum().row < above_row && pum().height > above_row {
+        pum().row = above_row;
+        pum().height = pum_win_row - above_row;
     }
 }
 
@@ -365,71 +361,67 @@ fn pum_compute_horizontal_placement(
     cursor_col: i32,
     border_width: i32,
 ) {
-    {
-        let max_col = g_st()
-            .columns_global
-            .max(if let Some(target_win) = target_win {
-                target_win.w_wincol + target_win.w_view_width
-            } else {
-                0
-            });
-        let desired_width = pum().base_width + pum().kind_width + pum().extra_width;
-        let mut available_width = if pum().rl {
-            cursor_col - pum().scrollbar + 1 - border_width
+    let max_col = g_st()
+        .columns_global
+        .max(if let Some(target_win) = target_win {
+            target_win.w_wincol + target_win.w_view_width
         } else {
-            max_col - cursor_col - pum().scrollbar - border_width
-        };
+            0
+        });
+    let desired_width = pum().base_width + pum().kind_width + pum().extra_width;
+    let mut available_width = if pum().rl {
+        cursor_col - pum().scrollbar + 1 - border_width
+    } else {
+        max_col - cursor_col - pum().scrollbar - border_width
+    };
 
-        pum().col = cursor_col;
-        if set_pum_width_aligned_with_cursor(desired_width, available_width) {
-            return;
-        }
-
-        if i64::from(available_width) > opt_vars().p_pw {
-            pum().width = available_width;
-            return;
-        }
-
-        if pum().rl {
-            available_width = max_col - pum().scrollbar - border_width;
-        } else {
-            available_width += cursor_col;
-        }
-
-        if i64::from(available_width) > opt_vars().p_pw {
-            pum().width = (opt_vars().p_pw as i32) + 1;
-            if pum().rl {
-                pum().col = pum().width + pum().scrollbar + border_width;
-            } else {
-                pum().col = max_col - pum().width - pum().scrollbar - border_width;
-            }
-            return;
-        }
-
-        if pum().rl {
-            pum().col = max_col - 1;
-        } else {
-            pum().col = 0;
-        }
-        pum().width = max_col - pum().scrollbar - border_width;
+    pum().col = cursor_col;
+    if set_pum_width_aligned_with_cursor(desired_width, available_width) {
+        return;
     }
+
+    if i64::from(available_width) > opt_vars().p_pw {
+        pum().width = available_width;
+        return;
+    }
+
+    if pum().rl {
+        available_width = max_col - pum().scrollbar - border_width;
+    } else {
+        available_width += cursor_col;
+    }
+
+    if i64::from(available_width) > opt_vars().p_pw {
+        pum().width = (opt_vars().p_pw as i32) + 1;
+        if pum().rl {
+            pum().col = pum().width + pum().scrollbar + border_width;
+        } else {
+            pum().col = max_col - pum().width - pum().scrollbar - border_width;
+        }
+        return;
+    }
+
+    if pum().rl {
+        pum().col = max_col - 1;
+    } else {
+        pum().col = 0;
+    }
+    pum().width = max_col - pum().scrollbar - border_width;
 }
 
 #[inline]
 fn pum_border_width() -> i32 {
+    if crate::memory::cstr_is_empty(opt_vars().p_pumborder)
+        || (crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder)
+            == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[7].as_ptr()))
     {
-        if crate::memory::cstr_is_empty(opt_vars().p_pumborder)
-            || (crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder)
-                == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[7].as_ptr()))
-        {
-            0
-        } else if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder)
-            == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[3].as_ptr())
-        {
-            1
-        } else {
-            2
-        }
+        0
+    } else if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder)
+        == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[3].as_ptr())
+    {
+        1
+    } else {
+        2
     }
 }
 
@@ -763,449 +755,442 @@ fn pum_align_order(order: &mut [i32; 3]) {
 
 #[inline]
 fn pum_get_item(index: i32, type_: i32) -> *mut c_char {
-    {
-        let item = unsafe { &*pum().array.wrapping_add(index as usize) };
-        match type_ {
-            CPT_ABBR => item.text_ptr(),
-            CPT_KIND => item.kind_ptr(),
-            CPT_MENU => item.extra_ptr(),
-            _ => ptr::null_mut(),
-        }
+    let item = unsafe { &*pum().array.wrapping_add(index as usize) };
+    match type_ {
+        CPT_ABBR => item.text_ptr(),
+        CPT_KIND => item.kind_ptr(),
+        CPT_MENU => item.extra_ptr(),
+        _ => ptr::null_mut(),
     }
 }
 
 #[inline]
 fn pum_user_attr_combine(idx: i32, type_: i32, attr: i32) -> i32 {
-    {
-        let item = unsafe { &*pum().array.wrapping_add(idx as usize) };
-        let user_attr = [item.pum_user_abbr_hlattr, item.pum_user_kind_hlattr];
-        let u = user_attr[type_ as usize];
-        if u > 0 {
-            hl_combine_attr(attr, u)
-        } else {
-            attr
-        }
+    let item = unsafe { &*pum().array.wrapping_add(idx as usize) };
+    let user_attr = [item.pum_user_abbr_hlattr, item.pum_user_kind_hlattr];
+    let u = user_attr[type_ as usize];
+    if u > 0 {
+        hl_combine_attr(attr, u)
+    } else {
+        attr
     }
 }
 
 /// Redraw the popup menu, using `pum_first` and `pum_selected` (`pum_redraw`).
 pub fn pum_redraw() {
-    unsafe {
-        let mut row: i32 = 0;
-        let attr_scroll = win_hl_attr(curwin_mut(), HLF_PSB);
-        let attr_thumb = win_hl_attr(curwin_mut(), HLF_PST);
-        let mut thumb_pos: i32 = 0;
-        let mut thumb_height: i32 = 1;
-        let fcs_trunc: Schar = if pum().rl {
-            curwin_mut().w_p_fcs_chars.truncrl
-        } else {
-            curwin_mut().w_p_fcs_chars.trunc
-        };
+    let mut row: i32 = 0;
+    let attr_scroll = win_hl_attr(curwin_mut(), HLF_PSB);
+    let attr_thumb = win_hl_attr(curwin_mut(), HLF_PST);
+    let mut thumb_pos: i32 = 0;
+    let mut thumb_height: i32 = 1;
+    let fcs_trunc: Schar = if pum().rl {
+        curwin_mut().w_p_fcs_chars.truncrl
+    } else {
+        curwin_mut().w_p_fcs_chars.trunc
+    };
 
-        const HLFS_NORM: [Hlf; 3] = [HLF_PNI, HLF_PNK, HLF_PNX];
-        const HLFS_SEL: [Hlf; 3] = [HLF_PSI, HLF_PSK, HLF_PSX];
+    const HLFS_NORM: [Hlf; 3] = [HLF_PNI, HLF_PNK, HLF_PNX];
+    const HLFS_SEL: [Hlf; 3] = [HLF_PSI, HLF_PSK, HLF_PSX];
 
-        let mut grid_width = pum().width;
-        let mut col_off: i32 = 0;
-        let mut extra_space = false;
-        if pum().rl {
-            col_off = pum().width - 1;
-            debug_assert!((g_st().state_global & MODE_CMDLINE) == 0);
-            let win_end_col = curwin_mut().w_wincol + curwin_mut().w_view_width;
-            if pum().col < win_end_col - 1 {
-                grid_width += 1;
-                extra_space = true;
-            }
-        } else {
-            let min_col: i32 = 0;
-            if pum().col > min_col {
-                grid_width += 1;
-                col_off = 1;
-                extra_space = true;
-            }
+    let mut grid_width = pum().width;
+    let mut col_off: i32 = 0;
+    let mut extra_space = false;
+    if pum().rl {
+        col_off = pum().width - 1;
+        debug_assert!((g_st().state_global & MODE_CMDLINE) == 0);
+        let win_end_col = curwin_mut().w_wincol + curwin_mut().w_view_width;
+        if pum().col < win_end_col - 1 {
+            grid_width += 1;
+            extra_space = true;
         }
+    } else {
+        let min_col: i32 = 0;
+        if pum().col > min_col {
+            grid_width += 1;
+            col_off = 1;
+            extra_space = true;
+        }
+    }
 
-        let mut fconfig = WIN_CONFIG_INIT;
-        let border_width = pum_border_width();
-        let mut border_attr: i32 = 0;
-        let mut border_char: Schar = 0;
-        let fill_char: Schar = schar_from_ascii(b' ');
-        let has_border = border_width > 0;
+    let mut fconfig = WIN_CONFIG_INIT;
+    let border_width = pum_border_width();
+    let mut border_attr: i32 = 0;
+    let mut border_char: Schar = 0;
+    let fill_char: Schar = schar_from_ascii(b' ');
+    let has_border = border_width > 0;
 
-        if border_width > 0 {
-            let mut err = Error::new();
-            if !parse_winborder(Some(&mut fconfig), opt_vars().p_pumborder, &mut err) {
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    emsg(err.msg_ptr());
-                }
-                api_clear_error(&mut err);
-                return;
-            }
-
-            if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder)
-                == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[3].as_ptr())
-            {
-                fconfig.shadow = true;
-                let blend = syn_check_group(c"PmenuShadow", 11);
-                let through = syn_check_group(c"PmenuShadowThrough", 18);
-                fconfig.border_hl_ids[2] = through;
-                fconfig.border_hl_ids[3] = blend;
-                fconfig.border_hl_ids[4] = blend;
-                fconfig.border_hl_ids[5] = blend;
-                fconfig.border_hl_ids[6] = through;
-            }
-
-            for i in 0..8 {
-                let mut attr = crate::highlight::hl_attr(HLF_PBR);
-                if fconfig.border_hl_ids[i] != 0 {
-                    attr = hl_get_ui_attr(-1, HLF_PBR, fconfig.border_hl_ids[i], false);
-                }
-                fconfig.border_attr[i] = attr;
+    if border_width > 0 {
+        let mut err = Error::new();
+        if !parse_winborder(Some(&mut fconfig), opt_vars().p_pumborder, &mut err) {
+            if err.err_type != ErrorType::ErrorTypeNone {
+                emsg(err.msg_ptr());
             }
             api_clear_error(&mut err);
-            if pum().scrollbar != 0 {
-                border_char = schar_from_str(fconfig.border_chars[3].as_ptr());
-                border_attr = fconfig.border_attr[3];
-            }
+            return;
         }
 
-        if pum().scrollbar > 0 && (!fconfig.border || fconfig.shadow) {
-            grid_width += 1;
-            if pum().rl {
-                col_off += 1;
-            }
+        if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder)
+            == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[3].as_ptr())
+        {
+            fconfig.shadow = true;
+            let blend = syn_check_group(c"PmenuShadow", 11);
+            let through = syn_check_group(c"PmenuShadowThrough", 18);
+            fconfig.border_hl_ids[2] = through;
+            fconfig.border_hl_ids[3] = blend;
+            fconfig.border_hl_ids[4] = blend;
+            fconfig.border_hl_ids[5] = blend;
+            fconfig.border_hl_ids[6] = through;
         }
-        g_st().pum_grid.blending = opt_vars().p_pb > 0 || fconfig.shadow;
-        grid_assign_handle(&mut g_st().pum_grid);
 
-        pum().left_col = pum().col - col_off;
-        pum().right_col = pum().left_col + grid_width;
-        let moved = ui_comp_put_grid(
+        for i in 0..8 {
+            let mut attr = crate::highlight::hl_attr(HLF_PBR);
+            if fconfig.border_hl_ids[i] != 0 {
+                attr = hl_get_ui_attr(-1, HLF_PBR, fconfig.border_hl_ids[i], false);
+            }
+            fconfig.border_attr[i] = attr;
+        }
+        api_clear_error(&mut err);
+        if pum().scrollbar != 0 {
+            border_char = schar_from_str(fconfig.border_chars[3].as_ptr());
+            border_attr = fconfig.border_attr[3];
+        }
+    }
+
+    if pum().scrollbar > 0 && (!fconfig.border || fconfig.shadow) {
+        grid_width += 1;
+        if pum().rl {
+            col_off += 1;
+        }
+    }
+    g_st().pum_grid.blending = opt_vars().p_pb > 0 || fconfig.shadow;
+    grid_assign_handle(&mut g_st().pum_grid);
+
+    pum().left_col = pum().col - col_off;
+    pum().right_col = pum().left_col + grid_width;
+    let moved = ui_comp_put_grid(
+        &mut g_st().pum_grid,
+        pum().row,
+        pum().left_col,
+        pum().height + border_width,
+        grid_width + border_width,
+        false,
+        true,
+    );
+    let invalid_grid = moved || pum().invalid;
+    pum().invalid = false;
+    g_st().must_redraw_pum = false;
+
+    if !crate::grid::grid_allocated(&g_st().pum_grid)
+        || g_st().pum_grid.rows != pum().height + border_width
+        || g_st().pum_grid.cols != grid_width + border_width
+    {
+        grid_alloc(
             &mut g_st().pum_grid,
-            pum().row,
-            pum().left_col,
             pum().height + border_width,
             grid_width + border_width,
+            !invalid_grid,
             false,
-            true,
         );
-        let invalid_grid = moved || pum().invalid;
-        pum().invalid = false;
-        g_st().must_redraw_pum = false;
+        ui_call_grid_resize(
+            i64::from(g_st().pum_grid.handle),
+            i64::from(g_st().pum_grid.cols),
+            i64::from(g_st().pum_grid.rows),
+        );
+    } else if invalid_grid {
+        grid_invalidate(&mut g_st().pum_grid);
+    }
+    if ui_has(K_UIMULTIGRID) {
+        pum_pos_ui_flush(true);
+    }
 
-        if !crate::grid::grid_allocated(&g_st().pum_grid)
-            || g_st().pum_grid.rows != pum().height + border_width
-            || g_st().pum_grid.cols != grid_width + border_width
-        {
-            grid_alloc(
-                &mut g_st().pum_grid,
-                pum().height + border_width,
-                grid_width + border_width,
-                !invalid_grid,
-                false,
-            );
-            ui_call_grid_resize(
-                i64::from(g_st().pum_grid.handle),
-                i64::from(g_st().pum_grid.cols),
-                i64::from(g_st().pum_grid.rows),
-            );
-        } else if invalid_grid {
-            grid_invalidate(&mut g_st().pum_grid);
+    let scroll_range = pum().size - pum().height;
+    if fconfig.border {
+        grid_draw_border(
+            &mut g_st().pum_grid,
+            &mut fconfig,
+            ptr::null_mut(),
+            0,
+            None,
+            0,
+        );
+        if !fconfig.shadow {
+            row += 1;
+            col_off += 1;
         }
-        if ui_has(K_UIMULTIGRID) {
-            pum_pos_ui_flush(true);
-        }
+    }
 
-        let scroll_range = pum().size - pum().height;
-        if fconfig.border {
-            grid_draw_border(
-                &mut g_st().pum_grid,
-                &mut fconfig,
-                ptr::null_mut(),
-                0,
-                None,
-                0,
-            );
-            if !fconfig.shadow {
-                row += 1;
-                col_off += 1;
+    pum().first = pum().first.min(scroll_range);
+
+    if pum().scrollbar != 0 {
+        thumb_height = pum().height * pum().height / pum().size;
+        if thumb_height == 0 {
+            thumb_height = 1;
+        }
+        thumb_pos = (pum().first * (pum().height - thumb_height) + scroll_range / 2) / scroll_range;
+    }
+
+    for i in 0..pum().height {
+        let idx = i + pum().first;
+        let selected = idx == pum().selected;
+        let hlfs = if selected { &HLFS_SEL } else { &HLFS_NORM };
+        let trunc_attr = win_hl_attr(curwin_mut(), if selected { HLF_PSI } else { HLF_PNI });
+        let mut hlf = hlfs[0];
+        let mut attr = win_hl_attr(curwin_mut(), hlf);
+        attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PNI), attr);
+
+        screengrid_line_start(&mut g_st().pum_grid, row, 0);
+
+        if extra_space {
+            if pum().rl {
+                grid_line_puts(col_off + 1, c" ", 1, attr);
+            } else {
+                grid_line_puts(col_off - 1, c" ", 1, attr);
             }
         }
 
-        pum().first = pum().first.min(scroll_range);
+        let mut grid_col = col_off;
+        let mut totwidth: i32 = 0;
+        let mut need_fcs_trunc = false;
+        let mut order = [0_i32; 3];
+        let items_width_array = [pum().base_width, pum().kind_width, pum().extra_width];
+        pum_align_order(&mut order);
+        let basic_width = items_width_array[order[0] as usize];
+        let last_isabbr = order[2] == CPT_ABBR;
+        let mut orig_attr: i32 = -1;
 
-        if pum().scrollbar != 0 {
-            thumb_height = pum().height * pum().height / pum().size;
-            if thumb_height == 0 {
-                thumb_height = 1;
-            }
-            thumb_pos =
-                (pum().first * (pum().height - thumb_height) + scroll_range / 2) / scroll_range;
-        }
-
-        for i in 0..pum().height {
-            let idx = i + pum().first;
-            let selected = idx == pum().selected;
-            let hlfs = if selected { &HLFS_SEL } else { &HLFS_NORM };
-            let trunc_attr = win_hl_attr(curwin_mut(), if selected { HLF_PSI } else { HLF_PNI });
-            let mut hlf = hlfs[0];
-            let mut attr = win_hl_attr(curwin_mut(), hlf);
+        for j in 0..3 {
+            let item_type = order[j];
+            hlf = hlfs[item_type as usize];
+            attr = win_hl_attr(curwin_mut(), hlf);
             attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PNI), attr);
-
-            screengrid_line_start(&mut g_st().pum_grid, row, 0);
-
-            if extra_space {
-                if pum().rl {
-                    grid_line_puts(col_off + 1, c" ", 1, attr);
-                } else {
-                    grid_line_puts(col_off - 1, c" ", 1, attr);
-                }
+            orig_attr = attr;
+            if item_type < 2 {
+                attr = pum_user_attr_combine(idx, item_type, attr);
             }
+            let mut width: i32 = 0;
+            let mut s: *mut c_char = ptr::null_mut();
+            let mut p = pum_get_item(idx, item_type);
 
-            let mut grid_col = col_off;
-            let mut totwidth: i32 = 0;
-            let mut need_fcs_trunc = false;
-            let mut order = [0_i32; 3];
-            let items_width_array = [pum().base_width, pum().kind_width, pum().extra_width];
-            pum_align_order(&mut order);
-            let basic_width = items_width_array[order[0] as usize];
-            let last_isabbr = order[2] == CPT_ABBR;
-            let mut orig_attr: i32 = -1;
+            let next_isempty = j + 1 >= 3 || pum_get_item(idx, order[j + 1]).is_null();
 
-            for j in 0..3 {
-                let item_type = order[j];
-                hlf = hlfs[item_type as usize];
-                attr = win_hl_attr(curwin_mut(), hlf);
-                attr = hl_combine_attr(win_hl_attr(curwin_mut(), HLF_PNI), attr);
-                orig_attr = attr;
-                if item_type < 2 {
-                    attr = pum_user_attr_combine(idx, item_type, attr);
-                }
-                let mut width: i32 = 0;
-                let mut s: *mut c_char = ptr::null_mut();
-                let mut p = pum_get_item(idx, item_type);
+            if !p.is_null() {
+                loop {
+                    if s.is_null() {
+                        s = p;
+                    }
+                    let w = ptr2cells(p);
+                    if !crate::memory::cstr_is_empty(p)
+                        && unsafe { *p } != TAB
+                        && totwidth + w <= pum().width
+                    {
+                        width += w;
+                        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+                        continue;
+                    }
+                    let width_limit = pum().width;
 
-                let next_isempty = j + 1 >= 3 || pum_get_item(idx, order[j + 1]).is_null();
-
-                if !p.is_null() {
-                    loop {
-                        if s.is_null() {
-                            s = p;
-                        }
-                        let w = ptr2cells(p);
-                        if !crate::memory::cstr_is_empty(p)
-                            && *p != TAB
-                            && totwidth + w <= pum().width
-                        {
-                            width += w;
-                            p = p.wrapping_add(utfc_ptr2len(p) as usize);
-                            continue;
-                        }
-                        let width_limit = pum().width;
-
-                        let saved = *p;
-                        if saved != NUL {
+                    let saved = unsafe { *p };
+                    if saved != NUL {
+                        unsafe {
                             *p = NUL;
                         }
-                        let mut st_bytes = transstr(s, true).into_bytes_with_nul();
-                        let st = st_bytes.as_mut_ptr().cast::<c_char>();
-                        if saved != NUL {
+                    }
+                    let mut st_bytes = transstr(s, true).into_bytes_with_nul();
+                    let st = st_bytes.as_mut_ptr().cast::<c_char>();
+                    if saved != NUL {
+                        unsafe {
                             *p = saved;
                         }
-
-                        let attrs = if item_type == CPT_ABBR {
-                            pum_compute_text_attrs(
-                                st,
-                                hlf,
-                                (*pum().array.wrapping_add(idx as usize)).pum_user_abbr_hlattr,
-                            )
-                        } else {
-                            None
-                        };
-
-                        if pum().rl {
-                            let mut rt_bytes = reverse_text(st).into_bytes_with_nul();
-                            let mut rt = rt_bytes.as_mut_ptr().cast::<c_char>();
-                            let mut cells = mb_string2cells(rt) as i32;
-                            let pad = if next_isempty { 0 } else { 2 };
-                            if width_limit - totwidth < cells + pad {
-                                need_fcs_trunc = true;
-                            }
-
-                            if grid_col - cells < col_off - width_limit {
-                                loop {
-                                    cells -= utf_ptr2cells(rt);
-                                    rt = rt.wrapping_add(utfc_ptr2len(rt) as usize);
-                                    if grid_col - cells >= col_off - width_limit {
-                                        break;
-                                    }
-                                }
-
-                                if grid_col - cells > col_off - width_limit {
-                                    rt = rt.wrapping_sub(1);
-                                    *rt = b'<' as c_char;
-                                    cells += 1;
-                                }
-                            }
-
-                            if let Some(ref attrs_vec) = attrs {
-                                pum_grid_puts_with_attrs(
-                                    grid_col - cells + 1,
-                                    cells,
-                                    rt,
-                                    -1,
-                                    attrs_vec.as_ptr(),
-                                );
-                            } else {
-                                grid_line_puts(grid_col - cells + 1, rt, -1, attr);
-                            }
-
-                            grid_col -= width;
-                        } else {
-                            let mut cells = mb_string2cells(st) as i32;
-                            let pad = if next_isempty { 0 } else { 2 };
-                            if width_limit - totwidth < cells + pad {
-                                need_fcs_trunc = true;
-                            }
-                            if need_fcs_trunc {
-                                let available_cells = width_limit - totwidth;
-                                let mut p_end = st;
-                                let mut displayed: i32 = 0;
-                                while !crate::memory::cstr_is_empty(p_end) {
-                                    let char_cells = utf_ptr2cells(p_end);
-                                    if displayed + char_cells > available_cells {
-                                        break;
-                                    }
-                                    displayed += char_cells;
-                                    p_end = p_end.wrapping_add(utfc_ptr2len(p_end) as usize);
-                                }
-                                *p_end = NUL;
-                                cells = displayed;
-                                width = displayed;
-                            }
-
-                            if let Some(ref attrs_vec) = attrs {
-                                pum_grid_puts_with_attrs(
-                                    grid_col,
-                                    cells,
-                                    st,
-                                    -1,
-                                    attrs_vec.as_ptr(),
-                                );
-                            } else {
-                                grid_line_puts(grid_col, st, -1, attr);
-                            }
-
-                            grid_col += width;
-                        }
-
-                        if *p != TAB {
-                            break;
-                        }
-
-                        if pum().rl {
-                            grid_line_puts(grid_col - 1, c"  ", 2, attr);
-                            grid_col -= 2;
-                        } else {
-                            grid_line_puts(grid_col, c"  ", 2, attr);
-                            grid_col += 2;
-                        }
-                        totwidth += 2;
-                        s = ptr::null_mut();
-                        width = 0;
-                        p = p.wrapping_add(utfc_ptr2len(p) as usize);
                     }
-                }
 
-                let n = if j > 0 {
-                    items_width_array[order[1] as usize] + if last_isabbr { 0 } else { 1 }
-                } else if order[j] == CPT_ABBR {
-                    1
-                } else {
-                    0
-                };
+                    let attrs = if item_type == CPT_ABBR {
+                        pum_compute_text_attrs(st, hlf, unsafe {
+                            (*pum().array.wrapping_add(idx as usize)).pum_user_abbr_hlattr
+                        })
+                    } else {
+                        None
+                    };
 
-                if j == 2
-                    || (next_isempty
-                        && (j == 1 || (j == 0 && pum_get_item(idx, order[j + 2]).is_null())))
-                    || basic_width + n >= pum().width
-                {
-                    break;
-                }
+                    if pum().rl {
+                        let mut rt_bytes = reverse_text(st).into_bytes_with_nul();
+                        let mut rt = rt_bytes.as_mut_ptr().cast::<c_char>();
+                        let mut cells = mb_string2cells(rt) as i32;
+                        let pad = if next_isempty { 0 } else { 2 };
+                        if width_limit - totwidth < cells + pad {
+                            need_fcs_trunc = true;
+                        }
 
-                if pum().rl {
-                    grid_line_fill(
-                        col_off - basic_width - n + 1,
-                        grid_col + 1,
-                        schar_from_ascii(b' '),
-                        orig_attr,
-                    );
-                    grid_col = col_off - basic_width - n;
-                } else {
-                    grid_line_fill(
-                        grid_col,
-                        col_off + basic_width + n,
-                        schar_from_ascii(b' '),
-                        orig_attr,
-                    );
-                    grid_col = col_off + basic_width + n;
+                        if grid_col - cells < col_off - width_limit {
+                            loop {
+                                cells -= utf_ptr2cells(rt);
+                                rt = rt.wrapping_add(utfc_ptr2len(rt) as usize);
+                                if grid_col - cells >= col_off - width_limit {
+                                    break;
+                                }
+                            }
+
+                            if grid_col - cells > col_off - width_limit {
+                                rt = rt.wrapping_sub(1);
+                                unsafe {
+                                    *rt = b'<' as c_char;
+                                }
+                                cells += 1;
+                            }
+                        }
+
+                        if let Some(ref attrs_vec) = attrs {
+                            pum_grid_puts_with_attrs(
+                                grid_col - cells + 1,
+                                cells,
+                                rt,
+                                -1,
+                                attrs_vec.as_ptr(),
+                            );
+                        } else {
+                            grid_line_puts(grid_col - cells + 1, rt, -1, attr);
+                        }
+
+                        grid_col -= width;
+                    } else {
+                        let mut cells = mb_string2cells(st) as i32;
+                        let pad = if next_isempty { 0 } else { 2 };
+                        if width_limit - totwidth < cells + pad {
+                            need_fcs_trunc = true;
+                        }
+                        if need_fcs_trunc {
+                            let available_cells = width_limit - totwidth;
+                            let mut p_end = st;
+                            let mut displayed: i32 = 0;
+                            while !crate::memory::cstr_is_empty(p_end) {
+                                let char_cells = utf_ptr2cells(p_end);
+                                if displayed + char_cells > available_cells {
+                                    break;
+                                }
+                                displayed += char_cells;
+                                p_end = p_end.wrapping_add(utfc_ptr2len(p_end) as usize);
+                            }
+                            unsafe {
+                                *p_end = NUL;
+                            }
+                            cells = displayed;
+                            width = displayed;
+                        }
+
+                        if let Some(ref attrs_vec) = attrs {
+                            pum_grid_puts_with_attrs(grid_col, cells, st, -1, attrs_vec.as_ptr());
+                        } else {
+                            grid_line_puts(grid_col, st, -1, attr);
+                        }
+
+                        grid_col += width;
+                    }
+
+                    if unsafe { *p } != TAB {
+                        break;
+                    }
+
+                    if pum().rl {
+                        grid_line_puts(grid_col - 1, c"  ", 2, attr);
+                        grid_col -= 2;
+                    } else {
+                        grid_line_puts(grid_col, c"  ", 2, attr);
+                        grid_col += 2;
+                    }
+                    totwidth += 2;
+                    s = ptr::null_mut();
+                    width = 0;
+                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
                 }
-                totwidth = basic_width + n;
+            }
+
+            let n = if j > 0 {
+                items_width_array[order[1] as usize] + if last_isabbr { 0 } else { 1 }
+            } else if order[j] == CPT_ABBR {
+                1
+            } else {
+                0
+            };
+
+            if j == 2
+                || (next_isempty
+                    && (j == 1 || (j == 0 && pum_get_item(idx, order[j + 2]).is_null())))
+                || basic_width + n >= pum().width
+            {
+                break;
             }
 
             if pum().rl {
-                let lcol = col_off - pum().width + 1;
-                grid_line_fill(lcol, grid_col + 1, schar_from_ascii(b' '), orig_attr);
-                if need_fcs_trunc {
-                    g_st().linebuf_char[lcol as usize] = if fcs_trunc != 0 {
-                        fcs_trunc
-                    } else {
-                        schar_from_ascii(b'<')
-                    };
-                    g_st().linebuf_attr[lcol as usize] = trunc_attr;
-                    if pum().width > 1 && g_st().linebuf_char[(lcol + 1) as usize] == 0 {
-                        g_st().linebuf_char[(lcol + 1) as usize] = schar_from_ascii(b' ');
-                    }
-                }
-            } else {
-                let rcol = col_off + pum().width;
-                grid_line_fill(grid_col, rcol, schar_from_ascii(b' '), orig_attr);
-                if need_fcs_trunc {
-                    if pum().width > 1 && g_st().linebuf_char[(rcol - 1) as usize] == 0 {
-                        g_st().linebuf_char[(rcol - 2) as usize] = schar_from_ascii(b' ');
-                    }
-                    g_st().linebuf_char[(rcol - 1) as usize] = if fcs_trunc != 0 {
-                        fcs_trunc
-                    } else {
-                        schar_from_ascii(b'>')
-                    };
-                    g_st().linebuf_attr[(rcol - 1) as usize] = trunc_attr;
-                }
-            }
-
-            if pum().scrollbar > 0 {
-                let thumb = i >= thumb_pos && i < thumb_pos + thumb_height;
-                let scrollbar_col = col_off + if pum().rl { -pum().width } else { pum().width };
-                let use_border_style = has_border && !fconfig.shadow;
-                grid_line_put_schar(
-                    scrollbar_col,
-                    if use_border_style && !thumb {
-                        border_char
-                    } else {
-                        fill_char
-                    },
-                    if thumb {
-                        attr_thumb
-                    } else if use_border_style {
-                        border_attr
-                    } else {
-                        attr_scroll
-                    },
+                grid_line_fill(
+                    col_off - basic_width - n + 1,
+                    grid_col + 1,
+                    schar_from_ascii(b' '),
+                    orig_attr,
                 );
+                grid_col = col_off - basic_width - n;
+            } else {
+                grid_line_fill(
+                    grid_col,
+                    col_off + basic_width + n,
+                    schar_from_ascii(b' '),
+                    orig_attr,
+                );
+                grid_col = col_off + basic_width + n;
             }
-            grid_line_flush();
-            row += 1;
+            totwidth = basic_width + n;
         }
+
+        if pum().rl {
+            let lcol = col_off - pum().width + 1;
+            grid_line_fill(lcol, grid_col + 1, schar_from_ascii(b' '), orig_attr);
+            if need_fcs_trunc {
+                g_st().linebuf_char[lcol as usize] = if fcs_trunc != 0 {
+                    fcs_trunc
+                } else {
+                    schar_from_ascii(b'<')
+                };
+                g_st().linebuf_attr[lcol as usize] = trunc_attr;
+                if pum().width > 1 && g_st().linebuf_char[(lcol + 1) as usize] == 0 {
+                    g_st().linebuf_char[(lcol + 1) as usize] = schar_from_ascii(b' ');
+                }
+            }
+        } else {
+            let rcol = col_off + pum().width;
+            grid_line_fill(grid_col, rcol, schar_from_ascii(b' '), orig_attr);
+            if need_fcs_trunc {
+                if pum().width > 1 && g_st().linebuf_char[(rcol - 1) as usize] == 0 {
+                    g_st().linebuf_char[(rcol - 2) as usize] = schar_from_ascii(b' ');
+                }
+                g_st().linebuf_char[(rcol - 1) as usize] = if fcs_trunc != 0 {
+                    fcs_trunc
+                } else {
+                    schar_from_ascii(b'>')
+                };
+                g_st().linebuf_attr[(rcol - 1) as usize] = trunc_attr;
+            }
+        }
+
+        if pum().scrollbar > 0 {
+            let thumb = i >= thumb_pos && i < thumb_pos + thumb_height;
+            let scrollbar_col = col_off + if pum().rl { -pum().width } else { pum().width };
+            let use_border_style = has_border && !fconfig.shadow;
+            grid_line_put_schar(
+                scrollbar_col,
+                if use_border_style && !thumb {
+                    border_char
+                } else {
+                    fill_char
+                },
+                if thumb {
+                    attr_thumb
+                } else if use_border_style {
+                    border_attr
+                } else {
+                    attr_scroll
+                },
+            );
+        }
+        grid_line_flush();
+        row += 1;
     }
 }
 
@@ -1290,80 +1275,76 @@ fn pum_preview_set_text(
 
 /// Adjust floating info preview window position (`pum_adjust_info_position`).
 fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: i32) -> bool {
-    {
-        let border_width = pum_border_width();
-        let col = pum().col + pum().width + 1 + border_width.max(pum().scrollbar);
-        let right_extra = g_st().columns_global - col;
-        let left_extra = pum().col - 2;
+    let border_width = pum_border_width();
+    let col = pum().col + pum().width + 1 + border_width.max(pum().scrollbar);
+    let right_extra = g_st().columns_global - col;
+    let left_extra = pum().col - 2;
 
-        let max_extra = right_extra.max(left_extra);
-        if max_extra < 10 {
-            wp.w_config.hide = true;
-            return false;
-        }
-
-        if right_extra > width {
-            wp.w_config.width = width;
-            wp.w_config.col = f64::from(col - 1);
-        } else if left_extra > width {
-            wp.w_config.width = width;
-            wp.w_config.col = f64::from(pum().col - wp.w_config.width - 1);
-        } else {
-            let place_in_right = right_extra > left_extra;
-            wp.w_config.width = max_extra;
-            wp.w_config.col = f64::from(if place_in_right {
-                col - 1
-            } else {
-                pum().col - wp.w_config.width - 1
-            });
-        }
-        wp.w_config.anchor = 0;
-        let count = wp.buf_mut().b_ml.ml_line_count;
-        wp.w_view_width = wp.w_config.width;
-        wp.w_config.height = plines_m_win(wp, wp.w_topline, count, g_st().rows_global);
-        wp.w_config.row = f64::from(pum().row);
-        wp.w_config.hide = false;
-        let cfg = wp.w_config.clone();
-        win_config_float(&mut *wp, cfg);
-        true
+    let max_extra = right_extra.max(left_extra);
+    if max_extra < 10 {
+        wp.w_config.hide = true;
+        return false;
     }
+
+    if right_extra > width {
+        wp.w_config.width = width;
+        wp.w_config.col = f64::from(col - 1);
+    } else if left_extra > width {
+        wp.w_config.width = width;
+        wp.w_config.col = f64::from(pum().col - wp.w_config.width - 1);
+    } else {
+        let place_in_right = right_extra > left_extra;
+        wp.w_config.width = max_extra;
+        wp.w_config.col = f64::from(if place_in_right {
+            col - 1
+        } else {
+            pum().col - wp.w_config.width - 1
+        });
+    }
+    wp.w_config.anchor = 0;
+    let count = wp.buf_mut().b_ml.ml_line_count;
+    wp.w_view_width = wp.w_config.width;
+    wp.w_config.height = plines_m_win(wp, wp.w_topline, count, g_st().rows_global);
+    wp.w_config.row = f64::from(pum().row);
+    wp.w_config.hide = false;
+    let cfg = wp.w_config.clone();
+    win_config_float(&mut *wp, cfg);
+    true
 }
 
 /// Used for `nvim__complete_set` (`pum_set_info`).
 pub fn pum_set_info(selected: i32, info: *mut c_char) -> *mut WinInfoInfo {
-    {
-        if !pum().is_visible || !compl_match_curr_select(selected) {
+    if !pum().is_visible || !compl_match_curr_select(selected) {
+        return ptr::null_mut();
+    }
+    block_autocmds();
+    g_st().redrawing_disabled += 1;
+    g_st().no_u_sync += 1;
+    let mut wp = win_float_find(K_WIN_INFO);
+    if wp.is_null() {
+        wp = win_float_special(false, true, K_WIN_INFO);
+        if wp.is_null() {
             return ptr::null_mut();
         }
-        block_autocmds();
-        g_st().redrawing_disabled += 1;
-        g_st().no_u_sync += 1;
-        let mut wp = win_float_find(K_WIN_INFO);
-        if wp.is_null() {
-            wp = win_float_special(false, true, K_WIN_INFO);
-            if wp.is_null() {
-                return ptr::null_mut();
-            }
-            unsafe {
-                (*wp).w_topline = 1;
-            }
-            unsafe {
-                (*wp).w_onebuf_opt.wo_wfb = 1;
-            }
+        unsafe {
+            (*wp).w_topline = 1;
         }
-        let mut lnum: Linenr = 0;
-        let mut max_info_width: i32 = 0;
-        pum_preview_set_text(unsafe { &mut *wp }, info, &mut lnum, &mut max_info_width);
-        g_st().no_u_sync -= 1;
-        g_st().redrawing_disabled -= 1;
-        redraw_later(unsafe { wp.as_mut() }, UPD_NOT_VALID);
-
-        if !pum_adjust_info_position(unsafe { &mut *wp }, max_info_width) {
-            wp = ptr::null_mut();
+        unsafe {
+            (*wp).w_onebuf_opt.wo_wfb = 1;
         }
-        unblock_autocmds();
-        wp
     }
+    let mut lnum: Linenr = 0;
+    let mut max_info_width: i32 = 0;
+    pum_preview_set_text(unsafe { &mut *wp }, info, &mut lnum, &mut max_info_width);
+    g_st().no_u_sync -= 1;
+    g_st().redrawing_disabled -= 1;
+    redraw_later(unsafe { wp.as_mut() }, UPD_NOT_VALID);
+
+    if !pum_adjust_info_position(unsafe { &mut *wp }, max_info_width) {
+        wp = ptr::null_mut();
+    }
+    unblock_autocmds();
+    wp
 }
 
 /// Set the index of the currently selected item (`pum_set_selected`).
@@ -1702,86 +1683,81 @@ pub fn pum_set_event_info(dict: &mut TvDict) {
 }
 
 fn pum_position_at_mouse(min_width: i32) {
-    {
-        let min_row: i32 = 0;
-        let min_col: i32 = 0;
-        let mut max_row = g_st().rows_global;
-        let mut max_col = g_st().columns_global;
-        let mut grid = g_st().mouse_grid;
-        let mut row = g_st().mouse_row;
-        let mut col = g_st().mouse_col;
-        pum().win_row_offset = 0;
-        pum().win_col_offset = 0;
+    let min_row: i32 = 0;
+    let min_col: i32 = 0;
+    let mut max_row = g_st().rows_global;
+    let mut max_col = g_st().columns_global;
+    let mut grid = g_st().mouse_grid;
+    let mut row = g_st().mouse_row;
+    let mut col = g_st().mouse_col;
+    pum().win_row_offset = 0;
+    pum().win_col_offset = 0;
 
-        if ui_has(K_UIMULTIGRID) && grid == 0 {
-            mouse_find_win_outer(&mut grid, &mut row, &mut col);
-        }
-        if grid > 1 {
-            let wp = get_win_by_grid_handle(grid);
-            if !wp.is_null() {
-                let wp = unsafe { &mut *wp };
-                let wp = { &mut *wp };
-                row += wp.w_winrow;
-                col += wp.w_wincol;
-                pum().win_row_offset = wp.w_winrow;
-                pum().win_col_offset = wp.w_wincol;
-
-                if wp.w_view_height > 0 || wp.w_view_width > 0 {
-                    max_row =
-                        (g_st().rows_global - wp.w_winrow).max(wp.w_winrow + wp.w_view_height);
-                    max_col =
-                        (g_st().columns_global - wp.w_wincol).max(wp.w_wincol + wp.w_view_width);
-                }
-            }
-        }
-        if g_st().pum_grid.handle != 0 && grid == g_st().pum_grid.handle {
-            row += pum().row;
-            col += pum().left_col;
-        } else {
-            pum().anchor_grid = grid;
-        }
-
-        let border_width = pum_border_width();
-        let border_height = border_width;
-        if max_row - row > pum().size + border_height || max_row - row > row - min_row {
-            pum().above = false;
-            pum().row = row + 1;
-            if pum().height + border_height > max_row - pum().row {
-                pum().height = max_row - pum().row - border_height;
-            }
-        } else {
-            pum().above = true;
-            pum().row = row - pum().size - border_height;
-            if pum().row < min_row {
-                pum().height += pum().row - min_row;
-                pum().row = min_row;
-            }
-        }
-
-        if pum().rl {
-            if col - min_col + 1 >= pum().base_width + border_width
-                || col - min_col + 1 > min_width + border_width
-            {
-                pum().col = col;
-            } else {
-                pum().col =
-                    min_col + (pum().base_width + border_width).min(min_width + border_width) - 1;
-            }
-            pum().width = pum().col - min_col + 1 - border_width;
-        } else {
-            if max_col - col >= pum().base_width + border_width
-                || max_col - col > min_width + border_width
-            {
-                pum().col = col;
-            } else {
-                pum().col =
-                    max_col - (pum().base_width + border_width).min(min_width + border_width);
-            }
-            pum().width = max_col - pum().col - border_width;
-        }
-
-        pum().width = pum().width.min(pum().base_width + 1);
+    if ui_has(K_UIMULTIGRID) && grid == 0 {
+        mouse_find_win_outer(&mut grid, &mut row, &mut col);
     }
+    if grid > 1 {
+        let wp = get_win_by_grid_handle(grid);
+        if !wp.is_null() {
+            let wp = unsafe { &mut *wp };
+            let wp = { &mut *wp };
+            row += wp.w_winrow;
+            col += wp.w_wincol;
+            pum().win_row_offset = wp.w_winrow;
+            pum().win_col_offset = wp.w_wincol;
+
+            if wp.w_view_height > 0 || wp.w_view_width > 0 {
+                max_row = (g_st().rows_global - wp.w_winrow).max(wp.w_winrow + wp.w_view_height);
+                max_col = (g_st().columns_global - wp.w_wincol).max(wp.w_wincol + wp.w_view_width);
+            }
+        }
+    }
+    if g_st().pum_grid.handle != 0 && grid == g_st().pum_grid.handle {
+        row += pum().row;
+        col += pum().left_col;
+    } else {
+        pum().anchor_grid = grid;
+    }
+
+    let border_width = pum_border_width();
+    let border_height = border_width;
+    if max_row - row > pum().size + border_height || max_row - row > row - min_row {
+        pum().above = false;
+        pum().row = row + 1;
+        if pum().height + border_height > max_row - pum().row {
+            pum().height = max_row - pum().row - border_height;
+        }
+    } else {
+        pum().above = true;
+        pum().row = row - pum().size - border_height;
+        if pum().row < min_row {
+            pum().height += pum().row - min_row;
+            pum().row = min_row;
+        }
+    }
+
+    if pum().rl {
+        if col - min_col + 1 >= pum().base_width + border_width
+            || col - min_col + 1 > min_width + border_width
+        {
+            pum().col = col;
+        } else {
+            pum().col =
+                min_col + (pum().base_width + border_width).min(min_width + border_width) - 1;
+        }
+        pum().width = pum().col - min_col + 1 - border_width;
+    } else {
+        if max_col - col >= pum().base_width + border_width
+            || max_col - col > min_width + border_width
+        {
+            pum().col = col;
+        } else {
+            pum().col = max_col - (pum().base_width + border_width).min(min_width + border_width);
+        }
+        pum().width = max_col - pum().col - border_width;
+    }
+
+    pum().width = pum().width.min(pum().base_width + 1);
 }
 
 /// Select the pum entry at the mouse position (`pum_select_mouse_pos`).

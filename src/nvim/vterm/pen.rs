@@ -418,44 +418,43 @@ fn lookup_colour(
     argcount: i32,
     col: &mut VTermColor,
 ) -> i32 {
-    unsafe {
-        match palette {
-            2 => {
-                let mut grouplen: i32 = 0;
-                while grouplen < argcount && csi_arg_has_more(*args.wrapping_add(grouplen as usize))
-                {
-                    grouplen += 1;
-                }
-                grouplen = if grouplen < argcount {
-                    grouplen + 1
-                } else {
-                    argcount
-                };
-                let skip = if grouplen > 3 { 1 } else { 0 };
-
-                if argcount - skip < 3 {
-                    return argcount;
-                }
-
-                col.set_rgb(
-                    csi_arg(*args.wrapping_add(skip as usize)) as u8,
-                    csi_arg(*args.wrapping_add((skip + 1) as usize)) as u8,
-                    csi_arg(*args.wrapping_add((skip + 2) as usize)) as u8,
-                );
-
-                skip + 3
+    match palette {
+        2 => {
+            let mut grouplen: i32 = 0;
+            while grouplen < argcount
+                && csi_arg_has_more(unsafe { *args.wrapping_add(grouplen as usize) })
+            {
+                grouplen += 1;
             }
-            5 => {
-                if argcount == 0 || csi_arg_is_missing(*args) {
-                    return i32::from(argcount != 0);
-                }
+            grouplen = if grouplen < argcount {
+                grouplen + 1
+            } else {
+                argcount
+            };
+            let skip = if grouplen > 3 { 1 } else { 0 };
 
-                col.set_indexed((*args) as u8);
-
-                i32::from(argcount != 0)
+            if argcount - skip < 3 {
+                return argcount;
             }
-            _ => 0,
+
+            col.set_rgb(
+                csi_arg(unsafe { *args.wrapping_add(skip as usize) }) as u8,
+                csi_arg(unsafe { *args.wrapping_add((skip + 1) as usize) }) as u8,
+                csi_arg(unsafe { *args.wrapping_add((skip + 2) as usize) }) as u8,
+            );
+
+            skip + 3
         }
+        5 => {
+            if argcount == 0 || csi_arg_is_missing(unsafe { *args }) {
+                return i32::from(argcount != 0);
+            }
+
+            col.set_indexed(unsafe { *args } as u8);
+
+            i32::from(argcount != 0)
+        }
+        _ => 0,
     }
 }
 
@@ -604,190 +603,188 @@ pub fn vterm_state_convert_color_to_rgb(state: &VTermStateFull, col: &mut VTermC
 }
 
 pub fn vterm_state_setpen(state: &mut VTermStateFull, args: *const i64, argcount: i32) {
-    unsafe {
-        let mut argi: i32 = 0;
+    let mut argi: i32 = 0;
 
-        while argi < argcount {
-            let arg = csi_arg(*args.wrapping_add(argi as usize));
-            match arg {
-                CSI_ARG_MISSING | 0 => {
-                    vterm_state_resetpen(state);
-                }
-                1 => {
-                    let fg = state.pen.fg;
-                    state.pen.set_bold(1);
-                    setpenattr_bool(state, VTERM_ATTR_BOLD, 1);
-                    if !fg.is_default_fg()
-                        && fg.is_indexed()
-                        && fg.idx() < 8
-                        && state.bold_is_highbright != 0
-                    {
-                        let idx = i32::from(fg.idx()) + if state.pen.bold() != 0 { 8 } else { 0 };
-                        set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, idx);
-                    }
-                }
-                2 => {
-                    state.pen.set_dim(1);
-                    setpenattr_bool(state, VTERM_ATTR_DIM, 1);
-                }
-                3 => {
-                    state.pen.set_italic(1);
-                    setpenattr_bool(state, VTERM_ATTR_ITALIC, 1);
-                }
-                4 => {
-                    state.pen.set_underline(VTERM_UNDERLINE_SINGLE);
-                    if csi_arg_has_more(*args.wrapping_add(argi as usize)) {
-                        argi += 1;
-                        match csi_arg(*args.wrapping_add(argi as usize)) {
-                            0 => state.pen.set_underline(0),
-                            1 => state.pen.set_underline(VTERM_UNDERLINE_SINGLE),
-                            2 => state.pen.set_underline(VTERM_UNDERLINE_DOUBLE),
-                            3 => state.pen.set_underline(VTERM_UNDERLINE_CURLY),
-                            _ => {}
-                        }
-                    }
-                    setpenattr_int(state, VTERM_ATTR_UNDERLINE, state.pen.underline() as i32);
-                }
-                5 => {
-                    state.pen.set_blink(1);
-                    setpenattr_bool(state, VTERM_ATTR_BLINK, 1);
-                }
-                7 => {
-                    state.pen.set_reverse(1);
-                    setpenattr_bool(state, VTERM_ATTR_REVERSE, 1);
-                }
-                8 => {
-                    state.pen.set_conceal(1);
-                    setpenattr_bool(state, VTERM_ATTR_CONCEAL, 1);
-                }
-                9 => {
-                    state.pen.set_strike(1);
-                    setpenattr_bool(state, VTERM_ATTR_STRIKE, 1);
-                }
-                10..=19 => {
-                    state.pen.set_font((arg - 10) as u32);
-                    setpenattr_int(state, VTERM_ATTR_FONT, state.pen.font() as i32);
-                }
-                21 => {
-                    state.pen.set_underline(VTERM_UNDERLINE_DOUBLE);
-                    setpenattr_int(state, VTERM_ATTR_UNDERLINE, state.pen.underline() as i32);
-                }
-                22 => {
-                    state.pen.set_bold(0);
-                    setpenattr_bool(state, VTERM_ATTR_BOLD, 0);
-                    state.pen.set_dim(0);
-                    setpenattr_bool(state, VTERM_ATTR_DIM, 0);
-                }
-                23 => {
-                    state.pen.set_italic(0);
-                    setpenattr_bool(state, VTERM_ATTR_ITALIC, 0);
-                }
-                24 => {
-                    state.pen.set_underline(0);
-                    setpenattr_int(state, VTERM_ATTR_UNDERLINE, 0);
-                }
-                25 => {
-                    state.pen.set_blink(0);
-                    setpenattr_bool(state, VTERM_ATTR_BLINK, 0);
-                }
-                27 => {
-                    state.pen.set_reverse(0);
-                    setpenattr_bool(state, VTERM_ATTR_REVERSE, 0);
-                }
-                28 => {
-                    state.pen.set_conceal(0);
-                    setpenattr_bool(state, VTERM_ATTR_CONCEAL, 0);
-                }
-                29 => {
-                    state.pen.set_strike(0);
-                    setpenattr_bool(state, VTERM_ATTR_STRIKE, 0);
-                }
-                30..=37 => {
-                    let mut value = arg - 30;
-                    if state.pen.bold() != 0 && state.bold_is_highbright != 0 {
-                        value += 8;
-                    }
-                    set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, value);
-                }
-                38 => {
-                    if argcount - argi < 1 {
-                        return;
-                    }
-                    let mut fg = state.pen.fg;
-                    argi += 1 + lookup_colour(
-                        state,
-                        csi_arg(*args.wrapping_add((argi + 1) as usize)),
-                        args.wrapping_add((argi + 2) as usize),
-                        argcount - argi - 2,
-                        &mut fg,
-                    );
-                    state.pen.fg = fg;
-                    setpenattr_col(state, VTERM_ATTR_FOREGROUND, fg);
-                }
-                39 => {
-                    state.pen.fg = state.default_fg;
-                    setpenattr_col(state, VTERM_ATTR_FOREGROUND, state.pen.fg);
-                }
-                40..=47 => {
-                    let value = arg - 40;
-                    set_pen_col_ansi(state, VTERM_ATTR_BACKGROUND, value);
-                }
-                48 => {
-                    if argcount - argi < 1 {
-                        return;
-                    }
-                    let mut bg = state.pen.bg;
-                    argi += 1 + lookup_colour(
-                        state,
-                        csi_arg(*args.wrapping_add((argi + 1) as usize)),
-                        args.wrapping_add((argi + 2) as usize),
-                        argcount - argi - 2,
-                        &mut bg,
-                    );
-                    state.pen.bg = bg;
-                    setpenattr_col(state, VTERM_ATTR_BACKGROUND, bg);
-                }
-                49 => {
-                    state.pen.bg = state.default_bg;
-                    setpenattr_col(state, VTERM_ATTR_BACKGROUND, state.pen.bg);
-                }
-                53 => {
-                    state.pen.set_overline(1);
-                    setpenattr_bool(state, VTERM_ATTR_OVERLINE, 1);
-                }
-                55 => {
-                    state.pen.set_overline(0);
-                    setpenattr_bool(state, VTERM_ATTR_OVERLINE, 0);
-                }
-                73..=75 => {
-                    state.pen.set_small(u32::from(arg != 75));
-                    state.pen.set_baseline(if arg == 73 {
-                        VTERM_BASELINE_RAISE
-                    } else if arg == 74 {
-                        VTERM_BASELINE_LOWER
-                    } else {
-                        VTERM_BASELINE_NORMAL
-                    });
-                    setpenattr_bool(state, VTERM_ATTR_SMALL, state.pen.small() as i32);
-                    setpenattr_int(state, VTERM_ATTR_BASELINE, state.pen.baseline() as i32);
-                }
-                90..=97 => {
-                    let value = arg - 90 + 8;
-                    set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, value);
-                }
-                100..=107 => {
-                    let value = arg - 100 + 8;
-                    set_pen_col_ansi(state, VTERM_ATTR_BACKGROUND, value);
-                }
-                _ => {}
+    while argi < argcount {
+        let arg = csi_arg(unsafe { *args.wrapping_add(argi as usize) });
+        match arg {
+            CSI_ARG_MISSING | 0 => {
+                vterm_state_resetpen(state);
             }
-
-            loop {
-                let cur = *args.wrapping_add(argi as usize);
-                argi += 1;
-                if !csi_arg_has_more(cur) {
-                    break;
+            1 => {
+                let fg = state.pen.fg;
+                state.pen.set_bold(1);
+                setpenattr_bool(state, VTERM_ATTR_BOLD, 1);
+                if !fg.is_default_fg()
+                    && fg.is_indexed()
+                    && fg.idx() < 8
+                    && state.bold_is_highbright != 0
+                {
+                    let idx = i32::from(fg.idx()) + if state.pen.bold() != 0 { 8 } else { 0 };
+                    set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, idx);
                 }
+            }
+            2 => {
+                state.pen.set_dim(1);
+                setpenattr_bool(state, VTERM_ATTR_DIM, 1);
+            }
+            3 => {
+                state.pen.set_italic(1);
+                setpenattr_bool(state, VTERM_ATTR_ITALIC, 1);
+            }
+            4 => {
+                state.pen.set_underline(VTERM_UNDERLINE_SINGLE);
+                if csi_arg_has_more(unsafe { *args.wrapping_add(argi as usize) }) {
+                    argi += 1;
+                    match csi_arg(unsafe { *args.wrapping_add(argi as usize) }) {
+                        0 => state.pen.set_underline(0),
+                        1 => state.pen.set_underline(VTERM_UNDERLINE_SINGLE),
+                        2 => state.pen.set_underline(VTERM_UNDERLINE_DOUBLE),
+                        3 => state.pen.set_underline(VTERM_UNDERLINE_CURLY),
+                        _ => {}
+                    }
+                }
+                setpenattr_int(state, VTERM_ATTR_UNDERLINE, state.pen.underline() as i32);
+            }
+            5 => {
+                state.pen.set_blink(1);
+                setpenattr_bool(state, VTERM_ATTR_BLINK, 1);
+            }
+            7 => {
+                state.pen.set_reverse(1);
+                setpenattr_bool(state, VTERM_ATTR_REVERSE, 1);
+            }
+            8 => {
+                state.pen.set_conceal(1);
+                setpenattr_bool(state, VTERM_ATTR_CONCEAL, 1);
+            }
+            9 => {
+                state.pen.set_strike(1);
+                setpenattr_bool(state, VTERM_ATTR_STRIKE, 1);
+            }
+            10..=19 => {
+                state.pen.set_font((arg - 10) as u32);
+                setpenattr_int(state, VTERM_ATTR_FONT, state.pen.font() as i32);
+            }
+            21 => {
+                state.pen.set_underline(VTERM_UNDERLINE_DOUBLE);
+                setpenattr_int(state, VTERM_ATTR_UNDERLINE, state.pen.underline() as i32);
+            }
+            22 => {
+                state.pen.set_bold(0);
+                setpenattr_bool(state, VTERM_ATTR_BOLD, 0);
+                state.pen.set_dim(0);
+                setpenattr_bool(state, VTERM_ATTR_DIM, 0);
+            }
+            23 => {
+                state.pen.set_italic(0);
+                setpenattr_bool(state, VTERM_ATTR_ITALIC, 0);
+            }
+            24 => {
+                state.pen.set_underline(0);
+                setpenattr_int(state, VTERM_ATTR_UNDERLINE, 0);
+            }
+            25 => {
+                state.pen.set_blink(0);
+                setpenattr_bool(state, VTERM_ATTR_BLINK, 0);
+            }
+            27 => {
+                state.pen.set_reverse(0);
+                setpenattr_bool(state, VTERM_ATTR_REVERSE, 0);
+            }
+            28 => {
+                state.pen.set_conceal(0);
+                setpenattr_bool(state, VTERM_ATTR_CONCEAL, 0);
+            }
+            29 => {
+                state.pen.set_strike(0);
+                setpenattr_bool(state, VTERM_ATTR_STRIKE, 0);
+            }
+            30..=37 => {
+                let mut value = arg - 30;
+                if state.pen.bold() != 0 && state.bold_is_highbright != 0 {
+                    value += 8;
+                }
+                set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, value);
+            }
+            38 => {
+                if argcount - argi < 1 {
+                    return;
+                }
+                let mut fg = state.pen.fg;
+                argi += 1 + lookup_colour(
+                    state,
+                    csi_arg(unsafe { *args.wrapping_add((argi + 1) as usize) }),
+                    args.wrapping_add((argi + 2) as usize),
+                    argcount - argi - 2,
+                    &mut fg,
+                );
+                state.pen.fg = fg;
+                setpenattr_col(state, VTERM_ATTR_FOREGROUND, fg);
+            }
+            39 => {
+                state.pen.fg = state.default_fg;
+                setpenattr_col(state, VTERM_ATTR_FOREGROUND, state.pen.fg);
+            }
+            40..=47 => {
+                let value = arg - 40;
+                set_pen_col_ansi(state, VTERM_ATTR_BACKGROUND, value);
+            }
+            48 => {
+                if argcount - argi < 1 {
+                    return;
+                }
+                let mut bg = state.pen.bg;
+                argi += 1 + lookup_colour(
+                    state,
+                    csi_arg(unsafe { *args.wrapping_add((argi + 1) as usize) }),
+                    args.wrapping_add((argi + 2) as usize),
+                    argcount - argi - 2,
+                    &mut bg,
+                );
+                state.pen.bg = bg;
+                setpenattr_col(state, VTERM_ATTR_BACKGROUND, bg);
+            }
+            49 => {
+                state.pen.bg = state.default_bg;
+                setpenattr_col(state, VTERM_ATTR_BACKGROUND, state.pen.bg);
+            }
+            53 => {
+                state.pen.set_overline(1);
+                setpenattr_bool(state, VTERM_ATTR_OVERLINE, 1);
+            }
+            55 => {
+                state.pen.set_overline(0);
+                setpenattr_bool(state, VTERM_ATTR_OVERLINE, 0);
+            }
+            73..=75 => {
+                state.pen.set_small(u32::from(arg != 75));
+                state.pen.set_baseline(if arg == 73 {
+                    VTERM_BASELINE_RAISE
+                } else if arg == 74 {
+                    VTERM_BASELINE_LOWER
+                } else {
+                    VTERM_BASELINE_NORMAL
+                });
+                setpenattr_bool(state, VTERM_ATTR_SMALL, state.pen.small() as i32);
+                setpenattr_int(state, VTERM_ATTR_BASELINE, state.pen.baseline() as i32);
+            }
+            90..=97 => {
+                let value = arg - 90 + 8;
+                set_pen_col_ansi(state, VTERM_ATTR_FOREGROUND, value);
+            }
+            100..=107 => {
+                let value = arg - 100 + 8;
+                set_pen_col_ansi(state, VTERM_ATTR_BACKGROUND, value);
+            }
+            _ => {}
+        }
+
+        loop {
+            let cur = unsafe { *args.wrapping_add(argi as usize) };
+            argi += 1;
+            if !csi_arg_has_more(cur) {
+                break;
             }
         }
     }

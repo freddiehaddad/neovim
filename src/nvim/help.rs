@@ -258,32 +258,28 @@ pub fn ex_help(eap: &mut Exarg) {
 
 /// `:helpclose`: Close one help window (`ex_helpclose`).
 pub fn ex_helpclose(eap: &mut Exarg) {
-    {
-        for win in for_all_windows_ptr() {
-            if bt_help(unsafe { (win.w_buffer).as_ref() }) {
-                win_close(win, false, eap.forceit != 0);
-                return;
-            }
+    for win in for_all_windows_ptr() {
+        if bt_help(unsafe { (win.w_buffer).as_ref() }) {
+            win_close(win, false, eap.forceit != 0);
+            return;
         }
     }
 }
 
 /// Search for a language specifier in the form `@xx` (`check_help_lang`).
 pub fn check_help_lang(arg: *mut c_char) -> *mut c_char {
+    let len = crate::memory::cstr_len(arg);
+    if len >= 3
+        && crate::memory::cstr_byte_at(arg, len - 3) == b'@'
+        && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 2))
+        && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 1))
     {
-        let len = crate::memory::cstr_len(arg);
-        if len >= 3
-            && crate::memory::cstr_byte_at(arg, len - 3) == b'@'
-            && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 2))
-            && ascii_isalpha(crate::memory::cstr_char_at(arg, len - 1))
-        {
-            unsafe {
-                *arg.wrapping_add(len - 3) = NUL;
-            }
-            return arg.wrapping_add(len - 2);
+        unsafe {
+            *arg.wrapping_add(len - 3) = NUL;
         }
-        ptr::null_mut()
+        return arg.wrapping_add(len - 2);
     }
+    ptr::null_mut()
 }
 
 /// Return a heuristic indicating how well the given string matches (`help_heuristic`).
@@ -324,16 +320,14 @@ pub fn help_heuristic(
 }
 
 fn help_compare(str1: &[c_char], str2: &[c_char]) -> std::cmp::Ordering {
-    {
-        let p1 = str1.as_ptr();
-        let p2 = str2.as_ptr();
-        let b1 = crate::memory::cstr_as_bytes(p1);
-        let b2 = crate::memory::cstr_as_bytes(p2);
-        let pri1 = crate::memory::cstr_as_bytes(p1.wrapping_add(b1.len() + 1));
-        let pri2 = crate::memory::cstr_as_bytes(p2.wrapping_add(b2.len() + 1));
+    let p1 = str1.as_ptr();
+    let p2 = str2.as_ptr();
+    let b1 = crate::memory::cstr_as_bytes(p1);
+    let b2 = crate::memory::cstr_as_bytes(p2);
+    let pri1 = crate::memory::cstr_as_bytes(p1.wrapping_add(b1.len() + 1));
+    let pri2 = crate::memory::cstr_as_bytes(p2.wrapping_add(b2.len() + 1));
 
-        pri1.cmp(pri2).then_with(|| b1.cmp(b2))
-    }
+    pri1.cmp(pri2).then_with(|| b1.cmp(b2))
 }
 
 /// Find all help tags matching `arg`, sort them and return in `matches` (`find_help_tags`).
@@ -402,50 +396,48 @@ pub fn find_help_tags(
 
 /// Cleanup matches for help tags (`cleanup_help_tags`).
 pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
-    {
-        let mut buf = [0u8; 3];
-        let has_default_lang = !crate::memory::cstr_is_empty(opt_vars().p_hlg)
-            && (crate::memory::cstr_first_byte(opt_vars().p_hlg) != b'e'
-                || crate::memory::cstr_byte_at(opt_vars().p_hlg, 1) != b'n');
-        if has_default_lang {
-            buf[0] = b'@';
-            buf[1] = crate::memory::cstr_first_byte(opt_vars().p_hlg);
-            buf[2] = crate::memory::cstr_byte_at(opt_vars().p_hlg, 1);
-        }
+    let mut buf = [0u8; 3];
+    let has_default_lang = !crate::memory::cstr_is_empty(opt_vars().p_hlg)
+        && (crate::memory::cstr_first_byte(opt_vars().p_hlg) != b'e'
+            || crate::memory::cstr_byte_at(opt_vars().p_hlg, 1) != b'n');
+    if has_default_lang {
+        buf[0] = b'@';
+        buf[1] = crate::memory::cstr_first_byte(opt_vars().p_hlg);
+        buf[2] = crate::memory::cstr_byte_at(opt_vars().p_hlg, 1);
+    }
 
-        for i in 0..file.len() {
-            let fi_bytes = file[i].as_bytes();
+    for i in 0..file.len() {
+        let fi_bytes = file[i].as_bytes();
+        if fi_bytes.len() <= 3 {
+            continue;
+        }
+        let len = fi_bytes.len() - 3;
+        if &fi_bytes[len..] == b"@en" {
+            let mut found_other = false;
+            for (j, fj) in file.iter().enumerate() {
+                if j != i {
+                    let fj_bytes = fj.as_bytes();
+                    if fj_bytes.len() == len + 3 && fi_bytes[..=len] == fj_bytes[..=len] {
+                        found_other = true;
+                        break;
+                    }
+                }
+            }
+            if !found_other {
+                file[i] = crate::memory::cstr_from_bytes(&fi_bytes[..len]);
+            }
+        }
+    }
+
+    if has_default_lang {
+        for slot in file.iter_mut() {
+            let fi_bytes = slot.as_bytes();
             if fi_bytes.len() <= 3 {
                 continue;
             }
             let len = fi_bytes.len() - 3;
-            if &fi_bytes[len..] == b"@en" {
-                let mut found_other = false;
-                for (j, fj) in file.iter().enumerate() {
-                    if j != i {
-                        let fj_bytes = fj.as_bytes();
-                        if fj_bytes.len() == len + 3 && fi_bytes[..=len] == fj_bytes[..=len] {
-                            found_other = true;
-                            break;
-                        }
-                    }
-                }
-                if !found_other {
-                    file[i] = crate::memory::cstr_from_bytes(&fi_bytes[..len]);
-                }
-            }
-        }
-
-        if has_default_lang {
-            for slot in file.iter_mut() {
-                let fi_bytes = slot.as_bytes();
-                if fi_bytes.len() <= 3 {
-                    continue;
-                }
-                let len = fi_bytes.len() - 3;
-                if fi_bytes[len..] == buf {
-                    *slot = crate::memory::cstr_from_bytes(&fi_bytes[..len]);
-                }
+            if fi_bytes[len..] == buf {
+                *slot = crate::memory::cstr_from_bytes(&fi_bytes[..len]);
             }
         }
     }
@@ -453,36 +445,34 @@ pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
 
 /// Called when starting to edit a buffer for a help file (`prepare_help_buffer`).
 pub fn prepare_help_buffer() {
-    {
-        curbuf_mut().b_help = true;
-        set_option_direct(K_OPT_BUFTYPE, cstr_as_obj(c"help"), OPT_LOCAL, 0);
+    curbuf_mut().b_help = true;
+    set_option_direct(K_OPT_BUFTYPE, cstr_as_obj(c"help"), OPT_LOCAL, 0);
 
-        let p = c"!-~,^*,^|,^\",192-255";
-        if crate::memory::cstr_as_bytes(curbuf_mut().b_p_isk) != p.to_bytes() {
-            set_option_direct(K_OPT_ISKEYWORD, cstr_as_obj(p), OPT_LOCAL, 0);
-            check_buf_options(curbuf_mut());
-            buf_init_isk_chartab(curbuf_mut());
-        }
-
-        set_option_direct(K_OPT_FOLDMETHOD, cstr_as_obj(c"manual"), OPT_LOCAL, 0);
-
-        curbuf_mut().b_p_ts = 8;
-        curwin_mut().w_onebuf_opt.wo_list = 0;
-
-        curbuf_mut().b_p_ma = 0;
-        curbuf_mut().b_p_bin = 0;
-        curwin_mut().w_onebuf_opt.wo_nu = 0;
-        curwin_mut().w_onebuf_opt.wo_rnu = 0;
-        curwin_mut().w_onebuf_opt.wo_scb = 0;
-        curwin_mut().w_onebuf_opt.wo_crb = 0;
-        curwin_mut().w_onebuf_opt.wo_arab = 0;
-        curwin_mut().w_onebuf_opt.wo_rl = 0;
-        curwin_mut().w_onebuf_opt.wo_fen = 0;
-        curwin_mut().w_onebuf_opt.wo_diff = 0;
-        curwin_mut().w_onebuf_opt.wo_spell = 0;
-
-        set_buflisted(0);
+    let p = c"!-~,^*,^|,^\",192-255";
+    if crate::memory::cstr_as_bytes(curbuf_mut().b_p_isk) != p.to_bytes() {
+        set_option_direct(K_OPT_ISKEYWORD, cstr_as_obj(p), OPT_LOCAL, 0);
+        check_buf_options(curbuf_mut());
+        buf_init_isk_chartab(curbuf_mut());
     }
+
+    set_option_direct(K_OPT_FOLDMETHOD, cstr_as_obj(c"manual"), OPT_LOCAL, 0);
+
+    curbuf_mut().b_p_ts = 8;
+    curwin_mut().w_onebuf_opt.wo_list = 0;
+
+    curbuf_mut().b_p_ma = 0;
+    curbuf_mut().b_p_bin = 0;
+    curwin_mut().w_onebuf_opt.wo_nu = 0;
+    curwin_mut().w_onebuf_opt.wo_rnu = 0;
+    curwin_mut().w_onebuf_opt.wo_scb = 0;
+    curwin_mut().w_onebuf_opt.wo_crb = 0;
+    curwin_mut().w_onebuf_opt.wo_arab = 0;
+    curwin_mut().w_onebuf_opt.wo_rl = 0;
+    curwin_mut().w_onebuf_opt.wo_fen = 0;
+    curwin_mut().w_onebuf_opt.wo_diff = 0;
+    curwin_mut().w_onebuf_opt.wo_spell = 0;
+
+    set_buflisted(0);
 }
 
 /// Populate `*local-additions*` in `help.txt` (`get_local_additions`).
@@ -512,49 +502,47 @@ pub fn ex_viusage(_eap: &mut Exarg) {
 
 /// `:helptags` (`ex_helptags`).
 pub fn ex_helptags(eap: &mut Exarg) {
+    let mut add_help_tags = false;
+
+    let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
+    if arg_bytes.len() > 3
+        && &arg_bytes[..3] == b"++t"
+        && ascii_iswhite(crate::memory::cstr_char_at(eap.arg, 3))
     {
-        let mut add_help_tags = false;
-
-        let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
-        if arg_bytes.len() > 3
-            && &arg_bytes[..3] == b"++t"
-            && ascii_iswhite(crate::memory::cstr_char_at(eap.arg, 3))
-        {
-            add_help_tags = true;
-            eap.arg = skipwhite(eap.arg.wrapping_add(3));
-        }
-
-        let mut tv_args = [
-            if crate::memory::cstr_as_bytes(eap.arg) == b"ALL" {
-                TypVal {
-                    v_type: VarType::VarSpecial,
-                    v_lock: 0,
-                    vval: TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST),
-                }
-            } else {
-                TypVal {
-                    v_type: VarType::VarString,
-                    v_lock: 0,
-                    vval: TypvalVval::String(eap.arg),
-                }
-            },
-            TypVal {
-                v_type: VarType::VarBool,
-                v_lock: 0,
-                vval: TypvalVval::Number(if add_help_tags {
-                    K_BOOL_VAR_TRUE_CONST
-                } else {
-                    K_BOOL_VAR_FALSE_CONST
-                }),
-            },
-            TypVal {
-                v_type: VarType::VarUnknown,
-                v_lock: 0,
-                vval: TypvalVval::Number(0),
-            },
-        ];
-        nlua_call_typval(c"vim._core.help", c"gen_tags", tv_args.as_mut_ptr(), None);
+        add_help_tags = true;
+        eap.arg = skipwhite(eap.arg.wrapping_add(3));
     }
+
+    let mut tv_args = [
+        if crate::memory::cstr_as_bytes(eap.arg) == b"ALL" {
+            TypVal {
+                v_type: VarType::VarSpecial,
+                v_lock: 0,
+                vval: TypvalVval::Special(K_SPECIAL_VAR_NULL_CONST),
+            }
+        } else {
+            TypVal {
+                v_type: VarType::VarString,
+                v_lock: 0,
+                vval: TypvalVval::String(eap.arg),
+            }
+        },
+        TypVal {
+            v_type: VarType::VarBool,
+            v_lock: 0,
+            vval: TypvalVval::Number(if add_help_tags {
+                K_BOOL_VAR_TRUE_CONST
+            } else {
+                K_BOOL_VAR_FALSE_CONST
+            }),
+        },
+        TypVal {
+            v_type: VarType::VarUnknown,
+            v_lock: 0,
+            vval: TypvalVval::Number(0),
+        },
+    ];
+    nlua_call_typval(c"vim._core.help", c"gen_tags", tv_args.as_mut_ptr(), None);
 }
 
 #[cfg(test)]
@@ -563,19 +551,17 @@ mod tests {
 
     #[test]
     fn check_help_lang_and_help_heuristic_work() {
-        {
-            let mut buf = *b"options@en\0";
-            let lang = check_help_lang(buf.as_mut_ptr().cast());
-            assert!(!lang.is_null());
-            assert_eq!(crate::memory::cstr_as_bytes(lang), b"en");
-            assert_eq!(
-                crate::memory::cstr_as_bytes(buf.as_ptr().cast()),
-                b"options"
-            );
+        let mut buf = *b"options@en\0";
+        let lang = check_help_lang(buf.as_mut_ptr().cast());
+        assert!(!lang.is_null());
+        assert_eq!(crate::memory::cstr_as_bytes(lang), b"en");
+        assert_eq!(
+            crate::memory::cstr_as_bytes(buf.as_ptr().cast()),
+            b"options"
+        );
 
-            let exact = help_heuristic(c"help", 0, false);
-            let wrong_case = help_heuristic(c"Help", 0, true);
-            assert!(wrong_case > exact);
-        }
+        let exact = help_heuristic(c"help", 0, false);
+        let wrong_case = help_heuristic(c"Help", 0, true);
+        assert!(wrong_case > exact);
     }
 }

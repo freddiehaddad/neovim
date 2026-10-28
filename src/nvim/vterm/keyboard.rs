@@ -527,63 +527,61 @@ fn vterm_state_get_key_encoding_disambiguate(state: &VTermStateFull) -> bool {
 }
 
 pub fn vterm_keyboard_unichar(vt: &mut VTerm, mut c: u32, mut mod_: VTermModifier) {
-    {
-        let passthru = if c == u32::from(b' ') {
-            mod_ == VTERM_MOD_NONE
-        } else {
-            (mod_ & !VTERM_MOD_SHIFT) == 0
-        };
+    let passthru = if c == u32::from(b' ') {
+        mod_ == VTERM_MOD_NONE
+    } else {
+        (mod_ & !VTERM_MOD_SHIFT) == 0
+    };
 
-        if passthru {
-            let mut str_buf = [0 as c_char; 6];
-            let seqlen = fill_utf8(c as i32, str_buf.as_mut_ptr());
-            vterm_push_output_bytes(vt, str_buf.as_ptr(), seqlen as usize);
-            return;
+    if passthru {
+        let mut str_buf = [0 as c_char; 6];
+        let seqlen = fill_utf8(c as i32, str_buf.as_mut_ptr());
+        vterm_push_output_bytes(vt, str_buf.as_ptr(), seqlen as usize);
+        return;
+    }
+
+    let state: *const VTermStateFull = vt.state_ptr();
+    if vterm_state_get_key_encoding_disambiguate(unsafe { &*state }) {
+        if (u32::from(b'A')..=u32::from(b'Z')).contains(&c) {
+            c += u32::from(b'a' - b'A');
+            mod_ |= VTERM_MOD_SHIFT;
         }
 
-        let state: *const VTermStateFull = vt.state_ptr();
-        if vterm_state_get_key_encoding_disambiguate(unsafe { &*state }) {
-            if (u32::from(b'A')..=u32::from(b'Z')).contains(&c) {
-                c += u32::from(b'a' - b'A');
-                mod_ |= VTERM_MOD_SHIFT;
+        let s = format!("{c};{}u", mod_ + 1);
+        vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
+        return;
+    }
+
+    if (mod_ & VTERM_MOD_CTRL) != 0 {
+        match c {
+            0x32 | 0x20 => {
+                // '2' or ' '
+                c = 0x00;
             }
-
-            let s = format!("{c};{}u", mod_ + 1);
-            vterm_push_output_ctrl_bytes(vt, C1_CSI, s.as_bytes());
-            return;
-        }
-
-        if (mod_ & VTERM_MOD_CTRL) != 0 {
-            match c {
-                0x32 | 0x20 => {
-                    // '2' or ' '
-                    c = 0x00;
-                }
-                0x33..=0x37 => {
-                    // '3' ..= '7'
-                    c = 0x1b + c - u32::from(b'3');
-                }
-                0x38 => {
-                    // '8'
-                    c = 0x7f;
-                }
-                0x2f => {
-                    // '/'
-                    c = 0x1f;
-                }
-                _ => {
-                    if (u32::from(b'@')..=0x7f).contains(&c) {
-                        c &= 0x1f;
-                    }
+            0x33..=0x37 => {
+                // '3' ..= '7'
+                c = 0x1b + c - u32::from(b'3');
+            }
+            0x38 => {
+                // '8'
+                c = 0x7f;
+            }
+            0x2f => {
+                // '/'
+                c = 0x1f;
+            }
+            _ => {
+                if (u32::from(b'@')..=0x7f).contains(&c) {
+                    c &= 0x1f;
                 }
             }
         }
+    }
 
-        if (mod_ & VTERM_MOD_ALT) != 0 {
-            vterm_push_output_bytes_slice(vt, &[0x1b, c as u8]);
-        } else {
-            vterm_push_output_bytes_slice(vt, &[c as u8]);
-        }
+    if (mod_ & VTERM_MOD_ALT) != 0 {
+        vterm_push_output_bytes_slice(vt, &[0x1b, c as u8]);
+    } else {
+        vterm_push_output_bytes_slice(vt, &[c as u8]);
     }
 }
 
@@ -714,19 +712,15 @@ pub fn vterm_keyboard_key(vt: &mut VTerm, key: VTermKey, mod_: VTermModifier) {
 }
 
 pub fn vterm_keyboard_start_paste(vt: &mut VTerm) {
-    {
-        let state: *const VTermStateFull = vt.state_ptr();
-        if (unsafe { (*state).mode } & MODE_BRACKETPASTE_BIT) != 0 {
-            vterm_push_output_ctrl_bytes(vt, C1_CSI, b"200~");
-        }
+    let state: *const VTermStateFull = vt.state_ptr();
+    if (unsafe { (*state).mode } & MODE_BRACKETPASTE_BIT) != 0 {
+        vterm_push_output_ctrl_bytes(vt, C1_CSI, b"200~");
     }
 }
 
 pub fn vterm_keyboard_end_paste(vt: &mut VTerm) {
-    {
-        let state: *const VTermStateFull = vt.state_ptr();
-        if (unsafe { (*state).mode } & MODE_BRACKETPASTE_BIT) != 0 {
-            vterm_push_output_ctrl_bytes(vt, C1_CSI, b"201~");
-        }
+    let state: *const VTermStateFull = vt.state_ptr();
+    if (unsafe { (*state).mode } & MODE_BRACKETPASTE_BIT) != 0 {
+        vterm_push_output_ctrl_bytes(vt, C1_CSI, b"201~");
     }
 }

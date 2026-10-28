@@ -677,99 +677,97 @@ fn on_text(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 
 }
 
 fn on_control(control: u8, state: *mut VTermStateFull) -> i32 {
-    {
-        let state = unsafe { &mut *state };
-        let oldpos = state.pos;
+    let state = unsafe { &mut *state };
+    let oldpos = state.pos;
 
-        match control {
-            0x07 => {
-                // BEL - ECMA-48 8.3.3
-                if let Some(callbacks) = state.callbacks
-                    && let Some(cb) = callbacks.bell
-                {
-                    let _ = cb(state.screen_ptr());
-                }
-            }
-            0x08 => {
-                // BS - ECMA-48 8.3.5
-                if state.pos.col > 0 {
-                    state.pos.col -= 1;
-                }
-            }
-            0x09 => {
-                // HT - ECMA-48 8.3.60
-                tab(state, 1, 1);
-            }
-            0x0a..=0x0c => {
-                // LF, VT, FF - ECMA-48 8.3.74
-                linefeed(state);
-                if (state.mode & MODE_NEWLINE) != 0 {
-                    state.pos.col = 0;
-                }
-            }
-            0x0d => {
-                // CR - ECMA-48 8.3.15
-                state.pos.col = 0;
-            }
-            0x0e => {
-                // LS1 - ECMA-48 8.3.76
-                state.gl_set = 1;
-            }
-            0x0f => {
-                // LS0 - ECMA-48 8.3.75
-                state.gl_set = 0;
-            }
-            0x84 => {
-                // IND
-                linefeed(state);
-            }
-            0x85 => {
-                // NEL - ECMA-48 8.3.86
-                linefeed(state);
-                state.pos.col = 0;
-            }
-            0x88 => {
-                // HTS - ECMA-48 8.3.62
-                set_col_tabstop(state, state.pos.col);
-            }
-            0x8d => {
-                // RI - ECMA-48 8.3.104
-                if state.pos.row == state.scrollregion_top {
-                    let rect = VTermRect {
-                        start_row: state.scrollregion_top,
-                        end_row: scrollregion_bottom(state),
-                        start_col: scrollregion_left(state),
-                        end_col: scrollregion_right(state),
-                    };
-
-                    scroll(state, rect, -1, 0);
-                } else if state.pos.row > 0 {
-                    state.pos.row -= 1;
-                }
-            }
-            0x8e => {
-                // SS2 - ECMA-48 8.3.141
-                state.gsingle_set = 2;
-            }
-            0x8f => {
-                // SS3 - ECMA-48 8.3.142
-                state.gsingle_set = 3;
-            }
-            _ => {
-                if let Some(fallbacks) = state.fallbacks
-                    && let Some(cb) = fallbacks.control
-                    && cb(control, state.term_ptr()) != 0
-                {
-                    return 1;
-                }
-                return 0;
+    match control {
+        0x07 => {
+            // BEL - ECMA-48 8.3.3
+            if let Some(callbacks) = state.callbacks
+                && let Some(cb) = callbacks.bell
+            {
+                let _ = cb(state.screen_ptr());
             }
         }
+        0x08 => {
+            // BS - ECMA-48 8.3.5
+            if state.pos.col > 0 {
+                state.pos.col -= 1;
+            }
+        }
+        0x09 => {
+            // HT - ECMA-48 8.3.60
+            tab(state, 1, 1);
+        }
+        0x0a..=0x0c => {
+            // LF, VT, FF - ECMA-48 8.3.74
+            linefeed(state);
+            if (state.mode & MODE_NEWLINE) != 0 {
+                state.pos.col = 0;
+            }
+        }
+        0x0d => {
+            // CR - ECMA-48 8.3.15
+            state.pos.col = 0;
+        }
+        0x0e => {
+            // LS1 - ECMA-48 8.3.76
+            state.gl_set = 1;
+        }
+        0x0f => {
+            // LS0 - ECMA-48 8.3.75
+            state.gl_set = 0;
+        }
+        0x84 => {
+            // IND
+            linefeed(state);
+        }
+        0x85 => {
+            // NEL - ECMA-48 8.3.86
+            linefeed(state);
+            state.pos.col = 0;
+        }
+        0x88 => {
+            // HTS - ECMA-48 8.3.62
+            set_col_tabstop(state, state.pos.col);
+        }
+        0x8d => {
+            // RI - ECMA-48 8.3.104
+            if state.pos.row == state.scrollregion_top {
+                let rect = VTermRect {
+                    start_row: state.scrollregion_top,
+                    end_row: scrollregion_bottom(state),
+                    start_col: scrollregion_left(state),
+                    end_col: scrollregion_right(state),
+                };
 
-        updatecursor(state, &oldpos, 1);
-
-        1
+                scroll(state, rect, -1, 0);
+            } else if state.pos.row > 0 {
+                state.pos.row -= 1;
+            }
+        }
+        0x8e => {
+            // SS2 - ECMA-48 8.3.141
+            state.gsingle_set = 2;
+        }
+        0x8f => {
+            // SS3 - ECMA-48 8.3.142
+            state.gsingle_set = 3;
+        }
+        _ => {
+            if let Some(fallbacks) = state.fallbacks
+                && let Some(cb) = fallbacks.control
+                && cb(control, state.term_ptr()) != 0
+            {
+                return 1;
+            }
+            return 0;
+        }
     }
+
+    updatecursor(state, &oldpos, 1);
+
+    1
 }
 
 #[inline]
@@ -823,144 +821,140 @@ fn savecursor(state: &mut VTermStateFull, save: i32) {
 }
 
 fn on_escape(bytes: *const c_char, len: usize, state: *mut VTermStateFull) -> i32 {
-    {
-        let state = unsafe { &mut *state };
-        match crate::memory::cstr_first_byte(bytes) {
-            b' ' => {
-                if len != 2 {
-                    return 0;
+    let state = unsafe { &mut *state };
+    match crate::memory::cstr_first_byte(bytes) {
+        b' ' => {
+            if len != 2 {
+                return 0;
+            }
+            match crate::memory::cstr_byte_at(bytes, 1) {
+                b'F' => {
+                    // S7C1T
+                    (state.vt_mut()).mode &= !VT_MODE_CTRL8BIT;
                 }
-                match crate::memory::cstr_byte_at(bytes, 1) {
-                    b'F' => {
-                        // S7C1T
-                        (state.vt_mut()).mode &= !VT_MODE_CTRL8BIT;
-                    }
-                    b'G' => {
-                        // S8C1T
-                        (state.vt_mut()).mode |= VT_MODE_CTRL8BIT;
-                    }
-                    _ => return 0,
+                b'G' => {
+                    // S8C1T
+                    (state.vt_mut()).mode |= VT_MODE_CTRL8BIT;
                 }
-                2
+                _ => return 0,
             }
-            b'#' => {
-                if len != 2 {
-                    return 0;
-                }
-                match crate::memory::cstr_byte_at(bytes, 1) {
-                    b'3' => {
-                        // DECDHL top
-                        if (state.mode & MODE_LEFTRIGHTMARGIN) == 0 {
-                            set_lineinfo(state, state.pos.row, NO_FORCE, DWL_ON, DHL_TOP);
-                        }
-                    }
-                    b'4' => {
-                        // DECDHL bottom
-                        if (state.mode & MODE_LEFTRIGHTMARGIN) == 0 {
-                            set_lineinfo(state, state.pos.row, NO_FORCE, DWL_ON, DHL_BOTTOM);
-                        }
-                    }
-                    b'5' => {
-                        // DECSWL
-                        if (state.mode & MODE_LEFTRIGHTMARGIN) == 0 {
-                            set_lineinfo(state, state.pos.row, NO_FORCE, DWL_OFF, DHL_OFF);
-                        }
-                    }
-                    b'6' => {
-                        // DECDWL
-                        if (state.mode & MODE_LEFTRIGHTMARGIN) == 0 {
-                            set_lineinfo(state, state.pos.row, NO_FORCE, DWL_ON, DHL_OFF);
-                        }
-                    }
-                    b'8' => {
-                        // DECALN
-                        let e = schar_from_ascii(b'E');
-                        for row in 0..state.rows {
-                            let rw = rowwidth(state, row);
-                            for col in 0..rw {
-                                putglyph(state, e, 1, VTermPos { row, col });
-                            }
-                        }
-                    }
-                    _ => return 0,
-                }
-                2
-            }
-            b'(' | b')' | b'*' | b'+' => {
-                // SCS
-                if len != 2 {
-                    return 0;
-                }
-                let setnum = ((crate::memory::cstr_first_byte(bytes)) - 0x28) as usize;
-                if let Some(newenc) =
-                    vterm_lookup_encoding(VTermEncodingType::EncSingle94, unsafe {
-                        *bytes.wrapping_add(1)
-                    })
-                {
-                    state.encoding[setnum].init(newenc);
-                }
-                2
-            }
-            b'7' => {
-                // DECSC
-                savecursor(state, 1);
-                1
-            }
-            b'8' => {
-                // DECRC
-                savecursor(state, 0);
-                1
-            }
-            b'<' => 1,
-            b'=' => {
-                // DECKPAM
-                state.mode |= MODE_KEYPAD;
-                1
-            }
-            b'>' => {
-                // DECKPNM
-                state.mode &= !MODE_KEYPAD;
-                1
-            }
-            b'c' => {
-                // RIS - ECMA-48 8.3.105
-                let oldpos = state.pos;
-                vterm_state_reset(state, 1);
-                if let Some(callbacks) = state.callbacks
-                    && let Some(cb) = callbacks.movecursor
-                {
-                    let visible = i32::from((state.mode & MODE_CURSOR_VISIBLE) != 0);
-                    let _ = cb(state.pos, oldpos, visible, state.screen_ptr());
-                }
-                1
-            }
-            b'n' => {
-                // LS2 - ECMA-48 8.3.78
-                state.gl_set = 2;
-                1
-            }
-            b'o' => {
-                // LS3 - ECMA-48 8.3.80
-                state.gl_set = 3;
-                1
-            }
-            b'~' => {
-                // LS1R - ECMA-48 8.3.77
-                state.gr_set = 1;
-                1
-            }
-            b'}' => {
-                // LS2R - ECMA-48 8.3.79
-                state.gr_set = 2;
-                1
-            }
-            b'|' => {
-                // LS3R - ECMA-48 8.3.81
-                state.gr_set = 3;
-                1
-            }
-            _ => 0,
+            2
         }
+        b'#' => {
+            if len != 2 {
+                return 0;
+            }
+            match crate::memory::cstr_byte_at(bytes, 1) {
+                b'3' => {
+                    // DECDHL top
+                    if (state.mode & MODE_LEFTRIGHTMARGIN) == 0 {
+                        set_lineinfo(state, state.pos.row, NO_FORCE, DWL_ON, DHL_TOP);
+                    }
+                }
+                b'4' => {
+                    // DECDHL bottom
+                    if (state.mode & MODE_LEFTRIGHTMARGIN) == 0 {
+                        set_lineinfo(state, state.pos.row, NO_FORCE, DWL_ON, DHL_BOTTOM);
+                    }
+                }
+                b'5' => {
+                    // DECSWL
+                    if (state.mode & MODE_LEFTRIGHTMARGIN) == 0 {
+                        set_lineinfo(state, state.pos.row, NO_FORCE, DWL_OFF, DHL_OFF);
+                    }
+                }
+                b'6' => {
+                    // DECDWL
+                    if (state.mode & MODE_LEFTRIGHTMARGIN) == 0 {
+                        set_lineinfo(state, state.pos.row, NO_FORCE, DWL_ON, DHL_OFF);
+                    }
+                }
+                b'8' => {
+                    // DECALN
+                    let e = schar_from_ascii(b'E');
+                    for row in 0..state.rows {
+                        let rw = rowwidth(state, row);
+                        for col in 0..rw {
+                            putglyph(state, e, 1, VTermPos { row, col });
+                        }
+                    }
+                }
+                _ => return 0,
+            }
+            2
+        }
+        b'(' | b')' | b'*' | b'+' => {
+            // SCS
+            if len != 2 {
+                return 0;
+            }
+            let setnum = ((crate::memory::cstr_first_byte(bytes)) - 0x28) as usize;
+            if let Some(newenc) = vterm_lookup_encoding(VTermEncodingType::EncSingle94, unsafe {
+                *bytes.wrapping_add(1)
+            }) {
+                state.encoding[setnum].init(newenc);
+            }
+            2
+        }
+        b'7' => {
+            // DECSC
+            savecursor(state, 1);
+            1
+        }
+        b'8' => {
+            // DECRC
+            savecursor(state, 0);
+            1
+        }
+        b'<' => 1,
+        b'=' => {
+            // DECKPAM
+            state.mode |= MODE_KEYPAD;
+            1
+        }
+        b'>' => {
+            // DECKPNM
+            state.mode &= !MODE_KEYPAD;
+            1
+        }
+        b'c' => {
+            // RIS - ECMA-48 8.3.105
+            let oldpos = state.pos;
+            vterm_state_reset(state, 1);
+            if let Some(callbacks) = state.callbacks
+                && let Some(cb) = callbacks.movecursor
+            {
+                let visible = i32::from((state.mode & MODE_CURSOR_VISIBLE) != 0);
+                let _ = cb(state.pos, oldpos, visible, state.screen_ptr());
+            }
+            1
+        }
+        b'n' => {
+            // LS2 - ECMA-48 8.3.78
+            state.gl_set = 2;
+            1
+        }
+        b'o' => {
+            // LS3 - ECMA-48 8.3.80
+            state.gl_set = 3;
+            1
+        }
+        b'~' => {
+            // LS1R - ECMA-48 8.3.77
+            state.gr_set = 1;
+            1
+        }
+        b'}' => {
+            // LS2R - ECMA-48 8.3.79
+            state.gr_set = 2;
+            1
+        }
+        b'|' => {
+            // LS3R - ECMA-48 8.3.81
+            state.gr_set = 3;
+            1
+        }
+        _ => 0,
     }
 }
 
@@ -1067,76 +1061,70 @@ fn set_dec_mode(state: &mut VTermStateFull, num: i32, val: i32) {
 }
 
 fn request_dec_mode(state: &mut VTermStateFull, num: i32) {
-    {
-        let reply = match num {
-            1 => (state.mode & MODE_CURSOR) != 0,
-            5 => (state.mode & MODE_SCREEN) != 0,
-            6 => (state.mode & MODE_ORIGIN) != 0,
-            7 => (state.mode & MODE_AUTOWRAP) != 0,
-            12 => (state.mode & MODE_CURSOR_BLINK) != 0,
-            25 => (state.mode & MODE_CURSOR_VISIBLE) != 0,
-            69 => (state.mode & MODE_LEFTRIGHTMARGIN) != 0,
-            1000 => state.mouse_flags == MOUSE_WANT_CLICK,
-            1002 => state.mouse_flags == (MOUSE_WANT_CLICK | MOUSE_WANT_DRAG),
-            1003 => state.mouse_flags == (MOUSE_WANT_CLICK | MOUSE_WANT_MOVE),
-            1004 => (state.mode & MODE_REPORT_FOCUS) != 0,
-            1005 => state.mouse_protocol == MOUSE_UTF8,
-            1006 => state.mouse_protocol == MOUSE_SGR,
-            1015 => state.mouse_protocol == MOUSE_RXVT,
-            1047 => (state.mode & MODE_ALT_SCREEN) != 0,
-            2004 => (state.mode & MODE_BRACKETPASTE) != 0,
-            2026 => (state.mode & MODE_SYNCHRONIZED_OUTPUT) != 0,
-            2031 => (state.mode & MODE_THEME_UPDATES) != 0,
-            _ => {
-                let s = format!("?{num};0$y");
-                vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
-                return;
-            }
-        };
+    let reply = match num {
+        1 => (state.mode & MODE_CURSOR) != 0,
+        5 => (state.mode & MODE_SCREEN) != 0,
+        6 => (state.mode & MODE_ORIGIN) != 0,
+        7 => (state.mode & MODE_AUTOWRAP) != 0,
+        12 => (state.mode & MODE_CURSOR_BLINK) != 0,
+        25 => (state.mode & MODE_CURSOR_VISIBLE) != 0,
+        69 => (state.mode & MODE_LEFTRIGHTMARGIN) != 0,
+        1000 => state.mouse_flags == MOUSE_WANT_CLICK,
+        1002 => state.mouse_flags == (MOUSE_WANT_CLICK | MOUSE_WANT_DRAG),
+        1003 => state.mouse_flags == (MOUSE_WANT_CLICK | MOUSE_WANT_MOVE),
+        1004 => (state.mode & MODE_REPORT_FOCUS) != 0,
+        1005 => state.mouse_protocol == MOUSE_UTF8,
+        1006 => state.mouse_protocol == MOUSE_SGR,
+        1015 => state.mouse_protocol == MOUSE_RXVT,
+        1047 => (state.mode & MODE_ALT_SCREEN) != 0,
+        2004 => (state.mode & MODE_BRACKETPASTE) != 0,
+        2026 => (state.mode & MODE_SYNCHRONIZED_OUTPUT) != 0,
+        2031 => (state.mode & MODE_THEME_UPDATES) != 0,
+        _ => {
+            let s = format!("?{num};0$y");
+            vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
+            return;
+        }
+    };
 
-        let s = format!("?{num};{}$y", if reply { 1 } else { 2 });
-        vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
-    }
+    let s = format!("?{num};{}$y", if reply { 1 } else { 2 });
+    vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
 }
 
 fn request_version_string(state: &mut VTermStateFull) {
-    {
-        let s = format!(">|libvterm({VTERM_VERSION_MAJOR}.{VTERM_VERSION_MINOR})");
-        vterm_push_output_str_bytes(state.vt_mut(), C1_DCS, true, s.as_bytes());
-    }
+    let s = format!(">|libvterm({VTERM_VERSION_MAJOR}.{VTERM_VERSION_MINOR})");
+    vterm_push_output_str_bytes(state.vt_mut(), C1_DCS, true, s.as_bytes());
 }
 
 fn request_key_encoding_flags(state: &mut VTermStateFull) {
-    {
-        let screen = if (state.mode & MODE_ALT_SCREEN) != 0 {
-            BUFIDX_ALTSCREEN
-        } else {
-            BUFIDX_PRIMARY
-        };
-        let stack = &state.key_encoding_stacks[screen];
-        debug_assert!(stack.size > 0);
-        let flags = stack.items[(stack.size - 1) as usize];
-        let mut reply: i32 = 0;
+    let screen = if (state.mode & MODE_ALT_SCREEN) != 0 {
+        BUFIDX_ALTSCREEN
+    } else {
+        BUFIDX_PRIMARY
+    };
+    let stack = &state.key_encoding_stacks[screen];
+    debug_assert!(stack.size > 0);
+    let flags = stack.items[(stack.size - 1) as usize];
+    let mut reply: i32 = 0;
 
-        if (flags & (KEY_ENCODING_DISAMBIGUATE as u8)) != 0 {
-            reply |= KEY_ENCODING_DISAMBIGUATE;
-        }
-        if (flags & (KEY_ENCODING_REPORT_EVENTS as u8)) != 0 {
-            reply |= KEY_ENCODING_REPORT_EVENTS;
-        }
-        if (flags & (KEY_ENCODING_REPORT_ALTERNATE as u8)) != 0 {
-            reply |= KEY_ENCODING_REPORT_ALTERNATE;
-        }
-        if (flags & (KEY_ENCODING_REPORT_ALL_KEYS as u8)) != 0 {
-            reply |= KEY_ENCODING_REPORT_ALL_KEYS;
-        }
-        if (flags & (KEY_ENCODING_REPORT_ASSOCIATED as u8)) != 0 {
-            reply |= KEY_ENCODING_REPORT_ASSOCIATED;
-        }
-
-        let s = format!("?{reply}u");
-        vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
+    if (flags & (KEY_ENCODING_DISAMBIGUATE as u8)) != 0 {
+        reply |= KEY_ENCODING_DISAMBIGUATE;
     }
+    if (flags & (KEY_ENCODING_REPORT_EVENTS as u8)) != 0 {
+        reply |= KEY_ENCODING_REPORT_EVENTS;
+    }
+    if (flags & (KEY_ENCODING_REPORT_ALTERNATE as u8)) != 0 {
+        reply |= KEY_ENCODING_REPORT_ALTERNATE;
+    }
+    if (flags & (KEY_ENCODING_REPORT_ALL_KEYS as u8)) != 0 {
+        reply |= KEY_ENCODING_REPORT_ALL_KEYS;
+    }
+    if (flags & (KEY_ENCODING_REPORT_ASSOCIATED as u8)) != 0 {
+        reply |= KEY_ENCODING_REPORT_ASSOCIATED;
+    }
+
+    let s = format!("?{reply}u");
+    vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, s.as_bytes());
 }
 
 fn set_key_encoding_flags(state: &mut VTermStateFull, arg: i32, mode: i32) {
@@ -1979,320 +1967,318 @@ const fn unbase64one(c: u8) -> u8 {
 }
 
 fn osc_selection(state: &mut VTermStateFull, frag: VTermStringFragment) {
-    {
-        let mut frag_str = frag.str_;
-        let mut frag_len = frag.len();
-        let frag_initial = frag.initial();
-        let frag_final = frag.final_();
+    let mut frag_str = frag.str_;
+    let mut frag_len = frag.len();
+    let frag_initial = frag.initial();
+    let frag_final = frag.final_();
 
-        if frag_initial {
-            set_tmp_selection_mask(state, 0);
-            set_tmp_selection_state(state, SELECTION_INITIAL);
-        }
+    if frag_initial {
+        set_tmp_selection_mask(state, 0);
+        set_tmp_selection_state(state, SELECTION_INITIAL);
+    }
 
-        while tmp_selection_state(state) == 0 && frag_len != 0 {
-            match crate::memory::cstr_first_byte(frag_str) {
-                b'c' => {
-                    let m = tmp_selection_mask(state) | VTERM_SELECTION_CLIPBOARD;
-                    set_tmp_selection_mask(state, m);
-                }
-                b'p' => {
-                    let m = tmp_selection_mask(state) | VTERM_SELECTION_PRIMARY;
-                    set_tmp_selection_mask(state, m);
-                }
-                b'q' => {
-                    let m = tmp_selection_mask(state) | VTERM_SELECTION_SECONDARY;
-                    set_tmp_selection_mask(state, m);
-                }
-                b's' => {
-                    let m = tmp_selection_mask(state) | VTERM_SELECTION_SELECT;
-                    set_tmp_selection_mask(state, m);
-                }
-                b'0'..=b'7' => {
-                    let bit =
-                        VTERM_SELECTION_CUT0 << ((crate::memory::cstr_first_byte(frag_str)) - b'0');
-                    let m = tmp_selection_mask(state) | bit;
-                    set_tmp_selection_mask(state, m);
-                }
-                b';' => {
-                    set_tmp_selection_state(state, SELECTION_SELECTED);
-                    if tmp_selection_mask(state) == 0 {
-                        set_tmp_selection_mask(
-                            state,
-                            VTERM_SELECTION_SELECT | VTERM_SELECTION_CUT0,
-                        );
-                    }
-                }
-                _ => {}
+    while tmp_selection_state(state) == 0 && frag_len != 0 {
+        match crate::memory::cstr_first_byte(frag_str) {
+            b'c' => {
+                let m = tmp_selection_mask(state) | VTERM_SELECTION_CLIPBOARD;
+                set_tmp_selection_mask(state, m);
             }
-
-            frag_str = frag_str.wrapping_add(1);
-            frag_len -= 1;
-        }
-
-        let sel_callbacks = state.selection.callbacks;
-        let sel_user = state.term_ptr();
-
-        if frag_len == 0 {
-            if frag_final
-                && let Some(sel_cbs) = sel_callbacks
-                && let Some(set_cb) = sel_cbs.set
-            {
-                let empty_frag = VTermStringFragment::new(
-                    ptr::null(),
-                    0,
-                    tmp_selection_state(state) != SELECTION_SET,
-                    true,
-                    0 as VTermTerminator,
-                );
-                let _ = set_cb(i32::from(tmp_selection_mask(state)), empty_frag, sel_user);
+            b'p' => {
+                let m = tmp_selection_mask(state) | VTERM_SELECTION_PRIMARY;
+                set_tmp_selection_mask(state, m);
             }
-            return;
-        }
-
-        if tmp_selection_state(state) == SELECTION_SELECTED {
-            if (crate::memory::cstr_first_byte(frag_str)) == b'?' {
-                set_tmp_selection_state(state, SELECTION_QUERY);
-            } else {
-                set_tmp_selection_state(state, SELECTION_SET_INITIAL);
-                set_tmp_selection_recvpartial(state, 0);
+            b'q' => {
+                let m = tmp_selection_mask(state) | VTERM_SELECTION_SECONDARY;
+                set_tmp_selection_mask(state, m);
             }
-        }
-
-        if tmp_selection_state(state) == SELECTION_QUERY {
-            if let Some(sel_cbs) = sel_callbacks
-                && let Some(query_cb) = sel_cbs.query
-            {
-                let _ = query_cb(i32::from(tmp_selection_mask(state)), sel_user);
+            b's' => {
+                let m = tmp_selection_mask(state) | VTERM_SELECTION_SELECT;
+                set_tmp_selection_mask(state, m);
             }
-            return;
+            b'0'..=b'7' => {
+                let bit =
+                    VTERM_SELECTION_CUT0 << ((crate::memory::cstr_first_byte(frag_str)) - b'0');
+                let m = tmp_selection_mask(state) | bit;
+                set_tmp_selection_mask(state, m);
+            }
+            b';' => {
+                set_tmp_selection_state(state, SELECTION_SELECTED);
+                if tmp_selection_mask(state) == 0 {
+                    set_tmp_selection_mask(state, VTERM_SELECTION_SELECT | VTERM_SELECTION_CUT0);
+                }
+            }
+            _ => {}
         }
 
-        if tmp_selection_state(state) == SELECTION_INVALID {
-            return;
-        }
+        frag_str = frag_str.wrapping_add(1);
+        frag_len -= 1;
+    }
 
-        if let Some(sel_cbs) = sel_callbacks
+    let sel_callbacks = state.selection.callbacks;
+    let sel_user = state.term_ptr();
+
+    if frag_len == 0 {
+        if frag_final
+            && let Some(sel_cbs) = sel_callbacks
             && let Some(set_cb) = sel_cbs.set
         {
-            let mut bufcur: usize = 0;
-            let buflen = state.selection.buffer.len();
+            let empty_frag = VTermStringFragment::new(
+                ptr::null(),
+                0,
+                tmp_selection_state(state) != SELECTION_SET,
+                true,
+                0 as VTermTerminator,
+            );
+            let _ = set_cb(i32::from(tmp_selection_mask(state)), empty_frag, sel_user);
+        }
+        return;
+    }
 
-            let mut x: u32 = 0;
-            let mut n: i32 = 0;
+    if tmp_selection_state(state) == SELECTION_SELECTED {
+        if (crate::memory::cstr_first_byte(frag_str)) == b'?' {
+            set_tmp_selection_state(state, SELECTION_QUERY);
+        } else {
+            set_tmp_selection_state(state, SELECTION_SET_INITIAL);
+            set_tmp_selection_recvpartial(state, 0);
+        }
+    }
 
-            let recvpartial = tmp_selection_recvpartial(state);
-            if recvpartial != 0 {
-                n = (recvpartial >> 24) as i32;
-                x = recvpartial & 0x03ffff;
-                set_tmp_selection_recvpartial(state, 0);
-            }
+    if tmp_selection_state(state) == SELECTION_QUERY {
+        if let Some(sel_cbs) = sel_callbacks
+            && let Some(query_cb) = sel_cbs.query
+        {
+            let _ = query_cb(i32::from(tmp_selection_mask(state)), sel_user);
+        }
+        return;
+    }
 
-            while (buflen - bufcur) >= 3 && frag_len != 0 {
-                if (crate::memory::cstr_first_byte(frag_str)) == b'=' {
-                    if n == 2 {
-                        (&mut state.selection.buffer)[bufcur] = ((x >> 4) & 0xff) as c_char;
-                        bufcur += 1;
-                    }
-                    if n == 3 {
-                        (&mut state.selection.buffer)[bufcur] = ((x >> 10) & 0xff) as c_char;
-                        (&mut state.selection.buffer)[bufcur + 1] = ((x >> 2) & 0xff) as c_char;
-                        bufcur += 2;
-                    }
+    if tmp_selection_state(state) == SELECTION_INVALID {
+        return;
+    }
 
-                    while frag_len != 0 && (crate::memory::cstr_first_byte(frag_str)) == b'=' {
-                        frag_str = frag_str.wrapping_add(1);
-                        frag_len -= 1;
-                    }
+    if let Some(sel_cbs) = sel_callbacks
+        && let Some(set_cb) = sel_cbs.set
+    {
+        let mut bufcur: usize = 0;
+        let buflen = state.selection.buffer.len();
 
-                    n = 0;
-                } else {
-                    let b = unbase64one(crate::memory::cstr_first_byte(frag_str));
-                    if b == 0xff {
-                        set_tmp_selection_state(state, SELECTION_INVALID);
-                        let err_frag = VTermStringFragment::new(
-                            ptr::null(),
-                            0,
-                            true,
-                            true,
-                            0 as VTermTerminator,
-                        );
-                        let _ = set_cb(i32::from(tmp_selection_mask(state)), err_frag, sel_user);
-                        break;
-                    }
+        let mut x: u32 = 0;
+        let mut n: i32 = 0;
 
-                    x = (x << 6) | u32::from(b);
-                    n += 1;
+        let recvpartial = tmp_selection_recvpartial(state);
+        if recvpartial != 0 {
+            n = (recvpartial >> 24) as i32;
+            x = recvpartial & 0x03ffff;
+            set_tmp_selection_recvpartial(state, 0);
+        }
+
+        while (buflen - bufcur) >= 3 && frag_len != 0 {
+            if (crate::memory::cstr_first_byte(frag_str)) == b'=' {
+                if n == 2 {
+                    (&mut state.selection.buffer)[bufcur] = ((x >> 4) & 0xff) as c_char;
+                    bufcur += 1;
+                }
+                if n == 3 {
+                    (&mut state.selection.buffer)[bufcur] = ((x >> 10) & 0xff) as c_char;
+                    (&mut state.selection.buffer)[bufcur + 1] = ((x >> 2) & 0xff) as c_char;
+                    bufcur += 2;
+                }
+
+                while frag_len != 0 && (crate::memory::cstr_first_byte(frag_str)) == b'=' {
                     frag_str = frag_str.wrapping_add(1);
                     frag_len -= 1;
-
-                    if n == 4 {
-                        (&mut state.selection.buffer)[bufcur] = ((x >> 16) & 0xff) as c_char;
-                        (&mut state.selection.buffer)[bufcur + 1] = ((x >> 8) & 0xff) as c_char;
-                        (&mut state.selection.buffer)[bufcur + 2] = (x & 0xff) as c_char;
-
-                        bufcur += 3;
-                        x = 0;
-                        n = 0;
-                    }
                 }
 
-                if frag_len == 0 || (buflen - bufcur) < 3 {
-                    if bufcur != 0 {
-                        let chunk_frag = VTermStringFragment::new(
-                            state.selection.buffer.as_ptr(),
-                            bufcur,
-                            tmp_selection_state(state) == SELECTION_SET_INITIAL,
-                            frag_final && frag_len == 0,
-                            0 as VTermTerminator,
-                        );
-                        let _ = set_cb(i32::from(tmp_selection_mask(state)), chunk_frag, sel_user);
-                        set_tmp_selection_state(state, SELECTION_SET);
-                    }
+                n = 0;
+            } else {
+                let b = unbase64one(crate::memory::cstr_first_byte(frag_str));
+                if b == 0xff {
+                    set_tmp_selection_state(state, SELECTION_INVALID);
+                    let err_frag =
+                        VTermStringFragment::new(ptr::null(), 0, true, true, 0 as VTermTerminator);
+                    let _ = set_cb(i32::from(tmp_selection_mask(state)), err_frag, sel_user);
+                    break;
+                }
 
-                    bufcur = 0;
+                x = (x << 6) | u32::from(b);
+                n += 1;
+                frag_str = frag_str.wrapping_add(1);
+                frag_len -= 1;
+
+                if n == 4 {
+                    (&mut state.selection.buffer)[bufcur] = ((x >> 16) & 0xff) as c_char;
+                    (&mut state.selection.buffer)[bufcur + 1] = ((x >> 8) & 0xff) as c_char;
+                    (&mut state.selection.buffer)[bufcur + 2] = (x & 0xff) as c_char;
+
+                    bufcur += 3;
+                    x = 0;
+                    n = 0;
                 }
             }
 
-            if n != 0 {
-                set_tmp_selection_recvpartial(state, ((n as u32) << 24) | x);
+            if frag_len == 0 || (buflen - bufcur) < 3 {
+                if bufcur != 0 {
+                    let chunk_frag = VTermStringFragment::new(
+                        state.selection.buffer.as_ptr(),
+                        bufcur,
+                        tmp_selection_state(state) == SELECTION_SET_INITIAL,
+                        frag_final && frag_len == 0,
+                        0 as VTermTerminator,
+                    );
+                    let _ = set_cb(i32::from(tmp_selection_mask(state)), chunk_frag, sel_user);
+                    set_tmp_selection_state(state, SELECTION_SET);
+                }
+
+                bufcur = 0;
             }
+        }
+
+        if n != 0 {
+            set_tmp_selection_recvpartial(state, ((n as u32) << 24) | x);
         }
     }
 }
 
 fn on_osc(command: i32, frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
-    {
-        let state = unsafe { &mut *state };
-        match command {
-            0 => {
-                let _ = settermprop_string(state, VTERM_PROP_ICONNAME, frag);
-                let _ = settermprop_string(state, VTERM_PROP_TITLE, frag);
-            }
-            1 => {
-                let _ = settermprop_string(state, VTERM_PROP_ICONNAME, frag);
-            }
-            2 => {
-                let _ = settermprop_string(state, VTERM_PROP_TITLE, frag);
-            }
-            52 if state.selection.callbacks.is_some() => {
-                osc_selection(state, frag);
-            }
-            _ => {}
+    let state = unsafe { &mut *state };
+    match command {
+        0 => {
+            let _ = settermprop_string(state, VTERM_PROP_ICONNAME, frag);
+            let _ = settermprop_string(state, VTERM_PROP_TITLE, frag);
         }
-
-        if let Some(fallbacks) = state.fallbacks
-            && let Some(cb) = fallbacks.osc
-            && cb(command, frag, state.term_ptr()) != 0
-        {
-            return 1;
+        1 => {
+            let _ = settermprop_string(state, VTERM_PROP_ICONNAME, frag);
         }
-
-        0
+        2 => {
+            let _ = settermprop_string(state, VTERM_PROP_TITLE, frag);
+        }
+        52 if state.selection.callbacks.is_some() => {
+            osc_selection(state, frag);
+        }
+        _ => {}
     }
+
+    if let Some(fallbacks) = state.fallbacks
+        && let Some(cb) = fallbacks.osc
+        && cb(command, frag, state.term_ptr()) != 0
+    {
+        return 1;
+    }
+
+    0
 }
 
 fn request_status_string(state: &mut VTermStateFull, frag: VTermStringFragment) {
-    unsafe {
-        let vt = state.vt_mut();
-        let tmp = (&raw mut state.tmp.words[0]).cast::<u8>();
+    let vt = state.vt_mut();
+    let tmp = (&raw mut state.tmp.words[0]).cast::<u8>();
 
-        let mut frag_str = frag.str_;
-        let mut frag_len = frag.len();
+    let mut frag_str = frag.str_;
+    let mut frag_len = frag.len();
 
-        if frag.initial() {
+    if frag.initial() {
+        unsafe {
             *tmp = 0;
+        }
+        unsafe {
             *tmp.wrapping_add(1) = 0;
+        }
+        unsafe {
             *tmp.wrapping_add(2) = 0;
+        }
+        unsafe {
             *tmp.wrapping_add(3) = 0;
         }
+    }
 
-        let mut i: usize = 0;
-        while i < 3 && *tmp.wrapping_add(i) != 0 {
-            i += 1;
-        }
-        while i < 3 && frag_len != 0 {
+    let mut i: usize = 0;
+    while i < 3 && unsafe { *tmp.wrapping_add(i) } != 0 {
+        i += 1;
+    }
+    while i < 3 && frag_len != 0 {
+        unsafe {
             *tmp.wrapping_add(i) = crate::memory::cstr_first_byte(frag_str);
-            i += 1;
-            frag_str = frag_str.wrapping_add(1);
-            frag_len -= 1;
         }
+        i += 1;
+        frag_str = frag_str.wrapping_add(1);
+        frag_len -= 1;
+    }
+    unsafe {
         *tmp.wrapping_add(i) = 0;
+    }
 
-        if !frag.final_() {
-            return;
-        }
+    if !frag.final_() {
+        return;
+    }
 
-        let key = u32::from(*tmp)
-            | (u32::from(*tmp.wrapping_add(1)) << 8)
-            | (u32::from(*tmp.wrapping_add(2)) << 16);
-        const KEY_M: u32 = b'm' as u32;
-        const KEY_R: u32 = b'r' as u32;
-        const KEY_S: u32 = b's' as u32;
-        const KEY_SP_Q: u32 = (b' ' as u32) | ((b'q' as u32) << 8);
-        const KEY_QT_Q: u32 = (b'"' as u32) | ((b'q' as u32) << 8);
+    let key = u32::from(unsafe { *tmp })
+        | (u32::from(unsafe { *tmp.wrapping_add(1) }) << 8)
+        | (u32::from(unsafe { *tmp.wrapping_add(2) }) << 16);
+    const KEY_M: u32 = b'm' as u32;
+    const KEY_R: u32 = b'r' as u32;
+    const KEY_S: u32 = b's' as u32;
+    const KEY_SP_Q: u32 = (b' ' as u32) | ((b'q' as u32) << 8);
+    const KEY_QT_Q: u32 = (b'"' as u32) | ((b'q' as u32) << 8);
 
-        match key {
-            KEY_M => {
-                // Query SGR
-                let mut args = [0_i64; 20];
-                let argc = vterm_state_getpen(state, &mut args);
-                let mut s = String::from("1$r");
-                for argi in 0..(argc as usize) {
-                    let sep = if argi == (argc as usize) - 1 {
-                        ""
-                    } else if csi_arg_has_more(args[argi]) {
-                        ":"
-                    } else {
-                        ";"
-                    };
-                    use std::fmt::Write as _;
-                    let _ = write!(s, "{}{sep}", csi_arg(args[argi]));
-                }
-                s.push('m');
-                vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
-            }
-            KEY_R => {
-                // Query DECSTBM
-                let s = format!(
-                    "1$r{};{}r",
-                    state.scrollregion_top + 1,
-                    scrollregion_bottom(state)
-                );
-                vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
-            }
-            KEY_S => {
-                // Query DECSLRM
-                let s = format!(
-                    "1$r{};{}s",
-                    scrollregion_left(state) + 1,
-                    scrollregion_right(state)
-                );
-                vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
-            }
-            KEY_SP_Q => {
-                // Query DECSCUSR
-                let mut reply: i32 = match get_cursor_shape(state.mode) as i32 {
-                    VTERM_PROP_CURSORSHAPE_BLOCK => 2,
-                    VTERM_PROP_CURSORSHAPE_UNDERLINE => 4,
-                    VTERM_PROP_CURSORSHAPE_BAR_LEFT => 6,
-                    _ => 0,
+    match key {
+        KEY_M => {
+            // Query SGR
+            let mut args = [0_i64; 20];
+            let argc = vterm_state_getpen(state, &mut args);
+            let mut s = String::from("1$r");
+            for argi in 0..(argc as usize) {
+                let sep = if argi == (argc as usize) - 1 {
+                    ""
+                } else if csi_arg_has_more(args[argi]) {
+                    ":"
+                } else {
+                    ";"
                 };
-                if (state.mode & MODE_CURSOR_BLINK) != 0 {
-                    reply -= 1;
-                }
-                let s = format!("1$r{reply} q");
-                vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
+                use std::fmt::Write as _;
+                let _ = write!(s, "{}{sep}", csi_arg(args[argi]));
             }
-            KEY_QT_Q => {
-                // Query DECSCA
-                let reply: i32 = if state.protected_cell != 0 { 1 } else { 2 };
-                let s = format!("1$r{reply}\"q");
-                vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
+            s.push('m');
+            vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
+        }
+        KEY_R => {
+            // Query DECSTBM
+            let s = format!(
+                "1$r{};{}r",
+                state.scrollregion_top + 1,
+                scrollregion_bottom(state)
+            );
+            vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
+        }
+        KEY_S => {
+            // Query DECSLRM
+            let s = format!(
+                "1$r{};{}s",
+                scrollregion_left(state) + 1,
+                scrollregion_right(state)
+            );
+            vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
+        }
+        KEY_SP_Q => {
+            // Query DECSCUSR
+            let mut reply: i32 = match get_cursor_shape(state.mode) as i32 {
+                VTERM_PROP_CURSORSHAPE_BLOCK => 2,
+                VTERM_PROP_CURSORSHAPE_UNDERLINE => 4,
+                VTERM_PROP_CURSORSHAPE_BAR_LEFT => 6,
+                _ => 0,
+            };
+            if (state.mode & MODE_CURSOR_BLINK) != 0 {
+                reply -= 1;
             }
-            _ => {
-                vterm_push_output_str_bytes(state.vt_mut(), C1_DCS, true, b"0$r");
-            }
+            let s = format!("1$r{reply} q");
+            vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
+        }
+        KEY_QT_Q => {
+            // Query DECSCA
+            let reply: i32 = if state.protected_cell != 0 { 1 } else { 2 };
+            let s = format!("1$r{reply}\"q");
+            vterm_push_output_str_bytes(vt, C1_DCS, true, s.as_bytes());
+        }
+        _ => {
+            vterm_push_output_str_bytes(state.vt_mut(), C1_DCS, true, b"0$r");
         }
     }
 }
@@ -2303,149 +2289,139 @@ fn on_dcs(
     frag: VTermStringFragment,
     state: *mut VTermStateFull,
 ) -> i32 {
+    let state = unsafe { &mut *state };
+    if commandlen == 2
+        && (crate::memory::cstr_first_byte(command)) == b'$'
+        && (crate::memory::cstr_byte_at(command, 1)) == b'q'
     {
-        let state = unsafe { &mut *state };
-        if commandlen == 2
-            && (crate::memory::cstr_first_byte(command)) == b'$'
-            && (crate::memory::cstr_byte_at(command, 1)) == b'q'
-        {
-            request_status_string(state, frag);
-            return 1;
-        } else if let Some(fallbacks) = state.fallbacks
-            && let Some(cb) = fallbacks.dcs
-            && cb(command, commandlen, frag, state.term_ptr()) != 0
-        {
-            return 1;
-        }
-
-        0
+        request_status_string(state, frag);
+        return 1;
+    } else if let Some(fallbacks) = state.fallbacks
+        && let Some(cb) = fallbacks.dcs
+        && cb(command, commandlen, frag, state.term_ptr()) != 0
+    {
+        return 1;
     }
+
+    0
 }
 
 fn on_apc(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
+    let state = unsafe { &mut *state };
+    if let Some(fallbacks) = state.fallbacks
+        && let Some(cb) = fallbacks.apc
+        && cb(frag, state.term_ptr()) != 0
     {
-        let state = unsafe { &mut *state };
-        if let Some(fallbacks) = state.fallbacks
-            && let Some(cb) = fallbacks.apc
-            && cb(frag, state.term_ptr()) != 0
-        {
-            return 1;
-        }
-        0
+        return 1;
     }
+    0
 }
 
 fn on_pm(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
+    let state = unsafe { &mut *state };
+    if let Some(fallbacks) = state.fallbacks
+        && let Some(cb) = fallbacks.pm
+        && cb(frag, state.term_ptr()) != 0
     {
-        let state = unsafe { &mut *state };
-        if let Some(fallbacks) = state.fallbacks
-            && let Some(cb) = fallbacks.pm
-            && cb(frag, state.term_ptr()) != 0
-        {
-            return 1;
-        }
-        0
+        return 1;
     }
+    0
 }
 
 fn on_sos(frag: VTermStringFragment, state: *mut VTermStateFull) -> i32 {
+    let state = unsafe { &mut *state };
+    if let Some(fallbacks) = state.fallbacks
+        && let Some(cb) = fallbacks.sos
+        && cb(frag, state.term_ptr()) != 0
     {
-        let state = unsafe { &mut *state };
-        if let Some(fallbacks) = state.fallbacks
-            && let Some(cb) = fallbacks.sos
-            && cb(frag, state.term_ptr()) != 0
-        {
-            return 1;
-        }
-        0
+        return 1;
     }
+    0
 }
 
 fn on_resize(rows: i32, cols: i32, state: *mut VTermStateFull) -> i32 {
-    {
-        let state = unsafe { &mut *state };
-        let state_ref = &mut *state;
-        let oldpos = state_ref.pos;
+    let state = unsafe { &mut *state };
+    let state_ref = &mut *state;
+    let oldpos = state_ref.pos;
 
-        if cols != state_ref.cols {
-            let mut newtabstops = vec![0u8; (cols as usize).div_ceil(8)];
+    if cols != state_ref.cols {
+        let mut newtabstops = vec![0u8; (cols as usize).div_ceil(8)];
 
-            let mut col: i32 = 0;
-            while col < state_ref.cols && col < cols {
-                let mask = 1u8 << (col & 7);
-                if (state_ref.tabstops[(col >> 3) as usize] & mask) != 0 {
-                    newtabstops[(col >> 3) as usize] |= mask;
-                } else {
-                    newtabstops[(col >> 3) as usize] &= !mask;
-                }
-                col += 1;
+        let mut col: i32 = 0;
+        while col < state_ref.cols && col < cols {
+            let mask = 1u8 << (col & 7);
+            if (state_ref.tabstops[(col >> 3) as usize] & mask) != 0 {
+                newtabstops[(col >> 3) as usize] |= mask;
+            } else {
+                newtabstops[(col >> 3) as usize] &= !mask;
             }
+            col += 1;
+        }
 
-            while col < cols {
-                let mask = 1u8 << (col & 7);
-                if col % 8 == 0 {
-                    newtabstops[(col >> 3) as usize] |= mask;
-                } else {
-                    newtabstops[(col >> 3) as usize] &= !mask;
-                }
-                col += 1;
+        while col < cols {
+            let mask = 1u8 << (col & 7);
+            if col % 8 == 0 {
+                newtabstops[(col >> 3) as usize] |= mask;
+            } else {
+                newtabstops[(col >> 3) as usize] &= !mask;
             }
-
-            state_ref.tabstops = newtabstops;
+            col += 1;
         }
 
-        let old_rows = state_ref.rows;
-        state_ref.rows = rows;
-        state_ref.cols = cols;
-
-        if state_ref.scrollregion_bottom > -1 && state_ref.scrollregion_bottom > state_ref.rows {
-            state_ref.scrollregion_bottom = state_ref.rows;
-        }
-        if state_ref.scrollregion_right > -1 && state_ref.scrollregion_right > state_ref.cols {
-            state_ref.scrollregion_right = state_ref.cols;
-        }
-
-        if let Some(callbacks) = state_ref.callbacks
-            && let Some(resize_cb) = callbacks.resize
-        {
-            let mut fields = VTermStateFields {
-                pos: state_ref.pos,
-                lineinfos: std::mem::take(&mut state_ref.lineinfos),
-            };
-            let _ = resize_cb(rows, cols, &mut fields, state_ref.screen_ptr());
-            state_ref.pos = fields.pos;
-            state_ref.lineinfos = fields.lineinfos;
-        } else if rows != old_rows {
-            for bufidx in BUFIDX_PRIMARY..=BUFIDX_ALTSCREEN {
-                if state_ref.lineinfos[bufidx].is_empty() {
-                    continue;
-                }
-                state_ref.lineinfos[bufidx].resize(rows as usize, VTermLineInfo::default());
-            }
-        }
-
-        if state.at_phantom != 0 && state.pos.col < cols - 1 {
-            state.at_phantom = 0;
-            state.pos.col += 1;
-        }
-
-        if state.pos.row < 0 {
-            state.pos.row = 0;
-        }
-        if state.pos.row >= rows {
-            state.pos.row = rows - 1;
-        }
-        if state.pos.col < 0 {
-            state.pos.col = 0;
-        }
-        if state.pos.col >= cols {
-            state.pos.col = cols - 1;
-        }
-
-        updatecursor(state, &oldpos, 1);
-
-        1
+        state_ref.tabstops = newtabstops;
     }
+
+    let old_rows = state_ref.rows;
+    state_ref.rows = rows;
+    state_ref.cols = cols;
+
+    if state_ref.scrollregion_bottom > -1 && state_ref.scrollregion_bottom > state_ref.rows {
+        state_ref.scrollregion_bottom = state_ref.rows;
+    }
+    if state_ref.scrollregion_right > -1 && state_ref.scrollregion_right > state_ref.cols {
+        state_ref.scrollregion_right = state_ref.cols;
+    }
+
+    if let Some(callbacks) = state_ref.callbacks
+        && let Some(resize_cb) = callbacks.resize
+    {
+        let mut fields = VTermStateFields {
+            pos: state_ref.pos,
+            lineinfos: std::mem::take(&mut state_ref.lineinfos),
+        };
+        let _ = resize_cb(rows, cols, &mut fields, state_ref.screen_ptr());
+        state_ref.pos = fields.pos;
+        state_ref.lineinfos = fields.lineinfos;
+    } else if rows != old_rows {
+        for bufidx in BUFIDX_PRIMARY..=BUFIDX_ALTSCREEN {
+            if state_ref.lineinfos[bufidx].is_empty() {
+                continue;
+            }
+            state_ref.lineinfos[bufidx].resize(rows as usize, VTermLineInfo::default());
+        }
+    }
+
+    if state.at_phantom != 0 && state.pos.col < cols - 1 {
+        state.at_phantom = 0;
+        state.pos.col += 1;
+    }
+
+    if state.pos.row < 0 {
+        state.pos.row = 0;
+    }
+    if state.pos.row >= rows {
+        state.pos.row = rows - 1;
+    }
+    if state.pos.col < 0 {
+        state.pos.col = 0;
+    }
+    if state.pos.col >= cols {
+        state.pos.col = cols - 1;
+    }
+
+    updatecursor(state, &oldpos, 1);
+
+    1
 }
 
 static PARSER_CALLBACKS: VTermParserCallbacks = VTermParserCallbacks {
@@ -2462,91 +2438,87 @@ static PARSER_CALLBACKS: VTermParserCallbacks = VTermParserCallbacks {
 };
 
 pub fn vterm_obtain_state(vt: &mut VTerm) -> &'static mut VTermStateFull {
-    {
-        if vt.state.is_none() {
-            vt.state = Some(vterm_state_new(vt));
-            vterm_parser_set_callbacks(vt, Some(&PARSER_CALLBACKS));
-        }
-        unsafe { &mut *vt.state_mut_ptr() }
+    if vt.state.is_none() {
+        vt.state = Some(vterm_state_new(vt));
+        vterm_parser_set_callbacks(vt, Some(&PARSER_CALLBACKS));
     }
+    unsafe { &mut *vt.state_mut_ptr() }
 }
 
 pub fn vterm_state_reset(state: &mut VTermStateFull, hard: i32) {
-    {
-        state.scrollregion_top = 0;
-        state.scrollregion_bottom = -1;
-        state.scrollregion_left = 0;
-        state.scrollregion_right = -1;
+    state.scrollregion_top = 0;
+    state.scrollregion_bottom = -1;
+    state.scrollregion_left = 0;
+    state.scrollregion_right = -1;
 
-        set_mode_bit(&mut state.mode, MODE_KEYPAD, false);
-        set_mode_bit(&mut state.mode, MODE_CURSOR, false);
-        set_mode_bit(&mut state.mode, MODE_AUTOWRAP, true);
-        set_mode_bit(&mut state.mode, MODE_INSERT, false);
-        set_mode_bit(&mut state.mode, MODE_NEWLINE, false);
-        set_mode_bit(&mut state.mode, MODE_ALT_SCREEN, false);
-        set_mode_bit(&mut state.mode, MODE_ORIGIN, false);
-        set_mode_bit(&mut state.mode, MODE_LEFTRIGHTMARGIN, false);
-        set_mode_bit(&mut state.mode, MODE_BRACKETPASTE, false);
-        set_mode_bit(&mut state.mode, MODE_REPORT_FOCUS, false);
+    set_mode_bit(&mut state.mode, MODE_KEYPAD, false);
+    set_mode_bit(&mut state.mode, MODE_CURSOR, false);
+    set_mode_bit(&mut state.mode, MODE_AUTOWRAP, true);
+    set_mode_bit(&mut state.mode, MODE_INSERT, false);
+    set_mode_bit(&mut state.mode, MODE_NEWLINE, false);
+    set_mode_bit(&mut state.mode, MODE_ALT_SCREEN, false);
+    set_mode_bit(&mut state.mode, MODE_ORIGIN, false);
+    set_mode_bit(&mut state.mode, MODE_LEFTRIGHTMARGIN, false);
+    set_mode_bit(&mut state.mode, MODE_BRACKETPASTE, false);
+    set_mode_bit(&mut state.mode, MODE_REPORT_FOCUS, false);
 
-        state.mouse_flags = 0;
+    state.mouse_flags = 0;
 
-        (state.vt_mut()).mode &= !VT_MODE_CTRL8BIT;
+    (state.vt_mut()).mode &= !VT_MODE_CTRL8BIT;
 
-        for col in 0..state.cols {
-            if col % 8 == 0 {
-                set_col_tabstop(state, col);
-            } else {
-                clear_col_tabstop(state, col);
-            }
-        }
-
-        for row in 0..state.rows {
-            set_lineinfo(state, row, FORCE, DWL_OFF, DHL_OFF);
-        }
-
-        if let Some(callbacks) = state.callbacks
-            && let Some(cb) = callbacks.initpen
-        {
-            let _ = cb(state.screen_ptr());
-        }
-
-        vterm_state_resetpen(state);
-
-        let default_enc = if ((state.vt_mut()).mode & VT_MODE_UTF8) != 0 {
-            vterm_lookup_encoding(VTermEncodingType::EncUtf8, b'u' as c_char)
+    for col in 0..state.cols {
+        if col % 8 == 0 {
+            set_col_tabstop(state, col);
         } else {
-            vterm_lookup_encoding(VTermEncodingType::EncSingle94, b'B' as c_char)
+            clear_col_tabstop(state, col);
         }
-        .unwrap();
+    }
 
-        for enc_inst in &mut state.encoding {
-            enc_inst.init(default_enc);
-        }
+    for row in 0..state.rows {
+        set_lineinfo(state, row, FORCE, DWL_OFF, DHL_OFF);
+    }
 
-        state.gl_set = 0;
-        state.gr_set = 1;
-        state.gsingle_set = 0;
+    if let Some(callbacks) = state.callbacks
+        && let Some(cb) = callbacks.initpen
+    {
+        let _ = cb(state.screen_ptr());
+    }
 
-        state.protected_cell = 0;
+    vterm_state_resetpen(state);
 
-        let _ = settermprop_bool(state, VTERM_PROP_CURSORVISIBLE, 1);
-        let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 1);
-        let _ = settermprop_int(state, VTERM_PROP_CURSORSHAPE, VTERM_PROP_CURSORSHAPE_BLOCK);
+    let default_enc = if ((state.vt_mut()).mode & VT_MODE_UTF8) != 0 {
+        vterm_lookup_encoding(VTermEncodingType::EncUtf8, b'u' as c_char)
+    } else {
+        vterm_lookup_encoding(VTermEncodingType::EncSingle94, b'B' as c_char)
+    }
+    .unwrap();
 
-        if hard != 0 {
-            state.pos.row = 0;
-            state.pos.col = 0;
-            state.at_phantom = 0;
+    for enc_inst in &mut state.encoding {
+        enc_inst.init(default_enc);
+    }
 
-            let rect = VTermRect {
-                start_row: 0,
-                end_row: state.rows,
-                start_col: 0,
-                end_col: state.cols,
-            };
-            erase(state, rect, 0);
-        }
+    state.gl_set = 0;
+    state.gr_set = 1;
+    state.gsingle_set = 0;
+
+    state.protected_cell = 0;
+
+    let _ = settermprop_bool(state, VTERM_PROP_CURSORVISIBLE, 1);
+    let _ = settermprop_bool(state, VTERM_PROP_CURSORBLINK, 1);
+    let _ = settermprop_int(state, VTERM_PROP_CURSORSHAPE, VTERM_PROP_CURSORSHAPE_BLOCK);
+
+    if hard != 0 {
+        state.pos.row = 0;
+        state.pos.col = 0;
+        state.at_phantom = 0;
+
+        let rect = VTermRect {
+            start_row: 0,
+            end_row: state.rows,
+            start_col: 0,
+            end_col: state.cols,
+        };
+        erase(state, rect, 0);
     }
 }
 
@@ -2570,15 +2542,13 @@ pub fn vterm_state_set_unrecognised_fallbacks(
     fallbacks: Option<&'static VTermStateFallbacks>,
     user: *mut Terminal,
 ) {
-    {
-        if let Some(fbs) = fallbacks {
-            state.fallbacks = Some(fbs);
-            if !user.is_null() {
-                (state.vt_mut()).outdata = user;
-            }
-        } else {
-            state.fallbacks = None;
+    if let Some(fbs) = fallbacks {
+        state.fallbacks = Some(fbs);
+        if !user.is_null() {
+            (state.vt_mut()).outdata = user;
         }
+    } else {
+        state.fallbacks = None;
     }
 }
 
@@ -2659,18 +2629,14 @@ pub fn vterm_state_set_termprop(
 }
 
 pub fn vterm_state_focus_in(state: &mut VTermStateFull) {
-    {
-        if (state.mode & MODE_REPORT_FOCUS) != 0 {
-            vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, b"I");
-        }
+    if (state.mode & MODE_REPORT_FOCUS) != 0 {
+        vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, b"I");
     }
 }
 
 pub fn vterm_state_focus_out(state: &mut VTermStateFull) {
-    {
-        if (state.mode & MODE_REPORT_FOCUS) != 0 {
-            vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, b"O");
-        }
+    if (state.mode & MODE_REPORT_FOCUS) != 0 {
+        vterm_push_output_ctrl_bytes(state.vt_mut(), C1_CSI, b"O");
     }
 }
 

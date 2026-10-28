@@ -180,82 +180,78 @@ fn log_try_create(fname: impl crate::strings::IntoCCharPtr) -> bool {
 
 /// Initializes the log file path and sets `$NVIM_LOG_FILE` if empty.
 fn log_path_init() {
-    {
-        let size = MAXPATHL + 1;
-        let path_ptr = (&raw mut log_st().log_file_path).cast::<c_char>();
-        expand_env(c"$NVIM_LOG_FILE", path_ptr, (size - 1) as i32);
-        let user_set = crate::memory::cstr_as_bytes(path_ptr) != b"$NVIM_LOG_FILE";
+    let size = MAXPATHL + 1;
+    let path_ptr = (&raw mut log_st().log_file_path).cast::<c_char>();
+    expand_env(c"$NVIM_LOG_FILE", path_ptr, (size - 1) as i32);
+    let user_set = crate::memory::cstr_as_bytes(path_ptr) != b"$NVIM_LOG_FILE";
 
-        if !user_set
-            || crate::memory::cstr_is_empty(path_ptr)
-            || os_isdir(path_ptr)
-            || !log_try_create(path_ptr)
-        {
-            if user_set {
+    if !user_set
+        || crate::memory::cstr_is_empty(path_ptr)
+        || os_isdir(path_ptr)
+        || !log_try_create(path_ptr)
+    {
+        if user_set {
+            os_setenv(c"__NVIM_LOG_FILE_WANT", path_ptr, 1);
+        }
+        let state_home =
+            get_xdg_home(crate::os::stdpaths::XDGVarType::XDGStateHome).unwrap_or_default();
+        let loghome = concat_fnames_cstr(state_home.as_ptr(), c"logs", true);
+        let mut failed_dir: Option<std::ffi::CString> = None;
+        let mut log_dir_failure: i32 = 0;
+        if !os_isdir(loghome.as_ptr()) {
+            log_dir_failure = os_mkdir_recurse(loghome.as_ptr(), 0o700, &mut failed_dir, None);
+        }
+        drop(loghome);
+
+        let defaultpath = stdpaths_user_state_subpath(c"logs/nvim.log", 0, true);
+        let mut len = xstrlcpy(path_ptr, defaultpath.as_ptr(), size);
+        drop(defaultpath);
+
+        if len >= size || !log_try_create(path_ptr) {
+            if !user_set {
                 os_setenv(c"__NVIM_LOG_FILE_WANT", path_ptr, 1);
             }
-            let state_home =
-                get_xdg_home(crate::os::stdpaths::XDGVarType::XDGStateHome).unwrap_or_default();
-            let loghome = concat_fnames_cstr(state_home.as_ptr(), c"logs", true);
-            let mut failed_dir: Option<std::ffi::CString> = None;
-            let mut log_dir_failure: i32 = 0;
-            if !os_isdir(loghome.as_ptr()) {
-                log_dir_failure = os_mkdir_recurse(loghome.as_ptr(), 0o700, &mut failed_dir, None);
+            len = xstrlcpy(path_ptr, c"nvim.log", size);
+        }
+        if len >= size || !log_try_create(path_ptr) {
+            unsafe {
+                *path_ptr = NUL;
             }
-            drop(loghome);
-
-            let defaultpath = stdpaths_user_state_subpath(c"logs/nvim.log", 0, true);
-            let mut len = xstrlcpy(path_ptr, defaultpath.as_ptr(), size);
-            drop(defaultpath);
-
-            if len >= size || !log_try_create(path_ptr) {
-                if !user_set {
-                    os_setenv(c"__NVIM_LOG_FILE_WANT", path_ptr, 1);
-                }
-                len = xstrlcpy(path_ptr, c"nvim.log", size);
-            }
-            if len >= size || !log_try_create(path_ptr) {
-                unsafe {
-                    *path_ptr = NUL;
-                }
-                return;
-            }
-            os_setenv(c"NVIM_LOG_FILE", path_ptr, 1);
-            if log_dir_failure != 0 {
-                let err_str = unsafe { uv_strerror(log_dir_failure) };
-                let failed_s = match failed_dir {
-                    None => "(null)",
-                    Some(ref d) => d.to_str().unwrap_or(""),
-                };
-                let err_s = if err_str.is_null() {
-                    ""
-                } else {
-                    crate::memory::cstr_from_ptr(err_str).to_str().unwrap_or("")
-                };
-                let mut msg = Vec::with_capacity(128);
-                let _ = write!(
-                    msg,
-                    "Failed to create directory {failed_s} for writing logs: {err_s}\0"
-                );
-                logmsg_str(
-                    LOGLVL_WRN,
-                    ptr::null(),
-                    c"log_path_init",
-                    line!() as i32,
-                    true,
-                    msg.as_ptr().cast(),
-                );
-            }
+            return;
+        }
+        os_setenv(c"NVIM_LOG_FILE", path_ptr, 1);
+        if log_dir_failure != 0 {
+            let err_str = unsafe { uv_strerror(log_dir_failure) };
+            let failed_s = match failed_dir {
+                None => "(null)",
+                Some(ref d) => d.to_str().unwrap_or(""),
+            };
+            let err_s = if err_str.is_null() {
+                ""
+            } else {
+                crate::memory::cstr_from_ptr(err_str).to_str().unwrap_or("")
+            };
+            let mut msg = Vec::with_capacity(128);
+            let _ = write!(
+                msg,
+                "Failed to create directory {failed_s} for writing logs: {err_s}\0"
+            );
+            logmsg_str(
+                LOGLVL_WRN,
+                ptr::null(),
+                c"log_path_init",
+                line!() as i32,
+                true,
+                msg.as_ptr().cast(),
+            );
         }
     }
 }
 
 pub fn log_init() {
-    {
-        unsafe { uv_mutex_init_recursive((&raw mut log_st().mutex).cast()) };
-        log_path_init();
-        log_st().did_log_init = true;
-    }
+    unsafe { uv_mutex_init_recursive((&raw mut log_st().mutex).cast()) };
+    log_path_init();
+    log_st().did_log_init = true;
 }
 
 pub fn log_lock() {
@@ -345,55 +341,51 @@ pub fn logmsg_str(
 }
 
 pub fn log_uv_handles(loop_: *mut crate::event::r#loop::uv_loop_t) {
-    {
-        log_lock();
-        let log_file = open_log_file();
-        unsafe { uv_print_all_handles(loop_, log_file) };
-        if !log_is_std_stream(log_file) {
-            unsafe { fclose(log_file) };
-        }
-        log_unlock();
+    log_lock();
+    let log_file = open_log_file();
+    unsafe { uv_print_all_handles(loop_, log_file) };
+    if !log_is_std_stream(log_file) {
+        unsafe { fclose(log_file) };
     }
+    log_unlock();
 }
 
 /// Open the log file for appending.
 ///
 /// @return Log file, or `stderr` on failure
 pub fn open_log_file() -> *mut FILE {
-    {
-        let path_ptr = (&raw const log_st().log_file_path).cast::<c_char>();
-        let mut errnum: i32 = 0;
-        if !crate::memory::cstr_is_empty(path_ptr) {
-            let f = unsafe { fopen(path_ptr, c"a".as_ptr()) };
-            if !f.is_null() {
-                return f;
-            }
-            errnum = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
+    let path_ptr = (&raw const log_st().log_file_path).cast::<c_char>();
+    let mut errnum: i32 = 0;
+    if !crate::memory::cstr_is_empty(path_ptr) {
+        let f = unsafe { fopen(path_ptr, c"a".as_ptr()) };
+        if !f.is_null() {
+            return f;
         }
-
-        let stderr = log_get_stderr();
-        let err_ptr = unsafe { strerror(errnum) };
-        let err_s = if err_ptr.is_null() {
-            ""
-        } else {
-            crate::memory::cstr_from_ptr(err_ptr).to_str().unwrap_or("")
-        };
-        let path_s = crate::memory::cstr_from_ptr(path_ptr)
-            .to_str()
-            .unwrap_or("");
-        let mut msg = Vec::with_capacity(128);
-        let _ = write!(msg, "failed to open $NVIM_LOG_FILE ({err_s}): {path_s}\0");
-        do_log_to_file_str(
-            stderr,
-            LOGLVL_ERR,
-            ptr::null(),
-            c"open_log_file",
-            line!() as i32,
-            true,
-            msg.as_ptr().cast(),
-        );
-        stderr
+        errnum = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
     }
+
+    let stderr = log_get_stderr();
+    let err_ptr = unsafe { strerror(errnum) };
+    let err_s = if err_ptr.is_null() {
+        ""
+    } else {
+        crate::memory::cstr_from_ptr(err_ptr).to_str().unwrap_or("")
+    };
+    let path_s = crate::memory::cstr_from_ptr(path_ptr)
+        .to_str()
+        .unwrap_or("");
+    let mut msg = Vec::with_capacity(128);
+    let _ = write!(msg, "failed to open $NVIM_LOG_FILE ({err_s}): {path_s}\0");
+    do_log_to_file_str(
+        stderr,
+        LOGLVL_ERR,
+        ptr::null(),
+        c"open_log_file",
+        line!() as i32,
+        true,
+        msg.as_ptr().cast(),
+    );
+    stderr
 }
 
 fn do_log_to_file_str(
@@ -408,7 +400,7 @@ fn do_log_to_file_str(
     let context = context.into_c_char_ptr();
     let msg = msg.into_c_char_ptr();
     let func_name = func_name.into_c_char_ptr();
-    unsafe {
+    {
         const LOG_LEVELS: [&CStr; 5] = [c"", c"DBG", c"INF", c"WRN", c"ERR"];
         assert!((LOGLVL_DBG..=LOGLVL_ERR).contains(&log_level));
 
@@ -417,12 +409,14 @@ fn do_log_to_file_str(
             return false;
         }
         let mut date_time = [0 as c_char; 20];
-        if strftime(
-            date_time.as_mut_ptr(),
-            date_time.len(),
-            c"%Y-%m-%dT%H:%M:%S".as_ptr(),
-            &raw const local_time,
-        ) == 0
+        if unsafe {
+            strftime(
+                date_time.as_mut_ptr(),
+                date_time.len(),
+                c"%Y-%m-%dT%H:%M:%S".as_ptr(),
+                &raw const local_time,
+            )
+        } == 0
         {
             return false;
         }
@@ -432,13 +426,13 @@ fn do_log_to_file_str(
             tv_sec: 0,
             tv_usec: 0,
         };
-        if uv_gettimeofday(&mut curtime) == 0 {
+        if unsafe { uv_gettimeofday(&mut curtime) } == 0 {
             millis = curtime.tv_usec / 1000;
         }
 
         let ui = g_st().ui_client_channel_id != 0;
         let name_ptr = (&raw mut log_st().instance_name).cast::<u8>();
-        let first_byte = *name_ptr;
+        let first_byte = unsafe { *name_ptr };
         let regen = ui || first_byte == 0 || first_byte == b'?';
 
         if regen {
@@ -466,8 +460,10 @@ fn do_log_to_file_str(
                 let _ = write!(formatted, "{prefix}.{pid:<5}");
             }
             let copy_len = formatted.len().min(31);
-            ptr::copy_nonoverlapping(formatted.as_ptr(), name_ptr, copy_len);
-            *name_ptr.wrapping_add(copy_len) = 0;
+            unsafe { ptr::copy_nonoverlapping(formatted.as_ptr(), name_ptr, copy_len) };
+            unsafe {
+                *name_ptr.wrapping_add(copy_len) = 0;
+            }
         }
 
         let level_ptr = LOG_LEVELS[log_level as usize].as_ptr();
@@ -511,9 +507,9 @@ fn do_log_to_file_str(
             return false;
         }
         if eol {
-            fputc(b'\n' as i32, log_file);
+            unsafe { fputc(b'\n' as i32, log_file) };
         }
-        if fflush(log_file) == EOF {
+        if unsafe { fflush(log_file) } == EOF {
             return false;
         }
 

@@ -416,22 +416,20 @@ pub fn msg_id_exists(id: i64) -> bool {
 }
 
 fn ui_ext_msg_set_pos(row: i32, scrolled: bool) {
-    {
-        let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
-        let size = schar_get(buf.as_mut_ptr(), curwin_mut().w_p_fcs_chars.msgsep);
-        ui_call_msg_set_pos(
-            g_st().msg_grid.handle as Integer,
-            row as Integer,
-            scrolled,
-            NvimString {
-                data: buf.as_mut_ptr(),
-                size,
-            },
-            g_st().msg_grid.zindex as Integer,
-            g_st().msg_grid.comp_index as Integer,
-        );
-        g_st().msg_grid.pending_comp_index_update = false;
-    }
+    let mut buf = [0 as c_char; MAX_SCHAR_SIZE];
+    let size = schar_get(buf.as_mut_ptr(), curwin_mut().w_p_fcs_chars.msgsep);
+    ui_call_msg_set_pos(
+        g_st().msg_grid.handle as Integer,
+        row as Integer,
+        scrolled,
+        NvimString {
+            data: buf.as_mut_ptr(),
+            size,
+        },
+        g_st().msg_grid.zindex as Integer,
+        g_st().msg_grid.comp_index as Integer,
+    );
+    g_st().msg_grid.pending_comp_index_update = false;
 }
 
 pub fn msg_grid_set_pos(row: i32, scrolled: bool) {
@@ -553,49 +551,47 @@ pub fn msg_multiline(
     hist: bool,
     need_clear: &mut bool,
 ) {
-    unsafe {
-        let mut s = str_.data.cast_const();
-        let mut chunk = s;
-        while (crate::memory::ptr_offset_from(s, str_.data) as usize) < str_.size {
-            if check_int && g_st().got_int {
-                return;
-            }
-            if *s == NL as c_char
-                || *s == TAB as c_char
-                || *s == CAR as c_char
-                || *s == BELL as c_char
-            {
-                // Print all chars before the delimiter
-                msg_outtrans_len(
-                    chunk,
-                    crate::memory::ptr_offset_from(s, chunk) as i32,
-                    hl_id,
-                    hist,
-                );
-
-                if *s != TAB as c_char && *need_clear {
-                    msg_clr_eos();
-                    *need_clear = false;
-                }
-                if *s == BELL as c_char {
-                    vim_beep(K_OPT_BO_FLAG_SHELL);
-                } else {
-                    msg_putchar_hl((crate::memory::cstr_first_byte(s)) as i32, hl_id);
-                }
-                chunk = s.wrapping_add(1);
-            }
-            s = s.wrapping_add(1);
+    let mut s = str_.data.cast_const();
+    let mut chunk = s;
+    while (crate::memory::ptr_offset_from(s, str_.data) as usize) < str_.size {
+        if check_int && g_st().got_int {
+            return;
         }
-
-        // Print the remainder or emit empty event if entire message is empty.
-        if !crate::memory::cstr_is_empty(chunk) || chunk == str_.data.cast_const() {
+        if unsafe { *s } == NL as c_char
+            || unsafe { *s } == TAB as c_char
+            || unsafe { *s } == CAR as c_char
+            || unsafe { *s } == BELL as c_char
+        {
+            // Print all chars before the delimiter
             msg_outtrans_len(
                 chunk,
-                (str_.size - (crate::memory::ptr_offset_from(chunk, str_.data) as usize)) as i32,
+                crate::memory::ptr_offset_from(s, chunk) as i32,
                 hl_id,
                 hist,
             );
+
+            if unsafe { *s } != TAB as c_char && *need_clear {
+                msg_clr_eos();
+                *need_clear = false;
+            }
+            if unsafe { *s } == BELL as c_char {
+                vim_beep(K_OPT_BO_FLAG_SHELL);
+            } else {
+                msg_putchar_hl((crate::memory::cstr_first_byte(s)) as i32, hl_id);
+            }
+            chunk = s.wrapping_add(1);
         }
+        s = s.wrapping_add(1);
+    }
+
+    // Print the remainder or emit empty event if entire message is empty.
+    if !crate::memory::cstr_is_empty(chunk) || chunk == str_.data.cast_const() {
+        msg_outtrans_len(
+            chunk,
+            (str_.size - (crate::memory::ptr_offset_from(chunk, str_.data) as usize)) as i32,
+            hl_id,
+            hist,
+        );
     }
 }
 
@@ -608,66 +604,64 @@ fn format_progress_message(
     mut msg_data: Option<&mut MessageData>,
     updated_msg: &mut HlMessage,
 ) -> bool {
-    {
-        // progress messages are special. displayed as "title: percent% msg"
-        if msg_data.as_deref_mut().unwrap().title.size != 0 {
-            // this block draws the "title:" before the progress-message
-            let mut hl_id = 0;
-            if msg_data.as_deref_mut().unwrap().status.data.is_null() {
-                hl_id = 0;
-            } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
-                == Some(b"success")
-            {
-                hl_id = syn_check_group(c"OkMsg", 5);
-            } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
-                == Some(b"failed")
-            {
-                hl_id = syn_check_group(c"ErrorMsg", 8);
-            } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
-                == Some(b"running")
-            {
-                hl_id = syn_check_group(c"MoreMsg", 7);
-            } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
-                == Some(b"cancel")
-            {
-                hl_id = syn_check_group(c"WarningMsg", 10);
-            }
-            updated_msg.push(HlMessageChunk {
-                text: copy_string(msg_data.as_deref_mut().unwrap().title, None),
-                hl_id,
-            });
-            updated_msg.push(HlMessageChunk {
-                text: cstr_to_string(c": "),
-                hl_id: 0,
-            });
+    // progress messages are special. displayed as "title: percent% msg"
+    if msg_data.as_deref_mut().unwrap().title.size != 0 {
+        // this block draws the "title:" before the progress-message
+        let mut hl_id = 0;
+        if msg_data.as_deref_mut().unwrap().status.data.is_null() {
+            hl_id = 0;
+        } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
+            == Some(b"success")
+        {
+            hl_id = syn_check_group(c"OkMsg", 5);
+        } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
+            == Some(b"failed")
+        {
+            hl_id = syn_check_group(c"ErrorMsg", 8);
+        } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
+            == Some(b"running")
+        {
+            hl_id = syn_check_group(c"MoreMsg", 7);
+        } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
+            == Some(b"cancel")
+        {
+            hl_id = syn_check_group(c"WarningMsg", 10);
         }
-        if msg_data.as_deref_mut().unwrap().percent >= 0 {
-            let mut percent_buf = [0 as c_char; 10];
-            vim_snprintf!(
-                percent_buf.as_mut_ptr(),
-                percent_buf.len(),
-                c"%3ld%% ",
-                msg_data.unwrap().percent,
-            );
-            let percent = cstr_to_string(percent_buf.as_ptr());
-            let hl_id = syn_check_group(c"WarningMsg", 10);
-            updated_msg.push(HlMessageChunk {
-                text: percent,
-                hl_id,
-            });
-        }
-
-        if !updated_msg.is_empty() {
-            for chunk in hl_msg {
-                updated_msg.push(HlMessageChunk {
-                    text: copy_string(chunk.text, None),
-                    hl_id: chunk.hl_id,
-                });
-            }
-            return true;
-        }
-        false
+        updated_msg.push(HlMessageChunk {
+            text: copy_string(msg_data.as_deref_mut().unwrap().title, None),
+            hl_id,
+        });
+        updated_msg.push(HlMessageChunk {
+            text: cstr_to_string(c": "),
+            hl_id: 0,
+        });
     }
+    if msg_data.as_deref_mut().unwrap().percent >= 0 {
+        let mut percent_buf = [0 as c_char; 10];
+        vim_snprintf!(
+            percent_buf.as_mut_ptr(),
+            percent_buf.len(),
+            c"%3ld%% ",
+            msg_data.unwrap().percent,
+        );
+        let percent = cstr_to_string(percent_buf.as_ptr());
+        let hl_id = syn_check_group(c"WarningMsg", 10);
+        updated_msg.push(HlMessageChunk {
+            text: percent,
+            hl_id,
+        });
+    }
+
+    if !updated_msg.is_empty() {
+        for chunk in hl_msg {
+            updated_msg.push(HlMessageChunk {
+                text: copy_string(chunk.text, None),
+                hl_id: chunk.hl_id,
+            });
+        }
+        return true;
+    }
+    false
 }
 
 /// Print message chunks, each with their own highlight ID.
@@ -896,14 +890,16 @@ pub fn trunc_string(
     buflen: i32,
 ) {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         let mut room = room_in - 3; // "..." takes 3 chars
         let mut len: i32 = 0;
         let mut e: i32 = 0;
 
         if crate::memory::cstr_is_empty(s) {
             if buflen > 0 {
-                *buf = NUL;
+                unsafe {
+                    *buf = NUL;
+                }
             }
             return;
         }
@@ -917,7 +913,9 @@ pub fn trunc_string(
         while len < half && e < buflen {
             if crate::memory::cstr_byte_at(s, e as usize) == 0 {
                 // text fits without truncating!
-                *buf.wrapping_add(e as usize) = NUL;
+                unsafe {
+                    *buf.wrapping_add(e as usize) = NUL;
+                }
                 return;
             }
             let mut n = ptr2cells(s.wrapping_add(e as usize));
@@ -925,7 +923,9 @@ pub fn trunc_string(
                 break;
             }
             len += n;
-            *buf.wrapping_add(e as usize) = *s.wrapping_add(e as usize);
+            unsafe {
+                *buf.wrapping_add(e as usize) = *s.wrapping_add(e as usize);
+            }
             n = utfc_ptr2len(s.wrapping_add(e as usize));
             while {
                 n -= 1;
@@ -935,7 +935,9 @@ pub fn trunc_string(
                 if e == buflen {
                     break;
                 }
-                *buf.wrapping_add(e as usize) = *s.wrapping_add(e as usize);
+                unsafe {
+                    *buf.wrapping_add(e as usize) = *s.wrapping_add(e as usize);
+                }
             }
             e += 1;
         }
@@ -962,31 +964,41 @@ pub fn trunc_string(
                 }
                 len = len - e + 1;
                 if len < 1 {
-                    *buf.wrapping_add((e - 1) as usize) = NUL;
+                    unsafe {
+                        *buf.wrapping_add((e - 1) as usize) = NUL;
+                    }
                 } else {
-                    ptr::copy(
-                        s.wrapping_add(e as usize),
-                        buf.wrapping_add(e as usize),
-                        len as usize,
-                    );
+                    unsafe {
+                        ptr::copy(
+                            s.wrapping_add(e as usize),
+                            buf.wrapping_add(e as usize),
+                            len as usize,
+                        )
+                    };
                 }
             }
         } else if e + 3 < buflen {
             // set the middle and copy the last part
-            ptr::copy(c"...".as_ptr(), buf.wrapping_add(e as usize), 3);
+            unsafe { ptr::copy(c"...".as_ptr(), buf.wrapping_add(e as usize), 3) };
             len = crate::memory::cstr_as_bytes(s)[i as usize..].len() as i32 + 1;
             if len >= buflen - e - 3 {
                 len = buflen - e - 3 - 1;
             }
-            ptr::copy(
-                s.wrapping_add(i as usize),
-                buf.wrapping_add((e + 3) as usize),
-                len as usize,
-            );
-            *buf.wrapping_add((e + 3 + len - 1) as usize) = NUL;
+            unsafe {
+                ptr::copy(
+                    s.wrapping_add(i as usize),
+                    buf.wrapping_add((e + 3) as usize),
+                    len as usize,
+                )
+            };
+            unsafe {
+                *buf.wrapping_add((e + 3 + len - 1) as usize) = NUL;
+            }
         } else {
             // can't fit in the "...", just truncate it
-            *buf.wrapping_add((buflen - 1) as usize) = NUL;
+            unsafe {
+                *buf.wrapping_add((buflen - 1) as usize) = NUL;
+            }
         }
     }
 }
@@ -1000,91 +1012,83 @@ pub fn reset_last_sourcing() {
 
 /// @return  true if "SOURCING_NAME" differs from "last_sourcing_name".
 fn other_sourcing_name() -> bool {
-    {
-        let sname = sourcing_name();
-        if have_sourcing_info() && !sname.is_null() {
-            if let Some(ref last) = msg_st().last_sourcing_name {
-                return crate::memory::cstr_as_bytes(sname) != last.as_bytes();
-            }
-            return true;
+    let sname = sourcing_name();
+    if have_sourcing_info() && !sname.is_null() {
+        if let Some(ref last) = msg_st().last_sourcing_name {
+            return crate::memory::cstr_as_bytes(sname) != last.as_bytes();
         }
-        false
+        return true;
     }
+    false
 }
 
 /// Get the message about the source, as used for an error message
 fn get_emsg_source() -> Option<std::ffi::CString> {
-    {
-        let mut sname = sourcing_name();
-        if have_sourcing_info() && !sname.is_null() && other_sourcing_name() {
-            let tofree = estack_sfile(ESTACK_NONE);
-            if let Some(ref tf) = tofree {
-                sname = tf.as_ptr().cast_mut();
-            }
-
-            let p = gettext(c"Error in %s:");
-            let buf_len = crate::memory::cstr_len(sname) + crate::memory::cstr_len(p) + 1;
-            let mut buf_vec: Vec<c_char> = vec![0; buf_len];
-            vim_snprintf!(buf_vec.as_mut_ptr(), buf_len, p, sname);
-            return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr()));
+    let mut sname = sourcing_name();
+    if have_sourcing_info() && !sname.is_null() && other_sourcing_name() {
+        let tofree = estack_sfile(ESTACK_NONE);
+        if let Some(ref tf) = tofree {
+            sname = tf.as_ptr().cast_mut();
         }
-        None
+
+        let p = gettext(c"Error in %s:");
+        let buf_len = crate::memory::cstr_len(sname) + crate::memory::cstr_len(p) + 1;
+        let mut buf_vec: Vec<c_char> = vec![0; buf_len];
+        vim_snprintf!(buf_vec.as_mut_ptr(), buf_len, p, sname);
+        return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr()));
     }
+    None
 }
 
 /// Get the message about the source lnum, as used for an error message.
 fn get_emsg_lnum() -> Option<std::ffi::CString> {
+    let sname = sourcing_name();
+    let slnum = sourcing_lnum();
+    if !sname.is_null()
+        && (other_sourcing_name() || slnum != msg_st().last_sourcing_lnum)
+        && slnum != 0
     {
-        let sname = sourcing_name();
-        let slnum = sourcing_lnum();
-        if !sname.is_null()
-            && (other_sourcing_name() || slnum != msg_st().last_sourcing_lnum)
-            && slnum != 0
-        {
-            let p = gettext(c"line %4d:");
-            let buf_len = 20 + crate::memory::cstr_len(p);
-            let mut buf_vec: Vec<c_char> = vec![0; buf_len];
-            vim_snprintf!(buf_vec.as_mut_ptr(), buf_len, p, slnum);
-            return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr()));
-        }
-        None
+        let p = gettext(c"line %4d:");
+        let buf_len = 20 + crate::memory::cstr_len(p);
+        let mut buf_vec: Vec<c_char> = vec![0; buf_len];
+        vim_snprintf!(buf_vec.as_mut_ptr(), buf_len, p, slnum);
+        return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr()));
     }
+    None
 }
 
 /// Display name and line number for the source of an error.
 /// Remember the file name and line number, so that for the next error the info
 /// is only displayed if it changed.
 pub fn msg_source(hl_id: i32) {
-    {
-        if msg_st().msg_source_recursive {
-            return;
-        }
-        msg_st().msg_source_recursive = true;
+    if msg_st().msg_source_recursive {
+        return;
+    }
+    msg_st().msg_source_recursive = true;
 
-        g_st().no_wait_return += 1;
-        if let Some(p) = get_emsg_source() {
-            g_st().msg_scroll = 1;
-            msg(p.as_ptr(), hl_id);
-        }
-        if let Some(p) = get_emsg_lnum() {
-            msg(p.as_ptr(), HLF_N);
-            msg_st().last_sourcing_lnum = sourcing_lnum();
-        }
+    g_st().no_wait_return += 1;
+    if let Some(p) = get_emsg_source() {
+        g_st().msg_scroll = 1;
+        msg(p.as_ptr(), hl_id);
+    }
+    if let Some(p) = get_emsg_lnum() {
+        msg(p.as_ptr(), HLF_N);
+        msg_st().last_sourcing_lnum = sourcing_lnum();
+    }
 
-        let sname = sourcing_name();
-        if sname.is_null() || other_sourcing_name() {
-            msg_st().last_sourcing_name = None;
-            if !sname.is_null() {
-                msg_st().last_sourcing_name = Some(crate::memory::cstr_to_cstring(sname));
-                if redirecting() == 0 {
-                    msg_putchar_hl(NL, hl_id);
-                }
+    let sname = sourcing_name();
+    if sname.is_null() || other_sourcing_name() {
+        msg_st().last_sourcing_name = None;
+        if !sname.is_null() {
+            msg_st().last_sourcing_name = Some(crate::memory::cstr_to_cstring(sname));
+            if redirecting() == 0 {
+                msg_putchar_hl(NL, hl_id);
             }
         }
-        g_st().no_wait_return -= 1;
-
-        msg_st().msg_source_recursive = false;
     }
+    g_st().no_wait_return -= 1;
+
+    msg_st().msg_source_recursive = false;
 }
 
 /// @return  true if not giving error messages right now:
@@ -1335,37 +1339,34 @@ pub fn msg_trunc(s: *mut c_char, force: bool, hl_id: i32) -> *mut c_char {
 ///
 /// @note: May change the message by replacing a character with '<'.
 pub fn msg_may_trunc(force: bool, mut s: *mut c_char) -> *mut c_char {
+    if ui_has(K_UIMESSAGES) {
+        return s;
+    }
+
+    let room =
+        (g_st().rows_global - g_st().cmdline_row - 1) * g_st().columns_global + g_st().sc_col - 1;
+    if room > 0
+        && (force || shortmess(K_SHM_TRUNC))
+        && (crate::memory::cstr_len(s) as i32) - room > 0
     {
-        if ui_has(K_UIMESSAGES) {
+        let mut size = vim_strsize(s);
+
+        // There may be room anyway when there are multibyte chars.
+        if size <= room {
             return s;
         }
-
-        let room = (g_st().rows_global - g_st().cmdline_row - 1) * g_st().columns_global
-            + g_st().sc_col
-            - 1;
-        if room > 0
-            && (force || shortmess(K_SHM_TRUNC))
-            && (crate::memory::cstr_len(s) as i32) - room > 0
-        {
-            let mut size = vim_strsize(s);
-
-            // There may be room anyway when there are multibyte chars.
-            if size <= room {
-                return s;
-            }
-            let mut n = 0usize;
-            while size >= room {
-                size -= utf_ptr2cells(s.wrapping_add(n));
-                n += utfc_ptr2len(s.wrapping_add(n)) as usize;
-            }
-            n -= 1;
-            s = s.wrapping_add(n);
-            unsafe {
-                *s = b'<' as c_char;
-            }
+        let mut n = 0usize;
+        while size >= room {
+            size -= utf_ptr2cells(s.wrapping_add(n));
+            n += utfc_ptr2len(s.wrapping_add(n)) as usize;
         }
-        s
+        n -= 1;
+        s = s.wrapping_add(n);
+        unsafe {
+            *s = b'<' as c_char;
+        }
     }
+    s
 }
 
 /// Shows a progress-message.  A non-"running" `status` ends the message and announces the
@@ -1470,179 +1471,171 @@ fn msg_hist_add(s: impl crate::strings::IntoCCharPtr, len: i32, hl_id: i32) {
 }
 
 pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<&mut MessageData>) {
-    {
-        if !has_event(EVENT_PROGRESS) {
-            return;
-        }
+    if !has_event(EVENT_PROGRESS) {
+        return;
+    }
 
-        let mut messages_vec: Vec<Object> = msg
-            .iter()
-            .map(|chunk| Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(chunk.text),
-            })
-            .collect();
-        let messages = Array {
-            items: messages_vec.as_mut_ptr(),
-            size: messages_vec.len(),
-            capacity: messages_vec.len(),
-        };
+    let mut messages_vec: Vec<Object> = msg
+        .iter()
+        .map(|chunk| Object {
+            obj_type: ObjectType::ObjectTypeString,
+            data: ObjectData::String(chunk.text),
+        })
+        .collect();
+    let messages = Array {
+        items: messages_vec.as_mut_ptr(),
+        size: messages_vec.len(),
+        capacity: messages_vec.len(),
+    };
 
-        let empty_pair = KeyValuePair {
+    let empty_pair = KeyValuePair {
+        key: NvimString {
+            data: ptr::null_mut(),
+            size: 0,
+        },
+        value: NIL_OBJ,
+    };
+    let mut data_items = [empty_pair; 7];
+    let mut data_size = 0usize;
+    let mut put_c = |key: &'static CStr, value: Object| {
+        data_items[data_size] = KeyValuePair {
             key: NvimString {
-                data: ptr::null_mut(),
-                size: 0,
+                data: key.as_ptr().cast_mut(),
+                size: key.to_bytes().len(),
             },
-            value: NIL_OBJ,
+            value,
         };
-        let mut data_items = [empty_pair; 7];
-        let mut data_size = 0usize;
-        let mut put_c = |key: &'static CStr, value: Object| {
-            data_items[data_size] = KeyValuePair {
-                key: NvimString {
-                    data: key.as_ptr().cast_mut(),
-                    size: key.to_bytes().len(),
-                },
-                value,
-            };
-            data_size += 1;
-        };
+        data_size += 1;
+    };
 
-        put_c(c"id", msg_id);
+    put_c(c"id", msg_id);
+    put_c(
+        c"text",
+        Object {
+            obj_type: ObjectType::ObjectTypeArray,
+            data: ObjectData::Array(messages),
+        },
+    );
+    if msg_data.is_some() {
+        if msg_data.as_deref_mut().unwrap().percent >= 0 {
+            put_c(
+                c"percent",
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(msg_data.as_deref_mut().unwrap().percent),
+                },
+            );
+        }
         put_c(
-            c"text",
+            c"source",
             Object {
-                obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(messages),
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(msg_data.as_deref_mut().unwrap().source),
             },
         );
-        if msg_data.is_some() {
-            if msg_data.as_deref_mut().unwrap().percent >= 0 {
-                put_c(
-                    c"percent",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(msg_data.as_deref_mut().unwrap().percent),
-                    },
-                );
-            }
-            put_c(
-                c"source",
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(msg_data.as_deref_mut().unwrap().source),
-                },
-            );
-            put_c(
-                c"status",
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(msg_data.as_deref_mut().unwrap().status),
-                },
-            );
-            put_c(
-                c"title",
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(msg_data.as_deref_mut().unwrap().title),
-                },
-            );
-            put_c(
-                c"data",
-                Object {
-                    obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(msg_data.as_deref_mut().unwrap().data),
-                },
-            );
-        }
-
-        let mut dict_obj = Object {
-            obj_type: ObjectType::ObjectTypeDict,
-            data: ObjectData::Dict(Dict {
-                items: data_items.as_mut_ptr(),
-                size: data_size,
-                capacity: 7,
-            }),
-        };
-        let fname = if msg_data.is_some() && msg_data.as_deref_mut().unwrap().source.size > 0 {
-            msg_data.unwrap().source.data
-        } else {
-            c"".as_ptr().cast_mut()
-        };
-        apply_autocmds_group(
-            EVENT_PROGRESS,
-            fname,
-            ptr::null_mut(),
-            true,
-            AUGROUP_ALL,
-            ptr::null_mut(),
-            Some(crate::globals::curwin_mut()),
-            None,
-            &raw mut dict_obj,
-            false,
+        put_c(
+            c"status",
+            Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(msg_data.as_deref_mut().unwrap().status),
+            },
+        );
+        put_c(
+            c"title",
+            Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(msg_data.as_deref_mut().unwrap().title),
+            },
+        );
+        put_c(
+            c"data",
+            Object {
+                obj_type: ObjectType::ObjectTypeDict,
+                data: ObjectData::Dict(msg_data.as_deref_mut().unwrap().data),
+            },
         );
     }
+
+    let mut dict_obj = Object {
+        obj_type: ObjectType::ObjectTypeDict,
+        data: ObjectData::Dict(Dict {
+            items: data_items.as_mut_ptr(),
+            size: data_size,
+            capacity: 7,
+        }),
+    };
+    let fname = if msg_data.is_some() && msg_data.as_deref_mut().unwrap().source.size > 0 {
+        msg_data.unwrap().source.data
+    } else {
+        c"".as_ptr().cast_mut()
+    };
+    apply_autocmds_group(
+        EVENT_PROGRESS,
+        fname,
+        ptr::null_mut(),
+        true,
+        AUGROUP_ALL,
+        ptr::null_mut(),
+        Some(crate::globals::curwin_mut()),
+        None,
+        &raw mut dict_obj,
+        false,
+    );
 }
 
 fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
-    {
-        if msg_st().do_clear_hist_temp {
-            msg_hist_clear_temp();
-            msg_st().do_clear_hist_temp = false;
-        }
-
-        if g_st().msg_hist_off || g_st().msg_silent != 0 {
-            return;
-        }
-
-        let temp_idx = msg_st().msg_hist_temp_idx;
-        if temp_idx.is_none() {
-            msg_st().msg_hist_temp_idx = Some(msg_st().msg_hist.len());
-        }
-        msg_st().msg_hist.push_back(MessageHistoryEntry {
-            msg,
-            kind: (!msg_st().msg_ext_kind.is_null())
-                .then(|| crate::memory::cstr_to_cstring(msg_st().msg_ext_kind)),
-            temp,
-            append: msg_st().msg_ext_append,
-        });
-
-        msg_st().msg_hist_len += i32::from(!temp);
-        msg_st().msg_ext_history = true;
-
-        msg_hist_clear(msg_st().msg_hist_max);
+    if msg_st().do_clear_hist_temp {
+        msg_hist_clear_temp();
+        msg_st().do_clear_hist_temp = false;
     }
+
+    if g_st().msg_hist_off || g_st().msg_silent != 0 {
+        return;
+    }
+
+    let temp_idx = msg_st().msg_hist_temp_idx;
+    if temp_idx.is_none() {
+        msg_st().msg_hist_temp_idx = Some(msg_st().msg_hist.len());
+    }
+    msg_st().msg_hist.push_back(MessageHistoryEntry {
+        msg,
+        kind: (!msg_st().msg_ext_kind.is_null())
+            .then(|| crate::memory::cstr_to_cstring(msg_st().msg_ext_kind)),
+        temp,
+        append: msg_st().msg_ext_append,
+    });
+
+    msg_st().msg_hist_len += i32::from(!temp);
+    msg_st().msg_ext_history = true;
+
+    msg_hist_clear(msg_st().msg_hist_max);
 }
 
 /// Delete oldest messages from the history until there are "keep" messages.
 pub fn msg_hist_clear(keep: i32) {
-    {
-        while msg_st().msg_hist_len > keep || (keep == 0 && !msg_st().msg_hist.is_empty()) {
-            if let Some(entry) = msg_st().msg_hist.pop_front() {
-                msg_st().msg_hist_len -= i32::from(!entry.temp);
-                if let Some(idx) = msg_st().msg_hist_temp_idx {
-                    msg_st().msg_hist_temp_idx = Some(idx.saturating_sub(1));
-                }
+    while msg_st().msg_hist_len > keep || (keep == 0 && !msg_st().msg_hist.is_empty()) {
+        if let Some(entry) = msg_st().msg_hist.pop_front() {
+            msg_st().msg_hist_len -= i32::from(!entry.temp);
+            if let Some(idx) = msg_st().msg_hist_temp_idx {
+                msg_st().msg_hist_temp_idx = Some(idx.saturating_sub(1));
             }
         }
-        if msg_st().msg_hist.is_empty() {
-            msg_st().msg_hist_temp_idx = None;
-        }
+    }
+    if msg_st().msg_hist.is_empty() {
+        msg_st().msg_hist_temp_idx = None;
     }
 }
 
 pub fn msg_hist_clear_temp() {
-    {
-        let temp_idx = msg_st().msg_hist_temp_idx;
-        msg_st().msg_hist_temp_idx = None;
-        if let Some(start_idx) = temp_idx {
-            let mut i = start_idx;
-            while i < msg_st().msg_hist.len() {
-                if (&msg_st().msg_hist)[i].temp {
-                    msg_st().msg_hist.remove(i);
-                } else {
-                    i += 1;
-                }
+    let temp_idx = msg_st().msg_hist_temp_idx;
+    msg_st().msg_hist_temp_idx = None;
+    if let Some(start_idx) = temp_idx {
+        let mut i = start_idx;
+        while i < msg_st().msg_hist.len() {
+            if (&msg_st().msg_hist)[i].temp {
+                msg_st().msg_hist.remove(i);
+            } else {
+                i += 1;
             }
         }
     }
@@ -1650,151 +1643,145 @@ pub fn msg_hist_clear_temp() {
 
 /// Check the 'messagesopt' fields after schema validation.
 pub fn validate_messagesopt(args: &mut Optset) -> *const c_char {
-    {
-        let v = opt_keyset(
-            args.os_newval.data.string().data,
-            K_OPT_MESSAGESOPT,
-            ptr::null_mut(),
-        )
-        .cast::<OptKeyDict_mopt>();
-        let v = unsafe { &mut *v };
+    let v = opt_keyset(
+        args.os_newval.data.string().data,
+        K_OPT_MESSAGESOPT,
+        ptr::null_mut(),
+    )
+    .cast::<OptKeyDict_mopt>();
+    let v = unsafe { &mut *v };
 
-        let has_wait = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_WAIT)) != 0;
-        let has_history = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_HISTORY)) != 0;
+    let has_wait = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_WAIT)) != 0;
+    let has_history = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_HISTORY)) != 0;
 
-        // Either "wait" or "hit-enter" is required; "history" always.
-        if (!v.hit_enter && !has_wait) || !has_history {
-            return E_INVARG.as_ptr();
-        }
-        // "history" and "wait" must be <= 10000; "maxheight" is a percentage.
-        if v.history > 10000 || v.wait > 10000 || v.maxheight > 100 {
-            return E_INVARG.as_ptr();
-        }
-        ptr::null()
+    // Either "wait" or "hit-enter" is required; "history" always.
+    if (!v.hit_enter && !has_wait) || !has_history {
+        return E_INVARG.as_ptr();
     }
+    // "history" and "wait" must be <= 10000; "maxheight" is a percentage.
+    if v.history > 10000 || v.wait > 10000 || v.maxheight > 100 {
+        return E_INVARG.as_ptr();
+    }
+    ptr::null()
 }
 
 /// Process the updated 'messagesopt' option value.
 pub fn did_set_messagesopt(_args: &mut Optset) -> *const c_char {
-    {
-        let v = opt_keyset(opt_vars().p_mopt, K_OPT_MESSAGESOPT, ptr::null_mut())
-            .cast::<OptKeyDict_mopt>();
-        let v = unsafe { &mut *v };
+    let v =
+        opt_keyset(opt_vars().p_mopt, K_OPT_MESSAGESOPT, ptr::null_mut()).cast::<OptKeyDict_mopt>();
+    let v = unsafe { &mut *v };
 
-        msg_st().msg_hit_enter = v.hit_enter;
-        msg_st().msg_wait = v.wait as i32;
-        msg_st().progress_msg_target =
-            if crate::memory::cstr_as_opt_bytes(v.progress.as_ptr()) == Some(b"c") {
-                PROGRESS_TARGET_CMD
-            } else {
-                0
-            };
-        msg_st().msg_hist_max = v.history as i32;
-        msg_hist_clear(msg_st().msg_hist_max);
-        ptr::null()
-    }
+    msg_st().msg_hit_enter = v.hit_enter;
+    msg_st().msg_wait = v.wait as i32;
+    msg_st().progress_msg_target =
+        if crate::memory::cstr_as_opt_bytes(v.progress.as_ptr()) == Some(b"c") {
+            PROGRESS_TARGET_CMD
+        } else {
+            0
+        };
+    msg_st().msg_hist_max = v.history as i32;
+    msg_hist_clear(msg_st().msg_hist_max);
+    ptr::null()
 }
 
 /// :messages command implementation
 pub fn ex_messages(eap: &mut Exarg) {
-    {
-        if crate::memory::cstr_as_bytes(eap.arg) == b"clear" {
-            msg_hist_clear(if eap.addr_count != 0 { eap.line2 } else { 0 });
-            return;
-        }
+    if crate::memory::cstr_as_bytes(eap.arg) == b"clear" {
+        msg_hist_clear(if eap.addr_count != 0 { eap.line2 } else { 0 });
+        return;
+    }
 
-        if !crate::memory::cstr_is_empty(eap.arg) {
-            emsg(gettext(E_INVARG));
-            return;
-        }
+    if !crate::memory::cstr_is_empty(eap.arg) {
+        emsg(gettext(E_INVARG));
+        return;
+    }
 
-        let mut entries = Array::new();
-        let mut idx = if eap.skip != 0 {
-            msg_st()
-                .msg_hist_temp_idx
-                .unwrap_or(msg_st().msg_hist.len())
-        } else {
-            0
-        };
-        let mut skip = if eap.addr_count != 0 {
-            msg_st().msg_hist_len - eap.line2
-        } else {
-            0
-        };
-        while idx < msg_st().msg_hist.len() {
-            let p = &mut (&mut msg_st().msg_hist)[idx];
-            idx += 1;
-            // Skip over count or temporary "g<" messages.
-            let prev_skip = skip;
-            skip -= 1;
-            if (p.temp && eap.skip == 0) || prev_skip > 0 {
-                continue;
-            }
-            if ui_has(K_UIMESSAGES) && g_st().msg_silent == 0 {
-                let mut entry = Array::new();
-                entry.push(Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_to_string(
-                        p.kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
-                    )),
-                });
-                let mut content = Array::new();
-                for chunk in &p.msg {
-                    let mut content_entry = Array::new();
-                    content_entry.push(Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(if chunk.hl_id != 0 {
-                            syn_id2attr(chunk.hl_id) as Integer
-                        } else {
-                            0
-                        }),
-                    });
-                    content_entry.push(Object {
-                        obj_type: ObjectType::ObjectTypeString,
-                        data: ObjectData::String(copy_string(chunk.text, None)),
-                    });
-                    content_entry.push(Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(chunk.hl_id as Integer),
-                    });
-                    content.push(Object {
-                        obj_type: ObjectType::ObjectTypeArray,
-                        data: ObjectData::Array(content_entry),
-                    });
-                }
-                entry.push(Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(content),
-                });
-                entry.push(Object {
-                    obj_type: ObjectType::ObjectTypeBoolean,
-                    data: ObjectData::Boolean(p.append),
-                });
-                entries.push(Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(entry),
-                });
-            }
-            if redirecting() != 0 || !ui_has(K_UIMESSAGES) {
-                g_st().msg_silent += i32::from(ui_has(K_UIMESSAGES));
-                let mut needs_clear = false;
-                msg_multihl(
-                    NIL_OBJ,
-                    &mut p.msg,
+    let mut entries = Array::new();
+    let mut idx = if eap.skip != 0 {
+        msg_st()
+            .msg_hist_temp_idx
+            .unwrap_or(msg_st().msg_hist.len())
+    } else {
+        0
+    };
+    let mut skip = if eap.addr_count != 0 {
+        msg_st().msg_hist_len - eap.line2
+    } else {
+        0
+    };
+    while idx < msg_st().msg_hist.len() {
+        let p = &mut (&mut msg_st().msg_hist)[idx];
+        idx += 1;
+        // Skip over count or temporary "g<" messages.
+        let prev_skip = skip;
+        skip -= 1;
+        if (p.temp && eap.skip == 0) || prev_skip > 0 {
+            continue;
+        }
+        if ui_has(K_UIMESSAGES) && g_st().msg_silent == 0 {
+            let mut entry = Array::new();
+            entry.push(Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(cstr_to_string(
                     p.kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
-                    false,
-                    false,
-                    None,
-                    &mut needs_clear,
-                    false,
-                );
-                g_st().msg_silent -= i32::from(ui_has(K_UIMESSAGES));
+                )),
+            });
+            let mut content = Array::new();
+            for chunk in &p.msg {
+                let mut content_entry = Array::new();
+                content_entry.push(Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(if chunk.hl_id != 0 {
+                        syn_id2attr(chunk.hl_id) as Integer
+                    } else {
+                        0
+                    }),
+                });
+                content_entry.push(Object {
+                    obj_type: ObjectType::ObjectTypeString,
+                    data: ObjectData::String(copy_string(chunk.text, None)),
+                });
+                content_entry.push(Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(chunk.hl_id as Integer),
+                });
+                content.push(Object {
+                    obj_type: ObjectType::ObjectTypeArray,
+                    data: ObjectData::Array(content_entry),
+                });
             }
+            entry.push(Object {
+                obj_type: ObjectType::ObjectTypeArray,
+                data: ObjectData::Array(content),
+            });
+            entry.push(Object {
+                obj_type: ObjectType::ObjectTypeBoolean,
+                data: ObjectData::Boolean(p.append),
+            });
+            entries.push(Object {
+                obj_type: ObjectType::ObjectTypeArray,
+                data: ObjectData::Array(entry),
+            });
         }
-        if entries.size > 0 {
-            ui_call_msg_history_show(entries, eap.skip != 0);
-            api_free_array(entries);
+        if redirecting() != 0 || !ui_has(K_UIMESSAGES) {
+            g_st().msg_silent += i32::from(ui_has(K_UIMESSAGES));
+            let mut needs_clear = false;
+            msg_multihl(
+                NIL_OBJ,
+                &mut p.msg,
+                p.kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
+                false,
+                false,
+                None,
+                &mut needs_clear,
+                false,
+            );
+            g_st().msg_silent -= i32::from(ui_has(K_UIMESSAGES));
         }
+    }
+    if entries.size > 0 {
+        ui_call_msg_history_show(entries, eap.skip != 0);
+        api_free_array(entries);
     }
 }
 
@@ -1815,191 +1802,187 @@ pub fn msg_end_prompt() {
 ///                if false, do a normal redraw
 ///                if -1, don't redraw at all
 pub fn wait_return(redraw: i32) {
-    {
-        let mut c: i32;
-        let mut had_got_int: bool;
+    let mut c: i32;
+    let mut had_got_int: bool;
 
-        if redraw == 1 {
-            redraw_all_later(UPD_NOT_VALID);
-        }
+    if redraw == 1 {
+        redraw_all_later(UPD_NOT_VALID);
+    }
 
-        if ui_has(K_UIMESSAGES) {
-            prompt_for_input(c"Press any key to continue", HLF_M, true, None);
-            return;
-        }
+    if ui_has(K_UIMESSAGES) {
+        prompt_for_input(c"Press any key to continue", HLF_M, true, None);
+        return;
+    }
 
-        // If using ":silent cmd", don't wait for a return.  Also don't set
-        // need_wait_return to do it later.
-        if g_st().msg_silent != 0 {
-            return;
-        }
+    // If using ":silent cmd", don't wait for a return.  Also don't set
+    // need_wait_return to do it later.
+    if g_st().msg_silent != 0 {
+        return;
+    }
 
-        if (g_st().headless_mode && ui_active() == 0) || input_unanswerable() {
-            return;
-        }
+    if (g_st().headless_mode && ui_active() == 0) || input_unanswerable() {
+        return;
+    }
 
-        // When inside vgetc(), we can't wait for a typed character at all.
-        if g_st().vgetc_busy > 0 {
-            return;
-        }
-        g_st().need_wait_return = true;
-        if g_st().no_wait_return != 0 {
-            g_st().cmdline_row = g_st().msg_row;
-            return;
-        }
+    // When inside vgetc(), we can't wait for a typed character at all.
+    if g_st().vgetc_busy > 0 {
+        return;
+    }
+    g_st().need_wait_return = true;
+    if g_st().no_wait_return != 0 {
+        g_st().cmdline_row = g_st().msg_row;
+        return;
+    }
 
-        g_st().redir_off = true; // don't redirect this message
-        let old_state = g_st().state_global;
-        if g_st().quit_more {
-            c = CAR; // just pretend CR was hit
-            g_st().quit_more = false;
-            g_st().got_int = false;
-        } else if !stuff_empty() {
-            c = CAR;
-        } else {
-            g_st().state_global = MODE_HITRETURN;
-            setmouse();
-            g_st().cmdline_row = g_st().msg_row;
-            if g_st().need_check_timestamps {
-                check_timestamps(0);
-            }
-
-            // if cmdheight=0, we need to scroll in the first line of msg_grid upon the screen
-            if opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES) && g_st().msg_scrolled == 0 {
-                msg_grid_validate();
-                msg_scroll_up(false, true);
-                g_st().msg_scrolled += 1;
-                g_st().cmdline_row = g_st().rows_global - 1;
-            }
-
-            if msg_st().msg_hit_enter {
-                hit_return_msg(true);
-
-                loop {
-                    had_got_int = g_st().got_int;
-
-                    g_st().no_mapping += 1;
-                    g_st().allow_keys += 1;
-
-                    let save_reg_recording = g_st().reg_recording;
-                    let save_scriptout = g_st().scriptout.take();
-                    g_st().reg_recording = 0;
-                    c = safe_vgetc();
-                    if had_got_int && g_st().global_busy == 0 {
-                        g_st().got_int = false;
-                    }
-                    g_st().no_mapping -= 1;
-                    g_st().allow_keys -= 1;
-                    g_st().reg_recording = save_reg_recording;
-                    g_st().scriptout = save_scriptout;
-
-                    if g_st().key_typed && opt_vars().p_more != 0 {
-                        if c == b'b' as i32
-                            || c == CTRL_B_CONST
-                            || c == b'k' as i32
-                            || c == b'u' as i32
-                            || c == b'g' as i32
-                            || c == K_UP
-                            || c == K_PAGEUP
-                        {
-                            if g_st().msg_scrolled > g_st().rows_global {
-                                do_more_prompt(c);
-                            } else {
-                                g_st().msg_didout = false;
-                                c = K_IGNORE;
-                                g_st().msg_col = 0;
-                            }
-                            if g_st().quit_more {
-                                c = CAR;
-                                g_st().quit_more = false;
-                                g_st().got_int = false;
-                            } else if c != K_IGNORE {
-                                c = K_IGNORE;
-                                hit_return_msg(false);
-                            }
-                        } else if g_st().msg_scrolled > g_st().rows_global - 2
-                            && (c == b'j' as i32
-                                || c == b'd' as i32
-                                || c == b'f' as i32
-                                || c == CTRL_F_CONST
-                                || c == K_DOWN
-                                || c == K_PAGEDOWN)
-                        {
-                            c = K_IGNORE;
-                        }
-                    }
-
-                    if !((had_got_int && c == CTRL_C_CONST)
-                        || c == K_IGNORE
-                        || c == K_LEFTDRAG
-                        || c == K_LEFTRELEASE
-                        || c == K_MIDDLEDRAG
-                        || c == K_MIDDLERELEASE
-                        || c == K_RIGHTDRAG
-                        || c == K_RIGHTRELEASE
-                        || c == K_MOUSELEFT
-                        || c == K_MOUSERIGHT
-                        || c == K_MOUSEDOWN
-                        || c == K_MOUSEUP
-                        || c == K_MOUSEMOVE)
-                    {
-                        break;
-                    }
-                }
-                os_breakcheck();
-
-                // Avoid that the mouse-up event causes visual mode to start.
-                if c == K_LEFTMOUSE
-                    || c == K_MIDDLEMOUSE
-                    || c == K_RIGHTMOUSE
-                    || c == K_X1MOUSE
-                    || c == K_X2MOUSE
-                {
-                    jump_to_mouse(MOUSE_SETPOS, ptr::null_mut(), 0);
-                } else if !g_st().key_typed
-                    || (!crate::strings::vim_haschr(c"\r\n ", c)
-                        && c != CTRL_C_CONST
-                        && c != b'q' as i32)
-                {
-                    requeue_key(g_st().vgetc_char, g_st().vgetc_mod_mask, 0, false);
-                    g_st().do_redraw = true;
-                }
-            } else {
-                c = CAR;
-                do_sleep(i64::from(msg_st().msg_wait), true);
-            }
-        }
-        g_st().redir_off = false;
-
-        if c == b':' as i32 || c == b'?' as i32 || c == b'/' as i32 {
-            g_st().cmdline_row = g_st().msg_row;
-            g_st().skip_redraw = true;
-            g_st().do_redraw = false;
-        }
-
-        let tmp_state = g_st().state_global;
-        g_st().state_global = old_state;
+    g_st().redir_off = true; // don't redirect this message
+    let old_state = g_st().state_global;
+    if g_st().quit_more {
+        c = CAR; // just pretend CR was hit
+        g_st().quit_more = false;
+        g_st().got_int = false;
+    } else if !stuff_empty() {
+        c = CAR;
+    } else {
+        g_st().state_global = MODE_HITRETURN;
         setmouse();
-        msg_check();
-        g_st().need_wait_return = false;
-        g_st().did_wait_return = true;
-        g_st().emsg_on_display = false;
-        g_st().lines_left = -1;
-        reset_last_sourcing();
-        if g_st().keep_msg.as_ref().is_some_and(|km| {
-            vim_strsize(km.as_ptr())
-                >= (g_st().rows_global - g_st().cmdline_row - 1) * g_st().columns_global
-                    + g_st().sc_col
-        }) {
-            g_st().keep_msg = None;
+        g_st().cmdline_row = g_st().msg_row;
+        if g_st().need_check_timestamps {
+            check_timestamps(0);
         }
 
-        if tmp_state == MODE_SETWSIZE {
-            ui_refresh();
-        } else if !g_st().skip_redraw && (redraw == 1 || (g_st().msg_scrolled != 0 && redraw != -1))
-        {
-            redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
+        // if cmdheight=0, we need to scroll in the first line of msg_grid upon the screen
+        if opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES) && g_st().msg_scrolled == 0 {
+            msg_grid_validate();
+            msg_scroll_up(false, true);
+            g_st().msg_scrolled += 1;
+            g_st().cmdline_row = g_st().rows_global - 1;
         }
+
+        if msg_st().msg_hit_enter {
+            hit_return_msg(true);
+
+            loop {
+                had_got_int = g_st().got_int;
+
+                g_st().no_mapping += 1;
+                g_st().allow_keys += 1;
+
+                let save_reg_recording = g_st().reg_recording;
+                let save_scriptout = g_st().scriptout.take();
+                g_st().reg_recording = 0;
+                c = safe_vgetc();
+                if had_got_int && g_st().global_busy == 0 {
+                    g_st().got_int = false;
+                }
+                g_st().no_mapping -= 1;
+                g_st().allow_keys -= 1;
+                g_st().reg_recording = save_reg_recording;
+                g_st().scriptout = save_scriptout;
+
+                if g_st().key_typed && opt_vars().p_more != 0 {
+                    if c == b'b' as i32
+                        || c == CTRL_B_CONST
+                        || c == b'k' as i32
+                        || c == b'u' as i32
+                        || c == b'g' as i32
+                        || c == K_UP
+                        || c == K_PAGEUP
+                    {
+                        if g_st().msg_scrolled > g_st().rows_global {
+                            do_more_prompt(c);
+                        } else {
+                            g_st().msg_didout = false;
+                            c = K_IGNORE;
+                            g_st().msg_col = 0;
+                        }
+                        if g_st().quit_more {
+                            c = CAR;
+                            g_st().quit_more = false;
+                            g_st().got_int = false;
+                        } else if c != K_IGNORE {
+                            c = K_IGNORE;
+                            hit_return_msg(false);
+                        }
+                    } else if g_st().msg_scrolled > g_st().rows_global - 2
+                        && (c == b'j' as i32
+                            || c == b'd' as i32
+                            || c == b'f' as i32
+                            || c == CTRL_F_CONST
+                            || c == K_DOWN
+                            || c == K_PAGEDOWN)
+                    {
+                        c = K_IGNORE;
+                    }
+                }
+
+                if !((had_got_int && c == CTRL_C_CONST)
+                    || c == K_IGNORE
+                    || c == K_LEFTDRAG
+                    || c == K_LEFTRELEASE
+                    || c == K_MIDDLEDRAG
+                    || c == K_MIDDLERELEASE
+                    || c == K_RIGHTDRAG
+                    || c == K_RIGHTRELEASE
+                    || c == K_MOUSELEFT
+                    || c == K_MOUSERIGHT
+                    || c == K_MOUSEDOWN
+                    || c == K_MOUSEUP
+                    || c == K_MOUSEMOVE)
+                {
+                    break;
+                }
+            }
+            os_breakcheck();
+
+            // Avoid that the mouse-up event causes visual mode to start.
+            if c == K_LEFTMOUSE
+                || c == K_MIDDLEMOUSE
+                || c == K_RIGHTMOUSE
+                || c == K_X1MOUSE
+                || c == K_X2MOUSE
+            {
+                jump_to_mouse(MOUSE_SETPOS, ptr::null_mut(), 0);
+            } else if !g_st().key_typed
+                || (!crate::strings::vim_haschr(c"\r\n ", c)
+                    && c != CTRL_C_CONST
+                    && c != b'q' as i32)
+            {
+                requeue_key(g_st().vgetc_char, g_st().vgetc_mod_mask, 0, false);
+                g_st().do_redraw = true;
+            }
+        } else {
+            c = CAR;
+            do_sleep(i64::from(msg_st().msg_wait), true);
+        }
+    }
+    g_st().redir_off = false;
+
+    if c == b':' as i32 || c == b'?' as i32 || c == b'/' as i32 {
+        g_st().cmdline_row = g_st().msg_row;
+        g_st().skip_redraw = true;
+        g_st().do_redraw = false;
+    }
+
+    let tmp_state = g_st().state_global;
+    g_st().state_global = old_state;
+    setmouse();
+    msg_check();
+    g_st().need_wait_return = false;
+    g_st().did_wait_return = true;
+    g_st().emsg_on_display = false;
+    g_st().lines_left = -1;
+    reset_last_sourcing();
+    if g_st().keep_msg.as_ref().is_some_and(|km| {
+        vim_strsize(km.as_ptr())
+            >= (g_st().rows_global - g_st().cmdline_row - 1) * g_st().columns_global + g_st().sc_col
+    }) {
+        g_st().keep_msg = None;
+    }
+
+    if tmp_state == MODE_SETWSIZE {
+        ui_refresh();
+    } else if !g_st().skip_redraw && (redraw == 1 || (g_st().msg_scrolled != 0 && redraw != -1)) {
+        redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
     }
 }
 
@@ -2054,50 +2037,48 @@ pub fn messaging() -> bool {
 }
 
 pub fn msgmore(n: i32) {
-    {
-        if g_st().global_busy != 0 || !messaging() {
-            return;
+    if g_st().global_busy != 0 || !messaging() {
+        return;
+    }
+
+    if g_st().keep_msg.is_some() && !msg_st().keep_msg_more {
+        return;
+    }
+
+    let pn = n.abs();
+
+    if i64::from(pn) > opt_vars().p_report {
+        let msg_ptr = (&raw mut g_st().msg_buf).cast::<c_char>();
+        if n > 0 {
+            vim_snprintf!(
+                msg_ptr,
+                MSG_BUF_LEN,
+                ngettext(c"%d more line", c"%d more lines", pn as u64,),
+                pn,
+            );
+        } else {
+            vim_snprintf!(
+                msg_ptr,
+                MSG_BUF_LEN,
+                ngettext(c"%d line less", c"%d fewer lines", pn as u64,),
+                pn,
+            );
         }
-
-        if g_st().keep_msg.is_some() && !msg_st().keep_msg_more {
-            return;
+        if g_st().got_int {
+            {
+                let _dst: *mut c_char = msg_ptr;
+                let _dsize: usize = MSG_BUF_LEN;
+                let _dlen = crate::memory::cstr_len(_dst);
+                crate::memory::xstrlcpy(
+                    _dst.wrapping_add(_dlen),
+                    gettext(c" (Interrupted)"),
+                    _dsize - _dlen,
+                );
+            };
         }
-
-        let pn = n.abs();
-
-        if i64::from(pn) > opt_vars().p_report {
-            let msg_ptr = (&raw mut g_st().msg_buf).cast::<c_char>();
-            if n > 0 {
-                vim_snprintf!(
-                    msg_ptr,
-                    MSG_BUF_LEN,
-                    ngettext(c"%d more line", c"%d more lines", pn as u64,),
-                    pn,
-                );
-            } else {
-                vim_snprintf!(
-                    msg_ptr,
-                    MSG_BUF_LEN,
-                    ngettext(c"%d line less", c"%d fewer lines", pn as u64,),
-                    pn,
-                );
-            }
-            if g_st().got_int {
-                {
-                    let _dst: *mut c_char = msg_ptr;
-                    let _dsize: usize = MSG_BUF_LEN;
-                    let _dlen = crate::memory::cstr_len(_dst);
-                    crate::memory::xstrlcpy(
-                        _dst.wrapping_add(_dlen),
-                        gettext(c" (Interrupted)"),
-                        _dsize - _dlen,
-                    );
-                };
-            }
-            if msg(msg_ptr, 0) {
-                set_keep_msg(msg_ptr, 0);
-                msg_st().keep_msg_more = true;
-            }
+        if msg(msg_ptr, 0) {
+            set_keep_msg(msg_ptr, 0);
+            msg_st().keep_msg_more = true;
         }
     }
 }
@@ -2477,106 +2458,114 @@ pub fn str2special(
     replace_others: TriState,
     mut data: Option<&mut KeyChord>,
 ) -> *const c_char {
-    unsafe {
-        let p = mb_unescape(sp);
-        if !p.is_null() {
-            if data.is_some() {
-                data.as_deref_mut().unwrap().mods = 0;
-                data.as_deref_mut().unwrap().key = NvimString {
-                    data: p.cast_mut(),
-                    size: crate::memory::cstr_len(p),
-                };
-                data.as_deref_mut().unwrap().key_alt = NvimString {
-                    data: ptr::null_mut(),
-                    size: 0,
-                };
-            }
-            return p;
+    let p = mb_unescape(sp);
+    if !p.is_null() {
+        if data.is_some() {
+            data.as_deref_mut().unwrap().mods = 0;
+            data.as_deref_mut().unwrap().key = NvimString {
+                data: p.cast_mut(),
+                size: crate::memory::cstr_len(p),
+            };
+            data.as_deref_mut().unwrap().key_alt = NvimString {
+                data: ptr::null_mut(),
+                size: 0,
+            };
         }
+        return p;
+    }
 
-        let mut str_ = *sp;
-        let mut c = (crate::memory::cstr_first_byte(str_)) as i32;
-        let mut modifiers = 0;
-        let mut special = false;
+    let mut str_ = unsafe { *sp };
+    let mut c = (crate::memory::cstr_first_byte(str_)) as i32;
+    let mut modifiers = 0;
+    let mut special = false;
+    if c == K_SPECIAL as i32
+        && crate::memory::cstr_byte_at(str_, 1) != 0
+        && crate::memory::cstr_byte_at(str_, 2) != 0
+    {
+        if crate::memory::cstr_byte_at(str_, 1) == KS_MODIFIER {
+            modifiers = (crate::memory::cstr_byte_at(str_, 2)) as i32;
+            str_ = str_.wrapping_add(3);
+            c = (crate::memory::cstr_first_byte(str_)) as i32;
+        }
         if c == K_SPECIAL as i32
             && crate::memory::cstr_byte_at(str_, 1) != 0
             && crate::memory::cstr_byte_at(str_, 2) != 0
         {
-            if crate::memory::cstr_byte_at(str_, 1) == KS_MODIFIER {
-                modifiers = (crate::memory::cstr_byte_at(str_, 2)) as i32;
-                str_ = str_.wrapping_add(3);
-                c = (crate::memory::cstr_first_byte(str_)) as i32;
-            }
-            if c == K_SPECIAL as i32
-                && crate::memory::cstr_byte_at(str_, 1) != 0
-                && crate::memory::cstr_byte_at(str_, 2) != 0
-            {
-                c = to_special(
-                    crate::memory::cstr_byte_at(str_, 1) as i32,
-                    crate::memory::cstr_byte_at(str_, 2) as i32,
-                );
-                str_ = str_.wrapping_add(2);
-            }
-            if is_special(c) || modifiers != 0 {
-                special = true;
-            }
+            c = to_special(
+                crate::memory::cstr_byte_at(str_, 1) as i32,
+                crate::memory::cstr_byte_at(str_, 2) as i32,
+            );
+            str_ = str_.wrapping_add(2);
         }
+        if is_special(c) || modifiers != 0 {
+            special = true;
+        }
+    }
 
-        if !is_special(c) && UTF8LEN_TAB[c as usize] > 1 {
+    if !is_special(c) && UTF8LEN_TAB[c as usize] > 1 {
+        unsafe {
             *sp = str_;
-            let p = mb_unescape(sp);
-            if !p.is_null() {
-                c = utf_ptr2char(p);
-            } else {
+        }
+        let p = mb_unescape(sp);
+        if !p.is_null() {
+            c = utf_ptr2char(p);
+        } else {
+            unsafe {
                 *sp = str_.wrapping_add(1);
             }
-        } else {
+        }
+    } else {
+        unsafe {
             *sp = str_.wrapping_add(usize::from(!crate::memory::cstr_is_empty(str_)));
         }
-
-        if special
-            || c < b' ' as i32
-            || (replace_spaces && c == b' ' as i32)
-            || (replace_others != K_FALSE && c == b'<' as i32)
-            || (replace_others == K_TRUE && (c == b'|' as i32 || c == b'\\' as i32))
-        {
-            return get_special_key(
-                c,
-                modifiers,
-                (data.is_some()).then(|| data.as_deref_mut().unwrap()),
-            );
-        }
-
-        let buf_ptr = (&raw mut msg_st().str2_special_buf).cast::<c_char>();
-        if data.is_some() {
-            data.as_deref_mut().unwrap().mods = 0;
-            if (b'A' as i32..=b'Z' as i32).contains(&c) {
-                data.as_deref_mut().unwrap().key_mem = (c + 32) as c_char;
-                data.as_deref_mut().unwrap().key = NvimString {
-                    data: &raw mut data.as_deref_mut().unwrap().key_mem,
-                    size: 1,
-                };
-                data.as_deref_mut().unwrap().mods |= i32::from(MOD_MASK_SHIFT);
-                data.as_deref_mut().unwrap().key_alt = NvimString {
-                    data: buf_ptr,
-                    size: 1,
-                };
-            } else {
-                data.as_deref_mut().unwrap().key = NvimString {
-                    data: buf_ptr,
-                    size: 1,
-                };
-                data.unwrap().key_alt = NvimString {
-                    data: ptr::null_mut(),
-                    size: 0,
-                };
-            }
-        }
-
-        *buf_ptr = c as c_char;
-        *buf_ptr.wrapping_add(1) = NUL;
-        buf_ptr
     }
+
+    if special
+        || c < b' ' as i32
+        || (replace_spaces && c == b' ' as i32)
+        || (replace_others != K_FALSE && c == b'<' as i32)
+        || (replace_others == K_TRUE && (c == b'|' as i32 || c == b'\\' as i32))
+    {
+        return get_special_key(
+            c,
+            modifiers,
+            (data.is_some()).then(|| data.as_deref_mut().unwrap()),
+        );
+    }
+
+    let buf_ptr = (&raw mut msg_st().str2_special_buf).cast::<c_char>();
+    if data.is_some() {
+        data.as_deref_mut().unwrap().mods = 0;
+        if (b'A' as i32..=b'Z' as i32).contains(&c) {
+            data.as_deref_mut().unwrap().key_mem = (c + 32) as c_char;
+            data.as_deref_mut().unwrap().key = NvimString {
+                data: &raw mut data.as_deref_mut().unwrap().key_mem,
+                size: 1,
+            };
+            data.as_deref_mut().unwrap().mods |= i32::from(MOD_MASK_SHIFT);
+            data.as_deref_mut().unwrap().key_alt = NvimString {
+                data: buf_ptr,
+                size: 1,
+            };
+        } else {
+            data.as_deref_mut().unwrap().key = NvimString {
+                data: buf_ptr,
+                size: 1,
+            };
+            data.unwrap().key_alt = NvimString {
+                data: ptr::null_mut(),
+                size: 0,
+            };
+        }
+    }
+
+    unsafe {
+        *buf_ptr = c as c_char;
+    }
+    unsafe {
+        *buf_ptr.wrapping_add(1) = NUL;
+    }
+    buf_ptr
 }
 
 /// print line for :print or :list command
@@ -2889,34 +2878,32 @@ pub fn msg_puts_len(str_: impl crate::strings::IntoCCharPtr, len: isize, hl_id: 
 }
 
 fn msg_ext_emit_chunk() {
-    {
-        if msg_st().msg_ext_last_attr == -1 {
-            return;
-        }
-        let mut chunk = Array::new();
-        chunk.push(Object {
-            obj_type: ObjectType::ObjectTypeInteger,
-            data: ObjectData::Integer(msg_st().msg_ext_last_attr as Integer),
-        });
-        msg_st().msg_ext_last_attr = -1;
-        let text = crate::api::private::helpers::cbuf_to_string(
-            msg_st().msg_ext_last_chunk.as_ptr().cast(),
-            msg_st().msg_ext_last_chunk.len(),
-        );
-        msg_st().msg_ext_last_chunk = Vec::new();
-        chunk.push(Object {
-            obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(text),
-        });
-        chunk.push(Object {
-            obj_type: ObjectType::ObjectTypeInteger,
-            data: ObjectData::Integer(msg_st().msg_ext_last_hl_id as Integer),
-        });
-        msg_st().msg_ext_chunks.push(Object {
-            obj_type: ObjectType::ObjectTypeArray,
-            data: ObjectData::Array(chunk),
-        });
+    if msg_st().msg_ext_last_attr == -1 {
+        return;
     }
+    let mut chunk = Array::new();
+    chunk.push(Object {
+        obj_type: ObjectType::ObjectTypeInteger,
+        data: ObjectData::Integer(msg_st().msg_ext_last_attr as Integer),
+    });
+    msg_st().msg_ext_last_attr = -1;
+    let text = crate::api::private::helpers::cbuf_to_string(
+        msg_st().msg_ext_last_chunk.as_ptr().cast(),
+        msg_st().msg_ext_last_chunk.len(),
+    );
+    msg_st().msg_ext_last_chunk = Vec::new();
+    chunk.push(Object {
+        obj_type: ObjectType::ObjectTypeString,
+        data: ObjectData::String(text),
+    });
+    chunk.push(Object {
+        obj_type: ObjectType::ObjectTypeInteger,
+        data: ObjectData::Integer(msg_st().msg_ext_last_hl_id as Integer),
+    });
+    msg_st().msg_ext_chunks.push(Object {
+        obj_type: ObjectType::ObjectTypeArray,
+        data: ObjectData::Array(chunk),
+    });
 }
 
 /// The display part of msg_puts_len().
@@ -3136,13 +3123,11 @@ pub fn msg_line_flush() {
 }
 
 pub fn msg_cursor_goto(mut row: i32, mut col: i32) {
-    {
-        if g_st().cmdmsg_rl {
-            col = g_st().columns_global - 1 - col;
-        }
-        let grid = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
-        ui_grid_cursor_goto(unsafe { (*grid).handle }, row, col);
+    if g_st().cmdmsg_rl {
+        col = g_st().columns_global - 1 - col;
     }
+    let grid = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
+    ui_grid_cursor_goto(unsafe { (*grid).handle }, row, col);
 }
 
 /// @return  true when ":filter pattern" was used and "msg" does not match
@@ -3307,31 +3292,29 @@ pub fn msg_ui_flush() {
 
 /// Increment "msg_scrolled".
 fn inc_msg_scrolled() {
-    {
-        if crate::memory::cstr_is_empty(get_vim_var_str(VV_SCROLLSTART)) {
-            let sname = sourcing_name();
-            let mut tofree_vec: Vec<c_char>;
+    if crate::memory::cstr_is_empty(get_vim_var_str(VV_SCROLLSTART)) {
+        let sname = sourcing_name();
+        let mut tofree_vec: Vec<c_char>;
 
-            let p = if sname.is_null() {
-                cstr_as_string(gettext(c"Unknown"))
-            } else {
-                let tofreesize = crate::memory::cstr_len(sname) + 40;
-                tofree_vec = vec![0; tofreesize];
-                let tofree = tofree_vec.as_mut_ptr();
-                let size = vim_snprintf_safelen!(
-                    tofree,
-                    tofreesize,
-                    gettext(c"%s line %lld"),
-                    sname,
-                    i64::from(sourcing_lnum()),
-                );
-                NvimString { data: tofree, size }
-            };
-            set_vim_var_string(VV_SCROLLSTART, p.data, p.size as isize);
-        }
-        g_st().msg_scrolled += 1;
-        set_must_redraw(UPD_VALID);
+        let p = if sname.is_null() {
+            cstr_as_string(gettext(c"Unknown"))
+        } else {
+            let tofreesize = crate::memory::cstr_len(sname) + 40;
+            tofree_vec = vec![0; tofreesize];
+            let tofree = tofree_vec.as_mut_ptr();
+            let size = vim_snprintf_safelen!(
+                tofree,
+                tofreesize,
+                gettext(c"%s line %lld"),
+                sname,
+                i64::from(sourcing_lnum()),
+            );
+            NvimString { data: tofree, size }
+        };
+        set_vim_var_string(VV_SCROLLSTART, p.data, p.size as isize);
     }
+    g_st().msg_scrolled += 1;
+    set_must_redraw(UPD_VALID);
 }
 
 /// Store part of a printed message for displaying when scrolling back.
@@ -3399,19 +3382,17 @@ pub fn sb_text_start_cmdline() {
 
 /// Redrawing the command line: clear the last unfinished line.
 pub fn sb_text_restart_cmdline() {
-    {
-        msg_st().do_clear_sb_text = SbClear::SbClearCmdlineBusy;
+    msg_st().do_clear_sb_text = SbClear::SbClearCmdlineBusy;
 
-        let Some(last) = msg_st().msgchunks.last() else {
-            return;
-        };
-        if last.sb_eol != 0 {
-            return;
-        }
+    let Some(last) = msg_st().msgchunks.last() else {
+        return;
+    };
+    if last.sb_eol != 0 {
+        return;
+    }
 
-        if let Some(start_idx) = msg_sb_start(Some(msg_st().msgchunks.len() - 1)) {
-            msg_st().msgchunks.truncate(start_idx);
-        }
+    if let Some(start_idx) = msg_sb_start(Some(msg_st().msgchunks.len() - 1)) {
+        msg_st().msgchunks.truncate(start_idx);
     }
 }
 
@@ -3422,79 +3403,69 @@ pub fn sb_text_end_cmdline() {
 
 /// Clear any text remembered for scrolling back.
 pub fn clear_sb_text(all: bool) {
+    if all {
+        msg_st().msgchunks.clear();
+    } else if !msg_st().msgchunks.is_empty()
+        && let Some(start_idx) = msg_sb_start(Some(msg_st().msgchunks.len() - 1))
     {
-        if all {
-            msg_st().msgchunks.clear();
-        } else if !msg_st().msgchunks.is_empty()
-            && let Some(start_idx) = msg_sb_start(Some(msg_st().msgchunks.len() - 1))
-        {
-            msg_st().msgchunks.drain(0..start_idx);
-        }
+        msg_st().msgchunks.drain(0..start_idx);
     }
 }
 
 /// "g<" command.
 pub fn show_sb_text() {
-    {
-        if ui_has(K_UIMESSAGES) {
-            let mut ea: Exarg = Exarg::new();
-            ea.arg = c"".as_ptr().cast_mut();
-            ea.skip = 1;
-            ex_messages(&mut ea);
-            return;
-        }
-        let mp = msg_sb_start(msg_st().msgchunks.len().checked_sub(1));
-        if mp.is_none_or(|idx| idx == 0) {
-            vim_beep(K_OPT_BO_FLAG_MESS);
-        } else {
-            do_more_prompt(b'G' as i32);
-            wait_return(0);
-        }
+    if ui_has(K_UIMESSAGES) {
+        let mut ea: Exarg = Exarg::new();
+        ea.arg = c"".as_ptr().cast_mut();
+        ea.skip = 1;
+        ex_messages(&mut ea);
+        return;
+    }
+    let mp = msg_sb_start(msg_st().msgchunks.len().checked_sub(1));
+    if mp.is_none_or(|idx| idx == 0) {
+        vim_beep(K_OPT_BO_FLAG_MESS);
+    } else {
+        do_more_prompt(b'G' as i32);
+        wait_return(0);
     }
 }
 
 /// Move to the start of screen line in already displayed text.
 fn msg_sb_start(mps: Option<usize>) -> Option<usize> {
-    {
-        let mut idx = mps?;
-        while idx > 0 && msg_st().msgchunks.as_slice()[idx - 1].sb_eol == 0 {
-            idx -= 1;
-        }
-        Some(idx)
+    let mut idx = mps?;
+    while idx > 0 && msg_st().msgchunks.as_slice()[idx - 1].sb_eol == 0 {
+        idx -= 1;
     }
+    Some(idx)
 }
 
 /// Mark the last message chunk as finishing the line.
 pub fn msg_sb_eol() {
-    {
-        if let Some(last) = msg_st().msgchunks.last_mut() {
-            last.sb_eol = 1;
-        }
+    if let Some(last) = msg_st().msgchunks.last_mut() {
+        last.sb_eol = 1;
     }
 }
 
 /// Display a screen line from previously displayed text at row "row".
 fn disp_sb_line(row: i32, smp: usize) -> Option<usize> {
-    {
-        let mut idx = smp;
-        loop {
-            g_st().msg_row = row;
-            let chunk = &mut msg_st().msgchunks.as_mut_slice()[idx];
-            g_st().msg_col = chunk.sb_msg_col;
-            let p = chunk.sb_text.as_mut_ptr();
-            let hl_id = chunk.sb_hl_id;
-            let eol = chunk.sb_eol;
-            msg_puts_display(p, -1, hl_id, 1);
-            if eol != 0 || idx + 1 >= msg_st().msgchunks.len() {
-                break;
-            }
-            idx += 1;
+    let mut idx = smp;
+    loop {
+        g_st().msg_row = row;
+        let chunk = &mut msg_st().msgchunks.as_mut_slice()[idx];
+        g_st().msg_col = chunk.sb_msg_col;
+        let p = chunk.sb_text.as_mut_ptr();
+        let hl_id = chunk.sb_hl_id;
+        let eol = chunk.sb_eol;
+        msg_puts_display(p, -1, hl_id, 1);
+        if eol != 0 || idx + 1 >= msg_st().msgchunks.len() {
+            break;
         }
-        if idx + 1 < msg_st().msgchunks.len() {
-            Some(idx + 1)
-        } else {
-            None
-        }
+        idx += 1;
+    }
+    if idx + 1 < msg_st().msgchunks.len() {
+        Some(idx + 1)
+    } else {
+        None
     }
 }
 
@@ -3506,7 +3477,7 @@ pub fn msg_use_printf() -> i32 {
 /// Print a message when there is no valid screen.
 fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let mut s = str_;
         let mut buf = [0 as c_char; 7];
 
@@ -3532,16 +3503,20 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
             let len = utf_ptr2len(s) as usize;
             if !(g_st().silent_mode && opt_vars().p_verbose == 0) {
                 let mut p = buf.as_mut_ptr();
-                if *s == NL as c_char
+                if unsafe { *s } == NL as c_char
                     && !g_st().info_message
                     && !g_st().silent_mode
                     && !g_st().headless_mode
                 {
-                    *p = CAR as c_char;
+                    unsafe {
+                        *p = CAR as c_char;
+                    }
                     p = p.wrapping_add(1);
                 }
-                ptr::copy_nonoverlapping(s, p, len);
-                *p.wrapping_add(len) = NUL;
+                unsafe { ptr::copy_nonoverlapping(s, p, len) };
+                unsafe {
+                    *p.wrapping_add(len) = NUL;
+                }
                 if g_st().info_message {
                     printf!(c"%s", buf.as_ptr());
                 } else {
@@ -3550,7 +3525,7 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
             }
 
             let cw = utf_char2cells(utf_ptr2char(s));
-            if *s == CAR as c_char || *s == NL as c_char {
+            if unsafe { *s } == CAR as c_char || unsafe { *s } == NL as c_char {
                 g_st().msg_col = 0;
                 g_st().msg_didout = false;
             } else {
@@ -3564,52 +3539,51 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
 
 /// Show the more-prompt and handle the user response.
 fn do_more_prompt(typed_char: i32) -> bool {
+    let mut used_typed_char = typed_char;
+    let old_state = g_st().state_global;
+    let mut retval = false;
+    let mut to_redraw = false;
+    let mut mp_last: Option<usize> = None;
+
+    let no_need_more =
+        (g_st().headless_mode && !g_st().embedded_mode && ui_active() == 0) || input_unanswerable();
+
+    if no_need_more
+        || msg_st().do_more_prompt_entered
+        || (g_st().state_global == MODE_HITRETURN && typed_char == 0)
     {
-        let mut used_typed_char = typed_char;
-        let old_state = g_st().state_global;
-        let mut retval = false;
-        let mut to_redraw = false;
-        let mut mp_last: Option<usize> = None;
+        return false;
+    }
+    msg_st().do_more_prompt_entered = true;
 
-        let no_need_more = (g_st().headless_mode && !g_st().embedded_mode && ui_active() == 0)
-            || input_unanswerable();
-
-        if no_need_more
-            || msg_st().do_more_prompt_entered
-            || (g_st().state_global == MODE_HITRETURN && typed_char == 0)
+    if typed_char == b'G' as i32 {
+        mp_last = msg_sb_start(msg_st().msgchunks.len().checked_sub(1));
+        let mut i = 0;
+        while i < g_st().rows_global - 2
+            && let Some(idx) = mp_last
+            && idx > 0
         {
-            return false;
+            mp_last = msg_sb_start(Some(idx - 1));
+            i += 1;
         }
-        msg_st().do_more_prompt_entered = true;
+    }
 
-        if typed_char == b'G' as i32 {
-            mp_last = msg_sb_start(msg_st().msgchunks.len().checked_sub(1));
-            let mut i = 0;
-            while i < g_st().rows_global - 2
-                && let Some(idx) = mp_last
-                && idx > 0
-            {
-                mp_last = msg_sb_start(Some(idx - 1));
-                i += 1;
-            }
-        }
+    g_st().state_global = MODE_ASKMORE;
+    setmouse();
+    if typed_char == NUL as i32 {
+        msg_moremsg(false);
+    }
+    loop {
+        let c = if used_typed_char != NUL as i32 {
+            let ch = used_typed_char;
+            used_typed_char = NUL as i32;
+            ch
+        } else {
+            get_keystroke(g_st().resize_events)
+        };
 
-        g_st().state_global = MODE_ASKMORE;
-        setmouse();
-        if typed_char == NUL as i32 {
-            msg_moremsg(false);
-        }
-        loop {
-            let c = if used_typed_char != NUL as i32 {
-                let ch = used_typed_char;
-                used_typed_char = NUL as i32;
-                ch
-            } else {
-                get_keystroke(g_st().resize_events)
-            };
-
-            let mut toscroll = 0;
-            match c {
+        let mut toscroll = 0;
+        match c {
                 BS | K_BS | 0x6b /* 'k' */ | K_UP => {
                     toscroll = -1;
                 }
@@ -3669,159 +3643,158 @@ fn do_more_prompt(typed_char: i32) -> bool {
                 }
             }
 
-            assert!(toscroll == 0 || !to_redraw);
+        assert!(toscroll == 0 || !to_redraw);
 
-            if toscroll != 0 || to_redraw {
-                if toscroll < 0 || to_redraw {
-                    let mut mp = if let Some(last_idx) = mp_last {
-                        if last_idx > 0 {
-                            msg_sb_start(Some(last_idx - 1))
-                        } else {
-                            None
-                        }
+        if toscroll != 0 || to_redraw {
+            if toscroll < 0 || to_redraw {
+                let mut mp = if let Some(last_idx) = mp_last {
+                    if last_idx > 0 {
+                        msg_sb_start(Some(last_idx - 1))
                     } else {
-                        msg_sb_start(msg_st().msgchunks.len().checked_sub(1))
-                    };
-
-                    let mut i = 0;
-                    while i < g_st().rows_global - 2
-                        && let Some(idx) = mp
-                        && idx > 0
-                    {
-                        mp = msg_sb_start(Some(idx - 1));
-                        i += 1;
-                    }
-
-                    if let Some(mp_idx) = mp
-                        && (mp_idx > 0 || to_redraw)
-                    {
-                        let mut i = 0;
-                        while i > toscroll {
-                            let Some(cur_idx) = mp else {
-                                break;
-                            };
-                            if cur_idx == 0 {
-                                break;
-                            }
-                            mp = msg_sb_start(Some(cur_idx - 1));
-                            if let Some(last_idx) = mp_last {
-                                mp_last = msg_sb_start(last_idx.checked_sub(1));
-                            } else {
-                                mp_last = msg_sb_start(msg_st().msgchunks.len().checked_sub(1));
-                            }
-                            i -= 1;
-                        }
-
-                        if toscroll == -1 && !to_redraw {
-                            grid_ins_lines(
-                                &mut g_st().msg_grid,
-                                0,
-                                1,
-                                g_st().rows_global,
-                                0,
-                                g_st().columns_global,
-                            );
-                            grid_clear(
-                                &raw mut g_st().msg_grid_adj,
-                                0,
-                                1,
-                                0,
-                                g_st().columns_global,
-                                hl_attr(HLF_MSG),
-                            );
-                            if let Some(cur_idx) = mp {
-                                disp_sb_line(0, cur_idx);
-                            }
-                        } else {
-                            grid_clear(
-                                &raw mut g_st().msg_grid_adj,
-                                0,
-                                g_st().rows_global,
-                                0,
-                                g_st().columns_global,
-                                hl_attr(HLF_MSG),
-                            );
-                            let mut i = 0;
-                            while let Some(cur_idx) = mp
-                                && i < g_st().rows_global - 1
-                            {
-                                mp = disp_sb_line(i, cur_idx);
-                                g_st().msg_scrolled += 1;
-                                i += 1;
-                            }
-                            to_redraw = false;
-                        }
-                        toscroll = 0;
+                        None
                     }
                 } else {
-                    if g_st().cmdline_row >= g_st().rows_global && !ui_has(K_UIMESSAGES) {
-                        msg_scroll_up(true, false);
-                        g_st().msg_scrolled += 1;
-                    }
-                    while toscroll > 0
-                        && let Some(last_idx) = mp_last
-                    {
-                        if msg_do_throttle() && !g_st().msg_grid.throttled {
-                            g_st().msg_scrolled_at_flush -= 1;
-                            g_st().msg_grid_scroll_discount += 1;
+                    msg_sb_start(msg_st().msgchunks.len().checked_sub(1))
+                };
+
+                let mut i = 0;
+                while i < g_st().rows_global - 2
+                    && let Some(idx) = mp
+                    && idx > 0
+                {
+                    mp = msg_sb_start(Some(idx - 1));
+                    i += 1;
+                }
+
+                if let Some(mp_idx) = mp
+                    && (mp_idx > 0 || to_redraw)
+                {
+                    let mut i = 0;
+                    while i > toscroll {
+                        let Some(cur_idx) = mp else {
+                            break;
+                        };
+                        if cur_idx == 0 {
+                            break;
                         }
-                        msg_scroll_up(true, false);
-                        inc_msg_scrolled();
+                        mp = msg_sb_start(Some(cur_idx - 1));
+                        if let Some(last_idx) = mp_last {
+                            mp_last = msg_sb_start(last_idx.checked_sub(1));
+                        } else {
+                            mp_last = msg_sb_start(msg_st().msgchunks.len().checked_sub(1));
+                        }
+                        i -= 1;
+                    }
+
+                    if toscroll == -1 && !to_redraw {
+                        grid_ins_lines(
+                            &mut g_st().msg_grid,
+                            0,
+                            1,
+                            g_st().rows_global,
+                            0,
+                            g_st().columns_global,
+                        );
                         grid_clear(
                             &raw mut g_st().msg_grid_adj,
-                            g_st().rows_global - 2,
-                            g_st().rows_global - 1,
+                            0,
+                            1,
                             0,
                             g_st().columns_global,
                             hl_attr(HLF_MSG),
                         );
-                        mp_last = disp_sb_line(g_st().rows_global - 2, last_idx);
-                        toscroll -= 1;
+                        if let Some(cur_idx) = mp {
+                            disp_sb_line(0, cur_idx);
+                        }
+                    } else {
+                        grid_clear(
+                            &raw mut g_st().msg_grid_adj,
+                            0,
+                            g_st().rows_global,
+                            0,
+                            g_st().columns_global,
+                            hl_attr(HLF_MSG),
+                        );
+                        let mut i = 0;
+                        while let Some(cur_idx) = mp
+                            && i < g_st().rows_global - 1
+                        {
+                            mp = disp_sb_line(i, cur_idx);
+                            g_st().msg_scrolled += 1;
+                            i += 1;
+                        }
+                        to_redraw = false;
                     }
+                    toscroll = 0;
                 }
-
-                if toscroll <= 0 {
+            } else {
+                if g_st().cmdline_row >= g_st().rows_global && !ui_has(K_UIMESSAGES) {
+                    msg_scroll_up(true, false);
+                    g_st().msg_scrolled += 1;
+                }
+                while toscroll > 0
+                    && let Some(last_idx) = mp_last
+                {
+                    if msg_do_throttle() && !g_st().msg_grid.throttled {
+                        g_st().msg_scrolled_at_flush -= 1;
+                        g_st().msg_grid_scroll_discount += 1;
+                    }
+                    msg_scroll_up(true, false);
+                    inc_msg_scrolled();
                     grid_clear(
                         &raw mut g_st().msg_grid_adj,
+                        g_st().rows_global - 2,
                         g_st().rows_global - 1,
-                        g_st().rows_global,
                         0,
                         g_st().columns_global,
                         hl_attr(HLF_MSG),
                     );
-                    msg_moremsg(false);
-                    continue;
+                    mp_last = disp_sb_line(g_st().rows_global - 2, last_idx);
+                    toscroll -= 1;
                 }
-
-                g_st().lines_left = toscroll;
             }
 
-            break;
+            if toscroll <= 0 {
+                grid_clear(
+                    &raw mut g_st().msg_grid_adj,
+                    g_st().rows_global - 1,
+                    g_st().rows_global,
+                    0,
+                    g_st().columns_global,
+                    hl_attr(HLF_MSG),
+                );
+                msg_moremsg(false);
+                continue;
+            }
+
+            g_st().lines_left = toscroll;
         }
 
-        // clear the --more-- message
-        grid_clear(
-            &raw mut g_st().msg_grid_adj,
-            g_st().rows_global - 1,
-            g_st().rows_global,
-            0,
-            g_st().columns_global,
-            hl_attr(HLF_MSG),
-        );
-        g_st().redraw_cmdline = true;
-        g_st().clear_cmdline = false;
-        g_st().mode_displayed = false;
-
-        g_st().state_global = old_state;
-        setmouse();
-        if g_st().quit_more {
-            g_st().msg_row = g_st().rows_global - 1;
-            g_st().msg_col = 0;
-        }
-
-        msg_st().do_more_prompt_entered = false;
-        retval
+        break;
     }
+
+    // clear the --more-- message
+    grid_clear(
+        &raw mut g_st().msg_grid_adj,
+        g_st().rows_global - 1,
+        g_st().rows_global,
+        0,
+        g_st().columns_global,
+        hl_attr(HLF_MSG),
+    );
+    g_st().redraw_cmdline = true;
+    g_st().clear_cmdline = false;
+    g_st().mode_displayed = false;
+
+    g_st().state_global = old_state;
+    setmouse();
+    if g_st().quit_more {
+        g_st().msg_row = g_st().rows_global - 1;
+        g_st().msg_col = 0;
+    }
+
+    msg_st().do_more_prompt_entered = false;
+    retval
 }
 
 fn msg_moremsg(full: bool) {
@@ -3942,11 +3915,9 @@ pub fn msg_end() -> bool {
 /// Clear "msg_ext_chunks" before flushing so that ui_flush() does not re-emit
 /// the same message recursively.
 fn msg_ext_init_chunks() -> Array {
-    {
-        let tofree = std::mem::take(&mut msg_st().msg_ext_chunks);
-        g_st().msg_col = 0;
-        tofree
-    }
+    let tofree = std::mem::take(&mut msg_st().msg_ext_chunks);
+    g_st().msg_col = 0;
+    tofree
 }
 
 pub fn msg_ext_ui_flush() {
@@ -4117,68 +4088,58 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
 }
 
 pub fn redirecting() -> i32 {
-    {
-        i32::from(
-            has_redir_fd()
-                || !crate::memory::cstr_is_empty(opt_vars().p_vfile)
-                || g_st().redir_reg != 0
-                || g_st().redir_vname
-                || !g_st().capture_ga.is_null(),
-        )
-    }
+    i32::from(
+        has_redir_fd()
+            || !crate::memory::cstr_is_empty(opt_vars().p_vfile)
+            || g_st().redir_reg != 0
+            || g_st().redir_vname
+            || !g_st().capture_ga.is_null(),
+    )
 }
 
 /// Before giving verbose message.
 /// Must always be called paired with verbose_leave()!
 pub fn verbose_enter() {
-    {
-        if !crate::memory::cstr_is_empty(opt_vars().p_vfile) {
-            g_st().msg_silent += 1;
-        }
-        if !g_st().msg_ext_skip_verbose {
-            if msg_st().msg_ext_kind != VERBOSE_KIND.as_ptr() {
-                msg_st().pre_verbose_kind = msg_st().msg_ext_kind;
-            }
-            msg_ext_set_kind(VERBOSE_KIND);
-        }
-        g_st().msg_ext_skip_verbose = false;
+    if !crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+        g_st().msg_silent += 1;
     }
+    if !g_st().msg_ext_skip_verbose {
+        if msg_st().msg_ext_kind != VERBOSE_KIND.as_ptr() {
+            msg_st().pre_verbose_kind = msg_st().msg_ext_kind;
+        }
+        msg_ext_set_kind(VERBOSE_KIND);
+    }
+    g_st().msg_ext_skip_verbose = false;
 }
 
 /// After giving verbose message.
 /// Must always be called paired with verbose_enter()!
 pub fn verbose_leave() {
-    {
-        if !crate::memory::cstr_is_empty(opt_vars().p_vfile) {
-            g_st().msg_silent -= 1;
-            if g_st().msg_silent < 0 {
-                g_st().msg_silent = 0;
-            }
+    if !crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+        g_st().msg_silent -= 1;
+        if g_st().msg_silent < 0 {
+            g_st().msg_silent = 0;
         }
-        if !msg_st().pre_verbose_kind.is_null() {
-            msg_ext_set_kind(msg_st().pre_verbose_kind);
-            msg_st().pre_verbose_kind = ptr::null();
-        }
+    }
+    if !msg_st().pre_verbose_kind.is_null() {
+        msg_ext_set_kind(msg_st().pre_verbose_kind);
+        msg_st().pre_verbose_kind = ptr::null();
     }
 }
 
 /// Like verbose_enter() and set msg_scroll when displaying the message.
 pub fn verbose_enter_scroll() {
-    {
-        verbose_enter();
-        if crate::memory::cstr_is_empty(opt_vars().p_vfile) {
-            g_st().msg_scroll = 1;
-        }
+    verbose_enter();
+    if crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+        g_st().msg_scroll = 1;
     }
 }
 
 /// Like verbose_leave() and set cmdline_row when displaying the message.
 pub fn verbose_leave_scroll() {
-    {
-        verbose_leave();
-        if crate::memory::cstr_is_empty(opt_vars().p_vfile) {
-            g_st().cmdline_row = g_st().msg_row;
-        }
+    verbose_leave();
+    if crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+        g_st().cmdline_row = g_st().msg_row;
     }
 }
 
@@ -4321,27 +4282,23 @@ mod tests {
         ];
 
         for &(s, expected, room) in cases {
-            {
-                let mut buf = [0 as c_char; 40];
-                let c_s = std::ffi::CString::new(s).unwrap();
-                trunc_string(c_s.as_ptr(), buf.as_mut_ptr(), room, 40);
-                assert_eq!(
-                    crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap(),
-                    expected
-                );
+            let mut buf = [0 as c_char; 40];
+            let c_s = std::ffi::CString::new(s).unwrap();
+            trunc_string(c_s.as_ptr(), buf.as_mut_ptr(), room, 40);
+            assert_eq!(
+                crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap(),
+                expected
+            );
 
-                let mut inplace = [0 as c_char; 40];
-                unsafe {
-                    ptr::copy_nonoverlapping(c_s.as_ptr(), inplace.as_mut_ptr(), s.len() + 1)
-                };
-                trunc_string(inplace.as_ptr(), inplace.as_mut_ptr(), room, 40);
-                assert_eq!(
-                    crate::memory::cstr_from_ptr(inplace.as_ptr())
-                        .to_str()
-                        .unwrap(),
-                    expected
-                );
-            }
+            let mut inplace = [0 as c_char; 40];
+            unsafe { ptr::copy_nonoverlapping(c_s.as_ptr(), inplace.as_mut_ptr(), s.len() + 1) };
+            trunc_string(inplace.as_ptr(), inplace.as_mut_ptr(), room, 40);
+            assert_eq!(
+                crate::memory::cstr_from_ptr(inplace.as_ptr())
+                    .to_str()
+                    .unwrap(),
+                expected
+            );
         }
     }
 }

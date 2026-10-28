@@ -337,62 +337,56 @@ fn stl_st() -> &'static mut StatuslineState {
 
 /// Redraw the status line of window `wp`.
 pub fn win_redr_status(wp: &mut WinInfoInfo) {
-    {
-        let is_stl_global = global_stl_height() > 0;
+    let is_stl_global = global_stl_height() > 0;
 
-        if stl_st().redr_status_busy
-            || (g_st().wild_menu_showing != 0 && !ui_has(K_UIWILDMENU_CONST))
-        {
-            return;
-        }
-
-        stl_st().redr_status_busy = true;
-        wp.w_redr_status = false;
-
-        let mut stl_curwin = ctx_saved_curwin();
-        if stl_curwin.is_null() {
-            stl_curwin = curwin_ptr();
-        }
-        let is_stl_curwin = ptr::eq(wp, stl_curwin);
-
-        if wp.w_status_height == 0 && !(is_stl_global && is_stl_curwin) {
-            g_st().redraw_cmdline = true;
-        } else if !redrawing() {
-            wp.w_redr_status = true;
-        } else if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
-            || !wp.w_floating
-            || (is_stl_global && is_stl_curwin)
-        {
-            win_redr_stl_expr(&raw mut *wp, false, false, false);
-        }
-
-        let mut group: Hlf = HLF_C;
-        if wp.w_vsep_width != 0 && wp.w_status_height != 0 && redrawing() {
-            let fillchar = if stl_connected(wp) {
-                fillchar_status(&mut group, wp)
-            } else {
-                wp.w_p_fcs_chars.vert
-            };
-            let attr = win_hl_attr(&mut *wp, group);
-            grid_line_start(&raw mut g_st().default_gridview, w_endrow(&*wp));
-            grid_line_put_schar(w_endcol(wp), fillchar, attr);
-            grid_line_flush();
-        }
-        stl_st().redr_status_busy = false;
+    if stl_st().redr_status_busy || (g_st().wild_menu_showing != 0 && !ui_has(K_UIWILDMENU_CONST)) {
+        return;
     }
+
+    stl_st().redr_status_busy = true;
+    wp.w_redr_status = false;
+
+    let mut stl_curwin = ctx_saved_curwin();
+    if stl_curwin.is_null() {
+        stl_curwin = curwin_ptr();
+    }
+    let is_stl_curwin = ptr::eq(wp, stl_curwin);
+
+    if wp.w_status_height == 0 && !(is_stl_global && is_stl_curwin) {
+        g_st().redraw_cmdline = true;
+    } else if !redrawing() {
+        wp.w_redr_status = true;
+    } else if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
+        || !wp.w_floating
+        || (is_stl_global && is_stl_curwin)
+    {
+        win_redr_stl_expr(&raw mut *wp, false, false, false);
+    }
+
+    let mut group: Hlf = HLF_C;
+    if wp.w_vsep_width != 0 && wp.w_status_height != 0 && redrawing() {
+        let fillchar = if stl_connected(wp) {
+            fillchar_status(&mut group, wp)
+        } else {
+            wp.w_p_fcs_chars.vert
+        };
+        let attr = win_hl_attr(&mut *wp, group);
+        grid_line_start(&raw mut g_st().default_gridview, w_endrow(&*wp));
+        grid_line_put_schar(w_endcol(wp), fillchar, attr);
+        grid_line_flush();
+    }
+    stl_st().redr_status_busy = false;
 }
 
 pub fn get_trans_bufname(buf: &mut FileBuf) {
-    {
-        let name_buff = g_st().name_buff.as_mut_ptr();
-        let sp = buf_spname(&*buf);
-        if !sp.is_null() {
-            xstrlcpy(name_buff, sp, MAXPATHL);
-        } else {
-            home_replace(Some(&*buf), buf.b_fname, name_buff, MAXPATHL, true);
-        }
-        trans_characters(name_buff, MAXPATHL as i32);
+    let name_buff = g_st().name_buff.as_mut_ptr();
+    let sp = buf_spname(&*buf);
+    if !sp.is_null() {
+        xstrlcpy(name_buff, sp, MAXPATHL);
+    } else {
+        home_replace(Some(&*buf), buf.b_fname, name_buff, MAXPATHL, true);
     }
+    trans_characters(name_buff, MAXPATHL as i32);
 }
 
 /// Return true if the status line of window `wp` is connected to the status
@@ -792,69 +786,62 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
 }
 
 pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
-    {
-        if stl_st().winbar_entered {
-            return;
-        }
-        stl_st().winbar_entered = true;
-
-        if wp.w_winbar_height == 0 || !redrawing() {
-            // Do nothing.
-        } else if !crate::memory::cstr_is_empty(opt_vars().p_wbr)
-            || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr)
-        {
-            win_redr_stl_expr(&raw mut *wp, true, false, false);
-        }
-        stl_st().winbar_entered = false;
+    if stl_st().winbar_entered {
+        return;
     }
+    stl_st().winbar_entered = true;
+
+    if wp.w_winbar_height == 0 || !redrawing() {
+        // Do nothing.
+    } else if !crate::memory::cstr_is_empty(opt_vars().p_wbr)
+        || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr)
+    {
+        win_redr_stl_expr(&raw mut *wp, true, false, false);
+    }
+    stl_st().winbar_entered = false;
 }
 
 pub fn redraw_ruler() {
-    {
-        let wp = if !curwin_mut().w_config.hide && curwin_mut().w_status_height == 0 {
-            curwin_ptr()
-        } else {
-            lastwin_nofloating(ptr::null_mut())
-        };
-        let wp = unsafe { &mut *wp };
-        let is_stl_global = global_stl_height() > 0;
+    let wp = if !curwin_mut().w_config.hide && curwin_mut().w_status_height == 0 {
+        curwin_ptr()
+    } else {
+        lastwin_nofloating(ptr::null_mut())
+    };
+    let wp = unsafe { &mut *wp };
+    let is_stl_global = global_stl_height() > 0;
 
-        let part_of_status = wp.w_status_height != 0 || is_stl_global;
-        if opt_vars().p_ru == 0 || part_of_status || (opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES))
-        {
-            if stl_st().did_show_ext_ruler && ui_has(K_UIMESSAGES) {
-                ui_call_msg_ruler(Array::new());
-                stl_st().did_show_ext_ruler = false;
-            } else if stl_st().did_show_ruler && !ui_has(K_UIMESSAGES) {
-                msg_clr_eos();
-            }
-            stl_st().did_show_ruler = false;
-            return;
+    let part_of_status = wp.w_status_height != 0 || is_stl_global;
+    if opt_vars().p_ru == 0 || part_of_status || (opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES)) {
+        if stl_st().did_show_ext_ruler && ui_has(K_UIMESSAGES) {
+            ui_call_msg_ruler(Array::new());
+            stl_st().did_show_ext_ruler = false;
+        } else if stl_st().did_show_ruler && !ui_has(K_UIMESSAGES) {
+            msg_clr_eos();
         }
-
-        if wp.w_cursor.lnum > (*wp).buf_mut().b_ml.ml_line_count {
-            return;
-        }
-
-        if wp.w_status_height == 0 && !is_stl_global && !g_st().edit_submode.is_null() {
-            return;
-        }
-
-        win_redr_stl_expr(wp, false, true, ui_has(K_UIMESSAGES));
-        stl_st().did_show_ruler = !ui_has(K_UIMESSAGES);
+        stl_st().did_show_ruler = false;
+        return;
     }
+
+    if wp.w_cursor.lnum > (*wp).buf_mut().b_ml.ml_line_count {
+        return;
+    }
+
+    if wp.w_status_height == 0 && !is_stl_global && !g_st().edit_submode.is_null() {
+        return;
+    }
+
+    win_redr_stl_expr(wp, false, true, ui_has(K_UIMESSAGES));
+    stl_st().did_show_ruler = !ui_has(K_UIMESSAGES);
 }
 
 /// Get the character to use in a status line. Get its attributes in `*group`.
 pub fn fillchar_status(group: &mut Hlf, wp: &mut WinInfoInfo) -> Schar {
-    {
-        if (&raw mut *wp) == curwin_ptr() {
-            *group = HLF_S;
-            wp.w_p_fcs_chars.stl
-        } else {
-            *group = HLF_SNC;
-            wp.w_p_fcs_chars.stlnc
-        }
+    if (&raw mut *wp) == curwin_ptr() {
+        *group = HLF_S;
+        wp.w_p_fcs_chars.stl
+    } else {
+        *group = HLF_SNC;
+        wp.w_p_fcs_chars.stlnc
     }
 }
 

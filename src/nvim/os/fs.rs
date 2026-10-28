@@ -505,15 +505,13 @@ pub fn os_chdir(path: impl crate::strings::IntoCCharPtr) -> i32 {
 
 /// Get the name of current directory.
 pub fn os_dirname(buf: *mut c_char, mut len: usize) -> bool {
-    {
-        let error_number = unsafe { uv_cwd(buf, &mut len) };
-        if error_number != 0 {
-            xstrlcpy(buf, unsafe { uv_strerror(error_number) }, len);
-            return false;
-        }
-        to_slash(buf);
-        true
+    let error_number = unsafe { uv_cwd(buf, &mut len) };
+    if error_number != 0 {
+        xstrlcpy(buf, unsafe { uv_strerror(error_number) }, len);
+        return false;
     }
+    to_slash(buf);
+    true
 }
 
 /// Check if the given path is a directory and not a symlink to a directory.
@@ -583,11 +581,9 @@ pub fn os_nodetype(name: impl crate::strings::IntoCCharPtr) -> i32 {
 
 /// Gets the absolute path of the currently running executable.
 pub fn os_exepath(buffer: *mut c_char, size: &mut usize) -> i32 {
-    {
-        let r = unsafe { uv_exepath(buffer, size) };
-        to_slash(buffer);
-        r
-    }
+    let r = unsafe { uv_exepath(buffer, size) };
+    to_slash(buffer);
+    r
 }
 
 /// Checks if the file `name` is executable.
@@ -967,51 +963,49 @@ pub fn os_read(
     size: usize,
     non_blocking: bool,
 ) -> isize {
+    *ret_eof = false;
+    if ret_buf.is_null() {
+        assert_eq!(size, 0);
+        return 0;
+    }
     {
-        *ret_eof = false;
-        if ret_buf.is_null() {
-            assert_eq!(size, 0);
-            return 0;
-        }
-        {
-            let mut read_bytes: usize = 0;
-            while read_bytes != size {
-                assert!(size >= read_bytes);
-                #[cfg(windows)]
-                let cur_read_bytes = unsafe {
-                    _read(
-                        fd,
-                        ret_buf.wrapping_add(read_bytes).cast(),
-                        (size - read_bytes) as u32,
-                    )
-                } as isize;
-                #[cfg(not(windows))]
-                let cur_read_bytes = read(fd, ret_buf.add(read_bytes).cast(), size - read_bytes);
+        let mut read_bytes: usize = 0;
+        while read_bytes != size {
+            assert!(size >= read_bytes);
+            #[cfg(windows)]
+            let cur_read_bytes = unsafe {
+                _read(
+                    fd,
+                    ret_buf.wrapping_add(read_bytes).cast(),
+                    (size - read_bytes) as u32,
+                )
+            } as isize;
+            #[cfg(not(windows))]
+            let cur_read_bytes = read(fd, ret_buf.add(read_bytes).cast(), size - read_bytes);
 
-                if cur_read_bytes > 0 {
-                    read_bytes += cur_read_bytes as usize;
+            if cur_read_bytes > 0 {
+                read_bytes += cur_read_bytes as usize;
+            }
+            if cur_read_bytes < 0 {
+                let ep = unsafe { errno_ptr() };
+                let error = unsafe { uv_translate_sys_error(*ep) };
+                unsafe {
+                    *ep = 0;
                 }
-                if cur_read_bytes < 0 {
-                    let ep = unsafe { errno_ptr() };
-                    let error = unsafe { uv_translate_sys_error(*ep) };
-                    unsafe {
-                        *ep = 0;
-                    }
-                    if non_blocking && error == UV_EAGAIN {
-                        break;
-                    } else if error == UV_EINTR || error == UV_EAGAIN {
-                        continue;
-                    } else {
-                        return error as isize;
-                    }
-                }
-                if cur_read_bytes == 0 {
-                    *ret_eof = true;
+                if non_blocking && error == UV_EAGAIN {
                     break;
+                } else if error == UV_EINTR || error == UV_EAGAIN {
+                    continue;
+                } else {
+                    return error as isize;
                 }
             }
-            read_bytes as isize
+            if cur_read_bytes == 0 {
+                *ret_eof = true;
+                break;
+            }
         }
+        read_bytes as isize
     }
 }
 
@@ -1451,38 +1445,47 @@ pub fn os_mkdir_recurse(
     mut created: Option<&mut Option<std::ffi::CString>>,
 ) -> i32 {
     let dir = dir.into_c_char_ptr();
-    unsafe {
+    {
         let dirlen = crate::memory::cstr_len(dir);
-        let mut curdir_vec: Vec<c_char> = std::slice::from_raw_parts(dir, dirlen + 1).to_vec();
+        let mut curdir_vec: Vec<c_char> =
+            unsafe { std::slice::from_raw_parts(dir, dirlen + 1) }.to_vec();
         let curdir = curdir_vec.as_mut_ptr();
         let past_head = get_past_head(curdir);
         let mut e = curdir.wrapping_add(dirlen);
         let real_end: *const c_char = e;
-        let past_head_save = *past_head;
+        let past_head_save = unsafe { *past_head };
 
         while !os_isdir(curdir) {
             e = path_tail_with_sep(curdir);
             if (e as usize) <= (past_head as usize) {
-                *past_head = NUL;
+                unsafe {
+                    *past_head = NUL;
+                }
                 break;
             }
-            *e = NUL;
+            unsafe {
+                *e = NUL;
+            }
         }
         while !ptr::eq(e, real_end) {
             if (e as usize) > (past_head as usize) {
-                *e = PATHSEP;
+                unsafe {
+                    *e = PATHSEP;
+                }
             } else {
-                *past_head = past_head_save;
+                unsafe {
+                    *past_head = past_head_save;
+                }
             }
             let component_len = crate::memory::cstr_len(e);
             e = e.wrapping_add(component_len);
             if ptr::eq(e, real_end) && {
-                let _d = (e.sub(component_len)).cast::<u8>();
+                let _d = unsafe { e.sub(component_len) }.cast::<u8>();
                 let _sz = component_len;
                 if _sz == 0 {
                     0
                 } else {
-                    std::slice::from_raw_parts(_d, _sz)
+                    unsafe { std::slice::from_raw_parts(_d, _sz) }
                         .iter()
                         .filter(|&&_b| _b == (PATHSEP) as u8)
                         .count()
@@ -1507,36 +1510,34 @@ pub fn os_mkdir_recurse(
 
 /// Create the parent directory of a file if it does not exist.
 pub fn os_file_mkdir(fname: *mut c_char, mode: i32) -> i32 {
-    {
-        if !dir_of_file_exists(fname) {
-            let tail = path_tail_with_sep(fname);
-            let last_char = tail
-                .wrapping_add(crate::memory::cstr_len(tail))
-                .wrapping_sub(1);
-            if vim_ispathsep(i32::from(crate::memory::cstr_first_byte(last_char))) {
-                emsg(gettext(E_NONAME));
-                return -1;
-            }
-            let c = unsafe { *tail };
-            unsafe {
-                *tail = NUL;
-            }
-            let mut failed_dir: Option<std::ffi::CString> = None;
-            let r = os_mkdir_recurse(fname, mode, &mut failed_dir, None);
-            if r < 0 {
-                let _ = semsg!(
-                    gettext(E_MKDIR),
-                    failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                    unsafe { uv_strerror(r) },
-                );
-            }
-            unsafe {
-                *tail = c;
-            }
-            return r;
+    if !dir_of_file_exists(fname) {
+        let tail = path_tail_with_sep(fname);
+        let last_char = tail
+            .wrapping_add(crate::memory::cstr_len(tail))
+            .wrapping_sub(1);
+        if vim_ispathsep(i32::from(crate::memory::cstr_first_byte(last_char))) {
+            emsg(gettext(E_NONAME));
+            return -1;
         }
-        0
+        let c = unsafe { *tail };
+        unsafe {
+            *tail = NUL;
+        }
+        let mut failed_dir: Option<std::ffi::CString> = None;
+        let r = os_mkdir_recurse(fname, mode, &mut failed_dir, None);
+        if r < 0 {
+            let _ = semsg!(
+                gettext(E_MKDIR),
+                failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                unsafe { uv_strerror(r) },
+            );
+        }
+        unsafe {
+            *tail = c;
+        }
+        return r;
     }
+    0
 }
 
 /// Create a unique temporary directory.
@@ -1588,18 +1589,16 @@ pub fn os_scandir(dir: &mut Directory, path: impl crate::strings::IntoCCharPtr) 
 
 /// Increments the directory pointer.
 pub fn os_scandir_next(dir: *mut Directory) -> *const c_char {
-    {
-        let req = dir.cast::<uv_fs_buf_t>();
-        let ent = dir
-            .cast::<u8>()
-            .wrapping_add(unsafe { uv_req_size(UV_FS) })
-            .cast::<uv_dirent_t>();
-        let err = unsafe { uv_fs_scandir_next(req, ent) };
-        if err != UV_EOF {
-            unsafe { (*ent).name }
-        } else {
-            ptr::null()
-        }
+    let req = dir.cast::<uv_fs_buf_t>();
+    let ent = dir
+        .cast::<u8>()
+        .wrapping_add(unsafe { uv_req_size(UV_FS) })
+        .cast::<uv_dirent_t>();
+    let err = unsafe { uv_fs_scandir_next(req, ent) };
+    if err != UV_EOF {
+        unsafe { (*ent).name }
+    } else {
+        ptr::null()
     }
 }
 
@@ -1726,24 +1725,22 @@ pub fn os_fileinfo_link(path: impl crate::strings::IntoCCharPtr, file_info: &mut
 
 /// Get the file information for a given file descriptor.
 pub fn os_fileinfo_fd(file_descriptor: i32, file_info: &mut FileInfo) -> bool {
+    *file_info = FileInfo::new();
     {
-        *file_info = FileInfo::new();
-        {
-            let mut request: uv_fs_buf_t = [0; 80];
-            let ok = unsafe {
-                uv_fs_fstat(
-                    ptr::null_mut(),
-                    &raw mut request,
-                    file_descriptor,
-                    ptr::null(),
-                )
-            } == 0;
-            if ok {
-                file_info.stat = unsafe { *uv_fs_get_statbuf(&raw mut request) };
-            }
-            unsafe { uv_fs_req_cleanup((&raw mut request).cast()) };
-            ok
+        let mut request: uv_fs_buf_t = [0; 80];
+        let ok = unsafe {
+            uv_fs_fstat(
+                ptr::null_mut(),
+                &raw mut request,
+                file_descriptor,
+                ptr::null(),
+            )
+        } == 0;
+        if ok {
+            file_info.stat = unsafe { *uv_fs_get_statbuf(&raw mut request) };
         }
+        unsafe { uv_fs_req_cleanup((&raw mut request).cast()) };
+        ok
     }
 }
 
@@ -1918,7 +1915,7 @@ pub fn os_resolve_shortcut(fname: impl crate::strings::IntoCCharPtr) -> Option<s
 pub fn os_is_reparse_point_include(path: impl crate::strings::IntoCCharPtr) -> bool {
     let path = path.into_c_char_ptr();
     #[cfg(windows)]
-    unsafe {
+    {
         let mut utf16_vec: Vec<u16> = Vec::new();
         let r = utf8_to_utf16(path, -1, &mut utf16_vec);
         if r != 0 {
@@ -1929,25 +1926,25 @@ pub fn os_is_reparse_point_include(path: impl crate::strings::IntoCCharPtr) -> b
 
         let is_sep = |c: u16| c == (b'\\' as u16) || c == (b'/' as u16);
         let mut p = utf16_path;
-        let p0 = (*p & 0xff) as u8;
+        let p0 = (unsafe { *p } & 0xff) as u8;
         if p0.is_ascii_alphabetic()
-            && *p.wrapping_add(1) == (b':' as u16)
-            && is_sep(*p.wrapping_add(2))
+            && unsafe { *p.wrapping_add(1) } == (b':' as u16)
+            && is_sep(unsafe { *p.wrapping_add(2) })
         {
             p = p.wrapping_add(3);
-        } else if is_sep(*p) && is_sep(*p.wrapping_add(1)) {
+        } else if is_sep(unsafe { *p }) && is_sep(unsafe { *p.wrapping_add(1) }) {
             p = p.wrapping_add(2);
         }
 
         let mut buf = [0u16; 260];
         let mut result = false;
 
-        while *p != 0 {
+        while unsafe { *p } != 0 {
             let mut q = p;
-            while *q != 0 && !is_sep(*q) {
+            while unsafe { *q } != 0 && !is_sep(unsafe { *q }) {
                 q = q.wrapping_add(1);
             }
-            if *q == 0 {
+            if unsafe { *q } == 0 {
                 p = q;
             } else {
                 p = q.wrapping_add(1);
@@ -1956,9 +1953,9 @@ pub fn os_is_reparse_point_include(path: impl crate::strings::IntoCCharPtr) -> b
             if len >= 260 {
                 break;
             }
-            ptr::copy_nonoverlapping(utf16_path, buf.as_mut_ptr(), len);
+            unsafe { ptr::copy_nonoverlapping(utf16_path, buf.as_mut_ptr(), len) };
             buf[len] = 0;
-            let attr = GetFileAttributesW(buf.as_ptr());
+            let attr = unsafe { GetFileAttributesW(buf.as_ptr()) };
             if attr != 0xffff_ffff && (attr & 0x0400) != 0 {
                 result = true;
                 break;

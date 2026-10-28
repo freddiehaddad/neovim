@@ -327,92 +327,88 @@ pub const fn profile_cmp(tm1: Proftime, tm2: Proftime) -> i32 {
 
 /// Reset all profiling information (`profile_reset`).
 pub fn profile_reset() {
-    {
-        for id in 1..=crate::runtime::script_items_len() {
-            let si = &mut *script_item(id);
-            if si.sn_prof_on {
-                si.sn_prof_on = false;
-                si.sn_pr_force = false;
-                si.sn_pr_child = profile_zero();
-                si.sn_pr_nest = 0;
-                si.sn_pr_count = 0;
-                si.sn_pr_total = profile_zero();
-                si.sn_pr_self = profile_zero();
-                si.sn_pr_start = profile_zero();
-                si.sn_pr_children = profile_zero();
-                si.sn_prl_ga = Vec::new();
-                si.sn_prl_start = profile_zero();
-                si.sn_prl_children = profile_zero();
-                si.sn_prl_wait = profile_zero();
-                si.sn_prl_idx = -1;
-                si.sn_prl_execed = 0;
-            }
+    for id in 1..=crate::runtime::script_items_len() {
+        let si = &mut *script_item(id);
+        if si.sn_prof_on {
+            si.sn_prof_on = false;
+            si.sn_pr_force = false;
+            si.sn_pr_child = profile_zero();
+            si.sn_pr_nest = 0;
+            si.sn_pr_count = 0;
+            si.sn_pr_total = profile_zero();
+            si.sn_pr_self = profile_zero();
+            si.sn_pr_start = profile_zero();
+            si.sn_pr_children = profile_zero();
+            si.sn_prl_ga = Vec::new();
+            si.sn_prl_start = profile_zero();
+            si.sn_prl_children = profile_zero();
+            si.sn_prl_wait = profile_zero();
+            si.sn_prl_idx = -1;
+            si.sn_prl_execed = 0;
         }
-
-        let functbl = func_tbl_get();
-        for &fp in functbl.values() {
-            let uf = unsafe { &mut *fp };
-            if uf.uf_prof_initialized != 0 {
-                uf.uf_profiling = 0;
-                uf.uf_tm_count = 0;
-                uf.uf_tm_total = profile_zero();
-                uf.uf_tm_self = profile_zero();
-                uf.uf_tm_children = profile_zero();
-
-                uf.uf_tml_count.fill(0);
-                uf.uf_tml_total.fill(0);
-                uf.uf_tml_self.fill(0);
-
-                uf.uf_tml_start = profile_zero();
-                uf.uf_tml_children = profile_zero();
-                uf.uf_tml_wait = profile_zero();
-                uf.uf_tml_idx = -1;
-                uf.uf_tml_execed = 0;
-            }
-        }
-
-        prof_st().profile_fname = None;
     }
+
+    let functbl = func_tbl_get();
+    for &fp in functbl.values() {
+        let uf = unsafe { &mut *fp };
+        if uf.uf_prof_initialized != 0 {
+            uf.uf_profiling = 0;
+            uf.uf_tm_count = 0;
+            uf.uf_tm_total = profile_zero();
+            uf.uf_tm_self = profile_zero();
+            uf.uf_tm_children = profile_zero();
+
+            uf.uf_tml_count.fill(0);
+            uf.uf_tml_total.fill(0);
+            uf.uf_tml_self.fill(0);
+
+            uf.uf_tml_start = profile_zero();
+            uf.uf_tml_children = profile_zero();
+            uf.uf_tml_wait = profile_zero();
+            uf.uf_tml_idx = -1;
+            uf.uf_tml_execed = 0;
+        }
+    }
+
+    prof_st().profile_fname = None;
 }
 
 /// `":profile cmd args"` (`ex_profile`).
 pub fn ex_profile(eap: &mut Exarg) {
-    {
-        let arg = eap.arg;
-        let mut e = skiptowhite(arg);
-        let len = (e as usize) - (arg as usize);
-        e = skipwhite(e);
+    let arg = eap.arg;
+    let mut e = skiptowhite(arg);
+    let len = (e as usize) - (arg as usize);
+    e = skipwhite(e);
 
-        let arg_bytes = crate::memory::cstr_as_bytes(arg);
-        if len == 5 && &arg_bytes[..5] == b"start" && unsafe { *e } != 0 {
-            prof_st().profile_fname = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
-            g_st().do_profiling = PROF_YES;
-            profile_set_wait(profile_zero());
-            set_vim_var_nr(VV_PROFILING, 1);
-        } else if g_st().do_profiling == PROF_NONE {
-            emsg(c"E750: First use \":profile start {fname}\"");
-        } else if arg_bytes == b"stop" {
-            profile_dump();
-            g_st().do_profiling = PROF_NONE;
-            set_vim_var_nr(VV_PROFILING, 0);
-            profile_reset();
-        } else if arg_bytes == b"pause" {
-            if g_st().do_profiling == PROF_YES {
-                prof_st().pause_time = profile_start();
-            }
-            g_st().do_profiling = PROF_PAUSED;
-        } else if arg_bytes == b"continue" {
-            if g_st().do_profiling == PROF_PAUSED {
-                let elapsed = profile_end(prof_st().pause_time);
-                prof_st().pause_time = elapsed;
-                profile_set_wait(profile_add(profile_get_wait(), elapsed));
-            }
-            g_st().do_profiling = PROF_YES;
-        } else if arg_bytes == b"dump" {
-            profile_dump();
-        } else {
-            ex_breakadd(eap);
+    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    if len == 5 && &arg_bytes[..5] == b"start" && unsafe { *e } != 0 {
+        prof_st().profile_fname = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
+        g_st().do_profiling = PROF_YES;
+        profile_set_wait(profile_zero());
+        set_vim_var_nr(VV_PROFILING, 1);
+    } else if g_st().do_profiling == PROF_NONE {
+        emsg(c"E750: First use \":profile start {fname}\"");
+    } else if arg_bytes == b"stop" {
+        profile_dump();
+        g_st().do_profiling = PROF_NONE;
+        set_vim_var_nr(VV_PROFILING, 0);
+        profile_reset();
+    } else if arg_bytes == b"pause" {
+        if g_st().do_profiling == PROF_YES {
+            prof_st().pause_time = profile_start();
         }
+        g_st().do_profiling = PROF_PAUSED;
+    } else if arg_bytes == b"continue" {
+        if g_st().do_profiling == PROF_PAUSED {
+            let elapsed = profile_end(prof_st().pause_time);
+            prof_st().pause_time = elapsed;
+            profile_set_wait(profile_add(profile_get_wait(), elapsed));
+        }
+        g_st().do_profiling = PROF_YES;
+    } else if arg_bytes == b"dump" {
+        profile_dump();
+    } else {
+        ex_breakadd(eap);
     }
 }
 
@@ -464,12 +460,10 @@ pub fn prof_input_end() {
 
 /// Returns `true` when a function defined in the current script should be profiled (`prof_def_func`).
 pub fn prof_def_func() -> bool {
-    {
-        if g_st().current_sctx.sc_sid > 0 {
-            script_item(g_st().current_sctx.sc_sid).sn_pr_force
-        } else {
-            false
-        }
+    if g_st().current_sctx.sc_sid > 0 {
+        script_item(g_st().current_sctx.sc_sid).sn_pr_force
+    } else {
+        false
     }
 }
 
@@ -504,28 +498,26 @@ fn prof_sort_list(
     title: &std::ffi::CStr,
     prefer_self: bool,
 ) {
-    {
-        fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n", title.as_ptr());
-        fprintf!(fd, c"count  total (s)   self (s)  function\n");
-        let limit = st_len.min(20);
-        for i in 0..limit {
-            let fp = unsafe { &**sorttab.wrapping_add(i as usize) };
-            prof_func_line(
-                fd,
-                fp.uf_tm_count,
-                &fp.uf_tm_total,
-                &fp.uf_tm_self,
-                prefer_self,
-            );
-            let name_ptr = fp.uf_name.as_ptr();
-            if (crate::memory::cstr_first_byte(name_ptr)) == K_SPECIAL {
-                fprintf!(fd, c" <SNR>%s()\n", name_ptr.wrapping_add(3));
-            } else {
-                fprintf!(fd, c" %s()\n", name_ptr);
-            }
+    fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n", title.as_ptr());
+    fprintf!(fd, c"count  total (s)   self (s)  function\n");
+    let limit = st_len.min(20);
+    for i in 0..limit {
+        let fp = unsafe { &**sorttab.wrapping_add(i as usize) };
+        prof_func_line(
+            fd,
+            fp.uf_tm_count,
+            &fp.uf_tm_total,
+            &fp.uf_tm_self,
+            prefer_self,
+        );
+        let name_ptr = fp.uf_name.as_ptr();
+        if (crate::memory::cstr_first_byte(name_ptr)) == K_SPECIAL {
+            fprintf!(fd, c" <SNR>%s()\n", name_ptr.wrapping_add(3));
+        } else {
+            fprintf!(fd, c" %s()\n", name_ptr);
         }
-        fprintf!(fd, c"\n");
     }
+    fprintf!(fd, c"\n");
 }
 
 fn prof_total_cmp(&s1: &*mut UserFunc, &s2: &*mut UserFunc) -> std::cmp::Ordering {
@@ -595,20 +587,18 @@ pub fn prof_child_exit(tm: &mut Proftime) {
 
 /// Called when starting to read a function line (`func_line_start`).
 pub fn func_line_start(fcp: &mut Funccall) {
-    {
-        let fp = unsafe { &mut *fcp.fc_func };
-        let slnum = sourcing_lnum();
+    let fp = unsafe { &mut *fcp.fc_func };
+    let slnum = sourcing_lnum();
 
-        if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.len() as i32 {
-            fp.uf_tml_idx = slnum - 1;
-            while fp.uf_tml_idx > 0 && fp.uf_lines[fp.uf_tml_idx as usize].is_none() {
-                fp.uf_tml_idx -= 1;
-            }
-            fp.uf_tml_execed = 0;
-            fp.uf_tml_start = profile_start();
-            fp.uf_tml_children = profile_zero();
-            fp.uf_tml_wait = profile_get_wait();
+    if fp.uf_profiling != 0 && slnum >= 1 && slnum <= fp.uf_lines.len() as i32 {
+        fp.uf_tml_idx = slnum - 1;
+        while fp.uf_tml_idx > 0 && fp.uf_lines[fp.uf_tml_idx as usize].is_none() {
+            fp.uf_tml_idx -= 1;
         }
+        fp.uf_tml_execed = 0;
+        fp.uf_tml_start = profile_start();
+        fp.uf_tml_children = profile_zero();
+        fp.uf_tml_wait = profile_get_wait();
     }
 }
 
@@ -738,162 +728,150 @@ pub fn script_prof_save(tm: &mut Proftime) {
 
 /// Count time spent in children after invoking another script or function (`script_prof_restore`).
 pub fn script_prof_restore(tm: &Proftime) {
-    {
-        if !script_id_valid(g_st().current_sctx.sc_sid) {
-            return;
-        }
+    if !script_id_valid(g_st().current_sctx.sc_sid) {
+        return;
+    }
 
-        let si = &mut *script_item(g_st().current_sctx.sc_sid);
-        if si.sn_prof_on {
-            si.sn_pr_nest -= 1;
-            if si.sn_pr_nest == 0 {
-                let elapsed = profile_sub_wait(*tm, profile_end(si.sn_pr_child));
-                si.sn_pr_child = elapsed;
-                si.sn_pr_children = profile_add(si.sn_pr_children, elapsed);
-                si.sn_prl_children = profile_add(si.sn_prl_children, elapsed);
-            }
+    let si = &mut *script_item(g_st().current_sctx.sc_sid);
+    if si.sn_prof_on {
+        si.sn_pr_nest -= 1;
+        if si.sn_pr_nest == 0 {
+            let elapsed = profile_sub_wait(*tm, profile_end(si.sn_pr_child));
+            si.sn_pr_child = elapsed;
+            si.sn_pr_children = profile_add(si.sn_pr_children, elapsed);
+            si.sn_prl_children = profile_add(si.sn_prl_children, elapsed);
         }
     }
 }
 
 fn script_dump_profile(fd: *mut FILE) {
-    {
-        let mut iobuf = [0 as c_char; IOSIZE];
-        for id in 1..=crate::runtime::script_items_len() {
-            let si = script_item(id);
-            if si.sn_prof_on {
-                fprintf!(fd, c"SCRIPT  %s\n", (*si).name_ptr());
-                if si.sn_pr_count == 1 {
-                    fprintf!(fd, c"Sourced 1 time\n");
-                } else {
-                    fprintf!(fd, c"Sourced %d times\n", si.sn_pr_count);
-                }
-                fprintf!(fd, c"Total time: %s\n", profile_msg(si.sn_pr_total),);
-                fprintf!(fd, c" Self time: %s\n", profile_msg(si.sn_pr_self),);
-                fprintf!(fd, c"\n");
-                fprintf!(fd, c"count  total (s)   self (s)\n");
+    let mut iobuf = [0 as c_char; IOSIZE];
+    for id in 1..=crate::runtime::script_items_len() {
+        let si = script_item(id);
+        if si.sn_prof_on {
+            fprintf!(fd, c"SCRIPT  %s\n", (*si).name_ptr());
+            if si.sn_pr_count == 1 {
+                fprintf!(fd, c"Sourced 1 time\n");
+            } else {
+                fprintf!(fd, c"Sourced %d times\n", si.sn_pr_count);
+            }
+            fprintf!(fd, c"Total time: %s\n", profile_msg(si.sn_pr_total),);
+            fprintf!(fd, c" Self time: %s\n", profile_msg(si.sn_pr_self),);
+            fprintf!(fd, c"\n");
+            fprintf!(fd, c"count  total (s)   self (s)\n");
 
-                let sfd = os_fopen((*si).name_ptr(), c"r");
-                if sfd.is_null() {
-                    fprintf!(fd, c"Cannot open file!\n");
-                } else {
-                    let mut i: i32 = 0;
-                    loop {
-                        if vim_fgets(iobuf.as_mut_ptr(), IOSIZE as i32, sfd) {
-                            break;
+            let sfd = os_fopen((*si).name_ptr(), c"r");
+            if sfd.is_null() {
+                fprintf!(fd, c"Cannot open file!\n");
+            } else {
+                let mut i: i32 = 0;
+                loop {
+                    if vim_fgets(iobuf.as_mut_ptr(), IOSIZE as i32, sfd) {
+                        break;
+                    }
+                    if iobuf[IOSIZE - 2] != 0 && iobuf[IOSIZE - 2] != NL {
+                        let mut n = IOSIZE - 2;
+                        while n > 0 && ((iobuf[n] as u8) & 0xc0) == 0x80 {
+                            n -= 1;
                         }
-                        if iobuf[IOSIZE - 2] != 0 && iobuf[IOSIZE - 2] != NL {
-                            let mut n = IOSIZE - 2;
-                            while n > 0 && ((iobuf[n] as u8) & 0xc0) == 0x80 {
-                                n -= 1;
-                            }
-                            iobuf[n] = NL;
-                            iobuf[n + 1] = 0;
-                        }
-                        if (i as usize) < si.sn_prl_ga.len() {
-                            let pp = &(&si.sn_prl_ga)[i as usize];
-                            if pp.snp_count > 0 {
-                                fprintf!(fd, c"%5d ", pp.snp_count);
-                                if profile_equal(pp.sn_prl_total, pp.sn_prl_self) {
-                                    fprintf!(fd, c"           ");
-                                } else {
-                                    fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_total));
-                                }
-                                fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_self));
+                        iobuf[n] = NL;
+                        iobuf[n + 1] = 0;
+                    }
+                    if (i as usize) < si.sn_prl_ga.len() {
+                        let pp = &(&si.sn_prl_ga)[i as usize];
+                        if pp.snp_count > 0 {
+                            fprintf!(fd, c"%5d ", pp.snp_count);
+                            if profile_equal(pp.sn_prl_total, pp.sn_prl_self) {
+                                fprintf!(fd, c"           ");
                             } else {
-                                fprintf!(fd, c"                            ");
+                                fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_total));
                             }
+                            fprintf!(fd, c"%s ", profile_msg(pp.sn_prl_self));
                         } else {
                             fprintf!(fd, c"                            ");
                         }
-                        fprintf!(fd, c"%s", iobuf.as_ptr());
-                        i += 1;
+                    } else {
+                        fprintf!(fd, c"                            ");
                     }
-                    unsafe { fclose(sfd) };
+                    fprintf!(fd, c"%s", iobuf.as_ptr());
+                    i += 1;
                 }
-                fprintf!(fd, c"\n");
+                unsafe { fclose(sfd) };
             }
+            fprintf!(fd, c"\n");
         }
     }
 }
 
 /// Dump the profiling info (`profile_dump`).
 pub fn profile_dump() {
-    {
-        let Some(ref profile_fname) = prof_st().profile_fname else {
-            return;
-        };
+    let Some(ref profile_fname) = prof_st().profile_fname else {
+        return;
+    };
 
-        let fd = os_fopen(profile_fname.as_ptr(), c"w");
-        if fd.is_null() {
-            semsg!(E_NOTOPEN, profile_fname.as_ptr());
-        } else {
-            script_dump_profile(fd);
-            func_dump_profile(fd);
-            unsafe { fclose(fd) };
-        }
+    let fd = os_fopen(profile_fname.as_ptr(), c"w");
+    if fd.is_null() {
+        semsg!(E_NOTOPEN, profile_fname.as_ptr());
+    } else {
+        script_dump_profile(fd);
+        func_dump_profile(fd);
+        unsafe { fclose(fd) };
     }
 }
 
 /// Called when starting to read a script line (`script_line_start`).
 pub fn script_line_start() {
-    {
-        if !script_id_valid(g_st().current_sctx.sc_sid) {
-            return;
+    if !script_id_valid(g_st().current_sctx.sc_sid) {
+        return;
+    }
+    let si = script_item(g_st().current_sctx.sc_sid);
+    let slnum = sourcing_lnum();
+    if si.sn_prof_on && slnum >= 1 {
+        si.sn_prl_idx = slnum - 1;
+        if si.sn_prl_ga.len() < slnum as usize {
+            si.sn_prl_ga.resize(
+                slnum as usize,
+                SnPrl {
+                    snp_count: 0,
+                    sn_prl_total: profile_zero(),
+                    sn_prl_self: profile_zero(),
+                },
+            );
         }
-        let si = script_item(g_st().current_sctx.sc_sid);
-        let slnum = sourcing_lnum();
-        if si.sn_prof_on && slnum >= 1 {
-            si.sn_prl_idx = slnum - 1;
-            if si.sn_prl_ga.len() < slnum as usize {
-                si.sn_prl_ga.resize(
-                    slnum as usize,
-                    SnPrl {
-                        snp_count: 0,
-                        sn_prl_total: profile_zero(),
-                        sn_prl_self: profile_zero(),
-                    },
-                );
-            }
-            si.sn_prl_execed = 0;
-            si.sn_prl_start = profile_start();
-            si.sn_prl_children = profile_zero();
-            si.sn_prl_wait = profile_get_wait();
-        }
+        si.sn_prl_execed = 0;
+        si.sn_prl_start = profile_start();
+        si.sn_prl_children = profile_zero();
+        si.sn_prl_wait = profile_get_wait();
     }
 }
 
 /// Called when actually executing a script line (`script_line_exec`).
 pub fn script_line_exec() {
-    {
-        if !script_id_valid(g_st().current_sctx.sc_sid) {
-            return;
-        }
-        let si = &mut *script_item(g_st().current_sctx.sc_sid);
-        if si.sn_prof_on && si.sn_prl_idx >= 0 {
-            si.sn_prl_execed = 1;
-        }
+    if !script_id_valid(g_st().current_sctx.sc_sid) {
+        return;
+    }
+    let si = &mut *script_item(g_st().current_sctx.sc_sid);
+    if si.sn_prof_on && si.sn_prl_idx >= 0 {
+        si.sn_prl_execed = 1;
     }
 }
 
 /// Called when done with a script line (`script_line_end`).
 pub fn script_line_end() {
-    {
-        if !script_id_valid(g_st().current_sctx.sc_sid) {
-            return;
+    if !script_id_valid(g_st().current_sctx.sc_sid) {
+        return;
+    }
+    let si = script_item(g_st().current_sctx.sc_sid);
+    if si.sn_prof_on && si.sn_prl_idx >= 0 && (si.sn_prl_idx as usize) < si.sn_prl_ga.len() {
+        if si.sn_prl_execed != 0 {
+            let prl_idx = si.sn_prl_idx as usize;
+            let pp = &mut (&mut si.sn_prl_ga)[prl_idx];
+            pp.snp_count += 1;
+            si.sn_prl_start = profile_sub_wait(si.sn_prl_wait, profile_end(si.sn_prl_start));
+            pp.sn_prl_total = profile_add(pp.sn_prl_total, si.sn_prl_start);
+            pp.sn_prl_self = profile_self(pp.sn_prl_self, si.sn_prl_start, si.sn_prl_children);
         }
-        let si = script_item(g_st().current_sctx.sc_sid);
-        if si.sn_prof_on && si.sn_prl_idx >= 0 && (si.sn_prl_idx as usize) < si.sn_prl_ga.len() {
-            if si.sn_prl_execed != 0 {
-                let prl_idx = si.sn_prl_idx as usize;
-                let pp = &mut (&mut si.sn_prl_ga)[prl_idx];
-                pp.snp_count += 1;
-                si.sn_prl_start = profile_sub_wait(si.sn_prl_wait, profile_end(si.sn_prl_start));
-                pp.sn_prl_total = profile_add(pp.sn_prl_total, si.sn_prl_start);
-                pp.sn_prl_self = profile_self(pp.sn_prl_self, si.sn_prl_start, si.sn_prl_children);
-            }
-            si.sn_prl_idx = -1;
-        }
+        si.sn_prl_idx = -1;
     }
 }
 

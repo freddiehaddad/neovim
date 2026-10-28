@@ -93,63 +93,54 @@ pub(crate) const K_OPT_VE_FLAG_ALL: u32 = 0x04;
 
 /// Return the screen position of the cursor (`getviscol`).
 pub fn getviscol() -> i32 {
-    {
-        let mut x: Colnr = 0;
-        getvvcol(
-            curwin_mut(),
-            &mut curwin_mut().w_cursor,
-            Some(&mut x),
-            None,
-            None,
-            0,
-        );
-        x as i32
-    }
+    let mut x: Colnr = 0;
+    getvvcol(
+        curwin_mut(),
+        &mut curwin_mut().w_cursor,
+        Some(&mut x),
+        None,
+        None,
+        0,
+    );
+    x as i32
 }
 
 /// Return the screen position of character `col` with a `coladd` in the cursor line (`getviscol2`).
 pub fn getviscol2(col: Colnr, coladd: Colnr) -> i32 {
-    {
-        let mut x: Colnr = 0;
-        let mut pos = CursorPos {
-            lnum: curwin_mut().w_cursor.lnum,
-            col,
-            coladd,
-        };
-        getvvcol(curwin_mut(), &mut pos, Some(&mut x), None, None, 0);
-        x as i32
-    }
+    let mut x: Colnr = 0;
+    let mut pos = CursorPos {
+        lnum: curwin_mut().w_cursor.lnum,
+        col,
+        coladd,
+    };
+    getvvcol(curwin_mut(), &mut pos, Some(&mut x), None, None, 0);
+    x as i32
 }
 
 /// Go to column `wcol`, and add/insert white space as necessary (`coladvance_force`).
 pub fn coladvance_force(wcol: Colnr) -> bool {
-    {
-        let rc = coladvance2(curwin_mut(), &mut curwin_mut().w_cursor, true, false, wcol);
+    let rc = coladvance2(curwin_mut(), &mut curwin_mut().w_cursor, true, false, wcol);
 
-        if wcol == MAXCOL {
-            curwin_mut().w_valid &= !VALID_VIRTCOL;
-        } else {
-            set_valid_virtcol(curwin_mut(), wcol);
-        }
-        rc
+    if wcol == MAXCOL {
+        curwin_mut().w_valid &= !VALID_VIRTCOL;
+    } else {
+        set_valid_virtcol(curwin_mut(), wcol);
     }
+    rc
 }
 
 /// Try to advance the Cursor to the specified screen column (`coladvance`).
 pub fn coladvance(wp: &mut WinInfoInfo, wcol: Colnr) -> bool {
-    {
-        let rc = getvpos(wp, &mut wp.w_cursor, wcol);
+    let rc = getvpos(wp, &mut wp.w_cursor, wcol);
 
-        if wcol == MAXCOL || !rc {
-            wp.w_valid &= !VALID_VIRTCOL;
-        } else if unsafe {
-            *(ml_get_buf(wp.buf_mut(), wp.w_cursor.lnum).add(wp.w_cursor.col as usize))
-        } != TAB
-        {
-            set_valid_virtcol(curwin_mut(), wcol);
-        }
-        rc
+    if wcol == MAXCOL || !rc {
+        wp.w_valid &= !VALID_VIRTCOL;
+    } else if unsafe { *(ml_get_buf(wp.buf_mut(), wp.w_cursor.lnum).add(wp.w_cursor.col as usize)) }
+        != TAB
+    {
+        set_valid_virtcol(curwin_mut(), wcol);
     }
+    rc
 }
 
 fn coladvance2(
@@ -159,167 +150,165 @@ fn coladvance2(
     finetune: bool,
     wcol_arg: Colnr,
 ) -> bool {
-    {
-        debug_assert!(ptr::eq(wp, curwin_ptr()) || !addspaces);
-        let mut wcol = wcol_arg;
-        let mut idx: i32;
-        let mut col: Colnr;
-        let mut head: i32 = 0;
+    debug_assert!(ptr::eq(wp, curwin_ptr()) || !addspaces);
+    let mut wcol = wcol_arg;
+    let mut idx: i32;
+    let mut col: Colnr;
+    let mut head: i32 = 0;
 
-        let one_more = i32::from(
-            (g_st().state_global & MODE_INSERT) != 0
-                || (g_st().state_global & MODE_TERMINAL) != 0
-                || g_st().restart_edit != 0
-                || (g_st().visual_global.active
-                    && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
-                || ((get_ve_flags(&mut *wp) & K_OPT_VE_FLAG_ONEMORE) != 0 && wcol < MAXCOL),
-        );
+    let one_more = i32::from(
+        (g_st().state_global & MODE_INSERT) != 0
+            || (g_st().state_global & MODE_TERMINAL) != 0
+            || g_st().restart_edit != 0
+            || (g_st().visual_global.active
+                && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
+            || ((get_ve_flags(&mut *wp) & K_OPT_VE_FLAG_ONEMORE) != 0 && wcol < MAXCOL),
+    );
 
-        let line = ml_get_buf(wp.buf_mut(), pos.lnum);
-        let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
+    let line = ml_get_buf(wp.buf_mut(), pos.lnum);
+    let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
 
-        if wcol == MAXCOL {
-            idx = linelen - 1 + one_more;
-            col = wcol;
+    if wcol == MAXCOL {
+        idx = linelen - 1 + one_more;
+        col = wcol;
 
-            if (addspaces || finetune) && !g_st().visual_global.active {
-                wp.w_curswant = linetabsize(wp, pos.lnum) + one_more;
-                if wp.w_curswant > 0 {
-                    wp.w_curswant -= 1;
+        if (addspaces || finetune) && !g_st().visual_global.active {
+            wp.w_curswant = linetabsize(wp, pos.lnum) + one_more;
+            if wp.w_curswant > 0 {
+                wp.w_curswant -= 1;
+            }
+        }
+    } else {
+        let width = wp.w_view_width - win_col_off(wp);
+        let mut csize: i32 = 0;
+
+        if finetune
+            && wp.w_onebuf_opt.wo_wrap != 0
+            && wp.w_view_width != 0
+            && wcol >= width
+            && width > 0
+        {
+            csize = linetabsize_eol(&mut *wp, pos.lnum);
+            if csize > 0 {
+                csize -= 1;
+            }
+
+            if wcol / width > csize / width
+                && ((g_st().state_global & MODE_INSERT) == 0 || wcol > csize + 1)
+            {
+                wcol = (csize / width + 1) * width - 1;
+            }
+        }
+
+        let mut csarg = CharsizeArg::new();
+        let cstype: CSType = init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line);
+        let mut ci = utf_ptr2_str_char_info(line);
+        col = 0;
+        while col <= wcol && !crate::memory::cstr_is_empty(ci.ptr) {
+            let cli = utf_cluster_info(ci);
+            let cs: CharSize =
+                win_charsize(cstype, col, ci.ptr, ci.chr.value, &mut csarg, cli.cells);
+            csize = cs.width;
+            head = cs.head;
+            col += cs.width;
+            ci = cli.next;
+        }
+        idx = crate::memory::ptr_offset_from(ci.ptr, line) as i32;
+
+        if col > wcol || (!virtual_active(&mut *wp) && one_more == 0) {
+            idx -= 1;
+            csize -= head;
+            col -= csize;
+        }
+
+        if virtual_active(&mut *wp)
+            && addspaces
+            && wcol >= 0
+            && ((col != wcol && col != wcol + 1) || csize > 1)
+        {
+            if crate::memory::cstr_byte_at(line, idx as usize) == 0 {
+                let correct = wcol - col;
+                let newline_size = (idx as usize)
+                    .checked_add(correct as usize)
+                    .expect("STRICT_ADD overflow");
+                let mut newline = vec![0 as c_char; newline_size + 1];
+                unsafe { ptr::copy_nonoverlapping(line, newline.as_mut_ptr(), idx as usize) };
+                unsafe {
+                    ptr::write_bytes(
+                        newline.as_mut_ptr().wrapping_add(idx as usize),
+                        b' ',
+                        correct as usize,
+                    )
+                };
+
+                ml_replace(pos.lnum, newline.as_mut_ptr(), true);
+                inserted_bytes(pos.lnum, idx, 0, correct);
+                idx += correct;
+                col = wcol;
+            } else {
+                let correct = wcol - col - csize + 1;
+                if -correct > csize {
+                    return false;
                 }
+
+                let alloc_n = ((linelen - 1) as usize)
+                    .checked_add(csize as usize)
+                    .expect("STRICT_ADD overflow");
+                let mut newline = vec![0 as c_char; alloc_n + 1];
+                unsafe { ptr::copy_nonoverlapping(line, newline.as_mut_ptr(), idx as usize) };
+                unsafe {
+                    ptr::write_bytes(
+                        newline.as_mut_ptr().wrapping_add(idx as usize),
+                        b' ',
+                        csize as usize,
+                    )
+                };
+                let rest_n = (linelen as usize)
+                    .checked_sub(idx as usize)
+                    .and_then(|v| v.checked_sub(1))
+                    .expect("STRICT_SUB underflow");
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        line.wrapping_add(idx as usize + 1),
+                        newline.as_mut_ptr().wrapping_add((idx + csize) as usize),
+                        rest_n,
+                    )
+                };
+
+                ml_replace(pos.lnum, newline.as_mut_ptr(), true);
+                inserted_bytes(pos.lnum, idx, 1, csize);
+                idx += csize - 1 + correct;
+                col += correct;
+            }
+        }
+    }
+
+    pos.col = idx.max(0);
+    pos.coladd = 0;
+
+    if finetune {
+        if wcol == MAXCOL {
+            if one_more == 0 {
+                let mut scol: Colnr = 0;
+                let mut ecol: Colnr = 0;
+                getvcol(wp, pos, Some(&mut scol), None, Some(&mut ecol), 0);
+                pos.coladd = ecol - scol;
             }
         } else {
-            let width = wp.w_view_width - win_col_off(wp);
-            let mut csize: i32 = 0;
-
-            if finetune
-                && wp.w_onebuf_opt.wo_wrap != 0
-                && wp.w_view_width != 0
-                && wcol >= width
-                && width > 0
-            {
-                csize = linetabsize_eol(&mut *wp, pos.lnum);
-                if csize > 0 {
-                    csize -= 1;
-                }
-
-                if wcol / width > csize / width
-                    && ((g_st().state_global & MODE_INSERT) == 0 || wcol > csize + 1)
-                {
-                    wcol = (csize / width + 1) * width - 1;
-                }
+            let b = wcol - col;
+            if b > 0 && b < (MAXCOL - 2 * wp.w_view_width) {
+                pos.coladd = b;
             }
-
-            let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line);
-            let mut ci = utf_ptr2_str_char_info(line);
-            col = 0;
-            while col <= wcol && !crate::memory::cstr_is_empty(ci.ptr) {
-                let cli = utf_cluster_info(ci);
-                let cs: CharSize =
-                    win_charsize(cstype, col, ci.ptr, ci.chr.value, &mut csarg, cli.cells);
-                csize = cs.width;
-                head = cs.head;
-                col += cs.width;
-                ci = cli.next;
-            }
-            idx = crate::memory::ptr_offset_from(ci.ptr, line) as i32;
-
-            if col > wcol || (!virtual_active(&mut *wp) && one_more == 0) {
-                idx -= 1;
-                csize -= head;
-                col -= csize;
-            }
-
-            if virtual_active(&mut *wp)
-                && addspaces
-                && wcol >= 0
-                && ((col != wcol && col != wcol + 1) || csize > 1)
-            {
-                if crate::memory::cstr_byte_at(line, idx as usize) == 0 {
-                    let correct = wcol - col;
-                    let newline_size = (idx as usize)
-                        .checked_add(correct as usize)
-                        .expect("STRICT_ADD overflow");
-                    let mut newline = vec![0 as c_char; newline_size + 1];
-                    unsafe { ptr::copy_nonoverlapping(line, newline.as_mut_ptr(), idx as usize) };
-                    unsafe {
-                        ptr::write_bytes(
-                            newline.as_mut_ptr().wrapping_add(idx as usize),
-                            b' ',
-                            correct as usize,
-                        )
-                    };
-
-                    ml_replace(pos.lnum, newline.as_mut_ptr(), true);
-                    inserted_bytes(pos.lnum, idx, 0, correct);
-                    idx += correct;
-                    col = wcol;
-                } else {
-                    let correct = wcol - col - csize + 1;
-                    if -correct > csize {
-                        return false;
-                    }
-
-                    let alloc_n = ((linelen - 1) as usize)
-                        .checked_add(csize as usize)
-                        .expect("STRICT_ADD overflow");
-                    let mut newline = vec![0 as c_char; alloc_n + 1];
-                    unsafe { ptr::copy_nonoverlapping(line, newline.as_mut_ptr(), idx as usize) };
-                    unsafe {
-                        ptr::write_bytes(
-                            newline.as_mut_ptr().wrapping_add(idx as usize),
-                            b' ',
-                            csize as usize,
-                        )
-                    };
-                    let rest_n = (linelen as usize)
-                        .checked_sub(idx as usize)
-                        .and_then(|v| v.checked_sub(1))
-                        .expect("STRICT_SUB underflow");
-                    unsafe {
-                        ptr::copy_nonoverlapping(
-                            line.wrapping_add(idx as usize + 1),
-                            newline.as_mut_ptr().wrapping_add((idx + csize) as usize),
-                            rest_n,
-                        )
-                    };
-
-                    ml_replace(pos.lnum, newline.as_mut_ptr(), true);
-                    inserted_bytes(pos.lnum, idx, 1, csize);
-                    idx += csize - 1 + correct;
-                    col += correct;
-                }
-            }
+            col += b;
         }
-
-        pos.col = idx.max(0);
-        pos.coladd = 0;
-
-        if finetune {
-            if wcol == MAXCOL {
-                if one_more == 0 {
-                    let mut scol: Colnr = 0;
-                    let mut ecol: Colnr = 0;
-                    getvcol(wp, pos, Some(&mut scol), None, Some(&mut ecol), 0);
-                    pos.coladd = ecol - scol;
-                }
-            } else {
-                let b = wcol - col;
-                if b > 0 && b < (MAXCOL - 2 * wp.w_view_width) {
-                    pos.coladd = b;
-                }
-                col += b;
-            }
-        }
-
-        mark_mb_adjustpos(wp.w_buffer, pos);
-
-        if wcol < 0 || col < wcol {
-            return false;
-        }
-        true
     }
+
+    mark_mb_adjustpos(wp.w_buffer, pos);
+
+    if wcol < 0 || col < wcol {
+        return false;
+    }
+    true
 }
 
 /// Return in `pos` the position of the cursor advanced to screen column `wcol` (`getvpos`).
@@ -371,167 +360,155 @@ pub fn check_pos(buf: &mut FileBuf, pos: &mut CursorPos) {
 
 /// Make sure `win->w_cursor.lnum` is valid (`check_cursor_lnum`).
 pub fn check_cursor_lnum(win: &mut WinInfoInfo) {
+    let buf = win.w_buffer;
+    let buf = unsafe { &mut *buf };
+    if win.w_cursor.lnum > buf.b_ml.ml_line_count
+        && !has_folding(
+            win,
+            buf.b_ml.ml_line_count,
+            Some(&mut win.w_cursor.lnum),
+            ptr::null_mut(),
+        )
     {
-        let buf = win.w_buffer;
-        let buf = unsafe { &mut *buf };
-        if win.w_cursor.lnum > buf.b_ml.ml_line_count
-            && !has_folding(
-                win,
-                buf.b_ml.ml_line_count,
-                Some(&mut win.w_cursor.lnum),
-                ptr::null_mut(),
-            )
-        {
-            win.w_cursor.lnum = buf.b_ml.ml_line_count;
-        }
-        if win.w_cursor.lnum <= 0 {
-            win.w_cursor.lnum = 1;
-        }
+        win.w_cursor.lnum = buf.b_ml.ml_line_count;
+    }
+    if win.w_cursor.lnum <= 0 {
+        win.w_cursor.lnum = 1;
     }
 }
 
 /// Make sure `win->w_cursor.col` is valid (`check_cursor_col`).
 pub fn check_cursor_col(win: &mut WinInfoInfo) {
-    {
-        let oldcol = win.w_cursor.col;
-        let oldcoladd = win.w_cursor.col + win.w_cursor.coladd;
-        let cur_ve_flags = get_ve_flags(&mut *win);
+    let oldcol = win.w_cursor.col;
+    let oldcoladd = win.w_cursor.col + win.w_cursor.coladd;
+    let cur_ve_flags = get_ve_flags(&mut *win);
 
-        let len = ml_get_buf_len(win.buf_mut(), win.w_cursor.lnum);
-        if len == 0 {
-            win.w_cursor.col = 0;
-        } else if win.w_cursor.col >= len {
-            if (g_st().state_global & MODE_INSERT) != 0
-                || g_st().restart_edit != 0
-                || (g_st().state_global & MODE_TERMINAL) != 0
-                || (g_st().visual_global.active
-                    && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
-                || (cur_ve_flags & K_OPT_VE_FLAG_ONEMORE) != 0
-                || virtual_active(&mut *win)
-            {
-                win.w_cursor.col = len;
-            } else {
-                win.w_cursor.col = len - 1;
-                mark_mb_adjustpos(win.w_buffer, &mut win.w_cursor);
-            }
-        } else if win.w_cursor.col < 0 {
-            win.w_cursor.col = 0;
+    let len = ml_get_buf_len(win.buf_mut(), win.w_cursor.lnum);
+    if len == 0 {
+        win.w_cursor.col = 0;
+    } else if win.w_cursor.col >= len {
+        if (g_st().state_global & MODE_INSERT) != 0
+            || g_st().restart_edit != 0
+            || (g_st().state_global & MODE_TERMINAL) != 0
+            || (g_st().visual_global.active
+                && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o')
+            || (cur_ve_flags & K_OPT_VE_FLAG_ONEMORE) != 0
+            || virtual_active(&mut *win)
+        {
+            win.w_cursor.col = len;
+        } else {
+            win.w_cursor.col = len - 1;
+            mark_mb_adjustpos(win.w_buffer, &mut win.w_cursor);
         }
+    } else if win.w_cursor.col < 0 {
+        win.w_cursor.col = 0;
+    }
 
-        if oldcol == MAXCOL {
-            win.w_cursor.coladd = 0;
-        } else if cur_ve_flags == K_OPT_VE_FLAG_ALL {
-            if oldcoladd > win.w_cursor.col {
-                win.w_cursor.coladd = oldcoladd - win.w_cursor.col;
+    if oldcol == MAXCOL {
+        win.w_cursor.coladd = 0;
+    } else if cur_ve_flags == K_OPT_VE_FLAG_ALL {
+        if oldcoladd > win.w_cursor.col {
+            win.w_cursor.coladd = oldcoladd - win.w_cursor.col;
 
-                if win.w_cursor.col + 1 < len {
-                    debug_assert!(win.w_cursor.coladd > 0);
-                    let mut cs: Colnr = 0;
-                    let mut ce: Colnr = 0;
-                    let mut w_cursor = win.w_cursor;
-                    getvcol(win, &mut w_cursor, Some(&mut cs), None, Some(&mut ce), 0);
-                    win.w_cursor = w_cursor;
-                    win.w_cursor.coladd = win.w_cursor.coladd.min(ce - cs);
-                }
-            } else {
-                win.w_cursor.coladd = 0;
+            if win.w_cursor.col + 1 < len {
+                debug_assert!(win.w_cursor.coladd > 0);
+                let mut cs: Colnr = 0;
+                let mut ce: Colnr = 0;
+                let mut w_cursor = win.w_cursor;
+                getvcol(win, &mut w_cursor, Some(&mut cs), None, Some(&mut ce), 0);
+                win.w_cursor = w_cursor;
+                win.w_cursor.coladd = win.w_cursor.coladd.min(ce - cs);
             }
+        } else {
+            win.w_cursor.coladd = 0;
         }
     }
 }
 
 /// Make sure `curwin->w_cursor` is on a valid character (`check_cursor`).
 pub fn check_cursor(wp: &mut WinInfoInfo) {
-    {
-        check_cursor_lnum(wp);
-        check_cursor_col(wp);
-    }
+    check_cursor_lnum(wp);
+    check_cursor_col(wp);
 }
 
 /// Check if `Visual.start` position is valid, correct it if not (`check_visual_pos`).
 pub fn check_visual_pos() {
-    {
-        if g_st().visual_global.start.lnum > curbuf_mut().b_ml.ml_line_count {
-            g_st().visual_global.start.lnum = curbuf_mut().b_ml.ml_line_count;
-            g_st().visual_global.start.col = 0;
+    if g_st().visual_global.start.lnum > curbuf_mut().b_ml.ml_line_count {
+        g_st().visual_global.start.lnum = curbuf_mut().b_ml.ml_line_count;
+        g_st().visual_global.start.col = 0;
+        g_st().visual_global.start.coladd = 0;
+    } else {
+        let len = ml_get_len(g_st().visual_global.start.lnum);
+        if g_st().visual_global.start.col > len {
+            g_st().visual_global.start.col = len;
             g_st().visual_global.start.coladd = 0;
-        } else {
-            let len = ml_get_len(g_st().visual_global.start.lnum);
-            if g_st().visual_global.start.col > len {
-                g_st().visual_global.start.col = len;
-                g_st().visual_global.start.coladd = 0;
-            }
         }
     }
 }
 
 /// Make sure `curwin->w_cursor` is not on the NUL at the end of the line (`adjust_cursor_col`).
 pub fn adjust_cursor_col() {
+    if curwin_mut().w_cursor.col > 0
+        && (!g_st().visual_global.active
+            || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
+        && gchar_cursor() == 0
     {
-        if curwin_mut().w_cursor.col > 0
-            && (!g_st().visual_global.active
-                || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
-            && gchar_cursor() == 0
-        {
-            curwin_mut().w_cursor.col -= 1;
-        }
+        curwin_mut().w_cursor.col -= 1;
     }
 }
 
 /// Set `curwin->w_leftcol` to `leftcol` (`set_leftcol`).
 pub fn set_leftcol(leftcol: Colnr) -> bool {
-    {
-        if curwin_mut().w_leftcol == leftcol {
-            return false;
-        }
-        curwin_mut().w_leftcol = leftcol;
-
-        changed_cline_bef_curs(curwin_mut());
-        let lastcol = i64::from(curwin_mut().w_leftcol) + i64::from(curwin_mut().w_view_width)
-            - i64::from(win_col_off(curwin_ptr()))
-            - 1;
-        validate_virtcol(curwin_mut());
-
-        let mut retval = false;
-        let siso = get_sidescrolloff_value(curwin_mut());
-        if curwin_mut().w_virtcol > (lastcol - siso) as Colnr {
-            retval = true;
-            coladvance(curwin_mut(), (lastcol - siso) as Colnr);
-        } else if curwin_mut().w_virtcol < (i64::from(curwin_mut().w_leftcol) + siso) as Colnr {
-            retval = true;
-            coladvance(
-                curwin_mut(),
-                (i64::from(curwin_mut().w_leftcol) + siso) as Colnr,
-            );
-        }
-
-        let mut s: Colnr = 0;
-        let mut e: Colnr = 0;
-        getvvcol(
-            curwin_mut(),
-            &mut curwin_mut().w_cursor,
-            Some(&mut s),
-            None,
-            Some(&mut e),
-            0,
-        );
-        if e > lastcol as Colnr {
-            retval = true;
-            coladvance(curwin_mut(), s - 1);
-        } else if s < curwin_mut().w_leftcol {
-            retval = true;
-            if !coladvance(curwin_mut(), e + 1) {
-                curwin_mut().w_leftcol = s;
-                changed_cline_bef_curs(curwin_mut());
-            }
-        }
-
-        if retval {
-            curwin_mut().w_set_curswant = true;
-        }
-        redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
-        retval
+    if curwin_mut().w_leftcol == leftcol {
+        return false;
     }
+    curwin_mut().w_leftcol = leftcol;
+
+    changed_cline_bef_curs(curwin_mut());
+    let lastcol = i64::from(curwin_mut().w_leftcol) + i64::from(curwin_mut().w_view_width)
+        - i64::from(win_col_off(curwin_ptr()))
+        - 1;
+    validate_virtcol(curwin_mut());
+
+    let mut retval = false;
+    let siso = get_sidescrolloff_value(curwin_mut());
+    if curwin_mut().w_virtcol > (lastcol - siso) as Colnr {
+        retval = true;
+        coladvance(curwin_mut(), (lastcol - siso) as Colnr);
+    } else if curwin_mut().w_virtcol < (i64::from(curwin_mut().w_leftcol) + siso) as Colnr {
+        retval = true;
+        coladvance(
+            curwin_mut(),
+            (i64::from(curwin_mut().w_leftcol) + siso) as Colnr,
+        );
+    }
+
+    let mut s: Colnr = 0;
+    let mut e: Colnr = 0;
+    getvvcol(
+        curwin_mut(),
+        &mut curwin_mut().w_cursor,
+        Some(&mut s),
+        None,
+        Some(&mut e),
+        0,
+    );
+    if e > lastcol as Colnr {
+        retval = true;
+        coladvance(curwin_mut(), s - 1);
+    } else if s < curwin_mut().w_leftcol {
+        retval = true;
+        if !coladvance(curwin_mut(), e + 1) {
+            curwin_mut().w_leftcol = s;
+            changed_cline_bef_curs(curwin_mut());
+        }
+    }
+
+    if retval {
+        curwin_mut().w_set_curswant = true;
+    }
+    redraw_later(Some(crate::globals::curwin_mut()), UPD_NOT_VALID);
+    retval
 }
 
 pub fn gchar_cursor() -> i32 {
@@ -540,16 +517,14 @@ pub fn gchar_cursor() -> i32 {
 
 /// Return the character immediately before the cursor (`char_before_cursor`).
 pub fn char_before_cursor() -> i32 {
-    {
-        if curwin_mut().w_cursor.col == 0 {
-            return -1;
-        }
-
-        let line = get_cursor_line_ptr();
-        let p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
-        let prev_len = utf_head_off(line, p.wrapping_sub(1)) + 1;
-        utf_ptr2char(p.wrapping_sub(prev_len as usize))
+    if curwin_mut().w_cursor.col == 0 {
+        return -1;
     }
+
+    let line = get_cursor_line_ptr();
+    let p = line.wrapping_add(curwin_mut().w_cursor.col as usize);
+    let prev_len = utf_head_off(line, p.wrapping_sub(1)) + 1;
+    utf_ptr2char(p.wrapping_sub(prev_len as usize))
 }
 
 /// Write a character at the current cursor position (`pchar_cursor`).
@@ -567,10 +542,8 @@ pub fn get_cursor_line_ptr() -> *mut c_char {
 
 /// Return pointer to cursor position (`get_cursor_pos_ptr`).
 pub fn get_cursor_pos_ptr() -> *mut c_char {
-    {
-        ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
-            .wrapping_add(curwin_mut().w_cursor.col as usize)
-    }
+    ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
+        .wrapping_add(curwin_mut().w_cursor.col as usize)
 }
 
 /// Return length (excluding the NUL) of the cursor line (`get_cursor_line_len`).

@@ -29,82 +29,80 @@ const fn callback_reader_init() -> CallbackReader {
 
 /// `"rpcstart()"` function (`f_rpcstart`).
 pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    rettv.v_type = VarType::VarNumber;
+    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+
+    if check_secure() {
+        return;
+    }
+
+    let arg0 = &argvars[0];
+    let arg1 = &argvars[1];
+    if arg0.v_type != VarType::VarString
+        || (arg1.v_type != VarType::VarList && arg1.v_type != VarType::VarUnknown)
     {
-        rettv.v_type = VarType::VarNumber;
-        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+        emsg(E_INVARG);
+        return;
+    }
 
-        if check_secure() {
-            return;
-        }
-
-        let arg0 = &argvars[0];
-        let arg1 = &argvars[1];
-        if arg0.v_type != VarType::VarString
-            || (arg1.v_type != VarType::VarList && arg1.v_type != VarType::VarUnknown)
-        {
-            emsg(E_INVARG);
-            return;
-        }
-
-        let mut args: *mut TvList = std::ptr::null_mut();
-        let mut argsl: i32 = 0;
-        if arg1.v_type == VarType::VarList {
-            args = arg1.vval.v_list();
-            argsl = if args.is_null() {
-                0
-            } else {
-                unsafe { (*args).lv_len }
-            };
-            for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(if args.is_null() {
-                std::ptr::null_mut()
-            } else {
-                unsafe { (*args).lv_first }
-            })) {
-                if li.li_tv.v_type != VarType::VarString {
-                    semsg!(
-                        c"E5010: List item %d of the second argument is not a string",
-                        i,
-                    );
-                    return;
-                }
+    let mut args: *mut TvList = std::ptr::null_mut();
+    let mut argsl: i32 = 0;
+    if arg1.v_type == VarType::VarList {
+        args = arg1.vval.v_list();
+        argsl = if args.is_null() {
+            0
+        } else {
+            unsafe { (*args).lv_len }
+        };
+        for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(if args.is_null() {
+            std::ptr::null_mut()
+        } else {
+            unsafe { (*args).lv_first }
+        })) {
+            if li.li_tv.v_type != VarType::VarString {
+                semsg!(
+                    c"E5010: List item %d of the second argument is not a string",
+                    i,
+                );
+                return;
             }
         }
+    }
 
-        let prog = arg0.vval.v_string();
-        if prog.is_null() || unsafe { *prog } == 0 {
-            emsg(E_API_SPAWN_FAILED);
-            return;
+    let prog = arg0.vval.v_string();
+    if prog.is_null() || unsafe { *prog } == 0 {
+        emsg(E_API_SPAWN_FAILED);
+        return;
+    }
+
+    let mut argv = Vec::with_capacity((argsl as usize) + 1);
+    argv.push(crate::memory::cstr_to_cstring(prog));
+
+    if argsl > 0 && !args.is_null() {
+        for li in crate::eval::typval::list_iter_mut(unsafe { (*args).lv_first }) {
+            argv.push(crate::memory::cstr_to_cstring(tv_get_string(&li.li_tv)));
         }
+    }
 
-        let mut argv = Vec::with_capacity((argsl as usize) + 1);
-        argv.push(crate::memory::cstr_to_cstring(prog));
-
-        if argsl > 0 && !args.is_null() {
-            for li in crate::eval::typval::list_iter_mut(unsafe { (*args).lv_first }) {
-                argv.push(crate::memory::cstr_to_cstring(tv_get_string(&li.li_tv)));
-            }
-        }
-
-        let chan = channel_job_start(
-            argv,
-            std::ptr::null(),
-            callback_reader_init(),
-            callback_reader_init(),
-            callback_none(),
-            false,
-            true,
-            false,
-            false,
-            K_CHANNEL_STDIN_PIPE,
-            std::ptr::null(),
-            0,
-            0,
-            std::ptr::null_mut(),
-            rettv.vval.v_number_mut(),
-        );
-        if !chan.is_null() {
-            channel_create_event(unsafe { &mut *chan }, std::ptr::null());
-        }
+    let chan = channel_job_start(
+        argv,
+        std::ptr::null(),
+        callback_reader_init(),
+        callback_reader_init(),
+        callback_none(),
+        false,
+        true,
+        false,
+        false,
+        K_CHANNEL_STDIN_PIPE,
+        std::ptr::null(),
+        0,
+        0,
+        std::ptr::null_mut(),
+        rettv.vval.v_number_mut(),
+    );
+    if !chan.is_null() {
+        channel_create_event(unsafe { &mut *chan }, std::ptr::null());
     }
 }
 
@@ -138,15 +136,13 @@ pub fn f_rpcstop(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData)
 
 /// `"last_buffer_nr()"` function (`f_last_buffer_nr`).
 pub fn f_last_buffer_nr(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        let mut n: i32 = 0;
-        for buf in for_all_buffers_mut() {
-            if n < buf.b_fnum {
-                n = buf.b_fnum;
-            }
+    let mut n: i32 = 0;
+    for buf in for_all_buffers_mut() {
+        if n < buf.b_fnum {
+            n = buf.b_fnum;
         }
-        rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);
     }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(n as i64);
 }
 
 /// `"termopen(cmd[, cwd])"` function (`f_termopen`).

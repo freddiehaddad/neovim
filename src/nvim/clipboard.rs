@@ -222,39 +222,37 @@ pub fn get_clipboard(mut name: i32, target: *mut *mut Yankreg, quiet: bool) -> b
 
 /// Write `reg` to the clipboard provider (`set_clipboard`).
 pub fn set_clipboard(mut name: i32, reg: &Yankreg) {
-    {
-        if mc_replaying() || adjust_clipboard_name(&mut name, false, true).is_null() {
-            return;
-        }
-
-        let extra = usize::from(reg.y_type != MotionType::MtCharWise);
-        let lines = tv_list_alloc((reg.y_array.len() + extra) as isize);
-
-        for &item in &reg.y_array {
-            tv_list_append_string(&mut *lines, item.data, item.size as isize);
-        }
-
-        let regtype: c_char = match reg.y_type {
-            MotionType::MtLineWise => {
-                tv_list_append_string(&mut *lines, std::ptr::null(), 0);
-                b'V' as c_char
-            }
-            MotionType::MtCharWise => b'v' as c_char,
-            MotionType::MtBlockWise => {
-                tv_list_append_string(&mut *lines, std::ptr::null(), 0);
-                b'b' as c_char
-            }
-            MotionType::MtUnknown => std::process::abort(),
-        };
-
-        let args = tv_list_alloc(3);
-        tv_list_append_list(&mut *args, lines);
-        tv_list_append_string(&mut *args, &regtype, 1);
-        let name_char = name as c_char;
-        tv_list_append_string(&mut *args, &name_char, 1);
-
-        let _ = eval_call_provider(c"clipboard", c"set", &mut *args, true);
+    if mc_replaying() || adjust_clipboard_name(&mut name, false, true).is_null() {
+        return;
     }
+
+    let extra = usize::from(reg.y_type != MotionType::MtCharWise);
+    let lines = tv_list_alloc((reg.y_array.len() + extra) as isize);
+
+    for &item in &reg.y_array {
+        tv_list_append_string(&mut *lines, item.data, item.size as isize);
+    }
+
+    let regtype: c_char = match reg.y_type {
+        MotionType::MtLineWise => {
+            tv_list_append_string(&mut *lines, std::ptr::null(), 0);
+            b'V' as c_char
+        }
+        MotionType::MtCharWise => b'v' as c_char,
+        MotionType::MtBlockWise => {
+            tv_list_append_string(&mut *lines, std::ptr::null(), 0);
+            b'b' as c_char
+        }
+        MotionType::MtUnknown => std::process::abort(),
+    };
+
+    let args = tv_list_alloc(3);
+    tv_list_append_list(&mut *args, lines);
+    tv_list_append_string(&mut *args, &regtype, 1);
+    let name_char = name as c_char;
+    tv_list_append_string(&mut *args, &name_char, 1);
+
+    let _ = eval_call_provider(c"clipboard", c"set", &mut *args, true);
 }
 
 /// Defer clipboard updates during batch operations (`start_batch_changes`).

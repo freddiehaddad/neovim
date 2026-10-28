@@ -54,45 +54,40 @@ struct ValuesStackItem {
 }
 
 fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
-    {
-        let dict = tv_dict_alloc();
-        let type_di = tv_dict_item_alloc_len(c"_TYPE", 5);
-        type_di.di_tv.v_type = VarType::VarList;
-        type_di.di_tv.v_lock = VAR_UNLOCKED;
-        type_di.di_tv.vval = crate::eval::typval::TypvalVval::List(
-            (*eval_msgpack_type_lists_mut())[mp_type].cast_mut(),
-        );
-        tv_list_ref(unsafe { type_di.di_tv.vval.v_list().as_mut() });
-        tv_dict_add(&mut *dict, type_di);
+    let dict = tv_dict_alloc();
+    let type_di = tv_dict_item_alloc_len(c"_TYPE", 5);
+    type_di.di_tv.v_type = VarType::VarList;
+    type_di.di_tv.v_lock = VAR_UNLOCKED;
+    type_di.di_tv.vval =
+        crate::eval::typval::TypvalVval::List((*eval_msgpack_type_lists_mut())[mp_type].cast_mut());
+    tv_list_ref(unsafe { type_di.di_tv.vval.v_list().as_mut() });
+    tv_dict_add(&mut *dict, type_di);
 
-        let val_di = tv_dict_item_alloc_len(c"_VAL", 4);
-        val_di.di_tv = val;
-        tv_dict_add(&mut *dict, val_di);
-        dict.dv_refcount += 1;
-        *rettv = TypVal {
-            v_type: VarType::VarDict,
-            v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::Dict(dict),
-        };
-    }
+    let val_di = tv_dict_item_alloc_len(c"_VAL", 4);
+    val_di.di_tv = val;
+    tv_dict_add(&mut *dict, val_di);
+    dict.dv_refcount += 1;
+    *rettv = TypVal {
+        v_type: VarType::VarDict,
+        v_lock: VAR_UNLOCKED,
+        vval: TypvalVval::Dict(dict),
+    };
 }
 
 /// Create a special dictionary representing a MessagePack MAP (`decode_create_map_special_dict`).
 pub fn decode_create_map_special_dict(ret_tv: &mut TypVal, len: isize) -> &'static mut TvList {
-    {
-        let list = tv_list_alloc(len);
-        tv_list_ref(Some(&mut *list));
-        create_special_dict(
-            ret_tv,
-            K_MP_MAP,
-            TypVal {
-                v_type: VarType::VarList,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(list),
-            },
-        );
-        list
-    }
+    let list = tv_list_alloc(len);
+    tv_list_ref(Some(&mut *list));
+    create_special_dict(
+        ret_tv,
+        K_MP_MAP,
+        TypVal {
+            v_type: VarType::VarList,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval::List(list),
+        },
+    );
+    list
 }
 
 /// Convert `s[..len]` into a `VAR_STRING` or `VarBlob` `TypVal` (`decode_string`).
@@ -165,16 +160,21 @@ fn json_decoder_pop(
         last_container = *container_stack.last().unwrap();
     }
 
-    unsafe {
+    {
         if last_container.container.v_type == VarType::VarList {
-            if tv_list_len(last_container.container.vval.v_list().as_ref()) != 0 && !obj.didcomma {
+            if tv_list_len(unsafe { last_container.container.vval.v_list().as_ref() }) != 0
+                && !obj.didcomma
+            {
                 semsg!(c"E474: Expected comma before list item: %s", val_location,);
                 let mut v = obj.val;
                 tv_clear(&mut v);
                 return false;
             }
             assert!(last_container.special_val.is_null());
-            tv_list_append_owned_tv(&mut *last_container.container.vval.v_list(), obj.val);
+            tv_list_append_owned_tv(
+                unsafe { &mut *last_container.container.vval.v_list() },
+                obj.val,
+            );
         } else if last_container.stack_index + 2 == stack.len() {
             if !obj.didcolon {
                 semsg!(
@@ -191,13 +191,13 @@ fn json_decoder_pop(
                 let obj_di = tv_dict_item_alloc(key.val.vval.v_string());
                 tv_clear(&mut key.val);
                 let dict = last_container.container.vval.v_dict();
-                if !tv_dict_add(&mut *dict, obj_di) {
+                if !tv_dict_add(unsafe { &mut *dict }, obj_di) {
                     std::process::abort();
                 }
                 obj_di.di_tv = obj.val;
             } else {
                 let kv_pair = tv_list_alloc(2);
-                tv_list_append_list(&mut *last_container.special_val, kv_pair);
+                tv_list_append_list(unsafe { &mut *last_container.special_val }, kv_pair);
                 tv_list_append_owned_tv(&mut *kv_pair, key.val);
                 tv_list_append_owned_tv(&mut *kv_pair, obj.val);
             }
@@ -209,7 +209,7 @@ fn json_decoder_pop(
                 return false;
             } else if !obj.didcomma && last_container.special_val.is_null() {
                 let dict = last_container.container.vval.v_dict();
-                if (*dict).dv_hashtab.ht_used != 0 {
+                if unsafe { (*dict).dv_hashtab.ht_used } != 0 {
                     semsg!(
                         c"E474: Expected comma before dictionary key: %s",
                         val_location,
@@ -223,7 +223,8 @@ fn json_decoder_pop(
             if last_container.special_val.is_null()
                 && (obj.is_special_string
                     || obj.val.vval.v_string().is_null()
-                    || !tv_dict_find(dict.as_ref(), obj.val.vval.v_string(), -1).is_null())
+                    || !tv_dict_find(unsafe { dict.as_ref() }, obj.val.vval.v_string(), -1)
+                        .is_null())
             {
                 let mut v = obj.val;
                 tv_clear(&mut v);
@@ -261,7 +262,7 @@ fn parse_json_string(
     let s = p;
     let mut len = 0usize;
 
-    unsafe {
+    {
         while p < e && crate::memory::cstr_first_byte(p) != b'"' {
             if crate::memory::cstr_first_byte(p) == b'\\' {
                 p = p.wrapping_add(1);
@@ -389,7 +390,7 @@ fn parse_json_string(
                             crate::memory::cstr_byte_at(t, 4),
                         ];
                         t = t.wrapping_add(4);
-                        let hex_str = std::str::from_utf8_unchecked(&ubuf);
+                        let hex_str = unsafe { std::str::from_utf8_unchecked(&ubuf) };
                         let ch = i32::from(u16::from_str_radix(hex_str, 16).unwrap_or(0));
                         if (SURROGATE_HI_START..=SURROGATE_HI_END).contains(&ch) {
                             if fst_in_pair != 0 {
@@ -416,41 +417,59 @@ fn parse_json_string(
                         }
                     }
                     b'\\' => {
-                        *str_end = b'\\' as c_char;
+                        unsafe {
+                            *str_end = b'\\' as c_char;
+                        }
                         str_end = str_end.wrapping_add(1);
                     }
                     b'/' => {
-                        *str_end = b'/' as c_char;
+                        unsafe {
+                            *str_end = b'/' as c_char;
+                        }
                         str_end = str_end.wrapping_add(1);
                     }
                     b'"' => {
-                        *str_end = b'"' as c_char;
+                        unsafe {
+                            *str_end = b'"' as c_char;
+                        }
                         str_end = str_end.wrapping_add(1);
                     }
                     b't' => {
-                        *str_end = b'\t' as c_char;
+                        unsafe {
+                            *str_end = b'\t' as c_char;
+                        }
                         str_end = str_end.wrapping_add(1);
                     }
                     b'b' => {
-                        *str_end = 0x08 as c_char;
+                        unsafe {
+                            *str_end = 0x08 as c_char;
+                        }
                         str_end = str_end.wrapping_add(1);
                     }
                     b'n' => {
-                        *str_end = b'\n' as c_char;
+                        unsafe {
+                            *str_end = b'\n' as c_char;
+                        }
                         str_end = str_end.wrapping_add(1);
                     }
                     b'r' => {
-                        *str_end = b'\r' as c_char;
+                        unsafe {
+                            *str_end = b'\r' as c_char;
+                        }
                         str_end = str_end.wrapping_add(1);
                     }
                     b'f' => {
-                        *str_end = 0x0c as c_char;
+                        unsafe {
+                            *str_end = 0x0c as c_char;
+                        }
                         str_end = str_end.wrapping_add(1);
                     }
                     _ => std::process::abort(),
                 }
             } else {
-                *str_end = *t;
+                unsafe {
+                    *str_end = *t;
+                }
                 str_end = str_end.wrapping_add(1);
             }
             t = t.wrapping_add(1);
@@ -459,7 +478,9 @@ fn parse_json_string(
         if fst_in_pair != 0 {
             str_end = str_end.wrapping_add(utf_char2bytes(fst_in_pair, str_end) as usize);
         }
-        *str_end = 0;
+        unsafe {
+            *str_end = 0;
+        }
 
         let out_len = (str_end as usize) - (str_buf as usize);
         let obj = decode_string(str_buf, out_len, false, false);
@@ -1021,30 +1042,28 @@ pub fn json_decode_string(
 }
 
 fn positive_integer_to_special_typval(rettv: &mut TypVal, val: u64) {
-    {
-        if val <= (i64::MAX as u64) {
-            *rettv = TypVal {
-                v_type: VarType::VarNumber,
+    if val <= (i64::MAX as u64) {
+        *rettv = TypVal {
+            v_type: VarType::VarNumber,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval::Number(val as i64),
+        };
+    } else {
+        let list = tv_list_alloc(4);
+        tv_list_ref(Some(&mut *list));
+        create_special_dict(
+            rettv,
+            K_MP_INTEGER,
+            TypVal {
+                v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(val as i64),
-            };
-        } else {
-            let list = tv_list_alloc(4);
-            tv_list_ref(Some(&mut *list));
-            create_special_dict(
-                rettv,
-                K_MP_INTEGER,
-                TypVal {
-                    v_type: VarType::VarList,
-                    v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::List(list),
-                },
-            );
-            tv_list_append_number(&mut *list, 1);
-            tv_list_append_number(&mut *list, ((val >> 62) & 0x3) as i64);
-            tv_list_append_number(&mut *list, ((val >> 31) & 0x7FFF_FFFF) as i64);
-            tv_list_append_number(&mut *list, (val & 0x7FFF_FFFF) as i64);
-        }
+                vval: TypvalVval::List(list),
+            },
+        );
+        tv_list_append_number(&mut *list, 1);
+        tv_list_append_number(&mut *list, ((val >> 62) & 0x3) as i64);
+        tv_list_append_number(&mut *list, ((val >> 31) & 0x7FFF_FFFF) as i64);
+        tv_list_append_number(&mut *list, (val & 0x7FFF_FFFF) as i64);
     }
 }
 
@@ -1169,101 +1188,99 @@ pub fn typval_parser_error_free(p: &mut MpackParser) {
 }
 
 fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
-    {
-        let node = &mut *node;
-        let result = node.data[0].typval();
-        match node.tok.r#type {
-            MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
-                let bytes = node.data[1].take_owned_bytes();
-                *result = decode_string(
-                    bytes.as_ptr().cast::<c_char>(),
-                    node.tok.length as usize,
-                    false,
-                    false,
-                );
-            }
-            MpackTokenType::MpackTokenExt => {
-                let bytes = node.data[1].take_owned_bytes();
-                let list = tv_list_alloc(2);
-                tv_list_ref(Some(&mut *list));
-                tv_list_append_number(&mut *list, i64::from(node.tok.data.ext_type()));
-                let ext_val_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
-                tv_list_append_list(&mut *list, ext_val_list);
-                create_special_dict(
-                    &mut *result,
-                    K_MP_EXT,
-                    TypVal {
-                        v_type: VarType::VarList,
-                        v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::List(list),
-                    },
-                );
-                encode_list_write(
-                    Some(&mut *ext_val_list),
-                    bytes.as_ptr().cast::<c_char>(),
-                    node.tok.length as usize,
-                );
-            }
-            MpackTokenType::MpackTokenMap => {
-                let mut items = node.data[1].take_map_pairs();
-                let len = node.tok.length as usize;
-                let mut can_be_dict = items[..len].iter().all(|pair| {
-                    let key = &pair[0];
-                    key.v_type == VarType::VarString
-                        && !key.vval.v_string().is_null()
-                        && unsafe { *key.vval.v_string() } != 0
-                });
-
-                if can_be_dict {
-                    let dict = tv_dict_alloc();
-                    dict.dv_refcount += 1;
-                    *result = TypVal {
-                        v_type: VarType::VarDict,
-                        v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::Dict(dict),
-                    };
-                    for pair in &items[..len] {
-                        let key = pair[0].vval.v_string();
-                        let keylen = crate::memory::cstr_len(key);
-                        let di = crate::eval::typval::tv_dict_item_alloc_len(key, keylen);
-                        if !tv_dict_add(&mut *dict, di) {
-                            let mut todo = dict.dv_hashtab.ht_used;
-                            let mut hi = dict.dv_hashtab.array_ptr();
-                            while todo > 0 {
-                                if !hashitem_empty(unsafe { &*hi }) {
-                                    todo -= 1;
-                                    let d = crate::eval::typval::tv_dict_hi2di(hi);
-                                    d.di_tv.v_type = VarType::VarSpecial;
-                                    d.di_tv.vval =
-                                        crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
-                                }
-                                hi = hi.wrapping_add(1);
-                            }
-                            tv_clear(&mut *result);
-                            crate::eval::typval::tv_dict_item_free(di);
-                            can_be_dict = false;
-                            break;
-                        }
-                        di.di_tv = pair[1];
-                    }
-                }
-
-                if can_be_dict {
-                    for pair in &mut items[..len] {
-                        tv_clear(&mut pair[0]);
-                    }
-                } else {
-                    let list = decode_create_map_special_dict(&mut *result, len as isize);
-                    for pair in &items[..len] {
-                        let kv_pair = tv_list_alloc(2);
-                        tv_list_append_list(&mut *list, kv_pair);
-                        tv_list_append_owned_tv(&mut *kv_pair, pair[0]);
-                        tv_list_append_owned_tv(&mut *kv_pair, pair[1]);
-                    }
-                }
-            }
-            _ => {}
+    let node = &mut *node;
+    let result = node.data[0].typval();
+    match node.tok.r#type {
+        MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
+            let bytes = node.data[1].take_owned_bytes();
+            *result = decode_string(
+                bytes.as_ptr().cast::<c_char>(),
+                node.tok.length as usize,
+                false,
+                false,
+            );
         }
+        MpackTokenType::MpackTokenExt => {
+            let bytes = node.data[1].take_owned_bytes();
+            let list = tv_list_alloc(2);
+            tv_list_ref(Some(&mut *list));
+            tv_list_append_number(&mut *list, i64::from(node.tok.data.ext_type()));
+            let ext_val_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
+            tv_list_append_list(&mut *list, ext_val_list);
+            create_special_dict(
+                &mut *result,
+                K_MP_EXT,
+                TypVal {
+                    v_type: VarType::VarList,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval::List(list),
+                },
+            );
+            encode_list_write(
+                Some(&mut *ext_val_list),
+                bytes.as_ptr().cast::<c_char>(),
+                node.tok.length as usize,
+            );
+        }
+        MpackTokenType::MpackTokenMap => {
+            let mut items = node.data[1].take_map_pairs();
+            let len = node.tok.length as usize;
+            let mut can_be_dict = items[..len].iter().all(|pair| {
+                let key = &pair[0];
+                key.v_type == VarType::VarString
+                    && !key.vval.v_string().is_null()
+                    && unsafe { *key.vval.v_string() } != 0
+            });
+
+            if can_be_dict {
+                let dict = tv_dict_alloc();
+                dict.dv_refcount += 1;
+                *result = TypVal {
+                    v_type: VarType::VarDict,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval::Dict(dict),
+                };
+                for pair in &items[..len] {
+                    let key = pair[0].vval.v_string();
+                    let keylen = crate::memory::cstr_len(key);
+                    let di = crate::eval::typval::tv_dict_item_alloc_len(key, keylen);
+                    if !tv_dict_add(&mut *dict, di) {
+                        let mut todo = dict.dv_hashtab.ht_used;
+                        let mut hi = dict.dv_hashtab.array_ptr();
+                        while todo > 0 {
+                            if !hashitem_empty(unsafe { &*hi }) {
+                                todo -= 1;
+                                let d = crate::eval::typval::tv_dict_hi2di(hi);
+                                d.di_tv.v_type = VarType::VarSpecial;
+                                d.di_tv.vval =
+                                    crate::eval::typval::TypvalVval::Number(K_SPECIAL_VAR_NULL);
+                            }
+                            hi = hi.wrapping_add(1);
+                        }
+                        tv_clear(&mut *result);
+                        crate::eval::typval::tv_dict_item_free(di);
+                        can_be_dict = false;
+                        break;
+                    }
+                    di.di_tv = pair[1];
+                }
+            }
+
+            if can_be_dict {
+                for pair in &mut items[..len] {
+                    tv_clear(&mut pair[0]);
+                }
+            } else {
+                let list = decode_create_map_special_dict(&mut *result, len as isize);
+                for pair in &items[..len] {
+                    let kv_pair = tv_list_alloc(2);
+                    tv_list_append_list(&mut *list, kv_pair);
+                    tv_list_append_owned_tv(&mut *kv_pair, pair[0]);
+                    tv_list_append_owned_tv(&mut *kv_pair, pair[1]);
+                }
+            }
+        }
+        _ => {}
     }
 }
 
@@ -1302,17 +1319,15 @@ mod tests {
 
     #[test]
     fn decode_string_copies_ascii() {
-        {
-            let mut tv = decode_string(c"hello", 5, false, false);
-            assert_eq!(tv.v_type, VarType::VarString);
-            assert_eq!(
-                crate::memory::cstr_from_ptr(tv.vval.v_string())
-                    .to_str()
-                    .unwrap(),
-                "hello"
-            );
-            tv_clear(&mut tv);
-        }
+        let mut tv = decode_string(c"hello", 5, false, false);
+        assert_eq!(tv.v_type, VarType::VarString);
+        assert_eq!(
+            crate::memory::cstr_from_ptr(tv.vval.v_string())
+                .to_str()
+                .unwrap(),
+            "hello"
+        );
+        tv_clear(&mut tv);
     }
 
     #[test]

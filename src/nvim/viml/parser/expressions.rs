@@ -1278,427 +1278,424 @@ fn get_ccs(ret: &mut LexExprToken, bytes: &[u8]) {
 
 /// Get next token for the Vimscript expression input (`viml_pexpr_next_token`).
 pub fn viml_pexpr_next_token(pstate: &mut ParserState<'_>, flags: i32) -> LexExprToken {
-    {
-        let mut ret = LexExprToken::new();
-        ret.r#type = K_EXPR_LEX_INVALID;
-        ret.start = pstate.pos;
+    let mut ret = LexExprToken::new();
+    ret.r#type = K_EXPR_LEX_INVALID;
+    ret.start = pstate.pos;
 
-        let mut pline = ParserLine {
-            data: std::ptr::null(),
-            size: 0,
-        };
-        if !viml_parser_get_remaining_line(pstate, &mut pline) {
-            ret.r#type = K_EXPR_LEX_EOC;
-            return ret;
-        }
-        if pline.size == 0 {
-            ret.len = 0;
-            ret.r#type = K_EXPR_LEX_EOC;
-            if (flags & K_ELFLAG_PEEK) == 0 {
-                viml_parser_advance(pstate, ret.len);
-            }
-            return ret;
-        }
-        let bytes = crate::memory::cstr_slice(pline.data, pline.size);
-        ret.len = 1;
-        let schar = bytes[0];
-
-        match schar {
-            b'(' | b')' => {
-                ret.r#type = K_EXPR_LEX_PARENTHESIS;
-                ret.data.brc_mut().closing = schar == b')';
-            }
-            b'[' | b']' => {
-                ret.r#type = K_EXPR_LEX_BRACKET;
-                ret.data.brc_mut().closing = schar == b']';
-            }
-            b'{' | b'}' => {
-                ret.r#type = K_EXPR_LEX_FIGURE_BRACE;
-                ret.data.brc_mut().closing = schar == b'}';
-            }
-            b'?' => {
-                ret.r#type = K_EXPR_LEX_QUESTION;
-            }
-            b':' => {
-                ret.r#type = K_EXPR_LEX_COLON;
-            }
-            b',' => {
-                ret.r#type = K_EXPR_LEX_COMMA;
-            }
-            b'*' => {
-                ret.r#type = K_EXPR_LEX_MULTIPLICATION;
-                ret.data.mul_mut().r#type = K_EXPR_LEX_MUL_MUL;
-            }
-            b'/' => {
-                ret.r#type = K_EXPR_LEX_MULTIPLICATION;
-                ret.data.mul_mut().r#type = K_EXPR_LEX_MUL_DIV;
-            }
-            b'%' => {
-                ret.r#type = K_EXPR_LEX_MULTIPLICATION;
-                ret.data.mul_mut().r#type = K_EXPR_LEX_MUL_MOD;
-            }
-            b' ' | TAB => {
-                ret.r#type = K_EXPR_LEX_SPACING;
-                while ret.len < bytes.len() && ascii_iswhite(bytes[ret.len]) {
-                    ret.len += 1;
-                }
-            }
-            CTRL_A_CONST..=CTRL_H_CONST | CTRL_K_CONST_CONST..=CTRL_Z_CONST_CONST => {
-                ret.r#type = K_EXPR_LEX_INVALID;
-                while ret.len < bytes.len() && (bytes[ret.len] as i8) < (b' ' as i8) {
-                    ret.len += 1;
-                }
-                ret.data.err_mut().r#type = K_EXPR_LEX_SPACING;
-                ret.data.err_mut().msg =
-                    Some(c"E15: Invalid control character present in input: %.*s");
-            }
-            b'0'..=b'9' => {
-                ret.data.num_mut().is_float = false;
-                ret.data.num_mut().base = 10;
-                let mut frac_start = 0usize;
-                let mut exp_start = 0usize;
-                let mut frac_end = 0usize;
-                let mut exp_negative = false;
-                ret.r#type = K_EXPR_LEX_NUMBER;
-                while ret.len < bytes.len() && ascii_isdigit(bytes[ret.len]) {
-                    ret.len += 1;
-                }
-                if (flags & K_ELFLAG_ALLOW_FLOAT) != 0 {
-                    let non_float_ret = ret;
-                    if bytes.len() > ret.len + 1
-                        && bytes[ret.len] == b'.'
-                        && ascii_isdigit(bytes[ret.len + 1])
-                    {
-                        ret.len += 1;
-                        frac_start = ret.len;
-                        frac_end = ret.len;
-                        ret.data.num_mut().is_float = true;
-                        while ret.len < bytes.len() && ascii_isdigit(bytes[ret.len]) {
-                            if bytes[ret.len] != b'0' {
-                                frac_end = ret.len + 1;
-                            }
-                            ret.len += 1;
-                        }
-                        if bytes.len() > ret.len + 1
-                            && (bytes[ret.len] == b'e' || bytes[ret.len] == b'E')
-                            && ((bytes.len() > ret.len + 2
-                                && (bytes[ret.len + 1] == b'+' || bytes[ret.len + 1] == b'-')
-                                && ascii_isdigit(bytes[ret.len + 2]))
-                                || ascii_isdigit(bytes[ret.len + 1]))
-                        {
-                            ret.len += 1;
-                            if bytes[ret.len] == b'+' {
-                                ret.len += 1;
-                            } else if bytes[ret.len] == b'-' {
-                                exp_negative = true;
-                                ret.len += 1;
-                            }
-                            exp_start = ret.len;
-                            ret.r#type = K_EXPR_LEX_NUMBER;
-                            while ret.len < bytes.len() && ascii_isdigit(bytes[ret.len]) {
-                                ret.len += 1;
-                            }
-                        }
-                    }
-                    if bytes.len() > ret.len
-                        && (bytes[ret.len] == b'.' || ascii_isalpha(bytes[ret.len]))
-                    {
-                        ret = non_float_ret;
-                    }
-                }
-                if ret.data.num().is_float {
-                    let mut significand_part: TvFloat = 0.0;
-                    let mut exp_part: Uvarnumber = 0;
-                    let frac_size = (frac_end - frac_start) as Uvarnumber;
-                    for (i, &b) in bytes[..frac_end].iter().enumerate() {
-                        if i == frac_start - 1 {
-                            continue;
-                        }
-                        significand_part = significand_part * 10.0 + TvFloat::from(b - b'0');
-                    }
-                    if exp_start != 0 {
-                        vim_str2nr(
-                            pline.data.wrapping_add(exp_start),
-                            None,
-                            None,
-                            0,
-                            None,
-                            Some(&mut exp_part),
-                            (ret.len - exp_start) as i32,
-                            false,
-                            None,
-                        );
-                    }
-                    if exp_negative {
-                        exp_part += frac_size;
-                    } else if exp_part < frac_size {
-                        exp_negative = true;
-                        exp_part = frac_size - exp_part;
-                    } else {
-                        exp_part -= frac_size;
-                    }
-                    ret.data.num_mut().val = LexExprTokenNumVal::Floating(scale_number(
-                        significand_part,
-                        10,
-                        exp_part,
-                        exp_negative,
-                    ));
-                } else {
-                    let mut len: i32 = 0;
-                    let mut prep: i32 = 0;
-                    let mut int_val: Uvarnumber = 0;
-                    vim_str2nr(
-                        pline.data,
-                        Some(&mut prep),
-                        Some(&mut len),
-                        STR2NR_ALL,
-                        None,
-                        Some(&mut int_val),
-                        pline.size as i32,
-                        false,
-                        None,
-                    );
-                    ret.data.num_mut().val = LexExprTokenNumVal::Integer(int_val);
-                    ret.len = len as usize;
-                    ret.data.num_mut().base = match prep as u8 {
-                        0 => 10,
-                        b'0' => 8,
-                        b'x' | b'X' => 16,
-                        b'b' | b'B' => 2,
-                        _ => 10,
-                    };
-                }
-            }
-            b'$' => {
-                ret.r#type = K_EXPR_LEX_ENV;
-                while ret.len < bytes.len() && ascii_isident(bytes[ret.len]) {
-                    ret.len += 1;
-                }
-            }
-            b'a'..=b'z' | b'A'..=b'Z' | b'_' => {
-                ret.data.var_mut().scope = 0;
-                ret.data.var_mut().autoload = false;
-                ret.r#type = K_EXPR_LEX_PLAIN_IDENTIFIER;
-                while ret.len < bytes.len() && ascii_isident(bytes[ret.len]) {
-                    ret.len += 1;
-                }
-                if (flags & K_ELFLAG_IS_NOT_CMP) == 0
-                    && ((ret.len == 2 && &bytes[..2] == b"is")
-                        || (ret.len == 5 && &bytes[..5] == b"isnot"))
-                {
-                    ret.r#type = K_EXPR_LEX_COMPARISON;
-                    ret.data.cmp_mut().r#type = K_EXPR_CMP_IDENTICAL;
-                    ret.data.cmp_mut().inv = ret.len == 5;
-                    get_ccs(&mut ret, bytes);
-                } else if ret.len == 1
-                    && bytes.len() > 1
-                    && is_var_scope(schar)
-                    && bytes[ret.len] == b':'
-                    && (flags & K_ELFLAG_FORBID_SCOPE) == 0
-                {
-                    ret.len += 1;
-                    ret.data.var_mut().scope = i32::from(schar);
-                    ret.r#type = K_EXPR_LEX_PLAIN_IDENTIFIER;
-                    while ret.len < bytes.len()
-                        && (ascii_isident(bytes[ret.len]) || bytes[ret.len] == AUTOLOAD_CHAR)
-                    {
-                        ret.len += 1;
-                    }
-                    ret.data.var_mut().autoload = bytes[2..ret.len].contains(&AUTOLOAD_CHAR);
-                } else if bytes.len() > ret.len && bytes[ret.len] == AUTOLOAD_CHAR {
-                    ret.data.var_mut().autoload = true;
-                    ret.r#type = K_EXPR_LEX_PLAIN_IDENTIFIER;
-                    while ret.len < bytes.len()
-                        && (ascii_isident(bytes[ret.len]) || bytes[ret.len] == AUTOLOAD_CHAR)
-                    {
-                        ret.len += 1;
-                    }
-                }
-            }
-            b'&' => {
-                if bytes.len() > 1 && bytes[1] == b'&' {
-                    ret.r#type = K_EXPR_LEX_AND;
-                    ret.len += 1;
-                } else if bytes.len() == 1 || !ascii_isalpha(bytes[1]) {
-                    ret.r#type = K_EXPR_LEX_INVALID;
-                    ret.data.err_mut().r#type = K_EXPR_LEX_OPTION;
-                    ret.data.err_mut().msg = Some(c"E112: Option name missing: %.*s");
-                } else {
-                    ret.r#type = K_EXPR_LEX_OPTION;
-                    let p_offset: usize =
-                        if bytes.len() > 2 && bytes[2] == b':' && is_opt_scope(bytes[1]) {
-                            ret.len += 2;
-                            ret.data.opt_mut().scope = i32::from(bytes[1]);
-                            ret.data.opt_mut().name = pline.data.wrapping_add(3);
-                            3
-                        } else {
-                            ret.data.opt_mut().scope = K_EXPR_OPT_SCOPE_UNSPECIFIED;
-                            ret.data.opt_mut().name = pline.data.wrapping_add(1);
-                            1
-                        };
-                    if bytes.len() - p_offset >= 4
-                        && bytes[p_offset] == b't'
-                        && bytes[p_offset + 1] == b'_'
-                    {
-                        ret.data.opt_mut().len = 4;
-                        ret.len += 4;
-                    } else {
-                        let mut p_idx = p_offset;
-                        while p_idx < bytes.len() && ascii_isalpha(bytes[p_idx]) {
-                            p_idx += 1;
-                        }
-                        ret.data.opt_mut().len = p_idx - p_offset;
-                        if ret.data.opt().len == 0 {
-                            ret.r#type = K_EXPR_LEX_INVALID;
-                            ret.data.err_mut().r#type = K_EXPR_LEX_OPTION;
-                            ret.data.err_mut().msg = Some(c"E112: Option name missing: %.*s");
-                        } else {
-                            ret.len += ret.data.opt().len;
-                        }
-                    }
-                }
-            }
-            b'@' => {
-                ret.r#type = K_EXPR_LEX_REGISTER;
-                if bytes.len() > 1 {
-                    ret.len += 1;
-                    ret.data.reg_mut().name = i32::from(bytes[1]);
-                } else {
-                    ret.data.reg_mut().name = -1;
-                }
-            }
-            b'\'' => {
-                ret.r#type = K_EXPR_LEX_SINGLE_QUOTED_STRING;
-                ret.data.str_mut().closed = false;
-                while ret.len < bytes.len() && !ret.data.str().closed {
-                    if bytes[ret.len] == b'\'' {
-                        if ret.len + 1 < bytes.len() && bytes[ret.len + 1] == b'\'' {
-                            ret.len += 1;
-                        } else {
-                            ret.data.str_mut().closed = true;
-                        }
-                    }
-                    ret.len += 1;
-                }
-            }
-            b'"' => {
-                ret.r#type = K_EXPR_LEX_DOUBLE_QUOTED_STRING;
-                ret.data.str_mut().closed = false;
-                while ret.len < bytes.len() && !ret.data.str().closed {
-                    if bytes[ret.len] == b'\\' {
-                        if ret.len + 1 < bytes.len() {
-                            ret.len += 1;
-                        }
-                    } else if bytes[ret.len] == b'"' {
-                        ret.data.str_mut().closed = true;
-                    }
-                    ret.len += 1;
-                }
-            }
-            b'!' | b'=' => {
-                if bytes.len() == 1 {
-                    ret.r#type = if schar == b'!' {
-                        K_EXPR_LEX_NOT
-                    } else {
-                        K_EXPR_LEX_ASSIGNMENT
-                    };
-                    ret.data.ass_mut().r#type = K_EXPR_ASGN_PLAIN;
-                } else {
-                    ret.r#type = K_EXPR_LEX_COMPARISON;
-                    ret.data.cmp_mut().inv = schar == b'!';
-                    if bytes[1] == b'=' {
-                        ret.data.cmp_mut().r#type = K_EXPR_CMP_EQUAL;
-                        ret.len += 1;
-                    } else if bytes[1] == b'~' {
-                        ret.data.cmp_mut().r#type = K_EXPR_CMP_MATCHES;
-                        ret.len += 1;
-                    } else if schar == b'!' {
-                        ret.r#type = K_EXPR_LEX_NOT;
-                    } else {
-                        ret.r#type = K_EXPR_LEX_ASSIGNMENT;
-                        ret.data.ass_mut().r#type = K_EXPR_ASGN_PLAIN;
-                    }
-                    get_ccs(&mut ret, bytes);
-                }
-            }
-            b'>' | b'<' => {
-                ret.r#type = K_EXPR_LEX_COMPARISON;
-                let haseqsign = bytes.len() > 1 && bytes[1] == b'=';
-                if haseqsign {
-                    ret.len += 1;
-                }
-                get_ccs(&mut ret, bytes);
-                ret.data.cmp_mut().inv = schar == b'<';
-                ret.data.cmp_mut().r#type = if ret.data.cmp().inv ^ haseqsign {
-                    K_EXPR_CMP_GREATER_OR_EQUAL
-                } else {
-                    K_EXPR_CMP_GREATER
-                };
-            }
-            b'-' => {
-                if bytes.len() > 1 && bytes[1] == b'>' {
-                    ret.len += 1;
-                    ret.r#type = K_EXPR_LEX_ARROW;
-                } else if bytes.len() > 1 && bytes[1] == b'=' {
-                    ret.len += 1;
-                    ret.r#type = K_EXPR_LEX_ASSIGNMENT;
-                    ret.data.ass_mut().r#type = K_EXPR_ASGN_SUBTRACT;
-                } else {
-                    ret.r#type = K_EXPR_LEX_MINUS;
-                }
-            }
-            b'+' => {
-                if bytes.len() > 1 && bytes[1] == b'=' {
-                    ret.len += 1;
-                    ret.r#type = K_EXPR_LEX_ASSIGNMENT;
-                    ret.data.ass_mut().r#type = K_EXPR_ASGN_ADD;
-                } else {
-                    ret.r#type = K_EXPR_LEX_PLUS;
-                }
-            }
-            b'.' => {
-                if bytes.len() > 1 && bytes[1] == b'=' {
-                    ret.len += 1;
-                    ret.r#type = K_EXPR_LEX_ASSIGNMENT;
-                    ret.data.ass_mut().r#type = K_EXPR_ASGN_CONCAT;
-                } else {
-                    ret.r#type = K_EXPR_LEX_DOT;
-                }
-            }
-            NUL | NL => {
-                if (flags & K_ELFLAG_FORBID_EOC) != 0 {
-                    ret.r#type = K_EXPR_LEX_INVALID;
-                    ret.data.err_mut().msg = Some(c"E15: Unexpected EOC character: %.*s");
-                    ret.data.err_mut().r#type = K_EXPR_LEX_SPACING;
-                } else {
-                    ret.r#type = K_EXPR_LEX_EOC;
-                }
-            }
-            b'|' => {
-                if bytes.len() >= 2 && bytes[ret.len] == b'|' {
-                    ret.len += 1;
-                    ret.r#type = K_EXPR_LEX_OR;
-                } else if (flags & K_ELFLAG_FORBID_EOC) != 0 {
-                    ret.r#type = K_EXPR_LEX_INVALID;
-                    ret.data.err_mut().msg = Some(c"E15: Unexpected EOC character: %.*s");
-                    ret.data.err_mut().r#type = K_EXPR_LEX_OR;
-                } else {
-                    ret.r#type = K_EXPR_LEX_EOC;
-                }
-            }
-            _ => {
-                ret.len = utfc_ptr2len_len(pline.data, pline.size as i32) as usize;
-                ret.r#type = K_EXPR_LEX_INVALID;
-                ret.data.err_mut().r#type = K_EXPR_LEX_PLAIN_IDENTIFIER;
-                ret.data.err_mut().msg = Some(c"E15: Unidentified character: %.*s");
-            }
-        }
-
+    let mut pline = ParserLine {
+        data: std::ptr::null(),
+        size: 0,
+    };
+    if !viml_parser_get_remaining_line(pstate, &mut pline) {
+        ret.r#type = K_EXPR_LEX_EOC;
+        return ret;
+    }
+    if pline.size == 0 {
+        ret.len = 0;
+        ret.r#type = K_EXPR_LEX_EOC;
         if (flags & K_ELFLAG_PEEK) == 0 {
             viml_parser_advance(pstate, ret.len);
         }
-        ret
+        return ret;
     }
+    let bytes = crate::memory::cstr_slice(pline.data, pline.size);
+    ret.len = 1;
+    let schar = bytes[0];
+
+    match schar {
+        b'(' | b')' => {
+            ret.r#type = K_EXPR_LEX_PARENTHESIS;
+            ret.data.brc_mut().closing = schar == b')';
+        }
+        b'[' | b']' => {
+            ret.r#type = K_EXPR_LEX_BRACKET;
+            ret.data.brc_mut().closing = schar == b']';
+        }
+        b'{' | b'}' => {
+            ret.r#type = K_EXPR_LEX_FIGURE_BRACE;
+            ret.data.brc_mut().closing = schar == b'}';
+        }
+        b'?' => {
+            ret.r#type = K_EXPR_LEX_QUESTION;
+        }
+        b':' => {
+            ret.r#type = K_EXPR_LEX_COLON;
+        }
+        b',' => {
+            ret.r#type = K_EXPR_LEX_COMMA;
+        }
+        b'*' => {
+            ret.r#type = K_EXPR_LEX_MULTIPLICATION;
+            ret.data.mul_mut().r#type = K_EXPR_LEX_MUL_MUL;
+        }
+        b'/' => {
+            ret.r#type = K_EXPR_LEX_MULTIPLICATION;
+            ret.data.mul_mut().r#type = K_EXPR_LEX_MUL_DIV;
+        }
+        b'%' => {
+            ret.r#type = K_EXPR_LEX_MULTIPLICATION;
+            ret.data.mul_mut().r#type = K_EXPR_LEX_MUL_MOD;
+        }
+        b' ' | TAB => {
+            ret.r#type = K_EXPR_LEX_SPACING;
+            while ret.len < bytes.len() && ascii_iswhite(bytes[ret.len]) {
+                ret.len += 1;
+            }
+        }
+        CTRL_A_CONST..=CTRL_H_CONST | CTRL_K_CONST_CONST..=CTRL_Z_CONST_CONST => {
+            ret.r#type = K_EXPR_LEX_INVALID;
+            while ret.len < bytes.len() && (bytes[ret.len] as i8) < (b' ' as i8) {
+                ret.len += 1;
+            }
+            ret.data.err_mut().r#type = K_EXPR_LEX_SPACING;
+            ret.data.err_mut().msg = Some(c"E15: Invalid control character present in input: %.*s");
+        }
+        b'0'..=b'9' => {
+            ret.data.num_mut().is_float = false;
+            ret.data.num_mut().base = 10;
+            let mut frac_start = 0usize;
+            let mut exp_start = 0usize;
+            let mut frac_end = 0usize;
+            let mut exp_negative = false;
+            ret.r#type = K_EXPR_LEX_NUMBER;
+            while ret.len < bytes.len() && ascii_isdigit(bytes[ret.len]) {
+                ret.len += 1;
+            }
+            if (flags & K_ELFLAG_ALLOW_FLOAT) != 0 {
+                let non_float_ret = ret;
+                if bytes.len() > ret.len + 1
+                    && bytes[ret.len] == b'.'
+                    && ascii_isdigit(bytes[ret.len + 1])
+                {
+                    ret.len += 1;
+                    frac_start = ret.len;
+                    frac_end = ret.len;
+                    ret.data.num_mut().is_float = true;
+                    while ret.len < bytes.len() && ascii_isdigit(bytes[ret.len]) {
+                        if bytes[ret.len] != b'0' {
+                            frac_end = ret.len + 1;
+                        }
+                        ret.len += 1;
+                    }
+                    if bytes.len() > ret.len + 1
+                        && (bytes[ret.len] == b'e' || bytes[ret.len] == b'E')
+                        && ((bytes.len() > ret.len + 2
+                            && (bytes[ret.len + 1] == b'+' || bytes[ret.len + 1] == b'-')
+                            && ascii_isdigit(bytes[ret.len + 2]))
+                            || ascii_isdigit(bytes[ret.len + 1]))
+                    {
+                        ret.len += 1;
+                        if bytes[ret.len] == b'+' {
+                            ret.len += 1;
+                        } else if bytes[ret.len] == b'-' {
+                            exp_negative = true;
+                            ret.len += 1;
+                        }
+                        exp_start = ret.len;
+                        ret.r#type = K_EXPR_LEX_NUMBER;
+                        while ret.len < bytes.len() && ascii_isdigit(bytes[ret.len]) {
+                            ret.len += 1;
+                        }
+                    }
+                }
+                if bytes.len() > ret.len
+                    && (bytes[ret.len] == b'.' || ascii_isalpha(bytes[ret.len]))
+                {
+                    ret = non_float_ret;
+                }
+            }
+            if ret.data.num().is_float {
+                let mut significand_part: TvFloat = 0.0;
+                let mut exp_part: Uvarnumber = 0;
+                let frac_size = (frac_end - frac_start) as Uvarnumber;
+                for (i, &b) in bytes[..frac_end].iter().enumerate() {
+                    if i == frac_start - 1 {
+                        continue;
+                    }
+                    significand_part = significand_part * 10.0 + TvFloat::from(b - b'0');
+                }
+                if exp_start != 0 {
+                    vim_str2nr(
+                        pline.data.wrapping_add(exp_start),
+                        None,
+                        None,
+                        0,
+                        None,
+                        Some(&mut exp_part),
+                        (ret.len - exp_start) as i32,
+                        false,
+                        None,
+                    );
+                }
+                if exp_negative {
+                    exp_part += frac_size;
+                } else if exp_part < frac_size {
+                    exp_negative = true;
+                    exp_part = frac_size - exp_part;
+                } else {
+                    exp_part -= frac_size;
+                }
+                ret.data.num_mut().val = LexExprTokenNumVal::Floating(scale_number(
+                    significand_part,
+                    10,
+                    exp_part,
+                    exp_negative,
+                ));
+            } else {
+                let mut len: i32 = 0;
+                let mut prep: i32 = 0;
+                let mut int_val: Uvarnumber = 0;
+                vim_str2nr(
+                    pline.data,
+                    Some(&mut prep),
+                    Some(&mut len),
+                    STR2NR_ALL,
+                    None,
+                    Some(&mut int_val),
+                    pline.size as i32,
+                    false,
+                    None,
+                );
+                ret.data.num_mut().val = LexExprTokenNumVal::Integer(int_val);
+                ret.len = len as usize;
+                ret.data.num_mut().base = match prep as u8 {
+                    0 => 10,
+                    b'0' => 8,
+                    b'x' | b'X' => 16,
+                    b'b' | b'B' => 2,
+                    _ => 10,
+                };
+            }
+        }
+        b'$' => {
+            ret.r#type = K_EXPR_LEX_ENV;
+            while ret.len < bytes.len() && ascii_isident(bytes[ret.len]) {
+                ret.len += 1;
+            }
+        }
+        b'a'..=b'z' | b'A'..=b'Z' | b'_' => {
+            ret.data.var_mut().scope = 0;
+            ret.data.var_mut().autoload = false;
+            ret.r#type = K_EXPR_LEX_PLAIN_IDENTIFIER;
+            while ret.len < bytes.len() && ascii_isident(bytes[ret.len]) {
+                ret.len += 1;
+            }
+            if (flags & K_ELFLAG_IS_NOT_CMP) == 0
+                && ((ret.len == 2 && &bytes[..2] == b"is")
+                    || (ret.len == 5 && &bytes[..5] == b"isnot"))
+            {
+                ret.r#type = K_EXPR_LEX_COMPARISON;
+                ret.data.cmp_mut().r#type = K_EXPR_CMP_IDENTICAL;
+                ret.data.cmp_mut().inv = ret.len == 5;
+                get_ccs(&mut ret, bytes);
+            } else if ret.len == 1
+                && bytes.len() > 1
+                && is_var_scope(schar)
+                && bytes[ret.len] == b':'
+                && (flags & K_ELFLAG_FORBID_SCOPE) == 0
+            {
+                ret.len += 1;
+                ret.data.var_mut().scope = i32::from(schar);
+                ret.r#type = K_EXPR_LEX_PLAIN_IDENTIFIER;
+                while ret.len < bytes.len()
+                    && (ascii_isident(bytes[ret.len]) || bytes[ret.len] == AUTOLOAD_CHAR)
+                {
+                    ret.len += 1;
+                }
+                ret.data.var_mut().autoload = bytes[2..ret.len].contains(&AUTOLOAD_CHAR);
+            } else if bytes.len() > ret.len && bytes[ret.len] == AUTOLOAD_CHAR {
+                ret.data.var_mut().autoload = true;
+                ret.r#type = K_EXPR_LEX_PLAIN_IDENTIFIER;
+                while ret.len < bytes.len()
+                    && (ascii_isident(bytes[ret.len]) || bytes[ret.len] == AUTOLOAD_CHAR)
+                {
+                    ret.len += 1;
+                }
+            }
+        }
+        b'&' => {
+            if bytes.len() > 1 && bytes[1] == b'&' {
+                ret.r#type = K_EXPR_LEX_AND;
+                ret.len += 1;
+            } else if bytes.len() == 1 || !ascii_isalpha(bytes[1]) {
+                ret.r#type = K_EXPR_LEX_INVALID;
+                ret.data.err_mut().r#type = K_EXPR_LEX_OPTION;
+                ret.data.err_mut().msg = Some(c"E112: Option name missing: %.*s");
+            } else {
+                ret.r#type = K_EXPR_LEX_OPTION;
+                let p_offset: usize =
+                    if bytes.len() > 2 && bytes[2] == b':' && is_opt_scope(bytes[1]) {
+                        ret.len += 2;
+                        ret.data.opt_mut().scope = i32::from(bytes[1]);
+                        ret.data.opt_mut().name = pline.data.wrapping_add(3);
+                        3
+                    } else {
+                        ret.data.opt_mut().scope = K_EXPR_OPT_SCOPE_UNSPECIFIED;
+                        ret.data.opt_mut().name = pline.data.wrapping_add(1);
+                        1
+                    };
+                if bytes.len() - p_offset >= 4
+                    && bytes[p_offset] == b't'
+                    && bytes[p_offset + 1] == b'_'
+                {
+                    ret.data.opt_mut().len = 4;
+                    ret.len += 4;
+                } else {
+                    let mut p_idx = p_offset;
+                    while p_idx < bytes.len() && ascii_isalpha(bytes[p_idx]) {
+                        p_idx += 1;
+                    }
+                    ret.data.opt_mut().len = p_idx - p_offset;
+                    if ret.data.opt().len == 0 {
+                        ret.r#type = K_EXPR_LEX_INVALID;
+                        ret.data.err_mut().r#type = K_EXPR_LEX_OPTION;
+                        ret.data.err_mut().msg = Some(c"E112: Option name missing: %.*s");
+                    } else {
+                        ret.len += ret.data.opt().len;
+                    }
+                }
+            }
+        }
+        b'@' => {
+            ret.r#type = K_EXPR_LEX_REGISTER;
+            if bytes.len() > 1 {
+                ret.len += 1;
+                ret.data.reg_mut().name = i32::from(bytes[1]);
+            } else {
+                ret.data.reg_mut().name = -1;
+            }
+        }
+        b'\'' => {
+            ret.r#type = K_EXPR_LEX_SINGLE_QUOTED_STRING;
+            ret.data.str_mut().closed = false;
+            while ret.len < bytes.len() && !ret.data.str().closed {
+                if bytes[ret.len] == b'\'' {
+                    if ret.len + 1 < bytes.len() && bytes[ret.len + 1] == b'\'' {
+                        ret.len += 1;
+                    } else {
+                        ret.data.str_mut().closed = true;
+                    }
+                }
+                ret.len += 1;
+            }
+        }
+        b'"' => {
+            ret.r#type = K_EXPR_LEX_DOUBLE_QUOTED_STRING;
+            ret.data.str_mut().closed = false;
+            while ret.len < bytes.len() && !ret.data.str().closed {
+                if bytes[ret.len] == b'\\' {
+                    if ret.len + 1 < bytes.len() {
+                        ret.len += 1;
+                    }
+                } else if bytes[ret.len] == b'"' {
+                    ret.data.str_mut().closed = true;
+                }
+                ret.len += 1;
+            }
+        }
+        b'!' | b'=' => {
+            if bytes.len() == 1 {
+                ret.r#type = if schar == b'!' {
+                    K_EXPR_LEX_NOT
+                } else {
+                    K_EXPR_LEX_ASSIGNMENT
+                };
+                ret.data.ass_mut().r#type = K_EXPR_ASGN_PLAIN;
+            } else {
+                ret.r#type = K_EXPR_LEX_COMPARISON;
+                ret.data.cmp_mut().inv = schar == b'!';
+                if bytes[1] == b'=' {
+                    ret.data.cmp_mut().r#type = K_EXPR_CMP_EQUAL;
+                    ret.len += 1;
+                } else if bytes[1] == b'~' {
+                    ret.data.cmp_mut().r#type = K_EXPR_CMP_MATCHES;
+                    ret.len += 1;
+                } else if schar == b'!' {
+                    ret.r#type = K_EXPR_LEX_NOT;
+                } else {
+                    ret.r#type = K_EXPR_LEX_ASSIGNMENT;
+                    ret.data.ass_mut().r#type = K_EXPR_ASGN_PLAIN;
+                }
+                get_ccs(&mut ret, bytes);
+            }
+        }
+        b'>' | b'<' => {
+            ret.r#type = K_EXPR_LEX_COMPARISON;
+            let haseqsign = bytes.len() > 1 && bytes[1] == b'=';
+            if haseqsign {
+                ret.len += 1;
+            }
+            get_ccs(&mut ret, bytes);
+            ret.data.cmp_mut().inv = schar == b'<';
+            ret.data.cmp_mut().r#type = if ret.data.cmp().inv ^ haseqsign {
+                K_EXPR_CMP_GREATER_OR_EQUAL
+            } else {
+                K_EXPR_CMP_GREATER
+            };
+        }
+        b'-' => {
+            if bytes.len() > 1 && bytes[1] == b'>' {
+                ret.len += 1;
+                ret.r#type = K_EXPR_LEX_ARROW;
+            } else if bytes.len() > 1 && bytes[1] == b'=' {
+                ret.len += 1;
+                ret.r#type = K_EXPR_LEX_ASSIGNMENT;
+                ret.data.ass_mut().r#type = K_EXPR_ASGN_SUBTRACT;
+            } else {
+                ret.r#type = K_EXPR_LEX_MINUS;
+            }
+        }
+        b'+' => {
+            if bytes.len() > 1 && bytes[1] == b'=' {
+                ret.len += 1;
+                ret.r#type = K_EXPR_LEX_ASSIGNMENT;
+                ret.data.ass_mut().r#type = K_EXPR_ASGN_ADD;
+            } else {
+                ret.r#type = K_EXPR_LEX_PLUS;
+            }
+        }
+        b'.' => {
+            if bytes.len() > 1 && bytes[1] == b'=' {
+                ret.len += 1;
+                ret.r#type = K_EXPR_LEX_ASSIGNMENT;
+                ret.data.ass_mut().r#type = K_EXPR_ASGN_CONCAT;
+            } else {
+                ret.r#type = K_EXPR_LEX_DOT;
+            }
+        }
+        NUL | NL => {
+            if (flags & K_ELFLAG_FORBID_EOC) != 0 {
+                ret.r#type = K_EXPR_LEX_INVALID;
+                ret.data.err_mut().msg = Some(c"E15: Unexpected EOC character: %.*s");
+                ret.data.err_mut().r#type = K_EXPR_LEX_SPACING;
+            } else {
+                ret.r#type = K_EXPR_LEX_EOC;
+            }
+        }
+        b'|' => {
+            if bytes.len() >= 2 && bytes[ret.len] == b'|' {
+                ret.len += 1;
+                ret.r#type = K_EXPR_LEX_OR;
+            } else if (flags & K_ELFLAG_FORBID_EOC) != 0 {
+                ret.r#type = K_EXPR_LEX_INVALID;
+                ret.data.err_mut().msg = Some(c"E15: Unexpected EOC character: %.*s");
+                ret.data.err_mut().r#type = K_EXPR_LEX_OR;
+            } else {
+                ret.r#type = K_EXPR_LEX_EOC;
+            }
+        }
+        _ => {
+            ret.len = utfc_ptr2len_len(pline.data, pline.size as i32) as usize;
+            ret.r#type = K_EXPR_LEX_INVALID;
+            ret.data.err_mut().r#type = K_EXPR_LEX_PLAIN_IDENTIFIER;
+            ret.data.err_mut().msg = Some(c"E15: Unidentified character: %.*s");
+        }
+    }
+
+    if (flags & K_ELFLAG_PEEK) == 0 {
+        viml_parser_advance(pstate, ret.len);
+    }
+    ret
 }
 
 #[inline]
@@ -1755,19 +1752,17 @@ fn east_set_error(
     msg: &'static std::ffi::CStr,
     start: ParserPosition,
 ) {
-    {
-        if ret_ast_err.msg.is_some() {
-            return;
-        }
-        let pline = pstate.reader.lines.as_slice()[start.line];
-        ret_ast_err.msg = Some(msg);
-        ret_ast_err.arg_len = (pline.size - start.col) as i32;
-        ret_ast_err.arg = if pline.data.is_null() {
-            std::ptr::null()
-        } else {
-            pline.data.wrapping_add(start.col)
-        };
+    if ret_ast_err.msg.is_some() {
+        return;
     }
+    let pline = pstate.reader.lines.as_slice()[start.line];
+    ret_ast_err.msg = Some(msg);
+    ret_ast_err.arg_len = (pline.size - start.col) as i32;
+    ret_ast_err.arg = if pline.data.is_null() {
+        std::ptr::null()
+    } else {
+        pline.data.wrapping_add(start.col)
+    };
 }
 
 fn viml_pexpr_handle_bop(

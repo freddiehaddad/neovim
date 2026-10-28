@@ -423,49 +423,41 @@ use crate::fileio::ungetc;
 
 #[inline]
 fn spell_read_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> i32 {
-    {
-        let read_bytes = unsafe { fread(buf.cast(), 1, n, fd) };
-        if read_bytes != n {
-            if unsafe { feof(fd) } != 0 {
-                SP_TRUNCERROR
-            } else {
-                SP_OTHERERROR
-            }
+    let read_bytes = unsafe { fread(buf.cast(), 1, n, fd) };
+    if read_bytes != n {
+        if unsafe { feof(fd) } != 0 {
+            SP_TRUNCERROR
         } else {
-            0
+            SP_OTHERERROR
         }
+    } else {
+        0
     }
 }
 
 #[inline]
 fn spell_read_nonnul_bytes(buf: *mut c_char, n: usize, fd: *mut FILE) -> i32 {
-    {
-        let ret = spell_read_bytes(buf, n, fd);
-        if ret != 0 {
-            return ret;
-        }
-        if crate::memory::cstr_slice(buf, n).contains(&0) {
-            return SP_FORMERROR;
-        }
-        0
+    let ret = spell_read_bytes(buf, n, fd);
+    if ret != 0 {
+        return ret;
     }
+    if crate::memory::cstr_slice(buf, n).contains(&0) {
+        return SP_FORMERROR;
+    }
+    0
 }
 
 #[inline]
 fn spell_check_magic_string(fd: *mut FILE) -> i32 {
-    {
-        let mut buf = [0 as c_char; VIMSPELLMAGICL];
-        let ret = spell_read_bytes(buf.as_mut_ptr(), VIMSPELLMAGICL, fd);
-        if ret != 0 {
-            return ret;
-        }
-        if crate::memory::cstr_slice(buf.as_ptr(), VIMSPELLMAGICL)
-            != &VIMSPELLMAGIC[..VIMSPELLMAGICL]
-        {
-            return SP_FORMERROR;
-        }
-        0
+    let mut buf = [0 as c_char; VIMSPELLMAGICL];
+    let ret = spell_read_bytes(buf.as_mut_ptr(), VIMSPELLMAGICL, fd);
+    if ret != 0 {
+        return ret;
     }
+    if crate::memory::cstr_slice(buf.as_ptr(), VIMSPELLMAGICL) != &VIMSPELLMAGIC[..VIMSPELLMAGICL] {
+        return SP_FORMERROR;
+    }
+    0
 }
 
 /// Load one spell file and store the info into a Slang.
@@ -476,7 +468,7 @@ pub fn spell_load_file(
     silent: bool,
 ) -> *mut Slang {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         let fd = os_fopen(fname, c"r");
         if fd.is_null() {
             if !silent {
@@ -487,7 +479,9 @@ pub fn spell_load_file(
                 verbose_leave();
             }
             if !lang.is_null() {
-                *lang = NUL;
+                unsafe {
+                    *lang = NUL;
+                }
             }
             return ptr::null_mut();
         }
@@ -509,7 +503,7 @@ pub fn spell_load_file(
             None
         };
         let mut lp_ptr: *mut Slang = owned_lp.as_deref_mut().map_or(old_lp, |b| &raw mut *b);
-        let lp = &mut *lp_ptr;
+        let lp = unsafe { &mut *lp_ptr };
 
         estack_push(ETYPE_SPELL, fname, 0);
         let did_estack_push = true;
@@ -528,7 +522,7 @@ pub fn spell_load_file(
                 semsg!(
                     gettext(c"E5042: Failed to read spell file %s: %s"),
                     fname,
-                    strerror(ferror(fd)),
+                    unsafe { strerror(ferror(fd)) },
                 );
                 fail = true;
             }
@@ -536,7 +530,7 @@ pub fn spell_load_file(
         }
 
         if !fail {
-            let c = fgetc(fd);
+            let c = unsafe { fgetc(fd) };
             if c < VIMSPELLVERSION {
                 emsg(gettext(c"E771: Old spell file, needs to be updated"));
                 fail = true;
@@ -549,11 +543,11 @@ pub fn spell_load_file(
         let mut res: i32 = 0;
         let mut check_someerror = false;
         while !fail {
-            let n = fgetc(fd);
+            let n = unsafe { fgetc(fd) };
             if n == SN_END {
                 break;
             }
-            let c = fgetc(fd);
+            let c = unsafe { fgetc(fd) };
             let mut len = get4c(fd);
             if len < 0 {
                 res = SP_TRUNCERROR;
@@ -653,7 +647,7 @@ pub fn spell_load_file(
                     }
                     while len > 0 {
                         len -= 1;
-                        if fgetc(fd) < 0 {
+                        if unsafe { fgetc(fd) } < 0 {
                             res = SP_TRUNCERROR;
                             break;
                         }
@@ -716,14 +710,16 @@ pub fn spell_load_file(
             }
         } else {
             if !lang.is_null() {
-                *lang = NUL;
+                unsafe {
+                    *lang = NUL;
+                }
             }
             drop(owned_lp);
             lp_ptr = ptr::null_mut();
         }
 
         if !fd.is_null() {
-            fclose(fd);
+            unsafe { fclose(fd) };
         }
         if did_estack_push {
             estack_pop();
@@ -734,46 +730,42 @@ pub fn spell_load_file(
 }
 
 fn tree_count_words(byts: *const u8, byts_len: i32, idxs: *mut Idx) {
-    {
-        let mut arridx = [0 as Idx; MAXWLEN];
-        let mut curi = [0_i32; MAXWLEN];
-        let mut wordcount = [0_i32; MAXWLEN];
+    let mut arridx = [0 as Idx; MAXWLEN];
+    let mut curi = [0_i32; MAXWLEN];
+    let mut wordcount = [0_i32; MAXWLEN];
 
-        arridx[0] = 0;
-        curi[0] = 1;
-        wordcount[0] = 0;
-        let mut depth: isize = 0;
-        while depth >= 0 && !g_st().got_int {
-            let d = depth as usize;
-            if curi[d] > unsafe { *byts.wrapping_offset(arridx[d] as isize) } as i32 {
-                unsafe {
-                    *idxs.wrapping_offset(arridx[d] as isize) = wordcount[d];
-                }
-                if depth > 0 {
-                    wordcount[d - 1] += wordcount[d];
-                }
-                depth -= 1;
-                fast_breakcheck();
-            } else {
-                let mut n = arridx[d] + curi[d];
-                curi[d] += 1;
+    arridx[0] = 0;
+    curi[0] = 1;
+    wordcount[0] = 0;
+    let mut depth: isize = 0;
+    while depth >= 0 && !g_st().got_int {
+        let d = depth as usize;
+        if curi[d] > unsafe { *byts.wrapping_offset(arridx[d] as isize) } as i32 {
+            unsafe {
+                *idxs.wrapping_offset(arridx[d] as isize) = wordcount[d];
+            }
+            if depth > 0 {
+                wordcount[d - 1] += wordcount[d];
+            }
+            depth -= 1;
+            fast_breakcheck();
+        } else {
+            let mut n = arridx[d] + curi[d];
+            curi[d] += 1;
 
-                let c = unsafe { *byts.wrapping_offset(n as isize) } as i32;
-                if c == 0 {
-                    wordcount[d] += 1;
-                    while n + 1 < byts_len
-                        && unsafe { *byts.wrapping_offset((n + 1) as isize) } == 0
-                    {
-                        n += 1;
-                        curi[d] += 1;
-                    }
-                } else if d < MAXWLEN - 1 {
-                    depth += 1;
-                    let nd = depth as usize;
-                    arridx[nd] = unsafe { *idxs.wrapping_offset(n as isize) };
-                    curi[nd] = 1;
-                    wordcount[nd] = 0;
+            let c = unsafe { *byts.wrapping_offset(n as isize) } as i32;
+            if c == 0 {
+                wordcount[d] += 1;
+                while n + 1 < byts_len && unsafe { *byts.wrapping_offset((n + 1) as isize) } == 0 {
+                    n += 1;
+                    curi[d] += 1;
                 }
+            } else if d < MAXWLEN - 1 {
+                depth += 1;
+                let nd = depth as usize;
+                arridx[nd] = unsafe { *idxs.wrapping_offset(n as isize) };
+                curi[nd] = 1;
+                wordcount[nd] = 0;
             }
         }
     }
@@ -781,191 +773,183 @@ fn tree_count_words(byts: *const u8, byts_len: i32, idxs: *mut Idx) {
 
 /// Load the .sug files for languages that have one and weren't loaded yet.
 pub fn suggest_load_files() {
-    unsafe {
-        let mut buf = [0 as c_char; MAXWLEN];
-        let mut ga: Vec<u8> = Vec::new();
+    let mut buf = [0 as c_char; MAXWLEN];
+    let mut ga: Vec<u8> = Vec::new();
 
-        let mut lpi: usize = 0;
-        while lpi < win_s(curwin_mut()).b_langp.len() {
-            let lp = &(&win_s(curwin_mut()).b_langp)[lpi];
-            let slang = &mut *lp.lp_slang;
-            if slang.sl_sugtime != 0 && !slang.sl_sugloaded {
-                slang.sl_sugloaded = true;
+    let mut lpi: usize = 0;
+    while lpi < win_s(curwin_mut()).b_langp.len() {
+        let lp = &(&win_s(curwin_mut()).b_langp)[lpi];
+        let slang = unsafe { &mut *lp.lp_slang };
+        if slang.sl_sugtime != 0 && !slang.sl_sugloaded {
+            slang.sl_sugloaded = true;
 
-                let Some(ref fname_cstr) = slang.sl_fname else {
-                    lpi += 1;
-                    continue;
-                };
-                let Some(prefix_len) = fname_cstr.to_bytes().iter().rposition(|&b| b == b'.')
-                else {
-                    lpi += 1;
-                    continue;
-                };
-                if !path_equal(
-                    fname_cstr.as_ptr().wrapping_add(prefix_len),
-                    c".spl",
-                    K_PATH_CMP_LITERAL,
-                ) {
-                    lpi += 1;
-                    continue;
+            let Some(ref fname_cstr) = slang.sl_fname else {
+                lpi += 1;
+                continue;
+            };
+            let Some(prefix_len) = fname_cstr.to_bytes().iter().rposition(|&b| b == b'.') else {
+                lpi += 1;
+                continue;
+            };
+            if !path_equal(
+                fname_cstr.as_ptr().wrapping_add(prefix_len),
+                c".spl",
+                K_PATH_CMP_LITERAL,
+            ) {
+                lpi += 1;
+                continue;
+            }
+            let mut sug_bytes = fname_cstr.as_bytes()[..prefix_len].to_vec();
+            sug_bytes.extend_from_slice(b".sug");
+            let sug_fname = std::ffi::CString::new(sug_bytes).unwrap();
+            let sug_ptr = sug_fname.as_ptr();
+            let fd = os_fopen(sug_ptr, c"r");
+            if !fd.is_null() {
+                let mut ok = true;
+                for slot in buf.iter_mut().take(VIMSUGMAGICL) {
+                    *slot = unsafe { fgetc(fd) } as c_char;
                 }
-                let mut sug_bytes = fname_cstr.as_bytes()[..prefix_len].to_vec();
-                sug_bytes.extend_from_slice(b".sug");
-                let sug_fname = std::ffi::CString::new(sug_bytes).unwrap();
-                let sug_ptr = sug_fname.as_ptr();
-                let fd = os_fopen(sug_ptr, c"r");
-                if !fd.is_null() {
-                    let mut ok = true;
-                    for slot in buf.iter_mut().take(VIMSUGMAGICL) {
-                        *slot = fgetc(fd) as c_char;
-                    }
-                    if crate::memory::cstr_slice(buf.as_ptr(), VIMSUGMAGICL)
-                        != &VIMSUGMAGIC[..VIMSUGMAGICL]
-                    {
+                if crate::memory::cstr_slice(buf.as_ptr(), VIMSUGMAGICL)
+                    != &VIMSUGMAGIC[..VIMSUGMAGICL]
+                {
+                    semsg!(
+                        gettext(c"E778: This does not look like a .sug file: %s"),
+                        sug_ptr,
+                    );
+                    ok = false;
+                }
+                if ok {
+                    let c = unsafe { fgetc(fd) };
+                    if c < VIMSUGVERSION {
                         semsg!(
-                            gettext(c"E778: This does not look like a .sug file: %s"),
+                            gettext(c"E779: Old .sug file, needs to be updated: %s"),
+                            sug_ptr,
+                        );
+                        ok = false;
+                    } else if c > VIMSUGVERSION {
+                        semsg!(
+                            gettext(c"E780: .sug file is for newer version of Vim: %s",),
                             sug_ptr,
                         );
                         ok = false;
                     }
-                    if ok {
-                        let c = fgetc(fd);
-                        if c < VIMSUGVERSION {
-                            semsg!(
-                                gettext(c"E779: Old .sug file, needs to be updated: %s"),
-                                sug_ptr,
-                            );
-                            ok = false;
-                        } else if c > VIMSUGVERSION {
-                            semsg!(
-                                gettext(c"E780: .sug file is for newer version of Vim: %s",),
-                                sug_ptr,
-                            );
-                            ok = false;
-                        }
+                }
+
+                if ok {
+                    let timestamp = get8ctime(fd);
+                    if timestamp != slang.sl_sugtime {
+                        semsg!(
+                            gettext(c"E781: .sug file doesn't match .spl file: %s"),
+                            sug_ptr,
+                        );
+                        ok = false;
+                    }
+                }
+
+                if ok {
+                    let mut someerror = false;
+                    if spell_read_tree(fd, &mut slang.sl_sbyts, &mut slang.sl_sidxs, false, 0) != 0
+                    {
+                        someerror = true;
                     }
 
-                    if ok {
-                        let timestamp = get8ctime(fd);
-                        if timestamp != slang.sl_sugtime {
-                            semsg!(
-                                gettext(c"E781: .sug file doesn't match .spl file: %s"),
-                                sug_ptr,
-                            );
-                            ok = false;
-                        }
-                    }
-
-                    if ok {
-                        let mut someerror = false;
-                        if spell_read_tree(fd, &mut slang.sl_sbyts, &mut slang.sl_sidxs, false, 0)
-                            != 0
-                        {
+                    if !someerror {
+                        let mut sugbuf = open_spellbuf();
+                        let sugbuf_ptr: *mut FileBuf = &raw mut *sugbuf;
+                        slang.sl_sugbuf = Some(sugbuf);
+                        let wcount = get4c(fd);
+                        if wcount < 0 {
                             someerror = true;
-                        }
-
-                        if !someerror {
-                            let mut sugbuf = open_spellbuf();
-                            let sugbuf_ptr: *mut FileBuf = &raw mut *sugbuf;
-                            slang.sl_sugbuf = Some(sugbuf);
-                            let wcount = get4c(fd);
-                            if wcount < 0 {
-                                someerror = true;
-                            } else {
-                                ga.reserve(100);
-                                for wordnr in 0..wcount {
-                                    ga.clear();
-                                    loop {
-                                        let c = fgetc(fd);
-                                        if c < 0 {
-                                            someerror = true;
-                                            break;
-                                        }
-                                        ga.push(c as u8);
-                                        if c == NUL as i32 {
-                                            break;
-                                        }
-                                    }
-                                    if someerror {
-                                        break;
-                                    }
-                                    if !ml_append_buf(
-                                        &mut *sugbuf_ptr,
-                                        wordnr as Linenr,
-                                        ga.as_mut_ptr().cast(),
-                                        ga.len() as i32,
-                                        true,
-                                    ) {
+                        } else {
+                            ga.reserve(100);
+                            for wordnr in 0..wcount {
+                                ga.clear();
+                                loop {
+                                    let c = unsafe { fgetc(fd) };
+                                    if c < 0 {
                                         someerror = true;
                                         break;
                                     }
+                                    ga.push(c as u8);
+                                    if c == NUL as i32 {
+                                        break;
+                                    }
                                 }
-                                ga.clear();
+                                if someerror {
+                                    break;
+                                }
+                                if !ml_append_buf(
+                                    unsafe { &mut *sugbuf_ptr },
+                                    wordnr as Linenr,
+                                    ga.as_mut_ptr().cast(),
+                                    ga.len() as i32,
+                                    true,
+                                ) {
+                                    someerror = true;
+                                    break;
+                                }
                             }
-                        }
-
-                        if someerror {
-                            semsg!(gettext(E_ERROR_WHILE_READING_SUG_FILE_STR), sug_ptr);
-                            slang_clear_sug(&mut *slang);
-                        } else {
-                            tree_count_words(
-                                slang.sl_fbyts.as_mut_ptr(),
-                                slang.sl_fbyts.len() as i32,
-                                slang.sl_fidxs.as_mut_ptr(),
-                            );
-                            tree_count_words(
-                                slang.sl_sbyts.as_mut_ptr(),
-                                slang.sl_sbyts.len() as i32,
-                                slang.sl_sidxs.as_mut_ptr(),
-                            );
+                            ga.clear();
                         }
                     }
-                    fclose(fd);
+
+                    if someerror {
+                        semsg!(gettext(E_ERROR_WHILE_READING_SUG_FILE_STR), sug_ptr);
+                        slang_clear_sug(&mut *slang);
+                    } else {
+                        tree_count_words(
+                            slang.sl_fbyts.as_mut_ptr(),
+                            slang.sl_fbyts.len() as i32,
+                            slang.sl_fidxs.as_mut_ptr(),
+                        );
+                        tree_count_words(
+                            slang.sl_sbyts.as_mut_ptr(),
+                            slang.sl_sbyts.len() as i32,
+                            slang.sl_sidxs.as_mut_ptr(),
+                        );
+                    }
                 }
+                unsafe { fclose(fd) };
             }
-            lpi += 1;
         }
+        lpi += 1;
     }
 }
 
 fn read_cnt_string(fd: *mut FILE, cnt_bytes: i32, cntp: &mut i32) -> Option<Vec<c_char>> {
-    {
-        let mut cnt: i32 = 0;
-        for _ in 0..cnt_bytes {
-            let c = unsafe { fgetc(fd) };
-            if c == EOF {
-                *cntp = SP_TRUNCERROR;
-                return None;
-            }
-            cnt = ((cnt as u32) << 8).wrapping_add(c as u32) as i32;
-        }
-        *cntp = cnt;
-        if cnt == 0 {
+    let mut cnt: i32 = 0;
+    for _ in 0..cnt_bytes {
+        let c = unsafe { fgetc(fd) };
+        if c == EOF {
+            *cntp = SP_TRUNCERROR;
             return None;
         }
-        let str_ = read_string(fd, cnt as usize);
-        if str_.is_none() {
-            *cntp = SP_OTHERERROR;
-        }
-        str_
+        cnt = ((cnt as u32) << 8).wrapping_add(c as u32) as i32;
     }
+    *cntp = cnt;
+    if cnt == 0 {
+        return None;
+    }
+    let str_ = read_string(fd, cnt as usize);
+    if str_.is_none() {
+        *cntp = SP_OTHERERROR;
+    }
+    str_
 }
 
 fn read_region_section(fd: *mut FILE, lp: &mut Slang, len: i32) -> i32 {
-    {
-        if len > (MAXREGIONS * 2) as i32 {
-            return SP_FORMERROR;
-        }
-        let regions_ptr = (&raw mut lp.sl_regions).cast::<c_char>();
-        let ret = spell_read_nonnul_bytes(regions_ptr, len as usize, fd);
-        if ret != 0 {
-            return ret;
-        }
-        unsafe {
-            *regions_ptr.wrapping_offset(len as isize) = NUL;
-        }
-        0
+    if len > (MAXREGIONS * 2) as i32 {
+        return SP_FORMERROR;
     }
+    let regions_ptr = (&raw mut lp.sl_regions).cast::<c_char>();
+    let ret = spell_read_nonnul_bytes(regions_ptr, len as usize, fd);
+    if ret != 0 {
+        return ret;
+    }
+    unsafe {
+        *regions_ptr.wrapping_offset(len as isize) = NUL;
+    }
+    0
 }
 
 fn read_charflags_section(fd: *mut FILE) -> i32 {
@@ -993,239 +977,243 @@ fn read_charflags_section(fd: *mut FILE) -> i32 {
 }
 
 fn read_prefcond_section(fd: *mut FILE, lp: &mut Slang) -> i32 {
-    {
-        let cnt = get2c(fd);
-        if cnt <= 0 {
+    let cnt = get2c(fd);
+    if cnt <= 0 {
+        return SP_FORMERROR;
+    }
+
+    lp.sl_prefprog.resize_with(cnt as usize, || None);
+
+    for i in 0..cnt {
+        let n = unsafe { fgetc(fd) };
+        if n < 0 || n >= MAXWLEN as i32 {
             return SP_FORMERROR;
         }
 
-        lp.sl_prefprog.resize_with(cnt as usize, || None);
-
-        for i in 0..cnt {
-            let n = unsafe { fgetc(fd) };
-            if n < 0 || n >= MAXWLEN as i32 {
-                return SP_FORMERROR;
+        if n > 0 {
+            let mut buf = [0 as c_char; MAXWLEN + 1];
+            buf[0] = b'^' as c_char;
+            let ret = spell_read_nonnul_bytes(buf.as_mut_ptr().wrapping_add(1), n as usize, fd);
+            if ret != 0 {
+                return ret;
             }
-
-            if n > 0 {
-                let mut buf = [0 as c_char; MAXWLEN + 1];
-                buf[0] = b'^' as c_char;
-                let ret = spell_read_nonnul_bytes(buf.as_mut_ptr().wrapping_add(1), n as usize, fd);
-                if ret != 0 {
-                    return ret;
-                }
-                buf[(n + 1) as usize] = NUL;
-                lp.sl_prefprog.as_mut_slice()[i as usize] =
-                    crate::regexp::vim_regcomp_box(buf.as_ptr(), RE_MAGIC | RE_STRING);
-            }
+            buf[(n + 1) as usize] = NUL;
+            lp.sl_prefprog.as_mut_slice()[i as usize] =
+                crate::regexp::vim_regcomp_box(buf.as_ptr(), RE_MAGIC | RE_STRING);
         }
-        0
     }
+    0
 }
 
 fn read_rep_section(fd: *mut FILE, gap: &mut Vec<Fromto>, first: *mut i16) -> i32 {
-    {
-        let cnt = get2c(fd);
-        if cnt < 0 {
-            return SP_TRUNCERROR;
+    let cnt = get2c(fd);
+    if cnt < 0 {
+        return SP_TRUNCERROR;
+    }
+
+    gap.reserve(cnt as usize);
+
+    while (gap.len() as i32) < cnt {
+        let mut c: i32 = 0;
+        let raw_from = read_cnt_string(fd, 1, &mut c);
+        if c < 0 {
+            return c;
         }
-
-        gap.reserve(cnt as usize);
-
-        while (gap.len() as i32) < cnt {
-            let mut c: i32 = 0;
-            let raw_from = read_cnt_string(fd, 1, &mut c);
+        let Some(raw_from) = raw_from else {
+            return SP_FORMERROR;
+        };
+        let ft_from = crate::memory::cstr_to_cstring(raw_from.as_ptr());
+        let raw_to = read_cnt_string(fd, 1, &mut c);
+        if c <= 0 {
             if c < 0 {
                 return c;
             }
-            let Some(raw_from) = raw_from else {
-                return SP_FORMERROR;
-            };
-            let ft_from = crate::memory::cstr_to_cstring(raw_from.as_ptr());
-            let raw_to = read_cnt_string(fd, 1, &mut c);
-            if c <= 0 {
-                if c < 0 {
-                    return c;
-                }
-                return SP_FORMERROR;
-            }
-            let ft_to = raw_to.map_or_else(std::ffi::CString::default, |v| {
-                crate::memory::cstr_to_cstring(v.as_ptr())
-            });
-            gap.push(Fromto { ft_from, ft_to });
+            return SP_FORMERROR;
         }
-
-        for i in 0..256 {
-            unsafe {
-                *first.wrapping_add(i) = -1;
-            }
-        }
-        for (i, ftp) in gap.iter().enumerate() {
-            let b = ftp.ft_from.as_bytes()[0] as usize;
-            if unsafe { *first.wrapping_add(b) } == -1 {
-                unsafe {
-                    *first.wrapping_add(b) = i as i16;
-                }
-            }
-        }
-        0
+        let ft_to = raw_to.map_or_else(std::ffi::CString::default, |v| {
+            crate::memory::cstr_to_cstring(v.as_ptr())
+        });
+        gap.push(Fromto { ft_from, ft_to });
     }
+
+    for i in 0..256 {
+        unsafe {
+            *first.wrapping_add(i) = -1;
+        }
+    }
+    for (i, ftp) in gap.iter().enumerate() {
+        let b = ftp.ft_from.as_bytes()[0] as usize;
+        if unsafe { *first.wrapping_add(b) } == -1 {
+            unsafe {
+                *first.wrapping_add(b) = i as i16;
+            }
+        }
+    }
+    0
 }
 
 fn read_sal_section(fd: *mut FILE, slang: &mut Slang) -> i32 {
-    unsafe {
-        slang.sl_sofo = false;
+    slang.sl_sofo = false;
 
-        let flags = fgetc(fd);
-        if (flags & SAL_F0LLOWUP) != 0 {
-            slang.sl_followup = true;
-        }
-        if (flags & SAL_COLLAPSE) != 0 {
-            slang.sl_collapse = true;
-        }
-        if (flags & SAL_REM_ACCENTS) != 0 {
-            slang.sl_rem_accents = true;
-        }
+    let flags = unsafe { fgetc(fd) };
+    if (flags & SAL_F0LLOWUP) != 0 {
+        slang.sl_followup = true;
+    }
+    if (flags & SAL_COLLAPSE) != 0 {
+        slang.sl_collapse = true;
+    }
+    if (flags & SAL_REM_ACCENTS) != 0 {
+        slang.sl_rem_accents = true;
+    }
 
-        let cnt = get2c(fd);
-        if cnt < 0 {
+    let cnt = get2c(fd);
+    if cnt < 0 {
+        return SP_TRUNCERROR;
+    }
+
+    let gap = &mut slang.sl_sal;
+    gap.clear();
+    gap.reserve((cnt + 1) as usize);
+
+    while (gap.len() as i32) < cnt {
+        let mut c: i32 = NUL as i32;
+        let mut ccnt = unsafe { fgetc(fd) };
+        if ccnt < 0 {
             return SP_TRUNCERROR;
         }
+        let mut buf = vec![0 as c_char; ccnt as usize + 2];
+        let sm_lead = buf.as_mut_ptr();
+        let mut p = sm_lead;
 
-        let gap = &mut slang.sl_sal;
-        gap.clear();
-        gap.reserve((cnt + 1) as usize);
-
-        while (gap.len() as i32) < cnt {
-            let mut c: i32 = NUL as i32;
-            let mut ccnt = fgetc(fd);
-            if ccnt < 0 {
-                return SP_TRUNCERROR;
+        let mut i: i32 = 0;
+        while i < ccnt {
+            c = unsafe { fgetc(fd) };
+            if !vim_strchr(c"0123456789(-<^$", c).is_null() {
+                break;
             }
-            let mut buf = vec![0 as c_char; ccnt as usize + 2];
-            let sm_lead = buf.as_mut_ptr();
-            let mut p = sm_lead;
+            unsafe {
+                *p = c as u8 as c_char;
+            }
+            p = p.wrapping_add(1);
+            i += 1;
+        }
+        unsafe {
+            *p = NUL;
+        }
+        p = p.wrapping_add(1);
 
-            let mut i: i32 = 0;
+        let sm_oneof = if c == b'(' as i32 {
+            let oneof = p;
+            i += 1;
             while i < ccnt {
-                c = fgetc(fd);
-                if !vim_strchr(c"0123456789(-<^$", c).is_null() {
+                c = unsafe { fgetc(fd) };
+                if c == b')' as i32 {
                     break;
                 }
-                *p = c as u8 as c_char;
-                p = p.wrapping_add(1);
-                i += 1;
-            }
-            *p = NUL;
-            p = p.wrapping_add(1);
-
-            let sm_oneof = if c == b'(' as i32 {
-                let oneof = p;
-                i += 1;
-                while i < ccnt {
-                    c = fgetc(fd);
-                    if c == b')' as i32 {
-                        break;
-                    }
+                unsafe {
                     *p = c as u8 as c_char;
-                    p = p.wrapping_add(1);
-                    i += 1;
                 }
-                *p = NUL;
                 p = p.wrapping_add(1);
                 i += 1;
-                if i < ccnt {
-                    c = fgetc(fd);
-                }
-                oneof
-            } else {
-                ptr::null_mut()
-            };
-
-            let sm_rules_ptr = p;
-            if i < ccnt {
-                *p = c as u8 as c_char;
-                p = p.wrapping_add(1);
             }
+            unsafe {
+                *p = NUL;
+            }
+            p = p.wrapping_add(1);
             i += 1;
             if i < ccnt {
-                let rem = (ccnt - i) as usize;
-                let ret = spell_read_nonnul_bytes(p, rem, fd);
-                if ret != 0 {
-                    return ret;
-                }
-                p = p.wrapping_add(rem);
+                c = unsafe { fgetc(fd) };
             }
+            oneof
+        } else {
+            ptr::null_mut()
+        };
+
+        let sm_rules_ptr = p;
+        if i < ccnt {
+            unsafe {
+                *p = c as u8 as c_char;
+            }
+            p = p.wrapping_add(1);
+        }
+        i += 1;
+        if i < ccnt {
+            let rem = (ccnt - i) as usize;
+            let ret = spell_read_nonnul_bytes(p, rem, fd);
+            if ret != 0 {
+                return ret;
+            }
+            p = p.wrapping_add(rem);
+        }
+        unsafe {
             *p = NUL;
-
-            let sm_to = read_cnt_string(fd, 1, &mut ccnt);
-            if ccnt < 0 {
-                return ccnt;
-            }
-
-            let sm_lead_w = mb_str2wide(sm_lead);
-            let sm_leadlen = mb_charlen(sm_lead);
-            let sm_oneof_w = if !sm_oneof.is_null() {
-                mb_str2wide(sm_oneof)
-            } else {
-                Vec::new()
-            };
-            let sm_to_w = match sm_to {
-                Some(ref s) => mb_str2wide(s.as_ptr().cast_mut()),
-                None => Vec::new(),
-            };
-            let sm_rules = crate::memory::cstr_to_cstring(sm_rules_ptr);
-            gap.push(Salitem {
-                sm_leadlen,
-                sm_rules,
-                sm_lead_w,
-                sm_oneof_w,
-                sm_to_w,
-            });
         }
 
-        if !gap.is_empty() {
-            gap.push(Salitem {
-                sm_leadlen: 0,
-                sm_rules: std::ffi::CString::default(),
-                sm_lead_w: mb_str2wide(c""),
-                sm_oneof_w: Vec::new(),
-                sm_to_w: Vec::new(),
-            });
+        let sm_to = read_cnt_string(fd, 1, &mut ccnt);
+        if ccnt < 0 {
+            return ccnt;
         }
 
-        set_sal_first(slang);
-        0
+        let sm_lead_w = mb_str2wide(sm_lead);
+        let sm_leadlen = mb_charlen(sm_lead);
+        let sm_oneof_w = if !sm_oneof.is_null() {
+            mb_str2wide(sm_oneof)
+        } else {
+            Vec::new()
+        };
+        let sm_to_w = match sm_to {
+            Some(ref s) => mb_str2wide(s.as_ptr().cast_mut()),
+            None => Vec::new(),
+        };
+        let sm_rules = crate::memory::cstr_to_cstring(sm_rules_ptr);
+        gap.push(Salitem {
+            sm_leadlen,
+            sm_rules,
+            sm_lead_w,
+            sm_oneof_w,
+            sm_to_w,
+        });
     }
+
+    if !gap.is_empty() {
+        gap.push(Salitem {
+            sm_leadlen: 0,
+            sm_rules: std::ffi::CString::default(),
+            sm_lead_w: mb_str2wide(c""),
+            sm_oneof_w: Vec::new(),
+            sm_to_w: Vec::new(),
+        });
+    }
+
+    set_sal_first(slang);
+    0
 }
 
 fn read_words_section(fd: *mut FILE, lp: &mut Slang, len: i32) -> i32 {
-    {
-        let mut done: i32 = 0;
-        let mut word = [0u8; MAXWLEN];
+    let mut done: i32 = 0;
+    let mut word = [0u8; MAXWLEN];
 
-        while done < len {
-            let mut i: usize = 0;
-            loop {
-                let c = unsafe { fgetc(fd) };
-                if c == EOF {
-                    return SP_TRUNCERROR;
-                }
-                word[i] = c as u8;
-                if word[i] == 0 {
-                    break;
-                }
-                if i == MAXWLEN - 1 {
-                    return SP_FORMERROR;
-                }
-                i += 1;
+    while done < len {
+        let mut i: usize = 0;
+        loop {
+            let c = unsafe { fgetc(fd) };
+            if c == EOF {
+                return SP_TRUNCERROR;
             }
-
-            count_common_word(lp, word.as_mut_ptr().cast(), -1, 10);
-            done += (i + 1) as i32;
+            word[i] = c as u8;
+            if word[i] == 0 {
+                break;
+            }
+            if i == MAXWLEN - 1 {
+                return SP_FORMERROR;
+            }
+            i += 1;
         }
-        0
+
+        count_common_word(lp, word.as_mut_ptr().cast(), -1, 10);
+        done += (i + 1) as i32;
     }
+    0
 }
 
 fn read_sofo_section(fd: *mut FILE, slang: &mut Slang) -> i32 {
@@ -1681,44 +1669,42 @@ fn spell_reload_one(fname: impl crate::strings::IntoCCharPtr, added_word: bool) 
 
 /// Check the 'mkspellmem' option. Return FAIL if it's wrong.
 pub fn spell_check_msm(value: *mut c_char, apply: bool) -> bool {
-    {
-        let mut p = value;
+    let mut p = value;
 
-        if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
-            return false;
-        }
-        let start = (getdigits_int(&raw mut p, true, 0) * 10) / ((SBLOCKSIZE / 102) as i32);
-        if crate::memory::cstr_first_byte(p) != b',' {
-            return false;
-        }
-        p = p.wrapping_add(1);
-        if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
-            return false;
-        }
-        let incr = (getdigits_int(&raw mut p, true, 0) * 102) / ((SBLOCKSIZE / 10) as i32);
-        if crate::memory::cstr_first_byte(p) != b',' {
-            return false;
-        }
-        p = p.wrapping_add(1);
-        if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
-            return false;
-        }
-        let added = getdigits_int(&raw mut p, true, 0) * 1024;
-        if !crate::memory::cstr_is_empty(p) {
-            return false;
-        }
-
-        if start == 0 || incr == 0 || added == 0 || incr > start {
-            return false;
-        }
-
-        if apply {
-            spellfile_st().compress_start = start;
-            spellfile_st().compress_inc = incr;
-            spellfile_st().compress_added = added;
-        }
-        true
+    if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
+        return false;
     }
+    let start = (getdigits_int(&raw mut p, true, 0) * 10) / ((SBLOCKSIZE / 102) as i32);
+    if crate::memory::cstr_first_byte(p) != b',' {
+        return false;
+    }
+    p = p.wrapping_add(1);
+    if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
+        return false;
+    }
+    let incr = (getdigits_int(&raw mut p, true, 0) * 102) / ((SBLOCKSIZE / 10) as i32);
+    if crate::memory::cstr_first_byte(p) != b',' {
+        return false;
+    }
+    p = p.wrapping_add(1);
+    if !ascii_isdigit(crate::memory::cstr_first_char(p)) {
+        return false;
+    }
+    let added = getdigits_int(&raw mut p, true, 0) * 1024;
+    if !crate::memory::cstr_is_empty(p) {
+        return false;
+    }
+
+    if start == 0 || incr == 0 || added == 0 || incr > start {
+        return false;
+    }
+
+    if apply {
+        spellfile_st().compress_start = start;
+        spellfile_st().compress_inc = incr;
+        spellfile_st().compress_added = added;
+    }
+    true
 }
 
 fn spell_read_aff(
@@ -2601,45 +2587,41 @@ fn is_aff_rule(
     rulename: &std::ffi::CStr,
     mincount: i32,
 ) -> bool {
-    {
-        crate::memory::cstr_as_bytes(items[0]) == rulename.to_bytes()
-            && (itemcnt == mincount
-                || (itemcnt > mincount && unsafe { *items[mincount as usize] } == b'#' as c_char))
-    }
+    crate::memory::cstr_as_bytes(items[0]) == rulename.to_bytes()
+        && (itemcnt == mincount
+            || (itemcnt > mincount && unsafe { *items[mincount as usize] } == b'#' as c_char))
 }
 
 fn aff_process_flags(affile: &Afffile, entry: &mut Affentry) {
+    if let Some(ref flags_cstr) = entry.ae_flags
+        && (affile.af_compforbid != 0 || affile.af_comppermit != 0)
     {
-        if let Some(ref flags_cstr) = entry.ae_flags
-            && (affile.af_compforbid != 0 || affile.af_comppermit != 0)
-        {
-            let mut flags_buf: Vec<c_char> = flags_cstr
-                .as_bytes_with_nul()
-                .iter()
-                .map(|&b| b as c_char)
-                .collect();
-            let mut p = flags_buf.as_mut_ptr();
-            while !crate::memory::cstr_is_empty(p) {
-                let prevp = p;
-                let flag = get_affitem(affile.af_flagtype, &raw mut p);
-                if flag == affile.af_comppermit || flag == affile.af_compforbid {
-                    unsafe { ptr::copy(p, prevp, crate::memory::cstr_len(p) + 1) };
-                    p = prevp;
-                    if flag == affile.af_comppermit {
-                        entry.ae_comppermit = 1;
-                    } else {
-                        entry.ae_compforbid = 1;
-                    }
-                }
-                if affile.af_flagtype == AFT_NUM && crate::memory::cstr_first_byte(p) == b',' {
-                    p = p.wrapping_add(1);
+        let mut flags_buf: Vec<c_char> = flags_cstr
+            .as_bytes_with_nul()
+            .iter()
+            .map(|&b| b as c_char)
+            .collect();
+        let mut p = flags_buf.as_mut_ptr();
+        while !crate::memory::cstr_is_empty(p) {
+            let prevp = p;
+            let flag = get_affitem(affile.af_flagtype, &raw mut p);
+            if flag == affile.af_comppermit || flag == affile.af_compforbid {
+                unsafe { ptr::copy(p, prevp, crate::memory::cstr_len(p) + 1) };
+                p = prevp;
+                if flag == affile.af_comppermit {
+                    entry.ae_comppermit = 1;
+                } else {
+                    entry.ae_compforbid = 1;
                 }
             }
-            if flags_buf[0] == NUL {
-                entry.ae_flags = None;
-            } else {
-                entry.ae_flags = Some(crate::memory::cstr_to_cstring(flags_buf.as_ptr()));
+            if affile.af_flagtype == AFT_NUM && crate::memory::cstr_first_byte(p) == b',' {
+                p = p.wrapping_add(1);
             }
+        }
+        if flags_buf[0] == NUL {
+            entry.ae_flags = None;
+        } else {
+            entry.ae_flags = Some(crate::memory::cstr_to_cstring(flags_buf.as_ptr()));
         }
     }
 }
@@ -2799,20 +2781,18 @@ fn check_renumber(spin: &mut Spellinfo) {
 }
 
 fn store_afflist_add(store_afflist: *mut c_char, cntp: &mut i32, id: i32) -> bool {
-    {
-        if *cntp >= (MAXWLEN - 1) as i32 {
-            emsg(gettext(E_TOO_MANY_POSTPONED_PREFIXES_SPELL));
-            return false;
-        }
-        unsafe {
-            *store_afflist.wrapping_offset(*cntp as isize) = id as u8 as c_char;
-        }
-        *cntp += 1;
-        unsafe {
-            *store_afflist.wrapping_offset(*cntp as isize) = NUL;
-        }
-        true
+    if *cntp >= (MAXWLEN - 1) as i32 {
+        emsg(gettext(E_TOO_MANY_POSTPONED_PREFIXES_SPELL));
+        return false;
     }
+    unsafe {
+        *store_afflist.wrapping_offset(*cntp as isize) = id as u8 as c_char;
+    }
+    *cntp += 1;
+    unsafe {
+        *store_afflist.wrapping_offset(*cntp as isize) = NUL;
+    }
+    true
 }
 
 fn flag_in_afflist(flagtype: i32, afflist: impl crate::strings::IntoCCharPtr, flag: u32) -> bool {
@@ -3265,7 +3245,7 @@ fn store_aff_word(
     let word = word.into_c_char_ptr().cast_mut();
     let afflist = afflist.into_c_char_ptr().cast_mut();
     let pfxlist = pfxlist.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut newword = [0 as c_char; MAXWLEN];
         let mut retval = true;
         let mut store_afflist = [0 as c_char; MAXWLEN];
@@ -3282,7 +3262,7 @@ fn store_aff_word(
                 {
                     for ae_ref in &ah.ah_entries {
                         let ae: *mut Affentry = (&raw const *ae_ref).cast_mut();
-                        let ae = { &mut *ae };
+                        let ae = { unsafe { &mut *ae } };
                         let ae_chop = (*ae).chop_ptr();
                         let ae_add = (*ae).add_ptr();
                         let ae_flags = (*ae).flags_ptr();
@@ -3337,7 +3317,9 @@ fn store_aff_word(
                                         mb_ptr_back(newword.as_ptr(), &mut p);
                                         i -= 1;
                                     }
-                                    *p = NUL;
+                                    unsafe {
+                                        *p = NUL;
+                                    }
                                 }
                                 if !ae_add.is_null() {
                                     {
@@ -3406,8 +3388,10 @@ fn store_aff_word(
                                     for i in 0..pfxlen {
                                         let mut j: i32 = 0;
                                         while j < use_pfxlen {
-                                            if *pfxlist.wrapping_offset(i as isize)
-                                                == *use_pfxlist.wrapping_offset(j as isize)
+                                            if unsafe { *pfxlist.wrapping_offset(i as isize) }
+                                                == unsafe {
+                                                    *use_pfxlist.wrapping_offset(j as isize)
+                                                }
                                             {
                                                 break;
                                             }
@@ -3417,7 +3401,9 @@ fn store_aff_word(
                                             && !store_afflist_add(
                                                 use_pfxlist,
                                                 &mut listlen,
-                                                *pfxlist.wrapping_offset(i as isize) as u8 as i32,
+                                                unsafe { *pfxlist.wrapping_offset(i as isize) }
+                                                    as u8
+                                                    as i32,
                                             )
                                         {
                                             retval = false;
@@ -3440,7 +3426,9 @@ fn store_aff_word(
                                             break;
                                         }
                                     } else {
-                                        *use_pfxlist.wrapping_offset(use_pfxlen as isize) = NUL;
+                                        unsafe {
+                                            *use_pfxlist.wrapping_offset(use_pfxlen as isize) = NUL;
+                                        }
                                     }
                                     if !retval {
                                         break;
@@ -3454,8 +3442,10 @@ fn store_aff_word(
                                         while !crate::memory::cstr_is_empty(
                                             use_pfxlist.wrapping_offset(j as isize),
                                         ) {
-                                            if *pfxlist.wrapping_offset(i as isize)
-                                                == *use_pfxlist.wrapping_offset(j as isize)
+                                            if unsafe { *pfxlist.wrapping_offset(i as isize) }
+                                                == unsafe {
+                                                    *use_pfxlist.wrapping_offset(j as isize)
+                                                }
                                             {
                                                 break;
                                             }
@@ -3466,7 +3456,8 @@ fn store_aff_word(
                                         ) && !store_afflist_add(
                                             use_pfxlist,
                                             &mut listlen,
-                                            *pfxlist.wrapping_offset(i as isize) as u8 as i32,
+                                            unsafe { *pfxlist.wrapping_offset(i as isize) } as u8
+                                                as i32,
                                         ) {
                                             retval = false;
                                             break;
@@ -4090,39 +4081,37 @@ fn free_wordnode(spin: &mut Spellinfo, n: usize) {
 }
 
 fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi::CStr) {
-    {
-        let mut ht: std::collections::HashMap<[u8; 6], usize> = std::collections::HashMap::new();
-        let mut tot: i32 = 0;
+    let mut ht: std::collections::HashMap<[u8; 6], usize> = std::collections::HashMap::new();
+    let mut tot: i32 = 0;
 
-        let Some(root_idx) = root else {
-            return;
+    let Some(root_idx) = root else {
+        return;
+    };
+    let Some(first_sibling) = spin.si_nodes[root_idx].wn_sibling else {
+        return;
+    };
+
+    let (n, _) = node_compress(spin, first_sibling, &mut ht, &mut tot);
+
+    if spin.si_verbose != 0 || opt_vars().p_verbose > 2 {
+        let perc: i64 = if tot > 1_000_000 {
+            ((tot - n) / (tot / 100)) as i64
+        } else if tot == 0 {
+            0
+        } else {
+            ((tot - n) * 100 / tot) as i64
         };
-        let Some(first_sibling) = spin.si_nodes[root_idx].wn_sibling else {
-            return;
-        };
-
-        let (n, _) = node_compress(spin, first_sibling, &mut ht, &mut tot);
-
-        if spin.si_verbose != 0 || opt_vars().p_verbose > 2 {
-            let perc: i64 = if tot > 1_000_000 {
-                ((tot - n) / (tot / 100)) as i64
-            } else if tot == 0 {
-                0
-            } else {
-                ((tot - n) * 100 / tot) as i64
-            };
-            vim_snprintf!(
-                g_st().iobuff.as_mut_ptr(),
-                IOSIZE,
-                gettext(c"Compressed %s: %d of %d nodes; %d (%ld%%) remaining"),
-                name.as_ptr(),
-                n,
-                tot,
-                tot - n,
-                perc,
-            );
-            spell_message(&*spin, g_st().iobuff.as_mut_ptr());
-        }
+        vim_snprintf!(
+            g_st().iobuff.as_mut_ptr(),
+            IOSIZE,
+            gettext(c"Compressed %s: %d of %d nodes; %d (%ld%%) remaining"),
+            name.as_ptr(),
+            n,
+            tot,
+            tot - n,
+            perc,
+        );
+        spell_message(&*spin, g_st().iobuff.as_mut_ptr());
     }
 }
 
@@ -4562,122 +4551,118 @@ fn put_node(
     regionmask: i32,
     prefixtree: bool,
 ) -> i32 {
-    unsafe {
-        let Some(node_idx) = node else {
-            return 0;
-        };
+    let Some(node_idx) = node else {
+        return 0;
+    };
 
-        nodes[node_idx].wn_index = idx;
+    nodes[node_idx].wn_index = idx;
 
-        let mut siblingcount: i32 = 0;
-        let mut np = Some(node_idx);
-        while let Some(np_idx) = np {
-            siblingcount += 1;
-            np = nodes[np_idx].wn_sibling;
-        }
-
-        if !fd.is_null() {
-            fputc(siblingcount, fd);
-        }
-
-        np = Some(node_idx);
-        while let Some(np_idx) = np {
-            let n = nodes[np_idx];
-            if n.wn_byte == 0 {
-                if !fd.is_null() {
-                    if prefixtree {
-                        if n.wn_flags == PFX_FLAGS as u16 {
-                            fputc(BY_NOFLAGS, fd);
-                        } else {
-                            fputc(BY_FLAGS, fd);
-                            fputc(n.wn_flags as i32, fd);
-                        }
-                        fputc(n.wn_affix_id as i32, fd);
-                        put_bytes(fd, n.wn_region as u16 as u64, 2);
-                    } else {
-                        let mut flags = n.wn_flags as i32;
-                        if regionmask != 0 && (n.wn_region as i32) != regionmask {
-                            flags |= WF_REGION;
-                        }
-                        if n.wn_affix_id != 0 {
-                            flags |= WF_AFX;
-                        }
-                        if flags == 0 {
-                            fputc(BY_NOFLAGS, fd);
-                        } else {
-                            if n.wn_flags >= 0x100 {
-                                fputc(BY_FLAGS2, fd);
-                                fputc(flags, fd);
-                                fputc(((flags as u32) >> 8) as i32, fd);
-                            } else {
-                                fputc(BY_FLAGS, fd);
-                                fputc(flags, fd);
-                            }
-                            if (flags & WF_REGION) != 0 {
-                                fputc(n.wn_region as i32, fd);
-                            }
-                            if (flags & WF_AFX) != 0 {
-                                fputc(n.wn_affix_id as i32, fd);
-                            }
-                        }
-                    }
-                }
-            } else {
-                let child = n.wn_child.unwrap();
-                if nodes[child].wn_index != 0 && nodes[child].wn_wnode != Some(node_idx) {
-                    if !fd.is_null() {
-                        fputc(BY_INDEX, fd);
-                        put_bytes(fd, nodes[child].wn_index as u64, 3);
-                    }
-                } else if nodes[child].wn_wnode.is_none() {
-                    nodes[child].wn_wnode = Some(node_idx);
-                }
-
-                if !fd.is_null() && fputc(n.wn_byte as i32, fd) == EOF {
-                    emsg(gettext(E_WRITE));
-                    return 0;
-                }
-            }
-            np = n.wn_sibling;
-        }
-
-        let mut newindex = idx + siblingcount + 1;
-
-        np = Some(node_idx);
-        while let Some(np_idx) = np {
-            let n = nodes[np_idx];
-            if n.wn_byte != 0 {
-                let child = n.wn_child.unwrap();
-                if nodes[child].wn_wnode == Some(node_idx) {
-                    newindex = put_node(fd, nodes, Some(child), newindex, regionmask, prefixtree);
-                }
-            }
-            np = n.wn_sibling;
-        }
-
-        newindex
+    let mut siblingcount: i32 = 0;
+    let mut np = Some(node_idx);
+    while let Some(np_idx) = np {
+        siblingcount += 1;
+        np = nodes[np_idx].wn_sibling;
     }
+
+    if !fd.is_null() {
+        unsafe { fputc(siblingcount, fd) };
+    }
+
+    np = Some(node_idx);
+    while let Some(np_idx) = np {
+        let n = nodes[np_idx];
+        if n.wn_byte == 0 {
+            if !fd.is_null() {
+                if prefixtree {
+                    if n.wn_flags == PFX_FLAGS as u16 {
+                        unsafe { fputc(BY_NOFLAGS, fd) };
+                    } else {
+                        unsafe { fputc(BY_FLAGS, fd) };
+                        unsafe { fputc(n.wn_flags as i32, fd) };
+                    }
+                    unsafe { fputc(n.wn_affix_id as i32, fd) };
+                    put_bytes(fd, n.wn_region as u16 as u64, 2);
+                } else {
+                    let mut flags = n.wn_flags as i32;
+                    if regionmask != 0 && (n.wn_region as i32) != regionmask {
+                        flags |= WF_REGION;
+                    }
+                    if n.wn_affix_id != 0 {
+                        flags |= WF_AFX;
+                    }
+                    if flags == 0 {
+                        unsafe { fputc(BY_NOFLAGS, fd) };
+                    } else {
+                        if n.wn_flags >= 0x100 {
+                            unsafe { fputc(BY_FLAGS2, fd) };
+                            unsafe { fputc(flags, fd) };
+                            unsafe { fputc(((flags as u32) >> 8) as i32, fd) };
+                        } else {
+                            unsafe { fputc(BY_FLAGS, fd) };
+                            unsafe { fputc(flags, fd) };
+                        }
+                        if (flags & WF_REGION) != 0 {
+                            unsafe { fputc(n.wn_region as i32, fd) };
+                        }
+                        if (flags & WF_AFX) != 0 {
+                            unsafe { fputc(n.wn_affix_id as i32, fd) };
+                        }
+                    }
+                }
+            }
+        } else {
+            let child = n.wn_child.unwrap();
+            if nodes[child].wn_index != 0 && nodes[child].wn_wnode != Some(node_idx) {
+                if !fd.is_null() {
+                    unsafe { fputc(BY_INDEX, fd) };
+                    put_bytes(fd, nodes[child].wn_index as u64, 3);
+                }
+            } else if nodes[child].wn_wnode.is_none() {
+                nodes[child].wn_wnode = Some(node_idx);
+            }
+
+            if !fd.is_null() && unsafe { fputc(n.wn_byte as i32, fd) } == EOF {
+                emsg(gettext(E_WRITE));
+                return 0;
+            }
+        }
+        np = n.wn_sibling;
+    }
+
+    let mut newindex = idx + siblingcount + 1;
+
+    np = Some(node_idx);
+    while let Some(np_idx) = np {
+        let n = nodes[np_idx];
+        if n.wn_byte != 0 {
+            let child = n.wn_child.unwrap();
+            if nodes[child].wn_wnode == Some(node_idx) {
+                newindex = put_node(fd, nodes, Some(child), newindex, regionmask, prefixtree);
+            }
+        }
+        np = n.wn_sibling;
+    }
+
+    newindex
 }
 
 /// ":mkspell [-ascii] outfile  infile ..."
 /// ":mkspell [-ascii] addfile"
 pub fn ex_mkspell(eap: &mut Exarg) {
-    {
-        let mut fnames: Vec<std::ffi::CString> = Vec::new();
-        let mut arg = eap.arg;
-        let mut ascii = false;
+    let mut fnames: Vec<std::ffi::CString> = Vec::new();
+    let mut arg = eap.arg;
+    let mut ascii = false;
 
-        if crate::memory::cstr_prefix_bytes(arg, 6) == &b"-ascii"[..6] {
-            ascii = true;
-            arg = skipwhite(arg.wrapping_add(6));
-        }
-
-        if !get_arglist_exp(arg, &mut fnames, false) {
-            return;
-        }
-
-        mkspell(&fnames, ascii, eap.forceit != 0, false);
+    if crate::memory::cstr_prefix_bytes(arg, 6) == &b"-ascii"[..6] {
+        ascii = true;
+        arg = skipwhite(arg.wrapping_add(6));
     }
+
+    if !get_arglist_exp(arg, &mut fnames, false) {
+        return;
+    }
+
+    mkspell(&fnames, ascii, eap.forceit != 0, false);
 }
 
 fn spell_make_sugfile(spin: &mut Spellinfo, wfname: impl crate::strings::IntoCCharPtr) {
@@ -4747,100 +4732,94 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname: impl crate::strings::IntoCCh
 }
 
 fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
-    {
-        let mut arridx = [0 as Idx; MAXWLEN];
-        let mut curi = [0_i32; MAXWLEN];
-        let mut tword = [0 as c_char; MAXWLEN];
-        let mut tsalword = [0 as c_char; MAXWLEN];
-        let mut words_done: u32 = 0;
-        let mut wordcount = [0_i32; MAXWLEN];
+    let mut arridx = [0 as Idx; MAXWLEN];
+    let mut curi = [0_i32; MAXWLEN];
+    let mut tword = [0 as c_char; MAXWLEN];
+    let mut tsalword = [0 as c_char; MAXWLEN];
+    let mut words_done: u32 = 0;
+    let mut wordcount = [0_i32; MAXWLEN];
 
-        spin.si_foldroot = wordtree_alloc(&mut *spin);
-        spin.si_sugtree = 1;
+    spin.si_foldroot = wordtree_alloc(&mut *spin);
+    spin.si_sugtree = 1;
 
-        if slang.sl_fbyts.is_empty() || slang.sl_fidxs.is_empty() {
-            return false;
-        }
-        let fbyts_len = slang.sl_fbyts.len() as i32;
-        let byts = slang.sl_fbyts.as_mut_ptr();
-        let idxs = slang.sl_fidxs.as_mut_ptr();
+    if slang.sl_fbyts.is_empty() || slang.sl_fidxs.is_empty() {
+        return false;
+    }
+    let fbyts_len = slang.sl_fbyts.len() as i32;
+    let byts = slang.sl_fbyts.as_mut_ptr();
+    let idxs = slang.sl_fidxs.as_mut_ptr();
 
-        arridx[0] = 0;
-        curi[0] = 1;
-        wordcount[0] = 0;
+    arridx[0] = 0;
+    curi[0] = 1;
+    wordcount[0] = 0;
 
-        let mut depth: isize = 0;
-        while depth >= 0 && !g_st().got_int {
-            let d = depth as usize;
-            if curi[d] > unsafe { *byts.wrapping_offset(arridx[d] as isize) } as i32 {
-                unsafe {
-                    *idxs.wrapping_offset(arridx[d] as isize) = wordcount[d];
+    let mut depth: isize = 0;
+    while depth >= 0 && !g_st().got_int {
+        let d = depth as usize;
+        if curi[d] > unsafe { *byts.wrapping_offset(arridx[d] as isize) } as i32 {
+            unsafe {
+                *idxs.wrapping_offset(arridx[d] as isize) = wordcount[d];
+            }
+            if depth > 0 {
+                wordcount[d - 1] += wordcount[d];
+            }
+            depth -= 1;
+            line_breakcheck();
+        } else {
+            let mut n = arridx[d] + curi[d];
+            curi[d] += 1;
+
+            let c = unsafe { *byts.wrapping_offset(n as isize) } as i32;
+            if c == 0 {
+                tword[d] = NUL;
+                spell_soundfold(slang, tword.as_mut_ptr(), true, tsalword.as_mut_ptr());
+
+                if !tree_add_word(
+                    spin,
+                    tsalword.as_ptr(),
+                    spin.si_foldroot,
+                    (words_done >> 16) as i32,
+                    (words_done & 0xffff) as i32,
+                    0,
+                ) {
+                    return false;
                 }
-                if depth > 0 {
-                    wordcount[d - 1] += wordcount[d];
+
+                words_done += 1;
+                wordcount[d] += 1;
+                spin.si_blocks_cnt = 0;
+
+                while n + 1 < fbyts_len && unsafe { *byts.wrapping_offset((n + 1) as isize) } == 0 {
+                    n += 1;
+                    curi[d] += 1;
                 }
-                depth -= 1;
-                line_breakcheck();
-            } else {
-                let mut n = arridx[d] + curi[d];
-                curi[d] += 1;
-
-                let c = unsafe { *byts.wrapping_offset(n as isize) } as i32;
-                if c == 0 {
-                    tword[d] = NUL;
-                    spell_soundfold(slang, tword.as_mut_ptr(), true, tsalword.as_mut_ptr());
-
-                    if !tree_add_word(
-                        spin,
-                        tsalword.as_ptr(),
-                        spin.si_foldroot,
-                        (words_done >> 16) as i32,
-                        (words_done & 0xffff) as i32,
-                        0,
-                    ) {
-                        return false;
-                    }
-
-                    words_done += 1;
-                    wordcount[d] += 1;
-                    spin.si_blocks_cnt = 0;
-
-                    while n + 1 < fbyts_len
-                        && unsafe { *byts.wrapping_offset((n + 1) as isize) } == 0
-                    {
-                        n += 1;
-                        curi[d] += 1;
-                    }
-                } else if d < MAXWLEN - 1 {
-                    tword[d] = c as u8 as c_char;
-                    depth += 1;
-                    let nd = depth as usize;
-                    arridx[nd] = unsafe { *idxs.wrapping_offset(n as isize) };
-                    curi[nd] = 1;
-                    wordcount[nd] = 0;
-                }
+            } else if d < MAXWLEN - 1 {
+                tword[d] = c as u8 as c_char;
+                depth += 1;
+                let nd = depth as usize;
+                arridx[nd] = unsafe { *idxs.wrapping_offset(n as isize) };
+                curi[nd] = 1;
+                wordcount[nd] = 0;
             }
         }
-
-        smsg!(0, gettext(c"Total number of words: %d"), words_done,);
-        true
     }
+
+    smsg!(0, gettext(c"Total number of words: %d"), words_done,);
+    true
 }
 
 fn sug_maketable(spin: &mut Spellinfo) -> bool {
-    {
-        let mut ga: Vec<c_char> = Vec::with_capacity(100);
-        let mut res = true;
+    let mut ga: Vec<c_char> = Vec::with_capacity(100);
+    let mut res = true;
 
-        spin.si_spellbuf = Some(open_spellbuf());
+    spin.si_spellbuf = Some(open_spellbuf());
 
-        let first_sibling = spin.si_foldroot.and_then(|r| spin.si_nodes[r].wn_sibling);
-        if sug_filltable(spin, first_sibling, 0, &mut ga) == -1 {
-            res = false;
-        }
-
-        res
+    let first_sibling = spin.si_foldroot.and_then(|r| spin.si_nodes[r].wn_sibling);
+    if sug_filltable(spin, first_sibling, 0, &mut ga) == -1 {
+        res = false;
     }
+
+    res
 }
 
 fn sug_filltable(
@@ -4942,7 +4921,7 @@ fn offset2bytes(nr: i32, buf_in: *mut c_char) -> i32 {
 
 fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         let fd = os_fopen(fname, c"w");
         if fd.is_null() {
             semsg!(gettext(E_NOTOPEN), fname);
@@ -4957,12 +4936,12 @@ fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) {
         );
         spell_message(&*spin, g_st().iobuff.as_mut_ptr());
 
-        if fwrite(VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL, 1, fd) != 1 {
+        if unsafe { fwrite(VIMSUGMAGIC.as_ptr().cast(), VIMSUGMAGICL, 1, fd) } != 1 {
             emsg(gettext(E_WRITE));
-            fclose(fd);
+            unsafe { fclose(fd) };
             return;
         }
-        fputc(VIMSUGVERSION, fd);
+        unsafe { fputc(VIMSUGVERSION, fd) };
         put_time(fd, spin.si_sugtime);
 
         spin.si_memtot = 0;
@@ -4981,14 +4960,14 @@ fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) {
             .si_spellbuf
             .as_deref_mut()
             .map_or(ptr::null_mut(), |b| &raw mut *b);
-        let wcount = (*spellbuf).b_ml.ml_line_count;
+        let wcount = unsafe { (*spellbuf).b_ml.ml_line_count };
         put_bytes(fd, wcount as u64, 4);
 
         let mut write_err = false;
         for lnum in 1..=wcount {
-            let line = ml_get_buf(&mut *spellbuf, lnum);
-            let len = ml_get_buf_len(&mut *spellbuf, lnum) + 1;
-            if fwrite(line.cast(), len as usize, 1, fd) == 0 {
+            let line = ml_get_buf(unsafe { &mut *spellbuf }, lnum);
+            let len = ml_get_buf_len(unsafe { &mut *spellbuf }, lnum) + 1;
+            if unsafe { fwrite(line.cast(), len as usize, 1, fd) } == 0 {
                 emsg(gettext(E_WRITE));
                 write_err = true;
                 break;
@@ -4997,7 +4976,7 @@ fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) {
         }
 
         if !write_err {
-            if fputc(0, fd) == EOF {
+            if unsafe { fputc(0, fd) } == EOF {
                 emsg(gettext(E_WRITE));
             }
 
@@ -5010,209 +4989,206 @@ fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) {
             spell_message(&*spin, g_st().iobuff.as_mut_ptr());
         }
 
-        fclose(fd);
+        unsafe { fclose(fd) };
     }
 }
 
 fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_word: bool) {
-    {
-        let mut fname_buf = [0 as c_char; MAXPATHL];
-        let mut wfname_buf = [0 as c_char; MAXPATHL];
-        let mut afile: [Option<Afffile>; MAXREGIONS] = [const { None }; MAXREGIONS];
-        let mut error = false;
-        let mut spin = Spellinfo::default();
+    let mut fname_buf = [0 as c_char; MAXPATHL];
+    let mut wfname_buf = [0 as c_char; MAXPATHL];
+    let mut afile: [Option<Afffile>; MAXREGIONS] = [const { None }; MAXREGIONS];
+    let mut error = false;
+    let mut spin = Spellinfo::default();
 
-        spell_check_msm(opt_vars().p_msm, true);
+    spell_check_msm(opt_vars().p_msm, true);
 
-        spin.si_verbose = i32::from(!added_word);
-        spin.si_ascii = i32::from(ascii);
-        spin.si_followup = 1;
-        spin.si_rem_accents = 1;
-        spin.si_newcomp_id = 127;
+    spin.si_verbose = i32::from(!added_word);
+    spin.si_ascii = i32::from(ascii);
+    spin.si_followup = 1;
+    spin.si_rem_accents = 1;
+    spin.si_newcomp_id = 127;
 
-        let fcount = fnames.len() as i32;
-        let innames = if fcount == 1 { fnames } else { &fnames[1..] };
-        let mut incount = fcount - 1;
+    let fcount = fnames.len() as i32;
+    let innames = if fcount == 1 { fnames } else { &fnames[1..] };
+    let mut incount = fcount - 1;
 
-        let wfname = wfname_buf.as_mut_ptr();
+    let wfname = wfname_buf.as_mut_ptr();
 
-        if let Some(f0_cstr) = fnames.first() {
-            let f0 = f0_cstr.as_ptr();
-            let len = f0_cstr.as_bytes().len();
-            if fcount == 1 && len > 4 && ((&crate::memory::cstr_as_bytes(f0)[len - 4..]) == b".add")
-            {
-                incount = 1;
-                vim_snprintf!(wfname, MAXPATHL, c"%s.spl", f0);
-            } else if fcount == 1 {
-                incount = 1;
-                vim_snprintf!(
-                    wfname,
-                    MAXPATHL,
-                    SPL_FNAME_TMPL,
-                    f0,
-                    if spin.si_ascii != 0 {
-                        c"ascii".as_ptr()
-                    } else {
-                        spell_enc()
-                    },
-                );
-            } else if len > 4 && ((&crate::memory::cstr_as_bytes(f0)[len - 4..]) == b".spl") {
-                xstrlcpy(wfname, f0, MAXPATHL);
-            } else {
-                vim_snprintf!(
-                    wfname,
-                    MAXPATHL,
-                    SPL_FNAME_TMPL,
-                    f0,
-                    if spin.si_ascii != 0 {
-                        c"ascii".as_ptr()
-                    } else {
-                        spell_enc()
-                    },
-                );
-            }
+    if let Some(f0_cstr) = fnames.first() {
+        let f0 = f0_cstr.as_ptr();
+        let len = f0_cstr.as_bytes().len();
+        if fcount == 1 && len > 4 && ((&crate::memory::cstr_as_bytes(f0)[len - 4..]) == b".add") {
+            incount = 1;
+            vim_snprintf!(wfname, MAXPATHL, c"%s.spl", f0);
+        } else if fcount == 1 {
+            incount = 1;
+            vim_snprintf!(
+                wfname,
+                MAXPATHL,
+                SPL_FNAME_TMPL,
+                f0,
+                if spin.si_ascii != 0 {
+                    c"ascii".as_ptr()
+                } else {
+                    spell_enc()
+                },
+            );
+        } else if len > 4 && ((&crate::memory::cstr_as_bytes(f0)[len - 4..]) == b".spl") {
+            xstrlcpy(wfname, f0, MAXPATHL);
+        } else {
+            vim_snprintf!(
+                wfname,
+                MAXPATHL,
+                SPL_FNAME_TMPL,
+                f0,
+                if spin.si_ascii != 0 {
+                    c"ascii".as_ptr()
+                } else {
+                    spell_enc()
+                },
+            );
+        }
 
-            let asc_b = crate::memory::cstr_as_bytes(SPL_FNAME_ASCII);
-            if crate::memory::cstr_as_bytes(path_tail(wfname))
-                .windows(asc_b.len())
-                .any(|w| w == asc_b)
-            {
-                spin.si_ascii = 1;
-            }
-            let add_b = crate::memory::cstr_as_bytes(SPL_FNAME_ADD);
-            if crate::memory::cstr_as_bytes(path_tail(wfname))
-                .windows(add_b.len())
-                .any(|w| w == add_b)
-            {
-                spin.si_add = 1;
+        let asc_b = crate::memory::cstr_as_bytes(SPL_FNAME_ASCII);
+        if crate::memory::cstr_as_bytes(path_tail(wfname))
+            .windows(asc_b.len())
+            .any(|w| w == asc_b)
+        {
+            spin.si_ascii = 1;
+        }
+        let add_b = crate::memory::cstr_as_bytes(SPL_FNAME_ADD);
+        if crate::memory::cstr_as_bytes(path_tail(wfname))
+            .windows(add_b.len())
+            .any(|w| w == add_b)
+        {
+            spin.si_add = 1;
+        }
+    }
+
+    if incount <= 0 {
+        emsg(gettext(E_INVARG));
+    } else if !vim_strchr(path_tail(wfname), b'_' as i32).is_null() {
+        emsg(gettext(c"E751: Output file name must not have region name"));
+    } else if incount > MAXREGIONS as i32 {
+        semsg!(
+            gettext(c"E754: Only up to %d regions supported"),
+            MAXREGIONS as i32,
+        );
+    } else if !over_write && os_path_exists(wfname) {
+        emsg(gettext(E_EXISTS));
+    } else if os_isdir(wfname) {
+        semsg!(gettext(E_ISADIR2), wfname);
+    } else {
+        let fname = fname_buf.as_mut_ptr();
+
+        let mut region_ok = true;
+        for (i, slot) in afile.iter_mut().enumerate().take(incount as usize) {
+            *slot = None;
+
+            if incount > 1 {
+                let in_i = innames[i].as_ptr();
+                let len = innames[i].as_bytes().len();
+                if crate::memory::cstr_len(path_tail(in_i)) < 5
+                    || crate::memory::cstr_byte_at(in_i, len - 3) != b'_'
+                {
+                    semsg!(gettext(c"E755: Invalid region in %s"), in_i);
+                    region_ok = false;
+                    break;
+                }
+                spin.si_region_name[i * 2] =
+                    (crate::memory::cstr_byte_at(in_i, len - 2)).to_ascii_lowercase() as c_char;
+                spin.si_region_name[i * 2 + 1] =
+                    (crate::memory::cstr_byte_at(in_i, len - 1)).to_ascii_lowercase() as c_char;
             }
         }
 
-        if incount <= 0 {
-            emsg(gettext(E_INVARG));
-        } else if !vim_strchr(path_tail(wfname), b'_' as i32).is_null() {
-            emsg(gettext(c"E751: Output file name must not have region name"));
-        } else if incount > MAXREGIONS as i32 {
-            semsg!(
-                gettext(c"E754: Only up to %d regions supported"),
-                MAXREGIONS as i32,
-            );
-        } else if !over_write && os_path_exists(wfname) {
-            emsg(gettext(E_EXISTS));
-        } else if os_isdir(wfname) {
-            semsg!(gettext(E_ISADIR2), wfname);
-        } else {
-            let fname = fname_buf.as_mut_ptr();
+        if region_ok {
+            spin.si_region_count = incount;
+            spin.si_foldroot = wordtree_alloc(&mut spin);
+            spin.si_keeproot = wordtree_alloc(&mut spin);
+            spin.si_prefroot = wordtree_alloc(&mut spin);
 
-            let mut region_ok = true;
-            for (i, slot) in afile.iter_mut().enumerate().take(incount as usize) {
-                *slot = None;
+            if spin.si_add == 0 {
+                spin.si_clear_chartab = 1;
+            }
 
-                if incount > 1 {
-                    let in_i = innames[i].as_ptr();
-                    let len = innames[i].as_bytes().len();
-                    if crate::memory::cstr_len(path_tail(in_i)) < 5
-                        || crate::memory::cstr_byte_at(in_i, len - 3) != b'_'
-                    {
-                        semsg!(gettext(c"E755: Invalid region in %s"), in_i);
-                        region_ok = false;
-                        break;
+            let mut i: usize = 0;
+            while (i as i32) < incount && !error {
+                let in_i = innames[i].as_ptr().cast_mut();
+                spin.si_conv.vc_type = CONV_NONE;
+                spin.si_region = 1 << i;
+
+                vim_snprintf!(fname, MAXPATHL, c"%s.aff", in_i);
+                if os_path_exists(fname) {
+                    afile[i] = spell_read_aff(&mut spin, fname);
+                    if let Some(ref aff) = afile[i] {
+                        vim_snprintf!(fname, MAXPATHL, c"%s.dic", in_i);
+                        if !spell_read_dic(&mut spin, fname, aff) {
+                            error = true;
+                        }
+                    } else {
+                        error = true;
                     }
-                    spin.si_region_name[i * 2] =
-                        (crate::memory::cstr_byte_at(in_i, len - 2)).to_ascii_lowercase() as c_char;
-                    spin.si_region_name[i * 2 + 1] =
-                        (crate::memory::cstr_byte_at(in_i, len - 1)).to_ascii_lowercase() as c_char;
+                } else if !spell_read_wordfile(&mut spin, in_i) {
+                    error = true;
+                }
+
+                convert_setup(&mut spin.si_conv, ptr::null_mut(), ptr::null_mut());
+                i += 1;
+            }
+
+            if spin.si_compflags.is_some() && spin.si_nobreak != 0 {
+                msg(
+                    gettext(c"Warning: both compounding and NOBREAK specified"),
+                    0,
+                );
+            }
+
+            if !error && !g_st().got_int {
+                spell_message(&spin, gettext(MSG_COMPRESSING));
+                let foldroot = spin.si_foldroot;
+                wordtree_compress(&mut spin, foldroot, c"case-folded");
+                let keeproot = spin.si_keeproot;
+                wordtree_compress(&mut spin, keeproot, c"keep-case");
+                let prefroot = spin.si_prefroot;
+                wordtree_compress(&mut spin, prefroot, c"prefixes");
+            }
+
+            if !error && !g_st().got_int {
+                vim_snprintf!(
+                    g_st().iobuff.as_mut_ptr(),
+                    IOSIZE,
+                    gettext(c"Writing spell file %s..."),
+                    wfname,
+                );
+                spell_message(&spin, g_st().iobuff.as_mut_ptr());
+
+                error = !write_vim_spell(&mut spin, wfname);
+
+                spell_message(&spin, gettext(c"Done!"));
+                vim_snprintf!(
+                    g_st().iobuff.as_mut_ptr(),
+                    IOSIZE,
+                    gettext(c"Estimated runtime memory use: %d bytes"),
+                    spin.si_memtot,
+                );
+                spell_message(&spin, g_st().iobuff.as_mut_ptr());
+
+                if !error {
+                    spell_reload_one(wfname, added_word);
                 }
             }
 
-            if region_ok {
-                spin.si_region_count = incount;
-                spin.si_foldroot = wordtree_alloc(&mut spin);
-                spin.si_keeproot = wordtree_alloc(&mut spin);
-                spin.si_prefroot = wordtree_alloc(&mut spin);
+            spin.si_commonwords.clear();
 
-                if spin.si_add == 0 {
-                    spin.si_clear_chartab = 1;
-                }
+            for slot in afile.iter_mut().take(incount as usize) {
+                *slot = None;
+            }
 
-                let mut i: usize = 0;
-                while (i as i32) < incount && !error {
-                    let in_i = innames[i].as_ptr().cast_mut();
-                    spin.si_conv.vc_type = CONV_NONE;
-                    spin.si_region = 1 << i;
+            spin.si_nodes.clear();
 
-                    vim_snprintf!(fname, MAXPATHL, c"%s.aff", in_i);
-                    if os_path_exists(fname) {
-                        afile[i] = spell_read_aff(&mut spin, fname);
-                        if let Some(ref aff) = afile[i] {
-                            vim_snprintf!(fname, MAXPATHL, c"%s.dic", in_i);
-                            if !spell_read_dic(&mut spin, fname, aff) {
-                                error = true;
-                            }
-                        } else {
-                            error = true;
-                        }
-                    } else if !spell_read_wordfile(&mut spin, in_i) {
-                        error = true;
-                    }
-
-                    convert_setup(&mut spin.si_conv, ptr::null_mut(), ptr::null_mut());
-                    i += 1;
-                }
-
-                if spin.si_compflags.is_some() && spin.si_nobreak != 0 {
-                    msg(
-                        gettext(c"Warning: both compounding and NOBREAK specified"),
-                        0,
-                    );
-                }
-
-                if !error && !g_st().got_int {
-                    spell_message(&spin, gettext(MSG_COMPRESSING));
-                    let foldroot = spin.si_foldroot;
-                    wordtree_compress(&mut spin, foldroot, c"case-folded");
-                    let keeproot = spin.si_keeproot;
-                    wordtree_compress(&mut spin, keeproot, c"keep-case");
-                    let prefroot = spin.si_prefroot;
-                    wordtree_compress(&mut spin, prefroot, c"prefixes");
-                }
-
-                if !error && !g_st().got_int {
-                    vim_snprintf!(
-                        g_st().iobuff.as_mut_ptr(),
-                        IOSIZE,
-                        gettext(c"Writing spell file %s..."),
-                        wfname,
-                    );
-                    spell_message(&spin, g_st().iobuff.as_mut_ptr());
-
-                    error = !write_vim_spell(&mut spin, wfname);
-
-                    spell_message(&spin, gettext(c"Done!"));
-                    vim_snprintf!(
-                        g_st().iobuff.as_mut_ptr(),
-                        IOSIZE,
-                        gettext(c"Estimated runtime memory use: %d bytes"),
-                        spin.si_memtot,
-                    );
-                    spell_message(&spin, g_st().iobuff.as_mut_ptr());
-
-                    if !error {
-                        spell_reload_one(wfname, added_word);
-                    }
-                }
-
-                spin.si_commonwords.clear();
-
-                for slot in afile.iter_mut().take(incount as usize) {
-                    *slot = None;
-                }
-
-                spin.si_nodes.clear();
-
-                if spin.si_sugtime != 0 && !error && !g_st().got_int {
-                    spell_make_sugfile(&mut spin, wfname);
-                }
+            if spin.si_sugtime != 0 && !error && !g_st().got_int {
+                spell_make_sugfile(&mut spin, wfname);
             }
         }
     }
@@ -5239,22 +5215,20 @@ fn spell_message(spin: &Spellinfo, str_: impl crate::strings::IntoCCharPtr) {
 /// ":[count]spellundo  {word}"
 /// ":[count]spellrare  {word}"
 pub fn ex_spell(eap: &mut Exarg) {
-    {
-        let what = if eap.cmdidx == CMD_SPELLWRONG {
-            SPELL_ADD_BAD
-        } else if eap.cmdidx == CMD_SPELLRARE {
-            SPELL_ADD_RARE
-        } else {
-            SPELL_ADD_GOOD
-        };
-        spell_add_word(
-            eap.arg,
-            crate::memory::cstr_len(eap.arg) as i32,
-            what,
-            if eap.forceit != 0 { 0 } else { eap.line2 },
-            eap.cmdidx == CMD_SPELLUNDO,
-        );
-    }
+    let what = if eap.cmdidx == CMD_SPELLWRONG {
+        SPELL_ADD_BAD
+    } else if eap.cmdidx == CMD_SPELLRARE {
+        SPELL_ADD_RARE
+    } else {
+        SPELL_ADD_GOOD
+    };
+    spell_add_word(
+        eap.arg,
+        crate::memory::cstr_len(eap.arg) as i32,
+        what,
+        if eap.forceit != 0 { 0 } else { eap.line2 },
+        eap.cmdidx == CMD_SPELLUNDO,
+    );
 }
 
 /// Add "word[len]" to 'spellfile' as a good or bad word.
@@ -5577,26 +5551,24 @@ fn set_spell_finish(new_st: &mut Spelltab) -> bool {
 }
 
 fn write_spell_prefcond(fd: *mut FILE, gap: &[Option<std::ffi::CString>], fwv: &mut usize) -> i32 {
-    {
-        if !fd.is_null() {
-            put_bytes(fd, gap.len() as u64, 2);
-        }
-        let mut totlen = 2 + gap.len();
-        for p in gap {
-            if let Some(s) = p {
-                let len = s.to_bytes().len();
-                if !fd.is_null() {
-                    unsafe { fputc(len as i32, fd) };
-                    *fwv &= unsafe { fwrite(s.as_ptr().cast(), len, 1, fd) };
-                }
-                totlen += len;
-            } else if !fd.is_null() {
-                unsafe { fputc(0, fd) };
-            }
-        }
-
-        totlen as i32
+    if !fd.is_null() {
+        put_bytes(fd, gap.len() as u64, 2);
     }
+    let mut totlen = 2 + gap.len();
+    for p in gap {
+        if let Some(s) = p {
+            let len = s.to_bytes().len();
+            if !fd.is_null() {
+                unsafe { fputc(len as i32, fd) };
+                *fwv &= unsafe { fwrite(s.as_ptr().cast(), len, 1, fd) };
+            }
+            totlen += len;
+        } else if !fd.is_null() {
+            unsafe { fputc(0, fd) };
+        }
+    }
+
+    totlen as i32
 }
 
 fn set_map_str(lp: &mut Slang, map: impl crate::strings::IntoCCharPtr) {

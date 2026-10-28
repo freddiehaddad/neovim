@@ -211,90 +211,92 @@ fn match_row(
 }
 
 fn match_positions(needle: *const c_char, haystack: *const c_char, positions: *mut u32) -> f64 {
-    unsafe {
-        if needle.is_null() || haystack.is_null() || *needle == 0 {
-            return SCORE_MIN;
-        }
+    if needle.is_null() || haystack.is_null() || unsafe { *needle } == 0 {
+        return SCORE_MIN;
+    }
 
-        let mut match_st = MatchStruct {
-            needle_len: 0,
-            haystack_len: 0,
-            lower_needle: [0; MATCH_MAX_LEN],
-            lower_haystack: [0; MATCH_MAX_LEN],
-            match_bonus: [0.0; MATCH_MAX_LEN],
-        };
-        setup_match_struct(&mut match_st, needle, haystack);
+    let mut match_st = MatchStruct {
+        needle_len: 0,
+        haystack_len: 0,
+        lower_needle: [0; MATCH_MAX_LEN],
+        lower_haystack: [0; MATCH_MAX_LEN],
+        match_bonus: [0.0; MATCH_MAX_LEN],
+    };
+    setup_match_struct(&mut match_st, needle, haystack);
 
-        let n = match_st.needle_len;
-        let m = match_st.haystack_len;
+    let n = match_st.needle_len;
+    let m = match_st.haystack_len;
 
-        if m > MATCH_MAX_LEN || n > m {
-            return SCORE_MIN;
-        } else if n == m {
-            let mut equal = true;
-            for i in 0..n {
-                if match_st.lower_needle[i] != match_st.lower_haystack[i] {
-                    equal = false;
-                    break;
-                }
+    if m > MATCH_MAX_LEN || n > m {
+        return SCORE_MIN;
+    } else if n == m {
+        let mut equal = true;
+        for i in 0..n {
+            if match_st.lower_needle[i] != match_st.lower_haystack[i] {
+                equal = false;
+                break;
             }
-            if equal {
-                if !positions.is_null() {
-                    for i in 0..n {
+        }
+        if equal {
+            if !positions.is_null() {
+                for i in 0..n {
+                    unsafe {
                         *positions.wrapping_add(i) = i as u32;
                     }
                 }
-                return SCORE_MAX;
             }
+            return SCORE_MAX;
         }
+    }
 
-        if n > (usize::MAX / std::mem::size_of::<f64>()) / MATCH_MAX_LEN / 2 {
-            return SCORE_MIN;
-        }
+    if n > (usize::MAX / std::mem::size_of::<f64>()) / MATCH_MAX_LEN / 2 {
+        return SCORE_MIN;
+    }
 
-        let mut block = vec![0.0f64; MATCH_MAX_LEN * n * 2];
-        let d_base = block.as_mut_ptr();
-        let m_base = d_base.wrapping_add(MATCH_MAX_LEN * n);
+    let mut block = vec![0.0f64; MATCH_MAX_LEN * n * 2];
+    let d_base = block.as_mut_ptr();
+    let m_base = d_base.wrapping_add(MATCH_MAX_LEN * n);
 
-        match_row(&match_st, 0, d_base, m_base, d_base, m_base);
-        for i in 1..n {
-            let row_off = i * MATCH_MAX_LEN;
-            let prev_off = (i - 1) * MATCH_MAX_LEN;
-            match_row(
-                &match_st,
-                i,
-                d_base.wrapping_add(row_off),
-                m_base.wrapping_add(row_off),
-                d_base.wrapping_add(prev_off),
-                m_base.wrapping_add(prev_off),
-            );
-        }
+    match_row(&match_st, 0, d_base, m_base, d_base, m_base);
+    for i in 1..n {
+        let row_off = i * MATCH_MAX_LEN;
+        let prev_off = (i - 1) * MATCH_MAX_LEN;
+        match_row(
+            &match_st,
+            i,
+            d_base.wrapping_add(row_off),
+            m_base.wrapping_add(row_off),
+            d_base.wrapping_add(prev_off),
+            m_base.wrapping_add(prev_off),
+        );
+    }
 
-        if !positions.is_null() {
-            let mut match_required = false;
-            let mut j = (m as isize) - 1;
-            for i in (0..n).rev() {
-                while j >= 0 {
-                    let ju = j as usize;
-                    let dij = *d_base.wrapping_add(i * MATCH_MAX_LEN + ju);
-                    let mij = *m_base.wrapping_add(i * MATCH_MAX_LEN + ju);
-                    if dij != SCORE_MIN && (match_required || dij == mij) {
-                        match_required = i > 0
-                            && ju > 0
-                            && mij
-                                == *d_base.wrapping_add((i - 1) * MATCH_MAX_LEN + (ju - 1))
-                                    + SCORE_MATCH_CONSECUTIVE;
+    if !positions.is_null() {
+        let mut match_required = false;
+        let mut j = (m as isize) - 1;
+        for i in (0..n).rev() {
+            while j >= 0 {
+                let ju = j as usize;
+                let dij = unsafe { *d_base.wrapping_add(i * MATCH_MAX_LEN + ju) };
+                let mij = unsafe { *m_base.wrapping_add(i * MATCH_MAX_LEN + ju) };
+                if dij != SCORE_MIN && (match_required || dij == mij) {
+                    match_required = i > 0
+                        && ju > 0
+                        && mij
+                            == unsafe { *d_base.wrapping_add((i - 1) * MATCH_MAX_LEN + (ju - 1)) }
+                                + SCORE_MATCH_CONSECUTIVE;
+                    unsafe {
                         *positions.wrapping_add(i) = ju as u32;
-                        j -= 1;
-                        break;
                     }
                     j -= 1;
+                    break;
                 }
+                j -= 1;
             }
         }
-
-        *m_base.wrapping_add((n - 1) * MATCH_MAX_LEN + (m - 1))
     }
+
+    unsafe { *m_base.wrapping_add((n - 1) * MATCH_MAX_LEN + (m - 1)) }
 }
 
 /// Fuzzy match `pat_arg` in `str` (`fuzzy_match`).
@@ -573,95 +575,93 @@ fn fuzzy_match_in_list(
 }
 
 fn do_fuzzymatch(argvars: &[TypVal], rettv: &mut TypVal, retmatchpos: bool) {
-    unsafe {
-        let arg0 = &argvars[0];
-        let arg1 = &argvars[1];
-        let arg2 = &argvars[2];
+    let arg0 = &argvars[0];
+    let arg1 = &argvars[1];
+    let arg2 = &argvars[2];
 
-        if arg0.v_type != VarType::VarList || arg0.vval.v_list().is_null() {
-            semsg!(
-                E_LISTARG,
-                if retmatchpos {
-                    c"matchfuzzypos()".as_ptr()
-                } else {
-                    c"matchfuzzy()".as_ptr()
-                },
-            );
-            return;
-        }
-        if arg1.v_type != VarType::VarString || arg1.vval.v_string().is_null() {
-            semsg!(E_INVARG2, tv_get_string(arg1));
-            return;
-        }
-
-        let mut cb = Callback::NONE;
-        let mut key: *const c_char = std::ptr::null();
-        let mut matchseq = false;
-        let mut max_matches: i32 = 0;
-
-        if arg2.v_type != VarType::VarUnknown {
-            if !tv_check_for_nonnull_dict_arg(argvars, 2) {
-                return;
-            }
-
-            let d = arg2.vval.v_dict();
-            let di_key = tv_dict_find(d.as_ref(), c"key", -1);
-            if !di_key.is_null() {
-                let di_key = { &mut *di_key };
-                let di_key = { &mut *di_key };
-                if di_key.di_tv.v_type != VarType::VarString
-                    || di_key.di_tv.vval.v_string().is_null()
-                    || *di_key.di_tv.vval.v_string() == 0
-                {
-                    semsg!(E_INVARG_NVAL, c"key", tv_get_string(&di_key.di_tv),);
-                    return;
-                }
-                key = tv_get_string(&di_key.di_tv);
-            } else if !tv_dict_get_callback(d.as_mut(), c"text_cb", -1, &mut cb) {
-                semsg!(E_INVARGVAL, c"text_cb");
-                return;
-            }
-
-            let di_limit = tv_dict_find(d.as_ref(), c"limit", -1);
-            if !di_limit.is_null() {
-                let di_limit = { &mut *di_limit };
-                if di_limit.di_tv.v_type != VarType::VarNumber {
-                    callback_free(&mut cb);
-                    semsg!(E_INVARGVAL, c"limit");
-                    return;
-                }
-                max_matches = tv_get_number_chk(&di_limit.di_tv, None) as i32;
-            }
-
-            if tv_dict_has_key(d.as_ref(), c"matchseq") {
-                matchseq = true;
-            }
-        }
-
-        tv_list_alloc_ret(
-            &mut *rettv,
-            if retmatchpos { 3 } else { K_LIST_LEN_UNKNOWN },
+    if arg0.v_type != VarType::VarList || arg0.vval.v_list().is_null() {
+        semsg!(
+            E_LISTARG,
+            if retmatchpos {
+                c"matchfuzzypos()".as_ptr()
+            } else {
+                c"matchfuzzy()".as_ptr()
+            },
         );
-        let out_list = rettv.vval.v_list();
-        if retmatchpos {
-            tv_list_append_list(&mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
-            tv_list_append_list(&mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
-            tv_list_append_list(&mut *out_list, tv_list_alloc(K_LIST_LEN_UNKNOWN));
-        }
-
-        fuzzy_match_in_list(
-            arg0.vval.v_list().as_ref(),
-            tv_get_string(arg1).cast_mut(),
-            matchseq,
-            key,
-            &mut cb,
-            retmatchpos,
-            &mut *out_list,
-            max_matches,
-        );
-
-        callback_free(&mut cb);
+        return;
     }
+    if arg1.v_type != VarType::VarString || arg1.vval.v_string().is_null() {
+        semsg!(E_INVARG2, tv_get_string(arg1));
+        return;
+    }
+
+    let mut cb = Callback::NONE;
+    let mut key: *const c_char = std::ptr::null();
+    let mut matchseq = false;
+    let mut max_matches: i32 = 0;
+
+    if arg2.v_type != VarType::VarUnknown {
+        if !tv_check_for_nonnull_dict_arg(argvars, 2) {
+            return;
+        }
+
+        let d = arg2.vval.v_dict();
+        let di_key = tv_dict_find(unsafe { d.as_ref() }, c"key", -1);
+        if !di_key.is_null() {
+            let di_key = { unsafe { &mut *di_key } };
+            let di_key = { &mut *di_key };
+            if di_key.di_tv.v_type != VarType::VarString
+                || di_key.di_tv.vval.v_string().is_null()
+                || unsafe { *di_key.di_tv.vval.v_string() } == 0
+            {
+                semsg!(E_INVARG_NVAL, c"key", tv_get_string(&di_key.di_tv),);
+                return;
+            }
+            key = tv_get_string(&di_key.di_tv);
+        } else if !tv_dict_get_callback(unsafe { d.as_mut() }, c"text_cb", -1, &mut cb) {
+            semsg!(E_INVARGVAL, c"text_cb");
+            return;
+        }
+
+        let di_limit = tv_dict_find(unsafe { d.as_ref() }, c"limit", -1);
+        if !di_limit.is_null() {
+            let di_limit = { unsafe { &mut *di_limit } };
+            if di_limit.di_tv.v_type != VarType::VarNumber {
+                callback_free(&mut cb);
+                semsg!(E_INVARGVAL, c"limit");
+                return;
+            }
+            max_matches = tv_get_number_chk(&di_limit.di_tv, None) as i32;
+        }
+
+        if tv_dict_has_key(unsafe { d.as_ref() }, c"matchseq") {
+            matchseq = true;
+        }
+    }
+
+    tv_list_alloc_ret(
+        &mut *rettv,
+        if retmatchpos { 3 } else { K_LIST_LEN_UNKNOWN },
+    );
+    let out_list = rettv.vval.v_list();
+    if retmatchpos {
+        tv_list_append_list(unsafe { &mut *out_list }, tv_list_alloc(K_LIST_LEN_UNKNOWN));
+        tv_list_append_list(unsafe { &mut *out_list }, tv_list_alloc(K_LIST_LEN_UNKNOWN));
+        tv_list_append_list(unsafe { &mut *out_list }, tv_list_alloc(K_LIST_LEN_UNKNOWN));
+    }
+
+    fuzzy_match_in_list(
+        unsafe { arg0.vval.v_list().as_ref() },
+        tv_get_string(arg1).cast_mut(),
+        matchseq,
+        key,
+        &mut cb,
+        retmatchpos,
+        unsafe { &mut *out_list },
+        max_matches,
+    );
+
+    callback_free(&mut cb);
 }
 
 /// `"matchfuzzy()"` function (`f_matchfuzzy`).
@@ -768,8 +768,8 @@ pub fn fuzzy_match_str_in_line(
     score: &mut i32,
 ) -> bool {
     let pat = pat.into_c_char_ptr();
-    unsafe {
-        let mut str_cur = *ptr;
+    {
+        let mut str_cur = unsafe { *ptr };
         let str_begin = str_cur;
         let mut found = false;
 
@@ -780,20 +780,26 @@ pub fn fuzzy_match_str_in_line(
 
         while (str_cur as usize) < (line_end as usize) {
             let start = find_word_start(str_cur);
-            if *start == 0 {
+            if unsafe { *start } == 0 {
                 break;
             }
             let end = find_word_end(start);
 
-            let save_end = *end;
-            *end = 0;
+            let save_end = unsafe { *end };
+            unsafe {
+                *end = 0;
+            }
             *score = fuzzy_match_str(start, pat);
-            *end = save_end;
+            unsafe {
+                *end = save_end;
+            }
 
             if *score != FUZZY_SCORE_NONE {
                 *len = ((end as usize) - (start as usize)) as i32;
                 found = true;
-                *ptr = start;
+                unsafe {
+                    *ptr = start;
+                }
                 if let Some(current_pos) = current_pos {
                     current_pos.col += ((end as usize) - (str_begin as usize)) as i32;
                 }
@@ -801,13 +807,15 @@ pub fn fuzzy_match_str_in_line(
             }
 
             str_cur = end;
-            while *str_cur != 0 && !vim_iswordp(str_cur) {
+            while unsafe { *str_cur } != 0 && !vim_iswordp(str_cur) {
                 str_cur = str_cur.wrapping_add(utf_ptr2len(str_cur) as usize);
             }
         }
 
         if !found {
-            *ptr = line_end;
+            unsafe {
+                *ptr = line_end;
+            }
         }
 
         found

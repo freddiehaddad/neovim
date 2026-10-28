@@ -55,16 +55,14 @@ pub fn time_watcher_init(loop_: &mut Loop, watcher: &mut TimeWatcher, data: Time
 }
 
 pub fn time_watcher_start(watcher: &mut TimeWatcher, timeout: u64, repeat: u64) {
-    {
-        unsafe {
-            uv_timer_start(
-                (&raw mut watcher.uv).cast(),
-                Some(time_watcher_cb),
-                timeout,
-                repeat,
-            )
-        };
-    }
+    unsafe {
+        uv_timer_start(
+            (&raw mut watcher.uv).cast(),
+            Some(time_watcher_cb),
+            timeout,
+            repeat,
+        )
+    };
 }
 
 pub fn time_watcher_stop(watcher: &mut TimeWatcher) {
@@ -80,33 +78,27 @@ pub fn time_watcher_close(watcher: &mut TimeWatcher) {
 }
 
 pub fn time_event(watcher: &mut TimeWatcher) {
-    {
-        match watcher.data {
-            TimeWatcherData::None => {}
-            TimeWatcherData::EvalTimer(timer) => {
-                crate::eval::timer_due_cb(watcher, unsafe { &mut *timer })
-            }
-            TimeWatcherData::WaitDummy => crate::eval::funcs::dummy_timer_due_cb(watcher),
-            TimeWatcherData::TerminalRefresh => crate::terminal::refresh_timer_cb(),
+    match watcher.data {
+        TimeWatcherData::None => {}
+        TimeWatcherData::EvalTimer(timer) => {
+            crate::eval::timer_due_cb(watcher, unsafe { &mut *timer })
         }
+        TimeWatcherData::WaitDummy => crate::eval::funcs::dummy_timer_due_cb(watcher),
+        TimeWatcherData::TerminalRefresh => crate::terminal::refresh_timer_cb(),
     }
 }
 
 unsafe extern "C" fn time_watcher_cb(handle: *mut uv_timer_t) {
     unsafe {
-        {
-            {
-                let watcher = *handle.cast::<*mut TimeWatcher>();
-                let watcher = { &mut *watcher };
-                if watcher.blockable && !multiqueue_empty(&*watcher.events) {
-                    return;
-                }
-                if !watcher.events.is_null() {
-                    multiqueue_put_event(&mut *watcher.events, Event::TimeWatcher(watcher));
-                } else {
-                    time_event(&mut *watcher);
-                }
-            }
+        let watcher = *handle.cast::<*mut TimeWatcher>();
+        let watcher = { &mut *watcher };
+        if watcher.blockable && !multiqueue_empty(&*watcher.events) {
+            return;
+        }
+        if !watcher.events.is_null() {
+            multiqueue_put_event(&mut *watcher.events, Event::TimeWatcher(watcher));
+        } else {
+            time_event(&mut *watcher);
         }
     }
 }
@@ -123,18 +115,16 @@ pub fn close_event(watcher: &mut TimeWatcher) {
 
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
-        {
-            let watcher = { *handle.cast::<*mut TimeWatcher>() };
-            let watcher = { &mut *watcher };
-            if matches!(
-                watcher.data,
-                TimeWatcherData::EvalTimer(_) | TimeWatcherData::WaitDummy
-            ) {
-                if !watcher.events.is_null() {
-                    multiqueue_put_event(&mut *watcher.events, Event::TimeWatcherClose(watcher));
-                } else {
-                    close_event(&mut *watcher);
-                }
+        let watcher = { *handle.cast::<*mut TimeWatcher>() };
+        let watcher = { &mut *watcher };
+        if matches!(
+            watcher.data,
+            TimeWatcherData::EvalTimer(_) | TimeWatcherData::WaitDummy
+        ) {
+            if !watcher.events.is_null() {
+                multiqueue_put_event(&mut *watcher.events, Event::TimeWatcherClose(watcher));
+            } else {
+                close_event(&mut *watcher);
             }
         }
     }

@@ -33,13 +33,11 @@ pub fn luaret_truthy(res: Object) -> bool {
 }
 
 fn textlock_wrap<F: FnOnce()>(f: F) {
-    {
-        let save_cursor = curwin_mut().w_cursor;
-        g_st().textlock += 1;
-        f();
-        g_st().textlock -= 1;
-        curwin_mut().w_cursor = save_cursor;
-    }
+    let save_cursor = curwin_mut().w_cursor;
+    g_st().textlock += 1;
+    f();
+    g_st().textlock -= 1;
+    curwin_mut().w_cursor = save_cursor;
 }
 
 pub fn buf_updates_register(
@@ -202,36 +200,79 @@ pub fn buf_updates_send_changes(
     num_added: i64,
     num_removed: i64,
 ) {
-    {
-        let mut deleted_codepoints: usize = 0;
-        let mut deleted_codeunits: usize = 0;
-        let deleted_bytes =
-            ml_flush_deleted_bytes(buf, &mut deleted_codepoints, &mut deleted_codeunits);
+    let mut deleted_codepoints: usize = 0;
+    let mut deleted_codeunits: usize = 0;
+    let deleted_bytes =
+        ml_flush_deleted_bytes(buf, &mut deleted_codepoints, &mut deleted_codeunits);
 
-        if !buf_updates_active(buf) {
-            return;
+    if !buf_updates_active(buf) {
+        return;
+    }
+
+    let send_tick = !(g_st().cmdpreview && (&raw mut *buf) == g_st().curbuf);
+    let mut badchannelid: u64 = 0;
+
+    let mut arena = ARENA_EMPTY;
+    let mut linedata = Array::new();
+    if num_added > 0 && !buf.update_channels.is_empty() {
+        linedata = arena_array(&mut arena, num_added as usize);
+        buf_collect_lines(
+            buf,
+            num_added as usize,
+            firstline,
+            0,
+            true,
+            &mut linedata,
+            ptr::null_mut(),
+            &mut arena,
+        );
+    }
+
+    for &channelid in &buf.update_channels {
+        let mut items = [
+            buffer_obj(buf.b_fnum),
+            if send_tick {
+                integer_obj(buf_get_changedtick(buf))
+            } else {
+                OBJECT_NIL
+            },
+            integer_obj(i64::from(firstline - 1)),
+            integer_obj(i64::from(firstline - 1) + num_removed),
+            array_obj(linedata),
+            boolean_obj(false),
+        ];
+        let args = Array {
+            size: 6,
+            capacity: 6,
+            items: items.as_mut_ptr(),
+        };
+        if !rpc_send_event(channelid, c"nvim_buf_lines_event", args) {
+            badchannelid = channelid;
         }
+    }
 
-        let send_tick = !(g_st().cmdpreview && (&raw mut *buf) == g_st().curbuf);
-        let mut badchannelid: u64 = 0;
+    if badchannelid != 0 {
+        logmsg!(
+            LOG_ERROR,
+            ptr::null(),
+            c"buf_updates_send_changes",
+            268,
+            true,
+            c"Disabling buffer updates for dead channel %llu",
+            badchannelid,
+        );
+        buf_updates_unregister(buf, badchannelid);
+    }
 
-        let mut arena = ARENA_EMPTY;
-        let mut linedata = Array::new();
-        if num_added > 0 && !buf.update_channels.is_empty() {
-            linedata = arena_array(&mut arena, num_added as usize);
-            buf_collect_lines(
-                buf,
-                num_added as usize,
-                firstline,
-                0,
-                true,
-                &mut linedata,
-                ptr::null_mut(),
-                &mut arena,
-            );
-        }
+    arena_mem_free(arena_finish(&mut arena));
 
-        for &channelid in &buf.update_channels {
+    let mut i = 0usize;
+    while i < buf.update_callbacks.len() {
+        let on_lines = buf.update_callbacks.as_slice()[i].on_lines;
+        let preview = buf.update_callbacks.as_slice()[i].preview;
+        let utf_sizes = buf.update_callbacks.as_slice()[i].utf_sizes;
+        let mut keep = true;
+        if on_lines != LUA_NOREF && (preview || !g_st().cmdpreview) {
             let mut items = [
                 buffer_obj(buf.b_fnum),
                 if send_tick {
@@ -241,75 +282,30 @@ pub fn buf_updates_send_changes(
                 },
                 integer_obj(i64::from(firstline - 1)),
                 integer_obj(i64::from(firstline - 1) + num_removed),
-                array_obj(linedata),
-                boolean_obj(false),
+                integer_obj(i64::from(firstline - 1) + num_added),
+                integer_obj(deleted_bytes as Integer),
+                integer_obj(deleted_codepoints as Integer),
+                integer_obj(deleted_codeunits as Integer),
             ];
             let args = Array {
-                size: 6,
-                capacity: 6,
+                size: if utf_sizes { 8 } else { 6 },
+                capacity: 8,
                 items: items.as_mut_ptr(),
             };
-            if !rpc_send_event(channelid, c"nvim_buf_lines_event", args) {
-                badchannelid = channelid;
+
+            let mut res = OBJECT_NIL;
+            textlock_wrap(|| {
+                res = nlua_call_ref(on_lines, c"lines", args, K_RET_NIL_BOOL, None, None);
+            });
+
+            if luaret_truthy(res) {
+                keep = false;
             }
         }
-
-        if badchannelid != 0 {
-            logmsg!(
-                LOG_ERROR,
-                ptr::null(),
-                c"buf_updates_send_changes",
-                268,
-                true,
-                c"Disabling buffer updates for dead channel %llu",
-                badchannelid,
-            );
-            buf_updates_unregister(buf, badchannelid);
-        }
-
-        arena_mem_free(arena_finish(&mut arena));
-
-        let mut i = 0usize;
-        while i < buf.update_callbacks.len() {
-            let on_lines = buf.update_callbacks.as_slice()[i].on_lines;
-            let preview = buf.update_callbacks.as_slice()[i].preview;
-            let utf_sizes = buf.update_callbacks.as_slice()[i].utf_sizes;
-            let mut keep = true;
-            if on_lines != LUA_NOREF && (preview || !g_st().cmdpreview) {
-                let mut items = [
-                    buffer_obj(buf.b_fnum),
-                    if send_tick {
-                        integer_obj(buf_get_changedtick(buf))
-                    } else {
-                        OBJECT_NIL
-                    },
-                    integer_obj(i64::from(firstline - 1)),
-                    integer_obj(i64::from(firstline - 1) + num_removed),
-                    integer_obj(i64::from(firstline - 1) + num_added),
-                    integer_obj(deleted_bytes as Integer),
-                    integer_obj(deleted_codepoints as Integer),
-                    integer_obj(deleted_codeunits as Integer),
-                ];
-                let args = Array {
-                    size: if utf_sizes { 8 } else { 6 },
-                    capacity: 8,
-                    items: items.as_mut_ptr(),
-                };
-
-                let mut res = OBJECT_NIL;
-                textlock_wrap(|| {
-                    res = nlua_call_ref(on_lines, c"lines", args, K_RET_NIL_BOOL, None, None);
-                });
-
-                if luaret_truthy(res) {
-                    keep = false;
-                }
-            }
-            if keep {
-                i += 1;
-            } else {
-                buf.update_callbacks.remove(i);
-            }
+        if keep {
+            i += 1;
+        } else {
+            buf.update_callbacks.remove(i);
         }
     }
 }
@@ -326,50 +322,48 @@ pub fn buf_updates_send_splice(
     new_col: Colnr,
     new_byte: Bcount,
 ) {
-    {
-        if !buf_updates_active(buf) || (old_byte == 0 && new_byte == 0) {
-            return;
+    if !buf_updates_active(buf) || (old_byte == 0 && new_byte == 0) {
+        return;
+    }
+
+    let mut i = 0usize;
+    while i < buf.update_callbacks.len() {
+        let on_bytes = buf.update_callbacks.as_slice()[i].on_bytes;
+        let preview = buf.update_callbacks.as_slice()[i].preview;
+        let mut keep = true;
+        if on_bytes != LUA_NOREF && (preview || !g_st().cmdpreview) {
+            let mut items = [
+                buffer_obj(buf.b_fnum),
+                integer_obj(buf_get_changedtick(&*buf)),
+                integer_obj(i64::from(start_row)),
+                integer_obj(i64::from(start_col)),
+                integer_obj(start_byte as Integer),
+                integer_obj(i64::from(old_row)),
+                integer_obj(i64::from(old_col)),
+                integer_obj(old_byte as Integer),
+                integer_obj(i64::from(new_row)),
+                integer_obj(i64::from(new_col)),
+                integer_obj(new_byte as Integer),
+            ];
+            let args = Array {
+                size: 11,
+                capacity: 11,
+                items: items.as_mut_ptr(),
+            };
+
+            let mut res = OBJECT_NIL;
+            textlock_wrap(|| {
+                res = nlua_call_ref(on_bytes, c"bytes", args, K_RET_NIL_BOOL, None, None);
+            });
+
+            if luaret_truthy(res) {
+                keep = false;
+            }
         }
-
-        let mut i = 0usize;
-        while i < buf.update_callbacks.len() {
-            let on_bytes = buf.update_callbacks.as_slice()[i].on_bytes;
-            let preview = buf.update_callbacks.as_slice()[i].preview;
-            let mut keep = true;
-            if on_bytes != LUA_NOREF && (preview || !g_st().cmdpreview) {
-                let mut items = [
-                    buffer_obj(buf.b_fnum),
-                    integer_obj(buf_get_changedtick(&*buf)),
-                    integer_obj(i64::from(start_row)),
-                    integer_obj(i64::from(start_col)),
-                    integer_obj(start_byte as Integer),
-                    integer_obj(i64::from(old_row)),
-                    integer_obj(i64::from(old_col)),
-                    integer_obj(old_byte as Integer),
-                    integer_obj(i64::from(new_row)),
-                    integer_obj(i64::from(new_col)),
-                    integer_obj(new_byte as Integer),
-                ];
-                let args = Array {
-                    size: 11,
-                    capacity: 11,
-                    items: items.as_mut_ptr(),
-                };
-
-                let mut res = OBJECT_NIL;
-                textlock_wrap(|| {
-                    res = nlua_call_ref(on_bytes, c"bytes", args, K_RET_NIL_BOOL, None, None);
-                });
-
-                if luaret_truthy(res) {
-                    keep = false;
-                }
-            }
-            if keep {
-                i += 1;
-            } else {
-                buf.update_callbacks.remove(i);
-            }
+        if keep {
+            i += 1;
+        } else {
+            buf.update_callbacks.remove(i);
         }
     }
 }

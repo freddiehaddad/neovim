@@ -272,60 +272,58 @@ pub fn os_has_conpty_working() -> bool {
 
 #[cfg(windows)]
 pub fn os_dyn_conpty_init() -> TriState {
-    unsafe {
-        let mut conpty_lib = UvLib {
-            _opaque: [std::ptr::null_mut(); 4],
-        };
+    let mut conpty_lib = UvLib {
+        _opaque: [std::ptr::null_mut(); 4],
+    };
 
-        if uv_dlopen(c"conpty.dll".as_ptr(), &mut conpty_lib) == 0 {
-            logmsg!(
-                LOGLVL_INF,
-                std::ptr::null(),
-                c"os_dyn_conpty_init",
-                31,
-                true,
-                c"Loaded new ConPTY from conpty.dll",
-            );
-        } else {
-            uv_dlclose(&mut conpty_lib);
-            if uv_dlopen(c"kernel32.dll".as_ptr(), &mut conpty_lib) != 0 {
-                uv_dlclose(&mut conpty_lib);
-                return K_FALSE;
-            }
-            logmsg!(
-                LOGLVL_INF,
-                std::ptr::null(),
-                c"os_dyn_conpty_init",
-                40,
-                true,
-                c"Loaded system ConPTY from kernel32.dll",
-            );
+    if unsafe { uv_dlopen(c"conpty.dll".as_ptr(), &mut conpty_lib) } == 0 {
+        logmsg!(
+            LOGLVL_INF,
+            std::ptr::null(),
+            c"os_dyn_conpty_init",
+            31,
+            true,
+            c"Loaded new ConPTY from conpty.dll",
+        );
+    } else {
+        unsafe { uv_dlclose(&mut conpty_lib) };
+        if unsafe { uv_dlopen(c"kernel32.dll".as_ptr(), &mut conpty_lib) } != 0 {
+            unsafe { uv_dlclose(&mut conpty_lib) };
+            return K_FALSE;
         }
-
-        let entries: [(*const c_char, *mut *mut c_void); 3] = [
-            (
-                c"CreatePseudoConsole".as_ptr(),
-                std::ptr::addr_of_mut!(conpty_st().pCreatePseudoConsole).cast::<*mut c_void>(),
-            ),
-            (
-                c"ResizePseudoConsole".as_ptr(),
-                std::ptr::addr_of_mut!(conpty_st().pResizePseudoConsole).cast::<*mut c_void>(),
-            ),
-            (
-                c"ClosePseudoConsole".as_ptr(),
-                std::ptr::addr_of_mut!(conpty_st().pClosePseudoConsole).cast::<*mut c_void>(),
-            ),
-        ];
-
-        for (name, ptr) in entries {
-            if uv_dlsym(&mut conpty_lib, name, ptr) != 0 {
-                uv_dlclose(&mut conpty_lib);
-                return K_FALSE;
-            }
-        }
-
-        K_TRUE
+        logmsg!(
+            LOGLVL_INF,
+            std::ptr::null(),
+            c"os_dyn_conpty_init",
+            40,
+            true,
+            c"Loaded system ConPTY from kernel32.dll",
+        );
     }
+
+    let entries: [(*const c_char, *mut *mut c_void); 3] = [
+        (
+            c"CreatePseudoConsole".as_ptr(),
+            std::ptr::addr_of_mut!(conpty_st().pCreatePseudoConsole).cast::<*mut c_void>(),
+        ),
+        (
+            c"ResizePseudoConsole".as_ptr(),
+            std::ptr::addr_of_mut!(conpty_st().pResizePseudoConsole).cast::<*mut c_void>(),
+        ),
+        (
+            c"ClosePseudoConsole".as_ptr(),
+            std::ptr::addr_of_mut!(conpty_st().pClosePseudoConsole).cast::<*mut c_void>(),
+        ),
+    ];
+
+    for (name, ptr) in entries {
+        if unsafe { uv_dlsym(&mut conpty_lib, name, ptr) } != 0 {
+            unsafe { uv_dlclose(&mut conpty_lib) };
+            return K_FALSE;
+        }
+    }
+
+    K_TRUE
 }
 
 #[cfg(windows)]
@@ -335,27 +333,26 @@ pub fn os_conpty_init(
     width: u16,
     height: u16,
 ) -> Option<Box<Conpty>> {
-    unsafe {
-        let mut conpty_object = Box::new(Conpty::new());
-        let emsg: *const c_char;
-        let in_read: HANDLE;
-        let mut out_write: HANDLE = INVALID_HANDLE_VALUE;
-        let mut sa = SECURITY_ATTRIBUTES {
-            nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as DWORD,
-            lpSecurityDescriptor: std::ptr::null_mut(),
-            bInheritHandle: 0,
-        };
-        let mode = PIPE_ACCESS_INBOUND | PIPE_ACCESS_OUTBOUND | FILE_FLAG_FIRST_PIPE_INSTANCE;
+    let mut conpty_object = Box::new(Conpty::new());
+    let emsg: *const c_char;
+    let in_read: HANDLE;
+    let mut out_write: HANDLE = INVALID_HANDLE_VALUE;
+    let mut sa = SECURITY_ATTRIBUTES {
+        nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as DWORD,
+        lpSecurityDescriptor: std::ptr::null_mut(),
+        bInheritHandle: 0,
+    };
+    let mode = PIPE_ACCESS_INBOUND | PIPE_ACCESS_OUTBOUND | FILE_FLAG_FIRST_PIPE_INSTANCE;
 
-        let pid = os_get_pid();
-        let count = conpty_st().CONPTY_COUNT;
-        let in_pipe_cstr =
-            CString::new(format!("\\\\.\\pipe\\nvim-term-in-{pid}-{count}")).unwrap();
-        let in_pipe_ptr = in_pipe_cstr.as_ptr();
-        *in_name = Some(in_pipe_cstr);
+    let pid = os_get_pid();
+    let count = conpty_st().CONPTY_COUNT;
+    let in_pipe_cstr = CString::new(format!("\\\\.\\pipe\\nvim-term-in-{pid}-{count}")).unwrap();
+    let in_pipe_ptr = in_pipe_cstr.as_ptr();
+    *in_name = Some(in_pipe_cstr);
 
-        'init: {
-            in_read = CreateNamedPipeA(
+    'init: {
+        in_read = unsafe {
+            CreateNamedPipeA(
                 in_pipe_ptr,
                 mode,
                 PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
@@ -364,17 +361,19 @@ pub fn os_conpty_init(
                 0,
                 30000,
                 &mut sa,
-            );
-            if in_read == INVALID_HANDLE_VALUE {
-                emsg = c"create input pipe failed".as_ptr();
-                break 'init;
-            }
+            )
+        };
+        if in_read == INVALID_HANDLE_VALUE {
+            emsg = c"create input pipe failed".as_ptr();
+            break 'init;
+        }
 
-            let out_pipe_cstr =
-                CString::new(format!("\\\\.\\pipe\\nvim-term-out-{pid}-{count}")).unwrap();
-            let out_pipe_ptr = out_pipe_cstr.as_ptr();
-            *out_name = Some(out_pipe_cstr);
-            out_write = CreateNamedPipeA(
+        let out_pipe_cstr =
+            CString::new(format!("\\\\.\\pipe\\nvim-term-out-{pid}-{count}")).unwrap();
+        let out_pipe_ptr = out_pipe_cstr.as_ptr();
+        *out_name = Some(out_pipe_cstr);
+        out_write = unsafe {
+            CreateNamedPipeA(
                 out_pipe_ptr,
                 mode,
                 PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
@@ -383,47 +382,55 @@ pub fn os_conpty_init(
                 0,
                 30000,
                 &mut sa,
-            );
-            if out_write == INVALID_HANDLE_VALUE {
-                emsg = c"create output pipe failed".as_ptr();
-                break 'init;
-            }
+            )
+        };
+        if out_write == INVALID_HANDLE_VALUE {
+            emsg = c"create output pipe failed".as_ptr();
+            break 'init;
+        }
 
-            assert!(width <= i16::MAX as u16);
-            assert!(height <= i16::MAX as u16);
-            let size = COORD {
-                X: width as i16,
-                Y: height as i16,
-            };
-            let hr = (conpty_st().pCreatePseudoConsole.unwrap_unchecked())(
+        assert!(width <= i16::MAX as u16);
+        assert!(height <= i16::MAX as u16);
+        let size = COORD {
+            X: width as i16,
+            Y: height as i16,
+        };
+        let hr = unsafe {
+            (conpty_st().pCreatePseudoConsole.unwrap_unchecked())(
                 size,
                 in_read,
                 out_write,
                 0,
                 &mut conpty_object.pty,
-            );
-            if hr < 0 {
-                emsg = c"create pseudo console failed".as_ptr();
-                break 'init;
-            }
+            )
+        };
+        if hr < 0 {
+            emsg = c"create pseudo console failed".as_ptr();
+            break 'init;
+        }
 
-            conpty_object.si_ex.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as DWORD;
-            let mut bytes_required: usize = 0;
-            InitializeProcThreadAttributeList(std::ptr::null_mut(), 1, 0, &mut bytes_required);
-            conpty_object.attr_list = vec![0u8; bytes_required];
-            conpty_object.si_ex.lpAttributeList = conpty_object.attr_list.as_mut_ptr().cast();
-            if InitializeProcThreadAttributeList(
+        conpty_object.si_ex.StartupInfo.cb = std::mem::size_of::<STARTUPINFOEXW>() as DWORD;
+        let mut bytes_required: usize = 0;
+        unsafe {
+            InitializeProcThreadAttributeList(std::ptr::null_mut(), 1, 0, &mut bytes_required)
+        };
+        conpty_object.attr_list = vec![0u8; bytes_required];
+        conpty_object.si_ex.lpAttributeList = conpty_object.attr_list.as_mut_ptr().cast();
+        if unsafe {
+            InitializeProcThreadAttributeList(
                 conpty_object.si_ex.lpAttributeList,
                 1,
                 0,
                 &mut bytes_required,
-            ) == 0
-            {
-                conpty_object.si_ex.lpAttributeList = std::ptr::null_mut();
-                emsg = c"InitializeProcThreadAttributeList failed".as_ptr();
-                break 'init;
-            }
-            if UpdateProcThreadAttribute(
+            )
+        } == 0
+        {
+            conpty_object.si_ex.lpAttributeList = std::ptr::null_mut();
+            emsg = c"InitializeProcThreadAttributeList failed".as_ptr();
+            break 'init;
+        }
+        if unsafe {
+            UpdateProcThreadAttribute(
                 conpty_object.si_ex.lpAttributeList,
                 0,
                 PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
@@ -431,41 +438,41 @@ pub fn os_conpty_init(
                 std::mem::size_of::<HPCON>(),
                 std::ptr::null_mut(),
                 std::ptr::null_mut(),
-            ) == 0
-            {
-                emsg = c"UpdateProcThreadAttribute failed".as_ptr();
-                break 'init;
-            }
-
-            conpty_st().CONPTY_COUNT += 1;
-            if in_read != INVALID_HANDLE_VALUE {
-                CloseHandle(in_read);
-            }
-            if out_write != INVALID_HANDLE_VALUE {
-                CloseHandle(out_write);
-            }
-            return Some(conpty_object);
+            )
+        } == 0
+        {
+            emsg = c"UpdateProcThreadAttribute failed".as_ptr();
+            break 'init;
         }
 
-        logmsg!(
-            LOGLVL_ERR,
-            std::ptr::null(),
-            c"os_conpty_init",
-            139,
-            true,
-            c"os_conpty_init:%s : error code: %d",
-            emsg,
-            uv_translate_sys_error(GetLastError() as i32),
-        );
-        drop(conpty_object);
+        conpty_st().CONPTY_COUNT += 1;
         if in_read != INVALID_HANDLE_VALUE {
-            CloseHandle(in_read);
+            unsafe { CloseHandle(in_read) };
         }
         if out_write != INVALID_HANDLE_VALUE {
-            CloseHandle(out_write);
+            unsafe { CloseHandle(out_write) };
         }
-        None
+        return Some(conpty_object);
     }
+
+    logmsg!(
+        LOGLVL_ERR,
+        std::ptr::null(),
+        c"os_conpty_init",
+        139,
+        true,
+        c"os_conpty_init:%s : error code: %d",
+        emsg,
+        unsafe { uv_translate_sys_error(GetLastError() as i32) },
+    );
+    drop(conpty_object);
+    if in_read != INVALID_HANDLE_VALUE {
+        unsafe { CloseHandle(in_read) };
+    }
+    if out_write != INVALID_HANDLE_VALUE {
+        unsafe { CloseHandle(out_write) };
+    }
+    None
 }
 
 #[cfg(windows)]
@@ -477,33 +484,31 @@ pub fn os_conpty_spawn(
     cwd: *mut u16,
     env: *mut u16,
 ) -> bool {
+    let mut pi = PROCESS_INFORMATION {
+        hProcess: std::ptr::null_mut(),
+        hThread: std::ptr::null_mut(),
+        dwProcessId: 0,
+        dwThreadId: 0,
+    };
+    if unsafe {
+        CreateProcessW(
+            name,
+            cmd_line,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            0,
+            EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
+            env.cast(),
+            cwd,
+            &mut conpty_object.si_ex.StartupInfo,
+            &mut pi,
+        )
+    } == 0
     {
-        let mut pi = PROCESS_INFORMATION {
-            hProcess: std::ptr::null_mut(),
-            hThread: std::ptr::null_mut(),
-            dwProcessId: 0,
-            dwThreadId: 0,
-        };
-        if unsafe {
-            CreateProcessW(
-                name,
-                cmd_line,
-                std::ptr::null_mut(),
-                std::ptr::null_mut(),
-                0,
-                EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
-                env.cast(),
-                cwd,
-                &mut conpty_object.si_ex.StartupInfo,
-                &mut pi,
-            )
-        } == 0
-        {
-            return false;
-        }
-        *proc_handle = pi.hProcess;
-        true
+        return false;
     }
+    *proc_handle = pi.hProcess;
+    true
 }
 
 #[cfg(windows)]
@@ -534,15 +539,13 @@ pub fn os_conpty_set_size(conpty_object: &Conpty, width: u16, height: u16) {
 #[cfg(windows)]
 impl Drop for Conpty {
     fn drop(&mut self) {
+        if !self.si_ex.lpAttributeList.is_null() {
+            unsafe { DeleteProcThreadAttributeList(self.si_ex.lpAttributeList) };
+        }
+        if !self.pty.is_null()
+            && let Some(close_fn) = conpty_st().pClosePseudoConsole
         {
-            if !self.si_ex.lpAttributeList.is_null() {
-                unsafe { DeleteProcThreadAttributeList(self.si_ex.lpAttributeList) };
-            }
-            if !self.pty.is_null()
-                && let Some(close_fn) = conpty_st().pClosePseudoConsole
-            {
-                unsafe { close_fn(self.pty) };
-            }
+            unsafe { close_fn(self.pty) };
         }
     }
 }

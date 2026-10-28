@@ -168,180 +168,164 @@ pub fn ui_init() {
 }
 
 pub fn ui_free_all_mem() {
-    {
-        let cbs_ptr = &mut ui_state().ui_event_cbs;
-        cbs_ptr.clear();
-        ui_state().uis = Vec::new();
+    let cbs_ptr = &mut ui_state().ui_event_cbs;
+    cbs_ptr.clear();
+    ui_state().uis = Vec::new();
 
-        multiqueue_free(g_st().resize_events);
-    }
+    multiqueue_free(g_st().resize_events);
 }
 
 pub fn ui_rgb_attached() -> bool {
-    {
-        if opt_vars().p_tgc != 0 {
+    if opt_vars().p_tgc != 0 {
+        return true;
+    }
+    let uis_ptr = &ui_state().uis;
+    for &ui_ptr in uis_ptr {
+        let ui = unsafe { &mut *ui_ptr };
+        let is_tui = ui.stdin_tty || ui.stdout_tty;
+        if !is_tui && ui.rgb {
             return true;
         }
-        let uis_ptr = &ui_state().uis;
-        for &ui_ptr in uis_ptr {
-            let ui = unsafe { &mut *ui_ptr };
-            let is_tui = ui.stdin_tty || ui.stdout_tty;
-            if !is_tui && ui.rgb {
-                return true;
-            }
-        }
-        false
     }
+    false
 }
 
 pub fn ui_gui_attached() -> bool {
-    {
-        let uis_ptr = &ui_state().uis;
-        for &ui_ptr in uis_ptr {
-            let ui = unsafe { &mut *ui_ptr };
-            let is_tui = ui.stdin_tty || ui.stdout_tty;
-            if !is_tui {
-                return true;
-            }
+    let uis_ptr = &ui_state().uis;
+    for &ui_ptr in uis_ptr {
+        let ui = unsafe { &mut *ui_ptr };
+        let is_tui = ui.stdin_tty || ui.stdout_tty;
+        if !is_tui {
+            return true;
         }
-        false
     }
+    false
 }
 
 pub fn ui_override() -> bool {
-    {
-        let uis_ptr = &ui_state().uis;
-        for &ui_ptr in uis_ptr {
-            let ui = unsafe { &mut *ui_ptr };
-            if ui.r#override {
-                return true;
-            }
+    let uis_ptr = &ui_state().uis;
+    for &ui_ptr in uis_ptr {
+        let ui = unsafe { &mut *ui_ptr };
+        if ui.r#override {
+            return true;
         }
-        false
     }
+    false
 }
 
 pub fn ui_active() -> usize {
-    {
-        let uis_ptr = &ui_state().uis;
-        uis_ptr.len()
-    }
+    let uis_ptr = &ui_state().uis;
+    uis_ptr.len()
 }
 
 pub fn ui_refresh() {
-    {
-        if g_st().ui_client_channel_id != 0 {
-            std::process::abort();
-        }
-
-        let mut width = i32::MAX;
-        let mut height = i32::MAX;
-        let active = ui_active() != 0;
-        let mut ext_widgets = [active; K_UIEXT_COUNT];
-        let inclusive = ui_override();
-        let uis_ptr = &ui_state().uis;
-        for &ui_ptr in uis_ptr {
-            let ui = unsafe { &mut *ui_ptr };
-            width = width.min(ui.width);
-            height = height.min(ui.height);
-            for (j, widget) in ext_widgets.iter_mut().enumerate().take(K_UIEXT_COUNT) {
-                *widget &= ui.ui_ext[j] || inclusive;
-            }
-        }
-
-        ui_state().cursor_row = 0;
-        ui_state().cursor_col = 0;
-        ui_state().pending_cursor_update = true;
-
-        let ui_ext_ptr = (&raw mut ui_state().ui_ext).cast::<bool>();
-        let ui_cb_ext_ptr = (&raw const ui_state().ui_cb_ext).cast::<bool>();
-        let had_message = unsafe { *ui_ext_ptr.wrapping_add(K_UIMESSAGES) };
-
-        for (i, &widget) in ext_widgets.iter().enumerate().take(K_UIEXT_COUNT) {
-            let val = widget | unsafe { *ui_cb_ext_ptr.wrapping_add(i) };
-            unsafe {
-                *ui_ext_ptr.wrapping_add(i) = val;
-            }
-            if i < K_UIGLOBAL_COUNT {
-                ui_call_option_set(cstr_as_string(UI_EXT_NAMES[i].as_ptr()), boolean_obj(val));
-            }
-        }
-
-        if had_message != unsafe { *ui_ext_ptr.wrapping_add(K_UIMESSAGES) } {
-            if g_st().ui_refresh_cmdheight {
-                set_option_value(
-                    K_OPT_CMDHEIGHT,
-                    integer_obj(Integer::from(had_message)),
-                    0,
-                    true,
-                    None,
-                );
-                for tp in for_all_tabpages_mut() {
-                    tp.tp_ch_used = i64::from(had_message);
-                }
-            }
-            msg_scroll_flush();
-        }
-        msg_ui_refresh();
-
-        if !active {
-            return;
-        }
-
-        if g_st().updating_screen {
-            ui_schedule_refresh();
-            return;
-        }
-
-        ui_default_colors_set();
-
-        let save_p_lz = opt_vars().p_lz;
-        opt_vars().p_lz = 0;
-        screen_resize(width, height);
-        opt_vars().p_lz = save_p_lz;
-
-        ui_mode_info_set();
-        ui_state().pending_mode_update = true;
-        ui_cursor_shape();
-        ui_state().pending_has_mouse = -1;
+    if g_st().ui_client_channel_id != 0 {
+        std::process::abort();
     }
+
+    let mut width = i32::MAX;
+    let mut height = i32::MAX;
+    let active = ui_active() != 0;
+    let mut ext_widgets = [active; K_UIEXT_COUNT];
+    let inclusive = ui_override();
+    let uis_ptr = &ui_state().uis;
+    for &ui_ptr in uis_ptr {
+        let ui = unsafe { &mut *ui_ptr };
+        width = width.min(ui.width);
+        height = height.min(ui.height);
+        for (j, widget) in ext_widgets.iter_mut().enumerate().take(K_UIEXT_COUNT) {
+            *widget &= ui.ui_ext[j] || inclusive;
+        }
+    }
+
+    ui_state().cursor_row = 0;
+    ui_state().cursor_col = 0;
+    ui_state().pending_cursor_update = true;
+
+    let ui_ext_ptr = (&raw mut ui_state().ui_ext).cast::<bool>();
+    let ui_cb_ext_ptr = (&raw const ui_state().ui_cb_ext).cast::<bool>();
+    let had_message = unsafe { *ui_ext_ptr.wrapping_add(K_UIMESSAGES) };
+
+    for (i, &widget) in ext_widgets.iter().enumerate().take(K_UIEXT_COUNT) {
+        let val = widget | unsafe { *ui_cb_ext_ptr.wrapping_add(i) };
+        unsafe {
+            *ui_ext_ptr.wrapping_add(i) = val;
+        }
+        if i < K_UIGLOBAL_COUNT {
+            ui_call_option_set(cstr_as_string(UI_EXT_NAMES[i].as_ptr()), boolean_obj(val));
+        }
+    }
+
+    if had_message != unsafe { *ui_ext_ptr.wrapping_add(K_UIMESSAGES) } {
+        if g_st().ui_refresh_cmdheight {
+            set_option_value(
+                K_OPT_CMDHEIGHT,
+                integer_obj(Integer::from(had_message)),
+                0,
+                true,
+                None,
+            );
+            for tp in for_all_tabpages_mut() {
+                tp.tp_ch_used = i64::from(had_message);
+            }
+        }
+        msg_scroll_flush();
+    }
+    msg_ui_refresh();
+
+    if !active {
+        return;
+    }
+
+    if g_st().updating_screen {
+        ui_schedule_refresh();
+        return;
+    }
+
+    ui_default_colors_set();
+
+    let save_p_lz = opt_vars().p_lz;
+    opt_vars().p_lz = 0;
+    screen_resize(width, height);
+    opt_vars().p_lz = save_p_lz;
+
+    ui_mode_info_set();
+    ui_state().pending_mode_update = true;
+    ui_cursor_shape();
+    ui_state().pending_has_mouse = -1;
 }
 
 pub fn ui_pum_get_height() -> i32 {
-    {
-        let mut pum_height: i32 = 0;
-        let uis_ptr = &ui_state().uis;
-        for &ui_ptr in uis_ptr {
-            let ui = unsafe { &mut *ui_ptr };
-            let ui_pum_height = ui.pum_nlines;
-            if ui_pum_height != 0 {
-                pum_height = if pum_height != 0 {
-                    pum_height.min(ui_pum_height)
-                } else {
-                    ui_pum_height
-                };
-            }
+    let mut pum_height: i32 = 0;
+    let uis_ptr = &ui_state().uis;
+    for &ui_ptr in uis_ptr {
+        let ui = unsafe { &mut *ui_ptr };
+        let ui_pum_height = ui.pum_nlines;
+        if ui_pum_height != 0 {
+            pum_height = if pum_height != 0 {
+                pum_height.min(ui_pum_height)
+            } else {
+                ui_pum_height
+            };
         }
-        pum_height
     }
+    pum_height
 }
 
 pub fn ui_pum_get_pos(pwidth: &mut f64, pheight: &mut f64, prow: &mut f64, pcol: &mut f64) -> bool {
-    {
-        let uis_ptr = &ui_state().uis;
-        for &ui_ptr in uis_ptr {
-            let ui = unsafe { &mut *ui_ptr };
-            if !ui.pum_pos {
-                continue;
-            }
-            *pwidth = ui.pum_width;
-            *pheight = ui.pum_height;
-            *prow = ui.pum_row;
-            *pcol = ui.pum_col;
-            return true;
+    let uis_ptr = &ui_state().uis;
+    for &ui_ptr in uis_ptr {
+        let ui = unsafe { &mut *ui_ptr };
+        if !ui.pum_pos {
+            continue;
         }
-        false
+        *pwidth = ui.pum_width;
+        *pheight = ui.pum_height;
+        *prow = ui.pum_row;
+        *pcol = ui.pum_col;
+        return true;
     }
+    false
 }
 
 pub fn ui_refresh_event() {
@@ -353,11 +337,9 @@ pub fn ui_schedule_refresh() {
 }
 
 pub fn ui_default_colors_set() {
-    {
-        ui_state().pending_default_colors = true;
-        if starting_val() == 0 {
-            ui_may_set_default_colors();
-        }
+    ui_state().pending_default_colors = true;
+    if starting_val() == 0 {
+        ui_may_set_default_colors();
     }
 }
 
@@ -421,102 +403,90 @@ pub fn vim_beep(val: u32) {
 }
 
 pub fn do_autocmd_uienter_all() {
-    {
-        let uis_ptr = &ui_state().uis;
-        for &ui_ptr in uis_ptr {
-            let ui = unsafe { &mut *ui_ptr };
-            do_autocmd_uienter(ui.channel_id, true);
-        }
+    let uis_ptr = &ui_state().uis;
+    for &ui_ptr in uis_ptr {
+        let ui = unsafe { &mut *ui_ptr };
+        do_autocmd_uienter(ui.channel_id, true);
     }
 }
 
 pub fn ui_can_attach_more() -> bool {
-    {
-        let uis_ptr = &ui_state().uis;
-        uis_ptr.len() < MAX_UI_COUNT
-    }
+    let uis_ptr = &ui_state().uis;
+    uis_ptr.len() < MAX_UI_COUNT
 }
 
 pub fn ui_attach_impl(ui: &mut RemoteUI, chanid: u64) {
-    {
-        let uis_ptr = &mut ui_state().uis;
-        if uis_ptr.len() >= MAX_UI_COUNT {
-            std::process::abort();
-        }
-        if !ui.ui_ext[K_UIMULTIGRID]
-            && !ui.ui_ext[K_UIFLOAT_DEBUG]
-            && g_st().ui_client_channel_id == 0
-        {
-            ui_comp_attach(ui);
-        }
-
-        uis_ptr.push(&raw mut *ui);
-        ui_refresh_options();
-        resettitle();
-
-        let mut cwd: [c_char; MAXPATHL] = [0; MAXPATHL];
-        let mut cwdlen = MAXPATHL;
-        if unsafe { uv_cwd(cwd.as_mut_ptr(), &mut cwdlen) } == 0 {
-            ui_call_chdir(NvimString {
-                data: cwd.as_mut_ptr(),
-                size: cwdlen,
-            });
-        }
-
-        for i in K_UIGLOBAL_COUNT..K_UIEXT_COUNT {
-            ui_set_ext_option(ui, i as UIExtension, ui.ui_ext[i]);
-        }
-
-        let mut sent = false;
-        if ui.ui_ext[K_UIHL_STATE] {
-            sent = highlight_use_hlstate();
-        }
-        if !sent {
-            ui_send_all_hls(ui);
-        }
-        ui_refresh();
-
-        do_autocmd_uienter(chanid, true);
+    let uis_ptr = &mut ui_state().uis;
+    if uis_ptr.len() >= MAX_UI_COUNT {
+        std::process::abort();
     }
+    if !ui.ui_ext[K_UIMULTIGRID] && !ui.ui_ext[K_UIFLOAT_DEBUG] && g_st().ui_client_channel_id == 0
+    {
+        ui_comp_attach(ui);
+    }
+
+    uis_ptr.push(&raw mut *ui);
+    ui_refresh_options();
+    resettitle();
+
+    let mut cwd: [c_char; MAXPATHL] = [0; MAXPATHL];
+    let mut cwdlen = MAXPATHL;
+    if unsafe { uv_cwd(cwd.as_mut_ptr(), &mut cwdlen) } == 0 {
+        ui_call_chdir(NvimString {
+            data: cwd.as_mut_ptr(),
+            size: cwdlen,
+        });
+    }
+
+    for i in K_UIGLOBAL_COUNT..K_UIEXT_COUNT {
+        ui_set_ext_option(ui, i as UIExtension, ui.ui_ext[i]);
+    }
+
+    let mut sent = false;
+    if ui.ui_ext[K_UIHL_STATE] {
+        sent = highlight_use_hlstate();
+    }
+    if !sent {
+        ui_send_all_hls(ui);
+    }
+    ui_refresh();
+
+    do_autocmd_uienter(chanid, true);
 }
 
 pub fn ui_detach_impl(ui: &mut RemoteUI, chanid: u64) {
-    {
-        let uis_ptr = &mut ui_state().uis;
-        if uis_ptr.len() > MAX_UI_COUNT {
-            std::process::abort();
-        }
-        let Some(shift_index) = uis_ptr.iter().position(|&u| u == ui) else {
-            std::process::abort();
-        };
-        uis_ptr.remove(shift_index);
-
-        if !uis_ptr.is_empty() && !g_st().exiting {
-            ui_schedule_refresh();
-        }
-
-        if !ui.ui_ext[K_UIMULTIGRID] && !ui.ui_ext[K_UIFLOAT_DEBUG] {
-            ui_comp_detach(ui);
-        }
-
-        do_autocmd_uienter(chanid, false);
+    let uis_ptr = &mut ui_state().uis;
+    if uis_ptr.len() > MAX_UI_COUNT {
+        std::process::abort();
     }
+    let Some(shift_index) = uis_ptr.iter().position(|&u| u == ui) else {
+        std::process::abort();
+    };
+    uis_ptr.remove(shift_index);
+
+    if !uis_ptr.is_empty() && !g_st().exiting {
+        ui_schedule_refresh();
+    }
+
+    if !ui.ui_ext[K_UIMULTIGRID] && !ui.ui_ext[K_UIFLOAT_DEBUG] {
+        ui_comp_detach(ui);
+    }
+
+    do_autocmd_uienter(chanid, false);
 }
 
 pub fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
-    {
-        let idx = ext as usize;
-        if idx < K_UIGLOBAL_COUNT {
-            ui_refresh();
-            return;
-        }
-        let name = UI_EXT_NAMES[idx].as_ptr();
-        if crate::memory::cstr_first_byte(name) != b'_' || active {
-            remote_ui_option_set(ui, cstr_as_string(name), boolean_obj(active));
-        }
-        if idx == K_UITERM_COLORS {
-            ui_default_colors_set();
-        }
+    let idx = ext as usize;
+    if idx < K_UIGLOBAL_COUNT {
+        ui_refresh();
+        return;
+    }
+    let name = UI_EXT_NAMES[idx].as_ptr();
+    if crate::memory::cstr_first_byte(name) != b'_' || active {
+        remote_ui_option_set(ui, cstr_as_string(name), boolean_obj(active));
+    }
+    if idx == K_UITERM_COLORS {
+        ui_default_colors_set();
     }
 }
 
@@ -530,38 +500,36 @@ pub fn ui_line(
     clearattr: i32,
     wrap: bool,
 ) {
-    {
-        debug_assert!(0 <= row && row < grid.rows);
-        let mut flags = if wrap { K_LINE_FLAG_WRAP } else { 0 };
-        if startcol == 0 && invalid_row {
-            flags |= K_LINE_FLAG_INVALID;
-        }
+    debug_assert!(0 <= row && row < grid.rows);
+    let mut flags = if wrap { K_LINE_FLAG_WRAP } else { 0 };
+    if startcol == 0 && invalid_row {
+        flags |= K_LINE_FLAG_INVALID;
+    }
 
-        ui_may_set_default_colors();
+    ui_may_set_default_colors();
 
-        let off = grid.line_offset[row as usize] + startcol as usize;
-        ui_call_raw_line(
+    let off = grid.line_offset[row as usize] + startcol as usize;
+    ui_call_raw_line(
+        Integer::from(grid.handle),
+        Integer::from(row),
+        Integer::from(startcol),
+        Integer::from(endcol),
+        Integer::from(clearcol),
+        Integer::from(clearattr),
+        flags,
+        grid.chars.as_mut_ptr().wrapping_add(off),
+        grid.attrs.as_mut_ptr().wrapping_add(off),
+    );
+
+    if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_LINE) != 0 {
+        ui_call_grid_cursor_goto(
             Integer::from(grid.handle),
             Integer::from(row),
-            Integer::from(startcol),
-            Integer::from(endcol),
-            Integer::from(clearcol),
-            Integer::from(clearattr),
-            flags,
-            grid.chars.as_mut_ptr().wrapping_add(off),
-            grid.attrs.as_mut_ptr().wrapping_add(off),
+            Integer::from(clearcol.min(grid.cols - 1)),
         );
-
-        if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_LINE) != 0 {
-            ui_call_grid_cursor_goto(
-                Integer::from(grid.handle),
-                Integer::from(row),
-                Integer::from(clearcol.min(grid.cols - 1)),
-            );
-            ui_call_flush();
-            os_sleep(opt_vars().p_wd.unsigned_abs());
-            ui_state().pending_cursor_update = true;
-        }
+        ui_call_flush();
+        os_sleep(opt_vars().p_wd.unsigned_abs());
+        ui_state().pending_cursor_update = true;
     }
 }
 
@@ -601,139 +569,133 @@ pub fn ui_current_col() -> i32 {
 }
 
 pub fn ui_flush() {
+    debug_assert!(g_st().ui_client_channel_id == 0);
+    if ui_active() == 0 {
+        return;
+    }
+
+    if (g_st().state_global & MODE_CMDLINE) == 0
+        && curwin_mut().w_floating
+        && curwin_mut().w_config.hide
     {
-        debug_assert!(g_st().ui_client_channel_id == 0);
-        if ui_active() == 0 {
-            return;
+        if !ui_state().ui_flush_was_busy {
+            ui_call_busy_start();
+            ui_state().ui_flush_was_busy = true;
         }
+    } else if ui_state().ui_flush_was_busy {
+        ui_call_busy_stop();
+        ui_state().ui_flush_was_busy = false;
+    }
 
-        if (g_st().state_global & MODE_CMDLINE) == 0
-            && curwin_mut().w_floating
-            && curwin_mut().w_config.hide
-        {
-            if !ui_state().ui_flush_was_busy {
-                ui_call_busy_start();
-                ui_state().ui_flush_was_busy = true;
-            }
-        } else if ui_state().ui_flush_was_busy {
-            ui_call_busy_stop();
-            ui_state().ui_flush_was_busy = false;
-        }
+    win_ui_flush(false);
+    if g_st().textlock == 0 && g_st().expr_map_lock == 0 {
+        cmdline_ui_flush();
+        msg_ext_ui_flush();
+    }
+    msg_scroll_flush();
 
+    if ui_state().pending_cursor_update {
+        ui_call_grid_cursor_goto(
+            Integer::from(ui_state().cursor_grid_handle),
+            Integer::from(ui_state().cursor_row),
+            Integer::from(ui_state().cursor_col),
+        );
+        ui_state().pending_cursor_update = false;
         win_ui_flush(false);
-        if g_st().textlock == 0 && g_st().expr_map_lock == 0 {
-            cmdline_ui_flush();
-            msg_ext_ui_flush();
-        }
-        msg_scroll_flush();
+    }
+    if ui_state().pending_mode_info_update {
+        let mut arena = Arena {
+            cur_blk: ptr::null_mut(),
+            pos: 0,
+            size: 0,
+        };
+        let style = mode_style_array(&mut arena);
+        let enabled = !crate::memory::cstr_is_empty(opt_vars().p_guicursor);
+        ui_call_mode_info_set(enabled, style);
+        arena_mem_free(arena_finish(&mut arena));
+        ui_state().pending_mode_info_update = false;
+    }
 
-        if ui_state().pending_cursor_update {
-            ui_call_grid_cursor_goto(
-                Integer::from(ui_state().cursor_grid_handle),
-                Integer::from(ui_state().cursor_row),
-                Integer::from(ui_state().cursor_col),
-            );
-            ui_state().pending_cursor_update = false;
-            win_ui_flush(false);
+    let cursor_obscured = ui_cursor_is_behind_floatwin();
+    if (cursor_obscured != ui_state().ui_flush_cursor_was_obscured
+        || ui_state().pending_mode_update)
+        && starting_val() == 0
+    {
+        let idx = if cursor_obscured {
+            SHAPE_IDX_R
+        } else {
+            ui_state().ui_mode_idx
+        };
+        let full_name = unsafe {
+            *(&raw const (*shape_table_mut()))
+                .cast::<Cursorentry>()
+                .wrapping_add(idx as usize)
         }
-        if ui_state().pending_mode_info_update {
-            let mut arena = Arena {
-                cur_blk: ptr::null_mut(),
-                pos: 0,
-                size: 0,
-            };
-            let style = mode_style_array(&mut arena);
-            let enabled = !crate::memory::cstr_is_empty(opt_vars().p_guicursor);
-            ui_call_mode_info_set(enabled, style);
-            arena_mem_free(arena_finish(&mut arena));
-            ui_state().pending_mode_info_update = false;
-        }
+        .full_name;
+        ui_call_mode_change(cstr_as_string(full_name.as_ptr()), Integer::from(idx));
+        ui_state().pending_mode_update = false;
+        ui_state().ui_flush_cursor_was_obscured = cursor_obscured;
+    }
 
-        let cursor_obscured = ui_cursor_is_behind_floatwin();
-        if (cursor_obscured != ui_state().ui_flush_cursor_was_obscured
-            || ui_state().pending_mode_update)
-            && starting_val() == 0
-        {
-            let idx = if cursor_obscured {
-                SHAPE_IDX_R
-            } else {
-                ui_state().ui_mode_idx
-            };
-            let full_name = unsafe {
-                *(&raw const (*shape_table_mut()))
-                    .cast::<Cursorentry>()
-                    .wrapping_add(idx as usize)
-            }
-            .full_name;
-            ui_call_mode_change(cstr_as_string(full_name.as_ptr()), Integer::from(idx));
-            ui_state().pending_mode_update = false;
-            ui_state().ui_flush_cursor_was_obscured = cursor_obscured;
+    if ui_state().pending_has_mouse != i32::from(ui_state().has_mouse) {
+        if ui_state().has_mouse {
+            ui_call_mouse_on();
+        } else {
+            ui_call_mouse_off();
         }
+        ui_state().pending_has_mouse = i32::from(ui_state().has_mouse);
+    }
+    ui_call_flush();
 
-        if ui_state().pending_has_mouse != i32::from(ui_state().has_mouse) {
-            if ui_state().has_mouse {
-                ui_call_mouse_on();
-            } else {
-                ui_call_mouse_off();
-            }
-            ui_state().pending_has_mouse = i32::from(ui_state().has_mouse);
-        }
-        ui_call_flush();
-
-        if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_FLUSH) != 0 {
-            os_sleep(opt_vars().p_wd.unsigned_abs());
-        }
+    if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_FLUSH) != 0 {
+        os_sleep(opt_vars().p_wd.unsigned_abs());
     }
 }
 
 pub fn ui_check_mouse() {
+    ui_state().has_mouse = false;
+    if crate::memory::cstr_is_empty(opt_vars().p_mouse) {
+        return;
+    }
+
+    let checkfor = if g_st().visual_global.active {
+        K_MOUSE_VISUAL
+    } else if g_st().state_global == MODE_HITRETURN
+        || g_st().state_global == MODE_ASKMORE
+        || g_st().state_global == MODE_SETWSIZE
     {
-        ui_state().has_mouse = false;
-        if crate::memory::cstr_is_empty(opt_vars().p_mouse) {
-            return;
-        }
+        K_MOUSE_RETURN
+    } else if (g_st().state_global & MODE_INSERT) != 0 {
+        K_MOUSE_INSERT
+    } else if (g_st().state_global & MODE_CMDLINE) != 0 {
+        K_MOUSE_COMMAND_CONST
+    } else if g_st().state_global == MODE_EXTERNCMD {
+        b' ' as i32
+    } else {
+        K_MOUSE_NORMAL
+    };
 
-        let checkfor = if g_st().visual_global.active {
-            K_MOUSE_VISUAL
-        } else if g_st().state_global == MODE_HITRETURN
-            || g_st().state_global == MODE_ASKMORE
-            || g_st().state_global == MODE_SETWSIZE
-        {
-            K_MOUSE_RETURN
-        } else if (g_st().state_global & MODE_INSERT) != 0 {
-            K_MOUSE_INSERT
-        } else if (g_st().state_global & MODE_CMDLINE) != 0 {
-            K_MOUSE_COMMAND_CONST
-        } else if g_st().state_global == MODE_EXTERNCMD {
-            b' ' as i32
-        } else {
-            K_MOUSE_NORMAL
-        };
-
-        if ui_mouse_has(checkfor) {
-            ui_state().has_mouse = true;
-        }
+    if ui_mouse_has(checkfor) {
+        ui_state().has_mouse = true;
     }
 }
 
 pub fn ui_mouse_has(mode: i32) -> bool {
-    {
-        let p = opt_vars().p_mouse;
-        for &p_byte in crate::memory::cstr_as_bytes(p) {
-            if p_byte == b'a' {
-                if crate::strings::vim_haschr(MOUSE_A, mode) {
-                    return true;
-                }
-            } else if (p_byte as c_char) == K_MOUSE_HELP {
-                if mode != K_MOUSE_RETURN && curbuf_mut().b_help {
-                    return true;
-                }
-            } else if mode == (p_byte as c_char) as i32 {
+    let p = opt_vars().p_mouse;
+    for &p_byte in crate::memory::cstr_as_bytes(p) {
+        if p_byte == b'a' {
+            if crate::strings::vim_haschr(MOUSE_A, mode) {
                 return true;
             }
+        } else if (p_byte as c_char) == K_MOUSE_HELP {
+            if mode != K_MOUSE_RETURN && curbuf_mut().b_help {
+                return true;
+            }
+        } else if mode == (p_byte as c_char) as i32 {
+            return true;
         }
-        false
     }
+    false
 }
 
 pub fn ui_cursor_shape_no_check_conceal() {
@@ -753,25 +715,23 @@ pub fn ui_cursor_shape() {
 }
 
 fn ui_cursor_is_behind_floatwin() -> bool {
-    {
-        if (g_st().state_global & MODE_CMDLINE) != 0 || !ui_comp_should_draw() {
-            return false;
-        }
-
-        let crow = curwin_mut().w_winrow + curwin_mut().w_winrow_off + curwin_mut().w_wrow;
-        let ccol = curwin_mut().w_wincol
-            + curwin_mut().w_wincol_off
-            + if curwin_mut().w_onebuf_opt.wo_rl != 0 {
-                curwin_mut().w_view_width - curwin_mut().w_wcol - 1
-            } else {
-                curwin_mut().w_wcol
-            };
-
-        let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
-        top_grid != &raw mut curwin_mut().w_grid_alloc
-            && top_grid != &raw mut g_st().default_grid
-            && unsafe { (*top_grid).zindex } >= curwin_mut().w_grid_alloc.zindex + 50
+    if (g_st().state_global & MODE_CMDLINE) != 0 || !ui_comp_should_draw() {
+        return false;
     }
+
+    let crow = curwin_mut().w_winrow + curwin_mut().w_winrow_off + curwin_mut().w_wrow;
+    let ccol = curwin_mut().w_wincol
+        + curwin_mut().w_wincol_off
+        + if curwin_mut().w_onebuf_opt.wo_rl != 0 {
+            curwin_mut().w_view_width - curwin_mut().w_wcol - 1
+        } else {
+            curwin_mut().w_wcol
+        };
+
+    let top_grid = ui_comp_get_grid_at_coord(crow, ccol);
+    top_grid != &raw mut curwin_mut().w_grid_alloc
+        && top_grid != &raw mut g_st().default_grid
+        && unsafe { (*top_grid).zindex } >= curwin_mut().w_grid_alloc.zindex + 50
 }
 
 pub fn ui_has(ext: UIExtension) -> bool {
@@ -779,96 +739,92 @@ pub fn ui_has(ext: UIExtension) -> bool {
 }
 
 pub fn ui_array(arena: &mut Arena) -> Array {
-    {
-        let uis_ptr = &ui_state().uis;
-        let mut all_uis = arena_array(arena, uis_ptr.len());
+    let uis_ptr = &ui_state().uis;
+    let mut all_uis = arena_array(arena, uis_ptr.len());
 
-        for &ui_ptr in uis_ptr {
-            let ui = unsafe { &mut *ui_ptr };
-            let mut info = arena_dict(arena, 10 + K_UIEXT_COUNT);
-            let mut put_info = |k: &std::ffi::CStr, v: Object| {
-                *info.next_slot_mut() = KeyValuePair {
-                    key: cstr_as_string(k),
-                    value: v,
-                };
-                info.size += 1;
+    for &ui_ptr in uis_ptr {
+        let ui = unsafe { &mut *ui_ptr };
+        let mut info = arena_dict(arena, 10 + K_UIEXT_COUNT);
+        let mut put_info = |k: &std::ffi::CStr, v: Object| {
+            *info.next_slot_mut() = KeyValuePair {
+                key: cstr_as_string(k),
+                value: v,
             };
+            info.size += 1;
+        };
 
-            put_info(c"width", integer_obj(Integer::from(ui.width)));
-            put_info(c"height", integer_obj(Integer::from(ui.height)));
-            put_info(c"rgb", boolean_obj(ui.rgb));
-            put_info(c"override", boolean_obj(ui.r#override));
-            put_info(
-                c"term_name",
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(
-                        ui.term_name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                    )),
-                },
-            );
-            put_info(
-                c"term_background",
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(NvimString {
-                        data: c"".as_ptr().cast_mut(),
-                        size: 0,
-                    }),
-                },
-            );
-            put_info(c"term_colors", integer_obj(Integer::from(ui.term_colors)));
-            put_info(c"stdin_tty", boolean_obj(ui.stdin_tty));
-            put_info(c"stdout_tty", boolean_obj(ui.stdout_tty));
+        put_info(c"width", integer_obj(Integer::from(ui.width)));
+        put_info(c"height", integer_obj(Integer::from(ui.height)));
+        put_info(c"rgb", boolean_obj(ui.rgb));
+        put_info(c"override", boolean_obj(ui.r#override));
+        put_info(
+            c"term_name",
+            Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(cstr_as_string(
+                    ui.term_name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                )),
+            },
+        );
+        put_info(
+            c"term_background",
+            Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(NvimString {
+                    data: c"".as_ptr().cast_mut(),
+                    size: 0,
+                }),
+            },
+        );
+        put_info(c"term_colors", integer_obj(Integer::from(ui.term_colors)));
+        put_info(c"stdin_tty", boolean_obj(ui.stdin_tty));
+        put_info(c"stdout_tty", boolean_obj(ui.stdout_tty));
 
-            for (j, ext_name) in UI_EXT_NAMES.iter().enumerate().take(K_UIEXT_COUNT) {
-                if ext_name.to_bytes().first() != Some(&b'_') || ui.ui_ext[j] {
-                    put_info(ext_name, boolean_obj(ui.ui_ext[j]));
-                }
+        for (j, ext_name) in UI_EXT_NAMES.iter().enumerate().take(K_UIEXT_COUNT) {
+            if ext_name.to_bytes().first() != Some(&b'_') || ui.ui_ext[j] {
+                put_info(ext_name, boolean_obj(ui.ui_ext[j]));
             }
-            put_info(c"chan", integer_obj(ui.channel_id as Integer));
-
-            *all_uis.next_slot_mut() = Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(info),
-            };
-            all_uis.size += 1;
         }
-        all_uis
+        put_info(c"chan", integer_obj(ui.channel_id as Integer));
+
+        *all_uis.next_slot_mut() = Object {
+            obj_type: ObjectType::ObjectTypeDict,
+            data: ObjectData::Dict(info),
+        };
+        all_uis.size += 1;
     }
+    all_uis
 }
 
 pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut Error) {
-    {
-        if grid_handle == DEFAULT_GRID_HANDLE {
-            screen_resize(width, height);
-            return;
-        }
+    if grid_handle == DEFAULT_GRID_HANDLE {
+        screen_resize(width, height);
+        return;
+    }
 
-        let wp = get_win_by_grid_handle(grid_handle);
-        if wp.is_null() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Invalid window handle: %lld",
-                i64::from(grid_handle),
-            );
-            return;
-        }
-        let wp = unsafe { &mut *wp };
+    let wp = get_win_by_grid_handle(grid_handle);
+    if wp.is_null() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Invalid window handle: %lld",
+            i64::from(grid_handle),
+        );
+        return;
+    }
+    let wp = unsafe { &mut *wp };
 
-        if wp.w_floating {
-            if width != wp.w_width || height != wp.w_height {
-                wp.w_config.width = width.max(1);
-                wp.w_config.height = height.max(1);
-                let cfg = wp.w_config.clone();
-                win_config_float(wp, cfg);
-            }
-        } else {
-            wp.w_height_request = height.max(0);
-            wp.w_width_request = width.max(0);
-            win_set_inner_size(&mut *wp, true);
+    if wp.w_floating {
+        if width != wp.w_width || height != wp.w_height {
+            wp.w_config.width = width.max(1);
+            wp.w_config.height = height.max(1);
+            let cfg = wp.w_config.clone();
+            win_config_float(wp, cfg);
         }
+    } else {
+        wp.w_height_request = height.max(0);
+        wp.w_width_request = width.max(0);
+        win_set_inner_size(&mut *wp, true);
     }
 }
 
@@ -900,67 +856,63 @@ fn ui_attach_error(
 }
 
 pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
-    {
-        let save_expr_map_lock = g_st().expr_map_lock;
-        let save_textlock = g_st().textlock;
-        g_st().expr_map_lock = 0;
-        g_st().textlock = 0;
+    let save_expr_map_lock = g_st().expr_map_lock;
+    let save_textlock = g_st().textlock;
+    g_st().expr_map_lock = 0;
+    g_st().textlock = 0;
 
-        let mut handled = false;
-        let fast = g_st().msg_ext_fast && name == c"msg_show";
-        let cbs_ptr = &ui_state().ui_event_cbs;
-        let entries: Vec<(u32, LuaRef)> = cbs_ptr.iter().map(|(&k, v)| (k, v.cb)).collect();
-        for (ns_id, cb_ref) in entries {
-            if !cbs_ptr.contains_key(&ns_id) {
-                continue;
-            }
-            g_st().ui_event_ns_id = ns_id;
-            let mut err = Error::new();
-            let res = nlua_call_ref_ctx(
-                fast,
-                cb_ref,
-                name.as_ptr(),
-                args,
-                K_RET_NIL_BOOL,
-                None,
-                Some(&mut err),
-            );
-            g_st().ui_event_ns_id = 0;
-            if res.obj_type == ObjectType::ObjectTypeBoolean && res.data.boolean() {
-                handled = true;
-            }
-            if !matches!(err.err_type, ErrorType::ErrorTypeNone) {
-                ui_attach_error(ns_id, name.as_ptr(), err.msg_ptr());
-                ui_remove_cb(ns_id, true);
-            }
-            api_clear_error(&mut err);
+    let mut handled = false;
+    let fast = g_st().msg_ext_fast && name == c"msg_show";
+    let cbs_ptr = &ui_state().ui_event_cbs;
+    let entries: Vec<(u32, LuaRef)> = cbs_ptr.iter().map(|(&k, v)| (k, v.cb)).collect();
+    for (ns_id, cb_ref) in entries {
+        if !cbs_ptr.contains_key(&ns_id) {
+            continue;
         }
-        g_st().expr_map_lock = save_expr_map_lock;
-        g_st().textlock = save_textlock;
+        g_st().ui_event_ns_id = ns_id;
+        let mut err = Error::new();
+        let res = nlua_call_ref_ctx(
+            fast,
+            cb_ref,
+            name.as_ptr(),
+            args,
+            K_RET_NIL_BOOL,
+            None,
+            Some(&mut err),
+        );
+        g_st().ui_event_ns_id = 0;
+        if res.obj_type == ObjectType::ObjectTypeBoolean && res.data.boolean() {
+            handled = true;
+        }
+        if !matches!(err.err_type, ErrorType::ErrorTypeNone) {
+            ui_attach_error(ns_id, name.as_ptr(), err.msg_ptr());
+            ui_remove_cb(ns_id, true);
+        }
+        api_clear_error(&mut err);
+    }
+    g_st().expr_map_lock = save_expr_map_lock;
+    g_st().textlock = save_textlock;
 
-        if !handled {
-            let uis_ptr = &ui_state().uis;
-            for &ui_ptr in uis_ptr {
-                remote_ui_event(unsafe { &mut *ui_ptr }, name, args);
-            }
+    if !handled {
+        let uis_ptr = &ui_state().uis;
+        for &ui_ptr in uis_ptr {
+            remote_ui_event(unsafe { &mut *ui_ptr }, name, args);
         }
     }
 }
 
 fn ui_cb_update_ext() {
-    {
-        ui_state().ui_cb_ext = [false; K_UIEXT_COUNT];
-        let ui_cb_ext_ptr = (&raw mut ui_state().ui_cb_ext).cast::<bool>();
+    ui_state().ui_cb_ext = [false; K_UIEXT_COUNT];
+    let ui_cb_ext_ptr = (&raw mut ui_state().ui_cb_ext).cast::<bool>();
 
-        let cbs_ptr = &ui_state().ui_event_cbs;
-        for i in 0..K_UIGLOBAL_COUNT {
-            for event_cb in cbs_ptr.values() {
-                if event_cb.ext_widgets[i] {
-                    unsafe {
-                        *ui_cb_ext_ptr.wrapping_add(i) = true;
-                    }
-                    break;
+    let cbs_ptr = &ui_state().ui_event_cbs;
+    for i in 0..K_UIGLOBAL_COUNT {
+        for event_cb in cbs_ptr.values() {
+            if event_cb.ext_widgets[i] {
+                unsafe {
+                    *ui_cb_ext_ptr.wrapping_add(i) = true;
                 }
+                break;
             }
         }
     }
@@ -986,26 +938,24 @@ pub fn ui_add_cb(ns_id: u32, cb: LuaRef, ext_widgets: &[bool; K_UIGLOBAL_COUNT])
 }
 
 pub fn ui_remove_cb(ns_id: u32, checkerr: bool) {
-    {
-        let cbs_ptr = &mut ui_state().ui_event_cbs;
-        let should_remove = if let Some(item) = cbs_ptr.get_mut(&ns_id) {
-            if !checkerr {
-                true
-            } else {
-                item.errors += 1;
-                item.errors > CB_MAX_ERROR
-            }
+    let cbs_ptr = &mut ui_state().ui_event_cbs;
+    let should_remove = if let Some(item) = cbs_ptr.get_mut(&ns_id) {
+        if !checkerr {
+            true
         } else {
-            false
-        };
-        if should_remove {
-            cbs_ptr.remove(&ns_id);
-            ui_cb_update_ext();
-            ui_refresh();
-            if checkerr {
-                let ns = describe_ns(ns_id as i32, c"(UNKNOWN PLUGIN)");
-                msg_schedule_semsg!(c"Excessive errors in vim.ui_attach() callback (ns=%s)", ns,);
-            }
+            item.errors += 1;
+            item.errors > CB_MAX_ERROR
+        }
+    } else {
+        false
+    };
+    if should_remove {
+        cbs_ptr.remove(&ns_id);
+        ui_cb_update_ext();
+        ui_refresh();
+        if checkerr {
+            let ns = describe_ns(ns_id as i32, c"(UNKNOWN PLUGIN)");
+            msg_schedule_semsg!(c"Excessive errors in vim.ui_attach() callback (ns=%s)", ns,);
         }
     }
 }

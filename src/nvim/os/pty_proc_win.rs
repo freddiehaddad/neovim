@@ -40,7 +40,7 @@ pub(crate) fn quote_cmd_arg(
     src: impl crate::strings::IntoCCharPtr,
 ) {
     let src = src.into_c_char_ptr();
-    unsafe {
+    {
         let src_bytes = crate::memory::cstr_as_bytes(src);
         let src_len = src_bytes.len();
         let mut quote_hit = true;
@@ -79,38 +79,50 @@ pub(crate) fn quote_cmd_arg(
 
         debug_assert!(dest_remaining > 0);
         dest_remaining -= 1;
-        *cur = NUL;
+        unsafe {
+            *cur = NUL;
+        }
         cur = cur.wrapping_add(1);
         debug_assert!(dest_remaining > 0);
         dest_remaining -= 1;
-        *cur = b'"' as c_char;
+        unsafe {
+            *cur = b'"' as c_char;
+        }
         cur = cur.wrapping_add(1);
         for i in (1..=src_len).rev() {
             debug_assert!(dest_remaining > 0);
             dest_remaining -= 1;
             let ch = src_bytes[i - 1];
-            *cur = ch as c_char;
+            unsafe {
+                *cur = ch as c_char;
+            }
             cur = cur.wrapping_add(1);
             if quote_hit && ch == b'\\' {
                 debug_assert!(dest_remaining > 0);
                 dest_remaining -= 1;
-                *cur = b'\\' as c_char;
+                unsafe {
+                    *cur = b'\\' as c_char;
+                }
                 cur = cur.wrapping_add(1);
             } else if ch == b'"' {
                 quote_hit = true;
                 debug_assert!(dest_remaining > 0);
                 dest_remaining -= 1;
-                *cur = b'\\' as c_char;
+                unsafe {
+                    *cur = b'\\' as c_char;
+                }
                 cur = cur.wrapping_add(1);
             } else {
                 quote_hit = false;
             }
         }
         debug_assert!(dest_remaining > 0);
-        *cur = b'"' as c_char;
+        unsafe {
+            *cur = b'"' as c_char;
+        }
 
         while (start as usize) < (cur as usize) {
-            ptr::swap(start, cur);
+            unsafe { ptr::swap(start, cur) };
             start = start.wrapping_add(1);
             cur = cur.wrapping_sub(1);
         }
@@ -163,19 +175,15 @@ mod win_impl {
 
     #[inline]
     fn connect_req_handle_ptr(req: *mut uv_connect_t) -> *mut *mut uv_stream_t {
-        {
-            req.cast::<u8>()
-                .wrapping_add(unsafe { uv_req_size(UV_REQ) } + size_of::<*mut c_void>())
-                .cast::<*mut uv_stream_t>()
-        }
+        req.cast::<u8>()
+            .wrapping_add(unsafe { uv_req_size(UV_REQ) } + size_of::<*mut c_void>())
+            .cast::<*mut uv_stream_t>()
     }
 
     unsafe extern "C" fn os_conpty_free_thread(arg: *mut c_void) {
         unsafe {
             if !arg.is_null() {
-                {
-                    drop(Box::from_raw(arg.cast::<Conpty>()));
-                }
+                drop(Box::from_raw(arg.cast::<Conpty>()));
             }
         }
     }
@@ -416,26 +424,24 @@ mod win_impl {
     pub fn pty_proc_flush_master(_ptyproc: &mut PtyProc) {}
 
     pub fn pty_proc_close(ptyproc: &mut PtyProc) {
-        {
-            let proc_: *mut Proc = ptyproc;
-            let proc_t = proc_;
-            let ptail = pty_proc_win_tail(ptyproc);
-            let ptail = { unsafe { &mut *ptail } };
+        let proc_: *mut Proc = ptyproc;
+        let proc_t = proc_;
+        let ptail = pty_proc_win_tail(ptyproc);
+        let ptail = { unsafe { &mut *ptail } };
 
-            pty_proc_close_master(ptyproc);
+        pty_proc_close_master(ptyproc);
 
-            if !ptail.finish_wait.is_null() {
-                unsafe { UnregisterWaitEx(ptail.finish_wait, ptr::null_mut()) };
-                ptail.finish_wait = ptr::null_mut();
-            }
-            if !ptail.proc_handle.is_null() {
-                unsafe { CloseHandle(ptail.proc_handle) };
-                ptail.proc_handle = ptr::null_mut();
-            }
-
-            let _ = proc_t;
-            crate::event::proc::proc_decref(unsafe { &mut *proc_ });
+        if !ptail.finish_wait.is_null() {
+            unsafe { UnregisterWaitEx(ptail.finish_wait, ptr::null_mut()) };
+            ptail.finish_wait = ptr::null_mut();
         }
+        if !ptail.proc_handle.is_null() {
+            unsafe { CloseHandle(ptail.proc_handle) };
+            ptail.proc_handle = ptr::null_mut();
+        }
+
+        let _ = proc_t;
+        crate::event::proc::proc_decref(unsafe { &mut *proc_ });
     }
 
     pub fn pty_proc_close_master(_ptyproc: &mut PtyProc) {}
@@ -471,36 +477,34 @@ mod win_impl {
     }
 
     fn build_cmd_line(argv: &[std::ffi::CString], cmd_line: &mut Vec<u16>, is_cmdexe: bool) -> i32 {
-        {
-            let mut utf8_cmd_line: Vec<c_char> = Vec::new();
-            let mut arg_buf: Vec<c_char> = Vec::new();
+        let mut utf8_cmd_line: Vec<c_char> = Vec::new();
+        let mut arg_buf: Vec<c_char> = Vec::new();
 
-            for (argc, arg_cstr) in argv.iter().enumerate() {
-                let arg_str = arg_cstr.as_ptr();
-                if argc > 0 {
-                    utf8_cmd_line.push(b' ' as c_char);
-                }
-                if is_cmdexe {
-                    let src = if argc == 0 {
-                        c"cmd.exe".as_ptr()
-                    } else {
-                        arg_str
-                    };
-                    let src_len = crate::memory::cstr_len(src);
-                    utf8_cmd_line
-                        .extend_from_slice(unsafe { std::slice::from_raw_parts(src, src_len) });
-                } else {
-                    let buf_len = arg_cstr.as_bytes().len() * 2 + 3;
-                    arg_buf.resize(buf_len, 0);
-                    quote_cmd_arg(arg_buf.as_mut_ptr(), buf_len, arg_str);
-                    let quoted_len = crate::memory::cstr_len(arg_buf.as_ptr());
-                    utf8_cmd_line.extend_from_slice(&arg_buf[..quoted_len]);
-                }
+        for (argc, arg_cstr) in argv.iter().enumerate() {
+            let arg_str = arg_cstr.as_ptr();
+            if argc > 0 {
+                utf8_cmd_line.push(b' ' as c_char);
             }
-            utf8_cmd_line.push(NUL);
-
-            utf8_to_utf16(utf8_cmd_line.as_ptr(), -1, cmd_line)
+            if is_cmdexe {
+                let src = if argc == 0 {
+                    c"cmd.exe".as_ptr()
+                } else {
+                    arg_str
+                };
+                let src_len = crate::memory::cstr_len(src);
+                utf8_cmd_line
+                    .extend_from_slice(unsafe { std::slice::from_raw_parts(src, src_len) });
+            } else {
+                let buf_len = arg_cstr.as_bytes().len() * 2 + 3;
+                arg_buf.resize(buf_len, 0);
+                quote_cmd_arg(arg_buf.as_mut_ptr(), buf_len, arg_str);
+                let quoted_len = crate::memory::cstr_len(arg_buf.as_ptr());
+                utf8_cmd_line.extend_from_slice(&arg_buf[..quoted_len]);
+            }
         }
+        utf8_cmd_line.push(NUL);
+
+        utf8_to_utf16(utf8_cmd_line.as_ptr(), -1, cmd_line)
     }
 
     fn build_env_block(denv: Option<&TvDict>, env_block: &mut Vec<u16>) -> i32 {

@@ -460,35 +460,33 @@ pub fn nvim_set_hl(
     val: &mut KeyDict_highlight,
     err: &mut Error,
 ) {
-    {
-        let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        let hl_id = syn_check_group(name.data, name.size);
-        try_leave(&tstate, err);
-        if error_set(err) || hl_id == 0 {
-            return;
-        }
-        let mut link_id: i32 = -1;
+    let mut tstate = TryState::new();
+    try_enter(&mut tstate);
+    let hl_id = syn_check_group(name.data, name.size);
+    try_leave(&tstate, err);
+    if error_set(err) || hl_id == 0 {
+        return;
+    }
+    let mut link_id: i32 = -1;
 
-        if (val.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
-            api_set_error!(err, ErrorType::ErrorTypeValidation, c"Invalid key: 'url'",);
-            return;
-        }
+    if (val.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_URL)) != 0 {
+        api_set_error!(err, ErrorType::ErrorTypeValidation, c"Invalid key: 'url'",);
+        return;
+    }
 
-        let update =
-            (val.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_UPDATE)) != 0 && val.update;
-        let mut base: *mut HlAttrs = ptr::null_mut();
-        let mut base_attrs = HlAttrs::default();
-        if update && hl_ns_get_attrs(ns_id as i32, hl_id, None, &mut base_attrs) {
-            base = &mut base_attrs;
-        }
+    let update =
+        (val.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_UPDATE)) != 0 && val.update;
+    let mut base: *mut HlAttrs = ptr::null_mut();
+    let mut base_attrs = HlAttrs::default();
+    if update && hl_ns_get_attrs(ns_id as i32, hl_id, None, &mut base_attrs) {
+        base = &mut base_attrs;
+    }
 
-        let attrs = dict2hlattrs(val, true, Some(&mut link_id), unsafe { base.as_ref() }, err);
-        if !error_set(err) {
-            let save_current_sctx = api_set_sctx(channel_id);
-            ns_hl_def(ns_id as NS, hl_id, attrs, link_id, Some(val));
-            g_st().current_sctx = save_current_sctx;
-        }
+    let attrs = dict2hlattrs(val, true, Some(&mut link_id), unsafe { base.as_ref() }, err);
+    if !error_set(err) {
+        let save_current_sctx = api_set_sctx(channel_id);
+        ns_hl_def(ns_id as NS, hl_id, attrs, link_id, Some(val));
+        g_st().current_sctx = save_current_sctx;
     }
 }
 
@@ -503,17 +501,14 @@ pub fn nvim_set_hl(
 /// @return Namespace id, or -1
 // DLLEXPORT Integer nvim_get_hl_ns(Dict(get_ns) *opts, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_get_hl_ns(opts: &mut KeyDict_get_ns, err: &mut Error) -> Integer {
-    {
-        if (opts.is_set_get_ns & (1u64 << KEYSET_OPTIDX_GET_NS_WINID)) != 0 {
-            let Some(win) =
-                crate::api::private::helpers::find_window_by_handle_mut(opts.winid, err)
-            else {
-                return 0;
-            };
-            Integer::from(win.w_ns_hl)
-        } else {
-            Integer::from(g_st().ns_hl_global)
-        }
+    if (opts.is_set_get_ns & (1u64 << KEYSET_OPTIDX_GET_NS_WINID)) != 0 {
+        let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(opts.winid, err)
+        else {
+            return 0;
+        };
+        Integer::from(win.w_ns_hl)
+    } else {
+        Integer::from(g_st().ns_hl_global)
     }
 }
 
@@ -566,67 +561,65 @@ pub fn nvim_set_hl_ns_fast(ns_id: Integer, _err: &mut Error) {
 /// @see vim_strsave_escape_ks
 // DLLEXPORT void nvim_feedkeys(String keys, String mode, Boolean escape_ks) FUNC_API_SINCE(1);
 pub fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: Boolean) {
-    {
-        let mut remap = true;
-        let mut insert = false;
-        let mut typed = false;
-        let mut execute = false;
-        let mut dangerous = false;
-        let mut lowlevel = false;
+    let mut remap = true;
+    let mut insert = false;
+    let mut typed = false;
+    let mut execute = false;
+    let mut dangerous = false;
+    let mut lowlevel = false;
 
-        for i in 0..mode.size {
-            match crate::memory::cstr_byte_at(mode.data, i) {
-                b'n' => remap = false,
-                b'm' => remap = true,
-                b't' => typed = true,
-                b'i' => insert = true,
-                b'x' => execute = true,
-                b'!' => dangerous = true,
-                b'L' => lowlevel = true,
-                _ => {}
-            }
+    for i in 0..mode.size {
+        match crate::memory::cstr_byte_at(mode.data, i) {
+            b'n' => remap = false,
+            b'm' => remap = true,
+            b't' => typed = true,
+            b'i' => insert = true,
+            b'x' => execute = true,
+            b'!' => dangerous = true,
+            b'L' => lowlevel = true,
+            _ => {}
         }
+    }
 
-        if keys.size == 0 && !execute {
-            return;
-        }
+    if keys.size == 0 && !execute {
+        return;
+    }
 
-        let owned_keys_esc = if escape_ks {
-            Some(vim_strsave_escape_ks(keys.data))
-        } else {
-            None
-        };
-        let keys_esc = owned_keys_esc
-            .as_ref()
-            .map_or(keys.data, |cs| cs.as_ptr().cast_mut());
-        if lowlevel {
-            input_enqueue_raw(keys_esc, crate::memory::cstr_len(keys_esc));
-        } else {
-            ins_typebuf(
-                keys_esc,
-                if remap { REMAP_YES } else { REMAP_NONE },
-                if insert { 0 } else { g_st().typebuf.tb_len },
-                !typed,
-                false,
-            );
-            if g_st().vgetc_busy != 0 {
-                g_st().typebuf_was_filled = true;
-            }
+    let owned_keys_esc = if escape_ks {
+        Some(vim_strsave_escape_ks(keys.data))
+    } else {
+        None
+    };
+    let keys_esc = owned_keys_esc
+        .as_ref()
+        .map_or(keys.data, |cs| cs.as_ptr().cast_mut());
+    if lowlevel {
+        input_enqueue_raw(keys_esc, crate::memory::cstr_len(keys_esc));
+    } else {
+        ins_typebuf(
+            keys_esc,
+            if remap { REMAP_YES } else { REMAP_NONE },
+            if insert { 0 } else { g_st().typebuf.tb_len },
+            !typed,
+            false,
+        );
+        if g_st().vgetc_busy != 0 {
+            g_st().typebuf_was_filled = true;
         }
-        drop(owned_keys_esc);
+    }
+    drop(owned_keys_esc);
 
-        if execute {
-            let save_msg_scroll = g_st().msg_scroll;
-            g_st().msg_scroll = 0;
-            if !dangerous {
-                g_st().ex_normal_busy += 1;
-            }
-            exec_normal(true, lowlevel);
-            if !dangerous {
-                g_st().ex_normal_busy -= 1;
-            }
-            g_st().msg_scroll |= save_msg_scroll;
+    if execute {
+        let save_msg_scroll = g_st().msg_scroll;
+        g_st().msg_scroll = 0;
+        if !dangerous {
+            g_st().ex_normal_busy += 1;
         }
+        exec_normal(true, lowlevel);
+        if !dangerous {
+            g_st().ex_normal_busy -= 1;
+        }
+        g_st().msg_scroll |= save_msg_scroll;
     }
 }
 
@@ -688,89 +681,87 @@ pub fn nvim_input_mouse(
     col: Integer,
     err: &mut Error,
 ) {
-    {
-        may_trigger_vim_suspend_resume(false);
+    may_trigger_vim_suspend_resume(false);
 
-        let valid = 'check: {
-            if button.data.is_null() || action.data.is_null() {
-                break 'check None;
-            }
+    let valid = 'check: {
+        if button.data.is_null() || action.data.is_null() {
+            break 'check None;
+        }
 
-            let mut code: i32 = if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"left") {
-                i32::from(KE_LEFTMOUSE)
-            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"middle") {
-                i32::from(KE_MIDDLEMOUSE)
-            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"right") {
-                i32::from(KE_RIGHTMOUSE)
-            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"wheel") {
-                i32::from(KE_MOUSEDOWN)
-            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"x1") {
-                i32::from(KE_X1MOUSE)
-            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"x2") {
-                i32::from(KE_X2MOUSE)
-            } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"move") {
-                i32::from(KE_MOUSEMOVE)
-            } else {
-                break 'check None;
-            };
-
-            if code == i32::from(KE_MOUSEDOWN) {
-                if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"down") {
-                    code = i32::from(KE_MOUSEUP);
-                } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"up") {
-                    // code = KE_MOUSEDOWN
-                } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"left") {
-                    code = i32::from(KE_MOUSERIGHT);
-                } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"right") {
-                    code = i32::from(KE_MOUSELEFT);
-                } else {
-                    break 'check None;
-                }
-            } else if code != i32::from(KE_MOUSEMOVE) {
-                if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"press") {
-                    // pass
-                } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"drag") {
-                    code += i32::from(KE_LEFTDRAG) - i32::from(KE_LEFTMOUSE);
-                } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"release") {
-                    code += i32::from(KE_LEFTRELEASE) - i32::from(KE_LEFTMOUSE);
-                } else {
-                    break 'check None;
-                }
-            }
-
-            Some(code)
+        let mut code: i32 = if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"left") {
+            i32::from(KE_LEFTMOUSE)
+        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"middle") {
+            i32::from(KE_MIDDLEMOUSE)
+        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"right") {
+            i32::from(KE_RIGHTMOUSE)
+        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"wheel") {
+            i32::from(KE_MOUSEDOWN)
+        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"x1") {
+            i32::from(KE_X1MOUSE)
+        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"x2") {
+            i32::from(KE_X2MOUSE)
+        } else if crate::memory::cstr_as_opt_bytes(button.data) == Some(b"move") {
+            i32::from(KE_MOUSEMOVE)
+        } else {
+            break 'check None;
         };
 
-        let Some(code) = valid else {
+        if code == i32::from(KE_MOUSEDOWN) {
+            if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"down") {
+                code = i32::from(KE_MOUSEUP);
+            } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"up") {
+                // code = KE_MOUSEDOWN
+            } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"left") {
+                code = i32::from(KE_MOUSERIGHT);
+            } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"right") {
+                code = i32::from(KE_MOUSELEFT);
+            } else {
+                break 'check None;
+            }
+        } else if code != i32::from(KE_MOUSEMOVE) {
+            if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"press") {
+                // pass
+            } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"drag") {
+                code += i32::from(KE_LEFTDRAG) - i32::from(KE_LEFTMOUSE);
+            } else if crate::memory::cstr_as_opt_bytes(action.data) == Some(b"release") {
+                code += i32::from(KE_LEFTRELEASE) - i32::from(KE_LEFTMOUSE);
+            } else {
+                break 'check None;
+            }
+        }
+
+        Some(code)
+    };
+
+    let Some(code) = valid else {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"invalid button or action",
+        );
+        return;
+    };
+
+    let mut modmask: i32 = 0;
+    for i in 0..modifier.size {
+        let byte = unsafe { *modifier.data.wrapping_add(i) };
+        if byte == (b'-' as c_char) {
+            continue;
+        }
+        let m = name_to_mod_mask(i32::from(byte as u8));
+        if m == 0 {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
-                c"invalid button or action",
+                c"Invalid modifier: %c",
+                i32::from(byte),
             );
             return;
-        };
-
-        let mut modmask: i32 = 0;
-        for i in 0..modifier.size {
-            let byte = unsafe { *modifier.data.wrapping_add(i) };
-            if byte == (b'-' as c_char) {
-                continue;
-            }
-            let m = name_to_mod_mask(i32::from(byte as u8));
-            if m == 0 {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Invalid modifier: %c",
-                    i32::from(byte),
-                );
-                return;
-            }
-            modmask |= m;
         }
-
-        input_enqueue_mouse(code, modmask as u8, grid as i32, row as i32, col as i32);
+        modmask |= m;
     }
+
+    input_enqueue_mouse(code, modmask as u8, grid as i32, row as i32, col as i32);
 }
 
 /// Converts terminal codes and |keycodes| ([<CR>], [<Esc>], …) in a key sequence, to the internal
@@ -902,17 +893,15 @@ pub fn nvim_strwidth(text: NvimString, err: &mut Error) -> Integer {
 /// @return List of paths
 // DLLEXPORT ArrayOf(String) nvim_list_runtime_paths(Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_list_runtime_paths(arena: &mut Arena, err: &mut Error) -> Array {
-    {
-        nvim_get_runtime_file(
-            NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            },
-            true,
-            arena,
-            err,
-        )
-    }
+    nvim_get_runtime_file(
+        NvimString {
+            data: ptr::null_mut(),
+            size: 0,
+        },
+        true,
+        arena,
+        err,
+    )
 }
 
 /// @nodoc
@@ -992,28 +981,26 @@ pub fn nvim_get_runtime(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    {
-        if opts.do_source && !nlua_is_deferred_safe() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"%s",
-                c"'do_source' used in fast callback",
-            );
-        }
-        if error_set(err) {
-            return Array::new();
-        }
-
-        let res = runtime_get_named(opts.is_lua, pat, all, arena);
-        if opts.do_source {
-            for i in 0..res.size {
-                let name = res[i].data.string();
-                do_source(name.data, false, DOSO_NONE, ptr::null_mut());
-            }
-        }
-        res
+    if opts.do_source && !nlua_is_deferred_safe() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"%s",
+            c"'do_source' used in fast callback",
+        );
     }
+    if error_set(err) {
+        return Array::new();
+    }
+
+    let res = runtime_get_named(opts.is_lua, pat, all, arena);
+    if opts.do_source {
+        for i in 0..res.size {
+            let name = res[i].data.string();
+            do_source(name.data, false, DOSO_NONE, ptr::null_mut());
+        }
+    }
+    res
 }
 
 /// Changes the global working directory.
@@ -1037,14 +1024,12 @@ pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
 /// @return Current line string
 // DLLEXPORT String nvim_get_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_get_current_line(arena: &mut Arena, err: &mut Error) -> NvimString {
-    {
-        buffer_get_line(
-            curbuf_mut().b_fnum,
-            Integer::from(curwin_mut().w_cursor.lnum - 1),
-            arena,
-            err,
-        )
-    }
+    buffer_get_line(
+        curbuf_mut().b_fnum,
+        Integer::from(curwin_mut().w_cursor.lnum - 1),
+        arena,
+        err,
+    )
 }
 
 /// Sets the text on the current line.
@@ -1054,15 +1039,13 @@ pub fn nvim_get_current_line(arena: &mut Arena, err: &mut Error) -> NvimString {
 // DLLEXPORT void nvim_set_current_line(String line, Arena *arena,
 //                                      Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_line(line: NvimString, arena: &mut Arena, err: &mut Error) {
-    {
-        buffer_set_line(
-            curbuf_mut().b_fnum,
-            Integer::from(curwin_mut().w_cursor.lnum - 1),
-            line,
-            arena,
-            err,
-        );
-    }
+    buffer_set_line(
+        curbuf_mut().b_fnum,
+        Integer::from(curwin_mut().w_cursor.lnum - 1),
+        line,
+        arena,
+        err,
+    );
 }
 
 /// Deletes the current line.
@@ -1070,14 +1053,12 @@ pub fn nvim_set_current_line(line: NvimString, arena: &mut Arena, err: &mut Erro
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_del_current_line(Arena *arena, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_del_current_line(arena: &mut Arena, err: &mut Error) {
-    {
-        buffer_del_line(
-            curbuf_mut().b_fnum,
-            Integer::from(curwin_mut().w_cursor.lnum - 1),
-            arena,
-            err,
-        );
-    }
+    buffer_del_line(
+        curbuf_mut().b_fnum,
+        Integer::from(curwin_mut().w_cursor.lnum - 1),
+        arena,
+        err,
+    );
 }
 
 /// Gets a global (g:) variable.
@@ -1087,22 +1068,10 @@ pub fn nvim_del_current_line(arena: &mut Arena, err: &mut Error) {
 /// @return Variable value
 // DLLEXPORT Object nvim_get_var(String name, Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-    {
-        let mut di = tv_dict_find(Some(&*get_globvar_dict()), name.data, name.size as isize);
-        if di.is_null() {
-            let found = script_autoload(name.data, name.size, false) && !aborting();
-            if !found {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Key not found: %s",
-                    name.data,
-                );
-                return nil_obj();
-            }
-            di = tv_dict_find(Some(&*get_globvar_dict()), name.data, name.size as isize);
-        }
-        if di.is_null() {
+    let mut di = tv_dict_find(Some(&*get_globvar_dict()), name.data, name.size as isize);
+    if di.is_null() {
+        let found = script_autoload(name.data, name.size, false) && !aborting();
+        if !found {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -1111,8 +1080,18 @@ pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Obj
             );
             return nil_obj();
         }
-        vim_to_object(unsafe { &mut (*di).di_tv }, Some(arena), true)
+        di = tv_dict_find(Some(&*get_globvar_dict()), name.data, name.size as isize);
     }
+    if di.is_null() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Key not found: %s",
+            name.data,
+        );
+        return nil_obj();
+    }
+    vim_to_object(unsafe { &mut (*di).di_tv }, Some(arena), true)
 }
 
 /// Sets a global (g:) variable.
@@ -1122,17 +1101,15 @@ pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Obj
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_var(String name, Object value, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_set_var(name: NvimString, value: Object, err: &mut Error) {
-    {
-        dict_set_var(
-            &mut *get_globvar_dict(),
-            name,
-            value,
-            false,
-            false,
-            None,
-            err,
-        );
-    }
+    dict_set_var(
+        &mut *get_globvar_dict(),
+        name,
+        value,
+        false,
+        false,
+        None,
+        err,
+    );
 }
 
 /// Removes a global (g:) variable.
@@ -1141,17 +1118,15 @@ pub fn nvim_set_var(name: NvimString, value: Object, err: &mut Error) {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_del_var(String name, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_del_var(name: NvimString, err: &mut Error) {
-    {
-        dict_set_var(
-            &mut *get_globvar_dict(),
-            name,
-            nil_obj(),
-            true,
-            false,
-            None,
-            err,
-        );
-    }
+    dict_set_var(
+        &mut *get_globvar_dict(),
+        name,
+        nil_obj(),
+        true,
+        false,
+        None,
+        err,
+    );
 }
 
 /// Gets a v: variable.
@@ -1171,17 +1146,15 @@ pub fn nvim_get_vvar(name: NvimString, arena: &mut Arena, err: &mut Error) -> Ob
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_vvar(String name, Object value, Error *err) FUNC_API_SINCE(6);
 pub fn nvim_set_vvar(name: NvimString, value: Object, err: &mut Error) {
-    {
-        dict_set_var(
-            &mut *get_vimvar_dict(),
-            name,
-            value,
-            false,
-            false,
-            None,
-            err,
-        );
-    }
+    dict_set_var(
+        &mut *get_vimvar_dict(),
+        name,
+        value,
+        false,
+        false,
+        None,
+        err,
+    );
 }
 
 /// Prints a message given by a list of `[text, hl_group]` "chunks". Emits a |Progress| event if
@@ -1229,144 +1202,141 @@ pub fn nvim_echo(
     opts: &mut KeyDict_echo_opts,
     err: &mut Error,
 ) -> Object {
-    {
-        let mut id = integer_obj(-1);
-        let mut hl_msg = parse_hl_msg(chunks, opts.err, err);
-        if error_set(err) {
-            return id;
-        }
-
-        let mut kind = opts.kind.data.cast_const();
-        if opts.verbose {
-            verbose_enter();
-        } else if kind.is_null() {
-            kind = if opts.err {
-                c"echoerr".as_ptr()
-            } else if history {
-                c"echomsg".as_ptr()
-            } else {
-                c"echo".as_ptr()
-            };
-        }
-
-        let is_progress = crate::memory::cstr_as_opt_bytes(kind) == Some(b"progress");
-        let mut needs_clear = !history;
-        let has_percent = (opts.is_set_echo_opts & (1u64 << KEYSET_OPTIDX_ECHO_OPTS_PERCENT)) != 0;
-
-        let valid = 'validate: {
-            if !is_progress
-                && (opts.status.size != 0
-                    || opts.title.size != 0
-                    || has_percent
-                    || opts.data.size != 0
-                    || opts.source.size != 0)
-            {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Conflict: title/source/status/percent/data not allowed with kind='%s'",
-                    kind,
-                );
-                break 'validate false;
-            }
-
-            if is_progress
-                && !((crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"success"))
-                    || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"failed"))
-                    || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"running"))
-                    || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"cancel")))
-            {
-                api_err_exp(
-                    err,
-                    c"status",
-                    c"success|failed|running|cancel",
-                    opts.status.data,
-                );
-                break 'validate false;
-            }
-
-            if !validate_range(
-                !is_progress || !has_percent || (opts.percent >= 0 && opts.percent <= 100),
-                c"percent",
-                err,
-            ) {
-                break 'validate false;
-            }
-
-            if !validate_r(!is_progress || opts.source.size != 0, c"opts.source", err) {
-                break 'validate false;
-            }
-
-            if !validate_s(
-                !is_progress
-                    || !(crate::memory::cstr_as_opt_bytes(opts.source.data) == Some(b"nvim")),
-                c"source",
-                opts.source.data,
-                err,
-            ) {
-                break 'validate false;
-            }
-
-            if !validate_int(
-                opts.id.obj_type != ObjectType::ObjectTypeInteger
-                    || msg_id_exists(opts.id.data.integer()),
-                c"id",
-                opts.id.data.integer(),
-                err,
-            ) {
-                break 'validate false;
-            }
-
-            true
-        };
-
-        if !valid {
-            return id;
-        }
-
-        let mut msg_data = MessageData {
-            source: opts.source,
-            percent: if has_percent { opts.percent } else { -1 },
-            title: opts.title,
-            status: opts.status,
-            data: opts.data,
-        };
-
-        let save_nwr = g_st().need_wait_return;
-        let save_lines_left = g_st().lines_left;
-        let save_msg_didany = g_st().msg_didany;
-        if opts._truncate {
-            g_st().no_wait_return += 1;
-            g_st().lines_left = 0;
-            g_st().msg_didany = true;
-            g_st().msg_no_more = true;
-        }
-        msg_ext_no_fast();
-        id = msg_multihl(
-            opts.id,
-            &mut hl_msg,
-            kind,
-            history,
-            opts.err,
-            Some(&mut msg_data),
-            &mut needs_clear,
-            false,
-        );
-        if opts._truncate {
-            g_st().msg_no_more = false;
-            g_st().msg_didany = save_msg_didany;
-            g_st().lines_left = save_lines_left;
-            g_st().no_wait_return -= 1;
-            g_st().need_wait_return = save_nwr;
-        }
-
-        if opts.verbose {
-            verbose_leave();
-            verbose_stop();
-        }
-
-        id
+    let mut id = integer_obj(-1);
+    let mut hl_msg = parse_hl_msg(chunks, opts.err, err);
+    if error_set(err) {
+        return id;
     }
+
+    let mut kind = opts.kind.data.cast_const();
+    if opts.verbose {
+        verbose_enter();
+    } else if kind.is_null() {
+        kind = if opts.err {
+            c"echoerr".as_ptr()
+        } else if history {
+            c"echomsg".as_ptr()
+        } else {
+            c"echo".as_ptr()
+        };
+    }
+
+    let is_progress = crate::memory::cstr_as_opt_bytes(kind) == Some(b"progress");
+    let mut needs_clear = !history;
+    let has_percent = (opts.is_set_echo_opts & (1u64 << KEYSET_OPTIDX_ECHO_OPTS_PERCENT)) != 0;
+
+    let valid = 'validate: {
+        if !is_progress
+            && (opts.status.size != 0
+                || opts.title.size != 0
+                || has_percent
+                || opts.data.size != 0
+                || opts.source.size != 0)
+        {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"Conflict: title/source/status/percent/data not allowed with kind='%s'",
+                kind,
+            );
+            break 'validate false;
+        }
+
+        if is_progress
+            && !((crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"success"))
+                || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"failed"))
+                || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"running"))
+                || (crate::memory::cstr_as_opt_bytes(opts.status.data) == Some(b"cancel")))
+        {
+            api_err_exp(
+                err,
+                c"status",
+                c"success|failed|running|cancel",
+                opts.status.data,
+            );
+            break 'validate false;
+        }
+
+        if !validate_range(
+            !is_progress || !has_percent || (opts.percent >= 0 && opts.percent <= 100),
+            c"percent",
+            err,
+        ) {
+            break 'validate false;
+        }
+
+        if !validate_r(!is_progress || opts.source.size != 0, c"opts.source", err) {
+            break 'validate false;
+        }
+
+        if !validate_s(
+            !is_progress || !(crate::memory::cstr_as_opt_bytes(opts.source.data) == Some(b"nvim")),
+            c"source",
+            opts.source.data,
+            err,
+        ) {
+            break 'validate false;
+        }
+
+        if !validate_int(
+            opts.id.obj_type != ObjectType::ObjectTypeInteger
+                || msg_id_exists(opts.id.data.integer()),
+            c"id",
+            opts.id.data.integer(),
+            err,
+        ) {
+            break 'validate false;
+        }
+
+        true
+    };
+
+    if !valid {
+        return id;
+    }
+
+    let mut msg_data = MessageData {
+        source: opts.source,
+        percent: if has_percent { opts.percent } else { -1 },
+        title: opts.title,
+        status: opts.status,
+        data: opts.data,
+    };
+
+    let save_nwr = g_st().need_wait_return;
+    let save_lines_left = g_st().lines_left;
+    let save_msg_didany = g_st().msg_didany;
+    if opts._truncate {
+        g_st().no_wait_return += 1;
+        g_st().lines_left = 0;
+        g_st().msg_didany = true;
+        g_st().msg_no_more = true;
+    }
+    msg_ext_no_fast();
+    id = msg_multihl(
+        opts.id,
+        &mut hl_msg,
+        kind,
+        history,
+        opts.err,
+        Some(&mut msg_data),
+        &mut needs_clear,
+        false,
+    );
+    if opts._truncate {
+        g_st().msg_no_more = false;
+        g_st().msg_didany = save_msg_didany;
+        g_st().lines_left = save_lines_left;
+        g_st().no_wait_return -= 1;
+        g_st().need_wait_return = save_nwr;
+    }
+
+    if opts.verbose {
+        verbose_leave();
+        verbose_stop();
+    }
+
+    id
 }
 
 /// Gets the current list of buffers.
@@ -1377,22 +1347,20 @@ pub fn nvim_echo(
 /// @return List of buffer ids
 // DLLEXPORT ArrayOf(Buffer) nvim_list_bufs(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_bufs(arena: &mut Arena) -> Array {
-    {
-        let mut n = 0usize;
-        let mut b = g_st().firstbuf;
-        while !b.is_null() {
-            n += 1;
-            b = unsafe { (*b).b_next };
-        }
-
-        let mut rv = arena_array(arena, n);
-        b = g_st().firstbuf;
-        while !b.is_null() {
-            add_c(&mut rv, buffer_obj(unsafe { (*b).b_fnum }));
-            b = unsafe { (*b).b_next };
-        }
-        rv
+    let mut n = 0usize;
+    let mut b = g_st().firstbuf;
+    while !b.is_null() {
+        n += 1;
+        b = unsafe { (*b).b_next };
     }
+
+    let mut rv = arena_array(arena, n);
+    b = g_st().firstbuf;
+    while !b.is_null() {
+        add_c(&mut rv, buffer_obj(unsafe { (*b).b_fnum }));
+        b = unsafe { (*b).b_next };
+    }
+    rv
 }
 
 /// Gets the current buffer.
@@ -1409,15 +1377,13 @@ pub fn nvim_get_current_buf() -> Buffer {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_buf(Buffer buf, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_buf(buf: Buffer, err: &mut Error) {
-    {
-        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
-            return;
-        };
-        let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, b.b_fnum, 0);
-        try_leave(&tstate, err);
-    }
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+        return;
+    };
+    let mut tstate = TryState::new();
+    try_enter(&mut tstate);
+    do_buffer(DOBUF_GOTO, DOBUF_FIRST, FORWARD, b.b_fnum, 0);
+    try_leave(&tstate, err);
 }
 
 /// Gets the current list of all |window-ID|s in all tabpages.
@@ -1425,26 +1391,24 @@ pub fn nvim_set_current_buf(buf: Buffer, err: &mut Error) {
 /// @return List of |window-ID|s
 // DLLEXPORT ArrayOf(Window) nvim_list_wins(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_wins(arena: &mut Arena) -> Array {
-    {
-        let mut n = 0usize;
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            for _wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
-                n += 1;
-            }
-            tp = unsafe { (*tp).tp_next };
+    let mut n = 0usize;
+    let mut tp = g_st().first_tabpage;
+    while !tp.is_null() {
+        for _wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
+            n += 1;
         }
-
-        let mut rv = arena_array(arena, n);
-        tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            for wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
-                add_c(&mut rv, window_obj(wp.handle));
-            }
-            tp = unsafe { (*tp).tp_next };
-        }
-        rv
+        tp = unsafe { (*tp).tp_next };
     }
+
+    let mut rv = arena_array(arena, n);
+    tp = g_st().first_tabpage;
+    while !tp.is_null() {
+        for wp in for_all_windows_in_tab_mut(unsafe { &*tp }) {
+            add_c(&mut rv, window_obj(wp.handle));
+        }
+        tp = unsafe { (*tp).tp_next };
+    }
+    rv
 }
 
 /// Gets the current window.
@@ -1461,21 +1425,19 @@ pub fn nvim_get_current_win() -> Window {
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_win(Window win, Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_win(win: Window, err: &mut Error) {
-    {
-        let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
-            return;
-        };
-        let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        if w.w_buffer != g_st().curbuf {
-            reset_visual_and_resel();
-        }
-        goto_tabpage_win(
-            unsafe { &mut *win_find_tabpage(&raw mut *w) },
-            (&raw mut *w),
-        );
-        try_leave(&tstate, err);
+    let Some(w) = crate::api::private::helpers::find_window_by_handle_mut(win, err) else {
+        return;
+    };
+    let mut tstate = TryState::new();
+    try_enter(&mut tstate);
+    if w.w_buffer != g_st().curbuf {
+        reset_visual_and_resel();
     }
+    goto_tabpage_win(
+        unsafe { &mut *win_find_tabpage(&raw mut *w) },
+        (&raw mut *w),
+    );
+    try_leave(&tstate, err);
 }
 
 /// Creates a new, empty, unnamed buffer.
@@ -1487,83 +1449,81 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
 /// @return Buffer id, or 0 on error
 // DLLEXPORT Buffer nvim_create_buf(Boolean listed, Boolean scratch, Error *err) FUNC_API_SINCE(6);
 pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Buffer {
-    {
-        let mut ret: Buffer = 0;
-        let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        'create: {
-            block_autocmds();
-            let buf = buflist_new(
-                ptr::null_mut(),
-                ptr::null_mut(),
-                0,
-                BLN_NOOPT | BLN_NEW | if listed { BLN_LISTED } else { 0 },
-            );
-            if buf.is_null() {
-                unblock_autocmds();
-                break 'create;
-            }
-            let buf = { unsafe { &mut *buf } };
-            if !ml_open(&mut *buf) {
-                unblock_autocmds();
-                break 'create;
-            }
-            let tick = buf_get_changedtick(&*buf);
-            buf.b_last_changedtick = tick;
-            buf.b_last_changedtick_i = tick;
-            buf.b_last_changedtick_pum = tick;
-
-            buf_copy_options(&mut *buf, BCO_ENTER | BCO_NOHELP);
-
-            if scratch {
-                set_option_direct_for(
-                    K_OPT_BUFHIDDEN,
-                    string_obj(static_cstr_as_string(c"hide")),
-                    OPT_LOCAL,
-                    0,
-                    OptTarget::Buf(buf),
-                );
-                set_option_direct_for(
-                    K_OPT_BUFTYPE,
-                    string_obj(static_cstr_as_string(c"nofile")),
-                    OPT_LOCAL,
-                    0,
-                    OptTarget::Buf(buf),
-                );
-                assert!(unsafe { (*buf.b_ml.mfp_ptr()).mf_fd } < 0);
-                buf.b_p_swf = 0;
-                buf.b_p_ml = 0;
-            }
-
+    let mut ret: Buffer = 0;
+    let mut tstate = TryState::new();
+    try_enter(&mut tstate);
+    'create: {
+        block_autocmds();
+        let buf = buflist_new(
+            ptr::null_mut(),
+            ptr::null_mut(),
+            0,
+            BLN_NOOPT | BLN_NEW | if listed { BLN_LISTED } else { 0 },
+        );
+        if buf.is_null() {
             unblock_autocmds();
-
-            let mut bufref = Bufref::new();
-            set_bufref(&mut bufref, buf);
-            if apply_autocmds(EVENT_BUFNEW, ptr::null_mut(), ptr::null_mut(), false, buf)
-                && !bufref_valid(Some(&bufref))
-            {
-                break 'create;
-            }
-            if listed
-                && apply_autocmds(EVENT_BUFADD, ptr::null_mut(), ptr::null_mut(), false, buf)
-                && !bufref_valid(Some(&bufref))
-            {
-                break 'create;
-            }
-
-            ret = buf.b_fnum;
+            break 'create;
         }
-        try_leave(&tstate, err);
+        let buf = { unsafe { &mut *buf } };
+        if !ml_open(&mut *buf) {
+            unblock_autocmds();
+            break 'create;
+        }
+        let tick = buf_get_changedtick(&*buf);
+        buf.b_last_changedtick = tick;
+        buf.b_last_changedtick_i = tick;
+        buf.b_last_changedtick_pum = tick;
 
-        if ret == 0 && !error_set(err) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Failed to create buffer",
+        buf_copy_options(&mut *buf, BCO_ENTER | BCO_NOHELP);
+
+        if scratch {
+            set_option_direct_for(
+                K_OPT_BUFHIDDEN,
+                string_obj(static_cstr_as_string(c"hide")),
+                OPT_LOCAL,
+                0,
+                OptTarget::Buf(buf),
             );
+            set_option_direct_for(
+                K_OPT_BUFTYPE,
+                string_obj(static_cstr_as_string(c"nofile")),
+                OPT_LOCAL,
+                0,
+                OptTarget::Buf(buf),
+            );
+            assert!(unsafe { (*buf.b_ml.mfp_ptr()).mf_fd } < 0);
+            buf.b_p_swf = 0;
+            buf.b_p_ml = 0;
         }
-        ret
+
+        unblock_autocmds();
+
+        let mut bufref = Bufref::new();
+        set_bufref(&mut bufref, buf);
+        if apply_autocmds(EVENT_BUFNEW, ptr::null_mut(), ptr::null_mut(), false, buf)
+            && !bufref_valid(Some(&bufref))
+        {
+            break 'create;
+        }
+        if listed
+            && apply_autocmds(EVENT_BUFADD, ptr::null_mut(), ptr::null_mut(), false, buf)
+            && !bufref_valid(Some(&bufref))
+        {
+            break 'create;
+        }
+
+        ret = buf.b_fnum;
     }
+    try_leave(&tstate, err);
+
+    if ret == 0 && !error_set(err) {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Failed to create buffer",
+        );
+    }
+    ret
 }
 
 /// Open a terminal instance in a buffer
@@ -1711,22 +1671,20 @@ pub fn nvim_chan_send(chan: Integer, data: NvimString, err: &mut Error) {
 /// @return List of |tab-ID|s
 // DLLEXPORT ArrayOf(Tabpage) nvim_list_tabpages(Arena *arena) FUNC_API_SINCE(1);
 pub fn nvim_list_tabpages(arena: &mut Arena) -> Array {
-    {
-        let mut n = 0usize;
-        let mut tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            n += 1;
-            tp = unsafe { (*tp).tp_next };
-        }
-
-        let mut rv = arena_array(arena, n);
-        tp = g_st().first_tabpage;
-        while !tp.is_null() {
-            add_c(&mut rv, tabpage_obj(unsafe { (*tp).handle }));
-            tp = unsafe { (*tp).tp_next };
-        }
-        rv
+    let mut n = 0usize;
+    let mut tp = g_st().first_tabpage;
+    while !tp.is_null() {
+        n += 1;
+        tp = unsafe { (*tp).tp_next };
     }
+
+    let mut rv = arena_array(arena, n);
+    tp = g_st().first_tabpage;
+    while !tp.is_null() {
+        add_c(&mut rv, tabpage_obj(unsafe { (*tp).handle }));
+        tp = unsafe { (*tp).tp_next };
+    }
+    rv
 }
 
 /// Gets the current tabpage.
@@ -1799,66 +1757,64 @@ pub fn nvim_paste(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Boolean {
-    {
-        if !validate_int((-1..=3).contains(&phase), c"phase", phase, err) {
-            return false;
-        }
-        if phase == -1 || phase == 1 {
-            api_vim_st().paste_cancelled = false;
-            if !curbuf_mut().terminal.is_null() {
-                terminal_set_streamed_paste(curbuf_mut().terminal_mut(), true);
-            }
-        } else if api_vim_st().paste_cancelled {
-            let retval = !api_vim_st().paste_cancelled;
-            if phase == 3 {
-                api_vim_st().paste_cancelled = false;
-            }
-            return retval;
-        }
-
-        let lines = string_to_array(data, crlf, arena);
-        let mut args_items = [array_obj(lines), integer_obj(phase)];
-        let args = Array {
-            items: args_items.as_mut_ptr(),
-            size: 2,
-            capacity: 2,
-        };
-        let rv = nlua_exec(
-            static_cstr_as_string(c"return vim.paste(...)"),
-            ptr::null(),
-            args,
-            K_RET_NIL_BOOL,
-            Some(arena),
-            err,
-        );
-        if error_set(err) || (rv.obj_type == ObjectType::ObjectTypeBoolean && !rv.data.boolean()) {
-            api_vim_st().paste_cancelled = true;
-        }
-        if (phase == -1 || phase == 3 || api_vim_st().paste_cancelled)
-            && !curbuf_mut().terminal.is_null()
-        {
-            terminal_set_streamed_paste(curbuf_mut().terminal_mut(), false);
-        }
-        let null_str = NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
-        if !api_vim_st().paste_cancelled && (phase == -1 || phase == 1) {
-            paste_store(channel_id, K_FALSE, null_str, crlf);
-        }
-        if !api_vim_st().paste_cancelled {
-            paste_store(channel_id, K_NONE, data, crlf);
-        }
-        if phase == 3 || phase == (if api_vim_st().paste_cancelled { 2 } else { -1 }) {
-            paste_store(channel_id, K_TRUE, null_str, crlf);
-        }
-
-        let retval = !api_vim_st().paste_cancelled;
-        if phase == -1 || phase == 3 {
-            api_vim_st().paste_cancelled = false;
-        }
-        retval
+    if !validate_int((-1..=3).contains(&phase), c"phase", phase, err) {
+        return false;
     }
+    if phase == -1 || phase == 1 {
+        api_vim_st().paste_cancelled = false;
+        if !curbuf_mut().terminal.is_null() {
+            terminal_set_streamed_paste(curbuf_mut().terminal_mut(), true);
+        }
+    } else if api_vim_st().paste_cancelled {
+        let retval = !api_vim_st().paste_cancelled;
+        if phase == 3 {
+            api_vim_st().paste_cancelled = false;
+        }
+        return retval;
+    }
+
+    let lines = string_to_array(data, crlf, arena);
+    let mut args_items = [array_obj(lines), integer_obj(phase)];
+    let args = Array {
+        items: args_items.as_mut_ptr(),
+        size: 2,
+        capacity: 2,
+    };
+    let rv = nlua_exec(
+        static_cstr_as_string(c"return vim.paste(...)"),
+        ptr::null(),
+        args,
+        K_RET_NIL_BOOL,
+        Some(arena),
+        err,
+    );
+    if error_set(err) || (rv.obj_type == ObjectType::ObjectTypeBoolean && !rv.data.boolean()) {
+        api_vim_st().paste_cancelled = true;
+    }
+    if (phase == -1 || phase == 3 || api_vim_st().paste_cancelled)
+        && !curbuf_mut().terminal.is_null()
+    {
+        terminal_set_streamed_paste(curbuf_mut().terminal_mut(), false);
+    }
+    let null_str = NvimString {
+        data: ptr::null_mut(),
+        size: 0,
+    };
+    if !api_vim_st().paste_cancelled && (phase == -1 || phase == 1) {
+        paste_store(channel_id, K_FALSE, null_str, crlf);
+    }
+    if !api_vim_st().paste_cancelled {
+        paste_store(channel_id, K_NONE, data, crlf);
+    }
+    if phase == 3 || phase == (if api_vim_st().paste_cancelled { 2 } else { -1 }) {
+        paste_store(channel_id, K_TRUE, null_str, crlf);
+    }
+
+    let retval = !api_vim_st().paste_cancelled;
+    if phase == -1 || phase == 3 {
+        api_vim_st().paste_cancelled = false;
+    }
+    retval
 }
 
 /// Puts text at cursor, in any mode. For dot-repeatable input, use |nvim_paste()|.
@@ -1884,62 +1840,60 @@ pub fn nvim_put(
     _arena: &mut Arena,
     err: &mut Error,
 ) {
-    {
-        let mut reg = crate::register::EMPTY_YANKREG;
-        if !validate_s(
-            prepare_yankreg_from_object(&mut reg, reg_type, lines.size),
-            c"type",
-            reg_type.data,
-            err,
-        ) {
-            return;
-        }
-        if lines.size == 0 {
-            return;
-        }
+    let mut reg = crate::register::EMPTY_YANKREG;
+    if !validate_s(
+        prepare_yankreg_from_object(&mut reg, reg_type, lines.size),
+        c"type",
+        reg_type.data,
+        err,
+    ) {
+        return;
+    }
+    if lines.size == 0 {
+        return;
+    }
 
-        reg.y_array = Vec::with_capacity(lines.size);
-        reg.y_allocated = true;
-        for i in 0..lines.size {
-            let item = lines[i];
-            if !validate_t(c"line", ObjectType::ObjectTypeString, item.obj_type, err) {
-                return;
-            }
-            let line = item.data.string();
-            let copied = copy_string(line, None);
-            reg.y_array.push(copied);
-            {
-                let _d = (copied.data).cast::<u8>();
-                let _sz = line.size;
-                if _sz > 0 {
-                    let _c = (NUL) as u8;
-                    let _x = (NL) as u8;
-                    for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
-                        if *_b == _c {
-                            *_b = _x;
-                        }
+    reg.y_array = Vec::with_capacity(lines.size);
+    reg.y_allocated = true;
+    for i in 0..lines.size {
+        let item = lines[i];
+        if !validate_t(c"line", ObjectType::ObjectTypeString, item.obj_type, err) {
+            return;
+        }
+        let line = item.data.string();
+        let copied = copy_string(line, None);
+        reg.y_array.push(copied);
+        {
+            let _d = (copied.data).cast::<u8>();
+            let _sz = line.size;
+            if _sz > 0 {
+                let _c = (NUL) as u8;
+                let _x = (NL) as u8;
+                for _b in unsafe { std::slice::from_raw_parts_mut(_d, _sz) } {
+                    if *_b == _c {
+                        *_b = _x;
                     }
                 }
-            };
-        }
-
-        finish_yankreg_from_object(&mut reg, false);
-
-        let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        let visual_was_active = g_st().visual_global.active;
-        g_st().msg_silent += 1;
-        do_put(
-            b'_' as i32,
-            &mut reg,
-            if after { FORWARD } else { BACKWARD },
-            1,
-            if follow { PUT_CURSEND } else { 0 },
-        );
-        g_st().msg_silent -= 1;
-        g_st().visual_global.active = visual_was_active;
-        try_leave(&tstate, err);
+            }
+        };
     }
+
+    finish_yankreg_from_object(&mut reg, false);
+
+    let mut tstate = TryState::new();
+    try_enter(&mut tstate);
+    let visual_was_active = g_st().visual_global.active;
+    g_st().msg_silent += 1;
+    do_put(
+        b'_' as i32,
+        &mut reg,
+        if after { FORWARD } else { BACKWARD },
+        1,
+        if follow { PUT_CURSEND } else { 0 },
+    );
+    g_st().msg_silent -= 1;
+    g_st().visual_global.active = visual_was_active;
+    try_leave(&tstate, err);
 }
 
 /// Returns the 24-bit RGB value of a |nvim_get_color_map()| color name or
@@ -1995,45 +1949,43 @@ pub fn nvim_get_color_map(arena: &mut Arena) -> Dict {
 /// @return Editor state as a msgpack-encoded map.
 // DLLEXPORT Dict nvim_get_context(Dict(context) *opts, Arena *arena, Error *err) FUNC_API_SINCE(6);
 pub fn nvim_get_context(opts: &mut KeyDict_context, arena: &mut Arena, err: &mut Error) -> Dict {
-    {
-        let types = if (opts.is_set_context & (1u64 << KEYSET_OPTIDX_CONTEXT_TYPES)) != 0 {
-            opts.types
-        } else {
-            Array::new()
-        };
+    let types = if (opts.is_set_context & (1u64 << KEYSET_OPTIDX_CONTEXT_TYPES)) != 0 {
+        opts.types
+    } else {
+        Array::new()
+    };
 
-        let mut int_types: CtxStateFlags = if types.size > 0 { 0 } else { K_CTX_ALL };
-        if types.size > 0 {
-            for i in 0..types.size {
-                let item = types[i];
-                if item.obj_type == ObjectType::ObjectTypeString {
-                    let s = item.data.string().data;
-                    if crate::memory::cstr_as_opt_bytes(s) == Some(b"regs") {
-                        int_types |= K_CTX_REGS;
-                    } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"jumps") {
-                        int_types |= K_CTX_JUMPS;
-                    } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"bufs") {
-                        int_types |= K_CTX_BUFS;
-                    } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"gvars") {
-                        int_types |= K_CTX_GVARS;
-                    } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"sfuncs") {
-                        int_types |= K_CTX_SFUNCS;
-                    } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"funcs") {
-                        int_types |= K_CTX_FUNCS;
-                    } else {
-                        let _ = validate_s(false, c"type", s, err);
-                        return Dict::new();
-                    }
+    let mut int_types: CtxStateFlags = if types.size > 0 { 0 } else { K_CTX_ALL };
+    if types.size > 0 {
+        for i in 0..types.size {
+            let item = types[i];
+            if item.obj_type == ObjectType::ObjectTypeString {
+                let s = item.data.string().data;
+                if crate::memory::cstr_as_opt_bytes(s) == Some(b"regs") {
+                    int_types |= K_CTX_REGS;
+                } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"jumps") {
+                    int_types |= K_CTX_JUMPS;
+                } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"bufs") {
+                    int_types |= K_CTX_BUFS;
+                } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"gvars") {
+                    int_types |= K_CTX_GVARS;
+                } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"sfuncs") {
+                    int_types |= K_CTX_SFUNCS;
+                } else if crate::memory::cstr_as_opt_bytes(s) == Some(b"funcs") {
+                    int_types |= K_CTX_FUNCS;
+                } else {
+                    let _ = validate_s(false, c"type", s, err);
+                    return Dict::new();
                 }
             }
         }
-
-        let mut ctx = CONTEXT_INIT;
-        ctx_save(&mut ctx, int_types);
-        let dict = ctx_to_dict(&mut ctx, arena);
-        ctx_free(&mut ctx);
-        dict
     }
+
+    let mut ctx = CONTEXT_INIT;
+    ctx_save(&mut ctx, int_types);
+    let dict = ctx_to_dict(&mut ctx, arena);
+    ctx_free(&mut ctx);
+    dict
 }
 
 /// Sets the current editor state from the given map.
@@ -2147,9 +2099,7 @@ pub fn nvim_del_keymap(
     opts: &mut KeyDict_keymap_del,
     err: &mut Error,
 ) {
-    {
-        nvim_buf_del_keymap(channel_id, -1, mode, lhs, opts, err);
-    }
+    nvim_buf_del_keymap(channel_id, -1, mode, lhs, opts, err);
 }
 
 /// Returns a 2-tuple (Array), where item 0 is the current channel id and item
@@ -2231,38 +2181,36 @@ pub fn nvim_set_client_info(
     arena: &mut Arena,
     _err: &mut Error,
 ) {
-    {
-        let mut info_items = [KeyValuePair::default(); 5];
-        let mut info = Dict {
-            items: info_items.as_mut_ptr(),
-            size: 0,
-            capacity: 5,
-        };
-        put_c(&mut info, c"name", string_obj(name));
+    let mut info_items = [KeyValuePair::default(); 5];
+    let mut info = Dict {
+        items: info_items.as_mut_ptr(),
+        size: 0,
+        capacity: 5,
+    };
+    put_c(&mut info, c"name", string_obj(name));
 
-        let mut has_major = false;
-        for i in 0..version.size {
-            if crate::memory::cstr_as_opt_bytes(version[i].key.data) == Some(b"major") {
-                has_major = true;
-                break;
-            }
+    let mut has_major = false;
+    for i in 0..version.size {
+        if crate::memory::cstr_as_opt_bytes(version[i].key.data) == Some(b"major") {
+            has_major = true;
+            break;
         }
-        if !has_major {
-            let mut v = arena_dict(arena, version.size + 1);
-            if version.size != 0 {
-                unsafe { ptr::copy_nonoverlapping(version.items, v.items, version.size) };
-                v.size = version.size;
-            }
-            put_c(&mut v, c"major", integer_obj(0));
-            version = v;
-        }
-        put_c(&mut info, c"version", dict_obj(version));
-        put_c(&mut info, c"type", string_obj(client_type));
-        put_c(&mut info, c"methods", dict_obj(methods));
-        put_c(&mut info, c"attributes", dict_obj(attributes));
-
-        rpc_set_client_info(channel_id, copy_dict(info, None));
     }
+    if !has_major {
+        let mut v = arena_dict(arena, version.size + 1);
+        if version.size != 0 {
+            unsafe { ptr::copy_nonoverlapping(version.items, v.items, version.size) };
+            v.size = version.size;
+        }
+        put_c(&mut v, c"major", integer_obj(0));
+        version = v;
+    }
+    put_c(&mut info, c"version", dict_obj(version));
+    put_c(&mut info, c"type", string_obj(client_type));
+    put_c(&mut info, c"methods", dict_obj(methods));
+    put_c(&mut info, c"attributes", dict_obj(attributes));
+
+    rpc_set_client_info(channel_id, copy_dict(info, None));
 }
 
 /// Sets channel properties.
@@ -2280,20 +2228,18 @@ pub fn nvim_chan_set(
     config: &mut KeyDict_chan_set,
     err: &mut Error,
 ) {
-    {
-        if chan == 0 && !is_internal_call(channel_id) {
-            chan = channel_id as Integer;
+    if chan == 0 && !is_internal_call(channel_id) {
+        chan = channel_id as Integer;
+    }
+    let channel = find_channel(chan as u64);
+    if !validate_int(!channel.is_null(), c"chan", chan, err) {
+        return;
+    }
+    if (config.is_set_chan_set & (1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH)) != 0 {
+        unsafe {
+            (*channel).detach = config.detach;
         }
-        let channel = find_channel(chan as u64);
-        if !validate_int(!channel.is_null(), c"chan", chan, err) {
-            return;
-        }
-        if (config.is_set_chan_set & (1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH)) != 0 {
-            unsafe {
-                (*channel).detach = config.detach;
-            }
-            channel_event(unsafe { &mut *channel }, EVENT_CHANINFO);
-        }
+        channel_event(unsafe { &mut *channel }, EVENT_CHANINFO);
     }
 }
 
@@ -2304,19 +2250,17 @@ pub fn nvim_chan_set(
 /// @param[out] err Error details, if any.
 // DLLEXPORT void nvim__cmdwin_set(String type, Buffer buf, Error *err) FUNC_API_SINCE(14);
 pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
-    {
-        if type_str.size == 0 || buf == 0 {
-            g_st().cmdwin_type = 0;
-            g_st().cmdwin_buf = ptr::null_mut();
-            return;
-        }
-        let b = find_buffer_by_handle(buf, err);
-        if error_set(err) {
-            return;
-        }
-        g_st().cmdwin_type = i32::from(crate::memory::cstr_first_byte(type_str.data));
-        g_st().cmdwin_buf = b;
+    if type_str.size == 0 || buf == 0 {
+        g_st().cmdwin_type = 0;
+        g_st().cmdwin_buf = ptr::null_mut();
+        return;
     }
+    let b = find_buffer_by_handle(buf, err);
+    if error_set(err) {
+        return;
+    }
+    g_st().cmdwin_type = i32::from(crate::memory::cstr_first_byte(type_str.data));
+    g_st().cmdwin_buf = b;
 }
 
 /// Gets information about a channel.
@@ -2483,51 +2427,49 @@ pub fn nvim_list_uis(arena: &mut Arena) -> Array {
 /// @return Array of child process ids, empty if process not found.
 // DLLEXPORT Array nvim_get_proc_children(Integer pid, Arena *arena, Error *err) FUNC_API_SINCE(4);
 pub fn nvim_get_proc_children(pid: Integer, arena: &mut Arena, err: &mut Error) -> Array {
-    {
-        let mut rvobj = Array::new();
+    let mut rvobj = Array::new();
 
-        if !validate_int(pid > 0 && pid <= Integer::from(i32::MAX), c"pid", pid, err) {
-            return rvobj;
-        }
-
-        match os_proc_children(pid as i32) {
-            Err(rv) => {
-                let mut a_items = [integer_obj(pid)];
-                let a = Array {
-                    items: a_items.as_mut_ptr(),
-                    size: 1,
-                    capacity: 1,
-                };
-                let o = nlua_exec(
-                    static_cstr_as_string(c"return vim._os_proc_children(...)"),
-                    ptr::null(),
-                    a,
-                    K_RET_OBJECT,
-                    Some(arena),
-                    err,
-                );
-                if o.obj_type == ObjectType::ObjectTypeArray {
-                    rvobj = o.data.array();
-                } else if !error_set(err) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"Failed to get process children. pid=%lld error=%d",
-                        pid,
-                        rv,
-                    );
-                }
-            }
-            Ok(children) => {
-                rvobj = arena_array(arena, children.len());
-                for child_pid in children {
-                    add_c(&mut rvobj, integer_obj(Integer::from(child_pid)));
-                }
-            }
-        }
-
-        rvobj
+    if !validate_int(pid > 0 && pid <= Integer::from(i32::MAX), c"pid", pid, err) {
+        return rvobj;
     }
+
+    match os_proc_children(pid as i32) {
+        Err(rv) => {
+            let mut a_items = [integer_obj(pid)];
+            let a = Array {
+                items: a_items.as_mut_ptr(),
+                size: 1,
+                capacity: 1,
+            };
+            let o = nlua_exec(
+                static_cstr_as_string(c"return vim._os_proc_children(...)"),
+                ptr::null(),
+                a,
+                K_RET_OBJECT,
+                Some(arena),
+                err,
+            );
+            if o.obj_type == ObjectType::ObjectTypeArray {
+                rvobj = o.data.array();
+            } else if !error_set(err) {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeException,
+                    c"Failed to get process children. pid=%lld error=%d",
+                    pid,
+                    rv,
+                );
+            }
+        }
+        Ok(children) => {
+            rvobj = arena_array(arena, children.len());
+            for child_pid in children {
+                add_c(&mut rvobj, integer_obj(Integer::from(child_pid)));
+            }
+        }
+    }
+
+    rvobj
 }
 
 /// Gets info describing process `pid`.
@@ -2689,26 +2631,24 @@ pub fn nvim_unpack(str_: NvimString, arena: &mut Arena, err: &mut Error) -> Obje
 /// @see |nvim_get_mark()|
 // DLLEXPORT Boolean nvim_del_mark(String name, Error *err) FUNC_API_SINCE(8);
 pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
-    {
-        if !validate_s(
-            name.size == 1,
-            c"mark name (must be a single char)",
-            name.data,
-            err,
-        ) {
-            return false;
-        }
-        let ch = crate::memory::cstr_first_byte(name.data);
-        if !validate_s(
-            ch.is_ascii_uppercase() || ch.is_ascii_digit(),
-            c"mark name (must be file/uppercase)",
-            name.data,
-            err,
-        ) {
-            return false;
-        }
-        set_mark(ptr::null_mut(), name, 0, 0, err)
+    if !validate_s(
+        name.size == 1,
+        c"mark name (must be a single char)",
+        name.data,
+        err,
+    ) {
+        return false;
     }
+    let ch = crate::memory::cstr_first_byte(name.data);
+    if !validate_s(
+        ch.is_ascii_uppercase() || ch.is_ascii_digit(),
+        c"mark name (must be file/uppercase)",
+        name.data,
+        err,
+    ) {
+        return false;
+    }
+    set_mark(ptr::null_mut(), name, 0, 0, err)
 }
 
 /// Returns a `(row, col, buffer, buffername)` tuple representing the position
@@ -2733,69 +2673,67 @@ pub fn nvim_get_mark(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    {
-        let mut rv = Array::new();
-        if !validate_s(
-            name.size == 1,
-            c"mark name (must be a single char)",
-            name.data,
-            err,
-        ) {
-            return rv;
-        }
-        let ch = crate::memory::cstr_first_byte(name.data);
-        if !validate_s(
-            ch.is_ascii_uppercase() || ch.is_ascii_digit(),
-            c"mark name (must be file/uppercase)",
-            name.data,
-            err,
-        ) {
-            return rv;
-        }
-
-        let mark = mark_get_global(false, crate::memory::cstr_first_char(name.data));
-        let mark = unsafe { &mut *mark };
-        let pos = mark.fmark.mark;
-        let mut bufnr: i32;
-        let mut filename: *mut c_char;
-
-        let owned_filename = if mark.fmark.fnum != 0 {
-            bufnr = mark.fmark.fnum;
-            buflist_nr2name(bufnr, 1, 1)
-        } else {
-            bufnr = 0;
-            None
-        };
-        filename = if mark.fmark.fnum != 0 {
-            owned_filename
-                .as_ref()
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
-        } else {
-            (*mark).fname_ptr()
-        };
-
-        let exists = !filename.is_null();
-        let row: Integer;
-        let col: Integer;
-
-        if !exists || pos.lnum <= 0 {
-            filename = c"".as_ptr().cast_mut();
-            bufnr = 0;
-            row = 0;
-            col = 0;
-        } else {
-            row = Integer::from(pos.lnum);
-            col = Integer::from(pos.col);
-        }
-
-        rv = arena_array(arena, 4);
-        add_c(&mut rv, integer_obj(row));
-        add_c(&mut rv, integer_obj(col));
-        add_c(&mut rv, integer_obj(Integer::from(bufnr)));
-        add_c(&mut rv, cstr_to_arena_obj(arena, filename));
-
-        rv
+    let mut rv = Array::new();
+    if !validate_s(
+        name.size == 1,
+        c"mark name (must be a single char)",
+        name.data,
+        err,
+    ) {
+        return rv;
     }
+    let ch = crate::memory::cstr_first_byte(name.data);
+    if !validate_s(
+        ch.is_ascii_uppercase() || ch.is_ascii_digit(),
+        c"mark name (must be file/uppercase)",
+        name.data,
+        err,
+    ) {
+        return rv;
+    }
+
+    let mark = mark_get_global(false, crate::memory::cstr_first_char(name.data));
+    let mark = unsafe { &mut *mark };
+    let pos = mark.fmark.mark;
+    let mut bufnr: i32;
+    let mut filename: *mut c_char;
+
+    let owned_filename = if mark.fmark.fnum != 0 {
+        bufnr = mark.fmark.fnum;
+        buflist_nr2name(bufnr, 1, 1)
+    } else {
+        bufnr = 0;
+        None
+    };
+    filename = if mark.fmark.fnum != 0 {
+        owned_filename
+            .as_ref()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    } else {
+        (*mark).fname_ptr()
+    };
+
+    let exists = !filename.is_null();
+    let row: Integer;
+    let col: Integer;
+
+    if !exists || pos.lnum <= 0 {
+        filename = c"".as_ptr().cast_mut();
+        bufnr = 0;
+        row = 0;
+        col = 0;
+    } else {
+        row = Integer::from(pos.lnum);
+        col = Integer::from(pos.col);
+    }
+
+    rv = arena_array(arena, 4);
+    add_c(&mut rv, integer_obj(row));
+    add_c(&mut rv, integer_obj(col));
+    add_c(&mut rv, integer_obj(Integer::from(bufnr)));
+    add_c(&mut rv, cstr_to_arena_obj(arena, filename));
+
+    rv
 }
 
 /// Evaluates statusline string.
@@ -3098,54 +3036,50 @@ pub fn nvim_complete_set(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    {
-        let mut rv = arena_dict(arena, 2);
-        if (get_cot_flags() & K_OPT_COT_FLAG_POPUP) == 0 {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"completeopt option does not include popup",
-            );
-            return rv;
-        }
-        if (opts.is_set_complete_set & (1u64 << KEYSET_OPTIDX_COMPLETE_SET_INFO)) != 0 {
-            let wp = pum_set_info(index as i32, opts.info.data);
-            if !wp.is_null() {
-                let wp = unsafe { &mut *wp };
-                put_c(&mut rv, c"winid", window_obj(wp.handle));
-                put_c(&mut rv, c"bufnr", buffer_obj((*wp).buf_mut().b_fnum));
-            }
-        }
-        rv
+    let mut rv = arena_dict(arena, 2);
+    if (get_cot_flags() & K_OPT_COT_FLAG_POPUP) == 0 {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"completeopt option does not include popup",
+        );
+        return rv;
     }
+    if (opts.is_set_complete_set & (1u64 << KEYSET_OPTIDX_COMPLETE_SET_INFO)) != 0 {
+        let wp = pum_set_info(index as i32, opts.info.data);
+        if !wp.is_null() {
+            let wp = unsafe { &mut *wp };
+            put_c(&mut rv, c"winid", window_obj(wp.handle));
+            put_c(&mut rv, c"bufnr", buffer_obj((*wp).buf_mut().b_fnum));
+        }
+    }
+    rv
 }
 
 fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
-    {
-        if opts.statuscolumn && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
-            wp.w_nrwidth_line_count = 0;
-            changed_window_setting(&mut *wp);
-        }
+    if opts.statuscolumn && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
+        wp.w_nrwidth_line_count = 0;
+        changed_window_setting(&mut *wp);
+    }
 
-        let old_row_offset = wp.w_grid.row_offset;
-        win_grid_alloc(&mut *wp);
+    let old_row_offset = wp.w_grid.row_offset;
+    win_grid_alloc(&mut *wp);
 
-        if wp.w_lines_valid == 0 || wp.w_grid.row_offset != old_row_offset {
-            opts.flush = true;
-        }
+    if wp.w_lines_valid == 0 || wp.w_grid.row_offset != old_row_offset {
+        opts.flush = true;
+    }
 
-        if opts.flush && (opts.statusline || opts.winbar) {
-            wp.w_redr_status = true;
-        } else if opts.statusline || opts.winbar {
-            win_check_ns_hl(Some(&*wp));
-            if opts.winbar {
-                win_redr_winbar(&mut *wp);
-            }
-            if opts.statusline {
-                win_redr_status(&mut *wp);
-            }
-            win_check_ns_hl(None);
+    if opts.flush && (opts.statusline || opts.winbar) {
+        wp.w_redr_status = true;
+    } else if opts.statusline || opts.winbar {
+        win_check_ns_hl(Some(&*wp));
+        if opts.winbar {
+            win_redr_winbar(&mut *wp);
         }
+        if opts.statusline {
+            win_redr_status(&mut *wp);
+        }
+        win_check_ns_hl(None);
     }
 }
 

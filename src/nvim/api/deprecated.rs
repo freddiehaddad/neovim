@@ -118,27 +118,23 @@ pub fn nvim_execute_lua(
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(2);
 pub fn nvim_buf_get_number(buffer: Buffer, err: &mut Error) -> Integer {
-    {
-        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
-            return 0;
-        };
-        i64::from(buf.b_fnum)
-    }
+    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
+        return 0;
+    };
+    i64::from(buf.b_fnum)
 }
 
 fn src2ns(src_id: &mut Integer) -> u32 {
-    {
-        if *src_id == 0 {
-            *src_id = nvim_create_namespace(NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            });
-        }
-        if *src_id < 0 {
-            return (1u32 << 31) - 1;
-        }
-        *src_id as u32
+    if *src_id == 0 {
+        *src_id = nvim_create_namespace(NvimString {
+            data: ptr::null_mut(),
+            size: 0,
+        });
     }
+    if *src_id < 0 {
+        return (1u32 << 31) - 1;
+    }
+    *src_id as u32
 }
 
 /// Clears highlights and virtual text from namespace and range of lines
@@ -162,9 +158,7 @@ pub fn nvim_buf_clear_highlight(
     line_end: Integer,
     err: &mut Error,
 ) {
-    {
-        nvim_buf_clear_namespace(buffer, ns_id, line_start, line_end, err);
-    }
+    nvim_buf_clear_namespace(buffer, ns_id, line_start, line_end, err);
 }
 
 /// Adds a highlight to buffer.
@@ -194,64 +188,62 @@ pub fn nvim_buf_add_highlight(
     mut col_end: Integer,
     err: &mut Error,
 ) -> Integer {
-    {
-        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
-            return 0;
-        };
+    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
+        return 0;
+    };
 
-        if !(0..MAXLNUM).contains(&line) {
-            api_err_range(err, c"line number");
-            return 0;
-        }
-        if !(0..=MAXCOL).contains(&col_start) {
-            api_err_range(err, c"column");
-            return 0;
-        }
-
-        if !(0..=MAXCOL).contains(&col_end) {
-            col_end = MAXCOL;
-        }
-
-        let ns = src2ns(&mut ns_id);
-
-        if line >= i64::from(buf.b_ml.ml_line_count) {
-            return ns_id;
-        }
-
-        let hl_id = if hl_group.size > 0 {
-            syn_check_group(hl_group.data, hl_group.size)
-        } else {
-            return ns_id;
-        };
-
-        let mut end_line = line as i32;
-        if col_end == MAXCOL {
-            col_end = 0;
-            end_line += 1;
-        }
-
-        let mut decor = DecorInline {
-            data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
-        };
-        decor.data.hl_mut().hl_id = hl_id;
-
-        extmark_set(
-            buf,
-            ns,
-            None,
-            line as i32,
-            col_start as Colnr,
-            end_line,
-            col_end as Colnr,
-            decor,
-            MT_FLAG_DECOR_HL,
-            true,
-            false,
-            false,
-            false,
-        );
-        ns_id
+    if !(0..MAXLNUM).contains(&line) {
+        api_err_range(err, c"line number");
+        return 0;
     }
+    if !(0..=MAXCOL).contains(&col_start) {
+        api_err_range(err, c"column");
+        return 0;
+    }
+
+    if !(0..=MAXCOL).contains(&col_end) {
+        col_end = MAXCOL;
+    }
+
+    let ns = src2ns(&mut ns_id);
+
+    if line >= i64::from(buf.b_ml.ml_line_count) {
+        return ns_id;
+    }
+
+    let hl_id = if hl_group.size > 0 {
+        syn_check_group(hl_group.data, hl_group.size)
+    } else {
+        return ns_id;
+    };
+
+    let mut end_line = line as i32;
+    if col_end == MAXCOL {
+        col_end = 0;
+        end_line += 1;
+    }
+
+    let mut decor = DecorInline {
+        data: DecorInlineData::Hl(DECOR_HIGHLIGHT_INLINE_INIT),
+    };
+    decor.data.hl_mut().hl_id = hl_id;
+
+    extmark_set(
+        buf,
+        ns,
+        None,
+        line as i32,
+        col_start as Colnr,
+        end_line,
+        col_end as Colnr,
+        decor,
+        MT_FLAG_DECOR_HL,
+        true,
+        false,
+        false,
+        false,
+    );
+    ns_id
 }
 
 /// Set the virtual text (annotation) for a buffer line.
@@ -280,74 +272,72 @@ pub fn nvim_buf_set_virtual_text(
     _opts: &mut KeyDict_empty,
     err: &mut Error,
 ) -> Integer {
-    {
-        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
-            return 0;
-        };
+    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
+        return 0;
+    };
 
-        if !(0..MAXLNUM).contains(&line) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Line number outside range",
-            );
-            return 0;
-        }
-
-        let ns_id = src2ns(&mut src_id);
-        let mut width: i32 = 0;
-
-        let virt_text = parse_virt_text(chunks, err, &mut width, false);
-        if error_set(err) {
-            return 0;
-        }
-
-        let existing = decor_find_virttext(buf, line as i32, u64::from(ns_id));
-        if !existing.is_null() {
-            let existing = unsafe { &mut *existing };
-            existing.data = DecorVirtTextData::VirtText(virt_text);
-            existing.width = width;
-            return src_id;
-        }
-
-        let vt = crate::decoration::decor_put_vt(
-            DecorVirtText {
-                flags: 0,
-                hl_mode: K_HL_MODE_UNKNOWN,
-                priority: 0,
-                width,
-                col: 0,
-                pos: K_VPOS_END_OF_LINE,
-                data: DecorVirtTextData::VirtText(virt_text),
-                next: None,
-            },
-            ptr::null_mut(),
+    if !(0..MAXLNUM).contains(&line) {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Line number outside range",
         );
-
-        let decor = DecorInline {
-            data: DecorInlineData::Ext(DecorExt {
-                sh_idx: DECOR_ID_INVALID,
-                vt: (&raw mut *vt).cast(),
-            }),
-        };
-
-        extmark_set(
-            buf,
-            ns_id,
-            None,
-            line as i32,
-            0,
-            -1,
-            -1,
-            decor,
-            0,
-            true,
-            false,
-            false,
-            false,
-        );
-        src_id
+        return 0;
     }
+
+    let ns_id = src2ns(&mut src_id);
+    let mut width: i32 = 0;
+
+    let virt_text = parse_virt_text(chunks, err, &mut width, false);
+    if error_set(err) {
+        return 0;
+    }
+
+    let existing = decor_find_virttext(buf, line as i32, u64::from(ns_id));
+    if !existing.is_null() {
+        let existing = unsafe { &mut *existing };
+        existing.data = DecorVirtTextData::VirtText(virt_text);
+        existing.width = width;
+        return src_id;
+    }
+
+    let vt = crate::decoration::decor_put_vt(
+        DecorVirtText {
+            flags: 0,
+            hl_mode: K_HL_MODE_UNKNOWN,
+            priority: 0,
+            width,
+            col: 0,
+            pos: K_VPOS_END_OF_LINE,
+            data: DecorVirtTextData::VirtText(virt_text),
+            next: None,
+        },
+        ptr::null_mut(),
+    );
+
+    let decor = DecorInline {
+        data: DecorInlineData::Ext(DecorExt {
+            sh_idx: DECOR_ID_INVALID,
+            vt: (&raw mut *vt).cast(),
+        }),
+    };
+
+    extmark_set(
+        buf,
+        ns_id,
+        None,
+        line as i32,
+        0,
+        -1,
+        -1,
+        decor,
+        0,
+        true,
+        false,
+        false,
+        false,
+    );
+    src_id
 }
 
 /// Gets a highlight definition by id. |hlID()|
@@ -390,15 +380,13 @@ pub fn nvim_get_hl_by_name(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    {
-        let result = Dict::new();
-        let id = syn_name2id(name.data);
-        if id == 0 {
-            api_err_invalid(err, c"highlight name", name.data, 0, true);
-            return result;
-        }
-        nvim_get_hl_by_id(i64::from(id), rgb, arena, err)
+    let result = Dict::new();
+    let id = syn_name2id(name.data);
+    if id == 0 {
+        api_err_invalid(err, c"highlight name", name.data, 0, true);
+        return result;
     }
+    nvim_get_hl_by_id(i64::from(id), rgb, arena, err)
 }
 
 /// Inserts a sequence of lines to a buffer at a certain index
@@ -420,9 +408,7 @@ pub fn buffer_insert(
     arena: &mut Arena,
     err: &mut Error,
 ) {
-    {
-        nvim_buf_set_lines(0, buffer, lnum, lnum, true, lines, arena, err);
-    }
+    nvim_buf_set_lines(0, buffer, lnum, lnum, true, lines, arena, err);
 }
 
 /// Gets a buffer line
@@ -441,27 +427,25 @@ pub fn buffer_get_line(
     arena: &mut Arena,
     err: &mut Error,
 ) -> NvimString {
-    {
-        let mut rv = NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
-        index = convert_index(index);
-        let slice = nvim_buf_get_lines(
-            0,
-            buffer,
-            index,
-            index + 1,
-            true,
-            arena,
-            ptr::null_mut(),
-            err,
-        );
-        if !error_set(err) && slice.size > 0 {
-            rv = slice[0].data.string();
-        }
-        rv
+    let mut rv = NvimString {
+        data: ptr::null_mut(),
+        size: 0,
+    };
+    index = convert_index(index);
+    let slice = nvim_buf_get_lines(
+        0,
+        buffer,
+        index,
+        index + 1,
+        true,
+        arena,
+        ptr::null_mut(),
+        err,
+    );
+    if !error_set(err) && slice.size > 0 {
+        rv = slice[0].data.string();
     }
+    rv
 }
 
 /// Sets a buffer line
@@ -481,16 +465,14 @@ pub fn buffer_set_line(
     arena: &mut Arena,
     err: &mut Error,
 ) {
-    {
-        let mut l = string_obj(line);
-        let array = Array {
-            items: &mut l,
-            size: 1,
-            capacity: 0,
-        };
-        index = convert_index(index);
-        nvim_buf_set_lines(0, buffer, index, index + 1, true, array, arena, err);
-    }
+    let mut l = string_obj(line);
+    let array = Array {
+        items: &mut l,
+        size: 1,
+        capacity: 0,
+    };
+    index = convert_index(index);
+    nvim_buf_set_lines(0, buffer, index, index + 1, true, array, arena, err);
 }
 
 /// Deletes a buffer line
@@ -503,11 +485,9 @@ pub fn buffer_set_line(
 // DLLEXPORT void buffer_del_line(Buffer buffer, Integer index, Arena *arena, Error *err)
 //   FUNC_API_DEPRECATED_SINCE(1);
 pub fn buffer_del_line(buffer: Buffer, mut index: Integer, arena: &mut Arena, err: &mut Error) {
-    {
-        let array = Array::new();
-        index = convert_index(index);
-        nvim_buf_set_lines(0, buffer, index, index + 1, true, array, arena, err);
-    }
+    let array = Array::new();
+    index = convert_index(index);
+    nvim_buf_set_lines(0, buffer, index, index + 1, true, array, arena, err);
 }
 
 /// Retrieves a line range from the buffer
@@ -534,11 +514,9 @@ pub fn buffer_get_line_slice(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    {
-        start = convert_index(start) + i64::from(!include_start);
-        end = convert_index(end) + i64::from(include_end);
-        nvim_buf_get_lines(0, buffer, start, end, false, arena, ptr::null_mut(), err)
-    }
+    start = convert_index(start) + i64::from(!include_start);
+    end = convert_index(end) + i64::from(include_end);
+    nvim_buf_get_lines(0, buffer, start, end, false, arena, ptr::null_mut(), err)
 }
 
 /// Replaces a line range on the buffer
@@ -567,11 +545,9 @@ pub fn buffer_set_line_slice(
     arena: &mut Arena,
     err: &mut Error,
 ) {
-    {
-        start = convert_index(start) + i64::from(!include_start);
-        end = convert_index(end) + i64::from(include_end);
-        nvim_buf_set_lines(0, buffer, start, end, false, replacement, arena, err);
-    }
+    start = convert_index(start) + i64::from(!include_start);
+    end = convert_index(end) + i64::from(include_end);
+    nvim_buf_set_lines(0, buffer, start, end, false, replacement, arena, err);
 }
 
 /// Sets a buffer-scoped (b:) variable
@@ -592,20 +568,18 @@ pub fn buffer_set_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    {
-        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
-            return OBJECT_NIL;
-        };
-        dict_set_var(
-            &mut *buf.b_vars(),
-            name,
-            value,
-            false,
-            true,
-            Some(arena),
-            err,
-        )
-    }
+    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
+        return OBJECT_NIL;
+    };
+    dict_set_var(
+        &mut *buf.b_vars(),
+        name,
+        value,
+        false,
+        true,
+        Some(arena),
+        err,
+    )
 }
 
 /// Removes a buffer-scoped (b:) variable
@@ -624,20 +598,18 @@ pub fn buffer_del_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    {
-        let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
-            return OBJECT_NIL;
-        };
-        dict_set_var(
-            &mut *buf.b_vars(),
-            name,
-            OBJECT_NIL,
-            true,
-            true,
-            Some(arena),
-            err,
-        )
-    }
+    let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(buffer, err) else {
+        return OBJECT_NIL;
+    };
+    dict_set_var(
+        &mut *buf.b_vars(),
+        name,
+        OBJECT_NIL,
+        true,
+        true,
+        Some(arena),
+        err,
+    )
 }
 
 /// Sets a window-scoped (w:) variable
@@ -658,20 +630,18 @@ pub fn window_set_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    {
-        let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
-            return OBJECT_NIL;
-        };
-        dict_set_var(
-            &mut *win.w_vars(),
-            name,
-            value,
-            false,
-            true,
-            Some(arena),
-            err,
-        )
-    }
+    let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
+        return OBJECT_NIL;
+    };
+    dict_set_var(
+        &mut *win.w_vars(),
+        name,
+        value,
+        false,
+        true,
+        Some(arena),
+        err,
+    )
 }
 
 /// Removes a window-scoped (w:) variable
@@ -690,20 +660,18 @@ pub fn window_del_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    {
-        let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
-            return OBJECT_NIL;
-        };
-        dict_set_var(
-            &mut *win.w_vars(),
-            name,
-            OBJECT_NIL,
-            true,
-            true,
-            Some(arena),
-            err,
-        )
-    }
+    let Some(win) = crate::api::private::helpers::find_window_by_handle_mut(window, err) else {
+        return OBJECT_NIL;
+    };
+    dict_set_var(
+        &mut *win.w_vars(),
+        name,
+        OBJECT_NIL,
+        true,
+        true,
+        Some(arena),
+        err,
+    )
 }
 
 /// Sets a tab-scoped (t:) variable
@@ -725,20 +693,18 @@ pub fn tabpage_set_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    {
-        let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
-            return OBJECT_NIL;
-        };
-        dict_set_var(
-            &mut *tab.tp_vars(),
-            name,
-            value,
-            false,
-            true,
-            Some(arena),
-            err,
-        )
-    }
+    let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
+        return OBJECT_NIL;
+    };
+    dict_set_var(
+        &mut *tab.tp_vars(),
+        name,
+        value,
+        false,
+        true,
+        Some(arena),
+        err,
+    )
 }
 
 /// Removes a tab-scoped (t:) variable
@@ -757,20 +723,18 @@ pub fn tabpage_del_var(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    {
-        let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
-            return OBJECT_NIL;
-        };
-        dict_set_var(
-            &mut *tab.tp_vars(),
-            name,
-            OBJECT_NIL,
-            true,
-            true,
-            Some(arena),
-            err,
-        )
-    }
+    let Some(tab) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
+        return OBJECT_NIL;
+    };
+    dict_set_var(
+        &mut *tab.tp_vars(),
+        name,
+        OBJECT_NIL,
+        true,
+        true,
+        Some(arena),
+        err,
+    )
 }
 
 /// @deprecated
@@ -932,13 +896,11 @@ pub fn nvim_buf_set_option(
 //   FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
 pub fn nvim_win_get_option(window: Window, name: NvimString, err: &mut Error) -> Object {
-    {
-        let win = find_window_by_handle(window, err);
-        if win.is_null() {
-            return OBJECT_NIL;
-        }
-        get_option_from(OptTarget::Win(win), K_OPT_SCOPE_WIN, name, err)
+    let win = find_window_by_handle(window, err);
+    if win.is_null() {
+        return OBJECT_NIL;
     }
+    get_option_from(OptTarget::Win(win), K_OPT_SCOPE_WIN, name, err)
 }
 
 /// Sets a window option value. Passing `nil` as value deletes the option (only
@@ -961,20 +923,18 @@ pub fn nvim_win_set_option(
     value: Object,
     err: &mut Error,
 ) {
-    {
-        let win = find_window_by_handle(window, err);
-        if win.is_null() {
-            return;
-        }
-        set_option_to(
-            channel_id,
-            OptTarget::Win(win),
-            K_OPT_SCOPE_WIN,
-            name,
-            value,
-            err,
-        );
+    let win = find_window_by_handle(window, err);
+    if win.is_null() {
+        return;
     }
+    set_option_to(
+        channel_id,
+        OptTarget::Win(win),
+        K_OPT_SCOPE_WIN,
+        name,
+        value,
+        err,
+    );
 }
 
 fn get_option_from(from: OptTarget, scope: OptScope, name: NvimString, err: &mut Error) -> Object {
@@ -1207,28 +1167,26 @@ fn push_char(line_buf: &mut Vec<c_char>, c: c_char, to_err: bool) {
 }
 
 fn write_msg(message: NvimString, to_err: bool, writeln: bool) {
-    {
-        let line_buf_ptr = if to_err {
-            &raw mut api_dep_st().err_line_buf
-        } else {
-            &raw mut api_dep_st().out_line_buf
-        };
-        let line_buf = unsafe { &mut *line_buf_ptr };
+    let line_buf_ptr = if to_err {
+        &raw mut api_dep_st().err_line_buf
+    } else {
+        &raw mut api_dep_st().out_line_buf
+    };
+    let line_buf = unsafe { &mut *line_buf_ptr };
 
-        msg_ext_no_fast();
-        g_st().no_wait_return += 1;
-        for i in 0..message.size {
-            if g_st().got_int {
-                break;
-            }
-            push_char(line_buf, unsafe { *message.data.wrapping_add(i) }, to_err);
+    msg_ext_no_fast();
+    g_st().no_wait_return += 1;
+    for i in 0..message.size {
+        if g_st().got_int {
+            break;
         }
-        if writeln {
-            push_char(line_buf, NL, to_err);
-        }
-        g_st().no_wait_return -= 1;
-        msg_end();
+        push_char(line_buf, unsafe { *message.data.wrapping_add(i) }, to_err);
     }
+    if writeln {
+        push_char(line_buf, NL, to_err);
+    }
+    g_st().no_wait_return -= 1;
+    msg_end();
 }
 
 /// @deprecated
@@ -1307,15 +1265,13 @@ pub fn nvim_notify(
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
 pub fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
-    {
-        let w = find_window_by_handle(win, err);
-        if w.is_null() {
-            return;
-        }
-        try_wrap(err, || {
-            win_setheight_win(height as i32, unsafe { &mut *w }, true);
-        });
+    let w = find_window_by_handle(win, err);
+    if w.is_null() {
+        return;
     }
+    try_wrap(err, || {
+        win_setheight_win(height as i32, unsafe { &mut *w }, true);
+    });
 }
 
 /// @deprecated
@@ -1332,15 +1288,13 @@ pub fn nvim_win_set_height(win: Window, height: Integer, err: &mut Error) {
 //   FUNC_API_SINCE(1)
 //   FUNC_API_DEPRECATED_SINCE(15);
 pub fn nvim_win_set_width(win: Window, width: Integer, err: &mut Error) {
-    {
-        let w = find_window_by_handle(win, err);
-        if w.is_null() {
-            return;
-        }
-        try_wrap(err, || {
-            win_setwidth_win(width as i32, unsafe { &mut *w }, true);
-        });
+    let w = find_window_by_handle(win, err);
+    if w.is_null() {
+        return;
     }
+    try_wrap(err, || {
+        win_setwidth_win(width as i32, unsafe { &mut *w }, true);
+    });
 }
 
 #[cfg(test)]

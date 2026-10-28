@@ -148,118 +148,116 @@ pub fn ui_client_start_server(
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
 pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, rgb: bool) {
-    {
-        let mut opts_items: [KeyValuePair; 9] = [KeyValuePair::new(); 9];
-        let mut opts = Dict {
-            items: opts_items.as_mut_ptr(),
-            size: 0,
-            capacity: 9,
+    let mut opts_items: [KeyValuePair; 9] = [KeyValuePair::new(); 9];
+    let mut opts = Dict {
+        items: opts_items.as_mut_ptr(),
+        size: 0,
+        capacity: 9,
+    };
+    let mut put_opt = |k: &std::ffi::CStr, v: Object| {
+        *opts.next_slot_mut() = KeyValuePair {
+            key: cstr_as_string(k),
+            value: v,
         };
-        let mut put_opt = |k: &std::ffi::CStr, v: Object| {
-            *opts.next_slot_mut() = KeyValuePair {
-                key: cstr_as_string(k),
-                value: v,
-            };
-            opts.size += 1;
-        };
-        put_opt(c"rgb", boolean_obj(rgb));
-        put_opt(c"ext_linegrid", boolean_obj(true));
-        put_opt(c"ext_termcolors", boolean_obj(true));
-        if let Some(term) = term {
-            put_opt(c"term_name", cstr_as_obj(term.as_ptr()));
+        opts.size += 1;
+    };
+    put_opt(c"rgb", boolean_obj(rgb));
+    put_opt(c"ext_linegrid", boolean_obj(true));
+    put_opt(c"ext_termcolors", boolean_obj(true));
+    if let Some(term) = term {
+        put_opt(c"term_name", cstr_as_obj(term.as_ptr()));
+    }
+    put_opt(c"term_colors", integer_obj(Integer::from(g_st().t_colors)));
+    put_opt(c"stdin_tty", boolean_obj(g_st().stdin_isatty));
+    put_opt(c"stdout_tty", boolean_obj(g_st().stdout_isatty));
+    if g_st().ui_client_forward_stdin {
+        put_opt(c"stdin_fd", integer_obj(Integer::from(UI_CLIENT_STDIN_FD)));
+        g_st().ui_client_forward_stdin = false;
+    }
+
+    let mut args_items: [Object; 3] = [
+        integer_obj(Integer::from(width)),
+        integer_obj(Integer::from(height)),
+        Object {
+            obj_type: ObjectType::ObjectTypeDict,
+            data: ObjectData::Dict(opts),
+        },
+    ];
+    let args = Array {
+        items: args_items.as_mut_ptr(),
+        size: 3,
+        capacity: 3,
+    };
+
+    rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_attach", args);
+    g_st().ui_client_attached = true;
+
+    if has_time_fd() {
+        time_msg(c"nvim_ui_attach", None);
+    }
+
+    let m = api_metadata();
+    let mut version = Dict {
+        items: ptr::null_mut(),
+        size: 0,
+        capacity: 0,
+    };
+    debug_assert!(m.data.dict().size > 0);
+    for i in 0..m.data.dict().size {
+        let item = m.data.dict()[i];
+        if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"version") {
+            version = item.value.data.dict();
+            break;
+        } else if i + 1 == m.data.dict().size {
+            std::process::abort();
         }
-        put_opt(c"term_colors", integer_obj(Integer::from(g_st().t_colors)));
-        put_opt(c"stdin_tty", boolean_obj(g_st().stdin_isatty));
-        put_opt(c"stdout_tty", boolean_obj(g_st().stdout_isatty));
-        if g_st().ui_client_forward_stdin {
-            put_opt(c"stdin_fd", integer_obj(Integer::from(UI_CLIENT_STDIN_FD)));
-            g_st().ui_client_forward_stdin = false;
-        }
+    }
 
-        let mut args_items: [Object; 3] = [
-            integer_obj(Integer::from(width)),
-            integer_obj(Integer::from(height)),
-            Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(opts),
-            },
-        ];
-        let args = Array {
-            items: args_items.as_mut_ptr(),
-            size: 3,
-            capacity: 3,
-        };
+    let mut info_items: [KeyValuePair; 3] = [
+        KeyValuePair {
+            key: cstr_as_string(c"website"),
+            value: cstr_as_obj(c"https://neovim.io"),
+        },
+        KeyValuePair {
+            key: cstr_as_string(c"license"),
+            value: cstr_as_obj(c"Apache 2"),
+        },
+        KeyValuePair {
+            key: cstr_as_string(c"pid"),
+            value: integer_obj(Integer::from(unsafe { uv_os_getpid() })),
+        },
+    ];
+    let info = Dict {
+        items: info_items.as_mut_ptr(),
+        size: 3,
+        capacity: 3,
+    };
 
-        rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_attach", args);
-        g_st().ui_client_attached = true;
+    let mut args2_items: [Object; 5] = [
+        cstr_as_obj(c"nvim-tui"),
+        Object {
+            obj_type: ObjectType::ObjectTypeDict,
+            data: ObjectData::Dict(version),
+        },
+        cstr_as_obj(c"ui"),
+        Object {
+            obj_type: ObjectType::ObjectTypeArray,
+            data: ObjectData::Array(ARRAY_INIT),
+        },
+        Object {
+            obj_type: ObjectType::ObjectTypeDict,
+            data: ObjectData::Dict(info),
+        },
+    ];
+    let args2 = Array {
+        items: args2_items.as_mut_ptr(),
+        size: 5,
+        capacity: 5,
+    };
+    rpc_send_event(g_st().ui_client_channel_id, c"nvim_set_client_info", args2);
 
-        if has_time_fd() {
-            time_msg(c"nvim_ui_attach", None);
-        }
-
-        let m = api_metadata();
-        let mut version = Dict {
-            items: ptr::null_mut(),
-            size: 0,
-            capacity: 0,
-        };
-        debug_assert!(m.data.dict().size > 0);
-        for i in 0..m.data.dict().size {
-            let item = m.data.dict()[i];
-            if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"version") {
-                version = item.value.data.dict();
-                break;
-            } else if i + 1 == m.data.dict().size {
-                std::process::abort();
-            }
-        }
-
-        let mut info_items: [KeyValuePair; 3] = [
-            KeyValuePair {
-                key: cstr_as_string(c"website"),
-                value: cstr_as_obj(c"https://neovim.io"),
-            },
-            KeyValuePair {
-                key: cstr_as_string(c"license"),
-                value: cstr_as_obj(c"Apache 2"),
-            },
-            KeyValuePair {
-                key: cstr_as_string(c"pid"),
-                value: integer_obj(Integer::from(unsafe { uv_os_getpid() })),
-            },
-        ];
-        let info = Dict {
-            items: info_items.as_mut_ptr(),
-            size: 3,
-            capacity: 3,
-        };
-
-        let mut args2_items: [Object; 5] = [
-            cstr_as_obj(c"nvim-tui"),
-            Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(version),
-            },
-            cstr_as_obj(c"ui"),
-            Object {
-                obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(ARRAY_INIT),
-            },
-            Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(info),
-            },
-        ];
-        let args2 = Array {
-            items: args2_items.as_mut_ptr(),
-            size: 5,
-            capacity: 5,
-        };
-        rpc_send_event(g_st().ui_client_channel_id, c"nvim_set_client_info", args2);
-
-        if has_time_fd() {
-            time_msg(c"nvim_set_client_info", None);
-        }
+    if has_time_fd() {
+        time_msg(c"nvim_set_client_info", None);
     }
 }
 
@@ -270,42 +268,40 @@ pub fn ui_client_detach() {
 }
 
 pub fn ui_client_run() -> ! {
-    {
-        tui_start(
-            &raw mut uic_st().tui,
-            &mut uic_st().tui_width,
-            &mut uic_st().tui_height,
-            &raw mut uic_st().tui_term,
-            &mut uic_st().tui_rgb,
+    tui_start(
+        &raw mut uic_st().tui,
+        &mut uic_st().tui_width,
+        &mut uic_st().tui_height,
+        &raw mut uic_st().tui_term,
+        &mut uic_st().tui_rgb,
+    );
+    ui_client_attach(
+        uic_st().tui_width,
+        uic_st().tui_height,
+        uic_st().tui_term.as_deref(),
+        uic_st().tui_rgb,
+    );
+
+    if os_env_exists(c"NVIM_LOG_FILE", true) {
+        logmsg!(
+            LOGLVL_ERR,
+            ptr::null(),
+            c"ui_client_run",
+            164,
+            true,
+            c"test log message",
         );
-        ui_client_attach(
-            uic_st().tui_width,
-            uic_st().tui_height,
-            uic_st().tui_term.as_deref(),
-            uic_st().tui_rgb,
-        );
+    }
 
-        if os_env_exists(c"NVIM_LOG_FILE", true) {
-            logmsg!(
-                LOGLVL_ERR,
-                ptr::null(),
-                c"ui_client_run",
-                164,
-                true,
-                c"test log message",
-            );
-        }
+    time_finish();
 
-        time_finish();
-
-        loop {
-            let events = loop_queues(&mut g_st().main_loop).events;
-            if !multiqueue_empty(unsafe { &*events }) {
-                multiqueue_process_events(unsafe { &mut *events });
-            } else {
-                loop_poll_events(&mut g_st().main_loop, -1);
-                multiqueue_process_events(unsafe { &mut *events });
-            }
+    loop {
+        let events = loop_queues(&mut g_st().main_loop).events;
+        if !multiqueue_empty(unsafe { &*events }) {
+            multiqueue_process_events(unsafe { &mut *events });
+        } else {
+            loop_poll_events(&mut g_st().main_loop, -1);
+            multiqueue_process_events(unsafe { &mut *events });
         }
     }
 }
@@ -369,33 +365,31 @@ pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
 }
 
 pub fn ui_client_event_grid_resize(args: Array) {
+    if args.size < 3
+        || args[0].obj_type != ObjectType::ObjectTypeInteger
+        || args[1].obj_type != ObjectType::ObjectTypeInteger
+        || args[2].obj_type != ObjectType::ObjectTypeInteger
     {
-        if args.size < 3
-            || args[0].obj_type != ObjectType::ObjectTypeInteger
-            || args[1].obj_type != ObjectType::ObjectTypeInteger
-            || args[2].obj_type != ObjectType::ObjectTypeInteger
-        {
-            logmsg!(
-                LOGLVL_ERR,
-                ptr::null(),
-                c"ui_client_event_grid_resize",
-                242,
-                true,
-                c"Error handling ui event 'grid_resize'",
-            );
-            return;
-        }
+        logmsg!(
+            LOGLVL_ERR,
+            ptr::null(),
+            c"ui_client_event_grid_resize",
+            242,
+            true,
+            c"Error handling ui event 'grid_resize'",
+        );
+        return;
+    }
 
-        let grid = args[0].data.integer();
-        let width = args[1].data.integer();
-        let height = args[2].data.integer();
-        tui_grid_resize(tui_ptr(), grid, width, height);
+    let grid = args[0].data.integer();
+    let width = args[1].data.integer();
+    let height = args[2].data.integer();
+    tui_grid_resize(tui_ptr(), grid, width, height);
 
-        let cols = width as usize;
-        if g_st().grid_line_buf_char.len() < cols {
-            g_st().grid_line_buf_char = vec![0; cols];
-            g_st().grid_line_buf_attr = vec![0; cols];
-        }
+    let cols = width as usize;
+    if g_st().grid_line_buf_char.len() < cols {
+        g_st().grid_line_buf_char = vec![0; cols];
+        g_st().grid_line_buf_attr = vec![0; cols];
     }
 }
 
@@ -404,57 +398,53 @@ pub fn ui_client_event_grid_line(_args: Array) {
 }
 
 pub fn ui_client_event_raw_line(g: &mut GridLineEvent) {
-    {
-        let grid = g.args[0];
-        let row = g.args[1];
-        let startcol = g.args[2];
-        let endcol = Integer::from(startcol) + Integer::from(g.coloff);
-        let clearcol = endcol + Integer::from(g.clear_width);
-        let lineflags = if g.wrap { K_LINE_FLAG_WRAP } else { 0 };
+    let grid = g.args[0];
+    let row = g.args[1];
+    let startcol = g.args[2];
+    let endcol = Integer::from(startcol) + Integer::from(g.coloff);
+    let clearcol = endcol + Integer::from(g.clear_width);
+    let lineflags = if g.wrap { K_LINE_FLAG_WRAP } else { 0 };
 
-        tui_raw_line(
-            tui_ptr(),
-            Integer::from(grid),
-            Integer::from(row),
-            Integer::from(startcol),
-            endcol,
-            clearcol,
-            Integer::from(g.cur_attr),
-            lineflags,
-            g_st().grid_line_buf_char.as_mut_ptr(),
-            g_st().grid_line_buf_attr.as_mut_ptr(),
-        );
-    }
+    tui_raw_line(
+        tui_ptr(),
+        Integer::from(grid),
+        Integer::from(row),
+        Integer::from(startcol),
+        endcol,
+        clearcol,
+        Integer::from(g.cur_attr),
+        lineflags,
+        g_st().grid_line_buf_char.as_mut_ptr(),
+        g_st().grid_line_buf_attr.as_mut_ptr(),
+    );
 }
 
 pub fn ui_client_event_connect(args: Array) {
-    {
-        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
-            logmsg!(
-                LOGLVL_ERR,
-                ptr::null(),
-                c"ui_client_event_connect",
-                281,
-                true,
-                c"Error handling UI event 'connect'",
-            );
-            return;
-        }
-
-        let s = args[0].data.string();
-        let bytes = if s.size == 0 || s.data.is_null() {
-            &[][..]
-        } else {
-            crate::memory::cstr_slice(s.data, s.size)
-        };
-        let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
-        let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
-        multiqueue_put_event(
-            unsafe { &mut *loop_queues(&mut g_st().main_loop).fast_events },
-            Event::UiClientConnect(server_addr),
+    if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
+        logmsg!(
+            LOGLVL_ERR,
+            ptr::null(),
+            c"ui_client_event_connect",
+            281,
+            true,
+            c"Error handling UI event 'connect'",
         );
-        g_st().ui_client_channel_id = u64::MAX;
+        return;
     }
+
+    let s = args[0].data.string();
+    let bytes = if s.size == 0 || s.data.is_null() {
+        &[][..]
+    } else {
+        crate::memory::cstr_slice(s.data, s.size)
+    };
+    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+    let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
+    multiqueue_put_event(
+        unsafe { &mut *loop_queues(&mut g_st().main_loop).fast_events },
+        Event::UiClientConnect(server_addr),
+    );
+    g_st().ui_client_channel_id = u64::MAX;
 }
 
 pub fn channel_connect_event(server_addr: std::ffi::CString) {
@@ -512,147 +502,141 @@ pub fn ui_client_event_set_restart_on_crash_exit(args: Array) {
 }
 
 pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
-    {
-        let mut args = uic_st().restart_args;
-        let mut start_server = false;
-        if !uic_st().restart_pending {
-            if error_restart
-                && g_st().ui_client_error_exit == -1
-                && uic_st().restart_args_after_crash_exit.size > 0
-            {
-                start_server = true;
-                args = uic_st().restart_args_after_crash_exit;
-            } else {
-                return;
-            }
+    let mut args = uic_st().restart_args;
+    let mut start_server = false;
+    if !uic_st().restart_pending {
+        if error_restart
+            && g_st().ui_client_error_exit == -1
+            && uic_st().restart_args_after_crash_exit.size > 0
+        {
+            start_server = true;
+            args = uic_st().restart_args_after_crash_exit;
+        } else {
+            return;
         }
+    }
 
-        uic_st().restart_pending = false;
+    uic_st().restart_pending = false;
 
-        let cleanup = || {
-            api_free_array(uic_st().restart_args);
-            uic_st().restart_args = ARRAY_INIT;
-            api_free_array(uic_st().restart_args_after_crash_exit);
-            uic_st().restart_args_after_crash_exit = ARRAY_INIT;
-        };
+    let cleanup = || {
+        api_free_array(uic_st().restart_args);
+        uic_st().restart_args = ARRAY_INIT;
+        api_free_array(uic_st().restart_args_after_crash_exit);
+        uic_st().restart_args_after_crash_exit = ARRAY_INIT;
+    };
 
-        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
+    if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
+        logmsg!(
+            LOGLVL_ERR,
+            ptr::null(),
+            c"ui_client_attach_to_restarted_server",
+            362,
+            true,
+            c"Error handling ui event 'restart'",
+        );
+        cleanup();
+        return;
+    }
+
+    let first_arg = args[0].data.string().data;
+    let chan_id = if start_server {
+        if args.size < 2 || args[1].obj_type != ObjectType::ObjectTypeArray {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
                 c"ui_client_attach_to_restarted_server",
-                362,
+                370,
                 true,
                 c"Error handling ui event 'restart'",
             );
             cleanup();
             return;
         }
-
-        let first_arg = args[0].data.string().data;
-        let chan_id = if start_server {
-            if args.size < 2 || args[1].obj_type != ObjectType::ObjectTypeArray {
-                logmsg!(
-                    LOGLVL_ERR,
-                    ptr::null(),
-                    c"ui_client_attach_to_restarted_server",
-                    370,
-                    true,
-                    c"Error handling ui event 'restart'",
-                );
-                cleanup();
-                return;
+        let cmdargs = args[1].data.array();
+        let mut argv: Vec<*mut c_char> = vec![ptr::null_mut(); cmdargs.size + 1];
+        for (i, dst) in argv.iter_mut().enumerate().take(cmdargs.size) {
+            let item = cmdargs[i];
+            if item.obj_type == ObjectType::ObjectTypeString {
+                *dst = item.data.string().data;
             }
-            let cmdargs = args[1].data.array();
-            let mut argv: Vec<*mut c_char> = vec![ptr::null_mut(); cmdargs.size + 1];
-            for (i, dst) in argv.iter_mut().enumerate().take(cmdargs.size) {
-                let item = cmdargs[i];
-                if item.obj_type == ObjectType::ObjectTypeString {
-                    *dst = item.data.string().data;
-                }
-                if (*dst).is_null() {
-                    *dst = c"".as_ptr().cast_mut();
-                }
+            if (*dst).is_null() {
+                *dst = c"".as_ptr().cast_mut();
             }
-            let id = ui_client_start_server(first_arg, cmdargs.size, argv.as_mut_ptr());
-            g_st().ui_client_error_exit = -1;
-            id
-        } else {
-            let is_tcp = !socket_address_tcp_host_end(first_arg).is_null();
-            let mut err: *const c_char = ptr::null();
-            let on_data = CallbackReader::none();
-            let id = channel_connect(is_tcp, first_arg, true, on_data, 50, &mut err);
-            if !err.is_null() {
-                logmsg!(
-                    LOGLVL_ERR,
-                    ptr::null(),
-                    c"ui_client_attach_to_restarted_server",
-                    391,
-                    true,
-                    c"cannot connect to server %s: %s",
-                    first_arg,
-                    err,
-                );
-                cleanup();
-                return;
-            }
-            if args.size > 1 && args[1].obj_type == ObjectType::ObjectTypeDict {
-                let mut chan_args_items: [Object; 2] = [integer_obj(0), args[1]];
-                let chan_args = Array {
-                    items: chan_args_items.as_mut_ptr(),
-                    size: 2,
-                    capacity: 2,
-                };
-                rpc_send_event(id, c"nvim_chan_set", chan_args);
-            }
-            id
-        };
-
-        g_st().ui_client_channel_id = chan_id;
-        ui_client_attach(
-            uic_st().tui_width,
-            uic_st().tui_height,
-            uic_st().tui_term.as_deref(),
-            uic_st().tui_rgb,
-        );
-
-        logmsg!(
-            LOGLVL_INF,
-            ptr::null(),
-            c"ui_client_attach_to_restarted_server",
-            406,
-            true,
-            c"restarted server address=%s id=%lld",
-            first_arg,
-            chan_id as i64,
-        );
-        cleanup();
-    }
-}
-
-pub fn ui_client_event_error_exit(args: Array) {
-    {
-        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeInteger {
+        }
+        let id = ui_client_start_server(first_arg, cmdargs.size, argv.as_mut_ptr());
+        g_st().ui_client_error_exit = -1;
+        id
+    } else {
+        let is_tcp = !socket_address_tcp_host_end(first_arg).is_null();
+        let mut err: *const c_char = ptr::null();
+        let on_data = CallbackReader::none();
+        let id = channel_connect(is_tcp, first_arg, true, on_data, 50, &mut err);
+        if !err.is_null() {
             logmsg!(
                 LOGLVL_ERR,
                 ptr::null(),
-                c"ui_client_event_error_exit",
-                419,
+                c"ui_client_attach_to_restarted_server",
+                391,
                 true,
-                c"Error handling ui event 'error_exit'",
+                c"cannot connect to server %s: %s",
+                first_arg,
+                err,
             );
+            cleanup();
             return;
         }
-        g_st().ui_client_error_exit = args[0].data.integer() as i32;
+        if args.size > 1 && args[1].obj_type == ObjectType::ObjectTypeDict {
+            let mut chan_args_items: [Object; 2] = [integer_obj(0), args[1]];
+            let chan_args = Array {
+                items: chan_args_items.as_mut_ptr(),
+                size: 2,
+                capacity: 2,
+            };
+            rpc_send_event(id, c"nvim_chan_set", chan_args);
+        }
+        id
+    };
+
+    g_st().ui_client_channel_id = chan_id;
+    ui_client_attach(
+        uic_st().tui_width,
+        uic_st().tui_height,
+        uic_st().tui_term.as_deref(),
+        uic_st().tui_rgb,
+    );
+
+    logmsg!(
+        LOGLVL_INF,
+        ptr::null(),
+        c"ui_client_attach_to_restarted_server",
+        406,
+        true,
+        c"restarted server address=%s id=%lld",
+        first_arg,
+        chan_id as i64,
+    );
+    cleanup();
+}
+
+pub fn ui_client_event_error_exit(args: Array) {
+    if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeInteger {
+        logmsg!(
+            LOGLVL_ERR,
+            ptr::null(),
+            c"ui_client_event_error_exit",
+            419,
+            true,
+            c"Error handling ui event 'error_exit'",
+        );
+        return;
     }
+    g_st().ui_client_error_exit = args[0].data.integer() as i32;
 }
 
 pub fn ui_client_free_all_mem() {
-    {
-        tui_free_all_mem(uic_st().tui.take());
-        g_st().grid_line_buf_char = Vec::new();
-        g_st().grid_line_buf_attr = Vec::new();
-    }
+    tui_free_all_mem(uic_st().tui.take());
+    g_st().grid_line_buf_char = Vec::new();
+    g_st().grid_line_buf_attr = Vec::new();
 }
 
 #[repr(C)]
@@ -675,16 +659,14 @@ fn log_ui_event_err(func_name: &std::ffi::CStr, ev_name: &std::ffi::CStr) {
 }
 
 pub fn ui_client_event_mode_info_set(args: Array) {
+    if args.size < 2
+        || args[0].obj_type != ObjectType::ObjectTypeBoolean
+        || args[1].obj_type != ObjectType::ObjectTypeArray
     {
-        if args.size < 2
-            || args[0].obj_type != ObjectType::ObjectTypeBoolean
-            || args[1].obj_type != ObjectType::ObjectTypeArray
-        {
-            log_ui_event_err(c"ui_client_event_mode_info_set", c"mode_info_set");
-            return;
-        }
-        tui_mode_info_set(tui_ptr(), args[0].data.boolean(), args[1].data.array());
+        log_ui_event_err(c"ui_client_event_mode_info_set", c"mode_info_set");
+        return;
     }
+    tui_mode_info_set(tui_ptr(), args[0].data.boolean(), args[1].data.array());
 }
 
 pub fn ui_client_event_update_menu(_args: Array) {
@@ -708,16 +690,14 @@ pub fn ui_client_event_mouse_off(_args: Array) {
 }
 
 pub fn ui_client_event_mode_change(args: Array) {
+    if args.size < 2
+        || args[0].obj_type != ObjectType::ObjectTypeString
+        || args[1].obj_type != ObjectType::ObjectTypeInteger
     {
-        if args.size < 2
-            || args[0].obj_type != ObjectType::ObjectTypeString
-            || args[1].obj_type != ObjectType::ObjectTypeInteger
-        {
-            log_ui_event_err(c"ui_client_event_mode_change", c"mode_change");
-            return;
-        }
-        tui_mode_change(tui_ptr(), args[0].data.string(), args[1].data.integer());
+        log_ui_event_err(c"ui_client_event_mode_change", c"mode_change");
+        return;
     }
+    tui_mode_change(tui_ptr(), args[0].data.string(), args[1].data.integer());
 }
 
 pub fn ui_client_event_bell(_args: Array) {
@@ -737,161 +717,139 @@ pub fn ui_client_event_suspend(_args: Array) {
 }
 
 pub fn ui_client_event_set_title(args: Array) {
-    {
-        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
-            log_ui_event_err(c"ui_client_event_set_title", c"set_title");
-            return;
-        }
-        tui_set_title(tui_ptr(), args[0].data.string());
+    if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
+        log_ui_event_err(c"ui_client_event_set_title", c"set_title");
+        return;
     }
+    tui_set_title(tui_ptr(), args[0].data.string());
 }
 
 pub fn ui_client_event_set_icon(args: Array) {
-    {
-        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
-            log_ui_event_err(c"ui_client_event_set_icon", c"set_icon");
-            return;
-        }
-        tui_set_icon(tui_ptr(), args[0].data.string());
+    if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
+        log_ui_event_err(c"ui_client_event_set_icon", c"set_icon");
+        return;
     }
+    tui_set_icon(tui_ptr(), args[0].data.string());
 }
 
 pub fn ui_client_event_screenshot(args: Array) {
-    {
-        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
-            log_ui_event_err(c"ui_client_event_screenshot", c"screenshot");
-            return;
-        }
-        tui_screenshot(tui_ptr(), args[0].data.string());
+    if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
+        log_ui_event_err(c"ui_client_event_screenshot", c"screenshot");
+        return;
     }
+    tui_screenshot(tui_ptr(), args[0].data.string());
 }
 
 pub fn ui_client_event_option_set(args: Array) {
-    {
-        if args.size < 2 || args[0].obj_type != ObjectType::ObjectTypeString {
-            log_ui_event_err(c"ui_client_event_option_set", c"option_set");
-            return;
-        }
-        tui_option_set(tui_ptr(), args[0].data.string(), args[1]);
+    if args.size < 2 || args[0].obj_type != ObjectType::ObjectTypeString {
+        log_ui_event_err(c"ui_client_event_option_set", c"option_set");
+        return;
     }
+    tui_option_set(tui_ptr(), args[0].data.string(), args[1]);
 }
 
 pub fn ui_client_event_chdir(args: Array) {
-    {
-        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
-            log_ui_event_err(c"ui_client_event_chdir", c"chdir");
-            return;
-        }
-        tui_chdir(tui_ptr(), args[0].data.string());
+    if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
+        log_ui_event_err(c"ui_client_event_chdir", c"chdir");
+        return;
     }
+    tui_chdir(tui_ptr(), args[0].data.string());
 }
 
 pub fn ui_client_event_ui_send(args: Array) {
-    {
-        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
-            log_ui_event_err(c"ui_client_event_ui_send", c"ui_send");
-            return;
-        }
-        tui_ui_send(tui_ptr(), args[0].data.string());
+    if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
+        log_ui_event_err(c"ui_client_event_ui_send", c"ui_send");
+        return;
     }
+    tui_ui_send(tui_ptr(), args[0].data.string());
 }
 
 pub fn ui_client_event_default_colors_set(args: Array) {
+    if args.size < 5
+        || args[0].obj_type != ObjectType::ObjectTypeInteger
+        || args[1].obj_type != ObjectType::ObjectTypeInteger
+        || args[2].obj_type != ObjectType::ObjectTypeInteger
+        || args[3].obj_type != ObjectType::ObjectTypeInteger
+        || args[4].obj_type != ObjectType::ObjectTypeInteger
     {
-        if args.size < 5
-            || args[0].obj_type != ObjectType::ObjectTypeInteger
-            || args[1].obj_type != ObjectType::ObjectTypeInteger
-            || args[2].obj_type != ObjectType::ObjectTypeInteger
-            || args[3].obj_type != ObjectType::ObjectTypeInteger
-            || args[4].obj_type != ObjectType::ObjectTypeInteger
-        {
-            log_ui_event_err(c"ui_client_event_default_colors_set", c"default_colors_set");
-            return;
-        }
-        tui_default_colors_set(
-            tui_ptr(),
-            args[0].data.integer(),
-            args[1].data.integer(),
-            args[2].data.integer(),
-            args[3].data.integer(),
-            args[4].data.integer(),
-        );
+        log_ui_event_err(c"ui_client_event_default_colors_set", c"default_colors_set");
+        return;
     }
+    tui_default_colors_set(
+        tui_ptr(),
+        args[0].data.integer(),
+        args[1].data.integer(),
+        args[2].data.integer(),
+        args[3].data.integer(),
+        args[4].data.integer(),
+    );
 }
 
 pub fn ui_client_event_hl_attr_define(args: Array) {
+    if args.size < 4
+        || args[0].obj_type != ObjectType::ObjectTypeInteger
+        || args[1].obj_type != ObjectType::ObjectTypeDict
+        || args[2].obj_type != ObjectType::ObjectTypeDict
+        || args[3].obj_type != ObjectType::ObjectTypeArray
     {
-        if args.size < 4
-            || args[0].obj_type != ObjectType::ObjectTypeInteger
-            || args[1].obj_type != ObjectType::ObjectTypeDict
-            || args[2].obj_type != ObjectType::ObjectTypeDict
-            || args[3].obj_type != ObjectType::ObjectTypeArray
-        {
-            log_ui_event_err(c"ui_client_event_hl_attr_define", c"hl_attr_define");
-            return;
-        }
-        let arg_1 = args[0].data.integer();
-        let arg_2 = ui_client_dict2hlattrs(args[1].data.dict(), true);
-        let arg_3 = ui_client_dict2hlattrs(args[2].data.dict(), false);
-        let arg_4 = args[3].data.array();
-        tui_hl_attr_define(tui_ptr(), arg_1, arg_2, arg_3, arg_4);
+        log_ui_event_err(c"ui_client_event_hl_attr_define", c"hl_attr_define");
+        return;
     }
+    let arg_1 = args[0].data.integer();
+    let arg_2 = ui_client_dict2hlattrs(args[1].data.dict(), true);
+    let arg_3 = ui_client_dict2hlattrs(args[2].data.dict(), false);
+    let arg_4 = args[3].data.array();
+    tui_hl_attr_define(tui_ptr(), arg_1, arg_2, arg_3, arg_4);
 }
 
 pub fn ui_client_event_grid_clear(args: Array) {
-    {
-        if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeInteger {
-            log_ui_event_err(c"ui_client_event_grid_clear", c"grid_clear");
-            return;
-        }
-        tui_grid_clear(tui_ptr(), args[0].data.integer());
+    if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeInteger {
+        log_ui_event_err(c"ui_client_event_grid_clear", c"grid_clear");
+        return;
     }
+    tui_grid_clear(tui_ptr(), args[0].data.integer());
 }
 
 pub fn ui_client_event_grid_cursor_goto(args: Array) {
+    if args.size < 3
+        || args[0].obj_type != ObjectType::ObjectTypeInteger
+        || args[1].obj_type != ObjectType::ObjectTypeInteger
+        || args[2].obj_type != ObjectType::ObjectTypeInteger
     {
-        if args.size < 3
-            || args[0].obj_type != ObjectType::ObjectTypeInteger
-            || args[1].obj_type != ObjectType::ObjectTypeInteger
-            || args[2].obj_type != ObjectType::ObjectTypeInteger
-        {
-            log_ui_event_err(c"ui_client_event_grid_cursor_goto", c"grid_cursor_goto");
-            return;
-        }
-        tui_grid_cursor_goto(
-            tui_ptr(),
-            args[0].data.integer(),
-            args[1].data.integer(),
-            args[2].data.integer(),
-        );
+        log_ui_event_err(c"ui_client_event_grid_cursor_goto", c"grid_cursor_goto");
+        return;
     }
+    tui_grid_cursor_goto(
+        tui_ptr(),
+        args[0].data.integer(),
+        args[1].data.integer(),
+        args[2].data.integer(),
+    );
 }
 
 pub fn ui_client_event_grid_scroll(args: Array) {
+    if args.size < 7
+        || args[0].obj_type != ObjectType::ObjectTypeInteger
+        || args[1].obj_type != ObjectType::ObjectTypeInteger
+        || args[2].obj_type != ObjectType::ObjectTypeInteger
+        || args[3].obj_type != ObjectType::ObjectTypeInteger
+        || args[4].obj_type != ObjectType::ObjectTypeInteger
+        || args[5].obj_type != ObjectType::ObjectTypeInteger
+        || args[6].obj_type != ObjectType::ObjectTypeInteger
     {
-        if args.size < 7
-            || args[0].obj_type != ObjectType::ObjectTypeInteger
-            || args[1].obj_type != ObjectType::ObjectTypeInteger
-            || args[2].obj_type != ObjectType::ObjectTypeInteger
-            || args[3].obj_type != ObjectType::ObjectTypeInteger
-            || args[4].obj_type != ObjectType::ObjectTypeInteger
-            || args[5].obj_type != ObjectType::ObjectTypeInteger
-            || args[6].obj_type != ObjectType::ObjectTypeInteger
-        {
-            log_ui_event_err(c"ui_client_event_grid_scroll", c"grid_scroll");
-            return;
-        }
-        tui_grid_scroll(
-            tui_ptr(),
-            args[0].data.integer(),
-            args[1].data.integer(),
-            args[2].data.integer(),
-            args[3].data.integer(),
-            args[4].data.integer(),
-            args[5].data.integer(),
-            args[6].data.integer(),
-        );
+        log_ui_event_err(c"ui_client_event_grid_scroll", c"grid_scroll");
+        return;
     }
+    tui_grid_scroll(
+        tui_ptr(),
+        args[0].data.integer(),
+        args[1].data.integer(),
+        args[2].data.integer(),
+        args[3].data.integer(),
+        args[4].data.integer(),
+        args[5].data.integer(),
+        args[6].data.integer(),
+    );
 }
 
 const EVENT_HANDLERS: [UIClientHandler; 28] = [

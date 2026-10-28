@@ -2361,36 +2361,46 @@ pub fn trans_special(
 /// Put the character sequence for `key` with `modifiers` into `dst` and return
 /// the resulting length (`special_to_buf`).
 pub fn special_to_buf(key: i32, modifiers: i32, escape_ks: bool, dst: *mut c_char) -> u32 {
-    unsafe {
-        let mut dlen: u32 = 0;
+    let mut dlen: u32 = 0;
 
-        // Put the appropriate modifier in a string.
-        if modifiers != 0 {
+    // Put the appropriate modifier in a string.
+    if modifiers != 0 {
+        unsafe {
             *dst.wrapping_add(dlen as usize) = K_SPECIAL as c_char;
-            dlen += 1;
+        }
+        dlen += 1;
+        unsafe {
             *dst.wrapping_add(dlen as usize) = KS_MODIFIER as c_char;
-            dlen += 1;
+        }
+        dlen += 1;
+        unsafe {
             *dst.wrapping_add(dlen as usize) = (modifiers as u8) as c_char;
-            dlen += 1;
         }
-
-        if is_special(key) {
-            *dst.wrapping_add(dlen as usize) = K_SPECIAL as c_char;
-            dlen += 1;
-            *dst.wrapping_add(dlen as usize) = (key2termcap0(key) as u8) as c_char;
-            dlen += 1;
-            *dst.wrapping_add(dlen as usize) = (key2termcap1(key) as u8) as c_char;
-            dlen += 1;
-        } else if escape_ks {
-            let after = add_char2buf(key, dst.wrapping_add(dlen as usize));
-            debug_assert!(after as usize >= dst as usize);
-            dlen = (after as usize - dst as usize) as u32;
-        } else {
-            dlen += utf_char2bytes(key, dst.wrapping_add(dlen as usize)) as u32;
-        }
-
-        dlen
+        dlen += 1;
     }
+
+    if is_special(key) {
+        unsafe {
+            *dst.wrapping_add(dlen as usize) = K_SPECIAL as c_char;
+        }
+        dlen += 1;
+        unsafe {
+            *dst.wrapping_add(dlen as usize) = (key2termcap0(key) as u8) as c_char;
+        }
+        dlen += 1;
+        unsafe {
+            *dst.wrapping_add(dlen as usize) = (key2termcap1(key) as u8) as c_char;
+        }
+        dlen += 1;
+    } else if escape_ks {
+        let after = add_char2buf(key, dst.wrapping_add(dlen as usize));
+        debug_assert!(after as usize >= dst as usize);
+        dlen = (after as usize - dst as usize) as u32;
+    } else {
+        dlen += utf_char2bytes(key, dst.wrapping_add(dlen as usize)) as u32;
+    }
+
+    dlen
 }
 
 /// Try to include modifiers (except alt/meta) in the key (`extract_modifiers`).
@@ -2443,189 +2453,185 @@ pub fn find_special_key(
     flags: i32,
     did_simplify: Option<&mut bool>,
 ) -> i32 {
+    if src_len == 0 {
+        return 0;
+    }
+
+    let mut src = unsafe { *srcp };
+    if crate::memory::cstr_first_byte(src) != b'<' {
+        return 0;
+    }
+    let end = src.wrapping_add(src_len - 1);
+    let in_string = (flags & FSK_IN_STRING) != 0;
+    if (src as usize) < (end as usize) && crate::memory::cstr_byte_at(src, 1) == b'*' {
+        // <*xxx>: do not simplify
+        src = src.wrapping_add(1);
+    }
+
+    // Find end of modifier list
+    let mut last_dash = src;
+    let mut bp = src.wrapping_add(1);
+    while (bp as usize) <= (end as usize)
+        && (crate::memory::cstr_first_byte(bp) == b'-'
+            || ascii_isident(crate::memory::cstr_first_char(bp)))
     {
-        if src_len == 0 {
-            return 0;
-        }
-
-        let mut src = unsafe { *srcp };
-        if crate::memory::cstr_first_byte(src) != b'<' {
-            return 0;
-        }
-        let end = src.wrapping_add(src_len - 1);
-        let in_string = (flags & FSK_IN_STRING) != 0;
-        if (src as usize) < (end as usize) && crate::memory::cstr_byte_at(src, 1) == b'*' {
-            // <*xxx>: do not simplify
-            src = src.wrapping_add(1);
-        }
-
-        // Find end of modifier list
-        let mut last_dash = src;
-        let mut bp = src.wrapping_add(1);
-        while (bp as usize) <= (end as usize)
-            && (crate::memory::cstr_first_byte(bp) == b'-'
-                || ascii_isident(crate::memory::cstr_first_char(bp)))
-        {
-            if crate::memory::cstr_first_byte(bp) == b'-' {
-                last_dash = bp;
-                if (bp.wrapping_add(1) as usize) <= (end as usize) {
-                    let end_minus_bp = end as usize - bp as usize;
-                    let l =
-                        utfc_ptr2len_len(bp.wrapping_add(1), (end_minus_bp + 1) as i32) as usize;
-                    if end_minus_bp > l
-                        && !(in_string && crate::memory::cstr_byte_at(bp, 1) == b'"')
-                        && crate::memory::cstr_byte_at(bp, l + 1) == b'>'
-                    {
-                        bp = bp.wrapping_add(l);
-                    } else if end_minus_bp > 2
-                        && in_string
-                        && crate::memory::cstr_byte_at(bp, 1) == b'\\'
-                        && crate::memory::cstr_byte_at(bp, 2) == b'"'
-                        && crate::memory::cstr_byte_at(bp, 3) == b'>'
-                    {
-                        bp = bp.wrapping_add(2);
-                    }
+        if crate::memory::cstr_first_byte(bp) == b'-' {
+            last_dash = bp;
+            if (bp.wrapping_add(1) as usize) <= (end as usize) {
+                let end_minus_bp = end as usize - bp as usize;
+                let l = utfc_ptr2len_len(bp.wrapping_add(1), (end_minus_bp + 1) as i32) as usize;
+                if end_minus_bp > l
+                    && !(in_string && crate::memory::cstr_byte_at(bp, 1) == b'"')
+                    && crate::memory::cstr_byte_at(bp, l + 1) == b'>'
+                {
+                    bp = bp.wrapping_add(l);
+                } else if end_minus_bp > 2
+                    && in_string
+                    && crate::memory::cstr_byte_at(bp, 1) == b'\\'
+                    && crate::memory::cstr_byte_at(bp, 2) == b'"'
+                    && crate::memory::cstr_byte_at(bp, 3) == b'>'
+                {
+                    bp = bp.wrapping_add(2);
                 }
             }
-            if (bp as usize) <= (end as usize) {
-                let end_minus_bp = end as usize - bp as usize;
-                if end_minus_bp > 3
-                    && crate::memory::cstr_first_byte(bp) == b't'
-                    && crate::memory::cstr_byte_at(bp, 1) == b'_'
-                {
-                    bp = bp.wrapping_add(3); // skip t_xx, xx may be '-' or '>'
-                } else if end_minus_bp > 4
-                    && crate::memory::cstr_prefix_bytes(bp, 5).eq_ignore_ascii_case(b"char-")
-                {
-                    let mut l: i32 = 0;
-                    vim_str2nr(
-                        bp.wrapping_add(5),
-                        None,
-                        Some(&mut l),
-                        STR2NR_ALL,
-                        None,
-                        None,
-                        0,
-                        true,
-                        None,
-                    );
-                    if l == 0 {
-                        emsg(E_INVARG);
-                        return 0;
-                    }
-                    bp = bp.wrapping_add(l as usize + 5);
-                    break;
+        }
+        if (bp as usize) <= (end as usize) {
+            let end_minus_bp = end as usize - bp as usize;
+            if end_minus_bp > 3
+                && crate::memory::cstr_first_byte(bp) == b't'
+                && crate::memory::cstr_byte_at(bp, 1) == b'_'
+            {
+                bp = bp.wrapping_add(3); // skip t_xx, xx may be '-' or '>'
+            } else if end_minus_bp > 4
+                && crate::memory::cstr_prefix_bytes(bp, 5).eq_ignore_ascii_case(b"char-")
+            {
+                let mut l: i32 = 0;
+                vim_str2nr(
+                    bp.wrapping_add(5),
+                    None,
+                    Some(&mut l),
+                    STR2NR_ALL,
+                    None,
+                    None,
+                    0,
+                    true,
+                    None,
+                );
+                if l == 0 {
+                    emsg(E_INVARG);
+                    return 0;
                 }
+                bp = bp.wrapping_add(l as usize + 5);
+                break;
+            }
+        }
+        bp = bp.wrapping_add(1);
+    }
+
+    if (bp as usize) <= (end as usize) && crate::memory::cstr_first_byte(bp) == b'>' {
+        // found matching '>'
+        let end_of_name = bp.wrapping_add(1);
+
+        // Which modifiers are given?
+        let mut modifiers: i32 = 0;
+        bp = src.wrapping_add(1);
+        while (bp as usize) < (last_dash as usize) {
+            if crate::memory::cstr_first_byte(bp) != b'-' {
+                let bit = name_to_mod_mask(i32::from(crate::memory::cstr_first_byte(bp)));
+                if bit == 0 {
+                    break; // Illegal modifier name
+                }
+                modifiers |= bit;
             }
             bp = bp.wrapping_add(1);
         }
 
-        if (bp as usize) <= (end as usize) && crate::memory::cstr_first_byte(bp) == b'>' {
-            // found matching '>'
-            let end_of_name = bp.wrapping_add(1);
-
-            // Which modifiers are given?
-            let mut modifiers: i32 = 0;
-            bp = src.wrapping_add(1);
-            while (bp as usize) < (last_dash as usize) {
-                if crate::memory::cstr_first_byte(bp) != b'-' {
-                    let bit = name_to_mod_mask(i32::from(crate::memory::cstr_first_byte(bp)));
-                    if bit == 0 {
-                        break; // Illegal modifier name
-                    }
-                    modifiers |= bit;
+        // Legal modifier name.
+        if (bp as usize) >= (last_dash as usize) {
+            let mut key: i32;
+            if crate::memory::cstr_slice(last_dash, (1) + (5))[1..].eq_ignore_ascii_case(b"char-")
+                && ascii_isdigit(crate::memory::cstr_char_at(last_dash, 6))
+            {
+                // <Char-123> or <Char-033> or <Char-0x33>
+                let mut l: i32 = 0;
+                let mut n: u64 = 0;
+                vim_str2nr(
+                    last_dash.wrapping_add(6),
+                    None,
+                    Some(&mut l),
+                    STR2NR_ALL,
+                    None,
+                    Some(&mut n),
+                    0,
+                    true,
+                    None,
+                );
+                if l == 0 {
+                    emsg(E_INVARG);
+                    return 0;
                 }
-                bp = bp.wrapping_add(1);
+                key = n as i32;
+            } else {
+                let off: usize;
+                let l: usize;
+
+                // Modifier with single letter, or special key name.
+                if in_string
+                    && crate::memory::cstr_byte_at(last_dash, 1) == b'\\'
+                    && crate::memory::cstr_byte_at(last_dash, 2) == b'"'
+                {
+                    // Special case for a double-quoted string
+                    off = 2;
+                    l = 2;
+                } else {
+                    off = 1;
+                    l = utfc_ptr2len(last_dash.wrapping_add(1)) as usize;
+                }
+                if modifiers != 0 && crate::memory::cstr_byte_at(last_dash, l + 1) == b'>' {
+                    key = utf_ptr2char(last_dash.wrapping_add(off));
+                } else {
+                    key = get_special_key_code(last_dash.wrapping_add(off));
+                    if (flags & FSK_KEEP_X_KEY) == 0 {
+                        key = handle_x_keys(key);
+                    }
+                }
             }
 
-            // Legal modifier name.
-            if (bp as usize) >= (last_dash as usize) {
-                let mut key: i32;
-                if crate::memory::cstr_slice(last_dash, (1) + (5))[1..]
-                    .eq_ignore_ascii_case(b"char-")
-                    && ascii_isdigit(crate::memory::cstr_char_at(last_dash, 6))
-                {
-                    // <Char-123> or <Char-033> or <Char-0x33>
-                    let mut l: i32 = 0;
-                    let mut n: u64 = 0;
-                    vim_str2nr(
-                        last_dash.wrapping_add(6),
-                        None,
-                        Some(&mut l),
-                        STR2NR_ALL,
-                        None,
-                        Some(&mut n),
-                        0,
-                        true,
-                        None,
+            // get_special_key_code() may return NUL for invalid special key name.
+            if key != 0 {
+                // Only use a modifier when there is no special key code that
+                // includes the modifier.
+                key = simplify_key(key, &mut modifiers);
+
+                if (flags & FSK_KEYCODE) == 0 {
+                    // don't want keycode, use single byte code
+                    if key == K_BS {
+                        key = BS;
+                    } else if key == K_DEL || key == K_KDEL {
+                        key = DEL;
+                    }
+                }
+
+                // Normal Key with modifier:
+                // Try to make a single byte code (except for Alt/Meta modifiers).
+                if !is_special(key) {
+                    key = extract_modifiers(
+                        key,
+                        &mut modifiers,
+                        (flags & FSK_SIMPLIFY) != 0,
+                        (did_simplify.is_some()).then(|| &mut *did_simplify.unwrap()),
                     );
-                    if l == 0 {
-                        emsg(E_INVARG);
-                        return 0;
-                    }
-                    key = n as i32;
-                } else {
-                    let off: usize;
-                    let l: usize;
-
-                    // Modifier with single letter, or special key name.
-                    if in_string
-                        && crate::memory::cstr_byte_at(last_dash, 1) == b'\\'
-                        && crate::memory::cstr_byte_at(last_dash, 2) == b'"'
-                    {
-                        // Special case for a double-quoted string
-                        off = 2;
-                        l = 2;
-                    } else {
-                        off = 1;
-                        l = utfc_ptr2len(last_dash.wrapping_add(1)) as usize;
-                    }
-                    if modifiers != 0 && crate::memory::cstr_byte_at(last_dash, l + 1) == b'>' {
-                        key = utf_ptr2char(last_dash.wrapping_add(off));
-                    } else {
-                        key = get_special_key_code(last_dash.wrapping_add(off));
-                        if (flags & FSK_KEEP_X_KEY) == 0 {
-                            key = handle_x_keys(key);
-                        }
-                    }
                 }
 
-                // get_special_key_code() may return NUL for invalid special key name.
-                if key != 0 {
-                    // Only use a modifier when there is no special key code that
-                    // includes the modifier.
-                    key = simplify_key(key, &mut modifiers);
-
-                    if (flags & FSK_KEYCODE) == 0 {
-                        // don't want keycode, use single byte code
-                        if key == K_BS {
-                            key = BS;
-                        } else if key == K_DEL || key == K_KDEL {
-                            key = DEL;
-                        }
-                    }
-
-                    // Normal Key with modifier:
-                    // Try to make a single byte code (except for Alt/Meta modifiers).
-                    if !is_special(key) {
-                        key = extract_modifiers(
-                            key,
-                            &mut modifiers,
-                            (flags & FSK_SIMPLIFY) != 0,
-                            (did_simplify.is_some()).then(|| &mut *did_simplify.unwrap()),
-                        );
-                    }
-
-                    *modp = modifiers;
-                    unsafe {
-                        *srcp = end_of_name;
-                    }
-                    return key;
+                *modp = modifiers;
+                unsafe {
+                    *srcp = end_of_name;
                 }
+                return key;
             }
         }
-        0
     }
+    0
 }
 
 /// Try to find key `c` in the special key table (`find_special_key_in_table`).
@@ -2850,34 +2856,32 @@ pub fn replace_termcodes(
 
 /// Add character `c` to buffer `s`, escaping `K_SPECIAL` (`add_char2buf`).
 pub fn add_char2buf(c: i32, s: *mut c_char) -> *mut c_char {
-    {
-        let mut s = s;
-        let mut temp = [0 as c_char; MB_MAXBYTES + 1];
-        let len = utf_char2bytes(c, temp.as_mut_ptr()) as usize;
-        for &byte in &temp[..len] {
-            let b = byte as u8;
-            if b == K_SPECIAL {
-                unsafe {
-                    *s = K_SPECIAL as c_char;
-                }
-                s = s.wrapping_add(1);
-                unsafe {
-                    *s = KS_SPECIAL as c_char;
-                }
-                s = s.wrapping_add(1);
-                unsafe {
-                    *s = KE_FILLER as c_char;
-                }
-                s = s.wrapping_add(1);
-            } else {
-                unsafe {
-                    *s = byte;
-                }
-                s = s.wrapping_add(1);
+    let mut s = s;
+    let mut temp = [0 as c_char; MB_MAXBYTES + 1];
+    let len = utf_char2bytes(c, temp.as_mut_ptr()) as usize;
+    for &byte in &temp[..len] {
+        let b = byte as u8;
+        if b == K_SPECIAL {
+            unsafe {
+                *s = K_SPECIAL as c_char;
             }
+            s = s.wrapping_add(1);
+            unsafe {
+                *s = KS_SPECIAL as c_char;
+            }
+            s = s.wrapping_add(1);
+            unsafe {
+                *s = KE_FILLER as c_char;
+            }
+            s = s.wrapping_add(1);
+        } else {
+            unsafe {
+                *s = byte;
+            }
+            s = s.wrapping_add(1);
         }
-        s
     }
+    s
 }
 
 /// Copy `p` to an owned `CString`, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).

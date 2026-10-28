@@ -115,11 +115,9 @@ use crate::event::r#loop::{
 
 #[inline]
 fn getaddrinfo_req_addrinfo_ptr(req: *mut uv_getaddrinfo_t) -> *mut *mut addrinfo {
-    {
-        req.cast::<u8>()
-            .wrapping_add(unsafe { uv_req_size(UV_GETADDRINFO) } - 2 * size_of::<*mut c_void>())
-            .cast::<*mut addrinfo>()
-    }
+    req.cast::<u8>()
+        .wrapping_add(unsafe { uv_req_size(UV_GETADDRINFO) } - 2 * size_of::<*mut c_void>())
+        .cast::<*mut addrinfo>()
 }
 
 #[inline]
@@ -133,20 +131,18 @@ fn connect_req_handle(req: *mut uv_connect_t) -> *mut uv_stream_t {
 
 #[inline]
 fn poll_main_loop_until<F: FnMut() -> bool>(timeout: i64, mut cond: F) {
-    {
-        let mut remaining = timeout;
-        let mut before = if remaining > 0 { os_hrtime() } else { 0 };
-        while !cond() {
-            loop_poll_events(&mut *main_loop_ptr(), remaining);
-            if remaining == 0 {
+    let mut remaining = timeout;
+    let mut before = if remaining > 0 { os_hrtime() } else { 0 };
+    while !cond() {
+        loop_poll_events(&mut *main_loop_ptr(), remaining);
+        if remaining == 0 {
+            break;
+        } else if remaining > 0 {
+            let now = os_hrtime();
+            remaining -= ((now - before) / 1_000_000) as i64;
+            before = now;
+            if remaining <= 0 {
                 break;
-            } else if remaining > 0 {
-                let now = os_hrtime();
-                remaining -= ((now - before) / 1_000_000) as i64;
-                before = now;
-                if remaining <= 0 {
-                    break;
-                }
             }
         }
     }
@@ -186,14 +182,16 @@ pub fn socket_watcher_init(
     endpoint: impl crate::strings::IntoCCharPtr,
 ) -> i32 {
     let endpoint = endpoint.into_c_char_ptr();
-    unsafe {
+    {
         let addr = watcher.addr.as_mut_ptr();
         xstrlcpy(addr, endpoint, ADDRESS_MAX_SIZE);
         let host_end = socket_address_tcp_host_end(addr);
         let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
 
         if !host_end.is_null() {
-            *host_end = NUL;
+            unsafe {
+                *host_end = NUL;
+            }
             let mut port = host_end.wrapping_add(1);
             let mut port_scan = port;
             let mut iport: i64 = 0;
@@ -228,14 +226,16 @@ pub fn socket_watcher_init(
                 ai_next: ptr::null_mut(),
             };
 
-            let retval = uv_getaddrinfo(
-                (&raw mut loop_.uv).cast(),
-                (&raw mut request).cast(),
-                ptr::null_mut(),
-                addr,
-                port,
-                &raw const hints,
-            );
+            let retval = unsafe {
+                uv_getaddrinfo(
+                    (&raw mut loop_.uv).cast(),
+                    (&raw mut request).cast(),
+                    ptr::null_mut(),
+                    addr,
+                    port,
+                    &raw const hints,
+                )
+            };
             if retval != 0 {
                 logmsg!(
                     LOGLVL_ERR,
@@ -248,15 +248,18 @@ pub fn socket_watcher_init(
                 );
                 return retval;
             }
-            watcher.tcp_addrinfo = *getaddrinfo_req_addrinfo_ptr((&raw mut request).cast());
+            watcher.tcp_addrinfo =
+                unsafe { *getaddrinfo_req_addrinfo_ptr((&raw mut request).cast()) };
 
-            uv_tcp_init((&raw mut loop_.uv).cast(), uv_ptr.cast());
-            uv_tcp_nodelay(uv_ptr.cast(), 1);
+            unsafe { uv_tcp_init((&raw mut loop_.uv).cast(), uv_ptr.cast()) };
+            unsafe { uv_tcp_nodelay(uv_ptr.cast(), 1) };
         } else {
-            uv_pipe_init((&raw mut loop_.uv).cast(), uv_ptr.cast(), 0);
+            unsafe { uv_pipe_init((&raw mut loop_.uv).cast(), uv_ptr.cast(), 0) };
         }
 
-        *watcher.stream_ptr().cast::<*mut SocketWatcher>() = (&raw mut *watcher);
+        unsafe {
+            *watcher.stream_ptr().cast::<*mut SocketWatcher>() = (&raw mut *watcher);
+        }
         watcher.events = ptr::null_mut();
 
         0
@@ -288,12 +291,8 @@ fn socket_alive(loop_: &mut Loop, addr: impl crate::strings::IntoCCharPtr) -> bo
 
 unsafe extern "C" fn early_server_close_cb(handle: *mut uv_handle_t) {
     unsafe {
-        {
-            {
-                let closed = *handle.cast::<*mut bool>();
-                *closed = true;
-            }
-        }
+        let closed = *handle.cast::<*mut bool>();
+        *closed = true;
     }
 }
 
@@ -448,45 +447,33 @@ pub fn connection_event(watcher: *mut SocketWatcher, status: i32) {
 
 unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: i32) {
     unsafe {
-        {
-            {
-                let watcher = *handle.cast::<*mut SocketWatcher>();
-                if !(*watcher).events.is_null() {
-                    multiqueue_put_event(
-                        &mut *(*watcher).events,
-                        Event::SocketConnection { watcher, status },
-                    );
-                } else {
-                    connection_event(watcher, status);
-                }
-            }
+        let watcher = *handle.cast::<*mut SocketWatcher>();
+        if !(*watcher).events.is_null() {
+            multiqueue_put_event(
+                &mut *(*watcher).events,
+                Event::SocketConnection { watcher, status },
+            );
+        } else {
+            connection_event(watcher, status);
         }
     }
 }
 
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
-        {
-            {
-                let watcher = *handle.cast::<*mut SocketWatcher>();
-                drop(Box::from_raw(watcher));
-            }
-        }
+        let watcher = *handle.cast::<*mut SocketWatcher>();
+        drop(Box::from_raw(watcher));
     }
 }
 
 unsafe extern "C" fn connect_cb(req: *mut uv_connect_t, status: i32) {
     unsafe {
-        {
-            {
-                let ret_status = *req.cast::<*mut i32>();
-                *ret_status = status;
-                let handle = connect_req_handle(req);
-                if status != 0 {
-                    let stream = *handle.cast::<*mut Stream>();
-                    stream_may_close(&mut *stream);
-                }
-            }
+        let ret_status = *req.cast::<*mut i32>();
+        *ret_status = status;
+        let handle = connect_req_handle(req);
+        if status != 0 {
+            let stream = *handle.cast::<*mut Stream>();
+            stream_may_close(&mut *stream);
         }
     }
 }
@@ -608,13 +595,11 @@ mod tests {
 
     #[test]
     fn socket_address_tcp_host_end_detects_tcp_and_rejects_drive_letters() {
-        {
-            assert!(socket_address_tcp_host_end(std::ptr::null()).is_null());
-            assert!(socket_address_tcp_host_end(c"C:/tmp/nvim.sock").is_null());
-            assert!(socket_address_tcp_host_end(c"/tmp/nvim.sock").is_null());
-            let s = c"127.0.0.1:6666".as_ptr();
-            let host_end = socket_address_tcp_host_end(s);
-            assert_eq!(host_end, s.wrapping_add(9).cast_mut());
-        }
+        assert!(socket_address_tcp_host_end(std::ptr::null()).is_null());
+        assert!(socket_address_tcp_host_end(c"C:/tmp/nvim.sock").is_null());
+        assert!(socket_address_tcp_host_end(c"/tmp/nvim.sock").is_null());
+        let s = c"127.0.0.1:6666".as_ptr();
+        let host_end = socket_address_tcp_host_end(s);
+        assert_eq!(host_end, s.wrapping_add(9).cast_mut());
     }
 }

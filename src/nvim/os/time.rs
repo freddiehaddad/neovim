@@ -71,16 +71,14 @@ pub fn os_hrtime() -> u64 {
 
 /// High-resolution real-time clock in nanoseconds since Unix epoch (`os_realtime`).
 pub fn os_realtime() -> i64 {
-    {
-        let mut ts = UvTimespec64 {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        if unsafe { uv_clock_gettime(UV_CLOCK_REALTIME, &mut ts) } != 0 {
-            return 0;
-        }
-        ts.tv_sec * NS_PER_SEC + i64::from(ts.tv_nsec)
+    let mut ts = UvTimespec64 {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    if unsafe { uv_clock_gettime(UV_CLOCK_REALTIME, &mut ts) } != 0 {
+        return 0;
     }
+    ts.tv_sec * NS_PER_SEC + i64::from(ts.tv_nsec)
 }
 
 /// Millisecond-resolution monotonic loop time (`os_now`).
@@ -90,30 +88,28 @@ pub fn os_now() -> u64 {
 
 /// Sleep for `ms` milliseconds while polling the main event loop (`os_delay`).
 pub fn os_delay(ms: u64, ignoreinput: bool) {
-    {
-        let clamped = ms.min(u64::from(i32::MAX as u32)) as i64;
-        let mut remaining = clamped;
-        let mut before = if remaining > 0 { os_hrtime() } else { 0 };
+    let clamped = ms.min(u64::from(i32::MAX as u32)) as i64;
+    let mut remaining = clamped;
+    let mut before = if remaining > 0 { os_hrtime() } else { 0 };
 
-        loop {
-            let cond = if ignoreinput {
-                g_st().got_int
-            } else {
-                os_input_ready(None)
-            };
-            if cond {
+    loop {
+        let cond = if ignoreinput {
+            g_st().got_int
+        } else {
+            os_input_ready(None)
+        };
+        if cond {
+            break;
+        }
+        loop_poll_events(&mut g_st().main_loop, remaining);
+        if remaining == 0 {
+            break;
+        } else if remaining > 0 {
+            let now = os_hrtime();
+            remaining -= ((now - before) / 1_000_000) as i64;
+            before = now;
+            if remaining <= 0 {
                 break;
-            }
-            loop_poll_events(&mut g_st().main_loop, remaining);
-            if remaining == 0 {
-                break;
-            } else if remaining > 0 {
-                let now = os_hrtime();
-                remaining -= ((now - before) / 1_000_000) as i64;
-                before = now;
-                if remaining <= 0 {
-                    break;
-                }
             }
         }
     }

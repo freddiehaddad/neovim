@@ -1341,12 +1341,10 @@ fn map_put_name_to_id(name: impl crate::strings::IntoCCharPtr, val: i32) {
 }
 
 fn map_get_id_to_name(key: i32) -> *mut c_char {
-    {
-        au_st()
-            .map_augroup_id_to_name
-            .get(&key)
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
-    }
+    au_st()
+        .map_augroup_id_to_name
+        .get(&key)
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
 }
 
 fn map_put_id_to_name(key: i32, name: impl crate::strings::IntoCCharPtr) {
@@ -1506,10 +1504,8 @@ fn event_name2nr_hash(str_: impl crate::strings::IntoCCharPtr, len: usize) -> is
 }
 
 pub fn autocmd_init() {
-    {
-        let events = loop_queues(&mut g_st().main_loop).events;
-        g_st().deferred_events = multiqueue_new_child(events);
-    }
+    let events = loop_queues(&mut g_st().main_loop).events;
+    g_st().deferred_events = multiqueue_new_child(events);
 }
 
 pub fn autocmd_free_all_mem() {
@@ -1692,32 +1688,28 @@ fn aucmd_del(ac: &mut AutoCmd) {
 }
 
 pub fn aucmd_del_for_event_and_group(event: AuEvent, group: i32) {
-    {
-        let acs = &mut au_st().autocmds[event as usize];
-        for ac in acs {
-            if ac.pat.as_ref().is_some_and(|ap| ap.group == group) {
-                aucmd_del(ac);
-            }
+    let acs = &mut au_st().autocmds[event as usize];
+    for ac in acs {
+        if ac.pat.as_ref().is_some_and(|ap| ap.group == group) {
+            aucmd_del(ac);
         }
-        au_cleanup();
     }
+    au_cleanup();
 }
 
 fn au_cleanup() {
-    {
-        if g_st().autocmd_busy || !au_st().au_need_clean {
-            return;
-        }
-
-        for acs in &mut au_st().autocmds {
-            acs.retain(|ac| ac.pat.is_some());
-            if acs.is_empty() {
-                *acs = Vec::new();
-            }
-        }
-
-        au_st().au_need_clean = false;
+    if g_st().autocmd_busy || !au_st().au_need_clean {
+        return;
     }
+
+    for acs in &mut au_st().autocmds {
+        acs.retain(|ac| ac.pat.is_some());
+        if acs.is_empty() {
+            *acs = Vec::new();
+        }
+    }
+
+    au_st().au_need_clean = false;
 }
 
 pub fn au_get_autocmds_for_event(event: AuEvent) -> &'static mut AutoCmdVec {
@@ -1725,40 +1717,38 @@ pub fn au_get_autocmds_for_event(event: AuEvent) -> &'static mut AutoCmdVec {
 }
 
 pub fn aubuflocal_remove(buf: &mut FileBuf) {
-    {
-        for arg_bufnr in au_st().active_apc_list.iter().rev() {
-            if buf.b_fnum == arg_bufnr.get() {
-                arg_bufnr.set(0);
-            }
+    for arg_bufnr in au_st().active_apc_list.iter().rev() {
+        if buf.b_fnum == arg_bufnr.get() {
+            arg_bufnr.set(0);
         }
-
-        for event in 0..NUM_EVENTS as AuEvent {
-            let acs = &mut au_st().autocmds[event as usize];
-            for ac in acs {
-                if !ac
-                    .pat
-                    .as_ref()
-                    .is_some_and(|ap| ap.buflocal_nr == buf.b_fnum)
-                {
-                    continue;
-                }
-
-                aucmd_del(ac);
-
-                if opt_vars().p_verbose >= 6 {
-                    verbose_enter();
-                    smsg!(
-                        0,
-                        tr(c"auto-removing autocommand: %s <buffer=%d>"),
-                        event_nr2name(event),
-                        buf.b_fnum,
-                    );
-                    verbose_leave();
-                }
-            }
-        }
-        au_cleanup();
     }
+
+    for event in 0..NUM_EVENTS as AuEvent {
+        let acs = &mut au_st().autocmds[event as usize];
+        for ac in acs {
+            if !ac
+                .pat
+                .as_ref()
+                .is_some_and(|ap| ap.buflocal_nr == buf.b_fnum)
+            {
+                continue;
+            }
+
+            aucmd_del(ac);
+
+            if opt_vars().p_verbose >= 6 {
+                verbose_enter();
+                smsg!(
+                    0,
+                    tr(c"auto-removing autocommand: %s <buffer=%d>"),
+                    event_nr2name(event),
+                    buf.b_fnum,
+                );
+                verbose_leave();
+            }
+        }
+    }
+    au_cleanup();
 }
 
 pub fn augroup_add(name: impl crate::strings::IntoCCharPtr) -> i32 {
@@ -1935,19 +1925,17 @@ pub fn do_augroup(arg: impl crate::strings::IntoCCharPtr, del_group: bool) {
 }
 
 pub fn free_all_autocmds() {
-    {
-        for acs in &mut au_st().autocmds {
-            for ac in acs.iter_mut() {
-                aucmd_del(ac);
-            }
-            *acs = Vec::new();
-            au_st().au_need_clean = false;
+    for acs in &mut au_st().autocmds {
+        for ac in acs.iter_mut() {
+            aucmd_del(ac);
         }
-
-        au_st().map_augroup_name_to_id = Vec::new();
-
-        au_st().map_augroup_id_to_name = std::collections::BTreeMap::new();
+        *acs = Vec::new();
+        au_st().au_need_clean = false;
     }
+
+    au_st().map_augroup_name_to_id = Vec::new();
+
+    au_st().map_augroup_id_to_name = std::collections::BTreeMap::new();
 }
 
 pub fn event_name2nr(start: impl crate::strings::IntoCCharPtr, end: *mut *mut c_char) -> AuEvent {
@@ -1995,70 +1983,63 @@ pub fn event_nr2name(event: AuEvent) -> &'static std::ffi::CStr {
 }
 
 pub fn event_ignored(event: AuEvent, mut ei: *mut c_char) -> bool {
-    {
-        let mut ignored = false;
-        while !crate::memory::cstr_is_empty(ei) {
-            let unignore = crate::memory::cstr_first_byte(ei) == b'-';
-            if unignore {
-                ei = ei.wrapping_add(1);
-            }
-            if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(b"all")
-                && (crate::memory::cstr_byte_at(ei, 3) == 0
-                    || crate::memory::cstr_byte_at(ei, 3) == b',')
-            {
-                ignored = ptr::eq(ei.cast_const(), opt_vars().p_ei.cast_const())
-                    || EVENT_NAMES[event as usize].event <= 0;
-                ei = ei.wrapping_add(3 + usize::from(crate::memory::cstr_byte_at(ei, 3) == b','));
-            } else if event_name2nr(ei, &raw mut ei) == event {
-                if unignore {
-                    return false;
-                }
-                ignored = true;
-            }
+    let mut ignored = false;
+    while !crate::memory::cstr_is_empty(ei) {
+        let unignore = crate::memory::cstr_first_byte(ei) == b'-';
+        if unignore {
+            ei = ei.wrapping_add(1);
         }
-        ignored
+        if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(b"all")
+            && (crate::memory::cstr_byte_at(ei, 3) == 0
+                || crate::memory::cstr_byte_at(ei, 3) == b',')
+        {
+            ignored = ptr::eq(ei.cast_const(), opt_vars().p_ei.cast_const())
+                || EVENT_NAMES[event as usize].event <= 0;
+            ei = ei.wrapping_add(3 + usize::from(crate::memory::cstr_byte_at(ei, 3) == b','));
+        } else if event_name2nr(ei, &raw mut ei) == event {
+            if unignore {
+                return false;
+            }
+            ignored = true;
+        }
     }
+    ignored
 }
 
 pub fn check_ei(mut ei: *mut c_char, win: bool) -> bool {
-    {
-        while !crate::memory::cstr_is_empty(ei) {
-            if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(b"all")
-                && (crate::memory::cstr_byte_at(ei, 3) == 0
-                    || crate::memory::cstr_byte_at(ei, 3) == b',')
-            {
-                ei = ei.wrapping_add(3 + usize::from(crate::memory::cstr_byte_at(ei, 3) == b','));
-            } else {
-                if crate::memory::cstr_first_byte(ei) == b'-' {
-                    ei = ei.wrapping_add(1);
-                }
-                let event = event_name2nr(ei, &raw mut ei);
-                if event == NUM_EVENTS as AuEvent || (win && EVENT_NAMES[event as usize].event > 0)
-                {
-                    return false;
-                }
+    while !crate::memory::cstr_is_empty(ei) {
+        if crate::memory::cstr_prefix_bytes(ei, 3).eq_ignore_ascii_case(b"all")
+            && (crate::memory::cstr_byte_at(ei, 3) == 0
+                || crate::memory::cstr_byte_at(ei, 3) == b',')
+        {
+            ei = ei.wrapping_add(3 + usize::from(crate::memory::cstr_byte_at(ei, 3) == b','));
+        } else {
+            if crate::memory::cstr_first_byte(ei) == b'-' {
+                ei = ei.wrapping_add(1);
+            }
+            let event = event_name2nr(ei, &raw mut ei);
+            if event == NUM_EVENTS as AuEvent || (win && EVENT_NAMES[event as usize].event > 0) {
+                return false;
             }
         }
-        true
     }
+    true
 }
 
 pub fn au_event_disable(what: &std::ffi::CStr) -> std::ffi::CString {
-    {
-        let p_ei_bytes = crate::memory::cstr_as_bytes(opt_vars().p_ei);
-        let what_bytes = what.to_bytes();
-        let save_ei = crate::memory::cstr_to_cstring(opt_vars().p_ei);
-        let mut new_ei_vec: Vec<u8> = Vec::with_capacity(p_ei_bytes.len() + what_bytes.len());
-        if what_bytes.first() == Some(&b',') && p_ei_bytes.is_empty() {
-            new_ei_vec.extend_from_slice(&what_bytes[1..]);
-        } else {
-            new_ei_vec.extend_from_slice(p_ei_bytes);
-            new_ei_vec.extend_from_slice(what_bytes);
-        }
-        let new_ei = CString::new(new_ei_vec).unwrap_or_default();
-        set_option_direct(K_OPT_EVENTIGNORE, cstr_as_obj(new_ei.as_ptr()), 0, SID_NONE);
-        save_ei
+    let p_ei_bytes = crate::memory::cstr_as_bytes(opt_vars().p_ei);
+    let what_bytes = what.to_bytes();
+    let save_ei = crate::memory::cstr_to_cstring(opt_vars().p_ei);
+    let mut new_ei_vec: Vec<u8> = Vec::with_capacity(p_ei_bytes.len() + what_bytes.len());
+    if what_bytes.first() == Some(&b',') && p_ei_bytes.is_empty() {
+        new_ei_vec.extend_from_slice(&what_bytes[1..]);
+    } else {
+        new_ei_vec.extend_from_slice(p_ei_bytes);
+        new_ei_vec.extend_from_slice(what_bytes);
     }
+    let new_ei = CString::new(new_ei_vec).unwrap_or_default();
+    set_option_direct(K_OPT_EVENTIGNORE, cstr_as_obj(new_ei.as_ptr()), 0, SID_NONE);
+    save_ei
 }
 
 pub fn au_event_restore(old_ei: Option<std::ffi::CString>) {
@@ -2068,130 +2049,127 @@ pub fn au_event_restore(old_ei: Option<std::ffi::CString>) {
 }
 
 pub fn do_autocmd(eap: &mut Exarg, arg_in: *mut c_char, forceit: i32) {
-    {
-        let mut arg = arg_in;
-        let mut envpat: Option<CString> = None;
-        let mut cmd: *mut c_char;
-        let mut cmd_owned: Option<CString> = None;
-        let mut nested = false;
-        let mut once = false;
-        let group = if crate::memory::cstr_first_byte(arg) == b'|' {
-            eap.nextcmd = arg.wrapping_add(1);
-            arg = c"".as_ptr().cast_mut();
-            AUGROUP_ALL
-        } else {
-            arg_augroup_get(&raw mut arg)
-        };
+    let mut arg = arg_in;
+    let mut envpat: Option<CString> = None;
+    let mut cmd: *mut c_char;
+    let mut cmd_owned: Option<CString> = None;
+    let mut nested = false;
+    let mut once = false;
+    let group = if crate::memory::cstr_first_byte(arg) == b'|' {
+        eap.nextcmd = arg.wrapping_add(1);
+        arg = c"".as_ptr().cast_mut();
+        AUGROUP_ALL
+    } else {
+        arg_augroup_get(&raw mut arg)
+    };
 
-        let mut pat = arg_event_skip(arg, group != AUGROUP_ALL);
-        if pat.is_null() {
-            return;
-        }
-
-        pat = skipwhite(pat);
-        'run: {
-            if crate::memory::cstr_first_byte(pat) == b'|' {
-                eap.nextcmd = pat.wrapping_add(1);
-                pat = c"".as_ptr().cast_mut();
-                cmd = c"".as_ptr().cast_mut();
-            } else {
-                cmd = pat;
-                while !crate::memory::cstr_is_empty(cmd)
-                    && (!ascii_iswhite(crate::memory::cstr_first_char(cmd))
-                        || crate::memory::cstr_first_byte(cmd.wrapping_sub(1)) == b'\\')
-                {
-                    cmd = cmd.wrapping_add(1);
-                }
-                if !crate::memory::cstr_is_empty(cmd) {
-                    unsafe {
-                        *cmd = NUL;
-                    }
-                    cmd = cmd.wrapping_add(1);
-                }
-
-                if crate::strings::vim_haschr(pat, b'$' as i32)
-                    || crate::strings::vim_haschr(pat, b'~' as i32)
-                {
-                    let ep = expand_env_save(pat);
-                    pat = ep.as_ptr().cast_mut();
-                    envpat = Some(ep);
-                }
-
-                cmd = skipwhite(cmd);
-
-                let mut invalid_flags = false;
-                for _ in 0..2 {
-                    if crate::memory::cstr_is_empty(cmd) {
-                        continue;
-                    }
-                    invalid_flags |= arg_autocmd_flag_get(&mut once, &raw mut cmd, c"++once", 6);
-                    invalid_flags |=
-                        arg_autocmd_flag_get(&mut nested, &raw mut cmd, c"++nested", 8);
-                    invalid_flags |= arg_autocmd_flag_get(&mut nested, &raw mut cmd, c"nested", 6);
-                }
-
-                if invalid_flags {
-                    break 'run;
-                }
-
-                if !crate::memory::cstr_is_empty(cmd) {
-                    cmd_owned = expand_sfile(cmd);
-                    match cmd_owned {
-                        Some(ref co) => cmd = co.as_ptr().cast_mut(),
-                        None => break 'run,
-                    }
-                }
-            }
-
-            let is_showing = forceit == 0 && crate::memory::cstr_is_empty(cmd);
-
-            if is_showing {
-                msg_ext_set_kind(c"list_cmd");
-                msg_puts_title(tr(c"\n--- Autocommands ---"));
-
-                if crate::memory::cstr_first_byte(arg) == b'*'
-                    || crate::memory::cstr_first_byte(arg) == b'|'
-                    || crate::memory::cstr_is_empty(arg)
-                {
-                    au_show_for_all_events(group, pat);
-                } else {
-                    let event = event_name2nr(arg, &raw mut arg);
-                    assert!((event as usize) < NUM_EVENTS);
-                    au_show_for_event(group, event, pat);
-                }
-            } else if crate::memory::cstr_first_byte(arg) == b'*'
-                || crate::memory::cstr_is_empty(arg)
-                || crate::memory::cstr_first_byte(arg) == b'|'
-            {
-                if !crate::memory::cstr_is_empty(cmd) {
-                    emsg(tr(E_CANNOT_DEFINE_AUTOCOMMANDS_FOR_ALL_EVENTS));
-                } else {
-                    do_all_autocmd_events(pat, once, i32::from(nested), cmd, forceit != 0, group);
-                }
-            } else {
-                while !crate::memory::cstr_is_empty(arg)
-                    && crate::memory::cstr_first_byte(arg) != b'|'
-                    && !ascii_iswhite(crate::memory::cstr_first_char(arg))
-                {
-                    let event = event_name2nr(arg, &raw mut arg);
-                    assert!((event as usize) < NUM_EVENTS);
-                    if !do_autocmd_event(
-                        event,
-                        pat,
-                        once,
-                        i32::from(nested),
-                        cmd,
-                        forceit != 0,
-                        group,
-                    ) {
-                        break;
-                    }
-                }
-            }
-        }
-        drop(cmd_owned);
-        drop(envpat);
+    let mut pat = arg_event_skip(arg, group != AUGROUP_ALL);
+    if pat.is_null() {
+        return;
     }
+
+    pat = skipwhite(pat);
+    'run: {
+        if crate::memory::cstr_first_byte(pat) == b'|' {
+            eap.nextcmd = pat.wrapping_add(1);
+            pat = c"".as_ptr().cast_mut();
+            cmd = c"".as_ptr().cast_mut();
+        } else {
+            cmd = pat;
+            while !crate::memory::cstr_is_empty(cmd)
+                && (!ascii_iswhite(crate::memory::cstr_first_char(cmd))
+                    || crate::memory::cstr_first_byte(cmd.wrapping_sub(1)) == b'\\')
+            {
+                cmd = cmd.wrapping_add(1);
+            }
+            if !crate::memory::cstr_is_empty(cmd) {
+                unsafe {
+                    *cmd = NUL;
+                }
+                cmd = cmd.wrapping_add(1);
+            }
+
+            if crate::strings::vim_haschr(pat, b'$' as i32)
+                || crate::strings::vim_haschr(pat, b'~' as i32)
+            {
+                let ep = expand_env_save(pat);
+                pat = ep.as_ptr().cast_mut();
+                envpat = Some(ep);
+            }
+
+            cmd = skipwhite(cmd);
+
+            let mut invalid_flags = false;
+            for _ in 0..2 {
+                if crate::memory::cstr_is_empty(cmd) {
+                    continue;
+                }
+                invalid_flags |= arg_autocmd_flag_get(&mut once, &raw mut cmd, c"++once", 6);
+                invalid_flags |= arg_autocmd_flag_get(&mut nested, &raw mut cmd, c"++nested", 8);
+                invalid_flags |= arg_autocmd_flag_get(&mut nested, &raw mut cmd, c"nested", 6);
+            }
+
+            if invalid_flags {
+                break 'run;
+            }
+
+            if !crate::memory::cstr_is_empty(cmd) {
+                cmd_owned = expand_sfile(cmd);
+                match cmd_owned {
+                    Some(ref co) => cmd = co.as_ptr().cast_mut(),
+                    None => break 'run,
+                }
+            }
+        }
+
+        let is_showing = forceit == 0 && crate::memory::cstr_is_empty(cmd);
+
+        if is_showing {
+            msg_ext_set_kind(c"list_cmd");
+            msg_puts_title(tr(c"\n--- Autocommands ---"));
+
+            if crate::memory::cstr_first_byte(arg) == b'*'
+                || crate::memory::cstr_first_byte(arg) == b'|'
+                || crate::memory::cstr_is_empty(arg)
+            {
+                au_show_for_all_events(group, pat);
+            } else {
+                let event = event_name2nr(arg, &raw mut arg);
+                assert!((event as usize) < NUM_EVENTS);
+                au_show_for_event(group, event, pat);
+            }
+        } else if crate::memory::cstr_first_byte(arg) == b'*'
+            || crate::memory::cstr_is_empty(arg)
+            || crate::memory::cstr_first_byte(arg) == b'|'
+        {
+            if !crate::memory::cstr_is_empty(cmd) {
+                emsg(tr(E_CANNOT_DEFINE_AUTOCOMMANDS_FOR_ALL_EVENTS));
+            } else {
+                do_all_autocmd_events(pat, once, i32::from(nested), cmd, forceit != 0, group);
+            }
+        } else {
+            while !crate::memory::cstr_is_empty(arg)
+                && crate::memory::cstr_first_byte(arg) != b'|'
+                && !ascii_iswhite(crate::memory::cstr_first_char(arg))
+            {
+                let event = event_name2nr(arg, &raw mut arg);
+                assert!((event as usize) < NUM_EVENTS);
+                if !do_autocmd_event(
+                    event,
+                    pat,
+                    once,
+                    i32::from(nested),
+                    cmd,
+                    forceit != 0,
+                    group,
+                ) {
+                    break;
+                }
+            }
+        }
+    }
+    drop(cmd_owned);
+    drop(envpat);
 }
 
 pub fn do_all_autocmd_events(
@@ -2532,46 +2510,44 @@ pub fn do_doautocmd(
 }
 
 pub fn ex_doautoall(eap: &mut Exarg) {
-    {
-        let mut retval = OK;
-        let mut aco: CtxSwitch = CtxSwitch::new();
-        let mut arg = eap.arg;
-        let call_do_modelines = check_nomodeline(&raw mut arg);
-        let mut bufref: Bufref = Bufref::new();
-        let mut did_aucmd = false;
+    let mut retval = OK;
+    let mut aco: CtxSwitch = CtxSwitch::new();
+    let mut arg = eap.arg;
+    let call_do_modelines = check_nomodeline(&raw mut arg);
+    let mut bufref: Bufref = Bufref::new();
+    let mut did_aucmd = false;
 
-        for buf in for_all_buffers_ptr() {
-            if buf.b_ml.ml_mfp.is_none() || std::ptr::eq(buf, g_st().curbuf) {
-                continue;
-            }
-
-            ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
-            set_bufref(&mut bufref, buf);
-
-            let ok = do_doautocmd(arg, false, Some(&mut did_aucmd));
-            retval = if ok { OK } else { FAIL };
-
-            if call_do_modelines && did_aucmd {
-                do_modelines(if is_ctx_win(curwin_ptr()) {
-                    OPT_NOWIN
-                } else {
-                    0
-                });
-            }
-
-            ctx_restore(&mut aco);
-
-            if !ok || !bufref_valid(Some(&bufref)) {
-                retval = FAIL;
-                break;
-            }
+    for buf in for_all_buffers_ptr() {
+        if buf.b_ml.ml_mfp.is_none() || std::ptr::eq(buf, g_st().curbuf) {
+            continue;
         }
 
-        if retval == OK {
-            do_doautocmd(arg, false, Some(&mut did_aucmd));
-            if call_do_modelines && did_aucmd {
-                do_modelines(0);
-            }
+        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        set_bufref(&mut bufref, buf);
+
+        let ok = do_doautocmd(arg, false, Some(&mut did_aucmd));
+        retval = if ok { OK } else { FAIL };
+
+        if call_do_modelines && did_aucmd {
+            do_modelines(if is_ctx_win(curwin_ptr()) {
+                OPT_NOWIN
+            } else {
+                0
+            });
+        }
+
+        ctx_restore(&mut aco);
+
+        if !ok || !bufref_valid(Some(&bufref)) {
+            retval = FAIL;
+            break;
+        }
+    }
+
+    if retval == OK {
+        do_doautocmd(arg, false, Some(&mut did_aucmd));
+        if call_do_modelines && did_aucmd {
+            do_modelines(0);
         }
     }
 }
@@ -2685,21 +2661,19 @@ pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
 }
 
 pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
+    if !has_event(EVENT_OPTIONSET)
+        || (bt_nofile(Some(buf)) && buf.b_p_bl == 0)
+        || !crate::memory::cstr_is_empty(get_vim_var_str(VV_OPTION_TYPE))
     {
-        if !has_event(EVENT_OPTIONSET)
-            || (bt_nofile(Some(buf)) && buf.b_p_bl == 0)
-            || !crate::memory::cstr_is_empty(get_vim_var_str(VV_OPTION_TYPE))
-        {
-            return;
-        }
-        multiqueue_put_event(
-            unsafe { &mut *g_st().deferred_events },
-            Event::AutoCmdOptionSetModified {
-                bufnr: buf.b_fnum,
-                new_val,
-            },
-        );
+        return;
     }
+    multiqueue_put_event(
+        unsafe { &mut *g_st().deferred_events },
+        Event::AutoCmdOptionSetModified {
+            bufnr: buf.b_fnum,
+            new_val,
+        },
+    );
 }
 
 pub fn apply_autocmds(
@@ -2812,10 +2786,8 @@ pub fn apply_autocmds_retval(
 }
 
 pub fn has_event(event: AuEvent) -> bool {
-    {
-        let acs = &au_st().autocmds[event as usize];
-        !acs.is_empty()
-    }
+    let acs = &au_st().autocmds[event as usize];
+    !acs.is_empty()
 }
 
 fn has_cursorhold() -> bool {
@@ -3200,38 +3172,36 @@ pub fn apply_autocmds_group(
 }
 
 pub fn do_termresponse_autocmd(sequence: NvimString, channel_id: u64) {
-    {
-        let mut data_items = [
-            KeyValuePair {
-                key: static_cstr_as_string(c"sequence"),
-                value: string_obj(sequence),
-            },
-            KeyValuePair {
-                key: static_cstr_as_string(c"chan"),
-                value: integer_obj(channel_id as Integer),
-            },
-        ];
-        let data = Dict {
-            items: data_items.as_mut_ptr(),
-            size: 2,
-            capacity: 2,
-        };
-        let mut data_obj = dict_obj(data);
-        apply_autocmds_group(
-            EVENT_TERMRESPONSE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            true,
-            AUGROUP_ALL,
-            ptr::null_mut(),
-            Some(crate::globals::curwin_mut()),
-            None,
-            &raw mut data_obj,
-            false,
-        );
-        au_st().termresponse_changed = true;
-        au_st().termresponse_chan_id = channel_id;
-    }
+    let mut data_items = [
+        KeyValuePair {
+            key: static_cstr_as_string(c"sequence"),
+            value: string_obj(sequence),
+        },
+        KeyValuePair {
+            key: static_cstr_as_string(c"chan"),
+            value: integer_obj(channel_id as Integer),
+        },
+    ];
+    let data = Dict {
+        items: data_items.as_mut_ptr(),
+        size: 2,
+        capacity: 2,
+    };
+    let mut data_obj = dict_obj(data);
+    apply_autocmds_group(
+        EVENT_TERMRESPONSE,
+        ptr::null_mut(),
+        ptr::null_mut(),
+        true,
+        AUGROUP_ALL,
+        ptr::null_mut(),
+        Some(crate::globals::curwin_mut()),
+        None,
+        &raw mut data_obj,
+        false,
+    );
+    au_st().termresponse_changed = true;
+    au_st().termresponse_chan_id = channel_id;
 }
 
 #[unsafe(no_mangle)]
@@ -3259,243 +3229,237 @@ pub fn is_autocmd_blocked() -> bool {
 }
 
 fn aucmd_next(apc: &mut AutoPatCmd) {
-    {
-        let entry = rt_st().exestack.last_mut().unwrap();
+    let entry = rt_st().exestack.last_mut().unwrap();
 
-        let acs = &mut au_st().autocmds[apc.event as usize];
-        assert!(apc.ausize <= acs.len());
-        let mut i = apc.auidx;
-        while i < apc.ausize && !g_st().got_int {
-            let ac = &(acs)[i];
-            let Some(ref ap) = ac.pat else {
+    let acs = &mut au_st().autocmds[apc.event as usize];
+    assert!(apc.ausize <= acs.len());
+    let mut i = apc.auidx;
+    while i < apc.ausize && !g_st().got_int {
+        let ac = &(acs)[i];
+        let Some(ref ap) = ac.pat else {
+            i += 1;
+            continue;
+        };
+        if !apc
+            .lastpat
+            .as_ref()
+            .is_some_and(|l| std::rc::Rc::ptr_eq(l, ap))
+        {
+            if apc.group != AUGROUP_ALL && apc.group != ap.group {
                 i += 1;
                 continue;
-            };
-            if !apc
-                .lastpat
-                .as_ref()
-                .is_some_and(|l| std::rc::Rc::ptr_eq(l, ap))
-            {
-                if apc.group != AUGROUP_ALL && apc.group != ap.group {
-                    i += 1;
-                    continue;
-                }
-                let matches = if ap.buflocal_nr == 0 {
-                    let fname_ptr = apc
-                        .fname
-                        .as_ref()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    let sfname_ptr = apc
-                        .sfname
-                        .as_ref()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    let tail_ptr = if fname_ptr.is_null() {
-                        ptr::null_mut()
-                    } else {
-                        path_tail(fname_ptr)
-                    };
-                    match_file_pat(
-                        ptr::null_mut(),
-                        ap.reg_prog.as_deref(),
-                        fname_ptr,
-                        sfname_ptr,
-                        tail_ptr,
-                        i32::from(ap.allow_dirs),
-                    )
+            }
+            let matches = if ap.buflocal_nr == 0 {
+                let fname_ptr = apc
+                    .fname
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                let sfname_ptr = apc
+                    .sfname
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                let tail_ptr = if fname_ptr.is_null() {
+                    ptr::null_mut()
                 } else {
-                    ap.buflocal_nr == apc.arg_bufnr.get()
+                    path_tail(fname_ptr)
                 };
-                if !matches {
-                    i += 1;
-                    continue;
-                }
-
-                let name = event_nr2name(apc.event);
-                let name_str = crate::memory::cstr_lossy(name);
-                let pat_str = ap.pat.to_string_lossy();
-                let formatted = format!("{name_str} Autocommands for \"{pat_str}\"");
-                let name_cstr = CString::new(formatted).unwrap_or_default();
-                if opt_vars().p_verbose >= 8 {
-                    verbose_enter();
-                    smsg!(0, tr(c"Executing %s"), name_cstr.as_ptr());
-                    verbose_leave();
-                }
-
-                entry.es_name = Some(name_cstr);
-                entry.es_info = crate::profile::EStackInfo::AuCmd(apc.script_ctx.clone());
+                match_file_pat(
+                    ptr::null_mut(),
+                    ap.reg_prog.as_deref(),
+                    fname_ptr,
+                    sfname_ptr,
+                    tail_ptr,
+                    i32::from(ap.allow_dirs),
+                )
+            } else {
+                ap.buflocal_nr == apc.arg_bufnr.get()
+            };
+            if !matches {
+                i += 1;
+                continue;
             }
 
-            apc.lastpat = Some(ap.clone());
-            apc.auidx = i;
+            let name = event_nr2name(apc.event);
+            let name_str = crate::memory::cstr_lossy(name);
+            let pat_str = ap.pat.to_string_lossy();
+            let formatted = format!("{name_str} Autocommands for \"{pat_str}\"");
+            let name_cstr = CString::new(formatted).unwrap_or_default();
+            if opt_vars().p_verbose >= 8 {
+                verbose_enter();
+                smsg!(0, tr(c"Executing %s"), name_cstr.as_ptr());
+                verbose_leave();
+            }
 
-            line_breakcheck();
-            return;
+            entry.es_name = Some(name_cstr);
+            entry.es_info = crate::profile::EStackInfo::AuCmd(apc.script_ctx.clone());
         }
 
-        entry.es_name = None;
-        entry.es_info = crate::profile::EStackInfo::None;
+        apc.lastpat = Some(ap.clone());
+        apc.auidx = i;
 
-        apc.lastpat = None;
-        apc.auidx = usize::MAX;
+        line_breakcheck();
+        return;
     }
+
+    entry.es_name = None;
+    entry.es_info = crate::profile::EStackInfo::None;
+
+    apc.lastpat = None;
+    apc.auidx = usize::MAX;
 }
 
 fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) -> bool {
-    {
-        if callback.cb_type() == K_CALLBACK_LUA {
-            let mut data_items = [KeyValuePair {
-                key: NvimString {
-                    data: ptr::null_mut(),
-                    size: 0,
-                },
-                value: boolean_obj(false),
-            }; 8];
-            let mut size = 0usize;
+    if callback.cb_type() == K_CALLBACK_LUA {
+        let mut data_items = [KeyValuePair {
+            key: NvimString {
+                data: ptr::null_mut(),
+                size: 0,
+            },
+            value: boolean_obj(false),
+        }; 8];
+        let mut size = 0usize;
 
-            data_items[size] = KeyValuePair {
-                key: static_cstr_as_string(c"id"),
-                value: integer_obj(id),
-            };
-            size += 1;
-            data_items[size] = KeyValuePair {
-                key: static_cstr_as_string(c"event"),
-                value: cstr_as_obj(event_nr2name(apc.event)),
-            };
-            size += 1;
-            data_items[size] = KeyValuePair {
-                key: static_cstr_as_string(c"file"),
-                value: cstr_as_obj(apc.afile_orig.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
-            };
-            size += 1;
-            data_items[size] = KeyValuePair {
-                key: static_cstr_as_string(c"match"),
-                value: cstr_as_obj(
-                    unsafe { (&raw const g_st().autocmd_match).as_ref() }
-                        .unwrap()
-                        .as_ref()
-                        .map_or(ptr::null(), |s| s.as_ptr()),
-                ),
-            };
-            size += 1;
-            data_items[size] = KeyValuePair {
-                key: static_cstr_as_string(c"buf"),
-                value: integer_obj(Integer::from(g_st().autocmd_bufnr)),
-            };
-            size += 1;
-            data_items[size] = KeyValuePair {
-                key: static_cstr_as_string(c"win"),
-                value: integer_obj(Integer::from(au_st().autocmd_winid)),
-            };
-            size += 1;
+        data_items[size] = KeyValuePair {
+            key: static_cstr_as_string(c"id"),
+            value: integer_obj(id),
+        };
+        size += 1;
+        data_items[size] = KeyValuePair {
+            key: static_cstr_as_string(c"event"),
+            value: cstr_as_obj(event_nr2name(apc.event)),
+        };
+        size += 1;
+        data_items[size] = KeyValuePair {
+            key: static_cstr_as_string(c"file"),
+            value: cstr_as_obj(apc.afile_orig.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
+        };
+        size += 1;
+        data_items[size] = KeyValuePair {
+            key: static_cstr_as_string(c"match"),
+            value: cstr_as_obj(
+                unsafe { (&raw const g_st().autocmd_match).as_ref() }
+                    .unwrap()
+                    .as_ref()
+                    .map_or(ptr::null(), |s| s.as_ptr()),
+            ),
+        };
+        size += 1;
+        data_items[size] = KeyValuePair {
+            key: static_cstr_as_string(c"buf"),
+            value: integer_obj(Integer::from(g_st().autocmd_bufnr)),
+        };
+        size += 1;
+        data_items[size] = KeyValuePair {
+            key: static_cstr_as_string(c"win"),
+            value: integer_obj(Integer::from(au_st().autocmd_winid)),
+        };
+        size += 1;
 
-            if let Some(data_val) = apc.data {
+        if let Some(data_val) = apc.data {
+            data_items[size] = KeyValuePair {
+                key: static_cstr_as_string(c"data"),
+                value: data_val,
+            };
+            size += 1;
+        }
+
+        match group {
+            AUGROUP_ERROR => std::process::abort(),
+            AUGROUP_DEFAULT | AUGROUP_ALL | AUGROUP_DELETED => {}
+            _ => {
                 data_items[size] = KeyValuePair {
-                    key: static_cstr_as_string(c"data"),
-                    value: data_val,
+                    key: static_cstr_as_string(c"group"),
+                    value: integer_obj(Integer::from(group)),
                 };
                 size += 1;
             }
-
-            match group {
-                AUGROUP_ERROR => std::process::abort(),
-                AUGROUP_DEFAULT | AUGROUP_ALL | AUGROUP_DELETED => {}
-                _ => {
-                    data_items[size] = KeyValuePair {
-                        key: static_cstr_as_string(c"group"),
-                        value: integer_obj(Integer::from(group)),
-                    };
-                    size += 1;
-                }
-            }
-
-            let data = Dict {
-                items: data_items.as_mut_ptr(),
-                size,
-                capacity: 8,
-            };
-            let mut args_items = [dict_obj(data)];
-            let args = Array {
-                items: args_items.as_mut_ptr(),
-                size: 1,
-                capacity: 1,
-            };
-
-            let luaref = callback.data.as_luaref();
-            let result = nlua_call_ref(luaref, ptr::null(), args, K_RET_NIL_BOOL, None, None);
-            result.obj_type == ObjectType::ObjectTypeBoolean && result.data.boolean()
-        } else {
-            let mut argsin: TypVal = TypVal::new();
-            let mut rettv: TypVal = TypVal::new();
-            callback_call(&mut callback, 0, &raw mut argsin, &mut rettv);
-            false
         }
+
+        let data = Dict {
+            items: data_items.as_mut_ptr(),
+            size,
+            capacity: 8,
+        };
+        let mut args_items = [dict_obj(data)];
+        let args = Array {
+            items: args_items.as_mut_ptr(),
+            size: 1,
+            capacity: 1,
+        };
+
+        let luaref = callback.data.as_luaref();
+        let result = nlua_call_ref(luaref, ptr::null(), args, K_RET_NIL_BOOL, None, None);
+        result.obj_type == ObjectType::ObjectTypeBoolean && result.data.boolean()
+    } else {
+        let mut argsin: TypVal = TypVal::new();
+        let mut rettv: TypVal = TypVal::new();
+        callback_call(&mut callback, 0, &raw mut argsin, &mut rettv);
+        false
     }
 }
 
 pub fn getnextac(_c: i32, apc: *mut AutoPatCmd, _indent: i32, _do_concat: bool) -> Option<CString> {
-    {
-        let apc = unsafe { &mut *apc };
-        let acs = &mut au_st().autocmds[apc.event as usize];
-        aucmd_next(apc);
-        apc.lastpat.as_ref()?;
+    let apc = unsafe { &mut *apc };
+    let acs = &mut au_st().autocmds[apc.event as usize];
+    aucmd_next(apc);
+    apc.lastpat.as_ref()?;
 
-        assert!(apc.auidx < acs.len());
-        let auidx = apc.auidx;
-        let ac = &mut (acs)[auidx];
-        assert!(ac.pat.is_some());
-        let mut oneshot = ac.once;
+    assert!(apc.auidx < acs.len());
+    let auidx = apc.auidx;
+    let ac = &mut (acs)[auidx];
+    assert!(ac.pat.is_some());
+    let mut oneshot = ac.once;
 
-        if opt_vars().p_verbose >= 9 {
-            verbose_enter_scroll();
-            let handler_str = aucmd_handler_to_string(ac);
-            smsg!(0, tr(c"autocommand %s"), handler_str.as_ptr());
-            msg_puts(c"\n");
-            verbose_leave_scroll();
-        }
-
-        au_st().autocmd_nested = ac.nested;
-        g_st().current_sctx = ac.script_ctx;
-        apc.script_ctx.set(g_st().current_sctx);
-
-        let retval = match &ac.handler {
-            AutoCmdHandler::Cmd(cmd) => cmd.clone(),
-            AutoCmdHandler::Fn(cb) => {
-                let cb = cb.clone();
-                let id = ac.id;
-                let group = ac.pat.as_ref().unwrap().group;
-                let saved_pat = if oneshot { ac.pat.take() } else { None };
-                let rv = au_callback(cb, id, group, apc);
-                if oneshot {
-                    (acs)[auidx].pat = saved_pat;
-                }
-                oneshot = oneshot || rv;
-                CString::default()
-            }
-            AutoCmdHandler::None => {
-                let id = ac.id;
-                let group = ac.pat.as_ref().unwrap().group;
-                let saved_pat = if oneshot { ac.pat.take() } else { None };
-                let rv = au_callback(Callback::NONE, id, group, apc);
-                if oneshot {
-                    (acs)[auidx].pat = saved_pat;
-                }
-                oneshot = oneshot || rv;
-                CString::default()
-            }
-        };
-
-        if oneshot {
-            aucmd_del(&mut (acs)[auidx]);
-        }
-
-        if apc.auidx < apc.ausize {
-            apc.auidx += 1;
-        } else {
-            apc.auidx = usize::MAX;
-        }
-
-        Some(retval)
+    if opt_vars().p_verbose >= 9 {
+        verbose_enter_scroll();
+        let handler_str = aucmd_handler_to_string(ac);
+        smsg!(0, tr(c"autocommand %s"), handler_str.as_ptr());
+        msg_puts(c"\n");
+        verbose_leave_scroll();
     }
+
+    au_st().autocmd_nested = ac.nested;
+    g_st().current_sctx = ac.script_ctx;
+    apc.script_ctx.set(g_st().current_sctx);
+
+    let retval = match &ac.handler {
+        AutoCmdHandler::Cmd(cmd) => cmd.clone(),
+        AutoCmdHandler::Fn(cb) => {
+            let cb = cb.clone();
+            let id = ac.id;
+            let group = ac.pat.as_ref().unwrap().group;
+            let saved_pat = if oneshot { ac.pat.take() } else { None };
+            let rv = au_callback(cb, id, group, apc);
+            if oneshot {
+                (acs)[auidx].pat = saved_pat;
+            }
+            oneshot = oneshot || rv;
+            CString::default()
+        }
+        AutoCmdHandler::None => {
+            let id = ac.id;
+            let group = ac.pat.as_ref().unwrap().group;
+            let saved_pat = if oneshot { ac.pat.take() } else { None };
+            let rv = au_callback(Callback::NONE, id, group, apc);
+            if oneshot {
+                (acs)[auidx].pat = saved_pat;
+            }
+            oneshot = oneshot || rv;
+            CString::default()
+        }
+    };
+
+    if oneshot {
+        aucmd_del(&mut (acs)[auidx]);
+    }
+
+    if apc.auidx < apc.ausize {
+        apc.auidx += 1;
+    } else {
+        apc.auidx = usize::MAX;
+    }
+
+    Some(retval)
 }
 
 fn has_autocmd_ext(
@@ -3575,77 +3539,69 @@ pub fn aucmd_set_expand_context(
     mut arg: *mut c_char,
     doautocmd: bool,
 ) -> *mut c_char {
+    let xp_pref = (&raw mut *xp).cast::<ExpandPrefix>();
+    let xp_pref = { unsafe { &mut *xp_pref } };
+    au_st().autocmd_include_groups = false;
+    let mut p = arg;
+    let mut group = arg_augroup_get(&raw mut arg);
+
+    if crate::memory::cstr_is_empty(arg)
+        && group != AUGROUP_ALL
+        && !ascii_iswhite(unsafe { *arg.wrapping_sub(1) })
     {
-        let xp_pref = (&raw mut *xp).cast::<ExpandPrefix>();
-        let xp_pref = { unsafe { &mut *xp_pref } };
-        au_st().autocmd_include_groups = false;
-        let mut p = arg;
-        let mut group = arg_augroup_get(&raw mut arg);
-
-        if crate::memory::cstr_is_empty(arg)
-            && group != AUGROUP_ALL
-            && !ascii_iswhite(unsafe { *arg.wrapping_sub(1) })
-        {
-            arg = p;
-            group = AUGROUP_ALL;
-        }
-
-        p = arg;
-        while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(crate::memory::cstr_first_char(p))
-        {
-            if crate::memory::cstr_first_byte(p) == b',' {
-                arg = p.wrapping_add(1);
-            }
-            p = p.wrapping_add(1);
-        }
-        if crate::memory::cstr_is_empty(p) {
-            if group == AUGROUP_ALL {
-                au_st().autocmd_include_groups = true;
-            }
-            xp_pref.xp_context = EXPAND_EVENTS;
-            xp_pref.xp_pattern = arg;
-            return ptr::null_mut();
-        }
-
-        arg = skipwhite(p);
-        while !crate::memory::cstr_is_empty(arg)
-            && (!ascii_iswhite(crate::memory::cstr_first_char(arg))
-                || crate::memory::cstr_first_byte(arg.wrapping_sub(1)) == b'\\')
-        {
-            arg = arg.wrapping_add(1);
-        }
-        if !crate::memory::cstr_is_empty(arg) {
-            arg = skipwhite(arg);
-            for _ in 0..2 {
-                let bytes = crate::memory::cstr_as_bytes(arg);
-                if bytes.starts_with(b"++once")
-                    && ascii_iswhite(crate::memory::cstr_char_at(arg, 6))
-                {
-                    arg = skipwhite(arg.wrapping_add(6));
-                }
-                let bytes = crate::memory::cstr_as_bytes(arg);
-                if bytes.starts_with(b"++nested")
-                    && ascii_iswhite(crate::memory::cstr_char_at(arg, 8))
-                {
-                    arg = skipwhite(arg.wrapping_add(8));
-                }
-                let bytes = crate::memory::cstr_as_bytes(arg);
-                if bytes.starts_with(b"nested")
-                    && ascii_iswhite(crate::memory::cstr_char_at(arg, 6))
-                {
-                    arg = skipwhite(arg.wrapping_add(6));
-                }
-            }
-            return arg;
-        }
-
-        xp_pref.xp_context = if doautocmd {
-            EXPAND_FILES
-        } else {
-            EXPAND_NOTHING
-        };
-        ptr::null_mut()
+        arg = p;
+        group = AUGROUP_ALL;
     }
+
+    p = arg;
+    while !crate::memory::cstr_is_empty(p) && !ascii_iswhite(crate::memory::cstr_first_char(p)) {
+        if crate::memory::cstr_first_byte(p) == b',' {
+            arg = p.wrapping_add(1);
+        }
+        p = p.wrapping_add(1);
+    }
+    if crate::memory::cstr_is_empty(p) {
+        if group == AUGROUP_ALL {
+            au_st().autocmd_include_groups = true;
+        }
+        xp_pref.xp_context = EXPAND_EVENTS;
+        xp_pref.xp_pattern = arg;
+        return ptr::null_mut();
+    }
+
+    arg = skipwhite(p);
+    while !crate::memory::cstr_is_empty(arg)
+        && (!ascii_iswhite(crate::memory::cstr_first_char(arg))
+            || crate::memory::cstr_first_byte(arg.wrapping_sub(1)) == b'\\')
+    {
+        arg = arg.wrapping_add(1);
+    }
+    if !crate::memory::cstr_is_empty(arg) {
+        arg = skipwhite(arg);
+        for _ in 0..2 {
+            let bytes = crate::memory::cstr_as_bytes(arg);
+            if bytes.starts_with(b"++once") && ascii_iswhite(crate::memory::cstr_char_at(arg, 6)) {
+                arg = skipwhite(arg.wrapping_add(6));
+            }
+            let bytes = crate::memory::cstr_as_bytes(arg);
+            if bytes.starts_with(b"++nested") && ascii_iswhite(crate::memory::cstr_char_at(arg, 8))
+            {
+                arg = skipwhite(arg.wrapping_add(8));
+            }
+            let bytes = crate::memory::cstr_as_bytes(arg);
+            if bytes.starts_with(b"nested") && ascii_iswhite(crate::memory::cstr_char_at(arg, 6)) {
+                arg = skipwhite(arg.wrapping_add(6));
+            }
+        }
+        return arg;
+    }
+
+    xp_pref.xp_context = if doautocmd {
+        EXPAND_FILES
+    } else {
+        EXPAND_NOTHING
+    };
+    ptr::null_mut()
 }
 
 pub fn expand_get_event_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
@@ -3822,20 +3778,18 @@ pub fn aupat_normalize_buflocal_pat(
 }
 
 pub fn autocmd_delete_id(id: i64) -> bool {
-    {
-        assert!(id > 0);
-        let mut success = false;
+    assert!(id > 0);
+    let mut success = false;
 
-        for acs in &mut au_st().autocmds {
-            for ac in acs {
-                if ac.id == id {
-                    aucmd_del(ac);
-                    success = true;
-                }
+    for acs in &mut au_st().autocmds {
+        for ac in acs {
+            if ac.id == id {
+                aucmd_del(ac);
+                success = true;
             }
         }
-        success
     }
+    success
 }
 
 pub fn aucmd_handler_to_string(ac: &mut AutoCmd) -> CString {
@@ -3882,31 +3836,29 @@ fn arg_event_skip(arg: impl crate::strings::IntoCCharPtr, have_group: bool) -> *
 }
 
 fn arg_augroup_get(argp: *mut *mut c_char) -> i32 {
+    let arg = unsafe { *argp };
+    let mut p = arg;
+    while !crate::memory::cstr_is_empty(p)
+        && !ascii_iswhite(crate::memory::cstr_first_char(p))
+        && crate::memory::cstr_first_byte(p) != b'|'
     {
-        let arg = unsafe { *argp };
-        let mut p = arg;
-        while !crate::memory::cstr_is_empty(p)
-            && !ascii_iswhite(crate::memory::cstr_first_char(p))
-            && crate::memory::cstr_first_byte(p) != b'|'
-        {
-            p = p.wrapping_add(1);
-        }
-        if p <= arg {
-            return AUGROUP_ALL;
-        }
-
-        let len = crate::memory::ptr_offset_from(p, arg) as usize;
-        let group_name = CString::new(crate::memory::cstr_slice(arg, len)).unwrap_or_default();
-        let mut group = augroup_find(group_name.as_ptr());
-        if group == AUGROUP_ERROR {
-            group = AUGROUP_ALL;
-        } else {
-            unsafe {
-                *argp = skipwhite(p);
-            }
-        }
-        group
+        p = p.wrapping_add(1);
     }
+    if p <= arg {
+        return AUGROUP_ALL;
+    }
+
+    let len = crate::memory::ptr_offset_from(p, arg) as usize;
+    let group_name = CString::new(crate::memory::cstr_slice(arg, len)).unwrap_or_default();
+    let mut group = augroup_find(group_name.as_ptr());
+    if group == AUGROUP_ERROR {
+        group = AUGROUP_ALL;
+    } else {
+        unsafe {
+            *argp = skipwhite(p);
+        }
+    }
+    group
 }
 
 fn arg_autocmd_flag_get(
@@ -3944,52 +3896,48 @@ pub fn vimresume_event() {
 }
 
 pub fn may_trigger_vim_suspend_resume(suspend: bool) {
-    {
-        if suspend && au_st().pending_vimresume == K_FALSE {
-            au_st().pending_vimresume = K_NONE;
-            apply_autocmds(
-                EVENT_VIMSUSPEND,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                ptr::null_mut(),
-            );
-            au_st().pending_vimresume = K_TRUE;
-        } else if !suspend && au_st().pending_vimresume == K_TRUE {
-            au_st().pending_vimresume = K_NONE;
-            let events = loop_queues(&mut g_st().main_loop).events;
-            multiqueue_put_event(unsafe { &mut *events }, Event::AutoCmdVimResume);
-        }
+    if suspend && au_st().pending_vimresume == K_FALSE {
+        au_st().pending_vimresume = K_NONE;
+        apply_autocmds(
+            EVENT_VIMSUSPEND,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            false,
+            ptr::null_mut(),
+        );
+        au_st().pending_vimresume = K_TRUE;
+    } else if !suspend && au_st().pending_vimresume == K_TRUE {
+        au_st().pending_vimresume = K_NONE;
+        let events = loop_queues(&mut g_st().main_loop).events;
+        multiqueue_put_event(unsafe { &mut *events }, Event::AutoCmdVimResume);
     }
 }
 
 pub fn do_autocmd_uienter(chanid: u64, attached: bool) {
-    {
-        if starting_val() == NO_SCREEN || au_st().uienter_recursive {
-            return;
-        }
-        au_st().uienter_recursive = true;
-
-        let mut save_v_event: SaveVEvent = SaveVEvent::new();
-        let dict = get_v_event(&mut save_v_event);
-        assert!(chanid < i64::MAX as u64);
-        tv_dict_add_nr(&mut *dict, c"chan", chanid as Varnumber);
-        tv_dict_set_keys_readonly(&mut *dict);
-        apply_autocmds(
-            if attached {
-                EVENT_UIENTER
-            } else {
-                EVENT_UILEAVE
-            },
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
-        restore_v_event(&mut *dict, &mut save_v_event);
-
-        au_st().uienter_recursive = false;
+    if starting_val() == NO_SCREEN || au_st().uienter_recursive {
+        return;
     }
+    au_st().uienter_recursive = true;
+
+    let mut save_v_event: SaveVEvent = SaveVEvent::new();
+    let dict = get_v_event(&mut save_v_event);
+    assert!(chanid < i64::MAX as u64);
+    tv_dict_add_nr(&mut *dict, c"chan", chanid as Varnumber);
+    tv_dict_set_keys_readonly(&mut *dict);
+    apply_autocmds(
+        if attached {
+            EVENT_UIENTER
+        } else {
+            EVENT_UILEAVE
+        },
+        ptr::null_mut(),
+        ptr::null_mut(),
+        false,
+        g_st().curbuf,
+    );
+    restore_v_event(&mut *dict, &mut save_v_event);
+
+    au_st().uienter_recursive = false;
 }
 
 pub fn do_autocmd_focusgained(gained: bool) {
@@ -4046,20 +3994,18 @@ mod tests {
 
     #[test]
     fn event_name_lookup_and_span_pattern_work() {
-        {
-            let mut end: *mut c_char = ptr::null_mut();
-            let ev = event_name2nr(c"BufReadPost,BufEnter", &raw mut end);
-            assert_eq!(ev, EVENT_BUFREADPOST);
-            assert_eq!(crate::memory::cstr_as_bytes(end), b"BufEnter");
-            assert_eq!(
-                crate::memory::cstr_as_bytes(event_nr2name(EVENT_VIMENTER)),
-                b"VimEnter"
-            );
+        let mut end: *mut c_char = ptr::null_mut();
+        let ev = event_name2nr(c"BufReadPost,BufEnter", &raw mut end);
+        assert_eq!(ev, EVENT_BUFREADPOST);
+        assert_eq!(crate::memory::cstr_as_bytes(end), b"BufEnter");
+        assert_eq!(
+            crate::memory::cstr_as_bytes(event_nr2name(EVENT_VIMENTER)),
+            b"VimEnter"
+        );
 
-            let mut start: *const c_char = ptr::null();
-            let len = aucmd_span_pattern(c",,*.{c,h},*.rs", &raw mut start);
-            assert_eq!(len, 7);
-            assert_eq!(&crate::memory::cstr_as_bytes(start)[..len], b"*.{c,h}");
-        }
+        let mut start: *const c_char = ptr::null();
+        let len = aucmd_span_pattern(c",,*.{c,h},*.rs", &raw mut start);
+        assert_eq!(len, 7);
+        assert_eq!(&crate::memory::cstr_as_bytes(start)[..len], b"*.{c,h}");
     }
 }

@@ -360,36 +360,34 @@ pub fn parse_isopt(var: impl crate::strings::IntoCCharPtr, chartab: *mut u64) ->
 }
 
 pub fn trans_characters(mut buf: *mut c_char, bufsize: i32) {
-    {
-        let mut len = crate::memory::cstr_len(buf) as i32;
-        let mut room = bufsize - len;
+    let mut len = crate::memory::cstr_len(buf) as i32;
+    let mut room = bufsize - len;
 
-        while !crate::memory::cstr_is_empty(buf) {
-            let mut trs_len = utfc_ptr2len(buf);
+    while !crate::memory::cstr_is_empty(buf) {
+        let mut trs_len = utfc_ptr2len(buf);
+        if trs_len > 1 {
+            len -= trs_len;
+        } else {
+            let trs = transchar_byte(i32::from(crate::memory::cstr_first_byte(buf)));
+            trs_len = crate::memory::cstr_len(trs) as i32;
+
             if trs_len > 1 {
-                len -= trs_len;
-            } else {
-                let trs = transchar_byte(i32::from(crate::memory::cstr_first_byte(buf)));
-                trs_len = crate::memory::cstr_len(trs) as i32;
-
-                if trs_len > 1 {
-                    room -= trs_len - 1;
-                    if room <= 0 {
-                        return;
-                    }
-                    unsafe {
-                        ptr::copy(
-                            buf.wrapping_add(1),
-                            buf.wrapping_add(trs_len as usize),
-                            len as usize,
-                        )
-                    };
+                room -= trs_len - 1;
+                if room <= 0 {
+                    return;
                 }
-                unsafe { ptr::copy(trs, buf, trs_len as usize) };
-                len -= 1;
+                unsafe {
+                    ptr::copy(
+                        buf.wrapping_add(1),
+                        buf.wrapping_add(trs_len as usize),
+                        len as usize,
+                    )
+                };
             }
-            buf = buf.wrapping_add(trs_len as usize);
+            unsafe { ptr::copy(trs, buf, trs_len as usize) };
+            len -= 1;
         }
+        buf = buf.wrapping_add(trs_len as usize);
     }
 }
 
@@ -439,7 +437,7 @@ pub fn transstr_buf(
     untab: bool,
 ) -> usize {
     let s = s.into_c_char_ptr();
-    unsafe {
+    {
         let mut p = s;
         let mut buf_p = buf;
         let buf_e = buf_p.wrapping_add(buflen - 1);
@@ -455,7 +453,7 @@ pub fn transstr_buf(
                 }
 
                 if vim_isprintc(utf_ptr2char(p)) {
-                    ptr::copy(p, buf_p, l);
+                    unsafe { ptr::copy(p, buf_p, l) };
                     buf_p = buf_p.wrapping_add(l);
                 } else {
                     let mut off: usize = 0;
@@ -466,14 +464,16 @@ pub fn transstr_buf(
                         if buf_p.wrapping_add(hexlen) > buf_e {
                             break;
                         }
-                        ptr::copy_nonoverlapping(hexbuf.as_ptr(), buf_p, hexlen);
+                        unsafe { ptr::copy_nonoverlapping(hexbuf.as_ptr(), buf_p, hexlen) };
                         buf_p = buf_p.wrapping_add(hexlen);
                         off += utf_ptr2len(p.wrapping_add(off)) as usize;
                     }
                 }
                 p = p.wrapping_add(l);
-            } else if *p == TAB && !untab {
-                *buf_p = *p;
+            } else if unsafe { *p } == TAB && !untab {
+                unsafe {
+                    *buf_p = *p;
+                }
                 buf_p = buf_p.wrapping_add(1);
                 p = p.wrapping_add(1);
             } else {
@@ -484,11 +484,13 @@ pub fn transstr_buf(
                 if buf_p.wrapping_add(tb_len) > buf_e {
                     break;
                 }
-                ptr::copy(tb, buf_p, tb_len);
+                unsafe { ptr::copy(tb, buf_p, tb_len) };
                 buf_p = buf_p.wrapping_add(tb_len);
             }
         }
-        *buf_p = NUL;
+        unsafe {
+            *buf_p = NUL;
+        }
         assert!(buf_p <= buf_e);
         crate::memory::ptr_offset_from(buf_p, buf) as usize
     }
@@ -614,34 +616,32 @@ pub fn transchar(c: i32) -> *mut c_char {
 }
 
 pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> *mut c_char {
-    {
-        let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<u8>();
-        let mut i: usize = 0;
-        if is_special(c) {
-            unsafe {
-                *charbuf_ptr = b'~';
-            }
-            unsafe {
-                *charbuf_ptr.wrapping_add(1) = b'@';
-            }
-            i = 2;
-            c = i32::from(k_second(c));
+    let charbuf_ptr = (&raw mut charset_st().transchar_charbuf).cast::<u8>();
+    let mut i: usize = 0;
+    if is_special(c) {
+        unsafe {
+            *charbuf_ptr = b'~';
         }
-
-        if c <= 0xFF && vim_isprintc(c) {
-            unsafe {
-                *charbuf_ptr.wrapping_add(i) = c as u8;
-            }
-            unsafe {
-                *charbuf_ptr.wrapping_add(i + 1) = 0;
-            }
-        } else if c <= 0xFF {
-            transchar_nonprint(buf, charbuf_ptr.wrapping_add(i).cast::<c_char>(), c);
-        } else {
-            transchar_hex(charbuf_ptr.wrapping_add(i).cast::<c_char>(), c);
+        unsafe {
+            *charbuf_ptr.wrapping_add(1) = b'@';
         }
-        charbuf_ptr.cast::<c_char>()
+        i = 2;
+        c = i32::from(k_second(c));
     }
+
+    if c <= 0xFF && vim_isprintc(c) {
+        unsafe {
+            *charbuf_ptr.wrapping_add(i) = c as u8;
+        }
+        unsafe {
+            *charbuf_ptr.wrapping_add(i + 1) = 0;
+        }
+    } else if c <= 0xFF {
+        transchar_nonprint(buf, charbuf_ptr.wrapping_add(i).cast::<c_char>(), c);
+    } else {
+        transchar_hex(charbuf_ptr.wrapping_add(i).cast::<c_char>(), c);
+    }
+    charbuf_ptr.cast::<c_char>()
 }
 
 pub fn transchar_byte(c: i32) -> *mut c_char {
@@ -658,26 +658,24 @@ pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> *mut c_char {
 }
 
 pub fn transchar_nonprint(buf: Option<&FileBuf>, charbuf: *mut c_char, mut c: i32) {
-    {
-        if c == i32::from(NL) {
-            c = 0;
-        } else if buf.is_some() && c == CAR && get_fileformat(buf.unwrap()) == EOL_MAC {
-            c = i32::from(NL);
-        }
-        assert!(c <= 0xff);
+    if c == i32::from(NL) {
+        c = 0;
+    } else if buf.is_some() && c == CAR && get_fileformat(buf.unwrap()) == EOL_MAC {
+        c = i32::from(NL);
+    }
+    assert!(c <= 0xff);
 
-        if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0 || c > 0x7f {
-            transchar_hex(charbuf, c);
-        } else {
-            unsafe {
-                *charbuf = b'^' as c_char;
-            }
-            unsafe {
-                *charbuf.wrapping_add(1) = ((c as u8) ^ 0x40) as c_char;
-            }
-            unsafe {
-                *charbuf.wrapping_add(2) = NUL;
-            }
+    if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0 || c > 0x7f {
+        transchar_hex(charbuf, c);
+    } else {
+        unsafe {
+            *charbuf = b'^' as c_char;
+        }
+        unsafe {
+            *charbuf.wrapping_add(1) = ((c as u8) ^ 0x40) as c_char;
+        }
+        unsafe {
+            *charbuf.wrapping_add(2) = NUL;
         }
     }
 }
@@ -713,19 +711,17 @@ pub fn transchar_hex(buf: *mut c_char, c: i32) -> usize {
 }
 
 pub fn rl_mirror_ascii(str_: *mut c_char, end: *mut c_char) {
-    {
-        let mut p1 = str_;
-        let mut p2 = if !end.is_null() {
-            end
-        } else {
-            str_.wrapping_add(crate::memory::cstr_len(str_))
-        }
-        .wrapping_sub(1);
-        while p1 < p2 {
-            unsafe { ptr::swap(p1, p2) };
-            p1 = p1.wrapping_add(1);
-            p2 = p2.wrapping_sub(1);
-        }
+    let mut p1 = str_;
+    let mut p2 = if !end.is_null() {
+        end
+    } else {
+        str_.wrapping_add(crate::memory::cstr_len(str_))
+    }
+    .wrapping_sub(1);
+    while p1 < p2 {
+        unsafe { ptr::swap(p1, p2) };
+        p1 = p1.wrapping_add(1);
+        p2 = p2.wrapping_sub(1);
     }
 }
 
@@ -867,24 +863,19 @@ pub fn skipbin(q: impl crate::strings::IntoCCharPtr) -> *const c_char {
 }
 
 pub fn skiphex(q: *mut c_char) -> *mut c_char {
-    {
-        let mut p = q;
-        while ascii_isxdigit(crate::memory::cstr_first_char(p)) {
-            p = p.wrapping_add(1);
-        }
-        p
+    let mut p = q;
+    while ascii_isxdigit(crate::memory::cstr_first_char(p)) {
+        p = p.wrapping_add(1);
     }
+    p
 }
 
 pub fn skiptodigit(q: *mut c_char) -> *mut c_char {
-    {
-        let mut p = q;
-        while !crate::memory::cstr_is_empty(p) && !ascii_isdigit(crate::memory::cstr_first_char(p))
-        {
-            p = p.wrapping_add(1);
-        }
-        p
+    let mut p = q;
+    while !crate::memory::cstr_is_empty(p) && !ascii_isdigit(crate::memory::cstr_first_char(p)) {
+        p = p.wrapping_add(1);
     }
+    p
 }
 
 pub fn skiptobin(q: impl crate::strings::IntoCCharPtr) -> *const c_char {
@@ -900,14 +891,11 @@ pub fn skiptobin(q: impl crate::strings::IntoCCharPtr) -> *const c_char {
 }
 
 pub fn skiptohex(q: *mut c_char) -> *mut c_char {
-    {
-        let mut p = q;
-        while !crate::memory::cstr_is_empty(p) && !ascii_isxdigit(crate::memory::cstr_first_char(p))
-        {
-            p = p.wrapping_add(1);
-        }
-        p
+    let mut p = q;
+    while !crate::memory::cstr_is_empty(p) && !ascii_isxdigit(crate::memory::cstr_first_char(p)) {
+        p = p.wrapping_add(1);
     }
+    p
 }
 
 pub fn skiptowhite(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
@@ -944,15 +932,13 @@ pub fn skiptowhite_esc(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
 pub fn skip_to_newline(p: impl crate::strings::IntoCCharPtr) -> *mut c_char {
     let p = p.into_c_char_ptr();
     {
-        {
-            let _s = p;
-            let _b = crate::memory::cstr_as_bytes(_s);
-            let _off = _b
-                .iter()
-                .position(|&_x| _x == (NL) as u8)
-                .unwrap_or(_b.len());
-            _s.wrapping_add(_off).cast_mut()
-        }
+        let _s = p;
+        let _b = crate::memory::cstr_as_bytes(_s);
+        let _off = _b
+            .iter()
+            .position(|&_x| _x == (NL) as u8)
+            .unwrap_or(_b.len());
+        _s.wrapping_add(_off).cast_mut()
     }
 }
 

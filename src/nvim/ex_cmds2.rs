@@ -162,46 +162,44 @@ pub fn autowrite_all() {
 
 /// Return true if buffer was changed and cannot be abandoned (`check_changed`).
 pub fn check_changed(buf: &mut FileBuf, flags: i32) -> bool {
+    let forceit = (flags & CCGD_FORCEIT) != 0;
+    let mut bufref: Bufref = Bufref::new();
+    set_bufref(&mut bufref, &raw mut *buf);
+
+    if !forceit
+        && buf_is_changed_fn(buf)
+        && ((flags & CCGD_MULTWIN) != 0 || buf.b_nwindows <= 1)
+        && ((flags & CCGD_AW) == 0 || !autowrite(buf, forceit))
     {
-        let forceit = (flags & CCGD_FORCEIT) != 0;
-        let mut bufref: Bufref = Bufref::new();
-        set_bufref(&mut bufref, &raw mut *buf);
-
-        if !forceit
-            && buf_is_changed_fn(buf)
-            && ((flags & CCGD_MULTWIN) != 0 || buf.b_nwindows <= 1)
-            && ((flags & CCGD_AW) == 0 || !autowrite(buf, forceit))
+        if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+            && opt_vars().p_write != 0
         {
-            if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-                && opt_vars().p_write != 0
-            {
-                let mut count: i32 = 0;
+            let mut count: i32 = 0;
 
-                if (flags & CCGD_ALLBUF) != 0 {
-                    for buf2 in for_all_buffers_mut() {
-                        if buf_is_changed_fn(buf2) && !buf2.b_ffname.is_null() {
-                            count += 1;
-                        }
+            if (flags & CCGD_ALLBUF) != 0 {
+                for buf2 in for_all_buffers_mut() {
+                    if buf_is_changed_fn(buf2) && !buf2.b_ffname.is_null() {
+                        count += 1;
                     }
                 }
-                if !bufref_valid(Some(&bufref)) {
-                    return false;
-                }
-                dialog_changed(buf, count > 1);
-                if !bufref_valid(Some(&bufref)) {
-                    return false;
-                }
-                return buf_is_changed_fn(buf);
             }
-            if (flags & CCGD_EXCMD) != 0 {
-                no_write_message();
-            } else {
-                no_write_message_nobang(curbuf_mut());
+            if !bufref_valid(Some(&bufref)) {
+                return false;
             }
-            return true;
+            dialog_changed(buf, count > 1);
+            if !bufref_valid(Some(&bufref)) {
+                return false;
+            }
+            return buf_is_changed_fn(buf);
         }
-        false
+        if (flags & CCGD_EXCMD) != 0 {
+            no_write_message();
+        } else {
+            no_write_message_nobang(curbuf_mut());
+        }
+        return true;
     }
+    false
 }
 
 /// Ask the user what to do when abandoning a changed buffer (`dialog_changed`).
@@ -432,13 +430,11 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 
 /// Return `FAIL` if there is no file name, `OK` if there is one (`check_fname`).
 pub fn check_fname() -> bool {
-    {
-        if curbuf_mut().b_ffname.is_null() {
-            emsg(gettext(E_NONAME));
-            return false;
-        }
-        true
+    if curbuf_mut().b_ffname.is_null() {
+        emsg(gettext(E_NONAME));
+        return false;
     }
+    true
 }
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
@@ -712,178 +708,166 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
 /// `:compiler[!] {name}` (`ex_compiler`).
 pub fn ex_compiler(eap: &mut Exarg) {
-    {
-        let mut old_cur_comp: Option<std::ffi::CString> = None;
+    let mut old_cur_comp: Option<std::ffi::CString> = None;
 
-        if crate::memory::cstr_is_empty(eap.arg) {
-            do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.vim')");
-            do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.lua')");
-            return;
-        }
+    if crate::memory::cstr_is_empty(eap.arg) {
+        do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.vim')");
+        do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.lua')");
+        return;
+    }
 
-        let arg_len = crate::memory::cstr_len(eap.arg);
-        let bufsize = arg_len + 14;
-        let mut buf = vec![0 as c_char; bufsize];
+    let arg_len = crate::memory::cstr_len(eap.arg);
+    let bufsize = arg_len + 14;
+    let mut buf = vec![0 as c_char; bufsize];
 
-        if eap.forceit != 0 {
-            do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>");
-        } else {
-            let p = get_var_value(c"g:current_compiler");
-            if !p.is_null() {
-                old_cur_comp = Some(crate::memory::cstr_to_cstring(p));
-            }
-            do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet setlocal <args>");
-        }
-        do_unlet(c"g:current_compiler", 18, true);
-        do_unlet(c"b:current_compiler", 18, true);
-
-        vim_snprintf!(buf.as_mut_ptr(), bufsize, c"compiler/%s.*", eap.arg,);
-        if !source_runtime_vim_lua(buf.as_mut_ptr(), DIP_ALL) {
-            semsg!(gettext(E_COMPILER_NOT_SUPPORTED_STR), eap.arg);
-        }
-        drop(buf);
-
-        do_cmdline_cmd(c":delcommand CompilerSet");
-
+    if eap.forceit != 0 {
+        do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet set <args>");
+    } else {
         let p = get_var_value(c"g:current_compiler");
         if !p.is_null() {
-            set_internal_string_var(c"b:current_compiler", p);
+            old_cur_comp = Some(crate::memory::cstr_to_cstring(p));
         }
+        do_cmdline_cmd(c"command -nargs=* -keepscript CompilerSet setlocal <args>");
+    }
+    do_unlet(c"g:current_compiler", 18, true);
+    do_unlet(c"b:current_compiler", 18, true);
 
-        if eap.forceit == 0 {
-            if let Some(ref old_comp) = old_cur_comp {
-                set_internal_string_var(c"g:current_compiler", old_comp.as_ptr());
-            } else {
-                do_unlet(c"g:current_compiler", 18, true);
-            }
+    vim_snprintf!(buf.as_mut_ptr(), bufsize, c"compiler/%s.*", eap.arg,);
+    if !source_runtime_vim_lua(buf.as_mut_ptr(), DIP_ALL) {
+        semsg!(gettext(E_COMPILER_NOT_SUPPORTED_STR), eap.arg);
+    }
+    drop(buf);
+
+    do_cmdline_cmd(c":delcommand CompilerSet");
+
+    let p = get_var_value(c"g:current_compiler");
+    if !p.is_null() {
+        set_internal_string_var(c"b:current_compiler", p);
+    }
+
+    if eap.forceit == 0 {
+        if let Some(ref old_comp) = old_cur_comp {
+            set_internal_string_var(c"g:current_compiler", old_comp.as_ptr());
+        } else {
+            do_unlet(c"g:current_compiler", 18, true);
         }
     }
 }
 
 /// `:checktime [buffer]` (`ex_checktime`).
 pub fn ex_checktime(eap: &mut Exarg) {
-    {
-        let save_no_check_timestamps = g_st().no_check_timestamps;
+    let save_no_check_timestamps = g_st().no_check_timestamps;
 
-        g_st().no_check_timestamps = 0;
-        if eap.addr_count == 0 {
-            check_timestamps(0);
-        } else {
-            let buf = buflist_findnr(eap.line2);
-            if !buf.is_null() {
-                buf_check_timestamp(unsafe { &mut *buf });
-            }
+    g_st().no_check_timestamps = 0;
+    if eap.addr_count == 0 {
+        check_timestamps(0);
+    } else {
+        let buf = buflist_findnr(eap.line2);
+        if !buf.is_null() {
+            buf_check_timestamp(unsafe { &mut *buf });
         }
-        g_st().no_check_timestamps = save_no_check_timestamps;
     }
+    g_st().no_check_timestamps = save_no_check_timestamps;
 }
 
 fn script_host_execute(name: &std::ffi::CStr, eap: &mut Exarg) {
-    {
-        let mut len: usize = 0;
-        if let Some(script) = script_get(eap, &mut len) {
-            let args = tv_list_alloc(3);
-            crate::eval::typval::tv_list_append_string(&mut *args, script.as_ptr(), -1);
-            tv_list_append_number(&mut *args, eap.line1 as Varnumber);
-            tv_list_append_number(&mut *args, eap.line2 as Varnumber);
+    let mut len: usize = 0;
+    if let Some(script) = script_get(eap, &mut len) {
+        let args = tv_list_alloc(3);
+        crate::eval::typval::tv_list_append_string(&mut *args, script.as_ptr(), -1);
+        tv_list_append_number(&mut *args, eap.line1 as Varnumber);
+        tv_list_append_number(&mut *args, eap.line2 as Varnumber);
 
-            eval_call_provider(name.as_ptr().cast_mut(), c"execute", &mut *args, true);
-        }
+        eval_call_provider(name.as_ptr().cast_mut(), c"execute", &mut *args, true);
     }
 }
 
 fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
-    {
-        if eap.skip == 0 {
-            let mut buffer = [0 as c_char; MAXPATHL];
-            vim_full_name(eap.arg, buffer.as_mut_ptr(), MAXPATHL, false);
+    if eap.skip == 0 {
+        let mut buffer = [0 as c_char; MAXPATHL];
+        vim_full_name(eap.arg, buffer.as_mut_ptr(), MAXPATHL, false);
 
-            let args = tv_list_alloc(3);
-            tv_list_append_string(&mut *args, buffer.as_ptr(), -1);
-            tv_list_append_number(&mut *args, eap.line1 as Varnumber);
-            tv_list_append_number(&mut *args, eap.line2 as Varnumber);
-            eval_call_provider(name.as_ptr().cast_mut(), c"execute_file", &mut *args, true);
-        }
+        let args = tv_list_alloc(3);
+        tv_list_append_string(&mut *args, buffer.as_ptr(), -1);
+        tv_list_append_number(&mut *args, eap.line1 as Varnumber);
+        tv_list_append_number(&mut *args, eap.line2 as Varnumber);
+        eval_call_provider(name.as_ptr().cast_mut(), c"execute_file", &mut *args, true);
     }
 }
 
 fn script_host_do_range(name: &std::ffi::CStr, eap: &mut Exarg) {
-    {
-        if eap.skip == 0 {
-            let args = tv_list_alloc(3);
-            tv_list_append_number(&mut *args, eap.line1 as Varnumber);
-            tv_list_append_number(&mut *args, eap.line2 as Varnumber);
-            tv_list_append_string(&mut *args, eap.arg, -1);
-            eval_call_provider(name.as_ptr().cast_mut(), c"do_range", &mut *args, true);
-        }
+    if eap.skip == 0 {
+        let args = tv_list_alloc(3);
+        tv_list_append_number(&mut *args, eap.line1 as Varnumber);
+        tv_list_append_number(&mut *args, eap.line2 as Varnumber);
+        tv_list_append_string(&mut *args, eap.arg, -1);
+        eval_call_provider(name.as_ptr().cast_mut(), c"do_range", &mut *args, true);
     }
 }
 
 /// `:drop` (`ex_drop`).
 pub fn ex_drop(eap: &mut Exarg) {
-    {
-        let mut split = false;
+    let mut split = false;
 
-        set_arglist(eap.arg);
+    set_arglist(eap.arg);
 
-        if curwin_argcount() == 0 {
-            return;
-        }
-
-        if g_st().cmdmod.cmod_tab != 0 {
-            ex_all(eap);
-            g_st().cmdmod.cmod_tab = 0;
-            ex_rewind(eap);
-            return;
-        }
-
-        let buf = buflist_findnr(unsafe { (*curwin_arglist()).ae_fnum });
-
-        for tp in for_all_tabpages_ptr() {
-            for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
-                if wp.w_buffer == buf {
-                    goto_tabpage_win(&mut *tp, wp);
-                    curwin_mut().w_arg_idx = 0;
-                    if !buf_is_changed_fn(curbuf_mut()) {
-                        let save_ar = curbuf_mut().b_p_ar;
-                        curbuf_mut().b_p_ar = 1;
-                        buf_check_timestamp(curbuf_mut());
-                        curbuf_mut().b_p_ar = save_ar;
-                    }
-                    if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
-                        ex_rewind(eap);
-                    }
-
-                    if !eap.do_ecmd_cmd.is_null() {
-                        let did_set_swapcommand = set_swapcommand(eap.do_ecmd_cmd, 0);
-                        do_cmdline(
-                            eap.do_ecmd_cmd,
-                            crate::cmdexpand::LineGetter::None,
-                            DOCMD_VERBOSE,
-                        );
-                        if did_set_swapcommand {
-                            set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
-                        }
-                    }
-                    return;
-                }
-            }
-        }
-
-        if !buf_hide(curbuf_mut()) {
-            g_st().emsg_off += 1;
-            split = check_changed(curbuf_mut(), CCGD_AW | CCGD_EXCMD);
-            g_st().emsg_off -= 1;
-        }
-
-        if split {
-            eap.cmdidx = CMD_SFIRST;
-            unsafe {
-                *eap.cmd = b's' as c_char;
-            }
-        } else {
-            eap.cmdidx = CMD_FIRST;
-        }
-        ex_rewind(eap);
+    if curwin_argcount() == 0 {
+        return;
     }
+
+    if g_st().cmdmod.cmod_tab != 0 {
+        ex_all(eap);
+        g_st().cmdmod.cmod_tab = 0;
+        ex_rewind(eap);
+        return;
+    }
+
+    let buf = buflist_findnr(unsafe { (*curwin_arglist()).ae_fnum });
+
+    for tp in for_all_tabpages_ptr() {
+        for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
+            if wp.w_buffer == buf {
+                goto_tabpage_win(&mut *tp, wp);
+                curwin_mut().w_arg_idx = 0;
+                if !buf_is_changed_fn(curbuf_mut()) {
+                    let save_ar = curbuf_mut().b_p_ar;
+                    curbuf_mut().b_p_ar = 1;
+                    buf_check_timestamp(curbuf_mut());
+                    curbuf_mut().b_p_ar = save_ar;
+                }
+                if (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0 {
+                    ex_rewind(eap);
+                }
+
+                if !eap.do_ecmd_cmd.is_null() {
+                    let did_set_swapcommand = set_swapcommand(eap.do_ecmd_cmd, 0);
+                    do_cmdline(
+                        eap.do_ecmd_cmd,
+                        crate::cmdexpand::LineGetter::None,
+                        DOCMD_VERBOSE,
+                    );
+                    if did_set_swapcommand {
+                        set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
+                    }
+                }
+                return;
+            }
+        }
+    }
+
+    if !buf_hide(curbuf_mut()) {
+        g_st().emsg_off += 1;
+        split = check_changed(curbuf_mut(), CCGD_AW | CCGD_EXCMD);
+        g_st().emsg_off -= 1;
+    }
+
+    if split {
+        eap.cmdidx = CMD_SFIRST;
+        unsafe {
+            *eap.cmd = b's' as c_char;
+        }
+    } else {
+        eap.cmdidx = CMD_FIRST;
+    }
+    ex_rewind(eap);
 }

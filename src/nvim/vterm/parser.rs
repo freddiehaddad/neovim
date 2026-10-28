@@ -144,19 +144,17 @@ fn do_csi(vt: &mut VTerm, command: c_char) {
 }
 
 fn do_escape(vt: &mut VTerm, command: c_char) {
-    {
-        let mut seq = [0 as c_char; INTERMED_MAX + 1];
-        let mut len = vt.parser.intermedlen as usize;
-        unsafe { ptr::copy_nonoverlapping(vt.parser.intermed.as_ptr(), seq.as_mut_ptr(), len) };
-        seq[len] = command;
-        len += 1;
-        seq[len] = 0;
+    let mut seq = [0 as c_char; INTERMED_MAX + 1];
+    let mut len = vt.parser.intermedlen as usize;
+    unsafe { ptr::copy_nonoverlapping(vt.parser.intermed.as_ptr(), seq.as_mut_ptr(), len) };
+    seq[len] = command;
+    len += 1;
+    seq[len] = 0;
 
-        if let Some(callbacks) = vt.parser.callbacks
-            && let Some(cb) = callbacks.escape
-        {
-            cb(seq.as_ptr(), len, vt.state_mut_ptr());
-        }
+    if let Some(callbacks) = vt.parser.callbacks
+        && let Some(cb) = callbacks.escape
+    {
+        cb(seq.as_ptr(), len, vt.state_mut_ptr());
     }
 }
 

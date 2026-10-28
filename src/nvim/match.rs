@@ -138,7 +138,7 @@ fn match_add(
     let grp = grp.into_c_char_ptr();
     let pat = pat.into_c_char_ptr();
     let conceal_char = conceal_char.into_c_char_ptr();
-    unsafe {
+    {
         let mut regprog: *mut Regprog = ptr::null_mut();
         let mut rtype = UPD_SOME_VALID;
 
@@ -225,7 +225,7 @@ fn match_add(
 
                 if li.li_tv.v_type == VarType::VarList {
                     let subl = li.li_tv.vval.v_list();
-                    let mut subli = tv_list_first(subl.as_ref());
+                    let mut subli = tv_list_first(unsafe { subl.as_ref() });
                     if subli.is_null() {
                         semsg!(
                             gettext(c"E5030: Empty list at position %d"),
@@ -234,7 +234,8 @@ fn match_add(
                         failed = true;
                         break;
                     }
-                    lnum = tv_get_number_chk(&(*subli).li_tv, Some(&mut error)) as Linenr;
+                    lnum =
+                        tv_get_number_chk(unsafe { &(*subli).li_tv }, Some(&mut error)) as Linenr;
                     if error {
                         failed = true;
                         break;
@@ -243,9 +244,10 @@ fn match_add(
                         continue;
                     }
                     m.mit_pos[i].lnum = lnum;
-                    subli = (*subli).li_next;
+                    subli = unsafe { (*subli).li_next };
                     if !subli.is_null() {
-                        col = tv_get_number_chk(&(*subli).li_tv, Some(&mut error)) as Colnr;
+                        col = tv_get_number_chk(unsafe { &(*subli).li_tv }, Some(&mut error))
+                            as Colnr;
                         if error {
                             failed = true;
                             break;
@@ -253,9 +255,10 @@ fn match_add(
                         if col < 0 {
                             continue;
                         }
-                        subli = (*subli).li_next;
+                        subli = unsafe { (*subli).li_next };
                         if !subli.is_null() {
-                            len = tv_get_number_chk(&(*subli).li_tv, Some(&mut error)) as Colnr;
+                            len = tv_get_number_chk(unsafe { &(*subli).li_tv }, Some(&mut error))
+                                as Colnr;
                             if len < 0 {
                                 continue;
                             }
@@ -384,56 +387,54 @@ fn next_search_hl_pos(
     match_item: &mut Matchitem,
     mincol: Colnr,
 ) -> i32 {
-    {
-        let mut found: isize = -1;
+    let mut found: isize = -1;
 
-        shl.lnum = 0;
-        let mit_pos = &mut match_item.mit_pos;
-        let pos_count = mit_pos.len() as i32;
-        for i in match_item.mit_pos_cur..pos_count {
-            let pos = mit_pos[i as usize];
-            if pos.lnum == 0 {
-                break;
-            }
-            if pos.len == 0 && pos.col < mincol {
-                continue;
-            }
-            if pos.lnum == lnum {
-                if found >= 0 {
-                    if pos.col < mit_pos[found as usize].col {
-                        mit_pos.swap(i as usize, found as usize);
-                    }
-                } else {
-                    found = i as isize;
+    shl.lnum = 0;
+    let mit_pos = &mut match_item.mit_pos;
+    let pos_count = mit_pos.len() as i32;
+    for i in match_item.mit_pos_cur..pos_count {
+        let pos = mit_pos[i as usize];
+        if pos.lnum == 0 {
+            break;
+        }
+        if pos.len == 0 && pos.col < mincol {
+            continue;
+        }
+        if pos.lnum == lnum {
+            if found >= 0 {
+                if pos.col < mit_pos[found as usize].col {
+                    mit_pos.swap(i as usize, found as usize);
                 }
+            } else {
+                found = i as isize;
             }
         }
-        match_item.mit_pos_cur = 0;
-        if found >= 0 {
-            let found_pos = mit_pos[found as usize];
-            let start = if found_pos.col == 0 {
-                0
-            } else {
-                found_pos.col - 1
-            };
-            let end = if found_pos.col == 0 {
-                MAXCOL
-            } else {
-                start + found_pos.len
-            };
-
-            shl.lnum = lnum;
-            shl.rm.startpos[0].lnum = 0;
-            shl.rm.startpos[0].col = start;
-            shl.rm.endpos[0].lnum = 0;
-            shl.rm.endpos[0].col = end;
-            shl.is_addpos = true;
-            shl.has_cursor = false;
-            match_item.mit_pos_cur = (found as i32) + 1;
-            return 1;
-        }
-        0
     }
+    match_item.mit_pos_cur = 0;
+    if found >= 0 {
+        let found_pos = mit_pos[found as usize];
+        let start = if found_pos.col == 0 {
+            0
+        } else {
+            found_pos.col - 1
+        };
+        let end = if found_pos.col == 0 {
+            MAXCOL
+        } else {
+            start + found_pos.len
+        };
+
+        shl.lnum = lnum;
+        shl.rm.startpos[0].lnum = 0;
+        shl.rm.startpos[0].col = start;
+        shl.rm.endpos[0].lnum = 0;
+        shl.rm.endpos[0].col = end;
+        shl.is_addpos = true;
+        shl.has_cursor = false;
+        match_item.mit_pos_cur = (found as i32) + 1;
+        return 1;
+    }
+    0
 }
 
 /// Search for a next `'hlsearch'` or match (`next_search_hl`).
@@ -444,94 +445,92 @@ fn next_search_hl(
     mincol: Colnr,
     mut cur: Option<&mut Matchitem>,
 ) {
-    {
-        let mut matchcol: Colnr;
-        let mut nmatched: i32 = 0;
-        let called_emsg_before = g_st().called_emsg;
+    let mut matchcol: Colnr;
+    let mut nmatched: i32 = 0;
+    let called_emsg_before = g_st().called_emsg;
 
-        if (lnum < g_st().search_global.first_line || lnum > g_st().search_global.last_line)
-            && cur.is_none()
-        {
+    if (lnum < g_st().search_global.first_line || lnum > g_st().search_global.last_line)
+        && cur.is_none()
+    {
+        shl.lnum = 0;
+        return;
+    }
+
+    if shl.lnum != 0 {
+        let l = shl.lnum + shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
+        if lnum > l {
             shl.lnum = 0;
+        } else if lnum < l || shl.rm.endpos[0].col > mincol {
             return;
         }
+    }
 
-        if shl.lnum != 0 {
-            let l = shl.lnum + shl.rm.endpos[0].lnum - shl.rm.startpos[0].lnum;
-            if lnum > l {
+    loop {
+        if profile_passed_limit(shl.tm) {
+            shl.lnum = 0;
+            break;
+        }
+        if shl.lnum == 0 {
+            matchcol = 0;
+        } else if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_SEARCH)
+            || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
+        {
+            matchcol = shl.rm.startpos[0].col;
+            let ml = ml_get_buf(unsafe { &mut *shl.buf }, lnum).wrapping_add(matchcol as usize);
+            if crate::memory::cstr_is_empty(ml) {
                 shl.lnum = 0;
-            } else if lnum < l || shl.rm.endpos[0].col > mincol {
-                return;
+                break;
             }
+            matchcol += utfc_ptr2len(ml);
+        } else {
+            matchcol = shl.rm.endpos[0].col;
         }
 
-        loop {
-            if profile_passed_limit(shl.tm) {
-                shl.lnum = 0;
-                break;
-            }
-            if shl.lnum == 0 {
-                matchcol = 0;
-            } else if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_SEARCH)
-                || (shl.rm.endpos[0].lnum == 0 && shl.rm.endpos[0].col <= shl.rm.startpos[0].col)
-            {
-                matchcol = shl.rm.startpos[0].col;
-                let ml = ml_get_buf(unsafe { &mut *shl.buf }, lnum).wrapping_add(matchcol as usize);
-                if crate::memory::cstr_is_empty(ml) {
-                    shl.lnum = 0;
-                    break;
-                }
-                matchcol += utfc_ptr2len(ml);
-            } else {
-                matchcol = shl.rm.endpos[0].col;
-            }
+        shl.lnum = lnum;
+        if !shl.rm.regprog.is_null() {
+            let regprog_is_copy = cur.is_some()
+                && ptr::eq(shl, &raw const cur.as_deref_mut().unwrap().mit_hl)
+                && cur.as_deref_mut().unwrap().mit_match.regprog
+                    == cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
+            let mut timed_out: i32 = 0;
 
-            shl.lnum = lnum;
-            if !shl.rm.regprog.is_null() {
-                let regprog_is_copy = cur.is_some()
-                    && ptr::eq(shl, &raw const cur.as_deref_mut().unwrap().mit_hl)
-                    && cur.as_deref_mut().unwrap().mit_match.regprog
-                        == cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
-                let mut timed_out: i32 = 0;
-
-                nmatched = vim_regexec_multi(
-                    &mut shl.rm,
-                    win,
-                    shl.buf,
-                    lnum,
-                    matchcol,
-                    Some(shl.tm),
-                    Some(&mut timed_out),
-                );
-                if regprog_is_copy {
-                    cur.as_deref_mut().unwrap().mit_match.regprog =
-                        cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
-                }
-                if g_st().called_emsg > called_emsg_before || g_st().got_int || timed_out != 0 {
-                    if cur.is_none() {
-                        vim_regfree(shl.rm.regprog);
-                        set_no_hlsearch(true);
-                    }
-                    shl.rm.regprog = ptr::null_mut();
-                    shl.lnum = 0;
-                    g_st().got_int = false;
-                    break;
-                }
-            } else if cur.is_some() {
-                nmatched = next_search_hl_pos(shl, lnum, cur.as_deref_mut().unwrap(), matchcol);
+            nmatched = vim_regexec_multi(
+                &mut shl.rm,
+                win,
+                shl.buf,
+                lnum,
+                matchcol,
+                Some(shl.tm),
+                Some(&mut timed_out),
+            );
+            if regprog_is_copy {
+                cur.as_deref_mut().unwrap().mit_match.regprog =
+                    cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
             }
-            if nmatched == 0 {
+            if g_st().called_emsg > called_emsg_before || g_st().got_int || timed_out != 0 {
+                if cur.is_none() {
+                    vim_regfree(shl.rm.regprog);
+                    set_no_hlsearch(true);
+                }
+                shl.rm.regprog = ptr::null_mut();
                 shl.lnum = 0;
+                g_st().got_int = false;
                 break;
             }
-            if shl.rm.startpos[0].lnum > 0
-                || shl.rm.startpos[0].col >= mincol
-                || nmatched > 1
-                || shl.rm.endpos[0].col > mincol
-            {
-                shl.lnum += shl.rm.startpos[0].lnum;
-                break;
-            }
+        } else if cur.is_some() {
+            nmatched = next_search_hl_pos(shl, lnum, cur.as_deref_mut().unwrap(), matchcol);
+        }
+        if nmatched == 0 {
+            shl.lnum = 0;
+            break;
+        }
+        if shl.rm.startpos[0].lnum > 0
+            || shl.rm.startpos[0].col >= mincol
+            || nmatched > 1
+            || shl.rm.endpos[0].col > mincol
+        {
+            shl.lnum += shl.rm.startpos[0].lnum;
+            break;
         }
     }
 }
@@ -935,62 +934,58 @@ fn matchadd_dict_arg(
 
 /// `clearmatches()` function (`f_clearmatches`).
 pub fn f_clearmatches(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        let win = get_optional_window(argvars, 0);
-        if !win.is_null() {
-            clear_matches(unsafe { &mut *win });
-        }
+    let win = get_optional_window(argvars, 0);
+    if !win.is_null() {
+        clear_matches(unsafe { &mut *win });
     }
 }
 
 /// `getmatches()` function (`f_getmatches`).
 pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        let win = get_optional_window(argvars, 0);
+    let win = get_optional_window(argvars, 0);
 
-        tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-        if win.is_null() {
-            return;
-        }
+    tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
+    if win.is_null() {
+        return;
+    }
 
-        for cur in unsafe { &(*win).w_match_head } {
-            let dict = tv_dict_alloc();
-            if cur.mit_match.regprog.is_null() {
-                for (i, llpos) in cur.mit_pos.iter().enumerate() {
-                    if llpos.lnum == 0 {
-                        break;
-                    }
-                    let l = tv_list_alloc(1 + if llpos.col > 0 { 2 } else { 0 });
-                    tv_list_append_number(&mut *l, llpos.lnum as Varnumber);
-                    if llpos.col > 0 {
-                        tv_list_append_number(&mut *l, llpos.col as Varnumber);
-                        tv_list_append_number(&mut *l, llpos.len as Varnumber);
-                    }
-                    let mut buf = [0 as c_char; 30];
-                    let len = vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d", (i + 1) as i32);
-                    let _ = len;
-                    tv_dict_add_list(&mut *dict, buf.as_ptr(), l);
+    for cur in unsafe { &(*win).w_match_head } {
+        let dict = tv_dict_alloc();
+        if cur.mit_match.regprog.is_null() {
+            for (i, llpos) in cur.mit_pos.iter().enumerate() {
+                if llpos.lnum == 0 {
+                    break;
                 }
-            } else {
-                tv_dict_add_str(
-                    &mut *dict,
-                    c"pattern",
-                    cur.mit_pattern.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
-                );
+                let l = tv_list_alloc(1 + if llpos.col > 0 { 2 } else { 0 });
+                tv_list_append_number(&mut *l, llpos.lnum as Varnumber);
+                if llpos.col > 0 {
+                    tv_list_append_number(&mut *l, llpos.col as Varnumber);
+                    tv_list_append_number(&mut *l, llpos.len as Varnumber);
+                }
+                let mut buf = [0 as c_char; 30];
+                let len = vim_snprintf!(buf.as_mut_ptr(), 30, c"pos%d", (i + 1) as i32);
+                let _ = len;
+                tv_dict_add_list(&mut *dict, buf.as_ptr(), l);
             }
-            tv_dict_add_str(&mut *dict, c"group", syn_id2name(cur.mit_hlg_id));
-            tv_dict_add_nr(&mut *dict, c"priority", cur.mit_priority as Varnumber);
-            tv_dict_add_nr(&mut *dict, c"id", cur.mit_id as Varnumber);
-
-            if cur.mit_conceal_char != 0 {
-                let mut buf = [0 as c_char; MB_MAXCHAR + 1];
-                let buflen = utf_char2bytes(cur.mit_conceal_char, buf.as_mut_ptr());
-                buf[buflen as usize] = NUL;
-                tv_dict_add_str_len(&mut *dict, c"conceal", buf.as_ptr(), buflen);
-            }
-
-            tv_list_append_dict(rettv.vval.v_list_ref(), dict);
+        } else {
+            tv_dict_add_str(
+                &mut *dict,
+                c"pattern",
+                cur.mit_pattern.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
+            );
         }
+        tv_dict_add_str(&mut *dict, c"group", syn_id2name(cur.mit_hlg_id));
+        tv_dict_add_nr(&mut *dict, c"priority", cur.mit_priority as Varnumber);
+        tv_dict_add_nr(&mut *dict, c"id", cur.mit_id as Varnumber);
+
+        if cur.mit_conceal_char != 0 {
+            let mut buf = [0 as c_char; MB_MAXCHAR + 1];
+            let buflen = utf_char2bytes(cur.mit_conceal_char, buf.as_mut_ptr());
+            buf[buflen as usize] = NUL;
+            tv_dict_add_str_len(&mut *dict, c"conceal", buf.as_ptr(), buflen);
+        }
+
+        tv_list_append_dict(rettv.vval.v_list_ref(), dict);
     }
 }
 
@@ -1106,229 +1101,223 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `matchadd()` function (`f_matchadd`).
 pub fn f_matchadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        let mut grpbuf = [0 as c_char; NUMBUFLEN];
-        let mut patbuf = [0 as c_char; NUMBUFLEN];
-        let grp = tv_get_string_buf_chk(&argvars[0], grpbuf.as_mut_ptr());
-        let pat = tv_get_string_buf_chk(&argvars[1], patbuf.as_mut_ptr());
-        let mut prio: i32 = 10;
-        let mut id: i32 = -1;
-        let mut error = false;
-        let mut conceal_char: *const c_char = ptr::null();
-        let mut win = curwin_ptr();
+    let mut grpbuf = [0 as c_char; NUMBUFLEN];
+    let mut patbuf = [0 as c_char; NUMBUFLEN];
+    let grp = tv_get_string_buf_chk(&argvars[0], grpbuf.as_mut_ptr());
+    let pat = tv_get_string_buf_chk(&argvars[1], patbuf.as_mut_ptr());
+    let mut prio: i32 = 10;
+    let mut id: i32 = -1;
+    let mut error = false;
+    let mut conceal_char: *const c_char = ptr::null();
+    let mut win = curwin_ptr();
 
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        if grp.is_null() || pat.is_null() {
-            return;
-        }
-        if argvars[2].v_type != VarType::VarUnknown {
-            prio = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
-            if argvars[3].v_type != VarType::VarUnknown {
-                id = tv_get_number_chk(&argvars[3], Some(&mut error)) as i32;
-                if argvars[4].v_type != VarType::VarUnknown
-                    && !matchadd_dict_arg(&mut argvars[4], &raw mut conceal_char, &raw mut win)
-                {
-                    return;
-                }
+    if grp.is_null() || pat.is_null() {
+        return;
+    }
+    if argvars[2].v_type != VarType::VarUnknown {
+        prio = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
+        if argvars[3].v_type != VarType::VarUnknown {
+            id = tv_get_number_chk(&argvars[3], Some(&mut error)) as i32;
+            if argvars[4].v_type != VarType::VarUnknown
+                && !matchadd_dict_arg(&mut argvars[4], &raw mut conceal_char, &raw mut win)
+            {
+                return;
             }
         }
-        if error {
-            return;
-        }
-        if (1..=3).contains(&id) {
-            semsg!(gettext(c"E798: ID is reserved for \":match\": %d"), id,);
-            return;
-        }
-
-        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
-            unsafe { &mut *win },
-            grp,
-            pat,
-            prio,
-            id,
-            None,
-            conceal_char,
-        ) as Varnumber);
     }
+    if error {
+        return;
+    }
+    if (1..=3).contains(&id) {
+        semsg!(gettext(c"E798: ID is reserved for \":match\": %d"), id,);
+        return;
+    }
+
+    rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
+        unsafe { &mut *win },
+        grp,
+        pat,
+        prio,
+        id,
+        None,
+        conceal_char,
+    ) as Varnumber);
 }
 
 /// `matchaddpos()` function (`f_matchaddpos`).
 pub fn f_matchaddpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-        let mut buf = [0 as c_char; NUMBUFLEN];
-        let group = tv_get_string_buf_chk(&argvars[0], buf.as_mut_ptr());
-        if group.is_null() {
-            return;
-        }
+    let mut buf = [0 as c_char; NUMBUFLEN];
+    let group = tv_get_string_buf_chk(&argvars[0], buf.as_mut_ptr());
+    if group.is_null() {
+        return;
+    }
 
-        if argvars[1].v_type != VarType::VarList {
-            semsg!(gettext(E_LISTARG), c"matchaddpos()",);
-            return;
-        }
+    if argvars[1].v_type != VarType::VarList {
+        semsg!(gettext(E_LISTARG), c"matchaddpos()",);
+        return;
+    }
 
-        let l = argvars[1].vval.v_list();
-        if tv_list_len(unsafe { l.as_ref() }) == 0 {
-            return;
-        }
+    let l = argvars[1].vval.v_list();
+    if tv_list_len(unsafe { l.as_ref() }) == 0 {
+        return;
+    }
 
-        let mut error = false;
-        let mut prio: i32 = 10;
-        let mut id: i32 = -1;
-        let mut conceal_char: *const c_char = ptr::null();
-        let mut win = curwin_ptr();
+    let mut error = false;
+    let mut prio: i32 = 10;
+    let mut id: i32 = -1;
+    let mut conceal_char: *const c_char = ptr::null();
+    let mut win = curwin_ptr();
 
-        if argvars[2].v_type != VarType::VarUnknown {
-            prio = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
-            if argvars[3].v_type != VarType::VarUnknown {
-                id = tv_get_number_chk(&argvars[3], Some(&mut error)) as i32;
-                if argvars[4].v_type != VarType::VarUnknown
-                    && !matchadd_dict_arg(&mut argvars[4], &raw mut conceal_char, &raw mut win)
-                {
-                    return;
-                }
+    if argvars[2].v_type != VarType::VarUnknown {
+        prio = tv_get_number_chk(&argvars[2], Some(&mut error)) as i32;
+        if argvars[3].v_type != VarType::VarUnknown {
+            id = tv_get_number_chk(&argvars[3], Some(&mut error)) as i32;
+            if argvars[4].v_type != VarType::VarUnknown
+                && !matchadd_dict_arg(&mut argvars[4], &raw mut conceal_char, &raw mut win)
+            {
+                return;
             }
         }
-        if error {
-            return;
-        }
-
-        if id == 1 || id == 2 {
-            semsg!(gettext(c"E798: ID is reserved for \"match\": %d"), id,);
-            return;
-        }
-
-        rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
-            unsafe { &mut *win },
-            group,
-            ptr::null(),
-            prio,
-            id,
-            unsafe { l.as_ref() },
-            conceal_char,
-        ) as Varnumber);
     }
+    if error {
+        return;
+    }
+
+    if id == 1 || id == 2 {
+        semsg!(gettext(c"E798: ID is reserved for \"match\": %d"), id,);
+        return;
+    }
+
+    rettv.vval = crate::eval::typval::TypvalVval::Number(match_add(
+        unsafe { &mut *win },
+        group,
+        ptr::null(),
+        prio,
+        id,
+        unsafe { l.as_ref() },
+        conceal_char,
+    ) as Varnumber);
 }
 
 /// `matcharg()` function (`f_matcharg`).
 pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        let id = tv_get_number(&argvars[0]) as i32;
+    let id = tv_get_number(&argvars[0]) as i32;
 
-        tv_list_alloc_ret(rettv, if (1..=3).contains(&id) { 2 } else { 0 });
+    tv_list_alloc_ret(rettv, if (1..=3).contains(&id) { 2 } else { 0 });
 
-        if (1..=3).contains(&id) {
-            let m = get_match(curwin_mut(), id);
-            if !m.is_null() {
-                let m = unsafe { &mut *m };
-                tv_list_append_string(rettv.vval.v_list_ref(), syn_id2name(m.mit_hlg_id), -1);
-                tv_list_append_string(
-                    rettv.vval.v_list_ref(),
-                    m.mit_pattern.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
-                    -1,
-                );
-            } else {
-                tv_list_append_string(rettv.vval.v_list_ref(), ptr::null(), 0);
-                tv_list_append_string(rettv.vval.v_list_ref(), ptr::null(), 0);
-            }
+    if (1..=3).contains(&id) {
+        let m = get_match(curwin_mut(), id);
+        if !m.is_null() {
+            let m = unsafe { &mut *m };
+            tv_list_append_string(rettv.vval.v_list_ref(), syn_id2name(m.mit_hlg_id), -1);
+            tv_list_append_string(
+                rettv.vval.v_list_ref(),
+                m.mit_pattern.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
+                -1,
+            );
+        } else {
+            tv_list_append_string(rettv.vval.v_list_ref(), ptr::null(), 0);
+            tv_list_append_string(rettv.vval.v_list_ref(), ptr::null(), 0);
         }
     }
 }
 
 /// `matchdelete()` function (`f_matchdelete`).
 pub fn f_matchdelete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    {
-        let win = get_optional_window(argvars, 1);
-        rettv.vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {
-            -1
-        } else {
-            match_delete(
-                unsafe { &mut *win },
-                tv_get_number(&argvars[0]) as i32,
-                true,
-            ) as Varnumber
-        });
-    }
+    let win = get_optional_window(argvars, 1);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(if win.is_null() {
+        -1
+    } else {
+        match_delete(
+            unsafe { &mut *win },
+            tv_get_number(&argvars[0]) as i32,
+            true,
+        ) as Varnumber
+    });
 }
 
 /// `:[N]match {group} {pattern}` (`ex_match`).
 pub fn ex_match(eap: &mut Exarg) {
-    unsafe {
-        let mut g = None;
-        let end: *mut c_char;
+    let mut g = None;
+    let end: *mut c_char;
 
-        let id: i32 = if eap.line2 <= 3 {
-            eap.line2
+    let id: i32 = if eap.line2 <= 3 {
+        eap.line2
+    } else {
+        emsg(E_INVCMD);
+        return;
+    };
+
+    if eap.skip == 0 {
+        match_delete(curwin_mut(), id, false);
+    }
+
+    let arg = eap.arg;
+    if ends_excmd(crate::memory::cstr_first_char(arg)) != 0 {
+        end = arg;
+    } else {
+        let arg_bytes = crate::memory::cstr_as_bytes(arg);
+        if arg_bytes.len() >= 4
+            && arg_bytes[..4].eq_ignore_ascii_case(b"none")
+            && (ascii_iswhite(crate::memory::cstr_char_at(arg, 4))
+                || ends_excmd(crate::memory::cstr_char_at(arg, 4)) != 0)
+        {
+            end = arg.wrapping_add(4);
         } else {
-            emsg(E_INVCMD);
-            return;
-        };
-
-        if eap.skip == 0 {
-            match_delete(curwin_mut(), id, false);
-        }
-
-        let arg = eap.arg;
-        if ends_excmd(crate::memory::cstr_first_char(arg)) != 0 {
-            end = arg;
-        } else {
-            let arg_bytes = crate::memory::cstr_as_bytes(arg);
-            if arg_bytes.len() >= 4
-                && arg_bytes[..4].eq_ignore_ascii_case(b"none")
-                && (ascii_iswhite(crate::memory::cstr_char_at(arg, 4))
-                    || ends_excmd(crate::memory::cstr_char_at(arg, 4)) != 0)
-            {
-                end = arg.wrapping_add(4);
-            } else {
-                let mut p = skiptowhite(arg);
-                if eap.skip == 0 {
-                    g = Some(
-                        std::ffi::CString::new(crate::memory::cstr_slice(
-                            arg,
-                            crate::memory::ptr_offset_from(p, arg) as usize,
-                        ))
-                        .unwrap_or_default(),
-                    );
-                }
-                p = skipwhite(p);
-                if crate::memory::cstr_is_empty(p) {
-                    semsg!(gettext(E_INVARG2), arg);
+            let mut p = skiptowhite(arg);
+            if eap.skip == 0 {
+                g = Some(
+                    std::ffi::CString::new(crate::memory::cstr_slice(
+                        arg,
+                        crate::memory::ptr_offset_from(p, arg) as usize,
+                    ))
+                    .unwrap_or_default(),
+                );
+            }
+            p = skipwhite(p);
+            if crate::memory::cstr_is_empty(p) {
+                semsg!(gettext(E_INVARG2), arg);
+                return;
+            }
+            end = skip_regexp(
+                p.wrapping_add(1),
+                i32::from(crate::memory::cstr_first_byte(p)),
+                1,
+            );
+            if eap.skip == 0 {
+                if !crate::memory::cstr_is_empty(end)
+                    && ends_excmd(i32::from(unsafe { *skipwhite(end.wrapping_add(1)) })) == 0
+                {
+                    eap.errmsg = ex_errmsg(E_TRAILING_ARG, end);
                     return;
                 }
-                end = skip_regexp(
-                    p.wrapping_add(1),
-                    i32::from(crate::memory::cstr_first_byte(p)),
-                    1,
-                );
-                if eap.skip == 0 {
-                    if !crate::memory::cstr_is_empty(end)
-                        && ends_excmd(i32::from(*skipwhite(end.wrapping_add(1)))) == 0
-                    {
-                        eap.errmsg = ex_errmsg(E_TRAILING_ARG, end);
-                        return;
-                    }
-                    if *end != *p {
-                        semsg!(gettext(E_INVARG2), p);
-                        return;
-                    }
+                if unsafe { *end } != unsafe { *p } {
+                    semsg!(gettext(E_INVARG2), p);
+                    return;
+                }
 
-                    let c = *end;
+                let c = unsafe { *end };
+                unsafe {
                     *end = NUL;
-                    match_add(
-                        curwin_mut(),
-                        g.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                        p.wrapping_add(1),
-                        10,
-                        id,
-                        None,
-                        ptr::null(),
-                    );
+                }
+                match_add(
+                    curwin_mut(),
+                    g.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                    p.wrapping_add(1),
+                    10,
+                    id,
+                    None,
+                    ptr::null(),
+                );
+                unsafe {
                     *end = c;
                 }
             }
         }
-        eap.nextcmd = find_nextcmd(end);
     }
+    eap.nextcmd = find_nextcmd(end);
 }

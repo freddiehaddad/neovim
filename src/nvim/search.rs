@@ -416,34 +416,30 @@ pub fn search_regcomp(
 
 /// Get search pattern used by `search_regcomp()`.
 pub fn get_search_pat() -> *mut c_char {
-    {
-        unsafe { (&raw const srch().mr_pattern).as_ref() }
-            .unwrap()
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
-    }
+    unsafe { (&raw const srch().mr_pattern).as_ref() }
+        .unwrap()
+        .as_ref()
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
 }
 
 pub fn save_re_pat(idx: i32, pat: *mut c_char, patlen: usize, magic: i32) {
-    {
-        let i = idx as usize;
-        if srch().spats[i].pat_ptr() == pat {
-            return;
-        }
-
-        let new_pat = CString::new(crate::memory::cstr_slice(pat, patlen)).unwrap_or_default();
-        free_spat(&mut srch().spats[i]);
-        srch().spats[i].pat = Some(new_pat);
-        srch().spats[i].magic = magic != 0;
-        srch().spats[i].no_scs = g_st().search_global.no_smartcase;
-        srch().spats[i].timestamp = os_time();
-        srch().spats[i].additional_data = None;
-        srch().last_idx = idx;
-        if opt_vars().p_hls != 0 {
-            redraw_all_later(UPD_SOME_VALID);
-        }
-        set_no_hlsearch(false);
+    let i = idx as usize;
+    if srch().spats[i].pat_ptr() == pat {
+        return;
     }
+
+    let new_pat = CString::new(crate::memory::cstr_slice(pat, patlen)).unwrap_or_default();
+    free_spat(&mut srch().spats[i]);
+    srch().spats[i].pat = Some(new_pat);
+    srch().spats[i].magic = magic != 0;
+    srch().spats[i].no_scs = g_st().search_global.no_smartcase;
+    srch().spats[i].timestamp = os_time();
+    srch().spats[i].additional_data = None;
+    srch().last_idx = idx;
+    if opt_vars().p_hls != 0 {
+        redraw_all_later(UPD_SOME_VALID);
+    }
+    set_no_hlsearch(false);
 }
 
 pub fn save_search_patterns() {
@@ -533,71 +529,67 @@ pub fn ignorecase(pat: *mut c_char) -> i32 {
 }
 
 pub fn ignorecase_opt(pat: *mut c_char, ic_in: i32, scs: i32) -> i32 {
+    let mut ic = ic_in;
+    if ic != 0
+        && !g_st().search_global.no_smartcase
+        && scs != 0
+        && !(ctrl_x_mode_not_default() && curbuf_mut().b_p_inf != 0)
     {
-        let mut ic = ic_in;
-        if ic != 0
-            && !g_st().search_global.no_smartcase
-            && scs != 0
-            && !(ctrl_x_mode_not_default() && curbuf_mut().b_p_inf != 0)
-        {
-            ic = i32::from(!pat_has_uppercase(pat));
-        }
-        g_st().search_global.no_smartcase = false;
-        ic
+        ic = i32::from(!pat_has_uppercase(pat));
     }
+    g_st().search_global.no_smartcase = false;
+    ic
 }
 
 pub fn pat_has_uppercase(pat: *mut c_char) -> bool {
-    {
-        let mut p = pat;
-        let mut magic_val: RegMagic = MAGIC_ON;
+    let mut p = pat;
+    let mut magic_val: RegMagic = MAGIC_ON;
 
-        skip_regexp_ex(
-            pat,
-            i32::from(NUL),
-            opt_vars().p_magic,
-            false,
-            None,
-            None,
-            Some(&mut magic_val),
-        );
+    skip_regexp_ex(
+        pat,
+        i32::from(NUL),
+        opt_vars().p_magic,
+        false,
+        None,
+        None,
+        Some(&mut magic_val),
+    );
 
-        while !crate::memory::cstr_is_empty(p) {
-            let l = utfc_ptr2len(p);
+    while !crate::memory::cstr_is_empty(p) {
+        let l = utfc_ptr2len(p);
 
-            if l > 1 {
-                if mb_isupper(utf_ptr2char(p)) {
-                    return true;
-                }
-                p = p.wrapping_add(l as usize);
-            } else if crate::memory::cstr_first_byte(p) == b'\\' && magic_val <= MAGIC_ON {
-                if (crate::memory::cstr_byte_at(p, 1) == b'_'
-                    || crate::memory::cstr_byte_at(p, 1) == b'%')
-                    && crate::memory::cstr_byte_at(p, 2) != 0
-                {
-                    p = p.wrapping_add(3);
-                } else if crate::memory::cstr_byte_at(p, 1) != 0 {
-                    p = p.wrapping_add(2);
-                } else {
-                    p = p.wrapping_add(1);
-                }
-            } else if (crate::memory::cstr_first_byte(p) == b'%'
-                || crate::memory::cstr_first_byte(p) == b'_')
-                && magic_val == MAGIC_ALL
-            {
-                if crate::memory::cstr_byte_at(p, 1) != 0 {
-                    p = p.wrapping_add(2);
-                } else {
-                    p = p.wrapping_add(1);
-                }
-            } else if mb_isupper(i32::from(crate::memory::cstr_first_byte(p))) {
+        if l > 1 {
+            if mb_isupper(utf_ptr2char(p)) {
                 return true;
+            }
+            p = p.wrapping_add(l as usize);
+        } else if crate::memory::cstr_first_byte(p) == b'\\' && magic_val <= MAGIC_ON {
+            if (crate::memory::cstr_byte_at(p, 1) == b'_'
+                || crate::memory::cstr_byte_at(p, 1) == b'%')
+                && crate::memory::cstr_byte_at(p, 2) != 0
+            {
+                p = p.wrapping_add(3);
+            } else if crate::memory::cstr_byte_at(p, 1) != 0 {
+                p = p.wrapping_add(2);
             } else {
                 p = p.wrapping_add(1);
             }
+        } else if (crate::memory::cstr_first_byte(p) == b'%'
+            || crate::memory::cstr_first_byte(p) == b'_')
+            && magic_val == MAGIC_ALL
+        {
+            if crate::memory::cstr_byte_at(p, 1) != 0 {
+                p = p.wrapping_add(2);
+            } else {
+                p = p.wrapping_add(1);
+            }
+        } else if mb_isupper(i32::from(crate::memory::cstr_first_byte(p))) {
+            return true;
+        } else {
+            p = p.wrapping_add(1);
         }
-        false
     }
+    false
 }
 
 pub fn last_csearch() -> *const c_char {
@@ -1251,10 +1243,7 @@ pub fn parse_search_pattern_offset(
             if ascii_isdigit(crate::memory::cstr_first_char(p))
                 || ascii_isdigit(crate::memory::cstr_char_at(p, 1))
             {
-                {
-                    offset.off =
-                        crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p)) as _;
-                }
+                offset.off = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(p)) as _;
             } else if crate::memory::cstr_first_byte(p) == b'-' {
                 offset.off = -1;
             } else {
@@ -1286,422 +1275,423 @@ pub fn do_search(
     magic: bool,
     mut sia: Option<&mut SearchitArg>,
 ) -> i32 {
-    unsafe {
-        let mut searchstr: *mut c_char;
-        let mut searchstrlen: usize;
-        let mut retval: i32;
-        let mut c: i64;
-        let mut dircp: *mut c_char;
-        let mut strcopy: Vec<c_char> = Vec::new();
-        let mut msgbuf_vec: Vec<c_char> = Vec::new();
-        let mut msgbuflen: usize = 0;
-        let mut has_offset = false;
+    let mut searchstr: *mut c_char;
+    let mut searchstrlen: usize;
+    let mut retval: i32;
+    let mut c: i64;
+    let mut dircp: *mut c_char;
+    let mut strcopy: Vec<c_char> = Vec::new();
+    let mut msgbuf_vec: Vec<c_char> = Vec::new();
+    let mut msgbuflen: usize = 0;
+    let mut has_offset = false;
 
-        g_st().search_global.cmdlen = 0;
+    g_st().search_global.cmdlen = 0;
 
-        if srch().spats[0].off.line && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LINEOFF) {
-            srch().spats[0].off.line = false;
-            srch().spats[0].off.off = 0;
-        }
+    if srch().spats[0].off.line && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LINEOFF) {
+        srch().spats[0].off.line = false;
+        srch().spats[0].off.off = 0;
+    }
 
-        let old_off = srch().spats[0].off;
+    let old_off = srch().spats[0].off;
 
-        let mut pos = curwin_mut().w_cursor;
+    let mut pos = curwin_mut().w_cursor;
 
-        if dirc == 0 {
-            dirc = i32::from(srch().spats[0].off.dir as u8);
+    if dirc == 0 {
+        dirc = i32::from(srch().spats[0].off.dir as u8);
+    } else {
+        srch().spats[0].off.dir = dirc as c_char;
+        set_vv_searchforward();
+    }
+    if (options & SEARCH_REV) != 0 {
+        dirc = if dirc == b'/' as i32 {
+            b'?' as i32
         } else {
-            srch().spats[0].off.dir = dirc as c_char;
-            set_vv_searchforward();
+            b'/' as i32
+        };
+    }
+
+    if dirc == b'/' as i32 {
+        if has_folding(curwin_ptr(), pos.lnum, None, &raw mut pos.lnum) {
+            pos.col = MAXCOL - 2;
         }
-        if (options & SEARCH_REV) != 0 {
-            dirc = if dirc == b'/' as i32 {
-                b'?' as i32
+    } else if has_folding(curwin_ptr(), pos.lnum, Some(&mut pos.lnum), ptr::null_mut()) {
+        pos.col = 0;
+    }
+
+    if g_st().search_global.no_hlsearch && (options & SEARCH_KEEP) == 0 {
+        redraw_all_later(UPD_SOME_VALID);
+        set_no_hlsearch(false);
+    }
+
+    let mut success = true;
+    loop {
+        let mut show_top_bot_msg = false;
+
+        searchstr = pat;
+        searchstrlen = patlen;
+
+        dircp = ptr::null_mut();
+        if crate::memory::cstr_is_empty(pat)
+            || i32::from(crate::memory::cstr_first_byte(pat)) == search_delim
+        {
+            if srch().spats[RE_SEARCH as usize].pat.is_none() {
+                if srch().spats[RE_SUBST as usize].pat.is_none() {
+                    emsg(tr(E_NOPREVRE));
+                    retval = 0;
+                    success = false;
+                    break;
+                }
+                searchstr = srch().spats[RE_SUBST as usize].pat_ptr();
+                searchstrlen = srch().spats[RE_SUBST as usize].patlen();
             } else {
-                b'/' as i32
-            };
-        }
-
-        if dirc == b'/' as i32 {
-            if has_folding(curwin_ptr(), pos.lnum, None, &raw mut pos.lnum) {
-                pos.col = MAXCOL - 2;
+                searchstr = c"".as_ptr().cast_mut();
+                searchstrlen = 0;
             }
-        } else if has_folding(curwin_ptr(), pos.lnum, Some(&mut pos.lnum), ptr::null_mut()) {
-            pos.col = 0;
         }
 
-        if g_st().search_global.no_hlsearch && (options & SEARCH_KEEP) == 0 {
-            redraw_all_later(UPD_SOME_VALID);
-            set_no_hlsearch(false);
+        if !crate::memory::cstr_is_empty(pat) {
+            let prev_searchstr = searchstr;
+            let prev_searchstrlen = searchstrlen;
+            g_st().search_global.cmdlen += parse_search_pattern_offset(
+                &raw mut pat,
+                &mut patlen,
+                search_delim,
+                options,
+                &mut strcopy,
+                &raw mut searchstr,
+                &mut searchstrlen,
+                &raw mut dircp,
+                &mut srch().spats[0].off,
+            );
+            if crate::memory::cstr_is_empty(searchstr) {
+                searchstr = prev_searchstr;
+                searchstrlen = prev_searchstrlen;
+            }
         }
 
-        let mut success = true;
-        loop {
-            let mut show_top_bot_msg = false;
+        let mut show_search_stats = false;
+        if (options & SEARCH_ECHO) != 0
+            && messaging()
+            && g_st().msg_silent == 0
+            && (!g_st().cmd_silent || !shortmess(K_SHM_SEARCHCOUNT))
+        {
+            let mut off_buf = [0 as c_char; 40];
+            let off_buf_ptr = (&raw mut off_buf).cast::<c_char>();
+            let mut off_len: usize = 0;
 
-            searchstr = pat;
-            searchstrlen = patlen;
+            msg_start();
+            msg_ext_set_kind(c"search_cmd");
 
-            dircp = ptr::null_mut();
-            if crate::memory::cstr_is_empty(pat)
-                || i32::from(crate::memory::cstr_first_byte(pat)) == search_delim
+            if !g_st().cmd_silent
+                && (srch().spats[0].off.line
+                    || srch().spats[0].off.end
+                    || srch().spats[0].off.off != 0)
             {
-                if srch().spats[RE_SEARCH as usize].pat.is_none() {
-                    if srch().spats[RE_SUBST as usize].pat.is_none() {
-                        emsg(tr(E_NOPREVRE));
-                        retval = 0;
-                        success = false;
+                off_buf[off_len] = dirc as c_char;
+                off_len += 1;
+                if srch().spats[0].off.end {
+                    off_buf[off_len] = b'e' as c_char;
+                    off_len += 1;
+                } else if !srch().spats[0].off.line {
+                    off_buf[off_len] = b's' as c_char;
+                    off_len += 1;
+                }
+                off_buf[off_len] = NUL;
+                if srch().spats[0].off.off != 0 || srch().spats[0].off.line {
+                    let n = vim_snprintf!(
+                        off_buf_ptr.wrapping_add(off_len),
+                        off_buf.len() - off_len,
+                        c"%+lld",
+                        srch().spats[0].off.off,
+                    );
+                    if n > 0 {
+                        off_len += n as usize;
+                    }
+                }
+            }
+
+            let (p, plen) = if crate::memory::cstr_is_empty(searchstr) {
+                (srch().spats[0].pat_ptr(), srch().spats[0].patlen())
+            } else {
+                (searchstr, searchstrlen)
+            };
+
+            let mut msgbufsize = if !shortmess(K_SHM_SEARCHCOUNT) || g_st().cmd_silent {
+                let mut sz = if ui_has(K_UIMESSAGES) {
+                    0
+                } else if g_st().msg_scrolled != 0 && !g_st().cmd_silent {
+                    ((g_st().rows_global - g_st().msg_row) * g_st().columns_global - 1) as usize
+                } else {
+                    ((g_st().rows_global - g_st().msg_row - 1) * g_st().columns_global
+                        + g_st().sc_col
+                        - 1) as usize
+                };
+                if sz < plen + off_len + SEARCH_STAT_BUF_LEN + 3 {
+                    sz = plen + off_len + SEARCH_STAT_BUF_LEN + 3;
+                }
+                sz
+            } else {
+                plen + off_len + 3
+            };
+            let _ = &mut msgbufsize;
+
+            msgbuf_vec = vec![b' ' as c_char; msgbufsize];
+            msgbuflen = msgbufsize - 1;
+            msgbuf_vec[msgbuflen] = NUL;
+
+            if !g_st().cmd_silent {
+                let mut msgbuf = msgbuf_vec.as_mut_ptr();
+                ui_busy_start();
+                unsafe {
+                    *msgbuf.wrapping_add(0) = dirc as c_char;
+                }
+                if utf_iscomposing_first(utf_ptr2char(p)) {
+                    unsafe {
+                        *msgbuf.wrapping_add(1) = b' ' as c_char;
+                    }
+                    unsafe { ptr::copy(p, msgbuf.wrapping_add(2), plen) };
+                } else {
+                    unsafe { ptr::copy(p, msgbuf.wrapping_add(1), plen) };
+                }
+                if off_len > 0 {
+                    unsafe { ptr::copy(off_buf_ptr, msgbuf.wrapping_add(plen + 1), off_len) };
+                }
+
+                if let Some(trunc) = msg_strtrunc(msgbuf, 1) {
+                    msgbuflen = trunc.as_bytes().len();
+                    msgbuf_vec = trunc
+                        .into_bytes_with_nul()
+                        .into_iter()
+                        .map(|b| b as c_char)
+                        .collect();
+                    msgbuf = msgbuf_vec.as_mut_ptr();
+                }
+
+                if curwin_mut().w_onebuf_opt.wo_rl != 0
+                    && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
+                {
+                    let rev = reverse_text(msgbuf);
+                    msgbuflen = rev.as_bytes().len();
+                    msgbuf_vec = rev
+                        .into_bytes_with_nul()
+                        .into_iter()
+                        .map(|b| b as c_char)
+                        .collect();
+                    msgbuf = msgbuf_vec.as_mut_ptr();
+                    let mut r = msgbuf;
+                    while crate::memory::cstr_first_byte(r) == b' ' {
+                        r = r.wrapping_add(1);
+                    }
+                    let pat_len =
+                        crate::memory::ptr_offset_from(msgbuf.wrapping_add(msgbuflen), r) as usize;
+                    unsafe { ptr::copy(r, msgbuf, pat_len) };
+                    let r_off = crate::memory::ptr_offset_from(r, msgbuf) as usize;
+                    if r_off >= pat_len {
+                        unsafe { ptr::write_bytes(r, b' ', pat_len) };
+                    } else {
+                        unsafe { ptr::write_bytes(msgbuf.wrapping_add(pat_len), b' ', r_off) };
+                    }
+                }
+                msg_outtrans(msgbuf, 0, false);
+                msg_clr_eos();
+                msg_check();
+
+                gotocmdline(false);
+                ui_flush();
+                ui_busy_stop();
+                g_st().msg_nowait = true;
+            }
+
+            if !shortmess(K_SHM_SEARCHCOUNT) {
+                show_search_stats = true;
+            }
+        }
+
+        if !srch().spats[0].off.line && srch().spats[0].off.off != 0 && pos.col < MAXCOL - 2 {
+            if srch().spats[0].off.off > 0 {
+                c = srch().spats[0].off.off;
+                while c != 0 {
+                    if decl(&mut pos) == -1 {
                         break;
                     }
-                    searchstr = srch().spats[RE_SUBST as usize].pat_ptr();
-                    searchstrlen = srch().spats[RE_SUBST as usize].patlen();
-                } else {
-                    searchstr = c"".as_ptr().cast_mut();
-                    searchstrlen = 0;
+                    c -= 1;
+                }
+                if c != 0 {
+                    pos.lnum = 0;
+                    pos.col = MAXCOL;
+                }
+            } else {
+                c = srch().spats[0].off.off;
+                while c != 0 {
+                    if incl(&mut pos) == -1 {
+                        break;
+                    }
+                    c += 1;
+                }
+                if c != 0 {
+                    pos.lnum = curbuf_mut().b_ml.ml_line_count + 1;
+                    pos.col = 0;
                 }
             }
+        }
 
-            if !crate::memory::cstr_is_empty(pat) {
-                let prev_searchstr = searchstr;
-                let prev_searchstrlen = searchstrlen;
-                g_st().search_global.cmdlen += parse_search_pattern_offset(
-                    &raw mut pat,
-                    &mut patlen,
-                    search_delim,
-                    options,
-                    &mut strcopy,
-                    &raw mut searchstr,
-                    &mut searchstrlen,
-                    &raw mut dircp,
-                    &mut srch().spats[0].off,
-                );
-                if crate::memory::cstr_is_empty(searchstr) {
-                    searchstr = prev_searchstr;
-                    searchstrlen = prev_searchstrlen;
-                }
-            }
-
-            let mut show_search_stats = false;
-            if (options & SEARCH_ECHO) != 0
-                && messaging()
-                && g_st().msg_silent == 0
-                && (!g_st().cmd_silent || !shortmess(K_SHM_SEARCHCOUNT))
-            {
-                let mut off_buf = [0 as c_char; 40];
-                let off_buf_ptr = (&raw mut off_buf).cast::<c_char>();
-                let mut off_len: usize = 0;
-
-                msg_start();
-                msg_ext_set_kind(c"search_cmd");
-
-                if !g_st().cmd_silent
-                    && (srch().spats[0].off.line
-                        || srch().spats[0].off.end
-                        || srch().spats[0].off.off != 0)
-                {
-                    off_buf[off_len] = dirc as c_char;
-                    off_len += 1;
-                    if srch().spats[0].off.end {
-                        off_buf[off_len] = b'e' as c_char;
-                        off_len += 1;
-                    } else if !srch().spats[0].off.line {
-                        off_buf[off_len] = b's' as c_char;
-                        off_len += 1;
-                    }
-                    off_buf[off_len] = NUL;
-                    if srch().spats[0].off.off != 0 || srch().spats[0].off.line {
-                        let n = vim_snprintf!(
-                            off_buf_ptr.wrapping_add(off_len),
-                            off_buf.len() - off_len,
-                            c"%+lld",
-                            srch().spats[0].off.off,
-                        );
-                        if n > 0 {
-                            off_len += n as usize;
-                        }
-                    }
-                }
-
-                let (p, plen) = if crate::memory::cstr_is_empty(searchstr) {
-                    (srch().spats[0].pat_ptr(), srch().spats[0].patlen())
-                } else {
-                    (searchstr, searchstrlen)
-                };
-
-                let mut msgbufsize = if !shortmess(K_SHM_SEARCHCOUNT) || g_st().cmd_silent {
-                    let mut sz = if ui_has(K_UIMESSAGES) {
-                        0
-                    } else if g_st().msg_scrolled != 0 && !g_st().cmd_silent {
-                        ((g_st().rows_global - g_st().msg_row) * g_st().columns_global - 1) as usize
-                    } else {
-                        ((g_st().rows_global - g_st().msg_row - 1) * g_st().columns_global
-                            + g_st().sc_col
-                            - 1) as usize
-                    };
-                    if sz < plen + off_len + SEARCH_STAT_BUF_LEN + 3 {
-                        sz = plen + off_len + SEARCH_STAT_BUF_LEN + 3;
-                    }
-                    sz
-                } else {
-                    plen + off_len + 3
-                };
-                let _ = &mut msgbufsize;
-
-                msgbuf_vec = vec![b' ' as c_char; msgbufsize];
-                msgbuflen = msgbufsize - 1;
-                msgbuf_vec[msgbuflen] = NUL;
-
-                if !g_st().cmd_silent {
-                    let mut msgbuf = msgbuf_vec.as_mut_ptr();
-                    ui_busy_start();
-                    *msgbuf.wrapping_add(0) = dirc as c_char;
-                    if utf_iscomposing_first(utf_ptr2char(p)) {
-                        *msgbuf.wrapping_add(1) = b' ' as c_char;
-                        ptr::copy(p, msgbuf.wrapping_add(2), plen);
-                    } else {
-                        ptr::copy(p, msgbuf.wrapping_add(1), plen);
-                    }
-                    if off_len > 0 {
-                        ptr::copy(off_buf_ptr, msgbuf.wrapping_add(plen + 1), off_len);
-                    }
-
-                    if let Some(trunc) = msg_strtrunc(msgbuf, 1) {
-                        msgbuflen = trunc.as_bytes().len();
-                        msgbuf_vec = trunc
-                            .into_bytes_with_nul()
-                            .into_iter()
-                            .map(|b| b as c_char)
-                            .collect();
-                        msgbuf = msgbuf_vec.as_mut_ptr();
-                    }
-
-                    if curwin_mut().w_onebuf_opt.wo_rl != 0
-                        && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
-                    {
-                        let rev = reverse_text(msgbuf);
-                        msgbuflen = rev.as_bytes().len();
-                        msgbuf_vec = rev
-                            .into_bytes_with_nul()
-                            .into_iter()
-                            .map(|b| b as c_char)
-                            .collect();
-                        msgbuf = msgbuf_vec.as_mut_ptr();
-                        let mut r = msgbuf;
-                        while crate::memory::cstr_first_byte(r) == b' ' {
-                            r = r.wrapping_add(1);
-                        }
-                        let pat_len =
-                            crate::memory::ptr_offset_from(msgbuf.wrapping_add(msgbuflen), r)
-                                as usize;
-                        ptr::copy(r, msgbuf, pat_len);
-                        let r_off = crate::memory::ptr_offset_from(r, msgbuf) as usize;
-                        if r_off >= pat_len {
-                            ptr::write_bytes(r, b' ', pat_len);
+        c = i64::from(searchit(
+            curwin_ptr(),
+            curbuf_mut(),
+            &mut pos,
+            None,
+            if dirc == b'/' as i32 {
+                FORWARD
+            } else {
+                BACKWARD
+            },
+            searchstr,
+            searchstrlen,
+            count,
+            i32::from(srch().spats[0].off.end) * SEARCH_END
+                + (options
+                    & (SEARCH_KEEP
+                        + SEARCH_PEEK
+                        + SEARCH_HIS
+                        + SEARCH_MSG
+                        + SEARCH_START
+                        + if !pat.is_null() && crate::memory::cstr_first_byte(pat) == b';' {
+                            0
                         } else {
-                            ptr::write_bytes(msgbuf.wrapping_add(pat_len), b' ', r_off);
-                        }
-                    }
-                    msg_outtrans(msgbuf, 0, false);
-                    msg_clr_eos();
-                    msg_check();
+                            SEARCH_NOOF
+                        })),
+            RE_LAST,
+            magic,
+            (sia.is_some()).then(|| sia.as_deref_mut().unwrap()),
+        ));
 
-                    gotocmdline(false);
-                    ui_flush();
-                    ui_busy_stop();
-                    g_st().msg_nowait = true;
-                }
-
-                if !shortmess(K_SHM_SEARCHCOUNT) {
-                    show_search_stats = true;
-                }
+        if !dircp.is_null() {
+            unsafe {
+                *dircp = search_delim as c_char;
             }
+        }
 
-            if !srch().spats[0].off.line && srch().spats[0].off.off != 0 && pos.col < MAXCOL - 2 {
-                if srch().spats[0].off.off > 0 {
-                    c = srch().spats[0].off.off;
-                    while c != 0 {
-                        if decl(&mut pos) == -1 {
-                            break;
-                        }
-                        c -= 1;
-                    }
-                    if c != 0 {
-                        pos.lnum = 0;
-                        pos.col = MAXCOL;
-                    }
+        if !shortmess(K_SHM_SEARCH) && sia.is_some() && sia.as_deref_mut().unwrap().sa_wrapped != 0
+        {
+            show_top_bot_msg = true;
+        }
+
+        if c == i64::from(FAIL) {
+            retval = 0;
+            success = false;
+            break;
+        }
+        if srch().spats[0].off.end && oap.is_some() {
+            oap.as_deref_mut().unwrap().inclusive = true;
+        }
+        retval = 1;
+
+        if sia.is_some() && sia.as_deref_mut().unwrap().sa_wrapped != 0 {
+            apply_autocmds(
+                EVENT_SEARCHWRAPPED,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                false,
+                ptr::null_mut(),
+            );
+        }
+
+        if (options & SEARCH_NOOF) == 0
+            || (!pat.is_null() && crate::memory::cstr_first_byte(pat) == b';')
+        {
+            let org_pos = pos;
+
+            if srch().spats[0].off.line {
+                c = i64::from(pos.lnum) + srch().spats[0].off.off;
+                if c < 1 {
+                    pos.lnum = 1;
+                } else if c > i64::from(curbuf_mut().b_ml.ml_line_count) {
+                    pos.lnum = curbuf_mut().b_ml.ml_line_count;
                 } else {
-                    c = srch().spats[0].off.off;
-                    while c != 0 {
+                    pos.lnum = c as Linenr;
+                }
+                pos.col = 0;
+
+                retval = 2;
+            } else if pos.col < MAXCOL - 2 {
+                c = srch().spats[0].off.off;
+                if c > 0 {
+                    while c > 0 {
+                        c -= 1;
                         if incl(&mut pos) == -1 {
                             break;
                         }
-                        c += 1;
                     }
-                    if c != 0 {
-                        pos.lnum = curbuf_mut().b_ml.ml_line_count + 1;
-                        pos.col = 0;
-                    }
-                }
-            }
-
-            c = i64::from(searchit(
-                curwin_ptr(),
-                curbuf_mut(),
-                &mut pos,
-                None,
-                if dirc == b'/' as i32 {
-                    FORWARD
                 } else {
-                    BACKWARD
-                },
-                searchstr,
-                searchstrlen,
-                count,
-                i32::from(srch().spats[0].off.end) * SEARCH_END
-                    + (options
-                        & (SEARCH_KEEP
-                            + SEARCH_PEEK
-                            + SEARCH_HIS
-                            + SEARCH_MSG
-                            + SEARCH_START
-                            + if !pat.is_null() && crate::memory::cstr_first_byte(pat) == b';' {
-                                0
-                            } else {
-                                SEARCH_NOOF
-                            })),
-                RE_LAST,
-                magic,
-                (sia.is_some()).then(|| sia.as_deref_mut().unwrap()),
-            ));
-
-            if !dircp.is_null() {
-                *dircp = search_delim as c_char;
-            }
-
-            if !shortmess(K_SHM_SEARCH)
-                && sia.is_some()
-                && sia.as_deref_mut().unwrap().sa_wrapped != 0
-            {
-                show_top_bot_msg = true;
-            }
-
-            if c == i64::from(FAIL) {
-                retval = 0;
-                success = false;
-                break;
-            }
-            if srch().spats[0].off.end && oap.is_some() {
-                oap.as_deref_mut().unwrap().inclusive = true;
-            }
-            retval = 1;
-
-            if sia.is_some() && sia.as_deref_mut().unwrap().sa_wrapped != 0 {
-                apply_autocmds(
-                    EVENT_SEARCHWRAPPED,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    false,
-                    ptr::null_mut(),
-                );
-            }
-
-            if (options & SEARCH_NOOF) == 0
-                || (!pat.is_null() && crate::memory::cstr_first_byte(pat) == b';')
-            {
-                let org_pos = pos;
-
-                if srch().spats[0].off.line {
-                    c = i64::from(pos.lnum) + srch().spats[0].off.off;
-                    if c < 1 {
-                        pos.lnum = 1;
-                    } else if c > i64::from(curbuf_mut().b_ml.ml_line_count) {
-                        pos.lnum = curbuf_mut().b_ml.ml_line_count;
-                    } else {
-                        pos.lnum = c as Linenr;
-                    }
-                    pos.col = 0;
-
-                    retval = 2;
-                } else if pos.col < MAXCOL - 2 {
-                    c = srch().spats[0].off.off;
-                    if c > 0 {
-                        while c > 0 {
-                            c -= 1;
-                            if incl(&mut pos) == -1 {
-                                break;
-                            }
-                        }
-                    } else {
-                        while c < 0 {
-                            c += 1;
-                            if decl(&mut pos) == -1 {
-                                break;
-                            }
+                    while c < 0 {
+                        c += 1;
+                        if decl(&mut pos) == -1 {
+                            break;
                         }
                     }
                 }
-                if !equalpos(pos, org_pos) {
-                    has_offset = true;
-                }
             }
-
-            if show_search_stats {
-                cmdline_search_stat(
-                    dirc,
-                    &mut pos,
-                    &mut curwin_mut().w_cursor,
-                    show_top_bot_msg,
-                    msgbuf_vec.as_mut_ptr(),
-                    msgbuflen,
-                    count != 1
-                        || has_offset
-                        || ((opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) == 0
-                            && has_folding(
-                                curwin_ptr(),
-                                curwin_mut().w_cursor.lnum,
-                                None,
-                                ptr::null_mut(),
-                            )),
-                    opt_vars().p_msc as i32,
-                    SEARCH_STAT_DEF_TIMEOUT,
-                );
+            if !equalpos(pos, org_pos) {
+                has_offset = true;
             }
-
-            if (options & SEARCH_OPT) == 0
-                || pat.is_null()
-                || crate::memory::cstr_first_byte(pat) != b';'
-            {
-                break;
-            }
-
-            pat = pat.wrapping_add(1);
-            dirc = i32::from(crate::memory::cstr_first_byte(pat));
-            patlen -= 1;
-            search_delim = dirc;
-            if dirc != b'?' as i32 && dirc != b'/' as i32 {
-                retval = 0;
-                emsg(tr(c"E386: Expected '?' or '/'  after ';'"));
-                success = false;
-                break;
-            }
-            pat = pat.wrapping_add(1);
-            patlen -= 1;
         }
 
-        if success {
-            if (options & SEARCH_MARK) != 0 {
-                setpcmark();
-            }
-            curwin_mut().w_cursor = pos;
-            curwin_mut().w_set_curswant = true;
+        if show_search_stats {
+            cmdline_search_stat(
+                dirc,
+                &mut pos,
+                &mut curwin_mut().w_cursor,
+                show_top_bot_msg,
+                msgbuf_vec.as_mut_ptr(),
+                msgbuflen,
+                count != 1
+                    || has_offset
+                    || ((opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) == 0
+                        && has_folding(
+                            curwin_ptr(),
+                            curwin_mut().w_cursor.lnum,
+                            None,
+                            ptr::null_mut(),
+                        )),
+                opt_vars().p_msc as i32,
+                SEARCH_STAT_DEF_TIMEOUT,
+            );
         }
 
-        if (options & SEARCH_KEEP) != 0 || (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 {
-            srch().spats[0].off = old_off;
+        if (options & SEARCH_OPT) == 0
+            || pat.is_null()
+            || crate::memory::cstr_first_byte(pat) != b';'
+        {
+            break;
         }
 
-        retval
+        pat = pat.wrapping_add(1);
+        dirc = i32::from(crate::memory::cstr_first_byte(pat));
+        patlen -= 1;
+        search_delim = dirc;
+        if dirc != b'?' as i32 && dirc != b'/' as i32 {
+            retval = 0;
+            emsg(tr(c"E386: Expected '?' or '/'  after ';'"));
+            success = false;
+            break;
+        }
+        pat = pat.wrapping_add(1);
+        patlen -= 1;
     }
+
+    if success {
+        if (options & SEARCH_MARK) != 0 {
+            setpcmark();
+        }
+        curwin_mut().w_cursor = pos;
+        curwin_mut().w_set_curswant = true;
+    }
+
+    if (options & SEARCH_KEEP) != 0 || (g_st().cmdmod.cmod_flags & CMOD_KEEPPATTERNS) != 0 {
+        srch().spats[0].off = old_off;
+    }
+
+    retval
 }
 
 pub fn search_for_exact_line(
@@ -1773,98 +1763,96 @@ pub fn search_for_exact_line(
 }
 
 pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
-    {
-        let mut c = cap.nchar;
-        let mut dir = cap.arg;
-        let mut count = cap.count1;
-        let mut stop = true;
+    let mut c = cap.nchar;
+    let mut dir = cap.arg;
+    let mut count = cap.count1;
+    let mut stop = true;
 
-        if c != i32::from(NUL) {
-            if g_st().key_stuffed == 0 {
-                srch().lastc[0] = c as u8;
-                set_csearch_direction(dir);
-                set_csearch_until(i32::from(t_cmd));
-                if cap.nchar_len != 0 {
-                    srch().lastc_bytelen = cap.nchar_len;
-                    unsafe {
-                        ptr::copy_nonoverlapping(
-                            cap.nchar_composing.as_ptr(),
-                            (&raw mut srch().lastc_bytes).cast::<c_char>(),
-                            cap.nchar_len as usize,
-                        )
-                    };
-                } else {
-                    srch().lastc_bytelen =
-                        utf_char2bytes(c, (&raw mut srch().lastc_bytes).cast::<c_char>());
-                }
-            }
-        } else {
-            if srch().lastc[0] == 0 && srch().lastc_bytelen <= 1 {
-                return false;
-            }
-            dir = if dir != 0 {
-                -srch().lastcdir
+    if c != i32::from(NUL) {
+        if g_st().key_stuffed == 0 {
+            srch().lastc[0] = c as u8;
+            set_csearch_direction(dir);
+            set_csearch_until(i32::from(t_cmd));
+            if cap.nchar_len != 0 {
+                srch().lastc_bytelen = cap.nchar_len;
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        cap.nchar_composing.as_ptr(),
+                        (&raw mut srch().lastc_bytes).cast::<c_char>(),
+                        cap.nchar_len as usize,
+                    )
+                };
             } else {
-                srch().lastcdir
-            };
-            t_cmd = srch().last_t_cmd;
-            c = i32::from(srch().lastc[0]);
-
-            if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_SCOLON) && count == 1 && t_cmd {
-                stop = false;
+                srch().lastc_bytelen =
+                    utf_char2bytes(c, (&raw mut srch().lastc_bytes).cast::<c_char>());
             }
         }
+    } else {
+        if srch().lastc[0] == 0 && srch().lastc_bytelen <= 1 {
+            return false;
+        }
+        dir = if dir != 0 {
+            -srch().lastcdir
+        } else {
+            srch().lastcdir
+        };
+        t_cmd = srch().last_t_cmd;
+        c = i32::from(srch().lastc[0]);
 
-        cap.oap_mut().inclusive = dir != BACKWARD;
+        if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_SCOLON) && count == 1 && t_cmd {
+            stop = false;
+        }
+    }
 
-        let p = get_cursor_line_ptr();
-        let mut col = curwin_mut().w_cursor.col;
-        let len = get_cursor_line_len();
+    cap.oap_mut().inclusive = dir != BACKWARD;
 
-        while count > 0 {
-            count -= 1;
-            loop {
-                if dir > 0 {
-                    col += utfc_ptr2len(p.wrapping_add(col as usize));
-                    if col >= len {
-                        return false;
-                    }
-                } else {
-                    if col == 0 {
-                        return false;
-                    }
-                    col -= utf_head_off(p, p.wrapping_add((col - 1) as usize)) + 1;
+    let p = get_cursor_line_ptr();
+    let mut col = curwin_mut().w_cursor.col;
+    let len = get_cursor_line_len();
+
+    while count > 0 {
+        count -= 1;
+        loop {
+            if dir > 0 {
+                col += utfc_ptr2len(p.wrapping_add(col as usize));
+                if col >= len {
+                    return false;
                 }
-                if srch().lastc_bytelen <= 1 {
-                    if i32::from(crate::memory::cstr_byte_at(p, col as usize)) == c && stop {
-                        break;
-                    }
-                } else if (crate::memory::cstr_prefix_bytes(
-                    p.wrapping_add(col as usize),
-                    srch().lastc_bytelen as usize,
-                ) == crate::memory::cstr_prefix_bytes(
-                    (&raw const srch().lastc_bytes).cast::<c_char>(),
-                    srch().lastc_bytelen as usize,
-                )) && stop
-                {
+            } else {
+                if col == 0 {
+                    return false;
+                }
+                col -= utf_head_off(p, p.wrapping_add((col - 1) as usize)) + 1;
+            }
+            if srch().lastc_bytelen <= 1 {
+                if i32::from(crate::memory::cstr_byte_at(p, col as usize)) == c && stop {
                     break;
                 }
-                stop = true;
+            } else if (crate::memory::cstr_prefix_bytes(
+                p.wrapping_add(col as usize),
+                srch().lastc_bytelen as usize,
+            ) == crate::memory::cstr_prefix_bytes(
+                (&raw const srch().lastc_bytes).cast::<c_char>(),
+                srch().lastc_bytelen as usize,
+            )) && stop
+            {
+                break;
             }
+            stop = true;
         }
-
-        if t_cmd {
-            col -= dir;
-            if dir < 0 {
-                col += srch().lastc_bytelen - 1;
-            } else {
-                col -= utf_head_off(p, p.wrapping_add(col as usize));
-            }
-        }
-        curwin_mut().w_cursor.col = col;
-
-        true
     }
+
+    if t_cmd {
+        col -= dir;
+        if dir < 0 {
+            col += srch().lastc_bytelen - 1;
+        } else {
+            col -= utf_head_off(p, p.wrapping_add(col as usize));
+        }
+    }
+    curwin_mut().w_cursor.col = col;
+
+    true
 }
 
 pub fn findmatch(oap: Option<&mut Oparg>, initc: i32) -> *mut CursorPos {
@@ -1945,38 +1933,36 @@ fn find_rawstring_end(
 }
 
 fn find_mps_values(initc: &mut i32, findc: &mut i32, backwards: &mut bool, switchit: bool) {
-    {
-        let mut ptr_mps = curbuf_mut().b_p_mps;
+    let mut ptr_mps = curbuf_mut().b_p_mps;
 
-        while !crate::memory::cstr_is_empty(ptr_mps) {
-            if utf_ptr2char(ptr_mps) == *initc {
-                if switchit {
-                    *findc = *initc;
-                    *initc = utf_ptr2char(ptr_mps.wrapping_add(utfc_ptr2len(ptr_mps) as usize + 1));
-                    *backwards = true;
-                } else {
-                    *findc = utf_ptr2char(ptr_mps.wrapping_add(utfc_ptr2len(ptr_mps) as usize + 1));
-                    *backwards = false;
-                }
-                return;
+    while !crate::memory::cstr_is_empty(ptr_mps) {
+        if utf_ptr2char(ptr_mps) == *initc {
+            if switchit {
+                *findc = *initc;
+                *initc = utf_ptr2char(ptr_mps.wrapping_add(utfc_ptr2len(ptr_mps) as usize + 1));
+                *backwards = true;
+            } else {
+                *findc = utf_ptr2char(ptr_mps.wrapping_add(utfc_ptr2len(ptr_mps) as usize + 1));
+                *backwards = false;
             }
-            let prev = ptr_mps;
-            ptr_mps = ptr_mps.wrapping_add(utfc_ptr2len(ptr_mps) as usize + 1);
-            if utf_ptr2char(ptr_mps) == *initc {
-                if switchit {
-                    *findc = *initc;
-                    *initc = utf_ptr2char(prev);
-                    *backwards = false;
-                } else {
-                    *findc = utf_ptr2char(prev);
-                    *backwards = true;
-                }
-                return;
+            return;
+        }
+        let prev = ptr_mps;
+        ptr_mps = ptr_mps.wrapping_add(utfc_ptr2len(ptr_mps) as usize + 1);
+        if utf_ptr2char(ptr_mps) == *initc {
+            if switchit {
+                *findc = *initc;
+                *initc = utf_ptr2char(prev);
+                *backwards = false;
+            } else {
+                *findc = utf_ptr2char(prev);
+                *backwards = true;
             }
-            ptr_mps = ptr_mps.wrapping_add(utfc_ptr2len(ptr_mps) as usize);
-            if crate::memory::cstr_first_byte(ptr_mps) == b',' {
-                ptr_mps = ptr_mps.wrapping_add(1);
-            }
+            return;
+        }
+        ptr_mps = ptr_mps.wrapping_add(utfc_ptr2len(ptr_mps) as usize);
+        if crate::memory::cstr_first_byte(ptr_mps) == b',' {
+            ptr_mps = ptr_mps.wrapping_add(1);
         }
     }
 }
@@ -2585,233 +2571,236 @@ pub fn findmatchlimit(
 }
 
 pub fn showmatch(c: i32) {
-    unsafe {
-        let mut vcol: Colnr = 0;
-        let so: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_so >= 0 {
-            &raw mut curwin_mut().w_onebuf_opt.wo_so
-        } else {
-            &raw mut opt_vars().p_so
-        };
-        let siso: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_siso >= 0 {
-            &raw mut curwin_mut().w_onebuf_opt.wo_siso
-        } else {
-            &raw mut opt_vars().p_siso
-        };
+    let mut vcol: Colnr = 0;
+    let so: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_so >= 0 {
+        &raw mut curwin_mut().w_onebuf_opt.wo_so
+    } else {
+        &raw mut opt_vars().p_so
+    };
+    let siso: *mut OptInt = if curwin_mut().w_onebuf_opt.wo_siso >= 0 {
+        &raw mut curwin_mut().w_onebuf_opt.wo_siso
+    } else {
+        &raw mut opt_vars().p_siso
+    };
 
-        let mut p = curbuf_mut().b_p_mps;
-        while !crate::memory::cstr_is_empty(p) {
-            if utf_ptr2char(p) == c
-                && ((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0))
-            {
-                break;
-            }
-            p = p.wrapping_add(utfc_ptr2len(p) as usize + 1);
-            if utf_ptr2char(p) == c
-                && !((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0))
-            {
-                break;
-            }
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
-            if crate::memory::cstr_is_empty(p) {
-                return;
-            }
-            p = p.wrapping_add(1);
+    let mut p = curbuf_mut().b_p_mps;
+    while !crate::memory::cstr_is_empty(p) {
+        if utf_ptr2char(p) == c && ((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0))
+        {
+            break;
         }
+        p = p.wrapping_add(utfc_ptr2len(p) as usize + 1);
+        if utf_ptr2char(p) == c
+            && !((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0))
+        {
+            break;
+        }
+        p = p.wrapping_add(utfc_ptr2len(p) as usize);
         if crate::memory::cstr_is_empty(p) {
             return;
         }
-
-        let lpos = findmatch(None, i32::from(NUL));
-        if lpos.is_null() {
-            vim_beep(K_OPT_BO_FLAG_SHOWMATCH);
-            return;
-        }
-        let lpos = { &mut *lpos };
-
-        if lpos.lnum < curwin_mut().w_topline || lpos.lnum >= curwin_mut().w_botline {
-            return;
-        }
-
-        if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
-            getvcol(curwin_mut(), &mut *lpos, None, Some(&mut vcol), None, 0);
-        }
-
-        let col_visible = curwin_mut().w_onebuf_opt.wo_wrap != 0
-            || (vcol >= curwin_mut().w_leftcol
-                && vcol < curwin_mut().w_leftcol + curwin_mut().w_view_width);
-        if !col_visible {
-            return;
-        }
-
-        let mpos = *lpos;
-        let save_cursor = curwin_mut().w_cursor;
-        let save_so = *so;
-        let save_siso = *siso;
-        if g_st().dollar_vcol >= 0 && g_st().dollar_vcol == curwin_mut().w_virtcol {
-            g_st().dollar_vcol = -1;
-        }
-        curwin_mut().w_virtcol += 1;
-
-        let save_dollar_vcol = g_st().dollar_vcol;
-        let save_state = g_st().state_global;
-        g_st().state_global = MODE_SHOWMATCH;
-        ui_cursor_shape();
-        curwin_mut().w_cursor = mpos;
-        *so = 0;
-        *siso = 0;
-        show_cursor_info_later(false);
-        update_screen();
-        setcursor();
-        ui_flush();
-        g_st().dollar_vcol = save_dollar_vcol;
-
-        if !vim_strchr(opt_vars().p_cpo, K_CPO_SHOWMATCH).is_null() {
-            os_delay((opt_vars().p_mat as u64) * 100 + 8, true);
-        } else if !char_avail() {
-            os_delay((opt_vars().p_mat as u64) * 100 + 9, false);
-        }
-        curwin_mut().w_cursor = save_cursor;
-        *so = save_so;
-        *siso = save_siso;
-        g_st().state_global = save_state;
-        ui_cursor_shape();
+        p = p.wrapping_add(1);
     }
+    if crate::memory::cstr_is_empty(p) {
+        return;
+    }
+
+    let lpos = findmatch(None, i32::from(NUL));
+    if lpos.is_null() {
+        vim_beep(K_OPT_BO_FLAG_SHOWMATCH);
+        return;
+    }
+    let lpos = { unsafe { &mut *lpos } };
+
+    if lpos.lnum < curwin_mut().w_topline || lpos.lnum >= curwin_mut().w_botline {
+        return;
+    }
+
+    if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
+        getvcol(curwin_mut(), &mut *lpos, None, Some(&mut vcol), None, 0);
+    }
+
+    let col_visible = curwin_mut().w_onebuf_opt.wo_wrap != 0
+        || (vcol >= curwin_mut().w_leftcol
+            && vcol < curwin_mut().w_leftcol + curwin_mut().w_view_width);
+    if !col_visible {
+        return;
+    }
+
+    let mpos = *lpos;
+    let save_cursor = curwin_mut().w_cursor;
+    let save_so = unsafe { *so };
+    let save_siso = unsafe { *siso };
+    if g_st().dollar_vcol >= 0 && g_st().dollar_vcol == curwin_mut().w_virtcol {
+        g_st().dollar_vcol = -1;
+    }
+    curwin_mut().w_virtcol += 1;
+
+    let save_dollar_vcol = g_st().dollar_vcol;
+    let save_state = g_st().state_global;
+    g_st().state_global = MODE_SHOWMATCH;
+    ui_cursor_shape();
+    curwin_mut().w_cursor = mpos;
+    unsafe {
+        *so = 0;
+    }
+    unsafe {
+        *siso = 0;
+    }
+    show_cursor_info_later(false);
+    update_screen();
+    setcursor();
+    ui_flush();
+    g_st().dollar_vcol = save_dollar_vcol;
+
+    if !vim_strchr(opt_vars().p_cpo, K_CPO_SHOWMATCH).is_null() {
+        os_delay((opt_vars().p_mat as u64) * 100 + 8, true);
+    } else if !char_avail() {
+        os_delay((opt_vars().p_mat as u64) * 100 + 9, false);
+    }
+    curwin_mut().w_cursor = save_cursor;
+    unsafe {
+        *so = save_so;
+    }
+    unsafe {
+        *siso = save_siso;
+    }
+    g_st().state_global = save_state;
+    ui_cursor_shape();
 }
 
 pub fn current_search(count: i32, forward: bool) -> bool {
+    let old_p_ws = opt_vars().p_ws;
+    let save_visual = g_st().visual_global.start;
+
+    if g_st().visual_global.active
+        && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+        && lt(g_st().visual_global.start, curwin_mut().w_cursor)
     {
-        let old_p_ws = opt_vars().p_ws;
-        let save_visual = g_st().visual_global.start;
+        dec_cursor();
+    }
 
-        if g_st().visual_global.active
-            && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-            && lt(g_st().visual_global.start, curwin_mut().w_cursor)
-        {
-            dec_cursor();
+    let skip_first_backward = forward
+        && g_st().visual_global.active
+        && lt(curwin_mut().w_cursor, g_st().visual_global.start);
+
+    let mut pos = curwin_mut().w_cursor;
+    let orig_pos = curwin_mut().w_cursor;
+    if g_st().visual_global.active {
+        if forward {
+            incl(&mut pos);
+        } else {
+            decl(&mut pos);
         }
+    }
 
-        let skip_first_backward = forward
-            && g_st().visual_global.active
-            && lt(curwin_mut().w_cursor, g_st().visual_global.start);
+    let zero_width = is_zero_width(
+        srch().spats[srch().last_idx as usize].pat_ptr(),
+        srch().spats[srch().last_idx as usize].patlen(),
+        true,
+        &mut curwin_mut().w_cursor,
+        FORWARD,
+    );
+    if zero_width == -1 {
+        return false;
+    }
 
-        let mut pos = curwin_mut().w_cursor;
-        let orig_pos = curwin_mut().w_cursor;
-        if g_st().visual_global.active {
-            if forward {
-                incl(&mut pos);
-            } else {
-                decl(&mut pos);
+    let mut end_pos = pos;
+    let mut result: i32;
+
+    for i in 0..2 {
+        let dir = if forward {
+            if i == 0 && skip_first_backward {
+                continue;
             }
+            i != 0
+        } else {
+            i == 0
+        };
+
+        let mut flags = 0;
+        if !dir && zero_width == 0 {
+            flags = SEARCH_END;
+        }
+        end_pos = pos;
+
+        if i == 0 {
+            opt_vars().p_ws = 0;
         }
 
-        let zero_width = is_zero_width(
+        result = searchit(
+            curwin_ptr(),
+            curbuf_mut(),
+            &mut pos,
+            Some(&mut end_pos),
+            if dir { FORWARD } else { BACKWARD },
             srch().spats[srch().last_idx as usize].pat_ptr(),
             srch().spats[srch().last_idx as usize].patlen(),
-            true,
-            &mut curwin_mut().w_cursor,
-            FORWARD,
+            if i != 0 { count } else { 1 },
+            SEARCH_KEEP | flags,
+            RE_SEARCH,
+            opt_vars().p_magic != 0,
+            None,
         );
-        if zero_width == -1 {
+
+        opt_vars().p_ws = old_p_ws;
+
+        if i == 1 && result == 0 {
+            curwin_mut().w_cursor = orig_pos;
+            if g_st().visual_global.active {
+                g_st().visual_global.start = save_visual;
+            }
             return false;
-        }
-
-        let mut end_pos = pos;
-        let mut result: i32;
-
-        for i in 0..2 {
-            let dir = if forward {
-                if i == 0 && skip_first_backward {
-                    continue;
-                }
-                i != 0
+        } else if i == 0 && result == 0 {
+            if forward {
+                clearpos(&mut pos);
             } else {
-                i == 0
-            };
-
-            let mut flags = 0;
-            if !dir && zero_width == 0 {
-                flags = SEARCH_END;
-            }
-            end_pos = pos;
-
-            if i == 0 {
-                opt_vars().p_ws = 0;
-            }
-
-            result = searchit(
-                curwin_ptr(),
-                curbuf_mut(),
-                &mut pos,
-                Some(&mut end_pos),
-                if dir { FORWARD } else { BACKWARD },
-                srch().spats[srch().last_idx as usize].pat_ptr(),
-                srch().spats[srch().last_idx as usize].patlen(),
-                if i != 0 { count } else { 1 },
-                SEARCH_KEEP | flags,
-                RE_SEARCH,
-                opt_vars().p_magic != 0,
-                None,
-            );
-
-            opt_vars().p_ws = old_p_ws;
-
-            if i == 1 && result == 0 {
-                curwin_mut().w_cursor = orig_pos;
-                if g_st().visual_global.active {
-                    g_st().visual_global.start = save_visual;
-                }
-                return false;
-            } else if i == 0 && result == 0 {
-                if forward {
-                    clearpos(&mut pos);
-                } else {
-                    pos.lnum = curwin_mut().buf_mut().b_ml.ml_line_count;
-                    pos.col = ml_get_len(curwin_mut().buf_mut().b_ml.ml_line_count);
-                }
+                pos.lnum = curwin_mut().buf_mut().b_ml.ml_line_count;
+                pos.col = ml_get_len(curwin_mut().buf_mut().b_ml.ml_line_count);
             }
         }
-
-        let start_pos = pos;
-
-        if !g_st().visual_global.active {
-            g_st().visual_global.start = start_pos;
-        }
-
-        curwin_mut().w_cursor = end_pos;
-        if lt(g_st().visual_global.start, end_pos) && forward {
-            if skip_first_backward {
-                curwin_mut().w_cursor = pos;
-            } else {
-                dec_cursor();
-            }
-        } else if g_st().visual_global.active
-            && lt(curwin_mut().w_cursor, g_st().visual_global.start)
-            && forward
-        {
-            curwin_mut().w_cursor = pos;
-        }
-        g_st().visual_global.active = true;
-        g_st().visual_global.mode = b'v' as i32;
-
-        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
-            if forward && ltoreq(g_st().visual_global.start, curwin_mut().w_cursor) {
-                inc_cursor();
-            } else if !forward && ltoreq(curwin_mut().w_cursor, g_st().visual_global.start) {
-                inc(&mut g_st().visual_global.start);
-            }
-        }
-
-        if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0 && g_st().key_typed {
-            fold_open_cursor();
-        }
-
-        may_start_select(b'c' as i32);
-        setmouse();
-        redraw_curbuf_later(UPD_INVERTED);
-        showmode();
-
-        true
     }
+
+    let start_pos = pos;
+
+    if !g_st().visual_global.active {
+        g_st().visual_global.start = start_pos;
+    }
+
+    curwin_mut().w_cursor = end_pos;
+    if lt(g_st().visual_global.start, end_pos) && forward {
+        if skip_first_backward {
+            curwin_mut().w_cursor = pos;
+        } else {
+            dec_cursor();
+        }
+    } else if g_st().visual_global.active
+        && lt(curwin_mut().w_cursor, g_st().visual_global.start)
+        && forward
+    {
+        curwin_mut().w_cursor = pos;
+    }
+    g_st().visual_global.active = true;
+    g_st().visual_global.mode = b'v' as i32;
+
+    if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+        if forward && ltoreq(g_st().visual_global.start, curwin_mut().w_cursor) {
+            inc_cursor();
+        } else if !forward && ltoreq(curwin_mut().w_cursor, g_st().visual_global.start) {
+            inc(&mut g_st().visual_global.start);
+        }
+    }
+
+    if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_SEARCH) != 0 && g_st().key_typed {
+        fold_open_cursor();
+    }
+
+    may_start_select(b'c' as i32);
+    setmouse();
+    redraw_curbuf_later(UPD_INVERTED);
+    showmode();
+
+    true
 }
 
 fn is_zero_width(
@@ -2915,10 +2904,8 @@ fn is_zero_width(
 }
 
 pub fn linewhite(lnum: Linenr) -> bool {
-    {
-        let p = skipwhite(ml_get(lnum));
-        crate::memory::cstr_is_empty(p)
-    }
+    let p = skipwhite(ml_get(lnum));
+    crate::memory::cstr_is_empty(p)
 }
 
 fn cmdline_search_stat(
@@ -3006,125 +2993,122 @@ fn update_search_stat(
     maxcount: i32,
     timeout: i32,
 ) {
-    {
-        let save_ws = opt_vars().p_ws;
-        let p = *pos;
+    let save_ws = opt_vars().p_ws;
+    let p = *pos;
 
-        *stat = Searchstat::default();
+    *stat = Searchstat::default();
 
-        if dirc == 0 && !recompute && !empty_pos(srch().stat_lastpos) {
-            stat.cur = srch().stat_cur;
-            stat.cnt = srch().stat_cnt;
-            stat.exact_match = srch().stat_exact_match;
-            stat.incomplete = srch().stat_incomplete;
-            stat.last_maxcount = srch().stat_last_maxcount;
-            return;
-        }
-        srch().stat_last_maxcount = maxcount;
-        let wraparound = (dirc == b'?' as i32 && lt(srch().stat_lastpos, p))
-            || (dirc == b'/' as i32 && lt(p, srch().stat_lastpos));
-
-        if !(i64::from(srch().stat_chgtick) == buf_get_changedtick(curbuf_mut())
-            && srch().stat_lastpat.is_some()
-            && srch().stat_lastpat.as_deref()
-                == srch().spats[srch().last_idx as usize].pat.as_deref()
-            && equalpos(srch().stat_lastpos, *cursor_pos)
-            && srch().stat_lbuf == g_st().curbuf)
-            || wraparound
-            || srch().stat_cur < 0
-            || (maxcount > 0 && srch().stat_cur > maxcount)
-            || recompute
-        {
-            srch().stat_cur = 0;
-            srch().stat_cnt = 0;
-            srch().stat_exact_match = false;
-            srch().stat_incomplete = 0;
-            srch().stat_lastpos = CursorPos {
-                lnum: 0,
-                col: 0,
-                coladd: 0,
-            };
-            srch().stat_lbuf = g_st().curbuf;
-        }
-
-        if equalpos(srch().stat_lastpos, *cursor_pos)
-            && !wraparound
-            && (if dirc == 0 || dirc == b'/' as i32 {
-                srch().stat_cur < srch().stat_cnt
-            } else {
-                srch().stat_cur > 1
-            })
-        {
-            srch().stat_cur += if dirc == 0 {
-                0
-            } else if dirc == b'/' as i32 {
-                1
-            } else {
-                -1
-            };
-        } else {
-            let mut start: Proftime = 0;
-            let mut done_search = false;
-            let mut endpos = CursorPos {
-                lnum: 0,
-                col: 0,
-                coladd: 0,
-            };
-            opt_vars().p_ws = 0;
-            if timeout > 0 {
-                start = profile_setlimit(i64::from(timeout));
-            }
-            while !g_st().got_int
-                && searchit(
-                    curwin_ptr(),
-                    curbuf_mut(),
-                    &mut srch().stat_lastpos,
-                    Some(&mut endpos),
-                    FORWARD,
-                    ptr::null_mut(),
-                    0,
-                    1,
-                    SEARCH_KEEP,
-                    RE_LAST,
-                    opt_vars().p_magic != 0,
-                    None,
-                ) != FAIL
-            {
-                done_search = true;
-                if timeout > 0 && profile_passed_limit(start) {
-                    srch().stat_incomplete = 1;
-                    break;
-                }
-                srch().stat_cnt += 1;
-                if ltoreq(srch().stat_lastpos, p) {
-                    srch().stat_cur = srch().stat_cnt;
-                    if lt(p, endpos) {
-                        srch().stat_exact_match = true;
-                    }
-                }
-                fast_breakcheck();
-                if maxcount > 0 && srch().stat_cnt > maxcount {
-                    srch().stat_incomplete = 2;
-                    break;
-                }
-            }
-            if g_st().got_int {
-                srch().stat_cur = -1;
-            }
-            if done_search {
-                srch().stat_lastpat = srch().spats[srch().last_idx as usize].pat.clone();
-                srch().stat_chgtick = buf_get_changedtick(curbuf_mut()) as i32;
-                srch().stat_lbuf = g_st().curbuf;
-                srch().stat_lastpos = p;
-            }
-        }
+    if dirc == 0 && !recompute && !empty_pos(srch().stat_lastpos) {
         stat.cur = srch().stat_cur;
         stat.cnt = srch().stat_cnt;
         stat.exact_match = srch().stat_exact_match;
         stat.incomplete = srch().stat_incomplete;
         stat.last_maxcount = srch().stat_last_maxcount;
-        opt_vars().p_ws = save_ws;
+        return;
     }
+    srch().stat_last_maxcount = maxcount;
+    let wraparound = (dirc == b'?' as i32 && lt(srch().stat_lastpos, p))
+        || (dirc == b'/' as i32 && lt(p, srch().stat_lastpos));
+
+    if !(i64::from(srch().stat_chgtick) == buf_get_changedtick(curbuf_mut())
+        && srch().stat_lastpat.is_some()
+        && srch().stat_lastpat.as_deref() == srch().spats[srch().last_idx as usize].pat.as_deref()
+        && equalpos(srch().stat_lastpos, *cursor_pos)
+        && srch().stat_lbuf == g_st().curbuf)
+        || wraparound
+        || srch().stat_cur < 0
+        || (maxcount > 0 && srch().stat_cur > maxcount)
+        || recompute
+    {
+        srch().stat_cur = 0;
+        srch().stat_cnt = 0;
+        srch().stat_exact_match = false;
+        srch().stat_incomplete = 0;
+        srch().stat_lastpos = CursorPos {
+            lnum: 0,
+            col: 0,
+            coladd: 0,
+        };
+        srch().stat_lbuf = g_st().curbuf;
+    }
+
+    if equalpos(srch().stat_lastpos, *cursor_pos)
+        && !wraparound
+        && (if dirc == 0 || dirc == b'/' as i32 {
+            srch().stat_cur < srch().stat_cnt
+        } else {
+            srch().stat_cur > 1
+        })
+    {
+        srch().stat_cur += if dirc == 0 {
+            0
+        } else if dirc == b'/' as i32 {
+            1
+        } else {
+            -1
+        };
+    } else {
+        let mut start: Proftime = 0;
+        let mut done_search = false;
+        let mut endpos = CursorPos {
+            lnum: 0,
+            col: 0,
+            coladd: 0,
+        };
+        opt_vars().p_ws = 0;
+        if timeout > 0 {
+            start = profile_setlimit(i64::from(timeout));
+        }
+        while !g_st().got_int
+            && searchit(
+                curwin_ptr(),
+                curbuf_mut(),
+                &mut srch().stat_lastpos,
+                Some(&mut endpos),
+                FORWARD,
+                ptr::null_mut(),
+                0,
+                1,
+                SEARCH_KEEP,
+                RE_LAST,
+                opt_vars().p_magic != 0,
+                None,
+            ) != FAIL
+        {
+            done_search = true;
+            if timeout > 0 && profile_passed_limit(start) {
+                srch().stat_incomplete = 1;
+                break;
+            }
+            srch().stat_cnt += 1;
+            if ltoreq(srch().stat_lastpos, p) {
+                srch().stat_cur = srch().stat_cnt;
+                if lt(p, endpos) {
+                    srch().stat_exact_match = true;
+                }
+            }
+            fast_breakcheck();
+            if maxcount > 0 && srch().stat_cnt > maxcount {
+                srch().stat_incomplete = 2;
+                break;
+            }
+        }
+        if g_st().got_int {
+            srch().stat_cur = -1;
+        }
+        if done_search {
+            srch().stat_lastpat = srch().spats[srch().last_idx as usize].pat.clone();
+            srch().stat_chgtick = buf_get_changedtick(curbuf_mut()) as i32;
+            srch().stat_lbuf = g_st().curbuf;
+            srch().stat_lastpos = p;
+        }
+    }
+    stat.cur = srch().stat_cur;
+    stat.cnt = srch().stat_cnt;
+    stat.exact_match = srch().stat_exact_match;
+    stat.incomplete = srch().stat_incomplete;
+    stat.last_maxcount = srch().stat_last_maxcount;
+    opt_vars().p_ws = save_ws;
 }
 
 pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -4025,7 +4009,7 @@ fn show_pat_in_path(
     count: i32,
 ) {
     let mut line = line.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         if did_show {
             msg_putchar(b'\n' as i32);
         } else if g_st().msg_silent == 0 {
@@ -4048,13 +4032,15 @@ fn show_pat_in_path(
                 if p >= line && crate::memory::cstr_first_byte(p) == b'\r' {
                     p = p.wrapping_sub(1);
                 }
-                *p.wrapping_add(1) = NUL;
+                unsafe {
+                    *p.wrapping_add(1) = NUL;
+                }
             }
             if action == ACTION_SHOW_ALL {
                 let iobuff_ptr = g_st().iobuff.as_mut_ptr();
                 vim_snprintf!(iobuff_ptr, IOSIZE, c"%3d: ", count);
                 msg_puts(iobuff_ptr);
-                vim_snprintf!(iobuff_ptr, IOSIZE, c"%4d", *lnum);
+                vim_snprintf!(iobuff_ptr, IOSIZE, c"%4d", unsafe { *lnum });
                 msg_puts_hl(iobuff_ptr, HLF_N, false);
                 msg_puts(c" ");
             }
@@ -4073,14 +4059,18 @@ fn show_pat_in_path(
                     break;
                 }
                 linelen = crate::memory::cstr_len(line);
-                *lnum += 1;
+                unsafe {
+                    *lnum += 1;
+                }
             } else {
-                *lnum += 1;
-                if *lnum > curbuf_mut().b_ml.ml_line_count {
+                unsafe {
+                    *lnum += 1;
+                }
+                if unsafe { *lnum } > curbuf_mut().b_ml.ml_line_count {
                     break;
                 }
-                line = ml_get(*lnum);
-                linelen = ml_get_len(*lnum) as usize;
+                line = ml_get(unsafe { *lnum });
+                linelen = ml_get_len(unsafe { *lnum }) as usize;
             }
             msg_putchar(b'\n' as i32);
         }

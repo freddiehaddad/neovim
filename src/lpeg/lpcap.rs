@@ -206,14 +206,12 @@ fn findback(cs: &mut CapState, r#ref: *mut Capture) -> *mut Capture {
 }
 
 fn backrefcap(cs: &mut CapState) -> i32 {
-    {
-        let curr = cs.cap;
-        pushluaval(cs);
-        cs.cap = findback(cs, curr);
-        let n = pushnestedvalues(cs, false);
-        cs.cap = curr.wrapping_add(1);
-        n
-    }
+    let curr = cs.cap;
+    pushluaval(cs);
+    cs.cap = findback(cs, curr);
+    let n = pushnestedvalues(cs, false);
+    cs.cap = curr.wrapping_add(1);
+    n
 }
 
 fn tablecap(cs: &mut CapState) -> i32 {

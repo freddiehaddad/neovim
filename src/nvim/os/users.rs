@@ -312,22 +312,20 @@ mod tests {
 
     #[test]
     fn get_usernames_null_returns_fail_and_uname_formats_fallback() {
-        {
-            assert!(os_get_userdir(std::ptr::null()).is_none());
+        assert!(os_get_userdir(std::ptr::null()).is_none());
 
-            let mut buf = [0 as c_char; 32];
-            let res = os_get_uname(250 as uv_uid_t, buf.as_mut_ptr(), buf.len());
-            if !res {
-                assert_eq!(
-                    crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap(),
-                    "250"
-                );
-            }
-
-            assert!(os_get_userdir(c"neovim_user_not_found_test").is_none());
-
-            let users = collect_usernames();
-            assert!(users.iter().all(|u| !u.as_bytes().is_empty()));
+        let mut buf = [0 as c_char; 32];
+        let res = os_get_uname(250 as uv_uid_t, buf.as_mut_ptr(), buf.len());
+        if !res {
+            assert_eq!(
+                crate::memory::cstr_from_ptr(buf.as_ptr()).to_str().unwrap(),
+                "250"
+            );
         }
+
+        assert!(os_get_userdir(c"neovim_user_not_found_test").is_none());
+
+        let users = collect_usernames();
+        assert!(users.iter().all(|u| !u.as_bytes().is_empty()));
     }
 }

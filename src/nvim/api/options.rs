@@ -338,26 +338,24 @@ fn do_ft_buf(
 }
 
 fn wipe_ft_buf(buf: &mut FileBuf) {
-    {
-        block_autocmds();
+    block_autocmds();
 
-        let mut bufref = Bufref {
-            br_buf: ptr::null_mut(),
-            br_fnum: 0,
-            br_buf_free_count: 0,
-        };
-        set_bufref(&mut bufref, &raw mut *buf);
+    let mut bufref = Bufref {
+        br_buf: ptr::null_mut(),
+        br_fnum: 0,
+        br_buf_free_count: 0,
+    };
+    set_bufref(&mut bufref, &raw mut *buf);
 
-        close_windows(&raw mut *buf, false);
-        if bufref_valid(Some(&bufref)) && !ptr::eq(buf, g_st().curbuf) && buf.b_nwindows == 0 {
-            wipe_buffer(&raw mut *buf, false);
-        }
-        if bufref_valid(Some(&bufref)) {
-            buf.b_flags &= !BF_DUMMY;
-        }
-
-        unblock_autocmds();
+    close_windows(&raw mut *buf, false);
+    if bufref_valid(Some(&bufref)) && !ptr::eq(buf, g_st().curbuf) && buf.b_nwindows == 0 {
+        wipe_buffer(&raw mut *buf, false);
     }
+    if bufref_valid(Some(&bufref)) {
+        buf.b_flags &= !BF_DUMMY;
+    }
+
+    unblock_autocmds();
 }
 
 /// Gets the value of an option. The behavior of this function matches that of
@@ -387,59 +385,57 @@ pub fn nvim_get_option_value(
     opts: &mut KeyDict_option,
     err: &mut Error,
 ) -> Object {
-    {
-        let mut opt_idx: OptIndex = 0;
-        let mut opt_flags: i32 = 0;
-        let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
-        let mut from = OptTarget::Global;
-        let mut filetype: *mut c_char = ptr::null_mut();
+    let mut opt_idx: OptIndex = 0;
+    let mut opt_flags: i32 = 0;
+    let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
+    let mut from = OptTarget::Global;
+    let mut filetype: *mut c_char = ptr::null_mut();
 
-        if !validate_option_value_args(
-            opts,
-            name.data,
-            true,
-            &mut opt_idx,
-            &mut opt_flags,
-            &mut scope,
-            &mut from,
-            &mut filetype,
-            None,
-            None,
-            err,
-        ) {
-            return OBJECT_NIL;
-        }
+    if !validate_option_value_args(
+        opts,
+        name.data,
+        true,
+        &mut opt_idx,
+        &mut opt_flags,
+        &mut scope,
+        &mut from,
+        &mut filetype,
+        None,
+        None,
+        err,
+    ) {
+        return OBJECT_NIL;
+    }
 
-        let mut aco: CtxSwitch = CtxSwitch::new();
+    let mut aco: CtxSwitch = CtxSwitch::new();
 
-        let ftbuf = do_ft_buf(filetype, &mut aco, err);
-        if error_set(err) {
-            ctx_restore(&mut aco);
-            if !ftbuf.is_null() {
-                wipe_ft_buf(unsafe { &mut *ftbuf });
-            }
-            return OBJECT_NIL;
-        }
-
-        if !ftbuf.is_null() {
-            assert!(matches!(from, OptTarget::Global));
-            from = OptTarget::Buf(ftbuf);
-        }
-
-        let value = get_option_value_for(opt_idx, opt_flags, scope, from, err);
-
+    let ftbuf = do_ft_buf(filetype, &mut aco, err);
+    if error_set(err) {
         ctx_restore(&mut aco);
         if !ftbuf.is_null() {
             wipe_ft_buf(unsafe { &mut *ftbuf });
         }
-
-        if error_set(err) {
-            api_free_object(value);
-            return OBJECT_NIL;
-        }
-
-        value
+        return OBJECT_NIL;
     }
+
+    if !ftbuf.is_null() {
+        assert!(matches!(from, OptTarget::Global));
+        from = OptTarget::Buf(ftbuf);
+    }
+
+    let value = get_option_value_for(opt_idx, opt_flags, scope, from, err);
+
+    ctx_restore(&mut aco);
+    if !ftbuf.is_null() {
+        wipe_ft_buf(unsafe { &mut *ftbuf });
+    }
+
+    if error_set(err) {
+        api_free_object(value);
+        return OBJECT_NIL;
+    }
+
+    value
 }
 
 /// @nodoc
@@ -451,103 +447,101 @@ pub fn nvim_option_to_object(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    {
-        let opt_idx = find_option(name.data);
-        if opt_idx == K_OPT_INVALID {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Unknown option '%s'",
-                name.data,
+    let opt_idx = find_option(name.data);
+    if opt_idx == K_OPT_INVALID {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Unknown option '%s'",
+            name.data,
+        );
+        return OBJECT_NIL;
+    }
+
+    if value.obj_type != ObjectType::ObjectTypeString {
+        return copy_object(value, Some(arena));
+    }
+
+    let option = get_option(opt_idx);
+    let flags = option.flags;
+    let schema = option.schema;
+
+    let str_ptr = if !value.data.string().data.is_null() {
+        value.data.string().data
+    } else {
+        c"".as_ptr().cast_mut()
+    };
+
+    if (flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_FLAG_LIST)) == 0 {
+        string_obj(arena_string(arena, cstr_as_string(str_ptr)))
+    } else if (flags & K_OPT_FLAG_FLAG_LIST) != 0 && (flags & K_OPT_FLAG_COMMA) == 0 {
+        let n = crate::memory::cstr_len(str_ptr);
+        let mut d = arena_dict(arena, n);
+        for i in 0..n {
+            put_c(
+                &mut d,
+                arena_memdupz(arena, str_ptr.wrapping_add(i), 1),
+                boolean_obj(true),
             );
-            return OBJECT_NIL;
         }
-
-        if value.obj_type != ObjectType::ObjectTypeString {
-            return copy_object(value, Some(arena));
+        dict_obj(d)
+    } else {
+        let mut nparts: usize = 1;
+        let mut p = str_ptr;
+        for &p_byte in crate::memory::cstr_as_bytes(p) {
+            if p_byte == b',' {
+                nparts += 1;
+            }
         }
-
-        let option = get_option(opt_idx);
-        let flags = option.flags;
-        let schema = option.schema;
-
-        let str_ptr = if !value.data.string().data.is_null() {
-            value.data.string().data
+        let as_map = (flags & K_OPT_FLAG_COLON) != 0
+            || (flags & K_OPT_FLAG_FLAG_LIST) != 0
+            || !schema.is_empty();
+        let mut d = if as_map {
+            arena_dict(arena, nparts)
         } else {
-            c"".as_ptr().cast_mut()
+            Dict::new()
         };
-
-        if (flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_FLAG_LIST)) == 0 {
-            string_obj(arena_string(arena, cstr_as_string(str_ptr)))
-        } else if (flags & K_OPT_FLAG_FLAG_LIST) != 0 && (flags & K_OPT_FLAG_COMMA) == 0 {
-            let n = crate::memory::cstr_len(str_ptr);
-            let mut d = arena_dict(arena, n);
-            for i in 0..n {
-                put_c(
-                    &mut d,
-                    arena_memdupz(arena, str_ptr.wrapping_add(i), 1),
-                    boolean_obj(true),
-                );
-            }
-            dict_obj(d)
+        let mut a = if as_map {
+            Array::new()
         } else {
-            let mut nparts: usize = 1;
-            let mut p = str_ptr;
-            for &p_byte in crate::memory::cstr_as_bytes(p) {
-                if p_byte == b',' {
-                    nparts += 1;
-                }
+            arena_array(arena, nparts)
+        };
+        let str_len = crate::memory::cstr_len(str_ptr);
+        let mut item_buf = vec![0 as c_char; str_len + 1];
+        let item = item_buf.as_mut_ptr();
+        p = str_ptr;
+        while !crate::memory::cstr_is_empty(p) {
+            copy_option_part(&raw mut p, item, str_len + 1, c",");
+            if crate::memory::cstr_is_empty(item) {
+                continue;
             }
-            let as_map = (flags & K_OPT_FLAG_COLON) != 0
-                || (flags & K_OPT_FLAG_FLAG_LIST) != 0
-                || !schema.is_empty();
-            let mut d = if as_map {
-                arena_dict(arena, nparts)
-            } else {
-                Dict::new()
-            };
-            let mut a = if as_map {
-                Array::new()
-            } else {
-                arena_array(arena, nparts)
-            };
-            let str_len = crate::memory::cstr_len(str_ptr);
-            let mut item_buf = vec![0 as c_char; str_len + 1];
-            let item = item_buf.as_mut_ptr();
-            p = str_ptr;
-            while !crate::memory::cstr_is_empty(p) {
-                copy_option_part(&raw mut p, item, str_len + 1, c",");
-                if crate::memory::cstr_is_empty(item) {
-                    continue;
-                }
-                if !as_map {
-                    add_c(
-                        &mut a,
-                        string_obj(arena_string(arena, cstr_as_string(item))),
-                    );
-                    continue;
-                }
-                let colon = crate::memory::cstr_as_bytes(item)
-                    .iter()
-                    .position(|&b| b == b':')
-                    .map_or(ptr::null_mut(), |i| item.wrapping_add(i));
-                let mut val: *mut c_char = ptr::null_mut();
-                if !colon.is_null() {
-                    unsafe {
-                        *colon = NUL;
-                    }
-                    val = colon.wrapping_add(1);
-                }
-                let key = arena_string(arena, cstr_as_string(item));
-                let v = if (flags & K_OPT_FLAG_FLAG_LIST) != 0 || val.is_null() {
-                    boolean_obj(true)
-                } else {
-                    string_obj(arena_string(arena, cstr_as_string(val)))
-                };
-                put_c(&mut d, key.data, v);
+            if !as_map {
+                add_c(
+                    &mut a,
+                    string_obj(arena_string(arena, cstr_as_string(item))),
+                );
+                continue;
             }
-            if as_map { dict_obj(d) } else { array_obj(a) }
+            let colon = crate::memory::cstr_as_bytes(item)
+                .iter()
+                .position(|&b| b == b':')
+                .map_or(ptr::null_mut(), |i| item.wrapping_add(i));
+            let mut val: *mut c_char = ptr::null_mut();
+            if !colon.is_null() {
+                unsafe {
+                    *colon = NUL;
+                }
+                val = colon.wrapping_add(1);
+            }
+            let key = arena_string(arena, cstr_as_string(item));
+            let v = if (flags & K_OPT_FLAG_FLAG_LIST) != 0 || val.is_null() {
+                boolean_obj(true)
+            } else {
+                string_obj(arena_string(arena, cstr_as_string(val)))
+            };
+            put_c(&mut d, key.data, v);
         }
+        if as_map { dict_obj(d) } else { array_obj(a) }
     }
 }
 
@@ -587,203 +581,198 @@ pub fn nvim_set_option_value(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    {
-        let mut opt_idx: OptIndex = 0;
-        let mut opt_flags: i32 = 0;
-        let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
-        let mut operation: SetOp = OP_NONE;
-        let mut to = OptTarget::Global;
-        let mut dry_run = false;
+    let mut opt_idx: OptIndex = 0;
+    let mut opt_flags: i32 = 0;
+    let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
+    let mut operation: SetOp = OP_NONE;
+    let mut to = OptTarget::Global;
+    let mut dry_run = false;
 
-        if !validate_option_value_args(
-            opts,
-            name.data,
-            true,
-            &mut opt_idx,
-            &mut opt_flags,
-            &mut scope,
-            &mut to,
-            ptr::null_mut(),
-            Some(&mut operation),
-            Some(&mut dry_run),
-            err,
-        ) {
+    if !validate_option_value_args(
+        opts,
+        name.data,
+        true,
+        &mut opt_idx,
+        &mut opt_flags,
+        &mut scope,
+        &mut to,
+        ptr::null_mut(),
+        Some(&mut operation),
+        Some(&mut dry_run),
+        err,
+    ) {
+        return OBJECT_NIL;
+    }
+
+    if scope == K_OPT_SCOPE_WIN && opt_flags == 0 && option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL) {
+        opt_flags = OPT_LOCAL;
+    }
+
+    let mut merged_val = OBJECT_NIL;
+    let mut errmsg: *const c_char = std::ptr::null();
+    let option = get_option(opt_idx);
+    let is_array = value.obj_type == ObjectType::ObjectTypeArray;
+    let is_dict = value.obj_type == ObjectType::ObjectTypeDict;
+
+    let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, to) {
+        b
+    } else {
+        g_st().curbuf
+    };
+    let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, to) {
+        w
+    } else {
+        curwin_ptr()
+    };
+    let varp = get_varp_from(&mut *option, unsafe { &mut *buf }, unsafe { &mut *win });
+
+    let nitems = if is_array {
+        value.data.array().size
+    } else if is_dict {
+        value.data.dict().size
+    } else {
+        0
+    };
+    let per_item = operation == OP_REMOVING && nitems > 0;
+    let count = if per_item { nitems } else { 1 };
+
+    for i in 0..count {
+        let mut item = value;
+        if per_item && is_array {
+            item = Object {
+                obj_type: ObjectType::ObjectTypeArray,
+                data: ObjectData::Array(Array {
+                    items: value.data.array().items.wrapping_add(i),
+                    size: 1,
+                    capacity: 0,
+                }),
+            };
+        } else if per_item {
+            item = Object {
+                obj_type: ObjectType::ObjectTypeDict,
+                data: ObjectData::Dict(Dict {
+                    items: value.data.dict().items.wrapping_add(i),
+                    size: 1,
+                    capacity: 0,
+                }),
+            };
+        }
+
+        let mut error = false;
+        let optval_right = optval_from_obj(opt_idx, item, operation, &mut error);
+
+        if error {
+            api_err_exp(
+                err,
+                name.data,
+                c"a valid type",
+                api_typename(value.obj_type),
+            );
+            optval_free(merged_val);
             return OBJECT_NIL;
         }
 
-        if scope == K_OPT_SCOPE_WIN
-            && opt_flags == 0
-            && option_has_scope(opt_idx, K_OPT_SCOPE_GLOBAL)
+        let mut argp: *mut c_char = ptr::null_mut();
+
+        match optval_right.obj_type {
+            ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {}
+            ObjectType::ObjectTypeString => {
+                let optval_escaped = escape_option_str_cmdline(optval_right.data.string().data);
+                let escaped_bytes = optval_escaped.as_bytes();
+                let mut buf_bytes = Vec::with_capacity(1 + escaped_bytes.len());
+                buf_bytes.push(b'=');
+                buf_bytes.extend_from_slice(escaped_bytes);
+                argp = arena_memdupz(arena, buf_bytes.as_ptr().cast(), buf_bytes.len());
+            }
+            ObjectType::ObjectTypeInteger => {
+                let s = format!("={}", optval_right.data.integer());
+                argp = arena_memdupz(arena, s.as_ptr().cast(), s.len());
+            }
+            ObjectType::ObjectTypeBoolean => {
+                merged_val = optval_right;
+            }
+            ObjectType::ObjectTypeLuaRef => {
+                merged_val = copy_object(optval_right, None);
+            }
+            _ => {
+                std::process::abort();
+            }
+        }
+
+        optval_free(optval_right);
+
+        if optval_right.obj_type == ObjectType::ObjectTypeInteger
+            || optval_right.obj_type == ObjectType::ObjectTypeString
         {
-            opt_flags = OPT_LOCAL;
-        }
-
-        let mut merged_val = OBJECT_NIL;
-        let mut errmsg: *const c_char = std::ptr::null();
-        let option = get_option(opt_idx);
-        let is_array = value.obj_type == ObjectType::ObjectTypeArray;
-        let is_dict = value.obj_type == ObjectType::ObjectTypeDict;
-
-        let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, to) {
-            b
-        } else {
-            g_st().curbuf
-        };
-        let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, to) {
-            w
-        } else {
-            curwin_ptr()
-        };
-        let varp = get_varp_from(&mut *option, unsafe { &mut *buf }, unsafe { &mut *win });
-
-        let nitems = if is_array {
-            value.data.array().size
-        } else if is_dict {
-            value.data.dict().size
-        } else {
-            0
-        };
-        let per_item = operation == OP_REMOVING && nitems > 0;
-        let count = if per_item { nitems } else { 1 };
-
-        for i in 0..count {
-            let mut item = value;
-            if per_item && is_array {
-                item = Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(Array {
-                        items: value.data.array().items.wrapping_add(i),
-                        size: 1,
-                        capacity: 0,
-                    }),
-                };
-            } else if per_item {
-                item = Object {
-                    obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(Dict {
-                        items: value.data.dict().items.wrapping_add(i),
-                        size: 1,
-                        capacity: 0,
-                    }),
-                };
-            }
-
-            let mut error = false;
-            let optval_right = optval_from_obj(opt_idx, item, operation, &mut error);
-
-            if error {
-                api_err_exp(
-                    err,
-                    name.data,
-                    c"a valid type",
-                    api_typename(value.obj_type),
-                );
-                optval_free(merged_val);
-                return OBJECT_NIL;
-            }
-
-            let mut argp: *mut c_char = ptr::null_mut();
-
-            match optval_right.obj_type {
-                ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {}
-                ObjectType::ObjectTypeString => {
-                    let optval_escaped = escape_option_str_cmdline(optval_right.data.string().data);
-                    let escaped_bytes = optval_escaped.as_bytes();
-                    let mut buf_bytes = Vec::with_capacity(1 + escaped_bytes.len());
-                    buf_bytes.push(b'=');
-                    buf_bytes.extend_from_slice(escaped_bytes);
-                    argp = arena_memdupz(arena, buf_bytes.as_ptr().cast(), buf_bytes.len());
-                }
-                ObjectType::ObjectTypeInteger => {
-                    let s = format!("={}", optval_right.data.integer());
-                    argp = arena_memdupz(arena, s.as_ptr().cast(), s.len());
-                }
-                ObjectType::ObjectTypeBoolean => {
-                    merged_val = optval_right;
-                }
-                ObjectType::ObjectTypeLuaRef => {
-                    merged_val = copy_object(optval_right, None);
-                }
-                _ => {
-                    std::process::abort();
-                }
-            }
-
-            optval_free(optval_right);
-
-            if optval_right.obj_type == ObjectType::ObjectTypeInteger
-                || optval_right.obj_type == ObjectType::ObjectTypeString
-            {
-                let mut oldval = if i == 0 {
-                    optval_own(opt_idx, opt_from_varp(opt_idx, varp))
-                } else {
-                    merged_val
-                };
-                merged_val = get_option_newval(
-                    opt_idx,
-                    opt_flags,
-                    PREFIX_NONE,
-                    &mut argp,
-                    0,
-                    operation,
-                    varp,
-                    Some(&mut oldval),
-                    &mut errmsg,
-                );
-                optval_free(oldval);
-                if !errmsg.is_null() {
-                    api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg);
-                    optval_free(merged_val);
-                    return OBJECT_NIL;
-                }
-            }
-        }
-
-        if dry_run {
-            let mut raw_buf = [0 as c_char; IOSIZE];
-            let errbuf = CharBuf {
-                data: raw_buf.as_mut_ptr(),
-                size: IOSIZE,
+            let mut oldval = if i == 0 {
+                optval_own(opt_idx, opt_from_varp(opt_idx, varp))
+            } else {
+                merged_val
             };
-            let mut args = Optset {
-                os_varp: ptr::null_mut(),
-                os_idx: opt_idx,
-                os_flags: opt_flags,
-                os_oldval: OBJECT_NIL,
-                os_newval: merged_val,
-                os_prep: OptSetPrep::None,
-                os_value_checked: false,
-                os_value_changed: false,
-                os_restore_chartab: false,
-                os_errbuf: Some(errbuf),
-                os_win: win,
-                os_buf: buf,
-            };
-            errmsg = validate_and_prepare_option_value(&mut args);
-            merged_val = args.os_newval;
+            merged_val = get_option_newval(
+                opt_idx,
+                opt_flags,
+                PREFIX_NONE,
+                &mut argp,
+                0,
+                operation,
+                varp,
+                Some(&mut oldval),
+                &mut errmsg,
+            );
+            optval_free(oldval);
             if !errmsg.is_null() {
-                api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg);
+                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg);
                 optval_free(merged_val);
                 return OBJECT_NIL;
             }
-        } else {
-            with_script_context(channel_id, || {
-                set_option_value_for(
-                    opt_idx,
-                    merged_val,
-                    opt_flags,
-                    scope,
-                    to,
-                    operation == OP_NONE,
-                    err,
-                );
-            });
         }
-
-        let rv = nvim_option_to_object(name, merged_val, arena, err);
-        optval_free(merged_val);
-        rv
     }
+
+    if dry_run {
+        let mut raw_buf = [0 as c_char; IOSIZE];
+        let errbuf = CharBuf {
+            data: raw_buf.as_mut_ptr(),
+            size: IOSIZE,
+        };
+        let mut args = Optset {
+            os_varp: ptr::null_mut(),
+            os_idx: opt_idx,
+            os_flags: opt_flags,
+            os_oldval: OBJECT_NIL,
+            os_newval: merged_val,
+            os_prep: OptSetPrep::None,
+            os_value_checked: false,
+            os_value_changed: false,
+            os_restore_chartab: false,
+            os_errbuf: Some(errbuf),
+            os_win: win,
+            os_buf: buf,
+        };
+        errmsg = validate_and_prepare_option_value(&mut args);
+        merged_val = args.os_newval;
+        if !errmsg.is_null() {
+            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", errmsg);
+            optval_free(merged_val);
+            return OBJECT_NIL;
+        }
+    } else {
+        with_script_context(channel_id, || {
+            set_option_value_for(
+                opt_idx,
+                merged_val,
+                opt_flags,
+                scope,
+                to,
+                operation == OP_NONE,
+                err,
+            );
+        });
+    }
+
+    let rv = nvim_option_to_object(name, merged_val, arena, err);
+    optval_free(merged_val);
+    rv
 }
 
 /// Gets the option information for all options.
@@ -842,41 +831,39 @@ pub fn nvim_get_option_info2(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    {
-        let mut opt_idx: OptIndex = 0;
-        let mut opt_flags: i32 = 0;
-        let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
-        let mut from = OptTarget::Global;
+    let mut opt_idx: OptIndex = 0;
+    let mut opt_flags: i32 = 0;
+    let mut scope: OptScope = K_OPT_SCOPE_GLOBAL;
+    let mut from = OptTarget::Global;
 
-        if !validate_option_value_args(
-            opts,
-            name.data,
-            false,
-            &mut opt_idx,
-            &mut opt_flags,
-            &mut scope,
-            &mut from,
-            ptr::null_mut(),
-            None,
-            None,
-            err,
-        ) {
-            return Dict::new();
-        }
-
-        let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, from) {
-            b
-        } else {
-            g_st().curbuf
-        };
-        let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, from) {
-            w
-        } else {
-            curwin_ptr()
-        };
-
-        get_option_info(name, opt_flags, buf, unsafe { &mut *win }, arena, err)
+    if !validate_option_value_args(
+        opts,
+        name.data,
+        false,
+        &mut opt_idx,
+        &mut opt_flags,
+        &mut scope,
+        &mut from,
+        ptr::null_mut(),
+        None,
+        None,
+        err,
+    ) {
+        return Dict::new();
     }
+
+    let buf = if let (K_OPT_SCOPE_BUF, OptTarget::Buf(b)) = (scope, from) {
+        b
+    } else {
+        g_st().curbuf
+    };
+    let win = if let (K_OPT_SCOPE_WIN, OptTarget::Win(w)) = (scope, from) {
+        w
+    } else {
+        curwin_ptr()
+    };
+
+    get_option_info(name, opt_flags, buf, unsafe { &mut *win }, arena, err)
 }
 
 #[cfg(test)]

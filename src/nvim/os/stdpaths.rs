@@ -72,29 +72,27 @@ const XDG_DEFAULTS: [Option<&CStr>; 7] = [
 
 /// Get the value of `$NVIM_APPNAME`, or `"nvim"` if not set (`get_appname`).
 pub fn get_appname(namelike: bool) -> *const c_char {
-    {
-        let name_buff = g_st().name_buff.as_mut_ptr().cast::<u8>();
-        let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff.cast(), MAXPATHL);
-        if env_val.is_null() {
-            unsafe { name_buff.copy_from_nonoverlapping(c"nvim".as_ptr().cast::<u8>(), 5) };
-        }
-        #[cfg(windows)]
-        path_to_slash(name_buff.cast::<c_char>());
-        if namelike {
-            for i in 0..MAXPATHL {
-                let b = unsafe { *name_buff.wrapping_add(i) };
-                if b == 0 {
-                    break;
-                }
-                if b == b'/' || b == b'\\' {
-                    unsafe {
-                        *name_buff.wrapping_add(i) = b'-';
-                    }
+    let name_buff = g_st().name_buff.as_mut_ptr().cast::<u8>();
+    let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff.cast(), MAXPATHL);
+    if env_val.is_null() {
+        unsafe { name_buff.copy_from_nonoverlapping(c"nvim".as_ptr().cast::<u8>(), 5) };
+    }
+    #[cfg(windows)]
+    path_to_slash(name_buff.cast::<c_char>());
+    if namelike {
+        for i in 0..MAXPATHL {
+            let b = unsafe { *name_buff.wrapping_add(i) };
+            if b == 0 {
+                break;
+            }
+            if b == b'/' || b == b'\\' {
+                unsafe {
+                    *name_buff.wrapping_add(i) = b'-';
                 }
             }
         }
-        name_buff.cast::<c_char>()
     }
+    name_buff.cast::<c_char>()
 }
 
 /// Return true if `$NVIM_APPNAME` is a valid name or relative path (`appname_is_valid`).
@@ -148,65 +146,63 @@ fn xdg_remove_duplicate(ret: CString, sep: u8) -> Option<CString> {
 
 /// Return owned XDG variable value for `idx` (`stdpaths_get_xdg_var`).
 pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
+    let i = idx as usize;
+    let env = XDG_ENV_VARS[i].as_ptr();
+    let fallback = XDG_DEFAULTS[i];
+
+    let mut env_val = os_getenv_cstr(env);
+
+    #[cfg(target_os = "windows")]
     {
-        let i = idx as usize;
-        let env = XDG_ENV_VARS[i].as_ptr();
-        let fallback = XDG_DEFAULTS[i];
-
-        let mut env_val = os_getenv_cstr(env);
-
-        #[cfg(target_os = "windows")]
+        if env_val.is_none()
+            && let Some(def_env) = XDG_DEFAULTS_ENV_VARS[i]
         {
-            if env_val.is_none()
-                && let Some(def_env) = XDG_DEFAULTS_ENV_VARS[i]
-            {
-                env_val = os_getenv_cstr(def_env.as_ptr());
-            }
-            if let Some(ref ev) = env_val
-                && idx == XDGVarType::XDGCacheHome
-                && let Some(real_path) = os_realpath_cstr(ev.as_ptr(), MAXPATHL)
-            {
-                env_val = Some(real_path);
-            }
+            env_val = os_getenv_cstr(def_env.as_ptr());
         }
-
-        #[cfg(not(target_os = "windows"))]
+        if let Some(ref ev) = env_val
+            && idx == XDGVarType::XDGCacheHome
+            && let Some(real_path) = os_realpath_cstr(ev.as_ptr(), MAXPATHL)
         {
-            if env_val.is_none() && os_env_exists(env, false) {
-                env_val = Some(CString::default());
-            }
+            env_val = Some(real_path);
         }
-
-        #[cfg(windows)]
-        if let Some(ref ev) = env_val {
-            path_to_slash(ev.as_ptr().cast_mut());
-        }
-
-        let mut ret: Option<CString> = if env_val.is_some() {
-            env_val
-        } else if let Some(fb) = fallback {
-            Some(expand_env_save(fb.as_ptr().cast_mut()))
-        } else if idx == XDGVarType::XDGRuntimeDir {
-            let tempdir = vim_gettempdir();
-            let raw = if tempdir.is_null() {
-                b"/tmp/" as &[u8]
-            } else {
-                crate::memory::cstr_as_bytes(tempdir)
-            };
-            let trimmed_len = if raw.len() >= 2 { raw.len() - 1 } else { 0 };
-            Some(cstr_from_bytes(&raw[..trimmed_len]))
-        } else {
-            None
-        };
-
-        if matches!(idx, XDGVarType::XDGDataDirs | XDGVarType::XDGConfigDirs)
-            && let Some(r) = ret
-        {
-            ret = xdg_remove_duplicate(r, ENV_SEPCHAR);
-        }
-
-        ret
     }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        if env_val.is_none() && os_env_exists(env, false) {
+            env_val = Some(CString::default());
+        }
+    }
+
+    #[cfg(windows)]
+    if let Some(ref ev) = env_val {
+        path_to_slash(ev.as_ptr().cast_mut());
+    }
+
+    let mut ret: Option<CString> = if env_val.is_some() {
+        env_val
+    } else if let Some(fb) = fallback {
+        Some(expand_env_save(fb.as_ptr().cast_mut()))
+    } else if idx == XDGVarType::XDGRuntimeDir {
+        let tempdir = vim_gettempdir();
+        let raw = if tempdir.is_null() {
+            b"/tmp/" as &[u8]
+        } else {
+            crate::memory::cstr_as_bytes(tempdir)
+        };
+        let trimmed_len = if raw.len() >= 2 { raw.len() - 1 } else { 0 };
+        Some(cstr_from_bytes(&raw[..trimmed_len]))
+    } else {
+        None
+    };
+
+    if matches!(idx, XDGVarType::XDGDataDirs | XDGVarType::XDGConfigDirs)
+        && let Some(r) = ret
+    {
+        ret = xdg_remove_duplicate(r, ENV_SEPCHAR);
+    }
+
+    ret
 }
 
 /// Return Nvim-specific XDG directory subpath (`get_xdg_home`).

@@ -179,50 +179,48 @@ fn ucs2bytes(mut c: u32, pp: *mut *mut c_char, flags: i32) -> bool {
 }
 
 fn buf_write_convert_with_iconv(ip: &mut BwInfo, bufp: *mut *mut c_char, lenp: &mut i32) -> i32 {
-    {
-        let len = *lenp;
-        let mut from: *const c_char = unsafe { *bufp };
-        let mut fromlen = len as usize;
-        let mut tolen = ip.bw_conv_buf.len();
-        let conv_buf = ip.bw_conv_buf.as_mut_ptr();
-        let mut to = conv_buf;
+    let len = *lenp;
+    let mut from: *const c_char = unsafe { *bufp };
+    let mut fromlen = len as usize;
+    let mut tolen = ip.bw_conv_buf.len();
+    let conv_buf = ip.bw_conv_buf.as_mut_ptr();
+    let mut to = conv_buf;
 
-        if ip.bw_first != 0 {
-            let save_len = tolen;
-            let _ = call_iconv(
-                ip.bw_iconv_fd,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                &raw mut to,
-                &raw mut tolen,
-            );
-            if to.is_null() {
-                to = conv_buf;
-                tolen = save_len;
-            }
-            ip.bw_first = 0;
-        }
-
-        if call_iconv(
+    if ip.bw_first != 0 {
+        let save_len = tolen;
+        let _ = call_iconv(
             ip.bw_iconv_fd,
-            &raw mut from,
-            &raw mut fromlen,
+            ptr::null_mut(),
+            ptr::null_mut(),
             &raw mut to,
             &raw mut tolen,
-        ) == usize::MAX
-            && os_errno() != ICONV_EINVAL
-        {
-            ip.bw_conv_error = 1;
-            return -1;
+        );
+        if to.is_null() {
+            to = conv_buf;
+            tolen = save_len;
         }
-
-        unsafe {
-            *bufp = conv_buf;
-        }
-        *lenp = ((to as usize) - (conv_buf as usize)) as i32;
-
-        len - (fromlen as i32)
+        ip.bw_first = 0;
     }
+
+    if call_iconv(
+        ip.bw_iconv_fd,
+        &raw mut from,
+        &raw mut fromlen,
+        &raw mut to,
+        &raw mut tolen,
+    ) == usize::MAX
+        && os_errno() != ICONV_EINVAL
+    {
+        ip.bw_conv_error = 1;
+        return -1;
+    }
+
+    unsafe {
+        *bufp = conv_buf;
+    }
+    *lenp = ((to as usize) - (conv_buf as usize)) as i32;
+
+    len - (fromlen as i32)
 }
 
 fn buf_write_convert(ip: &mut BwInfo, bufp: *mut *mut c_char, lenp: &mut i32) -> i32 {
@@ -929,7 +927,7 @@ fn buf_write_make_backup(
     err: &mut BwError,
 ) -> bool {
     let fname = fname.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut file_info = FileInfo::new();
         let no_prepend_dot = false;
 
@@ -949,11 +947,13 @@ fn buf_write_make_backup(
                 let mut i: i32 = 4913;
                 loop {
                     let suffix = format!(".{i}.swp\0");
-                    ptr::copy_nonoverlapping(
-                        suffix.as_ptr().cast::<c_char>(),
-                        tmp_fname.as_mut_ptr().wrapping_add(dirlen),
-                        suffix.len(),
-                    );
+                    unsafe {
+                        ptr::copy_nonoverlapping(
+                            suffix.as_ptr().cast::<c_char>(),
+                            tmp_fname.as_mut_ptr().wrapping_add(dirlen),
+                            suffix.len(),
+                        )
+                    };
                     if !os_fileinfo_link(tmp_fname.as_ptr(), &mut file_info) {
                         break;
                     }
@@ -983,7 +983,7 @@ fn buf_write_make_backup(
                             *backup_copyp = true;
                         }
                     }
-                    let _ = close(fd);
+                    let _ = unsafe { close(fd) };
                     let _ = os_remove(tmp_fname.as_ptr());
                 }
             }
@@ -1016,7 +1016,7 @@ fn buf_write_make_backup(
             let mut some_error = false;
             let mut dirp = opt_vars().p_bdir;
             'nobackup: {
-                while *dirp != 0 {
+                while unsafe { *dirp } != 0 {
                     *backupp =
                         buf_get_backup_name(fname, &raw mut dirp, no_prepend_dot, backup_ext);
                     let Some(bk_cstr) = backupp.take() else {
@@ -1046,11 +1046,15 @@ fn buf_write_make_backup(
                             if (wp as usize) < (bk_ptr as usize) {
                                 wp = bk_ptr;
                             }
-                            *wp = b'z' as c_char;
+                            unsafe {
+                                *wp = b'z' as c_char;
+                            }
                             while (crate::memory::cstr_first_byte(wp)) > b'a'
                                 && os_fileinfo(bk_ptr, &mut file_info_new)
                             {
-                                *wp -= 1;
+                                unsafe {
+                                    *wp -= 1;
+                                }
                             }
                             if (crate::memory::cstr_first_byte(wp)) == b'a' {
                                 keep_bk = false;
@@ -1115,7 +1119,7 @@ fn buf_write_make_backup(
             }
 
             let mut dirp = opt_vars().p_bdir;
-            while *dirp != 0 {
+            while unsafe { *dirp } != 0 {
                 *backupp = buf_get_backup_name(fname, &raw mut dirp, no_prepend_dot, backup_ext);
                 if let Some(bk_cstr) = backupp.take() {
                     let mut bk_vec: Vec<c_char> = bk_cstr
@@ -1136,9 +1140,13 @@ fn buf_write_make_backup(
                         if (p as usize) < (bk_ptr as usize) {
                             p = bk_ptr;
                         }
-                        *p = b'z' as c_char;
+                        unsafe {
+                            *p = b'z' as c_char;
+                        }
                         while (crate::memory::cstr_first_byte(p)) > b'a' && os_path_exists(bk_ptr) {
-                            *p -= 1;
+                            unsafe {
+                                *p -= 1;
+                            }
                         }
                         if (crate::memory::cstr_first_byte(p)) == b'a' {
                             keep_bk = false;

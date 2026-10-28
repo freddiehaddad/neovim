@@ -454,94 +454,88 @@ fn load_terminfo(
     ti: Option<&TerminfoEntry>,
     mut input: Option<&mut crate::tui::input::TermInput>,
 ) {
-    {
-        let mut root = TrieNode::new_arr(0, 0xff);
+    let mut root = TrieNode::new_arr(0, 0xff);
 
-        for entry in FUNCS {
-            let mut name_buf = [0 as c_char; 16];
-            let s = format!("key_{}", entry.funcname);
-            unsafe {
-                std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len())
-            };
-            name_buf[s.len()] = 0;
+    for entry in FUNCS {
+        let mut name_buf = [0 as c_char; 16];
+        let s = format!("key_{}", entry.funcname);
+        unsafe { std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len()) };
+        name_buf[s.len()] = 0;
 
-            let info = TiKeyInfo {
-                r#type: entry.r#type,
-                sym: entry.sym,
-                modifier_mask: entry.mods,
-                modifier_set: entry.mods,
-            };
-            if !try_load_terminfo_key(
-                ti,
-                input.as_deref_mut(),
-                &mut root,
-                false,
-                entry.ti_key as usize,
-                false,
-                name_buf.as_ptr(),
-                info,
-            ) {
-                continue;
-            }
-
-            let s_shift = format!("key_s{}", entry.funcname);
-            unsafe {
-                std::ptr::copy_nonoverlapping(
-                    s_shift.as_ptr().cast(),
-                    name_buf.as_mut_ptr(),
-                    s_shift.len(),
-                )
-            };
-            name_buf[s_shift.len()] = 0;
-
-            let shift_info = TiKeyInfo {
-                r#type: entry.r#type,
-                sym: entry.sym,
-                modifier_mask: entry.mods | TERMKEY_KEYMOD_SHIFT,
-                modifier_set: entry.mods | TERMKEY_KEYMOD_SHIFT,
-            };
-            try_load_terminfo_key(
-                ti,
-                input.as_deref_mut(),
-                &mut root,
-                false,
-                entry.ti_key as usize,
-                true,
-                name_buf.as_ptr(),
-                shift_info,
-            );
+        let info = TiKeyInfo {
+            r#type: entry.r#type,
+            sym: entry.sym,
+            modifier_mask: entry.mods,
+            modifier_set: entry.mods,
+        };
+        if !try_load_terminfo_key(
+            ti,
+            input.as_deref_mut(),
+            &mut root,
+            false,
+            entry.ti_key as usize,
+            false,
+            name_buf.as_ptr(),
+            info,
+        ) {
+            continue;
         }
 
-        for i in 1..=K_TERMINFO_FUNC_KEY_MAX {
-            let mut name_buf = [0 as c_char; 16];
-            let s = format!("key_f{i}");
-            unsafe {
-                std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len())
-            };
-            name_buf[s.len()] = 0;
+        let s_shift = format!("key_s{}", entry.funcname);
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                s_shift.as_ptr().cast(),
+                name_buf.as_mut_ptr(),
+                s_shift.len(),
+            )
+        };
+        name_buf[s_shift.len()] = 0;
 
-            let fn_info = TiKeyInfo {
-                r#type: TERMKEY_TYPE_FUNCTION,
-                sym: i as i32,
-                modifier_mask: 0,
-                modifier_set: 0,
-            };
-            if !try_load_terminfo_key(
-                ti,
-                input.as_deref_mut(),
-                &mut root,
-                true,
-                i - 1,
-                false,
-                name_buf.as_ptr(),
-                fn_info,
-            ) {
-                break;
-            }
-        }
-
-        tk.ti.root = Some(Box::new(root.compress()));
+        let shift_info = TiKeyInfo {
+            r#type: entry.r#type,
+            sym: entry.sym,
+            modifier_mask: entry.mods | TERMKEY_KEYMOD_SHIFT,
+            modifier_set: entry.mods | TERMKEY_KEYMOD_SHIFT,
+        };
+        try_load_terminfo_key(
+            ti,
+            input.as_deref_mut(),
+            &mut root,
+            false,
+            entry.ti_key as usize,
+            true,
+            name_buf.as_ptr(),
+            shift_info,
+        );
     }
+
+    for i in 1..=K_TERMINFO_FUNC_KEY_MAX {
+        let mut name_buf = [0 as c_char; 16];
+        let s = format!("key_f{i}");
+        unsafe { std::ptr::copy_nonoverlapping(s.as_ptr().cast(), name_buf.as_mut_ptr(), s.len()) };
+        name_buf[s.len()] = 0;
+
+        let fn_info = TiKeyInfo {
+            r#type: TERMKEY_TYPE_FUNCTION,
+            sym: i as i32,
+            modifier_mask: 0,
+            modifier_set: 0,
+        };
+        if !try_load_terminfo_key(
+            ti,
+            input.as_deref_mut(),
+            &mut root,
+            true,
+            i - 1,
+            false,
+            name_buf.as_ptr(),
+            fn_info,
+        ) {
+            break;
+        }
+    }
+
+    tk.ti.root = Some(Box::new(root.compress()));
 }
 
 impl TermKeyTI {
@@ -567,62 +561,60 @@ pub fn peekkey_ti(
     force: i32,
     nbytep: &mut usize,
 ) -> TermKeyResult {
-    {
-        if tk.buffcount == 0 {
-            return if tk.is_closed != 0 {
-                TERMKEY_RES_EOF
-            } else {
-                TERMKEY_RES_NONE
-            };
-        }
+    if tk.buffcount == 0 {
+        return if tk.is_closed != 0 {
+            TERMKEY_RES_EOF
+        } else {
+            TERMKEY_RES_NONE
+        };
+    }
 
-        let Some(mut p) = tk.ti.root.as_deref() else {
+    let Some(mut p) = tk.ti.root.as_deref() else {
+        return TERMKEY_RES_NONE;
+    };
+
+    let mut pos = 0usize;
+    while pos < tk.buffcount {
+        let b = tk.buffer[tk.buffstart + pos];
+        let Some(next) = p.lookup_next(b) else {
             return TERMKEY_RES_NONE;
         };
+        p = next;
+        pos += 1;
 
-        let mut pos = 0usize;
-        while pos < tk.buffcount {
-            let b = tk.buffer[tk.buffstart + pos];
-            let Some(next) = p.lookup_next(b) else {
-                return TERMKEY_RES_NONE;
-            };
-            p = next;
-            pos += 1;
+        let TrieNode::Key(k) = *p else {
+            continue;
+        };
 
-            let TrieNode::Key(k) = *p else {
-                continue;
-            };
+        if k.r#type == TERMKEY_TYPE_MOUSE {
+            tk.buffstart += pos;
+            tk.buffcount -= pos;
 
-            if k.r#type == TERMKEY_TYPE_MOUSE {
-                tk.buffstart += pos;
-                tk.buffcount -= pos;
+            let mouse_result = peekkey_mouse(tk, key, &mut *nbytep);
 
-                let mouse_result = peekkey_mouse(tk, key, &mut *nbytep);
+            tk.buffstart -= pos;
+            tk.buffcount += pos;
 
-                tk.buffstart -= pos;
-                tk.buffcount += pos;
-
-                if mouse_result == TERMKEY_RES_KEY {
-                    *nbytep += pos;
-                }
-
-                return mouse_result;
+            if mouse_result == TERMKEY_RES_KEY {
+                *nbytep += pos;
             }
 
-            key.r#type = k.r#type;
-            key.code.sym = k.sym;
-            key.code.number = k.sym;
-            key.modifiers = k.modifier_set;
-            *nbytep = pos;
-            return TERMKEY_RES_KEY;
+            return mouse_result;
         }
 
-        if force == 0 {
-            return TERMKEY_RES_AGAIN;
-        }
-
-        TERMKEY_RES_NONE
+        key.r#type = k.r#type;
+        key.code.sym = k.sym;
+        key.code.number = k.sym;
+        key.modifiers = k.modifier_set;
+        *nbytep = pos;
+        return TERMKEY_RES_KEY;
     }
+
+    if force == 0 {
+        return TERMKEY_RES_AGAIN;
+    }
+
+    TERMKEY_RES_NONE
 }
 
 #[cfg(test)]

@@ -3953,13 +3953,11 @@ pub fn has_vim_patch(n: i32, major_minor_version: i32) -> bool {
 }
 
 pub fn ex_version(eap: &mut Exarg) {
-    {
-        if crate::memory::cstr_is_empty(eap.arg) {
-            if !ui_has(K_UIMESSAGES) {
-                msg_putchar(b'\n' as i32);
-            }
-            list_version();
+    if crate::memory::cstr_is_empty(eap.arg) {
+        if !ui_has(K_UIMESSAGES) {
+            msg_putchar(b'\n' as i32);
         }
+        list_version();
     }
 }
 
@@ -4076,139 +4074,133 @@ pub fn list_lua_version() {
 }
 
 pub fn list_version() {
-    {
-        msg_ext_set_kind(c"list_cmd");
-        msg_puts(long_version());
+    msg_ext_set_kind(c"list_cmd");
+    msg_puts(long_version());
+    msg_putchar(b'\n' as i32);
+    msg_puts(version_buildtype());
+    msg_putchar(b'\n' as i32);
+    list_lua_version();
+
+    if opt_vars().p_verbose > 0 {
         msg_putchar(b'\n' as i32);
-        msg_puts(version_buildtype());
-        msg_putchar(b'\n' as i32);
-        list_lua_version();
+        msg_puts(c"Vim versions: ");
 
-        if opt_vars().p_verbose > 0 {
-            msg_putchar(b'\n' as i32);
-            msg_puts(c"Vim versions: ");
-
-            for (i, ver) in VERSIONS.iter().enumerate() {
-                if i > 0 {
-                    msg_puts(c", ");
-                }
-                msg_puts(ver.as_ptr());
+        for (i, ver) in VERSIONS.iter().enumerate() {
+            if i > 0 {
+                msg_puts(c", ");
             }
-
-            if !version_cflags().is_null() {
-                msg_putchar(b'\n' as i32);
-                msg_puts(version_cflags());
-            }
-            version_msg(c"\n\n");
-
-            version_msg(gettext(c"   system vimrc file: \""));
-            version_msg(c"$VIM/sysinit.vim");
-            version_msg(c"\"\n");
-
-            if !crate::memory::cstr_is_empty(default_vim_dir()) {
-                version_msg(gettext(c"  fall-back for $VIM: \""));
-                version_msg(default_vim_dir());
-                version_msg(c"\"\n");
-            }
-
-            if !crate::memory::cstr_is_empty(default_vimruntime_dir()) {
-                version_msg(gettext(c" f-b for $VIMRUNTIME: \""));
-                version_msg(default_vimruntime_dir());
-                version_msg(c"\"\n");
-            }
+            msg_puts(ver.as_ptr());
         }
 
-        version_msg(if opt_vars().p_verbose > 0 {
-            c"\nRun :checkhealth for more info".as_ptr()
-        } else if starting_val() != 0 {
-            c"\nRun \"nvim -V1 -v\" for more info".as_ptr()
-        } else {
-            c"\nRun \":verbose version\" for more info".as_ptr()
-        });
+        if !version_cflags().is_null() {
+            msg_putchar(b'\n' as i32);
+            msg_puts(version_cflags());
+        }
+        version_msg(c"\n\n");
+
+        version_msg(gettext(c"   system vimrc file: \""));
+        version_msg(c"$VIM/sysinit.vim");
+        version_msg(c"\"\n");
+
+        if !crate::memory::cstr_is_empty(default_vim_dir()) {
+            version_msg(gettext(c"  fall-back for $VIM: \""));
+            version_msg(default_vim_dir());
+            version_msg(c"\"\n");
+        }
+
+        if !crate::memory::cstr_is_empty(default_vimruntime_dir()) {
+            version_msg(gettext(c" f-b for $VIMRUNTIME: \""));
+            version_msg(default_vimruntime_dir());
+            version_msg(c"\"\n");
+        }
     }
+
+    version_msg(if opt_vars().p_verbose > 0 {
+        c"\nRun :checkhealth for more info".as_ptr()
+    } else if starting_val() != 0 {
+        c"\nRun \"nvim -V1 -v\" for more info".as_ptr()
+    } else {
+        c"\nRun \":verbose version\" for more info".as_ptr()
+    });
 }
 
 /// Whether it still is not too late to show an intro message (`may_show_intro`).
 pub fn may_show_intro() -> bool {
-    {
-        buf_is_empty(curbuf_mut())
-            && curbuf_mut().b_fname.is_null()
-            && curbuf_mut().b_fnum == 1
-            && curwin_mut().handle == LOWEST_WIN_ID
-            && one_window(curwin_mut(), ptr::null_mut())
-            && !crate::strings::vim_haschr(opt_vars().p_shm, K_SHM_INTRO)
-    }
+    buf_is_empty(curbuf_mut())
+        && curbuf_mut().b_fname.is_null()
+        && curbuf_mut().b_fnum == 1
+        && curwin_mut().handle == LOWEST_WIN_ID
+        && one_window(curwin_mut(), ptr::null_mut())
+        && !crate::strings::vim_haschr(opt_vars().p_shm, K_SHM_INTRO)
 }
 
 /// Give an introductory message about Vim (`intro_message`).
 pub fn intro_message(colon: bool) {
-    {
-        let lines: [*const c_char; 18] = [
-            c"│ ╲ ││".as_ptr(),
-            c"││╲╲││".as_ptr(),
-            c"││ ╲ │".as_ptr(),
-            c"".as_ptr(),
-            long_version(),
-            c"────────────────────────────────────────────".as_ptr(),
-            c"Nvim is open source and freely distributable".as_ptr(),
-            c"https://neovim.io/#chat".as_ptr(),
-            c"────────────────────────────────────────────".as_ptr(),
-            c"type  :help nvim<Enter>     if you are new! ".as_ptr(),
-            c"type  :checkhealth<Enter>   to optimize Nvim".as_ptr(),
-            c"type  :q<Enter>             to exit         ".as_ptr(),
-            c"type  :help<Enter>          for help        ".as_ptr(),
-            c"────────────────────────────────────────────".as_ptr(),
-            c"type  :help news<Enter>     for v%s.%s notes ".as_ptr(),
-            c"────────────────────────────────────────────".as_ptr(),
-            c"Help poor children in Uganda!".as_ptr(),
-            c"type  :help Kuwasha<Enter>  for information ".as_ptr(),
-        ];
+    let lines: [*const c_char; 18] = [
+        c"│ ╲ ││".as_ptr(),
+        c"││╲╲││".as_ptr(),
+        c"││ ╲ │".as_ptr(),
+        c"".as_ptr(),
+        long_version(),
+        c"────────────────────────────────────────────".as_ptr(),
+        c"Nvim is open source and freely distributable".as_ptr(),
+        c"https://neovim.io/#chat".as_ptr(),
+        c"────────────────────────────────────────────".as_ptr(),
+        c"type  :help nvim<Enter>     if you are new! ".as_ptr(),
+        c"type  :checkhealth<Enter>   to optimize Nvim".as_ptr(),
+        c"type  :q<Enter>             to exit         ".as_ptr(),
+        c"type  :help<Enter>          for help        ".as_ptr(),
+        c"────────────────────────────────────────────".as_ptr(),
+        c"type  :help news<Enter>     for v%s.%s notes ".as_ptr(),
+        c"────────────────────────────────────────────".as_ptr(),
+        c"Help poor children in Uganda!".as_ptr(),
+        c"type  :help Kuwasha<Enter>  for information ".as_ptr(),
+    ];
 
-        let lines_size = lines.len() as i32;
-        let mut blanklines = g_st().rows_global - (lines_size - 1);
-        if opt_vars().p_ls > 1 {
-            blanklines -= g_st().rows_global - crate::globals::topframe_mut().fr_height;
-        }
-        if blanklines < 0 {
-            blanklines = 0;
-        }
+    let lines_size = lines.len() as i32;
+    let mut blanklines = g_st().rows_global - (lines_size - 1);
+    if opt_vars().p_ls > 1 {
+        blanklines -= g_st().rows_global - crate::globals::topframe_mut().fr_height;
+    }
+    if blanklines < 0 {
+        blanklines = 0;
+    }
 
-        let mut row = blanklines / 2;
-        if (row >= 2 && g_st().columns_global >= 50) || colon {
-            for (i, &p) in lines.iter().enumerate() {
-                let formatted_cstr: Option<CString>;
+    let mut row = blanklines / 2;
+    if (row >= 2 && g_st().columns_global >= 50) || colon {
+        for (i, &p) in lines.iter().enumerate() {
+            let formatted_cstr: Option<CString>;
 
-                let mesg: *const c_char = if crate::memory::cstr_as_bytes(p)
-                    .windows(4)
-                    .any(|w| w == b"news")
-                {
-                    let fmt_str = crate::memory::cstr_lossy(gettext(p));
-                    let major_s = NVIM_VERSION_MAJOR_CONST.to_string();
-                    let minor_s = NVIM_VERSION_MINOR_CONST.to_string();
-                    let formatted = if let Some((a, rest)) = fmt_str.split_once("%s") {
-                        if let Some((b, c)) = rest.split_once("%s") {
-                            format!("{a}{major_s}{b}{minor_s}{c}")
-                        } else {
-                            format!("{a}{major_s}{rest}")
-                        }
+            let mesg: *const c_char = if crate::memory::cstr_as_bytes(p)
+                .windows(4)
+                .any(|w| w == b"news")
+            {
+                let fmt_str = crate::memory::cstr_lossy(gettext(p));
+                let major_s = NVIM_VERSION_MAJOR_CONST.to_string();
+                let minor_s = NVIM_VERSION_MINOR_CONST.to_string();
+                let formatted = if let Some((a, rest)) = fmt_str.split_once("%s") {
+                    if let Some((b, c)) = rest.split_once("%s") {
+                        format!("{a}{major_s}{b}{minor_s}{c}")
                     } else {
-                        fmt_str.into_owned()
-                    };
-                    formatted_cstr = CString::new(formatted).ok();
-                    formatted_cstr
-                        .as_ref()
-                        .map_or(c"".as_ptr(), |cs| cs.as_ptr())
-                } else if !crate::memory::cstr_is_empty(p) {
-                    gettext(p)
+                        format!("{a}{major_s}{rest}")
+                    }
                 } else {
-                    c"".as_ptr()
+                    fmt_str.into_owned()
                 };
+                formatted_cstr = CString::new(formatted).ok();
+                formatted_cstr
+                    .as_ref()
+                    .map_or(c"".as_ptr(), |cs| cs.as_ptr())
+            } else if !crate::memory::cstr_is_empty(p) {
+                gettext(p)
+            } else {
+                c"".as_ptr()
+            };
 
-                if !crate::memory::cstr_is_empty(mesg) && row < g_st().rows_global - 1 {
-                    do_intro_line(row, mesg, colon, i < 3);
-                }
-                row += 1;
+            if !crate::memory::cstr_is_empty(mesg) && row < g_st().rows_global - 1 {
+                do_intro_line(row, mesg, colon, i < 3);
             }
+            row += 1;
         }
     }
 }

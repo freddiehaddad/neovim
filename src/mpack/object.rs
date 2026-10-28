@@ -427,33 +427,31 @@ fn mpack_parser_push(parser: &mut MpackParser) -> *mut MpackNode {
 }
 
 fn mpack_parser_pop(parser: &mut MpackParser) -> *mut MpackNode {
-    {
-        debug_assert!(parser.size != 0);
-        let top_idx = parser.size as usize;
-        let top = &raw mut parser.items[top_idx];
-        let top = unsafe { &mut *top };
+    debug_assert!(parser.size != 0);
+    let top_idx = parser.size as usize;
+    let top = &raw mut parser.items[top_idx];
+    let top = unsafe { &mut *top };
 
-        if top.tok.r#type > MpackTokenChunk && top.pos < (top.tok.length as usize) {
-            return ptr::null_mut();
-        }
+    if top.tok.r#type > MpackTokenChunk && top.pos < (top.tok.length as usize) {
+        return ptr::null_mut();
+    }
 
-        let parent = mpack_parent_node(top);
-        if !parent.is_null() {
-            let parent = unsafe { &mut *parent };
-            let parent = { &mut *parent };
-            if top.tok.r#type == MpackTokenChunk {
-                parent.pos += top.tok.length as usize;
-            } else if parent.tok.r#type == MpackTokenMap {
-                if parent.key_visited != 0 {
-                    parent.pos += 1;
-                }
-                parent.key_visited = i32::from(parent.key_visited == 0);
-            } else {
+    let parent = mpack_parent_node(top);
+    if !parent.is_null() {
+        let parent = unsafe { &mut *parent };
+        let parent = { &mut *parent };
+        if top.tok.r#type == MpackTokenChunk {
+            parent.pos += top.tok.length as usize;
+        } else if parent.tok.r#type == MpackTokenMap {
+            if parent.key_visited != 0 {
                 parent.pos += 1;
             }
+            parent.key_visited = i32::from(parent.key_visited == 0);
+        } else {
+            parent.pos += 1;
         }
-
-        parser.size -= 1;
-        top
     }
+
+    parser.size -= 1;
+    top
 }

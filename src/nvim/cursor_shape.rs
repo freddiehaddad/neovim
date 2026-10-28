@@ -139,331 +139,318 @@ fn clear_shape_table() {
 
 /// Converts `(*shape_table_mut())` into an `Array` of `Dict`s (`mode_style_array`).
 pub fn mode_style_array(arena: &mut Arena) -> Array {
-    {
-        let mut all = arena_array(arena, SHAPE_IDX_COUNT);
-        let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
+    let mut all = arena_array(arena, SHAPE_IDX_COUNT);
+    let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
 
-        for cur in tbl.iter() {
-            let is_cursor = (cur.used_for as i32 & SHAPE_CURSOR) != 0;
-            let mut dic = arena_dict(arena, 3 + if is_cursor { 9 } else { 0 });
+    for cur in tbl.iter() {
+        let is_cursor = (cur.used_for as i32 & SHAPE_CURSOR) != 0;
+        let mut dic = arena_dict(arena, 3 + if is_cursor { 9 } else { 0 });
+        dict_put_c(
+            &mut dic,
+            c"name",
+            Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(cstr_as_string(cur.full_name.as_ptr())),
+            },
+        );
+        dict_put_c(
+            &mut dic,
+            c"short_name",
+            Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(cstr_as_string(cur.name.as_ptr())),
+            },
+        );
+        if (cur.used_for as i32 & SHAPE_MOUSE) != 0 {
             dict_put_c(
                 &mut dic,
-                c"name",
+                c"mouse_shape",
                 Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(cur.full_name.as_ptr())),
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(cur.mshape as i64),
                 },
             );
-            dict_put_c(
-                &mut dic,
-                c"short_name",
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(cur.name.as_ptr())),
-                },
-            );
-            if (cur.used_for as i32 & SHAPE_MOUSE) != 0 {
-                dict_put_c(
-                    &mut dic,
-                    c"mouse_shape",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(cur.mshape as i64),
-                    },
-                );
-            }
-            if is_cursor {
-                let shape_cstr = match cur.shape {
-                    CursorShape::ShapeBlock => c"block",
-                    CursorShape::ShapeVer => c"vertical",
-                    CursorShape::ShapeHor => c"horizontal",
-                };
-                dict_put_c(
-                    &mut dic,
-                    c"cursor_shape",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeString,
-                        data: ObjectData::String(cstr_as_string(shape_cstr.as_ptr())),
-                    },
-                );
-                dict_put_c(
-                    &mut dic,
-                    c"cell_percentage",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(cur.percentage as i64),
-                    },
-                );
-                dict_put_c(
-                    &mut dic,
-                    c"blinkwait",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(cur.blinkwait as i64),
-                    },
-                );
-                dict_put_c(
-                    &mut dic,
-                    c"blinkon",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(cur.blinkon as i64),
-                    },
-                );
-                dict_put_c(
-                    &mut dic,
-                    c"blinkoff",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(cur.blinkoff as i64),
-                    },
-                );
-                dict_put_c(
-                    &mut dic,
-                    c"hl_id",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(cur.id as i64),
-                    },
-                );
-                dict_put_c(
-                    &mut dic,
-                    c"id_lm",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(cur.id_lm as i64),
-                    },
-                );
-                dict_put_c(
-                    &mut dic,
-                    c"attr_id",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(if cur.id != 0 {
-                            syn_id2attr(cur.id) as i64
-                        } else {
-                            0
-                        }),
-                    },
-                );
-                dict_put_c(
-                    &mut dic,
-                    c"attr_id_lm",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(if cur.id_lm != 0 {
-                            syn_id2attr(cur.id_lm) as i64
-                        } else {
-                            0
-                        }),
-                    },
-                );
-            }
-            assert!(all.size < all.capacity);
-            *all.next_slot_mut() = Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(dic),
-            };
-            all.size += 1;
         }
-        all
+        if is_cursor {
+            let shape_cstr = match cur.shape {
+                CursorShape::ShapeBlock => c"block",
+                CursorShape::ShapeVer => c"vertical",
+                CursorShape::ShapeHor => c"horizontal",
+            };
+            dict_put_c(
+                &mut dic,
+                c"cursor_shape",
+                Object {
+                    obj_type: ObjectType::ObjectTypeString,
+                    data: ObjectData::String(cstr_as_string(shape_cstr.as_ptr())),
+                },
+            );
+            dict_put_c(
+                &mut dic,
+                c"cell_percentage",
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(cur.percentage as i64),
+                },
+            );
+            dict_put_c(
+                &mut dic,
+                c"blinkwait",
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(cur.blinkwait as i64),
+                },
+            );
+            dict_put_c(
+                &mut dic,
+                c"blinkon",
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(cur.blinkon as i64),
+                },
+            );
+            dict_put_c(
+                &mut dic,
+                c"blinkoff",
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(cur.blinkoff as i64),
+                },
+            );
+            dict_put_c(
+                &mut dic,
+                c"hl_id",
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(cur.id as i64),
+                },
+            );
+            dict_put_c(
+                &mut dic,
+                c"id_lm",
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(cur.id_lm as i64),
+                },
+            );
+            dict_put_c(
+                &mut dic,
+                c"attr_id",
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(if cur.id != 0 {
+                        syn_id2attr(cur.id) as i64
+                    } else {
+                        0
+                    }),
+                },
+            );
+            dict_put_c(
+                &mut dic,
+                c"attr_id_lm",
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(if cur.id_lm != 0 {
+                        syn_id2attr(cur.id_lm) as i64
+                    } else {
+                        0
+                    }),
+                },
+            );
+        }
+        assert!(all.size < all.capacity);
+        *all.next_slot_mut() = Object {
+            obj_type: ObjectType::ObjectTypeDict,
+            data: ObjectData::Dict(dic),
+        };
+        all.size += 1;
     }
+    all
 }
 
 /// Parses the `'guicursor'` option (`parse_shape_opt`).
 pub fn parse_shape_opt(what: i32) -> *const c_char {
-    {
-        let mut p: *const c_char = std::ptr::null();
-        let mut idx: usize = 0;
-        let mut found_ve = false;
-        let tbl = unsafe { &mut *std::ptr::addr_of_mut!((*shape_table_mut())) };
+    let mut p: *const c_char = std::ptr::null();
+    let mut idx: usize = 0;
+    let mut found_ve = false;
+    let tbl = unsafe { &mut *std::ptr::addr_of_mut!((*shape_table_mut())) };
 
-        for round in 1..=2 {
-            if round == 2 || crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
-                clear_shape_table();
-                if crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
-                    ui_mode_info_set();
-                    return std::ptr::null();
-                }
+    for round in 1..=2 {
+        if round == 2 || crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
+            clear_shape_table();
+            if crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
+                ui_mode_info_set();
+                return std::ptr::null();
             }
-            let mut modep: *const c_char = opt_vars().p_guicursor;
-            while !modep.is_null() && unsafe { *modep } != 0 {
-                let colonp = crate::memory::cstr_as_bytes(modep)
-                    .iter()
-                    .position(|&b| b == b':')
-                    .map_or(std::ptr::null(), |i| modep.wrapping_add(i));
-                let commap = crate::memory::cstr_as_bytes(modep)
-                    .iter()
-                    .position(|&b| b == b',')
-                    .map_or(std::ptr::null(), |i| modep.wrapping_add(i));
+        }
+        let mut modep: *const c_char = opt_vars().p_guicursor;
+        while !modep.is_null() && unsafe { *modep } != 0 {
+            let colonp = crate::memory::cstr_as_bytes(modep)
+                .iter()
+                .position(|&b| b == b':')
+                .map_or(std::ptr::null(), |i| modep.wrapping_add(i));
+            let commap = crate::memory::cstr_as_bytes(modep)
+                .iter()
+                .position(|&b| b == b',')
+                .map_or(std::ptr::null(), |i| modep.wrapping_add(i));
 
-                if colonp.is_null() || (!commap.is_null() && (commap as usize) < (colonp as usize))
-                {
-                    return c"E545: Missing colon".as_ptr();
-                }
-                if colonp == modep {
-                    return c"E546: Illegal mode".as_ptr();
-                }
+            if colonp.is_null() || (!commap.is_null() && (commap as usize) < (colonp as usize)) {
+                return c"E545: Missing colon".as_ptr();
+            }
+            if colonp == modep {
+                return c"E546: Illegal mode".as_ptr();
+            }
 
-                let mut all_idx: isize = -1;
-                while (modep as usize) < (colonp as usize) || all_idx >= 0 {
-                    if all_idx < 0 {
-                        let m1 = crate::memory::cstr_byte_at(modep, 1);
-                        let len = if m1 == b'-' || m1 == b':' {
-                            1usize
-                        } else {
-                            2usize
-                        };
+            let mut all_idx: isize = -1;
+            while (modep as usize) < (colonp as usize) || all_idx >= 0 {
+                if all_idx < 0 {
+                    let m1 = crate::memory::cstr_byte_at(modep, 1);
+                    let len = if m1 == b'-' || m1 == b':' {
+                        1usize
+                    } else {
+                        2usize
+                    };
 
-                        if len == 1
-                            && (crate::memory::cstr_first_byte(modep)).eq_ignore_ascii_case(&b'a')
-                        {
-                            all_idx = (SHAPE_IDX_COUNT - 1) as isize;
-                        } else {
-                            idx = SHAPE_IDX_COUNT;
-                            for (i, entry) in tbl.iter().enumerate() {
-                                if crate::memory::cstr_prefix_bytes(modep, len)
-                                    .eq_ignore_ascii_case(crate::memory::cstr_prefix_bytes(
-                                        entry.name.as_ptr(),
-                                        len,
-                                    ))
-                                {
-                                    idx = i;
-                                    break;
-                                }
-                            }
-                            if idx == SHAPE_IDX_COUNT || (tbl[idx].used_for as i32 & what) == 0 {
-                                return c"E546: Illegal mode".as_ptr();
-                            }
-                            if len == 2
-                                && crate::memory::cstr_first_byte(modep) == b'v'
-                                && m1 == b'e'
-                            {
-                                found_ve = true;
+                    if len == 1
+                        && (crate::memory::cstr_first_byte(modep)).eq_ignore_ascii_case(&b'a')
+                    {
+                        all_idx = (SHAPE_IDX_COUNT - 1) as isize;
+                    } else {
+                        idx = SHAPE_IDX_COUNT;
+                        for (i, entry) in tbl.iter().enumerate() {
+                            if crate::memory::cstr_prefix_bytes(modep, len).eq_ignore_ascii_case(
+                                crate::memory::cstr_prefix_bytes(entry.name.as_ptr(), len),
+                            ) {
+                                idx = i;
+                                break;
                             }
                         }
-                        modep = modep.wrapping_add(len + 1);
+                        if idx == SHAPE_IDX_COUNT || (tbl[idx].used_for as i32 & what) == 0 {
+                            return c"E546: Illegal mode".as_ptr();
+                        }
+                        if len == 2 && crate::memory::cstr_first_byte(modep) == b'v' && m1 == b'e' {
+                            found_ve = true;
+                        }
                     }
+                    modep = modep.wrapping_add(len + 1);
+                }
 
-                    if all_idx >= 0 {
-                        idx = all_idx as usize;
-                        all_idx -= 1;
-                    }
+                if all_idx >= 0 {
+                    idx = all_idx as usize;
+                    all_idx -= 1;
+                }
 
-                    p = colonp.wrapping_add(1);
-                    while unsafe { *p } != 0 && crate::memory::cstr_first_byte(p) != b',' {
-                        let first_byte = crate::memory::cstr_first_byte(p);
-                        let len = if crate::memory::cstr_prefix_bytes(p, 3)
-                            .eq_ignore_ascii_case(b"ver")
-                            || crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(b"hor")
-                        {
-                            3usize
-                        } else if crate::memory::cstr_prefix_bytes(p, 9)
-                            .eq_ignore_ascii_case(b"blinkwait")
-                        {
-                            9usize
-                        } else if crate::memory::cstr_prefix_bytes(p, 7)
-                            .eq_ignore_ascii_case(b"blinkon")
-                        {
-                            7usize
-                        } else if crate::memory::cstr_prefix_bytes(p, 8)
-                            .eq_ignore_ascii_case(b"blinkoff")
-                        {
-                            8usize
-                        } else {
-                            0usize
-                        };
+                p = colonp.wrapping_add(1);
+                while unsafe { *p } != 0 && crate::memory::cstr_first_byte(p) != b',' {
+                    let first_byte = crate::memory::cstr_first_byte(p);
+                    let len = if crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(b"ver")
+                        || crate::memory::cstr_prefix_bytes(p, 3).eq_ignore_ascii_case(b"hor")
+                    {
+                        3usize
+                    } else if crate::memory::cstr_prefix_bytes(p, 9)
+                        .eq_ignore_ascii_case(b"blinkwait")
+                    {
+                        9usize
+                    } else if crate::memory::cstr_prefix_bytes(p, 7)
+                        .eq_ignore_ascii_case(b"blinkon")
+                    {
+                        7usize
+                    } else if crate::memory::cstr_prefix_bytes(p, 8)
+                        .eq_ignore_ascii_case(b"blinkoff")
+                    {
+                        8usize
+                    } else {
+                        0usize
+                    };
 
-                        if len != 0 {
-                            p = p.wrapping_add(len);
-                            if !(crate::memory::cstr_first_byte(p)).is_ascii_digit() {
-                                return c"E548: Digit expected".as_ptr();
+                    if len != 0 {
+                        p = p.wrapping_add(len);
+                        if !(crate::memory::cstr_first_byte(p)).is_ascii_digit() {
+                            return c"E548: Digit expected".as_ptr();
+                        }
+                        let n = getdigits_int((&raw mut p).cast(), false, 0);
+                        if len == 3 {
+                            if n == 0 {
+                                return c"E549: Illegal percentage".as_ptr();
                             }
-                            let n = getdigits_int((&raw mut p).cast(), false, 0);
-                            if len == 3 {
-                                if n == 0 {
-                                    return c"E549: Illegal percentage".as_ptr();
-                                }
-                                if round == 2 {
-                                    if first_byte.eq_ignore_ascii_case(&b'v') {
-                                        tbl[idx].shape = CursorShape::ShapeVer;
-                                    } else {
-                                        tbl[idx].shape = CursorShape::ShapeHor;
-                                    }
-                                    tbl[idx].percentage = n;
-                                }
-                            } else if round == 2 {
-                                if len == 9 {
-                                    tbl[idx].blinkwait = n;
-                                } else if len == 7 {
-                                    tbl[idx].blinkon = n;
+                            if round == 2 {
+                                if first_byte.eq_ignore_ascii_case(&b'v') {
+                                    tbl[idx].shape = CursorShape::ShapeVer;
                                 } else {
-                                    tbl[idx].blinkoff = n;
+                                    tbl[idx].shape = CursorShape::ShapeHor;
                                 }
+                                tbl[idx].percentage = n;
                             }
-                        } else if crate::memory::cstr_prefix_bytes(p, 5)
-                            .eq_ignore_ascii_case(b"block")
-                        {
-                            if round == 2 {
-                                tbl[idx].shape = CursorShape::ShapeBlock;
+                        } else if round == 2 {
+                            if len == 9 {
+                                tbl[idx].blinkwait = n;
+                            } else if len == 7 {
+                                tbl[idx].blinkon = n;
+                            } else {
+                                tbl[idx].blinkoff = n;
                             }
-                            p = p.wrapping_add(5);
-                        } else {
-                            let mut endp = crate::memory::cstr_as_bytes(p)
-                                .iter()
-                                .position(|&b| b == b'-')
-                                .map_or(std::ptr::null(), |i| p.wrapping_add(i));
-                            if commap.is_null() {
-                                if endp.is_null() {
-                                    endp = p.wrapping_add(crate::memory::cstr_len(p));
-                                }
-                            } else if endp.is_null() || (endp as usize) > (commap as usize) {
-                                endp = commap;
+                        }
+                    } else if crate::memory::cstr_prefix_bytes(p, 5).eq_ignore_ascii_case(b"block")
+                    {
+                        if round == 2 {
+                            tbl[idx].shape = CursorShape::ShapeBlock;
+                        }
+                        p = p.wrapping_add(5);
+                    } else {
+                        let mut endp = crate::memory::cstr_as_bytes(p)
+                            .iter()
+                            .position(|&b| b == b'-')
+                            .map_or(std::ptr::null(), |i| p.wrapping_add(i));
+                        if commap.is_null() {
+                            if endp.is_null() {
+                                endp = p.wrapping_add(crate::memory::cstr_len(p));
                             }
-                            let slashp = crate::memory::cstr_as_bytes(p)
-                                .iter()
-                                .position(|&b| b == b'/')
-                                .map_or(std::ptr::null(), |i| p.wrapping_add(i));
-                            let mut saved_hl_id = first_byte as i32;
+                        } else if endp.is_null() || (endp as usize) > (commap as usize) {
+                            endp = commap;
+                        }
+                        let slashp = crate::memory::cstr_as_bytes(p)
+                            .iter()
+                            .position(|&b| b == b'/')
+                            .map_or(std::ptr::null(), |i| p.wrapping_add(i));
+                        let mut saved_hl_id = first_byte as i32;
+                        if !slashp.is_null() && (slashp as usize) < (endp as usize) {
+                            saved_hl_id = syn_check_group(p, (slashp as usize) - (p as usize));
+                            p = slashp.wrapping_add(1);
+                        }
+                        if round == 2 {
+                            tbl[idx].id = syn_check_group(p, (endp as usize) - (p as usize));
+                            tbl[idx].id_lm = tbl[idx].id;
                             if !slashp.is_null() && (slashp as usize) < (endp as usize) {
-                                saved_hl_id = syn_check_group(p, (slashp as usize) - (p as usize));
-                                p = slashp.wrapping_add(1);
+                                tbl[idx].id = saved_hl_id;
                             }
-                            if round == 2 {
-                                tbl[idx].id = syn_check_group(p, (endp as usize) - (p as usize));
-                                tbl[idx].id_lm = tbl[idx].id;
-                                if !slashp.is_null() && (slashp as usize) < (endp as usize) {
-                                    tbl[idx].id = saved_hl_id;
-                                }
-                            }
-                            p = endp;
                         }
+                        p = endp;
+                    }
 
-                        if crate::memory::cstr_first_byte(p) == b'-' {
-                            p = p.wrapping_add(1);
-                        }
+                    if crate::memory::cstr_first_byte(p) == b'-' {
+                        p = p.wrapping_add(1);
                     }
                 }
-                modep = p;
-                if !modep.is_null() && crate::memory::cstr_first_byte(modep) == b',' {
-                    modep = modep.wrapping_add(1);
-                }
+            }
+            modep = p;
+            if !modep.is_null() && crate::memory::cstr_first_byte(modep) == b',' {
+                modep = modep.wrapping_add(1);
             }
         }
-
-        if !found_ve {
-            let v_entry = tbl[SHAPE_IDX_V];
-            tbl[SHAPE_IDX_VE].shape = v_entry.shape;
-            tbl[SHAPE_IDX_VE].percentage = v_entry.percentage;
-            tbl[SHAPE_IDX_VE].blinkwait = v_entry.blinkwait;
-            tbl[SHAPE_IDX_VE].blinkon = v_entry.blinkon;
-            tbl[SHAPE_IDX_VE].blinkoff = v_entry.blinkoff;
-            tbl[SHAPE_IDX_VE].id = v_entry.id;
-            tbl[SHAPE_IDX_VE].id_lm = v_entry.id_lm;
-        }
-        ui_mode_info_set();
-        std::ptr::null()
     }
+
+    if !found_ve {
+        let v_entry = tbl[SHAPE_IDX_V];
+        tbl[SHAPE_IDX_VE].shape = v_entry.shape;
+        tbl[SHAPE_IDX_VE].percentage = v_entry.percentage;
+        tbl[SHAPE_IDX_VE].blinkwait = v_entry.blinkwait;
+        tbl[SHAPE_IDX_VE].blinkon = v_entry.blinkon;
+        tbl[SHAPE_IDX_VE].blinkoff = v_entry.blinkoff;
+        tbl[SHAPE_IDX_VE].id = v_entry.id;
+        tbl[SHAPE_IDX_VE].id_lm = v_entry.id_lm;
+    }
+    ui_mode_info_set();
+    std::ptr::null()
 }
 
 /// Map cursor mode from string to integer (`cursor_mode_str2int`).
@@ -490,52 +477,48 @@ pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> i32 {
 
 /// Check if a syntax id is used as a cursor style (`cursor_mode_uses_syn_id`).
 pub fn cursor_mode_uses_syn_id(syn_id: i32) -> bool {
-    {
-        if crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
-            return false;
-        }
-        let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
-        for entry in tbl.iter() {
-            if entry.id == syn_id || entry.id_lm == syn_id {
-                return true;
-            }
-        }
-        false
+    if crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
+        return false;
     }
+    let tbl = unsafe { &*std::ptr::addr_of!((*shape_table_mut())) };
+    for entry in tbl.iter() {
+        if entry.id == syn_id || entry.id_lm == syn_id {
+            return true;
+        }
+    }
+    false
 }
 
 /// Return the index into `(*shape_table_mut())[]` for the current mode (`cursor_get_mode_idx`).
 pub fn cursor_get_mode_idx() -> i32 {
+    if g_st().state_global == MODE_SHOWMATCH {
+        SHAPE_IDX_SM as i32
+    } else if g_st().state_global == MODE_TERMINAL {
+        SHAPE_IDX_TERM as i32
+    } else if (g_st().state_global & VREPLACE_FLAG) != 0
+        || (g_st().state_global & REPLACE_FLAG) != 0
     {
-        if g_st().state_global == MODE_SHOWMATCH {
-            SHAPE_IDX_SM as i32
-        } else if g_st().state_global == MODE_TERMINAL {
-            SHAPE_IDX_TERM as i32
-        } else if (g_st().state_global & VREPLACE_FLAG) != 0
-            || (g_st().state_global & REPLACE_FLAG) != 0
-        {
-            SHAPE_IDX_R as i32
-        } else if (g_st().state_global & MODE_INSERT) != 0 {
-            SHAPE_IDX_I as i32
-        } else if (g_st().state_global & MODE_CMDLINE) != 0 {
-            if cmdline_at_end() {
-                SHAPE_IDX_C as i32
-            } else if cmdline_overstrike() {
-                SHAPE_IDX_CR as i32
-            } else {
-                SHAPE_IDX_CI as i32
-            }
-        } else if g_st().finish_op {
-            SHAPE_IDX_O as i32
-        } else if g_st().visual_global.active {
-            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
-                SHAPE_IDX_VE as i32
-            } else {
-                SHAPE_IDX_V as i32
-            }
+        SHAPE_IDX_R as i32
+    } else if (g_st().state_global & MODE_INSERT) != 0 {
+        SHAPE_IDX_I as i32
+    } else if (g_st().state_global & MODE_CMDLINE) != 0 {
+        if cmdline_at_end() {
+            SHAPE_IDX_C as i32
+        } else if cmdline_overstrike() {
+            SHAPE_IDX_CR as i32
         } else {
-            SHAPE_IDX_N as i32
+            SHAPE_IDX_CI as i32
         }
+    } else if g_st().finish_op {
+        SHAPE_IDX_O as i32
+    } else if g_st().visual_global.active {
+        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+            SHAPE_IDX_VE as i32
+        } else {
+            SHAPE_IDX_V as i32
+        }
+    } else {
+        SHAPE_IDX_N as i32
     }
 }
 

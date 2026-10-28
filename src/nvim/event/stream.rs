@@ -204,72 +204,76 @@ pub fn stream_set_blocking(fd: i32, blocking: bool) -> i32 {
 }
 
 pub fn stream_init(loop_: *mut Loop, stream: &mut Stream, fd: i32, has_uvstream: bool) {
-    unsafe {
-        assert!(if !has_uvstream {
-            fd >= 0 && !loop_.is_null()
-        } else {
-            fd < 0 && loop_.is_null()
-        });
-        let uv_ptr: *mut c_void = (&raw mut stream.uv).cast();
-        stream.has_uvstream = has_uvstream;
+    assert!(if !has_uvstream {
+        fd >= 0 && !loop_.is_null()
+    } else {
+        fd < 0 && loop_.is_null()
+    });
+    let uv_ptr: *mut c_void = (&raw mut stream.uv).cast();
+    stream.has_uvstream = has_uvstream;
 
-        if fd >= 0 {
-            let h_type = uv_guess_handle(fd);
-            stream.fd = fd;
+    if fd >= 0 {
+        let h_type = unsafe { uv_guess_handle(fd) };
+        stream.fd = fd;
 
-            if h_type == UV_FILE {
-                uv_idle_init(loop_.cast(), uv_ptr.cast());
+        if h_type == UV_FILE {
+            unsafe { uv_idle_init(loop_.cast(), uv_ptr.cast()) };
+            unsafe {
                 *uv_ptr.cast::<*mut Stream>() = stream;
-            } else {
-                #[cfg(windows)]
-                if h_type == UV_TTY {
-                    uv_tty_init(loop_.cast(), uv_ptr.cast(), fd, 0);
-                    uv_tty_set_mode(uv_ptr.cast(), UV_TTY_MODE_RAW);
-                    let tty_handle = *uv_ptr
+            }
+        } else {
+            #[cfg(windows)]
+            if h_type == UV_TTY {
+                unsafe { uv_tty_init(loop_.cast(), uv_ptr.cast(), fd, 0) };
+                unsafe { uv_tty_set_mode(uv_ptr.cast(), UV_TTY_MODE_RAW) };
+                let tty_handle = unsafe {
+                    *uv_ptr
                         .cast::<u8>()
                         .wrapping_add(uv_handle_size(UV_STREAM))
-                        .cast::<*mut c_void>();
-                    let mut dw_mode: u32 = 0;
-                    if GetConsoleMode(tty_handle, &mut dw_mode) != 0 {
-                        dw_mode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
-                        SetConsoleMode(tty_handle, dw_mode);
-                    }
-                    stream.has_uvstream = true;
-                } else {
-                    assert!(h_type == UV_NAMED_PIPE || h_type == UV_TTY);
-                    uv_pipe_init(loop_.cast(), uv_ptr.cast(), 0);
-                    uv_pipe_open(uv_ptr.cast(), fd);
-                    stream.has_uvstream = true;
+                        .cast::<*mut c_void>()
+                };
+                let mut dw_mode: u32 = 0;
+                if unsafe { GetConsoleMode(tty_handle, &mut dw_mode) } != 0 {
+                    dw_mode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
+                    unsafe { SetConsoleMode(tty_handle, dw_mode) };
                 }
+                stream.has_uvstream = true;
+            } else {
+                assert!(h_type == UV_NAMED_PIPE || h_type == UV_TTY);
+                unsafe { uv_pipe_init(loop_.cast(), uv_ptr.cast(), 0) };
+                unsafe { uv_pipe_open(uv_ptr.cast(), fd) };
+                stream.has_uvstream = true;
+            }
 
-                #[cfg(not(windows))]
-                {
-                    assert!(h_type == UV_NAMED_PIPE || h_type == UV_TTY);
-                    uv_pipe_init(loop_.cast(), uv_ptr.cast(), 0);
-                    uv_pipe_open(uv_ptr.cast(), fd);
-                    stream.has_uvstream = true;
-                }
+            #[cfg(not(windows))]
+            {
+                assert!(h_type == UV_NAMED_PIPE || h_type == UV_TTY);
+                uv_pipe_init(loop_.cast(), uv_ptr.cast(), 0);
+                uv_pipe_open(uv_ptr.cast(), fd);
+                stream.has_uvstream = true;
             }
         }
+    }
 
-        if stream.has_uvstream {
+    if stream.has_uvstream {
+        unsafe {
             *stream.uvstream_ptr().cast::<*mut Stream>() = stream;
         }
-
-        stream.fpos = 0;
-        stream.internal_data = StreamInternalData::NONE;
-        stream.curmem = 0;
-        stream.maxmem = 0;
-        stream.pending_reqs = 0;
-        stream.notify_write = false;
-        stream.is_rstream = false;
-        #[cfg(windows)]
-        {
-            stream.close_console = false;
-        }
-        stream.closed = false;
-        stream.events = ptr::null_mut();
     }
+
+    stream.fpos = 0;
+    stream.internal_data = StreamInternalData::NONE;
+    stream.curmem = 0;
+    stream.maxmem = 0;
+    stream.pending_reqs = 0;
+    stream.notify_write = false;
+    stream.is_rstream = false;
+    #[cfg(windows)]
+    {
+        stream.close_console = false;
+    }
+    stream.closed = false;
+    stream.events = ptr::null_mut();
 }
 
 pub fn stream_may_close(stream: &mut Stream) {
@@ -302,61 +306,51 @@ pub fn stream_may_close(stream: &mut Stream) {
 }
 
 pub fn stream_close_handle(stream: &mut Stream) {
-    {
-        let handle: *mut uv_handle_t = if stream.has_uvstream {
-            let queued = unsafe { uv_stream_get_write_queue_size(stream.uvstream_ptr()) };
-            if queued > 0 {
-                logmsg!(
-                    LOGLVL_WRN,
-                    ptr::null(),
-                    c"stream_close_handle",
-                    116,
-                    true,
-                    c"closed Stream (%p) with %zu unwritten bytes",
-                    &raw const *stream,
-                    queued,
-                );
-            }
-            stream.uvstream_ptr().cast()
-        } else {
-            (&raw mut stream.uv).cast()
-        };
-
-        assert!(!handle.is_null());
-
-        #[cfg(windows)]
-        if stream.close_console {
-            stream.pending_reqs += 1;
-            crate::os::pty_proc_win::pty_proc_close_console(stream);
-            stream.pending_reqs -= 1;
+    let handle: *mut uv_handle_t = if stream.has_uvstream {
+        let queued = unsafe { uv_stream_get_write_queue_size(stream.uvstream_ptr()) };
+        if queued > 0 {
+            logmsg!(
+                LOGLVL_WRN,
+                ptr::null(),
+                c"stream_close_handle",
+                116,
+                true,
+                c"closed Stream (%p) with %zu unwritten bytes",
+                &raw const *stream,
+                queued,
+            );
         }
-        if unsafe { uv_is_closing(handle) } == 0 {
-            unsafe { uv_close(handle, Some(close_cb)) };
-        }
+        stream.uvstream_ptr().cast()
+    } else {
+        (&raw mut stream.uv).cast()
+    };
+
+    assert!(!handle.is_null());
+
+    #[cfg(windows)]
+    if stream.close_console {
+        stream.pending_reqs += 1;
+        crate::os::pty_proc_win::pty_proc_close_console(stream);
+        stream.pending_reqs -= 1;
+    }
+    if unsafe { uv_is_closing(handle) } == 0 {
+        unsafe { uv_close(handle, Some(close_cb)) };
     }
 }
 
 unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
     unsafe {
-        {
-            {
-                let stream = *handle.cast::<*mut Stream>();
-                if !stream.is_null() {
-                    let stream = { &mut *stream };
-                    if stream.is_rstream {
-                        crate::event::rstream::rstream_close_cb(&mut *stream);
-                    }
-                    match stream.internal_data {
-                        StreamInternalData::None => {}
-                        StreamInternalData::Channel(chan) => {
-                            crate::channel::channel_decref(&mut *chan)
-                        }
-                        StreamInternalData::Proc(proc_) => {
-                            crate::event::proc::proc_decref(&mut *proc_)
-                        }
-                        StreamInternalData::Closed(closed_ptr) => *closed_ptr = true,
-                    }
-                }
+        let stream = *handle.cast::<*mut Stream>();
+        if !stream.is_null() {
+            let stream = { &mut *stream };
+            if stream.is_rstream {
+                crate::event::rstream::rstream_close_cb(&mut *stream);
+            }
+            match stream.internal_data {
+                StreamInternalData::None => {}
+                StreamInternalData::Channel(chan) => crate::channel::channel_decref(&mut *chan),
+                StreamInternalData::Proc(proc_) => crate::event::proc::proc_decref(&mut *proc_),
+                StreamInternalData::Closed(closed_ptr) => *closed_ptr = true,
             }
         }
     }

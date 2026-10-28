@@ -1484,41 +1484,39 @@ pub(super) fn get_char_class(pp: *mut *mut c_char) -> i32 {
 }
 
 pub(super) fn init_class_tab() {
-    {
-        if re_st().init_class_tab_done {
-            return;
-        }
-        let tab = (&raw mut re_st().class_tab).cast::<i16>();
-        for i in 0..256usize {
-            let val = if (b'0' as usize..=b'7' as usize).contains(&i) {
-                RI_DIGIT + RI_HEX + RI_OCTAL + RI_WORD
-            } else if (b'8' as usize..=b'9' as usize).contains(&i) {
-                RI_DIGIT + RI_HEX + RI_WORD
-            } else if (b'a' as usize..=b'f' as usize).contains(&i) {
-                RI_HEX + RI_WORD + RI_HEAD + RI_ALPHA + RI_LOWER
-            } else if (b'g' as usize..=b'z' as usize).contains(&i) {
-                RI_WORD + RI_HEAD + RI_ALPHA + RI_LOWER
-            } else if (b'A' as usize..=b'F' as usize).contains(&i) {
-                RI_HEX + RI_WORD + RI_HEAD + RI_ALPHA + RI_UPPER
-            } else if (b'G' as usize..=b'Z' as usize).contains(&i) {
-                RI_WORD + RI_HEAD + RI_ALPHA + RI_UPPER
-            } else if i == b'_' as usize {
-                RI_WORD + RI_HEAD
-            } else {
-                0
-            };
-            unsafe {
-                *tab.wrapping_add(i) = val;
-            }
-        }
-        unsafe {
-            *tab.wrapping_add(b' ' as usize) |= RI_WHITE;
-        }
-        unsafe {
-            *tab.wrapping_add(b'\t' as usize) |= RI_WHITE;
-        }
-        re_st().init_class_tab_done = true;
+    if re_st().init_class_tab_done {
+        return;
     }
+    let tab = (&raw mut re_st().class_tab).cast::<i16>();
+    for i in 0..256usize {
+        let val = if (b'0' as usize..=b'7' as usize).contains(&i) {
+            RI_DIGIT + RI_HEX + RI_OCTAL + RI_WORD
+        } else if (b'8' as usize..=b'9' as usize).contains(&i) {
+            RI_DIGIT + RI_HEX + RI_WORD
+        } else if (b'a' as usize..=b'f' as usize).contains(&i) {
+            RI_HEX + RI_WORD + RI_HEAD + RI_ALPHA + RI_LOWER
+        } else if (b'g' as usize..=b'z' as usize).contains(&i) {
+            RI_WORD + RI_HEAD + RI_ALPHA + RI_LOWER
+        } else if (b'A' as usize..=b'F' as usize).contains(&i) {
+            RI_HEX + RI_WORD + RI_HEAD + RI_ALPHA + RI_UPPER
+        } else if (b'G' as usize..=b'Z' as usize).contains(&i) {
+            RI_WORD + RI_HEAD + RI_ALPHA + RI_UPPER
+        } else if i == b'_' as usize {
+            RI_WORD + RI_HEAD
+        } else {
+            0
+        };
+        unsafe {
+            *tab.wrapping_add(i) = val;
+        }
+    }
+    unsafe {
+        *tab.wrapping_add(b' ' as usize) |= RI_WHITE;
+    }
+    unsafe {
+        *tab.wrapping_add(b'\t' as usize) |= RI_WHITE;
+    }
+    re_st().init_class_tab_done = true;
 }
 
 #[inline]
@@ -1655,14 +1653,12 @@ pub fn skip_regexp(startp: *mut c_char, delim: i32, magic: i32) -> *mut c_char {
 
 /// Call `skip_regexp()` and when the delimiter does not match give an error and return NULL.
 pub fn skip_regexp_err(startp: *mut c_char, delim: i32, magic: i32) -> *mut c_char {
-    {
-        let p = skip_regexp(startp, delim, magic);
-        if crate::memory::cstr_first_byte(p) as i32 != delim {
-            semsg!(tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR), startp,);
-            return ptr::null_mut();
-        }
-        p
+    let p = skip_regexp(startp, delim, magic);
+    if crate::memory::cstr_first_byte(p) as i32 != delim {
+        semsg!(tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR), startp,);
+        return ptr::null_mut();
     }
+    p
 }
 
 /// `skip_regexp()` with extra arguments.
@@ -1675,69 +1671,67 @@ pub fn skip_regexp_ex(
     mut dropped: Option<&mut i32>,
     mut magic_val: Option<&mut RegMagic>,
 ) -> *mut c_char {
-    {
-        let mut mymagic = if magic != 0 { MAGIC_ON } else { MAGIC_OFF };
-        let mut p = startp;
-        let mut startplen: usize = 0;
+    let mut mymagic = if magic != 0 { MAGIC_ON } else { MAGIC_OFF };
+    let mut p = startp;
+    let mut startplen: usize = 0;
 
-        get_cpo_flags();
+    get_cpo_flags();
 
-        while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) as i32 == dirc {
+    while !crate::memory::cstr_is_empty(p) {
+        if crate::memory::cstr_first_byte(p) as i32 == dirc {
+            break;
+        }
+        if (crate::memory::cstr_first_byte(p) == b'[' && mymagic >= MAGIC_ON)
+            || (crate::memory::cstr_first_byte(p) == b'\\'
+                && crate::memory::cstr_byte_at(p, 1) == b'['
+                && mymagic <= MAGIC_OFF)
+        {
+            p = skip_anyof(p.wrapping_add(1));
+            if crate::memory::cstr_is_empty(p) {
                 break;
             }
-            if (crate::memory::cstr_first_byte(p) == b'[' && mymagic >= MAGIC_ON)
-                || (crate::memory::cstr_first_byte(p) == b'\\'
-                    && crate::memory::cstr_byte_at(p, 1) == b'['
-                    && mymagic <= MAGIC_OFF)
-            {
-                p = skip_anyof(p.wrapping_add(1));
-                if crate::memory::cstr_is_empty(p) {
-                    break;
+        } else if crate::memory::cstr_first_byte(p) == b'\\'
+            && crate::memory::cstr_byte_at(p, 1) != 0
+        {
+            if dirc == b'?' as i32 && in_place && crate::memory::cstr_byte_at(p, 1) == b'?' {
+                if startplen == 0 {
+                    startplen = crate::memory::cstr_len(startp);
                 }
-            } else if crate::memory::cstr_first_byte(p) == b'\\'
-                && crate::memory::cstr_byte_at(p, 1) != 0
-            {
-                if dirc == b'?' as i32 && in_place && crate::memory::cstr_byte_at(p, 1) == b'?' {
-                    if startplen == 0 {
-                        startplen = crate::memory::cstr_len(startp);
-                    }
-                    if let Some(buf) = copy_buf.as_deref_mut()
-                        && buf.is_empty()
-                    {
-                        let off = unsafe { p.offset_from(startp) } as usize;
-                        buf.extend_from_slice(unsafe {
-                            std::slice::from_raw_parts(startp, startplen + 1)
-                        });
-                        startp = buf.as_mut_ptr();
-                        p = startp.wrapping_add(off);
-                    }
-                    if let Some(ref mut p) = dropped {
-                        **p += 1;
-                    }
-                    unsafe {
-                        ptr::copy(
-                            p.wrapping_add(1),
-                            p,
-                            startplen - (p.wrapping_add(1).offset_from(startp) as usize) + 1,
-                        )
-                    };
-                } else {
-                    p = p.wrapping_add(1);
+                if let Some(buf) = copy_buf.as_deref_mut()
+                    && buf.is_empty()
+                {
+                    let off = unsafe { p.offset_from(startp) } as usize;
+                    buf.extend_from_slice(unsafe {
+                        std::slice::from_raw_parts(startp, startplen + 1)
+                    });
+                    startp = buf.as_mut_ptr();
+                    p = startp.wrapping_add(off);
                 }
-                if crate::memory::cstr_first_byte(p) == b'v' {
-                    mymagic = MAGIC_ALL;
-                } else if crate::memory::cstr_first_byte(p) == b'V' {
-                    mymagic = MAGIC_NONE;
+                if let Some(ref mut p) = dropped {
+                    **p += 1;
                 }
+                unsafe {
+                    ptr::copy(
+                        p.wrapping_add(1),
+                        p,
+                        startplen - (p.wrapping_add(1).offset_from(startp) as usize) + 1,
+                    )
+                };
+            } else {
+                p = p.wrapping_add(1);
             }
-            mb_ptr_adv(&raw mut p);
+            if crate::memory::cstr_first_byte(p) == b'v' {
+                mymagic = MAGIC_ALL;
+            } else if crate::memory::cstr_first_byte(p) == b'V' {
+                mymagic = MAGIC_NONE;
+            }
         }
-        if let Some(ref mut p) = magic_val {
-            **p = mymagic;
-        }
-        p
+        mb_ptr_adv(&raw mut p);
     }
+    if let Some(ref mut p) = magic_val {
+        **p = mymagic;
+    }
+    p
 }
 
 pub(super) fn initchr(str_: impl crate::strings::IntoCCharPtr) {
@@ -1777,143 +1771,136 @@ pub(super) fn restore_parse_state(ps: &mut ParseState) {
 }
 
 pub(super) fn peekchr() -> i32 {
-    unsafe {
-        if re_st().curchr != -1 {
-            return re_st().curchr;
-        }
-
-        re_st().curchr = crate::memory::cstr_first_byte(re_st().regparse) as i32;
-        match re_st().curchr as u8 {
-            b'.' | b'[' | b'~' => {
-                if re_st().reg_magic >= MAGIC_ON {
-                    re_st().curchr = magic_fn(re_st().curchr);
-                }
-            }
-            b'(' | b')' | b'{' | b'%' | b'+' | b'=' | b'?' | b'@' | b'!' | b'&' | b'|' | b'<'
-            | b'>' | b'#' | b'"' | b'\'' | b',' | b'-' | b':' | b';' | b'`' | b'/' => {
-                if re_st().reg_magic == MAGIC_ALL {
-                    re_st().curchr = magic_fn(re_st().curchr);
-                }
-            }
-            b'*' => {
-                if re_st().reg_magic >= MAGIC_ON
-                    && re_st().at_start == 0
-                    && !(re_st().prev_at_start != 0 && re_st().prevchr == magic_fn(b'^' as i32))
-                    && (re_st().peekchr_after_slash != 0
-                        || (re_st().prevchr != magic_fn(b'(' as i32)
-                            && re_st().prevchr != magic_fn(b'&' as i32)
-                            && re_st().prevchr != magic_fn(b'|' as i32)))
-                {
-                    re_st().curchr = magic_fn(b'*' as i32);
-                }
-            }
-            b'^' => {
-                if re_st().reg_magic >= MAGIC_OFF
-                    && (re_st().at_start != 0
-                        || re_st().reg_magic == MAGIC_ALL
-                        || re_st().prevchr == magic_fn(b'(' as i32)
-                        || re_st().prevchr == magic_fn(b'|' as i32)
-                        || re_st().prevchr == magic_fn(b'&' as i32)
-                        || re_st().prevchr == magic_fn(b'n' as i32)
-                        || (no_magic(re_st().prevchr) == b'(' as i32
-                            && re_st().prevprevchr == magic_fn(b'%' as i32)))
-                {
-                    re_st().curchr = magic_fn(b'^' as i32);
-                    re_st().at_start = 1;
-                    re_st().prev_at_start = 0;
-                }
-            }
-            b'$' => {
-                if re_st().reg_magic >= MAGIC_OFF {
-                    let mut p = re_st().regparse.wrapping_add(1).cast::<u8>();
-                    let mut is_magic_all = re_st().reg_magic == MAGIC_ALL;
-
-                    while *p == b'\\'
-                        && matches!(
-                            *p.wrapping_add(1),
-                            b'c' | b'C' | b'm' | b'M' | b'v' | b'V' | b'Z'
-                        )
-                    {
-                        if *p.wrapping_add(1) == b'v' {
-                            is_magic_all = true;
-                        } else if matches!(*p.wrapping_add(1), b'm' | b'M' | b'V') {
-                            is_magic_all = false;
-                        }
-                        p = p.wrapping_add(2);
-                    }
-                    if *p == NUL
-                        || (*p == b'\\' && matches!(*p.wrapping_add(1), b'|' | b'&' | b')' | b'n'))
-                        || (is_magic_all && matches!(*p, b'|' | b'&' | b')'))
-                        || re_st().reg_magic == MAGIC_ALL
-                    {
-                        re_st().curchr = magic_fn(b'$' as i32);
-                    }
-                }
-            }
-            b'\\' => {
-                let c = crate::memory::cstr_byte_at(re_st().regparse, 1) as i32;
-                if c == NUL as i32 {
-                    re_st().curchr = b'\\' as i32;
-                } else if c <= b'~' as i32 && META_FLAGS[c as usize] != 0 {
-                    re_st().curchr = -1;
-                    re_st().prev_at_start = re_st().at_start;
-                    re_st().at_start = 0;
-                    re_st().regparse = re_st().regparse.wrapping_add(1);
-                    re_st().peekchr_after_slash += 1;
-                    let _ = peekchr();
-                    re_st().regparse = re_st().regparse.wrapping_sub(1);
-                    re_st().peekchr_after_slash -= 1;
-                    re_st().curchr = toggle_magic(re_st().curchr);
-                } else if crate::strings::vim_haschr(REGEXP_ABBR, c) {
-                    re_st().curchr = backslash_trans(c);
-                } else if re_st().reg_magic == MAGIC_NONE && (c == b'$' as i32 || c == b'^' as i32)
-                {
-                    re_st().curchr = toggle_magic(c);
-                } else {
-                    re_st().curchr = if c >= 0x80 {
-                        utf_ptr2char(re_st().regparse.wrapping_add(1))
-                    } else {
-                        c
-                    };
-                }
-            }
-            _ => {
-                if re_st().curchr >= 0x80 {
-                    re_st().curchr = utf_ptr2char(re_st().regparse);
-                }
-            }
-        }
-
-        re_st().curchr
+    if re_st().curchr != -1 {
+        return re_st().curchr;
     }
+
+    re_st().curchr = crate::memory::cstr_first_byte(re_st().regparse) as i32;
+    match re_st().curchr as u8 {
+        b'.' | b'[' | b'~' => {
+            if re_st().reg_magic >= MAGIC_ON {
+                re_st().curchr = magic_fn(re_st().curchr);
+            }
+        }
+        b'(' | b')' | b'{' | b'%' | b'+' | b'=' | b'?' | b'@' | b'!' | b'&' | b'|' | b'<'
+        | b'>' | b'#' | b'"' | b'\'' | b',' | b'-' | b':' | b';' | b'`' | b'/' => {
+            if re_st().reg_magic == MAGIC_ALL {
+                re_st().curchr = magic_fn(re_st().curchr);
+            }
+        }
+        b'*' => {
+            if re_st().reg_magic >= MAGIC_ON
+                && re_st().at_start == 0
+                && !(re_st().prev_at_start != 0 && re_st().prevchr == magic_fn(b'^' as i32))
+                && (re_st().peekchr_after_slash != 0
+                    || (re_st().prevchr != magic_fn(b'(' as i32)
+                        && re_st().prevchr != magic_fn(b'&' as i32)
+                        && re_st().prevchr != magic_fn(b'|' as i32)))
+            {
+                re_st().curchr = magic_fn(b'*' as i32);
+            }
+        }
+        b'^' => {
+            if re_st().reg_magic >= MAGIC_OFF
+                && (re_st().at_start != 0
+                    || re_st().reg_magic == MAGIC_ALL
+                    || re_st().prevchr == magic_fn(b'(' as i32)
+                    || re_st().prevchr == magic_fn(b'|' as i32)
+                    || re_st().prevchr == magic_fn(b'&' as i32)
+                    || re_st().prevchr == magic_fn(b'n' as i32)
+                    || (no_magic(re_st().prevchr) == b'(' as i32
+                        && re_st().prevprevchr == magic_fn(b'%' as i32)))
+            {
+                re_st().curchr = magic_fn(b'^' as i32);
+                re_st().at_start = 1;
+                re_st().prev_at_start = 0;
+            }
+        }
+        b'$' => {
+            if re_st().reg_magic >= MAGIC_OFF {
+                let mut p = re_st().regparse.wrapping_add(1).cast::<u8>();
+                let mut is_magic_all = re_st().reg_magic == MAGIC_ALL;
+
+                while unsafe { *p } == b'\\'
+                    && matches!(
+                        unsafe { *p.wrapping_add(1) },
+                        b'c' | b'C' | b'm' | b'M' | b'v' | b'V' | b'Z'
+                    )
+                {
+                    if unsafe { *p.wrapping_add(1) } == b'v' {
+                        is_magic_all = true;
+                    } else if matches!(unsafe { *p.wrapping_add(1) }, b'm' | b'M' | b'V') {
+                        is_magic_all = false;
+                    }
+                    p = p.wrapping_add(2);
+                }
+                if unsafe { *p } == NUL
+                    || (unsafe { *p } == b'\\'
+                        && matches!(unsafe { *p.wrapping_add(1) }, b'|' | b'&' | b')' | b'n'))
+                    || (is_magic_all && matches!(unsafe { *p }, b'|' | b'&' | b')'))
+                    || re_st().reg_magic == MAGIC_ALL
+                {
+                    re_st().curchr = magic_fn(b'$' as i32);
+                }
+            }
+        }
+        b'\\' => {
+            let c = crate::memory::cstr_byte_at(re_st().regparse, 1) as i32;
+            if c == NUL as i32 {
+                re_st().curchr = b'\\' as i32;
+            } else if c <= b'~' as i32 && META_FLAGS[c as usize] != 0 {
+                re_st().curchr = -1;
+                re_st().prev_at_start = re_st().at_start;
+                re_st().at_start = 0;
+                re_st().regparse = re_st().regparse.wrapping_add(1);
+                re_st().peekchr_after_slash += 1;
+                let _ = peekchr();
+                re_st().regparse = re_st().regparse.wrapping_sub(1);
+                re_st().peekchr_after_slash -= 1;
+                re_st().curchr = toggle_magic(re_st().curchr);
+            } else if crate::strings::vim_haschr(REGEXP_ABBR, c) {
+                re_st().curchr = backslash_trans(c);
+            } else if re_st().reg_magic == MAGIC_NONE && (c == b'$' as i32 || c == b'^' as i32) {
+                re_st().curchr = toggle_magic(c);
+            } else {
+                re_st().curchr = if c >= 0x80 {
+                    utf_ptr2char(re_st().regparse.wrapping_add(1))
+                } else {
+                    c
+                };
+            }
+        }
+        _ => {
+            if re_st().curchr >= 0x80 {
+                re_st().curchr = utf_ptr2char(re_st().regparse);
+            }
+        }
+    }
+
+    re_st().curchr
 }
 
 pub(super) fn skipchr() {
-    {
-        if crate::memory::cstr_first_byte(re_st().regparse) == b'\\' {
-            re_st().prevchr_len = 1;
-        } else {
-            re_st().prevchr_len = 0;
-        }
-        if unsafe { *re_st().regparse.wrapping_add(re_st().prevchr_len as usize) } != NUL as c_char
-        {
-            if (unsafe { *re_st().regparse.wrapping_add(re_st().prevchr_len as usize) } as u8)
-                < 0x80
-            {
-                re_st().prevchr_len += 1;
-            } else {
-                re_st().prevchr_len +=
-                    utf_ptr2len(re_st().regparse.wrapping_add(re_st().prevchr_len as usize));
-            }
-        }
-        re_st().regparse = re_st().regparse.wrapping_add(re_st().prevchr_len as usize);
-        re_st().prev_at_start = re_st().at_start;
-        re_st().at_start = 0;
-        re_st().prevprevchr = re_st().prevchr;
-        re_st().prevchr = re_st().curchr;
-        re_st().curchr = re_st().nextchr;
-        re_st().nextchr = -1;
+    if crate::memory::cstr_first_byte(re_st().regparse) == b'\\' {
+        re_st().prevchr_len = 1;
+    } else {
+        re_st().prevchr_len = 0;
     }
+    if unsafe { *re_st().regparse.wrapping_add(re_st().prevchr_len as usize) } != NUL as c_char {
+        if (unsafe { *re_st().regparse.wrapping_add(re_st().prevchr_len as usize) } as u8) < 0x80 {
+            re_st().prevchr_len += 1;
+        } else {
+            re_st().prevchr_len +=
+                utf_ptr2len(re_st().regparse.wrapping_add(re_st().prevchr_len as usize));
+        }
+    }
+    re_st().regparse = re_st().regparse.wrapping_add(re_st().prevchr_len as usize);
+    re_st().prev_at_start = re_st().at_start;
+    re_st().at_start = 0;
+    re_st().prevprevchr = re_st().prevchr;
+    re_st().prevchr = re_st().curchr;
+    re_st().curchr = re_st().nextchr;
+    re_st().nextchr = -1;
 }
 
 pub(super) fn skipchr_keepstart() {
@@ -1934,112 +1921,102 @@ pub(super) fn getchr() -> i32 {
 }
 
 pub(super) fn ungetchr() {
-    {
-        re_st().nextchr = re_st().curchr;
-        re_st().curchr = re_st().prevchr;
-        re_st().prevchr = re_st().prevprevchr;
-        re_st().at_start = re_st().prev_at_start;
-        re_st().prev_at_start = 0;
-        re_st().regparse = re_st().regparse.wrapping_sub(re_st().prevchr_len as usize);
-    }
+    re_st().nextchr = re_st().curchr;
+    re_st().curchr = re_st().prevchr;
+    re_st().prevchr = re_st().prevprevchr;
+    re_st().at_start = re_st().prev_at_start;
+    re_st().prev_at_start = 0;
+    re_st().regparse = re_st().regparse.wrapping_sub(re_st().prevchr_len as usize);
 }
 
 pub(super) fn gethexchrs(maxinputlen: i32) -> i64 {
-    {
-        let mut nr: i64 = 0;
-        let mut i: i32 = 0;
-        while i < maxinputlen {
-            let c = crate::memory::cstr_first_byte(re_st().regparse) as i32;
-            if !ascii_isxdigit(c) {
-                break;
-            }
-            nr <<= 4;
-            nr |= i64::from(hex2nr(c));
-            re_st().regparse = re_st().regparse.wrapping_add(1);
-            i += 1;
+    let mut nr: i64 = 0;
+    let mut i: i32 = 0;
+    while i < maxinputlen {
+        let c = crate::memory::cstr_first_byte(re_st().regparse) as i32;
+        if !ascii_isxdigit(c) {
+            break;
         }
-        if i == 0 { -1 } else { nr }
+        nr <<= 4;
+        nr |= i64::from(hex2nr(c));
+        re_st().regparse = re_st().regparse.wrapping_add(1);
+        i += 1;
     }
+    if i == 0 { -1 } else { nr }
 }
 
 pub(super) fn getdecchrs() -> i64 {
-    {
-        let mut nr: i64 = 0;
-        let mut i: i32 = 0;
-        loop {
-            let c = crate::memory::cstr_first_byte(re_st().regparse);
-            if !c.is_ascii_digit() {
-                break;
-            }
-            nr = nr.wrapping_mul(10).wrapping_add(i64::from(c - b'0'));
-            re_st().regparse = re_st().regparse.wrapping_add(1);
-            re_st().curchr = -1;
-            i += 1;
+    let mut nr: i64 = 0;
+    let mut i: i32 = 0;
+    loop {
+        let c = crate::memory::cstr_first_byte(re_st().regparse);
+        if !c.is_ascii_digit() {
+            break;
         }
-        if i == 0 { -1 } else { nr }
+        nr = nr.wrapping_mul(10).wrapping_add(i64::from(c - b'0'));
+        re_st().regparse = re_st().regparse.wrapping_add(1);
+        re_st().curchr = -1;
+        i += 1;
     }
+    if i == 0 { -1 } else { nr }
 }
 
 pub(super) fn getoctchrs() -> i64 {
-    {
-        let mut nr: i64 = 0;
-        let mut i: i32 = 0;
-        while i < 3 && nr < 0o40 {
-            let c = crate::memory::cstr_first_byte(re_st().regparse);
-            if !(b'0'..=b'7').contains(&c) {
-                break;
-            }
-            nr <<= 3;
-            nr |= i64::from(hex2nr(c as i32));
-            re_st().regparse = re_st().regparse.wrapping_add(1);
-            i += 1;
+    let mut nr: i64 = 0;
+    let mut i: i32 = 0;
+    while i < 3 && nr < 0o40 {
+        let c = crate::memory::cstr_first_byte(re_st().regparse);
+        if !(b'0'..=b'7').contains(&c) {
+            break;
         }
-        if i == 0 { -1 } else { nr }
+        nr <<= 3;
+        nr |= i64::from(hex2nr(c as i32));
+        re_st().regparse = re_st().regparse.wrapping_add(1);
+        i += 1;
     }
+    if i == 0 { -1 } else { nr }
 }
 
 pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
-    {
-        let mut reverse = false;
-        if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
-            re_st().regparse = re_st().regparse.wrapping_add(1);
-            reverse = true;
-        }
-        let first_char = re_st().regparse;
-        *minval = getdigits_int(&raw mut re_st().regparse, false, 0);
-        if crate::memory::cstr_first_byte(re_st().regparse) == b',' {
-            re_st().regparse = re_st().regparse.wrapping_add(1);
-            if ascii_isdigit(crate::memory::cstr_first_byte(re_st().regparse) as i32) {
-                *maxval = getdigits_int(&raw mut re_st().regparse, false, MAX_LIMIT);
-            } else {
-                *maxval = MAX_LIMIT;
-            }
-        } else if ascii_isdigit(crate::memory::cstr_first_byte(first_char) as i32) {
-            *maxval = *minval;
+    let mut reverse = false;
+    if crate::memory::cstr_first_byte(re_st().regparse) == b'-' {
+        re_st().regparse = re_st().regparse.wrapping_add(1);
+        reverse = true;
+    }
+    let first_char = re_st().regparse;
+    *minval = getdigits_int(&raw mut re_st().regparse, false, 0);
+    if crate::memory::cstr_first_byte(re_st().regparse) == b',' {
+        re_st().regparse = re_st().regparse.wrapping_add(1);
+        if ascii_isdigit(crate::memory::cstr_first_byte(re_st().regparse) as i32) {
+            *maxval = getdigits_int(&raw mut re_st().regparse, false, MAX_LIMIT);
         } else {
             *maxval = MAX_LIMIT;
         }
-        if crate::memory::cstr_first_byte(re_st().regparse) == b'\\' {
-            re_st().regparse = re_st().regparse.wrapping_add(1);
-        }
-        if crate::memory::cstr_first_byte(re_st().regparse) != b'}' {
-            semsg!(
-                tr(c"E554: Syntax error in %s{...}"),
-                if re_st().reg_magic == MAGIC_ALL {
-                    c"".as_ptr()
-                } else {
-                    c"\\".as_ptr()
-                },
-            );
-            g_st().rc_did_emsg = true;
-            return false;
-        }
-        if (!reverse && *minval > *maxval) || (reverse && *minval < *maxval) {
-            unsafe { ptr::swap(minval, maxval) };
-        }
-        skipchr();
-        true
+    } else if ascii_isdigit(crate::memory::cstr_first_byte(first_char) as i32) {
+        *maxval = *minval;
+    } else {
+        *maxval = MAX_LIMIT;
     }
+    if crate::memory::cstr_first_byte(re_st().regparse) == b'\\' {
+        re_st().regparse = re_st().regparse.wrapping_add(1);
+    }
+    if crate::memory::cstr_first_byte(re_st().regparse) != b'}' {
+        semsg!(
+            tr(c"E554: Syntax error in %s{...}"),
+            if re_st().reg_magic == MAGIC_ALL {
+                c"".as_ptr()
+            } else {
+                c"\\".as_ptr()
+            },
+        );
+        g_st().rc_did_emsg = true;
+        return false;
+    }
+    if (!reverse && *minval > *maxval) || (reverse && *minval < *maxval) {
+        unsafe { ptr::swap(minval, maxval) };
+    }
+    skipchr();
+    true
 }
 
 #[inline]
@@ -2059,47 +2036,45 @@ fn reg_getline_common(
     line: *mut *mut c_char,
     length: Option<&mut Colnr>,
 ) {
-    {
-        let get_line = (flags & RGLF_LINE) != 0;
-        let get_length = (flags & RGLF_LENGTH) != 0;
-        let (firstlnum, maxline) = if (flags & RGLF_SUBMATCH) != 0 {
-            (re_st().rsm.sm_firstlnum + lnum, re_st().rsm.sm_maxline)
-        } else {
-            (re_st().rex.reg_firstlnum + lnum, re_st().rex.reg_maxline)
-        };
+    let get_line = (flags & RGLF_LINE) != 0;
+    let get_length = (flags & RGLF_LENGTH) != 0;
+    let (firstlnum, maxline) = if (flags & RGLF_SUBMATCH) != 0 {
+        (re_st().rsm.sm_firstlnum + lnum, re_st().rsm.sm_maxline)
+    } else {
+        (re_st().rex.reg_firstlnum + lnum, re_st().rex.reg_maxline)
+    };
 
-        if firstlnum < 1 {
-            if get_line {
-                unsafe {
-                    *line = ptr::null_mut();
-                }
-            }
-            if get_length && let Some(length) = length {
-                *length = 0;
-            }
-            return;
-        }
-
-        if lnum > maxline {
-            if get_line {
-                unsafe {
-                    *line = c"".as_ptr().cast_mut();
-                }
-            }
-            if get_length && let Some(length) = length {
-                *length = 0;
-            }
-            return;
-        }
-
+    if firstlnum < 1 {
         if get_line {
             unsafe {
-                *line = ml_get_buf(&mut *re_st().rex.reg_buf, firstlnum);
+                *line = ptr::null_mut();
             }
         }
         if get_length && let Some(length) = length {
-            *length = ml_get_buf_len(unsafe { &mut *re_st().rex.reg_buf }, firstlnum);
+            *length = 0;
         }
+        return;
+    }
+
+    if lnum > maxline {
+        if get_line {
+            unsafe {
+                *line = c"".as_ptr().cast_mut();
+            }
+        }
+        if get_length && let Some(length) = length {
+            *length = 0;
+        }
+        return;
+    }
+
+    if get_line {
+        unsafe {
+            *line = ml_get_buf(&mut *re_st().rex.reg_buf, firstlnum);
+        }
+    }
+    if get_length && let Some(length) = length {
+        *length = ml_get_buf_len(unsafe { &mut *re_st().rex.reg_buf }, firstlnum);
     }
 }
 
@@ -2116,122 +2091,115 @@ pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
 }
 
 pub(super) fn reg_prev_class() -> i32 {
-    {
-        if re_st().rex.input > re_st().rex.line {
-            let prev = re_st().rex.input.wrapping_sub(1).cast::<c_char>();
-            let head = prev.wrapping_sub(utf_head_off(re_st().rex.line.cast(), prev) as usize);
-            return mb_get_class_tab(head, (&raw const re_st().rex.buf_mut().b_chartab).cast());
-        }
-        -1
+    if re_st().rex.input > re_st().rex.line {
+        let prev = re_st().rex.input.wrapping_sub(1).cast::<c_char>();
+        let head = prev.wrapping_sub(utf_head_off(re_st().rex.line.cast(), prev) as usize);
+        return mb_get_class_tab(head, (&raw const re_st().rex.buf_mut().b_chartab).cast());
     }
+    -1
 }
 
 pub(super) fn reg_match_visual() -> bool {
+    let wp = if re_st().rex.reg_win.is_null() {
+        curwin_ptr()
+    } else {
+        re_st().rex.reg_win
+    };
+    let wp = { unsafe { &mut *wp } };
+    let wp = { &mut *wp };
+    if re_st().rex.reg_buf != g_st().curbuf || g_st().visual_global.start.lnum == 0 || !reg_multi()
     {
-        let wp = if re_st().rex.reg_win.is_null() {
-            curwin_ptr()
+        return false;
+    }
+
+    let (top, bot, mode, curswant) = if g_st().visual_global.active {
+        let (t, b) = if lt(g_st().visual_global.start, wp.w_cursor) {
+            (g_st().visual_global.start, wp.w_cursor)
         } else {
-            re_st().rex.reg_win
+            (wp.w_cursor, g_st().visual_global.start)
         };
-        let wp = { unsafe { &mut *wp } };
-        let wp = { &mut *wp };
-        if re_st().rex.reg_buf != g_st().curbuf
-            || g_st().visual_global.start.lnum == 0
-            || !reg_multi()
+        (t, b, g_st().visual_global.mode, wp.w_curswant)
+    } else {
+        let (t, mut b) = if lt(curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end) {
+            (curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end)
+        } else {
+            (curbuf_mut().b_visual.vi_end, curbuf_mut().b_visual.vi_start)
+        };
+        if b.lnum > curbuf_mut().b_ml.ml_line_count {
+            b.lnum = curbuf_mut().b_ml.ml_line_count;
+        }
+        (
+            t,
+            b,
+            curbuf_mut().b_visual.vi_mode,
+            curbuf_mut().b_visual.vi_curswant,
+        )
+    };
+
+    let lnum = re_st().rex.lnum + re_st().rex.reg_firstlnum;
+    if lnum < top.lnum || lnum > bot.lnum {
+        return false;
+    }
+
+    let col = unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as Colnr;
+    if mode == b'v' as i32 {
+        if (lnum == top.lnum && col < top.col)
+            || (lnum == bot.lnum
+                && col
+                    >= bot.col
+                        + Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e'))
         {
             return false;
         }
+    } else if mode == CTRL_V_CONST {
+        let mut start: Colnr = 0;
+        let mut end: Colnr = 0;
+        let mut start2: Colnr = 0;
+        let mut end2: Colnr = 0;
+        let mut top_copy = top;
+        let mut bot_copy = bot;
+        getvvcol(
+            &mut *(wp),
+            &mut top_copy,
+            Some(&mut start),
+            None,
+            Some(&mut end),
+            0,
+        );
+        getvvcol(
+            &mut *(wp),
+            &mut bot_copy,
+            Some(&mut start2),
+            None,
+            Some(&mut end2),
+            0,
+        );
+        if start2 < start {
+            start = start2;
+        }
+        if end2 > end {
+            end = end2;
+        }
+        if top.col == MAXCOL || bot.col == MAXCOL || curswant == MAXCOL {
+            end = MAXCOL;
+        }
 
-        let (top, bot, mode, curswant) = if g_st().visual_global.active {
-            let (t, b) = if lt(g_st().visual_global.start, wp.w_cursor) {
-                (g_st().visual_global.start, wp.w_cursor)
-            } else {
-                (wp.w_cursor, g_st().visual_global.start)
-            };
-            (t, b, g_st().visual_global.mode, wp.w_curswant)
-        } else {
-            let (t, mut b) = if lt(curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end) {
-                (curbuf_mut().b_visual.vi_start, curbuf_mut().b_visual.vi_end)
-            } else {
-                (curbuf_mut().b_visual.vi_end, curbuf_mut().b_visual.vi_start)
-            };
-            if b.lnum > curbuf_mut().b_ml.ml_line_count {
-                b.lnum = curbuf_mut().b_ml.ml_line_count;
-            }
-            (
-                t,
-                b,
-                curbuf_mut().b_visual.vi_mode,
-                curbuf_mut().b_visual.vi_curswant,
-            )
-        };
+        re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+        re_st().rex.input = re_st().rex.line.wrapping_add(col as usize);
 
-        let lnum = re_st().rex.lnum + re_st().rex.reg_firstlnum;
-        if lnum < top.lnum || lnum > bot.lnum {
+        let cols = win_linetabsize(
+            &mut *wp,
+            re_st().rex.reg_firstlnum + re_st().rex.lnum,
+            re_st().rex.line.cast(),
+            col,
+        );
+        if cols < start
+            || cols > end - Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e')
+        {
             return false;
         }
-
-        let col = unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as Colnr;
-        if mode == b'v' as i32 {
-            if (lnum == top.lnum && col < top.col)
-                || (lnum == bot.lnum
-                    && col
-                        >= bot.col
-                            + Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e'))
-            {
-                return false;
-            }
-        } else if mode == CTRL_V_CONST {
-            let mut start: Colnr = 0;
-            let mut end: Colnr = 0;
-            let mut start2: Colnr = 0;
-            let mut end2: Colnr = 0;
-            let mut top_copy = top;
-            let mut bot_copy = bot;
-            getvvcol(
-                &mut *(wp),
-                &mut top_copy,
-                Some(&mut start),
-                None,
-                Some(&mut end),
-                0,
-            );
-            getvvcol(
-                &mut *(wp),
-                &mut bot_copy,
-                Some(&mut start2),
-                None,
-                Some(&mut end2),
-                0,
-            );
-            if start2 < start {
-                start = start2;
-            }
-            if end2 > end {
-                end = end2;
-            }
-            if top.col == MAXCOL || bot.col == MAXCOL || curswant == MAXCOL {
-                end = MAXCOL;
-            }
-
-            re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
-            re_st().rex.input = re_st().rex.line.wrapping_add(col as usize);
-
-            let cols = win_linetabsize(
-                &mut *wp,
-                re_st().rex.reg_firstlnum + re_st().rex.lnum,
-                re_st().rex.line.cast(),
-                col,
-            );
-            if cols < start
-                || cols
-                    > end - Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e')
-            {
-                return false;
-            }
-        }
-        true
     }
+    true
 }
 
 pub(super) fn prog_magic_wrong() -> bool {
@@ -2298,69 +2266,66 @@ pub(super) fn match_with_backref(
     end_col: Colnr,
     bytelen: &mut i32,
 ) -> i32 {
-    {
-        let mut clnum = start_lnum;
-        let mut ccol = start_col;
+    let mut clnum = start_lnum;
+    let mut ccol = start_col;
 
-        *bytelen = 0;
-        loop {
-            if re_st().reg_tofree.is_empty() || re_st().rex.line != re_st().reg_tofree.as_mut_ptr()
-            {
-                let len = crate::memory::cstr_len(re_st().rex.line.cast()) + 51;
-                let off = unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as usize;
-                if re_st().reg_tofree.len() < len {
-                    re_st().reg_tofree.resize(len, 0);
-                }
-                crate::memory::cstr_cpy(
-                    re_st().reg_tofree.as_mut_ptr().cast(),
-                    re_st().rex.line.cast(),
-                );
-                re_st().rex.line = re_st().reg_tofree.as_mut_ptr();
-                re_st().rex.input = re_st().rex.line.wrapping_add(off);
+    *bytelen = 0;
+    loop {
+        if re_st().reg_tofree.is_empty() || re_st().rex.line != re_st().reg_tofree.as_mut_ptr() {
+            let len = crate::memory::cstr_len(re_st().rex.line.cast()) + 51;
+            let off = unsafe { re_st().rex.input.offset_from(re_st().rex.line) } as usize;
+            if re_st().reg_tofree.len() < len {
+                re_st().reg_tofree.resize(len, 0);
             }
+            crate::memory::cstr_cpy(
+                re_st().reg_tofree.as_mut_ptr().cast(),
+                re_st().rex.line.cast(),
+            );
+            re_st().rex.line = re_st().reg_tofree.as_mut_ptr();
+            re_st().rex.input = re_st().rex.line.wrapping_add(off);
+        }
 
-            let p = reg_getline(clnum);
-            debug_assert!(!p.is_null());
+        let p = reg_getline(clnum);
+        debug_assert!(!p.is_null());
 
-            let mut len = if clnum == end_lnum {
-                end_col - ccol
-            } else {
-                reg_getline_len(clnum) - ccol
-            };
+        let mut len = if clnum == end_lnum {
+            end_col - ccol
+        } else {
+            reg_getline_len(clnum) - ccol
+        };
 
-            if (!re_st().rex.reg_ic
-                && cstrncmp(
+        if (!re_st().rex.reg_ic
+            && cstrncmp(
+                p.wrapping_add(ccol as usize),
+                re_st().rex.input.cast(),
+                &mut len,
+            ) != 0)
+            || (re_st().rex.reg_ic
+                && mb_strnicmp(
                     p.wrapping_add(ccol as usize),
                     re_st().rex.input.cast(),
-                    &mut len,
+                    len as usize,
                 ) != 0)
-                || (re_st().rex.reg_ic
-                    && mb_strnicmp(
-                        p.wrapping_add(ccol as usize),
-                        re_st().rex.input.cast(),
-                        len as usize,
-                    ) != 0)
-            {
-                return RA_NOMATCH;
-            }
-            *bytelen += len;
-            if clnum == end_lnum {
-                break;
-            }
-            if re_st().rex.lnum >= re_st().rex.reg_maxline {
-                return RA_NOMATCH;
-            }
-
-            reg_nextline();
-            *bytelen = 0;
-            clnum += 1;
-            ccol = 0;
-            if g_st().got_int {
-                return RA_FAIL;
-            }
+        {
+            return RA_NOMATCH;
         }
-        RA_MATCH
+        *bytelen += len;
+        if clnum == end_lnum {
+            break;
+        }
+        if re_st().rex.lnum >= re_st().rex.reg_maxline {
+            return RA_NOMATCH;
+        }
+
+        reg_nextline();
+        *bytelen = 0;
+        clnum += 1;
+        ccol = 0;
+        if g_st().got_int {
+            return RA_FAIL;
+        }
     }
+    RA_MATCH
 }
 
 pub(super) fn re_mult_next(what: &std::ffi::CStr) -> bool {
@@ -2496,94 +2461,88 @@ pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: i32) -> *mut c_ch
 /// Replace tildes in the pattern by the old pattern.
 /// Returns `Some(CString)` if a new string was allocated, or `None` if `source` was modified in place.
 pub fn regtilde(source: *mut c_char, magic: i32, preview: bool) -> Option<std::ffi::CString> {
-    {
-        let mut newsub_vec: Option<Vec<c_char>> = None;
-        let mut newsub = source;
-        let mut newsublen: usize = 0;
-        let mut tilde: [c_char; 3] = [b'~' as c_char, NUL as c_char, NUL as c_char];
-        let mut tildelen: usize = 1;
-        let mut error = false;
+    let mut newsub_vec: Option<Vec<c_char>> = None;
+    let mut newsub = source;
+    let mut newsublen: usize = 0;
+    let mut tilde: [c_char; 3] = [b'~' as c_char, NUL as c_char, NUL as c_char];
+    let mut tildelen: usize = 1;
+    let mut error = false;
 
-        if magic == 0 {
-            tilde[0] = b'\\' as c_char;
-            tilde[1] = b'~' as c_char;
-            tilde[2] = NUL as c_char;
-            tildelen = 2;
-        }
-
-        let mut p = newsub;
-        while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_prefix_bytes(p, tildelen)
-                == crate::memory::cstr_prefix_bytes(tilde.as_ptr(), tildelen)
-            {
-                let prefixlen = unsafe { p.offset_from(newsub) } as usize;
-                let postfix = p.wrapping_add(tildelen);
-                if newsublen == 0 {
-                    newsublen = crate::memory::cstr_len(newsub);
-                }
-                newsublen -= tildelen;
-                let postfixlen = newsublen - prefixlen;
-                let prev_sub_ref = reg_prev_sub_ref();
-                let reg_prev_sublen = prev_sub_ref.map_or(0, |s| s.to_bytes().len());
-                let tmpsublen = prefixlen + reg_prev_sublen + postfixlen;
-
-                if tmpsublen > 0
-                    && let Some(prev_sub) = prev_sub_ref
-                {
-                    if tmpsublen > MAXCOL as usize {
-                        emsg(tr(E_RESULTING_TEXT_TOO_LONG));
-                        error = true;
-                        break;
-                    }
-
-                    let mut tmpsub_vec: Vec<c_char> = vec![0; tmpsublen + 1];
-                    let tmpsub = tmpsub_vec.as_mut_ptr();
-                    unsafe { ptr::copy_nonoverlapping(newsub, tmpsub, prefixlen) };
-                    unsafe {
-                        ptr::copy_nonoverlapping(
-                            prev_sub.as_ptr(),
-                            tmpsub.wrapping_add(prefixlen),
-                            reg_prev_sublen,
-                        )
-                    };
-                    crate::memory::cstr_cpy(
-                        tmpsub.wrapping_add(prefixlen + reg_prev_sublen),
-                        postfix,
-                    );
-
-                    newsub_vec = Some(tmpsub_vec);
-                    newsub = newsub_vec.as_mut().unwrap().as_mut_ptr();
-                    newsublen = tmpsublen;
-                    p = newsub.wrapping_add(prefixlen + reg_prev_sublen);
-                } else {
-                    unsafe { ptr::copy(postfix, p, postfixlen + 1) };
-                }
-                continue;
-            } else {
-                if crate::memory::cstr_first_byte(p) == b'\\'
-                    && crate::memory::cstr_byte_at(p, 1) != 0
-                {
-                    p = p.wrapping_add(1);
-                }
-                p = p.wrapping_add(utfc_ptr2len(p) as usize);
-            }
-        }
-
-        if error {
-            return None;
-        }
-
-        if !preview {
-            newsublen = unsafe { p.offset_from(newsub) } as usize;
-            re_st().reg_prev_sub = if newsublen == 0 {
-                None
-            } else {
-                cstring_from_bytes(newsub, newsublen)
-            };
-        }
-
-        newsub_vec.map(|v| crate::memory::cstr_to_cstring(v.as_ptr()))
+    if magic == 0 {
+        tilde[0] = b'\\' as c_char;
+        tilde[1] = b'~' as c_char;
+        tilde[2] = NUL as c_char;
+        tildelen = 2;
     }
+
+    let mut p = newsub;
+    while !crate::memory::cstr_is_empty(p) {
+        if crate::memory::cstr_prefix_bytes(p, tildelen)
+            == crate::memory::cstr_prefix_bytes(tilde.as_ptr(), tildelen)
+        {
+            let prefixlen = unsafe { p.offset_from(newsub) } as usize;
+            let postfix = p.wrapping_add(tildelen);
+            if newsublen == 0 {
+                newsublen = crate::memory::cstr_len(newsub);
+            }
+            newsublen -= tildelen;
+            let postfixlen = newsublen - prefixlen;
+            let prev_sub_ref = reg_prev_sub_ref();
+            let reg_prev_sublen = prev_sub_ref.map_or(0, |s| s.to_bytes().len());
+            let tmpsublen = prefixlen + reg_prev_sublen + postfixlen;
+
+            if tmpsublen > 0
+                && let Some(prev_sub) = prev_sub_ref
+            {
+                if tmpsublen > MAXCOL as usize {
+                    emsg(tr(E_RESULTING_TEXT_TOO_LONG));
+                    error = true;
+                    break;
+                }
+
+                let mut tmpsub_vec: Vec<c_char> = vec![0; tmpsublen + 1];
+                let tmpsub = tmpsub_vec.as_mut_ptr();
+                unsafe { ptr::copy_nonoverlapping(newsub, tmpsub, prefixlen) };
+                unsafe {
+                    ptr::copy_nonoverlapping(
+                        prev_sub.as_ptr(),
+                        tmpsub.wrapping_add(prefixlen),
+                        reg_prev_sublen,
+                    )
+                };
+                crate::memory::cstr_cpy(tmpsub.wrapping_add(prefixlen + reg_prev_sublen), postfix);
+
+                newsub_vec = Some(tmpsub_vec);
+                newsub = newsub_vec.as_mut().unwrap().as_mut_ptr();
+                newsublen = tmpsublen;
+                p = newsub.wrapping_add(prefixlen + reg_prev_sublen);
+            } else {
+                unsafe { ptr::copy(postfix, p, postfixlen + 1) };
+            }
+            continue;
+        } else {
+            if crate::memory::cstr_first_byte(p) == b'\\' && crate::memory::cstr_byte_at(p, 1) != 0
+            {
+                p = p.wrapping_add(1);
+            }
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        }
+    }
+
+    if error {
+        return None;
+    }
+
+    if !preview {
+        newsublen = unsafe { p.offset_from(newsub) } as usize;
+        re_st().reg_prev_sub = if newsublen == 0 {
+            None
+        } else {
+            cstring_from_bytes(newsub, newsublen)
+        };
+    }
+
+    newsub_vec.map(|v| crate::memory::cstr_to_cstring(v.as_ptr()))
 }
 
 pub(crate) fn fill_submatch_list(
@@ -2655,30 +2614,28 @@ pub fn vim_regsub_multi(
     destlen: i32,
     flags: i32,
 ) -> i32 {
-    {
-        let mut rex_save = Regexec::new();
-        let rex_in_use_save = re_st().rex_in_use;
+    let mut rex_save = Regexec::new();
+    let rex_in_use_save = re_st().rex_in_use;
 
-        if re_st().rex_in_use {
-            rex_save = re_st().rex;
-        }
-        re_st().rex_in_use = true;
-
-        re_st().rex.reg_match = ptr::null_mut();
-        re_st().rex.reg_mmatch = rmp;
-        re_st().rex.reg_buf = g_st().curbuf;
-        re_st().rex.reg_firstlnum = lnum;
-        re_st().rex.reg_maxline = curbuf_mut().b_ml.ml_line_count - lnum;
-        re_st().rex.reg_line_lbr = false;
-        let result = vim_regsub_both(source, None, dest, destlen, flags);
-
-        re_st().rex_in_use = rex_in_use_save;
-        if re_st().rex_in_use {
-            re_st().rex = rex_save;
-        }
-
-        result
+    if re_st().rex_in_use {
+        rex_save = re_st().rex;
     }
+    re_st().rex_in_use = true;
+
+    re_st().rex.reg_match = ptr::null_mut();
+    re_st().rex.reg_mmatch = rmp;
+    re_st().rex.reg_buf = g_st().curbuf;
+    re_st().rex.reg_firstlnum = lnum;
+    re_st().rex.reg_maxline = curbuf_mut().b_ml.ml_line_count - lnum;
+    re_st().rex.reg_line_lbr = false;
+    let result = vim_regsub_both(source, None, dest, destlen, flags);
+
+    re_st().rex_in_use = rex_in_use_save;
+    if re_st().rex_in_use {
+        re_st().rex = rex_save;
+    }
+
+    result
 }
 
 fn vim_regsub_both(
@@ -3103,140 +3060,139 @@ fn reg_getline_submatch_len(lnum: Linenr) -> Colnr {
 }
 
 pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
-    unsafe {
-        let mut retval_vec: Vec<c_char>;
-        let mut retval: *mut c_char = ptr::null_mut();
-        if !re_st().can_f_submatch || no < 0 {
-            return None;
-        }
-        let no = no as usize;
+    let mut retval_vec: Vec<c_char>;
+    let mut retval: *mut c_char = ptr::null_mut();
+    if !re_st().can_f_submatch || no < 0 {
+        return None;
+    }
+    let no = no as usize;
 
-        if re_st().rsm.sm_match.is_null() {
-            for round in 1..=2 {
-                let mut lnum = re_st().rsm.mmatch_mut().startpos[no].lnum;
-                if lnum < 0 || re_st().rsm.mmatch_mut().endpos[no].lnum < 0 {
-                    return None;
-                }
+    if re_st().rsm.sm_match.is_null() {
+        for round in 1..=2 {
+            let mut lnum = re_st().rsm.mmatch_mut().startpos[no].lnum;
+            if lnum < 0 || re_st().rsm.mmatch_mut().endpos[no].lnum < 0 {
+                return None;
+            }
 
-                let mut s = reg_getline_submatch(lnum);
-                if s.is_null() {
-                    break;
+            let mut s = reg_getline_submatch(lnum);
+            if s.is_null() {
+                break;
+            }
+            s = s.wrapping_add(re_st().rsm.mmatch_mut().startpos[no].col as usize);
+            let mut len: isize;
+            if re_st().rsm.mmatch_mut().endpos[no].lnum == lnum {
+                len = (re_st().rsm.mmatch_mut().endpos[no].col
+                    - re_st().rsm.mmatch_mut().startpos[no].col) as isize;
+                if round == 2 {
+                    crate::memory::cstr_ncpy(retval, s, len as usize);
                 }
-                s = s.wrapping_add(re_st().rsm.mmatch_mut().startpos[no].col as usize);
-                let mut len: isize;
-                if re_st().rsm.mmatch_mut().endpos[no].lnum == lnum {
-                    len = (re_st().rsm.mmatch_mut().endpos[no].col
-                        - re_st().rsm.mmatch_mut().startpos[no].col)
-                        as isize;
-                    if round == 2 {
-                        crate::memory::cstr_ncpy(retval, s, len as usize);
-                    }
-                    len += 1;
-                } else {
-                    len = (reg_getline_submatch_len(lnum)
-                        - re_st().rsm.mmatch_mut().startpos[no].col)
-                        as isize;
-                    if round == 2 {
-                        crate::memory::cstr_cpy(retval, s);
+                len += 1;
+            } else {
+                len = (reg_getline_submatch_len(lnum) - re_st().rsm.mmatch_mut().startpos[no].col)
+                    as isize;
+                if round == 2 {
+                    crate::memory::cstr_cpy(retval, s);
+                    unsafe {
                         *retval.wrapping_add(len as usize) = b'\n' as c_char;
+                    }
+                }
+                len += 1;
+                lnum += 1;
+                while lnum < re_st().rsm.mmatch_mut().endpos[no].lnum {
+                    s = reg_getline_submatch(lnum);
+                    if round == 2 {
+                        crate::memory::cstr_cpy(retval.wrapping_add(len as usize), s);
+                    }
+                    len += reg_getline_submatch_len(lnum) as isize;
+                    if round == 2 {
+                        unsafe {
+                            *retval.wrapping_add(len as usize) = b'\n' as c_char;
+                        }
                     }
                     len += 1;
                     lnum += 1;
-                    while lnum < re_st().rsm.mmatch_mut().endpos[no].lnum {
-                        s = reg_getline_submatch(lnum);
-                        if round == 2 {
-                            crate::memory::cstr_cpy(retval.wrapping_add(len as usize), s);
-                        }
-                        len += reg_getline_submatch_len(lnum) as isize;
-                        if round == 2 {
-                            *retval.wrapping_add(len as usize) = b'\n' as c_char;
-                        }
-                        len += 1;
-                        lnum += 1;
-                    }
-                    if round == 2 {
-                        {
-                            let dst = retval.wrapping_add(len as usize);
-                            let src = reg_getline_submatch(lnum);
-                            let cap_n = re_st().rsm.mmatch_mut().endpos[no].col as usize;
-                            let copy_n = crate::memory::xstrnlen(src, cap_n);
-                            ptr::copy_nonoverlapping(src, dst, copy_n);
-                            ptr::write_bytes(dst.wrapping_add(copy_n), 0, cap_n - copy_n);
-                        }
-                    }
-                    len += re_st().rsm.mmatch_mut().endpos[no].col as isize;
-                    if round == 2 {
+                }
+                if round == 2 {
+                    let dst = retval.wrapping_add(len as usize);
+                    let src = reg_getline_submatch(lnum);
+                    let cap_n = re_st().rsm.mmatch_mut().endpos[no].col as usize;
+                    let copy_n = crate::memory::xstrnlen(src, cap_n);
+                    unsafe { ptr::copy_nonoverlapping(src, dst, copy_n) };
+                    unsafe { ptr::write_bytes(dst.wrapping_add(copy_n), 0, cap_n - copy_n) };
+                }
+                len += re_st().rsm.mmatch_mut().endpos[no].col as isize;
+                if round == 2 {
+                    unsafe {
                         *retval.wrapping_add(len as usize) = NUL as c_char;
                     }
-                    len += 1;
                 }
+                len += 1;
+            }
 
-                if retval.is_null() {
-                    retval_vec = vec![0; len as usize];
-                    retval = retval_vec.as_mut_ptr();
-                }
+            if retval.is_null() {
+                retval_vec = vec![0; len as usize];
+                retval = retval_vec.as_mut_ptr();
             }
-            (!retval.is_null()).then(|| crate::memory::cstr_to_cstring(retval))
+        }
+        (!retval.is_null()).then(|| crate::memory::cstr_to_cstring(retval))
+    } else {
+        let s = re_st().rsm.match_mut().startp[no];
+        if s.is_null() || re_st().rsm.match_mut().endp[no].is_null() {
+            None
         } else {
-            let s = re_st().rsm.match_mut().startp[no];
-            if s.is_null() || re_st().rsm.match_mut().endp[no].is_null() {
-                None
-            } else {
-                cstring_from_bytes(s, re_st().rsm.match_mut().endp[no].offset_from(s) as usize)
-            }
+            cstring_from_bytes(
+                s,
+                unsafe { re_st().rsm.match_mut().endp[no].offset_from(s) } as usize,
+            )
         }
     }
 }
 
 pub fn reg_submatch_list(no: i32) -> *mut TvList {
-    unsafe {
-        if !re_st().can_f_submatch || no < 0 {
+    if !re_st().can_f_submatch || no < 0 {
+        return ptr::null_mut();
+    }
+    let no = no as usize;
+    let list: *mut TvList;
+
+    if re_st().rsm.sm_match.is_null() {
+        let slnum = re_st().rsm.mmatch_mut().startpos[no].lnum;
+        let elnum = re_st().rsm.mmatch_mut().endpos[no].lnum;
+        if slnum < 0 || elnum < 0 {
             return ptr::null_mut();
         }
-        let no = no as usize;
-        let list: *mut TvList;
 
-        if re_st().rsm.sm_match.is_null() {
-            let slnum = re_st().rsm.mmatch_mut().startpos[no].lnum;
-            let elnum = re_st().rsm.mmatch_mut().endpos[no].lnum;
-            if slnum < 0 || elnum < 0 {
-                return ptr::null_mut();
-            }
+        let scol = re_st().rsm.mmatch_mut().startpos[no].col;
+        let ecol = re_st().rsm.mmatch_mut().endpos[no].col;
 
-            let scol = re_st().rsm.mmatch_mut().startpos[no].col;
-            let ecol = re_st().rsm.mmatch_mut().endpos[no].col;
+        list = tv_list_alloc((elnum - slnum + 1) as isize);
 
-            list = tv_list_alloc((elnum - slnum + 1) as isize);
-
-            let mut s: *const c_char = reg_getline_submatch(slnum).wrapping_add(scol as usize);
-            if slnum == elnum {
-                tv_list_append_string(&mut *list, s, (ecol - scol) as isize);
-            } else {
-                let max_lnum = elnum - slnum;
-                tv_list_append_string(&mut *list, s, -1);
-                for i in 1..max_lnum {
-                    s = reg_getline_submatch(slnum + i);
-                    tv_list_append_string(&mut *list, s, -1);
-                }
-                s = reg_getline_submatch(elnum);
-                tv_list_append_string(&mut *list, s, ecol as isize);
-            }
+        let mut s: *const c_char = reg_getline_submatch(slnum).wrapping_add(scol as usize);
+        if slnum == elnum {
+            tv_list_append_string(unsafe { &mut *list }, s, (ecol - scol) as isize);
         } else {
-            let s = re_st().rsm.match_mut().startp[no];
-            if s.is_null() || re_st().rsm.match_mut().endp[no].is_null() {
-                return ptr::null_mut();
+            let max_lnum = elnum - slnum;
+            tv_list_append_string(unsafe { &mut *list }, s, -1);
+            for i in 1..max_lnum {
+                s = reg_getline_submatch(slnum + i);
+                tv_list_append_string(unsafe { &mut *list }, s, -1);
             }
-            list = tv_list_alloc(1);
-            tv_list_append_string(
-                &mut *list,
-                s,
-                re_st().rsm.match_mut().endp[no].offset_from(s),
-            );
+            s = reg_getline_submatch(elnum);
+            tv_list_append_string(unsafe { &mut *list }, s, ecol as isize);
         }
-
-        tv_list_ref(list.as_mut());
-        list
+    } else {
+        let s = re_st().rsm.match_mut().startp[no];
+        if s.is_null() || re_st().rsm.match_mut().endp[no].is_null() {
+            return ptr::null_mut();
+        }
+        list = tv_list_alloc(1);
+        tv_list_append_string(unsafe { &mut *list }, s, unsafe {
+            re_st().rsm.match_mut().endp[no].offset_from(s)
+        });
     }
+
+    tv_list_ref(unsafe { list.as_mut() });
+    list
 }
 
 pub(super) fn init_regexec_multi(
@@ -3245,89 +3201,88 @@ pub(super) fn init_regexec_multi(
     buf: *mut FileBuf,
     lnum: Linenr,
 ) {
-    {
-        re_st().rex.reg_match = ptr::null_mut();
-        re_st().rex.reg_mmatch = rmp;
-        re_st().rex.reg_buf = buf;
-        re_st().rex.reg_win = win;
-        re_st().rex.reg_firstlnum = lnum;
-        re_st().rex.reg_maxline = re_st().rex.buf_mut().b_ml.ml_line_count - lnum;
-        re_st().rex.reg_line_lbr = false;
-        re_st().rex.reg_ic = rmp.rmm_ic != 0;
-        re_st().rex.reg_icombine = false;
-        re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as u32)) != 0;
-        re_st().rex.reg_maxcol = rmp.rmm_maxcol;
-    }
+    re_st().rex.reg_match = ptr::null_mut();
+    re_st().rex.reg_mmatch = rmp;
+    re_st().rex.reg_buf = buf;
+    re_st().rex.reg_win = win;
+    re_st().rex.reg_firstlnum = lnum;
+    re_st().rex.reg_maxline = re_st().rex.buf_mut().b_ml.ml_line_count - lnum;
+    re_st().rex.reg_line_lbr = false;
+    re_st().rex.reg_ic = rmp.rmm_ic != 0;
+    re_st().rex.reg_icombine = false;
+    re_st().rex.reg_nobreak = (rmp.prog_mut().re_flags & (RE_NOBREAK as u32)) != 0;
+    re_st().rex.reg_maxcol = rmp.rmm_maxcol;
 }
 
 pub(super) fn get_char_class_bits(start: *const u8, end: *const u8, newl: &mut bool) -> i32 {
-    unsafe {
-        let mut config: i32 = 0;
-        *newl = false;
-        if *end != b']' {
-            return -1;
-        }
-        let mut p = start;
-        if *p == b'^' {
-            config |= CLASS_NOT;
-            p = p.wrapping_add(1);
-        }
-
-        while p < end {
-            if p.wrapping_add(2) < end && *p.wrapping_add(1) == b'-' {
-                match *p {
-                    b'0' => {
-                        if *p.wrapping_add(2) == b'9' {
-                            config |= CLASS_O9;
-                        } else if *p.wrapping_add(2) == b'7' {
-                            config |= CLASS_O7;
-                        } else {
-                            return -1;
-                        }
-                    }
-                    b'a' => {
-                        if *p.wrapping_add(2) == b'z' {
-                            config |= CLASS_AZ_CONST;
-                        } else if *p.wrapping_add(2) == b'f' {
-                            config |= CLASS_AF_CONST;
-                        } else {
-                            return -1;
-                        }
-                    }
-                    b'A' => {
-                        if *p.wrapping_add(2) == b'Z' {
-                            config |= CLASS_AZ;
-                        } else if *p.wrapping_add(2) == b'F' {
-                            config |= CLASS_AF;
-                        } else {
-                            return -1;
-                        }
-                    }
-                    _ => return -1,
-                }
-                p = p.wrapping_add(3);
-            } else if p.wrapping_add(1) < end && *p == b'\\' && *p.wrapping_add(1) == b'n' {
-                *newl = true;
-                p = p.wrapping_add(2);
-            } else if *p == b'_' {
-                config |= CLASS_UNDERSCORE;
-                p = p.wrapping_add(1);
-            } else if *p == b'\n' {
-                *newl = true;
-                p = p.wrapping_add(1);
-            } else {
-                return -1;
-            }
-        }
-
-        if p != end {
-            return -1;
-        }
-        if (config & (CLASS_AZ_CONST | CLASS_AZ)) != 0 {
-            return -1;
-        }
-        config
+    let mut config: i32 = 0;
+    *newl = false;
+    if unsafe { *end } != b']' {
+        return -1;
     }
+    let mut p = start;
+    if unsafe { *p } == b'^' {
+        config |= CLASS_NOT;
+        p = p.wrapping_add(1);
+    }
+
+    while p < end {
+        if p.wrapping_add(2) < end && unsafe { *p.wrapping_add(1) } == b'-' {
+            match unsafe { *p } {
+                b'0' => {
+                    if unsafe { *p.wrapping_add(2) } == b'9' {
+                        config |= CLASS_O9;
+                    } else if unsafe { *p.wrapping_add(2) } == b'7' {
+                        config |= CLASS_O7;
+                    } else {
+                        return -1;
+                    }
+                }
+                b'a' => {
+                    if unsafe { *p.wrapping_add(2) } == b'z' {
+                        config |= CLASS_AZ_CONST;
+                    } else if unsafe { *p.wrapping_add(2) } == b'f' {
+                        config |= CLASS_AF_CONST;
+                    } else {
+                        return -1;
+                    }
+                }
+                b'A' => {
+                    if unsafe { *p.wrapping_add(2) } == b'Z' {
+                        config |= CLASS_AZ;
+                    } else if unsafe { *p.wrapping_add(2) } == b'F' {
+                        config |= CLASS_AF;
+                    } else {
+                        return -1;
+                    }
+                }
+                _ => return -1,
+            }
+            p = p.wrapping_add(3);
+        } else if p.wrapping_add(1) < end
+            && unsafe { *p } == b'\\'
+            && unsafe { *p.wrapping_add(1) } == b'n'
+        {
+            *newl = true;
+            p = p.wrapping_add(2);
+        } else if unsafe { *p } == b'_' {
+            config |= CLASS_UNDERSCORE;
+            p = p.wrapping_add(1);
+        } else if unsafe { *p } == b'\n' {
+            *newl = true;
+            p = p.wrapping_add(1);
+        } else {
+            return -1;
+        }
+    }
+
+    if p != end {
+        return -1;
+    }
+    if (config & (CLASS_AZ_CONST | CLASS_AZ)) != 0 {
+        return -1;
+    }
+    config
 }
 
 pub(super) fn regcomp_start(expr: *mut u8, re_flags: i32) {
@@ -3377,27 +3332,25 @@ pub(super) fn seen_endbrace(refnum: i32) -> bool {
 }
 
 pub(super) fn coll_get_char() -> i32 {
-    {
-        let mut nr: i64 = -1;
-        let ch = crate::memory::cstr_first_byte(re_st().regparse);
-        re_st().regparse = re_st().regparse.wrapping_add(1);
-        match ch {
-            b'd' => nr = getdecchrs(),
-            b'o' => nr = getoctchrs(),
-            b'x' => nr = gethexchrs(2),
-            b'u' => nr = gethexchrs(4),
-            b'U' => nr = gethexchrs(8),
-            _ => {}
-        }
-        if nr < 0 {
-            re_st().regparse = re_st().regparse.wrapping_sub(1);
-            nr = i64::from(b'\\');
-        }
-        if nr > i64::from(i32::MAX) {
-            nr = i64::from(i32::MAX);
-        }
-        nr as i32
+    let mut nr: i64 = -1;
+    let ch = crate::memory::cstr_first_byte(re_st().regparse);
+    re_st().regparse = re_st().regparse.wrapping_add(1);
+    match ch {
+        b'd' => nr = getdecchrs(),
+        b'o' => nr = getoctchrs(),
+        b'x' => nr = gethexchrs(2),
+        b'u' => nr = gethexchrs(4),
+        b'U' => nr = gethexchrs(8),
+        _ => {}
     }
+    if nr < 0 {
+        re_st().regparse = re_st().regparse.wrapping_sub(1);
+        nr = i64::from(b'\\');
+    }
+    if nr > i64::from(i32::MAX) {
+        nr = i64::from(i32::MAX);
+    }
+    nr as i32
 }
 
 pub fn vim_regcomp_had_eol() -> i32 {
@@ -3508,21 +3461,17 @@ pub fn regprog_as_ptr(prog: &Option<Box<Regprog>>) -> *mut Regprog {
 
 /// Free a compiled regexp program, returned by `vim_regcomp()`.
 pub fn vim_regfree(prog: *mut Regprog) {
-    {
-        if !prog.is_null() {
-            drop(unsafe { Box::from_raw(prog) });
-        }
+    if !prog.is_null() {
+        drop(unsafe { Box::from_raw(prog) });
     }
 }
 
 pub fn free_regexp_stuff() {
-    {
-        re_st().regstack = Vec::new();
-        re_st().backpos = Vec::new();
-        re_st().reg_tofree = Vec::new();
-        re_st().reg_prev_sub = None;
-        re_st().post_vec = Vec::new();
-    }
+    re_st().regstack = Vec::new();
+    re_st().backpos = Vec::new();
+    re_st().reg_tofree = Vec::new();
+    re_st().reg_prev_sub = None;
+    re_st().post_vec = Vec::new();
 }
 
 fn report_re_switch(pat: impl crate::strings::IntoCCharPtr) {
@@ -3804,21 +3753,19 @@ mod tests {
 
     #[test]
     fn get_char_class_bits_recognizes_digit_and_hex() {
-        {
-            let mut newl = false;
-            let digits = b"0-9]";
-            assert_eq!(
-                get_char_class_bits(digits.as_ptr(), digits.as_ptr().wrapping_add(3), &mut newl),
-                CLASS_O9
-            );
-            assert!(!newl);
+        let mut newl = false;
+        let digits = b"0-9]";
+        assert_eq!(
+            get_char_class_bits(digits.as_ptr(), digits.as_ptr().wrapping_add(3), &mut newl),
+            CLASS_O9
+        );
+        assert!(!newl);
 
-            let hex_nl = b"^0-9a-fA-F\\n]";
-            assert_eq!(
-                get_char_class_bits(hex_nl.as_ptr(), hex_nl.as_ptr().wrapping_add(12), &mut newl),
-                CLASS_NOT | CLASS_O9 | CLASS_AF_CONST | CLASS_AF
-            );
-            assert!(newl);
-        }
+        let hex_nl = b"^0-9a-fA-F\\n]";
+        assert_eq!(
+            get_char_class_bits(hex_nl.as_ptr(), hex_nl.as_ptr().wrapping_add(12), &mut newl),
+            CLASS_NOT | CLASS_O9 | CLASS_AF_CONST | CLASS_AF
+        );
+        assert!(newl);
     }
 }

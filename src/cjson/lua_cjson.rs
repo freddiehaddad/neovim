@@ -330,14 +330,12 @@ fn json_fetch_config(l: *mut lua_State) -> &'static mut JsonConfig {
 unsafe extern "C-unwind" fn json_destroy_config(l: *mut lua_State) -> i32 {
     unsafe {
         {
-            {
-                let cfg = lua_touserdata(l, 1).cast::<JsonConfig>();
-                if !cfg.is_null() {
-                    ptr::drop_in_place(cfg);
-                }
+            let cfg = lua_touserdata(l, 1).cast::<JsonConfig>();
+            if !cfg.is_null() {
+                ptr::drop_in_place(cfg);
             }
-            0
         }
+        0
     }
 }
 
@@ -476,11 +474,9 @@ fn json_check_encode_depth(l: *mut lua_State, ctx: &mut JsonEncode, current_dept
 }
 
 fn json_append_newline_and_indent(json: &mut Strbuf, ctx: &JsonEncode, depth: i32) {
-    {
-        strbuf_append_char(json, b'\n' as c_char);
-        for _ in 0..depth {
-            strbuf_append_string(json, ctx.opts_mut().indent);
-        }
+    strbuf_append_char(json, b'\n' as c_char);
+    for _ in 0..depth {
+        strbuf_append_string(json, ctx.opts_mut().indent);
     }
 }
 
@@ -816,76 +812,72 @@ fn json_append_data(l: *mut lua_State, ctx: &mut JsonEncode, mut current_depth: 
 
 unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> i32 {
     unsafe {
-        {
-            {
-                let cfg = json_fetch_config(l);
-                let mut custom_char2escape = CHAR2ESCAPE;
-                let mut options = JsonEncodeOptions {
-                    char2escape: custom_char2escape.as_ptr(),
-                    indent: DEFAULT_ENCODE_INDENT,
-                    sort_keys: DEFAULT_ENCODE_SORT_KEYS,
-                    keybuf: Keybuf::new(),
-                };
-                let mut ctx = JsonEncode {
-                    options: &mut options,
-                    json: ptr::null_mut(),
-                };
+        let cfg = json_fetch_config(l);
+        let mut custom_char2escape = CHAR2ESCAPE;
+        let mut options = JsonEncodeOptions {
+            char2escape: custom_char2escape.as_ptr(),
+            indent: DEFAULT_ENCODE_INDENT,
+            sort_keys: DEFAULT_ENCODE_SORT_KEYS,
+            keybuf: Keybuf::new(),
+        };
+        let mut ctx = JsonEncode {
+            options: &mut options,
+            json: ptr::null_mut(),
+        };
 
-                match lua_gettop(l) {
-                    1 => {}
-                    2 => {
-                        luaL_checktype(l, 2, LUA_TTABLE);
+        match lua_gettop(l) {
+            1 => {}
+            2 => {
+                luaL_checktype(l, 2, LUA_TTABLE);
 
-                        lua_getfield(l, 2, c"escape_slash");
-                        if !lua_isnil(l, -1) {
-                            luaL_checktype(l, -1, LUA_TBOOLEAN);
-                            let escape_slash = lua_toboolean(l, -1);
-                            if escape_slash != 0 {
-                                custom_char2escape[b'/' as usize] = c"\\/".as_ptr();
-                                ctx.opts_mut().char2escape = custom_char2escape.as_ptr();
-                            }
-                        }
-                        lua_pop(l, 1);
-
-                        lua_getfield(l, 2, c"indent");
-                        if !lua_isnil(l, -1) {
-                            options.indent = luaL_checkstring(l, -1);
-                            if *options.indent == 0 {
-                                options.indent = ptr::null();
-                            }
-                        }
-                        lua_pop(l, 1);
-
-                        lua_getfield(l, 2, c"sort_keys");
-                        if !lua_isnil(l, -1) {
-                            luaL_checktype(l, -1, LUA_TBOOLEAN);
-                            let sort_keys = lua_toboolean(l, -1);
-                            if sort_keys != 0 {
-                                options.sort_keys = sort_keys;
-                                strbuf_init(&mut options.keybuf.buf, 0);
-                                options.keybuf.keys = Vec::with_capacity(KEYBUF_DEFAULT_CAPACITY);
-                            }
-                        }
-                        lua_pop(l, 2);
-                    }
-                    _ => {
-                        return luaL_error(l, c"expected 1 or 2 arguments".as_ptr());
+                lua_getfield(l, 2, c"escape_slash");
+                if !lua_isnil(l, -1) {
+                    luaL_checktype(l, -1, LUA_TBOOLEAN);
+                    let escape_slash = lua_toboolean(l, -1);
+                    if escape_slash != 0 {
+                        custom_char2escape[b'/' as usize] = c"\\/".as_ptr();
+                        ctx.opts_mut().char2escape = custom_char2escape.as_ptr();
                     }
                 }
+                lua_pop(l, 1);
 
-                let encode_buf = &raw mut cfg.encode_buf;
-                strbuf_reset(&mut *encode_buf);
+                lua_getfield(l, 2, c"indent");
+                if !lua_isnil(l, -1) {
+                    options.indent = luaL_checkstring(l, -1);
+                    if *options.indent == 0 {
+                        options.indent = ptr::null();
+                    }
+                }
+                lua_pop(l, 1);
 
-                ctx.json = encode_buf;
-                json_append_data(l, &mut ctx, 0);
-                let mut len: usize = 0;
-                let json = strbuf_string(&mut *encode_buf, &mut len);
-
-                lua_pushlstring(l, json, len);
-
-                1
+                lua_getfield(l, 2, c"sort_keys");
+                if !lua_isnil(l, -1) {
+                    luaL_checktype(l, -1, LUA_TBOOLEAN);
+                    let sort_keys = lua_toboolean(l, -1);
+                    if sort_keys != 0 {
+                        options.sort_keys = sort_keys;
+                        strbuf_init(&mut options.keybuf.buf, 0);
+                        options.keybuf.keys = Vec::with_capacity(KEYBUF_DEFAULT_CAPACITY);
+                    }
+                }
+                lua_pop(l, 2);
+            }
+            _ => {
+                return luaL_error(l, c"expected 1 or 2 arguments".as_ptr());
             }
         }
+
+        let encode_buf = &raw mut cfg.encode_buf;
+        strbuf_reset(&mut *encode_buf);
+
+        ctx.json = encode_buf;
+        json_append_data(l, &mut ctx, 0);
+        let mut len: usize = 0;
+        let json = strbuf_string(&mut *encode_buf, &mut len);
+
+        lua_pushlstring(l, json, len);
+
+        1
     }
 }
 
@@ -1418,73 +1410,69 @@ fn json_process_value(
 
 unsafe extern "C-unwind" fn json_decode(l: *mut lua_State) -> i32 {
     unsafe {
-        {
-            {
-                let mut options = JsonOptions {
-                    luanil_object: false,
-                    luanil_array: false,
-                    skip_comments: false,
-                };
+        let mut options = JsonOptions {
+            luanil_object: false,
+            luanil_array: false,
+            skip_comments: false,
+        };
 
-                match lua_gettop(l) {
-                    1 => {}
-                    2 => {
-                        luaL_checktype(l, 2, LUA_TTABLE);
+        match lua_gettop(l) {
+            1 => {}
+            2 => {
+                luaL_checktype(l, 2, LUA_TTABLE);
 
-                        lua_getfield(l, 2, c"skip_comments");
-                        options.skip_comments = lua_toboolean(l, -1) != 0;
-                        lua_pop(l, 1);
+                lua_getfield(l, 2, c"skip_comments");
+                options.skip_comments = lua_toboolean(l, -1) != 0;
+                lua_pop(l, 1);
 
-                        lua_getfield(l, 2, c"luanil");
-                        if lua_isnil(l, -1) {
-                            lua_pop(l, 1);
-                        } else {
-                            luaL_checktype(l, -1, LUA_TTABLE);
+                lua_getfield(l, 2, c"luanil");
+                if lua_isnil(l, -1) {
+                    lua_pop(l, 1);
+                } else {
+                    luaL_checktype(l, -1, LUA_TTABLE);
 
-                            lua_getfield(l, -1, c"object");
-                            options.luanil_object = lua_toboolean(l, -1) != 0;
-                            lua_pop(l, 1);
+                    lua_getfield(l, -1, c"object");
+                    options.luanil_object = lua_toboolean(l, -1) != 0;
+                    lua_pop(l, 1);
 
-                            lua_getfield(l, -1, c"array");
-                            options.luanil_array = lua_toboolean(l, -1) != 0;
-                            lua_pop(l, 2);
-                        }
-                    }
-                    _ => {
-                        return luaL_error(l, c"expected 1 or 2 arguments".as_ptr());
-                    }
+                    lua_getfield(l, -1, c"array");
+                    options.luanil_array = lua_toboolean(l, -1) != 0;
+                    lua_pop(l, 2);
                 }
-
-                let mut json_len: usize = 0;
-                let data = luaL_checklstring(l, 1, &mut json_len);
-                let mut tmp_buf = Strbuf::new();
-                let mut json = JsonParse {
-                    data,
-                    ptr: data,
-                    tmp: &mut tmp_buf,
-                    options: &mut options,
-                    current_depth: 0,
-                };
-
-                if json_len >= 2 && (*json.data == 0 || *json.data.wrapping_add(1) == 0) {
-                    luaL_error(l, c"JSON parser does not support UTF-16 or UTF-32".as_ptr());
-                }
-
-                strbuf_init(&mut *json.tmp, json_len);
-
-                let mut token = JsonToken::new();
-                json_next_token(&mut json, &mut token);
-                let luanil_object = (*json.options).luanil_object;
-                json_process_value(l, &mut json, &token, luanil_object);
-
-                json_next_token(&mut json, &mut token);
-                if token.r#type != TEnd {
-                    json_throw_parse_error(l, &mut json, c"the end", &token);
-                }
-
-                1
+            }
+            _ => {
+                return luaL_error(l, c"expected 1 or 2 arguments".as_ptr());
             }
         }
+
+        let mut json_len: usize = 0;
+        let data = luaL_checklstring(l, 1, &mut json_len);
+        let mut tmp_buf = Strbuf::new();
+        let mut json = JsonParse {
+            data,
+            ptr: data,
+            tmp: &mut tmp_buf,
+            options: &mut options,
+            current_depth: 0,
+        };
+
+        if json_len >= 2 && (*json.data == 0 || *json.data.wrapping_add(1) == 0) {
+            luaL_error(l, c"JSON parser does not support UTF-16 or UTF-32".as_ptr());
+        }
+
+        strbuf_init(&mut *json.tmp, json_len);
+
+        let mut token = JsonToken::new();
+        json_next_token(&mut json, &mut token);
+        let luanil_object = (*json.options).luanil_object;
+        json_process_value(l, &mut json, &token, luanil_object);
+
+        json_next_token(&mut json, &mut token);
+        if token.r#type != TEnd {
+            json_throw_parse_error(l, &mut json, c"the end", &token);
+        }
+
+        1
     }
 }
 

@@ -1021,78 +1021,76 @@ fn valid_filetype(val: impl crate::strings::IntoCCharPtr) -> bool {
 
 /// Handle setting 'signcolumn' for value 'val'.
 pub fn check_signcolumn(scl: *mut c_char, mut wp: Option<&mut WinInfoInfo>) -> bool {
-    {
-        let mut val = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
-        if !scl.is_null() {
-            val = scl;
-        } else if wp.is_some() {
-            val = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_scl;
-        }
+    let mut val = EMPTY_STRING_OPTION.as_ptr().cast::<c_char>();
+    if !scl.is_null() {
+        val = scl;
+    } else if wp.is_some() {
+        val = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_scl;
+    }
 
-        if crate::memory::cstr_is_empty(val) {
+    if crate::memory::cstr_is_empty(val) {
+        return false;
+    }
+
+    if opt_strings_flags(val, &OPT_SCL_VALUES, ptr::null_mut(), false, None).is_null() {
+        if wp.is_none() {
+            return true;
+        }
+        if crate::memory::cstr_prefix_bytes(val, 2) == &b"no"[..2] {
+            wp.as_deref_mut().unwrap().w_minscwidth = SCL_NO;
+            wp.as_deref_mut().unwrap().w_maxscwidth = SCL_NO;
+        } else if (crate::memory::cstr_prefix_bytes(val, 2) == &b"nu"[..2])
+            && (wp.as_deref_mut().unwrap().w_onebuf_opt.wo_nu != 0
+                || wp.as_deref_mut().unwrap().w_onebuf_opt.wo_rnu != 0)
+        {
+            wp.as_deref_mut().unwrap().w_minscwidth = SCL_NUM;
+            wp.as_deref_mut().unwrap().w_maxscwidth = SCL_NUM;
+        } else if crate::memory::cstr_prefix_bytes(val, 4) == &b"yes:"[..4] {
+            let n = (crate::memory::cstr_char_at(val, 4)) - (b'0' as i32);
+            wp.as_deref_mut().unwrap().w_minscwidth = n;
+            wp.as_deref_mut().unwrap().w_maxscwidth = n;
+        } else if crate::memory::cstr_first_byte(val) == b'y' {
+            wp.as_deref_mut().unwrap().w_minscwidth = 1;
+            wp.as_deref_mut().unwrap().w_maxscwidth = 1;
+        } else if crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5] {
+            wp.as_deref_mut().unwrap().w_minscwidth = 0;
+            wp.as_deref_mut().unwrap().w_maxscwidth =
+                (crate::memory::cstr_char_at(val, 5)) - (b'0' as i32);
+        } else {
+            wp.as_deref_mut().unwrap().w_minscwidth = 0;
+            wp.as_deref_mut().unwrap().w_maxscwidth = 1;
+        }
+    } else {
+        if !(crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5])
+            || crate::memory::cstr_len(val) != 8
+            || !ascii_isdigit(crate::memory::cstr_char_at(val, 5))
+            || crate::memory::cstr_byte_at(val, 6) != b'-'
+            || !ascii_isdigit(crate::memory::cstr_char_at(val, 7))
+        {
             return false;
         }
-
-        if opt_strings_flags(val, &OPT_SCL_VALUES, ptr::null_mut(), false, None).is_null() {
-            if wp.is_none() {
-                return true;
-            }
-            if crate::memory::cstr_prefix_bytes(val, 2) == &b"no"[..2] {
-                wp.as_deref_mut().unwrap().w_minscwidth = SCL_NO;
-                wp.as_deref_mut().unwrap().w_maxscwidth = SCL_NO;
-            } else if (crate::memory::cstr_prefix_bytes(val, 2) == &b"nu"[..2])
-                && (wp.as_deref_mut().unwrap().w_onebuf_opt.wo_nu != 0
-                    || wp.as_deref_mut().unwrap().w_onebuf_opt.wo_rnu != 0)
-            {
-                wp.as_deref_mut().unwrap().w_minscwidth = SCL_NUM;
-                wp.as_deref_mut().unwrap().w_maxscwidth = SCL_NUM;
-            } else if crate::memory::cstr_prefix_bytes(val, 4) == &b"yes:"[..4] {
-                let n = (crate::memory::cstr_char_at(val, 4)) - (b'0' as i32);
-                wp.as_deref_mut().unwrap().w_minscwidth = n;
-                wp.as_deref_mut().unwrap().w_maxscwidth = n;
-            } else if crate::memory::cstr_first_byte(val) == b'y' {
-                wp.as_deref_mut().unwrap().w_minscwidth = 1;
-                wp.as_deref_mut().unwrap().w_maxscwidth = 1;
-            } else if crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5] {
-                wp.as_deref_mut().unwrap().w_minscwidth = 0;
-                wp.as_deref_mut().unwrap().w_maxscwidth =
-                    (crate::memory::cstr_char_at(val, 5)) - (b'0' as i32);
-            } else {
-                wp.as_deref_mut().unwrap().w_minscwidth = 0;
-                wp.as_deref_mut().unwrap().w_maxscwidth = 1;
-            }
-        } else {
-            if !(crate::memory::cstr_prefix_bytes(val, 5) == &b"auto:"[..5])
-                || crate::memory::cstr_len(val) != 8
-                || !ascii_isdigit(crate::memory::cstr_char_at(val, 5))
-                || crate::memory::cstr_byte_at(val, 6) != b'-'
-                || !ascii_isdigit(crate::memory::cstr_char_at(val, 7))
-            {
-                return false;
-            }
-            let min = (crate::memory::cstr_char_at(val, 5)) - (b'0' as i32);
-            let max = (crate::memory::cstr_char_at(val, 7)) - (b'0' as i32);
-            if min < 1 || max < 2 || min > 8 || min >= max {
-                return false;
-            }
-            if wp.is_none() {
-                return true;
-            }
-            wp.as_deref_mut().unwrap().w_minscwidth = min;
-            wp.as_deref_mut().unwrap().w_maxscwidth = max;
+        let min = (crate::memory::cstr_char_at(val, 5)) - (b'0' as i32);
+        let max = (crate::memory::cstr_char_at(val, 7)) - (b'0' as i32);
+        if min < 1 || max < 2 || min > 8 || min >= max {
+            return false;
         }
-
-        let scwidth = if wp.as_deref_mut().unwrap().w_minscwidth <= 0 {
-            0
-        } else {
-            wp.as_deref_mut()
-                .unwrap()
-                .w_maxscwidth
-                .min(wp.as_deref_mut().unwrap().w_scwidth)
-        };
-        wp.unwrap().w_scwidth = wp.as_deref_mut().unwrap().w_minscwidth.max(scwidth);
-        true
+        if wp.is_none() {
+            return true;
+        }
+        wp.as_deref_mut().unwrap().w_minscwidth = min;
+        wp.as_deref_mut().unwrap().w_maxscwidth = max;
     }
+
+    let scwidth = if wp.as_deref_mut().unwrap().w_minscwidth <= 0 {
+        0
+    } else {
+        wp.as_deref_mut()
+            .unwrap()
+            .w_maxscwidth
+            .min(wp.as_deref_mut().unwrap().w_scwidth)
+    };
+    wp.unwrap().w_scwidth = wp.as_deref_mut().unwrap().w_minscwidth.max(scwidth);
+    true
 }
 
 /// Check validity of string with the 'statusline' format until the end of the current scope.
@@ -1230,17 +1228,15 @@ pub fn check_illegal_path_names(val: impl crate::strings::IntoCCharPtr, flags: u
 }
 
 fn opt_values(idx: OptIndex) -> &'static [&'static CStr] {
-    {
-        let idx1 = if idx == K_OPT_VIEWOPTIONS {
-            K_OPT_SESSIONOPTIONS
-        } else if idx == K_OPT_FILEFORMATS {
-            K_OPT_FILEFORMAT
-        } else {
-            idx
-        };
+    let idx1 = if idx == K_OPT_VIEWOPTIONS {
+        K_OPT_SESSIONOPTIONS
+    } else if idx == K_OPT_FILEFORMATS {
+        K_OPT_FILEFORMAT
+    } else {
+        idx
+    };
 
-        get_option(idx1).values
-    }
+    get_option(idx1).values
 }
 
 fn check_str_opt(
@@ -1248,15 +1244,13 @@ fn check_str_opt(
     mut varp: *mut *mut c_char,
     errbuf: Option<CharBuf>,
 ) -> *const c_char {
-    {
-        let opt = get_option(idx);
-        if varp.is_null() {
-            varp = opt.var.cast::<*mut c_char>();
-        }
-        let list = (opt.flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
-        let values = opt_values(idx);
-        opt_strings_flags(unsafe { *varp }, values, opt.flags_var, list, errbuf)
+    let opt = get_option(idx);
+    if varp.is_null() {
+        varp = opt.var.cast::<*mut c_char>();
     }
+    let list = (opt.flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
+    let values = opt_values(idx);
+    opt_strings_flags(unsafe { *varp }, values, opt.flags_var, list, errbuf)
 }
 
 pub fn expand_set_str_generic(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
@@ -1275,17 +1269,15 @@ pub fn did_set_str_generic(args: &mut Optset) -> *const c_char {
 
 /// Validate named string values without updating derived flags.
 pub fn validate_str_generic(args: &mut Optset) -> *const c_char {
-    {
-        let opt = get_option(args.os_idx);
-        let value = args.os_newval.data.string().data;
-        opt_strings_flags(
-            value,
-            opt_values(args.os_idx),
-            ptr::null_mut(),
-            (opt.flags & K_OPT_FLAG_COMMA) != 0,
-            args.os_errbuf,
-        )
-    }
+    let opt = get_option(args.os_idx);
+    let value = args.os_newval.data.string().data;
+    opt_strings_flags(
+        value,
+        opt_values(args.os_idx),
+        ptr::null_mut(),
+        (opt.flags & K_OPT_FLAG_COMMA) != 0,
+        args.os_errbuf,
+    )
 }
 
 /// Validate a list of character flags against "flags".
@@ -1313,35 +1305,33 @@ fn expand_set_opt_string(
     values: &[&CStr],
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    {
-        let regmatch = args.oe_regmatch;
-        let include_orig_val = args.oe_include_orig_val;
-        let option_val = args.oe_opt_value;
+    let regmatch = args.oe_regmatch;
+    let include_orig_val = args.oe_include_orig_val;
+    let option_val = args.oe_opt_value;
 
-        matches.clear();
+    matches.clear();
 
-        if include_orig_val && !crate::memory::cstr_is_empty(option_val) {
-            matches.push(crate::memory::cstr_to_cstring(option_val));
-        }
-
-        for &val in values {
-            if val.to_bytes().is_empty()
-                || (include_orig_val
-                    && !crate::memory::cstr_is_empty(option_val)
-                    && (crate::memory::cstr_as_bytes(val.as_ptr())
-                        == crate::memory::cstr_as_bytes(option_val)))
-            {
-                continue;
-            }
-            if vim_regexec(unsafe { &mut *regmatch }, val.as_ptr(), 0) {
-                matches.push(val.to_owned());
-            }
-        }
-        if matches.is_empty() {
-            return false;
-        }
-        true
+    if include_orig_val && !crate::memory::cstr_is_empty(option_val) {
+        matches.push(crate::memory::cstr_to_cstring(option_val));
     }
+
+    for &val in values {
+        if val.to_bytes().is_empty()
+            || (include_orig_val
+                && !crate::memory::cstr_is_empty(option_val)
+                && (crate::memory::cstr_as_bytes(val.as_ptr())
+                    == crate::memory::cstr_as_bytes(option_val)))
+        {
+            continue;
+        }
+        if vim_regexec(unsafe { &mut *regmatch }, val.as_ptr(), 0) {
+            matches.push(val.to_owned());
+        }
+    }
+    if matches.is_empty() {
+        return false;
+    }
+    true
 }
 
 /// Callback used by expand_set_opt_generic to also include the original value.
@@ -1366,27 +1356,25 @@ fn expand_set_opt_generic(
     func: CompleteListItemGetter,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    {
-        optstr_st().set_opt_callback_orig_option = if args.oe_include_orig_val {
-            args.oe_opt_value
-        } else {
-            ptr::null_mut()
-        };
-        optstr_st().set_opt_callback_func = func;
+    optstr_st().set_opt_callback_orig_option = if args.oe_include_orig_val {
+        args.oe_opt_value
+    } else {
+        ptr::null_mut()
+    };
+    optstr_st().set_opt_callback_func = func;
 
-        expand_generic(
-            c"",
-            unsafe { &mut *args.oe_xp },
-            unsafe { &mut *args.oe_regmatch },
-            matches,
-            Some(expand_set_opt_callback),
-            false,
-        );
+    expand_generic(
+        c"",
+        unsafe { &mut *args.oe_xp },
+        unsafe { &mut *args.oe_regmatch },
+        matches,
+        Some(expand_set_opt_callback),
+        false,
+    );
 
-        optstr_st().set_opt_callback_orig_option = ptr::null_mut();
-        optstr_st().set_opt_callback_func = None;
-        true
-    }
+    optstr_st().set_opt_callback_orig_option = ptr::null_mut();
+    optstr_st().set_opt_callback_func = None;
+    true
 }
 
 /// Expand an option which is a list of flags.
@@ -1471,52 +1459,48 @@ pub fn did_set_emoji(args: &mut Optset) -> *const c_char {
 
 /// The 'background' option is changed.
 pub fn did_set_background(args: &mut Optset) -> *const c_char {
-    {
-        if unsafe { *args.os_oldval.data.string().data } == unsafe { *opt_vars().p_bg } {
-            return ptr::null();
-        }
-
-        let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
-
-        init_highlight(false, false);
-
-        if dark != (crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd')
-            && !get_var_value(c"g:colors_name").is_null()
-        {
-            do_unlet(c"g:colors_name", 13, true);
-            free_string_option(opt_vars().p_bg);
-            opt_vars().p_bg = alloc_string_option(if dark {
-                c"dark".as_ptr()
-            } else {
-                c"light".as_ptr()
-            });
-            check_string_option(&raw mut opt_vars().p_bg);
-            init_highlight(false, false);
-        }
-
-        for buf in for_all_buffers_mut() {
-            if !buf.terminal.is_null() {
-                terminal_notify_theme(unsafe { &mut *buf.terminal.cast() }, dark);
-            }
-        }
-
-        ptr::null()
+    if unsafe { *args.os_oldval.data.string().data } == unsafe { *opt_vars().p_bg } {
+        return ptr::null();
     }
+
+    let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
+
+    init_highlight(false, false);
+
+    if dark != (crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd')
+        && !get_var_value(c"g:colors_name").is_null()
+    {
+        do_unlet(c"g:colors_name", 13, true);
+        free_string_option(opt_vars().p_bg);
+        opt_vars().p_bg = alloc_string_option(if dark {
+            c"dark".as_ptr()
+        } else {
+            c"light".as_ptr()
+        });
+        check_string_option(&raw mut opt_vars().p_bg);
+        init_highlight(false, false);
+    }
+
+    for buf in for_all_buffers_mut() {
+        if !buf.terminal.is_null() {
+            terminal_notify_theme(unsafe { &mut *buf.terminal.cast() }, dark);
+        }
+    }
+
+    ptr::null()
 }
 
 /// Validate the 'backspace' option.
 pub fn validate_backspace(args: &mut Optset) -> *const c_char {
-    {
-        let value = args.os_newval.data.string().data;
-        if ascii_isdigit(crate::memory::cstr_first_char(value)) {
-            return if crate::memory::cstr_first_byte(value) == b'2' {
-                ptr::null()
-            } else {
-                E_INVARG.as_ptr()
-            };
-        }
-        validate_str_generic(args)
+    let value = args.os_newval.data.string().data;
+    if ascii_isdigit(crate::memory::cstr_first_char(value)) {
+        return if crate::memory::cstr_first_byte(value) == b'2' {
+            ptr::null()
+        } else {
+            E_INVARG.as_ptr()
+        };
     }
+    validate_str_generic(args)
 }
 
 pub fn validate_backupcopy(args: &mut Optset) -> *const c_char {
@@ -1543,87 +1527,81 @@ pub fn validate_backupcopy(args: &mut Optset) -> *const c_char {
 
 /// The 'backupcopy' option is changed.
 pub fn did_set_backupcopy(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
-        let buf = { unsafe { &mut *buf } };
-        let opt_flags = args.os_flags;
-        let mut bkc = opt_vars().p_bkc;
-        let mut flags = &raw mut opt_vars().bkc_flags;
+    let buf = args.os_buf;
+    let buf = { unsafe { &mut *buf } };
+    let opt_flags = args.os_flags;
+    let mut bkc = opt_vars().p_bkc;
+    let mut flags = &raw mut opt_vars().bkc_flags;
 
-        if (opt_flags & OPT_LOCAL) != 0 {
-            bkc = buf.b_p_bkc;
-            flags = &raw mut buf.b_bkc_flags;
-        } else if (opt_flags & OPT_GLOBAL) == 0 {
-            buf.b_bkc_flags = 0;
-        }
-
-        if (opt_flags & OPT_LOCAL) != 0 && crate::memory::cstr_is_empty(bkc) {
-            unsafe {
-                *flags = 0;
-            }
-        } else {
-            let errmsg = opt_strings_flags(bkc, &OPT_BKC_VALUES, flags, true, args.os_errbuf);
-            if !errmsg.is_null() {
-                return errmsg;
-            }
-        }
-
-        ptr::null()
+    if (opt_flags & OPT_LOCAL) != 0 {
+        bkc = buf.b_p_bkc;
+        flags = &raw mut buf.b_bkc_flags;
+    } else if (opt_flags & OPT_GLOBAL) == 0 {
+        buf.b_bkc_flags = 0;
     }
+
+    if (opt_flags & OPT_LOCAL) != 0 && crate::memory::cstr_is_empty(bkc) {
+        unsafe {
+            *flags = 0;
+        }
+    } else {
+        let errmsg = opt_strings_flags(bkc, &OPT_BKC_VALUES, flags, true, args.os_errbuf);
+        if !errmsg.is_null() {
+            return errmsg;
+        }
+    }
+
+    ptr::null()
 }
 
 /// Validate the 'backupext' or 'patchmode' option.
 pub fn validate_backupext_or_patchmode(args: &mut Optset) -> *const c_char {
-    {
-        let bex = if args.os_idx == K_OPT_BACKUPEXT {
-            args.os_newval.data.string().data
-        } else {
-            opt_vars().p_bex
-        };
-        let pm = if args.os_idx == K_OPT_PATCHMODE {
-            args.os_newval.data.string().data
-        } else {
-            opt_vars().p_pm
-        };
-        let bex_s = if crate::memory::cstr_first_byte(bex) == b'.' {
-            bex.wrapping_add(1)
-        } else {
-            bex
-        };
-        let pm_s = if crate::memory::cstr_first_byte(pm) == b'.' {
-            pm.wrapping_add(1)
-        } else {
-            pm
-        };
-        if crate::memory::cstr_as_bytes(bex_s) == crate::memory::cstr_as_bytes(pm_s) {
-            return E_BACKUPEXT_AND_PATCHMODE_ARE_EQUAL.as_ptr();
-        }
-
-        ptr::null()
+    let bex = if args.os_idx == K_OPT_BACKUPEXT {
+        args.os_newval.data.string().data
+    } else {
+        opt_vars().p_bex
+    };
+    let pm = if args.os_idx == K_OPT_PATCHMODE {
+        args.os_newval.data.string().data
+    } else {
+        opt_vars().p_pm
+    };
+    let bex_s = if crate::memory::cstr_first_byte(bex) == b'.' {
+        bex.wrapping_add(1)
+    } else {
+        bex
+    };
+    let pm_s = if crate::memory::cstr_first_byte(pm) == b'.' {
+        pm.wrapping_add(1)
+    } else {
+        pm
+    };
+    if crate::memory::cstr_as_bytes(bex_s) == crate::memory::cstr_as_bytes(pm_s) {
+        return E_BACKUPEXT_AND_PATCHMODE_ARE_EQUAL.as_ptr();
     }
+
+    ptr::null()
 }
 
 /// The 'breakat' option is changed.
 pub fn did_set_breakat(_args: &mut Optset) -> *const c_char {
-    {
-        let flags_ptr = (&raw mut opt_vars().breakat_flags).cast::<c_char>();
-        for i in 0..256 {
-            unsafe {
-                *flags_ptr.wrapping_add(i) = 0;
-            }
+    let flags_ptr = (&raw mut opt_vars().breakat_flags).cast::<c_char>();
+    for i in 0..256 {
+        unsafe {
+            *flags_ptr.wrapping_add(i) = 0;
         }
-
-        if !opt_vars().p_breakat.is_null() {
-            let p = opt_vars().p_breakat;
-            for &p_byte in crate::memory::cstr_as_bytes(p) {
-                unsafe {
-                    *flags_ptr.wrapping_add(p_byte as usize) = 1;
-                }
-            }
-        }
-
-        ptr::null()
     }
+
+    if !opt_vars().p_breakat.is_null() {
+        let p = opt_vars().p_breakat;
+        for &p_byte in crate::memory::cstr_as_bytes(p) {
+            unsafe {
+                *flags_ptr.wrapping_add(p_byte as usize) = 1;
+            }
+        }
+    }
+
+    ptr::null()
 }
 
 /// The 'breakindentopt' option is changed.
@@ -1664,49 +1642,47 @@ pub fn validate_buftype(args: &mut Optset) -> *const c_char {
 
 /// The 'buftype' option is changed.
 pub fn did_set_buftype(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
-        let buf = { unsafe { &mut *buf } };
-        let win = args.os_win;
-        if crate::memory::cstr_first_byte(buf.b_p_bt) == b'p' {
-            set_option_direct(
-                K_OPT_COMMENTS,
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(NvimString {
-                        data: c"".as_ptr().cast_mut(),
-                        size: 0,
-                    }),
-                },
-                OPT_LOCAL,
-                SID_NONE,
-            );
-            let next_prompt = CursorPos {
-                lnum: buf.b_ml.ml_line_count,
-                col: buf.b_prompt_start.mark.col,
-                coladd: 0,
-            };
-            buf.b_prompt_start = Fmark {
-                mark: next_prompt,
-                fnum: 0,
-                timestamp: 0,
-                view: Fmarkv {
-                    topline_offset: MAXLNUM,
-                    skipcol: 0,
-                },
-                additional_data: None,
-            };
-        }
-        if unsafe { (*win).w_status_height } != 0 || global_stl_height() != 0 {
-            unsafe {
-                (*win).w_redr_status = true;
-            }
-            redraw_later(unsafe { win.as_mut() }, UPD_VALID);
-        }
-        buf.b_help = crate::memory::cstr_first_byte(buf.b_p_bt) == b'h';
-        redraw_titles();
-        ptr::null()
+    let buf = args.os_buf;
+    let buf = { unsafe { &mut *buf } };
+    let win = args.os_win;
+    if crate::memory::cstr_first_byte(buf.b_p_bt) == b'p' {
+        set_option_direct(
+            K_OPT_COMMENTS,
+            Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(NvimString {
+                    data: c"".as_ptr().cast_mut(),
+                    size: 0,
+                }),
+            },
+            OPT_LOCAL,
+            SID_NONE,
+        );
+        let next_prompt = CursorPos {
+            lnum: buf.b_ml.ml_line_count,
+            col: buf.b_prompt_start.mark.col,
+            coladd: 0,
+        };
+        buf.b_prompt_start = Fmark {
+            mark: next_prompt,
+            fnum: 0,
+            timestamp: 0,
+            view: Fmarkv {
+                topline_offset: MAXLNUM,
+                skipcol: 0,
+            },
+            additional_data: None,
+        };
     }
+    if unsafe { (*win).w_status_height } != 0 || global_stl_height() != 0 {
+        unsafe {
+            (*win).w_redr_status = true;
+        }
+        redraw_later(unsafe { win.as_mut() }, UPD_VALID);
+    }
+    buf.b_help = crate::memory::cstr_first_byte(buf.b_p_bt) == b'h';
+    redraw_titles();
+    ptr::null()
 }
 
 pub fn validate_chars_option(args: &mut Optset) -> *const c_char {
@@ -1820,20 +1796,18 @@ pub fn did_set_chars_option(args: &mut Optset) -> *const c_char {
 
 /// Expand 'fillchars' or 'listchars' option value.
 pub fn expand_set_chars_option(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
-    {
-        let varp = args.oe_varp.cast::<*mut c_char>();
-        let is_lcs = ptr::eq(varp, &raw mut opt_vars().p_lcs)
-            || ptr::eq(varp, &raw mut curwin_mut().w_onebuf_opt.wo_lcs);
-        expand_set_opt_generic(
-            args,
-            Some(if is_lcs {
-                get_listchars_name
-            } else {
-                get_fillchars_name
-            }),
-            matches,
-        )
-    }
+    let varp = args.oe_varp.cast::<*mut c_char>();
+    let is_lcs = ptr::eq(varp, &raw mut opt_vars().p_lcs)
+        || ptr::eq(varp, &raw mut curwin_mut().w_onebuf_opt.wo_lcs);
+    expand_set_opt_generic(
+        args,
+        Some(if is_lcs {
+            get_listchars_name
+        } else {
+            get_fillchars_name
+        }),
+        matches,
+    )
 }
 
 /// The 'cinoptions' option is changed.
@@ -1850,150 +1824,140 @@ pub fn validate_colorcolumn(args: &mut Optset) -> *const c_char {
 
 /// The 'colorcolumn' option is changed.
 pub fn did_set_colorcolumn(args: &mut Optset) -> *const c_char {
-    {
-        let win = args.os_win;
-        let varp = args.os_varp.cast::<*mut c_char>();
-        check_colorcolumn(unsafe { *varp }, unsafe {
-            (if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_cc) {
-                win
-            } else {
-                ptr::null_mut()
-            })
-            .as_mut()
+    let win = args.os_win;
+    let varp = args.os_varp.cast::<*mut c_char>();
+    check_colorcolumn(unsafe { *varp }, unsafe {
+        (if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_cc) {
+            win
+        } else {
+            ptr::null_mut()
         })
-    }
+        .as_mut()
+    })
 }
 
 /// Validate the 'comments' option.
 pub fn validate_comments(args: &mut Optset) -> *const c_char {
-    {
-        let mut errmsg: *const c_char = ptr::null();
-        let mut s = args.os_newval.data.string().data;
-        while !crate::memory::cstr_is_empty(s) {
-            while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b':' {
-                if !crate::strings::vim_haschr(COM_ALL, crate::memory::cstr_first_byte(s) as i32)
-                    && !ascii_isdigit(crate::memory::cstr_first_char(s))
-                    && crate::memory::cstr_first_byte(s) != b'-'
-                {
-                    errmsg = illegal_char(args.os_errbuf, crate::memory::cstr_first_byte(s) as i32);
-                    break;
-                }
-                s = s.wrapping_add(1);
-            }
-            let c = unsafe { *s };
-            s = s.wrapping_add(1);
-            if c == NUL {
-                errmsg = c"E524: Missing colon".as_ptr();
-            } else if crate::memory::cstr_first_byte(s) == b',' || crate::memory::cstr_is_empty(s) {
-                errmsg = c"E525: Zero length string".as_ptr();
-            }
-            if !errmsg.is_null() {
+    let mut errmsg: *const c_char = ptr::null();
+    let mut s = args.os_newval.data.string().data;
+    while !crate::memory::cstr_is_empty(s) {
+        while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b':' {
+            if !crate::strings::vim_haschr(COM_ALL, crate::memory::cstr_first_byte(s) as i32)
+                && !ascii_isdigit(crate::memory::cstr_first_char(s))
+                && crate::memory::cstr_first_byte(s) != b'-'
+            {
+                errmsg = illegal_char(args.os_errbuf, crate::memory::cstr_first_byte(s) as i32);
                 break;
             }
-            while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b',' {
-                if crate::memory::cstr_first_byte(s) == b'\\'
-                    && crate::memory::cstr_byte_at(s, 1) != 0
-                {
-                    s = s.wrapping_add(1);
-                }
+            s = s.wrapping_add(1);
+        }
+        let c = unsafe { *s };
+        s = s.wrapping_add(1);
+        if c == NUL {
+            errmsg = c"E524: Missing colon".as_ptr();
+        } else if crate::memory::cstr_first_byte(s) == b',' || crate::memory::cstr_is_empty(s) {
+            errmsg = c"E525: Zero length string".as_ptr();
+        }
+        if !errmsg.is_null() {
+            break;
+        }
+        while !crate::memory::cstr_is_empty(s) && crate::memory::cstr_first_byte(s) != b',' {
+            if crate::memory::cstr_first_byte(s) == b'\\' && crate::memory::cstr_byte_at(s, 1) != 0
+            {
                 s = s.wrapping_add(1);
             }
-            s = skip_to_option_part(s);
+            s = s.wrapping_add(1);
         }
-        errmsg
+        s = skip_to_option_part(s);
     }
+    errmsg
 }
 
 /// Validate the 'commentstring' option.
 pub fn validate_commentstring(args: &mut Optset) -> *const c_char {
+    let value = args.os_newval.data.string().data;
+    if crate::memory::cstr_is_empty(value)
+        || crate::memory::cstr_as_bytes(value)
+            .windows(2)
+            .any(|w| w == b"%s")
     {
-        let value = args.os_newval.data.string().data;
-        if crate::memory::cstr_is_empty(value)
-            || crate::memory::cstr_as_bytes(value)
-                .windows(2)
-                .any(|w| w == b"%s")
-        {
-            ptr::null()
-        } else {
-            c"E537: 'commentstring' must be empty or contain %s".as_ptr()
-        }
+        ptr::null()
+    } else {
+        c"E537: 'commentstring' must be empty or contain %s".as_ptr()
     }
 }
 
 /// Validate the 'complete' option.
 pub fn validate_complete(args: &mut Optset) -> *const c_char {
-    {
-        let mut buffer = [0 as c_char; LSIZE];
-        let mut char_before: u8 = 0;
+    let mut buffer = [0 as c_char; LSIZE];
+    let mut char_before: u8 = 0;
 
-        let mut p = args.os_newval.data.string().data;
-        while !crate::memory::cstr_is_empty(p) {
-            buffer.fill(0);
-            let mut buf_idx: usize = 0;
-            let mut escape = false;
+    let mut p = args.os_newval.data.string().data;
+    while !crate::memory::cstr_is_empty(p) {
+        buffer.fill(0);
+        let mut buf_idx: usize = 0;
+        let mut escape = false;
 
-            while !crate::memory::cstr_is_empty(p)
-                && (crate::memory::cstr_first_byte(p) != b',' || escape)
-                && buf_idx < LSIZE - 1
+        while !crate::memory::cstr_is_empty(p)
+            && (crate::memory::cstr_first_byte(p) != b',' || escape)
+            && buf_idx < LSIZE - 1
+        {
+            if crate::memory::cstr_first_byte(p) == b'\\'
+                && crate::memory::cstr_byte_at(p, 1) == b','
             {
-                if crate::memory::cstr_first_byte(p) == b'\\'
-                    && crate::memory::cstr_byte_at(p, 1) == b','
-                {
-                    escape = true;
-                    p = p.wrapping_add(1);
-                } else {
-                    escape = false;
-                    buffer[buf_idx] = unsafe { *p };
-                    buf_idx += 1;
-                }
+                escape = true;
                 p = p.wrapping_add(1);
-            }
-            buffer[buf_idx] = NUL;
-
-            if !crate::strings::vim_haschr(c".wbuksid]tUfFo", buffer[0] as u8 as i32) {
-                return illegal_char(args.os_errbuf, buffer[0] as u8 as i32);
-            }
-
-            if !crate::strings::vim_haschr(c"ksF", buffer[0] as u8 as i32)
-                && buffer[1] != NUL
-                && buffer[1] != b'^' as c_char
-            {
-                char_before = buffer[0] as u8;
             } else {
-                let mut t = vim_strchr(buffer.as_ptr(), b'^' as i32);
-                if !t.is_null() {
-                    unsafe {
-                        *t = NUL;
-                    }
-                    t = t.wrapping_add(1);
-                    if crate::memory::cstr_is_empty(t) {
-                        char_before = b'^';
-                    } else {
-                        for &t_byte in crate::memory::cstr_as_bytes(t) {
-                            if !ascii_isdigit(t_byte as c_char as i32) {
-                                char_before = b'^';
-                                break;
-                            }
+                escape = false;
+                buffer[buf_idx] = unsafe { *p };
+                buf_idx += 1;
+            }
+            p = p.wrapping_add(1);
+        }
+        buffer[buf_idx] = NUL;
+
+        if !crate::strings::vim_haschr(c".wbuksid]tUfFo", buffer[0] as u8 as i32) {
+            return illegal_char(args.os_errbuf, buffer[0] as u8 as i32);
+        }
+
+        if !crate::strings::vim_haschr(c"ksF", buffer[0] as u8 as i32)
+            && buffer[1] != NUL
+            && buffer[1] != b'^' as c_char
+        {
+            char_before = buffer[0] as u8;
+        } else {
+            let mut t = vim_strchr(buffer.as_ptr(), b'^' as i32);
+            if !t.is_null() {
+                unsafe {
+                    *t = NUL;
+                }
+                t = t.wrapping_add(1);
+                if crate::memory::cstr_is_empty(t) {
+                    char_before = b'^';
+                } else {
+                    for &t_byte in crate::memory::cstr_as_bytes(t) {
+                        if !ascii_isdigit(t_byte as c_char as i32) {
+                            char_before = b'^';
+                            break;
                         }
                     }
                 }
             }
-            if char_before != 0 {
-                return crate::option::opt_error_int(
-                    args.os_errbuf,
-                    E_ILLEGAL_CHARACTER_AFTER_CHR,
-                    i32::from(char_before),
-                );
-            }
-            while crate::memory::cstr_first_byte(p) == b','
-                || crate::memory::cstr_first_byte(p) == b' '
-            {
-                p = p.wrapping_add(1);
-            }
         }
-
-        ptr::null()
+        if char_before != 0 {
+            return crate::option::opt_error_int(
+                args.os_errbuf,
+                E_ILLEGAL_CHARACTER_AFTER_CHR,
+                i32::from(char_before),
+            );
+        }
+        while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' '
+        {
+            p = p.wrapping_add(1);
+        }
     }
+
+    ptr::null()
 }
 
 /// The 'complete' option is changed.
@@ -2010,36 +1974,34 @@ pub fn did_set_complete(args: &mut Optset) -> *const c_char {
 
 /// Validate 'completeitemalign' and prepare its column order.
 pub fn validate_completeitemalign(args: &mut Optset) -> *const c_char {
-    {
-        let mut p = args.os_newval.data.string().data;
-        let mut new_cia_flags: u32 = 0;
-        let mut seen = [false; 3];
-        let mut count = 0;
-        let mut buf = [0 as c_char; 10];
-        while !crate::memory::cstr_is_empty(p) {
-            copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",");
-            let item = if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"abbr" {
-                CPT_ABBR
-            } else if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"kind" {
-                CPT_KIND
-            } else if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"menu" {
-                CPT_MENU
-            } else {
-                return E_INVARG.as_ptr();
-            };
-            if seen[item as usize] {
-                return E_INVARG.as_ptr();
-            }
-            new_cia_flags = new_cia_flags * 10 + item;
-            seen[item as usize] = true;
-            count += 1;
-        }
-        if count != 3 {
+    let mut p = args.os_newval.data.string().data;
+    let mut new_cia_flags: u32 = 0;
+    let mut seen = [false; 3];
+    let mut count = 0;
+    let mut buf = [0 as c_char; 10];
+    while !crate::memory::cstr_is_empty(p) {
+        copy_option_part(&raw mut p, buf.as_mut_ptr(), buf.len(), c",");
+        let item = if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"abbr" {
+            CPT_ABBR
+        } else if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"kind" {
+            CPT_KIND
+        } else if crate::memory::cstr_as_bytes(buf.as_ptr()) == b"menu" {
+            CPT_MENU
+        } else {
+            return E_INVARG.as_ptr();
+        };
+        if seen[item as usize] {
             return E_INVARG.as_ptr();
         }
-        args.os_prep = OptSetPrep::Flags(new_cia_flags);
-        ptr::null()
+        new_cia_flags = new_cia_flags * 10 + item;
+        seen[item as usize] = true;
+        count += 1;
     }
+    if count != 3 {
+        return E_INVARG.as_ptr();
+    }
+    args.os_prep = OptSetPrep::Flags(new_cia_flags);
+    ptr::null()
 }
 
 /// The 'completeitemalign' option is changed.
@@ -2050,45 +2012,41 @@ pub fn did_set_completeitemalign(args: &mut Optset) -> *const c_char {
 
 /// The 'completeopt' option is changed.
 pub fn did_set_completeopt(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
-        let buf = unsafe { &mut *buf };
-        let mut cot = opt_vars().p_cot;
-        let mut flags = &raw mut opt_vars().cot_flags;
+    let buf = args.os_buf;
+    let buf = unsafe { &mut *buf };
+    let mut cot = opt_vars().p_cot;
+    let mut flags = &raw mut opt_vars().cot_flags;
 
-        if (args.os_flags & OPT_LOCAL) != 0 {
-            cot = buf.b_p_cot;
-            flags = &raw mut buf.b_cot_flags;
-        } else if (args.os_flags & OPT_GLOBAL) == 0 {
-            buf.b_cot_flags = 0;
-        }
-
-        opt_strings_flags(cot, &OPT_COT_VALUES, flags, true, args.os_errbuf)
+    if (args.os_flags & OPT_LOCAL) != 0 {
+        cot = buf.b_p_cot;
+        flags = &raw mut buf.b_cot_flags;
+    } else if (args.os_flags & OPT_GLOBAL) == 0 {
+        buf.b_cot_flags = 0;
     }
+
+    opt_strings_flags(cot, &OPT_COT_VALUES, flags, true, args.os_errbuf)
 }
 
 #[cfg(windows)]
 pub fn did_set_completeslash(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
-        let errmsg = opt_strings_flags(
-            opt_vars().p_csl,
-            &OPT_CSL_VALUES,
-            ptr::null_mut(),
-            false,
-            args.os_errbuf,
-        );
-        if !errmsg.is_null() {
-            return errmsg;
-        }
-        opt_strings_flags(
-            unsafe { (*buf).b_p_csl },
-            &OPT_CSL_VALUES,
-            ptr::null_mut(),
-            false,
-            args.os_errbuf,
-        )
+    let buf = args.os_buf;
+    let errmsg = opt_strings_flags(
+        opt_vars().p_csl,
+        &OPT_CSL_VALUES,
+        ptr::null_mut(),
+        false,
+        args.os_errbuf,
+    );
+    if !errmsg.is_null() {
+        return errmsg;
     }
+    opt_strings_flags(
+        unsafe { (*buf).b_p_csl },
+        &OPT_CSL_VALUES,
+        ptr::null_mut(),
+        false,
+        args.os_errbuf,
+    )
 }
 
 /// Validate the 'concealcursor' option.
@@ -2113,29 +2071,25 @@ pub fn expand_set_cpoptions(args: &mut Optexpand, matches: &mut Vec<std::ffi::CS
 }
 
 pub fn validate_cursorlineopt(args: &mut Optset) -> *const c_char {
-    {
-        let value = args.os_newval.data.string().data;
-        let mut flags: u32 = 0;
-        if crate::memory::cstr_is_empty(value) || !fill_culopt_flags(value, &mut flags) {
-            return E_INVARG.as_ptr();
-        }
-        args.os_prep = OptSetPrep::Flags(flags);
-        ptr::null()
+    let value = args.os_newval.data.string().data;
+    let mut flags: u32 = 0;
+    if crate::memory::cstr_is_empty(value) || !fill_culopt_flags(value, &mut flags) {
+        return E_INVARG.as_ptr();
     }
+    args.os_prep = OptSetPrep::Flags(flags);
+    ptr::null()
 }
 
 /// The 'cursorlineopt' option is changed.
 pub fn did_set_cursorlineopt(args: &mut Optset) -> *const c_char {
-    {
-        if (args.os_flags & OPT_GLOBAL) != 0 {
-            return ptr::null();
-        }
-        let win = args.os_win;
-        unsafe {
-            (*win).w_p_culopt_flags = args.os_prep.as_flags() as u8;
-        }
-        ptr::null()
+    if (args.os_flags & OPT_GLOBAL) != 0 {
+        return ptr::null();
     }
+    let win = args.os_win;
+    unsafe {
+        (*win).w_p_culopt_flags = args.os_prep.as_flags() as u8;
+    }
+    ptr::null()
 }
 
 /// The 'diffanchors' option is changed.
@@ -2192,49 +2146,45 @@ pub fn did_set_display(args: &mut Optset) -> *const c_char {
 
 /// Validate and canonize 'encoding', 'fileencoding' or 'makeencoding'.
 pub fn validate_encoding(args: &mut Optset) -> *const c_char {
-    {
-        if args.os_idx == K_OPT_FILEENCODING {
-            let buf = args.os_buf;
-            if !modifiable(unsafe { &*buf }) && args.os_flags != OPT_GLOBAL {
-                return E_MODIFIABLE.as_ptr();
-            }
-
-            if crate::strings::vim_haschr(args.os_newval.data.string().data, b',' as i32) {
-                return E_INVARG.as_ptr();
-            }
+    if args.os_idx == K_OPT_FILEENCODING {
+        let buf = args.os_buf;
+        if !modifiable(unsafe { &*buf }) && args.os_flags != OPT_GLOBAL {
+            return E_MODIFIABLE.as_ptr();
         }
 
-        let value_cstr = enc_canonize(args.os_newval.data.string().data);
-        let is_not_utf8 = value_cstr.as_bytes() != b"utf-8";
-        args.os_prep = OptSetPrep::Encoding(value_cstr);
-        if args.os_idx == K_OPT_ENCODING && is_not_utf8 {
-            return E_UNSUPPORTEDOPTION.as_ptr();
+        if crate::strings::vim_haschr(args.os_newval.data.string().data, b',' as i32) {
+            return E_INVARG.as_ptr();
         }
-        ptr::null()
     }
+
+    let value_cstr = enc_canonize(args.os_newval.data.string().data);
+    let is_not_utf8 = value_cstr.as_bytes() != b"utf-8";
+    args.os_prep = OptSetPrep::Encoding(value_cstr);
+    if args.os_idx == K_OPT_ENCODING && is_not_utf8 {
+        return E_UNSUPPORTEDOPTION.as_ptr();
+    }
+    ptr::null()
 }
 
 /// One of the 'encoding', 'fileencoding' or 'makeencoding' options is changed.
 pub fn did_set_encoding(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
-        let varp = args.os_varp.cast::<*mut c_char>();
-        if args.os_idx == K_OPT_FILEENCODING {
-            redraw_titles();
-            ml_setflags(unsafe { &mut *buf });
-        }
-
-        if let Some(prep_cstr) = args.os_prep.take_encoding() {
-            free_string_option(unsafe { *varp });
-            unsafe {
-                *varp = alloc_string_option(prep_cstr.as_ptr());
-            }
-        }
-        if ptr::eq(varp, &raw mut opt_vars().p_enc) {
-            spell_reload();
-        }
-        ptr::null()
+    let buf = args.os_buf;
+    let varp = args.os_varp.cast::<*mut c_char>();
+    if args.os_idx == K_OPT_FILEENCODING {
+        redraw_titles();
+        ml_setflags(unsafe { &mut *buf });
     }
+
+    if let Some(prep_cstr) = args.os_prep.take_encoding() {
+        free_string_option(unsafe { *varp });
+        unsafe {
+            *varp = alloc_string_option(prep_cstr.as_ptr());
+        }
+    }
+    if ptr::eq(varp, &raw mut opt_vars().p_enc) {
+        spell_reload();
+    }
+    ptr::null()
 }
 
 pub fn expand_set_encoding(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
@@ -2253,32 +2203,29 @@ pub fn validate_eventignore(args: &mut Optset) -> *const c_char {
 }
 
 fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
-    {
-        let subtract = crate::memory::cstr_first_byte(xp.xp_pattern) == b'-';
-        if !subtract && idx == 0 {
-            return c"all".as_ptr().cast_mut();
-        }
-
-        let name =
-            get_event_name_no_group(xp, idx - 1 + i32::from(subtract), optstr_st().expand_eiw);
-        if name.is_null() {
-            return ptr::null_mut();
-        }
-
-        let io_buff = g_st().iobuff.as_mut_ptr();
-        vim_snprintf!(
-            io_buff,
-            IOSIZE,
-            c"%s%s",
-            if subtract {
-                c"-".as_ptr()
-            } else {
-                c"".as_ptr()
-            },
-            name,
-        );
-        io_buff
+    let subtract = crate::memory::cstr_first_byte(xp.xp_pattern) == b'-';
+    if !subtract && idx == 0 {
+        return c"all".as_ptr().cast_mut();
     }
+
+    let name = get_event_name_no_group(xp, idx - 1 + i32::from(subtract), optstr_st().expand_eiw);
+    if name.is_null() {
+        return ptr::null_mut();
+    }
+
+    let io_buff = g_st().iobuff.as_mut_ptr();
+    vim_snprintf!(
+        io_buff,
+        IOSIZE,
+        c"%s%s",
+        if subtract {
+            c"-".as_ptr()
+        } else {
+            c"".as_ptr()
+        },
+        name,
+    );
+    io_buff
 }
 
 pub fn expand_set_eventignore(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
@@ -2287,30 +2234,25 @@ pub fn expand_set_eventignore(args: &mut Optexpand, matches: &mut Vec<std::ffi::
 }
 
 pub fn validate_fileformat(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
-        if (args.os_flags & OPT_GLOBAL) == 0 && !modifiable(unsafe { &*buf }) {
-            return E_MODIFIABLE.as_ptr();
-        }
-        validate_str_generic(args)
+    let buf = args.os_buf;
+    if (args.os_flags & OPT_GLOBAL) == 0 && !modifiable(unsafe { &*buf }) {
+        return E_MODIFIABLE.as_ptr();
     }
+    validate_str_generic(args)
 }
 
 /// The 'fileformat' option is changed.
 pub fn did_set_fileformat(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
-        let oldval = args.os_oldval.data.string().data;
+    let buf = args.os_buf;
+    let oldval = args.os_oldval.data.string().data;
 
-        redraw_titles();
-        ml_setflags(unsafe { &mut *buf });
-        if get_fileformat(unsafe { &*buf }) == EOL_MAC
-            || crate::memory::cstr_first_byte(oldval) == b'm'
-        {
-            redraw_buf_later(buf, UPD_NOT_VALID);
-        }
-        ptr::null()
+    redraw_titles();
+    ml_setflags(unsafe { &mut *buf });
+    if get_fileformat(unsafe { &*buf }) == EOL_MAC || crate::memory::cstr_first_byte(oldval) == b'm'
+    {
+        redraw_buf_later(buf, UPD_NOT_VALID);
     }
+    ptr::null()
 }
 
 /// Function given to ExpandGeneric() to obtain the possible arguments of fileformat options.
@@ -2334,13 +2276,11 @@ pub fn validate_filetype(args: &mut Optset) -> *const c_char {
 
 /// The 'filetype' or the 'syntax' option is changed.
 pub fn did_set_filetype_or_syntax(args: &mut Optset) -> *const c_char {
-    {
-        let varp = args.os_varp.cast::<*mut c_char>();
-        args.os_value_changed = crate::memory::cstr_as_bytes(args.os_oldval.data.string().data)
-            != crate::memory::cstr_as_bytes(unsafe { *varp });
-        args.os_value_checked = true;
-        ptr::null()
-    }
+    let varp = args.os_varp.cast::<*mut c_char>();
+    args.os_value_changed = crate::memory::cstr_as_bytes(args.os_oldval.data.string().data)
+        != crate::memory::cstr_as_bytes(unsafe { *varp });
+    args.os_value_checked = true;
+    ptr::null()
 }
 
 /// The 'foldexpr' option is changed.
@@ -2367,17 +2307,15 @@ pub fn did_set_foldignore(args: &mut Optset) -> *const c_char {
 
 /// Validate the 'foldmarker' option.
 pub fn validate_foldmarker(args: &mut Optset) -> *const c_char {
-    {
-        let value = args.os_newval.data.string().data;
-        let p = vim_strchr(value, b',' as i32);
-        if p.is_null() {
-            return E_COMMA_REQUIRED.as_ptr();
-        }
-        if p == value || crate::memory::cstr_byte_at(p, 1) == 0 {
-            E_INVARG.as_ptr()
-        } else {
-            ptr::null()
-        }
+    let value = args.os_newval.data.string().data;
+    let p = vim_strchr(value, b',' as i32);
+    if p.is_null() {
+        return E_COMMA_REQUIRED.as_ptr();
+    }
+    if p == value || crate::memory::cstr_byte_at(p, 1) == 0 {
+        E_INVARG.as_ptr()
+    } else {
+        ptr::null()
     }
 }
 
@@ -2418,16 +2356,14 @@ pub fn expand_set_formatoptions(
 
 /// The 'guicursor' option is changed.
 pub fn did_set_guicursor(_args: &mut Optset) -> *const c_char {
-    {
-        let errmsg = parse_shape_opt(SHAPE_CURSOR);
-        if !errmsg.is_null() {
-            return errmsg;
-        }
-        if g_st().visual_global.active {
-            redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
-        }
-        ptr::null()
+    let errmsg = parse_shape_opt(SHAPE_CURSOR);
+    if !errmsg.is_null() {
+        return errmsg;
     }
+    if g_st().visual_global.active {
+        redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
+    }
+    ptr::null()
 }
 
 /// The 'helpfile' option is changed.
@@ -2443,35 +2379,31 @@ pub fn did_set_helpfile(_args: &mut Optset) -> *const c_char {
 
 /// Validate the 'helplang' option.
 pub fn validate_helplang(args: &mut Optset) -> *const c_char {
-    {
-        let mut s = args.os_newval.data.string().data;
-        while !crate::memory::cstr_is_empty(s) {
-            if crate::memory::cstr_byte_at(s, 1) == 0
-                || ((crate::memory::cstr_byte_at(s, 2) != b','
-                    || crate::memory::cstr_byte_at(s, 3) == 0)
-                    && crate::memory::cstr_byte_at(s, 2) != 0)
-            {
-                return E_INVARG.as_ptr();
-            }
-            if crate::memory::cstr_byte_at(s, 2) == 0 {
-                break;
-            }
-            s = s.wrapping_add(3);
+    let mut s = args.os_newval.data.string().data;
+    while !crate::memory::cstr_is_empty(s) {
+        if crate::memory::cstr_byte_at(s, 1) == 0
+            || ((crate::memory::cstr_byte_at(s, 2) != b','
+                || crate::memory::cstr_byte_at(s, 3) == 0)
+                && crate::memory::cstr_byte_at(s, 2) != 0)
+        {
+            return E_INVARG.as_ptr();
         }
-        ptr::null()
+        if crate::memory::cstr_byte_at(s, 2) == 0 {
+            break;
+        }
+        s = s.wrapping_add(3);
     }
+    ptr::null()
 }
 
 /// Validate the 'highlight' option.
 pub fn validate_highlight(args: &mut Optset) -> *const c_char {
+    if crate::memory::cstr_as_bytes(args.os_newval.data.string().data)
+        != crate::memory::cstr_as_bytes(HIGHLIGHT_INIT.as_ptr())
     {
-        if crate::memory::cstr_as_bytes(args.os_newval.data.string().data)
-            != crate::memory::cstr_as_bytes(HIGHLIGHT_INIT.as_ptr())
-        {
-            return E_UNSUPPORTEDOPTION.as_ptr();
-        }
-        ptr::null()
+        return E_UNSUPPORTEDOPTION.as_ptr();
     }
+    ptr::null()
 }
 
 /// The 'iconstring' option is changed.
@@ -2498,16 +2430,14 @@ pub fn validate_isopt(args: &mut Optset) -> *const c_char {
 
 /// The 'iskeyword' option is changed.
 pub fn did_set_iskeyword(args: &mut Optset) -> *const c_char {
-    {
-        let varp = args.os_varp.cast::<*mut c_char>();
-        if !ptr::eq(varp, &raw mut opt_vars().p_isk) {
-            let buf = args.os_buf;
-            if !buf_init_isk_chartab(unsafe { &mut *buf }) {
-                return E_INVARG.as_ptr();
-            }
+    let varp = args.os_varp.cast::<*mut c_char>();
+    if !ptr::eq(varp, &raw mut opt_vars().p_isk) {
+        let buf = args.os_buf;
+        if !buf_init_isk_chartab(unsafe { &mut *buf }) {
+            return E_INVARG.as_ptr();
         }
-        ptr::null()
     }
+    ptr::null()
 }
 
 /// The 'isident', 'iskeyword', 'isprint' or 'isfname' option is changed.
@@ -2522,43 +2452,41 @@ pub fn did_set_isopt(args: &mut Optset) -> *const c_char {
 
 /// The 'keymap' option has changed.
 pub fn did_set_keymap(args: &mut Optset) -> *const c_char {
-    {
-        let buf = args.os_buf;
-        let buf = unsafe { &mut *buf };
-        let opt_flags = args.os_flags;
+    let buf = args.os_buf;
+    let buf = unsafe { &mut *buf };
+    let opt_flags = args.os_flags;
 
-        let secure_save = g_st().secure;
-        g_st().secure = 0;
+    let secure_save = g_st().secure;
+    g_st().secure = 0;
 
-        let errmsg = keymap_init();
+    let errmsg = keymap_init();
 
-        g_st().secure = secure_save;
+    g_st().secure = secure_save;
 
-        args.os_value_checked = true;
+    args.os_value_checked = true;
 
-        if errmsg.is_null() {
-            if !crate::memory::cstr_is_empty(buf.b_p_keymap) {
-                buf.b_p_iminsert = B_IMODE_LMAP;
-                if buf.b_p_imsearch != B_IMODE_USE_INSERT {
-                    buf.b_p_imsearch = B_IMODE_LMAP;
-                }
-            } else {
-                if buf.b_p_iminsert == B_IMODE_LMAP {
-                    buf.b_p_iminsert = B_IMODE_NONE;
-                }
-                if buf.b_p_imsearch == B_IMODE_LMAP {
-                    buf.b_p_imsearch = B_IMODE_USE_INSERT;
-                }
+    if errmsg.is_null() {
+        if !crate::memory::cstr_is_empty(buf.b_p_keymap) {
+            buf.b_p_iminsert = B_IMODE_LMAP;
+            if buf.b_p_imsearch != B_IMODE_USE_INSERT {
+                buf.b_p_imsearch = B_IMODE_LMAP;
             }
-            if (opt_flags & OPT_LOCAL) == 0 {
-                set_iminsert_global(&mut *buf);
-                set_imsearch_global(&mut *buf);
+        } else {
+            if buf.b_p_iminsert == B_IMODE_LMAP {
+                buf.b_p_iminsert = B_IMODE_NONE;
             }
-            status_redraw_buf(buf);
+            if buf.b_p_imsearch == B_IMODE_LMAP {
+                buf.b_p_imsearch = B_IMODE_USE_INSERT;
+            }
         }
-
-        errmsg
+        if (opt_flags & OPT_LOCAL) == 0 {
+            set_iminsert_global(&mut *buf);
+            set_imsearch_global(&mut *buf);
+        }
+        status_redraw_buf(buf);
     }
+
+    errmsg
 }
 
 /// The 'keymodel' option is changed.
@@ -2570,49 +2498,45 @@ pub fn did_set_keymodel(_args: &mut Optset) -> *const c_char {
 
 /// Validate the 'lispoptions' option.
 pub fn validate_lispoptions(args: &mut Optset) -> *const c_char {
+    let value = args.os_newval.data.string().data;
+    if crate::memory::cstr_is_empty(value)
+        || crate::memory::cstr_as_bytes(value) == b"expr:0"
+        || crate::memory::cstr_as_bytes(value) == b"expr:1"
     {
-        let value = args.os_newval.data.string().data;
-        if crate::memory::cstr_is_empty(value)
-            || crate::memory::cstr_as_bytes(value) == b"expr:0"
-            || crate::memory::cstr_as_bytes(value) == b"expr:1"
-        {
-            ptr::null()
-        } else {
-            E_INVARG.as_ptr()
-        }
+        ptr::null()
+    } else {
+        E_INVARG.as_ptr()
     }
 }
 
 /// Validate the 'matchpairs' option.
 pub fn validate_matchpairs(args: &mut Optset) -> *const c_char {
-    {
-        let mut p = args.os_newval.data.string().data;
-        while !crate::memory::cstr_is_empty(p) {
-            let mut x2: i32 = -1;
-            let mut x3: i32 = -1;
+    let mut p = args.os_newval.data.string().data;
+    while !crate::memory::cstr_is_empty(p) {
+        let mut x2: i32 = -1;
+        let mut x3: i32 = -1;
 
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
-            if !crate::memory::cstr_is_empty(p) {
-                x2 = crate::memory::cstr_first_byte(p) as i32;
-                p = p.wrapping_add(1);
-            }
-            if !crate::memory::cstr_is_empty(p) {
-                x3 = utf_ptr2char(p);
-                p = p.wrapping_add(utfc_ptr2len(p) as usize);
-            }
-            if x2 != b':' as i32
-                || x3 == -1
-                || (!crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b',')
-            {
-                return E_INVARG.as_ptr();
-            }
-            if crate::memory::cstr_is_empty(p) {
-                break;
-            }
+        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        if !crate::memory::cstr_is_empty(p) {
+            x2 = crate::memory::cstr_first_byte(p) as i32;
             p = p.wrapping_add(1);
         }
-        ptr::null()
+        if !crate::memory::cstr_is_empty(p) {
+            x3 = utf_ptr2char(p);
+            p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        }
+        if x2 != b':' as i32
+            || x3 == -1
+            || (!crate::memory::cstr_is_empty(p) && crate::memory::cstr_first_byte(p) != b',')
+        {
+            return E_INVARG.as_ptr();
+        }
+        if crate::memory::cstr_is_empty(p) {
+            break;
+        }
+        p = p.wrapping_add(1);
     }
+    ptr::null()
 }
 
 /// Validate the 'mkspellmem' option.
@@ -2635,45 +2559,39 @@ pub fn expand_set_mouse(args: &mut Optexpand, matches: &mut Vec<std::ffi::CStrin
 
 /// Validate the 'mousescroll' option.
 pub fn validate_mousescroll(args: &mut Optset) -> *const c_char {
-    {
-        let v = opt_keyset(
-            args.os_newval.data.string().data,
-            K_OPT_MOUSESCROLL,
-            ptr::null_mut(),
-        )
-        .cast::<OptKeyDict_mousescroll>();
-        let has_hor =
-            (unsafe { (*v).is_set_mousescroll } & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
-        let has_ver =
-            (unsafe { (*v).is_set_mousescroll } & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
-        if has_hor || has_ver {
-            ptr::null()
-        } else {
-            E_INVARG.as_ptr()
-        }
+    let v = opt_keyset(
+        args.os_newval.data.string().data,
+        K_OPT_MOUSESCROLL,
+        ptr::null_mut(),
+    )
+    .cast::<OptKeyDict_mousescroll>();
+    let has_hor = (unsafe { (*v).is_set_mousescroll } & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
+    let has_ver = (unsafe { (*v).is_set_mousescroll } & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
+    if has_hor || has_ver {
+        ptr::null()
+    } else {
+        E_INVARG.as_ptr()
     }
 }
 
 /// Handle setting 'mousescroll'.
 pub fn did_set_mousescroll(_args: &mut Optset) -> *const c_char {
-    {
-        let v = opt_keyset(opt_vars().p_mousescroll, K_OPT_MOUSESCROLL, ptr::null_mut())
-            .cast::<OptKeyDict_mousescroll>();
-        let v = unsafe { &mut *v };
-        let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
-        let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
-        opt_vars().p_mousescroll_hor = if has_hor {
-            i64::from(v.hor as i32)
-        } else {
-            MOUSESCROLL_HOR_DFLT
-        };
-        opt_vars().p_mousescroll_vert = if has_ver {
-            i64::from(v.ver as i32)
-        } else {
-            MOUSESCROLL_VERT_DFLT
-        };
-        ptr::null()
-    }
+    let v = opt_keyset(opt_vars().p_mousescroll, K_OPT_MOUSESCROLL, ptr::null_mut())
+        .cast::<OptKeyDict_mousescroll>();
+    let v = unsafe { &mut *v };
+    let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
+    let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
+    opt_vars().p_mousescroll_hor = if has_hor {
+        i64::from(v.hor as i32)
+    } else {
+        MOUSESCROLL_HOR_DFLT
+    };
+    opt_vars().p_mousescroll_vert = if has_ver {
+        i64::from(v.ver as i32)
+    } else {
+        MOUSESCROLL_VERT_DFLT
+    };
+    ptr::null()
 }
 
 /// The 'rulerformat' option is changed.
@@ -2711,115 +2629,107 @@ pub fn validate_sessionoptions(args: &mut Optset) -> *const c_char {
 
 /// Validate the 'shada' option.
 pub fn validate_shada(args: &mut Optset) -> *const c_char {
-    {
-        let errbuf = args.os_errbuf;
-        let value = args.os_newval.data.string().data;
-        let mut marks: *mut c_char = ptr::null_mut();
+    let errbuf = args.os_errbuf;
+    let value = args.os_newval.data.string().data;
+    let mut marks: *mut c_char = ptr::null_mut();
 
-        let mut s = value;
-        while !crate::memory::cstr_is_empty(s) {
-            if crate::memory::cstr_first_byte(s) == b'\'' && marks.is_null() {
-                marks = s.wrapping_add(1);
-            }
-            if !crate::strings::vim_haschr(
-                c"!\"%'/:<@cfhnrs",
-                crate::memory::cstr_first_byte(s) as i32,
-            ) {
-                return illegal_char(errbuf, crate::memory::cstr_first_byte(s) as i32);
-            }
-            if crate::memory::cstr_first_byte(s) == b'n' {
-                break;
-            } else if crate::memory::cstr_first_byte(s) == b'r' {
-                loop {
-                    s = s.wrapping_add(1);
-                    if crate::memory::cstr_is_empty(s) || crate::memory::cstr_first_byte(s) == b','
-                    {
-                        break;
-                    }
-                }
-            } else if crate::memory::cstr_first_byte(s) == b'%' {
-                loop {
-                    s = s.wrapping_add(1);
-                    if !ascii_isdigit(crate::memory::cstr_first_char(s)) {
-                        break;
-                    }
-                }
-            } else if crate::memory::cstr_first_byte(s) == b'!'
-                || crate::memory::cstr_first_byte(s) == b'h'
-                || crate::memory::cstr_first_byte(s) == b'c'
-            {
+    let mut s = value;
+    while !crate::memory::cstr_is_empty(s) {
+        if crate::memory::cstr_first_byte(s) == b'\'' && marks.is_null() {
+            marks = s.wrapping_add(1);
+        }
+        if !crate::strings::vim_haschr(c"!\"%'/:<@cfhnrs", crate::memory::cstr_first_byte(s) as i32)
+        {
+            return illegal_char(errbuf, crate::memory::cstr_first_byte(s) as i32);
+        }
+        if crate::memory::cstr_first_byte(s) == b'n' {
+            break;
+        } else if crate::memory::cstr_first_byte(s) == b'r' {
+            loop {
                 s = s.wrapping_add(1);
-            } else {
-                loop {
-                    s = s.wrapping_add(1);
-                    if !ascii_isdigit(crate::memory::cstr_first_char(s)) {
-                        break;
-                    }
+                if crate::memory::cstr_is_empty(s) || crate::memory::cstr_first_byte(s) == b',' {
+                    break;
                 }
+            }
+        } else if crate::memory::cstr_first_byte(s) == b'%' {
+            loop {
+                s = s.wrapping_add(1);
+                if !ascii_isdigit(crate::memory::cstr_first_char(s)) {
+                    break;
+                }
+            }
+        } else if crate::memory::cstr_first_byte(s) == b'!'
+            || crate::memory::cstr_first_byte(s) == b'h'
+            || crate::memory::cstr_first_byte(s) == b'c'
+        {
+            s = s.wrapping_add(1);
+        } else {
+            loop {
+                s = s.wrapping_add(1);
+                if !ascii_isdigit(crate::memory::cstr_first_char(s)) {
+                    break;
+                }
+            }
 
-                if !ascii_isdigit(unsafe { *s.wrapping_sub(1) } as i32) {
-                    if errbuf.is_some() {
-                        return opt_error(
-                            errbuf,
-                            c"E526: Missing number after <%s>",
-                            transchar_byte(i32::from(unsafe { *s.wrapping_sub(1) } as u8)),
-                        );
-                    } else {
-                        return c"".as_ptr();
-                    }
-                }
-            }
-            if crate::memory::cstr_first_byte(s) == b',' {
-                s = s.wrapping_add(1);
-            } else if !crate::memory::cstr_is_empty(s) {
+            if !ascii_isdigit(unsafe { *s.wrapping_sub(1) } as i32) {
                 if errbuf.is_some() {
-                    return c"E527: Missing comma".as_ptr();
+                    return opt_error(
+                        errbuf,
+                        c"E526: Missing number after <%s>",
+                        transchar_byte(i32::from(unsafe { *s.wrapping_sub(1) } as u8)),
+                    );
                 } else {
                     return c"".as_ptr();
                 }
             }
         }
-        if !crate::memory::cstr_is_empty(value)
-            && (marks.is_null()
-                || (crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(marks)) as i32)
-                    < 0)
-        {
-            return c"E528: Must specify a ' value".as_ptr();
+        if crate::memory::cstr_first_byte(s) == b',' {
+            s = s.wrapping_add(1);
+        } else if !crate::memory::cstr_is_empty(s) {
+            if errbuf.is_some() {
+                return c"E527: Missing comma".as_ptr();
+            } else {
+                return c"".as_ptr();
+            }
         }
-        ptr::null()
     }
+    if !crate::memory::cstr_is_empty(value)
+        && (marks.is_null()
+            || (crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(marks)) as i32) < 0)
+    {
+        return c"E528: Must specify a ' value".as_ptr();
+    }
+    ptr::null()
 }
 
 /// Validate 'shellpipe'/'shellredir' option.
 pub fn validate_shellpipe_redir(args: &mut Optset) -> *const c_char {
-    {
-        let mut seen = false;
+    let mut seen = false;
 
-        let mut p = args.os_newval.data.string().data;
-        while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) != b'%' {
-                p = p.wrapping_add(1);
-                continue;
-            }
-            if crate::memory::cstr_byte_at(p, 1) == 0 {
-                return E_INVALID_FORMAT_STRING_SINGLE_PERCENT_S.as_ptr();
-            }
-            if crate::memory::cstr_byte_at(p, 1) == b'%' {
-                p = p.wrapping_add(2);
-                continue;
-            }
-            if crate::memory::cstr_byte_at(p, 1) == b's' {
-                if seen {
-                    return E_INVALID_FORMAT_STRING_SINGLE_PERCENT_S.as_ptr();
-                }
-                seen = true;
-                p = p.wrapping_add(2);
-                continue;
-            }
+    let mut p = args.os_newval.data.string().data;
+    while !crate::memory::cstr_is_empty(p) {
+        if crate::memory::cstr_first_byte(p) != b'%' {
+            p = p.wrapping_add(1);
+            continue;
+        }
+        if crate::memory::cstr_byte_at(p, 1) == 0 {
             return E_INVALID_FORMAT_STRING_SINGLE_PERCENT_S.as_ptr();
         }
-        ptr::null()
+        if crate::memory::cstr_byte_at(p, 1) == b'%' {
+            p = p.wrapping_add(2);
+            continue;
+        }
+        if crate::memory::cstr_byte_at(p, 1) == b's' {
+            if seen {
+                return E_INVALID_FORMAT_STRING_SINGLE_PERCENT_S.as_ptr();
+            }
+            seen = true;
+            p = p.wrapping_add(2);
+            continue;
+        }
+        return E_INVALID_FORMAT_STRING_SINGLE_PERCENT_S.as_ptr();
     }
+    ptr::null()
 }
 
 pub fn expand_set_shortmess(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
@@ -2833,16 +2743,14 @@ pub fn validate_shortmess(args: &mut Optset) -> *const c_char {
 
 /// Validate the 'showbreak' option.
 pub fn validate_showbreak(args: &mut Optset) -> *const c_char {
-    {
-        let mut s = args.os_newval.data.string().data;
-        while !crate::memory::cstr_is_empty(s) {
-            if ptr2cells(s) != 1 {
-                return E_SHOWBREAK_CONTAINS_UNPRINTABLE_OR_WIDE_CHARACTER.as_ptr();
-            }
-            s = s.wrapping_add(utfc_ptr2len(s) as usize);
+    let mut s = args.os_newval.data.string().data;
+    while !crate::memory::cstr_is_empty(s) {
+        if ptr2cells(s) != 1 {
+            return E_SHOWBREAK_CONTAINS_UNPRINTABLE_OR_WIDE_CHARACTER.as_ptr();
         }
-        ptr::null()
+        s = s.wrapping_add(utfc_ptr2len(s) as usize);
     }
+    ptr::null()
 }
 
 /// The 'showcmdloc' option is changed.
@@ -2861,62 +2769,58 @@ pub fn validate_signcolumn(args: &mut Optset) -> *const c_char {
 
 /// The 'signcolumn' option is changed.
 pub fn did_set_signcolumn(args: &mut Optset) -> *const c_char {
-    {
-        let win = args.os_win;
-        let varp = args.os_varp.cast::<*mut c_char>();
-        let oldval = args.os_oldval.data.string().data;
-        if !check_signcolumn(unsafe { *varp }, unsafe {
-            (if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_scl) {
-                win
-            } else {
-                ptr::null_mut()
-            })
-            .as_mut()
-        }) {
-            return E_INVARG.as_ptr();
-        }
-        if (crate::memory::cstr_first_byte(oldval) == b'n'
-            && crate::memory::cstr_byte_at(oldval, 1) == b'u')
-            || unsafe { (*win).w_minscwidth } == SCL_NUM
-        {
-            unsafe {
-                (*win).w_nrwidth_line_count = 0;
-            }
-        }
-        ptr::null()
+    let win = args.os_win;
+    let varp = args.os_varp.cast::<*mut c_char>();
+    let oldval = args.os_oldval.data.string().data;
+    if !check_signcolumn(unsafe { *varp }, unsafe {
+        (if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_scl) {
+            win
+        } else {
+            ptr::null_mut()
+        })
+        .as_mut()
+    }) {
+        return E_INVARG.as_ptr();
     }
+    if (crate::memory::cstr_first_byte(oldval) == b'n'
+        && crate::memory::cstr_byte_at(oldval, 1) == b'u')
+        || unsafe { (*win).w_minscwidth } == SCL_NUM
+    {
+        unsafe {
+            (*win).w_nrwidth_line_count = 0;
+        }
+    }
+    ptr::null()
 }
 
 /// Validate 'spellcapcheck' and prepare its regexp program.
 pub fn validate_spellcapcheck(args: &mut Optset) -> *const c_char {
-    {
-        let mut prog: Option<Box<Regprog>> = None;
-        let mut err = Error::new();
-        let save_emsg_silent = g_st().emsg_silent;
-        let save_suppress_errthrow = g_st().suppress_errthrow;
-        g_st().emsg_silent = 0;
-        g_st().suppress_errthrow = false;
+    let mut prog: Option<Box<Regprog>> = None;
+    let mut err = Error::new();
+    let save_emsg_silent = g_st().emsg_silent;
+    let save_suppress_errthrow = g_st().suppress_errthrow;
+    g_st().emsg_silent = 0;
+    g_st().suppress_errthrow = false;
 
-        let mut tstate = TryState::new();
-        try_enter(&mut tstate);
-        let mut errmsg = compile_cap_prog(args.os_newval.data.string().data, &mut prog);
-        try_leave(&tstate, &mut err);
+    let mut tstate = TryState::new();
+    try_enter(&mut tstate);
+    let mut errmsg = compile_cap_prog(args.os_newval.data.string().data, &mut prog);
+    try_leave(&tstate, &mut err);
 
-        g_st().emsg_silent = save_emsg_silent;
-        g_st().suppress_errthrow = save_suppress_errthrow;
-        args.os_prep = OptSetPrep::SpellcapProg(prog);
-        if err.err_type != ErrorType::ErrorTypeNone {
-            let msg = if crate::memory::cstr_prefix_bytes(err.msg_ptr(), 4) == &b"Vim:"[..4] {
-                err.msg_ptr().wrapping_add(4)
-            } else {
-                err.msg_ptr()
-            };
-            errmsg = opt_error(args.os_errbuf, c"%s", msg);
-            api_clear_error(&mut err);
-            return errmsg;
-        }
-        errmsg
+    g_st().emsg_silent = save_emsg_silent;
+    g_st().suppress_errthrow = save_suppress_errthrow;
+    args.os_prep = OptSetPrep::SpellcapProg(prog);
+    if err.err_type != ErrorType::ErrorTypeNone {
+        let msg = if crate::memory::cstr_prefix_bytes(err.msg_ptr(), 4) == &b"Vim:"[..4] {
+            err.msg_ptr().wrapping_add(4)
+        } else {
+            err.msg_ptr()
+        };
+        errmsg = opt_error(args.os_errbuf, c"%s", msg);
+        api_clear_error(&mut err);
+        return errmsg;
     }
+    errmsg
 }
 
 /// The 'spellcapcheck' option is changed.
@@ -3016,27 +2920,23 @@ pub fn did_set_spellsuggest(args: &mut Optset) -> *const c_char {
 }
 
 pub fn did_set_splitkeep(_args: &mut Optset) -> *const c_char {
-    {
-        for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_mut(&*tp) {
-                wp.w_prev_height = wp.w_height;
-                wp.w_prev_winrow = wp.w_winrow;
-            }
+    for tp in for_all_tabpages_ptr() {
+        for wp in for_all_windows_in_tab_mut(&*tp) {
+            wp.w_prev_height = wp.w_height;
+            wp.w_prev_winrow = wp.w_winrow;
         }
-        ptr::null()
     }
+    ptr::null()
 }
 
 pub fn validate_statustabline_rulerformat(args: &mut Optset) -> *const c_char {
+    let value = args.os_newval.data.string().data;
+    if crate::memory::cstr_first_byte(value) == b'%'
+        && crate::memory::cstr_byte_at(value, 1) == b'!'
     {
-        let value = args.os_newval.data.string().data;
-        if crate::memory::cstr_first_byte(value) == b'%'
-            && crate::memory::cstr_byte_at(value, 1) == b'!'
-        {
-            ptr::null()
-        } else {
-            check_stl_option(value, args.os_errbuf)
-        }
+        ptr::null()
+    } else {
+        check_stl_option(value, args.os_errbuf)
     }
 }
 
@@ -3130,20 +3030,18 @@ pub fn did_set_tagcase(args: &mut Optset) -> *const c_char {
 
 /// The 'titlestring' or the 'iconstring' option is changed.
 fn did_set_titleiconstring(args: &mut Optset, flagval: i32) -> *const c_char {
+    let varp = args.os_varp.cast::<*mut c_char>();
+
+    if crate::strings::vim_haschr(unsafe { *varp }, b'%' as i32)
+        && check_stl_option(unsafe { *varp }, None).is_null()
     {
-        let varp = args.os_varp.cast::<*mut c_char>();
-
-        if crate::strings::vim_haschr(unsafe { *varp }, b'%' as i32)
-            && check_stl_option(unsafe { *varp }, None).is_null()
-        {
-            g_st().stl_syntax |= flagval;
-        } else {
-            g_st().stl_syntax &= !flagval;
-        }
-        did_set_title();
-
-        ptr::null()
+        g_st().stl_syntax |= flagval;
+    } else {
+        g_st().stl_syntax &= !flagval;
     }
+    did_set_title();
+
+    ptr::null()
 }
 
 /// The 'titlestring' option is changed.
@@ -3153,64 +3051,58 @@ pub fn did_set_titlestring(args: &mut Optset) -> *const c_char {
 
 /// Validate 'vartabstop' or 'varsofttabstop' and prepare its tab widths.
 pub fn validate_vartabstop(args: &mut Optset) -> *const c_char {
-    {
-        let value = args.os_newval.data.string().data;
-        let mut cp = value;
-        while !crate::memory::cstr_is_empty(cp) {
-            if ascii_isdigit(crate::memory::cstr_first_char(cp)) {
-                cp = cp.wrapping_add(1);
-                continue;
-            }
-            if crate::memory::cstr_first_byte(cp) == b','
-                && (cp as usize) > (value as usize)
-                && unsafe { *cp.wrapping_sub(1) } != b',' as c_char
-            {
-                cp = cp.wrapping_add(1);
-                continue;
-            }
-            return E_INVARG.as_ptr();
+    let value = args.os_newval.data.string().data;
+    let mut cp = value;
+    while !crate::memory::cstr_is_empty(cp) {
+        if ascii_isdigit(crate::memory::cstr_first_char(cp)) {
+            cp = cp.wrapping_add(1);
+            continue;
         }
-
-        let mut array: Vec<Colnr> = Vec::new();
-        let errmsg = tabstop_set(value, &mut array, args.os_errbuf);
-        args.os_prep = OptSetPrep::Tabstop(array);
-        errmsg
+        if crate::memory::cstr_first_byte(cp) == b','
+            && (cp as usize) > (value as usize)
+            && unsafe { *cp.wrapping_sub(1) } != b',' as c_char
+        {
+            cp = cp.wrapping_add(1);
+            continue;
+        }
+        return E_INVARG.as_ptr();
     }
+
+    let mut array: Vec<Colnr> = Vec::new();
+    let errmsg = tabstop_set(value, &mut array, args.os_errbuf);
+    args.os_prep = OptSetPrep::Tabstop(array);
+    errmsg
 }
 
 /// The 'vartabstop' or 'varsofttabstop' option is changed.
 pub fn did_set_vartabstop(args: &mut Optset) -> *const c_char {
+    if ptr::eq(args.os_varp, (&raw mut opt_vars().p_vts).cast())
+        || ptr::eq(args.os_varp, (&raw mut opt_vars().p_vsts).cast())
     {
-        if ptr::eq(args.os_varp, (&raw mut opt_vars().p_vts).cast())
-            || ptr::eq(args.os_varp, (&raw mut opt_vars().p_vsts).cast())
-        {
-            return ptr::null();
-        }
-        let buf = args.os_buf;
-        let win = args.os_win;
-        let soft = args.os_idx == K_OPT_VARSOFTTABSTOP;
-        let array = if soft {
-            unsafe { &mut (*buf).b_p_vsts_array }
-        } else {
-            unsafe { &mut (*buf).b_p_vts_array }
-        };
-        *array = args.os_prep.take_tabstop();
-        if !soft && foldmethod_is_indent(unsafe { &mut *win }) {
-            fold_update_all(unsafe { &mut *win });
-        }
-        ptr::null()
+        return ptr::null();
     }
+    let buf = args.os_buf;
+    let win = args.os_win;
+    let soft = args.os_idx == K_OPT_VARSOFTTABSTOP;
+    let array = if soft {
+        unsafe { &mut (*buf).b_p_vsts_array }
+    } else {
+        unsafe { &mut (*buf).b_p_vts_array }
+    };
+    *array = args.os_prep.take_tabstop();
+    if !soft && foldmethod_is_indent(unsafe { &mut *win }) {
+        fold_update_all(unsafe { &mut *win });
+    }
+    ptr::null()
 }
 
 /// The 'verbosefile' option is changed.
 pub fn did_set_verbosefile(_args: &mut Optset) -> *const c_char {
-    {
-        verbose_stop();
-        if !crate::memory::cstr_is_empty(opt_vars().p_vfile) && !verbose_open() {
-            return E_INVARG.as_ptr();
-        }
-        ptr::null()
+    verbose_stop();
+    if !crate::memory::cstr_is_empty(opt_vars().p_vfile) && !verbose_open() {
+        return E_INVARG.as_ptr();
     }
+    ptr::null()
 }
 
 /// The 'virtualedit' option is changed.
@@ -3293,21 +3185,19 @@ pub fn validate_border(args: &mut Optset) -> *const c_char {
 
 /// The 'winhighlight' option is changed.
 pub fn did_set_winhighlight(args: &mut Optset) -> *const c_char {
-    {
-        let win = args.os_win;
-        let varp = args.os_varp.cast::<*mut c_char>();
-        if !parse_winhl_opt(unsafe { *varp }, unsafe {
-            (if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_winhl) {
-                win
-            } else {
-                ptr::null_mut()
-            })
-            .as_mut()
-        }) {
-            return E_INVARG.as_ptr();
-        }
-        ptr::null()
+    let win = args.os_win;
+    let varp = args.os_varp.cast::<*mut c_char>();
+    if !parse_winhl_opt(unsafe { *varp }, unsafe {
+        (if ptr::eq(varp, &raw mut (*win).w_onebuf_opt.wo_winhl) {
+            win
+        } else {
+            ptr::null_mut()
+        })
+        .as_mut()
+    }) {
+        return E_INVARG.as_ptr();
     }
+    ptr::null()
 }
 
 pub fn expand_set_winhighlight(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
@@ -4215,57 +4105,55 @@ pub fn get_listchars_name(_xp: &mut ExpandCtx, idx: i32) -> *mut c_char {
 
 /// Check all global and local values of 'listchars' and 'fillchars'.
 pub fn check_chars_options() -> *const c_char {
+    if !set_chars_option(
+        curwin_mut(),
+        opt_vars().p_lcs,
+        CharsOption::Listchars,
+        false,
+        None,
+    )
+    .is_null()
     {
-        if !set_chars_option(
-            curwin_mut(),
-            opt_vars().p_lcs,
-            CharsOption::Listchars,
-            false,
-            None,
-        )
-        .is_null()
-        {
-            return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
-        }
-        if !set_chars_option(
-            curwin_mut(),
-            opt_vars().p_fcs,
-            CharsOption::Fillchars,
-            false,
-            None,
-        )
-        .is_null()
-        {
-            return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
-        }
-        for tp in for_all_tabpages_ptr() {
-            for wp in for_all_windows_in_tab_ptr(&*tp) {
-                if !set_chars_option(
-                    wp,
-                    wp.w_onebuf_opt.wo_lcs,
-                    CharsOption::Listchars,
-                    true,
-                    None,
-                )
-                .is_null()
-                {
-                    return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
-                }
-                if !set_chars_option(
-                    wp,
-                    wp.w_onebuf_opt.wo_fcs,
-                    CharsOption::Fillchars,
-                    true,
-                    None,
-                )
-                .is_null()
-                {
-                    return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
-                }
+        return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
+    }
+    if !set_chars_option(
+        curwin_mut(),
+        opt_vars().p_fcs,
+        CharsOption::Fillchars,
+        false,
+        None,
+    )
+    .is_null()
+    {
+        return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
+    }
+    for tp in for_all_tabpages_ptr() {
+        for wp in for_all_windows_in_tab_ptr(&*tp) {
+            if !set_chars_option(
+                wp,
+                wp.w_onebuf_opt.wo_lcs,
+                CharsOption::Listchars,
+                true,
+                None,
+            )
+            .is_null()
+            {
+                return E_CONFLICTS_WITH_VALUE_OF_LISTCHARS.as_ptr();
+            }
+            if !set_chars_option(
+                wp,
+                wp.w_onebuf_opt.wo_fcs,
+                CharsOption::Fillchars,
+                true,
+                None,
+            )
+            .is_null()
+            {
+                return E_CONFLICTS_WITH_VALUE_OF_FILLCHARS.as_ptr();
             }
         }
-        ptr::null()
     }
+    ptr::null()
 }
 
 pub fn validate_previewpopup(args: &mut Optset) -> *const c_char {
