@@ -762,38 +762,33 @@ pub fn rpc_close(channel: &mut Channel) {
     }
 }
 
-pub fn rpc_close_event(mut channel: Option<&mut Channel>) {
-     {
-        assert!(channel.is_some());
+pub fn rpc_close_event(channel: Option<&mut Channel>) {
+    let channel = channel.unwrap();
+    channel_decref(channel);
 
-        channel_decref( channel.as_deref_mut().unwrap());
+    #[cfg(windows)]
+    let ui_closed = channel.rpc.has_ui;
 
+    remote_ui_disconnect(channel.id, &mut Error::new(), false);
+
+    let is_ui_client = g_st().ui_client_channel_id != 0 && channel.id == g_st().ui_client_channel_id;
+    if is_ui_client {
+        if !g_st().exiting && channel.streamtype != K_CHANNEL_STREAM_PROC {
+            ui_client_attach_to_restarted_server(false);
+        }
+        if g_st().ui_client_channel_id != channel.id {
+            return;
+        }
+        if channel.streamtype == K_CHANNEL_STREAM_PROC && g_st().ui_client_error_exit < 0 {
+            return;
+        }
+        exit_on_closed_chan(0);
+    } else if !channel.detach && !has_undetached_rpc_chan() {
+        exit_on_closed_chan(0);
+    } else {
         #[cfg(windows)]
-        let ui_closed = channel.as_deref_mut().unwrap().rpc.has_ui;
-
-        {
-            remote_ui_disconnect(channel.as_deref_mut().unwrap().id, &mut Error::new(), false);
-
-            let is_ui_client = g_st().ui_client_channel_id != 0 && channel.as_deref_mut().unwrap().id == g_st().ui_client_channel_id;
-            if is_ui_client {
-                if !g_st().exiting && channel.as_deref_mut().unwrap().streamtype != K_CHANNEL_STREAM_PROC {
-                    ui_client_attach_to_restarted_server(false);
-                }
-                if g_st().ui_client_channel_id != channel.as_deref_mut().unwrap().id {
-                    return;
-                }
-                if channel.as_deref_mut().unwrap().streamtype == K_CHANNEL_STREAM_PROC && g_st().ui_client_error_exit < 0 {
-                    return;
-                }
-                exit_on_closed_chan(0);
-            } else if !channel.unwrap().detach && !has_undetached_rpc_chan() {
-                exit_on_closed_chan(0);
-            } else {
-                #[cfg(windows)]
-                if ui_closed {
-                    os_detach_ui_console(channel.unwrap().streamtype == K_CHANNEL_STREAM_STDIO);
-                }
-            }
+        if ui_closed {
+            os_detach_ui_console(channel.streamtype == K_CHANNEL_STREAM_STDIO);
         }
     }
 }
